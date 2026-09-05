@@ -3,18 +3,30 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
-//! Batch image scanning and organization commands for the color-picker tool.
+//! Batch image scanning, analysis, and organization commands for the color-picker tool.
 
+use image::GenericImageView;
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
+use resvg::{tiny_skia, usvg};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 
 static CANCELLED_SCANS: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static CANCELLED_ANALYSES: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static SVG_FONT_DATABASE: Lazy<Arc<usvg::fontdb::Database>> = Lazy::new(|| {
+    let mut database = usvg::fontdb::Database::new();
+    database.load_system_fonts();
+    Arc::new(database)
+});
+
+const DEFAULT_BRIGHTNESS_THRESHOLDS: [f64; 4] = [0.2, 0.4, 0.6, 0.8];
 
 const SUPPORTED_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff", "avif",
@@ -47,6 +59,38 @@ pub struct ScanProgress {
     pub scanned_count: u64,
     pub discovered_count: u64,
     pub current_path: Option<String>,
+    pub done: bool,
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeImagesRequest {
+    pub task_id: String,
+    pub paths: Vec<String>,
+    pub thresholds: Option<Vec<f64>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeItemResult {
+    pub path: String,
+    pub status: String,
+    pub average_color: Option<String>,
+    pub luminance: Option<f64>,
+    pub color_family: Option<String>,
+    pub brightness_level: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeProgress {
+    pub task_id: String,
+    pub completed_count: usize,
+    pub total_count: usize,
+    pub active_names: Vec<String>,
+    pub batch_results: Vec<AnalyzeItemResult>,
     pub done: bool,
     pub cancelled: bool,
 }
@@ -276,6 +320,380 @@ pub fn color_picker_cancel_scan(scan_id: String) -> Result<(), String> {
     Ok(())
 }
 
+fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f64, f64, f64) {
+    let r_norm = r as f64 / 255.0;
+    let g_norm = g as f64 / 255.0;
+    let b_norm = b as f64 / 255.0;
+
+    let max = r_norm.max(g_norm).max(b_norm);
+    let min = r_norm.min(g_norm).min(b_norm);
+    let lightness = (max + min) / 2.0;
+
+    if (max - min).abs() < f64::EPSILON {
+        return (0.0, 0.0, lightness);
+    }
+
+    let delta = max - min;
+    let saturation = if lightness > 0.5 {
+        delta / (2.0 - max - min)
+    } else {
+        delta / (max + min)
+    };
+
+    let mut hue = if (max - r_norm).abs() < f64::EPSILON {
+        (g_norm - b_norm) / delta + if g_norm < b_norm { 6.0 } else { 0.0 }
+    } else if (max - g_norm).abs() < f64::EPSILON {
+        (b_norm - r_norm) / delta + 2.0
+    } else {
+        (r_norm - g_norm) / delta + 4.0
+    };
+    hue *= 60.0;
+
+    (hue, saturation, lightness)
+}
+
+pub fn classify_color(r: u8, g: u8, b: u8) -> &'static str {
+    let (hue, saturation, lightness) = rgb_to_hsl(r, g, b);
+    if saturation < 0.12 {
+        return "灰";
+    }
+    if !(15.0..345.0).contains(&hue) {
+        return "红";
+    }
+    if hue < 42.0 {
+        return if lightness < 0.35 { "棕" } else { "橙" };
+    }
+    if hue < 68.0 {
+        return "黄";
+    }
+    if hue < 165.0 {
+        return "绿";
+    }
+    if hue < 195.0 {
+        return "青";
+    }
+    if hue < 255.0 {
+        return "蓝";
+    }
+    if hue < 315.0 {
+        return "紫";
+    }
+    "粉"
+}
+
+pub fn calculate_luminance(r: u8, g: u8, b: u8) -> f64 {
+    let linear = |val: u8| -> f64 {
+        let norm = val as f64 / 255.0;
+        if norm <= 0.03928 {
+            norm / 12.92
+        } else {
+            ((norm + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    (0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)).clamp(0.0, 1.0)
+}
+
+pub fn classify_brightness(luminance: f64, thresholds: &[f64; 4]) -> &'static str {
+    let [dark, dim, medium, bright] = *thresholds;
+    if luminance < dark {
+        "极暗"
+    } else if luminance < dim {
+        "偏暗"
+    } else if luminance < medium {
+        "中等"
+    } else if luminance < bright {
+        "偏亮"
+    } else {
+        "明亮"
+    }
+}
+
+fn normalize_brightness_thresholds(values: Option<&[f64]>) -> [f64; 4] {
+    let values = values.unwrap_or(&DEFAULT_BRIGHTNESS_THRESHOLDS);
+    let mut normalized = Vec::with_capacity(4);
+
+    for (index, value) in values.iter().take(4).enumerate() {
+        let minimum = if index == 0 {
+            0.01
+        } else {
+            normalized[index - 1] + 0.01
+        };
+        let maximum = if index == 3 {
+            0.99
+        } else {
+            0.99 - (3 - index) as f64 * 0.01
+        };
+        let value = if value.is_finite() { *value } else { minimum };
+        normalized.push(value.clamp(minimum, maximum));
+    }
+
+    while normalized.len() < 4 {
+        let value = normalized
+            .last()
+            .map(|previous| (previous + 0.2).min(0.99))
+            .unwrap_or(0.2);
+        normalized.push(value);
+    }
+
+    normalized.try_into().expect("亮度阈值会被规范化为四个值")
+}
+
+fn average_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
+    let mut r_sum = 0.0;
+    let mut g_sum = 0.0;
+    let mut b_sum = 0.0;
+    let mut weight_sum = 0.0;
+
+    for pixel in pixels.chunks_exact(4) {
+        let alpha = pixel[3] as f64 / 255.0;
+        if alpha < 0.01 {
+            continue;
+        }
+        r_sum += pixel[0] as f64 * alpha;
+        g_sum += pixel[1] as f64 * alpha;
+        b_sum += pixel[2] as f64 * alpha;
+        weight_sum += alpha;
+    }
+
+    if weight_sum <= f64::EPSILON {
+        return Err("图片没有可见像素".to_string());
+    }
+
+    let r = (r_sum / weight_sum).round().clamp(0.0, 255.0) as u8;
+    let g = (g_sum / weight_sum).round().clamp(0.0, 255.0) as u8;
+    let b = (b_sum / weight_sum).round().clamp(0.0, 255.0) as u8;
+    let luminance = calculate_luminance(r, g, b);
+
+    Ok((r, g, b, luminance))
+}
+
+fn average_premultiplied_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
+    let mut r_sum = 0.0;
+    let mut g_sum = 0.0;
+    let mut b_sum = 0.0;
+    let mut weight_sum = 0.0;
+
+    for pixel in pixels.chunks_exact(4) {
+        let alpha = pixel[3] as f64 / 255.0;
+        if alpha < 0.01 {
+            continue;
+        }
+        // tiny-skia stores premultiplied RGBA values, so the RGB components already
+        // include alpha and must not be weighted by alpha a second time.
+        r_sum += pixel[0] as f64;
+        g_sum += pixel[1] as f64;
+        b_sum += pixel[2] as f64;
+        weight_sum += alpha;
+    }
+
+    if weight_sum <= f64::EPSILON {
+        return Err("图片没有可见像素".to_string());
+    }
+
+    let r = (r_sum / weight_sum).round().clamp(0.0, 255.0) as u8;
+    let g = (g_sum / weight_sum).round().clamp(0.0, 255.0) as u8;
+    let b = (b_sum / weight_sum).round().clamp(0.0, 255.0) as u8;
+    let luminance = calculate_luminance(r, g, b);
+
+    Ok((r, g, b, luminance))
+}
+
+fn sample_svg_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
+    let data = fs::read(path).map_err(|error| format!("读取 SVG 失败: {error}"))?;
+    let options = usvg::Options {
+        resources_dir: path.parent().map(Path::to_path_buf),
+        fontdb: Arc::clone(&SVG_FONT_DATABASE),
+        ..usvg::Options::default()
+    };
+    let tree = usvg::Tree::from_data(&data, &options)
+        .map_err(|error| format!("解析 SVG 失败: {error}"))?;
+    let size = tree.size();
+    let scale = (128.0 / size.width().max(size.height())).min(1.0);
+    let width = (size.width() * scale).round().max(1.0) as u32;
+    let height = (size.height() * scale).round().max(1.0) as u32;
+    let mut pixmap =
+        tiny_skia::Pixmap::new(width, height).ok_or_else(|| "无法创建 SVG 渲染画布".to_string())?;
+
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+
+    average_premultiplied_rgba_pixels(pixmap.data())
+}
+
+fn sample_image_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
+    if path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"))
+    {
+        return sample_svg_color(path);
+    }
+
+    let img = image::open(path).map_err(|error| format!("打开图片失败: {error}"))?;
+    let (width, height) = img.dimensions();
+    if width == 0 || height == 0 {
+        return Err("图片尺寸为 0".to_string());
+    }
+
+    // 若图片尺寸较大，进行快速缩放采样至 128x128。
+    let sampled = if width > 128 || height > 128 {
+        img.thumbnail(128, 128)
+    } else {
+        img
+    };
+    let rgba = sampled.to_rgba8();
+
+    average_rgba_pixels(rgba.as_raw())
+}
+
+#[tauri::command]
+pub fn color_picker_analyze_images(
+    app: AppHandle,
+    request: AnalyzeImagesRequest,
+) -> Result<Vec<AnalyzeItemResult>, String> {
+    let task_id = request.task_id.trim();
+    if task_id.is_empty() {
+        return Err("分析任务 ID 不能为空".to_string());
+    }
+
+    CANCELLED_ANALYSES
+        .lock()
+        .map_err(|_| "分析任务状态不可用".to_string())?
+        .remove(task_id);
+
+    let thresholds = normalize_brightness_thresholds(request.thresholds.as_deref());
+    let total = request.paths.len();
+    let completed = AtomicUsize::new(0);
+
+    // 发送初始进度
+    let _ = app.emit(
+        "color_picker_analyze_progress",
+        AnalyzeProgress {
+            task_id: task_id.to_string(),
+            completed_count: 0,
+            total_count: total,
+            active_names: Vec::new(),
+            batch_results: Vec::new(),
+            done: false,
+            cancelled: false,
+        },
+    );
+
+    // 利用 rayon 并行处理图片分析
+    let results: Vec<AnalyzeItemResult> = request
+        .paths
+        .par_iter()
+        .map(|path_str| {
+            let is_cancelled = CANCELLED_ANALYSES
+                .lock()
+                .map(|set| set.contains(task_id))
+                .unwrap_or(false);
+
+            if is_cancelled {
+                return AnalyzeItemResult {
+                    path: path_str.clone(),
+                    status: "failed".to_string(),
+                    average_color: None,
+                    luminance: None,
+                    color_family: None,
+                    brightness_level: None,
+                    error: Some("分析任务已取消".to_string()),
+                };
+            }
+
+            let path = Path::new(path_str);
+            let item_result = match sample_image_color(path) {
+                Ok((r, g, b, luminance)) => {
+                    let hex = format!("#{r:02x}{g:02x}{b:02x}");
+                    let color_family = classify_color(r, g, b).to_string();
+                    let brightness_level = classify_brightness(luminance, &thresholds).to_string();
+                    AnalyzeItemResult {
+                        path: path_str.clone(),
+                        status: "success".to_string(),
+                        average_color: Some(hex),
+                        luminance: Some(luminance),
+                        color_family: Some(color_family),
+                        brightness_level: Some(brightness_level),
+                        error: None,
+                    }
+                }
+                Err(err) => AnalyzeItemResult {
+                    path: path_str.clone(),
+                    status: "failed".to_string(),
+                    average_color: None,
+                    luminance: None,
+                    color_family: None,
+                    brightness_level: None,
+                    error: Some(err),
+                },
+            };
+
+            let current_completed = completed.fetch_add(1, Ordering::SeqCst) + 1;
+
+            // 每处理 5 张或到达最后一张时发出进度事件
+            if current_completed.is_multiple_of(5) || current_completed == total {
+                let file_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default()
+                    .to_string();
+
+                let _ = app.emit(
+                    "color_picker_analyze_progress",
+                    AnalyzeProgress {
+                        task_id: task_id.to_string(),
+                        completed_count: current_completed,
+                        total_count: total,
+                        active_names: vec![file_name],
+                        batch_results: vec![item_result.clone()],
+                        done: current_completed >= total,
+                        cancelled: false,
+                    },
+                );
+            }
+
+            item_result
+        })
+        .collect();
+
+    let was_cancelled = CANCELLED_ANALYSES
+        .lock()
+        .map(|set| set.contains(task_id))
+        .unwrap_or(false);
+
+    let _ = app.emit(
+        "color_picker_analyze_progress",
+        AnalyzeProgress {
+            task_id: task_id.to_string(),
+            completed_count: total,
+            total_count: total,
+            active_names: Vec::new(),
+            batch_results: Vec::new(),
+            done: true,
+            cancelled: was_cancelled,
+        },
+    );
+
+    CANCELLED_ANALYSES
+        .lock()
+        .map_err(|_| "分析任务状态不可用".to_string())?
+        .remove(task_id);
+
+    Ok(results)
+}
+
+#[tauri::command]
+pub fn color_picker_cancel_analyze(task_id: String) -> Result<(), String> {
+    CANCELLED_ANALYSES
+        .lock()
+        .map_err(|_| "分析任务状态不可用".to_string())?
+        .insert(task_id);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn color_picker_check_disk_space(
     target_directory: String,
@@ -492,6 +910,30 @@ mod tests {
         let (candidate, renamed) = unique_target(&original);
         assert!(renamed);
         assert_eq!(candidate.file_name().unwrap(), "cover (1).png");
+    }
+
+    #[test]
+    fn normalizes_range_slider_thresholds() {
+        assert_eq!(
+            normalize_brightness_thresholds(Some(&[0.2, 0.8])),
+            [0.2, 0.8, 0.99, 0.99]
+        );
+    }
+
+    #[test]
+    fn samples_svg_with_transparency_without_double_alpha_weighting() {
+        let directory = tempdir().unwrap();
+        let source = directory.path().join("transparent-red.svg");
+        fs::write(
+            &source,
+            r##"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#ff0000" fill-opacity="0.5"/></svg>"##,
+        )
+        .unwrap();
+
+        let (r, g, b, _) = sample_image_color(&source).unwrap();
+        assert!((r as i16 - 255).abs() <= 1);
+        assert_eq!(g, 0);
+        assert_eq!(b, 0);
     }
 
     #[test]

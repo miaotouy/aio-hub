@@ -112,6 +112,7 @@ aes-gcm = "0.10"
 rand = "0.8"
 
 font-kit = "0.14"
+resvg = "0.45.1"
 
 # OCR 依赖 + DPAPI 加密 + windows 10/11 特定功能
 [target.'cfg(windows)'.dependencies]

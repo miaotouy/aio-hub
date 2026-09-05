@@ -140,7 +140,7 @@ const emit = defineEmits<{
   (e: "clear-candidates"): void;
   (e: "update:directoryPath", value: string): void;
   (e: "update:maxDepth", value: number | null): void;
-  (e: "update:thresholds", value: [number, number, number, number]): void;
+  (e: "update:thresholds", value: number[]): void;
   (e: "start-analyze"): void;
   (e: "cancel-analyze"): void;
   (e: "drop", paths: string[]): void;

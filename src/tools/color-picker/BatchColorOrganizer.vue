@@ -8,14 +8,14 @@
       :thresholds="thresholds"
       :analyzing="analyzing"
       :completed="completed"
-      :total="items.length"
+      :total="analysisTotal"
       :eta-seconds="etaSeconds"
       @add-directory="addDirectory"
       @scan-path="scanDirectoryPath"
       @update:directory-path="directoryPath = $event"
       @clear-candidates="clearCandidates"
       @update:max-depth="maxDepth = $event"
-      @update:thresholds="thresholds = $event"
+      @update:thresholds="updateThresholds"
       @start-analyze="startAnalyze"
       @cancel-analyze="cancelAnalyze"
       @drop="handleDrop"
@@ -71,8 +71,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -85,6 +86,7 @@ import BatchResultToolbar from "./components/BatchResultToolbar.vue";
 import BatchResultGrid from "./components/BatchResultGrid.vue";
 import ArchiveDialog from "./components/ArchiveDialog.vue";
 import {
+  clampThresholds,
   DEFAULT_BRIGHTNESS_THRESHOLDS,
   makeCsv,
   matchesBatchFilter,
@@ -92,6 +94,9 @@ import {
   type BatchImageItem,
   type BatchArchiveMode,
   type BatchFilterState,
+  type BatchColorFamily,
+  type BatchBrightnessLevel,
+  type BatchAnalysisStatus,
 } from "./batchColorOrganizer";
 
 type ArchiveDetail = {
@@ -99,6 +104,26 @@ type ArchiveDetail = {
   targetPath?: string;
   status: string;
   error?: string;
+};
+
+type AnalyzeItemResult = {
+  path: string;
+  status: BatchAnalysisStatus;
+  averageColor?: string;
+  luminance?: number;
+  colorFamily?: BatchColorFamily;
+  brightnessLevel?: BatchBrightnessLevel;
+  error?: string;
+};
+
+type AnalyzeProgress = {
+  taskId: string;
+  completedCount: number;
+  totalCount: number;
+  activeNames: string[];
+  batchResults: AnalyzeItemResult[];
+  done: boolean;
+  cancelled: boolean;
 };
 
 const logger = createModuleLogger("color-picker/BatchColorOrganizer");
@@ -135,9 +160,13 @@ const filter = ref<BatchFilterState>({
 // 分析状态
 const analyzing = ref(false);
 const completed = ref(0);
+const analysisTotal = ref(0);
 const etaSeconds = ref<number | null>(null);
 const cancelled = ref(false);
 const activeNames = ref<string[]>([]);
+const currentTaskId = ref<string>("");
+let unlistenProgress: UnlistenFn | null = null;
+let analysisStartTime = 0;
 
 // 归档状态
 const archiveMode = ref<BatchArchiveMode>("copy");
@@ -199,6 +228,15 @@ const filteredCount = computed(() => {
   ).length;
 });
 
+function updateThresholds(values: number[]) {
+  thresholds.value = clampThresholds(values) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+}
+
 async function scanDirectoryPath() {
   const path = directoryPath.value.trim();
   if (path) await scan([path]);
@@ -253,115 +291,47 @@ async function startAnalyze() {
   cancelled.value = false;
   completed.value = 0;
   etaSeconds.value = null;
+  analysisStartTime = performance.now();
+  const taskId = crypto.randomUUID();
+  currentTaskId.value = taskId;
+
   items.value = candidates.value.map((c) => ({
     ...c,
     status: "pending",
     selected: false,
     thumbnailUrl: toThumbnailUrl(c.path),
   }));
-  await processAnalysis(items.value);
-  analyzing.value = false;
-}
+  analysisTotal.value = items.value.length;
 
-async function processAnalysis(queue: BatchImageItem[]) {
-  const startedAt = performance.now();
-  let nextIndex = 0;
-  const worker = async () => {
-    while (!cancelled.value && nextIndex < queue.length) {
-      const index = nextIndex++;
-      const item = queue[index];
-      await analyzeItem(item);
-      completed.value++;
-      const elapsed = (performance.now() - startedAt) / 1000;
-      const average = elapsed / completed.value;
-      etaSeconds.value = Math.max(
-        0,
-        Math.ceil(average * (queue.length - completed.value))
-      );
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
-}
-
-async function analyzeItem(item: BatchImageItem) {
-  item.status = "analyzing";
-  activeNames.value = [...new Set([...activeNames.value, item.fileName])].slice(
-    -4
-  );
   try {
-    const color = await sampleImage(item.path);
-    item.averageColor = color.hex;
-    item.luminance = color.luminance;
-    item.colorFamily = (await import("./batchColorOrganizer")).classifyColor(
-      color.r,
-      color.g,
-      color.b
+    const results = await invoke<AnalyzeItemResult[]>(
+      "color_picker_analyze_images",
+      {
+        request: {
+          taskId,
+          paths: items.value.map((i) => i.path),
+          thresholds: thresholds.value,
+        },
+      }
     );
-    item.brightnessLevel = (
-      await import("./batchColorOrganizer")
-    ).classifyBrightness(color.luminance, thresholds.value);
-    item.status = "success";
-    item.error = undefined;
-  } catch (error) {
-    item.status = "failed";
-    item.error = error instanceof Error ? error.message : "图片解码失败";
-    logger.warn("批量图片分析失败", { path: item.path, error: item.error });
-  } finally {
-    activeNames.value = activeNames.value.filter(
-      (name) => name !== item.fileName
-    );
-  }
-}
 
-async function sampleImage(path: string) {
-  const base64 = await invoke<string>("read_file_as_base64", { path });
-  const binary = atob(base64);
-  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-  const blob = new Blob([bytes]);
-  const url = URL.createObjectURL(blob);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("图片格式不支持或文件损坏"));
-      el.src = url;
+    const resultMap = new Map(results.map((r) => [r.path, r]));
+    items.value.forEach((item) => {
+      const res = resultMap.get(item.path);
+      if (res) {
+        item.status = res.status;
+        item.averageColor = res.averageColor;
+        item.luminance = res.luminance;
+        item.colorFamily = res.colorFamily;
+        item.brightnessLevel = res.brightnessLevel;
+        item.error = res.error;
+      }
     });
-    const canvas = document.createElement("canvas");
-    const scale = Math.min(128 / image.width, 128 / image.height, 1);
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("无法读取图片像素");
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    let r = 0,
-      g = 0,
-      b = 0,
-      weight = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      const alpha = data[i + 3] / 255;
-      if (alpha < 0.01) continue;
-      r += data[i] * alpha;
-      g += data[i + 1] * alpha;
-      b += data[i + 2] * alpha;
-      weight += alpha;
-    }
-    if (!weight) throw new Error("图片没有可见像素");
-    r = Math.round(r / weight);
-    g = Math.round(g / weight);
-    b = Math.round(b / weight);
-    const luminance = (
-      await import("./batchColorOrganizer")
-    ).calculateLuminance(r, g, b);
-    return {
-      r,
-      g,
-      b,
-      hex: `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`,
-      luminance,
-    };
+  } catch (error) {
+    errorHandler.error(error, "批量分析失败");
   } finally {
-    URL.revokeObjectURL(url);
+    analyzing.value = false;
+    activeNames.value = [];
   }
 }
 
@@ -369,18 +339,110 @@ async function retryFailed() {
   if (analyzing.value || failedItems.value.length === 0) return;
   analyzing.value = true;
   cancelled.value = false;
-  failedItems.value.forEach((item) => {
+  completed.value = 0;
+  etaSeconds.value = null;
+  analysisStartTime = performance.now();
+  const retryTargets = failedItems.value;
+  retryTargets.forEach((item) => {
     item.status = "pending";
     item.error = undefined;
   });
-  completed.value = items.value.filter((c) => c.status === "success").length;
-  await processAnalysis(failedItems.value);
-  analyzing.value = false;
+
+  analysisTotal.value = retryTargets.length;
+  const taskId = crypto.randomUUID();
+  currentTaskId.value = taskId;
+
+  try {
+    const results = await invoke<AnalyzeItemResult[]>(
+      "color_picker_analyze_images",
+      {
+        request: {
+          taskId,
+          paths: retryTargets.map((i) => i.path),
+          thresholds: thresholds.value,
+        },
+      }
+    );
+
+    const resultMap = new Map(results.map((r) => [r.path, r]));
+    items.value.forEach((item) => {
+      const res = resultMap.get(item.path);
+      if (res) {
+        item.status = res.status;
+        item.averageColor = res.averageColor;
+        item.luminance = res.luminance;
+        item.colorFamily = res.colorFamily;
+        item.brightnessLevel = res.brightnessLevel;
+        item.error = res.error;
+      }
+    });
+  } catch (error) {
+    errorHandler.error(error, "重试分析失败");
+  } finally {
+    analyzing.value = false;
+    activeNames.value = [];
+  }
 }
 
-function cancelAnalyze() {
+async function cancelAnalyze() {
   cancelled.value = true;
+  if (currentTaskId.value) {
+    try {
+      await invoke("color_picker_cancel_analyze", {
+        taskId: currentTaskId.value,
+      });
+    } catch (error) {
+      logger.warn("取消分析任务失败", { error });
+    }
+  }
 }
+
+onMounted(async () => {
+  unlistenProgress = await listen<AnalyzeProgress>(
+    "color_picker_analyze_progress",
+    (event) => {
+      if (event.payload.taskId !== currentTaskId.value) return;
+      completed.value = event.payload.completedCount;
+      analysisTotal.value = event.payload.totalCount;
+      if (event.payload.activeNames?.length) {
+        activeNames.value = event.payload.activeNames;
+      }
+
+      if (event.payload.completedCount > 0 && event.payload.totalCount > 0) {
+        const elapsed = (performance.now() - analysisStartTime) / 1000;
+        const avg = elapsed / event.payload.completedCount;
+        etaSeconds.value = Math.max(
+          0,
+          Math.ceil(
+            avg * (event.payload.totalCount - event.payload.completedCount)
+          )
+        );
+      }
+
+      if (event.payload.batchResults && event.payload.batchResults.length) {
+        const map = new Map(event.payload.batchResults.map((r) => [r.path, r]));
+        items.value.forEach((item) => {
+          const res = map.get(item.path);
+          if (res) {
+            item.status = res.status;
+            item.averageColor = res.averageColor;
+            item.luminance = res.luminance;
+            item.colorFamily = res.colorFamily;
+            item.brightnessLevel = res.brightnessLevel;
+            item.error = res.error;
+          }
+        });
+      }
+    }
+  );
+});
+
+onUnmounted(() => {
+  if (unlistenProgress) {
+    unlistenProgress();
+    unlistenProgress = null;
+  }
+});
 
 // 选择逻辑
 function toggleSelection(item: BatchImageItem) {

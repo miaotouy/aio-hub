@@ -475,6 +475,8 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         get_system_wallpapers,
         color_picker_scan_images,
         color_picker_cancel_scan,
+        color_picker_analyze_images,
+        color_picker_cancel_analyze,
         color_picker_check_disk_space,
         color_picker_check_symlink_permission,
         color_picker_organize_images,

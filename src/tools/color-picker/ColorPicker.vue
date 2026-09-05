@@ -625,20 +625,6 @@ onUnmounted(() => {
 }
 
 /* 响应式 */
-@media (max-width: 1200px) {
-  .color-picker-container {
-    flex-direction: column;
-  }
-
-  .left-panel {
-    height: 400px;
-  }
-
-  .right-panel {
-    flex: 1;
-  }
-}
-
 @media (max-width: 768px) {
   .color-picker-wrapper {
     padding: 12px;
@@ -650,6 +636,22 @@ onUnmounted(() => {
 
   .page-title {
     font-size: 16px;
+  }
+
+  .color-picker-container {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .left-panel {
+    min-height: 280px;
+    height: 320px;
+    flex-shrink: 0;
+  }
+
+  .right-panel {
+    flex: 1;
+    min-height: 400px;
   }
 }
 </style>

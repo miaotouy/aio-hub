@@ -653,10 +653,11 @@ watch(
   display: flex;
   gap: 16px;
   overflow: hidden;
+  min-height: 0;
 }
 
 .main-content {
-  flex: 3;
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -667,10 +668,16 @@ watch(
   border-radius: 8px;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 768px) {
   .batch-color-organizer {
     flex-direction: column;
     gap: 12px;
+    overflow-y: auto;
+  }
+
+  .main-content {
+    min-height: 480px;
+    flex: none;
   }
 }
 </style>

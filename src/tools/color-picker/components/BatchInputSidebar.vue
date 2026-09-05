@@ -155,6 +155,7 @@ const formatDuration = (seconds: number) => {
 <style scoped>
 .batch-input-sidebar {
   width: 280px;
+  flex-shrink: 0;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
@@ -164,6 +165,14 @@ const formatDuration = (seconds: number) => {
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+@media (max-width: 768px) {
+  .batch-input-sidebar {
+    width: 100%;
+    flex-shrink: 1;
+    overflow-y: visible;
+  }
 }
 
 .sidebar-section {

@@ -168,8 +168,6 @@
                   />
                 </el-tooltip>
               </div>
-
-              <div v-if="item.selected" class="selected-indicator">✓</div>
             </div>
           </div>
         </div>
@@ -383,10 +381,11 @@ watch(rows, () => {
 }
 
 .image-card.selected {
-  border-color: var(--el-color-primary);
-  background: rgba(
-    var(--el-color-primary-rgb),
-    calc(var(--card-opacity) * 0.08)
+  border-color: var(--el-color-success);
+  background: color-mix(
+    in srgb,
+    var(--el-color-success) calc(var(--card-opacity) * 8%),
+    transparent
   );
 }
 
@@ -470,15 +469,6 @@ watch(rows, () => {
   font-size: 11px;
   color: var(--el-text-color-secondary);
   font-family: monospace;
-}
-
-.selected-indicator {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  color: var(--el-color-primary);
-  font-weight: bold;
-  font-size: 16px;
 }
 
 .card-hover-actions {

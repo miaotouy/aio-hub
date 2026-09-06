@@ -21,6 +21,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+#[cfg(debug_assertions)]
 use std::path::Path;
 #[cfg(debug_assertions)]
 use std::path::PathBuf;

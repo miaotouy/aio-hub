@@ -167,3 +167,11 @@ sequenceDiagram
     User->>UI: 点击“导出 SRT”
     Composable->>UI: 生成并下载 .srt 文件
 ```
+
+## 5. 本地视频离线识别
+
+本地视频模式由 `useVideoSubtitleOcr` 驱动，使用应用环境设置中的 FFmpeg。用户在视频预览上选择归一化 ROI，前端将视频路径、时间范围、间隔和 ROI 传给 `extract_video_frames`。Rust 端在任务专属临时目录中使用 FFmpeg 抽取 JPEG 字幕帧，并发送 `video-ocr-frame` 与 `video-ocr-progress` 事件。
+
+前端按事件顺序读取帧、应用图像滤镜并调用共享 OCR Runner。字幕条目的 `startMs/endMs` 使用视频原始时间；相似文本合并规则与屏幕模式一致。完成或取消时清理临时帧，已经展示在时间轴中的 Object URL 继续保留到当前工具会话结束。
+
+视频任务取消会先 abort 当前 OCR，再调用现有 `kill_ffmpeg_process` 终止 FFmpeg。屏幕监控和视频 OCR 使用独立任务状态，切换模式不会复用或误取消另一种任务。

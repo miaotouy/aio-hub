@@ -38,6 +38,7 @@ AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、30+ �
 
 - **[智能体对话](./tools/llm-chat/index.md)** — AIO Hub 的旗舰功能，完整的 AI 对话工作区
 - **[智能 OCR](./tools/smart-ocr/index.md)** — 多引擎图片文字识别
+- **[字幕 OCR](./tools/realtime-subtitle-ocr/index.md)** — 屏幕实时识别与本地视频离线识别
 - **[FFmpeg 工具](./tools/ffmpeg-tools.md)** — 视频压缩、转码和批量处理
 - **[正则批量替换](./tools/regex-applier.md)** — 双引擎正则处理流水线
 - **[更多工具 →](./tools/index.md)**

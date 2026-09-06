@@ -141,3 +141,61 @@ export interface MonitorConfig {
   /** 在发送 OCR 前应用到截图的图像滤镜 */
   imageFilter: ImageFilterConfig;
 }
+
+/** OCR 工作模式 */
+export type SubtitleOcrMode = "screen" | "video";
+
+/** 视频画面中的归一化字幕区域 */
+export interface VideoRoi {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** 本地视频元数据 */
+export interface VideoSourceInfo {
+  path: string;
+  fileName: string;
+  durationMs: number;
+  width: number;
+  height: number;
+  fps?: number;
+}
+
+/** 视频 OCR 配置 */
+export interface VideoOcrConfig {
+  inputPath: string;
+  startMs: number;
+  endMs: number;
+  roi: VideoRoi;
+}
+
+export type VideoOcrStatus =
+  | "idle"
+  | "preparing"
+  | "running"
+  | "cancelling"
+  | "completed"
+  | "cancelled"
+  | "error";
+
+export type VideoOcrPhase =
+  "extracting" | "ocr" | "completed" | "cancelled" | "error";
+
+export interface VideoOcrProgress {
+  taskId?: string;
+  phase: VideoOcrPhase;
+  extracted: number;
+  ocrCompleted: number;
+  total: number;
+  currentTimeMs: number;
+  percent: number;
+  error?: string;
+}
+
+export interface VideoFramePayload {
+  taskId: string;
+  framePath: string;
+  timestampMs: number;
+}

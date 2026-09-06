@@ -689,3 +689,54 @@ export function useScreenMonitor() {
     downloadSrt,
   };
 }
+
+/**
+ * 提供给视频 OCR 等其他输入源复用的字幕时间轴控制器。
+ * 状态仍由本模块持有，确保主界面、设置面板和视频面板看到同一份结果。
+ */
+export function useSubtitleTimeline() {
+  function removeSubtitle(id: string) {
+    const target = subtitles.value.find((subtitle) => subtitle.id === id);
+    subtitles.value = subtitles.value.filter((subtitle) => subtitle.id !== id);
+    if (target?.frameUrl) revokeSubtitleFrameUrl(target.frameUrl);
+  }
+
+  function clearSubtitles() {
+    subtitles.value = [];
+    ocrQueue.value = [];
+    revokeAllSubtitleFrameUrls();
+  }
+
+  function updateSubtitleText(id: string, text: string) {
+    const target = subtitles.value.find((subtitle) => subtitle.id === id);
+    if (target) target.text = text;
+  }
+
+  function addSubtitle(entry: SubtitleEntry) {
+    subtitles.value.push(entry);
+  }
+
+  function replaceSubtitle(id: string, patch: Partial<SubtitleEntry>) {
+    const target = subtitles.value.find((subtitle) => subtitle.id === id);
+    if (target) Object.assign(target, patch);
+  }
+
+  function registerFrameUrl(url: string) {
+    registerSubtitleFrameUrl(url);
+  }
+
+  function clearFrameUrl(url: string) {
+    revokeSubtitleFrameUrl(url);
+  }
+
+  return {
+    subtitles,
+    addSubtitle,
+    replaceSubtitle,
+    clearSubtitles,
+    removeSubtitle,
+    updateSubtitleText,
+    registerFrameUrl,
+    clearFrameUrl,
+  };
+}

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -612,4 +612,295 @@ pub async fn process_media(
     } else {
         Err(format!("FFmpeg exited with code: {:?}", status.code()))
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoRoi {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoFramePayload {
+    pub task_id: String,
+    pub frame_path: String,
+    pub timestamp_ms: u64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoOcrProgressPayload {
+    pub task_id: String,
+    pub phase: String,
+    pub extracted: usize,
+    pub ocr_completed: usize,
+    pub total: usize,
+    pub current_time_ms: u64,
+    pub percent: f64,
+    pub error: Option<String>,
+}
+
+/// 按固定时间间隔从视频中提取字幕识别帧。
+///
+/// 帧在任务专属目录中生成，完成后通过事件逐个通知前端。任务仍登记在
+/// FFmpegState 中，因此现有 kill_ffmpeg_process 可安全取消长视频抽帧。
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn extract_video_frames(
+    state: State<'_, FFmpegState>,
+    window: tauri::Window,
+    task_id: String,
+    ffmpeg_path: String,
+    input_path: String,
+    output_dir: String,
+    start_ms: u64,
+    end_ms: u64,
+    interval_ms: u64,
+    roi: Option<VideoRoi>,
+) -> Result<usize, String> {
+    if !Path::new(&input_path).is_file() {
+        return Err(format!("视频文件不存在: {}", input_path));
+    }
+    if ffmpeg_path.trim().is_empty() {
+        return Err("未配置 FFmpeg 路径".to_string());
+    }
+    if end_ms < start_ms {
+        return Err("视频结束时间不能早于开始时间".to_string());
+    }
+    if interval_ms == 0 {
+        return Err("抽帧间隔必须大于 0".to_string());
+    }
+
+    std::fs::create_dir_all(&output_dir).map_err(|e| format!("无法创建视频帧临时目录: {}", e))?;
+
+    let start_seconds = start_ms as f64 / 1000.0;
+    let duration_seconds = (end_ms - start_ms) as f64 / 1000.0;
+    let expected_total = (((end_ms - start_ms) / interval_ms) + 1) as usize;
+    let fps_filter = format!("fps=1/{}", interval_ms as f64 / 1000.0);
+    let mut filters = vec![fps_filter];
+    if let Some(region) = roi {
+        let metadata = get_video_metadata(&ffmpeg_path, &input_path).await;
+        let video_width = metadata
+            .width
+            .filter(|value| *value > 0)
+            .ok_or_else(|| "无法读取视频宽度，无法应用字幕区域裁剪".to_string())?;
+        let video_height = metadata
+            .height
+            .filter(|value| *value > 0)
+            .ok_or_else(|| "无法读取视频高度，无法应用字幕区域裁剪".to_string())?;
+
+        // 先把归一化 ROI 转换为整数像素，再交给 FFmpeg，避免极小区域或奇数尺寸
+        // 生成 0 像素裁剪区域。宽高大于 1 时向下收缩到偶数，兼容更多编码器。
+        let x = region.x.clamp(0.0, 0.99);
+        let y = region.y.clamp(0.0, 0.99);
+        let width = region.width.max(0.01).min((1.0 - x).max(0.01));
+        let height = region.height.max(0.01).min((1.0 - y).max(0.01));
+        let crop_x = ((x * video_width as f64).floor() as u32).min(video_width - 1);
+        let crop_y = ((y * video_height as f64).floor() as u32).min(video_height - 1);
+        let available_width = video_width - crop_x;
+        let available_height = video_height - crop_y;
+        let mut crop_width = ((width * video_width as f64).floor() as u32)
+            .max(1)
+            .min(available_width);
+        let mut crop_height = ((height * video_height as f64).floor() as u32)
+            .max(1)
+            .min(available_height);
+        if crop_width > 1 && crop_width % 2 == 1 {
+            crop_width -= 1;
+        }
+        if crop_height > 1 && crop_height % 2 == 1 {
+            crop_height -= 1;
+        }
+        filters.push(format!(
+            "crop={}:{}:{}:{}",
+            crop_width, crop_height, crop_x, crop_y
+        ));
+    }
+
+    let frame_pattern = Path::new(&output_dir).join("frame_%08d.jpg");
+    let args = vec![
+        "-hide_banner".to_string(),
+        "-loglevel".to_string(),
+        "error".to_string(),
+        "-ss".to_string(),
+        format!("{:.3}", start_seconds),
+        "-i".to_string(),
+        input_path.clone(),
+        "-t".to_string(),
+        format!("{:.3}", (duration_seconds + 0.001).max(0.001)),
+        "-vf".to_string(),
+        filters.join(","),
+        "-vsync".to_string(),
+        "vfr".to_string(),
+        "-frames:v".to_string(),
+        expected_total.to_string(),
+        "-q:v".to_string(),
+        "2".to_string(),
+        "-y".to_string(),
+        frame_pattern.to_string_lossy().to_string(),
+    ];
+
+    let mut command = Command::new(&ffmpeg_path);
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+        .args(&args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("启动 FFmpeg 失败: {}", e))?;
+    let stderr = child.stderr.take();
+    let stderr_task = stderr.map(|mut stream| {
+        tokio::spawn(async move {
+            use tokio::io::AsyncReadExt;
+            let mut bytes = Vec::new();
+            let _ = stream.read_to_end(&mut bytes).await;
+            String::from_utf8_lossy(&bytes).to_string()
+        })
+    });
+
+    {
+        let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
+        processes.insert(task_id.clone(), child);
+    }
+
+    let mut emitted_frames = 0usize;
+    let mut discovered_frames = Vec::new();
+    let mut discovered_set = HashSet::new();
+    let mut frame_sizes: HashMap<std::path::PathBuf, u64> = HashMap::new();
+    let frame_task_id = task_id.clone();
+    let read_frames = || -> Result<Vec<std::path::PathBuf>, String> {
+        let mut frames: Vec<std::path::PathBuf> = std::fs::read_dir(&output_dir)
+            .map_err(|e| format!("读取视频帧目录失败: {}", e))?
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("jpg"))
+            .collect();
+        frames.sort();
+        Ok(frames)
+    };
+    let mut emit_available_frames = |frames: &[std::path::PathBuf]| {
+        while emitted_frames < frames.len() {
+            let index = emitted_frames;
+            let frame_path = &frames[index];
+            let size = match std::fs::metadata(frame_path) {
+                Ok(metadata) if metadata.len() > 0 => metadata.len(),
+                _ => break,
+            };
+            // FFmpeg 可能会先创建文件再持续写入，连续两次轮询大小不变后才通知前端。
+            let is_stable = frame_sizes.get(frame_path).copied() == Some(size);
+            frame_sizes.insert(frame_path.clone(), size);
+            if !is_stable {
+                break;
+            }
+            let timestamp_ms = (start_ms + index as u64 * interval_ms).min(end_ms);
+            let _ = window.emit(
+                "video-ocr-frame",
+                VideoFramePayload {
+                    task_id: frame_task_id.clone(),
+                    frame_path: frame_path.to_string_lossy().to_string(),
+                    timestamp_ms,
+                },
+            );
+            let _ = window.emit(
+                "video-ocr-progress",
+                VideoOcrProgressPayload {
+                    task_id: frame_task_id.clone(),
+                    phase: "extracting".to_string(),
+                    extracted: index + 1,
+                    ocr_completed: 0,
+                    total: expected_total,
+                    current_time_ms: timestamp_ms,
+                    percent: (index + 1) as f64 / expected_total as f64 * 100.0,
+                    error: None,
+                },
+            );
+            emitted_frames += 1;
+        }
+    };
+
+    let status = loop {
+        let frames = read_frames()?;
+        for frame_path in &frames {
+            if discovered_set.insert(frame_path.clone()) {
+                discovered_frames.push(frame_path.clone());
+            }
+        }
+        emit_available_frames(&discovered_frames);
+        let result = {
+            let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
+            let process = processes
+                .get_mut(&task_id)
+                .ok_or_else(|| "FFmpeg 任务已被取消".to_string())?;
+            process
+                .try_wait()
+                .map_err(|e| format!("读取 FFmpeg 状态失败: {}", e))?
+        };
+        if let Some(status) = result {
+            let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
+            processes.remove(&task_id);
+            break status;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    };
+
+    let stderr_text = if let Some(task) = stderr_task {
+        task.await.unwrap_or_default()
+    } else {
+        String::new()
+    };
+    if !status.success() {
+        let message: String = if stderr_text.trim().is_empty() {
+            format!("FFmpeg 抽帧失败，退出码: {:?}", status.code())
+        } else {
+            format!("FFmpeg 抽帧失败: {}", stderr_text.trim())
+        };
+        let _ = window.emit(
+            "video-ocr-progress",
+            VideoOcrProgressPayload {
+                task_id,
+                phase: "error".to_string(),
+                extracted: emitted_frames,
+                ocr_completed: 0,
+                total: emitted_frames,
+                current_time_ms: start_ms,
+                percent: 0.0,
+                error: Some(message.clone()),
+            },
+        );
+        return Err(message);
+    }
+
+    let frames = read_frames()?;
+    for frame_path in &frames {
+        if discovered_set.insert(frame_path.clone()) {
+            discovered_frames.push(frame_path.clone());
+        }
+    }
+    emit_available_frames(&discovered_frames);
+    let total = discovered_frames.len();
+
+    let _ = window.emit(
+        "video-ocr-progress",
+        VideoOcrProgressPayload {
+            task_id,
+            phase: "ocr".to_string(),
+            extracted: total,
+            ocr_completed: 0,
+            total,
+            current_time_ms: end_ms,
+            percent: if total == 0 { 100.0 } else { 0.0 },
+            error: None,
+        },
+    );
+    Ok(total)
 }

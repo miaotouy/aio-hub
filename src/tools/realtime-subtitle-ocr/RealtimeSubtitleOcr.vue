@@ -18,7 +18,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ElMessageBox } from "element-plus";
+import { ElButtonGroup, ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
@@ -28,6 +28,8 @@ import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import LivePreview from "./components/LivePreview.vue";
 import MonitorConfig from "./components/MonitorConfig.vue";
 import ActiveSubtitleEditor from "./components/ActiveSubtitleEditor.vue";
+import VideoSubtitlePanel from "./components/VideoSubtitlePanel.vue";
+import { useVideoSubtitleOcr } from "./composables/useVideoSubtitleOcr";
 import { useScreenMonitor } from "./composables/useScreenMonitor";
 
 /** 监控框可分离组件 ID（与 registry.ts 中 detachableComponents 的 key 一致） */
@@ -67,6 +69,8 @@ const {
   exportTextWithTime,
   downloadSrt,
 } = useScreenMonitor();
+const videoOcr = useVideoSubtitleOcr();
+const ocrMode = ref<"screen" | "video">("screen");
 
 const { sendToChat } = useSendToChat();
 
@@ -75,6 +79,23 @@ const isMonitorBoxDetached = computed(() =>
 );
 
 const statusText = computed(() => {
+  if (ocrMode.value === "video") {
+    switch (videoOcr.status.value) {
+      case "preparing":
+      case "running":
+        return videoOcr.progress.value.phase === "ocr" ? "识别中" : "抽帧中";
+      case "cancelling":
+        return "取消中";
+      case "completed":
+        return "已完成";
+      case "cancelled":
+        return "已取消";
+      case "error":
+        return "失败";
+      default:
+        return "空闲";
+    }
+  }
   switch (status.value) {
     case "running":
       return "监控中";
@@ -101,6 +122,18 @@ const activeSubtitle = computed(() => {
 
 function handleSelectSubtitle(id: string) {
   selectedId.value = id;
+}
+
+function switchMode(nextMode: "screen" | "video") {
+  if (nextMode === ocrMode.value) return;
+  if (isRunning.value) stop();
+  if (
+    nextMode === "screen" &&
+    ["preparing", "running", "cancelling"].includes(videoOcr.status.value)
+  ) {
+    void videoOcr.cancel();
+  }
+  ocrMode.value = nextMode;
 }
 
 /** 查找监控框分离窗口的 label */
@@ -263,7 +296,22 @@ onBeforeUnmount(() => {
     <div class="rsocr-toolbar">
       <div class="toolbar-left">
         <span class="toolbar-title">实时字幕 OCR</span>
-        <span class="status-badge" :class="status">
+        <el-button-group size="small">
+          <el-button
+            :type="ocrMode === 'screen' ? 'primary' : 'default'"
+            @click="switchMode('screen')"
+            >屏幕实时 OCR</el-button
+          >
+          <el-button
+            :type="ocrMode === 'video' ? 'primary' : 'default'"
+            @click="switchMode('video')"
+            >本地视频 OCR</el-button
+          >
+        </el-button-group>
+        <span
+          class="status-badge"
+          :class="ocrMode === 'video' ? videoOcr.status : status"
+        >
           {{ statusText }}
         </span>
       </div>
@@ -279,9 +327,10 @@ onBeforeUnmount(() => {
         class="rsocr-top-section"
         :style="{ height: topSectionHeight + 'px' }"
       >
-        <!-- 左上：实时截图预览与控制区 (70% 宽度) -->
+        <!-- 左上：实时截图预览或视频 OCR 控制区 -->
         <div class="preview-panel">
           <LivePreview
+            v-if="ocrMode === 'screen'"
             :last-frame-url="lastFrameUrl"
             :last-hash="lastHash"
             :latency="latency"
@@ -294,6 +343,7 @@ onBeforeUnmount(() => {
             @focus-monitor-box="focusMonitorBox"
             @toggle-monitor="toggleMonitor"
           />
+          <VideoSubtitlePanel v-else class="video-subtitle-panel" />
         </div>
 
         <!-- 右上：当前字幕大字编辑框 (30% 宽度) -->
@@ -406,7 +456,12 @@ onBeforeUnmount(() => {
 
 .preview-panel {
   flex: 7;
+  min-height: 0;
   min-width: 320px;
+  height: 100%;
+}
+
+.video-subtitle-panel {
   height: 100%;
 }
 

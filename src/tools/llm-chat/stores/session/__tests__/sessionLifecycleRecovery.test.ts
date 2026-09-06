@@ -6,11 +6,17 @@ import type {
   ChatSessionIndex,
 } from "../../../types/session";
 
-const { sessionManager, storage } = vi.hoisted(() => ({
+const { inputManager, sessionManager, storage } = vi.hoisted(() => ({
+  inputManager: {
+    clearDraft: vi.fn(),
+    clearAllDrafts: vi.fn(),
+  },
   sessionManager: {
     loadSessionsIndex: vi.fn(),
     updateMessageCount: vi.fn(),
     persistSession: vi.fn(),
+    persistSessions: vi.fn(),
+    deleteSession: vi.fn(),
     updateCurrentSessionId: vi.fn(),
   },
   storage: {
@@ -22,6 +28,9 @@ const { sessionManager, storage } = vi.hoisted(() => ({
 
 vi.mock("../../../composables/session/useSessionManager", () => ({
   useSessionManager: () => sessionManager,
+}));
+vi.mock("../../../composables/input/useChatInputManager", () => ({
+  useChatInputManager: () => inputManager,
 }));
 vi.mock("../../../composables/storage/useChatStorageSeparated", () => ({
   useChatStorageSeparated: () => storage,
@@ -92,6 +101,8 @@ function fullSession(id: string) {
 describe("sessionLifecycleManager 重启恢复", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionManager.updateCurrentSessionId.mockResolvedValue(undefined);
+    storage.loadSession.mockReset();
     storage.reconcileIndexIncrementally.mockResolvedValue(undefined);
     sessionManager.updateMessageCount.mockImplementation(
       (
@@ -177,5 +188,128 @@ describe("sessionLifecycleManager 重启恢复", () => {
     expect(loaded.nodes["other-interrupted"].status).toBe("error");
     expect(sessionManager.persistSession).toHaveBeenCalled();
     expect(state.currentSessionId.value).toBe("other");
+  });
+
+  it("等待当前会话选择落盘，避免重启恢复到旧会话", async () => {
+    const state = {
+      sessionIndexMap: ref(
+        new Map([
+          ["old", index("old")],
+          ["latest", index("latest")],
+        ])
+      ),
+      sessionDetailMap: ref(
+        new Map<string, ChatSessionDetail>([
+          ["old", fullSession("old").detail],
+          ["latest", fullSession("latest").detail],
+        ])
+      ),
+      currentSessionId: ref<string | null>("old"),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    let resolvePersist!: () => void;
+    sessionManager.updateCurrentSessionId.mockImplementation(
+      () => new Promise<void>((resolve) => (resolvePersist = resolve))
+    );
+    const lifecycle = createSessionLifecycleManager(state, {
+      runtime: { clearSessionRuntime: vi.fn() } as any,
+      history: { clearHistory: vi.fn(), cleanupSession: vi.fn() } as any,
+      executeOrProxy: async (_action, _params, localFn) => await localFn(),
+      fillMissingTokenMetadata: vi.fn(),
+      getActivePath: vi.fn(() => []),
+    });
+
+    const switchPromise = lifecycle.switchSession("latest");
+    await vi.waitFor(() =>
+      expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledWith(
+        "latest"
+      )
+    );
+    expect(state.currentSessionId.value).toBe("latest");
+    let settled = false;
+    void switchPromise.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolvePersist();
+    await switchPromise;
+    expect(settled).toBe(true);
+  });
+
+  it("删除最后一个当前会话时清除持久化的当前会话 ID", async () => {
+    const state = {
+      sessionIndexMap: ref(new Map([["only", index("only")]])),
+      sessionDetailMap: ref(
+        new Map<string, ChatSessionDetail>([["only", fullSession("only").detail]])
+      ),
+      currentSessionId: ref<string | null>("only"),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    sessionManager.deleteSession.mockResolvedValue({
+      newCurrentSessionId: null,
+    });
+
+    const lifecycle = createSessionLifecycleManager(state, {
+      runtime: { clearSessionRuntime: vi.fn() } as any,
+      history: { clearHistory: vi.fn(), cleanupSession: vi.fn() } as any,
+      executeOrProxy: async (_action, _params, localFn) => await localFn(),
+      fillMissingTokenMetadata: vi.fn(),
+      getActivePath: vi.fn(() => []),
+    });
+
+    await lifecycle.deleteSession("only");
+
+    expect(state.currentSessionId.value).toBeNull();
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledWith(null);
+  });
+
+  it("忽略较慢的旧切换请求，保留最后一次选择", async () => {
+    const state = {
+      sessionIndexMap: ref(
+        new Map([
+          ["first", index("first")],
+          ["second", index("second")],
+        ])
+      ),
+      sessionDetailMap: ref(
+        new Map<string, ChatSessionDetail>([
+          ["second", fullSession("second").detail],
+        ])
+      ),
+      currentSessionId: ref<string | null>(null),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    let resolveFirst!: (value: ReturnType<typeof fullSession>) => void;
+    storage.loadSession.mockImplementation(
+      (id: string) =>
+        new Promise((resolve) => {
+          if (id === "first") resolveFirst = resolve;
+        })
+    );
+    const lifecycle = createSessionLifecycleManager(state, {
+      runtime: { clearSessionRuntime: vi.fn() } as any,
+      history: { clearHistory: vi.fn(), cleanupSession: vi.fn() } as any,
+      executeOrProxy: async (_action, _params, localFn) => await localFn(),
+      fillMissingTokenMetadata: vi.fn(),
+      getActivePath: vi.fn(() => []),
+    });
+
+    const firstSwitch = lifecycle.switchSession("first");
+    const secondSwitch = lifecycle.switchSession("second");
+    await vi.waitFor(() => expect(resolveFirst).toBeDefined());
+    await secondSwitch;
+    resolveFirst(fullSession("first"));
+    await firstSwitch;
+
+    expect(state.currentSessionId.value).toBe("second");
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledWith(
+      "second"
+    );
+    expect(sessionManager.updateCurrentSessionId).not.toHaveBeenCalledWith(
+      "first"
+    );
   });
 });

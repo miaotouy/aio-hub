@@ -113,6 +113,7 @@ export function createSessionLifecycleManager(
   }
 
   let recoveryAbortController: AbortController | null = null;
+  let latestSwitchRequest = 0;
 
   function cancelIndexRecovery(): void {
     recoveryAbortController?.abort();
@@ -296,6 +297,7 @@ export function createSessionLifecycleManager(
           state.currentSessionId.value
         );
         managers.history.clearHistory(sessionId);
+        await sessionManager.updateCurrentSessionId(sessionId);
 
         return sessionId;
       }
@@ -323,6 +325,10 @@ export function createSessionLifecycleManager(
           state.currentSessionId.value = newCurrentSessionId;
           if (state.currentSessionId.value) {
             await switchSession(state.currentSessionId.value);
+          } else {
+            // Batch persistence intentionally does not update the active-session
+            // slot, so explicitly clear it when the deleted session was the last one.
+            await sessionManager.updateCurrentSessionId(null);
           }
         }
 
@@ -732,6 +738,7 @@ export function createSessionLifecycleManager(
   }
 
   async function switchSession(sessionId: string): Promise<void> {
+    const switchRequest = ++latestSwitchRequest;
     return managers.executeOrProxy(
       "switch-session",
       { sessionId },
@@ -786,9 +793,15 @@ export function createSessionLifecycleManager(
           }
         }
 
+        // A slower earlier click must not overwrite a newer session choice.
+        if (switchRequest !== latestSwitchRequest) return;
+
         state.currentSessionId.value = sessionId;
         const sessionManager = getSessionManager();
-        sessionManager.updateCurrentSessionId(sessionId);
+        // Await the selection commit. Content saves are intentionally allowed
+        // to run independently, but the last selected session must be durable
+        // before this operation reports success to the UI.
+        await sessionManager.updateCurrentSessionId(sessionId);
         logger.info("切换会话", { sessionId, sessionName: index.name });
       }
     );
@@ -1046,8 +1059,11 @@ export function createSessionLifecycleManager(
       state.currentSessionId.value = null;
       inputManager.clearAllDrafts();
       await storage.saveSessions([], null, state.favoriteFolders.value);
-      await clearRetrievalCache();
+      // saveSessions persists session/index contents only; keep the selection
+      // slot in sync when all sessions have been removed.
       const sessionManager = getSessionManager();
+      await sessionManager.updateCurrentSessionId(null);
+      await clearRetrievalCache();
       sessionManager.clearAllSessions();
       logger.info("清空所有会话", { count: sessionIds.length });
     });

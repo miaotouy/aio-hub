@@ -309,8 +309,8 @@ const handleNewSession = (data: { agentId: string; name?: string }) => {
 };
 
 // 处理切换会话
-const handleSwitchSession = (sessionId: string) => {
-  store.switchSession(sessionId);
+const handleSwitchSession = async (sessionId: string) => {
+  await store.switchSession(sessionId);
 };
 
 // 处理删除会话

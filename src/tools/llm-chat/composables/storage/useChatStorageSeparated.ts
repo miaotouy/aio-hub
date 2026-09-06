@@ -389,11 +389,13 @@ export function useChatStorageSeparated() {
 
   async function saveSessions(
     sessions: Array<{ index: ChatSessionIndex; detail?: ChatSessionDetail }>,
-    currentSessionId: string | null,
+    _currentSessionId: string | null,
     favoriteFolders: FavoriteFolder[] = []
   ): Promise<void> {
     const index = await ensureIndex();
-    index.currentSessionId = currentSessionId;
+    // Session content/index metadata saves can finish after a newer session
+    // switch. The selection has its own serialized write path below and must
+    // never be overwritten by an older batch snapshot.
     index.favoriteFolders = favoriteFolders;
     index.sessions = sessions.map(({ index: item, detail }) =>
       createIndexItem({ ...item, ...(detail || {}) })

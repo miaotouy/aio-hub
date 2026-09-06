@@ -447,7 +447,7 @@ function handleToolContextCommand(command: string, toolPath: string): void {
 }
 
 .tool-card.card-classic:hover {
-  transform: translateY(-5px);
+  /* transform: translateY(-5px); */
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
   border-color: var(--primary-color);
 }
@@ -462,7 +462,7 @@ function handleToolContextCommand(command: string, toolPath: string): void {
 }
 
 .tool-card.card-compact:hover {
-  transform: translateY(-3px);
+  /* transform: translateY(-3px); */
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
   border-color: var(--primary-color);
 }
@@ -476,7 +476,7 @@ function handleToolContextCommand(command: string, toolPath: string): void {
 }
 
 .tool-card.card-large:hover {
-  transform: translateY(-8px);
+  /* transform: translateY(-8px); */
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
   border-color: var(--primary-color);
 }
@@ -491,7 +491,7 @@ function handleToolContextCommand(command: string, toolPath: string): void {
 }
 
 .tool-card.card-list:hover {
-  transform: translateX(4px);
+  /* transform: translateX(4px); */
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
   border-color: var(--primary-color);
 }

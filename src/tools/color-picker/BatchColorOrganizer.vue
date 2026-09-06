@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -89,6 +89,7 @@ import BatchResultToolbar from "./components/BatchResultToolbar.vue";
 import BatchResultGrid from "./components/BatchResultGrid.vue";
 import ArchiveDialog from "./components/ArchiveDialog.vue";
 import {
+  batchOrganizerConfigManager,
   clampThresholds,
   DEFAULT_BRIGHTNESS_THRESHOLDS,
   makeCsv,
@@ -178,6 +179,7 @@ let analysisStartTime = 0;
 const archiveMode = ref<BatchArchiveMode>("copy");
 const archiveStructure = ref<BatchArchiveStructure>("color_and_brightness");
 const targetDirectory = ref("");
+const isConfigLoaded = ref(false);
 const organizing = ref(false);
 const archiveDialogVisible = ref(false);
 const preflight = ref<{
@@ -659,6 +661,58 @@ watch(
   () => void runPreflight(),
   { deep: true }
 );
+
+// 配置持久化管理
+async function loadSavedConfig() {
+  try {
+    const config = await batchOrganizerConfigManager.load();
+    directoryPath.value = config.directoryPath ?? "";
+    maxDepth.value = config.maxDepth ?? 3;
+    if (config.thresholds && Array.isArray(config.thresholds)) {
+      thresholds.value = clampThresholds(config.thresholds) as [
+        number,
+        number,
+        number,
+        number,
+      ];
+    }
+    archiveMode.value = config.archiveMode ?? "copy";
+    archiveStructure.value = config.archiveStructure ?? "color_and_brightness";
+    targetDirectory.value = config.targetDirectory ?? "";
+  } catch (error) {
+    logger.warn("加载批量整理配置失败", { error });
+  } finally {
+    isConfigLoaded.value = true;
+  }
+}
+
+watch(
+  [
+    directoryPath,
+    maxDepth,
+    thresholds,
+    archiveMode,
+    archiveStructure,
+    targetDirectory,
+  ],
+  () => {
+    if (!isConfigLoaded.value) return;
+    batchOrganizerConfigManager.saveDebounced({
+      version: "1.0.0",
+      directoryPath: directoryPath.value,
+      maxDepth: maxDepth.value,
+      thresholds: thresholds.value,
+      archiveMode: archiveMode.value,
+      archiveStructure: archiveStructure.value,
+      targetDirectory: targetDirectory.value,
+    });
+  },
+  { deep: true }
+);
+
+onMounted(() => {
+  void loadSavedConfig();
+});
 </script>
 
 <style scoped>

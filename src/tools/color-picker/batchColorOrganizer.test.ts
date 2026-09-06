@@ -6,6 +6,8 @@ import {
   classifyColor,
   matchesBatchFilter,
   BATCH_ARCHIVE_STRUCTURE_OPTIONS,
+  createDefaultBatchOrganizerConfig,
+  batchOrganizerConfigManager,
   type BatchImageItem,
 } from "./batchColorOrganizer";
 
@@ -71,5 +73,18 @@ describe("batch color organizer rules", () => {
     expect(values).toContain("brightness_only");
     expect(values).toContain("color_only");
     expect(values).toContain("brightness_and_color");
+  });
+
+  it("provides valid default config and config manager for batch color organizer", async () => {
+    const defaultConfig = createDefaultBatchOrganizerConfig();
+    expect(defaultConfig.version).toBe("1.0.0");
+    expect(defaultConfig.maxDepth).toBe(3);
+    expect(defaultConfig.thresholds).toEqual([0.2, 0.4, 0.6, 0.8]);
+    expect(defaultConfig.archiveMode).toBe("copy");
+    expect(defaultConfig.archiveStructure).toBe("color_and_brightness");
+
+    const loaded = await batchOrganizerConfigManager.load();
+    expect(loaded).toBeDefined();
+    expect(loaded.version).toBe("1.0.0");
   });
 });

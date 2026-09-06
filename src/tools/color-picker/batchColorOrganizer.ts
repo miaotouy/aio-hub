@@ -1,3 +1,4 @@
+import { createConfigManager } from "@/utils/configManager";
 import { computed, type Ref } from "vue";
 
 export const BATCH_COLOR_FAMILIES = [
@@ -103,6 +104,49 @@ export interface BatchOrganizeRequestItem {
   colorFamily: string;
   brightnessLevel: string;
 }
+
+export interface BatchColorOrganizerConfig {
+  version: string;
+  directoryPath: string;
+  maxDepth: number | null;
+  thresholds: [number, number, number, number];
+  archiveMode: BatchArchiveMode;
+  archiveStructure: BatchArchiveStructure;
+  targetDirectory: string;
+}
+
+export function createDefaultBatchOrganizerConfig(): BatchColorOrganizerConfig {
+  return {
+    version: "1.0.0",
+    directoryPath: "",
+    maxDepth: 3,
+    thresholds: [...DEFAULT_BRIGHTNESS_THRESHOLDS],
+    archiveMode: "copy",
+    archiveStructure: "color_and_brightness",
+    targetDirectory: "",
+  };
+}
+
+export const batchOrganizerConfigManager =
+  createConfigManager<BatchColorOrganizerConfig>({
+    moduleName: "color-picker",
+    fileName: "batch-organizer-config.json",
+    version: "1.0.0",
+    debounceDelay: 500,
+    createDefault: createDefaultBatchOrganizerConfig,
+    mergeConfig: (defaultConfig, loadedConfig) => ({
+      ...defaultConfig,
+      ...loadedConfig,
+      thresholds: Array.isArray(loadedConfig.thresholds)
+        ? (clampThresholds(loadedConfig.thresholds) as [
+            number,
+            number,
+            number,
+            number,
+          ])
+        : defaultConfig.thresholds,
+    }),
+  });
 
 export const clampThresholds = (thresholds: number[]): number[] => {
   const result: number[] = [];

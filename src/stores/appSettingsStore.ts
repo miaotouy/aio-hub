@@ -15,6 +15,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { debounce } from "lodash-es";
+import { setAppTimezoneProvider } from "@/utils/appTimezone";
 import {
   appSettingsManager,
   defaultAppSettings,
@@ -143,4 +144,10 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     enableFancyDoodle,
     effectiveThemeColor,
   };
+});
+
+// 由时区工具按需读取，避免 time.ts 静态依赖本 Store 造成模块循环。
+setAppTimezoneProvider(() => {
+  const timezone = useAppSettingsStore().settings.timezone;
+  return timezone && timezone !== "auto" ? timezone : undefined;
 });

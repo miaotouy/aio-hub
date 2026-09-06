@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useAppSettingsStore } from "@/stores/appSettingsStore";
+import { getAppTimezone as resolveAppTimezone } from "./appTimezone";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -21,17 +21,7 @@ import { formatInTimeZone } from "date-fns-tz";
  * @returns 时区字符串，如 'Asia/Shanghai'
  */
 export function getAppTimezone(): string {
-  try {
-    const appSettingsStore = useAppSettingsStore();
-    const settings = appSettingsStore.settings;
-    if (settings.timezone && settings.timezone !== "auto") {
-      return settings.timezone;
-    }
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    // 如果设置尚未加载，返回系统时区
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  }
+  return resolveAppTimezone();
 }
 
 /**

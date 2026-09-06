@@ -37,7 +37,7 @@
         @export-csv="exportCsv"
         @export-json="exportJson"
         @retry-failed="retryFailed"
-        @start-archive="archiveDialogVisible = true"
+        @start-archive="startArchive"
       />
 
       <!-- 结果网格 -->
@@ -530,6 +530,15 @@ function toThumbnailUrl(path: string): string | undefined {
 
 function previewItem(item: BatchImageItem) {
   void showImageViewer(item.path);
+}
+
+function startArchive() {
+  if (selectedItems.value.length === 0) {
+    selectFiltered();
+  }
+  if (selectedItems.value.length > 0) {
+    archiveDialogVisible.value = true;
+  }
 }
 
 // 归档逻辑

@@ -8,12 +8,23 @@
         </p> -->
       </div>
       <div class="toolbar-summary">
-        <el-tag v-if="filteredCount < totalCount" type="info" size="small"
-          >筛选 {{ filteredCount }} / {{ totalCount }} 张</el-tag
-        ><el-tag v-else size="small">共 {{ totalCount }} 张</el-tag
-        ><el-tag v-if="selectedCount > 0" type="primary" size="small"
-          >已选 {{ selectedCount }} 张</el-tag
+        <div class="stat-item" :class="{ 'is-selected': selectedCount > 0 }">
+          <span class="stat-label">已选</span>
+          <span class="stat-value">{{ selectedCount }}</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div
+          class="stat-item"
+          :class="{ 'is-highlight': filteredCount < totalCount }"
         >
+          <span class="stat-label">筛选</span>
+          <span class="stat-value">{{ filteredCount }}</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-label">总量</span>
+          <span class="stat-value">{{ totalCount }}</span>
+        </div>
       </div>
     </div>
     <div class="toolbar-control-row">
@@ -42,7 +53,7 @@
         ><el-button
           type="primary"
           size="small"
-          :disabled="selectedCount === 0"
+          :disabled="selectedCount === 0 && filteredCount === 0"
           @click="$emit('start-archive')"
           ><el-icon style="margin-right: 4px"><FolderOpened /></el-icon
           >开始归档</el-button
@@ -437,15 +448,51 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
-.toolbar-summary,
+.toolbar-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(var(--el-fill-color-light-rgb, 120, 120, 120), 0.12);
+  border: 1px solid var(--border-color);
+  user-select: none;
+}
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+.stat-item.is-highlight .stat-value {
+  color: var(--el-color-warning, #e6a23c);
+}
+.stat-item.is-selected .stat-value {
+  color: var(--el-color-primary, #409eff);
+}
+.stat-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--border-color);
+  opacity: 0.8;
+}
 .toolbar-selection {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   min-width: 0;
-}
-.toolbar-selection {
   flex: 1;
 }
 .filter-guide-trigger {

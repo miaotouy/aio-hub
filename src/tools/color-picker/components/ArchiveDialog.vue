@@ -54,6 +54,30 @@
           </div>
 
           <div class="config-item">
+            <label class="config-label">分类结构</label>
+            <el-radio-group
+              :model-value="archiveStructure"
+              size="default"
+              class="archive-structure-group"
+              @update:model-value="$emit('update:archiveStructure', $event)"
+            >
+              <el-radio-button
+                v-for="opt in BATCH_ARCHIVE_STRUCTURE_OPTIONS"
+                :key="opt.value"
+                :value="opt.value"
+              >
+                {{ opt.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <div class="config-tip">
+              {{ currentStructureDescription }}
+              <span class="preview-path"
+                >示例：{{ currentStructureExample }}</span
+              >
+            </div>
+          </div>
+
+          <div class="config-item">
             <label class="config-label">归档方式</label>
             <el-radio-group
               :model-value="archiveMode"
@@ -77,7 +101,7 @@
             <div class="config-tip">
               {{
                 archiveMode === "copy"
-                  ? "复制：在目标目录下按色系和亮度创建文件夹，并将原图复制过去（占用额外磁盘空间）。"
+                  ? "复制：在目标目录下按选定的分类结构创建文件夹，并将原图复制过去（占用额外磁盘空间）。"
                   : "链接：在目标目录下创建指向原图的符号链接（不占用额外空间，但需要管理员权限）。"
               }}
             </div>
@@ -149,7 +173,7 @@
             ><CircleCheckFilled
           /></el-icon>
           <h3 class="result-title">归档处理完成</h3>
-          <p class="result-subtitle">图片已成功按色系与亮度整理至目标目录</p>
+          <p class="result-subtitle">图片已成功按所选分类结构整理至目标目录</p>
         </div>
 
         <div class="result-stats-grid">
@@ -258,7 +282,11 @@ import {
   CircleCheckFilled,
   List,
 } from "@element-plus/icons-vue";
-import type { BatchArchiveMode } from "../batchColorOrganizer";
+import {
+  BATCH_ARCHIVE_STRUCTURE_OPTIONS,
+  type BatchArchiveMode,
+  type BatchArchiveStructure,
+} from "../batchColorOrganizer";
 
 interface ArchiveDetail {
   sourcePath: string;
@@ -289,17 +317,21 @@ interface Props {
   selectedCount: number;
   targetDirectory: string;
   archiveMode: BatchArchiveMode;
+  archiveStructure?: BatchArchiveStructure;
   preflight: PreflightState;
   organizing: boolean;
   archiveResult: ArchiveResult | null;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  archiveStructure: "color_and_brightness",
+});
 
 const emit = defineEmits<{
   (e: "update:visible", value: boolean): void;
   (e: "update:targetDirectory", value: string): void;
   (e: "update:archiveMode", value: BatchArchiveMode): void;
+  (e: "update:archiveStructure", value: BatchArchiveStructure): void;
   (e: "choose-directory"): void;
   (e: "organize"): void;
   (e: "open-directory"): void;
@@ -307,6 +339,22 @@ const emit = defineEmits<{
 }>();
 
 const showDetails = ref(false);
+
+const currentStructureOption = computed(() => {
+  return (
+    BATCH_ARCHIVE_STRUCTURE_OPTIONS.find(
+      (opt) => opt.value === props.archiveStructure
+    ) ?? BATCH_ARCHIVE_STRUCTURE_OPTIONS[0]
+  );
+});
+
+const currentStructureDescription = computed(
+  () => currentStructureOption.value.description
+);
+
+const currentStructureExample = computed(
+  () => currentStructureOption.value.example
+);
 
 const hasPreflightResult = computed(() => {
   return props.archiveMode === "copy"
@@ -430,21 +478,33 @@ function handleCloseResult() {
   color: var(--text-color);
 }
 
-.archive-mode-group {
+.archive-mode-group,
+.archive-structure-group {
   width: 100%;
   display: flex;
+  flex-wrap: wrap;
 }
 
-.archive-mode-group :deep(.el-radio-button) {
+.archive-mode-group :deep(.el-radio-button),
+.archive-structure-group :deep(.el-radio-button) {
   flex: 1;
+  min-width: 120px;
 }
 
-.archive-mode-group :deep(.el-radio-button__inner) {
+.archive-mode-group :deep(.el-radio-button__inner),
+.archive-structure-group :deep(.el-radio-button__inner) {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 20px;
+  padding: 10px 14px;
+}
+
+.preview-path {
+  display: block;
+  margin-top: 4px;
+  font-family: monospace;
+  color: var(--el-color-primary);
 }
 
 .radio-content {

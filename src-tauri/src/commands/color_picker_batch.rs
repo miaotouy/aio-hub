@@ -136,6 +136,7 @@ pub struct OrganizeImagesRequest {
     pub items: Vec<OrganizeItem>,
     pub target_directory: String,
     pub mode: String,
+    pub structure: Option<String>,
     pub check_source_exists: Option<bool>,
 }
 
@@ -795,6 +796,16 @@ pub fn color_picker_organize_images(
     if request.mode != "copy" && request.mode != "symlink" {
         return Err("不支持的归档模式".to_string());
     }
+    let structure = request
+        .structure
+        .as_deref()
+        .unwrap_or("color_and_brightness");
+    if !matches!(
+        structure,
+        "color_and_brightness" | "brightness_only" | "color_only" | "brightness_and_color"
+    ) {
+        return Err(format!("不支持的归档目录结构: {structure}"));
+    }
     let root = PathBuf::from(&request.target_directory);
     fs::create_dir_all(&root).map_err(|error| format!("无法创建目标目录: {}", error))?;
 
@@ -836,33 +847,100 @@ pub fn color_picker_organize_images(
             });
             continue;
         }
-        let family = match safe_component(&item.color_family) {
-            Ok(value) => value,
-            Err(error) => {
-                result.failed_count += 1;
-                result.details.push(OrganizeDetail {
-                    source_path: item.source_path,
-                    target_path: None,
-                    status: "failed".to_string(),
-                    error: Some(error),
-                });
-                continue;
+        let sub_path = match structure {
+            "color_and_brightness" => {
+                let family = match safe_component(&item.color_family) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        result.failed_count += 1;
+                        result.details.push(OrganizeDetail {
+                            source_path: item.source_path,
+                            target_path: None,
+                            status: "failed".to_string(),
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+                let brightness = match safe_component(&item.brightness_level) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        result.failed_count += 1;
+                        result.details.push(OrganizeDetail {
+                            source_path: item.source_path,
+                            target_path: None,
+                            status: "failed".to_string(),
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+                PathBuf::from(family).join(brightness)
             }
-        };
-        let brightness = match safe_component(&item.brightness_level) {
-            Ok(value) => value,
-            Err(error) => {
-                result.failed_count += 1;
-                result.details.push(OrganizeDetail {
-                    source_path: item.source_path,
-                    target_path: None,
-                    status: "failed".to_string(),
-                    error: Some(error),
-                });
-                continue;
+            "brightness_only" => {
+                let brightness = match safe_component(&item.brightness_level) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        result.failed_count += 1;
+                        result.details.push(OrganizeDetail {
+                            source_path: item.source_path,
+                            target_path: None,
+                            status: "failed".to_string(),
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+                PathBuf::from(brightness)
             }
+            "color_only" => {
+                let family = match safe_component(&item.color_family) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        result.failed_count += 1;
+                        result.details.push(OrganizeDetail {
+                            source_path: item.source_path,
+                            target_path: None,
+                            status: "failed".to_string(),
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+                PathBuf::from(family)
+            }
+            "brightness_and_color" => {
+                let brightness = match safe_component(&item.brightness_level) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        result.failed_count += 1;
+                        result.details.push(OrganizeDetail {
+                            source_path: item.source_path,
+                            target_path: None,
+                            status: "failed".to_string(),
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+                let family = match safe_component(&item.color_family) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        result.failed_count += 1;
+                        result.details.push(OrganizeDetail {
+                            source_path: item.source_path,
+                            target_path: None,
+                            status: "failed".to_string(),
+                            error: Some(error),
+                        });
+                        continue;
+                    }
+                };
+                PathBuf::from(brightness).join(family)
+            }
+            _ => unreachable!(),
         };
-        let directory = root.join(family).join(brightness);
+        let directory = root.join(sub_path);
         if let Err(error) = fs::create_dir_all(&directory) {
             result.failed_count += 1;
             result.details.push(OrganizeDetail {
@@ -1122,6 +1200,7 @@ mod tests {
             ],
             target_directory: target_dir.path().to_string_lossy().into_owned(),
             mode: "copy".to_string(),
+            structure: None,
             check_source_exists: Some(true),
         };
         let result = color_picker_organize_images(request).unwrap();
@@ -1129,6 +1208,65 @@ mod tests {
         assert_eq!(result.source_not_found_count, 1);
         assert!(target_dir.path().join("蓝/明亮/photo.png").is_file());
         assert_eq!(result.details[1].status, "source_not_found");
+    }
+
+    #[test]
+    fn organize_supports_custom_structures() {
+        let source_dir = tempdir().unwrap();
+        let target_dir = tempdir().unwrap();
+        let source = source_dir.path().join("image.png");
+        fs::write(&source, b"test").unwrap();
+
+        // 1. 仅亮度模式
+        let res_brightness = color_picker_organize_images(OrganizeImagesRequest {
+            items: vec![OrganizeItem {
+                source_path: source.to_string_lossy().into_owned(),
+                file_name: "image.png".to_string(),
+                color_family: "蓝".to_string(),
+                brightness_level: "偏亮".to_string(),
+            }],
+            target_directory: target_dir.path().to_string_lossy().into_owned(),
+            mode: "copy".to_string(),
+            structure: Some("brightness_only".to_string()),
+            check_source_exists: Some(true),
+        })
+        .unwrap();
+        assert_eq!(res_brightness.success_count, 1);
+        assert!(target_dir.path().join("偏亮/image.png").is_file());
+
+        // 2. 仅色系模式
+        let res_color = color_picker_organize_images(OrganizeImagesRequest {
+            items: vec![OrganizeItem {
+                source_path: source.to_string_lossy().into_owned(),
+                file_name: "image.png".to_string(),
+                color_family: "红".to_string(),
+                brightness_level: "偏暗".to_string(),
+            }],
+            target_directory: target_dir.path().to_string_lossy().into_owned(),
+            mode: "copy".to_string(),
+            structure: Some("color_only".to_string()),
+            check_source_exists: Some(true),
+        })
+        .unwrap();
+        assert_eq!(res_color.success_count, 1);
+        assert!(target_dir.path().join("红/image.png").is_file());
+
+        // 3. 亮度 / 色系模式
+        let res_brightness_color = color_picker_organize_images(OrganizeImagesRequest {
+            items: vec![OrganizeItem {
+                source_path: source.to_string_lossy().into_owned(),
+                file_name: "image.png".to_string(),
+                color_family: "绿".to_string(),
+                brightness_level: "明亮".to_string(),
+            }],
+            target_directory: target_dir.path().to_string_lossy().into_owned(),
+            mode: "copy".to_string(),
+            structure: Some("brightness_and_color".to_string()),
+            check_source_exists: Some(true),
+        })
+        .unwrap();
+        assert_eq!(res_brightness_color.success_count, 1);
+        assert!(target_dir.path().join("明亮/绿/image.png").is_file());
     }
 
     #[test]
@@ -1146,6 +1284,7 @@ mod tests {
             }],
             target_directory: target_dir.path().to_string_lossy().into_owned(),
             mode: "copy".to_string(),
+            structure: None,
             check_source_exists: Some(true),
         })
         .unwrap();

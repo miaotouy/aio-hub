@@ -58,11 +58,13 @@
       :selected-count="selectedItems.length"
       :target-directory="targetDirectory"
       :archive-mode="archiveMode"
+      :archive-structure="archiveStructure"
       :preflight="preflight"
       :organizing="organizing"
       :archive-result="archiveResult"
       @update:target-directory="targetDirectory = $event"
       @update:archive-mode="archiveMode = $event"
+      @update:archive-structure="archiveStructure = $event"
       @choose-directory="chooseTargetDirectory"
       @organize="organize"
       @open-directory="openTargetDirectory"
@@ -94,6 +96,7 @@ import {
   type BatchImageCandidate,
   type BatchImageItem,
   type BatchArchiveMode,
+  type BatchArchiveStructure,
   type BatchFilterState,
   type BatchColorFamily,
   type BatchBrightnessLevel,
@@ -173,6 +176,7 @@ let analysisStartTime = 0;
 
 // 归档状态
 const archiveMode = ref<BatchArchiveMode>("copy");
+const archiveStructure = ref<BatchArchiveStructure>("color_and_brightness");
 const targetDirectory = ref("");
 const organizing = ref(false);
 const archiveDialogVisible = ref(false);
@@ -597,6 +601,7 @@ async function organize() {
           })),
           targetDirectory: targetDirectory.value,
           mode: archiveMode.value,
+          structure: archiveStructure.value,
           checkSourceExists: true,
         },
       }

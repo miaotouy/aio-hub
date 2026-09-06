@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+
 import {
   calculateLuminance,
   classifyBrightness,
   classifyColor,
   matchesBatchFilter,
+  BATCH_ARCHIVE_STRUCTURE_OPTIONS,
   type BatchImageItem,
 } from "./batchColorOrganizer";
 
@@ -60,5 +62,14 @@ describe("batch color organizer rules", () => {
         brightnessLevels: ["明亮"],
       })
     ).toBe(false);
+  });
+
+  it("provides valid archive structure options", () => {
+    expect(BATCH_ARCHIVE_STRUCTURE_OPTIONS).toHaveLength(4);
+    const values = BATCH_ARCHIVE_STRUCTURE_OPTIONS.map((opt) => opt.value);
+    expect(values).toContain("color_and_brightness");
+    expect(values).toContain("brightness_only");
+    expect(values).toContain("color_only");
+    expect(values).toContain("brightness_and_color");
   });
 });

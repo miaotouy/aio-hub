@@ -24,6 +24,49 @@ export const DEFAULT_BRIGHTNESS_THRESHOLDS = [0.2, 0.4, 0.6, 0.8] as const;
 export type BatchColorFamily = (typeof BATCH_COLOR_FAMILIES)[number];
 export type BatchBrightnessLevel = (typeof BATCH_BRIGHTNESS_LEVELS)[number];
 export type BatchArchiveMode = "copy" | "symlink";
+export type BatchArchiveStructure =
+  | "color_and_brightness"
+  | "brightness_only"
+  | "color_only"
+  | "brightness_and_color";
+
+export interface BatchArchiveStructureOption {
+  value: BatchArchiveStructure;
+  label: string;
+  description: string;
+  example: string;
+}
+
+export const BATCH_ARCHIVE_STRUCTURE_OPTIONS: readonly BatchArchiveStructureOption[] =
+  [
+    {
+      value: "color_and_brightness",
+      label: "色系 / 亮度",
+      description:
+        "在目标目录下按色系创建一级文件夹，并在其内按亮度创建二级文件夹",
+      example: "目标目录/蓝/明亮/image.png",
+    },
+    {
+      value: "brightness_only",
+      label: "仅亮度",
+      description: "在目标目录下直接按亮度等级分类",
+      example: "目标目录/明亮/image.png",
+    },
+    {
+      value: "color_only",
+      label: "仅色系",
+      description: "在目标目录下直接按色系分类",
+      example: "目标目录/蓝/image.png",
+    },
+    {
+      value: "brightness_and_color",
+      label: "亮度 / 色系",
+      description:
+        "在目标目录下按亮度创建一级文件夹，并在其内按色系创建二级文件夹",
+      example: "目标目录/明亮/蓝/image.png",
+    },
+  ] as const;
+
 export type BatchAnalysisStatus =
   "pending" | "analyzing" | "success" | "failed";
 

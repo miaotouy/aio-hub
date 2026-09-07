@@ -568,17 +568,24 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
 }
 
 .preview-card {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .preview-card :deep(.el-card__body) {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .image-preview-area {
@@ -586,6 +593,7 @@ onUnmounted(() => {
   height: 100%;
   border: 2px dashed var(--border-color);
   border-radius: 8px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -608,6 +616,10 @@ onUnmounted(() => {
   justify-content: center;
   gap: 16px;
   color: var(--el-text-color-placeholder);
+  padding: 16px;
+  box-sizing: border-box;
+  max-width: 100%;
+  text-align: center;
 }
 
 .preview-image {
@@ -615,6 +627,7 @@ onUnmounted(() => {
   max-height: 100%;
   object-fit: contain;
   border-radius: 4px;
+  box-sizing: border-box;
 }
 
 /* 右侧面板 */

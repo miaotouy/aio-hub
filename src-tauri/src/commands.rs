@@ -209,6 +209,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_push,
         git_pull,
         // OCR命令
+        check_native_ocr_availability,
         native_ocr,
         // 外部播放器透明弹幕覆盖层命令 (Windows)
         #[cfg(windows)]

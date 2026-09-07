@@ -39,52 +39,64 @@ const configManager = createConfigManager<{ profiles: OcrProfile[] }>({
 // 全局状态
 const profiles = ref<OcrProfile[]>([]);
 const isLoaded = ref(false);
+let loadPromise: Promise<void> | null = null;
 
 export function useOcrProfiles() {
   /**
    * 从文件系统加载配置（支持 localStorage 迁移）
    */
   const loadProfiles = async () => {
-    try {
-      logger.info("开始加载 OCR 配置");
+    if (isLoaded.value) return;
+    if (loadPromise) return loadPromise;
 
-      // 尝试从文件系统加载
-      const config = await configManager.load();
-      let loadedProfiles = config.profiles || [];
+    loadPromise = (async () => {
+      try {
+        logger.info("开始加载 OCR 配置");
 
-      // 如果文件系统中没有数据，尝试从 localStorage 迁移
-      if (loadedProfiles.length === 0) {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          logger.info("检测到 localStorage 数据，开始迁移到文件系统");
-          try {
-            loadedProfiles = JSON.parse(stored);
+        // 尝试从文件系统加载
+        const config = await configManager.load();
+        let loadedProfiles = config.profiles || [];
 
-            // 保存到文件系统
-            await configManager.save({ profiles: loadedProfiles });
+        // 如果文件系统中没有数据，尝试从 localStorage 迁移
+        if (loadedProfiles.length === 0) {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            logger.info("检测到 localStorage 数据，开始迁移到文件系统");
+            try {
+              loadedProfiles = JSON.parse(stored);
 
-            // 清除 localStorage 数据
-            localStorage.removeItem(STORAGE_KEY);
-            logger.info("数据迁移完成", {
-              profileCount: loadedProfiles.length,
-            });
-          } catch (parseError) {
-            errorHandler.handle(parseError, {
-              userMessage: "解析 localStorage 数据失败",
-              showToUser: false,
-            });
+              // 保存到文件系统
+              await configManager.save({ profiles: loadedProfiles });
+
+              // 清除 localStorage 数据
+              localStorage.removeItem(STORAGE_KEY);
+              logger.info("数据迁移完成", {
+                profileCount: loadedProfiles.length,
+              });
+            } catch (parseError) {
+              errorHandler.handle(parseError, {
+                userMessage: "解析 localStorage 数据失败",
+                showToUser: false,
+              });
+            }
           }
         }
-      }
 
-      profiles.value = loadedProfiles;
-      isLoaded.value = true;
-      logger.info("OCR 配置加载成功", { profileCount: loadedProfiles.length });
-    } catch (error) {
-      errorHandler.error(error, "加载 OCR 配置失败");
-      profiles.value = [];
-      isLoaded.value = true;
-    }
+        profiles.value = loadedProfiles;
+        isLoaded.value = true;
+        logger.info("OCR 配置加载成功", {
+          profileCount: loadedProfiles.length,
+        });
+      } catch (error) {
+        errorHandler.error(error, "加载 OCR 配置失败");
+        profiles.value = [];
+        isLoaded.value = true;
+      } finally {
+        loadPromise = null;
+      }
+    })();
+
+    return loadPromise;
   };
 
   /**

@@ -20,6 +20,21 @@ import { createModuleLogger } from "@/utils/logger";
 const logger = createModuleLogger("OCR/NativeEngine");
 const errorHandler = createModuleErrorHandler("OCR/NativeEngine");
 
+let nativeReadinessCheck: Promise<void> | null = null;
+
+/** 确认系统原生 OCR 可用，并提前完成首次 WinRT 引擎初始化。 */
+function ensureNativeOcrReady(): Promise<void> {
+  if (!nativeReadinessCheck) {
+    nativeReadinessCheck = invoke<void>("check_native_ocr_availability").catch(
+      (error) => {
+        nativeReadinessCheck = null;
+        throw error;
+      }
+    );
+  }
+  return nativeReadinessCheck;
+}
+
 /**
  * Native OCR 引擎 Composable
  * 专门处理 Windows 原生 OCR API
@@ -144,6 +159,7 @@ export function useNativeEngine() {
   };
 
   return {
+    ensureReady: ensureNativeOcrReady,
     recognizeSingle,
     recognizeBatch,
   };

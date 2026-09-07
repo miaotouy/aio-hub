@@ -424,6 +424,7 @@ export function useVideoSubtitleOcr() {
 
   async function start() {
     if (!source.value || !canStart.value) return;
+    await screen.ensureOcrReady();
     activeSettings = {
       engineConfig: screen.config.value.engineConfig,
       imageFilter: screen.config.value.imageFilter,

@@ -172,10 +172,22 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   background: transparent;
-  border: 2px dashed var(--el-color-primary, #409eff);
   box-sizing: border-box;
   overflow: hidden;
   pointer-events: none; /* 容器本身不拦截，仅边框/控制栏/手柄接收事件，中间透出屏幕 */
+}
+
+/* 虚线框只标记实际识别区域，避免把顶部操作栏包含在区域内。 */
+.monitor-box::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  border: 2px dashed var(--el-color-primary, #409eff);
+  pointer-events: none;
 }
 
 .monitor-box.breathing {

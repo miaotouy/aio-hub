@@ -19,9 +19,11 @@
           v-else
           size="small"
           type="primary"
-          :disabled="!canStart"
+          :disabled="!canStart || screen.isOcrPreparing.value"
           @click="startTask"
-          >开始识别</el-button
+          >{{
+            screen.isOcrPreparing.value ? "检查 OCR" : "开始识别"
+          }}</el-button
         >
       </div>
     </div>

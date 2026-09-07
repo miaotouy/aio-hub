@@ -126,6 +126,7 @@ const lastFrameUrl = ref<string | null>(null);
 const subtitleFrameUrls = new Set<string>();
 const latency = ref<number>(0);
 const filterLatency = ref<number>(0);
+const isOcrPreparing = ref(false);
 
 interface OcrQueueItem {
   entry: SubtitleEntry;
@@ -149,8 +150,9 @@ const config = ref<MonitorConfig>({
   imageFilter: createDefaultImageFilterConfig(),
 });
 
-// 初始化加载配置
-configManager.load().then((loaded) => {
+// 初始化加载配置。启动识别前必须等待该 Promise，避免冷启动时使用默认配置
+// 抢跑到持久化配置、云端 Profile 或插件运行时之前。
+const configLoadPromise = configManager.load().then((loaded) => {
   config.value = loaded;
 });
 
@@ -187,8 +189,38 @@ let geometryUnlisten: UnlistenFn | null = null;
 let inFlight = false; // 防止采样重叠
 let activeInstances = 0; // 引用计数，管理几何信息监听器
 let imageFilterRevision = 0; // 避免运行中调参被在途采样重新写回去重哈希
+let ocrReadinessKey = "";
+let ocrReadinessPromise: Promise<void> | null = null;
 
 export function useScreenMonitor() {
+  /** 等待配置加载，并执行当前 OCR 引擎的冷启动检查/预热。 */
+  async function ensureOcrReady(): Promise<void> {
+    await configLoadPromise;
+    const readinessKey = JSON.stringify(config.value.engineConfig);
+    if (ocrReadinessPromise && ocrReadinessKey === readinessKey) {
+      return ocrReadinessPromise;
+    }
+
+    const { ensureReady } = useOcrRunner();
+    ocrReadinessKey = readinessKey;
+    isOcrPreparing.value = true;
+    const readinessPromise = ensureReady(config.value.engineConfig)
+      .catch((error) => {
+        if (ocrReadinessPromise === readinessPromise) {
+          ocrReadinessPromise = null;
+          ocrReadinessKey = "";
+          isOcrPreparing.value = false;
+        }
+        throw error;
+      })
+      .finally(() => {
+        if (ocrReadinessPromise === readinessPromise) {
+          isOcrPreparing.value = false;
+        }
+      });
+    ocrReadinessPromise = readinessPromise;
+    return readinessPromise;
+  }
   /** 当前监控框对应的物理坐标截图区域（已向内收缩） */
   function getCaptureRect(): {
     x: number;
@@ -517,6 +549,16 @@ export function useScreenMonitor() {
       });
       return;
     }
+
+    try {
+      await ensureOcrReady();
+    } catch (error) {
+      errorHandler.handle(error, {
+        userMessage: "OCR 引擎检查失败，请检查当前引擎配置",
+      });
+      return;
+    }
+
     revokeAllSubtitleFrameUrls();
     subtitles.value = [];
     ocrQueue.value = [];
@@ -671,6 +713,9 @@ export function useScreenMonitor() {
     lastFrameUrl,
     latency,
     filterLatency,
+    isOcrPreparing,
+    // readiness
+    ensureOcrReady,
     // control
     start,
     stop,

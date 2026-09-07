@@ -124,6 +124,74 @@ function successResponse(call: {
   };
 }
 
+describe("plugin OCR readiness", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    eventListeners.clear();
+    mocks.pluginStates["test-ocr"] = { enabled: true, isBroken: false };
+  });
+
+  it("runs the declared startup health check once before realtime OCR uses a profile", async () => {
+    const plugin = installPlugin(4) as ReturnType<typeof installPlugin> & {
+      manifest: Record<string, unknown>;
+    };
+    plugin.manifest.sidecar = {
+      startupMethod: "healthCheck",
+      startupParams: { source: "startup" },
+    };
+    (plugin.manifest.methods as Array<Record<string, unknown>>).push({
+      name: "healthCheck",
+      parameters: [{ name: "options" }],
+    });
+    mocks.execute.mockResolvedValue({
+      success: true,
+      data: { ready: true, status: "ok" },
+    });
+    const { ensureReady } = usePluginOcrEngine();
+    const config = {
+      pluginId: "test-ocr",
+      contributionId: "primary",
+      modelProfile: "realtime-profile",
+      language: "zh",
+    };
+
+    await Promise.all([ensureReady(config), ensureReady(config)]);
+
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    expect(mocks.execute).toHaveBeenCalledWith({
+      service: "test-ocr",
+      method: "healthCheck",
+      params: {
+        source: "startup",
+        options: {
+          modelProfile: "realtime-profile",
+          language: "zh",
+        },
+      },
+    });
+  });
+
+  it("rejects an OCR plugin whose startup check reports not ready", async () => {
+    const plugin = installPlugin(4) as ReturnType<typeof installPlugin> & {
+      manifest: Record<string, unknown>;
+    };
+    plugin.manifest.sidecar = { startupMethod: "healthCheck" };
+    mocks.execute.mockResolvedValue({
+      success: true,
+      data: { ready: false, status: "model missing" },
+    });
+    const { ensureReady } = usePluginOcrEngine();
+
+    await expect(
+      ensureReady({
+        pluginId: "test-ocr",
+        contributionId: "primary",
+        modelProfile: "missing-profile",
+      })
+    ).rejects.toThrow("model missing");
+  });
+});
+
 describe("plugin OCR batch scheduling", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -236,6 +236,87 @@ function assertPluginReady(
   };
 }
 
+const pluginReadinessChecks = new Map<string, Promise<void>>();
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * 在提交首个 OCR 作业前执行插件声明的启动检查。
+ *
+ * 常驻 OCR Sidecar 通常会通过 startupMethod 完成协议握手和模型文件检查。
+ * 实时字幕等直接消费 OCR 贡献点的入口也必须等待该检查，不能依赖用户先打开插件页。
+ */
+async function ensurePluginReady(config: PluginOcrConfig): Promise<void> {
+  const target = assertPluginReady(config.pluginId, config.contributionId);
+  const startupMethod = target.plugin.manifest.sidecar?.startupMethod;
+  if (!startupMethod) return;
+
+  const cacheKey = [
+    target.pluginId,
+    startupMethod,
+    config.modelProfile ?? "",
+    config.language ?? "",
+  ].join(":");
+  const existing = pluginReadinessChecks.get(cacheKey);
+  if (existing) return existing;
+
+  const readinessCheck = (async () => {
+    const startupParams = asRecord(
+      target.plugin.manifest.sidecar?.startupParams
+    );
+    const startupDefinition = (target.plugin.manifest.methods ?? []).find(
+      (method) => method.name === startupMethod
+    );
+    const acceptsOptions = startupDefinition?.parameters?.some(
+      (parameter) => parameter.name === "options"
+    );
+    const startupOptions = asRecord(startupParams.options);
+    const params = acceptsOptions
+      ? {
+          ...startupParams,
+          options: {
+            ...startupOptions,
+            ...(config.modelProfile
+              ? { modelProfile: config.modelProfile }
+              : {}),
+            ...(config.language ? { language: config.language } : {}),
+          },
+        }
+      : startupParams;
+    const response = await execute<{ ready?: boolean; status?: string }>({
+      service: target.pluginId,
+      method: startupMethod,
+      params,
+    });
+
+    if (!response.success) throw response.error;
+    if (response.data?.ready === false) {
+      throw new Error(
+        `OCR 插件 "${target.plugin.name}" 启动检查未通过${
+          response.data.status ? `：${response.data.status}` : ""
+        }`
+      );
+    }
+
+    logger.info("OCR 插件启动检查完成", {
+      pluginId: target.pluginId,
+      startupMethod,
+      modelProfile: config.modelProfile,
+      language: config.language,
+    });
+  })().catch((error) => {
+    pluginReadinessChecks.delete(cacheKey);
+    throw error;
+  });
+
+  pluginReadinessChecks.set(cacheKey, readinessCheck);
+  return readinessCheck;
+}
+
 function blockToOcrImage(block: ImageBlock): OcrImageInput {
   return {
     id: block.id,
@@ -781,6 +862,7 @@ export function usePluginOcrEngine() {
   };
 
   return {
+    ensureReady: ensurePluginReady,
     recognizeBatch,
     recognizeImages,
   };

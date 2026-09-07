@@ -60,6 +60,8 @@ const {
   lastFrameUrl,
   latency,
   filterLatency,
+  isOcrPreparing,
+  ensureOcrReady,
   start,
   stop,
   removeSubtitle,
@@ -96,6 +98,7 @@ const statusText = computed(() => {
         return "空闲";
     }
   }
+  if (isOcrPreparing.value) return "OCR 准备中";
   switch (status.value) {
     case "running":
       return "监控中";
@@ -280,7 +283,12 @@ async function clearAll() {
 }
 
 onMounted(() => {
-  // 监控框几何信息由 useScreenMonitor 通过窗口同步总线接收
+  // 监控框几何信息由 useScreenMonitor 通过窗口同步总线接收。
+  // 同时后台执行当前 OCR 引擎的健康检查/预热，确保用户直接开始识别时
+  // 不会把首次运行时握手和模型检查堆积到实时帧队列中。
+  void ensureOcrReady().catch(() => {
+    // 启动按钮会再次检查并展示明确错误，这里仅做静默预热。
+  });
 });
 
 onBeforeUnmount(() => {
@@ -336,6 +344,7 @@ onBeforeUnmount(() => {
             :latency="latency"
             :filter-latency="filterLatency"
             :is-running="isRunning"
+            :is-ocr-preparing="isOcrPreparing"
             :is-monitor-box-detached="isMonitorBoxDetached"
             :monitor-rect="monitorRect"
             @open-monitor-box="openMonitorBox"

@@ -21,6 +21,32 @@ pub struct OcrResult {
     pub confidence: f64,
 }
 
+/// 检查系统原生 OCR 是否可用，并提前完成首次引擎初始化。
+#[tauri::command]
+pub async fn check_native_ocr_availability() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let language = windows::Globalization::Language::CreateLanguage(
+            &windows::core::HSTRING::from("zh-Hans"),
+        )
+        .map_err(|e| format!("创建语言对象失败: {}", e))?;
+
+        windows::Media::Ocr::OcrEngine::TryCreateFromLanguage(&language)
+            .map_err(|e| format!("创建OCR引擎失败: {}", e))?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Err("macOS原生OCR尚未实现".to_string())
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        Err("当前操作系统不支持原生OCR".to_string())
+    }
+}
+
 /// 原生 OCR 识别命令
 #[tauri::command]
 pub async fn native_ocr(image_data: String) -> Result<OcrResult, String> {

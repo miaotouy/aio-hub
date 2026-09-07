@@ -84,6 +84,7 @@
 - 直接导入并复用 [`src/tools/smart-ocr/platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts) 中的 `useOcrRunner`。
 - 共享全局统一的 OCR Profile 配置，用户在 `Smart OCR` 中配置好的 API Key 和引擎参数在此处直接生效，无需重复配置。
 - Smart OCR 作业协议与稳定 contribution point 配置接入监控配置和工具注册；插件能力由统一引擎层承载，实时工具只负责采样、队列和结果展示。
+- 工具挂载后会后台预热当前引擎，正式启动屏幕或视频识别前再次等待 `ensureReady`：Native OCR 通过 Tauri 可用性命令提前初始化 WinRT 引擎，Tesseract 复用已初始化的 Worker 池，云端 OCR 等待 Profile 配置加载，插件 OCR 执行 manifest 声明的 `startupMethod`（如 `healthCheck`）完成协议握手和所选模型检查。检查失败时不会启动采样或抽帧队列。
 
 #### 4. Rust 后端原生能力层 (Rust Backend Layer)
 
@@ -136,11 +137,13 @@ sequenceDiagram
     User->>UI: 点击“打开监控框”
     UI->>Store: 触发打开可分离组件
     Store->>MonitorBox: 弹出独立悬浮窗 (MonitorBox)
-    Note over MonitorBox: 中间 100% 完全透明，仅保留虚线边框
+    Note over MonitorBox: 操作栏位于识别区域上方，虚线仅标记实际识别区域
     User->>MonitorBox: 拖拽/缩放对准字幕区域
     MonitorBox-->>Store: 实时同步绝对坐标 (X, Y, W, H)
 
     User->>UI: 点击“开始监控”
+    Composable->>Platform: ensureReady(engineConfig)
+    Platform-->>Composable: 引擎健康检查/预热完成
     Composable->>Composable: 启动定时器 (Interval)
 
     loop 每隔 Interval 毫秒

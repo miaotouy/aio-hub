@@ -25,11 +25,49 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 const logger = createModuleLogger("OCR/Runner");
 const errorHandler = createModuleErrorHandler("OCR/Runner");
 
+// 引擎实例必须跨调用复用。实时字幕会高频调用 runOcr，不能为每帧重建
+// Tesseract worker 池，也不能跳过插件/原生引擎的首次就绪检查。
+const tesseractEngine = useTesseractEngine();
+const nativeEngine = useNativeEngine();
+const pluginEngine = usePluginOcrEngine();
+
 /**
  * OCR 运行器 Composable
  * 作为编排者，根据引擎配置调度具体的识别引擎
  */
 export function useOcrRunner() {
+  /**
+   * 确保当前 OCR 引擎完成配置加载、运行时握手和首次初始化。
+   */
+  const ensureReady = async (config: OcrEngineConfig): Promise<void> => {
+    switch (config.type) {
+      case "native":
+        await nativeEngine.ensureReady();
+        break;
+      case "tesseract":
+        await tesseractEngine.ensureReady(
+          config.language,
+          config.concurrency ?? 4
+        );
+        break;
+      case "cloud": {
+        const { isLoaded, loadProfiles, getProfileById } = useOcrProfiles();
+        if (!isLoaded.value) await loadProfiles();
+        const profile = getProfileById(config.activeProfileId);
+        if (!profile) throw new Error("请先在设置中配置云端 OCR 服务");
+        if (!profile.enabled) {
+          throw new Error(`云端 OCR 服务 "${profile.name}" 未启用`);
+        }
+        break;
+      }
+      case "plugin":
+        await pluginEngine.ensureReady(config);
+        break;
+      case "vlm":
+        break;
+    }
+  };
+
   /**
    * 运行 OCR 识别
    * 根据引擎配置分发到对应的引擎实现
@@ -40,6 +78,8 @@ export function useOcrRunner() {
     onProgress?: (results: OcrResult[]) => void,
     signal?: AbortSignal
   ): Promise<OcrResult[]> => {
+    await ensureReady(config);
+
     const results: OcrResult[] = blocks.map((block) => ({
       blockId: block.id,
       imageId: block.imageId,
@@ -132,9 +172,8 @@ export function useOcrRunner() {
     onProgress?: (results: OcrResult[]) => void,
     signal?: AbortSignal
   ): Promise<OcrResult[]> => {
-    const { recognizeBatch } = useTesseractEngine();
     const workerCount = config.concurrency ?? 4; // 默认 4 个并发
-    return await recognizeBatch(
+    return await tesseractEngine.recognizeBatch(
       blocks,
       config.language,
       onProgress,
@@ -151,8 +190,7 @@ export function useOcrRunner() {
     onProgress?: (results: OcrResult[]) => void,
     signal?: AbortSignal
   ): Promise<OcrResult[]> => {
-    const { recognizeBatch } = useNativeEngine();
-    return await recognizeBatch(blocks, onProgress, signal);
+    return await nativeEngine.recognizeBatch(blocks, onProgress, signal);
   };
 
   /**
@@ -255,19 +293,23 @@ export function useOcrRunner() {
     onProgress?: (results: OcrResult[]) => void,
     signal?: AbortSignal
   ): Promise<OcrResult[]> => {
-    const { recognizeBatch } = usePluginOcrEngine();
-    return await recognizeBatch(blocks, config, onProgress, signal);
+    return await pluginEngine.recognizeBatch(
+      blocks,
+      config,
+      onProgress,
+      signal
+    );
   };
 
   /**
    * 清理资源
    */
   const cleanup = async () => {
-    const { cleanup: cleanupTesseract } = useTesseractEngine();
-    await cleanupTesseract();
+    await tesseractEngine.cleanup();
   };
 
   return {
+    ensureReady,
     runOcr,
     cleanup,
   };

@@ -26,7 +26,13 @@
       <div v-else class="live-preview__placeholder">
         <div class="placeholder-content">
           <TvIcon :size="32" class="placeholder-icon" />
-          <span>{{ isRunning ? "正在等待首帧画面..." : "未开始监控" }}</span>
+          <span>{{
+            isOcrPreparing
+              ? "正在准备 OCR 引擎..."
+              : isRunning
+                ? "正在等待首帧画面..."
+                : "未开始监控"
+          }}</span>
         </div>
       </div>
     </div>
@@ -60,11 +66,19 @@
         <el-button
           :type="isRunning ? 'danger' : 'success'"
           size="small"
-          :disabled="!monitorRect && !isRunning"
+          :disabled="isOcrPreparing || (!monitorRect && !isRunning)"
           @click="$emit('toggle-monitor')"
         >
-          <component :is="isRunning ? SquareIcon : PlayIcon" :size="14" />
-          {{ isRunning ? "停止监控" : "开始监控" }}
+          <component
+            :is="
+              isOcrPreparing ? LoaderIcon : isRunning ? SquareIcon : PlayIcon
+            "
+            :size="14"
+            :class="{ 'is-spinning': isOcrPreparing }"
+          />
+          {{
+            isOcrPreparing ? "检查 OCR" : isRunning ? "停止监控" : "开始监控"
+          }}
         </el-button>
       </div>
       <div class="control-right">
@@ -96,6 +110,7 @@ import {
   SquareDashedMousePointer as SquareDashedIcon,
   Crosshair as CrosshairIcon,
   Play as PlayIcon,
+  LoaderCircle as LoaderIcon,
   Square as SquareIcon,
   X as XIcon,
 } from "lucide-vue-next";
@@ -106,6 +121,7 @@ defineProps<{
   latency: number;
   filterLatency: number;
   isRunning: boolean;
+  isOcrPreparing: boolean;
   isMonitorBoxDetached: boolean;
   monitorRect: any;
 }>();
@@ -162,6 +178,16 @@ defineEmits<{
 .placeholder-icon {
   opacity: 0.5;
   animation: pulse 2s infinite;
+}
+
+.is-spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {

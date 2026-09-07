@@ -267,6 +267,7 @@ export function useTesseractEngine() {
   };
 
   return {
+    ensureReady: initScheduler,
     recognizeSingle,
     recognizeBatch,
     cleanup,

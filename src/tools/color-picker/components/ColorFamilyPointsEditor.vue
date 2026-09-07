@@ -6,34 +6,33 @@
   >
     <div class="editor-heading">
       <h4>色系</h4>
-      <label class="boundary-toggle"
-        ><input v-model="showBoundaries" type="checkbox" />分区边界</label
-      >
+      <el-checkbox v-model="showBoundaries" size="small">分区边界</el-checkbox>
     </div>
     <div class="editor-actions">
-      <select
+      <el-select
+        class="preset-select"
         aria-label="色系预设"
-        :value="activePreset"
+        :model-value="activePreset"
+        size="small"
         :disabled="!!drag"
         @change="selectPreset"
       >
-        <option value="custom" disabled>自定义</option>
-        <option
+        <el-option value="custom" label="自定义" disabled />
+        <el-option
           v-for="preset in COLOR_FAMILY_PRESETS"
           :key="preset.id"
           :value="preset.id"
-        >
-          {{ preset.name }}
-        </option>
-      </select>
-      <button
-        type="button"
+          :label="preset.name"
+        />
+      </el-select>
+      <el-button
+        size="small"
         :aria-pressed="adding"
         :disabled="!!drag"
         @click="toggleAdding"
       >
         {{ adding ? "取消添加" : "添加点位" }}
-      </button>
+      </el-button>
     </div>
     <div
       ref="disk"
@@ -84,7 +83,7 @@
       {{
         adding
           ? "点击圆盘添加；也可按 Enter 添加后精确输入。Esc 取消。"
-          : "拖动点位，松手生效。角度为色相，离圆心越远饱和度越高。"
+          : "拖动点位，松手生效。角度为色相，离圆心越远饱和度越高；底图弱化中心色彩，精确值以 H/S 为准。"
       }}
     </p>
     <div class="point-list">
@@ -95,64 +94,63 @@
         :class="{ selected: selectedId === point.id }"
         @focusin="selectPoint(point.id)"
       >
-        <div class="point-name-row">
-          <span
-            class="point-swatch"
-            :style="{ background: displayColor(point) }"
-            aria-hidden="true"
-            >{{ index + 1 }}</span
-          >
-          <input
-            :ref="(el) => registerNameInput(point.id, el)"
-            :value="point.name"
-            :aria-label="`色系 ${index + 1} 名称`"
+        <span
+          class="point-swatch"
+          :style="{ background: displayColor(point) }"
+          aria-hidden="true"
+          >{{ index + 1 }}</span
+        >
+        <input
+          :ref="(el) => registerNameInput(point.id, el)"
+          class="point-name"
+          :value="point.name"
+          :aria-label="`色系 ${index + 1} 名称`"
+          :disabled="!!drag"
+          @input="point.name = inputText($event)"
+          @blur="commit"
+          @keydown.enter.prevent="commit"
+        />
+        <div class="point-value">
+          <span aria-hidden="true">H</span>
+          <ScrubNumberInput
+            :model-value="point.hue"
+            :min="0"
+            :max="360"
+            :step="0.1"
+            :precision="1"
+            suffix="°"
+            :label="`色系 ${index + 1} 色相`"
             :disabled="!!drag"
-            @input="point.name = inputText($event)"
-            @blur="commit"
-            @keydown.enter.prevent="commit"
+            @update:model-value="point.hue = $event"
+            @change="commit"
           />
-          <button
-            type="button"
-            class="delete-point"
-            :aria-label="`删除色系 ${point.name || index + 1}`"
+        </div>
+        <div class="point-value">
+          <span aria-hidden="true">S</span>
+          <ScrubNumberInput
+            :model-value="point.saturation * 100"
+            :min="0"
+            :max="100"
+            :step="0.1"
+            :precision="1"
+            suffix="%"
+            :label="`色系 ${index + 1} 饱和度`"
             :disabled="!!drag"
-            @click="removePoint(point.id)"
-          >
-            删除
-          </button>
+            @update:model-value="point.saturation = $event / 100"
+            @change="commit"
+          />
         </div>
-        <div class="point-values">
-          <label
-            >H
-            <input
-              type="number"
-              min="0"
-              max="360"
-              step="0.1"
-              :value="rounded(point.hue)"
-              :aria-label="`色系 ${index + 1} 色相`"
-              :disabled="!!drag"
-              @input="point.hue = inputNumber($event)"
-              @blur="commit"
-              @keydown.enter.prevent="commit"
-            /><span>°</span></label
-          >
-          <label
-            >S
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.1"
-              :value="rounded(point.saturation * 100)"
-              :aria-label="`色系 ${index + 1} 饱和度`"
-              :disabled="!!drag"
-              @input="point.saturation = inputNumber($event) / 100"
-              @blur="commit"
-              @keydown.enter.prevent="commit"
-            /><span>%</span></label
-          >
-        </div>
+        <el-button
+          class="delete-point"
+          text
+          type="danger"
+          size="small"
+          :icon="Trash2"
+          :aria-label="`删除色系 ${point.name || index + 1}`"
+          :title="`删除色系 ${point.name || index + 1}`"
+          :disabled="!!drag"
+          @click="removePoint(point.id)"
+        />
       </div>
     </div>
     <p v-if="!draft.length" class="editor-hint">
@@ -173,6 +171,8 @@ import {
   type ComponentPublicInstance,
 } from "vue";
 import { ElMessageBox } from "element-plus";
+import { Trash2 } from "lucide-vue-next";
+import ScrubNumberInput from "./ScrubNumberInput.vue";
 import { hslToRgb } from "../composables/useColorConverter";
 import {
   COLOR_FAMILY_PRESETS,
@@ -211,8 +211,6 @@ const drag = ref<{
 const rounded = (value: number) =>
   Number.isFinite(value) ? Math.round(value * 100) / 100 : "";
 const inputText = (event: Event) => (event.target as HTMLInputElement).value;
-const inputNumber = (event: Event) =>
-  inputText(event).trim() === "" ? NaN : Number(inputText(event));
 const validPosition = (point: ColorFamilyPoint) =>
   Number.isFinite(point.hue) &&
   Number.isFinite(point.saturation) &&
@@ -278,10 +276,8 @@ function commit() {
     emit("update:modelValue", result.points);
   return true;
 }
-async function selectPreset(event: Event) {
-  const select = event.target as HTMLSelectElement;
-  const preset = select.value as ColorFamilyPreset;
-  select.value = activePreset.value;
+async function selectPreset(preset: ColorFamilyPreset | "custom") {
+  if (preset === "custom" || preset === activePreset.value) return;
   if (activePreset.value === "custom") {
     try {
       await ElMessageBox.confirm(
@@ -429,7 +425,11 @@ onMounted(() => {
         dy = ((y + 0.5) / size) * 2 - 1;
       if (Math.hypot(dx, dy) > 1) continue;
       const { hue, saturation } = coordinateToColor({ x: dx, y: dy });
-      const { r, g, b } = hslToRgb(hue, saturation * 100, 50);
+      // Ease the backdrop into color so the neutral center stays visibly gray.
+      // This is display-only: pointer coordinates, point swatches and Voronoi
+      // classification retain the actual linear H/S values.
+      const lightness = 50 + (1 - saturation) * 25;
+      const { r, g, b } = hslToRgb(hue, saturation ** 2 * 100, lightness);
       const offset = (y * size + x) * 4;
       image.data.set([r, g, b, 255], offset);
     }
@@ -442,14 +442,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 24px;
   min-width: 0;
   color: var(--text-color);
 }
 .editor-heading,
-.editor-actions,
-.point-name-row,
-.point-values {
+.editor-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -462,52 +459,29 @@ h4 {
   font-size: 13px;
   font-weight: 500;
 }
-.boundary-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-input[type="checkbox"] {
-  accent-color: var(--el-color-primary);
-}
-select,
-button,
-input:not([type="checkbox"]) {
+.point-name {
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 4px;
   font: inherit;
   font-size: 12px;
   color: var(--text-color);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: var(--el-fill-color-blank);
+  background: var(--input-bg, var(--el-fill-color-blank));
+}
+.point-name:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 1px;
+}
+.preset-select {
+  flex: 1;
   min-width: 0;
 }
-button,
-select {
-  padding: 6px 8px;
-  cursor: pointer;
-}
-button:disabled,
-select:disabled,
-input:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-button:hover:not(:disabled) {
-  border-color: var(--el-color-primary);
-}
-input:not([type="checkbox"]) {
-  padding: 5px 6px;
-  width: 100%;
-}
-:where(button, select, input):focus-visible {
-  outline: 2px solid var(--el-color-primary);
-  outline-offset: 2px;
-}
-.editor-actions select {
-  flex: 1;
+.editor-actions > .el-button {
+  flex-shrink: 0;
 }
 .color-disk {
   position: relative;
@@ -584,7 +558,13 @@ svg polygon {
   flex-direction: column;
 }
 .point-row {
-  padding: 10px 6px;
+  display: grid;
+  grid-template-columns:
+    21px minmax(36px, 1fr) minmax(0, 78px) minmax(0, 78px)
+    24px;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 0 5px 4px;
   border-bottom: 1px solid var(--border-color);
   border-left: 2px solid transparent;
 }
@@ -601,27 +581,24 @@ svg polygon {
   flex-shrink: 0;
   font-size: 11px;
 }
-.point-name-row input {
-  flex: 1;
-}
 .delete-point {
-  color: var(--el-color-danger);
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 4px;
+  margin: 0;
 }
-.point-values {
-  margin-top: 6px;
-  padding-left: 29px;
-}
-.point-values label {
+.point-value {
   display: flex;
-  flex: 1;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   color: var(--el-text-color-secondary);
   font-size: 11px;
 }
-.point-values input {
-  font-variant-numeric: tabular-nums;
+.point-value > :last-child {
+  flex: 1;
+  min-width: 0;
 }
 .editor-error {
   margin: 0;

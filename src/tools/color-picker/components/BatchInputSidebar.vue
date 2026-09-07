@@ -40,8 +40,6 @@
       </div>
     </section>
 
-    <el-divider />
-
     <!-- 扫描设置区 -->
     <section class="sidebar-section">
       <h3 class="section-title">扫描设置</h3>
@@ -61,7 +59,6 @@
         </el-select>
       </div>
     </section>
-    <el-divider />
     <!-- 分析控制区 -->
     <section class="sidebar-section">
       <el-button
@@ -91,15 +88,10 @@
         </el-button>
       </div>
     </section>
-    <el-divider />
 
     <section class="sidebar-section">
       <h3 class="section-title">分类配置</h3>
       <p class="classification-hint">调整后无需重新分析</p>
-      <ColorFamilyPointsEditor
-        :model-value="colorPoints"
-        @update:model-value="$emit('update:colorPoints', $event)"
-      />
       <div class="config-item">
         <label class="config-label">亮度阈值</label>
         <BrightnessThresholdSlider
@@ -107,9 +99,11 @@
           @update:model-value="$emit('update:thresholds', $event)"
         />
       </div>
+      <ColorFamilyPointsEditor
+        :model-value="colorPoints"
+        @update:model-value="$emit('update:colorPoints', $event)"
+      />
     </section>
-
-    <el-divider />
   </aside>
 </template>
 
@@ -183,7 +177,7 @@ const formatDuration = (seconds: number) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 16px;
 }
 
 @media (max-width: 768px) {
@@ -195,7 +189,13 @@ const formatDuration = (seconds: number) => {
 }
 
 .sidebar-section {
-  padding: 8px 0;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.sidebar-section + .sidebar-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 16px;
 }
 
 .section-title {

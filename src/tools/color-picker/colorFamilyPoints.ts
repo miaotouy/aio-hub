@@ -28,7 +28,7 @@ export function createColorFamilyPreset(
     id,
     name,
     hue,
-    saturation: 0.8,
+    saturation: 0.5,
   });
   const gray = { id: "gray", name: "灰", hue: 0, saturation: 0 };
   const red = point("red", "红", 0);

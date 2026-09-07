@@ -38,6 +38,16 @@ describe("color family points", () => {
     const points = createDefaultColorPoints().filter((p) => p.id !== "gray");
     expect(classify(100, 0, points).id).not.toBe(UNCLASSIFIED.id);
   });
+  it.each(["common", "basic"] as const)(
+    "keeps near-neutral colors gray without swallowing muted hues in %s",
+    (preset) => {
+      const points = createColorFamilyPreset(preset);
+      for (const point of points.filter((point) => point.id !== "gray")) {
+        expect(classify(point.hue, 0.15, points).id).toBe("gray");
+        expect(classify(point.hue, 0.35, points).id).toBe(point.id);
+      }
+    }
+  );
   it("uses stable IDs for exact ties independent of list order", () => {
     const points: ColorFamilyPoint[] = [
       { id: "z", name: "红", hue: 0, saturation: 0.8 },

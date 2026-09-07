@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
+import { ElButton, ElCheckbox, ElSelect, ElOption } from "element-plus";
 import { mount, flushPromises } from "@vue/test-utils";
 import ColorFamilyPointsEditor from "../components/ColorFamilyPointsEditor.vue";
 import {
@@ -8,12 +9,16 @@ import {
 } from "../colorFamilyPoints";
 
 const confirmPreset = vi.hoisted(() => vi.fn());
-vi.mock("element-plus", () => ({ ElMessageBox: { confirm: confirmPreset } }));
+vi.mock("element-plus", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("element-plus")>()),
+  ElMessageBox: { confirm: confirmPreset },
+}));
 const wrappers: ReturnType<typeof mount>[] = [];
 function editor() {
   const wrapper = mount(ColorFamilyPointsEditor, {
     props: { modelValue: createDefaultColorPoints() },
     attachTo: document.body,
+    global: { components: { ElButton, ElCheckbox, ElSelect, ElOption } },
   });
   wrappers.push(wrapper);
   const disk = wrapper.get('[aria-label="色相饱和度圆盘"]');
@@ -91,9 +96,8 @@ describe("color point commit boundary", () => {
     await pointer(disk, "pointerup", { pointerId: 1 });
     expect(updates(wrapper)).toBeUndefined();
     expect(
-      (wrapper.get('[aria-label="色系 2 饱和度"]').element as HTMLInputElement)
-        .value
-    ).toBe("80");
+      wrapper.get('[aria-label="色系 2 饱和度"]').attributes("aria-valuenow")
+    ).toBe(String(createDefaultColorPoints()[1].saturation * 100));
     wrapper
       .get('[aria-label="选择色系 蓝"]')
       .element.dispatchEvent(
@@ -122,11 +126,8 @@ describe("color point commit boundary", () => {
       await pointer(disk, "pointerup", { pointerId: 1 });
       expect(updates(wrapper)).toBeUndefined();
       expect(
-        (
-          wrapper.get('[aria-label="色系 2 饱和度"]')
-            .element as HTMLInputElement
-        ).value
-      ).toBe("80");
+        wrapper.get('[aria-label="色系 2 饱和度"]').attributes("aria-valuenow")
+      ).toBe(String(createDefaultColorPoints()[1].saturation * 100));
     }
   );
   it("does not publish invalid text, empty numbers or colliding coordinates; valid edits commit on confirmation", async () => {
@@ -140,15 +141,19 @@ describe("color point commit boundary", () => {
     await name.trigger("keydown", { key: "Enter" });
     expect(updates(wrapper)![0][0][1].name).toBe("朱红");
     await wrapper.setProps({ modelValue: updates(wrapper)![0][0] });
-    const saturation = wrapper.get('[aria-label="色系 2 饱和度"]');
-    await saturation.setValue("");
-    await saturation.trigger("blur");
+    const editSaturation = async (value: string) => {
+      await wrapper
+        .get('[aria-label="色系 2 饱和度"]')
+        .trigger("keydown", { key: "Enter" });
+      const input = wrapper.get('input[aria-label="色系 2 饱和度"]');
+      await input.setValue(value);
+      await input.trigger("blur");
+    };
+    await editSaturation("");
     expect(updates(wrapper)).toHaveLength(1);
-    await saturation.setValue("0");
-    await saturation.trigger("blur");
+    await editSaturation("0");
     expect(updates(wrapper)).toHaveLength(1);
-    await saturation.setValue("60");
-    await saturation.trigger("blur");
+    await editSaturation("60");
     expect(updates(wrapper)![1][0][1].saturation).toBe(0.6);
   });
   it("supports keyboard addition, deletion and confirmed preset replacement", async () => {
@@ -173,14 +178,16 @@ describe("color point commit boundary", () => {
     await name.trigger("blur");
     await wrapper.setProps({ modelValue: updates(wrapper)![2][0] });
     confirmPreset.mockRejectedValueOnce("cancel");
-    await wrapper.get('[aria-label="色系预设"]').setValue("basic");
+    const select = wrapper.findComponent({ name: "ElSelect" });
+    select.vm.$emit("change", "basic");
     await flushPromises();
     expect(updates(wrapper)).toHaveLength(3);
     confirmPreset.mockResolvedValueOnce({
       value: "",
       action: "confirm",
     });
-    await wrapper.get('[aria-label="色系预设"]').setValue("basic");
+
+    select.vm.$emit("change", "basic");
     await flushPromises();
     expect(updates(wrapper)![3][0]).toHaveLength(7);
     expect(confirmPreset).toHaveBeenCalledWith(
@@ -189,4 +196,49 @@ describe("color point commit boundary", () => {
       expect.objectContaining({ lockScroll: false })
     );
   });
+  it("previews numeric scrubbing and publishes once on release", async () => {
+    const { wrapper } = editor();
+    const hue = wrapper.get('[aria-label="色系 2 色相"]');
+    await pointer(hue, "pointerdown", { button: 0, pointerId: 7, clientX: 0 });
+    await pointer({ element: window as unknown as Element }, "pointermove", {
+      pointerId: 7,
+      clientX: 80,
+    });
+    expect(updates(wrapper)).toBeUndefined();
+    expect(
+      wrapper.get('[aria-label="色系 2 色相"]').attributes("aria-valuenow")
+    ).toBe("1");
+    await pointer({ element: window as unknown as Element }, "pointerup", {
+      pointerId: 7,
+    });
+    expect(updates(wrapper)).toHaveLength(1);
+    expect(updates(wrapper)![0][0][1].hue).toBe(1);
+  });
+  it.each(["pointercancel", "escape"])(
+    "cancels numeric scrubbing on %s without writing configuration",
+    async (action) => {
+      const { wrapper } = editor();
+      const hue = wrapper.get('[aria-label="色系 2 色相"]');
+      await pointer(hue, "pointerdown", {
+        button: 0,
+        pointerId: 7,
+        clientX: 0,
+      });
+      await pointer({ element: window as unknown as Element }, "pointermove", {
+        pointerId: 7,
+        clientX: 80,
+      });
+      if (action === "escape") await hue.trigger("keydown", { key: "Escape" });
+      else
+        await pointer(
+          { element: window as unknown as Element },
+          "pointercancel",
+          { pointerId: 7 }
+        );
+      expect(updates(wrapper)).toBeUndefined();
+      expect(
+        wrapper.get('[aria-label="色系 2 色相"]').attributes("aria-valuenow")
+      ).toBe("0");
+    }
+  );
 });

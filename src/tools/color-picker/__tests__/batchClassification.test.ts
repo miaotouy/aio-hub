@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { effectScope, ref } from "vue";
 import {
-  classifyHsl,
-  createDefaultColorRules,
-  validateColorRules,
+  classifyColorCoordinate,
+  colorCoordinate,
+  prepareColorPoints,
+  colorFamilyCells,
+  createDefaultColorPoints,
+  createColorFamilyPreset,
+  validateColorPoints,
   UNCLASSIFIED,
-} from "../colorFamilyRules";
+  type ColorFamilyPoint,
+} from "../colorFamilyPoints";
 import {
   applyBatchAnalysisResults,
   createArchiveItems,
@@ -13,37 +18,76 @@ import {
   makeCsv,
   mergeBatchOrganizerConfig,
   useBatchClassification,
+  rgbToHsl,
   type BatchAnalysisItem,
   type BatchFilterState,
 } from "../batchColorOrganizer";
 
-// Protect editable classification boundaries, persisted settings and the archive write boundary.
-describe("editable color rules", () => {
-  it("preserves default boundary ownership and wrapped red hue", () => {
-    const rules = createDefaultColorRules();
-    const name = (h: number, s = 1, l = 0.5) =>
-      classifyHsl([h, s, l], rules).name;
-    expect(name(0)).toBe("红");
-    expect(name(359)).toBe("红");
-    expect(name(15)).toBe("橙");
-    expect(name(42)).toBe("黄");
-    expect(name(200, 0.119)).toBe("灰");
-    expect(name(200, 0.12)).toBe("蓝");
-    expect(name(25, 1, 0.349)).toBe("棕");
-    expect(name(25, 1, 0.35)).toBe("橙");
-    expect(name(200, 1, 1)).toBe("蓝");
+const classify = (h: number, s: number, points = createDefaultColorPoints()) =>
+  classifyColorCoordinate(colorCoordinate(h, s), prepareColorPoints(points));
+
+// Protect nearest-site geometry, persisted settings and the archive write boundary.
+describe("color family points", () => {
+  it("wraps hue, treats gray as an ordinary site and assigns every valid color", () => {
+    expect(classify(359, 1).id).toBe("red");
+    expect(classify(1, 1).id).toBe("red");
+    expect(classify(230, 0.1).id).toBe("gray");
+    const gray = createDefaultColorPoints()[0];
+    expect(classify(0, 1, [gray]).id).toBe("gray");
+    expect(classify(0, 1, []).id).toBe(UNCLASSIFIED.id);
+    const points = createDefaultColorPoints().filter((p) => p.id !== "gray");
+    expect(classify(100, 0, points).id).not.toBe(UNCLASSIFIED.id);
   });
-  it("uses first matching rule and explicit unmatched fallback", () => {
-    const first = createDefaultColorRules()[0];
-    first.saturation = [0, 1];
-    expect(
-      classifyHsl([200, 1, 1], [first, ...createDefaultColorRules()]).id
-    ).toBe(first.id);
-    expect(classifyHsl([200, 1, 1], [])).toEqual(UNCLASSIFIED);
-    const blue = createDefaultColorRules().find((rule) => rule.id === "blue")!;
-    expect(classifyHsl([0, 1, 0.5], [blue])).toEqual(UNCLASSIFIED);
+  it("uses stable IDs for exact ties independent of list order", () => {
+    const points: ColorFamilyPoint[] = [
+      { id: "z", name: "红", hue: 0, saturation: 0.8 },
+      { id: "a", name: "青", hue: 180, saturation: 0.8 },
+    ];
+    expect(classify(0, 0, points).id).toBe("a");
+    expect(classify(0, 0, [...points].reverse()).id).toBe("a");
+    expect(classify(0, 0.1, points).id).toBe("z");
   });
-  it("rejects ambiguous ranges and unsafe or colliding directory names", () => {
+  it("does not use lightness to separate orange and brown", () => {
+    for (const rgb of [
+      [100, 50, 0],
+      [200, 100, 0],
+    ]) {
+      const [h, s] = rgbToHsl(rgb[0], rgb[1], rgb[2]);
+      expect(classify(h, s).id).toBe("orange");
+    }
+  });
+  it("keeps rendered cell interiors consistent with the nearest-site classifier", () => {
+    for (const points of [
+      createDefaultColorPoints(),
+      createColorFamilyPreset("basic"),
+      [
+        { id: "a", name: "一", hue: 359, saturation: 0.98 },
+        { id: "b", name: "二", hue: 140, saturation: 0.15 },
+        { id: "c", name: "三", hue: 230, saturation: 0.7 },
+      ],
+    ]) {
+      const sites = prepareColorPoints(points);
+      const cells = colorFamilyCells(points);
+      let checked = 0;
+      for (let x = -0.97; x < 1; x += 0.09)
+        for (let y = -0.97; y < 1; y += 0.09) {
+          if (Math.hypot(x, y) >= 1) continue;
+          const interiors = cells.filter((cell) =>
+            cell.polygon.every((a, i, polygon) => {
+              const b = polygon[(i + 1) % polygon.length];
+              return (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) > 1e-9;
+            })
+          );
+          if (interiors.length !== 1) continue;
+          expect(classifyColorCoordinate({ x, y }, sites).id).toBe(
+            interiors[0].id
+          );
+          checked++;
+        }
+      expect(checked).toBeGreaterThan(250);
+    }
+  });
+  it("rejects unsafe or duplicate names, bad IDs and invalid coordinates", () => {
     for (const name of [
       "",
       "../red",
@@ -56,7 +100,6 @@ describe("editable color rules", () => {
       "a<b",
       "a>b",
       "a|b",
-      "a\u0000b",
       "red.",
       "CON",
       "nul.txt",
@@ -64,44 +107,97 @@ describe("editable color rules", () => {
       "LPT²",
       "未分类",
     ]) {
-      const rule = createDefaultColorRules()[0];
-      rule.name = name;
-      expect(validateColorRules([rule]).error, name).toBeTruthy();
+      const point = { ...createDefaultColorPoints()[0], name };
+      expect(validateColorPoints([point]).error, name).toBeTruthy();
     }
-    const rules = createDefaultColorRules().slice(0, 2);
-    rules[0].name = " Blue ";
-    rules[1].name = "blue";
-    expect(validateColorRules(rules).error).toBeTruthy();
-    rules[1].name = "Brown";
-    expect(validateColorRules(rules).rules?.[0].name).toBe("Blue");
-    rules[0].hue = { all: false, start: 0, end: 0 };
-    expect(validateColorRules(rules).error).toBeTruthy();
-    rules[0].hue.all = true;
-    expect(validateColorRules(rules).rules).toBeDefined();
-    rules[0].lightness = [0.5, 0.5];
-    expect(validateColorRules(rules).error).toBeTruthy();
+    for (const patch of [
+      { id: "" },
+      { id: "unclassified" },
+      { hue: NaN },
+      { hue: Infinity },
+      { hue: -1 },
+      { hue: 361 },
+      { hue: "0" },
+      { saturation: NaN },
+      { saturation: -0.1 },
+      { saturation: 1.1 },
+    ]) {
+      expect(
+        validateColorPoints([{ ...createDefaultColorPoints()[0], ...patch }])
+          .error
+      ).toBeTruthy();
+    }
+    const points = createDefaultColorPoints().slice(0, 2);
+    points[0].name = " Blue ";
+    points[1].name = "blue";
+    expect(validateColorPoints(points).error).toBeTruthy();
+    points[1].name = "Red";
+    expect(validateColorPoints(points).points?.[0].name).toBe("Blue");
+    points[1].id = points[0].id;
+    expect(validateColorPoints(points).error).toBeTruthy();
   });
-  it("migrates old preferences, repairs corrupt rules, and preserves an empty list", () => {
+  it("normalizes 360 and rejects overlap, including near-overlap and achromatic hues", () => {
+    const point = { id: "red", name: "红", hue: 360, saturation: 1 };
+    expect(validateColorPoints([point]).points?.[0].hue).toBe(0);
+    expect(
+      validateColorPoints([
+        point,
+        { ...point, id: "other", name: "其他", hue: 0 },
+      ]).error
+    ).toBeTruthy();
+    expect(
+      validateColorPoints([
+        { ...point, saturation: 0 },
+        { ...point, id: "other", name: "其他", hue: 120, saturation: 0 },
+      ]).error
+    ).toBeTruthy();
+    expect(
+      validateColorPoints([
+        point,
+        { ...point, id: "other", name: "其他", saturation: 1 - 0.5e-6 },
+      ]).error
+    ).toBeTruthy();
+    expect(
+      validateColorPoints([
+        point,
+        { ...point, id: "other", name: "其他", saturation: 1 - 2e-6 },
+      ]).points
+    ).toHaveLength(2);
+  });
+  it("round-trips new points, resets old rules, preserves preferences and an explicit empty list", () => {
     const defaults = createDefaultBatchOrganizerConfig();
     const old = {
-      version: "1.0.0",
-      directoryPath: "C:/images",
+      version: "2.0.0",
+      directoryPath: "D:/photos",
       thresholds: [0.1, 0.3, 0.5, 0.7] as [number, number, number, number],
       archiveMode: "symlink" as const,
+      colorRules: [],
     };
     const migrated = mergeBatchOrganizerConfig(defaults, old);
-    expect(migrated).toMatchObject({ ...old, version: "2.0.0" });
-    expect(migrated.colorRules).toEqual(createDefaultColorRules());
+    expect(migrated).toMatchObject({
+      version: "3.0.0",
+      directoryPath: old.directoryPath,
+      thresholds: old.thresholds,
+      archiveMode: old.archiveMode,
+      colorPoints: createDefaultColorPoints(),
+    });
     expect(
-      mergeBatchOrganizerConfig(defaults, { colorRules: [] }).colorRules
+      mergeBatchOrganizerConfig(defaults, { colorPoints: [] }).colorPoints
     ).toEqual([]);
-    const broken = createDefaultColorRules();
-    broken[0].saturation = [NaN, 1];
+    const custom = {
+      ...defaults,
+      colorPoints: createColorFamilyPreset("basic"),
+    };
     expect(
-      mergeBatchOrganizerConfig(defaults, { colorRules: broken }).colorRules
-    ).toEqual(createDefaultColorRules());
+      mergeBatchOrganizerConfig(defaults, JSON.parse(JSON.stringify(custom)))
+    ).toEqual(custom);
+    expect(
+      mergeBatchOrganizerConfig(defaults, {
+        colorPoints: [{ ...custom.colorPoints[0], saturation: NaN }],
+      }).colorPoints
+    ).toEqual(createDefaultColorPoints());
     const thresholds = mergeBatchOrganizerConfig(defaults, {
-      thresholds: [0.99, 0.99] as unknown as [number, number, number, number],
+      thresholds: [NaN, 0, 1, 0.3],
     }).thresholds;
     expect(
       thresholds.every(
@@ -125,7 +221,7 @@ describe("analysis/classification separation", () => {
           status: "pending",
         }))
       );
-      const rules = ref(createDefaultColorRules());
+      const rules = ref(createDefaultColorPoints());
       const thresholds = ref<[number, number, number, number]>([
         0.2, 0.4, 0.6, 0.8,
       ]);

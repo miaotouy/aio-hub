@@ -96,11 +96,10 @@
     <section class="sidebar-section">
       <h3 class="section-title">分类配置</h3>
       <p class="classification-hint">调整后无需重新分析</p>
-      <el-button
-        class="manage-rules-button"
-        @click="$emit('manage-color-rules')"
-        >管理色系</el-button
-      >
+      <ColorFamilyPointsEditor
+        :model-value="colorPoints"
+        @update:model-value="$emit('update:colorPoints', $event)"
+      />
       <div class="config-item">
         <label class="config-label">亮度阈值</label>
         <BrightnessThresholdSlider
@@ -118,9 +117,12 @@
 import { computed } from "vue";
 import { FolderOpened } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
+import ColorFamilyPointsEditor from "./ColorFamilyPointsEditor.vue";
+import type { ColorFamilyPoint } from "../colorFamilyPoints";
 import BrightnessThresholdSlider from "./BrightnessThresholdSlider.vue";
 
 interface Props {
+  colorPoints: ColorFamilyPoint[];
   candidateCount: number;
   directoryPath: string;
   maxDepth: number | null;
@@ -140,7 +142,7 @@ const emit = defineEmits<{
   (e: "update:directoryPath", value: string): void;
   (e: "update:maxDepth", value: number | null): void;
   (e: "update:thresholds", value: number[]): void;
-  (e: "manage-color-rules"): void;
+  (e: "update:colorPoints", value: ColorFamilyPoint[]): void;
   (e: "start-analyze"): void;
   (e: "cancel-analyze"): void;
   (e: "drop", paths: string[]): void;
@@ -164,16 +166,14 @@ const formatDuration = (seconds: number) => {
 </script>
 
 <style scoped>
-.manage-rules-button {
-  margin-bottom: 12px;
-}
 .classification-hint {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   margin: 0 0 12px;
 }
 .batch-input-sidebar {
-  width: 280px;
+  width: 340px;
+  box-sizing: border-box;
   flex-shrink: 0;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);

@@ -16,7 +16,8 @@
       @clear-candidates="clearCandidates"
       @update:max-depth="maxDepth = $event"
       @update:thresholds="updateThresholds"
-      @manage-color-rules="colorRulesDialogVisible = true"
+      :color-points="colorPoints"
+      @update:color-points="colorPoints = $event"
       @start-analyze="startAnalyze"
       @cancel-analyze="cancelAnalyze"
       @drop="handleDrop"
@@ -53,12 +54,6 @@
         @archive-item="archiveItem"
       />
     </div>
-
-    <ColorFamilyRulesDialog
-      v-model="colorRulesDialogVisible"
-      :rules="colorRules"
-      @apply="colorRules = $event"
-    />
 
     <!-- 归档弹窗 -->
     <ArchiveDialog
@@ -105,16 +100,16 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BatchInputSidebar from "./components/BatchInputSidebar.vue";
 import BatchResultToolbar from "./components/BatchResultToolbar.vue";
 import BatchResultGrid from "./components/BatchResultGrid.vue";
-import ColorFamilyRulesDialog from "./components/ColorFamilyRulesDialog.vue";
+import { colorPointDisplayColor } from "./colorFamilyPoints";
 import ArchiveDialog from "./components/ArchiveDialog.vue";
 import {
   batchOrganizerConfigManager,
-  createDefaultColorRules,
+  createDefaultColorPoints,
   UNCLASSIFIED,
   useBatchClassification,
   applyBatchAnalysisResults,
   createArchiveItems,
-  type ColorFamilyRule,
+  type ColorFamilyPoint,
   type BatchAnalysisItem,
   type AnalyzeItemResult,
   clampThresholds,
@@ -166,9 +161,14 @@ const supported = [
 const candidates = ref<BatchImageCandidate[]>([]);
 const directoryPath = ref("");
 const items = shallowRef<BatchAnalysisItem[]>([]);
-const colorRules = ref<ColorFamilyRule[]>(createDefaultColorRules());
-const colorRulesDialogVisible = ref(false);
-const colorFamilies = computed(() => [...colorRules.value, UNCLASSIFIED]);
+const colorPoints = ref<ColorFamilyPoint[]>(createDefaultColorPoints());
+const colorFamilies = computed(() => [
+  ...colorPoints.value.map((point) => ({
+    ...point,
+    displayColor: colorPointDisplayColor(point),
+  })),
+  UNCLASSIFIED,
+]);
 const maxDepth = ref<number | null>(3);
 const thresholds = ref<[number, number, number, number]>([
   ...DEFAULT_BRIGHTNESS_THRESHOLDS,
@@ -230,7 +230,7 @@ const {
   selectedPaths,
   selectedItems,
   setSelected,
-} = useBatchClassification(items, colorRules, thresholds, filter);
+} = useBatchClassification(items, colorPoints, thresholds, filter);
 const filteredCount = computed(() => filteredItems.value.length);
 
 function updateThresholds(values: number[]) {
@@ -664,7 +664,7 @@ watch(preflightKey, () => void runPreflight());
 async function loadSavedConfig() {
   try {
     const config = await batchOrganizerConfigManager.load();
-    colorRules.value = config.colorRules;
+    colorPoints.value = config.colorPoints;
     directoryPath.value = config.directoryPath ?? "";
     maxDepth.value = config.maxDepth ?? 3;
     if (config.thresholds && Array.isArray(config.thresholds)) {
@@ -690,7 +690,7 @@ watch(
     directoryPath,
     maxDepth,
     thresholds,
-    colorRules,
+    colorPoints,
     archiveMode,
     archiveStructure,
     targetDirectory,
@@ -698,11 +698,11 @@ watch(
   () => {
     if (!isConfigLoaded.value) return;
     batchOrganizerConfigManager.saveDebounced({
-      version: "2.0.0",
+      version: "3.0.0",
       directoryPath: directoryPath.value,
       maxDepth: maxDepth.value,
       thresholds: thresholds.value,
-      colorRules: colorRules.value,
+      colorPoints: colorPoints.value,
       archiveMode: archiveMode.value,
       archiveStructure: archiveStructure.value,
       targetDirectory: targetDirectory.value,

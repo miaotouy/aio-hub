@@ -21,8 +21,8 @@ describe("batch color organizer rules", () => {
     expect(classifyColor(128, 132, 130)).toBe("灰");
   });
 
-  it("separates dark orange into brown", () => {
-    expect(classifyColor(92, 42, 18)).toBe("棕");
+  it("classifies dark and bright orange in the same family", () => {
+    expect(classifyColor(92, 42, 18)).toBe("橙");
     expect(classifyColor(255, 128, 0)).toBe("橙");
   });
 
@@ -78,7 +78,7 @@ describe("batch color organizer rules", () => {
 
   it("provides valid default config and config manager for batch color organizer", async () => {
     const defaultConfig = createDefaultBatchOrganizerConfig();
-    expect(defaultConfig.version).toBe("2.0.0");
+    expect(defaultConfig.version).toBe("3.0.0");
     expect(defaultConfig.maxDepth).toBe(3);
     expect(defaultConfig.thresholds).toEqual([0.2, 0.4, 0.6, 0.8]);
     expect(defaultConfig.archiveMode).toBe("copy");
@@ -86,6 +86,6 @@ describe("batch color organizer rules", () => {
 
     const loaded = await batchOrganizerConfigManager.load();
     expect(loaded).toBeDefined();
-    expect(loaded.version).toBe("2.0.0");
+    expect(loaded.version).toBe("3.0.0");
   });
 });

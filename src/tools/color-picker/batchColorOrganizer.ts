@@ -1,17 +1,20 @@
 import { createConfigManager } from "@/utils/configManager";
 import { computed, reactive, watch, type Ref } from "vue";
 import {
-  createDefaultColorRules,
-  classifyHsl,
-  validateColorRules,
+  createDefaultColorPoints,
+  classifyColorCoordinate,
+  colorCoordinate,
+  prepareColorPoints,
+  type ColorCoordinate,
+  validateColorPoints,
   UNCLASSIFIED,
-  type ColorFamilyRule,
-} from "./colorFamilyRules";
+  type ColorFamilyPoint,
+} from "./colorFamilyPoints";
 export {
-  createDefaultColorRules,
+  createDefaultColorPoints,
   UNCLASSIFIED,
-  type ColorFamilyRule,
-} from "./colorFamilyRules";
+  type ColorFamilyPoint,
+} from "./colorFamilyPoints";
 
 export const BATCH_BRIGHTNESS_LEVELS = [
   "极暗",
@@ -122,7 +125,7 @@ export interface BatchColorOrganizerConfig {
   directoryPath: string;
   maxDepth: number | null;
   thresholds: [number, number, number, number];
-  colorRules: ColorFamilyRule[];
+  colorPoints: ColorFamilyPoint[];
   archiveMode: BatchArchiveMode;
   archiveStructure: BatchArchiveStructure;
   targetDirectory: string;
@@ -130,11 +133,11 @@ export interface BatchColorOrganizerConfig {
 
 export function createDefaultBatchOrganizerConfig(): BatchColorOrganizerConfig {
   return {
-    version: "2.0.0",
+    version: "3.0.0",
     directoryPath: "",
     maxDepth: 3,
     thresholds: [...DEFAULT_BRIGHTNESS_THRESHOLDS],
-    colorRules: createDefaultColorRules(),
+    colorPoints: createDefaultColorPoints(),
     archiveMode: "copy",
     archiveStructure: "color_and_brightness",
     targetDirectory: "",
@@ -145,9 +148,9 @@ export function mergeBatchOrganizerConfig(
   defaults: BatchColorOrganizerConfig,
   loaded: Partial<BatchColorOrganizerConfig>
 ): BatchColorOrganizerConfig {
-  const rules = validateColorRules(loaded?.colorRules);
+  const validated = validateColorPoints(loaded?.colorPoints);
   return {
-    version: "2.0.0",
+    version: "3.0.0",
     directoryPath:
       typeof loaded?.directoryPath === "string"
         ? loaded.directoryPath
@@ -162,7 +165,7 @@ export function mergeBatchOrganizerConfig(
           loaded.thresholds
         ) as BatchColorOrganizerConfig["thresholds"])
       : defaults.thresholds,
-    colorRules: rules.rules ?? createDefaultColorRules(),
+    colorPoints: validated.points ?? createDefaultColorPoints(),
     archiveMode: loaded?.archiveMode === "symlink" ? "symlink" : "copy",
     archiveStructure: BATCH_ARCHIVE_STRUCTURE_OPTIONS.some(
       (option) => option.value === loaded?.archiveStructure
@@ -180,7 +183,7 @@ export const batchOrganizerConfigManager =
   createConfigManager<BatchColorOrganizerConfig>({
     moduleName: "color-picker",
     fileName: "batch-organizer-config.json",
-    version: "2.0.0",
+    version: "3.0.0",
     debounceDelay: 500,
     createDefault: createDefaultBatchOrganizerConfig,
     mergeConfig: mergeBatchOrganizerConfig,
@@ -234,7 +237,11 @@ export function classifyColor(
   g: number,
   b: number
 ): BatchColorFamily {
-  return classifyHsl(rgbToHsl(r, g, b), createDefaultColorRules()).name;
+  const [h, s] = rgbToHsl(r, g, b);
+  return classifyColorCoordinate(
+    colorCoordinate(h, s),
+    prepareColorPoints(createDefaultColorPoints())
+  ).name;
 }
 
 export function classifyBrightness(
@@ -305,14 +312,15 @@ export function useBatchFiltering(
 // Classification is a pure projection of analysis data. Selection lives outside that projection.
 export function useBatchClassification(
   source: Ref<BatchAnalysisItem[]>,
-  rules: Ref<ColorFamilyRule[]>,
+  points: Ref<ColorFamilyPoint[]>,
   thresholds: Ref<[number, number, number, number]>,
   filter: Ref<BatchFilterState>
 ) {
   const selectedPaths = reactive(new Set<string>());
-  const hslCache = new WeakMap<
+  const sites = computed(() => prepareColorPoints(points.value));
+  const coordinateCache = new WeakMap<
     BatchAnalysisItem,
-    { color: string; hsl: [number, number, number] }
+    { color: string; coordinate: ColorCoordinate }
   >();
   const classifiedItems = computed<BatchImageItem[]>(() =>
     source.value.map((item) => {
@@ -323,20 +331,21 @@ export function useBatchClassification(
         item.averageColor &&
         Number.isFinite(item.luminance)
       ) {
-        let cached = hslCache.get(item);
+        let cached = coordinateCache.get(item);
         if (!cached || cached.color !== item.averageColor) {
           const hex = item.averageColor.slice(1);
+          const [h, s] = rgbToHsl(
+            parseInt(hex.slice(0, 2), 16),
+            parseInt(hex.slice(2, 4), 16),
+            parseInt(hex.slice(4, 6), 16)
+          );
           cached = {
             color: item.averageColor,
-            hsl: rgbToHsl(
-              parseInt(hex.slice(0, 2), 16),
-              parseInt(hex.slice(2, 4), 16),
-              parseInt(hex.slice(4, 6), 16)
-            ),
+            coordinate: colorCoordinate(h, s),
           };
-          hslCache.set(item, cached);
+          coordinateCache.set(item, cached);
         }
-        family = classifyHsl(cached.hsl, rules.value);
+        family = classifyColorCoordinate(cached.coordinate, sites.value);
         brightnessLevel = classifyBrightness(item.luminance!, thresholds.value);
       }
       return {
@@ -351,10 +360,10 @@ export function useBatchClassification(
     })
   );
   watch(
-    rules,
+    points,
     () => {
       const validIds = new Set([
-        ...rules.value.map((rule) => rule.id),
+        ...points.value.map((rule) => rule.id),
         UNCLASSIFIED.id,
       ]);
       filter.value = {

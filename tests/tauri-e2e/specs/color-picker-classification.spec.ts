@@ -58,24 +58,23 @@ describe("batch color reclassification", () => {
       );
     });
     await $('//strong[contains(., "蓝 / 偏暗")]').waitForDisplayed();
-    await $('//button[normalize-space(.)="管理色系"]').click();
-    const names = await $$('.rules-editor input[aria-label="色系名称"]');
+    const editor = await $('[aria-label="色系点位配置"]');
+    await editor.scrollIntoView();
+    const names = await $$(
+      '[aria-label="色系点位配置"] input[aria-label$="名称"]'
+    );
     for (const name of names) {
       if ((await name.getValue()) === "蓝") {
+        await name.scrollIntoView();
         await name.setValue("海蓝");
+        await browser.keys("Enter");
         break;
       }
     }
-    await browser.waitUntil(() =>
-      browser.execute(() => {
-        const dialog = document.querySelector(".base-dialog-container");
-        return !!dialog && getComputedStyle(dialog).opacity === "1";
-      })
-    );
+    await $('[aria-label="色相饱和度圆盘"]').scrollIntoView();
     await browser.saveScreenshot(
-      path.join(artifacts, "color-rules-editor.png")
+      path.join(artifacts, "color-points-editor.png")
     );
-    await $('//button[normalize-space(.)="应用"]').click();
     await $('//strong[contains(., "海蓝 / 偏暗")]').waitForDisplayed();
     await $('//button[normalize-space(.)="全选当前"]').click();
     const toggleRed = async () =>

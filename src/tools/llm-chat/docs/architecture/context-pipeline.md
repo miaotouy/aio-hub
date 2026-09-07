@@ -257,7 +257,7 @@ interface ProcessableMessage {
 
 ### 5.2. Base64 资源解析器 (`asset-resolver`)
 
-`asset-resolver` 处理器的职责（仅处理二进制附件）：
+`asset-resolver` 处理器的职责（处理二进制附件及纯图片请求兼容）：
 
 1.  **识别附件引用**：扫描所有消息的 `_attachments` 字段，找出剩余的二进制附件（文本类型的附件已在 `transcription-processor` 中被消费）。
 2.  **转换为最终格式**：根据模型能力和设置，将附件引用转换为：
@@ -265,6 +265,8 @@ interface ProcessableMessage {
     - 对于文档/音视频：转换为 `{ type: "document" | "audio" | "video", source: { type: "base64", media_type: "...", data: "..." } }` 结构化对象。
 3.  **更新消息内容**：将转换后的结构化内容追加到消息的 `content` 字段。
 4.  **记录转换日志**：在 `PipelineContext.logs` 中记录转换详情。
+
+纯图片兼容开关位于「聊天设置 → 请求设置」，对应 `requestSettings.imageOnlyMessagePlaceholder`，默认开启，旧配置通过默认值合并自动启用。开启后，资源解析完成时为最终内容仅含图片及空白文本的 `user` 消息补充 `[图片]`。已有正文或转写文本、含其他媒体、图片全部解析失败的消息不受影响；已结构化图片和 PDF 转图片同样适用。占位文本只写入管道消息，不修改会话记录。
 
 ### 5.3. 配置合并策略 (Agent 与模型的协同)
 

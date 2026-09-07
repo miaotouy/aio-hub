@@ -233,6 +233,28 @@ export const assetResolver: ContextProcessor = {
       msg.content = newContentParts;
     }
 
+    // 在附件解析后判断最终内容，兼容已结构化图片及 PDF 转图片，
+    // 避免为解析失败、已有转写或包含其他媒体的消息补充占位文本。
+    if (context.settings.requestSettings.imageOnlyMessagePlaceholder) {
+      for (const msg of context.messages) {
+        if (
+          msg.role === "user" &&
+          Array.isArray(msg.content) &&
+          msg.content.some((part) => part.type === "image") &&
+          msg.content.every(
+            (part) =>
+              part.type === "image" ||
+              (part.type === "text" && !part.text.trim())
+          )
+        ) {
+          msg.content = [
+            { type: "text", text: "[图片]" },
+            ...msg.content.filter((part) => part.type !== "text"),
+          ];
+        }
+      }
+    }
+
     if (processedCount > 0 || errorCount > 0) {
       logger.info("资产解析完成", { processedCount, errorCount });
       context.logs.push({

@@ -2314,6 +2314,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     icon: Globe,
     items: [
       {
+        id: "imageOnlyMessagePlaceholder",
+        label: "纯图片消息补充占位文本",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "requestSettings.imageOnlyMessagePlaceholder",
+        hint: "为只有图片、没有正文或转写文本的用户消息补充 [图片]，兼容拒绝空文本消息的 API。仅影响发送内容，不修改聊天记录；默认开启，可按需关闭。",
+        keywords: "request image placeholder 图片 空文本 占位 兼容 400",
+      },
+      {
         id: "timeout",
         label:
           "请求超时 ({{ (localSettings.requestSettings.timeout / 1000).toFixed(0) }}秒)",

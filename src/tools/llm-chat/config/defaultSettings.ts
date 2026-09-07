@@ -159,6 +159,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     contextMessageCount: 6, // 使用最近 6 条消息作为上下文
   },
   requestSettings: {
+    imageOnlyMessagePlaceholder: true,
     timeout: 60000, // 默认 60 秒
     maxRetries: 2, // 默认重试 2 次
     retryInterval: 3000, // 默认重试间隔 3 秒

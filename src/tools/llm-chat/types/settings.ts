@@ -299,6 +299,8 @@ export interface ChatSettings {
   };
   /** 请求设置 */
   requestSettings: {
+    /** 为无有效文本的纯图片用户消息补充占位文本，仅影响请求 */
+    imageOnlyMessagePlaceholder: boolean;
     /** 请求超时时间（毫秒） */
     timeout: number;
     /** 最大重试次数 */

@@ -16,6 +16,7 @@
       @clear-candidates="clearCandidates"
       @update:max-depth="maxDepth = $event"
       @update:thresholds="updateThresholds"
+      @manage-color-rules="colorRulesDialogVisible = true"
       @start-analyze="startAnalyze"
       @cancel-analyze="cancelAnalyze"
       @drop="handleDrop"
@@ -26,6 +27,7 @@
       <!-- 工具栏 -->
       <BatchResultToolbar
         :filter="filter"
+        :color-families="colorFamilies"
         :total-count="successCount"
         :filtered-count="filteredCount"
         :selected-count="selectedItems.length"
@@ -52,10 +54,18 @@
       />
     </div>
 
+    <ColorFamilyRulesDialog
+      v-model="colorRulesDialogVisible"
+      :rules="colorRules"
+      @apply="colorRules = $event"
+    />
+
     <!-- 归档弹窗 -->
     <ArchiveDialog
       v-model:visible="archiveDialogVisible"
-      :selected-count="selectedItems.length"
+      :selected-count="
+        organizing ? submittedArchiveCount : selectedItems.length
+      "
       :target-directory="targetDirectory"
       :archive-mode="archiveMode"
       :archive-structure="archiveStructure"
@@ -74,7 +84,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import {
+  ref,
+  shallowRef,
+  triggerRef,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+} from "vue";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -87,37 +105,32 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BatchInputSidebar from "./components/BatchInputSidebar.vue";
 import BatchResultToolbar from "./components/BatchResultToolbar.vue";
 import BatchResultGrid from "./components/BatchResultGrid.vue";
+import ColorFamilyRulesDialog from "./components/ColorFamilyRulesDialog.vue";
 import ArchiveDialog from "./components/ArchiveDialog.vue";
 import {
   batchOrganizerConfigManager,
+  createDefaultColorRules,
+  UNCLASSIFIED,
+  useBatchClassification,
+  applyBatchAnalysisResults,
+  createArchiveItems,
+  type ColorFamilyRule,
+  type BatchAnalysisItem,
+  type AnalyzeItemResult,
   clampThresholds,
   DEFAULT_BRIGHTNESS_THRESHOLDS,
   makeCsv,
-  matchesBatchFilter,
   type BatchImageCandidate,
   type BatchImageItem,
   type BatchArchiveMode,
   type BatchArchiveStructure,
   type BatchFilterState,
-  type BatchColorFamily,
-  type BatchBrightnessLevel,
-  type BatchAnalysisStatus,
 } from "./batchColorOrganizer";
 
 type ArchiveDetail = {
   sourcePath: string;
   targetPath?: string;
   status: string;
-  error?: string;
-};
-
-type AnalyzeItemResult = {
-  path: string;
-  status: BatchAnalysisStatus;
-  averageColor?: string;
-  luminance?: number;
-  colorFamily?: BatchColorFamily;
-  brightnessLevel?: BatchBrightnessLevel;
   error?: string;
 };
 
@@ -152,7 +165,10 @@ const supported = [
 ];
 const candidates = ref<BatchImageCandidate[]>([]);
 const directoryPath = ref("");
-const items = ref<BatchImageItem[]>([]);
+const items = shallowRef<BatchAnalysisItem[]>([]);
+const colorRules = ref<ColorFamilyRule[]>(createDefaultColorRules());
+const colorRulesDialogVisible = ref(false);
+const colorFamilies = computed(() => [...colorRules.value, UNCLASSIFIED]);
 const maxDepth = ref<number | null>(3);
 const thresholds = ref<[number, number, number, number]>([
   ...DEFAULT_BRIGHTNESS_THRESHOLDS,
@@ -181,6 +197,8 @@ const archiveStructure = ref<BatchArchiveStructure>("color_and_brightness");
 const targetDirectory = ref("");
 const isConfigLoaded = ref(false);
 const organizing = ref(false);
+const submittedArchiveCount = ref(0);
+const submittedArchiveDirectory = ref("");
 const archiveDialogVisible = ref(false);
 const preflight = ref<{
   loading: boolean;
@@ -205,37 +223,15 @@ const failedItems = computed(() =>
 const successCount = computed(
   () => items.value.filter((item) => item.status === "success").length
 );
-const selectedItems = computed(() =>
-  items.value.filter((item) => item.selected && item.status === "success")
-);
-
-const groups = computed(() => {
-  const map = new Map<string, BatchImageItem[]>();
-  items.value
-    .filter(
-      (item) =>
-        item.status === "success" && matchesBatchFilter(item, filter.value)
-    )
-    .forEach((item) => {
-      const key = `${item.colorFamily}/${item.brightnessLevel}`;
-      const group = map.get(key) ?? [];
-      group.push(item);
-      map.set(key, group);
-    });
-  return [...map].map(([key, items]) => ({
-    key,
-    colorFamily: items[0].colorFamily!,
-    brightnessLevel: items[0].brightnessLevel!,
-    items,
-  }));
-});
-
-const filteredCount = computed(() => {
-  return items.value.filter(
-    (item) =>
-      item.status === "success" && matchesBatchFilter(item, filter.value)
-  ).length;
-});
+const {
+  classifiedItems,
+  filteredItems,
+  groups,
+  selectedPaths,
+  selectedItems,
+  setSelected,
+} = useBatchClassification(items, colorRules, thresholds, filter);
+const filteredCount = computed(() => filteredItems.value.length);
 
 function updateThresholds(values: number[]) {
   thresholds.value = clampThresholds(
@@ -297,16 +293,8 @@ const itemsByPath = computed(
 );
 
 function applyAnalysisResults(results: AnalyzeItemResult[]) {
-  for (const result of results) {
-    const item = itemsByPath.value.get(result.path);
-    if (!item) continue;
-    item.status = result.status;
-    item.averageColor = result.averageColor;
-    item.luminance = result.luminance;
-    item.colorFamily = result.colorFamily;
-    item.brightnessLevel = result.brightnessLevel;
-    item.error = result.error;
-  }
+  applyBatchAnalysisResults(itemsByPath.value, results);
+  triggerRef(items);
 }
 
 // 分析逻辑
@@ -323,7 +311,6 @@ async function startAnalyze() {
   items.value = candidates.value.map((c) => ({
     ...c,
     status: "pending",
-    selected: false,
     thumbnailUrl: toThumbnailUrl(c.path),
   }));
   analysisTotal.value = items.value.length;
@@ -337,7 +324,6 @@ async function startAnalyze() {
         request: {
           taskId,
           paths: items.value.map((i) => i.path),
-          thresholds: thresholds.value,
         },
       }
     );
@@ -368,6 +354,7 @@ async function retryFailed() {
     item.error = undefined;
   });
 
+  triggerRef(items);
   analysisTotal.value = retryTargets.length;
   const taskId = crypto.randomUUID();
   currentTaskId.value = taskId;
@@ -381,7 +368,6 @@ async function retryFailed() {
         request: {
           taskId,
           paths: retryTargets.map((i) => i.path),
-          thresholds: thresholds.value,
         },
       }
     );
@@ -463,62 +449,46 @@ onUnmounted(() => {
 
 // 选择逻辑
 function toggleSelection(item: BatchImageItem) {
-  item.selected = !item.selected;
+  setSelected(item, !item.selected);
 }
 
 function toggleGroup(group: BatchImageItem[]) {
   const shouldSelect = !group.every((item) => item.selected);
   group.forEach((item) => {
-    item.selected = shouldSelect;
+    setSelected(item, shouldSelect);
   });
 }
 
 function selectGroup(groupItems: BatchImageItem[], select: boolean) {
   groupItems.forEach((item) => {
-    item.selected = select;
+    setSelected(item, select);
   });
 }
 
 function archiveGroup(groupItems: BatchImageItem[]) {
   clearSelection();
   groupItems.forEach((item) => {
-    item.selected = true;
+    setSelected(item, true);
   });
   archiveDialogVisible.value = true;
 }
 
 function archiveItem(item: BatchImageItem) {
   clearSelection();
-  item.selected = true;
+  setSelected(item, true);
   archiveDialogVisible.value = true;
 }
 
 function selectFiltered() {
-  items.value
-    .filter(
-      (item) =>
-        item.status === "success" && matchesBatchFilter(item, filter.value)
-    )
-    .forEach((item) => {
-      item.selected = true;
-    });
+  filteredItems.value.forEach((item) => setSelected(item, true));
 }
 
 function invertSelection() {
-  items.value
-    .filter(
-      (item) =>
-        item.status === "success" && matchesBatchFilter(item, filter.value)
-    )
-    .forEach((item) => {
-      item.selected = !item.selected;
-    });
+  filteredItems.value.forEach((item) => setSelected(item, !item.selected));
 }
 
 function clearSelection() {
-  items.value.forEach((item) => {
-    item.selected = false;
-  });
+  selectedPaths.clear();
 }
 
 function toThumbnailUrl(path: string): string | undefined {
@@ -550,7 +520,19 @@ async function chooseTargetDirectory() {
     targetDirectory.value = selected;
 }
 
+const preflightKey = computed(() =>
+  JSON.stringify([
+    targetDirectory.value,
+    archiveMode.value,
+    selectedItems.value.map((item) => [item.path, item.size]),
+  ])
+);
+let checkedPreflightKey = "";
+let preflightRevision = 0;
 async function runPreflight() {
+  const revision = ++preflightRevision;
+  const key = preflightKey.value;
+  checkedPreflightKey = "";
   const selected = selectedItems.value;
   if (!targetDirectory.value || selected.length === 0) {
     preflight.value = { loading: false, error: "" };
@@ -567,6 +549,8 @@ async function runPreflight() {
         "color_picker_check_disk_space",
         { targetDirectory: targetDirectory.value, requiredBytes: required }
       );
+      if (revision !== preflightRevision || key !== preflightKey.value) return;
+      checkedPreflightKey = key;
       preflight.value = {
         loading: false,
         error: "",
@@ -581,6 +565,8 @@ async function runPreflight() {
           testDirectory: targetDirectory.value,
         }
       );
+      if (revision !== preflightRevision || key !== preflightKey.value) return;
+      checkedPreflightKey = key;
       preflight.value = {
         loading: false,
         error: "",
@@ -589,6 +575,7 @@ async function runPreflight() {
       };
     }
   } catch (error) {
+    if (revision !== preflightRevision || key !== preflightKey.value) return;
     preflight.value = {
       loading: false,
       error: error instanceof Error ? error.message : String(error),
@@ -598,18 +585,31 @@ async function runPreflight() {
 }
 
 async function organize() {
+  if (
+    organizing.value ||
+    preflight.value.loading ||
+    checkedPreflightKey !== preflightKey.value ||
+    preflight.value.error ||
+    !selectedItems.value.length ||
+    !targetDirectory.value
+  )
+    return;
+  if (
+    archiveMode.value === "copy"
+      ? preflight.value.diskSufficient !== true
+      : preflight.value.symlinkAllowed !== true
+  )
+    return;
+  const archiveItems = createArchiveItems(selectedItems.value);
+  submittedArchiveCount.value = archiveItems.length;
+  submittedArchiveDirectory.value = targetDirectory.value;
   organizing.value = true;
   try {
     const result = await invoke<NonNullable<typeof archiveResult.value>>(
       "color_picker_organize_images",
       {
         request: {
-          items: selectedItems.value.map((item) => ({
-            sourcePath: item.path,
-            fileName: item.fileName,
-            colorFamily: item.colorFamily,
-            brightnessLevel: item.brightnessLevel,
-          })),
+          items: archiveItems,
           targetDirectory: targetDirectory.value,
           mode: archiveMode.value,
           structure: archiveStructure.value,
@@ -628,7 +628,9 @@ async function organize() {
 
 async function openTargetDirectory() {
   try {
-    await revealItemInDir(targetDirectory.value);
+    await revealItemInDir(
+      submittedArchiveDirectory.value || targetDirectory.value
+    );
   } catch (error) {
     errorHandler.error(error, "打开目标目录失败");
   }
@@ -641,7 +643,7 @@ async function exportCsv() {
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!path) return;
-  await writeTextFile(path, `﻿${makeCsv(items.value)}`);
+  await writeTextFile(path, `﻿${makeCsv(classifiedItems.value)}`);
   customMessage.success("CSV 报告已导出");
 }
 
@@ -651,21 +653,18 @@ async function exportJson() {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!path) return;
-  await writeTextFile(path, JSON.stringify(items.value, null, 2));
+  await writeTextFile(path, JSON.stringify(classifiedItems.value, null, 2));
   customMessage.success("JSON 报告已导出");
 }
 
 // 监听归档配置变化，触发预检
-watch(
-  [selectedItems, targetDirectory, archiveMode],
-  () => void runPreflight(),
-  { deep: true }
-);
+watch(preflightKey, () => void runPreflight());
 
 // 配置持久化管理
 async function loadSavedConfig() {
   try {
     const config = await batchOrganizerConfigManager.load();
+    colorRules.value = config.colorRules;
     directoryPath.value = config.directoryPath ?? "";
     maxDepth.value = config.maxDepth ?? 3;
     if (config.thresholds && Array.isArray(config.thresholds)) {
@@ -691,6 +690,7 @@ watch(
     directoryPath,
     maxDepth,
     thresholds,
+    colorRules,
     archiveMode,
     archiveStructure,
     targetDirectory,
@@ -698,10 +698,11 @@ watch(
   () => {
     if (!isConfigLoaded.value) return;
     batchOrganizerConfigManager.saveDebounced({
-      version: "1.0.0",
+      version: "2.0.0",
       directoryPath: directoryPath.value,
       maxDepth: maxDepth.value,
       thresholds: thresholds.value,
+      colorRules: colorRules.value,
       archiveMode: archiveMode.value,
       archiveStructure: archiveStructure.value,
       targetDirectory: targetDirectory.value,

@@ -107,24 +107,24 @@
         </div>
         <div class="chips-container" @pointerleave="handlePointerLeave">
           <button
-            v-for="family in BATCH_COLOR_FAMILIES"
-            :key="family"
+            v-for="family in colorFamilies"
+            :key="family.id"
             type="button"
             class="filter-chip color-family-chip"
-            :class="{ active: filter.colorFamilies.includes(family) }"
+            :class="{ active: filter.colorFamilies.includes(family.id) }"
             :style="{
-              '--chip-color': COLOR_FAMILY_STYLES[family].dot,
-              '--chip-bg': COLOR_FAMILY_STYLES[family].bg,
+              '--chip-color': family.displayColor,
+              '--chip-bg': `${family.displayColor}2e`,
             }"
-            @pointerdown="handleColorPointerDown(family, $event)"
-            @pointerenter="handleColorPointerEnter(family)"
+            @pointerdown="handleColorPointerDown(family.id, $event)"
+            @pointerenter="handleColorPointerEnter(family.id)"
             @click.prevent
           >
             <span
               class="chip-dot"
-              :style="{ backgroundColor: COLOR_FAMILY_STYLES[family].dot }"
+              :style="{ backgroundColor: family.displayColor }"
             ></span
-            ><span class="chip-text">{{ family }}</span>
+            ><span class="chip-text">{{ family.name }}</span>
           </button>
         </div>
       </div>
@@ -179,7 +179,6 @@ import {
   InfoFilled,
 } from "@element-plus/icons-vue";
 import {
-  BATCH_COLOR_FAMILIES,
   BATCH_BRIGHTNESS_LEVELS,
   type BatchFilterState,
   type BatchColorFamily,
@@ -188,6 +187,7 @@ import {
 
 interface Props {
   filter: BatchFilterState;
+  colorFamilies: readonly { id: string; name: string; displayColor: string }[];
   totalCount: number;
   filteredCount: number;
   selectedCount: number;
@@ -206,23 +206,6 @@ const emit = defineEmits<{
   (e: "retry-failed"): void;
   (e: "start-archive"): void;
 }>();
-
-// 色系视觉配置
-const COLOR_FAMILY_STYLES: Record<
-  BatchColorFamily,
-  { dot: string; bg: string }
-> = {
-  红: { dot: "#ef4444", bg: "rgba(239, 68, 68, 0.18)" },
-  橙: { dot: "#f97316", bg: "rgba(249, 115, 22, 0.18)" },
-  黄: { dot: "#eab308", bg: "rgba(234, 179, 8, 0.18)" },
-  绿: { dot: "#22c55e", bg: "rgba(34, 197, 94, 0.18)" },
-  青: { dot: "#06b6d4", bg: "rgba(6, 182, 212, 0.18)" },
-  蓝: { dot: "#3b82f6", bg: "rgba(59, 130, 246, 0.18)" },
-  紫: { dot: "#a855f7", bg: "rgba(168, 85, 247, 0.18)" },
-  粉: { dot: "#ec4899", bg: "rgba(236, 72, 153, 0.18)" },
-  棕: { dot: "#a16207", bg: "rgba(161, 98, 7, 0.18)" },
-  灰: { dot: "#9ca3af", bg: "rgba(156, 163, 175, 0.18)" },
-};
 
 // 亮度等级视觉配置
 const BRIGHTNESS_LEVEL_STYLES: Record<

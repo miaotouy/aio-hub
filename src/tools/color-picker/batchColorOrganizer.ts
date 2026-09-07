@@ -1,18 +1,18 @@
 import { createConfigManager } from "@/utils/configManager";
-import { computed, type Ref } from "vue";
+import { computed, reactive, watch, type Ref } from "vue";
+import {
+  createDefaultColorRules,
+  classifyHsl,
+  validateColorRules,
+  UNCLASSIFIED,
+  type ColorFamilyRule,
+} from "./colorFamilyRules";
+export {
+  createDefaultColorRules,
+  UNCLASSIFIED,
+  type ColorFamilyRule,
+} from "./colorFamilyRules";
 
-export const BATCH_COLOR_FAMILIES = [
-  "红",
-  "橙",
-  "黄",
-  "绿",
-  "青",
-  "蓝",
-  "紫",
-  "粉",
-  "棕",
-  "灰",
-] as const;
 export const BATCH_BRIGHTNESS_LEVELS = [
   "极暗",
   "偏暗",
@@ -22,7 +22,7 @@ export const BATCH_BRIGHTNESS_LEVELS = [
 ] as const;
 export const DEFAULT_BRIGHTNESS_THRESHOLDS = [0.2, 0.4, 0.6, 0.8] as const;
 
-export type BatchColorFamily = (typeof BATCH_COLOR_FAMILIES)[number];
+export type BatchColorFamily = string;
 export type BatchBrightnessLevel = (typeof BATCH_BRIGHTNESS_LEVELS)[number];
 export type BatchArchiveMode = "copy" | "symlink";
 export type BatchArchiveStructure =
@@ -80,17 +80,29 @@ export interface BatchImageCandidate {
   isNetwork: boolean;
 }
 
-export interface BatchImageItem extends BatchImageCandidate {
+export interface BatchAnalysisItem extends BatchImageCandidate {
   averageColor?: string;
   luminance?: number;
-  colorFamily?: BatchColorFamily;
-  brightnessLevel?: BatchBrightnessLevel;
   status: BatchAnalysisStatus;
   error?: string;
-  selected: boolean;
   thumbnailUrl?: string;
   archiveStatus?: string;
   targetPath?: string;
+}
+
+export interface BatchImageItem extends BatchAnalysisItem {
+  colorFamilyId?: string;
+  colorFamily?: string;
+  brightnessLevel?: BatchBrightnessLevel;
+  selected: boolean;
+}
+
+export interface AnalyzeItemResult {
+  path: string;
+  status: BatchAnalysisStatus;
+  averageColor?: string | null;
+  luminance?: number | null;
+  error?: string | null;
 }
 
 export interface BatchFilterState {
@@ -110,6 +122,7 @@ export interface BatchColorOrganizerConfig {
   directoryPath: string;
   maxDepth: number | null;
   thresholds: [number, number, number, number];
+  colorRules: ColorFamilyRule[];
   archiveMode: BatchArchiveMode;
   archiveStructure: BatchArchiveStructure;
   targetDirectory: string;
@@ -117,13 +130,49 @@ export interface BatchColorOrganizerConfig {
 
 export function createDefaultBatchOrganizerConfig(): BatchColorOrganizerConfig {
   return {
-    version: "1.0.0",
+    version: "2.0.0",
     directoryPath: "",
     maxDepth: 3,
     thresholds: [...DEFAULT_BRIGHTNESS_THRESHOLDS],
+    colorRules: createDefaultColorRules(),
     archiveMode: "copy",
     archiveStructure: "color_and_brightness",
     targetDirectory: "",
+  };
+}
+
+export function mergeBatchOrganizerConfig(
+  defaults: BatchColorOrganizerConfig,
+  loaded: Partial<BatchColorOrganizerConfig>
+): BatchColorOrganizerConfig {
+  const rules = validateColorRules(loaded?.colorRules);
+  return {
+    version: "2.0.0",
+    directoryPath:
+      typeof loaded?.directoryPath === "string"
+        ? loaded.directoryPath
+        : defaults.directoryPath,
+    maxDepth:
+      loaded?.maxDepth === null ||
+      (Number.isInteger(loaded?.maxDepth) && loaded.maxDepth! >= 0)
+        ? loaded.maxDepth!
+        : defaults.maxDepth,
+    thresholds: Array.isArray(loaded?.thresholds)
+      ? (clampThresholds(
+          loaded.thresholds
+        ) as BatchColorOrganizerConfig["thresholds"])
+      : defaults.thresholds,
+    colorRules: rules.rules ?? createDefaultColorRules(),
+    archiveMode: loaded?.archiveMode === "symlink" ? "symlink" : "copy",
+    archiveStructure: BATCH_ARCHIVE_STRUCTURE_OPTIONS.some(
+      (option) => option.value === loaded?.archiveStructure
+    )
+      ? loaded.archiveStructure!
+      : defaults.archiveStructure,
+    targetDirectory:
+      typeof loaded?.targetDirectory === "string"
+        ? loaded.targetDirectory
+        : defaults.targetDirectory,
   };
 }
 
@@ -131,28 +180,20 @@ export const batchOrganizerConfigManager =
   createConfigManager<BatchColorOrganizerConfig>({
     moduleName: "color-picker",
     fileName: "batch-organizer-config.json",
-    version: "1.0.0",
+    version: "2.0.0",
     debounceDelay: 500,
     createDefault: createDefaultBatchOrganizerConfig,
-    mergeConfig: (defaultConfig, loadedConfig) => ({
-      ...defaultConfig,
-      ...loadedConfig,
-      thresholds: Array.isArray(loadedConfig.thresholds)
-        ? (clampThresholds(loadedConfig.thresholds) as [
-            number,
-            number,
-            number,
-            number,
-          ])
-        : defaultConfig.thresholds,
-    }),
+    mergeConfig: mergeBatchOrganizerConfig,
   });
 
 export const clampThresholds = (thresholds: number[]): number[] => {
   const result: number[] = [];
-  thresholds.slice(0, 4).forEach((value, index) => {
+  Array.from(
+    { length: 4 },
+    (_, index) => thresholds[index] ?? DEFAULT_BRIGHTNESS_THRESHOLDS[index]
+  ).forEach((value, index) => {
     const minimum = index === 0 ? 0.01 : result[index - 1] + 0.01;
-    const maximum = index === 3 ? 0.99 : 0.99 - (3 - index) * 0.01;
+    const maximum = 0.99 - (3 - index) * 0.01;
     result.push(
       Math.min(
         maximum,
@@ -160,10 +201,6 @@ export const clampThresholds = (thresholds: number[]): number[] => {
       )
     );
   });
-  while (result.length < 4)
-    result.push(
-      result.length ? Math.min(0.99, result[result.length - 1] + 0.2) : 0.2
-    );
   return result;
 };
 
@@ -197,16 +234,7 @@ export function classifyColor(
   g: number,
   b: number
 ): BatchColorFamily {
-  const [hue, saturation, lightness] = rgbToHsl(r, g, b);
-  if (saturation < 0.12) return "灰";
-  if (hue < 15 || hue >= 345) return "红";
-  if (hue < 42) return lightness < 0.35 ? "棕" : "橙";
-  if (hue < 68) return "黄";
-  if (hue < 165) return "绿";
-  if (hue < 195) return "青";
-  if (hue < 255) return "蓝";
-  if (hue < 315) return "紫";
-  return "粉";
+  return classifyHsl(rgbToHsl(r, g, b), createDefaultColorRules()).name;
 }
 
 export function classifyBrightness(
@@ -241,7 +269,7 @@ export function matchesBatchFilter(
   if (item.status !== "success") return false;
   const colorMatches =
     filter.colorFamilies.length === 0 ||
-    (!!item.colorFamily && filter.colorFamilies.includes(item.colorFamily));
+    (!!item.colorFamilyId && filter.colorFamilies.includes(item.colorFamilyId));
   const brightnessMatches =
     filter.brightnessLevels.length === 0 ||
     (!!item.brightnessLevel &&
@@ -259,7 +287,7 @@ export function useBatchFiltering(
   const groups = computed(() => {
     const map = new Map<string, BatchImageItem[]>();
     for (const item of filteredItems.value) {
-      const key = `${item.colorFamily}/${item.brightnessLevel}`;
+      const key = `${item.colorFamilyId}/${item.brightnessLevel}`;
       const group = map.get(key) ?? [];
       group.push(item);
       map.set(key, group);
@@ -272,6 +300,128 @@ export function useBatchFiltering(
     }));
   });
   return { filteredItems, groups };
+}
+
+// Classification is a pure projection of analysis data. Selection lives outside that projection.
+export function useBatchClassification(
+  source: Ref<BatchAnalysisItem[]>,
+  rules: Ref<ColorFamilyRule[]>,
+  thresholds: Ref<[number, number, number, number]>,
+  filter: Ref<BatchFilterState>
+) {
+  const selectedPaths = reactive(new Set<string>());
+  const hslCache = new WeakMap<
+    BatchAnalysisItem,
+    { color: string; hsl: [number, number, number] }
+  >();
+  const classifiedItems = computed<BatchImageItem[]>(() =>
+    source.value.map((item) => {
+      let family: { id: string; name: string } | undefined;
+      let brightnessLevel: BatchBrightnessLevel | undefined;
+      if (
+        item.status === "success" &&
+        item.averageColor &&
+        Number.isFinite(item.luminance)
+      ) {
+        let cached = hslCache.get(item);
+        if (!cached || cached.color !== item.averageColor) {
+          const hex = item.averageColor.slice(1);
+          cached = {
+            color: item.averageColor,
+            hsl: rgbToHsl(
+              parseInt(hex.slice(0, 2), 16),
+              parseInt(hex.slice(2, 4), 16),
+              parseInt(hex.slice(4, 6), 16)
+            ),
+          };
+          hslCache.set(item, cached);
+        }
+        family = classifyHsl(cached.hsl, rules.value);
+        brightnessLevel = classifyBrightness(item.luminance!, thresholds.value);
+      }
+      return {
+        ...item,
+        colorFamilyId: family?.id,
+        colorFamily: family?.name,
+        brightnessLevel,
+        get selected() {
+          return selectedPaths.has(item.path);
+        },
+      };
+    })
+  );
+  watch(
+    rules,
+    () => {
+      const validIds = new Set([
+        ...rules.value.map((rule) => rule.id),
+        UNCLASSIFIED.id,
+      ]);
+      filter.value = {
+        ...filter.value,
+        colorFamilies: filter.value.colorFamilies.filter((id) =>
+          validIds.has(id)
+        ),
+      };
+    },
+    { deep: true, flush: "sync" }
+  );
+  const { filteredItems, groups } = useBatchFiltering(classifiedItems, filter);
+  watch(
+    filteredItems,
+    (visible) => {
+      const paths = new Set(visible.map((item) => item.path));
+      for (const path of selectedPaths)
+        if (!paths.has(path)) selectedPaths.delete(path);
+    },
+    { flush: "sync" }
+  );
+  const selectedItems = computed(() =>
+    filteredItems.value.filter((item) => selectedPaths.has(item.path))
+  );
+  function setSelected(item: BatchImageItem, selected: boolean) {
+    if (selected && matchesBatchFilter(item, filter.value))
+      selectedPaths.add(item.path);
+    else selectedPaths.delete(item.path);
+  }
+  return {
+    classifiedItems,
+    filteredItems,
+    groups,
+    selectedPaths,
+    selectedItems,
+    setSelected,
+  };
+}
+
+export function createArchiveItems(
+  items: BatchImageItem[]
+): BatchOrganizeRequestItem[] {
+  return items
+    .filter(
+      (item) =>
+        item.status === "success" && item.colorFamily && item.brightnessLevel
+    )
+    .map((item) => ({
+      sourcePath: item.path,
+      fileName: item.fileName,
+      colorFamily: item.colorFamily!,
+      brightnessLevel: item.brightnessLevel!,
+    }));
+}
+
+export function applyBatchAnalysisResults(
+  itemsByPath: Map<string, BatchAnalysisItem>,
+  results: AnalyzeItemResult[]
+) {
+  for (const result of results) {
+    const item = itemsByPath.get(result.path);
+    if (!item) continue;
+    item.status = result.status;
+    item.averageColor = result.averageColor ?? undefined;
+    item.luminance = result.luminance ?? undefined;
+    item.error = result.error ?? undefined;
+  }
 }
 
 export function makeCsv(items: BatchImageItem[]): string {

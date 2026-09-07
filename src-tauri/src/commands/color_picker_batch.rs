@@ -45,8 +45,6 @@ static ANALYSIS_POOL: Lazy<Result<rayon::ThreadPool, String>> = Lazy::new(|| {
 
 const ANALYSIS_PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
-const DEFAULT_BRIGHTNESS_THRESHOLDS: [f64; 4] = [0.2, 0.4, 0.6, 0.8];
-
 const SUPPORTED_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff", "avif",
 ];
@@ -87,7 +85,6 @@ pub struct ScanProgress {
 pub struct AnalyzeImagesRequest {
     pub task_id: String,
     pub paths: Vec<String>,
-    pub thresholds: Option<Vec<f64>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,8 +94,6 @@ pub struct AnalyzeItemResult {
     pub status: String,
     pub average_color: Option<String>,
     pub luminance: Option<f64>,
-    pub color_family: Option<String>,
-    pub brightness_level: Option<String>,
     pub error: Option<String>,
 }
 
@@ -340,67 +335,6 @@ pub fn color_picker_cancel_scan(scan_id: String) -> Result<(), String> {
     Ok(())
 }
 
-fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f64, f64, f64) {
-    let r_norm = r as f64 / 255.0;
-    let g_norm = g as f64 / 255.0;
-    let b_norm = b as f64 / 255.0;
-
-    let max = r_norm.max(g_norm).max(b_norm);
-    let min = r_norm.min(g_norm).min(b_norm);
-    let lightness = (max + min) / 2.0;
-
-    if (max - min).abs() < f64::EPSILON {
-        return (0.0, 0.0, lightness);
-    }
-
-    let delta = max - min;
-    let saturation = if lightness > 0.5 {
-        delta / (2.0 - max - min)
-    } else {
-        delta / (max + min)
-    };
-
-    let mut hue = if (max - r_norm).abs() < f64::EPSILON {
-        (g_norm - b_norm) / delta + if g_norm < b_norm { 6.0 } else { 0.0 }
-    } else if (max - g_norm).abs() < f64::EPSILON {
-        (b_norm - r_norm) / delta + 2.0
-    } else {
-        (r_norm - g_norm) / delta + 4.0
-    };
-    hue *= 60.0;
-
-    (hue, saturation, lightness)
-}
-
-pub fn classify_color(r: u8, g: u8, b: u8) -> &'static str {
-    let (hue, saturation, lightness) = rgb_to_hsl(r, g, b);
-    if saturation < 0.12 {
-        return "灰";
-    }
-    if !(15.0..345.0).contains(&hue) {
-        return "红";
-    }
-    if hue < 42.0 {
-        return if lightness < 0.35 { "棕" } else { "橙" };
-    }
-    if hue < 68.0 {
-        return "黄";
-    }
-    if hue < 165.0 {
-        return "绿";
-    }
-    if hue < 195.0 {
-        return "青";
-    }
-    if hue < 255.0 {
-        return "蓝";
-    }
-    if hue < 315.0 {
-        return "紫";
-    }
-    "粉"
-}
-
 pub fn calculate_luminance(r: u8, g: u8, b: u8) -> f64 {
     let linear = |val: u8| -> f64 {
         let norm = val as f64 / 255.0;
@@ -411,51 +345,6 @@ pub fn calculate_luminance(r: u8, g: u8, b: u8) -> f64 {
         }
     };
     (0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)).clamp(0.0, 1.0)
-}
-
-pub fn classify_brightness(luminance: f64, thresholds: &[f64; 4]) -> &'static str {
-    let [dark, dim, medium, bright] = *thresholds;
-    if luminance < dark {
-        "极暗"
-    } else if luminance < dim {
-        "偏暗"
-    } else if luminance < medium {
-        "中等"
-    } else if luminance < bright {
-        "偏亮"
-    } else {
-        "明亮"
-    }
-}
-
-fn normalize_brightness_thresholds(values: Option<&[f64]>) -> [f64; 4] {
-    let values = values.unwrap_or(&DEFAULT_BRIGHTNESS_THRESHOLDS);
-    let mut normalized = Vec::with_capacity(4);
-
-    for (index, value) in values.iter().take(4).enumerate() {
-        let minimum = if index == 0 {
-            0.01
-        } else {
-            normalized[index - 1] + 0.01
-        };
-        let maximum = if index == 3 {
-            0.99
-        } else {
-            0.99 - (3 - index) as f64 * 0.01
-        };
-        let value = if value.is_finite() { *value } else { minimum };
-        normalized.push(value.clamp(minimum, maximum));
-    }
-
-    while normalized.len() < 4 {
-        let value = normalized
-            .last()
-            .map(|previous| (previous + 0.2).min(0.99))
-            .unwrap_or(0.2);
-        normalized.push(value);
-    }
-
-    normalized.try_into().expect("亮度阈值会被规范化为四个值")
 }
 
 fn average_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
@@ -603,7 +492,6 @@ fn analyze_images(
         }
     });
     let pool = ANALYSIS_POOL.as_ref().map_err(Clone::clone)?;
-    let thresholds = normalize_brightness_thresholds(request.thresholds.as_deref());
     let total = request.paths.len();
     let progress = Mutex::new((0_usize, Vec::new(), Instant::now()));
 
@@ -632,8 +520,7 @@ fn analyze_images(
                         status: "failed".to_string(),
                         average_color: None,
                         luminance: None,
-                        color_family: None,
-                        brightness_level: None,
+
                         error: Some("分析任务已取消".to_string()),
                     };
                 }
@@ -645,10 +532,7 @@ fn analyze_images(
                         status: "success".to_string(),
                         average_color: Some(format!("#{r:02x}{g:02x}{b:02x}")),
                         luminance: Some(luminance),
-                        color_family: Some(classify_color(r, g, b).to_string()),
-                        brightness_level: Some(
-                            classify_brightness(luminance, &thresholds).to_string(),
-                        ),
+
                         error: None,
                     },
                     Err(err) => AnalyzeItemResult {
@@ -656,8 +540,7 @@ fn analyze_images(
                         status: "failed".to_string(),
                         average_color: None,
                         luminance: None,
-                        color_family: None,
-                        brightness_level: None,
+
                         error: Some(err),
                     },
                 };
@@ -750,7 +633,25 @@ pub fn color_picker_check_symlink_permission(test_directory: String) -> Result<b
 
 fn safe_component(value: &str) -> Result<String, String> {
     let value = value.trim();
-    if value.is_empty() || value == "." || value == ".." || value.contains(['/', '\\', ':']) {
+    let stem = value.split('.').next().unwrap_or("").to_ascii_uppercase();
+    let reserved = matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || ["COM", "LPT"].iter().any(|prefix| {
+        stem.strip_prefix(prefix).is_some_and(|suffix| {
+            matches!(
+                suffix,
+                "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+            )
+        })
+    });
+    if value.is_empty()
+        || value.ends_with('.')
+        || value
+            .chars()
+            .any(|ch| ch.is_control() || r#"/\:*?"<>|"#.contains(ch))
+        || reserved
+    {
         return Err(format!("非法分组名称: {}", value));
     }
     Ok(value.to_string())
@@ -1034,7 +935,6 @@ mod tests {
             AnalyzeImagesRequest {
                 task_id: uuid::Uuid::new_v4().to_string(),
                 paths: paths.clone(),
-                thresholds: None,
             },
             |event| events.lock().unwrap().push(event),
         )
@@ -1049,6 +949,11 @@ mod tests {
             13
         );
         assert_eq!(results.last().unwrap().status, "failed");
+        let payload = serde_json::to_value(&results[0]).unwrap();
+        assert!(payload.get("averageColor").is_some());
+        assert!(payload.get("luminance").is_some());
+        assert!(payload.get("colorFamily").is_none());
+        assert!(payload.get("brightnessLevel").is_none());
         assert!(events
             .iter()
             .any(|event| !event.done && !event.batch_results.is_empty()));
@@ -1101,7 +1006,6 @@ mod tests {
                             .into_owned()
                     })
                     .collect(),
-                thresholds: None,
             },
             |event| {
                 if event.completed_count > 0 && !event.done {
@@ -1140,6 +1044,16 @@ mod tests {
         assert!(safe_component(r"a\b").is_err());
         assert!(safe_component("C:").is_err());
         assert_eq!(safe_component(" 蓝 ").unwrap(), "蓝");
+        for name in [
+            "a*b", "a?b", "a<b", "a>b", "a|b", "a\"b", "a\0b", "red.", "CON", "nul.txt", "COM1",
+            "LPT²",
+        ] {
+            assert!(
+                safe_component(name).is_err(),
+                "accepted unsafe name: {name}"
+            );
+        }
+        assert_eq!(safe_component("海蓝").unwrap(), "海蓝");
     }
 
     #[test]
@@ -1150,14 +1064,6 @@ mod tests {
         let (candidate, renamed) = unique_target(&original);
         assert!(renamed);
         assert_eq!(candidate.file_name().unwrap(), "cover (1).png");
-    }
-
-    #[test]
-    fn normalizes_range_slider_thresholds() {
-        assert_eq!(
-            normalize_brightness_thresholds(Some(&[0.2, 0.8])),
-            [0.2, 0.8, 0.99, 0.99]
-        );
     }
 
     #[test]

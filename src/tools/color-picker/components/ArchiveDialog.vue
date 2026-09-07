@@ -21,6 +21,7 @@
     width="680px"
     height="auto"
     :close-on-backdrop-click="false"
+    :show-close-button="!organizing"
     @update:model-value="$emit('update:visible', $event)"
   >
     <div class="archive-dialog-content">
@@ -39,13 +40,17 @@
             <label class="config-label">目标目录</label>
             <el-input
               :model-value="targetDirectory"
+              :disabled="organizing"
               placeholder="请选择或输入归档目标目录"
               size="default"
               clearable
               @update:model-value="$emit('update:targetDirectory', $event)"
             >
               <template #append>
-                <el-button @click="$emit('choose-directory')">
+                <el-button
+                  :disabled="organizing"
+                  @click="$emit('choose-directory')"
+                >
                   <el-icon style="margin-right: 4px"><FolderOpened /></el-icon>
                   选择目录
                 </el-button>
@@ -57,6 +62,7 @@
             <label class="config-label">分类结构</label>
             <el-radio-group
               :model-value="archiveStructure"
+              :disabled="organizing"
               size="default"
               class="archive-structure-group"
               @update:model-value="$emit('update:archiveStructure', $event)"
@@ -81,6 +87,7 @@
             <label class="config-label">归档方式</label>
             <el-radio-group
               :model-value="archiveMode"
+              :disabled="organizing"
               size="default"
               class="archive-mode-group"
               @update:model-value="$emit('update:archiveMode', $event)"
@@ -250,7 +257,11 @@
     <template #footer>
       <div class="dialog-footer">
         <template v-if="!archiveResult">
-          <el-button @click="$emit('update:visible', false)">取消</el-button>
+          <el-button
+            :disabled="organizing"
+            @click="$emit('update:visible', false)"
+            >取消</el-button
+          >
           <el-button
             type="primary"
             :loading="organizing"

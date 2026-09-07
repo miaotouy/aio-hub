@@ -34,7 +34,7 @@ describe("batch color organizer rules", () => {
     expect(classifyBrightness(0.9)).toBe("明亮");
   });
 
-  it("ignores fully transparent pixels at the sampling boundary", () => {
+  it("calculates black and white luminance endpoints", () => {
     expect(calculateLuminance(0, 0, 0)).toBe(0);
     expect(calculateLuminance(255, 255, 255)).toBe(1);
   });
@@ -48,19 +48,20 @@ describe("batch color organizer rules", () => {
       isNetwork: false,
       status: "success",
       selected: false,
+      colorFamilyId: "blue",
       colorFamily: "蓝",
       brightnessLevel: "偏暗",
     } satisfies BatchImageItem;
 
     expect(
       matchesBatchFilter(item, {
-        colorFamilies: ["蓝", "紫"],
+        colorFamilies: ["blue", "purple"],
         brightnessLevels: ["偏暗", "中等"],
       })
     ).toBe(true);
     expect(
       matchesBatchFilter(item, {
-        colorFamilies: ["蓝"],
+        colorFamilies: ["blue"],
         brightnessLevels: ["明亮"],
       })
     ).toBe(false);
@@ -77,7 +78,7 @@ describe("batch color organizer rules", () => {
 
   it("provides valid default config and config manager for batch color organizer", async () => {
     const defaultConfig = createDefaultBatchOrganizerConfig();
-    expect(defaultConfig.version).toBe("1.0.0");
+    expect(defaultConfig.version).toBe("2.0.0");
     expect(defaultConfig.maxDepth).toBe(3);
     expect(defaultConfig.thresholds).toEqual([0.2, 0.4, 0.6, 0.8]);
     expect(defaultConfig.archiveMode).toBe("copy");
@@ -85,6 +86,6 @@ describe("batch color organizer rules", () => {
 
     const loaded = await batchOrganizerConfigManager.load();
     expect(loaded).toBeDefined();
-    expect(loaded.version).toBe("1.0.0");
+    expect(loaded.version).toBe("2.0.0");
   });
 });

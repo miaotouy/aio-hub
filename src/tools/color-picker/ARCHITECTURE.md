@@ -52,13 +52,13 @@ sequenceDiagram
     UI->>AssetMgr: importAssetFromBytes()
     AssetMgr-->>UI: 返回 asset 对象
     UI->>Store: setCurrentImage(asset.id)
-    
+
     par 并行分析
         UI->>Extractor: extractQuantizeColors()
         UI->>Extractor: extractVibrantColors()
         UI->>Extractor: extractAverageColor()
     end
-    
+
     Extractor-->>UI: 返回 ColorAnalysisResult
     UI->>Store: setAnalysisResult(result)
     UI->>History: addRecord()
@@ -77,9 +77,19 @@ sequenceDiagram
 
 - `BatchColorOrganizer.vue` 调用 `color_picker_analyze_images` 前先等待进度监听注册完成；按任务 ID 隔离事件，按路径索引增量更新结果。离开页面时请求取消任务并释放监听。
 - Rust 命令采用 `async` + `tokio::task::spawn_blocking`，避免同步 command 等待 Rayon 计算时阻塞 Tauri 主线程。图像解码、SVG 渲染和颜色采样均在后台执行。
-- 所有批量分析任务共享独立 Rayon 线程池：工作线程数为可用逻辑 CPU 数的一半，最少 1、最多 4。为 WebView 和其他工具保留调度余量，并限制同时解码原图的数量；这不是严格的内存用量或解码器内部线程数上限。
+- 所有批量分析任务共享独立 Rayon 线程池：工作线程数以 `analysis_worker_count` 为准（当前为可用逻辑 CPU 数的 3/4，最少 1、最多 16）。为 WebView 和其他工具保留调度余量，并限制同时解码原图的数量；这不是严格的内存用量或解码器内部线程数上限。
 - 首张结果立即发出，后续在有结果完成时以 100 ms 间隔合并进度；每个批次包含上次发送以来的全部结果。计数与事件发送在同一锁内串行化，避免并行完成导致进度倒退。任务结束（包括取消）时补发尾批，且只发送一次 `done`。
 - 取消为协作式：已开始的单张图片解码会继续完成，尚未开始的图片跳过并在最终响应中标为可重试失败。终态进度只统计实际处理的图片，不把跳过项填充为 100%。
+
+### 批量分类与筛选（前端派生）
+
+- 数据链路为扫描 → 基础分析 → 前端分类 → 筛选/分组 → 归档/报告。`color_picker_analyze_images` 仅接收 `taskId` 和 `paths`，结果与进度返回路径、状态、平均色、亮度和错误；Rust 不接收分类阈值、不返回色系或亮度等级。
+- `batchColorOrganizer.ts` 将 `BatchAnalysisItem` 与 `BatchImageItem` 分离。`useBatchClassification` 按平均色缓存 HSL，由当前色系规则与亮度阈值派生分类。原始列表使用浅响应，每个进度批次结束后统一通知，避免逐字段更新引发全列表重复分类。调整分类配置不触发扫描、解码或分析 IPC；流式、最终和重试结果统一进入基础数据层。
+- `colorFamilyRules.ts` 管理有序的自定义 HSL 规则：稳定 ID、名称、展示色、色相范围（含显式全部色相）、饱和度和明度范围。范围左闭右开，S/L 的 1 包含端点；色相可跨 0°。多个命中取首项，未命中落入固定“未分类”。展示色不参与匹配；HSL 明度不等于分析返回的相对亮度。
+- 默认十个色系保留原有边界，灰色和棕色置于优先位置。色系编辑使用草稿，应用时整体验证；新增、删除、重排和恢复默认均不直接写入生效配置。名称同时用于归档目录，前后端拒绝路径穿越、Windows 非法字符及设备名。
+- 筛选和分组按色系 ID，名称只负责显示/归档；色系删除时清理失效筛选 ID。勾选单独以路径 Set 管理，分类投影通过只读 getter 提供选中状态，勾选本身不重建分组。配置或筛选变化后移除不可见勾选，再次可见不恢复。
+- 归档提交使用当前分类生成请求快照，预检通过版本号丢弃过期异步响应。执行时禁用归档设置；CSV/JSON 导出全部条目及当前分类，不局限于筛选结果。
+- 批量配置 `batch-organizer-config.json` 升级为 `2.0.0`，复用 ConfigManager 防抖保存。旧配置保留目录、亮度阈值、归档偏好并补入默认规则；损坏规则整体回退默认，显式空数组保留。规则和顺序持久化，分析数据和勾选仅在当前会话保留；不影响单图分析。
 
 ## 5. 未来展望
 

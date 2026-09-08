@@ -73,6 +73,7 @@ describe("variable brightness classification", () => {
       ]);
       const thresholds = ref([0.2, 0.4, 0.6, 0.8]);
       const filter = ref<BatchFilterState>({
+        colorSource: "average",
         colorFamilies: [],
         brightnessLevels: ["中等"],
       });

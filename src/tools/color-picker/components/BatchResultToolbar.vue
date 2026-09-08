@@ -92,6 +92,18 @@
       >
     </div>
     <div class="toolbar-filters">
+      <div class="filter-method">
+        <span class="filter-method-label">色彩依据</span>
+        <el-tooltip :content="colorSourceDescription" placement="top">
+          <el-segmented
+            class="color-source-switch"
+            size="small"
+            :model-value="filter.colorSource"
+            :options="colorSourceOptions"
+            @update:model-value="updateColorSource"
+          />
+        </el-tooltip>
+      </div>
       <div class="filter-section">
         <div class="filter-header">
           <el-icon class="header-icon"><ChromeFilled /></el-icon
@@ -169,7 +181,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import {
   ChromeFilled,
   Sunny,
@@ -179,8 +191,10 @@ import {
   InfoFilled,
 } from "@element-plus/icons-vue";
 import {
+  BATCH_COLOR_SOURCE_OPTIONS,
   type BatchFilterState,
   type BatchColorFamily,
+  type BatchColorSource,
   type BatchBrightnessLevel,
 } from "../batchColorOrganizer";
 
@@ -206,6 +220,31 @@ const emit = defineEmits<{
   (e: "retry-failed"): void;
   (e: "start-archive"): void;
 }>();
+
+const colorSourceOptions = BATCH_COLOR_SOURCE_OPTIONS.map(
+  ({ value, label }) => ({
+    value,
+    label,
+  })
+);
+const colorSourceDescription = computed(
+  () =>
+    BATCH_COLOR_SOURCE_OPTIONS.find(
+      (option) => option.value === props.filter.colorSource
+    )?.description ?? "选择用于色系和亮度筛选的代表色。"
+);
+
+function updateColorSource(value: string | number | boolean) {
+  if (
+    typeof value !== "string" ||
+    !BATCH_COLOR_SOURCE_OPTIONS.some((option) => option.value === value)
+  )
+    return;
+  emit("update:filter", {
+    ...props.filter,
+    colorSource: value as BatchColorSource,
+  });
+}
 
 // 亮度等级视觉配置
 const BRIGHTNESS_LEVEL_STYLES: Record<
@@ -489,6 +528,24 @@ onUnmounted(() => {
   cursor: help;
   background: rgba(var(--el-fill-color-light-rgb, 120, 120, 120), 0.15);
   font-size: 12px;
+}
+.filter-method {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(var(--el-fill-color-light-rgb, 120, 120, 120), 0.1);
+}
+.filter-method-label {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.color-source-switch {
+  --el-segmented-bg-color: transparent;
 }
 .toolbar-filters {
   display: flex;

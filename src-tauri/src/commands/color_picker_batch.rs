@@ -10,6 +10,7 @@ use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use resvg::{tiny_skia, usvg};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -93,6 +94,8 @@ pub struct AnalyzeItemResult {
     pub path: String,
     pub status: String,
     pub average_color: Option<String>,
+    pub dominant_color: Option<String>,
+    pub vibrant_color: Option<String>,
     pub luminance: Option<f64>,
     pub error: Option<String>,
 }
@@ -347,6 +350,31 @@ pub fn calculate_luminance(r: u8, g: u8, b: u8) -> f64 {
     (0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)).clamp(0.0, 1.0)
 }
 
+#[derive(Clone, Copy)]
+struct ImageColorAnalysis {
+    average: (u8, u8, u8),
+    dominant: (u8, u8, u8),
+    vibrant: (u8, u8, u8),
+    luminance: f64,
+}
+
+#[derive(Clone, Copy, Default)]
+struct QuantizedColorBin {
+    count: u32,
+    r_sum: u64,
+    g_sum: u64,
+    b_sum: u64,
+}
+
+const QUANTIZED_BINS_PER_CHANNEL: usize = 32;
+const QUANTIZED_BIN_COUNT: usize = QUANTIZED_BINS_PER_CHANNEL.pow(3);
+
+thread_local! {
+    // Rayon workers reuse this scratch space across images. It avoids allocating a
+    // full 5-bit histogram for every decoded thumbnail while keeping workers isolated.
+    static QUANTIZED_COLOR_BINS: RefCell<Vec<QuantizedColorBin>> = RefCell::new(Vec::new());
+}
+
 fn average_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
     let mut r_sum = 0.0;
     let mut g_sum = 0.0;
@@ -374,6 +402,110 @@ fn average_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
     let luminance = calculate_luminance(r, g, b);
 
     Ok((r, g, b, luminance))
+}
+
+fn hsl_saturation_and_lightness((r, g, b): (u8, u8, u8)) -> (f64, f64) {
+    let r = f64::from(r) / 255.0;
+    let g = f64::from(g) / 255.0;
+    let b = f64::from(b) / 255.0;
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let lightness = (max + min) / 2.0;
+    let saturation = if (max - min).abs() <= f64::EPSILON {
+        0.0
+    } else if lightness > 0.5 {
+        (max - min) / (2.0 - max - min)
+    } else {
+        (max - min) / (max + min)
+    };
+    (saturation, lightness)
+}
+
+fn representative_colors_rgba(
+    pixels: &[u8],
+    fallback: (u8, u8, u8),
+) -> ((u8, u8, u8), (u8, u8, u8)) {
+    QUANTIZED_COLOR_BINS.with(|storage| {
+        let mut bins = storage.borrow_mut();
+        if bins.len() != QUANTIZED_BIN_COUNT {
+            bins.resize(QUANTIZED_BIN_COUNT, QuantizedColorBin::default());
+        } else {
+            bins.fill(QuantizedColorBin::default());
+        }
+
+        // These sparse, 5-bit bins run on the already decoded 128 px thumbnail. They
+        // intentionally skip transparent and near-white pixels so borders/backgrounds
+        // do not hide the subject's dominant or saturated representative color.
+        for pixel in pixels.chunks_exact(4).step_by(4) {
+            let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+            if a < 125 || (r > 250 && g > 250 && b > 250) {
+                continue;
+            }
+            let index = ((usize::from(r) >> 3) << 10)
+                | ((usize::from(g) >> 3) << 5)
+                | (usize::from(b) >> 3);
+            let bin = &mut bins[index];
+            bin.count += 1;
+            bin.r_sum += u64::from(r);
+            bin.g_sum += u64::from(g);
+            bin.b_sum += u64::from(b);
+        }
+
+        let max_population = bins.iter().map(|bin| bin.count).max().unwrap_or(0);
+        if max_population == 0 {
+            return (fallback, fallback);
+        }
+
+        let color_for = |bin: QuantizedColorBin| {
+            (
+                ((bin.r_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
+                ((bin.g_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
+                ((bin.b_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
+            )
+        };
+        let mut dominant = fallback;
+        let mut dominant_population = 0;
+        let mut vibrant = fallback;
+        let mut vibrant_score = f64::NEG_INFINITY;
+        for bin in bins.iter().copied().filter(|bin| bin.count > 0) {
+            let color = color_for(bin);
+            if bin.count > dominant_population {
+                dominant = color;
+                dominant_population = bin.count;
+            }
+            let (saturation, lightness) = hsl_saturation_and_lightness(color);
+            let population = f64::from(bin.count) / f64::from(max_population);
+            let normal_luma = 1.0 - ((lightness - 0.5) / 0.5).abs();
+            let score = 0.50 * population + 0.35 * saturation + 0.15 * normal_luma;
+            if score > vibrant_score {
+                vibrant = color;
+                vibrant_score = score;
+            }
+        }
+        (dominant, vibrant)
+    })
+}
+
+fn analysis_from_average((r, g, b, luminance): (u8, u8, u8, f64)) -> ImageColorAnalysis {
+    let average = (r, g, b);
+    ImageColorAnalysis {
+        average,
+        dominant: average,
+        vibrant: average,
+        luminance,
+    }
+}
+
+fn raster_color_analysis(pixels: &[u8]) -> Result<ImageColorAnalysis, String> {
+    let (r, g, b, luminance) = average_rgba_pixels(pixels)?;
+    let average = (r, g, b);
+    let (dominant, vibrant) = representative_colors_rgba(pixels, average);
+    Ok(ImageColorAnalysis {
+        average,
+        dominant,
+        vibrant,
+        luminance,
+    })
 }
 
 fn average_premultiplied_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
@@ -407,7 +539,7 @@ fn average_premultiplied_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64),
     Ok((r, g, b, luminance))
 }
 
-fn sample_svg_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
+fn sample_svg_colors(path: &Path) -> Result<ImageColorAnalysis, String> {
     let data = fs::read(path).map_err(|error| format!("读取 SVG 失败: {error}"))?;
     let options = usvg::Options {
         resources_dir: path.parent().map(Path::to_path_buf),
@@ -429,16 +561,18 @@ fn sample_svg_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
         &mut pixmap.as_mut(),
     );
 
-    average_premultiplied_rgba_pixels(pixmap.data())
+    Ok(analysis_from_average(average_premultiplied_rgba_pixels(
+        pixmap.data(),
+    )?))
 }
 
-fn sample_image_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
+fn sample_image_colors(path: &Path) -> Result<ImageColorAnalysis, String> {
     if path
         .extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"))
     {
-        return sample_svg_color(path);
+        return sample_svg_colors(path);
     }
 
     let img = image::open(path).map_err(|error| format!("打开图片失败: {error}"))?;
@@ -447,15 +581,26 @@ fn sample_image_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
         return Err("图片尺寸为 0".to_string());
     }
 
-    // 若图片尺寸较大，进行快速缩放采样至 128x128。
+    // All representative colors reuse the same 128 px thumbnail. Decoding and
+    // resizing remain the dominant cost, so this avoids extra image passes.
     let sampled = if width > 128 || height > 128 {
         img.thumbnail(128, 128)
     } else {
         img
     };
     let rgba = sampled.to_rgba8();
+    raster_color_analysis(rgba.as_raw())
+}
 
-    average_rgba_pixels(rgba.as_raw())
+#[cfg(test)]
+fn sample_image_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
+    let analysis = sample_image_colors(path)?;
+    Ok((
+        analysis.average.0,
+        analysis.average.1,
+        analysis.average.2,
+        analysis.luminance,
+    ))
 }
 
 #[tauri::command]
@@ -519,28 +664,40 @@ fn analyze_images(
                         path: path_str.clone(),
                         status: "failed".to_string(),
                         average_color: None,
+                        dominant_color: None,
+                        vibrant_color: None,
                         luminance: None,
-
                         error: Some("分析任务已取消".to_string()),
                     };
                 }
 
                 let path = Path::new(path_str);
-                let item_result = match sample_image_color(path) {
-                    Ok((r, g, b, luminance)) => AnalyzeItemResult {
+                let item_result = match sample_image_colors(path) {
+                    Ok(analysis) => AnalyzeItemResult {
                         path: path_str.clone(),
                         status: "success".to_string(),
-                        average_color: Some(format!("#{r:02x}{g:02x}{b:02x}")),
-                        luminance: Some(luminance),
-
+                        average_color: Some(format!(
+                            "#{:02x}{:02x}{:02x}",
+                            analysis.average.0, analysis.average.1, analysis.average.2
+                        )),
+                        dominant_color: Some(format!(
+                            "#{:02x}{:02x}{:02x}",
+                            analysis.dominant.0, analysis.dominant.1, analysis.dominant.2
+                        )),
+                        vibrant_color: Some(format!(
+                            "#{:02x}{:02x}{:02x}",
+                            analysis.vibrant.0, analysis.vibrant.1, analysis.vibrant.2
+                        )),
+                        luminance: Some(analysis.luminance),
                         error: None,
                     },
                     Err(err) => AnalyzeItemResult {
                         path: path_str.clone(),
                         status: "failed".to_string(),
                         average_color: None,
+                        dominant_color: None,
+                        vibrant_color: None,
                         luminance: None,
-
                         error: Some(err),
                     },
                 };
@@ -895,6 +1052,23 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn representative_colors_ignore_white_backgrounds_without_changing_average() {
+        let mut pixels = Vec::new();
+        for _ in 0..192 {
+            pixels.extend_from_slice(&[255, 255, 255, 255]);
+        }
+        for _ in 0..64 {
+            pixels.extend_from_slice(&[20, 60, 240, 255]);
+        }
+
+        let analysis = raster_color_analysis(&pixels).unwrap();
+        assert!(analysis.average.0 > 150);
+        assert!(analysis.average.2 > analysis.average.0);
+        assert_eq!(analysis.dominant, (20, 60, 240));
+        assert_eq!(analysis.vibrant, (20, 60, 240));
+    }
+
+    #[test]
     fn analysis_pool_leaves_cpu_headroom_and_bounds_decoders() {
         assert_eq!(analysis_worker_count(1), 1);
         assert_eq!(analysis_worker_count(2), 1);
@@ -1080,6 +1254,33 @@ mod tests {
         assert!((r as i16 - 255).abs() <= 1);
         assert_eq!(g, 0);
         assert_eq!(b, 0);
+    }
+
+    #[test]
+    fn samples_real_color_svg_from_icon_library() {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../node_modules/@lobehub/icons-static-svg/icons/mistral-color.svg");
+        assert!(
+            source.is_file(),
+            "missing icon-library SVG fixture: {source:?}"
+        );
+
+        let analysis = sample_image_colors(&source).unwrap();
+        let (r, g, b) = analysis.average;
+        assert!(
+            r > 200,
+            "expected the Mistral icon to remain red/orange: {r}"
+        );
+        assert!(
+            (70..=190).contains(&g),
+            "expected the Mistral icon to retain its orange/amber green channel: {g}"
+        );
+        assert!(b < 50, "expected the Mistral icon to have little blue: {b}");
+        // SVGs use the existing alpha-correct rendering path. Until representative
+        // SVG colors have their own separately tuned rasterization semantics, all
+        // filter sources intentionally fall back to this rendered average.
+        assert_eq!(analysis.dominant, analysis.average);
+        assert_eq!(analysis.vibrant, analysis.average);
     }
 
     #[test]

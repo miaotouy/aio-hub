@@ -236,6 +236,7 @@ describe("analysis/classification separation", () => {
         0.2, 0.4, 0.6, 0.8,
       ]);
       const filter = ref<BatchFilterState>({
+        colorSource: "average",
         colorFamilies: [],
         brightnessLevels: [],
       });
@@ -256,7 +257,11 @@ describe("analysis/classification separation", () => {
       state.setSelected(firstProjection, true);
       thresholds.value = [0.05, 0.1, 0.15, 0.2];
       const blue = rules.value.find((rule) => rule.id === "blue")!;
-      filter.value = { colorFamilies: [blue.id], brightnessLevels: [] };
+      filter.value = {
+        colorSource: "average",
+        colorFamilies: [blue.id],
+        brightnessLevels: [],
+      };
       blue.name = "海蓝";
       expect(state.selectedItems.value.map((item) => item.path)).toEqual([
         "one",
@@ -289,9 +294,17 @@ describe("analysis/classification separation", () => {
       expect(state.filteredItems.value).toHaveLength(2);
       expect(state.classifiedItems.value[1].error).toBeUndefined();
       expect(source.value[0]).not.toHaveProperty("colorFamily");
-      filter.value = { colorFamilies: ["red"], brightnessLevels: [] };
+      filter.value = {
+        colorSource: "average",
+        colorFamilies: ["red"],
+        brightnessLevels: [],
+      };
       expect(state.selectedPaths.size).toBe(0);
-      filter.value = { colorFamilies: ["blue"], brightnessLevels: [] };
+      filter.value = {
+        colorSource: "average",
+        colorFamilies: ["blue"],
+        brightnessLevels: [],
+      };
       expect(state.selectedItems.value).toEqual([]);
       state.setSelected(state.classifiedItems.value[0], true);
       rules.value = [];

@@ -35,6 +35,28 @@ export {
   type BatchBrightnessLevel,
 } from "./brightnessThresholds";
 export type BatchColorFamily = string;
+export type BatchColorSource = "average" | "dominant" | "vibrant";
+export const BATCH_COLOR_SOURCE_OPTIONS = [
+  {
+    value: "average",
+    label: "平均色",
+    description: "按整张缩略图的 alpha 加权平均色分组，适合整体色调。",
+  },
+  {
+    value: "dominant",
+    label: "主色",
+    description: "按出现最多的量化色分组，会忽略透明和近白背景。",
+  },
+  {
+    value: "vibrant",
+    label: "鲜艳色",
+    description: "按饱和度与出现比例选取代表色，适合突出画面主体。",
+  },
+] as const satisfies readonly {
+  value: BatchColorSource;
+  label: string;
+  description: string;
+}[];
 export type BatchArchiveMode = "copy" | "symlink";
 export type BatchArchiveStructure =
   | "color_and_brightness"
@@ -93,6 +115,8 @@ export interface BatchImageCandidate {
 
 export interface BatchAnalysisItem extends BatchImageCandidate {
   averageColor?: string;
+  dominantColor?: string;
+  vibrantColor?: string;
   luminance?: number;
   status: BatchAnalysisStatus;
   error?: string;
@@ -105,6 +129,8 @@ export interface BatchImageItem extends BatchAnalysisItem {
   colorFamilyId?: string;
   colorFamily?: string;
   brightnessLevel?: BatchBrightnessLevel;
+  filterColor?: string;
+  filterLuminance?: number;
   selected: boolean;
 }
 
@@ -112,11 +138,14 @@ export interface AnalyzeItemResult {
   path: string;
   status: BatchAnalysisStatus;
   averageColor?: string | null;
+  dominantColor?: string | null;
+  vibrantColor?: string | null;
   luminance?: number | null;
   error?: string | null;
 }
 
 export interface BatchFilterState {
+  colorSource: BatchColorSource;
   colorFamilies: BatchColorFamily[];
   brightnessLevels: BatchBrightnessLevel[];
 }
@@ -286,6 +315,20 @@ export function calculateLuminance(r: number, g: number, b: number): number {
   );
 }
 
+export function colorForBatchSource(
+  item: BatchAnalysisItem,
+  source: BatchColorSource
+): string | undefined {
+  switch (source) {
+    case "dominant":
+      return item.dominantColor ?? item.averageColor;
+    case "vibrant":
+      return item.vibrantColor ?? item.averageColor;
+    default:
+      return item.averageColor;
+  }
+}
+
 export function matchesBatchFilter(
   item: BatchImageItem,
   filter: BatchFilterState
@@ -337,36 +380,48 @@ export function useBatchClassification(
   const sites = computed(() => prepareColorPoints(points.value));
   const coordinateCache = new WeakMap<
     BatchAnalysisItem,
-    { color: string; coordinate: ColorCoordinate }
+    { color: string; coordinate: ColorCoordinate; luminance: number }
   >();
   const classifiedItems = computed<BatchImageItem[]>(() =>
     source.value.map((item) => {
       let family: { id: string; name: string } | undefined;
       let brightnessLevel: BatchBrightnessLevel | undefined;
-      if (
-        item.status === "success" &&
-        item.averageColor &&
-        Number.isFinite(item.luminance)
-      ) {
+      const filterColor = colorForBatchSource(item, filter.value.colorSource);
+      let filterLuminance: number | undefined;
+      if (item.status === "success" && filterColor) {
         let cached = coordinateCache.get(item);
-        if (!cached || cached.color !== item.averageColor) {
-          const hex = item.averageColor.slice(1);
-          const [h, s] = rgbToHsl(
+        if (!cached || cached.color !== filterColor) {
+          const hex = filterColor.slice(1);
+          const [r, g, b] = [
             parseInt(hex.slice(0, 2), 16),
             parseInt(hex.slice(2, 4), 16),
-            parseInt(hex.slice(4, 6), 16)
-          );
+            parseInt(hex.slice(4, 6), 16),
+          ];
+          const [h, s] = rgbToHsl(r, g, b);
           cached = {
-            color: item.averageColor,
+            color: filterColor,
             coordinate: colorCoordinate(h, s),
+            luminance: calculateLuminance(r, g, b),
           };
           coordinateCache.set(item, cached);
         }
+        const classifiedLuminance =
+          filter.value.colorSource === "average" &&
+          typeof item.luminance === "number" &&
+          Number.isFinite(item.luminance)
+            ? item.luminance
+            : cached.luminance;
+        filterLuminance = classifiedLuminance;
         family = classifyColorCoordinate(cached.coordinate, sites.value);
-        brightnessLevel = classifyBrightness(item.luminance!, thresholds.value);
+        brightnessLevel = classifyBrightness(
+          classifiedLuminance,
+          thresholds.value
+        );
       }
       return {
         ...item,
+        filterColor,
+        filterLuminance,
         colorFamilyId: family?.id,
         colorFamily: family?.name,
         brightnessLevel,
@@ -458,6 +513,8 @@ export function applyBatchAnalysisResults(
     if (!item) continue;
     item.status = result.status;
     item.averageColor = result.averageColor ?? undefined;
+    item.dominantColor = result.dominantColor ?? undefined;
+    item.vibrantColor = result.vibrantColor ?? undefined;
     item.luminance = result.luminance ?? undefined;
     item.error = result.error ?? undefined;
   }
@@ -468,7 +525,10 @@ export function makeCsv(items: BatchImageItem[]): string {
     "fileName",
     "sourcePath",
     "averageColor",
-    "luminance",
+    "dominantColor",
+    "vibrantColor",
+    "filterColor",
+    "filterLuminance",
     "colorFamily",
     "brightnessLevel",
     "status",
@@ -484,7 +544,10 @@ export function makeCsv(items: BatchImageItem[]): string {
         item.fileName,
         item.path,
         item.averageColor,
-        item.luminance?.toFixed(4),
+        item.dominantColor,
+        item.vibrantColor,
+        item.filterColor,
+        item.filterLuminance?.toFixed(4),
         item.colorFamily,
         item.brightnessLevel,
         item.archiveStatus ?? item.status,

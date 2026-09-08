@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { effectScope, ref } from "vue";
 
 import {
   calculateLuminance,
@@ -8,6 +9,10 @@ import {
   BATCH_ARCHIVE_STRUCTURE_OPTIONS,
   createDefaultBatchOrganizerConfig,
   batchOrganizerConfigManager,
+  createDefaultColorPoints,
+  useBatchClassification,
+  type BatchAnalysisItem,
+  type BatchFilterState,
   type BatchImageItem,
 } from "./batchColorOrganizer";
 
@@ -55,16 +60,65 @@ describe("batch color organizer rules", () => {
 
     expect(
       matchesBatchFilter(item, {
+        colorSource: "average",
         colorFamilies: ["blue", "purple"],
         brightnessLevels: ["偏暗", "中等"],
       })
     ).toBe(true);
     expect(
       matchesBatchFilter(item, {
+        colorSource: "average",
         colorFamilies: ["blue"],
         brightnessLevels: ["明亮"],
       })
     ).toBe(false);
+  });
+
+  it("switches filter color sources without starting another analysis", () => {
+    const scope = effectScope();
+    scope.run(() => {
+      const source = ref<BatchAnalysisItem[]>([
+        {
+          path: "C:/photo.png",
+          fileName: "photo.png",
+          extension: "png",
+          size: 1,
+          isNetwork: false,
+          status: "success",
+          averageColor: "#808080",
+          dominantColor: "#0000ff",
+          vibrantColor: "#ff0000",
+          luminance: 0.22,
+        },
+      ]);
+      const filter = ref<BatchFilterState>({
+        colorSource: "average",
+        colorFamilies: [],
+        brightnessLevels: [],
+      });
+      const state = useBatchClassification(
+        source,
+        ref(createDefaultColorPoints()),
+        ref([0.2, 0.4, 0.6, 0.8]),
+        filter
+      );
+
+      expect(state.classifiedItems.value[0]).toMatchObject({
+        filterColor: "#808080",
+        colorFamilyId: "gray",
+      });
+      filter.value = { ...filter.value, colorSource: "dominant" };
+      expect(state.classifiedItems.value[0]).toMatchObject({
+        filterColor: "#0000ff",
+        colorFamilyId: "blue",
+      });
+      filter.value = { ...filter.value, colorSource: "vibrant" };
+      expect(state.classifiedItems.value[0]).toMatchObject({
+        filterColor: "#ff0000",
+        colorFamilyId: "red",
+      });
+    });
+    scope.stop();
   });
 
   it("provides valid archive structure options", () => {

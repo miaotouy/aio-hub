@@ -181,6 +181,7 @@ const colorFamilies = computed(() => [
 const maxDepth = ref<number | null>(3);
 const thresholds = ref<number[]>([...DEFAULT_BRIGHTNESS_THRESHOLDS]);
 const filter = ref<BatchFilterState>({
+  colorSource: "average",
   colorFamilies: [],
   brightnessLevels: [],
 });

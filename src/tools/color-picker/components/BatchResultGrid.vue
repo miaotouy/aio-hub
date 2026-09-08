@@ -132,20 +132,26 @@
                   >
                     <span
                       class="fallback-color"
-                      :style="{ background: item.averageColor }"
+                      :style="{
+                        background: item.filterColor ?? item.averageColor,
+                      }"
                     ></span>
                   </div>
                   <span
                     class="color-preview"
-                    :style="{ background: item.averageColor }"
-                    title="平均颜色"
+                    :style="{
+                      background: item.filterColor ?? item.averageColor,
+                    }"
+                    title="筛选颜色"
                   ></span>
                 </div>
                 <span class="file-name" :title="item.path">{{
                   item.fileName
                 }}</span>
                 <span class="luminance-badge"
-                  >L {{ item.luminance?.toFixed(2) }}</span
+                  >L {{
+                    (item.filterLuminance ?? item.luminance)?.toFixed(2)
+                  }}</span
                 >
               </div>
 

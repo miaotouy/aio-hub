@@ -1,5 +1,27 @@
 <template>
-  <div class="brightness-threshold-slider">
+  <div ref="root" class="brightness-threshold-slider">
+    <div class="brightness-heading">
+      <h4>亮度阈值</h4>
+      <div class="point-controls">
+        <span>{{ values.length }} / 4</span
+        ><el-tooltip
+          :content="
+            values.length >= 4 ? '最多 4 个亮度分界点' : '添加亮度分界点'
+          "
+          :show-after="300"
+          ><span
+            ><button
+              class="point-action"
+              type="button"
+              aria-label="添加亮度分界点"
+              :disabled="disabled || values.length >= 4"
+              @click="addPoint"
+            >
+              <Plus :size="16" /></button></span
+        ></el-tooltip>
+      </div>
+    </div>
+    <slot />
     <div
       ref="trackRef"
       class="threshold-track"
@@ -59,6 +81,21 @@
           :label="`${label}阈值`"
           @update:model-value="updateValue(index, $event)"
         />
+        <el-tooltip
+          :content="
+            values.length <= 1 ? '至少保留 1 个亮度分界点' : '删除此亮度分界点'
+          "
+          :show-after="300"
+          ><span
+            ><button
+              class="point-action"
+              type="button"
+              :aria-label="'删除亮度分界点 ' + (index + 1)"
+              :disabled="disabled || values.length <= 1"
+              @click="removePoint(index)"
+            >
+              <Trash2 :size="14" /></button></span
+        ></el-tooltip>
       </div>
     </div>
 
@@ -77,8 +114,11 @@
               <div class="guide-title">💡 亮度阈值说明</div>
               <ul class="guide-list">
                 <li>
-                  <b>5 档划分</b>：4
-                  个阈值将亮度分为<b>极暗、偏暗、中等、偏亮、明亮</b>。
+                  <b>{{ values.length + 1 }} 档划分</b>：{{
+                    values.length
+                  }}
+                  个阈值将亮度分为<b>{{ brightnessLevels.join("、") }}</b
+                  >。
                 </li>
                 <li><b>滑动手柄</b>：直接拖动轨道上手柄调节分界点。</li>
                 <li>
@@ -101,40 +141,24 @@
             <span>说明</span>
           </button>
         </el-tooltip>
-
-        <!-- 重置默认按钮 -->
-        <el-tooltip
-          :content="`重置为默认值 (${defaultValues.map(formatDisplayValue).join(', ')})`"
-          placement="top"
-          :show-after="300"
-        >
-          <button
-            type="button"
-            class="action-btn reset-btn"
-            :class="{ 'is-disabled': disabled || isDefault }"
-            :disabled="disabled || isDefault"
-            aria-label="重置为默认阈值"
-            @click="resetToDefault"
-          >
-            <RotateCcw :size="12" />
-            <span>重置默认</span>
-          </button>
-        </el-tooltip>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import ScrubNumberInput from "./ScrubNumberInput.vue";
-import { HelpCircle, RotateCcw } from "lucide-vue-next";
+import { HelpCircle, Plus, Trash2 } from "lucide-vue-next";
 
-type ThresholdTuple = [number, number, number, number];
+import {
+  clampThresholds,
+  brightnessLevelsFor,
+  insertBrightnessThreshold,
+} from "../brightnessThresholds";
 
 interface Props {
-  modelValue: ThresholdTuple;
-  defaultValues?: ThresholdTuple;
+  modelValue: number[];
   min?: number;
   max?: number;
   step?: number;
@@ -142,7 +166,6 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  defaultValues: () => [0.2, 0.4, 0.6, 0.8],
   min: 0.01,
   max: 0.99,
   step: 0.01,
@@ -150,17 +173,18 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: "update:modelValue", value: ThresholdTuple): void;
+  (e: "update:modelValue", value: number[]): void;
 }>();
 
 const trackRef = ref<HTMLElement | null>(null);
 const activeIndex = ref<number | null>(null);
-const brightnessLevels = ["极暗", "偏暗", "中等", "偏亮", "明亮"];
-const thresholdLabels = ["极暗", "偏暗", "中等", "偏亮"];
-
-const values = computed<ThresholdTuple>(() =>
-  normalizeValues(props.modelValue)
+const brightnessLevels = computed(() =>
+  brightnessLevelsFor(values.value.length)
 );
+const thresholdLabels = computed(() => brightnessLevels.value.slice(0, -1));
+const root = ref<HTMLElement>();
+
+const values = computed<number[]>(() => normalizeValues(props.modelValue));
 
 const valueAt = (index: number) => values.value[index] ?? props.min;
 
@@ -172,21 +196,7 @@ const snap = (value: number) => {
   return Number((props.min + steps * props.step).toFixed(2));
 };
 
-const normalizeValues = (input: readonly number[]): ThresholdTuple => {
-  const sorted = input
-    .slice(0, 4)
-    .map((value) => clamp(Number(value), props.min, props.max))
-    .sort((left, right) => left - right);
-  const result: number[] = [];
-
-  for (let index = 0; index < 4; index += 1) {
-    const minimum = index === 0 ? props.min : result[index - 1] + props.step;
-    const maximum = props.max - (3 - index) * props.step;
-    result.push(clamp(snap(sorted[index] ?? minimum), minimum, maximum));
-  }
-
-  return result as ThresholdTuple;
-};
+const normalizeValues = clampThresholds;
 
 const lowerBound = (_index: number) => props.min;
 
@@ -195,7 +205,7 @@ const upperBound = (_index: number) => props.max;
 const emitValues = (index: number, value: number) => {
   if (!Number.isFinite(value) || props.disabled) return;
 
-  const raw = [...values.value] as ThresholdTuple;
+  const raw = [...values.value] as number[];
   const target = clamp(snap(value), props.min, props.max);
   raw[index] = target;
   const next = normalizeValues(raw);
@@ -230,7 +240,7 @@ const formatThreshold = (value: number) => `${Math.round(value * 100)}%`;
 
 const segmentWidth = (index: number) => {
   const start = index === 0 ? props.min : valueAt(index - 1);
-  const end = index < 4 ? valueAt(index) : props.max;
+  const end = index < values.value.length ? valueAt(index) : props.max;
   return ((end - start) / (props.max - props.min)) * 100;
 };
 
@@ -241,17 +251,31 @@ const valueFromPointer = (event: PointerEvent) => {
   const percent = ((event.clientX - rect.left) / rect.width) * 100;
   return percentToValue(percent);
 };
-const isDefault = computed(() => {
-  const current = values.value;
-  const target = normalizeValues(props.defaultValues);
-  return current.every((val, idx) => Math.abs(val - target[idx]) < 0.001);
-});
-
-const resetToDefault = () => {
-  if (props.disabled || isDefault.value) return;
-  const target = normalizeValues(props.defaultValues);
-  emit("update:modelValue", target);
-};
+async function focusValue(index: number) {
+  await nextTick();
+  root.value
+    ?.querySelectorAll<HTMLElement>('[role="spinbutton"]')
+    [index]?.focus();
+}
+function addPoint() {
+  if (props.disabled || values.value.length >= 4) return;
+  stopDragging();
+  const next = insertBrightnessThreshold(values.value);
+  emit("update:modelValue", next.values);
+  void focusValue(next.index);
+}
+function removePoint(index: number) {
+  if (props.disabled || values.value.length <= 1) return;
+  stopDragging();
+  const next = values.value.filter((_, i) => i !== index);
+  emit("update:modelValue", next);
+  void focusValue(Math.min(index, next.length - 1));
+}
+watch(
+  () => props.modelValue.length,
+  () => stopDragging()
+);
+defineExpose({ stopDragging });
 
 const nearestIndex = (value: number) =>
   values.value.reduce(
@@ -279,12 +303,12 @@ const handlePointerMove = (event: PointerEvent) => {
   emitValues(activeIndex.value, valueFromPointer(event));
 };
 
-const stopDragging = () => {
+function stopDragging() {
   activeIndex.value = null;
   window.removeEventListener("pointermove", handlePointerMove);
   window.removeEventListener("pointerup", stopDragging);
   window.removeEventListener("pointercancel", stopDragging);
-};
+}
 
 const startDragging = (event: PointerEvent, index: number) => {
   if (props.disabled) return;
@@ -312,8 +336,6 @@ const handleKeydown = (event: KeyboardEvent, index: number) => {
   event.preventDefault();
   emitValues(index, next);
 };
-
-const formatDisplayValue = (val: number) => val.toFixed(2);
 
 onBeforeUnmount(() => {
   stopDragging();
@@ -538,5 +560,63 @@ onBeforeUnmount(() => {
   .handle-dot {
     transition: none;
   }
+}
+</style>
+
+<style scoped>
+.brightness-threshold-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.brightness-heading,
+.point-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brightness-heading {
+  justify-content: space-between;
+}
+h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.point-controls {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.point-action {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-color);
+  background: transparent;
+  cursor: pointer;
+}
+.point-action:hover:not(:disabled) {
+  background: var(--el-fill-color);
+}
+.point-action:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+}
+.point-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.threshold-values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.threshold-value {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 28px;
+  gap: 8px;
+  align-items: center;
 }
 </style>

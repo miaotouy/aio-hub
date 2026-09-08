@@ -16,17 +16,25 @@ export {
   type ColorFamilyPoint,
 } from "./colorFamilyPoints";
 
-export const BATCH_BRIGHTNESS_LEVELS = [
-  "极暗",
-  "偏暗",
-  "中等",
-  "偏亮",
-  "明亮",
-] as const;
-export const DEFAULT_BRIGHTNESS_THRESHOLDS = [0.2, 0.4, 0.6, 0.8] as const;
-
+import {
+  DEFAULT_BRIGHTNESS_THRESHOLDS,
+  clampThresholds,
+  brightnessLevelsFor,
+  type BatchBrightnessLevel,
+} from "./brightnessThresholds";
+import {
+  defaultPresetState,
+  normalizePresetState,
+  type ClassificationPresetState,
+} from "./classificationPresets";
+export {
+  DEFAULT_BRIGHTNESS_THRESHOLDS,
+  BATCH_BRIGHTNESS_LEVELS,
+  clampThresholds,
+  brightnessLevelsFor,
+  type BatchBrightnessLevel,
+} from "./brightnessThresholds";
 export type BatchColorFamily = string;
-export type BatchBrightnessLevel = (typeof BATCH_BRIGHTNESS_LEVELS)[number];
 export type BatchArchiveMode = "copy" | "symlink";
 export type BatchArchiveStructure =
   | "color_and_brightness"
@@ -120,11 +128,11 @@ export interface BatchOrganizeRequestItem {
   brightnessLevel: string;
 }
 
-export interface BatchColorOrganizerConfig {
+export interface BatchColorOrganizerConfig extends ClassificationPresetState {
   version: string;
   directoryPath: string;
   maxDepth: number | null;
-  thresholds: [number, number, number, number];
+  thresholds: number[];
   colorPoints: ColorFamilyPoint[];
   archiveMode: BatchArchiveMode;
   archiveStructure: BatchArchiveStructure;
@@ -133,6 +141,7 @@ export interface BatchColorOrganizerConfig {
 
 export function createDefaultBatchOrganizerConfig(): BatchColorOrganizerConfig {
   return {
+    ...defaultPresetState(),
     version: "3.0.0",
     directoryPath: "",
     maxDepth: 3,
@@ -150,6 +159,7 @@ export function mergeBatchOrganizerConfig(
 ): BatchColorOrganizerConfig {
   const validated = validateColorPoints(loaded?.colorPoints);
   return {
+    ...normalizePresetState(loaded),
     version: "3.0.0",
     directoryPath:
       typeof loaded?.directoryPath === "string"
@@ -179,32 +189,42 @@ export function mergeBatchOrganizerConfig(
   };
 }
 
-export const batchOrganizerConfigManager =
-  createConfigManager<BatchColorOrganizerConfig>({
-    moduleName: "color-picker",
-    fileName: "batch-organizer-config.json",
-    version: "3.0.0",
-    debounceDelay: 500,
-    createDefault: createDefaultBatchOrganizerConfig,
-    mergeConfig: mergeBatchOrganizerConfig,
-  });
+const batchConfigStorage = createConfigManager<BatchColorOrganizerConfig>({
+  moduleName: "color-picker",
+  fileName: "batch-organizer-config.json",
+  version: "3.0.0",
+  debounceDelay: 500,
+  createDefault: createDefaultBatchOrganizerConfig,
+  mergeConfig: mergeBatchOrganizerConfig,
+});
 
-export const clampThresholds = (thresholds: number[]): number[] => {
-  const result: number[] = [];
-  Array.from(
-    { length: 4 },
-    (_, index) => thresholds[index] ?? DEFAULT_BRIGHTNESS_THRESHOLDS[index]
-  ).forEach((value, index) => {
-    const minimum = index === 0 ? 0.01 : result[index - 1] + 0.01;
-    const maximum = 0.99 - (3 - index) * 0.01;
-    result.push(
-      Math.min(
-        maximum,
-        Math.max(minimum, Number.isFinite(value) ? value : minimum)
-      )
-    );
-  });
-  return result;
+// Serialize explicit and delayed writes. A stale autosave must never overwrite a saved preset.
+let configSaveTimer: ReturnType<typeof setTimeout> | undefined;
+let configSaveQueue: Promise<void> = Promise.resolve();
+function saveBatchConfig(config: BatchColorOrganizerConfig): Promise<void> {
+  clearTimeout(configSaveTimer);
+  const snapshot = JSON.parse(
+    JSON.stringify(config)
+  ) as BatchColorOrganizerConfig;
+  const pending = configSaveQueue.then(() => batchConfigStorage.save(snapshot));
+  configSaveQueue = pending.catch(() => {});
+  return pending;
+}
+export const batchOrganizerConfigManager = {
+  load: () => batchConfigStorage.load(),
+  save: saveBatchConfig,
+  saveDebounced(
+    config: BatchColorOrganizerConfig,
+    onError: (error: unknown) => void = () => {}
+  ) {
+    clearTimeout(configSaveTimer);
+    const snapshot = JSON.parse(
+      JSON.stringify(config)
+    ) as BatchColorOrganizerConfig;
+    configSaveTimer = setTimeout(() => {
+      void saveBatchConfig(snapshot).catch(onError);
+    }, 500);
+  },
 };
 
 export function rgbToHsl(
@@ -248,12 +268,9 @@ export function classifyBrightness(
   luminance: number,
   thresholds: readonly number[] = DEFAULT_BRIGHTNESS_THRESHOLDS
 ): BatchBrightnessLevel {
-  const [dark, dim, medium, bright] = clampThresholds([...thresholds]);
-  if (luminance < dark) return "极暗";
-  if (luminance < dim) return "偏暗";
-  if (luminance < medium) return "中等";
-  if (luminance < bright) return "偏亮";
-  return "明亮";
+  const values = clampThresholds(thresholds);
+  const index = values.findIndex((value) => luminance < value);
+  return brightnessLevelsFor(values.length)[index < 0 ? values.length : index];
 }
 
 export function calculateLuminance(r: number, g: number, b: number): number {
@@ -313,7 +330,7 @@ export function useBatchFiltering(
 export function useBatchClassification(
   source: Ref<BatchAnalysisItem[]>,
   points: Ref<ColorFamilyPoint[]>,
-  thresholds: Ref<[number, number, number, number]>,
+  thresholds: Ref<number[]>,
   filter: Ref<BatchFilterState>
 ) {
   const selectedPaths = reactive(new Set<string>());
@@ -374,6 +391,19 @@ export function useBatchClassification(
       };
     },
     { deep: true, flush: "sync" }
+  );
+  watch(
+    () => thresholds.value.length,
+    (count) => {
+      const levels = brightnessLevelsFor(count);
+      filter.value = {
+        ...filter.value,
+        brightnessLevels: filter.value.brightnessLevels.filter((level) =>
+          levels.includes(level)
+        ),
+      };
+    },
+    { flush: "sync" }
   );
   const { filteredItems, groups } = useBatchFiltering(classifiedItems, filter);
   watch(

@@ -6,34 +6,37 @@
   >
     <div class="editor-heading">
       <h4>色系</h4>
-      <el-checkbox v-model="showBoundaries" size="small">分区边界</el-checkbox>
+      <div class="heading-actions">
+        <el-checkbox v-model="showBoundaries" size="small">分区边界</el-checkbox
+        ><el-tooltip
+          :content="adding ? '取消添加色系点位' : '添加色系点位'"
+          :show-after="300"
+          ><button
+            type="button"
+            class="point-add"
+            :aria-label="adding ? '取消添加色系点位' : '添加色系点位'"
+            :aria-pressed="adding"
+            :disabled="!!drag"
+            @click="toggleAdding"
+          >
+            <component :is="adding ? X : Plus" :size="16" /></button
+        ></el-tooltip>
+      </div>
     </div>
-    <div class="editor-actions">
-      <el-select
-        class="preset-select"
-        aria-label="色系预设"
-        :model-value="activePreset"
-        size="small"
-        :disabled="!!drag"
-        @change="selectPreset"
-      >
-        <el-option value="custom" label="自定义" disabled />
-        <el-option
-          v-for="preset in COLOR_FAMILY_PRESETS"
-          :key="preset.id"
-          :value="preset.id"
-          :label="preset.name"
-        />
-      </el-select>
-      <el-button
-        size="small"
-        :aria-pressed="adding"
-        :disabled="!!drag"
-        @click="toggleAdding"
-      >
-        {{ adding ? "取消添加" : "添加点位" }}
-      </el-button>
-    </div>
+    <ClassificationPresetToolbar
+      label="色系"
+      :value="draft"
+      :builtin="builtinColorOptions"
+      :custom="customPresets"
+      :selected-id="selectedPreset"
+      :disabled="!!drag"
+      :prepare="preparePreset"
+      @select="applyPreset"
+      :save-preset="savePreset"
+      :remove-preset="removePreset"
+      @save="$emit('save-preset', $event)"
+      @remove="$emit('remove-preset', $event)"
+    />
     <div
       ref="disk"
       class="color-disk"
@@ -79,12 +82,14 @@
         {{ index + 1 }}
       </button>
     </div>
-    <p :id="hintId" class="editor-hint">
-      {{
-        adding
-          ? "点击圆盘添加；也可按 Enter 添加后精确输入。Esc 取消。"
-          : "拖动点位，松手生效。角度为色相，离圆心越远饱和度越高；底图弱化中心色彩，精确值以 H/S 为准。"
-      }}
+    <p :id="hintId" class="editor-hint interaction-hint">
+      <span :class="{ 'is-hidden': adding }" :aria-hidden="adding"
+        >拖动点位，松手生效。角度为色相，离圆心越远饱和度越高；底图弱化中心色彩，精确值以
+        H/S 为准。</span
+      >
+      <span :class="{ 'is-hidden': !adding }" :aria-hidden="!adding"
+        >点击圆盘添加；也可按 Enter 添加后精确输入。Esc 取消。</span
+      >
     </p>
     <div class="point-list">
       <div
@@ -156,7 +161,15 @@
     <p v-if="!draft.length" class="editor-hint">
       暂无点位，图片将归入“未分类”。可添加点位或选择预设。
     </p>
-    <p v-if="error" class="editor-error" role="alert">{{ error }}</p>
+    <p
+      v-if="error"
+      :id="hintId + '-error'"
+      tabindex="-1"
+      class="editor-error"
+      role="alert"
+    >
+      {{ error }}
+    </p>
   </section>
 </template>
 
@@ -170,25 +183,38 @@ import {
   watch,
   type ComponentPublicInstance,
 } from "vue";
-import { ElMessageBox } from "element-plus";
-import { Trash2 } from "lucide-vue-next";
+import ClassificationPresetToolbar from "./ClassificationPresetToolbar.vue";
+import {
+  builtinColorOptions,
+  type PresetOption,
+} from "../classificationPresets";
+import { Trash2, Plus, X } from "lucide-vue-next";
 import ScrubNumberInput from "./ScrubNumberInput.vue";
 import { hslToRgb } from "../composables/useColorConverter";
 import {
-  COLOR_FAMILY_PRESETS,
   colorCoordinate,
   colorFamilyCells,
   colorPointDisplayColor,
   coordinateToColor,
-  createColorFamilyPreset,
   validateColorPoints,
   type ColorFamilyPoint,
-  type ColorFamilyPreset,
 } from "../colorFamilyPoints";
 
-const props = defineProps<{ modelValue: ColorFamilyPoint[] }>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: ColorFamilyPoint[];
+    customPresets?: PresetOption<ColorFamilyPoint[]>[];
+    selectedPreset?: string | null;
+    savePreset?: (option: PresetOption<ColorFamilyPoint[]>) => Promise<void>;
+    removePreset?: (id: string) => Promise<void>;
+  }>(),
+  { customPresets: () => [], selectedPreset: "builtin:common" }
+);
 const emit = defineEmits<{
   (e: "update:modelValue", points: ColorFamilyPoint[]): void;
+  (e: "select-preset", id: string): void;
+  (e: "save-preset", option: PresetOption<ColorFamilyPoint[]>): void;
+  (e: "remove-preset", id: string): void;
 }>();
 const clone = (points: ColorFamilyPoint[]) =>
   points.map((point) => ({ ...point }));
@@ -222,14 +248,6 @@ const previewPoints = computed(() => draft.value.filter(validPosition));
 const cells = computed(() => colorFamilyCells(previewPoints.value));
 const displayColor = (point: ColorFamilyPoint) =>
   validPosition(point) ? colorPointDisplayColor(point) : "var(--el-fill-color)";
-const activePreset = computed(
-  () =>
-    COLOR_FAMILY_PRESETS.find(
-      (preset) =>
-        JSON.stringify(createColorFamilyPreset(preset.id)) ===
-        JSON.stringify(draft.value)
-    )?.id ?? "custom"
-);
 watch(
   () => props.modelValue,
   (value) => {
@@ -276,28 +294,22 @@ function commit() {
     emit("update:modelValue", result.points);
   return true;
 }
-async function selectPreset(preset: ColorFamilyPreset | "custom") {
-  if (preset === "custom" || preset === activePreset.value) return;
-  if (activePreset.value === "custom") {
-    try {
-      await ElMessageBox.confirm(
-        "应用预设会替换当前所有色系点位。",
-        "替换色系点位",
-        {
-          lockScroll: false,
-          confirmButtonText: "替换",
-          cancelButtonText: "取消",
-          type: "warning",
-        }
-      );
-    } catch {
-      return;
-    } // Cancelling the confirmation is not an error.
+function preparePreset(): ColorFamilyPoint[] | null {
+  if (!commit()) {
+    nextTick(() =>
+      document
+        .getElementById(hintId + "-error")
+        ?.focus({ preventScroll: false })
+    );
+    return null;
   }
+  return clone(draft.value);
+}
+function applyPreset(option: PresetOption<ColorFamilyPoint[]>) {
   cancelInteraction();
-  draft.value = createColorFamilyPreset(preset);
+  draft.value = clone(option.value);
   selectedId.value = draft.value[0]?.id ?? "";
-  commit();
+  if (commit()) emit("select-preset", option.id);
 }
 function removePoint(id: string) {
   draft.value = draft.value.filter((point) => point.id !== id);
@@ -445,8 +457,7 @@ onMounted(() => {
   min-width: 0;
   color: var(--text-color);
 }
-.editor-heading,
-.editor-actions {
+.editor-heading {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -476,13 +487,6 @@ h4 {
   outline: 2px solid var(--el-color-primary);
   outline-offset: 1px;
 }
-.preset-select {
-  flex: 1;
-  min-width: 0;
-}
-.editor-actions > .el-button {
-  flex-shrink: 0;
-}
 .color-disk {
   position: relative;
   aspect-ratio: 1;
@@ -502,8 +506,8 @@ h4 {
 .color-disk.adding {
   cursor: crosshair;
 }
-canvas,
-svg {
+.color-disk > canvas,
+.color-disk > svg {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -514,7 +518,7 @@ canvas {
   border-radius: 50%;
   outline: 1px solid var(--border-color);
 }
-svg polygon {
+.color-disk > svg polygon {
   fill: none;
   stroke: var(--text-color);
   stroke-width: 1;
@@ -546,6 +550,15 @@ svg polygon {
 }
 .color-point:active {
   cursor: grabbing;
+}
+.interaction-hint {
+  display: grid;
+}
+.interaction-hint > span {
+  grid-area: 1 / 1;
+}
+.interaction-hint > .is-hidden {
+  visibility: hidden;
 }
 .editor-hint {
   margin: 0;
@@ -605,5 +618,44 @@ svg polygon {
   font-size: 12px;
   color: var(--el-color-danger);
   line-height: 1.5;
+}
+</style>
+<style scoped>
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.point-add {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-color);
+  background: transparent;
+  cursor: pointer;
+}
+.point-add:hover,
+.point-add[aria-pressed="true"] {
+  background: var(--el-fill-color);
+  color: var(--el-color-primary);
+}
+.point-add:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+}
+.point-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.delete-point {
+  width: 28px;
+  height: 28px;
+}
+.point-row {
+  grid-template-columns:
+    21px minmax(36px, 1fr) minmax(0, 76px) minmax(0, 76px)
+    28px;
 }
 </style>

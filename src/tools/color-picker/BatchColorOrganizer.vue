@@ -6,6 +6,8 @@
       :directory-path="directoryPath"
       :max-depth="maxDepth"
       :thresholds="thresholds"
+      v-model:preset-state="presetState"
+      :persist-presets="persistPresets"
       :analyzing="analyzing"
       :completed="completed"
       :total="analysisTotal"
@@ -28,6 +30,7 @@
       <!-- 工具栏 -->
       <BatchResultToolbar
         :filter="filter"
+        :brightness-levels="brightnessLevelsFor(thresholds.length)"
         :color-families="colorFamilies"
         :total-count="successCount"
         :filtered-count="filteredCount"
@@ -80,6 +83,10 @@
 
 <script setup lang="ts">
 import {
+  defaultPresetState,
+  normalizePresetState,
+} from "./classificationPresets";
+import {
   ref,
   shallowRef,
   triggerRef,
@@ -113,6 +120,7 @@ import {
   type BatchAnalysisItem,
   type AnalyzeItemResult,
   clampThresholds,
+  brightnessLevelsFor,
   DEFAULT_BRIGHTNESS_THRESHOLDS,
   makeCsv,
   type BatchImageCandidate,
@@ -158,6 +166,7 @@ const supported = [
   "tiff",
   "avif",
 ];
+const presetState = ref(defaultPresetState());
 const candidates = ref<BatchImageCandidate[]>([]);
 const directoryPath = ref("");
 const items = shallowRef<BatchAnalysisItem[]>([]);
@@ -170,9 +179,7 @@ const colorFamilies = computed(() => [
   UNCLASSIFIED,
 ]);
 const maxDepth = ref<number | null>(3);
-const thresholds = ref<[number, number, number, number]>([
-  ...DEFAULT_BRIGHTNESS_THRESHOLDS,
-]);
+const thresholds = ref<number[]>([...DEFAULT_BRIGHTNESS_THRESHOLDS]);
 const filter = ref<BatchFilterState>({
   colorFamilies: [],
   brightnessLevels: [],
@@ -236,7 +243,7 @@ const filteredCount = computed(() => filteredItems.value.length);
 function updateThresholds(values: number[]) {
   thresholds.value = clampThresholds(
     [...values].sort((left, right) => left - right)
-  ) as [number, number, number, number];
+  );
 }
 
 async function scanDirectoryPath() {
@@ -660,20 +667,37 @@ async function exportJson() {
 // 监听归档配置变化，触发预检
 watch(preflightKey, () => void runPreflight());
 
+// Explicit preset writes finish before closing their popover; failures retain the draft.
+async function persistPresets(state: ReturnType<typeof defaultPresetState>) {
+  try {
+    await batchOrganizerConfigManager.save({
+      ...state,
+      version: "3.0.0",
+      directoryPath: directoryPath.value,
+      maxDepth: maxDepth.value,
+      thresholds: [...thresholds.value],
+      colorPoints: colorPoints.value.map((p) => ({ ...p })),
+      archiveMode: archiveMode.value,
+      archiveStructure: archiveStructure.value,
+      targetDirectory: targetDirectory.value,
+    });
+    presetState.value = state;
+  } catch (error) {
+    errorHandler.error(error, "保存分类预设失败");
+    throw error;
+  }
+}
+
 // 配置持久化管理
 async function loadSavedConfig() {
   try {
     const config = await batchOrganizerConfigManager.load();
+    presetState.value = normalizePresetState(config);
     colorPoints.value = config.colorPoints;
     directoryPath.value = config.directoryPath ?? "";
     maxDepth.value = config.maxDepth ?? 3;
     if (config.thresholds && Array.isArray(config.thresholds)) {
-      thresholds.value = clampThresholds(config.thresholds) as [
-        number,
-        number,
-        number,
-        number,
-      ];
+      thresholds.value = clampThresholds(config.thresholds);
     }
     archiveMode.value = config.archiveMode ?? "copy";
     archiveStructure.value = config.archiveStructure ?? "color_and_brightness";
@@ -687,6 +711,7 @@ async function loadSavedConfig() {
 
 watch(
   [
+    presetState,
     directoryPath,
     maxDepth,
     thresholds,
@@ -697,16 +722,23 @@ watch(
   ],
   () => {
     if (!isConfigLoaded.value) return;
-    batchOrganizerConfigManager.saveDebounced({
-      version: "3.0.0",
-      directoryPath: directoryPath.value,
-      maxDepth: maxDepth.value,
-      thresholds: thresholds.value,
-      colorPoints: colorPoints.value,
-      archiveMode: archiveMode.value,
-      archiveStructure: archiveStructure.value,
-      targetDirectory: targetDirectory.value,
-    });
+    batchOrganizerConfigManager.saveDebounced(
+      {
+        ...presetState.value,
+        version: "3.0.0",
+        directoryPath: directoryPath.value,
+        maxDepth: maxDepth.value,
+        thresholds: thresholds.value,
+        colorPoints: colorPoints.value,
+        archiveMode: archiveMode.value,
+        archiveStructure: archiveStructure.value,
+        targetDirectory: targetDirectory.value,
+      },
+      () =>
+        customMessage.error(
+          "批量配置保存失败，当前调整仍保留，可再次修改后重试"
+        )
+    );
   },
   { deep: true }
 );

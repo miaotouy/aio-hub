@@ -144,7 +144,7 @@
         </div>
         <div class="chips-container" @pointerleave="handlePointerLeave">
           <button
-            v-for="level in BATCH_BRIGHTNESS_LEVELS"
+            v-for="level in brightnessLevels"
             :key="level"
             type="button"
             class="filter-chip brightness-chip"
@@ -179,13 +179,13 @@ import {
   InfoFilled,
 } from "@element-plus/icons-vue";
 import {
-  BATCH_BRIGHTNESS_LEVELS,
   type BatchFilterState,
   type BatchColorFamily,
   type BatchBrightnessLevel,
 } from "../batchColorOrganizer";
 
 interface Props {
+  brightnessLevels: readonly BatchBrightnessLevel[];
   filter: BatchFilterState;
   colorFamilies: readonly { id: string; name: string; displayColor: string }[];
   totalCount: number;

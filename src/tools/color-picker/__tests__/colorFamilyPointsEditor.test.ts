@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
-import { ElButton, ElCheckbox, ElSelect, ElOption } from "element-plus";
+import ElementPlus from "element-plus";
 import { mount, flushPromises } from "@vue/test-utils";
 import ColorFamilyPointsEditor from "../components/ColorFamilyPointsEditor.vue";
 import {
@@ -8,17 +8,12 @@ import {
   type ColorFamilyPoint,
 } from "../colorFamilyPoints";
 
-const confirmPreset = vi.hoisted(() => vi.fn());
-vi.mock("element-plus", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("element-plus")>()),
-  ElMessageBox: { confirm: confirmPreset },
-}));
 const wrappers: ReturnType<typeof mount>[] = [];
 function editor() {
   const wrapper = mount(ColorFamilyPointsEditor, {
     props: { modelValue: createDefaultColorPoints() },
     attachTo: document.body,
-    global: { components: { ElButton, ElCheckbox, ElSelect, ElOption } },
+    global: { plugins: [ElementPlus] },
   });
   wrappers.push(wrapper);
   const disk = wrapper.get('[aria-label="色相饱和度圆盘"]');
@@ -158,9 +153,7 @@ describe("color point commit boundary", () => {
   });
   it("supports keyboard addition, deletion and confirmed preset replacement", async () => {
     const { wrapper, disk } = editor();
-    const add = wrapper
-      .findAll("button")
-      .find((button) => button.text() === "添加点位")!;
+    const add = wrapper.get('[aria-label="添加色系点位"]');
     await add.trigger("click");
     await disk.trigger("keydown", { key: "Enter" });
     await flushPromises();
@@ -177,24 +170,21 @@ describe("color point commit boundary", () => {
     await name.setValue("中性");
     await name.trigger("blur");
     await wrapper.setProps({ modelValue: updates(wrapper)![2][0] });
-    confirmPreset.mockRejectedValueOnce("cancel");
     const select = wrapper.findComponent({ name: "ElSelect" });
-    select.vm.$emit("change", "basic");
+    select.vm.$emit("change", "builtin:basic");
+    await flushPromises();
+    const popoverButton = (text: string) =>
+      Array.from(document.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === text
+      )!;
+    popoverButton("取消").click();
     await flushPromises();
     expect(updates(wrapper)).toHaveLength(3);
-    confirmPreset.mockResolvedValueOnce({
-      value: "",
-      action: "confirm",
-    });
-
-    select.vm.$emit("change", "basic");
+    select.vm.$emit("change", "builtin:basic");
+    await flushPromises();
+    popoverButton("替换").click();
     await flushPromises();
     expect(updates(wrapper)![3][0]).toHaveLength(7);
-    expect(confirmPreset).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      expect.objectContaining({ lockScroll: false })
-    );
   });
   it("previews numeric scrubbing and publishes once on release", async () => {
     const { wrapper } = editor();

@@ -93,14 +93,28 @@
       <h3 class="section-title">分类配置</h3>
       <p class="classification-hint">调整后无需重新分析</p>
       <div class="config-item">
-        <label class="config-label">亮度阈值</label>
         <BrightnessThresholdSlider
+          ref="brightnessSlider"
           :model-value="thresholds"
           @update:model-value="$emit('update:thresholds', $event)"
-        />
+          ><ClassificationPresetToolbar
+            label="亮度"
+            :value="thresholds"
+            :builtin="builtinBrightnessOptions"
+            :custom="brightnessOptions"
+            :selected-id="presetState.selectedBrightnessPreset"
+            @select="applyBrightness"
+            :save-preset="saveBrightness"
+            :remove-preset="removeBrightness"
+        /></BrightnessThresholdSlider>
       </div>
       <ColorFamilyPointsEditor
         :model-value="colorPoints"
+        :custom-presets="colorOptions"
+        :selected-preset="presetState.selectedColorPreset"
+        @select-preset="setColorPreset"
+        :save-preset="saveColor"
+        :remove-preset="removeColor"
         @update:model-value="$emit('update:colorPoints', $event)"
       />
     </section>
@@ -108,19 +122,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { FolderOpened } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
 import ColorFamilyPointsEditor from "./ColorFamilyPointsEditor.vue";
 import type { ColorFamilyPoint } from "../colorFamilyPoints";
 import BrightnessThresholdSlider from "./BrightnessThresholdSlider.vue";
 
+import ClassificationPresetToolbar from "./ClassificationPresetToolbar.vue";
+import {
+  builtinBrightnessOptions,
+  type ClassificationPresetState,
+  type PresetOption,
+} from "../classificationPresets";
 interface Props {
+  presetState: ClassificationPresetState;
+  persistPresets: (state: ClassificationPresetState) => Promise<void>;
   colorPoints: ColorFamilyPoint[];
   candidateCount: number;
   directoryPath: string;
   maxDepth: number | null;
-  thresholds: [number, number, number, number];
+  thresholds: number[];
   analyzing: boolean;
   completed: number;
   total: number;
@@ -130,6 +152,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
+  (e: "update:presetState", value: ClassificationPresetState): void;
   (e: "add-directory"): void;
   (e: "scan-path"): void;
   (e: "clear-candidates"): void;
@@ -141,6 +164,79 @@ const emit = defineEmits<{
   (e: "cancel-analyze"): void;
   (e: "drop", paths: string[]): void;
 }>();
+
+const brightnessSlider = ref<InstanceType<typeof BrightnessThresholdSlider>>();
+const brightnessOptions = computed(() =>
+  props.presetState.brightnessPresets.map((p) => ({
+    id: p.id,
+    name: p.name,
+    value: p.thresholds,
+  }))
+);
+const colorOptions = computed(() =>
+  props.presetState.colorPresets.map((p) => ({
+    id: p.id,
+    name: p.name,
+    value: p.colorPoints,
+  }))
+);
+function patchPresets(patch: Partial<ClassificationPresetState>) {
+  emit("update:presetState", { ...props.presetState, ...patch });
+}
+function applyBrightness(option: PresetOption<number[]>) {
+  brightnessSlider.value?.stopDragging();
+  emit("update:thresholds", [...option.value]);
+  patchPresets({ selectedBrightnessPreset: option.id });
+}
+async function saveBrightness(option: PresetOption<number[]>) {
+  const record = {
+    id: option.id,
+    name: option.name,
+    thresholds: [...option.value],
+  };
+  const list = props.presetState.brightnessPresets;
+  await props.persistPresets({
+    ...props.presetState,
+    brightnessPresets: list.some((p) => p.id === option.id)
+      ? list.map((p) => (p.id === option.id ? record : p))
+      : [...list, record],
+    selectedBrightnessPreset: option.id,
+  });
+}
+async function removeBrightness(id: string) {
+  await props.persistPresets({
+    ...props.presetState,
+    brightnessPresets: props.presetState.brightnessPresets.filter(
+      (p) => p.id !== id
+    ),
+    selectedBrightnessPreset: null,
+  });
+}
+function setColorPreset(id: string) {
+  patchPresets({ selectedColorPreset: id });
+}
+async function saveColor(option: PresetOption<ColorFamilyPoint[]>) {
+  const record = {
+    id: option.id,
+    name: option.name,
+    colorPoints: option.value.map((p) => ({ ...p })),
+  };
+  const list = props.presetState.colorPresets;
+  await props.persistPresets({
+    ...props.presetState,
+    colorPresets: list.some((p) => p.id === option.id)
+      ? list.map((p) => (p.id === option.id ? record : p))
+      : [...list, record],
+    selectedColorPreset: option.id,
+  });
+}
+async function removeColor(id: string) {
+  await props.persistPresets({
+    ...props.presetState,
+    colorPresets: props.presetState.colorPresets.filter((p) => p.id !== id),
+    selectedColorPreset: null,
+  });
+}
 
 const handlePathDrop = (paths: string[]) => {
   if (paths.length > 0) {

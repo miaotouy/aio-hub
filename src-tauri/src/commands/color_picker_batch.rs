@@ -372,7 +372,7 @@ const QUANTIZED_BIN_COUNT: usize = QUANTIZED_BINS_PER_CHANNEL.pow(3);
 thread_local! {
     // Rayon workers reuse this scratch space across images. It avoids allocating a
     // full 5-bit histogram for every decoded thumbnail while keeping workers isolated.
-    static QUANTIZED_COLOR_BINS: RefCell<Vec<QuantizedColorBin>> = RefCell::new(Vec::new());
+    static QUANTIZED_COLOR_BINS: RefCell<Vec<QuantizedColorBin>> = const { RefCell::new(Vec::new()) };
 }
 
 fn average_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
@@ -381,7 +381,7 @@ fn average_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64), String> {
     let mut b_sum = 0.0;
     let mut weight_sum = 0.0;
 
-    for pixel in pixels.chunks_exact(4) {
+    for pixel in pixels.as_chunks::<4>().0 {
         let alpha = pixel[3] as f64 / 255.0;
         if alpha < 0.01 {
             continue;
@@ -421,10 +421,7 @@ fn hsl_saturation_and_lightness((r, g, b): (u8, u8, u8)) -> (f64, f64) {
     (saturation, lightness)
 }
 
-fn representative_colors_rgba(
-    pixels: &[u8],
-    fallback: (u8, u8, u8),
-) -> ((u8, u8, u8), (u8, u8, u8)) {
+fn with_quantized_color_bins<T>(analyze: impl FnOnce(&mut [QuantizedColorBin]) -> T) -> T {
     QUANTIZED_COLOR_BINS.with(|storage| {
         let mut bins = storage.borrow_mut();
         if bins.len() != QUANTIZED_BIN_COUNT {
@@ -432,68 +429,102 @@ fn representative_colors_rgba(
         } else {
             bins.fill(QuantizedColorBin::default());
         }
-
-        // These sparse, 5-bit bins run on the already decoded 128 px thumbnail. They
-        // intentionally skip transparent and near-white pixels so borders/backgrounds
-        // do not hide the subject's dominant or saturated representative color.
-        for pixel in pixels.chunks_exact(4).step_by(4) {
-            let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
-            if a < 125 || (r > 250 && g > 250 && b > 250) {
-                continue;
-            }
-            let index = ((usize::from(r) >> 3) << 10)
-                | ((usize::from(g) >> 3) << 5)
-                | (usize::from(b) >> 3);
-            let bin = &mut bins[index];
-            bin.count += 1;
-            bin.r_sum += u64::from(r);
-            bin.g_sum += u64::from(g);
-            bin.b_sum += u64::from(b);
-        }
-
-        let max_population = bins.iter().map(|bin| bin.count).max().unwrap_or(0);
-        if max_population == 0 {
-            return (fallback, fallback);
-        }
-
-        let color_for = |bin: QuantizedColorBin| {
-            (
-                ((bin.r_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
-                ((bin.g_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
-                ((bin.b_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
-            )
-        };
-        let mut dominant = fallback;
-        let mut dominant_population = 0;
-        let mut vibrant = fallback;
-        let mut vibrant_score = f64::NEG_INFINITY;
-        for bin in bins.iter().copied().filter(|bin| bin.count > 0) {
-            let color = color_for(bin);
-            if bin.count > dominant_population {
-                dominant = color;
-                dominant_population = bin.count;
-            }
-            let (saturation, lightness) = hsl_saturation_and_lightness(color);
-            let population = f64::from(bin.count) / f64::from(max_population);
-            let normal_luma = 1.0 - ((lightness - 0.5) / 0.5).abs();
-            let score = 0.50 * population + 0.35 * saturation + 0.15 * normal_luma;
-            if score > vibrant_score {
-                vibrant = color;
-                vibrant_score = score;
-            }
-        }
-        (dominant, vibrant)
+        analyze(&mut bins)
     })
 }
 
-fn analysis_from_average((r, g, b, luminance): (u8, u8, u8, f64)) -> ImageColorAnalysis {
-    let average = (r, g, b);
-    ImageColorAnalysis {
-        average,
-        dominant: average,
-        vibrant: average,
-        luminance,
+fn add_quantized_color(bins: &mut [QuantizedColorBin], r: u8, g: u8, b: u8) {
+    let index =
+        ((usize::from(r) >> 3) << 10) | ((usize::from(g) >> 3) << 5) | (usize::from(b) >> 3);
+    let bin = &mut bins[index];
+    bin.count += 1;
+    bin.r_sum += u64::from(r);
+    bin.g_sum += u64::from(g);
+    bin.b_sum += u64::from(b);
+}
+
+fn representative_colors_from_bins(
+    bins: &[QuantizedColorBin],
+    fallback: (u8, u8, u8),
+) -> ((u8, u8, u8), (u8, u8, u8)) {
+    let max_population = bins.iter().map(|bin| bin.count).max().unwrap_or(0);
+    if max_population == 0 {
+        return (fallback, fallback);
     }
+
+    let color_for = |bin: QuantizedColorBin| {
+        (
+            ((bin.r_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
+            ((bin.g_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
+            ((bin.b_sum + u64::from(bin.count) / 2) / u64::from(bin.count)) as u8,
+        )
+    };
+    let mut dominant = fallback;
+    let mut dominant_population = 0;
+    let mut vibrant = fallback;
+    let mut vibrant_score = f64::NEG_INFINITY;
+    for bin in bins.iter().copied().filter(|bin| bin.count > 0) {
+        let color = color_for(bin);
+        if bin.count > dominant_population {
+            dominant = color;
+            dominant_population = bin.count;
+        }
+        let (saturation, lightness) = hsl_saturation_and_lightness(color);
+        let population = f64::from(bin.count) / f64::from(max_population);
+        let normal_luma = 1.0 - ((lightness - 0.5) / 0.5).abs();
+        let score = 0.50 * population + 0.35 * saturation + 0.15 * normal_luma;
+        if score > vibrant_score {
+            vibrant = color;
+            vibrant_score = score;
+        }
+    }
+    (dominant, vibrant)
+}
+
+fn representative_colors_rgba(
+    pixels: &[u8],
+    fallback: (u8, u8, u8),
+) -> ((u8, u8, u8), (u8, u8, u8)) {
+    with_quantized_color_bins(|bins| {
+        // These sparse, 5-bit bins run on the already decoded 128 px thumbnail. They
+        // intentionally skip transparent and near-white pixels so borders/backgrounds
+        // do not hide the subject's dominant or saturated representative color.
+        for pixel in pixels.as_chunks::<4>().0.iter().step_by(4) {
+            let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+            if a >= 125 && !(r > 250 && g > 250 && b > 250) {
+                add_quantized_color(bins, r, g, b);
+            }
+        }
+        representative_colors_from_bins(bins, fallback)
+    })
+}
+
+fn unpremultiply_component(component: u8, alpha: u8) -> u8 {
+    ((u32::from(component) * 255 + u32::from(alpha) / 2) / u32::from(alpha)).min(255) as u8
+}
+
+fn representative_colors_premultiplied_rgba(
+    pixels: &[u8],
+    fallback: (u8, u8, u8),
+) -> ((u8, u8, u8), (u8, u8, u8)) {
+    with_quantized_color_bins(|bins| {
+        // resvg/tiny-skia stores premultiplied pixels. Restore straight RGB before
+        // quantizing, otherwise anti-aliased edges would bias representative colors dark.
+        for pixel in pixels.as_chunks::<4>().0.iter().step_by(4) {
+            let [premultiplied_r, premultiplied_g, premultiplied_b, a] =
+                [pixel[0], pixel[1], pixel[2], pixel[3]];
+            if a < 125 {
+                continue;
+            }
+            let r = unpremultiply_component(premultiplied_r, a);
+            let g = unpremultiply_component(premultiplied_g, a);
+            let b = unpremultiply_component(premultiplied_b, a);
+            if !(r > 250 && g > 250 && b > 250) {
+                add_quantized_color(bins, r, g, b);
+            }
+        }
+        representative_colors_from_bins(bins, fallback)
+    })
 }
 
 fn raster_color_analysis(pixels: &[u8]) -> Result<ImageColorAnalysis, String> {
@@ -514,7 +545,7 @@ fn average_premultiplied_rgba_pixels(pixels: &[u8]) -> Result<(u8, u8, u8, f64),
     let mut b_sum = 0.0;
     let mut weight_sum = 0.0;
 
-    for pixel in pixels.chunks_exact(4) {
+    for pixel in pixels.as_chunks::<4>().0 {
         let alpha = pixel[3] as f64 / 255.0;
         if alpha < 0.01 {
             continue;
@@ -561,9 +592,15 @@ fn sample_svg_colors(path: &Path) -> Result<ImageColorAnalysis, String> {
         &mut pixmap.as_mut(),
     );
 
-    Ok(analysis_from_average(average_premultiplied_rgba_pixels(
-        pixmap.data(),
-    )?))
+    let (r, g, b, luminance) = average_premultiplied_rgba_pixels(pixmap.data())?;
+    let average = (r, g, b);
+    let (dominant, vibrant) = representative_colors_premultiplied_rgba(pixmap.data(), average);
+    Ok(ImageColorAnalysis {
+        average,
+        dominant,
+        vibrant,
+        luminance,
+    })
 }
 
 fn sample_image_colors(path: &Path) -> Result<ImageColorAnalysis, String> {
@@ -590,17 +627,6 @@ fn sample_image_colors(path: &Path) -> Result<ImageColorAnalysis, String> {
     };
     let rgba = sampled.to_rgba8();
     raster_color_analysis(rgba.as_raw())
-}
-
-#[cfg(test)]
-fn sample_image_color(path: &Path) -> Result<(u8, u8, u8, f64), String> {
-    let analysis = sample_image_colors(path)?;
-    Ok((
-        analysis.average.0,
-        analysis.average.1,
-        analysis.average.2,
-        analysis.luminance,
-    ))
 }
 
 #[tauri::command]
@@ -1250,10 +1276,14 @@ mod tests {
         )
         .unwrap();
 
-        let (r, g, b, _) = sample_image_color(&source).unwrap();
-        assert!((r as i16 - 255).abs() <= 1);
-        assert_eq!(g, 0);
-        assert_eq!(b, 0);
+        let analysis = sample_image_colors(&source).unwrap();
+        assert!((analysis.average.0 as i16 - 255).abs() <= 1);
+        assert_eq!(analysis.average.1, 0);
+        assert_eq!(analysis.average.2, 0);
+        // The quantizers receive straight RGB restored from tiny-skia's premultiplied
+        // SVG buffer, so the half-transparent fill stays red rather than dark red.
+        assert_eq!(analysis.dominant, (255, 0, 0));
+        assert_eq!(analysis.vibrant, (255, 0, 0));
     }
 
     #[test]
@@ -1276,11 +1306,18 @@ mod tests {
             "expected the Mistral icon to retain its orange/amber green channel: {g}"
         );
         assert!(b < 50, "expected the Mistral icon to have little blue: {b}");
-        // SVGs use the existing alpha-correct rendering path. Until representative
-        // SVG colors have their own separately tuned rasterization semantics, all
-        // filter sources intentionally fall back to this rendered average.
-        assert_eq!(analysis.dominant, analysis.average);
-        assert_eq!(analysis.vibrant, analysis.average);
+        assert!(
+            analysis.dominant.0 > 180 && analysis.dominant.1 < 50 && analysis.dominant.2 < 50,
+            "expected the largest Mistral band to produce a red dominant color: {:?}",
+            analysis.dominant
+        );
+        assert!(
+            analysis.vibrant.0 > 180 && analysis.vibrant.1 < 50 && analysis.vibrant.2 < 50,
+            "expected the strongest Mistral band to produce a red vibrant color: {:?}",
+            analysis.vibrant
+        );
+        assert_ne!(analysis.dominant, analysis.average);
+        assert_ne!(analysis.vibrant, analysis.average);
     }
 
     #[test]

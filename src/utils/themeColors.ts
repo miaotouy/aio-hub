@@ -193,6 +193,97 @@ export const harmonizeColorOKLCH = (hex: string, isDark: boolean): string => {
 };
 
 /**
+ * 用于主题色去碰撞的其他语义色。低彩度的中性色（例如默认信息色）
+ * 不会参与色相比较，因为它们没有稳定且可辨识的语义色相。
+ */
+export interface SemanticThemeColors {
+  success?: string;
+  warning?: string;
+  danger?: string;
+  info?: string;
+}
+
+const SEMANTIC_HUE_EXCLUSION_DEGREES = 28;
+const SEMANTIC_HUE_SAFETY_MARGIN_DEGREES = 8;
+const MIN_SEMANTIC_CHROMA = 0.04;
+
+const normalizeHue = (hue: number): number => ((hue % 360) + 360) % 360;
+
+const getHueDistance = (firstHue: number, secondHue: number): number => {
+  const difference = Math.abs(normalizeHue(firstHue) - normalizeHue(secondHue));
+  return Math.min(difference, 360 - difference);
+};
+
+/**
+ * 将自动提取的主题色移出成功、警告、危险和信息色附近的色相区间。
+ *
+ * 仅调整发生碰撞时的色相，保留原始的感知亮度和彩度，使壁纸提取色
+ * 仍尽可能维持其原有视觉风格；手动指定的主题色不调用此函数。
+ */
+export const avoidSemanticColorHueCollisions = (
+  hex: string,
+  semanticColors: SemanticThemeColors
+): string => {
+  const primary = hexToOklch(hex);
+  if (!primary || primary.c < MIN_SEMANTIC_CHROMA) return hex;
+
+  const semanticHues = Object.values(semanticColors)
+    .map((color) => (color ? hexToOklch(color) : null))
+    .filter(
+      (color): color is OKLCH =>
+        color !== null && color.c >= MIN_SEMANTIC_CHROMA
+    )
+    .map((color) => color.h);
+
+  if (
+    semanticHues.every(
+      (semanticHue) =>
+        getHueDistance(primary.h, semanticHue) > SEMANTIC_HUE_EXCLUSION_DEGREES
+    )
+  ) {
+    return hex;
+  }
+
+  const candidates = semanticHues
+    .flatMap((semanticHue) => [
+      normalizeHue(
+        semanticHue -
+          SEMANTIC_HUE_EXCLUSION_DEGREES -
+          SEMANTIC_HUE_SAFETY_MARGIN_DEGREES
+      ),
+      normalizeHue(
+        semanticHue +
+          SEMANTIC_HUE_EXCLUSION_DEGREES +
+          SEMANTIC_HUE_SAFETY_MARGIN_DEGREES
+      ),
+    ])
+    .map((candidateHue) => {
+      const color = oklchToHex({ ...primary, h: candidateHue });
+      return { color, oklch: hexToOklch(color) };
+    })
+    .filter((candidate): candidate is { color: string; oklch: OKLCH } => {
+      const candidateOklch = candidate.oklch;
+      return (
+        candidateOklch !== null &&
+        semanticHues.every(
+          (semanticHue) =>
+            getHueDistance(candidateOklch.h, semanticHue) >
+            SEMANTIC_HUE_EXCLUSION_DEGREES
+        )
+      );
+    });
+
+  if (candidates.length === 0) return hex;
+
+  return candidates.reduce((closest, candidate) =>
+    getHueDistance(candidate.oklch.h, primary.h) <
+    getHueDistance(closest.oklch.h, primary.h)
+      ? candidate
+      : closest
+  ).color;
+};
+
+/**
  * 应用主题色系统到 DOM
  */
 export const applyThemeColors = (

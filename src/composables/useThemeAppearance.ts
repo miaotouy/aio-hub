@@ -27,7 +27,10 @@ import { useTheme } from "@/composables/useTheme";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { harmonizeColorOKLCH } from "@/utils/themeColors";
+import {
+  avoidSemanticColorHueCollisions,
+  harmonizeColorOKLCH,
+} from "@/utils/themeColors";
 import ColorThief from "color-thief-ts";
 import { Vibrant } from "node-vibrant/browser";
 
@@ -934,10 +937,19 @@ async function _extractThemeColorFromWallpaper(
     // --- OKLCH 安全修正 ---
     // 使用 OKLCH 算法对提取到的颜色进行感知亮度和彩度的修正
     const harmonizedHex = harmonizeColorOKLCH(selectedHex, isDark.value);
+    const appSettingsStore = useAppSettingsStore();
+    const semanticSafeHex = avoidSemanticColorHueCollisions(harmonizedHex, {
+      success: appSettingsStore.settings.successColor,
+      warning: appSettingsStore.settings.warningColor,
+      danger: appSettingsStore.settings.dangerColor,
+      info: appSettingsStore.settings.infoColor,
+    });
 
     logger.info("从壁纸提取主题色成功", {
       originalColor: selectedHex,
       harmonizedColor: harmonizedHex,
+      semanticSafeColor: semanticSafeHex,
+      avoidedSemanticHueCollision: semanticSafeHex !== harmonizedHex,
       key: selectedKey,
       strategy,
       theme: isDark.value ? "dark" : "light",
@@ -948,7 +960,7 @@ async function _extractThemeColorFromWallpaper(
       ),
     });
 
-    return harmonizedHex;
+    return semanticSafeHex;
   } catch (error) {
     errorHandler.warn(error, "提取壁纸主题色失败", {
       operation: "提取壁纸主题色",

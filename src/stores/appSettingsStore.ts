@@ -16,6 +16,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { debounce } from "lodash-es";
 import { setAppTimezoneProvider } from "@/utils/appTimezone";
+import { avoidSemanticColorHueCollisions } from "@/utils/themeColors";
 import {
   appSettingsManager,
   defaultAppSettings,
@@ -114,15 +115,25 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   const enableFancyDoodle = computed(
     () => settings.value.enableFancyDoodle ?? false
   );
-  /** 生效的主题色（如果开启了自动提取且有提取值，则使用提取值，否则使用设置的主题色） */
+  /**
+   * 生效的主题色。
+   *
+   * 自动提取色会按当前的成功、警告、危险和信息语义色重新避碰，因此用户
+   * 修改任一语义色后无需重新提取壁纸，已应用的主题色也不会产生色相冲突。
+   */
   const effectiveThemeColor = computed(() => {
     const app = appearance.value;
     const isExtracted = !!(
       app.autoExtractThemeColorFromWallpaper && app.wallpaperExtractedThemeColor
     );
-    return isExtracted
-      ? app.wallpaperExtractedThemeColor!
-      : (settings.value.themeColor ?? "#409eff");
+    if (!isExtracted) return settings.value.themeColor ?? "#409eff";
+
+    return avoidSemanticColorHueCollisions(app.wallpaperExtractedThemeColor!, {
+      success: settings.value.successColor,
+      warning: settings.value.warningColor,
+      danger: settings.value.dangerColor,
+      info: settings.value.infoColor,
+    });
   });
 
   return {

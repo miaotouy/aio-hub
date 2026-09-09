@@ -34,7 +34,7 @@ export const xaiPreset: LlmPreset = {
     {
       id: "grok-4.6",
       name: "Grok 4.6",
-      group: "Grok 4.6",
+      group: "Grok 4",
       provider: "xai",
       capabilities: {
         vision: true,
@@ -50,7 +50,7 @@ export const xaiPreset: LlmPreset = {
     {
       id: "grok-4.5",
       name: "Grok 4.5",
-      group: "Grok 4.5",
+      group: "Grok 4",
       provider: "xai",
       capabilities: { toolUse: true, webSearch: true },
       description: "上一代旗舰模型，长上下文与实时数据接入",
@@ -58,7 +58,7 @@ export const xaiPreset: LlmPreset = {
     {
       id: "grok-4.1-fast",
       name: "Grok 4.1 Fast",
-      group: "Grok 4.1",
+      group: "Grok 4",
       provider: "xai",
       capabilities: { vision: true, toolUse: true },
       description: "面向高速 agentic 工具调用的多模态模型，2M 上下文",
@@ -66,7 +66,7 @@ export const xaiPreset: LlmPreset = {
     {
       id: "grok-4-1-fast-non-reasoning",
       name: "Grok 4.1 Fast Non-Reasoning",
-      group: "Grok 4.1",
+      group: "Grok 4",
       provider: "xai",
       capabilities: { vision: true, toolUse: true },
       description: "极速响应版，成本更低",

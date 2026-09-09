@@ -859,14 +859,15 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
 
     // === Agnes AI (Sapiens AI) 系列模型 ===
     {
-      id: "model-agnes-2.5-flash",
+      id: "model-agnes-3.0-flash",
       matchType: "model",
-      matchValue: "agnes-2.5-flash",
+      matchValue: "agnes-3.0-flash",
       properties: {
         icon: `/model-icons/agnes.png`,
         group: "Agnes AI",
         tokenizer: "gpt4",
         capabilities: {
+          vision: true,
           thinking: true,
           thinkingConfigType: "budget",
           toolUse: true,
@@ -874,9 +875,111 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
         features: {
           streaming: true,
           functionCalling: true,
+          vision: true,
         },
         description:
-          "Agnes-2.5-Flash 支持 OpenAI 兼容接口中的思考模式，并通过 reasoning_content 返回推理内容。",
+          "Agnes-3.0-Flash：Agnes AI 新一代快速多模态模型，适合标题生成、图片理解/转写、推理和工具调用。",
+        recommendedFor: ["标题生成", "图片转写", "复杂推理", "Agent 工作流"],
+      },
+      priority: 31,
+      enabled: true,
+      description: "Agnes-3.0-Flash 最新模型元数据",
+    },
+    {
+      id: "model-agnes-2.5-pro-beta",
+      matchType: "model",
+      matchValue: "agnes-2.5-pro-beta",
+      properties: {
+        icon: `/model-icons/agnes.png`,
+        group: "Agnes AI",
+        tokenizer: "gpt4",
+        capabilities: {
+          vision: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+          toolUse: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+          vision: true,
+        },
+        description:
+          "Agnes-2.5-Pro-Beta：2.5 Pro 的 Beta 路由，支持图片理解、复杂推理与 Agent 工具调用。",
+        recommendedFor: ["复杂推理", "图片转写", "代码生成", "Agent 工作流"],
+      },
+      priority: 31,
+      enabled: true,
+      description: "Agnes-2.5-Pro-Beta 模型元数据",
+    },
+    {
+      id: "model-agnes-image-2.5-flash",
+      matchType: "model",
+      matchValue: "agnes-image-2.5-flash",
+      properties: {
+        icon: `/model-icons/agnes.png`,
+        group: "Agnes AI",
+        capabilities: {
+          imageGeneration: true,
+          iterativeRefinement: true,
+          vision: true,
+        },
+        features: {
+          vision: true,
+        },
+        description:
+          "Agnes-Image-2.5-Flash：新一代图像生成与编辑模型，支持文生图、图生图与多图参考。",
+        recommendedFor: ["图像生成", "图像编辑", "多图合成"],
+      },
+      priority: 31,
+      enabled: true,
+      description: "Agnes-Image-2.5-Flash 最新模型元数据",
+    },
+    {
+      id: "model-agnes-video-2.5-flash",
+      matchType: "model",
+      matchValue: "agnes-video-2.5-flash",
+      properties: {
+        icon: `/model-icons/agnes.png`,
+        group: "Agnes AI",
+        capabilities: {
+          videoGeneration: true,
+          vision: true,
+        },
+        features: {
+          vision: true,
+        },
+        description:
+          "Agnes-Video-2.5-Flash：快速视频生成与图生视频模型，支持图片参考创作。",
+        recommendedFor: ["文生视频", "图生视频", "短视频创作"],
+      },
+      priority: 31,
+      enabled: true,
+      description: "Agnes-Video-2.5-Flash 最新模型元数据",
+    },
+    {
+      id: "model-agnes-2.5-flash",
+      matchType: "model",
+      matchValue: "agnes-2.5-flash",
+      properties: {
+        icon: `/model-icons/agnes.png`,
+        group: "Agnes AI",
+        tokenizer: "gpt4",
+        contextLength: 512000,
+        maxOutputTokens: 65536,
+        capabilities: {
+          vision: true,
+          thinking: true,
+          thinkingConfigType: "budget",
+          toolUse: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+          vision: true,
+        },
+        description:
+          "Agnes-2.5-Flash：512K 上下文、65.5K 输出上限，支持图片理解、思考、工具调用与流式对话；适合标题生成和图片转写。",
         recommendedFor: ["代码生成", "复杂推理", "多轮对话"],
       },
       priority: 30,

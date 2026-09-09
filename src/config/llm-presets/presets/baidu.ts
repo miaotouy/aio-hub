@@ -44,7 +44,7 @@ export const baiduPreset: LlmPreset = {
     {
       id: "ernie-4.5",
       name: "ERNIE 4.5",
-      group: "ERNIE 4.5",
+      group: "ERNIE 4",
       provider: "baidu",
       capabilities: { toolUse: true },
       description: "开源企业级模型，Apache 2.0许可（2025-09-09）",
@@ -52,7 +52,7 @@ export const baiduPreset: LlmPreset = {
     {
       id: "ernie-4.0-turbo-128k",
       name: "ERNIE 4.0 Turbo 128K",
-      group: "ERNIE 4.0",
+      group: "ERNIE 4",
       provider: "baidu",
       capabilities: { toolUse: true },
       description: "旗舰模型，128K超长上下文",
@@ -68,7 +68,7 @@ export const baiduPreset: LlmPreset = {
     {
       id: "ernie-3.5-128k",
       name: "ERNIE 3.5 128K",
-      group: "ERNIE 3.5",
+      group: "ERNIE 3",
       provider: "baidu",
       description: "性价比版本，128K上下文",
     },

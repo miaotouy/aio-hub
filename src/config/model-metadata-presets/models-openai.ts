@@ -106,6 +106,22 @@ export const openaiModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       description: "模型前缀 gpt-4o 元数据规则",
     },
     {
+      id: "model-regex-gpt-6",
+      matchType: "modelPrefix",
+      matchValue: "^gpt-6(?:\\.\\d+)?(?:-|$)",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/openai.svg`,
+        group: "OpenAI",
+        capabilities: openaiFlagshipCapabilities,
+        description:
+          "GPT-6 旗舰模型家族（包括 GPT-6 Astra；支持高级推理、工具调用和多模态工作流）",
+      },
+      priority: 30,
+      enabled: true,
+      description: "GPT-6 系列模型元数据规则",
+    },
+    {
       id: "model-prefix-gpt-5.6",
       matchType: "modelPrefix",
       matchValue: "gpt-5.6",

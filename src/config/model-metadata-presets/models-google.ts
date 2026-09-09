@@ -178,6 +178,11 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       properties: {
         contextLength: 65536,
         maxOutputTokens: 32768,
+        capabilities: {
+          imageGeneration: true,
+          iterativeRefinement: true,
+          vision: true,
+        },
         pricing: {
           input: 0.5,
           output: 3.0,
@@ -261,6 +266,51 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       priority: 36,
       enabled: true,
       description: "模型 gemini-3.1-flash-tts-preview 元数据规则",
+    },
+    {
+      id: "model-gemini-3.5-transcribe",
+      matchType: "model",
+      matchValue: "gemini-3.5-transcribe",
+      properties: {
+        icon: `/model-icons/gemini-color.svg`,
+        group: "Gemini 3",
+        tokenizer: "gemini",
+        capabilities: {
+          audio: true,
+        },
+        features: {
+          audio: true,
+        },
+        description:
+          "Gemini 3 Transcribe：面向音频文件的语音转写模型，适合把录音、视频音轨和会议内容转换为文字。",
+        recommendedFor: ["语音转写", "会议记录", "字幕生成"],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型 gemini-3.5-transcribe 元数据规则",
+    },
+    {
+      id: "model-gemini-3.5-transcribe-live",
+      matchType: "model",
+      matchValue: "gemini-3.5-transcribe-live",
+      properties: {
+        icon: `/model-icons/gemini-color.svg`,
+        group: "Gemini 3",
+        tokenizer: "gemini",
+        capabilities: {
+          audio: true,
+        },
+        features: {
+          audio: true,
+          streaming: true,
+        },
+        description:
+          "Gemini 3 Transcribe Live：面向实时音频流的语音转写模型，适合实时字幕与实时会议转写。",
+        recommendedFor: ["实时转写", "实时字幕", "直播听写"],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型 gemini-3.5-transcribe-live 元数据规则",
     },
     {
       id: "model-gemini-2.5-pro",
@@ -408,10 +458,27 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
     },
 
     // === Gemini 版本分组 ===
+    // 保留所有带主版本号的 Gemini 路由的产品归属。聚合渠道可能把
+    // `owned_by` 写成 openai；模型 ID 的产品身份必须优先于该传输渠道。
     {
-      id: "model-prefix-gemini-3",
+      id: "model-regex-gemini-versioned",
       matchType: "modelPrefix",
-      matchValue: "gemini-3",
+      matchValue: "^gemini-\\d+(?:\\.\\d+)?(?:-|$)",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/gemini-color.svg`,
+        group: "Gemini",
+      },
+      priority: 21,
+      enabled: true,
+      description:
+        "版本化 Gemini 模型的兜底分组，覆盖尚未单独登记的未来主版本与子版本",
+    },
+    {
+      id: "model-regex-gemini-3",
+      matchType: "modelPrefix",
+      matchValue: "^gemini-3(?:\\.\\d+)?(?:-|$)",
+      useRegex: true,
       properties: {
         group: "Gemini 3",
         capabilities: {
@@ -424,14 +491,14 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       priority: 22,
       enabled: true,
       description:
-        "Gemini 3 系列模型分组（统一归入 Gemini 3，覆盖 3.7/3.6/3.5/3.1 及 base 3 的全部 Pro/Flash/Lite/Image/Live/TTS 变体）",
+        "Gemini 3 系列模型分组（覆盖任意 3.x 子版本，包括 3.8、3.20 及其 Pro/Flash/Lite/Image/Live/TTS 变体）",
     },
     {
       id: "model-prefix-gemini-2.5",
       matchType: "modelPrefix",
       matchValue: "gemini-2.5",
       properties: {
-        group: "Gemini 2.5",
+        group: "Gemini 2",
         capabilities: {
           visionTokenCost: {
             calculationMethod: "gemini_2_0", // Gemini 2.5 沿用 2.0 的计算规则
@@ -441,14 +508,14 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       },
       priority: 22,
       enabled: true,
-      description: "Gemini 2.5 系列模型分组",
+      description: "Gemini 2.x 系列模型分组（按主版本归入 Gemini 2）",
     },
     {
       id: "model-prefix-gemini-2.0",
       matchType: "modelPrefix",
       matchValue: "gemini-2.0",
       properties: {
-        group: "Gemini 2.0",
+        group: "Gemini 2",
         deprecated: true, // Google 官方已宣布 Gemini 2.0 系列废弃，即将关闭
         capabilities: {
           visionTokenCost: {
@@ -467,7 +534,7 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       matchType: "modelPrefix",
       matchValue: "gemini-1.5",
       properties: {
-        group: "Gemini 1.5",
+        group: "Gemini 1",
       },
       priority: 22,
       enabled: true,
@@ -498,7 +565,7 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       description:
         "模型正则 gemini-3(?:\\.\\d+)?-(?:pro|flash)(?!.*(?:image|tts|live)) 元数据规则",
     },
-    // Gemini 2.5 高级能力模型 (Thinking via thinkingBudget, Code Execution, Search)
+    // Gemini 2.x 高级能力模型 (Thinking via thinkingBudget, Code Execution, Search)
     {
       id: "model-gemini-2.5-advanced",
       matchType: "modelPrefix",
@@ -513,7 +580,7 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
           webSearch: true,
         },
         description:
-          "Gemini 2.5 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.5 的 Pro/Flash 变体",
+          "Gemini 2.x 高级模型（支持思考预算 thinkingBudget、代码执行、联网搜索），覆盖 Gemini 2.x 的 Pro/Flash 变体",
       },
       priority: 25,
       enabled: true,

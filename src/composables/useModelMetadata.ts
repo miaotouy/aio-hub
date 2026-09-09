@@ -34,6 +34,7 @@ import {
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useModelMetadataStore } from "../stores/modelMetadataStore";
 import { materializeModelMetadata } from "@/utils/modelMetadataMaterialization";
+import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";
 
 /**
  * 模型元数据配置管理 (Composable 封装)
@@ -48,15 +49,30 @@ export function useModelMetadata() {
     options?: Parameters<typeof materializeModelMetadata>[2]
   ) {
     const chain = getMatchedRuleChain(store.rules, model.id, model.provider);
-    return materializeModelMetadata(
-      model,
-      getMatchedModelProperties(store.rules, model.id, model.provider),
-      {
-        sourceRevision: store.metadataStore.sourceSnapshot.revision,
-        appliedRuleIds: chain.map((rule) => rule.id),
-        ...options,
-      }
+    const properties = getMatchedModelProperties(
+      store.rules,
+      model.id,
+      model.provider
     );
+    const sourceGroupIsTransportProvider =
+      Boolean(model.group && model.provider) &&
+      model.group!.toLocaleLowerCase() === model.provider!.toLocaleLowerCase();
+    const shouldApplyMetadataGroup =
+      model.metadataBinding?.mode !== "manual" &&
+      (!model.metadataBinding || sourceGroupIsTransportProvider);
+    const sourceModel =
+      shouldApplyMetadataGroup && properties?.group
+        ? {
+            ...model,
+            group: resolveAppliedModelGroup(model.group, properties.group),
+          }
+        : model;
+
+    return materializeModelMetadata(sourceModel, properties, {
+      sourceRevision: store.metadataStore.sourceSnapshot.revision,
+      appliedRuleIds: chain.map((rule) => rule.id),
+      ...options,
+    });
   }
   /**
    * Read an already persisted model field. Metadata rules are resolved only

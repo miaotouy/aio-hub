@@ -32,6 +32,23 @@ describe("model identity", () => {
       resolveBuiltinModelIdentity("openai/text-embedding-3-small")?.identity
         .canonicalId
     ).toBe("openai/text-embedding-3-small");
+    expect(resolveBuiltinModelIdentity("embedding-001")?.identity).toMatchObject(
+      {
+        canonicalId: "google/embedding-001",
+        source: "builtin",
+      }
+    );
+    expect(
+      resolveBuiltinModelIdentity("gemini-embedding-2")?.identity.canonicalId
+    ).toBe("google/gemini-embedding-2");
+    expect(
+      resolveBuiltinModelIdentity("models/gemini-embedding-2-preview")
+        ?.identity
+    ).toMatchObject({
+      canonicalId: "google/gemini-embedding-2",
+      revision: "preview",
+      source: "builtin",
+    });
     expect(
       resolveBuiltinModelIdentity("azure-embedding-production")
     ).toBeNull();
@@ -66,6 +83,17 @@ describe("model identity", () => {
         materializeModelIdentity({ id: "text-embedding-3-small" })
       )?.source
     ).toBe("builtin");
+    expect(
+      getModelIdentity(
+        materializeModelIdentity(
+          { id: "gemini-embedding-2" },
+          { declaredOwner: "openai" }
+        )
+      )
+    ).toMatchObject({
+      canonicalId: "google/gemini-embedding-2",
+      source: "builtin",
+    });
   });
 
   it("rejects conflicting exact catalog entries", () => {

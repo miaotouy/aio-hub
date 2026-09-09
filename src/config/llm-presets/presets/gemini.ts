@@ -81,7 +81,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.7-flash",
       name: "Gemini 3.7 Flash",
-      group: "Gemini 3.7",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -101,7 +101,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.6-flash",
       name: "Gemini 3.6 Flash",
-      group: "Gemini 3.6",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -121,7 +121,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.5-flash",
       name: "Gemini 3.5 Flash",
-      group: "Gemini 3.5",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -140,7 +140,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.5-flash-lite",
       name: "Gemini 3.5 Flash-Lite",
-      group: "Gemini 3.5",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -154,7 +154,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.5-live-translate-preview",
       name: "Gemini 3.5 Live Translate",
-      group: "Gemini 3.5",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: { audio: true, audioGeneration: true },
       description: "低延迟、实时的语音到语音翻译模型，支持 70+ 语言 (2026-08)",
@@ -163,7 +163,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.1-pro-preview",
       name: "Gemini 3.1 Pro Preview",
-      group: "Gemini 3.1",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -182,7 +182,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.1-flash-lite",
       name: "Gemini 3.1 Flash-Lite",
-      group: "Gemini 3.1",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -197,7 +197,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.1-flash-image",
       name: "Nano Banana 2",
-      group: "Gemini 3.1",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: { vision: true, imageGeneration: true, preferChat: true },
       description: "高效图像生成与编辑，面向速度与高吞吐场景 (Stable)",
@@ -205,7 +205,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.1-flash-lite-image",
       name: "Nano Banana 2 Lite",
-      group: "Gemini 3.1",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: { vision: true, imageGeneration: true, preferChat: true },
       description:
@@ -230,7 +230,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.1-flash-live-preview",
       name: "Gemini 3.1 Flash Live",
-      group: "Gemini 3.1",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -243,7 +243,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-3.1-flash-tts-preview",
       name: "Gemini 3.1 Flash TTS",
-      group: "Gemini 3.1",
+      group: "Gemini 3",
       provider: "gemini",
       capabilities: { audio: true, audioGeneration: true },
       description: "低延迟语音生成，支持可引导提示与精细语音控制 (Preview)",
@@ -260,7 +260,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-2.5-pro",
       name: "Gemini 2.5 Pro",
-      group: "Gemini 2.5",
+      group: "Gemini 2",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -277,7 +277,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-2.5-flash",
       name: "Gemini 2.5 Flash",
-      group: "Gemini 2.5",
+      group: "Gemini 2",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -294,7 +294,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-2.5-flash-image",
       name: "Nano Banana (2.5)",
-      group: "Gemini 2.5",
+      group: "Gemini 2",
       provider: "gemini",
       capabilities: {
         vision: true,
@@ -307,7 +307,7 @@ export const geminiPreset: LlmPreset = {
     {
       id: "gemini-2.5-flash-lite",
       name: "Gemini 2.5 Flash-Lite",
-      group: "Gemini 2.5",
+      group: "Gemini 2",
       provider: "gemini",
       capabilities: {
         vision: true,

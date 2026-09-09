@@ -54,28 +54,7 @@ export function useTreeRenderer(
     if (treeData.value) {
       const result: string[] = [];
 
-      // 1. 动态生成元数据部分
-      if (
-        includeMetadata.value &&
-        lastGenerationOptions.value &&
-        statsInfo.value
-      ) {
-        const metadata = buildMetadataHeader(
-          lastGenerationOptions.value,
-          statsInfo.value,
-          {
-            includeFilterInfo: includeFilterInfo.value,
-            secondaryMaxDepth: secondaryMaxDepth.value,
-            secondaryIncludePath: secondaryIncludePath.value,
-            secondaryIncludePattern: secondaryIncludePattern.value,
-            secondaryExcludePattern: secondaryExcludePattern.value,
-            viewShowFiles: viewShowFiles.value,
-          }
-        );
-        result.push(metadata);
-      }
-
-      // 2. 基于 treeData 渲染树
+      // 1. 基于 treeData 渲染树
       // 解耦面板展开状态与筛选生效逻辑，避免展开/收起时触发重计算
       const maxDepth = secondaryMaxDepth.value;
       const includePath = secondaryIncludePath.value.trim();
@@ -123,6 +102,8 @@ export function useTreeRenderer(
         }
       }
 
+      let filteredDirCount = 0;
+      let filteredFileCount = 0;
       const options: Required<RenderTreeOptions> & {
         excludePattern: string;
         includePathChains?: string[][];
@@ -137,9 +118,50 @@ export function useTreeRenderer(
         showSize: showSize.value,
         showDirSize: showDirSize.value,
         showDirItemCount: showDirItemCount.value,
+        onNodeRendered: (node) => {
+          if (node.is_dir) {
+            filteredDirCount++;
+          } else {
+            filteredFileCount++;
+          }
+        },
       };
 
-      renderTreeRecursive(treeData.value, "", true, true, options, 0, result);
+      const treeLines: string[] = [];
+      renderTreeRecursive(
+        treeData.value,
+        "",
+        true,
+        true,
+        options,
+        0,
+        treeLines
+      );
+
+      // 2. 在树实际渲染完成后再生成元数据，使数量与当前视图一致
+      if (
+        includeMetadata.value &&
+        lastGenerationOptions.value &&
+        statsInfo.value
+      ) {
+        const metadata = buildMetadataHeader(
+          lastGenerationOptions.value,
+          statsInfo.value,
+          {
+            includeFilterInfo: includeFilterInfo.value,
+            secondaryMaxDepth: secondaryMaxDepth.value,
+            secondaryIncludePath: secondaryIncludePath.value,
+            secondaryIncludePattern: secondaryIncludePattern.value,
+            secondaryExcludePattern: secondaryExcludePattern.value,
+            viewShowFiles: viewShowFiles.value,
+            filteredDirCount,
+            filteredFileCount,
+          }
+        );
+        result.push(metadata);
+      }
+
+      result.push(...treeLines);
       return result.join("\n");
     }
 

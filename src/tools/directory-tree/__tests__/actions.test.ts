@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import DirectoryTreeRegistry from "../directory-tree.registry";
 import {
+  buildMetadataHeader,
   calculateMaxDepth,
   collectIncludedNodes,
   findAllNodesAndPaths,
@@ -208,6 +209,48 @@ describe("directory-tree actions", () => {
         excludePattern: ".log",
       });
       expect(excluded).not.toContain("debug.log");
+    });
+
+    it("应在实际写入视图时报告筛选后的节点数量", () => {
+      const visibleNodes: TreeNode[] = [];
+
+      renderTree(tree, {
+        includePathChains: [["repo", "src"]],
+        maxDepth: 1,
+        onNodeRendered: (node) => visibleNodes.push(node),
+      });
+
+      expect(visibleNodes.filter((node) => node.is_dir)).toHaveLength(2);
+      expect(visibleNodes.filter((node) => !node.is_dir)).toHaveLength(0);
+    });
+
+    it("视图筛选元数据应包含筛选后的目录和文件数量", () => {
+      const metadata = buildMetadataHeader(
+        {
+          path: "C:/repo",
+          showFiles: true,
+          showHidden: false,
+          maxDepth: 2,
+          filterMode: "none",
+        },
+        {
+          total_dirs: 3,
+          total_files: 4,
+          show_files: true,
+          show_hidden: false,
+          max_depth: "2",
+          filter_count: 0,
+          generated_at: "2026-06-28 00:00:00",
+        },
+        {
+          includeFilterInfo: true,
+          filteredDirCount: 2,
+          filteredFileCount: 0,
+        }
+      );
+
+      expect(metadata).toContain("- 筛选后目录: 2");
+      expect(metadata).toContain("- 筛选后文件: 0");
     });
 
     it("传入生成参数和统计信息时应包含元数据头", () => {

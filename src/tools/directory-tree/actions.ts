@@ -88,6 +88,10 @@ export function buildMetadataHeader(
     secondaryIncludePattern?: string;
     secondaryExcludePattern?: string;
     viewShowFiles?: boolean;
+    /** 当前视图实际渲染出的目录数量 */
+    filteredDirCount?: number;
+    /** 当前视图实际渲染出的文件数量 */
+    filteredFileCount?: number;
   }
 ): string {
   return [
@@ -147,6 +151,12 @@ export function buildMetadataHeader(
           filterInfo.viewShowFiles !== undefined
             ? `- 显示文件: ${filterInfo.viewShowFiles ? "是" : "否"}`
             : "",
+          filterInfo.filteredDirCount !== undefined
+            ? `- 筛选后目录: ${filterInfo.filteredDirCount}`
+            : "",
+          filterInfo.filteredFileCount !== undefined
+            ? `- 筛选后文件: ${filterInfo.filteredFileCount}`
+            : "",
           "",
         ]
       : []),
@@ -181,6 +191,8 @@ export interface RenderTreeOptions {
   showDirSize?: boolean;
   /** 是否显示目录子项数量 */
   showDirItemCount?: boolean;
+  /** 节点实际写入当前视图时的回调 */
+  onNodeRendered?: (node: TreeNode) => void;
 }
 
 /**
@@ -589,6 +601,7 @@ export function renderTreeRecursive(
       ? getDirItemCountStr(node)
       : "";
     output.push(`${node.name}${sizeStr}${itemCountStr}`);
+    options.onNodeRendered(node);
   } else {
     if (currentDepth > options.maxDepth) return;
     const connector = isLast ? "└── " : "├── ";
@@ -606,6 +619,7 @@ export function renderTreeRecursive(
     output.push(
       `${prefix}${connector}${node.name}${slash}${sizeStr}${itemCountStr}${errorStr}`
     );
+    options.onNodeRendered(node);
   }
 
   if (node.is_dir && node.children.length > 0) {
@@ -649,6 +663,7 @@ export function renderTree(
     showSize: renderOptions?.showSize ?? false,
     showDirSize: renderOptions?.showDirSize ?? false,
     showDirItemCount: renderOptions?.showDirItemCount ?? false,
+    onNodeRendered: renderOptions?.onNodeRendered ?? (() => {}),
   };
 
   const result: string[] = [];

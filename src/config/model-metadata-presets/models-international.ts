@@ -102,6 +102,34 @@ export const internationalModelRules: LegacyModelMetadataRule<ModelMetadataPrope
       description: "Grok 系列模型图标",
     },
     {
+      id: "model-grok-4.5",
+      matchType: "model",
+      matchValue: "(?:^|/)grok-4\\.5(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/grok.svg`,
+        group: "xAI",
+        tokenizer: "gpt4",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "medium", "high"],
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "Grok 4.5：xAI 的推理与 Agent 模型，支持可配置推理、工具调用和结构化输出；上下文上限与具体能力以渠道路由为准。",
+        recommendedFor: ["Agent 工作流", "复杂推理", "结构化输出"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 Grok 4.5（含渠道后缀）元数据规则",
+    },
+    {
       id: "model-prefix-imagine",
       matchType: "modelPrefix",
       matchValue: "imagine-",
@@ -203,6 +231,47 @@ export const internationalModelRules: LegacyModelMetadataRule<ModelMetadataPrope
     },
 
     // === Meta 系列模型 ===
+    {
+      id: "model-muse-spark-1.2-1.3",
+      matchType: "model",
+      matchValue:
+        "(?:^|/)(?:meta/)?muse-spark-1\\.(?:2|3)(?:-contributor)?(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/meta-color.svg`,
+        group: "Meta",
+        tokenizer: "llama3_2",
+        contextLength: 1048576,
+        capabilities: {
+          vision: true,
+          audio: true,
+          video: true,
+          document: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["minimal", "low", "medium", "high", "xhigh"],
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+          vision: true,
+        },
+        description:
+          "Muse Spark 1.2 / 1.3：Meta 原生多模态推理模型，面向长程编码、Agent 与多 Agent 工作流；支持文本、图像、音频、视频和文档输入、工具调用、结构化输出及可配置推理强度。Contributor 变体的请求与输出可能用于模型训练。",
+        recommendedFor: [
+          "多模态 Agent",
+          "代码生成",
+          "长上下文分析",
+          "复杂推理",
+        ],
+      },
+      priority: 38,
+      enabled: true,
+      description:
+        "模型正则 Muse Spark 1.2 / 1.3（含 Meta 前缀、Contributor 与渠道后缀）元数据规则",
+    },
     {
       id: "model-llama-3.3-70b-instruct",
       matchType: "model",
@@ -698,6 +767,24 @@ export const internationalModelRules: LegacyModelMetadataRule<ModelMetadataPrope
       enabled: true,
       description: "Phi 系列模型图标",
     },
+    {
+      id: "model-phi-4-ollama",
+      matchType: "model",
+      matchValue: "^phi4(?::[\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/microsoft-color.svg`,
+        group: "Microsoft",
+        tokenizer: "gpt4",
+        contextLength: 16384,
+        description:
+          "Phi-4：Microsoft 14B 开放权重推理模型，适合数学、科学与代码等文本推理任务；本地运行时的上下文和工具能力取决于宿主。",
+        recommendedFor: ["文本推理", "数学", "科学问答", "本地部署"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 Ollama Phi-4 标签元数据规则",
+    },
 
     // === Stability AI 系列模型 ===
     {
@@ -721,23 +808,157 @@ export const internationalModelRules: LegacyModelMetadataRule<ModelMetadataPrope
       properties: {
         icon: `/model-icons/baai.svg`,
         group: "BAAI",
+        description:
+          "BAAI BGE 向量检索模型系列，包含 embedding 与 reranker 变体。",
       },
       priority: 20,
       enabled: true,
-      description: "BAAI BGE 系列模型图标",
+      description: "BAAI BGE 系列基础元数据",
+    },
+    {
+      id: "model-bge-m3",
+      matchType: "model",
+      matchValue: "(?:^|/)bge-m3(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/baai.svg`,
+        group: "BAAI",
+        capabilities: {
+          embedding: true,
+        },
+        description:
+          "BGE-M3：BAAI 多语言、多功能的文本向量模型，适用于语义检索、RAG、文本聚类与相似度匹配。",
+        recommendedFor: ["Embedding", "RAG", "语义检索", "多语言检索"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 BGE-M3（含渠道前缀和后缀）元数据规则",
+    },
+    {
+      id: "model-bge-reranker-v2-m3",
+      matchType: "model",
+      matchValue: "(?:^|/)bge-reranker-v2-m3(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/baai.svg`,
+        group: "BAAI",
+        capabilities: {
+          rerank: true,
+        },
+        description:
+          "BGE-Reranker-v2-M3：BAAI 多语言重排序模型，用于对召回候选进行相关性重排。",
+        recommendedFor: ["Rerank", "RAG 重排序", "多语言检索"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 BGE-Reranker-v2-M3（含渠道前缀和后缀）元数据规则",
+    },
+    {
+      id: "model-gte-base",
+      matchType: "model",
+      matchValue: "(?:^|/)gte-base(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        group: "Thenlper",
+        contextLength: 512,
+        capabilities: {
+          embedding: true,
+        },
+        description:
+          "GTE-base：General Text Embeddings 基础文本向量模型，生成 768 维稠密向量，适合语义搜索、聚类和文本相似度任务。",
+        recommendedFor: ["Embedding", "RAG", "语义检索", "文本相似度"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 GTE-base（含渠道前缀和后缀）元数据规则",
+    },
+    {
+      id: "model-gte-large",
+      matchType: "model",
+      matchValue: "(?:^|/)gte-large(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        group: "Thenlper",
+        capabilities: {
+          embedding: true,
+        },
+        description:
+          "GTE-large：General Text Embeddings 大型文本向量模型，适合语义搜索、检索增强生成和文本相似度任务。",
+        recommendedFor: ["Embedding", "RAG", "语义检索", "文本相似度"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 GTE-large（含渠道前缀和后缀）元数据规则",
+    },
+    {
+      id: "model-nomic-embed-text",
+      matchType: "model",
+      matchValue: "(?:^|[/-])nomic-embed-text(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        group: "Nomic AI",
+        capabilities: {
+          embedding: true,
+        },
+        description:
+          "nomic-embed-text：Nomic 的开放文本向量模型，仅用于生成 embedding，适合语义检索与 RAG。",
+        recommendedFor: ["Embedding", "RAG", "语义检索"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 nomic-embed-text（含本地标签）元数据规则",
+    },
+    {
+      id: "model-mxbai-embed-large",
+      matchType: "model",
+      matchValue: "(?:^|/)mxbai-embed-large(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        group: "Mixedbread AI",
+        contextLength: 512,
+        capabilities: {
+          embedding: true,
+        },
+        description:
+          "mxbai-embed-large：Mixedbread AI 的大型文本向量模型，适合语义检索、文本匹配和 RAG；本地标签默认 512 token 上下文。",
+        recommendedFor: ["Embedding", "RAG", "语义检索", "文本相似度"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 mxbai-embed-large（含本地标签）元数据规则",
     },
 
     // === Black Forest Labs 系列模型 ===
     {
       id: "model-prefix-flux",
-      matchType: "modelPrefix",
-      matchValue: "flux",
+      matchType: "model",
+      matchValue:
+        "(?:^|black-forest-labs/)flux(?:[._-][\\w.-]+)?(?:[:][\\w.-]+)?$",
+      useRegex: true,
       properties: {
         icon: `/model-icons/flux.svg`,
         group: "Black Forest Labs",
       },
       priority: 20,
       enabled: true,
-      description: "FLUX 系列模型图标",
+      description:
+        "Black Forest Labs FLUX 系列模型图标（不匹配同名非 BFL 模型）",
+    },
+    {
+      id: "model-deepgram-flux-tts",
+      matchType: "model",
+      matchValue: "(?:^|/)flux-tts(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        capabilities: {
+          audioGeneration: true,
+        },
+        description:
+          "Deepgram Flux TTS：面向自然、富表现力英文语音合成的文本转语音模型。",
+        recommendedFor: ["Text-to-Speech", "语音合成", "英文语音"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 Deepgram Flux TTS（含渠道后缀）元数据规则",
     },
   ];

@@ -702,6 +702,33 @@ export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
       description: "Nemotron 系列模型图标",
     },
     {
+      id: "model-nemotron-3-family",
+      matchType: "model",
+      matchValue: "^nemotron-3(?:\\.5)?-(?:ultra|lightning)(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/nvidia-color.svg`,
+        group: "NVIDIA",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "NVIDIA Nemotron 3 系列开放推理模型，面向长上下文、工具调用与 Agent 工作流；渠道路由的能力和上下文限制以实际配置为准。",
+        recommendedFor: ["Agent 工作流", "复杂推理", "长上下文分析"],
+      },
+      priority: 35,
+      enabled: true,
+      description:
+        "模型正则 Nemotron 3 Ultra / 3.5 Lightning（含渠道后缀）元数据规则",
+    },
+    {
       id: "provider-nvidia",
       matchType: "provider",
       matchValue: "nvidia",
@@ -736,6 +763,32 @@ export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
       priority: 20,
       enabled: true,
       description: "美团 Longcat 系列模型图标",
+    },
+    {
+      id: "model-longcat-2",
+      matchType: "model",
+      matchValue: "^longcat-2(?:\\.0)?(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/longcat-color.svg`,
+        group: "Meituan",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "LongCat 2 系列：美团面向 Agent、代码与推理工作流的模型，支持思考模式、工具调用和结构化输出；可用能力以渠道路由为准。",
+        recommendedFor: ["Agent 工作流", "代码生成", "复杂推理", "结构化输出"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 LongCat 2（含渠道后缀）元数据规则",
     },
 
     // === API 服务商 ===

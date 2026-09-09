@@ -109,6 +109,32 @@ export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       description: "标注已废弃的旧版 DeepSeek 模型名",
     },
     {
+      id: "model-deepseek-ocr",
+      matchType: "model",
+      matchValue: "(?:^|/)deepseek-ocr(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/deepseek-color.svg`,
+        group: "DeepSeek",
+        tokenizer: "deepseek_v3",
+        capabilities: {
+          vision: true,
+          document: true,
+          jsonOutput: true,
+        },
+        features: {
+          vision: true,
+        },
+        description:
+          "DeepSeek-OCR：DeepSeek 面向视觉文字识别与文档理解的模型，适合 OCR、版面解析与结构化抽取。",
+        recommendedFor: ["OCR", "文档解析", "结构化抽取"],
+      },
+      priority: 35,
+      enabled: true,
+      exclusive: true,
+      description: "模型正则 DeepSeek-OCR（含渠道前缀和后缀）元数据规则",
+    },
+    {
       id: "model-prefix-deepseek",
       matchType: "modelPrefix",
       matchValue: "deepseek-",

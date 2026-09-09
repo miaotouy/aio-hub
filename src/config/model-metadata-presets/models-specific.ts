@@ -351,8 +351,10 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
     // === FLUX 系列 (Black Forest Labs) ===
     {
       id: "model-flux-specific",
-      matchType: "modelPrefix",
-      matchValue: "flux",
+      matchType: "model",
+      matchValue:
+        "(?:^|black-forest-labs/)flux(?![-._](?:\\d+[-._])?video(?:[-._]|$))(?:[._-][\\w.-]+)?(?:[:][\\w.-]+)?$",
+      useRegex: true,
       properties: {
         icon: `/model-icons/flux.svg`,
         group: "Black Forest Labs",
@@ -360,13 +362,32 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
           imageGeneration: true,
           iterativeRefinement: false,
         },
-        description: "FLUX 系列图像生成模型",
+        description: "Black Forest Labs FLUX 系列图像生成模型",
       },
       priority: 30,
       enabled: true,
-      description: "模型前缀 flux 元数据规则",
+      description: "模型正则 Black Forest Labs FLUX 图像模型元数据规则",
     },
-
+    {
+      id: "model-flux-video",
+      matchType: "model",
+      matchValue:
+        "(?:^|black-forest-labs/)flux(?:[-._](?:\\d+[-._])?)video(?:[-._][\\w.-]+)?(?:[:][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/flux.svg`,
+        group: "Black Forest Labs",
+        capabilities: {
+          videoGeneration: true,
+          vision: true,
+        },
+        description:
+          "Black Forest Labs FLUX 视频模型系列，涵盖视频生成、续写、关键帧控制和视频超分等工作流。",
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 Black Forest Labs FLUX 视频模型元数据规则",
+    },
     // === Stable Diffusion 系列 ===
     {
       id: "model-stable-diffusion-specific",

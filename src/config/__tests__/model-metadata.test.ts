@@ -624,3 +624,171 @@ describe("model-metadata presets", () => {
     });
   });
 });
+
+describe("audited model-list metadata coverage", () => {
+  it("covers routed model IDs and avoids treating video understanding as video generation", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "GLM-5.1-FP8", "custom")
+    ).toMatchObject({
+      group: "Zhipu",
+      contextLength: 200000,
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "glm-5.3-flash",
+        "openai"
+      )
+    ).toMatchObject({
+      group: "Z AI",
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
+      },
+    });
+
+    const museSpark = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "muse-spark-1.2-contributor",
+      "openai"
+    );
+    expect(museSpark).toMatchObject({
+      icon: "/model-icons/meta-color.svg",
+      group: "Meta",
+      contextLength: 1048576,
+      capabilities: {
+        vision: true,
+        audio: true,
+        video: true,
+        document: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["minimal", "low", "medium", "high", "xhigh"],
+        jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "meta/muse-spark-1.3-contributor",
+        "openai"
+      )
+    ).toMatchObject({
+      group: "Meta",
+      capabilities: { vision: true, toolUse: true, thinking: true },
+    });
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "moonshotai/kimi-k2.6-turbo",
+        "openai"
+      )
+    ).toMatchObject({
+      group: "Kimi",
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "FunAudioLLM/CosyVoice2-0.5B",
+        "siliconflow"
+      )
+    ).toMatchObject({
+      group: "FunAudioLLM",
+      capabilities: { audioGeneration: true },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "lmstudio-nomic-embed-text:q4_k_m",
+        "ollama"
+      )
+    ).toMatchObject({
+      group: "Nomic AI",
+      capabilities: { embedding: true },
+    });
+
+    const reranker = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "BAAI/bge-reranker-v2-m3",
+      "siliconflow"
+    );
+    expect(reranker).toMatchObject({
+      group: "BAAI",
+      capabilities: { rerank: true },
+    });
+    expect(reranker?.capabilities?.embedding).toBeUndefined();
+
+    const deepSeekOcr = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "deepseek-ai/DeepSeek-OCR",
+      "openai"
+    );
+    expect(deepSeekOcr).toMatchObject({
+      capabilities: { vision: true, document: true, jsonOutput: true },
+    });
+    expect(deepSeekOcr?.capabilities?.toolUse).toBeUndefined();
+
+    const videoUnderstanding = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "gemini-3.7-flash-video-understanding-eap",
+      "openai"
+    );
+    expect(videoUnderstanding).toMatchObject({ capabilities: { video: true } });
+    expect(videoUnderstanding?.capabilities?.videoGeneration).toBeUndefined();
+
+    const fluxTts = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "deepgram/flux-tts:free",
+      "openrouter"
+    );
+    expect(fluxTts).toMatchObject({
+      capabilities: { audioGeneration: true },
+      description: expect.stringContaining("Deepgram Flux TTS"),
+    });
+    expect(fluxTts?.capabilities?.imageGeneration).toBeUndefined();
+    expect(fluxTts?.mediaGenParams).toBeUndefined();
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "thenlper/gte-base",
+        "openrouter"
+      )
+    ).toMatchObject({
+      group: "Thenlper",
+      contextLength: 512,
+      capabilities: { embedding: true },
+    });
+
+    const fluxVideo = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "black-forest-labs/flux-3-video",
+      "openrouter"
+    );
+    expect(fluxVideo).toMatchObject({
+      group: "Black Forest Labs",
+      capabilities: { videoGeneration: true, vision: true },
+      description: expect.stringContaining("FLUX 视频模型"),
+    });
+    expect(fluxVideo?.capabilities?.imageGeneration).toBeUndefined();
+    expect(fluxVideo?.mediaGenParams).toBeUndefined();
+  });
+});

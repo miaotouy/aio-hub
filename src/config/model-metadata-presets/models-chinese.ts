@@ -27,13 +27,13 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
     {
       id: "model-glm-5-family",
       matchType: "model",
-      matchValue: "(?:^|/)GLM-5(?:\\.\\d+)?$",
+      matchValue: "(?:^|/)GLM-5(?:\\.\\d+)?(?:[-:.][\\w.-]+)?$",
       useRegex: true,
       properties: {
         icon: `/model-icons/zhipu-color.svg`,
         group: "Zhipu",
         tokenizer: "gpt4",
-        contextLength: 1000000,
+        contextLength: 200000,
         maxOutputTokens: 128000,
         capabilities: {
           toolUse: true,
@@ -42,7 +42,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
           jsonOutput: true,
         },
         description:
-          "GLM-5 系列旗舰模型（GLM-5.3 / 5.2 / 5.1 / 5）：1M 上下文、128K 输出，复杂软件工程与 agent 任务，支持思考模式、函数调用与结构化输出",
+          "GLM-5 系列旗舰模型（GLM-5.3 / 5.2 / 5.1 / 5）：200K 上下文、128K 输出，复杂软件工程与 Agent 任务，支持思考模式、函数调用与结构化输出",
         recommendedFor: [
           "代码生成",
           "Agent 工作流",
@@ -52,7 +52,72 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       },
       priority: 37,
       enabled: true,
-      description: "模型正则 GLM-5 / GLM-5.1 / GLM-5.2 / GLM-5.3 元数据规则",
+      description:
+        "模型正则 GLM-5 / GLM-5.1 / GLM-5.2 / GLM-5.3（含渠道、量化和免费后缀）元数据规则",
+    },
+    {
+      id: "model-glm-5.3-flash",
+      matchType: "model",
+      matchValue: "(?:^|/)GLM-5\\.3-Flash(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/zai.svg`,
+        group: "Z AI",
+        tokenizer: "gpt4",
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high", "max"],
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+          vision: true,
+        },
+        description:
+          "GLM-5.3-Flash：GLM-5 系列首个原生多模态模型，采用独立训练的底模与混合注意力架构；支持视觉输入、可配置思考预算、工具调用和结构化输出。",
+        recommendedFor: ["多模态 Agent", "图像理解", "代码生成", "复杂推理"],
+      },
+      priority: 38,
+      enabled: true,
+      exclusive: true,
+      description: "模型正则 GLM-5.3-Flash（独立原生多模态底模）元数据规则",
+    },
+    {
+      id: "model-glm-4.7-family",
+      matchType: "model",
+      matchValue: "(?:^|/)GLM-4\\.7(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/zhipu-color.svg`,
+        group: "Zhipu",
+        tokenizer: "gpt4",
+        contextLength: 200000,
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "GLM-4.7 系列文本模型：面向推理、编码与 Agent 工作流，支持思考模式、函数调用和结构化输出；上下文与可用功能以实际渠道为准。",
+        recommendedFor: [
+          "代码生成",
+          "Agent 工作流",
+          "长上下文分析",
+          "中文对话",
+        ],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型正则 GLM-4.7（含渠道后缀）元数据规则",
     },
     {
       id: "model-glm-4.6-family",
@@ -202,10 +267,88 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
         icon: `/model-icons/kimi-color.svg`,
         group: "Kimi",
         tokenizer: "gpt4",
+        description:
+          "Kimi 系列模型（Moonshot AI）：面向长上下文对话、推理与 Agent 工作流；具体能力以模型版本和渠道为准。",
       },
       priority: 20,
       enabled: true,
-      description: "Kimi 系列模型图标",
+      description: "Kimi 系列模型基础元数据",
+    },
+    {
+      id: "model-kimi-k2.5-k2.6-family",
+      matchType: "model",
+      matchValue: "(?:^|/)kimi-k2\\.(?:5|6)(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/kimi-color.svg`,
+        group: "Kimi",
+        tokenizer: "gpt4",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "Kimi K2.5 / K2.6 系列：Moonshot 面向代码、推理和 Agent 工作流的模型，支持思考模式、工具调用和结构化输出；聚合渠道的具体模型额度以路由配置为准。",
+        recommendedFor: ["Agent 工作流", "代码生成", "复杂推理", "结构化输出"],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型正则 Kimi K2.5 / K2.6（含渠道后缀）元数据规则",
+    },
+    {
+      id: "model-kimi-k2.7-code",
+      matchType: "model",
+      matchValue: "(?:^|/)kimi-k2\\.7-code(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/kimi-color.svg`,
+        group: "Kimi",
+        tokenizer: "gpt4",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "Kimi K2.7 Code：面向软件工程与 Agent 编程工作流的 Kimi 路由，支持思考模式、工具调用和结构化输出。",
+        recommendedFor: ["代码生成", "代码审查", "Agent 工作流"],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型正则 Kimi K2.7 Code（含渠道后缀）元数据规则",
+    },
+    {
+      id: "model-kimi-k3",
+      matchType: "model",
+      matchValue: "(?:^|/)kimi-k3(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/kimi-color.svg`,
+        group: "Kimi",
+        tokenizer: "gpt4",
+        capabilities: {
+          vision: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
+        description:
+          "Kimi K3：Kimi 原生视觉推理模型，适合图像理解与复杂推理；渠道可用的工具调用和上下文上限以实际路由配置为准。",
+        recommendedFor: ["图像理解", "复杂推理", "多模态对话"],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型正则 Kimi K3（含渠道后缀）元数据规则",
     },
 
     // === 字节跳动豆包系列模型 ===
@@ -236,6 +379,49 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       priority: 20,
       enabled: true,
       description: "混元系列模型图标",
+    },
+    {
+      id: "model-hunyuan-mt-7b",
+      matchType: "model",
+      matchValue: "(?:^|/)hunyuan-mt-7b(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/hunyuan-color.svg`,
+        group: "Tencent",
+        tokenizer: "gpt4",
+        description:
+          "Hunyuan-MT-7B：腾讯混元机器翻译模型，适合多语言翻译与本地化；它不是通用工具调用模型。",
+        recommendedFor: ["机器翻译", "多语言本地化"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 Hunyuan-MT-7B（含渠道前缀和后缀）元数据规则",
+    },
+    {
+      id: "model-hunyuan-hy3-hy4",
+      matchType: "model",
+      matchValue: "^hy[34](?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/hunyuan-color.svg`,
+        group: "Tencent Hunyuan",
+        tokenizer: "gpt4",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "Hunyuan HY3 / HY4 系列：腾讯混元混合推理模型，面向代码、工具调用与 Agent 工作流；能力开关和配额以渠道实际配置为准。",
+        recommendedFor: ["Agent 工作流", "代码生成", "复杂推理"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 Hunyuan HY3 / HY4（含渠道后缀）元数据规则",
     },
 
     // === 百度文心系列模型 ===
@@ -608,6 +794,9 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       properties: {
         group: "MiniCPM",
         tokenizer: "llama3_2",
+        capabilities: {
+          vision: true,
+        },
         defaultPostProcessingRules: [
           "convert-system-to-user",
           "merge-consecutive-roles",
@@ -735,11 +924,46 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       properties: {
         icon: `/model-icons/xiaomimimo.svg`,
         group: "Xiaomi",
-        description: "小米 MiMo 系列模型",
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "小米 MiMo 系列推理与 Agent 模型，支持工具调用、思考模式和结构化输出；具体多模态能力以版本和渠道为准。",
+        recommendedFor: ["Agent 工作流", "代码生成", "复杂推理", "结构化输出"],
       },
       priority: 25,
       enabled: true,
-      description: "模型前缀 mimo 元数据规则",
+      description: "模型前缀 MiMo 元数据规则",
+    },
+    {
+      id: "model-mimo-v2.5-family",
+      matchType: "model",
+      matchValue: "(?:^|/)mimo-v2\\.5(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        contextLength: 1000000,
+        capabilities: {
+          vision: true,
+        },
+        description:
+          "MiMo-V2.5：小米原生多模态推理模型，支持图像理解、工具调用与思考模式，1M 上下文；渠道路由的能力开关以实际配置为准。",
+        recommendedFor: [
+          "多模态 Agent",
+          "图像理解",
+          "复杂推理",
+          "长上下文分析",
+        ],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 MiMo-V2.5（含渠道后缀）元数据规则",
     },
 
     // === 盘古系列模型 ===
@@ -779,10 +1003,56 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       properties: {
         icon: `/model-icons/FunAudioLLM.png`,
         group: "FunAudioLLM",
+        description:
+          "FunAudioLLM 语音模型系列；CosyVoice 用于语音合成，SenseVoice 用于语音理解或转写。",
       },
       priority: 20,
       enabled: true,
-      description: "FunAudioLLM 系列模型图标",
+      description: "FunAudioLLM 系列基础元数据",
+    },
+    {
+      id: "model-cosyvoice",
+      matchType: "model",
+      matchValue:
+        "(?:^|/)cosyvoice(?:\\d+(?:[.-]\\d+)?[a-z0-9._-]*)?(?:[:._-][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/FunAudioLLM.png`,
+        group: "FunAudioLLM",
+        capabilities: {
+          audioGeneration: true,
+        },
+        description:
+          "CosyVoice 语音合成模型：将文本生成自然语音；具体可用音色、语言和流式能力以所接入渠道为准。",
+        recommendedFor: ["语音合成", "配音", "多语言 TTS"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 CosyVoice（含版本、规模和渠道后缀）元数据规则",
+    },
+    {
+      id: "model-paddleocr-vl",
+      matchType: "model",
+      matchValue: "(?:^|/)paddleocr-vl(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        group: "PaddleOCR",
+        tokenizer: "gpt4",
+        capabilities: {
+          vision: true,
+          document: true,
+          jsonOutput: true,
+        },
+        features: {
+          vision: true,
+        },
+        description:
+          "PaddleOCR-VL：PaddlePaddle 面向文档图像理解与 OCR 的视觉语言模型，适合文字识别、版面解析、表格和票据处理。",
+        recommendedFor: ["OCR", "文档解析", "表格识别", "票据识别"],
+      },
+      priority: 35,
+      enabled: true,
+      description: "模型正则 PaddleOCR-VL（含版本和渠道前缀）元数据规则",
     },
 
     // === IndexTeam 系列模型 ===

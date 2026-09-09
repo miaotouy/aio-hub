@@ -672,6 +672,8 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
         icon: `/model-icons/gemini-color.svg`,
         group: "Gemini",
         tokenizer: "gemini", // Gemini 系列使用专用分词器
+        description:
+          "Gemini 系列多模态模型，支持文本、图像、音频、视频与文档输入；具体版本可用的推理、生成与工具能力以渠道路由为准。",
         capabilities: {
           vision: true,
           audio: true,

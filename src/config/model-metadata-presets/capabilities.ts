@@ -185,7 +185,7 @@ export const capabilityRules: LegacyModelMetadataRule<ModelMetadataProperties>[]
       id: "capability-video-generation",
       matchType: "modelPrefix",
       matchValue:
-        "video-gen|txt2vid|sora|kling|video|happyhorse|seedance|vidu|skyreels|veo",
+        "^(?!.*video[-_ ]?(?:understanding|input|analysis)).*(?:video-gen|txt2vid|sora|kling|video|happyhorse|seedance|vidu|skyreels|veo)",
       useRegex: true,
       properties: {
         capabilities: {
@@ -218,7 +218,7 @@ export const capabilityRules: LegacyModelMetadataRule<ModelMetadataProperties>[]
     {
       id: "capability-embedding",
       matchType: "modelPrefix",
-      matchValue: "embed|embedding|bge",
+      matchValue: "^(?!.*reranker).*(?:embed|embedding|bge)",
       useRegex: true,
       properties: {
         capabilities: {

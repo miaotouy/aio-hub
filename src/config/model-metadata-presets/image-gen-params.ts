@@ -949,8 +949,10 @@ export const imageGenParamsRules: LegacyModelMetadataRule<ModelMetadataPropertie
     // === FLUX 系列（SiliconFlow 等 OpenAI 兼容代理） ===
     {
       id: "media-params-flux",
-      matchType: "modelPrefix",
-      matchValue: "flux",
+      matchType: "model",
+      matchValue:
+        "(?:^|black-forest-labs/)flux(?![-._](?:\\d+[-._])?video(?:[-._]|$))(?:[._-][\\w.-]+)?(?:[:][\\w.-]+)?$",
+      useRegex: true,
       properties: {
         capabilities: { imageGeneration: true },
         mediaGenParams: {

@@ -16,6 +16,7 @@ import {
   type ChannelProbeResult,
 } from "@aiohub/llm-core";
 import { customDialog, customMessage } from "@/utils/feedback";
+import { compareModelId } from "@/utils/modelIdUtils";
 import { useI18n } from "@/i18n";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
@@ -74,7 +75,7 @@ const modelGroups = computed(() => {
 
   const result = Array.from(groups.entries()).map(([name, items]) => ({
     name,
-    models: items,
+    models: items.sort((a, b) => compareModelId(a.model.id, b.model.id)),
   }));
 
   return result;

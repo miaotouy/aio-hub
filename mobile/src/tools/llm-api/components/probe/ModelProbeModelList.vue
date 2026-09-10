@@ -11,6 +11,7 @@ import {
 } from "lucide-vue-next";
 import { resolveProbePlan, type ChannelProbeResult } from "@aiohub/llm-core";
 import { useI18n } from "@/i18n";
+import { compareModelId } from "@/utils/modelIdUtils";
 import type { ModelProbeRowStatus } from "../../composables/useModelProbe";
 import type { LlmModelInfo } from "../../types";
 
@@ -40,7 +41,10 @@ const groups = computed(() => {
     const group = model.group || tr("其他模型");
     result.set(group, [...(result.get(group) ?? []), model]);
   });
-  return Array.from(result, ([name, models]) => ({ name, models }));
+  return Array.from(result, ([name, models]) => ({
+    name,
+    models: models.sort((a, b) => compareModelId(a.id, b.id)),
+  }));
 });
 
 const capabilityLabelKeys: Record<string, string> = {

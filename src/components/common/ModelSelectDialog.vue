@@ -24,6 +24,7 @@ import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
+import { compareModelId } from "@/utils/modelIdUtils";
 
 const {
   isDialogVisible,
@@ -165,8 +166,8 @@ const modelGroups = computed(() => {
         return groupA.localeCompare(groupB, "zh-CN");
       }
 
-      // 2. 分组相同，按 ID 排序，保证顺序稳定
-      return a.id.localeCompare(b.id);
+      // 2. 分组相同，按 ID 自然排序，保证版本顺序与顺序稳定
+      return compareModelId(a.id, b.id);
     });
   }
 

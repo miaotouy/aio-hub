@@ -15,7 +15,7 @@
 import { computed } from "vue";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
-import { parseModelCombo } from "@/utils/modelIdUtils";
+import { compareModelId, parseModelCombo } from "@/utils/modelIdUtils";
 
 export interface EmbeddingModelOption {
   value: string;
@@ -60,7 +60,7 @@ export function useEmbeddingModelOptions() {
       if (left.profileIndex !== right.profileIndex) {
         return left.profileIndex - right.profileIndex;
       }
-      return left.model.id.localeCompare(right.model.id);
+      return compareModelId(left.model.id, right.model.id);
     });
   });
 

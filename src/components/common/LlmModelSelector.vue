@@ -25,6 +25,7 @@ import type {
   ModelCapabilities,
 } from "@/types/llm-profiles";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { compareModelId } from "@/utils/modelIdUtils";
 
 interface Props {
   modelValue: string; // combo `profileId:modelId`
@@ -97,7 +98,7 @@ const sortModelOptions = (models: ModelOption[]) =>
       return a.profileIndex - b.profileIndex;
     }
 
-    return a.model.id.localeCompare(b.model.id);
+    return compareModelId(a.model.id, b.model.id);
   });
 
 const allModelOptions = computed(() => {

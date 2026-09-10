@@ -35,6 +35,21 @@ export const deepseekPreset: LlmPreset = {
   ],
   defaultModels: [
     {
+      id: "deepseek-flash",
+      name: "DeepSeek V4.1 Flash",
+      group: "DeepSeek",
+      provider: "deepseek",
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
+      },
+      description:
+        "DeepSeek V4.1 Flash（DeepSeek-V4.1-Flash），支持视觉理解与思考模式",
+    },
+    {
       id: "deepseek-v4-pro",
       name: "DeepSeek V4 Pro",
       group: "DeepSeek",
@@ -45,36 +60,8 @@ export const deepseekPreset: LlmPreset = {
         thinkingConfigType: "effort",
         reasoningEffortOptions: ["low", "high", "max"],
       },
-      description: "DeepSeek V4 Pro 正式版（DeepSeek-V4-Pro-0813）",
-    },
-    {
-      id: "deepseek-v4-flash",
-      name: "DeepSeek V4 Flash",
-      group: "DeepSeek",
-      provider: "deepseek",
-      capabilities: {
-        toolUse: true,
-        thinking: true,
-        thinkingConfigType: "effort",
-        reasoningEffortOptions: ["low", "high", "max"],
-      },
-      description: "DeepSeek V4 Flash（DeepSeek-V4-Flash-0731）",
-    },
-    {
-      id: "deepseek-v4-flash-vision-exp",
-      name: "DeepSeek V4 Flash Vision Exp",
-      group: "DeepSeek",
-      provider: "deepseek",
-      capabilities: {
-        vision: true,
-        toolUse: true,
-        fim: false,
-        prefixCompletion: true,
-        jsonOutput: true,
-        thinking: true,
-        thinkingConfigType: "switch",
-      },
-      description: "实验性多模态视觉理解模型（DeepSeek-V4-Flash-Vision-Exp）",
+      description:
+        "DeepSeek V4 Pro 正式版（DeepSeek-V4-Pro-0813，计划下线，请求将路由至 V4.1 Flash）",
     },
   ],
 };

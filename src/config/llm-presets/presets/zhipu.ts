@@ -40,10 +40,11 @@ export const zhipuPreset: LlmPreset = {
       capabilities: {
         toolUse: true,
         thinking: true,
-        thinkingConfigType: "switch",
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
       },
       description:
-        "最新旗舰，复杂软件工程与 agent 任务，编码较 5.2 提升 50%，1M 上下文/128K 输出（API 即将推出）",
+        "最新旗舰，复杂软件工程与 Agent 任务，编码较 5.2 提升 50%；1M 上下文 / 128K 输出，始终开启思考（low/high/max）",
     },
     {
       id: "glm-5.2",
@@ -51,7 +52,7 @@ export const zhipuPreset: LlmPreset = {
       group: "GLM-5",
       provider: "zhipu",
       capabilities: { toolUse: true },
-      description: "上一代旗舰模型，编码/代理能力持续升级",
+      description: "上一代旗舰，1M 无损上下文，长程任务与编码能力显著提升",
     },
     {
       id: "glm-5.1",

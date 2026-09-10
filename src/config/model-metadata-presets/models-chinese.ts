@@ -42,7 +42,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
           jsonOutput: true,
         },
         description:
-          "GLM-5 系列旗舰模型（GLM-5.3 / 5.2 / 5.1 / 5）：200K 上下文、128K 输出，复杂软件工程与 Agent 任务，支持思考模式、函数调用与结构化输出",
+          "GLM-5 系列文本模型（GLM-5.1 / GLM-5 / GLM-5-Turbo 等）：200K 上下文、128K 输出，复杂软件工程与 Agent 任务，支持思考模式、函数调用与结构化输出",
         recommendedFor: [
           "代码生成",
           "Agent 工作流",
@@ -53,7 +53,46 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       priority: 37,
       enabled: true,
       description:
-        "模型正则 GLM-5 / GLM-5.1 / GLM-5.2 / GLM-5.3（含渠道、量化和免费后缀）元数据规则",
+        "模型正则 GLM-5 系列（含渠道、量化和免费后缀）元数据规则；GLM-5.2 / GLM-5.3 由专用规则覆盖",
+    },
+    {
+      id: "model-glm-5.3",
+      matchType: "model",
+      matchValue: "(?:^|/)GLM-5\\.3(?![-:.]flash)(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/zai.svg`,
+        group: "Z AI",
+        tokenizer: "gpt4",
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: 8,
+          output: 28,
+          cacheHitInput: 2,
+          unit: "CNY",
+          note: "每百万 token；缓存存储限时免费",
+        },
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high", "max"],
+          jsonOutput: true,
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        releaseDate: "2026-08-19",
+        description:
+          "GLM-5.3：智谱新一代旗舰文本模型，1M 上下文 / 128K 输出，始终开启思考并支持 low/high/max 三档强度，支持工具调用、结构化输出与上下文缓存；仅支持文本输入。",
+        recommendedFor: ["代码生成", "Agent 工作流", "安全审计", "长上下文分析"],
+      },
+      priority: 38,
+      enabled: true,
+      exclusive: true,
+      description: "模型正则 GLM-5.3（2026-08-19 发布的旗舰文本模型）元数据规则",
     },
     {
       id: "model-glm-5.3-flash",
@@ -85,6 +124,29 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       enabled: true,
       exclusive: true,
       description: "模型正则 GLM-5.3-Flash（独立原生多模态底模）元数据规则",
+    },
+    {
+      id: "model-glm-5.2",
+      matchType: "model",
+      matchValue: "(?:^|/)GLM-5\\.2(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: 8,
+          output: 28,
+          cacheHitInput: 2,
+          unit: "CNY",
+          note: "每百万 token；缓存存储限时免费",
+        },
+        releaseDate: "2026-06-16",
+        description:
+          "GLM-5.2：智谱长程任务旗舰文本模型，1M 无损上下文 / 128K 输出，支持思考模式（默认开启、可关闭）、函数调用与结构化输出；仅支持文本输入。",
+      },
+      priority: 38,
+      enabled: true,
+      description: "模型正则 GLM-5.2（2026-06-16 发布的旗舰文本模型）元数据规则",
     },
     {
       id: "model-glm-4.7-family",

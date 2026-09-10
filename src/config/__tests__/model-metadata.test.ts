@@ -180,7 +180,7 @@ describe("model-metadata presets", () => {
     });
   });
 
-  it("applies official DeepSeek V4 versions, pricing, and effort controls", () => {
+  it("applies official DeepSeek V4.1 versions, pricing, and effort controls", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-v4-pro")
     ).toMatchObject({
@@ -201,13 +201,35 @@ describe("model-metadata presets", () => {
     });
 
     expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-flash")
+    ).toMatchObject({
+      contextLength: 1024000,
+      maxOutputTokens: 384000,
+      version: "DeepSeek-V4.1-Flash",
+      pricing: {
+        input: 2,
+        output: 8,
+        cacheHitInput: 0.04,
+        unit: "CNY",
+      },
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
+      },
+    });
+
+    expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-v4-flash")
     ).toMatchObject({
-      version: "DeepSeek-V4-Flash-0731",
+      version: "DeepSeek-V4.1-Flash",
+      deprecated: true,
       pricing: {
-        input: 3,
-        output: 9,
-        cacheHitInput: 0.1,
+        input: 2,
+        output: 8,
+        cacheHitInput: 0.04,
         unit: "CNY",
       },
     });
@@ -220,11 +242,12 @@ describe("model-metadata presets", () => {
     ).toMatchObject({
       contextLength: 1024000,
       maxOutputTokens: 384000,
-      version: "DeepSeek-V4-Flash-Vision-Exp",
+      version: "DeepSeek-V4.1-Flash",
+      deprecated: true,
       pricing: {
-        input: 3,
-        output: 9,
-        cacheHitInput: 0.1,
+        input: 2,
+        output: 8,
+        cacheHitInput: 0.04,
         unit: "CNY",
       },
       capabilities: {
@@ -242,6 +265,31 @@ describe("model-metadata presets", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "deepseek-reasoner")
     ).toMatchObject({ deprecated: true });
+  });
+
+  it("applies predictive DeepSeek V4.1 Pro capability metadata", () => {
+    const deepseekPro = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "deepseek-pro"
+    );
+
+    expect(deepseekPro).toMatchObject({
+      contextLength: 1024000,
+      maxOutputTokens: 384000,
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
+        fim: true,
+        prefixCompletion: true,
+        jsonOutput: true,
+      },
+    });
+    // V4.1 Pro 尚未发布，不预填价格和版本，避免展示未公布的计费信息。
+    expect(deepseekPro?.pricing).toBeUndefined();
+    expect(deepseekPro?.version).toBeUndefined();
   });
 
   it("applies Gemma 4 family metadata across common model id forms", () => {
@@ -636,6 +684,69 @@ describe("audited model-list metadata coverage", () => {
         toolUse: true,
         thinking: true,
         jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "glm-5.3", "zhipu")
+    ).toMatchObject({
+      icon: "/model-icons/zai.svg",
+      group: "Z AI",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      releaseDate: "2026-08-19",
+      pricing: {
+        input: 8,
+        output: 28,
+        cacheHitInput: 2,
+        unit: "CNY",
+      },
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "high", "max"],
+        jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "GLM-5.3-FP8", "custom")
+    ).toMatchObject({
+      group: "Z AI",
+      contextLength: 1000000,
+      capabilities: {
+        thinkingConfigType: "effort",
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "glm-5.2", "zhipu")
+    ).toMatchObject({
+      group: "Zhipu",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      releaseDate: "2026-06-16",
+      pricing: {
+        input: 8,
+        output: 28,
+        cacheHitInput: 2,
+        unit: "CNY",
+      },
+      capabilities: {
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "GLM-5.2-FP8", "custom")
+    ).toMatchObject({
+      contextLength: 1000000,
+      capabilities: {
+        thinking: true,
       },
     });
 

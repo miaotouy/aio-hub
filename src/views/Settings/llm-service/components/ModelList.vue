@@ -43,7 +43,7 @@ import {
   type CapabilityConfig,
 } from "@/config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { compareModelId } from "@/utils/modelIdUtils";
+import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import type { ChannelProbeResult } from "../probe/types";
 
@@ -126,10 +126,12 @@ const modelGroups = computed(() => {
     groups.get(group)!.push({ model, index });
   });
 
-  const result = Array.from(groups.entries()).map(([name, items]) => ({
-    name,
-    models: items.sort((a, b) => compareModelId(a.model.id, b.model.id)),
-  }));
+  const result = Array.from(groups.entries())
+    .sort(([left], [right]) => compareModelGroup(left, right))
+    .map(([name, items]) => ({
+      name,
+      models: items.sort((a, b) => compareModelId(a.model.id, b.model.id)),
+    }));
 
   // 如果没有保存的展开状态，默认展开所有分组
   if (Object.keys(props.expandState || {}).length === 0 && result.length > 0) {

@@ -21,6 +21,7 @@ import type { LlmModelInfo } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
 import { MODEL_CAPABILITIES } from "@/config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 
 const props = defineProps<{
   models: LlmModelInfo[];
@@ -55,7 +56,13 @@ const groupedModels = computed(() => {
     if (!(groupName in expandedGroups.value))
       expandedGroups.value[groupName] = true;
   }
-  return groups;
+  const orderedGroups: Record<string, LlmModelInfo[]> = {};
+  for (const groupName of Object.keys(groups).sort(compareModelGroup)) {
+    orderedGroups[groupName] = groups[groupName].sort((a, b) =>
+      compareModelId(a.id, b.id)
+    );
+  }
+  return orderedGroups;
 });
 // 过滤后的模型
 const filteredGroups = computed(() => {

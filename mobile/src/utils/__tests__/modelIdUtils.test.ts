@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareModelId } from "../modelIdUtils";
+import { compareModelGroup, compareModelId } from "../modelIdUtils";
 
 function sortIds(ids: string[]): string[] {
   return [...ids].sort(compareModelId);
@@ -37,5 +37,12 @@ describe("compareModelId", () => {
       "gemini-3.7-flash",
       "gemini-3.8-flash",
     ]);
+  });
+});
+
+describe("compareModelGroup", () => {
+  it("按数字段排序分组名", () => {
+    expect(compareModelGroup("Gemini 2", "Gemini 10")).toBeLessThan(0);
+    expect(compareModelGroup("Gemini 3", "Gemini 2")).toBeGreaterThan(0);
   });
 });

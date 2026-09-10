@@ -2,7 +2,7 @@
 import { ref, computed } from "vue";
 import { ChevronLeft, Search, Check, Plus, Filter } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
-import { compareModelId } from "@/utils/modelIdUtils";
+import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { useTranslatedCapabilities } from "../config/model-capabilities";
@@ -43,11 +43,14 @@ const groupedModels = computed(() => {
     groups[groupName].push(model);
   }
 
-  for (const groupName of Object.keys(groups)) {
-    groups[groupName].sort((a, b) => compareModelId(a.id, b.id));
+  const orderedGroups: Record<string, LlmModelInfo[]> = {};
+  for (const groupName of Object.keys(groups).sort(compareModelGroup)) {
+    orderedGroups[groupName] = groups[groupName].sort((a, b) =>
+      compareModelId(a.id, b.id)
+    );
   }
 
-  return groups;
+  return orderedGroups;
 });
 
 const filteredGroups = computed(() => {

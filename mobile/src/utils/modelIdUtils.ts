@@ -15,3 +15,15 @@ export function compareModelId(left: string, right: string): number {
     sensitivity: "base",
   });
 }
+
+/**
+ * 模型分组名自然排序比较器
+ *
+ * 分组名同样可能包含版本号（如 "Gemini 3"），中文分组名按 zh-CN 排序。
+ */
+export function compareModelGroup(left: string, right: string): number {
+  return left.localeCompare(right, "zh-CN", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}

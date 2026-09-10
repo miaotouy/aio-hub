@@ -5,7 +5,7 @@ import { Search } from "lucide-vue-next";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { useI18n } from "@/i18n";
-import { compareModelId } from "@/utils/modelIdUtils";
+import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 import type { LlmProfile, LlmModelInfo } from "../types";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 
@@ -119,12 +119,14 @@ const modelGroups = computed(() => {
   return Array.from(profileGroups.values()).map((p) => ({
     profileName: `${p.profile.name} (${p.profile.type})`,
     profileId: p.profile.id,
-    groups: Array.from(p.subGroups.entries()).map(([name, items]) => ({
-      name,
-      items: items.sort((left, right) =>
-        compareModelId(left.model.id, right.model.id)
-      ),
-    })),
+    groups: Array.from(p.subGroups.entries())
+      .sort(([left], [right]) => compareModelGroup(left, right))
+      .map(([name, items]) => ({
+        name,
+        items: items.sort((left, right) =>
+          compareModelId(left.model.id, right.model.id)
+        ),
+      })),
   }));
 });
 

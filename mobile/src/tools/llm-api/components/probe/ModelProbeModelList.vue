@@ -11,7 +11,7 @@ import {
 } from "lucide-vue-next";
 import { resolveProbePlan, type ChannelProbeResult } from "@aiohub/llm-core";
 import { useI18n } from "@/i18n";
-import { compareModelId } from "@/utils/modelIdUtils";
+import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 import type { ModelProbeRowStatus } from "../../composables/useModelProbe";
 import type { LlmModelInfo } from "../../types";
 
@@ -44,7 +44,7 @@ const groups = computed(() => {
   return Array.from(result, ([name, models]) => ({
     name,
     models: models.sort((a, b) => compareModelId(a.id, b.id)),
-  }));
+  })).sort((left, right) => compareModelGroup(left.name, right.name));
 });
 
 const capabilityLabelKeys: Record<string, string> = {

@@ -203,7 +203,9 @@
 
 实现要点：`FFmpegParams` 增加 `trimStart`/`trimEnd`/`trimMode`；`utils/trim.ts` 提供时间解析/格式化、区间校验、关键帧吸附与命名标签；`buildExecutionPlan` 在非自定义模式下把 `-ss` 放入 `inputArgs`（`-i` 前）、`-t` 追加到输出参数，快速模式 `forceCopy` 输出 `-c copy` 并跳过画质/滤镜，`plan.totalDuration = end - start` 作为进度分母（后端 `FFmpegPlan.total_duration` 覆盖元数据时长）。新增后端 `get_media_keyframes`（ffprobe `-skip_frame nokey` 扫描整份文件，前端按输入文件缓存、请求令牌丢弃过期响应）。工作台新增紧凑“时间裁剪”面板：起止输入、从播放位置设边界、快速/精确模式、吸附方向与请求/实际差异、校验提示，提交时校验错误阻止执行。
 
-验证：`bunx vitest run src/tools/ffmpeg-tools` 89 项通过（新增 F08 相关纯逻辑与计划集成测试）；`bun run check:frontend` 通过；`bun run build:vite` 通过；`cargo check` 通过、`ffmpeg_processor.rs` 无新增 clippy 告警。真实 ffprobe 关键帧输出、`VideoPlayer.currentTime` 绑定与快速/精确裁剪的可播放性/同步未在本轮验证。
+实现补充：命令预览曾只拼接输出文件名而非完整路径，与提交时 `join(输入目录, 输出名)` 的实际执行不一致；已改为用同一目录解析输出路径（`resolvedOutputPath`），保证预览/复制与实际 argv 一致。工作台补充稳定 `data-testid`（导入、文件卡、元数据、命令预览、输出名、裁剪、开始/停止、任务状态）供真实窗口 E2E 使用。
+
+验证：`bunx vitest run src/tools/ffmpeg-tools` 89 项通过（新增 F08 相关纯逻辑与计划集成测试）；`bun run check:frontend` 通过；`bun run build:vite` 通过；`cargo check` 通过、`ffmpeg_processor.rs` 无新增 clippy 告警。真实窗口 E2E（`tests/tauri-e2e/specs/ffmpeg-workbench.spec.ts`）对 1080p HEVC+AAC、时长约 9m20s 的真实文件验证通过：原生文件选择器导入 → 元数据与完整命令预览 → 快速流拷贝裁剪 → ffprobe 复核输出含音视频流且时长约 4s → 取消正在进行的重编码回到空闲。真实 ffprobe 关键帧吸附、`VideoPlayer.currentTime` 绑定与精确模式同步仍未验证。
 
 ## 6. 验证与文档同步
 
@@ -211,11 +213,17 @@
 
 - [x] 实施前重新读取相关源码与 `package.json` 脚本，测试只覆盖本次改动风险。
 - [x] 纯逻辑回归重点：防止命名覆盖、参数边界丢失、质量模式冲突、终态反转和重复输出路径占用；新增测试先说明防止的具体回归。（新增 `lifecycle`/`naming`/`paramBlocks`/`trim` 等纯逻辑测试，共 89 项）
-- [ ] 后端验证真实进程取消、启动失败、自然退出与取消竞态，不以 mock invoke 成功代替。（本轮仅 `cargo check`，真实进程行为待 Tauri 运行态）
+- [ ] 后端验证真实进程取消、启动失败、自然退出与取消竞态，不以 mock invoke 成功代替。（真实 Tauri E2E 已验证取消正在运行的重编码并回到空闲、以及自然完成；启动失败与取消竞态仍未覆盖）
 - [x] 前端改动执行已有类型检查与 Vite 生产构建脚本。（每批均通过 `check:frontend` 与 `build:vite`）
-- [ ] 在真实 Tauri 窗口检查文件导入、启动/停止、状态恢复和布局交互；普通浏览器仅用于明确支持的纯前端场景。
-- [ ] 使用少量确定性媒体素材检查实际输出流、容器、时长和裁剪边界；NVENC 无环境时记录未验证。
+- [x] 在真实 Tauri 窗口检查文件导入、启动/停止、状态恢复和布局交互；普通浏览器仅用于明确支持的纯前端场景。（`ffmpeg-workbench.spec.ts` 经 Windows 原生文件选择器导入真实视频、启动/停止并断言状态；其他工具与本工具未覆盖的布局交互不在此列）
+- [x] 使用少量确定性媒体素材检查实际输出流、容器、时长和裁剪边界；NVENC 无环境时记录未验证。（用真实 1080p HEVC+AAC 文件做流拷贝裁剪，`ffprobe` 复核输出音视频流与时长；NVENC/QSV 硬件路径与关键帧吸附精度未验证）
 - [ ] PowerShell 复制功能在真实终端验证，不只检查字符串包含引号。
+
+### 真实窗口 E2E
+
+- 用例：`tests/tauri-e2e/specs/ffmpeg-workbench.spec.ts`，仅在 `AIO_E2E_NATIVE_UI=1` 且设置 `AIO_E2E_FFMPEG_MEDIA` 时运行，否则跳过。
+- 运行：`$env:AIO_E2E_FFMPEG_MEDIA = "<绝对路径视频>"`，再执行 `bun run test:tauri:e2e -- --native --spec tests/tauri-e2e/specs/ffmpeg-workbench.spec.ts`。前置需 debug 二进制（`cargo build --manifest-path src-tauri/Cargo.toml`）、.NET 8 与已解锁的交互桌面。
+- 修复：Windows 原生文件选择器 helper（`tests/windows-ui-automation/AioHub.NativeUi/Program.cs`）改为把绝对路径直接写入文件名输入框并确认，避免地址栏面包屑在记住历史目录时点中片段而无法进入编辑态。
 
 ### 文档同步
 

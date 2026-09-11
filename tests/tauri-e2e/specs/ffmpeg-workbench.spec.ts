@@ -158,6 +158,30 @@ nativeDescribe("FFmpeg workbench with a real media file", () => {
       timeout: 20_000,
     });
 
+    // The pending-file card also mounts a transparent overlay DropZone for
+    // drag-and-drop replacement. Guard that it stays transparent and does not
+    // cover the file name/metadata.
+    const fileCardOccluded = await browser.execute(() => {
+      const name = document.querySelector<HTMLElement>(
+        '[data-testid="ffmpeg-file-name"]'
+      );
+      if (!name) return true;
+      const rect = name.getBoundingClientRect();
+      const topmost = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2
+      );
+      return !(
+        topmost &&
+        (topmost === name ||
+          name.contains(topmost) ||
+          topmost.contains(name))
+      );
+    });
+    if (fileCardOccluded) {
+      throw new Error("Pending-file content is occluded by the overlay drop zone");
+    }
+
     const command = await $(
       '[data-testid="ffmpeg-command-preview"]'
     ).getText();

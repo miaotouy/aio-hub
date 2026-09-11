@@ -227,3 +227,19 @@ asserts the resulting document/source state; the helper only operates the
 system-owned dialog. The session must remain logged in, unlocked, and visible.
 See [`../windows-ui-automation/README.md`](../windows-ui-automation/README.md)
 for selector rules, artifacts, and current drag/drop limitations.
+
+## FFmpeg workbench media lane
+
+`specs/ffmpeg-workbench.spec.ts` imports a real media file through the Windows
+file picker, checks the execution-plan preview, performs a stream-copy trim, and
+verifies the resulting file with `ffprobe`. It also covers cancellation of a
+running re-encode. The spec is skipped unless `AIO_E2E_NATIVE_UI=1` and
+`AIO_E2E_FFMPEG_MEDIA` points at an existing video:
+
+```powershell
+$env:AIO_E2E_FFMPEG_MEDIA = "E:\\path\\to\\clip.mp4"
+bun run test:tauri:e2e -- --native --spec tests/tauri-e2e/specs/ffmpeg-workbench.spec.ts
+```
+
+The lane writes its trimmed output next to the source media and removes it on
+success, so point `AIO_E2E_FFMPEG_MEDIA` at a disposable working copy.

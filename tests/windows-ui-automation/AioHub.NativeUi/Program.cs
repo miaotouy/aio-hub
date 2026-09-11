@@ -175,24 +175,10 @@ internal static class NativeUiProgram
             }
         }
 
-        var directoryPath = Path.GetDirectoryName(paths[0])
-            ?? throw new NativeUiException($"Cannot resolve the fixture directory: {paths[0]}");
-        if (paths.Any(path => !string.Equals(
-                Path.GetDirectoryName(path),
-                directoryPath,
-                StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new NativeUiException("Multi-file selection requires all fixture files to share one directory.");
-        }
-
-        NavigateToPath(dialog, directoryPath);
-
-        var fileNames = paths.Select(path => new FileInfo(path).Name).ToArray();
-        foreach (var fileName in fileNames)
-        {
-            _ = WaitForFileItem(dialog, fileName);
-        }
-
+        // Type absolute paths directly into the file-name field. This avoids
+        // depending on the address-bar breadcrumb layout, where clicking the
+        // toolbar center can select a breadcrumb segment instead of entering
+        // edit mode when the dialog remembers a previously visited directory.
         var fileNameEdit = dialog.FindFirstDescendant(cf =>
             cf.ByAutomationId("1148").And(cf.ByControlType(ControlType.Edit)))
             ?? throw new NativeUiException("The file picker file-name editor was not found.");
@@ -201,28 +187,15 @@ internal static class NativeUiProgram
         {
             throw new NativeUiException("The file picker file-name editor does not support ValuePattern.");
         }
-        var fileNameValue = fileNames.Length == 1
-            ? fileNames[0]
-            : string.Join(" ", fileNames.Select(fileName => $"\"{fileName}\""));
+        var fileNameValue = paths.Count == 1
+            ? paths[0]
+            : string.Join(" ", paths.Select(path => $"\"{path}\""));
         valuePattern.Pattern.SetValue(fileNameValue);
 
         var confirmButton = FindConfirmButton(dialog)
             ?? throw new NativeUiException("The file picker confirm button was not found.");
         confirmButton.Patterns.Invoke.Pattern.Invoke();
         WaitUntilClosed(dialog);
-    }
-
-    private static AutomationElement WaitForFileItem(Window dialog, string fileName)
-    {
-        var result = Retry.WhileNull(
-            () => dialog.FindFirstDescendant(cf =>
-                cf.ByName(fileName).And(cf.ByControlType(ControlType.ListItem))),
-            TimeSpan.FromSeconds(8),
-            TimeSpan.FromMilliseconds(200),
-            throwOnTimeout: false,
-            ignoreException: true);
-        return result.Result
-            ?? throw new NativeUiException($"The file picker did not expose the requested file item: {fileName}");
     }
 
     private static AutomationElement? FindListItem(Window dialog, string itemName)

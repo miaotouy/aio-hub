@@ -282,9 +282,13 @@ export function buildExecutionPlan(
   if (params.hwaccel) {
     globalArgs.push("-hwaccel", "auto");
   }
+  if (params.mode === "custom") {
+    globalArgs.push(...(params.customGlobalArgs ?? []));
+  }
   globalArgs.push("-y");
 
-  const inputArgs: string[] = [];
+  const inputArgs =
+    params.mode === "custom" ? [...(params.customInputArgs ?? [])] : [];
 
   const outputArgs =
     params.mode === "custom"

@@ -79,6 +79,111 @@
       </div>
     </div>
 
+    <!-- 参数积木 -->
+    <div class="blocks-section">
+      <div class="section-header">
+        <span class="section-title">参数积木</span>
+        <el-tooltip content="按作用域可视化编辑参数，未启用的积木不会进入命令">
+          <el-icon :size="14" class="hint-icon"><CircleAlert /></el-icon>
+        </el-tooltip>
+      </div>
+
+      <el-radio-group v-model="activeScope" size="small" class="scope-tabs">
+        <el-radio-button value="global">全局</el-radio-button>
+        <el-radio-button value="input">输入前</el-radio-button>
+        <el-radio-button value="output">输出</el-radio-button>
+      </el-radio-group>
+
+      <div v-if="hasRawBlocks(activeBlocks)" class="raw-warning">
+        当前作用域包含未识别参数，已按原始文本保留
+      </div>
+
+      <div v-if="activeBlocks.length === 0" class="blocks-empty">
+        当前作用域暂无参数积木
+      </div>
+      <div v-else class="block-list">
+        <div
+          v-for="(block, index) in activeBlocks"
+          :key="block.id"
+          class="block-row"
+          :class="{ 'is-disabled': !block.enabled, 'is-raw': block.raw !== undefined }"
+        >
+          <el-checkbox
+            v-model="block.enabled"
+            class="block-enable"
+            @change="handleBlockMutation(activeScope)"
+          />
+          <template v-if="block.raw !== undefined">
+            <el-tag size="small" type="warning" class="raw-tag">未识别</el-tag>
+            <el-input
+              size="small"
+              class="block-key-input"
+              :model-value="block.raw"
+              placeholder="原始参数"
+              @input="(value: string) => updateRawBlock(activeScope, block, value)"
+            />
+          </template>
+          <template v-else>
+            <el-input
+              v-model="block.key"
+              size="small"
+              class="block-key-input"
+              placeholder="参数名，如 -crf"
+              @input="handleBlockMutation(activeScope)"
+            />
+            <el-input
+              size="small"
+              class="block-value-input"
+              :model-value="block.value ?? ''"
+              placeholder="值（可空）"
+              @input="(value: string) => updateBlockValue(activeScope, block, value)"
+            />
+          </template>
+          <div class="block-actions">
+            <el-button
+              :icon="ArrowUp"
+              size="small"
+              link
+              :disabled="index === 0"
+              @click="moveBlock(activeScope, index, -1)"
+            />
+            <el-button
+              :icon="ArrowDown"
+              size="small"
+              link
+              :disabled="index === activeBlocks.length - 1"
+              @click="moveBlock(activeScope, index, 1)"
+            />
+            <el-button
+              :icon="Trash2"
+              size="small"
+              link
+              @click="removeBlock(activeScope, index)"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="add-block-row">
+        <el-input
+          v-model="newBlockKey"
+          size="small"
+          class="new-key-input"
+          placeholder="参数名，如 -crf"
+        />
+        <el-input
+          v-model="newBlockValue"
+          size="small"
+          class="new-value-input"
+          placeholder="值（可选）"
+        />
+        <el-button :icon="Plus" size="small" @click="addValueBlock">
+          添加参数块
+        </el-button>
+        <el-button size="small" @click="addSwitchBlock">添加无值开关</el-button>
+      </div>
+    </div>
+
     <!-- 快捷参数片段 -->
     <div class="snippets-section">
       <div class="section-header">
@@ -127,10 +232,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
-import { CircleAlert, Eraser, AlignLeft, Save } from "lucide-vue-next";
+import { computed, reactive, ref, watch, onMounted } from "vue";
+import {
+  ArrowDown,
+  ArrowUp,
+  CircleAlert,
+  Eraser,
+  AlignLeft,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-vue-next";
 import type { FFmpegParams } from "../types";
 import { parseCommandLine, serializeCommandLine } from "../utils/args";
+import {
+  blocksToArgs,
+  createParamBlock,
+  hasRawBlocks,
+  parseArgsToBlocks,
+} from "../utils/paramBlocks";
+import type { ParamBlock, ParamScope } from "../utils/paramBlocks";
 
 const props = defineProps<{
   params: FFmpegParams;
@@ -143,6 +264,34 @@ const emit = defineEmits<{
 // 命令文本（单行字符串形式）
 const commandText = ref("");
 const activeTemplateId = ref<string | null>(null);
+
+type ScopedParamField =
+  | "customGlobalArgs"
+  | "customInputArgs"
+  | "customArgs";
+
+const scopeFields: Record<ParamScope, ScopedParamField> = {
+  global: "customGlobalArgs",
+  input: "customInputArgs",
+  output: "customArgs",
+};
+
+const activeScope = ref<ParamScope>("output");
+const blocksByScope = reactive<Record<ParamScope, ParamBlock[]>>({
+  global: [],
+  input: [],
+  output: [],
+});
+const lastSerialized: Record<ParamScope, string> = {
+  global: "",
+  input: "",
+  output: "",
+};
+
+const activeBlocks = computed(() => blocksByScope[activeScope.value]);
+
+const newBlockKey = ref("");
+const newBlockValue = ref("");
 
 // ==================== 命令模板 ====================
 
@@ -336,14 +485,95 @@ const handleCommandInput = () => {
   syncToParams();
 };
 
-/** 同步命令文本到 params.customArgs */
+/** 同步命令文本到 params.customArgs，并反向刷新输出作用域积木 */
 const syncToParams = () => {
   const text = commandText.value.trim();
-  if (!text) {
-    props.params.customArgs = undefined;
-  } else {
-    props.params.customArgs = parseCommandLine(text);
+  const args = text ? parseCommandLine(text) : [];
+  props.params.customArgs = args.length > 0 ? args : undefined;
+  blocksByScope.output = parseArgsToBlocks(args, "output");
+  lastSerialized.output = serializeCommandLine(args);
+};
+
+/** 从外部 params 重新解析指定作用域的积木，避免与自身写入形成循环 */
+const refreshScopeFromParams = (scope: ParamScope) => {
+  const incoming = props.params[scopeFields[scope]] ?? [];
+  if (serializeCommandLine(incoming) === lastSerialized[scope]) return;
+  blocksByScope[scope] = parseArgsToBlocks(incoming, scope);
+  lastSerialized[scope] = serializeCommandLine(incoming);
+  if (scope === "output") {
+    commandText.value = serializeCommandLine(incoming);
+    activeTemplateId.value = null;
   }
+};
+
+/** 将指定作用域的积木写回 params，输出作用域同步刷新命令文本 */
+const writeScopeToParams = (scope: ParamScope) => {
+  const args = blocksToArgs(blocksByScope[scope]);
+  props.params[scopeFields[scope]] = args.length > 0 ? args : undefined;
+  lastSerialized[scope] = serializeCommandLine(args);
+  if (scope === "output") {
+    commandText.value = serializeCommandLine(args);
+  }
+};
+
+const handleBlockMutation = (scope: ParamScope) => {
+  activeTemplateId.value = null;
+  writeScopeToParams(scope);
+};
+
+const moveBlock = (scope: ParamScope, index: number, delta: number) => {
+  const list = blocksByScope[scope];
+  const target = index + delta;
+  if (target < 0 || target >= list.length) return;
+  const [moved] = list.splice(index, 1);
+  list.splice(target, 0, moved);
+  handleBlockMutation(scope);
+};
+
+const removeBlock = (scope: ParamScope, index: number) => {
+  blocksByScope[scope].splice(index, 1);
+  handleBlockMutation(scope);
+};
+
+const updateBlockValue = (
+  scope: ParamScope,
+  block: ParamBlock,
+  value: string
+) => {
+  block.value = value === "" ? undefined : value;
+  handleBlockMutation(scope);
+};
+
+const updateRawBlock = (
+  scope: ParamScope,
+  block: ParamBlock,
+  value: string
+) => {
+  block.raw = value;
+  block.key = value;
+  handleBlockMutation(scope);
+};
+
+const addValueBlock = () => {
+  const key = newBlockKey.value.trim();
+  if (!key) return;
+  const value = newBlockValue.value.trim();
+  blocksByScope[activeScope.value].push(
+    createParamBlock(activeScope.value, key, value === "" ? undefined : value)
+  );
+  newBlockKey.value = "";
+  newBlockValue.value = "";
+  handleBlockMutation(activeScope.value);
+};
+
+const addSwitchBlock = () => {
+  const key = newBlockKey.value.trim();
+  if (!key) return;
+  blocksByScope[activeScope.value].push(
+    createParamBlock(activeScope.value, key)
+  );
+  newBlockKey.value = "";
+  handleBlockMutation(activeScope.value);
 };
 
 /** 触发保存为预设 */
@@ -351,32 +581,29 @@ const handleSaveAsPreset = () => {
   emit("save-as-preset");
 };
 
-// 初始化：从 params.customArgs 恢复命令文本
+// 初始化：从 params 恢复三个作用域的积木与命令文本
 onMounted(() => {
-  if (props.params.customArgs && props.params.customArgs.length > 0) {
-    commandText.value = serializeCommandLine(props.params.customArgs);
-  }
+  refreshScopeFromParams("global");
+  refreshScopeFromParams("input");
+  refreshScopeFromParams("output");
 });
 
-// 监听外部对 customArgs 的修改（如应用预设时）
+// 监听外部对作用域参数的修改（如应用预设时）
 watch(
   () => props.params.customArgs,
-  (newArgs) => {
-    if (!newArgs || newArgs.length === 0) {
-      if (commandText.value.trim()) {
-        // 只在外部清空时同步，避免循环
-        commandText.value = "";
-      }
-    } else {
-      const externalText = serializeCommandLine(newArgs);
-      const currentArgs = parseCommandLine(commandText.value);
-      // 只在外部值与当前不同时同步（避免循环更新）
-      if (JSON.stringify(newArgs) !== JSON.stringify(currentArgs)) {
-        commandText.value = externalText;
-        activeTemplateId.value = null;
-      }
-    }
-  },
+  () => refreshScopeFromParams("output"),
+  { deep: true }
+);
+
+watch(
+  () => props.params.customGlobalArgs,
+  () => refreshScopeFromParams("global"),
+  { deep: true }
+);
+
+watch(
+  () => props.params.customInputArgs,
+  () => refreshScopeFromParams("input"),
   { deep: true }
 );
 </script>
@@ -489,6 +716,91 @@ watch(
   font-size: 11px;
   color: var(--text-color-light);
   line-height: 1.4;
+}
+
+/* 参数积木区 */
+.blocks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scope-tabs {
+  display: flex;
+  width: 100%;
+}
+
+.scope-tabs :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.scope-tabs :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
+.raw-warning {
+  font-size: 11px;
+  color: var(--el-color-warning);
+  line-height: 1.4;
+}
+
+.blocks-empty {
+  font-size: 12px;
+  color: var(--text-color-light);
+  padding: 8px 0;
+}
+
+.block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.block-row.is-disabled {
+  opacity: 0.5;
+}
+
+.block-enable {
+  flex-shrink: 0;
+}
+
+.raw-tag {
+  flex-shrink: 0;
+}
+
+.block-key-input {
+  flex: 0 0 40%;
+}
+
+.block-value-input {
+  flex: 1;
+}
+
+.block-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.add-block-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.new-key-input {
+  flex: 0 0 32%;
+}
+
+.new-value-input {
+  flex: 1;
 }
 
 /* 快捷片段区 */

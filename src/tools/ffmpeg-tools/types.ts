@@ -135,7 +135,9 @@ export interface FFmpegParams {
   audioChannels?: number;
 
   // 其他
-  customArgs?: string[];
+  customArgs?: string[]; // 输出作用域参数（`-i` 之后）
+  customGlobalArgs?: string[]; // 全局作用域参数（`-i` 之前）
+  customInputArgs?: string[]; // 输入前作用域参数（`-i` 之前）
   maxSizeMb?: number; // 仍然保留用于自动计算
   appendParamsToName?: boolean; // 是否将参数信息附加到文件名末尾
   container?: string; // 输出容器扩展名，auto/undefined 时按模式推导

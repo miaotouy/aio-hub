@@ -31,6 +31,8 @@ const presetParamKeys = [
   "sampleRate",
   "audioChannels",
   "customArgs",
+  "customGlobalArgs",
+  "customInputArgs",
   "maxSizeMb",
   "appendParamsToName",
 ] as const satisfies readonly (keyof FFmpegParams)[];

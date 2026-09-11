@@ -104,6 +104,8 @@ graph TD
 
 切换至自定义模式时，前端会将当前快捷配置生成的参数写入 `customArgs`，自定义编辑器与命令预览共享同一套参数构建逻辑；用户无需手动复制预览中的参数。
 
+自定义参数支持积木编辑：`customGlobalArgs`（`-i` 前、`-y` 前）、`customInputArgs`（`-i` 前）与 `customArgs`（`-i` 后、输出路径前）三作用域，由 `utils/paramBlocks.ts` 在文本与积木间无损转换，保留无值开关、重复参数与显式顺序，未识别 token 作为原始块保留。原始文本编辑入口始终可用。
+
 预览、复制、工作台执行与 Agent 调用统一使用 `utils/executionPlan.ts` 的 `buildExecutionPlan`：
 预览显示真实可执行文件和完整输入输出路径，复制按钮按 PowerShell 语义（`&` 调用运算符、单引号字面量）转义，并明确标注目标 Shell 为 PowerShell。
 

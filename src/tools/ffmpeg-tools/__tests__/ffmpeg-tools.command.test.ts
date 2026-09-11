@@ -190,6 +190,44 @@ describe("buildExecutionPlan", () => {
     expect(plan.args).toEqual(expect.arrayContaining(["-b:v", "4194304"]));
     expect(plan.args).not.toContain("-crf");
   });
+
+  it("自定义模式按全局、输入、输出作用域顺序拼接参数", () => {
+    const plan = buildExecutionPlan(
+      baseParams({
+        mode: "custom",
+        hwaccel: true,
+        customGlobalArgs: ["-threads", "4"],
+        customInputArgs: ["-ss", "00:00:05"],
+        customArgs: ["-c:v", "libx264"],
+      })
+    );
+
+    expect(plan.globalArgs).toEqual([
+      "-hide_banner",
+      "-hwaccel",
+      "auto",
+      "-threads",
+      "4",
+      "-y",
+    ]);
+    expect(plan.inputArgs).toEqual(["-ss", "00:00:05"]);
+    expect(plan.outputArgs).toEqual(["-c:v", "libx264"]);
+    expect(plan.args).toEqual([
+      "-hide_banner",
+      "-hwaccel",
+      "auto",
+      "-threads",
+      "4",
+      "-y",
+      "-ss",
+      "00:00:05",
+      "-i",
+      "C:/videos/in.mp4",
+      "-c:v",
+      "libx264",
+      "C:/videos/out.mp4",
+    ]);
+  });
 });
 
 describe("formatPowerShellCommand", () => {

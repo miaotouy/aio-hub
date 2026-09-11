@@ -25,7 +25,7 @@
       'drop-zone--bare': bare,
       'drop-zone--overlay': overlay,
       'drop-zone--click-zone': clickZone,
-      [`drop-zone--${variant}`]: !bare && variant,
+      [`drop-zone--${variant}`]: !bare && variant && !overlay,
     }"
     :role="clickable && clickZone ? 'button' : undefined"
     :tabindex="clickable && clickZone && !disabled ? 0 : undefined"

@@ -35,6 +35,9 @@ const presetParamKeys = [
   "customInputArgs",
   "maxSizeMb",
   "appendParamsToName",
+  "trimStart",
+  "trimEnd",
+  "trimMode",
 ] as const satisfies readonly (keyof FFmpegParams)[];
 
 /**

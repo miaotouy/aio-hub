@@ -18,11 +18,15 @@ src/tools/ffmpeg-tools/
 │   ├── MediaInfoPanel.vue      # 媒体元数据展示
 │   └── MediaInfoDialog.vue     # 媒体信息详情弹窗
 ├── composables/
-│   └── useFFmpegCore.ts        # 核心逻辑封装：调用 Rust 命令、监听全局事件
+│   ├── useFFmpegCore.ts        # 核心逻辑封装：调用 Rust 命令、监听全局事件
+│   └── useTrimKeyframes.ts     # 关键帧查询服务（按输入文件缓存、过期请求丢弃）
 ├── utils/
 │   ├── executionPlan.ts        # 唯一执行计划：argv、质量/编码器策略与终端格式化
 │   ├── naming.ts               # 自动命名与输出容器推导（纯逻辑）
 │   ├── args.ts                 # 命令文本解析与序列化（引号、转义、PowerShell 引用）
+│   ├── paramBlocks.ts          # 自定义参数积木与作用域转换（纯逻辑）
+│   ├── trim.ts                 # 时间裁剪解析/校验/关键帧吸附（纯逻辑）
+│   ├── lifecycle.ts            # 终态/取消/进度与输出路径预留纯逻辑
 │   └── persistence.ts          # 持久化逻辑（配置/任务/预设的存储）
 ├── ffmpegStore.ts              # Pinia 状态中心：管理任务队列、配置和预设
 ├── types.ts                    # TypeScript 类型定义
@@ -112,6 +116,8 @@ graph TD
 质量参数按编码器选择：NVENC 使用 `-cq`，QSV 使用 `-global_quality`，VP9/软件编码使用 `-crf`；preset 在 NVENC 下映射为 `p1..p7`。目标体积模式在有源时长时换算 `-b:v`。
 
 输出命名与容器由 `utils/naming.ts` 统一处理：自动名称基于输入文件名、`FFmpegParams` 与 `MediaMetadata`（含 `audioCodec`/`videoCodec`）推导，`appendParamsToName` 时后缀使用实际质量标签（如 `cq23`）；`container` 字段可显式指定输出容器，未指定时按处理模式、自定义 `-f` 与源编码推导扩展名。用户手动改名后不再被参数变化覆盖，提交时对同路径、已存在文件与路径占用做校验。
+
+时间裁剪由 `utils/trim.ts` 与 `buildExecutionPlan` 协同：非自定义模式下 `trimStart` 生成 `inputArgs` 的 `-ss`、`trimEnd` 生成输出侧 `-t`；`trimMode === "fast"` 强制 `-c copy` 并跳过画质/滤镜，`"precise"` 复用当前编码质量策略。`plan.totalDuration` 以裁剪后时长作为进度分母。快速模式的关键帧吸附通过后端 `get_media_keyframes`（ffprobe `-skip_frame nokey`，整份文件扫描）与前端按文件缓存实现，仅展示请求与实际起点的差异，不承诺所有容器的绝对安全边界。
 
 ## 6. 处理模式与参数逻辑
 

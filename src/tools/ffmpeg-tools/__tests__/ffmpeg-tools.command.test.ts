@@ -228,6 +228,83 @@ describe("buildExecutionPlan", () => {
       "C:/videos/out.mp4",
     ]);
   });
+
+  it("快速裁剪使用输入侧 -ss、流拷贝与输出侧 -t", () => {
+    const plan = buildExecutionPlan(
+      baseParams({
+        videoEncoder: "libx264",
+        preset: "slow",
+        crf: 20,
+        qualityMode: "quality",
+        audioEncoder: "aac",
+        trimStart: 5,
+        trimEnd: 12,
+        trimMode: "fast",
+      }),
+      { durationSec: 30 }
+    );
+
+    expect(plan.inputArgs).toEqual(["-ss", "00:00:05.000"]);
+    expect(plan.outputArgs).toEqual(
+      expect.arrayContaining(["-c", "copy", "-t", "00:00:07.000"])
+    );
+    expect(plan.args).not.toContain("-crf");
+    expect(plan.args).not.toContain("-preset");
+    expect(plan.totalDuration).toBe(7);
+  });
+
+  it("精确裁剪保留当前画质参数并加入 -ss 与 -t", () => {
+    const plan = buildExecutionPlan(
+      baseParams({
+        videoEncoder: "libx264",
+        preset: "slow",
+        crf: 20,
+        qualityMode: "quality",
+        audioEncoder: "aac",
+        trimStart: 5,
+        trimEnd: 12,
+        trimMode: "precise",
+      }),
+      { durationSec: 30 }
+    );
+
+    expect(plan.inputArgs).toEqual(["-ss", "00:00:05.000"]);
+    expect(plan.args).toEqual(
+      expect.arrayContaining(["-crf", "20", "-preset", "slow"])
+    );
+    expect(plan.outputArgs).toContain("-t");
+    expect(plan.outputArgs).toContain("00:00:07.000");
+    expect(plan.totalDuration).toBe(7);
+  });
+
+  it("仅设置起点时裁剪到源结尾", () => {
+    const plan = buildExecutionPlan(
+      baseParams({ trimStart: 5, trimMode: "fast" }),
+      { durationSec: 30 }
+    );
+
+    expect(plan.inputArgs).toEqual(["-ss", "00:00:05.000"]);
+    expect(plan.outputArgs).toContain("-t");
+    expect(plan.totalDuration).toBe(25);
+  });
+
+  it("自定义模式不受裁剪字段影响", () => {
+    const plan = buildExecutionPlan(
+      baseParams({
+        mode: "custom",
+        customArgs: ["-c:v", "libx264"],
+        trimStart: 5,
+        trimEnd: 12,
+        trimMode: "fast",
+      }),
+      { durationSec: 30 }
+    );
+
+    expect(plan.inputArgs).toEqual([]);
+    expect(plan.outputArgs).toEqual(["-c:v", "libx264"]);
+    expect(plan.args).not.toContain("-ss");
+    expect(plan.totalDuration).toBe(30);
+  });
 });
 
 describe("formatPowerShellCommand", () => {

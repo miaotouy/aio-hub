@@ -66,6 +66,8 @@ pub struct FFmpegPlan {
     pub input_path: String,
     pub output_path: String,
     pub args: Vec<String>,
+    #[serde(default)]
+    pub total_duration: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -178,6 +180,70 @@ pub async fn get_full_media_info(
         .map_err(|e| format!("Failed to parse ffprobe output: {}", e))?;
 
     Ok(probe_data)
+}
+
+/// 获取整份视频的关键帧时间点（秒）。
+///
+/// 为保证前端按文件缓存后可用于任意区间，这里扫描整份文件（`-skip_frame nokey`
+/// 不解码，仅遍历包）。`start_sec`/`end_sec` 仅用于参数校验。无视频流时返回空
+/// 数组，而不是错误。
+#[tauri::command]
+pub async fn get_media_keyframes(
+    ffmpeg_path: String,
+    input_path: String,
+    ffprobe_path: Option<String>,
+    start_sec: f64,
+    end_sec: f64,
+) -> Result<Vec<f64>, String> {
+    if start_sec < 0.0 {
+        return Err("开始时间不能为负".to_string());
+    }
+    if end_sec <= start_sec {
+        return Err("结束时间必须大于开始时间".to_string());
+    }
+
+    let ffprobe_path = ffprobe_path
+        .filter(|p| !p.trim().is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(&ffmpeg_path)
+                .parent()
+                .map(|p| p.join("ffprobe"))
+                .unwrap_or_else(|| Path::new("ffprobe").to_path_buf())
+        });
+
+    let output = Command::new(ffprobe_path)
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-skip_frame")
+        .arg("nokey")
+        .arg("-show_entries")
+        .arg("frame=pts_time")
+        .arg("-of")
+        .arg("csv=p=0")
+        .arg(&input_path)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute ffprobe: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "ffprobe failed with status: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut keyframes: Vec<f64> = stdout
+        .lines()
+        .filter_map(|line| line.trim().parse::<f64>().ok())
+        .filter(|value| value.is_finite())
+        .collect();
+    keyframes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    Ok(keyframes)
 }
 
 fn parse_ffmpeg_time(s: &str) -> Option<f64> {
@@ -396,7 +462,10 @@ pub async fn run_ffmpeg_plan(
     }
 
     let metadata = get_video_metadata(&executable, &input_path).await;
-    let duration = metadata.duration.unwrap_or(0.0);
+    let duration = plan
+        .total_duration
+        .filter(|d| *d > 0.0)
+        .unwrap_or_else(|| metadata.duration.unwrap_or(0.0));
 
     {
         let mut cancelled_set = cancelled.lock().map_err(|e| e.to_string())?;

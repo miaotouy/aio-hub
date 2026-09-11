@@ -349,6 +349,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         kill_ffmpeg_process,
         get_media_metadata,
         get_full_media_info,
+        get_media_keyframes,
         extract_video_frames,
         // LLM 代理命令
         start_llm_proxy_server,

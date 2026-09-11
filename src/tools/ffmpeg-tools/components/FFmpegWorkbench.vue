@@ -44,6 +44,95 @@
                 @save-as-preset="triggerSaveAsPreset"
               />
 
+              <div
+                v-if="currentFilePath && params.mode !== 'custom'"
+                class="trim-section"
+              >
+                <div class="trim-header">
+                  <span class="trim-title">时间裁剪</span>
+                  <el-switch
+                    v-model="trimEnabled"
+                    size="small"
+                    @change="onTrimEnabledChange"
+                  />
+                </div>
+
+                <template v-if="trimEnabled">
+                  <div class="trim-time-row">
+                    <span class="trim-label">起点</span>
+                    <el-input
+                      v-model="trimStartText"
+                      size="small"
+                      placeholder="HH:MM:SS"
+                      @change="commitTrimStart"
+                    />
+                    <el-button link size="small" @click="setTrimStartFromPlayback">
+                      设为起点
+                    </el-button>
+                  </div>
+                  <div class="trim-time-row">
+                    <span class="trim-label">终点</span>
+                    <el-input
+                      v-model="trimEndText"
+                      size="small"
+                      placeholder="HH:MM:SS"
+                      @change="commitTrimEnd"
+                    />
+                    <el-button link size="small" @click="setTrimEndFromPlayback">
+                      设为终点
+                    </el-button>
+                  </div>
+
+                  <div class="trim-mode-row">
+                    <el-radio-group
+                      v-model="params.trimMode"
+                      size="small"
+                      @change="onTrimModeChange"
+                    >
+                      <el-radio-button value="fast">快速（流拷贝）</el-radio-button>
+                      <el-radio-button value="precise">精确（重编码）</el-radio-button>
+                    </el-radio-group>
+                  </div>
+                  <div class="trim-hint">
+                    {{
+                      params.trimMode === "precise"
+                        ? "按当前画质重新编码，时间更精确但速度较慢"
+                        : "关键帧对齐、无损快速，可能损失少量精度"
+                    }}
+                  </div>
+
+                  <div v-if="params.trimMode !== 'precise'" class="trim-snap-row">
+                    <el-switch
+                      v-model="snapEnabled"
+                      size="small"
+                      @change="onSnapEnabledChange"
+                    />
+                    <span class="trim-label">关键帧吸附</span>
+                    <el-select
+                      v-model="snapDirection"
+                      size="small"
+                      class="trim-snap-select"
+                      :disabled="!snapEnabled"
+                      @change="onSnapEnabledChange"
+                    >
+                      <el-option label="最近" value="nearest" />
+                      <el-option label="向前" value="forward" />
+                      <el-option label="向后" value="backward" />
+                    </el-select>
+                  </div>
+
+                  <div v-if="trimSnapInfo" class="trim-snap-info">
+                    {{ trimSnapInfo }}
+                  </div>
+                  <div v-if="trimValidation.error" class="trim-error">
+                    {{ trimValidation.error }}
+                  </div>
+                  <div v-else-if="trimValidation.warning" class="trim-warning">
+                    {{ trimValidation.warning }}
+                  </div>
+                </template>
+              </div>
+
               <div class="output-name-row">
                 <span class="output-name-label">输出文件名</span>
                 <el-input
@@ -304,6 +393,7 @@
                 <div class="preview-box">
                   <VideoPlayer
                     v-if="isMaybeVideo"
+                    ref="videoPlayerRef"
                     :src="currentFileUrl"
                     class="preview-player"
                   />
@@ -378,6 +468,14 @@ import {
 } from "../utils/naming";
 import { applyPresetParams } from "../utils/preset";
 import {
+  formatTrimTime,
+  hasTrimRange,
+  parseTrimTime,
+  snapToKeyframe,
+  validateTrimRange,
+} from "../utils/trim";
+import { useTrimKeyframes } from "../composables/useTrimKeyframes";
+import {
   isCancellationError,
   isProgressIndeterminate,
   isTerminalStatus,
@@ -388,6 +486,7 @@ import { customMessage } from "@/utils/customMessage";
 const store = useFFmpegStore();
 const { activeFfmpegPath, getMetadata, startProcess, killProcess } =
   useFFmpegCore();
+const { beginRequest, isStale, loadKeyframes } = useTrimKeyframes();
 const presetManagerRef = ref<InstanceType<typeof FFmpegPresetManager>>();
 
 const currentFilePath = ref("");
@@ -405,6 +504,15 @@ const isSubmitting = ref(false);
 const activeTaskId = ref("");
 const isStopping = ref(false);
 
+const videoPlayerRef = ref();
+const trimEnabled = ref(false);
+const trimStartText = ref("");
+const trimEndText = ref("");
+const snapEnabled = ref(false);
+const snapDirection = ref<"nearest" | "forward" | "backward">("nearest");
+const trimKeyframes = ref<number[]>([]);
+const trimSnapInfo = ref("");
+
 const params = reactive<FFmpegParams>({
   mode: "video",
   inputPath: "",
@@ -415,6 +523,7 @@ const params = reactive<FFmpegParams>({
   audioBitrate: "128k",
   audioEncoder: "aac",
   appendParamsToName: false,
+  trimMode: "fast",
 });
 
 const currentTaskLogs = computed(() => {
@@ -543,6 +652,178 @@ const isMaybeVideo = computed(() => {
   return videoExts.some((ext) => fileName.value.toLowerCase().endsWith(ext));
 });
 
+const trimValidation = computed(() =>
+  validateTrimRange(
+    params,
+    metadata.value?.duration,
+    metadata.value?.hasAudio ? true : isMaybeVideo.value
+  )
+);
+
+const syncTrimTexts = () => {
+  trimStartText.value =
+    params.trimStart != null ? formatTrimTime(params.trimStart) : "";
+  trimEndText.value =
+    params.trimEnd != null ? formatTrimTime(params.trimEnd) : "";
+};
+
+const loadTrimKeyframes = async () => {
+  if (!currentFilePath.value) return;
+  if (!trimEnabled.value || params.mode === "custom") return;
+  if (params.trimMode === "precise" || !snapEnabled.value) return;
+
+  const start = Math.max(0, params.trimStart ?? 0);
+  const end = params.trimEnd ?? metadata.value?.duration ?? start + 600;
+  if (!(end > start)) return;
+
+  const token = beginRequest();
+  const result = await loadKeyframes(
+    currentFilePath.value,
+    start,
+    end,
+    token
+  );
+  if (isStale(token)) return;
+  trimKeyframes.value = result;
+  maybeSnapTrim();
+};
+
+const maybeSnapTrim = () => {
+  if (
+    !snapEnabled.value ||
+    params.trimMode === "precise" ||
+    trimKeyframes.value.length === 0
+  ) {
+    trimSnapInfo.value = "";
+    return;
+  }
+
+  const lines: string[] = [];
+  const requestedStart = params.trimStart ?? 0;
+  const actualStart = snapToKeyframe(
+    requestedStart,
+    trimKeyframes.value,
+    snapDirection.value
+  );
+  if (Math.abs(actualStart - requestedStart) > 0.0005) {
+    params.trimStart = actualStart;
+    trimStartText.value = formatTrimTime(actualStart);
+    lines.push(
+      `请求 ${formatTrimTime(requestedStart)}，实际起点 ${formatTrimTime(
+        actualStart
+      )}（关键帧）`
+    );
+  }
+
+  if (params.trimEnd != null) {
+    const lastKeyframe = trimKeyframes.value[trimKeyframes.value.length - 1];
+    if (params.trimEnd > lastKeyframe + 0.0005) {
+      const requestedEnd = params.trimEnd;
+      const actualEnd = snapToKeyframe(
+        requestedEnd,
+        trimKeyframes.value,
+        "backward"
+      );
+      if (Math.abs(actualEnd - requestedEnd) > 0.0005) {
+        params.trimEnd = actualEnd;
+        trimEndText.value = formatTrimTime(actualEnd);
+        lines.push(
+          `请求 ${formatTrimTime(requestedEnd)}，实际终点 ${formatTrimTime(
+            actualEnd
+          )}（关键帧）`
+        );
+      }
+    }
+  }
+
+  trimSnapInfo.value = lines.join("；");
+};
+
+const onTrimEnabledChange = (value: boolean) => {
+  if (!value) {
+    params.trimStart = undefined;
+    params.trimEnd = undefined;
+    trimStartText.value = "";
+    trimEndText.value = "";
+    trimSnapInfo.value = "";
+    return;
+  }
+  if (params.trimStart == null) params.trimStart = 0;
+  if (params.trimEnd == null) {
+    params.trimEnd = metadata.value?.duration ?? 0;
+  }
+  syncTrimTexts();
+  void loadTrimKeyframes();
+};
+
+const commitTrimStart = () => {
+  const raw = trimStartText.value.trim();
+  if (!raw) {
+    params.trimStart = undefined;
+    syncTrimTexts();
+    return;
+  }
+  const parsed = parseTrimTime(raw);
+  if (parsed == null || parsed < 0) {
+    customMessage.error("开始时间格式无效");
+    syncTrimTexts();
+    return;
+  }
+  params.trimStart = parsed;
+  trimStartText.value = formatTrimTime(parsed);
+  maybeSnapTrim();
+};
+
+const commitTrimEnd = () => {
+  const raw = trimEndText.value.trim();
+  if (!raw) {
+    params.trimEnd = undefined;
+    syncTrimTexts();
+    return;
+  }
+  const parsed = parseTrimTime(raw);
+  if (parsed == null || parsed < 0) {
+    customMessage.error("结束时间格式无效");
+    syncTrimTexts();
+    return;
+  }
+  params.trimEnd = parsed;
+  trimEndText.value = formatTrimTime(parsed);
+  maybeSnapTrim();
+};
+
+const setTrimStartFromPlayback = () => {
+  const time = videoPlayerRef.value?.currentTime;
+  if (typeof time !== "number" || !Number.isFinite(time)) return;
+  params.trimStart = time;
+  trimStartText.value = formatTrimTime(time);
+  maybeSnapTrim();
+};
+
+const setTrimEndFromPlayback = () => {
+  const time = videoPlayerRef.value?.currentTime;
+  if (typeof time !== "number" || !Number.isFinite(time)) return;
+  params.trimEnd = time;
+  trimEndText.value = formatTrimTime(time);
+  maybeSnapTrim();
+};
+
+const onTrimModeChange = () => {
+  if (params.trimMode === "precise") {
+    trimSnapInfo.value = "";
+    return;
+  }
+  void loadTrimKeyframes();
+};
+
+const onSnapEnabledChange = () => {
+  if (!snapEnabled.value) {
+    trimSnapInfo.value = "";
+    return;
+  }
+  void loadTrimKeyframes();
+};
+
 const handleManualSelect = async () => {
   const selected = await open({
     multiple: false,
@@ -608,6 +889,13 @@ const reset = () => {
   lastTaskId.value = "";
   activeTaskId.value = "";
   isStopping.value = false;
+  params.trimStart = undefined;
+  params.trimEnd = undefined;
+  trimEnabled.value = false;
+  trimStartText.value = "";
+  trimEndText.value = "";
+  trimKeyframes.value = [];
+  trimSnapInfo.value = "";
 };
 
 const clearLogs = () => {
@@ -659,6 +947,11 @@ const resolveUniqueOutputName = async (inputDir: string): Promise<string> => {
 const submitTask = async () => {
   if (isSubmitting.value || activeTask.value) return;
   if (!currentFilePath.value) return;
+
+  if (trimEnabled.value && trimValidation.value.error) {
+    customMessage.error(trimValidation.value.error);
+    return;
+  }
 
   isSubmitting.value = true;
   let taskId = "";
@@ -806,6 +1099,9 @@ const handleSaveAsPreset = (name: string, description: string) => {
     customArgs: params.customArgs,
     maxSizeMb: params.maxSizeMb,
     appendParamsToName: params.appendParamsToName,
+    trimStart: params.trimStart,
+    trimEnd: params.trimEnd,
+    trimMode: params.trimMode,
   };
   store.saveAsPreset(name, description, snapshot);
 };
@@ -828,6 +1124,9 @@ watch(
     () => params.audioBitrate,
     () => params.sampleRate,
     () => params.audioChannels,
+    () => params.trimStart,
+    () => params.trimEnd,
+    () => params.trimMode,
     () => namingContext.value,
     () => currentFilePath.value,
   ],
@@ -837,6 +1136,26 @@ watch(
     }
   },
   { immediate: true }
+);
+
+watch(
+  () => hasTrimRange(params),
+  (active) => {
+    if (active) trimEnabled.value = true;
+  }
+);
+
+watch([() => params.trimStart, () => params.trimEnd], () => {
+  syncTrimTexts();
+});
+
+watch(
+  () => currentFilePath.value,
+  () => {
+    trimKeyframes.value = [];
+    trimSnapInfo.value = "";
+    void loadTrimKeyframes();
+  }
 );
 </script>
 
@@ -1206,6 +1525,86 @@ watch(
 
 .config-scroll-area::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.trim-section {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  border: var(--border-width) solid var(--border-color);
+}
+
+.trim-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.trim-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-light);
+}
+
+.trim-time-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.trim-time-row :deep(.el-input) {
+  flex: 1;
+}
+
+.trim-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.trim-mode-row {
+  margin-top: 8px;
+}
+
+.trim-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-color-light);
+}
+
+.trim-snap-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.trim-snap-select {
+  width: 90px;
+}
+
+.trim-snap-info {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--primary-color);
+}
+
+.trim-error {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--el-color-danger);
+}
+
+.trim-warning {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--el-color-warning);
 }
 
 /* 适配移动端或小屏幕的响应式处理 */

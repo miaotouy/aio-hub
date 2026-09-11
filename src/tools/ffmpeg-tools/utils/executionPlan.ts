@@ -14,6 +14,7 @@
 
 import type { FFmpegParams, ProcessingMode } from "../types";
 import { quotePowerShellArg } from "./args";
+import { formatTrimTime, hasTrimRange } from "./trim";
 
 export interface FFmpegExecutionPlan {
   executable: string;
@@ -23,6 +24,7 @@ export interface FFmpegExecutionPlan {
   outputArgs: string[];
   outputPath: string;
   args: string[];
+  totalDuration?: number;
 }
 
 export interface BuildPlanOptions {
@@ -188,14 +190,36 @@ export function toX264Preset(preset?: string): string | undefined {
 
 /**
  * 依据当前参数生成输出侧参数（`-i` 之后、输出路径之前）。
+ *
+ * `forceCopy` 用于快速裁剪：强制两路流拷贝，忽略画质、编码与滤镜参数。
  */
 export function buildOutputArgs(
   params: FFmpegParams,
   mode: Exclude<ProcessingMode, "custom">,
   outputPath: string,
-  durationSec?: number
+  durationSec?: number,
+  options: { forceCopy?: boolean } = {}
 ): string[] {
   const args: string[] = [];
+
+  if (options.forceCopy) {
+    if (mode === "extract_audio" || params.videoEncoder === "none") {
+      args.push("-vn");
+    }
+    if (params.audioEncoder === "none") {
+      args.push("-an");
+    }
+    args.push("-c", "copy");
+
+    if (
+      mode !== "extract_audio" &&
+      supportsFaststartExtension(resolveFaststartExtension(params, outputPath))
+    ) {
+      args.push("-movflags", "+faststart");
+    }
+
+    return args;
+  }
 
   if (mode === "extract_audio" || params.videoEncoder === "none") {
     args.push("-vn");
@@ -290,10 +314,36 @@ export function buildExecutionPlan(
   const inputArgs =
     params.mode === "custom" ? [...(params.customInputArgs ?? [])] : [];
 
-  const outputArgs =
-    params.mode === "custom"
-      ? [...(params.customArgs ?? [])]
-      : buildOutputArgs(params, params.mode, outputPath, options.durationSec);
+  const trimActive = params.mode !== "custom" && hasTrimRange(params);
+  const trimStart = Math.max(0, params.trimStart ?? 0);
+  const trimEnd = params.trimEnd ?? options.durationSec ?? 0;
+  const forceCopy = params.trimMode !== "precise";
+  let totalDuration = options.durationSec;
+  let outputArgs: string[];
+
+  if (params.mode === "custom") {
+    outputArgs = [...(params.customArgs ?? [])];
+  } else if (trimActive) {
+    inputArgs.push("-ss", formatTrimTime(trimStart));
+    outputArgs = buildOutputArgs(
+      params,
+      params.mode,
+      outputPath,
+      options.durationSec,
+      { forceCopy }
+    );
+    if (trimEnd > trimStart) {
+      outputArgs.push("-t", formatTrimTime(trimEnd - trimStart));
+      totalDuration = trimEnd - trimStart;
+    }
+  } else {
+    outputArgs = buildOutputArgs(
+      params,
+      params.mode,
+      outputPath,
+      options.durationSec
+    );
+  }
 
   const args = [
     ...globalArgs,
@@ -312,6 +362,7 @@ export function buildExecutionPlan(
     outputArgs,
     outputPath,
     args,
+    totalDuration,
   };
 }
 

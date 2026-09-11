@@ -141,4 +141,9 @@ export interface FFmpegParams {
   maxSizeMb?: number; // 仍然保留用于自动计算
   appendParamsToName?: boolean; // 是否将参数信息附加到文件名末尾
   container?: string; // 输出容器扩展名，auto/undefined 时按模式推导
+
+  // 时间裁剪
+  trimStart?: number; // 裁剪开始时间（秒）
+  trimEnd?: number; // 裁剪结束时间（秒）
+  trimMode?: "fast" | "precise"; // fast=流拷贝，precise=重编码
 }

@@ -14,6 +14,7 @@
 
 import type { FFmpegParams } from "../types";
 import { resolveVideoQuality } from "./executionPlan";
+import { hasTrimRange, trimNameTag } from "./trim";
 
 export interface NamingContext {
   inputFileName: string;
@@ -151,6 +152,10 @@ export function buildParamsSuffix(params: FFmpegParams): string {
     }
   }
 
+  if (trimNameTag(params)) {
+    tags.push("trim");
+  }
+
   return tags.length > 0 ? `_${tags.join("_")}` : "";
 }
 
@@ -185,7 +190,10 @@ export function resolveContainer(
     return mapped || "m4a";
   }
 
-  if (params.videoEncoder === "copy") {
+  if (
+    params.videoEncoder === "copy" ||
+    (hasTrimRange(params) && params.trimMode !== "precise")
+  ) {
     return context.sourceContainer || "mkv";
   }
 

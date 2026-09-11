@@ -87,7 +87,9 @@
                   <span>{{ statusText(row.status) }}</span>
                   <span
                     v-if="
-                      row.status === 'processing' && row.progress.percent > 0
+                      row.status === 'processing' &&
+                      row.progress.percent > 0 &&
+                      !isProgressIndeterminate(row.progress)
                     "
                     class="percent-text"
                   >
@@ -98,6 +100,7 @@
               <div v-if="row.status === 'processing'" class="mini-progress">
                 <el-progress
                   :percentage="row.progress.percent"
+                  :indeterminate="isProgressIndeterminate(row.progress)"
                   :show-text="false"
                   :stroke-width="3"
                 />
@@ -219,6 +222,7 @@ import { computed, ref } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import { useFFmpegIntegration } from "../composables/useFFmpegIntegration";
+import { isProgressIndeterminate } from "../utils/lifecycle";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Trash,

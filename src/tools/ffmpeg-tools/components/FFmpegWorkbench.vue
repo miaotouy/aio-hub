@@ -206,6 +206,76 @@
                       </el-button>
                     </div>
                   </div>
+                  <!-- 关联任务状态与进度 -->
+                  <div v-if="currentFileTask" class="file-task-status">
+                    <div class="file-task-row">
+                      <el-tag
+                        :type="taskStatusType(currentFileTask.status)"
+                        size="small"
+                      >
+                        {{ taskStatusText(currentFileTask.status) }}
+                      </el-tag>
+                      <span
+                        v-if="currentFileTask.status === 'processing'"
+                        class="file-task-speed"
+                      >
+                        {{ currentFileTask.progress.speed }}
+                      </span>
+                      <el-button
+                        v-if="
+                          currentFileTask.status === 'pending' ||
+                          currentFileTask.status === 'processing'
+                        "
+                        link
+                        type="danger"
+                        size="small"
+                        :icon="StopCircle"
+                        @click="stopTask"
+                      >
+                        停止
+                      </el-button>
+                      <el-button
+                        v-else-if="currentFileTask.status === 'completed'"
+                        link
+                        type="primary"
+                        size="small"
+                        :icon="Info"
+                        @click="showTaskOutputInfo"
+                      >
+                        输出详情
+                      </el-button>
+                    </div>
+                    <template v-if="currentFileTask.status === 'processing'">
+                      <el-progress
+                        :indeterminate="
+                          isProgressIndeterminate(currentFileTask.progress)
+                        "
+                        :percentage="currentFileTask.progress.percent"
+                        :show-text="
+                          !isProgressIndeterminate(currentFileTask.progress)
+                        "
+                      />
+                      <span
+                        v-if="!isProgressIndeterminate(currentFileTask.progress)"
+                        class="file-task-time"
+                      >
+                        {{ formatTime(currentFileTask.progress.currentTime) }}
+                      </span>
+                    </template>
+                    <div
+                      v-else-if="currentFileTask.status === 'failed'"
+                      class="file-task-error"
+                      :title="currentFileTask.error"
+                    >
+                      {{ currentFileTask.error }}
+                    </div>
+                    <div
+                      v-else-if="currentFileTask.status === 'cancelled'"
+                      class="file-task-cancelled"
+                    >
+                      已取消
+                    </div>
+                  </div>
                 </div>
                 <!-- 覆盖模式，自动处理拖放更换 -->
                 <DropZone
@@ -262,7 +332,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, watch } from "vue";
 import {
   Files,
   Settings,
@@ -309,19 +379,15 @@ import {
 import { applyPresetParams } from "../utils/preset";
 import {
   isCancellationError,
+  isProgressIndeterminate,
   isTerminalStatus,
   normalizeOutputPathKey,
 } from "../utils/lifecycle";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
-const {
-  activeFfmpegPath,
-  getMetadata,
-  startProcess,
-  killProcess,
-  setupListeners,
-} = useFFmpegCore();
+const { activeFfmpegPath, getMetadata, startProcess, killProcess } =
+  useFFmpegCore();
 const presetManagerRef = ref<InstanceType<typeof FFmpegPresetManager>>();
 
 const currentFilePath = ref("");
@@ -365,6 +431,58 @@ const activeTask = computed(() => {
     ? task
     : null;
 });
+
+const currentFileTask = computed(() => {
+  const key = normalizeOutputPathKey(currentFilePath.value);
+  if (!key) return null;
+  return (
+    store.tasks.find(
+      (t) => normalizeOutputPathKey(t.inputPath) === key
+    ) ?? null
+  );
+});
+
+const taskStatusType = (status: string) => {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "processing":
+      return "primary";
+    case "failed":
+      return "danger";
+    case "cancelled":
+      return "info";
+    default:
+      return "info";
+  }
+};
+
+const taskStatusText = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "等待中";
+    case "processing":
+      return "处理中";
+    case "completed":
+      return "已完成";
+    case "failed":
+      return "失败";
+    case "cancelled":
+      return "已取消";
+    default:
+      return status;
+  }
+};
+
+const formatTime = (seconds: number) => {
+  if (!seconds) return "00:00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, "0")}:${m
+    .toString()
+    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+};
 
 const currentPlan = computed<FFmpegExecutionPlan>(() =>
   buildExecutionPlan(
@@ -470,6 +588,13 @@ const restoreAutoName = () => {
 const showFullMediaInfo = () => {
   if (currentFilePath.value) {
     mediaInfoDialogRef.value?.show(currentFilePath.value, fileName.value);
+  }
+};
+
+const showTaskOutputInfo = () => {
+  const task = currentFileTask.value;
+  if (task) {
+    mediaInfoDialogRef.value?.show(task.outputPath, task.name);
   }
 };
 
@@ -635,14 +760,12 @@ watch(
   }
 );
 
-// 监听全局 FFmpeg 事件
-let unlisten: (() => void) | null = null;
-onMounted(async () => {
-  unlisten = await setupListeners();
-});
-
-onUnmounted(() => {
-  if (unlisten) unlisten();
+watch(currentFileTask, (task) => {
+  if (task) {
+    lastTaskId.value = task.id;
+  } else if (currentFilePath.value) {
+    lastTaskId.value = "";
+  }
 });
 
 /**
@@ -872,6 +995,47 @@ watch(
   padding: 8px;
   background: var(--input-bg);
   border-radius: 4px;
+}
+
+.file-task-status {
+  margin-top: 12px;
+  padding: 8px;
+  background: var(--input-bg);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-task-speed {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--primary-color);
+}
+
+.file-task-time {
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--text-color-light);
+}
+
+.file-task-error {
+  font-size: 12px;
+  color: var(--el-color-danger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-task-cancelled {
+  font-size: 12px;
+  color: var(--text-color-light);
 }
 
 .mini-item {

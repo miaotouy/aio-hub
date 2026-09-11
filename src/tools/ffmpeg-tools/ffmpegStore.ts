@@ -165,6 +165,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
         currentTime: 0,
         speed: "0x",
         bitrate: "0kbps",
+        totalDuration: 0,
       },
       createdAt: Date.now(),
     };

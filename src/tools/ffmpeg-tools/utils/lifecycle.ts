@@ -26,6 +26,12 @@ export function isTerminalStatus(status: string): status is TerminalStatus {
   return (TERMINAL_STATUSES as string[]).includes(status);
 }
 
+export function isProgressIndeterminate(progress: {
+  totalDuration?: number;
+}): boolean {
+  return !(progress.totalDuration && progress.totalDuration > 0);
+}
+
 export function shouldIgnoreStatusUpdate(
   current: string,
   next: string

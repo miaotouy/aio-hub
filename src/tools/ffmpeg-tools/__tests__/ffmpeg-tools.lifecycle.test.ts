@@ -17,6 +17,7 @@ import {
   isTerminalStatus,
   shouldIgnoreStatusUpdate,
   isCancellationError,
+  isProgressIndeterminate,
   normalizeOutputPathKey,
   isPathReserved,
   reservePath,
@@ -50,6 +51,13 @@ describe("ffmpeg-tools task lifecycle", () => {
     expect(isCancellationError({ name: "AbortError" })).toBe(true);
     expect(isCancellationError(new Error("Some other failure"))).toBe(false);
     expect(isCancellationError(undefined)).toBe(false);
+  });
+
+  it("isProgressIndeterminate 仅在未知或非正时长时为真", () => {
+    expect(isProgressIndeterminate({})).toBe(true);
+    expect(isProgressIndeterminate({ totalDuration: 0 })).toBe(true);
+    expect(isProgressIndeterminate({ totalDuration: -1 })).toBe(true);
+    expect(isProgressIndeterminate({ totalDuration: 12 })).toBe(false);
   });
 
   it("normalizeOutputPathKey 统一分隔符、大小写并处理空值", () => {

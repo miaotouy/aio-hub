@@ -34,6 +34,7 @@ export interface FFmpegProgress {
   currentTime: number; // 处理进度(秒)
   speed: string; // 如 "1.5x"
   bitrate: string;
+  totalDuration?: number; // 已知媒体总时长(秒)，未知时为 0
 }
 
 export interface FFmpegTask {

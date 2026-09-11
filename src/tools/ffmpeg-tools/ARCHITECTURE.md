@@ -72,20 +72,20 @@ graph TD
 
 后端逻辑核心位于 `src-tauri/src/commands/ffmpeg_processor.rs`：
 
-- **状态管理**: `FFmpegState` 使用 `Arc<Mutex<HashMap<String, Child>>>` 维护所有活跃的 FFmpeg 进程，确保可以通过 `task_id` 精确控制（如终止任务）。
+- **状态管理**: `FFmpegState` 使用 `Arc<Mutex<HashMap<String, Child>>>` 维护所有活跃的 FFmpeg 进程，并用 `cancelled: Arc<Mutex<HashSet<String>>>` 记录取消意图；`kill_ffmpeg_process` 返回 `{ found }` 且幂等，取消统一返回 `FFMPEG_CANCELLED`。
 - **进程启动**:
-  - 前端 `utils/executionPlan.ts` 是唯一的命令构造入口，产出 `{ executable, args, ... }`；`run_ffmpeg_plan` 只执行该 argv，不补充、重排或构造任何参数。
+  - 前端 `utils/executionPlan.ts` 是唯一的命令构造入口，产出 `{ executable, args, ... }`；`run_ffmpeg_plan` 只执行该 argv，不补充、重排或构造业务参数（仅在输出路径前插入应用内部的 `-progress pipe:1 -nostats`）。
   - 使用 `tokio::process::Command` 异步启动。
   - 在 Windows 环境下设置 `CREATE_NO_WINDOW` 标志，防止弹出控制台窗口。
   - 自动处理输出目录创建和输入文件存在性检查。
 - **进度解析引擎**:
-  - 通过 `stderr` 管道实时捕获 FFmpeg 的输出。
-  - 在一个独立的 `tokio::spawn` 协程中流式读取输出，解析 `time=`, `speed=`, `bitrate=` 等关键指标。
-  - 由后端读取源文件时长作为进度分母（不再依赖前端传入 `duration`）。
+  - stdout 通过 `-progress pipe:1` 获取结构化 `key=value`（`out_time`/`speed`/`bitrate`/`progress`），行缓冲兼容分块读取，`N/A` 等未知值不覆盖已有值。
+  - stderr 仅作为诊断日志转发到 `ffmpeg-log`。
+  - 由后端读取源文件时长作为进度分母（不再依赖前端传入 `duration`）；未知时长时前端展示不定进度，成功退出后才标记 100%。
 - **元数据提取**:
-  - `get_media_metadata`: 快速解析 `ffmpeg -i` 的 stderr 输出获取基础信息。
+  - `get_media_metadata`: 快速解析 `ffmpeg -i` 的 stderr 输出获取基础信息，并解析 `audioCodec`/`videoCodec`。
   - `get_full_media_info`: 调用 `ffprobe` 并解析其 JSON 输出，提供详细的流信息。
-- **智能码率计算**: 支持根据用户设定的 `max_size_mb` 目标文件大小，结合视频时长自动计算所需的视频码率。
+- **智能码率计算**: 目标体积换算 `-b:v` 由前端 `executionPlan.ts` 在有源时长时完成，后端不再自行计算。
 
 ## 5. 状态管理 (Pinia)
 

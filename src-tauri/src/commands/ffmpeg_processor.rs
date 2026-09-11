@@ -49,6 +49,7 @@ pub struct FFmpegProgress {
     pub current_time: f64,
     pub speed: String,
     pub bitrate: String,
+    pub total_duration: f64,
 }
 
 #[derive(Serialize, Clone)]
@@ -413,16 +414,28 @@ pub async fn run_ffmpeg_plan(
 
     log::info!("[FFmpeg] 执行指令: {} {}", executable, plan.args.join(" "));
 
+    let mut exec_args = plan.args.clone();
+    let progress_insert_at = exec_args.len().saturating_sub(1);
+    exec_args.splice(
+        progress_insert_at..progress_insert_at,
+        [
+            "-progress".to_string(),
+            "pipe:1".to_string(),
+            "-nostats".to_string(),
+        ],
+    );
+
     command
-        .args(&plan.args)
+        .args(&exec_args)
         .stderr(Stdio::piped())
-        .stdout(Stdio::null()); // 进度解析改用 stderr，不再需要 stdout
+        .stdout(Stdio::piped());
 
     let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
 
     let stderr = child.stderr.take().ok_or("Failed to open stderr")?;
+    let stdout = child.stdout.take().ok_or("Failed to open stdout")?;
 
     // 记录进程
     {
@@ -439,13 +452,13 @@ pub async fn run_ffmpeg_plan(
         current_time: 0.0,
         speed: "0x".to_string(),
         bitrate: "0kbps".to_string(),
+        total_duration: duration,
     }));
 
-    // 处理 stderr (日志 + 进度解析)
+    // 处理 stderr (仅日志)
     let task_id_for_stderr = task_id_clone.clone();
     let window_for_stderr = window_clone.clone();
-    let last_progress_for_stderr = last_progress.clone();
-    tokio::spawn(async move {
+    let stderr_handle = tokio::spawn(async move {
         use tokio::io::AsyncReadExt;
         let mut reader = stderr;
         let mut buffer = [0u8; 4096];
@@ -460,10 +473,11 @@ pub async fn run_ffmpeg_plan(
             },
         );
 
-        while let Ok(n) = reader.read(&mut buffer).await {
-            if n == 0 {
-                break;
-            }
+        loop {
+            let n = match reader.read(&mut buffer).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            };
 
             for &b in &buffer[..n] {
                 if b == b'\n' || b == b'\r' {
@@ -472,68 +486,116 @@ pub async fn run_ffmpeg_plan(
                     }
                     let line = String::from_utf8_lossy(&line_buffer).to_string();
                     line_buffer.clear();
-
-                    // 1. 发送原始日志到前端控制台
                     let _ = window_for_stderr.emit(
                         "ffmpeg-log",
                         FFmpegLogPayload {
                             task_id: task_id_for_stderr.clone(),
-                            message: line.clone(),
+                            message: line,
                         },
                     );
-
-                    // 2. 解析进度
-                    let mut updated = false;
-                    let mut progress = {
-                        let p = last_progress_for_stderr.lock().unwrap();
-                        p.clone()
-                    };
-
-                    if let Some(pos) = line.find("time=") {
-                        let rest = line[pos + 5..].trim_start();
-                        let time_str = rest.split_whitespace().next().unwrap_or("");
-                        if let Some(t) = parse_ffmpeg_time(time_str) {
-                            progress.current_time = t;
-                            if duration > 0.0 {
-                                progress.percent = (t / duration * 100.0).min(99.9);
-                            }
-                            updated = true;
-                        }
-                    }
-
-                    if let Some(pos) = line.find("speed=") {
-                        let rest = line[pos + 6..].trim_start();
-                        progress.speed = rest.split_whitespace().next().unwrap_or("0x").to_string();
-                        updated = true;
-                    }
-
-                    if let Some(pos) = line.find("bitrate=") {
-                        let rest = line[pos + 8..].trim_start();
-                        progress.bitrate = rest
-                            .split_whitespace()
-                            .next()
-                            .unwrap_or("0kbps")
-                            .to_string();
-                        updated = true;
-                    }
-
-                    if updated {
-                        // 更新共享状态
-                        {
-                            let mut p = last_progress_for_stderr.lock().unwrap();
-                            *p = progress.clone();
-                        }
-
-                        let _ = window_for_stderr.emit(
-                            "ffmpeg-progress",
-                            FFmpegProgressPayload {
-                                task_id: task_id_for_stderr.clone(),
-                                progress,
-                            },
-                        );
-                    }
                 } else {
                     line_buffer.push(b);
+                }
+            }
+        }
+
+        if !line_buffer.is_empty() {
+            let line = String::from_utf8_lossy(&line_buffer).to_string();
+            let _ = window_for_stderr.emit(
+                "ffmpeg-log",
+                FFmpegLogPayload {
+                    task_id: task_id_for_stderr.clone(),
+                    message: line,
+                },
+            );
+        }
+    });
+
+    // 处理 stdout 结构化进度
+    let task_id_for_stdout = task_id_clone.clone();
+    let window_for_stdout = window_clone.clone();
+    let last_progress_for_stdout = last_progress.clone();
+    let stdout_handle = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut reader = stdout;
+        let mut buffer = [0u8; 4096];
+        let mut line_buffer = Vec::new();
+
+        loop {
+            let n = match reader.read(&mut buffer).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            };
+
+            for &b in &buffer[..n] {
+                if b != b'\n' && b != b'\r' {
+                    line_buffer.push(b);
+                    continue;
+                }
+                if line_buffer.is_empty() {
+                    continue;
+                }
+                let line = String::from_utf8_lossy(&line_buffer).to_string();
+                line_buffer.clear();
+
+                let Some((key, value)) = line.split_once('=') else {
+                    continue;
+                };
+                let key = key.trim();
+                let value = value.trim();
+
+                let mut should_emit = false;
+                match key {
+                    "out_time" => {
+                        if let Some(t) = parse_ffmpeg_time(value) {
+                            let mut progress = last_progress_for_stdout.lock().unwrap();
+                            if progress.current_time != t {
+                                progress.current_time = t;
+                                should_emit = true;
+                            }
+                        }
+                    }
+                    "speed" => {
+                        if value != "N/A" && !value.is_empty() {
+                            let mut progress = last_progress_for_stdout.lock().unwrap();
+                            if progress.speed != value {
+                                progress.speed = value.to_string();
+                                should_emit = true;
+                            }
+                        }
+                    }
+                    "bitrate" => {
+                        if value != "N/A" && !value.is_empty() {
+                            let mut progress = last_progress_for_stdout.lock().unwrap();
+                            if progress.bitrate != value {
+                                progress.bitrate = value.to_string();
+                                should_emit = true;
+                            }
+                        }
+                    }
+                    "progress" => {
+                        should_emit = true;
+                    }
+                    _ => {}
+                }
+
+                if should_emit {
+                    let progress = {
+                        let mut current = last_progress_for_stdout.lock().unwrap();
+                        current.percent = if duration > 0.0 {
+                            (current.current_time / duration * 100.0).min(99.9)
+                        } else {
+                            0.0
+                        };
+                        current.clone()
+                    };
+                    let _ = window_for_stdout.emit(
+                        "ffmpeg-progress",
+                        FFmpegProgressPayload {
+                            task_id: task_id_for_stdout.clone(),
+                            progress,
+                        },
+                    );
                 }
             }
         }
@@ -565,6 +627,9 @@ pub async fn run_ffmpeg_plan(
         processes.remove(&task_id_clone);
     }
 
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), stderr_handle).await;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), stdout_handle).await;
+
     if was_cancelled {
         return Err(FFMPEG_CANCELLED_ERROR.to_string());
     }
@@ -577,6 +642,7 @@ pub async fn run_ffmpeg_plan(
         };
         final_progress.percent = 100.0;
         final_progress.current_time = duration;
+        final_progress.total_duration = duration;
 
         let _ = window_clone.emit(
             "ffmpeg-progress",

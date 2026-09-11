@@ -47,12 +47,14 @@
               <div
                 v-if="currentFilePath && params.mode !== 'custom'"
                 class="trim-section"
+                data-testid="ffmpeg-trim-section"
               >
                 <div class="trim-header">
                   <span class="trim-title">时间裁剪</span>
                   <el-switch
                     v-model="trimEnabled"
                     size="small"
+                    data-testid="ffmpeg-trim-toggle"
                     @change="onTrimEnabledChange"
                   />
                 </div>
@@ -64,6 +66,7 @@
                       v-model="trimStartText"
                       size="small"
                       placeholder="HH:MM:SS"
+                      data-testid="ffmpeg-trim-start"
                       @change="commitTrimStart"
                     />
                     <el-button link size="small" @click="setTrimStartFromPlayback">
@@ -76,6 +79,7 @@
                       v-model="trimEndText"
                       size="small"
                       placeholder="HH:MM:SS"
+                      data-testid="ffmpeg-trim-end"
                       @change="commitTrimEnd"
                     />
                     <el-button link size="small" @click="setTrimEndFromPlayback">
@@ -87,6 +91,7 @@
                     <el-radio-group
                       v-model="params.trimMode"
                       size="small"
+                      data-testid="ffmpeg-trim-mode"
                       @change="onTrimModeChange"
                     >
                       <el-radio-button value="fast">快速（流拷贝）</el-radio-button>
@@ -139,6 +144,7 @@
                   v-model="outputName"
                   size="small"
                   placeholder="输出文件名"
+                  data-testid="ffmpeg-output-name"
                   @input="outputNameCustomized = true"
                   @blur="outputName = sanitizeOutputName(outputName)"
                 />
@@ -170,7 +176,7 @@
                     </el-tooltip>
                   </div>
                 </div>
-                <div class="command-content">
+                <div class="command-content" data-testid="ffmpeg-command-preview">
                   <code>{{ generatedCommand }}</code>
                 </div>
                 <el-alert
@@ -185,7 +191,13 @@
             </div>
 
             <div class="submit-area">
-              <el-button v-if="isStopping" type="danger" size="large" disabled>
+              <el-button
+                v-if="isStopping"
+                type="danger"
+                size="large"
+                disabled
+                data-testid="ffmpeg-stopping"
+              >
                 <el-icon><Loader2 /></el-icon>
                 <span>停止中</span>
               </el-button>
@@ -193,6 +205,7 @@
                 v-else-if="activeTask"
                 type="danger"
                 size="large"
+                data-testid="ffmpeg-stop"
                 @click="stopTask"
               >
                 <el-icon><StopCircle /></el-icon>
@@ -204,6 +217,7 @@
                 size="large"
                 :loading="isSubmitting"
                 :disabled="isSubmitting || !currentFilePath"
+                data-testid="ffmpeg-start"
                 @click="submitTask"
               >
                 <el-icon><Play /></el-icon>
@@ -216,7 +230,12 @@
         <!-- 右侧：文件管理与反馈 -->
         <div class="right-panel">
           <!-- 待处理文件卡片 -->
-          <InfoCard title="待处理文件" :icon="Files" class="file-card">
+          <InfoCard
+            title="待处理文件"
+            :icon="Files"
+            class="file-card"
+            data-testid="ffmpeg-file-card"
+          >
             <template #headerExtra>
               <el-button
                 v-if="currentFilePath"
@@ -232,6 +251,7 @@
                 v-if="!currentFilePath"
                 clickable
                 click-zone
+                data-testid="ffmpeg-import"
                 @drop="handleFileDrop"
                 :accept="[
                   '.mp4',
@@ -251,7 +271,11 @@
                   <div class="file-header">
                     <FileIcon :name="fileName" :size="32" />
                     <div class="file-meta">
-                      <div class="name" :title="currentFilePath">
+                      <div
+                        class="name"
+                        :title="currentFilePath"
+                        data-testid="ffmpeg-file-name"
+                      >
                         {{ fileName }}
                       </div>
                       <div class="path">{{ currentFilePath }}</div>
@@ -267,7 +291,11 @@
                     </div>
                   </div>
                   <!-- 媒体元数据展示 -->
-                  <div v-if="metadata" class="metadata-mini-grid">
+                  <div
+                    v-if="metadata"
+                    class="metadata-mini-grid"
+                    data-testid="ffmpeg-metadata"
+                  >
                     <div class="mini-item">
                       <span class="label">时长</span>
                       <span class="value">{{
@@ -301,6 +329,7 @@
                       <el-tag
                         :type="taskStatusType(currentFileTask.status)"
                         size="small"
+                        data-testid="ffmpeg-task-status"
                       >
                         {{ taskStatusText(currentFileTask.status) }}
                       </el-tag>
@@ -593,12 +622,34 @@ const formatTime = (seconds: number) => {
     .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 };
 
+const resolvedOutputPath = ref("");
+
+watch(
+  [currentFilePath, outputName],
+  async ([inputPath, name]) => {
+    const outputNameValue = name || "output.mp4";
+    if (!inputPath) {
+      resolvedOutputPath.value = outputNameValue;
+      return;
+    }
+    try {
+      resolvedOutputPath.value = await join(
+        await dirname(inputPath),
+        outputNameValue
+      );
+    } catch {
+      resolvedOutputPath.value = outputNameValue;
+    }
+  },
+  { immediate: true }
+);
+
 const currentPlan = computed<FFmpegExecutionPlan>(() =>
   buildExecutionPlan(
     {
       ...params,
       inputPath: currentFilePath.value || "input.mp4",
-      outputPath: outputName.value || "output.mp4",
+      outputPath: resolvedOutputPath.value || outputName.value || "output.mp4",
       ffmpegPath: activeFfmpegPath.value,
     },
     { durationSec: metadata.value?.duration }

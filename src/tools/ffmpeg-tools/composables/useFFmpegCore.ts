@@ -18,6 +18,7 @@ import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpeg } from "@/composables/useFFmpeg";
 import type { FFmpegParams, MediaMetadata, FFmpegProgress } from "../types";
+import { isCancellationError, isTerminalStatus } from "../utils/lifecycle";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -70,6 +71,12 @@ export function useFFmpegCore() {
    * 启动处理任务
    */
   const startProcess = async (taskId: string, params: FFmpegParams) => {
+    const initial = store.tasks.find((t) => t.id === taskId);
+    if (initial && isTerminalStatus(initial.status)) {
+      logger.info("任务已处于终止状态，跳过启动", { taskId });
+      return;
+    }
+
     try {
       logger.info("开始 FFmpeg 任务", { taskId, params });
       store.updateTask(taskId, { status: "processing" });
@@ -82,12 +89,33 @@ export function useFFmpegCore() {
         params,
       });
 
+      const current = store.tasks.find((t) => t.id === taskId);
+      if (current && isTerminalStatus(current.status)) {
+        logger.info("任务已被终止，忽略迟到的完成回调", {
+          taskId,
+          status: current.status,
+        });
+        return result;
+      }
+
       logger.info("FFmpeg 任务执行成功", { taskId, result });
       store.addTaskLog(taskId, `[System] 任务执行成功!`);
       store.addTaskLog(taskId, `[System] 输出路径: ${result}`);
       store.updateTask(taskId, { status: "completed", outputPath: result });
       return result;
     } catch (error: any) {
+      const current = store.tasks.find((t) => t.id === taskId);
+      if (
+        isCancellationError(error) ||
+        (current !== undefined && current.status === "cancelled")
+      ) {
+        logger.info("FFmpeg 任务已取消", { taskId });
+        store.updateTask(taskId, { status: "cancelled" });
+        const abortError = new Error("任务已取消");
+        abortError.name = "AbortError";
+        throw abortError;
+      }
+
       const errorMsg = error.toString();
       logger.error("FFmpeg 处理失败", error, { taskId });
       store.addTaskLog(taskId, `[Error] 任务处理失败: ${errorMsg}`);
@@ -99,12 +127,17 @@ export function useFFmpegCore() {
   /**
    * 终止任务
    */
-  const killProcess = async (taskId: string) => {
+  const killProcess = async (taskId: string): Promise<{ found: boolean }> => {
     try {
-      await invoke("kill_ffmpeg_process", { taskId });
-      store.updateTask(taskId, { status: "cancelled" });
+      const result = await invoke<{ found: boolean }>(
+        "kill_ffmpeg_process",
+        { taskId }
+      );
+      logger.info("已请求终止 FFmpeg 任务", { taskId, found: result?.found });
+      return result ?? { found: false };
     } catch (error) {
       logger.error("终止任务失败", error, { taskId });
+      return { found: false };
     }
   };
 

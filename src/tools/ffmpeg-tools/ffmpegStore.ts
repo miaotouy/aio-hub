@@ -26,6 +26,12 @@ import {
   ffmpegTasksManager,
   ffmpegPresetsManager,
 } from "./utils/persistence";
+import {
+  isTerminalStatus,
+  shouldIgnoreStatusUpdate,
+  isPathReserved,
+  reservePath,
+} from "./utils/lifecycle";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ffmpegStore");
@@ -36,6 +42,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
   const config = ref<FFmpegConfig>({ ...DEFAULT_FFMPEG_CONFIG });
   const presets = ref<FFmpegPreset[]>([]);
   const isInitialized = ref(false);
+  const outputReservations = ref<Record<string, string>>({});
 
   /** 合并后的预设列表：内置预设 + 用户自定义预设 */
   const allPresets = computed(() => [...BUILTIN_PRESETS, ...presets.value]);
@@ -165,17 +172,28 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     return newTask;
   };
 
+  const releaseTaskReservation = (id: string) => {
+    const reservations = outputReservations.value;
+    for (const key of Object.keys(reservations)) {
+      if (reservations[key] === id) {
+        delete reservations[key];
+      }
+    }
+  };
+
   const updateTask = (id: string, updates: Partial<FFmpegTask>) => {
     const task = tasks.value.find((t) => t.id === id);
-    if (task) {
-      Object.assign(task, updates);
-      if (
-        updates.status === "completed" ||
-        updates.status === "failed" ||
-        updates.status === "cancelled"
-      ) {
-        task.completedAt = Date.now();
-      }
+    if (!task) return;
+    if (
+      updates.status !== undefined &&
+      shouldIgnoreStatusUpdate(task.status, updates.status)
+    ) {
+      return;
+    }
+    Object.assign(task, updates);
+    if (updates.status && isTerminalStatus(updates.status)) {
+      task.completedAt = Date.now();
+      releaseTaskReservation(id);
     }
   };
 
@@ -184,9 +202,21 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     progress: Partial<FFmpegTask["progress"]>
   ) => {
     const task = tasks.value.find((t) => t.id === id);
-    if (task) {
+    if (task && !isTerminalStatus(task.status)) {
       task.progress = { ...task.progress, ...progress };
     }
+  };
+
+  const reserveOutputPath = (taskId: string, path: string): boolean => {
+    return reservePath(outputReservations.value, taskId, path);
+  };
+
+  const releaseOutputPath = (taskId: string) => {
+    releaseTaskReservation(taskId);
+  };
+
+  const isOutputPathReserved = (path: string, taskId = ""): boolean => {
+    return isPathReserved(outputReservations.value, path, taskId);
   };
 
   const addTaskLog = (id: string, log: string) => {
@@ -202,6 +232,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
   };
 
   const removeTask = (id: string) => {
+    releaseTaskReservation(id);
     const index = tasks.value.findIndex((t) => t.id === id);
     if (index !== -1) {
       tasks.value.splice(index, 1);
@@ -265,6 +296,7 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     presets,
     allPresets,
     isInitialized,
+    outputReservations,
     pendingTasks,
     activeTasks,
     completedTasks,
@@ -276,6 +308,9 @@ export const useFFmpegStore = defineStore("ffmpeg-tools", () => {
     removeTask,
     clearCompletedTasks,
     resetConfig,
+    reserveOutputPath,
+    releaseOutputPath,
+    isOutputPathReserved,
     saveAsPreset,
     deletePreset,
     renamePreset,

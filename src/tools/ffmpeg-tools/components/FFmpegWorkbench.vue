@@ -59,9 +59,29 @@
 
             <div class="submit-area">
               <el-button
+                v-if="isStopping"
+                type="danger"
+                size="large"
+                disabled
+              >
+                <el-icon><Loader2 /></el-icon>
+                <span>停止中</span>
+              </el-button>
+              <el-button
+                v-else-if="activeTask"
+                type="danger"
+                size="large"
+                @click="stopTask"
+              >
+                <el-icon><StopCircle /></el-icon>
+                <span>停止</span>
+              </el-button>
+              <el-button
+                v-else
                 type="primary"
                 size="large"
-                :disabled="!currentFilePath"
+                :loading="isSubmitting"
+                :disabled="isSubmitting || !currentFilePath"
                 @click="submitTask"
               >
                 <el-icon><Play /></el-icon>
@@ -210,7 +230,16 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
-import { Files, Settings, VideoOff, Play, Delete, Info } from "lucide-vue-next";
+import {
+  Files,
+  Settings,
+  VideoOff,
+  Play,
+  Delete,
+  Info,
+  Loader2,
+  StopCircle,
+} from "lucide-vue-next";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import DropZone from "@/components/common/DropZone.vue";
@@ -229,11 +258,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 import type { MediaMetadata, FFmpegParams } from "../types";
 import { buildQuickCommandArgs } from "../utils/command";
 import { applyPresetParams } from "../utils/preset";
+import { isCancellationError, isTerminalStatus } from "../utils/lifecycle";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
-const { activeFfmpegPath, getMetadata, startProcess, setupListeners } =
-  useFFmpegCore();
+const {
+  activeFfmpegPath,
+  getMetadata,
+  startProcess,
+  killProcess,
+  setupListeners,
+} = useFFmpegCore();
 const presetManagerRef = ref<InstanceType<typeof FFmpegPresetManager>>();
 
 const currentFilePath = ref("");
@@ -245,6 +280,9 @@ const activeRightTab = ref("preview");
 const lastTaskId = ref("");
 const isProfessional = ref(false);
 const mediaInfoDialogRef = ref();
+const isSubmitting = ref(false);
+const activeTaskId = ref("");
+const isStopping = ref(false);
 
 const params = reactive<FFmpegParams>({
   mode: "video",
@@ -262,6 +300,15 @@ const currentTaskLogs = computed(() => {
   if (!lastTaskId.value) return [];
   const task = store.tasks.find((t) => t.id === lastTaskId.value);
   return task?.logs || [];
+});
+
+const activeTask = computed(() => {
+  if (!activeTaskId.value) return null;
+  const task = store.tasks.find((t) => t.id === activeTaskId.value);
+  if (!task) return null;
+  return task.status === "pending" || task.status === "processing"
+    ? task
+    : null;
 });
 
 const generatedCommand = computed(() => {
@@ -387,6 +434,8 @@ const reset = () => {
   currentFileUrl.value = "";
   metadata.value = null;
   lastTaskId.value = "";
+  activeTaskId.value = "";
+  isStopping.value = false;
 };
 
 const clearLogs = () => {
@@ -415,27 +464,78 @@ const formatSize = (bytes?: number | string) => {
 };
 
 const submitTask = async () => {
+  if (isSubmitting.value || activeTask.value) return;
   if (!currentFilePath.value) return;
 
-  const inputDir = await dirname(currentFilePath.value);
-  params.outputPath = await join(inputDir, outputName.value);
-  params.ffmpegPath = activeFfmpegPath.value;
+  isSubmitting.value = true;
+  let taskId = "";
+  let snapshot: FFmpegParams | null = null;
 
-  const task = store.addTask({
-    name: outputName.value,
-    inputPath: params.inputPath,
-    outputPath: params.outputPath,
-    mode: params.mode,
-  });
+  try {
+    const inputDir = await dirname(currentFilePath.value);
+    const outputPath = await join(inputDir, outputName.value);
+    const ffmpegPath = activeFfmpegPath.value;
 
-  lastTaskId.value = task.id;
-  activeRightTab.value = "logs";
-  customMessage.success("任务已提交");
+    snapshot = {
+      ...params,
+      inputPath: currentFilePath.value,
+      outputPath,
+      ffmpegPath,
+    };
 
-  startProcess(task.id, { ...params }).catch(() => {
+    const task = store.addTask({
+      name: outputName.value,
+      inputPath: snapshot.inputPath,
+      outputPath: snapshot.outputPath,
+      mode: snapshot.mode,
+    });
+    taskId = task.id;
+
+    if (!store.reserveOutputPath(taskId, outputPath)) {
+      store.removeTask(taskId);
+      taskId = "";
+      customMessage.error(`输出路径已被其他任务占用: ${outputPath}`);
+      return;
+    }
+
+    lastTaskId.value = taskId;
+    activeTaskId.value = taskId;
+    activeRightTab.value = "logs";
+    customMessage.success("任务已提交");
+  } finally {
+    isSubmitting.value = false;
+  }
+
+  if (!taskId || !snapshot) return;
+
+  const finalParams = snapshot;
+  const finalTaskId = taskId;
+  startProcess(finalTaskId, finalParams).catch((error) => {
+    if (isCancellationError(error)) return;
     customMessage.error("处理失败");
   });
 };
+
+const stopTask = async () => {
+  if (!activeTask.value || isStopping.value) return;
+  isStopping.value = true;
+  await killProcess(activeTaskId.value);
+};
+
+watch(
+  () => {
+    if (!activeTaskId.value) return "";
+    const task = store.tasks.find((t) => t.id === activeTaskId.value);
+    return task?.status ?? "removed";
+  },
+  (status) => {
+    if (!activeTaskId.value) return;
+    if (status === "removed" || isTerminalStatus(status)) {
+      activeTaskId.value = "";
+      isStopping.value = false;
+    }
+  }
+);
 
 // 监听全局 FFmpeg 事件
 let unlisten: (() => void) | null = null;

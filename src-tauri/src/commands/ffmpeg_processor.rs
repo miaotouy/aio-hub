@@ -22,14 +22,24 @@ use tokio::process::{Child, Command};
 
 pub struct FFmpegState {
     pub active_processes: Arc<Mutex<HashMap<String, Child>>>,
+    pub cancelled: Arc<Mutex<HashSet<String>>>,
 }
 
 impl Default for FFmpegState {
     fn default() -> Self {
         Self {
             active_processes: Arc::new(Mutex::new(HashMap::new())),
+            cancelled: Arc::new(Mutex::new(HashSet::new())),
         }
     }
+}
+
+pub const FFMPEG_CANCELLED_ERROR: &str = "FFMPEG_CANCELLED";
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KillResult {
+    pub found: bool,
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
@@ -320,16 +330,24 @@ pub async fn check_command_version(
 pub async fn kill_ffmpeg_process(
     state: State<'_, FFmpegState>,
     task_id: String,
-) -> Result<(), String> {
-    let child = {
+) -> Result<KillResult, String> {
+    {
+        let mut cancelled = state.cancelled.lock().map_err(|e| e.to_string())?;
+        cancelled.insert(task_id.clone());
+    }
+
+    let found = {
         let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
-        processes.remove(&task_id)
+        match processes.get_mut(&task_id) {
+            Some(child) => {
+                let _ = child.start_kill();
+                true
+            }
+            None => false,
+        }
     };
 
-    if let Some(mut c) = child {
-        let _ = c.kill().await;
-    }
-    Ok(())
+    Ok(KillResult { found })
 }
 
 #[derive(Serialize, Clone)]
@@ -348,9 +366,17 @@ pub async fn process_media(
     params: FFmpegParams,
 ) -> Result<String, String> {
     let active_processes = state.active_processes.clone();
+    let cancelled = state.cancelled.clone();
     let ffmpeg_path = params.ffmpeg_path.clone();
     let input_path = params.input_path.clone();
     let output_path = params.output_path.clone();
+
+    {
+        let mut cancelled_set = cancelled.lock().map_err(|e| e.to_string())?;
+        if cancelled_set.remove(&task_id) {
+            return Err(FFMPEG_CANCELLED_ERROR.to_string());
+        }
+    }
 
     if !Path::new(&input_path).exists() {
         return Err(format!("Input file not found: {}", input_path));
@@ -362,6 +388,13 @@ pub async fn process_media(
 
     let metadata = get_video_metadata(&ffmpeg_path, &input_path).await;
     let duration = metadata.duration.unwrap_or(0.0);
+
+    {
+        let mut cancelled_set = cancelled.lock().map_err(|e| e.to_string())?;
+        if cancelled_set.remove(&task_id) {
+            return Err(FFMPEG_CANCELLED_ERROR.to_string());
+        }
+    }
 
     let mut args = vec![
         "-hide_banner".to_string(),
@@ -581,16 +614,35 @@ pub async fn process_media(
         }
     });
 
-    // 取回进程并等待
-    let mut child = {
-        let mut processes = active_processes.lock().map_err(|e| e.to_string())?;
-        processes.remove(&task_id_clone).ok_or("Process lost")?
+    // 轮询进程状态，直到进程退出
+    let status = loop {
+        let maybe_status = {
+            let mut processes = active_processes.lock().map_err(|e| e.to_string())?;
+            match processes.get_mut(&task_id_clone) {
+                Some(child) => child
+                    .try_wait()
+                    .map_err(|e| format!("Wait failed: {}", e))?,
+                None => None,
+            }
+        };
+        if let Some(s) = maybe_status {
+            break s;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     };
 
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Wait failed: {}", e))?;
+    let was_cancelled = {
+        let mut cancelled_set = cancelled.lock().map_err(|e| e.to_string())?;
+        cancelled_set.remove(&task_id_clone)
+    };
+    {
+        let mut processes = active_processes.lock().map_err(|e| e.to_string())?;
+        processes.remove(&task_id_clone);
+    }
+
+    if was_cancelled {
+        return Err(FFMPEG_CANCELLED_ERROR.to_string());
+    }
 
     if status.success() {
         // 任务成功后，发送 100% 进度，并保留最后一次解析到的速率和比特率
@@ -846,8 +898,17 @@ pub async fn extract_video_frames(
                 .map_err(|e| format!("读取 FFmpeg 状态失败: {}", e))?
         };
         if let Some(status) = result {
-            let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
-            processes.remove(&task_id);
+            {
+                let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
+                processes.remove(&task_id);
+            }
+            let was_cancelled = {
+                let mut cancelled = state.cancelled.lock().map_err(|e| e.to_string())?;
+                cancelled.remove(&task_id)
+            };
+            if was_cancelled {
+                return Err(FFMPEG_CANCELLED_ERROR.to_string());
+            }
             break status;
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

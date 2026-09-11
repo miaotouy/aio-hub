@@ -23,6 +23,7 @@ import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpeg } from "@/composables/useFFmpeg";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { isCancellationError } from "../utils/lifecycle";
 import type { ToolContext } from "@/services/types";
 import type { FFmpegParams, FFmpegProgress } from "../types";
 
@@ -198,7 +199,7 @@ export async function executeCommand(
           2
         );
       } catch (error: any) {
-        if (error.name === "AbortError") {
+        if (isCancellationError(error)) {
           // 取消 FFmpeg 进程
           try {
             await invoke("kill_ffmpeg_process", { taskId: task.id });

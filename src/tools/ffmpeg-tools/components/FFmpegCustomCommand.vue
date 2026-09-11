@@ -130,6 +130,7 @@
 import { ref, watch, onMounted } from "vue";
 import { CircleAlert, Eraser, AlignLeft, Save } from "lucide-vue-next";
 import type { FFmpegParams } from "../types";
+import { parseCommandLine, serializeCommandLine } from "../utils/args";
 
 const props = defineProps<{
   params: FFmpegParams;
@@ -308,7 +309,7 @@ const clearCommand = () => {
 /** 格式化命令（每个参数对一行） */
 const formatCommand = () => {
   if (!commandText.value.trim()) return;
-  const args = parseArgsString(commandText.value);
+  const args = parseCommandLine(commandText.value);
   // 将参数按对分组显示
   const formatted: string[] = [];
   let i = 0;
@@ -341,32 +342,9 @@ const syncToParams = () => {
   if (!text) {
     props.params.customArgs = undefined;
   } else {
-    props.params.customArgs = parseArgsString(text);
+    props.params.customArgs = parseCommandLine(text);
   }
 };
-
-/** 解析参数字符串为数组（支持引号内的空格） */
-function parseArgsString(input: string): string[] {
-  const args: string[] = [];
-  // 先将多行合并为单行
-  const singleLine = input.replace(/\n/g, " ").trim();
-  // 使用正则匹配：引号内的内容作为整体，或非空格字符序列
-  const regex = /(?:"([^"]*)")|(?:'([^']*)')|(\S+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(singleLine)) !== null) {
-    const value = match[1] ?? match[2] ?? match[3];
-    if (value !== undefined) {
-      args.push(
-        match[1] !== undefined
-          ? `"${value}"`
-          : match[2] !== undefined
-            ? `'${value}'`
-            : value
-      );
-    }
-  }
-  return args;
-}
 
 /** 触发保存为预设 */
 const handleSaveAsPreset = () => {
@@ -376,7 +354,7 @@ const handleSaveAsPreset = () => {
 // 初始化：从 params.customArgs 恢复命令文本
 onMounted(() => {
   if (props.params.customArgs && props.params.customArgs.length > 0) {
-    commandText.value = props.params.customArgs.join(" ");
+    commandText.value = serializeCommandLine(props.params.customArgs);
   }
 });
 
@@ -390,10 +368,10 @@ watch(
         commandText.value = "";
       }
     } else {
-      const externalText = newArgs.join(" ");
-      const currentParsed = parseArgsString(commandText.value).join(" ");
+      const externalText = serializeCommandLine(newArgs);
+      const currentArgs = parseCommandLine(commandText.value);
       // 只在外部值与当前不同时同步（避免循环更新）
-      if (externalText !== currentParsed) {
+      if (JSON.stringify(newArgs) !== JSON.stringify(currentArgs)) {
         commandText.value = externalText;
         activeTemplateId.value = null;
       }

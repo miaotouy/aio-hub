@@ -119,6 +119,7 @@ export interface FFmpegParams {
   videoEncoder?: string; // libx264, libx265, h264_nvenc, etc.
   preset?: string; // ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, placebo
   crf?: number;
+  qualityMode?: "quality" | "bitrate" | "size";
   videoBitrate?: string;
   scale?: string; // e.g. "1920:-2"
   fps?: number;

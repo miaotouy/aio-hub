@@ -345,7 +345,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         // 视频处理命令
         check_command_version,
         check_ffmpeg_availability,
-        process_media,
+        run_ffmpeg_plan,
         kill_ffmpeg_process,
         get_media_metadata,
         get_full_media_info,

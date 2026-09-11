@@ -60,30 +60,11 @@ pub struct FFmpegProgressPayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FFmpegParams {
-    pub mode: String, // "compress" | "extract_audio" | "convert" | "custom"
+pub struct FFmpegPlan {
+    pub executable: String,
     pub input_path: String,
     pub output_path: String,
-    pub ffmpeg_path: String,
-    pub hwaccel: bool,
-
-    // 视频参数
-    pub video_encoder: Option<String>,
-    pub preset: Option<String>,
-    pub crf: Option<u32>,
-    pub video_bitrate: Option<String>,
-    pub scale: Option<String>,
-    pub fps: Option<f64>,
-    pub pixel_format: Option<String>,
-
-    // 音频参数
-    pub audio_encoder: Option<String>,
-    pub audio_bitrate: Option<String>,
-    pub sample_rate: Option<String>,
-
-    // 其他
-    pub custom_args: Option<Vec<String>>,
-    pub max_size_mb: Option<f64>,
+    pub args: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -357,25 +338,39 @@ pub struct FFmpegLogPayload {
     pub message: String,
 }
 
-/// 统一媒体处理入口
+/// 执行由前端唯一执行计划模块产出的 argv。
+///
+/// 后端不得补充、重排或构造任何参数，只负责进程生命周期、取消与进度解析。
 #[tauri::command]
-pub async fn process_media(
+pub async fn run_ffmpeg_plan(
     state: State<'_, FFmpegState>,
     task_id: String,
     window: tauri::Window,
-    params: FFmpegParams,
+    plan: FFmpegPlan,
 ) -> Result<String, String> {
     let active_processes = state.active_processes.clone();
     let cancelled = state.cancelled.clone();
-    let ffmpeg_path = params.ffmpeg_path.clone();
-    let input_path = params.input_path.clone();
-    let output_path = params.output_path.clone();
+    let executable = plan.executable.clone();
+    let input_path = plan.input_path.clone();
+    let output_path = plan.output_path.clone();
 
     {
         let mut cancelled_set = cancelled.lock().map_err(|e| e.to_string())?;
         if cancelled_set.remove(&task_id) {
             return Err(FFMPEG_CANCELLED_ERROR.to_string());
         }
+    }
+
+    if executable.trim().is_empty() {
+        return Err("FFmpeg 可执行文件路径为空".to_string());
+    }
+
+    if output_path.trim().is_empty() {
+        return Err("输出路径为空".to_string());
+    }
+
+    if plan.args.is_empty() {
+        return Err("FFmpeg 参数为空".to_string());
     }
 
     if !Path::new(&input_path).exists() {
@@ -386,7 +381,7 @@ pub async fn process_media(
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let metadata = get_video_metadata(&ffmpeg_path, &input_path).await;
+    let metadata = get_video_metadata(&executable, &input_path).await;
     let duration = metadata.duration.unwrap_or(0.0);
 
     {
@@ -396,100 +391,17 @@ pub async fn process_media(
         }
     }
 
-    let mut args = vec![
-        "-hide_banner".to_string(),
-        "-i".to_string(),
-        input_path,
-        "-y".to_string(),
-    ];
-
-    if params.hwaccel {
-        args.insert(0, "-hwaccel".to_string());
-        args.insert(1, "auto".to_string());
-    }
-
-    match params.mode.as_str() {
-        "custom" => {
-            if let Some(custom) = params.custom_args {
-                args.extend(custom);
-            }
-        }
-        _ => {
-            if params.mode == "extract_audio" {
-                args.push("-vn".to_string());
-            } else {
-                let v_codec = params.video_encoder.unwrap_or_else(|| {
-                    if params.hwaccel {
-                        "h264_nvenc".to_string()
-                    } else {
-                        "libx264".to_string()
-                    }
-                });
-                args.extend_from_slice(&["-c:v".to_string(), v_codec]);
-
-                if let Some(crf) = params.crf {
-                    args.extend_from_slice(&["-crf".to_string(), crf.to_string()]);
-                } else if let Some(v_bitrate) = params.video_bitrate {
-                    args.extend_from_slice(&["-b:v".to_string(), v_bitrate]);
-                } else if let Some(target_mb) = params.max_size_mb {
-                    if duration > 0.0 {
-                        let total_bitrate = (target_mb * 8.0 * 1024.0 * 1024.0) / duration;
-                        let audio_bitrate = if metadata.has_audio { 128_000.0 } else { 0.0 };
-                        let video_bitrate = (total_bitrate - audio_bitrate).max(200_000.0);
-                        args.extend_from_slice(&[
-                            "-b:v".to_string(),
-                            format!("{:.0}", video_bitrate),
-                        ]);
-                    }
-                }
-
-                if let Some(preset) = params.preset {
-                    args.extend_from_slice(&["-preset".to_string(), preset]);
-                }
-
-                let mut v_filters = Vec::new();
-                if let Some(scale) = params.scale.filter(|scale| !scale.trim().is_empty()) {
-                    v_filters.push(scale);
-                }
-                if let Some(pix_fmt) = params.pixel_format {
-                    v_filters.push(format!("format={}", pix_fmt));
-                }
-                if !v_filters.is_empty() {
-                    args.extend_from_slice(&["-vf".to_string(), v_filters.join(",")]);
-                }
-
-                if let Some(fps) = params.fps {
-                    args.extend_from_slice(&["-r".to_string(), format!("{:.2}", fps)]);
-                }
-            }
-
-            if metadata.has_audio || params.mode == "extract_audio" {
-                let a_codec = params.audio_encoder.unwrap_or_else(|| "aac".to_string());
-                args.extend_from_slice(&["-c:a".to_string(), a_codec]);
-
-                if let Some(ab) = params.audio_bitrate {
-                    args.extend_from_slice(&["-b:a".to_string(), ab]);
-                }
-                if let Some(ar) = params.sample_rate {
-                    args.extend_from_slice(&["-ar".to_string(), ar]);
-                }
-            }
-        }
-    }
-
-    args.push(output_path.clone());
-
-    let mut command = Command::new(&ffmpeg_path);
+    let mut command = Command::new(&executable);
     #[cfg(target_os = "windows")]
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
 
-    log::info!("[FFmpeg] 执行指令: {} {}", ffmpeg_path, args.join(" "));
+    log::info!("[FFmpeg] 执行指令: {} {}", executable, plan.args.join(" "));
 
     command
-        .args(&args)
+        .args(&plan.args)
         .stderr(Stdio::piped())
         .stdout(Stdio::null()); // 进度解析改用 stderr，不再需要 stdout
 

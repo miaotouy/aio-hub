@@ -20,6 +20,8 @@ src/tools/ffmpeg-tools/
 ├── composables/
 │   └── useFFmpegCore.ts        # 核心逻辑封装：调用 Rust 命令、监听全局事件
 ├── utils/
+│   ├── executionPlan.ts        # 唯一执行计划：argv、质量/编码器策略与终端格式化
+│   ├── args.ts                 # 命令文本解析与序列化（引号、转义、PowerShell 引用）
 │   └── persistence.ts          # 持久化逻辑（配置/任务/预设的存储）
 ├── ffmpegStore.ts              # Pinia 状态中心：管理任务队列、配置和预设
 ├── types.ts                    # TypeScript 类型定义
@@ -49,7 +51,7 @@ graph TD
     Params --> Store[ffmpegStore: addTask]
     Store --> Core[useFFmpegCore: startProcess]
 
-    Core -- invoke: process_media --> Rust[Rust Backend]
+    Core -- invoke: run_ffmpeg_plan --> Rust[Rust Backend]
 
     subgraph Rust 后端进程管理
         Rust --> Cmd[tokio::process::Command]
@@ -71,13 +73,14 @@ graph TD
 
 - **状态管理**: `FFmpegState` 使用 `Arc<Mutex<HashMap<String, Child>>>` 维护所有活跃的 FFmpeg 进程，确保可以通过 `task_id` 精确控制（如终止任务）。
 - **进程启动**:
+  - 前端 `utils/executionPlan.ts` 是唯一的命令构造入口，产出 `{ executable, args, ... }`；`run_ffmpeg_plan` 只执行该 argv，不补充、重排或构造任何参数。
   - 使用 `tokio::process::Command` 异步启动。
   - 在 Windows 环境下设置 `CREATE_NO_WINDOW` 标志，防止弹出控制台窗口。
   - 自动处理输出目录创建和输入文件存在性检查。
 - **进度解析引擎**:
   - 通过 `stderr` 管道实时捕获 FFmpeg 的输出。
   - 在一个独立的 `tokio::spawn` 协程中流式读取输出，解析 `time=`, `speed=`, `bitrate=` 等关键指标。
-  - 结合前端传入的 `duration` 计算百分比进度。
+  - 由后端读取源文件时长作为进度分母（不再依赖前端传入 `duration`）。
 - **元数据提取**:
   - `get_media_metadata`: 快速解析 `ffmpeg -i` 的 stderr 输出获取基础信息。
   - `get_full_media_info`: 调用 `ffprobe` 并解析其 JSON 输出，提供详细的流信息。
@@ -99,6 +102,11 @@ graph TD
   - 用户预设：支持将当前参数快照保存为自定义模板。
 
 切换至自定义模式时，前端会将当前快捷配置生成的参数写入 `customArgs`，自定义编辑器与命令预览共享同一套参数构建逻辑；用户无需手动复制预览中的参数。
+
+预览、复制、工作台执行与 Agent 调用统一使用 `utils/executionPlan.ts` 的 `buildExecutionPlan`：
+预览显示真实可执行文件和完整输入输出路径，复制按钮按 PowerShell 语义（`&` 调用运算符、单引号字面量）转义，并明确标注目标 Shell 为 PowerShell。
+
+质量参数按编码器选择：NVENC 使用 `-cq`，QSV 使用 `-global_quality`，VP9/软件编码使用 `-crf`；preset 在 NVENC 下映射为 `p1..p7`。目标体积模式在有源时长时换算 `-b:v`。
 
 ## 6. 处理模式与参数逻辑
 

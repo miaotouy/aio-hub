@@ -123,16 +123,12 @@
           </el-form-item>
           <el-form-item label="编码预设 (Preset)" class="flex-1">
             <el-select v-model="params.preset" placeholder="默认">
-              <el-option label="Ultrafast" value="ultrafast" />
-              <el-option label="Superfast" value="superfast" />
-              <el-option label="Veryfast" value="veryfast" />
-              <el-option label="Faster" value="faster" />
-              <el-option label="Fast" value="fast" />
-              <el-option label="Medium" value="medium" />
-              <el-option label="Slow" value="slow" />
-              <el-option label="Slower" value="slower" />
-              <el-option label="Veryslow" value="veryslow" />
-              <el-option label="Placebo" value="placebo" />
+              <el-option
+                v-for="option in presetOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
             </el-select>
           </el-form-item>
         </div>
@@ -140,18 +136,22 @@
         <div class="form-row">
           <el-form-item label="画质控制" class="flex-1">
             <el-radio-group v-model="strategy" size="small">
-              <el-radio-button value="crf">CRF</el-radio-button>
+              <el-radio-button value="quality">质量</el-radio-button>
               <el-radio-button value="bitrate">码率</el-radio-button>
               <el-radio-button value="size">大小</el-radio-button>
             </el-radio-group>
           </el-form-item>
 
           <el-form-item
-            v-if="strategy === 'crf'"
-            label="CRF 值 (0-51)"
+            v-if="strategy === 'quality'"
+            :label="qualityLabel"
             class="flex-1"
           >
-            <el-input-number v-model="params.crf" :min="0" :max="51" />
+            <el-input-number
+              v-model="params.crf"
+              :min="videoQualitySpec.min"
+              :max="videoQualitySpec.max"
+            />
           </el-form-item>
           <el-form-item
             v-else-if="strategy === 'bitrate'"
@@ -327,6 +327,12 @@
 import { computed, ref, watch } from "vue";
 import type { FFmpegParams, ProcessingMode } from "../types";
 import { buildQuickCommandArgs } from "../utils/command";
+import { parseCommandLine } from "../utils/args";
+import {
+  resolveEncoderPreset,
+  resolveVideoQuality,
+  toX264Preset,
+} from "../utils/executionPlan";
 import FFmpegCustomCommand from "./FFmpegCustomCommand.vue";
 
 const props = defineProps<{
@@ -338,11 +344,79 @@ const emit = defineEmits<{
   (e: "save-as-preset"): void;
 }>();
 
-const strategy = ref<"crf" | "bitrate" | "size">("crf");
+type QualityStrategy = "quality" | "bitrate" | "size";
+
+interface PresetOption {
+  label: string;
+  value: string;
+}
+
 const customArgsStr = ref("");
 const qualityPreset = ref("medium");
 const KEEP_ORIGINAL_RESOLUTION = "__keep_original_resolution__";
 const lastQuickMode = ref<Exclude<ProcessingMode, "custom">>("video");
+
+const inferStrategyFromParams = (): QualityStrategy => {
+  if (props.params.maxSizeMb) return "size";
+  if (props.params.videoBitrate) return "bitrate";
+  return "quality";
+};
+
+const strategy = computed<QualityStrategy>({
+  get: () => props.params.qualityMode ?? inferStrategyFromParams(),
+  set: (value) => {
+    props.params.qualityMode = value;
+  },
+});
+
+const videoQualitySpec = computed(() =>
+  resolveVideoQuality(props.params.videoEncoder || "libx264")
+);
+
+const qualityLabel = computed(
+  () =>
+    `${videoQualitySpec.value.label.toUpperCase()} 值 (${videoQualitySpec.value.min}-${videoQualitySpec.value.max})`
+);
+
+const X264_PRESET_OPTIONS: PresetOption[] = [
+  { label: "Ultrafast", value: "ultrafast" },
+  { label: "Superfast", value: "superfast" },
+  { label: "Veryfast", value: "veryfast" },
+  { label: "Faster", value: "faster" },
+  { label: "Fast", value: "fast" },
+  { label: "Medium", value: "medium" },
+  { label: "Slow", value: "slow" },
+  { label: "Slower", value: "slower" },
+  { label: "Veryslow", value: "veryslow" },
+  { label: "Placebo", value: "placebo" },
+];
+
+const NVENC_PRESET_OPTIONS: PresetOption[] = [
+  { label: "P1 (最快)", value: "p1" },
+  { label: "P2", value: "p2" },
+  { label: "P3", value: "p3" },
+  { label: "P4", value: "p4" },
+  { label: "P5", value: "p5" },
+  { label: "P6", value: "p6" },
+  { label: "P7 (最慢)", value: "p7" },
+];
+
+const QSV_PRESET_OPTIONS: PresetOption[] = [
+  { label: "Veryfast", value: "veryfast" },
+  { label: "Faster", value: "faster" },
+  { label: "Fast", value: "fast" },
+  { label: "Medium", value: "medium" },
+  { label: "Slow", value: "slow" },
+  { label: "Slower", value: "slower" },
+  { label: "Veryslow", value: "veryslow" },
+];
+
+const presetOptions = computed<PresetOption[]>(() => {
+  const encoder = props.params.videoEncoder || "";
+  if (encoder.includes("nvenc")) return NVENC_PRESET_OPTIONS;
+  if (encoder.includes("qsv")) return QSV_PRESET_OPTIONS;
+  return X264_PRESET_OPTIONS;
+});
 
 /**
  * 将“保持原始分辨率”映射为 undefined，避免把 UI 哨兵值发送给 FFmpeg。
@@ -388,7 +462,7 @@ watch(
   () => props.isProfessional,
   (isPro) => {
     if (!isPro) {
-      strategy.value = "crf";
+      strategy.value = "quality";
       props.params.crf = qualityMap[qualityPreset.value];
       props.params.videoBitrate = undefined;
       props.params.maxSizeMb = undefined;
@@ -399,28 +473,31 @@ watch(
 
 // 监听策略变化，清除互斥参数
 watch(strategy, (s) => {
-  if (s === "crf") {
+  if (s === "quality") {
+    props.params.qualityMode = "quality";
     props.params.maxSizeMb = undefined;
     props.params.videoBitrate = undefined;
     if (props.params.crf === undefined)
       props.params.crf = qualityMap[qualityPreset.value] || 23;
   } else if (s === "bitrate") {
+    props.params.qualityMode = "bitrate";
     props.params.maxSizeMb = undefined;
     props.params.crf = undefined;
     if (!props.params.videoBitrate) props.params.videoBitrate = "4000k";
   } else {
+    props.params.qualityMode = "size";
     props.params.crf = undefined;
     props.params.videoBitrate = undefined;
     if (!props.params.maxSizeMb) props.params.maxSizeMb = 50;
   }
 });
 
-// 监听自定义参数字符串
+// 监听自定义参数字符串，保留引号内的滤镜表达式
 watch(customArgsStr, (val) => {
   if (!val.trim()) {
     props.params.customArgs = undefined;
   } else {
-    props.params.customArgs = val.trim().split(/\s+/);
+    props.params.customArgs = parseCommandLine(val);
   }
 });
 
@@ -460,6 +537,30 @@ watch(
       props.params.audioChannels = undefined;
     } else if (!props.params.audioBitrate) {
       props.params.audioBitrate = "128k";
+    }
+  }
+);
+
+// 监听视频编码器变化，清理流拷贝/禁用流下的重编码字段，并换算 preset
+watch(
+  () => props.params.videoEncoder,
+  (encoder, previous) => {
+    if (encoder === "copy" || encoder === "none") {
+      props.params.crf = undefined;
+      props.params.videoBitrate = undefined;
+      props.params.maxSizeMb = undefined;
+      props.params.scale = undefined;
+      props.params.fps = undefined;
+      props.params.pixelFormat = undefined;
+      props.params.qualityMode = undefined;
+    }
+
+    const prevNvenc = !!previous && previous.includes("nvenc");
+    const nextNvenc = !!encoder && encoder.includes("nvenc");
+    if (prevNvenc !== nextNvenc && props.params.preset) {
+      props.params.preset = nextNvenc
+        ? resolveEncoderPreset(encoder as string, props.params.preset)
+        : toX264Preset(props.params.preset);
     }
   }
 );

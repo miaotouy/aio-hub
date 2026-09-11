@@ -20,6 +20,7 @@ const presetParamKeys = [
   "videoEncoder",
   "preset",
   "crf",
+  "qualityMode",
   "videoBitrate",
   "scale",
   "fps",
@@ -46,6 +47,7 @@ export function applyPresetParams(
     params.videoEncoder = undefined;
     params.preset = undefined;
     params.crf = undefined;
+    params.qualityMode = undefined;
     params.videoBitrate = undefined;
     params.scale = undefined;
     params.fps = undefined;

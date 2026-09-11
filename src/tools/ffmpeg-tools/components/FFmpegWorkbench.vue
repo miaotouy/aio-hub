@@ -47,9 +47,19 @@
               <div class="command-preview">
                 <div class="preview-header">
                   <span>FFmpeg 指令预览</span>
-                  <el-tag size="small" type="info" effect="plain"
-                    >自动生成</el-tag
-                  >
+                  <div class="preview-actions">
+                    <el-tag size="small" type="info" effect="plain"
+                      >PowerShell</el-tag
+                    >
+                    <el-tooltip content="复制 PowerShell 命令" placement="top">
+                      <el-button
+                        :icon="Copy"
+                        size="small"
+                        link
+                        @click="copyPowerShellCommand"
+                      />
+                    </el-tooltip>
+                  </div>
                 </div>
                 <div class="command-content">
                   <code>{{ generatedCommand }}</code>
@@ -237,6 +247,7 @@ import {
   Play,
   Delete,
   Info,
+  Copy,
   Loader2,
   StopCircle,
 } from "lucide-vue-next";
@@ -255,8 +266,15 @@ import MediaInfoDialog from "./MediaInfoDialog.vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { basename, extname, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { MediaMetadata, FFmpegParams } from "../types";
-import { buildQuickCommandArgs } from "../utils/command";
+import {
+  buildExecutionPlan,
+  formatPlanCommand,
+  formatPowerShellCommand,
+  resolveVideoQuality,
+} from "../utils/executionPlan";
+import type { FFmpegExecutionPlan } from "../utils/executionPlan";
 import { applyPresetParams } from "../utils/preset";
 import { isCancellationError, isTerminalStatus } from "../utils/lifecycle";
 import { customMessage } from "@/utils/customMessage";
@@ -311,20 +329,33 @@ const activeTask = computed(() => {
     : null;
 });
 
-const generatedCommand = computed(() => {
-  const parts = ["ffmpeg", "-y"]; // -y 默认覆盖
-  if (params.hwaccel) parts.push("-hwaccel", "auto");
-  parts.push("-i", currentFilePath.value || "input.mp4");
+const currentPlan = computed<FFmpegExecutionPlan>(() =>
+  buildExecutionPlan(
+    {
+      ...params,
+      inputPath: currentFilePath.value || "input.mp4",
+      outputPath: outputName.value || "output.mp4",
+      ffmpegPath: activeFfmpegPath.value,
+    },
+    { durationSec: metadata.value?.duration }
+  )
+);
 
-  if (params.mode === "custom" && params.customArgs) {
-    parts.push(...params.customArgs);
-  } else if (params.mode !== "custom") {
-    parts.push(...buildQuickCommandArgs(params, params.mode));
+const generatedCommand = computed(() => formatPlanCommand(currentPlan.value));
+
+const copyPowerShellCommand = async () => {
+  const text = formatPowerShellCommand(currentPlan.value);
+  try {
+    try {
+      await writeText(text);
+    } catch {
+      await navigator.clipboard.writeText(text);
+    }
+    customMessage.success("已复制 PowerShell 命令");
+  } catch {
+    customMessage.error("复制 PowerShell 命令失败");
   }
-
-  parts.push(`"${outputName.value || "output.mp4"}"`);
-  return parts.join(" ");
-});
+};
 
 const isMaybeVideo = computed(() => {
   const videoExts = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
@@ -352,7 +383,9 @@ const paramsSuffix = computed(() => {
 
     // 质量/码率
     if (params.crf !== undefined) {
-      tags.push(`crf${params.crf}`);
+      const encoder = params.videoEncoder || "libx264";
+      const label = resolveVideoQuality(encoder).label;
+      tags.push(`${label}${params.crf}`);
     } else if (params.videoBitrate) {
       tags.push(params.videoBitrate);
     }
@@ -469,32 +502,35 @@ const submitTask = async () => {
 
   isSubmitting.value = true;
   let taskId = "";
-  let snapshot: FFmpegParams | null = null;
+  let plan: FFmpegExecutionPlan | null = null;
 
   try {
     const inputDir = await dirname(currentFilePath.value);
     const outputPath = await join(inputDir, outputName.value);
     const ffmpegPath = activeFfmpegPath.value;
 
-    snapshot = {
-      ...params,
-      inputPath: currentFilePath.value,
-      outputPath,
-      ffmpegPath,
-    };
+    plan = buildExecutionPlan(
+      {
+        ...params,
+        inputPath: currentFilePath.value,
+        outputPath,
+        ffmpegPath,
+      },
+      { durationSec: metadata.value?.duration }
+    );
 
     const task = store.addTask({
       name: outputName.value,
-      inputPath: snapshot.inputPath,
-      outputPath: snapshot.outputPath,
-      mode: snapshot.mode,
+      inputPath: plan.inputPath,
+      outputPath: plan.outputPath,
+      mode: params.mode,
     });
     taskId = task.id;
 
-    if (!store.reserveOutputPath(taskId, outputPath)) {
+    if (!store.reserveOutputPath(taskId, plan.outputPath)) {
       store.removeTask(taskId);
       taskId = "";
-      customMessage.error(`输出路径已被其他任务占用: ${outputPath}`);
+      customMessage.error(`输出路径已被其他任务占用: ${plan.outputPath}`);
       return;
     }
 
@@ -506,11 +542,11 @@ const submitTask = async () => {
     isSubmitting.value = false;
   }
 
-  if (!taskId || !snapshot) return;
+  if (!taskId || !plan) return;
 
-  const finalParams = snapshot;
+  const finalPlan = plan;
   const finalTaskId = taskId;
-  startProcess(finalTaskId, finalParams).catch((error) => {
+  startProcess(finalTaskId, finalPlan).catch((error) => {
     if (isCancellationError(error)) return;
     customMessage.error("处理失败");
   });
@@ -572,6 +608,7 @@ const handleSaveAsPreset = (name: string, description: string) => {
     videoEncoder: params.videoEncoder,
     preset: params.preset,
     crf: params.crf,
+    qualityMode: params.qualityMode,
     videoBitrate: params.videoBitrate,
     scale: params.scale,
     fps: params.fps,
@@ -870,6 +907,12 @@ watch(
   font-size: 12px;
   color: var(--text-color-light);
   font-weight: 600;
+}
+
+.preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .command-content {

@@ -22,6 +22,7 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import { buildExecutionPlan } from "@/tools/ffmpeg-tools/utils/executionPlan";
 import type { Asset } from "@/types/asset-management";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { TranscriptionAudioSource } from "@/llm-apis/transcription-types";
@@ -130,16 +131,17 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
           });
 
           try {
-            await invoke("process_media", {
+            const plan = buildExecutionPlan({
+              mode: "extract_audio",
+              inputPath: fullPath,
+              outputPath: outputPath,
+              ffmpegPath: ffmpegPath,
+              hwaccel: false,
+              audioEncoder: "pcm_s16le",
+            });
+            await invoke("run_ffmpeg_plan", {
               taskId: task.id,
-              params: {
-                mode: "extract_audio",
-                inputPath: fullPath,
-                outputPath: outputPath,
-                ffmpegPath: ffmpegPath,
-                hwaccel: false,
-                audioEncoder: "pcm_s16le",
-              },
+              plan,
             });
           } finally {
             unlisten();
@@ -190,16 +192,18 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
             });
 
             try {
-              await invoke("process_media", {
+              const plan = buildExecutionPlan({
+                mode: "extract_audio",
+                inputPath: fullPath,
+                outputPath: outputPath,
+                ffmpegPath: ffmpegPath,
+                hwaccel: false,
+                audioEncoder: "aac",
+                audioBitrate: bitrate,
+              });
+              await invoke("run_ffmpeg_plan", {
                 taskId: task.id,
-                params: {
-                  mode: "extract_audio",
-                  inputPath: fullPath,
-                  outputPath: outputPath,
-                  ffmpegPath: ffmpegPath,
-                  hwaccel: false,
-                  audioBitrate: bitrate,
-                },
+                plan,
               });
             } finally {
               unlisten();

@@ -21,6 +21,7 @@ import { useFFmpeg } from "@/composables/useFFmpeg";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { createModuleLogger } from "@/utils/logger";
 import { parseModelCombo } from "@/utils/modelIdUtils";
+import { buildExecutionPlan } from "@/tools/ffmpeg-tools/utils/executionPlan";
 import type { Asset } from "@/types/asset-management";
 import { getModelParams, getEffectiveConfig } from "./base";
 import { cleanLlmOutput, detectRepetition } from "../utils/text";
@@ -127,21 +128,36 @@ export class VideoTranscriptionEngine implements ITranscriptionEngine {
           });
 
           try {
-            await invoke("process_media", {
-              taskId: task.id,
-              params: {
-                mode: "compress",
+            const metadata = await invoke<{
+              duration?: number;
+              hasAudio: boolean;
+            }>("get_media_metadata", {
+              ffmpegPath,
+              inputPath: fullPath,
+            }).catch(() => ({ duration: undefined, hasAudio: false }));
+
+            const plan = buildExecutionPlan(
+              {
+                mode: "video",
                 inputPath: fullPath,
                 outputPath: outputPath,
                 ffmpegPath: ffmpegPath,
                 hwaccel: enableGpu,
+                videoEncoder: enableGpu ? "h264_nvenc" : "libx264",
+                qualityMode: "size",
                 maxSizeMb: maxDirectSizeMB,
                 fps: maxFps,
-                // 注意：后端目前 scale 接受的是字符串，如 "1280:-2"
                 scale: autoAdjustResolution
                   ? `min(${maxResolution},iw):-2`
                   : undefined,
+                audioEncoder: metadata.hasAudio ? "aac" : undefined,
               },
+              { durationSec: metadata.duration }
+            );
+
+            await invoke("run_ffmpeg_plan", {
+              taskId: task.id,
+              plan,
             });
           } finally {
             unlisten();

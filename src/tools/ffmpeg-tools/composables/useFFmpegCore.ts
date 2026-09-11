@@ -17,7 +17,8 @@ import { listen } from "@tauri-apps/api/event";
 import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpeg } from "@/composables/useFFmpeg";
-import type { FFmpegParams, MediaMetadata, FFmpegProgress } from "../types";
+import type { MediaMetadata, FFmpegProgress } from "../types";
+import type { FFmpegExecutionPlan } from "../utils/executionPlan";
 import { isCancellationError, isTerminalStatus } from "../utils/lifecycle";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -70,7 +71,7 @@ export function useFFmpegCore() {
   /**
    * 启动处理任务
    */
-  const startProcess = async (taskId: string, params: FFmpegParams) => {
+  const startProcess = async (taskId: string, plan: FFmpegExecutionPlan) => {
     const initial = store.tasks.find((t) => t.id === taskId);
     if (initial && isTerminalStatus(initial.status)) {
       logger.info("任务已处于终止状态，跳过启动", { taskId });
@@ -78,15 +79,15 @@ export function useFFmpegCore() {
     }
 
     try {
-      logger.info("开始 FFmpeg 任务", { taskId, params });
+      logger.info("开始 FFmpeg 任务", { taskId, args: plan.args });
       store.updateTask(taskId, { status: "processing" });
       store.addTaskLog(taskId, `[System] 正在启动 FFmpeg 任务...`);
-      store.addTaskLog(taskId, `[System] 输入路径: ${params.inputPath}`);
-      store.addTaskLog(taskId, `[System] 处理模式: ${params.mode}`);
+      store.addTaskLog(taskId, `[System] 输入路径: ${plan.inputPath}`);
+      store.addTaskLog(taskId, `[System] 可执行文件: ${plan.executable}`);
 
-      const result = await invoke<string>("process_media", {
+      const result = await invoke<string>("run_ffmpeg_plan", {
         taskId,
-        params,
+        plan,
       });
 
       const current = store.tasks.find((t) => t.id === taskId);

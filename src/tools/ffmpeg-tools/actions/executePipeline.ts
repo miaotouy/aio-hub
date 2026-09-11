@@ -30,6 +30,7 @@ import { useFFmpeg } from "@/composables/useFFmpeg";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { isCancellationError } from "../utils/lifecycle";
+import { buildExecutionPlan } from "../utils/executionPlan";
 import type { ToolContext } from "@/services/types";
 import type { FFmpegParams, FFmpegProgress } from "../types";
 
@@ -230,6 +231,7 @@ export async function executePipeline(
           hwaccel: step.hwaccel ?? true,
           customArgs: step.args,
         };
+        const plan = buildExecutionPlan(params);
 
         // 创建任务
         const task = store.addTask({
@@ -282,9 +284,9 @@ export async function executePipeline(
           );
           store.addTaskLog(task.id, `[Pipeline] 参数: ${step.args.join(" ")}`);
 
-          const outputResult = await invoke<string>("process_media", {
+          const outputResult = await invoke<string>("run_ffmpeg_plan", {
             taskId: task.id,
-            params,
+            plan,
           });
 
           store.updateTask(task.id, {

@@ -153,7 +153,7 @@ describe("ffmpeg-tools agent actions", () => {
     const context = createContext();
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === "path_exists") return true;
-      if (command === "process_media") {
+      if (command === "run_ffmpeg_plan") {
         emit("ffmpeg-progress", {
           taskId: "task-1",
           progress: {
@@ -185,15 +185,26 @@ describe("ffmpeg-tools agent actions", () => {
     expect(mockInvoke).toHaveBeenCalledWith("path_exists", {
       path: "C:/media/input.mp4",
     });
-    expect(mockInvoke).toHaveBeenCalledWith("process_media", {
+    expect(mockInvoke).toHaveBeenCalledWith("run_ffmpeg_plan", {
       taskId: "task-1",
-      params: {
-        mode: "custom",
+      plan: {
+        executable: "C:/bin/ffmpeg.exe",
+        globalArgs: ["-hide_banner", "-y"],
+        inputArgs: [],
         inputPath: "C:/media/input.mp4",
+        outputArgs: ["-c:v", "libx264", "-crf", "23"],
         outputPath: "C:/media/input_processed.mp4",
-        ffmpegPath: "C:/bin/ffmpeg.exe",
-        hwaccel: false,
-        customArgs: ["-c:v", "libx264", "-crf", "23"],
+        args: [
+          "-hide_banner",
+          "-y",
+          "-i",
+          "C:/media/input.mp4",
+          "-c:v",
+          "libx264",
+          "-crf",
+          "23",
+          "C:/media/input_processed.mp4",
+        ],
       },
     });
     expect(mockStore.updateTaskProgress).toHaveBeenCalledWith("task-1", {
@@ -222,7 +233,7 @@ describe("ffmpeg-tools agent actions", () => {
       if (command === "path_exists") return true;
       if (command === "create_dir_force") return undefined;
       if (command === "delete_file_to_trash") return undefined;
-      if (command === "process_media") {
+      if (command === "run_ffmpeg_plan") {
         processCount += 1;
         return processCount === 1
           ? "C:/Users/test/AppData/Roaming/AIO/ffmpeg-temp/pipeline_step0_1.wav"
@@ -252,6 +263,31 @@ describe("ffmpeg-tools agent actions", () => {
       context as any
     );
     const result = JSON.parse(output);
+
+    const planCalls = mockInvoke.mock.calls.filter(
+      ([command]) => command === "run_ffmpeg_plan"
+    );
+    expect(planCalls).toHaveLength(2);
+    expect(planCalls[0][1].plan).toMatchObject({
+      executable: "C:/bin/ffmpeg.exe",
+      inputPath: "C:/media/input.mp4",
+    });
+    expect(planCalls[0][1].plan.args).toEqual(
+      expect.arrayContaining([
+        "-i",
+        "C:/media/input.mp4",
+        "-vn",
+        "-c:a",
+        "pcm_s16le",
+      ])
+    );
+    expect(planCalls[1][1].plan).toMatchObject({
+      executable: "C:/bin/ffmpeg.exe",
+      outputPath: "C:/media/input_pipeline.mp3",
+    });
+    expect(planCalls[1][1].plan.args).toEqual(
+      expect.arrayContaining(["-c:a", "libmp3lame"])
+    );
 
     expect(result).toMatchObject({
       success: true,

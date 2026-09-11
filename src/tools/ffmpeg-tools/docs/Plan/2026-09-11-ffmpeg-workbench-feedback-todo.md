@@ -224,6 +224,7 @@
 - 用例：`tests/tauri-e2e/specs/ffmpeg-workbench.spec.ts`，仅在 `AIO_E2E_NATIVE_UI=1` 且设置 `AIO_E2E_FFMPEG_MEDIA` 时运行，否则跳过。
 - 运行：`$env:AIO_E2E_FFMPEG_MEDIA = "<绝对路径视频>"`，再执行 `bun run test:tauri:e2e -- --native --spec tests/tauri-e2e/specs/ffmpeg-workbench.spec.ts`。前置需 debug 二进制（`cargo build --manifest-path src-tauri/Cargo.toml`）、.NET 8 与已解锁的交互桌面。
 - 修复：Windows 原生文件选择器 helper（`tests/windows-ui-automation/AioHub.NativeUi/Program.cs`）改为把绝对路径直接写入文件名输入框并确认，避免地址栏面包屑在记住历史目录时点中片段而无法进入编辑态。
+- 修复：「待处理文件」卡片内容被同容器内的 overlay `DropZone` 覆盖。原因是 `DropZone` 在 `overlay` 模式下仍套用了默认变体样式（不透明 `background-color` + 虚线边框），压住了下方的文件名/路径/元数据，只剩 z-index 更高的「更换」可见。已在 `DropZone.vue` 中让 overlay 模式不再应用变体 chrome，并在 E2E 用 `elementFromPoint` 断言文件卡内容没有被遮挡。
 
 ### 文档同步
 

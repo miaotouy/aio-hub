@@ -66,6 +66,8 @@ export interface MediaMetadata {
   hasAudio: boolean;
   size?: number;
   format?: string;
+  audioCodec?: string;
+  videoCodec?: string;
 }
 
 export interface FFProbeStream {
@@ -135,4 +137,5 @@ export interface FFmpegParams {
   customArgs?: string[];
   maxSizeMb?: number; // 仍然保留用于自动计算
   appendParamsToName?: boolean; // 是否将参数信息附加到文件名末尾
+  container?: string; // 输出容器扩展名，auto/undefined 时按模式推导
 }

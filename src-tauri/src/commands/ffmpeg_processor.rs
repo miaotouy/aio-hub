@@ -76,6 +76,8 @@ pub struct MediaMetadata {
     pub height: Option<u32>,
     pub has_audio: bool,
     pub size: u64,
+    pub audio_codec: Option<String>,
+    pub video_codec: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -198,6 +200,8 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> MediaMetadat
         height: None,
         has_audio: false,
         size: 0,
+        audio_codec: None,
+        video_codec: None,
     };
 
     if let Ok(m) = std::fs::metadata(input_path) {
@@ -227,6 +231,11 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> MediaMetadat
     }
 
     if let Some(pos) = stderr.find("Video: ") {
+        let codec_rest = &stderr[pos + "Video: ".len()..];
+        if let Some(codec) = codec_rest.split_whitespace().next() {
+            metadata.video_codec = Some(codec.to_string());
+        }
+
         let rest = &stderr[pos..];
         for part in rest.split(',') {
             let part = part.trim();
@@ -250,8 +259,12 @@ async fn get_video_metadata(ffmpeg_path: &str, input_path: &str) -> MediaMetadat
         }
     }
 
-    if stderr.contains("Audio: ") {
+    if let Some(pos) = stderr.find("Audio: ") {
         metadata.has_audio = true;
+        let rest = &stderr[pos + "Audio: ".len()..];
+        if let Some(codec) = rest.split_whitespace().next() {
+            metadata.audio_codec = Some(codec.to_string());
+        }
     }
 
     metadata

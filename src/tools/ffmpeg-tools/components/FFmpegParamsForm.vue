@@ -29,6 +29,21 @@
       </el-radio-group>
     </el-form-item>
 
+    <el-form-item
+      v-if="params.mode !== 'custom'"
+      label="输出容器"
+      class="container-select"
+    >
+      <el-select v-model="container" placeholder="自动">
+        <el-option
+          v-for="option in containerOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
+    </el-form-item>
+
     <!-- 自定义命令模式 -->
     <template v-if="params.mode === 'custom'">
       <el-divider content-position="left">自定义命令</el-divider>
@@ -356,6 +371,43 @@ const qualityPreset = ref("medium");
 const KEEP_ORIGINAL_RESOLUTION = "__keep_original_resolution__";
 const lastQuickMode = ref<Exclude<ProcessingMode, "custom">>("video");
 
+const VIDEO_CONTAINER_OPTIONS: PresetOption[] = [
+  { label: "自动", value: "auto" },
+  { label: "MP4", value: "mp4" },
+  { label: "MKV", value: "mkv" },
+  { label: "MOV", value: "mov" },
+  { label: "WebM", value: "webm" },
+  { label: "AVI", value: "avi" },
+  { label: "M4A", value: "m4a" },
+  { label: "MP3", value: "mp3" },
+  { label: "FLAC", value: "flac" },
+  { label: "WAV", value: "wav" },
+  { label: "OGG", value: "ogg" },
+  { label: "GIF", value: "gif" },
+];
+
+const AUDIO_CONTAINER_OPTIONS: PresetOption[] = [
+  { label: "自动", value: "auto" },
+  { label: "M4A", value: "m4a" },
+  { label: "MP3", value: "mp3" },
+  { label: "FLAC", value: "flac" },
+  { label: "WAV", value: "wav" },
+  { label: "OGG", value: "ogg" },
+];
+
+const container = computed({
+  get: () => props.params.container || "auto",
+  set: (value: string) => {
+    props.params.container = value === "auto" ? undefined : value;
+  },
+});
+
+const containerOptions = computed<PresetOption[]>(() =>
+  props.params.mode === "extract_audio"
+    ? AUDIO_CONTAINER_OPTIONS
+    : VIDEO_CONTAINER_OPTIONS
+);
+
 const inferStrategyFromParams = (): QualityStrategy => {
   if (props.params.maxSizeMb) return "size";
   if (props.params.videoBitrate) return "bitrate";
@@ -507,6 +559,8 @@ watch(
   (mode) => {
     if (mode !== "custom") {
       lastQuickMode.value = mode;
+    } else {
+      props.params.container = undefined;
     }
 
     if (mode === "convert") {
@@ -573,6 +627,10 @@ watch(
 
 .mode-select {
   margin-bottom: 16px;
+}
+
+.container-select :deep(.el-select) {
+  width: 100%;
 }
 
 .mode-group {

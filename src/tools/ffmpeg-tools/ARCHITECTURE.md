@@ -21,6 +21,7 @@ src/tools/ffmpeg-tools/
 │   └── useFFmpegCore.ts        # 核心逻辑封装：调用 Rust 命令、监听全局事件
 ├── utils/
 │   ├── executionPlan.ts        # 唯一执行计划：argv、质量/编码器策略与终端格式化
+│   ├── naming.ts               # 自动命名与输出容器推导（纯逻辑）
 │   ├── args.ts                 # 命令文本解析与序列化（引号、转义、PowerShell 引用）
 │   └── persistence.ts          # 持久化逻辑（配置/任务/预设的存储）
 ├── ffmpegStore.ts              # Pinia 状态中心：管理任务队列、配置和预设
@@ -108,6 +109,8 @@ graph TD
 
 质量参数按编码器选择：NVENC 使用 `-cq`，QSV 使用 `-global_quality`，VP9/软件编码使用 `-crf`；preset 在 NVENC 下映射为 `p1..p7`。目标体积模式在有源时长时换算 `-b:v`。
 
+输出命名与容器由 `utils/naming.ts` 统一处理：自动名称基于输入文件名、`FFmpegParams` 与 `MediaMetadata`（含 `audioCodec`/`videoCodec`）推导，`appendParamsToName` 时后缀使用实际质量标签（如 `cq23`）；`container` 字段可显式指定输出容器，未指定时按处理模式、自定义 `-f` 与源编码推导扩展名。用户手动改名后不再被参数变化覆盖，提交时对同路径、已存在文件与路径占用做校验。
+
 ## 6. 处理模式与参数逻辑
 
 | 模式           | 逻辑实现                                          | 应用场景                       |
@@ -123,4 +126,4 @@ graph TD
 - 毫秒级的进度更新和流式日志输出。
 - 进程异常退出捕捉。
 - 应用重启时自动清理旧任务状态（将 `processing` 标记为 `cancelled`）。
-- 适配 AIO Hub 的毛玻璃外观系统，支持拖拽多文件批量导入。
+- 适配 AIO Hub 的毛玻璃外观系统；当前工作台为单文件模式，拖入多个文件时仅取第一个。

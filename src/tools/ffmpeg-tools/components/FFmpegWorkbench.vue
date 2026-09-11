@@ -44,6 +44,26 @@
                 @save-as-preset="triggerSaveAsPreset"
               />
 
+              <div class="output-name-row">
+                <span class="output-name-label">输出文件名</span>
+                <el-input
+                  v-model="outputName"
+                  size="small"
+                  placeholder="输出文件名"
+                  @input="outputNameCustomized = true"
+                  @blur="outputName = sanitizeOutputName(outputName)"
+                />
+                <el-button
+                  v-if="outputNameCustomized"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="restoreAutoName"
+                >
+                  恢复自动命名
+                </el-button>
+              </div>
+
               <div class="command-preview">
                 <div class="preview-header">
                   <span>FFmpeg 指令预览</span>
@@ -64,16 +84,19 @@
                 <div class="command-content">
                   <code>{{ generatedCommand }}</code>
                 </div>
+                <el-alert
+                  v-if="containerWarning"
+                  :title="containerWarning"
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  class="container-warning"
+                />
               </div>
             </div>
 
             <div class="submit-area">
-              <el-button
-                v-if="isStopping"
-                type="danger"
-                size="large"
-                disabled
-              >
+              <el-button v-if="isStopping" type="danger" size="large" disabled>
                 <el-icon><Loader2 /></el-icon>
                 <span>停止中</span>
               </el-button>
@@ -263,8 +286,8 @@ import FFmpegPresetManager from "./FFmpegPresetManager.vue";
 
 import FFmpegConsole from "./FFmpegConsole.vue";
 import MediaInfoDialog from "./MediaInfoDialog.vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { basename, extname, dirname, join } from "@tauri-apps/api/path";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { basename, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { MediaMetadata, FFmpegParams } from "../types";
@@ -272,11 +295,23 @@ import {
   buildExecutionPlan,
   formatPlanCommand,
   formatPowerShellCommand,
-  resolveVideoQuality,
 } from "../utils/executionPlan";
 import type { FFmpegExecutionPlan } from "../utils/executionPlan";
+import {
+  splitFileName,
+  buildAutoOutputName,
+  resolveContainer,
+  containerCompatibilityWarning,
+  detectCustomFormatArg,
+  sanitizeOutputName,
+  makeUniqueName,
+} from "../utils/naming";
 import { applyPresetParams } from "../utils/preset";
-import { isCancellationError, isTerminalStatus } from "../utils/lifecycle";
+import {
+  isCancellationError,
+  isTerminalStatus,
+  normalizeOutputPathKey,
+} from "../utils/lifecycle";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useFFmpegStore();
@@ -294,6 +329,8 @@ const fileName = ref("");
 const currentFileUrl = ref("");
 const metadata = ref<MediaMetadata | null>(null);
 const outputName = ref("");
+const outputNameCustomized = ref(false);
+const fileLoadToken = ref(0);
 const activeRightTab = ref("preview");
 const lastTaskId = ref("");
 const isProfessional = ref(false);
@@ -343,6 +380,32 @@ const currentPlan = computed<FFmpegExecutionPlan>(() =>
 
 const generatedCommand = computed(() => formatPlanCommand(currentPlan.value));
 
+const namingContext = computed(() => ({
+  inputFileName: fileName.value,
+  sourceContainer: splitFileName(fileName.value).ext || undefined,
+  sourceAudioCodec: metadata.value?.audioCodec,
+  sourceVideoCodec: metadata.value?.videoCodec,
+}));
+
+const containerWarning = computed<string | null>(() => {
+  if (params.mode === "custom") {
+    const format = detectCustomFormatArg(params.customArgs);
+    if (!format) return null;
+    const { ext } = splitFileName(outputName.value);
+    if (
+      ext &&
+      ext.toLowerCase() !== resolveContainer(params, namingContext.value)
+    ) {
+      return "自定义 -f 与输出后缀不一致，请确认输出容器";
+    }
+    return null;
+  }
+  return containerCompatibilityWarning(
+    params,
+    resolveContainer(params, namingContext.value)
+  );
+});
+
 const copyPowerShellCommand = async () => {
   const text = formatPowerShellCommand(currentPlan.value);
   try {
@@ -360,68 +423,6 @@ const copyPowerShellCommand = async () => {
 const isMaybeVideo = computed(() => {
   const videoExts = [".mp4", ".mkv", ".avi", ".mov", ".webm"];
   return videoExts.some((ext) => fileName.value.toLowerCase().endsWith(ext));
-});
-
-const paramsSuffix = computed(() => {
-  if (!params.appendParamsToName) return "";
-
-  const tags: string[] = [];
-
-  if (params.mode === "extract_audio" || params.videoEncoder === "none") {
-    tags.push("audio_only");
-    if (params.audioEncoder && params.audioEncoder !== "none") {
-      tags.push(params.audioEncoder.replace("lib", ""));
-    }
-    if (params.audioBitrate) tags.push(params.audioBitrate);
-  } else if (params.mode === "video" || params.mode === "convert") {
-    // 视频编码器
-    if (params.videoEncoder === "none") {
-      tags.push("no_video");
-    } else if (params.videoEncoder) {
-      tags.push(params.videoEncoder.replace("lib", ""));
-    }
-
-    // 质量/码率
-    if (params.crf !== undefined) {
-      const encoder = params.videoEncoder || "libx264";
-      const label = resolveVideoQuality(encoder).label;
-      tags.push(`${label}${params.crf}`);
-    } else if (params.videoBitrate) {
-      tags.push(params.videoBitrate);
-    }
-
-    // 分辨率
-    if (params.scale) {
-      const scaleMatch = params.scale.match(/scale=(\d+):/);
-      if (scaleMatch) {
-        const width = scaleMatch[1];
-        const heightMap: Record<string, string> = {
-          "3840": "4K",
-          "2560": "2K",
-          "1920": "1080p",
-          "1280": "720p",
-          "854": "480p",
-        };
-        tags.push(heightMap[width] || `${width}w`);
-      }
-    }
-
-    // 帧率
-    if (params.fps) {
-      tags.push(`${params.fps}fps`);
-    }
-
-    // 音频 (如果是视频模式且不是 copy)
-    if (params.mode === "video" || params.mode === "convert") {
-      if (params.audioEncoder === "none") {
-        tags.push("muted");
-      } else if (params.audioEncoder && params.audioEncoder !== "copy") {
-        tags.push(params.audioEncoder.replace("lib", ""));
-      }
-    }
-  }
-
-  return tags.length > 0 ? `_${tags.join("_")}` : "";
 });
 
 const handleManualSelect = async () => {
@@ -442,17 +443,28 @@ const handleManualSelect = async () => {
 const handleFileDrop = async (paths: string[]) => {
   if (paths.length === 0) return;
   const path = paths[0];
+  const token = ++fileLoadToken.value;
+
+  const name = await basename(path);
+  if (token !== fileLoadToken.value) return;
+
+  const meta = await getMetadata(path);
+  if (token !== fileLoadToken.value) return;
+
   currentFilePath.value = path;
   currentFileUrl.value = convertFileSrc(path);
   params.inputPath = path;
-
-  const name = await basename(path);
   fileName.value = name;
-  const ext = await extname(path);
-  const nameWithoutExt = name.substring(0, name.lastIndexOf("."));
-  outputName.value = `${nameWithoutExt}_processed.${ext}`;
+  metadata.value = meta;
+  outputNameCustomized.value = false;
+  outputName.value = buildAutoOutputName(params, namingContext.value);
+};
 
-  metadata.value = await getMetadata(path);
+const restoreAutoName = () => {
+  outputNameCustomized.value = false;
+  if (currentFilePath.value) {
+    outputName.value = buildAutoOutputName(params, namingContext.value);
+  }
 };
 
 const showFullMediaInfo = () => {
@@ -466,6 +478,8 @@ const reset = () => {
   fileName.value = "";
   currentFileUrl.value = "";
   metadata.value = null;
+  outputName.value = "";
+  outputNameCustomized.value = false;
   lastTaskId.value = "";
   activeTaskId.value = "";
   isStopping.value = false;
@@ -496,6 +510,27 @@ const formatSize = (bytes?: number | string) => {
   return `${mb.toFixed(2)} MiB`;
 };
 
+const resolveUniqueOutputName = async (inputDir: string): Promise<string> => {
+  const original = outputName.value;
+  const { base, ext } = splitFileName(original);
+  const extSuffix = ext ? `.${ext}` : "";
+  const candidates = [original];
+  for (let i = 1; i <= 100; i++) {
+    candidates.push(`${base}_${i}${extSuffix}`);
+  }
+
+  const taken = new Map<string, boolean>();
+  for (const candidate of candidates) {
+    const isTaken = await invoke<boolean>("path_exists", {
+      path: await join(inputDir, candidate),
+    });
+    taken.set(candidate, isTaken);
+    if (!isTaken) break;
+  }
+
+  return makeUniqueName(original, (candidate) => taken.get(candidate) ?? true);
+};
+
 const submitTask = async () => {
   if (isSubmitting.value || activeTask.value) return;
   if (!currentFilePath.value) return;
@@ -506,7 +541,34 @@ const submitTask = async () => {
 
   try {
     const inputDir = await dirname(currentFilePath.value);
-    const outputPath = await join(inputDir, outputName.value);
+    let outputPath = await join(inputDir, outputName.value);
+
+    if (
+      normalizeOutputPathKey(currentFilePath.value) ===
+      normalizeOutputPathKey(outputPath)
+    ) {
+      customMessage.error("输出路径不能与输入文件相同");
+      return;
+    }
+
+    if (await invoke<boolean>("path_exists", { path: outputPath })) {
+      if (outputNameCustomized.value) {
+        try {
+          const { ElMessageBox } = await import("element-plus");
+          await ElMessageBox.confirm("输出文件已存在，是否覆盖？", "确认覆盖", {
+            lockScroll: false,
+            type: "warning",
+          });
+        } catch {
+          return;
+        }
+      } else {
+        const unique = await resolveUniqueOutputName(inputDir);
+        outputName.value = unique;
+        outputPath = await join(inputDir, unique);
+      }
+    }
+
     const ffmpegPath = activeFfmpegPath.value;
 
     plan = buildExecutionPlan(
@@ -609,6 +671,7 @@ const handleSaveAsPreset = (name: string, description: string) => {
     preset: params.preset,
     crf: params.crf,
     qualityMode: params.qualityMode,
+    container: params.container,
     videoBitrate: params.videoBitrate,
     scale: params.scale,
     fps: params.fps,
@@ -624,41 +687,33 @@ const handleSaveAsPreset = (name: string, description: string) => {
   store.saveAsPreset(name, description, snapshot);
 };
 
-// 自动更新输出文件名逻辑
+// 自动更新输出文件名逻辑，手动命名后不再覆盖
 watch(
   [
     () => params.mode,
-    () => params.audioEncoder,
+    () => params.container,
     () => params.videoEncoder,
+    () => params.preset,
     () => params.crf,
+    () => params.qualityMode,
     () => params.videoBitrate,
+    () => params.maxSizeMb,
     () => params.scale,
     () => params.fps,
     () => params.appendParamsToName,
+    () => params.audioEncoder,
+    () => params.audioBitrate,
+    () => params.sampleRate,
+    () => params.audioChannels,
+    () => namingContext.value,
+    () => currentFilePath.value,
   ],
-  async () => {
-    if (!currentFilePath.value) return;
-    const nameWithoutExt = fileName.value.substring(
-      0,
-      fileName.value.lastIndexOf(".")
-    );
-    const originalExt = await extname(currentFilePath.value);
-
-    const suffix = paramsSuffix.value;
-
-    if (params.mode === "extract_audio" || params.videoEncoder === "none") {
-      const extMap: Record<string, string> = {
-        aac: "m4a",
-        libmp3lame: "mp3",
-        flac: "flac",
-        libopus: "opus",
-      };
-      outputName.value = `${nameWithoutExt}${suffix}.${extMap[params.audioEncoder || ""] || "m4a"}`;
-    } else {
-      const baseSuffix = suffix || "_processed";
-      outputName.value = `${nameWithoutExt}${baseSuffix}.${originalExt}`;
+  () => {
+    if (!outputNameCustomized.value && currentFilePath.value) {
+      outputName.value = buildAutoOutputName(params, namingContext.value);
     }
-  }
+  },
+  { immediate: true }
 );
 </script>
 
@@ -891,8 +946,26 @@ watch(
   margin-left: 8px;
 }
 
+.output-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.output-name-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color-light);
+}
+
+.container-warning {
+  margin-top: 12px;
+}
+
 .command-preview {
-  margin-top: 24px;
+  margin-top: 16px;
   background: var(--input-bg);
   border-radius: 8px;
   padding: 12px;

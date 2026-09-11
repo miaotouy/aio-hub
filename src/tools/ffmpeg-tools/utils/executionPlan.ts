@@ -95,12 +95,22 @@ function getContainerExtension(outputPath: string): string {
   return base.slice(dot + 1).toLowerCase();
 }
 
-function supportsFaststart(outputPath: string): boolean {
-  const ext = getContainerExtension(outputPath);
+function supportsFaststartExtension(ext: string): boolean {
   if (!ext) return true;
   if (NON_FASTSTART_CONTAINERS.has(ext)) return false;
   if (FASTSTART_CONTAINERS.has(ext)) return true;
   return true;
+}
+
+function resolveFaststartExtension(
+  params: FFmpegParams,
+  outputPath: string
+): string {
+  const explicit = params.container?.trim();
+  if (explicit && explicit.toLowerCase() !== "auto") {
+    return explicit.replace(/^\./, "").toLowerCase();
+  }
+  return getContainerExtension(outputPath);
 }
 
 /**
@@ -247,7 +257,10 @@ export function buildOutputArgs(
     }
   }
 
-  if (mode !== "extract_audio" && supportsFaststart(outputPath)) {
+  if (
+    mode !== "extract_audio" &&
+    supportsFaststartExtension(resolveFaststartExtension(params, outputPath))
+  ) {
     args.push("-movflags", "+faststart");
   }
 

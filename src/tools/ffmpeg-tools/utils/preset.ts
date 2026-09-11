@@ -21,6 +21,7 @@ const presetParamKeys = [
   "preset",
   "crf",
   "qualityMode",
+  "container",
   "videoBitrate",
   "scale",
   "fps",

@@ -75,7 +75,22 @@
           <el-button :icon="ZoomIn" circle size="small" @click="zoomIn" />
         </el-tooltip>
         <el-tooltip content="适应宽度">
-          <el-button :icon="Maximize" circle size="small" @click="fitWidth" />
+          <el-button
+            :icon="MoveHorizontal"
+            :type="autoFit && fitAxis === 'width' ? 'primary' : 'default'"
+            circle
+            size="small"
+            @click="fitWidth"
+          />
+        </el-tooltip>
+        <el-tooltip content="适应高度">
+          <el-button
+            :icon="MoveVertical"
+            :type="autoFit && fitAxis === 'height' ? 'primary' : 'default'"
+            circle
+            size="small"
+            @click="fitHeight"
+          />
         </el-tooltip>
       </div>
 
@@ -217,7 +232,8 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Maximize,
+  MoveHorizontal,
+  MoveVertical,
   RotateCw,
   Download,
   Printer,
@@ -279,7 +295,8 @@ defineExpose({
 });
 const viewMode = ref<"single" | "scroll">("single");
 const pdfDocument = shallowRef<any>(null); // 存储 PDF 文档对象，使用 shallowRef 避免 Proxy 导致私有字段访问错误
-const autoFit = ref(true); // 是否自动适应宽度
+const autoFit = ref(true); // 是否自动适应容器
+const fitAxis = ref<"width" | "height">("width"); // 自动适应的方向
 const hasEnteredScrollMode = ref(false); // 标记是否进入过滚动模式，用于延迟渲染
 
 // --- Computed ---
@@ -494,40 +511,63 @@ function updatePdfWidth() {
   }
 }
 
-async function fitWidth() {
+/**
+ * 根据 autoFit 的方向重新计算缩放比例
+ */
+async function applyFit() {
   if (!containerRef.value || !pdfDocument.value || baseWidth.value === 0)
     return;
 
-  // 标记为自动适应模式
-  autoFit.value = true;
-
   try {
-    // 获取当前页面的视口信息（默认获取第1页或当前页）
+    // 获取当前页面的视口信息
     const page = await pdfDocument.value.getPage(currentPage.value || 1);
     const viewport = page.getViewport({ scale: 1 });
 
     // 考虑旋转因素 (CSS transform)
-    // 如果旋转了 90 或 270 度，视觉上的宽度其实是页面的高度
+    // 如果旋转了 90 或 270 度，视觉上的宽高会对调
     const isVertical = rotation.value % 180 === 0;
     const contentWidth = isVertical ? viewport.width : viewport.height;
+    const contentHeight = isVertical ? viewport.height : viewport.width;
 
-    if (contentWidth > 0) {
-      // 获取容器宽度，减去一些 padding (20px * 2)
-      const containerWidth = containerRef.value.clientWidth - 40;
-      // 计算目标缩放比例
-      const newScale = containerWidth / contentWidth;
+    // 容器两侧各留 20px padding
+    const padding = 40;
 
-      // 设置缩放比例（保留2位小数，防止精度问题）
-      scale.value = Number(newScale.toFixed(2));
-      pdfWidth.value = containerWidth;
+    let newScale: number;
+    if (fitAxis.value === "height") {
+      const containerHeight = containerRef.value.clientHeight - padding;
+      if (containerHeight <= 0 || contentHeight <= 0) return;
+      newScale = containerHeight / contentHeight;
+    } else {
+      const containerWidth = containerRef.value.clientWidth - padding;
+      if (containerWidth <= 0 || contentWidth <= 0) return;
+      newScale = containerWidth / contentWidth;
     }
+
+    // 设置缩放比例（保留2位小数，防止精度问题）
+    scale.value = Number(newScale.toFixed(2));
+    pdfWidth.value = viewport.width * scale.value;
   } catch (error) {
-    logger.error("计算自适应宽度失败", error as Error);
+    logger.error("计算自适应尺寸失败", error as Error);
   }
+}
+
+async function fitWidth() {
+  autoFit.value = true;
+  fitAxis.value = "width";
+  await applyFit();
+}
+
+async function fitHeight() {
+  autoFit.value = true;
+  fitAxis.value = "height";
+  await applyFit();
 }
 
 function rotate() {
   rotation.value = (rotation.value + 90) % 360;
+  if (autoFit.value) {
+    nextTick(() => applyFit());
+  }
 }
 
 /**
@@ -666,14 +706,14 @@ async function printPdf() {
   }
 }
 
-// 监听容器大小变化，自动调整宽度
-const debouncedFitWidth = useDebounceFn(() => {
+// 监听容器大小变化，自动调整尺寸
+const debouncedFit = useDebounceFn(() => {
   if (autoFit.value) {
-    fitWidth();
+    applyFit();
   }
 }, 200);
 
-useResizeObserver(containerRef, debouncedFitWidth);
+useResizeObserver(containerRef, debouncedFit);
 
 // 监听 content 变化，重置状态
 watch(
@@ -858,12 +898,61 @@ watch(currentPage, (newPage) => {
   text-align: center;
 }
 
+.pdf-main-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.outline-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: var(--border-width) solid var(--border-color);
+  background-color: var(--card-bg);
+
+  :deep(.el-scrollbar) {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.outline-tree {
+  padding: 8px;
+}
+
+.outline-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.outline-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-page {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .pdf-container {
   flex-grow: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 20px;
   display: flex;
-  justify-content: center;
   align-items: flex-start;
   background-color: var(--vscode-editor-background);
 
@@ -888,8 +977,8 @@ watch(currentPage, (newPage) => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   background-color: white; /* PDF 背景通常是白色 */
   width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
+  flex-shrink: 0; /* 内容超出容器时不被压缩，保证可以滚动 */
+  margin: 0 auto; /* 使用 auto margin 居中，溢出时自动回退到起始位置 */
 }
 
 /* 覆盖 vue-pdf-embed 的一些默认样式 */

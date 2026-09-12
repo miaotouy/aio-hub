@@ -122,9 +122,11 @@
               :src="videoUrl"
               v-model:roi="roi"
               :aspect-locked="roiAspectLocked"
+              :mask-opacity="maskOpacity"
               :video-width="source.width"
               :video-height="source.height"
               :fps="source.fps ?? 30"
+              :roi-locked="isBusy"
               @timeupdate="currentTimeMs = $event"
               @set-range-start="onSetRangeStart"
               @set-range-end="onSetRangeEnd"
@@ -136,25 +138,51 @@
             :capture="captureVideoSource"
             :get-rect="videoRect"
             :refresh-key="JSON.stringify(roi)"
+            show-apply-actions
+            :can-apply="!!activeSubtitle"
+            @apply-text="onPreviewApplyText"
+            @insert-text="onPreviewInsertText"
           />
         </div>
 
         <div class="video-workbench__inspector">
           <el-tabs v-model="inspectorTab" class="inspector-tabs">
             <el-tab-pane label="识别设置" name="settings">
-              <MonitorConfig class="inspector-config" />
-              <RoiNumberPanel
-                v-model="roi"
-                v-model:aspect-locked="roiAspectLocked"
-                :video-width="source.width"
-                :video-height="source.height"
-              />
+              <div class="inspector-settings" :class="{ 'is-locked': isBusy }">
+                <div v-if="isBusy" class="inspector-settings__lock">
+                  <Lock :size="12" />
+                  <span>识别进行中，参数已锁定</span>
+                </div>
+                <div class="inspector-settings__body" :inert="isBusy">
+                  <MonitorConfig class="inspector-config" />
+                  <div class="roi-mask-control">
+                    <span>ROI 外遮罩</span
+                    ><el-slider
+                      v-model="maskOpacity"
+                      :min="0"
+                      :max="0.9"
+                      :step="0.05"
+                      show-input
+                      size="small"
+                    /><span class="roi-mask-control__value"
+                      >{{ Math.round(maskOpacity * 100) }}%</span
+                    >
+                  </div>
+                  <RoiNumberPanel
+                    v-model="roi"
+                    v-model:aspect-locked="roiAspectLocked"
+                    :video-width="source.width"
+                    :video-height="source.height"
+                  />
+                </div>
+              </div>
             </el-tab-pane>
             <el-tab-pane label="字幕编辑" name="subtitle">
               <ActiveSubtitleEditor
                 :active-subtitle="activeSubtitle"
                 :active-subtitle-index="activeIndex"
                 @update-text="onUpdateSubtitleText"
+                @finish="onEditorFinish"
               />
             </el-tab-pane>
           </el-tabs>
@@ -164,20 +192,49 @@
       <div
         v-else
         class="video-workbench__empty"
-        data-testid="rsocr-dropzone"
+        data-testid="rsocr-empty-workbench"
       >
-        <DropZone
-          :accept="videoExtensions"
-          :multiple="false"
-          file-only
-          clickable
-          click-zone
-          variant="border"
-          placeholder="拖入视频文件，或点击选择"
-          drag-overlay-text="松开以加载视频"
-          @drop="onVideoDrop"
-          @error="onError"
-        />
+        <div class="empty-monitor" aria-label="视频监视器预览">
+          <div class="empty-monitor__topbar">
+            <span>SOURCE MONITOR</span
+            ><span class="empty-monitor__status">NO MEDIA</span>
+          </div>
+          <div class="empty-monitor__stage">
+            <div class="empty-monitor__crosshair"></div>
+            <div class="empty-monitor__message">
+              <div class="empty-monitor__glyph">+</div>
+              <strong>载入素材开始工作</strong>
+              <span>视频会显示在这里，随后可定位、裁剪 ROI 和预览滤镜</span>
+              <DropZone
+                data-testid="rsocr-dropzone"
+                :accept="videoExtensions"
+                :multiple="false"
+                file-only
+                clickable
+                variant="border"
+                placeholder="拖入视频文件，或点击选择"
+                drag-overlay-text="松开以加载视频"
+                @drop="onVideoDrop"
+                @error="onError"
+              />
+            </div>
+          </div>
+          <div class="empty-monitor__controls">
+            <span class="skeleton skeleton--time"></span
+            ><span class="skeleton skeleton--line"></span
+            ><span class="skeleton skeleton--short"></span>
+          </div>
+        </div>
+        <aside class="empty-inspector" aria-label="检查器预览">
+          <div class="empty-inspector__tabs">
+            <span class="is-active">识别设置</span><span>字幕编辑</span>
+          </div>
+          <div class="empty-inspector__body">
+            <span class="empty-inspector__eyebrow">WORKBENCH INSPECTOR</span
+            ><strong>素材载入后可用</strong
+            ><span>引擎、滤镜、识别区域和字幕属性会集中在这里。</span>
+          </div>
+        </aside>
       </div>
     </div>
 
@@ -249,6 +306,7 @@ import {
   Download,
   FolderOpen,
   List,
+  Lock,
   Play,
   Square,
 } from "lucide-vue-next";
@@ -264,7 +322,10 @@ import ActiveSubtitleEditor from "../ActiveSubtitleEditor.vue";
 import TimelineEditor from "./timeline/TimelineEditor.vue";
 import SubtitleTimeline from "../SubtitleTimeline.vue";
 import { useVideoSubtitleOcr } from "../../composables/useVideoSubtitleOcr";
-import { useScreenMonitor, useSubtitleTimeline } from "../../composables/useScreenMonitor";
+import {
+  useScreenMonitor,
+  useSubtitleTimeline,
+} from "../../composables/useScreenMonitor";
 import { videoRoiToPixels } from "../../utils/video";
 import type { CaptureSource } from "../../utils/frameCapture";
 import type { SubtitleEntry } from "../../types";
@@ -280,8 +341,16 @@ const videoExtensions = [
 ];
 
 const video = useVideoSubtitleOcr();
-const { source, roi, startMs, endMs, status, progress, ffmpegAvailable, canStart } =
-  video;
+const {
+  source,
+  roi,
+  startMs,
+  endMs,
+  status,
+  progress,
+  ffmpegAvailable,
+  canStart,
+} = video;
 const screen = useScreenMonitor();
 const { subtitles } = screen;
 const timeline = useSubtitleTimeline();
@@ -293,6 +362,7 @@ const selectedId = ref<string | null>(null);
 const inspectorTab = ref("settings");
 const showList = ref(false);
 const roiAspectLocked = ref(false);
+const maskOpacity = ref(0.5);
 
 const { sendToChat } = useSendToChat();
 
@@ -460,6 +530,39 @@ function onMergeSubtitles(ids: string[]) {
 
 function onUpdateSubtitleText(id: string, text: string) {
   screen.updateSubtitleText(id, text);
+}
+
+/** 试识别结果填入当前选中/活动字幕。 */
+function onPreviewApplyText(text: string) {
+  if (!activeSubtitle.value) {
+    customMessage.warning("请先选择一条字幕");
+    return;
+  }
+  screen.updateSubtitleText(activeSubtitle.value.id, text);
+  customMessage.success("已填入当前字幕");
+}
+
+/** 试识别结果在播放头处新增一条字幕。 */
+function onPreviewInsertText(text: string) {
+  const at = Math.round(currentTimeMs.value);
+  const duration = source.value?.durationMs ?? at + 2000;
+  const id = `subtitle-manual-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  timeline.addSubtitle({
+    id,
+    text,
+    startMs: at,
+    endMs: Math.max(at + 1, Math.min(duration, at + 2000)),
+    status: "done",
+  });
+  selectedId.value = id;
+  customMessage.success("已在播放头处新增字幕");
+}
+
+/** 编辑器保存/失焦后把键盘焦点交还监视器，恢复空格等快捷键。 */
+function onEditorFinish() {
+  monitorRef.value?.focus();
 }
 
 function onExportSrt() {
@@ -665,16 +768,194 @@ watch(
 .inspector-config :deep(.monitor-config) {
   justify-content: flex-start;
 }
+.inspector-settings__body {
+  transition: opacity 0.2s ease;
+}
+.inspector-settings.is-locked .inspector-settings__body {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.inspector-settings__lock {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(var(--el-color-warning-rgb), 0.15);
+  color: var(--el-color-warning);
+  font-size: 11px;
+}
 .video-workbench__empty {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 10px;
   min-height: 240px;
 }
-.video-workbench__empty :deep(.drop-zone) {
-  width: 100%;
+.empty-monitor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #101214;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+}
+.empty-monitor__topbar,
+.empty-monitor__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 30px;
+  padding: 0 12px;
+  color: var(--el-text-color-secondary);
+  background: #17191c;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.empty-monitor__status {
+  margin-left: auto;
+  color: #c98b4b;
+}
+.empty-monitor__stage {
+  position: relative;
+  flex: 1;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(
+    circle at center,
+    #20252a 0,
+    #15181b 42%,
+    #0d0f11 100%
+  );
+}
+.empty-monitor__stage::before,
+.empty-monitor__stage::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.05);
+}
+.empty-monitor__stage::before {
+  width: 1px;
   height: 100%;
+}
+.empty-monitor__stage::after {
+  width: 100%;
+  height: 1px;
+}
+.empty-monitor__crosshair {
+  position: absolute;
+  width: 18%;
+  aspect-ratio: 16 / 9;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+.empty-monitor__message {
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
+}
+.empty-monitor__message strong {
+  color: #e6e8eb;
+  font-size: 14px;
+  font-weight: 600;
+}
+.empty-monitor__message > span {
+  font-size: 12px;
+}
+.empty-monitor__glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  color: #d6a66c;
+  font-size: 24px;
+}
+.empty-monitor__message :deep(.drop-zone) {
+  width: min(360px, 80%);
+  min-height: 64px;
+  margin-top: 8px;
+}
+.empty-monitor__controls {
+  height: 36px;
+}
+.skeleton {
+  display: block;
+  height: 4px;
+  border-radius: 4px;
+  background: #343a40;
+}
+.skeleton--time {
+  width: 54px;
+}
+.skeleton--line {
+  flex: 1;
+}
+.skeleton--short {
+  width: 42px;
+}
+.empty-inspector {
+  width: 340px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+}
+@media (max-width: 900px) {
+  .video-workbench__empty {
+    flex-direction: column;
+  }
+  .empty-inspector {
+    width: auto;
+  }
+}
+.empty-inspector__tabs {
+  display: flex;
+  gap: 16px;
+  height: 40px;
+  align-items: end;
+  padding: 0 14px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.empty-inspector__tabs span {
+  padding-bottom: 10px;
+  white-space: nowrap;
+}
+.empty-inspector__tabs .is-active {
+  color: var(--el-color-primary);
+  border-bottom: 2px solid var(--el-color-primary);
+}
+.empty-inspector__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.empty-inspector__body strong {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+}
+.empty-inspector__eyebrow {
+  color: var(--el-text-color-placeholder);
+  font-size: 10px;
+  letter-spacing: 0.12em;
 }
 
 .video-workbench__timeline-wrap {
@@ -700,11 +981,31 @@ watch(
   height: 3px;
   border-radius: 1.5px;
   background: rgba(128, 128, 128, 0.4);
-  transition: background 0.2s, width 0.2s;
+  transition:
+    background 0.2s,
+    width 0.2s;
 }
 .resize-trigger-y:hover .resize-handle-line,
 .resize-trigger-y.is-resizing .resize-handle-line {
   background: var(--el-color-primary);
   width: 48px;
+}
+
+.roi-mask-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.roi-mask-control :deep(.el-slider) {
+  flex: 1;
+  min-width: 100px;
+}
+.roi-mask-control__value {
+  width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 </style>

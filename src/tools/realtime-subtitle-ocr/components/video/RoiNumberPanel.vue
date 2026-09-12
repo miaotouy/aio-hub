@@ -143,7 +143,9 @@ const pct = computed(() => ({
   height: (props.modelValue.height * 100).toFixed(1),
 }));
 
-function setPx(patch: Partial<{ x: number; y: number; width: number; height: number }>) {
+function setPx(
+  patch: Partial<{ x: number; y: number; width: number; height: number }>
+) {
   const next = { ...px.value, ...patch };
   if (
     !Number.isFinite(next.x) ||
@@ -181,14 +183,31 @@ function setPx(patch: Partial<{ x: number; y: number; width: number; height: num
 function applyPreset(preset: "bottom-line" | "bottom-two" | "full" | "reset") {
   switch (preset) {
     case "bottom-line":
-      emit("update:modelValue", { x: 0.08, y: 0.78, width: 0.84, height: 0.14 });
+      emit("update:modelValue", {
+        x: 0.08,
+        y: 0.78,
+        width: 0.84,
+        height: 0.14,
+      });
       break;
     case "bottom-two":
       emit("update:modelValue", { x: 0.05, y: 0.68, width: 0.9, height: 0.25 });
       break;
-    case "full":
-      emit("update:modelValue", { x: 0, y: 0, width: 1, height: 1 });
+    case "full": {
+      // 向内微缩 1px，避免 8 向手柄紧贴画面边缘后难以再次抓取。
+      const insetX = props.videoWidth > 0 ? 1 / props.videoWidth : 0;
+      const insetY = props.videoHeight > 0 ? 1 / props.videoHeight : 0;
+      emit(
+        "update:modelValue",
+        clampVideoRoi({
+          x: insetX,
+          y: insetY,
+          width: 1 - insetX * 2,
+          height: 1 - insetY * 2,
+        })
+      );
       break;
+    }
     case "reset":
       emit("update:modelValue", { x: 0.05, y: 0.68, width: 0.9, height: 0.25 });
       break;

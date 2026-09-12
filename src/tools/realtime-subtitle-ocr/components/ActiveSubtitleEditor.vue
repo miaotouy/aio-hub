@@ -28,6 +28,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update-text", id: string, text: string): void;
+  /** 编辑完成（保存或焦点移出编辑器），用于把键盘焦点交还监视器。 */
+  (e: "finish"): void;
 }>();
 
 const localSubtitleText = ref("");
@@ -63,10 +65,23 @@ function onEditorFocus() {
   isEditing.value = true;
 }
 
-function onEditorBlur() {
+/** 焦点落到其它输入类控件时不抢回监视器，避免打断连续调参。 */
+function shouldReturnFocus(related: HTMLElement | null): boolean {
+  if (!related) return true;
+  if (related.isContentEditable) return false;
+  const tag = related.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return false;
+  return !related.closest(
+    "button, [role='button'], .el-select, .el-input-number, .el-switch, .el-slider"
+  );
+}
+
+function onEditorBlur(event: FocusEvent) {
+  const related = (event.relatedTarget as HTMLElement | null) ?? null;
   // 延迟失焦，防止点击保存按钮时先触发失焦导致状态重置
   setTimeout(() => {
     isEditing.value = false;
+    if (shouldReturnFocus(related)) emit("finish");
   }, 200);
 }
 
@@ -76,6 +91,7 @@ function commitSubtitleEdit() {
   isEditing.value = false;
   lastActiveId = props.activeSubtitle.id; // 保持 ID 一致
   customMessage.success("字幕已保存");
+  emit("finish");
 }
 
 function formatTime(ms: number): string {

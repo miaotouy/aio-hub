@@ -21,8 +21,23 @@
       <span class="timeline-editor__time">{{
         formatTimecode(currentTimeMs)
       }}</span>
+      <label
+        class="timeline-editor__snap"
+        title="拖拽时吸附到字幕边缘 / 播放头 / 识别区间端点"
+      >
+        <el-switch
+          v-model="snapEnabled"
+          size="small"
+          data-testid="rsocr-timeline-snap"
+        />
+        <span>吸附</span>
+      </label>
       <div class="timeline-editor__zoom">
-        <el-button size="small" text @click="viewport.zoomBy(1 / 1.4, width / 2)">
+        <el-button
+          size="small"
+          text
+          @click="viewport.zoomBy(1 / 1.4, width / 2)"
+        >
           <ZoomOut :size="14" />
         </el-button>
         <el-button size="small" text @click="fitAll">适配全长</el-button>
@@ -35,6 +50,19 @@
     <div ref="hostRef" class="timeline-editor__canvas">
       <div ref="stageRef" class="timeline-editor__stage"></div>
       <div
+        v-if="dragTip.visible"
+        class="timeline-editor__drag-tip"
+        :style="{ left: `${dragTip.x}px`, top: `${RULER_H + 4}px` }"
+      >
+        <span class="timeline-editor__drag-tip-time">{{ dragTip.text }}</span>
+        <span
+          v-if="dragTip.delta !== null"
+          class="timeline-editor__drag-tip-delta"
+        >
+          {{ formatDelta(dragTip.delta) }}
+        </span>
+      </div>
+      <div
         v-if="contextMenu.visible"
         class="timeline-editor__context"
         :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
@@ -44,6 +72,7 @@
         <button type="button" @click="runContext('edit')">编辑</button>
         <button type="button" @click="runContext('split')">
           在播放头拆分
+          <kbd class="timeline-editor__kbd">Ctrl+K</kbd>
         </button>
         <button
           type="button"
@@ -61,13 +90,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
-import { useElementSize } from "@vueuse/core";
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
+import { useElementSize, useLocalStorage } from "@vueuse/core";
 import { ElButton } from "element-plus";
 import { ZoomIn, ZoomOut } from "lucide-vue-next";
 import Konva from "konva";
 import type { SubtitleEntry } from "../../../types";
 import { useTimelineViewport } from "../../../composables/useTimelineViewport";
+import { snapRange, snapValue } from "../../../utils/timelineSnap";
 
 const props = defineProps<{
   subtitles: SubtitleEntry[];
@@ -110,6 +147,69 @@ const contextMenu = reactive<{
 
 function hideContextMenu() {
   contextMenu.visible = false;
+}
+
+/** 拖拽时浮层提示：当前时间与吸附差量 */
+const dragTip = reactive<{
+  visible: boolean;
+  x: number;
+  text: string;
+  delta: number | null;
+}>({ visible: false, x: 0, text: "", delta: null });
+
+function hideDragTip() {
+  dragTip.visible = false;
+  dragTip.delta = null;
+}
+
+function showDragTip(ms: number, delta: number | null) {
+  const rawX = viewport.timeToX(ms);
+  const clampedX = Math.max(24, Math.min(width.value - 24, rawX));
+  dragTip.visible = true;
+  dragTip.x = clampedX;
+  dragTip.text = formatTimecode(ms);
+  dragTip.delta = delta;
+}
+
+function formatDelta(delta: number | null): string {
+  if (delta === null) return "";
+  const rounded = Math.round(delta);
+  return `${rounded >= 0 ? "+" : ""}${rounded}ms`;
+}
+
+const SNAP_SCREEN_PX = 7;
+
+/** 吸附开关由用户控制，关闭后拖拽完全自由，避免强制吸附。 */
+const snapEnabled = useLocalStorage("rsocr:timeline-snap", true);
+
+function snapThresholdMs(): number {
+  return (SNAP_SCREEN_PX / viewport.pxPerSecond.value) * 1000;
+}
+
+/** 按当前开关对单个时间值做吸附，返回吸附值与差量。 */
+function applySnap(
+  value: number,
+  targets: number[]
+): { value: number; delta: number | null } {
+  if (!snapEnabled.value) return { value, delta: null };
+  const result = snapValue(value, targets, snapThresholdMs());
+  return { value: result.value, delta: result.deltaMs };
+}
+
+/** 收集吸附目标：边界、播放头、识别区间端点与其它字幕边缘。 */
+function collectSnapTargets(excludeId?: string): number[] {
+  const targets = [
+    0,
+    props.durationMs,
+    props.currentTimeMs,
+    props.rangeStartMs,
+    props.rangeEndMs,
+  ];
+  for (const subtitle of props.subtitles) {
+    if (subtitle.id === excludeId) continue;
+    targets.push(subtitle.startMs, subtitle.endMs);
+  }
+  return targets;
 }
 
 const RULER_H = 22;
@@ -184,7 +284,10 @@ function drawRuler() {
   const step =
     TICK_STEPS.find((s) => s * pps >= 70) ?? TICK_STEPS[TICK_STEPS.length - 1];
   const stepMs = step * 1000;
-  const startMs = Math.max(0, Math.floor(viewport.xToTime(0) / stepMs) * stepMs);
+  const startMs = Math.max(
+    0,
+    Math.floor(viewport.xToTime(0) / stepMs) * stepMs
+  );
   const endMs = Math.min(props.durationMs, viewport.xToTime(w));
   for (let ms = startMs; ms <= endMs; ms += stepMs) {
     const x = viewport.timeToX(ms);
@@ -334,12 +437,7 @@ function fitAll() {
 
 // ===== 指针交互 =====
 type DragKind =
-  | "scrub"
-  | "move"
-  | "trimStart"
-  | "trimEnd"
-  | "rangeStart"
-  | "rangeEnd";
+  "scrub" | "move" | "trimStart" | "trimEnd" | "rangeStart" | "rangeEnd";
 
 interface DragState {
   kind: DragKind;
@@ -396,7 +494,12 @@ function onPointerDown(event: PointerEvent) {
 
   // 标尺 / 空白 → 拖动播放头
   if (y <= RULER_H) {
-    drag = { kind: "scrub", startClientX: event.clientX, originStart: time, originEnd: time };
+    drag = {
+      kind: "scrub",
+      startClientX: event.clientX,
+      originStart: time,
+      originEnd: time,
+    };
     emit("seek", Math.max(0, Math.min(duration, time)));
     bindMove();
     return;
@@ -437,7 +540,12 @@ function onPointerDown(event: PointerEvent) {
   }
 
   // 空白轨道 → 移动播放头
-  drag = { kind: "scrub", startClientX: event.clientX, originStart: time, originEnd: time };
+  drag = {
+    kind: "scrub",
+    startClientX: event.clientX,
+    originStart: time,
+    originEnd: time,
+  };
   emit("seek", Math.max(0, Math.min(duration, time)));
   bindMove();
 }
@@ -452,23 +560,50 @@ function onPointerMove(event: PointerEvent) {
   if (kind === "scrub") {
     const { x } = pointerPos(event);
     const time = Math.max(0, Math.min(duration, viewport.xToTime(x)));
+    showDragTip(time, null);
     emit("seek", time);
     return;
   }
   if (kind === "rangeStart") {
-    const next = Math.max(0, Math.min(originEnd - MIN_SUBTITLE_MS, originStart + deltaMs));
-    emit("update-range", { startMs: next });
+    const raw = Math.max(
+      0,
+      Math.min(originEnd - MIN_SUBTITLE_MS, originStart + deltaMs)
+    );
+    const snap = applySnap(raw, collectSnapTargets());
+    showDragTip(snap.value, snap.delta);
+    emit("update-range", { startMs: snap.value });
     return;
   }
   if (kind === "rangeEnd") {
-    const next = Math.min(duration, Math.max(originStart + MIN_SUBTITLE_MS, originEnd + deltaMs));
-    emit("update-range", { endMs: next });
+    const raw = Math.min(
+      duration,
+      Math.max(originStart + MIN_SUBTITLE_MS, originEnd + deltaMs)
+    );
+    const snap = applySnap(raw, collectSnapTargets());
+    showDragTip(snap.value, snap.delta);
+    emit("update-range", { endMs: snap.value });
     return;
   }
   if (!drag.id) return;
   if (kind === "move") {
     const span = originEnd - originStart;
-    const nextStart = Math.max(0, Math.min(duration - span, originStart + deltaMs));
+    const rawStart = Math.max(
+      0,
+      Math.min(duration - span, originStart + deltaMs)
+    );
+    let nextStart = rawStart;
+    let delta: number | null = null;
+    if (snapEnabled.value) {
+      const snap = snapRange(
+        rawStart,
+        rawStart + span,
+        collectSnapTargets(drag.id),
+        snapThresholdMs()
+      );
+      nextStart = Math.max(0, Math.min(duration - span, snap.startMs));
+      delta = snap.deltaMs;
+    }
+    showDragTip(nextStart, delta);
     emit("update-subtitle", drag.id, {
       startMs: nextStart,
       endMs: nextStart + span,
@@ -476,18 +611,29 @@ function onPointerMove(event: PointerEvent) {
     return;
   }
   if (kind === "trimStart") {
-    const next = Math.max(0, Math.min(originEnd - MIN_SUBTITLE_MS, originStart + deltaMs));
-    emit("update-subtitle", drag.id, { startMs: next });
+    const raw = Math.max(
+      0,
+      Math.min(originEnd - MIN_SUBTITLE_MS, originStart + deltaMs)
+    );
+    const snap = applySnap(raw, collectSnapTargets(drag.id));
+    showDragTip(snap.value, snap.delta);
+    emit("update-subtitle", drag.id, { startMs: snap.value });
     return;
   }
   if (kind === "trimEnd") {
-    const next = Math.min(duration, Math.max(originStart + MIN_SUBTITLE_MS, originEnd + deltaMs));
-    emit("update-subtitle", drag.id, { endMs: next });
+    const raw = Math.min(
+      duration,
+      Math.max(originStart + MIN_SUBTITLE_MS, originEnd + deltaMs)
+    );
+    const snap = applySnap(raw, collectSnapTargets(drag.id));
+    showDragTip(snap.value, snap.delta);
+    emit("update-subtitle", drag.id, { endMs: snap.value });
   }
 }
 
 function onPointerUp() {
   drag = null;
+  hideDragTip();
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", onPointerUp);
 }
@@ -495,6 +641,30 @@ function onPointerUp() {
 function bindMove() {
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  return (
+    element.tagName === "INPUT" ||
+    element.tagName === "TEXTAREA" ||
+    element.isContentEditable
+  );
+}
+
+/** 在播放头处拆分字幕：Ctrl/Cmd+K（剪辑软件常用剃刀键）。 */
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "k")
+    return;
+  if (isTypingTarget(event.target)) return;
+  const playhead = props.currentTimeMs;
+  const block = [...props.subtitles]
+    .sort((a, b) => a.startMs - b.startMs)
+    .find((entry) => playhead > entry.startMs && playhead < entry.endMs);
+  if (!block) return;
+  event.preventDefault();
+  emit("split", block.id, playhead);
 }
 
 function onDoubleClick(event: MouseEvent) {
@@ -545,9 +715,7 @@ function runContext(action: "edit" | "split" | "merge" | "delete") {
       if (!block) return;
       const playhead = props.currentTimeMs;
       const at =
-        playhead > block.startMs && playhead < block.endMs
-          ? playhead
-          : clickMs;
+        playhead > block.startMs && playhead < block.endMs ? playhead : clickMs;
       emit("split", id, at);
       break;
     }
@@ -600,6 +768,7 @@ onMounted(async () => {
   hostRef.value?.addEventListener("wheel", onWheel, { passive: false });
   hostRef.value?.addEventListener("dblclick", onDoubleClick);
   hostRef.value?.addEventListener("contextmenu", onContextMenu);
+  window.addEventListener("keydown", onGlobalKeydown);
 });
 
 onBeforeUnmount(() => {
@@ -607,6 +776,7 @@ onBeforeUnmount(() => {
   hostRef.value?.removeEventListener("wheel", onWheel);
   hostRef.value?.removeEventListener("dblclick", onDoubleClick);
   hostRef.value?.removeEventListener("contextmenu", onContextMenu);
+  window.removeEventListener("keydown", onGlobalKeydown);
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", onPointerUp);
   if (rafId) cancelAnimationFrame(rafId);
@@ -682,6 +852,15 @@ watch(
   align-items: center;
   gap: 2px;
 }
+.timeline-editor__snap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  user-select: none;
+}
 .timeline-editor__canvas {
   position: relative;
   width: 100%;
@@ -690,6 +869,38 @@ watch(
 }
 .timeline-editor__stage {
   width: 100%;
+}
+.timeline-editor__drag-tip {
+  position: absolute;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(20, 20, 24, 0.92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.timeline-editor__drag-tip-time {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  color: #e6e6eb;
+}
+.timeline-editor__drag-tip-delta {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  color: var(--el-color-primary);
+}
+.timeline-editor__kbd {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
 }
 .timeline-editor__context {
   position: absolute;

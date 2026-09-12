@@ -236,20 +236,30 @@ nativeDescribe("Local video OCR workbench with a real media file", () => {
     await stageCanvas.waitForExist({ timeout: 10_000 });
   });
 
-  it("reflects the full-frame ROI preset in the overlay", async () => {
+  it("insets the full-frame ROI preset so edge handles stay grabbable", async () => {
     await $('[data-testid="rsocr-roi-preset-full"]').click();
     await browser.waitUntil(
       async () => {
         const style = await browser.execute(readRoiBoxStyle);
+        if (style === null) return false;
+        const left = parseFloat(style.left);
+        const top = parseFloat(style.top);
+        const width = parseFloat(style.width);
+        const height = parseFloat(style.height);
+        // 全屏预设向内微缩 1px：边缘不再为 0/100%，且四边对称内缩。
         return (
-          style !== null &&
-          style.left === "0%" &&
-          style.top === "0%" &&
-          style.width === "100%" &&
-          style.height === "100%"
+          left > 0 &&
+          top > 0 &&
+          width < 100 &&
+          height < 100 &&
+          Math.abs(width - (100 - left * 2)) < 0.01 &&
+          Math.abs(height - (100 - top * 2)) < 0.01
         );
       },
-      { timeout: 10_000, timeoutMsg: "ROI overlay did not apply the full preset" }
+      {
+        timeout: 10_000,
+        timeoutMsg: "ROI overlay did not apply the inset full preset",
+      }
     );
   });
 

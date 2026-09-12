@@ -230,6 +230,13 @@ VideoWorkbench
 - 阶段 6 打磨：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`+/-` 缩放、`H` 手型；时间轴右键菜单（编辑 / 在播放头拆分 / 与下一条合并 / 删除）；ROI 比例锁定。
 - 复核补齐（2026-09-12）：监视器控件条补齐音量（可静音 + 滑块）、倍速菜单、缩放比例菜单；视口双击 `Fit ↔ 100%`；单击视口 / ROI / 空白主动 `focus()`，控制条交互后焦点归还监视器，恢复快捷键链路。
 - 复核补齐（2026-09-12）：`RegionFilterPreview` 刷新 / 识别引入递增令牌，丢弃过期结果、刷新时取消在途识别；视频截图前 `waitForFrame()` 等待 `seeked` 与 `requestVideoFrameCallback` 呈现目标帧，避免 seek 后抓到旧帧。
+- 交互审查补齐（2026-09-12）：
+  - 识别进行中（`preparing/running/cancelling`）对 Inspector「识别设置」加 `inert` + 半透明锁定提示，并锁定监视器 ROI 叠加层，避免“改了参数但结果不变”的误解。
+  - 时间轴拖拽（平移 / 修剪 / 识别区间）增加吸附，吸附目标为 0、时长、播放头、识别区间端点与其它字幕边缘；提供可关闭开关（默认开启，`localStorage: rsocr:timeline-snap`）与时间/差量浮动提示；纯逻辑在 `utils/timelineSnap.ts`。
+  - 试识别结果新增「填入当前字幕 / 在播放头新增」操作（`FrameFilterPreview` → `RegionFilterPreview` → `VideoWorkbench`）。
+  - 时间轴支持 `Ctrl/Cmd+K` 在播放头处拆分字幕（输入框内不触发），右键菜单同步标注快捷键。
+  - ROI「全屏」预设改为按视频分辨率向内微缩 1px，避免手柄贴边难以再次抓取；E2E 断言同步更新为对称内缩。
+  - 字幕编辑器保存（`Ctrl+Enter`）或焦点移出到非输入控件后，把键盘焦点交还监视器，恢复空格等快捷键链路。
 - 单测：`frameCapture`、`resizeVideoRoi`、`subtitleOps`、`useViewportTransform`、`useTimelineViewport`、`RegionFilterPreview` 刷新竞态。
 - E2E：`tests/tauri-e2e/specs/realtime-subtitle-ocr-workbench.spec.ts`（真实视频 + 原生选择器，不跑 OCR），覆盖模式隔离、加载、ROI 预设与比例锁定、播放/暂停、音量与静音、倍速菜单、缩放比例菜单、双击 `Fit ↔ 100%`、点击视口聚焦。
 

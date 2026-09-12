@@ -23,8 +23,12 @@
     :recognizing="recognizing"
     :disabled="disabled"
     :hint="hint"
+    :show-apply-actions="showApplyActions"
+    :can-apply="canApply"
     @capture="refresh"
     @recognize="recognize"
+    @apply-text="emit('apply-text', $event)"
+    @insert-text="emit('insert-text', $event)"
   />
 </template>
 
@@ -51,6 +55,15 @@ const props = defineProps<{
   refreshKey?: string | number;
   disabled?: boolean;
   hint?: string;
+  /** 是否显示“填入当前字幕 / 新增字幕”操作 */
+  showApplyActions?: boolean;
+  /** 当前是否存在可填入的字幕 */
+  canApply?: boolean;
+}>();
+
+const emit = defineEmits<{
+  "apply-text": [text: string];
+  "insert-text": [text: string];
 }>();
 
 const { config } = useScreenMonitor();

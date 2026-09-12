@@ -70,11 +70,14 @@ const props = withDefaults(
     minSize?: number;
     /** 锁定当前归一化宽高比（仅角点手柄生效） */
     aspectLocked?: boolean;
+    /** ROI 外遮罩不透明度 */
+    maskOpacity?: number;
   }>(),
   {
     disabled: false,
     minSize: 0.01,
     aspectLocked: false,
+    maskOpacity: 0.5,
   }
 );
 
@@ -274,7 +277,7 @@ function onWindowPointerUp() {
 
 .roi-mask {
   position: absolute;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgb(0 0 0 / v-bind("props.maskOpacity"));
   pointer-events: none;
 }
 

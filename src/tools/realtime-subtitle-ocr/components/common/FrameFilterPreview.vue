@@ -62,20 +62,44 @@
     </div>
 
     <div v-if="recognizedText !== null" class="frame-preview__result">
-      <span class="frame-preview__result-label">识别结果</span>
-      <span class="frame-preview__result-text">{{
-        recognizedText || "(空)"
-      }}</span>
+      <div class="frame-preview__result-main">
+        <span class="frame-preview__result-label">识别结果</span>
+        <span class="frame-preview__result-text">{{
+          recognizedText || "(空)"
+        }}</span>
+      </div>
+      <div
+        v-if="showApplyActions && hasUsableText"
+        class="frame-preview__result-actions"
+      >
+        <el-button
+          size="small"
+          data-testid="rsocr-preview-apply"
+          :disabled="!canApply"
+          @click="$emit('apply-text', recognizedText as string)"
+        >
+          填入当前字幕
+        </el-button>
+        <el-button
+          size="small"
+          type="primary"
+          data-testid="rsocr-preview-insert"
+          @click="$emit('insert-text', recognizedText as string)"
+        >
+          在播放头新增
+        </el-button>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { ElButton } from "element-plus";
 import { Camera, ScanText } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";
 
-defineProps<{
+const props = defineProps<{
   originalUrl: string;
   filteredUrl: string;
   recognizedText: string | null;
@@ -83,12 +107,23 @@ defineProps<{
   recognizing?: boolean;
   disabled?: boolean;
   hint?: string;
+  /** 是否显示“填入当前字幕 / 新增字幕”操作 */
+  showApplyActions?: boolean;
+  /** 当前是否存在可填入的字幕 */
+  canApply?: boolean;
 }>();
 
 defineEmits<{
   capture: [];
   recognize: [];
+  "apply-text": [text: string];
+  "insert-text": [text: string];
 }>();
+
+const hasUsableText = computed(() => {
+  const text = props.recognizedText?.trim() ?? "";
+  return text.length > 0 && text !== "[识别失败]";
+});
 
 const imageViewer = useImageViewer();
 function view(url: string) {
@@ -168,11 +203,21 @@ function view(url: string) {
 }
 .frame-preview__result {
   display: flex;
-  gap: 8px;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 6px;
   padding-top: 6px;
   border-top: 1px dashed var(--border-color);
   font-size: 12px;
+}
+.frame-preview__result-main {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.frame-preview__result-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .frame-preview__result-label {
   color: var(--el-text-color-secondary);

@@ -313,7 +313,6 @@ onBeforeUnmount(() => {
     <!-- 顶部工具栏 -->
     <div class="rsocr-toolbar">
       <div class="toolbar-left">
-        <span class="toolbar-title">实时字幕 OCR</span>
         <el-button-group size="small">
           <el-button
             data-testid="rsocr-mode-screen"

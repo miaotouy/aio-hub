@@ -51,8 +51,9 @@
           :content-width="videoWidth || 1"
           :content-height="videoHeight || 1"
           :scale="transform.scale.value"
-          :disabled="!!error"
+          :disabled="!!error || roiLocked"
           :aspect-locked="aspectLocked"
+          :mask-opacity="maskOpacity"
         />
       </div>
       <div v-if="error" class="video-monitor__error">无法播放视频</div>
@@ -279,8 +280,11 @@ const props = withDefaults(
     fps?: number;
     /** 锁定 ROI 宽高比 */
     aspectLocked?: boolean;
+    maskOpacity?: number;
+    /** 识别进行中锁定 ROI 叠加层，避免改动不影响在途任务 */
+    roiLocked?: boolean;
   }>(),
-  { fps: 30, aspectLocked: false }
+  { fps: 30, aspectLocked: false, maskOpacity: 0.5, roiLocked: false }
 );
 
 const emit = defineEmits<{
@@ -461,7 +465,10 @@ function onControlsClick(event: MouseEvent) {
 function waitForFrame(): Promise<void> {
   const video = videoRef.value;
   if (!video) return Promise.resolve();
-  if (!video.seeking && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+  if (
+    !video.seeking &&
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+  ) {
     return Promise.resolve();
   }
   return new Promise<void>((resolve) => {
@@ -499,7 +506,8 @@ function onViewportPointerDown(event: PointerEvent) {
   // 普通 div 不会因鼠标点击自动获得键盘焦点，主动聚焦以启用快捷键。
   containerRef.value?.focus({ preventScroll: true });
   const isPan =
-    event.button === 1 || (event.button === 0 && (handMode.value || event.altKey));
+    event.button === 1 ||
+    (event.button === 0 && (handMode.value || event.altKey));
   if (!isPan) return;
   event.preventDefault();
   event.stopPropagation();
@@ -634,6 +642,7 @@ defineExpose({
   stepFrame,
   skip,
   waitForFrame,
+  focus: () => containerRef.value?.focus({ preventScroll: true }),
   getVideoElement: () => videoRef.value,
 });
 </script>
@@ -710,7 +719,9 @@ defineExpose({
   background: transparent;
   color: var(--el-text-color-regular);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .ctrl-btn:hover {
   background: var(--el-fill-color);

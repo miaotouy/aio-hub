@@ -395,6 +395,8 @@ async function cancel() {
 async function captureVideoSource(): Promise<CaptureSource | null> {
   const element = monitorRef.value?.getVideoElement() ?? null;
   if (!element || !element.videoWidth) return null;
+  // seek 刚设置 currentTime 时画面可能仍是旧帧，等目标帧真正呈现后再截图。
+  await monitorRef.value?.waitForFrame();
   return element;
 }
 

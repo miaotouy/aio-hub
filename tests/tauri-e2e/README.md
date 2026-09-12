@@ -248,10 +248,11 @@ success, so point `AIO_E2E_FFMPEG_MEDIA` at a disposable working copy.
 
 `specs/realtime-subtitle-ocr-workbench.spec.ts` imports a real video through the
 Windows file picker and verifies the editor-style workbench: mode isolation,
-monitor/ROI/timeline mounting, the full-frame ROI preset, aspect-ratio lock, and
-playback controls. It does not run OCR, so it needs no OCR engine. The spec is
-skipped unless `AIO_E2E_NATIVE_UI=1` and `AIO_E2E_RSOCR_MEDIA` points at an
-existing video:
+monitor/ROI/timeline mounting, the full-frame ROI preset, aspect-ratio lock,
+playback controls, volume + mute, the playback-rate menu, the zoom-ratio menu,
+double-click `Fit ↔ 100%`, and viewport-click keyboard focus. It does not run
+OCR, so it needs no OCR engine. The spec is skipped unless `AIO_E2E_NATIVE_UI=1`
+and `AIO_E2E_RSOCR_MEDIA` points at an existing video:
 
 ```powershell
 $env:AIO_E2E_RSOCR_MEDIA = "E:\\path\\to\\clip.mp4"

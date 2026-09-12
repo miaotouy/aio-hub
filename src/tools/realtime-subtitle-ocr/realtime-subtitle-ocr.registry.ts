@@ -57,6 +57,6 @@ export const toolConfig: ToolConfig = {
   component: () => import("./RealtimeSubtitleOcr.vue"),
   description: "Windows 屏幕 / 本地视频字幕 OCR 识别工具",
   category: ["媒体工具"],
-  version: "2.1.0",
+  version: "2.1.1",
   runMode: "any",
 };

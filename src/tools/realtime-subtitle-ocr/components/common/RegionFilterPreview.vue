@@ -65,18 +65,33 @@ let filteredCanvas: HTMLCanvasElement | null = null;
 let currentSource: CaptureSource | null = null;
 let recognizeAbort: AbortController | null = null;
 let refreshTimer: number | null = null;
+// 刷新 / 识别都可能并发：用递增令牌保证只有最新一次请求能写回状态。
+let refreshToken = 0;
+let recognizeToken = 0;
 
 function fullRect(source: CaptureSource): PixelRect {
   const { width, height } = getSourceDimensions(source);
   return { x: 0, y: 0, width, height };
 }
 
+/** 取消在途识别，并让其结果不再写回。 */
+function cancelRecognize() {
+  recognizeAbort?.abort();
+  recognizeAbort = null;
+  recognizeToken += 1;
+  recognizing.value = false;
+}
+
 async function refresh() {
   if (props.disabled) return;
+  const token = ++refreshToken;
+  cancelRecognize();
   capturing.value = true;
   let capturedSource: CaptureSource | null = null;
   try {
     capturedSource = await props.capture();
+    // 已有更新的刷新在途：丢弃这次旧结果，避免覆盖新预览。
+    if (token !== refreshToken) return;
     if (!capturedSource || !isSourceReady(capturedSource)) {
       clearPreview();
       return;
@@ -99,10 +114,10 @@ async function refresh() {
     filteredCanvas = result.filteredCanvas;
     recognizedText.value = null;
   } catch {
-    clearPreview();
+    if (token === refreshToken) clearPreview();
   } finally {
     releaseCaptureSource(capturedSource);
-    capturing.value = false;
+    if (token === refreshToken) capturing.value = false;
   }
 }
 
@@ -116,20 +131,25 @@ function clearPreview() {
 }
 
 async function recognize() {
-  if (!filteredCanvas) return;
+  const canvas = filteredCanvas;
+  if (!canvas) return;
+  const token = ++recognizeToken;
+  recognizeAbort?.abort();
+  recognizeAbort = new AbortController();
   recognizing.value = true;
   try {
-    recognizeAbort?.abort();
-    recognizeAbort = new AbortController();
-    recognizedText.value = await recognizeCanvas(
-      filteredCanvas,
+    const text = await recognizeCanvas(
+      canvas,
       config.value.engineConfig,
       recognizeAbort.signal
     );
+    if (token === recognizeToken && canvas === filteredCanvas) {
+      recognizedText.value = text;
+    }
   } catch {
-    recognizedText.value = "[识别失败]";
+    if (token === recognizeToken) recognizedText.value = "[识别失败]";
   } finally {
-    recognizing.value = false;
+    if (token === recognizeToken) recognizing.value = false;
   }
 }
 
@@ -158,7 +178,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  recognizeAbort?.abort();
+  refreshToken += 1;
+  cancelRecognize();
   if (refreshTimer) window.clearTimeout(refreshTimer);
   clearPreview();
 });

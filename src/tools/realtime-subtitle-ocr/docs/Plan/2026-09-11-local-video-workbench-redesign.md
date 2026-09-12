@@ -228,8 +228,10 @@ VideoWorkbench
 
 - 阶段 1-5 全部落地：模式隔离、`VideoWorkbench`、`VideoMonitor` + 视口变换 + `RoiOverlay`、共用 `RegionFilterPreview` / `FrameFilterPreview`、Konva `TimelineEditor`、Inspector 整合、旧组件删除、文档与版本号更新。
 - 阶段 6 打磨：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`+/-` 缩放、`H` 手型；时间轴右键菜单（编辑 / 在播放头拆分 / 与下一条合并 / 删除）；ROI 比例锁定。
-- 单测：`frameCapture`、`resizeVideoRoi`、`subtitleOps`、`useViewportTransform`、`useTimelineViewport`。
-- E2E：`tests/tauri-e2e/specs/realtime-subtitle-ocr-workbench.spec.ts`（真实视频 + 原生选择器，不跑 OCR）。
+- 复核补齐（2026-09-12）：监视器控件条补齐音量（可静音 + 滑块）、倍速菜单、缩放比例菜单；视口双击 `Fit ↔ 100%`；单击视口 / ROI / 空白主动 `focus()`，控制条交互后焦点归还监视器，恢复快捷键链路。
+- 复核补齐（2026-09-12）：`RegionFilterPreview` 刷新 / 识别引入递增令牌，丢弃过期结果、刷新时取消在途识别；视频截图前 `waitForFrame()` 等待 `seeked` 与 `requestVideoFrameCallback` 呈现目标帧，避免 seek 后抓到旧帧。
+- 单测：`frameCapture`、`resizeVideoRoi`、`subtitleOps`、`useViewportTransform`、`useTimelineViewport`、`RegionFilterPreview` 刷新竞态。
+- E2E：`tests/tauri-e2e/specs/realtime-subtitle-ocr-workbench.spec.ts`（真实视频 + 原生选择器，不跑 OCR），覆盖模式隔离、加载、ROI 预设与比例锁定、播放/暂停、音量与静音、倍速菜单、缩放比例菜单、双击 `Fit ↔ 100%`、点击视口聚焦。
 
 ### 偏差
 

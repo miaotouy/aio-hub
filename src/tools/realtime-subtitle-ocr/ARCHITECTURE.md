@@ -186,7 +186,7 @@ sequenceDiagram
 ### 6.1. 工作台结构
 
 - 顶部工具栏：文件名 / 时长 / 分辨率 / FFmpeg 状态、抽帧进度、开始·取消·导出、字幕列表抽屉入口。
-- 中部左侧 `VideoMonitor`：达芬奇 / PR 式监视器，支持播放/暂停/停止、逐帧、±5s、倍速、**适配缩放 / 缩放 ± / 1:1 / 滚轮缩放 / 拖拽平移 / 全屏**。
+- 中部左侧 `VideoMonitor`：达芬奇 / PR 式监视器，支持播放/暂停/停止、逐帧、±5s、**音量 / 静音 · 倍速 / 缩放比例菜单 · 适配 / 缩放 ± / 1:1 / 滚轮缩放 / 拖拽平移 / 双击 Fit↔100% / 全屏**。
 - 中部右侧 Inspector：`MonitorConfig`（引擎 / 滤镜 / 采样 / 去重）、`RoiNumberPanel`（ROI 精确 px/% 设置与预设）、`ActiveSubtitleEditor`（字幕编辑）。
 - 底部 `TimelineEditor`（Konva）：时间标尺 + 字幕轨道块 + 识别区间 + 播放头，横向滚轮滚动、`Ctrl+滚轮` 缩放、块拖拽平移/修剪、点击标尺 seek。
 - 次级列表：`SubtitleTimeline` 表格放入右侧抽屉，与轨道通过 `selectedId` / `seek` 联动。
@@ -198,7 +198,9 @@ sequenceDiagram
 - `composables/useTimelineViewport.ts`：时间轴 `pxPerSecond / scrollX` 视口；`timeToX / xToTime` 换算，`ensureVisible` 让播放头跟随。Konva 只绘制可见区（windowing），避免长视频下的大量图元。
 - `utils/video.ts` 的 `resizeVideoRoi`：8 向手柄拖拽的纯函数实现；角点手柄在给定 `aspectRatio`（归一化 width / height）时保持比例并锚定对角点，边手柄保持单轴缩放，最小尺寸优先于比例。
 - `utils/subtitleOps.ts`：`splitSubtitleEntry` / `mergeSubtitleEntries` 纯函数，由 `useSubtitleTimeline().splitSubtitle / mergeSubtitles` 调用；拆分保留首段 frameUrl，合并回收被合并条目的 Object URL。
-- 工作台快捷键（`VideoMonitor` 聚焦时）：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`H` 手型、`+/-` 缩放。
+- 工作台快捷键（`VideoMonitor` 聚焦时）：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`H` 手型、`+/-` 缩放。单击视口 / ROI / 空白会把键盘焦点主动交给监视器，控制条交互后焦点也归还监视器；焦点位于输入控件时不拦截按键。
+- 双击 `Fit ↔ 100%` 在 `mousedown` 中按时间自行识别：`RoiOverlay` 的 `pointerdown` 会 `preventDefault()`，浏览器不再派发 `dblclick`，用原生双击事件会失效。
+- 视频截图链路：`RegionFilterPreview` 用递增令牌丢弃过期刷新与识别结果，刷新时取消在途识别；`VideoWorkbench` 从 `<video>` 取帧前调用 `VideoMonitor.waitForFrame()`，等待 `seeked` + `requestVideoFrameCallback`（无回调能力时 200ms 兜底）确保抓到 seek 后的目标帧。
 - 时间轴右键菜单：编辑 / 在播放头拆分 / 与下一条合并 / 删除，空轨右键不弹出。
 
 ### 6.3. 区域截图 · 滤镜预览（屏幕 / 视频共用）

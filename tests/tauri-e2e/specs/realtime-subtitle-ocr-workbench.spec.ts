@@ -120,6 +120,48 @@ function readVideoState(): {
   };
 }
 
+function readVideoSettings(): {
+  volume: number;
+  muted: boolean;
+  playbackRate: number;
+} | null {
+  const video = document.querySelector<HTMLVideoElement>(
+    '[data-testid="rsocr-video"]'
+  );
+  if (!video) return null;
+  return {
+    volume: video.volume,
+    muted: video.muted,
+    playbackRate: video.playbackRate,
+  };
+}
+
+function readZoomText(): string {
+  const el = document.querySelector<HTMLElement>(
+    '[data-testid="rsocr-zoom-menu"]'
+  );
+  return el?.textContent?.replace(/\s+/g, "") ?? "";
+}
+
+function isMonitorFocused(): boolean {
+  const monitor = document.querySelector<HTMLElement>(
+    '[data-testid="rsocr-monitor"]'
+  );
+  return (
+    !!monitor &&
+    (monitor === document.activeElement || monitor.contains(document.activeElement))
+  );
+}
+
+/** WebDriver moveTo 在 Tauri WebView 下不触发 hover 菜单，直接派发 mouseenter。 */
+async function openHoverMenu(testId: string): Promise<void> {
+  await browser.execute((id) => {
+    document
+      .querySelector(`[data-testid="${id}"]`)
+      ?.dispatchEvent(new MouseEvent("mouseenter"));
+  }, testId);
+}
+
 const mediaPath = process.env.AIO_E2E_RSOCR_MEDIA?.trim();
 const nativeDescribe =
   process.env.AIO_E2E_NATIVE_UI === "1" && mediaPath ? describe : describe.skip;
@@ -243,6 +285,104 @@ nativeDescribe("Local video OCR workbench with a real media file", () => {
         return state !== null && state.paused;
       },
       { timeout: 10_000, timeoutMsg: "Video did not pause" }
+    );
+  });
+
+  it("changes volume from the volume control and toggles mute", async () => {
+    const volumeButton = await $('[data-testid="rsocr-volume"]');
+    await openHoverMenu("rsocr-volume-menu");
+    const slider = await $('[data-testid="rsocr-volume-slider"]');
+    await slider.waitForExist({ timeout: 5_000 });
+
+    await browser.execute(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        '[data-testid="rsocr-volume-slider"]'
+      );
+      if (!input) return;
+      input.value = "0.4";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await browser.waitUntil(
+      async () => {
+        const settings = await browser.execute(readVideoSettings);
+        return (
+          settings !== null &&
+          Math.abs(settings.volume - 0.4) < 0.02 &&
+          settings.muted === false
+        );
+      },
+      { timeout: 5_000, timeoutMsg: "Volume slider did not update the video" }
+    );
+
+    await volumeButton.click();
+    await browser.waitUntil(
+      async () => {
+        const settings = await browser.execute(readVideoSettings);
+        return settings !== null && settings.muted;
+      },
+      { timeout: 5_000, timeoutMsg: "Volume button did not mute" }
+    );
+    await volumeButton.click();
+    await browser.waitUntil(
+      async () => {
+        const settings = await browser.execute(readVideoSettings);
+        return settings !== null && !settings.muted;
+      },
+      { timeout: 5_000, timeoutMsg: "Volume button did not unmute" }
+    );
+  });
+
+  it("changes playback rate from the rate menu", async () => {
+    await openHoverMenu("rsocr-rate-menu");
+    const option = await $(
+      '//button[contains(@class,"ctrl-popup__item") and normalize-space()="1.5x"]'
+    );
+    await option.waitForDisplayed({ timeout: 5_000 });
+    await option.click();
+    await browser.waitUntil(
+      async () => {
+        const settings = await browser.execute(readVideoSettings);
+        return (
+          settings !== null && Math.abs(settings.playbackRate - 1.5) < 0.001
+        );
+      },
+      { timeout: 5_000, timeoutMsg: "Rate menu did not update playbackRate" }
+    );
+  });
+
+  it("toggles fit and 100% on viewport double-click", async () => {
+    const fitPercent = await browser.execute(readZoomText);
+
+    await openHoverMenu("rsocr-zoom-menu-wrap");
+    const option = await $(
+      '//button[contains(@class,"ctrl-popup__item") and normalize-space()="200%"]'
+    );
+    await option.waitForDisplayed({ timeout: 5_000 });
+    await option.click();
+    await browser.waitUntil(
+      async () => (await browser.execute(readZoomText)).includes("200%"),
+      { timeout: 5_000, timeoutMsg: "Zoom ratio menu did not apply 200%" }
+    );
+
+    const viewport = await $(".video-monitor__viewport");
+    await viewport.doubleClick();
+    await browser.waitUntil(
+      async () => (await browser.execute(readZoomText)) === fitPercent,
+      { timeout: 5_000, timeoutMsg: "Double-click did not return to fit" }
+    );
+
+    await viewport.doubleClick();
+    await browser.waitUntil(
+      async () => (await browser.execute(readZoomText)).includes("100%"),
+      { timeout: 5_000, timeoutMsg: "Double-click did not switch to 100%" }
+    );
+  });
+
+  it("focuses the monitor when the viewport is clicked", async () => {
+    await $(".video-monitor__viewport").click();
+    await browser.waitUntil(
+      async () => await browser.execute(isMonitorFocused),
+      { timeout: 5_000, timeoutMsg: "Monitor did not receive keyboard focus" }
     );
   });
 });

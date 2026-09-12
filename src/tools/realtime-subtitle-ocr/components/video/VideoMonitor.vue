@@ -25,7 +25,11 @@
     @pointerdown.capture="onViewportPointerDown"
     @wheel.prevent="onWheel"
   >
-    <div ref="viewportRef" class="video-monitor__viewport">
+    <div
+      ref="viewportRef"
+      class="video-monitor__viewport"
+      @mousedown="onViewportMouseDown"
+    >
       <div class="video-monitor__content" :style="transform.contentStyle.value">
         <video
           ref="videoRef"
@@ -55,7 +59,11 @@
     </div>
 
     <!-- 控件条 -->
-    <div class="video-monitor__controls" @pointerdown.stop>
+    <div
+      class="video-monitor__controls"
+      @pointerdown.stop
+      @click="onControlsClick"
+    >
       <div class="controls-left">
         <button
           class="ctrl-btn"
@@ -89,6 +97,73 @@
         <span class="timecode" data-testid="rsocr-timecode"
           >{{ formattedCurrent }} / {{ formattedDuration }}</span
         >
+
+        <!-- 音量 -->
+        <div
+          class="ctrl-menu-wrap"
+          data-testid="rsocr-volume-menu"
+          @mouseenter="showVolumeMenu = true"
+          @mouseleave="showVolumeMenu = false"
+        >
+          <button
+            class="ctrl-btn"
+            data-testid="rsocr-volume"
+            :title="isMuted ? '取消静音' : '静音'"
+            @click="toggleMute"
+          >
+            <VolumeX v-if="isMuted || volume === 0" :size="15" />
+            <Volume1 v-else-if="volume < 0.5" :size="15" />
+            <Volume2 v-else :size="15" />
+          </button>
+          <div
+            v-if="showVolumeMenu"
+            class="ctrl-popup ctrl-popup--volume"
+            @pointerdown.stop
+          >
+            <input
+              class="volume-slider"
+              data-testid="rsocr-volume-slider"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="isMuted ? 0 : volume"
+              @input="onVolumeInput"
+            />
+          </div>
+        </div>
+
+        <!-- 倍速 -->
+        <div
+          class="ctrl-menu-wrap"
+          data-testid="rsocr-rate-menu"
+          @mouseenter="showRateMenu = true"
+          @mouseleave="showRateMenu = false"
+        >
+          <button
+            class="ctrl-btn ctrl-btn--text"
+            data-testid="rsocr-rate"
+            title="播放速度"
+            @click="showRateMenu = !showRateMenu"
+          >
+            {{ playbackRate }}x
+          </button>
+          <div
+            v-if="showRateMenu"
+            class="ctrl-popup ctrl-popup--list"
+            @pointerdown.stop
+          >
+            <button
+              v-for="rate in playbackRates"
+              :key="rate"
+              class="ctrl-popup__item"
+              :class="{ 'is-active': playbackRate === rate }"
+              @click="setPlaybackRate(rate)"
+            >
+              {{ rate }}x
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="controls-right">
@@ -109,12 +184,58 @@
           title="适配 (F)"
           @click="transform.fit()"
         >
-          {{ transform.isFitted.value ? "适配" : `${transform.zoomPercent.value}%` }}
+          适配
         </button>
         <button class="ctrl-btn" title="放大 (+)" @click="transform.zoomIn()">
           <ZoomIn :size="15" />
         </button>
-        <button class="ctrl-btn ctrl-btn--text" title="原始尺寸" @click="transform.actualSize()">
+        <div
+          class="ctrl-menu-wrap"
+          data-testid="rsocr-zoom-menu-wrap"
+          @mouseenter="showZoomMenu = true"
+          @mouseleave="showZoomMenu = false"
+        >
+          <button
+            class="ctrl-btn ctrl-btn--text"
+            data-testid="rsocr-zoom-menu"
+            title="缩放比例"
+            @click="showZoomMenu = !showZoomMenu"
+          >
+            {{ transform.zoomPercent.value }}%
+            <ChevronDown :size="12" />
+          </button>
+          <div
+            v-if="showZoomMenu"
+            class="ctrl-popup ctrl-popup--list"
+            @pointerdown.stop
+          >
+            <button
+              class="ctrl-popup__item"
+              :class="{ 'is-active': transform.isFitted.value }"
+              @click="applyZoomRatio('fit')"
+            >
+              适配
+            </button>
+            <button
+              v-for="step in zoomSteps"
+              :key="step"
+              class="ctrl-popup__item"
+              :class="{
+                'is-active':
+                  !transform.isFitted.value &&
+                  transform.zoomPercent.value === Math.round(step * 100),
+              }"
+              @click="applyZoomRatio(step)"
+            >
+              {{ Math.round(step * 100) }}%
+            </button>
+          </div>
+        </div>
+        <button
+          class="ctrl-btn ctrl-btn--text"
+          title="原始尺寸"
+          @click="transform.actualSize()"
+        >
           1:1
         </button>
         <button class="ctrl-btn" title="全屏" @click="toggleFullscreen">
@@ -129,6 +250,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FastForward,
@@ -138,6 +260,9 @@ import {
   Play,
   Rewind,
   Square,
+  Volume1,
+  Volume2,
+  VolumeX,
   ZoomIn,
   ZoomOut,
 } from "lucide-vue-next";
@@ -180,6 +305,16 @@ const durationMs = ref(0);
 const error = ref(false);
 const handMode = ref(false);
 
+const volume = ref(1);
+const isMuted = ref(false);
+const playbackRate = ref(1);
+const showVolumeMenu = ref(false);
+const showRateMenu = ref(false);
+const showZoomMenu = ref(false);
+
+const playbackRates = [2, 1.5, 1.25, 1, 0.75, 0.5];
+const zoomSteps = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+
 const { width: containerWidth, height: containerHeight } =
   useElementSize(viewportRef);
 
@@ -218,6 +353,9 @@ function onLoadedMetadata() {
     : 0;
   error.value = false;
   transform.fit();
+  video.volume = volume.value;
+  video.muted = isMuted.value;
+  video.playbackRate = playbackRate.value;
   emit("durationchange", durationMs.value);
   emit("loadedmetadata", {
     width: video.videoWidth,
@@ -276,6 +414,77 @@ function stepFrame(direction: number) {
   seek(currentMs.value + direction * frameMs);
 }
 
+function toggleMute() {
+  isMuted.value = !isMuted.value;
+  if (videoRef.value) videoRef.value.muted = isMuted.value;
+}
+
+function onVolumeInput(event: Event) {
+  const next = Number((event.target as HTMLInputElement).value);
+  const clamped = Math.min(1, Math.max(0, next));
+  volume.value = clamped;
+  const video = videoRef.value;
+  if (video) video.volume = clamped;
+  if (clamped > 0 && isMuted.value) {
+    isMuted.value = false;
+    if (video) video.muted = false;
+  }
+}
+
+function setPlaybackRate(rate: number) {
+  playbackRate.value = rate;
+  if (videoRef.value) videoRef.value.playbackRate = rate;
+  showRateMenu.value = false;
+}
+
+function applyZoomRatio(ratio: number | "fit") {
+  if (ratio === "fit") transform.fit();
+  else transform.setScale(ratio);
+  showZoomMenu.value = false;
+}
+
+function onViewportDblClick() {
+  if (transform.isFitted.value) transform.actualSize();
+  else transform.fit();
+}
+
+/** 控制条交互后把键盘焦点交还监视器，避免按钮聚焦后空格同时触发按钮与快捷键。 */
+function onControlsClick(event: MouseEvent) {
+  if ((event.target as HTMLElement).closest("input")) return;
+  containerRef.value?.focus({ preventScroll: true });
+}
+
+/**
+ * 等待视频在 seek 后真正呈现目标帧；稳定帧直接返回。
+ * 截图链路借此避免抓到 seek 前的旧帧。
+ */
+function waitForFrame(): Promise<void> {
+  const video = videoRef.value;
+  if (!video) return Promise.resolve();
+  if (!video.seeking && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    const onSeeked = () => {
+      video.removeEventListener("seeked", onSeeked);
+      if (typeof video.requestVideoFrameCallback === "function") {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        video.requestVideoFrameCallback(finish);
+        window.setTimeout(finish, 200);
+      } else {
+        resolve();
+      }
+    };
+    if (video.seeking) video.addEventListener("seeked", onSeeked);
+    else onSeeked();
+  });
+}
+
 function onWheel(event: WheelEvent) {
   const rect = viewportRef.value?.getBoundingClientRect();
   const anchorX = rect ? event.clientX - rect.left : undefined;
@@ -287,6 +496,8 @@ function onWheel(event: WheelEvent) {
 // 中键 / Alt+左键 / 手型模式拖拽平移
 let panning: { x: number; y: number } | null = null;
 function onViewportPointerDown(event: PointerEvent) {
+  // 普通 div 不会因鼠标点击自动获得键盘焦点，主动聚焦以启用快捷键。
+  containerRef.value?.focus({ preventScroll: true });
   const isPan =
     event.button === 1 || (event.button === 0 && (handMode.value || event.altKey));
   if (!isPan) return;
@@ -295,6 +506,26 @@ function onViewportPointerDown(event: PointerEvent) {
   panning = { x: event.clientX, y: event.clientY };
   window.addEventListener("pointermove", onPanMove);
   window.addEventListener("pointerup", onPanUp, { once: true });
+}
+
+// ROI 叠加层的 pointerdown 会 preventDefault，浏览器不再派发 dblclick，
+// 因此用 mousedown 时间自行识别双击。mousedown 同时接管默认焦点，避免焦点回到 body。
+let lastMouseDownAt = 0;
+let lastMouseDownX = 0;
+let lastMouseDownY = 0;
+function onViewportMouseDown(event: MouseEvent) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  containerRef.value?.focus({ preventScroll: true });
+  const now = performance.now();
+  const isDouble =
+    now - lastMouseDownAt < 350 &&
+    Math.abs(event.clientX - lastMouseDownX) < 8 &&
+    Math.abs(event.clientY - lastMouseDownY) < 8;
+  lastMouseDownX = event.clientX;
+  lastMouseDownY = event.clientY;
+  lastMouseDownAt = isDouble ? 0 : now;
+  if (isDouble) onViewportDblClick();
 }
 function onPanMove(event: PointerEvent) {
   if (!panning) return;
@@ -314,6 +545,15 @@ async function toggleFullscreen() {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  const target = event.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable)
+  ) {
+    return;
+  }
   switch (event.key) {
     case " ":
       event.preventDefault();
@@ -393,6 +633,7 @@ defineExpose({
   togglePlay,
   stepFrame,
   skip,
+  waitForFrame,
   getVideoElement: () => videoRef.value,
 });
 </script>
@@ -482,6 +723,56 @@ defineExpose({
 .ctrl-btn--text {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 12px;
+}
+.ctrl-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.ctrl-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.ctrl-popup--volume {
+  width: 132px;
+  padding: 8px 10px;
+}
+.ctrl-popup--list {
+  min-width: 84px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ctrl-popup__item {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.ctrl-popup__item:hover {
+  background: var(--el-fill-color);
+}
+.ctrl-popup__item.is-active {
+  color: var(--el-color-primary);
+  background: rgba(var(--el-color-primary-rgb), 0.15);
+}
+.volume-slider {
+  width: 100%;
+  accent-color: var(--el-color-primary);
+  cursor: pointer;
 }
 .timecode {
   margin-left: 8px;

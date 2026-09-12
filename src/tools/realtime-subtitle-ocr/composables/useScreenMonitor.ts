@@ -41,6 +41,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { getSimilarity, buildSrt, formatSrtTime } from "../utils/algorithms";
+import { mergeSubtitleEntries, splitSubtitleEntry } from "../utils/subtitleOps";
 import {
   blobToDataUrl,
   createFilteredImageBlob,
@@ -394,6 +395,36 @@ export function useScreenMonitor() {
   }
 
   /**
+   * 一次性抓取当前监控框区域（不参与监控去重、不写入 lastHash）。
+   * 供“区域截图 · 滤镜预览”使用，避免与实时采样循环互相干扰。
+   */
+  async function captureOnce(): Promise<Blob | null> {
+    const logicalRect = getCaptureRect();
+    if (!logicalRect) return null;
+    if (cachedScaleFactor === 1) {
+      await updateScaleFactor();
+    }
+    const x = Math.round(logicalRect.x * cachedScaleFactor);
+    const y = Math.round(logicalRect.y * cachedScaleFactor);
+    const width = Math.round(logicalRect.width * cachedScaleFactor);
+    const height = Math.round(logicalRect.height * cachedScaleFactor);
+    const result = await errorHandler.wrapAsync(
+      () =>
+        invoke<CaptureResult>("capture_screen_rect", {
+          x,
+          y,
+          width,
+          height,
+          lastHash: null,
+          threshold: 0,
+        }),
+      { userMessage: "屏幕截屏失败", showToUser: false }
+    );
+    if (!result || !result.imageBytes) return null;
+    return new Blob([new Uint8Array(result.imageBytes)], { type: "image/png" });
+  }
+
+  /**
    * 调度 OCR 引擎并返回文本
    */
   async function performOcr(
@@ -719,6 +750,7 @@ export function useScreenMonitor() {
     // control
     start,
     stop,
+    captureOnce,
     setEngineConfig,
     setIntervalMs,
     setDedupSensitivity,
@@ -766,6 +798,46 @@ export function useSubtitleTimeline() {
     if (target) Object.assign(target, patch);
   }
 
+  /** 在 `atMs` 处拆分字幕；拆分点无效时返回 `null`。 */
+  function splitSubtitle(id: string, atMs: number): string | null {
+    const index = subtitles.value.findIndex((subtitle) => subtitle.id === id);
+    if (index === -1) return null;
+    const original = subtitles.value[index];
+    const newId = `subtitle-split-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const parts = splitSubtitleEntry(original, atMs, newId);
+    if (!parts) return null;
+    const [first, second] = parts;
+    // 第二段不复用第一段的 Object URL，避免任一删除时提前释放导致另一段预览失效。
+    second.frameUrl = undefined;
+    subtitles.value.splice(index, 1, first, second);
+    return newId;
+  }
+
+  /** 合并若干字幕为一条，返回合并后条目 id；不足两条时返回 `null`。 */
+  function mergeSubtitles(ids: string[]): string | null {
+    const targets = ids
+      .map((id) => subtitles.value.find((subtitle) => subtitle.id === id))
+      .filter((entry): entry is SubtitleEntry => Boolean(entry));
+    const merged = mergeSubtitleEntries(targets);
+    if (!merged) return null;
+    const keepId = merged.id;
+    for (const entry of targets) {
+      if (entry.id !== keepId && entry.frameUrl) {
+        revokeSubtitleFrameUrl(entry.frameUrl);
+      }
+    }
+    const mergedIds = new Set(targets.map((entry) => entry.id));
+    const mergedEntries = subtitles.value.filter(
+      (subtitle) => !mergedIds.has(subtitle.id)
+    );
+    mergedEntries.push(merged);
+    mergedEntries.sort((a, b) => a.startMs - b.startMs);
+    subtitles.value = mergedEntries;
+    return keepId;
+  }
+
   function registerFrameUrl(url: string) {
     registerSubtitleFrameUrl(url);
   }
@@ -778,6 +850,8 @@ export function useSubtitleTimeline() {
     subtitles,
     addSubtitle,
     replaceSubtitle,
+    splitSubtitle,
+    mergeSubtitles,
     clearSubtitles,
     removeSubtitle,
     updateSubtitleText,

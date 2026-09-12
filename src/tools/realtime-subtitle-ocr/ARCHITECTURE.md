@@ -2,7 +2,7 @@
 
 本文档详细记录了“实时字幕OCR”工具的内部架构、设计理念、数据流以及核心算法，为后续的开发、维护和迭代提供清晰的指引。
 
-> 更新时间：2026-08-01
+> 更新时间：2026-09-11
 
 ---
 
@@ -178,3 +178,33 @@ sequenceDiagram
 前端按事件顺序读取帧、应用图像滤镜并调用共享 OCR Runner。字幕条目的 `startMs/endMs` 使用视频原始时间；相似文本合并规则与屏幕模式一致。完成或取消时清理临时帧，已经展示在时间轴中的 Object URL 继续保留到当前工具会话结束。
 
 视频任务取消会先 abort 当前 OCR，再调用现有 `kill_ffmpeg_process` 终止 FFmpeg。屏幕监控和视频 OCR 使用独立任务状态，切换模式不会复用或误取消另一种任务。
+
+## 6. 本地视频编辑器式工作台（2026-09 重构）
+
+本地视频模式不再复用屏幕模式的上下分栏外壳，而是切换为独立的全幅工作台 `components/video/VideoWorkbench.vue`，屏幕模式布局保持不变。两者共享同一份 OCR 管线与配置（`useVideoSubtitleOcr` / `useScreenMonitor` / `useSubtitleTimeline`）。
+
+### 6.1. 工作台结构
+
+- 顶部工具栏：文件名 / 时长 / 分辨率 / FFmpeg 状态、抽帧进度、开始·取消·导出、字幕列表抽屉入口。
+- 中部左侧 `VideoMonitor`：达芬奇 / PR 式监视器，支持播放/暂停/停止、逐帧、±5s、倍速、**适配缩放 / 缩放 ± / 1:1 / 滚轮缩放 / 拖拽平移 / 全屏**。
+- 中部右侧 Inspector：`MonitorConfig`（引擎 / 滤镜 / 采样 / 去重）、`RoiNumberPanel`（ROI 精确 px/% 设置与预设）、`ActiveSubtitleEditor`（字幕编辑）。
+- 底部 `TimelineEditor`（Konva）：时间标尺 + 字幕轨道块 + 识别区间 + 播放头，横向滚轮滚动、`Ctrl+滚轮` 缩放、块拖拽平移/修剪、点击标尺 seek。
+- 次级列表：`SubtitleTimeline` 表格放入右侧抽屉，与轨道通过 `selectedId` / `seek` 联动。
+
+### 6.2. 视口与交互模型
+
+- `composables/useViewportTransform.ts`：维护 `scale / offsetX / offsetY`，内容以 `transform-origin: 0 0` 渲染；`fit()` 计算适配比例，`setScale(scale, anchorX, anchorY)` 以光标为锚点缩放，`panBy(dx, dy)` 平移。
+- `components/video/RoiOverlay.vue`：位于同一被变换的内容层内，因此 DOM 百分比坐标天然等于视频归一化坐标；8 向手柄与边框尺寸按 `1/scale` 补偿，保证任意缩放下保持恒定屏幕尺寸。
+- `composables/useTimelineViewport.ts`：时间轴 `pxPerSecond / scrollX` 视口；`timeToX / xToTime` 换算，`ensureVisible` 让播放头跟随。Konva 只绘制可见区（windowing），避免长视频下的大量图元。
+- `utils/video.ts` 的 `resizeVideoRoi`：8 向手柄拖拽的纯函数实现；角点手柄在给定 `aspectRatio`（归一化 width / height）时保持比例并锚定对角点，边手柄保持单轴缩放，最小尺寸优先于比例。
+- `utils/subtitleOps.ts`：`splitSubtitleEntry` / `mergeSubtitleEntries` 纯函数，由 `useSubtitleTimeline().splitSubtitle / mergeSubtitles` 调用；拆分保留首段 frameUrl，合并回收被合并条目的 Object URL。
+- 工作台快捷键（`VideoMonitor` 聚焦时）：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`H` 手型、`+/-` 缩放。
+- 时间轴右键菜单：编辑 / 在播放头拆分 / 与下一条合并 / 删除，空轨右键不弹出。
+
+### 6.3. 区域截图 · 滤镜预览（屏幕 / 视频共用）
+
+- `utils/frameCapture.ts`：与来源解耦的纯像素工具。`captureRegionToCanvas` 支持 `HTMLVideoElement / HTMLImageElement / HTMLCanvasElement / ImageBitmap`；`renderFilteredRegion` 复用 `applyImageFilterToPixels` 生成原图与处理图；`recognizeCanvas` 用同一处理图调用共享 OCR Runner 做单帧试识别。
+- `components/common/FrameFilterPreview.vue`：展示原图 / 处理图对照与试识别结果。
+- `components/common/RegionFilterPreview.vue`：状态封装 + 滤镜参数变化 debounce 自动重截。视频模式从 `<video>` 当前帧按 ROI 裁剪；屏幕模式调用 `useScreenMonitor().captureOnce()` 一次性抓取监控框（不参与监控去重、不写 `lastHash`）。
+
+> Canvas 截图依赖 `assetProtocol` 与 `crossOrigin="anonymous"`；若个别视频导致画布污染，可降级为新增 Rust `extract_single_frame` 命令。

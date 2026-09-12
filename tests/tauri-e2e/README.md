@@ -243,3 +243,20 @@ bun run test:tauri:e2e -- --native --spec tests/tauri-e2e/specs/ffmpeg-workbench
 
 The lane writes its trimmed output next to the source media and removes it on
 success, so point `AIO_E2E_FFMPEG_MEDIA` at a disposable working copy.
+
+## Local video OCR workbench lane
+
+`specs/realtime-subtitle-ocr-workbench.spec.ts` imports a real video through the
+Windows file picker and verifies the editor-style workbench: mode isolation,
+monitor/ROI/timeline mounting, the full-frame ROI preset, aspect-ratio lock, and
+playback controls. It does not run OCR, so it needs no OCR engine. The spec is
+skipped unless `AIO_E2E_NATIVE_UI=1` and `AIO_E2E_RSOCR_MEDIA` points at an
+existing video:
+
+```powershell
+$env:AIO_E2E_RSOCR_MEDIA = "E:\\path\\to\\clip.mp4"
+bun run test:tauri:e2e -- --native --spec tests/tauri-e2e/specs/realtime-subtitle-ocr-workbench.spec.ts
+```
+
+The lane requires FFmpeg to read media metadata; it never writes or modifies the
+source file.

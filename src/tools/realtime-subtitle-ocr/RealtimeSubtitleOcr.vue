@@ -28,7 +28,9 @@ import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import LivePreview from "./components/LivePreview.vue";
 import MonitorConfig from "./components/MonitorConfig.vue";
 import ActiveSubtitleEditor from "./components/ActiveSubtitleEditor.vue";
-import VideoSubtitlePanel from "./components/VideoSubtitlePanel.vue";
+import RegionFilterPreview from "./components/common/RegionFilterPreview.vue";
+import VideoWorkbench from "./components/video/VideoWorkbench.vue";
+import { blobToCaptureSource, type CaptureSource } from "./utils/frameCapture";
 import { useVideoSubtitleOcr } from "./composables/useVideoSubtitleOcr";
 import { useScreenMonitor } from "./composables/useScreenMonitor";
 
@@ -64,6 +66,7 @@ const {
   ensureOcrReady,
   start,
   stop,
+  captureOnce,
   removeSubtitle,
   clearSubtitles,
   updateSubtitleText,
@@ -73,6 +76,7 @@ const {
 } = useScreenMonitor();
 const videoOcr = useVideoSubtitleOcr();
 const ocrMode = ref<"screen" | "video">("screen");
+const showScreenPreview = ref(false);
 
 const { sendToChat } = useSendToChat();
 
@@ -139,7 +143,13 @@ function switchMode(nextMode: "screen" | "video") {
   ocrMode.value = nextMode;
 }
 
-/** 查找监控框分离窗口的 label */
+/** 屏幕模式：抓取监控框区域一次，供滤镜预览共用组件使用。 */
+async function captureScreenSource(): Promise<CaptureSource | null> {
+  const blob = await captureOnce();
+  if (!blob) return null;
+  return blobToCaptureSource(blob);
+}
+
 /** 查找监控框分离窗口的 label */
 function findMonitorBoxLabel(): string | undefined {
   for (const win of detachedManager.detachedWindows.value.values()) {
@@ -306,11 +316,13 @@ onBeforeUnmount(() => {
         <span class="toolbar-title">实时字幕 OCR</span>
         <el-button-group size="small">
           <el-button
+            data-testid="rsocr-mode-screen"
             :type="ocrMode === 'screen' ? 'primary' : 'default'"
             @click="switchMode('screen')"
             >屏幕实时 OCR</el-button
           >
           <el-button
+            data-testid="rsocr-mode-video"
             :type="ocrMode === 'video' ? 'primary' : 'default'"
             @click="switchMode('video')"
             >本地视频 OCR</el-button
@@ -324,21 +336,33 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <div class="toolbar-right">
-        <MonitorConfig />
+        <el-button
+          v-if="ocrMode === 'screen'"
+          size="small"
+          :type="showScreenPreview ? 'primary' : 'default'"
+          @click="showScreenPreview = !showScreenPreview"
+          >区域滤镜预览</el-button
+        >
+        <MonitorConfig v-if="ocrMode === 'screen'" />
       </div>
     </div>
 
-    <!-- 主体区域：上下分栏 -->
-    <div class="rsocr-main">
+    <!-- 视频模式：独立全幅工作台 -->
+    <VideoWorkbench
+      v-if="ocrMode === 'video'"
+      class="rsocr-video-workbench"
+    />
+
+    <!-- 屏幕模式：保留原有上下分栏布局 -->
+    <div v-else class="rsocr-main">
       <!-- 上方：左右分栏 (7:3 比例) -->
       <div
         class="rsocr-top-section"
         :style="{ height: topSectionHeight + 'px' }"
       >
-        <!-- 左上：实时截图预览或视频 OCR 控制区 -->
-        <div class="preview-panel">
+        <!-- 左上：实时截图预览 + 区域滤镜预览 -->
+        <div class="preview-panel preview-panel--screen">
           <LivePreview
-            v-if="ocrMode === 'screen'"
             :last-frame-url="lastFrameUrl"
             :last-hash="lastHash"
             :latency="latency"
@@ -352,7 +376,12 @@ onBeforeUnmount(() => {
             @focus-monitor-box="focusMonitorBox"
             @toggle-monitor="toggleMonitor"
           />
-          <VideoSubtitlePanel v-else class="video-subtitle-panel" />
+          <RegionFilterPreview
+            v-if="showScreenPreview"
+            class="preview-panel__filter"
+            :capture="captureScreenSource"
+            hint="打开监控框后点击「截图预览」，实时查看区域滤镜效果"
+          />
         </div>
 
         <!-- 右上：当前字幕大字编辑框 (30% 宽度) -->
@@ -447,6 +476,11 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.rsocr-video-workbench {
+  flex: 1;
+  min-height: 0;
+}
+
 .rsocr-main {
   flex: 1;
   display: flex;
@@ -470,58 +504,25 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
-.video-subtitle-panel {
-  height: 100%;
+.preview-panel--screen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-panel--screen > :first-child {
+  flex: 1;
+  min-height: 0;
+}
+
+.preview-panel__filter {
+  flex-shrink: 0;
 }
 
 .editor-panel {
   flex: 3;
   min-width: 200px;
   height: 100%;
-}
-
-.toolbar-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--el-text-color-regular);
-}
-
-.toolbar-label {
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
-
-.toolbar-value {
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  color: var(--el-text-color-primary);
-  min-width: 28px;
-}
-
-.engine-popover-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 0;
-}
-
-.popover-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.popover-field > label {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  font-weight: 500;
-}
-
-.popover-hint {
-  font-size: 11px;
-  color: var(--el-color-warning);
-  line-height: 1.4;
 }
 
 .resize-trigger-y {

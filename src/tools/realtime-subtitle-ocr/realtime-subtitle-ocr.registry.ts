@@ -55,8 +55,8 @@ export const toolConfig: ToolConfig = {
   path: "/realtime-subtitle-ocr",
   icon: markRaw(Subtitles),
   component: () => import("./RealtimeSubtitleOcr.vue"),
-  description: "windouws 字幕 OCR 识别工具",
+  description: "Windows 屏幕 / 本地视频字幕 OCR 识别工具",
   category: ["媒体工具"],
-  version: "2.0.0",
+  version: "2.1.0",
   runMode: "any",
 };

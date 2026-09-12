@@ -44,6 +44,7 @@
 - 用户提示使用平台封装：桌面端优先使用 `src/utils/customMessage.ts`，移动端使用 `mobile/src/utils/feedback.ts`。使用 `ElMessageBox` 时设置 `lockScroll: false`；`BaseDialog` 的属性契约见[通用组件说明](src/components/common/README.md)。
 - 背景、边框、文字、模糊等视觉值使用项目主题变量；毛玻璃使用 `backdrop-filter: blur(var(--ui-blur))`。详见[主题系统架构](docs/architecture/theme-system-architecture.md)。
 - 移动端以原生 Vue 结构、项目组件和 AIO Hub token 为主，Varlet 只作为可替换的底层原子组件库。详见[移动端 UI 开发指南](docs/guide/mobile-ui-development.md)。
+- 使用 `DropZone` 时，默认只让其内置的“选择文件”按钮触发文件选择，或者根据需要完全不使用 `DropZone` 内置的选择器触发而仅使用其拖放功能；除非需求明确要求整块区域可点击，否则不要添加 `click-zone`。不要把“整块区域是否可点击”和“键盘是否可用”混为一谈：`click-zone` 只表达容器级点击/键盘语义，内置“选择文件”按钮始终由原生按钮自身负责鼠标与键盘触发；不得为了补键盘交互而擅自开启 `click-zone` 或把占位区域改造成按钮。
 
 ## 6. Rust、Tauri 与数据处理
 

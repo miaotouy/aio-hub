@@ -205,19 +205,18 @@
               <div class="empty-monitor__glyph">+</div>
               <strong>载入素材开始工作</strong>
               <span>视频会显示在这里，随后可定位、裁剪 ROI 和预览滤镜</span>
-              <DropZone
-                data-testid="rsocr-dropzone"
-                :accept="videoExtensions"
-                :multiple="false"
-                file-only
-                clickable
-                variant="border"
-                placeholder="拖入视频文件，或点击选择"
-                drag-overlay-text="松开以加载视频"
-                @drop="onVideoDrop"
-                @error="onError"
-              />
             </div>
+            <DropZone
+              overlay
+              hide-content
+              data-testid="rsocr-dropzone"
+              :accept="videoExtensions"
+              :multiple="false"
+              file-only
+              drag-overlay-text="松开以加载视频"
+              @drop="onVideoDrop"
+              @error="onError"
+            />
           </div>
           <div class="empty-monitor__controls">
             <span class="skeleton skeleton--time"></span
@@ -239,7 +238,7 @@
     </div>
 
     <!-- 时间轴 -->
-    <div v-if="source" class="video-workbench__timeline-wrap">
+    <div class="video-workbench__timeline-wrap">
       <div
         class="resize-trigger-y"
         :class="{ 'is-resizing': isDraggingTimeline }"
@@ -253,7 +252,7 @@
       >
         <TimelineEditor
           :subtitles="subtitles"
-          :duration-ms="source.durationMs"
+          :duration-ms="source?.durationMs ?? 0"
           :current-time-ms="currentTimeMs"
           :range-start-ms="startMs"
           :range-end-ms="endMs"
@@ -882,11 +881,6 @@ watch(
   border-radius: 50%;
   color: #d6a66c;
   font-size: 24px;
-}
-.empty-monitor__message :deep(.drop-zone) {
-  width: min(360px, 80%);
-  min-height: 64px;
-  margin-top: 8px;
 }
 .empty-monitor__controls {
   height: 36px;

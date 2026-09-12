@@ -76,6 +76,9 @@ let activeSettings: {
   dedupSensitivity: DedupSensitivity;
 } | null = null;
 let lastVideoHash = "";
+// 引用计数：状态与监听器为模块级单例，可能存在多个组件同时调用该 composable。
+// 仅当最后一个消费者卸载时才销毁全局资源，避免子组件卸载提前清空父组件仍在使用的状态。
+let activeInstances = 0;
 
 function fileNameFromPath(path: string): string {
   return path.match(/[/\\]([^/\\]+)$/)?.[1] ?? "video";
@@ -564,8 +567,16 @@ export function useVideoSubtitleOcr() {
     await cleanupFrameDirectory();
   }
 
+  activeInstances += 1;
+
   onBeforeUnmount(() => {
-    void dispose();
+    activeInstances = Math.max(0, activeInstances - 1);
+    if (activeInstances === 0) {
+      void dispose();
+    } else {
+      // 仍有其他组件持有单例状态：只取消当前任务，保留监听器与共享状态。
+      void cancel();
+    }
   });
 
   return {

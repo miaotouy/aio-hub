@@ -82,6 +82,38 @@ export interface GitCommitterConfig {
   autoRefreshInterval: number;
 }
 
+/** 提交行级统计（与后端 `CommitStats` 对齐） */
+export interface CommitStats {
+  additions: number;
+  deletions: number;
+  files: number;
+}
+
+/** 提交文件变更（与后端 `FileChange` 对齐） */
+export interface CommitFileChange {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
+/** 提交摘要（与后端 `GitCommit` 对齐，详情字段按需惰性加载） */
+export interface GitCommitSummary {
+  hash: string;
+  author: string;
+  email: string;
+  date: string;
+  /** 提交标题（首行） */
+  message: string;
+  /** 完整提交信息：标题 + 正文 */
+  full_message?: string;
+  parents?: string[];
+  tags?: string[];
+  branches?: string[];
+  stats?: CommitStats | null;
+  files?: CommitFileChange[] | null;
+}
+
 /** Diff 标签页运行时态 */
 export interface DiffTab {
   path: string;

@@ -163,3 +163,105 @@ export function resolvePersistedPrompt(
   }
   return normalized;
 }
+
+/** 已知云端平台：仓库路径拼接提交链接的规则各不相同 */
+interface KnownHost {
+  name: string;
+  buildCommitUrl: (repoPath: string, hash: string) => string;
+}
+
+const KNOWN_REMOTE_HOSTS: Record<string, KnownHost> = {
+  "github.com": {
+    name: "GitHub",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://github.com/${repoPath}/commit/${hash}`,
+  },
+  "gitlab.com": {
+    name: "GitLab",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://gitlab.com/${repoPath}/-/commit/${hash}`,
+  },
+  "bitbucket.org": {
+    name: "Bitbucket",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://bitbucket.org/${repoPath}/commits/${hash}`,
+  },
+  "gitee.com": {
+    name: "Gitee",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://gitee.com/${repoPath}/commit/${hash}`,
+  },
+  "codeberg.org": {
+    name: "Codeberg",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://codeberg.org/${repoPath}/commit/${hash}`,
+  },
+  "git.sr.ht": {
+    name: "SourceHut",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://git.sr.ht/${repoPath}/commit/${hash}`,
+  },
+  "gitea.com": {
+    name: "Gitea",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://gitea.com/${repoPath}/commit/${hash}`,
+  },
+  "gitcode.com": {
+    name: "GitCode",
+    buildCommitUrl: (repoPath, hash) =>
+      `https://gitcode.com/${repoPath}/commit/${hash}`,
+  },
+};
+
+/** 解析后的远端信息，仅在平台已知时生成 */
+export interface RemoteInfo {
+  /** 平台显示名，例如 GitHub */
+  name: string;
+  /** 生成该提交在远端平台上的详情页地址 */
+  buildCommitUrl: (hash: string) => string;
+}
+
+/** 从远端 URL 中提取主机名与仓库路径，兼容 scp 简写与标准 URL */
+function extractHostAndPath(url: string): { host: string; path: string } | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  // git@github.com:owner/repo.git
+  const scpLike = trimmed.match(/^[^@/\s]+@([^:/\s]+):(.+)$/);
+  if (scpLike) {
+    return { host: scpLike[1].toLowerCase(), path: scpLike[2] };
+  }
+
+  try {
+    // ssh:// 与 git:// 统一按 https:// 结构解析
+    const normalized = trimmed
+      .replace(/^ssh:\/\//i, "https://")
+      .replace(/^git:\/\//i, "https://");
+    const parsed = new URL(normalized);
+    return {
+      host: parsed.hostname.toLowerCase(),
+      path: parsed.pathname.replace(/^\/+/, ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 将远端 URL 解析为已知平台信息；未知平台或无有效仓库路径时返回 null */
+export function parseRemoteInfo(url: string): RemoteInfo | null {
+  const extracted = extractHostAndPath(url);
+  if (!extracted) return null;
+
+  const known = KNOWN_REMOTE_HOSTS[extracted.host];
+  if (!known) return null;
+
+  const repoPath = extracted.path
+    .replace(/\.git$/i, "")
+    .replace(/^\/+|\/+$/g, "");
+  if (!repoPath || !repoPath.includes("/")) return null;
+
+  return {
+    name: known.name,
+    buildCommitUrl: (hash) => known.buildCommitUrl(repoPath, hash),
+  };
+}

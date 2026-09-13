@@ -17,6 +17,7 @@ import {
   buildCommitPromptMessages,
   COMMIT_LANGUAGE_MACRO,
   normalizeGeneratedCommitMessage,
+  parseRemoteInfo,
   renderCommitPromptMacros,
   resolvePersistedPrompt,
   resolveSystemPrompt,
@@ -125,5 +126,41 @@ describe("git-committer persisted prompt migration", () => {
     expect(
       resolvePersistedPrompt("  use English  ", newDefault, [legacyDefault])
     ).toBe("use English");
+  });
+});
+
+describe("git-committer remote platform detection", () => {
+  it("detects GitHub from both scp and https remotes", () => {
+    expect(
+      parseRemoteInfo("git@github.com:miaotouy/aiohub.git")?.buildCommitUrl(
+        "abc123"
+      )
+    ).toBe("https://github.com/miaotouy/aiohub/commit/abc123");
+    expect(
+      parseRemoteInfo("https://github.com/miaotouy/aiohub.git")?.name
+    ).toBe("GitHub");
+  });
+
+  it("uses the gitlab subgroup commit path", () => {
+    expect(
+      parseRemoteInfo("https://gitlab.com/group/sub/repo.git")?.buildCommitUrl(
+        "abc123"
+      )
+    ).toBe("https://gitlab.com/group/sub/repo/-/commit/abc123");
+  });
+
+  it("detects other known hosts", () => {
+    expect(parseRemoteInfo("git@bitbucket.org:team/repo.git")?.name).toBe(
+      "Bitbucket"
+    );
+    expect(parseRemoteInfo("https://gitee.com/team/repo.git")?.name).toBe(
+      "Gitee"
+    );
+  });
+
+  it("returns null for unknown hosts, missing repo path, or empty remotes", () => {
+    expect(parseRemoteInfo("git@git.internal.corp:team/repo.git")).toBeNull();
+    expect(parseRemoteInfo("https://github.com")).toBeNull();
+    expect(parseRemoteInfo("")).toBeNull();
   });
 });

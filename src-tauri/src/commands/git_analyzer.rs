@@ -508,6 +508,16 @@ pub async fn git_get_incremental_commits(
     get_commits_with_skip(repo_path, branch.as_deref(), skip, limit, false)
 }
 
+/// 返回仓库的首选远端 URL（优先 `origin`），无远端时返回 `None`。
+/// 前端据此判断是否为已知云端平台（GitHub/GitLab 等）并展示对应的打开链接。
+#[tauri::command]
+pub async fn git_get_remote_url(path: String) -> Result<Option<String>, String> {
+    let repo_path = if path.is_empty() { "." } else { &path };
+    let repo =
+        Repository::open(repo_path).map_err(|e| format!("无法打开仓库: {}", e))?;
+    Ok(get_preferred_remote_url(&repo))
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn git_load_incremental_stream(
@@ -916,6 +926,32 @@ fn resolve_start_oid(repo: &Repository, branch: Option<&str>) -> Result<Oid, Str
         .map_err(|e| format!("Failed to get HEAD: {}", e))?
         .target()
         .ok_or_else(|| "HEAD has no target".to_string())
+}
+
+/// 读取仓库远端 URL，优先 `origin`，否则取第一个配置了 URL 的远端。
+fn get_preferred_remote_url(repo: &Repository) -> Option<String> {
+    if let Ok(remote) = repo.find_remote("origin") {
+        if let Some(url) = remote.url() {
+            let trimmed = url.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+
+    let remotes = repo.remotes().ok()?;
+    for name in remotes.iter().flatten() {
+        if let Ok(remote) = repo.find_remote(name) {
+            if let Some(url) = remote.url() {
+                let trimmed = url.trim();
+                if !trimmed.is_empty() {
+                    return Some(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    None
 }
 
 fn get_branches(repo_path: &str) -> Result<Vec<GitBranch>, String> {

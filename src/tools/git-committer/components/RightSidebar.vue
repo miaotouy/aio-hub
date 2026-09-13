@@ -35,32 +35,32 @@
           暂无提交记录
         </div>
         <div v-else class="commit-tree">
-          <div
+          <CommitDetailPopover
             v-for="(commit, index) in commits"
             :key="commit.hash"
-            class="commit-node"
+            :commit="commit"
           >
-            <!-- 连线 -->
-            <div class="tree-line-wrapper">
-              <div class="tree-dot" />
-              <div v-if="index < commits.length - 1" class="tree-line" />
-            </div>
-            <!-- 提交内容 -->
-            <div class="commit-info">
-              <div class="commit-msg-row">
-                <span class="commit-hash">{{
-                  commit.hash.substring(0, 7)
-                }}</span>
-                <span class="commit-msg" :title="commit.message">{{
-                  commit.message
-                }}</span>
+            <div class="commit-node">
+              <!-- 连线 -->
+              <div class="tree-line-wrapper">
+                <div class="tree-dot" />
+                <div v-if="index < commits.length - 1" class="tree-line" />
               </div>
-              <div class="commit-meta-row">
-                <span class="commit-author">{{ commit.author }}</span>
-                <span class="commit-date">{{ formatTime(commit.date) }}</span>
+              <!-- 提交内容 -->
+              <div class="commit-info">
+                <div class="commit-msg" :title="commit.message">
+                  {{ commit.message }}
+                </div>
+                <div class="commit-meta-row">
+                  <span class="commit-hash">{{
+                    commit.hash.substring(0, 7)
+                  }}</span>
+                  <span class="commit-author">{{ commit.author }}</span>
+                  <span class="commit-date">{{ formatTime(commit.date) }}</span>
+                </div>
               </div>
             </div>
-          </div>
+          </CommitDetailPopover>
           <div v-if="isLoadingMoreHistory" class="load-more-tip">
             正在加载更多...
           </div>
@@ -96,18 +96,12 @@ import {
   currentStatus,
 } from "../composables/useGitCommitterState";
 import CommitChart from "./CommitChart.vue";
+import CommitDetailPopover from "./CommitDetailPopover.vue";
 import { errorHandler } from "../composables/useGitCommitterErrorHandler";
+import type { GitCommitSummary } from "../types";
 
-interface GitCommit {
-  hash: string;
-  author: string;
-  email: string;
-  date: string;
-  message: string;
-}
-
-const commits = ref<GitCommit[]>([]);
-const chartCommits = ref<GitCommit[]>([]);
+const commits = ref<GitCommitSummary[]>([]);
+const chartCommits = ref<GitCommitSummary[]>([]);
 const isLoadingHistory = ref(false);
 const isLoadingMoreHistory = ref(false);
 const hasMoreHistory = ref(true);
@@ -143,7 +137,7 @@ const loadHistoryPage = async (reset = false, requestId = historyRequestId) => {
   else isLoadingMoreHistory.value = true;
   const list = await errorHandler.wrapAsync(
     () =>
-      invoke<GitCommit[]>("git_get_incremental_commits", {
+      invoke<GitCommitSummary[]>("git_get_incremental_commits", {
         path: currentRepoPath.value,
         branch,
         skip: historySkip.value,
@@ -169,14 +163,14 @@ const loadChartHistory = async (requestId = historyRequestId) => {
     return;
   }
   const branch = currentStatus.value.branch;
-  const result: GitCommit[] = [];
+  const result: GitCommitSummary[] = [];
   let skip = 0;
   const limit = 200;
   const cutoff = chartCutoff();
   while (true) {
     const list = await errorHandler.wrapAsync(
       () =>
-        invoke<GitCommit[]>("git_get_incremental_commits", {
+        invoke<GitCommitSummary[]>("git_get_incremental_commits", {
           path: currentRepoPath.value,
           branch,
           skip,
@@ -390,17 +384,10 @@ const formatTime = (dateStr: string) => {
   min-width: 0;
 }
 
-.commit-msg-row {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-}
-
 .commit-hash {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--el-color-primary);
-  font-weight: bold;
   flex-shrink: 0;
 }
 
@@ -414,19 +401,22 @@ const formatTime = (dateStr: string) => {
 
 .commit-meta-row {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
   font-size: 10px;
   color: var(--el-text-color-secondary);
 }
 
 .commit-author {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100px;
 }
 
 .commit-date {
   flex-shrink: 0;
+  margin-left: auto;
 }
 </style>

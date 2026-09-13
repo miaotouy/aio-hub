@@ -26,6 +26,7 @@ import type { RepoStatus, FileStatus, DiffTab } from "../types";
 import {
   buildCommitPromptMessages,
   normalizeGeneratedCommitMessage,
+  REPO_PROMPT_TAB_PATH,
 } from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import {
@@ -249,6 +250,18 @@ export function closeDiffTab(filePath: string, isStaged: boolean): void {
       ? buildTabKey(session.openTabs[0].path, session.openTabs[0].isStaged)
       : "";
   }
+}
+
+/** 打开或激活当前仓库的 AI 提示词编辑标签页 */
+export function openRepoPromptTab(): void {
+  const session = currentSession.value;
+  const existing = session.openTabs.find(
+    (t) => t.path === REPO_PROMPT_TAB_PATH
+  );
+  if (!existing) {
+    session.openTabs.push({ path: REPO_PROMPT_TAB_PATH, isStaged: false });
+  }
+  session.activeTabPath = buildTabKey(REPO_PROMPT_TAB_PATH, false);
 }
 
 /** 构造 Tab 唯一键 */

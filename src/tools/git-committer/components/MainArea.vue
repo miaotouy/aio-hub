@@ -34,18 +34,24 @@
             }"
             @click="session.activeTabPath = buildTabKey(tab.path, tab.isStaged)"
           >
-            <span
-              class="tab-status"
-              :class="getFileStatus(tab.path, tab.isStaged).toLowerCase()"
-            >
-              {{ getFileStatus(tab.path, tab.isStaged) }}
-            </span>
-            <span class="tab-name" :title="tab.path">{{
-              getFileName(tab.path)
-            }}</span>
-            <span class="tab-stage-badge" :class="{ staged: tab.isStaged }">
-              {{ tab.isStaged ? "暂存" : "工作区" }}
-            </span>
+            <template v-if="isPromptTab(tab.path)">
+              <MessageSquareText :size="12" class="tab-prompt-icon" />
+              <span class="tab-name">AI 提示词</span>
+            </template>
+            <template v-else>
+              <span
+                class="tab-status"
+                :class="getFileStatus(tab.path, tab.isStaged).toLowerCase()"
+              >
+                {{ getFileStatus(tab.path, tab.isStaged) }}
+              </span>
+              <span class="tab-name" :title="tab.path">{{
+                getFileName(tab.path)
+              }}</span>
+              <span class="tab-stage-badge" :class="{ staged: tab.isStaged }">
+                {{ tab.isStaged ? "暂存" : "工作区" }}
+              </span>
+            </template>
             <span
               class="tab-close"
               @click.stop="closeDiffTab(tab.path, tab.isStaged)"
@@ -58,7 +64,9 @@
 
       <!-- 中部：Diff 编辑器或空状态 -->
       <div class="main-content">
-        <template v-if="activeTab">
+        <RepoPromptEditor v-if="isPromptTabActive" />
+
+        <template v-else-if="activeTab">
           <!-- 二进制文件降级提示 -->
           <div v-if="activeTab.isBinary" class="binary-fallback-card">
             <FileCode :size="48" class="text-placeholder binary-icon" />
@@ -128,10 +136,16 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
-import { X, FileCode, GitCommitHorizontal } from "lucide-vue-next";
+import {
+  X,
+  FileCode,
+  GitCommitHorizontal,
+  MessageSquareText,
+} from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import PanoramaDashboard from "./PanoramaDashboard.vue";
+import RepoPromptEditor from "./RepoPromptEditor.vue";
 import {
   currentRepoPath,
   currentSession as session,
@@ -144,7 +158,7 @@ import {
   unstageFile,
 } from "../composables/useGitCommitterRunner";
 import type { DiffTab } from "../types";
-import { getFileName, getFileLanguage } from "../utils";
+import { getFileName, getFileLanguage, REPO_PROMPT_TAB_PATH } from "../utils";
 
 const props = defineProps<{
   sidebarWidth: number;
@@ -214,6 +228,23 @@ const buildTabKey = (filePath: string, isStaged: boolean): string => {
   return `${isStaged ? "S" : "W"}:${filePath}`;
 };
 
+const isPromptTab = (filePath: string): boolean => {
+  return filePath === REPO_PROMPT_TAB_PATH;
+};
+
+const activeTabInfo = computed(() => {
+  const key = session.value.activeTabPath;
+  return (
+    session.value.openTabs.find(
+      (t) => buildTabKey(t.path, t.isStaged) === key
+    ) || null
+  );
+});
+
+const isPromptTabActive = computed(() => {
+  return activeTabInfo.value?.path === REPO_PROMPT_TAB_PATH;
+});
+
 // ===== 监听激活 Tab 变化，加载 Diff 内容 =====
 watch(
   () => session.value.activeTabPath,
@@ -226,7 +257,7 @@ watch(
     const tabInfo = session.value.openTabs.find(
       (t) => buildTabKey(t.path, t.isStaged) === newKey
     );
-    if (!tabInfo) {
+    if (!tabInfo || isPromptTab(tabInfo.path)) {
       activeTab.value = null;
       return;
     }
@@ -361,6 +392,11 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tab-prompt-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
 }
 
 .tab-stage-badge {

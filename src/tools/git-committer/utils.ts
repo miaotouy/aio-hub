@@ -17,6 +17,9 @@ import { getExtension } from "@/utils/fileTypeDetector";
 export const COMMIT_LANGUAGE_MACRO = "${language}";
 export const DEFAULT_COMMIT_LANGUAGE = "简体中文";
 
+/** 仓库 AI 提示词编辑标签页使用的保留路径 */
+export const REPO_PROMPT_TAB_PATH = "__repo_prompt__";
+
 /**
  * 清理模型输出开头、首个有效字符之前的空白字符。
  * 不处理正文和结尾，避免改变模型生成的提交 body 格式。

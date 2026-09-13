@@ -69,6 +69,16 @@
     <div class="commit-panel">
       <div class="ai-model-row">
         <LlmModelSelector v-model="defaultModel" class="model-selector" />
+        <el-tooltip content="编辑仓库 AI 提示词" placement="top">
+          <el-button
+            circle
+            size="small"
+            class="prompt-tab-btn"
+            @click="openRepoPromptTab"
+          >
+            <MessageSquareText :size="14" />
+          </el-button>
+        </el-tooltip>
         <el-button
           type="primary"
           size="small"
@@ -245,6 +255,7 @@ import {
   ChevronDown,
   Plus,
   Minus,
+  MessageSquareText,
 } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
@@ -261,6 +272,7 @@ import {
   stageFiles,
   unstageFiles,
   openDiffTab,
+  openRepoPromptTab,
 } from "../composables/useGitCommitterRunner";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
 import { getFileName, getFileDir } from "../utils";
@@ -427,6 +439,11 @@ const unstageAll = async () => {
 }
 
 .ai-btn {
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.prompt-tab-btn {
   flex-shrink: 0;
 }
 

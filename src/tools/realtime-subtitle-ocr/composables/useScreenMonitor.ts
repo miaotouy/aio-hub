@@ -131,6 +131,7 @@ const filterLatency = ref<number>(0);
 const isOcrPreparing = ref(false);
 
 interface OcrQueueItem {
+  sessionId: number;
   entry: SubtitleEntry;
   /** 与 frameUrl 指向同一 PNG Blob 的 data URL，供 OCR 复用，避免再次编码。 */
   dataUrl: string;
@@ -139,6 +140,7 @@ interface OcrQueueItem {
 // 异步 OCR 队列状态
 const ocrQueue = ref<OcrQueueItem[]>([]);
 const isProcessingQueue = ref(false);
+let ocrProcessingSessionId: number | null = null;
 
 // Canvas 缓存，避免高频采样时频繁创建 DOM 元素导致 GC 压力
 let ocrCanvas: HTMLCanvasElement | null = null;
@@ -169,6 +171,9 @@ function setPreviewUrls(rawUrl: string | null, filteredUrl: string | null) {
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let monitorStartedAt = 0;
+// 每次 start/stop 都推进会话令牌，防止无法被 IPC 立即取消的旧截图/OCR
+// 在下一次启动后把结果写回当前会话。
+let monitorSessionId = 0;
 let abortController: AbortController | null = null;
 let geometryUnlisten: UnlistenFn | null = null;
 let inFlight = false; // 防止采样重叠
@@ -177,7 +182,7 @@ let imageFilterRevision = 0; // 避免运行中调参被在途采样重新写回
 let ocrReadinessKey = "";
 let ocrReadinessPromise: Promise<void> | null = null;
 
-// 未开始 OCR 监控时，仍按采样频率刷新顶部预览，让用户可以直接确认监控区域和滤镜效果。
+// 尚未开始 OCR 监控时，idle 状态按采样频率刷新顶部预览，让用户可以直接确认监控区域和滤镜效果。
 let previewTimer: ReturnType<typeof setInterval> | null = null;
 let previewInFlight = false;
 let previewCanvas: HTMLCanvasElement | null = null;
@@ -186,11 +191,13 @@ let previewToken = 0;
 export function useScreenMonitor() {
   function setMonitorRect(rect: MonitorRect | null) {
     monitorRect.value = rect;
-    if (rect && status.value !== "running") {
-      startPreviewLoop();
-    } else if (!rect) {
+    if (!rect) {
       stopPreviewLoop();
       setPreviewUrls(null, null);
+    } else if (status.value === "idle") {
+      // idle 状态允许用预览确认区域；stopped 表示用户明确停止，
+      // 不再偷偷启动截图/滤镜循环。
+      startPreviewLoop();
     }
   }
 
@@ -299,11 +306,15 @@ export function useScreenMonitor() {
     imageBytes: number[] | null;
   }
 
+  function isActiveMonitorSession(sessionId: number): boolean {
+    return status.value === "running" && monitorSessionId === sessionId;
+  }
+
   /**
    * 物理坐标转换、调用 Rust 截屏、处理去重，并生成预览和 OCR 共用的图片数据。
    * Rust 仅对原始截图去重；滤镜在变化帧进入前端后才执行。
    */
-  async function performCapture(): Promise<{
+  async function performCapture(sessionId: number): Promise<{
     frameUrl: string;
     dataUrl: string;
     hash: string;
@@ -335,7 +346,7 @@ export function useScreenMonitor() {
         }),
       { userMessage: "屏幕截屏失败", showToUser: false }
     );
-    if (!result || status.value !== "running") return null;
+    if (!result || !isActiveMonitorSession(sessionId)) return null;
 
     lastHash.value =
       captureFilterRevision === imageFilterRevision ? result.hash : "";
@@ -372,19 +383,24 @@ export function useScreenMonitor() {
           config.value.imageFilter,
           filterCanvas
         );
-        filterLatency.value = Math.round(performance.now() - startTime);
+        if (
+          isActiveMonitorSession(sessionId) &&
+          captureFilterRevision === imageFilterRevision
+        ) {
+          filterLatency.value = Math.round(performance.now() - startTime);
+        }
       } finally {
         URL.revokeObjectURL(rawUrl);
       }
     } else {
-      filterLatency.value = 0;
+      if (isActiveMonitorSession(sessionId)) filterLatency.value = 0;
     }
 
-    if (status.value !== "running") return null;
+    if (!isActiveMonitorSession(sessionId)) return null;
 
     // Blob 仅编码一次：OCR 复用同一 Blob 的 data URL，预览和时间轴各持有独立 URL。
     const dataUrl = await blobToDataUrl(outputBlob);
-    if (status.value !== "running") return null;
+    if (!isActiveMonitorSession(sessionId)) return null;
 
     // 预览和时间轴使用两个独立 URL：更新预览不会使历史字幕缩略图失效。
     const rawPreviewUrl = URL.createObjectURL(rawBlob);
@@ -424,8 +440,10 @@ export function useScreenMonitor() {
           config.value.imageFilter,
           previewCanvas
         );
-        filterLatency.value = Math.round(performance.now() - startTime);
-      } else {
+        if (token === previewToken && !isRunning.value) {
+          filterLatency.value = Math.round(performance.now() - startTime);
+        }
+      } else if (token === previewToken && !isRunning.value) {
         filterLatency.value = 0;
       }
 
@@ -489,7 +507,8 @@ export function useScreenMonitor() {
    */
   async function performOcr(
     image: HTMLImageElement,
-    dataUrl: string
+    dataUrl: string,
+    sessionId: number
   ): Promise<string> {
     const imageId = `img-${Date.now()}`;
     if (!ocrCanvas) {
@@ -505,7 +524,9 @@ export function useScreenMonitor() {
       undefined,
       abortController.signal
     );
-    latency.value = Date.now() - startTime;
+    if (isActiveMonitorSession(sessionId)) {
+      latency.value = Date.now() - startTime;
+    }
 
     return results[0]?.text?.trim() ?? "";
   }
@@ -513,13 +534,18 @@ export function useScreenMonitor() {
   /**
    * 异步消费 OCR 队列
    */
-  async function processOcrQueue() {
-    if (isProcessingQueue.value) return;
+  async function processOcrQueue(sessionId: number) {
+    if (ocrProcessingSessionId !== null) return;
+    ocrProcessingSessionId = sessionId;
     isProcessingQueue.value = true;
 
     try {
-      while (ocrQueue.value.length > 0 && status.value === "running") {
+      while (ocrQueue.value.length > 0 && isActiveMonitorSession(sessionId)) {
         const job = ocrQueue.value[0];
+        if (!job || job.sessionId !== sessionId) {
+          ocrQueue.value.shift();
+          continue;
+        }
         const entry = job.entry;
         if (!entry.frameUrl) {
           ocrQueue.value.shift();
@@ -537,17 +563,21 @@ export function useScreenMonitor() {
         });
 
         if (!loaded || !image.naturalWidth || !image.naturalHeight) {
-          entry.status = "error";
-          entry.text = "[图片加载失败]";
-          ocrQueue.value.shift();
+          if (isActiveMonitorSession(sessionId)) {
+            entry.status = "error";
+            entry.text = "[图片加载失败]";
+          }
+          if (ocrQueue.value[0]?.entry.id === entry.id) {
+            ocrQueue.value.shift();
+          }
           continue;
         }
 
         try {
-          const text = await performOcr(image, job.dataUrl);
+          const text = await performOcr(image, job.dataUrl, sessionId);
 
-          // 再次检查状态
-          if (status.value !== "running") {
+          // 再次检查状态和会话，避免停止后旧 OCR 结果污染下一次启动。
+          if (!isActiveMonitorSession(sessionId)) {
             break;
           }
 
@@ -576,29 +606,36 @@ export function useScreenMonitor() {
             timeline.removeSubtitle(entry.id);
           }
         } catch (err) {
-          entry.status = "error";
-          entry.text = "[识别失败]";
-          logger.error("队列 OCR 识别失败", err);
+          if (isActiveMonitorSession(sessionId)) {
+            entry.status = "error";
+            entry.text = "[识别失败]";
+            logger.error("队列 OCR 识别失败", err);
+          }
         }
 
-        // 消费完毕，移出队列
-        ocrQueue.value.shift();
+        // 消费完毕，只有仍然属于当前会话的队头才允许移出。
+        if (ocrQueue.value[0]?.entry.id === entry.id) {
+          ocrQueue.value.shift();
+        }
       }
     } finally {
-      isProcessingQueue.value = false;
+      if (ocrProcessingSessionId === sessionId) {
+        ocrProcessingSessionId = null;
+        isProcessingQueue.value = false;
+      }
     }
   }
 
   /** 单次采样循环：只负责截图、去重、生成待识别条目 */
-  async function tick() {
-    if (inFlight) return;
+  async function tick(sessionId: number) {
+    if (inFlight || !isActiveMonitorSession(sessionId)) return;
     inFlight = true;
     try {
-      const captured = await performCapture();
+      const captured = await performCapture(sessionId);
       if (!captured) return;
 
       // 异步截图后，再次检查是否已停止监控
-      if (status.value !== "running") {
+      if (!isActiveMonitorSession(sessionId)) {
         return;
       }
 
@@ -615,10 +652,14 @@ export function useScreenMonitor() {
       };
 
       timeline.addSubtitle(newEntry);
-      ocrQueue.value.push({ entry: newEntry, dataUrl: captured.dataUrl });
+      ocrQueue.value.push({
+        sessionId,
+        entry: newEntry,
+        dataUrl: captured.dataUrl,
+      });
 
       // 异步触发队列消费，不阻塞截图循环
-      processOcrQueue();
+      void processOcrQueue(sessionId);
     } catch (err) {
       // 高频采样循环中的异常采用静默记录，避免弹窗轰炸用户
       errorHandler.handle(err, {
@@ -650,22 +691,25 @@ export function useScreenMonitor() {
     }
 
     stopPreviewLoop();
+    const sessionId = ++monitorSessionId;
     timeline.clearSubtitles();
     ocrQueue.value = [];
+    ocrProcessingSessionId = null;
     isProcessingQueue.value = false;
     setPreviewUrls(null, null);
     lastHash.value = "";
     monitorStartedAt = Date.now();
     status.value = "running";
     timer = setInterval(() => {
-      tick();
+      void tick(sessionId);
     }, config.value.intervalMs);
-    void tick();
+    void tick(sessionId);
     logger.info("监控开始", { intervalMs: config.value.intervalMs });
   }
 
   /** 停止监控 */
   function stop() {
+    ++monitorSessionId;
     if (timer) {
       clearInterval(timer);
       timer = null;
@@ -676,9 +720,13 @@ export function useScreenMonitor() {
       status.value = "stopped";
     }
     ocrQueue.value = [];
+    ocrProcessingSessionId = null;
     isProcessingQueue.value = false;
-    setPreviewUrls(null, null);
-    startPreviewLoop();
+    // 停止后不再启动预览截图循环。保留最后一帧，避免用户看到
+    // “已停止”后滤镜延迟仍持续刷新而误以为服务没有停。
+    stopPreviewLoop();
+    latency.value = 0;
+    filterLatency.value = 0;
     logger.info("监控停止");
   }
 
@@ -693,8 +741,11 @@ export function useScreenMonitor() {
     config.value.intervalMs = intervalMs;
     configManager.saveDebounced(config.value);
     if (status.value === "running") {
+      const sessionId = monitorSessionId;
       if (timer) clearInterval(timer);
-      timer = setInterval(() => tick(), intervalMs);
+      timer = setInterval(() => {
+        void tick(sessionId);
+      }, intervalMs);
     } else if (previewTimer) {
       stopPreviewLoop();
       startPreviewLoop();
@@ -770,6 +821,13 @@ export function useScreenMonitor() {
     activeInstances -= 1;
     if (activeInstances <= 0) {
       activeInstances = 0;
+      ++monitorSessionId;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      abortController?.abort();
+      abortController = null;
       stopListeningGeometry();
       stopPreviewLoop();
       setPreviewUrls(null, null);

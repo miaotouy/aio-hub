@@ -107,7 +107,7 @@
           }}</span>
         </div>
         <div class="info-item">
-          <span class="info-label">滤镜:</span>
+          <span class="info-label">滤镜+编码:</span>
           <span class="info-value font-mono">{{
             filterLatency ? `${filterLatency}ms` : "N/A"
           }}</span>

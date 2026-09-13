@@ -98,13 +98,12 @@ function hslToRgb(
  * 对 RGBA 像素缓冲区应用 OCR 滤镜。输入不会被修改，方便在无 Canvas 的测试环境中验证。
  * 顺序固定为：色相/饱和度 → 亮度/对比度 → 灰度 → 反色 → 二值化。
  */
-export function applyImageFilterToPixels(
-  source: Uint8ClampedArray,
+function applyImageFilterToPixelsInPlace(
+  output: Uint8ClampedArray,
   config: ImageFilterConfig
 ): Uint8ClampedArray {
-  if (!isImageFilterActive(config)) return new Uint8ClampedArray(source);
+  if (!isImageFilterActive(config)) return output;
 
-  const output = new Uint8ClampedArray(source);
   const contrastFactor =
     config.contrast === 0
       ? 1
@@ -157,6 +156,13 @@ export function applyImageFilterToPixels(
   }
 
   return output;
+}
+
+export function applyImageFilterToPixels(
+  source: Uint8ClampedArray,
+  config: ImageFilterConfig
+): Uint8ClampedArray {
+  return applyImageFilterToPixelsInPlace(new Uint8ClampedArray(source), config);
 }
 
 /** 将 Canvas 编码为 PNG Blob；编码失败时显式拒绝。 */
@@ -242,7 +248,10 @@ export async function createFilteredImageBlob(
     targetCanvas.width,
     targetCanvas.height
   );
-  imageData.data.set(applyImageFilterToPixels(imageData.data, config));
+  // 直接在 Canvas 的像素缓冲区上处理，避免“复制一份 Uint8ClampedArray
+  // 再 set 回去”的额外分配和全量拷贝。实时 OCR 的截图通常来自高 DPI
+  // 屏幕，这个重复拷贝会明显放大滤镜耗时和主线程抖动。
+  applyImageFilterToPixelsInPlace(imageData.data, config);
   ctx.putImageData(imageData, 0, 0);
   return canvasToPngBlob(targetCanvas);
 }

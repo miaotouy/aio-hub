@@ -79,16 +79,18 @@
             <MessageSquareText :size="14" />
           </el-button>
         </el-tooltip>
-        <el-button
-          type="primary"
-          size="small"
-          class="ai-btn"
-          :loading="isGenerating"
-          @click="handleGenerateCommitMessage"
-        >
-          <Sparkles :size="14" class="ai-icon" />
-          AI 生成
-        </el-button>
+        <el-tooltip content="AI 生成提交信息" placement="top">
+          <el-button
+            type="primary"
+            circle
+            size="small"
+            class="ai-btn"
+            :loading="isGenerating"
+            @click="handleGenerateCommitMessage"
+          >
+            <Sparkles v-if="!isGenerating" :size="14" />
+          </el-button>
+        </el-tooltip>
       </div>
 
       <div class="commit-input-wrapper">
@@ -495,10 +497,6 @@ const unstageAll = async () => {
 }
 
 .branch-icon {
-  margin-right: 4px;
-}
-
-.ai-icon {
   margin-right: 4px;
 }
 

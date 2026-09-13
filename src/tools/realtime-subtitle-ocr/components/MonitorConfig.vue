@@ -568,7 +568,8 @@ function updateImageFilter<K extends keyof ImageFilterConfig>(
 .toolbar-value {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   color: var(--el-text-color-primary);
-  min-width: 28px;
+  min-width: 34px;
+  text-align: right;
 }
 
 /* 纵向配置面板：每项独占一行，控件撑满剩余宽度 */
@@ -582,11 +583,13 @@ function updateImageFilter<K extends keyof ImageFilterConfig>(
 
 .monitor-config--vertical .toolbar-item {
   justify-content: flex-start;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
 .monitor-config--vertical .toolbar-label {
   flex: 0 0 72px;
+  white-space: nowrap;
 }
 
 .monitor-config--vertical .control-engine,

@@ -21,6 +21,11 @@
       <span class="timeline-editor__time">{{
         formatTimecode(currentTimeMs)
       }}</span>
+      <span
+        class="timeline-editor__hint"
+        title="拖拽块移动 · 拖拽块边缘修剪 · 滚轮滚动 · Ctrl+滚轮缩放 · 右键菜单"
+        >拖拽移动 · 拖边修剪 · 滚轮滚动 · Ctrl+滚轮缩放 · 右键菜单</span
+      >
       <label
         class="timeline-editor__snap"
         title="拖拽时吸附到字幕边缘 / 播放头 / 识别区间端点"
@@ -36,12 +41,25 @@
         <el-button
           size="small"
           text
+          title="缩小时间轴（Ctrl+滚轮）"
           @click="viewport.zoomBy(1 / 1.4, width / 2)"
         >
           <ZoomOut :size="14" />
         </el-button>
-        <el-button size="small" text @click="fitAll">适配全长</el-button>
-        <el-button size="small" text @click="viewport.zoomBy(1.4, width / 2)">
+        <el-button
+          size="small"
+          text
+          title="适配全长，显示整段时间轴"
+          @click="fitAll"
+        >
+          适配全长
+        </el-button>
+        <el-button
+          size="small"
+          text
+          title="放大时间轴（Ctrl+滚轮）"
+          @click="viewport.zoomBy(1.4, width / 2)"
+        >
           <ZoomIn :size="14" />
         </el-button>
       </div>
@@ -831,7 +849,8 @@ watch(
 .timeline-editor__toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   padding: 4px 10px;
   background: var(--sidebar-bg);
   border-bottom: var(--border-width) solid var(--border-color);
@@ -845,6 +864,15 @@ watch(
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.timeline-editor__hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
 }
 .timeline-editor__zoom {
   margin-left: auto;

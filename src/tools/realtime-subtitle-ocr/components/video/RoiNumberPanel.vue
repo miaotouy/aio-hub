@@ -219,10 +219,10 @@ function applyPreset(preset: "bottom-line" | "bottom-two" | "full" | "reset") {
 .roi-number-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 0;
-  margin-top: 8px;
-  border-top: 1px dashed var(--border-color);
+  gap: 10px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
 }
 .roi-number-panel__header {
   display: flex;
@@ -245,13 +245,14 @@ function applyPreset(preset: "bottom-line" | "bottom-two" | "full" | "reset") {
 }
 .roi-grid {
   display: grid;
-  grid-template-columns: 28px 1fr 44px;
+  grid-template-columns: 20px 1fr 42px;
   align-items: center;
-  gap: 6px 8px;
+  gap: 8px;
 }
 .roi-grid label {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+  text-align: left;
 }
 .roi-grid :deep(.el-input-number) {
   width: 100%;
@@ -263,8 +264,14 @@ function applyPreset(preset: "bottom-line" | "bottom-two" | "full" | "reset") {
   text-align: right;
 }
 .roi-presets {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
+  margin-top: 2px;
+}
+.roi-presets .el-button {
+  margin: 0;
+  padding-inline: 4px;
+  width: 100%;
 }
 </style>

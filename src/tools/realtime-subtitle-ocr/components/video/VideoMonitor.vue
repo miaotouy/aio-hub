@@ -59,6 +59,26 @@
       <div v-if="error" class="video-monitor__error">无法播放视频</div>
     </div>
 
+    <!-- 进度条：与时间轴播放头共用 currentMs，双向同步 -->
+    <div
+      class="video-monitor__seek"
+      data-testid="rsocr-seek"
+      role="slider"
+      aria-label="播放进度"
+      aria-valuemin="0"
+      :aria-valuemax="Math.round(durationMs)"
+      :aria-valuenow="Math.round(currentMs)"
+      @pointerdown="onSeekPointerDown"
+      @pointermove="onSeekPointerMove"
+      @pointerup="onSeekPointerUp"
+      @pointercancel="onSeekPointerUp"
+    >
+      <div ref="seekTrackRef" class="seek-track">
+        <div class="seek-progress" :style="{ width: `${progressPercent}%` }"></div>
+        <div class="seek-thumb" :style="{ left: `${progressPercent}%` }"></div>
+      </div>
+    </div>
+
     <!-- 控件条 -->
     <div
       class="video-monitor__controls"
@@ -99,13 +119,8 @@
           >{{ formattedCurrent }} / {{ formattedDuration }}</span
         >
 
-        <!-- 音量 -->
-        <div
-          class="ctrl-menu-wrap"
-          data-testid="rsocr-volume-menu"
-          @mouseenter="showVolumeMenu = true"
-          @mouseleave="showVolumeMenu = false"
-        >
+        <!-- 音量（常驻滑块） -->
+        <div class="volume-control" data-testid="rsocr-volume-menu">
           <button
             class="ctrl-btn"
             data-testid="rsocr-volume"
@@ -116,22 +131,17 @@
             <Volume1 v-else-if="volume < 0.5" :size="15" />
             <Volume2 v-else :size="15" />
           </button>
-          <div
-            v-if="showVolumeMenu"
-            class="ctrl-popup ctrl-popup--volume"
-            @pointerdown.stop
-          >
-            <input
-              class="volume-slider"
-              data-testid="rsocr-volume-slider"
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              :value="isMuted ? 0 : volume"
-              @input="onVolumeInput"
-            />
-          </div>
+          <input
+            class="volume-slider"
+            data-testid="rsocr-volume-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            :value="isMuted ? 0 : volume"
+            :title="`音量 ${Math.round((isMuted ? 0 : volume) * 100)}%`"
+            @input="onVolumeInput"
+          />
         </div>
 
         <!-- 倍速 -->
@@ -302,6 +312,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null);
 const viewportRef = ref<HTMLElement | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
+const seekTrackRef = ref<HTMLElement | null>(null);
 
 const isPlaying = ref(false);
 const currentMs = ref(0);
@@ -312,7 +323,6 @@ const handMode = ref(false);
 const volume = ref(1);
 const isMuted = ref(false);
 const playbackRate = ref(1);
-const showVolumeMenu = ref(false);
 const showRateMenu = ref(false);
 const showZoomMenu = ref(false);
 
@@ -336,6 +346,12 @@ const roiModel = computed({
 
 const formattedCurrent = computed(() => formatTime(currentMs.value));
 const formattedDuration = computed(() => formatTime(durationMs.value));
+
+const progressPercent = computed(() => {
+  if (!durationMs.value) return 0;
+  const ratio = currentMs.value / durationMs.value;
+  return Math.max(0, Math.min(100, ratio * 100));
+});
 
 function formatTime(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -416,6 +432,42 @@ function skip(seconds: number) {
 function stepFrame(direction: number) {
   const frameMs = 1000 / (props.fps || 30);
   seek(currentMs.value + direction * frameMs);
+}
+
+// ===== 进度条拖拽 =====
+let seeking = false;
+
+function seekFromClientX(clientX: number) {
+  const el = seekTrackRef.value;
+  if (!el || !durationMs.value) return;
+  const rect = el.getBoundingClientRect();
+  if (!rect.width) return;
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  seek(ratio * durationMs.value);
+}
+
+function onSeekPointerDown(event: PointerEvent) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  containerRef.value?.focus({ preventScroll: true });
+  seeking = true;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  seekFromClientX(event.clientX);
+}
+
+function onSeekPointerMove(event: PointerEvent) {
+  if (!seeking) return;
+  seekFromClientX(event.clientX);
+}
+
+function onSeekPointerUp(event: PointerEvent) {
+  if (!seeking) return;
+  seeking = false;
+  const el = event.currentTarget as HTMLElement;
+  if (el.hasPointerCapture(event.pointerId)) {
+    el.releasePointerCapture(event.pointerId);
+  }
 }
 
 function toggleMute() {
@@ -505,6 +557,8 @@ let panning: { x: number; y: number } | null = null;
 function onViewportPointerDown(event: PointerEvent) {
   // 普通 div 不会因鼠标点击自动获得键盘焦点，主动聚焦以启用快捷键。
   containerRef.value?.focus({ preventScroll: true });
+  // 控件条 / 进度条上的操作不应触发视口平移。
+  if (!viewportRef.value?.contains(event.target as Node)) return;
   const isPan =
     event.button === 1 ||
     (event.button === 0 && (handMode.value || event.altKey));
@@ -691,11 +745,50 @@ defineExpose({
   color: #fff;
   background: rgba(0, 0, 0, 0.6);
 }
+.video-monitor__seek {
+  flex-shrink: 0;
+  padding: 7px 12px 5px;
+  background: var(--sidebar-bg);
+  border-top: var(--border-width) solid var(--border-color);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.seek-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--el-fill-color-darker, rgba(144, 147, 153, 0.24));
+}
+.seek-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--el-color-primary);
+}
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--el-color-primary);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+  transition: transform 0.12s ease;
+}
+.video-monitor__seek:hover .seek-thumb {
+  transform: translate(-50%, -50%) scale(1.15);
+}
 .video-monitor__controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   padding: 6px 10px;
   background: var(--sidebar-bg);
   border-top: var(--border-width) solid var(--border-color);
@@ -705,7 +798,17 @@ defineExpose({
 .controls-right {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
+  min-width: 0;
+}
+.controls-right {
+  margin-left: auto;
+}
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .ctrl-btn {
   display: inline-flex;
@@ -751,10 +854,6 @@ defineExpose({
   border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
-.ctrl-popup--volume {
-  width: 132px;
-  padding: 8px 10px;
-}
 .ctrl-popup--list {
   min-width: 84px;
   padding: 4px;
@@ -781,7 +880,9 @@ defineExpose({
   background: rgba(var(--el-color-primary-rgb), 0.15);
 }
 .volume-slider {
-  width: 100%;
+  width: 92px;
+  min-width: 56px;
+  max-width: 140px;
   accent-color: var(--el-color-primary);
   cursor: pointer;
 }

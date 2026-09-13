@@ -163,17 +163,21 @@
                   <span>识别进行中，参数已锁定</span>
                 </div>
                 <div class="inspector-settings__body" :inert="isBusy">
-                  <MonitorConfig class="inspector-config" />
+                  <MonitorConfig
+                    orientation="vertical"
+                    class="inspector-config"
+                  />
                   <div class="roi-mask-control">
-                    <span>ROI 外遮罩</span
-                    ><el-slider
+                    <span class="roi-mask-label">ROI 外遮罩:</span>
+                    <el-slider
                       v-model="maskOpacity"
                       :min="0"
                       :max="0.9"
                       :step="0.05"
-                      show-input
                       size="small"
-                    /><span class="roi-mask-control__value"
+                      class="roi-mask-slider"
+                    />
+                    <span class="roi-mask-control__value"
                       >{{ Math.round(maskOpacity * 100) }}%</span
                     >
                   </div>
@@ -190,7 +194,9 @@
               <ActiveSubtitleEditor
                 :active-subtitle="activeSubtitle"
                 :active-subtitle-index="activeIndex"
+                :subtitles="subtitles"
                 @update-text="onUpdateSubtitleText"
+                @select="onInspectorSelect"
                 @finish="onEditorFinish"
               />
             </el-tab-pane>
@@ -544,6 +550,12 @@ function onUpdateSubtitleText(id: string, text: string) {
   timeline.updateSubtitleText(id, text);
 }
 
+function onInspectorSelect(id: string) {
+  selectedId.value = id;
+  const subtitle = subtitles.value.find((item) => item.id === id);
+  if (subtitle) monitorRef.value?.seek(subtitle.startMs);
+}
+
 /** 试识别结果填入当前选中/活动字幕。 */
 function onPreviewApplyText(text: string) {
   if (!activeSubtitle.value) {
@@ -725,7 +737,7 @@ watch(
   flex-shrink: 0;
 }
 .video-workbench__inspector {
-  width: 340px;
+  width: 360px;
   flex-shrink: 0;
   min-height: 0;
   background: var(--card-bg);
@@ -735,35 +747,60 @@ watch(
 }
 .inspector-tabs {
   height: 100%;
-  padding: 0 8px;
+  padding: 0;
+}
+.inspector-tabs :deep(.el-tabs__header) {
+  margin: 0;
+  padding: 0 14px;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+.inspector-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+  background: transparent;
+}
+.inspector-tabs :deep(.el-tabs__item) {
+  height: 38px;
+  padding: 0 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.inspector-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--el-color-primary);
+}
+.inspector-tabs :deep(.el-tabs__active-bar) {
+  height: 2px;
 }
 .inspector-tabs :deep(.el-tabs__content) {
-  overflow: auto;
-  height: calc(100% - 40px);
-}
-.inspector-config :deep(.monitor-config) {
-  justify-content: flex-start;
-}
-.inspector-settings__body {
-  transition: opacity 0.2s ease;
-}
-.inspector-settings.is-locked .inspector-settings__body {
-  opacity: 0.55;
-  pointer-events: none;
-}
-.inspector-settings__lock {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 8px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(var(--el-color-warning-rgb), 0.15);
-  color: var(--el-color-warning);
-  font-size: 11px;
+  overflow: hidden;
+  height: calc(100% - 38px);
+  .inspector-settings {
+    height: 100%;
+    overflow-y: auto;
+    padding: 14px;
+    box-sizing: border-box;
+  }
+  .inspector-settings__body {
+    transition: opacity 0.2s ease;
+  }
+  .inspector-settings.is-locked .inspector-settings__body {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+  .inspector-settings__lock {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: rgba(var(--el-color-warning-rgb), 0.15);
+    color: var(--el-color-warning);
+    font-size: 11px;
+  }
 }
 .video-workbench__empty {
   flex: 1;
@@ -943,16 +980,23 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 14px 0;
-  color: var(--el-text-color-secondary);
+  margin-top: 12px;
+  color: var(--el-text-color-regular);
   font-size: 12px;
 }
-.roi-mask-control :deep(.el-slider) {
+.roi-mask-label {
+  flex: 0 0 72px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+.roi-mask-slider {
   flex: 1;
-  min-width: 100px;
+  min-width: 0;
 }
 .roi-mask-control__value {
-  width: 34px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: var(--el-text-color-primary);
+  min-width: 34px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

@@ -62,7 +62,6 @@ const previewUrl = ref<string | null>(null);
 const ffmpegAvailable = ref<boolean | null>(null);
 const taskId = ref<string | null>(null);
 const queuedFrames: VideoFramePayload[] = [];
-let processing = false;
 let processingPromise: Promise<void> | null = null;
 let frameUnlisten: UnlistenFn | null = null;
 let progressUnlisten: UnlistenFn | null = null;
@@ -140,6 +139,7 @@ async function ensureListeners() {
         });
         return;
       }
+      const extractionFinished = event.payload.phase === "ocr";
       const extractionOverlapsOcr =
         event.payload.phase === "extracting" && progress.value.phase === "ocr";
       setProgress({
@@ -152,7 +152,15 @@ async function ensureListeners() {
           progress.value.ocrCompleted,
           event.payload.ocrCompleted
         ),
-        total: Math.max(progress.value.total, event.payload.total),
+        // During extraction, keep the planned count so the progress bar can
+        // advance immediately. Once the backend reports the final `ocr`
+        // phase, its count is authoritative: FFmpeg may output one fewer (or
+        // one more) frame than the mathematical estimate because of timestamp
+        // rounding. Keeping the estimate here would make OCR wait forever for
+        // a frame that does not exist.
+        total: extractionFinished
+          ? event.payload.total
+          : Math.max(progress.value.total, event.payload.total),
         percent: extractionOverlapsOcr
           ? progress.value.percent
           : event.payload.percent,
@@ -330,9 +338,8 @@ function waitForOcrCompletion(): Promise<void> {
 
 function processQueue(): Promise<void> {
   if (processingPromise) return processingPromise;
-  processingPromise = (async () => {
-    if (processing) return;
-    processing = true;
+
+  const runPromise = (async () => {
     try {
       while (queuedFrames.length && status.value === "running") {
         const frame = queuedFrames.shift()!;
@@ -352,7 +359,6 @@ function processQueue(): Promise<void> {
         status.value = "error";
       }
     } finally {
-      processing = false;
       if (
         status.value === "running" &&
         progress.value.total > 0 &&
@@ -361,8 +367,18 @@ function processQueue(): Promise<void> {
         finishTask("completed");
       }
     }
-  })().finally(() => {
+  })();
+
+  // A frame event can arrive just after the loop observes an empty queue but
+  // before the promise is cleared. In that window the event handler sees the
+  // existing promise and cannot start another worker, leaving the frame (and
+  // the progress bar) stuck forever. Re-check the queue after releasing the
+  // lock so that the last batch is always drained.
+  processingPromise = runPromise.finally(() => {
     processingPromise = null;
+    if (status.value === "running" && queuedFrames.length > 0) {
+      void processQueue();
+    }
   });
   return processingPromise;
 }
@@ -478,7 +494,6 @@ export function useVideoSubtitleOcr() {
     await ensureListeners();
     timeline.clearSubtitles();
     queuedFrames.splice(0);
-    processing = false;
     processingPromise = null;
     lastVideoHash = "";
     frameCounter = 0;

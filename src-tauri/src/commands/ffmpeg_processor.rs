@@ -900,7 +900,7 @@ pub async fn extract_video_frames(
         frames.sort();
         Ok(frames)
     };
-    let mut emit_available_frames = |frames: &[std::path::PathBuf]| {
+    let mut emit_available_frames = |frames: &[std::path::PathBuf], force_stable: bool| {
         while emitted_frames < frames.len() {
             let index = emitted_frames;
             let frame_path = &frames[index];
@@ -909,7 +909,9 @@ pub async fn extract_video_frames(
                 _ => break,
             };
             // FFmpeg 可能会先创建文件再持续写入，连续两次轮询大小不变后才通知前端。
-            let is_stable = frame_sizes.get(frame_path).copied() == Some(size);
+            // 进程退出后文件不再变化，可以直接把尚未通知的帧全部发出；否则
+            // 每次轮询只会推进一帧，长视频会在 FFmpeg 已结束后仍卡在很低的进度。
+            let is_stable = force_stable || frame_sizes.get(frame_path).copied() == Some(size);
             frame_sizes.insert(frame_path.clone(), size);
             if !is_stable {
                 break;
@@ -947,7 +949,7 @@ pub async fn extract_video_frames(
                 discovered_frames.push(frame_path.clone());
             }
         }
-        emit_available_frames(&discovered_frames);
+        emit_available_frames(&discovered_frames, false);
         let result = {
             let mut processes = state.active_processes.lock().map_err(|e| e.to_string())?;
             let process = processes
@@ -1007,7 +1009,7 @@ pub async fn extract_video_frames(
             discovered_frames.push(frame_path.clone());
         }
     }
-    emit_available_frames(&discovered_frames);
+    emit_available_frames(&discovered_frames, true);
     let total = discovered_frames.len();
 
     let _ = window.emit(

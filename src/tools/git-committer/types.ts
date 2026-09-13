@@ -66,6 +66,8 @@ export interface GitCommitterConfig {
   isRightSidebarExpanded: boolean;
   /** 仓库栏是否固定展开 */
   isRepoBarPinned: boolean;
+  /** Diff 是否默认折叠未更改区域 */
+  hideUnchangedRegions: boolean;
   repoSessions: Record<string, RepoSession>;
   // 设置项
   autoPushAfterCommit: boolean;

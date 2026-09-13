@@ -106,7 +106,7 @@ const PREVIOUS_DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT.replace(
 const configManager = createConfigManager<GitCommitterConfig>({
   moduleName: "git-committer",
   fileName: "config.json",
-  version: "1.2.0",
+  version: "1.3.0",
   createDefault: () => ({
     repositories: [],
     currentRepoPath: "",
@@ -114,6 +114,7 @@ const configManager = createConfigManager<GitCommitterConfig>({
     rightSidebarWidth: 280,
     isRightSidebarExpanded: true,
     isRepoBarPinned: false,
+    hideUnchangedRegions: true,
     repoSessions: {},
     autoPushAfterCommit: false,
     autoPullOnSwitch: false,
@@ -133,6 +134,7 @@ export const sidebarWidth = ref<number>(260);
 export const rightSidebarWidth = ref<number>(280);
 export const isRightSidebarExpanded = ref<boolean>(true);
 export const isRepoBarPinned = ref<boolean>(false);
+export const hideUnchangedRegions = ref<boolean>(true);
 export const repoSessions = ref<Record<string, RepoSession>>({});
 
 // 设置项（也持久化）
@@ -198,6 +200,7 @@ export async function loadRepositories(): Promise<void> {
   rightSidebarWidth.value = config.rightSidebarWidth ?? 280;
   isRightSidebarExpanded.value = config.isRightSidebarExpanded ?? true;
   isRepoBarPinned.value = config.isRepoBarPinned ?? false;
+  hideUnchangedRegions.value = config.hideUnchangedRegions ?? true;
   repoSessions.value = config.repoSessions || {};
 
   // 恢复设置项
@@ -239,6 +242,7 @@ function snapshot(): GitCommitterConfig {
     rightSidebarWidth: rightSidebarWidth.value,
     isRightSidebarExpanded: isRightSidebarExpanded.value,
     isRepoBarPinned: isRepoBarPinned.value,
+    hideUnchangedRegions: hideUnchangedRegions.value,
     repoSessions: repoSessions.value,
     autoPushAfterCommit: autoPushAfterCommit.value,
     autoPullOnSwitch: autoPullOnSwitch.value,
@@ -265,6 +269,7 @@ watch(
     rightSidebarWidth,
     isRightSidebarExpanded,
     isRepoBarPinned,
+    hideUnchangedRegions,
     repoSessions,
     autoPushAfterCommit,
     autoPullOnSwitch,

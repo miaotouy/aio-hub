@@ -98,17 +98,61 @@
             <span class="loading-text text-secondary">正在加载差异...</span>
           </div>
 
-          <RichCodeEditor
-            v-else
-            ref="editorRef"
-            diff
-            :original="activeTab.original"
-            :modified="activeTab.modified"
-            :language="getFileLanguage(activeTab.path)"
-            :options="editorOptions"
-            class="diff-editor"
-            @mount="handleEditorMount"
-          />
+          <div v-else class="diff-view">
+            <div class="diff-toolbar" role="toolbar" aria-label="差异导航">
+              <div class="diff-toolbar-group">
+                <button
+                  class="diff-toolbar-button"
+                  :disabled="!canNavigateDiff"
+                  title="上一处差异"
+                  aria-label="上一处差异"
+                  @click="navigateDiff('previous')"
+                >
+                  <ArrowUp :size="15" />
+                </button>
+                <button
+                  class="diff-toolbar-button"
+                  :disabled="!canNavigateDiff"
+                  title="下一处差异"
+                  aria-label="下一处差异"
+                  @click="navigateDiff('next')"
+                >
+                  <ArrowDown :size="15" />
+                </button>
+                <span class="diff-position" aria-live="polite">
+                  {{ diffPositionLabel }}
+                </span>
+              </div>
+
+              <div class="diff-toolbar-divider" aria-hidden="true" />
+
+              <button
+                class="diff-toolbar-button diff-collapse-button"
+                :class="{ active: hideUnchangedRegions }"
+                :aria-pressed="hideUnchangedRegions"
+                :title="
+                  hideUnchangedRegions ? '展开未更改区域' : '折叠未更改区域'
+                "
+                :aria-label="
+                  hideUnchangedRegions ? '展开未更改区域' : '折叠未更改区域'
+                "
+                @click="toggleHideUnchangedRegions"
+              >
+                <FoldVertical v-if="hideUnchangedRegions" :size="15" />
+                <UnfoldVertical v-else :size="15" />
+              </button>
+            </div>
+            <RichCodeEditor
+              ref="editorRef"
+              diff
+              :original="activeTab.original"
+              :modified="activeTab.modified"
+              :language="getFileLanguage(activeTab.path)"
+              :options="editorOptions"
+              class="diff-editor"
+              @mount="handleEditorMount"
+            />
+          </div>
         </template>
 
         <!-- 空状态引导页 -->
@@ -136,12 +180,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  toRaw,
+} from "vue";
 import {
   X,
   FileCode,
   GitCommitHorizontal,
   MessageSquareText,
+  ArrowUp,
+  ArrowDown,
+  FoldVertical,
+  UnfoldVertical,
 } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
@@ -151,6 +207,7 @@ import {
   currentRepoPath,
   currentSession as session,
   currentStatus,
+  hideUnchangedRegions,
 } from "../composables/useGitCommitterState";
 import {
   closeDiffTab,
@@ -172,6 +229,12 @@ const mainAreaRef = ref<HTMLElement | null>();
 const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>();
 const activeTab = ref<DiffTab | null>(null);
 const mainAreaWidth = ref(1000);
+const diffEditorInstance = ref<monaco.editor.IStandaloneDiffEditor | null>(
+  null
+);
+const diffChangeCount = ref(0);
+const currentDiffIndex = ref(-1);
+let diffUpdateDisposable: { dispose: () => void } | null = null;
 
 // ===== 监听主区域宽度，自适应并排/内联 =====
 let resizeObserver: ResizeObserver | null = null;
@@ -193,6 +256,7 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect();
   }
+  diffUpdateDisposable?.dispose();
 });
 
 const triggerEditorLayout = () => {
@@ -222,7 +286,22 @@ const editorOptions = computed(() => {
     renderSideBySide,
     readOnly: true,
     minimap: { enabled: false },
+    hideUnchangedRegions: {
+      enabled: hideUnchangedRegions.value,
+      revealLineCount: 3,
+      minimumLineCount: 3,
+      contextLineCount: 3,
+    },
   };
+});
+
+const canNavigateDiff = computed(
+  () => diffEditorInstance.value !== null && diffChangeCount.value > 0
+);
+
+const diffPositionLabel = computed(() => {
+  if (diffChangeCount.value === 0) return "无差异";
+  return `${Math.max(currentDiffIndex.value, 0) + 1} / ${diffChangeCount.value}`;
 });
 
 // ===== Tab 唯一键 =====
@@ -247,10 +326,15 @@ const isPromptTabActive = computed(() => {
   return activeTabInfo.value?.path === REPO_PROMPT_TAB_PATH;
 });
 
-// ===== 打开 Diff 时自动定位到第一处改动并居中 =====
+// ===== Diff 导航与未更改区域折叠 =====
 const handleEditorMount = (editor: unknown) => {
   const diffEditor = editor as monaco.editor.IStandaloneDiffEditor;
   if (!diffEditor || typeof diffEditor.getLineChanges !== "function") return;
+
+  diffUpdateDisposable?.dispose();
+  diffEditorInstance.value = diffEditor;
+  currentDiffIndex.value = -1;
+  let hasRevealedInitialChange = false;
 
   const revealFirstChange = (): boolean => {
     const changes = diffEditor.getLineChanges();
@@ -272,12 +356,52 @@ const handleEditorMount = (editor: unknown) => {
     return true;
   };
 
-  // 差异计算是异步的，挂载时可能尚未完成
-  if (revealFirstChange()) return;
-  const disposable = diffEditor.onDidUpdateDiff(() => {
-    if (revealFirstChange()) {
-      disposable.dispose();
+  const updateDiffState = () => {
+    const changes = diffEditor.getLineChanges() || [];
+    const previousCount = diffChangeCount.value;
+    diffChangeCount.value = changes.length;
+    if (changes.length === 0) {
+      currentDiffIndex.value = -1;
+      return;
     }
+
+    if (
+      currentDiffIndex.value < 0 ||
+      currentDiffIndex.value >= changes.length ||
+      previousCount !== changes.length
+    ) {
+      currentDiffIndex.value = 0;
+    }
+    if (!hasRevealedInitialChange && revealFirstChange()) {
+      hasRevealedInitialChange = true;
+    }
+  };
+
+  // 差异计算是异步的，挂载时可能尚未完成；事件同时驱动导航计数。
+  diffUpdateDisposable = diffEditor.onDidUpdateDiff(updateDiffState);
+  updateDiffState();
+};
+
+const navigateDiff = (direction: "previous" | "next") => {
+  const diffEditor = diffEditorInstance.value;
+  if (!diffEditor || diffChangeCount.value === 0) return;
+
+  const delta = direction === "next" ? 1 : -1;
+  currentDiffIndex.value =
+    (Math.max(currentDiffIndex.value, 0) + delta + diffChangeCount.value) %
+    diffChangeCount.value;
+  toRaw(diffEditor).goToDiff(direction);
+};
+
+const toggleHideUnchangedRegions = () => {
+  hideUnchangedRegions.value = !hideUnchangedRegions.value;
+  diffEditorInstance.value?.updateOptions({
+    hideUnchangedRegions: {
+      enabled: hideUnchangedRegions.value,
+      revealLineCount: 3,
+      minimumLineCount: 3,
+      contextLineCount: 3,
+    },
   });
 };
 
@@ -285,6 +409,12 @@ const handleEditorMount = (editor: unknown) => {
 watch(
   () => session.value.activeTabPath,
   async (newKey) => {
+    diffUpdateDisposable?.dispose();
+    diffUpdateDisposable = null;
+    diffEditorInstance.value = null;
+    diffChangeCount.value = 0;
+    currentDiffIndex.value = -1;
+
     if (!newKey) {
       activeTab.value = null;
       return;
@@ -471,9 +601,90 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   background-color: var(--card-bg);
 }
 
+.diff-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.diff-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 8px;
+  gap: 4px;
+  flex-shrink: 0;
+  background-color: var(--sidebar-bg);
+  border-bottom: var(--border-width) solid var(--border-color);
+  color: var(--el-text-color-secondary);
+}
+
+.diff-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.diff-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 25px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.diff-toolbar-button:hover:not(:disabled) {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+}
+
+.diff-toolbar-button:focus-visible {
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: -1px;
+}
+
+.diff-toolbar-button:disabled {
+  color: var(--el-text-color-placeholder);
+  cursor: default;
+  opacity: 0.55;
+}
+
+.diff-toolbar-button.active {
+  background-color: var(--el-fill-color-dark);
+  color: var(--el-text-color-primary);
+}
+
+.diff-position {
+  min-width: 48px;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 25px;
+  text-align: center;
+  user-select: none;
+}
+
+.diff-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background-color: var(--border-color);
+}
+
 .diff-editor {
   width: 100%;
   height: 100%;
+  min-height: 0;
 }
 
 .loading-wrapper {

@@ -37,7 +37,7 @@
       "
       class="resize-handle"
       :class="{ active: isResizingSidebar }"
-      @mousedown="startResizeSidebar"
+      @mousedown="handleSidebarResizeStart"
       @dblclick="resetSidebarWidth"
     />
 
@@ -62,7 +62,7 @@
         v-if="isRightSidebarExpanded"
         class="resize-handle right"
         :class="{ active: isResizingRightSidebar }"
-        @mousedown="startResizeRightSidebar"
+        @mousedown="handleRightSidebarResizeStart"
         @dblclick="resetRightSidebarWidth"
       />
       <RightSidebar
@@ -165,6 +165,16 @@ const resetSidebarWidth = () => {
   resetSidebarWidthRef(260);
 };
 
+// 拖拽遮罩层会在 mousedown 后立即挂载，导致浏览器把随后的 dblclick
+// 派发到容器而非手柄，这里在第二次 mousedown 时直接触发复位。
+const handleSidebarResizeStart = (e: MouseEvent) => {
+  if (e.detail === 2) {
+    resetSidebarWidth();
+    return;
+  }
+  startResizeSidebar(e);
+};
+
 // ===== 右侧栏拖拽调整宽度 =====
 const {
   isResizing: isResizingRightSidebar,
@@ -179,6 +189,15 @@ const {
 
 const resetRightSidebarWidth = () => {
   resetRightSidebarWidthRef(280);
+};
+
+const handleRightSidebarResizeStart = (e: MouseEvent) => {
+  // 同左侧：遮罩层使 dblclick 失效，改由第二次 mousedown 复位
+  if (e.detail === 2) {
+    resetRightSidebarWidth();
+    return;
+  }
+  startResizeRightSidebar(e);
 };
 
 // ===== 自动刷新与智能轮询逻辑 =====

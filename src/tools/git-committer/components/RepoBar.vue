@@ -21,6 +21,7 @@
       'is-pinned': isPinned,
       'is-hovered': isHovered,
       'is-managing': isManaging,
+      'is-dragging': isDragging,
     }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
@@ -107,7 +108,15 @@
           item-key="path"
           handle=".drag-handle"
           class="repo-draggable-list"
-          :disabled="!isManaging"
+          ghost-class="ghost-item"
+          chosen-class="chosen-item"
+          drag-class="drag-item"
+          :animation="200"
+          :force-fallback="true"
+          :fallback-tolerance="3"
+          :fallback-on-body="true"
+          @start="isDragging = true"
+          @end="isDragging = false"
         >
           <div
             v-for="repo in repositories"
@@ -119,7 +128,9 @@
             }"
             @click="!isManaging && handleNavigate(repo.path)"
           >
-            <GripVertical v-if="isManaging" :size="14" class="drag-handle" />
+            <div v-if="isManaging" class="drag-handle" @click.stop>
+              <GripVertical :size="14" />
+            </div>
             <!-- 仓库头像与状态徽章 -->
             <div class="repo-avatar-wrapper">
               <Avatar
@@ -233,6 +244,7 @@ const handleNavigate = (path: string) => {
 
 const isHovered = ref(false);
 const isManaging = ref(false);
+const isDragging = ref(false);
 let hoverTimeout: number | null = null;
 
 const handleMouseEnter = () => {
@@ -310,6 +322,12 @@ const selectScanFolders = async () => {
 
 .repo-bar-container.is-managing {
   width: 280px;
+}
+
+.repo-bar-container.is-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing;
 }
 
 .repo-bar-content {
@@ -424,6 +442,20 @@ const selectScanFolders = async () => {
   transition: background-color 0.2s ease;
   position: relative;
   gap: 12px;
+  user-select: none;
+}
+
+.ghost-item {
+  opacity: 0.4;
+}
+
+.chosen-item {
+  background-color: rgba(var(--el-color-primary-rgb), 0.15);
+}
+
+.drag-item {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .repo-item.managing {
@@ -433,9 +465,13 @@ const selectScanFolders = async () => {
 }
 
 .drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--el-text-color-placeholder);
   cursor: grab;
   flex-shrink: 0;
+  touch-action: none;
 }
 
 .drag-handle:active {

@@ -107,6 +107,7 @@
             :language="getFileLanguage(activeTab.path)"
             :options="editorOptions"
             class="diff-editor"
+            @mount="handleEditorMount"
           />
         </template>
 
@@ -158,6 +159,7 @@ import {
   unstageFile,
 } from "../composables/useGitCommitterRunner";
 import type { DiffTab } from "../types";
+import type * as monaco from "@/utils/monaco";
 import { getFileName, getFileLanguage, REPO_PROMPT_TAB_PATH } from "../utils";
 
 const props = defineProps<{
@@ -244,6 +246,40 @@ const activeTabInfo = computed(() => {
 const isPromptTabActive = computed(() => {
   return activeTabInfo.value?.path === REPO_PROMPT_TAB_PATH;
 });
+
+// ===== 打开 Diff 时自动定位到第一处改动并居中 =====
+const handleEditorMount = (editor: unknown) => {
+  const diffEditor = editor as monaco.editor.IStandaloneDiffEditor;
+  if (!diffEditor || typeof diffEditor.getLineChanges !== "function") return;
+
+  const revealFirstChange = (): boolean => {
+    const changes = diffEditor.getLineChanges();
+    if (!changes || changes.length === 0) return false;
+
+    const first = changes[0];
+    // 改动可能只存在于单侧：纯删除时 modified 行为 0，反之 original 行为 0
+    if (first.modifiedEndLineNumber > 0) {
+      diffEditor
+        .getModifiedEditor()
+        .revealLineInCenter(first.modifiedStartLineNumber);
+    } else if (first.originalEndLineNumber > 0) {
+      diffEditor
+        .getOriginalEditor()
+        .revealLineInCenter(first.originalStartLineNumber);
+    } else {
+      return false;
+    }
+    return true;
+  };
+
+  // 差异计算是异步的，挂载时可能尚未完成
+  if (revealFirstChange()) return;
+  const disposable = diffEditor.onDidUpdateDiff(() => {
+    if (revealFirstChange()) {
+      disposable.dispose();
+    }
+  });
+};
 
 // ===== 监听激活 Tab 变化，加载 Diff 内容 =====
 watch(

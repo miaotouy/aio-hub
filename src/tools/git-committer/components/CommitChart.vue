@@ -16,7 +16,9 @@
 
 <!-- Copyright 2025-2026 miaotouy(Github@miaotouy) -->
 <template>
-  <div class="chart-container" ref="chartRef">
+  <div class="chart-container">
+    <!-- ECharts exclusively owns this element's children. -->
+    <div ref="chartRef" class="chart-canvas" />
     <div v-if="commits.length === 0" class="empty-tip">暂无统计数据</div>
   </div>
 </template>
@@ -51,13 +53,13 @@ const getCssVar = (name: string) => {
 const renderChart = () => {
   if (!chartRef.value) return;
 
-  if (!chartInstance) {
-    chartInstance = echarts.init(chartRef.value);
+  if (props.commits.length === 0) {
+    chartInstance?.clear();
+    return;
   }
 
-  if (props.commits.length === 0) {
-    chartInstance.clear();
-    return;
+  if (!chartInstance) {
+    chartInstance = echarts.init(chartRef.value);
   }
 
   const primaryColor = getCssVar("--el-color-primary") || "#409eff";
@@ -160,9 +162,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   resizeObserver?.disconnect();
-  if (chartInstance) {
-    chartInstance.dispose();
-  }
+  chartInstance?.dispose();
+  chartInstance = null;
 });
 </script>
 
@@ -173,7 +174,17 @@ onUnmounted(() => {
   position: relative;
 }
 
+.chart-canvas {
+  width: 100%;
+  height: 100%;
+}
+
 .empty-tip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 24px;
   text-align: center;
   color: var(--el-text-color-placeholder);

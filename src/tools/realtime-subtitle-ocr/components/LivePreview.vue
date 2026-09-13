@@ -66,7 +66,7 @@
         <el-button
           :type="isRunning ? 'danger' : 'success'"
           size="small"
-          :disabled="isOcrPreparing || (!monitorRect && !isRunning)"
+          :disabled="isOcrPreparing || (!hasMonitorRect && !isRunning)"
           @click="$emit('toggle-monitor')"
         >
           <component
@@ -118,7 +118,7 @@ defineProps<{
   isRunning: boolean;
   isOcrPreparing: boolean;
   isMonitorBoxDetached: boolean;
-  monitorRect: any;
+  hasMonitorRect: boolean;
 }>();
 
 defineEmits<{

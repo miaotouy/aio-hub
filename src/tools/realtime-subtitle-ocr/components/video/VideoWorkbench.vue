@@ -74,6 +74,15 @@
           {{ source ? "重新选择" : "选择视频" }}
         </el-button>
         <el-button
+          v-if="source"
+          size="small"
+          data-testid="rsocr-close-video"
+          :disabled="isBusy || screen.isOcrPreparing.value"
+          @click="closeCurrentVideo"
+        >
+          <X :size="14" class="btn-icon" /> 关闭视频
+        </el-button>
+        <el-button
           v-if="isBusy"
           size="small"
           type="danger"
@@ -239,13 +248,10 @@
 
     <!-- 时间轴 -->
     <div class="video-workbench__timeline-wrap">
-      <div
-        class="resize-trigger-y"
-        :class="{ 'is-resizing': isDraggingTimeline }"
-        @mousedown="handleTimelineDragStart"
-      >
-        <div class="resize-handle-line"></div>
-      </div>
+      <ResizeHandle
+        :is-resizing="isDraggingTimeline"
+        @start="handleTimelineDragStart"
+      />
       <div
         class="video-workbench__timeline"
         :style="{ height: timelineHeight + 'px' }"
@@ -296,7 +302,6 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   ElButton,
   ElDrawer,
-  ElMessageBox,
   ElProgress,
   ElTabPane,
   ElTabs,
@@ -308,23 +313,22 @@ import {
   Lock,
   Play,
   Square,
+  X,
 } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
-import { useSendToChat } from "@/composables/useSendToChat";
 import DropZone from "@/components/common/DropZone.vue";
 import { useResizable } from "@/composables/useResizable";
 import VideoMonitor from "./VideoMonitor.vue";
 import RegionFilterPreview from "../common/RegionFilterPreview.vue";
+import ResizeHandle from "../common/ResizeHandle.vue";
 import MonitorConfig from "../MonitorConfig.vue";
 import RoiNumberPanel from "./RoiNumberPanel.vue";
 import ActiveSubtitleEditor from "../ActiveSubtitleEditor.vue";
 import TimelineEditor from "./timeline/TimelineEditor.vue";
 import SubtitleTimeline from "../SubtitleTimeline.vue";
 import { useVideoSubtitleOcr } from "../../composables/useVideoSubtitleOcr";
-import {
-  useScreenMonitor,
-  useSubtitleTimeline,
-} from "../../composables/useScreenMonitor";
+import { useScreenMonitor } from "../../composables/useScreenMonitor";
+import { useSubtitleActions } from "../../composables/useSubtitleActions";
 import { videoRoiToPixels } from "../../utils/video";
 import type { CaptureSource } from "../../utils/frameCapture";
 import type { SubtitleEntry } from "../../types";
@@ -349,10 +353,12 @@ const {
   progress,
   ffmpegAvailable,
   canStart,
+  subtitles,
+  timeline,
 } = video;
 const screen = useScreenMonitor();
-const { subtitles } = screen;
-const timeline = useSubtitleTimeline();
+const { copyAll, sendToChat, exportSrt, clearAll } =
+  useSubtitleActions(timeline);
 
 const monitorRef = ref<InstanceType<typeof VideoMonitor> | null>(null);
 const previewRef = ref<InstanceType<typeof RegionFilterPreview> | null>(null);
@@ -362,8 +368,6 @@ const inspectorTab = ref("settings");
 const showList = ref(false);
 const roiAspectLocked = ref(false);
 const maskOpacity = ref(0.5);
-
-const { sendToChat } = useSendToChat();
 
 const videoUrl = computed(() =>
   source.value ? convertFileSrc(source.value.path) : ""
@@ -461,6 +465,15 @@ async function cancel() {
   await video.cancel();
 }
 
+async function closeCurrentVideo() {
+  if (isBusy.value || screen.isOcrPreparing.value) return;
+  await video.closeVideo();
+  selectedId.value = null;
+  currentTimeMs.value = 0;
+  showList.value = false;
+  inspectorTab.value = "settings";
+}
+
 async function captureVideoSource(): Promise<CaptureSource | null> {
   const element = monitorRef.value?.getVideoElement() ?? null;
   if (!element || !element.videoWidth) return null;
@@ -528,7 +541,7 @@ function onMergeSubtitles(ids: string[]) {
 }
 
 function onUpdateSubtitleText(id: string, text: string) {
-  screen.updateSubtitleText(id, text);
+  timeline.updateSubtitleText(id, text);
 }
 
 /** 试识别结果填入当前选中/活动字幕。 */
@@ -537,7 +550,7 @@ function onPreviewApplyText(text: string) {
     customMessage.warning("请先选择一条字幕");
     return;
   }
-  screen.updateSubtitleText(activeSubtitle.value.id, text);
+  timeline.updateSubtitleText(activeSubtitle.value.id, text);
   customMessage.success("已填入当前字幕");
 }
 
@@ -565,12 +578,7 @@ function onEditorFinish() {
 }
 
 function onExportSrt() {
-  if (!subtitles.value.length) {
-    customMessage.warning("暂无字幕可导出");
-    return;
-  }
-  screen.downloadSrt(`subtitles-${Date.now()}.srt`);
-  customMessage.success("SRT 已导出");
+  exportSrt();
 }
 
 // ===== 次级字幕列表（与轨道联动） =====
@@ -581,56 +589,25 @@ function onListSelect(id: string) {
 }
 
 function onListRemove(id: string) {
-  screen.removeSubtitle(id);
+  timeline.removeSubtitle(id);
   if (selectedId.value === id) selectedId.value = null;
 }
 
 function onListUpdateText(id: string, text: string) {
-  screen.updateSubtitleText(id, text);
+  timeline.updateSubtitleText(id, text);
 }
 
 function onListCopy(withTime: boolean) {
-  const text = withTime
-    ? screen.exportTextWithTime()
-    : screen.exportPlainText();
-  if (!text) {
-    customMessage.warning("暂无字幕可复制");
-    return;
-  }
-  navigator.clipboard
-    .writeText(text)
-    .then(() => customMessage.success("已复制全部字幕"))
-    .catch(() => customMessage.error("复制失败"));
+  copyAll(withTime);
 }
 
 function onListSend(withTime: boolean) {
-  const text = withTime
-    ? screen.exportTextWithTime()
-    : screen.exportPlainText();
-  if (!text) {
-    customMessage.warning("暂无字幕可发送");
-    return;
-  }
-  sendToChat(text, { successMessage: "已发送字幕到聊天输入框" });
+  sendToChat(withTime);
 }
 
 async function onListClear() {
-  try {
-    await ElMessageBox.confirm(
-      "确定要清空所有字幕吗？此操作不可撤销。",
-      "提示",
-      {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-        lockScroll: false,
-      }
-    );
-    screen.clearSubtitles();
+  if (await clearAll()) {
     selectedId.value = null;
-    customMessage.success("已清空所有字幕");
-  } catch {
-    // 取消
   }
 }
 
@@ -960,29 +937,6 @@ watch(
 .video-workbench__timeline {
   min-height: 0;
   overflow: hidden;
-}
-.resize-trigger-y {
-  height: 8px;
-  cursor: row-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: -4px 0;
-  z-index: 10;
-}
-.resize-handle-line {
-  width: 36px;
-  height: 3px;
-  border-radius: 1.5px;
-  background: rgba(128, 128, 128, 0.4);
-  transition:
-    background 0.2s,
-    width 0.2s;
-}
-.resize-trigger-y:hover .resize-handle-line,
-.resize-trigger-y.is-resizing .resize-handle-line {
-  background: var(--el-color-primary);
-  width: 48px;
 }
 
 .roi-mask-control {

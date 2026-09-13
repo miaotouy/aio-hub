@@ -40,8 +40,8 @@ import type { StateSyncPayload } from "@/types/window-sync";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
-import { getSimilarity, buildSrt, formatSrtTime } from "../utils/algorithms";
-import { mergeSubtitleEntries, splitSubtitleEntry } from "../utils/subtitleOps";
+import { getSimilarity } from "../utils/algorithms";
+import { createSubtitleTimelineStore } from "./useSubtitleTimelineStore";
 import {
   blobToDataUrl,
   createFilteredImageBlob,
@@ -119,12 +119,12 @@ function nextEntryId(): string {
 }
 
 // ===== 全局单例状态 =====
-const subtitles = ref<SubtitleEntry[]>([]);
+// 屏幕模式独立字幕 store；视频模式另持一份，避免双模式并行时互相清空/误合并。
+const timeline = createSubtitleTimelineStore();
 const status = ref<MonitorStatus>("idle");
 const monitorRect = ref<MonitorRect | null>(null);
 const lastHash = shallowRef<string>("");
 const lastFrameUrl = ref<string | null>(null);
-const subtitleFrameUrls = new Set<string>();
 const latency = ref<number>(0);
 const filterLatency = ref<number>(0);
 const isOcrPreparing = ref(false);
@@ -164,23 +164,6 @@ function setPreviewUrl(url: string | null) {
     URL.revokeObjectURL(lastFrameUrl.value);
   }
   lastFrameUrl.value = url;
-}
-
-function registerSubtitleFrameUrl(url: string) {
-  subtitleFrameUrls.add(url);
-}
-
-function revokeSubtitleFrameUrl(url: string) {
-  if (subtitleFrameUrls.delete(url)) {
-    URL.revokeObjectURL(url);
-  }
-}
-
-function revokeAllSubtitleFrameUrls() {
-  for (const url of subtitleFrameUrls) {
-    URL.revokeObjectURL(url);
-  }
-  subtitleFrameUrls.clear();
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -341,7 +324,7 @@ export function useScreenMonitor() {
       captureFilterRevision === imageFilterRevision ? result.hash : "";
     if (!result.changed || !result.imageBytes) {
       const now = Date.now() - monitorStartedAt;
-      const last = subtitles.value[subtitles.value.length - 1];
+      const last = timeline.subtitles.value[timeline.subtitles.value.length - 1];
       if (last) last.endMs = now;
       return null;
     }
@@ -388,7 +371,7 @@ export function useScreenMonitor() {
     // 预览和时间轴使用两个独立 URL：更新预览不会使历史字幕缩略图失效。
     const previewUrl = URL.createObjectURL(outputBlob);
     const frameUrl = URL.createObjectURL(outputBlob);
-    registerSubtitleFrameUrl(frameUrl);
+    timeline.registerFrameUrl(frameUrl);
     setPreviewUrl(previewUrl);
 
     return { frameUrl, dataUrl, hash: result.hash };
@@ -497,7 +480,7 @@ export function useScreenMonitor() {
           // 尝试与上一条已完成的字幕合并
           // 注意：因为当前 entry 已经设置了 status = 'done'，所以 completedSubtitles 会包含当前 entry。
           // 我们需要找的是在当前 entry 之前已经完成的最后一条字幕。
-          const completedSubtitles = subtitles.value.filter(
+          const completedSubtitles = timeline.subtitles.value.filter(
             (s) => s.status === "done" && s.id !== entry.id
           );
           const lastDone = completedSubtitles[completedSubtitles.length - 1];
@@ -513,8 +496,7 @@ export function useScreenMonitor() {
               lastDone.text = text;
             }
             // 从总列表中移除当前条目并释放不再需要的历史缩略图。
-            subtitles.value = subtitles.value.filter((s) => s.id !== entry.id);
-            if (entry.frameUrl) revokeSubtitleFrameUrl(entry.frameUrl);
+            timeline.removeSubtitle(entry.id);
           }
         } catch (err) {
           entry.status = "error";
@@ -555,7 +537,7 @@ export function useScreenMonitor() {
         status: "pending",
       };
 
-      subtitles.value.push(newEntry);
+      timeline.addSubtitle(newEntry);
       ocrQueue.value.push({ entry: newEntry, dataUrl: captured.dataUrl });
 
       // 异步触发队列消费，不阻塞截图循环
@@ -590,8 +572,7 @@ export function useScreenMonitor() {
       return;
     }
 
-    revokeAllSubtitleFrameUrls();
-    subtitles.value = [];
+    timeline.clearSubtitles();
     ocrQueue.value = [];
     isProcessingQueue.value = false;
     setPreviewUrl(null);
@@ -661,57 +642,38 @@ export function useScreenMonitor() {
 
   /** 删除单条字幕。正在处理的 OCR 任务允许自然结束，但不会再显示在时间轴。 */
   function removeSubtitle(id: string) {
-    const target = subtitles.value.find((subtitle) => subtitle.id === id);
-    subtitles.value = subtitles.value.filter((s) => s.id !== id);
-    if (target?.frameUrl) revokeSubtitleFrameUrl(target.frameUrl);
+    timeline.removeSubtitle(id);
   }
 
   /** 清空字幕并释放当前会话保留的缩略图资源。 */
   function clearSubtitles() {
-    subtitles.value = [];
+    timeline.clearSubtitles();
     ocrQueue.value = [];
-    revokeAllSubtitleFrameUrls();
   }
 
   /** 更新单条字幕文本 */
   function updateSubtitleText(id: string, text: string) {
-    const target = subtitles.value.find((s) => s.id === id);
-    if (target) target.text = text;
+    timeline.updateSubtitleText(id, text);
   }
 
   /** 复制全部字幕纯文本 */
   function exportPlainText(): string {
-    return subtitles.value.map((s) => s.text.trim()).join("\n");
+    return timeline.exportPlainText();
   }
 
   /** 导出带时间的字幕文本 */
   function exportTextWithTime(): string {
-    return subtitles.value
-      .map((s) => {
-        const start = formatSrtTime(s.startMs);
-        const end = formatSrtTime(s.endMs);
-        return `[${start} --> ${end}] ${s.text.trim()}`;
-      })
-      .join("\n");
+    return timeline.exportTextWithTime();
   }
 
   /** 导出 SRT 字符串 */
   function exportSrt(): string {
-    return buildSrt(subtitles.value);
+    return timeline.exportSrt();
   }
 
   /** 触发浏览器下载 SRT 文件 */
   function downloadSrt(filename = "subtitles.srt") {
-    const srt = exportSrt();
-    const blob = new Blob([srt], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    timeline.downloadSrt(filename);
   }
 
   // 增加引用计数并按需启动几何信息监听
@@ -727,13 +689,14 @@ export function useScreenMonitor() {
       activeInstances = 0;
       stopListeningGeometry();
       setPreviewUrl(null);
-      revokeAllSubtitleFrameUrls();
+      timeline.revokeAllFrameUrls();
     }
   });
 
   return {
     // state
-    subtitles,
+    subtitles: timeline.subtitles,
+    timeline,
     ocrQueue,
     isProcessingQueue,
     status,
@@ -764,98 +727,5 @@ export function useScreenMonitor() {
     exportTextWithTime,
     exportSrt,
     downloadSrt,
-  };
-}
-
-/**
- * 提供给视频 OCR 等其他输入源复用的字幕时间轴控制器。
- * 状态仍由本模块持有，确保主界面、设置面板和视频面板看到同一份结果。
- */
-export function useSubtitleTimeline() {
-  function removeSubtitle(id: string) {
-    const target = subtitles.value.find((subtitle) => subtitle.id === id);
-    subtitles.value = subtitles.value.filter((subtitle) => subtitle.id !== id);
-    if (target?.frameUrl) revokeSubtitleFrameUrl(target.frameUrl);
-  }
-
-  function clearSubtitles() {
-    subtitles.value = [];
-    ocrQueue.value = [];
-    revokeAllSubtitleFrameUrls();
-  }
-
-  function updateSubtitleText(id: string, text: string) {
-    const target = subtitles.value.find((subtitle) => subtitle.id === id);
-    if (target) target.text = text;
-  }
-
-  function addSubtitle(entry: SubtitleEntry) {
-    subtitles.value.push(entry);
-  }
-
-  function replaceSubtitle(id: string, patch: Partial<SubtitleEntry>) {
-    const target = subtitles.value.find((subtitle) => subtitle.id === id);
-    if (target) Object.assign(target, patch);
-  }
-
-  /** 在 `atMs` 处拆分字幕；拆分点无效时返回 `null`。 */
-  function splitSubtitle(id: string, atMs: number): string | null {
-    const index = subtitles.value.findIndex((subtitle) => subtitle.id === id);
-    if (index === -1) return null;
-    const original = subtitles.value[index];
-    const newId = `subtitle-split-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
-    const parts = splitSubtitleEntry(original, atMs, newId);
-    if (!parts) return null;
-    const [first, second] = parts;
-    // 第二段不复用第一段的 Object URL，避免任一删除时提前释放导致另一段预览失效。
-    second.frameUrl = undefined;
-    subtitles.value.splice(index, 1, first, second);
-    return newId;
-  }
-
-  /** 合并若干字幕为一条，返回合并后条目 id；不足两条时返回 `null`。 */
-  function mergeSubtitles(ids: string[]): string | null {
-    const targets = ids
-      .map((id) => subtitles.value.find((subtitle) => subtitle.id === id))
-      .filter((entry): entry is SubtitleEntry => Boolean(entry));
-    const merged = mergeSubtitleEntries(targets);
-    if (!merged) return null;
-    const keepId = merged.id;
-    for (const entry of targets) {
-      if (entry.id !== keepId && entry.frameUrl) {
-        revokeSubtitleFrameUrl(entry.frameUrl);
-      }
-    }
-    const mergedIds = new Set(targets.map((entry) => entry.id));
-    const mergedEntries = subtitles.value.filter(
-      (subtitle) => !mergedIds.has(subtitle.id)
-    );
-    mergedEntries.push(merged);
-    mergedEntries.sort((a, b) => a.startMs - b.startMs);
-    subtitles.value = mergedEntries;
-    return keepId;
-  }
-
-  function registerFrameUrl(url: string) {
-    registerSubtitleFrameUrl(url);
-  }
-
-  function clearFrameUrl(url: string) {
-    revokeSubtitleFrameUrl(url);
-  }
-
-  return {
-    subtitles,
-    addSubtitle,
-    replaceSubtitle,
-    splitSubtitle,
-    mergeSubtitles,
-    clearSubtitles,
-    removeSubtitle,
-    updateSubtitleText,
-    registerFrameUrl,
-    clearFrameUrl,
   };
 }

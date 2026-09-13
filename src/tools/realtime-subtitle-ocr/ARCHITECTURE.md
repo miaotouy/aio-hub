@@ -2,7 +2,7 @@
 
 本文档详细记录了“实时字幕OCR”工具的内部架构、设计理念、数据流以及核心算法，为后续的开发、维护和迭代提供清晰的指引。
 
-> 更新时间：2026-09-12
+> 更新时间：2026-09-13
 
 ---
 
@@ -29,17 +29,20 @@
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                               UI 交互层 (Vue Components)                               │
-│  [RealtimeSubtitleOcr.vue] (上下分栏主容器 + 模式切换顶栏)                             │
-│  ├── [components/LivePreview.vue] (实时预览与控制)                                     │
-│  ├── [components/common/RegionFilterPreview.vue] (区域滤镜对照/试识别)                 │
-│  ├── [components/MonitorConfig.vue] (右侧纵向 OCR 配置面板)                            │
-│  ├── [components/SubtitleTimeline.vue] (字幕时间轴列表 + 行内编辑)                     │
+│  [RealtimeSubtitleOcr.vue] (壳子：模式切换 + 状态徽标 + KeepAlive 常驻两工作台)        │
+│  ├── [components/screen/ScreenWorkbench.vue] (屏幕实时 OCR 工作台)                     │
+│  │   ├── [components/LivePreview.vue] (实时预览与控制)                                 │
+│  │   ├── [components/common/RegionFilterPreview.vue] (区域滤镜对照/试识别)             │
+│  │   ├── [components/MonitorConfig.vue] (右侧纵向 OCR 配置面板)                        │
+│  │   └── [components/SubtitleTimeline.vue] (字幕时间轴列表 + 行内编辑)                 │
 │  └── [components/video/VideoWorkbench.vue] (本地视频独立工作台)                        │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │ 驱动 / 监听状态
 ┌───────────────────────────────────────────▼────────────────────────────────────────────┐
-│                        业务逻辑层 (useScreenMonitor Composable)                        │
-│  (管理定时器、ConfigManager配置持久化、编辑距离文本合并、引用计数防内存泄漏、SRT格式化)│
+│                        业务逻辑层 (Composables，每个输入源独立 store)                  │
+│  [useScreenMonitor] (屏幕采样/去重/滤镜/OCR队列 + screenStore)                         │
+│  [useVideoSubtitleOcr] (视频抽帧/OCR 队列 + videoStore)                                │
+│  [useSubtitleTimelineStore] (字幕 store 工厂，屏幕/视频各持一份)                       │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │ 调用
 ┌───────────────────────────────────────────▼────────────────────────────────────────────┐
@@ -60,7 +63,8 @@
 
 #### 1. UI 交互层 (UI Layer)
 
-- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，点击顶栏在**屏幕实时 OCR** 与**本地视频 OCR** 两种模式间切换。顶栏只保留模式切换器和状态徽标，不再承载业务配置。屏幕模式采用**上下分栏布局**：上方为左右分栏（约 65:35），左侧为 `LivePreview` 与 `RegionFilterPreview` 的自适应监视区，右侧为 `MonitorConfig` 纵向 OCR 配置面板；下方为 `SubtitleTimeline` 字幕时间轴列表。中间提供可拖拽的 Y 轴高度调整条。
+- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具入口壳子，只负责模式切换（屏幕实时 OCR / 本地视频 OCR）、全局状态徽标，以及用 `<KeepAlive>` 常驻两个工作台。切换模式不再停止或取消另一条流水线，屏幕监控与视频识别可同时并行。
+- [`components/screen/ScreenWorkbench.vue`](src/tools/realtime-subtitle-ocr/components/screen/ScreenWorkbench.vue): 屏幕实时 OCR 工作台，采用**上下分栏布局**：上方为左右分栏（约 65:35），左侧为 `LivePreview` 与 `RegionFilterPreview` 的自适应监视区，右侧为 `MonitorConfig` 纵向 OCR 配置面板；下方为 `SubtitleTimeline` 字幕时间轴列表。中间使用共用 `common/ResizeHandle.vue` 提供可拖拽的 Y 轴高度调整条。屏幕专属的监控框控制、预览自适应布局与字幕动作均收敛在此组件内。
 - [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含 OCR 图像滤镜预设和高级参数、采样频率（200ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。支持 `orientation="vertical"` 以纵向面板形式嵌入屏幕模式右侧和视频模式 Inspector。
 - [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持自动滚动、**文本单元格行内编辑**（点击进入，失焦 / `Enter` / `Ctrl+Enter` 保存，`Esc` 取消）、单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
 - [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，在本地视频模式的 Inspector「字幕编辑」页使用，支持 `Ctrl+Enter` 快捷键提交保存。
@@ -69,7 +73,7 @@
 
 #### 2. 业务逻辑层 (Business Logic Layer)
 
-- [`composables/useScreenMonitor.ts`](src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts): 核心业务控制器。负责：
+- [`composables/useScreenMonitor.ts`](src/tools/realtime-subtitle-ocr/composables/useScreenMonitor.ts): 屏幕实时 OCR 核心业务控制器，持有屏幕模式独立字幕 store。负责：
   - 管理定时采样器（`setInterval`）。
   - 使用 `createConfigManager` 统一管理并防抖持久化监控配置（采样频率、去重灵敏度、图像滤镜、引擎配置）。
   - 调度 Rust 后端进行区域截屏与去重；仅当原图发生变化时，才在前端应用图像滤镜。
@@ -79,6 +83,10 @@
   - 实现基于编辑距离（Levenshtein Distance）的文本合并与断句算法。
   - 生成并导出 SRT 格式字幕。
   - 基于异步 OCR 队列执行识别，高频采样与时间轴更新解耦；采样/识别链路发生取消或重启时清理对应队列状态，不让旧任务继续向当前时间轴写入结果。
+- [`composables/useVideoSubtitleOcr.ts`](src/tools/realtime-subtitle-ocr/composables/useVideoSubtitleOcr.ts): 本地视频抽帧 + OCR 控制器，持有视频模式独立字幕 store；配置仍复用 `useScreenMonitor` 的全局 OCR 配置。
+- [`composables/useSubtitleTimelineStore.ts`](src/tools/realtime-subtitle-ocr/composables/useSubtitleTimelineStore.ts): 字幕时间轴 store 工厂。封装 `subtitles`、frameUrl 生命周期、增删改/拆分/合并与纯文本 / 带时间 / SRT 导出。屏幕与视频各自 `create` 一份独立实例，保证双模式并行时互不清空、互不误合并。
+- [`composables/useMonitorBox.ts`](src/tools/realtime-subtitle-ocr/composables/useMonitorBox.ts): 屏幕监控框悬浮窗控制（打开 / 关闭 / 聚焦 / 首次定位），基于 `useDetachable` / `useDetachedManager`。
+- [`composables/useSubtitleActions.ts`](src/tools/realtime-subtitle-ocr/composables/useSubtitleActions.ts): 字幕通用动作（复制全部 / 发送到 Chat / 导出 SRT / 清空），接收一个字幕 store，供两个工作台复用。
 
 #### 3. OCR 平台能力层 (Shared Platform Layer)
 
@@ -182,11 +190,11 @@ sequenceDiagram
 
 ## 6. 本地视频编辑器式工作台（2026-09 重构）
 
-本地视频模式不再复用屏幕模式的上下分栏外壳，而是切换为独立的全幅工作台 `components/video/VideoWorkbench.vue`。两者共享同一份 OCR 管线与配置（`useVideoSubtitleOcr` / `useScreenMonitor` / `useSubtitleTimeline`）。屏幕模式布局在 2026-09-12 单独重构，详见第 7 节。
+本地视频模式不再复用屏幕模式的上下分栏外壳，而是切换为独立的全幅工作台 `components/video/VideoWorkbench.vue`。两者共享同一份全局 OCR 配置与平台能力（`useScreenMonitor` 的 `config` / `ensureOcrReady`），但各自持有独立字幕 store（`useSubtitleTimelineStore` 的两份实例），可同时并行运行。屏幕模式布局在同结构中由 `components/screen/ScreenWorkbench.vue` 承载，详见第 7 节；壳子/工作台拆分与双模式隔离见第 8 节。
 
 ### 6.1. 工作台结构
 
-- 顶部工具栏：文件名 / 时长 / 分辨率 / FFmpeg 状态、抽帧进度、开始·取消·导出、字幕列表抽屉入口。
+- 顶部工具栏：文件名 / 时长 / 分辨率 / FFmpeg 状态、抽帧进度、选择 / 重新选择 / 关闭当前视频、开始·取消·导出、字幕列表抽屉入口。关闭当前视频会卸载媒体并清理该视频的字幕、预览与任务状态。
 - 中部左侧 `VideoMonitor`：达芬奇 / PR 式监视器，支持播放/暂停/停止、逐帧、±5s、**音量 / 静音 · 倍速 / 缩放比例菜单 · 适配 / 缩放 ± / 1:1 / 滚轮缩放 / 拖拽平移 / 双击 Fit↔100% / 全屏**。
 - 中部右侧 Inspector：`MonitorConfig`（引擎 / 滤镜 / 采样 / 去重）、`RoiNumberPanel`（ROI 精确 px/% 设置与预设）、`ActiveSubtitleEditor`（字幕编辑）。
 - 底部 `TimelineEditor`（Konva）：时间标尺 + 字幕轨道块 + 识别区间 + 播放头，横向滚轮滚动、`Ctrl+滚轮` 缩放、块拖拽平移/修剪、点击标尺 seek。
@@ -198,7 +206,7 @@ sequenceDiagram
 - `components/video/RoiOverlay.vue`：位于同一被变换的内容层内，因此 DOM 百分比坐标天然等于视频归一化坐标；8 向手柄与边框尺寸按 `1/scale` 补偿，保证任意缩放下保持恒定屏幕尺寸。
 - `composables/useTimelineViewport.ts`：时间轴 `pxPerSecond / scrollX` 视口；`timeToX / xToTime` 换算，`ensureVisible` 让播放头跟随。Konva 只绘制可见区（windowing），避免长视频下的大量图元。
 - `utils/video.ts` 的 `resizeVideoRoi`：8 向手柄拖拽的纯函数实现；角点手柄在给定 `aspectRatio`（归一化 width / height）时保持比例并锚定对角点，边手柄保持单轴缩放，最小尺寸优先于比例。
-- `utils/subtitleOps.ts`：`splitSubtitleEntry` / `mergeSubtitleEntries` 纯函数，由 `useSubtitleTimeline().splitSubtitle / mergeSubtitles` 调用；拆分保留首段 frameUrl，合并回收被合并条目的 Object URL。
+- `utils/subtitleOps.ts`：`splitSubtitleEntry` / `mergeSubtitleEntries` 纯函数，由 `useSubtitleTimelineStore().splitSubtitle / mergeSubtitles` 调用；拆分保留首段 frameUrl，合并回收被合并条目的 Object URL。
 - 工作台快捷键（`VideoMonitor` 聚焦时）：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`H` 手型、`+/-` 缩放。单击视口 / ROI / 空白会把键盘焦点主动交给监视器，控制条交互后焦点也归还监视器；焦点位于输入控件时不拦截按键。
 - 双击 `Fit ↔ 100%` 在 `mousedown` 中按时间自行识别：`RoiOverlay` 的 `pointerdown` 会 `preventDefault()`，浏览器不再派发 `dblclick`，用原生双击事件会失效。
 - 视频截图链路：`RegionFilterPreview` 用递增令牌丢弃过期刷新与识别结果，刷新时取消在途识别；`VideoWorkbench` 从 `<video>` 取帧前调用 `VideoMonitor.waitForFrame()`，等待 `seeked` + `requestVideoFrameCallback`（无回调能力时 200ms 兜底）确保抓到 seek 后的目标帧。
@@ -219,7 +227,7 @@ sequenceDiagram
 ### 7.1. 结构
 
 - 顶栏：只保留模式切换器（屏幕实时 OCR / 本地视频 OCR）和状态徽标，不再承载 OCR 引擎、滤镜、采样等项目。
-- 上方监视与配置区（默认高度 340px，可通过拖拽条在 180px - 600px 之间调整，双击拖拽条复原默认高度）：
+- 上方监视与配置区（由 `ScreenWorkbench` 承载，默认高度 340px，可通过拖拽条在 180px - 600px 之间调整，双击拖拽条复原默认高度）：
   - 左侧（约 65%）`LivePreview` + `RegionFilterPreview`。使用 `ResizeObserver` 观测左侧容器宽度，并结合监控选区宽高比决定布局：横向选区或容器过窄时上下堆叠，竖向选区且容器足够宽时左右并排。
   - 右侧（约 35%）`MonitorConfig` 纵向配置面板（`orientation="vertical"`），与本地视频模式 Inspector 复用同一组配置控件。
 - 下方：`SubtitleTimeline` 占满剩余高度，文本单元格支持行内编辑。
@@ -227,5 +235,21 @@ sequenceDiagram
 ### 7.2. 行内编辑
 
 - 仅识别完成的字幕（`status` 为 `done` 或未设置）可点击进入编辑；待识别、识别中、识别失败条目不可编辑。
-- `Enter` / `Ctrl+Enter` 或失焦提交并通过 `update-text` 回写 `useScreenMonitor.updateSubtitleText`；`Shift+Enter` 换行；`Esc` 取消且不写回。
+- `Enter` / `Ctrl+Enter` 或失焦提交并通过 `update-text` 回写字幕 store 的 `updateSubtitleText`；`Shift+Enter` 换行；`Esc` 取消且不写回。
 - 编辑状态由单个 `editingId` 持有，同一时刻只有一行处于编辑态，避免多行输入框同时挂载。
+
+## 8. 壳子/工作台拆分与双模式隔离（2026-09-13）
+
+为解决入口组件 `RealtimeSubtitleOcr.vue` 同时充当壳子与屏幕工作台的问题，并支持屏幕监控与视频识别并行运行，本次重构：
+
+### 8.1. 职责拆分
+
+- `RealtimeSubtitleOcr.vue` 降级为纯壳子：模式切换、全局状态徽标、以 `<KeepAlive>` 常驻两个工作台。`switchMode` 只切换展示，不再停止或取消另一条流水线。
+- 屏幕模式的布局、监控框控制、预览自适应与字幕动作迁入 `components/screen/ScreenWorkbench.vue`。
+- 监控框窗口控制抽为 `composables/useMonitorBox.ts`；字幕动作（复制/发送/导出/清空）抽为 `composables/useSubtitleActions.ts`，由两个工作台复用；共用的 Y 轴拖拽条抽为 `components/common/ResizeHandle.vue`。
+
+### 8.2. 独立字幕 store
+
+- `composables/useSubtitleTimelineStore.ts` 提供 `createSubtitleTimelineStore()` 工厂，封装字幕列表、frameUrl 生命周期、增删改/拆分/合并与导出。
+- 屏幕（`useScreenMonitor`）与视频（`useVideoSubtitleOcr`）各持有独立实例。视频 `start()` 只清空自身的字幕，两条流水线的相似度合并只在各自列表内进行，因此可同时并行且互不干扰。
+- 引擎 / 滤镜 / 采样 / 去重配置仍为全局共享（`useScreenMonitor.config`）；OCR 调用的并发调度与运行中降采样属于后续性能优化任务。

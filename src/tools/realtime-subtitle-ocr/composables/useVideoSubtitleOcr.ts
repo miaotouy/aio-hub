@@ -25,7 +25,8 @@ import {
   DEFAULT_VIDEO_ROI,
   normalizeVideoRange,
 } from "../utils/video";
-import { useScreenMonitor, useSubtitleTimeline } from "./useScreenMonitor";
+import { useScreenMonitor } from "./useScreenMonitor";
+import { createSubtitleTimelineStore } from "./useSubtitleTimelineStore";
 import type {
   SubtitleEntry,
   DedupSensitivity,
@@ -79,6 +80,9 @@ let lastVideoHash = "";
 // 引用计数：状态与监听器为模块级单例，可能存在多个组件同时调用该 composable。
 // 仅当最后一个消费者卸载时才销毁全局资源，避免子组件卸载提前清空父组件仍在使用的状态。
 let activeInstances = 0;
+
+// 视频模式独立字幕 store；屏幕模式另持一份，避免双模式并行时互相清空/误合并。
+const timeline = createSubtitleTimelineStore();
 
 function fileNameFromPath(path: string): string {
   return path.match(/[/\\]([^/\\]+)$/)?.[1] ?? "video";
@@ -216,9 +220,7 @@ async function runFrameOcr(frame: VideoFramePayload) {
         DEDUP_THRESHOLD[activeSettings.dedupSensitivity]
     ) {
       const last =
-        useSubtitleTimeline().subtitles.value[
-          useSubtitleTimeline().subtitles.value.length - 1
-        ];
+        timeline.subtitles.value[timeline.subtitles.value.length - 1];
       if (last) last.endMs = Math.max(last.endMs, frame.timestampMs);
       setProgress({
         phase: "ocr",
@@ -232,7 +234,7 @@ async function runFrameOcr(frame: VideoFramePayload) {
       ? await createFilteredImageBlob(image, activeSettings.imageFilter)
       : rawBlob;
     const frameUrl = URL.createObjectURL(filteredBlob);
-    useSubtitleTimeline().registerFrameUrl(frameUrl);
+    timeline.registerFrameUrl(frameUrl);
     previewUrl.value = frameUrl;
     const dataUrl = await blobToDataUrl(filteredBlob);
     const block: ImageBlock = createImageBlock(
@@ -251,7 +253,7 @@ async function runFrameOcr(frame: VideoFramePayload) {
     );
     const text = result[0]?.text?.trim() ?? "";
     if (text) appendSubtitle(text, frame.timestampMs, frameUrl);
-    else useSubtitleTimeline().clearFrameUrl(frameUrl);
+    else timeline.clearFrameUrl(frameUrl);
     setProgress({
       phase: "ocr",
       ocrCompleted: progress.value.ocrCompleted + 1,
@@ -271,7 +273,6 @@ async function runFrameOcr(frame: VideoFramePayload) {
 }
 
 function appendSubtitle(text: string, timestampMs: number, frameUrl: string) {
-  const timeline = useSubtitleTimeline();
   const entries = timeline.subtitles.value;
   const last = entries[entries.length - 1];
   if (last && getSimilarity(last.text, text) >= MERGE_SIMILARITY_THRESHOLD) {
@@ -302,7 +303,7 @@ function intervalMsValue() {
 }
 
 function finishTask(finalStatus: "completed" | "cancelled") {
-  const entries = useSubtitleTimeline().subtitles.value;
+  const entries = timeline.subtitles.value;
   const last = entries[entries.length - 1];
   if (last) last.endMs = Math.max(last.startMs + 1, endMs.value || last.endMs);
   status.value = finalStatus;
@@ -425,6 +426,36 @@ export function useVideoSubtitleOcr() {
     });
   }
 
+  /** 卸载当前视频，并清理与该视频关联的任务、字幕和预览状态。 */
+  async function closeVideo() {
+    await cancel();
+    ocrAbortController?.abort();
+    ocrAbortController = null;
+    queuedFrames.splice(0);
+    await cleanupFrameDirectory();
+    timeline.clearSubtitles();
+    source.value = null;
+    roi.value = { ...DEFAULT_VIDEO_ROI };
+    startMs.value = 0;
+    endMs.value = 0;
+    previewUrl.value = null;
+    ffmpegAvailable.value = null;
+    taskId.value = null;
+    activeSettings = null;
+    lastVideoHash = "";
+    frameCounter = 0;
+    status.value = "idle";
+    setProgress({
+      phase: "extracting",
+      extracted: 0,
+      ocrCompleted: 0,
+      total: 0,
+      currentTimeMs: 0,
+      percent: 0,
+      error: undefined,
+    });
+  }
+
   async function start() {
     if (!source.value || !canStart.value) return;
     await screen.ensureOcrReady();
@@ -445,7 +476,7 @@ export function useVideoSubtitleOcr() {
     ffmpegAvailable.value = available;
     if (!available) throw new Error("FFmpeg 不可用");
     await ensureListeners();
-    useSubtitleTimeline().clearSubtitles();
+    timeline.clearSubtitles();
     queuedFrames.splice(0);
     processing = false;
     processingPromise = null;
@@ -555,7 +586,7 @@ export function useVideoSubtitleOcr() {
   }
 
   async function dispose() {
-    await cancel();
+    await closeVideo();
     if (frameUnlisten) {
       await frameUnlisten();
       frameUnlisten = null;
@@ -589,7 +620,10 @@ export function useVideoSubtitleOcr() {
     previewUrl,
     ffmpegAvailable,
     canStart,
+    timeline,
+    subtitles: timeline.subtitles,
     selectVideo,
+    closeVideo,
     start,
     cancel,
     dispose,

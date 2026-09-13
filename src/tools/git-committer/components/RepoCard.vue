@@ -35,7 +35,7 @@
         <RepoActionsMenu :repo="repo" />
         <el-tooltip content="拉取" placement="top">
           <el-button circle size="small" :loading="isPulling" @click="pull">
-            <ArrowDown :size="12" />
+            <ArrowDown v-if="!isPulling" :size="12" />
           </el-button>
         </el-tooltip>
         <el-tooltip content="推送" placement="top">
@@ -46,7 +46,7 @@
             @click="push"
             :disabled="aheadCount === 0"
           >
-            <ArrowUp :size="12" />
+            <ArrowUp v-if="!isPushing" :size="12" />
           </el-button>
         </el-tooltip>
         <el-tooltip content="刷新" placement="top">
@@ -115,7 +115,7 @@
           @click="generateMsg"
           :disabled="!canGenerateMessage"
         >
-          <Sparkles :size="12" class="ai-icon" />
+          <Sparkles v-if="!isGenerating" :size="12" class="ai-icon" />
           AI 生成
         </el-button>
       </div>

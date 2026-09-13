@@ -1048,7 +1048,12 @@ html.dark .el-dropdown-menu__item:not(.is-disabled):hover {
   color: #ffffff;
 }
 
+/* 修复圆形按钮在 loading 状态下因默认插槽 span 导致 loading 图标偏左歪斜的问题 */
+.el-button.is-circle.is-loading > span {
+  display: none !important;
+}
+
 /* 去除el-button自带的间距，修复按钮布局无法对齐的问题 */
-:deep(.el-button) {
+.el-button {
   margin-left: 0px;
 }

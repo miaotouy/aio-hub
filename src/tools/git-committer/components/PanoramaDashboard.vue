@@ -33,7 +33,7 @@
             :loading="isGlobalStaging"
             @click="handleStageAllRepos"
           >
-            <Plus :size="12" class="btn-icon" />
+            <Plus v-if="!isGlobalStaging" :size="12" class="btn-icon" />
             一键暂存所有
           </el-button>
           <el-button
@@ -43,7 +43,7 @@
             :loading="isGlobalGenerating"
             @click="handleGenerateAllMessages"
           >
-            <Sparkles :size="12" class="btn-icon" />
+            <Sparkles v-if="!isGlobalGenerating" :size="12" class="btn-icon" />
             一键 AI 生成
           </el-button>
           <el-button
@@ -52,7 +52,7 @@
             :loading="isGlobalCommitting"
             @click="handleCommitAllRepos"
           >
-            <Check :size="12" class="btn-icon" />
+            <Check v-if="!isGlobalCommitting" :size="12" class="btn-icon" />
             一键提交所有
           </el-button>
           <el-button
@@ -61,7 +61,7 @@
             :loading="isGlobalPushing"
             @click="handlePushAllRepos"
           >
-            <ArrowUp :size="12" class="btn-icon" />
+            <ArrowUp v-if="!isGlobalPushing" :size="12" class="btn-icon" />
             一键推送所有
           </el-button>
         </el-button-group>

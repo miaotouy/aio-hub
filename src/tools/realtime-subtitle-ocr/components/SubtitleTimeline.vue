@@ -132,7 +132,27 @@
               {{ formatDuration(sub.endMs - sub.startMs) }}
             </td>
             <td class="col-text">
-              <div class="text-cell" title="点击编辑">
+              <el-input
+                v-if="editingId === sub.id"
+                :ref="setEditorRef"
+                v-model="editingText"
+                type="textarea"
+                size="small"
+                :autosize="{ minRows: 1, maxRows: 4 }"
+                class="text-cell-input"
+                @click.stop
+                @blur="commitEdit(sub)"
+                @keydown.enter.exact.prevent="commitEdit(sub)"
+                @keydown.ctrl.enter.prevent="commitEdit(sub)"
+                @keydown.esc.stop.prevent="cancelEdit"
+              />
+              <div
+                v-else
+                class="text-cell"
+                :class="{ 'text-cell--editable': isEditable(sub) }"
+                :title="isEditable(sub) ? '点击编辑' : ''"
+                @click.stop="startEdit(sub)"
+              >
                 <span v-if="sub.status === 'pending'" class="status-tag pending"
                   >等待识别...</span
                 >
@@ -178,6 +198,7 @@ import {
   ElDropdownMenu,
   ElDropdownItem,
   ElCheckbox,
+  ElInput,
 } from "element-plus";
 import {
   Copy as CopyIcon,
@@ -206,6 +227,42 @@ const emit = defineEmits<{
 const listRef = ref<HTMLDivElement | null>(null);
 const autoScroll = ref(true);
 const imageViewer = useImageViewer();
+
+// ===== 行内编辑 =====
+const editingId = ref<string | null>(null);
+const editingText = ref("");
+const editorRef = ref<InstanceType<typeof ElInput> | null>(null);
+
+function setEditorRef(el: unknown) {
+  if (el) editorRef.value = el as InstanceType<typeof ElInput>;
+}
+
+/** 仅识别完成的字幕可编辑，待识别/识别中/失败条目不可改。 */
+function isEditable(sub: SubtitleEntry): boolean {
+  return sub.status === "done" || sub.status === undefined;
+}
+
+function startEdit(sub: SubtitleEntry) {
+  if (!isEditable(sub) || editingId.value === sub.id) return;
+  editingId.value = sub.id;
+  editingText.value = sub.text;
+  nextTick(() => editorRef.value?.focus());
+}
+
+function commitEdit(sub: SubtitleEntry) {
+  if (editingId.value !== sub.id) return;
+  const text = editingText.value;
+  editingId.value = null;
+  editorRef.value = null;
+  if (text !== sub.text) {
+    emit("update-text", sub.id, text);
+  }
+}
+
+function cancelEdit() {
+  editingId.value = null;
+  editorRef.value = null;
+}
 
 function viewImage(url: string) {
   imageViewer.show(url);
@@ -467,6 +524,32 @@ function onExportSrt() {
   white-space: pre-wrap;
   word-break: break-all;
   line-height: 1.5;
+}
+
+.text-cell--editable {
+  cursor: text;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background-color 0.15s;
+}
+
+.text-cell--editable:hover {
+  background: rgba(var(--el-color-primary-rgb), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.25);
+}
+
+.text-cell-input {
+  width: 100%;
+}
+
+.text-cell-input :deep(.el-textarea__inner) {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 4px 8px;
+  resize: none;
+  background: var(--input-bg);
+  border-color: var(--el-color-primary);
 }
 
 .col-ops {

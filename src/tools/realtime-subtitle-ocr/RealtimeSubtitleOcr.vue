@@ -19,6 +19,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ElButtonGroup, ElMessageBox } from "element-plus";
+import { Settings as SettingsIcon } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import { useDetachable } from "@/composables/useDetachable";
@@ -27,7 +28,6 @@ import { useSendToChat } from "@/composables/useSendToChat";
 import SubtitleTimeline from "./components/SubtitleTimeline.vue";
 import LivePreview from "./components/LivePreview.vue";
 import MonitorConfig from "./components/MonitorConfig.vue";
-import ActiveSubtitleEditor from "./components/ActiveSubtitleEditor.vue";
 import RegionFilterPreview from "./components/common/RegionFilterPreview.vue";
 import VideoWorkbench from "./components/video/VideoWorkbench.vue";
 import { blobToCaptureSource, type CaptureSource } from "./utils/frameCapture";
@@ -44,21 +44,30 @@ const { detachByClick } = useDetachable();
 const detachedManager = useDetachedManager();
 
 // ===== 上方区域高度拖拽调整 =====
-const topSectionHeight = ref(260);
-const { isResizing: isDraggingHeight, startResize: handleHeightDragStart } =
-  useResizable({
-    size: topSectionHeight,
-    minSize: 180,
-    maxSize: 600,
-    direction: "top",
-  });
+/** 上方区域默认高度，双击拖拽条可复原到该值。 */
+const DEFAULT_TOP_SECTION_HEIGHT = 340;
+const topSectionHeight = ref(DEFAULT_TOP_SECTION_HEIGHT);
+const {
+  isResizing: isDraggingHeight,
+  startResize: handleHeightDragStart,
+  resetSize: resetHeightSize,
+} = useResizable({
+  size: topSectionHeight,
+  minSize: 180,
+  maxSize: 600,
+  direction: "top",
+});
+
+/** 双击拖拽条复原默认高度。 */
+function resetTopSectionHeight() {
+  resetHeightSize(DEFAULT_TOP_SECTION_HEIGHT);
+}
 
 const {
   subtitles,
   status,
   isRunning,
   monitorRect,
-  lastHash,
   lastFrameUrl,
   latency,
   filterLatency,
@@ -76,7 +85,22 @@ const {
 } = useScreenMonitor();
 const videoOcr = useVideoSubtitleOcr();
 const ocrMode = ref<"screen" | "video">("screen");
-const showScreenPreview = ref(false);
+
+// ===== 左上监视与滤镜区自适应布局 =====
+const previewPanelRef = ref<HTMLElement | null>(null);
+const previewPanelWidth = ref(0);
+let previewPanelObserver: ResizeObserver | null = null;
+
+/**
+ * 横向监控选区在上下堆叠时能保持较宽的画面比例；竖向选区则优先并排，
+ * 避免两个预览各自被压扁。容器过窄时始终退回上下堆叠。
+ */
+const screenPreviewLayout = computed<"row" | "column">(() => {
+  if (previewPanelWidth.value < 560) return "column";
+  const rect = monitorRect.value;
+  const isLandscape = !rect || rect.width >= rect.height;
+  return isLandscape ? "column" : "row";
+});
 
 const { sendToChat } = useSendToChat();
 
@@ -112,25 +136,6 @@ const statusText = computed(() => {
       return "空闲";
   }
 });
-const selectedId = ref<string | null>(null);
-
-const activeSubtitleIndex = computed(() => {
-  if (!subtitles.value.length) return -1;
-  if (!selectedId.value) return subtitles.value.length - 1;
-  const idx = subtitles.value.findIndex((s) => s.id === selectedId.value);
-  return idx !== -1 ? idx : subtitles.value.length - 1;
-});
-
-const activeSubtitle = computed(() => {
-  const idx = activeSubtitleIndex.value;
-  if (idx === -1) return null;
-  return subtitles.value[idx];
-});
-
-function handleSelectSubtitle(id: string) {
-  selectedId.value = id;
-}
-
 function switchMode(nextMode: "screen" | "video") {
   if (nextMode === ocrMode.value) return;
   if (isRunning.value) stop();
@@ -285,7 +290,6 @@ async function clearAll() {
       }
     );
     clearSubtitles();
-    selectedId.value = null;
     customMessage.success("已清空所有字幕");
   } catch {
     // 取消
@@ -299,9 +303,19 @@ onMounted(() => {
   void ensureOcrReady().catch(() => {
     // 启动按钮会再次检查并展示明确错误，这里仅做静默预热。
   });
+
+  if (previewPanelRef.value) {
+    previewPanelWidth.value = previewPanelRef.value.clientWidth;
+    previewPanelObserver = new ResizeObserver((entries) => {
+      previewPanelWidth.value = entries[0]?.contentRect.width ?? 0;
+    });
+    previewPanelObserver.observe(previewPanelRef.value);
+  }
 });
 
 onBeforeUnmount(() => {
+  previewPanelObserver?.disconnect();
+  previewPanelObserver = null;
   if (isRunning.value) stop();
   // 关闭监控框（统一分离窗口关闭流程，触发 window-attached 回主窗口）
   detachedManager.closeWindow(MONITOR_BOX_ID).catch(() => {});
@@ -334,36 +348,27 @@ onBeforeUnmount(() => {
           {{ statusText }}
         </span>
       </div>
-      <div class="toolbar-right">
-        <el-button
-          v-if="ocrMode === 'screen'"
-          size="small"
-          :type="showScreenPreview ? 'primary' : 'default'"
-          @click="showScreenPreview = !showScreenPreview"
-          >区域滤镜预览</el-button
-        >
-        <MonitorConfig v-if="ocrMode === 'screen'" />
-      </div>
     </div>
 
     <!-- 视频模式：独立全幅工作台 -->
-    <VideoWorkbench
-      v-if="ocrMode === 'video'"
-      class="rsocr-video-workbench"
-    />
+    <VideoWorkbench v-if="ocrMode === 'video'" class="rsocr-video-workbench" />
 
-    <!-- 屏幕模式：保留原有上下分栏布局 -->
+    <!-- 屏幕模式：上下分栏，上方监视+配置，下方字幕时间轴 -->
     <div v-else class="rsocr-main">
-      <!-- 上方：左右分栏 (7:3 比例) -->
+      <!-- 上方：左侧监视与滤镜区，右侧 OCR 配置区 -->
       <div
         class="rsocr-top-section"
         :style="{ height: topSectionHeight + 'px' }"
       >
-        <!-- 左上：实时截图预览 + 区域滤镜预览 -->
-        <div class="preview-panel preview-panel--screen">
+        <!-- 左上：实时截图预览 + 区域滤镜预览（自适应堆叠/并排） -->
+        <div
+          ref="previewPanelRef"
+          class="preview-panel preview-panel--screen"
+          :class="{ 'is-row': screenPreviewLayout === 'row' }"
+        >
           <LivePreview
+            class="preview-panel__live"
             :last-frame-url="lastFrameUrl"
-            :last-hash="lastHash"
             :latency="latency"
             :filter-latency="filterLatency"
             :is-running="isRunning"
@@ -376,27 +381,31 @@ onBeforeUnmount(() => {
             @toggle-monitor="toggleMonitor"
           />
           <RegionFilterPreview
-            v-if="showScreenPreview"
             class="preview-panel__filter"
             :capture="captureScreenSource"
             hint="打开监控框后点击「截图预览」，实时查看区域滤镜效果"
           />
         </div>
 
-        <!-- 右上：当前字幕大字编辑框 (30% 宽度) -->
-        <ActiveSubtitleEditor
-          class="editor-panel"
-          :active-subtitle="activeSubtitle"
-          :active-subtitle-index="activeSubtitleIndex"
-          @update-text="updateSubtitleText"
-        />
+        <!-- 右上：OCR 与监控配置面板 -->
+        <div class="config-panel">
+          <div class="config-panel__header">
+            <SettingsIcon :size="14" />
+            <span>监控与识别设置</span>
+          </div>
+          <div class="config-panel__body">
+            <MonitorConfig orientation="vertical" />
+          </div>
+        </div>
       </div>
 
-      <!-- 拖拽条 -->
+      <!-- 拖拽条：拖动调整高度，双击复原默认高度 -->
       <div
         class="resize-trigger-y"
         :class="{ 'is-resizing': isDraggingHeight }"
+        title="拖动调整高度，双击复原默认"
         @mousedown="handleHeightDragStart"
+        @dblclick="resetTopSectionHeight"
       >
         <div class="resize-handle-line"></div>
       </div>
@@ -410,7 +419,6 @@ onBeforeUnmount(() => {
           @export-srt="onExportSrt"
           @copy-all="onCopyAll"
           @send-to-chat="onSendToChat"
-          @select="handleSelectSubtitle"
           @clear-all="clearAll"
         />
       </div>
@@ -470,11 +478,6 @@ onBeforeUnmount(() => {
   color: var(--el-color-danger);
 }
 
-.toolbar-right {
-  display: flex;
-  gap: 8px;
-}
-
 .rsocr-video-workbench {
   flex: 1;
   min-height: 0;
@@ -497,9 +500,9 @@ onBeforeUnmount(() => {
 }
 
 .preview-panel {
-  flex: 7;
+  flex: 65;
   min-height: 0;
-  min-width: 320px;
+  min-width: 280px;
   height: 100%;
 }
 
@@ -509,19 +512,55 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.preview-panel--screen > :first-child {
-  flex: 1;
+.preview-panel--screen.is-row {
+  flex-direction: row;
+}
+
+.preview-panel__live {
+  flex: 1.4;
+  min-width: 0;
   min-height: 0;
 }
 
 .preview-panel__filter {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.config-panel {
+  flex: 35;
+  min-width: 280px;
+  max-width: 420px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.config-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  border-bottom: var(--border-width) solid var(--border-color);
+  background: var(--sidebar-bg);
   flex-shrink: 0;
 }
 
-.editor-panel {
-  flex: 3;
-  min-width: 200px;
-  height: 100%;
+.config-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
 }
 
 .resize-trigger-y {

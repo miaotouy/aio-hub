@@ -2,7 +2,7 @@
 
 本文档详细记录了“实时字幕OCR”工具的内部架构、设计理念、数据流以及核心算法，为后续的开发、维护和迭代提供清晰的指引。
 
-> 更新时间：2026-09-11
+> 更新时间：2026-09-12
 
 ---
 
@@ -16,8 +16,8 @@
 - **像素级图像去重**：在 Rust 后端利用高效的平均哈希算法（aHash）对采样帧进行对比，过滤掉无变化或微弱变化的帧，避免高频大图片通过 IPC 传输，极大节省算力和大模型 API 消耗。
 - **可调图像滤镜**：在截图进入 OCR 前提供原图、灰度增强、高对比黑白和反色黑白预设，以及亮度、对比度、饱和度、色相、反色和二值化高级参数；预览与 OCR 始终使用同一处理图。
 - **多引擎 OCR 识别**：直接复用 `Smart OCR` 的底层平台能力，支持 Windows Native OCR、VLM（多模态大模型）、Tesseract.js、云端 OCR 以及动态插件 OCR 引擎。
-- **流式字幕时间轴**：将识别出的文字与相对时间戳结合，流式追加到时间轴上，支持实时编辑、合并与一键复制。
-- **大字实时编辑**：提供独立的大字编辑面板，支持对当前最新识别的字幕进行快速微调，支持 `Ctrl+Enter` 快捷键提交保存。
+- **流式字幕时间轴**：将识别出的文字与相对时间戳结合，流式追加到时间轴上，支持合并与一键复制。
+- **行内实时编辑**：时间轴表格的文本单元格支持点击直接行内编辑，失焦或 `Enter` / `Ctrl+Enter` 保存，`Esc` 取消；本地视频模式另保留 Inspector 中的大字编辑面板作为补充。
 - **标准字幕导出与发送**：支持一键导出为标准的 `.srt` 字幕文件，或一键发送纯文本/带时间戳文本到全局 Chat 聊天输入框。
 
 ---
@@ -29,11 +29,12 @@
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                               UI 交互层 (Vue Components)                               │
-│  [RealtimeSubtitleOcr.vue] (上下分栏主容器)                                            │
+│  [RealtimeSubtitleOcr.vue] (上下分栏主容器 + 模式切换顶栏)                             │
 │  ├── [components/LivePreview.vue] (实时预览与控制)                                     │
-│  ├── [components/ActiveSubtitleEditor.vue] (当前字幕大字编辑)                          │
-│  ├── [components/SubtitleTimeline.vue] (字幕时间轴列表)                                │
-│  └── [components/MonitorConfig.vue] (监控参数配置)                                     │
+│  ├── [components/common/RegionFilterPreview.vue] (区域滤镜对照/试识别)                 │
+│  ├── [components/MonitorConfig.vue] (右侧纵向 OCR 配置面板)                            │
+│  ├── [components/SubtitleTimeline.vue] (字幕时间轴列表 + 行内编辑)                     │
+│  └── [components/video/VideoWorkbench.vue] (本地视频独立工作台)                        │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │ 驱动 / 监听状态
 ┌───────────────────────────────────────────▼────────────────────────────────────────────┐
@@ -59,10 +60,10 @@
 
 #### 1. UI 交互层 (UI Layer)
 
-- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，采用**上下分栏布局**。上方为左右分栏（7:3 比例），左侧为 `LivePreview` 实时预览与控制区，右侧为 `ActiveSubtitleEditor` 当前字幕大字编辑框；下方为 `SubtitleTimeline` 字幕时间轴列表。中间提供可拖拽的 Y 轴高度调整条。
-- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含 OCR 图像滤镜预设和高级参数、采样频率（200ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。
-- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持自动滚动、单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
-- [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，支持双击下方时间轴列表中的字幕，或等待最新识别结果在此处编辑，支持 `Ctrl+Enter` 快捷键提交保存。
+- [`RealtimeSubtitleOcr.vue`](src/tools/realtime-subtitle-ocr/RealtimeSubtitleOcr.vue): 工具主入口，点击顶栏在**屏幕实时 OCR** 与**本地视频 OCR** 两种模式间切换。顶栏只保留模式切换器和状态徽标，不再承载业务配置。屏幕模式采用**上下分栏布局**：上方为左右分栏（约 65:35），左侧为 `LivePreview` 与 `RegionFilterPreview` 的自适应监视区，右侧为 `MonitorConfig` 纵向 OCR 配置面板；下方为 `SubtitleTimeline` 字幕时间轴列表。中间提供可拖拽的 Y 轴高度调整条。
+- [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含 OCR 图像滤镜预设和高级参数、采样频率（200ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。支持 `orientation="vertical"` 以纵向面板形式嵌入屏幕模式右侧和视频模式 Inspector。
+- [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持自动滚动、**文本单元格行内编辑**（点击进入，失焦 / `Enter` / `Ctrl+Enter` 保存，`Esc` 取消）、单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
+- [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，在本地视频模式的 Inspector「字幕编辑」页使用，支持 `Ctrl+Enter` 快捷键提交保存。
 - [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面，并提供打开/关闭监控框、聚焦监控框、开始/停止监控的控制按钮，以及 aHash 指纹和延迟（ms）的实时显示。
 - [`components/MonitorBox.vue`](src/tools/realtime-subtitle-ocr/components/MonitorBox.vue): 屏幕监控框悬浮窗。通过统一的 `detachableComponents` 体系注册为 `type: "component"` 可分离组件：透明 + 无边框 + 置顶 + 可缩放 + 无阴影，由 `DetachedComponentContainer.vue` 在 `/detached-component/:componentId` 路由下加载，复用 `useDetachable` / `useDetachedManager` / `useWindowSyncBus` 全套悬浮窗基础设施，无需自造独立窗口。
 
@@ -181,7 +182,7 @@ sequenceDiagram
 
 ## 6. 本地视频编辑器式工作台（2026-09 重构）
 
-本地视频模式不再复用屏幕模式的上下分栏外壳，而是切换为独立的全幅工作台 `components/video/VideoWorkbench.vue`，屏幕模式布局保持不变。两者共享同一份 OCR 管线与配置（`useVideoSubtitleOcr` / `useScreenMonitor` / `useSubtitleTimeline`）。
+本地视频模式不再复用屏幕模式的上下分栏外壳，而是切换为独立的全幅工作台 `components/video/VideoWorkbench.vue`。两者共享同一份 OCR 管线与配置（`useVideoSubtitleOcr` / `useScreenMonitor` / `useSubtitleTimeline`）。屏幕模式布局在 2026-09-12 单独重构，详见第 7 节。
 
 ### 6.1. 工作台结构
 
@@ -210,3 +211,21 @@ sequenceDiagram
 - `components/common/RegionFilterPreview.vue`：状态封装 + 滤镜参数变化 debounce 自动重截。视频模式从 `<video>` 当前帧按 ROI 裁剪；屏幕模式调用 `useScreenMonitor().captureOnce()` 一次性抓取监控框（不参与监控去重、不写 `lastHash`）。
 
 > Canvas 截图依赖 `assetProtocol` 与 `crossOrigin="anonymous"`；若个别视频导致画布污染，可降级为新增 Rust `extract_single_frame` 命令。
+
+## 7. 屏幕实时模式布局重构（2026-09-12）
+
+屏幕实时 OCR 模式在保留「上方紧凑监视区 + 下方大面积字幕时间轴」总体比例的前提下，把业务配置从顶栏迁入上方右侧，并在时间轴中提供行内编辑。
+
+### 7.1. 结构
+
+- 顶栏：只保留模式切换器（屏幕实时 OCR / 本地视频 OCR）和状态徽标，不再承载 OCR 引擎、滤镜、采样等项目。
+- 上方监视与配置区（默认高度 340px，可通过拖拽条在 180px - 600px 之间调整，双击拖拽条复原默认高度）：
+  - 左侧（约 65%）`LivePreview` + `RegionFilterPreview`。使用 `ResizeObserver` 观测左侧容器宽度，并结合监控选区宽高比决定布局：横向选区或容器过窄时上下堆叠，竖向选区且容器足够宽时左右并排。
+  - 右侧（约 35%）`MonitorConfig` 纵向配置面板（`orientation="vertical"`），与本地视频模式 Inspector 复用同一组配置控件。
+- 下方：`SubtitleTimeline` 占满剩余高度，文本单元格支持行内编辑。
+
+### 7.2. 行内编辑
+
+- 仅识别完成的字幕（`status` 为 `done` 或未设置）可点击进入编辑；待识别、识别中、识别失败条目不可编辑。
+- `Enter` / `Ctrl+Enter` 或失焦提交并通过 `update-text` 回写 `useScreenMonitor.updateSubtitleText`；`Shift+Enter` 换行；`Esc` 取消且不写回。
+- 编辑状态由单个 `editingId` 持有，同一时刻只有一行处于编辑态，避免多行输入框同时挂载。

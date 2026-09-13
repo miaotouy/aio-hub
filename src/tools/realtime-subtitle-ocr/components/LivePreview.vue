@@ -83,10 +83,6 @@
       </div>
       <div class="control-right">
         <div class="info-item">
-          <span class="info-label">aHash:</span>
-          <span class="info-value font-mono">{{ lastHash || "N/A" }}</span>
-        </div>
-        <div class="info-item">
           <span class="info-label">OCR 延迟:</span>
           <span class="info-value font-mono">{{
             latency ? `${latency}ms` : "N/A"
@@ -117,7 +113,6 @@ import {
 
 defineProps<{
   lastFrameUrl: string | null;
-  lastHash: string;
   latency: number;
   filterLatency: number;
   isRunning: boolean;
@@ -201,13 +196,15 @@ defineEmits<{
 }
 .live-preview__control-bar {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 12px;
   background: var(--sidebar-bg);
   border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
-  gap: 10px;
+  gap: 8px 12px;
 }
 
 .control-left {
@@ -222,8 +219,6 @@ defineEmits<{
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  border-top: 1px dashed var(--border-color);
-  padding-top: 8px;
 }
 
 .info-item {

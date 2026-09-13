@@ -17,6 +17,7 @@ import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TopMessageHost from "./TopMessageHost.vue";
 import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
+import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
 
 describe("TopMessageHost", () => {
   beforeEach(() => {
@@ -26,6 +27,7 @@ describe("TopMessageHost", () => {
 
   afterEach(() => {
     closeAllFloatingMessages();
+    errorHandler.clearErrorQueue();
     vi.useRealTimers();
   });
 
@@ -51,18 +53,21 @@ describe("TopMessageHost", () => {
     expect(wrapper.find(".top-message").exists()).toBe(false);
   });
 
-  it("renders HTML messages when explicitly enabled", async () => {
+  it("renders rich HTML messages when explicitly enabled", async () => {
     const wrapper = mount(TopMessageHost);
     customMessage.error({
-      message: '<strong class="message-detail">请求失败</strong>',
+      message:
+        '<section class="message-detail"><strong>请求失败</strong><br><code>&lt;tag&gt;</code></section>',
       dangerouslyUseHTMLString: true,
       duration: 0,
     });
     await nextTick();
 
-    expect(wrapper.find(".message-detail").exists()).toBe(true);
-    expect(wrapper.find(".message-detail").text()).toBe("请求失败");
-    expect(wrapper.find(".top-message__content").text()).toBe("请求失败");
+    expect(wrapper.find("section.message-detail").exists()).toBe(true);
+    expect(wrapper.find(".message-detail strong").text()).toBe("请求失败");
+    expect(wrapper.find(".message-detail br").exists()).toBe(true);
+    expect(wrapper.find(".message-detail code").text()).toBe("<tag>");
+    expect(wrapper.find(".top-message__content").text()).toBe("请求失败<tag>");
   });
 
   it("keeps HTML escaped unless explicitly enabled", async () => {
@@ -77,6 +82,34 @@ describe("TopMessageHost", () => {
     expect(wrapper.find(".top-message__content").text()).toBe(
       "<strong>请求失败</strong>"
     );
+  });
+
+  it("renders internal error details as VNodes and groups repeated errors", async () => {
+    const wrapper = mount(TopMessageHost);
+    const showError = () =>
+      errorHandler.handle(
+        new Error("Cannot read properties of null (reading 'insertBefore')"),
+        {
+          module: "Vue",
+          level: ErrorLevel.ERROR,
+          userMessage: "应用遇到错误，请查看控制台了解详情",
+        }
+      );
+
+    showError();
+    showError();
+    await nextTick();
+
+    expect(wrapper.findAll(".top-message")).toHaveLength(1);
+    expect(wrapper.find(".top-message__repeat-count").text()).toBe("2");
+    expect(wrapper.find(".top-message__content > div").exists()).toBe(true);
+    expect(wrapper.text()).toContain("[Vue]");
+    expect(wrapper.text()).toContain("应用遇到错误，请查看控制台了解详情");
+    expect(wrapper.text()).toContain(
+      "Cannot read properties of null (reading 'insertBefore')"
+    );
+    expect(wrapper.text()).not.toContain("<div style=");
+    expect(wrapper.text()).not.toContain("&#39;");
   });
   it("copies the message content when the message card is clicked", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);

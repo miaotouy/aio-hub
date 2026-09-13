@@ -24,6 +24,7 @@ import {
   ref,
   watch,
 } from "vue";
+import type { PropType } from "vue";
 import {
   AlertTriangle,
   Check,
@@ -38,11 +39,7 @@ import {
   DEFAULT_MESSAGE_OFFSET,
   floatingMessages,
 } from "@/utils/customMessage";
-import type {
-  CustomMessageContent,
-  CustomMessageType,
-  FloatingMessage,
-} from "@/utils/customMessage";
+import type { CustomMessageType, FloatingMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("components/common/TopMessageHost");
@@ -56,20 +53,20 @@ let copiedStateTimer: number | undefined;
 const MessageBody = defineComponent({
   name: "TopMessageBody",
   props: {
-    content: {
-      type: [String, Object, Function],
+    message: {
+      type: Object as PropType<FloatingMessage>,
       required: true,
     },
-    dangerouslyUseHtmlString: Boolean,
   },
   setup(props) {
     return () => {
-      const content = props.content as CustomMessageContent;
+      const message = props.message;
+      const content = message.message;
       const attributes = { class: "top-message__content" };
 
       if (typeof content === "string") {
-        return props.dangerouslyUseHtmlString
-          ? h("p", { ...attributes, innerHTML: content })
+        return message.dangerouslyUseHTMLString
+          ? h("div", { ...attributes, innerHTML: content })
           : h("p", attributes, content);
       }
 
@@ -303,10 +300,7 @@ onBeforeUnmount(() => {
               :size="18"
             />
           </div>
-          <MessageBody
-            :content="message.message"
-            :dangerously-use-html-string="message.dangerouslyUseHTMLString"
-          />
+          <MessageBody :message="message" />
           <span v-if="message.repeatNum > 1" class="top-message__repeat-count">
             {{ message.repeatNum }}
           </span>

@@ -99,17 +99,25 @@ function normalizeInput(input?: CustomMessageInput): CustomMessageOptions {
   return input || {};
 }
 
+function getGroupingKey(
+  message: Pick<CustomMessageOptions, "copyText" | "message">
+) {
+  if (message.copyText !== undefined) return message.copyText;
+  return typeof message.message === "string" ? message.message : undefined;
+}
+
 function findGroupedMessage(
   options: CustomMessageOptions,
   type: CustomMessageType
 ) {
-  if (!options.grouping || typeof options.message !== "string") return;
+  if (!options.grouping) return;
+
+  const groupingKey = getGroupingKey(options);
+  if (groupingKey === undefined) return;
 
   return floatingMessages.find(
     (message) =>
-      message.type === type &&
-      typeof message.message === "string" &&
-      message.message === options.message
+      message.type === type && getGroupingKey(message) === groupingKey
   );
 }
 

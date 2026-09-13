@@ -18,6 +18,7 @@
  */
 
 import { ElNotification } from "element-plus";
+import { h } from "vue";
 import { createModuleLogger } from "./logger";
 import { customMessage } from "./customMessage";
 
@@ -65,20 +66,6 @@ export interface StandardError {
   context?: Record<string, any>;
   timestamp: string;
   originalError?: any;
-}
-
-/** HTML 转义映射表，替代 lodash.escape，提升为常量避免每次调用重建对象 */
-const HTML_ESCAPE_MAP: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-/** HTML 转义函数，替代 lodash.escape */
-function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, (s) => HTML_ESCAPE_MAP[s]);
 }
 
 /**
@@ -311,42 +298,63 @@ class GlobalErrorHandler {
       friendlyMessage,
       this.maxUserMessageLength
     );
-    const safeFriendlyMessage = escapeHtml(truncatedMessage);
-    const safeModule = escapeHtml(error.module);
-    const safeUserMessage = userMessage ? escapeHtml(userMessage) : "";
+    const hasModule = error.module !== "Unknown";
+    const copyText = [
+      hasModule ? `[${error.module}]` : "",
+      userMessage || "",
+      truncatedMessage,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-    // 构建 HTML 格式的消息
-    let htmlMessage = "";
-    if (safeUserMessage) {
-      // 如果有自定义消息，将其作为主标题，错误详情作为辅助信息
-      // 使用内联样式以确保在 ElMessage 中正确渲染
-      htmlMessage = `
-    <div style="display: flex; flex-direction: column; gap: 4px;">
-      ${error.module !== "Unknown" ? `<span style="font-size: 12px; opacity: 0.6;">[${safeModule}]</span>` : ""}
-      <span style="font-weight: bold; font-size: 14px; line-height: 1.4;">${safeUserMessage}</span>
-      <span style="font-size: 12px; opacity: 0.8; margin-top: 2px; padding-top: 4px; border-top: 1px solid rgba(128, 128, 128, 0.2); word-break: break-all; user-select: text; line-height: 1.4;">
-        ${safeFriendlyMessage}
-      </span>
-    </div>
-  `;
-    } else {
-      // 如果没有自定义消息，直接显示错误详情
-      htmlMessage = `
-    <div style="display: flex; flex-direction: column; gap: 4px;">
-      ${
-        error.module !== "Unknown"
-          ? `<span style="font-weight: bold; font-size: 12px; opacity: 0.8;">[${safeModule}]</span>`
-          : ""
-      }
-      <span style="font-size: 14px; line-height: 1.4; word-break: break-all; user-select: text;">${safeFriendlyMessage}</span>
-    </div>
-  `;
-    }
+    // 内部提示直接使用 VNode，避免依赖 HTML 字符串开关，也不会把错误文本二次转义成实体。
+    const messageContent = h(
+      "div",
+      {
+        style: "display: flex; flex-direction: column; gap: 4px;",
+      },
+      [
+        ...(hasModule
+          ? [
+              h(
+                "span",
+                {
+                  style: userMessage
+                    ? "font-size: 12px; opacity: 0.6;"
+                    : "font-weight: bold; font-size: 12px; opacity: 0.8;",
+                },
+                `[${error.module}]`
+              ),
+            ]
+          : []),
+        ...(userMessage
+          ? [
+              h(
+                "span",
+                {
+                  style:
+                    "font-weight: bold; font-size: 14px; line-height: 1.4;",
+                },
+                userMessage
+              ),
+            ]
+          : []),
+        h(
+          "span",
+          {
+            style: userMessage
+              ? "font-size: 12px; opacity: 0.8; margin-top: 2px; padding-top: 4px; border-top: 1px solid rgba(128, 128, 128, 0.2); word-break: break-all; user-select: text; line-height: 1.4;"
+              : "font-size: 14px; line-height: 1.4; word-break: break-all; user-select: text;",
+          },
+          truncatedMessage
+        ),
+      ]
+    );
     const options = {
-      dangerouslyUseHTMLString: true,
-      message: htmlMessage,
+      message: messageContent,
+      copyText,
       duration: error.level === ErrorLevel.ERROR ? 5000 : 3000,
-      grouping: true, // 相同消息合并
+      grouping: true,
     };
 
     switch (error.level) {
@@ -362,8 +370,7 @@ class GlobalErrorHandler {
       case ErrorLevel.CRITICAL:
         ElNotification.error({
           title: "严重错误",
-          dangerouslyUseHTMLString: true,
-          message: htmlMessage,
+          message: messageContent,
           duration: 0, // 不自动关闭
         });
         break;

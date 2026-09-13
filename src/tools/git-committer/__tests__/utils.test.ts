@@ -15,10 +15,15 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCommitPromptMessages,
+  buildTabKey,
   COMMIT_LANGUAGE_MACRO,
+  COMMIT_VIEW_TAB_PATH,
+  isCommitTab,
+  isCommitViewTab,
   normalizeGeneratedCommitMessage,
   parseRemoteInfo,
   renderCommitPromptMacros,
+  REPO_PROMPT_TAB_PATH,
   resolvePersistedPrompt,
   resolveSystemPrompt,
 } from "../utils";
@@ -162,5 +167,62 @@ describe("git-committer remote platform detection", () => {
     expect(parseRemoteInfo("git@git.internal.corp:team/repo.git")).toBeNull();
     expect(parseRemoteInfo("https://github.com")).toBeNull();
     expect(parseRemoteInfo("")).toBeNull();
+  });
+});
+
+describe("git-committer tab keys", () => {
+  it("keeps staged and unstaged keys distinct", () => {
+    expect(buildTabKey({ path: "src/app.ts", isStaged: true })).toBe(
+      "S:src/app.ts"
+    );
+    expect(buildTabKey({ path: "src/app.ts", isStaged: false })).toBe(
+      "W:src/app.ts"
+    );
+  });
+
+  it("keys commit file tabs by hash and path", () => {
+    const key = buildTabKey({
+      path: "src/app.ts",
+      isStaged: false,
+      commitHash: "abc123",
+    });
+    expect(key).toBe("C:abc123:src/app.ts");
+    expect(key).not.toBe(buildTabKey({ path: "src/app.ts", isStaged: false }));
+  });
+
+  it("keys the commit overview tab independently from its files", () => {
+    const overview = {
+      path: COMMIT_VIEW_TAB_PATH,
+      isStaged: false,
+      commitHash: "abc123",
+    };
+    expect(buildTabKey(overview)).toBe("CV:abc123");
+    expect(buildTabKey(overview)).not.toBe(
+      buildTabKey({ path: "src/app.ts", isStaged: false, commitHash: "abc123" })
+    );
+  });
+
+  it("classifies commit tabs and the overview tab", () => {
+    expect(isCommitTab({ path: "a.ts", isStaged: false })).toBe(false);
+    expect(
+      isCommitTab({ path: "a.ts", isStaged: false, commitHash: "abc123" })
+    ).toBe(true);
+    expect(
+      isCommitViewTab({
+        path: COMMIT_VIEW_TAB_PATH,
+        isStaged: false,
+        commitHash: "abc123",
+      })
+    ).toBe(true);
+    expect(
+      isCommitViewTab({ path: "a.ts", isStaged: false, commitHash: "abc123" })
+    ).toBe(false);
+    expect(isCommitViewTab(null)).toBe(false);
+  });
+
+  it("keeps the AI prompt tab key stable", () => {
+    expect(buildTabKey({ path: REPO_PROMPT_TAB_PATH, isStaged: false })).toBe(
+      `W:${REPO_PROMPT_TAB_PATH}`
+    );
   });
 });

@@ -26,17 +26,32 @@
         <div class="tabs-scroll-container">
           <div
             v-for="tab in session.openTabs"
-            :key="buildTabKey(tab.path, tab.isStaged)"
+            :key="buildTabKey(tab)"
             class="tab-item"
             :class="{
-              active:
-                session.activeTabPath === buildTabKey(tab.path, tab.isStaged),
+              active: session.activeTabPath === buildTabKey(tab),
             }"
-            @click="session.activeTabPath = buildTabKey(tab.path, tab.isStaged)"
+            @click="session.activeTabPath = buildTabKey(tab)"
           >
             <template v-if="isPromptTab(tab.path)">
               <MessageSquareText :size="12" class="tab-prompt-icon" />
               <span class="tab-name">AI 提示词</span>
+            </template>
+            <template v-else-if="isCommitViewTab(tab)">
+              <GitCommitHorizontal :size="12" class="tab-commit-icon" />
+              <span class="tab-name">提交更改</span>
+              <span class="tab-commit-badge">{{
+                shortHashOf(tab.commitHash)
+              }}</span>
+            </template>
+            <template v-else-if="isCommitTab(tab)">
+              <GitCommitHorizontal :size="12" class="tab-commit-icon" />
+              <span class="tab-name" :title="tab.path">{{
+                getFileName(tab.path)
+              }}</span>
+              <span class="tab-commit-badge">{{
+                shortHashOf(tab.commitHash)
+              }}</span>
             </template>
             <template v-else>
               <span
@@ -52,10 +67,7 @@
                 {{ tab.isStaged ? "暂存" : "工作区" }}
               </span>
             </template>
-            <span
-              class="tab-close"
-              @click.stop="closeDiffTab(tab.path, tab.isStaged)"
-            >
+            <span class="tab-close" @click.stop="closeDiffTab(tab)">
               <X :size="12" />
             </span>
           </div>
@@ -66,13 +78,26 @@
       <div class="main-content">
         <RepoPromptEditor v-if="isPromptTabActive" />
 
+        <CommitDiffView
+          v-else-if="isCommitViewTabActive"
+          :repo-path="currentRepoPath"
+          :commit-hash="activeTabInfo?.commitHash || ''"
+        />
+
         <template v-else-if="activeTab">
+          <!-- 加载失败提示 -->
+          <div v-if="activeTab.error" class="binary-fallback-card">
+            <FileWarning :size="48" class="text-placeholder binary-icon" />
+            <h3 class="binary-title">无法打开文件差异</h3>
+            <p class="text-secondary binary-desc">{{ activeTab.error }}</p>
+          </div>
+
           <!-- 二进制文件降级提示 -->
-          <div v-if="activeTab.isBinary" class="binary-fallback-card">
+          <div v-else-if="activeTab.isBinary" class="binary-fallback-card">
             <FileCode :size="48" class="text-placeholder binary-icon" />
             <h3 class="binary-title">二进制文件无法查看差异</h3>
             <p class="text-secondary binary-desc">{{ activeTab.path }}</p>
-            <div class="binary-actions">
+            <div v-if="!activeTab.commitHash" class="binary-actions">
               <el-button
                 v-if="activeTab.isStaged"
                 type="danger"
@@ -192,6 +217,7 @@ import {
 import {
   X,
   FileCode,
+  FileWarning,
   GitCommitHorizontal,
   MessageSquareText,
   ArrowUp,
@@ -203,6 +229,7 @@ import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import PanoramaDashboard from "./PanoramaDashboard.vue";
 import RepoPromptEditor from "./RepoPromptEditor.vue";
+import CommitDiffView from "./CommitDiffView.vue";
 import {
   currentRepoPath,
   currentSession as session,
@@ -211,13 +238,21 @@ import {
 } from "../composables/useGitCommitterState";
 import {
   closeDiffTab,
+  loadCommitFileDiff,
   loadFileDiff,
   stageFile,
   unstageFile,
 } from "../composables/useGitCommitterRunner";
 import type { DiffTab } from "../types";
 import type * as monaco from "@/utils/monaco";
-import { getFileName, getFileLanguage, REPO_PROMPT_TAB_PATH } from "../utils";
+import {
+  buildTabKey,
+  getFileName,
+  getFileLanguage,
+  isCommitTab,
+  isCommitViewTab,
+  REPO_PROMPT_TAB_PATH,
+} from "../utils";
 
 const props = defineProps<{
   sidebarWidth: number;
@@ -304,26 +339,25 @@ const diffPositionLabel = computed(() => {
   return `${Math.max(currentDiffIndex.value, 0) + 1} / ${diffChangeCount.value}`;
 });
 
-// ===== Tab 唯一键 =====
-const buildTabKey = (filePath: string, isStaged: boolean): string => {
-  return `${isStaged ? "S" : "W"}:${filePath}`;
-};
-
+// ===== Tab 辅助 =====
 const isPromptTab = (filePath: string): boolean => {
   return filePath === REPO_PROMPT_TAB_PATH;
 };
 
+const shortHashOf = (hash?: string): string =>
+  hash ? hash.substring(0, 7) : "";
+
 const activeTabInfo = computed(() => {
   const key = session.value.activeTabPath;
-  return (
-    session.value.openTabs.find(
-      (t) => buildTabKey(t.path, t.isStaged) === key
-    ) || null
-  );
+  return session.value.openTabs.find((t) => buildTabKey(t) === key) || null;
 });
 
 const isPromptTabActive = computed(() => {
-  return activeTabInfo.value?.path === REPO_PROMPT_TAB_PATH;
+  return isPromptTab(activeTabInfo.value?.path || "");
+});
+
+const isCommitViewTabActive = computed(() => {
+  return isCommitViewTab(activeTabInfo.value);
 });
 
 // ===== Diff 导航与未更改区域折叠 =====
@@ -421,9 +455,9 @@ watch(
     }
 
     const tabInfo = session.value.openTabs.find(
-      (t) => buildTabKey(t.path, t.isStaged) === newKey
+      (t) => buildTabKey(t) === newKey
     );
-    if (!tabInfo || isPromptTab(tabInfo.path)) {
+    if (!tabInfo || isPromptTab(tabInfo.path) || isCommitViewTab(tabInfo)) {
       activeTab.value = null;
       return;
     }
@@ -431,20 +465,38 @@ watch(
     activeTab.value = {
       path: tabInfo.path,
       isStaged: tabInfo.isStaged,
+      commitHash: tabInfo.commitHash,
       original: "",
       modified: "",
       isBinary: false,
       loading: true,
     };
 
-    const diff = await loadFileDiff(
-      currentRepoPath.value,
-      tabInfo.path,
-      tabInfo.isStaged
-    );
+    const diff = tabInfo.commitHash
+      ? await loadCommitFileDiff(
+          currentRepoPath.value,
+          tabInfo.commitHash,
+          tabInfo.path
+        )
+      : await loadFileDiff(
+          currentRepoPath.value,
+          tabInfo.path,
+          tabInfo.isStaged
+        );
     if (diff && session.value.activeTabPath === newKey) {
       activeTab.value = diff;
       triggerEditorLayout();
+    } else if (!diff && session.value.activeTabPath === newKey) {
+      activeTab.value = {
+        path: tabInfo.path,
+        isStaged: tabInfo.isStaged,
+        commitHash: tabInfo.commitHash,
+        original: "",
+        modified: "",
+        isBinary: false,
+        loading: false,
+        error: "加载文件差异失败，文件可能已不存在",
+      };
     }
   },
   { immediate: true }
@@ -563,6 +615,17 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 .tab-prompt-icon {
   color: var(--el-color-primary);
   flex-shrink: 0;
+}
+
+.tab-commit-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.tab-commit-badge {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--el-text-color-secondary);
 }
 
 .tab-stage-badge {

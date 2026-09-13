@@ -40,7 +40,13 @@
             :key="commit.hash"
             :commit="commit"
           >
-            <div class="commit-node">
+            <div
+              class="commit-node"
+              :class="{
+                expanded: isExpanded(commit.hash),
+                selected: selectedHash === commit.hash,
+              }"
+            >
               <!-- 连线 -->
               <div class="tree-line-wrapper">
                 <div class="tree-dot" />
@@ -48,15 +54,85 @@
               </div>
               <!-- 提交内容 -->
               <div class="commit-info">
-                <div class="commit-msg" :title="commit.message">
-                  {{ commit.message }}
+                <div class="commit-msg-row">
+                  <ChevronRight
+                    :size="12"
+                    class="commit-chevron"
+                    :class="{ open: isExpanded(commit.hash) }"
+                    @click="toggleExpand(commit)"
+                  />
+                  <span
+                    class="commit-msg"
+                    :title="commit.message"
+                    @click="toggleExpand(commit)"
+                  >
+                    {{ commit.message }}
+                  </span>
+                  <el-tooltip content="打开更改" placement="top" :show-after="200">
+                    <button
+                      class="open-changes-btn"
+                      type="button"
+                      aria-label="打开更改"
+                      @click.stop="openCommitChanges(commit)"
+                    >
+                      <FileDiff :size="13" />
+                    </button>
+                  </el-tooltip>
                 </div>
-                <div class="commit-meta-row">
+                <div class="commit-meta-row" @click="toggleExpand(commit)">
                   <span class="commit-hash">{{
                     commit.hash.substring(0, 7)
                   }}</span>
                   <span class="commit-author">{{ commit.author }}</span>
                   <span class="commit-date">{{ formatTime(commit.date) }}</span>
+                </div>
+
+                <!-- 展开的更改文件列表 -->
+                <div v-if="isExpanded(commit.hash)" class="commit-files">
+                  <div
+                    v-if="isLoadingFiles(commit.hash)"
+                    class="commit-files-tip"
+                  >
+                    <el-icon class="is-loading" :size="12"><Loading /></el-icon>
+                    <span>正在加载变更...</span>
+                  </div>
+                  <div
+                    v-else-if="filesFor(commit.hash).length === 0"
+                    class="commit-files-tip"
+                  >
+                    无文件变更
+                  </div>
+                  <div
+                    v-else
+                    v-for="file in filesFor(commit.hash)"
+                    :key="file.path"
+                    class="commit-file"
+                    :title="file.path"
+                    @click.stop="openCommitFile(commit.hash, file.path)"
+                  >
+                    <FileIcon
+                      :file-name="file.path"
+                      :size="14"
+                      class="commit-file-icon"
+                    />
+                    <span class="commit-file-name">{{
+                      getFileName(file.path)
+                    }}</span>
+                    <span class="commit-file-dir">{{ getFileDir(file.path) }}</span>
+                    <span class="commit-file-stats">
+                      <span v-if="file.additions" class="cf-add"
+                        >+{{ file.additions }}</span
+                      >
+                      <span v-if="file.deletions" class="cf-del"
+                        >-{{ file.deletions }}</span
+                      >
+                    </span>
+                    <span
+                      class="commit-file-status"
+                      :class="file.status.toLowerCase()"
+                      >{{ file.status }}</span
+                    >
+                  </div>
                 </div>
               </div>
             </div>
@@ -86,11 +162,12 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
-import { History, BarChart3 } from "lucide-vue-next";
+import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import FileIcon from "@/components/common/FileIcon.vue";
 import {
   currentRepoPath,
   currentStatus,
@@ -98,7 +175,16 @@ import {
 import CommitChart from "./CommitChart.vue";
 import CommitDetailPopover from "./CommitDetailPopover.vue";
 import { errorHandler } from "../composables/useGitCommitterErrorHandler";
-import type { GitCommitSummary } from "../types";
+import {
+  clearCommitDetailsCache,
+  loadCommitDetail,
+} from "../composables/useCommitDetails";
+import {
+  openCommitChangesTab,
+  openCommitFileDiffTab,
+} from "../composables/useGitCommitterRunner";
+import { getFileName, getFileDir } from "../utils";
+import type { CommitFileChange, GitCommitSummary } from "../types";
 
 const commits = ref<GitCommitSummary[]>([]);
 const chartCommits = ref<GitCommitSummary[]>([]);
@@ -109,6 +195,12 @@ const historySkip = ref(0);
 const historyContentRef = ref<HTMLElement | null>(null);
 const HISTORY_PAGE_SIZE = 30;
 let historyRequestId = 0;
+
+// ===== 展开 / 选中状态（支持同时展开多个提交） =====
+const expandedHashes = ref<Set<string>>(new Set());
+const selectedHash = ref("");
+const loadingHashes = ref<Set<string>>(new Set());
+const commitFiles = ref<Record<string, CommitFileChange[]>>({});
 
 const chartCutoff = () => Date.now() - 14 * 24 * 60 * 60 * 1000;
 
@@ -189,10 +281,19 @@ const loadChartHistory = async (requestId = historyRequestId) => {
   chartCommits.value = result;
 };
 
+const resetInteractionState = () => {
+  expandedHashes.value = new Set();
+  loadingHashes.value = new Set();
+  commitFiles.value = {};
+  selectedHash.value = "";
+  clearCommitDetailsCache();
+};
+
 const loadHistory = async () => {
   const requestId = ++historyRequestId;
   isLoadingHistory.value = false;
   isLoadingMoreHistory.value = false;
+  resetInteractionState();
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
     commits.value = [];
     chartCommits.value = [];
@@ -223,6 +324,40 @@ const handleHistoryScroll = (event: Event) => {
   if (element.scrollHeight - element.scrollTop - element.clientHeight < 80) {
     loadHistoryPage();
   }
+};
+
+// ===== 提交展开与文件导航 =====
+const isExpanded = (hash: string): boolean => expandedHashes.value.has(hash);
+
+const isLoadingFiles = (hash: string): boolean =>
+  loadingHashes.value.has(hash);
+
+const filesFor = (hash: string): CommitFileChange[] =>
+  commitFiles.value[hash] || [];
+
+const toggleExpand = async (commit: GitCommitSummary) => {
+  selectedHash.value = commit.hash;
+  if (expandedHashes.value.has(commit.hash)) {
+    expandedHashes.value.delete(commit.hash);
+    return;
+  }
+  expandedHashes.value.add(commit.hash);
+  if (commitFiles.value[commit.hash]) return;
+
+  loadingHashes.value.add(commit.hash);
+  const detail = await loadCommitDetail(currentRepoPath.value, commit.hash);
+  commitFiles.value[commit.hash] = detail?.files || [];
+  loadingHashes.value.delete(commit.hash);
+};
+
+const openCommitFile = (hash: string, filePath: string) => {
+  selectedHash.value = hash;
+  openCommitFileDiffTab(hash, filePath);
+};
+
+const openCommitChanges = (commit: GitCommitSummary) => {
+  selectedHash.value = commit.hash;
+  openCommitChangesTab(commit.hash);
 };
 
 // 监听当前仓库或分支变化，重新加载历史
@@ -384,6 +519,24 @@ const formatTime = (dateStr: string) => {
   min-width: 0;
 }
 
+.commit-msg-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.commit-chevron {
+  flex-shrink: 0;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.commit-chevron.open {
+  transform: rotate(90deg);
+}
+
 .commit-hash {
   font-family: monospace;
   font-size: 10px;
@@ -392,11 +545,53 @@ const formatTime = (dateStr: string) => {
 }
 
 .commit-msg {
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   color: var(--el-text-color-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.open-changes-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  height: 20px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    width 0.15s ease,
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.commit-node:hover .open-changes-btn,
+.commit-node.selected .open-changes-btn,
+.open-changes-btn:focus-visible {
+  width: 20px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.open-changes-btn:hover {
+  background-color: var(--el-fill-color-dark);
+}
+
+.open-changes-btn:focus-visible {
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: -1px;
 }
 
 .commit-meta-row {
@@ -405,6 +600,7 @@ const formatTime = (dateStr: string) => {
   gap: 6px;
   font-size: 10px;
   color: var(--el-text-color-secondary);
+  cursor: pointer;
 }
 
 .commit-author {
@@ -418,5 +614,106 @@ const formatTime = (dateStr: string) => {
 .commit-date {
   flex-shrink: 0;
   margin-left: auto;
+}
+
+/* 展开的更改文件列表 */
+.commit-files {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  border-left: 1px solid var(--border-color);
+  padding-left: 4px;
+}
+
+.commit-files-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: var(--el-text-color-placeholder);
+}
+
+.commit-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+  transition: background-color 0.15s ease;
+}
+
+.commit-file:hover {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.06)
+  );
+}
+
+.commit-file-icon {
+  flex-shrink: 0;
+}
+
+.commit-file-name {
+  flex-shrink: 0;
+  max-width: 40%;
+  font-size: 11px;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-file-dir {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-file-stats {
+  flex-shrink: 0;
+  display: flex;
+  gap: 3px;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.cf-add {
+  color: var(--el-color-success);
+}
+
+.cf-del {
+  color: var(--el-color-danger);
+}
+
+.commit-file-status {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  font-family: monospace;
+  font-weight: bold;
+  font-size: 10px;
+}
+
+.commit-file-status.m {
+  color: var(--el-color-warning);
+}
+.commit-file-status.a {
+  color: var(--el-color-success);
+}
+.commit-file-status.d {
+  color: var(--el-color-danger);
+}
+.commit-file-status.r,
+.commit-file-status.c,
+.commit-file-status.t {
+  color: var(--el-color-info);
 }
 </style>

@@ -13,12 +13,42 @@
 // limitations under the License.
 
 import { getExtension } from "@/utils/fileTypeDetector";
+import type { DiffTabRef } from "./types";
 
 export const COMMIT_LANGUAGE_MACRO = "${language}";
 export const DEFAULT_COMMIT_LANGUAGE = "简体中文";
 
 /** 仓库 AI 提示词编辑标签页使用的保留路径 */
 export const REPO_PROMPT_TAB_PATH = "__repo_prompt__";
+
+/** 提交多文件 Diff 总览标签页使用的保留路径 */
+export const COMMIT_VIEW_TAB_PATH = "__commit__";
+
+/**
+ * 构造标签页唯一键。
+ * 提交总览、提交单文件与普通暂存/工作区标签互斥，避免键冲突。
+ */
+export function buildTabKey(tab: DiffTabRef): string {
+  if (tab.commitHash && tab.path === COMMIT_VIEW_TAB_PATH) {
+    return `CV:${tab.commitHash}`;
+  }
+  if (tab.commitHash) {
+    return `C:${tab.commitHash}:${tab.path}`;
+  }
+  return `${tab.isStaged ? "S" : "W"}:${tab.path}`;
+}
+
+/** 是否为提交相关的标签页（单文件差异或总览） */
+export function isCommitTab(tab: DiffTabRef): boolean {
+  return Boolean(tab.commitHash);
+}
+
+/** 是否为提交多文件总览标签页 */
+export function isCommitViewTab(
+  tab: DiffTabRef | null | undefined
+): boolean {
+  return Boolean(tab?.commitHash && tab.path === COMMIT_VIEW_TAB_PATH);
+}
 
 /**
  * 清理模型输出开头、首个有效字符之前的空白字符。

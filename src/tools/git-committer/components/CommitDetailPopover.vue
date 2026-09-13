@@ -88,6 +88,7 @@ import { zhCN } from "date-fns/locale";
 import { customMessage } from "@/utils/customMessage";
 import { currentRepoPath } from "../composables/useGitCommitterState";
 import { errorHandler } from "../composables/useGitCommitterErrorHandler";
+import { loadCommitDetail } from "../composables/useCommitDetails";
 import { getRemoteInfo } from "../composables/useGitRemoteInfo";
 import type { RemoteInfo } from "../utils";
 import type { CommitStats, GitCommitSummary } from "../types";
@@ -155,13 +156,9 @@ const loadDetail = async () => {
     return;
   }
   isLoading.value = true;
-  const result = await errorHandler.wrapAsync(
-    () =>
-      invoke<GitCommitSummary>("git_get_commit_detail", {
-        path: currentRepoPath.value,
-        hash: props.commit.hash,
-      }),
-    { userMessage: "加载提交详情失败", showToUser: false }
+  const result = await loadCommitDetail(
+    currentRepoPath.value,
+    props.commit.hash
   );
   if (result?.stats) {
     detailStats.value = result.stats;

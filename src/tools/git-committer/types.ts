@@ -28,10 +28,18 @@ export interface RepositoryConfig {
   systemPrompt?: string;
 }
 
+/** 已打开的 Diff 标签页引用（可持久化） */
+export interface DiffTabRef {
+  path: string;
+  isStaged: boolean;
+  /** 提交来源：非空表示该标签查看某次提交的文件差异或提交总览 */
+  commitHash?: string;
+}
+
 /** 单个仓库的会话记忆 */
 export interface RepoSession {
   /** 已打开的 Diff 标签页 */
-  openTabs: { path: string; isStaged: boolean }[];
+  openTabs: DiffTabRef[];
   /** 当前激活的 Tab 文件路径 */
   activeTabPath: string;
   /** Commit Message 草稿 */
@@ -116,12 +124,24 @@ export interface GitCommitSummary {
   files?: CommitFileChange[] | null;
 }
 
+/** 提交中单个文件相对父提交的文本差异（与后端 `CommitFileDiff` 对齐） */
+export interface CommitFileDiff {
+  path: string;
+  original: string;
+  modified: string;
+  isBinary: boolean;
+}
+
 /** Diff 标签页运行时态 */
 export interface DiffTab {
   path: string;
   isStaged: boolean;
+  /** 提交来源：非空表示该标签来自某次提交 */
+  commitHash?: string;
   original: string;
   modified: string;
   isBinary: boolean;
   loading: boolean;
+  /** 加载失败时的错误信息 */
+  error?: string;
 }

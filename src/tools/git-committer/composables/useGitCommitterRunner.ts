@@ -22,10 +22,18 @@ import { invoke } from "@tauri-apps/api/core";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
-import type { RepoStatus, FileStatus, DiffTab } from "../types";
+import type {
+  RepoStatus,
+  FileStatus,
+  DiffTab,
+  DiffTabRef,
+  CommitFileDiff,
+} from "../types";
 import {
   buildCommitPromptMessages,
+  buildTabKey,
   normalizeGeneratedCommitMessage,
+  COMMIT_VIEW_TAB_PATH,
   REPO_PROMPT_TAB_PATH,
 } from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
@@ -220,53 +228,93 @@ export async function loadFileDiff(
   };
 }
 
+/** 加载某次提交中单个文件相对父提交的 diff 内容 */
+export async function loadCommitFileDiff(
+  repoPath: string,
+  commitHash: string,
+  filePath: string
+): Promise<DiffTab> {
+  const base: DiffTab = {
+    path: filePath,
+    isStaged: false,
+    commitHash,
+    original: "",
+    modified: "",
+    isBinary: false,
+    loading: false,
+  };
+  if (!repoPath || repoPath === "__panorama__") {
+    return { ...base, error: "无效的仓库路径" };
+  }
+  const result = await errorHandler.wrapAsync(
+    () =>
+      invoke<CommitFileDiff>("git_get_commit_file_diff", {
+        path: repoPath,
+        hash: commitHash,
+        filePath,
+      }),
+    {
+      userMessage: "加载提交文件差异失败",
+      showToUser: false,
+    }
+  );
+  if (!result) {
+    return { ...base, error: "加载提交文件差异失败，该提交可能已不存在" };
+  }
+  return {
+    ...base,
+    original: result.original,
+    modified: result.modified,
+    isBinary: result.isBinary,
+  };
+}
+
+/** 打开或激活一个标签页（按唯一键去重） */
+function openTab(ref: DiffTabRef): void {
+  const session = currentSession.value;
+  const key = buildTabKey(ref);
+  const existing = session.openTabs.find((t) => buildTabKey(t) === key);
+  if (!existing) {
+    session.openTabs.push({ ...ref });
+  }
+  session.activeTabPath = key;
+}
+
 /** 打开或激活一个 Diff 标签页 */
 export async function openDiffTab(
   filePath: string,
   isStaged: boolean
 ): Promise<void> {
-  const session = currentSession.value;
-  // 已存在则仅激活
-  const existing = session.openTabs.find(
-    (t) => t.path === filePath && t.isStaged === isStaged
-  );
-  if (existing) {
-    session.activeTabPath = buildTabKey(filePath, isStaged);
-    return;
-  }
-  session.openTabs.push({ path: filePath, isStaged });
-  session.activeTabPath = buildTabKey(filePath, isStaged);
+  openTab({ path: filePath, isStaged });
 }
 
-/** 关闭一个 Diff 标签页 */
-export function closeDiffTab(filePath: string, isStaged: boolean): void {
+/** 打开或激活某次提交中单个文件的 Diff 标签页 */
+export function openCommitFileDiffTab(
+  commitHash: string,
+  filePath: string
+): void {
+  openTab({ path: filePath, isStaged: false, commitHash });
+}
+
+/** 打开或激活某次提交的多文件 Diff 总览标签页 */
+export function openCommitChangesTab(commitHash: string): void {
+  openTab({ path: COMMIT_VIEW_TAB_PATH, isStaged: false, commitHash });
+}
+
+/** 关闭一个标签页 */
+export function closeDiffTab(ref: DiffTabRef): void {
   const session = currentSession.value;
-  const key = buildTabKey(filePath, isStaged);
-  session.openTabs = session.openTabs.filter(
-    (t) => !(t.path === filePath && t.isStaged === isStaged)
-  );
+  const key = buildTabKey(ref);
+  session.openTabs = session.openTabs.filter((t) => buildTabKey(t) !== key);
   if (session.activeTabPath === key) {
-    session.activeTabPath = session.openTabs[0]
-      ? buildTabKey(session.openTabs[0].path, session.openTabs[0].isStaged)
-      : "";
+    const first = session.openTabs[0];
+    session.activeTabPath = first ? buildTabKey(first) : "";
   }
 }
 
 /** 打开或激活当前仓库的 AI 提示词编辑标签页 */
 export function openRepoPromptTab(): void {
-  const session = currentSession.value;
-  const existing = session.openTabs.find(
-    (t) => t.path === REPO_PROMPT_TAB_PATH
-  );
-  if (!existing) {
-    session.openTabs.push({ path: REPO_PROMPT_TAB_PATH, isStaged: false });
-  }
-  session.activeTabPath = buildTabKey(REPO_PROMPT_TAB_PATH, false);
-}
-
-/** 构造 Tab 唯一键 */
-function buildTabKey(filePath: string, isStaged: boolean): string {
-  return `${isStaged ? "S" : "W"}:${filePath}`;
+  openTab({ path: REPO_PROMPT_TAB_PATH, isStaged: false });
 }
 
 // ===== 提交 / 推送 / 拉取 =====

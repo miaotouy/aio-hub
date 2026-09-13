@@ -192,6 +192,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_get_remote_url,
         git_load_incremental_stream,
         git_get_commit_detail,
+        git_get_commit_file_diff,
         git_cherry_pick,
         git_revert,
         git_export_commits,

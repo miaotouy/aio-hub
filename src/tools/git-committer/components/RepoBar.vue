@@ -74,7 +74,7 @@
           v-if="repositories.length > 0"
           class="repo-item panorama-item"
           :class="{ active: currentRepoPath === '__panorama__' }"
-          @click="switchRepoWithAutoPull('__panorama__')"
+          @click="handleNavigate('__panorama__')"
         >
           <div class="repo-avatar-wrapper">
             <div class="panorama-icon-wrapper">
@@ -117,7 +117,7 @@
               active: currentRepoPath === repo.path,
               managing: isManaging,
             }"
-            @click="!isManaging && switchRepoWithAutoPull(repo.path)"
+            @click="!isManaging && handleNavigate(repo.path)"
           >
             <GripVertical v-if="isManaging" :size="14" class="drag-handle" />
             <!-- 仓库头像与状态徽章 -->
@@ -220,10 +220,16 @@ defineProps<{
   isPinned: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: "toggle-pin"): void;
   (e: "open-settings"): void;
+  (e: "navigate"): void;
 }>();
+
+const handleNavigate = (path: string) => {
+  emit("navigate");
+  switchRepoWithAutoPull(path);
+};
 
 const isHovered = ref(false);
 const isManaging = ref(false);

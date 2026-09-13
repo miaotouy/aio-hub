@@ -21,6 +21,7 @@
       :is-pinned="isRepoBarPinned"
       @toggle-pin="isRepoBarPinned = !isRepoBarPinned"
       @open-settings="showSettings = true"
+      @navigate="showSettings = false"
     />
 
     <!-- 中部操作栏 (Sidebar) -->

@@ -44,6 +44,12 @@
                 shortHashOf(tab.commitHash)
               }}</span>
             </template>
+            <template v-else-if="isChangesViewTab(tab)">
+              <FileDiff :size="12" class="tab-commit-icon" />
+              <span class="tab-name">{{
+                tab.isStaged ? "暂存的更改" : "工作区更改"
+              }}</span>
+            </template>
             <template v-else-if="isCommitTab(tab)">
               <GitCommitHorizontal :size="12" class="tab-commit-icon" />
               <span class="tab-name" :title="tab.path">{{
@@ -82,6 +88,12 @@
           v-else-if="isCommitViewTabActive"
           :repo-path="currentRepoPath"
           :commit-hash="activeTabInfo?.commitHash || ''"
+        />
+
+        <ChangesDiffView
+          v-else-if="isChangesViewTabActive"
+          :repo-path="currentRepoPath"
+          :is-staged="activeTabInfo?.isStaged || false"
         />
 
         <template v-else-if="activeTab">
@@ -217,6 +229,7 @@ import {
 import {
   X,
   FileCode,
+  FileDiff,
   FileWarning,
   GitCommitHorizontal,
   MessageSquareText,
@@ -230,6 +243,7 @@ import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import PanoramaDashboard from "./PanoramaDashboard.vue";
 import RepoPromptEditor from "./RepoPromptEditor.vue";
 import CommitDiffView from "./CommitDiffView.vue";
+import ChangesDiffView from "./ChangesDiffView.vue";
 import {
   currentRepoPath,
   currentSession as session,
@@ -249,6 +263,7 @@ import {
   buildTabKey,
   getFileName,
   getFileLanguage,
+  isChangesViewTab,
   isCommitTab,
   isCommitViewTab,
   REPO_PROMPT_TAB_PATH,
@@ -360,6 +375,10 @@ const isCommitViewTabActive = computed(() => {
   return isCommitViewTab(activeTabInfo.value);
 });
 
+const isChangesViewTabActive = computed(() => {
+  return isChangesViewTab(activeTabInfo.value);
+});
+
 // ===== Diff 导航与未更改区域折叠 =====
 const handleEditorMount = (editor: unknown) => {
   const diffEditor = editor as monaco.editor.IStandaloneDiffEditor;
@@ -457,7 +476,12 @@ watch(
     const tabInfo = session.value.openTabs.find(
       (t) => buildTabKey(t) === newKey
     );
-    if (!tabInfo || isPromptTab(tabInfo.path) || isCommitViewTab(tabInfo)) {
+    if (
+      !tabInfo ||
+      isPromptTab(tabInfo.path) ||
+      isCommitViewTab(tabInfo) ||
+      isChangesViewTab(tabInfo)
+    ) {
       activeTab.value = null;
       return;
     }

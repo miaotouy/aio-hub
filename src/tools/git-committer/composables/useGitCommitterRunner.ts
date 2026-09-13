@@ -33,6 +33,7 @@ import {
   buildCommitPromptMessages,
   buildTabKey,
   normalizeGeneratedCommitMessage,
+  CHANGES_VIEW_TAB_PATH,
   COMMIT_VIEW_TAB_PATH,
   REPO_PROMPT_TAB_PATH,
 } from "../utils";
@@ -186,6 +187,38 @@ export async function unstageFile(
   await unstageFiles(repoPath, [file]);
 }
 
+// ===== 放弃更改 =====
+
+export async function discardFiles(
+  repoPath: string,
+  files: string[]
+): Promise<void> {
+  if (!repoPath || repoPath === "__panorama__" || files.length === 0) return;
+
+  const ok = await errorHandler.wrapAsync(
+    async () => {
+      await invoke<void>("git_discard_files", {
+        path: repoPath,
+        files,
+      });
+      return true;
+    },
+    { userMessage: "放弃更改失败" }
+  );
+
+  if (ok) {
+    // 后端成功，刷新真实状态
+    await refreshStatus(repoPath);
+  }
+}
+
+export async function discardFile(
+  repoPath: string,
+  file: string
+): Promise<void> {
+  await discardFiles(repoPath, [file]);
+}
+
 // ===== Diff Tab 管理 =====
 
 /** 加载单个文件的 diff 内容 */
@@ -299,6 +332,11 @@ export function openCommitFileDiffTab(
 /** 打开或激活某次提交的多文件 Diff 总览标签页 */
 export function openCommitChangesTab(commitHash: string): void {
   openTab({ path: COMMIT_VIEW_TAB_PATH, isStaged: false, commitHash });
+}
+
+/** 打开或激活工作区/暂存区的多文件 Diff 总览标签页 */
+export function openChangesTab(isStaged: boolean): void {
+  openTab({ path: CHANGES_VIEW_TAB_PATH, isStaged });
 }
 
 /** 关闭一个标签页 */

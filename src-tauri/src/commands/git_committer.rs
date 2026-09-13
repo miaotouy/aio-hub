@@ -479,6 +479,45 @@ pub async fn git_unstage_files(path: String, files: Vec<String>) -> Result<(), S
     Ok(())
 }
 
+/// 放弃指定文件的工作区更改（相当于 `git checkout -- <files>`）。
+///
+/// 已跟踪文件从暂存区还原；未跟踪的新文件（`WT_NEW`）移入系统回收站。
+/// 该操作不可逆，调用方需自行向用户确认。
+#[tauri::command]
+pub async fn git_discard_files(path: String, files: Vec<String>) -> Result<(), String> {
+    let repo = open_repo(&path)?;
+    let workdir = repo_workdir(&repo, &path);
+    let mut index = repo.index().map_err(|e| format!("获取暂存区失败: {}", e))?;
+
+    let mut checkout = git2::build::CheckoutBuilder::new();
+    checkout.force();
+    let mut has_tracked_change = false;
+
+    for f in &files {
+        let file_status = repo
+            .status_file(Path::new(f))
+            .map_err(|e| format!("获取文件状态 {} 失败: {}", f, e))?;
+
+        if file_status.contains(Status::WT_NEW) {
+            // 未跟踪文件：移入系统回收站（可从回收站还原）
+            let full = workdir.join(f);
+            if full.exists() {
+                trash::delete(&full)
+                    .map_err(|e| format!("将未跟踪文件 {} 移入回收站失败: {}", f, e))?;
+            }
+        } else {
+            checkout.path(Path::new(f));
+            has_tracked_change = true;
+        }
+    }
+
+    if has_tracked_change {
+        repo.checkout_index(Some(&mut index), Some(&mut checkout))
+            .map_err(|e| format!("放弃更改失败: {}", e))?;
+    }
+    Ok(())
+}
+
 /// 提交暂存区的更改。
 #[tauri::command]
 pub async fn git_commit(path: String, message: String) -> Result<(), String> {

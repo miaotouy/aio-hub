@@ -207,6 +207,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_get_file_diff,
         git_stage_files,
         git_unstage_files,
+        git_discard_files,
         git_commit,
         git_push,
         git_pull,

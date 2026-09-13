@@ -145,16 +145,26 @@
                 type="info"
                 class="badge-margin"
               />
-              <el-button
-                v-if="currentStatus?.staged.length"
-                link
-                type="primary"
-                size="small"
-                class="action-all-btn"
-                @click.stop="unstageAll"
-              >
-                全部取消
-              </el-button>
+              <div v-if="currentStatus?.staged.length" class="title-actions">
+                <el-tooltip content="打开暂存更改差异" placement="bottom">
+                  <button
+                    type="button"
+                    class="header-action-btn"
+                    @click.stop="handleOpenChanges(true)"
+                  >
+                    <FileDiff :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="全部取消暂存" placement="bottom">
+                  <button
+                    type="button"
+                    class="header-action-btn"
+                    @click.stop="unstageAll"
+                  >
+                    <Minus :size="14" />
+                  </button>
+                </el-tooltip>
+              </div>
             </div>
           </template>
           <div class="file-list">
@@ -162,24 +172,28 @@
               v-for="file in currentStatus?.staged"
               :key="file.path"
               class="file-item"
+              :class="{ active: isActiveFile(file.path, true) }"
               @click="openDiffTab(file.path, true)"
             >
-              <span class="file-status" :class="file.status.toLowerCase()">{{
-                file.status
-              }}</span>
+              <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
                 getFileName(file.path)
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
-              <el-button
-                link
-                type="danger"
-                size="small"
-                class="action-btn"
-                @click.stop="handleUnstageFile(file.path)"
-              >
-                <Minus :size="12" />
-              </el-button>
+              <span class="file-actions">
+                <el-tooltip content="取消暂存" placement="top">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="handleUnstageFile(file.path)"
+                  >
+                    <Minus :size="14" />
+                  </button>
+                </el-tooltip>
+              </span>
+              <span class="file-status" :class="file.status.toLowerCase()">{{
+                file.status
+              }}</span>
             </div>
             <div v-if="!currentStatus?.staged.length" class="empty-tip">
               无暂存文件
@@ -198,16 +212,35 @@
                 type="warning"
                 class="badge-margin"
               />
-              <el-button
-                v-if="currentStatus?.unstaged.length"
-                link
-                type="primary"
-                size="small"
-                class="action-all-btn"
-                @click.stop="stageAll"
-              >
-                全部暂存
-              </el-button>
+              <div v-if="currentStatus?.unstaged.length" class="title-actions">
+                <el-tooltip content="打开所有更改差异" placement="bottom">
+                  <button
+                    type="button"
+                    class="header-action-btn"
+                    @click.stop="handleOpenChanges(false)"
+                  >
+                    <FileDiff :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="全部放弃更改" placement="bottom">
+                  <button
+                    type="button"
+                    class="header-action-btn"
+                    @click.stop="discardAll"
+                  >
+                    <Undo2 :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="全部暂存" placement="bottom">
+                  <button
+                    type="button"
+                    class="header-action-btn"
+                    @click.stop="stageAll"
+                  >
+                    <Plus :size="14" />
+                  </button>
+                </el-tooltip>
+              </div>
             </div>
           </template>
           <div class="file-list">
@@ -215,24 +248,37 @@
               v-for="file in currentStatus?.unstaged"
               :key="file.path"
               class="file-item"
+              :class="{ active: isActiveFile(file.path, false) }"
               @click="openDiffTab(file.path, false)"
             >
-              <span class="file-status" :class="file.status.toLowerCase()">{{
-                file.status
-              }}</span>
+              <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
                 getFileName(file.path)
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
-              <el-button
-                link
-                type="primary"
-                size="small"
-                class="action-btn"
-                @click.stop="handleStageFile(file.path)"
-              >
-                <Plus :size="12" />
-              </el-button>
+              <span class="file-actions">
+                <el-tooltip content="放弃更改" placement="top">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="handleDiscardFile(file.path)"
+                  >
+                    <Undo2 :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip content="暂存更改" placement="top">
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="handleStageFile(file.path)"
+                  >
+                    <Plus :size="14" />
+                  </button>
+                </el-tooltip>
+              </span>
+              <span class="file-status" :class="file.status.toLowerCase()">{{
+                file.status
+              }}</span>
             </div>
             <div v-if="!currentStatus?.unstaged.length" class="empty-tip">
               工作区干净
@@ -255,13 +301,18 @@ import {
   ChevronDown,
   Plus,
   Minus,
+  Undo2,
+  FileDiff,
   MessageSquareText,
 } from "lucide-vue-next";
+import { ElMessageBox } from "element-plus";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import FileIcon from "@/components/common/FileIcon.vue";
 import {
   currentRepo,
   currentRepoPath,
   currentStatus,
+  currentSession,
   defaultModel,
   isRefreshing,
 } from "../composables/useGitCommitterState";
@@ -271,11 +322,14 @@ import {
   unstageFile,
   stageFiles,
   unstageFiles,
+  discardFile,
+  discardFiles,
   openDiffTab,
+  openChangesTab,
   openRepoPromptTab,
 } from "../composables/useGitCommitterRunner";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
-import { getFileName, getFileDir } from "../utils";
+import { getFileName, getFileDir, buildTabKey } from "../utils";
 
 const activeCollapseNames = ref(["staged", "unstaged"]);
 const commitAction = ref<"commit" | "commit-push">("commit");
@@ -316,6 +370,56 @@ const handleUnstageFile = async (path: string) => {
   await unstageFile(currentRepoPath.value, path);
 };
 
+const handleDiscardFile = (path: string) => {
+  ElMessageBox.confirm(
+    `确定要放弃「${getFileName(path)}」的更改吗？此操作不可撤销。`,
+    "放弃更改",
+    {
+      confirmButtonText: "放弃更改",
+      cancelButtonText: "取消",
+      type: "warning",
+      confirmButtonClass: "el-button--danger",
+      lockScroll: false,
+    }
+  )
+    .then(() => discardFile(currentRepoPath.value, path))
+    .catch(() => {
+      // 用户取消
+    });
+};
+
+/** 当前文件是否是对应标签页的激活项 */
+const isActiveFile = (path: string, isStaged: boolean) =>
+  currentSession.value.activeTabPath === buildTabKey({ path, isStaged });
+
+const handleOpenChanges = (isStaged: boolean) => {
+  openChangesTab(isStaged);
+};
+
+const discardAll = () => {
+  if (!currentStatus.value?.unstaged.length) return;
+  ElMessageBox.confirm(
+    `确定要放弃全部 ${currentStatus.value.unstaged.length} 个文件的更改吗？此操作不可撤销。`,
+    "放弃全部更改",
+    {
+      confirmButtonText: "全部放弃",
+      cancelButtonText: "取消",
+      type: "warning",
+      confirmButtonClass: "el-button--danger",
+      lockScroll: false,
+    }
+  )
+    .then(() =>
+      discardFiles(
+        currentRepoPath.value,
+        currentStatus.value?.unstaged.map((f) => f.path) || []
+      )
+    )
+    .catch(() => {
+      // 用户取消
+    });
+};
+
 const stageAll = async () => {
   if (!currentStatus.value) return;
   const files = currentStatus.value.unstaged.map((f) => f.path);
@@ -336,6 +440,21 @@ const unstageAll = async () => {
   height: 100%;
   flex-shrink: 0;
   box-sizing: border-box;
+  /* 文件状态字母：对齐 VS Code Git 装饰色（亮色主题） */
+  --git-status-modified: #895503;
+  --git-status-added: #587c0c;
+  --git-status-deleted: #ad0707;
+  --git-status-untracked: #007100;
+  --git-status-renamed: #007100;
+}
+
+:global(html.dark) .git-committer-sidebar {
+  /* 文件状态字母：对齐 VS Code Git 装饰色（暗色主题） */
+  --git-status-modified: #e2c08d;
+  --git-status-added: #81b88b;
+  --git-status-deleted: #c74e39;
+  --git-status-untracked: #73c991;
+  --git-status-renamed: #73c991;
 }
 
 /* 顶部仓库信息 */
@@ -402,9 +521,36 @@ const unstageAll = async () => {
   margin-left: 8px;
 }
 
-.action-all-btn {
+.title-actions {
   margin-left: auto;
   margin-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.header-action-btn:hover {
+  color: var(--el-text-color-primary);
+}
+
+.header-action-btn:focus-visible {
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: -1px;
 }
 
 .settings-icon {
@@ -514,49 +660,56 @@ const unstageAll = async () => {
 }
 
 .file-item {
+  position: relative;
   height: 32px;
   display: flex;
   align-items: center;
   padding: 0 12px;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
 }
 
-.file-item:hover {
+.file-item:hover,
+.file-item.active {
   background-color: rgba(
     var(--el-color-primary-rgb),
-    calc(var(--card-opacity) * 0.05)
+    calc(var(--card-opacity) * 0.08)
   );
 }
 
-.file-item:hover .action-btn {
-  opacity: 1;
+.file-icon {
+  flex-shrink: 0;
 }
 
 .file-status {
-  font-family: monospace;
-  font-weight: bold;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-weight: 600;
   font-size: 11px;
   width: 14px;
   text-align: center;
 }
 
 .file-status.m {
-  color: var(--el-color-warning);
+  color: var(--git-status-modified);
 }
 .file-status.a {
-  color: var(--el-color-success);
+  color: var(--git-status-added);
+}
+.file-status.u {
+  color: var(--git-status-untracked);
 }
 .file-status.d {
-  color: var(--el-color-danger);
+  color: var(--git-status-deleted);
 }
-.file-status.r {
-  color: var(--el-color-info);
+.file-status.r,
+.file-status.c {
+  color: var(--git-status-renamed);
 }
 .file-status.t {
-  color: var(--el-color-info);
+  color: var(--git-status-modified);
 }
 
 .file-path {
@@ -574,13 +727,43 @@ const unstageAll = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  min-width: 0;
+}
+
+.file-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.file-item:hover .file-actions,
+.file-item.active .file-actions {
+  display: flex;
 }
 
 .action-btn {
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   padding: 0;
-  height: auto;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.action-btn:hover {
+  color: var(--el-text-color-primary);
+}
+
+.action-btn:focus-visible {
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: -1px;
 }
 
 .empty-tip {

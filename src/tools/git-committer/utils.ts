@@ -24,6 +24,9 @@ export const REPO_PROMPT_TAB_PATH = "__repo_prompt__";
 /** 提交多文件 Diff 总览标签页使用的保留路径 */
 export const COMMIT_VIEW_TAB_PATH = "__commit__";
 
+/** 工作区/暂存区「全部更改」多文件 Diff 总览标签页使用的保留路径 */
+export const CHANGES_VIEW_TAB_PATH = "__changes__";
+
 /**
  * 构造标签页唯一键。
  * 提交总览、提交单文件与普通暂存/工作区标签互斥，避免键冲突。
@@ -41,6 +44,11 @@ export function buildTabKey(tab: DiffTabRef): string {
 /** 是否为提交相关的标签页（单文件差异或总览） */
 export function isCommitTab(tab: DiffTabRef): boolean {
   return Boolean(tab.commitHash);
+}
+
+/** 是否为工作区/暂存区「全部更改」总览标签页 */
+export function isChangesViewTab(tab: DiffTabRef | null | undefined): boolean {
+  return Boolean(tab && !tab.commitHash && tab.path === CHANGES_VIEW_TAB_PATH);
 }
 
 /** 是否为提交多文件总览标签页 */

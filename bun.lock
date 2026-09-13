@@ -6,6 +6,7 @@
       "name": "aiohub",
       "dependencies": {
         "@aiohub/llm-core": "workspace:*",
+        "@aiohub/model-metadata-core": "workspace:*",
         "@codemirror/autocomplete": "^6.20.1",
         "@codemirror/commands": "^6.10.3",
         "@codemirror/lang-cpp": "^6.0.3",
@@ -134,7 +135,6 @@
         "vue-router": "^4.5.1",
       },
       "devDependencies": {
-        "@aiohub/model-metadata-core": "workspace:*",
         "@babel/runtime": "^7.28.4",
         "@iconify-json/ep": "^1.2.2",
         "@lezer/common": "^1.2.3",

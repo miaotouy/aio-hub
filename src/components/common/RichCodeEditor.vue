@@ -540,6 +540,23 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   isDestroyed = true;
   destroyCodeMirror();
+  // 修复 @guolao/vue-monaco-editor 的销毁顺序缺陷：
+  // 组件库在其 onUnmounted 中先 dispose original/modified 两个 TextModel，
+  // 再 dispose DiffEditorWidget，触发 Monaco
+  // “TextModel got disposed before DiffEditorWidget model got reset” 报错。
+  // 这里提前按“先 widget 后 model”的顺序释放，并清空引用让组件库的默认清理成为空操作。
+  if (props.diff && monacoDiffEditorInstance.value) {
+    const diffEditor = monacoDiffEditorInstance.value;
+    monacoDiffEditorInstance.value = null;
+    try {
+      const models = diffEditor.getModel();
+      diffEditor.dispose();
+      models?.original?.dispose();
+      models?.modified?.dispose();
+    } catch {
+      // 资源可能已被其他路径释放，忽略重复销毁
+    }
+  }
   // Monaco 编辑器由组件库自动处理销毁
 });
 

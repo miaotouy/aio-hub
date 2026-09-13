@@ -29,7 +29,8 @@
       </div>
 
       <div class="prompt-hint">
-        这里的提示词只对当前仓库生效。留空后保存将跟随全局 AI 提示词。
+        这里的提示词只对当前仓库生效。留空后保存将跟随全局 AI 提示词。 可使用
+        <code>{{ COMMIT_LANGUAGE_MACRO }}</code> 引用全局提交语言设置。
       </div>
 
       <el-input
@@ -69,6 +70,7 @@
 import { computed, ref, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { RepositoryConfig } from "../types";
+import { COMMIT_LANGUAGE_MACRO } from "../utils";
 import { updateRepositorySystemPrompt } from "../composables/useGitCommitterState";
 
 const props = defineProps<{
@@ -142,6 +144,11 @@ const inheritGlobalPrompt = () => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.prompt-hint code {
+  color: var(--el-color-primary);
+  font-family: var(--font-family-mono);
 }
 
 .prompt-input {

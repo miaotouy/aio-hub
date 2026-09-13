@@ -73,6 +73,8 @@ export interface GitCommitterConfig {
   aiIncludeUnstaged: boolean;
   /** 默认 AI 模型（profileId:modelId 组合） */
   defaultModel: string;
+  /** AI 生成提交信息时使用的语言 */
+  commitLanguage: string;
   systemPrompt: string;
   /** 是否启用自动刷新 */
   enableAutoRefresh: boolean;

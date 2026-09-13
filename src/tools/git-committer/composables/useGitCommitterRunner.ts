@@ -23,6 +23,10 @@ import { useLlmRequest } from "@/composables/useLlmRequest";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import type { RepoStatus, FileStatus, DiffTab } from "../types";
+import {
+  buildCommitPromptMessages,
+  normalizeGeneratedCommitMessage,
+} from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import {
   repositories,
@@ -35,6 +39,7 @@ import {
   autoPullOnSwitch,
   aiIncludeUnstaged,
   defaultModel,
+  commitLanguage,
   getSystemPromptForRepo,
   switchRepo,
 } from "./useGitCommitterState";
@@ -356,9 +361,10 @@ export function getCommitCandidateFiles(repoPath: string): {
 
 /** 组装指定仓库候选文件的 diff 文本（用于 LLM Prompt） */
 export async function buildDiffPrompt(
-  repoPath: string
+  repoPath: string,
+  candidates = getCommitCandidateFiles(repoPath)
 ): Promise<string | null> {
-  const { files, isStaged } = getCommitCandidateFiles(repoPath);
+  const { files, isStaged } = candidates;
   if (files.length === 0) {
     return null;
   }
@@ -394,23 +400,31 @@ export async function generateCommitMessage(
     return null;
   }
 
-  const diffText = await buildDiffPrompt(repoPath);
+  const candidates = getCommitCandidateFiles(repoPath);
+  const diffText = await buildDiffPrompt(repoPath, candidates);
   if (!diffText) {
     customMessage.warning("没有可生成提交信息的文件变更");
     return null;
   }
 
   const systemPromptText = getSystemPromptForRepo(repoPath);
+  const { files, isStaged } = candidates;
+  const status = repoStatuses.value[repoPath];
+  const messages = buildCommitPromptMessages({
+    systemPrompt: systemPromptText,
+    language: commitLanguage.value,
+    branch: status?.branch || "",
+    files,
+    isStaged,
+    diff: diffText,
+  });
   const requestId = `gc-${repoPath.split(/[/\\]/).pop()}-${Date.now()}`;
 
   try {
     const response = await sendRequest({
       profileId,
       modelId,
-      messages: [
-        { role: "system", content: systemPromptText },
-        { role: "user", content: diffText },
-      ],
+      messages,
       stream: true,
       onStream: (chunk: string) => onStream(chunk),
       signal,
@@ -420,7 +434,9 @@ export async function generateCommitMessage(
         purpose: "generate-commit-message",
       },
     } as any);
-    return response?.content || null;
+    return response?.content
+      ? normalizeGeneratedCommitMessage(response.content)
+      : null;
   } catch (error) {
     errorHandler.error(
       error,

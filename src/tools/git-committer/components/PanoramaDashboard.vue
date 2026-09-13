@@ -243,10 +243,13 @@ const handleStageAllRepos = async () => {
 
 const handleGenerateMessageForRepo = async (path: string) => {
   updateRepoCommitDraft(path, "");
-  await generateCommitMessage(path, (chunk) => {
+  const generatedMessage = await generateCommitMessage(path, (chunk) => {
     const currentDraft = repoSessions.value[path]?.commitDraft || "";
     updateRepoCommitDraft(path, currentDraft + chunk);
   });
+  if (generatedMessage !== null) {
+    updateRepoCommitDraft(path, generatedMessage);
+  }
 };
 
 const handleGenerateAllMessages = async () => {

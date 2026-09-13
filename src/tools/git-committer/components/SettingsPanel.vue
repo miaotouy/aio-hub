@@ -35,6 +35,29 @@
           <el-form-item label="默认 AI 模型">
             <LlmModelSelector v-model="defaultModel" class="model-selector" />
           </el-form-item>
+          <el-form-item label="提交信息语言">
+            <div class="form-control-stack">
+              <el-select
+                v-model="commitLanguage"
+                filterable
+                allow-create
+                default-first-option
+                placeholder="选择或输入语言"
+                class="language-selector"
+              >
+                <el-option label="简体中文" value="简体中文" />
+                <el-option label="繁體中文" value="繁體中文" />
+                <el-option label="English" value="English" />
+                <el-option label="日本語" value="日本語" />
+                <el-option label="한국어" value="한국어" />
+              </el-select>
+              <span class="form-hint">
+                用于替换系统提示词中的
+                <code>{{ COMMIT_LANGUAGE_MACRO }}</code>
+                宏，也可以输入其他语言。
+              </span>
+            </div>
+          </el-form-item>
           <el-form-item>
             <template #label>
               <div class="prompt-label-row">
@@ -49,12 +72,18 @@
                 </el-button>
               </div>
             </template>
-            <el-input
-              v-model="systemPrompt"
-              type="textarea"
-              :rows="4"
-              placeholder="教 AI 怎么写 commit message..."
-            />
+            <div class="form-control-stack">
+              <el-input
+                v-model="systemPrompt"
+                type="textarea"
+                :rows="6"
+                placeholder="教 AI 怎么写 commit message..."
+              />
+              <span class="form-hint">
+                可使用
+                <code>{{ COMMIT_LANGUAGE_MACRO }}</code> 引用上方选择的语言。
+              </span>
+            </div>
           </el-form-item>
         </el-form>
       </div>
@@ -133,11 +162,13 @@ import {
   autoPullOnSwitch,
   aiIncludeUnstaged,
   defaultModel,
+  commitLanguage,
   systemPrompt,
   restoreDefaultSystemPrompt,
   enableAutoRefresh,
   autoRefreshInterval,
 } from "../composables/useGitCommitterState";
+import { COMMIT_LANGUAGE_MACRO } from "../utils";
 
 defineEmits<{
   (e: "close"): void;
@@ -203,8 +234,27 @@ defineEmits<{
   margin: 0;
 }
 
-.model-selector {
+.model-selector,
+.language-selector {
   width: 100%;
+}
+
+.form-control-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.form-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.form-hint code {
+  color: var(--el-color-primary);
+  font-family: var(--font-family-mono);
 }
 
 .prompt-label-row {

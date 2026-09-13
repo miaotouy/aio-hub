@@ -67,9 +67,15 @@ export function useGitRepoWorkflow(repoPath: Ref<string>) {
     isGenerating.value = true;
     draft.value = ""; // 清空旧草稿
     try {
-      await generateCommitMessage(repoPath.value, (chunk) => {
-        draft.value += chunk;
-      });
+      const generatedMessage = await generateCommitMessage(
+        repoPath.value,
+        (chunk) => {
+          draft.value += chunk;
+        }
+      );
+      if (generatedMessage !== null) {
+        draft.value = generatedMessage;
+      }
     } finally {
       isGenerating.value = false;
     }

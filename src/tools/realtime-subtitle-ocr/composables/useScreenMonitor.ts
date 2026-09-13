@@ -125,6 +125,7 @@ const status = ref<MonitorStatus>("idle");
 const monitorRect = ref<MonitorRect | null>(null);
 const lastHash = shallowRef<string>("");
 const lastFrameUrl = ref<string | null>(null);
+const lastRawFrameUrl = ref<string | null>(null);
 const latency = ref<number>(0);
 const filterLatency = ref<number>(0);
 const isOcrPreparing = ref(false);
@@ -159,11 +160,11 @@ const configLoadPromise = configManager.load().then((loaded) => {
 
 const isRunning = computed(() => status.value === "running");
 
-function setPreviewUrl(url: string | null) {
-  if (lastFrameUrl.value) {
-    URL.revokeObjectURL(lastFrameUrl.value);
-  }
-  lastFrameUrl.value = url;
+function setPreviewUrls(rawUrl: string | null, filteredUrl: string | null) {
+  if (lastRawFrameUrl.value) URL.revokeObjectURL(lastRawFrameUrl.value);
+  if (lastFrameUrl.value) URL.revokeObjectURL(lastFrameUrl.value);
+  lastRawFrameUrl.value = rawUrl;
+  lastFrameUrl.value = filteredUrl;
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -176,7 +177,23 @@ let imageFilterRevision = 0; // 避免运行中调参被在途采样重新写回
 let ocrReadinessKey = "";
 let ocrReadinessPromise: Promise<void> | null = null;
 
+// 未开始 OCR 监控时，仍按采样频率刷新顶部预览，让用户可以直接确认监控区域和滤镜效果。
+let previewTimer: ReturnType<typeof setInterval> | null = null;
+let previewInFlight = false;
+let previewCanvas: HTMLCanvasElement | null = null;
+let previewToken = 0;
+
 export function useScreenMonitor() {
+  function setMonitorRect(rect: MonitorRect | null) {
+    monitorRect.value = rect;
+    if (rect && status.value !== "running") {
+      startPreviewLoop();
+    } else if (!rect) {
+      stopPreviewLoop();
+      setPreviewUrls(null, null);
+    }
+  }
+
   /** 等待配置加载，并执行当前 OCR 引擎的冷启动检查/预热。 */
   async function ensureOcrReady(): Promise<void> {
     await configLoadPromise;
@@ -236,7 +253,7 @@ export function useScreenMonitor() {
           payload?.stateType === MONITOR_BOX_GEOMETRY_STATE_KEY &&
           payload.data
         ) {
-          monitorRect.value = payload.data as MonitorRect;
+          setMonitorRect(payload.data as MonitorRect);
         }
       }
     );
@@ -244,7 +261,7 @@ export function useScreenMonitor() {
     // 兼容：分离窗口可能尚未通过总线广播，额外监听直连 Tauri 事件作为兜底
     let directUnlistenFn: UnlistenFn | null = null;
     listen<MonitorRect>("monitor-box:geometry", (event) => {
-      monitorRect.value = event.payload;
+      setMonitorRect(event.payload);
     })
       .then((unlisten) => {
         directUnlistenFn = unlisten;
@@ -324,7 +341,8 @@ export function useScreenMonitor() {
       captureFilterRevision === imageFilterRevision ? result.hash : "";
     if (!result.changed || !result.imageBytes) {
       const now = Date.now() - monitorStartedAt;
-      const last = timeline.subtitles.value[timeline.subtitles.value.length - 1];
+      const last =
+        timeline.subtitles.value[timeline.subtitles.value.length - 1];
       if (last) last.endMs = now;
       return null;
     }
@@ -369,18 +387,77 @@ export function useScreenMonitor() {
     if (status.value !== "running") return null;
 
     // 预览和时间轴使用两个独立 URL：更新预览不会使历史字幕缩略图失效。
+    const rawPreviewUrl = URL.createObjectURL(rawBlob);
     const previewUrl = URL.createObjectURL(outputBlob);
     const frameUrl = URL.createObjectURL(outputBlob);
     timeline.registerFrameUrl(frameUrl);
-    setPreviewUrl(previewUrl);
+    setPreviewUrls(rawPreviewUrl, previewUrl);
 
     return { frameUrl, dataUrl, hash: result.hash };
   }
 
-  /**
-   * 一次性抓取当前监控框区域（不参与监控去重、不写入 lastHash）。
-   * 供“区域截图 · 滤镜预览”使用，避免与实时采样循环互相干扰。
-   */
+  async function refreshPreview() {
+    if (previewInFlight || isRunning.value || !monitorRect.value) return;
+    previewInFlight = true;
+    const token = ++previewToken;
+    let rawBlob: Blob | null = null;
+    let rawUrl: string | null = null;
+    try {
+      rawBlob = await captureOnce();
+      if (!rawBlob || token !== previewToken || isRunning.value) return;
+
+      rawUrl = URL.createObjectURL(rawBlob);
+      const image = new Image();
+      const loaded = await new Promise<boolean>((resolve) => {
+        image.onload = () => resolve(true);
+        image.onerror = () => resolve(false);
+        image.src = rawUrl!;
+      });
+      if (!loaded || !image.naturalWidth || !image.naturalHeight) return;
+
+      let outputBlob = rawBlob;
+      if (isImageFilterActive(config.value.imageFilter)) {
+        if (!previewCanvas) previewCanvas = document.createElement("canvas");
+        const startTime = performance.now();
+        outputBlob = await createFilteredImageBlob(
+          image,
+          config.value.imageFilter,
+          previewCanvas
+        );
+        filterLatency.value = Math.round(performance.now() - startTime);
+      } else {
+        filterLatency.value = 0;
+      }
+
+      if (token !== previewToken || isRunning.value) return;
+      const filteredUrl = URL.createObjectURL(outputBlob);
+      setPreviewUrls(rawUrl, filteredUrl);
+      rawUrl = null;
+    } catch {
+      // 预览属于辅助 UI，截图失败时保持上一帧，不打断监控配置。
+    } finally {
+      if (rawUrl) URL.revokeObjectURL(rawUrl);
+      previewInFlight = false;
+    }
+  }
+
+  function stopPreviewLoop() {
+    previewToken += 1;
+    if (previewTimer) {
+      clearInterval(previewTimer);
+      previewTimer = null;
+    }
+  }
+
+  function startPreviewLoop() {
+    if (isRunning.value || !monitorRect.value || previewTimer) return;
+    void refreshPreview();
+    previewTimer = setInterval(() => {
+      void refreshPreview();
+    }, config.value.intervalMs);
+  }
+
+  /** 一次性抓取当前监控框区域（不参与监控去重、不写入 lastHash）。 */
   async function captureOnce(): Promise<Blob | null> {
     const logicalRect = getCaptureRect();
     if (!logicalRect) return null;
@@ -572,16 +649,18 @@ export function useScreenMonitor() {
       return;
     }
 
+    stopPreviewLoop();
     timeline.clearSubtitles();
     ocrQueue.value = [];
     isProcessingQueue.value = false;
-    setPreviewUrl(null);
+    setPreviewUrls(null, null);
     lastHash.value = "";
     monitorStartedAt = Date.now();
     status.value = "running";
     timer = setInterval(() => {
       tick();
     }, config.value.intervalMs);
+    void tick();
     logger.info("监控开始", { intervalMs: config.value.intervalMs });
   }
 
@@ -598,7 +677,8 @@ export function useScreenMonitor() {
     }
     ocrQueue.value = [];
     isProcessingQueue.value = false;
-    setPreviewUrl(null);
+    setPreviewUrls(null, null);
+    startPreviewLoop();
     logger.info("监控停止");
   }
 
@@ -615,6 +695,9 @@ export function useScreenMonitor() {
     if (status.value === "running") {
       if (timer) clearInterval(timer);
       timer = setInterval(() => tick(), intervalMs);
+    } else if (previewTimer) {
+      stopPreviewLoop();
+      startPreviewLoop();
     }
   }
 
@@ -688,7 +771,8 @@ export function useScreenMonitor() {
     if (activeInstances <= 0) {
       activeInstances = 0;
       stopListeningGeometry();
-      setPreviewUrl(null);
+      stopPreviewLoop();
+      setPreviewUrls(null, null);
       timeline.revokeAllFrameUrls();
     }
   });
@@ -705,6 +789,7 @@ export function useScreenMonitor() {
     config,
     lastHash,
     lastFrameUrl,
+    lastRawFrameUrl,
     latency,
     filterLatency,
     isOcrPreparing,

@@ -41,10 +41,19 @@
       </div>
     </div>
 
-    <div v-if="originalUrl" class="frame-preview__body">
+    <div
+      v-if="originalUrl"
+      class="frame-preview__body"
+      :class="{ 'frame-preview__body--stacked': shouldStackComparison }"
+    >
       <figure class="frame-preview__pane">
         <figcaption>原图</figcaption>
-        <img :src="originalUrl" alt="区域原图" @click="view(originalUrl)" />
+        <img
+          :src="originalUrl"
+          alt="区域原图"
+          @load="updateImageAspect"
+          @click="view(originalUrl)"
+        />
       </figure>
       <figure class="frame-preview__pane">
         <figcaption>处理后</figcaption>
@@ -52,6 +61,7 @@
           v-if="filteredUrl"
           :src="filteredUrl"
           alt="区域滤镜结果"
+          @load="updateImageAspect"
           @click="view(filteredUrl)"
         />
         <div v-else class="frame-preview__passthrough">未启用滤镜</div>
@@ -94,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { ElButton } from "element-plus";
 import { Camera, ScanText } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -124,6 +134,19 @@ const hasUsableText = computed(() => {
   const text = props.recognizedText?.trim() ?? "";
   return text.length > 0 && text !== "[识别失败]";
 });
+
+// 超宽截图（例如字幕条）横向并排后每张图都会被压得过窄，自动改为上下排列。
+const imageAspectRatio = ref<number | null>(null);
+const shouldStackComparison = computed(
+  () => (imageAspectRatio.value ?? 0) >= 3
+);
+
+function updateImageAspect(event: Event) {
+  const image = event.currentTarget as HTMLImageElement;
+  if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+    imageAspectRatio.value = image.naturalWidth / image.naturalHeight;
+  }
+}
 
 const imageViewer = useImageViewer();
 function view(url: string) {
@@ -164,6 +187,9 @@ function view(url: string) {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.frame-preview__body--stacked {
+  grid-template-columns: 1fr;
+}
 .frame-preview__pane {
   margin: 0;
   display: flex;
@@ -183,6 +209,9 @@ function view(url: string) {
   border: var(--border-width) solid var(--border-color);
   border-radius: 4px;
   cursor: zoom-in;
+}
+.frame-preview__body--stacked .frame-preview__pane img {
+  max-height: 160px;
 }
 .frame-preview__passthrough {
   display: flex;

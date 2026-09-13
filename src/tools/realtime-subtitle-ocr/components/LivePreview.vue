@@ -17,12 +17,30 @@
 <template>
   <div class="live-preview">
     <div class="live-preview__screen">
-      <img
+      <div
         v-if="lastFrameUrl"
-        :src="lastFrameUrl"
-        alt="Live Screen Capture"
-        class="live-preview__img"
-      />
+        class="live-preview__comparison"
+        :class="{ 'live-preview__comparison--stacked': shouldStackComparison }"
+      >
+        <figure class="live-preview__pane">
+          <figcaption>原图</figcaption>
+          <img
+            :src="lastRawFrameUrl || lastFrameUrl"
+            alt="原始截图"
+            class="live-preview__img"
+            @load="updateImageAspect"
+          />
+        </figure>
+        <figure class="live-preview__pane">
+          <figcaption>处理后</figcaption>
+          <img
+            :src="lastFrameUrl"
+            alt="滤镜处理结果"
+            class="live-preview__img"
+            @load="updateImageAspect"
+          />
+        </figure>
+      </div>
       <div v-else class="live-preview__placeholder">
         <div class="placeholder-content">
           <TvIcon :size="32" class="placeholder-icon" />
@@ -100,6 +118,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import { ElButton } from "element-plus";
 import {
   Tv as TvIcon,
@@ -113,6 +132,7 @@ import {
 
 defineProps<{
   lastFrameUrl: string | null;
+  lastRawFrameUrl: string | null;
   latency: number;
   filterLatency: number;
   isRunning: boolean;
@@ -127,6 +147,18 @@ defineEmits<{
   (e: "focus-monitor-box"): void;
   (e: "toggle-monitor"): void;
 }>();
+
+const imageAspectRatio = ref<number | null>(null);
+const shouldStackComparison = computed(
+  () => (imageAspectRatio.value ?? 0) >= 3
+);
+
+function updateImageAspect(event: Event) {
+  const image = event.currentTarget as HTMLImageElement;
+  if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+    imageAspectRatio.value = image.naturalWidth / image.naturalHeight;
+  }
+}
 </script>
 
 <style scoped>
@@ -152,10 +184,43 @@ defineEmits<{
   position: relative;
 }
 
+.live-preview__comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 8px;
+}
+
+.live-preview__comparison--stacked {
+  grid-template-columns: 1fr;
+}
+
+.live-preview__pane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+}
+
+.live-preview__pane figcaption {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
 .live-preview__img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   object-fit: contain;
+  background: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
 }
 
 .live-preview__placeholder {

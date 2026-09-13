@@ -21,14 +21,11 @@
       class="screen-workbench__top"
       :style="{ height: topSectionHeight + 'px' }"
     >
-      <!-- 左上：实时截图预览 + 区域滤镜预览（自适应堆叠/并排） -->
-      <div
-        ref="previewPanelRef"
-        class="preview-panel preview-panel--screen"
-        :class="{ 'is-row': screenPreviewLayout === 'row' }"
-      >
+      <!-- 左上：实时原图 / 滤镜结果对比预览 -->
+      <div class="preview-panel preview-panel--screen">
         <LivePreview
           class="preview-panel__live"
+          :last-raw-frame-url="lastRawFrameUrl"
           :last-frame-url="lastFrameUrl"
           :latency="latency"
           :filter-latency="filterLatency"
@@ -40,11 +37,6 @@
           @close-monitor-box="closeMonitorBox"
           @focus-monitor-box="focusMonitorBox"
           @toggle-monitor="toggleMonitor"
-        />
-        <RegionFilterPreview
-          class="preview-panel__filter"
-          :capture="captureScreenSource"
-          hint="打开监控框后点击「截图预览」，实时查看区域滤镜效果"
         />
       </div>
 
@@ -84,16 +76,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { Settings as SettingsIcon } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
 import SubtitleTimeline from "../SubtitleTimeline.vue";
 import LivePreview from "../LivePreview.vue";
 import MonitorConfig from "../MonitorConfig.vue";
-import RegionFilterPreview from "../common/RegionFilterPreview.vue";
 import ResizeHandle from "../common/ResizeHandle.vue";
-import { blobToCaptureSource, type CaptureSource } from "../../utils/frameCapture";
 import { useScreenMonitor } from "../../composables/useScreenMonitor";
 import { useMonitorBox } from "../../composables/useMonitorBox";
 import { useSubtitleActions } from "../../composables/useSubtitleActions";
@@ -125,45 +115,26 @@ const {
   isRunning,
   monitorRect,
   lastFrameUrl,
+  lastRawFrameUrl,
   latency,
   filterLatency,
   isOcrPreparing,
   ensureOcrReady,
   start,
   stop,
-  captureOnce,
   removeSubtitle,
   updateSubtitleText,
 } = useScreenMonitor();
 
-const { isMonitorBoxDetached, openMonitorBox, closeMonitorBox, focusMonitorBox } =
-  useMonitorBox();
+const {
+  isMonitorBoxDetached,
+  openMonitorBox,
+  closeMonitorBox,
+  focusMonitorBox,
+} = useMonitorBox();
 
 const { copyAll, sendToChat, exportSrt, clearAll } =
   useSubtitleActions(timeline);
-
-// ===== 左上监视与滤镜区自适应布局 =====
-const previewPanelRef = ref<HTMLElement | null>(null);
-const previewPanelWidth = ref(0);
-let previewPanelObserver: ResizeObserver | null = null;
-
-/**
- * 横向监控选区在上下堆叠时能保持较宽的画面比例；竖向选区则优先并排，
- * 避免两个预览各自被压扁。容器过窄时始终退回上下堆叠。
- */
-const screenPreviewLayout = computed<"row" | "column">(() => {
-  if (previewPanelWidth.value < 560) return "column";
-  const rect = monitorRect.value;
-  const isLandscape = !rect || rect.width >= rect.height;
-  return isLandscape ? "column" : "row";
-});
-
-/** 屏幕模式：抓取监控框区域一次，供滤镜预览共用组件使用。 */
-async function captureScreenSource(): Promise<CaptureSource | null> {
-  const blob = await captureOnce();
-  if (!blob) return null;
-  return blobToCaptureSource(blob);
-}
 
 async function toggleMonitor() {
   if (isRunning.value) {
@@ -182,19 +153,9 @@ onMounted(() => {
   void ensureOcrReady().catch(() => {
     // 启动按钮会再次检查并展示明确错误，这里仅做静默预热。
   });
-
-  if (previewPanelRef.value) {
-    previewPanelWidth.value = previewPanelRef.value.clientWidth;
-    previewPanelObserver = new ResizeObserver((entries) => {
-      previewPanelWidth.value = entries[0]?.contentRect.width ?? 0;
-    });
-    previewPanelObserver.observe(previewPanelRef.value);
-  }
 });
 
 onBeforeUnmount(() => {
-  previewPanelObserver?.disconnect();
-  previewPanelObserver = null;
   if (isRunning.value) stop();
   // 监控框的关闭由 useMonitorBox 的 onBeforeUnmount 统一处理。
 });
@@ -226,25 +187,12 @@ onBeforeUnmount(() => {
 
 .preview-panel--screen {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.preview-panel--screen.is-row {
-  flex-direction: row;
 }
 
 .preview-panel__live {
-  flex: 1.4;
-  min-width: 0;
-  min-height: 0;
-}
-
-.preview-panel__filter {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
 }
 
 .config-panel {

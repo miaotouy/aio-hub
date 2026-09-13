@@ -366,7 +366,6 @@ const selectScanFolders = async () => {
   display: flex;
   align-items: center;
   padding: 0 16px;
-  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   gap: 12px;
 }

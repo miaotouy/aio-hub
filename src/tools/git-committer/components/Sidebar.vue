@@ -138,13 +138,13 @@
         <el-collapse-item name="staged" class="collapse-item">
           <template #title>
             <div class="collapse-title">
-              <span>暂存的更改</span>
-              <el-badge
-                :value="currentStatus?.staged.length || 0"
-                :max="99"
-                type="info"
-                class="badge-margin"
-              />
+              <span class="collapse-title-text">暂存的更改</span>
+              <span
+                class="section-badge info"
+                :class="{ active: !!currentStatus?.staged.length }"
+              >
+                {{ currentStatus?.staged.length || 0 }}
+              </span>
               <div v-if="currentStatus?.staged.length" class="title-actions">
                 <el-tooltip content="打开暂存更改差异" placement="bottom">
                   <button
@@ -205,13 +205,13 @@
         <el-collapse-item name="unstaged" class="collapse-item">
           <template #title>
             <div class="collapse-title">
-              <span>工作区更改</span>
-              <el-badge
-                :value="currentStatus?.unstaged.length || 0"
-                :max="99"
-                type="warning"
-                class="badge-margin"
-              />
+              <span class="collapse-title-text">工作区更改</span>
+              <span
+                class="section-badge warning"
+                :class="{ active: !!currentStatus?.unstaged.length }"
+              >
+                {{ currentStatus?.unstaged.length || 0 }}
+              </span>
               <div v-if="currentStatus?.unstaged.length" class="title-actions">
                 <el-tooltip content="打开所有更改差异" placement="bottom">
                   <button
@@ -464,7 +464,6 @@ const unstageAll = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  border-bottom: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -515,10 +514,6 @@ const unstageAll = async () => {
 .commit-dropdown-btn {
   padding-left: 8px;
   padding-right: 8px;
-}
-
-.badge-margin {
-  margin-left: 8px;
 }
 
 .title-actions {
@@ -633,15 +628,16 @@ const unstageAll = async () => {
   height: 36px;
   line-height: 36px;
   background-color: transparent;
-  border-bottom: var(--border-width) solid var(--border-color);
+  border-bottom: 0px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .changes-collapse :deep(.el-collapse-item__wrap) {
   background-color: transparent;
-  border-bottom: var(--border-width) solid var(--border-color);
+  border-bottom: 0px;
 }
 
 .changes-collapse :deep(.el-collapse-item__content) {
@@ -652,6 +648,60 @@ const unstageAll = async () => {
   display: flex;
   align-items: center;
   width: 100%;
+}
+
+.collapse-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.section-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  margin-left: 10px;
+  transform: translateY(1px);
+  box-sizing: border-box;
+}
+
+.section-badge.info {
+  background-color: rgba(
+    var(--el-color-info-rgb, 144, 147, 153),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-text-color-secondary);
+}
+
+.section-badge.info.active {
+  background-color: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-color-primary);
+}
+
+.section-badge.warning {
+  background-color: rgba(
+    var(--el-color-info-rgb, 144, 147, 153),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-text-color-secondary);
+}
+
+.section-badge.warning.active {
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.18)
+  );
+  color: var(--el-color-warning);
 }
 
 .file-list {

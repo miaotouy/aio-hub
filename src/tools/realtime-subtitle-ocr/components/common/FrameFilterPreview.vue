@@ -17,7 +17,18 @@
 <template>
   <section class="frame-preview">
     <div class="frame-preview__header">
-      <span class="frame-preview__title">区域截图 · 滤镜预览</span>
+      <button
+        type="button"
+        class="frame-preview__toggle"
+        data-testid="rsocr-preview-toggle"
+        :title="collapsed ? '展开区域预览' : '折叠区域预览'"
+        :aria-expanded="!collapsed"
+        @click="toggleCollapsed"
+      >
+        <ChevronDown v-if="!collapsed" :size="14" />
+        <ChevronRight v-else :size="14" />
+        <span class="frame-preview__title">区域截图 · 滤镜预览</span>
+      </button>
       <div class="frame-preview__actions">
         <el-button
           size="small"
@@ -41,63 +52,65 @@
       </div>
     </div>
 
-    <div
-      v-if="originalUrl"
-      class="frame-preview__body"
-      :class="{ 'frame-preview__body--stacked': shouldStackComparison }"
-    >
-      <figure class="frame-preview__pane">
-        <figcaption>原图</figcaption>
-        <img
-          :src="originalUrl"
-          alt="区域原图"
-          @load="updateImageAspect"
-          @click="view(originalUrl)"
-        />
-      </figure>
-      <figure class="frame-preview__pane">
-        <figcaption>处理后</figcaption>
-        <img
-          v-if="filteredUrl"
-          :src="filteredUrl"
-          alt="区域滤镜结果"
-          @load="updateImageAspect"
-          @click="view(filteredUrl)"
-        />
-        <div v-else class="frame-preview__passthrough">未启用滤镜</div>
-      </figure>
-    </div>
-    <div v-else class="frame-preview__empty">
-      {{ hint || "点击「截图预览」抓取当前识别区域，实时查看滤镜效果" }}
-    </div>
-
-    <div v-if="recognizedText !== null" class="frame-preview__result">
-      <div class="frame-preview__result-main">
-        <span class="frame-preview__result-label">识别结果</span>
-        <span class="frame-preview__result-text">{{
-          recognizedText || "(空)"
-        }}</span>
-      </div>
+    <div v-show="!collapsed" class="frame-preview__content">
       <div
-        v-if="showApplyActions && hasUsableText"
-        class="frame-preview__result-actions"
+        v-if="originalUrl"
+        class="frame-preview__body"
+        :class="{ 'frame-preview__body--stacked': shouldStackComparison }"
       >
-        <el-button
-          size="small"
-          data-testid="rsocr-preview-apply"
-          :disabled="!canApply"
-          @click="$emit('apply-text', recognizedText as string)"
+        <figure class="frame-preview__pane">
+          <figcaption>原图</figcaption>
+          <img
+            :src="originalUrl"
+            alt="区域原图"
+            @load="updateImageAspect"
+            @click="view(originalUrl)"
+          />
+        </figure>
+        <figure class="frame-preview__pane">
+          <figcaption>处理后</figcaption>
+          <img
+            v-if="filteredUrl"
+            :src="filteredUrl"
+            alt="区域滤镜结果"
+            @load="updateImageAspect"
+            @click="view(filteredUrl)"
+          />
+          <div v-else class="frame-preview__passthrough">未启用滤镜</div>
+        </figure>
+      </div>
+      <div v-else class="frame-preview__empty">
+        {{ hint || "点击「截图预览」抓取当前识别区域，实时查看滤镜效果" }}
+      </div>
+
+      <div v-if="recognizedText !== null" class="frame-preview__result">
+        <div class="frame-preview__result-main">
+          <span class="frame-preview__result-label">识别结果</span>
+          <span class="frame-preview__result-text">{{
+            recognizedText || "(空)"
+          }}</span>
+        </div>
+        <div
+          v-if="showApplyActions && hasUsableText"
+          class="frame-preview__result-actions"
         >
-          填入当前字幕
-        </el-button>
-        <el-button
-          size="small"
-          type="primary"
-          data-testid="rsocr-preview-insert"
-          @click="$emit('insert-text', recognizedText as string)"
-        >
-          在播放头新增
-        </el-button>
+          <el-button
+            size="small"
+            data-testid="rsocr-preview-apply"
+            :disabled="!canApply"
+            @click="$emit('apply-text', recognizedText as string)"
+          >
+            填入当前字幕
+          </el-button>
+          <el-button
+            size="small"
+            type="primary"
+            data-testid="rsocr-preview-insert"
+            @click="$emit('insert-text', recognizedText as string)"
+          >
+            在播放头新增
+          </el-button>
+        </div>
       </div>
     </div>
   </section>
@@ -105,9 +118,17 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useLocalStorage } from "@vueuse/core";
 import { ElButton } from "element-plus";
-import { Camera, ScanText } from "lucide-vue-next";
+import { Camera, ChevronDown, ChevronRight, ScanText } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";
+
+/** 区域预览是否折叠；常驻持久化，避免每次进入都占满高度。 */
+const collapsed = useLocalStorage("rsocr:region-preview-collapsed", false);
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value;
+}
 
 const props = defineProps<{
   originalUrl: string;
@@ -170,10 +191,32 @@ function view(url: string) {
   justify-content: space-between;
   gap: 8px;
 }
+.frame-preview__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+}
+.frame-preview__toggle:hover {
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+}
 .frame-preview__title {
   font-size: 12px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+.frame-preview__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 .frame-preview__actions {
   display: flex;

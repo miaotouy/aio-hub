@@ -23,8 +23,8 @@
       }}</span>
       <span
         class="timeline-editor__hint"
-        title="拖拽块移动 · 拖拽块边缘修剪 · 滚轮滚动 · Ctrl+滚轮缩放 · 右键菜单"
-        >拖拽移动 · 拖边修剪 · 滚轮滚动 · Ctrl+滚轮缩放 · 右键菜单</span
+        title="左键拖拽块移动 · 拖块边缘修剪 · 滚轮/Alt+滚轮横向滚动 · Ctrl+滚轮缩放 · 中键 或 Alt+左键拖拽平移 · 右键菜单"
+        >拖拽移动 · 拖边修剪 · 滚轮/Alt+滚轮滚动 · Ctrl+滚轮缩放 · 中键/Alt+拖拽平移 · 右键菜单</span
       >
       <label
         class="timeline-editor__snap"
@@ -65,7 +65,11 @@
       </div>
     </div>
 
-    <div ref="hostRef" class="timeline-editor__canvas">
+    <div
+      ref="hostRef"
+      class="timeline-editor__canvas"
+      :class="{ 'is-panning': isPanning }"
+    >
       <div ref="stageRef" class="timeline-editor__stage"></div>
       <div
         v-if="dragTip.visible"
@@ -103,6 +107,20 @@
           删除
         </button>
       </div>
+    </div>
+
+    <!-- 常驻横向滚动条：始终占位，内容不足时显示为整条，不挤动布局 -->
+    <div
+      ref="scrollbarRef"
+      class="timeline-editor__scrollbar"
+      :class="{ 'is-disabled': !canScroll }"
+      @pointerdown="onScrollbarPointerDown"
+    >
+      <div
+        class="timeline-editor__scrollbar-thumb"
+        :style="scrollbarThumbStyle"
+        @pointerdown.stop="onThumbPointerDown"
+      ></div>
     </div>
   </div>
 </template>
@@ -455,7 +473,13 @@ function fitAll() {
 
 // ===== 指针交互 =====
 type DragKind =
-  "scrub" | "move" | "trimStart" | "trimEnd" | "rangeStart" | "rangeEnd";
+  | "scrub"
+  | "move"
+  | "trimStart"
+  | "trimEnd"
+  | "rangeStart"
+  | "rangeEnd"
+  | "pan";
 
 interface DragState {
   kind: DragKind;
@@ -463,9 +487,12 @@ interface DragState {
   startClientX: number;
   originStart: number;
   originEnd: number;
+  originScrollX?: number;
 }
 
 let drag: DragState | null = null;
+/** 平移时切换抓取光标，提升拖拽手感。 */
+const isPanning = ref(false);
 
 function pointerPos(event: PointerEvent): { x: number; y: number } {
   const rect = hostRef.value?.getBoundingClientRect();
@@ -481,6 +508,20 @@ function findBlock(time: number): SubtitleEntry | undefined {
 
 function onPointerDown(event: PointerEvent) {
   hideContextMenu();
+  // 中键 / Alt+左键：平移视口；即使指针落在字幕块上也优先平移，避免左键被块“吃掉”。
+  if (event.button === 1 || (event.button === 0 && event.altKey)) {
+    event.preventDefault();
+    isPanning.value = true;
+    drag = {
+      kind: "pan",
+      startClientX: event.clientX,
+      originStart: 0,
+      originEnd: 0,
+      originScrollX: viewport.scrollX.value,
+    };
+    bindMove();
+    return;
+  }
   if (event.button !== 0) return;
   const { x, y } = pointerPos(event);
   const time = viewport.xToTime(x);
@@ -570,6 +611,11 @@ function onPointerDown(event: PointerEvent) {
 
 function onPointerMove(event: PointerEvent) {
   if (!drag) return;
+  if (drag.kind === "pan") {
+    const deltaPx = event.clientX - drag.startClientX;
+    viewport.setScrollX((drag.originScrollX ?? 0) - deltaPx);
+    return;
+  }
   const duration = props.durationMs;
   const deltaMs =
     ((event.clientX - drag.startClientX) / viewport.pxPerSecond.value) * 1000;
@@ -651,6 +697,7 @@ function onPointerMove(event: PointerEvent) {
 
 function onPointerUp() {
   drag = null;
+  isPanning.value = false;
   hideDragTip();
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", onPointerUp);
@@ -659,6 +706,91 @@ function onPointerUp() {
 function bindMove() {
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
+}
+
+// ===== 常驻横向滚动条 =====
+const scrollbarRef = ref<HTMLDivElement | null>(null);
+let scrollbarDrag: { startClientX: number; startScrollX: number } | null = null;
+
+const canScroll = computed(
+  () => viewport.scrollWidth.value > viewport.viewportWidth.value + 1
+);
+
+/** 以百分比定位滑块，避免紧密监听宽度；内容不足时铺满整条。 */
+const scrollbarThumbStyle = computed(() => {
+  const scrollWidth = Math.max(1, viewport.scrollWidth.value);
+  const viewportWidth = viewport.viewportWidth.value;
+  const widthPercent = Math.min(100, (viewportWidth / scrollWidth) * 100);
+  const maxLeft = 100 - widthPercent;
+  const maxScroll = scrollWidth - viewportWidth;
+  const leftPercent =
+    maxLeft <= 0 || maxScroll <= 0
+      ? 0
+      : (viewport.scrollX.value / maxScroll) * maxLeft;
+  return {
+    width: `${widthPercent}%`,
+    left: `${leftPercent}%`,
+  };
+});
+
+function onScrollbarPointerDown(event: PointerEvent) {
+  if (event.button !== 0 || !canScroll.value) return;
+  event.preventDefault();
+  const el = scrollbarRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const scrollWidth = Math.max(1, viewport.scrollWidth.value);
+  const viewportWidth = viewport.viewportWidth.value;
+  const thumbWidth = Math.min(1, viewportWidth / scrollWidth) * rect.width;
+  const usable = Math.max(1, rect.width - thumbWidth);
+  const ratio = Math.min(
+    1,
+    Math.max(0, (event.clientX - rect.left - thumbWidth / 2) / usable)
+  );
+  viewport.setScrollX(ratio * Math.max(0, scrollWidth - viewportWidth));
+
+  scrollbarDrag = {
+    startClientX: event.clientX,
+    startScrollX: viewport.scrollX.value,
+  };
+  window.addEventListener("pointermove", onScrollbarMove);
+  window.addEventListener("pointerup", onScrollbarUp, { once: true });
+}
+
+function onThumbPointerDown(event: PointerEvent) {
+  if (event.button !== 0 || !canScroll.value) return;
+  event.preventDefault();
+  scrollbarDrag = {
+    startClientX: event.clientX,
+    startScrollX: viewport.scrollX.value,
+  };
+  window.addEventListener("pointermove", onScrollbarMove);
+  window.addEventListener("pointerup", onScrollbarUp, { once: true });
+}
+
+function onScrollbarMove(event: PointerEvent) {
+  if (!scrollbarDrag) return;
+  const el = scrollbarRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const scrollWidth = Math.max(1, viewport.scrollWidth.value);
+  const viewportWidth = viewport.viewportWidth.value;
+  const thumbWidth = Math.min(1, viewportWidth / scrollWidth) * rect.width;
+  const usable = Math.max(1, rect.width - thumbWidth);
+  const deltaRatio = (event.clientX - scrollbarDrag.startClientX) / usable;
+  viewport.setScrollX(
+    scrollbarDrag.startScrollX + deltaRatio * Math.max(0, scrollWidth - viewportWidth)
+  );
+}
+
+function onScrollbarUp() {
+  scrollbarDrag = null;
+  window.removeEventListener("pointermove", onScrollbarMove);
+}
+
+/** 阻止中键触发浏览器自动滚动，让指针事件专用于平移。 */
+function onMouseDown(event: MouseEvent) {
+  if (event.button === 1) event.preventDefault();
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -753,7 +885,13 @@ function onWheel(event: WheelEvent) {
     const { x } = pointerPos(event as unknown as PointerEvent);
     viewport.zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12, x);
   } else {
-    viewport.scrollBy(event.deltaY + event.deltaX);
+    // 滚轮 / Shift+滚轮 / Alt+滚轮 统一做横向滚动；优先采用横向滚轮数据。
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 100 : 1;
+    const delta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX * unit
+        : event.deltaY * unit;
+    viewport.scrollBy(delta);
   }
   redraw();
 }
@@ -783,6 +921,7 @@ onMounted(async () => {
   ensureStage();
   if (props.durationMs > 0) fitAll();
   hostRef.value?.addEventListener("pointerdown", onPointerDown);
+  hostRef.value?.addEventListener("mousedown", onMouseDown);
   hostRef.value?.addEventListener("wheel", onWheel, { passive: false });
   hostRef.value?.addEventListener("dblclick", onDoubleClick);
   hostRef.value?.addEventListener("contextmenu", onContextMenu);
@@ -791,12 +930,15 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   hostRef.value?.removeEventListener("pointerdown", onPointerDown);
+  hostRef.value?.removeEventListener("mousedown", onMouseDown);
   hostRef.value?.removeEventListener("wheel", onWheel);
   hostRef.value?.removeEventListener("dblclick", onDoubleClick);
   hostRef.value?.removeEventListener("contextmenu", onContextMenu);
   window.removeEventListener("keydown", onGlobalKeydown);
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", onPointerUp);
+  window.removeEventListener("pointermove", onScrollbarMove);
+  window.removeEventListener("pointerup", onScrollbarUp);
   if (rafId) cancelAnimationFrame(rafId);
   stage?.destroy();
   stage = null;
@@ -841,6 +983,7 @@ watch(
 .timeline-editor {
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
@@ -891,12 +1034,44 @@ watch(
 }
 .timeline-editor__canvas {
   position: relative;
+  flex-shrink: 0;
   width: 100%;
   user-select: none;
   touch-action: none;
 }
+.timeline-editor__canvas.is-panning {
+  cursor: grabbing;
+}
 .timeline-editor__stage {
   width: 100%;
+}
+/* 常驻横向滚动条：始终占位，内容不足时铺满整条，缩放不挤动布局。 */
+.timeline-editor__scrollbar {
+  position: relative;
+  flex-shrink: 0;
+  height: 12px;
+  margin: auto 8px 6px;
+  padding: 3px 0;
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  cursor: pointer;
+}
+.timeline-editor__scrollbar.is-disabled {
+  cursor: default;
+}
+.timeline-editor__scrollbar-thumb {
+  position: absolute;
+  top: 3px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--el-border-color-darker, rgba(144, 147, 153, 0.5));
+  transition: background 0.15s;
+}
+.timeline-editor__scrollbar:hover .timeline-editor__scrollbar-thumb {
+  background: var(--el-text-color-secondary);
+}
+.timeline-editor__scrollbar.is-disabled .timeline-editor__scrollbar-thumb {
+  opacity: 0.4;
 }
 .timeline-editor__drag-tip {
   position: absolute;

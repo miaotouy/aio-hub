@@ -197,14 +197,14 @@ sequenceDiagram
 - 顶部工具栏：文件名 / 时长 / 分辨率 / FFmpeg 状态、抽帧进度、选择 / 重新选择 / 关闭当前视频、开始·取消·导出、字幕列表抽屉入口。关闭当前视频会卸载媒体并清理该视频的字幕、预览与任务状态。
 - 中部左侧 `VideoMonitor`：达芬奇 / PR 式监视器，支持播放/暂停/停止、逐帧、±5s、**视频下方进度条（点击/拖拽 seek，与底部时间轴播放头共用 `currentMs` 双向同步）· 常驻音量滑块（静音）· 倍速 / 缩放比例菜单 · 适配 / 缩放 ± / 1:1 / 滚轮缩放 / 拖拽平移 / 双击 Fit↔100% / 全屏**；控制栏在窄宽度下自动换行。
 - 中部右侧 Inspector：`MonitorConfig`（引擎 / 滤镜 / 采样 / 去重）、`RoiNumberPanel`（ROI 精确 px/% 设置与预设）、`ActiveSubtitleEditor`（字幕编辑）。
-- 底部 `TimelineEditor`（Konva）：时间标尺 + 字幕轨道块 + 识别区间 + 播放头，横向滚轮滚动、`Ctrl+滚轮` 缩放、块拖拽平移/修剪、点击标尺 seek；工具栏提供缩小 / 适配全长 / 放大与吸附开关（均带操作提示），并在工具条内显示轨道手势提示。
+- 底部 `TimelineEditor`（Konva）：时间标尺 + 字幕轨道块 + 识别区间 + 播放头，滚轮 / `Alt+滚轮` 横向滚动、`Ctrl+滚轮` 缩放、左键拖拽块移动 / 拖边缘修剪、中键或 `Alt+左键` 拖拽平移、点击标尺 seek；底部提供常驻横向滚动条（不可滚动时铺满整条，不因出现/消失挤动布局），工具栏提供缩小 / 适配全长 / 放大与吸附开关（均带操作提示），并在工具条内显示轨道手势提示。
 - 次级列表：`SubtitleTimeline` 表格放入右侧抽屉，与轨道通过 `selectedId` / `seek` 联动。
 
 ### 6.2. 视口与交互模型
 
 - `composables/useViewportTransform.ts`：维护 `scale / offsetX / offsetY`，内容以 `transform-origin: 0 0` 渲染；`fit()` 计算适配比例，`setScale(scale, anchorX, anchorY)` 以光标为锚点缩放，`panBy(dx, dy)` 平移。
 - `components/video/RoiOverlay.vue`：位于同一被变换的内容层内，因此 DOM 百分比坐标天然等于视频归一化坐标；8 向手柄与边框尺寸按 `1/scale` 补偿，保证任意缩放下保持恒定屏幕尺寸。
-- `composables/useTimelineViewport.ts`：时间轴 `pxPerSecond / scrollX` 视口；`timeToX / xToTime` 换算，`ensureVisible` 让播放头跟随。Konva 只绘制可见区（windowing），避免长视频下的大量图元。
+- `composables/useTimelineViewport.ts`：时间轴 `pxPerSecond / scrollX` 视口；`timeToX / xToTime` 换算，`scrollBy / setScrollX` 统一经过 `clampScroll`，`ensureVisible` 让播放头跟随。Konva 只绘制可见区（windowing），避免长视频下的大量图元。
 - `utils/video.ts` 的 `resizeVideoRoi`：8 向手柄拖拽的纯函数实现；角点手柄在给定 `aspectRatio`（归一化 width / height）时保持比例并锚定对角点，边手柄保持单轴缩放，最小尺寸优先于比例。
 - `utils/subtitleOps.ts`：`splitSubtitleEntry` / `mergeSubtitleEntries` 纯函数，由 `useSubtitleTimelineStore().splitSubtitle / mergeSubtitles` 调用；拆分保留首段 frameUrl，合并回收被合并条目的 Object URL。
 - 工作台快捷键（`VideoMonitor` 聚焦时）：空格播放/暂停、`←/→` 逐帧、`Shift+←/→` ±1s、`Home/End` 首尾、`I/O` 设置识别区间起止、`F` 适配、`H` 手型、`+/-` 缩放。单击视口 / ROI / 空白会把键盘焦点主动交给监视器，控制条交互后焦点也归还监视器；焦点位于输入控件时不拦截按键。
@@ -215,7 +215,7 @@ sequenceDiagram
 ### 6.3. 区域截图 · 滤镜预览（屏幕 / 视频共用）
 
 - `utils/frameCapture.ts`：与来源解耦的纯像素工具。`captureRegionToCanvas` 支持 `HTMLVideoElement / HTMLImageElement / HTMLCanvasElement / ImageBitmap`；`renderFilteredRegion` 复用 `applyImageFilterToPixels` 生成原图与处理图；`recognizeCanvas` 用同一处理图调用共享 OCR Runner 做单帧试识别。
-- `components/common/FrameFilterPreview.vue`：展示原图 / 处理图对照与试识别结果。
+- `components/common/FrameFilterPreview.vue`：展示原图 / 处理图对照与试识别结果；标题栏提供折叠开关（折叠状态持久化），折叠后仅保留标题与操作按钮，避免长期占用监视区高度。
 - `components/common/RegionFilterPreview.vue`：状态封装 + 滤镜参数变化 debounce 自动重截。视频模式从 `<video>` 当前帧按 ROI 裁剪；屏幕模式调用 `useScreenMonitor().captureOnce()` 一次性抓取监控框（不参与监控去重、不写 `lastHash`）。
 
 > Canvas 截图依赖 `assetProtocol` 与 `crossOrigin="anonymous"`；若个别视频导致画布污染，可降级为新增 Rust `extract_single_frame` 命令。

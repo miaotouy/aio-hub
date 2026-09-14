@@ -47,4 +47,15 @@ describe("useTimelineViewport", () => {
       viewport.scrollWidth.value - viewport.viewportWidth.value
     );
   });
+
+  it("clamps setScrollX to the scrollable range", () => {
+    const viewport = createViewport();
+    viewport.setPxPerSecond(20);
+    viewport.setScrollX(-100);
+    expect(viewport.scrollX.value).toBe(0);
+    viewport.setScrollX(1_000_000);
+    expect(viewport.scrollX.value).toBeCloseTo(
+      viewport.scrollWidth.value - viewport.viewportWidth.value
+    );
+  });
 });

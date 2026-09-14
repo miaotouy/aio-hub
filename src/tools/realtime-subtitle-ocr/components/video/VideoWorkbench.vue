@@ -802,6 +802,11 @@ watch(
     font-size: 11px;
   }
 }
+/* Element Plus 的 tab-pane 默认高度为 auto，会让内部 flex 列表撑高后被裁掉而无法滚动。 */
+.inspector-tabs :deep(.el-tab-pane) {
+  height: 100%;
+  overflow: hidden;
+}
 .video-workbench__empty {
   flex: 1;
   display: flex;

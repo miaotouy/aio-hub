@@ -34,6 +34,7 @@ export interface TimelineViewport {
   zoomBy: (factor: number, anchorPx?: number) => void;
   setPxPerSecond: (value: number, anchorPx?: number) => void;
   scrollBy: (dx: number) => void;
+  setScrollX: (value: number) => void;
   timeToX: (ms: number) => number;
   xToTime: (x: number) => number;
   ensureVisible: (ms: number, padding?: number) => void;
@@ -94,6 +95,10 @@ export function useTimelineViewport(durationMs: Ref<number>): TimelineViewport {
     scrollX.value = clampScroll(scrollX.value + dx);
   }
 
+  function setScrollX(value: number) {
+    scrollX.value = clampScroll(value);
+  }
+
   function ensureVisible(ms: number, padding = 80) {
     const x = timeToX(ms);
     if (x < padding) {
@@ -115,6 +120,7 @@ export function useTimelineViewport(durationMs: Ref<number>): TimelineViewport {
     zoomBy,
     setPxPerSecond,
     scrollBy,
+    setScrollX,
     timeToX,
     xToTime,
     ensureVisible,

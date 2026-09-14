@@ -125,16 +125,6 @@ function statusLabel(subtitle: SubtitleEntry): string {
 
 <template>
   <div class="subtitle-inspector" data-testid="rsocr-subtitle-editor">
-    <div class="subtitle-inspector__heading">
-      <div>
-        <span class="subtitle-inspector__eyebrow">SUBTITLE INSPECTOR</span>
-        <h3>字幕</h3>
-      </div>
-      <div class="subtitle-inspector__counter">
-        {{ activeSubtitle ? `${activeSubtitleIndex + 1} / ${subtitleList.length}` : "—" }}
-      </div>
-    </div>
-
     <template v-if="activeSubtitle">
       <div class="subtitle-inspector__time-row">
         <div class="time-field">
@@ -190,11 +180,15 @@ function statusLabel(subtitle: SubtitleEntry): string {
       <span>从下方字幕轨道选择片段后，在这里编辑内容。</span>
     </div>
 
+    <div class="subtitle-list__header">
+      <span>字幕片段</span>
+      <span>{{
+        activeSubtitle
+          ? `${activeSubtitleIndex + 1} / ${subtitleList.length}`
+          : `${subtitleList.length} 条`
+      }}</span>
+    </div>
     <div class="subtitle-list" :class="{ 'is-empty': !subtitleList.length }">
-      <div class="subtitle-list__header">
-        <span>字幕片段</span>
-        <span>{{ subtitleList.length }} 条</span>
-      </div>
       <button
         v-for="(subtitle, index) in subtitleList"
         :key="subtitle.id"
@@ -221,44 +215,16 @@ function statusLabel(subtitle: SubtitleEntry): string {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 14px 14px 0;
+  padding: 12px 14px 0;
   box-sizing: border-box;
   background: var(--card-bg);
   color: var(--el-text-color-primary);
-}
-.subtitle-inspector__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
-}
-.subtitle-inspector__eyebrow {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--el-text-color-secondary);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-.subtitle-inspector h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
-}
-.subtitle-inspector__counter {
-  padding: 4px 7px;
-  border-radius: 4px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
-  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 10px;
 }
 .subtitle-inspector__time-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  padding: 12px 0;
+  padding: 0 0 12px;
 }
 .time-field label {
   display: block;
@@ -359,21 +325,18 @@ function statusLabel(subtitle: SubtitleEntry): string {
   border-radius: 50%;
   color: var(--el-color-primary);
 }
+.subtitle-list__header {
+  flex-shrink: 0;
+  margin-top: 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 10px;
+  font-weight: 500;
+}
 .subtitle-list {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding-top: 12px;
-}
-.subtitle-list__header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding-bottom: 6px;
-  background: var(--card-bg);
-  color: var(--el-text-color-secondary);
-  font-size: 10px;
-  font-weight: 500;
+  padding-top: 4px;
 }
 .subtitle-list__item {
   display: flex;

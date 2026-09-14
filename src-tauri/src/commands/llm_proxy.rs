@@ -15,7 +15,10 @@
 use axum::{
     body::Body,
     extract::{DefaultBodyLimit, State},
-    http::{HeaderMap as AxumHeaderMap, Method, StatusCode},
+    http::{
+        HeaderMap as AxumHeaderMap, HeaderName as AxumHeaderName, HeaderValue as AxumHeaderValue,
+        Method, StatusCode,
+    },
     routing::any,
     Router,
 };
@@ -31,6 +34,12 @@ use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::Mutex;
 use tokio_util::io::ReaderStream;
 use tower_http::cors::{AllowHeaders, AllowOrigin, CorsLayer};
+
+/// 由 AIO 本地代理自身生成的响应（连接失败、请求非法等，非上游透传）都会带上此标记头。
+/// 前端据此把"本地代理/网络层面的错误"与"上游服务真实返回的错误"区分开：
+/// 响应含此头 => 错误发生在 AIO 内部到目标的这一段，目标服务可能根本没收到请求。
+const AIO_PROXY_ORIGIN_HEADER: &str = "x-aio-proxy-origin";
+const AIO_PROXY_ORIGIN_VALUE: &str = "aiohub";
 
 // 全局代理服务状态
 pub static PROXY_STATE: Lazy<Arc<Mutex<ProxyServiceState>>> =
@@ -338,7 +347,9 @@ pub async fn start_llm_proxy_server(port: u16) -> Result<ProxyServerInfo, String
                 Method::DELETE,
                 Method::OPTIONS,
             ])
-            .allow_headers(AllowHeaders::mirror_request());
+            .allow_headers(AllowHeaders::mirror_request())
+            // 暴露来源标记头，否则跨源请求下前端读取不到（CORS 默认不暴露自定义响应头）。
+            .expose_headers([AxumHeaderName::from_static(AIO_PROXY_ORIGIN_HEADER)]);
         let app = Router::new()
             .route("/proxy/raw", any(handle_raw_proxy_router))
             .route("/proxy/json-expand", any(handle_json_expand_proxy_router))
@@ -435,7 +446,13 @@ fn into_router_response(
 }
 
 fn error_response(error: (StatusCode, String)) -> (StatusCode, AxumHeaderMap, Body) {
-    (error.0, AxumHeaderMap::new(), Body::from(error.1))
+    // 该响应完全由本地代理生成，打上来源标记，供前端与上游响应区分。
+    let mut headers = AxumHeaderMap::new();
+    headers.insert(
+        AxumHeaderName::from_static(AIO_PROXY_ORIGIN_HEADER),
+        AxumHeaderValue::from_static(AIO_PROXY_ORIGIN_VALUE),
+    );
+    (error.0, headers, Body::from(error.1))
 }
 
 fn validate_proxy_request(
@@ -727,17 +744,43 @@ async fn send_request(
         "[Proxy-{}] {} request to {}",
         metadata.request_id, metadata.body_path, metadata.safe_target
     );
-    request.send().await.map_err(|error| {
+    let started = std::time::Instant::now();
+    let response = request.send().await.map_err(|error| {
         let safe_error = error.without_url();
+        // 明确标注为本地代理侧失败：请求没有到达目标服务，前端会收到带来源标记的 502。
         error!(
-            "[Proxy-{}] Upstream request failed: {safe_error}",
-            metadata.request_id
+            "[Proxy-{}] local proxy connection failed after {}ms (target not reached): {safe_error}",
+            metadata.request_id,
+            started.elapsed().as_millis()
         );
         (
             StatusCode::BAD_GATEWAY,
             format!("Upstream request failed: {safe_error}"),
         )
-    })
+    })?;
+
+    // 收到上游响应后记录状态码，便于区分"请求成功/上游报错/本地连不上"。
+    let status = response.status();
+    if status.is_success() {
+        info!(
+            "[Proxy-{}] upstream {} {} in {}ms ({})",
+            metadata.request_id,
+            status.as_u16(),
+            status.canonical_reason().unwrap_or(""),
+            started.elapsed().as_millis(),
+            metadata.safe_target
+        );
+    } else {
+        warn!(
+            "[Proxy-{}] upstream {} {} in {}ms ({}) - relayed to client as-is",
+            metadata.request_id,
+            status.as_u16(),
+            status.canonical_reason().unwrap_or(""),
+            started.elapsed().as_millis(),
+            metadata.safe_target
+        );
+    }
+    Ok(response)
 }
 
 fn relay_upstream_response(

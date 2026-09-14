@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { LlmApiError } from "../common";
+import { LlmApiError, LlmProxyError } from "../common";
 import {
   getKeyHealthAction,
   getKeyHealthActionForError,
 } from "../key-health-policy";
 
 describe("key health policy", () => {
+  it("does not blame the key for AIO local proxy failures", () => {
+    expect(
+      getKeyHealthActionForError(
+        new LlmProxyError(
+          "AIO 本地代理错误 (502 Bad Gateway)：请求未成功到达目标服务。Upstream request failed: dns error",
+          502,
+          "Bad Gateway"
+        )
+      )
+    ).toBe("record-only");
+  });
+
   it("records request and endpoint errors without counting them", () => {
     expect(
       getKeyHealthActionForError(

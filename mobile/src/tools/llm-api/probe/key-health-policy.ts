@@ -26,6 +26,7 @@ export function getKeyHealthAction(
     case "unsupported-capability":
     case "bad-request":
     case "configuration":
+    case "proxy":
     case "unknown":
     case undefined:
       return "ignore";

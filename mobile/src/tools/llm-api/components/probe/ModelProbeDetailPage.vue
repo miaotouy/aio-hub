@@ -40,6 +40,7 @@ const categoryLabels: Record<string, string> = {
   "unsupported-capability": "能力不支持",
   configuration: "配置错误",
   network: "网络错误",
+  proxy: "本地代理错误",
   timeout: "请求超时",
   provider: "上游异常",
   cancelled: "检查已停止",

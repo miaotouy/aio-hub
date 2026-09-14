@@ -711,6 +711,40 @@ export class LlmApiError extends Error {
 }
 
 /**
+ * AIO 本地代理错误标记头。由 Rust 代理在"响应完全由本地生成"时写入，
+ * 上游透传的响应不会带该头。详见 `src-tauri/src/commands/llm_proxy.rs`。
+ */
+export const AIO_PROXY_ORIGIN_HEADER = "x-aio-proxy-origin";
+export const AIO_PROXY_ORIGIN_VALUE = "aiohub";
+
+/**
+ * 本地 Rust 代理自身产生的错误（连接失败、请求非法等），与上游服务返回的
+ * 同状态码响应区分开。`proxyGenerated` 供错误分类器识别。
+ */
+export class LlmProxyError extends LlmApiError {
+  readonly proxyGenerated = true;
+
+  constructor(
+    message: string,
+    status: number,
+    statusText: string,
+    body?: string
+  ) {
+    super(message, status, statusText, body);
+    this.name = "LlmProxyError";
+  }
+}
+
+/**
+ * 判断响应是否由 AIO 本地代理生成（而非上游透传）
+ */
+export function isProxyGeneratedResponse(response: Response): boolean {
+  return (
+    response.headers.get(AIO_PROXY_ORIGIN_HEADER) === AIO_PROXY_ORIGIN_VALUE
+  );
+}
+
+/**
  * 确保响应成功，否则抛出 LlmApiError
  */
 export const ensureResponseOk = async (response: Response): Promise<void> => {
@@ -720,6 +754,15 @@ export const ensureResponseOk = async (response: Response): Promise<void> => {
       errorText = await response.text();
     } catch {
       // 忽略读取错误
+    }
+    // 本地代理错误：请求可能根本没到达目标服务，必须与上游响应区分。
+    if (isProxyGeneratedResponse(response)) {
+      throw new LlmProxyError(
+        `AIO 本地代理错误 (${response.status} ${response.statusText})：请求未成功到达目标服务。${errorText}`,
+        response.status,
+        response.statusText,
+        errorText
+      );
     }
     throw new LlmApiError(
       `API 请求失败 (${response.status} ${response.statusText}): ${errorText}`,

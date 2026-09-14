@@ -22,6 +22,7 @@ export type ProbeErrorCategory =
   | "unsupported-capability"
   | "configuration"
   | "network"
+  | "proxy"
   | "timeout"
   | "provider"
   | "cancelled"

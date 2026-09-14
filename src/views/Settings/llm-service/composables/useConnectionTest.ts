@@ -276,11 +276,30 @@ function showResultMessage(result: ChannelProbeResult, subject: string) {
   }
   if (result.category !== "cancelled") {
     customMessage.error(
-      `${subject}检查失败 [${result.category ?? "unknown"}]：${
+      `${subject}检查失败 [${categoryLabel(result.category)}]：${
         result.errorMessage ?? "未知错误"
       }`
     );
   }
+}
+
+function categoryLabel(category: ChannelProbeResult["category"]): string {
+  if (!category) return "unknown";
+  const labels: Partial<Record<NonNullable<ChannelProbeResult["category"]>, string>> = {
+    proxy: "本地代理/未连上",
+    network: "网络",
+    timeout: "超时",
+    authentication: "认证",
+    authorization: "授权",
+    "rate-limit": "限流",
+    "bad-request": "请求错误",
+    "model-unavailable": "模型不可用",
+    "unsupported-capability": "能力不支持",
+    configuration: "配置",
+    provider: "服务端",
+    unknown: "未知",
+  };
+  return labels[category] ?? category;
 }
 
 function formatDuration(value: number): string {

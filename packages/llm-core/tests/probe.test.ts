@@ -139,4 +139,21 @@ describe("classifyProbeError", () => {
       }).category
     ).toBe("model-unavailable");
   });
+
+  it("classifies AIO proxy-generated errors distinctly from provider responses", () => {
+    expect(
+      classifyProbeError({
+        proxyGenerated: true,
+        status: 502,
+        message:
+          "AIO 本地代理错误 (502 Bad Gateway)：请求未成功到达目标服务。Upstream request failed: dns error",
+      }).category
+    ).toBe("proxy");
+    expect(
+      classifyProbeError({
+        status: 502,
+        message: "upstream nginx returned 502 Bad Gateway",
+      }).category
+    ).toBe("provider");
+  });
 });

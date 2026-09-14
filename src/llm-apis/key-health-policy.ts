@@ -43,6 +43,7 @@ export function getKeyHealthAction(result: KeyHealthResult): KeyHealthAction {
     case "unsupported-capability":
     case "bad-request":
     case "configuration":
+    case "proxy":
     case "unknown":
     case undefined:
       return "record-only";

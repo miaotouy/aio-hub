@@ -34,6 +34,11 @@ export function classifyProbeError(
   if (record.name === "TimeoutError" || /timeout|timed out|超时/.test(lower)) {
     return classified("timeout", "transport", status, message);
   }
+  // AIO 本地代理自身产生的错误（由 Rust 代理标记，非上游透传）。
+  // 优先于状态码判定，避免 502/500 被误判成 provider 的响应。
+  if (record.proxyGenerated === true) {
+    return classified("proxy", "transport", status, message);
+  }
   if (isExplicitAuthenticationFailure(lower)) {
     return classified("authentication", "response-status", status, message);
   }

@@ -14,8 +14,8 @@
 
 //! Git 提交助手 (AI Committer)
 //!
-//! 基于 git2-rs 原生实现 Stage / Commit / 文件 Diff 提取与仓库状态获取，
-//! Push / Pull 回退到系统 git 命令行以处理凭据与代理。
+//! 基于 git2-rs 原生实现 Commit / 文件 Diff 提取与仓库状态获取，
+//! Stage / Push / Pull 使用系统 git 命令行，以保持与 Git CLI 的行为一致并处理凭据与代理。
 //!
 //! 与 `git_analyzer` 的关系：
 //! - `git_analyzer` 偏只读历史分析，本模块偏写操作工作流。
@@ -425,20 +425,26 @@ pub async fn git_get_file_diff(
     }
 }
 
-/// 将指定文件添加到暂存区（相当于 `git add`）。
+/// 将指定文件添加到暂存区（使用系统 `git add --`）。
+///
+/// 不能用 `git2::Index::add_path` 替代：对工作区中已删除的文件，
+/// `git add` 会正确地把删除记录写入 Index，而 `add_path` 会尝试 stat
+/// 工作区文件并报 NotFound。
 #[tauri::command]
-pub async fn git_stage_files(path: String, files: Vec<String>) -> Result<(), String> {
-    let repo = open_repo(&path)?;
-    let mut index = repo.index().map_err(|e| format!("获取暂存区失败: {}", e))?;
-    for f in &files {
-        index
-            .add_path(Path::new(f))
-            .map_err(|e| format!("暂存文件 {} 失败: {}", f, e))?;
+pub async fn git_stage_files(
+    app: AppHandle,
+    path: String,
+    files: Vec<String>,
+) -> Result<(), String> {
+    if files.is_empty() {
+        return Ok(());
     }
-    // 必须落盘，否则前端刷新后状态不变化
-    index
-        .write()
-        .map_err(|e| format!("写入暂存区失败: {}", e))?;
+
+    let mut args = Vec::with_capacity(files.len() + 1);
+    args.push("add".to_string());
+    args.push("--".to_string());
+    args.extend(files);
+    let _ = run_git_with_guard(&app, &path, args).await?;
     Ok(())
 }
 
@@ -559,7 +565,11 @@ pub async fn git_commit(path: String, message: String) -> Result<(), String> {
 }
 
 /// 带代理 / 超时 / 隐藏窗口保护的系统 git 执行器。
-async fn run_git_with_guard(app: &AppHandle, path: &str, args: &[&str]) -> Result<String, String> {
+async fn run_git_with_guard<I, S>(app: &AppHandle, path: &str, args: I) -> Result<String, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
     let repo_path = if path.is_empty() { "." } else { path };
     let mut cmd = Command::new("git");
 
@@ -622,14 +632,14 @@ async fn run_git_with_guard(app: &AppHandle, path: &str, args: &[&str]) -> Resul
 /// 推送更改到远程仓库（系统 git push）。
 #[tauri::command]
 pub async fn git_push(app: AppHandle, path: String) -> Result<(), String> {
-    let _ = run_git_with_guard(&app, &path, &["push"]).await?;
+    let _ = run_git_with_guard(&app, &path, ["push"]).await?;
     Ok(())
 }
 
 /// 从远程仓库拉取更改（系统 git pull）。
 #[tauri::command]
 pub async fn git_pull(app: AppHandle, path: String) -> Result<(), String> {
-    let _ = run_git_with_guard(&app, &path, &["pull", "--no-edit"]).await?;
+    let _ = run_git_with_guard(&app, &path, ["pull", "--no-edit"]).await?;
     Ok(())
 }
 

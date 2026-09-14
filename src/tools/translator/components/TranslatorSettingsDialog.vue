@@ -101,6 +101,28 @@
 
       <section class="settings-section">
         <div class="section-heading">
+          <span>模型思考</span>
+          <span class="section-desc">仅对声明了思考能力的模型生效</span>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <span>思考模式</span>
+            <span class="setting-desc">
+              默认不干预；关闭/最低会按模型支持情况下发 thinking 或
+              reasoning_effort
+            </span>
+          </div>
+          <el-radio-group v-model="store.settings.thinkingMode">
+            <el-radio-button label="default">默认</el-radio-button>
+            <el-radio-button label="disabled">关闭</el-radio-button>
+            <el-radio-button label="minimal">最低</el-radio-button>
+          </el-radio-group>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-heading">
           <span>自定义语言</span>
           <span class="section-desc"> 这些语言会出现在所有翻译下拉中 </span>
         </div>

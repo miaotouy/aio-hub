@@ -19,6 +19,7 @@ import type {
   LongTextTask,
   TranslationChannel,
   TranslationResult,
+  TranslationThinkingParams,
   TranslatorLanguageCode,
 } from "../types";
 import { recursiveSplitText } from "../core/textSplitter";
@@ -43,6 +44,8 @@ export interface LongTextTranslateOptions {
   mode: LongTextMode;
   maxConcurrentChunks: number;
   temperature: number;
+  /** 思考参数（由 engine 按模型能力解析后传入） */
+  thinking?: TranslationThinkingParams;
   streaming: boolean;
   signal: AbortSignal;
   existingTask?: LongTextTask;
@@ -262,6 +265,7 @@ export function useLongTextTranslator() {
             basePrompt: prompt,
             maxTokens: channelForChunk.maxTokens,
             temperature: options.temperature,
+            thinking: options.thinking,
             signal: options.signal,
             onStream: options.streaming
               ? (piece) => {

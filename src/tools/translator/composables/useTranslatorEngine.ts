@@ -14,6 +14,7 @@
 
 import { computed, ref, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
+import { getModelFamily } from "@/llm-apis/request-builder";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type {
   ChannelEstimation,
@@ -23,9 +24,11 @@ import type {
   LongTextTask,
   TranslationResult,
   TranslationResultStatus,
+  TranslationThinkingParams,
   TranslatorLanguageCode,
   TranslatorSettings,
 } from "../types";
+import { resolveThinkingParams } from "../core/thinking";
 import { useTranslatorCore } from "./useTranslatorCore";
 import {
   joinTranslatedChunks,
@@ -163,6 +166,30 @@ export function useTranslatorEngine(deps: EngineDeps) {
       256,
       131072
     );
+  }
+
+  /** 目标模型是否属于 Gemini 家族（Gemini 用 thinkingBudget: 0 关闭思考） */
+  function isGeminiChannel(channel: TranslationChannel) {
+    const model = getModelInfo(channel);
+    if (!model) return false;
+    const profile = enabledProfiles.value.find(
+      (item) => item.id === channel.profileId
+    );
+    return (
+      getModelFamily(channel.modelId, model.provider ?? profile?.type, model) ===
+      "gemini"
+    );
+  }
+
+  /** 按 `settings.thinkingMode` 与模型能力解析要下发的思考参数 */
+  function resolveChannelThinkingParams(
+    channel: TranslationChannel
+  ): TranslationThinkingParams {
+    return resolveThinkingParams({
+      mode: settings.value.thinkingMode,
+      capabilities: getModelInfo(channel)?.capabilities,
+      isGemini: isGeminiChannel(channel),
+    });
   }
 
   /**
@@ -362,8 +389,11 @@ export function useTranslatorEngine(deps: EngineDeps) {
     const modelOutputLimit = getModelOutputLimit(channel);
     ensureResultSlot(channel, appliedMaxTokens, modelOutputLimit);
 
+    // 请求已下发即离开 pending。首包可能很慢（长文本、上游不流式、推理模型仅有
+    // reasoning 增量），若一直停在 pending 会显示成“排队中”，让人误以为任务未开始。
+    updateResult(channel.id, { status: "streaming" });
+
     const startedAt = Date.now();
-    let firstChunkSeen = false;
 
     try {
       const result = await translateChannel(session.text, channel, {
@@ -372,18 +402,27 @@ export function useTranslatorEngine(deps: EngineDeps) {
         basePrompt: session.basePrompt,
         maxTokens: appliedMaxTokens,
         temperature: channel.temperature ?? settings.value.defaultTemperature,
+        thinking: resolveChannelThinkingParams(channel),
         signal: controller.signal,
         onStream: settings.value.streamingEnabled
           ? (chunk) => {
               if (controller.signal.aborted) return;
-              if (!firstChunkSeen) {
-                firstChunkSeen = true;
-                updateResult(channel.id, { status: "streaming" });
-              }
               const current = findResult(channel.id);
               if (current) {
                 updateResult(channel.id, {
                   content: current.content + chunk,
+                  status: "streaming",
+                });
+              }
+            }
+          : undefined,
+        onReasoningStream: settings.value.streamingEnabled
+          ? (chunk) => {
+              if (controller.signal.aborted) return;
+              const current = findResult(channel.id);
+              if (current) {
+                updateResult(channel.id, {
+                  reasoningContent: (current.reasoningContent || "") + chunk,
                   status: "streaming",
                 });
               }
@@ -399,8 +438,16 @@ export function useTranslatorEngine(deps: EngineDeps) {
       const final = result.content.trim();
       const merged = final.length >= accumulated.length ? final : accumulated;
 
+      const accumulatedReasoning = (current?.reasoningContent || "").trim();
+      const finalReasoning = (result.reasoningContent || "").trim();
+      const mergedReasoning =
+        finalReasoning.length >= accumulatedReasoning.length
+          ? finalReasoning
+          : accumulatedReasoning;
+
       updateResult(channel.id, {
         content: merged,
+        reasoningContent: mergedReasoning || undefined,
         status: "completed",
         duration: Date.now() - startedAt,
         finishReason: result.finishReason,
@@ -470,6 +517,7 @@ export function useTranslatorEngine(deps: EngineDeps) {
         mode: settings.value.splitMode,
         maxConcurrentChunks: settings.value.splitMaxConcurrent,
         temperature: channel.temperature ?? settings.value.defaultTemperature,
+        thinking: resolveChannelThinkingParams(channel),
         streaming: settings.value.streamingEnabled,
         signal: controller.signal,
         existingTask,

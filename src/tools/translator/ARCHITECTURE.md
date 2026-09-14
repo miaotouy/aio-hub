@@ -1,6 +1,6 @@
 # 翻译工作台（Translator）：架构与开发者指南
 
-> 最后更新：2026-08-01
+> 最后更新：2026-09-14
 
 翻译工作台是一个面向 **多渠道 LLM 并排对比翻译** 的工具。本文档是其架构概览，覆盖核心概念、子模块职责、数据流与持久化布局。
 
@@ -74,6 +74,7 @@ status: idle | pending | streaming | completed | aborted | failed;
 
 - 与当前激活预设的 channels 一一对应（按 `channelId`）。
 - 包含 `appliedMaxTokens`/`modelOutputLimit`/`finishReason`/`tokenUsage`，用于结果卡片显示「max xxK / 输出截断 / ↑in ↓out」等元信息。
+- `reasoningContent` 保存推理/思考内容（DeepSeek reasoning、Gemini thought 等），仅用于结果卡片展示，不参与译文合并。
 - `isStreaming` 字段保留作历史兼容，新逻辑应只读 `status`。
 
 ### 2.5. 翻译历史（TranslationHistoryEntry）
@@ -254,11 +255,21 @@ graph TD
 
 1. abort 同渠道上一次 controller，新建 controller 入表。
 2. `ensureResultSlot()` 写入 pending 占位，避免卡片闪烁。
-3. 调 `translateChannel()`，按 `streamingEnabled` 决定是否传 `onStream` 回调。
-4. 流式回调内首次见 chunk 时把 status 切到 `streaming`，并累加 content。
-5. 完成时在「core 返回的最终内容」和「流式累积内容」间**选更长的**，避免部分适配器最终 content 比流式累积短。
+3. 请求下发后**立即**把 status 切到 `streaming`：首包可能很慢（长文本、上游不真正流式、推理模型先只回 reasoning），若停在 pending 会显示成「排队中」，让人误以为任务未开始。
+4. 调 `translateChannel()`，按 `streamingEnabled` 决定是否传 `onStream` / `onReasoningStream` 回调；`onStream` 累加 `content`，`onReasoningStream` 累加 `reasoningContent`（DeepSeek reasoning / Gemini thought 等），两者都保持 status 为 `streaming`。
+5. 完成时对「core 返回的最终内容」和「流式累积内容」、以及「core 返回的最终 reasoning」和「流式累积 reasoning」分别**选更长的**，避免部分适配器最终值比流式累积短。
 6. 错误分支区分 `AbortError`：aborted 状态保留已有 partial，failed 状态写 error message。
 7. `finally` 阶段仅在 controller 仍是当前 controller 时才清表，防止「abort → 立即重试」误删新 controller。
+
+#### 思考参数解析
+
+`settings.thinkingMode` 是全局的思考干预模式，由纯函数 [`resolveThinkingParams`](src/tools/translator/core/thinking.ts:1)（`core/thinking.ts`）按**每个渠道**模型声明的 `capabilities.thinking` / `thinkingConfigType` / `reasoningEffortOptions` 解析，再通过 `TranslateChannelOptions.thinking` 透传到 `useLlmRequest` 的 `thinkingEnabled` / `thinkingBudget` / `reasoningEffort`：
+
+- `default`：不传任何思考参数，跟随模型/渠道默认。
+- `disabled`：`switch` 传 `thinkingEnabled: false`；`budget` 传 `thinkingEnabled: false`（Gemini 家族额外传 `thinkingBudget: 0`）；`effort` 取最低档（优先 `none`）。
+- `minimal`：`switch` 传 `thinkingEnabled: true`；`budget` 传 `thinkingEnabled: true` + `thinkingBudget: 1024`；`effort` 取最低档（优先 `minimal`）。
+
+未声明 `capabilities.thinking` 的模型静默忽略。分片翻译模式下每个 chunk 复用同一份解析结果。解析逻辑对应单测见 [`core/__tests__/thinking.test.ts`](src/tools/translator/core/__tests__/thinking.test.ts:1)。
 
 ### 5.5. [`useTranslatorHistory`](src/tools/translator/composables/useTranslatorHistory.ts:48)
 
@@ -315,7 +326,8 @@ InputPanel 只负责「输入相关」的功能区，所有全局控件（语言
   - **进行中**：停止此渠道（`store.abortChannel`）；
   - **结束态**：重试此渠道（`store.retryChannel`，复用 currentSession）；
   - 复制译文（`@tauri-apps/plugin-clipboard-manager` 的 `writeText`）。
-- **流式自动吸底**：用 `setContentRef` 收集每张卡片的滚动容器，通过 `userScrolledAway` 集合追踪「用户主动向上滚走」的渠道，吸底逻辑只对当前仍在 streaming/pending 且不在该集合中的渠道生效；渠道完成后会把它从集合中移除，下次重新进入流式时恢复吸底。
+- **推理内容展示**：当 `result.reasoningContent` 存在时，卡片正文上方渲染一个可折叠的「思考过程」块（默认折叠）；流式中若已收到 reasoning 但尚无正文，状态徽标与 footer 显示「思考中 · N 字」，正文占位显示「正在思考」。`isThinking(result)` 的判定为 `status === 'streaming' && reasoningContent && !content`。
+- **流式自动吸底**：用 `setContentRef` 收集每张卡片的滚动容器，通过 `userScrolledAway` 集合追踪「用户主动向上滚走」的渠道，吸底逻辑只对当前仍在 streaming/pending 且不在该集合中的渠道生效；渠道完成后会把它从集合中移除，下次重新进入流式时恢复吸底。自动吸底的 watch key 同时包含 `content.length` 与 `reasoningContent.length`，思考阶段也会跟随滚动。
 - 卡片底部 footer 展示耗时、字数、token 用量、`max xxK` 标签（hover 显示「本次输出上限 / 模型最大」对比）以及「输出截断」警告（`finishReason === 'max_tokens' | 'length'`）。
 
 ### 6.4. [`PresetManagerDialog.vue`](src/tools/translator/components/PresetManagerDialog.vue:1)
@@ -389,6 +401,7 @@ modules/translator/
 | `autoScrollResults`       | true  | 流式时自动吸底（用户手动滚走会暂停）                                      |
 | `saveHistory`             | true  | 是否落盘历史                                                              |
 | `defaultTemperature`      | 0.3   | 渠道未单独配置时的采样温度                                                |
+| `thinkingMode`            | default | 思考干预：default 跟随模型 / disabled 关闭 / minimal 最低               |
 | `customLanguages`         | `[]`  | 用户自定义的语言名（LLM 友好的英文/原名）                                 |
 | `channelSectionCollapsed` | false | 输入面板渠道区折叠状态（用户手动折叠后跨重启保留）                        |
 | `warnOnOutputOverflow`    | true  | 估算预计超过模型上限时是否弹二次确认；关闭后视觉提示（pill 染色等）仍显示 |

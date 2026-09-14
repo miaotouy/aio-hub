@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import { useLlmRequest } from "@/composables/useLlmRequest";
-import type { TranslationChannel, TranslationResult } from "../types";
+import type {
+  TranslationChannel,
+  TranslationResult,
+  TranslationThinkingParams,
+} from "../types";
 import { buildPrompt } from "../core/prompt";
 
 export interface TranslateChannelOptions {
@@ -22,7 +26,11 @@ export interface TranslateChannelOptions {
   basePrompt: string;
   maxTokens?: number;
   temperature?: number;
+  /** 思考/推理参数，由上层按模型能力解析后传入 */
+  thinking?: TranslationThinkingParams;
   onStream?: (chunk: string) => void;
+  /** 流式推理内容回调（DeepSeek reasoning / Gemini thought 等） */
+  onReasoningStream?: (chunk: string) => void;
   signal?: AbortSignal;
 }
 
@@ -46,6 +54,7 @@ export function useTranslatorCore() {
     const prompt = buildPrompt(text, channel, options);
     const startTime = Date.now();
     let streamedContent = "";
+    let streamedReasoning = "";
 
     const response = await sendRequest({
       profileId: channel.profileId,
@@ -58,11 +67,20 @@ export function useTranslatorCore() {
       },
       temperature: options.temperature ?? channel.temperature ?? 0.3,
       maxTokens: options.maxTokens ?? channel.maxTokens ?? 8192,
-      stream: !!options.onStream,
+      thinkingEnabled: options.thinking?.thinkingEnabled,
+      thinkingBudget: options.thinking?.thinkingBudget,
+      reasoningEffort: options.thinking?.reasoningEffort,
+      stream: !!(options.onStream || options.onReasoningStream),
       onStream: options.onStream
         ? (chunk) => {
             streamedContent += chunk;
             options.onStream?.(chunk);
+          }
+        : undefined,
+      onReasoningStream: options.onReasoningStream
+        ? (chunk) => {
+            streamedReasoning += chunk;
+            options.onReasoningStream?.(chunk);
           }
         : undefined,
       signal: options.signal,
@@ -74,10 +92,18 @@ export function useTranslatorCore() {
     const content =
       streamed.length > responseContent.length ? streamed : responseContent;
 
+    const responseReasoning = (response.reasoningContent ?? "").trim();
+    const streamedReasoningText = streamedReasoning.trim();
+    const reasoningContent =
+      streamedReasoningText.length > responseReasoning.length
+        ? streamedReasoningText
+        : responseReasoning;
+
     return {
       channelId: channel.id,
       channelName: channel.displayName,
       content,
+      reasoningContent: reasoningContent || undefined,
       status: "completed",
       isStreaming: false,
       duration: Date.now() - startTime,

@@ -15,7 +15,10 @@
 import { ref, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
-import type { TranslatorSettings } from "../types";
+import type {
+  TranslatorSettings,
+  TranslationThinkingMode,
+} from "../types";
 import {
   TRANSLATOR_CONFIG_VERSION,
   TRANSLATOR_MODULE_NAME,
@@ -31,6 +34,7 @@ export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
   autoScrollResults: true,
   saveHistory: true,
   defaultTemperature: 0.3,
+  thinkingMode: "default",
   customLanguages: [],
   channelSectionCollapsed: false,
   warnOnOutputOverflow: true,
@@ -87,6 +91,12 @@ function sanitizeSplitMode(value: unknown) {
     : DEFAULT_TRANSLATOR_SETTINGS.splitMode;
 }
 
+function sanitizeThinkingMode(value: unknown): TranslationThinkingMode {
+  return value === "disabled" || value === "minimal"
+    ? value
+    : DEFAULT_TRANSLATOR_SETTINGS.thinkingMode;
+}
+
 function sanitizeSettings(
   value: Partial<TranslatorSettings>
 ): TranslatorSettings {
@@ -117,6 +127,7 @@ function sanitizeSettings(
       0,
       2
     ),
+    thinkingMode: sanitizeThinkingMode(value.thinkingMode),
     customLanguages: sanitizeCustomLanguages(value.customLanguages),
     channelSectionCollapsed: value.channelSectionCollapsed === true,
     warnOnOutputOverflow:

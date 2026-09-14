@@ -37,7 +37,7 @@
           <div class="channel-info">
             <span class="status-dot" />
             <span class="channel-name">{{ result.channelName }}</span>
-            <span class="status-label">{{ statusLabel(result.status) }}</span>
+            <span class="status-label">{{ resultStatusLabel(result) }}</span>
           </div>
 
           <button
@@ -99,6 +99,18 @@
           class="result-content"
           @scroll="handleContentScroll(result.channelId, $event)"
         >
+          <div v-if="result.reasoningContent" class="result-reasoning">
+            <details :open="isThinking(result)">
+              <summary>
+                <Brain class="reasoning-icon" />
+                <span>
+                  {{ isThinking(result) ? "思考中" : "思考过程" }} ·
+                  {{ result.reasoningContent.length }} 字
+                </span>
+              </summary>
+              <pre>{{ result.reasoningContent }}</pre>
+            </details>
+          </div>
           <el-alert
             v-if="result.status === 'failed' && result.error"
             type="error"
@@ -128,7 +140,7 @@
           </div>
           <div v-else-if="result.status === 'streaming'" class="placeholder">
             <Loader2 class="spinner" />
-            <span>开始接收</span>
+            <span>{{ result.reasoningContent ? "正在思考" : "开始接收" }}</span>
           </div>
           <el-empty v-else :image-size="72" description="无内容" />
         </div>
@@ -139,7 +151,10 @@
               v-if="result.status === 'streaming'"
               class="footer-tag streaming"
             >
-              生成中 · {{ result.content.length }} 字
+              <template v-if="isThinking(result)">
+                思考中 · {{ result.reasoningContent?.length ?? 0 }} 字
+              </template>
+              <template v-else>生成中 · {{ result.content.length }} 字</template>
             </span>
             <span v-else-if="result.status === 'pending'" class="footer-tag">
               排队中
@@ -195,6 +210,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import {
+  Brain,
   Copy,
   Languages,
   ListTree,
@@ -206,7 +222,11 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { customMessage } from "@/utils/customMessage";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
 import SplitDetailDrawer from "./SplitDetailDrawer.vue";
-import type { LongTextTask, TranslationResultStatus } from "../types";
+import type {
+  LongTextTask,
+  TranslationResult,
+  TranslationResultStatus,
+} from "../types";
 
 const store = useTranslatorStore();
 
@@ -268,7 +288,10 @@ function autoScrollStreaming() {
 watch(
   () =>
     visibleResults.value
-      .map((r) => `${r.channelId}:${r.content.length}:${r.status}`)
+      .map(
+        (r) =>
+          `${r.channelId}:${r.content.length}:${r.reasoningContent?.length ?? 0}:${r.status}`
+      )
       .join("|"),
   autoScrollStreaming
 );
@@ -302,6 +325,19 @@ function statusLabel(status: TranslationResultStatus) {
     default:
       return "";
   }
+}
+
+/** 正在思考：流式中已收到推理内容但还没有正文译文 */
+function isThinking(result: TranslationResult) {
+  return (
+    result.status === "streaming" &&
+    !!result.reasoningContent &&
+    !result.content
+  );
+}
+
+function resultStatusLabel(result: TranslationResult) {
+  return isThinking(result) ? "思考中" : statusLabel(result.status);
 }
 
 function formatDuration(duration: number) {
@@ -609,6 +645,47 @@ async function handleRetry(channelId: string) {
   color: var(--text-color);
   font-size: 14px;
   line-height: 1.72;
+}
+
+.result-reasoning {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+}
+
+.result-reasoning summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.result-reasoning summary::-webkit-details-marker {
+  display: none;
+}
+
+.reasoning-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.result-reasoning pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 8px 0 0;
+  color: var(--text-color-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .streaming-cursor {

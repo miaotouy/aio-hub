@@ -43,6 +43,24 @@ export interface TranslationChannel {
   maxTokens?: number;
 }
 
+/**
+ * 翻译时对模型思考/推理的干预模式：
+ * - `default`：不传思考参数，跟随模型默认
+ * - `disabled`：尽量关闭思考（switch/budget 关闭；effort 取最低档）
+ * - `minimal`：保留思考但压到最低预算/等级
+ *
+ * 是否真正生效取决于目标模型是否声明 `capabilities.thinking` 及其
+ * `thinkingConfigType`；不支持时静默忽略。
+ */
+export type TranslationThinkingMode = "default" | "disabled" | "minimal";
+
+/** 解析后要透传给 LLM 请求的思考参数 */
+export interface TranslationThinkingParams {
+  thinkingEnabled?: boolean;
+  thinkingBudget?: number;
+  reasoningEffort?: string;
+}
+
 /** 预设：一组渠道的组合 */
 export interface TranslatorPreset {
   id: string;
@@ -63,6 +81,8 @@ export interface TranslationResult {
   channelId: string;
   channelName: string;
   content: string;
+  /** 推理/思考内容（DeepSeek reasoning、Gemini thought 等），仅用于展示 */
+  reasoningContent?: string;
   status: TranslationResultStatus;
   /** @deprecated 用 status 判断，保留以便老代码兼容 */
   isStreaming: boolean;
@@ -109,6 +129,8 @@ export interface TranslatorSettings {
   saveHistory: boolean;
   /** 默认采样温度（渠道未单独配置时使用） */
   defaultTemperature: number;
+  /** 模型思考干预模式，见 TranslationThinkingMode */
+  thinkingMode: TranslationThinkingMode;
   /**
    * 用户自定义的语言名（LLM 友好的英文/原名，如 "Klingon"、"Toki Pona"）。
    * 会出现在所有翻译下拉中，并作为 prompt 占位符直接替换。

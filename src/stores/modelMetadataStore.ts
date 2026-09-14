@@ -6,18 +6,14 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import {
-  applyBuiltinCatalogUpdate,
   compileActiveRules,
   createCatalogSnapshot,
-  diffBuiltinCatalog,
   migrateV2Store,
+  syncCatalogSnapshot,
   testRuleMatch,
   validateRule,
   validateStore,
-  type BuiltinRuleDiff,
-  type CatalogUpdateResult,
   type ModelMetadataDiagnostic,
-  type CatalogUpdateSelection,
   type LegacyModelMetadataStore,
 } from "@aiohub/model-metadata-core";
 import type {
@@ -103,15 +99,6 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   const enabledCount = computed(
     () => rules.value.filter((rule) => rule.enabled !== false).length
   );
-  const catalogDiffs = computed<BuiltinRuleDiff<ModelMetadataProperties>[]>(
-    () => diffBuiltinCatalog(metadataStore.value, DEFAULT_METADATA_RULES)
-  );
-  const pendingUpdatesCount = computed(
-    () =>
-      catalogDiffs.value.filter(
-        (diff) => diff.status !== "unchanged" && diff.status !== "local"
-      ).length
-  );
 
   async function persist(nextStore = metadataStore.value): Promise<boolean> {
     const diagnostics = validateStore(nextStore);
@@ -141,7 +128,11 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
         if (diagnostics.some((diagnostic) => diagnostic.blocking)) {
           throw new Error("v3 模型元数据配置校验失败");
         }
-        metadataStore.value = loaded;
+        // Built-in rules follow the app version; only local overrides,
+        // suppressions, and custom rules are user state.
+        const synced = syncCatalogSnapshot(loaded, createBuiltinCatalog());
+        metadataStore.value = synced;
+        if (synced !== loaded) await persist(synced);
       } else {
         const migration = migrateV2Store(
           loaded as unknown as LegacyModelMetadataStore<ModelMetadataProperties>,
@@ -214,6 +205,13 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     return persist();
   }
 
+  function isBuiltinDerived(id: string): boolean {
+    return (
+      metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id) ||
+      Boolean(metadataStore.value.builtinOverrides[id])
+    );
+  }
+
   async function addRule(
     input: Omit<ModelMetadataRule, "id">
   ): Promise<boolean> {
@@ -255,10 +253,7 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
       return false;
     if (validateRule(next).some((diagnostic) => diagnostic.blocking))
       return false;
-    const builtin = metadataStore.value.sourceSnapshot.rules.some(
-      (rule) => rule.id === id
-    );
-    if (builtin) {
+    if (isBuiltinDerived(id)) {
       return persist({
         ...metadataStore.value,
         builtinOverrides: {
@@ -276,10 +271,9 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   }
 
   async function deleteRule(id: string): Promise<boolean> {
-    const builtin = metadataStore.value.sourceSnapshot.rules.some(
-      (rule) => rule.id === id
-    );
-    if (builtin) {
+    if (
+      metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
+    ) {
       const suppressed = new Set(metadataStore.value.suppressedBuiltinRuleIds);
       suppressed.add(id);
       const overrides = { ...metadataStore.value.builtinOverrides };
@@ -290,6 +284,12 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
         suppressedBuiltinRuleIds: [...suppressed].sort(),
       });
     }
+    if (metadataStore.value.builtinOverrides[id]) {
+      // Built-in rule removed upstream but edited locally: drop the override.
+      const overrides = { ...metadataStore.value.builtinOverrides };
+      delete overrides[id];
+      return persist({ ...metadataStore.value, builtinOverrides: overrides });
+    }
     return persist({
       ...metadataStore.value,
       customRules: metadataStore.value.customRules.filter(
@@ -299,10 +299,7 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   }
 
   async function restoreBuiltinRule(id: string): Promise<boolean> {
-    if (
-      !metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
-    )
-      return false;
+    if (!isBuiltinDerived(id)) return false;
     const overrides = { ...metadataStore.value.builtinOverrides };
     delete overrides[id];
     return persist({
@@ -324,22 +321,6 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
 
   async function resetToDefaults(): Promise<boolean> {
     return persist(createDefaultStore());
-  }
-
-  async function applyCatalogUpdate(
-    selections: CatalogUpdateSelection[]
-  ): Promise<CatalogUpdateResult<ModelMetadataProperties> | null> {
-    try {
-      const result = applyBuiltinCatalogUpdate(
-        metadataStore.value,
-        createBuiltinCatalog(),
-        selections
-      );
-      return (await persist(result.store)) ? result : null;
-    } catch (error) {
-      errorHandler.handle(error, { userMessage: "应用内置目录更新失败" });
-      return null;
-    }
   }
 
   function getRuleSource(
@@ -376,8 +357,6 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     isLoaded,
     presetIcons,
     enabledCount,
-    catalogDiffs,
-    pendingUpdatesCount,
     loadRules,
     saveRules,
     importStore,
@@ -389,7 +368,6 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     getRuleSource,
     toggleRule,
     resetToDefaults,
-    applyCatalogUpdate,
     getMatchedRule,
   };
 });

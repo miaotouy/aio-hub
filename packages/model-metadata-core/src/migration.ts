@@ -9,6 +9,7 @@ import type {
   MigrationResult,
   ModelMetadataDiagnostic,
   ModelMetadataRule,
+  ModelMetadataStoreV3,
 } from "./types";
 
 export function migrateLegacyRule<TProperties extends MetadataProperties>(
@@ -72,6 +73,32 @@ export function createCatalogSnapshot<TProperties extends MetadataProperties>(
       revision: snapshot.revision,
       rules: snapshot.rules,
     }),
+  };
+}
+
+/**
+ * Rebase a store onto the currently shipped built-in catalog. Because the
+ * catalog is bundled with the app version, pure built-in rules update
+ * automatically while local overrides, suppressions, and custom rules are
+ * preserved. Returns the same reference when the revision is unchanged.
+ */
+export function syncCatalogSnapshot<TProperties extends MetadataProperties>(
+  store: ModelMetadataStoreV3<TProperties>,
+  catalog: MetadataCatalogSnapshot<TProperties>
+): ModelMetadataStoreV3<TProperties> {
+  if (
+    store.sourceSnapshot.revision === catalog.revision &&
+    store.sourceSnapshot.fingerprint === catalog.fingerprint
+  ) {
+    return store;
+  }
+  const catalogIds = new Set(catalog.rules.map((rule) => rule.id));
+  return {
+    ...store,
+    sourceSnapshot: deepClone(catalog),
+    suppressedBuiltinRuleIds: store.suppressedBuiltinRuleIds.filter((id) =>
+      catalogIds.has(id)
+    ),
   };
 }
 

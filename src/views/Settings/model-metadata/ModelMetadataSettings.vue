@@ -29,36 +29,9 @@
         <el-button @click="coverageDialogVisible = true">覆盖分析</el-button>
         <el-button @click="handleImport">导入配置</el-button>
         <el-button @click="handleExport">导出配置</el-button>
-        <el-badge
-          :value="pendingUpdatesCount"
-          :hidden="!pendingUpdatesCount"
-          class="merge-badge"
-        >
-          <el-button
-            @click="openCatalogUpdatePreview"
-            :type="pendingUpdatesCount ? 'success' : ''"
-            >查看目录更新</el-button
-          >
-        </el-badge>
         <el-button @click="openModelRefreshPreview">刷新模型配置</el-button>
         <el-button @click="handleReset" type="warning">重置为默认</el-button>
         <el-button @click="handleAdd" type="primary">添加配置</el-button>
-      </div>
-    </div>
-
-    <!-- 更新提示横幅 -->
-    <div v-if="pendingUpdatesCount && !bannerDismissed" class="update-banner">
-      <div class="update-banner-content">
-        <el-icon class="update-banner-icon"><RefreshCw /></el-icon>
-        <span class="update-banner-text">
-          有
-          <strong>{{ pendingUpdatesCount }}</strong>
-          条新的内置模型规则可用（随应用版本更新）
-        </span>
-        <el-button type="primary" size="small" @click="openCatalogUpdatePreview"
-          >查看更新</el-button
-        >
-        <el-button size="small" text @click="dismissBanner">忽略</el-button>
       </div>
     </div>
 
@@ -338,12 +311,6 @@
       @create-rule="handleCoverageCreateRule"
     />
 
-    <ModelMetadataCatalogUpdateDialog
-      v-model="catalogUpdateDialogVisible"
-      :diffs="catalogUpdateDiffs"
-      @apply="handleApplyCatalogUpdate"
-    />
-
     <ModelMetadataRefreshPreviewDialog
       v-model="modelRefreshDialogVisible"
       :items="modelRefreshPreviewItems"
@@ -416,34 +383,26 @@ import type {
   MetadataMatchType,
 } from "../../../types/model-metadata";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
-import type {
-  CatalogUpdateSelection,
-  ModelMetadataDiagnostic,
-} from "@aiohub/model-metadata-core";
+import type { ModelMetadataDiagnostic } from "@aiohub/model-metadata-core";
 import ModelMetadataConfigEditor from "./components/ModelMetadataConfigEditor.vue";
 import ModelMetadataConfigCard from "./components/ModelMetadataConfigCard.vue";
 import CoverageAnalysisDialog from "./components/CoverageAnalysisDialog.vue";
-import ModelMetadataCatalogUpdateDialog from "./components/ModelMetadataCatalogUpdateDialog.vue";
 import ModelMetadataRefreshPreviewDialog, {
   type ModelMetadataRefreshPreviewItem,
 } from "./components/ModelMetadataRefreshPreviewDialog.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
 import { Grid, List } from "@element-plus/icons-vue";
-import { RefreshCw } from "lucide-vue-next";
 
 const {
   rules: configs,
   presetIcons,
   enabledCount,
-  catalogDiffs,
-  pendingUpdatesCount,
   addRule: addConfig,
   updateRule: updateConfig,
   deleteRule: deleteConfig,
   restoreBuiltinRule,
   toggleRule: toggleConfig,
   resetToDefaults,
-  applyCatalogUpdate,
   exportRules: exportConfigs,
   importStore,
   inspectImport,
@@ -453,12 +412,6 @@ const {
 } = useModelMetadata();
 
 const { profiles, saveProfile } = useLlmProfiles();
-
-const catalogUpdateDiffs = computed(() =>
-  catalogDiffs.value.filter(
-    (diff) => diff.status !== "unchanged" && diff.status !== "local"
-  )
-);
 
 const showPresets = ref(false);
 const editingConfig = ref<Partial<ModelMetadataRule> | null>(null);
@@ -473,9 +426,6 @@ const currentPage = ref(1);
 const pageSize = ref(12);
 const viewMode = ref<"grid" | "list">("grid");
 
-// 横幅忽略状态（本次会话内有效）
-const bannerDismissed = ref(false);
-
 // 测试模式
 const testMode = ref(false);
 const testModelId = ref("");
@@ -483,7 +433,6 @@ const testProvider = ref("");
 
 // 覆盖分析
 const coverageDialogVisible = ref(false);
-const catalogUpdateDialogVisible = ref(false);
 const modelRefreshDialogVisible = ref(false);
 type RefreshPreviewItem = ModelMetadataRefreshPreviewItem & {
   updatedModel: LlmModelInfo;
@@ -751,23 +700,6 @@ async function handleReset() {
   }
 }
 
-// 查看并显式应用内置目录更新。目录更新不会自动刷新已保存模型。
-function openCatalogUpdatePreview() {
-  catalogUpdateDialogVisible.value = true;
-}
-
-async function handleApplyCatalogUpdate(selections: CatalogUpdateSelection[]) {
-  const result = await applyCatalogUpdate(selections);
-  if (!result) return;
-  catalogUpdateDialogVisible.value = false;
-  const retained = result.retainedAsCustomRuleIds.length;
-  customMessage.success(
-    retained
-      ? `已应用目录更新，并保留 ${retained} 条规则为自定义规则`
-      : `已应用 ${result.appliedRuleIds.length} 条目录更新`
-  );
-}
-
 function openModelRefreshPreview() {
   const items: RefreshPreviewItem[] = [];
   for (const profile of profiles.value) {
@@ -888,10 +820,6 @@ async function confirmImport() {
   }
 }
 
-// 忽略更新横幅（本次会话）
-function dismissBanner() {
-  bannerDismissed.value = true;
-}
 </script>
 
 <style scoped>
@@ -1214,43 +1142,5 @@ function dismissBanner() {
 
 .el-button {
   margin-left: 0px;
-}
-
-/* 更新提示横幅 */
-.update-banner {
-  margin-bottom: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: rgba(
-    var(--el-color-success-rgb),
-    calc(var(--card-opacity) * 0.1)
-  );
-  border: 1px solid rgba(var(--el-color-success-rgb), 0.3);
-  border-radius: 8px;
-  flex-shrink: 0;
-  backdrop-filter: blur(var(--ui-blur));
-}
-
-.update-banner-content {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.update-banner-icon {
-  font-size: 1.2rem;
-  flex-shrink: 0;
-  color: var(--el-color-success);
-}
-
-.update-banner-text {
-  flex: 1;
-  font-size: 0.9rem;
-  min-width: 200px;
-}
-
-/* 合并按钮徽章 */
-.merge-badge {
-  display: inline-flex;
 }
 </style>

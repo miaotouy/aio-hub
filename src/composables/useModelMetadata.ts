@@ -165,8 +165,6 @@ export function useModelMetadata() {
     isLoaded: computed(() => store.isLoaded),
     presetIcons: computed(() => store.presetIcons),
     enabledCount: computed(() => store.enabledCount),
-    catalogDiffs: computed(() => store.catalogDiffs),
-    pendingUpdatesCount: computed(() => store.pendingUpdatesCount),
 
     // 规则管理
     loadRules: store.loadRules,
@@ -180,7 +178,6 @@ export function useModelMetadata() {
     getRuleSource: store.getRuleSource,
     toggleRule: store.toggleRule,
     resetToDefaults: store.resetToDefaults,
-    applyCatalogUpdate: store.applyCatalogUpdate,
     exportRules,
     importRules,
     sortByPriority,

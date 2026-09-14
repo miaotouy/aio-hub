@@ -4,6 +4,5 @@ export * from "./schema";
 export * from "./matcher";
 export * from "./merge";
 export * from "./compiler";
-export * from "./diff";
 export * from "./migration";
 export * from "./materialization";

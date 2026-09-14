@@ -7,24 +7,24 @@
 
 ## 1. 模块概览
 
-模型元数据系统负责维护模型元数据目录，并在模型创建、导入、刷新或显式应用预设时把匹配结果物化到模型对象。规则目录可以变化，但业务运行时读取已保存模型的图标、分组、能力、分词器、上下文长度、请求家族和媒体生成参数，不会因全局规则更新而隐式改变。
+模型元数据系统负责维护模型元数据目录，并在模型创建、导入、刷新或显式应用预设时把匹配结果物化到模型对象。内置规则随应用版本自动更新，只有用户修改过（override）、删除过（屏蔽）或自定义的规则保留；业务运行时读取已保存模型的图标、分组、能力、分词器、上下文长度、请求家族和媒体生成参数，不会因全局规则更新而隐式改变。
 
 ### v3 生命周期与跨端边界
 
 ```text
-内置 Catalog Snapshot + 本地 override + 自定义规则
+当前应用版本内置目录（随版本自动重载）+ 本地 override + 屏蔽 + 自定义规则
                     │
-                    ├─ 设置分析、目录差异与导入诊断
+                    ├─ 设置分析、覆盖分析与导入诊断
                     └─ 创建 / 导入 / 刷新 / 显式应用预设
-                                      │
-                                      v
+                                       │
+                                       v
                          LlmModelInfo 元数据快照与 metadataBinding
-                                      │
-                                      v
+                                       │
+                                       v
                  聊天、Token、请求家族、图标/分组、媒体生成运行时
 ```
 
-- `packages/model-metadata-core` 是桌面与移动端共享的规则编译、迁移、目录差异、冲突应用和模型物化实现；两端不再维护第二套匹配或合并算法。
+- `packages/model-metadata-core` 是桌面与移动端共享的规则编译、迁移、目录同步和模型物化实现；两端不再维护第二套匹配或合并算法。
 - `metadataBinding.mode` 为 `manual`、`fillMissing` 或 `followSource`。只有 `followSource` 的 `managedPaths` 可在用户确认的模型刷新中更新；模型编辑后变动的字段会脱离受管状态。
 - `mediaGenParams` 在首次物化后成为模型对象快照。媒体生成器运行时只读取模型自身字段，不读取或回退到全局规则。
 - 移动端使用相同的核心和 v3 存储；渠道预设、API 拉取和手动新增模型均通过共享物化入口写入快照。
@@ -34,8 +34,8 @@
 - **规则匹配**：支持 Provider / 精确模型 / 前缀 / 包含 / 正则五种匹配模式
 - **优先级合并**：多条规则同时命中时按稳定顺序合并；对象递归合并，数组整体替换，并支持 `unsetPaths`
 - **独占规则**：`exclusive: true` 可截断优先级更低的所有匹配，实现"完全覆盖"语义
-- **v3 分层持久化**：保存内置来源快照、本地 override、已抑制内置规则和自定义规则
-- **迁移与差异**：v2 规则可迁移为 v3；内置目录以 base/local/incoming 三方差异和字段级决策更新
+- **v3 分层持久化**：内置目录随版本重载，本地仅持久化 override、屏蔽项和自定义规则
+- **迁移与自动更新**：v2 规则可迁移为 v3；内置目录在加载时自动切换为当前应用版本，用户改动不被覆盖
 
 ### 文件清单
 
@@ -113,8 +113,11 @@ interface ModelMetadataRule {
 
 ```typescript
 interface ModelMetadataStore {
-  version: string; // 当前为 "2.0.0"
-  rules: ModelMetadataRule[];
+  version: "3.0.0";
+  sourceSnapshot: MetadataCatalogSnapshot; // 当前应用版本的内置目录，加载时自动重载
+  builtinOverrides: Record<string, ModelMetadataRule>; // 被用户修改过的内置规则
+  suppressedBuiltinRuleIds: string[]; // 被用户删除的内置规则
+  customRules: ModelMetadataRule[]; // 用户自定义规则
   updatedAt?: string;
 }
 ```
@@ -125,7 +128,9 @@ interface ModelMetadataStore {
 
 **持久化**：通过 `createConfigManager` 将数据存储到 `AppData/model-metadata/metadata-rules.json`。
 
-**旧版数据迁移**（v1 → v2）：`loadRules()` 在加载时会检查 `localStorage` 中是否存在 `model-icon-configs` key。若存在，则自动将旧格式（`configs[]`，含 `iconPath`、`groupName` 等字段）映射为新的 `rules[]` 格式，迁移完成后删除 `localStorage` 中的旧数据。
+**加载与自动更新**：`loadRules()` 读取 v3 配置后调用共享核心的 `syncCatalogSnapshot()`，把 `sourceSnapshot` 重载为当前应用版本的内置目录，并持久化新 revision；`builtinOverrides`、`suppressedBuiltinRuleIds` 和 `customRules` 原样保留。因此纯内置规则随版本升级自动生效，无需用户确认；被用户修改或删除的内置规则不被覆盖。
+
+**旧版数据迁移**（v2 → v3）：磁盘上的旧版 `rules[]` 会经共享核心的 `migrateV2Store()` 迁移。同 ID 且内容与被修改一致的内置规则进入 `builtinOverrides`，自定义规则进入 `customRules`，v2 中存在但当前目录缺失的内置规则记入 `suppressedBuiltinRuleIds`。
 
 **暴露的 API**：
 
@@ -146,7 +151,6 @@ toggleRule(id)     // 切换 enabled 状态
 
 // 批量操作
 resetToDefaults()         // 清除用户配置，回到出厂默认
-applyCatalogUpdate(selections) // 应用已明确解决字段冲突的内置目录更新
 
 // 查询
 getMatchedRule(modelId, provider?)  // 返回第一条匹配的规则（仅用于调试/测试模式）
@@ -325,7 +329,7 @@ getModelIconPath(rules, modelId, provider):
 | 区域         | 功能                                                                                                 |
 | ------------ | ---------------------------------------------------------------------------------------------------- |
 | 头部统计栏   | 总配置数 / 启用数 / 当前显示数                                                                       |
-| 操作按钮     | 查看预设 / 导入 / 导出 / 查看目录更新 / 刷新模型配置 / 重置为默认 / 添加配置                         |
+| 操作按钮     | 查看预设 / 覆盖分析 / 导入 / 导出 / 刷新模型配置 / 重置为默认 / 添加配置                              |
 | 工具栏       | 搜索 / 排序（priority/type/name/createdAt）/ 状态筛选（all/enabled/disabled）/ 视图切换（网格/列表） |
 | 测试模式面板 | 输入模型 ID + Provider，实时展示匹配结果（见§6.2）                                                   |
 | 规则卡片列表 | 分页展示（12/24/48/96 条/页），每条支持启用/禁用/编辑/删除                                           |
@@ -497,5 +501,6 @@ getModelIconPath(rules, modelId, provider):
 
 在 [`src/config/model-metadata-presets.ts`](../../src/config/model-metadata-presets.ts) 的 `DEFAULT_METADATA_RULES` 数组中添加新规则对象。注意：
 
-- `id` 必须全局唯一且稳定（用于目录差异、override 和迁移）
-- 新规则会显示在“查看目录更新”预览中；用户确认应用目录后才会进入本地来源快照
+- `id` 必须全局唯一且稳定（用于 override、屏蔽与迁移）
+- 新规则随应用版本自动生效；若用户曾用同一 `id` 修改或屏蔽该规则，则保留用户的本地状态
+- 删除内置规则时，未被用户修改的规则会自动消失；被用户修改过的规则会作为用户拥有的规则继续保留

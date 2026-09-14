@@ -797,8 +797,8 @@ const handleNavigateToSettings = () => {
                 :show-input-controls="false"
               />
               <el-text size="small" type="info">
-                方差低于中位数的 {{ (slicerBlankThreshold * 100).toFixed(0) }}%
-                视为空白行（颜色越单一，方差越小）
+                自动阈值的 {{ (slicerBlankThreshold * 100).toFixed(0) }}%
+                视为空白行（越小越严格，颜色越单一方差越小）
               </el-text>
             </el-form-item>
 

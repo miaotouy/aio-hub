@@ -174,7 +174,7 @@ export interface OcrResult {
 export interface SlicerConfig {
   enabled: boolean;
   aspectRatioThreshold: number; // 长宽比阈值，超过此值才触发切图
-  blankThreshold: number; // 空白行判定阈值：方差低于中位数的此比例视为空白行（0-1）
+  blankThreshold: number; // 空白行判定灵敏度：Otsu 自动阈值的系数（0-1，越小越严格）
   minBlankHeight: number; // 最小空白横带高度（像素）
   minCutHeight: number; // 最小切割块高度（像素），小于此高度的块会被跳过
   cutLineOffset: number; // 切割线偏移（-1到1，0为居中，负值向上偏移，正值向下偏移）

@@ -61,6 +61,66 @@ export function useImageSlicer() {
   };
 
   /**
+   * 用 Otsu 方法在行方差分布中自动定位背景（空白行）与内容（文字行）的分界。
+   * 相比固定比例阈值，它不依赖空白行占比，也不会被页面边框/底噪造成的
+   * 背景基准抬高所干扰。
+   */
+  const calculateOtsuThreshold = (values: number[]): number | null => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const value of values) {
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+
+    const span = max - min;
+    if (!(span > 0)) return null;
+
+    const binCount = 256;
+    const histogram = new Array<number>(binCount).fill(0);
+    const scale = (binCount - 1) / span;
+
+    for (const value of values) {
+      const bin = Math.min(
+        binCount - 1,
+        Math.max(0, Math.round((value - min) * scale))
+      );
+      histogram[bin]++;
+    }
+
+    let globalSum = 0;
+    for (let i = 0; i < binCount; i++) globalSum += i * histogram[i];
+
+    let weightBackground = 0;
+    let sumBackground = 0;
+    let bestVariance = -1;
+    let bestBin = 0;
+
+    for (let i = 0; i < binCount; i++) {
+      weightBackground += histogram[i];
+      if (weightBackground === 0) continue;
+
+      const weightForeground = values.length - weightBackground;
+      if (weightForeground === 0) break;
+
+      sumBackground += i * histogram[i];
+      const meanBackground = sumBackground / weightBackground;
+      const meanForeground = (globalSum - sumBackground) / weightForeground;
+      const between =
+        weightBackground *
+        weightForeground *
+        (meanBackground - meanForeground) ** 2;
+
+      if (between > bestVariance) {
+        bestVariance = between;
+        bestBin = i;
+      }
+    }
+
+    return min + bestBin / scale;
+  };
+
+  /**
    * 寻找切割点（基于方差）
    */
   const findCutLines = (
@@ -70,20 +130,41 @@ export function useImageSlicer() {
     const cutLines: CutLine[] = [];
     const { minBlankHeight, cutLineOffset } = config;
 
-    // 计算方差的中位数，作为动态阈值
+    // 用分位数估计背景基准与内容基准。中位数在空白行占多数时会被拉到背景
+    // 水平，导致阈值永远无法区分空白行，这里改用高/低分位数避免该问题。
     const sortedVariances = [...variances].sort((a, b) => a - b);
-    const medianVariance =
-      sortedVariances[Math.floor(sortedVariances.length / 2)];
+    const backgroundLevel =
+      sortedVariances[Math.floor(sortedVariances.length * 0.05)];
+    const contentLevel =
+      sortedVariances[
+        Math.min(
+          sortedVariances.length - 1,
+          Math.floor(sortedVariances.length * 0.95)
+        )
+      ];
 
-    // 使用中位数的一定比例作为阈值
-    // blankThreshold 现在表示相对于中位数的比例（0.01-1.0）
-    const varianceThreshold = medianVariance * config.blankThreshold;
+    // 无明显对比度的纯色图片不需要切割
+    const minContrast = 10;
+    if (contentLevel - backgroundLevel < minContrast) {
+      return cutLines;
+    }
+
+    // Otsu 自动定位分界，再用 blankThreshold 作为灵敏度系数微调；
+    // 下限保证背景基准高于 0（如页面边框）时空白行仍能被识别。
+    const otsuThreshold =
+      calculateOtsuThreshold(variances) ?? contentLevel;
+    const minThreshold =
+      backgroundLevel + (contentLevel - backgroundLevel) * 0.01;
+    const varianceThreshold = Math.max(
+      otsuThreshold * config.blankThreshold,
+      minThreshold
+    );
 
     let blankStart = -1;
     let blankHeight = 0;
 
     for (let y = 0; y < variances.length; y++) {
-      const isBlank = variances[y] < varianceThreshold;
+      const isBlank = variances[y] <= varianceThreshold;
 
       if (isBlank) {
         if (blankStart === -1) {
@@ -335,18 +416,20 @@ export function useImageSlicer() {
 
     // 调试信息：输出方差统计
     const sortedVariances = [...variances].sort((a, b) => a - b);
-    const medianVariance =
-      sortedVariances[Math.floor(sortedVariances.length / 2)];
-    const maxVariance = Math.max(...variances);
-    const minVariance = Math.min(...variances);
+    const percentile = (ratio: number) =>
+      sortedVariances[
+        Math.min(
+          sortedVariances.length - 1,
+          Math.floor(sortedVariances.length * ratio)
+        )
+      ];
 
     logger.debug("方差统计完成", {
       imageId,
-      最小值: minVariance.toFixed(2),
-      中位数: medianVariance.toFixed(2),
-      最大值: maxVariance.toFixed(2),
-      动态阈值: (medianVariance * config.blankThreshold).toFixed(2),
-      阈值比例: config.blankThreshold,
+      背景基准_P5: percentile(0.05).toFixed(2),
+      中位数: percentile(0.5).toFixed(2),
+      内容基准_P95: percentile(0.95).toFixed(2),
+      灵敏度系数: config.blankThreshold,
     });
 
     // 2. 寻找切割点

@@ -34,7 +34,11 @@ import {
   fetchWithTimeout,
 } from "../llm-apis/common";
 import { adapters } from "../llm-apis/adapters";
-import { resolveModelExecution, type LlmOperation } from "@aiohub/llm-core";
+import {
+  resolveModelExecution,
+  decorateLlmError,
+  type LlmOperation,
+} from "@aiohub/llm-core";
 import { filterParametersByCapabilities } from "../llm-apis/request-builder";
 import { buildDecodedToolDiagnostics } from "../llm-apis/tool-diagnostics";
 import { getKeyHealthActionForError } from "../llm-apis/key-health-policy";
@@ -94,6 +98,16 @@ export function useLlmRequest() {
           ? crypto.randomUUID()
           : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     }
+
+    // 为抛出的错误补充渠道与模型上下文，便于定位失败来源
+    const contextProfile = getProfileById(options.profileId);
+    const contextModel = contextProfile?.models.find(
+      (m) => m.id === options.modelId
+    );
+    const errorContext = {
+      profileName: contextProfile?.name,
+      modelName: contextModel?.name || options.modelId,
+    };
 
     // ============ LLM Inspector 上下文透传（B3）============
     // 自动补全 requestId（若调用方未传），并合并 inspectorContext 后写入
@@ -578,7 +592,7 @@ export function useLlmRequest() {
             originalError: (error as any)?.message || String(error),
           });
           // 抛出统一的 TimeoutError 让下游处理
-          throw timeoutErr;
+          throw decorateLlmError(timeoutErr, errorContext);
         }
 
         logger.info("LLM 请求已取消", {
@@ -659,7 +673,9 @@ export function useLlmRequest() {
           });
         }
       }
-      throw error;
+      throw isAbortError(error, options.signal)
+        ? error
+        : decorateLlmError(error, errorContext);
     } finally {
       // B3: 清理 inspector 上下文存储，防止内存泄露。
       // 即使 setContext 没写入（开关 OFF 时 inspectorRequestId 为 undefined），

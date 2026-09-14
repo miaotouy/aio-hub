@@ -39,3 +39,4 @@ export * from "./probe/plan-resolver";
 export * from "./probe/validator";
 export * from "./probe/error-classifier";
 export * from "./model-identity";
+export * from "./llm-error-context";

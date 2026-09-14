@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { resolveModelExecution } from "@aiohub/llm-core";
+import { resolveModelExecution, decorateLlmError } from "@aiohub/llm-core";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { useLlmKeyManager } from "./useLlmKeyManager";
 import { callOpenAiCompatibleApi } from "../core/adapters/openai-compatible";
@@ -154,6 +154,15 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
       throw err;
     }
 
+    // 为抛出的错误补充渠道与模型上下文，便于定位失败来源
+    const contextModel = originalProfile.models.find(
+      (item) => item.id === requestOptions.modelId
+    );
+    const errorContext = {
+      profileName: originalProfile.name,
+      modelName: contextModel?.name || requestOptions.modelId,
+    };
+
     const originalOnStream = requestOptions.onStream;
     const originalOnReasoningStream = requestOptions.onReasoningStream;
     let receivedStreamContent = false;
@@ -218,7 +227,7 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
               showToUser: false,
               context: { modelId: requestOptions.modelId },
             });
-            throw err;
+            throw decorateLlmError(err, errorContext);
           }
 
           attempt += 1;

@@ -8,7 +8,7 @@
 
 ## 1. 问题陈述
 
-WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。本文档记录当前已知的痛点、可选方案的技术评估，以及后续调查方向。
+WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。除此之外，当前架构还存在一个更基础的运行时边界问题：Agent 逻辑实际运行在前端渲染进程中，生命周期与渲染窗口绑定，无法作为独立、长期运行的服务存在。本文档记录当前已知的痛点、可选方案的技术评估，以及后续调查方向；后续方案不仅要解决渲染引擎问题，还必须提供一个后端 JavaScript 运行时，将 Agent 运行时与 UI 渲染运行时解耦。
 
 ---
 
@@ -50,13 +50,25 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 - 其他现代 CSS/Web API 特性无法放心使用
 - 需要为不支持的环境编写 fallback，增加维护负担
 
+### 2.6. Agent 运行时与渲染窗口生命周期耦合
+
+当前 Agent 编排、会话推进、工具调用、流式响应处理、定时任务和取消控制等逻辑，实际上运行在前端渲染进程的 JavaScript 运行时中，而不是独立的后端运行时。这带来一组与 WebView2 渲染能力无关、但更影响架构演进的约束：
+
+- **窗口关闭即任务中断**：渲染窗口销毁会直接终止 Agent 任务，无法支持窗口关闭后继续运行、后台执行或稍后恢复。
+- **窗口刷新会丢失运行态**：前端热更新、崩溃、刷新或导航都可能重置 Agent 的内存状态和流式处理链路。
+- **UI 与 Agent 争用同一运行时**：消息渲染、响应式更新和大文本处理的负载会影响 Agent 的调度、定时器和工具调用，Agent 的稳定性受 UI 性能牵连。
+- **多窗口难以共享所有权**：当主窗口、分离窗口或设置窗口都需要观察同一个 Agent 会话时，任务所有权、重复启动和状态同步容易变得复杂。
+- **无法独立测试与演进**：Agent 的生命周期、重试、崩溃恢复和并发策略被 Vue 组件树包裹，难以脱离渲染窗口进行集成测试和版本演进。
+
+因此，迁移目标不能只定义为“换一个更可控的 WebView”。还需要建立 **Renderer（UI）—Backend JS Runtime（Agent）** 的明确边界：Agent 任务、会话状态和后台能力由独立的 Node.js/JavaScript 后端运行时持有，渲染窗口只负责展示、发起命令和订阅状态。
+
 ---
 
 ## 3. 当前架构的 Tauri 耦合度分析
 
 ### 3.1. 前端与 Tauri 的耦合点
 
-前端核心逻辑（树状对话、上下文管道、宏引擎、正则管道、撤销系统、富文本渲染器等）全部是纯 Vue/TS 代码，与 Tauri 无关。
+前端核心逻辑（树状对话、上下文管道、宏引擎、正则管道、撤销系统、富文本渲染器等）大多是纯 Vue/TS 代码，与 Tauri 无关。但 Agent 编排和会话运行目前也放在这个前端运行时中，这部分并不应继续依赖 Vue 组件树或渲染窗口。
 
 **实际耦合点**（迁移时需要改的地方）：
 
@@ -69,6 +81,8 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 | 窗口管理 API             | 多窗口、分离窗口      | `BrowserWindow`                           |
 | 资产协议                 | `asset://`            | Electron `protocol.registerFileProtocol`  |
 | 深度链接                 | `aiohub://`           | Electron `app.setAsDefaultProtocolClient` |
+| Agent 运行时所有权       | Agent 逻辑位于渲染进程，随窗口销毁 | Node.js 后端运行时 + 类型化 IPC           |
+| Agent 状态订阅           | 组件/Store 直接持有任务状态       | 后端会话状态 + Renderer 订阅               |
 
 ### 3.2. Rust 后端功能清单（逐模块深度评估）
 
@@ -142,26 +156,28 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 
 ## 4. 可选方案
 
-### 4.1. 方案 A：纯 Electron（推荐方向）
+### 4.1. 方案 A：纯 Electron（长期推荐方向）
 
 ```
-┌──────────────────────────────────────┐
-│  Electron                            │
-│  ├── Chromium (前端 Vue 代码不变)    │
-│  ├── Node.js 主进程                  │
-│  │   ├── HTTP 请求 (替代 Rust 代理)  │
-│  │   ├── 文件系统操作                │
-│  │   ├── 系统信息采集                │
-│  │   └── 窗口管理                    │
-│  └── 可选: Native Addon (.node)      │
-│      ├── Windows OCR (C++ addon)     │
-│      └── 向量搜索 (WASM/native)      │
-└──────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  Electron                                    │
+│  ├── Chromium (前端 Vue 代码不变)            │
+│  ├── Node.js 后端运行时                      │
+│  │   ├── Agent 编排与会话生命周期            │
+│  │   ├── HTTP 请求 (替代 Rust 代理)          │
+│  │   ├── 文件系统操作                        │
+│  │   ├── 系统信息采集                        │
+│  │   └── 窗口管理 / 类型化 IPC               │
+│  └── 可选: Native Addon (.node)              │
+│      ├── Windows OCR (C++ addon)             │
+│      └── 向量搜索 (WASM/native)              │
+└──────────────────────────────────────────────┘
 ```
 
 **优势**：
 
 - 彻底解决所有 WebView2 问题
+- 提供独立的 Node.js 后端运行时，Agent 生命周期不再依赖渲染窗口
 - 删除 Rust 代理层 → 架构简化
 - Node.js 生态覆盖 90%+ 后端需求
 - 包体可能反而更小（删掉 git2 vendored 等重型 Rust 依赖）
@@ -175,10 +191,11 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 
 ### 4.2. 方案 B：Electron + Rust Sidecar
 
-保留 Rust 二进制作为子进程，Electron 只做窗口壳。
+Electron 主进程/Node.js 后端运行时负责 Agent 编排和通用后端能力，同时保留 Rust 二进制作为子进程承载 knowledge、系统原生能力等模块；Electron 不再只是窗口壳。
 
-**优势**：后端改动最小  
-**劣势**：仍维护两套技术栈，进程间通信增加复杂度
+**优势**：可以先建立独立的 Agent JS 运行时，且 Rust 后端改动最小
+
+**劣势**：仍维护两套技术栈，Node↔Rust 和 Renderer↔Node 两层进程间通信增加复杂度
 
 ### 4.3. 方案 C：Tauri 内缓解（保守方案）
 
@@ -199,9 +216,11 @@ Tauri 官方有计划支持 Servo 作为替代渲染引擎，但时间线不明�
 **优势**：保持 Tauri 生态
 **劣势**：时间不可控，可能遥遥无期
 
-### 4.5. 方案 E：Tauri + CEF（双轨发布，待验证的首选方向）⭐
+### 4.5. 方案 E：Tauri + CEF（双轨发布，渲染引擎专项方案）
 
 #### 背景发现
+
+> **边界说明**：CEF 只能替换渲染引擎，不能自动提供后端 JavaScript 运行时，也不能解决 Agent 逻辑与渲染窗口生命周期耦合的问题。若选择该方案，仍需额外引入 Node.js sidecar 或其他独立 Agent 进程，并设计新的 IPC 边界；因此“前端、后端、IPC 全部保留，只切换渲染引擎”的零改动假设不再成立。
 
 cef-rs 现在是 **Tauri 官方维护的项目**（[tauri-apps/cef-rs](https://github.com/tauri-apps/cef-rs)），已发布到 crates.io（v141.6.0+141.0.11，累计 35.6 万次下载），且 Tauri 主仓库已有 `feat/cef` 分支可用。
 
@@ -219,7 +238,9 @@ cef-rs 现在是 **Tauri 官方维护的项目**（[tauri-apps/cef-rs](https://g
 │  │   ├── dir_search (并行搜索)                   │
 │  │   ├── system_pulse (PDH/NVML)                 │
 │  │   └── 所有其他模块                             │
-│  └── Tauri IPC ← invoke() 完全不变               │
+│  ├── Tauri IPC ← invoke() 完全不变               │
+│  └── （额外需要）Node.js Agent Runtime sidecar    │
+│      └── 与 Renderer 建立独立的会话/任务 IPC       │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -266,7 +287,7 @@ strategy:
 
 #### 优势
 
-- **零代码改动**：前端、后端、IPC 全部保留，只切换渲染引擎
+- **渲染层改动较小**：前端、Rust 后端可继续复用，主要切换渲染引擎
 - **零风险过渡**：不需要一刀切，用户自行选择版本
 - **真实数据驱动**：通过双轨发布收集内存/稳定性对比数据
 - **保留全部 Rust 后端**：knowledge、dir_search、system_pulse 等核心模块原封不动
@@ -282,6 +303,7 @@ strategy:
 | 内存问题未必解决    | 🔴 高    | Chromium 本身也是内存大户，需实测验证                  |
 | CORS/证书限制待验证 | 🟡 中    | CEF 理论上可配置，但需确认 Tauri 层是否暴露了这些选项  |
 | LLM 代理层能否删除  | 🟡 中    | 取决于 CEF 模式下 fetch 的限制情况                     |
+| Agent 后端运行时      | 🔴 高    | CEF 不提供 Node.js；需额外引入 sidecar 和 IPC         |
 | 上游稳定性          | 🟡 中    | 作为新方案，可能有未知 bug                             |
 
 #### 待验证清单
@@ -302,13 +324,13 @@ strategy:
 
 | 优先级 | 方案                  | 改动量 | 风险         | 理由                                   |
 | ------ | --------------------- | ------ | ------------ | -------------------------------------- |
-| 1️⃣     | **E: Tauri + CEF**    | 极低   | 中（待验证） | 零代码改动，官方支持，双轨过渡零风险   |
-| 2️⃣     | A: 纯 Electron        | 中     | 低           | 成熟方案，如果 CEF 时间线太长的 Plan B |
-| 3️⃣     | C: Tauri 内缓解       | 低     | 低           | 短期止血，等 CEF 成熟期间的过渡措施    |
-| 4️⃣     | B: Electron + Sidecar | 中     | 中           | 折中方案，复杂度高                     |
-| 5️⃣     | D: Servo              | 零     | 高           | 遥遥无期                               |
+| 1️⃣     | **B: Electron + Rust Sidecar** | 中     | 中           | 先建立独立 Node.js Agent 运行时，同时最大限度复用 Rust 后端 |
+| 2️⃣     | **A: 纯 Electron**             | 中高   | 中           | 长期统一到 Node.js 后端，彻底解决渲染与 Agent 生命周期耦合 |
+| 3️⃣     | E: Tauri + CEF                | 中     | 中高         | 可解决渲染一致性，但不能单独提供 Agent 后端运行时         |
+| 4️⃣     | C: Tauri 内缓解               | 低     | 低           | 短期止血，但无法解决 Agent 与窗口生命周期绑定             |
+| 5️⃣     | D: Servo                      | 零     | 高           | 遥遥无期，且不直接解决后端运行时边界                       |
 
-**建议执行路径**：先做方案 E 的 PoC 验证（1-2 天工作量），根据结果决定是走 E 还是 A。同时方案 C 的优化（虚拟化等）可以并行推进，无论最终选哪条路都有价值。
+**建议执行路径**：先做 Electron + Node.js Agent Runtime 的最小 PoC（可采用方案 B 的 Rust Sidecar 形态，1-2 天工作量），验证渲染窗口关闭/刷新后 Agent 是否仍能运行、重连和恢复状态；随后再决定是走 B 的渐进迁移还是 A 的纯 Electron 收敛。CEF PoC 仍可作为渲染一致性专项验证，但不应替代 Agent 运行时解耦任务。方案 C 的虚拟化等优化可以并行推进，无论最终选哪条路都有价值。
 
 ---
 
@@ -333,7 +355,14 @@ Electron 的 Chromium 增量约 80-100MB，但如果删除大量 Rust 依赖（g
 
 ### Phase 0：解耦准备（现在就能做，零风险）
 
-把所有 `invoke()` 调用抽象到统一的 service 层：
+先定义 Renderer 与后端运行时之间的边界，优先把 Agent 从渲染窗口生命周期中抽离：
+
+- 梳理 Agent 的启动、运行、暂停、取消、重试、恢复和销毁状态机
+- 定义 `AgentRuntimeBridge` / `AgentSession` 等类型化接口，Renderer 只发送命令并订阅事件
+- 明确会话状态的持有者、事件顺序、流式数据背压和断线重连语义
+- 将不依赖 DOM 的 Agent 编排代码迁移到可在 Node.js 中运行的模块，暂时保留 Tauri 适配层
+
+同时把所有 `invoke()` 调用抽象到统一的 service 层：
 
 ```typescript
 // src/services/backend-bridge.ts
@@ -346,23 +375,26 @@ export async function callBackend(cmd: string, args: any) {
 
 这一步在 Tauri 内就能做，不影响任何现有功能，但为将来迁移铺路。
 
-### Phase 1：Electron PoC（验证可行性）
+### Phase 1：Electron + Agent Runtime PoC（验证可行性）
 
-搭建最小 Electron 壳，加载 `dist/index.html`，验证：
+搭建最小 Electron 壳和独立 Node.js Agent Runtime，加载 `dist/index.html`，验证：
 
 - 前端 Vue 代码能否直接跑起来
 - 窗口管理（多窗口、分离窗口）的迁移难度
 - 窗口特效（vibrancy/acrylic）的效果
 - 内存表现对比
+- 验证关闭/刷新渲染窗口后 Agent 任务继续运行，重新打开窗口后可订阅已有会话
+- 验证多窗口同时观察同一 Agent 会话时不会重复启动或丢失状态
 
 ### Phase 2：后端命令迁移
 
-按优先级用 Node.js 重写 Tauri commands：
+按优先级把后端能力迁移到 Node.js：
 
-1. 文件系统操作（最常用）
-2. HTTP 请求（删除 Rust 代理）
-3. 系统信息采集
-4. 其他工具命令
+1. Agent 编排、会话生命周期和工具调用协调（首先建立独立后端运行时）
+2. 文件系统操作（最常用）
+3. HTTP 请求（删除 Rust 代理）
+4. 系统信息采集
+5. 其他工具命令
 
 ### Phase 3：原生能力处理
 
@@ -381,7 +413,7 @@ export async function callBackend(cmd: string, args: any) {
 
 ## 7. 待进一步调查的问题
 
-### 7.1. 方案 E (Tauri + CEF) 验证任务 ⭐ 优先
+### 7.1. 方案 E (Tauri + CEF) 验证任务
 
 - [ ] 用 `feat/cef` 分支构建当前项目，验证基本可用性
 - [ ] 实测 CEF 模式下的内存表现（LLM Chat 长对话场景）
@@ -401,11 +433,15 @@ export async function callBackend(cmd: string, args: any) {
 - [ ] 评估移动端代码共享策略（前端代码如何同时服务 Electron 桌面端和 Tauri 移动端）
 - [ ] 调研 Electron Forge vs electron-builder 的选型
 - [ ] 内存基准测试：同等场景下 Electron vs WebView2 的内存占用对比
+- [ ] 盘点当前 Agent 入口、会话状态、工具调用和定时器，标注所有与 Vue/渲染窗口绑定的代码
+- [ ] 设计 Renderer ↔ Node.js Agent Runtime 的类型化 IPC 协议（命令、事件、流式数据、错误和取消）
+- [ ] 验证渲染窗口关闭、刷新、崩溃和重连时 Agent 会话的存活与恢复
+- [ ] 比较 Electron main process、utility process 和独立 Node.js sidecar 的运行时拓扑与安全边界
 
 ### 7.3. 已完成
 
 - [x] ~~调查 `web_distillery` 模块的迁移影响~~ → 见 [附录 A](./appendix-web-distillery-analysis.md)
-- [x] ~~调查 CEF-RS 生态现状~~ → 见 [方案 E](#45-方案-etauri--cef双轨发布待验证的首选方向)
+- [x] ~~调查 CEF-RS 生态现状~~ → 见 [方案 E](#45-方案-etauri--cef双轨发布渲染引擎专项方案)
 
 ---
 
@@ -416,6 +452,8 @@ export async function callBackend(cmd: string, args: any) {
 3. **回退方案**：如果 Electron PoC 效果不理想，Phase 0 的抽象层对 Tauri 架构本身也有益（更好的解耦）
 4. **社区因素**：Tauri 社区对 Servo 集成的进展值得持续关注，如果官方方案成熟可能改变决策
 5. **CEF 双轨策略的额外收益**：即使 CEF 版本最终不成为默认，双轨发布本身也能帮助定位"某个 bug 是 WebView2 特有还是前端代码问题"，对调试有价值
+6. **新增 IPC 复杂度**：Agent 移到后端后，需要处理事件顺序、流式数据背压、断线重连、权限控制和进程崩溃恢复；这些应在 PoC 阶段固化为协议，而不是继续依赖组件生命周期
+7. **CEF 不能替代后端 JS 运行时**：选择 Tauri + CEF 时，Node.js sidecar 的包体、启动、升级和通信成本必须单独评估
 
 ---
 
@@ -435,3 +473,4 @@ export async function callBackend(cmd: string, args: any) {
 | 2025-05-20 | 初始版本：问题陈述、耦合度分析、方案 A-D、执行策略                        |
 | 2025-05-20 | 新增附录 A (web_distillery) 和附录 B (knowledge)                          |
 | 2026-05-20 | 新增方案 E (Tauri + CEF 双轨发布)，更新方案优先级排序，重组待调查任务列表 |
+| 2026-09-14 | 新增 Agent 后端 JavaScript 运行时需求：补充渲染窗口生命周期耦合问题，调整方案评估、优先级和执行策略 |

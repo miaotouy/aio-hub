@@ -740,6 +740,23 @@ const networkSettingSummary = computed(() => {
                 </template>
               </el-input>
 
+              <div v-if="apiEndpointPreview" class="api-preview-container">
+                <div class="api-preview-url">{{ apiEndpointPreview }}</div>
+                <div class="api-preview-hint">
+                  {{ endpointHintText }}
+                </div>
+              </div>
+              <div v-else>
+                <div class="form-hint">
+                  <span
+                    >默认:
+                    {{
+                      getProviderTypeInfo(editForm.type)?.defaultBaseUrl
+                    }}</span
+                  >
+                </div>
+              </div>
+
               <!-- 快捷链接 -->
               <div
                 v-if="editForm.links && editForm.links.length > 0"
@@ -765,23 +782,6 @@ const networkSettingSummary = computed(() => {
                       {{ link.label }}
                     </el-link>
                   </el-tooltip>
-                </div>
-              </div>
-
-              <div v-if="apiEndpointPreview" class="api-preview-container">
-                <div class="api-preview-url">{{ apiEndpointPreview }}</div>
-                <div class="api-preview-hint">
-                  {{ endpointHintText }}
-                </div>
-              </div>
-              <div v-else>
-                <div class="form-hint">
-                  <span
-                    >默认:
-                    {{
-                      getProviderTypeInfo(editForm.type)?.defaultBaseUrl
-                    }}</span
-                  >
                 </div>
               </div>
             </el-form-item>
@@ -1232,6 +1232,8 @@ const networkSettingSummary = computed(() => {
 
 /* API 端点预览容器 */
 .api-preview-container {
+  width: 100%;
+  box-sizing: border-box;
   margin-top: 8px;
   padding: 8px 12px;
   background: var(--card-bg);
@@ -1343,6 +1345,7 @@ const networkSettingSummary = computed(() => {
 
 /* 快捷链接样式 */
 .preset-links-bar {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;

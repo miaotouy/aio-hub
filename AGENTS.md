@@ -45,6 +45,7 @@
 - 背景、边框、文字、模糊等视觉值使用项目主题变量；毛玻璃使用 `backdrop-filter: blur(var(--ui-blur))`。详见[主题系统架构](docs/architecture/theme-system-architecture.md)。
 - 移动端以原生 Vue 结构、项目组件和 AIO Hub token 为主，Varlet 只作为可替换的底层原子组件库。详见[移动端 UI 开发指南](docs/guide/mobile-ui-development.md)。
 - 使用 `DropZone` 时，默认通过内置“选择文件”按钮或拖放区域交互；整块区域需要点击时才配置 `click-zone`。内置按钮的原生点击与键盘交互保持独立可用。
+- 界面按专业桌面软件交互设计：默认即展示完整工作区（工具栏、面板、编辑区、操作入口），仅内容区留白并用内联占位、禁用态或默认示例填充。禁止 web 式「先打开/上传才出现完整界面」的引导式空页面，空数据与未选择状态同样保留可操作的整体框架。
 
 ## 6. Rust、Tauri 与数据处理
 

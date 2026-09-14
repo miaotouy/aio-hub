@@ -27,6 +27,7 @@ import type {
   RepositoryConfig,
   RepoSession,
   RepoStatus,
+  RepoWorkflowState,
 } from "../types";
 import {
   COMMIT_LANGUAGE_MACRO,
@@ -150,6 +151,21 @@ export const autoRefreshInterval = ref<number>(10);
 // 运行时状态（不持久化）
 export const repoStatuses = ref<Record<string, RepoStatus>>({});
 export const isRefreshing = ref<boolean>(false);
+/** 各仓库的工作流运行态（拉取/推送/生成/提交），按仓库隔离，避免相互串台 */
+export const repoWorkflowStates = ref<Record<string, RepoWorkflowState>>({});
+
+/** 获取（必要时初始化）指定仓库的工作流运行态 */
+export function getRepoWorkflowState(path: string): RepoWorkflowState {
+  if (!repoWorkflowStates.value[path]) {
+    repoWorkflowStates.value[path] = {
+      isPulling: false,
+      isPushing: false,
+      isGenerating: false,
+      isCommitting: false,
+    };
+  }
+  return repoWorkflowStates.value[path];
+}
 
 // ===== 计算属性 =====
 export const currentRepo = computed<RepositoryConfig | null>(() => {
@@ -314,6 +330,7 @@ export function removeRepository(path: string): void {
   repositories.value = repositories.value.filter((r) => r.path !== path);
   delete repoSessions.value[path];
   delete repoStatuses.value[path];
+  delete repoWorkflowStates.value[path];
   if (currentRepoPath.value === path) {
     currentRepoPath.value = repositories.value[0]?.path || "";
   }

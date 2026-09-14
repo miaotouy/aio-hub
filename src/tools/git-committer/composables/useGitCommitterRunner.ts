@@ -20,8 +20,10 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { isAbortError } from "@/llm-apis/common";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleLogger } from "@/utils/logger";
 import type {
   RepoStatus,
   FileStatus,
@@ -54,7 +56,20 @@ import {
   switchRepo,
 } from "./useGitCommitterState";
 
+const logger = createModuleLogger("git-committer/runner");
 const { sendRequest } = useLlmRequest();
+
+// ===== AI 生成中止控制 =====
+/** 各仓库正在进行的 AI 生成控制器，按仓库路径隔离，支持并发 */
+const generationControllers = new Map<string, AbortController>();
+
+/** 中止指定仓库正在进行的 AI 生成；无进行中的生成时静默返回 */
+export function abortCommitMessageGeneration(repoPath: string): void {
+  const controller = generationControllers.get(repoPath);
+  if (!controller) return;
+  controller.abort();
+  generationControllers.delete(repoPath);
+}
 
 // ===== 状态刷新 =====
 
@@ -461,7 +476,8 @@ export function getCommitCandidateFiles(repoPath: string): {
 /** 组装指定仓库候选文件的 diff 文本（用于 LLM Prompt） */
 export async function buildDiffPrompt(
   repoPath: string,
-  candidates = getCommitCandidateFiles(repoPath)
+  candidates = getCommitCandidateFiles(repoPath),
+  signal?: AbortSignal
 ): Promise<string | null> {
   const { files, isStaged } = candidates;
   if (files.length === 0) {
@@ -470,11 +486,14 @@ export async function buildDiffPrompt(
 
   const parts: string[] = [];
   for (const f of files) {
+    // 文件 diff 通过 IPC 逐个读取；无法取消当前 IPC 时，至少在文件之间及时停止。
+    if (signal?.aborted) return null;
     if (f.isBinary) {
       parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
       continue;
     }
     const diff = await loadFileDiff(repoPath, f.path, isStaged);
+    if (signal?.aborted) return null;
     if (!diff || diff.isBinary) {
       parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
       continue;
@@ -492,41 +511,63 @@ export async function generateCommitMessage(
   onStream: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<string | null> {
-  const combo = defaultModel.value;
-  const [profileId, modelId] = parseModelCombo(combo);
-  if (!profileId || !modelId) {
-    customMessage.warning("请先在设置中选择 AI 模型");
-    return null;
+  const repoLabel = repoPath.split(/[/\\]/).pop() || "repo";
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener("abort", forwardAbort, { once: true });
+    }
   }
 
-  const candidates = getCommitCandidateFiles(repoPath);
-  const diffText = await buildDiffPrompt(repoPath, candidates);
-  if (!diffText) {
-    customMessage.warning("没有可生成提交信息的文件变更");
-    return null;
-  }
-
-  const systemPromptText = getSystemPromptForRepo(repoPath);
-  const { files, isStaged } = candidates;
-  const status = repoStatuses.value[repoPath];
-  const messages = buildCommitPromptMessages({
-    systemPrompt: systemPromptText,
-    language: commitLanguage.value,
-    branch: status?.branch || "",
-    files,
-    isStaged,
-    diff: diffText,
-  });
-  const requestId = `gc-${repoPath.split(/[/\\]/).pop()}-${Date.now()}`;
+  // 从 diff 构建阶段就注册控制器，确保用户可以中止整个生成流程。
+  generationControllers.set(repoPath, controller);
 
   try {
+    const combo = defaultModel.value;
+    const [profileId, modelId] = parseModelCombo(combo);
+    if (!profileId || !modelId) {
+      customMessage.warning("请先在设置中选择 AI 模型");
+      return null;
+    }
+    if (controller.signal.aborted) return null;
+
+    const candidates = getCommitCandidateFiles(repoPath);
+    const diffText = await buildDiffPrompt(
+      repoPath,
+      candidates,
+      controller.signal
+    );
+    if (controller.signal.aborted) return null;
+    if (!diffText) {
+      customMessage.warning("没有可生成提交信息的文件变更");
+      return null;
+    }
+
+    const systemPromptText = getSystemPromptForRepo(repoPath);
+    const { files, isStaged } = candidates;
+    const status = repoStatuses.value[repoPath];
+    const messages = buildCommitPromptMessages({
+      systemPrompt: systemPromptText,
+      language: commitLanguage.value,
+      branch: status?.branch || "",
+      files,
+      isStaged,
+      diff: diffText,
+    });
+    const requestId = `gc-${repoLabel}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+
     const response = await sendRequest({
       profileId,
       modelId,
       messages,
       stream: true,
       onStream: (chunk: string) => onStream(chunk),
-      signal,
+      signal: controller.signal,
       requestId,
       inspectorContext: {
         toolName: "git-committer",
@@ -537,11 +578,18 @@ export async function generateCommitMessage(
       ? normalizeGeneratedCommitMessage(response.content)
       : null;
   } catch (error) {
-    errorHandler.error(
-      error,
-      `AI 生成提交信息失败: ${repoPath.split(/[/\\]/).pop()}`
-    );
+    if (isAbortError(error, controller.signal)) {
+      logger.debug("AI 生成已中止", { repo: repoLabel });
+      return null;
+    }
+    errorHandler.error(error, `AI 生成提交信息失败: ${repoLabel}`);
     return null;
+  } finally {
+    // 仅清理本次注册的控制器，避免并发生成时误删后注册的控制器
+    if (generationControllers.get(repoPath) === controller) {
+      generationControllers.delete(repoPath);
+    }
+    signal?.removeEventListener("abort", forwardAbort);
   }
 }
 

@@ -12,20 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, computed, type Ref } from "vue";
+import { computed, type Ref } from "vue";
 import {
   pullRepo,
   pushRepo,
   generateCommitMessage,
+  abortCommitMessageGeneration,
   executeCommit,
 } from "./useGitCommitterRunner";
-import { repoSessions, updateRepoCommitDraft } from "./useGitCommitterState";
+import {
+  repoWorkflowStates,
+  getRepoWorkflowState,
+  repoSessions,
+  updateRepoCommitDraft,
+} from "./useGitCommitterState";
 
 export function useGitRepoWorkflow(repoPath: Ref<string>) {
-  const isPulling = ref(false);
-  const isPushing = ref(false);
-  const isGenerating = ref(false);
-  const isCommitting = ref(false);
+  // 运行态按仓库读取，切换仓库后各仓库互不影响
+  const isPulling = computed(
+    () => !!repoWorkflowStates.value[repoPath.value]?.isPulling
+  );
+  const isPushing = computed(
+    () => !!repoWorkflowStates.value[repoPath.value]?.isPushing
+  );
+  const isGenerating = computed(
+    () => !!repoWorkflowStates.value[repoPath.value]?.isGenerating
+  );
+  const isCommitting = computed(
+    () => !!repoWorkflowStates.value[repoPath.value]?.isCommitting
+  );
 
   // 绑定指定仓库的提交草稿
   const draft = computed({
@@ -41,59 +56,78 @@ export function useGitRepoWorkflow(repoPath: Ref<string>) {
 
   // 拉取
   const pull = async () => {
-    if (!repoPath.value || isPulling.value) return;
-    isPulling.value = true;
+    const path = repoPath.value;
+    if (!path) return;
+    const state = getRepoWorkflowState(path);
+    if (state.isPulling) return;
+    state.isPulling = true;
     try {
-      await pullRepo(repoPath.value);
+      await pullRepo(path);
     } finally {
-      isPulling.value = false;
+      state.isPulling = false;
     }
   };
 
   // 推送
   const push = async () => {
-    if (!repoPath.value || isPushing.value) return;
-    isPushing.value = true;
+    const path = repoPath.value;
+    if (!path) return;
+    const state = getRepoWorkflowState(path);
+    if (state.isPushing) return;
+    state.isPushing = true;
     try {
-      await pushRepo(repoPath.value);
+      await pushRepo(path);
     } finally {
-      isPushing.value = false;
+      state.isPushing = false;
     }
   };
 
   // AI 生成提交信息
   const generateMsg = async () => {
-    if (!repoPath.value || isGenerating.value) return;
-    isGenerating.value = true;
-    draft.value = ""; // 清空旧草稿
+    const path = repoPath.value;
+    if (!path) return;
+    const state = getRepoWorkflowState(path);
+    if (state.isGenerating) return;
+    state.isGenerating = true;
+    // 整个生成过程始终写回发起生成的仓库，避免切换仓库后内容串台
+    updateRepoCommitDraft(path, "");
     try {
-      const generatedMessage = await generateCommitMessage(
-        repoPath.value,
-        (chunk) => {
-          draft.value += chunk;
-        }
-      );
+      const generatedMessage = await generateCommitMessage(path, (chunk) => {
+        const current = repoSessions.value[path]?.commitDraft || "";
+        updateRepoCommitDraft(path, current + chunk);
+      });
       if (generatedMessage !== null) {
-        draft.value = generatedMessage;
+        updateRepoCommitDraft(path, generatedMessage);
       }
     } finally {
-      isGenerating.value = false;
+      state.isGenerating = false;
     }
+  };
+
+  // 中止当前仓库的 AI 生成
+  const abortGenerateMsg = () => {
+    const path = repoPath.value;
+    if (!path) return;
+    abortCommitMessageGeneration(path);
   };
 
   // 提交
   const commit = async (pushAfter = false) => {
-    if (!repoPath.value || isCommitting.value) return false;
-    isCommitting.value = true;
+    const path = repoPath.value;
+    if (!path) return false;
+    const state = getRepoWorkflowState(path);
+    if (state.isCommitting) return false;
+    state.isCommitting = true;
+    const message = draft.value;
     try {
-      const ok = await executeCommit(repoPath.value, draft.value, pushAfter);
+      const ok = await executeCommit(path, message, pushAfter);
       if (ok) {
-        draft.value = "";
+        updateRepoCommitDraft(path, "");
         return true;
       }
       return false;
     } finally {
-      isCommitting.value = false;
+      state.isCommitting = false;
     }
   };
 
@@ -106,6 +140,7 @@ export function useGitRepoWorkflow(repoPath: Ref<string>) {
     pull,
     push,
     generateMsg,
+    abortGenerateMsg,
     commit,
   };
 }

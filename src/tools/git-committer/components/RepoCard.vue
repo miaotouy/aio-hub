@@ -111,12 +111,12 @@
           link
           type="primary"
           size="small"
-          :loading="isGenerating"
-          @click="generateMsg"
-          :disabled="!canGenerateMessage"
+          @click="handleAiButtonClick"
+          :disabled="!isGenerating && !canGenerateMessage"
         >
-          <Sparkles v-if="!isGenerating" :size="12" class="ai-icon" />
-          AI 生成
+          <SquareStop v-if="isGenerating" :size="12" class="ai-icon" />
+          <Sparkles v-else :size="12" class="ai-icon" />
+          {{ isGenerating ? "中止" : "AI 生成" }}
         </el-button>
       </div>
       <el-input
@@ -151,6 +151,7 @@ import {
   ArrowDown,
   RefreshCw,
   Sparkles,
+  SquareStop,
 } from "lucide-vue-next";
 import type { RepositoryConfig } from "../types";
 import RepoActionsMenu from "./RepoActionsMenu.vue";
@@ -181,8 +182,18 @@ const {
   pull,
   push,
   generateMsg,
+  abortGenerateMsg,
   commit,
 } = useGitRepoWorkflow(repoPath);
+
+// 生成中转圈时点击即中止，否则发起生成
+const handleAiButtonClick = () => {
+  if (isGenerating.value) {
+    abortGenerateMsg();
+  } else {
+    generateMsg();
+  }
+};
 
 // ===== 状态获取 =====
 const status = computed(() => repoStatuses.value[props.repo.path]);

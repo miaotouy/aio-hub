@@ -65,6 +65,14 @@ export interface RepoStatus {
   behind: number;
 }
 
+/** 单仓库工作流运行时状态（不持久化，按仓库隔离） */
+export interface RepoWorkflowState {
+  isPulling: boolean;
+  isPushing: boolean;
+  isGenerating: boolean;
+  isCommitting: boolean;
+}
+
 /** Git Committer 全局配置（持久化） */
 export interface GitCommitterConfig {
   repositories: RepositoryConfig[];

@@ -79,16 +79,20 @@
             <MessageSquareText :size="14" />
           </el-button>
         </el-tooltip>
-        <el-tooltip content="AI 生成提交信息" placement="top">
+        <el-tooltip
+          :content="isGenerating ? '中止生成' : 'AI 生成提交信息'"
+          placement="top"
+        >
           <el-button
             type="primary"
             circle
             size="small"
             class="ai-btn"
-            :loading="isGenerating"
-            @click="handleGenerateCommitMessage"
+            :class="{ 'is-generating': isGenerating }"
+            @click="handleAiButtonClick"
           >
-            <Sparkles v-if="!isGenerating" :size="14" />
+            <SquareStop v-if="isGenerating" :size="14" />
+            <Sparkles v-else :size="14" />
           </el-button>
         </el-tooltip>
       </div>
@@ -300,6 +304,7 @@ import {
   ArrowUp,
   RefreshCw,
   Sparkles,
+  SquareStop,
   ChevronDown,
   Plus,
   Minus,
@@ -346,8 +351,18 @@ const {
   pull: handlePull,
   push: handlePush,
   generateMsg: handleGenerateCommitMessage,
+  abortGenerateMsg: handleAbortGenerateMessage,
   commit,
 } = useGitRepoWorkflow(currentRepoPath);
+
+// 生成中转圈时点击即中止，否则发起生成
+const handleAiButtonClick = () => {
+  if (isGenerating.value) {
+    handleAbortGenerateMessage();
+  } else {
+    handleGenerateCommitMessage();
+  }
+};
 
 const commitActionText = computed(() => {
   return commitAction.value === "commit"
@@ -580,6 +595,20 @@ const unstageAll = async () => {
 .ai-btn {
   margin-left: 0;
   flex-shrink: 0;
+}
+
+.ai-btn.is-generating {
+  animation: ai-generating-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-generating-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
 }
 
 .prompt-tab-btn {

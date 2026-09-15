@@ -11,18 +11,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
- * 腾讯混元 预设模板
+ * 腾讯Hunyuan 预设模板
  */
-
 import type { LlmPreset } from "../types";
 
-// 腾讯混元
+// 腾讯Hunyuan
 export const tencentPreset: LlmPreset = {
   type: "openai",
-  name: "腾讯混元",
-  description: "腾讯混元大模型 API",
+  name: "腾讯Hunyuan",
+  description: "腾讯Hunyuan大模型 API",
   defaultBaseUrl: "https://api.hunyuan.cloud.tencent.com",
   logoUrl: "/model-icons/hunyuan-color.svg",
   links: [
@@ -48,24 +46,24 @@ export const tencentPreset: LlmPreset = {
     },
     {
       id: "hunyuan-turbo",
-      name: "混元 Turbo",
-      group: "混元",
+      name: "Hunyuan Turbo",
+      group: "Hunyuan",
       provider: "tencent",
       capabilities: { toolUse: true },
       description: "高速推理，适合实时交互",
     },
     {
       id: "hunyuan-pro",
-      name: "混元 Pro",
-      group: "混元",
+      name: "Hunyuan Pro",
+      group: "Hunyuan",
       provider: "tencent",
       capabilities: { vision: true, toolUse: true },
       description: "多模态旗舰，视觉理解增强",
     },
     {
       id: "hunyuan-lite",
-      name: "混元 Lite",
-      group: "混元",
+      name: "Hunyuan Lite",
+      group: "Hunyuan",
       provider: "tencent",
       description: "轻量版，成本优化",
     },

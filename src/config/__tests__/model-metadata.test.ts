@@ -902,4 +902,59 @@ describe("audited model-list metadata coverage", () => {
     expect(fluxVideo?.capabilities?.imageGeneration).toBeUndefined();
     expect(fluxVideo?.mediaGenParams).toBeUndefined();
   });
+
+  it("consolidates Qwen3, Hunyuan and Kimi metadata groups", () => {
+    for (const id of [
+      "qwen3.8-max",
+      "qwen3.7-plus",
+      "qwen3.6-plus",
+      "qwen3.5-omni-plus",
+      "qwen3-vl-plus",
+      "qwen3-coder-plus",
+      "qwen3-asr-flash",
+      "qwen3-tts-flash",
+    ]) {
+      expect(
+        getMatchedModelProperties(DEFAULT_METADATA_RULES, id)
+      ).toMatchObject({ group: "Qwen3" });
+    }
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "qwen3-rerank")
+    ).toMatchObject({ group: "Qwen Rerank" });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "qwen-image-2.0")
+    ).toMatchObject({ group: "Qwen Image" });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "qwen-image-edit-plus")
+    ).toMatchObject({ group: "Qwen Image" });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "hunyuan-turbo",
+        "tencent"
+      )
+    ).toMatchObject({ group: "Hunyuan" });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "hy3-preview", "openai")
+    ).toMatchObject({ group: "Hunyuan" });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "hy4-preview", "openai")
+    ).toMatchObject({
+      group: "Hunyuan",
+      contextLength: 1000000,
+    });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "moonshot-v1-8k")
+    ).toMatchObject({ group: "Kimi" });
+
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "tts-1")
+    ).toMatchObject({ group: "OpenAI" });
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemini-2.5-flash-tts")
+    ).toMatchObject({ group: "Gemini 2" });
+  });
 });

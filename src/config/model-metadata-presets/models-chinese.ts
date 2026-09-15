@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
  * 国内其他模型前缀匹配规则
  *
@@ -19,6 +18,7 @@
  * 零一万物、百川、InternLM、MiniCPM、Skywork、RWKV 等。
  */
 import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+
 import type { ModelMetadataProperties } from "../../types/model-metadata";
 
 export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
@@ -87,12 +87,18 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
         releaseDate: "2026-08-19",
         description:
           "GLM-5.3：智谱新一代旗舰文本模型，1M 上下文 / 128K 输出，始终开启思考并支持 low/high/max 三档强度，支持工具调用、结构化输出与上下文缓存；仅支持文本输入。",
-        recommendedFor: ["代码生成", "Agent 工作流", "安全审计", "长上下文分析"],
+        recommendedFor: [
+          "代码生成",
+          "Agent 工作流",
+          "安全审计",
+          "长上下文分析",
+        ],
       },
       priority: 38,
       enabled: true,
       exclusive: true,
-      description: "模型正则 GLM-5.3（2026-08-19 发布的旗舰文本模型）元数据规则",
+      description:
+        "模型正则 GLM-5.3（2026-08-19 发布的旗舰文本模型）元数据规则",
     },
     {
       id: "model-glm-5.3-flash",
@@ -146,7 +152,8 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       },
       priority: 38,
       enabled: true,
-      description: "模型正则 GLM-5.2（2026-06-16 发布的旗舰文本模型）元数据规则",
+      description:
+        "模型正则 GLM-5.2（2026-06-16 发布的旗舰文本模型）元数据规则",
     },
     {
       id: "model-glm-4.7-family",
@@ -314,7 +321,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       matchValue: "moonshot-",
       properties: {
         icon: `/model-icons/moonshot.svg`,
-        group: "moonshot",
+        group: "Kimi",
         tokenizer: "gpt4",
       },
       priority: 20,
@@ -435,7 +442,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       matchValue: "hunyuan-",
       properties: {
         icon: `/model-icons/hunyuan-color.svg`,
-        group: "Tencent",
+        group: "Hunyuan",
         tokenizer: "gpt4",
       },
       priority: 20,
@@ -449,7 +456,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       useRegex: true,
       properties: {
         icon: `/model-icons/hunyuan-color.svg`,
-        group: "Tencent",
+        group: "Hunyuan",
         tokenizer: "gpt4",
         description:
           "Hunyuan-MT-7B：腾讯混元机器翻译模型，适合多语言翻译与本地化；它不是通用工具调用模型。",
@@ -466,7 +473,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       useRegex: true,
       properties: {
         icon: `/model-icons/hunyuan-color.svg`,
-        group: "Tencent Hunyuan",
+        group: "Hunyuan",
         tokenizer: "gpt4",
         capabilities: {
           toolUse: true,
@@ -484,6 +491,41 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       priority: 35,
       enabled: true,
       description: "模型正则 Hunyuan HY3 / HY4（含渠道后缀）元数据规则",
+    },
+    {
+      id: "model-hunyuan-hy4",
+      matchType: "model",
+      matchValue: "^hy4(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/hunyuan-color.svg`,
+        group: "Hunyuan",
+        tokenizer: "gpt4",
+        contextLength: 1000000,
+        capabilities: {
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        releaseDate: "2026-08-28",
+        description:
+          "Hunyuan HY4（Hy4 preview）：腾讯混元新一代 MoE 旗舰，770B 总参数 / 49B 激活、1M 上下文，默认高强度思考（可 no_think 关闭），面向代码、工具调用与 Agent 工作流；Apache 2.0 开源权重。",
+        recommendedFor: [
+          "Agent 工作流",
+          "代码生成",
+          "复杂推理",
+          "长上下文分析",
+        ],
+      },
+      priority: 40,
+      enabled: true,
+      exclusive: true,
+      description:
+        "模型正则 Hunyuan HY4 / Hy4 preview（含量化与渠道后缀）元数据规则",
     },
 
     // === 百度文心系列模型 ===

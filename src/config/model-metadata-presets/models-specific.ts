@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
  * 特定模型匹配规则 (优先级 30+)
  *
@@ -19,6 +18,7 @@
  * FLUX、Stable Diffusion、Luma、Suno 等专用模型。
  */
 import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
+
 import type { ModelMetadataProperties } from "../../types/model-metadata";
 
 export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
@@ -58,7 +58,8 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
     {
       id: "model-tts",
       matchType: "modelPrefix",
-      matchValue: "tts-",
+      matchValue: "^tts-",
+      useRegex: true,
       properties: {
         icon: `/model-icons/openai.svg`,
         group: "OpenAI",
@@ -298,7 +299,7 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       matchValue: "Qwen/Qwen-Image-Edit",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen",
+        group: "Qwen Image",
         capabilities: {
           imageGeneration: true,
           iterativeRefinement: true,
@@ -622,7 +623,7 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       matchValue: "hunyuan-image",
       properties: {
         icon: `/model-icons/hunyuan-color.svg`,
-        group: "Tencent",
+        group: "Hunyuan",
         capabilities: {
           imageGeneration: true,
           vision: true,
@@ -641,7 +642,7 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       matchValue: "qwen-image-edit",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen",
+        group: "Qwen Image",
         capabilities: {
           imageGeneration: true,
           iterativeRefinement: true,
@@ -661,7 +662,7 @@ export const specificModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       matchValue: "qwen-image",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen",
+        group: "Qwen Image",
         capabilities: {
           imageGeneration: true,
         },

@@ -193,5 +193,13 @@ export const opencodeGoPreset: LlmPreset = {
       capabilities: { toolUse: true },
       description: "OpenCode Go 内置模型（Chat Completions）",
     },
+    {
+      id: "hy4",
+      name: "Hy4",
+      group: "Hy",
+      provider: "opencode-go",
+      capabilities: { toolUse: true },
+      description: "OpenCode Go 内置模型（Chat Completions）",
+    },
   ],
 };

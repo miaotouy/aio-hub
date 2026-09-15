@@ -72,7 +72,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3.7",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3.7",
+        group: "Qwen3",
         tokenizer: "qwen3",
         contextLength: 1048576,
         maxOutputTokens: 65536,
@@ -95,7 +95,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3-coder",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3 Coder",
+        group: "Qwen3",
         tokenizer: "qwen3",
         contextLength: 1048576,
         maxOutputTokens: 65536,
@@ -117,7 +117,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen",
+        group: "Qwen3",
         tokenizer: "qwen3",
         capabilities: {
           ...qwenThinkingCapabilities,
@@ -165,7 +165,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3.6",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3.6",
+        group: "Qwen3",
         tokenizer: "qwen3",
         contextLength: 1048576,
         maxOutputTokens: 65536,
@@ -183,7 +183,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3.5",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3.5",
+        group: "Qwen3",
         tokenizer: "qwen3",
         contextLength: 1048576,
         maxOutputTokens: 65536,
@@ -201,7 +201,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3.5-omni",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3.5 Omni",
+        group: "Qwen3",
         tokenizer: "qwen3",
         contextLength: 262144,
         maxOutputTokens: 65536,
@@ -229,7 +229,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3-omni",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3 Omni",
+        group: "Qwen3",
         tokenizer: "qwen3",
         capabilities: {
           audio: true,
@@ -248,7 +248,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3-vl",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3 VL",
+        group: "Qwen3",
         tokenizer: "qwen3",
         capabilities: {
           ...qwenVisionVideoCapabilities,
@@ -283,7 +283,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3-asr",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3 ASR",
+        group: "Qwen3",
         tokenizer: "qwen3",
         capabilities: {
           audio: true,
@@ -295,7 +295,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
         description:
           "Qwen3-ASR 语音识别系列（实时/文件转写，支持情绪识别变体）",
       },
-      priority: 30,
+      priority: 31,
       enabled: true,
       description: "模型前缀 qwen3-asr 元数据规则",
     },
@@ -305,7 +305,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
       matchValue: "qwen3-tts",
       properties: {
         icon: `/model-icons/qwen-color.svg`,
-        group: "Qwen3 TTS",
+        group: "Qwen3",
         tokenizer: "qwen3",
         capabilities: {
           audioGeneration: true,
@@ -317,7 +317,7 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
         description:
           "Qwen3-TTS 语音合成系列（流式、指令控制、声音克隆和声音设计变体）",
       },
-      priority: 30,
+      priority: 31,
       enabled: true,
       description: "模型前缀 qwen3-tts 元数据规则",
     },

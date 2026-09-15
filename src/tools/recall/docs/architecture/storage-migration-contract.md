@@ -1,6 +1,6 @@
 # Recall 存储、备份与迁移契约
 
-本文记录 Recall 当前稳定的数据所有权、备份兼容和旧目录迁移约束，不维护数据库选型过程、施工阶段或已完成的测试日志。现行模块结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)，未完成的发布门禁见 [`../Plan/recall-retrieval-pipeline-modularization-plan.md`](../Plan/recall-retrieval-pipeline-modularization-plan.md)。
+本文记录 Recall 当前稳定的数据所有权、备份兼容和旧目录迁移约束，不维护数据库选型过程、施工阶段或已完成的测试日志。现行模块结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)，正式版前的迁移检查清单见 [`../Plan/recall-retrieval-pipeline-modularization-plan.md`](../Plan/recall-retrieval-pipeline-modularization-plan.md)。
 
 ## 数据真源与派生资产
 
@@ -94,4 +94,4 @@ recoveryInstructions[]
 
 报告状态必须能区分未开始、运行中、完成、部分成功和需重建，不得以一条成功消息掩盖向量降级或跳过项。报告和日志不得包含条目正文、资产内容、API Key 或完整向量。
 
-发布收口时，在 Recall 报告之外汇总 Agent migration 结果，至少核对 Recall binding、Knowledge 授权、旧权限 key 和旧占位符统计。该合并报告是发布证据，不改变 `RecallMigrationReport` 的运行时所有权，也不能用固定样例数字代替真实统计。
+正式版收口时，在 Recall 报告之外汇总 Agent migration 结果，至少核对 Recall binding、Knowledge 授权、旧权限 key 和旧占位符统计。该合并报告是正式版发布证据，不改变 `RecallMigrationReport` 的运行时所有权，也不能用固定样例数字代替真实统计。

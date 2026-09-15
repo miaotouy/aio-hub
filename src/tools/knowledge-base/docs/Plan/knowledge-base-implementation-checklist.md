@@ -1,6 +1,6 @@
 # Knowledge 施工步骤计划清单
 
-- **状态**：Phase 0 至 Phase 4、Phase 5 代码与自动化工程检查已完成；当前仅剩 P5-T06 固定真实 Tauri 跨模块回归与 P5-GATE 收口
+- **状态**：Phase 0 至 Phase 4、Phase 5 代码与自动化工程检查已完成；剩 P5-T06 固定真实 Tauri 跨模块回归与 P5-GATE 收口，作为正式版前检查，不阻断 Alpha
 - **创建日期**：2026-07-18
 - **最近修订**：2026-07-19
 - **适用范围**：`src/tools/knowledge-base/`、`src/tools/retrieval/`、`src/tools/llm-chat/`、`src/tools/agent-manager/`、`src-tauri/src/knowledge/`
@@ -503,9 +503,9 @@ Phase 4 真实运行态门禁解除记录（2026-07-19）：
 - [x] P5-T05 运行 `bun run check:backend`。
 - [ ] P5-T06 在真实 Tauri 窗口完成 Agent 主动查询、用户显式引用、文件/目录摄取、重建恢复和研究任务全链路验收。
 - [x] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
-- [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致。
+- [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致（正式版前完成即可，不阻断 Alpha）。
 
-P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据；本轮已在修复后的 Agent Manager 上重新验证权限开关持久化，并新增 Chat 显式引用查询，但 Agent 主动 `list/search/read`、重建恢复和完整跨域回归仍未串成一次固定 WDIO 场景。因此不把 P5-GATE 或完成定义提前标记为通过。
+P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据；本轮已在修复后的 Agent Manager 上重新验证权限开关持久化，并新增 Chat 显式引用查询，但 Agent 主动 `list/search/read`、重建恢复和完整跨域回归仍未串成一次固定 WDIO 场景。因此不把 P5-GATE 或完成定义提前标记为通过；该结论仅影响 `0.7.0` 正式版前检查，不阻断 Alpha。
 
 ### 9.4 当前问题清单（2026-07-19 检查）
 

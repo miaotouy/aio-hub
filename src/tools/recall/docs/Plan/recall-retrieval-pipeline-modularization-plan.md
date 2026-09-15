@@ -1,20 +1,19 @@
 # Recall 检索管线模块化实施计划
 
-**状态**：Phase 0 至 Phase 6 的工程施工已完成，但本周期内改名拆分迁移与本次管线模块化均未发布过中间版本；当前仍处于 Release Gate 未通过状态。发布前必须以最近一次正式发布版本的数据和配置作为唯一迁移基线，完成全量迁移、产品回归、合并报告和发布包 smoke test。
+**状态**：Phase 0 至 Phase 6 工程施工已完成，旧改名/拆分与检索管线模块化已进入 `v0.7.0-alpha` 周期主开发线，不再设置阻断 Alpha 的 Recall 专项发布门禁。迁移本体、启动只读检测 + 确认式旧目录迁移、版本化迁移基线 fixture 与迁移报告契约均已落地；真实发布版本 appData 迁移、合并迁移报告与发布二进制 smoke test 降级为正式版（不带预发布标识）前的检查清单，见下文「正式版前 Recall 检查清单」。
 
-**最近修订**：2026-07-23
+**最近修订**：2026-09-16
 **范围**：`src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置与 Chat 召回入口。
 
 本目录只保留本施工计划。稳定的管线契约见 [`../architecture/retrieval-pipeline-contract.md`](../architecture/retrieval-pipeline-contract.md)，存储、备份与迁移约束见 [`../architecture/storage-migration-contract.md`](../architecture/storage-migration-contract.md)，测试运行边界见 [`../architecture/retrieval-testing.md`](../architecture/retrieval-testing.md)，现行实现结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。
 
-## 本周期发布语境
+## 迁移基线与发布语境
 
-此前的 Recall 改名/拆分迁移和本次检索管线模块化都只存在于未发布分支，不能把当前工作区、某个中间提交或当前生成的 SQLite 作为“上一版本”。因此本次发布验收按一次完整迁移处理：
+此前的 Recall 改名/拆分迁移和本次检索管线模块化未形成中间发布版本，迁移仍按一次完整迁移处理。2026-09-16 核对实际采用以下基线：
 
-- 迁移输入必须来自最近一次正式发布版本的完整 appData 副本，不能只用当前分支生成的 fixture、空目录或已经迁移过的目录证明兼容性。
-- 旧目录、旧 workspace、Agent Recall 配置、binding、Knowledge 授权和旧占位符必须在同一个隔离数据根中联合验证；单独的 Recall 单元测试不构成发布证据。
-- 任何迁移失败、部分成功、进程中断或只读源场景都必须留下可复核的结构化报告，并证明源数据仍可重新恢复；不能以“当前代码可启动”代替迁移回滚证据。
-- `recall-pipeline` 等现有 debug Tauri E2E 只证明切片功能和 IPC 链路。它们不自动证明最近一次正式版本到当前版本的迁移、发布二进制资源打包或失败恢复。
+- 迁移基线使用版本化 fixture（[`../__fixtures__/recall-migration-baseline-v1.json`](../__fixtures__/recall-migration-baseline-v1.json)，由 `src-tauri/src/recall/migration_baseline.rs` 运行），覆盖 `current-file-layout` / `aio-kb-v1` / `legacy-json` / `legacy-yaml` 输入与 success / partial / failure 状态机，以及 Agent binding、宏与旧占位符转换。不再要求每次验收都提供真实发布版本 appData。
+- 旧目录迁移采用启动只读检测 + 用户确认式导入，源目录迁移后保持只读；主库失败阻止可写态，向量失败降级为待重建。契约见 [`../architecture/storage-migration-contract.md`](../architecture/storage-migration-contract.md)。
+- 真实发布版本 appData 副本、发布二进制 smoke test 与 Recall + Agent + Knowledge 合并报告属于正式版前检查清单，不阻断 Alpha；`recall-pipeline` 等 debug Tauri E2E 只证明切片功能和 IPC 链路。
 
 ## 当前状态
 
@@ -108,7 +107,7 @@ shared query embedding
 
 Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工作面，使用全局活动模型，支持多行查询批量回放、batch run、编译阶段与完整 trace 调试。每个槽位可从当前预设模板进入自定义阶段编辑：后端只暴露已注册模块的清单、内置模板和专用 custom compile/run IPC，强制 `playground-custom` 执行身份、固定算法版本并限制节点数；同一 compiler 继续校验参数、依赖、artifact、预算和唯一 finalizer。custom 运行不允许 fallback，且不会写回产品 preset、Agent 配置、workspace 或缓存命名空间。workspace 只保存集合、查询和 `presetId / limit`，旧 `engineId / config / results` 经迁移后失效；旧 `SearchPanel`、`useRecallSearch` 和 `useRecallSearchManager` 已在无静态或动态引用后删除。
 
-具名 Tauri E2E preset `recall-pipeline` 已在隔离数据根验证稳定 preset 与 custom 的模块清单、模板、compile、stale config hash、run、trace，以及编辑器打开、取消和应用流程。该场景不替代发布前首次启动迁移、重启、失败回滚和旧目录只读恢复门禁。
+具名 Tauri E2E preset `recall-pipeline` 已在隔离数据根验证稳定 preset 与 custom 的模块清单、模板、compile、stale config hash、run、trace，以及编辑器打开、取消和应用流程。该场景不替代正式版前的首次启动迁移、重启、失败回滚和旧目录只读恢复检查。
 
 新管线运行会发送兼容扩展后的 `recall-monitor` RAG 事件。事件在旧 `steps / results / stats / metadata` 之外可选携带完整 `pipelineTrace` 和结构化 `pipelineError`，metadata 标记 `executionPath / runId / outcome / requestedPresetId / actualPresetId`；历史 `recall_search` 事件仍可通过 `engineId` 和条目级 legacy trace 展示。结果详情和 Monitor 不再将未知分数域格式化为百分比：pipeline 的 `relevanceScore` 由信号贡献求和，`score` 表示 priority 重排后的排序分数；legacy 分数只按原值展示。
 
@@ -130,48 +129,60 @@ Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工�
 - `src/` 产品代码已无 `recall_search` 或 `recall_list_engines` 调用；后端 command、registry、旧引擎实现与 `TagSea` 也已删除。迁移基线改由当前 pipeline runner 验证旧数据转换后的结果与 SQLite 重启一致。
 - workspace 加载会剥离 `defaultEngineId`、历史投射/折射/texture 和旧评分参数；生产 request/service 类型不再接受 `engineId`。版本化 workspace、Agent 和 pipeline migration 仍确定性转换旧 ID，未知值继续报告结构化问题。
 
-## 发布前 Recall Release Gate
+## 正式版前 Recall 检查清单（不阻断 Alpha）
 
-以下门禁属于本周期发布的必要条件，不再视为“不阻塞日常施工”的可选遗留项。任一门禁缺少真实输入、结构化产物或明确的 skip/fail 结果，都视为未通过。
+以下检查项不阻断 `v0.7.0-alpha` 及后续任何预发布周期，仅在正式版（不带预发布标识）发布前要求关闭。缺少证据时，Phase 0 至 Phase 6 只能描述为“工程实现完成”，不能描述为“本次重构已完成完整发布验收”。
 
-### Gate 0：代码与契约基线
+### 检查 0：代码与契约基线
 
-- [ ] 在干净工作区运行完整 `bun run test:run`、`cargo test --manifest-path src-tauri/Cargo.toml`、`bun run check`、`bun run build`；定向 Recall 单测、`vue-tsc`、Vite build、clippy 只能作为开发期证据，不能替代全量门禁。
-- [ ] 固定并记录本次发布的应用版本、pipeline schema/trace/migration 版本、数据库 schema 版本和构建提交；测试产物不得混用不同版本的 fixture 或缓存。
+- [ ] 在干净工作区运行完整 `bun run test:run`、`cargo test --manifest-path src-tauri/Cargo.toml`、`bun run check`、`bun run build`；定向 Recall 单测、`vue-tsc`、Vite build、clippy 只能作为开发期证据，不能替代全量检查。
+- [ ] 固定并记录正式版应用版本、pipeline schema/trace/migration 版本、数据库 schema 版本和构建提交；测试产物不得混用不同版本的 fixture 或缓存。
 - [ ] 检查生产包中不存在 dev server URL、旧 Recall command 注册、旧 engine registry 或未声明的旧配置写回路径。
 
-### Gate 1：正式版本 appData 迁移与恢复
+### 检查 1：正式版本 appData 迁移与恢复
 
-- [ ] 新增并运行具名 Tauri E2E preset（建议命名为 `recall-release-migration`），输入为最近一次正式发布版本的完整隔离 appData 副本；同一套场景覆盖空目录、有效旧目录、损坏集合/向量、缺失 `recall-vectors.db`、旧 workspace/Agent 配置、Knowledge 已存在和重复启动。
-- [ ] 首次启动后核对集合、条目、原始 ID、内容 hash、priority、enabled、标签、向量模型/维度、Recall binding、Knowledge 授权、旧权限 key 和旧占位符统计；不得只断言“窗口打开”。
-- [ ] 对同一数据根执行进程重启和重复启动，证明迁移幂等、不重复写入、不重复转换、不改变 source fingerprint，并证明迁移后的 pipeline/placeholder/Agent 调用仍可运行。
-- [ ] 通过失败注入覆盖主库写入失败、向量迁移失败、损坏 JSON、维度不一致和进程中断；主数据失败必须阻止可写态，向量失败只能降级为待重建，staging 和临时资产必须清理。
-- [ ] 将旧目录置为只读后重新启动、检查和运行关键词检索；旧源不得被修改或删除，应用仍能浏览/编辑已迁移主数据。未满足清理条件时不得出现清理入口成功路径。
-- [ ] 每次场景保存脱敏的迁移报告、状态转移、数据库/源目录指纹和重启结果；不得记录正文、密钥、完整向量或真实私有路径。
+已落地并稳定：
 
-现有 `recall-pipeline`、`recall-chat` 和 `corpus-full` preset 不覆盖上述完整输入：前者只覆盖管线 IPC，后两者分别面向 Chat 恢复和外部 `.aio-kb` 导入，不能直接替代正式版本 appData 迁移门禁。
+- [x] 版本化迁移基线 fixture 与 `migration_baseline.rs` 4 项测试，覆盖当前文件布局 round-trip、旧查询过当前管线、重启后 pipeline 快照稳定，以及 Agent binding/宏/占位符转换；迁移输入、状态机与统计固化为 `recall-migration-baseline-v1.json`。
+- [x] 启动只读检测 + 确认式旧目录迁移（由 `knowledge-base` 确认式迁移流程统一接管前端），源目录迁移后保持只读；主库失败阻止可写态，向量失败降级为待重建；损坏 JSON、模型 ID 无法反查、维度不一致与 hash 不匹配进入问题报告。
 
-### Gate 2：迁移后产品回归
+正式版前需补充（现有 fixture 只证明契约与确定性，不证明真实历史数据）：
 
-- [ ] 在 Gate 1 迁移成功且重启过的同一数据根中运行 `algorithmic`、`comprehensive`、显式 fallback、空结果、blocked、failed、cancelled 和 stale config hash 场景。
+- [ ] 用最近一次正式发布版本的完整隔离 appData 副本执行首次启动迁移、进程重启幂等、失败回滚与只读旧源验证，并保存脱敏迁移报告与 fingerprint。
+- [ ] 新增具名 Tauri E2E preset（建议命名 `recall-release-migration`），覆盖空目录、有效旧目录、损坏集合/向量、缺失 `recall-vectors.db`、旧 workspace/Agent 配置、Knowledge 已存在与重复启动；当前 `tests/tauri-e2e/support/presets.ts` 尚未注册该 preset。
+
+### 检查 2：迁移后产品回归
+
+- [ ] 在迁移成功且重启过的同一数据根上运行 `algorithmic`、`comprehensive`、显式 fallback、空结果、blocked、failed、cancelled 和 stale config hash 场景。
 - [ ] 覆盖 Chat 注入、Agent `searchEntries`/条目定位、占位符、Recall 管理页搜索、Playground、结果详情和 Monitor；断言产品调用只使用 `presetId`，并核对 pipeline/legacy trace 的分数语义和执行结果。
-- [ ] 运行 curated corpus 结构回放，验证迁移前后集合/条目可见性、向量覆盖状态和稳定排序；该回放只证明结构和确定性，不得宣称 Recall 质量提升或旧引擎分数等价。
+- [ ] 运行 curated corpus 结构回放，验证迁移前后集合/条目可见性、向量覆盖状态和稳定排序；该回放只证明结构和确定性，不得宣称 Recall 质量提升或旧引擎分数等价。现有 `recall-pipeline` / `recall-chat` / curated preset 可作为开发期证据，但不替代本项。
 
-### Gate 3：合并迁移报告
+### 检查 3：合并迁移报告
 
-- [ ] 按[报告样例](./recall-knowledge-migration-report-sample.md)导出真实生产态 Recall + Agent 合并报告，至少包含集合、条目、向量、标签、Recall binding、Knowledge 授权、旧权限 key、旧占位符和问题/恢复说明。
-- [ ] 报告必须由真实 `RecallMigrationReport`、Agent migration report 和 Knowledge 检查结果生成；当前设置页只导出 Recall 报告的实现不能标记此门禁完成。
-- [ ] 报告中的数量、状态和 fingerprint 必须能与 Gate 1 的隔离 appData 和数据库重新核对；样例数字、工程 fixture 或手工填写的摘要不能作为证据。
+- [x] 设置页已可导出真实 `RecallMigrationReport`（非样例数字）。
+- [x] Knowledge 确认式迁移流程已展示 Recall 迁移结果与问题。
+- [ ] 正式版前：由真实 `RecallMigrationReport`、Agent migration report 与 Knowledge 检查结果生成合并报告，按[报告样例](./recall-knowledge-migration-report-sample.md)覆盖集合、条目、向量、标签、Recall binding、Knowledge 授权、旧权限 key、旧占位符与问题/恢复说明，并与隔离 appData 重新核对。
 
-### Gate 4：发布二进制 smoke test
+### 检查 4：发布二进制 smoke test
 
-- [ ] 使用与拟发布版本完全相同的 `tauri:build` 产物，在全新隔离 appData 中启动发布二进制，检查窗口/WebView、资源加载、默认数据根、Recall 初始化和日志无致命错误。
-- [ ] 使用包含正式版本旧数据的第二个隔离根启动同一发布二进制，至少执行一次迁移检查、关键词检索、向量缺失后的可用性检查和进程重启；debug-only WebDriver E2E 不能替代该步骤。
+- [ ] 使用与正式版完全相同的 `tauri:build` 产物，在全新隔离 appData 中启动发布二进制，检查窗口/WebView、资源加载、默认数据根、Recall 初始化和日志无致命错误。
+- [ ] 使用包含正式版本旧数据的第二个隔离根启动同一发布二进制，执行迁移检查、关键词检索、向量缺失后的可用性检查和进程重启；debug-only WebDriver E2E 不能替代该步骤。
 - [ ] 记录构建版本、二进制 hash、平台、数据根、迁移报告摘要和退出码；若发布包无法注入 WebDriver，smoke test 仍需使用进程/窗口/日志和持久化结果完成验证，而不是把测试改回 debug binary。
 
-### Release Gate 判定
+### 判定口径
 
-只有 Gate 0 至 Gate 4 都有通过证据，且没有未解释的 skip、数据丢失、结构化问题或发布包启动错误，才允许把本计划状态改为“可发布”。在此之前，Phase 0 至 Phase 6 只能描述为“工程实现完成”，不能描述为“本次重构已完成发布验收”。
+检查项按正式版节奏关闭，预发布周期不因上述未完成项阻断。工程实现与发布验收是两件事：`v0.7.0-alpha` 发布说明中不再把 Recall 迁移检查登记为 Alpha 阻断项，正式版发布前需在本清单上消除剩余未勾选项并保留证据。
+
+## 施工与计划偏差（2026-09-16 核对）
+
+依据提交记录与当前代码核对，施工本体（Phase 0–6）与计划一致且已全部勾选；偏差集中在发布验收口径与迁移基线：
+
+1. **发布门禁定位**：原“Release Gate 未通过、阻断发布”的表述与实际不符。施工与迁移本体已落地并进入 `v0.7.0-alpha` 主开发线；原 Gate 降级为正式版前检查清单，不再阻断 Alpha。
+2. **迁移基线来源**：原计划要求“最近一次正式发布版本的完整 appData 副本”作为唯一迁移输入；实际落地为版本化 `recall-migration-baseline-v1.json` fixture + `migration_baseline.rs` 测试。真实发布版本 appData 验证推迟到正式版前。
+3. **旧目录迁移形态**：原计划按“迁移后旧目录只读、显式清理前不删除”设计；实现进一步改为启动只读检测 + 用户确认式导入，并由 `knowledge-base` 确认式迁移流程统一接管前端（`018e1f1f4`）。
+4. **`recall-release-migration` E2E preset**：计划建议新增但未创建；当前 preset 只有 `recall-pipeline` / `recall-chat` / curated 等，正式版前需补充。
+5. **合并报告**：设置页已能导出真实 `RecallMigrationReport`，Knowledge 确认式迁移也已展示 Recall 结果；Recall + Agent + Knowledge 合并报告尚未实现。
+6. **发布节奏**：`v0.7.0-alpha` 已按多个 alpha tag 推进，Recall 检查未作为 Alpha 阻断项登记。
 
 ## 明确不纳入本轮
 

@@ -25,6 +25,10 @@
           <Pencil :size="13" />
           修改别名
         </el-dropdown-item>
+        <el-dropdown-item command="color">
+          <Palette :size="13" />
+          修改颜色
+        </el-dropdown-item>
         <el-dropdown-item command="prompt">
           <MessageSquareText :size="13" />
           设置 AI 提示词
@@ -42,6 +46,7 @@
   </el-dropdown>
 
   <RepositoryPromptDialog v-model="isPromptDialogVisible" :repo="props.repo" />
+  <RepositoryColorDialog v-model="isColorDialogVisible" :repo="props.repo" />
 </template>
 
 <script setup lang="ts">
@@ -50,19 +55,23 @@ import {
   FolderOpen,
   MessageSquareText,
   MoreVertical,
+  Palette,
   Pencil,
   Trash2,
 } from "lucide-vue-next";
 import type { RepositoryConfig } from "../types";
 import RepositoryPromptDialog from "./RepositoryPromptDialog.vue";
+import RepositoryColorDialog from "./RepositoryColorDialog.vue";
 import { useGitRepositoryManagement } from "../composables/useGitRepositoryManagement";
 
 const props = defineProps<{ repo: RepositoryConfig }>();
 const { editAlias, openDirectory, remove } = useGitRepositoryManagement();
 const isPromptDialogVisible = ref(false);
+const isColorDialogVisible = ref(false);
 
 const handleCommand = async (command: string) => {
   if (command === "alias") await editAlias(props.repo);
+  if (command === "color") isColorDialogVisible.value = true;
   if (command === "prompt") isPromptDialogVisible.value = true;
   if (command === "open") await openDirectory(props.repo);
   if (command === "remove") await remove(props.repo);

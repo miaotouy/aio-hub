@@ -13,10 +13,101 @@
 // limitations under the License.
 
 import { getExtension } from "@/utils/fileTypeDetector";
+import { hexToRgb } from "@/utils/themeColors";
 import type { DiffTabRef } from "./types";
 
 export const COMMIT_LANGUAGE_MACRO = "${language}";
 export const DEFAULT_COMMIT_LANGUAGE = "简体中文";
+
+/** 仓库图标默认候选色盘；明暗主题下均保持可辨识度 */
+export const DEFAULT_REPO_AVATAR_PALETTE: readonly string[] = [
+  "#4C8DFF",
+  "#7C5CFF",
+  "#B26BFF",
+  "#E0568A",
+  "#F0703C",
+  "#E0A93C",
+  "#5DBB63",
+  "#2BB3A3",
+  "#38A9D6",
+  "#8A8F98",
+];
+
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/** 将 3 位或 6 位十六进制颜色规范化为 #RRGGBB；非法值返回 null */
+export function normalizeHexColor(
+  color: string | undefined | null
+): string | null {
+  const trimmed = color?.trim();
+  if (!trimmed || !HEX_COLOR_PATTERN.test(trimmed)) return null;
+  if (trimmed.length === 4) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`.toUpperCase();
+  }
+  return trimmed.toUpperCase();
+}
+
+/** 过滤并规范化候选色盘，为空时回退默认色板副本 */
+export function resolveRepoAvatarPalette(palette?: string[]): string[] {
+  const normalized = (palette || [])
+    .map((color) => normalizeHexColor(color))
+    .filter((color): color is string => Boolean(color));
+  return normalized.length > 0
+    ? normalized
+    : DEFAULT_REPO_AVATAR_PALETTE.map((color) => color.toUpperCase());
+}
+
+/** 简单字符串哈希，用于在色盘中稳定取色 */
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+/** 从色盘中随机取色，优先避开已被占用的颜色 */
+export function pickRandomRepoColor(
+  palette: string[],
+  usedColors: Iterable<string> = []
+): string {
+  const colors = resolveRepoAvatarPalette(palette);
+  const used = new Set(
+    Array.from(usedColors, (color) => normalizeHexColor(color)).filter(
+      (color): color is string => Boolean(color)
+    )
+  );
+  const candidates = colors.filter((color) => !used.has(color));
+  const pool = candidates.length > 0 ? candidates : colors;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** 解析仓库图标色：优先用户/持久化颜色，缺失时按路径哈希稳定取值 */
+export function resolveRepoColor(
+  repo: { path: string; color?: string },
+  palette?: string[]
+): string {
+  const explicit = normalizeHexColor(repo.color);
+  if (explicit) return explicit;
+  const colors = resolveRepoAvatarPalette(palette);
+  return colors[hashString(repo.path) % colors.length];
+}
+
+/** 根据背景色亮度返回可读的前景色 */
+export function getAvatarTextColor(backgroundColor: string): string {
+  const rgb = hexToRgb(backgroundColor);
+  if (!rgb) return "#FFFFFF";
+  const channel = (value: number) => {
+    const normalized = value / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance =
+    0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
+  return luminance > 0.55 ? "#1F2329" : "#FFFFFF";
+}
 
 /** 仓库 AI 提示词编辑标签页使用的保留路径 */
 export const REPO_PROMPT_TAB_PATH = "__repo_prompt__";

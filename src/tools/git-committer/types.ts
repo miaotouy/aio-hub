@@ -26,6 +26,8 @@ export interface RepositoryConfig {
   alias?: string;
   /** 仓库专属 AI System Prompt；未设置或为空时继承全局提示词 */
   systemPrompt?: string;
+  /** 仓库图标背景色（#RRGGBB）；未设置时使用色盘自动分配的随机色 */
+  color?: string;
 }
 
 /** 已打开的 Diff 标签页引用（可持久化） */
@@ -98,6 +100,8 @@ export interface GitCommitterConfig {
   enableAutoRefresh: boolean;
   /** 自动刷新间隔（秒） */
   autoRefreshInterval: number;
+  /** 仓库图标候选色盘；为空时回退内置默认色板 */
+  repoAvatarPalette: string[];
 }
 
 /** 提交行级统计（与后端 `CommitStats` 对齐） */

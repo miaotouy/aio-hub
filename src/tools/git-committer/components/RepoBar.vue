@@ -132,10 +132,18 @@
               <GripVertical :size="14" />
             </div>
             <!-- 仓库头像与状态徽章 -->
-            <div class="repo-avatar-wrapper">
+            <div
+              class="repo-avatar-wrapper"
+              :style="{
+                '--repo-avatar-fg': getAvatarTextColor(getRepoColor(repo)),
+              }"
+            >
               <Avatar
                 src=""
+                :size="28"
+                :radius="6"
                 :alt="repo.alias || repo.name"
+                :background-color="getRepoColor(repo)"
                 class="repo-avatar"
               />
               <!-- 状态徽章 -->
@@ -221,11 +229,13 @@ import {
   currentRepoPath,
   repoStatuses,
   isRefreshing,
+  getRepoColor,
 } from "../composables/useGitCommitterState";
 import {
   refreshAllStatuses,
   switchRepoWithAutoPull,
 } from "../composables/useGitCommitterRunner";
+import { getAvatarTextColor } from "../utils";
 
 defineProps<{
   isPinned: boolean;
@@ -306,7 +316,7 @@ const selectScanFolders = async () => {
 
 <style scoped>
 .repo-bar-container {
-  width: 64px;
+  width: 56px;
   height: 100%;
   flex-shrink: 0;
   position: relative;
@@ -335,7 +345,7 @@ const selectScanFolders = async () => {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 64px;
+  width: 56px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -505,8 +515,8 @@ const selectScanFolders = async () => {
 /* 头像与徽章 */
 .repo-avatar-wrapper {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -514,15 +524,44 @@ const selectScanFolders = async () => {
 }
 
 .repo-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.repo-item:hover .repo-avatar {
+  transform: scale(1.03);
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.repo-item.active .repo-avatar {
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    0 0 0 2px rgba(var(--el-color-primary-rgb), 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.repo-avatar :deep(.avatar-fallback) {
+  color: var(--repo-avatar-fg, #ffffff);
+  font-weight: 600;
+  letter-spacing: normal;
+  z-index: 1;
 }
 
 .badges-container {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: 0;
+  right: -6px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -591,7 +630,7 @@ const selectScanFolders = async () => {
 
 /* 底部操作区 */
 .repo-bar-footer {
-  padding: 12px 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

@@ -32,7 +32,11 @@ import type {
 import {
   COMMIT_LANGUAGE_MACRO,
   DEFAULT_COMMIT_LANGUAGE,
+  DEFAULT_REPO_AVATAR_PALETTE,
+  pickRandomRepoColor,
   resolvePersistedPrompt,
+  resolveRepoAvatarPalette,
+  resolveRepoColor,
   resolveSystemPrompt,
 } from "../utils";
 
@@ -107,7 +111,7 @@ const PREVIOUS_DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT.replace(
 const configManager = createConfigManager<GitCommitterConfig>({
   moduleName: "git-committer",
   fileName: "config.json",
-  version: "1.3.0",
+  version: "1.4.0",
   createDefault: () => ({
     repositories: [],
     currentRepoPath: "",
@@ -125,6 +129,7 @@ const configManager = createConfigManager<GitCommitterConfig>({
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     enableAutoRefresh: true,
     autoRefreshInterval: 10,
+    repoAvatarPalette: [...DEFAULT_REPO_AVATAR_PALETTE],
   }),
 });
 
@@ -147,6 +152,9 @@ export const commitLanguage = ref<string>(DEFAULT_COMMIT_LANGUAGE);
 export const systemPrompt = ref<string>(DEFAULT_SYSTEM_PROMPT);
 export const enableAutoRefresh = ref<boolean>(true);
 export const autoRefreshInterval = ref<number>(10);
+export const repoAvatarPalette = ref<string[]>([
+  ...DEFAULT_REPO_AVATAR_PALETTE,
+]);
 
 // 运行时状态（不持久化）
 export const repoStatuses = ref<Record<string, RepoStatus>>({});
@@ -233,6 +241,10 @@ export async function loadRepositories(): Promise<void> {
   );
   enableAutoRefresh.value = config.enableAutoRefresh ?? true;
   autoRefreshInterval.value = config.autoRefreshInterval ?? 10;
+  repoAvatarPalette.value = resolveRepoAvatarPalette(config.repoAvatarPalette);
+
+  // 为缺少颜色的历史仓库补全随机色
+  ensureRepositoryColors();
 
   // 校正 currentRepoPath（可能指向已被删除的仓库，且排除全景模式）
   if (
@@ -268,6 +280,7 @@ function snapshot(): GitCommitterConfig {
     systemPrompt: systemPrompt.value,
     enableAutoRefresh: enableAutoRefresh.value,
     autoRefreshInterval: autoRefreshInterval.value,
+    repoAvatarPalette: repoAvatarPalette.value,
   };
 }
 
@@ -295,6 +308,7 @@ watch(
     systemPrompt,
     enableAutoRefresh,
     autoRefreshInterval,
+    repoAvatarPalette,
   ],
   () => {
     if (initialized) persist();
@@ -311,11 +325,41 @@ function repositoryPathKey(path: string): string {
     : normalized;
 }
 
+/** 已使用的仓库图标颜色（用于随机分配时避让） */
+function usedRepoColors(): string[] {
+  return repositories.value
+    .map((repo) => repo.color)
+    .filter((color): color is string => Boolean(color));
+}
+
+/** 为缺少颜色的仓库补全随机色；有变更时返回 true */
+export function ensureRepositoryColors(): boolean {
+  const used = usedRepoColors();
+  let changed = false;
+  for (const repo of repositories.value) {
+    if (!repo.color) {
+      repo.color = pickRandomRepoColor(repoAvatarPalette.value, used);
+      used.push(repo.color);
+      changed = true;
+    }
+  }
+  if (changed) persist();
+  return changed;
+}
+
+/** 获取仓库图标背景色（缺失时按路径哈希稳定兜底） */
+export function getRepoColor(repo: RepositoryConfig): string {
+  return resolveRepoColor(repo, repoAvatarPalette.value);
+}
+
 /** 添加仓库，返回是否实际加入了列表。 */
 export function addRepository(repo: RepositoryConfig): boolean {
   const pathKey = repositoryPathKey(repo.path);
   if (repositories.value.some((r) => repositoryPathKey(r.path) === pathKey)) {
     return false;
+  }
+  if (!repo.color) {
+    repo.color = pickRandomRepoColor(repoAvatarPalette.value, usedRepoColors());
   }
   repositories.value.push(repo);
   if (!currentRepoPath.value) {
@@ -393,4 +437,33 @@ export function updateRepositorySystemPrompt(
 export function getSystemPromptForRepo(repoPath: string): string {
   const repo = repositories.value.find((item) => item.path === repoPath);
   return resolveSystemPrompt(repo?.systemPrompt, systemPrompt.value);
+}
+
+/** 设置指定仓库的图标颜色；传入空值表示恢复自动分配 */
+export function updateRepositoryColor(repoPath: string, color: string): void {
+  const repo = repositories.value.find((item) => item.path === repoPath);
+  if (!repo) return;
+
+  const normalized = color.trim();
+  if (normalized) {
+    repo.color = normalized;
+  } else {
+    delete repo.color;
+  }
+}
+
+/** 为所有仓库重新随机分配图标颜色 */
+export function randomizeRepositoryColors(): void {
+  const used: string[] = [];
+  for (const repo of repositories.value) {
+    repo.color = pickRandomRepoColor(repoAvatarPalette.value, used);
+    used.push(repo.color);
+  }
+}
+
+/** 恢复默认候选色盘 */
+export function resetRepoAvatarPalette(): void {
+  repoAvatarPalette.value = DEFAULT_REPO_AVATAR_PALETTE.map((color) =>
+    color.toUpperCase()
+  );
 }

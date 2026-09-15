@@ -150,12 +150,68 @@
           </div>
         </div>
       </div>
+
+      <!-- 仓库图标配色 -->
+      <div class="settings-section">
+        <h3 class="section-title">仓库图标配色</h3>
+        <div class="palette-card">
+          <div class="palette-list">
+            <div
+              v-for="(color, index) in repoAvatarPalette"
+              :key="`${color}-${index}`"
+              class="palette-item"
+            >
+              <el-color-picker
+                :model-value="color"
+                @update:model-value="
+                  (value: string | null) => updatePaletteColor(index, value)
+                "
+              />
+              <button
+                type="button"
+                class="palette-remove"
+                :disabled="repoAvatarPalette.length <= 1"
+                title="移除该颜色"
+                @click="removePaletteColor(index)"
+              >
+                <X :size="12" />
+              </button>
+            </div>
+            <el-button
+              size="small"
+              class="palette-add"
+              @click="addPaletteColor"
+            >
+              <Plus :size="14" />
+              添加颜色
+            </el-button>
+          </div>
+          <div class="palette-actions">
+            <span class="form-hint">
+              当前 {{ repoAvatarPalette.length }}
+              种候选色；色板为空时将回退内置默认配色。
+            </span>
+            <div class="palette-buttons">
+              <el-button size="small" @click="resetRepoAvatarPalette">
+                恢复默认色板
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                @click="randomizeRepositoryColors"
+              >
+                全部重新随机
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Settings } from "lucide-vue-next";
+import { Plus, Settings, X } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   autoPushAfterCommit,
@@ -167,12 +223,38 @@ import {
   restoreDefaultSystemPrompt,
   enableAutoRefresh,
   autoRefreshInterval,
+  repoAvatarPalette,
+  randomizeRepositoryColors,
+  resetRepoAvatarPalette,
 } from "../composables/useGitCommitterState";
-import { COMMIT_LANGUAGE_MACRO } from "../utils";
+import {
+  COMMIT_LANGUAGE_MACRO,
+  DEFAULT_REPO_AVATAR_PALETTE,
+  pickRandomRepoColor,
+} from "../utils";
 
 defineEmits<{
   (e: "close"): void;
 }>();
+
+const updatePaletteColor = (index: number, value: string | null): void => {
+  if (!value) return;
+  repoAvatarPalette.value[index] = value;
+};
+
+const removePaletteColor = (index: number): void => {
+  if (repoAvatarPalette.value.length <= 1) return;
+  repoAvatarPalette.value.splice(index, 1);
+};
+
+const addPaletteColor = (): void => {
+  repoAvatarPalette.value.push(
+    pickRandomRepoColor(
+      [...DEFAULT_REPO_AVATAR_PALETTE],
+      repoAvatarPalette.value
+    )
+  );
+};
 </script>
 
 <style scoped>
@@ -306,5 +388,78 @@ defineEmits<{
 .switch-desc {
   font-size: 11px;
   color: var(--el-text-color-secondary);
+}
+
+/* 仓库图标配色 */
+.palette-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background-color: rgba(var(--el-color-info-rgb), 0.02);
+}
+
+.palette-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.palette-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.palette-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 50%;
+  background-color: var(--card-bg);
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.palette-item:hover .palette-remove {
+  opacity: 1;
+}
+
+.palette-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0;
+}
+
+.palette-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.palette-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.palette-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 </style>

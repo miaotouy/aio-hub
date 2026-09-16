@@ -7,14 +7,18 @@
 - 修改前读取目标文件和直接相关调用，确认当前实现、注册入口与相邻写法。
 - 版本、依赖与脚本直接从根目录与移动端的 `package.json`、`tauri.conf.json`、相关 `Cargo.toml` 和实际源码中读取。
 - 优先复用已有组件、composable、service、registry 和工具函数。改动保持聚焦且确保实现完整。
-- 完整保留与当前任务无关的用户改动，修改范围仅聚焦于任务目标。
-- 仅在获得用户明确许可后创建 Git 提交。需要提交时遵循[贡献指南](docs/guide/contribution-guide.md)中的提交规范。
+- 完整保留与当前任务无关的主人改动，修改范围仅聚焦于任务目标。
+- **严禁读取、打开或外传主人机密到上下文**：LLM 渠道导出（`*.aio-llm.json`、`aiohub.llm-profiles`）、`llm-service` / `llm-proxy` 配置与 API Key、`app-settings`，以及 `.env` / `.env.local` 中 `AIO_DATA_DIR`、`AIO_ID_SUFFIX` 等指向的任何真实数据根内容。不得顺着这些路径、日志或 e2e 运行参数去遍历主人数据目录。
+- **上游厂商可能为训练或蒸馏语料把请求路由出境，官方 Key 同样按机密处理**。开发测试需要真实模型调用时，只使用主人明确提供并声明可公开的专用渠道，且必须落在隔离数据根内；
+- 缺少必要配置时停止并向主人说明所需的最小信息与用途，**不得自行搜索磁盘补齐**，也不得把非测试用途的真实 Key、渠道或提示词送入任何外部上下文。
+- 不得删除或覆盖主人已有的配置条目（含 `.env.local`）；只在主人明确要求时修改，并保留与本任务无关的行。
+- 仅在获得主人明确许可后创建 Git 提交。需要提交时遵循[贡献指南](docs/guide/contribution-guide.md)中的提交规范。
 
 ## 2. 任务与文档同步
 
-- 用户基于 plan、architecture 或 spec 发起实施任务且未要求确认时，无实质性疑问直接开工。
+- 主人基于 plan、architecture 或 spec 发起实施任务且未要求确认时，无实质性疑问直接开工。
 - 实现与原文档存在偏差时，完成代码后同步修正文档或标记偏差，保持文档与代码一致。
-- 遇到重大偏差或影响后续步骤的阻塞问题，写回原文档后告知用户；微小偏差可直接静默回写。
+- 遇到重大偏差或影响后续步骤的阻塞问题，写回原文档后告知主人；微小偏差可直接静默回写。
 - 工具计划放在 `src/tools/{toolId}/docs/Plan/`，工具架构放在 `src/tools/{toolId}/ARCHITECTURE.md`；跨模块计划、架构和设计分别放在 `docs/Plan/`、`docs/architecture/`、`docs/design/`。
 
 ## 3. 命令与验证
@@ -41,7 +45,7 @@
 
 - 模块使用 `createModuleLogger` 和 `createModuleErrorHandler`；在同一 `catch` 块中保持单一记录方式。`wrapAsync` / `wrapSync` 的调用方需妥善处理 `null`。详见[日志与错误处理指南](docs/guide/logging-error-handling.md)。
 - 常规扁平持久化配置优先使用 `createConfigManager`；高频修改使用 `saveDebounced`。复杂索引、多文件关联、二进制和大文件存储使用领域专用方案。详见[配置管理指南](docs/guide/config-management.md)。
-- 用户提示使用平台封装：桌面端优先使用 `src/utils/customMessage.ts`，移动端使用 `mobile/src/utils/feedback.ts`。使用 `ElMessageBox` 时设置 `lockScroll: false`；`BaseDialog` 的属性契约见[通用组件说明](src/components/common/README.md)。
+- 主人提示使用平台封装：桌面端优先使用 `src/utils/customMessage.ts`，移动端使用 `mobile/src/utils/feedback.ts`。使用 `ElMessageBox` 时设置 `lockScroll: false`；`BaseDialog` 的属性契约见[通用组件说明](src/components/common/README.md)。
 - 背景、边框、文字、模糊等视觉值使用项目主题变量；毛玻璃使用 `backdrop-filter: blur(var(--ui-blur))`。详见[主题系统架构](docs/architecture/theme-system-architecture.md)。
 - 移动端以原生 Vue 结构、项目组件和 AIO Hub token 为主，Varlet 只作为可替换的底层原子组件库。详见[移动端 UI 开发指南](docs/guide/mobile-ui-development.md)。
 - 使用 `DropZone` 时，默认通过内置“选择文件”按钮或拖放区域交互；整块区域需要点击时才配置 `click-zone`。内置按钮的原生点击与键盘交互保持独立可用。

@@ -32,6 +32,11 @@ import {
   isExternalCorpusMode,
   parseE2eRunnerOptions,
 } from "./support/runner-options";
+import {
+  KNOWLEDGE_CORPUS_ENV_REQUIRE,
+  resolvePreparedKnowledgeCorpus,
+  type PreparedKnowledgeCorpus,
+} from "./support/knowledge-corpus";
 
 let vite: ReturnType<typeof Bun.spawn> | undefined;
 let mock: ReturnType<typeof startOpenAiMock> | undefined;
@@ -210,6 +215,40 @@ if (isExternalCorpusMode(runnerOptions.corpusMode) && !externalRecallCorpus) {
   );
   process.exit(0);
 }
+
+let knowledgeCorpus: PreparedKnowledgeCorpus | null = null;
+if (runnerOptions.presetId === "knowledge-corpus") {
+  knowledgeCorpus = await resolvePreparedKnowledgeCorpus(projectRoot);
+  if (!knowledgeCorpus) {
+    const prepareHint =
+      "Run `bun tests/tauri-e2e/scripts/prepare-knowledge-corpus.ts` first " +
+      "(add `--proxy <origin>` or set HTTPS_PROXY when the dataset origin needs a proxy).";
+    if (process.env[KNOWLEDGE_CORPUS_ENV_REQUIRE] === "1") {
+      throw new Error(
+        `The Knowledge corpus cache is missing or stale. ${prepareHint}`
+      );
+    }
+    writeEarlyRunMetadata({
+      status: "skipped",
+      finishedAt: new Date().toISOString(),
+      reason: { code: "knowledge-corpus-not-prepared" },
+    });
+    console.warn(
+      `[tauri-e2e] knowledge-corpus lane skipped: cache missing or stale. ${prepareHint}`
+    );
+    process.exit(0);
+  }
+}
+
+const knowledgeCorpusMetadata = knowledgeCorpus
+  ? {
+      dir: knowledgeCorpus.dir,
+      dataset: knowledgeCorpus.manifest.dataset,
+      revision: knowledgeCorpus.manifest.revision,
+      license: knowledgeCorpus.manifest.license,
+      counts: knowledgeCorpus.manifest.counts,
+    }
+  : undefined;
 
 let ollamaPreflight: Awaited<ReturnType<typeof preflightOllama>> | undefined;
 let ollamaChatPreflight:
@@ -736,6 +775,11 @@ const env = {
           : {}),
       }
     : {}),
+  ...(knowledgeCorpus
+    ? {
+        AIO_E2E_KNOWLEDGE_CORPUS: knowledgeCorpus.dir,
+      }
+    : {}),
   ...(nativeUiEnabled
     ? {
         AIO_E2E_NATIVE_UI: "1",
@@ -764,6 +808,7 @@ fs.writeFileSync(
       fixtureSeedResult,
       workspaceSeedFile,
       externalRecallCorpus: externalRecallCorpus?.metadata,
+      knowledgeCorpus: knowledgeCorpusMetadata,
       migrationFixture: stagedMigrationFixture
         ? {
             fixtureId: stagedMigrationFixture.fixtureId,
@@ -1015,6 +1060,7 @@ fs.writeFileSync(
       fixtureSeedResult,
       workspaceSeedFile,
       externalRecallCorpus: externalRecallCorpus?.metadata,
+      knowledgeCorpus: knowledgeCorpusMetadata,
       migrationFixture: stagedMigrationFixture
         ? {
             fixtureId: stagedMigrationFixture.fixtureId,

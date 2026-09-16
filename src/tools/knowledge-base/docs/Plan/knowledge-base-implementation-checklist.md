@@ -505,7 +505,7 @@ Phase 4 真实运行态门禁解除记录（2026-07-19）：
 - [x] P5-T07 确认普通浏览器验证仅用于已有 mock 的纯前端测试，没有被当作 Tauri IPC、路径拖放或真实运行态验收。
 - [ ] P5-GATE 全部上位验收标准、工程检查和真实运行态验收通过，源文档状态与代码现状一致（正式版前完成即可，不阻断 Alpha）。
 
-P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据；本轮已在修复后的 Agent Manager 上重新验证权限开关持久化，并新增 Chat 显式引用查询，但 Agent 主动 `list/search/read`、重建恢复和完整跨域回归仍未串成一次固定 WDIO 场景。因此不把 P5-GATE 或完成定义提前标记为通过；该结论仅影响 `0.7.0` 正式版前检查，不阻断 Alpha。
+P5-T06 当前仍待执行（已补充中文检索语料与重建/重启用例，见下文“中文 Knowledge 语料 E2E 记录”）：Phase 3 的资料库文件/目录摄取与 Phase 4 的 Chat 研究成功/取消已有隔离 Tauri 证据；本轮已在修复后的 Agent Manager 上重新验证权限开关持久化，并新增 Chat 显式引用查询，但 Agent 主动 `list/search/read`、重建恢复和完整跨域回归仍未串成一次固定 WDIO 场景。因此不把 P5-GATE 或完成定义提前标记为通过；该结论仅影响 `0.7.0` 正式版前检查，不阻断 Alpha。
 
 ### 9.4 当前问题清单（2026-07-19 检查）
 
@@ -520,7 +520,7 @@ P5-T06 当前仍待执行：Phase 3 的资料库文件/目录摄取与 Phase 4 �
 - **P2 部分处理：Windows 原生文件/目录选择器已有实测通过的验收层。** 新增 .NET 8 + FlaUI 5 + UIA3 helper，原生模式由 Bun 构建并生成隔离 fixture，WDIO 负责触发产品入口和断言文件/目录摄取结果；helper 按当前 Tauri PID、模态窗口、AutomationId、ControlType 和 UIA Pattern 操作 Win10 Common Item Dialog，并保存 UIA 树/失败截图。绝对路径拖放和窗口管理仍缺真实 Explorer 指针操作，E2E-AUTO-04 尚不能整体标记完成。
 - **P2：AI 辅助 profile 不是门禁必需项。** E2E-AUTO-05 可用于探索、失败复现和生成测试草稿，但不能作为 P5-T06/P5-GATE 的唯一断言来源。
 
-当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture、Agent Knowledge 权限持久化和 Chat 显式引用首轮 WDIO 场景已处理并通过验证；下一批继续补 Agent 主动工具调用、重建恢复和最终跨模块回归，完成后才重新评估 P5-T06 与 P5-GATE。
+当前结论：P0 测试隔离、P1 的 E2E 运行基础设施、本地模型 mock/fixture、Agent Knowledge 权限持久化、Chat 显式引用首轮 WDIO 场景，以及中文检索语料下的导入、关键词/降级检索、可见检索面板与重建后重启恢复均已通过验证；下一批继续补 Agent 主动工具调用（VCP 文本协议 mock scenario）与研究成功/取消，完成后才重新评估 P5-T06 与 P5-GATE。
 
 E2E 稳定契约与显式引用记录（2026-07-19）：
 
@@ -541,6 +541,14 @@ Windows 原生选择器集成记录（2026-07-19）：
 - WDIO 通过只读 `wa_get_self_pid` 获取当前实例 PID，避免残留 debug 实例导致 helper 命中错误对话框；路径、文件名和确认动作分别使用地址栏/文件名 `ValuePattern` 与按钮 `InvokePattern`，不依赖本地化标题或固定坐标。
 - Windows 10 `10.0.19045` 实测 `native-file-dialog.spec.ts` 2/2 通过：文件选择后文档成功落库并显示，目录选择后持久来源成功新增。原生动作前保存有界 UIA 树，失败时保存桌面截图。
 - 实测同时修复队列导入完成后未刷新资料库/文档状态的问题。该层只完成系统选择器，绝对路径拖放仍需后续通过 Explorer 真实文件项和指针拖动补齐。
+
+中文 Knowledge 语料 E2E 记录（2026-09-16）：
+
+- **语料来源与准备方式**：新增可复现的中文检索语料 `mteb/T2Retrieval`（Apache-2.0，C-MTEB）固定 revision。语料不进入 git：`bun tests/tauri-e2e/scripts/prepare-knowledge-corpus.ts` 在运行前下载、校验每个源文件的 sha256，并派生出稳定切片（.md 文档、queries.jsonl、qrels.tsv、manifest.json）到 `.dev-data/e2e-resources/knowledge-corpus/`；`--check` 可离线校验缓存，`AIO_E2E_REQUIRE_KNOWLEDGE_CORPUS=1` 让缺失/过期缓存直接失败而非跳过。
+- **发现的产品边界**：产品 FTS5 索引使用 `unicode61` 分词器，按标点/空白切分，因此中文 benchmark 的整句问题无法命中关键词检索。派生切片因此同时产出“整段且全语料唯一”的 `keywordQuery`，把关键词命中变成可断言的产品行为，而不是依赖分词巧合。该现象是真实用户输入（自然语言中文问题）会遇到的检索语义边界，记录在案但本轮不改变分词器。
+- **新增 preset 与用例**：`bun run test:tauri:e2e -- --preset knowledge-corpus` 在同一隔离数据根上启动两次。首次通过生产 Knowledge IPC 导入全部派生文档，断言每条 corpus 查询命中预期主文档与证据标记、无语义索引时 `auto` 降级为关键词并带 `knowledge-bm25` 信号、可见检索面板返回同样的证据、`knowledge_rebuild_library` 返回的文档数与语料一致且检索仍正确；第二次启动断言重建后的资料库、文档数与关键词检索在真实重启后仍然可用。实测 5 + 1 全部通过。
+- **补充的稳定契约**：为语义索引入口、资料库操作下拉与“重建分块索引”菜单项、检索策略选择器、检索结果行补充 `data-testid`，结果行额外暴露 `data-chunk-id` / `data-document-id`，避免用例依赖文案或坐标。
+- **仍未覆盖**：Agent 主动 `list/search/read` 仍缺固定用例。当前确定性 mock 只返回固定文本，而 Agent 工具调用走 VCP 文本协议，需要为 mock 增加带 `<<<[TOOL_REQUEST]>>>` 的 scenario、为 Agent 打开 `toolCallConfig.enabled` 与 `knowledge` 工具开关，并补工具结果轮的 scenario；研究成功/取消同样需要可控多轮与可中断的 mock。该批次作为下一批 E2E-AUTO-03 工作继续，结论不变：P5-T06 / P5-GATE 仍为未完成。
 
 ## 10. 全链路验收矩阵
 

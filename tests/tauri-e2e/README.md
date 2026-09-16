@@ -127,6 +127,14 @@ $env:AIO_E2E_EMBEDDING_DIMENSION = "768"
 bun run test:tauri:e2e -- --preset private-profile
 ```
 
+`AIO_E2E_LLM_CONFIG` must point at a dedicated E2E-only export that the user
+explicitly declares safe to publish. Never point it at the development or
+installed app data root, at `llm-service`/`llm-proxy` state, or at any export
+containing production API keys, and never traverse the `AIO_DATA_DIR` /
+`AIO_ID_SUFFIX` targets to collect a channel configuration. Upstream providers
+may route requests abroad for training or distillation corpora, so an official
+key is not safe to move into a test lane or an agent context.
+
 The explicit dimension is required only when startup fixture seeding is active
 because the generic channel export has no embedding-dimension field. Run
 metadata records only profile/model IDs and endpoint origin, never keys,
@@ -211,6 +219,52 @@ loading and the production Recall IPC/UI fixture round trip, while
 semantic ranking. `specs/recall-chat-injection.spec.ts` and
 `specs/recall-session-recovery.spec.ts` cover Chat injection and same-root
 process recovery without depending on cross-spec in-memory state.
+
+## Chinese Knowledge corpus lane
+
+`specs/knowledge-corpus.spec.ts` and `specs/knowledge-corpus-recovery.spec.ts`
+assert real Knowledge retrieval over a reviewed Chinese corpus. The corpus is
+**not committed**: it is downloaded, hash-verified, and sliced at run time into
+a cache directory that stays outside version control.
+
+Prepare it once before running the lane:
+
+```powershell
+bun tests/tauri-e2e/scripts/prepare-knowledge-corpus.ts
+```
+
+The script downloads `mteb/T2Retrieval` (Apache-2.0, C-MTEB) at a pinned
+revision from `huggingface.co`, verifying every source file against its recorded
+sha256 and deriving a stable slice into
+`.dev-data/e2e-resources/knowledge-corpus/`. `--dir` selects another cache
+location, `--endpoint` pins a mirror such as `https://hf-mirror.com`, and
+`--proxy` (or the standard `HTTPS_PROXY`/`HTTP_PROXY` variables) routes the
+download through a proxy; the script does not read the Windows system proxy
+automatically. Add `--check` to verify the cache without downloading, and
+`--json` for a machine-readable summary. Because the product's FTS5 index uses
+the `unicode61` tokenizer, raw Chinese benchmark questions cannot match keyword
+search; the derived slice therefore also emits a whole-run keyword query per
+document that is unique across the derived corpus.
+
+Run the lane after preparing the cache:
+
+```powershell
+bun run test:tauri:e2e -- --preset knowledge-corpus
+```
+
+The preset runs two launches against one isolated data root. The first imports
+all derived documents through production Knowledge IPC, checks that every corpus
+query returns its expected primary document and evidence marker, checks that
+`auto` degrades to keyword with a BM25 signal when no semantic index exists,
+drives the same query from the visible search workspace, and rebuilds the
+library index. The second launch verifies the rebuilt library, documents, and
+keyword retrieval survive a real restart. A missing or stale cache skips the lane
+with an explicit message; set `AIO_E2E_REQUIRE_KNOWLEDGE_CORPUS=1` to fail
+instead. `--check` in CI can gate the cache without network access:
+
+```powershell
+bun tests/tauri-e2e/scripts/prepare-knowledge-corpus.ts --check
+```
 
 ## Windows native selectors
 

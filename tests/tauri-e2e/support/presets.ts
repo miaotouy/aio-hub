@@ -11,6 +11,7 @@ export type E2ePresetId =
   | "migration-minimal"
   | "migration-cleanup"
   | "guided-flow-baseline"
+  | "knowledge-corpus"
   | "native";
 
 export interface E2ePresetPrerequisite {
@@ -45,6 +46,9 @@ const GUIDED_FLOW_BASELINE_SPEC =
   "tests/tauri-e2e/specs/guided-flow-unknown-baseline.spec.ts";
 const GUIDED_FLOW_BASELINE_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/guided-flow-unknown-baseline-recovery.spec.ts";
+const KNOWLEDGE_CORPUS_SPEC = "tests/tauri-e2e/specs/knowledge-corpus.spec.ts";
+const KNOWLEDGE_CORPUS_RECOVERY_SPEC =
+  "tests/tauri-e2e/specs/knowledge-corpus-recovery.spec.ts";
 
 const OLLAMA_EMBEDDING_PREREQUISITE: E2ePresetPrerequisite = {
   env: "AIO_E2E_OLLAMA_MODEL",
@@ -232,6 +236,22 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
       "AIO_E2E_EMBEDDING_DIMENSION (fail when fixture seeding is enabled)",
     ],
     includesRestart: false,
+  },
+  {
+    id: "knowledge-corpus",
+    purpose:
+      "Chinese Knowledge corpus import, keyword/semantic search, and rebuild recovery",
+    args: [
+      "--spec",
+      KNOWLEDGE_CORPUS_SPEC,
+      "--restart-spec",
+      KNOWLEDGE_CORPUS_RECOVERY_SPEC,
+    ],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Run `bun tests/tauri-e2e/scripts/prepare-knowledge-corpus.ts` first; a missing or stale cache skips unless AIO_E2E_REQUIRE_KNOWLEDGE_CORPUS=1",
+    ],
+    includesRestart: true,
   },
   {
     id: "native",

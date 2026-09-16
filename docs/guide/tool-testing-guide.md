@@ -354,6 +354,10 @@ WebDriver 端口，并向 Tauri 子进程写入最终 `AIO_ID_SUFFIX`/`AIO_DATA_
 对外参数使用 `AIO_E2E_ID_SUFFIX`/`AIO_E2E_DATA_DIR`，避免 Bun 自动加载
 `.env.local` 时把开发数据根带入验收。与其他 Tauri debug 实例并行时，
 可通过 `AIO_E2E_WEBDRIVER_PORT` 显式指定空闲端口。
+`AIO_E2E_LLM_CONFIG` 只能指向用户显式声明可公开的 e2e 专用渠道导出；不得指向
+dev / 正式安装版数据根、`llm-service` / `llm-proxy` 状态或含生产 Key 的导出，
+也不得顺着 `AIO_DATA_DIR` / `AIO_ID_SUFFIX` 去遍历用户数据目录补齐配置。
+上游厂商可能为训练语料把请求路由出境，官方 Key 同样按机密处理。
 
 runner 会自动启动缺失的 Vite dev server、确定性的本地 OpenAI-compatible
 Chat/Embedding mock，并在隔离数据根写入 E2E Profile。失败截图、WDIO 日志、

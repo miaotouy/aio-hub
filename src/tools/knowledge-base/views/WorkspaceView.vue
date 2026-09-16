@@ -150,7 +150,11 @@
                 </div>
               </div>
             </el-popover>
-            <el-button :icon="Binary" @click="vectorDialogVisible = true">
+            <el-button
+              :icon="Binary"
+              data-testid="knowledge-vectorize-open"
+              @click="vectorDialogVisible = true"
+            >
               语义索引
             </el-button>
             <el-tooltip content="更多资料库操作" placement="bottom">
@@ -160,10 +164,15 @@
                     :icon="MoreHorizontal"
                     circle
                     aria-label="更多资料库操作"
+                    data-testid="knowledge-library-actions"
                   />
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item command="rebuild" :icon="RefreshCw">
+                      <el-dropdown-item
+                        command="rebuild"
+                        :icon="RefreshCw"
+                        data-testid="knowledge-library-rebuild"
+                      >
                         重建分块索引
                       </el-dropdown-item>
                       <el-dropdown-item command="delete" :icon="Trash2" divided>
@@ -481,6 +490,7 @@
               v-model="strategy"
               class="strategy-select"
               aria-label="检索策略"
+              data-testid="knowledge-search-strategy"
             >
               <el-option label="自动" value="auto" />
               <el-option label="关键词" value="keyword" />
@@ -577,6 +587,9 @@
                   :key="result.chunkId"
                   type="button"
                   class="result-row"
+                  data-testid="knowledge-result-row"
+                  :data-chunk-id="result.chunkId"
+                  :data-document-id="result.documentId"
                   :class="{ active: result.chunkId === store.selectedResultId }"
                   :aria-selected="result.chunkId === store.selectedResultId"
                   @click="store.selectResult(result.chunkId)"
@@ -587,7 +600,9 @@
                     >
                     <span>{{ formatScore(result.score) }}</span>
                   </header>
-                  <p>{{ result.content }}</p>
+                  <p data-testid="knowledge-result-content">
+                    {{ result.content }}
+                  </p>
                   <footer>
                     <span>{{
                       result.heading || `分块 ${result.chunkIndex + 1}`

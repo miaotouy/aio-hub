@@ -102,7 +102,8 @@ export const config: WebdriverIO.Config = {
   mochaOpts: {
     ui: "bdd",
     timeout:
-      process.env.AIO_E2E_CORPUS_MODE === "external-full"
+      process.env.AIO_E2E_CORPUS_MODE === "external-full" ||
+      process.env.AIO_E2E_PRESET_ID === "knowledge-corpus"
         ? 600_000
         : 120_000,
   },

@@ -13,6 +13,10 @@ import type {
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  hashApiKey,
+  normalizeKeyStatesStorage,
+} from "@shared/utils/llm-secret";
 
 const logger = createModuleLogger("llm-api/LlmKeyManager");
 const errorHandler = createModuleErrorHandler("llm-api/LlmKeyManager");
@@ -54,18 +58,18 @@ export function useLlmKeyManager() {
   const loadKeyStates = async () => {
     if (isLoaded.value) return;
     try {
-      const config = (await configManager.load()) as KeyStatesStorage & {
-        enableAutoDisable?: boolean;
-        autoRecoveryTime?: number;
-      };
-      delete config.enableAutoDisable;
-      delete config.autoRecoveryTime;
-      keyStates.value = {
-        ...config,
-        profileSettings: config.profileSettings ?? {},
-      };
+      const normalized = normalizeKeyStatesStorage(await configManager.load());
+      const { changed, ...storage } = normalized;
+      keyStates.value = storage;
       isLoaded.value = true;
-      logger.debug("LLM Key 状态加载成功");
+
+      if (changed) {
+        // 旧版明文索引与回显凭据的历史错误消息需要立即清洗落盘
+        await configManager.save(storage);
+        logger.info("Key 状态索引已迁移为哈希并清洗落盘");
+      } else {
+        logger.debug("LLM Key 状态加载成功");
+      }
     } catch (error) {
       errorHandler.handle(error, {
         userMessage: "加载 Key 状态失败",
@@ -99,9 +103,10 @@ export function useLlmKeyManager() {
 
     // 确保 profile.apiKeys 中的每个 key 都有对应的状态
     profile.apiKeys.forEach((key) => {
-      if (!profileStates[key]) {
-        profileStates[key] = {
-          key,
+      const index = hashApiKey(key);
+      if (!profileStates[index]) {
+        profileStates[index] = {
+          key: index,
           isEnabled: true,
           isBroken: false,
           errorCount: 0,
@@ -110,10 +115,10 @@ export function useLlmKeyManager() {
     });
 
     // 清理不再存在的 Key
-    const currentKeys = new Set(profile.apiKeys);
-    Object.keys(profileStates).forEach((key) => {
-      if (!currentKeys.has(key)) {
-        delete profileStates[key];
+    const currentIndices = new Set(profile.apiKeys.map(hashApiKey));
+    Object.keys(profileStates).forEach((index) => {
+      if (!currentIndices.has(index)) {
+        delete profileStates[index];
       }
     });
 
@@ -134,7 +139,7 @@ export function useLlmKeyManager() {
     const autoRecoveryTime = getAutoRecoveryTime(profile.id);
 
     const availableKeys = profile.apiKeys.filter((key) => {
-      const state = profileStates[key];
+      const state = profileStates[hashApiKey(key)];
 
       // 检查自动恢复
       if (
@@ -171,7 +176,7 @@ export function useLlmKeyManager() {
     for (let i = 1; i <= profile.apiKeys.length; i++) {
       const checkIndex = (lastIndex + i) % profile.apiKeys.length;
       const key = profile.apiKeys[checkIndex];
-      const state = profileStates[key];
+      const state = profileStates[hashApiKey(key)];
 
       if (state.isEnabled && !state.isBroken) {
         lastIndex = checkIndex;
@@ -185,7 +190,7 @@ export function useLlmKeyManager() {
       keyStates.value.lastUsedIndices[profile.id] = lastIndex;
       saveKeyStates();
 
-      const state = profileStates[nextKey];
+      const state = profileStates[hashApiKey(nextKey)];
       state.lastUsedTime = Date.now();
 
       logger.debug("选择了 API Key", {
@@ -204,8 +209,9 @@ export function useLlmKeyManager() {
    */
   const reportSuccess = (profileId: string, key: string) => {
     const profileStates = keyStates.value.states[profileId];
-    if (profileStates && profileStates[key]) {
-      const state = profileStates[key];
+    const keyIndex = hashApiKey(key);
+    if (profileStates && profileStates[keyIndex]) {
+      const state = profileStates[keyIndex];
       state.errorCount = 0;
       state.isBroken = false;
       saveKeyStates();
@@ -217,11 +223,20 @@ export function useLlmKeyManager() {
    */
   const reportFailure = (profileId: string, key: string, error: any) => {
     const profileStates = keyStates.value.states[profileId];
-    if (profileStates && profileStates[key]) {
-      const state = profileStates[key];
+    const keyIndex = hashApiKey(key);
+    if (profileStates && profileStates[keyIndex]) {
+      const state = profileStates[keyIndex];
       state.errorCount++;
       state.lastErrorTime = Date.now();
-      state.lastErrorMessage = error?.message || String(error);
+      // 上游错误可能回显凭据，落盘前先脱敏当前 Key
+      const rawError = error?.message || String(error);
+      const sanitizedError =
+        key.length > 0 ? rawError.split(key).join("[redacted-key]") : rawError;
+      // 截断超长错误，防止配置文件爆炸
+      state.lastErrorMessage =
+        sanitizedError.length > 2000
+          ? sanitizedError.substring(0, 2000) + "... [已截断]"
+          : sanitizedError;
 
       // 识别 429 错误
       const isRateLimit =
@@ -230,8 +245,10 @@ export function useLlmKeyManager() {
         state.lastErrorMessage?.includes("429") ||
         state.lastErrorMessage?.toLowerCase().includes("rate limit");
       const hasAlternativeKey = Object.entries(profileStates).some(
-        ([otherKey, otherState]) =>
-          otherKey !== key && otherState.isEnabled && !otherState.isBroken
+        ([otherIndex, otherState]) =>
+          otherIndex !== keyIndex &&
+          otherState.isEnabled &&
+          !otherState.isBroken
       );
 
       if (
@@ -259,9 +276,20 @@ export function useLlmKeyManager() {
 
   /**
    * 获取某个 Profile 的所有 Key 状态
+   * 注意：返回的 Map 以 `hashApiKey(key)` 为索引，不包含明文 Key
    */
   const getKeyStatuses = (profileId: string): ProfileKeyStatusMap => {
     return keyStates.value.states[profileId] || {};
+  };
+
+  /**
+   * 获取单个 Key 的状态（入参为明文 Key，内部按哈希索引查询）
+   */
+  const getKeyStatus = (
+    profileId: string,
+    key: string
+  ): ApiKeyStatus | undefined => {
+    return keyStates.value.states[profileId]?.[hashApiKey(key)];
   };
 
   /**
@@ -272,11 +300,10 @@ export function useLlmKeyManager() {
     key: string,
     updates: Partial<ApiKeyStatus>
   ) => {
-    if (
-      keyStates.value.states[profileId] &&
-      keyStates.value.states[profileId][key]
-    ) {
-      Object.assign(keyStates.value.states[profileId][key], updates);
+    const profileStates = keyStates.value.states[profileId];
+    const keyIndex = hashApiKey(key);
+    if (profileStates && profileStates[keyIndex]) {
+      Object.assign(profileStates[keyIndex], updates, { key: keyIndex });
       saveKeyStates();
     }
   };
@@ -285,11 +312,10 @@ export function useLlmKeyManager() {
    * 移除某个 Key 的状态记录
    */
   const removeKeyStatus = (profileId: string, key: string) => {
-    if (
-      keyStates.value.states[profileId] &&
-      keyStates.value.states[profileId][key]
-    ) {
-      delete keyStates.value.states[profileId][key];
+    const profileStates = keyStates.value.states[profileId];
+    const keyIndex = hashApiKey(key);
+    if (profileStates && profileStates[keyIndex]) {
+      delete profileStates[keyIndex];
       saveKeyStates();
     }
   };
@@ -353,6 +379,7 @@ export function useLlmKeyManager() {
     reportSuccess,
     reportFailure,
     getKeyStatuses,
+    getKeyStatus,
     updateKeyStatus,
     removeKeyStatus,
     resetAllBroken,

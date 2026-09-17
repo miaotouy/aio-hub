@@ -25,16 +25,16 @@
 
 ## 2. 当前需跟踪的总表
 
-| ID        | 分类           | 事项                                                                                                                         | 当前结论           | 优先级 | 关闭条件                                                                                          |
-| --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------ | ------------------------------------------------------------------------------------------------- |
-| AIO-I-001 | 性能与可扩展性 | 跨会话搜索每次枚举并读取全部会话文件                                                                                         | `已确认，未修复`   | P1     | 完成持久化索引设计、实现迁移/重建/短查询策略，并以同量级语料证明尾部命中与无命中不再全量读取。    |
-| AIO-I-002 | 功能与资源控制 | 媒体生成器的「最大并发任务数」和「自动清理已完成任务」只有设置定义，没有运行时消费者                                         | `已关闭`           | P1     | 已实现全局并发队列、完成任务延迟清理、设置联动、重启恢复和取消；保留真实 Provider 计费/取消验收。 |
-| AIO-I-003 | 凭据安全       | LLM Profile 连同 API Key / 自定义请求头以普通 JSON 配置保存                                                                  | `已确认，设计风险` | P1     | 明确受支持平台的凭据保护策略、迁移与降级语义；至少验证本机 ACL/备份/导出边界。                    |
-| AIO-I-004 | 功能契约       | content-deduplicator 暴露 fuzzy、`minSimilarity` 等配置，但扫描结果只有精确/规范化哈希匹配                                   | `已确认，未修复`   | P2     | 实现模糊匹配并测试阈值语义，或从类型、预设和 UI 移除/禁用该承诺。                                 |
-| AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `已确认，待实施`   | P3     | 已完成受控声明式接口设计，待在注册器中实现并暴露 Agent 专用方法。                                 |
-| AIO-I-006 | 对话可移植性   | 单会话支持版本化备份 JSON 和历史 Raw JSON 导入；Markdown / 阅读型 JSON 仍为只读导出格式                                      | `已关闭`           | P3     | 回归验证版本化备份、Raw JSON、ZIP 备份、冲突策略与无效会话图拒绝行为。                            |
-| AIO-I-007 | 文档准确性     | media-generator 架构文档仍称 `generateMedia(prompt, type)` 已声明但未实现；当前运行时实际已改为按可见模型动态构建 Agent 方法 | `文档失真`         | P3     | 更新架构文档和 Agent 接入说明，使其与 `buildAgentMethods()` / `getMetadata()` 的当前机制一致。    |
-| AIO-I-008 | 文档准确性     | content-deduplicator 架构文档仍称自定义忽略规则未生效，但当前 Rust walker 已把 `OverrideBuilder` 产物绑定到 `WalkBuilder`    | `文档失真`         | P3     | 更正文档，并增加忽略规则正反例测试，避免以后再次回退。                                            |
+| ID        | 分类           | 事项                                                                                                                         | 当前结论         | 优先级 | 关闭条件                                                                                          |
+| --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------ | ------------------------------------------------------------------------------------------------- |
+| AIO-I-001 | 性能与可扩展性 | 跨会话搜索每次枚举并读取全部会话文件                                                                                         | `已确认，未修复` | P1     | 完成持久化索引设计、实现迁移/重建/短查询策略，并以同量级语料证明尾部命中与无命中不再全量读取。    |
+| AIO-I-002 | 功能与资源控制 | 媒体生成器的「最大并发任务数」和「自动清理已完成任务」只有设置定义，没有运行时消费者                                         | `已关闭`         | P1     | 已实现全局并发队列、完成任务延迟清理、设置联动、重启恢复和取消；保留真实 Provider 计费/取消验收。 |
+| AIO-I-003 | 凭据安全       | LLM Profile 连同 API Key / 自定义请求头以普通 JSON 配置保存                                                                  | `已关闭`         | P1     | 已实现渠道结构与密钥分离存储、轻量混淆与无感迁移；保留真实 Tauri 平台落盘形态与导出边界验收。     |
+| AIO-I-004 | 功能契约       | content-deduplicator 暴露 fuzzy、`minSimilarity` 等配置，但扫描结果只有精确/规范化哈希匹配                                   | `已确认，未修复` | P2     | 实现模糊匹配并测试阈值语义，或从类型、预设和 UI 移除/禁用该承诺。                                 |
+| AIO-I-005 | Agent 接口设计 | regex-applier 尚未确定需要向 Agent 暴露的任务场景；现有格式化辅助方法未注册为 Agent 方法                                     | `已确认，待实施` | P3     | 已完成受控声明式接口设计，待在注册器中实现并暴露 Agent 专用方法。                                 |
+| AIO-I-006 | 对话可移植性   | 单会话支持版本化备份 JSON 和历史 Raw JSON 导入；Markdown / 阅读型 JSON 仍为只读导出格式                                      | `已关闭`         | P3     | 回归验证版本化备份、Raw JSON、ZIP 备份、冲突策略与无效会话图拒绝行为。                            |
+| AIO-I-007 | 文档准确性     | media-generator 架构文档仍称 `generateMedia(prompt, type)` 已声明但未实现；当前运行时实际已改为按可见模型动态构建 Agent 方法 | `文档失真`       | P3     | 更新架构文档和 Agent 接入说明，使其与 `buildAgentMethods()` / `getMetadata()` 的当前机制一致。    |
+| AIO-I-008 | 文档准确性     | content-deduplicator 架构文档仍称自定义忽略规则未生效，但当前 Rust walker 已把 `OverrideBuilder` 产物绑定到 `WalkBuilder`    | `文档失真`       | P3     | 更正文档，并增加忽略规则正反例测试，避免以后再次回退。                                            |
 
 ## 3. 核验详情
 
@@ -60,13 +60,21 @@ Rust 搜索实现仍通过 `WalkDir` 枚举 Agent 和会话 JSON，并对每个�
 
 ### AIO-I-003：LLM 凭据以普通配置对象持久化
 
-**结论：已确认，设计风险。**
+**结论：已关闭（已实现渠道结构与密钥分离存储 + 轻量混淆；保留真实环境验收）。**
 
-`useLlmProfiles` 将带有 `apiKeys` 的完整 Profile 交给通用配置管理器保存到 `llm-service/profiles.json`：`src/composables/useLlmProfiles.ts:46-51, 62-93, 162-200`。通用 `ConfigManager` 对 JSON 配置直接 `JSON.stringify` 后写文件（`src/utils/configManager.ts:322-345`）；当前链路没有把 Profile API Key 转交到平台密钥库的代码。渠道导出对包含密钥采用默认关闭和显式警告，这是额外的人工保护，不能改变本地 Profile 文件本身的存储方式（`src/views/Settings/llm-service/components/LlmProfileExportDialog.vue:156-203`）。
+历史状态：`useLlmProfiles` 将带有 `apiKeys` 的完整 Profile 交给通用配置管理器保存到 `llm-service/profiles.json`：`src/composables/useLlmProfiles.ts:46-51, 62-93, 162-200`。通用 `ConfigManager` 对 JSON 配置直接 `JSON.stringify` 后写文件（`src/utils/configManager.ts:322-345`）；当时链路没有把 Profile API Key 转交到密钥库的代码。渠道导出对包含密钥采用默认关闭和显式警告，这是额外的人工保护，不能改变本地 Profile 文件本身的存储方式（`src/views/Settings/llm-service/components/LlmProfileExportDialog.vue:156-203`）。
 
 这不等于任意其他账户一定能读取该文件：真实用户目录 ACL、系统备份、同步盘、崩溃转储和受支持平台范围均未在本轮实测。因此本条标为设计风险，而非已证实的信息泄露事故。
 
-**核验后动作：** 在安全设计中决定「只依赖操作系统用户边界」还是「接入系统凭据库」；无论哪种，都需要记录备份/迁移/导出处理和不可用时的明确降级行为。
+**修复：** 渠道与密钥改为分离存储。`profiles.json` / `llm_profiles.json` 只保留渠道结构，`apiKeys` 恒为空数组；API Key 与 `customHeaders`（含 AIO 默认请求头）写入独立混淆文件（实现位于 `src/utils/llm-secret/`：随机 salt + XOR 流 + Base64，刻意不使用 `.json` 后缀），桌面端位于 `llm-service/secrets.dat`，移动端位于 `AppData/llm_service_secrets.dat`。加载时按 `profile.id` 透明注入内存，适配器与 UI 均无需改动。旧用户的明文 Key 在首次加载时自动迁移并回写清洗。桌面端 `useLlmProfiles` 与移动端 `llmProfiles` Store 共享同一套编解码与合并逻辑。保存入口以合并语义更新既有渠道：调用方未提供有效值的 `apiKeys` / `customHeaders` 会保留原值，避免只回写局部字段（例如刷新模型列表）时把已保存的凭据静默清空。
+
+密钥仓库以 revision 标记每次提交，并保留最近 4 份已提交快照（`current` / `previous` / `history`）。`profiles.json` 记录指向快照的 revision：当密钥文件已写入而结构文件写入失败时，下次启动按 revision 回退到匹配的历史快照，连续多次部分提交也能命中；配置缺少 revision 时直接采用最新快照并触发重写，不会命中 `previous` 中 revision 为空的初始快照而把已提交凭据误判成「没有密钥」。超出保留层数或密钥文件被外部替换时降级使用最新快照并重写，不会把结构完整、仅密钥不可读的渠道判定为全空。读取失败与「文件不存在」区分处理：前者向上抛错并阻止覆盖保存，主文件不可用时先回退 `.bak`。密钥仓库未就绪时本次会话转为只读：界面继续展示已读到的渠道结构，但所有保存入口都会被拒绝并提示，需修复文件后重启应用恢复写入。非 Tauri 环境（浏览器调试、脚本）降级为进程内内存存储，密钥不落盘、重启即丢。
+
+同时收掉 `key-states.json` 的同类泄漏：Key 状态 Map 改为以 `hashApiKey(key)`（两段 FNV-1a，`k_` + 16 hex）作为索引，`ApiKeyStatus.key` 也只存该哈希；旧版明文索引在规范化阶段自动重映射并**立即回写清洗**，历史 `lastErrorMessage` 中回显的凭据也一并脱敏，轮询位置与熔断状态保持不变。Key 管理弹窗的业务 Key 一律取自内存中的 `profile.apiKeys`，通过 `getKeyStatus(profileId, key)` 按明文查询状态。上游错误消息写入 `lastErrorMessage` 前会用当前 Key 做一次脱敏替换，并截断超长内容。
+
+该机制定位为降低磁盘明文暴露面的轻量混淆与哈希索引，不承诺抵御可执行本机代码的攻击者。
+
+**核验范围：** 本轮已完成桌面与移动端类型检查、单元测试与生产构建；桌面 dev 运行态已确认 `profiles.json` 的 `apiKeys` 为空数组、密钥落在独立文件。真实 Tauri 目录中的落盘形态、旧数据迁移与导出边界仍需在桌面正式构建与 Android/iOS 上走查。
 
 ### AIO-I-004：content-deduplicator 的 fuzzy 契约未实现
 

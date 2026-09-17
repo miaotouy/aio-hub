@@ -4,7 +4,7 @@
 
 export interface ApiKeyStatus {
   /**
-   * API Key 字符串 (脱敏存储或完整存储)
+   * API Key 的哈希索引 (不存明文，见 hashApiKey)
    */
   key: string;
   /**
@@ -43,7 +43,7 @@ export interface ApiKeyStatus {
 
 /**
  * 某个 Profile 下的 Key 状态 Map
- * Key 为 API Key 字符串，Value 为状态对象
+ * Key 为 hashApiKey(明文 Key) 产出的哈希索引，Value 为状态对象
  */
 export type ProfileKeyStatusMap = Record<string, ApiKeyStatus>;
 

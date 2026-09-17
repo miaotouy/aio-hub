@@ -30,42 +30,70 @@ import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { getAppConfigDir } from "@utils/appPath";
+import {
+  createLlmSecretRevision,
+  createLlmSecretVault,
+  extractLlmSecrets,
+  mergeLlmSecrets,
+  stripLlmSecrets,
+  type LlmSecretMap,
+} from "@utils/llm-secret";
 import { normalizeIconPath } from "../config/model-metadata";
 import { useModelMetadata } from "./useModelMetadata";
 import { getAioDefaultHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
+import { join } from "@tauri-apps/api/path";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
 
 const STORAGE_KEY = "llm-profiles"; // 用于 localStorage 数据迁移
 
-// 配置文件管理器
-const configManager = createConfigManager<{ profiles: LlmProfile[] }>({
+interface LlmProfilesConfig {
+  profiles: LlmProfile[];
+  /** 指向密钥仓库中最后一次完整提交的快照 */
+  secretRevision?: string;
+}
+
+// 配置文件管理器（只保存渠道结构，敏感字段由密钥仓库单独管理）
+const configManager = createConfigManager<LlmProfilesConfig>({
   moduleName: "llm-service",
   fileName: "profiles.json",
   version: "1.0.0",
   createDefault: () => ({ profiles: [] }),
 });
 
+// API Key 独立存储（混淆文件，与 profiles.json 同目录）
+const secretVault = createLlmSecretVault({
+  resolveDir: async () => join(await getAppConfigDir(), "llm-service"),
+});
+
 // 全局状态
 const profiles = ref<LlmProfile[]>([]);
 const isLoaded = ref(false);
 let loadingPromise: Promise<void> | null = null;
+let secretVaultReady = false;
+let committedSecretRevision: string | null = null;
+let committedSecrets: LlmSecretMap = {};
 
 export function useLlmProfiles() {
   /**
    * 规范化配置：合并默认值并处理旧版本迁移
    */
   const normalizeProfile = (profile: any): LlmProfile => {
-    // 1. 处理 API Key 迁移 (从 apiKey 到 apiKeys 数组)
-    let apiKeys = profile.apiKeys;
-    let rest = { ...profile };
-
-    if (!Array.isArray(apiKeys)) {
-      const { apiKey, ...otherProps } = profile;
-      apiKeys = apiKey ? [apiKey] : [];
-      rest = otherProps;
-    }
+    // 1. 处理 API Key 迁移，并无条件移除旧版单数 apiKey 字段
+    const { apiKey, ...rest } = profile;
+    const inlineKeys = Array.isArray(profile.apiKeys)
+      ? profile.apiKeys.filter(
+          (key: unknown): key is string => typeof key === "string"
+        )
+      : [];
+    const apiKeys =
+      inlineKeys.length > 0
+        ? inlineKeys
+        : typeof apiKey === "string" && apiKey.length > 0
+          ? [apiKey]
+          : [];
 
     // 2. 深度合并与规范化
     const normalized: LlmProfile = {
@@ -91,6 +119,28 @@ export function useLlmProfiles() {
     return normalized;
   };
 
+  const persistProfiles = async (nextProfiles: LlmProfile[]) => {
+    if (!secretVaultReady) {
+      throw new Error("LLM 密钥仓库尚未成功加载，已阻止覆盖保存");
+    }
+
+    const nextSecrets = extractLlmSecrets(nextProfiles);
+    const nextRevision = createLlmSecretRevision();
+    await secretVault.stage({
+      revision: nextRevision,
+      secrets: nextSecrets,
+      previousRevision: committedSecretRevision,
+      previousSecrets: committedSecrets,
+    });
+    await configManager.save({
+      profiles: stripLlmSecrets(nextProfiles),
+      secretRevision: nextRevision,
+    });
+
+    committedSecretRevision = nextRevision;
+    committedSecrets = nextSecrets;
+  };
+
   /**
    * 从文件系统加载配置（支持 localStorage 迁移）
    */
@@ -102,12 +152,14 @@ export function useLlmProfiles() {
     if (loadingPromise) return loadingPromise;
 
     loadingPromise = (async () => {
+      let resolvedProfiles: LlmProfile[] | null = null;
       try {
         logger.info("开始加载 LLM 配置");
 
         // 尝试从文件系统加载
         const config = await configManager.load();
         let loadedProfiles = config.profiles || [];
+        let fromLocalStorage = false;
 
         // 如果文件系统中没有数据，尝试从 localStorage 迁移
         if (loadedProfiles.length === 0) {
@@ -116,16 +168,10 @@ export function useLlmProfiles() {
             logger.info("检测到 localStorage 数据，开始迁移到文件系统");
             try {
               const rawProfiles = JSON.parse(stored);
-              loadedProfiles = rawProfiles.map(normalizeProfile);
+              loadedProfiles = Array.isArray(rawProfiles) ? rawProfiles : [];
+              fromLocalStorage = true;
 
-              // 保存到文件系统
-              await configManager.save({ profiles: loadedProfiles });
-
-              // 清除 localStorage 数据
-              localStorage.removeItem(STORAGE_KEY);
-              logger.info("数据迁移完成", {
-                profileCount: loadedProfiles.length,
-              });
+              // 成功提交到配置文件和密钥仓库后再清除 localStorage。
             } catch (parseError) {
               errorHandler.handle(parseError, {
                 userMessage: "解析 localStorage 数据失败",
@@ -133,19 +179,46 @@ export function useLlmProfiles() {
               });
             }
           }
-        } else {
-          // 规范化现有数据，确保新字段合并
-          loadedProfiles = loadedProfiles.map(normalizeProfile);
         }
 
-        profiles.value = loadedProfiles;
+        // 规范化现有数据，确保新字段合并
+        const normalized = loadedProfiles.map(normalizeProfile);
+        resolvedProfiles = normalized;
+
+        // 按配置 revision 读取最后一次完整提交；部分写入时自动回退 previous
+        const loadedSecrets = await secretVault.load(
+          config.secretRevision ?? null
+        );
+        const reconciled = mergeLlmSecrets(normalized, loadedSecrets.secrets);
+
+        profiles.value = reconciled.profiles;
+        committedSecretRevision = loadedSecrets.revision;
+        committedSecrets = loadedSecrets.secrets;
+        secretVaultReady = true;
+
+        if (
+          reconciled.changed ||
+          fromLocalStorage ||
+          loadedSecrets.needsRewrite ||
+          !config.secretRevision
+        ) {
+          await persistProfiles(reconciled.profiles);
+          if (fromLocalStorage) localStorage.removeItem(STORAGE_KEY);
+          logger.info("渠道敏感字段已迁移到独立密钥仓库", {
+            profileCount: reconciled.profiles.length,
+            secretCount: Object.keys(reconciled.secrets).length,
+          });
+        }
+
         isLoaded.value = true;
         logger.info("LLM 配置加载成功", {
-          profileCount: loadedProfiles.length,
+          profileCount: reconciled.profiles.length,
         });
       } catch (error) {
+        secretVaultReady = false;
         errorHandler.error(error, "加载 LLM 配置失败");
-        profiles.value = [];
+        // 渠道结构已读到就保留，仅密钥不可用；secretVaultReady=false 已阻止覆盖保存
+        profiles.value = resolvedProfiles ?? [];
         isLoaded.value = true;
       } finally {
         loadingPromise = null;
@@ -163,7 +236,8 @@ export function useLlmProfiles() {
       logger.debug("保存 LLM 配置到文件系统", {
         profileCount: profiles.value.length,
       });
-      await configManager.save({ profiles: profiles.value });
+      // revision 快照链确保两份文件部分写入时可回退到最后一次完整提交
+      await persistProfiles(profiles.value);
       logger.info("LLM 配置保存成功");
     } catch (error) {
       errorHandler.error(error, "保存 LLM 配置失败", {
@@ -185,7 +259,20 @@ export function useLlmProfiles() {
           profileId: profile.id,
           profileName: profile.name,
         });
-        profiles.value[index] = profile;
+        // 调用方可能只回写局部字段（例如刷新模型后）：未提供有效值的敏感字段
+        // 保留原值，避免不完整的对象把已保存的 API Key、自定义请求头静默清空
+        const existing = profiles.value[index];
+        const merged: LlmProfile = { ...existing, ...profile };
+        if (!Array.isArray(profile.apiKeys)) {
+          merged.apiKeys = existing.apiKeys;
+        }
+        if (
+          !profile.customHeaders ||
+          typeof profile.customHeaders !== "object"
+        ) {
+          merged.customHeaders = existing.customHeaders;
+        }
+        profiles.value[index] = merged;
       } else {
         // 添加新配置
         logger.info("添加新 LLM 配置", {

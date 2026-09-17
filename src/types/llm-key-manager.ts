@@ -17,7 +17,7 @@
  */
 
 export interface ApiKeyStatus {
-  /** 原始 API Key */
+  /** API Key 的哈希索引（不存明文，见 `hashApiKey`） */
   key: string;
   /** 用户手动启用的状态 */
   isEnabled: boolean;
@@ -39,7 +39,7 @@ export interface ApiKeyStatus {
 
 /**
  * 每个 Profile 对应的 Key 状态 Map
- * Key 为 API Key 的明文
+ * Key 为 `hashApiKey(明文 Key)` 产出的哈希索引，不落盘明文凭据
  */
 export type ProfileKeyStatusMap = Record<string, ApiKeyStatus>;
 

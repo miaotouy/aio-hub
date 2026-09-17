@@ -31,6 +31,7 @@ import {
   normalizeKeyStatesStorage,
   useLlmKeyManager,
 } from "../useLlmKeyManager";
+import { hashApiKey } from "@/utils/llm-secret/apiKeyHash";
 
 const profile = {
   id: "profile-1",
@@ -40,10 +41,28 @@ const profile = {
 describe("useLlmKeyManager", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("drops ambiguous global breaker settings from v1.0 storage", () => {
+  it("drops ambiguous global breaker settings and hashes plaintext key indices", () => {
     const normalized = normalizeKeyStatesStorage(legacyKeyStates);
+    const hashed = hashApiKey("legacy-key");
 
-    expect(normalized.states).toEqual(legacyKeyStates.states);
+    expect(normalized.states).toEqual({
+      "legacy-profile": {
+        [hashed]: {
+          key: hashed,
+          isEnabled: true,
+          isBroken: true,
+          errorCount: 3,
+          lastErrorTime: 1722067200000,
+          disabledTime: 1722067200000,
+          lastErrorMessage: "legacy authentication failure",
+        },
+      },
+    });
+    expect(normalized.states["legacy-profile"]).not.toHaveProperty(
+      "legacy-key"
+    );
+    expect(JSON.stringify(normalized)).not.toContain("legacy-key");
+    expect(normalized.changed).toBe(true);
     expect(normalized.lastUsedIndices).toEqual(legacyKeyStates.lastUsedIndices);
     expect(normalized.profileSettings).toEqual({});
     expect(normalized).not.toHaveProperty("enableAutoDisable");
@@ -59,7 +78,7 @@ describe("useLlmKeyManager", () => {
     manager.reportFailure("profile-1", "secret-key", new Error("invalid key"), {
       forceBroken: true,
     });
-    expect(manager.getKeyStatuses("profile-1")["secret-key"].isBroken).toBe(
+    expect(manager.getKeyStatus("profile-1", "secret-key")?.isBroken).toBe(
       false
     );
 
@@ -67,7 +86,7 @@ describe("useLlmKeyManager", () => {
     manager.reportFailure("profile-1", "secret-key", new Error("invalid key"), {
       forceBroken: true,
     });
-    expect(manager.getKeyStatuses("profile-1")["secret-key"].isBroken).toBe(
+    expect(manager.getKeyStatus("profile-1", "secret-key")?.isBroken).toBe(
       false
     );
 
@@ -79,7 +98,7 @@ describe("useLlmKeyManager", () => {
       forceBroken: true,
     });
 
-    expect(manager.getKeyStatuses("profile-1")["secret-key"].isBroken).toBe(
+    expect(manager.getKeyStatus("profile-1", "secret-key")?.isBroken).toBe(
       true
     );
     expect(mocks.warn).toHaveBeenCalledWith(
@@ -171,7 +190,7 @@ describe("pickKey availability boundaries", () => {
 
       expect(manager.pickKey(recoveryProfile)).toBe("recover-key");
       expect(
-        manager.getKeyStatuses(recoveryProfile.id)["recover-key"].isBroken
+        manager.getKeyStatus(recoveryProfile.id, "recover-key")?.isBroken
       ).toBe(false);
     } finally {
       vi.useRealTimers();

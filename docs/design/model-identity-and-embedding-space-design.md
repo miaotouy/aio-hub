@@ -20,13 +20,14 @@ AIO Hub 当前使用 `profileId:modelId` 表示一个可调用模型。这个值
 
 ### 2.1 渠道是持久化和调用边界
 
-桌面端通过 `useLlmProfiles()` 将 `LlmProfile[]` 保存到 `llm-service/profiles.json`；移动端有独立的 `llmProfiles` Store 和 `llm_profiles.json`。两端的基本结构相同：
+桌面端通过 `useLlmProfiles()` 将 `LlmProfile[]` 保存到 `llm-service/profiles.json`；移动端有独立的 `llmProfiles` Store 和 `llm_profiles.json`。两端只把渠道结构与模型信息落盘，API Key 与 `customHeaders` 分离保存在独立混淆文件（桌面 `llm-service/secrets.dat`，移动 `AppData/llm_service_secrets.dat`），加载时按 `profile.id` 注入内存，因此两端运行时结构一致：
 
 ```text
-LlmProfile
+LlmProfile（运行时）
   id                 渠道实例 UUID
   type               API 协议/适配器类型
-  baseUrl, apiKeys   连接配置
+  baseUrl            连接地址
+  apiKeys            运行时注入，恒不写入 profiles.json
   models[]           该渠道可调用的模型条目
 ```
 

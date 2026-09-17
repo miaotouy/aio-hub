@@ -46,6 +46,7 @@ const emit = defineEmits(["update:modelValue", "update:profile", "test-key"]);
 
 const {
   getKeyStatuses,
+  getKeyStatus,
   updateKeyStatus,
   removeKeyStatus,
   resetAllBroken,
@@ -142,15 +143,15 @@ const stats = computed(() => {
 const filteredTableData = computed(() => {
   return props.profile.apiKeys
     .map((key, index) => {
-      const status = keyStatuses.value[key] || {
-        key,
+      // 状态 Map 以哈希索引存储，明文 Key 始终以 profile.apiKeys 为准
+      const status = getKeyStatus(props.profile.id, key);
+      return {
         isEnabled: true,
         isBroken: false,
         errorCount: 0,
-      };
-      return {
-        index,
         ...status,
+        index,
+        key,
       };
     })
     .filter((item) => {
@@ -282,7 +283,7 @@ const handleDisableAll = () => {
 
 const handleDeleteAllBroken = () => {
   const brokenKeys = props.profile.apiKeys.filter(
-    (key) => keyStatuses.value[key]?.isBroken
+    (key) => getKeyStatus(props.profile.id, key)?.isBroken
   );
   if (brokenKeys.length === 0) {
     customMessage.info("没有需要清理的损坏密钥");
@@ -290,7 +291,7 @@ const handleDeleteAllBroken = () => {
   }
 
   const newKeys = props.profile.apiKeys.filter(
-    (key) => !keyStatuses.value[key]?.isBroken
+    (key) => !getKeyStatus(props.profile.id, key)?.isBroken
   );
   emit("update:profile", { ...props.profile, apiKeys: newKeys });
   customMessage.success(`已清理 ${brokenKeys.length} 个自动禁用的密钥`);

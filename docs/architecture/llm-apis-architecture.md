@@ -77,8 +77,8 @@ Mistral AI · AI21 Labs (Jamba) · Suno (via NewAPI) · VCP
 
 **核心职责**：
 
-- **加载/保存**: 通过 `createConfigManager` 将渠道配置持久化到 `profiles.json`（[第 120 行](/src/composables/useLlmProfiles.ts:120)）
-- **数据迁移**: 自动从旧版 localStorage 迁移到文件系统（[第 86-105 行](/src/composables/useLlmProfiles.ts:86)）
+- **加载/保存**: 通过 `createConfigManager` 将渠道结构持久化到 `profiles.json`；API Key 与 `customHeaders` 分离存放在独立混淆文件（桌面 `llm-service/secrets.dat`，移动 `AppData/llm_service_secrets.dat`，见 [`src/utils/llm-secret/`](/src/utils/llm-secret/)），加载时按 `profile.id` 透明注入内存，`profiles.json` 中的 `apiKeys` 恒为空数组（[useLlmProfiles.ts](/src/composables/useLlmProfiles.ts)）
+- **数据迁移**: 自动从旧版 localStorage 迁移到文件系统，并在首次加载时把 `profiles.json` 中残留的明文 API Key 迁移进独立混淆存储（[useLlmProfiles.ts](/src/composables/useLlmProfiles.ts)）
 - **数据规范化**: `normalizeProfile()` 处理旧版单 Key 到多 Key 数组的兼容（[第 38 行](/src/composables/useLlmProfiles.ts:38)）
 - **预设创建**: `createFromPreset()` 将预设模板实例化为可编辑的渠道配置（[第 258 行](/src/composables/useLlmProfiles.ts:258)）
 - **能力查询**: `getSupportedParameters()` 基于 `providerTypes` 查询渠道支持的参数（[第 278 行](/src/composables/useLlmProfiles.ts:278)）
@@ -120,8 +120,9 @@ const {
 
 **持久化**：
 
-- 状态存储于 `key-states.json`（[第 16 行](/src/composables/useLlmKeyManager.ts:16)）
-- 写入采用**防抖保存**，不阻塞请求流程（[第 57 行](/src/composables/useLlmKeyManager.ts:57)）
+- 状态存储于 `llm-service/key-states.json`（[useLlmKeyManager.ts](/src/composables/useLlmKeyManager.ts)）
+- 写入采用**防抖保存**，不阻塞请求流程
+- 状态索引使用 `hashApiKey(key)` 生成的稳定哈希（见 [`src/utils/llm-secret/`](/src/utils/llm-secret/)），磁盘上不出现明文 Key；旧版明文索引在加载时自动重映射并立即回写清洗，历史错误消息中回显的凭据也会一并脱敏。上游错误消息落盘前会先脱敏当前 Key
 
 ```typescript
 // 核心暴露

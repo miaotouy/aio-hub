@@ -32,18 +32,15 @@ const importText = ref("");
 
 const keyStatuses = computed(() => {
   if (!props.profile) return [];
-  const statuses = keyManager.getKeyStatuses(props.profile.id);
+  const profileId = props.profile.id;
 
   // 按照 profile.apiKeys 的顺序返回，确保一致性
+  // 状态 Map 以哈希索引存储，明文 Key 始终以 profile.apiKeys 为准
   return props.profile.apiKeys.map((key) => {
-    return (
-      statuses[key] || {
-        key,
-        isEnabled: true,
-        isBroken: false,
-        errorCount: 0,
-      }
-    );
+    const status = keyManager.getKeyStatus(profileId, key);
+    return status
+      ? { ...status, key }
+      : { key, isEnabled: true, isBroken: false, errorCount: 0 };
   });
 });
 

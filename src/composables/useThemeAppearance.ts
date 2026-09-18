@@ -362,6 +362,24 @@ function _updateCssVariables(settings: AppearanceSettings) {
     root.style.setProperty("--ui-blur", blurValue);
     root.style.setProperty("--chat-message-bg-blur", chatMessageBlurValue);
 
+    // 区域玻璃层模糊强度：
+    // - 关闭 UI 模糊：置 0px，不生成纹理
+    // - 未启用壁纸：模糊纯色无视觉收益，置 0px
+    // - 窗口特效为 Mica / Acrylic：系统已提供背景模糊，前景重复采样纯属浪费，置 0px
+    const activeWindowEffect = (settings.enableWindowEffects ?? true)
+      ? settings.windowEffect
+      : "none";
+    const hasWindowBlur =
+      activeWindowEffect === "mica" || activeWindowEffect === "acrylic";
+    const glassRegionBlurValue =
+      settings.enableUiBlur &&
+      (settings.enableWallpaper ?? false) &&
+      currentWallpaper.value &&
+      !hasWindowBlur
+        ? blurValue
+        : "0px";
+    root.style.setProperty("--glass-region-blur", glassRegionBlurValue);
+
     // 基础透明度 - 分离窗口现在使用 --detached-base-bg 作为底层背景，
     // 所以 --card-bg 等 UI 元素不再需要特殊处理，保持通透
     const baseOpacity = settings.uiBaseOpacity;
@@ -567,6 +585,7 @@ function _updateCssVariables(settings: AppearanceSettings) {
     // 禁用UI特效，恢复默认不透明样式
     root.style.setProperty("--ui-blur", "0px");
     root.style.setProperty("--chat-message-bg-blur", "0px");
+    root.style.setProperty("--glass-region-blur", "0px");
     root.style.removeProperty("--sidebar-bg");
     root.style.removeProperty("--card-bg");
     root.style.removeProperty("--header-bg");

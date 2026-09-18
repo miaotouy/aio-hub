@@ -512,10 +512,18 @@
 .el-dialog,
 .el-drawer {
   background-color: var(--card-bg);
+  /* glass-overlay */
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--el-box-shadow-lighter);
+}
+
+/* .el-message 默认挂载在 document.body 下，不在任何区域层内，保留独立采样兜底 */
+.el-message {
+  /* glass-overlay */
+  backdrop-filter: blur(var(--ui-blur));
+  border-radius: 4px;
 }
 
 .el-drawer {
@@ -533,25 +541,38 @@ body.el-popup-parent--hidden {
   padding-right: 0 !important;
 }
 
+/*
+  大块组件（.el-card / .el-table / .el-slider__runway / .el-progress-bar__outer /
+  .el-step__icon）：面积大，是显存主要来源，不再独立采样，改由所属 glass-region 区域层
+  统一提供模糊，这里只保留半透明填充。
+*/
 .el-slider__runway,
 .el-progress-bar__outer,
 .el-card,
 .el-table,
-.el-tag,
 .el-step__icon {
   background-color: var(--container-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
-.el-message,
+
+/*
+  小控件（.el-button / .el-input / .el-tag 等）：面积小、感知强，保留独立采样。
+*/
 .el-button,
 .el-input,
 .el-textarea,
 .el-select,
+.el-tag,
 .el-date-editor,
 .el-radio__inner,
 .el-checkbox__inner {
-  border-radius: 4px;
+  /* glass-overlay */
   backdrop-filter: blur(var(--ui-blur));
+  border-radius: 4px;
+}
+
+/* .el-tag 此前在大块组中带有 container-bg 填充，迁移后单独保留 */
+.el-tag {
+  background-color: var(--container-bg);
 }
 
 /*
@@ -577,6 +598,7 @@ body.el-popup-parent--hidden {
 
 .separated-group .el-radio-button__inner,
 .separated-group .el-checkbox-button__inner {
+  /* glass-overlay */
   backdrop-filter: blur(var(--ui-blur));
   border-radius: 4px !important;
   border: var(--border-width) solid var(--border-color) !important;

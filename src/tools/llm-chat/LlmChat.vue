@@ -509,7 +509,7 @@ useStateSyncEngine(parametersToSync, {
         <!-- 左侧边栏 -->
         <div
           v-if="!isLeftSidebarCollapsed"
-          class="sidebar left-sidebar"
+          class="sidebar left-sidebar glass-region"
           :style="{ width: `${leftSidebarWidth}px` }"
         >
           <div class="sidebar-content">
@@ -638,7 +638,7 @@ useStateSyncEngine(parametersToSync, {
         <!-- 右侧边栏 -->
         <div
           v-if="!isRightSidebarCollapsed"
-          class="sidebar right-sidebar"
+          class="sidebar right-sidebar glass-region"
           :style="{ width: `${rightSidebarWidth}px` }"
         >
           <!-- 折叠按钮 -->

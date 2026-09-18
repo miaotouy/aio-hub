@@ -227,7 +227,6 @@ const handleToggleFavorite = () => {
   cursor: pointer;
   transition: all 0.2s;
   border: 1px solid transparent;
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .session-item:hover {

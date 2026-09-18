@@ -606,7 +606,6 @@ const handleBatchManagerSwitch = (sessionId: string) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .header-top {

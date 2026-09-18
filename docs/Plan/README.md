@@ -100,7 +100,7 @@
 | [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                            |
 | [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图 |
 | [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback           |
-| [玻璃材质系统与模糊渲染效率](./glass-material-system-plan.md) | 待实施 | Phase 1 全局骨架、Element Plus 大块治理与 llm-chat 试点，验证后批量迁移 |
+| [玻璃材质系统与模糊渲染效率](./glass-material-system-plan.md) | 待收口 | Phase 1 全局骨架、Element Plus 大块治理与 llm-chat 试点已完成；类型检查和生产构建通过，待真实 Tauri 性能/视觉验收后决定 Phase 2 全仓迁移与 CI 门禁 |
 | [Regex Applier Agent 接口](./regex-applier-agent-integration.md)              | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005              |
 
 ## 5. 活动工具计划入口

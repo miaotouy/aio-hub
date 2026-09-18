@@ -176,7 +176,8 @@ html.dark {
 为了让自定义组件能够正确响应外观系统的设置，开发时应遵循 `src/styles/theme-appearance.css` 中定义的规范：
 
 - **背景**: 使用 `--card-bg`, `--sidebar-bg` 等语义化背景变量，而不是自己构造 `rgba()`。
-- **模糊**: 常规毛玻璃组件使用 `backdrop-filter: blur(var(--ui-blur));`；聊天消息背景使用专用的 `--chat-message-bg-blur`，以响应消息模糊系数。
+- **模糊**: 优先在非滚动的工作区容器添加 `.glass-region`，由其 `::before` 使用 `--glass-region-blur` 统一采样；聊天区可把该变量覆写为 `--chat-message-bg-blur`，以响应消息模糊系数。区域内卡片、消息和面板只保留半透明背景，不得重复声明 `backdrop-filter`。
+- **浮层例外**: 仅脱离区域层的临时浮层或小型控件可保留独立 `backdrop-filter`，并标注 `/* glass-overlay */`；不得将其放在滚动容器、虚拟列表项或动画中的大面积元素上。
 - **边框**: 边框颜色应使用 `var(--border-color)`，其透明度会受 `--border-opacity` 的影响。
 
 通过这种方式，所有UI元素都能与用户的个性化设置保持一致，提供统一且高度可定制的视觉体验。

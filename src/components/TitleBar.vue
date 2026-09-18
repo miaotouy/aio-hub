@@ -437,7 +437,7 @@ watch(
     class="title-bar"
     :class="{
       macos: isMacOS,
-      'has-glass-effect':
+      'glass-region':
         appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
     }"
     data-tauri-drag-region
@@ -718,9 +718,7 @@ watch(
   -webkit-app-region: drag;
 }
 
-.title-bar.has-glass-effect {
-  backdrop-filter: blur(var(--ui-blur));
-}
+/* .title-bar 的毛玻璃由 .glass-region 区域层统一提供，自身仅保留半透明背景 */
 
 .title-bar-content {
   width: 100%;

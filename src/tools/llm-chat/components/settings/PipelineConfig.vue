@@ -212,7 +212,6 @@ const handleReset = () => {
   border: 1px solid var(--el-border-color-light); /* 回归 1px 边框，避免尺寸跳动 */
   border-radius: 8px;
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   transition:
     border-color 0.2s ease,
     background-color 0.2s ease;

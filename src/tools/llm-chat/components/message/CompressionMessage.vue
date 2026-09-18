@@ -17,7 +17,6 @@
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, ref, watch, provide, nextTick } from "vue";
-import { useResizeObserver } from "@vueuse/core";
 import type {
   ChatMessageNode,
   MessageRole,
@@ -92,16 +91,8 @@ provide("chatSettings", settings);
 const isEditing = ref(false);
 const editedContent = ref(props.message.content);
 
-// ----- 背景分块渲染逻辑 (规避超长消息 backdrop-filter 失效) -----
+// 消息根元素引用，暴露给虚拟列表用于精确测量
 const messageRef = ref<HTMLElement | null>(null);
-const messageHeight = ref(0);
-const BLOCK_SIZE = 2000;
-
-useResizeObserver(messageRef, (entries) => {
-  const entry = entries[0];
-  const { height } = entry.contentRect;
-  messageHeight.value = height;
-});
 
 // 监听编辑状态变化，通知父组件重新测量高度
 watch(isEditing, () => {
@@ -111,11 +102,6 @@ watch(isEditing, () => {
 });
 
 const { currentAgentId } = useLlmChatUiState();
-
-const backgroundBlocks = computed(() => {
-  if (messageHeight.value <= 0) return 1;
-  return Math.ceil(messageHeight.value / BLOCK_SIZE);
-});
 
 // ----- 正则规则处理逻辑 -----
 function getAgentAndUserProfileIds(metadata: any): {
@@ -261,19 +247,8 @@ defineExpose({
     :data-message-role="message.role"
     :data-message-status="message.status"
   >
-    <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
-    <div class="message-background-container">
-      <div
-        v-for="i in backgroundBlocks"
-        :key="i"
-        class="message-background-slice"
-        :style="{
-          top: `${(i - 1) * BLOCK_SIZE}px`,
-          height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
-          bottom: i === backgroundBlocks ? '0' : 'auto',
-        }"
-      ></div>
-    </div>
+    <!-- 背景层：单一半透明填充，模糊由所属的 .glass-region 区域层统一提供 -->
+    <div class="message-background-container"></div>
 
     <!-- 装饰性侧边栏 -->
     <div
@@ -427,12 +402,13 @@ defineExpose({
   /* 严禁在虚拟滚动的子项上使用高度相关的 transition */
 }
 
-/* 背景层容器 */
+/* 背景层容器：单一半透明填充，模糊由 .glass-region 提供 */
 .message-background-container {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  background-color: var(--card-bg);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -447,15 +423,6 @@ defineExpose({
   border-radius: 8px;
   border: 1px dashed var(--border-color);
   transition: border-color 0.2s;
-}
-
-/* 背景切片 */
-.message-background-slice {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .compression-message:hover::after {

@@ -234,7 +234,6 @@ const handleCreateBranch = () => emit("create-branch");
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   min-width: 200px;
   max-width: 300px;
   cursor: pointer;

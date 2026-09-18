@@ -1448,7 +1448,6 @@ watch(
   left: 0;
   right: 0;
   background-color: var(--container-bg);
-  backdrop-filter: blur(var(--ui-blur));
   color: var(--text-color);
   padding: 4px 8px;
   font-size: 10px;

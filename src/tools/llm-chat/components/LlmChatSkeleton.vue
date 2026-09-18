@@ -489,7 +489,6 @@ defineProps<{
   border-radius: 8px;
   border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .skeleton-msg-header {

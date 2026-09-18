@@ -315,7 +315,6 @@ const handleRefreshFromFile = async () => {
   border-radius: 6px;
   background-color: var(--container-bg);
   border-left: 2px solid transparent;
-  backdrop-filter: blur(var(--ui-blur));
   position: relative; /* 确保 hover 状态正确 */
 }
 

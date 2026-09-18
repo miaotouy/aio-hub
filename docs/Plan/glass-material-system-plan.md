@@ -1,8 +1,8 @@
 # 玻璃材质系统与模糊渲染效率计划
 
-> 状态：待实施（方案已确定，llm-chat 为试点）
+> 状态：待收口（Phase 1 代码完成，待真实 Tauri 运行态验收）
 >
-> 最后更新：2026-09-17
+> 最后更新：2026-09-18
 >
 > 关联：[主题系统架构](../architecture/theme-system-architecture.md)、[CSS 变量指南](../user-guide/advanced/css-variables-guide.md)
 >
@@ -123,7 +123,9 @@ src/views/MainLayout.vue
 
 `useIframeTheme.ts` 的变量桥需同步新增 token；`iframe` 内 `body` 背景不透明，不需要 blur。
 
-## 5. 变更清单
+## 5. Phase 1 实施记录
+
+已完成全局区域层、Element Plus 大块治理和 `llm-chat` 试点；`bun run check:frontend` 与 `bun run build:vite` 已于 2026-09-18 通过。以下清单保留为实现依据。Phase 2 的仓库级迁移和 `check:glass` 门禁仍未启动，须先完成第 8 节的真实 Tauri 性能与视觉验收。
 
 ### 5.1 Phase 1 · 全局骨架（手写，作为模板）
 
@@ -221,9 +223,10 @@ Phase 1 验证收益后启动，可脚本 + agent 并行推进。
 | 模糊档位                | 全局单档 + 聊天区区域层                                                                                                          | 保留 `chatMessageBlurFactor` 语义，无需下线设置项                                        |
 | `chatMessageBlurFactor` | 保留，由聊天区区域层承载                                                                                                         | 无需双档共享层即可正确实现                                                               |
 
-## 10. 回写要求
+## 10. 回写状态与剩余工作
 
-1. Phase 1 完成后，将稳定契约写入 [`theme-system-architecture.md`](../architecture/theme-system-architecture.md) 的 5.4 适配指南：模糊由区域层提供，区域只做半透明填充，仅 `glass-overlay` 保留独立 `backdrop-filter`。
-2. 在 [`css-variables-guide.md`](../user-guide/advanced/css-variables-guide.md) 补充 `--glass-region-blur`。
-3. 若实施中偏离本文（例如区域边界调整、档位策略变化），同步修正本文或标记偏差。
-4. 全部验收后按 [`docs/Plan/README.md`](./README.md) 的回写顺序更新台账。
+1. **已完成**：稳定契约已写入 [`theme-system-architecture.md`](../architecture/theme-system-architecture.md) 的 5.4 适配指南；模糊由区域层提供，区域内元素仅做半透明填充，只有 `glass-overlay` 保留独立 `backdrop-filter`。
+2. **已完成**：[`css-variables-guide.md`](../user-guide/advanced/css-variables-guide.md) 已补充 `--glass-region-blur` 及其使用边界。
+3. **待完成**：按照第 8 节在真实 Tauri 窗口执行性能、视觉、截图、分离窗口和层叠场景走查，并记录前后指标。
+4. **待决策**：运行态验收确认收益后，启动 Phase 2 的全仓迁移脚本与 `bun run check:glass` CI 门禁；若发现区域层采样被阻断，按第 4.4 节的回退方案更新本文。
+5. 全部验收后按 [`docs/Plan/README.md`](./README.md) 的回写顺序更新台账并移除无剩余任务的施工细节。

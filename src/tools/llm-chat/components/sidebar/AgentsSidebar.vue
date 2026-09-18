@@ -1081,7 +1081,6 @@ const handleImportFromTavernCard = async () => {
   gap: 8px;
   background-color: var(--card-bg);
   border-bottom: var(--border-width) solid var(--border-color);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .toolbar-row {
@@ -1119,7 +1118,6 @@ const handleImportFromTavernCard = async () => {
   flex-shrink: 0;
   padding: 12px;
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   display: flex;
   gap: 8px;
 }

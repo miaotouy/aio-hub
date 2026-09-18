@@ -16,7 +16,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useResizeObserver } from "@vueuse/core";
 import type {
   ChatMessageNode,
   ChatSessionIndex,
@@ -109,22 +108,8 @@ const messageDisplayStatus = computed(
   () => resolveMessageDisplayStatus(props.message) || props.message.status
 );
 
-// ----- 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) -----
+// 消息根元素引用，暴露给虚拟列表用于精确测量
 const messageRef = ref<HTMLElement | null>(null);
-const messageHeight = ref(0);
-const BLOCK_SIZE = 2000; // 每个背景块的高度限制在 2000px 以内
-
-useResizeObserver(messageRef, (entries) => {
-  const entry = entries[0];
-  const { height } = entry.contentRect;
-  messageHeight.value = height;
-});
-
-// 计算需要多少个背景块
-const backgroundBlocks = computed(() => {
-  if (messageHeight.value <= 0) return 1;
-  return Math.ceil(messageHeight.value / BLOCK_SIZE);
-});
 
 // 开始编辑
 const startEdit = () => {
@@ -266,19 +251,8 @@ defineExpose({
       },
     ]"
   >
-    <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
-    <div class="message-background-container">
-      <div
-        v-for="i in backgroundBlocks"
-        :key="i"
-        class="message-background-slice"
-        :style="{
-          top: `${(i - 1) * BLOCK_SIZE}px`,
-          height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
-          bottom: i === backgroundBlocks ? '0' : 'auto',
-        }"
-      ></div>
-    </div>
+    <!-- 背景层：单一背景，模糊由所属的 .glass-region 区域层统一提供 -->
+    <div class="message-background-container"></div>
 
     <!-- 内容层：提高层级 -->
     <div
@@ -353,17 +327,16 @@ defineExpose({
   /* 严禁在虚拟滚动的子项上使用高度相关的 transition，会导致测量偏移 */
 }
 
-/* 背景层容器 */
+/* 背景层容器：单一半透明填充，模糊由 .glass-region 提供 */
 .message-background-container {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  background-color: var(--card-bg);
   /* 容器本身负责圆角 */
   border-radius: 8px;
-  overflow: hidden; /* 确保切片不溢出圆角 */
-  /* 强制触发合成层，确保 overflow: hidden 在圆角处生效 */
-  transform: translateZ(0);
+  overflow: hidden; /* 确保背景不溢出圆角 */
 }
 
 /* 独立的边框层：避免被 overflow: hidden 裁剪圆角 */
@@ -376,17 +349,6 @@ defineExpose({
   border-radius: 8px;
   border: var(--border-width) solid var(--border-color);
   transition: border-color 0.2s;
-}
-
-/* 背景切片 */
-.message-background-slice {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--chat-message-bg-blur, var(--ui-blur)));
-  /* 继承容器的圆角，防止在某些浏览器下直角溢出 */
-  border-radius: inherit;
 }
 
 /* 内容层样式 */

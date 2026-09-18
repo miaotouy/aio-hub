@@ -7,6 +7,7 @@
   /* --- 核心变量 (由 JS 动态更新) --- */
   --ui-blur: 15px;
   --chat-message-bg-blur: 15px; /* 聊天消息背景专用模糊强度 */
+  --glass-region-blur: 15px; /* 区域玻璃层专用模糊强度（由 JS 动态更新） */
   --wallpaper-url: none; /* JS 注入：壁纸的 URL */
   --wallpaper-opacity: 1; /* JS 注入：壁纸的不透明度 */
   --wallpaper-size: cover; /* JS 注入：填充模式 */
@@ -54,6 +55,36 @@ body::before {
 /* 当处于分离窗口模式时，隐藏全局壁纸，避免与组件内部壁纸重叠 */
 body.no-global-wallpaper::before {
   display: none !important;
+}
+
+/* ========================================================================== */
+/* 区域玻璃层（glass-region）
+/* ========================================================================== */
+/*
+ * 统一机制：模糊由「非滚动的区域父容器」一次性提供，区域内元素只做半透明填充。
+ * 必须落在非滚动容器上（滚动容器承载 backdrop 会导致采样面随子内容移动反复失效）。
+ * 约定：
+ *   - 不使用 `.glass-region > *` 通配符抬升子元素，避免破坏 sticky / 高 z-index /
+ *     Teleport 遮罩的层叠关系；改用 isolation + 负 z-index。
+ *   - 区域内需在玻璃层之下绘制的背景元素（如分离窗口的 .detached-wallpaper）
+ *     降到 z-index: -2。
+ */
+
+.glass-region {
+  position: relative;
+  /* 建立层叠上下文，把 ::before 约束在区域内，负 z-index 不会外溢到祖先 */
+  isolation: isolate;
+}
+
+.glass-region::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* 负值：绘制在容器背景之上、正常流内容之下，无需抬升任何子元素 */
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  backdrop-filter: blur(var(--glass-region-blur, var(--ui-blur)));
 }
 
 /* 应用窗口本身的背景色，使用独立的窗口背景不透明度 */

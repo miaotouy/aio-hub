@@ -131,7 +131,7 @@ onUnmounted(() => {
       'main-sidebar',
       {
         'is-collapsed': isCollapsed,
-        'has-glass-effect':
+        'glass-region':
           appearanceSettings?.enableUiEffects &&
           appearanceSettings?.enableUiBlur,
       },
@@ -201,9 +201,7 @@ onUnmounted(() => {
   overflow-x: hidden;
 }
 
-.main-sidebar.has-glass-effect {
-  backdrop-filter: blur(var(--ui-blur));
-}
+/* .main-sidebar 的毛玻璃由 .glass-region 区域层统一提供，自身仅保留半透明背景 */
 
 .sidebar-top {
   flex: 1;

@@ -301,25 +301,17 @@ provide("chatSettings", settings);
 
 // ----- 布局与背景逻辑 -----
 const messageRef = ref<HTMLElement | null>(null);
-const messageHeight = ref(0);
 const containerWidth = ref(0);
-const BLOCK_SIZE = 2000;
 
 useResizeObserver(messageRef, (entries) => {
   const entry = entries[0];
   const { height, width } = entry.contentRect;
-  messageHeight.value = height;
   containerWidth.value = width;
 
   // 通知父组件（虚拟列表）重新测量高度
   if (height > 0) {
     emit("resize", messageRef.value);
   }
-});
-
-const backgroundBlocks = computed(() => {
-  if (messageHeight.value <= 0) return 1;
-  return Math.ceil(messageHeight.value / BLOCK_SIZE);
 });
 
 // ----- 工具状态与元数据 -----
@@ -724,19 +716,8 @@ defineExpose({
     :data-tool-status="mainStatus"
     :data-tool-name="toolCalls.length === 1 ? toolCalls[0].toolName : undefined"
   >
-    <!-- 背景层 -->
-    <div class="message-background-container">
-      <div
-        v-for="i in backgroundBlocks"
-        :key="i"
-        class="message-background-slice"
-        :style="{
-          top: `${(i - 1) * BLOCK_SIZE}px`,
-          height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
-          bottom: i === backgroundBlocks ? '0' : 'auto',
-        }"
-      ></div>
-    </div>
+    <!-- 背景层：单一半透明填充，模糊由所属的 .glass-region 区域层统一提供 -->
+    <div class="message-background-container"></div>
 
     <!-- 装饰性侧边栏 -->
     <div class="tool-bar" :class="statusClass" @click="toggleCollapse">
@@ -1233,22 +1214,15 @@ defineExpose({
   border-width: 2px;
 }
 
-/* 背景层 */
+/* 背景层：单一半透明填充，模糊由 .glass-region 提供 */
 .message-background-container {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  background-color: var(--card-bg);
   border-radius: 8px;
   overflow: hidden;
-}
-
-.message-background-slice {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 装饰性侧边栏 */

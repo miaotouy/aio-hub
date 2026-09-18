@@ -497,7 +497,11 @@ onMounted(async () => {
   <div
     v-if="isReady"
     ref="containerRef"
-    :class="['chat-area-container', { 'detached-mode': isDetached }]"
+    :class="[
+      'chat-area-container',
+      'glass-region',
+      { 'detached-mode': isDetached },
+    ]"
     tabindex="0"
     @keydown="handleKeyDown"
     @scroll="handleContainerScroll"
@@ -664,6 +668,11 @@ onMounted(async () => {
   contain: size layout style;
 }
 
+/* 聊天区采用消息档模糊强度 */
+.chat-area-container.glass-region {
+  --glass-region-blur: var(--chat-message-bg-blur, var(--ui-blur));
+}
+
 /* 分离模式下添加更强的阴影和圆角 */
 .chat-area-container.detached-mode {
   position: absolute;
@@ -684,7 +693,8 @@ onMounted(async () => {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 0;
+  /* 降到区域玻璃层之下，使其被区域层采样且仍在内容层之下 */
+  z-index: -2;
   background-image: var(--wallpaper-url);
   background-size: cover;
   background-position: center;

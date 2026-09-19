@@ -39,6 +39,10 @@ export interface PerfFixtureOptions {
   paragraphCount?: number;
   /** 每 N 条消息插入一段代码块，用于覆盖富文本分支。 */
   codeBlockEvery?: number;
+  /** 每 N 条消息生成一条超高消息，用于覆盖 2000px 背景切片路径。 */
+  tallMessageEvery?: number;
+  /** 超高消息的段落数；必须足以触发至少两个背景切片。 */
+  tallMessageParagraphCount?: number;
 }
 
 export interface PerfFixtureManifest {
@@ -49,6 +53,10 @@ export interface PerfFixtureManifest {
   messageCount: number;
   paragraphCount: number;
   codeBlockCount: number;
+  tallMessageCount: number;
+  tallMessageEvery: number;
+  tallMessageParagraphCount: number;
+  tallMessageIds: string[];
   appearance: {
     enableWallpaper: boolean;
     builtinWallpaperName: string;
@@ -63,6 +71,10 @@ export interface PerfFixtureManifest {
 const DEFAULT_MESSAGE_COUNT = 240;
 const DEFAULT_PARAGRAPH_COUNT = 3;
 const DEFAULT_CODE_BLOCK_EVERY = 12;
+/** 24、48、…、240 条均为 assistant 消息，覆盖列表首尾及滚动中段。 */
+const DEFAULT_TALL_MESSAGE_EVERY = 24;
+/** 96 个 Markdown 段落在常规窗口下稳定超过 2000px，触发至少两个背景切片。 */
+const DEFAULT_TALL_MESSAGE_PARAGRAPH_COUNT = 96;
 
 function paragraph(seed: number, index: number): string {
   const topics = [
@@ -100,12 +112,27 @@ export function buildPerfFixture(options: PerfFixtureOptions = {}): {
   const messageCount = options.messageCount ?? DEFAULT_MESSAGE_COUNT;
   const paragraphCount = options.paragraphCount ?? DEFAULT_PARAGRAPH_COUNT;
   const codeBlockEvery = options.codeBlockEvery ?? DEFAULT_CODE_BLOCK_EVERY;
+  const tallMessageEvery =
+    options.tallMessageEvery ?? DEFAULT_TALL_MESSAGE_EVERY;
+  const tallMessageParagraphCount =
+    options.tallMessageParagraphCount ?? DEFAULT_TALL_MESSAGE_PARAGRAPH_COUNT;
 
   if (!Number.isInteger(messageCount) || messageCount < 2) {
     throw new Error("messageCount must be an integer >= 2.");
   }
   if (!Number.isInteger(paragraphCount) || paragraphCount < 1) {
     throw new Error("paragraphCount must be an integer >= 1.");
+  }
+  if (!Number.isInteger(tallMessageEvery) || tallMessageEvery < 2) {
+    throw new Error("tallMessageEvery must be an integer >= 2.");
+  }
+  if (
+    !Number.isInteger(tallMessageParagraphCount) ||
+    tallMessageParagraphCount <= paragraphCount
+  ) {
+    throw new Error(
+      "tallMessageParagraphCount must be an integer greater than paragraphCount."
+    );
   }
 
   const rootNodeId = `${PERF_SESSION_ID}-root`;
@@ -124,12 +151,19 @@ export function buildPerfFixture(options: PerfFixtureOptions = {}): {
 
   let parentId = rootNodeId;
   let codeBlockCount = 0;
+  const tallMessageIds: string[] = [];
   for (let index = 0; index < messageCount; index += 1) {
     const id = `${PERF_SESSION_ID}-n${String(index).padStart(4, "0")}`;
     const isAssistant = index % 2 === 1;
+    // 每个周期的最后一条为 assistant，确保走 ChatMessage.vue 的背景切片实现。
+    const isTallMessage = (index + 1) % tallMessageEvery === 0;
     const includeCode = codeBlockEvery > 0 && index % codeBlockEvery === 0;
     if (includeCode) codeBlockCount += 1;
-    const body = messageBody(index, paragraphCount);
+    if (isTallMessage) tallMessageIds.push(id);
+    const body = messageBody(
+      index,
+      isTallMessage ? tallMessageParagraphCount : paragraphCount
+    );
     const content = includeCode ? `${body}\n\n${codeBlock(index)}` : body;
 
     nodes[id] = {
@@ -273,9 +307,11 @@ export function buildPerfFixture(options: PerfFixtureOptions = {}): {
     wallpaperFit: "cover",
     enableUiEffects: true,
     enableUiBlur: true,
-    uiBaseOpacity: 0.75,
+    // 刻意压低 UI 不透明度，让壁纸细节穿透界面，便于肉眼确认玻璃区域。
+    uiBaseOpacity: 0.3,
     detachedUiBaseOpacity: 0.95,
-    uiBlurIntensity: 24,
+    // 使用高模糊档放大逐元素与区域级实现的视觉及合成成本差异。
+    uiBlurIntensity: 40,
     chatMessageBlurFactor: 1,
     enableWindowEffects: false,
     windowEffect: "none",
@@ -302,6 +338,10 @@ export function buildPerfFixture(options: PerfFixtureOptions = {}): {
       messageCount,
       paragraphCount,
       codeBlockCount,
+      tallMessageCount: tallMessageIds.length,
+      tallMessageEvery,
+      tallMessageParagraphCount,
+      tallMessageIds,
       appearance: {
         enableWallpaper: appearance.enableWallpaper,
         builtinWallpaperName: appearance.builtinWallpaperName,

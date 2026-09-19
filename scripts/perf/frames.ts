@@ -263,6 +263,82 @@ export async function openLlmChatAndWait(
   );
 }
 
+export interface TallMessageSliceCheck {
+  messageId: string;
+  height: number;
+  sliceCount: number;
+}
+
+/**
+ * 在真实 WebView2 中验证 fixture 的超高消息实际触发 ChatMessage 背景分片。
+ *
+ * 仅生成长文本不足以覆盖该路径：`content-visibility` 下必须把元素滚入视口，
+ * 等待 ResizeObserver 更新，之后才可断言 `.message-background-slice` 的实际数量。
+ */
+export async function verifyTallMessageSlices(
+  probe: FrameProbe,
+  messageIds: string[]
+): Promise<TallMessageSliceCheck[]> {
+  if (messageIds.length === 0) {
+    throw new Error("Tall-message fixture must include at least one message.");
+  }
+  const result = await probe.evaluate<{
+    checks: TallMessageSliceCheck[];
+    missing: string[];
+  }>(`(async () => {
+    const ids = ${JSON.stringify(messageIds)};
+    const list = document.querySelector('.message-list');
+    if (!(list instanceof HTMLElement)) {
+      throw new Error('Message list not found for tall-message validation');
+    }
+    const settle = () => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+    const checks = [];
+    const missing = [];
+    for (const id of ids) {
+      const element = Array.from(document.querySelectorAll('[data-testid="chat-message"]')).find(
+        (candidate) => candidate.getAttribute('data-message-id') === id
+      );
+      if (!(element instanceof HTMLElement)) {
+        missing.push(id);
+        continue;
+      }
+      element.scrollIntoView({ block: 'center' });
+      await settle();
+      await settle();
+      checks.push({
+        messageId: id,
+        height: Math.ceil(element.getBoundingClientRect().height),
+        sliceCount: element.querySelectorAll('.message-background-slice').length,
+      });
+    }
+    list.scrollTop = 0;
+    await settle();
+    return { checks, missing };
+  })()`);
+
+  if (result.missing.length > 0) {
+    throw new Error(
+      `Tall-message fixture nodes were not rendered: ${result.missing.join(', ')}`
+    );
+  }
+  const invalid = result.checks.filter(
+    (check) => check.height <= 2000 || check.sliceCount < 2
+  );
+  if (invalid.length > 0) {
+    throw new Error(
+      `Tall-message background slicing was not exercised: ${invalid
+        .map(
+          (check) =>
+            `${check.messageId} (${check.height}px, ${check.sliceCount} slice(s))`
+        )
+        .join(', ')}`
+    );
+  }
+  return result.checks;
+}
+
 export interface CdpWheelScroll {
   done: Promise<void>;
   stop(): void;

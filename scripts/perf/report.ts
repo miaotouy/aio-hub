@@ -251,8 +251,11 @@ function buildHealthLines(
   candidateLabel: string
 ): string[] {
   const lines: string[] = ["## 数据健康度", ""];
+  const relevant = results.filter(
+    (item) => item.label === baselineLabel || item.label === candidateLabel
+  );
   const issues: string[] = [];
-  for (const result of results) {
+  for (const result of relevant) {
     for (const scenario of result.scenarios) {
       const tag = `${result.label} run${result.runIndex}/${scenario.scenarioId}`;
       if (!scenario.frames || scenario.frames.samples === 0) {
@@ -271,9 +274,6 @@ function buildHealthLines(
       }
     }
   }
-  const relevant = results.filter(
-    (item) => item.label === baselineLabel || item.label === candidateLabel
-  );
   lines.push(
     `- 参与汇总的运行记录：${relevant.length} 条（baseline / candidate），逐场景校验：资源样本 ≥ ${MIN_RESOURCE_SAMPLES}、帧样本非空、进程树含 WebView2 与 GPU 子进程。`
   );

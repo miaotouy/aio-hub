@@ -43,6 +43,7 @@ import {
   frameSamplingExpression,
   openLlmChatAndWait,
   startCdpWheelScroll,
+  verifyTallMessageSlices,
   summarizeFrames,
 } from "./frames";
 import {
@@ -281,8 +282,9 @@ async function runScenario(options: {
   });
   const startedAt = Date.now();
   const frames = await runWindow(scenario.durationMs, true);
-  const resources = await collector.stop();
+  // 先记录测量窗口长度，再停止采样；避免 stop() 的排队等待时间被算进窗口。
   const elapsed = Date.now() - startedAt;
+  const resources = await collector.stop();
   if (Math.abs(elapsed - scenario.durationMs) > scenario.durationMs * 0.5) {
     notes.push(
       `measure window deviated: ${elapsed}ms vs expected ${scenario.durationMs}ms`
@@ -350,6 +352,15 @@ async function runOnce(
     // 冷启动之后的稳定期：等待首帧布局与壁纸解码完成。
     await sleep(3_000);
     await probe.waitForSelector(CHAT_SCROLL_SELECTOR, 60_000);
+    const tallMessageChecks = await verifyTallMessageSlices(
+      probe,
+      fixture.tallMessageIds
+    );
+    console.log(
+      `  超高消息背景切片已验证: ${tallMessageChecks.length} 条，` +
+        `高度 ${Math.min(...tallMessageChecks.map((item) => item.height))}–` +
+        `${Math.max(...tallMessageChecks.map((item) => item.height))}px`
+    );
 
     for (const scenarioId of options.scenarios) {
       const scenario = PERF_SCENARIOS.find((item) => item.id === scenarioId);
@@ -422,7 +433,8 @@ async function main(): Promise<void> {
       `scenarios=${options.scenarios.join(",")} binary=${path.basename(options.binary)}`
   );
   console.log(
-    `fixture: ${fixture.messageCount} 条消息 / ${fixture.paragraphCount} 段每消息`
+    `fixture: ${fixture.messageCount} 条消息 / ${fixture.paragraphCount} 段常规消息 / ` +
+      `${fixture.tallMessageCount} 条 ${fixture.tallMessageParagraphCount} 段超高消息`
   );
   console.log(`输出目录: ${resultsRoot}
 `);

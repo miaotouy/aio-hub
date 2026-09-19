@@ -2,7 +2,7 @@
 
 > 状态：待实施（方案已确定，llm-chat 为试点）
 >
-> 最后更新：2026-09-17
+> 最后更新：2026-09-19
 >
 > 关联：[主题系统架构](../architecture/theme-system-architecture.md)、[CSS 变量指南](../user-guide/advanced/css-variables-guide.md)
 >
@@ -210,6 +210,9 @@ Phase 1 验证收益后启动，可脚本 + agent 并行推进。
 - 性能探针口径：两条 lane 均使用独立 `--data-dir` 与 `WEBVIEW2_USER_DATA_FOLDER`，并通过 loopback WebView2 CDP 完成工作区导航、滚轮输入和 rAF 采样；release lane 必须使用启用 Cargo `perf-instrumentation` feature 的专用 release 构建，普通发布构建不暴露该通道。
 - 后台交互边界：性能 runner 禁止调用 UIA、`SetForegroundWindow`、`SetCursorPos`、`mouse_event` 或系统键盘；滚动统一使用 CDP `Input.dispatchMouseEvent(type=mouseWheel)`，不会争抢用户前台输入。窗口保持正常显示且不最小化，以保留真实 WebView2 合成路径。
 - 采集计划：baseline / candidate 各运行 3 轮；每轮包含 `idle`、`scroll-slow`、`scroll-fast`，跨轮以中位数汇总。每条 lane 均须确认资源样本不少于 10、帧样本非空、进程树包含 WebView2/GPU 子进程。
+- 资源采集实现：场景采样窗口固定为 12 秒；资源探针以常驻 PowerShell 子进程按 400ms 节拍采样，避免逐样本启动 shell 造成样本不足。
+- 性能 fixture 固定使用高可观察性的玻璃配置：`uiBaseOpacity = 0.30`、`uiBlurIntensity = 40px`、`chatMessageBlurFactor = 1`，并开启内置壁纸与 UI 模糊。不要沿用默认 `0.75` 不透明度；较低底色不透明度让壁纸细节明显穿透界面，较高模糊强度则同时放大视觉差异与合成压力，便于确认 baseline / candidate 确实走到待测渲染路径。
+- 长消息覆盖：240 条消息中每 24 条插入一条 96 段的 assistant 超高消息（共 10 条，覆盖列表首尾和滚动中段）。runner 会逐条滚入视口，断言实际高度超过 `2000px` 且 `.message-background-slice` 不少于 2 个；断言失败即拒绝写入该轮结果，避免只测到短消息而遗漏背景拼接路径。
 - 视觉走查：区域留白统一度、消息档与普通档差异、叠加场景、低不透明度可读性
 - 场景走查：截图分享（`ShareScreenshotDialog`）导出结果、分离窗口拖拽与尺寸调整、`MessageNavigator` 等 `sticky` / 高 `z-index` 元素在区域层下的层叠是否正确
 - 前提验证：最小原型确认区域层 backdrop 能穿透 `contain: paint` 采到 `body::before` 的全局壁纸

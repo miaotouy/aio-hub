@@ -29,6 +29,7 @@ Component Tester 是一个内部开发与调试工具，用于集中展示、测
 - **Theme Palette**: 动态展示当前主题的所有 CSS 颜色变量，用于验证色彩系统的一致性。
 - **Messaging Test**: 测试 `customMessage` 等全局消息提示系统的功能。
 - **Document Viewer Test**: 验证 `DocumentViewer` 组件对不同文档类型（Markdown, Code, HTML）的渲染能力。
+- **GPU Rendering Probe**: 以持续 WebGL 全屏片元绘制生成稳定的 GPU 工作负载；`bun run perf:gpu-probe -- --binary <debug-or-perf-release.exe>` 经 CDP 自动启动探针，并对 WebView2 GPU 子进程与 Windows 3D 引擎性能计数器的采集结果作通过/失败断言。
 
 ## 3. 未来展望
 

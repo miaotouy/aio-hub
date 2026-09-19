@@ -56,6 +56,10 @@
           <StoragePerformanceTester />
         </el-tab-pane>
 
+        <el-tab-pane label="GPU 渲染探针" name="gpu-rendering">
+          <GpuRenderingTester />
+        </el-tab-pane>
+
         <el-tab-pane label="下载测试" name="download-test">
           <DownloadTester />
         </el-tab-pane>
@@ -86,6 +90,7 @@ import MessagingTest from "./components/MessagingTest.vue";
 import ThemeColorPalette from "./components/ThemeColorPalette.vue";
 import DocumentViewerTester from "./components/DocumentViewerTester.vue";
 import StoragePerformanceTester from "./components/StoragePerformanceTester.vue";
+import GpuRenderingTester from "./components/GpuRenderingTester.vue";
 import DownloadTester from "./components/DownloadTester.vue";
 import IMEInputTester from "./components/IMEInputTester.vue";
 import ScreenshotTester from "./components/ScreenshotTester.vue";

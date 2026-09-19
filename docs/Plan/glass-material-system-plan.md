@@ -210,7 +210,7 @@ Phase 1 验证收益后启动，可脚本 + agent 并行推进。
 - 性能探针口径：两条 lane 均使用独立 `--data-dir` 与 `WEBVIEW2_USER_DATA_FOLDER`，并通过 loopback WebView2 CDP 完成工作区导航、滚轮输入和 rAF 采样；release lane 必须使用启用 Cargo `perf-instrumentation` feature 的专用 release 构建，普通发布构建不暴露该通道。
 - 后台交互边界：性能 runner 禁止调用 UIA、`SetForegroundWindow`、`SetCursorPos`、`mouse_event` 或系统键盘；滚动统一使用 CDP `Input.dispatchMouseEvent(type=mouseWheel)`，不会争抢用户前台输入。窗口保持正常显示且不最小化，以保留真实 WebView2 合成路径。
 - 采集计划：baseline / candidate 各运行 3 轮；每轮包含 `idle`、`scroll-slow`、`scroll-fast`，跨轮以中位数汇总。每条 lane 均须确认资源样本不少于 10、帧样本非空、进程树包含 WebView2/GPU 子进程。
-- 资源采集实现：场景采样窗口固定为 12 秒；资源探针以常驻 PowerShell 子进程按 400ms 节拍采样，避免逐样本启动 shell 造成样本不足。
+- 资源采集实现：场景采样窗口固定为 12 秒；资源探针以常驻 PowerShell 子进程按 400ms 节拍采样，避免逐样本启动 shell 造成样本不足。若常规聊天场景仍未采集到 GPU 3D 占用，运行 `bun run perf:gpu-probe -- --binary <debug-or-perf-release.exe>`。该 runner 会在隔离的真实 Tauri 窗口中经 CDP 自动打开“组件测试器 → GPU 渲染探针”、启动高负载 WebGL 全屏片元绘制并连续采集 12 秒；它要求帧数、资源样本数、WebView2 GPU 子进程以及 `gpu3dPeakPercent > 0` 同时成立，否则以非零退出码失败。该探针用于验证 Windows GPU 性能计数器与 WebView2 GPU 子进程的采集链路，不替代玻璃场景的正式对比。
 - 性能 fixture 固定使用高可观察性的玻璃配置：`uiBaseOpacity = 0.30`、`uiBlurIntensity = 40px`、`chatMessageBlurFactor = 1`，并开启内置壁纸与 UI 模糊。不要沿用默认 `0.75` 不透明度；较低底色不透明度让壁纸细节明显穿透界面，较高模糊强度则同时放大视觉差异与合成压力，便于确认 baseline / candidate 确实走到待测渲染路径。
 - 长消息覆盖：240 条消息中每 24 条插入一条 96 段的 assistant 超高消息（共 10 条，覆盖列表首尾和滚动中段）。runner 会逐条滚入视口，断言实际高度超过 `2000px` 且 `.message-background-slice` 不少于 2 个；断言失败即拒绝写入该轮结果，避免只测到短消息而遗漏背景拼接路径。
 - 视觉走查：区域留白统一度、消息档与普通档差异、叠加场景、低不透明度可读性

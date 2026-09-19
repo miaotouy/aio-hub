@@ -349,9 +349,17 @@ const mountApp = async () => {
       !isDetachedComponentLoader() &&
       !isCanvasWindow()
     ) {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      await getCurrentWindow().show();
-      logger.info("主窗口已显示");
+      const perfBackgroundMode =
+        new URLSearchParams(window.location.search).get(
+          "aio-perf-background"
+        ) === "1";
+      if (!perfBackgroundMode) {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().show();
+        logger.info("主窗口已显示");
+      } else {
+        logger.info("性能测试窗口已由后端以非激活方式显示");
+      }
 
       // 通知 Rust 后端前端已就绪（用于 Linux 白屏检测）
       const { emit } = await import("@tauri-apps/api/event");

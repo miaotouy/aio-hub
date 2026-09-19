@@ -207,6 +207,9 @@ Phase 1 验证收益后启动，可脚本 + agent 并行推进。
 - `bun run check:frontend`（`vue-tsc --noEmit`）
 - `bun run build:vite`（覆盖打包期导入、插件与 CSS 检查）
 - 真实 Tauri 窗口：长会话快速滚动，对比优化前后的 GPU 占用、显存与滚动帧率
+- 性能探针口径：两条 lane 均使用独立 `--data-dir` 与 `WEBVIEW2_USER_DATA_FOLDER`，并通过 loopback WebView2 CDP 完成工作区导航、滚轮输入和 rAF 采样；release lane 必须使用启用 Cargo `perf-instrumentation` feature 的专用 release 构建，普通发布构建不暴露该通道。
+- 后台交互边界：性能 runner 禁止调用 UIA、`SetForegroundWindow`、`SetCursorPos`、`mouse_event` 或系统键盘；滚动统一使用 CDP `Input.dispatchMouseEvent(type=mouseWheel)`，不会争抢用户前台输入。窗口保持正常显示且不最小化，以保留真实 WebView2 合成路径。
+- 采集计划：baseline / candidate 各运行 3 轮；每轮包含 `idle`、`scroll-slow`、`scroll-fast`，跨轮以中位数汇总。每条 lane 均须确认资源样本不少于 10、帧样本非空、进程树包含 WebView2/GPU 子进程。
 - 视觉走查：区域留白统一度、消息档与普通档差异、叠加场景、低不透明度可读性
 - 场景走查：截图分享（`ShareScreenshotDialog`）导出结果、分离窗口拖拽与尺寸调整、`MessageNavigator` 等 `sticky` / 高 `z-index` 元素在区域层下的层叠是否正确
 - 前提验证：最小原型确认区域层 backdrop 能穿透 `contain: paint` 采到 `body::before` 的全局壁纸

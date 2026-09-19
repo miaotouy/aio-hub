@@ -296,29 +296,44 @@ pub fn run() {
                     *minimize_to_tray_state = minimize_to_tray;
                 }
             }
+            // 性能 runner 使用可见但不激活的窗口，保留真实合成路径，同时不抢前台焦点。
+            let perf_background_mode = cfg!(all(
+                target_os = "windows",
+                any(debug_assertions, feature = "perf-instrumentation")
+            )) && std::env::var("AIO_PERF_BACKGROUND").as_deref() == Ok("1");
+            let main_url = if perf_background_mode {
+                tauri::WebviewUrl::App("index.html?aio-perf-background=1".into())
+            } else {
+                tauri::WebviewUrl::App("index.html".into())
+            };
+
             // 创建主窗口
-            let mut win_builder = tauri::WebviewWindowBuilder::new(
-                app,
-                "main",
-                tauri::WebviewUrl::App("index.html".into()),
-            )
+            let mut win_builder = tauri::WebviewWindowBuilder::new(app, "main", main_url)
             .title("AIO Hub")
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
             .min_inner_size(360.0, 112.0);
 
-            #[cfg(all(debug_assertions, target_os = "windows"))]
+            #[cfg(all(
+                target_os = "windows",
+                any(debug_assertions, feature = "perf-instrumentation")
+            ))]
             if let Ok(arguments) = std::env::var("AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS") {
                 if !arguments.trim().is_empty() {
                     win_builder = win_builder.additional_browser_args(&arguments);
-                    log::info!("[WEBVIEW] 已启用 debug-only WebView2 验收参数");
+                    log::info!("[WEBVIEW] 已启用受控 WebView2 验收参数");
                 }
             }
 
             if disable_drag_drop {
                 win_builder = win_builder.disable_drag_drop_handler();
             }
-            // 始终隐藏创建主窗口，由前端 mount 后调用 show（避免白屏闪烁）
-            win_builder = win_builder.visible(false);
+            // 普通启动保持隐藏，前端 mount 后再显示；性能模式直接以不激活方式显示，
+            // 前端会识别 query 参数并跳过 show()，避免抢占用户当前焦点。
+            win_builder = if perf_background_mode {
+                win_builder.visible(true).focused(false)
+            } else {
+                win_builder.visible(false)
+            };
 
             // 如果有保存的窗口配置，直接在创建时应用尺寸和最大化状态
             if let Some(ref config) = main_window_config {

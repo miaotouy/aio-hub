@@ -3,7 +3,7 @@
 **状态**: 正式版前检查项；样例结构已完成，生产态 Recall / Agent 合并报告与最终发布验证待完成
 **最近修订**: 2026-07-19
 
-> 本文件是结构和恢复文案样例，不代表本机真实用户数据。施工期不得扫描真实用户 appData。
+> 本文件是结构和恢复文案样例，不反映本机真实用户数据。施工期不得扫描真实用户 appData。
 > 稳定字段、状态语义和清理条件以 [`../architecture/storage-migration-contract.md`](../architecture/storage-migration-contract.md) 为准。
 
 ```text

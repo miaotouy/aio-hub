@@ -58,7 +58,7 @@ AppData/assets/
 - `import_jobs` 保存任务状态、累计读取字节、当前项、完成项数和脱敏结果；来源 URI、临时路径和资产相对路径不返回 WebView。
 - Channel 只用于降低实时刷新延迟，SQLite 任务记录是查询和恢复的权威状态。前端服务会持有 Channel 到任务终态，同时轮询任务记录。
 - 取消不回滚已经完成的资产；当前 `.part` 会被删除，未处理项记录为 cancelled。
-- 首版不承诺跨进程断点续传。启动时遗留的 pending/running 任务标为 `failed / ASSET_IMPORT_INTERRUPTED`，随后清理 `.part`；最近任务列表可恢复展示中断原因。
+- 首版不支持跨进程断点续传。启动时遗留的 pending/running 任务标为 `failed / ASSET_IMPORT_INTERRUPTED`，随后清理 `.part`；最近任务列表可恢复展示中断原因。
 
 ## 6. 删除与恢复一致性
 

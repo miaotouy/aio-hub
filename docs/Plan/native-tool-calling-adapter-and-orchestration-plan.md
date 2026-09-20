@@ -15,7 +15,7 @@ AIO Hub 当前通过 VCP 文本协议完成本地工具调用闭环：工具定�
 - DeepSeek 等模型对工具调用行为耦合较深；当请求没有提供模型熟悉的结构化出口时，可能只保留调用意图文本。
 - 部分 API 会返回只有原生 `tool_calls`、没有正文的响应。AIO 当前聊天层只消费正文，因此即使 Adapter 已经解析出调用，上层仍可能忽略它。
 - 同时注入原生工具和文本工具协议可能产生双重调用、正文泄漏协议格式或相互抑制，不能作为长期默认方案。
-- OpenAI-Compatible 只是 API 外形，不代表上游工具处理方式。若前端发送原生工具、后端同时以 VCP 文本约束模型，两种格式会竞争模型注意力并导致能力下降或格式错误。
+- OpenAI-Compatible 只是 API 外形，不等于上游工具处理方式。若前端发送原生工具、后端同时以 VCP 文本约束模型，两种格式会竞争模型注意力并导致能力下降或格式错误。
 
 因此，后续工作拆成两条主要工作线：
 
@@ -463,8 +463,8 @@ VCP 后端：统一解析 <<<[TOOL_REQUEST]>>>，本地工具本地执行，分�
 
 - 同主机不必然是同一工具后端。
 - VCP 可能通过反向代理使用不同主机。
-- OpenAI-Compatible URL 不代表后端使用原生工具格式。
-- 连接到 VCP Connector 不代表当前 LLM Profile 一定由该 VCP 实例处理。
+- OpenAI-Compatible URL 不意味着后端使用原生工具格式。
+- 连接到 VCP Connector 不意味着当前 LLM Profile 一定由该 VCP 实例处理。
 - 即使确认是同一 VCP 实例，也只能确认可能的解析/路由关系，不能从连接状态知道 Agent 使用了哪些 VCP Prompt 占位符。
 
 长期顺序应是“渠道显式声明 > 后端握手/能力探测 > 已知预设 > 主机启发式”。启发式命中时应在预览中标明证据来源，并允许用户确认或覆盖。
@@ -820,7 +820,6 @@ bun run build
 - `src/tools/llm-chat/ARCHITECTURE.md`
 - `docs/architecture/agent-tool-skill-integration.md`
 - `docs/architecture/llm-apis-architecture.md`
-- `docs/Plan/llm-provider-adapter-sharing-investigation.md`
 - VCPToolBox `Agent/AIOgugu.txt`
 - VCPToolBox `modules/messageProcessor.js`
 - VCPToolBox `modules/dynamicToolRegistry.js`

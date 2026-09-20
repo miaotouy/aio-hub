@@ -47,7 +47,7 @@ LLM 渠道与模型配置
 - [x] 共享模型列表、同步媒体和异步媒体协议能力；当前移动端没有对应的完整媒体生成业务工具页。
 - [x] 移动端原生 `LocalFileRef` 请求，覆盖 tagged JSON、顶层文件、multipart 和取消。
 
-跨端共享工作的代码与自动化验收已经完成，剩余项是记录真实 Tauri 性能数据和 Android/iOS 真机行为。详见 [`docs/Plan/llm-provider-adapter-sharing-investigation.md`](../../../docs/Plan/llm-provider-adapter-sharing-investigation.md)。
+跨端共享工作的代码与自动化验收已经完成，剩余项是记录真实 Tauri 性能数据和 Android/iOS 真机行为。
 
 ### 2.3 LLM Chat
 
@@ -111,7 +111,7 @@ LLM 渠道与模型配置
 - [x] 固定 ENOSPC 故障注入在写入 65,536 bytes 后清理 `.part`；本次后台返回与系统终止后自动续测通过，首份真机报告中的云端下载与预览已由人工判定通过。
 - [ ] 仍未覆盖真实低存储设备、云端离线/取消、预览令牌过期或原件缺失、原生 Photo Picker、分享导入/导出及 iOS security-scoped URL。
 
-上述结果只来自验证工具的隔离数据库与 cache 沙箱，不代表 `llm_chat.db`、`asset_manager.db` 或正式聊天附件链路已经落地。
+上述结果只来自验证工具的隔离数据库与 cache 沙箱，不意味着 `llm_chat.db`、`asset_manager.db` 或正式聊天附件链路已经落地。
 
 ### 2.7 验证台增量实现与报告导出
 
@@ -145,7 +145,7 @@ LLM 渠道与模型配置
 - [x] 155.81 MiB 样本的中断后重开续读三次通过：均在 4,194,304 bytes 关闭原句柄并从同一偏移恢复，恢复延迟为 14/19/65 ms，完整读取平均 17.92/18.45/32.82 MiB/s；另有一条用户主动停止后的 `cancelled` 记录。
 - [x] 语言设置即时应用通过：Settings Store 更新后会同步 i18n locale。验证页自身仍有大量硬编码中文，因此在测试页内不能通过整页文案切换观察效果；该 i18n 覆盖作为后续 UI 收尾项保留。
 
-大文件复测证明 64 KiB/1 MiB IPC 块、EOF 完成判定以及同一运行内的关闭、重开和 `seek` 续读可在当前 Android 16 x86_64 虚拟机工作。恢复只需 14–65 ms，旧 UI 来不及呈现中断阶段；验证台现已保留阶段提示和独立报告步骤。应用在吞吐 run 进行中重启时，现有恢复逻辑会将未完成 run 标记为 `RUN_INTERRUPTED`，不会自动续读文件。该结果仍属于验证台方向性吞吐，不代表正式资产导入管线或跨进程断点续传，也不替代 Android 真机和 iOS 验收。
+大文件复测证明 64 KiB/1 MiB IPC 块、EOF 完成判定以及同一运行内的关闭、重开和 `seek` 续读可在当前 Android 16 x86_64 虚拟机工作。恢复只需 14–65 ms，旧 UI 来不及呈现中断阶段；验证台现已保留阶段提示和独立报告步骤。应用在吞吐 run 进行中重启时，现有恢复逻辑会将未完成 run 标记为 `RUN_INTERRUPTED`，不会自动续读文件。该结果仍属于验证台方向性吞吐，不构成对正式资产导入管线或跨进程断点续传的验证，也不替代 Android 真机和 iOS 验收。
 
 ## 3. 当前工作入口
 
@@ -167,7 +167,7 @@ LLM 渠道与模型配置
 - `mobile-design-language.md` 的 Phase 0 已完成，Phase 1 只完成了包装 API 的局部落地，业务调用尚未收口。
 - `platform-validation-workbench-plan.md` 的验证台、平台文件 spike 和 SQLite spike 已施工，并取得 Android 真机报告；平台结论按 Android/iOS 分别记录，iOS 报告保留为 iOS 发布门禁。
 - `mobile-android-avd-e2e.md` 已实施；`tests/mobile-android-e2e/` 现提供核心、资产、附件、恢复和 opt-in Ollama lanes。AVD 自动化结果不替代 Android 真机或 iOS 发布门禁。
-- `llm-provider-adapter-sharing-investigation.md` 的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
+- LLM Provider Adapter 多端共享的代码与自动化验收已完成；本次真机报告未覆盖 LLM transport，相关人工性能与双平台真机验收仍未完成。
 - 2026-07-16 完成的移动端模型批量检查和 2026-07-18 完成的模型身份/Embedding 空间分离已纳入本快照；它们属于现有 `llm-api` 工具能力，不新增工具 registry。
 
 本文件保留 2026-07-18 的盘点事实，不承担资产或聊天的实时施工清单。后续施工必须读取对应工具当前计划和架构，不能从本快照扩展范围。

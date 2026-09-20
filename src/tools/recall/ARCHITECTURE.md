@@ -4,7 +4,7 @@
 
 Recall 是 AIO Hub 的完整语义条目与召回领域。它管理思绪集、原子条目、标签、优先级、向量及检索运行时，不负责文档切片、文件同步或来源回溯；后者属于独立的 Knowledge 文档资料域。
 
-本文描述 Stage 3 完成后的代码边界。Recall 运行时已以 SQLite 为真源；Agent 配置、宏和占位符已迁至 `recallConfig`、`recallSettings`、`{{recall}}` 与 `【recall::key=value】` 契约。旧字段只作为版本化迁移输入，不代表领域所有权仍属于 Knowledge。
+本文描述 Stage 3 完成后的代码边界。Recall 运行时已以 SQLite 为真源；Agent 配置、宏和占位符已迁至 `recallConfig`、`recallSettings`、`{{recall}}` 与 `【recall::key=value】` 契约。旧字段只作为版本化迁移输入，不意味着领域所有权仍属于 Knowledge。
 
 ## 1. 领域边界
 

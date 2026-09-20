@@ -270,7 +270,7 @@ LobeChat 当前使用 Dexie/IndexedDB 作为本地缓存层，并提供 PGlite/P
 
 - WAL 模式下不能在数据库打开时只复制 `.db` 文件作为备份，应使用 SQLite backup API、`VACUUM INTO` 或先 checkpoint/close。
 - 多数据库架构的“单工具备份”很方便，但“全应用一致快照”不能天然保证，需要产品明确备份粒度。
-- Chatbox 当前显式使用 `no-encryption`，Jan 也未展示聊天库加密；这说明未加密 SQLite 很常见，但不代表适合 AIO Hub 的隐私承诺。首版至少要记录威胁模型：依赖系统沙盒，还是引入 SQLCipher/安全密钥存储。
+- Chatbox 当前显式使用 `no-encryption`，Jan 也未展示聊天库加密；这说明未加密 SQLite 很常见，但不意味着适合 AIO Hub 的隐私承诺。首版至少要记录威胁模型：依赖系统沙盒，还是引入 SQLCipher/安全密钥存储。
 
 ## 6. 调查时推荐的目标架构（已采用）
 

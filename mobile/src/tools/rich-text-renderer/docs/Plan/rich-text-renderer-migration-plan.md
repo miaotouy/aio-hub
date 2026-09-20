@@ -21,7 +21,7 @@
   - [x] 编写本计划文档 `rich-text-renderer-migration-plan.md`
 - [x] **2. 迁移核心组件 `RichTextRenderer.vue`**
   - [x] 将 `mobile/src/components/common/RichTextRenderer.vue` 移动到 `mobile/src/tools/rich-text-renderer/RichTextRenderer.vue`
-  - [x] 完成首版组件的样式和依赖适配；这不代表已经具备 PC 富文本引擎的完整能力
+  - [x] 完成首版组件的样式和依赖适配；这不意味着已经具备 PC 富文本引擎的完整能力
 - [x] **3. 编写预设测试用例 `presets/test-cases.ts`**
   - [x] 建立移动端预设样例和测试入口
   - [ ] 与 PC 端完整测试用例和节点能力逐项对齐

@@ -126,7 +126,7 @@ graph TD
 | 历史展示与跨窗口同步                                       | `llm-chat`                                    | 用户消息保存档案元数据快照；`useLlmChatSync` 同步档案列表和 `globalProfileId` 给聊天分离窗口。                                                    |
 | 聊天内就地编辑                                             | `user-profile-manager` 组件 + `llm-chat` 入口 | `ChatArea` 复用 [`EditUserProfileDialog`](../user-profile-manager/components/user-profile/EditUserProfileDialog.vue)，保存仍通过档案 Store 完成。 |
 
-完整字段定义位于 [`user-profile-manager/types/profile.ts`](../user-profile-manager/types/profile.ts)。`llm-chat/types/index.ts`、`stores/userProfileStore.ts` 与 `composables/storage/useUserProfileStorage.ts` 仅保留兼容重导出，不代表数据仍归属聊天模块。
+完整字段定义位于 [`user-profile-manager/types/profile.ts`](../user-profile-manager/types/profile.ts)。`llm-chat/types/index.ts`、`stores/userProfileStore.ts` 与 `composables/storage/useUserProfileStorage.ts` 仅保留兼容重导出，不意味着数据仍归属聊天模块。
 
 ### 1.5. 附件系统与管道附件抽象层 (Attachments & PipelineAttachment)
 

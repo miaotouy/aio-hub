@@ -171,7 +171,7 @@ Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
 
 ### 4.5. 导出报告与格式化
 
-- **积木式格式化 (`formatters.ts`)**: 报告生成不再是面条代码，而是通过原子化的格式化函数（如 `commitItem`, `statistics`）拼装而成。这保证了 Agent 在对话中输出的内容与用户手动导出的报告在格式上高度一致。
+- **积木式格式化 (`formatters.ts`)**: 报告生成通过原子化的格式化函数（如 `commitItem`, `statistics`）拼装而成，不再是面条代码。这保证了 Agent 在对话中输出的内容与用户手动导出的报告在格式上高度一致。
 - **多格式支持**: `useReportGenerator` 协调 `formatters` 生成文本内容，或调用 `htmlGenerator` 生成带样式的 HTML 报告。支持 Markdown / JSON / CSV / HTML / Text。
 
 ## 5. 未来展望

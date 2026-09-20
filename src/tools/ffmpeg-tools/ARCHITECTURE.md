@@ -117,7 +117,7 @@ graph TD
 
 输出命名与容器由 `utils/naming.ts` 统一处理：自动名称基于输入文件名、`FFmpegParams` 与 `MediaMetadata`（含 `audioCodec`/`videoCodec`）推导，`appendParamsToName` 时后缀使用实际质量标签（如 `cq23`）；`container` 字段可显式指定输出容器，未指定时按处理模式、自定义 `-f` 与源编码推导扩展名。用户手动改名后不再被参数变化覆盖，提交时对同路径、已存在文件与路径占用做校验。
 
-时间裁剪由 `utils/trim.ts` 与 `buildExecutionPlan` 协同：非自定义模式下 `trimStart` 生成 `inputArgs` 的 `-ss`、`trimEnd` 生成输出侧 `-t`；`trimMode === "fast"` 强制 `-c copy` 并跳过画质/滤镜，`"precise"` 复用当前编码质量策略。`plan.totalDuration` 以裁剪后时长作为进度分母。快速模式的关键帧吸附通过后端 `get_media_keyframes`（ffprobe `-skip_frame nokey`，整份文件扫描）与前端按文件缓存实现，仅展示请求与实际起点的差异，不承诺所有容器的绝对安全边界。
+时间裁剪由 `utils/trim.ts` 与 `buildExecutionPlan` 协同：非自定义模式下 `trimStart` 生成 `inputArgs` 的 `-ss`、`trimEnd` 生成输出侧 `-t`；`trimMode === "fast"` 强制 `-c copy` 并跳过画质/滤镜，`"precise"` 复用当前编码质量策略。`plan.totalDuration` 以裁剪后时长作为进度分母。快速模式的关键帧吸附通过后端 `get_media_keyframes`（ffprobe `-skip_frame nokey`，整份文件扫描）与前端按文件缓存实现，仅展示请求与实际起点的差异，不保证所有容器的绝对安全边界。
 
 ## 6. 处理模式与参数逻辑
 

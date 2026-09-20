@@ -85,7 +85,7 @@ API 返回的 `promptTokens` 适合表示“上一次实际请求”的整体占
 
 ### 3.3. 文本计数边界
 
-`contentToTokenText()` 与 `token-limiter` 只处理普通文本和 `tool_result` 中可回放的嵌套文本。这一范围用于发送前风险预警、文本历史裁剪，以及 API usage 缺失时的 fallback；它不代表完整请求的实际 prompt Token。
+`contentToTokenText()` 与 `token-limiter` 只处理普通文本和 `tool_result` 中可回放的嵌套文本。这一范围用于发送前风险预警、文本历史裁剪，以及 API usage 缺失时的 fallback；它不等于完整请求的实际 prompt Token。
 
 图片、音频、视频、文档和托管资产引用不进入首批通用文本 tokenizer。它们的成本取决于模型、输入尺寸、编码方式和渠道协议，必须在对应请求结构稳定后独立估算。`LlmRequestOptions` 虽有 `tools` 类型，当前移动端聊天执行器没有传递 `tools`；未来接入工具调用时，工具 schema、tool choice 和协议包装开销同样必须单独估算，不能伪装为已由文本计数覆盖。
 

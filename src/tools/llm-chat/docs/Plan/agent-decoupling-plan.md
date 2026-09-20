@@ -40,7 +40,7 @@ graph TD
 
 ### 2.1. `agent-manager` (智能体大厅) 门户设计
 
-`agent-manager` 不再只是一个配置后台，而是一个**“智能体大厅”**。
+`agent-manager` 从配置后台扩展为**“智能体大厅”**。
 
 - **主页面路径**：`src/tools/agent-manager/AgentManager.vue`
 - **界面布局与功能**：

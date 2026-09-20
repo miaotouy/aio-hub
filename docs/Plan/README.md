@@ -4,7 +4,7 @@
 >
 > 最近盘点：2026-08-26
 >
-> 最近修订：2026-09-17，登记玻璃材质系统与模糊渲染效率计划；门禁口径仍为「Alpha 只登记风险，完整检查转正式版前检查清单」
+> 最近修订：2026-09-20，清理已删除计划文档的引用；门禁口径仍为「Alpha 只登记风险，完整检查转正式版前检查清单」
 >
 > 范围：根目录跨模块计划与 `src/tools/*/docs/Plan/`；移动端和独立插件仅在构成桌面任务依赖时列入
 
@@ -16,7 +16,7 @@
 - Review 文档不长期并列：未解决问题合并回主计划，已解决问题只保留必要结论。
 - 新的跨模块计划放在本目录；单工具计划放在 `src/tools/{toolId}/docs/Plan/`。
 - 没有活动计划的工具保持现状，不因盘点自动产生重构任务。
-- 执行优先级、专项正式版前检查和具体版本的风险登记是三个不同维度：进入 P0 或仍有未完成检查项，不代表阻断当前 Alpha；仅在真实运行中出现数据损坏、无法安装/启动/升级或核心能力不可用时按最高优先级修复。
+- 执行优先级、专项正式版前检查和具体版本的风险登记是三个不同维度：进入 P0 或仍有未完成检查项，不意味着阻断当前 Alpha；仅在真实运行中出现数据损坏、无法安装/启动/升级或核心能力不可用时按最高优先级修复。
 
 状态口径：
 
@@ -48,7 +48,7 @@
 - [ ] **D-P0-02 Recall 迁移正式版前检查**：施工与迁移本体（Phase 0–6、确认式旧目录迁移、版本化迁移基线 fixture）已完成并进入 `v0.7.0-alpha` 主开发线，不阻断 Alpha。剩余项均属正式版前检查：干净工作区全量工程检查、`recall-release-migration` 具名迁移 E2E、真实发布版本 appData 迁移与重启幂等、Recall/Agent/Knowledge 合并报告、发布二进制 smoke test。详见 [Recall 检索管线计划](../../src/tools/recall/docs/Plan/recall-retrieval-pipeline-modularization-plan.md)。
 - [ ] **D-P0-03 Agent / User Profile 迁移收口**：两项解耦已随 `v0.6.6-r.1` 发布；补 Agent 部分迁移恢复、递归校验、重复启动与真实升级证据，以及 User Profile 多档案迁移恢复、幂等和首载设置一致性测试。这些完整证据作为 `0.7.0` 正式版前检查，不阻断 Alpha；若出现破坏用户数据或阻断启动的回归，按最高优先级 bug 修复。详见 [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)。
 - [ ] **D-P0-04 Agent 目录搜索专项收口**：主仓资源预算、按请求取消、超时传播、总并发与 `searchId` 隔离已经实施，并已通过 LLM/VCP 普通搜索和 2 GiB 宽范围资源止损的真实 dev/Tauri 验收；并发 `busy`、服务端取消、节点断线 abort、CPU/线程/UI 响应完整基准及 VCPToolBox 上游集成作为正式版前检查，不阻断 Alpha；若出现资源失控或替换误写回归，按最高优先级 bug 修复。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
-- [ ] **D-P0-05 Guided Flow 正式版前检查**：补进程中断恢复、部分主数据失败重试、可溯源旧正式版本 fixture 和发布候选安装包 smoke test；均属正式版前检查，不阻断 Alpha。若出现造成数据破坏或升级阻断且不可恢复的路径，按最高优先级 bug 修复。详见 [Guided Flow 收口计划](./guided-flow-plan.md#114-旧数据迁移自动化验收)。
+- [ ] **D-P0-05 Guided Flow 正式版前检查**：补进程中断恢复、部分主数据失败重试、可溯源旧正式版本 fixture 和发布候选安装包 smoke test；均属正式版前检查，不阻断 Alpha。若出现造成数据破坏或升级阻断且不可恢复的路径，按最高优先级 bug 修复。
 - [ ] **D-P0-06 0.7 Alpha 1 分层发布收口**：冻结 Alpha 范围，登记并优先修复数据、安全、隐私、资源、安装启动升级和产物一致性风险；用发布候选主应用与插件完成 Sidecar API v3 最小兼容主路径，人工核对 Alpha 发布说明并登记可接受风险。系统性 UI 打磨、完整升级说明信息架构和长尾联合验收进入 `0.7.0` 正式版前检查。Sidecar API v3 稳定契约见 [插件开发指南](../guide/plugins/index.md)。
 - [ ] **D-P0-07 LLM Chat 会话持久化专项验收**：Phase 0 至 Phase 2 的单写者协调、Rust 原子替换、备份恢复、坏文件隔离和非阻塞重建已经实施；真实进程中止、Windows 文件占用和多 WebView 竞争的完整矩阵作为 `0.7.0` 正式版前检查，不阻断 Alpha；若出现会话损坏、丢失或启动阻断，按最高优先级 bug 修复。详见 [会话持久化损坏与启动阻塞调查](../../src/tools/llm-chat/docs/Plan/session-persistence-corruption-investigation.md)。
 
@@ -74,7 +74,7 @@
 ### P3：平台验证与观察项
 
 - [ ] **D-P3-01 壁纸探测跨平台真机验证**：在 macOS、GNOME、KDE 核对系统 API、权限拒绝、路径解析和定位行为。详见 [壁纸探测器计划](../../src/tools/wallpaper-detector/docs/Plan/wallpaper-detector-plan.md)。
-- [ ] **D-P3-02 Provider 共享运行态观测**：记录真实 Tauri WebView 性能；Android/iOS 真机验收属于移动端队列，不阻塞桌面已完成代码。详见 [Provider Adapter 收口记录](./llm-provider-adapter-sharing-investigation.md)。
+- [ ] **D-P3-02 Provider 共享运行态观测**：记录真实 Tauri WebView 性能；Android/iOS 真机验收属于移动端队列，不阻塞桌面已完成代码。
 - [ ] **D-P3-03 Transcription OCR 行为验收**：图片 VLM/OCR 配置、设置联动和引擎分流已经实施；补 OCR/VLM 行为、错误回退和真实运行验证。详见 [引入本地 OCR 引擎计划](../../src/tools/transcription/docs/Plan/introduce-ocr-engine.md)。
 
 ## 3. 关键依赖
@@ -90,17 +90,13 @@
 
 | 文档                                                                          | 状态   | 下一动作                                                                      |
 | ----------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| [AIO 调查问题核验台账](./aio-investigation-issue-register.md)                 | 活动   | 跟踪跨会话搜索、媒体任务设置、LLM 凭据持久化和 Agent 接入缺口；按条目关闭     |
-| [Guided Flow](./guided-flow-plan.md)                                          | 待收口 | D-P0-05，正式版前检查：进程中断恢复、故障注入、旧版本 fixture 与安装包 smoke |
 | [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                     | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                         |
-| [Provider Adapter 多端共享](./llm-provider-adapter-sharing-investigation.md)  | 待收口 | D-P3-02，仅剩人工运行态观测                                                   |
 | [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)    | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                 |
 | [模型元数据系统优化](./model-metadata-system-optimization-plan.md)            | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收 |
 | [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二     |
 | [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                            |
 | [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图 |
 | [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback           |
-| [玻璃材质系统与模糊渲染效率](./glass-material-system-plan.md) | 已放弃 | 滚动消息同构实验与静止 UI 首轮采集的缓存候选均未通过真实运行验收；产品保留原生实时模糊，方向不做了 |
 | [Regex Applier Agent 接口](./regex-applier-agent-integration.md)              | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005              |
 
 ## 5. 活动工具计划入口

@@ -18,7 +18,7 @@ AIO Hub 已经具备模型渠道、流式请求、智能体、世界书、条目
 
 > 一个本地优先、模型开放、上下文可解释、修改可回退的 AI 小说项目工作台。
 
-第一版的核心价值不是“自动写整本书”，而是同时解决四件事：
+第一版的核心价值是同时解决四件事，而非“自动写整本书”：
 
 1. **结构管理**：用共享叙事轴上的分层区域组织粗纲、情节弧、章节与细节，同时保留卷、章、场景的正文目录。
 2. **上下文管理**：每次生成都能知道模型收到了什么、为什么收到、花了多少 Token。
@@ -113,7 +113,7 @@ AIO Hub 已经具备模型渠道、流式请求、智能体、世界书、条目
 4. **AI 动作层**：构思、续写、扩写、重写、摘要、反馈和抽取。
 5. **记忆层**：近期正文、滚动摘要、相关设定和可检索资料。
 
-这说明小说模块不是一个 Prompt 集合，而是一个**领域数据模型 + 编辑器 + 上下文编译器**。
+这说明小说模块是一个**领域数据模型 + 编辑器 + 上下文编译器**，而非一个 Prompt 集合。
 
 ### 4.3 可形成差异化的空位
 
@@ -445,7 +445,7 @@ P0 必须形成完整闭环：
 价格说明了两个产品事实：
 
 1. 旗舰模型可以承担规划、关键正文和难题，但不该默认处理摘要、实体抽取和格式整理。
-2. 稳定前缀缓存和上下文去重不是底层小优化，而是小说模块的核心产品能力。
+2. 稳定前缀缓存和上下文去重是小说模块的核心产品能力。
 
 ### 9.2 粗略成本示例
 
@@ -565,7 +565,6 @@ P0 必须形成完整闭环：
 - [`src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)
 - [`src/tools/knowledge-base/ARCHITECTURE.md`](../../src/tools/knowledge-base/ARCHITECTURE.md)
 - [`src/tools/st-worldbook-manager/ARCHITECTURE.md`](../../src/tools/st-worldbook-manager/ARCHITECTURE.md)
-- [`docs/Plan/llm-provider-adapter-sharing-investigation.md`](./llm-provider-adapter-sharing-investigation.md)
 
 ### 官方产品与定价页面
 

@@ -376,7 +376,7 @@ Vite build 是必选项，不能用 TypeScript 类型检查替代。最终文件
 
 ## 9. 明确不做
 
-- 不实现常驻文件系统 watcher；目录变化由用户显式重扫，不承诺后台实时同步。
+- 不实现常驻文件系统 watcher；目录变化由用户显式重扫，不做后台实时同步。
 - 不新增图片 OCR、扫描 PDF OCR、压缩包或未验证的 Office 格式。
 - 不让全局设置在运行时覆盖已有资料库配置。
 - 不把 `requestedDimensions` 当作实际向量维度；actual dimensions 必须来自模型响应并进入空间 descriptor。

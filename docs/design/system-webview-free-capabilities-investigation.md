@@ -129,7 +129,7 @@ TTS 是当前最适合优先接入的零 API Key 能力，可用于：
 
 ### 4.4 浏览器扩展与宿主 API
 
-页面中存在 `chrome.webview`，这是 WebView2 宿主通信对象，不代表 Chrome/Edge 浏览器扩展已安装或可用。
+页面中存在 `chrome.webview`，这是 WebView2 宿主通信对象，与 Chrome/Edge 浏览器扩展是否安装可用无关。
 
 当前项目未在窗口构建中调用 `browser_extensions_enabled(true)`，也未配置扩展路径。即使后续启用，扩展也不是跨平台统一能力，并且网页蒸馏室使用本地代理 URL，普通针对原始站点匹配的内容脚本不一定直接生效。
 
@@ -142,7 +142,7 @@ TTS 是当前最适合优先接入的零 API Key 能力，可用于：
 1. 建立统一的 `platform-capabilities` / `local-capabilities` 探测层。
 2. 在初始化后异步加载系统声音列表，使用 `voiceschanged` 处理延迟加载。
 3. 将 TTS 接入聊天、翻译、OCR 和网页摘要的朗读入口。
-4. 对编辑器和输入框启用 `spellcheck`，但不承诺词典覆盖。
+4. 对编辑器和输入框启用 `spellcheck`，但不保证词典覆盖。
 5. 继续优先复用已有 Windows OCR 和 Tesseract 路径。
 
 ### 5.2 仅作为实验性功能

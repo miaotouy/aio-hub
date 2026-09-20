@@ -8,7 +8,7 @@
 
 AIO Hub 当前已经具备 JS、Native、Sidecar 三类插件适配能力，以及 `ToolRegistry`、统一执行器、Agent Extension 和上下文管道等扩展基础。但现有扩展模型主要是“固定宿主 + 注册工具/处理器 + 生命周期钩子”：插件可以在宿主预先开放的位置增加能力，却不能以统一方式声明依赖、提供能力、替换 Provider，或在卸载时自动撤销其影响。
 
-本提案记录一个后续可展开的方向：在 JS/TypeScript 层引入 Cordis 或类似的能力运行时（Capability Runtime），将插件从“被宿主调用的扩展对象”提升为“可激活、可撤销、可组合的组件”。但 AIO Hub 的首要运行时形态不是 Coding Agent Harness，而是以角色扮演（RP）、角色关系、上下文连续性和可编辑对话世界为中心的 Conversation Runtime。长期目标应是让角色设定、用户身份、预设消息、开局问候、世界书、记忆/Recall、会话变量、虚拟时间、媒体转写、上下文处理器、模型和可选工具都可以通过统一的能力与依赖机制组合。Coding、Research 或 Workflow Loop 只是建立在这套会话运行时之上的可选行为模块，而不是默认骨架。
+本提案记录一个后续可展开的方向：在 JS/TypeScript 层引入 Cordis 或类似的能力运行时（Capability Runtime），将插件从“被宿主调用的扩展对象”提升为“可激活、可撤销、可组合的组件”。但 AIO Hub 的首要运行时形态是以角色扮演（RP）、角色关系、上下文连续性和可编辑对话世界为中心的 Conversation Runtime，而非 Coding Agent Harness。长期目标应是让角色设定、用户身份、预设消息、开局问候、世界书、记忆/Recall、会话变量、虚拟时间、媒体转写、上下文处理器、模型和可选工具都可以通过统一的能力与依赖机制组合。Coding、Research 或 Workflow Loop 只是建立在这套会话运行时之上的可选行为模块。
 
 本提案不是立即执行计划，也不要求当前阶段替换现有插件系统或重写聊天核心。后续实施时应优先采用适配和渐进迁移，而不是一次性推倒重来。
 
@@ -142,7 +142,7 @@ Workflow Conversation = RP/Conversation Runtime + Workflow Action Provider
 
 ### 3.3 非目标
 
-本提案暂不承诺：
+本提案暂不涉及：
 
 - 立即引入或绑定某个具体 Cordis 版本。
 - 立即重写所有 Vue 组件。
@@ -450,7 +450,7 @@ command:quick-action
 
 ### 阶段 E：组件级热更新与自组合
 
-这是长期方向，暂不承诺实施。可能包括：
+这是长期方向，暂不安排实施。可能包括：
 
 - Provider 级热替换。
 - 依赖链局部重启。
@@ -987,7 +987,7 @@ Optional Action / Tool Turn
 Message Snapshot
 ```
 
-其中，`presetMessages`、`greetings`、`worldbookIds`、`worldbookSettings`、`userProfileId`、`variableConfig`、`virtualTimeConfig`、`recallConfig` 和 Agent 私有资产并不是附属配置，而是 RP 运行时的主要组成部分。
+其中，`presetMessages`、`greetings`、`worldbookIds`、`worldbookSettings`、`userProfileId`、`variableConfig`、`virtualTimeConfig`、`recallConfig` 和 Agent 私有资产是 RP 运行时的主要组成部分，并非附属配置。
 
 ### B.2 默认轮次的建议数据流
 

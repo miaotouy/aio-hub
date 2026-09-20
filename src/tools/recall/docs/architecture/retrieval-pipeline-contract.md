@@ -32,7 +32,7 @@
 
 - Recall service、Chat 被动召回、Agent tool 与 Agent 配置通过 pipeline service 调用；该 service 先编译，再按 external requirements 准备产物，最后执行 Runner。
 - 常规产品路径仅使用 Recall 全局活动 Embedding 模型。Chat、Agent、占位符和普通 service 不得逐查询切换模型；切换全局模型时必须轮换版本化活动资产代际，并让 query bundle 与缓存同时按完整模型身份和资产代际隔离。
-- 自定义管线仅属于 Playground。`recall_list_retrieval_modules` 只返回后端已注册模块；custom compile/run 会强制固定 Playground ID 与算法版本、限制节点数，并继续由 compiler 校验参数、依赖、artifact、预算和唯一 finalizer。custom 不支持 fallback，常规产品只允许 preset summary 声明的 overrides；Playground 不保存自定义配置、运行结果或 trace，也不输出自动质量评分。查询残差标签扩展如后续立项，只能先作为独立实验模块进入自定义管线；实验存在不代表稳定预设获得该能力。
+- 自定义管线仅属于 Playground。`recall_list_retrieval_modules` 只返回后端已注册模块；custom compile/run 会强制固定 Playground ID 与算法版本、限制节点数，并继续由 compiler 校验参数、依赖、artifact、预算和唯一 finalizer。custom 不支持 fallback，常规产品只允许 preset summary 声明的 overrides；Playground 不保存自定义配置、运行结果或 trace，也不输出自动质量评分。查询残差标签扩展如后续立项，只能先作为独立实验模块进入自定义管线；实验存在不意味着稳定预设获得该能力。
 - legacy parser 独立于运行时保留。未知 legacy ID 返回 `legacy-id-unknown`，不得静默选择默认预设；workspace、Agent、preset message 和 Agent tool 参数中的旧 ID 必须只经过版本化迁移入口。
 
 ## Legacy 能力盘点与拆分边界

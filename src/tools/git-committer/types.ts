@@ -61,6 +61,8 @@ export interface FileStatus {
 /** 仓库整体状态（与后端 `RepoStatus` 对齐） */
 export interface RepoStatus {
   branch: string;
+  /** 当前 HEAD 的完整提交哈希；未创建首个提交时为空。 */
+  headCommitHash: string;
   staged: FileStatus[];
   unstaged: FileStatus[];
   ahead: number;

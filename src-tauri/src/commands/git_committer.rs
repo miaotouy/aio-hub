@@ -67,6 +67,8 @@ pub struct RepositoryScanResult {
 #[serde(rename_all = "camelCase")]
 pub struct RepoStatus {
     pub branch: String,
+    /// 当前 HEAD 的完整提交哈希；未创建首个提交时为空。
+    pub head_commit_hash: String,
     pub staged: Vec<FileStatus>,
     pub unstaged: Vec<FileStatus>,
     pub ahead: usize,
@@ -263,20 +265,26 @@ pub async fn git_scan_repositories(paths: Vec<String>) -> Result<RepositoryScanR
         .map_err(|error| format!("扫描 Git 仓库失败: {}", error))
 }
 
+/// 获取当前分支名与完整 HEAD 哈希。未创建首个提交的仓库返回空哈希。
+fn current_branch_and_head(repo: &Repository) -> (String, String) {
+    match repo.head() {
+        Ok(head) => (
+            head.shorthand()
+                .map(|name| name.to_string())
+                .unwrap_or_else(|| "(detached)".to_string()),
+            head.target().map(|oid| oid.to_string()).unwrap_or_default(),
+        ),
+        Err(_) => ("(no HEAD)".to_string(), String::new()),
+    }
+}
+
 /// 获取仓库状态：分支名、暂存/未暂存文件列表、ahead/behind。
 #[tauri::command]
 pub async fn git_get_repo_status(path: String) -> Result<RepoStatus, String> {
     let repo = open_repo(&path)?;
     let workdir = repo_workdir(&repo, &path);
 
-    // 当前分支名（detached HEAD 时返回 commit 短哈希）
-    let branch = match repo.head() {
-        Ok(head) => head
-            .shorthand()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "(detached)".to_string()),
-        Err(_) => "(no HEAD)".to_string(),
-    };
+    let (branch, head_commit_hash) = current_branch_and_head(&repo);
 
     // 文件状态分桶
     let statuses = repo
@@ -316,6 +324,7 @@ pub async fn git_get_repo_status(path: String) -> Result<RepoStatus, String> {
 
     Ok(RepoStatus {
         branch,
+        head_commit_hash,
         staged,
         unstaged,
         ahead,
@@ -657,6 +666,42 @@ mod tests {
         let target_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
         std::fs::create_dir_all(&target_dir).expect("create cargo target directory");
         tempfile::tempdir_in(target_dir).expect("create temp directory")
+    }
+
+    fn create_initial_commit(repo: &Repository) -> Oid {
+        let workdir = repo.workdir().expect("repository should have a workdir");
+        std::fs::write(workdir.join("README.md"), "initial commit").expect("write tracked file");
+
+        let mut index = repo.index().expect("open repository index");
+        index
+            .add_path(Path::new("README.md"))
+            .expect("add tracked file to index");
+        index.write().expect("write repository index");
+        let tree_id = index.write_tree().expect("write repository tree");
+        let tree = repo.find_tree(tree_id).expect("find repository tree");
+        let signature = git2::Signature::now("AIO Hub Test", "test@example.com")
+            .expect("create commit signature");
+
+        repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "initial commit",
+            &tree,
+            &[],
+        )
+        .expect("create initial commit")
+    }
+
+    #[test]
+    fn reports_full_head_hash_for_history_refresh() {
+        let temp = test_tempdir();
+        let repo = Repository::init(temp.path()).expect("init repository");
+        let oid = create_initial_commit(&repo);
+
+        let (_, head_commit_hash) = current_branch_and_head(&repo);
+
+        assert_eq!(head_commit_hash, oid.to_string());
     }
 
     #[test]

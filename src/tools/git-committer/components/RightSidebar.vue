@@ -360,9 +360,13 @@ const openCommitChanges = (commit: GitCommitSummary) => {
   openCommitChangesTab(commit.hash);
 };
 
-// 监听当前仓库或分支变化，重新加载历史
+// 仅在当前分支或 HEAD 变化时刷新历史，避免工作区状态轮询重复读取提交记录。
 watch(
-  [currentRepoPath, () => currentStatus.value?.branch],
+  [
+    currentRepoPath,
+    () => currentStatus.value?.branch,
+    () => currentStatus.value?.headCommitHash,
+  ],
   () => {
     loadHistory();
   },

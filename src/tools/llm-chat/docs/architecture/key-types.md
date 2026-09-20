@@ -19,7 +19,7 @@
 - `agentId` / `agentName` / `agentDisplayName` / `agentIcon`
 - `userProfileId` / `userProfileName` / `userProfileDisplayName` / `userProfileIcon`
 - `profileId` / `profileName` / `profileDisplayName` / `providerType`
-- `modelId` / `modelName` / `modelDisplayName`
+- `modelId` / `modelName` / `modelDisplayName` / `modelIcon`（生成消息时的模型图标快照）
 
 ### 1.2 Token 统计
 
@@ -86,6 +86,11 @@
 - `isTruncated`（消息是否被截断）
 - `error`（错误信息）
 - `summarizedFrom`（摘要节点引用的原始节点列表）
+
+### 1.12 排队与停止
+
+- `isQueued`（排队占位节点的运行时调度标记；节点克隆时会被剥离）
+- 排队节点被用户停止时，节点状态写为 `error` 并将 `metadata.error` 置为 `"队列已停止"`，同时删除 `isQueued`；`getMessageStatusPresentation()` 会把该原因归一显示为「已停止」。
 
 ## 2. `ChatSessionIndex` — 会话的轻量索引
 

@@ -139,6 +139,7 @@
 - **跨窗口同步**: 通过 `registerSyncSource` 把 `inputText` / `attachments` / `temporaryModel` / `continuationModel` 注册到 [`useStateSyncEngine`](../../../../composables/useStateSyncEngine.ts)，本地修改自动通过 `useWindowSyncBus` 广播到所有窗口；远端状态变更时设置 `isApplyingSyncState` 标记避免循环回写。
 - **QuickActionSelector 在工具栏的位置**: **不在主输入框工具栏内**——`QuickActionSelector` 组件被复用于 ① Agent 编辑器的"快捷操作"绑定项（[`PersonalitySection.vue`](../../../agent-manager/components/agent-editor/sections/PersonalitySection.vue)）、② 全局聊天设置中的"全局关联快捷操作"项（[`settingsConfig.ts`](../../components/settings/settingsConfig.ts)）。在工具栏（[`MessageInputToolbar.vue`](../../components/message-input/MessageInputToolbar.vue)）中的入口是不同的呈现形式：① 顶部 `.quick-actions-bar` 平铺栏，按 Agent / Profile / Global 三层合并的 `activeActionSets` 平铺显示所有已激活的快捷操作按钮（支持按组分行展示，由 `groupQuickActionsBySet` 开关控制）；② "更多工具菜单"下拉中的"管理快捷操作"入口打开 `QuickActionManagerDialog`。**无折叠/收起策略**，全部按钮始终展示，依赖 `flex-wrap` 自然换行适配窄屏。
 - **外观服务**: 通过 `llmChat.registry.ts` 提供一个轻量级的外观，为其他工具（如 Agent）提供一个稳定的编程接口来与输入框交互。
+- **编辑器卸载竞态防护**: [`ChatCodeMirrorEditor.vue`](../../components/message-input/ChatCodeMirrorEditor.vue) 在 `onBeforeUnmount` 主动 `destroy()` 编辑器实例并置空引用，`isDestroyed` 标记使 `props.value` / `disabled` / 主题 / `placeholder` 等 watch 回调在卸载后短路，不对已销毁的 `EditorView` 执行 `dispatch`。
 
 ## 6. 窗口分离与同步 (Detached Window & Sync)
 

@@ -29,6 +29,7 @@
 - 保留原文本内容为 `{ type: "text", text }`。
 - 追加图片、文档、音频、视频结构化内容。
 - 在 `context.logs` 中记录解析成功和失败数量。
+- 纯图片兼容：当 `requestSettings.imageOnlyMessagePlaceholder` 开启时，为最终内容仅含图片与空白文本的 `user` 消息在最前面补一条 `{ type: "text", text: "[图片]" }`，兼容拒绝空文本的 API。占位只写入管道消息，不修改会话记录；已有正文或转写文本、含其他媒体、图片全部解析失败的消息不受影响。
 
 ## 类型处理
 
@@ -78,5 +79,6 @@
 - 该处理器必须保持最高优先级，避免 Base64 大字符串影响正则、知识库、变量和 Token 裁剪。
 - 单个附件解析失败只记录错误并继续处理同消息其他附件。
 - 文本附件理论上应已由 `transcription-processor` 消费；这里只处理 `image`、`document`、`audio`、`video`。
+- 纯图片占位补写在附件解析之后，基于最终结构化内容判断，图片全部解析失败等场景不补写。
 - 不要使用 `fetch(dataUrl)` 读取 data URL，Tauri CSP 可能拦截 `data:`；当前实现通过 ArrayBuffer 与 Base64 工具函数处理。
 

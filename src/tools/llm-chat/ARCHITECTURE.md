@@ -1,6 +1,6 @@
 # LLM Chat: 架构与开发者指南
 
-> 最后更新：2026-08-19
+> 最后更新：2026-09-20
 
 本文档是 `llm-chat` 工具的**架构概览**。每个章节只保留核心理念与定位，详细实现请参考 [`docs/architecture/`](./docs/architecture/) 下的专题文档。
 
@@ -83,6 +83,8 @@ graph TD
 
 系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。消息排队以**目标父节点到根节点的路径**为粒度：同一路径上的后续消息按顺序恢复生成；切换到树的其它分支后，新分支可与已有分支并行执行。调度器同时扫描会话节点上的持久化排队标记，避免切换会话或运行时集合清理后遗留的 `queued` 节点无法恢复。
 
+排队恢复时按占位节点内容区分：内容为空的 Assistant 占位节点直接复用（`reuseNode`）；已有部分内容的节点创建续写分支。用户主动停止生成时，会话内所有仍处于排队态的节点被标记为 `error` 并写入 `metadata.error = "队列已停止"`，同时清除 `isQueued`，UI 以「已停止」呈现。
+
 详见 [`data-persistence.md`](./docs/architecture/data-persistence.md) 第 3 节与 [`key-types.md`](./docs/architecture/key-types.md)。
 
 ### 1.3. 智能体 (ChatAgent)
@@ -90,7 +92,7 @@ graph TD
 `ChatAgent` 是一个可复用的、封装了特定配置的"对话角色"。它更像一个**配置预设**，而非一个独立的实体。智能体的定义和管理已从 `llm-chat` 拆分至平级工具 [`agent-manager`](../agent-manager/)，`llm-chat` 只消费其配置来驱动聊天运行时。
 
 - **配置集合**: 整合了 LLM Profile、模型 ID、预设消息串和模型参数。
-- **与会话解耦**: 会话与智能体松散耦合。会话索引用 `displayAgentId` 记录当前展示智能体；每条助手消息的元数据记录生成它时所使用的智能体信息，以便重试、上下文分析和历史回放使用原配置。
+- **与会话解耦**: 会话与智能体松散耦合。会话索引用 `displayAgentId` 记录当前展示智能体；每条助手消息的元数据记录生成它时所使用的智能体信息（含 `modelIcon` 模型图标快照），以便重试、上下文分析和历史回放使用原配置。模型图标读取当前渠道与模型配置的 `model.icon`，配置缺失时回退到 `modelIcon` 快照。
 - **分类与标签**: 支持 `category` 分类系统与 `tags` 标签并行，用于多层次的筛选和管理。
 - **私有资产绑定**: 智能体可以携带专属的媒体资产（表情包、背景音乐等），生命周期与智能体完全绑定，详见 [`agent-assets.md`](./docs/architecture/agent-assets.md)。
 - **预设消息多模态附件**: 预设消息支持引用智能体资产作为多模态附件（图片、音频、视频等），通过 `PresetAttachmentRef` 声明附件引用关系，在发送时由 `preset-attachment-resolver` 解析为管道附件。编辑器由 `agent-manager` 的 [`PresetAttachmentPicker`](../agent-manager/components/editors/PresetAttachmentPicker.vue)、`PresetMessageEditor`、`MacroSelector` / `VariableSelector` / `RecallPlaceholderEditor` 组成；Knowledge 目录通过宏选择器插入 `{{knowledge_list}}`。导入导出会检测悬空附件引用，Token 计算器可按附件类型估算消耗。
@@ -275,6 +277,7 @@ graph TD
 确保用户数据的可流动性和系统的可维护性。
 
 - **多格式支持**: 支持将会话、智能体、世界书、快捷操作导出为 JSON、Markdown 或 Zip 压缩包。
+- **单会话备份 JSON**: 会话导出提供 `backup` 格式（`exportSessionAsBackupJson`，信封 `format: "aiohub-chat-session"` / `version` / `session.index` + `session.detail`），与阅读型 JSON 区分；导入时校验信封版本与 `nodes` / `rootNodeId` / `activeLeafId` 的完整性，完整会话对象方可还原。详见 [`composables-reference.md`](./docs/architecture/composables-reference.md) 第 9 节。
 - **智能迁移**: `agent-manager/services/agentMigrationService` 负责处理不同版本间的配置结构差异，确保旧版 Agent 能够平滑升级到新架构。
 - **资产打包**: 导出智能体时，会自动扫描并包含其引用的所有私有资产。
 
@@ -391,6 +394,7 @@ graph TD
 - **强制转写阈值**: 支持配置 `forceTranscriptionAfter`，在长对话中强制对旧消息的附件进行转写。
 - **多模态转写模式**: 支持在 LLM 智能解析与 OCR 纯文字提取之间切换（如 PDF 转图片后调用 Smart OCR），并支持图片转写切换为本地 OCR 引擎模式（如 Tesseract/Native/Cloud/Plugin）作为视觉大模型（VLM）的平替方案。
 - **附件卡片操作**: `AttachmentCard` 支持查看/编辑、重新生成、删除、取消转写，并根据"将作为文本发送 / 当前模型可直接处理"区分视觉状态；输入区附件列表提供一键转写未转写、智能转写未转写、强制重新转写所有（无视当前转写状态重新发起任务）和停止所有任务。
+- **总开关与重试边界**: 转写总开关 `transcription.enabled` 为最高优先级，关闭时处理器短路，既不创建/等待任务，也不注入既有转写文本，并在消息侧统一按"不需要转写"呈现。自动重试与降级策略集中在 [`utils/transcriptionRetryPolicy.ts`](./utils/transcriptionRetryPolicy.ts)：发送前的自动补建任务只针对 `none` 状态，`error` 视为终态；当模型本就依赖转写时，失败附件降级为文本占位。
 
 详见 [`attachment-system.md`](./docs/architecture/attachment-system.md) 第 3、5 节。
 
@@ -569,6 +573,7 @@ graph TD
 为了性能和数据安全，聊天会话、智能体配置和用户档案均采用**分离式存储策略**，但它们的存储所有者不同。
 
 - **会话存储**: `sessions-index.json`（索引，含收藏夹元数据 `favoriteFolders`）+ `sessions/{sessionId}.json`（完整数据）。收藏状态变更仅修改索引层，无需读写会话详情文件，确保高性能。
+  - **选择槽独立写入**: 批量保存内容与索引元信息时不写入 `currentSessionId`；当前会话选择由独立且串行的写入路径提交。切换会话使用单调递增的请求序号识别过期响应，仅最新请求提交选择；删除或清空全部会话时显式清空选择槽。
 - **智能体存储**: 由 `agent-manager` 持有，位于 `agent-manager/agents-index.json`（索引）+ `agent-manager/agents/{agentId}/`（独立目录，含 `agent.json`、头像和私有资产）。`llm-chat` 只经由 `useAgentStore` 读取和使用。
   - **全量加载与手动刷新**: `loadAgents()` 读取所有完整智能体，避免索引与详情字段不一致；`refreshAgentFromFile()` 可从磁盘重新读取单个智能体并同步索引元数据。
   - **历史路径兼容**: 索引和实体读写前执行版本化收敛迁移；跨 WebView 锁保证同一时刻只有一个迁移者，目标有效文件优先，仅补入旧 `llm-chat/agents/` 或 `agents.migrated.bak/` 中缺失的配置与嵌套资产，成功后以完成标记常量时间跳过后续扫描。旧目录只读保留，资产路径解析继续兼容旧 `appdata://llm-chat/agents/...` 协议头。

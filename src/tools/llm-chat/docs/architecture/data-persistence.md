@@ -7,6 +7,7 @@
 - **索引文件**: `llm-chat/sessions-index.json`，存储 `currentSessionId`、收藏夹与会话元信息列表（`ChatSessionIndex[]`）。索引额外维护 `sessions-index.json.bak`，保存最近一次有效主索引。
 - **会话文件**: 每个会话的完整数据存储为 `llm-chat/sessions/{sessionId}.json`（直接以 `sessionId` 作为文件名，无 `session-` 前缀）。会话和索引均带有 `_persistence` 元数据（schema、revision、committedAt）；旧文件以 revision 0 兼容读取。
 - **写入模型**: `useChatStorageSeparated()` 仅作为兼容 facade。`SessionPersistenceCoordinator` 对每个会话保持“一个运行中写入 + 一个最新 dirty 标记”，索引使用全局单写者；快照在真正提交前同步 JSON 序列化。内容保存不会修改 `currentSessionId`。
+- **选择槽独立写入与切换竞态**: `currentSessionId` 由独立的串行写入路径提交，批量内容/索引保存不写入该字段，旧快照不会覆盖新选择。`sessionLifecycleManager.switchSession()` 使用单调递增的请求序号（`latestSwitchRequest`）识别过期响应，仅最新请求提交选择；删除或清空全部会话时显式提交空选择。
 - **原子提交**: 前端调用限定用途的 Rust command `llm_chat_atomic_write`。该命令只解析 llm-chat 的逻辑标识，校验 JSON/revision/sessionId，按逻辑路径获取进程内锁和跨进程文件锁，在同目录临时文件 `sync_all()` 后执行原子替换。索引只会在原主文件有效时轮换备份，避免损坏主文件覆盖最后有效备份。
 - **目录结构**:
   ```
@@ -62,3 +63,4 @@
 - **会话级输入草稿隔离**: `useChatInputManager` 内部维护 `sessionId -> draft` 的映射关系，使文本、附件、临时模型及续写模型在会话间完全隔离。
 - **生成状态只读化**: 全局 `isSending` 状态是由 `generatingNodes` 集合大小推导的计算属性，避免了手动维护全局可写状态引入的竞态风险。
 - **发送链路与 UI 状态解耦**: 核心发送函数（如 `sendMessage`）支持显式指定 `sessionId` 与 `agentId`，允许后台 SubAgent 向非当前活动会话发送消息，而不干扰前台 UI 焦点。
+- **排队恢复与停止语义**: 排队以“目标父节点到根节点的路径”为粒度，同路径串行、不同分支并行。链式恢复时，内容为空的 Assistant 占位节点被直接复用（`reuseNode`）。用户中止会话生成时，`sessionRuntimeManager` 扫描详情中仍处于排队态的节点（`isQueued` / `queued` / 旧版 `pending`），统一标记为 `error` + `"队列已停止"` 并清除队列标记。

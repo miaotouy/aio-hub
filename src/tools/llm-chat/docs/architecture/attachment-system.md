@@ -49,6 +49,14 @@ AttachmentCard 通过计算属性 `isBarLayout = computed(() => !isImage)` 决�
 - **图片转写本地 OCR 模式**: 支持图片转写切换为本地 OCR 引擎模式（如 Tesseract/Native/Cloud/Plugin），作为视觉大模型（VLM）的平替方案，满足高速度与零消耗场景。
 - **强制重新转写**: 允许用户无视当前转写状态，对所有附件强制重新发起转写任务。
 
+### 3.2. 总开关与自动重试边界
+
+- **总开关最高优先级**: `settings.transcription.enabled` 关闭时，`transcription-processor` 直接短路，`useTranscriptionManager` 不创建任务、不等待在途任务、也不把既有转写文本注入上下文，消息侧的"将使用转写"判断返回否。附件按原始形态处理。
+- **自动重试策略**: 发送时的自动补建任务（`shouldAutoCreateTranscriptionTask`）只针对 `none` 状态，`error` 视为终态，历史上下文重建时不会对失败附件重复发起任务；手动重试与强制重转仍直接调用 `addTask`。
+- **失败降级**: 当模型本身依赖转写时（`shouldUseFailedTranscriptionFallback`），终态失败的附件降级为文本占位（`[附件未发送给模型: name（转写失败）]`）。
+
+以上策略集中在 [`utils/transcriptionRetryPolicy.ts`](../../utils/transcriptionRetryPolicy.ts)，供 `useTranscriptionManager` 与 [`attachment-resolver.ts`](../../core/context-utils/attachment-resolver.ts) 共享。
+
 ## 4. 附件容器的响应式布局
 
 附件列表的"响应式"采用最简方案——**纯 Flex 换行**，不使用 CSS Grid、也不使用 Container Query：

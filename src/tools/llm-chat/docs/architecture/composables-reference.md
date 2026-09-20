@@ -21,7 +21,7 @@
 
 - **`useContextPipelineStore`** ([`stores/contextPipelineStore.ts`](../../stores/contextPipelineStore.ts)): **管道的中央管理器**（Pinia Store）。负责注册、存储、排序和执行所有上下文处理器。
 - **`useContextCompressor`** ([`composables/features/useContextCompressor.ts`](../../composables/features/useContextCompressor.ts)): **上下文压缩器**。负责检测压缩触发条件、调用 LLM 生成摘要、创建压缩节点并重构对话树。详见 [`context-compression.md`](./context-compression.md)。
-- **`buildPreviewDataFromContext`** ([`core/context-utils/preview-builder.ts`](../../core/context-utils/preview-builder.ts)): **上下文预览构建器**。在管道执行完毕后，基于 `PipelineContext` 构建用于 UI 展示的 `ContextPreviewData`，包括分段消息列表（预设 / 历史）、Token 统计、世界书激活条目、附件 Token 计算与截断统计等，供上下文分析器等 UI 消费。
+- **`buildPreviewDataFromContext`** ([`core/context-utils/preview-builder.ts`](../../core/context-utils/preview-builder.ts)): **上下文预览构建器**。在管道执行完毕后，基于 `PipelineContext` 构建用于 UI 展示的 `ContextPreviewData`，包括分段消息列表（预设 / 历史）、Token 统计、世界书激活条目、附件 Token 计算与截断统计等，供上下文分析器等 UI 消费。模型名称、图标与视觉 token 成本只从 Profile 的持久化模型快照读取，不回并可变的全局模型元数据目录。
 
 ## 4. 正则管道处理
 
@@ -40,19 +40,20 @@
 
 ## 5. 附件与输入管理
 
-- **`useAttachmentManager`**: **附件的完整管理者**。负责附件的添加、移除、验证、去重和状态追踪。
+- **`useAttachmentManager`**: **附件的完整管理者**。负责附件的添加、移除、验证、去重和状态追踪。`addAttachments(paths, { notify })` 支持静默模式：批量路径转换等场景关闭逐条浮动提示，由调用方汇总成功/失败数量后统一反馈。
 - **`useChatInputManager`**: **全局输入状态管理器**。处理输入框文本和附件的跨窗口同步与持久化。
 - **`useTranscriptionManager`**: **转写业务协调者**。
   - 它是对 `transcriptionRegistry` 的本地封装，处理 `llm-chat` 特有的转写逻辑。
   - **同步配置**: 负责将聊天设置中的转写偏好同步给全局转写引擎。
   - **自动触发**: 监听附件导入事件，根据策略自动发起转写任务。
   - **等待机制**: 实现 `ensureTranscriptions`，在发送消息前确保所有必要的转写任务已完成。
+- **`utils/transcriptionRetryPolicy.ts`**: **转写重试与降级策略**。提供 `shouldAutoCreateTranscriptionTask`（仅 `none` 状态允许自动补建任务）与 `shouldUseFailedTranscriptionFallback`（模型依赖转写而任务已失败时降级为文本占位），由 `useTranscriptionManager` 与 `attachment-resolver` 共享。
 
 ## 6. 会话、工具与同步
 
 - **`useSessionManager`**: **会话的生命周期管理者**。负责会话的创建、加载、删除和持久化。
 - **`useLlmChatSync`**: **跨窗口同步引擎**。初始化状态同步引擎，注册操作代理处理器，确保多窗口协同工作。
-- **`useTopicNamer`**: **话题命名器**。负责调用 LLM 为新会话自动生成简洁、有意义的标题。
+- **`useTopicNamer`**: **话题命名器**。负责调用 LLM 为新会话自动生成简洁、有意义的标题。思考模型按 `topicNaming.thinkingTokenReserve`（默认 4096）在 `maxTokens` 之外额外预留推理空间；关闭思考时不追加推理预算，并将 `thinkingEnabled = false` 透传给兼容渠道。
 - **`useModelSelectDialog`**: **全局模型选择器**。提供弹窗式的模型选择 UI。
 - **`useAnchorRegistry`**: **锚点注册表**。管理上下文注入系统中可用的锚点列表（如 `chat_history`）。
 
@@ -81,6 +82,9 @@
   - `exportBranchAsMarkdown`: 导出指定分支。
   - `exportSessionAsMarkdownTree`: 以树状结构导出完整会话。
   - `exportBranchAsJson`: 导出分支为 JSON 数据。
+- **`sessionImportExportService`** ([`services/sessionImportExportService.ts`](../../services/sessionImportExportService.ts)): **会话导入导出服务**。
+  - `exportSessionAsBackupJson`: 生成单会话备份 JSON（`format: "aiohub-chat-session"`、`version`、`exportedAt` 与完整的 `session.index` + `session.detail`），与只含当前路径的阅读型 JSON 区分。
+  - 导入时会识别该信封并校验版本；对普通 Raw JSON 则要求能解析出完整的 `id` / `nodes` / `rootNodeId` / `activeLeafId`，否则给出"请使用 Raw JSON 或 AIO Hub 备份 JSON"的提示。
 
 ## 10. 翻译服务
 

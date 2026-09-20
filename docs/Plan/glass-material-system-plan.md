@@ -1,14 +1,30 @@
 # 玻璃材质系统与模糊渲染效率计划
 
-> 状态：待实施（方案已确定，llm-chat 为试点）
+> 状态：已放弃（不做了）。实验性缓存候选在真实运行中均未通过验收，产品保留原生逐元素实时模糊
 >
-> 最后更新：2026-09-19
+> 最后更新：2026-09-20
 >
 > 关联：[主题系统架构](../architecture/theme-system-architecture.md)、[CSS 变量指南](../user-guide/advanced/css-variables-guide.md)
 >
 > 涉及范围：`src/styles/*`、`src/composables/useThemeAppearance.ts`、`src/composables/useIframeTheme.ts`、`src/components/TitleBar.vue`、`src/components/MainSidebar.vue`、`src/tools/llm-chat/**`
 
-## 1. 当前结论
+## 1. 当前结论（已放弃）
+
+**结论：本方向不做（2026-09-20）。** 玻璃材质性能优化经历滚动消息同构实验与静止 UI 实验两轮验证，实验性缓存候选在真实 Tauri / WebView2 运行中均未通过主人验收：滚动消息中预模糊（preblur）与低分辨率纹理（texture）观感均不如原生实时模糊，静止 UI 空闲态也未检出可稳定复现的资源收益。产品保留当前逐元素 `backdrop-filter: blur(...)` 原生实现，不推进本计划的区域收敛、批量迁移与 CI 约束。
+
+### 1.1 测试结果摘要
+
+| 批次 | 范围 | 结果 |
+| ---- | ---- | ---- |
+| 首版区域玻璃候选 | 把消息级模糊改到聊天区 / 侧栏整块背景 | 改变了材质边界（原设计的消息轮廓模糊变成整块区域模糊），三轮数据只能比较两个不同视觉方案的成本。曾记录慢速滚动 FPS `+3.8%`、快速滚动 FPS `+11.4%`、p95 帧时间 `-32.8%`、CPU 核秒/秒 `-18.8%`，显存峰值回退 `5.1%`～`19.7%`；**整组不作为优化成绩**，产品代码与已写入稳定文档的区域玻璃契约均已撤回 |
+| 滚动消息同构实验 | 同一构建内并排比较 live / preblur / texture | 27/27 项采样有效（仅表示采样完整性通过）。主人查看真实渲染后否决两个缓存候选：preblur 性能与视觉均不如实时模糊，texture 收益不足以抵消肉眼可见的背景迟滞；实时模糊继续作为默认实现 |
+| 静止 UI 首轮采集 | 固定工具栏 / 面板 / 浮层的 S0 自然空闲 | 36/36 项有效，全部 `idleRequestedFrames = 0`、`visibilityInterruptions = 0`。稳态 CPU `0.043`～`0.096` 核秒/秒、工作集 `665`～`686` MiB、GPU 3D 均 `0.00%`；四种策略差异落在跨轮噪声范围，no-blur 诊断组与 live 的差距也小于约 `0.025` 核秒/秒。判定方向为「静止空闲未检出稳定收益」，未做人工视觉验收 |
+
+采集链路本身有效，可复用于后续独立研究（隔离 data-dir fixture、WebView2 CDP 帧采样与滚轮注入、Windows 进程树 / CPU / GPU 采集、`perf-instrumentation` release 通道与 GPU 探针），但仅作为实验记录保留在 `codex/glass-material-perf-candidate` 分支，不并入 `dev`。
+
+**已知边界**：静止 UI 首轮未执行 S1–S4 生命周期事件与多半径 / 倍率矩阵；首次显示未使用独立冷缓存进程；固定截图与帧间隔未覆盖滚动时背景相对消息的动态跟随延迟。
+
+### 1.2 原方案动机与依据（历史记录）
 
 AIO 当前的毛玻璃实现是**每个元素各自 `backdrop-filter`**，即每个玻璃元素都会独立采样背景、独立生成一张离屏纹理。全仓 `src/` 与 `mobile/src/` 中共有 **244 个文件、369 处** `backdrop-filter`，其中大量位于滚动容器内的重复元素、嵌套卡片和 Element Plus 组件上。
 
@@ -226,6 +242,7 @@ Phase 1 验证收益后启动，可脚本 + agent 并行推进。
 | Element Plus 治理       | 只清大块（`.el-card` / `.el-table` / `.el-slider__runway` 等），保留小控件；`.el-message` 因挂载在 `body` 下改列 `glass-overlay` | 大块面积是显存主要来源；小控件面积小、感知强；`.el-message` 不在任何区域层内，需独立兜底 |
 | 模糊档位                | 全局单档 + 聊天区区域层                                                                                                          | 保留 `chatMessageBlurFactor` 语义，无需下线设置项                                        |
 | `chatMessageBlurFactor` | 保留，由聊天区区域层承载                                                                                                         | 无需双档共享层即可正确实现                                                               |
+| 方向放弃（2026-09-20）  | 不做了，产品保留原生实时模糊                                                                                                     | 滚动消息 preblur / texture 与静止 UI 缓存候选均未通过真实运行验收；切换回 `dev`，候选改动留在 `codex/glass-material-perf-candidate` |
 
 ## 10. 回写要求
 

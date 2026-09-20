@@ -50,7 +50,7 @@
 - [ ] **D-P0-04 Agent 目录搜索专项收口**：主仓资源预算、按请求取消、超时传播、总并发与 `searchId` 隔离已经实施，并已通过 LLM/VCP 普通搜索和 2 GiB 宽范围资源止损的真实 dev/Tauri 验收；并发 `busy`、服务端取消、节点断线 abort、CPU/线程/UI 响应完整基准及 VCPToolBox 上游集成作为正式版前检查，不阻断 Alpha；若出现资源失控或替换误写回归，按最高优先级 bug 修复。详见 [目录搜索资源占用调查与加固计划](../../src/tools/dir-search/docs/Plan/agent-search-resource-safety-investigation.md)。
 - [ ] **D-P0-05 Guided Flow 正式版前检查**：补进程中断恢复、部分主数据失败重试、可溯源旧正式版本 fixture 和发布候选安装包 smoke test；均属正式版前检查，不阻断 Alpha。若出现造成数据破坏或升级阻断且不可恢复的路径，按最高优先级 bug 修复。
 - [ ] **D-P0-06 0.7 Alpha 1 分层发布收口**：冻结 Alpha 范围，登记并优先修复数据、安全、隐私、资源、安装启动升级和产物一致性风险；用发布候选主应用与插件完成 Sidecar API v3 最小兼容主路径，人工核对 Alpha 发布说明并登记可接受风险。系统性 UI 打磨、完整升级说明信息架构和长尾联合验收进入 `0.7.0` 正式版前检查。Sidecar API v3 稳定契约见 [插件开发指南](../guide/plugins/index.md)。
-- [ ] **D-P0-07 LLM Chat 会话持久化专项验收**：Phase 0 至 Phase 2 的单写者协调、Rust 原子替换、备份恢复、坏文件隔离和非阻塞重建已经实施；真实进程中止、Windows 文件占用和多 WebView 竞争的完整矩阵作为 `0.7.0` 正式版前检查，不阻断 Alpha；若出现会话损坏、丢失或启动阻断，按最高优先级 bug 修复。详见 [会话持久化损坏与启动阻塞调查](../../src/tools/llm-chat/docs/Plan/session-persistence-corruption-investigation.md)。
+- [ ] **D-P0-07 LLM Chat 会话持久化专项验收**：Phase 0 至 Phase 2 的单写者协调、Rust 原子替换、备份恢复、坏文件隔离和非阻塞重建已经实施；真实进程中止、Windows 文件占用和多 WebView 竞争的完整矩阵作为 `0.7.0` 正式版前检查，不阻断 Alpha；若出现会话损坏、丢失或启动阻断，按最高优先级 bug 修复。已落地能力与验收矩阵见 [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)。
 
 ### P1：共享基础设施
 

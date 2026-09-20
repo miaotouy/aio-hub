@@ -39,9 +39,11 @@ import {
   type PerfFixtureManifest,
 } from "./fixture";
 import {
+  captureViewportScreenshot,
   connectFrameProbe,
   frameSamplingExpression,
   openLlmChatAndWait,
+  setVisualCheckpoint,
   startCdpWheelScroll,
   verifyTallMessageSlices,
   summarizeFrames,
@@ -57,6 +59,7 @@ import {
   buildComparisonMarkdown,
   collectMetricRows,
   readRunResults,
+  readVisualEquivalenceReview,
   writeRunResult,
   type RunResult,
   type ScenarioResult,
@@ -105,6 +108,7 @@ function printHelp(): void {
   --cdp-port <port>        WebView2 loopback CDP 端口，默认 9333
   --keep-data              保留每次运行的 data-dir
   --report                 只根据已有结果重新生成 comparison.md
+                           无匹配的 visual-equivalence.json 时不输出优化判定
   -h, --help               显示帮助
 `);
 }
@@ -343,6 +347,7 @@ async function runOnce(
 
   let probe: Awaited<ReturnType<typeof connectFrameProbe>> | null = null;
   const scenarios: ScenarioResult[] = [];
+  const visualArtifacts: string[] = [];
   try {
     await waitForMainWindow(app.pid);
     probe = await connectFrameProbe(options.cdpPort, {
@@ -361,6 +366,29 @@ async function runOnce(
         `高度 ${Math.min(...tallMessageChecks.map((item) => item.height))}–` +
         `${Math.max(...tallMessageChecks.map((item) => item.height))}px`
     );
+
+    const screenshotsDir = path.join(resultsRoot, "screenshots");
+    fs.mkdirSync(screenshotsDir, { recursive: true });
+    const captureCheckpoint = async (name: string, messageId?: string) => {
+      await setVisualCheckpoint(probe!, messageId);
+      await sleep(250);
+      const fileName = `${options.label}-${options.lane}-run-${runIndex}-${name}.png`;
+      const target = path.join(screenshotsDir, fileName);
+      fs.writeFileSync(
+        target,
+        Buffer.from(await captureViewportScreenshot(probe!), "base64")
+      );
+      visualArtifacts.push(
+        path.relative(resultsRoot, target).replace(/\\/g, "/")
+      );
+    };
+    await captureCheckpoint("top");
+    const middleTallMessage =
+      fixture.tallMessageIds[Math.floor(fixture.tallMessageIds.length / 2)];
+    if (middleTallMessage)
+      await captureCheckpoint("tall-middle", middleTallMessage);
+    await setVisualCheckpoint(probe);
+    console.log(`  视觉检查点已保存: ${visualArtifacts.join(", ")}`);
 
     for (const scenarioId of options.scenarios) {
       const scenario = PERF_SCENARIOS.find((item) => item.id === scenarioId);
@@ -400,6 +428,7 @@ async function runOnce(
     finishedAt: new Date().toISOString(),
     host: hostInfo(),
     fixture,
+    visualArtifacts,
     scenarios,
   };
   writeRunResult(resultsRoot, result);
@@ -415,7 +444,9 @@ async function main(): Promise<void> {
     if (results.length === 0) {
       throw new Error(`没有可用的性能结果: ${resultsRoot}`);
     }
-    const markdown = buildComparisonMarkdown(results);
+    const markdown = buildComparisonMarkdown(results, {
+      visualReview: readVisualEquivalenceReview(resultsRoot),
+    });
     const target = path.join(resultsRoot, "comparison.md");
     fs.writeFileSync(target, markdown, "utf8");
     for (const row of collectMetricRows(results)) {
@@ -445,7 +476,9 @@ async function main(): Promise<void> {
   }
 
   const results = readRunResults(resultsRoot);
-  const markdown = buildComparisonMarkdown(results);
+  const markdown = buildComparisonMarkdown(results, {
+    visualReview: readVisualEquivalenceReview(resultsRoot),
+  });
   fs.writeFileSync(path.join(resultsRoot, "comparison.md"), markdown, "utf8");
   console.log(`\n完成。对比报告: ${path.join(resultsRoot, "comparison.md")}`);
 }

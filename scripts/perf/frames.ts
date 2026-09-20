@@ -20,6 +20,8 @@
  * Windows UIA、系统鼠标或系统键盘。
  */
 
+import { CHAT_SCROLL_SELECTOR } from "./scenarios";
+
 export interface FrameSample {
   /** 采样窗口内的帧间隔（毫秒）。 */
   frameTimes: number[];
@@ -320,7 +322,7 @@ export async function verifyTallMessageSlices(
 
   if (result.missing.length > 0) {
     throw new Error(
-      `Tall-message fixture nodes were not rendered: ${result.missing.join(', ')}`
+      `Tall-message fixture nodes were not rendered: ${result.missing.join(", ")}`
     );
   }
   const invalid = result.checks.filter(
@@ -333,10 +335,47 @@ export async function verifyTallMessageSlices(
           (check) =>
             `${check.messageId} (${check.height}px, ${check.sliceCount} slice(s))`
         )
-        .join(', ')}`
+        .join(", ")}`
     );
   }
   return result.checks;
+}
+
+/** 将聊天列表定位到固定视觉检查点，并等待两帧完成布局。 */
+export async function setVisualCheckpoint(
+  probe: FrameProbe,
+  messageId?: string
+): Promise<void> {
+  await probe.evaluate<void>(`(() => {
+    const list = document.querySelector(${JSON.stringify(CHAT_SCROLL_SELECTOR)});
+    if (!(list instanceof HTMLElement)) throw new Error('Message list not found for visual checkpoint');
+    if (${JSON.stringify(messageId ?? "")} === '') {
+      list.scrollTop = 0;
+    } else {
+      const target = Array.from(document.querySelectorAll('[data-testid="chat-message"]')).find(
+        (candidate) => candidate.getAttribute('data-message-id') === ${JSON.stringify(messageId ?? "")}
+      );
+      if (!(target instanceof HTMLElement)) throw new Error('Visual checkpoint message not found');
+      target.scrollIntoView({ block: 'center' });
+    }
+    return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  })()`);
+}
+
+/** 通过 CDP 捕获当前真实 WebView2 视口，返回 PNG base64。 */
+export async function captureViewportScreenshot(
+  probe: FrameProbe
+): Promise<string> {
+  const result = await probe.command<{ data: string }>(
+    "Page.captureScreenshot",
+    {
+      format: "png",
+      fromSurface: true,
+      captureBeyondViewport: false,
+    }
+  );
+  if (!result.data) throw new Error("CDP screenshot returned no data");
+  return result.data;
 }
 
 export interface CdpWheelScroll {

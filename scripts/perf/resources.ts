@@ -25,7 +25,8 @@
  * 采样间隔固定，由 scripts/perf/run.ts 统一控制时长。
  */
 
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 
 /**
  * 资源采样间隔与最低样本数。最短场景为 12s；常驻采集器按 400ms 节拍
@@ -119,7 +120,10 @@ export function summarizeResources(
 }
 
 /** 常驻采集器：每个周期输出一行 JSON，根进程退出后输出 alive=false 并结束。 */
-const COLLECTOR_SCRIPT = (rootPid: number, intervalMs: number): string => `
+export const buildResourceCollectorScript = (
+  rootPid: number,
+  intervalMs: number
+): string => `
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -185,7 +189,7 @@ function Write-ResourceSample {
   $gpu3d = 0.0
   $engine = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -Filter "Name LIKE '%engtype_3D%'"
   foreach ($sample in $engine) {
-    if ($sample.Name -match 'pid_(\d+)_') {
+    if ($sample.Name -match 'pid_(\\d+)_') {
       if ($treeIds.Contains([int]$matches[1])) {
         $gpu3d += [double]$sample.UtilizationPercentage
       }
@@ -196,7 +200,7 @@ function Write-ResourceSample {
   $shared = 0L
   $procMem = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUProcessMemory
   foreach ($sample in $procMem) {
-    if ($sample.Name -match 'pid_(\d+)_') {
+    if ($sample.Name -match 'pid_(\\d+)_') {
       if ($treeIds.Contains([int]$matches[1])) {
         $dedicated += [long]$sample.DedicatedUsage
         $shared += [long]$sample.SharedUsage
@@ -229,6 +233,8 @@ while ($true) {
 `;
 
 export interface ResourceCollector {
+  getSamples(): ResourceSample[];
+  resetSamples(): void;
   stop(): Promise<ResourceSummary>;
 }
 
@@ -271,7 +277,10 @@ function launchResourceCollector(
   rootPid: number,
   intervalMs: number,
   samples: ResourceSample[]
-): { process: ChildProcessWithoutNullStreams; exited: Promise<void> } {
+): {
+  process: ChildProcessByStdio<null, Readable, Readable>;
+  exited: Promise<void>;
+} {
   const process = spawn(
     "powershell",
     [
@@ -279,7 +288,7 @@ function launchResourceCollector(
       "-NoProfile",
       "-NonInteractive",
       "-Command",
-      COLLECTOR_SCRIPT(rootPid, intervalMs),
+      buildResourceCollectorScript(rootPid, intervalMs),
     ],
     { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }
   );
@@ -327,11 +336,17 @@ export function startResourceCollector(
 ): ResourceCollector {
   const intervalMs = options.intervalMs ?? RESOURCE_SAMPLE_INTERVAL_MS;
   const samples: ResourceSample[] = [];
-  const startedAt = Date.now();
+  let startedAt = Date.now();
   const collector = launchResourceCollector(rootPid, intervalMs, samples);
   let stopped = false;
 
   return {
+    getSamples: () => samples.map((sample) => ({ ...sample })),
+    resetSamples() {
+      if (stopped) throw new Error("Cannot reset a stopped resource collector");
+      samples.length = 0;
+      startedAt = Date.now();
+    },
     async stop() {
       if (!stopped) {
         stopped = true;

@@ -53,7 +53,26 @@ export interface RunResult {
     gpus: string[];
   };
   fixture: unknown;
+  visualArtifacts?: string[];
   scenarios: ScenarioResult[];
+}
+
+export interface VisualEquivalenceReview {
+  approved: boolean;
+  baselineCommit: string;
+  candidateCommit: string;
+  reviewedAt: string;
+  reviewer?: string;
+  artifacts: string[];
+  notes?: string;
+}
+
+export function readVisualEquivalenceReview(
+  outputDir: string
+): VisualEquivalenceReview | null {
+  const target = path.join(outputDir, "visual-equivalence.json");
+  if (!fs.existsSync(target)) return null;
+  return JSON.parse(fs.readFileSync(target, "utf8")) as VisualEquivalenceReview;
 }
 
 export function median(values: number[]): number {
@@ -286,13 +305,76 @@ function buildHealthLines(
   return lines;
 }
 
+function validateVisualEquivalenceReview(
+  baselineRuns: RunResult[],
+  candidateRuns: RunResult[],
+  review: VisualEquivalenceReview | null | undefined
+): { approved: boolean; issues: string[] } {
+  const issues: string[] = [];
+  const baselineCommits = [...new Set(baselineRuns.map((item) => item.commit))];
+  const candidateCommits = [
+    ...new Set(candidateRuns.map((item) => item.commit)),
+  ];
+  if (!review) {
+    issues.push("缺少 visual-equivalence.json 评审记录");
+    return { approved: false, issues };
+  }
+  if (!review.approved) issues.push("视觉评审未批准");
+  if (
+    baselineCommits.length !== 1 ||
+    review.baselineCommit !== baselineCommits[0]
+  ) {
+    issues.push(
+      `baseline commit 不匹配：报告=${baselineCommits.join(", ") || "-"}，评审=${review.baselineCommit || "-"}`
+    );
+  }
+  if (
+    candidateCommits.length !== 1 ||
+    review.candidateCommit !== candidateCommits[0]
+  ) {
+    issues.push(
+      `candidate commit 不匹配：报告=${candidateCommits.join(", ") || "-"}，评审=${review.candidateCommit || "-"}`
+    );
+  }
+  if (!review.reviewedAt) issues.push("评审记录缺少 reviewedAt");
+  if (!Array.isArray(review.artifacts) || review.artifacts.length < 2) {
+    issues.push("评审记录至少需要绑定 2 个视觉检查点产物");
+  } else {
+    const baselineArtifacts = new Set(
+      baselineRuns.flatMap((item) => item.visualArtifacts ?? [])
+    );
+    const candidateArtifacts = new Set(
+      candidateRuns.flatMap((item) => item.visualArtifacts ?? [])
+    );
+    if (!review.artifacts.some((artifact) => baselineArtifacts.has(artifact))) {
+      issues.push("评审记录未绑定本次 baseline 的视觉产物");
+    }
+    if (
+      !review.artifacts.some((artifact) => candidateArtifacts.has(artifact))
+    ) {
+      issues.push("评审记录未绑定本次 candidate 的视觉产物");
+    }
+  }
+  return { approved: issues.length === 0, issues };
+}
+
 export function buildComparisonMarkdown(
   results: RunResult[],
-  options: { baselineLabel?: string; candidateLabel?: string } = {}
-): string {  const baselineLabel = options.baselineLabel ?? "baseline";
+  options: {
+    baselineLabel?: string;
+    candidateLabel?: string;
+    visualReview?: VisualEquivalenceReview | null;
+  } = {}
+): string {
+  const baselineLabel = options.baselineLabel ?? "baseline";
   const candidateLabel = options.candidateLabel ?? "candidate";
   const baselineRuns = results.filter((item) => item.label === baselineLabel);
   const candidateRuns = results.filter((item) => item.label === candidateLabel);
+  const visualGate = validateVisualEquivalenceReview(
+    baselineRuns,
+    candidateRuns,
+    options.visualReview
+  );
 
   const lines: string[] = [];
   lines.push("# 玻璃材质性能对比");
@@ -306,10 +388,26 @@ export function buildComparisonMarkdown(
   );
   lines.push("- 单轮口径：每个场景取统计窗口内的中位数，跨轮再取中位数。");
   lines.push("");
-  lines.push("## 判定");
+  lines.push("## 视觉等价门禁");
+  lines.push("");
+  if (visualGate.approved) {
+    lines.push("- 视觉等价评审：已通过 ✅；性能表可以给出改善/回退判定。");
+    if (options.visualReview?.reviewer) {
+      lines.push(`- 评审人：${options.visualReview.reviewer}`);
+    }
+    lines.push(`- 评审时间：${options.visualReview?.reviewedAt}`);
+    lines.push(`- 绑定产物：${options.visualReview?.artifacts.join(", ")}`);
+  } else {
+    lines.push(
+      "- 视觉等价评审：未通过 ❌；以下数字只表示两个实现的渲染成本差异，不构成优化成绩。"
+    );
+    for (const issue of visualGate.issues) lines.push(`  - ${issue}`);
+  }
+  lines.push("");
+  lines.push("## 性能判定口径");
   lines.push("");
   lines.push(
-    "收益结论以 **CPU 核秒/秒、工作集峰值、GPU 3D 平均占用、显存峰值** 与 **帧时间分位数** 为准；" +
+    "只有视觉等价门禁通过后，才以 **CPU 核秒/秒、工作集峰值、GPU 3D 平均占用、显存峰值** 与 **帧时间分位数** 判断改善或回退；" +
       "每条 lane 都通过 WebView2 CDP 使用相同的工作区导航与滚轮输入序列，并同时采集帧和资源指标。"
   );
   lines.push("");
@@ -345,7 +443,13 @@ export function buildComparisonMarkdown(
           baseValue === 0 ? 0 : (delta / Math.abs(baseValue)) * 100;
         const improved = spec.lowerIsBetter ? delta < 0 : delta > 0;
         const meaningful = Math.abs(deltaPercent) >= 3;
-        const verdict = !meaningful ? "持平" : improved ? "✅ 改善" : "⚠️ 回退";
+        const verdict = visualGate.approved
+          ? !meaningful
+            ? "持平"
+            : improved
+              ? "✅ 改善"
+              : "⚠️ 回退"
+          : "未判定（视觉门禁）";
         lines.push(
           `| ${spec.label} | ${baseValue.toFixed(2)} | ${candValue.toFixed(2)} | ${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toFixed(1)}% | ${verdict} |`
         );

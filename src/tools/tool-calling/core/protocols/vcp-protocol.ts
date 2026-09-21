@@ -33,7 +33,10 @@ export const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
 const RE_VCP_ARG_ESCAPE =
   /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
 const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):\s*「始exp」([\s\S]*?)「末exp」/g;
-const RE_VCP_ARG = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g;
+const VCP_STANDARD_ARG_PATTERN =
+  /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」(?=\s*(?:,\s*(?:[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$)|[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$))/;
+const RE_VCP_ARG = new RegExp(VCP_STANDARD_ARG_PATTERN.source, "g");
+const RE_VCP_ARG_SINGLE = new RegExp(VCP_STANDARD_ARG_PATTERN.source);
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
 const RE_LINE_BREAKS = /\r\n/g;
 
@@ -115,6 +118,7 @@ function parseSingleToolRequest(
 
   // 第一步：优先解析 ESCAPE/exp 变体（内容可含标准 VCP 字符，必须先处理）
   const matchedRanges: Array<[number, number]> = [];
+  const matchedValueRanges: Array<[number, number]> = [];
 
   const parseEscapeVariant = (regex: RegExp) => {
     let match: RegExpExecArray | null;
@@ -123,6 +127,8 @@ function parseSingleToolRequest(
       const key = match[1];
       const value = sanitizeValue(match[2]);
       matchedRanges.push([match.index, regex.lastIndex]);
+      const valueStart = match.index + match[0].indexOf("」") + 1;
+      matchedValueRanges.push([valueStart, valueStart + match[2].length]);
       allParams[key] = value;
     }
   };
@@ -132,25 +138,29 @@ function parseSingleToolRequest(
 
   // 第二步：屏蔽已匹配区域，解析标准参数
   matchedRanges.sort((a, b) => a[0] - b[0]);
-  let maskedContent = content;
-  for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
-    const [start, end] = matchedRanges[ri];
-    maskedContent =
-      maskedContent.slice(0, start) +
-      " ".repeat(end - start) +
-      maskedContent.slice(end);
-  }
+  matchedValueRanges.sort((a, b) => a[0] - b[0]);
+  const maskRanges = (source: string, ranges: Array<[number, number]>) => {
+    let result = source;
+    for (let ri = ranges.length - 1; ri >= 0; ri--) {
+      const [start, end] = ranges[ri];
+      result =
+        result.slice(0, start) + " ".repeat(end - start) + result.slice(end);
+    }
+    return result;
+  };
+  // 保留 ESCAPE/exp 字段外壳供标准字段识别边界，同时用完整屏蔽文本
+  // 做尾部 pending 检查，避免把已解析的转义字段再次当成未闭合字段。
+  const maskedContent = maskRanges(content, matchedRanges);
+  const scanContent = maskRanges(content, matchedValueRanges);
 
   RE_VCP_ARG.lastIndex = 0;
   let lastMatchEnd = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = RE_VCP_ARG.exec(maskedContent)) !== null) {
+  while ((match = RE_VCP_ARG.exec(scanContent)) !== null) {
     const key = match[1];
     // 从原始 content 中提取真实值
-    const realValueMatch = content
-      .slice(match.index, RE_VCP_ARG.lastIndex)
-      .match(/([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/);
+    const realValueMatch = content.slice(match.index).match(RE_VCP_ARG_SINGLE);
     const value = realValueMatch
       ? sanitizeValue(realValueMatch[2])
       : sanitizeValue(match[2]);

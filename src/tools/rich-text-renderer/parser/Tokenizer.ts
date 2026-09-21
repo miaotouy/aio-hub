@@ -56,7 +56,10 @@ const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
 const RE_VCP_ARG_ESCAPE =
   /([a-zA-Z0-9_-]+):\s*「始ESCAPE」([\s\S]*?)「末ESCAPE」/g;
 const RE_VCP_ARG_EXP = /([a-zA-Z0-9_-]+):\s*「始exp」([\s\S]*?)「末exp」/g;
-const RE_VCP_ARG = /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/g;
+const VCP_STANDARD_ARG_PATTERN =
+  /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」(?=\s*(?:,\s*(?:[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$)|[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$))/;
+const RE_VCP_ARG = new RegExp(VCP_STANDARD_ARG_PATTERN.source, "g");
+const RE_VCP_ARG_SINGLE = new RegExp(VCP_STANDARD_ARG_PATTERN.source);
 const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
 const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
@@ -644,6 +647,7 @@ export class Tokenizer {
             // 第一步：优先解析 ESCAPE/exp 变体（内容可含标准 VCP 字符，必须先处理）
             // 记录已匹配的字符范围，防止后续标准正则重复处理
             const matchedRanges: Array<[number, number]> = [];
+            const matchedValueRanges: Array<[number, number]> = [];
 
             const parseEscapeVariant = (regex: RegExp) => {
               let match;
@@ -652,6 +656,11 @@ export class Tokenizer {
                 const key = match[1];
                 const value = match[2];
                 matchedRanges.push([match.index, regex.lastIndex]);
+                const valueStart = match.index + match[0].indexOf("」") + 1;
+                matchedValueRanges.push([
+                  valueStart,
+                  valueStart + value.length,
+                ]);
                 if (key === "tool_name") tool_name = value;
                 else if (key === "command") command = value;
                 else if (key === "maid") maid = value;
@@ -664,26 +673,42 @@ export class Tokenizer {
 
             // 第二步：构建去除已匹配范围的内容，再用标准正则扫描
             matchedRanges.sort((a, b) => a[0] - b[0]);
-            let maskedContent = vcpContentForParsing;
-            // 从后往前替换，避免偏移量变化
-            for (let ri = matchedRanges.length - 1; ri >= 0; ri--) {
-              const [start, end] = matchedRanges[ri];
-              maskedContent =
-                maskedContent.slice(0, start) +
-                " ".repeat(end - start) +
-                maskedContent.slice(end);
-            }
+            matchedValueRanges.sort((a, b) => a[0] - b[0]);
+            // 完整屏蔽用于 pending 检查；扫描标准字段时保留 ESCAPE/exp
+            // 的字段外壳，让前一个标准字段仍能看到下一个字段边界。
+            const maskRanges = (
+              source: string,
+              ranges: Array<[number, number]>
+            ) => {
+              let result = source;
+              for (let ri = ranges.length - 1; ri >= 0; ri--) {
+                const [start, end] = ranges[ri];
+                result =
+                  result.slice(0, start) +
+                  " ".repeat(end - start) +
+                  result.slice(end);
+              }
+              return result;
+            };
+            const maskedContent = maskRanges(
+              vcpContentForParsing,
+              matchedRanges
+            );
+            const scanContent = maskRanges(
+              vcpContentForParsing,
+              matchedValueRanges
+            );
 
             let match;
             RE_VCP_ARG.lastIndex = 0;
             let lastMatchEnd = 0;
-            while ((match = RE_VCP_ARG.exec(maskedContent)) !== null) {
+            while ((match = RE_VCP_ARG.exec(scanContent)) !== null) {
               const key = match[1];
               const value = match[2];
               // 使用原始 vcpContent 中对应位置的真实值
               const realValue = vcpContentForParsing
-                .slice(match.index, RE_VCP_ARG.lastIndex)
-                .match(/([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」/);
+                .slice(match.index)
+                .match(RE_VCP_ARG_SINGLE);
               const actualValue = realValue ? realValue[2] : value;
               if (key === "tool_name") tool_name = tool_name || actualValue;
               else if (key === "command") command = command || actualValue;

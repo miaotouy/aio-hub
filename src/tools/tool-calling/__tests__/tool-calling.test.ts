@@ -114,6 +114,31 @@ message2:「始」second「末」
     expect(requests[1].args.message).toBe("second");
   });
 
+  it("保留标准 Content 字段中 Markdown 示例里的协议结束符", () => {
+    const codeFence = "```";
+    const text = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+Content:「始」### 标题
+
+${codeFence}text
+JEV:「始」{意图类别} '子路由' 【核心Query/Payload】[参数约束1][参数约束2]「末」
+Tag:
+架构思辨, JSON去魅, 符号DSL
+${codeFence}
+「末」,
+Tag:「始」架构思辨, JSON去魅, 符号DSL「末」
+<<<[END_TOOL_REQUEST]>>>`;
+
+    const requests = parseToolRequests(text, protocol);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].args.Content).toContain("JEV:「始」{意图类别}");
+    expect(requests[0].args.Content).toContain("Tag:");
+    expect(requests[0].args.Content).toContain("JSON去魅, 符号DSL");
+    expect(requests[0].args.Tag).toBe("架构思辨, JSON去魅, 符号DSL");
+  });
+
   it("跳过 Markdown 代码块中的伪请求", () => {
     const text = `这是一段说明
 \`\`\`

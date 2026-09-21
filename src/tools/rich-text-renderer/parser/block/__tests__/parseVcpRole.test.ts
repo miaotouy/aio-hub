@@ -248,6 +248,30 @@ Tag:「始」VCP开发「末」
     ).toBe(true);
   });
 
+  it("keeps Markdown code fences inside a standard Content field", () => {
+    const codeFence = "```";
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+tool_name:「始」DailyNote「末」,
+command:「始」create「末」,
+Content:「始」### 标题
+
+${codeFence}text
+JEV:「始」{意图类别} '子路由' 【核心Query/Payload】[参数约束1][参数约束2]「末」
+Tag:
+架构思辨, JSON去魅, 符号DSL
+${codeFence}
+<<<[END_TOOL_REQUEST]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].props.args.Content).toContain("JEV:「始」{意图类别}");
+    expect(requests[0].props.args.Content).toContain("Tag:");
+    expect(requests[0].props.args.Content).toContain("JSON去魅, 符号DSL");
+  });
+
   it("keeps malformed ESCAPE fences unclosed when fuzzy mode is disabled", () => {
     const ast = parse(
       `

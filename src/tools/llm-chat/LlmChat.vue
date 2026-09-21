@@ -15,7 +15,14 @@
 -->
 
 <script setup lang="ts">
-import { onMounted, computed, ref, watch, defineAsyncComponent } from "vue";
+import {
+  onMounted,
+  computed,
+  ref,
+  watch,
+  defineAsyncComponent,
+  nextTick,
+} from "vue";
 import { useLlmChatStore } from "./stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
@@ -45,6 +52,8 @@ import { initAgentAssetCache } from "./utils/agentAssetUtils";
 import { useChatInputManager } from "./composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import type { ModelSelection } from "@/composables/useModelSelectDialog";
+import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -61,6 +70,7 @@ const chatSettings = useChatSettings();
 const bus = useWindowSyncBus();
 const inputManager = useChatInputManager();
 const { open: openModelSelectDialog } = useModelSelectDialog();
+const { enabledProfiles, loadProfiles } = useLlmProfiles();
 const isClearingEmptySessions = ref(false);
 const isRefreshingSessionIndex = ref(false);
 const sessionRecoveryMessage = computed(() => {
@@ -94,6 +104,7 @@ const {
   currentAgentId: uiCurrentAgentId,
   loadUiState,
   startWatching,
+  selectAgent,
 } = useLlmChatUiState();
 
 // ===== 侧边栏拖拽调整宽度 =====
@@ -138,6 +149,8 @@ onMounted(async () => {
     logger.info("主窗口：开始加载核心数据...");
     try {
       // 1. 先加载所有核心数据
+      // 模型渠道必须先加载完成，Agent Store 才能在首次启动时创建默认智能体。
+      await loadProfiles();
       await Promise.all([
         agentStore.loadAgents(),
         userProfileStore.loadProfiles(),
@@ -160,14 +173,8 @@ onMounted(async () => {
       // 2. 状态同步引擎已由 useLlmChatSync 自动管理
       logger.info("主窗口：状态同步服务已激活");
 
-      // 3. 处理初始会话
-      if (
-        store.sessions.length === 0 &&
-        store.sessionRecovery.status === "ready" &&
-        uiCurrentAgentId.value
-      ) {
-        handleNewSession({ agentId: uiCurrentAgentId.value });
-      }
+      // 3. 处理初始会话与首次使用引导。
+      await ensureChatEntryReady();
     } catch (error) {
       errorHandler.handle(error, {
         userMessage: "主窗口初始化LLM Chat模块失败",
@@ -212,6 +219,82 @@ onMounted(async () => {
     }
   }
 });
+/**
+ * 判断 Agent 当前绑定的渠道和模型是否仍可用。
+ * Agent 配置可能来自旧版本、导入文件或已删除的渠道，因此不能只看字符串是否存在。
+ */
+function getAgentModelSelection(
+  agent: ChatAgent | null
+): ModelSelection | null {
+  if (!agent) return null;
+  const profile = enabledProfiles.value.find(
+    (item) => item.id === agent.profileId
+  );
+  const model = profile?.models.find((item) => item.id === agent.modelId);
+  return profile && model ? { profile, model } : null;
+}
+
+/**
+ * 让聊天入口在首次打开时就具备可用的 Agent 和模型。
+ * 没有可用模型时直接打开全局模型选择器，用户选中后再补齐默认 Agent。
+ */
+async function ensureChatEntryReady(): Promise<void> {
+  if (bus.windowType !== "main") return;
+
+  let agent = uiCurrentAgentId.value
+    ? agentStore.getAgentById(uiCurrentAgentId.value)
+    : null;
+  if (!agent) agent = agentStore.defaultAgent || null;
+
+  let modelSelection = getAgentModelSelection(agent);
+
+  if (!modelSelection) {
+    await nextTick();
+    const selected = await openModelSelectDialog({
+      current: null,
+      initialCapabilities: { embedding: false, rerank: false },
+    });
+
+    if (selected) {
+      if (agent) {
+        agentStore.updateAgent(agent.id, {
+          profileId: selected.profile.id,
+          modelId: selected.model.id,
+        });
+      } else {
+        await agentStore.createDefaultAgents({
+          profileId: selected.profile.id,
+          modelId: selected.model.id,
+        });
+      }
+
+      agent = agent || agentStore.defaultAgent || null;
+      modelSelection = getAgentModelSelection(agent);
+    }
+  }
+
+  if (!agent || !modelSelection) {
+    logger.info("聊天入口暂未就绪：等待用户选择可用模型");
+    return;
+  }
+
+  // 没有持久化选择时自动采用最近使用的 Agent，不要求用户先点一次 Agent。
+  await selectAgent(agent.id, { sessionId: undefined });
+  await agentStore.loadAgentDetails(agent.id);
+
+  if (
+    store.sessions.length === 0 &&
+    store.sessionRecovery.status === "ready" &&
+    !store.currentSessionId
+  ) {
+    await store.beginNewSession(agent.id);
+    logger.info("已自动进入新会话草稿", {
+      agentId: agent.id,
+      modelId: modelSelection.model.id,
+    });
+  }
+}
+
 // 监听当前选中的智能体ID，自动加载其详情
 watch(
   () => uiCurrentAgentId.value,

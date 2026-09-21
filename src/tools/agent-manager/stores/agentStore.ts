@@ -620,7 +620,10 @@ export const useAgentStore = defineStore("llmChatAgent", {
     /**
      * 创建默认智能体
      */
-    async createDefaultAgents(): Promise<void> {
+    async createDefaultAgents(selection?: {
+      profileId: string;
+      modelId: string;
+    }): Promise<void> {
       const { enabledProfiles } = useLlmProfiles();
 
       if (enabledProfiles.value.length === 0) {
@@ -628,14 +631,22 @@ export const useAgentStore = defineStore("llmChatAgent", {
         return;
       }
 
-      const firstProfile = enabledProfiles.value[0];
+      const selectedProfile = selection
+        ? enabledProfiles.value.find(
+            (profile) => profile.id === selection.profileId
+          )
+        : undefined;
+      const firstProfile = selectedProfile || enabledProfiles.value[0];
 
       if (firstProfile.models.length === 0) {
         logger.warn("无法创建默认智能体：Profile 没有可用模型");
         return;
       }
 
-      const targetModelId = firstProfile.models[0].id;
+      const selectedModel = selection
+        ? firstProfile.models.find((model) => model.id === selection.modelId)
+        : undefined;
+      const targetModelId = selectedModel?.id || firstProfile.models[0].id;
 
       // 从模板获取默认智能体配置
       const template = createDefaultAgentTemplate();

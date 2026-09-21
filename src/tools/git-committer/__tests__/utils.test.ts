@@ -96,6 +96,40 @@ describe("git-committer generated message normalization", () => {
       "feat: 添加功能"
     );
   });
+
+  it("strips an outer fenced block including its language tag", () => {
+    expect(
+      normalizeGeneratedCommitMessage(
+        "```text\nfeat(ui): 添加按钮\n\n补充说明\n```"
+      )
+    ).toBe("feat(ui): 添加按钮\n\n补充说明");
+  });
+
+  it("strips an outer fenced block without a language tag", () => {
+    expect(normalizeGeneratedCommitMessage("```\nfix: 修复问题\n```")).toBe(
+      "fix: 修复问题"
+    );
+  });
+
+  it("strips an outer fenced block with surrounding whitespace", () => {
+    expect(
+      normalizeGeneratedCommitMessage("\n  ```gitcommit\nfeat: 新功能\n```\n\n")
+    ).toBe("feat: 新功能");
+  });
+
+  it("keeps fenced code blocks that live inside the commit body", () => {
+    expect(
+      normalizeGeneratedCommitMessage(
+        "```text\nfeat: 添加示例\n\n```ts\nconst a = 1;\n```\n```"
+      )
+    ).toBe("feat: 添加示例\n\n```ts\nconst a = 1;\n```");
+  });
+
+  it("only strips a complete outer fence, leaving unbalanced fences intact", () => {
+    expect(normalizeGeneratedCommitMessage("```text\nfeat: 未闭合")).toBe(
+      "```text\nfeat: 未闭合"
+    );
+  });
 });
 
 describe("git-committer language macro", () => {

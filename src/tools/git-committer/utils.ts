@@ -150,11 +150,22 @@ export function isCommitViewTab(
 }
 
 /**
+ * 匹配整体被一对代码围栏包裹的输出（允许围栏带语言标识与结尾尾随空白）。
+ * 仅当首尾围栏完整包裹全部内容时才命中，避免误伤正文内部的代码块。
+ */
+const OUTER_CODE_FENCE_RE =
+  /^```[ \t]*[A-Za-z0-9_+.-]*[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```[ \t]*\s*$/;
+
+/**
  * 清理模型输出开头、首个有效字符之前的空白字符。
- * 不处理正文和结尾，避免改变模型生成的提交 body 格式。
+ * 若模型把「仅输出提交消息」误解为需要用整段代码块包裹，则剥离最外层围栏。
+ * 不处理正文和结尾，避免改变模型生成的提交 body 格式（含正文内部代码块）。
  */
 export function normalizeGeneratedCommitMessage(message: string): string {
-  return message.replace(/^\s+/, "");
+  const leadingTrimmed = message.replace(/^\s+/, "");
+  const fenced = leadingTrimmed.match(OUTER_CODE_FENCE_RE);
+  const content = fenced ? fenced[1] : leadingTrimmed;
+  return content.replace(/^\s+/, "");
 }
 
 /** 替换提交提示词支持的运行时宏。 */

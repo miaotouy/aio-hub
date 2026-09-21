@@ -19,7 +19,12 @@
 
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { useSessionManager } from "../composables/session/useSessionManager";
+import {
+  isSessionVolatile,
+  markSessionPersistent,
+  markSessionVolatile,
+  useSessionManager,
+} from "../composables/session/useSessionManager";
 import { BranchNavigator } from "../utils/BranchNavigator";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
@@ -39,6 +44,7 @@ import {
 import type {
   ChatSessionIndex,
   ChatSessionDetail,
+  ChatSessionDraft,
   ChatMessageNode,
   LlmParameters,
   ModelIdentifier,
@@ -63,6 +69,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   // ==================== 状态 ====================
   const sessionIndexMap = ref<Map<string, ChatSessionIndex>>(new Map());
   const sessionDetailMap = ref<Map<string, ChatSessionDetail>>(new Map());
+  const newSessionDraft = ref<ChatSessionDraft | null>(null);
   const favoriteFolders = ref<FavoriteFolder[]>([]);
   const currentSessionId = ref<string | null>(null);
   const sessionRecovery = ref<RecoveryState>({
@@ -109,6 +116,23 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   });
   const inputManager = useChatInputManager();
   const toolCallingStore = useToolCallingStore();
+
+  watch(
+    newSessionDraft,
+    (draft, previousDraft) => {
+      if (draft) {
+        markSessionVolatile(draft.index.id);
+        sessionIndexMap.value.set(draft.index.id, draft.index);
+        sessionDetailMap.value.set(draft.detail.id, draft.detail);
+        return;
+      }
+
+      if (previousDraft) {
+        markSessionPersistent(previousDraft.index.id);
+      }
+    },
+    { deep: false }
+  );
 
   watch(
     currentSessionId,
@@ -209,7 +233,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     { flush: "post" }
   );
 
-  const sessions = computed(() => Array.from(sessionIndexMap.value.values()));
+  const sessions = computed(() =>
+    Array.from(sessionIndexMap.value.values()).filter(
+      (session) => !isSessionVolatile(session.id)
+    )
+  );
 
   const favoriteSessions = computed(() =>
     sessions.value.filter((session) => session.isFavorite)
@@ -408,6 +436,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     {
       sessionIndexMap,
       sessionDetailMap,
+      newSessionDraft,
       currentSessionId,
       favoriteFolders,
       sessionRecovery,
@@ -424,6 +453,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   );
   const {
+    beginNewSession,
+    materializeNewSession,
+    updateNewSessionAgent,
     createSession,
     switchSession,
     deleteSession,
@@ -530,7 +562,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       sessionId?: string;
     }
   ): Promise<void> {
-    return sessionGeneration.sendMessage(content, options);
+    let targetOptions = options;
+    if (!options?.sessionId && newSessionDraft.value) {
+      const sessionId = await materializeNewSession();
+      if (sessionId) {
+        targetOptions = { ...options, sessionId };
+      }
+    }
+    return sessionGeneration.sendMessage(content, targetOptions);
   }
 
   /**
@@ -618,6 +657,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessions,
     sessionIndexMap,
     sessionDetailMap,
+    newSessionDraft,
     favoriteFolders,
     currentSessionId,
     sessionRecovery,
@@ -635,6 +675,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       // 性能优化：创建一个新的 Map 并一次性替换，避免逐个 set 触发响应式风暴
       const newMap = new Map<string, ChatSessionIndex>();
       sessions.forEach((s) => newMap.set(s.id, s));
+      if (newSessionDraft.value) {
+        newMap.set(newSessionDraft.value.index.id, newSessionDraft.value.index);
+      }
       sessionIndexMap.value = newMap;
 
       logger.debug("已批量同步会话列表索引", { count: sessions.length });
@@ -659,6 +702,9 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     canRedo: historyManager.canRedo,
 
     // 会话操作
+    beginNewSession,
+    materializeNewSession,
+    updateNewSessionAgent,
     createSession,
     switchSession,
     deleteSession,

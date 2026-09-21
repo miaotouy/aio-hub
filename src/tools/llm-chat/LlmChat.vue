@@ -303,9 +303,9 @@ const handleSelectContinuationModel = async () => {
 };
 
 // 处理新建会话
-const handleNewSession = (data: { agentId: string; name?: string }) => {
-  store.createSession(data.agentId, data.name);
-  logger.info("创建新会话", data);
+const handleNewSession = async (data: { agentId: string; name?: string }) => {
+  await store.beginNewSession(data.agentId, data.name);
+  logger.info("进入新会话草稿", data);
 };
 
 // 处理切换会话

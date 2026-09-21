@@ -115,6 +115,12 @@ const currentModeLabel = computed(
     matchModeOptions.find((o) => o.value === matchMode.value)?.label ?? "精确"
 );
 
+const isNewSessionDraftActive = computed(
+  () =>
+    !!props.currentSessionId &&
+    !props.sessions.some((session) => session.id === props.currentSessionId)
+);
+
 const handleMatchModeChange = (mode: SearchMatchMode) => {
   matchMode.value = mode;
   if (searchQuery.value.trim().length >= 2) {
@@ -490,7 +496,13 @@ const handleBatchManagerSwitch = (sessionId: string) => {
     <div class="sessions-list" ref="parentRef">
       <div v-if="sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
-        <p class="hint">点击下方按钮创建新会话</p>
+        <p class="hint">
+          {{
+            isNewSessionDraftActive
+              ? "发送首条消息后会显示在这里"
+              : "点击下方按钮创建新会话"
+          }}
+        </p>
       </div>
 
       <div v-else-if="displaySessions.length === 0" class="empty-state">

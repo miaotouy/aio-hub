@@ -163,12 +163,22 @@ export function useLlmChatUiState() {
     // 监听智能体列表变化，如果当前选中的智能体被删除了，安全回退
     watch(
       () => useAgentStore().agents,
-      (newAgents) => {
+      async (newAgents) => {
         if (
           state.currentAgentId &&
           !newAgents.some((a) => a.id === state.currentAgentId)
         ) {
           state.currentAgentId = newAgents[0]?.id || null;
+
+          const { useLlmChatStore } =
+            await import("@/tools/llm-chat/stores/llmChatStore");
+          const chatStore = useLlmChatStore();
+          if (
+            chatStore.newSessionDraft &&
+            chatStore.currentSessionId === chatStore.newSessionDraft.index.id
+          ) {
+            await chatStore.updateNewSessionAgent(state.currentAgentId);
+          }
         }
       }
     );
@@ -212,7 +222,12 @@ export function useLlmChatUiState() {
       const { useLlmChatStore } =
         await import("@/tools/llm-chat/stores/llmChatStore");
       const chatStore = useLlmChatStore();
-      if (chatStore.currentSessionId) {
+      if (
+        chatStore.newSessionDraft &&
+        chatStore.currentSessionId === chatStore.newSessionDraft.index.id
+      ) {
+        await chatStore.updateNewSessionAgent(agentId);
+      } else if (chatStore.currentSessionId) {
         await chatStore.updateSession(chatStore.currentSessionId, {
           displayAgentId: agentId,
         });

@@ -37,6 +37,22 @@ import { getLocalISOString, formatDateTime } from "@/utils/time";
 const logger = createModuleLogger("llm-chat/session-manager");
 const errorHandler = createModuleErrorHandler("llm-chat/session-manager");
 
+const volatileSessionIds = new Set<string>();
+
+export function markSessionVolatile(sessionId: string): void {
+  volatileSessionIds.add(sessionId);
+}
+
+export function markSessionPersistent(sessionId: string): void {
+  volatileSessionIds.delete(sessionId);
+}
+
+export function isSessionVolatile(
+  sessionId: string | null | undefined
+): boolean {
+  return !!sessionId && volatileSessionIds.has(sessionId);
+}
+
 export function useSessionManager() {
   /**
    * 更新会话的消息数量统计
@@ -330,6 +346,11 @@ export function useSessionManager() {
     detail: ChatSessionDetail,
     currentSessionId: string | null
   ): void => {
+    if (isSessionVolatile(index.id)) {
+      logger.debug("跳过虚拟新会话持久化", { sessionId: index.id });
+      return;
+    }
+
     const { persistSession: persistSessionToStorage } = useChatStorage();
     const now = getLocalISOString();
 
@@ -355,16 +376,24 @@ export function useSessionManager() {
     favoriteFolders: FavoriteFolder[] = []
   ): void => {
     const { saveSessions } = useChatStorage();
-
-    saveSessions(sessions as any, currentSessionId, favoriteFolders).catch(
-      (error) => {
-        errorHandler.handle(error as Error, {
-          userMessage: "持久化所有会话失败",
-          showToUser: false,
-          context: { sessionCount: sessions.length },
-        });
-      }
+    const persistableSessions = sessions.filter(
+      ({ index }) => !isSessionVolatile(index.id)
     );
+    const persistableCurrentSessionId = isSessionVolatile(currentSessionId)
+      ? null
+      : currentSessionId;
+
+    saveSessions(
+      persistableSessions as any,
+      persistableCurrentSessionId,
+      favoriteFolders
+    ).catch((error) => {
+      errorHandler.handle(error as Error, {
+        userMessage: "持久化所有会话失败",
+        showToUser: false,
+        context: { sessionCount: sessions.length },
+      });
+    });
   };
 
   // 使用 useExportManager 提供导出功能

@@ -108,3 +108,14 @@ export interface ChatSessionDetail {
    */
   agentUsage?: Record<string, number>;
 }
+
+/**
+ * 尚未发送首条消息的新会话草稿。
+ *
+ * 草稿复用正式会话的数据结构以支持开场白、消息预览和跨窗口同步，
+ * 但在提升为正式会话前不会进入会话列表或持久化存储。
+ */
+export interface ChatSessionDraft {
+  index: ChatSessionIndex;
+  detail: ChatSessionDetail;
+}

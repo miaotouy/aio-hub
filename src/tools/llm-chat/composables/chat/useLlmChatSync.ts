@@ -173,6 +173,10 @@ export function useLlmChatSync() {
       CHAT_STATE_KEYS.SESSIONS
     );
     createStateEngine(
+      toRef(store, "newSessionDraft"),
+      CHAT_STATE_KEYS.NEW_SESSION_DRAFT
+    );
+    createStateEngine(
       toRef(store, "favoriteFolders"),
       CHAT_STATE_KEYS.FAVORITE_FOLDERS
     );
@@ -394,6 +398,12 @@ export function useLlmChatSync() {
           params.sessionIds,
           params.folderId
         );
+      case "begin-new-session":
+        return store.beginNewSession(params.agentId, params.name);
+      case "materialize-new-session":
+        return store.materializeNewSession();
+      case "update-new-session-agent":
+        return store.updateNewSessionAgent(params.agentId ?? null);
       case "create-session":
         return store
           .createSession(params.agentId, params.name)

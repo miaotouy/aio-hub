@@ -49,7 +49,8 @@ export type LlmChatStateKey =
   | "chat-worldbook-index" // 世界书索引列表
   | "chat-quick-action-index" // 快捷操作索引列表
   | "chat-tool-pending-requests" // 工具调用待处理请求
-  | "chat-current-session-data"; // 当前会话的完整数据（用于轻量级同步）
+  | "chat-current-session-data" // 当前会话的完整数据（用于轻量级同步）
+  | "chat-new-session-draft"; // 尚未发送首条消息的虚拟新会话
 
 /**
  * LLM Chat 状态键常量
@@ -73,6 +74,7 @@ export const CHAT_STATE_KEYS = {
   QUICK_ACTION_INDEX: "chat-quick-action-index" as const,
   TOOL_PENDING_REQUESTS: "chat-tool-pending-requests" as const,
   CURRENT_SESSION_DATA: "chat-current-session-data" as const,
+  NEW_SESSION_DRAFT: "chat-new-session-draft" as const,
 } as const;
 
 /**
@@ -92,6 +94,9 @@ export type LlmChatAction =
   | "abort-node"
   | "switch-session"
   | "create-session"
+  | "begin-new-session"
+  | "materialize-new-session"
+  | "update-new-session-agent"
   | "delete-session"
   | "batch-delete-sessions"
   | "import-sessions"
@@ -122,6 +127,9 @@ export const CHAT_ACTIONS = {
   ABORT_NODE: "abort-node" as const,
   SWITCH_SESSION: "switch-session" as const,
   CREATE_SESSION: "create-session" as const,
+  BEGIN_NEW_SESSION: "begin-new-session" as const,
+  MATERIALIZE_NEW_SESSION: "materialize-new-session" as const,
+  UPDATE_NEW_SESSION_AGENT: "update-new-session-agent" as const,
   DELETE_SESSION: "delete-session" as const,
   BATCH_DELETE_SESSIONS: "batch-delete-sessions" as const,
   IMPORT_SESSIONS: "import-sessions" as const,

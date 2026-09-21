@@ -152,6 +152,37 @@ export async function insertLiveGreetings(
   return true;
 }
 
+export function removeLiveGreetings(session: ChatSessionDetail): boolean {
+  const rootNode = session.nodes?.[session.rootNodeId];
+  if (!rootNode) return false;
+
+  const liveGreetingIds = rootNode.childrenIds.filter((childId) => {
+    const child = session.nodes[childId];
+    return child?.metadata?.isGreeting && child.metadata.greetingLive === true;
+  });
+  if (liveGreetingIds.length === 0) return false;
+
+  const liveGreetingSet = new Set(liveGreetingIds);
+  rootNode.childrenIds = rootNode.childrenIds.filter(
+    (childId) => !liveGreetingSet.has(childId)
+  );
+  for (const childId of liveGreetingIds) {
+    delete session.nodes[childId];
+  }
+
+  if (liveGreetingSet.has(session.activeLeafId)) {
+    session.activeLeafId = session.rootNodeId;
+  }
+  if (
+    rootNode.lastSelectedChildId &&
+    liveGreetingSet.has(rootNode.lastSelectedChildId)
+  ) {
+    rootNode.lastSelectedChildId = undefined;
+  }
+
+  return true;
+}
+
 export function solidifyGreetings(session: ChatSessionDetail): boolean {
   const rootNode = session.nodes?.[session.rootNodeId];
   if (!rootNode) return false;

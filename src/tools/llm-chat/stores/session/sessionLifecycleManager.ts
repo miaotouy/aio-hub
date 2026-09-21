@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Ref } from "vue";
+import { ref, type Ref } from "vue";
 import type { RecoveryState } from "../../types/persistence";
 import type { ChatMessageNode } from "../../types/message";
-import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
+import type {
+  ChatSessionDetail,
+  ChatSessionDraft,
+  ChatSessionIndex,
+} from "../../types/session";
 import type {
   ExportableChatSession,
   ResolvedSessionImport,
@@ -23,8 +27,17 @@ import type {
 } from "../../services/sessionImportExportService";
 import { resolveConflicts } from "../../services/sessionImportExportService";
 import type { FavoriteFolder } from "../../composables/storage/useChatStorageSeparated";
-import { refreshLiveGreetingsIfNeeded } from "../../services/greetingService";
-import { useSessionManager } from "../../composables/session/useSessionManager";
+import {
+  refreshLiveGreetingsIfNeeded,
+  removeLiveGreetings,
+  switchAgentGreetings,
+} from "../../services/greetingService";
+import {
+  isSessionVolatile,
+  markSessionPersistent,
+  markSessionVolatile,
+  useSessionManager,
+} from "../../composables/session/useSessionManager";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { clearRetrievalCache } from "@/tools/recall/services/api";
 import { createModuleLogger } from "@/utils/logger";
@@ -36,6 +49,7 @@ const logger = createModuleLogger("llm-chat/session-lifecycle");
 export interface LifecycleState {
   sessionIndexMap: Ref<Map<string, ChatSessionIndex>>;
   sessionDetailMap: Ref<Map<string, ChatSessionDetail>>;
+  newSessionDraft?: Ref<ChatSessionDraft | null>;
   currentSessionId: Ref<string | null>;
   favoriteFolders: Ref<FavoriteFolder[]>;
   sessionRecovery: Ref<RecoveryState>;
@@ -96,6 +110,8 @@ export function createSessionLifecycleManager(
   state: LifecycleState,
   managers: LifecycleManagers
 ) {
+  const newSessionDraft =
+    state.newSessionDraft ?? ref<ChatSessionDraft | null>(null);
   function getSessionManager() {
     return useSessionManager();
   }
@@ -154,7 +170,9 @@ export function createSessionLifecycleManager(
         }
         const latest = await storage.loadSessionsIndex();
         state.favoriteFolders.value = latest.favoriteFolders;
-        state.currentSessionId.value = latest.currentSessionId;
+        if (!newSessionDraft.value) {
+          state.currentSessionId.value = latest.currentSessionId;
+        }
       })
       .catch((error) => {
         logger.error("后台恢复会话索引失败", error);
@@ -268,6 +286,120 @@ export function createSessionLifecycleManager(
     );
   }
 
+  async function updateNewSessionAgent(agentId: string | null): Promise<void> {
+    return managers.executeOrProxy(
+      "update-new-session-agent",
+      { agentId },
+      async () => {
+        const draft = newSessionDraft.value;
+        if (!draft) return;
+
+        const sessionManager = getSessionManager();
+        if (!agentId) {
+          removeLiveGreetings(draft.detail);
+          draft.index.displayAgentId = null;
+          sessionManager.updateMessageCount(
+            draft.index.id,
+            draft.detail.nodes,
+            state.sessionIndexMap.value
+          );
+          return;
+        }
+
+        const { useAgentStore } =
+          await import("@/tools/agent-manager/stores/agentStore");
+        const { useUserProfileStore } = await import("../userProfileStore");
+        const agentStore = useAgentStore();
+        const userProfileStore = useUserProfileStore();
+        const agent = await agentStore.loadAgentDetails(agentId);
+
+        if (!agent) {
+          removeLiveGreetings(draft.detail);
+          draft.index.displayAgentId = null;
+          sessionManager.updateMessageCount(
+            draft.index.id,
+            draft.detail.nodes,
+            state.sessionIndexMap.value
+          );
+          return;
+        }
+
+        const effectiveUserProfile = userProfileStore.getEffectiveProfile(
+          agent.userProfileId
+        );
+        await switchAgentGreetings(
+          draft.index,
+          draft.detail,
+          agent,
+          effectiveUserProfile
+        );
+        draft.index.displayAgentId = agent.id;
+        sessionManager.updateMessageCount(
+          draft.index.id,
+          draft.detail.nodes,
+          state.sessionIndexMap.value
+        );
+      }
+    );
+  }
+
+  async function beginNewSession(
+    agentId: string,
+    name?: string
+  ): Promise<string> {
+    return managers.executeOrProxy(
+      "begin-new-session",
+      { agentId, name },
+      async () => {
+        const existingDraft = newSessionDraft.value;
+        if (existingDraft) {
+          state.currentSessionId.value = existingDraft.index.id;
+          await updateNewSessionAgent(agentId);
+          return existingDraft.index.id;
+        }
+
+        const sessionManager = getSessionManager();
+        const { index, detail, sessionId } = await sessionManager.createSession(
+          agentId,
+          name
+        );
+
+        markSessionVolatile(sessionId);
+        newSessionDraft.value = { index, detail };
+        state.sessionIndexMap.value.set(sessionId, index);
+        state.sessionDetailMap.value.set(sessionId, detail);
+        state.currentSessionId.value = sessionId;
+        managers.history.clearHistory(sessionId);
+
+        logger.info("进入虚拟新会话", { sessionId, agentId });
+        return sessionId;
+      }
+    );
+  }
+
+  async function materializeNewSession(): Promise<string | null> {
+    return managers.executeOrProxy("materialize-new-session", {}, async () => {
+      const draft = newSessionDraft.value;
+      if (!draft) return state.currentSessionId.value;
+
+      const sessionId = draft.index.id;
+      markSessionPersistent(sessionId);
+      newSessionDraft.value = null;
+      state.currentSessionId.value = sessionId;
+
+      const sessionManager = getSessionManager();
+      sessionManager.updateMessageCount(
+        sessionId,
+        draft.detail.nodes,
+        state.sessionIndexMap.value
+      );
+      await sessionManager.updateCurrentSessionId(sessionId);
+
+      logger.info("虚拟新会话已提升为正式会话", { sessionId });
+      return sessionId;
+    });
+  }
+
   async function createSession(
     agentId: string,
     name?: string
@@ -311,7 +443,9 @@ export function createSessionLifecycleManager(
       async () => {
         const sessionManager = getSessionManager();
         const { newCurrentSessionId } = await sessionManager.deleteSession(
-          Array.from(state.sessionIndexMap.value.values()),
+          Array.from(state.sessionIndexMap.value.values()).filter(
+            (session) => !isSessionVolatile(session.id)
+          ),
           sessionId,
           state.currentSessionId.value
         );
@@ -450,7 +584,9 @@ export function createSessionLifecycleManager(
       async () => {
         const storage = await getStorage();
         const inputManager = await getInputManager();
-        const sessionIndexes = Array.from(state.sessionIndexMap.value.values());
+        const sessionIndexes = Array.from(
+          state.sessionIndexMap.value.values()
+        ).filter((session) => !isSessionVolatile(session.id));
         const emptySessionIds = sessionIndexes
           .filter((session) => (session.messageCount ?? 0) === 0)
           .map((session) => session.id);
@@ -561,6 +697,12 @@ export function createSessionLifecycleManager(
         refreshedSessions.forEach((session) => {
           nextMap.set(session.id, session);
         });
+        if (newSessionDraft.value) {
+          nextMap.set(
+            newSessionDraft.value.index.id,
+            newSessionDraft.value.index
+          );
+        }
         state.sessionIndexMap.value = nextMap;
         state.favoriteFolders.value = refreshedFavoriteFolders;
         if (
@@ -1041,7 +1183,9 @@ export function createSessionLifecycleManager(
       const inputManager = await getInputManager();
       const sessionIds = [
         ...new Set([
-          ...state.sessionIndexMap.value.keys(),
+          ...Array.from(state.sessionIndexMap.value.keys()).filter(
+            (sessionId) => !isSessionVolatile(sessionId)
+          ),
           ...(await storage.listSessionIds()),
         ]),
       ];
@@ -1056,6 +1200,7 @@ export function createSessionLifecycleManager(
       }
       state.sessionIndexMap.value.clear();
       state.sessionDetailMap.value.clear();
+      newSessionDraft.value = null;
       state.currentSessionId.value = null;
       inputManager.clearAllDrafts();
       await storage.saveSessions([], null, state.favoriteFolders.value);
@@ -1070,6 +1215,9 @@ export function createSessionLifecycleManager(
   }
 
   return {
+    beginNewSession,
+    materializeNewSession,
+    updateNewSessionAgent,
     createSession,
     deleteSession,
     batchDeleteSessions,

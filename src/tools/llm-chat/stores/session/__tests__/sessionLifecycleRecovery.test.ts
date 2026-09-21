@@ -3,6 +3,7 @@ import { ref } from "vue";
 import type { ChatMessageNode } from "../../../types/message";
 import type {
   ChatSessionDetail,
+  ChatSessionDraft,
   ChatSessionIndex,
 } from "../../../types/session";
 
@@ -12,6 +13,7 @@ const { inputManager, sessionManager, storage } = vi.hoisted(() => ({
     clearAllDrafts: vi.fn(),
   },
   sessionManager: {
+    createSession: vi.fn(),
     loadSessionsIndex: vi.fn(),
     updateMessageCount: vi.fn(),
     persistSession: vi.fn(),
@@ -27,6 +29,9 @@ const { inputManager, sessionManager, storage } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../composables/session/useSessionManager", () => ({
+  isSessionVolatile: vi.fn(() => false),
+  markSessionPersistent: vi.fn(),
+  markSessionVolatile: vi.fn(),
   useSessionManager: () => sessionManager,
 }));
 vi.mock("../../../composables/input/useChatInputManager", () => ({
@@ -241,7 +246,9 @@ describe("sessionLifecycleManager 重启恢复", () => {
     const state = {
       sessionIndexMap: ref(new Map([["only", index("only")]])),
       sessionDetailMap: ref(
-        new Map<string, ChatSessionDetail>([["only", fullSession("only").detail]])
+        new Map<string, ChatSessionDetail>([
+          ["only", fullSession("only").detail],
+        ])
       ),
       currentSessionId: ref<string | null>("only"),
       favoriteFolders: ref([]),
@@ -311,5 +318,42 @@ describe("sessionLifecycleManager 重启恢复", () => {
     expect(sessionManager.updateCurrentSessionId).not.toHaveBeenCalledWith(
       "first"
     );
+  });
+  it("首条消息发送前只创建内存草稿，提升时才提交当前会话", async () => {
+    const draftIndex = index("draft");
+    const draftDetail = detail("draft");
+    sessionManager.createSession.mockResolvedValue({
+      index: draftIndex,
+      detail: draftDetail,
+      sessionId: "draft",
+    });
+
+    const state = {
+      sessionIndexMap: ref(new Map<string, ChatSessionIndex>()),
+      sessionDetailMap: ref(new Map<string, ChatSessionDetail>()),
+      newSessionDraft: ref<ChatSessionDraft | null>(null),
+      currentSessionId: ref<string | null>(null),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    const lifecycle = createSessionLifecycleManager(state, {
+      runtime: { clearSessionRuntime: vi.fn() } as any,
+      history: { clearHistory: vi.fn(), cleanupSession: vi.fn() } as any,
+      executeOrProxy: async (_action, _params, localFn) => await localFn(),
+      fillMissingTokenMetadata: vi.fn(),
+      getActivePath: vi.fn(() => []),
+    });
+
+    await lifecycle.beginNewSession("agent-1");
+
+    expect(state.newSessionDraft.value?.index.id).toBe("draft");
+    expect(state.currentSessionId.value).toBe("draft");
+    expect(sessionManager.persistSession).not.toHaveBeenCalled();
+    expect(sessionManager.updateCurrentSessionId).not.toHaveBeenCalled();
+
+    await lifecycle.materializeNewSession();
+
+    expect(state.newSessionDraft.value).toBeNull();
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledWith("draft");
   });
 });

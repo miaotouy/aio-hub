@@ -46,7 +46,7 @@ describe("ModelFetcher", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps metadata vision capability when the API omits input modalities", () => {
+  it("leaves vision capability unknown when the API omits input modalities", () => {
     const gptModel = toDesktopModelInfo({
       id: "gpt-5.6",
       name: "gpt-5.6",
@@ -58,8 +58,8 @@ describe("ModelFetcher", () => {
       provider: "anthropic",
     });
 
-    expect(gptModel.capabilities?.vision).toBe(true);
-    expect(claudeModel.capabilities?.vision).toBe(true);
+    expect(gptModel.capabilities?.vision).toBeUndefined();
+    expect(claudeModel.capabilities?.vision).toBeUndefined();
   });
 
   it("persists declared endpoint types as discovery routing metadata", () => {

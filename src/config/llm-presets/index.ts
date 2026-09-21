@@ -21,6 +21,7 @@ import { vcpPreset } from "./presets/vcp";
 import { deepseekPreset } from "./presets/deepseek";
 import { openaiPreset } from "./presets/openai";
 import { openaiResponsesPreset } from "./presets/openai-responses";
+import { typeSafePreset } from "./presets/typesafe";
 import { moonshotPreset } from "./presets/moonshot";
 import { zhipuPreset } from "./presets/zhipu";
 import { groqPreset } from "./presets/groq";
@@ -71,6 +72,7 @@ export const llmPresets: LlmPreset[] = [
   deepseekPreset,
   openaiPreset,
   openaiResponsesPreset,
+  typeSafePreset,
   moonshotPreset,
   zhipuPreset,
   groqPreset,

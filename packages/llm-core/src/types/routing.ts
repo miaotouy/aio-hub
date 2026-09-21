@@ -29,13 +29,21 @@ export type LlmAdapterId =
   | "vertex-anthropic"
   | "openai-embeddings"
   | "jina-rerank"
+  | "typesafe-system-one"
   | "openai-image-generation"
   | "suno-newapi"
   | "minimax-music";
 
 /** Operations for which a model can have an independent execution route. */
 export type LlmOperation =
-  "chat" | "embedding" | "rerank" | "image" | "audio" | "video" | "music";
+  | "chat"
+  | "embedding"
+  | "rerank"
+  | "decision"
+  | "image"
+  | "audio"
+  | "video"
+  | "music";
 
 export type ModelRouteSource =
   "manual" | "discovered" | "probe" | "profile-default";

@@ -20,17 +20,21 @@ export function resolveSelectedModelValue(
     return enabledProfiles.some(
       (profile) =>
         profile.id === profileId &&
-        profile.models.some((model) => model.id === modelId)
+        profile.models.some(
+          (model) => model.id === modelId && !model.capabilities?.decision
+        )
     );
   };
 
   if (isAvailable(currentValue)) return currentValue;
   if (isAvailable(defaultValue)) return defaultValue;
 
-  const fallbackProfile = enabledProfiles.find(
-    (profile) => profile.models.length > 0
+  const fallbackProfile = enabledProfiles.find((profile) =>
+    profile.models.some((model) => !model.capabilities?.decision)
   );
-  const fallbackModel = fallbackProfile?.models[0];
+  const fallbackModel = fallbackProfile?.models.find(
+    (model) => !model.capabilities?.decision
+  );
   return fallbackProfile && fallbackModel
     ? `${fallbackProfile.id}:${fallbackModel.id}`
     : "";

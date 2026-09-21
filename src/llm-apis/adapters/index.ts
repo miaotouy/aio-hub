@@ -96,11 +96,11 @@ export interface LlmAdapter {
  * 适配器分发映射
  * 注意：在具体适配器实现完成前，这里先留空或使用占位符
  */
-const defineAdapters = <T extends Record<LlmProviderType, LlmAdapter>>(
+const defineAdapters = <T extends Partial<Record<LlmProviderType, LlmAdapter>>>(
   value: T
 ): T => value;
 
-export const adapters: Record<string, LlmAdapter> = defineAdapters({
+export const adapters: Record<string, LlmAdapter | undefined> = defineAdapters({
   openai: openAiAdapter,
   "openai-compatible": openAiAdapter,
   "openai-responses": openAiResponsesAdapter,

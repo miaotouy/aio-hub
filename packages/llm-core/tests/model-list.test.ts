@@ -93,6 +93,27 @@ describe("model list adapter", () => {
     expect(
       parseProviderModels({ models: [{ model_id: "command-r" }] }, "cohere")[0]
     ).toMatchObject({ id: "command-r", provider: "cohere" });
+    expect(
+      parseProviderModels(
+        {
+          models: [
+            {
+              name: "jev-latest",
+              description: "The latest stable Jev release",
+              release_date: "2026-09-15",
+            },
+          ],
+        },
+        "typesafe"
+      )[0]
+    ).toMatchObject({
+      id: "jev-latest",
+      provider: "typesafe",
+      group: "Jev",
+      description: "The latest stable Jev release",
+      inputModalities: ["text"],
+      supportedEndpointTypes: ["typesafe-system-one"],
+    });
 
     const parsed = await modelListAdapter.parseResponse(
       jsonResponse({ models: [{ name: "qwen2.5:7b", size: 4_700_000_000 }] }),

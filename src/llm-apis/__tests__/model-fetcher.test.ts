@@ -76,6 +76,24 @@ describe("ModelFetcher", () => {
     });
   });
 
+  it("marks TypeSafe models as dedicated decision models", () => {
+    const model = toDesktopModelInfo(
+      {
+        id: "jev-latest",
+        name: "Jev Latest",
+        provider: "typesafe",
+        inputModalities: ["text"],
+        supportedEndpointTypes: ["typesafe-system-one"],
+      },
+      "typesafe"
+    );
+
+    expect(model.capabilities?.decision).toBe(true);
+    expect(model.routing?.supportedEndpointTypes).toEqual([
+      "typesafe-system-one",
+    ]);
+  });
+
   it("uses an explicitly returned text-only modality over metadata", () => {
     const model = toDesktopModelInfo({
       id: "gpt-5.6",
@@ -136,6 +154,49 @@ describe("ModelFetcher", () => {
     expect(successLog?.[1].responseHeaders).not.toHaveProperty(
       "x-secret-header"
     );
+  });
+
+  it("fetches TypeSafe aliases from the official model-list endpoint", async () => {
+    const profile: LlmProfile = {
+      id: "typesafe",
+      name: "TypeSafe AI",
+      baseUrl: "https://api.typesafe.ai",
+      apiKeys: ["typesafe-key"],
+      type: "typesafe",
+      enabled: true,
+      models: [],
+    };
+
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers(),
+      json: async () => ({
+        models: [
+          {
+            name: "jev-latest",
+            description: "Latest stable Jev",
+            release_date: "2026-09-15",
+          },
+        ],
+      }),
+    });
+
+    const result = await fetchModelsFromApi(profile);
+    const [url, requestOptions] = (fetchWithTimeout as any).mock.calls[0];
+
+    expect(url).toBe("https://api.typesafe.ai/v1/models");
+    expect(requestOptions.headers.Authorization).toBe("Bearer typesafe-key");
+    expect(result.models[0]).toMatchObject({
+      id: "jev-latest",
+      provider: "typesafe",
+      group: "Jev",
+      capabilities: { decision: true },
+      routing: {
+        supportedEndpointTypes: ["typesafe-system-one"],
+      },
+    });
   });
 
   it("uses Ollama api/tags endpoint for model list", async () => {

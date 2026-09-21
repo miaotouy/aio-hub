@@ -47,6 +47,31 @@ describe("resolveModelExecution", () => {
     expect(execution.effectiveProfile).toBe(source);
   });
 
+  it("routes TypeSafe profiles through the System One decision adapter", () => {
+    const execution = resolveModelExecution({
+      profile: profile("typesafe"),
+      model: model(),
+      operation: "decision",
+    });
+
+    expect(execution).toMatchObject({
+      adapterId: "typesafe-system-one",
+      operation: "decision",
+      routeSource: "profile-default",
+      effectiveProfile: { type: "typesafe" },
+    });
+  });
+
+  it("rejects chat routing for decision-only TypeSafe profiles", () => {
+    expect(() =>
+      resolveModelExecution({
+        profile: profile("typesafe"),
+        model: model(),
+        operation: "chat",
+      })
+    ).toThrowError(UnresolvedModelRouteError);
+  });
+
   it("uses operation-specific legacy adapter identities without changing profile behavior", () => {
     const source = profile("openai-responses");
 
@@ -393,6 +418,9 @@ describe("listAdaptersForOperation", () => {
       ])
     );
     expect(listAdaptersForOperation("rerank")).toEqual(["jina-rerank"]);
+    expect(listAdaptersForOperation("decision")).toEqual([
+      "typesafe-system-one",
+    ]);
     expect(listAdaptersForOperation("music")).toEqual([
       "suno-newapi",
       "minimax-music",
@@ -420,6 +448,9 @@ describe("resolveAdapterIdForEndpointType", () => {
     expect(resolveAdapterIdForEndpointType("jina-rerank", "rerank")).toBe(
       "jina-rerank"
     );
+    expect(resolveAdapterIdForEndpointType("system-one", "decision")).toBe(
+      "typesafe-system-one"
+    );
     expect(resolveAdapterIdForEndpointType("image-generation", "image")).toBe(
       "openai-image-generation"
     );
@@ -433,6 +464,9 @@ describe("resolveAdapterIdForEndpointType", () => {
       undefined
     );
     expect(resolveAdapterIdForEndpointType("embeddings", "chat")).toBe(
+      undefined
+    );
+    expect(resolveAdapterIdForEndpointType("system-one", "chat")).toBe(
       undefined
     );
   });

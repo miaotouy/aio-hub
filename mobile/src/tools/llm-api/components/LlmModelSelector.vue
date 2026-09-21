@@ -45,6 +45,7 @@ const availableModels = computed(() => {
 
   store.enabledProfiles.forEach((profile) => {
     profile.models.forEach((model) => {
+      if (model.capabilities?.decision) return;
       models.push({
         value: `${profile.id}:${model.id}`,
         label: model.name,

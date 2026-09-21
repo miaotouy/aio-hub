@@ -57,6 +57,21 @@ describe("resolveSelectedModelValue", () => {
     );
   });
 
+  it("ignores dedicated decision models when resolving a chat fallback", () => {
+    const decisionProfile = {
+      id: "typesafe",
+      enabled: true,
+      models: [{ id: "jev-latest", capabilities: { decision: true } }],
+    } as LlmProfile;
+
+    expect(
+      resolveSelectedModelValue("typesafe:jev-latest", "typesafe:jev-latest", [
+        decisionProfile,
+        profiles[1],
+      ])
+    ).toBe("profile-1:model-1");
+  });
+
   it("returns an empty selection when no enabled profile exposes a model", () => {
     expect(resolveSelectedModelValue("", "", [profiles[0]])).toBe("");
   });

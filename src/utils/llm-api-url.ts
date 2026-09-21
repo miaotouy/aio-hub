@@ -17,6 +17,7 @@
  * 用于格式化LLM服务的API地址和生成端点预览
  */
 
+import { resolveTypeSafeSystemOneEndpoint } from "@aiohub/llm-core";
 import type { ProviderType, LlmProfile } from "../types/llm-profiles";
 import {
   openAiUrlHandler,
@@ -42,6 +43,24 @@ interface AdapterUrlHandler {
   getHint: () => string;
 }
 
+const typeSafeSystemOneUrlHandler: AdapterUrlHandler = {
+  buildUrl: (baseUrl, endpoint, profile) => {
+    if (endpoint && endpoint !== "systemone") {
+      return openAiUrlHandler.buildUrl(baseUrl, endpoint, profile);
+    }
+
+    return resolveTypeSafeSystemOneEndpoint({
+      provider: "typesafe",
+      baseUrl,
+      endpoints: profile?.customEndpoints?.systemOne
+        ? { systemOne: profile.customEndpoints.systemOne }
+        : undefined,
+    });
+  },
+  getHint: () =>
+    "将自动补全 System One 端点 /v1/systemone，可在高级配置中自定义端点",
+};
+
 /**
  * 适配器 URL 处理映射
  * 注册各个适配器的 URL 处理逻辑
@@ -56,6 +75,7 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   xai: openAiUrlHandler,
   openrouter: openAiUrlHandler,
   "openai-responses": openAiResponsesUrlHandler,
+  typesafe: typeSafeSystemOneUrlHandler,
   claude: claudeUrlHandler,
   gemini: geminiUrlHandler,
   cohere: cohereUrlHandler,

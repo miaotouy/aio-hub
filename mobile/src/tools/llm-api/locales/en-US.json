@@ -306,7 +306,9 @@
     "嵌入能力": "Embedding",
     "嵌入能力描述": "Supports text embedding generation",
     "重排能力": "Rerank",
-    "重排能力描述": "Supports document or result reranking"
+    "重排能力描述": "Supports document or result reranking",
+    "决策能力": "Decision",
+    "决策能力描述": "Supports structured Choice, Score, and Noul decisions"
   },
   "Adapters": {
     "OpenAI提示": "Will automatically append /v1/chat/completions (use # at end of URL to disable)",

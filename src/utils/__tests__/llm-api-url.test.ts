@@ -26,3 +26,15 @@ describe("Ollama API URL preview", () => {
     expect(getLlmEndpointHint("ollama")).toContain("/v1/");
   });
 });
+
+describe("TypeSafe API URL preview", () => {
+  it("previews the System One endpoint and preserves model-list routing", () => {
+    expect(buildLlmApiUrl("https://api.typesafe.ai", "typesafe")).toBe(
+      "https://api.typesafe.ai/v1/systemone"
+    );
+    expect(
+      buildLlmApiUrl("https://api.typesafe.ai", "typesafe", "models")
+    ).toBe("https://api.typesafe.ai/v1/models");
+    expect(getLlmEndpointHint("typesafe")).toContain("/v1/systemone");
+  });
+});

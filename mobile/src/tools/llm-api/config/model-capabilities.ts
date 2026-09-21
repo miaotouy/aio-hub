@@ -27,6 +27,7 @@ import {
   Code2,
   MessageSquareMore,
   Braces,
+  ListChecks,
 } from "lucide-vue-next";
 import type { ModelCapabilities } from "../types/common";
 
@@ -193,6 +194,14 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(Layers),
     color: "#64748b",
     className: "embedding",
+  },
+  {
+    key: "decision",
+    label: "决策能力",
+    description: "决策能力描述",
+    icon: markRaw(ListChecks),
+    color: "#e551ba",
+    className: "decision",
   },
   {
     key: "rerank",

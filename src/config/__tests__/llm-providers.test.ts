@@ -39,6 +39,23 @@ describe("Ollama provider configuration", () => {
   });
 });
 
+describe("TypeSafe provider configuration", () => {
+  it("registers model discovery and the dedicated System One endpoint", () => {
+    expect(getProviderTypeInfo("typesafe")).toMatchObject({
+      defaultBaseUrl: "https://api.typesafe.ai",
+      supportsModelList: true,
+      modelListEndpoint: "models",
+      endpointPlaceholders: {
+        systemOne: "/v1/systemone",
+        models: "/v1/models",
+      },
+    });
+    expect(getProviderTypeIconPath("typesafe")).toBe(
+      "/model-icons/typesafe.png"
+    );
+  });
+});
+
 describe("Aggregate channel providers", () => {
   it("registers the four aggregate channel types with OpenAI-style model discovery", () => {
     const aggregateTypes = [

@@ -129,6 +129,10 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
       image: "openai-responses",
     },
   },
+  typesafe: {
+    defaultOperation: "decision",
+    operationAdapters: { decision: "typesafe-system-one" },
+  },
   claude: {
     defaultAdapterId: "anthropic-messages",
     defaultOperation: "chat",
@@ -239,6 +243,7 @@ export const ADAPTER_PROFILE_TYPES: Readonly<Record<LlmAdapterId, string>> = {
   "vertex-anthropic": "vertexai",
   "openai-embeddings": "openai-compatible",
   "jina-rerank": "openai-compatible",
+  "typesafe-system-one": "typesafe",
   "openai-image-generation": "openai-compatible",
   "suno-newapi": "suno-newapi",
   "minimax-music": "minimax-music",
@@ -251,6 +256,7 @@ const ADAPTER_ENDPOINT_KEYS: Readonly<Partial<Record<LlmAdapterId, string>>> = {
   "gemini-generate-content": "geminiGenerateContent",
   "openai-embeddings": "embeddings",
   "jina-rerank": "rerank",
+  "typesafe-system-one": "systemOne",
   "openai-image-generation": "imagesGenerations",
 };
 
@@ -268,6 +274,9 @@ const ENDPOINT_TYPE_ADAPTERS: Readonly<Record<string, LlmAdapterId>> = {
   "openai-embeddings": "openai-embeddings",
   rerank: "jina-rerank",
   "jina-rerank": "jina-rerank",
+  typesafe: "typesafe-system-one",
+  "system-one": "typesafe-system-one",
+  "typesafe-system-one": "typesafe-system-one",
   "image-generation": "openai-image-generation",
   "openai-image-generation": "openai-image-generation",
 };
@@ -284,6 +293,7 @@ const ADAPTER_OPERATIONS: Readonly<
   "vertex-anthropic": ["chat"],
   "openai-embeddings": ["embedding"],
   "jina-rerank": ["rerank"],
+  "typesafe-system-one": ["decision"],
   "openai-image-generation": ["image"],
   "suno-newapi": ["music"],
   "minimax-music": ["music"],

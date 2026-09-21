@@ -26,6 +26,7 @@ const providerTypeIconPaths: Partial<Record<ProviderType, string>> = {
   "new-api": "/model-icons/newapi-color.svg",
   sub2api: "/model-icons/sub2api.png",
   "aggregate-compatible": "/model-icons/aggregate-compatible.svg",
+  typesafe: "/model-icons/typesafe.png",
 };
 
 /** 获取渠道类型的显式图标；未配置时由调用方继续使用通用推断。 */
@@ -385,6 +386,22 @@ export const providerTypes: ProviderTypeInfo[] = [
       imagesGenerations: "/v1/responses",
       imagesEdits: "/v1/responses",
       imagesVariations: "暂不支持",
+    },
+  },
+  {
+    type: "typesafe",
+    name: "TypeSafe AI",
+    description: "System One 结构化决策 API，返回 Choice、Score 与 Noul 答案",
+    defaultBaseUrl: "https://api.typesafe.ai",
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {},
+    endpointPlaceholders: {
+      systemOne: "/v1/systemone",
+      models: "/v1/models",
+      chatCompletions: "不适用",
+      responses: "不适用",
+      completions: "不适用",
     },
   },
   {

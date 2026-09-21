@@ -54,6 +54,7 @@ export type ProviderType =
   | "audiocpp"
   | "openrouter"
   | "openai-responses"
+  | "typesafe"
   | "xai"
   | "cohere"
   | "vertexai"
@@ -241,6 +242,8 @@ export interface ModelCapabilities {
   embedding?: boolean;
   /** 是否支持重排（Rerank） */
   rerank?: boolean;
+  /** 是否支持专用结构化决策（System One） */
+  decision?: boolean;
   /** 是否支持计算机使用（Computer Use） */
   computerUse?: boolean;
 
@@ -598,6 +601,8 @@ export interface LlmProfile {
     embeddings?: string;
     /** 重排端点 (Rerank)，例如 '/v1/rerank' */
     rerank?: string;
+    /** TypeSafe System One 决策端点，例如 '/v1/systemone' */
+    systemOne?: string;
     /** 图像生成端点 (Images Generations)，例如 '/v1/images/generations' */
     imagesGenerations?: string;
     /** 图像编辑端点 (Images Edits)，例如 '/v1/images/edits' */

@@ -24,4 +24,5 @@ dist-ssr
 *.sw?
 
 # Assets
-public/model-icons/
+public/model-icons/*
+!public/model-icons/typesafe.png

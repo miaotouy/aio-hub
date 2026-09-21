@@ -70,6 +70,9 @@ const goToLlmSettings = () => {
 
 const matchesCapabilities = (model: LlmModelInfo) => {
   const capabilities = props.capabilities ?? {};
+  if (model.capabilities?.decision && capabilities.decision !== true) {
+    return false;
+  }
   const requiredCaps = Object.keys(capabilities) as Array<
     keyof ModelCapabilities
   >;

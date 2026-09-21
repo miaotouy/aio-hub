@@ -99,12 +99,16 @@ const allModels = computed(() => {
     initialCapabilities.value &&
     Object.keys(initialCapabilities.value).length > 0;
 
-  // 只有没有 initialCapabilities 约束时才允许早返回全部模型
+  // 专用决策模型需要显式选择 decision 能力，其他场景继续走常规筛选。
   if (!lowerCaseQuery && caps.length === 0 && !hasInitialCaps) {
-    return models;
+    return models.filter((item) => !item.model.capabilities?.decision);
   }
 
   return models.filter(({ model, profile }) => {
+    const decisionRequested =
+      caps.includes("decision") || initialCapabilities.value?.decision === true;
+    if (model.capabilities?.decision && !decisionRequested) return false;
+
     // 1. 搜索词匹配
     const matchesQuery =
       !lowerCaseQuery ||

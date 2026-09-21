@@ -108,6 +108,7 @@ const DEFAULT_PLACEHOLDERS: Record<string, string> = {
   videos: "/v1/videos",
   videoStatus: "/v1/videos/{video_id}",
   rerank: "/v1/rerank",
+  systemOne: "/v1/systemone",
   moderations: "/v1/moderations",
 };
 
@@ -199,6 +200,14 @@ const placeholders = computed((): Record<string, string> => {
             <el-input
               v-model="tempEndpoints.embeddings"
               :placeholder="placeholders.embeddings"
+              clearable
+            />
+          </el-form-item>
+
+          <el-form-item label="结构化决策 (System One)">
+            <el-input
+              v-model="tempEndpoints.systemOne"
+              :placeholder="placeholders.systemOne"
               clearable
             />
           </el-form-item>

@@ -200,6 +200,9 @@ export function toDesktopModelInfo(
     model.declaredOwner
   );
   const apiCapabilities: LlmModelInfo["capabilities"] = {};
+  if (providerType === "typesafe") {
+    apiCapabilities.decision = true;
+  }
 
   // 模型列表 API 经常不提供 architecture.input_modalities。
   // 此时视觉能力是“未知”，不能把它降级成 false 覆盖内置模型元数据。

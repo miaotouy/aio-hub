@@ -43,6 +43,7 @@ import {
   Braces,
   RefreshCw,
   AudioLines,
+  ListChecks,
 } from "lucide-vue-next";
 
 /**
@@ -258,6 +259,14 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     icon: markRaw(Layers),
     color: "#64748b", // Slate 500 - 稳重的底层数据
     className: "embedding",
+  },
+  {
+    key: "decision",
+    label: "决策",
+    description: "支持 Choice、Score、Noul 等结构化决策输出",
+    icon: markRaw(ListChecks),
+    color: "#e551ba",
+    className: "decision",
   },
   {
     key: "rerank",

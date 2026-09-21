@@ -20,6 +20,12 @@ import type { PresetIconInfo } from "../types/model-metadata";
  */
 export const USER_ADDED_ICONS: PresetIconInfo[] = [
   {
+    name: "TypeSafe AI",
+    path: "typesafe.png",
+    suggestedFor: ["typesafe", "jev", "system-one"],
+    category: "国际 AI",
+  },
+  {
     name: "VCP Chat",
     path: "vcpchat.png",
     suggestedFor: ["vcp", "vcpchat", "vcp-chat", "Variable & Command Protocol"],

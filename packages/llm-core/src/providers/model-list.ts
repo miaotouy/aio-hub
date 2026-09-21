@@ -98,6 +98,18 @@ export function parseProviderModels(
       return [result];
     });
   }
+  if (provider === "typesafe") {
+    return readArray(root.models).flatMap((entry) => {
+      const model = asRecord(entry);
+      const id = readString(model.name);
+      if (!id) return [];
+      const result = baseModel(model, id, id, "typesafe", "Jev");
+      result.description = readString(model.description);
+      result.inputModalities = ["text"];
+      result.supportedEndpointTypes = ["typesafe-system-one"];
+      return [result];
+    });
+  }
   if (provider === "cohere") {
     return readArray(root.models).flatMap((entry) => {
       const model = asRecord(entry);

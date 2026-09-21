@@ -58,7 +58,9 @@ export async function fetchModelsFromApi(
         },
       },
     });
-    const models = result.models.map(toMobileModelInfo);
+    const models = result.models.map((model) =>
+      toMobileModelInfo(model, profile.type)
+    );
     logger.info("模型列表获取成功", {
       profileName: profile.name,
       modelCount: models.length,
@@ -73,7 +75,10 @@ export async function fetchModelsFromApi(
   }
 }
 
-function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
+function toMobileModelInfo(
+  model: ProviderModelInfo,
+  providerType: LlmProfile["type"]
+): LlmModelInfo {
   const pricing = model.pricing
     ? Object.fromEntries(
         Object.entries(model.pricing).map(([key, value]) => [
@@ -94,6 +99,7 @@ function toMobileModelInfo(model: ProviderModelInfo): LlmModelInfo {
       provider: model.provider,
       description: model.description,
       capabilities: {
+        ...(providerType === "typesafe" ? { decision: true } : {}),
         ...(model.inputModalities
           ? { vision: model.inputModalities.includes("image") }
           : {}),

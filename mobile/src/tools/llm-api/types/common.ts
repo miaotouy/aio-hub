@@ -210,6 +210,9 @@ export interface ModelCapabilities {
   /** 是否支持文件搜索 (RAG/Retrieval) */
   fileSearch?: boolean;
 
+  /** 是否支持专用结构化决策（System One） */
+  decision?: boolean;
+
   /** 是否支持计算机使用 (Computer Use) */
   computerUse?: boolean;
 

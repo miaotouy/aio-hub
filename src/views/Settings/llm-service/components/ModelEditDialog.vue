@@ -391,10 +391,11 @@ function hasMediaGenParams(
   return !!params && Object.keys(params).length > 0;
 }
 
-// 模型声明的能力对应的可编辑路由操作（对话始终可编辑）
+// 模型声明的能力对应可编辑的路由操作。专用决策模型不显示对话路由。
 const routingOperations = computed<LlmOperation[]>(() => {
   const capabilities = modelEditForm.value.capabilities;
-  const operations: LlmOperation[] = ["chat"];
+  const operations: LlmOperation[] = capabilities?.decision ? [] : ["chat"];
+  if (capabilities?.decision) operations.push("decision");
   if (capabilities?.embedding) operations.push("embedding");
   if (capabilities?.rerank) operations.push("rerank");
   if (capabilities?.imageGeneration) operations.push("image");

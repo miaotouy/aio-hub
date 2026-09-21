@@ -84,6 +84,32 @@ export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
       description: "Google Gemini 提供商图标",
     },
     {
+      id: "provider-typesafe",
+      matchType: "provider",
+      matchValue: "typesafe",
+      properties: {
+        icon: `/model-icons/typesafe.png`,
+        group: "Jev",
+        capabilities: { decision: true },
+      },
+      priority: 10,
+      enabled: true,
+      description: "TypeSafe AI 提供商图标与决策能力",
+    },
+    {
+      id: "model-prefix-jev",
+      matchType: "modelPrefix",
+      matchValue: "jev",
+      properties: {
+        icon: `/model-icons/typesafe.png`,
+        group: "Jev",
+        capabilities: { decision: true },
+      },
+      priority: 20,
+      enabled: true,
+      description: "TypeSafe Jev 系列结构化决策模型",
+    },
+    {
       id: "provider-cohere",
       matchType: "provider",
       matchValue: "cohere",

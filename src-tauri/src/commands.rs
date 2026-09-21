@@ -205,6 +205,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_scan_repositories,
         git_get_repo_status,
         git_get_file_diff,
+        git_read_file_preview_binary,
         git_stage_files,
         git_unstage_files,
         git_discard_files,

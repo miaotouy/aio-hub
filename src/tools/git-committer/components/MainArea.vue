@@ -104,12 +104,12 @@
             <p class="text-secondary binary-desc">{{ activeTab.error }}</p>
           </div>
 
-          <!-- 二进制文件降级提示 -->
-          <div v-else-if="activeTab.isBinary" class="binary-fallback-card">
-            <FileCode :size="48" class="text-placeholder binary-icon" />
-            <h3 class="binary-title">二进制文件无法查看差异</h3>
-            <p class="text-secondary binary-desc">{{ activeTab.path }}</p>
-            <div v-if="!activeTab.commitHash" class="binary-actions">
+          <GitMediaDiffPreview
+            v-else-if="activeTab.isBinary"
+            :repo-path="currentRepoPath"
+            :diff="activeTab"
+          >
+            <template v-if="!activeTab.commitHash" #actions>
               <el-button
                 v-if="activeTab.isStaged"
                 type="danger"
@@ -126,8 +126,8 @@
               >
                 暂存文件
               </el-button>
-            </div>
-          </div>
+            </template>
+          </GitMediaDiffPreview>
 
           <!-- 文本 Diff 编辑器 -->
           <div v-else-if="activeTab.loading" class="loading-wrapper">
@@ -228,7 +228,6 @@ import {
 } from "vue";
 import {
   X,
-  FileCode,
   FileDiff,
   FileWarning,
   GitCommitHorizontal,
@@ -244,6 +243,7 @@ import PanoramaDashboard from "./PanoramaDashboard.vue";
 import RepoPromptEditor from "./RepoPromptEditor.vue";
 import CommitDiffView from "./CommitDiffView.vue";
 import ChangesDiffView from "./ChangesDiffView.vue";
+import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
 import {
   currentRepoPath,
   currentSession as session,

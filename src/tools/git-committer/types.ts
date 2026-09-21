@@ -138,12 +138,28 @@ export interface GitCommitSummary {
   files?: CommitFileChange[] | null;
 }
 
-/** 提交中单个文件相对父提交的文本差异（与后端 `CommitFileDiff` 对齐） */
+/** 文件版本可视化类别（与后端 `GitDiffSide.previewKind` 对齐） */
+export type GitPreviewKind = "text" | "image" | "audio" | "video" | "binary";
+
+/** 单侧 Git 文件版本的预览元数据 */
+export interface GitDiffSide {
+  exists: boolean;
+  path: string;
+  previewKind: GitPreviewKind;
+  mimeType: string;
+  byteSize: number;
+  snapshotAvailable: boolean;
+  localPath?: string;
+}
+
+/** 提交中单个文件相对父提交的差异（与后端 `GitFileDiff` 对齐） */
 export interface CommitFileDiff {
   path: string;
   original: string;
   modified: string;
   isBinary: boolean;
+  originalSide: GitDiffSide;
+  modifiedSide: GitDiffSide;
 }
 
 /** Diff 标签页运行时态 */
@@ -155,6 +171,8 @@ export interface DiffTab {
   original: string;
   modified: string;
   isBinary: boolean;
+  originalSide?: GitDiffSide;
+  modifiedSide?: GitDiffSide;
   loading: boolean;
   /** 加载失败时的错误信息 */
   error?: string;

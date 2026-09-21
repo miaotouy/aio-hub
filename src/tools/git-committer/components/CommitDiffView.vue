@@ -37,11 +37,13 @@
         <div class="cdv-subject">{{ detail.message }}</div>
         <pre v-if="body" class="cdv-body">{{ body }}</pre>
         <div v-if="stats" class="cdv-stats">
-          已更改 <span class="cdv-stat-files">{{ stats.files }}</span> 个文件，<span
+          已更改
+          <span class="cdv-stat-files">{{ stats.files }}</span> 个文件，<span
             class="cdv-stat-add"
             >{{ stats.additions }}</span
           >
-          行插入(+)，<span class="cdv-stat-del">{{ stats.deletions }}</span> 行删除(-)
+          行插入(+)，<span class="cdv-stat-del">{{ stats.deletions }}</span>
+          行删除(-)
         </div>
       </header>
 
@@ -64,11 +66,9 @@
                 >-{{ file.deletions }}</span
               >
             </span>
-            <span
-              class="cdv-file-status"
-              :class="file.status.toLowerCase()"
-              >{{ file.status }}</span
-            >
+            <span class="cdv-file-status" :class="file.status.toLowerCase()">{{
+              file.status
+            }}</span>
           </div>
 
           <div v-if="isExpanded(file.path)" class="cdv-file-body">
@@ -76,20 +76,17 @@
               <el-icon class="is-loading" :size="16"><Loading /></el-icon>
               <span class="text-secondary">正在加载差异...</span>
             </div>
-            <div
-              v-else-if="diffFor(file.path)?.error"
-              class="cdv-state small"
-            >
+            <div v-else-if="diffFor(file.path)?.error" class="cdv-state small">
               <span class="text-secondary">{{
                 diffFor(file.path)?.error
               }}</span>
             </div>
-            <div
+            <GitMediaDiffPreview
               v-else-if="diffFor(file.path)?.isBinary"
-              class="cdv-state small"
-            >
-              <span class="text-secondary">二进制文件，无法查看文本差异</span>
-            </div>
+              :repo-path="repoPath"
+              :diff="diffFor(file.path)!"
+              compact
+            />
             <RichCodeEditor
               v-else-if="diffFor(file.path)"
               diff
@@ -118,6 +115,7 @@ import { format, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import FileIcon from "@/components/common/FileIcon.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
 import { hideUnchangedRegions } from "../composables/useGitCommitterState";
 import { loadCommitDetail } from "../composables/useCommitDetails";
 import { loadCommitFileDiff } from "../composables/useGitCommitterRunner";
@@ -174,8 +172,7 @@ const editorOptions = computed(() => ({
 }));
 
 const isExpanded = (path: string): boolean => expandedPaths.value.has(path);
-const isLoadingFile = (path: string): boolean =>
-  loadingFiles.value.has(path);
+const isLoadingFile = (path: string): boolean => loadingFiles.value.has(path);
 const diffFor = (path: string): DiffTab | undefined => fileDiffs.value[path];
 
 const toggleFile = async (file: CommitFileChange) => {

@@ -245,7 +245,7 @@ export async function loadFileDiff(
   if (!repoPath || repoPath === "__panorama__") return null;
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<[string, string]>("git_get_file_diff", {
+      invoke<CommitFileDiff>("git_get_file_diff", {
         path: repoPath,
         filePath,
         isStaged,
@@ -255,23 +255,15 @@ export async function loadFileDiff(
       showToUser: false,
     }
   );
-  if (!result) {
-    // 二进制文件等情况：返回降级 Tab
-    return {
-      path: filePath,
-      isStaged,
-      original: "",
-      modified: "",
-      isBinary: true,
-      loading: false,
-    };
-  }
+  if (!result) return null;
   return {
     path: filePath,
     isStaged,
-    original: result[0],
-    modified: result[1],
-    isBinary: false,
+    original: result.original,
+    modified: result.modified,
+    isBinary: result.isBinary,
+    originalSide: result.originalSide,
+    modifiedSide: result.modifiedSide,
     loading: false,
   };
 }
@@ -314,6 +306,8 @@ export async function loadCommitFileDiff(
     original: result.original,
     modified: result.modified,
     isBinary: result.isBinary,
+    originalSide: result.originalSide,
+    modifiedSide: result.modifiedSide,
   };
 }
 

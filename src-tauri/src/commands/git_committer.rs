@@ -25,13 +25,16 @@
 use git2::{BranchType, Oid, Repository, Status};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio::process::Command;
 
 /// 限制文本 Diff 读取的最大文件大小（1MB），防止大文件导致 IPC 崩溃或内存暴涨
-const MAX_DIFF_FILE_SIZE: u64 = 1024 * 1024;
+pub const MAX_TEXT_DIFF_SIZE: u64 = 1024 * 1024;
+
+/// Git 快照媒体在 IPC 中载入的单侧上限。工作区媒体始终经 asset 协议流式读取。
+pub const MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE: u64 = 64 * 1024 * 1024;
 
 /// 拖入工作区时最多向下扫描 4 层，避免误拖磁盘根目录后遍历失控。
 const MAX_REPOSITORY_SCAN_DEPTH: usize = 4;
@@ -82,6 +85,31 @@ pub struct FileStatus {
     /// 短格式："M" | "A" | "D" | "U" | "R" | "C" | "T"
     pub status: String,
     pub is_binary: bool,
+}
+
+/// 单侧文件版本的预览元数据。文本内容仅在 `GitFileDiff` 的 original/modified 字段返回。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffSide {
+    pub exists: bool,
+    pub path: String,
+    pub preview_kind: String,
+    pub mime_type: String,
+    pub byte_size: u64,
+    pub snapshot_available: bool,
+    pub local_path: Option<String>,
+}
+
+/// Git 文件差异及其两侧可预览版本描述。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitFileDiff {
+    pub path: String,
+    pub original: String,
+    pub modified: String,
+    pub is_binary: bool,
+    pub original_side: GitDiffSide,
+    pub modified_side: GitDiffSide,
 }
 
 /// 将 `git2::Status`（位标志）转换为短状态字符。
@@ -139,10 +167,185 @@ fn is_unstaged_status(status: Status) -> bool {
     ) || status.contains(Status::CONFLICTED)
 }
 
-/// 判定文件是否为二进制：复用 `crate::utils::mime::is_text_file`，取反。
+/// 仅允许仓库内相对路径，避免命令参数跳出工作区。
+fn repository_relative_path(file_path: &str) -> Result<PathBuf, String> {
+    let path = Path::new(file_path);
+    if file_path.trim().is_empty()
+        || path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!("非法仓库文件路径: {}", file_path));
+    }
+    Ok(path.to_path_buf())
+}
+
+fn resolve_worktree_file(workdir: &Path, file_path: &str) -> Result<PathBuf, String> {
+    let relative = repository_relative_path(file_path)?;
+    let workdir =
+        std::fs::canonicalize(workdir).map_err(|e| format!("无法解析仓库工作区: {}", e))?;
+    let candidate = workdir.join(relative);
+    let target = if candidate.exists() {
+        std::fs::canonicalize(&candidate)
+            .map_err(|e| format!("无法解析工作区文件 {}: {}", candidate.display(), e))?
+    } else {
+        let parent = candidate
+            .parent()
+            .ok_or_else(|| format!("无法解析工作区文件: {}", file_path))?;
+        let canonical_parent = std::fs::canonicalize(parent)
+            .map_err(|e| format!("无法解析工作区文件父目录 {}: {}", parent.display(), e))?;
+        canonical_parent.join(
+            candidate
+                .file_name()
+                .ok_or_else(|| format!("无效文件名: {}", file_path))?,
+        )
+    };
+    if !target.starts_with(&workdir) {
+        return Err(format!("文件路径超出仓库工作区: {}", file_path));
+    }
+    Ok(target)
+}
+
+/// 为状态列表提供轻量二进制标记。已删除文件没有工作区实体，保留为文本默认值，
+/// 其真实类型会在按需加载差异时由 Git 版本内容判定。
 fn is_binary_file(workdir: &Path, file_path: &str) -> bool {
-    let full = workdir.join(file_path);
-    !crate::utils::mime::is_text_file(&full)
+    let Ok(path) = resolve_worktree_file(workdir, file_path) else {
+        return false;
+    };
+    path.exists() && !crate::utils::mime::is_text_file(&path)
+}
+
+fn empty_side(path: &str) -> GitDiffSide {
+    GitDiffSide {
+        exists: false,
+        path: path.to_string(),
+        preview_kind: "text".to_string(),
+        mime_type: "text/plain".to_string(),
+        byte_size: 0,
+        snapshot_available: false,
+        local_path: None,
+    }
+}
+
+fn preview_kind_from_mime(mime_type: &str) -> &'static str {
+    if mime_type.starts_with("image/") && mime_type != "image/svg+xml" {
+        "image"
+    } else if mime_type.starts_with("audio/") {
+        "audio"
+    } else if mime_type.starts_with("video/") {
+        "video"
+    } else if mime_type.starts_with("text/")
+        || matches!(
+            mime_type,
+            "application/json" | "application/xml" | "application/javascript"
+        )
+    {
+        "text"
+    } else {
+        "binary"
+    }
+}
+
+fn mime_for_blob(blob: &git2::Blob<'_>, path: &str) -> String {
+    if blob.size() <= 8192 {
+        if let Some(kind) = infer::get(blob.content()) {
+            return kind.mime_type().to_string();
+        }
+    }
+    crate::utils::mime::guess_mime_type(Path::new(path))
+}
+
+fn blob_oid_from_head(repo: &Repository, file_path: &str) -> Option<Oid> {
+    let head = repo.head().ok()?;
+    let tree = head.peel_to_tree().ok()?;
+    tree.get_path(Path::new(file_path))
+        .ok()
+        .map(|entry| entry.id())
+}
+
+fn blob_oid_from_index(repo: &Repository, file_path: &str) -> Option<Oid> {
+    repo.index()
+        .ok()?
+        .get_path(Path::new(file_path), 0)
+        .map(|entry| entry.id)
+}
+
+fn side_from_blob(repo: &Repository, oid: Option<Oid>, path: &str) -> Result<GitDiffSide, String> {
+    let Some(oid) = oid.filter(|oid| !oid.is_zero()) else {
+        return Ok(empty_side(path));
+    };
+    let blob = repo
+        .find_blob(oid)
+        .map_err(|e| format!("读取 Git 文件版本失败: {}", e))?;
+    let mime_type = mime_for_blob(&blob, path);
+    let mut preview_kind = preview_kind_from_mime(&mime_type).to_string();
+    if preview_kind == "binary"
+        && blob.size() <= MAX_TEXT_DIFF_SIZE as usize
+        && crate::utils::mime::is_buffer_likely_text(blob.content())
+    {
+        preview_kind = "text".to_string();
+    }
+    Ok(GitDiffSide {
+        exists: true,
+        path: path.to_string(),
+        preview_kind: preview_kind.clone(),
+        mime_type,
+        byte_size: blob.size() as u64,
+        snapshot_available: matches!(preview_kind.as_str(), "image" | "audio" | "video")
+            && blob.size() as u64 <= MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE,
+        local_path: None,
+    })
+}
+
+fn side_from_worktree(path: &Path, display_path: &str) -> Result<GitDiffSide, String> {
+    if !path.exists() {
+        return Ok(empty_side(display_path));
+    }
+    let metadata = std::fs::metadata(path)
+        .map_err(|e| format!("读取工作区文件信息失败 {}: {}", path.display(), e))?;
+    let mime_type = crate::utils::mime::guess_mime_type(path);
+    let mut preview_kind = preview_kind_from_mime(&mime_type).to_string();
+    if preview_kind == "binary"
+        && metadata.len() <= MAX_TEXT_DIFF_SIZE
+        && std::fs::read(path)
+            .map(|bytes| crate::utils::mime::is_buffer_likely_text(&bytes))
+            .unwrap_or(false)
+    {
+        preview_kind = "text".to_string();
+    }
+    Ok(GitDiffSide {
+        exists: true,
+        path: display_path.to_string(),
+        preview_kind: preview_kind.clone(),
+        mime_type,
+        byte_size: metadata.len(),
+        snapshot_available: matches!(preview_kind.as_str(), "image" | "audio" | "video"),
+        local_path: if matches!(preview_kind.as_str(), "image" | "audio" | "video") {
+            Some(path.to_string_lossy().into_owned())
+        } else {
+            None
+        },
+    })
+}
+
+fn read_blob_text(repo: &Repository, oid: Option<Oid>) -> Result<String, String> {
+    let Some(oid) = oid.filter(|oid| !oid.is_zero()) else {
+        return Ok(String::new());
+    };
+    let blob = repo
+        .find_blob(oid)
+        .map_err(|e| format!("读取 Git 文件版本失败: {}", e))?;
+    if blob.size() as u64 > MAX_TEXT_DIFF_SIZE {
+        return Err(format!(
+            "文件过大（{:.2} MB），无法直接查看文本差异",
+            blob.size() as f64 / 1024.0 / 1024.0
+        ));
+    }
+    Ok(String::from_utf8_lossy(blob.content()).to_string())
 }
 
 /// 打开仓库，返回 `Repository`，失败返回中文友好错误。
@@ -367,71 +570,185 @@ fn compute_ahead_behind(repo: &Repository) -> (usize, usize) {
         .unwrap_or((0, 0))
 }
 
-/// 从 HEAD 的 tree 中读取指定文件内容，不存在返回 None。
-fn read_blob_from_head(repo: &Repository, file_path: &str) -> Option<String> {
-    let head = repo.head().ok()?;
-    let tree = head.peel_to_tree().ok()?;
-    let entry = tree.get_path(Path::new(file_path)).ok()?;
-    let blob = repo.find_blob(entry.id()).ok()?;
-    // 二进制保护由调用方在进入此函数前完成；此处仅做 utf8 lossy
-    Some(String::from_utf8_lossy(blob.content()).to_string())
-}
-
-/// 从 Index 中读取指定文件内容，不存在返回 None。
-fn read_blob_from_index(repo: &Repository, file_path: &str) -> Option<String> {
-    let index = repo.index().ok()?;
-    let oid = index.get_path(Path::new(file_path), 0)?.id;
-    let blob = repo.find_blob(oid).ok()?;
-    Some(String::from_utf8_lossy(blob.content()).to_string())
-}
-
-/// 获取单个文件的 Diff 原始与修改后文本，返回 `(original, modified)`。
+/// 获取单个文件的 Diff 原始与修改后版本。
 ///
 /// - `is_staged = true`：对比 HEAD 与 Index。
 /// - `is_staged = false`：对比 Index 与工作区。
-///
-/// 二进制文件直接返回错误，避免大文件或乱码导致 IPC 崩溃。
 #[tauri::command]
 pub async fn git_get_file_diff(
     path: String,
     file_path: String,
     is_staged: bool,
-) -> Result<(String, String), String> {
+) -> Result<GitFileDiff, String> {
+    repository_relative_path(&file_path)?;
     let repo = open_repo(&path)?;
     let repo_path = repo_workdir(&repo, &path);
 
-    // 二进制保护：先判定，避免读取大文件
-    if is_binary_file(&repo_path, &file_path) {
-        return Err(format!("二进制文件，无法查看文本差异: {}", file_path));
-    }
-
-    if is_staged {
-        // HEAD vs Index
-        let original = read_blob_from_head(&repo, &file_path).unwrap_or_default();
-        let modified = read_blob_from_index(&repo, &file_path).unwrap_or_default();
-        Ok((original, modified))
+    let original_oid = if is_staged {
+        blob_oid_from_head(&repo, &file_path)
     } else {
-        // Index vs 工作区
-        let original = read_blob_from_index(&repo, &file_path)
-            .or_else(|| read_blob_from_head(&repo, &file_path))
-            .unwrap_or_default();
-        let abs = repo_path.join(&file_path);
+        blob_oid_from_index(&repo, &file_path).or_else(|| blob_oid_from_head(&repo, &file_path))
+    };
+    let original_side = side_from_blob(&repo, original_oid, &file_path)?;
 
-        // 限制读取的文件大小，防止大文件导致内存暴涨
-        if let Ok(metadata) = std::fs::metadata(&abs) {
-            if metadata.len() > MAX_DIFF_FILE_SIZE {
-                return Err(format!(
-                    "文件过大（{:.2} MB），无法直接查看文本差异: {}",
-                    metadata.len() as f64 / 1024.0 / 1024.0,
-                    file_path
-                ));
-            }
-        }
+    let (modified_oid, modified_side) = if is_staged {
+        let oid = blob_oid_from_index(&repo, &file_path);
+        let side = side_from_blob(&repo, oid, &file_path)?;
+        (oid, side)
+    } else {
+        let worktree_file = resolve_worktree_file(&repo_path, &file_path)?;
+        (None, side_from_worktree(&worktree_file, &file_path)?)
+    };
 
-        let modified = std::fs::read_to_string(&abs)
-            .map_err(|e| format!("读取工作区文件失败 {}: {}", abs.display(), e))?;
-        Ok((original, modified))
+    let is_binary = [original_side.clone(), modified_side.clone()]
+        .into_iter()
+        .filter(|side| side.exists)
+        .any(|side| side.preview_kind != "text");
+
+    if is_binary {
+        return Ok(GitFileDiff {
+            path: file_path,
+            original: String::new(),
+            modified: String::new(),
+            is_binary: true,
+            original_side,
+            modified_side,
+        });
     }
+
+    let original = read_blob_text(&repo, original_oid)?;
+    let modified = if is_staged {
+        read_blob_text(&repo, modified_oid)?
+    } else if modified_side.exists {
+        if modified_side.byte_size > MAX_TEXT_DIFF_SIZE {
+            return Err(format!(
+                "文件过大（{:.2} MB），无法直接查看文本差异: {}",
+                modified_side.byte_size as f64 / 1024.0 / 1024.0,
+                file_path
+            ));
+        }
+        let worktree_file = resolve_worktree_file(&repo_path, &file_path)?;
+        std::fs::read_to_string(&worktree_file)
+            .map_err(|e| format!("读取工作区文件失败 {}: {}", worktree_file.display(), e))?
+    } else {
+        String::new()
+    };
+
+    Ok(GitFileDiff {
+        path: file_path,
+        original,
+        modified,
+        is_binary: false,
+        original_side,
+        modified_side,
+    })
+}
+
+fn commit_preview_oids(
+    repo: &Repository,
+    hash: &str,
+    file_path: &str,
+) -> Result<(Option<Oid>, Option<Oid>), String> {
+    let object = repo
+        .revparse_single(hash)
+        .map_err(|e| format!("无法解析提交 {}: {}", hash, e))?;
+    let commit = object
+        .peel_to_commit()
+        .map_err(|e| format!("无法读取提交 {}: {}", hash, e))?;
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(
+            commit
+                .parent(0)
+                .and_then(|parent| parent.tree())
+                .map_err(|e| format!("无法读取父提交: {}", e))?,
+        )
+    } else {
+        None
+    };
+    let current_tree = commit
+        .tree()
+        .map_err(|e| format!("无法读取提交树: {}", e))?;
+    let diff = repo
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&current_tree), None)
+        .map_err(|e| format!("无法读取提交差异: {}", e))?;
+
+    let mut old_oid = None;
+    let mut new_oid = None;
+    let mut matched = false;
+    let foreach_result = diff.foreach(
+        &mut |delta, _| {
+            let old_path = delta.old_file().path().and_then(|path| path.to_str());
+            let new_path = delta.new_file().path().and_then(|path| path.to_str());
+            if old_path == Some(file_path) || new_path == Some(file_path) {
+                old_oid = Some(delta.old_file().id());
+                new_oid = Some(delta.new_file().id());
+                matched = true;
+                return false;
+            }
+            true
+        },
+        None,
+        None,
+        None,
+    );
+    if !matched {
+        foreach_result.map_err(|e| format!("无法检查提交差异: {}", e))?;
+        return Err(format!("提交中不存在文件变更: {}", file_path));
+    }
+    Ok((
+        old_oid.filter(|oid| !oid.is_zero()),
+        new_oid.filter(|oid| !oid.is_zero()),
+    ))
+}
+
+/// 读取暂存或历史版本的媒体二进制内容，供前端创建 Blob URL。
+#[tauri::command]
+pub async fn git_read_file_preview_binary(
+    path: String,
+    file_path: String,
+    is_staged: bool,
+    commit_hash: Option<String>,
+    side: String,
+) -> Result<tauri::ipc::Response, String> {
+    repository_relative_path(&file_path)?;
+    let repo = open_repo(&path)?;
+    let oid = if let Some(hash) = commit_hash.filter(|hash| !hash.trim().is_empty()) {
+        let (original, modified) = commit_preview_oids(&repo, &hash, &file_path)?;
+        match side.as_str() {
+            "original" => original,
+            "modified" => modified,
+            _ => return Err(format!("无效的文件版本侧: {}", side)),
+        }
+    } else if is_staged {
+        match side.as_str() {
+            "original" => blob_oid_from_head(&repo, &file_path),
+            "modified" => blob_oid_from_index(&repo, &file_path),
+            _ => return Err(format!("无效的文件版本侧: {}", side)),
+        }
+    } else {
+        match side.as_str() {
+            "original" => blob_oid_from_index(&repo, &file_path)
+                .or_else(|| blob_oid_from_head(&repo, &file_path)),
+            "modified" => {
+                return Err("工作区文件应通过本地路径流式预览".to_string());
+            }
+            _ => return Err(format!("无效的文件版本侧: {}", side)),
+        }
+    };
+
+    let Some(oid) = oid else {
+        return Err("该版本不存在".to_string());
+    };
+    let blob = repo
+        .find_blob(oid)
+        .map_err(|e| format!("读取 Git 文件版本失败: {}", e))?;
+    if blob.size() as u64 > MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE {
+        return Err(format!(
+            "文件版本超过 {:.0} MB 的应用内预览上限",
+            MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE as f64 / 1024.0 / 1024.0
+        ));
+    }
+    Ok(tauri::ipc::Response::new(blob.content().to_vec()))
 }
 
 /// 将指定文件添加到暂存区（使用系统 `git add --`）。
@@ -691,6 +1008,75 @@ mod tests {
             &[],
         )
         .expect("create initial commit")
+    }
+
+    #[test]
+    fn rejects_paths_outside_the_repository_worktree() {
+        assert!(repository_relative_path("../outside.png").is_err());
+        assert!(repository_relative_path("C:\\outside.png").is_err());
+        assert!(repository_relative_path("assets/logo.png").is_ok());
+    }
+
+    #[test]
+    fn marks_media_snapshots_available_at_the_configured_limit() {
+        assert!(MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE > MAX_TEXT_DIFF_SIZE);
+        assert_eq!(MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE, 64 * 1024 * 1024);
+    }
+
+    #[test]
+    fn reads_a_deleted_text_worktree_file_as_a_text_diff() {
+        let temp = test_tempdir();
+        let repo = Repository::init(temp.path()).expect("init repository");
+        create_initial_commit(&repo);
+        let workdir = repo.workdir().expect("workdir");
+        std::fs::remove_file(workdir.join("README.md")).expect("delete tracked file");
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let diff = runtime
+            .block_on(git_get_file_diff(
+                workdir.to_string_lossy().into_owned(),
+                "README.md".to_string(),
+                false,
+            ))
+            .expect("load deleted text diff");
+
+        assert!(!diff.is_binary);
+        assert_eq!(diff.original, "initial commit");
+        assert!(diff.modified.is_empty());
+        assert!(diff.original_side.exists);
+        assert!(!diff.modified_side.exists);
+    }
+
+    #[test]
+    fn describes_staged_media_as_an_image_snapshot() {
+        let temp = test_tempdir();
+        let repo = Repository::init(temp.path()).expect("init repository");
+        let workdir = repo.workdir().expect("workdir");
+        std::fs::write(workdir.join("cover.png"), [0x89, b'P', b'N', b'G', 0, 1])
+            .expect("write image");
+        let mut index = repo.index().expect("index");
+        index.add_path(Path::new("cover.png")).expect("stage image");
+        index.write().expect("write index");
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let diff = runtime
+            .block_on(git_get_file_diff(
+                workdir.to_string_lossy().into_owned(),
+                "cover.png".to_string(),
+                true,
+            ))
+            .expect("load staged image diff");
+
+        assert!(diff.is_binary);
+        assert_eq!(diff.modified_side.preview_kind, "image");
+        assert!(diff.modified_side.snapshot_available);
+        assert!(!diff.original_side.exists);
     }
 
     #[test]

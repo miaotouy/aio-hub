@@ -30,6 +30,9 @@
 //! - `git_revert`: Revert 同样涉及工作区修改和冲突处理
 //! - `git_format_log`: 支持用户自定义格式模板，git2 难以灵活实现
 
+use crate::commands::git_committer::{
+    GitDiffSide, GitFileDiff, MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE, MAX_TEXT_DIFF_SIZE,
+};
 use chrono::{FixedOffset, TimeZone};
 use git2::{BranchType, Delta, Oid, Repository};
 use lazy_static::lazy_static;
@@ -73,18 +76,8 @@ pub struct FileChange {
     pub deletions: u32,
 }
 
-/// 某次提交中单个文件相对其父提交的文本差异。
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct CommitFileDiff {
-    pub path: String,
-    /// 父提交版本内容；新增文件为空
-    pub original: String,
-    /// 本次提交版本内容；删除文件为空
-    pub modified: String,
-    /// 二进制文件仅返回标记，不返回内容
-    pub is_binary: bool,
-}
+/// Git 提交文件差异与提交助手共用相同的预览结构。
+pub type CommitFileDiff = GitFileDiff;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitBranch {
@@ -526,8 +519,7 @@ pub async fn git_get_incremental_commits(
 #[tauri::command]
 pub async fn git_get_remote_url(path: String) -> Result<Option<String>, String> {
     let repo_path = if path.is_empty() { "." } else { &path };
-    let repo =
-        Repository::open(repo_path).map_err(|e| format!("无法打开仓库: {}", e))?;
+    let repo = Repository::open(repo_path).map_err(|e| format!("无法打开仓库: {}", e))?;
     Ok(get_preferred_remote_url(&repo))
 }
 
@@ -731,10 +723,9 @@ fn resolve_commit_oid(repo: &Repository, hash: &str) -> Result<Oid, String> {
     }
 }
 
-/// 读取某次提交中指定文件相对父提交的文本差异。
+/// 读取某次提交中指定文件相对父提交的差异及版本预览元数据。
 ///
 /// 通过 diff delta 同时匹配新旧路径，重命名文件也能拿到正确的两侧内容。
-/// 二进制文件仅返回标记；匹配不到文件变更时返回错误。
 #[tauri::command]
 pub async fn git_get_commit_file_diff(
     path: String,
@@ -746,6 +737,90 @@ pub async fn git_get_commit_file_diff(
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
     let oid = resolve_commit_oid(&repo, &hash)?;
     commit_file_diff(&repo, oid, &file_path)
+}
+
+fn empty_commit_side(path: &str) -> GitDiffSide {
+    GitDiffSide {
+        exists: false,
+        path: path.to_string(),
+        preview_kind: "text".to_string(),
+        mime_type: "text/plain".to_string(),
+        byte_size: 0,
+        snapshot_available: false,
+        local_path: None,
+    }
+}
+
+fn preview_kind_from_mime(mime_type: &str) -> &'static str {
+    if mime_type.starts_with("image/") && mime_type != "image/svg+xml" {
+        "image"
+    } else if mime_type.starts_with("audio/") {
+        "audio"
+    } else if mime_type.starts_with("video/") {
+        "video"
+    } else if mime_type.starts_with("text/")
+        || matches!(
+            mime_type,
+            "application/json" | "application/xml" | "application/javascript"
+        )
+    {
+        "text"
+    } else {
+        "binary"
+    }
+}
+
+fn commit_side_from_blob(
+    repo: &Repository,
+    oid: Option<Oid>,
+    path: &str,
+) -> Result<GitDiffSide, String> {
+    let Some(oid) = oid.filter(|oid| !oid.is_zero()) else {
+        return Ok(empty_commit_side(path));
+    };
+    let blob = repo
+        .find_blob(oid)
+        .map_err(|e| format!("Failed to read commit blob: {}", e))?;
+    let mime_type = if blob.size() <= 8192 {
+        infer::get(blob.content())
+            .map(|kind| kind.mime_type().to_string())
+            .unwrap_or_else(|| crate::utils::mime::guess_mime_type(std::path::Path::new(path)))
+    } else {
+        crate::utils::mime::guess_mime_type(std::path::Path::new(path))
+    };
+    let mut preview_kind = preview_kind_from_mime(&mime_type).to_string();
+    if preview_kind == "binary"
+        && blob.size() <= MAX_TEXT_DIFF_SIZE as usize
+        && crate::utils::mime::is_buffer_likely_text(blob.content())
+    {
+        preview_kind = "text".to_string();
+    }
+    Ok(GitDiffSide {
+        exists: true,
+        path: path.to_string(),
+        preview_kind: preview_kind.clone(),
+        mime_type,
+        byte_size: blob.size() as u64,
+        snapshot_available: matches!(preview_kind.as_str(), "image" | "audio" | "video")
+            && blob.size() as u64 <= MAX_MEDIA_PREVIEW_SNAPSHOT_SIZE,
+        local_path: None,
+    })
+}
+
+fn read_commit_blob_text(repo: &Repository, oid: Option<Oid>) -> Result<String, String> {
+    let Some(oid) = oid.filter(|oid| !oid.is_zero()) else {
+        return Ok(String::new());
+    };
+    let blob = repo
+        .find_blob(oid)
+        .map_err(|e| format!("Failed to read commit blob: {}", e))?;
+    if blob.size() as u64 > MAX_TEXT_DIFF_SIZE {
+        return Err(format!(
+            "文件过大（{:.2} MB），无法直接查看文本差异",
+            blob.size() as f64 / 1024.0 / 1024.0
+        ));
+    }
+    Ok(String::from_utf8_lossy(blob.content()).to_string())
 }
 
 fn commit_file_diff(
@@ -760,16 +835,19 @@ fn commit_file_diff(
 
     let mut old_oid: Option<Oid> = None;
     let mut new_oid: Option<Oid> = None;
+    let mut old_path = file_path.to_string();
+    let mut new_path = file_path.to_string();
     let mut matched = false;
 
-    // 命中文件后回调返回 false 提前结束，git2 会以 User 错误结束遍历，此处按 matched 判定。
     let foreach_result = diff.foreach(
         &mut |delta, _| {
-            let old_path = delta.old_file().path().and_then(|p| p.to_str());
-            let new_path = delta.new_file().path().and_then(|p| p.to_str());
-            if old_path == Some(file_path) || new_path == Some(file_path) {
+            let delta_old_path = delta.old_file().path().and_then(|p| p.to_str());
+            let delta_new_path = delta.new_file().path().and_then(|p| p.to_str());
+            if delta_old_path == Some(file_path) || delta_new_path == Some(file_path) {
                 old_oid = Some(delta.old_file().id());
                 new_oid = Some(delta.new_file().id());
+                old_path = delta_old_path.unwrap_or(file_path).to_string();
+                new_path = delta_new_path.unwrap_or(file_path).to_string();
                 matched = true;
                 return false;
             }
@@ -785,43 +863,30 @@ fn commit_file_diff(
         return Err(format!("提交中不存在文件变更: {}", file_path));
     }
 
-    let read_blob = |id: Option<Oid>| -> String {
-        let Some(id) = id else {
-            return String::new();
-        };
-        if id.is_zero() {
-            return String::new();
-        }
-        repo.find_blob(id)
-            .map(|blob| String::from_utf8_lossy(blob.content()).to_string())
-            .unwrap_or_default()
-    };
-
-    // 二进制保护：任一侧内容疑似二进制即降级，避免大文件内容污染 IPC。
-    for id in [old_oid, new_oid].into_iter().flatten() {
-        if id.is_zero() {
-            continue;
-        }
-        if let Ok(blob) = repo.find_blob(id) {
-            if !crate::utils::mime::is_buffer_likely_text(blob.content()) {
-                return Ok(CommitFileDiff {
-                    path: file_path.to_string(),
-                    original: String::new(),
-                    modified: String::new(),
-                    is_binary: true,
-                });
-            }
-        }
-    }
+    let original_side = commit_side_from_blob(repo, old_oid, &old_path)?;
+    let modified_side = commit_side_from_blob(repo, new_oid, &new_path)?;
+    let is_binary = [original_side.clone(), modified_side.clone()]
+        .into_iter()
+        .filter(|side| side.exists)
+        .any(|side| side.preview_kind != "text");
 
     Ok(CommitFileDiff {
         path: file_path.to_string(),
-        original: read_blob(old_oid),
-        modified: read_blob(new_oid),
-        is_binary: false,
+        original: if is_binary {
+            String::new()
+        } else {
+            read_commit_blob_text(repo, old_oid)?
+        },
+        modified: if is_binary {
+            String::new()
+        } else {
+            read_commit_blob_text(repo, new_oid)?
+        },
+        is_binary,
+        original_side,
+        modified_side,
     })
 }
-
 
 #[tauri::command]
 pub async fn git_cherry_pick(path: String, hash: String) -> Result<String, String> {
@@ -1777,7 +1842,14 @@ mod tests {
         let tree = repo.find_tree(tree_oid).expect("tree");
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         let second_oid = repo
-            .commit(Some("HEAD"), &signature, &signature, "second", &tree, &[&head])
+            .commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                "second",
+                &tree,
+                &[&head],
+            )
             .expect("second commit");
 
         let text_diff = commit_file_diff(&repo, second_oid, "note.txt").expect("text diff");

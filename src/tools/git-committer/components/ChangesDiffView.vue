@@ -67,12 +67,12 @@
                 diffFor(file.path)?.error
               }}</span>
             </div>
-            <div
+            <GitMediaDiffPreview
               v-else-if="diffFor(file.path)?.isBinary"
-              class="cdv-state small"
-            >
-              <span class="text-secondary">二进制文件，无法查看文本差异</span>
-            </div>
+              :repo-path="repoPath"
+              :diff="diffFor(file.path)!"
+              compact
+            />
             <RichCodeEditor
               v-else-if="diffFor(file.path)"
               diff
@@ -96,6 +96,7 @@ import { Loading } from "@element-plus/icons-vue";
 import { diffLines } from "diff";
 import FileIcon from "@/components/common/FileIcon.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
 import {
   currentStatus,
   hideUnchangedRegions,

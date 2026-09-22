@@ -1,9 +1,9 @@
 # 移动端 Android AVD E2E 架构与运行契约
 
-> 文档状态：已实施的长期架构文档；2026-07-23 已完成 Android Studio AVD 核心、恢复和 Ollama lanes；Android 真机与 iOS 门禁仍独立保留。
+> 文档状态：已实施的长期架构文档；2026-07-23 已完成 Android Studio AVD 核心、恢复和 Ollama lanes；Android 真机与 iOS 作为后置发布收口单独保留。
 > 日期：2026-07-21
 > 范围：Android Studio AVD、移动端 Tauri WebView、Android 系统 UI、资产主流程与聊天附件发送
-> 不包含：Android 真机发布门禁、iOS 自动化、相机硬件、真实低存储设备和第三方 Android 模拟器控制
+> 不包含：Android 真机发布验证、iOS 自动化、相机硬件、真实低存储设备和第三方 Android 模拟器控制
 
 ## 1. 结论
 

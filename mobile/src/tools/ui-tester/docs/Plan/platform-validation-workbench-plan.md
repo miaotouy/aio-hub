@@ -1,7 +1,7 @@
 # 移动端开发验证台设计与实施计划
 
-> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，不计为完整通过
-> 日期：2026-07-18；2026-07-21 更新平台门禁与测试批次规则
+> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，平台验证作为后置发布收口
+> 日期：2026-07-18；2026-09-23 更新施工口径
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
 > 自动化边界：本工具提供设备内固定场景，不负责外部 UI 驱动；Android AVD 脚本化控制见 [`mobile-android-avd-e2e.md`](../../../../../docs/architecture/mobile-android-avd-e2e.md)。
@@ -15,7 +15,7 @@
 1. **平台文件**：承接资产管理 Phase 0 的文件/照片入口、URI、权限、后台、系统终止和空间不足验证。
 2. **SQLite**：承接聊天 SQLite Phase 0 的连接、migration、事务恢复、FTS5 和基准验证。
 
-每个 Phase 0 spike 必须交付对应 UI 面板。平台结论按 Android/iOS 分别记录；没有对应平台运行记录，不得宣称该平台通过。缺少 iOS 设备不阻塞 Android 内核施工，但会保留为 iOS 发布门禁。
+每个 Phase 0 spike 交付对应 UI 面板后即可支持功能施工和问题定位。平台结论按 Android/iOS 分别记录；没有对应平台运行记录就标记为未验证。缺少 iOS 设备不阻塞 Android 或平台中立的功能施工，发布前再集中补齐对应报告。
 
 ## 2. 产品与安全边界
 
@@ -266,7 +266,7 @@ mobile/src/tools/ui-tester/
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
 - Android 16 x86_64 虚拟机已通过资产预览协议固定场景：`Range: bytes=0-31` 返回 206 和 32 bytes，`Accept-Ranges`/`Content-Range` 可跨源读取；HEAD 返回 200、空 body，WebView 可见 `content-length` 为 0；主动撤销后原 URL 返回 404。自然到期和 iOS 仍是发布前门禁。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
-- 按当前验证台口径，Android 与 iOS 分别形成平台结论；当前结论代表 Android 11 真机验证台通过，iOS 报告仍是 iOS 资产能力发布门禁，不把缺失的 iOS 报告写成通过。
+- 按当前验证台口径，Android 与 iOS 分别形成平台结论；当前结论代表 Android 11 真机验证台通过，iOS 报告仍是 iOS 资产能力发布收口证据，不把缺失的 iOS 报告写成通过。
 - 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前门禁。
 - 资产正式导入还需补充 Rust command 直接打开系统选择结果并流式写入固定沙箱的场景；现有 WebView/plugin-fs 分块读取结果不能替代该数据路径验证。该场景与 Android MVP 主流程合并验收，不再单独拆成重复测试批次。
 

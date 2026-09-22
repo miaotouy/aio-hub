@@ -1,12 +1,16 @@
 # 移动端 Agent 独立化管理器 — 规划方案
 
-> **文档状态**: 基础能力已落地并进入维护；非当前移动端主施工线，不以桌面 Agent 完全对齐为目标
+> **文档状态**: 基础能力已落地；按狂奔施工模式继续补齐用户可见的 Agent 与聊天协作功能，桌面完全对齐和高级能力后置
 > **创建日期**: 2025-06-23  
-> **最近核对**: 2026-07-27
+> **最近核对**: 2026-09-23
 > **关联模块**: `mobile/src/tools/agent-manager/`
 > **前置依赖**: `mobile/src/tools/llm-api/`, `mobile/src/tools/llm-chat/`
-> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文只保留已落地能力、兼容边界和 MVP 之后的可选增强。当前主线优先完成不依赖工具调用、向量 RAG 或高级 Agent 的移动端 Chat。
+> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文保留已落地能力、兼容边界和下一批可见功能。工具调用、向量 RAG、高级 Agent 参数和桌面完全对齐按实际需求后置，不阻拦当前 Chat 施工。
 > **跨模块施工索引**: [`mobile-development-checklist.md`](./mobile-development-checklist.md)
+
+## 当前施工口径
+
+先连续补齐 Agent 详情、预设、开局消息、宏变量和聊天切换等用户可见链路，在当前可运行环境中把入口到结果串通。测试、跨端对齐、私有二进制资产和平台报告跟随功能链收口；尚未实现的条目仍是可继续施工的功能项，不代表整项计划暂停。
 
 ## 1. 背景与动机
 

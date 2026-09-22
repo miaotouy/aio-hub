@@ -1,8 +1,8 @@
 # 移动端资产管理器调查与设计方案
 
-> 状态：范围冻结，Android MVP 收尾（iOS 发布门禁待设备条件）
-> 日期：2026-07-15；2026-07-21 更新施工状态；2026-07-21 收敛范围
-> 已实施架构以 [`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md) 为准；本文只继续维护冻结范围、剩余真机/iOS 门禁和施工记录。
+> 状态：范围冻结，按狂奔施工模式继续收拢资产与聊天附件可见链路；Android 真机/iOS 验证后置
+> 日期：2026-07-15；2026-09-23 更新施工口径
+> 已实施架构以 [`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md) 为准；本文维护冻结范围、功能施工记录和后置平台验证。
 > 范围：产品信息架构、移动端存储语义、数据模型与实施边界。本文件不包含功能实现。
 
 ## 1. 结论
@@ -460,16 +460,16 @@ interface ManagedAssetRef {
 
 本文件是资产管理器的唯一施工范围来源。[`mobile-current-implementation-audit.md`](../archive/mobile-current-implementation-audit.md) 只记录移动端全局盘点，`platform-validation-workbench-plan.md` 只记录验证工具和平台能力；两者不得重新打开本文件已冻结的产品范围。
 
-当前目标是完成 Android 资产 MVP 的主链收尾，不继续扩展旁支功能。已经落地但不属于本轮门禁的功能保留为历史实现，不能据此新增测试批次或改变 MVP 完成条件。
+当前目标是连续完成资产管理器和聊天附件的用户可见主链：导入、管理、预览、导出、删除影响、恢复、选择、发送和消息恢复。已经落地的能力直接进入下一条链的施工，不为每个小功能等待完整平台报告。
 
-Android MVP 的停止条件：
+当前功能施工目标：
 
 1. 文件/照片导入、内容寻址去重、列表/筛选/详情、基础媒体预览和导出可用。
 2. 删除影响分析、usage、reclaimed tombstone、缓存清理、导入恢复和修复命令可用。
-3. `ManagedAssetRef` 至少完成一个真实聊天附件消费者，并在 Android Studio AVD 通过一次端到端发送验收：本机确定性 OpenAI-compatible 服务必须校验收到的附件 MIME、字节数和 SHA-256，并返回正式流式响应；Ollama 多模态模型作为可选语义验收。
-4. Android 真机完成一次导入、预览、导出、删除影响和应用重启恢复主流程。
+3. `ManagedAssetRef` 继续服务真实聊天附件消费者，在当前环境串通附件 MIME、内容读取、正式流式响应和 SQLite 恢复。
+4. Android 真机导入、预览、导出、删除影响和应用重启恢复列入后置平台验证，不阻拦其他资产消费者和聊天功能施工。
 
-相机、分享进入 AIO、文件关联、聊天搜索、批量转写/文本替代、PDF/Office 提取、音视频转写和跨设备同步不属于 Android MVP 停止条件。
+相机、分享进入 AIO、文件关联、聊天搜索、批量转写/文本替代、PDF/Office 提取、音视频转写和跨设备同步继续放在后续队列。
 
 ### Phase 0：能力验证
 
@@ -487,7 +487,7 @@ Android MVP 的停止条件：
 - 当前开发环境缺少 iOS 编译与真机设备条件，iOS Phase 0 暂缓，不把缺失报告解释为通过，也不阻塞平台中立的资产内核与 Android 数据链施工。
 - iOS 补验仍是发布 iOS 资产能力前的门禁；涉及 security-scoped URL、备份排除、预览协议和分享/照片专用入口的实现不得仅依据 Android 行为冻结。
 - 正式导入链必须增加“系统 URI 由 Rust 资产命令直接打开并流式写入”的固定验证。现有 WebView 侧 plugin-fs 分块读取报告只证明选择结果可读，不替代正式资产导入链验证。
-- Phase 0 按平台独立结论：Android 报告可以解除 Android MVP 的施工门禁；iOS 报告仍是 iOS 资产能力发布门禁。缺少 iOS 设备时不得重复阻塞 Android 内核，也不得把 Android 结果写成双平台通过。
+- Phase 0 按平台独立结论：Android 报告用于补充 Android 运行证据；iOS 报告用于 iOS 资产能力发布收口。缺少 iOS 设备时继续推进 Android 和平台中立内核，不把 Android 结果写成双平台通过。
 
 ### Phase 1：资产内核
 
@@ -520,7 +520,7 @@ Android MVP 的停止条件：
 - [x] 接入系统文件保存能力；原件由 Rust 流式导出到 save picker 目标，不经过 WebView 内存。
 - [x] 接入最近导入任务恢复、运行进度、中断状态与取消入口。
 - [x] 接入照片/视频 media picker、系统文件保存和 Android 对外系统分享；这些能力属于当前导入/导出主链。
-- [ ] 完成 Android 真机 MVP 主流程验收，以及 iOS 资产能力验收（需各自设备条件）。
+- [ ] 在功能链稳定后补做 Android 真机 MVP 主流程和 iOS 资产能力验证（需各自设备条件）。
 - [ ] 相机、分享进入 AIO 和移动端文件关联，移至 Phase 3，不在本阶段继续实现或扩展测试。
 - [ ] 批量转写/文本替代、音视频模型转写、PDF/Office 文本提取和 `llm-chat` 之外的消费者替代流程，移至 Phase 3。
 
@@ -560,14 +560,14 @@ Android MVP 的停止条件：
 - 空间统计来自数据库聚合与文件元数据，不在进入页面时递归扫描全库。
 - 缩略图缓存有大小上限和最近使用清理策略。
 
-### 测试门禁与停止规则
+### 最小验证与发布收口
 
 - 开发循环只运行受影响的 Vitest 文件或 Rust 模块测试，不构建 APK/AAB。
 - 功能批次完成后运行一次移动端全量测试、Clippy、前端类型检查和 Vite 生产构建。
 - 只有修改原生 bridge、Tauri command 或平台权限时才构建单 ABI debug APK，并执行对应 Android 场景。
 - 四 ABI APK/AAB、完整 Android 真机矩阵和 iOS 构建只在 MVP 里程碑或发布候选执行，不随每个小提交重复执行。
 - token 自然过期、吞吐和中断恢复优先使用可注入时钟/固定夹具的自动化测试；设备只保留一次代表性 smoke，不创建独立长时间批次。
-- 任何测试若不对应本节 MVP 停止条件或明确的平台发布门禁，必须延期，不得新增施工批次。
+- 与当前功能链无关的测试和平台报告放入后置队列；功能施工不等待完整验证矩阵。
 - Android 模拟器回归统一迁移到 Android Studio AVD 自动化 runner；默认不得控制用户正在使用的第三方模拟器。具体设备所有权、selector、协议服务和失败产物规则见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
 
 ## 14. 待评审决策

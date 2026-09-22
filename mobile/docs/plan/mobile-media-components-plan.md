@@ -1,9 +1,13 @@
 # 移动端媒体组件设计方案
 
-> 状态：Phase 1 资产管理器原型、组件测试与 Android AVD 资产/附件/音频受控预览回归已完成；全面交互设备验收和消费者接入仍待进行
-> 最近核对：2026-07-27
+> 状态：组件基础和 Android AVD 回归已完成；当前优先接入正式聊天媒体，真机手势、设备行为和性能验证后置
+> 最近核对：2026-09-23
 > 范围：图片、视频、音频的内联预览、沉浸式预览和播放；不把桌面组件缩小后直接移植
 > 关联文档：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)
+
+## 当前施工口径
+
+先把图片、视频、音频从资产页接到正式聊天，连续完成打开、播放、返回、切换和错误状态。真机手势、方向、后台播放、设备音频和长时间内存表现保留为后置验证，不阻拦当前消费者接入。
 
 ## 1. 先说结论
 

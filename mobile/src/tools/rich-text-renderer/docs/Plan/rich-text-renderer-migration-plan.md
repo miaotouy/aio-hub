@@ -1,11 +1,15 @@
 # 移动端 RichTextRenderer 模块化初版与 PC 能力迁移计划
 
-> 状态：初版模块化迁移完成；PC 能力迁移施工中
+> 状态：初版模块化迁移完成；优先服务正式聊天，PC 能力按需求与性能数据后置
 > 创建时间: 2026-06-26
-> 最近核对：2026-07-27
+> 最近核对：2026-09-23
 > 负责人: 咕咕-kilo
 > 跨模块施工索引：[`mobile-development-checklist.md`](../../../../../docs/plan/mobile-development-checklist.md)
 > 稳定架构：[`ARCHITECTURE.md`](../../ARCHITECTURE.md)
+
+## 当前施工口径
+
+先把真实消息中的 Markdown、代码、公式、提示块、思考块、Mermaid 和受管媒体组合跑顺，长消息、流式输出和窄屏可读性随功能链推进。PC AST/Patch、Worker tokenizer 和完整交互迁移暂不作为当前施工前置条件，真机与 iOS 体验在功能稳定后集中验证。
 
 ## 1. 背景与目标
 

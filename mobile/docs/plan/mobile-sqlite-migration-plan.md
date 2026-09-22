@@ -1,7 +1,8 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Storage Refactor Plan)
 
-> 状态：施工中；2026-07-23 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索，并通过 Android AVD 确定性附件与 Ollama opt-in lane；Android 真机与 iOS 门禁仍待补验。
-> 已实施架构以 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 为准；本文只继续维护剩余平台门禁、风险和验收记录。
+> 状态：核心存储和附件消费闭环已落地；继续支持聊天、资产和恢复功能施工，Android 真机/iOS/性能验证后置
+> 最近核对：2026-09-23
+> 已实施架构以 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 为准；本文维护数据边界、功能施工记录和后置平台验证。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
@@ -360,7 +361,7 @@ END;
 
 ### 阶段零：Android/iOS 能力验证
 
-实施状态（2026-07-21）：Android 验证完成，iOS 仍是发布门禁。
+实施状态（2026-07-21）：Android 验证完成；iOS 平台报告列入发布收口，当前不阻拦 SQLite 和聊天功能施工。
 
 - 已完成最小 Rust + SQLx spike、数据库创建/关闭/重开、FTS5 trigram、统一连接配置、事务强杀恢复，以及 10 万条中英混合消息基准。
 - 已在 `ui-tester` 交付只操作隔离测试库的 SQLite 验证板块，具备结构化步骤、跨重启恢复和脱敏报告导出；不提供任意 SQL。

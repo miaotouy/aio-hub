@@ -15,6 +15,7 @@
 // 命令模块汇总
 pub mod agent_asset_manager;
 pub mod asset_manager;
+pub mod background_runtime;
 pub mod canvas_window;
 pub mod clipboard;
 pub mod color_picker_batch;
@@ -53,6 +54,7 @@ pub mod window_manager;
 // 重新导出所有命令
 pub use agent_asset_manager::*;
 pub use asset_manager::*;
+pub use background_runtime::*;
 pub use canvas_window::*;
 pub use clipboard::*;
 pub use color_picker_batch::*;
@@ -93,6 +95,9 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        background_runtime_ready,
+        background_runtime_heartbeat,
+        background_runtime_get_status,
         crate::frontend_monitor::frontend_probe_ready,
         crate::frontend_monitor::frontend_probe_heartbeat,
         crate::frontend_monitor::frontend_probe_error,

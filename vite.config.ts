@@ -227,6 +227,7 @@ const viteConfig = defineConfig({
     rolldownOptions: {
       input: {
         main: "index.html",
+        backgroundJsRuntime: "background-js.html",
         danmakuOverlay: "danmaku-overlay.html",
       },
       // 外部化 macOS 专用依赖和插件构建脚本

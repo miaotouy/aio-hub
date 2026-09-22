@@ -44,6 +44,7 @@ import "@/utils/monaco-i18n/nls";
 // 详见 src/tools/llm-inspector/ARCHITECTURE.md §1.1.3
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
 import { Buffer } from "buffer";
+import { backgroundJsRuntimeBridge } from "./services/background-js-runtime-bridge";
 
 // 解决 music-metadata-browser 在浏览器环境下缺少 Buffer 的问题
 if (typeof (window as any).Buffer === "undefined") {
@@ -59,6 +60,21 @@ if (typeof (window as any).Buffer === "undefined") {
 (window as any).TauriAppsApiCore = TauriAppsApiCore;
 
 const logger = createModuleLogger("Main");
+// 启动独立 Background JS Runtime bridge。Runtime 不承载 UI，主窗口只订阅其状态和响应。
+void backgroundJsRuntimeBridge
+  .start()
+  .then(async () => {
+    if (import.meta.env.DEV) {
+      const result = await backgroundJsRuntimeBridge.call<{ pong: boolean }>(
+        "runtime.ping",
+        null
+      );
+      logger.info("Background JS Runtime PoC 已连接", result);
+    }
+  })
+  .catch((error) => {
+    logger.warn("Background JS Runtime PoC 未就绪", error);
+  });
 
 const FRONTEND_PROBE_HEARTBEAT_MS = 5000;
 const FRONTEND_PROBE_TEXT_LIMIT = 4000;

@@ -216,6 +216,7 @@ pub fn run() {
     let builder = builder
         // 管理状态
         .manage(ClipboardMonitorState::new())
+        .manage(commands::background_runtime::BackgroundJsRuntimeState::default())
         .manage(commands::native_plugin::NativePluginState::default())
         .manage(commands::directory_janitor::ScanCancellation::new())
         .manage(commands::directory_janitor::CleanupCancellation::new())
@@ -368,6 +369,12 @@ pub fn run() {
             }
 
             let main_window = win_builder.build()?;
+
+            #[cfg(desktop)]
+            if let Err(error) = commands::background_runtime::create_background_runtime_window(app.app_handle()) {
+                log::error!("[BACKGROUND_JS_RUNTIME] 创建隐藏运行时窗口失败: {}", error);
+            }
+
             frontend_monitor::start_frontend_monitor(app.app_handle().clone());
 
             // 如果有保存的配置，用物理坐标精确设置位置（窗口仍隐藏，由前端 show）

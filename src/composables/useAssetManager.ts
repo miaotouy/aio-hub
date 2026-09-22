@@ -152,6 +152,15 @@ export const assetManagerEngine = {
    */
   convertToAssetProtocol: (relativePath: string, basePath: string): string => {
     try {
+      // 资产数据可能来自历史会话或导入中的占位对象，此时路径尚未就绪。
+      // 先返回空 URL，避免对 undefined 调用 replace 并让附件卡片继续显示占位图标。
+      if (typeof relativePath !== "string" || !relativePath.trim()) {
+        return "";
+      }
+      if (typeof basePath !== "string" || !basePath.trim()) {
+        return "";
+      }
+
       // 标准化路径分隔符为反斜杠（Windows）
       const normalizedBase = basePath.replace(/\//g, "\\");
       const normalizedRelative = relativePath.replace(/\//g, "\\");

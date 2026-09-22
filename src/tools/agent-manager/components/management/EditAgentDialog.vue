@@ -33,7 +33,10 @@ import { useAgentStore } from "../../stores/agentStore";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { createDefaultChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
-import { DEFAULT_TOOL_CALL_CONFIG } from "../../types/agent";
+import {
+  DEFAULT_TOOL_CALL_CONFIG,
+  DEFAULT_SUB_AGENT_CONFIG,
+} from "../../types/agent";
 import {
   DEFAULT_AGENT_KNOWLEDGE_ACCESS,
   normalizeAgentKnowledgeAccess,
@@ -124,6 +127,7 @@ const defaultFormState = {
     sendButtonCreateBranch: false,
     defaultMediaVolume: 100,
   },
+  subAgentConfig: JSON.parse(JSON.stringify(DEFAULT_SUB_AGENT_CONFIG)),
   toolCallConfig: JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG)),
   recallConfig: {
     enabled: false,
@@ -370,6 +374,7 @@ const handleSave = (
       assets: editForm.assets,
       assetGroups: editForm.assetGroups,
       toolCallConfig: editForm.toolCallConfig,
+      subAgentConfig: editForm.subAgentConfig,
       recallConfig: editForm.recallConfig,
       recallSettings: editForm.recallSettings,
       knowledgeAccess: editForm.knowledgeAccess,

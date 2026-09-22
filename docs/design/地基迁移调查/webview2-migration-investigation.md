@@ -431,9 +431,16 @@ export async function callBackend(cmd: string, args: any) {
 
 这一步在 Tauri 内就能做，不影响任何现有功能，但为将来迁移铺路。
 
-### Phase 1：Hidden Agent WebView PoC（现有 Tauri 内验证）
+### Phase 1：Hidden Background JS WebView PoC（现有 Tauri 内验证）
 
 先创建独立的 `background-js` WebView 和类型化 BackgroundJsRuntimeBridge，验证 Renderer 与后台 JavaScript 任务的生命周期边界。该阶段不迁移 Rust 能力，也不删除 LLM Proxy。
+
+当前切入点选择“子智能体交互”作为第一个真实业务闭环：
+
+- Agent 配置增加 `subAgentConfig.enabled`，由 Agent 作者明确授权其可被后台调用；
+- 新增 `sub-agent` 工具，提供 `list_available_agents` 与 `ask` 方法；
+- `ask` 使用独立聊天会话承载子任务，支持通过 `conversationId` 继续追问，并在调用结束后恢复主会话；
+- 工具本身保持通用，后续可复用到定时作业、后台同步、协议适配和其他脱离 UI 的 JavaScript 任务。
 
 验证通过后再进入 Electron + Node.js 后台运行时 PoC：
 
@@ -484,14 +491,17 @@ export async function callBackend(cmd: string, args: any) {
 - [ ] 确认窗口特效（vibrancy/acrylic/mica）在 CEF 模式下的可用性
 - [ ] 跟踪 `feat/cef` 分支合入主线的进度和时间线
 
-### 7.2. 方案 F (Hidden Agent WebView) 调查任务
+### 7.2. 方案 F (Hidden Background JS WebView) 调查任务
 
-- [ ] 验证隐藏 Agent WebView 在主窗口刷新、隐藏和重新打开时的任务存活
+- [ ] 验证隐藏 Background JS WebView 在主窗口刷新、隐藏和重新打开时的任务存活
 - [ ] 验证多窗口订阅同一 Agent 会话时的事件顺序和重复启动行为
-- [ ] 验证 Agent WebView 重建后的状态恢复与失败语义
+- [ ] 验证 Background JS WebView 重建后的状态恢复与失败语义
 - [ ] 测量第二个 WebView 对启动时间和常驻内存的影响
 - [ ] 明确 后台 JS Runtime capability，避免复用主窗口的全量权限
 - [ ] 为移动端定义不依赖隐藏 WebView 的 runtime adapter
+- [x] Agent 配置增加 `subAgentConfig.enabled`，支持按 Agent 授权被调用
+- [x] 增加 `sub-agent` 工具的 Agent 发现与交互方法
+- [ ] 将 `sub-agent` 工具接入 background-js WebView，验证主窗口刷新和后台任务事件订阅
 
 ### 7.3. 方案 A (Electron) 调查任务
 
@@ -545,4 +555,4 @@ export async function callBackend(cmd: string, args: any) {
 | 2025-05-20 | 新增附录 A (web_distillery) 和附录 B (knowledge)                                                    |
 | 2026-05-20 | 新增方案 E (Tauri + CEF 双轨发布)，更新方案优先级排序，重组待调查任务列表                           |
 | 2026-09-14 | 新增 Agent 后端 JavaScript 运行时需求：补充渲染窗口生命周期耦合问题，调整方案评估、优先级和执行策略 |
-| 2026-09-22 | 新增方案 F：在现有 Tauri 内试做隐藏 Agent WebView，先验证 Agent 与 Renderer 的生命周期解耦          |
+| 2026-09-22 | 新增方案 F：在现有 Tauri 内试做隐藏 Background JS WebView；以子智能体交互作为第一个真实业务切入点   |

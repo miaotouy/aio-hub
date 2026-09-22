@@ -62,6 +62,7 @@ const SECTION_FIELDS: Record<string, string[]> = {
     "userProfileId",
     "agentVersion",
     "version",
+    "subAgentConfig",
   ],
   presetMessages: [
     "presetMessages",

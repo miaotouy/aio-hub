@@ -24,7 +24,10 @@ import { useAgentStorage } from "../composables/storage/useAgentStorage";
 import type { ChatAgent } from "../types/agent";
 import type { LlmParameters } from "@/tools/llm-chat/types/llm";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
-import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
+import {
+  DEFAULT_AGENT_EXTENSION_CONFIG,
+  DEFAULT_SUB_AGENT_CONFIG,
+} from "../types/agent";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -170,6 +173,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
           autoInjectIfMacroMissing: true,
           autoInjectPosition: "context_head",
         },
+        subAgentConfig:
+          options?.subAgentConfig ??
+          JSON.parse(JSON.stringify(DEFAULT_SUB_AGENT_CONFIG)),
         toolCallConfig: options?.toolCallConfig ?? {
           // 🌟 补齐
           enabled: false,

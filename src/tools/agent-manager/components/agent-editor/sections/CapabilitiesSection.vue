@@ -231,6 +231,23 @@ const handleInsertMacro = (macro: MacroDefinition) => {
 
     <el-divider />
 
+    <!-- 子智能体调用 -->
+    <div class="section-group" data-setting-id="subAgent">
+      <div class="section-group-title">子智能体调用</div>
+      <div class="form-hint" style="margin-bottom: 12px">
+        允许其他智能体通过“子智能体交互”工具调用当前智能体，适合把专门角色作为后台协作对象。
+      </div>
+      <el-form-item label="允许被调用">
+        <el-switch
+          v-model="editForm.subAgentConfig.enabled"
+          active-text="可作为子智能体"
+          inactive-text="仅用于普通对话"
+        />
+      </el-form-item>
+    </div>
+
+    <el-divider />
+
     <!-- 虚拟时间线 -->
     <div class="section-group" data-setting-id="virtualTime">
       <div class="section-group-title">虚拟时间线</div>

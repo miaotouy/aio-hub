@@ -107,6 +107,11 @@ export const agentEditTabs: AgentEditTab[] = [
         label: "虚拟时间线",
         keywords: "virtual time 虚拟时间",
       },
+      {
+        id: "subAgent",
+        label: "子智能体调用",
+        keywords: "sub agent sub-agent 协作 后台调用",
+      },
     ],
   },
   {

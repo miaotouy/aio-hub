@@ -21,6 +21,7 @@ import { createModuleLogger } from "@/utils/logger";
 import type { ChatAgent, RecallPresetId } from "../types/agent";
 import {
   DEFAULT_AGENT_EXTENSION_CONFIG,
+  DEFAULT_SUB_AGENT_CONFIG,
   DEFAULT_TOOL_CALL_CONFIG,
 } from "../types/agent";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
@@ -125,6 +126,10 @@ function migrateCoreDetails(agent: ChatAgent): boolean {
   }
   if (agent.toolCallConfig === undefined) {
     agent.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+    changed = true;
+  }
+  if (agent.subAgentConfig === undefined) {
+    agent.subAgentConfig = JSON.parse(JSON.stringify(DEFAULT_SUB_AGENT_CONFIG));
     changed = true;
   }
 

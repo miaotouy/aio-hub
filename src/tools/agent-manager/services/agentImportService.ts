@@ -70,6 +70,7 @@ function sanitizeImportedAgent(agent: any): any {
     worldbookIds: source.worldbookIds ?? [],
     quickActionSetIds: source.quickActionSetIds ?? [],
     presetGroups: source.presetGroups ?? [],
+    subAgentConfig: source.subAgentConfig ?? { enabled: false },
     extensionConfig: source.extensionConfig ?? {
       ...DEFAULT_AGENT_EXTENSION_CONFIG,
       enabled: true,

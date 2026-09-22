@@ -79,6 +79,7 @@ describe("agent core detail migration", () => {
       autoApproveTools: {},
     });
     expect(agent.extensionConfig).toBeDefined();
+    expect(agent.subAgentConfig).toEqual({ enabled: false });
   });
 });
 

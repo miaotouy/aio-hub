@@ -212,6 +212,20 @@ export interface ToolCallConfig {
   rateLimitInterval?: number;
 }
 /**
+ * 子智能体调用配置
+ *
+ * 开启后，该智能体可以被 `sub-agent` 工具作为后台协作对象调用。
+ * 该配置只声明“是否允许被调用”，具体调用权限仍受调用方的工具设置控制。
+ */
+export interface SubAgentConfig {
+  enabled: boolean;
+}
+
+export const DEFAULT_SUB_AGENT_CONFIG: SubAgentConfig = {
+  enabled: false,
+};
+
+/**
  * Agent 扩展配置
  */
 export interface AgentExtensionConfig {
@@ -474,6 +488,9 @@ export interface AgentBaseConfig {
 
   /** 工具调用配置 */
   toolCallConfig?: ToolCallConfig;
+
+  /** 子智能体调用配置 */
+  subAgentConfig?: SubAgentConfig;
 
   /** 环境增强配置 */
   extensionConfig?: AgentExtensionConfig;

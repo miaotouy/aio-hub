@@ -577,7 +577,6 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 .tabs-scroll-container::-webkit-scrollbar {
   height: 2px;
 }
-
 .tab-item {
   height: 28px;
   display: flex;
@@ -595,6 +594,7 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   font-size: 12px;
   transition: all 0.2s ease;
   color: var(--el-text-color-regular);
+  flex-shrink: 0;
 }
 
 .tab-item:hover {
@@ -617,6 +617,7 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   font-family: monospace;
   font-weight: bold;
   font-size: 10px;
+  flex-shrink: 0;
 }
 
 .tab-status.m {
@@ -631,6 +632,8 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 
 .tab-name {
   max-width: 120px;
+  min-width: 0;
+  flex-shrink: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -650,14 +653,19 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   font-family: monospace;
   font-size: 9px;
   color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-stage-badge {
   font-size: 9px;
+  line-height: 1.2;
   padding: 1px 4px;
   border-radius: 4px;
   background-color: rgba(var(--el-color-info-rgb), 0.1);
   color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-stage-badge.staged {
@@ -673,6 +681,7 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   height: 14px;
   border-radius: 50%;
   transition: background-color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .tab-close:hover {

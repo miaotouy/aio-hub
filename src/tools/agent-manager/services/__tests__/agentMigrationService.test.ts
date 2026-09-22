@@ -58,6 +58,30 @@ function legacyAgent(): ChatAgent {
   } as unknown as ChatAgent;
 }
 
+describe("agent core detail migration", () => {
+  it("fills fields missing from legacy agent files so they can be persisted", () => {
+    const agent = {
+      id: "legacy-core",
+      name: "legacy-agent",
+      profileId: "profile-1",
+      modelId: "model-1",
+      createdAt: "2026-07-17T00:00:00.000Z",
+    } as ChatAgent;
+
+    expect(migrateAgent(agent)).toBe(true);
+    expect(agent.parameters).toEqual({});
+    expect(agent.presetMessages).toEqual([]);
+    expect(agent.greetings).toEqual([]);
+    expect(agent.toolCallConfig).toMatchObject({
+      enabled: false,
+      mode: "auto",
+      toolToggles: {},
+      autoApproveTools: {},
+    });
+    expect(agent.extensionConfig).toBeDefined();
+  });
+});
+
 describe("agent recall migration", () => {
   it("maps legacy bindings, profile and tool permissions once", () => {
     const agent = legacyAgent();

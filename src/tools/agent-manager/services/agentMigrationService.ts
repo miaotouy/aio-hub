@@ -19,7 +19,10 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import type { ChatAgent, RecallPresetId } from "../types/agent";
-import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
+import {
+  DEFAULT_AGENT_EXTENSION_CONFIG,
+  DEFAULT_TOOL_CALL_CONFIG,
+} from "../types/agent";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
@@ -102,10 +105,43 @@ function migrateExtensionConfig(agent: ChatAgent): boolean {
 }
 
 /**
+ * 补齐旧版 Agent 文件中缺失的核心详情字段。
+ * 这些字段在旧格式中确实可能不存在，属于可安全恢复的默认值。
+ */
+function migrateCoreDetails(agent: ChatAgent): boolean {
+  let changed = false;
+
+  if (agent.parameters === undefined) {
+    agent.parameters = {};
+    changed = true;
+  }
+  if (agent.presetMessages === undefined) {
+    agent.presetMessages = [];
+    changed = true;
+  }
+  if (agent.greetings === undefined) {
+    agent.greetings = [];
+    changed = true;
+  }
+  if (agent.toolCallConfig === undefined) {
+    agent.toolCallConfig = JSON.parse(JSON.stringify(DEFAULT_TOOL_CALL_CONFIG));
+    changed = true;
+  }
+
+  if (changed) {
+    logger.info("迁移核心详情字段 (缺失填充)", { agentId: agent.id });
+  }
+  return changed;
+}
+
+/**
  * 迁移单个智能体的数据
  */
 export function migrateAgent(agent: ChatAgent): boolean {
   let hasChanges = false;
+
+  // 0. 先补齐旧文件缺失的核心字段，避免迁移保存被完整性校验拦截。
+  if (migrateCoreDetails(agent)) hasChanges = true;
 
   // 1. 迁移旧版 custom 参数格式
   if (migrateCustomParameters(agent)) hasChanges = true;

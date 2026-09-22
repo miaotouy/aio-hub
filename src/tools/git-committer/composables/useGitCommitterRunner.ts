@@ -33,10 +33,13 @@ import type {
 } from "../types";
 import {
   buildCommitPromptMessages,
+  buildCommitFileDiff,
   buildTabKey,
   normalizeGeneratedCommitMessage,
   CHANGES_VIEW_TAB_PATH,
   COMMIT_VIEW_TAB_PATH,
+  MAX_COMMIT_FILE_DIFF_CHARS,
+  MAX_COMMIT_PROMPT_DIFF_CHARS,
   REPO_PROMPT_TAB_PATH,
 } from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
@@ -479,22 +482,66 @@ export async function buildDiffPrompt(
   }
 
   const parts: string[] = [];
-  for (const f of files) {
+  let totalChars = 0;
+  for (let index = 0; index < files.length; index += 1) {
+    const f = files[index];
     // 文件 diff 通过 IPC 逐个读取；无法取消当前 IPC 时，至少在文件之间及时停止。
     if (signal?.aborted) return null;
     if (f.isBinary) {
-      parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
+      const binaryDiff = `### ${f.path} (${f.status})\n[二进制文件，无文本差异]`;
+      if (totalChars + binaryDiff.length > MAX_COMMIT_PROMPT_DIFF_CHARS) {
+        parts.push(
+          `[…] 其余 ${files.length - index} 个文件未放入提交信息上下文`
+        );
+        break;
+      }
+      parts.push(binaryDiff);
+      totalChars += binaryDiff.length;
       continue;
     }
     const diff = await loadFileDiff(repoPath, f.path, isStaged);
     if (signal?.aborted) return null;
     if (!diff || diff.isBinary) {
-      parts.push(`### ${f.path}\n[二进制文件，无文本差异]`);
+      const binaryDiff = `### ${f.path} (${f.status})\n[二进制文件，无文本差异]`;
+      if (totalChars + binaryDiff.length > MAX_COMMIT_PROMPT_DIFF_CHARS) {
+        parts.push(
+          `[…] 其余 ${files.length - index} 个文件未放入提交信息上下文`
+        );
+        break;
+      }
+      parts.push(binaryDiff);
+      totalChars += binaryDiff.length;
       continue;
     }
-    parts.push(
-      `### ${f.path} (${f.status})\n--- original ---\n${diff.original}\n--- modified ---\n${diff.modified}`
+    const fileDiff = buildCommitFileDiff(
+      f.path,
+      f.status,
+      diff.original,
+      diff.modified,
+      MAX_COMMIT_FILE_DIFF_CHARS
     );
+    const remainingChars = MAX_COMMIT_PROMPT_DIFF_CHARS - totalChars;
+    if (remainingChars <= 0) {
+      parts.push(`[…] 其余 ${files.length - index} 个文件未放入提交信息上下文`);
+      break;
+    }
+    if (fileDiff.length > remainingChars) {
+      parts.push(
+        buildCommitFileDiff(
+          f.path,
+          f.status,
+          diff.original,
+          diff.modified,
+          remainingChars
+        )
+      );
+      parts.push(
+        `[…] 其余 ${files.length - index - 1} 个文件未放入提交信息上下文`
+      );
+      break;
+    }
+    parts.push(fileDiff);
+    totalChars += fileDiff.length;
   }
   return parts.join("\n\n");
 }

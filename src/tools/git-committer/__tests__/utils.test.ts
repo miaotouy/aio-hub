@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  buildCommitFileDiff,
   buildCommitPromptMessages,
   buildTabKey,
   COMMIT_LANGUAGE_MACRO,
@@ -42,6 +43,40 @@ describe("git-committer system prompt inheritance", () => {
 });
 
 describe("git-committer prompt construction", () => {
+  it("sends changed hunks instead of complete file snapshots", () => {
+    const original = Array.from(
+      { length: 200 },
+      (_, index) => `line-${index}`
+    ).join("\n");
+    const modified = original.replace("line-100", "line-100 changed");
+    const fileDiff = buildCommitFileDiff(
+      "src/example.ts",
+      "M",
+      original,
+      modified
+    );
+
+    expect(fileDiff).toContain("line-100 changed");
+    expect(fileDiff).not.toContain("line-199");
+    expect(fileDiff).not.toContain("--- original ---");
+    expect(fileDiff).not.toContain("--- modified ---");
+  });
+
+  it("caps a large changed file while keeping the truncation marker", () => {
+    const original = "a\n".repeat(200);
+    const modified = "b\n".repeat(200);
+    const fileDiff = buildCommitFileDiff(
+      "large.txt",
+      "M",
+      original,
+      modified,
+      120
+    );
+
+    expect(fileDiff.length).toBeLessThanOrEqual(120);
+    expect(fileDiff).toContain("该文件差异已截断");
+  });
+
   it("separates instructions, repository context, diff data, and final task", () => {
     const messages = buildCommitPromptMessages({
       systemPrompt: `  write in ${COMMIT_LANGUAGE_MACRO}  `,

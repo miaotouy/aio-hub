@@ -14,10 +14,17 @@
 
 import { getExtension } from "@/utils/fileTypeDetector";
 import { hexToRgb } from "@/utils/themeColors";
+import { createTwoFilesPatch } from "diff";
 import type { DiffTabRef } from "./types";
 
 export const COMMIT_LANGUAGE_MACRO = "${language}";
 export const DEFAULT_COMMIT_LANGUAGE = "简体中文";
+/** 提交信息上下文使用少量上下文行，避免把完整文件快照发送给模型。 */
+export const COMMIT_DIFF_CONTEXT_LINES = 3;
+/** 单个文件进入提交信息上下文的最大字符数。 */
+export const MAX_COMMIT_FILE_DIFF_CHARS = 40_000;
+/** 所有文件进入提交信息上下文的最大字符数。 */
+export const MAX_COMMIT_PROMPT_DIFF_CHARS = 120_000;
 
 /** 仓库图标默认候选色盘；明暗主题下均保持可辨识度 */
 export const DEFAULT_REPO_AVATAR_PALETTE: readonly string[] = [
@@ -143,9 +150,7 @@ export function isChangesViewTab(tab: DiffTabRef | null | undefined): boolean {
 }
 
 /** 是否为提交多文件总览标签页 */
-export function isCommitViewTab(
-  tab: DiffTabRef | null | undefined
-): boolean {
+export function isCommitViewTab(tab: DiffTabRef | null | undefined): boolean {
   return Boolean(tab?.commitHash && tab.path === COMMIT_VIEW_TAB_PATH);
 }
 
@@ -236,6 +241,64 @@ export interface CommitPromptContext {
   files: Array<{ path: string; status: string }>;
   isStaged: boolean;
   diff: string;
+}
+
+/**
+ * 将单个文件的两侧快照转换为紧凑的 unified diff。
+ *
+ * 文件快照仍可用于界面双栏预览，但提交信息只需要变化块；这里同时限制
+ * 单文件大小，避免生成文件或大范围重排再次撑爆模型上下文。
+ */
+export function buildCommitFileDiff(
+  filePath: string,
+  status: string,
+  original: string,
+  modified: string,
+  maxChars = MAX_COMMIT_FILE_DIFF_CHARS
+): string {
+  const header = `### ${filePath} (${status})`;
+  if (original === modified) {
+    return `${header}\n[文本内容无变化]`;
+  }
+
+  const patch = createTwoFilesPatch(
+    `a/${filePath}`,
+    `b/${filePath}`,
+    original,
+    modified,
+    "",
+    "",
+    { context: COMMIT_DIFF_CONTEXT_LINES }
+  ).trim();
+
+  if (!patch) {
+    return `${header}\n[文本内容无变化]`;
+  }
+
+  const patchBudget = Math.max(0, maxChars - header.length - 1);
+  if (patchBudget === 0) return header.slice(0, maxChars);
+
+  const content = `${header}\n${truncateCommitDiff(patch, patchBudget)}`;
+  return content;
+}
+
+function truncateCommitDiff(diff: string, maxChars: number): string {
+  if (diff.length <= maxChars) return diff;
+
+  const marker = "[…该文件差异已截断…]";
+  const budget = Math.max(0, maxChars - marker.length - 1);
+  if (budget === 0) return marker.slice(0, maxChars);
+
+  const lines: string[] = [];
+  let length = 0;
+  for (const line of diff.split("\n")) {
+    const nextLength = length + (lines.length > 0 ? 1 : 0) + line.length;
+    if (nextLength > budget) break;
+    lines.push(line);
+    length = nextLength;
+  }
+
+  return `${lines.join("\n")}\n${marker}`;
 }
 
 /**
@@ -362,7 +425,9 @@ export interface RemoteInfo {
 }
 
 /** 从远端 URL 中提取主机名与仓库路径，兼容 scp 简写与标准 URL */
-function extractHostAndPath(url: string): { host: string; path: string } | null {
+function extractHostAndPath(
+  url: string
+): { host: string; path: string } | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
 

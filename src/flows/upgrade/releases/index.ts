@@ -15,9 +15,18 @@
 import { releaseNotesRegistry } from "../releaseNotesRegistry";
 import { releaseNoteV070Alpha1 } from "./v0.7.0-alpha.1";
 import { releaseNoteV070Alpha2 } from "./v0.7.0-alpha.2";
+import { releaseNoteV070Alpha3 } from "./v0.7.0-alpha.3";
+import { releaseNoteV070Alpha4 } from "./v0.7.0-alpha.4";
+import { releaseNoteV070Alpha5 } from "./v0.7.0-alpha.5";
 
 export function registerBuiltInReleaseNotes(): void {
-  for (const manifest of [releaseNoteV070Alpha1, releaseNoteV070Alpha2]) {
+  for (const manifest of [
+    releaseNoteV070Alpha1,
+    releaseNoteV070Alpha2,
+    releaseNoteV070Alpha3,
+    releaseNoteV070Alpha4,
+    releaseNoteV070Alpha5,
+  ]) {
     if (!releaseNotesRegistry.get(manifest.version)) {
       releaseNotesRegistry.register(manifest);
     }

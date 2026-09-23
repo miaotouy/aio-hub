@@ -383,17 +383,23 @@ export function createSessionLifecycleManager(
       if (!draft) return state.currentSessionId.value;
 
       const sessionId = draft.index.id;
-      markSessionPersistent(sessionId);
-      newSessionDraft.value = null;
-      state.currentSessionId.value = sessionId;
-
       const sessionManager = getSessionManager();
       sessionManager.updateMessageCount(
         sessionId,
         draft.detail.nodes,
         state.sessionIndexMap.value
       );
+
+      // 先落盘会话内容并写入索引，再持久化当前选择。这样在首条消息
+      // 发送过程中退出应用，也不会留下一个无法加载的当前会话 ID。
+      const storage = await getStorage();
+      await storage.saveSession({ ...draft.index, ...draft.detail });
+      await storage.persistSession(draft.index, draft.detail);
       await sessionManager.updateCurrentSessionId(sessionId);
+
+      markSessionPersistent(sessionId);
+      newSessionDraft.value = null;
+      state.currentSessionId.value = sessionId;
 
       logger.info("虚拟新会话已提升为正式会话", { sessionId });
       return sessionId;

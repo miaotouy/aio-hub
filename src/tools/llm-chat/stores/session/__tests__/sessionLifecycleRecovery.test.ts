@@ -23,6 +23,8 @@ const { inputManager, sessionManager, storage } = vi.hoisted(() => ({
   },
   storage: {
     loadSession: vi.fn(),
+    saveSession: vi.fn(),
+    persistSession: vi.fn(),
     reconcileIndexIncrementally: vi.fn(),
     getRecoveryState: vi.fn(() => ({ status: "ready" })),
   },
@@ -108,6 +110,8 @@ describe("sessionLifecycleManager 重启恢复", () => {
     vi.clearAllMocks();
     sessionManager.updateCurrentSessionId.mockResolvedValue(undefined);
     storage.loadSession.mockReset();
+    storage.saveSession.mockResolvedValue(undefined);
+    storage.persistSession.mockResolvedValue(undefined);
     storage.reconcileIndexIncrementally.mockResolvedValue(undefined);
     sessionManager.updateMessageCount.mockImplementation(
       (
@@ -354,6 +358,19 @@ describe("sessionLifecycleManager 重启恢复", () => {
     await lifecycle.materializeNewSession();
 
     expect(state.newSessionDraft.value).toBeNull();
+    expect(storage.saveSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "draft", nodes: draftDetail.nodes })
+    );
+    expect(storage.persistSession).toHaveBeenCalledWith(
+      draftIndex,
+      draftDetail
+    );
     expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledWith("draft");
+    expect(storage.saveSession.mock.invocationCallOrder[0]).toBeLessThan(
+      storage.persistSession.mock.invocationCallOrder[0]
+    );
+    expect(storage.persistSession.mock.invocationCallOrder[0]).toBeLessThan(
+      sessionManager.updateCurrentSessionId.mock.invocationCallOrder[0]
+    );
   });
 });

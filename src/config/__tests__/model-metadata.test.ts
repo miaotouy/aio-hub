@@ -760,6 +760,7 @@ describe("audited model-list metadata coverage", () => {
       group: "Z AI",
       capabilities: {
         vision: true,
+        video: true,
         toolUse: true,
         thinking: true,
         thinkingConfigType: "effort",

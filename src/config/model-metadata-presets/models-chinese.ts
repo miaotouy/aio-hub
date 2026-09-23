@@ -111,6 +111,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
         tokenizer: "gpt4",
         capabilities: {
           vision: true,
+          video: true,
           toolUse: true,
           thinking: true,
           thinkingConfigType: "effort",

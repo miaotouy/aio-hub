@@ -66,6 +66,13 @@ const isEmoji = (str: string): boolean => {
   );
 };
 
+/** 委派指令仍是 user role，阅读型导出用来源名称标出实际发送者。 */
+const getOriginAgentName = (node: ChatMessageNode): string | null => {
+  const origin = node.metadata?.origin;
+  if (origin?.kind !== "agent") return null;
+  return origin.actorDisplayName || origin.actorName || origin.actorId || null;
+};
+
 export function useExportManager() {
   const { getProfileById } = useLlmProfiles();
   const userProfileStore = useUserProfileStore();
@@ -111,7 +118,14 @@ export function useExportManager() {
       if (node.role === "system") continue; // 跳过系统根节点
       if (hiddenNodeIds.has(node.id)) continue; // 跳过被压缩隐藏的节点
 
-      const role = node.role === "user" ? "用户" : "助手";
+      const role =
+        getOriginAgentName(node) ||
+        (node.role === "user"
+          ? node.metadata?.origin?.actorDisplayName ||
+            node.metadata?.userProfileDisplayName ||
+            node.metadata?.userProfileName ||
+            "用户"
+          : "助手");
       const nameStr = node.name ? ` - ${node.name}` : "";
       const time = node.timestamp
         ? formatDateTime(node.timestamp, "HH:mm:ss")
@@ -411,11 +425,19 @@ export function useExportManager() {
       const enabledStatus = node.isEnabled === false ? " [已禁用]" : "";
 
       if (node.role === "user") {
-        // 用户消息
-        let userName = "用户";
-        if (includeUserProfile) {
-          if (node.metadata?.userProfileName) {
-            userName = node.metadata.userProfileName;
+        // 委派指令沿用 user role，展示时以发起 Agent 的身份为准。
+        let userName = getOriginAgentName(node) || "用户";
+        if (includeUserProfile && !getOriginAgentName(node)) {
+          if (
+            node.metadata?.origin?.actorDisplayName ||
+            node.metadata?.userProfileDisplayName ||
+            node.metadata?.userProfileName
+          ) {
+            userName =
+              node.metadata.origin?.actorDisplayName ||
+              node.metadata.userProfileDisplayName ||
+              node.metadata.userProfileName ||
+              userName;
           } else if (node.metadata?.userProfileId) {
             // 尝试从 Store 获取最新信息作为回退
             const profile = userProfileStore.getProfileById(
@@ -429,6 +451,7 @@ export function useExportManager() {
 
         const userIcon =
           includeUserProfile &&
+          !getOriginAgentName(node) &&
           node.metadata?.userProfileIcon &&
           isEmoji(node.metadata.userProfileIcon)
             ? node.metadata.userProfileIcon
@@ -439,8 +462,8 @@ export function useExportManager() {
         lines.push("");
       } else if (node.role === "assistant") {
         // 助手消息
-        let agentName = "助手";
-        if (includeAgentInfo) {
+        let agentName = getOriginAgentName(node) || "助手";
+        if (includeAgentInfo && !getOriginAgentName(node)) {
           if (node.metadata?.agentName) {
             agentName = node.metadata.agentName;
           } else if (node.metadata?.agentId) {
@@ -942,11 +965,16 @@ export function useExportManager() {
 
       if (node.role === "user") {
         const userName =
-          includeUserProfile && node.metadata?.userProfileName
-            ? node.metadata.userProfileName
-            : "用户";
+          getOriginAgentName(node) ||
+          (includeUserProfile
+            ? node.metadata?.origin?.actorDisplayName ||
+              node.metadata?.userProfileDisplayName ||
+              node.metadata?.userProfileName ||
+              "用户"
+            : "用户");
         const userIcon =
           includeUserProfile &&
+          !getOriginAgentName(node) &&
           node.metadata?.userProfileIcon &&
           isEmoji(node.metadata.userProfileIcon)
             ? node.metadata.userProfileIcon
@@ -955,9 +983,10 @@ export function useExportManager() {
         roleName = userName;
       } else if (node.role === "assistant") {
         const agentName =
-          includeAgentInfo && node.metadata?.agentName
+          getOriginAgentName(node) ||
+          (includeAgentInfo && node.metadata?.agentName
             ? node.metadata.agentName
-            : "助手";
+            : "助手");
         const agentIcon =
           includeAgentInfo &&
           node.metadata?.agentIcon &&

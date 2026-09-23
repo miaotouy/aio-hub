@@ -88,6 +88,26 @@ const agent = computed(() => {
   return agentStore.getAgentById(agentId);
 });
 
+// role 仍遵守聊天协议；带来源的 user 消息可以由调度 Agent 发出。
+const originAgent = computed(() => {
+  const origin = props.message.metadata?.origin;
+  return origin?.kind === "agent" && origin.actorId
+    ? agentStore.getAgentById(origin.actorId)
+    : null;
+});
+const originAgentName = computed(() => {
+  const origin = props.message.metadata?.origin;
+  if (origin?.kind !== "agent") return null;
+  return (
+    origin.actorDisplayName ||
+    originAgent.value?.displayName ||
+    origin.actorName ||
+    originAgent.value?.name ||
+    origin.actorId ||
+    null
+  );
+});
+
 // 获取消息生成时使用的 Profile 和 Model 信息
 // 名称优先使用消息快照；图标优先精确读取当前 profileId + modelId 对应的模型配置。
 const agentProfileInfo = computed(() => {
@@ -144,6 +164,7 @@ const effectiveUserProfile = computed(() => {
 // 根据角色决定显示的名称和图标
 const displayName = computed(() => {
   if (props.message.role === "user") {
+    if (originAgentName.value) return originAgentName.value;
     // 优先使用消息元数据中的用户档案快照
     if (
       props.message.metadata?.userProfileDisplayName ||
@@ -164,6 +185,7 @@ const displayName = computed(() => {
     // 最后使用默认值
     return "你";
   } else if (props.message.role === "assistant") {
+    if (originAgentName.value) return originAgentName.value;
     // 优先使用消息元数据中的快照，如果不存在则从 Agent Store 获取（兼容旧消息）
     return (
       props.message.metadata?.agentDisplayName ||
@@ -193,6 +215,9 @@ const userAvatarTarget = computed(() => {
   return effectiveUserProfile.value;
 });
 const assistantAvatarTarget = computed(() => {
+  if (originAgent.value) return originAgent.value;
+  const origin = props.message.metadata?.origin;
+  if (origin?.kind === "agent") return { id: origin.actorId ?? "" };
   const { metadata } = props.message;
   // 优先使用消息快照
   if (metadata?.agentIcon && metadata.agentId) {
@@ -212,7 +237,9 @@ const assistantAvatarSrc = useResolvedAgentAvatar(assistantAvatarTarget);
 // 根据角色选择最终要显示的图标
 const displayIcon = computed<any>(() => {
   if (props.message.role === "user") {
-    return userAvatarSrc.value;
+    return originAgentName.value
+      ? assistantAvatarSrc.value
+      : userAvatarSrc.value;
   }
   if (props.message.role === "assistant") {
     return assistantAvatarSrc.value;
@@ -243,6 +270,7 @@ const greetingLabel = computed(() => {
 
 const nameForAlt = computed(() => {
   if (props.message.role === "user") {
+    if (originAgentName.value) return originAgentName.value;
     return (
       props.message.metadata?.userProfileDisplayName ||
       props.message.metadata?.userProfileName ||
@@ -250,6 +278,7 @@ const nameForAlt = computed(() => {
       effectiveUserProfile.value?.name
     );
   } else if (props.message.role === "assistant") {
+    if (originAgentName.value) return originAgentName.value;
     // 从 agent 中获取原始 name，这通常比 displayName 更干净
     return agent.value?.name;
   } else if (props.message.role === "tool") {

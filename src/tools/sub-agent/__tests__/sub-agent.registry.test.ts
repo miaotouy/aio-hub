@@ -41,11 +41,26 @@ vi.mock("@/tools/llm-chat/services/llmChatService", () => ({
 }));
 vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
   useAgentStore: () => ({
+    getAgentById: (id: string) => ({
+      id,
+      name: id,
+      displayName: `Agent ${id}`,
+    }),
     loadAgentDetails: async (id: string) => ({
       id,
       name: id,
       displayName: `Agent ${id}`,
       subAgentConfig: { enabled: true },
+    }),
+  }),
+}));
+vi.mock("@/tools/llm-chat/stores/userProfileStore", () => ({
+  useUserProfileStore: () => ({
+    getEffectiveProfile: () => ({
+      id: "profile-owner",
+      name: "owner",
+      displayName: "主人",
+      icon: "avatar.png",
     }),
   }),
 }));
@@ -222,6 +237,49 @@ describe("SubAgentRegistry 后台续聊", () => {
         callerContext
       )
     ).rejects.toThrow("conversationId 不存在");
+  });
+
+  it("用户指导保留档案快照与用户来源，生成完成后追加不触发新轮次", async () => {
+    const registry = new SubAgentRegistry();
+    const generation = deferred();
+    mocks.sendMessage.mockImplementation(
+      async (content: string, options: { sessionId: string }) => {
+        await generation.promise;
+        const detail = mocks.sessionDetailMap.get(
+          options.sessionId
+        ) as ChatSessionDetail;
+        appendNode(detail, "user", content);
+        appendNode(detail, "assistant", `reply:${content}`);
+      }
+    );
+
+    const task = JSON.parse(
+      await registry.ask(
+        { agentId: "agent-child", message: "first", mode: "background" },
+        callerContext
+      )
+    );
+    const appended = registry.send_task_message({
+      taskId: task.taskId,
+      message: "请补充",
+    });
+    generation.resolve();
+    const result = JSON.parse(await appended);
+    const detail = mocks.sessionDetailMap.get(
+      task.childSessionId
+    ) as ChatSessionDetail;
+    expect(result).toMatchObject({ appended: true, delivery: "append_only" });
+    expect(detail.nodes[result.nodeId].metadata).toMatchObject({
+      origin: {
+        kind: "user",
+        channel: "user_intervention",
+        actorId: "profile-owner",
+      },
+      userProfileId: "profile-owner",
+      userProfileDisplayName: "主人",
+      userProfileIcon: "avatar.png",
+    });
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
   });
 
   it("同一子会话串行执行；取消排队任务不会中止当前生成，追加指令保留 Agent 身份", async () => {

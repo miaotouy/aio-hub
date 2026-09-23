@@ -428,7 +428,7 @@ export interface MessageOrigin {
 2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
 3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
 4. 把 append-only 的 `send_task_message` 与真正的 `enqueue_task_message` 分开，只有后者承诺下一轮或当前步骤后的投递；（待执行器队列契约）
-5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息 metadata 已接入，渲染与导出待后续）
+5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息 metadata、头像/名称渲染与阅读型导出已接入；派遣卡片和伴生视窗待后续）
 
 ### Phase 4：可恢复运行时
 
@@ -554,12 +554,13 @@ export interface MessageOrigin {
 - `BackgroundTaskSnapshot` 与 `CreateBackgroundTaskInput` 增加 `owner` 和 `executionLaneKey`；旧持久化快照恢复时按 `callerAgent` 与 `childSessionId` 补齐兼容值。
 - `SubAgentRegistry` 持久化 `conversationId → agentId + childSessionId` 索引；指定旧 `conversationId` 但子会话不可用时明确失败，不悄悄创建同名新会话。
 - 同一 `childSessionId` 的前台/后台生成与 `send_task_message` 追加操作共享进程内串行 lane。
-- `send_task_message` 收敛为 append-only；消息来源依据调用上下文派生，并写入追加节点、活动记录与本轮消息 metadata。
+- `send_task_message` 收敛为 append-only；消息来源依据调用上下文派生，并写入追加节点、活动记录与本轮消息 metadata。`user_intervention` 追加消息保存用户档案名称与头像快照。
+- `MessageHeader` 与气泡外置头像按 `origin` 显示调度 Agent 与用户身份；阅读型 Markdown 导出使用来源名称，JSON 备份沿用原始 metadata。
 
 #### 尚未交付
 
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递与队列恢复；当前实现不会由 `send_task_message` 自动触发生成。
-- 完整消息来源渲染、导出和主会话派遣卡片；当前仍以现有消息结构与任务中心为主。
+- 主会话派遣卡片与伴生视窗；当前仍以现有消息结构与任务中心为主。
 
 #### 验证
 

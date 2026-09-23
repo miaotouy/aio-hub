@@ -54,6 +54,25 @@ const agent = computed(() => {
   return agentStore.getAgentById(agentId);
 });
 
+const originAgent = computed(() => {
+  const origin = props.message.metadata?.origin;
+  return origin?.kind === "agent" && origin.actorId
+    ? agentStore.getAgentById(origin.actorId)
+    : null;
+});
+const originAgentName = computed(() => {
+  const origin = props.message.metadata?.origin;
+  if (origin?.kind !== "agent") return null;
+  return (
+    origin.actorDisplayName ||
+    originAgent.value?.displayName ||
+    origin.actorName ||
+    originAgent.value?.name ||
+    origin.actorId ||
+    null
+  );
+});
+
 // 当前生效的用户档案
 const effectiveUserProfile = computed(() => {
   return userProfileStore.getEffectiveProfile(agent.value?.userProfileId);
@@ -73,6 +92,9 @@ const userAvatarTarget = computed(() => {
 
 // assistant 头像目标
 const assistantAvatarTarget = computed(() => {
+  if (originAgent.value) return originAgent.value;
+  const origin = props.message.metadata?.origin;
+  if (origin?.kind === "agent") return { id: origin.actorId ?? "" };
   const metadata = props.message.metadata;
   if (metadata?.agentIcon && metadata.agentId) {
     return {
@@ -87,13 +109,17 @@ const userAvatarSrc = useResolvedProfileAvatar(userAvatarTarget);
 const assistantAvatarSrc = useResolvedAgentAvatar(assistantAvatarTarget);
 
 const resolvedAvatar = computed(() => {
-  if (role.value === "user") return userAvatarSrc.value;
+  if (role.value === "user")
+    return originAgentName.value
+      ? assistantAvatarSrc.value
+      : userAvatarSrc.value;
   if (role.value === "assistant") return assistantAvatarSrc.value;
   return "";
 });
 
 const nameForAlt = computed(() => {
   if (role.value === "user") {
+    if (originAgentName.value) return originAgentName.value;
     return (
       props.message.metadata?.userProfileDisplayName ||
       props.message.metadata?.userProfileName ||
@@ -103,6 +129,7 @@ const nameForAlt = computed(() => {
     );
   }
   if (role.value === "assistant") {
+    if (originAgentName.value) return originAgentName.value;
     return (
       props.message.metadata?.agentDisplayName ||
       props.message.metadata?.agentName ||

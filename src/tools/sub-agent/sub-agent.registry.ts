@@ -23,6 +23,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { llmChatService } from "@/tools/llm-chat/services/llmChatService";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
+import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import type {
   ChatMessageNode,
   ChatSessionDetail,
@@ -1205,6 +1206,10 @@ export default class SubAgentRegistry implements ToolRegistry {
     }
 
     const origin = this.buildTaskMessageOrigin(context, taskId);
+    const userProfile =
+      origin.kind === "user"
+        ? useUserProfileStore().getEffectiveProfile()
+        : null;
     const store = useLlmChatStore();
     const nodeId = await this.runInExecutionLane(
       snapshot.executionLaneKey,
@@ -1221,7 +1226,17 @@ export default class SubAgentRegistry implements ToolRegistry {
         const nextNodeId = store.appendMessageNode(snapshot.childSessionId, {
           role: "user",
           content: message,
-          metadata: { origin },
+          metadata: {
+            origin,
+            ...(userProfile
+              ? {
+                  userProfileId: userProfile.id,
+                  userProfileName: userProfile.name,
+                  userProfileDisplayName: userProfile.displayName,
+                  userProfileIcon: userProfile.icon,
+                }
+              : {}),
+          },
         });
         if (!nextNodeId) {
           throw new Error("子会话未加载，无法追加消息");
@@ -1271,17 +1286,23 @@ export default class SubAgentRegistry implements ToolRegistry {
     taskId: string
   ): MessageOrigin {
     if (context?.agent?.id) {
+      const agent = useAgentStore().getAgentById(context.agent.id);
       return {
         kind: "agent",
         channel: "sub_agent",
         actorId: context.agent.id,
-        actorName: context.agent.id,
+        actorName: agent?.name ?? context.agent.id,
+        actorDisplayName: agent?.displayName ?? agent?.name,
         taskId,
       };
     }
+    const profile = useUserProfileStore().getEffectiveProfile();
     return {
       kind: "user",
       channel: "user_intervention",
+      actorId: profile?.id,
+      actorName: profile?.name,
+      actorDisplayName: profile?.displayName ?? profile?.name,
       taskId,
     };
   }

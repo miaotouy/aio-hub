@@ -16,7 +16,7 @@
 
 1. 用户随时能在前端找到正在运行的后台任务，查看它当前处于什么阶段，并打开完整子会话；
 2. 调度方 Agent 能得到一份短、稳定、适合放进上下文的“最近操作摘要”，据此判断子任务是否在等待、推进、报错或可能停滞；
-3. 用户给子 Agent 追加指导或介入时，消息原生归属于用户身份，依托头像与昵称即可自然辨识，无需任何额外的特殊标签或标记。
+3. 用户给子 Agent 追加指导或介入时，消息原生归属于用户身份，通过头像与昵称自然辨识。
 
 这里的“后台任务”是编排层对象。聊天会话保存完整对话和工具记录，后台任务保存运行关系、状态、进度摘要和控制句柄，两者通过 `childSessionId` 关联。
 
@@ -35,9 +35,9 @@
 - 子会话使用 `parentID` 建立任务树，任务 ID 与会话 ID 可以稳定互相定位；
 - 工具返回 `sessionId`、`parentSessionId`、`jobId` 等 metadata，UI 可以从工具卡片打开子任务；
 - 后台模式立即返回运行中结果，完成后向父会话注入带状态标签的合成结果；
-- 同一个 `task_id` 可继续已有子任务，而不是每次创建新会话。
+- 同一个 `task_id` 可继续已有子任务并复用已有会话。
 
-需要按 AIO Hub 现有架构调整的部分：完整消息树已经存在于 `ChatSessionDetail`，因此不再复制一套 transcript。后台任务只承担编排和观察职责，消息来源元数据应挂到现有 `ChatMessageNode.metadata`。
+AIO Hub 的完整消息树由 `ChatSessionDetail` 保存；后台任务聚焦编排和观察，消息来源元数据挂在现有 `ChatMessageNode.metadata`。
 
 ### 2.2. Pi Agent Harness
 
@@ -54,7 +54,7 @@
 - 只有仍然拥有当前操作的运行单元可以写入进度，避免旧任务在恢复后覆盖新任务状态；
 - 对外暴露有界的进度信息，完整输出仍留在持久化会话中。
 
-这提示我们采用“事件流 + 当前快照”的组合，而不把 UI 或调度 Agent 绑定到事件是否恰好送达。
+采用“事件流 + 当前快照”的组合：事件驱动实时更新，当前快照支持 UI 与调度 Agent 随时获取状态。
 
 ## 3. 核心概念与关系
 
@@ -71,12 +71,12 @@
 ### 3.1. ID 约束
 
 - `taskId`：后台任务的控制和观察 ID，生命周期内不变；
-- `conversationId`：`sub-agent` 工具的用户/Agent 侧续聊句柄，内部映射到 `taskId`；
-- `childSessionId`：完整聊天记录的存储 ID；
+- `conversationId`：`sub-agent` 工具的用户/Agent 侧续聊句柄，解析到当前 task/run；它与 `taskId` 不是永久一对一关系；
+- `childSessionId`：完整聊天记录的存储 ID，允许被同一续聊句柄的多次 task/run 复用；
 - `parentSessionId`：发起调用的会话 ID；
 - `parentTaskId`：子任务由另一个后台任务调度时建立的父子关系。
 
-这些 ID 不能互相替代。尤其不能用 `childSessionId` 代替 `taskId`，因为一个聊天会话未来可能被多次运行、暂停或恢复。
+这些 ID 分别承担控制、续聊、存储和层级关系职责。一个聊天会话可以被多次运行、暂停或恢复，因此 `taskId` 与 `childSessionId` 分别保持稳定的控制和存储语义。
 
 ### 3.2. 任务状态
 
@@ -90,7 +90,10 @@ created → queued → running
                     └── completed / failed / cancelled / interrupted
 ```
 
-`stalled` 不作为 Agent 自己写入的终态。它是根据 `lastProgressAt`、当前操作类型和运行时 heartbeat 推导出的观察状态，避免把“模型生成较慢”误报成失败。UI 可以显示“可能停滞”，调度 Agent 可以得到 `stale: true` 以及判断依据。
+`stalled` 作为根据 `lastProgressAt`、当前操作类型和运行时 heartbeat 推导出的观察状态，用于区分“模型生成较慢”与失败。UI 显示“可能停滞”，调度 Agent 获得 `stale: true` 及判断依据。
+
+`waiting_input` 与 `awaiting_approval` 表示任务明确等待外部动作，并通过独立的 `attention` 字段提示处理方；`staleReason` 描述没有进展或 runtime 心跳丢失。
+runtime 心跳丢失时先以 `staleReason = "runtime_heartbeat_lost"` 暴露观察结果，超过恢复窗口后再把任务状态转换为 `interrupted`。
 
 ## 4. 后台任务数据模型
 
@@ -138,12 +141,14 @@ export interface BackgroundTaskActivity {
   timestamp: string;
   summary: string;
   operation?: BackgroundTaskOperation;
-  /** 仅供 UI 展开查看的受限信息，不作为 Agent 摘要的必需字段。 */
+  /** 供 UI 展开查看的受限信息；Agent 摘要按需省略。 */
   detailRef?: string;
 }
 
 export interface BackgroundTaskSnapshot {
   taskId: string;
+  /** 任务事件序号；snapshot 与增量订阅通过它衔接。 */
+  seq: number;
   parentTaskId?: string;
   parentSessionId: string;
   childSessionId: string;
@@ -160,7 +165,8 @@ export interface BackgroundTaskSnapshot {
   currentOperation?: BackgroundTaskOperation;
   lastOperationSummary: string;
   stale: boolean;
-  staleReason?: "no_progress" | "runtime_heartbeat_lost" | "awaiting_input";
+  staleReason?: "no_progress" | "runtime_heartbeat_lost";
+  attention?: "awaiting_input" | "awaiting_approval";
   recentActivity: BackgroundTaskActivity[];
   runtimeGeneration: number;
   result?: { summary: string; completedAt: string };
@@ -172,7 +178,7 @@ export interface BackgroundTaskSnapshot {
 
 ### 4.1. “最后部分操作摘要”的生成规则
 
-摘要应由运行时事件归纳，优先使用结构化数据，避免每次再调用一个 LLM 做总结：
+摘要由运行时事件归纳，并优先使用结构化数据：
 
 - LLM 生成中：`正在等待 <agentName> 生成回复，已持续 <duration>`；
 - 工具调用中：`正在执行工具 <toolName>：<安全参数摘要>`；
@@ -206,8 +212,16 @@ background_task.subscribe({ taskId?, afterSeq? })
 background_task.cancel(taskId)
 background_task.pause(taskId)
 background_task.resume(taskId)
-background_task.send_message(taskId, message, mode)
+background_task.send_message(
+  taskId,
+  message,
+  { delivery: "next_turn" | "after_current_step" }
+)
+background_task.interrupt(taskId, reason?)
+background_task.resolve_approval(taskId, requestId, decision)
 ```
+
+`background_task.*` 是 runtime/IPC 层协议，`sub-agent` 工具只是 Agent-facing adapter；两者共用同一个 task registry，不能各自维护一份任务状态。`send_message` 的 `origin` 由调用通道和权限上下文生成，调用方不能通过参数伪造任意来源。
 
 事件至少包括：
 
@@ -242,12 +256,14 @@ ask({
 }): Promise<string>
 ```
 
+这里的返回值按现有工具协议仍是 JSON 字符串；`background` 模式返回的 `taskId`、`conversationId`、`childSessionId` 和状态是字符串内的结构化 payload。
+
 建议行为：
 
 - `foreground`：继续等待子 Agent 完成，返回现有 `conversationId + response`；内部仍创建 `BackgroundAgentTask`，便于 UI 观察和取消；
 - `background`：创建任务后立即返回 `taskId + conversationId + childSessionId + status`，父 Agent继续执行；
 - `conversationId` 指向已有任务时，续聊动作写入同一个 task 和 child session；
-- 任务完成后，运行时向父会话投递一条合成结果，标记为 `background_task_result`，内容包含状态、任务 ID 和最终摘要；
+- 任务完成后，运行时向父会话投递一条合成结果，写入 `origin.channel = "system_event"` 以及 `taskId` metadata，内容包含状态、任务 ID 和最终摘要；
 - 父会话已结束时，结果保留在任务中心和通知队列，不强行重新打开主会话。
 
 新增 Agent 可调用方法：
@@ -255,17 +271,19 @@ ask({
 ```text
 get_task_status(taskId)
 get_task_activity(taskId, limit?)
-send_task_message(taskId, message)
+send_task_message(taskId, message, delivery?)
+interrupt_task(taskId, reason?)
+resolve_task_approval(taskId, requestId, decision)
 cancel_task(taskId)
 ```
 
-其中 `get_task_status` 返回单个紧凑 snapshot；`get_task_activity` 默认只返回最近 5 条结构化活动。完整 transcript 仍由用户界面查看，避免调度 Agent 反复读取大段上下文。
+其中 `get_task_status` 返回单个紧凑 snapshot；`get_task_activity` 默认返回最近 5 条结构化活动。完整 transcript 由用户界面按需查看，调度 Agent 使用有界的任务上下文。
 
-## 6. 用户前端交互设计（复用原生消息与伴生协作体系）
+## 6. 用户前端交互设计（复用原生消息与伴生协作体系，分阶段落地）
 
 系统中已经非常成熟强大的消息渲染体系（如 `MessageList`、`MessageHeader` 自带的头像、名称、模型副标题、气泡布局、富文本渲染与外置头像能力）
 
-被调用的子智能体是一个拥有专属头像、名称与完整人格的 Agent，而不是一个普通的 CLI 脚本。因此，前端交互的核心是**全面复用与融入现有消息组件生态**，构建“原生消息流呈现 + 伴生透视”的自然体验：
+被调用的子智能体拥有专属头像、名称与完整人格。前端交互围绕**全面复用并融入现有消息组件生态**展开，构建“原生消息流呈现 + 伴生透视”的自然体验：
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -282,11 +300,11 @@ cancel_task(taskId)
 
 ### 6.1. Level 1：就地感知 —— 融入生动身份的原生消息卡片
 
-在主会话中，子智能体调用不能退化为普通工具（ToolCallMessage 仅展示一个通用的小扳手或终端图标），而应充分激活现有消息头部与身份识别资产：
+在主会话中，子智能体调用以派遣卡片呈现，并充分使用现有消息头部与身份识别资产：
 
 1. **复用 `MessageHeader` 动态身份映射**：
    - 派遣卡片直接复用或对齐 [`MessageHeader.vue`](src/tools/llm-chat/components/message/MessageHeader.vue:1) 的头像解析逻辑（`useResolvedAgentAvatar`）；
-   - **双角色连线徽章**：清晰显示 `[调度方 Agent 头像+名字] → 委托给 → [子 Agent 头像+名字]`，一眼看出任务谁派给了谁，具有强烈的多人协同感；
+   - **任务关系头部（派遣卡片）**：并列显示 `[调度方 Agent 头像+名字] → [子 Agent 头像+名字]`，让任务卡片一眼呈现派遣关系；
    - 支持气泡模式（Bubble Mode）下的外置头像（`avatarPlacement: outside`），使子 Agent 的形象自然站立在消息气泡外侧。
 2. **生命力微动效与阶段流水**：
    - **状态指示器**：复用 `MessageHeader` 中的 `message-status` 胶囊（旋转的小圆圈、等待中、完成勾选），结合呼吸光晕表现运行态；
@@ -299,11 +317,11 @@ cancel_task(taskId)
 
 ### 6.2. Level 2：伴生视窗 —— 100% 复用现有 `MessageList` 核心组件
 
-用户需要细看子 Agent 完整的执行流与推理细节时，**无需重新发明一套劣质的简易日志组件，直接复用现有的 `MessageList.vue`**：
+用户需要细看子 Agent 完整的执行流与推理细节时，直接复用现有的 `MessageList.vue`：
 
 1. **双栏伴生视窗（Companion Sheet）**：
    - 宽屏（> 1100px）下，主对话区向左平滑腾出空间，右侧滑出伴生视窗；
-   - 伴生视窗内部**直接挂载 [`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue:1)**，传入 `childSessionId` 的上下文；
+   - 伴生视窗内部**直接挂载 [`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue:1)**；任务详情先依据 `childSessionId` 从会话 Store 取得 `sessionIndex`、`sessionDetail` 和消息列表，再按现有 props 契约渲染，`MessageList` 本身不直接接收 `childSessionId`；
    - 自动继承原汁原味的能力：
      - **完整的 Agent 头像与名字展示**；
      - 完整的 Markdown 渲染、代码高亮、复制与思考块折叠；
@@ -313,11 +331,11 @@ cancel_task(taskId)
    - 窄屏或点击“独立悬浮”时，将上述挂载了 `MessageList` 的伴生视窗嵌入 [`DraggablePanel`](src/components/common/DraggablePanel.vue:66)；
    - 用户可以拖拽到屏幕任意角落，半透明毛玻璃背景（`backdrop-filter: blur(var(--ui-blur))`）；
    - 用户在主窗口正常与主 Agent 交流，眼角余光看着画中画里子 Agent 顶着自己的头像和名字不断吐字。
-3. **多源消息自然视觉识别（拒绝冗余标签）**：
-   - 在伴生 `MessageList` 中，依靠成熟的头像与名称系统即可清晰区分角色，**坚决不增加额外的「[人工指导]」或「[来自某某]」指导徽章**，避免视觉噪音：
+3. **多源消息的自然视觉识别**：
+   - 在伴生 `MessageList` 中，以头像与名称清晰区分角色：
      - 调度方发来的委托：`MessageHeader` 直接展示调度方 Agent 的专属头像与名称；
      - 子 Agent 自身回复：正常展示子 Agent 头像与名称；
-     - 用户插话/顺口叮嘱：`MessageHeader` 渲染**当前用户的真实头像与昵称**（通过 `userProfileStore` 解析），与日常群聊心智完全一致。
+     - 用户插话/顺口叮嘱：`MessageHeader` 优先渲染消息创建时保存的用户档案快照（`userProfileId`、名称和图标），找不到快照时再通过 `userProfileStore` 解析当前档案，与日常群聊心智一致且不改变历史消息身份。
 
 ### 6.3. Level 3：标题栏轻量活动胶囊（Live Activity Capsule）
 
@@ -344,6 +362,8 @@ cancel_task(taskId)
 | **紧急叫停 (Halt & Takeover)** | 发现死循环、高危工具或严重跑偏                       | 卡片右上角制动按钮   | 立即终止当前 step 执行，状态置为 `interrupted`。卡片转为“已接管”形态，允许用户重新发起轮次或就地编辑。                                                                          |
 | **敏感审批 (Approval)**        | 子 Agent 触发了高危工具操作                          | 卡片内原地浮起审批条 | 复用现有 [`ToolCallingApprovalBar.vue`](src/tools/llm-chat/components/message-input/ToolCallingApprovalBar.vue:130) 设计规范，展开参数 Diff，支持“单次放行”、“拒绝并告知原因”。 |
 
+Phase 3 提供顺口叮嘱；Phase 4 在具备可中断执行、`requestId` 路由与权限校验后提供紧急叫停和敏感审批。这里的“已接管”是卡片展示语义，持久化状态为 `interrupted`，并追加一条 `user_intervention` 活动记录；接管权属由任务控制字段补充。
+
 ### 6.5. 视觉规范与人机工学约束
 
 1. **容器装饰规范（遵循 [`semantic-decoration.md`](.kilocode/rules/semantic-decoration.md)）**：
@@ -356,9 +376,9 @@ cancel_task(taskId)
 
 ## 7. 消息来源与显示
 
-### 7.1. 不改写消息正文
+### 7.1. 消息正文保持原样
 
-来源信息不拼接进正文，也不依赖固定前缀。建议在 `ChatMessageNode.metadata` 中增加：
+来源信息保存在 `ChatMessageNode.metadata` 中：
 
 ```ts
 export type MessageOriginKind = "user" | "agent" | "tool" | "system";
@@ -395,15 +415,15 @@ export interface MessageOrigin {
 
 “调度 Agent 发给子 Agent 的任务”在聊天协议里仍然是 `user` role，来源 metadata 才说明它来自另一个 Agent。这样既保留 Provider 的角色契约，又能在 UI 和内部审计中区分角色。
 
-### 7.3. UI 展示（极简视觉，无额外标签）
+### 7.3. UI 展示（以头像与名称识别身份）
 
-遵循专业桌面端高信噪比原则，界面**不额外叠加文字来源标签或指导标记**：
+遵循专业桌面端高信噪比原则，界面通过头像与名称呈现消息来源：
 
 - **以头像与名称为主体识别**：
   - 用户介入的消息，其 `MessageHeader` 直接显示当前登录用户的头像与昵称，视觉体验与主会话中用户发话完全一致；
   - 调度方 Agent 委派的消息，显示调度方 Agent 的头像与名称；
   - 子 Agent 回复显示子 Agent 本身的头像与名称；
-- **任务链路隐式感知**：消息卡片仅通过上下文流向与消息归属自然呈现，不打诸如 `用户指导`、`主智能体` 之类的标签补丁，保持会话流的原生通透感。
+- **任务链路自然呈现**：消息卡片通过上下文流向与消息归属呈现任务关系，保持会话流的原生通透感。
 
 ### 7.4. Agent 上下文处理
 
@@ -413,7 +433,7 @@ export interface MessageOrigin {
 
 - 调度 Agent 只能读取自己创建的任务及其后代任务；
 - 用户可以查看当前应用内所有任务，但任务详情中的工具参数和输出仍按现有敏感信息规则脱敏；
-- 子 Agent 默认不能调用 `sub-agent`，继续保持当前单层限制，后续用深度和权限配置替代硬编码限制；
+- 当前阶段，子 Agent 的委托范围为单层；Phase 4 通过任务深度与 capability 配置管理委托范围；
 - 取消、暂停、追加指导使用 task owner 和 capability 检查，不能只凭 `taskId` 放行；
 - runtime heartbeat 丢失时，任务标为 `interrupted`，恢复后通过任务快照和 child session 决定是否可继续；
 - 主窗口关闭或刷新不改变任务 owner；应用进程退出后，Hidden WebView 任务只能恢复到明确的中断状态，不能声称仍在执行；
@@ -435,24 +455,27 @@ export interface MessageOrigin {
 - 增加 `get_task_status` 和 `get_task_activity`；
 - 把工具调用、LLM 生成、审批等待和错误归纳成最近操作摘要；
 - 子任务完成后向父会话投递合成结果，并保留 task handle。
+- 主会话派遣卡片先展示任务关系、状态和最近操作；标题栏活动胶囊作为任务中心的轻量入口，并在这一阶段开放取消、暂停等任务控制。
 
 ### Phase 3：多源身份归属与用户介入
 
 - `ChatMessageNode.metadata.origin` 落地并贯穿消息创建、持久化、渲染和导出（用于后端路由与前端提取对应 actor 的头像/名字）；
 - 任务详情支持追加指导/顺口叮嘱，默认排队到下一轮；
-- 主会话的工具卡片、任务通知和任务中心复用同一 task detail 入口；
-- 用户介入消息通过用户自身的头像和昵称原生呈现，不添加额外文字标签。
+- 伴生视窗复用会话 Store 与 `MessageList`，主会话的工具卡片、任务通知和任务中心复用同一 task detail 入口；
+- 用户介入消息通过发送时保存的用户档案快照原生呈现，并沿用头像与昵称完成身份识别。
+- Phase 3 提供排队到下一轮的顺口叮嘱；Phase 4 提供紧急叫停和敏感审批。
 
 ### Phase 4：运行时恢复与多层编排
 
 - 快照写入稳定持久化存储，处理 runtime generation 变化；
 - 明确暂停/恢复/重试的幂等语义；
-- 用配置化任务深度和 capability 替代固定单层限制；
+- 用配置化任务深度和 capability 管理多层委托；
 - 为 Node.js sidecar 保持相同的命令、事件和快照协议。
+- 落地 `interrupt_task`、审批决策和“已接管”展示语义。
 
 ## 10. 下一步建议
 
-当前最值得先做的是 Phase 1，不立即改造完整消息渲染器：
+当前优先推进 Phase 1，先建立后台任务模型、观察能力与任务详情入口：
 
 1. 先抽出 `background-task` 类型和内存 registry；
 2. 在现有 `sub-agent.ask` 的前后埋点，记录 task 状态和最近操作；
@@ -469,4 +492,3 @@ export interface MessageOrigin {
 - 用户从主会话工具卡片打开任务详情，不会改变主会话当前输入状态；
 - 用户追加指导后，子会话直接以用户本人的头像与昵称呈现该消息，调度方、用户和子 Agent 三方角色一目了然且无多余标签干扰；
 - 任务完成、失败、取消和 runtime 中断在任务中心有明确状态，父会话收到的合成通知能关联回 task。
-

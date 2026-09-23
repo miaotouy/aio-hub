@@ -15,22 +15,21 @@
 -->
 
 <!--
-  后台任务详情（只读）
-
-  对应设计文档 §6 的伴生透视：展示任务快照完整元信息与最近活动流水，
-  并提供「打开子会话」入口。Phase 2 开放「取消任务」（经 registry.cancelTask
-  打通 assistant.ask 的中止逻辑）；暂停/恢复等语义待 Phase 4。
+  后台任务详情：查看任务、打开子会话、取消及追加指导。
+  追加指导只写入子会话，后续轮次的调度由执行器另行负责。
 -->
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { Ban, ExternalLink } from "lucide-vue-next";
+import { Ban, ExternalLink, MessageSquarePlus, Send } from "lucide-vue-next";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
 } from "@/services/background-tasks";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { toolRegistryManager } from "@/services/registry";
+import type SubAgentRegistry from "../sub-agent.registry";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import Avatar from "@/components/common/Avatar.vue";
 import { formatDateTime, formatRelativeTime } from "@/utils/time";
@@ -98,33 +97,9 @@ const metaRows = computed<MetaRow[]>(() => {
   const task = props.task;
   if (!task) return [];
   return [
-    { label: "任务 ID", value: task.taskId, title: task.taskId },
-    {
-      label: "对话句柄",
-      value: task.conversationId || "—",
-      title: task.conversationId,
-    },
-    {
-      label: "调度会话",
-      value: task.parentSessionId || "—",
-      title: task.parentSessionId ?? undefined,
-    },
-    {
-      label: "子会话",
-      value: task.childSessionId || "—",
-      title: task.childSessionId,
-    },
     { label: "调度方", value: callerAgentName.value },
-    {
-      label: "父任务",
-      value: task.parentTaskId || "—",
-      title: task.parentTaskId,
-    },
-    { label: "运行时代次", value: String(task.runtimeGeneration) },
-    { label: "阶段", value: task.phase || "—" },
     { label: "创建时间", value: formatTime(task.createdAt) },
     { label: "开始时间", value: formatTime(task.startedAt) },
-    { label: "更新时间", value: formatTime(task.updatedAt) },
     { label: "最近进展", value: formatTime(task.lastProgressAt) },
   ];
 });
@@ -141,6 +116,54 @@ const canOpenChild = computed(() => !!props.task?.childSessionId);
 const canCancel = computed(
   () => !!props.task && isActiveTaskState(props.task.state)
 );
+
+const showAppendInput = ref(false);
+const appendDraft = ref("");
+const isAppending = ref(false);
+const canAppend = computed(
+  () => !!props.task && isActiveTaskState(props.task.state)
+);
+
+watch(
+  () => props.task?.taskId,
+  () => {
+    showAppendInput.value = false;
+    appendDraft.value = "";
+  }
+);
+
+async function handleAppendMessage(): Promise<void> {
+  const task = props.task;
+  const message = appendDraft.value.trim();
+  if (!task || !canAppend.value || !message || isAppending.value) return;
+
+  isAppending.value = true;
+  try {
+    const registry =
+      toolRegistryManager.getRegistry<SubAgentRegistry>("sub-agent");
+    const result = JSON.parse(
+      await registry.send_task_message({ taskId: task.taskId, message })
+    ) as { appended: boolean; message?: string };
+    if (!result.appended) {
+      customMessage.warning(
+        result.message || "任务已结束，请打开子会话继续对话"
+      );
+      return;
+    }
+    if (props.task?.taskId === task.taskId) {
+      appendDraft.value = "";
+      showAppendInput.value = false;
+    }
+    customMessage.success("已追加到子会话，可在后续对话中查看");
+  } catch (error) {
+    logger.warn("向子会话追加指导失败", { taskId: task.taskId, error });
+    customMessage.error(
+      error instanceof Error ? error.message : "追加失败，请打开子会话后重试"
+    );
+  } finally {
+    isAppending.value = false;
+  }
+}
 
 /**
  * 取消后台任务。
@@ -240,6 +263,17 @@ async function handleCancelTask(): Promise<void> {
         </button>
 
         <button
+          v-if="canAppend"
+          type="button"
+          class="append-task-button"
+          :aria-expanded="showAppendInput"
+          @click="showAppendInput = !showAppendInput"
+        >
+          <MessageSquarePlus :size="14" />
+          <span>追加指导</span>
+        </button>
+
+        <button
           v-if="canCancel"
           type="button"
           class="cancel-task-button"
@@ -249,6 +283,33 @@ async function handleCancelTask(): Promise<void> {
           <Ban :size="14" />
           <span>取消任务</span>
         </button>
+      </div>
+
+      <div v-if="showAppendInput && canAppend" class="append-composer">
+        <label class="append-label" for="task-append-message"
+          >补充给子智能体</label
+        >
+        <textarea
+          id="task-append-message"
+          v-model="appendDraft"
+          class="append-textarea"
+          rows="3"
+          placeholder="写下补充要求…"
+          :disabled="isAppending"
+          @keydown.ctrl.enter.prevent="handleAppendMessage"
+        />
+        <div class="append-footer">
+          <span>写入子会话供后续对话查看 · Ctrl+Enter 追加</span>
+          <button
+            type="button"
+            class="append-submit"
+            :disabled="!appendDraft.trim() || isAppending"
+            @click="handleAppendMessage"
+          >
+            <Send :size="14" />
+            <span>{{ isAppending ? "追加中…" : "追加" }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- 元信息 -->
@@ -479,6 +540,7 @@ async function handleCancelTask(): Promise<void> {
   opacity: 0.45;
 }
 
+.append-task-button,
 .cancel-task-button {
   display: inline-flex;
   align-items: center;
@@ -493,8 +555,82 @@ async function handleCancelTask(): Promise<void> {
   transition: background-color 0.2s;
 }
 
+.append-task-button {
+  color: var(--primary-color);
+  background-color: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  border-color: var(--primary-color);
+}
+
+.append-task-button:hover {
+  background-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+}
+
 .cancel-task-button:hover {
   background-color: color-mix(in srgb, var(--danger-color) 16%, transparent);
+}
+
+.append-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+}
+
+.append-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.append-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 72px;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--container-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.append-textarea:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+.append-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-color-light);
+}
+
+.append-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background-color: var(--primary-color);
+  color: var(--button-text-color, white);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.append-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ---------- 分区 ---------- */

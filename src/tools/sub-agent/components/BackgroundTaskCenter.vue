@@ -70,8 +70,11 @@ const selectedTask = computed<BackgroundTaskSnapshot | null>(
   () => tasks.value.find((task) => task.taskId === selectedTaskId.value) ?? null
 );
 
-const runningCount = computed(
-  () => tasks.value.filter((task) => task.state === "running").length
+const activeCount = computed(
+  () =>
+    tasks.value.filter((task) =>
+      ["created", "queued", "running"].includes(task.state)
+    ).length
 );
 
 /**
@@ -154,7 +157,7 @@ async function handleOpenChild(task: BackgroundTaskSnapshot): Promise<void> {
       <div class="center-header">
         <h3 class="center-title">后台任务中心</h3>
         <span class="center-count">
-          运行中 {{ runningCount }} / 共 {{ tasks.length }}
+          进行中 {{ activeCount }} / 共 {{ tasks.length }}
         </span>
       </div>
     </template>

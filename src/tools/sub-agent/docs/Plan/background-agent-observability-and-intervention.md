@@ -322,11 +322,11 @@ ask({
 
 | 介入类型                       | 触发意图                                             | 交互入口             | 界面表现与反馈规范                                                                                                                                                              |
 | :----------------------------- | :--------------------------------------------------- | :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **顺口叮嘱 (Steer / Whisper)** | 补充要求或轻微纠偏（如“记得用 TypeScript 严格模式”） | 卡片底部“插话”便签   | 卡片内原地展开文本框；输入框带提示“将在当前动作结束后追加”；**强制使用 Ctrl+Enter 发送，严格禁止单回车发送**。                                                                  |
+| **顺口叮嘱 (Steer / Whisper)** | 补充要求或轻微纠偏（如“记得用 TypeScript 严格模式”） | 卡片底部“插话”便签   | 任务中心详情内原地展开文本框；当前 append-only 接口会在同一会话的生成结束后写入消息，提示用户“供后续对话查看”；**使用 Ctrl+Enter 追加，单回车换行**。                           |
 | **紧急叫停 (Halt & Takeover)** | 发现死循环、高危工具或严重跑偏                       | 卡片右上角制动按钮   | 立即终止当前 step 执行，状态置为 `interrupted`。卡片转为“已接管”形态，允许用户重新发起轮次或就地编辑。                                                                          |
 | **敏感审批 (Approval)**        | 子 Agent 触发了高危工具操作                          | 卡片内原地浮起审批条 | 复用现有 [`ToolCallingApprovalBar.vue`](src/tools/llm-chat/components/message-input/ToolCallingApprovalBar.vue:130) 设计规范，展开参数 Diff，支持“单次放行”、“拒绝并告知原因”。 |
 
-Phase 3 提供顺口叮嘱；Phase 4 在具备可中断执行、`requestId` 路由与权限校验后提供紧急叫停和敏感审批。这里的“已接管”是卡片展示语义，持久化状态为 `interrupted`，并追加一条 `user_intervention` 活动记录；接管权属由任务控制字段补充。
+Phase 3 先提供 append-only 的补充指导输入；当前轮次不会读取追加消息，后续执行器队列契约落地后再提供自动投递。Phase 4 在具备可中断执行、`requestId` 路由与权限校验后提供紧急叫停和敏感审批。这里的“已接管”是卡片展示语义，持久化状态为 `interrupted`，并追加一条 `user_intervention` 活动记录；接管权属由任务控制字段补充。
 
 ### 6.5. 视觉规范与人机工学约束
 
@@ -428,7 +428,7 @@ export interface MessageOrigin {
 2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
 3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
 4. 把 append-only 的 `send_task_message` 与真正的 `enqueue_task_message` 分开，只有后者承诺下一轮或当前步骤后的投递；（待执行器队列契约）
-5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息 metadata、头像/名称渲染与阅读型导出已接入；派遣卡片和伴生视窗待后续）
+5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息 metadata、头像/名称渲染、阅读型导出和任务中心 append-only 输入已接入；派遣卡片和伴生视窗待后续）
 
 ### Phase 4：可恢复运行时
 
@@ -556,6 +556,7 @@ export interface MessageOrigin {
 - 同一 `childSessionId` 的前台/后台生成与 `send_task_message` 追加操作共享进程内串行 lane。
 - `send_task_message` 收敛为 append-only；消息来源依据调用上下文派生，并写入追加节点、活动记录与本轮消息 metadata。`user_intervention` 追加消息保存用户档案名称与头像快照。
 - `MessageHeader` 与气泡外置头像按 `origin` 显示调度 Agent 与用户身份；阅读型 Markdown 导出使用来源名称，JSON 备份沿用原始 metadata。
+- 任务中心提供仅在活动任务可用的补充指导输入；Ctrl+Enter 写入子会话并保留用户档案来源，明确提示需要后续对话读取。默认详情优先展示状态、活动与可操作入口。
 
 #### 尚未交付
 

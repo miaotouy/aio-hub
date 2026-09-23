@@ -95,7 +95,9 @@ async function publishReleaseNoteNotifications(
   if (manifests.length === 0) return;
 
   const notificationStore = useNotificationStore();
-  for (const manifest of manifests) {
+  // 通知中心按写入时间倒序展示；同一批版本说明的时间戳可能相同，
+  // 因而要先写入较新的版本以维持用户看到的版本倒序。
+  for (const manifest of [...manifests].reverse()) {
     const highlights = manifest.highlights?.length
       ? `\n\n重点：\n${manifest.highlights.map((item) => `- ${item}`).join("\n")}`
       : "";

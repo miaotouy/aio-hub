@@ -424,11 +424,16 @@ watch(
 }
 
 .group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 8px;
+  padding: 8px;
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-secondary);
-  margin-bottom: 8px;
-  padding: 0 8px;
+  background: var(--el-bg-color);
+  box-shadow: 0 1px 0 var(--el-border-color-lighter);
 }
 
 .model-item {

@@ -495,11 +495,11 @@ const handleBatchManagerSwitch = (sessionId: string) => {
 
     <div class="sessions-list" ref="parentRef">
       <div v-if="sessions.length === 0" class="empty-state">
-        <p>暂无会话</p>
+        <p>暂无历史会话</p>
         <p class="hint">
           {{
             isNewSessionDraftActive
-              ? "发送首条消息后会显示在这里"
+              ? "历史会话将显示在此"
               : "点击下方按钮创建新会话"
           }}
         </p>

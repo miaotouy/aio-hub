@@ -75,6 +75,7 @@ import MessageMenubar from "./MessageMenubar.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "../message-input/ChatTextareaEditor.vue";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
+import BackgroundTaskDispatchLink from "@/tools/sub-agent/components/BackgroundTaskDispatchLink.vue";
 import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
 import type { AsyncTaskMetadata } from "@/tools/tool-calling/core/async-task/types";
 
@@ -782,6 +783,11 @@ defineExpose({
           <span class="time">{{ formattedTime }}</span>
         </div>
       </div>
+
+      <BackgroundTaskDispatchLink
+        :message="message"
+        :screenshot-mode="props.screenshotMode"
+      />
 
       <!-- 编辑模式 -->
       <div v-if="isEditing" class="edit-mode">

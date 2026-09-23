@@ -16,6 +16,7 @@ import type {
   ToolRegistry,
   ServiceMetadata,
   ToolContext,
+  ToolMethodResult,
 } from "@/services/types";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -531,10 +532,26 @@ export default class SubAgentRegistry implements ToolRegistry {
     }
   }
 
+  /** 仅工具调用链使用结构化信封；呈现给 Agent 的 result 仍是原 JSON 字符串。 */
+  private wrapAskResult(
+    result: string,
+    context: ToolContext | undefined,
+    taskId: string | undefined,
+    childSessionId: string
+  ): string | ToolMethodResult<string> {
+    if (!context?.requestId || !taskId) return result;
+    return {
+      result,
+      executionMetadata: {
+        backgroundTask: { taskId, childSessionId },
+      },
+    };
+  }
+
   public async ask(
     args: AskSubAgentArgs,
     context?: ToolContext
-  ): Promise<string> {
+  ): Promise<string | ToolMethodResult<string>> {
     const message = args.message?.trim();
     if (!args.agentId?.trim()) throw new Error("必须提供目标智能体 ID");
     if (!message) throw new Error("必须提供要交给子智能体的消息");
@@ -571,13 +588,23 @@ export default class SubAgentRegistry implements ToolRegistry {
 
     // Phase 2：background 模式创建任务与子会话后立即返回 handle，父 Agent 继续执行
     if (args.mode === "background") {
-      return this.askInBackground({
+      const result = await this.askInBackground({
         args,
         context,
         targetAgent,
         existingConversation,
         message,
       });
+      const handle = JSON.parse(result) as {
+        taskId?: string;
+        childSessionId: string;
+      };
+      return this.wrapAskResult(
+        result,
+        context,
+        handle.taskId,
+        handle.childSessionId
+      );
     }
 
     const previousSessionId = llmChatService.getCurrentSession()?.id;
@@ -729,16 +756,21 @@ export default class SubAgentRegistry implements ToolRegistry {
         }
       );
 
-      return JSON.stringify({
-        conversationId: conversation!.conversationId,
-        agentId: targetAgent.id,
-        agentName: targetName,
-        response: leaf.content,
-        taskId: taskId ?? null,
-        state: taskId
-          ? (backgroundTaskRegistry.getSnapshot(taskId)?.state ?? null)
-          : null,
-      });
+      return this.wrapAskResult(
+        JSON.stringify({
+          conversationId: conversation!.conversationId,
+          agentId: targetAgent.id,
+          agentName: targetName,
+          response: leaf.content,
+          taskId: taskId ?? null,
+          state: taskId
+            ? (backgroundTaskRegistry.getSnapshot(taskId)?.state ?? null)
+            : null,
+        }),
+        context,
+        taskId,
+        sessionId
+      );
     } catch (error) {
       if (taskId && this.isTaskActive(taskId)) {
         const errorMessage =

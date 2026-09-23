@@ -243,7 +243,7 @@ ask({
 
 ## 6. 用户前端交互设计（复用原生消息与伴生协作体系，分阶段落地）
 
-> **当前实现边界（Phase 1/2）**：已落地的是任务中心、打开子会话、标题栏活动胶囊、查询状态/活动和取消任务。主会话派遣卡片、伴生 `MessageList` 视窗、顺口叮嘱、紧急叫停与审批条仍是后续设计，不应作为当前任务中心已有能力进行联动验收。
+> **当前实现边界（Phase 3）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导，以及工具调用消息中的任务关系卡片已落地。伴生 `MessageList` 视窗、当前轮自动投递、紧急叫停与审批条仍待后续执行器与会话视图契约。
 
 系统中已经非常成熟强大的消息渲染体系（如 `MessageList`、`MessageHeader` 自带的头像、名称、模型副标题、气泡布局、富文本渲染与外置头像能力）
 
@@ -428,7 +428,7 @@ export interface MessageOrigin {
 2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
 3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
 4. 把 append-only 的 `send_task_message` 与真正的 `enqueue_task_message` 分开，只有后者承诺下一轮或当前步骤后的投递；（待执行器队列契约）
-5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息 metadata、头像/名称渲染、阅读型导出和任务中心 append-only 输入已接入；派遣卡片和伴生视窗待后续）
+5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息来源、阅读型导出、任务中心输入与工具调用消息中的任务关系卡片已接入；伴生视窗待会话作用域改造）
 
 ### Phase 4：可恢复运行时
 
@@ -557,16 +557,23 @@ export interface MessageOrigin {
 - `send_task_message` 收敛为 append-only；消息来源依据调用上下文派生，并写入追加节点、活动记录与本轮消息 metadata。`user_intervention` 追加消息保存用户档案名称与头像快照。
 - `MessageHeader` 与气泡外置头像按 `origin` 显示调度 Agent 与用户身份；阅读型 Markdown 导出使用来源名称，JSON 备份沿用原始 metadata。
 - 任务中心提供仅在活动任务可用的补充指导输入；Ctrl+Enter 写入子会话并保留用户档案来源，明确提示需要后续对话读取。默认详情优先展示状态、活动与可操作入口。
+- `ask` 的工具调用返回标准 `ToolMethodResult` 信封，任务与子会话关系写入工具节点的 `resultMetadata`；主会话工具卡片从该结构化关系读取快照并显示双方身份、状态、摘要和打开子会话入口。直接调用 `ask` 仍返回 JSON 字符串。
 
 #### 尚未交付
 
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递与队列恢复；当前实现不会由 `send_task_message` 自动触发生成。
-- 主会话派遣卡片与伴生视窗；当前仍以现有消息结构与任务中心为主。
+- 派遣卡片的活动时间轴、卡片内控制与伴生视窗；当前工具消息已提供任务关系和子会话入口。
 
 #### 验证
 
 - `bun run check:frontend`
 - `bun run test:run -- src/services/__tests__/backgroundTaskRegistry.test.ts`
+
+#### 伴生视窗阻塞记录
+
+`MessageList.vue` 虽接收 `sessionIndex`、`sessionDetail` 和 `messages`，但其分支定位、同胞查询、删除、编辑、继续生成等事件仍直接调用 `useLlmChatStore()` 的当前会话方法。主会话保持选中时把子会话 props 交给第二个 `MessageList`，交互会作用到主会话；直接挂载完整伴生视窗存在改错会话数据的风险。
+
+下一步需先决定并实现会话作用域契约：把 `MessageList` 的这些操作显式绑定到传入的 `sessionDetail.id`，或先提供明确只读的独立子会话视图。当前阶段保留已验证的“打开子会话”跳转，不将子会话强行嵌入主会话。执行器队列、恢复与审批同样仍需独立契约设计。
 
 ### 12.3. 施工复盘后的设计结论
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolContext } from "@/services/types";
+import type { ToolContext, ToolMethodResult } from "@/services/types";
 import type {
   ChatMessageNode,
   ChatSessionDetail,
@@ -129,6 +129,10 @@ const callerContext = {
   reportStatus: () => undefined,
 } satisfies ToolContext;
 
+function parseAskResult(result: string | ToolMethodResult<string>) {
+  return JSON.parse(typeof result === "string" ? result : result.result);
+}
+
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void;
   const promise = new Promise<void>((accept) => {
@@ -204,7 +208,7 @@ describe("SubAgentRegistry 后台续聊", () => {
       }
     );
 
-    const first = JSON.parse(
+    const first = parseAskResult(
       await registry.ask(
         { agentId: "agent-child", message: "first", mode: "background" },
         callerContext
@@ -214,7 +218,7 @@ describe("SubAgentRegistry 后台续聊", () => {
     await new Promise((resolve) => setTimeout(resolve, 600));
 
     const restored = new SubAgentRegistry();
-    const continued = JSON.parse(
+    const continued = parseAskResult(
       await restored.ask(
         {
           agentId: "agent-child",
@@ -253,7 +257,7 @@ describe("SubAgentRegistry 后台续聊", () => {
       }
     );
 
-    const task = JSON.parse(
+    const task = parseAskResult(
       await registry.ask(
         { agentId: "agent-child", message: "first", mode: "background" },
         callerContext
@@ -282,6 +286,28 @@ describe("SubAgentRegistry 后台续聊", () => {
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
   });
 
+  it("工具调用返回可持久化的任务关系，同时保持 Agent 看到的 JSON handle", async () => {
+    const registry = new SubAgentRegistry();
+    const generation = deferred();
+    mocks.sendMessage.mockImplementation(async () => {
+      await generation.promise;
+    });
+    const result = await registry.ask(
+      { agentId: "agent-child", message: "first", mode: "background" },
+      { ...callerContext, requestId: "tool-request-1" }
+    );
+    expect(typeof result).toBe("object");
+    const envelope = result as ToolMethodResult<string>;
+    const handle = JSON.parse(envelope.result);
+    expect(envelope.executionMetadata).toEqual({
+      backgroundTask: {
+        taskId: handle.taskId,
+        childSessionId: handle.childSessionId,
+      },
+    });
+    generation.resolve();
+  });
+
   it("同一子会话串行执行；取消排队任务不会中止当前生成，追加指令保留 Agent 身份", async () => {
     const registry = new SubAgentRegistry();
     const firstGeneration = deferred();
@@ -296,7 +322,7 @@ describe("SubAgentRegistry 后台续聊", () => {
       }
     );
 
-    const first = JSON.parse(
+    const first = parseAskResult(
       await registry.ask(
         { agentId: "agent-child", message: "first", mode: "background" },
         callerContext
@@ -305,7 +331,7 @@ describe("SubAgentRegistry 后台续聊", () => {
     await settle();
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
 
-    const second = JSON.parse(
+    const second = parseAskResult(
       await registry.ask(
         {
           agentId: "agent-child",

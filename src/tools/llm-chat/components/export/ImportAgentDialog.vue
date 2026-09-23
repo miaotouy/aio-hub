@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type {
   AgentImportPreflightResult,
   ResolvedAgentToImport,
@@ -23,6 +23,7 @@ import type {
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getPureModelId, parseModelCombo } from "@/utils/modelIdUtils";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import Avatar from "@/components/common/Avatar.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
   ElAlert,
@@ -59,6 +60,38 @@ const emit = defineEmits<{
 const { enabledProfiles } = useLlmProfiles();
 const showProblemsOnly = ref(false);
 const batchModelValue = ref("");
+const avatarPreviewUrls = ref<Record<string, string>>({});
+
+const getAssetPaths = (agent: { id?: string }) =>
+  Object.keys(props.preflightResult?.assets[agent.id || ""] || {});
+
+const getAvatarAssetPath = (agent: { id?: string; icon?: string }) => {
+  if (!agent.icon) return undefined;
+  const assetPaths = getAssetPaths(agent);
+  if (assetPaths.includes(agent.icon)) return agent.icon;
+  const prefixedPath = `assets/${agent.icon}`;
+  return assetPaths.includes(prefixedPath) ? prefixedPath : undefined;
+};
+
+const revokeAvatarPreviews = () => {
+  Object.values(avatarPreviewUrls.value).forEach((url) =>
+    URL.revokeObjectURL(url)
+  );
+  avatarPreviewUrls.value = {};
+};
+
+const createAvatarPreviews = (result: AgentImportPreflightResult) => {
+  revokeAvatarPreviews();
+  const previews: Record<string, string> = {};
+  result.agents.forEach((agent) => {
+    const agentId = agent.id || "";
+    const avatarPath = getAvatarAssetPath(agent);
+    const data = avatarPath ? result.assets[agentId]?.[avatarPath] : undefined;
+    if (agentId && data)
+      previews[agentId] = URL.createObjectURL(new Blob([data]));
+  });
+  avatarPreviewUrls.value = previews;
+};
 
 // 为每个导入的 Agent 创建解决方案的响应式数据
 const resolvedAgents = ref<
@@ -181,10 +214,13 @@ watch(
   ([newResult]) => {
     if (newResult) {
       initializeResolvedAgents(newResult);
+      createAvatarPreviews(newResult);
     }
   },
   { immediate: true }
 );
+
+onBeforeUnmount(revokeAvatarPreviews);
 
 const handleConfirm = () => {
   if (!props.preflightResult) return;
@@ -303,8 +339,17 @@ const handleCancel = () => {
             class="agent-resolve-item"
           >
             <ElDescriptions :column="3" border>
-              <ElDescriptionsItem label="名称">
-                {{ agent.displayName || agent.name }}
+              <ElDescriptionsItem label="智能体">
+                <div class="agent-identity">
+                  <Avatar
+                    :src="avatarPreviewUrls[agent.id || ''] || agent.icon || ''"
+                    :alt="agent.displayName || agent.name"
+                    :size="32"
+                    shape="square"
+                    :radius="6"
+                  />
+                  <span>{{ agent.displayName || agent.name }}</span>
+                </div>
               </ElDescriptionsItem>
               <ElDescriptionsItem label="状态">
                 <ElTag
@@ -345,15 +390,21 @@ const handleCancel = () => {
                 <span v-else>AIO</span>
               </ElDescriptionsItem>
               <ElDescriptionsItem
-                label="包含资源"
-                v-if="preflightResult.assets[agent.id!]"
+                v-if="getAssetPaths(agent).length"
+                label="资源清单"
+                :span="3"
               >
-                <ElTag type="info" size="small">
-                  {{
-                    Object.keys(preflightResult.assets[agent.id!] || {}).length
-                  }}
-                  个文件
-                </ElTag>
+                <div class="asset-list">
+                  <ElTag
+                    v-for="assetPath in getAssetPaths(agent)"
+                    :key="assetPath"
+                    type="info"
+                    size="small"
+                    effect="plain"
+                  >
+                    {{ assetPath }}
+                  </ElTag>
+                </div>
               </ElDescriptionsItem>
               <ElDescriptionsItem
                 label="模型推荐"
@@ -572,6 +623,30 @@ const handleCancel = () => {
   background-color: var(--el-bg-color-page);
 }
 
+.agent-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.asset-list :deep(.el-tag) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .source-id {
   margin-left: 8px;
   color: var(--el-text-color-secondary);

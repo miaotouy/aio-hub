@@ -1262,46 +1262,48 @@ watch(
 
     <!-- 元数据 -->
     <div v-if="showMeta" class="message-meta">
-      <!-- API 返回的完整 Usage 信息（助手消息） -->
-      <div
-        v-if="settings.uiPreferences.showTokenCount && usageInfo"
-        class="usage-info"
-        data-meta-type="token"
-      >
-        <span
-          >Token:
-          {{
+      <div class="message-meta-summary">
+        <!-- 字数统计 -->
+        <div
+          v-if="settings.uiPreferences.showCharCount && charCount > 0"
+          class="usage-info"
+          data-meta-type="char"
+        >
+          <span>字数: {{ charCount.toLocaleString("zh-CN") }}</span>
+        </div>
+        <!-- API 返回的完整 Usage 信息（助手消息） -->
+        <div
+          v-if="settings.uiPreferences.showTokenCount && usageInfo"
+          class="usage-info"
+          data-meta-type="token"
+        >
+          <span
+            >Token:
+            {{
+              contentTokensValue !== undefined
+                ? usageInfo.promptTokens + contentTokensValue
+                : usageInfo.totalTokens
+            }}</span
+          >
+          <span class="usage-detail">
+            (输入: {{ usageInfo.promptTokens }}, 输出:
+            {{ contentTokensValue ?? usageInfo.completionTokens }})
+          </span>
+        </div>
+        <!-- 本地计算的单条消息 Token（用户消息） -->
+        <div
+          v-else-if="
+            settings.uiPreferences.showTokenCount &&
             contentTokensValue !== undefined
-              ? usageInfo.promptTokens + contentTokensValue
-              : usageInfo.totalTokens
-          }}</span
+          "
+          class="usage-info"
+          data-meta-type="token"
         >
-        <span class="usage-detail">
-          (输入: {{ usageInfo.promptTokens }}, 输出:
-          {{ contentTokensValue ?? usageInfo.completionTokens }})
-        </span>
-      </div>
-      <!-- 本地计算的单条消息 Token（用户消息） -->
-      <div
-        v-else-if="
-          settings.uiPreferences.showTokenCount &&
-          contentTokensValue !== undefined
-        "
-        class="usage-info"
-        data-meta-type="token"
-      >
-        <span
-          >本条消息:
-          {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
-        >
-      </div>
-      <!-- 字数统计 -->
-      <div
-        v-if="settings.uiPreferences.showCharCount && charCount > 0"
-        class="usage-info"
-        data-meta-type="char"
-      >
-        <span>字数: {{ charCount.toLocaleString("zh-CN") }}</span>
+          <span
+            >本条消息:
+            {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
+          >
+        </div>
       </div>
       <div v-if="errorMessage" class="error-info">
         <el-button
@@ -1328,7 +1330,6 @@ watch(
         <span class="diagnostic-text"> {{ emptyResponseDiagnostic }}</span>
       </div>
     </div>
-
     <!-- 文档预览对话框 -->
     <BaseDialog
       v-model="documentPreviewVisible"
@@ -1479,9 +1480,15 @@ watch(
   font-size: 12px;
 }
 
+.message-meta-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
 .usage-info {
   color: var(--text-color-light);
-  margin: 4px 0;
 }
 
 .usage-detail {

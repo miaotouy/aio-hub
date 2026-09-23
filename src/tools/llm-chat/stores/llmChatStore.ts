@@ -641,6 +641,43 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     sessionRuntime.abortNodeGeneration(nodeId);
   }
 
+  /**
+   * 增量更新指定消息节点的 metadata（后台任务观察埋点用）。
+   *
+   * - 只做浅合并，保留既有 metadata 字段，不改变消息持久化格式；
+   * - 用于 Phase 1 后台任务把 taskId / childSessionId / parentSessionId 等
+   *   关系字段增量写入子会话消息，旧会话缺少这些字段仍可正常读取；
+   * - 找不到节点时返回 false，不抛错。
+   */
+  function updateMessageMetadata(
+    sessionId: string,
+    nodeId: string,
+    patch: Record<string, unknown>
+  ): boolean {
+    const detail = sessionDetailMap.value.get(sessionId);
+    const node = detail?.nodes?.[nodeId];
+    if (!detail || !node) {
+      logger.warn("更新消息 metadata 失败：目标节点不存在", {
+        sessionId,
+        nodeId,
+      });
+      return false;
+    }
+
+    node.metadata = {
+      ...(node.metadata ?? {}),
+      ...patch,
+    } as ChatMessageNode["metadata"];
+    node.updatedAt = new Date().toISOString();
+
+    const index = sessionIndexMap.value.get(sessionId);
+    if (index) {
+      const sessionManager = useSessionManager();
+      sessionManager.persistSession(index, detail, currentSessionId.value);
+    }
+    return true;
+  }
+
   // ==================== 参数管理 ====================
   function updateParameters(newParameters: Partial<LlmParameters>): void {
     Object.assign(parameters.value, newParameters);
@@ -764,6 +801,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     updateParameters,
     updateMessageTranslation: (graphActions as any).updateMessageTranslation,
     updateNodeData: (graphActions as any).updateNodeData,
+    updateMessageMetadata,
 
     // 上下文统计
     contextStats,

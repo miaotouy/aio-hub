@@ -15,12 +15,20 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { ElTooltip, ElIcon } from "element-plus";
-import { Settings2, Search, AlertCircle, ChevronDown } from "lucide-vue-next";
+import {
+  Settings2,
+  Search,
+  AlertCircle,
+  ChevronDown,
+  Activity,
+} from "lucide-vue-next";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
+import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
+import { backgroundTaskRegistry } from "@/services/background-tasks";
 import {
   useThemeAppearance,
   getBlendedBackgroundColor,
@@ -102,6 +110,31 @@ const chatHeaderStyle = computed(() => {
     backgroundColor: getBlendedBackgroundColor("--card-bg-rgb", opacity),
     backdropFilter: `blur(${blur}px)`,
   };
+});
+
+// ==================== 后台任务入口 ====================
+// 只读任务中心入口：以运行中任务数作为角标，订阅随组件挂载/卸载。
+const showTaskCenter = ref(false);
+const runningTaskCount = ref(0);
+
+function refreshRunningTaskCount(): void {
+  runningTaskCount.value = backgroundTaskRegistry.listTasks({
+    states: ["running"],
+  }).length;
+}
+
+let unsubscribeTaskCount: (() => void) | undefined;
+
+onMounted(() => {
+  refreshRunningTaskCount();
+  unsubscribeTaskCount = backgroundTaskRegistry.subscribe(
+    refreshRunningTaskCount
+  );
+});
+
+onBeforeUnmount(() => {
+  unsubscribeTaskCount?.();
+  unsubscribeTaskCount = undefined;
 });
 
 defineExpose({ headerRef });
@@ -225,6 +258,20 @@ defineExpose({ headerRef });
 
       <ViewModeSwitcher :show-label="showViewModeText" />
 
+      <el-tooltip content="后台任务中心" placement="bottom">
+        <div
+          class="header-action-button task-center-button"
+          @click="showTaskCenter = true"
+        >
+          <el-icon :size="18">
+            <Activity />
+          </el-icon>
+          <span v-if="runningTaskCount > 0" class="task-count-badge">
+            {{ runningTaskCount > 99 ? "99+" : runningTaskCount }}
+          </span>
+        </div>
+      </el-tooltip>
+
       <el-tooltip content="搜索聊天记录 (Ctrl+F)" placement="bottom">
         <div
           class="header-action-button"
@@ -244,6 +291,9 @@ defineExpose({ headerRef });
         </div>
       </el-tooltip>
     </div>
+
+    <!-- 后台任务中心（只读） -->
+    <BackgroundTaskCenter v-model="showTaskCenter" />
   </div>
 </template>
 
@@ -375,6 +425,31 @@ defineExpose({ headerRef });
 .header-action-button:active {
   background-color: var(--el-fill-color);
   transform: translateY(0);
+}
+
+/* 后台任务入口：运行中任务数角标 */
+.task-center-button {
+  position: relative;
+}
+
+.task-count-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background-color: var(--danger-color);
+  pointer-events: none;
 }
 
 .dropdown-icon {

@@ -17,12 +17,31 @@ import type {
   ServiceMetadata,
   ToolContext,
 } from "@/services/types";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { llmChatService } from "@/tools/llm-chat/services/llmChatService";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
+import type {
+  ChatMessageNode,
+  ChatSessionDetail,
+} from "@/tools/llm-chat/types";
+import {
+  backgroundTaskRegistry,
+  type BackgroundTaskOperation,
+  type MessageOrigin,
+} from "@/services/background-tasks";
 
 const logger = createModuleLogger("sub-agent/registry");
+const errorHandler = createModuleErrorHandler("sub-agent/registry");
+
+/** 后台任务终态集合：终态任务不再被 ask 的成功/失败收尾覆盖。 */
+const TERMINAL_TASK_STATES: ReadonlySet<string> = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "interrupted",
+]);
 
 interface SubAgentConversation {
   conversationId: string;
@@ -119,6 +138,108 @@ export default class SubAgentRegistry implements ToolRegistry {
     return JSON.stringify({ agents }, null, 2);
   }
 
+  /**
+   * 判断后台任务是否仍可流转（非终态）。
+   */
+  private isTaskActive(taskId: string): boolean {
+    const state = backgroundTaskRegistry.getSnapshot(taskId)?.state;
+    return state !== undefined && !TERMINAL_TASK_STATES.has(state);
+  }
+
+  /**
+   * 订阅后台任务取消事件，并在任务被取消时中止子会话生成。
+   *
+   * llmChatService 本身没有 stop/abort 方法，但 useLlmChatStore().abortSending
+   * 可中止指定会话的生成；这里把 registry.cancelTask 与它打通。
+   *
+   * @returns 取消订阅函数，由 ask 的 finally 调用
+   */
+  private bindTaskCancellation(
+    taskId: string,
+    childSessionId: string,
+    store: ReturnType<typeof useLlmChatStore>,
+    agentName: string
+  ): () => void {
+    return backgroundTaskRegistry.subscribe((event) => {
+      if (event.taskId !== taskId || event.type !== "state_changed") {
+        return;
+      }
+      const snapshot = backgroundTaskRegistry.getSnapshot(taskId);
+      if (snapshot?.state !== "cancelled") {
+        return;
+      }
+      try {
+        store.abortSending(childSessionId);
+        logger.info("后台任务已取消，已中止子会话生成", {
+          taskId,
+          childSessionId,
+          agentName,
+        });
+      } catch (error) {
+        logger.warn("中止子会话生成失败", { taskId, childSessionId, error });
+      }
+    });
+  }
+
+  /**
+   * 生成回复摘要：折叠空白并按展示长度截断，避免把完整回复写入活动记录。
+   */
+  private buildReplySummary(content: string): string {
+    const normalized = (content ?? "").replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return "（无文本回复）";
+    }
+    return normalized.length > 80
+      ? `${normalized.slice(0, 80)}…`
+      : normalized;
+  }
+
+  /**
+   * 收集本轮需要写入任务关系的节点：从当前叶子向上，直到最近的 user 消息。
+   */
+  private collectRoundNodeIds(
+    detail: ChatSessionDetail,
+    leafId: string
+  ): string[] {
+    const collected: string[] = [];
+    const visited = new Set<string>();
+    let currentId: string | null = leafId;
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const node: ChatMessageNode | undefined = detail.nodes[currentId];
+      if (!node) {
+        break;
+      }
+      if (node.role === "assistant" || node.role === "user") {
+        collected.push(node.id);
+      }
+      if (node.role === "user") {
+        break;
+      }
+      currentId = node.parentId;
+    }
+    return collected;
+  }
+
+  /**
+   * 增量写入任务关系 metadata。使用 store 的 updateMessageMetadata 做浅合并，
+   * 不改变消息持久化格式，旧会话缺少这些字段仍可正常读取。
+   */
+  private writeTaskMetadata(
+    store: ReturnType<typeof useLlmChatStore>,
+    childSessionId: string,
+    leafId: string,
+    metadata: Record<string, unknown>
+  ): void {
+    const detail = store.sessionDetailMap.get(childSessionId);
+    if (!detail) {
+      return;
+    }
+    for (const nodeId of this.collectRoundNodeIds(detail, leafId)) {
+      store.updateMessageMetadata(childSessionId, nodeId, metadata);
+    }
+  }
+
   public async ask(
     args: AskSubAgentArgs,
     context?: ToolContext
@@ -155,6 +276,11 @@ export default class SubAgentRegistry implements ToolRegistry {
     let conversation = existingConversation;
     this.activeTargetAgentIds.add(targetAgent.id);
 
+    // Phase 1 前台 ask 埋点状态：taskId 与取消订阅句柄在 finally 清理
+    const store = useLlmChatStore();
+    let taskId: string | undefined;
+    let unsubscribeTask: (() => void) | undefined;
+
     try {
       let sessionId = conversation?.sessionId;
       if (
@@ -177,6 +303,62 @@ export default class SubAgentRegistry implements ToolRegistry {
         this.conversations.set(conversation.conversationId, conversation);
       }
 
+      // ==================== 后台任务观察埋点（Phase 1） ====================
+      // Phase 1 只创建可观察任务，ask 仍保持前台阻塞行为；
+      // 任务被 registry.cancelTask 取消时，通过事件订阅中止子会话生成。
+      const targetName = targetAgent.displayName || targetAgent.name;
+      const targetOrigin: MessageOrigin = {
+        kind: "agent",
+        channel: "sub_agent",
+        actorId: targetAgent.id,
+        actorName: targetAgent.name,
+        actorDisplayName: targetName,
+      };
+      // ToolContext.agent 当前只暴露 id，调用方 Agent 的来源按 id 记录
+      const callerOrigin: MessageOrigin = context?.agent?.id
+        ? {
+            kind: "agent",
+            channel: "sub_agent",
+            actorId: context.agent.id,
+            actorName: context.agent.id,
+          }
+        : { kind: "user", channel: "main_chat" };
+
+      const task = backgroundTaskRegistry.createTask({
+        parentSessionId: previousSessionId ?? "",
+        childSessionId: sessionId,
+        conversationId: conversation!.conversationId,
+        callerAgent: callerOrigin,
+        targetAgent: targetOrigin,
+        phase: "llm_generation",
+      });
+      taskId = task?.taskId;
+
+      if (taskId) {
+        const startedAt = new Date().toISOString();
+        const operationSummary = `正在等待 ${targetName} 生成回复`;
+        const operation: BackgroundTaskOperation = {
+          kind: "llm_generation",
+          name: targetName,
+          startedAt,
+          summary: operationSummary,
+        };
+        backgroundTaskRegistry.appendActivity(taskId, {
+          kind: "llm_started",
+          actor: targetOrigin,
+          summary: operationSummary,
+          operation,
+          detailRef: sessionId,
+        });
+        backgroundTaskRegistry.setCurrentOperation(taskId, operation);
+        unsubscribeTask = this.bindTaskCancellation(
+          taskId,
+          sessionId,
+          store,
+          targetName
+        );
+      }
+
       await llmChatService.sendMessage(message, {
         agentId: targetAgent.id,
         sessionId,
@@ -189,13 +371,67 @@ export default class SubAgentRegistry implements ToolRegistry {
       }
 
       conversation!.lastUsedAt = new Date().toISOString();
+
+      if (taskId && detail && this.isTaskActive(taskId)) {
+        const resultSummary = this.buildReplySummary(leaf.content);
+        backgroundTaskRegistry.appendActivity(taskId, {
+          kind: "llm_progress",
+          actor: targetOrigin,
+          summary: `回复完成：${resultSummary}`,
+          detailRef: sessionId,
+        });
+        // 仅在任务未被取消时做完成收尾，取消场景保持 cancelled
+        backgroundTaskRegistry.updateTaskState(taskId, "completed", {
+          result: {
+            summary: resultSummary,
+            completedAt: new Date().toISOString(),
+          },
+        });
+        // 把任务关系增量写入子会话本轮消息的 metadata（旧会话缺省字段仍兼容）
+        this.writeTaskMetadata(store, sessionId, detail.activeLeafId, {
+          taskId,
+          childSessionId: sessionId,
+          parentSessionId: previousSessionId ?? "",
+        });
+      }
+
       return JSON.stringify({
         conversationId: conversation!.conversationId,
         agentId: targetAgent.id,
-        agentName: targetAgent.displayName || targetAgent.name,
+        agentName: targetName,
         response: leaf.content,
+        taskId: taskId ?? null,
+        state: taskId
+          ? backgroundTaskRegistry.getSnapshot(taskId)?.state ?? null
+          : null,
       });
+    } catch (error) {
+      if (taskId && this.isTaskActive(taskId)) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        backgroundTaskRegistry.appendActivity(taskId, {
+          kind: "error",
+          actor: { kind: "system", channel: "system_event" },
+          summary: `子智能体调用失败：${errorMessage}`,
+        });
+        backgroundTaskRegistry.updateTaskState(taskId, "failed", {
+          error: {
+            message: errorMessage,
+            failedAt: new Date().toISOString(),
+          },
+        });
+      }
+      errorHandler.handle(error, {
+        userMessage: "子智能体调用失败",
+        showToUser: false,
+        context: {
+          agentId: targetAgent.id,
+          sessionId: conversation?.sessionId,
+        },
+      });
+      throw error;
     } finally {
+      unsubscribeTask?.();
       this.activeTargetAgentIds.delete(targetAgent.id);
       if (
         previousSessionId &&

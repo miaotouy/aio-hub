@@ -441,7 +441,7 @@ export interface MessageOrigin {
 
 ## 9. 分阶段落地
 
-### Phase 1：可观察任务壳
+### Phase 1：可观察任务壳（已完成，2026-09-23，见 §12）
 
 - 新增 `BackgroundTaskSnapshot`、`BackgroundTaskActivity`、`MessageOrigin` 类型；
 - `sub-agent.ask` 创建 task，并把 `childSessionId`、`parentSessionId` 写入 metadata；
@@ -475,7 +475,7 @@ export interface MessageOrigin {
 
 ## 10. 下一步建议
 
-当前优先推进 Phase 1，先建立后台任务模型、观察能力与任务详情入口：
+Phase 1 已完成（落地记录见 §12）。下一步推进 Phase 2：
 
 1. 先抽出 `background-task` 类型和内存 registry；
 2. 在现有 `sub-agent.ask` 的前后埋点，记录 task 状态和最近操作；
@@ -492,3 +492,51 @@ export interface MessageOrigin {
 - 用户从主会话工具卡片打开任务详情，不会改变主会话当前输入状态；
 - 用户追加指导后，子会话直接以用户本人的头像与昵称呈现该消息，调度方、用户和子 Agent 三方角色一目了然且无多余标签干扰；
 - 任务完成、失败、取消和 runtime 中断在任务中心有明确状态，父会话收到的合成通知能关联回 task。
+
+## 12. 实现进度记录
+
+### Phase 1：可观察任务壳（已完成，2026-09-23）
+
+#### 交付物
+
+| 文件 | 说明 |
+| :--- | :--- |
+| `src/services/background-tasks/types.ts` | `BackgroundTaskState`、`BackgroundActivityKind`、`BackgroundTaskOperation`、`BackgroundTaskActivity`、`BackgroundTaskSnapshot`、`MessageOrigin` 等类型 |
+| `src/services/background-tasks/registry.ts` | 单例 `backgroundTaskRegistry`：`createTask`、`getSnapshot`、`listTasks`、`appendActivity`、`updateTaskState`、`setCurrentOperation`、`cancelTask`、`subscribe`、`loadFromPersistence` |
+| `src/services/background-tasks/index.ts` | 统一出口 |
+| `src/services/__tests__/backgroundTaskRegistry.test.ts` | 15 个用例，覆盖创建/快照/过滤、活动截断与 `seq` 递增、状态流转与终态、取消幂等、持久化恢复 |
+| `src/tools/sub-agent/sub-agent.registry.ts` | `ask` 埋点：创建任务、记录 caller/target origin 与当前操作、成功/失败收尾、取消打通、写入任务关系 metadata |
+| `src/tools/llm-chat/stores/llmChatStore.ts` | 新增 `updateMessageMetadata(sessionId, nodeId, patch)`，仅增量扩展 metadata |
+| `src/tools/sub-agent/components/*` | `BackgroundTaskCenter.vue`、`BackgroundTaskList.vue`、`BackgroundTaskDetail.vue`、`backgroundTaskPresentation.ts` |
+| `src/tools/llm-chat/components/ChatAreaHeader.vue` | 新增「后台任务中心」入口按钮（运行中任务数角标） |
+
+#### 行为
+
+- `ask` 仍是前台阻塞调用，但会创建 `running` 任务，任务在 `childSessionId` 对应子会话上可被观察；
+- 任务快照通过 `createConfigManager` 持久化到 `background-tasks/tasks.json`（上限 50 条，优先淘汰最旧终态任务）；registry 初始化时把非终态任务恢复为 `interrupted` + `staleReason: "runtime_heartbeat_lost"`；
+- `recentActivity` 仅保留最近 8 条；`lastOperationSummary` 由当前操作派生并在超长时截断；
+- 主窗口刷新后任务中心仍可看到历史任务，并支持打开对应 child session。
+
+#### 与设计文档的偏差
+
+1. **取消能力提前实现**：文档将可中断执行排在 Phase 4，本次经 `useLlmChatStore().abortSending(childSessionId)` 与 `backgroundTaskRegistry.cancelTask` 打通（`ask` 订阅任务 `state_changed`，收到 `cancelled` 即中止生成并以 `cancelled` 收尾）；未引入 Tauri 命令层。
+2. **`callerAgent` 显示名缺失**：当前 `ToolContext.agent` 只暴露 `{ id, knowledgeAccess? }`，故 `actorId` 与 `actorName` 均取 `context.agent.id`；无 `context.agent` 时回落为 `{ kind: "user", channel: "main_chat" }`。
+3. **任务中心入口**：文档 §6.3 建议的 TitleBar 全局胶囊属后续阶段，Phase 1 入口暂放 `ChatAreaHeader` 工具栏；未采用 §5.2 的 `background_task.*` Tauri 命令层与跨窗口事件通道（当前为进程内单例 + 监听器订阅）。
+4. **头像解析**：列表循环中改用纯函数 `resolveAgentAvatarPath`，未使用 `useResolvedAgentAvatar` composable。
+5. **类型补充**：因原 §4 代码块存在损坏文本，按语义重构时补回 `"paused"` 状态，并新增 `BackgroundTaskResult`、`BackgroundTaskError`、`BackgroundTaskChangeEvent` 等辅助类型；`createTask` 额外支持可选 `parentTaskId`，为多层委托预留。
+6. **终态保护**：对终态任务调用 `updateTaskState` 返回 `null`，避免回写历史状态。
+
+#### 验证
+
+- `bun run check:frontend`（`vue-tsc --noEmit`）：退出码 0；
+- `backgroundTaskRegistry.test.ts`：15/15 通过；
+- `bun run build:vite`：通过；
+- `oxlint` 与 `prettier --check`：新增/改动文件无告警。
+
+### Phase 2：调度 Agent 可检查（待开始）
+
+- `ask({ mode: "background" })` 立即返回 task handle；
+- 增加 `get_task_status`、`get_task_activity` 等 Agent 可调用方法；
+- 把工具调用、LLM 生成、审批等待与错误归纳成最近操作摘要；
+- 子任务完成后向父会话投递合成结果（`origin.channel = "system_event"`）并保留 task handle；
+- 任务中心开放取消/暂停等任务控制，主会话派遣卡片与标题栏活动胶囊接入同一 task detail 入口。

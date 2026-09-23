@@ -441,6 +441,7 @@ export async function callBackend(cmd: string, args: any) {
 - 新增 `sub-agent` 工具，提供 `list_available_agents` 与 `ask` 方法；
 - `ask` 使用独立聊天会话承载子任务，支持通过 `conversationId` 继续追问，并在调用结束后恢复主会话；
 - 工具本身保持通用，后续可复用到定时作业、后台同步、协议适配和其他脱离 UI 的 JavaScript 任务。
+- 后台任务的可观察性、调度 Agent 的最近操作摘要、用户追加指导和消息来源设计见 [后台 Agent 可观测性与人工介入设计](../../../src/tools/sub-agent/docs/Plan/background-agent-observability-and-intervention.md)。
 
 验证通过后再进入 Electron + Node.js 后台运行时 PoC：
 
@@ -502,6 +503,10 @@ export async function callBackend(cmd: string, args: any) {
 - [x] Agent 配置增加 `subAgentConfig.enabled`，支持按 Agent 授权被调用
 - [x] 增加 `sub-agent` 工具的 Agent 发现与交互方法
 - [ ] 将 `sub-agent` 工具接入 background-js WebView，验证主窗口刷新和后台任务事件订阅
+- [ ] 抽出 BackgroundAgentTask 快照、事件流和运行时 registry
+- [ ] 在前端提供后台任务中心和 child session 详情入口
+- [ ] 为调度 Agent 增加最近操作摘要查询和任务控制方法
+- [ ] 为聊天消息增加 metadata.origin，支持用户干预与 Agent 来源区分
 
 ### 7.3. 方案 A (Electron) 调查任务
 
@@ -556,3 +561,4 @@ export async function callBackend(cmd: string, args: any) {
 | 2026-05-20 | 新增方案 E (Tauri + CEF 双轨发布)，更新方案优先级排序，重组待调查任务列表                           |
 | 2026-09-14 | 新增 Agent 后端 JavaScript 运行时需求：补充渲染窗口生命周期耦合问题，调整方案评估、优先级和执行策略 |
 | 2026-09-22 | 新增方案 F：在现有 Tauri 内试做隐藏 Background JS WebView；以子智能体交互作为第一个真实业务切入点   |
+| 2026-09-22 | 延伸方案 F：规划后台任务观察、调度 Agent 摘要、用户干预和消息来源标记                             |

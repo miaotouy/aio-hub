@@ -682,6 +682,7 @@ defineExpose({
                 class="external-header"
                 :message="msg"
                 :hide-avatar="shouldHideHeaderAvatar"
+                :inline-status="isBubbleMode"
                 :screenshot-mode="screenshotMode"
               />
               <ChatMessage
@@ -695,6 +696,7 @@ defineExpose({
                 :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
                 :llm-think-rules="llmThinkRules"
                 :hide-header="true"
+                :inline-status="isBubbleMode"
                 :rich-text-style-options="
                   msg.role === 'user'
                     ? userRichTextStyleOptions || richTextStyleOptions

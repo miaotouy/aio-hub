@@ -44,11 +44,14 @@ interface Props {
   hideAvatar?: boolean;
   /** 截图模式: 隐藏性能指标 / 时间戳 / token 统计等运行时信息 */
   screenshotMode?: boolean;
+  /** 气泡模式下将消息状态紧跟在名称后显示 */
+  inlineStatus?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideAvatar: false,
   screenshotMode: false,
+  inlineStatus: false,
 });
 
 const agentStore = useAgentStore();
@@ -281,13 +284,45 @@ const formatLatency = (ms: number) => {
         />
       </template>
       <div class="message-info">
-        <div class="name-row">
+        <div
+          class="name-row"
+          :class="{ 'name-row-with-status': props.inlineStatus }"
+        >
           <span
             class="message-name"
             data-testid="chat-message-role"
             :data-message-role="message.role"
             >{{ displayName }}</span
           >
+          <el-tooltip
+            v-if="
+              props.inlineStatus &&
+              !props.screenshotMode &&
+              settings.uiPreferences.showMessageStatus &&
+              messageStatusPresentation
+            "
+            :content="
+              messageStatusPresentation.detail ||
+              messageStatusPresentation.label
+            "
+            placement="top"
+          >
+            <span
+              class="message-status"
+              :class="`status-${messageStatusPresentation.status}`"
+              :aria-label="messageStatusPresentation.label"
+            >
+              <component
+                :is="messageStatusIcon"
+                :size="12"
+                :class="{
+                  'is-loading':
+                    messageStatusPresentation.status === 'generating',
+                }"
+              />
+              <span>{{ messageStatusPresentation.label }}</span>
+            </span>
+          </el-tooltip>
           <span v-if="greetingLabel" class="greeting-tag">{{
             greetingLabel
           }}</span>
@@ -326,6 +361,7 @@ const formatLatency = (ms: number) => {
       <!-- 消息生命周期状态；截图模式默认隐藏运行时状态 -->
       <el-tooltip
         v-if="
+          !props.inlineStatus &&
           !props.screenshotMode &&
           settings.uiPreferences.showMessageStatus &&
           messageStatusPresentation
@@ -350,7 +386,6 @@ const formatLatency = (ms: number) => {
           <span>{{ messageStatusPresentation.label }}</span>
         </span>
       </el-tooltip>
-
       <!-- 工具执行状态 -->
       <div
         v-if="message.role === 'tool' && message.metadata?.toolCall"
@@ -480,6 +515,20 @@ const formatLatency = (ms: number) => {
   line-height: 1.2;
 }
 
+.name-row-with-status {
+  flex-wrap: nowrap;
+}
+
+.name-row-with-status .message-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name-row-with-status .message-status {
+  flex-shrink: 0;
+}
 .name-row {
   display: flex;
   align-items: center;

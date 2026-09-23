@@ -50,6 +50,8 @@ interface Props {
   hideHeaderAvatar?: boolean;
   /** 是否隐藏整个消息头部（气泡模式外置 header 场景使用） */
   hideHeader?: boolean;
+  /** 气泡模式下让状态紧随消息名称 */
+  inlineStatus?: boolean;
   /** 是否处于截图模式：隐藏 menubar,屏蔽 hover 边框变色 */
   screenshotMode?: boolean;
 }
@@ -290,6 +292,7 @@ defineExpose({
         v-if="!hideHeader"
         :message="message"
         :hide-avatar="hideHeaderAvatar"
+        :inline-status="props.inlineStatus"
         :screenshot-mode="props.screenshotMode"
       />
 

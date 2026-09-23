@@ -1219,6 +1219,13 @@ defineExpose({
   text-align: right;
 }
 
+/* 气泡消息的操作栏放在内容下方，保留 hover 展示和左右对齐规则，避免覆盖正文。 */
+.messages-container.mode-bubble :deep(.menubar-wrapper:not(.is-collapsed)) {
+  position: static;
+  bottom: auto;
+  margin-top: 8px;
+  z-index: auto;
+}
 /* —— 操作栏：对齐到对面方向，与底部信息水平错开 —— */
 .messages-container.mode-bubble
   .message-slot[data-align="left"]

@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：已根据 Phase 1/2 施工复盘修订，待 Phase 3 实施
+> 状态：Phase 3 基础契约施工中，已完成 owner / execution lane / 会话索引 / append-only 消息边界
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -85,23 +85,24 @@ AIO Hub 的完整消息树由 `ChatSessionDetail` 保存；后台任务聚焦编
 ### 3.1. ID 与职责约束
 
 - `taskId`：一次后台执行尝试的控制和观察 ID；同一子会话再次运行可以产生新的 `taskId`。
-- `conversationId`：`sub-agent` 兼容层的续聊别名，当前只在 `SubAgentRegistry` 内存中解析；它不是跨重启的恢复凭证，也不是任务主键。
-- `childSessionId`：完整聊天记录的存储 ID，是当前阶段最稳定的会话关联；任务中心打开子会话、恢复历史观察均以它为准。
+- `conversationId`：`sub-agent` 兼容层的续聊别名；现在由 `SubAgentRegistry` 持久化为 `conversationId → agentId + childSessionId` 索引，但它仍不是任务主键，也不能单独恢复一次正在执行的任务。
+- `childSessionId`：完整聊天记录的存储 ID，是会话恢复与任务中心打开子会话的稳定关联；索引命中但会话不可用时，续聊会明确失败并要求创建新对话。
 - `parentSessionId`：发起调用时的主会话 ID。无当前主会话的后台调用允许为空，不能用空字符串伪装成有效会话。
 - `parentTaskId`：子任务由另一个后台任务调度时建立的关系；当前仍限制单层委托。
-- `executionLaneKey`：同一 `childSessionId` 的生成、取消和追加消息必须进入同一执行 lane。当前代码尚未把 lane 抽成独立服务，Phase 3/4 必须先补齐这一契约。
+- `executionLaneKey`：同一 `childSessionId` 的生成与追加消息必须进入同一执行 lane；当前由 `SubAgentRegistry` 提供进程内串行实现，后续 runtime adapter 仍需复用该键。
 
 任务、会话和续聊别名是三个不同层次：任务描述“这一次运行”，会话保存“全部对话”，别名只负责兼容现有工具调用。任何需要跨重启恢复的能力都必须依赖持久化的会话索引，而不能只依赖 `conversationId`。
 
 ### 3.2. 任务状态与观察状态
 
-当前真正可依赖的状态流转只有：
+当前可依赖的状态流转：
 
 ```text
+created → queued → running → completed / failed / cancelled / interrupted
 created → running → completed / failed / cancelled / interrupted
 ```
 
-以下状态先作为协议预留，尚未纳入当前行为契约：`queued`、`waiting_input`、`awaiting_approval`、`paused`。在执行器还没有对应的队列、等待点、审批路由和幂等控制前，UI 与 Agent 不应把它们当成已经可用的控制状态。
+`queued` 只表示同一子会话已有生成占用进程内 execution lane，等待当前轮次释放；排队中的任务可以取消，取消不会中止正在运行的其他任务。`waiting_input`、`awaiting_approval`、`paused` 仍为协议预留，尚无等待点、审批路由和幂等控制。
 
 `stale` 也不是静态字段一出现就成立的能力。只有存在持续 heartbeat/watchdog，并定义阈值、清除条件和与 `interrupted` 的转换规则后，才可以对外暴露“可能停滞”。当前实现没有独立 watchdog；重启恢复时写入 `runtime_heartbeat_lost` 只是明确说明“上次运行已丢失”，不能据此推导运行中的任务已经停滞。
 
@@ -110,8 +111,9 @@ created → running → completed / failed / cancelled / interrupted
 ### 3.3. 所有权与执行 lane
 
 - `owner` 是权限字段，表达谁可以查询或控制任务；`callerAgent` / `targetAgent` 只表达调用关系和展示身份，不能代替权限判断。
-- 一个 `childSessionId` 同时只允许一个生成轮次持有执行权。追加用户指导、Agent 追加指令和继续对话都必须经过同一个 lane，避免多个后台任务并发写入同一消息树。
-- 当前 `send_task_message` 只做消息追加，尚未进入 lane，也不会自动启动生成；在正式队列实现前，不能把它描述成“下一轮投递”或“当前步骤后执行”。
+- 一个 `childSessionId` 同时只允许一个生成轮次持有执行权。追加用户指导、Agent 追加指令和继续对话与生成共享同一个 lane，取消仍通过任务状态和该会话的 abort 句柄关联，避免多个后台任务并发写入同一消息树。
+- 当前 `send_task_message` 明确是 append-only：消息追加与同一 child session 的生成共享 execution lane，但不会自动启动生成；`delivery` 仅为旧调用方保留，不再代表已兑现的时机承诺。
+- 真正的 `enqueue_task_message` 仍待执行器队列契约补齐后实现，不能用 append-only 接口冒充下一轮投递。
 - `runtimeGeneration` 只表示快照产生于哪个运行时代次；它不能单独证明任务可以恢复。恢复必须同时具备执行器句柄、会话状态和明确的重试语义。
 
 ## 4. 后台任务数据模型
@@ -418,15 +420,15 @@ export interface MessageOrigin {
 - 完成/失败后尽力向已加载父会话追加合成结果；
 - 标题栏活动胶囊作为任务中心的轻量入口。
 
-### Phase 3：消息来源与执行 lane（下一阶段）
+### Phase 3：消息来源与执行 lane（施工中）
 
 先补契约，再做更丰富的 UI：
 
-1. 为任务增加明确 `owner` 与 `executionLaneKey`，把同一 `childSessionId` 的生成、追加消息和取消串行化；
-2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；
-3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；
-4. 把 append-only 的 `send_task_message` 与真正的 `enqueue_task_message` 分开，只有后者承诺下一轮或当前步骤后的投递；
-5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入。
+1. 为任务增加明确 `owner` 与 `executionLaneKey`，把同一 `childSessionId` 的生成、追加消息和取消串行化；（已完成基础接入）
+2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
+3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
+4. 把 append-only 的 `send_task_message` 与真正的 `enqueue_task_message` 分开，只有后者承诺下一轮或当前步骤后的投递；（待执行器队列契约）
+5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息 metadata 已接入，渲染与导出待后续）
 
 ### Phase 4：可恢复运行时
 
@@ -445,7 +447,7 @@ export interface MessageOrigin {
 
 不要直接从当前实现跳到“暂停/审批/恢复”或完整派遣卡片。下一步按以下顺序收紧基础契约：
 
-1. 先把 `owner`、可空 `parentSessionId`、`executionLaneKey` 和 `conversationId` 的非持久化语义写入共享类型与 registry；
+1. 先把 `owner`、可空 `parentSessionId`、`executionLaneKey` 和 `conversationId` 的持久化索引边界写入共享类型与 registry；
 2. 给同一 `childSessionId` 增加单轮执行锁/队列，明确取消、追加消息与旧回调的竞态处理；
 3. 将 `send_task_message` 的当前语义固定为 append-only，并另行设计真正的排队接口；
 4. 补齐会话索引和用户档案快照后，再贯通 `origin` 的创建、持久化、渲染和导出；
@@ -545,6 +547,25 @@ export interface MessageOrigin {
 - `backgroundTaskRegistry.test.ts`：15/15 通过；
 - `bun run build:vite`：构建成功（仅既有 chunk 体积提示）。
 
+### 12.3. Phase 3 基础契约（施工中，2026-09-23）
+
+#### 已交付
+
+- `BackgroundTaskSnapshot` 与 `CreateBackgroundTaskInput` 增加 `owner` 和 `executionLaneKey`；旧持久化快照恢复时按 `callerAgent` 与 `childSessionId` 补齐兼容值。
+- `SubAgentRegistry` 持久化 `conversationId → agentId + childSessionId` 索引；指定旧 `conversationId` 但子会话不可用时明确失败，不悄悄创建同名新会话。
+- 同一 `childSessionId` 的前台/后台生成与 `send_task_message` 追加操作共享进程内串行 lane。
+- `send_task_message` 收敛为 append-only；消息来源依据调用上下文派生，并写入追加节点、活动记录与本轮消息 metadata。
+
+#### 尚未交付
+
+- `enqueue_task_message` 的真实下一轮/当前步骤后投递与队列恢复；当前实现不会由 `send_task_message` 自动触发生成。
+- 完整消息来源渲染、导出和主会话派遣卡片；当前仍以现有消息结构与任务中心为主。
+
+#### 验证
+
+- `bun run check:frontend`
+- `bun run test:run -- src/services/__tests__/backgroundTaskRegistry.test.ts`
+
 ### 12.3. 施工复盘后的设计结论
 
-Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为事实来源，任务恢复只恢复观察，`conversationId` 不具备跨重启稳定性，消息追加不等于调度执行，父会话通知不具备可靠投递保证。后续实现按 §9 的 Phase 3/4/5 重新拆分，不再以原 §5.2 的 runtime/IPC 草案作为当前实现验收标准。
+Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为事实来源，任务恢复只恢复观察；`conversationId` 已有持久化索引但不具备执行恢复能力；消息追加不等于调度执行；父会话通知不具备可靠投递保证。后续实现按 §9 的 Phase 3/4/5 重新拆分，不再以原 §5.2 的 runtime/IPC 草案作为当前实现验收标准。

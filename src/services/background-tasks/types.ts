@@ -74,6 +74,14 @@ export interface MessageOrigin {
 }
 
 /**
+ * 后台任务控制归属。
+ *
+ * `owner` 描述谁可以继续观察或控制任务；它与 `callerAgent` 保持同值只是
+ * 当前单层委托的默认关系，单独建模后多层编排和用户接管可以使用不同归属。
+ */
+export type BackgroundTaskOwner = MessageOrigin;
+
+/**
  * 后台任务状态。
  *
  * 状态流转（设计文档 §3.2）：
@@ -101,10 +109,7 @@ export type BackgroundTaskState =
  * updateTaskState 拒绝从终态再流转）。
  */
 export type BackgroundTerminalTaskState =
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "interrupted";
+  "completed" | "failed" | "cancelled" | "interrupted";
 
 /**
  * 后台任务活动类型。
@@ -205,8 +210,7 @@ export interface BackgroundTaskError {
  * - `runtime_heartbeat_lost`：后台运行时心跳丢失。
  */
 export type BackgroundTaskStaleReason =
-  | "no_progress"
-  | "runtime_heartbeat_lost";
+  "no_progress" | "runtime_heartbeat_lost";
 
 /**
  * 需要关注标记。
@@ -231,8 +235,12 @@ export interface BackgroundTaskSnapshot {
   seq: number;
   /** 父任务 ID（子任务由另一个后台任务调度时建立） */
   parentTaskId?: string;
+  /** 当前任务的控制归属主体 */
+  owner: BackgroundTaskOwner;
+  /** 同一 child session 的生成、追加消息与取消共享的执行 lane */
+  executionLaneKey: string;
   /** 调度方（发起调用）的会话 ID */
-  parentSessionId: string;
+  parentSessionId: string | null;
   /** 被调用 Agent 的完整聊天会话 ID（允许被同一续聊句柄多次复用） */
   childSessionId: string;
   /** assistant 工具的用户/Agent 侧续聊句柄（与 taskId 非永久一对一） */
@@ -282,10 +290,7 @@ export interface BackgroundTaskSnapshot {
  * - `activity`：追加了新的活动记录；
  * - `state_changed`：任务状态发生流转。
  */
-export type BackgroundTaskChangeType =
-  | "updated"
-  | "activity"
-  | "state_changed";
+export type BackgroundTaskChangeType = "updated" | "activity" | "state_changed";
 
 /**
  * 任务变更事件（subscribe 监听器接收）。
@@ -311,7 +316,7 @@ export type BackgroundTaskChangeListener = (
  */
 export interface CreateBackgroundTaskInput {
   /** 调度方（发起调用）的会话 ID */
-  parentSessionId: string;
+  parentSessionId: string | null;
   /** 被调用 Agent 的完整聊天会话 ID */
   childSessionId: string;
   /** assistant 工具的续聊句柄 */
@@ -322,6 +327,12 @@ export interface CreateBackgroundTaskInput {
   targetAgent: MessageOrigin;
   /** 父任务 ID（多层委托场景，Phase 1 通常为空） */
   parentTaskId?: string;
+  /** 当前任务的控制归属主体 */
+  owner: BackgroundTaskOwner;
+  /** 同一 child session 的生成、追加消息与取消共享的执行 lane */
+  executionLaneKey: string;
+  /** lane 已被占用时先进入 queued；未提供时保持历史 running 行为 */
+  initialState?: "queued" | "running";
   /** 任务所处阶段（可选，默认 "started"） */
   phase?: string;
 }

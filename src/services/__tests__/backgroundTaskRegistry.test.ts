@@ -43,7 +43,9 @@ function makeOrigin(overrides: Partial<MessageOrigin> = {}): MessageOrigin {
 }
 
 /** 生成创建任务的基础输入 */
-function makeInput(overrides: Partial<CreateBackgroundTaskInput> = {}): CreateBackgroundTaskInput {
+function makeInput(
+  overrides: Partial<CreateBackgroundTaskInput> = {}
+): CreateBackgroundTaskInput {
   return {
     parentSessionId: "session-parent",
     childSessionId: "session-child",
@@ -54,6 +56,8 @@ function makeInput(overrides: Partial<CreateBackgroundTaskInput> = {}): CreateBa
       actorName: "child-agent",
       actorDisplayName: "子智能体",
     }),
+    owner: makeOrigin(),
+    executionLaneKey: "sub-agent:session-child",
     ...overrides,
   };
 }
@@ -91,6 +95,8 @@ describe("BackgroundTaskRegistry", () => {
       expect(task!.phase).toBe("started");
       expect(task!.seq).toBe(1);
       expect(task!.runtimeGeneration).toBe(1);
+      expect(task!.owner).toMatchObject({ actorId: "agent-caller" });
+      expect(task!.executionLaneKey).toBe("sub-agent:session-child");
       expect(task!.createdAt).toBe("2026-09-23T10:00:00.000Z");
       expect(task!.startedAt).toBe("2026-09-23T10:00:00.000Z");
       expect(task!.stale).toBe(false);
@@ -106,6 +112,26 @@ describe("BackgroundTaskRegistry", () => {
       expect(task!.lastActivityAt).toBe("2026-09-23T10:00:00.000Z");
       // task_created 不是进展类活动，不推进 lastProgressAt
       expect(task!.lastProgressAt).toBeUndefined();
+    });
+
+    it("queued 任务取得执行权时进入 running 并补齐 startedAt", () => {
+      const task = registry.createTask(
+        makeInput({ initialState: "queued", phase: "queued_for_execution" })
+      )!;
+
+      expect(task.state).toBe("queued");
+      expect(task.startedAt).toBeUndefined();
+
+      vi.advanceTimersByTime(1000);
+      const running = registry.updateTaskState(task.taskId, "running", {
+        phase: "llm_generation",
+      });
+
+      expect(running).toMatchObject({
+        state: "running",
+        startedAt: "2026-09-23T10:00:01.000Z",
+        phase: "llm_generation",
+      });
     });
 
     it("getSnapshot 与 listTasks 返回拷贝，外部修改不影响内部状态", () => {
@@ -128,15 +154,19 @@ describe("BackgroundTaskRegistry", () => {
 
   describe("列表过滤", () => {
     it("按 states 与 parentTaskId 过滤，并按 updatedAt 倒序排列", () => {
-      const a = registry.createTask(makeInput({
-        conversationId: "conv-a",
-        parentTaskId: "root-1",
-      }))!;
+      const a = registry.createTask(
+        makeInput({
+          conversationId: "conv-a",
+          parentTaskId: "root-1",
+        })
+      )!;
       vi.advanceTimersByTime(1000);
-      const b = registry.createTask(makeInput({
-        conversationId: "conv-b",
-        parentTaskId: "root-2",
-      }))!;
+      const b = registry.createTask(
+        makeInput({
+          conversationId: "conv-b",
+          parentTaskId: "root-2",
+        })
+      )!;
       vi.advanceTimersByTime(1000);
       const c = registry.createTask(makeInput({ conversationId: "conv-c" }))!;
       vi.advanceTimersByTime(1000);
@@ -185,9 +215,7 @@ describe("BackgroundTaskRegistry", () => {
       });
       const afterIntervention = registry.getSnapshot(task.taskId)!;
       expect(afterIntervention.seq).toBe(2);
-      expect(afterIntervention.lastActivityAt).toBe(
-        "2026-09-23T10:00:02.000Z"
-      );
+      expect(afterIntervention.lastActivityAt).toBe("2026-09-23T10:00:02.000Z");
       // user_intervention 不推进 lastProgressAt
       expect(afterIntervention.lastProgressAt).toBeUndefined();
 
@@ -243,9 +271,7 @@ describe("BackgroundTaskRegistry", () => {
         startedAt: new Date().toISOString(),
         summary: "正在读取文件",
       });
-      expect(
-        registry.getSnapshot(task.taskId)!.currentOperation
-      ).toBeDefined();
+      expect(registry.getSnapshot(task.taskId)!.currentOperation).toBeDefined();
 
       const waiting = registry.updateTaskState(
         task.taskId,
@@ -376,7 +402,9 @@ describe("BackgroundTaskRegistry", () => {
       const fileName = uniquePersistenceFileName();
 
       // 第一个实例：创建一个运行中任务与一个已完成任务并落盘
-      const seed = new BackgroundTaskRegistry({ persistenceFileName: fileName });
+      const seed = new BackgroundTaskRegistry({
+        persistenceFileName: fileName,
+      });
       await seed.loadFromPersistence();
       const running = seed.createTask(
         makeInput({ conversationId: "conv-running" })
@@ -429,7 +457,9 @@ describe("BackgroundTaskRegistry", () => {
 
     it("持久化快照超出上限时优先淘汰最旧终态任务", async () => {
       const fileName = uniquePersistenceFileName();
-      const seed = new BackgroundTaskRegistry({ persistenceFileName: fileName });
+      const seed = new BackgroundTaskRegistry({
+        persistenceFileName: fileName,
+      });
       await seed.loadFromPersistence();
 
       // 创建 3 个终态任务（创建时间递增）与 1 个运行中任务
@@ -439,7 +469,10 @@ describe("BackgroundTaskRegistry", () => {
           makeInput({ conversationId: `conv-t${i}` })
         )!;
         seed.updateTaskState(task.taskId, "completed", {
-          result: { summary: `done-${i}`, completedAt: new Date().toISOString() },
+          result: {
+            summary: `done-${i}`,
+            completedAt: new Date().toISOString(),
+          },
         });
         terminals.push(task.taskId);
         vi.advanceTimersByTime(1000);

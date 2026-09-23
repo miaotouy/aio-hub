@@ -109,9 +109,12 @@ function truncateSummary(summary: string): string {
 }
 
 /** 任务快照深拷贝（防止外部改动影响内部状态） */
-function cloneSnapshot(snapshot: BackgroundTaskSnapshot): BackgroundTaskSnapshot {
+function cloneSnapshot(
+  snapshot: BackgroundTaskSnapshot
+): BackgroundTaskSnapshot {
   const cloned: BackgroundTaskSnapshot = {
     ...snapshot,
+    owner: { ...snapshot.owner },
     callerAgent: { ...snapshot.callerAgent },
     targetAgent: { ...snapshot.targetAgent },
     recentActivity: snapshot.recentActivity.map((activity) => ({
@@ -136,9 +139,7 @@ function cloneSnapshot(snapshot: BackgroundTaskSnapshot): BackgroundTaskSnapshot
  * 规整从持久化加载的任务快照，过滤损坏数据并补齐关键字段。
  * 返回 null 表示该条数据无效，应丢弃。
  */
-function normalizeLoadedSnapshot(
-  raw: unknown
-): BackgroundTaskSnapshot | null {
+function normalizeLoadedSnapshot(raw: unknown): BackgroundTaskSnapshot | null {
   if (!raw || typeof raw !== "object") {
     return null;
   }
@@ -153,8 +154,22 @@ function normalizeLoadedSnapshot(
   ) {
     return null;
   }
+  const callerAgent = candidate.callerAgent ?? {
+    kind: "system",
+    channel: "system_event",
+  };
+  const owner = candidate.owner ?? callerAgent;
+  const executionLaneKey =
+    candidate.executionLaneKey ??
+    (typeof candidate.childSessionId === "string"
+      ? `sub-agent:${candidate.childSessionId}`
+      : `task:${candidate.taskId}`);
   return {
     ...(candidate as BackgroundTaskSnapshot),
+    owner: { ...owner },
+    callerAgent: { ...callerAgent },
+    executionLaneKey,
+    parentSessionId: candidate.parentSessionId || null,
     lastOperationSummary:
       typeof candidate.lastOperationSummary === "string"
         ? candidate.lastOperationSummary
@@ -223,7 +238,9 @@ export class BackgroundTaskRegistry {
    *
    * @returns 任务快照；创建失败时返回 null
    */
-  public createTask(input: CreateBackgroundTaskInput): BackgroundTaskSnapshot | null {
+  public createTask(
+    input: CreateBackgroundTaskInput
+  ): BackgroundTaskSnapshot | null {
     return errorHandler.wrapSync(
       () => {
         const now = nowIso();
@@ -237,15 +254,18 @@ export class BackgroundTaskRegistry {
           taskId,
           seq: 0,
           parentTaskId: input.parentTaskId,
+          owner: { ...input.owner },
+          executionLaneKey: input.executionLaneKey,
           parentSessionId: input.parentSessionId,
           childSessionId: input.childSessionId,
           conversationId: input.conversationId,
           callerAgent: { ...input.callerAgent },
           targetAgent: { ...input.targetAgent },
-          state: "running",
+          state: input.initialState ?? "running",
           phase: input.phase ?? "started",
           createdAt: now,
-          startedAt: now,
+          startedAt:
+            (input.initialState ?? "running") === "running" ? now : undefined,
           updatedAt: now,
           lastOperationSummary: "",
           stale: false,
@@ -390,6 +410,9 @@ export class BackgroundTaskRegistry {
         }
         const previousState = snapshot.state;
         snapshot.state = state;
+        if (state === "running" && !snapshot.startedAt) {
+          snapshot.startedAt = nowIso();
+        }
         const { result, error, stale, staleReason, attention, phase } =
           patch ?? {};
         if (result !== undefined) {

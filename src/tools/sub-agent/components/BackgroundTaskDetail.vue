@@ -107,7 +107,7 @@ const metaRows = computed<MetaRow[]>(() => {
     {
       label: "调度会话",
       value: task.parentSessionId || "—",
-      title: task.parentSessionId,
+      title: task.parentSessionId ?? undefined,
     },
     {
       label: "子会话",

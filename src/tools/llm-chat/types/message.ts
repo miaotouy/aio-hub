@@ -17,6 +17,7 @@ import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
 import type { LlmReasoningArtifact } from "@/llm-apis/common";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
+import type { MessageOrigin } from "@/services/background-tasks";
 
 /**
  * 预设消息附件引用
@@ -426,5 +427,13 @@ export interface ChatMessageNode {
     /** 会话变量快照 */
     sessionVariableSnapshot?: SessionVariableSnapshot; /** 组禁用前，消息原本的启用状态（用于恢复） */
     lastEnabledState?: boolean;
+    /**
+     * 消息来源与归属（后台任务、多来源身份）。
+     *
+     * 可选增量字段：旧会话缺少它时按既有 role / agentId 推导展示。
+     * Phase 2 用于标记后台任务合成结果（system_event）与用户介入
+     * （user_intervention）；完整渲染在 Phase 3 落地。
+     */
+    origin?: MessageOrigin;
   };
 }

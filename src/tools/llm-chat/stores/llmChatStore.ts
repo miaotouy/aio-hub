@@ -678,6 +678,106 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return true;
   }
 
+  /**
+   * 创建一个不切换当前选中会话的独立子会话（后端子智能体任务用）。
+   *
+   * 复用 useSessionManager 的建会话逻辑，只写入内存 maps 与持久化，
+   * 不修改 currentSessionId，避免后台任务干扰发起方会话正在进行的生成。
+   * 创建失败时返回 null，不抛错。
+   */
+  async function createDetachedSession(
+    agentId: string,
+    name?: string
+  ): Promise<string | null> {
+    try {
+      const sessionManager = useSessionManager();
+      const { index, detail, sessionId } = await sessionManager.createSession(
+        agentId,
+        name
+      );
+      sessionIndexMap.value.set(sessionId, index);
+      sessionDetailMap.value.set(sessionId, detail);
+      sessionManager.updateMessageCount(
+        sessionId,
+        detail.nodes,
+        sessionIndexMap.value
+      );
+      sessionManager.persistSession(index, detail, currentSessionId.value);
+      sessionHistory.clearHistory(sessionId);
+      logger.info("已创建独立子会话（不切换当前会话）", {
+        sessionId,
+        agentId,
+      });
+      return sessionId;
+    } catch (error) {
+      logger.warn("创建独立子会话失败", {
+        agentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * 向指定会话追加一条消息节点（后台任务合成结果 / 用户介入用）。
+   *
+   * - 挂到当前 activeLeafId 之后，并把它设为新的 activeLeafId；
+   * - 只做内存树与持久化写入，不改变既有消息持久化格式；
+   * - 目标会话详情未加载时返回 null，不抛错。
+   */
+  function appendMessageNode(
+    sessionId: string,
+    message: {
+      role: ChatMessageNode["role"];
+      content: string;
+      metadata?: ChatMessageNode["metadata"];
+    }
+  ): string | null {
+    const detail = sessionDetailMap.value.get(sessionId);
+    if (!detail) {
+      logger.warn("追加消息失败：目标会话详情未加载", { sessionId });
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const nodeId = `node-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 11)}`;
+    const parentId = detail.activeLeafId ?? detail.rootNodeId;
+    const node: ChatMessageNode = {
+      id: nodeId,
+      parentId,
+      childrenIds: [],
+      content: message.content,
+      role: message.role,
+      status: "complete",
+      isEnabled: true,
+      timestamp: now,
+      updatedAt: now,
+      metadata: message.metadata,
+    };
+
+    detail.nodes[nodeId] = node;
+    const parent = detail.nodes[parentId];
+    if (parent && !parent.childrenIds.includes(nodeId)) {
+      parent.childrenIds.push(nodeId);
+    }
+    detail.activeLeafId = nodeId;
+    detail.updatedAt = now;
+
+    const index = sessionIndexMap.value.get(sessionId);
+    if (index) {
+      const sessionManager = useSessionManager();
+      sessionManager.updateMessageCount(
+        sessionId,
+        detail.nodes,
+        sessionIndexMap.value
+      );
+      sessionManager.persistSession(index, detail, currentSessionId.value);
+    }
+    return nodeId;
+  }
+
   // ==================== 参数管理 ====================
   function updateParameters(newParameters: Partial<LlmParameters>): void {
     Object.assign(parameters.value, newParameters);
@@ -802,6 +902,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     updateMessageTranslation: (graphActions as any).updateMessageTranslation,
     updateNodeData: (graphActions as any).updateNodeData,
     updateMessageMetadata,
+    createDetachedSession,
+    appendMessageNode,
 
     // 上下文统计
     contextStats,

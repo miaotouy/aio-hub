@@ -18,23 +18,33 @@
   后台任务详情（只读）
 
   对应设计文档 §6 的伴生透视：展示任务快照完整元信息与最近活动流水，
-  并提供「打开子会话」入口。Phase 1 不提供取消/暂停/插话等控制。
+  并提供「打开子会话」入口。Phase 2 开放「取消任务」（经 registry.cancelTask
+  打通 assistant.ask 的中止逻辑）；暂停/恢复等语义待 Phase 4。
 -->
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { ExternalLink } from "lucide-vue-next";
-import type { BackgroundTaskSnapshot } from "@/services/background-tasks";
+import { ElMessageBox } from "element-plus";
+import { Ban, ExternalLink } from "lucide-vue-next";
+import {
+  backgroundTaskRegistry,
+  type BackgroundTaskSnapshot,
+} from "@/services/background-tasks";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import Avatar from "@/components/common/Avatar.vue";
 import { formatDateTime, formatRelativeTime } from "@/utils/time";
+import { createModuleLogger } from "@/utils/logger";
+import { customMessage } from "@/utils/customMessage";
 import {
   getActivityActorName,
   getOriginDisplayName,
   getStaleReasonLabel,
   getTaskStatePresentation,
+  isActiveTaskState,
 } from "./backgroundTaskPresentation";
+
+const logger = createModuleLogger("background-task-detail");
 
 interface Props {
   /** 当前选中的任务快照；为空时展示占位 */
@@ -126,6 +136,53 @@ const activities = computed(() => {
 });
 
 const canOpenChild = computed(() => !!props.task?.childSessionId);
+
+/** 仅非终态任务可取消；终态任务隐藏取消按钮 */
+const canCancel = computed(
+  () => !!props.task && isActiveTaskState(props.task.state)
+);
+
+/**
+ * 取消后台任务。
+ *
+ * 二次确认后调用 registry.cancelTask；取消成功会触发任务 state_changed，
+ * assistant.ask 的订阅随之中止子会话生成（Phase 1 已打通）。
+ * 任务已进入终态时 registry 幂等返回 false，这里给出中性提示。
+ */
+async function handleCancelTask(): Promise<void> {
+  const task = props.task;
+  if (!task || !canCancel.value) {
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要取消「${targetAgentName.value}」的后台任务吗？取消后子会话的生成会被立即中止。`,
+      "取消后台任务",
+      {
+        type: "warning",
+        confirmButtonText: "取消任务",
+        cancelButtonText: "保留任务",
+        lockScroll: false,
+      }
+    );
+  } catch {
+    // 用户放弃取消
+    return;
+  }
+
+  const cancelled = backgroundTaskRegistry.cancelTask(
+    task.taskId,
+    "用户从任务中心取消"
+  );
+
+  if (cancelled) {
+    logger.info("用户取消了后台任务", { taskId: task.taskId });
+    customMessage.success("已取消后台任务");
+  } else {
+    customMessage.warning("任务已结束，无需取消");
+  }
+}
 </script>
 
 <template>
@@ -167,7 +224,7 @@ const canOpenChild = computed(() => !!props.task?.childSessionId);
         </div>
       </header>
 
-      <!-- 只读阶段唯一操作：打开子会话 -->
+      <!-- 任务操作：打开子会话 / 取消任务（终态隐藏） -->
       <div class="detail-actions">
         <button
           type="button"
@@ -180,6 +237,17 @@ const canOpenChild = computed(() => !!props.task?.childSessionId);
         >
           <ExternalLink :size="14" />
           <span>打开子会话</span>
+        </button>
+
+        <button
+          v-if="canCancel"
+          type="button"
+          class="cancel-task-button"
+          title="取消该后台任务并中止子会话生成"
+          @click="handleCancelTask"
+        >
+          <Ban :size="14" />
+          <span>取消任务</span>
         </button>
       </div>
 
@@ -380,6 +448,9 @@ const canOpenChild = computed(() => !!props.task?.childSessionId);
 
 /* ---------- 操作 ---------- */
 .detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 12px;
 }
 
@@ -406,6 +477,24 @@ const canOpenChild = computed(() => !!props.task?.childSessionId);
 .open-child-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.cancel-task-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--danger-color);
+  background-color: color-mix(in srgb, var(--danger-color) 8%, transparent);
+  border: 1px solid var(--danger-color);
+  transition: background-color 0.2s;
+}
+
+.cancel-task-button:hover {
+  background-color: color-mix(in srgb, var(--danger-color) 16%, transparent);
 }
 
 /* ---------- 分区 ---------- */

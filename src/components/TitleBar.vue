@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted, watch } from "vue";
+import { ref, shallowRef, onMounted, computed, onUnmounted, watch } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -54,6 +54,20 @@ import {
   resolveProfileAvatarPath,
 } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
+import { useBackgroundTaskCenter } from "@/tools/sub-agent/composables/useBackgroundTaskCenter";
+import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
+import {
+  backgroundTaskRegistry,
+  type BackgroundTaskSnapshot,
+} from "@/services/background-tasks";
+import { formatRelativeTime } from "@/utils/time";
+import {
+  getOriginDisplayName,
+  getTaskStatePresentation,
+  getTaskSummary,
+  isActiveTaskState,
+  type BackgroundTaskTone,
+} from "@/tools/sub-agent/components/backgroundTaskPresentation";
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -155,6 +169,68 @@ const useDefaultIcon = computed(() => {
 });
 
 const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
+
+// ==================== 后台任务活动胶囊 ====================
+// Level 3 全局托底（设计文档 §6.3）：有活动任务时在标题栏显示轻量胶囊，
+// 点击打开任务中心；任务中心组件在本组件内唯一挂载，与 ChatAreaHeader 入口
+// 共享 useBackgroundTaskCenter 的打开状态。
+const { isTaskCenterOpen, openTaskCenter } = useBackgroundTaskCenter();
+
+/** 活动（非终态）任务快照；整体替换，避免深层响应式开销 */
+const activeTasks = shallowRef<BackgroundTaskSnapshot[]>([]);
+
+/** 标题栏胶囊最多展示的 Mini 列表条数 */
+const CAPSULE_TASK_LIMIT = 5;
+
+function refreshActiveTasks(): void {
+  activeTasks.value = backgroundTaskRegistry
+    .listTasks()
+    .filter((task) => isActiveTaskState(task.state));
+}
+
+let unsubscribeActiveTasks: (() => void) | undefined;
+
+onMounted(() => {
+  refreshActiveTasks();
+  unsubscribeActiveTasks = backgroundTaskRegistry.subscribe(refreshActiveTasks);
+});
+
+onUnmounted(() => {
+  unsubscribeActiveTasks?.();
+  unsubscribeActiveTasks = undefined;
+});
+
+const activeTaskCount = computed(() => activeTasks.value.length);
+
+/** 胶囊本体的最近操作摘要（取最新活动任务） */
+const capsuleSummary = computed(() => {
+  const task = activeTasks.value[0];
+  return task ? getTaskSummary(task) : "";
+});
+
+/** 胶囊 Mini 列表项 */
+interface CapsuleTaskItem {
+  taskId: string;
+  agentName: string;
+  stateLabel: string;
+  tone: BackgroundTaskTone;
+  summary: string;
+  timeText: string;
+}
+
+const capsuleTaskItems = computed<CapsuleTaskItem[]>(() =>
+  activeTasks.value.slice(0, CAPSULE_TASK_LIMIT).map((task) => {
+    const presentation = getTaskStatePresentation(task.state);
+    return {
+      taskId: task.taskId,
+      agentName: getOriginDisplayName(task.targetAgent),
+      stateLabel: presentation.label,
+      tone: presentation.tone,
+      summary: getTaskSummary(task),
+      timeText: formatRelativeTime(task.updatedAt),
+    };
+  })
+);
 
 // 检查窗口是否最大化
 const checkMaximized = async () => {
@@ -408,6 +484,9 @@ watch(
     <!-- 用户档案管理弹窗 -->
     <UserProfileManagerDialog v-model:visible="showProfileManagerDialog" />
 
+    <!-- 后台任务中心：全应用唯一挂载点，由标题栏胶囊 / 聊天区入口共同打开 -->
+    <BackgroundTaskCenter v-model="isTaskCenterOpen" />
+
     <!-- 侧边栏抽屉 -->
     <el-drawer
       v-model="drawerVisible"
@@ -652,6 +731,63 @@ watch(
           <DownloadManager />
         </el-popover>
 
+        <!-- 后台任务活动胶囊（仅主窗口显示，无活动任务时完全隐藏） -->
+        <el-popover
+          v-if="isMainWindow && activeTaskCount > 0"
+          placement="bottom-end"
+          :width="320"
+          trigger="hover"
+          popper-class="background-task-capsule-popper"
+        >
+          <template #reference>
+            <button
+              class="task-capsule"
+              :title="`后台任务运行中：${activeTaskCount}`"
+              @click="openTaskCenter"
+            >
+              <span class="task-capsule-dot" />
+              <span class="task-capsule-count">
+                {{ activeTaskCount > 99 ? "99+" : activeTaskCount }}
+              </span>
+              <span class="task-capsule-summary">{{ capsuleSummary }}</span>
+            </button>
+          </template>
+
+          <div class="task-capsule-popover">
+            <div class="task-capsule-popover-title">后台任务</div>
+            <ul class="task-capsule-list">
+              <li
+                v-for="item in capsuleTaskItems"
+                :key="item.taskId"
+                class="task-capsule-item"
+                @click="openTaskCenter"
+              >
+                <span
+                  class="task-capsule-item-dot"
+                  :class="`tone-${item.tone}`"
+                />
+                <div class="task-capsule-item-body">
+                  <div class="task-capsule-item-head">
+                    <span class="task-capsule-item-name">
+                      {{ item.agentName }}
+                    </span>
+                    <span class="task-capsule-item-state">
+                      {{ item.stateLabel }}
+                    </span>
+                  </div>
+                  <div class="task-capsule-item-summary">
+                    {{ item.summary }}
+                  </div>
+                  <div class="task-capsule-item-time">{{ item.timeText }}</div>
+                </div>
+              </li>
+            </ul>
+            <button class="task-capsule-more" @click="openTaskCenter">
+              打开任务中心
+            </button>
+          </div>
+        </el-popover>
+
         <!-- 消息通知入口（仅主窗口显示） -->
         <NotificationBell v-if="isMainWindow" />
 
@@ -859,6 +995,201 @@ watch(
 
 .control-btn:hover {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- 后台任务活动胶囊 ---------- */
+.task-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 24px;
+  margin-right: 6px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 999px;
+  background-color: var(--card-bg);
+  color: var(--sidebar-text);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  backdrop-filter: blur(var(--ui-blur));
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.task-capsule:hover {
+  border-color: var(--primary-color);
+}
+
+.task-capsule-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  animation: task-capsule-pulse 1.4s ease-in-out infinite;
+}
+
+.task-capsule-count {
+  flex-shrink: 0;
+  min-width: 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-capsule-summary {
+  min-width: 0;
+  font-size: 12px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 胶囊 Mini 列表（el-popover 内容随组件作用域保留 data-v，scoped 生效） */
+.task-capsule-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-capsule-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.task-capsule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-capsule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.task-capsule-item:hover {
+  background-color: var(--hover-bg, var(--el-fill-color-light));
+}
+
+.task-capsule-item-dot {
+  flex-shrink: 0;
+  margin-top: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--info-color);
+}
+
+.task-capsule-item-dot.tone-running {
+  background-color: var(--primary-color);
+  animation: task-capsule-pulse 1.4s ease-in-out infinite;
+}
+
+.task-capsule-item-dot.tone-success {
+  background-color: var(--success-color);
+}
+
+.task-capsule-item-dot.tone-danger {
+  background-color: var(--danger-color);
+}
+
+.task-capsule-item-dot.tone-warning {
+  background-color: var(--warning-color);
+}
+
+.task-capsule-item-dot.tone-info {
+  background-color: var(--info-color);
+}
+
+.task-capsule-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-capsule-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.task-capsule-item-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-capsule-item-state {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-color-light);
+}
+
+.task-capsule-item-summary,
+.task-capsule-item-time {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-color-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-capsule-item-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.task-capsule-more {
+  align-self: stretch;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background-color: var(--el-fill-color-light);
+  color: var(--primary-color);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.task-capsule-more:hover {
+  background-color: var(--el-fill-color);
+}
+
+@keyframes task-capsule-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
 }
 
 .download-btn.is-animating {

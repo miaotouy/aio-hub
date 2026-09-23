@@ -27,8 +27,8 @@ import {
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
 import { backgroundTaskRegistry } from "@/services/background-tasks";
+import { useBackgroundTaskCenter } from "@/tools/sub-agent/composables/useBackgroundTaskCenter";
 import {
   useThemeAppearance,
   getBlendedBackgroundColor,
@@ -113,8 +113,9 @@ const chatHeaderStyle = computed(() => {
 });
 
 // ==================== 后台任务入口 ====================
-// 只读任务中心入口：以运行中任务数作为角标，订阅随组件挂载/卸载。
-const showTaskCenter = ref(false);
+// 入口按钮只负责打开：与标题栏活动胶囊共享 useBackgroundTaskCenter 的
+// 单例可见性状态，任务中心组件由 TitleBar 唯一挂载。
+const { openTaskCenter } = useBackgroundTaskCenter();
 const runningTaskCount = ref(0);
 
 function refreshRunningTaskCount(): void {
@@ -261,7 +262,7 @@ defineExpose({ headerRef });
       <el-tooltip content="后台任务中心" placement="bottom">
         <div
           class="header-action-button task-center-button"
-          @click="showTaskCenter = true"
+          @click="openTaskCenter"
         >
           <el-icon :size="18">
             <Activity />
@@ -291,9 +292,6 @@ defineExpose({ headerRef });
         </div>
       </el-tooltip>
     </div>
-
-    <!-- 后台任务中心（只读） -->
-    <BackgroundTaskCenter v-model="showTaskCenter" />
   </div>
 </template>
 

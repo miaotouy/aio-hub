@@ -29,6 +29,7 @@ import type {
 import {
   backgroundTaskRegistry,
   type BackgroundTaskOperation,
+  type BackgroundTaskSnapshot,
   type MessageOrigin,
 } from "@/services/background-tasks";
 
@@ -43,6 +44,35 @@ const TERMINAL_TASK_STATES: ReadonlySet<string> = new Set([
   "interrupted",
 ]);
 
+/** get_task_activity 默认返回与上限的活动条数（recentActivity 最多保留 8 条）。 */
+const DEFAULT_ACTIVITY_LIMIT = 5;
+const MAX_ACTIVITY_LIMIT = 8;
+
+/** 终态任务的中文标签（合成结果消息展示用）。 */
+const TASK_STATE_LABELS: Record<string, string> = {
+  completed: "已完成",
+  failed: "已失败",
+  cancelled: "已取消",
+  interrupted: "已中断",
+};
+
+/** 工具参数摘要中需要脱敏的键名。 */
+const SENSITIVE_ARG_KEY_PATTERN =
+  /(key|token|secret|password|passwd|authorization|auth|cookie|credential)/i;
+
+/** 已加载的子智能体定义（带 subAgentConfig）。 */
+type LoadedSubAgent = NonNullable<
+  Awaited<ReturnType<ReturnType<typeof useAgentStore>["loadAgentDetails"]>>
+>;
+
+/** 从子会话节点提取出的工具调用摘要（用于补最近操作活动）。 */
+interface ToolCallActivity {
+  toolName: string;
+  status: string;
+  argsSummary: string;
+  resultSummary: string;
+}
+
 interface SubAgentConversation {
   conversationId: string;
   agentId: string;
@@ -55,6 +85,8 @@ interface AskSubAgentArgs {
   agentId: string;
   message: string;
   conversationId?: string;
+  /** 调用模式（默认 foreground）：background 创建任务后立即返回 handle。 */
+  mode?: "foreground" | "background";
 }
 
 const createConversationId = () =>
@@ -112,6 +144,102 @@ export default class SubAgentRegistry implements ToolRegistry {
               type: "string",
               required: false,
               description: "已有子对话 ID；省略时创建新的子对话",
+            },
+            {
+              name: "mode",
+              type: "string",
+              required: false,
+              description:
+                "调用模式：foreground（默认）等待子智能体完成并返回回复；background 创建任务后立即返回 taskId 等句柄，父智能体可继续执行并用 get_task_status/get_task_activity 检查进展",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "get_task_status",
+          displayName: "查询后台任务状态",
+          description:
+            "读取某个后台任务的紧凑快照（状态、当前操作、最后摘要与结果），用于判断子任务是推进、完成还是卡住。",
+          parameters: [
+            {
+              name: "taskId",
+              type: "string",
+              required: true,
+              description: "后台任务 ID（ask background 返回或任务中心可见）",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "get_task_activity",
+          displayName: "查询后台任务活动",
+          description:
+            "读取后台任务最近的操作活动（默认最近 5 条），用于了解子智能体正在做什么。",
+          parameters: [
+            {
+              name: "taskId",
+              type: "string",
+              required: true,
+              description: "后台任务 ID",
+            },
+            {
+              name: "limit",
+              type: "number",
+              required: false,
+              description: "返回的活动条数，默认 5，最大 8",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "send_task_message",
+          displayName: "向后台任务追加消息",
+          description:
+            "向指定后台子会话投递一条用户介入消息（origin 标记为 user_intervention）。Phase 2 仅投递，正式排队调度在后续阶段实现。",
+          parameters: [
+            {
+              name: "taskId",
+              type: "string",
+              required: true,
+              description: "后台任务 ID",
+            },
+            {
+              name: "message",
+              type: "string",
+              required: true,
+              description: "要追加给子智能体的指导或补充信息",
+              uiHint: "textarea",
+            },
+            {
+              name: "delivery",
+              type: "string",
+              required: false,
+              description:
+                "投递时机：next_turn（默认，下一轮生效）或 after_current_step（当前步骤后）",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "cancel_task",
+          displayName: "取消后台任务",
+          description: "取消自己创建的后台任务；已处于终态的任务返回幂等结果。",
+          parameters: [
+            {
+              name: "taskId",
+              type: "string",
+              required: true,
+              description: "后台任务 ID",
+            },
+            {
+              name: "reason",
+              type: "string",
+              required: false,
+              description: "取消原因（会写入任务错误信息与活动记录）",
             },
           ],
           returnType: "Promise<string>",
@@ -189,9 +317,7 @@ export default class SubAgentRegistry implements ToolRegistry {
     if (!normalized) {
       return "（无文本回复）";
     }
-    return normalized.length > 80
-      ? `${normalized.slice(0, 80)}…`
-      : normalized;
+    return normalized.length > 80 ? `${normalized.slice(0, 80)}…` : normalized;
   }
 
   /**
@@ -270,6 +396,17 @@ export default class SubAgentRegistry implements ToolRegistry {
       existingConversation.agentId !== targetAgent.id
     ) {
       throw new Error("conversationId 与目标智能体不匹配");
+    }
+
+    // Phase 2：background 模式创建任务与子会话后立即返回 handle，父 Agent 继续执行
+    if (args.mode === "background") {
+      return this.askInBackground({
+        args,
+        context,
+        targetAgent,
+        existingConversation,
+        message,
+      });
     }
 
     const previousSessionId = llmChatService.getCurrentSession()?.id;
@@ -402,7 +539,7 @@ export default class SubAgentRegistry implements ToolRegistry {
         response: leaf.content,
         taskId: taskId ?? null,
         state: taskId
-          ? backgroundTaskRegistry.getSnapshot(taskId)?.state ?? null
+          ? (backgroundTaskRegistry.getSnapshot(taskId)?.state ?? null)
           : null,
       });
     } catch (error) {
@@ -444,5 +581,602 @@ export default class SubAgentRegistry implements ToolRegistry {
         }
       }
     }
+  }
+
+  // ==================== Phase 2：后台调度与任务检查 ====================
+
+  /**
+   * 后台模式：创建任务与子会话后立即返回 handle，父 Agent 继续执行。
+   *
+   * 子 Agent 的实际执行放到不阻塞主流程的异步链里（void async IIFE），
+   * 期间照常追加活动、同步当前操作并绑定取消订阅；任务进入终态后向父会话
+   * 投递一条 system_event 合成结果，并把任务关系写入子会话 metadata。
+   * 子会话使用不切换当前选中会话的 createDetachedSession 创建，避免后台任务
+   * 干扰父 Agent 正在进行的会话。
+   */
+  private async askInBackground(params: {
+    args: AskSubAgentArgs;
+    context?: ToolContext;
+    targetAgent: LoadedSubAgent;
+    existingConversation?: SubAgentConversation;
+    message: string;
+  }): Promise<string> {
+    const { context, targetAgent, existingConversation, message } = params;
+    const targetName = targetAgent.displayName || targetAgent.name;
+    const store = useLlmChatStore();
+    const parentSessionId = llmChatService.getCurrentSession()?.id ?? "";
+    const targetOrigin: MessageOrigin = {
+      kind: "agent",
+      channel: "sub_agent",
+      actorId: targetAgent.id,
+      actorName: targetAgent.name,
+      actorDisplayName: targetName,
+    };
+    const callerOrigin: MessageOrigin = context?.agent?.id
+      ? {
+          kind: "agent",
+          channel: "sub_agent",
+          actorId: context.agent.id,
+          actorName: context.agent.id,
+        }
+      : { kind: "user", channel: "main_chat" };
+
+    this.activeTargetAgentIds.add(targetAgent.id);
+    try {
+      let conversation = existingConversation;
+      let sessionId = conversation?.sessionId;
+      if (
+        !sessionId ||
+        !llmChatService.getSessions().some((s) => s.id === sessionId)
+      ) {
+        const createdSessionId = await store.createDetachedSession(
+          targetAgent.id,
+          `子智能体：${targetName}`
+        );
+        if (!createdSessionId) {
+          throw new Error("创建子会话失败");
+        }
+        sessionId = createdSessionId;
+        const now = new Date().toISOString();
+        conversation = {
+          conversationId:
+            conversation?.conversationId || createConversationId(),
+          agentId: targetAgent.id,
+          sessionId,
+          createdAt: conversation?.createdAt || now,
+          lastUsedAt: now,
+        };
+        this.conversations.set(conversation.conversationId, conversation);
+      }
+      const activeConversation = conversation!;
+      const activeSessionId = sessionId;
+
+      const task = backgroundTaskRegistry.createTask({
+        parentSessionId,
+        childSessionId: activeSessionId,
+        conversationId: activeConversation.conversationId,
+        callerAgent: callerOrigin,
+        targetAgent: targetOrigin,
+        phase: "llm_generation",
+      });
+      const taskId = task?.taskId;
+
+      let unsubscribeTask: (() => void) | undefined;
+      if (taskId) {
+        const operation: BackgroundTaskOperation = {
+          kind: "llm_generation",
+          name: targetName,
+          startedAt: new Date().toISOString(),
+          summary: `正在等待 ${targetName} 生成回复`,
+        };
+        backgroundTaskRegistry.appendActivity(taskId, {
+          kind: "llm_started",
+          actor: targetOrigin,
+          summary: operation.summary,
+          operation,
+          detailRef: activeSessionId,
+        });
+        backgroundTaskRegistry.setCurrentOperation(taskId, operation);
+        unsubscribeTask = this.bindTaskCancellation(
+          taskId,
+          activeSessionId,
+          store,
+          targetName
+        );
+      }
+
+      // 不阻塞调用方的后台执行链
+      void (async () => {
+        try {
+          await llmChatService.sendMessage(message, {
+            agentId: targetAgent.id,
+            sessionId: activeSessionId,
+          });
+
+          const detail = store.sessionDetailMap.get(activeSessionId);
+          const leaf = detail?.nodes?.[detail.activeLeafId];
+          if (!leaf || leaf.role !== "assistant") {
+            throw new Error("子智能体没有返回可读取的助手消息");
+          }
+
+          activeConversation.lastUsedAt = new Date().toISOString();
+
+          if (taskId && detail && this.isTaskActive(taskId)) {
+            const resultSummary = this.buildReplySummary(leaf.content);
+            // 低成本补充工具调用类活动（§4.1 摘要），读不到工具节点则自动跳过
+            this.appendToolActivities(
+              taskId,
+              detail,
+              detail.activeLeafId,
+              targetOrigin
+            );
+            backgroundTaskRegistry.appendActivity(taskId, {
+              kind: "llm_progress",
+              actor: targetOrigin,
+              summary: `回复完成：${resultSummary}`,
+              detailRef: activeSessionId,
+            });
+            backgroundTaskRegistry.updateTaskState(taskId, "completed", {
+              result: {
+                summary: resultSummary,
+                completedAt: new Date().toISOString(),
+              },
+            });
+            this.writeTaskMetadata(
+              store,
+              activeSessionId,
+              detail.activeLeafId,
+              {
+                taskId,
+                childSessionId: activeSessionId,
+                parentSessionId,
+              }
+            );
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          if (taskId && this.isTaskActive(taskId)) {
+            backgroundTaskRegistry.appendActivity(taskId, {
+              kind: "error",
+              actor: { kind: "system", channel: "system_event" },
+              summary: `子智能体调用失败：${errorMessage}`,
+            });
+            backgroundTaskRegistry.updateTaskState(taskId, "failed", {
+              error: {
+                message: errorMessage,
+                failedAt: new Date().toISOString(),
+              },
+            });
+          }
+          errorHandler.handle(error, {
+            userMessage: "后端子智能体调用失败",
+            showToUser: false,
+            context: {
+              agentId: targetAgent.id,
+              sessionId: activeSessionId,
+              taskId,
+            },
+          });
+        } finally {
+          unsubscribeTask?.();
+          this.activeTargetAgentIds.delete(targetAgent.id);
+          if (taskId) {
+            this.deliverSyntheticResult(taskId, store);
+          }
+        }
+      })();
+
+      return JSON.stringify({
+        taskId: taskId ?? null,
+        conversationId: activeConversation.conversationId,
+        childSessionId: activeSessionId,
+        state: taskId
+          ? (backgroundTaskRegistry.getSnapshot(taskId)?.state ?? null)
+          : null,
+      });
+    } catch (error) {
+      this.activeTargetAgentIds.delete(targetAgent.id);
+      errorHandler.handle(error, {
+        userMessage: "启动后端子智能体任务失败",
+        showToUser: false,
+        context: { agentId: targetAgent.id },
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 任务进入终态后，向父会话投递一条 system_event 合成结果消息。
+   *
+   * 父会话详情未加载时跳过（结果仍保留在任务中心），不强行重开会话。
+   */
+  private deliverSyntheticResult(
+    taskId: string,
+    store: ReturnType<typeof useLlmChatStore>
+  ): void {
+    const snapshot = backgroundTaskRegistry.getSnapshot(taskId);
+    if (!snapshot || !TERMINAL_TASK_STATES.has(snapshot.state)) {
+      return;
+    }
+    const label = TASK_STATE_LABELS[snapshot.state] ?? snapshot.state;
+    const summary =
+      snapshot.result?.summary ??
+      snapshot.error?.message ??
+      snapshot.lastOperationSummary ??
+      "（无摘要）";
+    const targetName =
+      snapshot.targetAgent.actorDisplayName ??
+      snapshot.targetAgent.actorName ??
+      snapshot.targetAgent.actorId ??
+      "未知智能体";
+    const content = [
+      `【后台任务${label}】`,
+      `任务 ID：${snapshot.taskId}`,
+      `子智能体：${targetName}`,
+      `结果摘要：${summary}`,
+    ].join("\n");
+
+    const nodeId = store.appendMessageNode(snapshot.parentSessionId, {
+      role: "system",
+      content,
+      metadata: {
+        origin: {
+          kind: "system",
+          channel: "system_event",
+          taskId: snapshot.taskId,
+          actorDisplayName: "后台任务",
+        },
+      },
+    });
+    if (!nodeId) {
+      logger.info("父会话未加载，后台任务合成结果仅保留在任务中心", {
+        taskId: snapshot.taskId,
+        parentSessionId: snapshot.parentSessionId,
+      });
+    }
+  }
+
+  /**
+   * 校验调用方（调度 Agent）对任务的访问权限。
+   *
+   * 规则：调度 Agent 只能访问自己创建的任务及其后代（沿 parentTaskId 链）；
+   * 无 agent 上下文（用户/系统触发）时放行。校验不通过抛出可读错误。
+   */
+  private assertTaskAccess(
+    taskId: string,
+    context?: ToolContext
+  ): BackgroundTaskSnapshot {
+    const snapshot = backgroundTaskRegistry.getSnapshot(taskId);
+    if (!snapshot) {
+      throw new Error(`后台任务不存在：${taskId}`);
+    }
+    const callerActorId = context?.agent?.id;
+    if (!callerActorId) {
+      return snapshot;
+    }
+    if (this.isTaskOwnedBy(snapshot, callerActorId)) {
+      return snapshot;
+    }
+    throw new Error(
+      "无权访问该后台任务：仅创建它的调度 Agent 及其父任务链可以读取或操作"
+    );
+  }
+
+  /** 判断任务（含父任务链）是否由指定调用方 Agent 创建。 */
+  private isTaskOwnedBy(
+    snapshot: BackgroundTaskSnapshot,
+    callerActorId: string
+  ): boolean {
+    const visited = new Set<string>();
+    let current: BackgroundTaskSnapshot | null = snapshot;
+    while (current && !visited.has(current.taskId)) {
+      visited.add(current.taskId);
+      if (current.callerAgent?.actorId === callerActorId) {
+        return true;
+      }
+      if (!current.parentTaskId) {
+        break;
+      }
+      current = backgroundTaskRegistry.getSnapshot(current.parentTaskId);
+    }
+    return false;
+  }
+
+  /** 构造面向 Agent 的紧凑任务状态（不含完整活动列表与 transcript）。 */
+  private buildCompactTaskStatus(
+    snapshot: BackgroundTaskSnapshot
+  ): Record<string, unknown> {
+    return {
+      taskId: snapshot.taskId,
+      state: snapshot.state,
+      phase: snapshot.phase,
+      parentTaskId: snapshot.parentTaskId ?? null,
+      parentSessionId: snapshot.parentSessionId,
+      childSessionId: snapshot.childSessionId,
+      conversationId: snapshot.conversationId,
+      callerAgent: snapshot.callerAgent,
+      targetAgent: snapshot.targetAgent,
+      createdAt: snapshot.createdAt,
+      startedAt: snapshot.startedAt ?? null,
+      updatedAt: snapshot.updatedAt,
+      lastActivityAt: snapshot.lastActivityAt ?? null,
+      lastProgressAt: snapshot.lastProgressAt ?? null,
+      stale: snapshot.stale,
+      staleReason: snapshot.staleReason ?? null,
+      attention: snapshot.attention ?? null,
+      currentOperation: snapshot.currentOperation ?? null,
+      lastOperationSummary: snapshot.lastOperationSummary,
+      result: snapshot.result ?? null,
+      error: snapshot.error ?? null,
+    };
+  }
+
+  /** 查询后台任务紧凑状态。 */
+  public async get_task_status(
+    args: { taskId: string },
+    context?: ToolContext
+  ): Promise<string> {
+    const taskId = args?.taskId?.trim();
+    if (!taskId) throw new Error("必须提供后台任务 ID");
+    const snapshot = this.assertTaskAccess(taskId, context);
+    return JSON.stringify(
+      { status: this.buildCompactTaskStatus(snapshot) },
+      null,
+      2
+    );
+  }
+
+  /** 查询后台任务最近活动（默认最近 5 条，最多 8 条）。 */
+  public async get_task_activity(
+    args: { taskId: string; limit?: number },
+    context?: ToolContext
+  ): Promise<string> {
+    const taskId = args?.taskId?.trim();
+    if (!taskId) throw new Error("必须提供后台任务 ID");
+    const snapshot = this.assertTaskAccess(taskId, context);
+    const rawLimit =
+      typeof args?.limit === "number" ? args.limit : DEFAULT_ACTIVITY_LIMIT;
+    const limit = Math.min(
+      Math.max(Math.floor(rawLimit), 1),
+      MAX_ACTIVITY_LIMIT
+    );
+    const activities = snapshot.recentActivity
+      .slice(-limit)
+      .map((activity) => ({
+        kind: activity.kind,
+        actor: activity.actor,
+        timestamp: activity.timestamp,
+        summary: activity.summary,
+        operation: activity.operation ?? null,
+      }));
+    return JSON.stringify(
+      { taskId, count: activities.length, activities },
+      null,
+      2
+    );
+  }
+
+  /**
+   * 向指定后台子会话投递一条用户介入消息。
+   *
+   * Phase 2 仅完成消息投递与活动记录（origin.channel = user_intervention）；
+   * 排队到下一轮的正式调度在 Phase 3 实现。
+   */
+  public async send_task_message(
+    args: {
+      taskId: string;
+      message: string;
+      delivery?: "next_turn" | "after_current_step";
+    },
+    context?: ToolContext
+  ): Promise<string> {
+    const taskId = args?.taskId?.trim();
+    const message = args?.message?.trim();
+    if (!taskId) throw new Error("必须提供后台任务 ID");
+    if (!message) throw new Error("必须提供要投递给子会话的消息");
+    const snapshot = this.assertTaskAccess(taskId, context);
+    if (TERMINAL_TASK_STATES.has(snapshot.state)) {
+      return JSON.stringify({
+        taskId,
+        delivered: false,
+        state: snapshot.state,
+        message: "任务已结束，无法再投递消息",
+      });
+    }
+    const delivery =
+      args.delivery === "after_current_step"
+        ? "after_current_step"
+        : "next_turn";
+    const store = useLlmChatStore();
+    const nodeId = store.appendMessageNode(snapshot.childSessionId, {
+      role: "user",
+      content: message,
+      metadata: {
+        origin: {
+          kind: "user",
+          channel: "user_intervention",
+          taskId,
+        },
+      },
+    });
+    if (!nodeId) {
+      throw new Error("子会话未加载，无法投递消息");
+    }
+    backgroundTaskRegistry.appendActivity(taskId, {
+      kind: "user_intervention",
+      actor: { kind: "user", channel: "user_intervention" },
+      summary: `用户介入：${
+        message.length > 60 ? `${message.slice(0, 60)}…` : message
+      }`,
+      detailRef: snapshot.childSessionId,
+    });
+    logger.info("已向后台子会话投递介入消息", {
+      taskId,
+      delivery,
+      nodeId,
+    });
+    return JSON.stringify({
+      taskId,
+      delivered: true,
+      delivery,
+      nodeId,
+      note: "Phase 2 仅投递消息，排队到下一轮的调度在 Phase 3 实现",
+    });
+  }
+
+  /** 取消后台任务（幂等：已终态时返回 cancelled:false）。 */
+  public async cancel_task(
+    args: { taskId: string; reason?: string },
+    context?: ToolContext
+  ): Promise<string> {
+    const taskId = args?.taskId?.trim();
+    if (!taskId) throw new Error("必须提供后台任务 ID");
+    const snapshot = this.assertTaskAccess(taskId, context);
+    if (TERMINAL_TASK_STATES.has(snapshot.state)) {
+      return JSON.stringify({
+        taskId,
+        cancelled: false,
+        state: snapshot.state,
+        message: "任务已处于终态",
+      });
+    }
+    const reason = args?.reason?.trim() || "调度 Agent 取消任务";
+    const cancelled = backgroundTaskRegistry.cancelTask(taskId, reason);
+    const latest = backgroundTaskRegistry.getSnapshot(taskId);
+    logger.info("调度 Agent 取消后台任务", { taskId, cancelled, reason });
+    return JSON.stringify({
+      taskId,
+      cancelled,
+      state: latest?.state ?? null,
+    });
+  }
+
+  /**
+   * 从子会话本轮节点补充工具调用类活动（§4.1 摘要）。
+   *
+   * 读不到工具节点时自然跳过，不做深挖；活动摘要中的参数已脱敏与截断。
+   */
+  private appendToolActivities(
+    taskId: string,
+    detail: ChatSessionDetail,
+    leafId: string,
+    actor: MessageOrigin
+  ): void {
+    const nodes = this.collectRoundToolNodes(detail, leafId);
+    for (const node of nodes) {
+      for (const call of this.extractToolCalls(node)) {
+        if (!call.toolName) continue;
+        if (call.status === "completed" || call.status === "success") {
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: "tool_finished",
+            actor,
+            summary: `工具 ${call.toolName} 已完成，结果：${
+              call.resultSummary || "（无输出）"
+            }`,
+            detailRef: node.id,
+          });
+        } else if (call.status === "error" || call.status === "denied") {
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: "error",
+            actor,
+            summary: `工具 ${call.toolName} 失败：${
+              call.resultSummary || "未知错误"
+            }`,
+            detailRef: node.id,
+          });
+        } else {
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: "tool_started",
+            actor,
+            summary: `正在执行工具 ${call.toolName}：${call.argsSummary}`,
+            detailRef: node.id,
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * 收集本轮需要检查工具调用的节点：从叶子向上，直到最近的 user 消息。
+   */
+  private collectRoundToolNodes(
+    detail: ChatSessionDetail,
+    leafId: string
+  ): ChatMessageNode[] {
+    const collected: ChatMessageNode[] = [];
+    const visited = new Set<string>();
+    let currentId: string | null = leafId;
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const node: ChatMessageNode | undefined = detail.nodes[currentId];
+      if (!node) {
+        break;
+      }
+      if (node.role === "tool" || node.role === "assistant") {
+        collected.push(node);
+      }
+      if (node.role === "user") {
+        break;
+      }
+      currentId = node.parentId;
+    }
+    return collected;
+  }
+
+  /** 从单个节点提取工具调用摘要（优先 assistant 的请求、其次 tool 的结果）。 */
+  private extractToolCalls(node: ChatMessageNode): ToolCallActivity[] {
+    const metadata = node.metadata;
+    if (!metadata) return [];
+    const results: ToolCallActivity[] = [];
+
+    if (node.role === "tool") {
+      const calls =
+        metadata.toolCalls ?? (metadata.toolCall ? [metadata.toolCall] : []);
+      for (const call of calls) {
+        results.push({
+          toolName: call.toolName,
+          status: call.status,
+          argsSummary: this.buildSafeArgsSummary(call.rawArgs),
+          resultSummary: this.buildReplySummary(node.content),
+        });
+      }
+      return results;
+    }
+
+    if (
+      node.role === "assistant" &&
+      Array.isArray(metadata.toolCallsRequested)
+    ) {
+      for (const call of metadata.toolCallsRequested) {
+        results.push({
+          toolName: call.toolName,
+          status: call.status,
+          argsSummary: this.buildSafeArgsSummary(call.args),
+          resultSummary: call.error ?? "",
+        });
+      }
+    }
+    return results;
+  }
+
+  /** 生成工具参数的安全摘要：敏感键脱敏、值折叠空白并截断。 */
+  private buildSafeArgsSummary(rawArgs?: Record<string, any>): string {
+    if (!rawArgs || typeof rawArgs !== "object") {
+      return "（无参数）";
+    }
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(rawArgs)) {
+      if (SENSITIVE_ARG_KEY_PATTERN.test(key)) {
+        parts.push(`${key}=***`);
+        continue;
+      }
+      const text = typeof value === "string" ? value : JSON.stringify(value);
+      const compact = (text ?? "").replace(/\s+/g, " ").trim();
+      parts.push(
+        `${key}=${compact.length > 40 ? `${compact.slice(0, 40)}…` : compact}`
+      );
+    }
+    return parts.length > 0 ? parts.join(", ") : "（无参数）";
   }
 }

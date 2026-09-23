@@ -449,7 +449,7 @@ export interface MessageOrigin {
 - 主窗口增加只读任务列表和任务详情，支持打开 child session；
 - 主窗口刷新后通过 snapshot 恢复观察。
 
-### Phase 2：调度 Agent 可检查
+### Phase 2：调度 Agent 可检查（已完成，2026-09-23，见 §12）
 
 - `ask({ mode: "background" })` 立即返回 task handle；
 - 增加 `get_task_status` 和 `get_task_activity`；
@@ -475,12 +475,12 @@ export interface MessageOrigin {
 
 ## 10. 下一步建议
 
-Phase 1 已完成（落地记录见 §12）。下一步推进 Phase 2：
+Phase 1 与 Phase 2 已完成（落地记录见 §12）。下一步推进 Phase 3：
 
-1. 先抽出 `background-task` 类型和内存 registry；
-2. 在现有 `sub-agent.ask` 的前后埋点，记录 task 状态和最近操作；
-3. 先做任务中心的只读观察和 child session 打开；
-4. 等 snapshot、事件重连和任务关系稳定后，再开放异步 ask 与用户追加指导。
+1. 让 `ChatMessageNode.metadata.origin` 贯穿消息创建、持久化、渲染与导出；
+2. 任务详情支持追加指导/顺口叮嘱，默认排队到下一轮；
+3. 伴生视窗复用会话 Store 与 `MessageList`，主会话工具卡片、任务通知和任务中心复用同一 task detail 入口；
+4. 用户介入消息通过发送时保存的用户档案快照原生呈现，沿用头像与昵称完成身份识别。
 
 这样可以先验证“后台执行不会丢、用户能找到并打开、调度 Agent 能看到最近活动”这条主链路，消息来源和干预能力在同一任务模型上自然扩展。
 
@@ -533,10 +533,39 @@ Phase 1 已完成（落地记录见 §12）。下一步推进 Phase 2：
 - `bun run build:vite`：通过；
 - `oxlint` 与 `prettier --check`：新增/改动文件无告警。
 
-### Phase 2：调度 Agent 可检查（待开始）
+### Phase 2：调度 Agent 可检查（已完成，2026-09-23）
 
-- `ask({ mode: "background" })` 立即返回 task handle；
-- 增加 `get_task_status`、`get_task_activity` 等 Agent 可调用方法；
-- 把工具调用、LLM 生成、审批等待与错误归纳成最近操作摘要；
-- 子任务完成后向父会话投递合成结果（`origin.channel = "system_event"`）并保留 task handle；
-- 任务中心开放取消/暂停等任务控制，主会话派遣卡片与标题栏活动胶囊接入同一 task detail 入口。
+#### 交付物
+
+| 文件 | 说明 |
+| :--- | :--- |
+| `src/tools/sub-agent/sub-agent.registry.ts` | `ask` 新增 `mode` 参数与 background 分支；新增 `askInBackground`、`deliverSyntheticResult`、`assertTaskAccess`、`appendToolActivities`；新增四个工具 action |
+| `src/tools/llm-chat/stores/llmChatStore.ts` | 新增 `createDetachedSession(agentId, name?)`（不切换当前会话）与 `appendMessageNode(sessionId, message)`（向指定会话追加节点） |
+| `src/tools/llm-chat/types/message.ts` | `ChatMessageNode.metadata` 新增可选 `origin?: MessageOrigin` |
+| `src/tools/sub-agent/composables/useBackgroundTaskCenter.ts` | 任务中心 UI 单例可见性状态，供聊天区入口与标题栏胶囊共享 |
+| `src/components/TitleBar.vue` | 唯一挂载 `BackgroundTaskCenter` + 标题栏活动胶囊（含 Mini Popover） |
+| `src/tools/sub-agent/components/BackgroundTaskDetail.vue` | 新增「取消任务」按钮（二次确认）；状态展示补全等待/审批/暂停 |
+| `src/tools/llm-chat/components/ChatAreaHeader.vue` | 入口按钮改为调用 `openTaskCenter()`，移除本地组件挂载 |
+
+#### 行为
+
+- `ask({ mode: "background" })` 立即返回 `{ taskId, conversationId, childSessionId, state }`，父 Agent 继续执行；默认 `foreground` 行为与 Phase 1 完全一致；
+- 后台执行使用 `void (async () => { ... })()` 异步链，不阻塞调用方；执行期间照常记录活动、当前操作与终态；
+- 任务到达任意终态后，向父会话追加一条 `origin.channel = "system_event"` 的 `system` 合成结果消息（含状态、taskId、结果摘要）；父会话未加载则跳过，结果仍保留在任务中心；
+- 新增工具 action：`get_task_status(taskId)`、`get_task_activity(taskId, limit?)`（默认最近 5 条）、`send_task_message(taskId, message, delivery?)`（默认 `next_turn`，写入 `origin.channel = "user_intervention"`）、`cancel_task(taskId, reason?)`；
+- `assertTaskAccess` 做 owner 校验：调度 Agent 只能访问自己创建的任务及其 `parentTaskId` 后代；无 agent 上下文（用户/系统）放行；
+- 后台子会话用 `createDetachedSession` 创建，不切换当前选中会话，避免干扰父 Agent 生成。
+
+#### 与设计文档的偏差
+
+1. **暂停/恢复未提供**：服务层暂无可靠的 `pause`/`resume` 幂等语义（设计排在 Phase 4），本阶段任务控制仅开放「取消」，按钮对终态任务禁用。
+2. **`send_task_message` 仅投递不排队**：当前把用户介入消息以 `user_intervention` origin 追加到子会话，正式「排队到下一轮/当前步骤」的投递调度留待 Phase 3。
+3. **合成结果投递依赖父会话已加载**：父会话 detail 不在内存时跳过投递（不强行重开），符合 §5.3 的降级要求。
+4. **工具活动为尽力而为**：`appendToolActivities` 从子会话节点读取工具调用，读取不到时仅保留 `llm_started`/`llm_progress`，不深挖。
+5. **派遣卡片与标题栏胶囊**：标题栏活动胶囊已落地；主会话内「派遣卡片」的原生身份透视属 §6.1，与 `origin` 渲染一同顺延到 Phase 3 统一处理。
+
+#### 验证
+
+- `bun run check:frontend`（`vue-tsc --noEmit`）：退出码 0；
+- `backgroundTaskRegistry.test.ts`：15/15 通过；
+- `bun run build:vite`：构建成功（仅既有 chunk 体积提示）。

@@ -126,12 +126,14 @@ describe("parseLlmChannelConfig", () => {
       ],
     };
     const bundle = createLlmProfileBundle([source]);
-    const result = parseLlmChannelConfig(
-      [document(JSON.stringify(bundle), "channels.aio-llm.json")],
-      "json"
-    );
+    const result = parseLlmChannelConfig([
+      document(JSON.stringify(bundle), "channels.aio-llm.json"),
+    ]);
 
     expect(result.profiles).toHaveLength(1);
+    expect(result.diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: "toml-invalid" })
+    );
     expect(result.profiles[0]).toMatchObject({
       suggestedName: "Native Profile",
       sourceKind: "AIO Hub 渠道包",
@@ -334,6 +336,7 @@ describe("parseLlmChannelConfig", () => {
       document('{"OPENAI_API_KEY":"codex-secret"}', "auth.json"),
     ]);
     expect(result.profiles).toHaveLength(1);
+
     expect(result.profiles[0]).toMatchObject({
       providerType: "openai-responses",
       apiKeys: ["codex-secret"],
@@ -360,6 +363,7 @@ describe("parseLlmChannelConfig", () => {
   ])("pairs Codex files pasted together as %s", (content) => {
     const result = parseLlmChannelConfig([document(content)]);
     expect(result.profiles).toHaveLength(1);
+
     expect(result.profiles[0]).toMatchObject({
       providerType: "openai-responses",
       apiKeys: ["codex-secret"],

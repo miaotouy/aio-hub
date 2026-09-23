@@ -23,6 +23,17 @@ function isRecord(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function isValidJsonDocument(content: string): boolean {
+  if (!/^[{[]/.test(content)) return false;
+
+  try {
+    JSON.parse(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function warningForBaseUrl(
   baseUrl: string,
   documentId: string
@@ -52,7 +63,12 @@ export function parseTomlDocuments(
 
   documents.forEach((document) => {
     const content = document.content.trim();
-    if (!content || (!content.includes("=") && !content.includes("["))) return;
+    if (
+      !content ||
+      isValidJsonDocument(content) ||
+      (!content.includes("=") && !content.includes("["))
+    )
+      return;
 
     let data: Record<string, any>;
     try {

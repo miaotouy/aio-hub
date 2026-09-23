@@ -23,7 +23,11 @@
     <template v-else>
       <!-- 顶部：多 Tab 文件标签栏 -->
       <div v-if="session.openTabs.length > 0" class="tabs-header">
-        <div class="tabs-scroll-container">
+        <div
+          ref="tabsScrollContainerRef"
+          class="tabs-scroll-container"
+          @wheel.passive="handleTabsWheel"
+        >
           <div
             v-for="tab in session.openTabs"
             :key="buildTabKey(tab)"
@@ -276,6 +280,7 @@ const props = defineProps<{
 }>();
 
 const mainAreaRef = ref<HTMLElement | null>();
+const tabsScrollContainerRef = ref<HTMLElement | null>(null);
 const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>();
 const activeTab = ref<DiffTab | null>(null);
 const mainAreaWidth = ref(1000);
@@ -285,6 +290,31 @@ const diffEditorInstance = ref<monaco.editor.IStandaloneDiffEditor | null>(
 const diffChangeCount = ref(0);
 const currentDiffIndex = ref(-1);
 let diffUpdateDisposable: { dispose: () => void } | null = null;
+
+const handleTabsWheel = (e: WheelEvent) => {
+  if (e.deltaY && e.deltaX === 0) {
+    const container = e.currentTarget as HTMLElement | null;
+    if (container) {
+      container.scrollLeft += e.deltaY;
+    }
+  }
+};
+
+const scrollActiveTabIntoView = () => {
+  nextTick(() => {
+    if (!tabsScrollContainerRef.value) return;
+    const activeEl = tabsScrollContainerRef.value.querySelector(
+      ".tab-item.active"
+    ) as HTMLElement | null;
+    if (activeEl) {
+      activeEl.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  });
+};
 
 // ===== 监听主区域宽度，自适应并排/内联 =====
 let resizeObserver: ResizeObserver | null = null;
@@ -462,6 +492,7 @@ const toggleHideUnchangedRegions = () => {
 watch(
   () => session.value.activeTabPath,
   async (newKey) => {
+    scrollActiveTabIntoView();
     diffUpdateDisposable?.dispose();
     diffUpdateDisposable = null;
     diffEditorInstance.value = null;
@@ -561,22 +592,43 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   background-color: var(--sidebar-bg);
   border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   flex-shrink: 0;
+  position: relative;
+  user-select: none;
 }
 
 .tabs-scroll-container {
   display: flex;
   overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
   height: 100%;
-  align-items: flex-end;
-  padding: 0 8px;
+  align-items: flex-start;
+  padding: 3px 8px 0 8px;
   gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--el-color-primary-rgb), 0.25) transparent;
 }
 
 .tabs-scroll-container::-webkit-scrollbar {
-  height: 2px;
+  height: 3px;
 }
+
+.tabs-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs-scroll-container::-webkit-scrollbar-thumb {
+  background-color: rgba(var(--el-color-primary-rgb), 0.25);
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.tabs-scroll-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(var(--el-color-primary-rgb), 0.5);
+}
+
 .tab-item {
   height: 28px;
   display: flex;
@@ -587,14 +639,18 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
     calc(var(--card-opacity) * 0.02)
   );
   border: var(--border-width) solid var(--border-color);
-  border-bottom: none;
+  border-bottom: 2px solid transparent;
   border-radius: 6px 6px 0 0;
   cursor: pointer;
   gap: 6px;
   font-size: 12px;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
   color: var(--el-text-color-regular);
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .tab-item:hover {
@@ -608,7 +664,7 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 .tab-item.active {
   background-color: var(--card-bg);
   border-color: var(--border-color);
-  border-bottom: 2px solid var(--el-color-primary);
+  border-bottom-color: var(--el-color-primary);
   color: var(--el-text-color-primary);
   font-weight: 500;
 }

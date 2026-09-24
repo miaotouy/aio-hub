@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：Phase 3 基础契约施工中，已完成 owner / execution lane / 会话索引 / append-only 消息边界
+> 状态：Phase 3 基础契约施工中，已完成 owner / execution lane / 会话索引 / append-only 消息边界；2026-09-24 已补全后续功能目标与回补路径
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -32,6 +32,27 @@ Phase 1/2 已经把最小链路跑通，但也暴露出原计划的几个前提�
 - 父会话合成结果是尽力投递：父会话未加载时会跳过，当前没有通知队列。任务快照才是终态结果的唯一可靠来源。
 
 因此，本设计从“先建完整 runtime 协议，再接入 UI”调整为“先把当前进程内执行链的契约说清楚，再抽取 runtime 边界”。后续设计不得把预留字段、未来状态或视觉方案写成当前已经具备的行为。
+
+## 1.2. 功能范围保护与回补原则（2026-09-24）
+
+施工复盘用于校准承诺边界，不得把运行时尚未具备的能力从产品目标中静默移除。以下能力构成本方案的完整功能范围，并由后续 Phase 继续交付：
+
+1. **可观察**：用户和调度 Agent 能找到任务、读取有限状态与活动、追溯完整子会话；
+2. **可有效介入**：用户或调度 Agent 的补充消息可在明确时机进入后续执行，保持发送者身份，并可查询投递结果；
+3. **可恢复地推进**：进程或 runtime 变化后，系统能依据持久化执行记录、会话状态与幂等命令继续、重试或清晰地交给用户处理；
+4. **可持续透视**：用户可在不离开主会话工作区的前提下阅读子会话，宽屏伴生视窗与窄屏画中画共享一致的会话作用域；
+5. **可控且安全**：停滞、等待输入、审批、暂停、继续、紧急叫停和接管均具备来源明确、幂等且可审计的状态转换；
+6. **结果可靠可达**：任务终态及需要处理的事件保存在可靠通知队列中，父会话暂未加载时仍能在随后关联和呈现。
+
+当前的 append-only、进程内订阅和观察型恢复属于阶段性契约。每项阶段性契约都要在文档中写出对应的目标能力、承接 Phase、持久化数据和验收场景；接口参数、状态名称和 UI 操作只承诺已经兑现的语义。已有兼容字段在过渡期返回实际生效的 `delivery` 与可读说明，避免调用方把预留能力当作已完成能力。
+
+为避免实现便利性改变产品能力，后续设计遵循以下约束：
+
+- `BackgroundAgentTask` 始终表示一次执行尝试；续投递、重试和人工接管产生新的尝试 ID，并通过显式关联字段串成执行链；
+- 任何跨重启需要兑现的操作都要落为持久化命令或记录，内存 Map、UI 选中态和事件监听器不能作为唯一事实来源；
+- 伴生视图优先建立明确的会话作用域，再开放编辑、继续生成和分支操作；在此之前提供只读伴生视图，避免为了复用组件而误写主会话；
+- 暂未有执行器生产者的 `stale`、`attention`、`paused` 等字段仅作为内部预留模型，UI 不把它们包装成可执行承诺；
+- 完成功能时同步更新本计划的“已交付 / 尚未交付 / 验收”记录，确保施工状态与设计目标可追溯。
 
 ## 2. 参考实现与可借鉴点
 
@@ -150,6 +171,7 @@ interface BackgroundTaskSnapshot {
   runtimeGeneration: number;
   result?: BackgroundTaskResult;
   error?: BackgroundTaskError;
+  executionLink?: TaskExecutionLink;
 
   // 只有执行器契约补齐后才能成为对外行为
   stale?: boolean;
@@ -176,6 +198,58 @@ interface BackgroundTaskSnapshot {
 - 最近发生错误：`<toolName> 失败：<可展示错误>`。
 
 `lastOperationSummary` 面向 Agent 和列表卡片，控制长度并做敏感信息脱敏。工具原始参数、完整输出、推理文本和大段回复只通过详情页按需读取。读取不到工具节点时可以退化为 LLM 开始、回复完成或错误活动，不能编造工具进度。
+
+### 4.2. 可续投递、执行链与可靠通知模型
+
+`send_task_message` 保留为只追加到子会话的轻量接口；需要影响执行时，调用方使用独立的 `enqueue_task_message`。两者分别表达“保存一条消息”和“请求调度一次后续执行”，不能共用一个含糊的成功结果。
+
+```ts
+export type TaskMessageDelivery =
+  "append_only" | "next_turn" | "after_current_step";
+
+export interface QueuedTaskMessage {
+  deliveryId: string;
+  sourceTaskId: string;
+  childSessionId: string;
+  executionLaneKey: string;
+  messageNodeId: string;
+  origin: MessageOrigin;
+  delivery: Exclude<TaskMessageDelivery, "append_only">;
+  state: "queued" | "waiting_safe_point" | "delivered" | "failed" | "cancelled";
+  idempotencyKey: string;
+  enqueuedAt: string;
+  deliveredAt?: string;
+  followUpTaskId?: string;
+  error?: BackgroundTaskError;
+}
+
+export interface TaskExecutionLink {
+  continuationOfTaskId?: string;
+  retryOfTaskId?: string;
+  takeoverOfTaskId?: string;
+}
+
+export interface TaskNotification {
+  notificationId: string;
+  taskId: string;
+  parentSessionId?: string | null;
+  kind: "task_terminal" | "approval_required" | "attention_required";
+  summary: string;
+  idempotencyKey: string;
+  createdAt: string;
+  deliveredAt?: string;
+  acknowledgedAt?: string;
+}
+```
+
+约束：
+
+- 追加消息先写入 `childSessionId` 的消息树，并保存 `messageNodeId`、`origin` 与用户档案快照；队列记录引用该节点，从而让消息身份、会话导出和恢复后的执行读取同一份事实；
+- `next_turn` 在当前 lane 空闲后创建一个新的 follow-up task，并以 `continuationOfTaskId` 关联原任务；新的任务读取已保存消息节点发起生成；
+- `after_current_step` 由 task runner 在工具调用、审批返回或模型轮次的安全点消费。安全点前保持 `waiting_safe_point`，不会抢占或截断正在进行的工具操作；
+- `deliveryId + idempotencyKey` 是跨重启和重复请求的去重依据。重复调用返回原队列记录或原 follow-up task；
+- 队列、执行链和通知队列持久化在 runtime-neutral storage 中。消息节点丢失、会话不可读或执行器拒绝时，记录明确失败原因并保留可处理入口；
+- 父会话可用时，通知投影为 `system_event` 消息；父会话未加载时通知停留在队列，加载、任务中心和主会话工具卡片都可补发或确认。
 
 ## 5. Runtime 与协议
 
@@ -218,7 +292,43 @@ cancel_task(taskId, reason?)
 
 其中 `send_task_message` 当前是 append-only：消息写入子会话并记录活动，但不排队、不抢占当前生成、不启动下一轮。`delivery` 只有在真正接入执行 lane 后才能成为行为参数。
 
+Phase 4 在 runner 与持久化队列到位后扩展以下 Agent-facing 方法：
+
+```text
+enqueue_task_message(taskId, message, { delivery: "next_turn" | "after_current_step", idempotencyKey? })
+get_task_delivery(deliveryId)
+pause_task(taskId, requestId)
+resume_task(taskId, requestId)
+retry_task(taskId, idempotencyKey?)
+interrupt_task(taskId, requestId, reason?)
+resolve_task_approval(taskId, requestId, decision)
+```
+
+`enqueue_task_message` 成功仅表示队列记录已持久化；返回值包含 `deliveryId`、当前 delivery state、消息节点引用和已知的 follow-up task。`get_task_delivery` 用于查询投递、消费、失败与重试结果。控制类方法通过 `requestId`、owner/capability 与幂等键校验当前执行尝试，过期请求返回可读的当前状态。
+
 未来需要跨 runtime 时，再增加 `background_task.*` transport 协议：协议必须包含 owner、runtime generation、执行 lane、幂等 requestId 和可恢复的事件/快照游标；不能直接把当前 in-process `subscribe` 改名为 IPC 事件流。
+
+### 5.2.1. 后续 runtime adapter 的完整职责
+
+Phase 4 的 task runner 以可替换 adapter 形式承接主进程、Hidden WebView、Rust command 或 Node.js sidecar。载体可以按部署条件选择，以下能力属于统一契约：
+
+```text
+start(taskId, requestId)
+abort(taskId, requestId, reason?)
+pause(taskId, requestId)
+resume(taskId, requestId)
+enqueueTaskMessage(deliveryId)
+inspect(taskId)
+recover(runtimeGeneration)
+subscribeSnapshot(cursor?)
+```
+
+- runner 持有当前 execution lane、请求句柄、工具安全点和 heartbeat；registry 保留快照、队列、执行链与通知记录；
+- 所有控制命令携带 `taskId`、`requestId`、owner/capability 和幂等键。过期回调只能写入仍持有该请求句柄的尝试；
+- `recover()` 读取持久化执行记录、消息树和队列后，为每项未决工作选择继续、重试、转为 `interrupted` 并提供重试入口，决策及其依据写入活动记录；
+- `subscribeSnapshot(cursor?)` 使用“先快照、后增量”语义。cursor 不连续、runtime generation 变化或跨窗口重连时自动重新读取快照；
+- watchdog 根据 heartbeat、`lastProgressAt`、当前操作类型和安全点状态生成 `stale`。恢复进展、完成、暂停或终止时清除对应标记；
+- 审批和等待输入由 runner 产生带 `requestId` 的状态与活动，控制端通过同一命令链回复，避免 UI 直接改写任务快照。
 
 ### 5.3. 与现有 `sub-agent` 工具的衔接
 
@@ -243,7 +353,7 @@ ask({
 
 ## 6. 用户前端交互设计（复用原生消息与伴生协作体系，分阶段落地）
 
-> **当前实现边界（Phase 3）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导，以及工具调用消息中的任务关系卡片已落地。伴生 `MessageList` 视窗、当前轮自动投递、紧急叫停与审批条仍待后续执行器与会话视图契约。
+> **当前实现边界（Phase 3）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导，以及工具调用消息中的任务关系卡片已落地。伴生 `MessageList` 视窗待 Phase 3 会话作用域契约；当前轮自动投递、紧急叫停与审批条待 Phase 4/5 执行器与控制契约。
 
 系统中已经非常成熟强大的消息渲染体系（如 `MessageList`、`MessageHeader` 自带的头像、名称、模型副标题、气泡布局、富文本渲染与外置头像能力）
 
@@ -420,40 +530,56 @@ export interface MessageOrigin {
 - 完成/失败后尽力向已加载父会话追加合成结果；
 - 标题栏活动胶囊作为任务中心的轻量入口。
 
-### Phase 3：消息来源与执行 lane（施工中）
+### Phase 3：消息来源、会话作用域与执行 lane（施工中）
 
-先补契约，再做更丰富的 UI：
+本阶段完成身份、任务关系和安全透视的基础，不以简化 UI 或复用现有全局会话操作替代会话作用域：
 
 1. 为任务增加明确 `owner` 与 `executionLaneKey`，把同一 `childSessionId` 的生成、追加消息和取消串行化；（已完成基础接入）
 2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
 3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
-4. 把 append-only 的 `send_task_message` 与真正的 `enqueue_task_message` 分开，只有后者承诺下一轮或当前步骤后的投递；（待执行器队列契约）
-5. 让 `origin` 贯穿消息创建、持久化、渲染和导出，再实现派遣卡片、伴生视窗和用户介入输入；（消息来源、阅读型导出、任务中心输入与工具调用消息中的任务关系卡片已接入；伴生视窗待会话作用域改造）
+4. 完成 `MessageList` 的会话作用域契约，先交付只读伴生视图，再将分支、编辑、删除、继续生成等操作绑定到传入的 `sessionDetail.id`；宽屏提供右侧 Companion Sheet，窄屏提供 `DraggablePanel` 画中画；
+5. 完成主会话派遣卡片的任务关系、实时状态、最近活动入口、打开伴生视图和任务中心入口。卡片内控制只展示已经兑现语义的操作；
+6. 保持 `send_task_message` 的 append-only 明确语义与真实来源渲染。`enqueue_task_message` 的持久化队列和执行消费由 Phase 4 task runner 交付，避免在缺少安全点与恢复机制时伪造投递成功。
 
-### Phase 4：可恢复运行时
+### Phase 4：可恢复运行时与有效介入
 
-- 将执行权从 `llmChatService` 适配为明确的 task runner/lane，建立 heartbeat、watchdog 和 requestId；
-- 定义 pause/resume/interrupt/retry 的幂等语义，以及工具审批等待点；
-- 将快照、事件游标和控制命令抽象为可替换 transport，再接入 Hidden WebView、Rust command 或 Node.js sidecar；
-- 运行时重建时根据执行器句柄和会话状态决定 interrupted、retry 或 resume，不能只凭 `runtimeGeneration` 自动恢复。
+- 将执行权从 `llmChatService` 适配为明确的 task runner/lane，建立 heartbeat、watchdog、requestId 和可恢复执行记录；
+- 交付 `enqueue_task_message`：支持 `next_turn` 与 `after_current_step`，持久化 delivery、消息节点引用、幂等键和 follow-up task 链；
+- 运行时重建时根据执行器句柄、会话状态和持久化队列选择继续、重试或转为 `interrupted`，每种结果提供可追溯活动和后续操作入口；
+- 定义 pause/resume/interrupt/retry 的幂等语义，以及工具审批和等待输入的 requestId 路由；
+- 将快照、事件游标和控制命令抽象为可替换 transport，接入符合桌面部署条件的 Hidden WebView、Rust command 或 Node.js sidecar adapter；
+- 构建父会话结果与 attention 的可靠通知队列，实现已加载会话即时投影和未加载会话后续补发。
 
 ### Phase 5：多层编排与安全控制
 
-- 通过任务深度和 capability 管理多层委托；
-- 落地紧急叫停、“已接管”、敏感审批和可靠通知队列；
-- 为 Node.js sidecar 保持与主进程一致的 snapshot/command/event 契约。
+- 通过任务深度和 capability 管理多层委托，并维护 parent task、continuation、retry、takeover 的执行链；
+- 落地紧急叫停、“已接管”、敏感审批和恢复后的权限复核；
+- 在所有 runtime adapter 上保持一致的 snapshot / command / event / notification 契约；
+- 对调度、投递、重试、审批和通知补发提供可审计活动记录与最小必要的用户可行动入口。
+
+### 9.1. 完整功能回补验收
+
+以下场景与 Phase 3-5 对应，作为完整方案的功能验收，避免阶段施工把用户能力长期停留在“仅能看到”：
+
+- 用户在任务运行期间选择 `next_turn` 追加指导后，系统持久化该 delivery；当前 lane 释放时创建关联的 follow-up task，子 Agent 在新轮次读取该消息并保留用户身份；
+- 用户选择 `after_current_step` 时，任务在工具或模型轮次安全点消费消息；活动记录展示等待、投递、follow-up task 与失败原因；
+- 进程重启发生在生成、队列等待或通知待投影期间时，runner 依据持久化执行记录恢复队列和未决通知，并给每项工作提供继续、重试或中断后的可行动入口；
+- 主会话未加载时，终态和 attention 通知仍进入可靠队列；用户随后打开任务中心或父会话时能看到且只收到一次对应投影；
+- 宽屏用户可在主会话旁边查看只读子会话，窄屏可打开画中画；后续启用编辑或继续生成时，所有操作只作用于该伴生会话；
+- watchdog 触发后展示可解释的停滞原因；审批、暂停、恢复、紧急叫停和接管均通过带 requestId 的幂等控制命令完成；
+- 任务链中每次续投递、重试和接管都拥有独立 taskId，并可从任意一项回溯初始委托、相关会话和完整执行链。
 
 ## 10. 下一步建议
 
-不要直接从当前实现跳到“暂停/审批/恢复”或完整派遣卡片。下一步按以下顺序收紧基础契约：
+下一步沿着完整功能链补齐基础契约，阶段性边界服务于后续能力回补：
 
-1. 先把 `owner`、可空 `parentSessionId`、`executionLaneKey` 和 `conversationId` 的持久化索引边界写入共享类型与 registry；
-2. 给同一 `childSessionId` 增加单轮执行锁/队列，明确取消、追加消息与旧回调的竞态处理；
-3. 将 `send_task_message` 的当前语义固定为 append-only，并另行设计真正的排队接口；
-4. 补齐会话索引和用户档案快照后，再贯通 `origin` 的创建、持久化、渲染和导出；
-5. 最后再抽取 runtime/IPC adapter，并以跨进程快照、事件游标和恢复测试重新定义 Phase 4。
+1. 完成 `MessageList` 会话作用域并交付只读伴生视图，保持主会话与子会话的操作边界；
+2. 落地 runtime-neutral 的 queued delivery、执行链和通知队列数据模型，明确消息节点引用、幂等键、delivery 状态和 follow-up task 关系；
+3. 抽取 task runner/lane，接管 generation、工具安全点、cancel、heartbeat 和 requestId；
+4. 用 runner 消费 `enqueue_task_message`，实现下一轮与当前步骤后的真实投递，以及重启后的队列恢复；
+5. 在统一 command/event/snapshot 契约上交付暂停、恢复、重试、审批、紧急叫停、接管和可靠通知。
 
-这样当前主链路的承诺会收敛为：后台执行可被找到、状态可被查询、取消尽力生效、结果不会因 UI 未加载而丢失；更强的恢复和介入能力建立在真实执行器契约之上。
+当前主链路已完成的观察、查询、取消与身份呈现继续保持；后续施工以 §9.1 的有效介入、恢复、持续透视和可靠到达场景为完成标准。
 
 ## 11. 行为验收场景
 
@@ -461,7 +587,7 @@ export interface MessageOrigin {
 
 - `ask({ mode: "background" })` 返回任务 handle，父 Agent 可以继续执行；
 - 任务中心和 `get_task_status` 能看到同一个任务快照，活动变化后重新读取即可得到最新状态；
-- 用户打开子会话不会切换父 Agent 的当前生成上下文；
+- 后台任务创建与运行不会切换父 Agent 的当前生成上下文；当前“打开子会话”是显式会话跳转，Phase 3 伴生视图完成后提供不离开主工作区的透视；
 - 取消任务会触发当前子会话的 best-effort abort，任务进入 `cancelled` 后不会被旧回调改写；
 - 应用刷新/重启后，历史任务仍可查看；重启前处于活动态的任务显示为 `interrupted`，不会伪装成仍在运行；
 - 父会话未加载时，合成结果消息可以缺席，但任务快照仍保留终态和结果摘要；
@@ -575,6 +701,18 @@ export interface MessageOrigin {
 
 下一步需先决定并实现会话作用域契约：把 `MessageList` 的这些操作显式绑定到传入的 `sessionDetail.id`，或先提供明确只读的独立子会话视图。当前阶段保留已验证的“打开子会话”跳转，不将子会话强行嵌入主会话。执行器队列、恢复与审批同样仍需独立契约设计。
 
-### 12.3. 施工复盘后的设计结论
+### 12.4. 施工复盘后的设计结论
 
 Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为事实来源，任务恢复只恢复观察；`conversationId` 已有持久化索引但不具备执行恢复能力；消息追加不等于调度执行；父会话通知不具备可靠投递保证。后续实现按 §9 的 Phase 3/4/5 重新拆分，不再以原 §5.2 的 runtime/IPC 草案作为当前实现验收标准。
+
+### 12.5. 功能目标回补记录（2026-09-24）
+
+本次更新补全了施工复盘后容易被阶段性边界掩盖的完整功能目标，并为每项能力明确了承接位置：
+
+- `enqueue_task_message`、安全点投递、follow-up task、delivery 去重与队列恢复归入 Phase 4；
+- task runner、heartbeat/watchdog、pause/resume/interrupt/retry、审批路由与 runtime recovery 归入 Phase 4；
+- 可靠通知队列在 Phase 4 落地基础投影，并在 Phase 5 扩展到多层编排与恢复后的权限复核；
+- Companion Sheet、PiP 和会话作用域改造归入 Phase 3，交付顺序为只读视图再到完整会话操作；
+- 派遣卡片保留为主会话就地感知和操作入口，卡片控制随底层命令语义逐项开放。
+
+本记录只补充设计与验收范围，当前“已交付 / 尚未交付”仍以 §12.3 的施工状态为准。

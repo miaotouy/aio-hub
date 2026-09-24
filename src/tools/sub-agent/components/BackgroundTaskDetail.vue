@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { Ban, ExternalLink, MessageSquarePlus, Send } from "lucide-vue-next";
+import { Ban, ExternalLink, Eye, MessageSquarePlus, Send } from "lucide-vue-next";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
@@ -35,6 +35,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import { formatDateTime, formatRelativeTime } from "@/utils/time";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
+import { useCompanionSession } from "../composables/useCompanionSession";
 import {
   getActivityActorName,
   getOriginDisplayName,
@@ -57,6 +58,17 @@ const emit = defineEmits<{
 }>();
 
 const agentStore = useAgentStore();
+const { openCompanion } = useCompanionSession();
+
+/** 透视：在只读伴生视图中查看子会话，不切换主会话选中态 */
+function handlePeek(): void {
+  const task = props.task;
+  if (!task?.childSessionId) return;
+  void openCompanion({
+    taskId: task.taskId,
+    childSessionId: task.childSessionId,
+  });
+}
 
 const statePresentation = computed(() =>
   getTaskStatePresentation(props.task?.state ?? "created")
@@ -247,8 +259,23 @@ async function handleCancelTask(): Promise<void> {
         </div>
       </header>
 
-      <!-- 任务操作：打开子会话 / 取消任务（终态隐藏） -->
+      <!-- 任务操作：透视 / 打开子会话 / 取消任务（终态隐藏） -->
       <div class="detail-actions">
+        <button
+          type="button"
+          class="peek-child-button"
+          :disabled="!canOpenChild"
+          :title="
+            canOpenChild
+              ? '在只读伴生视图中透视子会话（不切换当前会话）'
+              : '该任务没有可透视的子会话'
+          "
+          @click="handlePeek"
+        >
+          <Eye :size="14" />
+          <span>透视</span>
+        </button>
+
         <button
           type="button"
           class="open-child-button"
@@ -536,6 +563,29 @@ async function handleCancelTask(): Promise<void> {
 }
 
 .open-child-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.peek-child-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-color);
+  background-color: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+  transition: background-color 0.2s;
+}
+
+.peek-child-button:hover:not(:disabled) {
+  background-color: var(--fill-color);
+}
+
+.peek-child-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }

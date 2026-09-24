@@ -56,6 +56,8 @@ import {
 import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
 import { useBackgroundTaskCenter } from "@/tools/sub-agent/composables/useBackgroundTaskCenter";
 import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
+import { useCompanionSession } from "@/tools/sub-agent/composables/useCompanionSession";
+import CompanionSessionSheet from "@/tools/sub-agent/components/CompanionSessionSheet.vue";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
@@ -175,6 +177,7 @@ const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 // 点击打开任务中心；任务中心组件在本组件内唯一挂载，与 ChatAreaHeader 入口
 // 共享 useBackgroundTaskCenter 的打开状态。
 const { isTaskCenterOpen, openTaskCenter } = useBackgroundTaskCenter();
+const { openCompanion } = useCompanionSession();
 
 /** 活动（非终态）任务快照；整体替换，避免深层响应式开销 */
 const activeTasks = shallowRef<BackgroundTaskSnapshot[]>([]);
@@ -211,6 +214,7 @@ const capsuleSummary = computed(() => {
 /** 胶囊 Mini 列表项 */
 interface CapsuleTaskItem {
   taskId: string;
+  childSessionId: string;
   agentName: string;
   stateLabel: string;
   tone: BackgroundTaskTone;
@@ -223,6 +227,7 @@ const capsuleTaskItems = computed<CapsuleTaskItem[]>(() =>
     const presentation = getTaskStatePresentation(task.state);
     return {
       taskId: task.taskId,
+      childSessionId: task.childSessionId,
       agentName: getOriginDisplayName(task.targetAgent),
       stateLabel: presentation.label,
       tone: presentation.tone,
@@ -231,6 +236,18 @@ const capsuleTaskItems = computed<CapsuleTaskItem[]>(() =>
     };
   })
 );
+
+/** 点击胶囊列表项：优先以伴生视图透视子会话，无子会话时回落到任务中心 */
+function handleCapsuleItemClick(item: CapsuleTaskItem): void {
+  if (item.childSessionId) {
+    void openCompanion({
+      taskId: item.taskId,
+      childSessionId: item.childSessionId,
+    });
+    return;
+  }
+  openTaskCenter();
+}
 
 // 检查窗口是否最大化
 const checkMaximized = async () => {
@@ -486,6 +503,9 @@ watch(
 
     <!-- 后台任务中心：全应用唯一挂载点，由标题栏胶囊 / 聊天区入口共同打开 -->
     <BackgroundTaskCenter v-model="isTaskCenterOpen" />
+
+    <!-- 伴生会话只读视图：全应用唯一挂载点，侧栏 / 画中画均由它承载 -->
+    <CompanionSessionSheet />
 
     <!-- 侧边栏抽屉 -->
     <el-drawer
@@ -760,7 +780,8 @@ watch(
                 v-for="item in capsuleTaskItems"
                 :key="item.taskId"
                 class="task-capsule-item"
-                @click="openTaskCenter"
+                :title="'透视子会话'"
+                @click="handleCapsuleItemClick(item)"
               >
                 <span
                   class="task-capsule-item-dot"

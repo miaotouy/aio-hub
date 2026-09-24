@@ -29,6 +29,7 @@ import {
   Ban,
   ChevronRight,
   ExternalLink,
+  Eye,
   MessageSquarePlus,
   Send,
 } from "lucide-vue-next";
@@ -47,6 +48,7 @@ import Avatar from "@/components/common/Avatar.vue";
 import { customMessage } from "@/utils/customMessage";
 import { formatRelativeTime } from "@/utils/time";
 import { createModuleLogger } from "@/utils/logger";
+import { useCompanionSession } from "../composables/useCompanionSession";
 import {
   getActivityActorName,
   getOriginDisplayName,
@@ -63,6 +65,15 @@ const props = defineProps<{
 }>();
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
+const { openCompanion } = useCompanionSession();
+
+/** 透视：只读伴生视图查看子会话，不切换主会话选中态 */
+function handlePeek(task: BackgroundTaskSnapshot): void {
+  void openCompanion({
+    taskId: task.taskId,
+    childSessionId: task.childSessionId,
+  });
+}
 
 // 只接受工具执行器写入的结构化关系；消息正文中出现的 ID 不作为跳转依据。
 const links = computed(() => {
@@ -338,12 +349,19 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
           </ol>
         </div>
 
-        <!-- 卡片内控制：叫停 / 插话（仅活动态开放） -->
-        <div
-          v-if="!screenshotMode && isActiveTaskState(task.state)"
-          class="dispatch-actions"
-        >
+        <!-- 卡片内控制：透视（只读） / 叫停 / 插话（仅活动态开放后两者） -->
+        <div v-if="!screenshotMode" class="dispatch-actions">
           <button
+            type="button"
+            class="dispatch-action dispatch-peek"
+            title="在只读伴生视图中透视子会话（不切换当前会话）"
+            @click="handlePeek(task)"
+          >
+            <Eye :size="12" />
+            <span>透视</span>
+          </button>
+          <button
+            v-if="isActiveTaskState(task.state)"
             type="button"
             class="dispatch-action dispatch-halt"
             title="叫停该后台任务并中止子会话生成"
@@ -353,6 +371,7 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
             <span>叫停</span>
           </button>
           <button
+            v-if="isActiveTaskState(task.state)"
             type="button"
             class="dispatch-action dispatch-whisper-toggle"
             :aria-expanded="whisperOpenTaskId === task.taskId"
@@ -672,6 +691,14 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
 
 .dispatch-whisper-toggle:hover {
   background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.dispatch-peek {
+  color: var(--text-color-secondary);
+}
+
+.dispatch-peek:hover {
+  background-color: var(--fill-color);
 }
 
 .dispatch-whisper {

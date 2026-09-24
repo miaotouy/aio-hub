@@ -51,12 +51,17 @@ interface Props {
   userRichTextStyleOptions?: import("@/tools/rich-text-renderer/types").RichTextRendererStyleOptions;
   /** 是否处于截图模式(隐藏交互元素、传递到子组件) */
   screenshotMode?: boolean;
+  /** 显式绑定的会话作用域；为空时回退当前选中会话 */
+  scopeSessionId?: string | null;
 }
 
 const props = defineProps<Props>();
 
 const store = useLlmChatStore();
 const { settings } = useChatSettings();
+
+// 会话作用域：有值时读写显式绑定到该会话，不再依赖 currentSessionId
+const scopedSessionId = computed(() => props.scopeSessionId ?? null);
 
 // keep-alive 滚动位置恢复：在 scroll 事件中持续追踪 scrollTop
 // （deactivate 时浏览器会将 DOM 移出文档树导致 scrollTop 被重置为 0）
@@ -124,8 +129,18 @@ const {
 } = useMessageLayout({
   messages: computed(() => props.messages),
   settings,
-  getSiblings: (id) => store.getSiblings(id),
-  isNodeInActivePath: (id) => store.isNodeInActivePath(id),
+  getSiblings: (id) => {
+    const sessionId = scopedSessionId.value;
+    return sessionId
+      ? store.getSiblingsInSession(id, sessionId)
+      : store.getSiblings(id);
+  },
+  isNodeInActivePath: (id) => {
+    const sessionId = scopedSessionId.value;
+    return sessionId
+      ? store.isNodeInActivePathInSession(id, sessionId)
+      : store.isNodeInActivePath(id);
+  },
 });
 
 // 截图模式：通过 prop 控制,默认 false
@@ -531,6 +546,15 @@ watch(
 );
 
 // 事件处理
+// 将作用域会话注入带 options 的生成动作（无作用域时保持原样）
+function withScopedSession<T extends { sessionId?: string }>(
+  options?: T
+): T | undefined {
+  const sessionId = scopedSessionId.value;
+  if (!sessionId) return options;
+  return Object.assign({}, options, { sessionId }) as T;
+}
+
 const handleReparseTools = async (
   nodeId: string,
   options?: { modelId?: string; profileId?: string }
@@ -542,7 +566,14 @@ const handleReparseTools = async (
       options?.modelId && options?.profileId
         ? { modelId: options.modelId, profileId: options.profileId }
         : null;
-    await store.reparseNodeTools(nodeId, { temporaryModel });
+    const sessionId = scopedSessionId.value;
+    if (sessionId) {
+      await store.reparseNodeToolsInSession(nodeId, sessionId, {
+        temporaryModel,
+      });
+    } else {
+      await store.reparseNodeTools(nodeId, { temporaryModel });
+    }
     customMessage.success("工具重新解析完成");
   } catch (error) {
     const { createModuleLogger } = await import("@utils/logger");
@@ -702,36 +733,36 @@ defineExpose({
                     ? userRichTextStyleOptions || richTextStyleOptions
                     : richTextStyleOptions
                 "
-                @delete="store.deleteMessage(msg.id)"
-                @regenerate="store.regenerateFromNode(msg.id, $event)"
+                @delete="store.deleteMessage(msg.id, scopedSessionId)"
+                @regenerate="store.regenerateFromNode(msg.id, withScopedSession($event))"
                 @switch-sibling="
                   (dir: any) => {
                     captureSwitchingMessagePosition(msg.id);
-                    store.switchToSiblingBranch(msg.id, dir);
+                    store.switchToSiblingBranch(msg.id, dir, scopedSessionId);
                   }
                 "
                 @switch-branch="
                   (nodeId: any) => {
                     captureSwitchingMessagePosition(msg.id);
-                    store.switchBranch(nodeId);
+                    store.switchBranch(nodeId, scopedSessionId);
                   }
                 "
-                @toggle-enabled="store.toggleNodeEnabled(msg.id)"
+                @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
                 @edit="
                   (newContent: any, attachments: any) =>
-                    store.editMessage(msg.id, newContent, attachments)
+                    store.editMessage(msg.id, newContent, attachments, scopedSessionId)
                 "
                 @save-to-branch="
                   (newContent: any, attachments: any) =>
-                    store.createBranchFromEdit(msg.id, newContent, attachments)
+                    store.createBranchFromEdit(msg.id, newContent, attachments, scopedSessionId)
                 "
                 @copy="() => {}"
                 @abort="store.abortNodeGeneration(msg.id)"
-                @continue="store.continueGeneration(msg.id, $event)"
+                @continue="store.continueGeneration(msg.id, withScopedSession($event))"
                 @create-branch="
                   () => {
                     captureSwitchingMessagePosition(msg.id);
-                    store.createBranch(msg.id);
+                    store.createBranch(msg.id, scopedSessionId);
                   }
                 "
                 @analyze-context="
@@ -744,7 +775,7 @@ defineExpose({
                 @screenshot="emit('screenshot', msg.id)"
                 @update-translation="
                   (translation: any) =>
-                    store.updateMessageTranslation(msg.id, translation)
+                    store.updateMessageTranslation(msg.id, translation, scopedSessionId)
                 "
               />
             </div>
@@ -759,13 +790,13 @@ defineExpose({
               :screenshot-mode="screenshotMode"
               :llm-think-rules="llmThinkRules"
               :rich-text-style-options="richTextStyleOptions"
-              @toggle-enabled="store.toggleNodeEnabled(msg.id)"
-              @delete="store.deleteMessage(msg.id)"
+              @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
+              @delete="store.deleteMessage(msg.id, scopedSessionId)"
               @update-content="
-                (content: string) => store.editMessage(msg.id, content)
+                (content: string) => store.editMessage(msg.id, content, undefined, scopedSessionId)
               "
               @update-role="
-                (role: any) => store.updateNodeData(msg.id, { role })
+                (role: any) => store.updateNodeData(msg.id, { role }, scopedSessionId)
               "
             />
 
@@ -782,32 +813,32 @@ defineExpose({
               :rich-text-style-options="richTextStyleOptions"
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-              @delete="store.deleteMessage(msg.id)"
-              @regenerate="store.regenerateFromNode(msg.id, $event)"
+              @delete="store.deleteMessage(msg.id, scopedSessionId)"
+              @regenerate="store.regenerateFromNode(msg.id, withScopedSession($event))"
               @switch-sibling="
                 (dir: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchToSiblingBranch(msg.id, dir);
+                  store.switchToSiblingBranch(msg.id, dir, scopedSessionId);
                 }
               "
               @switch-branch="
                 (nodeId: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchBranch(nodeId);
+                  store.switchBranch(nodeId, scopedSessionId);
                 }
               "
-              @toggle-enabled="store.toggleNodeEnabled(msg.id)"
+              @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
               @edit="
                 (newContent: any, attachments: any) =>
-                  store.editMessage(msg.id, newContent, attachments)
+                  store.editMessage(msg.id, newContent, attachments, scopedSessionId)
               "
               @copy="() => {}"
               @abort="store.abortNodeGeneration(msg.id)"
-              @continue="store.continueGeneration(msg.id, $event)"
+              @continue="store.continueGeneration(msg.id, withScopedSession($event))"
               @create-branch="
                 () => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.createBranch(msg.id);
+                  store.createBranch(msg.id, scopedSessionId);
                 }
               "
               @analyze-context="
@@ -820,11 +851,11 @@ defineExpose({
               @screenshot="emit('screenshot', msg.id)"
               @save-to-branch="
                 (newContent: any, attachments: any) =>
-                  store.createBranchFromEdit(msg.id, newContent, attachments)
+                  store.createBranchFromEdit(msg.id, newContent, attachments, scopedSessionId)
               "
               @update-translation="
                 (translation: any) =>
-                  store.updateMessageTranslation(msg.id, translation)
+                  store.updateMessageTranslation(msg.id, translation, scopedSessionId)
               "
             />
 
@@ -847,36 +878,36 @@ defineExpose({
                   ? userRichTextStyleOptions || richTextStyleOptions
                   : richTextStyleOptions
               "
-              @delete="store.deleteMessage(msg.id)"
-              @regenerate="store.regenerateFromNode(msg.id, $event)"
+              @delete="store.deleteMessage(msg.id, scopedSessionId)"
+              @regenerate="store.regenerateFromNode(msg.id, withScopedSession($event))"
               @switch-sibling="
                 (dir: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchToSiblingBranch(msg.id, dir);
+                  store.switchToSiblingBranch(msg.id, dir, scopedSessionId);
                 }
               "
               @switch-branch="
                 (nodeId: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchBranch(nodeId);
+                  store.switchBranch(nodeId, scopedSessionId);
                 }
               "
-              @toggle-enabled="store.toggleNodeEnabled(msg.id)"
+              @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
               @edit="
                 (newContent: any, attachments: any) =>
-                  store.editMessage(msg.id, newContent, attachments)
+                  store.editMessage(msg.id, newContent, attachments, scopedSessionId)
               "
               @save-to-branch="
                 (newContent: any, attachments: any) =>
-                  store.createBranchFromEdit(msg.id, newContent, attachments)
+                  store.createBranchFromEdit(msg.id, newContent, attachments, scopedSessionId)
               "
               @copy="() => {}"
               @abort="store.abortNodeGeneration(msg.id)"
-              @continue="store.continueGeneration(msg.id, $event)"
+              @continue="store.continueGeneration(msg.id, withScopedSession($event))"
               @create-branch="
                 () => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.createBranch(msg.id);
+                  store.createBranch(msg.id, scopedSessionId);
                 }
               "
               @analyze-context="
@@ -889,7 +920,7 @@ defineExpose({
               @screenshot="emit('screenshot', msg.id)"
               @update-translation="
                 (translation: any) =>
-                  store.updateMessageTranslation(msg.id, translation)
+                  store.updateMessageTranslation(msg.id, translation, scopedSessionId)
               "
             />
           </div>

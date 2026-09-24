@@ -353,6 +353,31 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     return BranchNavigator.isNodeInActivePath(detail, nodeId);
   };
 
+  const getSiblingsInSession = (
+    nodeId: string,
+    sessionId: string
+  ): ChatMessageNode[] => {
+    const detail = sessionAccess.getSessionDetail(sessionId);
+    if (!detail) return [];
+
+    if (nodeId.startsWith("preset-")) {
+      logger.warn("尝试获取预设消息的兄弟节点", { nodeId });
+      return [];
+    }
+
+    return BranchNavigator.getSiblings(detail, nodeId);
+  };
+
+  const isNodeInActivePathInSession = (
+    nodeId: string,
+    sessionId: string
+  ): boolean => {
+    const detail = sessionAccess.getSessionDetail(sessionId);
+    if (!detail) return false;
+
+    return BranchNavigator.isNodeInActivePath(detail, nodeId);
+  };
+
   const isNodeGenerating = (nodeId: string): boolean => {
     return sessionRuntime.isNodeGenerating(nodeId);
   };
@@ -477,7 +502,40 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     generateSessionTopic,
     exportSessionAsMarkdown,
     clearAllSessions,
+    ensureSessionDetail,
   } = sessionLifecycle;
+
+  // ==================== 按会话 id 的只读访问 ====================
+  // 显式绑定到任意会话（如后台子会话），不改变 currentSessionId。
+
+  function getSessionIndexById(sessionId: string): ChatSessionIndex | null {
+    return sessionAccess.getSessionIndex(sessionId);
+  }
+
+  function getSessionDetailById(sessionId: string): ChatSessionDetail | null {
+    return sessionAccess.getSessionDetail(sessionId);
+  }
+
+  function getActivePathBySessionId(sessionId: string): ChatMessageNode[] {
+    return sessionAccess.getActivePath(sessionId);
+  }
+
+  async function ensureSessionDetailLoaded(
+    sessionId: string
+  ): Promise<ChatSessionDetail | null> {
+    const existing = sessionAccess.getSessionDetail(sessionId);
+    if (existing) return existing;
+
+    try {
+      return await ensureSessionDetail(sessionId);
+    } catch (error) {
+      logger.warn("按需加载会话详情失败", {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
 
   function undo(sessionId?: string) {
     sessionHistory.undo(sessionId);
@@ -824,11 +882,19 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     currentActivePathWithPresets,
     llmContext,
     getSiblings,
+    getSiblingsInSession,
     isNodeInActivePath,
+    isNodeInActivePathInSession,
     isNodeGenerating,
     getSessionGeneratingNodeIds,
     isSessionGenerating,
     currentMessageCount,
+
+    // 按会话 id 的只读访问（不改变 currentSessionId）
+    getSessionIndexById,
+    getSessionDetailById,
+    getActivePathBySessionId,
+    ensureSessionDetailLoaded,
 
     // 历史记录
     undo,
@@ -877,6 +943,22 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       options?: { temporaryModel?: ModelIdentifier | null }
     ): Promise<void> => {
       const detail = currentSessionDetail.value;
+      if (!detail) return;
+      const chatHandler = useChatHandler();
+      await chatHandler.reparseNodeTools(
+        detail,
+        nodeId,
+        abortControllers.value,
+        generatingNodes.value,
+        options
+      );
+    },
+    reparseNodeToolsInSession: async (
+      nodeId: string,
+      sessionId: string,
+      options?: { temporaryModel?: ModelIdentifier | null }
+    ): Promise<void> => {
+      const detail = sessionAccess.getSessionDetail(sessionId);
       if (!detail) return;
       const chatHandler = useChatHandler();
       await chatHandler.reparseNodeTools(

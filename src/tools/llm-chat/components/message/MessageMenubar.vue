@@ -54,6 +54,8 @@ import {
 } from "lucide-vue-next";
 import type {
   ChatMessageNode,
+  ChatSessionDetail,
+  ChatSessionIndex,
   ButtonVisibility,
   TranslationDisplayMode,
 } from "../../types";
@@ -75,6 +77,9 @@ interface Props {
   siblings: ChatMessageNode[];
   currentSiblingIndex: number;
   buttonVisibility?: ButtonVisibility;
+  /** 消息所属会话；为空时回退当前选中会话 */
+  sessionDetail?: ChatSessionDetail | null;
+  sessionIndex?: ChatSessionIndex | null;
 }
 interface Emits {
   (e: "copy"): void;
@@ -122,6 +127,20 @@ const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
 const logger = createModuleLogger("MessageMenubar");
+
+// 会话作用域：优先使用传入的会话，未传入时回退当前选中会话
+const scopedSessionDetail = computed(
+  () => props.sessionDetail ?? store.currentSessionDetail
+);
+const scopedSessionIndex = computed(
+  () => props.sessionIndex ?? store.currentSession
+);
+const scopedFullSession = computed(() => {
+  const index = scopedSessionIndex.value;
+  const detail = scopedSessionDetail.value;
+  if (!index || !detail) return null;
+  return { index, detail };
+});
 
 // 复制状态
 const copied = ref(false);
@@ -361,7 +380,7 @@ const handleAnalyzeContext = () => {
 
 // 重新计算 Token 数
 const handleRecalculateTokens = async () => {
-  const fullSession = store.currentFullSession;
+  const fullSession = scopedFullSession.value;
   if (!fullSession) return;
 
   logger.info("重新计算 Token", { nodeId: props.message.id });
@@ -874,8 +893,8 @@ const handleTranslateClick = (e: MouseEvent) => {
     <ExportBranchDialog
       v-model:visible="showExportDialog"
       :preset-count="presetCount"
-      :session="store.currentSessionDetail"
-      :session-index="store.currentSession"
+      :session="scopedSessionDetail"
+      :session-index="scopedSessionIndex"
       :message-id="props.message.id"
       :preset-messages="currentPresetMessages"
       @screenshot="emit('screenshot')"
@@ -885,6 +904,7 @@ const handleTranslateClick = (e: MouseEvent) => {
     <MessageDataEditor
       v-model="showDataEditor"
       :message-id="props.message.id"
+      :session-detail="scopedSessionDetail"
     />
   </div>
 </template>

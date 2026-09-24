@@ -1145,6 +1145,8 @@ defineExpose({
           :siblings="siblings"
           :current-sibling-index="currentSiblingIndex"
           :button-visibility="buttonVisibility"
+          :session-detail="props.sessionDetail"
+          :session-index="props.sessionIndex"
           @delete="emit('delete')"
           @edit="startEdit"
           @copy="emit('copy')"

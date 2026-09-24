@@ -67,13 +67,15 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import type { ChatMessageNode } from "../../types";
+import type { ChatMessageNode, ChatSessionDetail } from "../../types";
 
 const errorHandler = createModuleErrorHandler("LlmChat/MessageDataEditor");
 
 const props = defineProps<{
   modelValue: boolean;
   messageId: string | null;
+  /** 消息所属会话；为空时回退当前选中会话 */
+  sessionDetail?: ChatSessionDetail | null;
 }>();
 
 const emit = defineEmits<{
@@ -81,6 +83,9 @@ const emit = defineEmits<{
 }>();
 
 const store = useLlmChatStore();
+const scopedSession = computed(
+  () => props.sessionDetail ?? store.currentSessionDetail
+);
 const { copy } = useClipboard();
 const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
@@ -97,7 +102,7 @@ watch(
   () => props.modelValue,
   (isOpening) => {
     if (isOpening && props.messageId) {
-      const session = store.currentSessionDetail;
+      const session = scopedSession.value;
       if (session && session.nodes && session.nodes[props.messageId]) {
         const node = session.nodes[props.messageId];
         // 保存原始数据用于比较
@@ -158,7 +163,11 @@ const handleSave = async () => {
   }
 
   try {
-    await store.updateNodeData(props.messageId, parsedData);
+    await store.updateNodeData(
+      props.messageId,
+      parsedData,
+      scopedSession.value?.id ?? null
+    );
     customMessage.success("消息数据已更新。");
     handleClose();
   } catch (error) {

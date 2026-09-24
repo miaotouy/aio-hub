@@ -1245,5 +1245,6 @@ export function createSessionLifecycleManager(
     generateSessionTopic,
     exportSessionAsMarkdown,
     clearAllSessions,
+    ensureSessionDetail,
   };
 }

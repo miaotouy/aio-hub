@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：Phase 3（消息来源、会话作用域、只读伴生视图、派遣卡片）已于 2026-09-24 完成，施工记录见 §12.7；Phase 4 可恢复运行时与有效介入待启动
+> 状态：Phase 3 的服务端契约、会话作用域、伴生视图外壳与派遣卡片主体已于 2026-09-24 落地；伴生视图的严格只读约束与目标会话一致性仍待修复，T3.3 视觉目标未完成，验收状态见 §12.7；Phase 4 可恢复运行时与有效介入待启动
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -353,7 +353,7 @@ ask({
 
 ## 6. 用户前端交互设计（复用原生消息与伴生协作体系，分阶段落地）
 
-> **当前实现边界（Phase 3 已完成）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导、工具调用消息中的任务关系卡片、只读伴生视图（宽屏侧栏 / 窄屏画中画）以及派遣卡片的活动时间轴、叫停、插话均已落地；会话作用域契约随本次交付。当前轮自动投递、强制中断与审批条待 Phase 4/5 执行器与控制契约。
+> **当前实现边界（Phase 3 主体已落地，伴生视图验收待修复）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导、工具调用消息中的任务关系卡片、伴生视图外壳（宽屏侧栏 / 窄屏画中画）以及派遣卡片的活动时间轴、叫停、插话均已接线；会话作用域契约随本次交付。伴生视图当前仍存在外置 Header 布局下可见消息操作栏，以及快速切换目标时异步加载结果覆盖的问题，暂不满足“严格只读、始终对应当前 childSessionId”的验收条件。当前轮自动投递、强制中断与审批条待 Phase 4/5 执行器与控制契约。
 
 系统中已经非常成熟强大的消息渲染体系（如 `MessageList`、`MessageHeader` 自带的头像、名称、模型副标题、气泡布局、富文本渲染与外置头像能力）
 
@@ -374,42 +374,125 @@ ask({
 
 ### 6.1. Level 1：就地感知 —— 融入生动身份的原生消息卡片
 
-在主会话中，子智能体调用以派遣卡片呈现，并充分使用现有消息头部与身份识别资产：
+在主会话中，子智能体调用以派遣卡片（[`BackgroundTaskDispatchLink.vue`](src/tools/sub-agent/components/BackgroundTaskDispatchLink.vue:1)）呈现，并充分使用现有消息头部与身份识别资产：
 
 1. **复用 `MessageHeader` 动态身份映射**：
-   - 派遣卡片直接复用或对齐 [`MessageHeader.vue`](src/tools/llm-chat/components/message/MessageHeader.vue:1) 的头像解析逻辑（`useResolvedAgentAvatar`）；
+   - 派遣卡片直接复用 [`useResolvedAgentAvatar`](src/tools/llm-chat/composables/useResolvedAgentAvatar.ts:1) 解析逻辑，支持响应式图谱、预设与 AppData 协议转换；
    - **任务关系头部（派遣卡片）**：并列显示 `[调度方 Agent 头像+名字] → [子 Agent 头像+名字]`，让任务卡片一眼呈现派遣关系；
-   - 支持气泡模式（Bubble Mode）下的外置头像（`avatarPlacement: outside`），使子 Agent 的形象自然站立在消息气泡外侧。
+   - **外置头像布局适配**：在气泡模式且设置 `avatarPlacement: outside` 时，派遣卡片根节点外露子 Agent 头像，与标准 `ChatMessage.vue` 视觉流完全拉齐。
 2. **生命力微动效与阶段流水**：
-   - **状态指示器**：复用 `MessageHeader` 中的 `message-status` 胶囊（旋转的小圆圈、等待中、完成勾选），结合呼吸光晕表现运行态；
+   - **状态指示器**：复用 `MessageHeader` 中的 `message-status` 胶囊（旋转小圆圈、等待中、完成勾选），结合呼吸光晕表现运行态；
    - **操作流水胶囊（Activity Ticker）**：单行轮播最近操作（例如 `正在查阅: src/utils/logger.ts`），点击可向下平滑展开微抽屉时间轴。
-3. **卡片内微介入操作（Inline Steer）**：
-   - 卡片底部集成快捷介入条：
-     - **「透视（Peek）」**：点击直接在侧边滑出完整的子会话面板；
-     - **「叫停（Halt）」**：紧急打断执行；
-     - **「插话（Whisper）」**：卡片内原地展开便签输入框（**严格遵循 Ctrl+Enter 发送规范，防止单回车误发**）。
+3. **卡片内微介入操作（Inline Steer）与伴生透视切换**：
+   - 卡片底部集成快捷操作条：
+     - **互斥透视按钮组**：提供「侧栏透视」（`PanelRight`）与「悬浮透视」（`PictureInPicture2`）两个显式切换按钮（详见 §6.2.1 互斥状态机规范）；
+     - **「叫停（Halt）」**：紧急打断执行（二次确认防误触）；
+     - **「插话（Whisper）」**：卡片内原地展开便签输入框（**严格遵循 Ctrl+Enter 发送规范，单回车仅换行，防止误发**）。
 
-### 6.2. Level 2：伴生视窗 —— 100% 复用现有 `MessageList` 核心组件
+### 6.2. Level 2：伴生视窗 —— 互斥双模透视与 100% 结构性让位
 
-用户需要细看子 Agent 完整的执行流与推理细节时，直接复用现有的 `MessageList.vue`：
+用户需要细看子 Agent 完整的执行流与推理细节时，直接复用现有的 `MessageList.vue`。
 
-1. **双栏伴生视窗（Companion Sheet）**：
-   - 宽屏（> 1100px）下，主对话区向左平滑腾出空间，右侧滑出伴生视窗；
-   - 伴生视窗内部**直接挂载 [`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue:1)**；任务详情先依据 `childSessionId` 从会话 Store 取得 `sessionIndex`、`sessionDetail` 和消息列表，再按现有 props 契约渲染，`MessageList` 本身不直接接收 `childSessionId`；
-   - 自动继承原汁原味的能力：
-     - **完整的 Agent 头像与名字展示**；
-     - 完整的 Markdown 渲染、代码高亮、复制与思考块折叠；
-     - 气泡模式与卡片模式样式自适应；
-     - 底部锁定跟随与虚拟滚动能力。
-2. **画中画悬浮窗（Floating PiP via `DraggablePanel`）**：
-   - 窄屏或点击“独立悬浮”时，将上述挂载了 `MessageList` 的伴生视窗嵌入 [`DraggablePanel`](src/components/common/DraggablePanel.vue:66)；
-   - 用户可以拖拽到屏幕任意角落，半透明毛玻璃背景（`backdrop-filter: blur(var(--ui-blur))`）；
-   - 用户在主窗口正常与主 Agent 交流，眼角余光看着画中画里子 Agent 顶着自己的头像和名字不断吐字。
-3. **多源消息的自然视觉识别**：
-   - 在伴生 `MessageList` 中，以头像与名称清晰区分角色：
-     - 调度方发来的委托：`MessageHeader` 直接展示调度方 Agent 的专属头像与名称；
-     - 子 Agent 自身回复：正常展示子 Agent 头像与名称；
-     - 用户插话/顺口叮嘱：`MessageHeader` 优先渲染消息创建时保存的用户档案快照（`userProfileId`、名称和图标），找不到快照时再通过 `userProfileStore` 解析当前档案，与日常群聊心智一致且不改变历史消息身份。
+**重要交互原则修订**：
+
+> 彻底废除“根据屏幕宽度/断点自动猜测并退化为画中画”的不确定性设计。用户在桌面工作区的心智是明确的：直接提供「侧栏分栏」与「悬浮窗」两种显式透视按钮，由用户根据当前多任务意图自主选择。
+> 两种打开方式在逻辑上**严格互斥**（打开一种自动关闭另一种），且按钮具有**状态切换式持久激活高亮**。
+
+#### 6.2.1. 互斥透视状态机与操作按钮规范
+
+在派遣卡片（`BackgroundTaskDispatchLink.vue`）、任务详情页（`BackgroundTaskDetail.vue`）以及标题栏浮层中，统一部署伴生透视控制组：
+
+```text
+[ 侧栏透视 (PanelRight) ]   [ 悬浮透视 (PictureInPicture2) ]
+```
+
+1. **互斥状态机逻辑**：
+   - 初始态：`isOpen = false`，两按钮均无激活态；
+   - 点击「侧栏透视」：
+     - 若当前未开启或正处于悬浮态，则切换为 `isOpen = true, mode = "sheet"`，同时自动关闭悬浮窗；
+     - 若当前已处于侧栏态（同一任务），则再次点击表示收起，置为 `isOpen = false`；
+   - 点击「悬浮透视」：
+     - 若当前未开启或正处于侧栏态，则切换为 `isOpen = true, mode = "pip"`，同时自动收起侧栏；
+     - 若当前已处于悬浮态（同一任务），则再次点击表示关闭，置为 `isOpen = false`；
+   - 切换不同任务：若伴生视图已处于开启态（如侧栏），点击任务 B 的「侧栏透视」，保持侧栏开启并就地装载任务 B 的会话。
+2. **按钮高亮对齐规范**：
+   - 对齐 [`CodeBlockHeader.vue`](src/tools/rich-text-renderer/components/nodes/code-block/CodeBlockHeader.vue:24) 的 `.action-btn-active` 规范；
+   - 当 `isOpen && targetTaskId === currentTaskId && mode === 'sheet'` 时，「侧栏透视」按钮赋予 `.action-btn-active` 类名；
+   - 当 `isOpen && targetTaskId === currentTaskId && mode === 'pip'` 时，「悬浮透视」按钮赋予 `.action-btn-active` 类名；
+   - 激活样式：
+     ```css
+     .action-btn-active {
+       color: var(--primary-color);
+       background-color: color-mix(
+         in srgb,
+         var(--primary-color) 16%,
+         transparent
+       );
+       border-color: var(--primary-color);
+     }
+     ```
+
+#### 6.2.2. DOM 挂载拓扑与布局结构性让位（杜绝 Fixed 强行覆盖）
+
+严禁使用 `position: fixed` 将伴生侧栏强行浮动覆盖在右侧遮挡主对话内容。必须实现结构性 Flex 挤压让位：
+
+```text
+ChatArea.vue
+ └─ .main-content (display: flex; flex: 1; min-width: 0;)
+     ├─ .chat-content (flex: 1; min-width: 0; flex-direction: column;)
+     │   ├─ .message-list-wrapper (MessageList)
+     │   └─ .chat-message-input (MessageInput)
+     └─ CompanionSessionSheet (侧栏形态挂载点，作为 .chat-content 同级兄弟)
+         (width: 420px; flex-shrink: 0; border-left: 1px solid var(--border-color);)
+```
+
+1. **侧栏分栏（Companion Sheet）的宿主归位**：
+   - 侧栏形态属于当前主聊天工作区的分栏子模块，宿主应挂载在 [`ChatArea.vue`](src/tools/llm-chat/components/ChatArea.vue:520) 内部的 `.main-content` 容器中（与 `.chat-content` 并列）；
+   - 当 `isOpen && mode === 'sheet'` 时展开；`.chat-content` 在 Flex 容器中天然被挤压收缩，主会话消息流、输入框与工具卡片平滑让位，保持完整可见；
+   - 宽度固定或支持在 380px ~ 600px 间拖拽微调，收起时设置 `width: 0; overflow: hidden;` 并带有 `transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);`；
+2. **画中画悬浮窗（Floating PiP）的全局宿主**：
+   - 画中画需要支持用户在切换到其他页面（如资产管理器、设置）时依然能够悬停透视，因此悬浮窗组件继续挂载在应用顶层 [`TitleBar.vue`](src/components/TitleBar.vue:1)（`Teleport to body`）；
+   - 使用 [`DraggablePanel`](src/components/common/DraggablePanel.vue:66) 承载，启用毛玻璃（`backdrop-filter: blur(var(--ui-blur))`）与视口吸附，记住拖拽位置。
+
+#### 6.2.3. 严格只读能力防线（Strict Readonly Guard）
+
+为彻底杜绝伴生视图因复用 `MessageList` 而误写子会话数据的风险，建立三层只读防线：
+
+1. **属性契约（Props Contract）**：
+   - `MessageList.vue` 显式接受 `readonly?: boolean` prop（伴生视图中固定传入 `readonly="true"`）；
+   - 当 `readonly === true` 时，`MessageList` 及其子组件全面下发只读指令；
+2. **操作工具栏隐匿（Menubar Suppression）**：
+   - 修复现有漏传漏洞：无论外置 Header 分支还是气泡内部，当 `readonly` 或 `screenshotMode` 为 true 时，一律强制隐藏编辑、删除、分支定位、继续生成等写操作菜单；
+3. **事件拦截与断流（Event Interception）**：
+   - 伴生视窗内部**不监听** `MessageList` 冒泡的任何写事件（如 `@edit-message`、`@delete-message`、`@branch-switch` 等）；
+   - 通过 Vue `provide` 注入 `isSessionReadOnly: true` 上下文，子组件内有写请求时直接被拦截降级，严禁调用 `useLlmChatStore` 的任何变更接口。
+
+#### 6.2.4. 异步加载版本守卫（Load Version Guard）
+
+针对快速在任务 A、B 之间切换导致旧请求覆盖新数据的异步时序缺陷，`useCompanionSession.ts` 必须加入版本号追踪机制：
+
+```ts
+let currentLoadVersion = 0;
+
+async function loadSessionData(): Promise<void> {
+  const thisVersion = ++currentLoadVersion;
+  const sessionId = childSessionId.value;
+  // ...
+  const detail = await store.ensureSessionDetailLoaded(sessionId);
+  // 加载完成后进行版本与会话双重校验
+  if (
+    thisVersion !== currentLoadVersion ||
+    childSessionId.value !== sessionId
+  ) {
+    logger.debug("丢弃已过期的伴生会话异步加载结果", {
+      thisVersion,
+      currentLoadVersion,
+    });
+    return;
+  }
+  // 确认版本一致后再写入 sessionIndex / sessionDetail / messages
+}
+```
 
 ### 6.3. Level 3：标题栏轻量活动胶囊（Live Activity Capsule）
 
@@ -530,14 +613,14 @@ export interface MessageOrigin {
 - 完成/失败后尽力向已加载父会话追加合成结果；
 - 标题栏活动胶囊作为任务中心的轻量入口。
 
-### Phase 3：消息来源、会话作用域与执行 lane（施工中）
+### Phase 3：消息来源、会话作用域与执行 lane（主体已落地，伴生视图验收待修复）
 
 本阶段完成身份、任务关系和安全透视的基础，不以简化 UI 或复用现有全局会话操作替代会话作用域：
 
 1. 为任务增加明确 `owner` 与 `executionLaneKey`，把同一 `childSessionId` 的生成、追加消息和取消串行化；（已完成基础接入）
 2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
 3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
-4. 完成 `MessageList` 的会话作用域契约，先交付只读伴生视图，再将分支、编辑、删除、继续生成等操作绑定到传入的 `sessionDetail.id`；宽屏提供右侧 Companion Sheet，窄屏提供 `DraggablePanel` 画中画；
+4. 已完成 `MessageList` 的会话作用域契约，分支、编辑、删除、继续生成等操作均可绑定到传入的 `sessionDetail.id`；宽屏 Companion Sheet 与窄屏 `DraggablePanel` 画中画已挂载。伴生视图的严格只读验收仍待修复：外置 Header 的 `ChatMessage` 分支漏传 `screenshotMode`，会露出可写操作；异步加载还缺少目标版本校验，快速切换任务时旧请求可能覆盖当前目标会话；
 5. 完成主会话派遣卡片的任务关系、实时状态、最近活动入口、打开伴生视图和任务中心入口。卡片内控制只展示已经兑现语义的操作；
 6. 保持 `send_task_message` 的 append-only 明确语义与真实来源渲染。`enqueue_task_message` 的持久化队列和执行消费由 Phase 4 task runner 交付，避免在缺少安全点与恢复机制时伪造投递成功。
 
@@ -673,7 +756,7 @@ export interface MessageOrigin {
 - `backgroundTaskRegistry.test.ts`：15/15 通过；
 - `bun run build:vite`：构建成功（仅既有 chunk 体积提示）。
 
-### 12.3. Phase 3 基础契约（已完成，2026-09-24）
+### 12.3. Phase 3 基础服务契约（已完成；伴生视图验收待修复，2026-09-24）
 
 #### 已交付
 
@@ -684,7 +767,7 @@ export interface MessageOrigin {
 - `MessageHeader` 与气泡外置头像按 `origin` 显示调度 Agent 与用户身份；阅读型 Markdown 导出使用来源名称，JSON 备份沿用原始 metadata。
 - 任务中心提供仅在活动任务可用的补充指导输入；Ctrl+Enter 写入子会话并保留用户档案来源，明确提示需要后续对话读取。默认详情优先展示状态、活动与可操作入口。
 - `ask` 的工具调用返回标准 `ToolMethodResult` 信封，任务与子会话关系写入工具节点的 `resultMetadata`；主会话工具卡片从该结构化关系读取快照并显示双方身份、状态、摘要和打开子会话入口。直接调用 `ask` 仍返回 JSON 字符串。
-- 会话作用域契约、只读伴生视图（宽屏侧栏 / 窄屏画中画）与派遣卡片的活动时间轴、叫停、插话已交付（详见 §12.7）。
+- 会话作用域契约、伴生视图外壳（宽屏侧栏 / 窄屏画中画）与派遣卡片的活动时间轴、叫停、插话已接线。伴生视图仍待完成严格只读与目标会话一致性修复，详见 §12.7。
 
 #### 尚未交付（转 Phase 4/5）
 
@@ -728,13 +811,13 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 > 目的：把 §12.3「尚未交付」与「伴生视窗阻塞记录」拆成可独立派发、可验证的施工单元。
 > 依赖顺序：T1 先行 → T2 依赖 T1；T3 与 T1 并行（T3.2 的 Peek 需等 T2）。
 > 施工边界：所有改动只兑现已明确的服务端语义；`send_task_message` 仍为 append-only，不伪造下一轮投递。
-> 完成状态：T1、T2、T3（除 T3.4）、T4 均已交付，施工记录与偏差见 §12.7。
+> 完成状态：T1、T3.1、T3.2 与 T4 已交付；T2 的伴生视图外壳已接线但严格只读与目标会话一致性验收待修复；T3.3 仅完成运行态圆点，身份头像与外置头像目标未完成；T3.4 未实施。施工记录与偏差见 §12.7。
 
 #### T1 会话作用域契约（只读基础，先行）
 
 - [x] T1.1 `sessionLifecycleManager` 导出 `ensureSessionDetail`，`llmChatStore` 暴露按会话 id 的只读 API：
-  `getSessionIndexById(sessionId)`、`getSessionDetailById(sessionId)`、`getActivePathBySessionId(sessionId)`、`ensureSessionDetailLoaded(sessionId): Promise<ChatSessionDetail | null>`。
-  契约：不改变 `currentSessionId`；detail 缺失时按需加载；加载失败返回 `null`，不抛出。
+      `getSessionIndexById(sessionId)`、`getSessionDetailById(sessionId)`、`getActivePathBySessionId(sessionId)`、`ensureSessionDetailLoaded(sessionId): Promise<ChatSessionDetail | null>`。
+      契约：不改变 `currentSessionId`；detail 缺失时按需加载；加载失败返回 `null`，不抛出。
 - [x] T1.2 store 提供按会话作用域的图查询：`getSiblingsInSession(nodeId, sessionId)`、`isNodeInActivePathInSession(nodeId, sessionId)`、`reparseNodeToolsInSession(nodeId, sessionId, options?)`；现有无 `sessionId` 版本行为保持不变（回退当前选中会话）。
 - [x] T1.3 `MessageList.vue` 接受可选 `scopeSessionId`；`getSiblings` / `isNodeInActivePath` / `reparseNodeTools` 在传入时使用作用域版本；写操作显式传 `sessionDetail.id`，不再只依赖 nodeId 兜底。
 - [x] T1.4 `MessageMenubar.vue`（`recalculateNodeTokens`、`ExportBranchDialog` 的 session 参数）与 `MessageDataEditor.vue`（按 id 读取节点）去除对 `currentSessionDetail` / `currentFullSession` 的隐含依赖，改按作用域读取。
@@ -742,15 +825,15 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 #### T2 只读伴生视图（依赖 T1）
 
 - [x] T2.1 `useCompanionSession` 单例状态：`targetTaskId` / `childSessionId` / `mode: "sheet" | "pip"` / `visible` 与打开、关闭、切换模式方法。
-- [x] T2.2 `CompanionSessionSheet.vue`：宽屏（>1100px）右侧滑出，内部挂载只读 `MessageList`（`scopeSessionId = childSessionId`，用只读标志隐藏操作栏；读取 `getActivePathBySessionId` / `ensureSessionDetailLoaded`）。
-- [x] T2.3 窄屏 / 独立悬浮：`DraggablePanel` 承载同一只读 `MessageList`，毛玻璃背景 `backdrop-filter: blur(var(--ui-blur))`。
+- [~] T2.2 `CompanionSessionSheet.vue`：宽屏（>1100px）右侧滑出、按 `childSessionId` 挂载 `MessageList` 的外壳已实现；严格只读验收未完成。`headerPlacement: outside` 的 `ChatMessage` 分支漏传 `screenshotMode`，会显示消息操作栏；异步加载未校验目标版本，快速切换任务时旧请求可能覆盖当前会话数据。
+- [~] T2.3 窄屏 / 独立悬浮：`DraggablePanel`、毛玻璃背景与同一 `MessageList` 挂载已实现；继承 T2.2 的严格只读和目标会话一致性问题，暂不作为完成验收。
 - [x] T2.4 入口接线：任务中心、派遣卡片、标题栏胶囊均可打开伴生视图；保留“跳转到完整会话”作为次级操作。
 
 #### T3 派遣卡片补全（可与 T1 并行）
 
 - [x] T3.1 活动时间轴（Activity Ticker 单行轮播 + 点击展开微抽屉），数据来自 `snapshot.recentActivity`。
 - [x] T3.2 卡片内控制：透视 Peek（打开伴生视图，依赖 T2）、叫停 Halt（`cancel_task`，二次确认）、插话 Whisper（append-only，Ctrl+Enter 发送、单回车换行）。
-- [x] T3.3 运行态呼吸圆点；复用 `useResolvedAgentAvatar` 与 `MessageOrigin` 双方身份，支持 `avatarPlacement: outside` 外置头像。
+- [~] T3.3 运行态呼吸圆点与双方身份文字已实现；头像仍使用 `resolveAgentAvatarPath`，未复用 `useResolvedAgentAvatar`，派遣卡片也未支持 `avatarPlacement: outside`。
 - [ ] T3.4 `resultMetadata.backgroundTask` 扩展为携带 `state` 与双方身份快照，降低对即时快照的依赖（同步更新 `sub-agent.registry` 测试断言）。（未实施，卡片仍从 registry 快照读取）
 
 #### T4 验证与记录
@@ -759,42 +842,49 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - [x] T4.2 `backgroundTaskRegistry` / `sub-agent.registry` 相关单测通过。
 - [x] T4.3 施工摘要与偏差写回 §12.3 / §12.6。
 
-### 12.7. Phase 3 剩余任务施工记录（2026-09-24）
+### 12.7. Phase 3 剩余任务施工与验收记录（2026-09-24）
 
 #### 交付物
 
-| 任务组 | 提交         | 主要文件                                                                                                                                                                                                                                                                                                                                                                  |
-| :----- | :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| T1     | `18b074809`  | `stores/session/sessionLifecycleManager.ts`、`stores/llmChatStore.ts`、`components/message/MessageList.vue`、`MessageMenubar.vue`、`MessageDataEditor.vue`、`ChatMessage.vue`、`ToolCallMessage.vue`                                                                                                                                                                       |
-| T3     | `e98681c6b`  | `components/BackgroundTaskDispatchLink.vue`                                                                                                                                                                                                                                                                                                                               |
-| T2     | `474f07ce1`  | `composables/useCompanionSession.ts`（新增）、`components/CompanionSessionSheet.vue`（新增）、`components/BackgroundTaskDetail.vue`、`BackgroundTaskDispatchLink.vue`、`src/components/TitleBar.vue`                                                                                                                                                                       |
-| 规划   | `ddec35a6c`  | 本文档 §12.6                                                                                                                                                                                                                                                                                                                                                              |
+| 任务组 | 提交        | 主要文件                                                                                                                                                                                             |
+| :----- | :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T1     | `18b074809` | `stores/session/sessionLifecycleManager.ts`、`stores/llmChatStore.ts`、`components/message/MessageList.vue`、`MessageMenubar.vue`、`MessageDataEditor.vue`、`ChatMessage.vue`、`ToolCallMessage.vue` |
+| T3     | `e98681c6b` | `components/BackgroundTaskDispatchLink.vue`                                                                                                                                                          |
+| T2     | `474f07ce1` | `composables/useCompanionSession.ts`（新增）、`components/CompanionSessionSheet.vue`（新增）、`components/BackgroundTaskDetail.vue`、`BackgroundTaskDispatchLink.vue`、`src/components/TitleBar.vue` |
+| 规划   | `ddec35a6c` | 本文档 §12.6                                                                                                                                                                                         |
 
 #### 已交付
 
 - **会话作用域契约（T1）**：`llmChatStore` 提供 `getSessionIndexById` / `getSessionDetailById` / `getActivePathBySessionId` / `ensureSessionDetailLoaded` 与 `getSiblingsInSession` / `isNodeInActivePathInSession` / `reparseNodeToolsInSession`；`MessageList` 增加 `scopeSessionId`，作用域内的读写、分支与重解析显式绑定目标会话，旧的全局版本行为不变。伴生视窗不再依赖“先切换全局选中会话”。
-- **只读伴生视图（T2）**：`useCompanionSession` 按 `childSessionId` 装载 sessionIndex / sessionDetail / activePath；`CompanionSessionSheet` 在宽屏以右侧滑出侧栏、窄屏或独立悬浮以 `DraggablePanel` 承载只读 `MessageList`（`screenshotMode` 隐藏操作栏）。应用级挂载在 `TitleBar`（`Teleport to body`），任务详情、派遣卡片、标题栏胶囊均可打开；既有“跳转到完整会话”路径保留。
-- **派遣卡片补全（T3）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）。
+- **伴生视图外壳（T2）**：`useCompanionSession` 按 `childSessionId` 装载 sessionIndex / sessionDetail / activePath；`CompanionSessionSheet` 在宽屏以右侧滑出侧栏、窄屏或独立悬浮以 `DraggablePanel` 承载 `MessageList`。应用级挂载在 `TitleBar`（`Teleport to body`），任务详情、派遣卡片、标题栏胶囊均可打开；既有“跳转到完整会话”路径保留。严格只读与目标会话一致性尚未验收。
+- **派遣卡片主体（T3）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）已实现。头像解析与外置头像仍未达到 T3.3 目标。
 
-#### 尚未交付（转 Phase 4/5）
+#### 尚未交付 / 待修复
 
+- **Phase 3：伴生视图严格只读（P0 待修复）**。在 `MessageList.vue` 显式接入 `readonly: boolean` prop，全面补齐外置 Header 与气泡内部的写操作阻断，禁止任何分支露出编辑、删除、重生成等入口；
+- **Phase 3：伴生视图目标一致性（P0 待修复）**。在 `useCompanionSession.ts` 中实现 `currentLoadVersion` 版本守卫，异步完成时若版本已过期直接丢弃，彻底消除任务切换串位缺陷；
+- **Phase 3：双模透视互斥与状态切换按钮（P0 待修复）**。废除自动退化猜测，在派遣卡片与任务详情中提供「侧栏透视」与「悬浮透视」两个互斥按钮，激活状态对齐 `CodeBlockHeader.vue` 的 `.action-btn-active` 规范；侧栏挂载点迁移至 `ChatArea.vue` 的 `.main-content` 实现真正的 Flex 结构性让位；
+- **Phase 3：T3.3 身份视觉（P1 待修复）**。派遣卡片全面接入 `useResolvedAgentAvatar`，并在气泡模式 `avatarPlacement: outside` 下支持外置头像；
+- **Phase 3：标题栏胶囊补全（P2 待修复）**。当前胶囊补齐子 Agent 迷你头像与任务列表内的快速定位跳转。
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递、队列恢复与 follow-up task 链（Phase 4）。
 - task runner / heartbeat / watchdog / pause / resume / interrupt / retry、审批与等待输入的 `requestId` 路由（Phase 4）。
 - 可靠父会话通知队列与 attention 投影补发（Phase 4/5）。
 - T3.4：`resultMetadata.backgroundTask` 仍只携带 `{ taskId, childSessionId }`，卡片从 registry 快照读取状态与身份，未扩展为自包含关系快照。
-- 伴生视图的编辑、继续生成、分支与删除（首版严格只读）。
 
 #### 施工偏差与风险
 
 1. **伴生视图未让位主区**：设计 §6.2 描述“主对话区向左平滑腾出空间”，实现改为 `position: fixed` 覆盖层（仅做 `translateX` 过渡），未改动主布局宽度。真正让位需改 llm-chat 主布局，风险较高，留待后续。
-2. **只读是 UI 隐藏级**：依赖既有 `screenshotMode` 隐藏 `MessageMenubar` 等入口，非数据层强制；未来开放编辑时需基于 T1 的 `scopeSessionId` 明确写路径并复核。
-3. **伴生视图渲染配置回落**：未向 `MessageList` 传 `richTextStyleOptions` / `llmThinkRules`，使用其内部默认值，可能与子 Agent 自身配置不完全一致。
-4. **实时刷新依赖任务事件**：伴生视图订阅 `backgroundTaskRegistry`（约 350ms 合并节流）触发刷新；子会话产生新消息但不产生任务活动事件时，需手动重开刷新。
-5. **PiP 位置共享**：所有任务共用同一 `persistence-key="companion-session-pip"` 的悬浮位置/尺寸。
-6. **T3.3 收窄**：沿用既有 `resolveAgentAvatarPath` 与卡片身份布局，未引入 `useResolvedAgentAvatar` 与 `avatarPlacement: outside`。
+2. **严格只读当前失效**：`screenshotMode` 仅是 UI 级信号，且外置 Header 的 `ChatMessage` 分支漏传该信号，会露出编辑、删除、分支和生成等可写操作。修复前伴生视图只能视作带有已知写入风险的透视外壳。
+3. **异步加载会话可能串位**：`loadSessionData()` 在异步加载完成后未确认目标仍是同一 `childSessionId`。用户快速从任务 A 切换到任务 B 时，A 的旧请求可能覆盖 B 的消息列表，造成任务标题、状态与会话内容不一致。
+4. **伴生视图渲染配置回落**：未向 `MessageList` 传 `richTextStyleOptions` / `llmThinkRules`，使用其内部默认值，可能与子 Agent 自身配置不完全一致。
+5. **实时刷新依赖任务事件**：伴生视图订阅 `backgroundTaskRegistry`（约 350ms 合并节流）触发刷新；子会话产生新消息但不产生任务活动事件时，需手动重开刷新。
+6. **PiP 位置共享**：所有任务共用同一 `persistence-key="companion-session-pip"` 的悬浮位置/尺寸。
+7. **T3.3 收窄**：沿用既有 `resolveAgentAvatarPath` 与卡片身份布局，未引入 `useResolvedAgentAvatar` 与 `avatarPlacement: outside`。
+8. **标题栏胶囊为简化入口**：当前未渲染子 Agent 迷你头像，也没有快速取消、暂停或定位原派遣卡片；暂停属于 Phase 4，其他视觉与导航项需在后续 Phase 3 修订中决定是否回补。
 
 #### 验证
 
 - 第一波（T1 + T3）：`bun run check:frontend` 通过；`bun run build:vite` 通过；`backgroundTaskRegistry` + `llm-chat/stores` + `llm-chat/composables/ui` + `sub-agent` 共 6 文件 / 45 测试通过。
 - 第二波（T2）：`bun run check:frontend` 通过；`bun run build:vite` 通过；`sub-agent.registry.test.ts` 4/4 通过。
+- 2026-09-24 复核：`bun run test:run -- src/tools/sub-agent/__tests__/sub-agent.registry.test.ts` 4/4 通过。现有测试没有覆盖伴生视图的只读分支、异步切换乱序或任务事件之外的消息刷新。
 - 已知预存在失败（与本阶段无关）：`llm-chat/config/__tests__/parameter-config.test.ts` 的 Gemini `includeThoughts` 用例。

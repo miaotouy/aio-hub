@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：Phase 3 基础契约施工中，已完成 owner / execution lane / 会话索引 / append-only 消息边界；2026-09-24 已补全后续功能目标与回补路径
+> 状态：Phase 3 基础契约施工中，已完成 owner / execution lane / 会话索引 / append-only 消息边界；2026-09-24 已补全后续功能目标与回补路径，剩余施工拆分为 §12.6 任务清单
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -716,3 +716,38 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - 派遣卡片保留为主会话就地感知和操作入口，卡片控制随底层命令语义逐项开放。
 
 本记录只补充设计与验收范围，当前“已交付 / 尚未交付”仍以 §12.3 的施工状态为准。
+
+### 12.6. Phase 3 剩余施工任务清单（2026-09-24 规划）
+
+> 目的：把 §12.3「尚未交付」与「伴生视窗阻塞记录」拆成可独立派发、可验证的施工单元。
+> 依赖顺序：T1 先行 → T2 依赖 T1；T3 与 T1 并行（T3.2 的 Peek 需等 T2）。
+> 施工边界：所有改动只兑现已明确的服务端语义；`send_task_message` 仍为 append-only，不伪造下一轮投递。
+
+#### T1 会话作用域契约（只读基础，先行）
+
+- [ ] T1.1 `sessionLifecycleManager` 导出 `ensureSessionDetail`，`llmChatStore` 暴露按会话 id 的只读 API：
+  `getSessionIndexById(sessionId)`、`getSessionDetailById(sessionId)`、`getActivePathBySessionId(sessionId)`、`ensureSessionDetailLoaded(sessionId): Promise<ChatSessionDetail | null>`。
+  契约：不改变 `currentSessionId`；detail 缺失时按需加载；加载失败返回 `null`，不抛出。
+- [ ] T1.2 store 提供按会话作用域的图查询：`getSiblingsInSession(nodeId, sessionId)`、`isNodeInActivePathInSession(nodeId, sessionId)`、`reparseNodeToolsInSession(nodeId, sessionId, options?)`；现有无 `sessionId` 版本行为保持不变（回退当前选中会话）。
+- [ ] T1.3 `MessageList.vue` 接受可选 `scopeSessionId`；`getSiblings` / `isNodeInActivePath` / `reparseNodeTools` 在传入时使用作用域版本；写操作显式传 `sessionDetail.id`，不再只依赖 nodeId 兜底。
+- [ ] T1.4 `MessageMenubar.vue`（`recalculateNodeTokens`、`ExportBranchDialog` 的 session 参数）与 `MessageDataEditor.vue`（按 id 读取节点）去除对 `currentSessionDetail` / `currentFullSession` 的隐含依赖，改按作用域读取。
+
+#### T2 只读伴生视图（依赖 T1）
+
+- [ ] T2.1 `useCompanionSession` 单例状态：`targetTaskId` / `childSessionId` / `mode: "sheet" | "pip"` / `visible` 与打开、关闭、切换模式方法。
+- [ ] T2.2 `CompanionSessionSheet.vue`：宽屏（>1100px）右侧滑出，内部挂载只读 `MessageList`（`scopeSessionId = childSessionId`，用只读标志隐藏操作栏；读取 `getActivePathBySessionId` / `ensureSessionDetailLoaded`）。
+- [ ] T2.3 窄屏 / 独立悬浮：`DraggablePanel` 承载同一只读 `MessageList`，毛玻璃背景 `backdrop-filter: blur(var(--ui-blur))`。
+- [ ] T2.4 入口接线：任务中心、派遣卡片、标题栏胶囊均可打开伴生视图；保留“跳转到完整会话”作为次级操作。
+
+#### T3 派遣卡片补全（可与 T1 并行）
+
+- [ ] T3.1 活动时间轴（Activity Ticker 单行轮播 + 点击展开微抽屉），数据来自 `snapshot.recentActivity`。
+- [ ] T3.2 卡片内控制：透视 Peek（打开伴生视图，依赖 T2）、叫停 Halt（`cancel_task`，二次确认）、插话 Whisper（append-only，Ctrl+Enter 发送、单回车换行）。
+- [ ] T3.3 运行态呼吸圆点；复用 `useResolvedAgentAvatar` 与 `MessageOrigin` 双方身份，支持 `avatarPlacement: outside` 外置头像。
+- [ ] T3.4 `resultMetadata.backgroundTask` 扩展为携带 `state` 与双方身份快照，降低对即时快照的依赖（同步更新 `sub-agent.registry` 测试断言）。
+
+#### T4 验证与记录
+
+- [ ] T4.1 `bun run check:frontend` 与 `bun run build:vite` 通过。
+- [ ] T4.2 `backgroundTaskRegistry` / `sub-agent.registry` 相关单测通过。
+- [ ] T4.3 施工摘要与偏差写回 §12.3 / §12.6。

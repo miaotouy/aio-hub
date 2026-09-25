@@ -480,6 +480,8 @@ export class TokenCalculatorEngine {
         return parameters.costPerImage || 0;
       case "gemini_2_0":
         return this.calculateGemini2ImageTokens(width, height);
+      case "deepseek_image_v41":
+        return this.calculateDeepSeekV41ImageTokens(width, height);
       default:
         return 0;
     }
@@ -488,6 +490,144 @@ export class TokenCalculatorEngine {
   private calculateGemini2ImageTokens(width: number, height: number): number {
     if (width <= 384 && height <= 384) return 258;
     return Math.ceil(width / 768) * Math.ceil(height / 768) * 258;
+  }
+
+  /**
+   * DeepSeek V4.1 视觉输入计算。
+   *
+   * 语义来自官方文档计算器实现：14px patch、3 倍降采样、1024 token 上限，
+   * 且小于最小像素面积时按比例放大。
+   */
+  private calculateDeepSeekV41ImageTokens(
+    width: number,
+    height: number
+  ): number {
+    const patchSize = 14;
+    const downsampleRatio = 3;
+    const maxNToken = 1024;
+    const minPixels = 295936;
+
+    const floorDiv = (value: number, divisor: number) =>
+      Math.floor(value / divisor);
+    const ceilDiv = (value: number, divisor: number) =>
+      Math.floor((value + divisor - 1) / divisor);
+    const truncate = Math.trunc;
+
+    const calcNumTokens = (nLlmH: number, nLlmW: number) =>
+      nLlmH * (nLlmW + 1) + 2;
+
+    // DeepSeek 官方实现会在 resize 内部交换宽高；这里保留该语义，
+    // 使迭代收敛结果与文档计算器一致。
+    const solveResizeRatio = (
+      safeWidth: number,
+      safeHeight: number,
+      target: number
+    ) => {
+      const ratio = safeWidth / safeHeight;
+      const exactH = Math.sqrt((target - 2) / ratio + 0.25) - 0.5;
+      const exactW = exactH * ratio;
+      let bestHeight: number;
+      let bestWidth: number;
+
+      if (exactH < 1) {
+        const nH = 1;
+        const nW = floorDiv(target - 2, nH + 1);
+        bestHeight = nH * patchSize * downsampleRatio;
+        bestWidth = nW * patchSize * downsampleRatio;
+      } else if (exactW < 1) {
+        const nH = 1;
+        const nW = floorDiv(target - 2, nH) - 1;
+        if (!(nW > 1)) throw new Error("DeepSeek image size is too small");
+        bestWidth = nW * patchSize * downsampleRatio;
+        bestHeight = nH * patchSize * downsampleRatio;
+      } else {
+        const nH = truncate(exactH);
+        const nW = truncate(exactW);
+        const heightRatio = (nH * patchSize * downsampleRatio) / safeHeight;
+        const widthRatio = (nW * patchSize * downsampleRatio) / safeWidth;
+        const scale = Math.min(heightRatio, widthRatio);
+        bestWidth = truncate((safeWidth * scale) / patchSize) * patchSize;
+        bestHeight = truncate((safeHeight * scale) / patchSize) * patchSize;
+      }
+
+      const nLlmH = ceilDiv(floorDiv(bestHeight, patchSize), downsampleRatio);
+      const nLlmW = ceilDiv(floorDiv(bestWidth, patchSize), downsampleRatio);
+      return {
+        nLlmH,
+        nLlmW,
+        bestHeight,
+        bestWidth,
+        numTokens: calcNumTokens(nLlmH, nLlmW),
+      };
+    };
+
+    const safeResize = (
+      safeWidth: number,
+      safeHeight: number,
+      safeResizedHeight: number,
+      safeResizedWidth: number
+    ) => {
+      const nLlmH = ceilDiv(
+        floorDiv(safeResizedHeight, patchSize),
+        downsampleRatio
+      );
+      const nLlmW = ceilDiv(
+        floorDiv(safeResizedWidth, patchSize),
+        downsampleRatio
+      );
+      let result = {
+        nLlmH,
+        nLlmW,
+        bestHeight: safeResizedHeight,
+        bestWidth: safeResizedWidth,
+        numTokens: calcNumTokens(nLlmH, nLlmW),
+      };
+
+      if (result.numTokens > maxNToken) {
+        result = solveResizeRatio(safeWidth, safeHeight, maxNToken);
+        if (!(result.numTokens <= maxNToken)) {
+          let target = maxNToken;
+          while (result.numTokens > maxNToken) {
+            target -= 1;
+            result = solveResizeRatio(safeWidth, safeHeight, target);
+          }
+        }
+      }
+
+      return result;
+    };
+
+    const calcResizeInner = (sourceWidth: number, sourceHeight: number) => {
+      let currentWidth = sourceWidth;
+      let currentHeight = sourceHeight;
+      const area = currentWidth * currentHeight;
+      if (area < minPixels && area > 0) {
+        const scale = Math.sqrt(minPixels / area);
+        currentWidth = truncate(currentWidth * scale);
+        currentHeight = truncate(currentHeight * scale);
+      }
+
+      const resizedWidth = ceilDiv(currentWidth, patchSize) * patchSize;
+      const resizedHeight = ceilDiv(currentHeight, patchSize) * patchSize;
+      return safeResize(sourceHeight, sourceWidth, resizedHeight, resizedWidth);
+    };
+
+    let result = calcResizeInner(width, height);
+    for (let iteration = 1; iteration < 10; iteration += 1) {
+      const next = calcResizeInner(result.bestWidth, result.bestHeight);
+      if (
+        next.nLlmH === result.nLlmH &&
+        next.nLlmW === result.nLlmW &&
+        next.bestHeight === result.bestHeight &&
+        next.bestWidth === result.bestWidth &&
+        next.numTokens === result.numTokens
+      ) {
+        return result.numTokens;
+      }
+      result = next;
+    }
+
+    throw new Error("DeepSeek image token calculation did not converge");
   }
 
   calculateVideoTokens(durationSeconds: number): number {

@@ -41,6 +41,10 @@ export const deepseekPreset: LlmPreset = {
       provider: "deepseek",
       capabilities: {
         vision: true,
+        visionTokenCost: {
+          calculationMethod: "deepseek_image_v41",
+          parameters: {},
+        },
         toolUse: true,
         thinking: true,
         thinkingConfigType: "effort",

@@ -159,8 +159,10 @@ export interface VisionTokenCost {
    * - 'openai_tile': OpenAI 的瓦片计算法（基础成本 + 瓦片数 × 瓦片成本）
    * - 'claude_3': Claude 3 的动态计算（API 会返回实际值，这里作为预估）
    * - 'gemini_2_0': Gemini 2.0 的瓦片计算法
+   * - 'deepseek_image_v41': DeepSeek V4.1 视觉输入尺寸折算
    */
-  calculationMethod: "fixed" | "openai_tile" | "claude_3" | "gemini_2_0";
+  calculationMethod:
+    "fixed" | "openai_tile" | "claude_3" | "gemini_2_0" | "deepseek_image_v41";
 
   /**
    * 计算参数

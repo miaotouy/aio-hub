@@ -61,6 +61,10 @@ export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties
         version: "DeepSeek-V4.1-Flash",
         capabilities: {
           vision: true,
+          visionTokenCost: {
+            calculationMethod: "deepseek_image_v41",
+            parameters: {},
+          },
         },
         description: "DeepSeek V4.1 Flash 正式版模型详情（支持视觉理解）",
       },
@@ -78,6 +82,10 @@ export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties
         maxOutputTokens: 384000,
         capabilities: {
           vision: true,
+          visionTokenCost: {
+            calculationMethod: "deepseek_image_v41",
+            parameters: {},
+          },
           toolUse: true,
           thinking: true,
           thinkingConfigType: "effort",
@@ -136,6 +144,10 @@ export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties
         deprecated: true,
         capabilities: {
           vision: true,
+          visionTokenCost: {
+            calculationMethod: "deepseek_image_v41",
+            parameters: {},
+          },
           toolUse: true,
           thinking: true,
           thinkingConfigType: "switch",

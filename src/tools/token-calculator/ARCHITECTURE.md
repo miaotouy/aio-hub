@@ -73,6 +73,7 @@ Worker 内部对已实例化的 tokenizer 做 LRU 缓存。
 
 - **OpenAI 瓦片法**（GPT-4o vision 等）
 - **Gemini 2.0 瓦片法**
+- **DeepSeek V4.1 视觉输入折算法**
 - **固定成本法**（Claude 3）
 - **时长 × 单价**（视频 / 音频）
 

@@ -76,4 +76,17 @@ export const imageInputLimitRules: LegacyModelMetadataRule<ModelMetadataProperti
       enabled: true,
       description: "Gemini 系列模型图片输入尺寸限制 8192px",
     },
+    {
+      id: "max-image-dim-deepseek",
+      matchType: "modelPrefix",
+      matchValue: "deepseek-",
+      properties: {
+        capabilities: {
+          maxImageDimension: 8192,
+        },
+      },
+      priority: 20,
+      enabled: true,
+      description: "DeepSeek 系列模型图片输入尺寸限制 8192px",
+    },
   ];

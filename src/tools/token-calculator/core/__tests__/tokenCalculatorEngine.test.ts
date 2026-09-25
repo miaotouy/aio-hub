@@ -179,4 +179,22 @@ describe("TokenCalculatorEngine", () => {
     expect(engine.calculateVideoTokens(1.2)).toBe(526);
     expect(engine.calculateAudioTokens(2.1)).toBe(96);
   });
+
+  it("应按 DeepSeek 官方规则折算图片 token", () => {
+    const engine = new TokenCalculatorEngine();
+    const visionTokenCost = {
+      calculationMethod: "deepseek_image_v41",
+      parameters: {},
+    } as const;
+    const tokens = (width: number, height: number) =>
+      engine.calculateImageTokens(width, height, visionTokenCost);
+
+    expect(tokens(1280, 720)).toBe(578);
+    expect(tokens(768, 768)).toBe(382);
+    expect(tokens(1280, 1280)).toBe(994);
+    expect(tokens(512, 512)).toBe(184);
+    expect(tokens(256, 256)).toBe(184);
+    expect(tokens(2000, 2000)).toBe(994);
+    expect(tokens(5000, 5000)).toBe(994);
+  });
 });

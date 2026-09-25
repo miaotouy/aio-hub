@@ -8,8 +8,8 @@
 | --- | -------------------------------------- | ----------------------------- | ---------------------- |
 | 1   | 安装器简陋、无图标                     | src-tauri / NSIS              | ✅ 已修复              |
 | 2   | 新会话仍是新建持久空会话               | llm-chat                      | ✅ 已修复              |
-| 3   | 气泡操作栏布局锁死，需重做             | llm-chat                      | ✅ 已修复              |
-| 4   | 气泡下方常驻空位置                     | llm-chat                      | ✅ 已修复（与 3 一并） |
+| 3   | 气泡操作栏需外置并保留滚动访问         | llm-chat                      | ✅ 已修正              |
+| 4   | 气泡内部不应为操作栏留空               | llm-chat                      | ✅ 已修正（与 3 一并） |
 | 5   | 复读检查误判、阈值需加大               | transcription                 | ✅ 已修复              |
 | 6   | 消息 tokens 缺缓存量展示               | llm-chat                      | ✅ 已修复              |
 | 7   | 媒体任务取消按钮用了删除图标           | media-generator               | ✅ 已修复              |
@@ -34,16 +34,17 @@
 - 反馈：点击「新会话」依旧新建一个持久的空会话，之前的重构本打算拿掉这个。
 - 定位：侧栏入口 `handleQuickNewSession`（useSessionsSidebarLogic.ts:106）→ `store.beginNewSession`（sessionLifecycleManager.ts:346，草稿不落盘）；存在 `materializeNewSession`（落盘）与发送消息时物化机制。需排查是否仍有入口直接 `createSession` 持久化（如迷你会话列表 MiniSessionList.vue:358），统一为草稿会话。
 
-### 3. 气泡操作栏重做
+### 3. 气泡操作栏外置并保留滚动访问
 
 - 反馈：气泡的操作栏看起来在消息容器外面，布局锁死在里面，雕不出来，重做一个专门给气泡用。
-- 定位：`.menubar-wrapper` 是 `.chat-message` 内部流内元素；气泡模式在 MessageList.vue:1380 被覆写为 `position: static; margin-top: 8px`，固定占位于气泡底部。ToolCallMessage 已有 `.is-collapsed`（absolute top/right 0）变体机制但 ChatMessage 未接入。
-- 方向：气泡模式操作栏改为悬浮于气泡边缘（absolute、hover 显现），不占流内空间；与问题 4 一并处理。
+- 调整：气泡模式的操作栏应位于气泡外侧下方，而非叠在正文或气泡边框内部；操作栏保留 `sticky bottom` 的滚动访问效果。
+- 修复：将消息视觉层与操作栏拆开。背景、边框和消息内容只属于 `.message-surface`；`.menubar-wrapper` 位于其后，在文档流中保留稳定高度，hover 或键盘聚焦时显现。气泡模式下使用 `position: sticky; bottom: 2px`，操作栏随消息滚动上升时仍可在视口底部访问。
 
-### 4. 气泡下方常驻空位置
+### 4. 气泡内部不应为操作栏留空
 
 - 反馈：下面一坨常驻空位置。
-- 定位：与问题 3 同源，static 操作栏 + margin 造成的占位。重做后消除。
+- 结论：需要消除的是气泡视觉容器内部为操作栏预留的空白；气泡之间承载外置操作栏的垂直间距属于消息条目布局，可用于保持 hover 前后高度稳定。
+- 修复：操作栏区域移至气泡外侧，宽度不参与短消息气泡的固有宽度计算，避免操作栏撑宽气泡；相邻消息不会因操作栏显现而跳动。
 
 ### 5. 复读检查优化
 

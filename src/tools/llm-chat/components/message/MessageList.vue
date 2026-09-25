@@ -1197,7 +1197,7 @@ defineExpose({
 }
 
 /* 圆角同步：覆写消息组件内部的 8px 圆角为可配置值 */
-.messages-container.mode-bubble :deep(.chat-message),
+.messages-container.mode-bubble :deep(.message-surface),
 .messages-container.mode-bubble :deep(.tool-call-message),
 .messages-container.mode-bubble :deep(.compression-message) {
   border-radius: var(--bubble-radius, 12px);
@@ -1205,7 +1205,7 @@ defineExpose({
 .messages-container.mode-bubble :deep(.message-background-container) {
   border-radius: var(--bubble-radius, 12px);
 }
-.messages-container.mode-bubble :deep(.chat-message::after),
+.messages-container.mode-bubble :deep(.message-surface::after),
 .messages-container.mode-bubble :deep(.tool-call-message::after),
 .messages-container.mode-bubble :deep(.compression-message::after) {
   border-radius: var(--bubble-radius, 12px);
@@ -1346,8 +1346,8 @@ defineExpose({
 /* ----------------------------------------------------------
  * 气泡模式：底部信息与操作栏
  * - 底部信息 (.message-meta) 对齐到消息同方向（信息跟随气泡）
- * - 操作栏 (.menubar-wrapper) 悬浮于气泡内侧底部角落（按消息
- *   方向贴边），脱离文档流，hover 气泡时出现，不占常驻空间
+ * - 操作栏 (.menubar-wrapper) 位于气泡外侧下方，保留稳定的文档流
+ *   高度；它在 hover / focus 内显现，并沿用 sticky 方便滚动时访问
  * ---------------------------------------------------------- */
 
 /* —— 底部信息：跟随消息方向对齐 —— */
@@ -1375,33 +1375,35 @@ defineExpose({
   text-align: right;
 }
 
-/* 气泡消息的操作栏：脱离文档流悬浮于气泡内侧底部角落，
- * hover 气泡时出现，消除此前 static 布局在正文下方保留的常驻空位。 */
+/* 气泡消息的操作栏：位于气泡外侧下方。它自身是一条与气泡同宽的
+ * sticky 行，在文档流中保留稳定高度，避免 hover 时后续消息跳动。
+ * inline-size containment 让较宽的操作按钮不反向撑大短消息气泡。 */
 .messages-container.mode-bubble :deep(.menubar-wrapper:not(.is-collapsed)) {
-  position: absolute;
-  bottom: 6px;
-  margin-top: 0;
+  position: sticky;
+  bottom: 2px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  contain: inline-size;
+  margin-top: 6px;
   z-index: 10;
+  padding: 0;
 }
-/* 左对齐消息（助手）→ 操作栏悬浮于气泡右下角 */
+.messages-container.mode-bubble :deep(.menubar-wrapper .message-menubar) {
+  flex: 0 0 auto;
+  width: max-content;
+}
+/* 左对齐消息（助手）→ 操作栏与气泡左边缘对齐 */
 .messages-container.mode-bubble
   .message-slot[data-align="left"]
   :deep(.menubar-wrapper) {
-  right: 10px;
-  left: auto;
-  justify-content: flex-end;
-  padding-left: 0;
-  padding-right: 0;
+  justify-content: flex-start;
 }
-/* 右对齐消息（用户）→ 操作栏悬浮于气泡左下角 */
+/* 右对齐消息（用户）→ 操作栏与气泡右边缘对齐 */
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.menubar-wrapper) {
-  left: 10px;
-  right: auto;
-  justify-content: flex-start;
-  padding-right: 0;
-  padding-left: 0;
+  justify-content: flex-end;
 }
 
 .empty-state {

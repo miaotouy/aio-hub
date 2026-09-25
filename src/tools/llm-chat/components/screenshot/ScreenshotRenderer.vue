@@ -733,7 +733,7 @@ defineExpose({
 
 /* 圆角同步: 覆写消息组件内部的 8px 圆角为可配置值 (含背景容器与 ::after)
  * 缺少这条, 气泡模式截图出来的圆角会保持组件默认的 8px, 与系统设置不符 */
-.messages-container.mode-bubble :deep(.chat-message),
+.messages-container.mode-bubble :deep(.message-surface),
 .messages-container.mode-bubble :deep(.tool-call-message),
 .messages-container.mode-bubble :deep(.compression-message) {
   border-radius: var(--bubble-radius, 12px);
@@ -743,7 +743,7 @@ defineExpose({
   border-radius: var(--bubble-radius, 12px);
 }
 
-.messages-container.mode-bubble :deep(.chat-message::after),
+.messages-container.mode-bubble :deep(.message-surface::after),
 .messages-container.mode-bubble :deep(.tool-call-message::after),
 .messages-container.mode-bubble :deep(.compression-message::after) {
   border-radius: var(--bubble-radius, 12px);

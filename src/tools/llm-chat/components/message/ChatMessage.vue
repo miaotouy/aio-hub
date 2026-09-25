@@ -122,10 +122,11 @@ const messageDisplayStatus = computed(
 
 // ----- 背景分块渲染逻辑 (解决超长消息 backdrop-filter 失效问题) -----
 const messageRef = ref<HTMLElement | null>(null);
+const messageSurfaceRef = ref<HTMLElement | null>(null);
 const messageHeight = ref(0);
 const BLOCK_SIZE = 2000; // 每个背景块的高度限制在 2000px 以内
 
-useResizeObserver(messageRef, (entries) => {
+useResizeObserver(messageSurfaceRef, (entries) => {
   const entry = entries[0];
   const { height } = entry.contentRect;
   messageHeight.value = height;
@@ -291,59 +292,62 @@ defineExpose({
       },
     ]"
   >
-    <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
-    <div class="message-background-container">
+    <!-- 气泡视觉层只承载消息内容；操作栏作为同级的外置区域，不占气泡内部空间。 -->
+    <div ref="messageSurfaceRef" class="message-surface">
+      <!-- 背景层：分块渲染以规避浏览器对大尺寸 backdrop-filter 的限制 -->
+      <div class="message-background-container">
+        <div
+          v-for="i in backgroundBlocks"
+          :key="i"
+          class="message-background-slice"
+          :style="{
+            top: `${(i - 1) * BLOCK_SIZE}px`,
+            height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
+            bottom: i === backgroundBlocks ? '0' : 'auto',
+          }"
+        ></div>
+      </div>
+
+      <!-- 内容层：提高层级 -->
       <div
-        v-for="i in backgroundBlocks"
-        :key="i"
-        class="message-background-slice"
-        :style="{
-          top: `${(i - 1) * BLOCK_SIZE}px`,
-          height: i === backgroundBlocks ? 'auto' : `${BLOCK_SIZE}px`,
-          bottom: i === backgroundBlocks ? '0' : 'auto',
-        }"
-      ></div>
+        class="message-inner"
+        data-testid="chat-message-status"
+        :data-message-status="messageDisplayStatus"
+      >
+        <MessageHeader
+          v-if="!hideHeader"
+          :message="message"
+          :hide-avatar="hideHeaderAvatar"
+          :inline-status="props.inlineStatus"
+          :screenshot-mode="props.screenshotMode"
+          :readonly="isSessionReadOnly"
+        />
+
+        <MessageKnowledgeReference
+          v-if="message.knowledgeReference"
+          :reference="message.knowledgeReference"
+        />
+
+        <MessageContent
+          :session-index="props.sessionIndex"
+          :session-detail="props.sessionDetail"
+          :message="message"
+          :is-editing="isEditing"
+          :is-translating="isTranslating"
+          :translation-content="translationContent"
+          :llm-think-rules="llmThinkRules"
+          :rich-text-style-options="richTextStyleOptions"
+          :message-depth="messageDepth"
+          :screenshot-mode="props.screenshotMode"
+          :readonly="isSessionReadOnly"
+          @save-edit="saveEdit"
+          @cancel-edit="cancelEdit"
+          @save-to-branch="onSaveToBranch"
+        />
+      </div>
     </div>
 
-    <!-- 内容层：提高层级 -->
-    <div
-      class="message-inner"
-      data-testid="chat-message-status"
-      :data-message-status="messageDisplayStatus"
-    >
-      <MessageHeader
-        v-if="!hideHeader"
-        :message="message"
-        :hide-avatar="hideHeaderAvatar"
-        :inline-status="props.inlineStatus"
-        :screenshot-mode="props.screenshotMode"
-        :readonly="isSessionReadOnly"
-      />
-
-      <MessageKnowledgeReference
-        v-if="message.knowledgeReference"
-        :reference="message.knowledgeReference"
-      />
-
-      <MessageContent
-        :session-index="props.sessionIndex"
-        :session-detail="props.sessionDetail"
-        :message="message"
-        :is-editing="isEditing"
-        :is-translating="isTranslating"
-        :translation-content="translationContent"
-        :llm-think-rules="llmThinkRules"
-        :rich-text-style-options="richTextStyleOptions"
-        :message-depth="messageDepth"
-        :screenshot-mode="props.screenshotMode"
-        :readonly="isSessionReadOnly"
-        @save-edit="saveEdit"
-        @cancel-edit="cancelEdit"
-        @save-to-branch="onSaveToBranch"
-      />
-    </div>
-
-    <!-- 悬浮操作栏（始终显示，除非正在编辑；截图模式完全不渲染） -->
+    <!-- 外置操作栏（始终渲染以保留稳定的文档流高度；截图模式完全不渲染） -->
     <div
       class="menubar-wrapper"
       v-if="!isEditing && !props.screenshotMode && !isSessionReadOnly"
@@ -379,11 +383,16 @@ defineExpose({
 
 <style scoped>
 .chat-message {
-  position: relative;
-  display: flow-root; /* 创建 BFC，确保包含内部所有元素且高度计算准确 */
-  padding: 16px;
-  /* 移除原有的背景和边框样式，移交给 .message-background */
+  display: flow-root; /* 创建 BFC，确保包含外置操作栏并让虚拟列表测得完整高度 */
+  min-width: 0;
   /* 严禁在虚拟滚动的子项上使用高度相关的 transition，会导致测量偏移 */
+}
+
+/* 气泡视觉层：背景、边框和正文都在这里，外置操作栏不再属于气泡。 */
+.message-surface {
+  position: relative;
+  display: flow-root;
+  padding: 16px;
 }
 
 /* 背景层容器 */
@@ -400,7 +409,7 @@ defineExpose({
 }
 
 /* 独立的边框层：避免被 overflow: hidden 裁剪圆角 */
-.chat-message::after {
+.message-surface::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -429,11 +438,11 @@ defineExpose({
 }
 
 /* Hover 效果迁移：hover 父容器，改变独立边框层的颜色 */
-.chat-message:hover::after {
+.chat-message:hover .message-surface::after {
   border-color: var(--primary-color);
 }
 
-.chat-message.is-live-greeting::after {
+.chat-message.is-live-greeting .message-surface::after {
   border-color: color-mix(
     in srgb,
     var(--primary-color) 45%,
@@ -443,7 +452,8 @@ defineExpose({
 }
 
 /* 悬停时显示操作栏 */
-.chat-message:hover .menubar-wrapper {
+.chat-message:hover .menubar-wrapper,
+.chat-message:focus-within .menubar-wrapper {
   opacity: 1;
 }
 

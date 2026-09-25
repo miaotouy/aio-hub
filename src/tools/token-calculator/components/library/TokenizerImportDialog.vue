@@ -37,7 +37,7 @@
             </div>
             <div class="source-hint">
               支持 tokenizer.json + tokenizer_config.json、Hugging Face fast
-              tokenizer 目录，或包含这些文件的 ZIP 压缩包。
+              tokenizer 目录，或包含这些文件的 ZIP / TAR / TAR.GZ 压缩包。
             </div>
           </div>
         </el-tab-pane>
@@ -311,6 +311,9 @@ async function chooseFiles() {
             "tiktoken",
             "gguf",
             "zip",
+            "tar",
+            "gz",
+            "tgz",
           ],
         },
       ],

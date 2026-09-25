@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { basename, join } from "@tauri-apps/api/path";
+import { gunzipSync } from "fflate";
 import JSZip from "jszip";
 import { readDir, readFile, readTextFile, stat } from "@tauri-apps/plugin-fs";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -45,6 +46,57 @@ type NamedPath = {
   name: string;
 };
 
+type ArchiveFormat = "zip" | "tar" | "tar.gz";
+
+interface ArchiveEntry {
+  name: string;
+  dir: boolean;
+  uncompressedSize?: number;
+  readBytes: () => Promise<Uint8Array>;
+}
+
+function isArchivePath(path: string): boolean {
+  return /\.(zip|tar|tar\.gz|tgz)$/i.test(path);
+}
+
+function isZipMagic(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    bytes[2] === 0x03 &&
+    bytes[3] === 0x04
+  );
+}
+
+function isGzipMagic(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+function isTarHeader(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 512 &&
+    bytes[257] === 0x75 &&
+    bytes[258] === 0x73 &&
+    bytes[259] === 0x74 &&
+    bytes[260] === 0x61 &&
+    bytes[261] === 0x72
+  );
+}
+
+function resolveArchiveFormat(bytes: Uint8Array, path: string): ArchiveFormat {
+  if (isZipMagic(bytes)) return "zip";
+  if (isGzipMagic(bytes)) return "tar.gz";
+  if (isTarHeader(bytes)) return "tar";
+
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".zip")) return "zip";
+  if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) return "tar.gz";
+  if (lower.endsWith(".tar")) return "tar";
+
+  throw new Error("无法识别的压缩包格式，目前支持 ZIP / TAR / TAR.GZ");
+}
+
 function normalizeFileName(name: string): string {
   return name.trim().toLowerCase();
 }
@@ -70,6 +122,150 @@ function getArchiveEntrySize(entry: unknown): number | undefined {
   return typeof internalData?.uncompressedSize === "number"
     ? internalData.uncompressedSize
     : undefined;
+}
+
+async function loadZipEntries(bytes: Uint8Array): Promise<ArchiveEntry[]> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(bytes, { checkCRC32: true });
+  } catch (error) {
+    throw new Error(
+      `读取 ZIP 压缩包失败：${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  return Object.values(zip.files).map((entry) => ({
+    name: entry.name,
+    dir: entry.dir,
+    uncompressedSize: getArchiveEntrySize(entry),
+    readBytes: () => entry.async("uint8array"),
+  }));
+}
+
+function readTarText(
+  bytes: Uint8Array,
+  start: number,
+  length: number
+): string {
+  const slice = bytes.subarray(start, start + length);
+  const nullIndex = slice.indexOf(0);
+  const trimmed = nullIndex === -1 ? slice : slice.subarray(0, nullIndex);
+  return new TextDecoder().decode(trimmed).trim();
+}
+
+function readTarSize(header: Uint8Array): number {
+  if (header[124]! & 0x80) {
+    let value = 0;
+    for (let index = 124; index < 136; index += 1) {
+      value =
+        value * 256 + (index === 124 ? header[index]! & 0x7f : header[index]!);
+    }
+    return value;
+  }
+
+  const parsed = Number.parseInt(readTarText(header, 124, 12), 8);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parsePaxPath(record: string): string | null {
+  let value: string | null = null;
+  let rest = record;
+  while (rest.length > 0) {
+    const spaceIndex = rest.indexOf(" ");
+    if (spaceIndex === -1) break;
+    const length = Number.parseInt(rest.slice(0, spaceIndex), 10);
+    if (!Number.isFinite(length) || length <= 0 || length > rest.length) break;
+
+    const entry = rest.slice(spaceIndex + 1, length).replace(/\n$/, "");
+    rest = rest.slice(length);
+
+    const equalsIndex = entry.indexOf("=");
+    if (equalsIndex === -1) continue;
+    if (entry.slice(0, equalsIndex) === "path") {
+      value = entry.slice(equalsIndex + 1);
+    }
+  }
+  return value;
+}
+
+function parseTarEntries(bytes: Uint8Array): ArchiveEntry[] {
+  const entries: ArchiveEntry[] = [];
+  const decoder = new TextDecoder();
+  let offset = 0;
+  let pendingName: string | null = null;
+  let pendingPaxPath: string | null = null;
+
+  while (offset + 512 <= bytes.length) {
+    const header = bytes.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) break;
+
+    const size = readTarSize(header);
+    const typeFlag = String.fromCharCode(header[156]! || 0x30);
+    const dataStart = offset + 512;
+    const dataEnd = Math.min(dataStart + size, bytes.length);
+
+    if (typeFlag === "L") {
+      pendingName = decoder
+        .decode(bytes.subarray(dataStart, dataEnd))
+        .replace(/\0+$/, "");
+    } else if (typeFlag === "x") {
+      pendingPaxPath = parsePaxPath(
+        decoder.decode(bytes.subarray(dataStart, dataEnd))
+      );
+    } else if (typeFlag === "0" || typeFlag === "\0") {
+      const name = pendingPaxPath || pendingName || readTarText(header, 0, 100);
+      const content = bytes.slice(dataStart, dataEnd);
+      entries.push({
+        name,
+        dir: false,
+        uncompressedSize: size,
+        readBytes: async () => content,
+      });
+      pendingName = null;
+      pendingPaxPath = null;
+    } else {
+      pendingName = null;
+      pendingPaxPath = null;
+    }
+
+    offset = dataStart + Math.ceil(size / 512) * 512;
+  }
+
+  return entries;
+}
+
+function gunzipArchive(bytes: Uint8Array): Uint8Array {
+  try {
+    return gunzipSync(bytes);
+  } catch (error) {
+    throw new Error(
+      `解压 gzip 压缩包失败：${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+async function loadArchiveEntries(
+  archivePath: string,
+  bytes: Uint8Array
+): Promise<ArchiveEntry[]> {
+  const format = resolveArchiveFormat(bytes, archivePath);
+  if (format === "zip") {
+    return loadZipEntries(bytes);
+  }
+
+  const tarBytes = format === "tar.gz" ? gunzipArchive(bytes) : bytes;
+  if (!isTarHeader(tarBytes)) {
+    throw new Error(
+      format === "tar.gz"
+        ? "GZIP 压缩包解压后不是有效的 TAR 归档"
+        : "压缩包不是有效的 TAR 归档"
+    );
+  }
+  return parseTarEntries(tarBytes);
 }
 
 function readObjectValue(value: unknown): string | undefined {
@@ -295,21 +491,12 @@ async function scanTokenizerArchive(
     throw new Error("Tokenizer 压缩包超过 100 MB 限制");
   }
 
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(await readFile(archivePath), {
-      checkCRC32: true,
-    });
-  } catch (error) {
-    throw new Error(
-      `读取 Tokenizer 压缩包失败：${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-  }
-
-  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-  const tokenizerEntries = entries.filter(
+  const entries = await loadArchiveEntries(
+    archivePath,
+    await readFile(archivePath)
+  );
+  const fileEntries = entries.filter((entry) => !entry.dir);
+  const tokenizerEntries = fileEntries.filter(
     (entry) => archiveEntryBaseName(entry.name) === "tokenizer.json"
   );
   if (tokenizerEntries.length === 0) {
@@ -320,12 +507,12 @@ async function scanTokenizerArchive(
     .map((entry) => archiveEntryDirectory(entry.name))
     .filter((root, index, roots) => roots.indexOf(root) === index)
     .sort((left, right) => {
-      const leftHasConfig = entries.some(
+      const leftHasConfig = fileEntries.some(
         (entry) =>
           archiveEntryDirectory(entry.name) === left &&
           archiveEntryBaseName(entry.name) === "tokenizer_config.json"
       );
-      const rightHasConfig = entries.some(
+      const rightHasConfig = fileEntries.some(
         (entry) =>
           archiveEntryDirectory(entry.name) === right &&
           archiveEntryBaseName(entry.name) === "tokenizer_config.json"
@@ -334,7 +521,7 @@ async function scanTokenizerArchive(
       return left.length - right.length;
     });
   const selectedRoot = candidateRoots[0]!;
-  const selectedEntries = entries.filter(
+  const selectedEntries = fileEntries.filter(
     (entry) => archiveEntryDirectory(entry.name) === selectedRoot
   );
 
@@ -345,12 +532,12 @@ async function scanTokenizerArchive(
     const baseName = archiveEntryBaseName(entry.name);
     if (!ARCHIVE_FILE_NAMES.has(baseName)) continue;
 
-    const declaredSize = getArchiveEntrySize(entry);
+    const declaredSize = entry.uncompressedSize;
     if (declaredSize !== undefined && declaredSize > MAX_JSON_BYTES) {
       throw new Error(`压缩包内文件超过 50 MB 限制：${baseName}`);
     }
 
-    const content = await entry.async("uint8array");
+    const content = await entry.readBytes();
     extractedBytes += content.byteLength;
     if (extractedBytes > MAX_ARCHIVE_BYTES) {
       throw new Error("压缩包展开内容超过 100 MB 限制");
@@ -421,11 +608,11 @@ export async function scanTokenizerAssetPaths(
   if (paths.length === 0) {
     throw new Error("未选择任何文件或目录");
   }
-  if (paths.length === 1 && /\.zip$/i.test(paths[0]!)) {
+  if (paths.length === 1 && isArchivePath(paths[0]!)) {
     return scanTokenizerArchive(paths[0]!);
   }
-  if (paths.some((path) => /\.zip$/i.test(path))) {
-    throw new Error("ZIP 压缩包请单独选择");
+  if (paths.some((path) => isArchivePath(path))) {
+    throw new Error("压缩包请单独选择");
   }
 
   const { files, sourceKind, rootPath } = await collectPaths(paths);

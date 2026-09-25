@@ -21,7 +21,10 @@
  */
 
 export * from "./types";
+export { BackgroundTaskRegistry, backgroundTaskRegistry } from "./registry";
 export {
-  BackgroundTaskRegistry,
-  backgroundTaskRegistry,
-} from "./registry";
+  BackgroundTaskDeliveryQueue,
+  backgroundTaskDeliveryQueue,
+  type ListQueuedTaskMessagesFilter,
+  type ListTaskNotificationsFilter,
+} from "./deliveryQueue";

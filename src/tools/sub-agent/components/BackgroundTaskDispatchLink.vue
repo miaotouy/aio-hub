@@ -38,7 +38,9 @@ import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskActivity,
-  type BackgroundTaskSnapshot,
+  type BackgroundTaskLinkSnapshot,
+  type BackgroundTaskState,
+  type MessageOrigin,
 } from "@/services/background-tasks";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { toolRegistryManager } from "@/services/registry";
@@ -88,9 +90,44 @@ const dispatchAvatarLayoutStyle = computed(() => ({
   "--dispatch-avatar-gap": `${settings.value.uiPreferences.bubbleLayout.avatarGap}px`,
 }));
 
+/** 派遣卡片渲染项：优先来自 registry 实时快照，缺失时回落工具节点内嵌快照。 */
+interface DispatchDisplayTask {
+  taskId: string;
+  childSessionId: string;
+  state: BackgroundTaskState;
+  callerAgent: MessageOrigin;
+  targetAgent: MessageOrigin;
+  lastOperationSummary: string;
+  recentActivity: BackgroundTaskActivity[];
+  /** 是否存在可用的 registry 实时快照；false 表示仅内嵌快照降级展示 */
+  live: boolean;
+}
+
+/** 从工具节点解析出的任务关系；旧消息可能只有 taskId/childSessionId。 */
+interface TaskLink {
+  taskId: string;
+  childSessionId: string;
+  snapshot?: BackgroundTaskLinkSnapshot;
+}
+
+/** 判断 resultMetadata 中的 backgroundTask 是否为自包含关系快照。 */
+function isLinkSnapshot(
+  candidate: Record<string, unknown>
+): candidate is Record<string, unknown> & BackgroundTaskLinkSnapshot {
+  const hasAgent = (value: unknown): boolean =>
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { kind?: unknown }).kind === "string";
+  return (
+    typeof candidate.state === "string" &&
+    hasAgent(candidate.callerAgent) &&
+    hasAgent(candidate.targetAgent)
+  );
+}
+
 /** 透视：同一任务、同一形态再次点击会收起，切换任务时保持当前形态。 */
 function handlePeek(
-  task: BackgroundTaskSnapshot,
+  task: DispatchDisplayTask,
   requestedMode: CompanionSessionMode
 ): void {
   toggleCompanion({
@@ -101,7 +138,7 @@ function handlePeek(
 }
 
 function isPeekActive(
-  task: BackgroundTaskSnapshot,
+  task: DispatchDisplayTask,
   requestedMode: CompanionSessionMode
 ): boolean {
   return (
@@ -116,7 +153,7 @@ const links = computed(() => {
   const calls =
     props.message.metadata?.toolCalls ??
     (props.message.metadata?.toolCall ? [props.message.metadata.toolCall] : []);
-  const unique = new Map<string, string>();
+  const unique = new Map<string, TaskLink>();
   for (const call of calls) {
     const link = call.resultMetadata?.backgroundTask;
     if (!link || typeof link !== "object") continue;
@@ -125,20 +162,49 @@ const links = computed(() => {
       typeof candidate.taskId === "string" &&
       typeof candidate.childSessionId === "string"
     ) {
-      unique.set(candidate.taskId, candidate.childSessionId);
+      unique.set(candidate.taskId, {
+        taskId: candidate.taskId,
+        childSessionId: candidate.childSessionId,
+        snapshot: isLinkSnapshot(candidate) ? candidate : undefined,
+      });
     }
   }
   return unique;
 });
 
-const tasks = shallowRef<BackgroundTaskSnapshot[]>([]);
+const tasks = shallowRef<DispatchDisplayTask[]>([]);
 function refresh(): void {
-  tasks.value = [...links.value]
-    .map(([taskId]) => backgroundTaskRegistry.getSnapshot(taskId))
-    .filter(
-      (task): task is BackgroundTaskSnapshot =>
-        !!task && links.value.get(task.taskId) === task.childSessionId
-    );
+  const next: DispatchDisplayTask[] = [];
+  for (const link of links.value.values()) {
+    const live = backgroundTaskRegistry.getSnapshot(link.taskId);
+    if (live && live.childSessionId === link.childSessionId) {
+      next.push({
+        taskId: live.taskId,
+        childSessionId: live.childSessionId,
+        state: live.state,
+        callerAgent: live.callerAgent,
+        targetAgent: live.targetAgent,
+        lastOperationSummary: live.lastOperationSummary,
+        recentActivity: [...live.recentActivity],
+        live: true,
+      });
+      continue;
+    }
+    // 实时快照不可用（历史消息、任务已被淘汰、registry 尚未加载）时降级展示
+    if (link.snapshot) {
+      next.push({
+        taskId: link.snapshot.taskId,
+        childSessionId: link.snapshot.childSessionId,
+        state: link.snapshot.state,
+        callerAgent: link.snapshot.callerAgent,
+        targetAgent: link.snapshot.targetAgent,
+        lastOperationSummary: link.snapshot.lastOperationSummary ?? "",
+        recentActivity: [],
+        live: false,
+      });
+    }
+  }
+  tasks.value = next;
 }
 
 let unsubscribe: (() => void) | undefined;
@@ -162,7 +228,7 @@ watch(links, () => {
   subscribeIfLinked();
 });
 
-async function openChild(task: BackgroundTaskSnapshot): Promise<void> {
+async function openChild(task: DispatchDisplayTask): Promise<void> {
   try {
     await chatStore.switchSession(task.childSessionId);
   } catch {
@@ -171,18 +237,16 @@ async function openChild(task: BackgroundTaskSnapshot): Promise<void> {
 }
 
 /** 活动流水倒序：最新在上，与任务中心详情保持一致 */
-function recentActivities(
-  task: BackgroundTaskSnapshot
-): BackgroundTaskActivity[] {
+function recentActivities(task: DispatchDisplayTask): BackgroundTaskActivity[] {
   return [...task.recentActivity].reverse();
 }
 
-function hasActivity(task: BackgroundTaskSnapshot): boolean {
+function hasActivity(task: DispatchDisplayTask): boolean {
   return task.recentActivity.length > 0;
 }
 
 /** 单行 Ticker 展示最近一条活动摘要；无活动时回落到状态摘要 */
-function tickerSummary(task: BackgroundTaskSnapshot): string {
+function tickerSummary(task: DispatchDisplayTask): string {
   const latest = task.recentActivity[task.recentActivity.length - 1];
   const summary = latest?.summary?.trim();
   return summary || getTaskSummary(task);
@@ -224,8 +288,8 @@ function toggleWhisper(taskId: string): void {
  *
  * 与任务中心一致——任务进入终态时 registry 幂等返回 false，这里给中性提示。
  */
-async function handleHalt(task: BackgroundTaskSnapshot): Promise<void> {
-  if (!isActiveTaskState(task.state)) return;
+async function handleHalt(task: DispatchDisplayTask): Promise<void> {
+  if (!task.live || !isActiveTaskState(task.state)) return;
 
   try {
     await ElMessageBox.confirm(
@@ -259,9 +323,10 @@ async function handleHalt(task: BackgroundTaskSnapshot): Promise<void> {
 /**
  * 插话 Whisper：append-only 追加到子会话，不触发下一轮生成。
  */
-async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
+async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
   const message = (whisperDrafts[task.taskId] ?? "").trim();
   if (
+    !task.live ||
     !isActiveTaskState(task.state) ||
     !message ||
     whisperSendingTaskId.value
@@ -424,7 +489,7 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
               <span>悬浮透视</span>
             </button>
             <button
-              v-if="isActiveTaskState(task.state)"
+              v-if="task.live && isActiveTaskState(task.state)"
               type="button"
               class="dispatch-action dispatch-halt"
               title="叫停该后台任务并中止子会话生成"
@@ -434,7 +499,7 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
               <span>叫停</span>
             </button>
             <button
-              v-if="isActiveTaskState(task.state)"
+              v-if="task.live && isActiveTaskState(task.state)"
               type="button"
               class="dispatch-action dispatch-whisper-toggle"
               :aria-expanded="whisperOpenTaskId === task.taskId"
@@ -448,6 +513,7 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
           <div
             v-if="
               !screenshotMode &&
+              task.live &&
               isActiveTaskState(task.state) &&
               whisperOpenTaskId === task.taskId
             "

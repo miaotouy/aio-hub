@@ -284,6 +284,41 @@ export interface BackgroundTaskSnapshot {
 }
 
 /**
+ * 工具执行结果中携带的自包含任务关系快照（T3.4）。
+ *
+ * 派遣卡片过去只从 `resultMetadata.backgroundTask` 读到 `taskId` 与
+ * `childSessionId`，再从 registry 读取实时快照；当历史消息、任务已被
+ * 持久化上限淘汰、或 registry 尚未加载时，卡片会整体消失。本快照在
+ * ask 返回时把状态与双方身份一并写入工具节点，使卡片在缺少实时快照时
+ * 仍能降级展示任务关系。
+ *
+ * 它是“返回时刻”的快照，不是实时事实来源：registry 快照可用时，UI
+ * 必须以实时值为准覆盖这里的状态与摘要。
+ */
+export interface BackgroundTaskLinkSnapshot {
+  /** 任务控制与观察 ID */
+  taskId: string;
+  /** 被调用 Agent 的完整聊天会话 ID */
+  childSessionId: string;
+  /** assistant 工具侧的续聊句柄 */
+  conversationId?: string;
+  /** 调度方会话 ID（无主会话的后台调用为 null） */
+  parentSessionId: string | null;
+  /** 返回时刻的任务状态 */
+  state: BackgroundTaskState;
+  /** 返回时刻的任务阶段 */
+  phase?: string;
+  /** 调度方身份快照 */
+  callerAgent: MessageOrigin;
+  /** 被调用 Agent 身份快照 */
+  targetAgent: MessageOrigin;
+  /** 返回时刻的最后操作摘要 */
+  lastOperationSummary?: string;
+  /** 快照写入时间（ISO 8601 字符串） */
+  updatedAt: string;
+}
+
+/**
  * 任务变更事件类型。
  *
  * - `updated`：任务元数据更新（创建、当前操作变化等）；
@@ -379,4 +414,145 @@ export interface ListTasksFilter {
   states?: BackgroundTaskState[];
   /** 仅保留指定父任务下的子任务 */
   parentTaskId?: string;
+}
+
+// ==================== Phase 4：可续投递、执行链与可靠通知 ====================
+//
+// 以下类型对应设计文档 §4.2。它们是 runtime-neutral 的数据契约：由持久化
+// 队列保存，供未来 task runner / transport adapter 消费。当前阶段只落地
+// 数据模型与持久化边界，不包含执行器消费逻辑。
+
+/**
+ * 任务消息投递方式。
+ *
+ * - `append_only`：仅把消息写入子会话，不请求执行（当前 `send_task_message` 语义）；
+ * - `next_turn`：当前 execution lane 空闲后创建 follow-up task，读取该消息进入下一轮；
+ * - `after_current_step`：由 runner 在工具调用、审批返回或模型轮次的安全点消费。
+ */
+export type TaskMessageDelivery =
+  "append_only" | "next_turn" | "after_current_step";
+
+/** 需要真正驱动执行的投递方式（不含 append_only）。 */
+export type ExecutableTaskMessageDelivery = Exclude<
+  TaskMessageDelivery,
+  "append_only"
+>;
+
+/**
+ * 排队消息的投递状态。
+ *
+ * - `queued`：队列记录已持久化，等待 runner 消费；
+ * - `waiting_safe_point`：已到达消费时机但仍在等待安全点；
+ * - `delivered`：消息已被消费，`followUpTaskId` 指向承接执行的尝试；
+ * - `failed`：消费失败，`error` 说明可展示原因；
+ * - `cancelled`：投递请求被取消。
+ */
+export type QueuedTaskMessageState =
+  "queued" | "waiting_safe_point" | "delivered" | "failed" | "cancelled";
+
+/**
+ * 排队消息记录。
+ *
+ * 消息本体先写入 `childSessionId` 的消息树，本记录只引用 `messageNodeId`，
+ * 从而让消息身份、会话导出和恢复后的执行读取同一份事实（设计文档 §4.2）。
+ */
+export interface QueuedTaskMessage {
+  /** 投递记录 ID（去重与查询主键） */
+  deliveryId: string;
+  /** 请求投递的源任务 ID */
+  sourceTaskId: string;
+  /** 消息所在子会话 ID */
+  childSessionId: string;
+  /** 投递必须落在同一执行 lane，避免并发写入同一消息树 */
+  executionLaneKey: string;
+  /** 消息本体在子会话消息树中的节点 ID */
+  messageNodeId: string;
+  /** 消息来源（用户介入或调度 Agent 指令，由调用上下文派生） */
+  origin: MessageOrigin;
+  /** 投递方式（不含 append_only） */
+  delivery: ExecutableTaskMessageDelivery;
+  /** 投递状态 */
+  state: QueuedTaskMessageState;
+  /** 幂等键：同一键重复入队返回原记录 */
+  idempotencyKey: string;
+  /** 入队时间（ISO 8601 字符串） */
+  enqueuedAt: string;
+  /** 实际投递时间（ISO 8601 字符串） */
+  deliveredAt?: string;
+  /** 承接该消息执行的 follow-up task ID */
+  followUpTaskId?: string;
+  /** 投递失败原因 */
+  error?: BackgroundTaskError;
+}
+
+/**
+ * 任务执行链关联。
+ *
+ * 每次续投递、重试和人工接管都产生新的 taskId，并通过这些字段显式关联
+ * 到原尝试，保证“始终表示一次执行尝试”。
+ */
+export interface TaskExecutionLink {
+  /** 本次尝试续接的任务（next_turn / 追加指导产生） */
+  continuationOfTaskId?: string;
+  /** 本次尝试是对哪个任务的重试 */
+  retryOfTaskId?: string;
+  /** 本次尝试接管了哪个任务 */
+  takeoverOfTaskId?: string;
+}
+
+/**
+ * 可靠通知类型。
+ *
+ * - `task_terminal`：任务到达终态；
+ * - `approval_required`：需要用户审批；
+ * - `attention_required`：需要用户关注（等待输入、停滞等）。
+ */
+export type TaskNotificationKind =
+  "task_terminal" | "approval_required" | "attention_required";
+
+/**
+ * 可靠通知记录。
+ *
+ * 父会话可用时投影为 `system_event` 消息；父会话未加载时停留在队列，
+ * 由任务中心或父会话加载后补发。`idempotencyKey` 保证同一事件只投影一次。
+ */
+export interface TaskNotification {
+  /** 通知 ID */
+  notificationId: string;
+  /** 关联任务 ID */
+  taskId: string;
+  /** 目标父会话 ID（无父会话时为 null） */
+  parentSessionId?: string | null;
+  /** 通知类型 */
+  kind: TaskNotificationKind;
+  /** 面向用户的摘要 */
+  summary: string;
+  /** 幂等键：同一事件重复入队返回原记录 */
+  idempotencyKey: string;
+  /** 创建时间（ISO 8601 字符串） */
+  createdAt: string;
+  /** 投影到父会话的时间（ISO 8601 字符串） */
+  deliveredAt?: string;
+  /** 用户确认时间（ISO 8601 字符串） */
+  acknowledgedAt?: string;
+}
+
+/** 通知入队输入。 */
+export interface EnqueueTaskNotificationInput {
+  taskId: string;
+  parentSessionId?: string | null;
+  kind: TaskNotificationKind;
+  summary: string;
+  idempotencyKey: string;
+}
+
+/** 排队消息入队输入。 */
+export interface EnqueueTaskMessageInput {
+  sourceTaskId: string;
+  childSessionId: string;
+  executionLaneKey: string;
+  messageNodeId: string;
+  origin: MessageOrigin;
+  delivery: ExecutableTaskMessageDelivery;
+  idempotencyKey: string;
 }

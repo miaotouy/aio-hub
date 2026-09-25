@@ -31,6 +31,7 @@ import type {
 } from "@/tools/llm-chat/types";
 import {
   backgroundTaskRegistry,
+  type BackgroundTaskLinkSnapshot,
   type BackgroundTaskOperation,
   type BackgroundTaskSnapshot,
   type MessageOrigin,
@@ -532,6 +533,29 @@ export default class SubAgentRegistry implements ToolRegistry {
     }
   }
 
+  /**
+   * 从实时快照抽取自包含关系快照，写入工具节点的 resultMetadata。
+   *
+   * 只保留派遣卡片降级展示所需的最小字段；`recentActivity` 等易失数据
+   * 仍由 UI 按需从 registry 读取，避免把完整快照写进消息持久化。
+   */
+  private buildTaskLinkSnapshot(
+    snapshot: BackgroundTaskSnapshot
+  ): BackgroundTaskLinkSnapshot {
+    return {
+      taskId: snapshot.taskId,
+      childSessionId: snapshot.childSessionId,
+      conversationId: snapshot.conversationId,
+      parentSessionId: snapshot.parentSessionId,
+      state: snapshot.state,
+      phase: snapshot.phase,
+      callerAgent: snapshot.callerAgent,
+      targetAgent: snapshot.targetAgent,
+      lastOperationSummary: snapshot.lastOperationSummary,
+      updatedAt: snapshot.updatedAt,
+    };
+  }
+
   /** 仅工具调用链使用结构化信封；呈现给 Agent 的 result 仍是原 JSON 字符串。 */
   private wrapAskResult(
     result: string,
@@ -540,10 +564,15 @@ export default class SubAgentRegistry implements ToolRegistry {
     childSessionId: string
   ): string | ToolMethodResult<string> {
     if (!context?.requestId || !taskId) return result;
+    const snapshot = backgroundTaskRegistry.getSnapshot(taskId);
+    const link =
+      snapshot && snapshot.childSessionId === childSessionId
+        ? this.buildTaskLinkSnapshot(snapshot)
+        : { taskId, childSessionId };
     return {
       result,
       executionMetadata: {
-        backgroundTask: { taskId, childSessionId },
+        backgroundTask: link,
       },
     };
   }

@@ -299,10 +299,15 @@ describe("SubAgentRegistry 后台续聊", () => {
     expect(typeof result).toBe("object");
     const envelope = result as ToolMethodResult<string>;
     const handle = JSON.parse(envelope.result);
-    expect(envelope.executionMetadata).toEqual({
+    // T3.4：内嵌自包含关系快照，registry 实时快照不可用时卡片仍可降级展示
+    expect(envelope.executionMetadata).toMatchObject({
       backgroundTask: {
         taskId: handle.taskId,
         childSessionId: handle.childSessionId,
+        conversationId: handle.conversationId,
+        state: "running",
+        callerAgent: { kind: "agent", actorId: "agent-parent" },
+        targetAgent: { kind: "agent", actorId: "agent-child" },
       },
     });
     generation.resolve();

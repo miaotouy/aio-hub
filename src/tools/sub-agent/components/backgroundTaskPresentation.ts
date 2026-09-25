@@ -23,7 +23,6 @@
  */
 
 import type {
-  BackgroundTaskSnapshot,
   BackgroundTaskStaleReason,
   BackgroundTaskState,
   MessageOrigin,
@@ -124,8 +123,15 @@ export function getActivityActorName(origin: MessageOrigin): string {
 export function getTaskDispatchAnchorId(taskId: string): string {
   return `background-task-dispatch-${taskId}`;
 }
-/** 列表卡片用的“最后操作摘要”，无摘要时给出中性占位 */
-export function getTaskSummary(snapshot: BackgroundTaskSnapshot): string {
+/** 列表卡片用的“最后操作摘要”，无摘要时给出中性占位。
+ *
+ * 只依赖摘要与状态两个字段，便于派遣卡片在 registry 实时快照缺失时
+ * 使用工具节点内嵌的关系快照降级渲染（T3.4）。
+ */
+export function getTaskSummary(snapshot: {
+  lastOperationSummary?: string;
+  state: BackgroundTaskState;
+}): string {
   const summary = snapshot.lastOperationSummary?.trim();
   if (summary) {
     return summary;

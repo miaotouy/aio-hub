@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：Phase 3 的服务端契约、会话作用域、伴生视图严格只读、双模透视控制、T3.3 身份视觉与标题栏胶囊补全均已于 2026-09-25 落地；T3.4 关系快照与 Phase 4 可恢复运行时、有效介入待启动
+> 状态：Phase 3 的服务端契约、会话作用域、伴生视图严格只读、双模透视控制、T3.3 身份视觉与标题栏胶囊补全、T3.4 自包含关系快照均已于 2026-09-25 落地；Phase 4 已交付 runtime-neutral 的 queued delivery / 执行链 / 通知队列数据模型与持久化契约，task runner 与有效介入待启动
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -656,11 +656,11 @@ export interface MessageOrigin {
 
 下一步沿着完整功能链补齐基础契约，阶段性边界服务于后续能力回补：
 
-1. 落地 runtime-neutral 的 queued delivery、执行链和通知队列数据模型，明确消息节点引用、幂等键、delivery 状态和 follow-up task 关系；
+1. ~~落地 runtime-neutral 的 queued delivery、执行链和通知队列数据模型~~（已于 2026-09-25 交付，见 §12.8）；
 2. 抽取 task runner/lane，接管 generation、工具安全点、cancel、heartbeat 和 requestId；
 3. 用 runner 消费 `enqueue_task_message`，实现下一轮与当前步骤后的真实投递，以及重启后的队列恢复；
 4. 在统一 command/event/snapshot 契约上交付暂停、恢复、重试、审批、紧急叫停、接管和可靠通知；
-5. 交付 T3.4 关系快照，降低派遣卡片对即时 registry 快照的依赖。
+5. ~~交付 T3.4 关系快照，降低派遣卡片对即时 registry 快照的依赖~~（已于 2026-09-25 交付，见 §12.8）。
 
 当前主链路已完成的观察、查询、取消与身份呈现继续保持；后续施工以 §9.1 的有效介入、恢复、持续透视和可靠到达场景为完成标准。
 
@@ -774,7 +774,7 @@ export interface MessageOrigin {
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递、队列恢复与 follow-up task 链；当前实现不会由 `send_task_message` 自动触发生成。
 - task runner / heartbeat / watchdog / pause / resume / interrupt / retry、审批与等待输入的 `requestId` 路由。
 - 可靠父会话通知队列与 attention 投影补发。
-- `resultMetadata.backgroundTask` 的自包含关系快照（T3.4）与伴生视图的写操作。
+- 伴生视图的写操作；`resultMetadata.backgroundTask` 的自包含关系快照（T3.4）已于 2026-09-25 交付，见 §12.8。
 
 #### 验证
 
@@ -811,7 +811,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 > 目的：把 §12.3「尚未交付」与「伴生视窗阻塞记录」拆成可独立派发、可验证的施工单元。
 > 依赖顺序：T1 先行 → T2 依赖 T1；T3 与 T1 并行（T3.2 的 Peek 需等 T2）。
 > 施工边界：所有改动只兑现已明确的服务端语义；`send_task_message` 仍为 append-only，不伪造下一轮投递。
-> 完成状态：T1、T2、T3.1、T3.2、T3.3 与 T4 已交付；T3.4 未实施。施工记录与偏差见 §12.7。
+> 完成状态：T1、T2、T3.1、T3.2、T3.3、T3.4 与 T4 已交付。施工记录与偏差见 §12.7、§12.8。
 
 #### T1 会话作用域契约（只读基础，先行）
 
@@ -834,7 +834,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - [x] T3.1 活动时间轴（Activity Ticker 单行轮播 + 点击展开微抽屉），数据来自 `snapshot.recentActivity`。
 - [x] T3.2 卡片内控制：透视 Peek（打开伴生视图，依赖 T2）、叫停 Halt（`cancel_task`，二次确认）、插话 Whisper（append-only，Ctrl+Enter 发送、单回车换行）。
 - [x] T3.3 派遣卡片与标题栏胶囊经 `BackgroundTaskAgentAvatar` 复用 `useResolvedAgentAvatar`；气泡模式且 `avatarPlacement: outside` 时，子 Agent 头像从派遣卡片根节点外置展示。标题栏胶囊显示迷你头像，并可切回父会话定位对应派遣卡片。
-- [ ] T3.4 `resultMetadata.backgroundTask` 扩展为携带 `state` 与双方身份快照，降低对即时快照的依赖（同步更新 `sub-agent.registry` 测试断言）。（未实施，卡片仍从 registry 快照读取）
+- [x] T3.4 `resultMetadata.backgroundTask` 扩展为携带 `state` 与双方身份快照，降低对即时快照的依赖（同步更新 `sub-agent.registry` 测试断言）。派遣卡片在 registry 实时快照不可用时降级渲染，见 §12.8。
 
 #### T4 验证与记录
 
@@ -865,7 +865,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递、队列恢复与 follow-up task 链（Phase 4）。
 - task runner / heartbeat / watchdog / pause / resume / interrupt / retry、审批与等待输入的 `requestId` 路由（Phase 4）。
 - 可靠父会话通知队列与 attention 投影补发（Phase 4/5）。
-- T3.4：`resultMetadata.backgroundTask` 仍只携带 `{ taskId, childSessionId }`，卡片从 registry 快照读取状态与身份，未扩展为自包含关系快照。
+- 投递队列已具备数据模型与持久化契约，但尚未被 `send_task_message` 或任何 runner 调用，见 §12.8。
 
 #### 施工偏差与风险
 
@@ -884,3 +884,62 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - 已知预存在失败（与本阶段无关）：`llm-chat/config/__tests__/parameter-config.test.ts` 的 Gemini `includeThoughts` 用例。
 - 2026-09-25 伴生分栏、严格只读、加载版本守卫与双模透视：`bun run check:frontend` 与 `bun run build:vite` 通过。
 - 2026-09-25 T3.3 身份视觉与标题栏胶囊补全：`bun run check:frontend` 与 `bun run build:vite` 通过。
+
+### 12.8. T3.4 关系快照与 Phase 4 数据模型交付记录（2026-09-25）
+
+#### T3.4 自包含关系快照（已完成）
+
+##### 交付物
+
+| 文件                                                            | 说明                                                                                                   |
+| :-------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| `src/services/background-tasks/types.ts`                        | 新增 `BackgroundTaskLinkSnapshot`（state、phase、conversationId、双方身份、摘要）                      |
+| `src/tools/sub-agent/sub-agent.registry.ts`                     | `wrapAskResult` 经 `buildTaskLinkSnapshot` 写入自包含快照；快照缺失时回落 `{ taskId, childSessionId }` |
+| `src/tools/sub-agent/components/BackgroundTaskDispatchLink.vue` | 解析内嵌快照；registry 实时快照优先，缺失时降级渲染；叫停/插话仅在实时快照存在时开放                   |
+| `src/tools/sub-agent/components/backgroundTaskPresentation.ts`  | `getTaskSummary` 放宽为「摘要 + 状态」结构，兼容内嵌快照                                               |
+| `src/tools/sub-agent/__tests__/sub-agent.registry.test.ts`      | 断言更新为内嵌快照（含 state 与双方身份）                                                              |
+
+##### 行为
+
+- 工具节点 `resultMetadata.backgroundTask` 现在携带状态与双方身份；旧消息只有 `taskId`/`childSessionId` 时仍按 registry 读取。
+- registry 快照可用时以实时值为准；不可用（历史消息、任务被 50 条持久化上限淘汰、registry 尚未加载）时，派遣卡片降级展示任务关系与状态，隐藏叫停与插话。
+- 快照是 ask 返回时刻的静态值，不随后续状态更新，实时性由 registry 覆盖保证。
+
+##### 偏差与风险
+
+- 降级渲染时 `recentActivity` 为空，活动时间轴不展示；活动历史仍可从任务中心或子会话读取。
+
+##### 验证
+
+- `bun run check:frontend`（退出码 0）；
+- `sub-agent.registry.test.ts` 4/4 通过；
+- `bun run build:vite` 通过。
+
+#### Phase 4 第一步：投递队列、执行链与通知数据模型（已完成）
+
+##### 交付物
+
+| 文件                                                         | 说明                                                                                                                                                                                       |
+| :----------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/services/background-tasks/types.ts`                     | 新增 `TaskMessageDelivery`、`ExecutableTaskMessageDelivery`、`QueuedTaskMessageState`、`QueuedTaskMessage`、`TaskExecutionLink`、`TaskNotificationKind`、`TaskNotification` 及入队输入类型 |
+| `src/services/background-tasks/deliveryQueue.ts`             | 新增 `BackgroundTaskDeliveryQueue` 与单例 `backgroundTaskDeliveryQueue`：幂等入队、状态流转、执行链合并、通知投影/确认、持久化恢复                                                         |
+| `src/services/background-tasks/index.ts`                     | 导出队列类、单例与过滤类型                                                                                                                                                                 |
+| `src/services/__tests__/backgroundTaskDeliveryQueue.test.ts` | 9 个用例，覆盖入队幂等、状态流转与终态保护、列表过滤、执行链合并、通知幂等、持久化恢复与淘汰                                                                                               |
+
+##### 行为与边界
+
+- 排队消息只引用 `messageNodeId`，不复制消息正文；来源由调用上下文派生，`delivery` 支持 `next_turn` 与 `after_current_step`。
+- 状态流转 `queued → waiting_safe_point → delivered / failed / cancelled`，终态后拒绝再次流转。
+- `deliveryId + idempotencyKey` 去重；重复入队返回原记录。
+- 执行链按 `taskId` 合并 `continuationOfTaskId`/`retryOfTaskId`/`takeoverOfTaskId`。
+- 通知以 `idempotencyKey` 去重，记录 `deliveredAt` 与 `acknowledgedAt`。
+- 持久化到 `background-tasks/delivery-queue.json`，消息与通知上限各 100 条，分别优先淘汰已终结、已确认的最旧记录；恢复时重建内存索引与幂等索引。
+- 恢复合并遵循内存优先：恢复窗口内若已用同一幂等键或同一 ID 入队新记录，则保留内存记录并丢弃持久化旧记录，保证记录与幂等索引始终指向同一对象。
+- 本步不触发任何执行、不投影父会话、不被 `send_task_message` 或现有 ask 链路调用；真正的 runner 消费、安全点投递与补发属后续 Phase 4 工作。
+
+##### 验证
+
+- `bun run check:frontend`（退出码 0）；
+- `backgroundTaskDeliveryQueue.test.ts` 10/10、`backgroundTaskRegistry.test.ts` 与 `sub-agent.registry.test.ts` 合计 29 通过；其中包含“恢复期间以相同幂等键入队”的回归用例，覆盖索引与记录一致性修复；
+- `bun run build:vite` 通过；
+- `oxlint` 与 `prettier --check`：改动文件无新增告警（`registry.ts` 的 `no-useless-spread` 为既有告警）。

@@ -165,6 +165,32 @@ async function readJsonText(path: string): Promise<{
   }
 }
 
+function parseJsonText(
+  text: string,
+  label: string
+): {
+  text: string;
+  value: any;
+} {
+  try {
+    return { text, value: JSON.parse(text) };
+  } catch {
+    throw new Error(`JSON 文件格式无效：${label}`);
+  }
+}
+
+async function readScannedJson(
+  scan: TokenizerImportScanResult,
+  key: string
+): Promise<{ text: string; value: any } | null> {
+  const inlineText = scan.inlineFiles?.[key];
+  if (inlineText !== undefined) {
+    return parseJsonText(inlineText, scan.files[key] || key);
+  }
+  const path = scan.files[key];
+  return path ? readJsonText(path) : null;
+}
+
 async function fetchJsonText(url: string): Promise<{
   text: string;
   value: any;
@@ -260,13 +286,12 @@ export async function installLocalTokenizerProfile(
   }
 
   const profileId = normalizeUserProfileId(input.id);
-  const [{ text: tokenizerText, value: tokenizerJSON }, configResult] =
-    await Promise.all([
-      readJsonText(scan.files.tokenizerJson),
-      scan.files.tokenizerConfig
-        ? readJsonText(scan.files.tokenizerConfig)
-        : Promise.resolve(null),
-    ]);
+  const tokenizerResult = await readScannedJson(scan, "tokenizerJson");
+  if (!tokenizerResult) {
+    throw new Error("未读取到 tokenizer.json");
+  }
+  const configResult = await readScannedJson(scan, "tokenizerConfig");
+  const { text: tokenizerText, value: tokenizerJSON } = tokenizerResult;
 
   const tokenizerConfig =
     configResult?.value ?? createMinimalTokenizerConfig(tokenizerJSON);

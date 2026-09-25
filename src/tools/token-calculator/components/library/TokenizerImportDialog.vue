@@ -36,8 +36,8 @@
               </el-button>
             </div>
             <div class="source-hint">
-              支持 tokenizer.json + tokenizer_config.json，或 Hugging Face fast
-              tokenizer 目录。
+              支持 tokenizer.json + tokenizer_config.json、Hugging Face fast
+              tokenizer 目录，或包含这些文件的 ZIP 压缩包。
             </div>
           </div>
         </el-tab-pane>
@@ -303,7 +303,15 @@ async function chooseFiles() {
       filters: [
         {
           name: "Tokenizer Assets",
-          extensions: ["json", "txt", "model", "vocab", "tiktoken", "gguf"],
+          extensions: [
+            "json",
+            "txt",
+            "model",
+            "vocab",
+            "tiktoken",
+            "gguf",
+            "zip",
+          ],
         },
       ],
     });

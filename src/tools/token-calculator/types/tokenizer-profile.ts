@@ -180,7 +180,9 @@ export interface TokenizerImportScanResult {
   detectedTokenizerClass?: string;
   detectedModelType?: string;
   detectedSpecialTokens?: string[];
-  sourceKind: "file" | "directory" | "remote";
+  sourceKind: "file" | "directory" | "archive" | "remote";
   rootPath?: string;
   tokenizerConfigGenerated?: boolean;
+  /** 压缩包导入时暂存于内存的文件内容，安装后不会持久化到注册表。 */
+  inlineFiles?: Record<string, string>;
 }

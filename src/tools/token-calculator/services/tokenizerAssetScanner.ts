@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import { basename, join } from "@tauri-apps/api/path";
-import { readDir, readTextFile, stat } from "@tauri-apps/plugin-fs";
+import JSZip from "jszip";
+import { readDir, readFile, readTextFile, stat } from "@tauri-apps/plugin-fs";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
   TokenizerAssetFormat,
@@ -24,6 +25,20 @@ import type {
 const errorHandler = createModuleErrorHandler("token-calculator/asset-scanner");
 
 const MAX_JSON_BYTES = 50 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024;
+const ARCHIVE_FILE_NAMES = new Set([
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "special_tokens_map.json",
+  "added_tokens.json",
+  "vocab.json",
+  "merges.txt",
+  "vocab.txt",
+  "tekken.json",
+  "tokenizer.model",
+  "spiece.model",
+  "chat_template.jinja",
+]);
 
 type NamedPath = {
   path: string;
@@ -32,6 +47,29 @@ type NamedPath = {
 
 function normalizeFileName(name: string): string {
   return name.trim().toLowerCase();
+}
+
+function normalizeArchiveEntryName(name: string): string {
+  return name.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+function archiveEntryBaseName(name: string): string {
+  const normalized = normalizeArchiveEntryName(name);
+  return normalizeFileName(normalized.slice(normalized.lastIndexOf("/") + 1));
+}
+
+function archiveEntryDirectory(name: string): string {
+  const normalized = normalizeArchiveEntryName(name);
+  const separatorIndex = normalized.lastIndexOf("/");
+  return separatorIndex >= 0 ? normalized.slice(0, separatorIndex) : "";
+}
+
+function getArchiveEntrySize(entry: unknown): number | undefined {
+  const internalData = (entry as { _data?: { uncompressedSize?: number } })
+    ?._data;
+  return typeof internalData?.uncompressedSize === "number"
+    ? internalData.uncompressedSize
+    : undefined;
 }
 
 function readObjectValue(value: unknown): string | undefined {
@@ -249,11 +287,145 @@ function extractSpecialTokens(
   return Array.from(tokens);
 }
 
+async function scanTokenizerArchive(
+  archivePath: string
+): Promise<TokenizerImportScanResult> {
+  const archiveInfo = await stat(archivePath);
+  if (archiveInfo.size > MAX_ARCHIVE_BYTES) {
+    throw new Error("Tokenizer 压缩包超过 100 MB 限制");
+  }
+
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(await readFile(archivePath), {
+      checkCRC32: true,
+    });
+  } catch (error) {
+    throw new Error(
+      `读取 Tokenizer 压缩包失败：${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+  const tokenizerEntries = entries.filter(
+    (entry) => archiveEntryBaseName(entry.name) === "tokenizer.json"
+  );
+  if (tokenizerEntries.length === 0) {
+    throw new Error("压缩包中未找到 tokenizer.json");
+  }
+
+  const candidateRoots = tokenizerEntries
+    .map((entry) => archiveEntryDirectory(entry.name))
+    .filter((root, index, roots) => roots.indexOf(root) === index)
+    .sort((left, right) => {
+      const leftHasConfig = entries.some(
+        (entry) =>
+          archiveEntryDirectory(entry.name) === left &&
+          archiveEntryBaseName(entry.name) === "tokenizer_config.json"
+      );
+      const rightHasConfig = entries.some(
+        (entry) =>
+          archiveEntryDirectory(entry.name) === right &&
+          archiveEntryBaseName(entry.name) === "tokenizer_config.json"
+      );
+      if (leftHasConfig !== rightHasConfig) return leftHasConfig ? -1 : 1;
+      return left.length - right.length;
+    });
+  const selectedRoot = candidateRoots[0]!;
+  const selectedEntries = entries.filter(
+    (entry) => archiveEntryDirectory(entry.name) === selectedRoot
+  );
+
+  const files: Record<string, string> = {};
+  const inlineFiles: Record<string, string> = {};
+  let extractedBytes = 0;
+  for (const entry of selectedEntries) {
+    const baseName = archiveEntryBaseName(entry.name);
+    if (!ARCHIVE_FILE_NAMES.has(baseName)) continue;
+
+    const declaredSize = getArchiveEntrySize(entry);
+    if (declaredSize !== undefined && declaredSize > MAX_JSON_BYTES) {
+      throw new Error(`压缩包内文件超过 50 MB 限制：${baseName}`);
+    }
+
+    const content = await entry.async("uint8array");
+    extractedBytes += content.byteLength;
+    if (extractedBytes > MAX_ARCHIVE_BYTES) {
+      throw new Error("压缩包展开内容超过 100 MB 限制");
+    }
+
+    const text = new TextDecoder().decode(content);
+    const key = mapKnownFiles([{ name: baseName, path: entry.name }]);
+    for (const [mappedKey, mappedPath] of Object.entries(key)) {
+      if (files[mappedKey]) continue;
+      files[mappedKey] = mappedPath;
+      inlineFiles[mappedKey] = text;
+    }
+  }
+
+  const mapped = files;
+  const classified = classifyMappedFiles(mapped);
+  if (!mapped.tokenizerJson) {
+    throw new Error("压缩包中未找到可用的 tokenizer.json");
+  }
+
+  let tokenizerJson: any;
+  let tokenizerConfig: any | null = null;
+  let specialTokensMap: any | null = null;
+  try {
+    tokenizerJson = JSON.parse(inlineFiles.tokenizerJson!);
+    if (inlineFiles.tokenizerConfig) {
+      tokenizerConfig = JSON.parse(inlineFiles.tokenizerConfig);
+    }
+    if (inlineFiles.specialTokensMap) {
+      specialTokensMap = JSON.parse(inlineFiles.specialTokensMap);
+    }
+  } catch (error) {
+    throw new Error(
+      `压缩包中的 tokenizer JSON 格式无效：${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  return {
+    format:
+      mapped.specialTokensMap || mapped.addedTokens
+        ? "hf-directory"
+        : classified.format,
+    files: mapped,
+    inlineFiles,
+    warnings: classified.warnings,
+    loadability: classified.loadability,
+    suggestedConfidence: classified.suggestedConfidence,
+    detectedTokenizerClass: tokenizerConfig?.tokenizer_class,
+    detectedModelType: tokenizerJson?.model?.type,
+    detectedSpecialTokens: extractSpecialTokens(
+      tokenizerJson,
+      tokenizerConfig,
+      specialTokensMap
+    ),
+    sourceKind: "archive",
+    rootPath: archivePath,
+    tokenizerConfigGenerated: Boolean(
+      mapped.tokenizerJson && !mapped.tokenizerConfig
+    ),
+  };
+}
+
 export async function scanTokenizerAssetPaths(
   paths: string[]
 ): Promise<TokenizerImportScanResult> {
   if (paths.length === 0) {
     throw new Error("未选择任何文件或目录");
+  }
+  if (paths.length === 1 && /\.zip$/i.test(paths[0]!)) {
+    return scanTokenizerArchive(paths[0]!);
+  }
+  if (paths.some((path) => /\.zip$/i.test(path))) {
+    throw new Error("ZIP 压缩包请单独选择");
   }
 
   const { files, sourceKind, rootPath } = await collectPaths(paths);

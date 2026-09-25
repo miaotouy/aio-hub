@@ -188,11 +188,13 @@ const result = await tokenCalculatorService.calculateMessageTokens(
 
 - **本地文件**：单/多个 `tokenizer.json`、`tokenizer_config.json` 等；
 - **本地目录**：Hugging Face fast tokenizer 目录（自动扫描已知文件名）；
+- **ZIP 压缩包**：自动选择包含 `tokenizer.json` 的 Hugging Face 目录，读取必要 JSON 到内存后再导入；
 - **远端 URL**：直接粘贴 `tokenizer.json` URL（可选附 `tokenizer_config.json`）。
 
 流程：
 
 1. [`tokenizerAssetScanner`](./services/tokenizerAssetScanner.ts) 探测资产形态，输出 `TokenizerImportScanResult`，包含 `format` / `loadability` / `suggestedConfidence` / 警告信息；
+   - ZIP 导入只消费压缩包内选中 tokenizer 目录的已知文件，并限制压缩包与 JSON 大小，避免把路径直接写入用户资产目录；
    - 当前精确支持 `hf-tokenizer-json` / `hf-directory`；
    - `legacy-bpe` / `wordpiece-vocab` / `tiktoken-bpe` / `sentencepiece-model` / `tekken-json` / `gguf-metadata` 等形态只做识别+提示，不伪装成功导入；
    - 缺失 `tokenizer_config.json` 时自动生成最小配置（带 `tokenizerConfigGenerated` 标记），同时把置信度降级为 `close`。

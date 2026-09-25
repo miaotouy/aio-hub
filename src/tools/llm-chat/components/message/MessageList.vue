@@ -1111,6 +1111,12 @@ defineExpose({
   width: 100%;
 }
 
+/* 卡片模式的操作栏仍以负边距覆盖在卡片底部。补回这段重叠高度，
+ * 防止虚拟列表将非末项测量得比卡片视觉层矮，进而裁掉底边。 */
+.messages-container.mode-card :deep(.chat-message) {
+  padding-bottom: 8px;
+}
+
 /* 气泡模式：message-slot 作为对齐容器 */
 .messages-container.mode-bubble {
   gap: 12px;

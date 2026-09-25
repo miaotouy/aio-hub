@@ -54,6 +54,7 @@ import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 import { isEqual } from "lodash-es";
 import { initAgentAssetCache } from "../utils/agentAssetUtils";
 import { provideChatAreaContext } from "../composables/useChatAreaContext";
+import { useChatCompanionDock } from "../composables/ui/useChatCompanionDock";
 
 const QuickActionManagerDialog = defineAsyncComponent(
   () => import("./quick-action/QuickActionManagerDialog.vue")
@@ -104,6 +105,12 @@ const containerRef = ref<HTMLDivElement>();
 const { width: containerWidth } = useElementSize(containerRef);
 const chatAreaHeaderRef = ref<InstanceType<typeof ChatAreaHeader>>();
 const messageListRef = ref<InstanceType<typeof MessageList>>();
+const {
+  isDockOpen,
+  dockWidth,
+  isResizing: isDockResizing,
+  startResize: handleDockResizeStart,
+} = useChatCompanionDock();
 
 // 截图分享弹窗状态
 const screenshotDialogVisible = ref(false);
@@ -585,6 +592,25 @@ onMounted(async () => {
           :style="contentWidthStyle"
         />
       </div>
+
+      <!-- 平台级伴生分栏：内容由消费方通过 Teleport 注入，不依赖具体功能模块。 -->
+      <aside
+        class="chat-companion-dock"
+        :class="{ 'is-open': isDockOpen, 'is-resizing': isDockResizing }"
+        :style="{ width: isDockOpen ? `${dockWidth}px` : '0px' }"
+        role="complementary"
+        aria-label="伴生辅助分栏"
+      >
+        <div
+          v-if="isDockOpen"
+          class="dock-resize-handle"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整伴生分栏宽度"
+          @mousedown="handleDockResizeStart"
+        />
+        <div id="chat-companion-dock-slot" class="dock-viewport" />
+      </aside>
     </div>
 
     <!-- 编辑智能体对话框 -->
@@ -709,6 +735,61 @@ onMounted(async () => {
 
 /* 分离模式下，如果启用了壁纸，可以让内容背景稍微透明一点，或者保持 card-bg (本身就是半透明的) */
 /* 这里我们不做特殊处理，直接依赖 card-bg 的透明度 */
+
+.main-content {
+  overflow: hidden;
+}
+
+/* 平台级伴生分栏宿主：以结构性 Flex 收缩为主聊天区让位。 */
+.chat-companion-dock {
+  position: relative;
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background-color: var(--card-bg);
+  backdrop-filter: blur(var(--ui-blur));
+  transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  contain: layout paint;
+}
+
+.chat-companion-dock.is-open {
+  border-left: var(--border-width) solid var(--border-color);
+}
+
+.dock-viewport {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dock-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+}
+
+.dock-resize-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  content: "";
+  background-color: transparent;
+  transition: background-color 0.18s;
+}
+
+.dock-resize-handle:hover::after,
+.chat-companion-dock.is-resizing .dock-resize-handle::after {
+  background-color: var(--primary-color);
+}
 
 /* 消息列表容器 - 弹性增长，占据所有剩余空间 */
 .message-list-wrapper {

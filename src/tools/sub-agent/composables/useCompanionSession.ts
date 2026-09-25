@@ -29,6 +29,7 @@ import {
   type BackgroundTaskSnapshot,
 } from "@/services/background-tasks";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
+import { useChatCompanionDock } from "@/tools/llm-chat/composables/ui/useChatCompanionDock";
 import type {
   ChatMessageNode,
   ChatSessionDetail,
@@ -66,6 +67,9 @@ const messages = shallowRef<ChatMessageNode[]>([]);
 const isLoading = ref(false);
 /** 数据加载失败时的可读提示；为空表示正常 */
 const errorMessage = ref<string | null>(null);
+
+const DOCK_SOURCE_ID = "companion-session";
+const { closeDock } = useChatCompanionDock();
 
 async function loadSessionData(): Promise<void> {
   const sessionId = childSessionId.value;
@@ -105,7 +109,7 @@ async function loadSessionData(): Promise<void> {
 
 function syncSnapshot(): void {
   taskSnapshot.value = targetTaskId.value
-    ? backgroundTaskRegistry.getSnapshot(targetTaskId.value) ?? null
+    ? (backgroundTaskRegistry.getSnapshot(targetTaskId.value) ?? null)
     : null;
 }
 
@@ -135,11 +139,15 @@ async function openCompanion(options: OpenCompanionOptions): Promise<void> {
 /** 关闭伴生视图（保留已装载数据，便于下次打开时复用） */
 function closeCompanion(): void {
   isOpen.value = false;
+  closeDock(DOCK_SOURCE_ID);
 }
 
 /** 在侧栏伴生栏与画中画之间切换 */
 function toggleMode(): void {
   mode.value = mode.value === "sheet" ? "pip" : "sheet";
+  if (mode.value === "pip") {
+    closeDock(DOCK_SOURCE_ID);
+  }
 }
 
 export interface UseCompanionSessionReturn {

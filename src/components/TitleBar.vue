@@ -57,7 +57,6 @@ import UserProfileManagerDialog from "@/tools/user-profile-manager/components/Us
 import { useBackgroundTaskCenter } from "@/tools/sub-agent/composables/useBackgroundTaskCenter";
 import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
 import { useCompanionSession } from "@/tools/sub-agent/composables/useCompanionSession";
-import CompanionSessionSheet from "@/tools/sub-agent/components/CompanionSessionSheet.vue";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
@@ -503,9 +502,6 @@ watch(
 
     <!-- 后台任务中心：全应用唯一挂载点，由标题栏胶囊 / 聊天区入口共同打开 -->
     <BackgroundTaskCenter v-model="isTaskCenterOpen" />
-
-    <!-- 伴生会话只读视图：全应用唯一挂载点，侧栏 / 画中画均由它承载 -->
-    <CompanionSessionSheet />
 
     <!-- 侧边栏抽屉 -->
     <el-drawer

@@ -1,6 +1,6 @@
 # Chat 工作区伴生分栏槽位（Companion Dock Slot）方案
 
-> 状态：Draft / Planning（2026-09-25）  
+> 状态：Implemented（2026-09-25；界面走查待执行）
 > 归属模块：`src/tools/llm-chat`（提供槽位） ⟷ `src/tools/sub-agent`（使用槽位）  
 > 关联主方案：[`background-agent-observability-and-intervention.md`](./background-agent-observability-and-intervention.md) §6.2.2、§12.7  
 > 核心目标：在 Chat 主工作区提供低耦合的平台级伴生视窗挂载槽位，彻底消除小弟施工时对跨模块反向依赖的顾忌，实现 100% 结构性 Flex 让位。
@@ -224,7 +224,7 @@ export function useChatCompanionDock() {
    </template>
    ```
 3. **状态同步联动**：
-   当 `useCompanionSession` 切换到 `mode = 'sheet'` 且 `isOpen = true` 时，调用 `useChatCompanionDock().openDock("sub-agent")`；关闭或切换为 `pip` 模式时调用 `closeDock("sub-agent")`。
+   `CompanionSessionSheet.vue` 根据 `isOpen`、`mode`、宽屏状态与目标槽位可用性调用 `openDock("companion-session")` / `closeDock("companion-session")`；`useCompanionSession.ts` 在关闭或切换为 PiP 时同步收起槽位。
 
 ---
 
@@ -232,27 +232,27 @@ export function useChatCompanionDock() {
 
 ### Phase A: 宿主层槽位就绪 (`llm-chat`)
 
-- [ ] **A1**: 创建 [`src/tools/llm-chat/composables/ui/useChatCompanionDock.ts`](src/tools/llm-chat/composables/ui/useChatCompanionDock.ts:1)，定义状态机（打开、关闭、调宽、当前占用源标识）；
-- [ ] **A2**: 在 [`ChatArea.vue`](src/tools/llm-chat/components/ChatArea.vue:520) 的 `.main-content` 下加入 `.chat-companion-dock` 与 `#chat-companion-dock-slot` 靶点；
-- [ ] **A3**: 接入拖拽调宽逻辑（基于 `useResizable`，范围 360px ~ 720px，带持久化）；
+- [x] **A1**: 创建 [`src/tools/llm-chat/composables/ui/useChatCompanionDock.ts`](src/tools/llm-chat/composables/ui/useChatCompanionDock.ts:1)，定义状态机（打开、关闭、调宽、当前占用源标识）；
+- [x] **A2**: 在 [`ChatArea.vue`](src/tools/llm-chat/components/ChatArea.vue:520) 的 `.main-content` 下加入 `.chat-companion-dock` 与 `#chat-companion-dock-slot` 靶点；
+- [x] **A3**: 接入拖拽调宽逻辑（基于 `useResizable`，范围 360px ~ 720px，带持久化）；
 - [ ] **A4**: 验证 `.chat-content`（消息列表、输入框）在分栏展开时的自适应 Flex 收缩表现。
 
 ### Phase B: 客户端侧栏改造 (`sub-agent`)
 
-- [ ] **B1**: 在 [`CompanionSessionSheet.vue`](src/tools/sub-agent/components/CompanionSessionSheet.vue:149) 中，将原 `<Teleport to="body">` 与 `position: fixed` 样式废除，改为注入 `#chat-companion-dock-slot`，外层尺寸设为 `width: 100%; height: 100%`；
-- [ ] **B2**: 在 `useCompanionSession.ts` 与 `CompanionSessionSheet.vue` 中接入 `useChatCompanionDock`，联动控制分栏展开与收起；
-- [ ] **B3**: 从 [`TitleBar.vue`](src/components/TitleBar.vue:508) 中移除全局 `<CompanionSessionSheet />` 挂载，改为在主聊天视窗或伴生消费方局部挂载（或者在 `LlmChat.vue` 中非侵入引入）；
-- [ ] **B4**: 保留 PiP 悬浮画中画模式的全局可用性。
+- [x] **B1**: 在 [`CompanionSessionSheet.vue`](src/tools/sub-agent/components/CompanionSessionSheet.vue:149) 中，将原 `<Teleport to="body">` 与 `position: fixed` 样式废除，改为注入 `#chat-companion-dock-slot`，外层尺寸设为 `width: 100%; height: 100%`；
+- [x] **B2**: 在 `useCompanionSession.ts` 与 `CompanionSessionSheet.vue` 中接入 `useChatCompanionDock`，联动控制分栏展开与收起；
+- [x] **B3**: 从 [`TitleBar.vue`](src/components/TitleBar.vue:508) 中移除全局 `<CompanionSessionSheet />` 挂载，改由 `MainLayout.vue` 与 `DetachedComponentContainer.vue` 在各自窗口上下文挂载；
+- [x] **B4**: 保留 PiP 悬浮画中画模式的全局可用性。
 
 ### Phase C: 验证与交付
 
-- [ ] **C1**: 运行 `bun run check:frontend` 与 `bun run build:vite` 确保类型与构建 0 错误；
+- [x] **C1**: 运行 `bun run check:frontend` 与 `bun run build:vite` 确保类型与构建 0 错误；
 - [ ] **C2**: 界面走查：
   - 点击派遣卡片的「侧栏透视」，主聊天区平滑向左让位，无内容遮挡；
   - 拖拽调宽手柄，左右两栏弹性伸缩流畅无抖动；
   - 切换为「悬浮透视」，侧栏平滑收起至 0 宽，桌面浮出画中画面板；
   - 在分离窗口中打开 ChatArea，验证槽位依然能够正确命中；
-- [ ] **C3**: 回写实施结果至主方案 [`background-agent-observability-and-intervention.md`](./background-agent-observability-and-intervention.md)。
+- [x] **C3**: 回写实施结果至主方案 [`background-agent-observability-and-intervention.md`](./background-agent-observability-and-intervention.md)。
 
 ---
 
@@ -262,3 +262,13 @@ export function useChatCompanionDock() {
 2. **结构性让位 100% 兑现**：伴生栏展开期间，主消息列表、气泡、代码块、输入框清晰可见，绝不允许任何浮层重叠覆盖；
 3. **互斥与动画平滑**：打开侧栏与画中画切换互斥，收起与展开带有 `0.24s` 的 cubic-bezier 平滑过渡；
 4. **防御式容错**：当 `#chat-companion-dock-slot` 不在 DOM 中时（如分离出纯输入框窗口），Teleport 安全静默，不引发控制台报错。
+
+---
+
+## 6. 实施记录（2026-09-25）
+
+- `useChatCompanionDock` 使用模块级状态与本地持久化宽度，复用 `useResizable` 将宽度限制在 360px 至 720px。
+- `ChatArea` 的 `.main-content` 现以同级 Flex 分栏容纳主聊天区与伴生槽位，展开和收起由宿主宽度动画完成。
+- 伴生视图改为在槽位存在时定向 Teleport；没有匹配槽位时自动使用 PiP，避免 Teleport 目标缺失警告。
+- 主窗口与分离的 ChatArea 窗口分别挂载伴生消费方，关闭、切换 PiP 或卸载时会收起已占用的分栏。
+- `bun run check:frontend` 与 `bun run build:vite` 已于 2026-09-25 通过；界面走查保留在 Phase C2。

@@ -29,6 +29,7 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { useGuidedFlowStore } from "@/stores/guidedFlowStore";
+import CompanionSessionSheet from "@/tools/sub-agent/components/CompanionSessionSheet.vue";
 
 const logger = createModuleLogger("MainLayout");
 const route = useRoute();
@@ -165,6 +166,8 @@ onUnmounted(() => {
 
     <!-- Deep Link 确认弹窗 -->
     <LlmDeepLinkConfirmDialog />
+
+    <CompanionSessionSheet />
 
     <!-- 主布局容器 -->
     <el-container

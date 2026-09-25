@@ -26,13 +26,21 @@
 -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useMediaQuery } from "@vueuse/core";
 import { ExternalLink, PictureInPicture2, X } from "lucide-vue-next";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import MessageList from "@/tools/llm-chat/components/message/MessageList.vue";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
+import { useChatCompanionDock } from "@/tools/llm-chat/composables/ui/useChatCompanionDock";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { backgroundTaskRegistry } from "@/services/background-tasks";
@@ -62,14 +70,51 @@ const {
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
 
+const DOCK_SOURCE_ID = "companion-session";
+const dockTarget = ref<HTMLElement | null>(null);
+const { openDock, closeDock } = useChatCompanionDock();
+
 // 宽屏断点与设计文档 §6.2 保持一致（> 1100px 走侧栏）
 const isWide = useMediaQuery("(min-width: 1101px)");
 
 const showSheet = computed(
-  () => isOpen.value && mode.value === "sheet" && isWide.value
+  () =>
+    isOpen.value &&
+    mode.value === "sheet" &&
+    isWide.value &&
+    dockTarget.value !== null
 );
 const showPip = computed(
-  () => isOpen.value && (mode.value === "pip" || !isWide.value)
+  () =>
+    isOpen.value &&
+    (mode.value === "pip" || !isWide.value || dockTarget.value === null)
+);
+
+function refreshDockTarget(): void {
+  dockTarget.value = document.getElementById("chat-companion-dock-slot");
+}
+
+let dockTargetObserver: MutationObserver | undefined;
+
+watch(
+  showSheet,
+  (isSheetVisible) => {
+    if (isSheetVisible) {
+      openDock(DOCK_SOURCE_ID);
+    } else {
+      closeDock(DOCK_SOURCE_ID);
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  [isOpen, mode, isWide],
+  async () => {
+    await nextTick();
+    refreshDockTarget();
+  },
+  { immediate: true, flush: "post" }
 );
 
 /** 画中画可见性（关闭时收起伴生视图） */
@@ -131,10 +176,16 @@ function scheduleRefresh(): void {
 }
 
 onMounted(() => {
+  refreshDockTarget();
+  dockTargetObserver = new MutationObserver(refreshDockTarget);
+  dockTargetObserver.observe(document.body, { childList: true, subtree: true });
   unsubscribe = backgroundTaskRegistry.subscribe(scheduleRefresh);
 });
 
 onBeforeUnmount(() => {
+  closeDock(DOCK_SOURCE_ID);
+  dockTargetObserver?.disconnect();
+  dockTargetObserver = undefined;
   unsubscribe?.();
   unsubscribe = undefined;
   if (refreshTimer !== null) {
@@ -145,105 +196,99 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- 宽屏伴生栏：fixed 覆盖层 + transform 过渡，不触发主聊天列表 reflow -->
-  <Teleport to="body">
-    <Transition name="companion-sheet">
-      <aside
-        v-if="showSheet"
-        class="companion-sheet"
-        role="complementary"
-        aria-label="子会话伴生视图"
-      >
-        <header class="companion-header">
-          <Avatar
-            :src="avatarSrc || ''"
-            :alt="agentName"
-            :size="32"
-            shape="square"
-            :radius="6"
-            class="companion-avatar"
-          />
-          <div class="companion-identity">
-            <div class="companion-name" :title="agentName">
-              {{ agentName }}
-            </div>
-            <div class="companion-state" :title="stateSummary">
-              <span
-                class="companion-state-dot"
-                :class="`tone-${statePresentation.tone}`"
-              />
-              <span class="companion-state-label">
-                {{ statePresentation.label }}
-              </span>
-              <span v-if="stateSummary" class="companion-state-summary">
-                · {{ stateSummary }}
-              </span>
-            </div>
+  <!-- 宽屏伴生栏：定向注入 ChatArea 的结构性 Flex 槽位。 -->
+  <Teleport v-if="showSheet && dockTarget" :to="dockTarget">
+    <aside
+      class="companion-sheet"
+      role="complementary"
+      aria-label="子会话伴生视图"
+    >
+      <header class="companion-header">
+        <Avatar
+          :src="avatarSrc || ''"
+          :alt="agentName"
+          :size="32"
+          shape="square"
+          :radius="6"
+          class="companion-avatar"
+        />
+        <div class="companion-identity">
+          <div class="companion-name" :title="agentName">
+            {{ agentName }}
           </div>
-          <div class="companion-header-actions">
-            <button
-              type="button"
-              class="companion-icon-btn"
-              title="切换到画中画"
-              aria-label="切换到画中画"
-              @click="toggleMode"
-            >
-              <PictureInPicture2 :size="15" />
-            </button>
-            <button
-              type="button"
-              class="companion-icon-btn"
-              title="关闭伴生视图"
-              aria-label="关闭伴生视图"
-              @click="closeCompanion"
-            >
-              <X :size="15" />
-            </button>
+          <div class="companion-state" :title="stateSummary">
+            <span
+              class="companion-state-dot"
+              :class="`tone-${statePresentation.tone}`"
+            />
+            <span class="companion-state-label">
+              {{ statePresentation.label }}
+            </span>
+            <span v-if="stateSummary" class="companion-state-summary">
+              · {{ stateSummary }}
+            </span>
           </div>
-        </header>
-
-        <div class="companion-body">
-          <div v-if="isLoading" class="companion-placeholder">加载子会话中…</div>
-          <div
-            v-else-if="errorMessage"
-            class="companion-placeholder companion-error"
-          >
-            <span>{{ errorMessage }}</span>
-            <button type="button" class="companion-retry" @click="refresh">
-              重试
-            </button>
-          </div>
-          <div
-            v-else-if="messages.length === 0"
-            class="companion-placeholder"
-          >
-            暂无消息
-          </div>
-          <MessageList
-            v-else
-            :session-index="sessionIndex"
-            :session-detail="sessionDetail"
-            :messages="messages"
-            :is-sending="false"
-            :scope-session-id="childSessionId"
-            :screenshot-mode="true"
-          />
         </div>
-
-        <footer class="companion-footer">
+        <div class="companion-header-actions">
           <button
             type="button"
-            class="companion-jump"
-            :disabled="!childSessionId"
-            title="切换到该子会话继续完整操作"
-            @click="jumpToFullSession"
+            class="companion-icon-btn"
+            title="切换到画中画"
+            aria-label="切换到画中画"
+            @click="toggleMode"
           >
-            <ExternalLink :size="13" />
-            <span>跳转到完整会话</span>
+            <PictureInPicture2 :size="15" />
           </button>
-        </footer>
-      </aside>
-    </Transition>
+          <button
+            type="button"
+            class="companion-icon-btn"
+            title="关闭伴生视图"
+            aria-label="关闭伴生视图"
+            @click="closeCompanion"
+          >
+            <X :size="15" />
+          </button>
+        </div>
+      </header>
+
+      <div class="companion-body">
+        <div v-if="isLoading" class="companion-placeholder">加载子会话中…</div>
+        <div
+          v-else-if="errorMessage"
+          class="companion-placeholder companion-error"
+        >
+          <span>{{ errorMessage }}</span>
+          <button type="button" class="companion-retry" @click="refresh">
+            重试
+          </button>
+        </div>
+        <div v-else-if="messages.length === 0" class="companion-placeholder">
+          暂无消息
+        </div>
+        <MessageList
+          v-else
+          :session-index="sessionIndex"
+          :session-detail="sessionDetail"
+          :messages="messages"
+          :is-sending="false"
+          :scope-session-id="childSessionId"
+          :screenshot-mode="true"
+        />
+      </div>
+
+      <footer class="companion-footer">
+        <button
+          type="button"
+          class="companion-jump"
+          :disabled="!childSessionId"
+          title="切换到该子会话继续完整操作"
+          @click="jumpToFullSession"
+        >
+          <ExternalLink :size="13" />
+          <span>跳转到完整会话</span>
+        </button>
+      </footer>
+    </aside>
   </Teleport>
 
   <!-- 画中画：DraggablePanel 承载同一只读 MessageList -->
@@ -309,38 +354,14 @@ onBeforeUnmount(() => {
 <style scoped>
 /* ---------- 宽屏伴生栏 ---------- */
 .companion-sheet {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 420px;
-  max-width: 82vw;
-  z-index: 1500;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   box-sizing: border-box;
-  border: var(--border-width) solid var(--border-color);
   background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
   contain: layout paint;
-}
-
-.companion-sheet-enter-active,
-.companion-sheet-leave-active {
-  transition: transform 0.24s ease;
-}
-
-.companion-sheet-enter-from,
-.companion-sheet-leave-to {
-  transform: translateX(100%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .companion-sheet-enter-active,
-  .companion-sheet-leave-active {
-    transition: none;
-  }
 }
 
 /* ---------- 头部 ---------- */

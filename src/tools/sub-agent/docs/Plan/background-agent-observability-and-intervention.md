@@ -855,7 +855,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 
 #### 已交付
 
-- **会话作用域契约（T1）**：`llmChatStore` 提供 `getSessionIndexById` / `getSessionDetailById` / `getActivePathBySessionId` / `ensureSessionDetailLoaded` 与 `getSiblingsInSession` / `isNodeInActivePathInSession` / `reparseNodeToolsInSession`；`MessageList` 增加 `scopeSessionId`，作用域内的读写、分支与重解析显式绑定目标会话，旧的全局版本行为不变。伴生视窗不再依赖“先切换全局选中会话”。
+- **伴生分栏槽位（2026-09-25）**：`ChatArea` 提供可持久化调宽的 `#chat-companion-dock-slot`，主聊天区通过同级 Flex 分栏让位；伴生视图在目标存在时定向 Teleport，目标缺失时回落 PiP。`TitleBar` 不再挂载该视图，主窗口与分离 ChatArea 窗口分别在自身上下文挂载消费方。- **会话作用域契约（T1）**：`llmChatStore` 提供 `getSessionIndexById` / `getSessionDetailById` / `getActivePathBySessionId` / `ensureSessionDetailLoaded` 与 `getSiblingsInSession` / `isNodeInActivePathInSession` / `reparseNodeToolsInSession`；`MessageList` 增加 `scopeSessionId`，作用域内的读写、分支与重解析显式绑定目标会话，旧的全局版本行为不变。伴生视窗不再依赖“先切换全局选中会话”。
 - **伴生视图外壳（T2）**：`useCompanionSession` 按 `childSessionId` 装载 sessionIndex / sessionDetail / activePath；`CompanionSessionSheet` 在宽屏以右侧滑出侧栏、窄屏或独立悬浮以 `DraggablePanel` 承载 `MessageList`。应用级挂载在 `TitleBar`（`Teleport to body`），任务详情、派遣卡片、标题栏胶囊均可打开；既有“跳转到完整会话”路径保留。严格只读与目标会话一致性尚未验收。
 - **派遣卡片主体（T3）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）已实现。头像解析与外置头像仍未达到 T3.3 目标。
 
@@ -863,7 +863,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 
 - **Phase 3：伴生视图严格只读（P0 待修复）**。在 `MessageList.vue` 显式接入 `readonly: boolean` prop，全面补齐外置 Header 与气泡内部的写操作阻断，禁止任何分支露出编辑、删除、重生成等入口；
 - **Phase 3：伴生视图目标一致性（P0 待修复）**。在 `useCompanionSession.ts` 中实现 `currentLoadVersion` 版本守卫，异步完成时若版本已过期直接丢弃，彻底消除任务切换串位缺陷；
-- **Phase 3：双模透视互斥与状态切换按钮（P0 待修复）**。废除自动退化猜测，在派遣卡片与任务详情中提供「侧栏透视」与「悬浮透视」两个互斥按钮，激活状态对齐 `CodeBlockHeader.vue` 的 `.action-btn-active` 规范；侧栏挂载点迁移至 `ChatArea.vue` 的 `.main-content` 实现真正的 Flex 结构性让位；
+- **Phase 3：双模透视入口与状态切换按钮（P0 待修复）**。派遣卡片与任务详情仍需提供「侧栏透视」与「悬浮透视」两个互斥按钮，激活状态对齐 `CodeBlockHeader.vue` 的 `.action-btn-active` 规范；分栏槽位与 Flex 结构性让位已于 2026-09-25 交付。
 - **Phase 3：T3.3 身份视觉（P1 待修复）**。派遣卡片全面接入 `useResolvedAgentAvatar`，并在气泡模式 `avatarPlacement: outside` 下支持外置头像；
 - **Phase 3：标题栏胶囊补全（P2 待修复）**。当前胶囊补齐子 Agent 迷你头像与任务列表内的快速定位跳转。
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递、队列恢复与 follow-up task 链（Phase 4）。
@@ -873,7 +873,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 
 #### 施工偏差与风险
 
-1. **伴生视图未让位主区**：设计 §6.2 描述“主对话区向左平滑腾出空间”，实现改为 `position: fixed` 覆盖层（仅做 `translateX` 过渡），未改动主布局宽度。真正让位需改 llm-chat 主布局，风险较高，留待后续。
+1. **伴生分栏已结构性让位**：2026-09-25 起由 `ChatArea` 的同级 Flex 槽位承载，宽度动画收缩主聊天区；分离 ChatArea 窗口也会在自身上下文挂载消费方。
 2. **严格只读当前失效**：`screenshotMode` 仅是 UI 级信号，且外置 Header 的 `ChatMessage` 分支漏传该信号，会露出编辑、删除、分支和生成等可写操作。修复前伴生视图只能视作带有已知写入风险的透视外壳。
 3. **异步加载会话可能串位**：`loadSessionData()` 在异步加载完成后未确认目标仍是同一 `childSessionId`。用户快速从任务 A 切换到任务 B 时，A 的旧请求可能覆盖 B 的消息列表，造成任务标题、状态与会话内容不一致。
 4. **伴生视图渲染配置回落**：未向 `MessageList` 传 `richTextStyleOptions` / `llmThinkRules`，使用其内部默认值，可能与子 Agent 自身配置不完全一致。
@@ -888,3 +888,4 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - 第二波（T2）：`bun run check:frontend` 通过；`bun run build:vite` 通过；`sub-agent.registry.test.ts` 4/4 通过。
 - 2026-09-24 复核：`bun run test:run -- src/tools/sub-agent/__tests__/sub-agent.registry.test.ts` 4/4 通过。现有测试没有覆盖伴生视图的只读分支、异步切换乱序或任务事件之外的消息刷新。
 - 已知预存在失败（与本阶段无关）：`llm-chat/config/__tests__/parameter-config.test.ts` 的 Gemini `includeThoughts` 用例。
+- 2026-09-25 伴生分栏槽位：un run check:frontend 与 un run build:vite 通过。

@@ -1176,9 +1176,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label:
           "连续重复阈值 ({{ localSettings.transcription.repetitionConfig.consecutiveThreshold }}次)",
         component: "SliderWithInput",
-        props: { min: 2, max: 10, step: 1 },
+        props: { min: 2, max: 20, step: 1 },
         modelPath: "transcription.repetitionConfig.consecutiveThreshold",
-        hint: "同一行或同一句话连续出现的次数超过此值将视为复读",
+        hint: "同一行或同一句话连续出现的次数超过此值将视为复读（群聊截图等真实复读内容建议调大）",
         keywords:
           "transcription repetition threshold consecutive 复读 阈值 连续",
         visible: (s) =>
@@ -1189,9 +1189,9 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         label:
           "全局片段阈值 ({{ localSettings.transcription.repetitionConfig.globalThreshold }}次)",
         component: "SliderWithInput",
-        props: { min: 2, max: 20, step: 1 },
+        props: { min: 2, max: 50, step: 1 },
         modelPath: "transcription.repetitionConfig.globalThreshold",
-        hint: "文本中任意片段出现的总次数超过此值将视为复读",
+        hint: "文本中任意片段出现的总次数超过此值将视为复读（群聊截图等真实复读内容建议调大）",
         keywords: "transcription repetition threshold global 复读 阈值 全局",
         visible: (s) =>
           s.transcription.enabled && s.transcription.enableRepetitionDetection,

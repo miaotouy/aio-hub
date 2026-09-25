@@ -137,9 +137,9 @@ export interface TranscriptionConfig {
   timeout: number; // 秒
   enableRepetitionDetection: boolean;
   repetitionConfig?: {
-    /** 连续重复的行/句阈值 (默认 3) */
+    /** 连续重复的行/句阈值 (默认 6) */
     consecutiveThreshold?: number;
-    /** 全局片段高频重复阈值 (默认 5) */
+    /** 全局片段高频重复阈值 (默认 10) */
     globalThreshold?: number;
     /** 白名单片段，不触发复读检测 */
     whitelist?: string[];

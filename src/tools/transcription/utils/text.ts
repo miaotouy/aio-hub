@@ -48,6 +48,22 @@ export const cleanLlmOutput = (text: string): string => {
 };
 
 /**
+ * 聊天记录 / 转发消息的结构性占位行，如「张三：[图片]」「李四: [表情] x2」。
+ * 这类行是消息列表的显示格式（固定昵称前缀 + 占位符），不代表模型病态复读，
+ * 不参与复读判定；剥掉占位符后整行无有效内容。
+ */
+const CHAT_PLACEHOLDER_LINE_RE =
+  /^[^：:\n]{1,24}[：:]\s*(?:\[[^\[\]]{1,10}\]\s*(?:x\d+\s*)?)+$/;
+
+const isChatRecordPlaceholder = (segment: string): boolean => {
+  const lines = segment.split("\n").filter((l) => l.trim() !== "");
+  return (
+    lines.length > 0 &&
+    lines.every((l) => CHAT_PLACEHOLDER_LINE_RE.test(l.trim()))
+  );
+};
+
+/**
  * 检测文本是否存在严重的病态复读
  */
 export const detectRepetition = (
@@ -61,8 +77,8 @@ export const detectRepetition = (
   if (text.length < 50) return { isRepetitive: false };
 
   const {
-    consecutiveThreshold = 3,
-    globalThreshold = 5,
+    consecutiveThreshold = 6,
+    globalThreshold = 10,
     whitelist = [],
   } = config || {};
 
@@ -100,6 +116,11 @@ export const detectRepetition = (
         continue;
       }
 
+      // 聊天记录/转发消息占位行（如「昵称：[图片]」）不参与病态复读判定
+      if (isChatRecordPlaceholder(current)) {
+        continue;
+      }
+
       if (isInWhitelist(current)) {
         consecutiveCount = 1;
         continue;
@@ -132,6 +153,8 @@ export const detectRepetition = (
       if (pattern.replace(/[^\w\u4e00-\u9fa5]/g, "").length < 2) continue;
       // 排除常见的 Markdown 列表或引用符号
       if (/^[\s>*\-+]+$/.test(pattern)) continue;
+      // 排除聊天记录占位行（如「昵称：[图片]」）
+      if (isChatRecordPlaceholder(pattern)) continue;
       // 排除白名单
       if (isInWhitelist(pattern)) continue;
 

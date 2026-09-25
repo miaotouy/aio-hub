@@ -577,8 +577,7 @@ const openFileDirectory = async () => {
           />
         </el-tooltip>
         <el-tooltip
-          v-if="task.status !== 'processing' && task.status !== 'pending'"
-          content="重新生成"
+          content="重新生成（填充提示词与参考图到输入框）"
           placement="top"
         >
           <el-button

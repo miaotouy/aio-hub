@@ -300,6 +300,7 @@ const dropZoneHint = computed(() => {
           :icon="Plus"
           :disabled="disabled || !agentId"
           emit-files
+          prefer-file-objects
           @drop="manager.handleFileUpload"
           @files-dropped="manager.handleFileObjectsUpload"
         />

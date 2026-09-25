@@ -6,8 +6,8 @@
 
 | #   | 问题                                   | 模块                          | 状态                   |
 | --- | -------------------------------------- | ----------------------------- | ---------------------- |
-| 1   | 安装器简陋、无图标                     | src-tauri / NSIS              | ⬜ 待处理              |
-| 2   | 新会话仍是新建持久空会话               | llm-chat                      | ⬜ 待处理              |
+| 1   | 安装器简陋、无图标                     | src-tauri / NSIS              | ✅ 已修复              |
+| 2   | 新会话仍是新建持久空会话               | llm-chat                      | ✅ 已修复              |
 | 3   | 气泡操作栏布局锁死，需重做             | llm-chat                      | ✅ 已修复              |
 | 4   | 气泡下方常驻空位置                     | llm-chat                      | ✅ 已修复（与 3 一并） |
 | 5   | 复读检查误判、阈值需加大               | transcription                 | ✅ 已修复              |
@@ -19,7 +19,7 @@
 | 11  | 上下文分析器附件无法查看               | llm-chat/context-analyzer     | ✅ 已修复              |
 | 12  | 媒体生成报错信息截断、无法查看完整     | media-generator               | ✅ 已修复              |
 | 13  | 资产管理器预览失效（缩略图全部不显示） | asset-manager                 | ✅ 已修复              |
-| 14  | 智能体资产管理拖放图片重复导入两份     | agent-manager/assets          | ⬜ 待处理              |
+| 14  | 智能体资产管理拖放图片重复导入两份     | agent-manager/assets          | ✅ 已修复              |
 
 ## 问题详情与定位
 
@@ -103,9 +103,8 @@
 
 - 反馈：在「资产管理 - <智能体>」对话框中拖放图片，每次都导入两份（截图中成对出现 `听歌.png`/`听歌-1.png`、`委屈`/`委屈-1`…）。
 - 定位（线索）：`AgentAssetsManager.vue:294-305` 的 DropZone 同时声明 `emit-files` 并绑定 `@drop="manager.handleFileUpload"`（路径链路）与 `@files-dropped="manager.handleFileObjectsUpload"`（File 对象链路）；`useFileDrop` 的延迟融合去重只覆盖「H5 仅拿到文件名、等待 Tauri 绝对路径」分支（useFileDrop.ts:560-592），`onFiles` 已消费时不再挂起去重，两路可能对同一次 drop 各跑一遍。两条导入函数各自仅用内存 `assets.value` 按 `filename` 判重（useAgentAssetsManager.ts:533、558），异步/并发时互相看不到；后端 `save_agent_asset` 撞名时经 `generate_unique_filename` 自动加 `-1`（agent_asset_manager.rs:278），于是落盘两份。
-- 方向：单次拖放只保留一条导入链路（优先统一到 `files-dropped`/`onFiles`），并在导入入口按文件名做并发级去重 + 串行化上传；同时排查对话框打开时是否存在第二个几何重叠的 `useFileDrop` 实例同时处理同一次 drop。
+- 修复：`DropZone` 在 File 对象与 Tauri 路径同时到达时优先发送 `files-dropped`，资产管理器通过文件名保留在途集合并串行上传，避免同一次拖放与并发回调重复写入。资产管理对话框仅渲染一个覆盖层 `DropZone` 实例。
 
 ## 提交计划
 
 每个问题独立提交，修复一批后更新本表状态。
-

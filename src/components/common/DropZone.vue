@@ -118,6 +118,8 @@ interface Props {
   allowUnknownExtensions?: boolean;
   /** 是否把 H5 原生拖放得到的 File 对象通过 files-dropped 事件抛出 */
   emitFiles?: boolean;
+  /** File 对象与 Tauri 路径同时到达时，优先发出 files-dropped，避免同一次拖放重复处理 */
+  preferFileObjects?: boolean;
 
   /** 自定义验证函数，返回 false 将阻止 drop 事件 */
   validator?: (paths: string[]) => Promise<boolean> | boolean;
@@ -151,6 +153,7 @@ const props = withDefaults(defineProps<Props>(), {
   accept: () => [],
   allowUnknownExtensions: false,
   emitFiles: false,
+  preferFileObjects: false,
   silent: false,
   variant: "default",
   bare: false,
@@ -171,6 +174,45 @@ const emit = defineEmits<{
 
 const dropZoneRef = ref<HTMLElement>();
 
+const FILE_DROP_DEDUP_WINDOW_MS = 200;
+let recentFileDropNames: string[] | null = null;
+let recentFileDropTimer: ReturnType<typeof setTimeout> | null = null;
+
+const normalizeFileNames = (names: string[]) =>
+  [...names].map((name) => name.toLowerCase()).sort();
+
+const hasRecentMatchingFileDrop = (paths: string[]) => {
+  if (!props.preferFileObjects || !recentFileDropNames) return false;
+
+  const pathFileNames = normalizeFileNames(
+    paths.map((path) => path.split(/[/\\]/).pop() || path)
+  );
+  return (
+    pathFileNames.length === recentFileDropNames.length &&
+    pathFileNames.every((name, index) => name === recentFileDropNames![index])
+  );
+};
+
+const rememberFileDrop = (files: File[]) => {
+  if (!props.preferFileObjects) return;
+
+  recentFileDropNames = normalizeFileNames(files.map((file) => file.name));
+  if (recentFileDropTimer) clearTimeout(recentFileDropTimer);
+  recentFileDropTimer = setTimeout(() => {
+    recentFileDropNames = null;
+    recentFileDropTimer = null;
+  }, FILE_DROP_DEDUP_WINDOW_MS);
+};
+
+const emitPathsUnlessHandledAsFiles = async (paths: string[]) => {
+  if (props.preferFileObjects) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    if (hasRecentMatchingFileDrop(paths)) return;
+  }
+
+  emit("drop", paths);
+};
+
 // 使用组合式函数处理逻辑
 const { isDraggingOver } = useFileDrop({
   element: dropZoneRef,
@@ -182,11 +224,10 @@ const { isDraggingOver } = useFileDrop({
   allowUnknownExtensions: props.allowUnknownExtensions,
   validator: props.validator,
   silent: props.silent,
-  onDrop: (paths) => {
-    emit("drop", paths);
-  },
+  onDrop: emitPathsUnlessHandledAsFiles,
   onFiles: props.emitFiles
     ? (files) => {
+        rememberFileDrop(files);
         emit("filesDropped", files);
       }
     : undefined,

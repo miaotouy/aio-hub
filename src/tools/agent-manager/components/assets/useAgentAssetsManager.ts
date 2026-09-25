@@ -41,6 +41,8 @@ export function useAgentAssetsManager(props: Props, emit: any) {
   const assets = ref<AgentAsset[]>([]);
   const assetGroups = ref<AssetGroup[]>([]);
   const isUploading = ref(false);
+  const pendingUploadFileNames = new Set<string>();
+  let uploadQueue: Promise<void> = Promise.resolve();
   const searchQuery = ref("");
   const selectedGroup = ref("all");
   const sortBy = ref("default");
@@ -476,7 +478,11 @@ export function useAgentAssetsManager(props: Props, emit: any) {
     return "file";
   };
 
-  const saveAssetBytes = async (fileName: string, bytes: Uint8Array) => {
+  const saveAssetBytes = async (
+    fileName: string,
+    bytes: Uint8Array,
+    group: string
+  ) => {
     const customId = extractBaseName(fileName);
 
     const info = await invoke<any>("save_agent_asset", {
@@ -496,22 +502,22 @@ export function useAgentAssetsManager(props: Props, emit: any) {
       size: info.size,
       mimeType: info.mimeType,
       usage: "inline",
-      group:
-        selectedGroup.value === "all" || selectedGroup.value === "default"
-          ? "default"
-          : selectedGroup.value,
+      group,
       thumbnailPath: info.thumbnailPath,
     };
 
     assets.value.push(newAsset);
   };
 
-  const finalizeUpload = (totalCount: number, skipCount: number) => {
-    notifyUpdate();
-    emit("physical-change");
+  const getSelectedUploadGroup = () =>
+    selectedGroup.value === "all" || selectedGroup.value === "default"
+      ? "default"
+      : selectedGroup.value;
 
-    const successCount = totalCount - skipCount;
+  const finalizeUpload = (successCount: number, skipCount: number) => {
     if (successCount > 0) {
+      notifyUpdate();
+      emit("physical-change");
       customMessage.success(
         `成功上传 ${successCount} 个资产${skipCount > 0 ? `（跳过 ${skipCount} 个同名资产）` : ""}`
       );
@@ -520,56 +526,77 @@ export function useAgentAssetsManager(props: Props, emit: any) {
     }
   };
 
-  // 处理路径上传（Tauri 拖放或路径选择）
-  const handleFileUpload = async (paths: string[]) => {
+  interface AssetUpload {
+    fileName: string;
+    readBytes: () => Promise<Uint8Array>;
+  }
+
+  const queueAssetUploads = async (uploads: AssetUpload[]) => {
     if (props.disabled || !props.agentId) return;
 
-    isUploading.value = true;
-    let skipCount = 0;
-    try {
-      for (const path of paths) {
-        const fileName = path.split(/[/\\]/).pop() || "file";
+    const queuedUploads: AssetUpload[] = [];
+    let existingAssetCount = 0;
+    const uploadGroup = getSelectedUploadGroup();
 
-        if (assets.value.some((a) => a.filename === fileName)) {
-          skipCount++;
-          continue;
-        }
-
-        const data = await invoke<number[]>("read_file_binary", { path });
-        await saveAssetBytes(fileName, new Uint8Array(data));
+    for (const upload of uploads) {
+      if (assets.value.some((asset) => asset.filename === upload.fileName)) {
+        existingAssetCount++;
+        continue;
+      }
+      if (pendingUploadFileNames.has(upload.fileName)) {
+        continue;
       }
 
-      finalizeUpload(paths.length, skipCount);
+      pendingUploadFileNames.add(upload.fileName);
+      queuedUploads.push(upload);
+    }
+
+    if (queuedUploads.length === 0) {
+      finalizeUpload(0, existingAssetCount);
+      return;
+    }
+
+    isUploading.value = true;
+    const uploadTask = uploadQueue.then(async () => {
+      for (const upload of queuedUploads) {
+        const bytes = await upload.readBytes();
+        await saveAssetBytes(upload.fileName, bytes, uploadGroup);
+      }
+    });
+    uploadQueue = uploadTask.catch(() => undefined);
+
+    try {
+      await uploadTask;
+      finalizeUpload(queuedUploads.length, existingAssetCount);
     } catch (error) {
       errorHandler.error(error, "上传资产失败");
     } finally {
-      isUploading.value = false;
+      queuedUploads.forEach((upload) =>
+        pendingUploadFileNames.delete(upload.fileName)
+      );
+      isUploading.value = pendingUploadFileNames.size > 0;
     }
+  };
+
+  // 处理路径上传（Tauri 拖放或路径选择）
+  const handleFileUpload = async (paths: string[]) => {
+    await queueAssetUploads(
+      paths.map((path) => ({
+        fileName: path.split(/[/\\]/).pop() || "file",
+        readBytes: async () =>
+          new Uint8Array(await invoke<number[]>("read_file_binary", { path })),
+      }))
+    );
   };
 
   // 处理 File 对象上传（H5 文件选择/拖放）
   const handleFileObjectsUpload = async (files: File[]) => {
-    if (props.disabled || !props.agentId) return;
-
-    isUploading.value = true;
-    let skipCount = 0;
-    try {
-      for (const file of files) {
-        if (assets.value.some((a) => a.filename === file.name)) {
-          skipCount++;
-          continue;
-        }
-
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        await saveAssetBytes(file.name, bytes);
-      }
-
-      finalizeUpload(files.length, skipCount);
-    } catch (error) {
-      errorHandler.error(error, "上传资产失败");
-    } finally {
-      isUploading.value = false;
-    }
+    await queueAssetUploads(
+      files.map((file) => ({
+        fileName: file.name,
+        readBytes: async () => new Uint8Array(await file.arrayBuffer()),
+      }))
+    );
   };
 
   // 删除资产

@@ -509,14 +509,14 @@ export class LlmChatService {
             });
             store.switchSession(targetSession.id);
           } else {
-            // 情况2：完全没有会话 -> 尝试自动创建新会话
+            // 情况2：完全没有会话 -> 尝试自动创建新会话草稿（发送时自动物化）
             const { currentAgentId } = useLlmChatUiState();
 
             if (currentAgentId.value) {
-              logger.info("没有可用会话，自动创建新会话", {
+              logger.info("没有可用会话，自动进入新会话草稿", {
                 agentId: currentAgentId.value,
               });
-              store.createSession(currentAgentId.value);
+              await store.beginNewSession(currentAgentId.value);
             } else {
               // 情况3：连 Agent 都没选 -> 抛出错误让用户去选
               throw new Error("请先选择一个智能体或创建一个会话");

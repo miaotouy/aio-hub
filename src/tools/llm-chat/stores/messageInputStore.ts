@@ -156,9 +156,9 @@ export const useMessageInputStore = defineStore(
         return;
       }
       if (isDetached.value) {
-        bus.requestAction("llm-chat:create-session", { agentId });
+        bus.requestAction("llm-chat:begin-new-session", { agentId });
       } else {
-        chatStore.createSession(agentId);
+        chatStore.beginNewSession(agentId);
       }
       sessionListVisible.value = false;
     };

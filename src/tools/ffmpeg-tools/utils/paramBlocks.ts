@@ -79,7 +79,10 @@ export function parseArgsToBlocks(
       }
 
       const next = args[i + 1];
-      if (next !== undefined && (!next.startsWith("-") || NEGATIVE_NUMBER.test(next))) {
+      if (
+        next !== undefined &&
+        (!next.startsWith("-") || NEGATIVE_NUMBER.test(next))
+      ) {
         blocks.push(createParamBlock(scope, token, next));
         i += 2;
         continue;

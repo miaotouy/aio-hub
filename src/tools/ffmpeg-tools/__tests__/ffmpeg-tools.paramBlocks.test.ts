@@ -28,7 +28,11 @@ describe("parseArgsToBlocks", () => {
     );
 
     expect(blocks).toHaveLength(2);
-    expect(blocks[0]).toMatchObject({ key: "-crf", value: "23", enabled: true });
+    expect(blocks[0]).toMatchObject({
+      key: "-crf",
+      value: "23",
+      enabled: true,
+    });
     expect(blocks[1]).toMatchObject({ key: "-preset", value: "slow" });
     expect(blocks[0].raw).toBeUndefined();
   });

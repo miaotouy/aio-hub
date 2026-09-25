@@ -53,9 +53,9 @@ describe("resolveAppliedModelGroup", () => {
     expect(resolveAppliedModelGroup("OpenAI", geminiMetadata?.group)).toBe(
       "Gemini 2"
     );
-    expect(resolveAppliedModelGroup("OpenAI", futureGeminiMetadata?.group)).toBe(
-      "Gemini 3"
-    );
+    expect(
+      resolveAppliedModelGroup("OpenAI", futureGeminiMetadata?.group)
+    ).toBe("Gemini 3");
     expect(
       resolveAppliedModelGroup("OpenAI", multiDigitGeminiMetadata?.group)
     ).toBe("Gemini 3");
@@ -69,7 +69,6 @@ describe("resolveAppliedModelGroup", () => {
     expect(resolveAppliedModelGroup("Other", undefined)).toBe("Other");
   });
 });
-
 
 describe("current vendor model metadata", () => {
   it("classifies the latest Claude Fable route without requiring a fixed suffix", () => {

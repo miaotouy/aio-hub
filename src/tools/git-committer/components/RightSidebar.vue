@@ -68,7 +68,11 @@
                   >
                     {{ commit.message }}
                   </span>
-                  <el-tooltip content="打开更改" placement="top" :show-after="200">
+                  <el-tooltip
+                    content="打开更改"
+                    placement="top"
+                    :show-after="200"
+                  >
                     <button
                       class="open-changes-btn"
                       type="button"
@@ -118,7 +122,9 @@
                     <span class="commit-file-name">{{
                       getFileName(file.path)
                     }}</span>
-                    <span class="commit-file-dir">{{ getFileDir(file.path) }}</span>
+                    <span class="commit-file-dir">{{
+                      getFileDir(file.path)
+                    }}</span>
                     <span class="commit-file-stats">
                       <span v-if="file.additions" class="cf-add"
                         >+{{ file.additions }}</span
@@ -329,8 +335,7 @@ const handleHistoryScroll = (event: Event) => {
 // ===== 提交展开与文件导航 =====
 const isExpanded = (hash: string): boolean => expandedHashes.value.has(hash);
 
-const isLoadingFiles = (hash: string): boolean =>
-  loadingHashes.value.has(hash);
+const isLoadingFiles = (hash: string): boolean => loadingHashes.value.has(hash);
 
 const filesFor = (hash: string): CommitFileChange[] =>
   commitFiles.value[hash] || [];

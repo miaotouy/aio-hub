@@ -39,7 +39,10 @@ export interface ViewportTransform {
   panBy: (dx: number, dy: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
-  toContentPoint: (screenX: number, screenY: number) => { x: number; y: number };
+  toContentPoint: (
+    screenX: number,
+    screenY: number
+  ) => { x: number; y: number };
 }
 
 export function useViewportTransform(options: {

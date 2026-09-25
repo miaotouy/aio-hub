@@ -106,7 +106,10 @@
           v-for="(block, index) in activeBlocks"
           :key="block.id"
           class="block-row"
-          :class="{ 'is-disabled': !block.enabled, 'is-raw': block.raw !== undefined }"
+          :class="{
+            'is-disabled': !block.enabled,
+            'is-raw': block.raw !== undefined,
+          }"
         >
           <el-checkbox
             v-model="block.enabled"
@@ -120,7 +123,9 @@
               class="block-key-input"
               :model-value="block.raw"
               placeholder="原始参数"
-              @input="(value: string) => updateRawBlock(activeScope, block, value)"
+              @input="
+                (value: string) => updateRawBlock(activeScope, block, value)
+              "
             />
           </template>
           <template v-else>
@@ -136,7 +141,9 @@
               class="block-value-input"
               :model-value="block.value ?? ''"
               placeholder="值（可空）"
-              @input="(value: string) => updateBlockValue(activeScope, block, value)"
+              @input="
+                (value: string) => updateBlockValue(activeScope, block, value)
+              "
             />
           </template>
           <div class="block-actions">
@@ -265,10 +272,7 @@ const emit = defineEmits<{
 const commandText = ref("");
 const activeTemplateId = ref<string | null>(null);
 
-type ScopedParamField =
-  | "customGlobalArgs"
-  | "customInputArgs"
-  | "customArgs";
+type ScopedParamField = "customGlobalArgs" | "customInputArgs" | "customArgs";
 
 const scopeFields: Record<ParamScope, ScopedParamField> = {
   global: "customGlobalArgs",

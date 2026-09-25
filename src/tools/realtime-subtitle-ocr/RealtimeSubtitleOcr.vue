@@ -96,10 +96,7 @@ const statusText = computed(() => {
     <!-- 工作台区：KeepAlive 常驻，切换模式不销毁、不中断对方 -->
     <div class="rsocr-content">
       <KeepAlive>
-        <VideoWorkbench
-          v-if="ocrMode === 'video'"
-          class="rsocr-workbench"
-        />
+        <VideoWorkbench v-if="ocrMode === 'video'" class="rsocr-workbench" />
         <ScreenWorkbench v-else class="rsocr-workbench" />
       </KeepAlive>
     </div>

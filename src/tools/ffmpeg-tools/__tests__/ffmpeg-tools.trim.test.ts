@@ -86,11 +86,7 @@ describe("validateTrimRange", () => {
   });
 
   it("超出源时长时给出截取警告", () => {
-    const result = validateTrimRange(
-      { trimStart: 0, trimEnd: 100 },
-      50,
-      true
-    );
+    const result = validateTrimRange({ trimStart: 0, trimEnd: 100 }, 50, true);
     expect(result.error).toBeUndefined();
     expect(result.warning).toBe("结束时间超出源时长，将按源结尾截取");
   });

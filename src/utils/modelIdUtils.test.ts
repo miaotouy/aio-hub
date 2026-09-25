@@ -16,9 +16,7 @@ describe("compareModelId", () => {
   });
 
   it("基础版本排在带小数点的版本之前", () => {
-    expect(
-      compareModelId("gemini-3-flash", "gemini-3.1-pro")
-    ).toBeLessThan(0);
+    expect(compareModelId("gemini-3-flash", "gemini-3.1-pro")).toBeLessThan(0);
   });
 
   it("对同一组模型输出稳定的版本顺序", () => {

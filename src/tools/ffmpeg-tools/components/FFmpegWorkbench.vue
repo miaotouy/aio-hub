@@ -69,7 +69,11 @@
                       data-testid="ffmpeg-trim-start"
                       @change="commitTrimStart"
                     />
-                    <el-button link size="small" @click="setTrimStartFromPlayback">
+                    <el-button
+                      link
+                      size="small"
+                      @click="setTrimStartFromPlayback"
+                    >
                       设为起点
                     </el-button>
                   </div>
@@ -82,7 +86,11 @@
                       data-testid="ffmpeg-trim-end"
                       @change="commitTrimEnd"
                     />
-                    <el-button link size="small" @click="setTrimEndFromPlayback">
+                    <el-button
+                      link
+                      size="small"
+                      @click="setTrimEndFromPlayback"
+                    >
                       设为终点
                     </el-button>
                   </div>
@@ -94,8 +102,12 @@
                       data-testid="ffmpeg-trim-mode"
                       @change="onTrimModeChange"
                     >
-                      <el-radio-button value="fast">快速（流拷贝）</el-radio-button>
-                      <el-radio-button value="precise">精确（重编码）</el-radio-button>
+                      <el-radio-button value="fast"
+                        >快速（流拷贝）</el-radio-button
+                      >
+                      <el-radio-button value="precise"
+                        >精确（重编码）</el-radio-button
+                      >
                     </el-radio-group>
                   </div>
                   <div class="trim-hint">
@@ -106,7 +118,10 @@
                     }}
                   </div>
 
-                  <div v-if="params.trimMode !== 'precise'" class="trim-snap-row">
+                  <div
+                    v-if="params.trimMode !== 'precise'"
+                    class="trim-snap-row"
+                  >
                     <el-switch
                       v-model="snapEnabled"
                       size="small"
@@ -176,7 +191,10 @@
                     </el-tooltip>
                   </div>
                 </div>
-                <div class="command-content" data-testid="ffmpeg-command-preview">
+                <div
+                  class="command-content"
+                  data-testid="ffmpeg-command-preview"
+                >
                   <code>{{ generatedCommand }}</code>
                 </div>
                 <el-alert
@@ -374,7 +392,9 @@
                         "
                       />
                       <span
-                        v-if="!isProgressIndeterminate(currentFileTask.progress)"
+                        v-if="
+                          !isProgressIndeterminate(currentFileTask.progress)
+                        "
                         class="file-task-time"
                       >
                         {{ formatTime(currentFileTask.progress.currentTime) }}
@@ -574,9 +594,7 @@ const currentFileTask = computed(() => {
   const key = normalizeOutputPathKey(currentFilePath.value);
   if (!key) return null;
   return (
-    store.tasks.find(
-      (t) => normalizeOutputPathKey(t.inputPath) === key
-    ) ?? null
+    store.tasks.find((t) => normalizeOutputPathKey(t.inputPath) === key) ?? null
   );
 });
 
@@ -728,12 +746,7 @@ const loadTrimKeyframes = async () => {
   if (!(end > start)) return;
 
   const token = beginRequest();
-  const result = await loadKeyframes(
-    currentFilePath.value,
-    start,
-    end,
-    token
-  );
+  const result = await loadKeyframes(currentFilePath.value, start, end, token);
   if (isStale(token)) return;
   trimKeyframes.value = result;
   maybeSnapTrim();

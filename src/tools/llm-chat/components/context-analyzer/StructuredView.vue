@@ -1417,7 +1417,9 @@ const castToAsset = (val: any): Asset => {
   if (!att || typeof att !== "object") return att as Asset;
 
   // 优先使用资产库中的完整资产
-  const resolved = att.id ? resolvedAssetMap.value.get(String(att.id)) : undefined;
+  const resolved = att.id
+    ? resolvedAssetMap.value.get(String(att.id))
+    : undefined;
   if (resolved) return resolved;
 
   // 兜底：把管道附件的 source 映射为 Asset 的预览字段

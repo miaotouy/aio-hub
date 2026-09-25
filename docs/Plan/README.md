@@ -20,21 +20,21 @@
 
 状态口径：
 
-| 状态   | 含义                                           |
-| ------ | ---------------------------------------------- |
+| 状态   | 含义                                               |
+| ------ | -------------------------------------------------- |
 | 待收口 | 主体代码已落地，只缺真实运行态、迁移或正式版前检查 |
-| 待实施 | 方案已明确，可以按计划开工                     |
-| 候选   | 调查或 RFC 已存在，尚未进入承诺施工队列        |
-| 按需   | 需要数据、平台或排期触发的优化项               |
-| 活动   | 模块有多个不同状态的现行计划，以模块索引为准   |
+| 待实施 | 方案已明确，可以按计划开工                         |
+| 候选   | 调查或 RFC 已存在，尚未进入承诺施工队列            |
+| 按需   | 需要数据、平台或排期触发的优化项                   |
+| 活动   | 模块有多个不同状态的现行计划，以模块索引为准       |
 
 发布检查口径：
 
-| 层级             | 含义                                                                                                            | 版本处理                                                                                      |
-| ---------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Alpha 风险登记   | 数据损坏、安全/隐私、不可控资源消耗、无法安装/启动/升级、核心能力不可试用或产物兼容声明失真等需要优先修复的问题 | 作为 bug 优先修复并记录影响与恢复方式；不以“补齐完整证据矩阵”的形式阻断预发布                 |
-| Alpha 可接受风险 | 已知的中低风险问题，影响有限且可绕过、重试或恢复                                                                | 记录影响、恢复方式和目标版本后可随 Alpha 发布                                                 |
-| 正式版前检查清单 | 面向普通用户稳定发布所需的完整体验、迁移、可靠性、兼容、平台矩阵及尚未补齐的完整证据                            | 最迟在不带预发布标识的正式版前关闭                                                            |
+| 层级             | 含义                                                                                                            | 版本处理                                                                      |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Alpha 风险登记   | 数据损坏、安全/隐私、不可控资源消耗、无法安装/启动/升级、核心能力不可试用或产物兼容声明失真等需要优先修复的问题 | 作为 bug 优先修复并记录影响与恢复方式；不以“补齐完整证据矩阵”的形式阻断预发布 |
+| Alpha 可接受风险 | 已知的中低风险问题，影响有限且可绕过、重试或恢复                                                                | 记录影响、恢复方式和目标版本后可随 Alpha 发布                                 |
+| 正式版前检查清单 | 面向普通用户稳定发布所需的完整体验、迁移、可靠性、兼容、平台矩阵及尚未补齐的完整证据                            | 最迟在不带预发布标识的正式版前关闭                                            |
 
 风险等级按严重度、暴露概率和可恢复性判断。缺少某项测试不自动阻断 Alpha；只有当问题在真实运行中复现、造成数据损坏、无法安装/启动/升级或核心能力不可用时，才按最高优先级修复。P0 表示应优先处理的发布安全或专项收口工作，不等于 Alpha 发布阻断清单。口径见上表。
 
@@ -88,33 +88,33 @@
 
 ## 4. 根目录计划台账
 
-| 文档                                                                          | 状态   | 下一动作                                                                      |
-| ----------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                     | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                         |
-| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)    | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                 |
+| 文档                                                                          | 状态   | 下一动作                                                                                    |
+| ----------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                     | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                                       |
+| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)    | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                               |
 | [模型元数据系统优化](./model-metadata-system-optimization-plan.md)            | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收 |
-| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二     |
-| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                            |
-| [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图 |
-| [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback           |
-| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)              | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005              |
+| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二                   |
+| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                                          |
+| [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图               |
+| [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback                         |
+| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)              | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                            |
 
 ## 5. 活动工具计划入口
 
-| 模块                                    | 状态   | 权威入口或下一动作                                                                                                     |
-| --------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `agent-manager`、`user-profile-manager` | 待收口 | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，执行 D-P0-03                                        |
-| `knowledge-base`、`retrieval`           | 待收口 | [Knowledge 计划索引](../../src/tools/knowledge-base/docs/Plan/README.md)，执行 D-P0-01                                 |
+| 模块                                    | 状态   | 权威入口或下一动作                                                                                                                                               |
+| --------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-manager`、`user-profile-manager` | 待收口 | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，执行 D-P0-03                                                                                  |
+| `knowledge-base`、`retrieval`           | 待收口 | [Knowledge 计划索引](../../src/tools/knowledge-base/docs/Plan/README.md)，执行 D-P0-01                                                                           |
 | `recall`                                | 待收口 | [Recall 检索管线计划](../../src/tools/recall/docs/Plan/recall-retrieval-pipeline-modularization-plan.md)，执行 D-P0-02（正式版前检查，主体已完成，不阻断 Alpha） |
-| `llm-chat`                              | 活动   | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，按 D-P0-07、D-P1-03、D-P1-04、D-P2-04 排序          |
-| `dir-search`                            | 待收口 | LLM/VCP 普通调用与宽范围资源止损已验收，执行 D-P0-04 的专项安全、资源基准和上游集成                                    |
-| `translator`                            | 待实施 | 执行 D-P2-01                                                                                                           |
-| `token-calculator`                      | 待实施 | 桌面核心 Phase 0–4.5、6 已完成，仅执行 D-P2-03 的 Phase 5 远端下载                                                     |
-| `rich-text-renderer`、`web-distillery`  | 按需   | 先复核基线或现代码差异                                                                                                 |
-| `media-generator`                       | 待收口 | [计划索引](../../src/tools/media-generator/docs/Plan/README.md)，执行 D-P2-07                                          |
-| `wallpaper-detector`                    | 待收口 | 执行 D-P3-01                                                                                                           |
-| `embedding-playground`                  | 待收口 | 主体代码已实施，执行 D-P2-09 的核心交互与结果验收                                                                      |
-| `transcription`                         | 待收口 | OCR 配置、UI 和引擎分流已实施，执行 D-P3-03                                                                            |
+| `llm-chat`                              | 活动   | [LLM Chat 计划索引](../../src/tools/llm-chat/docs/Plan/README.md)，按 D-P0-07、D-P1-03、D-P1-04、D-P2-04 排序                                                    |
+| `dir-search`                            | 待收口 | LLM/VCP 普通调用与宽范围资源止损已验收，执行 D-P0-04 的专项安全、资源基准和上游集成                                                                              |
+| `translator`                            | 待实施 | 执行 D-P2-01                                                                                                                                                     |
+| `token-calculator`                      | 待实施 | 桌面核心 Phase 0–4.5、6 已完成，仅执行 D-P2-03 的 Phase 5 远端下载                                                                                               |
+| `rich-text-renderer`、`web-distillery`  | 按需   | 先复核基线或现代码差异                                                                                                                                           |
+| `media-generator`                       | 待收口 | [计划索引](../../src/tools/media-generator/docs/Plan/README.md)，执行 D-P2-07                                                                                    |
+| `wallpaper-detector`                    | 待收口 | 执行 D-P3-01                                                                                                                                                     |
+| `embedding-playground`                  | 待收口 | 主体代码已实施，执行 D-P2-09 的核心交互与结果验收                                                                                                                |
+| `transcription`                         | 待收口 | OCR 配置、UI 和引擎分流已实施，执行 D-P3-03                                                                                                                      |
 
 ## 6. 回写顺序
 

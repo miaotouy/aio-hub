@@ -154,7 +154,9 @@
               <template v-if="isThinking(result)">
                 思考中 · {{ result.reasoningContent?.length ?? 0 }} 字
               </template>
-              <template v-else>生成中 · {{ result.content.length }} 字</template>
+              <template v-else
+                >生成中 · {{ result.content.length }} 字</template
+              >
             </span>
             <span v-else-if="result.status === 'pending'" class="footer-tag">
               排队中

@@ -77,8 +77,7 @@ export const DEFAULT_MODEL_IDENTITY_PRESETS: readonly ModelIdentityPresetRule[] 
       evidence: {
         kind: "maintainer-verified",
         reference: GOOGLE_EMBEDDING_REFERENCE,
-        note:
-          "Historical preview route. Keep its embedding space separate from the stable route.",
+        note: "Historical preview route. Keep its embedding space separate from the stable route.",
       },
     },
     {
@@ -91,8 +90,7 @@ export const DEFAULT_MODEL_IDENTITY_PRESETS: readonly ModelIdentityPresetRule[] 
       evidence: {
         kind: "maintainer-verified",
         reference: GOOGLE_EMBEDDING_REFERENCE,
-        note:
-          "Historical preview route. Keep its embedding space separate from the stable route.",
+        note: "Historical preview route. Keep its embedding space separate from the stable route.",
       },
     },
     {

@@ -52,7 +52,8 @@
           class="stat-additions"
           >{{ stats.additions }}</span
         >
-        行插入(+)，<span class="stat-deletions">{{ stats.deletions }}</span> 行删除(-)
+        行插入(+)，<span class="stat-deletions">{{ stats.deletions }}</span>
+        行删除(-)
       </div>
 
       <div class="detail-footer">
@@ -64,11 +65,7 @@
         </el-tooltip>
         <template v-if="remoteInfo">
           <span class="detail-divider" />
-          <button
-            class="detail-remote"
-            type="button"
-            @click.stop="openRemote"
-          >
+          <button class="detail-remote" type="button" @click.stop="openRemote">
             <el-icon :size="12"><ExternalLink /></el-icon>
             <span>在 {{ remoteInfo.name }} 上打开</span>
           </button>
@@ -333,7 +330,9 @@ const openRemote = async () => {
   background: transparent;
   color: var(--el-text-color-secondary);
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .detail-copy:hover {

@@ -46,7 +46,9 @@ describe("createSubtitleTimelineStore", () => {
 
   it("splits and merges within a single store", () => {
     const store = createSubtitleTimelineStore();
-    store.addSubtitle(entry({ id: "a", text: "hello world", startMs: 1000, endMs: 5000 }));
+    store.addSubtitle(
+      entry({ id: "a", text: "hello world", startMs: 1000, endMs: 5000 })
+    );
 
     const splitId = store.splitSubtitle("a", 3000);
     expect(splitId).not.toBeNull();

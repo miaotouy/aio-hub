@@ -4,13 +4,21 @@ import { normalizePixelRect } from "../frameCapture";
 describe("frameCapture pixel rect normalization", () => {
   it("keeps rects fully inside the source", () => {
     expect(
-      normalizePixelRect({ x: 100, y: 200, width: 300, height: 150 }, 1920, 1080)
+      normalizePixelRect(
+        { x: 100, y: 200, width: 300, height: 150 },
+        1920,
+        1080
+      )
     ).toEqual({ x: 100, y: 200, width: 300, height: 150 });
   });
 
   it("clamps negative origins and overflowing sizes", () => {
     expect(
-      normalizePixelRect({ x: -20, y: -5, width: 99999, height: 99999 }, 100, 80)
+      normalizePixelRect(
+        { x: -20, y: -5, width: 99999, height: 99999 },
+        100,
+        80
+      )
     ).toEqual({ x: 0, y: 0, width: 100, height: 80 });
   });
 

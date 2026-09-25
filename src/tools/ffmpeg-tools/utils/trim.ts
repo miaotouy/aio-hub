@@ -37,8 +37,7 @@ function pad(value: number, length = 2): string {
  * 将秒格式化为 `HH:MM:SS.mmm`，毫秒四舍五入并补零。
  */
 export function formatTrimTime(seconds: number): string {
-  const safeSeconds =
-    Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
   const totalMs = Math.round(safeSeconds * 1000);
   const ms = totalMs % 1000;
   const totalSeconds = Math.floor(totalMs / 1000);

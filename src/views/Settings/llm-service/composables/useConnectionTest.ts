@@ -285,7 +285,9 @@ function showResultMessage(result: ChannelProbeResult, subject: string) {
 
 function categoryLabel(category: ChannelProbeResult["category"]): string {
   if (!category) return "unknown";
-  const labels: Partial<Record<NonNullable<ChannelProbeResult["category"]>, string>> = {
+  const labels: Partial<
+    Record<NonNullable<ChannelProbeResult["category"]>, string>
+  > = {
     proxy: "本地代理/未连上",
     network: "网络",
     timeout: "超时",

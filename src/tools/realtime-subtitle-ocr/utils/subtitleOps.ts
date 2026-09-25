@@ -32,7 +32,10 @@ export function splitSubtitleEntry(
   newId: string
 ): [SubtitleEntry, SubtitleEntry] | null {
   const at = Math.round(atMs);
-  if (at < entry.startMs + MIN_SEGMENT_MS || at > entry.endMs - MIN_SEGMENT_MS) {
+  if (
+    at < entry.startMs + MIN_SEGMENT_MS ||
+    at > entry.endMs - MIN_SEGMENT_MS
+  ) {
     return null;
   }
   const first: SubtitleEntry = { ...entry, endMs: at };

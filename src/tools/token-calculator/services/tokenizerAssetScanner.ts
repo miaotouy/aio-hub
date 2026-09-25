@@ -144,11 +144,7 @@ async function loadZipEntries(bytes: Uint8Array): Promise<ArchiveEntry[]> {
   }));
 }
 
-function readTarText(
-  bytes: Uint8Array,
-  start: number,
-  length: number
-): string {
+function readTarText(bytes: Uint8Array, start: number, length: number): string {
   const slice = bytes.subarray(start, start + length);
   const nullIndex = slice.indexOf(0);
   const trimmed = nullIndex === -1 ? slice : slice.subarray(0, nullIndex);

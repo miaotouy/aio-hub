@@ -51,7 +51,9 @@ export class BackgroundJsRuntimeBridge {
         }
       );
 
-      const status = await invoke<BackgroundJsRuntimeStatus>("background_runtime_get_status");
+      const status = await invoke<BackgroundJsRuntimeStatus>(
+        "background_runtime_get_status"
+      );
       if (status.ready) {
         this.ready = true;
         this.resolveReadyWaiters();
@@ -120,7 +122,9 @@ export class BackgroundJsRuntimeBridge {
     }
   }
 
-  private async waitUntilReady(timeoutMs = DEFAULT_READY_TIMEOUT_MS): Promise<void> {
+  private async waitUntilReady(
+    timeoutMs = DEFAULT_READY_TIMEOUT_MS
+  ): Promise<void> {
     if (this.ready) return;
 
     await new Promise<void>((resolve, reject) => {
@@ -155,7 +159,9 @@ export class BackgroundJsRuntimeBridge {
     }
 
     pending.reject(
-      new Error(response.error?.message || "Background JS Runtime request failed")
+      new Error(
+        response.error?.message || "Background JS Runtime request failed"
+      )
     );
   }
 }

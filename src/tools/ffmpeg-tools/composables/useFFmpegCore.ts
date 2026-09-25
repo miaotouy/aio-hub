@@ -130,10 +130,9 @@ export function useFFmpegCore() {
    */
   const killProcess = async (taskId: string): Promise<{ found: boolean }> => {
     try {
-      const result = await invoke<{ found: boolean }>(
-        "kill_ffmpeg_process",
-        { taskId }
-      );
+      const result = await invoke<{ found: boolean }>("kill_ffmpeg_process", {
+        taskId,
+      });
       logger.info("已请求终止 FFmpeg 任务", { taskId, found: result?.found });
       return result ?? { found: false };
     } catch (error) {

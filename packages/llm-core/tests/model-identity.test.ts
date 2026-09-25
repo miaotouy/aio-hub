@@ -32,18 +32,17 @@ describe("model identity", () => {
       resolveBuiltinModelIdentity("openai/text-embedding-3-small")?.identity
         .canonicalId
     ).toBe("openai/text-embedding-3-small");
-    expect(resolveBuiltinModelIdentity("embedding-001")?.identity).toMatchObject(
-      {
-        canonicalId: "google/embedding-001",
-        source: "builtin",
-      }
-    );
+    expect(
+      resolveBuiltinModelIdentity("embedding-001")?.identity
+    ).toMatchObject({
+      canonicalId: "google/embedding-001",
+      source: "builtin",
+    });
     expect(
       resolveBuiltinModelIdentity("gemini-embedding-2")?.identity.canonicalId
     ).toBe("google/gemini-embedding-2");
     expect(
-      resolveBuiltinModelIdentity("models/gemini-embedding-2-preview")
-        ?.identity
+      resolveBuiltinModelIdentity("models/gemini-embedding-2-preview")?.identity
     ).toMatchObject({
       canonicalId: "google/gemini-embedding-2",
       revision: "preview",

@@ -15,10 +15,7 @@
 import { ref, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
-import type {
-  TranslatorSettings,
-  TranslationThinkingMode,
-} from "../types";
+import type { TranslatorSettings, TranslationThinkingMode } from "../types";
 import {
   TRANSLATOR_CONFIG_VERSION,
   TRANSLATOR_MODULE_NAME,

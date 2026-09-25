@@ -149,7 +149,8 @@
                   item.fileName
                 }}</span>
                 <span class="luminance-badge"
-                  >L {{
+                  >L
+                  {{
                     (item.filterLuminance ?? item.luminance)?.toFixed(2)
                   }}</span
                 >

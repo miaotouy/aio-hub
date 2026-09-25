@@ -64,7 +64,9 @@ describe("ffmpeg-tools task lifecycle", () => {
     expect(normalizeOutputPathKey("  C:\\Media\\Out.MP4  ")).toBe(
       "c:/media/out.mp4"
     );
-    expect(normalizeOutputPathKey("c:/media//out.mp4")).toBe("c:/media/out.mp4");
+    expect(normalizeOutputPathKey("c:/media//out.mp4")).toBe(
+      "c:/media/out.mp4"
+    );
     expect(normalizeOutputPathKey("C:/Media/Out.MP4")).toBe("c:/media/out.mp4");
     expect(normalizeOutputPathKey("")).toBe("");
     expect(normalizeOutputPathKey("   ")).toBe("");
@@ -73,8 +75,12 @@ describe("ffmpeg-tools task lifecycle", () => {
   it("reservePath / isPathReserved 避免同一输出路径被重复占用", () => {
     const reservations: Record<string, string> = {};
 
-    expect(reservePath(reservations, "task-a", "C:\\out\\video.mp4")).toBe(true);
-    expect(reservePath(reservations, "task-a", "C:\\out\\video.mp4")).toBe(true);
+    expect(reservePath(reservations, "task-a", "C:\\out\\video.mp4")).toBe(
+      true
+    );
+    expect(reservePath(reservations, "task-a", "C:\\out\\video.mp4")).toBe(
+      true
+    );
     expect(isPathReserved(reservations, "C:\\out\\video.mp4", "task-a")).toBe(
       false
     );
@@ -84,7 +90,9 @@ describe("ffmpeg-tools task lifecycle", () => {
       true
     );
 
-    expect(reservePath(reservations, "task-b", "C:\\out\\other.mp4")).toBe(true);
+    expect(reservePath(reservations, "task-b", "C:\\out\\other.mp4")).toBe(
+      true
+    );
     expect(isPathReserved(reservations, "C:\\out\\other.mp4", "task-b")).toBe(
       false
     );

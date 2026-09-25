@@ -17,7 +17,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElInput } from "element-plus";
-import { Check, ChevronDown, ChevronUp, Clock3, Plus, Save } from "lucide-vue-next";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  Plus,
+  Save,
+} from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { formatSrtTime } from "../utils/algorithms";
 import type { SubtitleEntry } from "../types";
@@ -42,7 +49,9 @@ let lastActiveId = "";
 
 const subtitleList = computed(() => props.subtitles ?? []);
 const hasChanges = computed(
-  () => !!props.activeSubtitle && localSubtitleText.value !== props.activeSubtitle.text
+  () =>
+    !!props.activeSubtitle &&
+    localSubtitleText.value !== props.activeSubtitle.text
 );
 
 watch(
@@ -109,7 +118,8 @@ function selectPrevious() {
 
 function selectNext() {
   const index = props.activeSubtitleIndex + 1;
-  if (index < subtitleList.value.length) selectSubtitle(subtitleList.value[index].id);
+  if (index < subtitleList.value.length)
+    selectSubtitle(subtitleList.value[index].id);
 }
 
 function formatTime(ms: number): string {
@@ -129,17 +139,24 @@ function statusLabel(subtitle: SubtitleEntry): string {
       <div class="subtitle-inspector__time-row">
         <div class="time-field">
           <label>开始</label>
-          <div class="time-field__value"><Clock3 :size="12" />{{ formatTime(activeSubtitle.startMs) }}</div>
+          <div class="time-field__value">
+            <Clock3 :size="12" />{{ formatTime(activeSubtitle.startMs) }}
+          </div>
         </div>
         <div class="time-field">
           <label>结束</label>
-          <div class="time-field__value"><Clock3 :size="12" />{{ formatTime(activeSubtitle.endMs) }}</div>
+          <div class="time-field__value">
+            <Clock3 :size="12" />{{ formatTime(activeSubtitle.endMs) }}
+          </div>
         </div>
       </div>
 
       <div class="subtitle-inspector__editor-head">
         <span>字幕内容</span>
-        <span class="subtitle-inspector__state" :class="{ 'is-dirty': hasChanges }">
+        <span
+          class="subtitle-inspector__state"
+          :class="{ 'is-dirty': hasChanges }"
+        >
           <Check :size="12" />{{ hasChanges ? "未保存" : "已同步" }}
         </span>
       </div>
@@ -158,10 +175,20 @@ function statusLabel(subtitle: SubtitleEntry): string {
       />
 
       <div class="subtitle-inspector__actions">
-        <el-button size="small" text :disabled="activeSubtitleIndex <= 0" @click="selectPrevious">
+        <el-button
+          size="small"
+          text
+          :disabled="activeSubtitleIndex <= 0"
+          @click="selectPrevious"
+        >
           <ChevronUp :size="14" /> 上一条
         </el-button>
-        <el-button size="small" text :disabled="activeSubtitleIndex >= subtitleList.length - 1" @click="selectNext">
+        <el-button
+          size="small"
+          text
+          :disabled="activeSubtitleIndex >= subtitleList.length - 1"
+          @click="selectNext"
+        >
           下一条 <ChevronDown :size="14" />
         </el-button>
         <el-button
@@ -197,14 +224,23 @@ function statusLabel(subtitle: SubtitleEntry): string {
         :class="{ 'is-active': subtitle.id === activeSubtitle?.id }"
         @click="selectSubtitle(subtitle.id)"
       >
-        <span class="subtitle-list__index">{{ String(index + 1).padStart(2, "0") }}</span>
+        <span class="subtitle-list__index">{{
+          String(index + 1).padStart(2, "0")
+        }}</span>
         <span class="subtitle-list__copy">
-          <span class="subtitle-list__time">{{ formatTime(subtitle.startMs) }} — {{ formatTime(subtitle.endMs) }}</span>
-          <span class="subtitle-list__text">{{ subtitle.text || "（空字幕）" }}</span>
+          <span class="subtitle-list__time"
+            >{{ formatTime(subtitle.startMs) }} —
+            {{ formatTime(subtitle.endMs) }}</span
+          >
+          <span class="subtitle-list__text">{{
+            subtitle.text || "（空字幕）"
+          }}</span>
         </span>
         <span class="subtitle-list__status">{{ statusLabel(subtitle) }}</span>
       </button>
-      <div v-if="!subtitleList.length" class="subtitle-list__placeholder">识别后字幕片段会显示在这里</div>
+      <div v-if="!subtitleList.length" class="subtitle-list__placeholder">
+        识别后字幕片段会显示在这里
+      </div>
     </div>
   </div>
 </template>
@@ -397,7 +433,11 @@ function statusLabel(subtitle: SubtitleEntry): string {
   text-align: center;
 }
 @media (max-width: 720px) {
-  .subtitle-inspector { padding-inline: 10px; }
-  .subtitle-inspector__actions .el-button { padding-inline: 4px; }
+  .subtitle-inspector {
+    padding-inline: 10px;
+  }
+  .subtitle-inspector__actions .el-button {
+    padding-inline: 4px;
+  }
 }
 </style>

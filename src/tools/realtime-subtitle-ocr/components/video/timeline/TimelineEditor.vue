@@ -24,7 +24,8 @@
       <span
         class="timeline-editor__hint"
         title="左键拖拽块移动 · 拖块边缘修剪 · 滚轮/Alt+滚轮横向滚动 · Ctrl+滚轮缩放 · 中键 或 Alt+左键拖拽平移 · 右键菜单"
-        >拖拽移动 · 拖边修剪 · 滚轮/Alt+滚轮滚动 · Ctrl+滚轮缩放 · 中键/Alt+拖拽平移 · 右键菜单</span
+        >拖拽移动 · 拖边修剪 · 滚轮/Alt+滚轮滚动 · Ctrl+滚轮缩放 ·
+        中键/Alt+拖拽平移 · 右键菜单</span
       >
       <label
         class="timeline-editor__snap"
@@ -779,7 +780,8 @@ function onScrollbarMove(event: PointerEvent) {
   const usable = Math.max(1, rect.width - thumbWidth);
   const deltaRatio = (event.clientX - scrollbarDrag.startClientX) / usable;
   viewport.setScrollX(
-    scrollbarDrag.startScrollX + deltaRatio * Math.max(0, scrollWidth - viewportWidth)
+    scrollbarDrag.startScrollX +
+      deltaRatio * Math.max(0, scrollWidth - viewportWidth)
   );
 }
 

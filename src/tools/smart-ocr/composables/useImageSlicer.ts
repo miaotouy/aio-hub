@@ -151,8 +151,7 @@ export function useImageSlicer() {
 
     // Otsu 自动定位分界，再用 blankThreshold 作为灵敏度系数微调；
     // 下限保证背景基准高于 0（如页面边框）时空白行仍能被识别。
-    const otsuThreshold =
-      calculateOtsuThreshold(variances) ?? contentLevel;
+    const otsuThreshold = calculateOtsuThreshold(variances) ?? contentLevel;
     const minThreshold =
       backgroundLevel + (contentLevel - backgroundLevel) * 0.01;
     const varianceThreshold = Math.max(

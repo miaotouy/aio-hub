@@ -15,8 +15,18 @@ describe("splitSubtitleEntry", () => {
     const parts = splitSubtitleEntry(base, 3000, "b");
     expect(parts).not.toBeNull();
     const [first, second] = parts!;
-    expect(first).toMatchObject({ id: "a", startMs: 1000, endMs: 3000, text: "hello world" });
-    expect(second).toMatchObject({ id: "b", startMs: 3000, endMs: 5000, text: "hello world" });
+    expect(first).toMatchObject({
+      id: "a",
+      startMs: 1000,
+      endMs: 3000,
+      text: "hello world",
+    });
+    expect(second).toMatchObject({
+      id: "b",
+      startMs: 3000,
+      endMs: 5000,
+      text: "hello world",
+    });
   });
 
   it("rounds the split timestamp", () => {

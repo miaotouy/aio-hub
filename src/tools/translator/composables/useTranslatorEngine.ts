@@ -176,8 +176,11 @@ export function useTranslatorEngine(deps: EngineDeps) {
       (item) => item.id === channel.profileId
     );
     return (
-      getModelFamily(channel.modelId, model.provider ?? profile?.type, model) ===
-      "gemini"
+      getModelFamily(
+        channel.modelId,
+        model.provider ?? profile?.type,
+        model
+      ) === "gemini"
     );
   }
 

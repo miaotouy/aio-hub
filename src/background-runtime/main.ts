@@ -24,7 +24,9 @@ const responseFor = (
   ...response,
 });
 
-const dispatch = (request: BackgroundJsRuntimeRequest): BackgroundJsRuntimeResponse => {
+const dispatch = (
+  request: BackgroundJsRuntimeRequest
+): BackgroundJsRuntimeResponse => {
   switch (request.method) {
     case "runtime.ping":
       return responseFor(request, {
@@ -48,14 +50,20 @@ const dispatch = (request: BackgroundJsRuntimeRequest): BackgroundJsRuntimeRespo
 };
 
 const boot = async (): Promise<void> => {
-  await listen<BackgroundJsRuntimeRequest>(BACKGROUND_JS_RUNTIME_EVENTS.request, async (event) => {
-    const response = dispatch(event.payload);
-    await emitTo("main", BACKGROUND_JS_RUNTIME_EVENTS.response, response);
-  });
+  await listen<BackgroundJsRuntimeRequest>(
+    BACKGROUND_JS_RUNTIME_EVENTS.request,
+    async (event) => {
+      const response = dispatch(event.payload);
+      await emitTo("main", BACKGROUND_JS_RUNTIME_EVENTS.response, response);
+    }
+  );
 
-  const status = await invoke<{ generation: number }>("background_runtime_ready", {
-    runtimeVersion: RUNTIME_VERSION,
-  });
+  const status = await invoke<{ generation: number }>(
+    "background_runtime_ready",
+    {
+      runtimeVersion: RUNTIME_VERSION,
+    }
+  );
 
   await emitTo("main", BACKGROUND_JS_RUNTIME_EVENTS.ready, {
     runtimeVersion: RUNTIME_VERSION,

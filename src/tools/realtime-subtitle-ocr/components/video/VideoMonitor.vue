@@ -74,7 +74,10 @@
       @pointercancel="onSeekPointerUp"
     >
       <div ref="seekTrackRef" class="seek-track">
-        <div class="seek-progress" :style="{ width: `${progressPercent}%` }"></div>
+        <div
+          class="seek-progress"
+          :style="{ width: `${progressPercent}%` }"
+        ></div>
         <div class="seek-thumb" :style="{ left: `${progressPercent}%` }"></div>
       </div>
     </div>

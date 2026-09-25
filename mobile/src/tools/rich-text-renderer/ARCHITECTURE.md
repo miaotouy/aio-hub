@@ -73,7 +73,7 @@ flowchart LR
 - 正式聊天 generating 状态下首个 Markdown heading 的挂载；
 - 正式聊天中的 fenced code、行内 KaTeX、GitHub `TIP`、原始 HTML 字面回退与受管图片预览。
 
-AVD 不是 Android 真机或 iOS 发布门禁；真实手势、内存释放、长消息性能、原生全屏/方向和 iOS 仍待独立验收。
+AVD 不是 Android 真机或 iOS 发布后续验证；真实手势、内存释放、长消息性能、原生全屏/方向和 iOS 仍待独立验收。
 
 ## 6. 当前不迁移的桌面能力
 
@@ -92,3 +92,10 @@ AVD 不是 Android 真机或 iOS 发布门禁；真实手势、内存释放、�
 - 移动端构建：`cd mobile && bun run build`；
 - Android 真实 WebView：`tests/mobile-android-e2e/run.ts --preset rich-text-media --avd Medium_Phone_API_36 --apk <apk>`；
 - 施工计划：[`docs/Plan/rich-text-renderer-migration-plan.md`](./docs/Plan/rich-text-renderer-migration-plan.md)。
+
+## 10. 2026-09-25 交互收口
+
+- 聊天正文的富文本排版改用移动端主题 token，减少桌面端 Element 变量泄漏到 WebView 的视觉差异。
+- 代码块保留复制和换行操作，表格在窄屏下保持可读的横向滚动，图片限制最大宽度并允许长文本安全断行。
+- 流式刷新继续使用固定节奏节流，完成态立即提交最后内容；这保证输入流畅，也避免消息列表随着每个字符抖动。
+- 渲染器不恢复 raw `v-html`；HTML token、危险协议和未受管本地资源维持安全降级。

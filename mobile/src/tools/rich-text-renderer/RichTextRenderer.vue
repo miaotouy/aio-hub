@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
 .rich-text-renderer {
   font-size: 1rem;
   line-height: 1.6;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
   word-break: break-word;
 }
 
@@ -648,12 +648,12 @@ onBeforeUnmount(() => {
   font-weight: 600;
   line-height: 1.3;
   margin: 16px 0 8px 0;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
 }
 
 .md-h1 {
   font-size: 1.4rem;
-  border-bottom: 1px solid var(--el-border-color-light);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 4px;
 }
 .md-h2 {
@@ -670,13 +670,13 @@ onBeforeUnmount(() => {
 }
 .md-h6 {
   font-size: 0.9rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
 }
 
 /* 粗体与斜体 */
 .md-strong {
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
 }
 
 .md-italic {
@@ -694,15 +694,15 @@ onBeforeUnmount(() => {
   padding: 2px 6px;
   margin: 0 4px;
   font-size: 0.85em;
-  background-color: var(--el-fill-color-darker);
+  background-color: var(--input-bg);
   border-radius: 4px;
-  color: var(--el-color-danger);
+  color: var(--color-error, #d14343);
   word-break: break-all;
 }
 
 /* 链接与图片 */
 .md-link {
-  color: var(--el-color-primary);
+  color: var(--color-primary);
   text-decoration: none;
   font-weight: 500;
 }
@@ -728,9 +728,9 @@ onBeforeUnmount(() => {
 .md-blockquote {
   margin: 12px 0;
   padding: 4px 12px;
-  border-left: 4px solid var(--el-border-color-darker);
-  background-color: var(--el-fill-color-lighter);
-  color: var(--el-text-color-regular);
+  border-left: 4px solid var(--border-color);
+  background-color: var(--card-bg);
+  color: var(--text-color);
   border-radius: 0 4px 4px 0;
 }
 
@@ -760,7 +760,7 @@ onBeforeUnmount(() => {
 .md-hr {
   height: 1px;
   border: none;
-  background-color: var(--el-border-color-light);
+  background-color: var(--border-color);
   margin: 16px 0;
 }
 
@@ -769,7 +769,7 @@ onBeforeUnmount(() => {
   width: 100%;
   overflow-x: auto;
   margin: 12px 0;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
@@ -782,16 +782,16 @@ onBeforeUnmount(() => {
 .md-table th,
 .md-table td {
   padding: 8px 12px;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--border-color);
 }
 
 .md-table th {
-  background-color: var(--el-fill-color-darker);
+  background-color: var(--input-bg);
   font-weight: 600;
 }
 
 .md-table tr:nth-child(even) {
-  background-color: var(--el-fill-color-extra-light);
+  background-color: var(--color-surface-container-low, var(--card-bg));
 }
 
 .md-html {

@@ -52,6 +52,7 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["nsis", "appimage", "deb"],
+    "licenseFile": "../LICENSE",
     "resources": {
       "../public/canvases": "canvases",
       "../public/skills": "skills"
@@ -67,7 +68,11 @@
       "nsis": {
         "languages": ["English", "SimpChinese"],
         "displayLanguageSelector": true,
-        "template": "nsis/installer.nsi"
+        "template": "nsis/installer.nsi",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "sidebarImage": "nsis/sidebar.bmp",
+        "headerImage": "nsis/header.bmp"
       }
     }
   }

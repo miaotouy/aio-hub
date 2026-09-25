@@ -575,7 +575,7 @@ fn run_sqlite_case(
                     "migration-rollback",
                     "Migration 与失败回滚",
                     started,
-                    "历史 v0 fixture 已到 v1，失败事务未写入，高版本由固定门禁拒绝。",
+                    "历史 v0 fixture 已到 v1，失败事务未写入，高版本由固定后续验证拒绝。",
                     Some(
                         json!({ "schemaVersion": 1, "rolledBackRows": count, "refusedVersion": detected_version }),
                     ),

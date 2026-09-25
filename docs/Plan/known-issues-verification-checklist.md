@@ -10,7 +10,7 @@
 
 ## 1. 文档定位
 
-本文记录外部调查笔记中已抽样核验的问题、当前源码证据、风险边界和建议处理顺序。它是问题清单和修复门禁，不意味着问题已经修复。
+本文记录外部调查笔记中已抽样核验的问题、当前源码证据、风险边界和建议处理顺序。它是问题清单和修复后续验证，不意味着问题已经修复。
 
 状态约定：
 
@@ -86,7 +86,7 @@ readFileForExternalTransfer({
 }>;
 ```
 
-安全门禁：
+安全后续验证：
 
 - [x] VCP 外部文件传输能力默认开启，并提供显式关闭开关；默认开启仅代表协议能力可用，不得绕过路径安全、审批、大小限制和审计。
 - [x] 只接受格式正确的 `file://` URL，删除宽松字符串替换 fallback。
@@ -112,7 +112,7 @@ readFileForExternalTransfer({
 - `src/tools/data-filter/data-filter.registry.ts`
 - `src/tools/data-filter/__tests__/dataFilter.logic.test.ts`
 
-处理门禁：
+处理后续验证：
 
 - [x] 明确决定是否删除 Agent 调用中的 `custom` 操作符。
 - [x] 若 UI 仍需脚本能力，将脚本模式与 Agent 工具入口分离。
@@ -141,7 +141,7 @@ readFileForExternalTransfer({
 - `src/tools/tool-calling/core/executor.ts`
 - `src/tools/agent-manager/types/agent.ts`
 
-处理门禁：
+处理后续验证：
 
 - [x] 保留 `toolCallConfig` 的 Agent 编辑能力，但对影响启用、自动批准和权限覆盖的路径强制本地独立确认，不受当前自动批准配置影响。
 - [x] 安全相关配置修改必须经过受信任 UI 的独立确认。
@@ -160,7 +160,7 @@ readFileForExternalTransfer({
 - `src/tools/llm-chat/stores/llmChatStore.ts`
 - `src/tools/llm-chat/stores/session/sessionLifecycleManager.ts`
 
-处理门禁：
+处理后续验证：
 
 - [x] 加载当前会话和按需加载其他会话时统一修复残留生成状态。
 - [x] 有正文的节点转为 `complete`，空正文节点转为 `error` 并写入“生成意外中断”。
@@ -179,7 +179,7 @@ readFileForExternalTransfer({
 - `src/composables/useLlmKeyManager.ts`
 - `src/composables/__tests__/useLlmKeyManager.test.ts`
 
-处理门禁：
+处理后续验证：
 
 - [x] 区分“全部被用户禁用”和“全部暂时熔断”。
 - [x] 全部被用户禁用时直接返回配置错误，不得请求。
@@ -202,7 +202,7 @@ readFileForExternalTransfer({
 - `src/tools/tool-calling/core/executor.ts`
 - `src/tools/vcp-connector/services/vcpNodeProtocol.ts`
 
-处理门禁：
+处理后续验证：
 
 - [x] 审批请求支持可选超时时间和 `AbortSignal`。
 - [x] 默认关闭审批超时并一直等待人工处理；提供“工具审批超时”开关与 5 秒至 24 小时的等待时间设置，开启后超时自动拒绝并从 `pendingRequests` 中移除。
@@ -227,7 +227,7 @@ readFileForExternalTransfer({
 - 第一个完整、第二个未闭合：仅返回第一个并记录 warning；
 - 未闭合块之后即使存在完整请求块，修复前不会继续扫描。
 
-已完成的修复门禁：
+已完成的修复后续验证：
 
 - [x] 工具执行仅在最终 assistant 文本解析；流式渲染只更新展示状态。
 - [x] 最终文本中，标准块在自己的结束标记前遇到新的请求起始标记时丢弃坏块，并从新标记恢复扫描。
@@ -330,7 +330,7 @@ message:「始」valid-after-bad「末」
 
 **本轮结论**：SQLite FTS5 trigram 已证明可直接处理当前最痛的尾部命中和无命中，并且在初建、替换写入上优于这个自定义原型；自定义倒排虽然体积更小、单条稀有命中更快，但还缺少成熟的二进制格式、并发/原子更新、损坏恢复和高多样性语料证据。后续设计应以 SQLite FTS5 为首选实施对象，同时为 1～2 字符查询设计补充索引或可接受的受限语义，不能保留全量扫描回退作为常规路径。
 
-#### 调查结论与后续门禁
+#### 调查结论与后续验证
 
 - [x] 构造了与当前本机数据规模相当的会话语料；语料分支数固定为 10，覆盖高频命中、尾部命中、无命中与取消场景。
 - [x] 记录了首批结果、完成时间、扫描量、进程逻辑读取量、内存采样和取消响应。
@@ -355,7 +355,7 @@ message:「始」valid-after-bad「末」
 - `src/llm-apis/adapters/index.ts`
 - `src/llm-apis/adapters/azure/`
 
-回归门禁：
+回归后续验证：
 
 - [x] Azure Adapter 已注册。
 - [x] Azure 工具测试通过。

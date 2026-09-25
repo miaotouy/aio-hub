@@ -29,7 +29,7 @@
 3. 为资产导入、预览、导出、删除影响、重启恢复和聊天附件发送建立稳定回归。
 4. 将附件发送拆成确定性协议验收和可选 Ollama 模型验收，两者分别记录结果。
 5. 失败时自动保留截图、UI hierarchy、WebView DOM 摘要、logcat 和脱敏服务端请求摘要。
-6. 明确 AVD 自动化与 Android 真机、iOS 发布门禁的边界，禁止用模拟器结果冒充真机结论。
+6. 明确 AVD 自动化与 Android 真机、iOS 发布后续验证的边界，禁止用模拟器结果冒充真机结论。
 
 ### 2.2 非目标
 
@@ -74,7 +74,7 @@ Android ABI 与 Tauri target 使用固定映射：
 - 单设备 E2E 禁止省略 `--target`，也不使用 `--split-per-abi`；后者用于一次产出多个分 ABI 包，仍会浪费构建时间和磁盘。E2E 只生成 APK，不生成不参与安装的 AAB。
 - runner 支持复用预构建 APK，但安装前必须解析 APK 的 `lib/<abi>/` 目录。当包含多个 native ABI、缺少目标 ABI、或文件名声称的 ABI 与包内不一致时直接失败，不得继续安装。
 - 构建缓存和产物目录必须包含 profile 与 Tauri target，禁止在 x86_64 与 ARM64 AVD 之间复用未标记 ABI 的“最新 debug.apk”。
-- `e2e-run.json` 记录设备主 ABI、Tauri target、APK SHA-256、包内 ABI 列表和字节数。具名 preset 默认以 80 MiB 单 ABI E2E debug APK 为基线，超过基线在安装前失败；可通过显式门禁参数审查有意的基线变更，防止多 ABI universal debug 包悄然回归。Tauri 即使把单 target APK 放在 `universal/` flavor 目录，也以包内 native ABI 为判定依据，不能只检查路径或文件名。
+- `e2e-run.json` 记录设备主 ABI、Tauri target、APK SHA-256、包内 ABI 列表和字节数。具名 preset 默认以 80 MiB 单 ABI E2E debug APK 为基线，超过基线在安装前失败；可通过显式后续验证参数审查有意的基线变更，防止多 ABI universal debug 包悄然回归。Tauri 即使把单 target APK 放在 `universal/` flavor 目录，也以包内 native ABI 为判定依据，不能只检查路径或文件名。
 
 ABI 拆分只解决重复 native library，不会自动消除 debug symbol。2026-07-22 本机现有 APK 样本中，x86_64-only debug 包仍为 235.4 MiB，而 ARM64 release 包为 29.2 MiB。因此实施分两步：
 
@@ -156,7 +156,7 @@ tests/mobile-android-e2e/
 
 ### 6.1 确定性 OpenAI-compatible 验收
 
-默认门禁使用本机精简协议服务。AVD 通过 `10.0.2.2:<port>` 访问；如某环境必须使用反向映射，只能对当前目标 serial 建立并在结果中记录。
+默认后续验证使用本机精简协议服务。AVD 通过 `10.0.2.2:<port>` 访问；如某环境必须使用反向映射，只能对当前目标 serial 建立并在结果中记录。
 
 服务至少实现：
 
@@ -177,7 +177,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - runner 先检查宿主机 `/api/tags`、目标模型存在性和 AVD 内 HTTP 响应。
 - 不自动下载模型，不在缺失时静默回退到确定性协议 lane。
 - 模型 lane 使用“收到非空有效回复 + 请求确实到达目标”的断言；内容语义只做稳定的宽松判断。
-- Ollama 结果与确定性协议结果分开记录，任一结果都不能替代 Android 真机或 iOS 门禁。
+- Ollama 结果与确定性协议结果分开记录，任一结果都不能替代 Android 真机或 iOS 后续验证。
 
 ## 7. 首批场景
 
@@ -257,7 +257,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 
 - [x] 复用或抽取桌面 E2E 的 OpenAI-compatible mock core。
 - [x] 实现附件 MIME、大小和 SHA-256 断言及流式响应。
-- [x] 完成聊天附件确定性闭环并加入 Android MVP 自动化门禁。
+- [x] 完成聊天附件确定性闭环并加入 Android MVP 自动化后续验证。
 - [x] 增加显式 opt-in Ollama lane；缺少模型时明确 skip 或按参数 fail。
 
 ### 阶段四：稳定性与扩展
@@ -266,7 +266,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - [x] 连续运行至少 10 次核心 preset，消除 selector、启动和异步等待的偶发失败。
 - [x] 评估是否在 CI 提供支持虚拟化的专用 Windows runner；本地入口完成不依赖 CI 决策。
 
-> 2026-07-23 实施记录：`tests/mobile-android-e2e/` 已提供 Appium/UiAutomator2 runner、单 ABI APK 校验、失败取证、确定性附件服务、恢复 preset 和 opt-in Ollama preset。Ollama 使用已安装的 `qwen3.5:9b` 通过 Profile 自定义 `Origin` 头完成真实附件回复；`tauri-plugin-http` 以 `unsafe-headers` feature 允许该本地 CORS 兼容头。核心 preset 以 runner 每轮独占冷启动并自动关闭 `Medium_Phone_API_36` 的方式，从 `2026-07-22T21-04-43-198Z` 到 `2026-07-22T21-26-39-778Z` 连续 10 次通过；fixture 与导出文件按 run id 隔离，避免 DocumentsUI/MediaStore 索引跨轮污染。Android Studio AVD 结果不改变 Android 真机和 iOS 发布门禁。
+> 2026-07-23 实施记录：`tests/mobile-android-e2e/` 已提供 Appium/UiAutomator2 runner、单 ABI APK 校验、失败取证、确定性附件服务、恢复 preset 和 opt-in Ollama preset。Ollama 使用已安装的 `qwen3.5:9b` 通过 Profile 自定义 `Origin` 头完成真实附件回复；`tauri-plugin-http` 以 `unsafe-headers` feature 允许该本地 CORS 兼容头。核心 preset 以 runner 每轮独占冷启动并自动关闭 `Medium_Phone_API_36` 的方式，从 `2026-07-22T21-04-43-198Z` 到 `2026-07-22T21-26-39-778Z` 连续 10 次通过；fixture 与导出文件按 run id 隔离，避免 DocumentsUI/MediaStore 索引跨轮污染。Android Studio AVD 结果不改变 Android 真机和 iOS 发布后续验证。
 
 > 2026-07-23 验收整改：具名 preset 增加 80 MiB APK 基线，`e2e-run.json` 不再记录绝对路径，Appium/emulator/DOM/hierarchy/logcat/activity 产物统一脱敏。Smoke 通过正式 UI tester 页面执行 sandbox round-trip；资产场景增加详情大小/来源、取消不创建 import job 和预览 token 撤销断言；恢复场景增加延迟首响应 timeout lane，并修复聊天请求未应用 `requestSettings.timeout` 的运行时缺口。当前 APK 的 `core` 与 `recovery` preset 均重新通过。
 
@@ -281,14 +281,14 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - 资产主流程和聊天附件确定性闭环连续 10 次通过。
 - 协议服务能证明收到与 fixture 一致的附件内容，并验证流式回复最终持久化。
 - 普通成功运行不产生逐步截图；失败产物足以复盘 selector、系统 UI、WebView 和后端日志状态。
-- Android AVD 结果只解除自动化回归门禁；Android 真机主流程和 iOS 仍分别保留发布门禁。E2E 运行日志、DOM、UI hierarchy、logcat 和 activity 产物统一脱敏，不记录输入正文、凭据或完整本机路径。
+- Android AVD 结果只解除自动化回归后续验证；Android 真机主流程和 iOS 仍分别保留发布后续验证。E2E 运行日志、DOM、UI hierarchy、logcat 和 activity 产物统一脱敏，不记录输入正文、凭据或完整本机路径。
 
 ## 11. 关联文档
 
 规则或运行边界变化时同步更新：
 
 - [`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)：设备内固定场景与外部 E2E runner 的职责边界。
-- [`mobile-asset-manager-design.md`](../plan/mobile-asset-manager-design.md)：附件确定性闭环、可选模型 lane 与 Android 真机门禁。
+- [`mobile-asset-manager-design.md`](../plan/mobile-asset-manager-design.md)：附件确定性闭环、可选模型 lane 与 Android 真机后续验证。
 - [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md)：将“迁移”明确为发布前存储重构，并接入重启恢复 E2E。
 - [`mobile-current-implementation-audit.md`](../archive/mobile-current-implementation-audit.md)：记录自动化补齐状态，不把旧人工 smoke 当作长期回归方案。
 - [`docs/guide/tool-testing-guide.md`](../../../docs/guide/tool-testing-guide.md)：增加 Android AVD E2E 入口、selector 和设备所有权规范。

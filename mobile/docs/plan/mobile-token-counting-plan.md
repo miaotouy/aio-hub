@@ -241,7 +241,7 @@ mobile/src/utils/tokenCounting.ts
 - [x] 保留发送后最终计数和消息级结果，用于 usage 缺失时的展示与上下文快照；
 - [x] 明确附件和非文本多模态开销不由通用文本 tokenizer 隐式覆盖。
 
-附件和多模态 Token 不属于首个 Rust o200k command 的范围，需要时按实际模型和渠道请求结构追加独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性或 Token 管线完成门禁。
+附件和多模态 Token 不属于首个 Rust o200k command 的范围，需要时按实际模型和渠道请求结构追加独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性或 Token 管线完成后续验证。
 
 ## 7. 后置性能与平台验证
 

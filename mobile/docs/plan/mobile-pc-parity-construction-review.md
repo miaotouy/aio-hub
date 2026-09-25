@@ -249,4 +249,4 @@ PC RichTextRenderer 是 AST、Tokenizer Worker、稳定区/待定区、Patch 和
 - `bun run build` 通过（包含 `vue-tsc --noEmit` 与生产 Vite 构建）；
 - `bun run check:backend` 通过，Rust Clippy `-D warnings` 无告警。
 
-普通浏览器与单元测试不替代真实 Tauri WebView、Android/iOS 网络栈和取消时序验收；相关平台门禁继续由现有移动端测试计划跟踪。
+普通浏览器与单元测试不替代真实 Tauri WebView、Android/iOS 网络栈和取消时序验收；相关平台后续验证继续由现有移动端测试计划跟踪。

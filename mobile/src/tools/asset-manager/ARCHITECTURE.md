@@ -1,6 +1,6 @@
 # 移动端资产管理器架构
 
-> 状态：Android MVP 收尾。资产内核、跨工具服务和首版资产/存储页面已注册；当前只剩真实上游附件发送与 Android 真机主流程门禁。iOS 能力仍受编译与真机条件约束，不在本轮扩展实现。
+> 状态：Android MVP 收尾。资产内核、跨工具服务和首版资产/存储页面已注册；当前只剩真实上游附件发送与 Android 真机主流程后续验证。iOS 能力仍受编译与真机条件约束，不在本轮扩展实现。
 
 ## 1. 边界
 
@@ -113,11 +113,11 @@ AppData/assets/
 - 导入面板的“拍摄照片”只调用 `asset_capture_photo`；Android bridge 把相机输出写入 cache/captures，通过 `FileProvider` 返回临时 `content://`，前端交给既有 import job。取消、无相机和异常结果不产生可见资产，启动恢复/资产库修复清除 captures。
 - 文本文档详情和批量选择提供“文本化”操作。编排层只接受全部 usage 均属于 `llm-chat/message/attachment` 的资产，先提取文本并调用聊天领域 command 持久化快照，再投递 usage outbox、重新分析删除影响，最后清理原件；逐项失败不删除原件且不阻断后续项。批量动作区在窄屏内横向滚动。
 
-## 12. 后续门禁
+## 12. 后续验证
 
-- Android 预览 token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件门禁约束。
-- 新媒体组件的 jsdom 自动化只验证生命周期和 DOM 交互契约。2026-07-26 至 2026-07-27 已在 `emulator-5554`（`Medium_Phone_API_36`）以 APK 端到端回归资产详情图片预览、聊天附件持久化链路，以及 DocumentsUI 导入 WAV/MP4 后的音频和视频受控预览。音频场景验证 `audio/wav`/`audio/x-wav` MIME、`ready` 状态、短期 `aio-asset.localhost` URL、实际播放/暂停与后退/前进、倍速、静音控制；视频场景验证 `video/mp4`、实际 WebView 解码/播放/暂停、受管 URL 回收和强制 Fullscreen API 拒绝时的应用层回退及 Android Back 返回后的内联续播；资产详情通过调用方可选的 `imageTestId` 暴露稳定图片元素标识。图片真实手势、原生全屏、长视频拖动、横竖屏、安全区、快速切换和真机复验仍是平台门禁。
+- Android 预览 token 自然过期已在 `emulator-5558` 真实 WebView 验证；iOS scheme/HEAD/Range/CORS/撤销仍受编译与设备条件后续验证约束。
+- 新媒体组件的 jsdom 自动化只验证生命周期和 DOM 交互契约。2026-07-26 至 2026-07-27 已在 `emulator-5554`（`Medium_Phone_API_36`）以 APK 端到端回归资产详情图片预览、聊天附件持久化链路，以及 DocumentsUI 导入 WAV/MP4 后的音频和视频受控预览。音频场景验证 `audio/wav`/`audio/x-wav` MIME、`ready` 状态、短期 `aio-asset.localhost` URL、实际播放/暂停与后退/前进、倍速、静音控制；视频场景验证 `video/mp4`、实际 WebView 解码/播放/暂停、受管 URL 回收和强制 Fullscreen API 拒绝时的应用层回退及 Android Back 返回后的内联续播；资产详情通过调用方可选的 `imageTestId` 暴露稳定图片元素标识。图片真实手势、原生全屏、长视频拖动、横竖屏、安全区、快速切换和真机复验仍是平台后续验证。
 - Android 真机需完成一次导入、预览、导出、删除影响和应用重启恢复主流程，并记录结果；不得用 emulator 或普通浏览器替代。
-- `ManagedAssetRef` 需完成一次真实上游模型附件发送验收；模型未配置时保持门禁未通过，不新增旁支功能。
+- `ManagedAssetRef` 需完成一次真实上游模型附件发送验收；模型未配置时保持后续验证未通过，不新增旁支功能。
 - 相机、分享进入 AIO、文件关联、批量/复杂格式文本化和其他消费者替代均属于 Phase 3，本轮不继续扩展。
 - iOS 因缺少编译与真机设备条件继续跳过，不声明平台能力通过。

@@ -18,5 +18,5 @@
 - [`plan/mobile-sqlite-migration-plan.md`](./plan/mobile-sqlite-migration-plan.md)：SQLite、聊天附件持久化和后置平台验证。
 - [`plan/mobile-asset-manager-design.md`](./plan/mobile-asset-manager-design.md)：资产管理器和聊天附件的功能施工范围与后置平台验证。
 - [`plan/mobile-agent-manager-plan.md`](./plan/mobile-agent-manager-plan.md)：Agent 私有资源、参数和聊天协作的剩余施工。
-- [`plan/mobile-token-counting-plan.md`](./plan/mobile-token-counting-plan.md)：Token 计数已落地能力、上下文预算编排和真机性能/iOS 验证门禁。
+- [`plan/mobile-token-counting-plan.md`](./plan/mobile-token-counting-plan.md)：Token 计数已落地能力、上下文预算编排和真机性能/iOS 验证后续验证。
 - [`../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md`](../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)：RichTextRenderer 初版和正式聊天接入；PC 能力按需求与性能数据后置。

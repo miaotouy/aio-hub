@@ -1,6 +1,6 @@
 # Recall 检索管线模块化实施计划
 
-**状态**：Phase 0 至 Phase 6 工程施工已完成，旧改名/拆分与检索管线模块化已进入 `v0.7.0-alpha` 周期主开发线，不再设置阻断 Alpha 的 Recall 专项发布门禁。迁移本体、启动只读检测 + 确认式旧目录迁移、版本化迁移基线 fixture 与迁移报告契约均已落地；真实发布版本 appData 迁移、合并迁移报告与发布二进制 smoke test 降级为正式版（不带预发布标识）前的检查清单，见下文「正式版前 Recall 检查清单」。
+**状态**：Phase 0 至 Phase 6 工程施工已完成，旧改名/拆分与检索管线模块化已进入 `v0.7.0-alpha` 周期主开发线，不再设置阻断 Alpha 的 Recall 专项发布后续验证。迁移本体、启动只读检测 + 确认式旧目录迁移、版本化迁移基线 fixture 与迁移报告契约均已落地；真实发布版本 appData 迁移、合并迁移报告与发布二进制 smoke test 降级为正式版（不带预发布标识）前的检查清单，见下文「正式版前 Recall 检查清单」。
 
 **最近修订**：2026-09-16
 **范围**：`src/tools/recall/`、`src-tauri/src/recall/`、Recall Playground、Agent Recall 配置与 Chat 召回入口。
@@ -177,7 +177,7 @@ Playground 当前已固定为 `algorithmic / comprehensive` 双配置诊断工�
 
 依据提交记录与当前代码核对，施工本体（Phase 0–6）与计划一致且已全部勾选；偏差集中在发布验收口径与迁移基线：
 
-1. **发布门禁定位**：原“Release Gate 未通过、阻断发布”的表述与实际不符。施工与迁移本体已落地并进入 `v0.7.0-alpha` 主开发线；原 Gate 降级为正式版前检查清单，不再阻断 Alpha。
+1. **发布后续验证定位**：原“Release Gate 未通过、阻断发布”的表述与实际不符。施工与迁移本体已落地并进入 `v0.7.0-alpha` 主开发线；原 Gate 降级为正式版前检查清单，不再阻断 Alpha。
 2. **迁移基线来源**：原计划要求“最近一次正式发布版本的完整 appData 副本”作为唯一迁移输入；实际落地为版本化 `recall-migration-baseline-v1.json` fixture + `migration_baseline.rs` 测试。真实发布版本 appData 验证推迟到正式版前。
 3. **旧目录迁移形态**：原计划按“迁移后旧目录只读、显式清理前不删除”设计；实现进一步改为启动只读检测 + 用户确认式导入，并由 `knowledge-base` 确认式迁移流程统一接管前端（`018e1f1f4`）。
 4. **`recall-release-migration` E2E preset**：计划建议新增但未创建；当前 preset 只有 `recall-pipeline` / `recall-chat` / curated 等，正式版前需补充。

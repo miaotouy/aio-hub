@@ -15,10 +15,11 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
 import { format } from "date-fns";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
+import { ElMessageBox } from "element-plus";
 import {
   Film,
   Mic,
@@ -29,7 +30,7 @@ import {
   ExternalLink,
   Loader2,
   AlertCircle,
-  Trash2,
+  XCircle,
   RefreshCcw,
   Download,
   Trash2 as TrashIcon,
@@ -75,6 +76,31 @@ const videoPosterUrl = ref<string>("");
 
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
+
+const showFullError = () => {
+  ElMessageBox.alert(props.task.error || "生成失败", "错误详情", {
+    confirmButtonText: "关闭",
+    lockScroll: false,
+    customStyle: {
+      maxWidth: "560px",
+      width: "560px",
+    },
+    message: h(
+      "p",
+      {
+        style: {
+          margin: 0,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-all",
+          maxHeight: "50vh",
+          overflowY: "auto",
+          lineHeight: 1.6,
+        },
+      },
+      props.task.error || "生成失败"
+    ),
+  });
+};
 
 const getResultAssets = () =>
   props.task.resultAssets?.length
@@ -501,7 +527,16 @@ const openFileDirectory = async () => {
           <template v-else-if="task.status === 'error'">
             <div class="status-container error">
               <el-icon><AlertCircle /></el-icon>
-              <span class="error-msg">{{ task.error || "生成失败" }}</span>
+              <el-tooltip
+                :content="task.error || '生成失败'"
+                placement="top"
+                popper-class="media-task-error-tooltip"
+                :show-after="300"
+              >
+                <span class="error-msg clickable" @click="showFullError">
+                  {{ task.error || "生成失败" }}
+                </span>
+              </el-tooltip>
             </div>
           </template>
 
@@ -533,7 +568,7 @@ const openFileDirectory = async () => {
           placement="top"
         >
           <el-button
-            :icon="Trash2"
+            :icon="XCircle"
             circle
             size="small"
             type="warning"
@@ -1021,6 +1056,16 @@ const openFileDirectory = async () => {
   -webkit-box-orient: vertical;
 }
 
+.error-msg.clickable {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.error-msg.clickable:hover {
+  color: var(--el-color-danger);
+}
+
 .task-footer {
   padding: 10px 12px;
   display: flex;
@@ -1050,5 +1095,14 @@ const openFileDirectory = async () => {
 
 .el-button {
   margin-left: 4px;
+}
+</style>
+
+<style>
+.media-task-error-tooltip {
+  max-width: 420px;
+  line-height: 1.5;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 </style>

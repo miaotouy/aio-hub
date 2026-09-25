@@ -120,6 +120,10 @@ export function getActivityActorName(origin: MessageOrigin): string {
   }
 }
 
+/** 派遣卡片在主会话消息流中的稳定 DOM 锚点。 */
+export function getTaskDispatchAnchorId(taskId: string): string {
+  return `background-task-dispatch-${taskId}`;
+}
 /** 列表卡片用的“最后操作摘要”，无摘要时给出中性占位 */
 export function getTaskSummary(snapshot: BackgroundTaskSnapshot): string {
   const summary = snapshot.lastOperationSummary?.trim();

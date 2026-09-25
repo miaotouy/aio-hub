@@ -27,12 +27,20 @@ import { ref } from "vue";
 
 /** 任务中心是否可见（模块级单例状态） */
 const isTaskCenterOpen = ref(false);
+/** 外部入口指定的任务中心列表焦点；由唯一挂载的任务中心消费。 */
+const focusedTaskId = ref<string | null>(null);
 
 export interface UseBackgroundTaskCenterReturn {
   /** 任务中心可见性（供 v-model 绑定唯一挂载点） */
   isTaskCenterOpen: typeof isTaskCenterOpen;
+  /** 当前请求在任务列表中定位的任务 ID */
+  focusedTaskId: typeof focusedTaskId;
   /** 打开任务中心 */
   openTaskCenter: () => void;
+  /** 打开任务中心并定位任务列表项 */
+  focusTaskInCenter: (taskId: string) => void;
+  /** 清除已消费的列表定位请求 */
+  clearFocusedTask: () => void;
   /** 关闭任务中心 */
   closeTaskCenter: () => void;
   /** 切换任务中心可见性 */
@@ -50,6 +58,15 @@ export function useBackgroundTaskCenter(): UseBackgroundTaskCenterReturn {
     isTaskCenterOpen.value = true;
   }
 
+  function focusTaskInCenter(taskId: string): void {
+    focusedTaskId.value = taskId;
+    isTaskCenterOpen.value = true;
+  }
+
+  function clearFocusedTask(): void {
+    focusedTaskId.value = null;
+  }
+
   function closeTaskCenter(): void {
     isTaskCenterOpen.value = false;
   }
@@ -60,7 +77,10 @@ export function useBackgroundTaskCenter(): UseBackgroundTaskCenterReturn {
 
   return {
     isTaskCenterOpen,
+    focusedTaskId,
     openTaskCenter,
+    focusTaskInCenter,
+    clearFocusedTask,
     closeTaskCenter,
     toggleTaskCenter,
   };

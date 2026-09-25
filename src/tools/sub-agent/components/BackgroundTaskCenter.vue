@@ -43,6 +43,7 @@ import {
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { useBackgroundTaskCenter } from "../composables/useBackgroundTaskCenter";
 
 interface Props {
   /** 是否显示任务中心（v-model） */
@@ -60,6 +61,7 @@ const errorHandler = createModuleErrorHandler(
   "sub-agent/background-task-center"
 );
 const store = useLlmChatStore();
+const { focusedTaskId, clearFocusedTask } = useBackgroundTaskCenter();
 
 /** 任务快照列表；整体替换，避免深层响应式开销 */
 const tasks = shallowRef<BackgroundTaskSnapshot[]>([]);
@@ -85,6 +87,16 @@ const activeCount = computed(
  */
 function refreshTasks(): void {
   tasks.value = backgroundTaskRegistry.listTasks();
+
+  const requestedTaskId = focusedTaskId.value;
+  if (
+    requestedTaskId &&
+    tasks.value.some((task) => task.taskId === requestedTaskId)
+  ) {
+    selectedTaskId.value = requestedTaskId;
+    clearFocusedTask();
+    return;
+  }
 
   if (
     selectedTaskId.value &&
@@ -118,6 +130,12 @@ watch(
     }
   }
 );
+
+watch(focusedTaskId, () => {
+  if (props.modelValue) {
+    refreshTasks();
+  }
+});
 
 function handleSelect(taskId: string): void {
   selectedTaskId.value = taskId;

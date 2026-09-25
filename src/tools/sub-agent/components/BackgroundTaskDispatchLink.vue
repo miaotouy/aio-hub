@@ -41,11 +41,10 @@ import {
   type BackgroundTaskSnapshot,
 } from "@/services/background-tasks";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
-import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
-import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { toolRegistryManager } from "@/services/registry";
 import type SubAgentRegistry from "../sub-agent.registry";
-import Avatar from "@/components/common/Avatar.vue";
+import { useChatSettings } from "@/tools/llm-chat/composables/settings/useChatSettings";
+import BackgroundTaskAgentAvatar from "./BackgroundTaskAgentAvatar.vue";
 import { customMessage } from "@/utils/customMessage";
 import { formatRelativeTime } from "@/utils/time";
 import { createModuleLogger } from "@/utils/logger";
@@ -59,6 +58,7 @@ import {
   getTaskStatePresentation,
   getTaskSummary,
   isActiveTaskState,
+  getTaskDispatchAnchorId,
 } from "./backgroundTaskPresentation";
 
 const logger = createModuleLogger("background-task-dispatch-link");
@@ -68,8 +68,25 @@ const props = defineProps<{
   screenshotMode?: boolean;
 }>();
 const chatStore = useLlmChatStore();
-const agentStore = useAgentStore();
+const { settings } = useChatSettings();
 const { isOpen, targetTaskId, mode, toggleCompanion } = useCompanionSession();
+
+const useOutsideAvatar = computed(() => {
+  const preferences = settings.value.uiPreferences;
+  return (
+    preferences.showAvatar &&
+    preferences.bubbleLayout.mode === "bubble" &&
+    preferences.bubbleLayout.avatarPlacement === "outside"
+  );
+});
+
+const targetAvatarSize = computed(
+  () => settings.value.uiPreferences.bubbleLayout.avatarSize
+);
+
+const dispatchAvatarLayoutStyle = computed(() => ({
+  "--dispatch-avatar-gap": `${settings.value.uiPreferences.bubbleLayout.avatarGap}px`,
+}));
 
 /** 透视：同一任务、同一形态再次点击会收起，切换任务时保持当前形态。 */
 function handlePeek(
@@ -144,21 +161,6 @@ watch(links, () => {
   refresh();
   subscribeIfLinked();
 });
-
-function callerAvatarSrc(task: BackgroundTaskSnapshot): string | null {
-  const agent =
-    task.callerAgent.actorId && task.callerAgent.kind === "agent"
-      ? agentStore.getAgentById(task.callerAgent.actorId)
-      : undefined;
-  return resolveAgentAvatarPath(agent);
-}
-
-function avatarSrc(task: BackgroundTaskSnapshot): string | null {
-  const agent = task.targetAgent.actorId
-    ? agentStore.getAgentById(task.targetAgent.actorId)
-    : undefined;
-  return resolveAgentAvatarPath(agent);
-}
 
 async function openChild(task: BackgroundTaskSnapshot): Promise<void> {
   try {
@@ -299,165 +301,195 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
 
 <template>
   <div v-if="tasks.length" class="dispatch-links" @click.stop>
-    <div v-for="task in tasks" :key="task.taskId" class="dispatch-link">
-      <Avatar
-        :src="avatarSrc(task) || ''"
+    <div
+      v-for="task in tasks"
+      :key="task.taskId"
+      class="dispatch-link-shell"
+      :class="{ 'has-outside-avatar': useOutsideAvatar }"
+      :style="dispatchAvatarLayoutStyle"
+    >
+      <BackgroundTaskAgentAvatar
+        v-if="useOutsideAvatar"
+        class="dispatch-external-avatar"
+        :actor-id="task.targetAgent.actorId"
         :alt="getOriginDisplayName(task.targetAgent)"
-        :size="32"
+        :size="targetAvatarSize"
         shape="square"
         :radius="6"
       />
-      <div class="dispatch-info">
-        <div class="dispatch-heading">
-          <Avatar
-            :src="callerAvatarSrc(task) || ''"
-            :alt="getOriginDisplayName(task.callerAgent)"
-            :size="18"
-            shape="circle"
-          />
-          <span>{{ getOriginDisplayName(task.callerAgent) }}</span>
-          <span class="dispatch-arrow">→</span>
-          <strong>{{ getOriginDisplayName(task.targetAgent) }}</strong>
-          <span
-            class="dispatch-state"
-            :class="{ 'dispatch-state-active': isActiveTaskState(task.state) }"
-          >
-            <span
-              v-if="isActiveTaskState(task.state)"
-              class="dispatch-state-dot"
+      <div
+        :id="getTaskDispatchAnchorId(task.taskId)"
+        class="dispatch-link"
+        tabindex="-1"
+      >
+        <BackgroundTaskAgentAvatar
+          v-if="!useOutsideAvatar"
+          class="dispatch-target-avatar"
+          :actor-id="task.targetAgent.actorId"
+          :alt="getOriginDisplayName(task.targetAgent)"
+          :size="32"
+          shape="square"
+          :radius="6"
+        />
+        <div class="dispatch-info">
+          <div class="dispatch-heading">
+            <BackgroundTaskAgentAvatar
+              :actor-id="
+                task.callerAgent.kind === 'agent'
+                  ? task.callerAgent.actorId
+                  : null
+              "
+              :alt="getOriginDisplayName(task.callerAgent)"
+              :size="18"
+              shape="circle"
+              :radius="9"
             />
-            {{ getTaskStatePresentation(task.state).label }}
-          </span>
-        </div>
-        <div class="dispatch-summary">{{ getTaskSummary(task) }}</div>
-
-        <!-- 活动 Ticker：单行摘要，点击向下展开微抽屉时间轴 -->
-        <button
-          v-if="hasActivity(task)"
-          type="button"
-          class="dispatch-ticker"
-          :class="{ 'is-open': isTickerOpen(task.taskId) }"
-          :aria-expanded="isTickerOpen(task.taskId)"
-          :title="tickerSummary(task)"
-          @click="toggleTicker(task.taskId)"
-        >
-          <ChevronRight :size="12" class="dispatch-ticker-caret" />
-          <span class="dispatch-ticker-text">{{ tickerSummary(task) }}</span>
-        </button>
-        <div v-else class="dispatch-ticker is-static">
-          <span class="dispatch-ticker-text">{{ tickerSummary(task) }}</span>
-        </div>
-        <div
-          v-if="hasActivity(task)"
-          class="dispatch-drawer"
-          :class="{ 'is-open': isTickerOpen(task.taskId) }"
-        >
-          <ol class="dispatch-drawer-inner">
-            <li
-              v-for="activity in recentActivities(task)"
-              :key="activity.id"
-              class="dispatch-activity"
+            <span>{{ getOriginDisplayName(task.callerAgent) }}</span>
+            <span class="dispatch-arrow">→</span>
+            <strong>{{ getOriginDisplayName(task.targetAgent) }}</strong>
+            <span
+              class="dispatch-state"
+              :class="{
+                'dispatch-state-active': isActiveTaskState(task.state),
+              }"
             >
-              <span class="dispatch-activity-dot" />
-              <span class="dispatch-activity-summary">{{
-                activity.summary
-              }}</span>
-              <span class="dispatch-activity-meta">
-                {{ getActivityActorName(activity.actor) }} ·
-                {{ formatRelativeTime(activity.timestamp) }}
-              </span>
-            </li>
-          </ol>
-        </div>
+              <span
+                v-if="isActiveTaskState(task.state)"
+                class="dispatch-state-dot"
+              />
+              {{ getTaskStatePresentation(task.state).label }}
+            </span>
+          </div>
+          <div class="dispatch-summary">{{ getTaskSummary(task) }}</div>
 
-        <!-- 卡片内控制：透视（只读） / 叫停 / 插话（仅活动态开放后两者） -->
-        <div v-if="!screenshotMode" class="dispatch-actions">
+          <!-- 活动 Ticker：单行摘要，点击向下展开微抽屉时间轴 -->
           <button
+            v-if="hasActivity(task)"
             type="button"
-            class="dispatch-action dispatch-peek"
-            :class="{ 'action-btn-active': isPeekActive(task, 'sheet') }"
-            title="在右侧只读伴生栏中透视子会话"
-            @click="handlePeek(task, 'sheet')"
+            class="dispatch-ticker"
+            :class="{ 'is-open': isTickerOpen(task.taskId) }"
+            :aria-expanded="isTickerOpen(task.taskId)"
+            :title="tickerSummary(task)"
+            @click="toggleTicker(task.taskId)"
           >
-            <PanelRight :size="12" />
-            <span>侧栏透视</span>
+            <ChevronRight :size="12" class="dispatch-ticker-caret" />
+            <span class="dispatch-ticker-text">{{ tickerSummary(task) }}</span>
           </button>
-          <button
-            type="button"
-            class="dispatch-action dispatch-peek"
-            :class="{ 'action-btn-active': isPeekActive(task, 'pip') }"
-            title="在悬浮只读窗口中透视子会话"
-            @click="handlePeek(task, 'pip')"
+          <div v-else class="dispatch-ticker is-static">
+            <span class="dispatch-ticker-text">{{ tickerSummary(task) }}</span>
+          </div>
+          <div
+            v-if="hasActivity(task)"
+            class="dispatch-drawer"
+            :class="{ 'is-open': isTickerOpen(task.taskId) }"
           >
-            <PictureInPicture2 :size="12" />
-            <span>悬浮透视</span>
-          </button>
-          <button
-            v-if="isActiveTaskState(task.state)"
-            type="button"
-            class="dispatch-action dispatch-halt"
-            title="叫停该后台任务并中止子会话生成"
-            @click="handleHalt(task)"
-          >
-            <Ban :size="12" />
-            <span>叫停</span>
-          </button>
-          <button
-            v-if="isActiveTaskState(task.state)"
-            type="button"
-            class="dispatch-action dispatch-whisper-toggle"
-            :aria-expanded="whisperOpenTaskId === task.taskId"
-            title="向子会话追加指导（仅追加，不触发下一轮）"
-            @click="toggleWhisper(task.taskId)"
-          >
-            <MessageSquarePlus :size="12" />
-            <span>插话</span>
-          </button>
-        </div>
-        <div
-          v-if="
-            !screenshotMode &&
-            isActiveTaskState(task.state) &&
-            whisperOpenTaskId === task.taskId
-          "
-          class="dispatch-whisper"
-        >
-          <textarea
-            v-model="whisperDrafts[task.taskId]"
-            class="dispatch-whisper-input"
-            rows="2"
-            placeholder="写下要追加给子智能体的内容…"
-            :disabled="whisperSendingTaskId === task.taskId"
-            @keydown.ctrl.enter.prevent="sendWhisper(task)"
-          />
-          <div class="dispatch-whisper-footer">
-            <span>追加到子会话供后续查看 · Ctrl+Enter 发送，回车换行</span>
+            <ol class="dispatch-drawer-inner">
+              <li
+                v-for="activity in recentActivities(task)"
+                :key="activity.id"
+                class="dispatch-activity"
+              >
+                <span class="dispatch-activity-dot" />
+                <span class="dispatch-activity-summary">{{
+                  activity.summary
+                }}</span>
+                <span class="dispatch-activity-meta">
+                  {{ getActivityActorName(activity.actor) }} ·
+                  {{ formatRelativeTime(activity.timestamp) }}
+                </span>
+              </li>
+            </ol>
+          </div>
+
+          <!-- 卡片内控制：透视（只读） / 叫停 / 插话（仅活动态开放后两者） -->
+          <div v-if="!screenshotMode" class="dispatch-actions">
             <button
               type="button"
-              class="dispatch-whisper-send"
-              :disabled="
-                !(whisperDrafts[task.taskId] ?? '').trim() ||
-                whisperSendingTaskId === task.taskId
-              "
-              @click="sendWhisper(task)"
+              class="dispatch-action dispatch-peek"
+              :class="{ 'action-btn-active': isPeekActive(task, 'sheet') }"
+              title="在右侧只读伴生栏中透视子会话"
+              @click="handlePeek(task, 'sheet')"
             >
-              <Send :size="12" />
-              <span>{{
-                whisperSendingTaskId === task.taskId ? "发送中…" : "发送"
-              }}</span>
+              <PanelRight :size="12" />
+              <span>侧栏透视</span>
+            </button>
+            <button
+              type="button"
+              class="dispatch-action dispatch-peek"
+              :class="{ 'action-btn-active': isPeekActive(task, 'pip') }"
+              title="在悬浮只读窗口中透视子会话"
+              @click="handlePeek(task, 'pip')"
+            >
+              <PictureInPicture2 :size="12" />
+              <span>悬浮透视</span>
+            </button>
+            <button
+              v-if="isActiveTaskState(task.state)"
+              type="button"
+              class="dispatch-action dispatch-halt"
+              title="叫停该后台任务并中止子会话生成"
+              @click="handleHalt(task)"
+            >
+              <Ban :size="12" />
+              <span>叫停</span>
+            </button>
+            <button
+              v-if="isActiveTaskState(task.state)"
+              type="button"
+              class="dispatch-action dispatch-whisper-toggle"
+              :aria-expanded="whisperOpenTaskId === task.taskId"
+              title="向子会话追加指导（仅追加，不触发下一轮）"
+              @click="toggleWhisper(task.taskId)"
+            >
+              <MessageSquarePlus :size="12" />
+              <span>插话</span>
             </button>
           </div>
+          <div
+            v-if="
+              !screenshotMode &&
+              isActiveTaskState(task.state) &&
+              whisperOpenTaskId === task.taskId
+            "
+            class="dispatch-whisper"
+          >
+            <textarea
+              v-model="whisperDrafts[task.taskId]"
+              class="dispatch-whisper-input"
+              rows="2"
+              placeholder="写下要追加给子智能体的内容…"
+              :disabled="whisperSendingTaskId === task.taskId"
+              @keydown.ctrl.enter.prevent="sendWhisper(task)"
+            />
+            <div class="dispatch-whisper-footer">
+              <span>追加到子会话供后续查看 · Ctrl+Enter 发送，回车换行</span>
+              <button
+                type="button"
+                class="dispatch-whisper-send"
+                :disabled="
+                  !(whisperDrafts[task.taskId] ?? '').trim() ||
+                  whisperSendingTaskId === task.taskId
+                "
+                @click="sendWhisper(task)"
+              >
+                <Send :size="12" />
+                <span>{{
+                  whisperSendingTaskId === task.taskId ? "发送中…" : "发送"
+                }}</span>
+              </button>
+            </div>
+          </div>
         </div>
+        <button
+          v-if="!screenshotMode"
+          type="button"
+          class="dispatch-open"
+          @click="openChild(task)"
+        >
+          <ExternalLink :size="14" />
+          <span>打开子会话</span>
+        </button>
       </div>
-      <button
-        v-if="!screenshotMode"
-        type="button"
-        class="dispatch-open"
-        @click="openChild(task)"
-      >
-        <ExternalLink :size="14" />
-        <span>打开子会话</span>
-      </button>
     </div>
   </div>
 </template>
@@ -469,15 +501,36 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
   gap: 6px;
 }
 
+.dispatch-link-shell {
+  min-width: 0;
+}
+
+.dispatch-link-shell.has-outside-avatar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--dispatch-avatar-gap, 10px);
+}
+
+.dispatch-external-avatar,
+.dispatch-target-avatar {
+  flex-shrink: 0;
+}
+
 .dispatch-link {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  flex: 1;
   min-width: 0;
   padding: 9px 10px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   background-color: var(--card-bg);
+}
+
+.dispatch-link:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .dispatch-info {

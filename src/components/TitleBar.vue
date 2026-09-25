@@ -15,7 +15,15 @@
 -->
 
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, computed, onUnmounted, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  watch,
+} from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -37,7 +45,7 @@ import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { platform } from "@tauri-apps/plugin-os";
-import { CornerDownLeft, Download, Puzzle } from "lucide-vue-next";
+import { CornerDownLeft, Download, LocateFixed, Puzzle } from "lucide-vue-next";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -55,7 +63,9 @@ import {
 } from "@/tools/user-profile-manager/utils/profileAssetUtils";
 import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
 import { useBackgroundTaskCenter } from "@/tools/sub-agent/composables/useBackgroundTaskCenter";
+import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
+import BackgroundTaskAgentAvatar from "@/tools/sub-agent/components/BackgroundTaskAgentAvatar.vue";
 import { useCompanionSession } from "@/tools/sub-agent/composables/useCompanionSession";
 import {
   backgroundTaskRegistry,
@@ -66,6 +76,7 @@ import {
   getOriginDisplayName,
   getTaskStatePresentation,
   getTaskSummary,
+  getTaskDispatchAnchorId,
   isActiveTaskState,
   type BackgroundTaskTone,
 } from "@/tools/sub-agent/components/backgroundTaskPresentation";
@@ -175,7 +186,9 @@ const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 // Level 3 全局托底（设计文档 §6.3）：有活动任务时在标题栏显示轻量胶囊，
 // 点击打开任务中心；任务中心组件在本组件内唯一挂载，与 ChatAreaHeader 入口
 // 共享 useBackgroundTaskCenter 的打开状态。
-const { isTaskCenterOpen, openTaskCenter } = useBackgroundTaskCenter();
+const { isTaskCenterOpen, focusTaskInCenter, openTaskCenter } =
+  useBackgroundTaskCenter();
+const chatStore = useLlmChatStore();
 const { openCompanion } = useCompanionSession();
 
 /** 活动（非终态）任务快照；整体替换，避免深层响应式开销 */
@@ -214,6 +227,8 @@ const capsuleSummary = computed(() => {
 interface CapsuleTaskItem {
   taskId: string;
   childSessionId: string;
+  parentSessionId: string | null;
+  agentActorId: string | null;
   agentName: string;
   stateLabel: string;
   tone: BackgroundTaskTone;
@@ -227,6 +242,8 @@ const capsuleTaskItems = computed<CapsuleTaskItem[]>(() =>
     return {
       taskId: task.taskId,
       childSessionId: task.childSessionId,
+      parentSessionId: task.parentSessionId,
+      agentActorId: task.targetAgent.actorId ?? null,
       agentName: getOriginDisplayName(task.targetAgent),
       stateLabel: presentation.label,
       tone: presentation.tone,
@@ -236,7 +253,7 @@ const capsuleTaskItems = computed<CapsuleTaskItem[]>(() =>
   })
 );
 
-/** 点击胶囊列表项：优先以伴生视图透视子会话，无子会话时回落到任务中心 */
+/** 点击胶囊列表项：优先以伴生视图透视子会话，无子会话时回落到任务中心。 */
 function handleCapsuleItemClick(item: CapsuleTaskItem): void {
   if (item.childSessionId) {
     void openCompanion({
@@ -245,7 +262,39 @@ function handleCapsuleItemClick(item: CapsuleTaskItem): void {
     });
     return;
   }
-  openTaskCenter();
+  focusTaskInCenter(item.taskId);
+}
+
+/** 切回派遣发生的主会话，并将对应派遣卡片滚动到可见区域。 */
+async function handleLocateDispatchCard(item: CapsuleTaskItem): Promise<void> {
+  if (!item.parentSessionId) {
+    focusTaskInCenter(item.taskId);
+    return;
+  }
+
+  try {
+    await chatStore.switchSession(item.parentSessionId);
+    await nextTick();
+
+    const dispatchCard = document.getElementById(
+      getTaskDispatchAnchorId(item.taskId)
+    );
+    if (!dispatchCard) {
+      focusTaskInCenter(item.taskId);
+      return;
+    }
+
+    dispatchCard.scrollIntoView({ behavior: "smooth", block: "center" });
+    dispatchCard.focus({ preventScroll: true });
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: "定位派遣卡片失败",
+      context: {
+        taskId: item.taskId,
+        parentSessionId: item.parentSessionId,
+      },
+    });
+  }
 }
 
 // 检查窗口是否最大化
@@ -761,6 +810,15 @@ watch(
               :title="`后台任务运行中：${activeTaskCount}`"
               @click="openTaskCenter"
             >
+              <BackgroundTaskAgentAvatar
+                v-if="capsuleTaskItems[0]"
+                class="task-capsule-avatar"
+                :actor-id="capsuleTaskItems[0].agentActorId"
+                :alt="capsuleTaskItems[0].agentName"
+                :size="18"
+                shape="square"
+                :radius="5"
+              />
               <span class="task-capsule-dot" />
               <span class="task-capsule-count">
                 {{ activeTaskCount > 99 ? "99+" : activeTaskCount }}
@@ -779,6 +837,14 @@ watch(
                 :title="'透视子会话'"
                 @click="handleCapsuleItemClick(item)"
               >
+                <BackgroundTaskAgentAvatar
+                  class="task-capsule-item-avatar"
+                  :actor-id="item.agentActorId"
+                  :alt="item.agentName"
+                  :size="24"
+                  shape="square"
+                  :radius="5"
+                />
                 <span
                   class="task-capsule-item-dot"
                   :class="`tone-${item.tone}`"
@@ -797,6 +863,15 @@ watch(
                   </div>
                   <div class="task-capsule-item-time">{{ item.timeText }}</div>
                 </div>
+                <button
+                  type="button"
+                  class="task-capsule-locate"
+                  :title="'定位原派遣卡片'"
+                  aria-label="定位原派遣卡片"
+                  @click.stop="handleLocateDispatchCard(item)"
+                >
+                  <LocateFixed :size="14" />
+                </button>
               </li>
             </ul>
             <button class="task-capsule-more" @click="openTaskCenter">
@@ -1040,6 +1115,10 @@ watch(
   border-color: var(--primary-color);
 }
 
+.task-capsule-avatar {
+  flex-shrink: 0;
+}
+
 .task-capsule-dot {
   flex-shrink: 0;
   width: 6px;
@@ -1101,6 +1180,10 @@ watch(
 
 .task-capsule-item:hover {
   background-color: var(--hover-bg, var(--el-fill-color-light));
+}
+
+.task-capsule-item-avatar {
+  flex-shrink: 0;
 }
 
 .task-capsule-item-dot {
@@ -1179,6 +1262,29 @@ watch(
 .task-capsule-item-time {
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
+}
+
+.task-capsule-locate {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-color-light);
+  cursor: pointer;
+}
+
+.task-capsule-locate:hover,
+.task-capsule-locate:focus-visible {
+  background-color: var(--el-fill-color-light);
+  color: var(--primary-color);
+  outline: none;
 }
 
 .task-capsule-more {

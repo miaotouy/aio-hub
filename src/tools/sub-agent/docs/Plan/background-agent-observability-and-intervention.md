@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：Phase 3 的服务端契约、会话作用域、伴生视图严格只读与双模透视控制已于 2026-09-25 落地；T3.3 身份视觉和标题栏胶囊补全仍待回补，验收状态见 §12.7；Phase 4 可恢复运行时与有效介入待启动
+> 状态：Phase 3 的服务端契约、会话作用域、伴生视图严格只读、双模透视控制、T3.3 身份视觉与标题栏胶囊补全均已于 2026-09-25 落地；T3.4 关系快照与 Phase 4 可恢复运行时、有效介入待启动
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -353,7 +353,7 @@ ask({
 
 ## 6. 用户前端交互设计（复用原生消息与伴生协作体系，分阶段落地）
 
-> **当前实现边界（Phase 3 主体已落地，伴生视图验收待修复）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导、工具调用消息中的任务关系卡片、伴生视图外壳（宽屏侧栏 / 窄屏画中画）以及派遣卡片的活动时间轴、叫停、插话均已接线；会话作用域契约随本次交付。伴生视图当前仍存在外置 Header 布局下可见消息操作栏，以及快速切换目标时异步加载结果覆盖的问题，暂不满足“严格只读、始终对应当前 childSessionId”的验收条件。当前轮自动投递、强制中断与审批条待 Phase 4/5 执行器与控制契约。
+> **当前实现边界（Phase 3 已落地）**：任务中心、打开子会话、标题栏活动胶囊、查询状态/活动、取消任务、append-only 补充指导、工具调用消息中的任务关系卡片、伴生视图（宽屏侧栏 / 窄屏画中画）以及派遣卡片的活动时间轴、叫停、插话和身份视觉均已接线；会话作用域、严格只读与异步加载版本守卫随本次交付。当前轮自动投递、强制中断与审批条待 Phase 4/5 执行器与控制契约。
 
 系统中已经非常成熟强大的消息渲染体系（如 `MessageList`、`MessageHeader` 自带的头像、名称、模型副标题、气泡布局、富文本渲染与外置头像能力）
 
@@ -377,7 +377,7 @@ ask({
 在主会话中，子智能体调用以派遣卡片（[`BackgroundTaskDispatchLink.vue`](src/tools/sub-agent/components/BackgroundTaskDispatchLink.vue:1)）呈现，并充分使用现有消息头部与身份识别资产：
 
 1. **复用 `MessageHeader` 动态身份映射**：
-   - 派遣卡片直接复用 [`useResolvedAgentAvatar`](src/tools/llm-chat/composables/useResolvedAgentAvatar.ts:1) 解析逻辑，支持响应式图谱、预设与 AppData 协议转换；
+   - 派遣卡片通过 [`useResolvedAgentAvatar`](src/tools/agent-manager/utils/agentAssetUtils.ts:749) 解析逻辑，支持响应式图谱、预设与 AppData 协议转换；
    - **任务关系头部（派遣卡片）**：并列显示 `[调度方 Agent 头像+名字] → [子 Agent 头像+名字]`，让任务卡片一眼呈现派遣关系；
    - **外置头像布局适配**：在气泡模式且设置 `avatarPlacement: outside` 时，派遣卡片根节点外露子 Agent 头像，与标准 `ChatMessage.vue` 视觉流完全拉齐。
 2. **生命力微动效与阶段流水**：
@@ -660,7 +660,7 @@ export interface MessageOrigin {
 2. 抽取 task runner/lane，接管 generation、工具安全点、cancel、heartbeat 和 requestId；
 3. 用 runner 消费 `enqueue_task_message`，实现下一轮与当前步骤后的真实投递，以及重启后的队列恢复；
 4. 在统一 command/event/snapshot 契约上交付暂停、恢复、重试、审批、紧急叫停、接管和可靠通知；
-5. 回补派遣卡片身份头像、外置头像和标题栏胶囊的轻量导航。
+5. 交付 T3.4 关系快照，降低派遣卡片对即时 registry 快照的依赖。
 
 当前主链路已完成的观察、查询、取消与身份呈现继续保持；后续施工以 §9.1 的有效介入、恢复、持续透视和可靠到达场景为完成标准。
 
@@ -676,7 +676,7 @@ export interface MessageOrigin {
 - 父会话未加载时，合成结果消息可以缺席，但任务快照仍保留终态和结果摘要；
 - `send_task_message` 只验证消息已追加到子会话，不验收“下一轮执行”或“当前步骤后执行”。
 
-以下行为暂不作为当前阶段验收：暂停/恢复、停滞判断、审批、可靠父会话通知、跨重启续聊、用户介入的完整身份渲染、跨窗口事件回放和多层委托。
+以下行为暂不作为当前阶段验收：暂停/恢复、停滞判断、审批、可靠父会话通知、跨重启续聊、跨窗口事件回放和多层委托。
 
 ## 12. 实现进度记录
 
@@ -707,7 +707,7 @@ export interface MessageOrigin {
 1. **取消能力提前实现**：文档将可中断执行排在 Phase 4，本次经 `useLlmChatStore().abortSending(childSessionId)` 与 `backgroundTaskRegistry.cancelTask` 打通（`ask` 订阅任务 `state_changed`，收到 `cancelled` 即中止生成并以 `cancelled` 收尾）；未引入 Tauri 命令层。
 2. **`callerAgent` 显示名缺失**：当前 `ToolContext.agent` 只暴露 `{ id, knowledgeAccess? }`，故 `actorId` 与 `actorName` 均取 `context.agent.id`；无 `context.agent` 时回落为 `{ kind: "user", channel: "main_chat" }`。
 3. **任务中心入口**：文档 §6.3 建议的 TitleBar 全局胶囊属后续阶段，Phase 1 入口暂放 `ChatAreaHeader` 工具栏；未采用 §5.2 的 `background_task.*` Tauri 命令层与跨窗口事件通道（当前为进程内单例 + 监听器订阅）。
-4. **头像解析**：列表循环中改用纯函数 `resolveAgentAvatarPath`，未使用 `useResolvedAgentAvatar` composable。
+4. **头像解析**：派遣卡片与标题栏胶囊通过 `BackgroundTaskAgentAvatar` 复用 `useResolvedAgentAvatar`，保持 AppData 路径、预设与响应式 Agent 更新的一致解析。
 5. **类型补充**：因原 §4 代码块存在损坏文本，按语义重构时补回 `"paused"` 状态，并新增 `BackgroundTaskResult`、`BackgroundTaskError`、`BackgroundTaskChangeEvent` 等辅助类型；`createTask` 额外支持可选 `parentTaskId`，为多层委托预留。
 6. **终态保护**：对终态任务调用 `updateTaskState` 返回 `null`，避免回写历史状态。
 
@@ -811,7 +811,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 > 目的：把 §12.3「尚未交付」与「伴生视窗阻塞记录」拆成可独立派发、可验证的施工单元。
 > 依赖顺序：T1 先行 → T2 依赖 T1；T3 与 T1 并行（T3.2 的 Peek 需等 T2）。
 > 施工边界：所有改动只兑现已明确的服务端语义；`send_task_message` 仍为 append-only，不伪造下一轮投递。
-> 完成状态：T1、T2、T3.1、T3.2 与 T4 已交付；T3.3 仅完成运行态圆点，身份头像与外置头像目标未完成；T3.4 未实施。施工记录与偏差见 §12.7。
+> 完成状态：T1、T2、T3.1、T3.2、T3.3 与 T4 已交付；T3.4 未实施。施工记录与偏差见 §12.7。
 
 #### T1 会话作用域契约（只读基础，先行）
 
@@ -833,7 +833,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 
 - [x] T3.1 活动时间轴（Activity Ticker 单行轮播 + 点击展开微抽屉），数据来自 `snapshot.recentActivity`。
 - [x] T3.2 卡片内控制：透视 Peek（打开伴生视图，依赖 T2）、叫停 Halt（`cancel_task`，二次确认）、插话 Whisper（append-only，Ctrl+Enter 发送、单回车换行）。
-- [~] T3.3 运行态呼吸圆点与双方身份文字已实现；头像仍使用 `resolveAgentAvatarPath`，未复用 `useResolvedAgentAvatar`，派遣卡片也未支持 `avatarPlacement: outside`。
+- [x] T3.3 派遣卡片与标题栏胶囊经 `BackgroundTaskAgentAvatar` 复用 `useResolvedAgentAvatar`；气泡模式且 `avatarPlacement: outside` 时，子 Agent 头像从派遣卡片根节点外置展示。标题栏胶囊显示迷你头像，并可切回父会话定位对应派遣卡片。
 - [ ] T3.4 `resultMetadata.backgroundTask` 扩展为携带 `state` 与双方身份快照，降低对即时快照的依赖（同步更新 `sub-agent.registry` 测试断言）。（未实施，卡片仍从 registry 快照读取）
 
 #### T4 验证与记录
@@ -858,12 +858,10 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - **伴生分栏槽位（2026-09-25）**：`ChatArea` 提供可持久化调宽的 `#chat-companion-dock-slot`，主聊天区通过同级 Flex 分栏让位；伴生视图在目标存在时定向 Teleport，目标缺失时回落 PiP。`TitleBar` 不再挂载该视图，主窗口与分离 ChatArea 窗口分别在自身上下文挂载消费方。
 - **会话作用域契约（T1）**：`llmChatStore` 提供 `getSessionIndexById` / `getSessionDetailById` / `getActivePathBySessionId` / `ensureSessionDetailLoaded` 与 `getSiblingsInSession` / `isNodeInActivePathInSession` / `reparseNodeToolsInSession`；`MessageList` 增加 `scopeSessionId`，作用域内的读写、分支与重解析显式绑定目标会话，旧的全局版本行为不变。伴生视窗不再依赖“先切换全局选中会话”。
 - **伴生视图严格只读与目标一致性（2026-09-25）**：`CompanionSessionSheet` 固定以 `readonly` 挂载 `MessageList`；只读上下文下隐藏编辑、删除、分支、重生成、继续生成与工具任务控制，事件与 store 写入再经守卫断流。`useCompanionSession` 的 `currentLoadVersion` 与 `childSessionId` 双重校验会丢弃过期加载结果。
-- **派遣卡片主体与双模透视（T3）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）已实现。派遣卡片与任务详情提供互斥的「侧栏透视」和「悬浮透视」按钮，同一任务同一形态再次点击收起，并显示 `.action-btn-active`。头像解析与外置头像仍未达到 T3.3 目标。
+- **派遣卡片身份视觉与双模透视（T3，2026-09-25）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）已实现。派遣卡片与任务详情提供互斥的「侧栏透视」和「悬浮透视」按钮，同一任务同一形态再次点击收起，并显示 `.action-btn-active`。派遣卡片与标题栏胶囊通过 `useResolvedAgentAvatar` 显示子 Agent 头像；气泡外置头像布局下，派遣卡片的子 Agent 头像位于卡片根节点之外。标题栏 Mini 列表可定位原派遣卡片，找不到当前活动分支中的卡片时回落到任务中心的对应列表项。
 
 #### 尚未交付 / 待修复
 
-- **Phase 3：T3.3 身份视觉（P1 待修复）**。派遣卡片全面接入 `useResolvedAgentAvatar`，并在气泡模式 `avatarPlacement: outside` 下支持外置头像；
-- **Phase 3：标题栏胶囊补全（P2 待修复）**。当前胶囊补齐子 Agent 迷你头像与任务列表内的快速定位跳转。
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递、队列恢复与 follow-up task 链（Phase 4）。
 - task runner / heartbeat / watchdog / pause / resume / interrupt / retry、审批与等待输入的 `requestId` 路由（Phase 4）。
 - 可靠父会话通知队列与 attention 投影补发（Phase 4/5）。
@@ -875,8 +873,8 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 2. **伴生视图渲染配置回落**：未向 `MessageList` 传 `richTextStyleOptions` / `llmThinkRules`，使用其内部默认值，可能与子 Agent 自身配置不完全一致。
 3. **实时刷新依赖任务事件**：伴生视图订阅 `backgroundTaskRegistry`（约 350ms 合并节流）触发刷新；子会话产生新消息但不产生任务活动事件时，需手动重开刷新。
 4. **PiP 位置共享**：所有任务共用同一 `persistence-key="companion-session-pip"` 的悬浮位置/尺寸。
-5. **T3.3 收窄**：沿用既有 `resolveAgentAvatarPath` 与卡片身份布局，未引入 `useResolvedAgentAvatar` 与 `avatarPlacement: outside`。
-6. **标题栏胶囊为简化入口**：当前未渲染子 Agent 迷你头像，也没有快速取消、暂停或定位原派遣卡片；暂停属于 Phase 4，其他视觉与导航项需在后续 Phase 3 修订中决定是否回补。
+5. **原派遣卡片定位范围**：定位依赖 `parentSessionId` 与当前可见分支中的派遣卡片 DOM 锚点；该卡片不在当前分支时，标题栏胶囊会回落到任务中心并选中对应任务。
+6. **标题栏胶囊控制范围**：胶囊提供头像、子会话透视与原派遣卡片定位；暂停仍属于 Phase 4，快速取消仍复用派遣卡片与任务中心详情入口。
 
 #### 验证
 
@@ -885,3 +883,4 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - 2026-09-24 复核：`bun run test:run -- src/tools/sub-agent/__tests__/sub-agent.registry.test.ts` 4/4 通过。现有测试没有覆盖伴生视图的只读分支、异步切换乱序或任务事件之外的消息刷新。
 - 已知预存在失败（与本阶段无关）：`llm-chat/config/__tests__/parameter-config.test.ts` 的 Gemini `includeThoughts` 用例。
 - 2026-09-25 伴生分栏、严格只读、加载版本守卫与双模透视：`bun run check:frontend` 与 `bun run build:vite` 通过。
+- 2026-09-25 T3.3 身份视觉与标题栏胶囊补全：`bun run check:frontend` 与 `bun run build:vite` 通过。

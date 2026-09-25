@@ -15,9 +15,6 @@
 -->
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   Delete,
   Edit,
@@ -27,6 +24,7 @@ import {
   Headset,
 } from "@element-plus/icons-vue";
 import FileIcon from "@/components/common/FileIcon.vue";
+import AgentAssetThumbnail from "./AgentAssetThumbnail.vue";
 import type { AgentAsset } from "../../types/agent";
 
 interface Props {
@@ -55,53 +53,6 @@ const formatSize = (bytes?: number) => {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-};
-
-// 异步加载图片 URL 的组件逻辑
-const AssetThumbnail = {
-  props: ["asset", "agentId"],
-  setup(props: any) {
-    const src = ref("");
-
-    invoke<string>("get_agent_asset_path", {
-      agentId: props.agentId,
-      assetPath: props.asset.path,
-    }).then((path) => {
-      src.value = convertFileSrc(path);
-    });
-
-    return { src };
-  },
-  template: `<img v-if="src" :src="src" class="w-full h-full object-cover" loading="lazy" />`,
-};
-
-// 异步加载缩略图 URL 的组件逻辑（用于音频封面等）
-const ThumbnailPreview = {
-  props: ["thumbnailPath", "agentId"],
-  setup(props: any) {
-    const src = ref("");
-    const loaded = ref(false);
-
-    if (props.thumbnailPath) {
-      invoke<string>("get_agent_asset_path", {
-        agentId: props.agentId,
-        assetPath: props.thumbnailPath,
-      })
-        .then((path) => {
-          src.value = convertFileSrc(path);
-          loaded.value = true;
-        })
-        .catch(() => {
-          loaded.value = false;
-        });
-    }
-
-    return { src, loaded };
-  },
-  template: `
-    <img v-if="loaded && src" :src="src" class="w-full h-full object-cover" loading="lazy" />
-    <slot v-else name="fallback"></slot>
-  `,
 };
 </script>
 
@@ -133,27 +84,25 @@ const ThumbnailPreview = {
         <!-- 预览区域 -->
         <div class="asset-preview">
           <!-- 图片类型 -->
-          <component
+          <AgentAssetThumbnail
             v-if="asset.type === 'image'"
-            :is="AssetThumbnail"
-            :asset="asset"
             :agent-id="agentId"
+            :asset-path="asset.path"
           />
 
           <!-- 音频类型（可能有封面缩略图） -->
           <template v-else-if="asset.type === 'audio'">
-            <component
+            <AgentAssetThumbnail
               v-if="asset.thumbnailPath"
-              :is="ThumbnailPreview"
-              :thumbnail-path="asset.thumbnailPath"
               :agent-id="agentId"
+              :asset-path="asset.thumbnailPath"
             >
               <template #fallback>
                 <div class="generic-preview audio">
                   <el-icon :size="48"><Headset /></el-icon>
                 </div>
               </template>
-            </component>
+            </AgentAssetThumbnail>
             <div v-else class="generic-preview audio">
               <el-icon :size="48"><Headset /></el-icon>
             </div>

@@ -18,7 +18,7 @@
 | 10  | 「立刻发送」清空输入框且不带原内容     | rich-text-renderer / llm-chat | ✅ 已修复              |
 | 11  | 上下文分析器附件无法查看               | llm-chat/context-analyzer     | ✅ 已修复              |
 | 12  | 媒体生成报错信息截断、无法查看完整     | media-generator               | ✅ 已修复              |
-| 13  | 资产管理器预览失效（缩略图全部不显示） | asset-manager                 | ⬜ 待处理              |
+| 13  | 资产管理器预览失效（缩略图全部不显示） | asset-manager                 | ✅ 已修复              |
 | 14  | 智能体资产管理拖放图片重复导入两份     | agent-manager/assets          | ⬜ 待处理              |
 
 ## 问题详情与定位
@@ -93,11 +93,11 @@
 - 定位：MediaTaskCard.vue error-msg 为 `-webkit-line-clamp: 3` 硬截断，无 title、无点击事件。
 - 方向：加悬停 tooltip + 点击弹窗查看完整错误。
 
-### 13. 资产管理器预览失效（09-25 补录）
+### 13. 智能体资产管理器预览失效（09-25 补录）
 
-- 反馈：资产管理对话框中所有资产缩略图不显示，仅剩类型标签与文件名（附截图）。
-- 定位：待排查（资产管理器组件、asset:// 协议 URL 构造、缩略图加载链路）。
-- 方向：排查预览 URL 构造与 basePath；注意与问题 11 的 asset 预览链路对照。
+- 反馈：资产管理对话框中所有资产缩略图不显示，仅剩类型标签与文件名（附截图）；点击单独的预览按钮仍能唤起预览组件。
+- 根因：`AgentAssetsGrid.vue` 将图片和音频封面写成带字符串 `template` 的运行时动态组件。生产构建使用的 Vue runtime 不会编译这类模板，导致预览 URL 即使解析成功也没有对应的图片节点；单独预览走的是已编译的 `AgentAssetsManager.vue` 模板，因此正常。
+- 修复：提取已编译的 `AgentAssetThumbnail.vue`，继续通过 `get_agent_asset_path` 和 `convertFileSrc` 解析 URL；音频封面加载失败时保留通用音频图标。
 
 ### 14. 智能体资产管理拖放图片重复导入（09-25 补录）
 

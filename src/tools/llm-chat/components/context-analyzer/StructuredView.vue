@@ -762,6 +762,7 @@ import { useModelMetadata } from "@/composables/useModelMetadata";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { STWorldbookPosition } from "@/tools/st-worldbook-manager/types/worldbook";
 
 const props = defineProps<{
@@ -1378,8 +1379,63 @@ function getDisplayContent(content: string | LlmMessageContent[]): string {
 }
 
 // 辅助函数：解决 template 中直接使用 as unknown as 导致的高亮错乱问题
-const castToAsset = (val: any): Asset => val as Asset;
-const castToAssetArray = (val: any): Asset[] => val as Asset[];
+//
+// 上下文预览里的附件是管道产出的轻量副本（PipelineAttachment），
+// 只有 id/type/name/metadata/source，缺少预览所需的
+// path/thumbnailPath/originalPath/importStatus 等字段，直接强转后
+// AttachmentCard 无法构造预览 URL（表现为附件无法查看）。
+//
+// 因此这里按 id 从资产库异步补全完整 Asset；补全失败时兜底把
+// PipelineAttachment.source 映射为 Asset 的 path/inlineData。
+const resolvedAssetMap = ref(new Map<string, Asset>());
+
+watch(
+  () => props.contextData,
+  async (contextData) => {
+    const ids = new Set<string>();
+    for (const msg of contextData?.finalMessages || []) {
+      for (const att of (msg as any)._attachments || []) {
+        if (att?.id) ids.add(String(att.id));
+      }
+    }
+    const map = new Map<string, Asset>();
+    for (const id of ids) {
+      try {
+        const asset = await assetManagerEngine.getAssetById(id);
+        if (asset) map.set(id, asset);
+      } catch {
+        // 忽略单个资产补全失败（可能已删除），由兜底映射处理
+      }
+    }
+    resolvedAssetMap.value = map;
+  },
+  { immediate: true }
+);
+
+const castToAsset = (val: any): Asset => {
+  const att = val as any;
+  if (!att || typeof att !== "object") return att as Asset;
+
+  // 优先使用资产库中的完整资产
+  const resolved = att.id ? resolvedAssetMap.value.get(String(att.id)) : undefined;
+  if (resolved) return resolved;
+
+  // 兜底：把管道附件的 source 映射为 Asset 的预览字段
+  if (att.source && !att.path) {
+    const source = att.source;
+    return {
+      ...att,
+      path: source.kind === "asset-library" ? source.path : "",
+      inlineData:
+        source.kind === "inline"
+          ? { base64: source.base64, mimeType: source.mimeType }
+          : undefined,
+    } as Asset;
+  }
+  return att as Asset;
+};
+const castToAssetArray = (val: any): Asset[] =>
+  (Array.isArray(val) ? val : []).map((att) => castToAsset(att));
 
 /**
  * 计算附件是否会使用转写

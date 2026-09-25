@@ -435,7 +435,7 @@ sequenceDiagram
 | **存储路径**     | 移动端与桌面端当前都采用各自应用配置目录下的 `agent-manager/agents/{id}/agent.json` 与 `agents-index.json` 布局；跨端迁移通过导入导出完成                                                                                                                                                                                                                                                   |
 | **类型定义**     | 运行时通过完整对象克隆和未知字段保留确保未编辑字段不被裁剪；显式 TypeScript 类型需持续跟随桌面端演进，已同步 `defaultGreetingId` 和桌面端分类枚举；加载旧持久化 `custom` 时归一化为 `other`，未知未来值仍由完整对象保留                                                                                                                                                                     |
 | **无损编辑**     | **核心策略（Lossless Editing）**：<br>1. 移动端编辑时从完整 Agent 对象执行 `structuredClone`，保存时提交完整草稿，从而保留 UI 暂不支持的桌面端高级字段（如 `toolCallConfig`、`knowledgeBaseConfig`、`worldbookIds`、`quickActionSetIds` 等）。<br>2. 编辑单条预设消息时同样克隆完整 `ChatMessageNode`，原样保留 `presetAttachments`、`childrenIds` 等未编辑字段，只覆盖用户明确修改的内容。 |
-| **导入格式**     | 当前支持 `AIO_Agent_Export` JSON 字段和 SillyTavern JSON/PNG 角色数据；未知字段可保留，但随包二进制资产尚未迁移，因此在 Agent 私有资产阶段完成前不能宣称完整资源包无损迁移                                                                                                                                                                                                                  |
+| **导入格式**     | 当前支持 `AIO_Agent_Export` JSON 字段和 SillyTavern JSON/PNG 角色数据；未知字段可保留，但随包二进制资产尚未迁移，因此在 Agent 私有资产阶段完成前不能宣称完整资源包无损迁移。AIO 导出包全格式（YAML/PNG bundle/ZIP）、世界书导入转换与运行时补齐见 [`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md) |                                                                                                                                                                                                                  |
 | **资产生命周期** | 头像、`assets[]` 和 `presetAttachments` 属于 Agent 私有资源包，使用 Handle 与相对路径；不转换为全局 `assetId`。从全局资产添加时复制文件，导入导出时携带私有二进制内容。                                                                                                                                                                                                                     |
 | **未来演进**     | 如果桌面端也决定拆分 Agent，可以参照移动端的架构模式进行渐进式重构                                                                                                                                                                                                                                                                                                                          |
 
@@ -459,7 +459,7 @@ sequenceDiagram
    - 倾向：做独立模块页
 
 2. **世界书 (Worldbook)**：移动端是否需要支持？
-   - 倾向：当前版本不添加，后续适时再追加。
+   - 已更新（2026-09-25）：`llm-chat` 已落地自建简化世界书闭环（store CRUD + 注入器 + Agent `worldbookIds` 绑定）；ST 导入转换与高级语义按 [`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md) 批次 2/4 推进。
 
 3. **存储路径是否与桌面端对齐**：用 `agent-manager/` 还是 `llm-chat/agents/`？
    - 已决定：使用独立的 `agent-manager/`，物理隔离更干净。跨端迁移通过导入导出解决。

@@ -260,11 +260,24 @@ export const injectionAssembler: ContextProcessor = {
       historyAnchorIndex === -1
         ? skeleton
         : skeleton.slice(0, historyAnchorIndex);
+    // displayPresetCount > 0 时，历史锚点前的已启用预设仅保留最后 N 条；
+    // 启用/分组/模型匹配过滤在上游已完成，此处仅做截断（对齐桌面 chatPathUtils 先过滤后截断的顺序）。
+    // 无历史锚点时对齐桌面语义直接不生效；缺省、0、负数、非法值同样保持原有全量行为。
+    const displayPresetCount = agent.displayPresetCount;
+    const presetLimit =
+      historyAnchorIndex !== -1 &&
+      typeof displayPresetCount === "number" &&
+      Number.isFinite(displayPresetCount) &&
+      displayPresetCount > 0
+        ? Math.trunc(displayPresetCount)
+        : 0;
+    const limitedBeforeHistory =
+      presetLimit > 0 ? beforeHistory.slice(-presetLimit) : beforeHistory;
     const afterHistory =
       historyAnchorIndex === -1 ? [] : skeleton.slice(historyAnchorIndex + 1);
     const finalMessages: ProcessableMessage[] = [];
 
-    for (const message of beforeHistory) {
+    for (const message of limitedBeforeHistory) {
       if (message.type && message.type !== "message") {
         finalMessages.push(...buildAnchors(message.type, "before"));
         finalMessages.push(...buildAnchors(message.type, "after"));

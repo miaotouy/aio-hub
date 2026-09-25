@@ -8,7 +8,8 @@ import { macrosRenderer } from "../macros-renderer";
 
 function createContext(
   messages: ProcessableMessage[],
-  agentConfig: ChatAgent | null = null
+  agentConfig: ChatAgent | null = null,
+  timestamp: number = Date.now()
 ): PipelineContext {
   return {
     messages,
@@ -23,7 +24,7 @@ function createContext(
       createdAt: "2026-07-27T00:00:00.000Z",
     },
     settings: {} as PipelineContext["settings"],
-    timestamp: Date.now(),
+    timestamp,
     sharedData: new Map([
       ["model", { id: "model-1", name: "Model One" }],
       ["profile", { id: "provider-1", name: "Primary API" }],
@@ -168,6 +169,147 @@ describe("macrosRenderer", () => {
 
     expect(context.messages[0].content).toBe(
       "Available files:\n- sunset.png (image/png, asset-image)"
+    );
+  });
+
+  it("expands time macros from the pipeline timestamp with desktop format semantics", async () => {
+    // 本地时间 2026-07-27 14:30:45，避免时区歧义
+    const fixedTimestamp = new Date(2026, 6, 27, 14, 30, 45).getTime();
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content: "{{time}}|{{date}}|{{isotime}}|{{datetime}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      createAgent(),
+      fixedTimestamp
+    );
+
+    await macrosRenderer.execute(context);
+
+    const expectedIso = new Date(fixedTimestamp).toISOString();
+    expect(context.messages[0].content).toBe(
+      `2:30 PM|July 27, 2026|${expectedIso}|2026-07-27 14:30:45`
+    );
+  });
+
+  it("wraps 12-hour clock boundaries for the time macro", async () => {
+    const midnight = new Date(2026, 6, 27, 0, 5).getTime();
+    const noon = new Date(2026, 6, 27, 12, 0).getTime();
+    const midnightContext = createContext(
+      [
+        {
+          role: "system",
+          content: "{{time}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      createAgent(),
+      midnight
+    );
+    const noonContext = createContext(
+      [
+        {
+          role: "system",
+          content: "{{time}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      createAgent(),
+      noon
+    );
+
+    await macrosRenderer.execute(midnightContext);
+    await macrosRenderer.execute(noonContext);
+
+    expect(midnightContext.messages[0].content).toBe("12:05 AM");
+    expect(noonContext.messages[0].content).toBe("12:00 PM");
+  });
+
+  it("derives time macros from virtualTimeConfig with the desktop elapsed-time formula", async () => {
+    const realBase = new Date(2026, 0, 1, 0, 0, 0).getTime();
+    const virtualBase = new Date(2000, 0, 1, 0, 0, 0).getTime();
+    const agent = createAgent();
+    agent.virtualTimeConfig = {
+      virtualBaseTime: new Date(virtualBase).toISOString(),
+      realBaseTime: new Date(realBase).toISOString(),
+      timeScale: 2,
+    };
+
+    const scaledContext = createContext(
+      [
+        {
+          role: "system",
+          content: "{{datetime}}|{{isotime}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      agent,
+      realBase + 1000
+    );
+    await macrosRenderer.execute(scaledContext);
+
+    const expectedScaled = new Date(virtualBase + 2000);
+    expect(scaledContext.messages[0].content).toBe(
+      `2000-01-01 00:00:02|${expectedScaled.toISOString()}`
+    );
+
+    // timeScale 缺省时按 1 倍速推进
+    const defaultScaleAgent = createAgent();
+    defaultScaleAgent.virtualTimeConfig = {
+      virtualBaseTime: new Date(virtualBase).toISOString(),
+      realBaseTime: new Date(realBase).toISOString(),
+    };
+    const defaultScaleContext = createContext(
+      [
+        {
+          role: "system",
+          content: "{{datetime}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      defaultScaleAgent,
+      realBase + 1000
+    );
+    await macrosRenderer.execute(defaultScaleContext);
+
+    expect(defaultScaleContext.messages[0].content).toBe(
+      "2000-01-01 00:00:01"
+    );
+  });
+
+  it("falls back to the real time when virtualTimeConfig cannot be parsed", async () => {
+    const fixedTimestamp = new Date(2026, 6, 27, 14, 30, 45).getTime();
+    const agent = createAgent();
+    agent.virtualTimeConfig = {
+      virtualBaseTime: "not-a-date",
+      realBaseTime: new Date(2026, 0, 1, 0, 0, 0).toISOString(),
+    };
+
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content: "{{isotime}}|{{date}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      agent,
+      fixedTimestamp
+    );
+
+    await macrosRenderer.execute(context);
+
+    expect(context.messages[0].content).toBe(
+      `${new Date(fixedTimestamp).toISOString()}|July 27, 2026`
     );
   });
 });

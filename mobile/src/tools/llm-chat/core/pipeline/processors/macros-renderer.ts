@@ -45,6 +45,59 @@ interface MacroRuntimeContext {
   profileName: string;
   provider: string;
   assets: string;
+  /** 本次请求的有效时间（考虑虚拟时间配置），时间宏共享同一时刻。 */
+  effectiveNow: Date;
+}
+
+/** 英文月份名，用于 {{date}} 宏，语义对齐桌面 formatDate。 */
+const DATE_MACRO_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+function padTwo(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
+/**
+ * 计算本次请求的有效时间。
+ * 语义对齐桌面 datetime.ts 的 calculateEffectiveTime：
+ * virtualBase + (当前真实时间 - realBase) * timeScale（timeScale 缺省 1），
+ * 基准时间解析失败时回退现实时间。
+ */
+function calculateEffectiveNow(context: PipelineContext): Date {
+  const currentRealTime =
+    Number.isFinite(context.timestamp) && context.timestamp > 0
+      ? new Date(context.timestamp)
+      : new Date();
+
+  const config = context.agentConfig?.virtualTimeConfig;
+  if (!config) return currentRealTime;
+
+  const virtualBase = new Date(config.virtualBaseTime).getTime();
+  const realBase = new Date(config.realBaseTime).getTime();
+  const timeScale = config.timeScale ?? 1;
+  if (
+    !Number.isFinite(virtualBase) ||
+    !Number.isFinite(realBase) ||
+    !Number.isFinite(timeScale)
+  ) {
+    logger.warn("虚拟时间配置解析失败，时间宏回退为现实时间。", { config });
+    return currentRealTime;
+  }
+
+  const elapsedRealTime = currentRealTime.getTime() - realBase;
+  return new Date(virtualBase + elapsedRealTime * timeScale);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -213,6 +266,7 @@ function createMacroRuntimeContext(
     profileName: stringValue(profile?.name),
     provider: stringValue(profile?.name),
     assets: createAssetsSummary(context.messages),
+    effectiveNow: calculateEffectiveNow(context),
   };
 }
 
@@ -287,6 +341,24 @@ function resolveMacro(
       if (arguments_[0])
         applyVariableOperation(variables, arguments_[0], "-", "1");
       return "";
+    case "time": {
+      const now = runtime.effectiveNow;
+      const hours = now.getHours();
+      const minutes = padTwo(now.getMinutes());
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:${minutes} ${ampm}`;
+    }
+    case "date": {
+      const now = runtime.effectiveNow;
+      return `${DATE_MACRO_MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+    }
+    case "isotime":
+      return runtime.effectiveNow.toISOString();
+    case "datetime": {
+      const now = runtime.effectiveNow;
+      return `${now.getFullYear()}-${padTwo(now.getMonth() + 1)}-${padTwo(now.getDate())} ${padTwo(now.getHours())}:${padTwo(now.getMinutes())}:${padTwo(now.getSeconds())}`;
+    }
     default:
       return `{{${expression}}}`;
   }

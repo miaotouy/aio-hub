@@ -272,6 +272,11 @@ export interface ChatMessageNode {
       promptTokens: number;
       completionTokens: number;
       totalTokens: number;
+      /** 提示 token 详细信息（含缓存量） */
+      promptTokensDetails?: {
+        cachedTokens?: number;
+        audioTokens?: number;
+      };
     };
     /**
      * 单条消息内容的 Token 数量（本地计算）

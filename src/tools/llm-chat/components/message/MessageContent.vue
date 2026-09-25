@@ -1308,7 +1308,12 @@ watch(
           >
           <span class="usage-detail">
             (输入: {{ usageInfo.promptTokens }}, 输出:
-            {{ contentTokensValue ?? usageInfo.completionTokens }})
+            {{ contentTokensValue ?? usageInfo.completionTokens
+            }}{{
+              usageInfo.promptTokensDetails?.cachedTokens
+                ? `, 缓存: ${usageInfo.promptTokensDetails.cachedTokens}`
+                : ""
+            }})
           </span>
         </div>
         <!-- 本地计算的单条消息 Token（用户消息） -->

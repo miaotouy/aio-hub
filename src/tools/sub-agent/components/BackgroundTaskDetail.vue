@@ -22,7 +22,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { Ban, ExternalLink, Eye, MessageSquarePlus, Send } from "lucide-vue-next";
+import {
+  Ban,
+  ExternalLink,
+  MessageSquarePlus,
+  PanelRight,
+  PictureInPicture2,
+  Send,
+} from "lucide-vue-next";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
@@ -35,7 +42,10 @@ import Avatar from "@/components/common/Avatar.vue";
 import { formatDateTime, formatRelativeTime } from "@/utils/time";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
-import { useCompanionSession } from "../composables/useCompanionSession";
+import {
+  useCompanionSession,
+  type CompanionSessionMode,
+} from "../composables/useCompanionSession";
 import {
   getActivityActorName,
   getOriginDisplayName,
@@ -58,16 +68,27 @@ const emit = defineEmits<{
 }>();
 
 const agentStore = useAgentStore();
-const { openCompanion } = useCompanionSession();
+const { isOpen, targetTaskId, mode, toggleCompanion } = useCompanionSession();
 
-/** 透视：在只读伴生视图中查看子会话，不切换主会话选中态 */
-function handlePeek(): void {
+/** 透视：同一任务、同一形态再次点击会收起。 */
+function handlePeek(requestedMode: CompanionSessionMode): void {
   const task = props.task;
   if (!task?.childSessionId) return;
-  void openCompanion({
+  toggleCompanion({
     taskId: task.taskId,
     childSessionId: task.childSessionId,
+    mode: requestedMode,
   });
+}
+
+function isPeekActive(requestedMode: CompanionSessionMode): boolean {
+  const task = props.task;
+  return (
+    !!task &&
+    isOpen.value &&
+    targetTaskId.value === task.taskId &&
+    mode.value === requestedMode
+  );
 }
 
 const statePresentation = computed(() =>
@@ -264,16 +285,32 @@ async function handleCancelTask(): Promise<void> {
         <button
           type="button"
           class="peek-child-button"
+          :class="{ 'action-btn-active': isPeekActive('sheet') }"
           :disabled="!canOpenChild"
           :title="
             canOpenChild
-              ? '在只读伴生视图中透视子会话（不切换当前会话）'
+              ? '在右侧只读伴生栏中透视子会话'
               : '该任务没有可透视的子会话'
           "
-          @click="handlePeek"
+          @click="handlePeek('sheet')"
         >
-          <Eye :size="14" />
-          <span>透视</span>
+          <PanelRight :size="14" />
+          <span>侧栏透视</span>
+        </button>
+        <button
+          type="button"
+          class="peek-child-button"
+          :class="{ 'action-btn-active': isPeekActive('pip') }"
+          :disabled="!canOpenChild"
+          :title="
+            canOpenChild
+              ? '在悬浮只读窗口中透视子会话'
+              : '该任务没有可透视的子会话'
+          "
+          @click="handlePeek('pip')"
+        >
+          <PictureInPicture2 :size="14" />
+          <span>悬浮透视</span>
         </button>
 
         <button
@@ -588,6 +625,12 @@ async function handleCancelTask(): Promise<void> {
 .peek-child-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.peek-child-button.action-btn-active {
+  color: var(--primary-color);
+  background-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  border-color: var(--primary-color);
 }
 
 .append-task-button,

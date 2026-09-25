@@ -46,12 +46,15 @@ interface Props {
   screenshotMode?: boolean;
   /** 气泡模式下将消息状态紧跟在名称后显示 */
   inlineStatus?: boolean;
+  /** 当前消息是否处于会话只读透视中 */
+  readonly?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   hideAvatar: false,
   screenshotMode: false,
   inlineStatus: false,
+  readonly: false,
 });
 
 const agentStore = useAgentStore();

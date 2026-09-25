@@ -53,6 +53,8 @@ interface Props {
   screenshotMode?: boolean;
   /** 显式绑定的会话作用域；为空时回退当前选中会话 */
   scopeSessionId?: string | null;
+  /** 阻断所有会话写操作，用于伴生会话等只读透视场景 */
+  readonly?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -145,7 +147,25 @@ const {
 
 // 截图模式：通过 prop 控制,默认 false
 const screenshotMode = computed(() => props.screenshotMode ?? false);
+const isSessionReadOnly = computed(() => props.readonly ?? false);
 provide("screenshotMode", screenshotMode);
+provide("isSessionReadOnly", isSessionReadOnly);
+
+// 写操作统一经此代理进入 store；只读视图即便出现遗漏的事件，也不会改变会话数据。
+const guardedStore = new Proxy(store, {
+  get(target, property, receiver) {
+    const value = Reflect.get(target, property, receiver);
+    if (typeof value !== "function") return value;
+    return (...args: unknown[]) => {
+      if (isSessionReadOnly.value) return undefined;
+      return value.apply(target, args);
+    };
+  },
+  set(target, property, value, receiver) {
+    if (isSessionReadOnly.value) return true;
+    return Reflect.set(target, property, value, receiver);
+  },
+});
 
 // 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
@@ -559,6 +579,7 @@ const handleReparseTools = async (
   nodeId: string,
   options?: { modelId?: string; profileId?: string }
 ) => {
+  if (isSessionReadOnly.value) return;
   try {
     const { customMessage } = await import("@/utils/customMessage");
     customMessage.info("正在重新解析工具...");
@@ -715,6 +736,7 @@ defineExpose({
                 :hide-avatar="shouldHideHeaderAvatar"
                 :inline-status="isBubbleMode"
                 :screenshot-mode="screenshotMode"
+                :readonly="isSessionReadOnly"
               />
               <ChatMessage
                 :session-index="props.sessionIndex"
@@ -723,6 +745,8 @@ defineExpose({
                 :is-compressed="compressedNodeIds.has(msg.id)"
                 :message-depth="messages.length - 1 - index"
                 :is-sending="isSending"
+                :screenshot-mode="screenshotMode"
+                :readonly="isSessionReadOnly"
                 :siblings="getMessageSiblings(msg.id).siblings"
                 :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
                 :llm-think-rules="llmThinkRules"
@@ -733,49 +757,79 @@ defineExpose({
                     ? userRichTextStyleOptions || richTextStyleOptions
                     : richTextStyleOptions
                 "
-                @delete="store.deleteMessage(msg.id, scopedSessionId)"
-                @regenerate="store.regenerateFromNode(msg.id, withScopedSession($event))"
+                @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
+                @regenerate="
+                  guardedStore.regenerateFromNode(
+                    msg.id,
+                    withScopedSession($event)
+                  )
+                "
                 @switch-sibling="
                   (dir: any) => {
                     captureSwitchingMessagePosition(msg.id);
-                    store.switchToSiblingBranch(msg.id, dir, scopedSessionId);
+                    guardedStore.switchToSiblingBranch(
+                      msg.id,
+                      dir,
+                      scopedSessionId
+                    );
                   }
                 "
                 @switch-branch="
                   (nodeId: any) => {
                     captureSwitchingMessagePosition(msg.id);
-                    store.switchBranch(nodeId, scopedSessionId);
+                    guardedStore.switchBranch(nodeId, scopedSessionId);
                   }
                 "
-                @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
+                @toggle-enabled="
+                  guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
+                "
                 @edit="
                   (newContent: any, attachments: any) =>
-                    store.editMessage(msg.id, newContent, attachments, scopedSessionId)
+                    guardedStore.editMessage(
+                      msg.id,
+                      newContent,
+                      attachments,
+                      scopedSessionId
+                    )
                 "
                 @save-to-branch="
                   (newContent: any, attachments: any) =>
-                    store.createBranchFromEdit(msg.id, newContent, attachments, scopedSessionId)
+                    guardedStore.createBranchFromEdit(
+                      msg.id,
+                      newContent,
+                      attachments,
+                      scopedSessionId
+                    )
                 "
                 @copy="() => {}"
-                @abort="store.abortNodeGeneration(msg.id)"
-                @continue="store.continueGeneration(msg.id, withScopedSession($event))"
+                @abort="guardedStore.abortNodeGeneration(msg.id)"
+                @continue="
+                  guardedStore.continueGeneration(
+                    msg.id,
+                    withScopedSession($event)
+                  )
+                "
                 @create-branch="
                   () => {
                     captureSwitchingMessagePosition(msg.id);
-                    store.createBranch(msg.id, scopedSessionId);
+                    guardedStore.createBranch(msg.id, scopedSessionId);
                   }
                 "
                 @analyze-context="
                   () => {
-                    store.contextAnalyzerNodeId = msg.id;
-                    store.contextAnalyzerVisible = true;
+                    guardedStore.contextAnalyzerNodeId = msg.id;
+                    guardedStore.contextAnalyzerVisible = true;
                   }
                 "
                 @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
                 @screenshot="emit('screenshot', msg.id)"
                 @update-translation="
                   (translation: any) =>
-                    store.updateMessageTranslation(msg.id, translation, scopedSessionId)
+                    guardedStore.updateMessageTranslation(
+                      msg.id,
+                      translation,
+                      scopedSessionId
+                    )
                 "
               />
             </div>
@@ -788,15 +842,25 @@ defineExpose({
               :message="msg"
               :message-depth="messages.length - 1 - index"
               :screenshot-mode="screenshotMode"
+              :readonly="isSessionReadOnly"
               :llm-think-rules="llmThinkRules"
               :rich-text-style-options="richTextStyleOptions"
-              @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
-              @delete="store.deleteMessage(msg.id, scopedSessionId)"
+              @toggle-enabled="
+                guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
+              "
+              @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
               @update-content="
-                (content: string) => store.editMessage(msg.id, content, undefined, scopedSessionId)
+                (content: string) =>
+                  guardedStore.editMessage(
+                    msg.id,
+                    content,
+                    undefined,
+                    scopedSessionId
+                  )
               "
               @update-role="
-                (role: any) => store.updateNodeData(msg.id, { role }, scopedSessionId)
+                (role: any) =>
+                  guardedStore.updateNodeData(msg.id, { role }, scopedSessionId)
               "
             />
 
@@ -809,53 +873,84 @@ defineExpose({
               :message-depth="messages.length - 1 - index"
               :is-sending="isSending"
               :screenshot-mode="screenshotMode"
+              :readonly="isSessionReadOnly"
               :llm-think-rules="llmThinkRules"
               :rich-text-style-options="richTextStyleOptions"
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-              @delete="store.deleteMessage(msg.id, scopedSessionId)"
-              @regenerate="store.regenerateFromNode(msg.id, withScopedSession($event))"
+              @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
+              @regenerate="
+                guardedStore.regenerateFromNode(
+                  msg.id,
+                  withScopedSession($event)
+                )
+              "
               @switch-sibling="
                 (dir: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchToSiblingBranch(msg.id, dir, scopedSessionId);
+                  guardedStore.switchToSiblingBranch(
+                    msg.id,
+                    dir,
+                    scopedSessionId
+                  );
                 }
               "
               @switch-branch="
                 (nodeId: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchBranch(nodeId, scopedSessionId);
+                  guardedStore.switchBranch(nodeId, scopedSessionId);
                 }
               "
-              @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
+              @toggle-enabled="
+                guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
+              "
               @edit="
                 (newContent: any, attachments: any) =>
-                  store.editMessage(msg.id, newContent, attachments, scopedSessionId)
+                  guardedStore.editMessage(
+                    msg.id,
+                    newContent,
+                    attachments,
+                    scopedSessionId
+                  )
               "
               @copy="() => {}"
-              @abort="store.abortNodeGeneration(msg.id)"
-              @continue="store.continueGeneration(msg.id, withScopedSession($event))"
+              @abort="guardedStore.abortNodeGeneration(msg.id)"
+              @continue="
+                guardedStore.continueGeneration(
+                  msg.id,
+                  withScopedSession($event)
+                )
+              "
               @create-branch="
                 () => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.createBranch(msg.id, scopedSessionId);
+                  guardedStore.createBranch(msg.id, scopedSessionId);
                 }
               "
               @analyze-context="
                 () => {
-                  store.contextAnalyzerNodeId = msg.id;
-                  store.contextAnalyzerVisible = true;
+                  guardedStore.contextAnalyzerNodeId = msg.id;
+                  guardedStore.contextAnalyzerVisible = true;
                 }
               "
               @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
               @screenshot="emit('screenshot', msg.id)"
               @save-to-branch="
                 (newContent: any, attachments: any) =>
-                  store.createBranchFromEdit(msg.id, newContent, attachments, scopedSessionId)
+                  guardedStore.createBranchFromEdit(
+                    msg.id,
+                    newContent,
+                    attachments,
+                    scopedSessionId
+                  )
               "
               @update-translation="
                 (translation: any) =>
-                  store.updateMessageTranslation(msg.id, translation, scopedSessionId)
+                  guardedStore.updateMessageTranslation(
+                    msg.id,
+                    translation,
+                    scopedSessionId
+                  )
               "
             />
 
@@ -869,6 +964,7 @@ defineExpose({
               :message-depth="messages.length - 1 - index"
               :is-sending="isSending"
               :screenshot-mode="screenshotMode"
+              :readonly="isSessionReadOnly"
               :siblings="getMessageSiblings(msg.id).siblings"
               :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
               :llm-think-rules="llmThinkRules"
@@ -878,49 +974,79 @@ defineExpose({
                   ? userRichTextStyleOptions || richTextStyleOptions
                   : richTextStyleOptions
               "
-              @delete="store.deleteMessage(msg.id, scopedSessionId)"
-              @regenerate="store.regenerateFromNode(msg.id, withScopedSession($event))"
+              @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
+              @regenerate="
+                guardedStore.regenerateFromNode(
+                  msg.id,
+                  withScopedSession($event)
+                )
+              "
               @switch-sibling="
                 (dir: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchToSiblingBranch(msg.id, dir, scopedSessionId);
+                  guardedStore.switchToSiblingBranch(
+                    msg.id,
+                    dir,
+                    scopedSessionId
+                  );
                 }
               "
               @switch-branch="
                 (nodeId: any) => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.switchBranch(nodeId, scopedSessionId);
+                  guardedStore.switchBranch(nodeId, scopedSessionId);
                 }
               "
-              @toggle-enabled="store.toggleNodeEnabled(msg.id, scopedSessionId)"
+              @toggle-enabled="
+                guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
+              "
               @edit="
                 (newContent: any, attachments: any) =>
-                  store.editMessage(msg.id, newContent, attachments, scopedSessionId)
+                  guardedStore.editMessage(
+                    msg.id,
+                    newContent,
+                    attachments,
+                    scopedSessionId
+                  )
               "
               @save-to-branch="
                 (newContent: any, attachments: any) =>
-                  store.createBranchFromEdit(msg.id, newContent, attachments, scopedSessionId)
+                  guardedStore.createBranchFromEdit(
+                    msg.id,
+                    newContent,
+                    attachments,
+                    scopedSessionId
+                  )
               "
               @copy="() => {}"
-              @abort="store.abortNodeGeneration(msg.id)"
-              @continue="store.continueGeneration(msg.id, withScopedSession($event))"
+              @abort="guardedStore.abortNodeGeneration(msg.id)"
+              @continue="
+                guardedStore.continueGeneration(
+                  msg.id,
+                  withScopedSession($event)
+                )
+              "
               @create-branch="
                 () => {
                   captureSwitchingMessagePosition(msg.id);
-                  store.createBranch(msg.id, scopedSessionId);
+                  guardedStore.createBranch(msg.id, scopedSessionId);
                 }
               "
               @analyze-context="
                 () => {
-                  store.contextAnalyzerNodeId = msg.id;
-                  store.contextAnalyzerVisible = true;
+                  guardedStore.contextAnalyzerNodeId = msg.id;
+                  guardedStore.contextAnalyzerVisible = true;
                 }
               "
               @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
               @screenshot="emit('screenshot', msg.id)"
               @update-translation="
                 (translation: any) =>
-                  store.updateMessageTranslation(msg.id, translation, scopedSessionId)
+                  guardedStore.updateMessageTranslation(
+                    msg.id,
+                    translation,
+                    scopedSessionId
+                  )
               "
             />
           </div>

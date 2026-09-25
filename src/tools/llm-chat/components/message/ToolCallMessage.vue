@@ -24,6 +24,7 @@ import {
   nextTick,
   onMounted,
   onUnmounted,
+  inject,
 } from "vue";
 import { useResizeObserver, useClipboard } from "@vueuse/core";
 import type {
@@ -93,6 +94,8 @@ interface Props {
   isSending?: boolean;
   /** 截图模式: 隐藏操作栏 / 预览按钮 / 异步任务操作, 强制展开 */
   screenshotMode?: boolean;
+  /** 阻断任务控制与消息写操作，用于会话只读透视 */
+  readonly?: boolean;
 }
 
 interface Emits {
@@ -126,8 +129,16 @@ const props = withDefaults(defineProps<Props>(), {
   isSending: false,
   translationContent: "",
   screenshotMode: false,
+  readonly: false,
 });
 const emit = defineEmits<Emits>();
+const parentSessionReadOnly = inject(
+  "isSessionReadOnly",
+  computed(() => false)
+);
+const isSessionReadOnly = computed(
+  () => props.readonly || parentSessionReadOnly.value
+);
 
 const { settings } = useChatSettings();
 const rendererSettingsProps = computed(() =>
@@ -227,7 +238,7 @@ const stopPolling = () => {
 
 // 取消任务
 const handleCancelTask = async () => {
-  if (!taskId.value) return;
+  if (isSessionReadOnly.value || !taskId.value) return;
 
   try {
     await asyncTaskStore.cancelTask(taskId.value);
@@ -239,7 +250,7 @@ const handleCancelTask = async () => {
 
 // 重试任务
 const handleRetryTask = async () => {
-  if (!taskId.value) return;
+  if (isSessionReadOnly.value || !taskId.value) return;
 
   try {
     const newTaskId = await asyncTaskStore.retryTask(taskId.value);
@@ -573,7 +584,7 @@ const isWideLayout = computed(() => {
 
 // ----- 翻译与重试逻辑 -----
 const handleTranslate = async (targetLang?: string) => {
-  if (props.isTranslating) return;
+  if (isSessionReadOnly.value || props.isTranslating) return;
 
   const content = props.message.content;
   if (!content.trim()) {
@@ -611,6 +622,7 @@ const handleTranslate = async (targetLang?: string) => {
 // ----- 编辑逻辑 -----
 // 开始编辑
 const startEdit = () => {
+  if (isSessionReadOnly.value) return;
   editingContent.value = props.message.content;
   isCollapsed.value = false; // 进入编辑模式强制展开
   isEditing.value = true; // 切换到编辑模式
@@ -625,6 +637,10 @@ const startEdit = () => {
 
 // 保存编辑
 const saveEdit = () => {
+  if (isSessionReadOnly.value) {
+    isEditing.value = false;
+    return;
+  }
   if (editingContent.value.trim()) {
     emit("edit", editingContent.value, []); // 工具消息暂不支持附件编辑，传空数组对齐接口
   }
@@ -637,6 +653,7 @@ const cancelEdit = () => {
 };
 
 const onSaveToBranch = (newContent: string) => {
+  if (isSessionReadOnly.value) return;
   emit("save-to-branch", newContent, []);
   isEditing.value = false; // 保存后退出编辑模式
 };
@@ -673,22 +690,27 @@ const isGenerating = computed(
 );
 
 // 事件处理函数（对齐 ChatMessage.vue，避免模板中的隐式 any）
-const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
-  emit("regenerate", options);
-const onContinue = (options?: { modelId?: string; profileId?: string }) =>
-  emit("continue", options);
-const onSwitchSibling = (direction: "prev" | "next") =>
-  emit("switch-sibling", direction);
-const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
+const onRegenerate = (options?: { modelId?: string; profileId?: string }) => {
+  if (!isSessionReadOnly.value) emit("regenerate", options);
+};
+const onContinue = (options?: { modelId?: string; profileId?: string }) => {
+  if (!isSessionReadOnly.value) emit("continue", options);
+};
+const onSwitchSibling = (direction: "prev" | "next") => {
+  if (!isSessionReadOnly.value) emit("switch-sibling", direction);
+};
+const onSwitchBranch = (nodeId: string) => {
+  if (!isSessionReadOnly.value) emit("switch-branch", nodeId);
+};
 const onChangeTranslationMode = (mode: TranslationDisplayMode) => {
-  if (!props.message.metadata?.translation) return;
+  if (isSessionReadOnly.value || !props.message.metadata?.translation) return;
   emit("update-translation", {
     ...props.message.metadata.translation,
     displayMode: mode,
   });
 };
 const onToggleTranslationVisible = () => {
-  if (!props.message.metadata?.translation) return;
+  if (isSessionReadOnly.value || !props.message.metadata?.translation) return;
   emit("update-translation", {
     ...props.message.metadata.translation,
     visible: !props.message.metadata.translation.visible,
@@ -1136,7 +1158,7 @@ defineExpose({
       <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑; 截图模式完全不渲染) -->
       <div
         class="menubar-wrapper"
-        v-if="!isEditing && !props.screenshotMode"
+        v-if="!isEditing && !props.screenshotMode && !isSessionReadOnly"
         :class="{ 'is-collapsed': isCollapsed }"
       >
         <MessageMenubar

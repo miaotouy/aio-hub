@@ -29,7 +29,8 @@ import {
   Ban,
   ChevronRight,
   ExternalLink,
-  Eye,
+  PanelRight,
+  PictureInPicture2,
   MessageSquarePlus,
   Send,
 } from "lucide-vue-next";
@@ -48,7 +49,10 @@ import Avatar from "@/components/common/Avatar.vue";
 import { customMessage } from "@/utils/customMessage";
 import { formatRelativeTime } from "@/utils/time";
 import { createModuleLogger } from "@/utils/logger";
-import { useCompanionSession } from "../composables/useCompanionSession";
+import {
+  useCompanionSession,
+  type CompanionSessionMode,
+} from "../composables/useCompanionSession";
 import {
   getActivityActorName,
   getOriginDisplayName,
@@ -65,14 +69,29 @@ const props = defineProps<{
 }>();
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
-const { openCompanion } = useCompanionSession();
+const { isOpen, targetTaskId, mode, toggleCompanion } = useCompanionSession();
 
-/** 透视：只读伴生视图查看子会话，不切换主会话选中态 */
-function handlePeek(task: BackgroundTaskSnapshot): void {
-  void openCompanion({
+/** 透视：同一任务、同一形态再次点击会收起，切换任务时保持当前形态。 */
+function handlePeek(
+  task: BackgroundTaskSnapshot,
+  requestedMode: CompanionSessionMode
+): void {
+  toggleCompanion({
     taskId: task.taskId,
     childSessionId: task.childSessionId,
+    mode: requestedMode,
   });
+}
+
+function isPeekActive(
+  task: BackgroundTaskSnapshot,
+  requestedMode: CompanionSessionMode
+): boolean {
+  return (
+    isOpen.value &&
+    targetTaskId.value === task.taskId &&
+    mode.value === requestedMode
+  );
 }
 
 // 只接受工具执行器写入的结构化关系；消息正文中出现的 ID 不作为跳转依据。
@@ -150,7 +169,9 @@ async function openChild(task: BackgroundTaskSnapshot): Promise<void> {
 }
 
 /** 活动流水倒序：最新在上，与任务中心详情保持一致 */
-function recentActivities(task: BackgroundTaskSnapshot): BackgroundTaskActivity[] {
+function recentActivities(
+  task: BackgroundTaskSnapshot
+): BackgroundTaskActivity[] {
   return [...task.recentActivity].reverse();
 }
 
@@ -354,11 +375,22 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
           <button
             type="button"
             class="dispatch-action dispatch-peek"
-            title="在只读伴生视图中透视子会话（不切换当前会话）"
-            @click="handlePeek(task)"
+            :class="{ 'action-btn-active': isPeekActive(task, 'sheet') }"
+            title="在右侧只读伴生栏中透视子会话"
+            @click="handlePeek(task, 'sheet')"
           >
-            <Eye :size="12" />
-            <span>透视</span>
+            <PanelRight :size="12" />
+            <span>侧栏透视</span>
+          </button>
+          <button
+            type="button"
+            class="dispatch-action dispatch-peek"
+            :class="{ 'action-btn-active': isPeekActive(task, 'pip') }"
+            title="在悬浮只读窗口中透视子会话"
+            @click="handlePeek(task, 'pip')"
+          >
+            <PictureInPicture2 :size="12" />
+            <span>悬浮透视</span>
           </button>
           <button
             v-if="isActiveTaskState(task.state)"
@@ -570,11 +602,7 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
 }
 
 .dispatch-ticker:not(.is-static):hover {
-  background-color: color-mix(
-    in srgb,
-    var(--primary-color) 8%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--primary-color) 8%, transparent);
 }
 
 .dispatch-ticker-caret {
@@ -699,6 +727,12 @@ async function sendWhisper(task: BackgroundTaskSnapshot): Promise<void> {
 
 .dispatch-peek:hover {
   background-color: var(--fill-color);
+}
+
+.dispatch-action.action-btn-active {
+  color: var(--primary-color);
+  background-color: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  border-color: var(--primary-color);
 }
 
 .dispatch-whisper {

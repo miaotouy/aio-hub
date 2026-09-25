@@ -24,6 +24,7 @@
  */
 
 import { ref, shallowRef } from "vue";
+import { createModuleLogger } from "@/utils/logger";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
@@ -68,16 +69,20 @@ const isLoading = ref(false);
 /** 数据加载失败时的可读提示；为空表示正常 */
 const errorMessage = ref<string | null>(null);
 
+const logger = createModuleLogger("companion-session");
 const DOCK_SOURCE_ID = "companion-session";
+let currentLoadVersion = 0;
 const { closeDock } = useChatCompanionDock();
 
 async function loadSessionData(): Promise<void> {
+  const thisVersion = ++currentLoadVersion;
   const sessionId = childSessionId.value;
   if (!sessionId) {
     sessionIndex.value = null;
     sessionDetail.value = null;
     messages.value = [];
     errorMessage.value = null;
+    isLoading.value = false;
     return;
   }
 
@@ -86,6 +91,18 @@ async function loadSessionData(): Promise<void> {
   try {
     const store = useLlmChatStore();
     const detail = await store.ensureSessionDetailLoaded(sessionId);
+    if (
+      thisVersion !== currentLoadVersion ||
+      childSessionId.value !== sessionId
+    ) {
+      logger.debug("丢弃已过期的伴生会话异步加载结果", {
+        sessionId,
+        thisVersion,
+        currentLoadVersion,
+      });
+      return;
+    }
+
     if (!detail) {
       sessionIndex.value = null;
       sessionDetail.value = null;
@@ -97,13 +114,24 @@ async function loadSessionData(): Promise<void> {
     sessionDetail.value = detail;
     messages.value = [...store.getActivePathBySessionId(sessionId)];
   } catch (error) {
+    if (
+      thisVersion !== currentLoadVersion ||
+      childSessionId.value !== sessionId
+    ) {
+      return;
+    }
     sessionIndex.value = null;
     sessionDetail.value = null;
     messages.value = [];
     errorMessage.value =
       error instanceof Error ? error.message : "子会话数据加载失败，请稍后重试";
   } finally {
-    isLoading.value = false;
+    if (
+      thisVersion === currentLoadVersion &&
+      childSessionId.value === sessionId
+    ) {
+      isLoading.value = false;
+    }
   }
 }
 
@@ -138,8 +166,23 @@ async function openCompanion(options: OpenCompanionOptions): Promise<void> {
 
 /** 关闭伴生视图（保留已装载数据，便于下次打开时复用） */
 function closeCompanion(): void {
+  currentLoadVersion += 1;
+  isLoading.value = false;
   isOpen.value = false;
   closeDock(DOCK_SOURCE_ID);
+}
+
+/** 打开或收起指定任务的指定伴生视图形态。 */
+function toggleCompanion(options: Required<OpenCompanionOptions>): void {
+  if (
+    isOpen.value &&
+    targetTaskId.value === options.taskId &&
+    mode.value === options.mode
+  ) {
+    closeCompanion();
+    return;
+  }
+  void openCompanion(options);
 }
 
 /** 在侧栏伴生栏与画中画之间切换 */
@@ -164,6 +207,7 @@ export interface UseCompanionSessionReturn {
   openCompanion: typeof openCompanion;
   closeCompanion: typeof closeCompanion;
   toggleMode: typeof toggleMode;
+  toggleCompanion: typeof toggleCompanion;
   refresh: typeof refresh;
 }
 
@@ -188,6 +232,7 @@ export function useCompanionSession(): UseCompanionSessionReturn {
     openCompanion,
     closeCompanion,
     toggleMode,
+    toggleCompanion,
     refresh,
   };
 }

@@ -16,7 +16,15 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ref, computed, watch, provide, nextTick, shallowRef } from "vue";
+import {
+  ref,
+  computed,
+  watch,
+  provide,
+  nextTick,
+  shallowRef,
+  inject,
+} from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   Copy,
@@ -103,6 +111,8 @@ interface Props {
   messageDepth?: number;
   /** 截图模式: 隐藏编辑入口、流式指示器、渐进预览图等 */
   screenshotMode?: boolean;
+  /** 阻断编辑提交，用于会话只读透视 */
+  readonly?: boolean;
 }
 
 interface Emits {
@@ -117,6 +127,7 @@ const props = withDefaults(defineProps<Props>(), {
   translationContent: "",
   messageDepth: 0,
   screenshotMode: false,
+  readonly: false,
 });
 
 // 提供消息 ID 给后代组件（如可交互按钮）
@@ -124,6 +135,13 @@ provide("messageId", props.message.id);
 // 提供设置给后代组件
 provide("chatSettings", settings);
 const emit = defineEmits<Emits>();
+const parentSessionReadOnly = inject(
+  "isSessionReadOnly",
+  computed(() => false)
+);
+const isSessionReadOnly = computed(
+  () => props.readonly || parentSessionReadOnly.value
+);
 
 const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
@@ -433,6 +451,7 @@ const editorRef = ref<any>(null);
 
 // 当进入编辑模式时，初始化编辑内容和附件
 const initEditMode = () => {
+  if (isSessionReadOnly.value) return;
   editingContent.value = props.message.content;
 
   // 自动聚焦并移动光标到末尾
@@ -457,6 +476,7 @@ const initEditMode = () => {
 
 // 保存编辑
 const saveEdit = () => {
+  if (isSessionReadOnly.value) return;
   if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
     // 传递文本内容和附件列表
     // 必须传递数组本身，即使是空数组，以便父组件知道需要清空附件
@@ -477,6 +497,7 @@ const cancelEdit = () => {
 
 // 保存到新分支
 const saveToBranch = () => {
+  if (isSessionReadOnly.value) return;
   if (editingContent.value.trim() || attachmentManager.hasAttachments.value) {
     emit(
       "save-to-branch",

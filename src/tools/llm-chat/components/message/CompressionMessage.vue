@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { computed, ref, watch, provide, nextTick } from "vue";
+import { computed, ref, watch, provide, nextTick, inject } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type {
   ChatMessageNode,
@@ -61,6 +61,8 @@ interface Props {
   richTextStyleOptions?: RichTextRendererStyleOptions;
   /** 是否处于截图模式：隐藏编辑/删除按钮、禁用角色切换下拉 */
   screenshotMode?: boolean;
+  /** 阻断所有消息写操作，用于会话只读透视 */
+  readonly?: boolean;
 }
 
 interface Emits {
@@ -75,6 +77,13 @@ const props = withDefaults(defineProps<Props>(), {
   messageDepth: 0,
 });
 const emit = defineEmits<Emits>();
+const parentSessionReadOnly = inject(
+  "isSessionReadOnly",
+  computed(() => false)
+);
+const isSessionReadOnly = computed(
+  () => props.readonly || parentSessionReadOnly.value
+);
 
 const { settings } = useChatSettings();
 const rendererSettingsProps = computed(() =>
@@ -210,6 +219,7 @@ const formattedTime = computed(() => {
 });
 
 const startEdit = () => {
+  if (isSessionReadOnly.value) return;
   editedContent.value = props.message.content;
   isEditing.value = true;
 };
@@ -221,6 +231,10 @@ const cancelEdit = () => {
 const getElement = () => messageRef.value;
 
 const saveEdit = () => {
+  if (isSessionReadOnly.value) {
+    isEditing.value = false;
+    return;
+  }
   if (editedContent.value !== props.message.content) {
     emit("update-content", editedContent.value);
   }
@@ -228,7 +242,7 @@ const saveEdit = () => {
 };
 
 const handleRoleChange = (role: MessageRole) => {
-  if (role !== props.message.role) {
+  if (!isSessionReadOnly.value && role !== props.message.role) {
     emit("update-role", role);
   }
 };
@@ -279,7 +293,7 @@ defineExpose({
     <div
       class="compression-bar"
       :title="isEnabled ? '禁用压缩 (恢复上下文)' : '启用压缩'"
-      @click="emit('toggle-enabled')"
+      @click="!isSessionReadOnly && emit('toggle-enabled')"
     >
       <div class="bar-line"></div>
       <div class="bar-icon">
@@ -294,7 +308,7 @@ defineExpose({
         <div class="header-left">
           <el-dropdown
             trigger="click"
-            :disabled="props.screenshotMode"
+            :disabled="props.screenshotMode || isSessionReadOnly"
             @command="handleRoleChange"
           >
             <span class="role-badge" :class="message.role">
@@ -347,7 +361,7 @@ defineExpose({
           <!-- 常规模式按钮(截图模式下仅显示状态徽标,不暴露交互) -->
           <template v-else>
             <button
-              v-if="!props.screenshotMode"
+              v-if="!props.screenshotMode && !isSessionReadOnly"
               class="action-btn"
               title="编辑摘要"
               @click="startEdit"
@@ -356,22 +370,22 @@ defineExpose({
             </button>
 
             <button
-              v-if="!props.screenshotMode"
+              v-if="!props.screenshotMode && !isSessionReadOnly"
               class="action-btn"
               :title="
                 isEnabled
                   ? '禁用压缩 (恢复原始消息)'
                   : '启用压缩 (隐藏原始消息)'
               "
-              @click="emit('toggle-enabled')"
+              @click="!isSessionReadOnly && emit('toggle-enabled')"
             >
               <Database :size="14" :class="{ 'text-primary': isEnabled }" />
             </button>
 
             <el-popconfirm
-              v-if="!props.screenshotMode"
+              v-if="!props.screenshotMode && !isSessionReadOnly"
               title="确定删除此压缩节点吗？"
-              @confirm="emit('delete')"
+              @confirm="!isSessionReadOnly && emit('delete')"
             >
               <template #reference>
                 <button class="action-btn danger-hover" title="删除">

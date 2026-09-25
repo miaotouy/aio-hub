@@ -1,6 +1,6 @@
 # 后台 Agent 可观测性与人工介入设计
 
-> 状态：Phase 3 的服务端契约、会话作用域、伴生视图外壳与派遣卡片主体已于 2026-09-24 落地；伴生视图的严格只读约束与目标会话一致性仍待修复，T3.3 视觉目标未完成，验收状态见 §12.7；Phase 4 可恢复运行时与有效介入待启动
+> 状态：Phase 3 的服务端契约、会话作用域、伴生视图严格只读与双模透视控制已于 2026-09-25 落地；T3.3 身份视觉和标题栏胶囊补全仍待回补，验收状态见 §12.7；Phase 4 可恢复运行时与有效介入待启动
 > 关联提交：`fee26e61e`、`7304e95ea`、`8302d33e`
 > 关联方案：`docs/design/地基迁移调查/webview2-migration-investigation.md` §4.6、Phase 1
 
@@ -613,14 +613,14 @@ export interface MessageOrigin {
 - 完成/失败后尽力向已加载父会话追加合成结果；
 - 标题栏活动胶囊作为任务中心的轻量入口。
 
-### Phase 3：消息来源、会话作用域与执行 lane（主体已落地，伴生视图验收待修复）
+### Phase 3：消息来源、会话作用域与执行 lane（核心交付已完成，视觉回补待排期）
 
 本阶段完成身份、任务关系和安全透视的基础，不以简化 UI 或复用现有全局会话操作替代会话作用域：
 
 1. 为任务增加明确 `owner` 与 `executionLaneKey`，把同一 `childSessionId` 的生成、追加消息和取消串行化；（已完成基础接入）
 2. 持久化 `conversationId → agentId + childSessionId` 的会话索引，明确跨重启续聊失败/恢复语义；（已完成索引与失败边界）
 3. 将消息来源从“消息类型”改为“调用上下文派生”：用户介入是 `user/user_intervention`，调度 Agent 指令是 `agent/sub_agent`；（已完成追加消息与本轮消息 metadata 接入）
-4. 已完成 `MessageList` 的会话作用域契约，分支、编辑、删除、继续生成等操作均可绑定到传入的 `sessionDetail.id`；宽屏 Companion Sheet 与窄屏 `DraggablePanel` 画中画已挂载。伴生视图的严格只读验收仍待修复：外置 Header 的 `ChatMessage` 分支漏传 `screenshotMode`，会露出可写操作；异步加载还缺少目标版本校验，快速切换任务时旧请求可能覆盖当前目标会话；
+4. 已完成 `MessageList` 的会话作用域与严格只读契约。伴生视图固定传入 `readonly`，消息分支与子组件下发只读上下文，写事件经守卫断流；宽屏 Companion Sheet 与窄屏 `DraggablePanel` 均已挂载。`useCompanionSession` 以加载版本和 `childSessionId` 双重校验丢弃过期结果，快速切换任务不会覆盖当前视图；
 5. 完成主会话派遣卡片的任务关系、实时状态、最近活动入口、打开伴生视图和任务中心入口。卡片内控制只展示已经兑现语义的操作；
 6. 保持 `send_task_message` 的 append-only 明确语义与真实来源渲染。`enqueue_task_message` 的持久化队列和执行消费由 Phase 4 task runner 交付，避免在缺少安全点与恢复机制时伪造投递成功。
 
@@ -656,11 +656,11 @@ export interface MessageOrigin {
 
 下一步沿着完整功能链补齐基础契约，阶段性边界服务于后续能力回补：
 
-1. 完成 `MessageList` 会话作用域并交付只读伴生视图，保持主会话与子会话的操作边界；
-2. 落地 runtime-neutral 的 queued delivery、执行链和通知队列数据模型，明确消息节点引用、幂等键、delivery 状态和 follow-up task 关系；
-3. 抽取 task runner/lane，接管 generation、工具安全点、cancel、heartbeat 和 requestId；
-4. 用 runner 消费 `enqueue_task_message`，实现下一轮与当前步骤后的真实投递，以及重启后的队列恢复；
-5. 在统一 command/event/snapshot 契约上交付暂停、恢复、重试、审批、紧急叫停、接管和可靠通知。
+1. 落地 runtime-neutral 的 queued delivery、执行链和通知队列数据模型，明确消息节点引用、幂等键、delivery 状态和 follow-up task 关系；
+2. 抽取 task runner/lane，接管 generation、工具安全点、cancel、heartbeat 和 requestId；
+3. 用 runner 消费 `enqueue_task_message`，实现下一轮与当前步骤后的真实投递，以及重启后的队列恢复；
+4. 在统一 command/event/snapshot 契约上交付暂停、恢复、重试、审批、紧急叫停、接管和可靠通知；
+5. 回补派遣卡片身份头像、外置头像和标题栏胶囊的轻量导航。
 
 当前主链路已完成的观察、查询、取消与身份呈现继续保持；后续施工以 §9.1 的有效介入、恢复、持续透视和可靠到达场景为完成标准。
 
@@ -756,7 +756,7 @@ export interface MessageOrigin {
 - `backgroundTaskRegistry.test.ts`：15/15 通过；
 - `bun run build:vite`：构建成功（仅既有 chunk 体积提示）。
 
-### 12.3. Phase 3 基础服务契约（已完成；伴生视图验收待修复，2026-09-24）
+### 12.3. Phase 3 基础服务契约（已完成，2026-09-25）
 
 #### 已交付
 
@@ -811,7 +811,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 > 目的：把 §12.3「尚未交付」与「伴生视窗阻塞记录」拆成可独立派发、可验证的施工单元。
 > 依赖顺序：T1 先行 → T2 依赖 T1；T3 与 T1 并行（T3.2 的 Peek 需等 T2）。
 > 施工边界：所有改动只兑现已明确的服务端语义；`send_task_message` 仍为 append-only，不伪造下一轮投递。
-> 完成状态：T1、T3.1、T3.2 与 T4 已交付；T2 的伴生视图外壳已接线但严格只读与目标会话一致性验收待修复；T3.3 仅完成运行态圆点，身份头像与外置头像目标未完成；T3.4 未实施。施工记录与偏差见 §12.7。
+> 完成状态：T1、T2、T3.1、T3.2 与 T4 已交付；T3.3 仅完成运行态圆点，身份头像与外置头像目标未完成；T3.4 未实施。施工记录与偏差见 §12.7。
 
 #### T1 会话作用域契约（只读基础，先行）
 
@@ -825,8 +825,8 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 #### T2 只读伴生视图（依赖 T1）
 
 - [x] T2.1 `useCompanionSession` 单例状态：`targetTaskId` / `childSessionId` / `mode: "sheet" | "pip"` / `visible` 与打开、关闭、切换模式方法。
-- [~] T2.2 `CompanionSessionSheet.vue`：宽屏（>1100px）右侧滑出、按 `childSessionId` 挂载 `MessageList` 的外壳已实现；严格只读验收未完成。`headerPlacement: outside` 的 `ChatMessage` 分支漏传 `screenshotMode`，会显示消息操作栏；异步加载未校验目标版本，快速切换任务时旧请求可能覆盖当前会话数据。
-- [~] T2.3 窄屏 / 独立悬浮：`DraggablePanel`、毛玻璃背景与同一 `MessageList` 挂载已实现；继承 T2.2 的严格只读和目标会话一致性问题，暂不作为完成验收。
+- [x] T2.2 `CompanionSessionSheet.vue`：宽屏（>1100px）右侧滑出、按 `childSessionId` 挂载 `MessageList`；固定传入 `readonly`，外置 Header 与气泡内分支均阻断写操作。异步加载通过版本与目标会话双重校验，过期结果直接丢弃。
+- [x] T2.3 窄屏 / 独立悬浮：`DraggablePanel`、毛玻璃背景与同一只读 `MessageList` 挂载已完成。
 - [x] T2.4 入口接线：任务中心、派遣卡片、标题栏胶囊均可打开伴生视图；保留“跳转到完整会话”作为次级操作。
 
 #### T3 派遣卡片补全（可与 T1 并行）
@@ -842,7 +842,7 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - [x] T4.2 `backgroundTaskRegistry` / `sub-agent.registry` 相关单测通过。
 - [x] T4.3 施工摘要与偏差写回 §12.3 / §12.6。
 
-### 12.7. Phase 3 剩余任务施工与验收记录（2026-09-24）
+### 12.7. Phase 3 剩余任务施工与验收记录（2026-09-25）
 
 #### 交付物
 
@@ -855,15 +855,13 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 
 #### 已交付
 
-- **伴生分栏槽位（2026-09-25）**：`ChatArea` 提供可持久化调宽的 `#chat-companion-dock-slot`，主聊天区通过同级 Flex 分栏让位；伴生视图在目标存在时定向 Teleport，目标缺失时回落 PiP。`TitleBar` 不再挂载该视图，主窗口与分离 ChatArea 窗口分别在自身上下文挂载消费方。- **会话作用域契约（T1）**：`llmChatStore` 提供 `getSessionIndexById` / `getSessionDetailById` / `getActivePathBySessionId` / `ensureSessionDetailLoaded` 与 `getSiblingsInSession` / `isNodeInActivePathInSession` / `reparseNodeToolsInSession`；`MessageList` 增加 `scopeSessionId`，作用域内的读写、分支与重解析显式绑定目标会话，旧的全局版本行为不变。伴生视窗不再依赖“先切换全局选中会话”。
-- **伴生视图外壳（T2）**：`useCompanionSession` 按 `childSessionId` 装载 sessionIndex / sessionDetail / activePath；`CompanionSessionSheet` 在宽屏以右侧滑出侧栏、窄屏或独立悬浮以 `DraggablePanel` 承载 `MessageList`。应用级挂载在 `TitleBar`（`Teleport to body`），任务详情、派遣卡片、标题栏胶囊均可打开；既有“跳转到完整会话”路径保留。严格只读与目标会话一致性尚未验收。
-- **派遣卡片主体（T3）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）已实现。头像解析与外置头像仍未达到 T3.3 目标。
+- **伴生分栏槽位（2026-09-25）**：`ChatArea` 提供可持久化调宽的 `#chat-companion-dock-slot`，主聊天区通过同级 Flex 分栏让位；伴生视图在目标存在时定向 Teleport，目标缺失时回落 PiP。`TitleBar` 不再挂载该视图，主窗口与分离 ChatArea 窗口分别在自身上下文挂载消费方。
+- **会话作用域契约（T1）**：`llmChatStore` 提供 `getSessionIndexById` / `getSessionDetailById` / `getActivePathBySessionId` / `ensureSessionDetailLoaded` 与 `getSiblingsInSession` / `isNodeInActivePathInSession` / `reparseNodeToolsInSession`；`MessageList` 增加 `scopeSessionId`，作用域内的读写、分支与重解析显式绑定目标会话，旧的全局版本行为不变。伴生视窗不再依赖“先切换全局选中会话”。
+- **伴生视图严格只读与目标一致性（2026-09-25）**：`CompanionSessionSheet` 固定以 `readonly` 挂载 `MessageList`；只读上下文下隐藏编辑、删除、分支、重生成、继续生成与工具任务控制，事件与 store 写入再经守卫断流。`useCompanionSession` 的 `currentLoadVersion` 与 `childSessionId` 双重校验会丢弃过期加载结果。
+- **派遣卡片主体与双模透视（T3）**：运行态呼吸圆点（`prefers-reduced-motion` 降级）、Activity Ticker 与可展开活动时间轴、叫停（二次确认 + `cancelTask`）、插话便签（Ctrl+Enter、append-only）已实现。派遣卡片与任务详情提供互斥的「侧栏透视」和「悬浮透视」按钮，同一任务同一形态再次点击收起，并显示 `.action-btn-active`。头像解析与外置头像仍未达到 T3.3 目标。
 
 #### 尚未交付 / 待修复
 
-- **Phase 3：伴生视图严格只读（P0 待修复）**。在 `MessageList.vue` 显式接入 `readonly: boolean` prop，全面补齐外置 Header 与气泡内部的写操作阻断，禁止任何分支露出编辑、删除、重生成等入口；
-- **Phase 3：伴生视图目标一致性（P0 待修复）**。在 `useCompanionSession.ts` 中实现 `currentLoadVersion` 版本守卫，异步完成时若版本已过期直接丢弃，彻底消除任务切换串位缺陷；
-- **Phase 3：双模透视入口与状态切换按钮（P0 待修复）**。派遣卡片与任务详情仍需提供「侧栏透视」与「悬浮透视」两个互斥按钮，激活状态对齐 `CodeBlockHeader.vue` 的 `.action-btn-active` 规范；分栏槽位与 Flex 结构性让位已于 2026-09-25 交付。
 - **Phase 3：T3.3 身份视觉（P1 待修复）**。派遣卡片全面接入 `useResolvedAgentAvatar`，并在气泡模式 `avatarPlacement: outside` 下支持外置头像；
 - **Phase 3：标题栏胶囊补全（P2 待修复）**。当前胶囊补齐子 Agent 迷你头像与任务列表内的快速定位跳转。
 - `enqueue_task_message` 的真实下一轮/当前步骤后投递、队列恢复与 follow-up task 链（Phase 4）。
@@ -874,13 +872,11 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 #### 施工偏差与风险
 
 1. **伴生分栏已结构性让位**：2026-09-25 起由 `ChatArea` 的同级 Flex 槽位承载，宽度动画收缩主聊天区；分离 ChatArea 窗口也会在自身上下文挂载消费方。
-2. **严格只读当前失效**：`screenshotMode` 仅是 UI 级信号，且外置 Header 的 `ChatMessage` 分支漏传该信号，会露出编辑、删除、分支和生成等可写操作。修复前伴生视图只能视作带有已知写入风险的透视外壳。
-3. **异步加载会话可能串位**：`loadSessionData()` 在异步加载完成后未确认目标仍是同一 `childSessionId`。用户快速从任务 A 切换到任务 B 时，A 的旧请求可能覆盖 B 的消息列表，造成任务标题、状态与会话内容不一致。
-4. **伴生视图渲染配置回落**：未向 `MessageList` 传 `richTextStyleOptions` / `llmThinkRules`，使用其内部默认值，可能与子 Agent 自身配置不完全一致。
-5. **实时刷新依赖任务事件**：伴生视图订阅 `backgroundTaskRegistry`（约 350ms 合并节流）触发刷新；子会话产生新消息但不产生任务活动事件时，需手动重开刷新。
-6. **PiP 位置共享**：所有任务共用同一 `persistence-key="companion-session-pip"` 的悬浮位置/尺寸。
-7. **T3.3 收窄**：沿用既有 `resolveAgentAvatarPath` 与卡片身份布局，未引入 `useResolvedAgentAvatar` 与 `avatarPlacement: outside`。
-8. **标题栏胶囊为简化入口**：当前未渲染子 Agent 迷你头像，也没有快速取消、暂停或定位原派遣卡片；暂停属于 Phase 4，其他视觉与导航项需在后续 Phase 3 修订中决定是否回补。
+2. **伴生视图渲染配置回落**：未向 `MessageList` 传 `richTextStyleOptions` / `llmThinkRules`，使用其内部默认值，可能与子 Agent 自身配置不完全一致。
+3. **实时刷新依赖任务事件**：伴生视图订阅 `backgroundTaskRegistry`（约 350ms 合并节流）触发刷新；子会话产生新消息但不产生任务活动事件时，需手动重开刷新。
+4. **PiP 位置共享**：所有任务共用同一 `persistence-key="companion-session-pip"` 的悬浮位置/尺寸。
+5. **T3.3 收窄**：沿用既有 `resolveAgentAvatarPath` 与卡片身份布局，未引入 `useResolvedAgentAvatar` 与 `avatarPlacement: outside`。
+6. **标题栏胶囊为简化入口**：当前未渲染子 Agent 迷你头像，也没有快速取消、暂停或定位原派遣卡片；暂停属于 Phase 4，其他视觉与导航项需在后续 Phase 3 修订中决定是否回补。
 
 #### 验证
 
@@ -888,4 +884,4 @@ Phase 1/2 的偏差已转化为设计约束：当前链路以进程内快照为�
 - 第二波（T2）：`bun run check:frontend` 通过；`bun run build:vite` 通过；`sub-agent.registry.test.ts` 4/4 通过。
 - 2026-09-24 复核：`bun run test:run -- src/tools/sub-agent/__tests__/sub-agent.registry.test.ts` 4/4 通过。现有测试没有覆盖伴生视图的只读分支、异步切换乱序或任务事件之外的消息刷新。
 - 已知预存在失败（与本阶段无关）：`llm-chat/config/__tests__/parameter-config.test.ts` 的 Gemini `includeThoughts` 用例。
-- 2026-09-25 伴生分栏槽位：un run check:frontend 与 un run build:vite 通过。
+- 2026-09-25 伴生分栏、严格只读、加载版本守卫与双模透视：`bun run check:frontend` 与 `bun run build:vite` 通过。

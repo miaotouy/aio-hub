@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, inject } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import type {
   ChatMessageNode,
@@ -54,6 +54,8 @@ interface Props {
   inlineStatus?: boolean;
   /** 是否处于截图模式：隐藏 menubar,屏蔽 hover 边框变色 */
   screenshotMode?: boolean;
+  /** 阻断所有消息写操作，用于会话只读透视 */
+  readonly?: boolean;
 }
 
 interface Emits {
@@ -95,6 +97,13 @@ const translationContent = ref("");
 const isEditing = ref(false);
 
 // 计算属性
+const parentSessionReadOnly = inject(
+  "isSessionReadOnly",
+  computed(() => false)
+);
+const isSessionReadOnly = computed(
+  () => props.readonly || parentSessionReadOnly.value
+);
 const isDisabled = computed(
   () => props.message.isEnabled === false || props.isCompressed
 );
@@ -130,29 +139,43 @@ const backgroundBlocks = computed(() => {
 
 // 开始编辑
 const startEdit = () => {
+  if (isSessionReadOnly.value) return;
   isEditing.value = true;
 };
 
 // 保存编辑
 const saveEdit = (newContent: string, attachments?: Asset[]) => {
+  if (isSessionReadOnly.value) {
+    isEditing.value = false;
+    return;
+  }
   emit("edit", newContent, attachments);
   isEditing.value = false;
 };
 
 // 保存到分支
 const onSaveToBranch = (newContent: string, attachments?: Asset[]) => {
+  if (isSessionReadOnly.value) {
+    isEditing.value = false;
+    return;
+  }
   emit("save-to-branch", newContent, attachments);
-  isEditing.value = false; // 保存后同样退出编辑模式
+  isEditing.value = false;
 };
 
 // 事件处理函数（避免模板中的隐式 any）
-const onRegenerate = (options?: { modelId?: string; profileId?: string }) =>
-  emit("regenerate", options);
-const onContinue = (options?: { modelId?: string; profileId?: string }) =>
-  emit("continue", options);
-const onSwitchSibling = (direction: "prev" | "next") =>
-  emit("switch-sibling", direction);
-const onSwitchBranch = (nodeId: string) => emit("switch-branch", nodeId);
+const onRegenerate = (options?: { modelId?: string; profileId?: string }) => {
+  if (!isSessionReadOnly.value) emit("regenerate", options);
+};
+const onContinue = (options?: { modelId?: string; profileId?: string }) => {
+  if (!isSessionReadOnly.value) emit("continue", options);
+};
+const onSwitchSibling = (direction: "prev" | "next") => {
+  if (!isSessionReadOnly.value) emit("switch-sibling", direction);
+};
+const onSwitchBranch = (nodeId: string) => {
+  if (!isSessionReadOnly.value) emit("switch-branch", nodeId);
+};
 
 // 取消编辑
 const cancelEdit = () => {
@@ -174,7 +197,7 @@ const copyMessage = async () => {
 
 // 翻译消息
 const handleTranslate = async (targetLang?: string) => {
-  if (isTranslating.value) return;
+  if (isSessionReadOnly.value || isTranslating.value) return;
 
   const content = props.message.content;
   if (!content.trim()) {
@@ -220,7 +243,7 @@ const handleTranslate = async (targetLang?: string) => {
 
 // 切换翻译模式
 const handleChangeTranslationMode = (mode: any) => {
-  if (!props.message.metadata?.translation) return;
+  if (isSessionReadOnly.value || !props.message.metadata?.translation) return;
 
   const newTranslation = {
     ...props.message.metadata.translation,
@@ -232,7 +255,7 @@ const handleChangeTranslationMode = (mode: any) => {
 
 // 切换翻译显示状态
 const handleToggleTranslationVisible = () => {
-  if (!props.message.metadata?.translation) return;
+  if (isSessionReadOnly.value || !props.message.metadata?.translation) return;
 
   const newTranslation = {
     ...props.message.metadata.translation,
@@ -294,6 +317,7 @@ defineExpose({
         :hide-avatar="hideHeaderAvatar"
         :inline-status="props.inlineStatus"
         :screenshot-mode="props.screenshotMode"
+        :readonly="isSessionReadOnly"
       />
 
       <MessageKnowledgeReference
@@ -312,6 +336,7 @@ defineExpose({
         :rich-text-style-options="richTextStyleOptions"
         :message-depth="messageDepth"
         :screenshot-mode="props.screenshotMode"
+        :readonly="isSessionReadOnly"
         @save-edit="saveEdit"
         @cancel-edit="cancelEdit"
         @save-to-branch="onSaveToBranch"
@@ -319,7 +344,10 @@ defineExpose({
     </div>
 
     <!-- 悬浮操作栏（始终显示，除非正在编辑；截图模式完全不渲染） -->
-    <div class="menubar-wrapper" v-if="!isEditing && !props.screenshotMode">
+    <div
+      class="menubar-wrapper"
+      v-if="!isEditing && !props.screenshotMode && !isSessionReadOnly"
+    >
       <MessageMenubar
         :message="message"
         :is-sending="isSending"

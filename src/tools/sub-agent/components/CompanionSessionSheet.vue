@@ -273,6 +273,7 @@ onBeforeUnmount(() => {
           :is-sending="false"
           :scope-session-id="childSessionId"
           :screenshot-mode="true"
+          :readonly="true"
         />
       </div>
 

@@ -57,7 +57,8 @@
 ### D — Agent 与聊天可见功能
 
 - [ ] 继续补齐 Agent 详情、预设、开局消息、宏变量和聊天切换中的用户可见行为。
-- [ ] 私有头像、背景、预设附件和随包二进制资源按实际需求接入；先沿用现有 Agent 私有资产边界。
+- [x] PC PNG 角色卡的小型头像预览随 Agent 配置保存并在角色大厅、聊天选择器复用。
+- [ ] 私有头像文件、背景、预设附件和随包二进制资源按实际需求接入；继续沿用 Agent 私有资产边界。
 - [ ] 工具调用、RAG、Knowledge/Recall 和自主工作流保持独立设计，需求出现时再连续施工。
 
 实现入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。

@@ -72,6 +72,14 @@ async function deleteAgent(agent: ChatAgent) {
   if (confirmed) await agentStore.removeAgent(agent.id);
 }
 
+function isAvatarImage(agent: ChatAgent): boolean {
+  return Boolean(agent.avatarDataUrl?.startsWith("data:image/"));
+}
+
+function avatarLabel(agent: ChatAgent): string {
+  return agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI";
+}
+
 function uniqueAgentName(baseName: string): string {
   const names = new Set(agentStore.agents.map((agent) => agent.name));
   if (!names.has(baseName)) return baseName;
@@ -237,7 +245,12 @@ async function importAgents(event: Event): Promise<void> {
         :data-agent-id="agent.id"
       >
         <div class="agent-avatar">
-          {{ agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI" }}
+          <img
+            v-if="isAvatarImage(agent)"
+            :src="agent.avatarDataUrl"
+            :alt="agent.displayName || agent.name"
+          />
+          <span v-else>{{ avatarLabel(agent) }}</span>
         </div>
         <div class="agent-copy">
           <h2>{{ agent.displayName || agent.name }}</h2>
@@ -394,6 +407,11 @@ async function importAgents(event: Event): Promise<void> {
   font-weight: 700;
   overflow: hidden;
 }
+.agent-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .agent-copy {
   min-width: 0;
 }
@@ -437,6 +455,12 @@ async function importAgents(event: Event): Promise<void> {
 .empty-state span {
   font-size: 0.82rem;
   max-width: 260px;
+}
+@media (min-width: 520px) {
+  .header-action-label {
+    display: inline;
+    font-size: 0.82rem;
+  }
 }
 @media (max-width: 420px) {
   .agent-row {

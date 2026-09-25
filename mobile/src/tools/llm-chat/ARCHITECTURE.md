@@ -393,7 +393,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ### 7.5. 已实施的资产引用
 
-会话与消息 SQLite 迁移、附件存储/outbox、聊天内资产选择、provider wire、受控图片预览、文本文档提取和实时原件状态降级均已接入。Android Studio AVD 的确定性附件发送与 Ollama opt-in 验收已完成；Android 真机主流程和 iOS 仍是平台门禁，剩余施工以 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 为准。
+会话与消息 SQLite 迁移、附件存储/outbox、聊天内资产选择、provider wire、受控图片预览、文本文档提取和实时原件状态降级均已接入。Android Studio AVD 的确定性附件发送与 Ollama opt-in 验收已完成；Android 真机主流程和 iOS 仍是平台后续验证，剩余施工以 [`mobile-sqlite-migration-plan.md`](../../../docs/plan/mobile-sqlite-migration-plan.md) 为准。
 
 - 聊天消息附件使用 `ManagedAssetRef`：持久化 `assetId`、`usagePolicy` 和名称、类型、MIME、大小、提取文本等轻量快照，不保存资产路径。
 - `chat_attachments` 归 `llm_chat.db` 所有；资产原件和 tombstone 归 `asset_manager.db` 所有，两者不建立跨数据库外键。
@@ -536,7 +536,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 | **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                                                                                                                                                                     |
 | **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                                                                                                                                                                                |
 | **存储**       | ConfigManager + 独立文件                                             | `llm_chat.db` 增量存储；ConfigManager 仅保存当前会话 ID                                                                                                                                                                                                                                        |
-| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台门禁独立跟踪                                                                                                                                                                                                          |
+| **多模态**     | 支持完整 Asset 系统                                                  | 已接入 `ManagedAssetRef`、SQLite 附件快照、受控预览和 Rust 原生传输；平台后续验证独立跟踪                                                                                                                                                                                                      |
 
 ## 11. 关键代码约定
 
@@ -548,3 +548,20 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 6. **错误处理**: 使用 `createModuleErrorHandler(moduleName)` 和 `createModuleLogger(moduleName)`
 7. **附件引用**: 消费者只持久化 `assetId + 轻量快照`；不得把全局资产路径写入聊天数据
 8. **Agent 附件边界**: 智能体预设附件属于 Agent 私有资源，不转换成全局资产 ID
+
+## 12. 角色聊天的可用主路径
+
+当前移动端优先保证“导入角色卡 → 选择角色 → 开始对话”这一条可用路径：
+
+1. 在角色大厅点击导入，选择 PC 端 JSON 或 PNG 角色卡。
+2. 导入器统一解析 SillyTavern V2/V3 字段，并把设定整理成预设消息，把多开场白整理成会话根节点的可选助手分支。
+3. Agent Store 为角色补齐当前可用的 Profile/Model，角色头像和轻量配置写入 Agent 文件。
+4. 点击开始对话后，ChatHome 创建绑定角色的新会话，LlmChatView 读取预设和开场白，用户可以直接输入消息。
+
+### 消息列表交互
+
+`MessageList` 将滚动状态、当前可见消息和消息操作状态分开维护。用户向上浏览时，流式新内容不会强行拉回底部；列表离开底部后显示“回到底部”浮动操作，点击后恢复到最新消息。消息正文点击仍可展开操作栏，但代码复制、链接、媒体预览和输入控件等交互元素不会误触发消息激活。
+
+### 富文本渲染
+
+聊天正文统一交给 `RichTextRenderer`。渲染器保留 Markdown 语义、代码块复制/换行、思考块折叠、KaTeX、Mermaid、提示块、表格和受管媒体节点；流式内容以 80ms 节流重排，完成响应立即刷新。排版使用移动端主题 token，长单词、代码和窄屏表格允许横向滚动或断行，原始 HTML 继续以字面文本展示。

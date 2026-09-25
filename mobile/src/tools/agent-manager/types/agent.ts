@@ -63,6 +63,8 @@ export interface AgentBaseConfig {
   displayName?: string;
   description?: string;
   icon?: string;
+  /** PNG character-card preview retained for the agent avatar. */
+  avatarDataUrl?: string;
   presetMessages?: PresetMessage[];
   greetings?: GreetingMessage[];
   /** 默认选中的开局消息 ID；保留桌面端显式字段。 */

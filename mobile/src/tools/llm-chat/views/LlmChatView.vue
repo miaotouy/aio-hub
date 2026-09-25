@@ -41,6 +41,11 @@ const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
 );
 const selectableAgents = computed(() => agentStore.sortedAgents);
+const isAvatarImage = (agent: { avatarDataUrl?: string }) =>
+  Boolean(agent.avatarDataUrl?.startsWith("data:image/"));
+const avatarLabel = (agent: { icon?: string }) =>
+  agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI";
+
 const activeAgentLabel = computed(
   () =>
     activeAgent.value?.displayName ||
@@ -225,11 +230,14 @@ const goToChatHome = () => {
           @click="showAgentSelector = true"
         >
           <span class="active-agent-avatar">
-            {{
-              activeAgent?.icon?.length && activeAgent.icon.length <= 4
-                ? activeAgent.icon
-                : "AI"
-            }}
+            <img
+              v-if="activeAgent && isAvatarImage(activeAgent)"
+              :src="activeAgent.avatarDataUrl"
+              :alt="activeAgentLabel"
+            />
+            <span v-else>{{
+              activeAgent ? avatarLabel(activeAgent) : "AI"
+            }}</span>
           </span>
           <span class="active-agent-name">{{ activeAgentLabel }}</span>
           <ChevronDown :size="15" />
@@ -283,9 +291,12 @@ const goToChatHome = () => {
             @click="handleSelectAgent(agent.id)"
           >
             <span class="agent-selector-avatar">
-              {{
-                agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI"
-              }}
+              <img
+                v-if="isAvatarImage(agent)"
+                :src="agent.avatarDataUrl"
+                :alt="agent.displayName || agent.name"
+              />
+              <span v-else>{{ avatarLabel(agent) }}</span>
             </span>
             <span class="agent-selector-copy">
               <strong>{{ agent.displayName || agent.name }}</strong>
@@ -389,6 +400,13 @@ const goToChatHome = () => {
   color: white;
   font-size: 0.7rem;
   font-weight: 700;
+  overflow: hidden;
+}
+.active-agent-avatar img,
+.agent-selector-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .active-agent-name {
@@ -463,6 +481,7 @@ const goToChatHome = () => {
   background: var(--color-primary);
   font-size: 0.84rem;
   font-weight: 700;
+  overflow: hidden;
 }
 .agent-selector-copy {
   min-width: 0;

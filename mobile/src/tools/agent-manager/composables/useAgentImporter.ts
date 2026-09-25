@@ -42,6 +42,22 @@ function createMessage(
   };
 }
 
+function convertMacros(text: string): string {
+  return text
+    .replace(/<char>/gi, "{{char}}")
+    .replace(/<user>/gi, "{{user}}")
+    .replace(/<persona>/gi, "{{persona}}")
+    .replace(/<description>/gi, "{{description}}")
+    .replace(/<scenario>/gi, "{{scenario}}")
+    .replace(/<world>/gi, "{{world}}")
+    .replace(/\{\{char\}\}/gi, "{{char}}")
+    .replace(/\{\{user\}\}/gi, "{{user}}")
+    .replace(/\{\{persona\}\}/gi, "{{persona}}")
+    .replace(/\{\{description\}\}/gi, "{{description}}")
+    .replace(/\{\{scenario\}\}/gi, "{{scenario}}")
+    .replace(/\{\{world\}\}/gi, "{{world}}");
+}
+
 function normalizePresetMessages(value: unknown): PresetMessage[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((message) => ({
@@ -81,10 +97,14 @@ function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
 
 function isSillyTavernCard(value: unknown): value is UnknownRecord {
   if (!isRecord(value)) return false;
-  if (value.spec === "chara_card_v2" || value.spec === "chara_card_v3")
+  if (value.spec === "chara_card_v2" || value.spec === "chara_card_v3") {
     return true;
+  }
   const data = isRecord(value.data) ? value.data : value;
-  return Boolean(readString(data, "name") && "first_mes" in data);
+  return Boolean(
+    readString(data, "name") &&
+    ("first_mes" in data || "description" in data || "personality" in data)
+  );
 }
 
 function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
@@ -92,10 +112,16 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
   const name = readString(data, "name") || "Imported character";
   const messages: PresetMessage[] = [];
   const append = (key: string, label: string, prefix?: string) => {
-    const content = readString(data, key).trim();
+    const content = convertMacros(readString(data, key).trim());
     if (!content) return;
     messages.push(
-      createMessage(prefix ? `${prefix}\n${content}` : content, label)
+      createMessage(
+        prefix
+          ? `${prefix}
+${content}`
+          : content,
+        label
+      )
     );
   };
 
@@ -105,7 +131,9 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
   append("scenario", "Scenario", "[Scenario]");
   append("mes_example", "Example Messages", "[Example Dialogue]");
 
-  const postHistory = readString(data, "post_history_instructions").trim();
+  const postHistory = convertMacros(
+    readString(data, "post_history_instructions").trim()
+  );
   if (postHistory) {
     messages.push(
       createMessage(postHistory, "Post History Instructions", {
@@ -116,6 +144,23 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
     );
   }
 
+  const depthPrompt = isRecord(data.extensions)
+    ? data.extensions.depth_prompt
+    : undefined;
+  if (isRecord(depthPrompt) && readString(depthPrompt, "prompt")) {
+    messages.push(
+      createMessage(
+        convertMacros(readString(depthPrompt, "prompt")),
+        "Depth Prompt",
+        {
+          type: "depth",
+          depth: typeof depthPrompt.depth === "number" ? depthPrompt.depth : 4,
+          order: 100,
+        }
+      )
+    );
+  }
+
   const greetingContents = [
     readString(data, "first_mes"),
     ...(Array.isArray(data.alternate_greetings)
@@ -123,7 +168,9 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
           (item): item is string => typeof item === "string"
         )
       : []),
-  ].filter((content) => content.trim());
+  ]
+    .map((content) => convertMacros(content.trim()))
+    .filter(Boolean);
   const greetings: GreetingMessage[] = greetingContents.map(
     (content, index) => ({
       id: uuidv4(),
@@ -133,28 +180,67 @@ function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
     })
   );
 
+  const extensions = isRecord(data.extensions) ? data.extensions : undefined;
   return {
     version: 2,
     name,
     displayName: name,
     description:
-      readString(data, "description") || readString(data, "creator_notes"),
+      readString(data, "creator_notes") || readString(data, "creatorcomment"),
     category: AgentCategory.Character,
     icon: "Bot",
+    tags: Array.isArray(data.tags)
+      ? data.tags.filter((tag): tag is string => typeof tag === "string")
+      : [],
     presetMessages: messages,
     presetGroups: [],
     greetings,
+    // Keep the original card data available for later worldbook/regex import.
+    extensionConfig: {
+      source: "silly-tavern",
+      creator: readString(data, "creator"),
+      characterVersion: readString(data, "character_version"),
+      characterBook: data.character_book,
+      regexScripts: data.regex_scripts ?? extensions?.regex_scripts,
+    },
   };
 }
 
 function decodeBase64Json(value: string): unknown {
-  const bytes = Uint8Array.from(atob(value), (character) =>
+  const raw = value.trim();
+  if (raw.startsWith("{") || raw.startsWith("[")) return JSON.parse(raw);
+  const encoded = raw
+    .replace(/^data:[^,]+,/, "")
+    .replace(/\s+/g, "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+  const bytes = Uint8Array.from(atob(padded), (character) =>
     character.charCodeAt(0)
   );
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
+  if (typeof DecompressionStream === "undefined") return null;
+  const stream = new Blob([data])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function extractPngTextChunks(
+  buffer: ArrayBuffer
+): Promise<Record<string, string>> {
   const bytes = new Uint8Array(buffer);
   const view = new DataView(buffer);
   const chunks: Record<string, string> = {};
@@ -166,6 +252,7 @@ function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
     return chunks;
   }
 
+  const latin1 = new TextDecoder("latin1");
   let offset = 8;
   while (offset + 12 <= bytes.length) {
     const length = view.getUint32(offset);
@@ -173,36 +260,42 @@ function extractPngTextChunks(buffer: ArrayBuffer): Record<string, string> {
     const dataStart = typeStart + 4;
     const dataEnd = dataStart + length;
     if (dataEnd + 4 > bytes.length) break;
-    const type = new TextDecoder("latin1").decode(
-      bytes.subarray(typeStart, dataStart)
-    );
+    const type = latin1.decode(bytes.subarray(typeStart, dataStart));
     const data = bytes.subarray(dataStart, dataEnd);
 
     if (type === "tEXt") {
       const separator = data.indexOf(0);
       if (separator >= 0) {
-        const key = new TextDecoder("latin1").decode(
-          data.subarray(0, separator)
-        );
-        chunks[key] = new TextDecoder("latin1").decode(
+        chunks[latin1.decode(data.subarray(0, separator))] = latin1.decode(
           data.subarray(separator + 1)
         );
       }
-    } else if (type === "iTXt") {
+    } else if (type === "zTXt") {
       const separator = data.indexOf(0);
       if (separator >= 0 && data[separator + 1] === 0) {
-        let cursor = separator + 3;
+        const inflated = await inflate(data.subarray(separator + 2));
+        if (inflated) {
+          chunks[latin1.decode(data.subarray(0, separator))] =
+            latin1.decode(inflated);
+        }
+      }
+    } else if (type === "iTXt") {
+      const keywordEnd = data.indexOf(0);
+      if (keywordEnd >= 0 && data.length > keywordEnd + 2) {
+        const compressed = data[keywordEnd + 1] === 1;
+        let cursor = keywordEnd + 3;
         const languageEnd = data.indexOf(0, cursor);
         if (languageEnd >= 0) {
           cursor = languageEnd + 1;
           const translatedEnd = data.indexOf(0, cursor);
           if (translatedEnd >= 0) {
-            const key = new TextDecoder("latin1").decode(
-              data.subarray(0, separator)
-            );
-            chunks[key] = new TextDecoder().decode(
-              data.subarray(translatedEnd + 1)
-            );
+            cursor = translatedEnd + 1;
+            const payload = data.subarray(cursor);
+            const decoded = compressed ? await inflate(payload) : payload;
+            if (decoded) {
+              chunks[latin1.decode(data.subarray(0, keywordEnd))] =
+                new TextDecoder().decode(decoded);
+            }
           }
         }
       }
@@ -237,10 +330,19 @@ function parseImportPayload(payload: unknown): AgentImportResult {
 export function useAgentImporter() {
   async function parseFile(file: File): Promise<AgentImportResult> {
     if (file.name.toLowerCase().endsWith(".png") || file.type === "image/png") {
-      const chunks = extractPngTextChunks(await file.arrayBuffer());
+      const buffer = await file.arrayBuffer();
+      const chunks = await extractPngTextChunks(buffer);
       const encoded = chunks.ccv3 || chunks.chara;
       if (!encoded) throw new Error("PNG does not contain a character card");
-      return parseImportPayload(decodeBase64Json(encoded));
+      const result = parseImportPayload(decodeBase64Json(encoded));
+      if (file.size <= 3 * 1024 * 1024) {
+        const avatarDataUrl = `data:image/png;base64,${bytesToBase64(new Uint8Array(buffer))}`;
+        result.agents = result.agents.map((agent) => ({
+          ...agent,
+          avatarDataUrl,
+        }));
+      }
+      return result;
     }
     return parseImportPayload(JSON.parse(await file.text()));
   }

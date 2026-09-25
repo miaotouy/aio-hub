@@ -55,6 +55,15 @@ const tokenLabel = computed(() => {
     return t("字符估算");
   return t("o200k 预估");
 });
+
+function handleContentClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest("button, a, input, textarea, select, video, audio")) {
+    return;
+  }
+  event.stopPropagation();
+  emit("click");
+}
 </script>
 
 <template>
@@ -94,15 +103,7 @@ const tokenLabel = computed(() => {
     </div>
 
     <div class="message-container">
-      <div
-        class="content-body"
-        @click="
-          (e) => {
-            e.stopPropagation();
-            emit('click');
-          }
-        "
-      >
+      <div class="content-body" @click="handleContentClick">
         <MessageContent :message="message" />
       </div>
 

@@ -199,7 +199,8 @@
   },
   "MessageList": {
     "开始新的对话": "Start a new chat",
-    "空会话提示": "Send a message to display the active branch of this conversation."
+    "空会话提示": "Send a message to display the active branch of this conversation.",
+    "回到底部": "Back to bottom"
   },
   "UserProfiles": {
     "用户档案": "User Profiles",

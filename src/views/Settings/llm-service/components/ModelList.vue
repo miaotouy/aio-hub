@@ -387,7 +387,7 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
               <el-popconfirm
                 :title="`确定删除 '${group.name}' 分组下的所有模型吗?`"
                 width="240"
-                @confirm.stop="deleteGroup(group)"
+                @confirm="deleteGroup(group)"
               >
                 <template #reference>
                   <span style="display: inline-flex">

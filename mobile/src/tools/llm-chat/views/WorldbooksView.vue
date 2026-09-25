@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { BookOpen, ChevronLeft, Pencil, Plus, Trash2 } from "lucide-vue-next";
+import {
+  BookOpen,
+  ChevronLeft,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
@@ -22,6 +29,7 @@ const editingId = ref<string | null>(null);
 const entryWorldbookId = ref<string | null>(null);
 const entryEditingId = ref<string | null>(null);
 const saving = ref(false);
+const importFileInput = ref<HTMLInputElement | null>(null);
 const draft = ref({ name: "", description: "", enabled: true });
 const entryDraft = ref({
   name: "",
@@ -173,6 +181,38 @@ async function removeEntry(
   await store.removeEntry(worldbook.id, entry.id);
   customMessage(t("条目已删除"), "success");
 }
+
+async function importWorldbookFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text()) as unknown;
+    const book =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    const entries = book?.entries;
+    const hasEntries =
+      Array.isArray(entries) ||
+      (typeof entries === "object" && entries !== null);
+    if (!book || !hasEntries) {
+      customMessage(t("不支持的格式"), "warning");
+      return;
+    }
+    const result = await store.importFromSillyTavern({
+      book,
+      name: file.name.replace(/\.[^/.]+$/, ""),
+    });
+    if (result.warnings.length > 0) {
+      customMessage(result.warnings.join("\n"), "warning");
+    }
+    customMessage(t("导入成功"), "success");
+  } catch {
+    customMessage(t("导入失败"), "error");
+  }
+}
 </script>
 
 <template>
@@ -191,15 +231,33 @@ async function removeEntry(
         <h1>{{ t("世界书") }}</h1>
         <p>{{ t("说明") }}</p>
       </div>
-      <button
-        class="icon-button primary"
-        type="button"
-        data-testid="worldbook-create"
-        :aria-label="t('新建')"
-        @click="openCreate"
-      >
-        <Plus :size="22" />
-      </button>
+      <div class="header-actions">
+        <button
+          class="icon-button"
+          type="button"
+          data-testid="worldbook-import"
+          :aria-label="t('导入')"
+          @click="importFileInput?.click()"
+        >
+          <Upload :size="20" />
+        </button>
+        <button
+          class="icon-button primary"
+          type="button"
+          data-testid="worldbook-create"
+          :aria-label="t('新建')"
+          @click="openCreate"
+        >
+          <Plus :size="22" />
+        </button>
+        <input
+          ref="importFileInput"
+          class="file-input"
+          type="file"
+          accept="application/json,.json"
+          @change="importWorldbookFile"
+        />
+      </div>
     </header>
 
     <main class="worldbook-list">
@@ -443,6 +501,14 @@ async function removeEntry(
 .create-button {
   color: var(--color-on-primary);
   background: var(--color-primary);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.file-input {
+  display: none;
 }
 .worldbook-list {
   display: grid;

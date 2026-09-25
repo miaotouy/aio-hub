@@ -1,3 +1,5 @@
+import { unzipSync, type Unzipped } from "fflate";
+import { load as loadYaml } from "js-yaml";
 import { v4 as uuidv4 } from "uuid";
 import {
   AgentCategory,
@@ -8,9 +10,27 @@ import {
 
 export type ImportedAgentDraft = Partial<ChatAgent> & Pick<ChatAgent, "name">;
 
+/**
+ * 导入过程中检测到的 ST 世界书源数据。
+ * 导入器保持纯函数组合，不在本模块内落库；
+ * 调用方（AgentList.vue）用它调用 worldbookStore 的导入方法。
+ */
+export interface ImportedWorldbookSource {
+  /** ST 原始世界书结构（entries 数组或 entries 字典） */
+  book: UnknownRecord;
+  /** 建议的世界书名称 */
+  name: string;
+  /** 待绑定到 result.agents 的索引列表 */
+  agentIndexes: number[];
+}
+
 export interface AgentImportResult {
   agents: ImportedAgentDraft[];
   source: "aio" | "silly-tavern";
+  /** 不可表达语义 / 未消费资源的汇总提示，由调用方透出给用户 */
+  warnings: string[];
+  /** ST 卡内嵌世界书（含 V2 data.character_book 与 V3 extensions.character_book） */
+  importedWorldbooks?: ImportedWorldbookSource[];
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -105,6 +125,166 @@ function isSillyTavernCard(value: unknown): value is UnknownRecord {
     readString(data, "name") &&
     ("first_mes" in data || "description" in data || "personality" in data)
   );
+}
+
+/** ST 正则脚本（SillyTavern Regex Engine 导出格式） */
+interface STRegexScript {
+  scriptName?: string;
+  findRegex?: string;
+  replaceString?: string;
+  placement?: number[];
+  disabled?: boolean;
+  markdownOnly?: boolean;
+  promptOnly?: boolean;
+  minDepth?: number | null;
+  maxDepth?: number | null;
+  trimStrings?: unknown;
+  substituteRegex?: number | null;
+  [key: string]: unknown;
+}
+
+/** 移动端 regex-processor 消费的 agentConfig.regexConfig 结构 */
+export interface MobileRegexConfig {
+  presets: Array<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    order: number;
+    createdAt: number;
+    updatedAt: number;
+    rules: Array<{
+      id: string;
+      enabled: boolean;
+      name?: string;
+      regex: string;
+      replacement: string;
+      flags?: string;
+      applyTo: { render: boolean; request: boolean };
+      targetRoles: Array<"system" | "user" | "assistant">;
+      depthRange?: { min?: number; max?: number };
+      order?: number;
+    }>;
+  }>;
+}
+
+/** ST findRegex 支持 /pattern/flags 与纯模式两种写法 */
+function parseRegexString(regexString: string): {
+  pattern: string;
+  flags: string;
+} {
+  if (!regexString) return { pattern: "", flags: "gm" };
+  const matched = regexString.match(/^\/(.*)\/([gimsuy]*)$/s);
+  if (matched) return { pattern: matched[1], flags: matched[2] || "gm" };
+  return { pattern: regexString, flags: "gm" };
+}
+
+/**
+ * ST placement 枚举 → 消息角色：
+ * 0=MD_DISPLAY(全部)、1=USER_INPUT、2=AI_OUTPUT、5=WORLD_INFO(system)、6=REASONING(assistant)
+ */
+function convertPlacementToTargetRoles(
+  script: STRegexScript
+): Array<"system" | "user" | "assistant"> {
+  if (!Array.isArray(script.placement) || script.placement.length === 0) {
+    return ["system", "user", "assistant"];
+  }
+  const roles = new Set<"system" | "user" | "assistant">();
+  if (script.placement.includes(0)) {
+    roles.add("system");
+    roles.add("user");
+    roles.add("assistant");
+  }
+  if (script.placement.includes(1)) roles.add("user");
+  if (script.placement.includes(2) || script.placement.includes(6))
+    roles.add("assistant");
+  if (script.placement.includes(5)) roles.add("system");
+  return roles.size > 0
+    ? [...roles]
+    : ["system", "user", "assistant"];
+}
+
+/**
+ * 把 ST regex_scripts 数组转换为移动端 request 阶段可执行的预设。
+ * 只保留 regex-processor 能表达的语义；其余进 warnings（不静默）。
+ */
+function convertRegexScripts(
+  scripts: unknown,
+  presetName: string,
+  warnings: string[]
+): MobileRegexConfig | undefined {
+  if (!Array.isArray(scripts)) return undefined;
+  const rules: MobileRegexConfig["presets"][number]["rules"] = [];
+  let skippedRenderOnly = 0;
+  let skippedEmpty = 0;
+  let warnedAdvancedFields = false;
+
+  scripts.forEach((raw, index) => {
+    if (!isRecord(raw)) return;
+    const script = raw as STRegexScript;
+    const findRegex = typeof script.findRegex === "string" ? script.findRegex : "";
+    if (!findRegex) {
+      skippedEmpty++;
+      return;
+    }
+    // markdownOnly = 仅渲染阶段；移动端暂无渲染层正则，无法表达
+    if (script.markdownOnly) {
+      skippedRenderOnly++;
+      return;
+    }
+    if (
+      !warnedAdvancedFields &&
+      (Array.isArray(script.trimStrings) ||
+        (script.substituteRegex ?? 0) !== 0)
+    ) {
+      warnings.push("正则脚本的 trimStrings / substituteRegex 高级选项未迁移。");
+      warnedAdvancedFields = true;
+    }
+    const { pattern, flags } = parseRegexString(findRegex);
+    const depthRange =
+      typeof script.minDepth === "number" || typeof script.maxDepth === "number"
+        ? {
+            min: typeof script.minDepth === "number" ? script.minDepth : undefined,
+            max: typeof script.maxDepth === "number" ? script.maxDepth : undefined,
+          }
+        : undefined;
+    rules.push({
+      id: crypto.randomUUID(),
+      enabled: !script.disabled,
+      name: script.scriptName || "未命名规则",
+      regex: pattern,
+      replacement: typeof script.replaceString === "string" ? script.replaceString : "",
+      flags,
+      // promptOnly / 默认均落到 request；render 阶段留给批次 4
+      applyTo: { render: false, request: true },
+      targetRoles: convertPlacementToTargetRoles(script),
+      depthRange,
+      order: index,
+    });
+  });
+
+  if (skippedRenderOnly > 0) {
+    warnings.push(
+      `跳过 ${skippedRenderOnly} 条仅渲染（markdownOnly）正则规则：移动端暂不支持渲染层正则。`
+    );
+  }
+  if (skippedEmpty > 0) {
+    warnings.push(`跳过 ${skippedEmpty} 条缺少匹配表达式的正则规则。`);
+  }
+  if (rules.length === 0) return undefined;
+
+  return {
+    presets: [
+      {
+        id: crypto.randomUUID(),
+        name: presetName,
+        enabled: true,
+        order: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        rules,
+      },
+    ],
+  };
 }
 
 function convertSillyTavernCard(card: UnknownRecord): ImportedAgentDraft {
@@ -206,6 +386,63 @@ ${content}`
   };
 }
 
+/**
+ * 提取 ST 卡内嵌世界书（V2 data.character_book、V3 extensions.character_book）
+ * 与 regex_scripts（data.regex_scripts、extensions.regex_scripts、
+ * character_book.regex_scripts）。
+ * 转换成功后从 extensionConfig 移除对应存档，避免双份数据。
+ */
+function postProcessSillyTavernDraft(
+  draft: ImportedAgentDraft,
+  agentIndex: number,
+  importedWorldbooks: ImportedWorldbookSource[],
+  warnings: string[]
+): void {
+  const extensionConfig = isRecord(draft.extensionConfig)
+    ? draft.extensionConfig
+    : undefined;
+  if (!extensionConfig) return;
+
+  const book = extensionConfig.characterBook;
+  // ST 卡内嵌 character_book 的 entries 可能是数组，世界书导出文件则是字典，两者都要接受
+  const bookEntries = isRecord(book) ? book.entries : undefined;
+  const hasBookEntries = Array.isArray(bookEntries) || isRecord(bookEntries);
+  const scripts =
+    extensionConfig.regexScripts ??
+    (isRecord(book) ? book.regex_scripts : undefined);
+
+  if (isRecord(book) && hasBookEntries) {
+    const bookName =
+      (isRecord(book.metadata) && readString(book.metadata, "name")) ||
+      readString(book, "name") ||
+      draft.displayName ||
+      draft.name ||
+      "Imported Worldbook";
+    importedWorldbooks.push({
+      book,
+      name: bookName,
+      agentIndexes: [agentIndex],
+    });
+    // 交给调用方落库绑定 worldbookIds，不再保留双份存档
+    delete extensionConfig.characterBook;
+  }
+
+  if (Array.isArray(scripts)) {
+    const regexConfig = convertRegexScripts(
+      scripts,
+      `${draft.name} - 导入正则`,
+      warnings
+    );
+    if (regexConfig) {
+      draft.regexConfig = regexConfig;
+      warnings.push(
+        `已转换 ${regexConfig.presets[0].rules.length} 条请求阶段正则规则。`
+      );
+    }
+    delete extensionConfig.regexScripts;
+  }
+}
+
 function decodeBase64Json(value: string): unknown {
   const raw = value.trim();
   if (raw.startsWith("{") || raw.startsWith("[")) return JSON.parse(raw);
@@ -228,6 +465,12 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
   }
   return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const encoded = base64.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
 async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
@@ -307,11 +550,81 @@ async function extractPngTextChunks(
   return chunks;
 }
 
+/** 包内可被消费的配置文件（与桌面端 agentImportService 的匹配规则一致） */
+const AGENT_CONFIG_JSON = /\.agent\.json$/;
+const AGENT_CONFIG_YAML = /\.agent\.(yaml|yml)$/;
+
+function findConfigEntry(entries: Unzipped): {
+  name: string;
+  data: Uint8Array;
+} | null {
+  for (const [name, data] of Object.entries(entries)) {
+    if (name.endsWith("/") || data.length === 0) continue;
+    if (AGENT_CONFIG_JSON.test(name)) return { name, data };
+  }
+  for (const [name, data] of Object.entries(entries)) {
+    if (name.endsWith("/") || data.length === 0) continue;
+    if (AGENT_CONFIG_YAML.test(name)) return { name, data };
+  }
+  return null;
+}
+
+/** 统计包内未被消费的资源文件（assets、世界书等） */
+function countUnconsumedEntries(entries: Unzipped): number {
+  return Object.keys(entries).filter(
+    (name) =>
+      !name.endsWith("/") &&
+      !AGENT_CONFIG_JSON.test(name) &&
+      !AGENT_CONFIG_YAML.test(name)
+  ).length;
+}
+
+function parseConfigBytes(name: string, data: Uint8Array): unknown {
+  const text = new TextDecoder().decode(data);
+  if (AGENT_CONFIG_YAML.test(name)) return loadYaml(text);
+  return JSON.parse(text);
+}
+
+/**
+ * 解析 AIO Agent Bundle（.agent.zip 或 PNG aiob chunk 内的 ZIP）。
+ * 本阶段只消费包内 *.agent.json / *.agent.yaml 配置；
+ * assets/、worldbooks/ 等资源不解包消费，统一通过 warnings 告知。
+ */
+function parseAgentBundle(zipBytes: Uint8Array): AgentImportResult {
+  let entries: Unzipped;
+  try {
+    entries = unzipSync(zipBytes);
+  } catch {
+    throw new Error("Unsupported agent file");
+  }
+  const config = findConfigEntry(entries);
+  if (!config) {
+    throw new Error("Unsupported agent file");
+  }
+  const payload = parseConfigBytes(config.name, config.data);
+  const result = parseImportPayload(payload);
+
+  const unconsumed = countUnconsumedEntries(entries);
+  if (unconsumed > 0) {
+    result.warnings.push(
+      `导入包内 ${unconsumed} 个资源文件（头像、资产、世界书等）暂未迁移，可在 PC 端查看。`
+    );
+  }
+  return result;
+}
+
 function parseImportPayload(payload: unknown): AgentImportResult {
+  const warnings: string[] = [];
+  const importedWorldbooks: ImportedWorldbookSource[] = [];
+
   if (isSillyTavernCard(payload)) {
+    const draft = convertSillyTavernCard(payload);
+    postProcessSillyTavernDraft(draft, 0, importedWorldbooks, warnings);
     return {
-      agents: [convertSillyTavernCard(payload)],
+      agents: [draft],
       source: "silly-tavern",
+      warnings,
+      ...(importedWorldbooks.length > 0 ? { importedWorldbooks } : {}),
     };
   }
   if (!isRecord(payload)) throw new Error("Unsupported agent file");
@@ -324,17 +637,50 @@ function parseImportPayload(payload: unknown): AgentImportResult {
     .map(normalizeAioAgent)
     .filter((agent): agent is ImportedAgentDraft => agent !== null);
   if (agents.length === 0) throw new Error("No valid agents found");
-  return { agents, source: "aio" };
+  return { agents, source: "aio", warnings };
 }
 
 export function useAgentImporter() {
   async function parseFile(file: File): Promise<AgentImportResult> {
-    if (file.name.toLowerCase().endsWith(".png") || file.type === "image/png") {
+    const lowerName = file.name.toLowerCase();
+
+    if (lowerName.endsWith(".zip")) {
+      return parseAgentBundle(new Uint8Array(await file.arrayBuffer()));
+    }
+
+    if (lowerName.endsWith(".png") || file.type === "image/png") {
       const buffer = await file.arrayBuffer();
       const chunks = await extractPngTextChunks(buffer);
+      // ST 卡与 AIO 包并存时保持 ST 卡优先
       const encoded = chunks.ccv3 || chunks.chara;
-      if (!encoded) throw new Error("PNG does not contain a character card");
-      const result = parseImportPayload(decodeBase64Json(encoded));
+      let result: AgentImportResult;
+      if (encoded) {
+        result = parseImportPayload(decodeBase64Json(encoded));
+      } else if (chunks.aiob) {
+        const bundle = JSON.parse(chunks.aiob) as {
+          type?: unknown;
+          compressed?: unknown;
+          data?: unknown;
+        };
+        if (
+          !isRecord(bundle) ||
+          bundle.type !== "AIO_Agent_Bundle" ||
+          typeof bundle.data !== "string"
+        ) {
+          throw new Error("PNG does not contain a character card");
+        }
+        const bytes = base64ToBytes(bundle.data);
+        // compressed 恒为 true（data 是 ZIP）；兼容 compressed=false 的 JSON 直存
+        result =
+          bundle.compressed === false
+            ? parseImportPayload(
+                JSON.parse(new TextDecoder().decode(bytes))
+              )
+            : parseAgentBundle(bytes);
+        result.warnings.unshift("已从 AIO PNG 包导入。");
+      } else {
+        throw new Error("PNG does not contain a character card");
+      }
       if (file.size <= 3 * 1024 * 1024) {
         const avatarDataUrl = `data:image/png;base64,${bytesToBase64(new Uint8Array(buffer))}`;
         result.agents = result.agents.map((agent) => ({
@@ -343,6 +689,10 @@ export function useAgentImporter() {
         }));
       }
       return result;
+    }
+
+    if (lowerName.endsWith(".yaml") || lowerName.endsWith(".yml")) {
+      return parseImportPayload(loadYaml(await file.text()));
     }
     return parseImportPayload(JSON.parse(await file.text()));
   }

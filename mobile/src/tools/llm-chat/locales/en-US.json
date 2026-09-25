@@ -22,6 +22,10 @@
   "Worldbooks": {
     "世界书": "Worldbooks",
     "说明": "Inject character background deterministically by keyword. Choose Worldbooks in the agent editor.",
+    "导入": "Import Worldbook",
+    "导入成功": "Worldbook imported",
+    "导入失败": "Could not import Worldbook. Check the file format.",
+    "不支持的格式": "Unsupported format: missing an entries field",
     "返回": "Back",
     "新建": "New",
     "编辑": "Edit",

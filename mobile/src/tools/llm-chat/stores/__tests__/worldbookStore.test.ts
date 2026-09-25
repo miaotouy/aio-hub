@@ -93,4 +93,74 @@ describe("worldbookStore", () => {
       "WORLDBOOK_NAME_DUPLICATE"
     );
   });
+
+  it("imports SillyTavern entries and downgrades advanced positions with warnings", async () => {
+    const store = useWorldbookStore();
+    await store.init();
+
+    const { worldbook, warnings } = await store.importFromSillyTavern({
+      name: "Starport",
+      book: {
+        entries: [
+          {
+            keys: ["starport", "dock"],
+            content: "A busy port.",
+            position: "before_char",
+            order: 10,
+          },
+          {
+            key: "harbor",
+            content: "Ships anchor here.",
+            position: "after_an",
+          },
+        ],
+      },
+    });
+
+    expect(worldbook.name).toBe("Starport");
+    expect(worldbook.entries).toHaveLength(2);
+    expect(worldbook.entries[0]).toMatchObject({
+      keys: ["starport", "dock"],
+      position: "before_history",
+      order: 10,
+    });
+    expect(worldbook.entries[1]).toMatchObject({
+      keys: ["harbor"],
+      position: "after_character",
+    });
+    expect(warnings.join(" ")).toContain("降级");
+  });
+
+  it("accepts dictionary entries and deduplicates the imported Worldbook name", async () => {
+    const store = useWorldbookStore();
+    await store.init();
+    await store.createWorldbook({ name: "Lore" });
+
+    const { worldbook } = await store.importFromSillyTavern({
+      name: "Lore",
+      book: { entries: { 0: { key: ["starport"], content: "A fact." } } },
+    });
+
+    expect(worldbook.name).toBe("Lore (2)");
+    expect(worldbook.entries).toHaveLength(1);
+    expect(state.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        worldbooks: expect.arrayContaining([
+          expect.objectContaining({ id: worldbook.id }),
+        ]),
+      })
+    );
+  });
+
+  it("rejects invalid or empty SillyTavern worldbooks", async () => {
+    const store = useWorldbookStore();
+    await store.init();
+
+    await expect(
+      store.importFromSillyTavern({ book: { notEntries: true } })
+    ).rejects.toThrow("INVALID_WORLDBOOK");
+    await expect(
+      store.importFromSillyTavern({ book: { entries: [] } })
+    ).rejects.toThrow("EMPTY_WORLDBOOK");
+  });
 });

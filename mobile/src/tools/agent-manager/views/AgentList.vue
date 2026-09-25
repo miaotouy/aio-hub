@@ -15,6 +15,7 @@ import SafeTop from "@/components/SafeTop.vue";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
+import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
 import { useAgentImporter } from "../composables/useAgentImporter";
 import { useAgentStore } from "../stores/agentStore";
 import { AgentCategory, type ChatAgent } from "../types/agent";
@@ -22,6 +23,7 @@ import { AgentCategory, type ChatAgent } from "../types/agent";
 const router = useRouter();
 const agentStore = useAgentStore();
 const profilesStore = useLlmProfilesStore();
+const worldbookStore = useWorldbookStore();
 const { parseFile } = useAgentImporter();
 const { tRaw } = useI18n();
 const search = ref("");
@@ -88,18 +90,58 @@ function uniqueAgentName(baseName: string): string {
   return `${baseName}-${suffix}`;
 }
 
+function describeImportError(error: unknown, fileName: string): string {
+  const code = error instanceof Error ? error.message : "";
+  const reasonKey =
+    code === "Unsupported agent file"
+      ? "不支持的文件格式"
+      : code === "No valid agents found"
+        ? "文件中没有有效智能体"
+        : code === "No enabled model profile"
+          ? "没有可用模型"
+          : code === "PNG does not contain a character card"
+            ? "PNG 中未找到角色卡"
+            : code === "INVALID_WORLDBOOK"
+              ? "世界书格式无效"
+              : code === "EMPTY_WORLDBOOK"
+                ? "世界书没有可用条目"
+                : "导入失败";
+  return `${fileName}：${tRaw(`tools.agent-manager.AgentList.${reasonKey}`)}`;
+}
+
 async function importAgents(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files || []);
   if (files.length === 0) return;
   let importedCount = 0;
   let failedCount = 0;
+  const notices: string[] = [];
   try {
     if (!profilesStore.isLoaded) await profilesStore.init();
     for (const file of files) {
       try {
         const result = await parseFile(file);
-        for (const draft of result.agents) {
+        // 先把导入器提取的 ST 世界书落库，拿到新 id 后再绑定到对应 Agent
+        const worldbookIdByAgentIndex = new Map<number, string>();
+        if (result.importedWorldbooks?.length) {
+          await worldbookStore.init();
+          for (const source of result.importedWorldbooks) {
+            const imported = await worldbookStore.importFromSillyTavern({
+              book: source.book,
+              name: source.name,
+            });
+            notices.push(...imported.warnings);
+            for (const agentIndex of source.agentIndexes) {
+              worldbookIdByAgentIndex.set(agentIndex, imported.worldbook.id);
+            }
+          }
+        }
+        for (
+          let agentIndex = 0;
+          agentIndex < result.agents.length;
+          agentIndex++
+        ) {
+          const draft = result.agents[agentIndex];
           const importedProfile = profilesStore.enabledProfiles.find(
             (profile) =>
               profile.id === draft.profileId &&
@@ -111,9 +153,7 @@ async function importAgents(event: Event): Promise<void> {
           const profile =
             importedProfile ||
             modelProfile ||
-            profilesStore.enabledProfiles.find(
-              (item) => item.models.length > 0
-            );
+            profilesStore.enabledProfiles.find((item) => item.models.length > 0);
           if (!profile) throw new Error("No enabled model profile");
           const modelId = profile.models.some(
             (model) => model.id === draft.modelId
@@ -128,10 +168,18 @@ async function importAgents(event: Event): Promise<void> {
           overrides.displayName ||= draft.name;
           overrides.profileId = profile.id;
           overrides.modelId = modelId;
+          const worldbookId = worldbookIdByAgentIndex.get(agentIndex);
+          if (worldbookId) {
+            overrides.worldbookIds = [
+              ...new Set([...(overrides.worldbookIds ?? []), worldbookId]),
+            ];
+          }
           if (await agentStore.createAgent(overrides)) importedCount++;
         }
-      } catch {
+        notices.push(...result.warnings);
+      } catch (error) {
         failedCount++;
+        notices.push(describeImportError(error, file.name));
       }
     }
     if (importedCount > 0)
@@ -144,6 +192,7 @@ async function importAgents(event: Event): Promise<void> {
         `${tRaw("tools.agent-manager.AgentList.导入失败")} ${failedCount}`,
         "warning"
       );
+    if (notices.length > 0) customMessage(notices.join("\n"), "warning");
   } finally {
     input.value = "";
   }
@@ -187,7 +236,7 @@ async function importAgents(event: Event): Promise<void> {
           ref="importFileInput"
           class="file-input"
           type="file"
-          accept="application/json,image/png,.json,.png"
+          accept="application/json,image/png,.json,.png,.yaml,.yml,.zip"
           multiple
           @change="importAgents"
         />

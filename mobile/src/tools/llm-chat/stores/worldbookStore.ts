@@ -8,6 +8,7 @@ import type {
   MobileWorldbook,
   MobileWorldbookConfig,
   MobileWorldbookEntry,
+  WorldbookEntryPosition,
 } from "../types";
 
 const logger = createModuleLogger("llm-chat/worldbook-store");
@@ -27,6 +28,130 @@ const worldbookManager = createConfigManager<MobileWorldbookConfig>({
 
 function normalizeName(name: string): string {
   return name.trim().toLocaleLowerCase();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readString(record: Record<string, unknown>, key: string): string {
+  return typeof record[key] === "string" ? (record[key] as string) : "";
+}
+
+/** ST 数字位置枚举 → 移动端三值位置（0 before_char、1 after_char、4 depth 等） */
+const ST_NUMBER_POSITIONS: Record<number, WorldbookEntryPosition> = {
+  0: "before_history",
+  1: "after_character",
+  2: "before_history",
+  3: "after_character",
+  4: "depth",
+  5: "before_history",
+  6: "after_character",
+  7: "before_history",
+};
+
+/** ST 字符串位置 → 移动端三值位置 */
+const ST_STRING_POSITIONS: Record<string, WorldbookEntryPosition> = {
+  before_char: "before_history",
+  before_an: "before_history",
+  before_em: "before_history",
+  after_char: "after_character",
+  after_an: "after_character",
+  after_em: "after_character",
+  depth: "depth",
+  at_depth: "depth",
+  outlet: "before_history",
+};
+
+const ST_EXACT_NUMBER_POSITIONS = new Set([0, 1, 4]);
+const ST_EXACT_STRING_POSITIONS = new Set([
+  "before_char",
+  "after_char",
+  "depth",
+  "at_depth",
+]);
+
+/**
+ * 解析 ST 条目插入位置。移动端仅有 before_history / after_character / depth 三值，
+ * 高级位置（before_an/after_an/before_em/after_em/outlet）就近降级，
+ * `exact` 为 false 时由调用方汇总进 warnings，避免静默丢失。
+ */
+function resolveStPosition(
+  rawPosition: unknown,
+  extensions: Record<string, unknown> | undefined
+): { position: WorldbookEntryPosition; exact: boolean } {
+  const value = rawPosition ?? extensions?.position;
+  if (typeof value === "number") {
+    return {
+      position: ST_NUMBER_POSITIONS[value] ?? "before_history",
+      exact: ST_EXACT_NUMBER_POSITIONS.has(value),
+    };
+  }
+  if (typeof value === "string") {
+    const key = value.toLowerCase();
+    return {
+      position: ST_STRING_POSITIONS[key] ?? "before_history",
+      exact: ST_EXACT_STRING_POSITIONS.has(key),
+    };
+  }
+  return { position: "before_history", exact: true };
+}
+
+/** 把单条 ST 世界书条目归一化为移动端条目；无内容条目丢弃 */
+function normalizeStEntry(
+  raw: unknown,
+  index: number,
+  warnings: string[]
+): MobileWorldbookEntry | null {
+  if (!isRecord(raw)) return null;
+  const content = readString(raw, "content").trim();
+  if (!content) return null;
+  const extensions = isRecord(raw.extensions) ? raw.extensions : undefined;
+  const rawKeys = raw.key ?? raw.keys;
+  const keys = Array.isArray(rawKeys)
+    ? rawKeys
+        .filter((key): key is string => typeof key === "string")
+        .map((key) => key.trim())
+        .filter(Boolean)
+    : typeof rawKeys === "string"
+      ? rawKeys
+          .split(",")
+          .map((key) => key.trim())
+          .filter(Boolean)
+      : [];
+  const { position, exact } = resolveStPosition(raw.position, extensions);
+  if (!exact) {
+    const label = readString(raw, "comment") || `#${index}`;
+    warnings.push(
+      `世界书条目「${label}」的插入位置 ${String(raw.position ?? extensions?.position)} 已降级为 ${position}。`
+    );
+  }
+  const order = Number(raw.order ?? raw.insertion_order);
+  const depth = Number(raw.depth ?? extensions?.depth);
+  const scanDepth = Number(
+    raw.scanDepth ?? raw.scan_depth ?? extensions?.scan_depth
+  );
+  return {
+    id: String(raw.uid ?? raw.id ?? index),
+    name: readString(raw, "comment") || undefined,
+    keys,
+    content,
+    enabled: !(
+      raw.disable === true ||
+      raw.disabled === true ||
+      raw.enabled === false
+    ),
+    constant: raw.constant === true,
+    order: Number.isFinite(order) ? order : 100,
+    position,
+    depth: Number.isFinite(depth) ? Math.max(0, Math.floor(depth)) : 4,
+    scanDepth: Number.isFinite(scanDepth)
+      ? Math.max(1, Math.floor(scanDepth))
+      : undefined,
+    caseSensitive: raw.caseSensitive === true || raw.case_sensitive === true,
+    matchWholeWords:
+      raw.matchWholeWords === true || raw.match_whole_words === true,
+  };
 }
 
 export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
@@ -188,6 +313,64 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
       );
   }
 
+  /** 导入时名称冲突自动追加序号，避免整本书导入失败 */
+  function uniqueWorldbookName(base: string): string {
+    const trimmed = base.trim() || "Imported Worldbook";
+    const exists = (candidate: string) =>
+      worldbooks.value.some(
+        (worldbook) => normalizeName(worldbook.name) === normalizeName(candidate)
+      );
+    if (!exists(trimmed)) return trimmed;
+    let suffix = 2;
+    while (exists(`${trimmed} (${suffix})`)) suffix++;
+    return `${trimmed} (${suffix})`;
+  }
+
+  /**
+   * 导入 SillyTavern 世界书（entries 数组或字典均可）。
+   * 映射为移动端简化模型：三值位置、关键词、常量、顺序与扫描深度；
+   * 移动端无法表达的高级位置等语义通过 warnings 汇总，不静默丢弃。
+   */
+  async function importFromSillyTavern(input: {
+    book: unknown;
+    name?: string;
+  }): Promise<{ worldbook: MobileWorldbook; warnings: string[] }> {
+    if (!isRecord(input.book)) throw new Error("INVALID_WORLDBOOK");
+    const rawEntries = input.book.entries;
+    if (!Array.isArray(rawEntries) && !isRecord(rawEntries)) {
+      throw new Error("INVALID_WORLDBOOK");
+    }
+    const entriesSource = Array.isArray(rawEntries)
+      ? rawEntries
+      : Object.values(rawEntries);
+    const warnings: string[] = [];
+    const entries = entriesSource
+      .map((entry, index) => normalizeStEntry(entry, index, warnings))
+      .filter((entry): entry is MobileWorldbookEntry => entry !== null);
+    if (entries.length === 0) throw new Error("EMPTY_WORLDBOOK");
+
+    const metadata = isRecord(input.book.metadata)
+      ? input.book.metadata
+      : undefined;
+    const baseName =
+      input.name?.trim() ||
+      (metadata ? readString(metadata, "name") : "") ||
+      "Imported Worldbook";
+    const worldbook = await createWorldbook({
+      name: uniqueWorldbookName(baseName),
+      description: metadata
+        ? readString(metadata, "description") || undefined
+        : undefined,
+      entries,
+    });
+    logger.info("已导入 SillyTavern 世界书", {
+      worldbookId: worldbook.id,
+      entryCount: entries.length,
+      warningCount: warnings.length,
+    });
+    return { worldbook, warnings };
+  }
+
   return {
     worldbooks,
     sortedWorldbooks,
@@ -200,5 +383,6 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     upsertEntry,
     removeEntry,
     getWorldbooksByIds,
+    importFromSillyTavern,
   };
 });

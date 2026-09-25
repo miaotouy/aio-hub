@@ -106,7 +106,18 @@ const handleClick = async () => {
         const options =
           createBranch && messageId ? { parentId: messageId } : undefined;
 
-        await llmChatService.sendMessage(safeContent.value, options);
+        // 携带输入框草稿与附件一起发送，避免发送流程清空输入框时丢失正在编辑的内容
+        const inputState = llmChatService.getInputState();
+        const draft = inputState.content.trim();
+        const finalContent =
+          draft && draft !== safeContent.value
+            ? `${draft}\n${safeContent.value}`
+            : safeContent.value;
+        const sendOptions = inputState.hasAttachments
+          ? { ...options, attachments: [...inputState.attachments] }
+          : options;
+
+        await llmChatService.sendMessage(finalContent, sendOptions);
       } else {
         customMessage.warning("聊天服务不可用");
       }

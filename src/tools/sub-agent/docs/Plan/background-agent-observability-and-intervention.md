@@ -446,10 +446,10 @@ ChatArea.vue
          (width: 420px; flex-shrink: 0; border-left: 1px solid var(--border-color);)
 ```
 
-1. **侧栏分栏（Companion Sheet）的宿主归位**：
-   - 侧栏形态属于当前主聊天工作区的分栏子模块，宿主应挂载在 [`ChatArea.vue`](src/tools/llm-chat/components/ChatArea.vue:520) 内部的 `.main-content` 容器中（与 `.chat-content` 并列）；
-   - 当 `isOpen && mode === 'sheet'` 时展开；`.chat-content` 在 Flex 容器中天然被挤压收缩，主会话消息流、输入框与工具卡片平滑让位，保持完整可见；
-   - 宽度固定或支持在 380px ~ 600px 间拖拽微调，收起时设置 `width: 0; overflow: hidden;` 并带有 `transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);`；
+1. **侧栏分栏（Companion Sheet）的宿主归位与槽位解耦**：
+   - 详细解耦与靶点实现计划详见独立方案：[`chat-companion-dock-slot.md`](src/tools/sub-agent/docs/Plan/chat-companion-dock-slot.md:1)；
+   - 宿主侧由 [`ChatArea.vue`](src/tools/llm-chat/components/ChatArea.vue:520) 内部的 `.main-content` 容器提供标准伴生分栏外壳（`.chat-companion-dock`）与 DOM 靶点（`#chat-companion-dock-slot`），天然掌控 Flex 挤压收缩动画与调宽手柄；
+   - `sub-agent` 侧通过定向 Teleport 注入，实现 100% 结构性 Flex 让位且保持两个模块间零代码耦合；
 2. **画中画悬浮窗（Floating PiP）的全局宿主**：
    - 画中画需要支持用户在切换到其他页面（如资产管理器、设置）时依然能够悬停透视，因此悬浮窗组件继续挂载在应用顶层 [`TitleBar.vue`](src/components/TitleBar.vue:1)（`Teleport to body`）；
    - 使用 [`DraggablePanel`](src/components/common/DraggablePanel.vue:66) 承载，启用毛玻璃（`backdrop-filter: blur(var(--ui-blur))`）与视口吸附，记住拖拽位置。

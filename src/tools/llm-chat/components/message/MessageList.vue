@@ -1344,11 +1344,10 @@ defineExpose({
   flex-direction: row-reverse;
 }
 /* ----------------------------------------------------------
- * 气泡模式：底部信息与操作栏的"双侧布局"
+ * 气泡模式：底部信息与操作栏
  * - 底部信息 (.message-meta) 对齐到消息同方向（信息跟随气泡）
- * - 操作栏 (.menubar-wrapper) 对齐到对面方向（与信息水平错开）
- * 例：用户气泡 right-align → Token 信息靠右、操作栏靠左
- *     助手气泡 left-align  → Token 信息靠左、操作栏靠右
+ * - 操作栏 (.menubar-wrapper) 悬浮于气泡内侧底部角落（按消息
+ *   方向贴边），脱离文档流，hover 气泡时出现，不占常驻空间
  * ---------------------------------------------------------- */
 
 /* —— 底部信息：跟随消息方向对齐 —— */
@@ -1376,29 +1375,33 @@ defineExpose({
   text-align: right;
 }
 
-/* 气泡消息的操作栏放在内容下方，保留 hover 展示和左右对齐规则，避免覆盖正文。 */
+/* 气泡消息的操作栏：脱离文档流悬浮于气泡内侧底部角落，
+ * hover 气泡时出现，消除此前 static 布局在正文下方保留的常驻空位。 */
 .messages-container.mode-bubble :deep(.menubar-wrapper:not(.is-collapsed)) {
-  position: static;
-  bottom: auto;
-  margin-top: 8px;
-  z-index: auto;
+  position: absolute;
+  bottom: 6px;
+  margin-top: 0;
+  z-index: 10;
 }
-/* —— 操作栏：对齐到对面方向，与底部信息水平错开 —— */
+/* 左对齐消息（助手）→ 操作栏悬浮于气泡右下角 */
 .messages-container.mode-bubble
   .message-slot[data-align="left"]
   :deep(.menubar-wrapper) {
-  /* 左对齐消息（助手）→ 操作栏靠右 */
+  right: 10px;
+  left: auto;
   justify-content: flex-end;
   padding-left: 0;
-  padding-right: 12px;
+  padding-right: 0;
 }
+/* 右对齐消息（用户）→ 操作栏悬浮于气泡左下角 */
 .messages-container.mode-bubble
   .message-slot[data-align="right"]
   :deep(.menubar-wrapper) {
-  /* 右对齐消息（用户）→ 操作栏靠左 */
+  left: 10px;
+  right: auto;
   justify-content: flex-start;
   padding-right: 0;
-  padding-left: 12px;
+  padding-left: 0;
 }
 
 .empty-state {

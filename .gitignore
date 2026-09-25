@@ -41,6 +41,7 @@ src-tauri/patches/wry/
 # Dev isolation data
 .dev-data/
 src-tauri/tauri.conf.dev.json
+src-tauri/tauri.conf.build.json
 !.vscode/extensions.json
 *.code-workspace
 .idea

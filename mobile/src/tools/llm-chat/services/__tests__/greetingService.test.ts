@@ -95,6 +95,43 @@ describe("instantiateAgentGreetings", () => {
     expect(legacyAgent.greetings).toEqual([" Legacy hello "]);
   });
 
+  it("keeps greeting attachments as request-time private references", () => {
+    const target = session();
+
+    const changed = instantiateAgentGreetings(
+      target,
+      agent({
+        greetings: [
+          {
+            id: "with-assets",
+            content: "Look at this",
+            role: "assistant",
+            attachments: [
+              {
+                id: "global-uuid",
+                name: "bg.png",
+                path: "assets/bg.png",
+                type: "image",
+                mimeType: "image/png",
+              },
+            ],
+          },
+        ],
+      }),
+      { createNodeId: () => "asset-node" }
+    );
+
+    expect(changed).toBe(true);
+    expect(target.nodes["asset-node"].metadata?.privateAttachments).toEqual([
+      expect.objectContaining({
+        path: "assets/bg.png",
+        filename: "bg.png",
+        mimeType: "image/png",
+      }),
+    ]);
+    expect(target.nodes["asset-node"].attachments).toBeUndefined();
+  });
+
   it("does not create branches for blank or malformed greetings", () => {
     const target = session();
 

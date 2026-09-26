@@ -74,6 +74,64 @@ describe("sessionLoader reply references", () => {
     ]);
   });
 
+  it("carries greeting private attachment references into the processable message", async () => {
+    const pipelineContext = context();
+    pipelineContext.session.nodes["user-2"].metadata = {
+      ...pipelineContext.session.nodes["user-2"].metadata,
+      privateAttachments: [
+        {
+          id: "global-uuid",
+          name: "pic.png",
+          path: "assets/pic.png",
+          type: "image",
+          mimeType: "image/png",
+        },
+      ],
+    };
+
+    await sessionLoader.execute(pipelineContext);
+
+    expect(
+      pipelineContext.messages[pipelineContext.messages.length - 1]
+    ).toMatchObject({
+      sourceId: "user-2",
+      _privateAttachments: [
+        expect.objectContaining({
+          path: "assets/pic.png",
+          filename: "pic.png",
+        }),
+      ],
+    });
+  });
+
+  it("keeps attachment-only greeting nodes that have no text", async () => {
+    const pipelineContext = context();
+    pipelineContext.session.nodes["attachment-only"] = {
+      id: "attachment-only",
+      parentId: "user-2",
+      childrenIds: [],
+      role: "assistant",
+      status: "complete",
+      content: "",
+      metadata: {
+        privateAttachments: [{ path: "assets/bg.png" }],
+      },
+    };
+    pipelineContext.session.nodes["user-2"].childrenIds.push("attachment-only");
+    pipelineContext.session.activeLeafId = "attachment-only";
+
+    await sessionLoader.execute(pipelineContext);
+
+    expect(
+      pipelineContext.messages[pipelineContext.messages.length - 1]
+    ).toMatchObject({
+      sourceId: "attachment-only",
+      _privateAttachments: [
+        expect.objectContaining({ path: "assets/bg.png" }),
+      ],
+    });
+  });
+
   it("reports failure when the required session is missing", async () => {
     const pipelineContext = context();
     Object.defineProperty(pipelineContext, "session", { value: null });

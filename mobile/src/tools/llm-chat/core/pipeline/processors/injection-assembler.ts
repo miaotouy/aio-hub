@@ -11,6 +11,7 @@ import {
   type ContextProcessor,
   type PipelineContext,
 } from "../../../types/pipeline";
+import { normalizeAgentAttachmentRefs } from "../../context-utils/preset-attachment-resolver";
 
 const logger = createModuleLogger("llm-chat/injection-assembler");
 
@@ -101,6 +102,9 @@ function toProcessableMessage(
   sourceType: "agent_preset" | "depth_injection" | "anchor_injection",
   sourceIndex: number
 ): ProcessableMessage {
+  const privateAttachments = normalizeAgentAttachmentRefs(
+    message.presetAttachments
+  );
   return {
     role: message.role,
     content: message.content,
@@ -111,6 +115,9 @@ function toProcessableMessage(
       ? new Date(message.timestamp).getTime()
       : undefined,
     _name: message.name,
+    _privateAttachments: privateAttachments.length
+      ? privateAttachments
+      : undefined,
   };
 }
 
@@ -225,7 +232,8 @@ export const injectionAssembler: ContextProcessor = {
       (message) =>
         isEnabled(message, agent, model, profile) &&
         (Boolean(message.content.trim()) ||
-          message.type === CHAT_HISTORY_ANCHOR)
+          message.type === CHAT_HISTORY_ANCHOR ||
+          Boolean(message.presetAttachments?.length))
     );
     if (!presetMessages.length) {
       return processorResult.skipped(

@@ -245,6 +245,33 @@ describe("injectionAssembler", () => {
       "history-assistant",
     ]);
   });
+  it("keeps attachment-only presets and carries their private refs", async () => {
+    const agent = createAgent();
+    agent.presetMessages = [
+      {
+        id: "attachment-only",
+        parentId: null,
+        childrenIds: [],
+        content: "",
+        role: "system",
+        status: "complete",
+        presetAttachments: [{ assetId: "sticker_ok", description: "贴纸" }],
+      },
+    ];
+    const context = createContext(agent);
+
+    await injectionAssembler.execute(context);
+
+    expect(context.messages.map((message) => message.sourceId)).toEqual([
+      "attachment-only",
+      "history-user",
+      "history-assistant",
+    ]);
+    expect(context.messages[0]._privateAttachments).toEqual([
+      { assetId: "sticker_ok", description: "贴纸" },
+    ]);
+  });
+
   it("keeps history unchanged when no agent is bound", async () => {
     const context = createContext(null);
 

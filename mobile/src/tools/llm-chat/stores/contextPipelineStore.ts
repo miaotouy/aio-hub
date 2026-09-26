@@ -13,6 +13,7 @@ import { worldbookInjector } from "../core/pipeline/processors/worldbook-injecto
 import { messageFormatter } from "../core/pipeline/processors/message-formatter";
 import { tokenLimiter } from "../core/pipeline/processors/token-limiter";
 import { attachmentPreparer } from "../core/pipeline/processors/attachment-preparer";
+import { presetAttachmentProcessor } from "../core/pipeline/processors/preset-attachment-processor";
 import { PipelineEngine } from "../core/pipeline/PipelineEngine";
 
 const logger = createModuleLogger("contextPipelineStore");
@@ -45,6 +46,7 @@ const getInitialProcessors = (): ContextProcessor[] => {
     attachmentPreparer,
     tokenLimiter,
     messageFormatter,
+    presetAttachmentProcessor,
   ];
 };
 

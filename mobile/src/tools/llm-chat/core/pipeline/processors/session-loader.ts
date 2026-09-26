@@ -10,6 +10,7 @@ import {
   formatReplyReferenceContent,
   isChatMessageReference,
 } from "../../../utils/replyReference";
+import { normalizeAgentAttachmentRefs } from "../../context-utils/preset-attachment-resolver";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -64,7 +65,14 @@ export const sessionLoader: ContextProcessor = {
     const messages: ProcessableMessage[] = [];
 
     for (const node of historyNodes) {
-      if (!node.content.trim() && !node.attachments?.length) {
+      const privateAttachments = normalizeAgentAttachmentRefs(
+        node.metadata?.privateAttachments
+      );
+      if (
+        !node.content.trim() &&
+        !node.attachments?.length &&
+        !privateAttachments.length
+      ) {
         continue;
       }
 
@@ -81,6 +89,9 @@ export const sessionLoader: ContextProcessor = {
         _attachments: node.attachments?.map(
           ({ id: _attachmentId, ...attachment }) => attachment
         ),
+        _privateAttachments: privateAttachments.length
+          ? privateAttachments
+          : undefined,
       };
       messages.push(processableMessage);
     }

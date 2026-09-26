@@ -12,6 +12,31 @@ export const ANCHOR_IDS = {
 } as const;
 
 /**
+ * Agent 私有附件引用（中间格式）。
+ *
+ * 预设消息的 `presetAttachments` 使用 `assetId` 引用 `AgentAsset.id`；
+ * 开局消息的 `attachments`（桌面导出的完整 `Asset` 快照）通常提供 `path`。
+ * 两者都不进入全局 `asset_manager.db`，运行时由
+ * `preset-attachment-processor` 从 Agent 私有目录读取字节。
+ */
+export interface AgentAttachmentRef {
+  /** 引用的 Agent 私有资产 Handle（`AgentAsset.id`）。 */
+  assetId?: string;
+  /** 相对 Agent 私有目录的路径，如 "assets/xxx.png"。 */
+  path?: string;
+  /** 原始文件名，用于按名称回退匹配。 */
+  filename?: string;
+  /** 用途描述（对齐桌面 `PresetAttachmentRef.description`）。 */
+  description?: string;
+  /** 已知 MIME（来自导入时的资产快照）。 */
+  mimeType?: string;
+  /** 已知资产类型提示（`AgentAsset.type` 或桌面 `Asset.type`）。 */
+  type?: string;
+  /** 无损保留原始引用字段，便于诊断与后续扩展。 */
+  [key: string]: unknown;
+}
+
+/**
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
@@ -37,6 +62,12 @@ export interface ProcessableMessage {
    * `attachment-preparer` 会先筛除失效引用、为已持久化的提取文本生成回退上下文；`useChatExecutor` 随后将可用引用序列化给 Rust 原生传输
    */
   _attachments?: ManagedAssetRef[];
+  /**
+   * [中间格式] Agent 私有附件引用（预设 `presetAttachments` 与开局消息 `attachments`）。
+   * `preset-attachment-processor` 从 Agent 私有目录读取字节后，转换为可进入请求的
+   * vision / 文本内容；处理完成后会被清空。
+   */
+  _privateAttachments?: AgentAttachmentRef[];
   /**
    * [元数据] 原始消息内容
    * 用于宏调试和差异对比，仅在宏处理发生时设置

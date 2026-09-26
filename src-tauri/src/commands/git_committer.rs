@@ -1013,7 +1013,11 @@ mod tests {
     #[test]
     fn rejects_paths_outside_the_repository_worktree() {
         assert!(repository_relative_path("../outside.png").is_err());
-        assert!(repository_relative_path("C:\\outside.png").is_err());
+        if cfg!(windows) {
+            assert!(repository_relative_path("C:\\outside.png").is_err());
+        } else {
+            assert!(repository_relative_path("/outside.png").is_err());
+        }
         assert!(repository_relative_path("assets/logo.png").is_ok());
     }
 

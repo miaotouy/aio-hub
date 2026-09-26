@@ -56,6 +56,28 @@ export interface LlmParameters {
   [key: string]: unknown;
 }
 
+/** 智能体私有资产类型，与桌面端 `AssetType` 对齐。 */
+export type AgentAssetType = "image" | "audio" | "video" | "file";
+
+/**
+ * 智能体私有资产的移动端精简结构（对齐桌面 `AgentAsset` 子集）。
+ * 二进制内容存于 `agents/{id}/` 私有目录，这里只保存相对路径与元数据；
+ * 索引签名用于无损保留桌面端其余高级字段（description/group/options 等）。
+ */
+export interface AgentAsset {
+  /** 智能体内稳定 Handle，用于宏替换。 */
+  id: string;
+  /** 原始文件名。 */
+  filename: string;
+  /** 相对 Agent 私有目录的路径，如 "assets/xxx.png"。 */
+  path: string;
+  type: AgentAssetType;
+  mimeType?: string;
+  /** 文件大小（字节）。 */
+  size?: number;
+  [key: string]: unknown;
+}
+
 export interface AgentBaseConfig {
   version?: number;
   agentVersion?: string;
@@ -87,7 +109,7 @@ export interface AgentBaseConfig {
     defaultMediaVolume?: number;
   };
   assetGroups?: unknown[];
-  assets?: unknown[];
+  assets?: AgentAsset[];
   worldbookIds?: string[];
   quickActionSetIds?: string[];
   worldbookSettings?: unknown;

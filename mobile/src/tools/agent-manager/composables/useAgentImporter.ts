@@ -24,6 +24,32 @@ export interface ImportedWorldbookSource {
   agentIndexes: number[];
 }
 
+/** 从导入包提取出、待落盘的私有二进制资产。 */
+export interface ImportedBinaryAsset {
+  /** 相对 Agent 私有目录的落盘路径，如 "assets/xxx.png" */
+  path: string;
+  bytes: Uint8Array;
+  /** 文件大小（字节） */
+  size: number;
+  mimeType?: string;
+}
+
+/** 从导入包提取出、待落盘的 Agent 头像（按 agentIndex 关联）。 */
+export interface ImportedAgentAvatar {
+  agentIndex: number;
+  /** 建议落盘文件名，如 "avatar.png" */
+  filename: string;
+  bytes: Uint8Array;
+  size: number;
+  mimeType?: string;
+}
+
+/** 某个 Agent 的待落盘私有资产集合（按 agentIndex 关联）。 */
+export interface ImportedAgentPrivateAssets {
+  agentIndex: number;
+  assets: ImportedBinaryAsset[];
+}
+
 export interface AgentImportResult {
   agents: ImportedAgentDraft[];
   source: "aio" | "silly-tavern";
@@ -31,9 +57,22 @@ export interface AgentImportResult {
   warnings: string[];
   /** ST 卡内嵌世界书（含 V2 data.character_book 与 V3 extensions.character_book） */
   importedWorldbooks?: ImportedWorldbookSource[];
+  /** 包内提取出的 Agent 头像，由调用方落盘并回写 agent.icon */
+  agentAvatars?: ImportedAgentAvatar[];
+  /** 包内提取出的 Agent 私有资产，由调用方落盘并回写 agent.assets */
+  privateAssets?: ImportedAgentPrivateAssets[];
 }
 
 type UnknownRecord = Record<string, unknown>;
+
+interface BundleResourceSink {
+  agentAvatars: ImportedAgentAvatar[];
+  privateAssets: ImportedAgentPrivateAssets[];
+  importedWorldbooks: ImportedWorldbookSource[];
+  /** 已被成功消费的包内条目（normalized 路径），用于避免误告警 */
+  consumed: Set<string>;
+}
+
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -204,8 +243,9 @@ function convertPlacementToTargetRoles(
 }
 
 /**
- * 把 ST regex_scripts 数组转换为移动端 request 阶段可执行的预设。
- * 只保留 regex-processor 能表达的语义；其余进 warnings（不静默）。
+ * 把 ST regex_scripts 数组转换为移动端正则可执行的预设。
+ * 按 ST 阶段语义写入 applyTo（render / request），只保留已可表达的语义；
+ * 其余进 warnings（不静默）。
  */
 function convertRegexScripts(
   scripts: unknown,
@@ -214,7 +254,6 @@ function convertRegexScripts(
 ): MobileRegexConfig | undefined {
   if (!Array.isArray(scripts)) return undefined;
   const rules: MobileRegexConfig["presets"][number]["rules"] = [];
-  let skippedRenderOnly = 0;
   let skippedEmpty = 0;
   let warnedAdvancedFields = false;
 
@@ -226,11 +265,13 @@ function convertRegexScripts(
       skippedEmpty++;
       return;
     }
-    // markdownOnly = 仅渲染阶段；移动端暂无渲染层正则，无法表达
-    if (script.markdownOnly) {
-      skippedRenderOnly++;
-      return;
-    }
+    // ST 阶段语义：markdownOnly 仅渲染、promptOnly 仅请求；两者都不是时
+    // 沿用移动端既有保守默认，只进入请求阶段，避免重复执行。
+    const applyTo = script.markdownOnly
+      ? { render: true, request: false }
+      : script.promptOnly
+        ? { render: false, request: true }
+        : { render: false, request: true };
     if (
       !warnedAdvancedFields &&
       (Array.isArray(script.trimStrings) ||
@@ -254,19 +295,14 @@ function convertRegexScripts(
       regex: pattern,
       replacement: typeof script.replaceString === "string" ? script.replaceString : "",
       flags,
-      // promptOnly / 默认均落到 request；render 阶段留给批次 4
-      applyTo: { render: false, request: true },
+      // markdownOnly 落到 render；promptOnly 与默认落到 request
+      applyTo,
       targetRoles: convertPlacementToTargetRoles(script),
       depthRange,
       order: index,
     });
   });
 
-  if (skippedRenderOnly > 0) {
-    warnings.push(
-      `跳过 ${skippedRenderOnly} 条仅渲染（markdownOnly）正则规则：移动端暂不支持渲染层正则。`
-    );
-  }
   if (skippedEmpty > 0) {
     warnings.push(`跳过 ${skippedEmpty} 条缺少匹配表达式的正则规则。`);
   }
@@ -435,8 +471,11 @@ function postProcessSillyTavernDraft(
     );
     if (regexConfig) {
       draft.regexConfig = regexConfig;
+      const rules = regexConfig.presets[0].rules;
+      const renderCount = rules.filter((rule) => rule.applyTo.render).length;
+      const requestCount = rules.filter((rule) => rule.applyTo.request).length;
       warnings.push(
-        `已转换 ${regexConfig.presets[0].rules.length} 条请求阶段正则规则。`
+        `已转换 ${rules.length} 条正则规则（渲染阶段 ${renderCount} 条、请求阶段 ${requestCount} 条）。`
       );
     }
     delete extensionConfig.regexScripts;
@@ -554,29 +593,245 @@ async function extractPngTextChunks(
 const AGENT_CONFIG_JSON = /\.agent\.json$/;
 const AGENT_CONFIG_YAML = /\.agent\.(yaml|yml)$/;
 
-function findConfigEntry(entries: Unzipped): {
-  name: string;
-  data: Uint8Array;
-} | null {
-  for (const [name, data] of Object.entries(entries)) {
-    if (name.endsWith("/") || data.length === 0) continue;
-    if (AGENT_CONFIG_JSON.test(name)) return { name, data };
-  }
-  for (const [name, data] of Object.entries(entries)) {
-    if (name.endsWith("/") || data.length === 0) continue;
-    if (AGENT_CONFIG_YAML.test(name)) return { name, data };
-  }
-  return null;
+/** 包内世界书文件名匹配（JSON / YAML）。 */
+const WORLD_BOOK_FILE = /\.(json|ya?ml)$/i;
+
+/** 常见扩展名 → MIME 映射，仅用于资产元数据，不参与解码。 */
+const ASSET_MIME_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  svg: "image/svg+xml",
+  avif: "image/avif",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+  flac: "audio/flac",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+  json: "application/json",
+  yaml: "application/yaml",
+  yml: "application/yaml",
+  txt: "text/plain",
+  md: "text/markdown",
+};
+
+/** 统一 zip 内路径分隔符并去掉前导 `./` 与 `/`。 */
+function normalizeEntryPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 }
 
-/** 统计包内未被消费的资源文件（assets、世界书等） */
-function countUnconsumedEntries(entries: Unzipped): number {
-  return Object.keys(entries).filter(
-    (name) =>
-      !name.endsWith("/") &&
-      !AGENT_CONFIG_JSON.test(name) &&
-      !AGENT_CONFIG_YAML.test(name)
-  ).length;
+function basenameOf(path: string): string {
+  const normalized = normalizeEntryPath(path);
+  const separator = normalized.lastIndexOf("/");
+  return separator >= 0 ? normalized.slice(separator + 1) : normalized;
+}
+
+/** 返回带结尾 `/` 的目录前缀，配置在包根时为空串。 */
+function dirnameOf(path: string): string {
+  const normalized = normalizeEntryPath(path);
+  const separator = normalized.lastIndexOf("/");
+  return separator >= 0 ? normalized.slice(0, separator + 1) : "";
+}
+
+function guessMimeType(path: string): string | undefined {
+  const extension = basenameOf(path).split(".").pop()?.toLowerCase();
+  return extension ? ASSET_MIME_TYPES[extension] : undefined;
+}
+
+/** 按包内路径优先返回全部配置文件（JSON 优先，与单配置旧行为一致）。 */
+function findConfigEntries(
+  entries: Map<string, Uint8Array>
+): Array<{ name: string; data: Uint8Array }> {
+  const result: Array<{ name: string; data: Uint8Array }> = [];
+  for (const [name, data] of entries) {
+    if (data.length === 0) continue;
+    if (AGENT_CONFIG_JSON.test(name)) result.push({ name, data });
+  }
+  for (const [name, data] of entries) {
+    if (data.length === 0) continue;
+    if (AGENT_CONFIG_YAML.test(name)) result.push({ name, data });
+  }
+  return result;
+}
+
+/** 递归收集配置对象中引用的私有资产路径（`assets/...`）。 */
+function collectAssetReferences(
+  value: unknown,
+  output: Set<string>,
+  depth = 0
+): void {
+  if (depth > 8 || value === null || value === undefined) return;
+  if (typeof value === "string") {
+    const normalized = normalizeEntryPath(value);
+    if (/(^|\/)assets\//.test(normalized)) output.add(normalized);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectAssetReferences(item, output, depth + 1);
+    return;
+  }
+  if (isRecord(value)) {
+    for (const item of Object.values(value))
+      collectAssetReferences(item, output, depth + 1);
+  }
+}
+
+/** 解析包内世界书文件为 ST 源结构，失败返回 null。 */
+function parseWorldbookEntry(
+  name: string,
+  data: Uint8Array
+): UnknownRecord | null {
+  try {
+    const text = new TextDecoder().decode(data);
+    const parsed = name.toLowerCase().endsWith(".json")
+      ? JSON.parse(text)
+      : loadYaml(text);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 提取某个配置文件所属目录下的私有资源：
+ * 头像（icon 指向的包内文件）、`assets/` 二进制、`worldbooks/` 世界书。
+ * 已成功消费的条目标记进 sink.consumed，避免调用方误报“未迁移”。
+ */
+function extractBundleResources(
+  entries: Map<string, Uint8Array>,
+  configName: string,
+  drafts: ImportedAgentDraft[],
+  agentIndexes: number[],
+  warnings: string[],
+  sink: BundleResourceSink
+): void {
+  if (drafts.length === 0) return;
+  const baseDir = dirnameOf(configName);
+  const assetsPrefix = `${baseDir}assets/`;
+  const worldbooksPrefix = `${baseDir}worldbooks/`;
+
+  const assets: Array<ImportedBinaryAsset & { bundlePath: string }> = [];
+  for (const [name, data] of entries) {
+    if (name.endsWith("/") || data.length === 0) continue;
+    if (!name.startsWith(assetsPrefix)) continue;
+    const relativePath = name.slice(baseDir.length);
+    assets.push({
+      path: relativePath,
+      bundlePath: name,
+      bytes: data,
+      size: data.length,
+      mimeType: guessMimeType(relativePath),
+    });
+    sink.consumed.add(name);
+  }
+
+  // 单配置多 agent 时按配置内的资产引用精确归属；无引用则整目录归属首个 Agent，
+  // 目录内未被任何 agent 引用的资产兜底归属首个 Agent，确保不丢文件。
+  const matchedByAgent: Array<Array<ImportedBinaryAsset & { bundlePath: string }>> =
+    drafts.map(() => []);
+  const claimed = new Set<string>();
+  drafts.forEach((draft, index) => {
+    const references = new Set<string>();
+    collectAssetReferences(draft, references);
+    const referenceList = [...references];
+    for (const asset of assets) {
+      const filename = basenameOf(asset.bundlePath);
+      const isReferenced =
+        references.has(asset.path) ||
+        references.has(asset.bundlePath) ||
+        references.has(filename) ||
+        referenceList.some((reference) => reference.endsWith(`/${filename}`));
+      if (isReferenced) {
+        matchedByAgent[index].push(asset);
+        claimed.add(asset.path);
+      }
+    }
+    if (matchedByAgent[index].length === 0) {
+      for (const asset of assets) {
+        if (claimed.has(asset.path)) continue;
+        matchedByAgent[index].push(asset);
+        claimed.add(asset.path);
+      }
+    }
+  });
+  if (drafts.length > 0) {
+    for (const asset of assets) {
+      if (!claimed.has(asset.path)) matchedByAgent[0].push(asset);
+    }
+  }
+
+  matchedByAgent.forEach((list, index) => {
+    if (list.length === 0) return;
+    const deduped = new Map<string, ImportedBinaryAsset>();
+    for (const asset of list) {
+      if (deduped.has(asset.path)) continue;
+      deduped.set(asset.path, {
+        path: asset.path,
+        bytes: asset.bytes,
+        size: asset.size,
+        mimeType: asset.mimeType,
+      });
+    }
+    sink.privateAssets.push({
+      agentIndex: agentIndexes[index],
+      assets: [...deduped.values()],
+    });
+  });
+
+  // 头像：icon 指向的包内文件（通常在配置目录或包根，也可能在 assets/ 下）
+  drafts.forEach((draft, index) => {
+    const icon = typeof draft.icon === "string" ? draft.icon.trim() : "";
+    if (!icon || /^(https?:|data:|blob:)/i.test(icon)) return;
+    const candidates = [
+      normalizeEntryPath(`${baseDir}${icon}`),
+      normalizeEntryPath(icon),
+      normalizeEntryPath(`${assetsPrefix}${icon}`),
+    ];
+    for (const candidate of candidates) {
+      const data = entries.get(candidate);
+      if (data && data.length > 0 && !candidate.endsWith("/")) {
+        sink.agentAvatars.push({
+          agentIndex: agentIndexes[index],
+          filename: basenameOf(candidate),
+          bytes: data,
+          size: data.length,
+          mimeType: guessMimeType(candidate),
+        });
+        sink.consumed.add(candidate);
+        break;
+      }
+    }
+  });
+
+  // 世界书：解析为 ST 源结构，交给调用方落库
+  for (const [name, data] of entries) {
+    if (name.endsWith("/") || data.length === 0) continue;
+    if (!name.startsWith(worldbooksPrefix) || !WORLD_BOOK_FILE.test(name))
+      continue;
+    sink.consumed.add(name);
+    const book = parseWorldbookEntry(name, data);
+    if (!book) {
+      warnings.push(`世界书文件 ${basenameOf(name)} 解析失败，已跳过。`);
+      continue;
+    }
+    const fallbackName = basenameOf(name).replace(/\.(json|ya?ml)$/i, "");
+    const metadata = isRecord(book.metadata) ? book.metadata : undefined;
+    const bookName =
+      (metadata ? readString(metadata, "name") : "") ||
+      readString(book, "name") ||
+      fallbackName;
+    sink.importedWorldbooks.push({
+      book,
+      name: bookName,
+      agentIndexes: [...agentIndexes],
+    });
+  }
 }
 
 function parseConfigBytes(name: string, data: Uint8Array): unknown {
@@ -587,8 +842,8 @@ function parseConfigBytes(name: string, data: Uint8Array): unknown {
 
 /**
  * 解析 AIO Agent Bundle（.agent.zip 或 PNG aiob chunk 内的 ZIP）。
- * 本阶段只消费包内 *.agent.json / *.agent.yaml 配置；
- * assets/、worldbooks/ 等资源不解包消费，统一通过 warnings 告知。
+ * 消费包内全部 *.agent.json / *.agent.yaml 配置，并提取同目录下的
+ * 头像、`assets/` 二进制与 `worldbooks/` 世界书；仅对真正未消费的资源告警。
  */
 function parseAgentBundle(zipBytes: Uint8Array): AgentImportResult {
   let entries: Unzipped;
@@ -597,20 +852,75 @@ function parseAgentBundle(zipBytes: Uint8Array): AgentImportResult {
   } catch {
     throw new Error("Unsupported agent file");
   }
-  const config = findConfigEntry(entries);
-  if (!config) {
+
+  const normalizedEntries = new Map<string, Uint8Array>();
+  for (const [rawName, data] of Object.entries(entries)) {
+    if (rawName.endsWith("/")) continue;
+    normalizedEntries.set(normalizeEntryPath(rawName), data);
+  }
+
+  const configEntries = findConfigEntries(normalizedEntries);
+  if (configEntries.length === 0) {
     throw new Error("Unsupported agent file");
   }
-  const payload = parseConfigBytes(config.name, config.data);
-  const result = parseImportPayload(payload);
 
-  const unconsumed = countUnconsumedEntries(entries);
-  if (unconsumed > 0) {
-    result.warnings.push(
-      `导入包内 ${unconsumed} 个资源文件（头像、资产、世界书等）暂未迁移，可在 PC 端查看。`
+  const agents: ImportedAgentDraft[] = [];
+  const warnings: string[] = [];
+  const importedWorldbooks: ImportedWorldbookSource[] = [];
+  const sink: BundleResourceSink = {
+    agentAvatars: [],
+    privateAssets: [],
+    importedWorldbooks,
+    consumed: new Set<string>(),
+  };
+  let source: AgentImportResult["source"] = "aio";
+
+  for (const config of configEntries) {
+    const payload = parseConfigBytes(config.name, config.data);
+    const parsed = parseImportPayload(payload);
+    source = parsed.source;
+    const offset = agents.length;
+    agents.push(...parsed.agents);
+    warnings.push(...parsed.warnings);
+    for (const worldbook of parsed.importedWorldbooks ?? []) {
+      importedWorldbooks.push({
+        ...worldbook,
+        agentIndexes: worldbook.agentIndexes.map((index) => index + offset),
+      });
+    }
+    sink.consumed.add(config.name);
+    const agentIndexes = parsed.agents.map((_, index) => offset + index);
+    extractBundleResources(
+      normalizedEntries,
+      config.name,
+      parsed.agents,
+      agentIndexes,
+      warnings,
+      sink
     );
   }
-  return result;
+
+  const unconsumed = [...normalizedEntries.keys()].filter(
+    (name) => !sink.consumed.has(name)
+  );
+  if (unconsumed.length > 0) {
+    warnings.push(
+      `导入包内 ${unconsumed.length} 个资源文件暂未迁移，可在 PC 端查看。`
+    );
+  }
+
+  return {
+    agents,
+    source,
+    warnings,
+    ...(importedWorldbooks.length > 0 ? { importedWorldbooks } : {}),
+    ...(sink.agentAvatars.length > 0
+      ? { agentAvatars: sink.agentAvatars }
+      : {}),
+    ...(sink.privateAssets.length > 0
+      ? { privateAssets: sink.privateAssets }
+      : {}),
+  };
 }
 
 function parseImportPayload(payload: unknown): AgentImportResult {

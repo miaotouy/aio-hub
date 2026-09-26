@@ -190,7 +190,7 @@ describe("useAgentImporter", () => {
     const { parseFile } = useAgentImporter();
     const zip = zipSync({
       "aio.agent.json": encoder.encode(JSON.stringify(aioExport)),
-      "assets/icon.png": new Uint8Array([1, 2, 3]),
+      "extra/icon.png": new Uint8Array([1, 2, 3]),
     });
 
     const result = await parseFile(
@@ -269,5 +269,57 @@ describe("useAgentImporter", () => {
     const extensionConfig = draft.extensionConfig as Record<string, unknown>;
     expect(extensionConfig.characterBook).toBeUndefined();
     expect(extensionConfig.regexScripts).toBeUndefined();
+  });
+
+  it("converts markdownOnly ST regex scripts into render-stage rules", async () => {
+    const { parseFile } = useAgentImporter();
+    const card = {
+      spec: "chara_card_v2",
+      name: "Render Keeper",
+      first_mes: "Hello",
+      extensions: {
+        regex_scripts: [
+          {
+            scriptName: "RenderOnly",
+            findRegex: "/<x>/g",
+            replaceString: "y",
+            markdownOnly: true,
+          },
+          {
+            scriptName: "PromptOnly",
+            findRegex: "/a/g",
+            replaceString: "b",
+            promptOnly: true,
+          },
+        ],
+      },
+    };
+
+    const result = await parseFile(
+      new File([JSON.stringify(card)], "render.json", {
+        type: "application/json",
+      })
+    );
+
+    const config = result.agents[0].regexConfig as {
+      presets: Array<{
+        rules: Array<{
+          name: string;
+          applyTo: { render: boolean; request: boolean };
+        }>;
+      }>;
+    };
+    const rules = config.presets[0].rules;
+    expect(rules).toHaveLength(2);
+    expect(rules.find((rule) => rule.name === "RenderOnly")?.applyTo).toEqual({
+      render: true,
+      request: false,
+    });
+    expect(rules.find((rule) => rule.name === "PromptOnly")?.applyTo).toEqual({
+      render: false,
+      request: true,
+    });
+    expect(result.warnings.join(" ")).toContain("渲染阶段 1 条");
+    expect(result.warnings.join(" ")).not.toContain("仅渲染");
   });
 });

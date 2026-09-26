@@ -2,8 +2,10 @@ import {
   exists,
   mkdir,
   readDir,
+  readFile,
   readTextFile,
   remove,
+  writeFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -21,6 +23,22 @@ const MODULE_NAME = "agent-manager";
 const INDEX_VERSION = "1.1.0";
 const logger = createModuleLogger("agent-manager/storage");
 const errorHandler = createModuleErrorHandler("agent-manager/storage");
+
+/** 归一化私有资产相对路径，阻止 `..` 逃逸 Agent 目录。 */
+function sanitizeRelativePath(relativePath: string): string {
+  return relativePath
+    .replace(/\\/g, "/")
+    .replace(/\.\./g, "__")
+    .replace(/^\/+/, "");
+}
+
+function getParentDir(path: string): string {
+  const separatorIndex = Math.max(
+    path.lastIndexOf("/"),
+    path.lastIndexOf("\\")
+  );
+  return separatorIndex >= 0 ? path.slice(0, separatorIndex) : path;
+}
 
 function toIndexItem(agent: ChatAgent): AgentIndexItem {
   return {
@@ -101,9 +119,25 @@ export function useAgentStorage() {
     );
   }
 
-  async function getAgentPath(agentId: string): Promise<string> {
+  async function getAgentDir(agentId: string): Promise<string> {
     const { agentsDir } = await getPaths();
-    return await join(agentsDir, agentId, "agent.json");
+    return await join(agentsDir, agentId);
+  }
+
+  async function getAgentAssetsDir(agentId: string): Promise<string> {
+    return await join(await getAgentDir(agentId), "assets");
+  }
+
+  async function ensureAgentDir(agentId: string): Promise<string> {
+    const agentDir = await getAgentDir(agentId);
+    if (!(await exists(agentDir))) {
+      await mkdir(agentDir, { recursive: true });
+    }
+    return agentDir;
+  }
+
+  async function getAgentPath(agentId: string): Promise<string> {
+    return await join(await getAgentDir(agentId), "agent.json");
   }
 
   async function loadAgent(agentId: string): Promise<ChatAgent | null> {
@@ -148,15 +182,8 @@ export function useAgentStorage() {
   async function saveAgent(agent: ChatAgent): Promise<void> {
     try {
       await ensureStorage();
+      await ensureAgentDir(agent.id);
       const path = await getAgentPath(agent.id);
-      const separatorIndex = Math.max(
-        path.lastIndexOf("/"),
-        path.lastIndexOf("\\")
-      );
-      const agentDir = path.slice(0, separatorIndex);
-      if (!(await exists(agentDir))) {
-        await mkdir(agentDir, { recursive: true });
-      }
       await writeTextFile(path, JSON.stringify(agent, null, 2));
 
       const index = await loadIndex();
@@ -177,8 +204,7 @@ export function useAgentStorage() {
 
   async function deleteAgent(agentId: string): Promise<void> {
     try {
-      const { agentsDir } = await getPaths();
-      const agentDir = await join(agentsDir, agentId);
+      const agentDir = await getAgentDir(agentId);
       if (await exists(agentDir)) await remove(agentDir, { recursive: true });
       const index = await loadIndex();
       index.agents = index.agents.filter((entry) => entry.id !== agentId);
@@ -193,5 +219,113 @@ export function useAgentStorage() {
     }
   }
 
-  return { loadAgents, loadAgent, saveAgent, deleteAgent };
+  /**
+   * 保存二进制私有资产到 `agents/{id}/{relativePath}`。
+   * relativePath 通常形如 `assets/xxx.png`，返回归一化后的相对路径。
+   */
+  async function saveAgentAsset(
+    agentId: string,
+    relativePath: string,
+    data: Uint8Array
+  ): Promise<string> {
+    try {
+      const safePath = sanitizeRelativePath(relativePath);
+      if (!safePath) throw new Error("INVALID_ASSET_PATH");
+      const agentDir = await ensureAgentDir(agentId);
+      const fullPath = await join(agentDir, safePath);
+      const parentDir = getParentDir(fullPath);
+      if (!(await exists(parentDir))) {
+        await mkdir(parentDir, { recursive: true });
+      }
+      await writeFile(fullPath, data);
+      return safePath;
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "保存智能体资产失败",
+        showToUser: false,
+        context: { agentId, relativePath },
+      });
+      throw error;
+    }
+  }
+
+  /** 读取 `agents/{id}/{relativePath}` 下的二进制资产，不存在或失败返回 null。 */
+  async function readAgentAsset(
+    agentId: string,
+    relativePath: string
+  ): Promise<Uint8Array | null> {
+    try {
+      const safePath = sanitizeRelativePath(relativePath);
+      if (!safePath) return null;
+      const fullPath = await join(await getAgentDir(agentId), safePath);
+      if (!(await exists(fullPath))) return null;
+      return await readFile(fullPath);
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "读取智能体资产失败",
+        showToUser: false,
+        context: { agentId, relativePath },
+      });
+      return null;
+    }
+  }
+
+  /** 保存头像到 `agents/{id}/{filename}`（Agent 根目录），返回文件名。 */
+  async function saveAgentAvatar(
+    agentId: string,
+    filename: string,
+    data: Uint8Array
+  ): Promise<string> {
+    const safeName =
+      sanitizeRelativePath(filename).split("/").pop() || "avatar.png";
+    return await saveAgentAsset(agentId, safeName, data);
+  }
+
+  /**
+   * 列出 `agents/{id}/assets/` 下所有文件。
+   * 返回相对 Agent 目录的路径（如 `assets/sub/x.png`），与 `AgentAsset.path` 语义一致。
+   */
+  async function listAgentAssets(agentId: string): Promise<string[]> {
+    try {
+      const assetsDir = await getAgentAssetsDir(agentId);
+      if (!(await exists(assetsDir))) return [];
+      const results: string[] = [];
+      const walk = async (dir: string, prefix: string): Promise<void> => {
+        const entries = await readDir(dir);
+        for (const entry of entries) {
+          if (!entry.name) continue;
+          const childRelative = prefix
+            ? `${prefix}/${entry.name}`
+            : entry.name;
+          if (entry.isDirectory) {
+            await walk(await join(dir, entry.name), childRelative);
+          } else {
+            results.push(`assets/${childRelative}`);
+          }
+        }
+      };
+      await walk(assetsDir, "");
+      return results;
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "读取智能体资产目录失败",
+        showToUser: false,
+        context: { agentId },
+      });
+      return [];
+    }
+  }
+
+  return {
+    loadAgents,
+    loadAgent,
+    saveAgent,
+    deleteAgent,
+    getAgentDir,
+    getAgentAssetsDir,
+    saveAgentAsset,
+    readAgentAsset,
+    saveAgentAvatar,
+    listAgentAssets,
+  };
 }

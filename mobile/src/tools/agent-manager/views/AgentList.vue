@@ -16,14 +16,25 @@ import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
-import { useAgentImporter } from "../composables/useAgentImporter";
+import {
+  useAgentImporter,
+  type ImportedAgentAvatar,
+  type ImportedAgentPrivateAssets,
+} from "../composables/useAgentImporter";
+import { useAgentStorage } from "../composables/useAgentStorage";
 import { useAgentStore } from "../stores/agentStore";
-import { AgentCategory, type ChatAgent } from "../types/agent";
+import {
+  AgentCategory,
+  type AgentAsset,
+  type AgentAssetType,
+  type ChatAgent,
+} from "../types/agent";
 
 const router = useRouter();
 const agentStore = useAgentStore();
 const profilesStore = useLlmProfilesStore();
 const worldbookStore = useWorldbookStore();
+const agentStorage = useAgentStorage();
 const { parseFile } = useAgentImporter();
 const { tRaw } = useI18n();
 const search = ref("");
@@ -109,6 +120,86 @@ function describeImportError(error: unknown, fileName: string): string {
   return `${fileName}：${tRaw(`tools.agent-manager.AgentList.${reasonKey}`)}`;
 }
 
+function bundleBasename(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const separator = normalized.lastIndexOf("/");
+  return separator >= 0 ? normalized.slice(separator + 1) : normalized;
+}
+
+function inferAssetType(mimeType?: string): AgentAssetType {
+  if (mimeType?.startsWith("image/")) return "image";
+  if (mimeType?.startsWith("audio/")) return "audio";
+  if (mimeType?.startsWith("video/")) return "video";
+  return "file";
+}
+
+/**
+ * 将导入包提取出的头像与私有资产落盘到 `agents/{id}/`，并回写 agent.icon / agent.assets。
+ * 单个资源失败只累积提示，不阻断其它资源或 Agent。
+ */
+async function persistAgentPrivateResources(
+  agent: ChatAgent,
+  draft: Partial<ChatAgent>,
+  avatar: ImportedAgentAvatar | undefined,
+  privateAssets: ImportedAgentPrivateAssets | undefined,
+  notices: string[]
+): Promise<void> {
+  const label = agent.displayName || agent.name;
+  const patch: Partial<ChatAgent> = {};
+
+  if (avatar) {
+    try {
+      const filename = await agentStorage.saveAgentAvatar(
+        agent.id,
+        avatar.filename,
+        avatar.bytes
+      );
+      patch.icon = filename;
+    } catch {
+      notices.push(`${label}：头像保存失败，已跳过。`);
+    }
+  }
+
+  if (privateAssets?.assets.length) {
+    const originalByPath = new Map<string, AgentAsset>();
+    for (const item of draft.assets ?? []) {
+      if (item && typeof item.path === "string") {
+        originalByPath.set(item.path, item);
+      }
+    }
+    const records: AgentAsset[] = [];
+    for (const asset of privateAssets.assets) {
+      try {
+        const savedPath = await agentStorage.saveAgentAsset(
+          agent.id,
+          asset.path,
+          asset.bytes
+        );
+        const original = originalByPath.get(asset.path);
+        records.push({
+          ...(original ?? {}),
+          id: original?.id || crypto.randomUUID(),
+          filename: bundleBasename(savedPath),
+          path: savedPath,
+          type: original?.type || inferAssetType(asset.mimeType),
+          ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
+          size: asset.size,
+        });
+      } catch {
+        notices.push(`${label}：资产 ${asset.path} 保存失败，已跳过。`);
+      }
+    }
+    if (records.length > 0) patch.assets = records;
+  }
+
+  if (Object.keys(patch).length === 0) return;
+  try {
+    await agentStore.updateAgent(agent.id, patch);
+  } catch {
+    notices.push(`${label}：私有资源回写失败。`);
+  }
+}
+
 async function importAgents(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files || []);
@@ -135,6 +226,14 @@ async function importAgents(event: Event): Promise<void> {
               worldbookIdByAgentIndex.set(agentIndex, imported.worldbook.id);
             }
           }
+        }
+        const avatarByAgentIndex = new Map<number, ImportedAgentAvatar>();
+        for (const avatar of result.agentAvatars ?? []) {
+          avatarByAgentIndex.set(avatar.agentIndex, avatar);
+        }
+        const assetsByAgentIndex = new Map<number, ImportedAgentPrivateAssets>();
+        for (const entry of result.privateAssets ?? []) {
+          assetsByAgentIndex.set(entry.agentIndex, entry);
         }
         for (
           let agentIndex = 0;
@@ -174,7 +273,16 @@ async function importAgents(event: Event): Promise<void> {
               ...new Set([...(overrides.worldbookIds ?? []), worldbookId]),
             ];
           }
-          if (await agentStore.createAgent(overrides)) importedCount++;
+          const created = await agentStore.createAgent(overrides);
+          if (!created) continue;
+          importedCount++;
+          await persistAgentPrivateResources(
+            created,
+            overrides,
+            avatarByAgentIndex.get(agentIndex),
+            assetsByAgentIndex.get(agentIndex),
+            notices
+          );
         }
         notices.push(...result.warnings);
       } catch (error) {

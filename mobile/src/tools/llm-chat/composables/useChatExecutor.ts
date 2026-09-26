@@ -313,6 +313,7 @@ export function useChatExecutor() {
           frequencyPenalty: activeAgent?.parameters?.frequencyPenalty,
           presencePenalty: activeAgent?.parameters?.presencePenalty,
           stop: activeAgent?.parameters?.stop,
+          custom: activeAgent?.parameters?.custom,
           stream: settings.value.uiPreferences.isStreaming,
           timeout: settings.value.requestSettings.timeout,
           maxRetries: settings.value.requestSettings.maxRetries,

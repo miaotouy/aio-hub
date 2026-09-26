@@ -31,6 +31,9 @@ export const callClaudeApi = async (
   profile: LlmProfile,
   options: LlmRequestOptions
 ): Promise<LlmResponse> => {
+  // Agent 自定义参数（parameters.custom）由共享的 toOpenAiCompatibleCoreRequest
+  // 按桌面语义解包并并入 core request.extensions，最终随请求体一起合并；
+  // Claude 适配器无需单独读取，也不能把它写入结构化的 messages / system 字段。
   const request = toOpenAiCompatibleCoreRequest(options);
   request.stream = Boolean(
     options.stream && (options.onStream || options.onReasoningStream)

@@ -588,6 +588,17 @@ export interface LlmRequestOptions {
     user_id?: string;
   };
 
+  // Agent 自定义参数
+  /**
+   * Agent 自定义请求参数，解包后合并进请求体。
+   * 兼容两种形态：
+   * - 包裹结构 `{ enabled?: boolean; params?: Record<string, unknown> }`：`enabled` 为真时合并 `params`
+   * - 旧版扁平对象 `Record<string, unknown>`：直接合并
+   */
+  custom?:
+    | { enabled?: boolean; params?: Record<string, unknown> }
+    | Record<string, unknown>;
+
   // 扩展参数
   [key: string]: any;
 }

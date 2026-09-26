@@ -81,6 +81,7 @@ Var DataDirParent
 Var DataDirText
 Var DataDirBrowseButton
 Var PreviousDataDir
+Var ExistingVersion
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -234,7 +235,8 @@ Function PageReinstall
   ${Else}
     ReadRegStr $R0 SHCTX "${UNINSTKEY}" "DisplayVersion"
   ${EndIf}
-  ${IfThen} $R0 == "" ${|} StrCpy $R4 "$(unknown)" ${|}
+  StrCpy $ExistingVersion $R0
+  ${IfThen} $R0 == "" ${|} StrCpy $ExistingVersion "$(unknown)" ${|}
 
   nsis_tauri_utils::SemverCompare "${VERSION}" $R0
   Pop $R0
@@ -280,11 +282,15 @@ Function PageReinstall
     ${NSD_CreateLabel} 0 0 100% 24u $R1
     Pop $R1
 
-    ${NSD_CreateRadioButton} 30u 50u -30u 8u $R2
+    ; Show both versions so users can confirm the installed and target releases.
+    ${NSD_CreateLabel} 0 28u 100% 16u "当前安装版本：$ExistingVersion$\r$\n待安装版本：${VERSION}"
+    Pop $R4
+
+    ${NSD_CreateRadioButton} 30u 52u -30u 8u $R2
     Pop $R2
     ${NSD_OnClick} $R2 PageReinstallUpdateSelection
 
-    ${NSD_CreateRadioButton} 30u 70u -30u 8u $R3
+    ${NSD_CreateRadioButton} 30u 72u -30u 8u $R3
     Pop $R3
     ; Disable this radio button if downgrading and downgrades are disabled
     !if "${ALLOWDOWNGRADES}" == "false"

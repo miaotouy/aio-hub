@@ -44,7 +44,7 @@ llm-chat/
 │       └── processors/
 │           ├── session-loader.ts       # 管道处理器：会话历史加载器
 │           ├── user-profile-injector.ts # 管道处理器：基础档案系统上下文
-│           ├── regex-processor.ts      # 管道处理器：导入 Agent 请求正则
+│           ├── regex-processor.ts      # 管道处理器：request 阶段正则（render 见消息渲染）
 │           ├── injection-assembler.ts  # 管道处理器：预设/深度/锚点组装器
 │           ├── macros-renderer.ts      # 管道处理器：角色聊天宏与局部变量
 │           ├── token-limiter.ts        # 管道处理器：文本历史 Token 截断
@@ -60,6 +60,7 @@ llm-chat/
 │   ├── contextPipelineStore.ts  # 上下文管道状态管理
 │   └── llmChatStore.ts          # 核心聊天 Store
 ├── types/
+│   ├── chatRegex.ts           # 正则规则/预设/配置与阶段开关类型
 │   ├── common.ts              # 基础类型（MessageRole, MessageStatus）
 │   ├── context.ts             # 可处理消息类型（ProcessableMessage）
 │   ├── index.ts               # 类型导出入口
@@ -70,6 +71,7 @@ llm-chat/
 ├── utils/
 │   ├── BranchNavigator.ts     # 分支导航工具类
 │   ├── chatFeedback.ts        # 移动端提示/确认封装
+│   ├── chatRegex.ts           # 正则解析/多源合并/阶段排序与应用（render 与 request 共用）
 │   └── contextTokenUsage.ts   # Token usage 优先级、占比与风险计算
 └── views/
     ├── ChatHome.vue           # 主页（入口卡片）
@@ -124,7 +126,7 @@ type MessageType = "message" | string;
 - 采用**字典 + 指针**方式而非嵌套树，方便增减节点
 - `activeLeafId` 指向当前分支末端，配合 `parentId` 可回溯完整路径
 - `lastSelectedChildId` 实现分支记忆导航
-- 新建绑定 Agent 的会话会将有效开局消息固化为根节点下的兄弟分支，优先激活 `defaultGreetingId`；未迁移的宏和 Agent 私有附件不会在此阶段隐式处理
+- 新建绑定 Agent 的会话会将有效开局消息固化为根节点下的兄弟分支，优先激活 `defaultGreetingId`；开局消息的 Agent 私有附件引用保留在节点 metadata，请求时由 `preset-attachment-processor` 从私有目录读取并进入请求内容；未迁移的宏仍不在固化阶段隐式处理
 - 聊天内切换 Agent 仅更新会话 `displayAgentId`；历史节点保持原样，后续助手节点固化 Agent 身份与模型/渠道快照
 - Assistant 续写创建同父节点的生成中分支，初始文本复制源回复并记录 `isContinuation + continuationPrefix`；旧分支不变。续写分支会清除旧 error、usage、Token、推理和中断状态，再固化本次实际使用的 Agent/模型快照
 
@@ -137,11 +139,14 @@ type MessageType = "message" | string;
 | `role` / `content` | 核心字段，支持 `string \| LlmMessageContent[]`（多模态）            |
 | `sourceType`       | 消息来源：`session_history` / `agent_preset` / `depth_injection` 等 |
 | `sourceId`         | 来源标识（预设索引或节点ID）                                        |
-| `_attachments`     | 管道中的强类型 `ManagedAssetRef[]` 附件列表                         |
+| `_attachments`     | 管道中的强类型 `ManagedAssetRef[]` 全局资产附件列表                 |
+| `_privateAttachments` | Agent 私有附件引用（`AgentAttachmentRef[]`），由预设 `presetAttachments` 与开局消息 `attachments` 归一化而来 |
 | `_originalContent` | 原始内容快照（宏调试用）                                            |
 | `_mergedSources`   | 被合并的原始消息                                                    |
 
 聊天附件已经采用 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md) 的全局可回收资产契约，使用 `assetId + 轻量快照`，不能直接移植桌面端包含路径的完整 `Asset` 对象。`_attachments` 由 codec、session loader 和消息视图共同维护，纯附件消息也必须保留。
+
+`_privateAttachments` 与全局资产严格分离：它不对应全局 `assetId`、不接入 `asset_manager.db`、不登记 usage，仅携带 Agent Handle（`AgentAsset.id`）或相对路径。预设消息经 `injection-assembler` 从 `presetAttachments` 填充，开局消息节点经 `session-loader` 从 `node.metadata.privateAttachments` 填充；两者都由 `preset-attachment-processor` 在请求构建末期从 `agents/{id}/` 私有目录读取字节后消费，处理完成后字段清空。只有附件而无正文的预设消息和开局节点必须保留。
 
 ### 3.5. 管道上下文 (`types/pipeline.ts`)
 
@@ -170,6 +175,21 @@ ChatSettings
 ```
 
 设置已接入实际执行路径：流式开关、时间戳、Token 与模型信息展示、自动滚动、消息字号、消息导航器、默认模型、请求超时/重试，以及消息/会话删除和清空确认均已消费。消息导航器关闭时不创建浮层；开启后由 `MessageList` 根据滚动容器的可视消息索引提供首条、上一条、下一条和末条跳转，不改变自动滚动偏好。
+
+### 3.7 世界书类型 (`types/worldbook.ts`)
+
+`MobileWorldbookEntry` 在旧字段（`keys` / `content` / `enabled` / `constant` / `order` / `position` / `depth` / `scanDepth` / `caseSensitive` / `matchWholeWords`）之上扩展 ST 高级语义子集：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `selective` / `secondaryKeys` / `selectiveLogic` | `boolean?` / `string[]?` / `"and_any"｜"not_all"｜"not_any"｜"and_all"?` | 次要关键词选择性匹配，缺省 `and_any` |
+| `probability` / `useProbability` | `number?` / `boolean?` | 概率激活，`probability` 统一 0-100（对齐 ST），需 `useProbability` 才生效 |
+| `role` | `"system"｜"user"｜"assistant"?` | 注入消息角色，缺省 `system`；ST `role` 0/1/2 转换 |
+| `stPosition` | `number?` | ST 原始位置 0-7，仅记录用于无损回写 |
+| `excludeRecursion` / `preventRecursion` / `delayUntilRecursion` / `delayUntilRecursionLevel` | `boolean?` / `number?` | 递归字段，当前仅无损保存，运行时未执行 |
+| `raw` / `[key: string]: unknown` | `Record<string, unknown>?` | 原始条目与未知字段（`group`、`groupWeight`、`vectorized`、`automationId` 等）无损保留 |
+
+`WorldbookEntryPosition` 为 `before_character｜after_character｜before_history｜after_history｜depth｜outlet`；旧三值 `before_history｜after_character｜depth` 语义不变，旧数据无需迁移。ST `before_an`/`before_em` 降级为 `before_history`，`after_an`/`after_em` 降级为 `after_history`，`outlet` 不注入消息；这些有损映射与递归/分组/向量一样会在导入时汇总 warning。`MobileWorldbookSettings`（`MobileWorldbook.settings` 或 `ChatAgent.worldbookSettings`）当前只消费 `defaultScanDepth`，递归相关字段保留为后续项。
 
 ## 4. 数据流架构
 
@@ -217,9 +237,10 @@ Actions:
    └── 将启用的 Agent 绑定或全局默认基础档案注入为历史前的系统上下文
 
 3. primary:regex-processor (priority: 300)
-   ├── 读取导入 Agent 的 `regexConfig`，按预设优先级、角色与消息深度应用 request 规则
+   ├── 合并全局（如存在，移动端当前恒空）与导入 Agent 的 `regexConfig`，按预设优先级、角色与消息深度应用 `applyTo.request` 规则
+   ├── 排序语义与 render 阶段一致：预设 `priority` 越小越先，其次规则 `order`，同权重保持来源顺序
    ├── 仅改写文本或多模态消息的 text part；无效规则记录日志但不会阻断请求
-   └── 脚本类型规则不会在移动端执行；全局/用户档案正则 UI 仍待完整桌面契约迁移
+   └── 脚本类型规则不会在移动端执行；全局/用户档案正则存储与 UI 仍待完整桌面契约迁移
 
 4. primary:injection-assembler (priority: 400)
    ├── 读取会话绑定的 ChatAgent，过滤禁用消息和禁用消息组
@@ -229,9 +250,11 @@ Actions:
 
 5. primary:worldbook-injector (priority: 450)
    ├── 从执行器预加载的 Agent `worldbookIds` 获取全局 `worldbooks.json` 的已启用世界书
-   ├── 对最近 `scanDepth` 条同分支历史执行确定性关键词匹配，常量条目始终激活
+   ├── 对最近 N 条同分支历史执行确定性关键词匹配，N 取 `entry.scanDepth > 书级 settings.defaultScanDepth > Agent worldbookSettings.defaultScanDepth > 8`；常量条目始终激活
+   ├── 支持次要关键词选择性逻辑（and_any / and_all / not_any / not_all）与 0-100 概率激活；随机源可注入以便测试
    ├── 用选中世界书顺序、条目 order 与 ID 作为稳定排序；`depth` 默认 4，并始终相对注入前的 session history 锚点计算，超长深度夹到最旧历史之前
-   └── 不实现递归、概率、分组竞争、向量、Outlet、自动化或 Knowledge/Recall
+   ├── 位置支持 before_character / after_character / before_history / after_history / depth / outlet，并按条目 `role` 决定注入消息角色
+   └── 不执行递归扫描、分组竞争、sticky/cooldown、向量、Outlet 宏提取或 Knowledge/Recall；相关字段无损保存但运行时忽略
 
 6. primary:macros-renderer (priority: 500)
    ├── 按管线顺序展开角色、用户、会话、模型与 `ManagedAssetRef` 轻量摘要宏
@@ -245,16 +268,25 @@ Actions:
    ├── 文本回退发生在 Token 限制器之前，因此会参与历史裁剪和最终请求 Token 快照
    └── `useChatExecutor` 只对没有文本回退的失效历史附件显示跳过提示；可用引用继续在最终序列化时交给 Rust 原生传输读取
 
+8. primary:preset-attachment-processor (priority: 850，位于 token-limiter 700 与 message-formatter 800 之后)
+   ├── 读取消息上暂存的 `_privateAttachments`，通过 `useAgentStorage.readAgentAsset` 从 `agents/{id}/` 私有目录读取字节
+   ├── 图片：纯 JS 编码为内联 base64，写入 vision part（`source.type = "base64"`），不经过全局资产或 Rust 原生传输
+   ├── 文本文档：以内联 `<attachment_text name mime_type>` 块确定性回退，超长截断
+   ├── 音频 / 视频 / 其它二进制：降级为 `<attachment …>` 文本描述并 warning，不静默丢弃
+   ├── 资产引用缺失或读取失败：记录缺失并 warning；无附件时直接 skipped，不改变任何消息
+   └── 放在 message-formatter 之后，避免私有图片在连续的 system / 同角色消息合并时被文本化丢弃；处理结果写入 `sharedData.presetAttachmentResolutionStats`
+
 管道执行流程：
 LlamaChatView.send() → useChatExecutor.execute()
   → 构建 PipelineContext
   → pipelineStore.executePipeline(context)
-  → [session-loader, user-profile-injector, regex-processor, injection-assembler, worldbook-injector, macros-renderer, attachment-preparer, token-limiter, message-formatter]
-  → buildMessageContent() 序列化可用托管引用 → Rust 原生传输在发网前解析资产字节
+  → [session-loader, user-profile-injector, regex-processor, injection-assembler, worldbook-injector, macros-renderer, attachment-preparer, token-limiter, message-formatter, preset-attachment-processor]
+  → buildMessageContent() 序列化可用托管引用；私有附件已由 preset-attachment-processor 内联进 content
+  → Rust 原生传输在发网前解析托管引用资产字节
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据只包含文本、关键词、扫描深度、位置和顺序；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -275,7 +307,7 @@ Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
   ├─ 2. 普通发送创建用户节点；重新生成复用父用户节点；续写创建复制源内容的 Assistant 同级分支
   ├─ 3. 创建或复用生成中的助手节点并更新 activeLeaf
   ├─ 4. 读取会话绑定的 Agent 与模型/常用生成参数，固化本次助手快照
-  ├─ 5. 执行 pipeline（续写时活跃路径以复制前缀的 Assistant 分支结尾；加载历史并按默认/深度/锚点策略组装 Agent 预设；在 Token 裁剪前筛除失效附件并回退已持久化的提取文本）
+  ├─ 5. 执行 pipeline（续写时活跃路径以复制前缀的 Assistant 分支结尾；加载历史并按默认/深度/锚点策略组装 Agent 预设；在 Token 裁剪前筛除失效附件并回退已持久化的提取文本；在最终格式化后从 Agent 私有目录解析预设与开局附件，图片进 vision、文本内联回退）
   ├─ 6. 统计最终请求上下文 Token 并写入风险快照
   ├─ 7. 调用 useLlmRequest.sendRequest()（流式）
   │    ├─ onStream: 逐 chunk 追加到 assistantNode.content
@@ -285,6 +317,8 @@ Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
 ```
 
 原生 reqwest 流在成功响应时注册为前端拉取式 stream；非 2xx 在 Rust 端按响应上限读取错误正文后直接返回状态，不进入 stream registry。取消命令会先触发 token，再立即移除 request 与 response registry；已在执行的 read 由 token 唤醒并自行收口。
+
+请求参数由 `useChatExecutor` 从当前 Agent 固化：标准字段（`maxTokens` / `temperature` / `topP` / `frequencyPenalty` / `presencePenalty` / `stop`）与 `parameters.custom` 一并进入 `LlmRequestOptions`。`custom` 由 `llm-api` 共享的 `toOpenAiCompatibleCoreRequest` 按桌面 `buildEffectiveParameters` 语义解包——包裹结构仅在 `enabled` 为真时取 `params`，旧版扁平对象整体合并——解包结果放在 core request 的 `extensions` 末尾，由各 provider 在标准字段之后合并进请求体，因此允许覆盖 `temperature` 等标准字段，但会剔除 `messages` / `stream` 以保护消息数组与流式声明。所有移动端文本适配器（openai-compatible、OpenAI Responses、Claude、Gemini、Vertex AI、Cohere）共享此解包，不重复实现。
 
 ## 5. 路由与页面
 
@@ -452,6 +486,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 会话通过 `displayAgentId` 持久化 Agent 绑定
 - [x] 加载并按默认、深度和锚点策略组装启用的 Agent 预设消息
 - [x] Agent 渠道、模型与常用生成参数进入请求层
+- [x] Agent 自定义参数（`parameters.custom`）按桌面语义解包并合并进请求体（共享 core request，允许覆盖标准字段）
 - [x] 聊天导航栏展示当前 Agent 标识
 
 ### ✅ Token 统计与展示
@@ -483,13 +518,16 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 ### 🔄 管道处理器
 
 - [x] `macros-renderer`：已完成移动端角色聊天限定范围的角色、用户、会话、模型、附件摘要宏与局部变量；工具、Recall、Knowledge、CSS 和全局变量宏不属于当前范围
-- [x] `regex-processor`：兼容导入 Agent 的 request 阶段文本正则，按预设优先级、角色和消息深度执行；脚本规则与全局/用户档案配置仍待独立能力
+- [x] `regex-processor`：合并全局（移动端当前为空）与导入 Agent 配置，兼容旧配置缺 render 字段，按预设优先级、角色和消息深度执行 request 阶段文本正则；脚本规则不执行；全局/用户档案正则配置源仍待独立能力
+- [x] 正则 render 阶段：`MessageContent` 在显示前应用 `applyTo.render` 规则，`ChatMessage` 以 Message-Bound（`metadata.agentId`）解析并合并 Agent 配置，深度由 `MessageList` 传入；规则解析、阶段排序与应用复用 `utils/chatRegex.ts`，无匹配规则时短路，不修改持久化内容
 - [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
-- [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；私有预设附件待 Agent 资源包完成后接入
+- [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；把 `presetAttachments` 归一化为 `ProcessableMessage._privateAttachments`，并保留只有附件而无正文的预设消息
+- [x] `preset-attachment-processor`（priority 850）：从 Agent 私有目录读取预设与开局附件字节，图片内联进 vision，文本以内联块回退，其余类型降级为文本描述并 warning；不接入全局资产，无附件时跳过
 - [x] `user-profile-injector`：启用的 Agent 绑定或全局默认基础档案在历史前以 `<user_profile>` 系统上下文注入；完整桌面用户档案宏契约仍不在此范围
 - [x] 模型与渠道匹配：由 `injection-assembler` 统一执行；Agent 的 `profileId` 与 provider-native `modelId` 分字段保存，Ollama 等带冒号模型 ID 不再二次拆分
 - [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留；部分截断保留消息开头并对候选文本重新计数，附件、工具 schema 和多模态额外开销仍由独立估算处理
 - [x] `ProcessableMessage._attachments` 的强类型加载与空文本消息保留
+- [x] `ProcessableMessage._privateAttachments` 的加载（预设经 injection-assembler、开局经 session-loader）与附件消失时的降级 warning
 
 ### 🔄 多模态支持
 
@@ -507,9 +545,9 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 智能体预设加载
 - [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
 - [x] `primary:macros-renderer` 已在预设装配后展开角色、用户、会话、模型和当前附件的轻量摘要宏，并复用导入 Agent `variableConfig` 的局部变量定义；仅支持 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`，不注册工具、Recall、Knowledge、CSS 或全局变量宏
-- [x] 已接入移动端限定的传统关键词世界书：有限历史扫描、常量/关键词激活和确定性注入；递归、概率、分组竞争、向量 RAG 与 Knowledge/Recall 不属于当前范围
+- [x] 已接入移动端限定的传统关键词世界书：有限历史扫描、常量/关键词激活、次要关键词选择性逻辑、0-100 概率激活、六值位置与条目 role、确定性注入；递归扫描、分组竞争、sticky/cooldown、向量 RAG 与 Knowledge/Recall 不属于当前范围（相关字段无损保存但不执行）
 - [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
-- [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容；聊天宏与私有附件后续按各自范围接入）
+- [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容）；开局消息的 Agent 私有附件以 `node.metadata.privateAttachments` 保留，请求时由 `preset-attachment-processor` 解析并进入请求内容；聊天宏后续按各自范围接入
 
 ### 🔄 体验优化
 
@@ -531,7 +569,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 | -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **UI 分层**    | 自研业务组件 + Element Plus 叶子控件                                 | 原生 Vue/AIO token 骨架 + Varlet 叶子控件                                                                                                                                                                                                                                                      |
 | **类型**       | 完整 `ChatAgent`, `Asset`, `ChatSettings`                            | 已接入兼容 `ChatAgent` 和 `ManagedAssetRef + 轻量快照`，不持久化全局资产路径                                                                                                                                                                                                                   |
-| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `macros-renderer` + `attachment-preparer` + `token-limiter` + `message-formatter`；宏仅覆盖角色聊天范围，Token 仅裁剪文本；可用附件由原生传输解析，已清理文档可回退持久化提取文本，多模态成本独立处理 |
+| **管道处理器** | 完整：会话、注入、宏/变量、世界书/召回、Token 限制、格式化和资源解析 | `session-loader` + `user-profile-injector` + `regex-processor` + `injection-assembler` + `worldbook-injector` + `macros-renderer` + `attachment-preparer` + `token-limiter` + `message-formatter` + `preset-attachment-processor`；宏仅覆盖角色聊天范围，Token 仅裁剪文本；全局附件由原生传输解析，已清理文档可回退持久化提取文本，Agent 私有预设/开局附件内联进请求内容，多模态成本独立处理 |
 | **组件**       | 丰富（BaseDialog, ImageViewer 等）                                   | 基础的列表/输入组件                                                                                                                                                                                                                                                                            |
 | **编辑器**     | RichCodeEditor（双引擎）                                             | 纯文本输入                                                                                                                                                                                                                                                                                     |
 | **路由**       | `main`, `settings` 两页                                              | `home`, `sessions`, `chat/:id`, `settings` 四页                                                                                                                                                                                                                                                |
@@ -565,3 +603,9 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 ### 富文本渲染
 
 聊天正文统一交给 `RichTextRenderer`。渲染器保留 Markdown 语义、代码块复制/换行、思考块折叠、KaTeX、Mermaid、提示块、表格和受管媒体节点；流式内容以 80ms 节流重排，完成响应立即刷新。排版使用移动端主题 token，长单词、代码和窄屏表格允许横向滚动或断行，原始 HTML 继续以字面文本展示。
+
+### 消息显示前正则（render 阶段）
+
+角色卡的「仅渲染」（ST `markdownOnly`）正则需要在消息显示前生效，但不改写持久化内容。数据流为：`MessageList` 按索引算出深度（`messages.length - 1 - index`）→ `ChatMessage` 以 `metadata.agentId` 做 Message-Bound 查找，`mergeRegexConfigs(全局源, Agent 源)` 合并（全局源当前恒空，合并顺序对齐桌面）→ `MessageContent` 用 `collectStageRules("render", …)` 收集、按角色与 `depthRange` 过滤后，交给 `applyRegexRules` 生成 `displayedContent`。阶段排序、flags 解析与 request 阶段共用 `utils/chatRegex.ts`，保证两阶段语义一致。
+
+性能上：`renderRules` 与 `displayedContent` 都是 `computed`，规则集合只在配置/角色/深度变化时重算；无 render 规则时直接返回原文短路；流式 Markdown 重排仍由 `RichTextRenderer` 的 80ms 节流承担，`applyRegexRules` 只做字符串替换、不改写 `message.content`。当前范围只覆盖正文，思考内容（`reasoningContent`）的 render 正则、render 规则的宏预处理（`substitutionMode` / `trimStrings`）、全局与用户档案级配置源为后续项。

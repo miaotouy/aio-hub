@@ -7,11 +7,21 @@ import type { ProcessableMessage } from "../../../types/context";
 import type {
   MobileWorldbook,
   MobileWorldbookEntry,
+  MobileWorldbookSettings,
+  WorldbookSelectiveLogic,
 } from "../../../types/worldbook";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("llm-chat/worldbook-injector");
 const PROCESSOR_ID = "primary:worldbook-injector";
+
+/** 无 scanDepth 时的移动端兜底扫描深度，保持与旧行为一致。 */
+const DEFAULT_SCAN_DEPTH = 8;
+
+export interface InjectWorldbookOptions {
+  /** 可注入的随机源，测试用于确定性验证概率激活；默认 Math.random。 */
+  random?: () => number;
+}
 
 interface MatchedEntry {
   entry: MobileWorldbookEntry;
@@ -19,6 +29,35 @@ interface MatchedEntry {
   worldbookName: string;
   worldbookIndex: number;
   matchedKeys: string[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/** 归一化 Agent 级或书级 worldbookSettings（兼容 camelCase / snake_case）。 */
+export function resolveWorldbookSettings(
+  raw: unknown
+): MobileWorldbookSettings {
+  if (!isRecord(raw)) return {};
+  const settings: MobileWorldbookSettings = {};
+  const scanDepth = readFiniteNumber(
+    raw.defaultScanDepth ?? raw.scan_depth ?? raw.world_info_depth
+  );
+  if (scanDepth !== undefined) settings.defaultScanDepth = scanDepth;
+  if (typeof raw.recursive === "boolean") settings.recursive = raw.recursive;
+  if (typeof raw.disableRecursion === "boolean")
+    settings.disableRecursion = raw.disableRecursion;
+  const maxRecursion = readFiniteNumber(
+    raw.maxRecursionSteps ?? raw.max_recursion_steps
+  );
+  if (maxRecursion !== undefined) settings.maxRecursionSteps = maxRecursion;
+  return settings;
 }
 
 function textContent(content: ProcessableMessage["content"]): string {
@@ -45,25 +84,84 @@ function matchesKey(
   ).test(haystack);
 }
 
+/** 次要关键词选择性逻辑；缺省 and_any。 */
+function passesSelective(entry: MobileWorldbookEntry, scanText: string): boolean {
+  if (!entry.selective) return true;
+  const secondaryKeys = entry.secondaryKeys ?? [];
+  if (secondaryKeys.length === 0) return true;
+  const matchCount = secondaryKeys.filter((key) =>
+    matchesKey(scanText, key, entry)
+  ).length;
+  const logic: WorldbookSelectiveLogic = entry.selectiveLogic ?? "and_any";
+  switch (logic) {
+    case "and_all":
+      return matchCount === secondaryKeys.length;
+    case "not_any":
+      return matchCount === 0;
+    case "not_all":
+      return matchCount < secondaryKeys.length;
+    case "and_any":
+    default:
+      return matchCount > 0;
+  }
+}
+
+/** 概率激活：仅 useProbability 且 0 < probability < 100 时随机判定。 */
+function passesProbability(
+  entry: MobileWorldbookEntry,
+  random: () => number
+): boolean {
+  if (!entry.useProbability) return true;
+  const probability = entry.probability;
+  if (probability === undefined || !Number.isFinite(probability)) return true;
+  if (probability >= 100) return true;
+  if (probability <= 0) return false;
+  return random() * 100 <= probability;
+}
+
+/** entry.scanDepth > 书级 > Agent 级 > 默认 8。 */
+function effectiveScanDepth(
+  entry: MobileWorldbookEntry,
+  bookSettings: MobileWorldbookSettings,
+  agentSettings: MobileWorldbookSettings
+): number {
+  const requested =
+    entry.scanDepth ??
+    bookSettings.defaultScanDepth ??
+    agentSettings.defaultScanDepth ??
+    DEFAULT_SCAN_DEPTH;
+  return Math.max(1, Math.floor(requested));
+}
+
 function matchEntries(
   context: PipelineContext,
-  worldbooks: readonly MobileWorldbook[]
+  worldbooks: readonly MobileWorldbook[],
+  random: () => number
 ): MatchedEntry[] {
   const history = context.messages
     .filter((message) => message.sourceType === "session_history")
     .map((message) => textContent(message.content));
+  const agentSettings = resolveWorldbookSettings(
+    context.agentConfig?.worldbookSettings
+  );
 
   const matched: MatchedEntry[] = [];
   worldbooks.forEach((worldbook, worldbookIndex) => {
+    const bookSettings = resolveWorldbookSettings(worldbook.settings);
     worldbook.entries.forEach((entry) => {
       if (!entry.enabled || !entry.content.trim()) return;
-      const scanText = history
-        .slice(-Math.max(1, entry.scanDepth ?? 8))
-        .join("\n");
-      const matchedKeys = entry.keys.filter((key) =>
-        matchesKey(scanText, key, entry)
-      );
-      if (!entry.constant && matchedKeys.length === 0) return;
+      let matchedKeys: string[] = [];
+      if (!entry.constant) {
+        const scanText = history
+          .slice(-effectiveScanDepth(entry, bookSettings, agentSettings))
+          .join("\n");
+        matchedKeys = entry.keys.filter((key) =>
+          matchesKey(scanText, key, entry)
+        );
+        if (matchedKeys.length === 0) return;
+        if (!passesSelective(entry, scanText)) return;
+      }
+      if (!passesProbability(entry, random)) return;
       matched.push({
         entry,
         worldbookId: worldbook.id,
@@ -84,7 +182,7 @@ function matchEntries(
 
 function toMessage(item: MatchedEntry): ProcessableMessage {
   return {
-    role: "system",
+    role: item.entry.role ?? "system",
     content: item.entry.content,
     sourceType: "worldbook_injection",
     sourceId: `${item.worldbookId}:${item.entry.id}`,
@@ -98,6 +196,14 @@ function firstHistoryIndex(messages: ProcessableMessage[]): number {
   return index >= 0 ? index : messages.length;
 }
 
+function characterAnchorIndex(messages: ProcessableMessage[]): number {
+  const index = messages.findIndex(
+    (message) =>
+      message.sourceType === "agent_preset" && message.role === "system"
+  );
+  return index >= 0 ? index : firstHistoryIndex(messages);
+}
+
 function injectEntries(
   context: PipelineContext,
   matched: readonly MatchedEntry[]
@@ -108,6 +214,17 @@ function injectEntries(
   const historyAnchors = context.messages.filter(
     (message) => message.sourceType === "session_history"
   );
+
+  const beforeCharacter = matched.filter(
+    (item) => item.entry.position === "before_character"
+  );
+  if (beforeCharacter.length) {
+    context.messages.splice(
+      characterAnchorIndex(context.messages),
+      0,
+      ...beforeCharacter.map(toMessage)
+    );
+  }
 
   const beforeHistory = matched.filter(
     (item) => item.entry.position === "before_history"
@@ -124,16 +241,22 @@ function injectEntries(
     (item) => item.entry.position === "after_character"
   );
   if (afterCharacter.length) {
-    const characterIndex = context.messages.findIndex(
-      (message) =>
-        message.sourceType === "agent_preset" && message.role === "system"
-    );
-    const index =
-      characterIndex >= 0
-        ? characterIndex + 1
-        : firstHistoryIndex(context.messages);
+    const index = characterAnchorIndex(context.messages) + 1;
     context.messages.splice(index, 0, ...afterCharacter.map(toMessage));
   }
+
+  const afterHistory = matched.filter(
+    (item) => item.entry.position === "after_history"
+  );
+  if (afterHistory.length) {
+    context.messages.splice(
+      firstHistoryIndex(context.messages) + 1,
+      0,
+      ...afterHistory.map(toMessage)
+    );
+  }
+
+  // outlet 不注入消息列表，仅保留在激活结果中（移动端暂不支持 Outlet 宏提取）。
 
   const depths = matched
     .filter((item) => item.entry.position === "depth")
@@ -168,9 +291,11 @@ function injectEntries(
 
 export function injectWorldbooks(
   context: PipelineContext,
-  worldbooks: readonly MobileWorldbook[]
+  worldbooks: readonly MobileWorldbook[],
+  options: InjectWorldbookOptions = {}
 ): MatchedEntry[] {
-  const matched = matchEntries(context, worldbooks);
+  const random = options.random ?? Math.random;
+  const matched = matchEntries(context, worldbooks, random);
   injectEntries(context, matched);
   return matched;
 }
@@ -179,7 +304,7 @@ export const worldbookInjector: ContextProcessor = {
   id: PROCESSOR_ID,
   name: "关键词世界书注入器",
   description:
-    "按 Agent 选择的世界书执行确定性关键词匹配，并在预设和历史之间注入上下文。",
+    "按 Agent 选择的世界书执行确定性关键词、次要关键词与概率匹配，并在预设和历史之间注入上下文。",
   priority: 450,
   isCore: true,
   execute: async (context) => {

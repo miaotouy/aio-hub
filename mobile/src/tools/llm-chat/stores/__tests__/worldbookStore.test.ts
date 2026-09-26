@@ -94,7 +94,7 @@ describe("worldbookStore", () => {
     );
   });
 
-  it("imports SillyTavern entries and downgrades advanced positions with warnings", async () => {
+  it("imports SillyTavern entries and degrades advanced positions with warnings", async () => {
     const store = useWorldbookStore();
     await store.init();
 
@@ -121,14 +121,117 @@ describe("worldbookStore", () => {
     expect(worldbook.entries).toHaveLength(2);
     expect(worldbook.entries[0]).toMatchObject({
       keys: ["starport", "dock"],
-      position: "before_history",
+      position: "before_character",
+      stPosition: 0,
       order: 10,
     });
     expect(worldbook.entries[1]).toMatchObject({
       keys: ["harbor"],
-      position: "after_character",
+      position: "after_history",
+      stPosition: 3,
     });
     expect(warnings.join(" ")).toContain("降级");
+  });
+
+  it("maps advanced SillyTavern semantics instead of dropping them", async () => {
+    const store = useWorldbookStore();
+    await store.init();
+
+    const { worldbook, warnings } = await store.importFromSillyTavern({
+      name: "Advanced",
+      book: {
+        entries: [
+          {
+            uid: 7,
+            key: ["starport"],
+            keysecondary: ["dock", "harbor"],
+            content: "Selective lore.",
+            selective: true,
+            selectiveLogic: 3,
+            probability: 42,
+            useProbability: true,
+            role: 2,
+            position: 4,
+            depth: 2,
+            exclude_recursion: true,
+            group: "places",
+            groupWeight: 60,
+            vectorized: true,
+          },
+          {
+            key: ["outlet"],
+            content: "Outlet lore.",
+            position: 7,
+          },
+        ],
+      },
+    });
+
+    expect(warnings.join(" ")).toContain("递归");
+    expect(warnings.join(" ")).toContain("分组");
+    expect(warnings.join(" ")).toContain("向量");
+    expect(worldbook.entries[0]).toMatchObject({
+      selective: true,
+      secondaryKeys: ["dock", "harbor"],
+      selectiveLogic: "and_all",
+      probability: 42,
+      useProbability: true,
+      role: "assistant",
+      position: "depth",
+      stPosition: 4,
+      excludeRecursion: true,
+    });
+    expect(worldbook.entries[0].raw).toMatchObject({
+      group: "places",
+      groupWeight: 60,
+      vectorized: true,
+    });
+    expect(worldbook.entries[1]).toMatchObject({
+      position: "outlet",
+      stPosition: 7,
+    });
+  });
+
+  it("preserves advanced entry fields when the UI edits an imported entry", async () => {
+    const store = useWorldbookStore();
+    await store.init();
+    const { worldbook } = await store.importFromSillyTavern({
+      name: "Preserve",
+      book: {
+        entries: [
+          {
+            key: ["starport"],
+            keysecondary: ["dock"],
+            selective: true,
+            selectiveLogic: 1,
+            probability: 80,
+            useProbability: true,
+            role: 1,
+            position: 3,
+            content: "Keep me.",
+          },
+        ],
+      },
+    });
+    const original = worldbook.entries[0];
+
+    const updated = await store.upsertEntry(worldbook.id, {
+      id: original.id,
+      content: "Edited content.",
+    });
+
+    expect(updated).toMatchObject({
+      content: "Edited content.",
+      keys: ["starport"],
+      selective: true,
+      secondaryKeys: ["dock"],
+      selectiveLogic: "not_all",
+      probability: 80,
+      useProbability: true,
+      role: "user",
+      position: "after_history",
+      stPosition: 3,
+    });
   });
 
   it("accepts dictionary entries and deduplicates the imported Worldbook name", async () => {

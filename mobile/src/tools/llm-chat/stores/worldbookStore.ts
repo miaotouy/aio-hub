@@ -5,10 +5,12 @@ import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import type {
+  MessageRole,
   MobileWorldbook,
   MobileWorldbookConfig,
   MobileWorldbookEntry,
   WorldbookEntryPosition,
+  WorldbookSelectiveLogic,
 } from "../types";
 
 const logger = createModuleLogger("llm-chat/worldbook-store");
@@ -38,66 +40,136 @@ function readString(record: Record<string, unknown>, key: string): string {
   return typeof record[key] === "string" ? (record[key] as string) : "";
 }
 
-/** ST 数字位置枚举 → 移动端三值位置（0 before_char、1 after_char、4 depth 等） */
-const ST_NUMBER_POSITIONS: Record<number, WorldbookEntryPosition> = {
-  0: "before_history",
-  1: "after_character",
-  2: "before_history",
-  3: "after_character",
-  4: "depth",
-  5: "before_history",
-  6: "after_character",
-  7: "before_history",
-};
+function readBoolean(...values: unknown[]): boolean {
+  return values.some((value) => value === true);
+}
 
-/** ST 字符串位置 → 移动端三值位置 */
-const ST_STRING_POSITIONS: Record<string, WorldbookEntryPosition> = {
-  before_char: "before_history",
-  before_an: "before_history",
-  before_em: "before_history",
-  after_char: "after_character",
-  after_an: "after_character",
-  after_em: "after_character",
-  depth: "depth",
-  at_depth: "depth",
-  outlet: "before_history",
-};
+function readFiniteNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
 
-const ST_EXACT_NUMBER_POSITIONS = new Set([0, 1, 4]);
-const ST_EXACT_STRING_POSITIONS = new Set([
-  "before_char",
-  "after_char",
-  "depth",
-  "at_depth",
-]);
+/** 关键词数组归一化：支持数组或逗号分隔字符串。 */
+function normalizeKeys(rawKeys: unknown): string[] {
+  if (Array.isArray(rawKeys)) {
+    return rawKeys
+      .filter((key): key is string => typeof key === "string")
+      .map((key) => key.trim())
+      .filter(Boolean);
+  }
+  if (typeof rawKeys === "string") {
+    return rawKeys
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
 
 /**
- * 解析 ST 条目插入位置。移动端仅有 before_history / after_character / depth 三值，
- * 高级位置（before_an/after_an/before_em/after_em/outlet）就近降级，
+ * ST 数字位置 → 移动端有效位置。AN / EM 在移动端没有独立锚点，就近降级并汇总 warning；
+ * 原始枚举通过 stPosition 保留，便于未来无损迁移。
+ */
+const ST_NUMBER_POSITIONS: Record<
+  number,
+  { position: WorldbookEntryPosition; exact: boolean }
+> = {
+  0: { position: "before_character", exact: true },
+  1: { position: "after_character", exact: true },
+  2: { position: "before_history", exact: false },
+  3: { position: "after_history", exact: false },
+  4: { position: "depth", exact: true },
+  5: { position: "before_history", exact: false },
+  6: { position: "after_history", exact: false },
+  7: { position: "outlet", exact: false },
+};
+
+/** ST 字符串位置 → 移动端有效位置。 */
+const ST_STRING_POSITIONS: Record<
+  string,
+  { position: WorldbookEntryPosition; exact: boolean; stPosition: number }
+> = {
+  before_char: { position: "before_character", exact: true, stPosition: 0 },
+  after_char: { position: "after_character", exact: true, stPosition: 1 },
+  before_an: { position: "before_history", exact: false, stPosition: 2 },
+  after_an: { position: "after_history", exact: false, stPosition: 3 },
+  depth: { position: "depth", exact: true, stPosition: 4 },
+  at_depth: { position: "depth", exact: true, stPosition: 4 },
+  before_em: { position: "before_history", exact: false, stPosition: 5 },
+  after_em: { position: "after_history", exact: false, stPosition: 6 },
+  outlet: { position: "outlet", exact: false, stPosition: 7 },
+};
+
+/** ST selectiveLogic 数字 → 移动端字符串。0 and_any / 1 not_all / 2 not_any / 3 and_all。 */
+const ST_SELECTIVE_LOGIC: Record<number, WorldbookSelectiveLogic> = {
+  0: "and_any",
+  1: "not_all",
+  2: "not_any",
+  3: "and_all",
+};
+
+function resolveSelectiveLogic(raw: unknown): WorldbookSelectiveLogic {
+  if (typeof raw === "number") return ST_SELECTIVE_LOGIC[raw] ?? "and_any";
+  if (typeof raw === "string") {
+    const key = raw.trim().toLowerCase();
+    if (key === "and_all" || key === "not_any" || key === "not_all")
+      return key;
+    if (key === "and_any") return "and_any";
+  }
+  return "and_any";
+}
+
+/** ST role 0/1/2 或字符串 → 移动端消息角色。 */
+function resolveStRole(raw: unknown): MessageRole | undefined {
+  if (typeof raw === "number") {
+    if (raw === 1) return "user";
+    if (raw === 2) return "assistant";
+    if (raw === 0) return "system";
+    return undefined;
+  }
+  if (typeof raw === "string") {
+    const value = raw.trim().toLowerCase();
+    if (value === "user" || value === "assistant" || value === "system")
+      return value;
+  }
+  return undefined;
+}
+
+/**
+ * 解析 ST 条目插入位置。移动端已覆盖 before_character / after_character /
+ * before_history / after_history / depth / outlet；AN、EM 与 Outlet 语义有损，
  * `exact` 为 false 时由调用方汇总进 warnings，避免静默丢失。
  */
 function resolveStPosition(
   rawPosition: unknown,
   extensions: Record<string, unknown> | undefined
-): { position: WorldbookEntryPosition; exact: boolean } {
+): { position: WorldbookEntryPosition; exact: boolean; stPosition?: number } {
   const value = rawPosition ?? extensions?.position;
   if (typeof value === "number") {
-    return {
-      position: ST_NUMBER_POSITIONS[value] ?? "before_history",
-      exact: ST_EXACT_NUMBER_POSITIONS.has(value),
+    const resolved = ST_NUMBER_POSITIONS[value] ?? {
+      position: "before_history" as WorldbookEntryPosition,
+      exact: false,
     };
+    return { ...resolved, stPosition: value };
   }
   if (typeof value === "string") {
-    const key = value.toLowerCase();
-    return {
-      position: ST_STRING_POSITIONS[key] ?? "before_history",
-      exact: ST_EXACT_STRING_POSITIONS.has(key),
-    };
+    const key = value.trim().toLowerCase();
+    const resolved = ST_STRING_POSITIONS[key];
+    if (resolved)
+      return {
+        position: resolved.position,
+        exact: resolved.exact,
+        stPosition: resolved.stPosition,
+      };
+    return { position: "before_history", exact: false };
   }
   return { position: "before_history", exact: true };
 }
 
-/** 把单条 ST 世界书条目归一化为移动端条目；无内容条目丢弃 */
+/** 把单条 ST 世界书条目归一化为移动端条目；无内容条目丢弃。未知字段保留在 raw。 */
 function normalizeStEntry(
   raw: unknown,
   index: number,
@@ -107,29 +179,39 @@ function normalizeStEntry(
   const content = readString(raw, "content").trim();
   if (!content) return null;
   const extensions = isRecord(raw.extensions) ? raw.extensions : undefined;
-  const rawKeys = raw.key ?? raw.keys;
-  const keys = Array.isArray(rawKeys)
-    ? rawKeys
-        .filter((key): key is string => typeof key === "string")
-        .map((key) => key.trim())
-        .filter(Boolean)
-    : typeof rawKeys === "string"
-      ? rawKeys
-          .split(",")
-          .map((key) => key.trim())
-          .filter(Boolean)
-      : [];
-  const { position, exact } = resolveStPosition(raw.position, extensions);
+  const keys = normalizeKeys(raw.key ?? raw.keys);
+  const { position, exact, stPosition } = resolveStPosition(
+    raw.position,
+    extensions
+  );
   if (!exact) {
     const label = readString(raw, "comment") || `#${index}`;
     warnings.push(
-      `世界书条目「${label}」的插入位置 ${String(raw.position ?? extensions?.position)} 已降级为 ${position}。`
+      `世界书条目「${label}」的插入位置 ${String(
+        raw.position ?? extensions?.position
+      )} 已降级为 ${position}。`
     );
   }
-  const order = Number(raw.order ?? raw.insertion_order);
-  const depth = Number(raw.depth ?? extensions?.depth);
-  const scanDepth = Number(
-    raw.scanDepth ?? raw.scan_depth ?? extensions?.scan_depth
+  const secondaryKeys = normalizeKeys(
+    raw.keysecondary ??
+      raw.keySecondary ??
+      raw.secondaryKeys ??
+      raw.secondary_key ??
+      raw.key_secondary
+  );
+  const order = readFiniteNumber(raw.order, raw.insertion_order);
+  const depth = readFiniteNumber(raw.depth, extensions?.depth);
+  const scanDepth = readFiniteNumber(
+    raw.scanDepth,
+    raw.scan_depth,
+    extensions?.scan_depth,
+    extensions?.scanDepth
+  );
+  const probability = readFiniteNumber(raw.probability);
+  const delayUntilRecursionLevel = readFiniteNumber(
+    raw.delayUntilRecursionLevel,
+    raw.delay_until_recursion_level,
+    extensions?.delay_until_recursion_level
   );
   return {
     id: String(raw.uid ?? raw.id ?? index),
@@ -142,15 +224,56 @@ function normalizeStEntry(
       raw.enabled === false
     ),
     constant: raw.constant === true,
-    order: Number.isFinite(order) ? order : 100,
+    order: order ?? 100,
     position,
-    depth: Number.isFinite(depth) ? Math.max(0, Math.floor(depth)) : 4,
-    scanDepth: Number.isFinite(scanDepth)
-      ? Math.max(1, Math.floor(scanDepth))
-      : undefined,
-    caseSensitive: raw.caseSensitive === true || raw.case_sensitive === true,
-    matchWholeWords:
-      raw.matchWholeWords === true || raw.match_whole_words === true,
+    stPosition,
+    role: resolveStRole(raw.role),
+    depth: depth !== undefined ? Math.max(0, Math.floor(depth)) : 4,
+    scanDepth:
+      scanDepth !== undefined ? Math.max(1, Math.floor(scanDepth)) : undefined,
+    caseSensitive: readBoolean(
+      raw.caseSensitive,
+      raw.case_sensitive,
+      extensions?.case_sensitive
+    ),
+    matchWholeWords: readBoolean(
+      raw.matchWholeWords,
+      raw.match_whole_words,
+      extensions?.match_whole_words
+    ),
+    selective: raw.selective === true,
+    secondaryKeys: secondaryKeys.length ? secondaryKeys : undefined,
+    selectiveLogic: resolveSelectiveLogic(
+      raw.selectiveLogic ??
+        raw.selective_logic ??
+        extensions?.selectiveLogic ??
+        extensions?.selective_logic
+    ),
+    probability:
+      probability !== undefined
+        ? Math.min(100, Math.max(0, probability))
+        : undefined,
+    useProbability: readBoolean(raw.useProbability, raw.use_probability),
+    excludeRecursion: readBoolean(
+      raw.excludeRecursion,
+      raw.exclude_recursion,
+      extensions?.exclude_recursion
+    ),
+    preventRecursion: readBoolean(
+      raw.preventRecursion,
+      raw.prevent_recursion,
+      extensions?.prevent_recursion
+    ),
+    delayUntilRecursion: readBoolean(
+      raw.delayUntilRecursion,
+      raw.delay_until_recursion,
+      extensions?.delay_until_recursion
+    ),
+    delayUntilRecursionLevel:
+      delayUntilRecursionLevel !== undefined
+        ? Math.max(1, Math.floor(delayUntilRecursionLevel))
+        : undefined,
+    raw: { ...raw },
   };
 }
 
@@ -215,6 +338,8 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
       description: input.description?.trim() || undefined,
       enabled: input.enabled ?? true,
       entries: input.entries ?? [],
+      settings: input.settings,
+      rawMetadata: input.rawMetadata,
       createdAt: now,
       updatedAt: now,
     };
@@ -264,19 +389,42 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     const existingIndex = input.id
       ? worldbook.entries.findIndex((entry) => entry.id === input.id)
       : -1;
+    const existing =
+      existingIndex >= 0 ? worldbook.entries[existingIndex] : undefined;
+    // 以既有条目为基底合并，避免 UI 未暴露的高级字段与 raw 在编辑时被清空。
     const entry: MobileWorldbookEntry = {
-      id: input.id || uuidv4(),
+      ...(existing ?? {}),
+      ...input,
+      id: input.id || existing?.id || uuidv4(),
       name: input.name?.trim() || undefined,
-      keys: (input.keys ?? []).map((key) => key.trim()).filter(Boolean),
+      keys: (input.keys ?? existing?.keys ?? [])
+        .map((key) => key.trim())
+        .filter(Boolean),
       content: input.content,
-      enabled: input.enabled ?? true,
-      constant: input.constant ?? false,
-      order: Number.isFinite(input.order) ? Number(input.order) : 100,
-      position: input.position ?? "before_history",
-      depth: Math.max(0, Math.floor(input.depth ?? 4)),
-      scanDepth: Math.max(1, Math.floor(input.scanDepth ?? 8)),
-      caseSensitive: input.caseSensitive ?? false,
-      matchWholeWords: input.matchWholeWords ?? false,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      constant: input.constant ?? existing?.constant ?? false,
+      order: Number.isFinite(input.order)
+        ? Number(input.order)
+        : (existing?.order ?? 100),
+      position: input.position ?? existing?.position ?? "before_history",
+      role: input.role ?? existing?.role,
+      depth: Math.max(0, Math.floor(input.depth ?? existing?.depth ?? 4)),
+      scanDepth: Math.max(
+        1,
+        Math.floor(input.scanDepth ?? existing?.scanDepth ?? 8)
+      ),
+      caseSensitive: input.caseSensitive ?? existing?.caseSensitive ?? false,
+      matchWholeWords:
+        input.matchWholeWords ?? existing?.matchWholeWords ?? false,
+      selective: input.selective ?? existing?.selective ?? false,
+      secondaryKeys: (input.secondaryKeys ?? existing?.secondaryKeys ?? [])
+        .map((key) => key.trim())
+        .filter(Boolean),
+      selectiveLogic:
+        input.selectiveLogic ?? existing?.selectiveLogic ?? "and_any",
+      probability: input.probability ?? existing?.probability,
+      useProbability:
+        input.useProbability ?? existing?.useProbability ?? false,
     };
     if (existingIndex >= 0) worldbook.entries.splice(existingIndex, 1, entry);
     else worldbook.entries.push(entry);
@@ -326,10 +474,41 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
     return `${trimmed} (${suffix})`;
   }
 
+  /** 仅在导入时汇总一次的高级语义 warning：字段已保留但运行时未执行。 */
+  function collectRuntimeWarnings(entries: MobileWorldbookEntry[]): string[] {
+    const warnings: string[] = [];
+    const hasRecursion = entries.some(
+      (entry) =>
+        entry.excludeRecursion ||
+        entry.preventRecursion ||
+        entry.delayUntilRecursion ||
+        entry.delayUntilRecursionLevel !== undefined
+    );
+    if (hasRecursion) {
+      warnings.push(
+        "部分条目包含递归扫描字段，已无损保存，但移动端当前不执行递归扫描。"
+      );
+    }
+    const hasGroup = entries.some(
+      (entry) =>
+        typeof entry.raw?.group === "string" && entry.raw.group.trim() !== ""
+    );
+    if (hasGroup) {
+      warnings.push(
+        "部分条目属于世界书分组，分组竞争未在移动端实现，原始分组字段已保留。"
+      );
+    }
+    const hasVector = entries.some((entry) => entry.raw?.vectorized === true);
+    if (hasVector) {
+      warnings.push("部分条目为向量化条目，移动端不支持向量检索，已按关键词处理。");
+    }
+    return warnings;
+  }
+
   /**
    * 导入 SillyTavern 世界书（entries 数组或字典均可）。
-   * 映射为移动端简化模型：三值位置、关键词、常量、顺序与扫描深度；
-   * 移动端无法表达的高级位置等语义通过 warnings 汇总，不静默丢弃。
+   * 映射移动端可执行的语义：六值位置、role、次要关键词、概率、扫描深度与顺序；
+   * 递归 / 分组 / 向量等仍无法执行的语义通过 warnings 汇总，原始字段无损保留在 raw。
    */
   async function importFromSillyTavern(input: {
     book: unknown;
@@ -348,6 +527,7 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
       .map((entry, index) => normalizeStEntry(entry, index, warnings))
       .filter((entry): entry is MobileWorldbookEntry => entry !== null);
     if (entries.length === 0) throw new Error("EMPTY_WORLDBOOK");
+    warnings.push(...collectRuntimeWarnings(entries));
 
     const metadata = isRecord(input.book.metadata)
       ? input.book.metadata
@@ -356,12 +536,21 @@ export const useWorldbookStore = defineStore("llm-chat-worldbooks", () => {
       input.name?.trim() ||
       (metadata ? readString(metadata, "name") : "") ||
       "Imported Worldbook";
+    const rawSettings = isRecord(input.book.settings)
+      ? input.book.settings
+      : isRecord(metadata?.settings)
+        ? metadata.settings
+        : undefined;
     const worldbook = await createWorldbook({
       name: uniqueWorldbookName(baseName),
       description: metadata
         ? readString(metadata, "description") || undefined
         : undefined,
       entries,
+      settings: rawSettings
+        ? (rawSettings as MobileWorldbook["settings"])
+        : undefined,
+      rawMetadata: metadata ? { ...metadata } : undefined,
     });
     logger.info("已导入 SillyTavern 世界书", {
       worldbookId: worldbook.id,

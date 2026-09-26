@@ -27,7 +27,9 @@ const history: ProcessableMessage[] = [
   },
 ];
 
-function context(): PipelineContext {
+function context(
+  overrides: Partial<PipelineContext> = {}
+): PipelineContext {
   return {
     messages: structuredClone(history),
     session: {} as PipelineContext["session"],
@@ -36,6 +38,7 @@ function context(): PipelineContext {
     timestamp: Date.now(),
     sharedData: new Map(),
     logs: [],
+    ...overrides,
   };
 }
 
@@ -260,5 +263,249 @@ describe("worldbookInjector", () => {
     expect(pipelineContext.sharedData.get("activatedWorldbookEntries")).toEqual(
       []
     );
+  });
+
+  it("applies selective secondary keyword logic", () => {
+    const pipelineContext = context();
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-selective",
+        name: "Selective",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "and-any-hit",
+            content: "and any hit",
+            keys: ["starport"],
+            secondaryKeys: ["harbor"],
+            selective: true,
+            selectiveLogic: "and_any",
+            enabled: true,
+            constant: false,
+            order: 400,
+            position: "before_history",
+          },
+          {
+            id: "and-any-miss",
+            content: "and any miss",
+            keys: ["starport"],
+            secondaryKeys: ["dock"],
+            selective: true,
+            selectiveLogic: "and_any",
+            enabled: true,
+            constant: false,
+            order: 300,
+            position: "before_history",
+          },
+          {
+            id: "and-all-miss",
+            content: "and all miss",
+            keys: ["starport"],
+            secondaryKeys: ["harbor", "dock"],
+            selective: true,
+            selectiveLogic: "and_all",
+            enabled: true,
+            constant: false,
+            order: 250,
+            position: "before_history",
+          },
+          {
+            id: "not-any-hit",
+            content: "not any hit",
+            keys: ["starport"],
+            secondaryKeys: ["dock"],
+            selective: true,
+            selectiveLogic: "not_any",
+            enabled: true,
+            constant: false,
+            order: 200,
+            position: "before_history",
+          },
+          {
+            id: "not-all-hit",
+            content: "not all hit",
+            keys: ["starport"],
+            secondaryKeys: ["harbor", "dock"],
+            selective: true,
+            selectiveLogic: "not_all",
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const matched = injectWorldbooks(pipelineContext, selected);
+
+    expect(matched.map((item) => item.entry.id)).toEqual([
+      "and-any-hit",
+      "not-any-hit",
+      "not-all-hit",
+    ]);
+  });
+
+  it("applies probability only when useProbability is enabled", () => {
+    const build = (): MobileWorldbook[] => [
+      {
+        id: "book-probability",
+        name: "Probability",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "maybe",
+            content: "maybe lore",
+            keys: ["starport"],
+            probability: 30,
+            useProbability: true,
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const lowRoll = context();
+    const activated = injectWorldbooks(lowRoll, build(), {
+      random: () => 0.1,
+    });
+    expect(activated.map((item) => item.entry.id)).toEqual(["maybe"]);
+
+    const highRoll = context();
+    const rejected = injectWorldbooks(highRoll, build(), {
+      random: () => 0.9,
+    });
+    expect(rejected).toEqual([]);
+    expect(
+      highRoll.messages.map((message) => message.sourceId)
+    ).toEqual(["char", "old", "new"]);
+
+    const disabled = context();
+    const ignored = injectWorldbooks(
+      disabled,
+      [
+        {
+          ...build()[0],
+          entries: [{ ...build()[0].entries[0], useProbability: false }],
+        },
+      ],
+      { random: () => 0.99 }
+    );
+    expect(ignored.map((item) => item.entry.id)).toEqual(["maybe"]);
+  });
+
+  it("injects before_character and after_history with the entry role", () => {
+    const pipelineContext = context();
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-position",
+        name: "Positions",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "bc",
+            content: "before char",
+            keys: [],
+            role: "user",
+            enabled: true,
+            constant: true,
+            order: 200,
+            position: "before_character",
+          },
+          {
+            id: "ah",
+            content: "after history",
+            keys: [],
+            role: "assistant",
+            enabled: true,
+            constant: true,
+            order: 100,
+            position: "after_history",
+          },
+        ],
+      },
+    ];
+
+    injectWorldbooks(pipelineContext, selected);
+
+    expect(pipelineContext.messages.map((message) => message.sourceId)).toEqual(
+      ["book-position:bc", "char", "old", "book-position:ah", "new"]
+    );
+    expect(pipelineContext.messages[0].role).toBe("user");
+    expect(pipelineContext.messages[3].role).toBe("assistant");
+  });
+
+  it("keeps outlet entries activated without injecting into messages", () => {
+    const pipelineContext = context();
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-outlet",
+        name: "Outlet",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "outlet",
+            content: "outlet lore",
+            keys: [],
+            enabled: true,
+            constant: true,
+            order: 100,
+            position: "outlet",
+          },
+        ],
+      },
+    ];
+
+    const matched = injectWorldbooks(pipelineContext, selected);
+
+    expect(matched.map((item) => item.entry.id)).toEqual(["outlet"]);
+    expect(pipelineContext.messages.map((message) => message.sourceId)).toEqual(
+      ["char", "old", "new"]
+    );
+  });
+
+  it("uses Agent worldbookSettings as the scan depth fallback", () => {
+    const pipelineContext = context({
+      agentConfig: {
+        id: "agent",
+        name: "Agent",
+        worldbookSettings: { defaultScanDepth: 1 },
+      } as unknown as PipelineContext["agentConfig"],
+    });
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-fallback",
+        name: "Fallback",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "harbor-only-in-old",
+            content: "old lore",
+            keys: ["harbor"],
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const matched = injectWorldbooks(pipelineContext, selected);
+
+    expect(matched).toEqual([]);
   });
 });

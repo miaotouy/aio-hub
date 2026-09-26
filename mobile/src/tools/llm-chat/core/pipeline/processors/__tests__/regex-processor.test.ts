@@ -125,6 +125,30 @@ describe("regexProcessor", () => {
     expect(pipeline.messages[0].content).toBe("early");
   });
 
+  it("ignores render-only rules during the request stage", async () => {
+    const pipeline = context([{ role: "assistant", content: "foo" }], {
+      presets: [
+        {
+          enabled: true,
+          rules: [
+            {
+              enabled: true,
+              regex: "foo",
+              replacement: "bar",
+              applyTo: { render: true, request: false },
+              targetRoles: ["assistant"],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await regexProcessor.execute(pipeline);
+
+    expect(pipeline.messages[0].content).toBe("foo");
+    expect(result).toEqual(expect.objectContaining({ status: "skipped" }));
+  });
+
   it("skips malformed configurations and script rules without blocking requests", async () => {
     const pipeline = context([{ role: "user", content: "keep me" }], {
       presets: [

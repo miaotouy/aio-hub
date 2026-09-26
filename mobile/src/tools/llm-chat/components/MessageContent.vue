@@ -20,6 +20,12 @@ import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { ChatMessageAttachment, ChatMessageNode } from "../types";
 import { isChatMessageReference } from "../utils/replyReference";
 import {
+  applyRegexRules,
+  collectStageRules,
+  filterRulesByDepth,
+  filterRulesByRole,
+} from "../utils/chatRegex";
+import {
   getAttachmentAvailabilityMap,
   type ChatAttachmentAvailability,
 } from "../utils/attachmentStatus";
@@ -27,9 +33,39 @@ import {
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.MessageContent.${key}`);
 
-const props = defineProps<{
-  message: ChatMessageNode;
-}>();
+const props = withDefaults(
+  defineProps<{
+    message: ChatMessageNode;
+    /** 该消息渲染阶段使用的正则配置（由 ChatMessage 解析并合并）。 */
+    regexConfig?: unknown;
+    /** 距离最新消息的深度，0 表示最新。 */
+    messageDepth?: number;
+  }>(),
+  {
+    messageDepth: 0,
+  }
+);
+
+/**
+ * 渲染阶段的正则规则：按角色与深度过滤，执行顺序与 request 阶段一致
+ * （预设 priority → 规则 order）。无匹配规则时直接短路，避免流式期间
+ * 对每个 chunk 做无谓计算；真正的 Markdown 解析节流由 RichTextRenderer 负责。
+ */
+const renderRules = computed(() => {
+  const rules = collectStageRules("render", props.regexConfig);
+  if (!rules.length) return [];
+  return filterRulesByDepth(
+    filterRulesByRole(rules, props.message.role),
+    props.messageDepth
+  );
+});
+
+/** 显示前应用 render 规则；不修改 message.content，只影响界面。 */
+const displayedContent = computed(() => {
+  const content = props.message.content;
+  if (!content || !renderRules.value.length) return content;
+  return applyRegexRules(content, renderRules.value).text;
+});
 
 const isReasoningExpanded = ref(true);
 const replyTo = computed(() =>
@@ -278,7 +314,7 @@ const formatBytes = (value: number) => {
 
     <div v-if="message.content" class="text-content">
       <RichTextRenderer
-        :content="message.content"
+        :content="displayedContent"
         :is-streaming="message.status === 'generating'"
         :resolve-media-item="resolveMessageMediaItem"
       />

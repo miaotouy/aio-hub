@@ -165,6 +165,114 @@ describe("MessageContent RichText managed media", () => {
   });
 });
 
+describe("MessageContent render regex", () => {
+  const renderConfig = {
+    presets: [
+      {
+        enabled: true,
+        rules: [
+          {
+            enabled: true,
+            name: "render-only",
+            regex: "/foo/g",
+            replacement: "bar",
+            applyTo: { render: true, request: false },
+            targetRoles: ["assistant"],
+          },
+          {
+            enabled: true,
+            name: "request-only",
+            regex: "/foo/g",
+            replacement: "baz",
+            applyTo: { render: false, request: true },
+            targetRoles: ["assistant"],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("applies render-stage rules to the displayed content only", async () => {
+    const wrapper = mount(MessageContent, {
+      props: {
+        message: { ...message([]), role: "assistant", content: "foo content" },
+        regexConfig: renderConfig,
+        messageDepth: 0,
+      },
+      global: {
+        stubs: {
+          RichTextRenderer: RichTextRendererStub,
+          MediaPreviewHost: MediaPreviewHostStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.getComponent(RichTextRendererStub).props("content")).toBe(
+      "bar content"
+    );
+  });
+
+  it("skips rules for non-target roles", async () => {
+    const wrapper = mount(MessageContent, {
+      props: {
+        message: { ...message([]), role: "user", content: "foo content" },
+        regexConfig: renderConfig,
+      },
+      global: {
+        stubs: {
+          RichTextRenderer: RichTextRendererStub,
+          MediaPreviewHost: MediaPreviewHostStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.getComponent(RichTextRendererStub).props("content")).toBe(
+      "foo content"
+    );
+  });
+
+  it("honors depthRange when filtering render rules", async () => {
+    const deepConfig = {
+      presets: [
+        {
+          enabled: true,
+          rules: [
+            {
+              enabled: true,
+              name: "newest-only",
+              regex: "/foo/g",
+              replacement: "bar",
+              applyTo: { render: true, request: false },
+              targetRoles: ["assistant"],
+              depthRange: { max: 0 },
+            },
+          ],
+        },
+      ],
+    };
+    const wrapper = mount(MessageContent, {
+      props: {
+        message: { ...message([]), role: "assistant", content: "foo content" },
+        regexConfig: deepConfig,
+        messageDepth: 2,
+      },
+      global: {
+        stubs: {
+          RichTextRenderer: RichTextRendererStub,
+          MediaPreviewHost: MediaPreviewHostStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.getComponent(RichTextRendererStub).props("content")).toBe(
+      "foo content"
+    );
+  });
+});
+
 describe("MessageContent reply references", () => {
   it("renders the persisted reply snapshot without relying on the source node", () => {
     const wrapper = mount(MessageContent, {

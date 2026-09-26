@@ -16,6 +16,9 @@ const settings = vi.hoisted(() => ({
 vi.mock("../../stores/llmChatStore", () => ({
   useLlmChatStore: () => ({ currentSession: null }),
 }));
+vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
+  useAgentStore: () => ({ getAgentById: () => null }),
+}));
 vi.mock("../../composables/useChatSettings", () => ({
   useChatSettings: () => ({ settings }),
 }));

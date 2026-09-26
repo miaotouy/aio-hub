@@ -3,18 +3,27 @@ import { computed } from "vue";
 import type { ChatMessageNode } from "../types";
 import { User, Bot } from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
+import { mergeRegexConfigs } from "../utils/chatRegex";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import BranchSwitcher from "./BranchSwitcher.vue";
 
-const props = defineProps<{
-  message: ChatMessageNode;
-  isActive?: boolean;
-  /** Multiplier from the chat UI font-size preference. */
-  fontSize?: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    message: ChatMessageNode;
+    isActive?: boolean;
+    /** Multiplier from the chat UI font-size preference. */
+    fontSize?: number;
+    /** 距离最新消息的深度，0 表示最新；用于 render 正则的 depthRange 过滤。 */
+    messageDepth?: number;
+  }>(),
+  {
+    messageDepth: 0,
+  }
+);
 
 const emit = defineEmits<{
   (e: "click"): void;
@@ -35,9 +44,22 @@ const emit = defineEmits<{
 }>();
 
 const chatStore = useLlmChatStore();
+const agentStore = useAgentStore();
 const { settings } = useChatSettings();
 const { tRaw, locale } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+
+/**
+ * 该消息渲染阶段使用的正则配置（Message-Bound）。
+ * 合并顺序对齐桌面：全局源在前、Agent 源在后；移动端暂无全局/档案级
+ * regexConfig 载体，全局源当前恒为 undefined。
+ */
+const messageRegexConfig = computed(() =>
+  mergeRegexConfigs(
+    (settings.value as { regexConfig?: unknown } | undefined)?.regexConfig,
+    agentStore.getAgentById(props.message.metadata?.agentId)?.regexConfig
+  )
+);
 const timestampLabel = computed(() => {
   if (!props.message.timestamp) return null;
 
@@ -104,7 +126,11 @@ function handleContentClick(event: MouseEvent) {
 
     <div class="message-container">
       <div class="content-body" @click="handleContentClick">
-        <MessageContent :message="message" />
+        <MessageContent
+          :message="message"
+          :regex-config="messageRegexConfig"
+          :message-depth="messageDepth"
+        />
       </div>
 
       <!-- 分支切换器 -->

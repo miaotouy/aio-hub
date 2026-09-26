@@ -219,10 +219,11 @@ defineExpose({
 
       <div v-else class="messages-inner">
         <ChatMessage
-          v-for="msg in messages"
+          v-for="(msg, index) in messages"
           :key="msg.id"
           :message="msg"
           :font-size="fontSize"
+          :message-depth="messages.length - 1 - index"
           :is-active="activeMessageId === msg.id"
           @click="handleMessageClick(msg.id)"
           @close="activeMessageId = null"

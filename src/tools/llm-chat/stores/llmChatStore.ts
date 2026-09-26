@@ -505,6 +505,46 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     ensureSessionDetail,
   } = sessionLifecycle;
 
+  let autoMaterializingDraftId: string | null = null;
+  watch(
+    () => {
+      const draft = newSessionDraft.value;
+      if (!draft) return null;
+
+      return {
+        id: draft.index.id,
+        messageCount: getEffectiveMessageCount(
+          draft.detail.nodes,
+          draft.detail.rootNodeId
+        ),
+      };
+    },
+    async (draft) => {
+      // 正常发送会在首条消息前提升草稿。此处兜底处理旧发送路径已经
+      // 写入消息、却仍停留在虚拟会话的情况，避免历史会话列表卡住。
+      if (!draft || draft.messageCount === 0 || autoMaterializingDraftId) {
+        return;
+      }
+
+      autoMaterializingDraftId = draft.id;
+      try {
+        await materializeNewSession();
+        logger.info("检测到带消息的虚拟会话，已自动提升为历史会话", {
+          sessionId: draft.id,
+          messageCount: draft.messageCount,
+        });
+      } catch (error) {
+        logger.warn("自动提升带消息的虚拟会话失败", {
+          sessionId: draft.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        autoMaterializingDraftId = null;
+      }
+    },
+    { flush: "post" }
+  );
+
   // ==================== 按会话 id 的只读访问 ====================
   // 显式绑定到任意会话（如后台子会话），不改变 currentSessionId。
 
@@ -621,7 +661,14 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     }
   ): Promise<void> {
     let targetOptions = options;
-    if (!options?.sessionId && newSessionDraft.value) {
+    const draftSessionId = newSessionDraft.value?.index.id;
+    // ChatArea 会把当前会话 ID 一并传入发送参数。虚拟新会话此时仍然
+    // 使用草稿 ID，不能因为参数里已有 sessionId 就跳过提升，否则消息
+    // 会一直留在 volatile 会话中，生成结束后的持久化也会被忽略。
+    if (
+      newSessionDraft.value &&
+      (!options?.sessionId || options.sessionId === draftSessionId)
+    ) {
       const sessionId = await materializeNewSession();
       if (sessionId) {
         targetOptions = { ...options, sessionId };

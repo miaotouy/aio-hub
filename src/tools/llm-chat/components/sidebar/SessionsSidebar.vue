@@ -370,6 +370,7 @@ const handleBatchManagerSwitch = (sessionId: string) => {
           <el-button
             type="primary"
             :icon="Plus"
+            data-testid="chat-new-session"
             @click="handleQuickNewSession"
             circle
           />

@@ -3,6 +3,7 @@ export type E2ePresetId =
   | "recall-vector"
   | "recall-curated"
   | "recall-chat"
+  | "chat-session-persistence"
   | "corpus-sample"
   | "corpus-full"
   | "ollama-vector"
@@ -33,6 +34,8 @@ const VECTOR_SPEC = "tests/tauri-e2e/specs/recall-vector-workflow.spec.ts";
 const PIPELINE_SPEC = "tests/tauri-e2e/specs/recall-pipeline.spec.ts";
 const CHAT_SPEC = "tests/tauri-e2e/specs/recall-chat-injection.spec.ts";
 const RECOVERY_SPEC = "tests/tauri-e2e/specs/recall-session-recovery.spec.ts";
+const CHAT_SESSION_PERSISTENCE_SPEC =
+  "tests/tauri-e2e/specs/virtual-new-session.spec.ts";
 const EXTERNAL_SPEC = "tests/tauri-e2e/specs/recall-external-corpus.spec.ts";
 const EXTERNAL_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts";
@@ -77,6 +80,15 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
     id: "recall-curated",
     purpose: "Deterministic Recall workflow with the reviewed curated corpus",
     args: ["--corpus-mode", "curated", "--spec", VECTOR_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [],
+    includesRestart: false,
+  },
+  {
+    id: "chat-session-persistence",
+    purpose:
+      "Virtual Chat session first-message persistence and history promotion",
+    args: ["--spec", CHAT_SESSION_PERSISTENCE_SPEC],
     prerequisites: [],
     runtimeRequirements: [],
     includesRestart: false,

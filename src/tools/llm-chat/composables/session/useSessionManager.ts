@@ -17,6 +17,7 @@
  * 负责会话的生命周期管理和持久化
  */
 
+import { shallowRef } from "vue";
 import type {
   ChatSessionIndex,
   ChatSessionDetail,
@@ -37,20 +38,27 @@ import { getLocalISOString, formatDateTime } from "@/utils/time";
 const logger = createModuleLogger("llm-chat/session-manager");
 const errorHandler = createModuleErrorHandler("llm-chat/session-manager");
 
-const volatileSessionIds = new Set<string>();
+// 界面通过该集合过滤虚拟会话，提升为正式会话后需要立即刷新历史列表。
+const volatileSessionIds = shallowRef(new Set<string>());
 
 export function markSessionVolatile(sessionId: string): void {
-  volatileSessionIds.add(sessionId);
+  if (volatileSessionIds.value.has(sessionId)) return;
+  const next = new Set(volatileSessionIds.value);
+  next.add(sessionId);
+  volatileSessionIds.value = next;
 }
 
 export function markSessionPersistent(sessionId: string): void {
-  volatileSessionIds.delete(sessionId);
+  if (!volatileSessionIds.value.has(sessionId)) return;
+  const next = new Set(volatileSessionIds.value);
+  next.delete(sessionId);
+  volatileSessionIds.value = next;
 }
 
 export function isSessionVolatile(
   sessionId: string | null | undefined
 ): boolean {
-  return !!sessionId && volatileSessionIds.has(sessionId);
+  return !!sessionId && volatileSessionIds.value.has(sessionId);
 }
 
 export function useSessionManager() {

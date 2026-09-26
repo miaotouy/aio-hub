@@ -121,9 +121,39 @@ const shouldSeedFixtures =
   !migrationFixtureId &&
   (process.env.AIO_E2E_SEED_FIXTURES === "1" ||
     (!explicitDataDir && process.env.AIO_E2E_SEED_FIXTURES !== "0"));
-const frontendUrl = new URL(
-  process.env.AIO_E2E_FRONTEND_URL?.trim() || "http://localhost:1420/"
-);
+function resolveFrontendUrl(): { value: string; source: string } {
+  const explicit = process.env.AIO_E2E_FRONTEND_URL?.trim();
+  if (explicit) {
+    return { value: explicit, source: "AIO_E2E_FRONTEND_URL" };
+  }
+
+  const devConfigPath = path.join(
+    projectRoot,
+    "src-tauri",
+    "tauri.conf.dev.json"
+  );
+  if (fs.existsSync(devConfigPath)) {
+    const devConfig = JSON.parse(fs.readFileSync(devConfigPath, "utf8")) as {
+      build?: { devUrl?: unknown };
+    };
+    if (typeof devConfig.build?.devUrl === "string") {
+      return {
+        value: devConfig.build.devUrl,
+        source: "src-tauri/tauri.conf.dev.json",
+      };
+    }
+  }
+
+  return { value: "http://localhost:1420/", source: "default" };
+}
+
+const frontendResolution = resolveFrontendUrl();
+if (frontendResolution.source !== "default") {
+  console.log(
+    `[tauri-e2e] Frontend URL from ${frontendResolution.source}: ${frontendResolution.value}`
+  );
+}
+const frontendUrl = new URL(frontendResolution.value);
 if (
   frontendUrl.protocol !== "http:" ||
   !["localhost", "127.0.0.1"].includes(frontendUrl.hostname) ||
@@ -387,7 +417,13 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<boolean> {
   while (Date.now() < deadline) {
     try {
       const response = await fetch(url);
-      if (response.ok) return true;
+      if (response.ok) {
+        // Vite may answer the HTML shell before dependency optimization and
+        // module transforms finish. Consume the body so the Tauri window starts
+        // against a warmed dev server instead of its "starting" screen.
+        await response.text();
+        return true;
+      }
     } catch {
       // The process may still be binding the port.
     }

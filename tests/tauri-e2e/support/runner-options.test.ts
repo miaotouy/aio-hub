@@ -58,10 +58,14 @@ describe("Tauri E2E runner options", () => {
     expect(parseE2eRunnerOptions(["--preset", "recall-pipeline"], {})).toEqual({
       ...deterministicDefaults,
       presetId: "recall-pipeline",
-      wdioArgs: [
-        "--spec",
-        "tests/tauri-e2e/specs/recall-pipeline.spec.ts",
-      ],
+      wdioArgs: ["--spec", "tests/tauri-e2e/specs/recall-pipeline.spec.ts"],
+    });
+    expect(
+      parseE2eRunnerOptions(["--preset", "chat-session-persistence"], {})
+    ).toEqual({
+      ...deterministicDefaults,
+      presetId: "chat-session-persistence",
+      wdioArgs: ["--spec", "tests/tauri-e2e/specs/virtual-new-session.spec.ts"],
     });
     expect(parseE2eRunnerOptions(["--preset", "recall-curated"], {})).toEqual({
       ...deterministicDefaults,

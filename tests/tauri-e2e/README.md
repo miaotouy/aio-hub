@@ -25,8 +25,10 @@ WebDriver port is omitted, the config derives isolated defaults from the
 current process ID and start time so rapid reruns cannot reuse a stale fixture
 directory after PID recycling. `AIO_E2E_WEBDRIVER_PORT` can be used to select a
 known free port when running alongside another debug instance. The standard
-debug binary loads `http://localhost:1420/`; a binary intentionally built with another
-Tauri dev URL must set the same origin through `AIO_E2E_FRONTEND_URL`. The
+debug binary loads `http://localhost:1420/`. When `AIO_E2E_FRONTEND_URL` is not
+set, the runner first uses `build.devUrl` from `src-tauri/tauri.conf.dev.json`
+if that development config exists, then falls back to the standard URL. Set
+`AIO_E2E_FRONTEND_URL` explicitly when the binary was built with another URL. The
 suite is intentionally
 single-process and debug-only; the normal command excludes native file dialogs
 and drag/drop. File and folder dialogs use the opt-in Windows layer below.
@@ -147,6 +149,16 @@ visible UI, then reads vector coverage, model, dimension, ranking, and trace
 state back through production IPC. The deterministic lane additionally checks
 the mock server's redacted request summaries. Its Knowledge workflow is
 explicitly skipped for non-deterministic lanes.
+
+Run the virtual Chat session persistence workflow directly:
+
+```powershell
+bun run test:tauri:e2e -- --preset chat-session-persistence
+```
+
+This starts a new virtual session through the Chat UI, sends its first message,
+and verifies that the session detail and index are persisted and the session
+appears in the history list.
 
 Run the deterministic Recall workflow directly:
 

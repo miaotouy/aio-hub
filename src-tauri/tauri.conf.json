@@ -69,8 +69,8 @@
         "languages": ["English", "SimpChinese"],
         "displayLanguageSelector": true,
         "template": "nsis/installer.nsi",
-        "installerIcon": "icons/icon.ico",
-        "uninstallerIcon": "icons/icon.ico",
+        "installerIcon": "icons/installer.ico",
+        "uninstallerIcon": "icons/installer.ico",
         "sidebarImage": "nsis/sidebar.bmp",
         "headerImage": "nsis/header.bmp"
       }

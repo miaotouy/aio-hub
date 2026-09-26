@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { appDataDir, join, resolveResource } from "@tauri-apps/api/path";
+import { join, resolveResource } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import {
   readDir,
   readTextFile,
@@ -40,7 +41,7 @@ const errorHandler = createModuleErrorHandler("canvas/useTemplateRegistry");
 export function useTemplateRegistry() {
   /** 获取模板根目录 (AppData/canvases/templates/) */
   async function getTemplatesRootDir(): Promise<string> {
-    const appData = await appDataDir();
+    const appData = await getAppConfigDir();
     return await join(appData, "canvases", "templates");
   }
 

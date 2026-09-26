@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import { ref } from "vue";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import {
   readTextFile,
   readFile,
@@ -45,7 +46,7 @@ export function useSketchStorage() {
   const currentProjectId = ref<string>("");
 
   async function getSketchRootDir() {
-    const dataDir = await appDataDir();
+    const dataDir = await getAppConfigDir();
     return await join(dataDir, "sketch-pad");
   }
 

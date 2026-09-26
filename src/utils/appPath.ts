@@ -22,10 +22,10 @@ let cachedConfigDir: string | null = null;
 let pendingPromise: Promise<string> | null = null;
 
 /**
- * 获取应用配置目录 (AppData)
+ * 获取应用数据根目录。
  *
- * 这是一个支持便携模式的路径获取函数。
- * 它会优先尝试通过后端命令获取路径，如果失败则回退到 Tauri 默认的 appDataDir()。
+ * 安装器选择的位置、便携模式和平台默认目录均由后端统一解析。
+ * 后端不可用时回退到 Tauri 默认的 appDataDir()。
  * 使用 Promise 缓存确保并发调用只触发一次后端请求。
  */
 export async function getAppConfigDir(): Promise<string> {

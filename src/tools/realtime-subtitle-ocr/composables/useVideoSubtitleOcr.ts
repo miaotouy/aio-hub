@@ -6,9 +6,10 @@
 import { computed, onBeforeUnmount, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
 import { remove, readFile, mkdir } from "@tauri-apps/plugin-fs";
 import { useFFmpeg } from "@/composables/useFFmpeg";
+import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useOcrRunner } from "@/tools/smart-ocr/platform";
 import type { ImageBlock } from "@/tools/smart-ocr/types";
@@ -516,7 +517,7 @@ export function useVideoSubtitleOcr() {
       error: undefined,
     });
     frameDirectory = await join(
-      await appDataDir(),
+      await getAppConfigDir(),
       "realtime-subtitle-ocr",
       currentTask
     );

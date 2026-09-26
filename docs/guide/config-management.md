@@ -18,7 +18,15 @@
 
 这些场景应使用领域数据库、独立文件存储或已有 repository/service。
 
-## 2. 基本用法
+## 2. 桌面端数据根目录
+
+桌面端应用自身的配置、资产、缓存和临时工作目录统一以 `getAppConfigDir()` 为根目录。它通过 Tauri command 获取后端解析结果，因此会自动遵循 Windows 安装器选择的数据位置、便携模式和平台默认目录。
+
+- 业务模块需要拼接应用私有路径时，从 `src/utils/appPath.ts` 导入 `getAppConfigDir()`。
+- `@tauri-apps/api/path` 的 `appDataDir()` 只保留在 `appPath.ts` 的后端降级路径中。
+- 系统路径展示、用户目录扫描和文件选择器初始目录等场景，使用对应的平台路径 API，避免把系统目录误认为应用数据目录。
+
+## 3. 基本用法
 
 ```typescript
 import { createConfigManager } from "@/utils/configManager";
@@ -45,7 +53,7 @@ export const configManager = createConfigManager<MyToolConfig>({
 - 文本实时输入、滑块、拖拽尺寸等高频变化调用 `saveDebounced()`；默认延迟为 500ms。
 - 不要再额外实现一套定时器、默认值补齐和配置路径管理。
 
-## 3. 默认值与迁移
+## 4. 默认值与迁移
 
 桌面端默认使用浅合并，移动端默认使用深层默认值合并。跨端共享配置或存在嵌套结构时，应提供显式 `mergeConfig(defaultConfig, loadedConfig)`，避免两端产生不同结果。
 
@@ -56,7 +64,7 @@ export const configManager = createConfigManager<MyToolConfig>({
 3. 保留未知字段还是清理旧字段，应根据导入兼容性明确决定，不能依赖对象展开的偶然行为。
 4. 为旧版本、缺失字段和损坏配置补充测试。
 
-## 4. 错误与测试
+## 5. 错误与测试
 
 - ConfigManager 内部已经使用模块级 logger 和 error handler；调用方只处理业务失败结果，不要对同一个异常重复记录。
 - 桌面端在非 Tauri 环境会降级到进程内存储，适合 Vitest 和 Bun 脚本测试。

@@ -275,7 +275,7 @@ async function callApi() {
 在 Windows 上通常是：
 
 ```
-C:\Users\你的用户名\AppData\Roaming\com.mty.aiohub\logs\
+数据目录\logs\（Windows 默认：`C:\Users\你的用户名\AppData\Roaming\com.mty.aiohub\logs\`）
 ```
 
 ### 2. 查看内存中的日志

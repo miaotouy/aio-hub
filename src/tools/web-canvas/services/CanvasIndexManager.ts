@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { join } from "@tauri-apps/api/path";
 import {
   readTextFile,
   writeTextFile,
@@ -20,6 +20,7 @@ import {
   mkdir,
   rename,
 } from "@tauri-apps/plugin-fs";
+import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -68,7 +69,7 @@ export class CanvasIndexManager {
    */
   private async getIndexPath(): Promise<string> {
     if (this.indexPath) return this.indexPath;
-    const dataDir = await appDataDir();
+    const dataDir = await getAppConfigDir();
     this.indexPath = await join(dataDir, "canvases", INDEX_FILENAME);
     return this.indexPath;
   }
@@ -105,7 +106,7 @@ export class CanvasIndexManager {
         index.version = INDEX_VERSION;
 
         // 确保目录存在
-        const dataDir = await appDataDir();
+        const dataDir = await getAppConfigDir();
         const canvasesDir = await join(dataDir, "canvases");
         if (!(await exists(canvasesDir))) {
           await mkdir(canvasesDir, { recursive: true });

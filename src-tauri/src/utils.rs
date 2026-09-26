@@ -21,6 +21,30 @@ pub mod mime;
 pub(crate) const AIOHUB_PLUGIN_DATA_DIR_ENV: &str = "AIOHUB_PLUGIN_DATA_DIR";
 
 #[cfg(windows)]
+const AIOHUB_DATA_DIR_REGISTRY_KEY: &str = r"Software\com.mty.aiohub";
+#[cfg(windows)]
+const AIOHUB_DATA_DIR_REGISTRY_VALUE: &str = "DataDir";
+
+#[cfg(windows)]
+fn installer_selected_data_dir() -> Option<PathBuf> {
+    use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+
+    let current_user = RegKey::predef(HKEY_CURRENT_USER);
+    let value = current_user
+        .open_subkey(AIOHUB_DATA_DIR_REGISTRY_KEY)
+        .ok()?
+        .get_value::<String, _>(AIOHUB_DATA_DIR_REGISTRY_VALUE)
+        .ok()?;
+    let path = PathBuf::from(value);
+
+    path.is_absolute().then_some(path)
+}
+
+#[cfg(not(windows))]
+fn installer_selected_data_dir() -> Option<PathBuf> {
+    None
+}
+#[cfg(windows)]
 pub(crate) fn hide_child_process_window(command: &mut tokio::process::Command) {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     command.creation_flags(CREATE_NO_WINDOW);
@@ -63,6 +87,13 @@ pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
                     return portable_dir;
                 }
             }
+        }
+    }
+
+    // Windows 安装器保存的数据目录。便携模式和显式环境变量仍优先于它。
+    if let Some(data_dir) = installer_selected_data_dir() {
+        if std::fs::create_dir_all(&data_dir).is_ok() && data_dir.is_dir() {
+            return data_dir;
         }
     }
 

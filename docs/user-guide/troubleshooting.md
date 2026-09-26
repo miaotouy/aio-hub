@@ -103,11 +103,11 @@
 1. **重启应用**：先试最基础的方法
 2. **查看系统资源**：打开任务管理器（Windows）或活动监视器（macOS），确认内存和 CPU 使用率是否过高
 3. **清理缓存**：关闭应用后，手动删除缓存目录中的数据（注意：这不会删除你的配置和聊天记录）
-   - Windows：`%APPDATA%\com.mty.aiohub\cache`
+   - Windows：数据目录中的 `cache` 文件夹（默认 `%APPDATA%\com.mty.aiohub\cache`）
    - macOS：`~/Library/Caches/com.mty.aiohub`
    - Linux：`~/.cache/com.mty.aiohub`
 4. **查看日志**：如果闪退频繁，查看日志文件中的错误信息：
-   - Windows：打开 `%APPDATA%\com.mty.aiohub\logs\` 文件夹，找到最新的 `.log` 文件
+   - Windows：打开数据目录中的 `logs\` 文件夹（默认 `%APPDATA%\com.mty.aiohub\logs\`），找到最新的 `.log` 文件
    - macOS：打开 `~/Library/Logs/com.mty.aiohub/` 文件夹
    - Linux：打开 `~/.local/share/com.mty.aiohub/logs/` 文件夹
 5. **反馈问题**：将日志文件中的相关错误信息截图或复制，到 [GitHub Issues](https://github.com/miaotouy/aio-hub/issues) 反馈，开发者可以快速定位问题
@@ -219,11 +219,13 @@
 
 **数据目录位置**：
 
-| 平台        | 路径                                           |
-| :---------- | :--------------------------------------------- |
-| **Windows** | `%APPDATA%\com.mty.aiohub`                     |
-| **macOS**   | `~/Library/Application Support/com.mty.aiohub` |
-| **Linux**   | `~/.local/share/com.mty.aiohub`                |
+| 平台        | 路径                                                                            |
+| :---------- | :------------------------------------------------------------------------------ |
+| **Windows** | 安装器选择的位置中的 `com.mty.aiohub` 子文件夹；默认 `%APPDATA%\com.mty.aiohub` |
+| **macOS**   | `~/Library/Application Support/com.mty.aiohub`                                  |
+| **Linux**   | `~/.local/share/com.mty.aiohub`                                                 |
+
+Windows 安装器会记录你选择的数据位置。排查、备份和手动清理时，以安装器中选择的位置为准。
 
 ### 如何手动备份数据
 
@@ -260,11 +262,11 @@
 
 日志文件是排查问题的关键。按你的平台找到对应路径：
 
-| 平台        | 日志路径                              |
-| :---------- | :------------------------------------ |
-| **Windows** | `%APPDATA%\com.mty.aiohub\logs\`      |
-| **macOS**   | `~/Library/Logs/com.mty.aiohub/`      |
-| **Linux**   | `~/.local/share/com.mty.aiohub/logs/` |
+| 平台        | 日志路径                                                             |
+| :---------- | :------------------------------------------------------------------- |
+| **Windows** | 数据目录中的 `logs\` 文件夹（默认 `%APPDATA%\com.mty.aiohub\logs\`） |
+| **macOS**   | `~/Library/Logs/com.mty.aiohub/`                                     |
+| **Linux**   | `~/.local/share/com.mty.aiohub/logs/`                                |
 
 日志文件按日期命名（如 `app-2025-05-07.log`），最新的问题可以在最新日期的文件中找到。如果你需要向开发者反馈问题，请附上相关日志内容。
 
@@ -295,7 +297,7 @@
 1. 尝试 **重启应用**——大部分主题切换问题重启即可修复
 2. 如果问题持续，前往 **设置 → 外观**，手动切换一次主题模式
 3. 如果依然异常，尝试清除浏览器缓存（应用内缓存，不影响数据）：找到缓存目录并删除其中的内容
-   - Windows：`%APPDATA%\com.mty.aiohub\cache`
+   - Windows：数据目录中的 `cache` 文件夹（默认 `%APPDATA%\com.mty.aiohub\cache`）
    - macOS：`~/Library/Caches/com.mty.aiohub`
    - Linux：`~/.cache/com.mty.aiohub`
 

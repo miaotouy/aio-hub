@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { appDataDir, dirname, join } from "@tauri-apps/api/path";
+import { dirname, join } from "@tauri-apps/api/path";
+import { getAppConfigDir } from "@/utils/appPath";
 import {
   readTextFile,
   writeTextFile,
@@ -78,7 +79,7 @@ export function useCanvasStorage() {
    */
   async function getCanvasBasePath(canvasId: string) {
     assertCanvasId(canvasId);
-    const dataDir = await appDataDir();
+    const dataDir = await getAppConfigDir();
     return await join(dataDir, "canvases", "projects", canvasId);
   }
 
@@ -86,7 +87,7 @@ export function useCanvasStorage() {
    * 获取所有画布列表的根目录 (物理存储位置)
    */
   async function getCanvasesRootDir() {
-    const dataDir = await appDataDir();
+    const dataDir = await getAppConfigDir();
     return await join(dataDir, "canvases", "projects");
   }
 

@@ -64,6 +64,7 @@ ${StrLoc}
 !define WEBVIEW2INSTALLERPATH "{{webview2_installer_path}}"
 !define MINIMUMWEBVIEW2VERSION "{{minimum_webview2_version}}"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}"
+!define AIOHUB_DATA_REGISTRY_KEY "Software\${BUNDLEID}"
 !define MANUKEY "Software\${MANUFACTURER}"
 !define MANUPRODUCTKEY "${MANUKEY}\${PRODUCTNAME}"
 !define UNINSTALLERSIGNCOMMAND "{{uninstaller_sign_cmd}}"
@@ -75,6 +76,11 @@ Var UpdateMode
 Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
+Var AppDataDir
+Var DataDirParent
+Var DataDirText
+Var DataDirBrowseButton
+Var PreviousDataDir
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -386,11 +392,63 @@ Function PageLeaveReinstall
   reinst_done:
 FunctionEnd
 
+Function PageDataDirectory
+  ${If} $PassiveMode = 1
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "$(AioHubDataDirectoryTitle)" "$(AioHubDataDirectorySubtitle)"
+  nsDialogs::Create 1018
+  Pop $0
+  ${IfThen} $(^RTL) = 1 ${|} nsDialogs::SetRTL $(^RTL) ${|}
+
+  ${NSD_CreateLabel} 0 0 100% 28u "$(AioHubDataDirectoryDescription)"
+  Pop $0
+  ${NSD_CreateText} 0 34u 76% 12u "$DataDirParent"
+  Pop $DataDirText
+  ${NSD_CreateButton} 78% 34u 22% 12u "$(AioHubDataDirectoryBrowse)"
+  Pop $DataDirBrowseButton
+  ${NSD_OnClick} $DataDirBrowseButton BrowseDataDirectory
+
+  nsDialogs::Show
+FunctionEnd
+
+Function BrowseDataDirectory
+  nsDialogs::SelectFolderDialog "$(AioHubDataDirectoryBrowseTitle)" "$DataDirParent"
+  Pop $0
+  ${If} $0 != "error"
+    StrCpy $DataDirParent "$0"
+    ${NSD_SetText} $DataDirText "$DataDirParent"
+  ${EndIf}
+FunctionEnd
+
+Function PageLeaveDataDirectory
+  ${NSD_GetText} $DataDirText $0
+  ${If} $0 == ""
+    MessageBox MB_ICONEXCLAMATION "$(AioHubDataDirectoryRequired)"
+    Abort
+  ${EndIf}
+
+  ClearErrors
+  CreateDirectory "$0"
+  IfErrors data_directory_parent_create_failed
+
+  StrCpy $DataDirParent "$0"
+  StrCpy $AppDataDir "$DataDirParent\${BUNDLEID}"
+  Return
+
+  data_directory_parent_create_failed:
+    MessageBox MB_ICONEXCLAMATION "$(AioHubDataDirectoryCreateFailed)"
+    Abort
+FunctionEnd
 ; 5. Choose install directory page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !insertmacro MUI_PAGE_DIRECTORY
 
-; 6. Start menu shortcut page
+; 6. Choose the parent directory for application data
+Page custom PageDataDirectory PageLeaveDataDirectory
+
+; 7. Start menu shortcut page
 Var AppStartMenuFolder
 !if "${STARTMENUFOLDER}" != ""
   !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
@@ -400,10 +458,10 @@ Var AppStartMenuFolder
 !endif
 !insertmacro MUI_PAGE_STARTMENU Application $AppStartMenuFolder
 
-; 7. Installation page
+; 8. Installation page
 !insertmacro MUI_PAGE_INSTFILES
 
-; 8. Finish page
+; 9. Finish page
 ;
 ; Don't auto jump to finish page after installation page,
 ; because the installation page has useful info that can be used debug any issues with the installer.
@@ -471,6 +529,25 @@ FunctionEnd
 {{#each languages}}
 !insertmacro MUI_LANGUAGE "{{this}}"
 {{/each}}
+LangString AioHubDataDirectoryTitle ${LANG_ENGLISH} "Data location"
+LangString AioHubDataDirectorySubtitle ${LANG_ENGLISH} "Choose where AIO Hub stores its data"
+LangString AioHubDataDirectoryDescription ${LANG_ENGLISH} "A dedicated ${BUNDLEID} folder will be created inside the selected location. Existing AIO Hub data is copied there when you change this location."
+LangString AioHubDataDirectoryBrowse ${LANG_ENGLISH} "Browse..."
+LangString AioHubDataDirectoryBrowseTitle ${LANG_ENGLISH} "Choose a location for AIO Hub data"
+LangString AioHubDataDirectoryRequired ${LANG_ENGLISH} "Choose a location for AIO Hub data."
+LangString AioHubDataDirectoryCreateFailed ${LANG_ENGLISH} "The selected location cannot be created. Choose a location you can write to."
+LangString AioHubMigratingDataDirectory ${LANG_ENGLISH} "Copying existing application data to the selected location..."
+LangString AioHubDataMigrationFailed ${LANG_ENGLISH} "Existing application data could not be copied. Your original data has been kept and the installation was cancelled."
+
+LangString AioHubDataDirectoryTitle ${LANG_SIMPCHINESE} "数据存储位置"
+LangString AioHubDataDirectorySubtitle ${LANG_SIMPCHINESE} "选择 AIO Hub 保存数据的位置"
+LangString AioHubDataDirectoryDescription ${LANG_SIMPCHINESE} "安装程序会在所选位置中创建专用的 ${BUNDLEID} 子文件夹。更改位置时，已有的 AIO Hub 数据会复制到新位置。"
+LangString AioHubDataDirectoryBrowse ${LANG_SIMPCHINESE} "浏览..."
+LangString AioHubDataDirectoryBrowseTitle ${LANG_SIMPCHINESE} "选择 AIO Hub 数据存储位置"
+LangString AioHubDataDirectoryRequired ${LANG_SIMPCHINESE} "请选择 AIO Hub 数据存储位置。"
+LangString AioHubDataDirectoryCreateFailed ${LANG_SIMPCHINESE} "无法创建所选位置，请选择具有写入权限的位置。"
+LangString AioHubMigratingDataDirectory ${LANG_SIMPCHINESE} "正在将已有应用数据复制到所选位置..."
+LangString AioHubDataMigrationFailed ${LANG_SIMPCHINESE} "无法复制已有应用数据。原数据已保留，安装已取消。"
 !insertmacro MUI_RESERVEFILE_LANGDLL
 {{#each language_files}}
   !include "{{this}}"
@@ -497,6 +574,21 @@ Function .onInit
   !endif
 
   !insertmacro SetContext
+  StrCpy $DataDirParent "$APPDATA"
+  StrCpy $AppDataDir "$DataDirParent\${BUNDLEID}"
+  ReadRegStr $PreviousDataDir HKCU "${AIOHUB_DATA_REGISTRY_KEY}" "DataDir"
+  ${If} $PreviousDataDir == ""
+    IfFileExists "$APPDATA\${BUNDLEID}\*.*" 0 +2
+      StrCpy $PreviousDataDir "$APPDATA\${BUNDLEID}"
+  ${EndIf}
+  ${If} $PreviousDataDir != ""
+    ${GetParent} "$PreviousDataDir" $DataDirParent
+    ${If} $DataDirParent == ""
+      StrCpy $DataDirParent "$APPDATA"
+    ${EndIf}
+    StrCpy $AppDataDir "$PreviousDataDir"
+  ${EndIf}
+
 
   ${If} $INSTDIR == "${PLACEHOLDER_INSTALL_DIR}"
     ; Set default install location
@@ -645,6 +737,26 @@ Section Install
   !endif
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  ClearErrors
+  CreateDirectory "$AppDataDir"
+  IfErrors data_directory_create_failed
+
+  ${If} $PreviousDataDir != ""
+  ${AndIf} $PreviousDataDir != "$AppDataDir"
+    IfFileExists "$PreviousDataDir\*.*" 0 data_directory_ready
+    DetailPrint "$(AioHubMigratingDataDirectory)"
+    CopyFiles /SILENT "$PreviousDataDir\*.*" "$AppDataDir"
+    IfErrors data_directory_migration_failed
+  ${EndIf}
+  Goto data_directory_ready
+
+  data_directory_create_failed:
+    MessageBox MB_ICONEXCLAMATION "$(AioHubDataDirectoryCreateFailed)"
+    Abort
+  data_directory_migration_failed:
+    MessageBox MB_ICONEXCLAMATION "$(AioHubDataMigrationFailed)"
+    Abort
+  data_directory_ready:
 
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
@@ -682,6 +794,7 @@ Section Install
 
   ; Save $INSTDIR in registry for future installations
   WriteRegStr SHCTX "${MANUPRODUCTKEY}" "" $INSTDIR
+  WriteRegStr HKCU "${AIOHUB_DATA_REGISTRY_KEY}" "DataDir" "$AppDataDir"
 
   !if "${INSTALLMODE}" == "both"
     ; Save install mode to be selected by default for the next installation such as updating
@@ -881,7 +994,16 @@ Section Uninstall
     DeleteRegKey /ifempty HKCU "${MANUKEY}"
 
     SetShellVarContext current
-    RmDir /r "$APPDATA\${BUNDLEID}"
+    ReadRegStr $0 HKCU "${AIOHUB_DATA_REGISTRY_KEY}" "DataDir"
+    ${If} $0 == ""
+      StrCpy $0 "$APPDATA\${BUNDLEID}"
+    ${EndIf}
+    ${GetFileName} "$0" $1
+    ${If} $1 == "${BUNDLEID}"
+      RmDir /r "$0"
+    ${EndIf}
+    DeleteRegValue HKCU "${AIOHUB_DATA_REGISTRY_KEY}" "DataDir"
+    DeleteRegKey /ifempty HKCU "${AIOHUB_DATA_REGISTRY_KEY}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
   ${EndIf}
 

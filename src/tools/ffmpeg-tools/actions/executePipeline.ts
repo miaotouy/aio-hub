@@ -17,16 +17,11 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import {
-  basename,
-  dirname,
-  extname,
-  join,
-  appDataDir,
-} from "@tauri-apps/api/path";
+import { basename, dirname, extname, join } from "@tauri-apps/api/path";
 import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpeg } from "@/composables/useFFmpeg";
+import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { isCancellationError } from "../utils/lifecycle";
@@ -74,7 +69,7 @@ async function generateTempPath(
   stepIndex: number,
   ext: string
 ): Promise<string> {
-  const appData = await appDataDir();
+  const appData = await getAppConfigDir();
   const tempDir = await join(appData, "ffmpeg-temp");
   // 确保临时目录存在
   await invoke("create_dir_force", { path: tempDir }).catch(() => {

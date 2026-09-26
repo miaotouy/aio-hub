@@ -34,14 +34,13 @@ TODO: 截图-在 GitHub Releases 页面定位到最新版本，标注下载文�
 
 TODO: 截图-Windows 安全提示弹窗，标注"更多信息"和"仍要运行"按钮
 
-**3. 完成安装向导**
+**3. 选择安装与数据位置**
 
-按照向导提示，一路点击 **"下一步"**。建议保持默认安装路径，安装完成后勾选 **"运行 AIO Hub"**，点击 **"完成"**。
+安装向导会分别提供程序安装位置和数据存储位置。数据默认保存在 `%APPDATA%`；如需将聊天记录、工具数据和缓存放到其他磁盘，可选择目标文件夹，AIO Hub 会在其中创建专用的 `com.mty.aiohub` 子文件夹。覆盖安装时，保留当前位置即可延续原有数据；选择新位置后，安装器会复制已有数据，原目录会保留以便确认迁移结果。
 
 TODO: 截图-安装向导的每一步，标注关键操作按钮
 
-**4. 启动应用**
-
+**4. 完成安装并启动应用**
 安装完成后 AIO Hub 会自动启动。你也可以在桌面或开始菜单中找到它的快捷方式，双击打开。
 
 TODO: 截图-AIO Hub 启动后的主界面
@@ -197,11 +196,11 @@ AIO Hub 支持多种升级方式：
 
 如果以上方法都无法解决，请查看日志文件并到 [GitHub Issues](https://github.com/miaotouy/aio-hub/issues) 反馈：
 
-| 平台        | 日志路径                              |
-| :---------- | :------------------------------------ |
-| **Windows** | `%APPDATA%\com.mty.aiohub\logs\`      |
-| **macOS**   | `~/Library/Logs/com.mty.aiohub/`      |
-| **Linux**   | `~/.local/share/com.mty.aiohub/logs/` |
+| 平台        | 日志路径                                                             |
+| :---------- | :------------------------------------------------------------------- |
+| **Windows** | 数据目录中的 `logs\` 文件夹（默认 `%APPDATA%\com.mty.aiohub\logs\`） |
+| **macOS**   | `~/Library/Logs/com.mty.aiohub/`                                     |
+| **Linux**   | `~/.local/share/com.mty.aiohub/logs/`                                |
 
 ### Q4：不同版本之间数据兼容吗？
 
@@ -213,7 +212,7 @@ AIO Hub 支持多种升级方式：
 
 > 如果你从非常古老的版本（v0.3.x 或更早）升级，建议先手动备份配置文件：
 >
-> - Windows：`%APPDATA%\com.mty.aiohub`
+> - Windows：安装器选择的位置中的 `com.mty.aiohub` 子文件夹（默认 `%APPDATA%\com.mty.aiohub`）
 > - macOS：`~/Library/Application Support/com.mty.aiohub`
 > - Linux：`~/.local/share/com.mty.aiohub`
 

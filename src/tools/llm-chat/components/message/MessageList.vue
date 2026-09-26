@@ -567,12 +567,19 @@ watch(
 
 // 事件处理
 // 将作用域会话注入带 options 的生成动作（无作用域时保持原样）
-function withScopedSession<T extends { sessionId?: string }>(
-  options?: T
-): T | undefined {
+type GenerationOptions = {
+  modelId?: string;
+  profileId?: string;
+  agentId?: string;
+  sessionId?: string;
+};
+
+function withScopedSession(
+  options?: GenerationOptions
+): GenerationOptions | undefined {
   const sessionId = scopedSessionId.value;
   if (!sessionId) return options;
-  return Object.assign({}, options, { sessionId }) as T;
+  return { ...options, sessionId };
 }
 
 const handleReparseTools = async (

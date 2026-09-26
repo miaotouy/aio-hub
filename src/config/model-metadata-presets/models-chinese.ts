@@ -947,7 +947,7 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
     {
       id: "model-prefix-bytedance-seed",
       matchType: "modelPrefix",
-      matchValue: "bytedance-seed|seed-",
+      matchValue: "^(?:bytedance-seed|seed-)",
       useRegex: true,
       properties: {
         icon: `/model-icons/bytedance-color.svg`,

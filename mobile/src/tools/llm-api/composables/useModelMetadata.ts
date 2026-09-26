@@ -8,7 +8,6 @@ import {
   mergeRuleProperties,
   migrateV2Store,
   syncCatalogSnapshot,
-  testRuleMatch,
   validateRule,
   validateStore,
   type LegacyModelMetadataStore,
@@ -340,10 +339,10 @@ export function useModelMetadata() {
     modelId: string,
     provider?: string
   ): ModelMetadataRule | undefined {
-    return rules.value.find(
-      (rule) =>
-        rule.enabled !== false && testRuleMatch(rule, { modelId, provider })
-    );
+    // Keep the diagnostic view aligned with materialization: the effective
+    // metadata comes from the final rule in the shared precedence chain.
+    const chain = getMatchedRuleChain(rules.value, { modelId, provider });
+    return chain[chain.length - 1];
   }
 
   function getMatchedProperties(

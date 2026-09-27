@@ -25,31 +25,56 @@ use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use std::mem::size_of;
 use windows::core::PWSTR;
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT, WPARAM};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
-    GetPixel, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CLR_INVALID, HGDIOBJ, SRCCOPY,
+    BitBlt, ClientToScreen, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject,
+    GetDC, GetDIBits, GetPixel, ScreenToClient, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
+    CLR_INVALID, HGDIOBJ, SRCCOPY,
 };
 use windows::Win32::Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS};
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    AttachThreadInput, GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW,
+    PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    IsWindowEnabled, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, INPUT, INPUT_0,
+    INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, MapVirtualKeyW, MAPVK_VK_TO_VSC,
+    MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+    MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
+    ChildWindowFromPointEx,
+    CWP_SKIPINVISIBLE,
+    CWP_SKIPTRANSPARENT,
     EnumWindows,
     GetClassNameW,
     GetClientRect,
+    GetCursorPos,
+    GetForegroundWindow,
+    GetSystemMetrics,
     GetWindowTextLengthW,
     GetWindowTextW,
     GetWindowThreadProcessId,
+    IsIconic,
     IsWindow,
     IsWindowVisible,
     PostMessageW, // MK_LBUTTON/MK_MBUTTON/MK_RBUTTON in Input::KeyboardAndMouse
+    SetCursorPos,
+    SetForegroundWindow,
+    ShowWindow,
+    SM_CXVIRTUALSCREEN,
+    SM_CYVIRTUALSCREEN,
+    SM_XVIRTUALSCREEN,
+    SM_YVIRTUALSCREEN,
+    SW_RESTORE,
     WM_KEYDOWN,
     WM_KEYUP,
     WM_LBUTTONDOWN,
     WM_LBUTTONUP,
     WM_MBUTTONDOWN,
     WM_MBUTTONUP,
+    WM_MOUSEMOVE,
     WM_RBUTTONDOWN,
     WM_RBUTTONUP,
 };
@@ -80,6 +105,17 @@ pub struct CaptureResult {
     pub changed: bool,
     pub hash: String,
     pub image_bytes: Option<Vec<u8>>,
+}
+
+/// 后台点击的诊断返回：消息实际投递到的窗口（可能是坐标命中的子窗口，而非绑定的顶层窗口）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaClickResult {
+    /// 实际使用的点击模式（background = 窗口消息 / foreground = SendInput 真实输入）
+    pub mode: String,
+    pub target_hwnd: i64,
+    pub target_class: String,
+    pub target_title: String,
 }
 
 // =============================================================================
@@ -176,6 +212,188 @@ fn ensure_valid_window(hwnd: HWND) -> Result<(), String> {
     } else {
         Err(format!("窗口句柄无效: {}", hwnd_to_i64(hwnd)))
     }
+}
+
+/// 沿客户区坐标向下命中测试，返回实际接收鼠标消息的窗口及其客户区坐标。
+///
+/// 真实鼠标点击由系统路由到坐标处的子窗口（按钮、编辑框、网页子 HWND 等），
+/// 合成消息也必须发给该子窗口；发给顶层窗口通常无人处理。
+/// `ChildWindowFromPointEx` 只查直接子级，因此递归下钻，
+/// 跳过不可见与透明窗口（它们不接收真实点击）。
+fn hit_test_child_window(top: HWND, x: i32, y: i32) -> (HWND, POINT) {
+    let mut cur = top;
+    let mut pt = POINT { x, y };
+    loop {
+        let child = unsafe {
+            ChildWindowFromPointEx(cur, pt, CWP_SKIPINVISIBLE | CWP_SKIPTRANSPARENT)
+        };
+        // 无子窗口命中时返回父窗口自身；点落到客户区外时返回 NULL
+        if child.is_invalid() || child == cur {
+            return (cur, pt);
+        }
+        // 把坐标从当前窗口客户区转换到子窗口客户区
+        let converted = unsafe {
+            ClientToScreen(cur, &mut pt).as_bool() && ScreenToClient(child, &mut pt).as_bool()
+        };
+        if !converted {
+            return (child, pt);
+        }
+        cur = child;
+    }
+}
+
+// =============================================================================
+// 前台模拟（SendInput）：生成真实系统输入，对 raw input / DirectInput 游戏同样生效
+// =============================================================================
+
+/// 把目标窗口临时切换到前台。
+///
+/// 非前台进程直接调用 SetForegroundWindow 会被系统拒绝，
+/// 因此先用 AttachThreadInput 借用当前前台线程的输入队列权限。
+/// 返回切换前的前台窗口，供 `restore_foreground` 恢复。
+fn acquire_foreground(hwnd: HWND) -> Result<HWND, String> {
+    unsafe {
+        if IsIconic(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        let prev = GetForegroundWindow();
+        if prev == hwnd {
+            return Ok(prev);
+        }
+        let prev_thread = if prev.is_invalid() {
+            0
+        } else {
+            GetWindowThreadProcessId(prev, None)
+        };
+        let cur_thread = GetCurrentThreadId();
+        let attached = prev_thread != 0 && prev_thread != cur_thread;
+        if attached {
+            let _ = AttachThreadInput(cur_thread, prev_thread, true);
+        }
+        let ok = SetForegroundWindow(hwnd).as_bool();
+        if attached {
+            let _ = AttachThreadInput(cur_thread, prev_thread, false);
+        }
+        if !ok {
+            return Err(
+                "无法将目标窗口切换到前台（可能被系统前台锁定策略或安全软件拦截）".to_string(),
+            );
+        }
+        // 等待目标真正成为前台窗口（游戏窗口激活/恢复渲染需要时间），最多 500ms
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+        while std::time::Instant::now() < deadline {
+            if GetForegroundWindow() == hwnd {
+                return Ok(prev);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        Err("目标窗口未能在 500ms 内完成前台切换，请确认窗口未被全屏独占".to_string())
+    }
+}
+
+/// 恢复前台窗口与光标位置，减少前台模拟对用户的干扰。
+fn restore_foreground(prev: HWND, prev_cursor: POINT) {
+    unsafe {
+        let _ = SetCursorPos(prev_cursor.x, prev_cursor.y);
+        if !prev.is_invalid() {
+            let _ = SetForegroundWindow(prev);
+        }
+    }
+}
+
+/// 方向键/翻页/编辑键等注入时必须携带扩展键标志，否则收到的 VK 码不对。
+fn is_extended_vk(vk: u16) -> bool {
+    matches!(vk, 0x21..=0x28 | 0x2D | 0x2E | 0x5B..=0x5D)
+}
+
+/// 用 SendInput 注入一次鼠标点击：光标移动到屏幕绝对坐标 -> 按下 -> 抬起。
+/// 坐标按虚拟桌面矩形归一化到 0~65535，多屏环境同样正确。
+fn send_input_click(pt_screen: POINT, button: &str) -> Result<(), String> {
+    let (down_flag, up_flag) = match button {
+        "left" => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
+        "right" => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
+        "middle" => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
+        other => return Err(format!("不支持的鼠标按键: {other}")),
+    };
+    unsafe {
+        let vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        let vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        let vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        if vw <= 0 || vh <= 0 {
+            return Err("获取虚拟桌面尺寸失败".to_string());
+        }
+        let nx = (((pt_screen.x - vx) as f64 / vw as f64) * 65535.0).round() as i32;
+        let ny = (((pt_screen.y - vy) as f64 / vh as f64) * 65535.0).round() as i32;
+        let click_input = |dw_flags: windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS,
+                           dx: i32,
+                           dy: i32| INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx,
+                    dy,
+                    mouseData: 0,
+                    dwFlags: dw_flags,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+        let inputs = [
+            click_input(
+                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
+                nx,
+                ny,
+            ),
+            click_input(down_flag, 0, 0),
+            click_input(up_flag, 0, 0),
+        ];
+        let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
+        if sent != inputs.len() as u32 {
+            return Err(format!(
+                "SendInput 注入失败（{sent}/{}），可能被安全软件拦截",
+                inputs.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// 用 SendInput 注入一次按键（VK + scan code，兼容读扫描码的输入框架）。
+fn send_input_key(vk: u16, is_down: bool) -> Result<(), String> {
+    let scan = unsafe { MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC) } as u16;
+    let base_flags = if is_down {
+        KEYBD_EVENT_FLAGS(0)
+    } else {
+        KEYEVENTF_KEYUP
+    };
+    let dw_flags = if is_extended_vk(vk) {
+        base_flags | KEYEVENTF_EXTENDEDKEY
+    } else {
+        base_flags
+    };
+    let input = INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(vk),
+                wScan: scan,
+                dwFlags: dw_flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    unsafe {
+        let sent = SendInput(&[input], size_of::<INPUT>() as i32);
+        if sent != 1 {
+            return Err(format!(
+                "SendInput 按键注入失败 (vk 0x{vk:02X})，可能被安全软件拦截"
+            ));
+        }
+    }
+    Ok(())
 }
 
 // =============================================================================
@@ -592,7 +810,14 @@ pub fn capture_screen_rect(
     })
 }
 
-/// 后台点击：构造 WM_*BUTTONDOWN / WM_*BUTTONUP 消息。
+/// 点击：mode = "background"（默认）向坐标命中的实际子窗口投递窗口消息，
+/// 不抢焦点、不动真实光标；mode = "foreground" 用 SendInput 注入真实系统输入，
+/// 对 raw input / DirectInput 游戏（不处理合成消息的程序）同样生效，
+/// 注入前临时前台化目标窗口、注入后恢复焦点与光标。
+///
+/// 机制限制：background 只对处理标准消息循环的程序有效（SDL/GLFW 框架游戏如
+/// 泰拉瑞亚、Minecraft 的窗口过程会处理标准消息，通常直接可用）；
+/// 完全不读窗口消息的程序请改用 foreground。
 #[tauri::command]
 pub fn wa_send_click(
     hwnd: i64,
@@ -600,32 +825,104 @@ pub fn wa_send_click(
     y: i32,
     button: String,
     double_click: bool,
-) -> Result<(), String> {
-    let h = hwnd_from_i64(hwnd);
-    ensure_valid_window(h)?;
-    let lparam = lparam_from_xy(x, y);
-    let (down_msg, up_msg, mk) = match button.to_ascii_lowercase().as_str() {
-        "left" => (WM_LBUTTONDOWN, WM_LBUTTONUP, 0x0001usize),
-        "right" => (WM_RBUTTONDOWN, WM_RBUTTONUP, 0x0002usize),
-        "middle" => (WM_MBUTTONDOWN, WM_MBUTTONUP, 0x0010usize),
-        other => return Err(format!("不支持的鼠标按键: {}", other)),
-    };
-    let wparam = WPARAM(mk);
-    unsafe {
-        PostMessageW(h, down_msg, wparam, lparam)
-            .map_err(|e| format!("PostMessage DOWN 失败: {}", e))?;
-        PostMessageW(h, up_msg, WPARAM(0), lparam)
-            .map_err(|e| format!("PostMessage UP 失败: {}", e))?;
-        if double_click {
-            let _ = PostMessageW(
-                h,
-                windows::Win32::UI::WindowsAndMessaging::WM_LBUTTONDBLCLK,
-                wparam,
-                lparam,
-            );
-        }
+    mode: Option<String>,
+) -> Result<WaClickResult, String> {
+    let top = hwnd_from_i64(hwnd);
+    ensure_valid_window(top)?;
+
+    let title = get_window_title(top);
+    if !unsafe { IsWindowVisible(top) }.as_bool() {
+        return Err(format!(
+            "目标窗口不可见（可能已最小化或关闭显示），无法投递点击: hwnd {hwnd} 「{title}」"
+        ));
     }
-    Ok(())
+    if !unsafe { IsWindowEnabled(top) }.as_bool() {
+        return Err(format!(
+            "目标窗口处于禁用（无响应）状态，无法投递点击: hwnd {hwnd} 「{title}」"
+        ));
+    }
+
+    // 客户区范围校验：越界坐标在真实点击下不可能出现，直接报错避免静默无效
+    let mut client = RECT::default();
+    unsafe { GetClientRect(top, &mut client) }.map_err(|e| format!("获取客户区失败: {e}"))?;
+    let client_w = client.right - client.left;
+    let client_h = client.bottom - client.top;
+    if x < 0 || y < 0 || x >= client_w || y >= client_h {
+        return Err(format!(
+            "点击坐标 ({x}, {y}) 超出窗口「{title}」客户区 {client_w}×{client_h}，请重新拾取坐标或改用百分比模式"
+        ));
+    }
+
+    let click_mode = mode
+        .map(|m| m.to_ascii_lowercase())
+        .unwrap_or_else(|| "background".to_string());
+
+    let (target_hwnd, target_class) = match click_mode.as_str() {
+        "background" => {
+            let (down_msg, up_msg, mk) = match button.to_ascii_lowercase().as_str() {
+                "left" => (WM_LBUTTONDOWN, WM_LBUTTONUP, 0x0001usize),
+                "right" => (WM_RBUTTONDOWN, WM_RBUTTONUP, 0x0002usize),
+                "middle" => (WM_MBUTTONDOWN, WM_MBUTTONUP, 0x0010usize),
+                other => return Err(format!("不支持的鼠标按键: {other}")),
+            };
+
+            // 消息必须发给坐标处的实际子窗口，发给顶层窗口通常无人处理
+            let (target, target_pt) = hit_test_child_window(top, x, y);
+            let lparam = lparam_from_xy(target_pt.x, target_pt.y);
+            let wparam = WPARAM(mk);
+
+            unsafe {
+                // 先发 MOUSEMOVE 建立悬停状态，部分控件依赖它才接受 BUTTONDOWN
+                PostMessageW(target, WM_MOUSEMOVE, WPARAM(0), lparam)
+                    .map_err(|e| format!("投递 WM_MOUSEMOVE 失败: {e}"))?;
+                PostMessageW(target, down_msg, wparam, lparam)
+                    .map_err(|e| format!("投递鼠标按下消息失败: {e}"))?;
+                PostMessageW(target, up_msg, WPARAM(0), lparam)
+                    .map_err(|e| format!("投递鼠标抬起消息失败: {e}"))?;
+                if double_click {
+                    // 双击 = 两轮完整按下/抬起，兼容未注册 CS_DBLCLKS 风格的窗口类
+                    PostMessageW(target, down_msg, wparam, lparam)
+                        .map_err(|e| format!("投递鼠标按下消息失败: {e}"))?;
+                    PostMessageW(target, up_msg, WPARAM(0), lparam)
+                        .map_err(|e| format!("投递鼠标抬起消息失败: {e}"))?;
+                }
+            }
+            (hwnd_to_i64(target), get_window_class_name(target))
+        }
+        "foreground" => {
+            let mut prev_cursor = POINT::default();
+            unsafe { GetCursorPos(&mut prev_cursor) }
+                .map_err(|e| format!("获取光标位置失败: {e}"))?;
+            let prev_fore = acquire_foreground(top)?;
+            let result = (|| -> Result<(), String> {
+                let mut pt = POINT { x, y };
+                let converted = unsafe { ClientToScreen(top, &mut pt) }.as_bool();
+                if !converted {
+                    return Err("窗口坐标转换失败（窗口可能已关闭）".to_string());
+                }
+                send_input_click(pt, &button)?;
+                if double_click {
+                    send_input_click(pt, &button)?;
+                }
+                Ok(())
+            })();
+            restore_foreground(prev_fore, prev_cursor);
+            result?;
+            (hwnd, get_window_class_name(top))
+        }
+        other => {
+            return Err(format!(
+                "不支持的点击模式: {other}（可选 background / foreground）"
+            ))
+        }
+    };
+
+    Ok(WaClickResult {
+        mode: click_mode,
+        target_hwnd,
+        target_class,
+        target_title: title,
+    })
 }
 
 fn vk_for_modifier(name: &str) -> Option<u16> {
@@ -702,36 +999,79 @@ fn send_key(hwnd: HWND, vk: u16, is_down: bool) -> Result<(), String> {
     let lparam = LPARAM(0);
     let wparam = WPARAM(vk as usize);
     unsafe {
-        PostMessageW(hwnd, msg, wparam, lparam)
-            .map_err(|e| format!("PostMessage {:?} 失败: {}", msg, e))?;
+        PostMessageW(hwnd, msg, wparam, lparam).map_err(|e| {
+            format!(
+                "后台按键投递失败 (vk 0x{vk:02X}, {}): {e}",
+                if is_down { "按下" } else { "抬起" }
+            )
+        })?;
     }
     Ok(())
 }
 
 /// 后台按键：可选修饰键。
+/// mode = "background"（默认）投递 WM_KEYDOWN/UP 消息；
+/// mode = "foreground" 用 SendInput 注入真实键盘输入并临时前台化，对游戏生效。
 #[tauri::command]
 pub fn wa_send_keypress(
     hwnd: i64,
     key: String,
     modifiers: Option<Vec<String>>,
+    mode: Option<String>,
 ) -> Result<(), String> {
     let h = hwnd_from_i64(hwnd);
     ensure_valid_window(h)?;
-    let vk = vk_from_key_name(&key).ok_or_else(|| format!("无法识别的按键: {}", key))?;
+    let vk = vk_from_key_name(&key).ok_or_else(|| format!("无法识别的按键: {key}"))?;
     let mods = modifiers.unwrap_or_default();
-    // 1. 修饰键按下
-    for m in &mods {
-        if let Some(mvk) = vk_for_modifier(m) {
-            send_key(h, mvk, true)?;
+    let click_mode = mode
+        .map(|m| m.to_ascii_lowercase())
+        .unwrap_or_else(|| "background".to_string());
+
+    match click_mode.as_str() {
+        "background" => {
+            // 1. 修饰键按下
+            for m in &mods {
+                if let Some(mvk) = vk_for_modifier(m) {
+                    send_key(h, mvk, true)?;
+                }
+            }
+            // 2. 主键 down + up
+            send_key(h, vk, true)?;
+            send_key(h, vk, false)?;
+            // 3. 修饰键抬起（反向）
+            for m in mods.iter().rev() {
+                if let Some(mvk) = vk_for_modifier(m) {
+                    send_key(h, mvk, false)?;
+                }
+            }
         }
-    }
-    // 2. 主键 down + up
-    send_key(h, vk, true)?;
-    send_key(h, vk, false)?;
-    // 3. 修饰键抬起（反向）
-    for m in mods.iter().rev() {
-        if let Some(mvk) = vk_for_modifier(m) {
-            send_key(h, mvk, false)?;
+        "foreground" => {
+            let mut prev_cursor = POINT::default();
+            unsafe { GetCursorPos(&mut prev_cursor) }
+                .map_err(|e| format!("获取光标位置失败: {e}"))?;
+            let prev_fore = acquire_foreground(h)?;
+            let result = (|| -> Result<(), String> {
+                for m in &mods {
+                    if let Some(mvk) = vk_for_modifier(m) {
+                        send_input_key(mvk, true)?;
+                    }
+                }
+                send_input_key(vk, true)?;
+                send_input_key(vk, false)?;
+                for m in mods.iter().rev() {
+                    if let Some(mvk) = vk_for_modifier(m) {
+                        send_input_key(mvk, false)?;
+                    }
+                }
+                Ok(())
+            })();
+            restore_foreground(prev_fore, prev_cursor);
+            result?;
+        }
+        other => {
+            return Err(format!(
+                "不支持的按键模式: {other}（可选 background / foreground）"
+            ))
         }
     }
     Ok(())

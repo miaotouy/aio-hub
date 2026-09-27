@@ -80,6 +80,20 @@ export interface StepExecContext {
 
 const errorHandler = createModuleErrorHandler("window-automator/stepExecutors");
 
+/** Tauri invoke 的 reject 值通常就是 Rust 返回的错误字符串，按类型提取可读消息 */
+function describeError(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
+/** wa_send_click 的返回：消息实际投递到的窗口（可能是坐标命中的子窗口） */
+interface WaClickResult {
+  targetHwnd: number;
+  targetClass: string;
+  targetTitle: string;
+}
+
 // ===================== 调度入口 =====================
 
 /** 执行单个步骤；返回跳转目标 / 终止信号 / null */
@@ -149,19 +163,29 @@ async function runClick(
     params.coordinate.mode,
     ctx.getClientSize
   );
-  const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("wa_send_click", {
-        hwnd: ctx.boundHwnd,
-        x: coord.x,
-        y: coord.y,
-        button: params.button,
-        doubleClick: params.clickType === "double",
-      }),
-    { userMessage: "后台点击失败" }
-  );
-  if (ok === null) {
-    ctx.appendLog("error", index, "点击失败，停止执行");
+  try {
+    const result = await invoke<WaClickResult>("wa_send_click", {
+      hwnd: ctx.boundHwnd,
+      x: coord.x,
+      y: coord.y,
+      button: params.button,
+      doubleClick: params.clickType === "double",
+      mode: params.mode ?? "background",
+    });
+    const modeLabel = (params.mode ?? "background") === "foreground" ? "前台模拟" : "后台消息";
+    const targetDesc = result.targetClass || "未知类名";
+    ctx.appendLog(
+      "debug",
+      index,
+      `${modeLabel}点击已作用于 hwnd ${result.targetHwnd} (${targetDesc})`
+    );
+  } catch (e) {
+    errorHandler.handle(e, { userMessage: "点击失败" });
+    ctx.appendLog(
+      "error",
+      index,
+      `点击失败: ${describeError(e)}；后台消息模式对不处理合成消息的程序（如部分游戏）无效，可改用前台模式`
+    );
     return "__STOP__";
   }
   await sleep(params.delayAfter);
@@ -177,17 +201,20 @@ async function runKeyPress(
     ctx.appendLog("error", index, "未绑定窗口，跳过按键步骤");
     return null;
   }
-  const ok = await errorHandler.wrapAsync(
-    () =>
-      invoke<void>("wa_send_keypress", {
-        hwnd: ctx.boundHwnd,
-        key: params.key,
-        modifiers: params.modifiers,
-      }),
-    { userMessage: "后台按键失败" }
-  );
-  if (ok === null) {
-    ctx.appendLog("error", index, "按键失败，停止执行");
+  try {
+    await invoke<void>("wa_send_keypress", {
+      hwnd: ctx.boundHwnd,
+      key: params.key,
+      modifiers: params.modifiers,
+      mode: params.mode ?? "background",
+    });
+  } catch (e) {
+    errorHandler.handle(e, { userMessage: "按键失败" });
+    ctx.appendLog(
+      "error",
+      index,
+      `按键失败: ${describeError(e)}；后台消息模式对不处理合成消息的程序（如部分游戏）无效，可改用前台模式`
+    );
     return "__STOP__";
   }
   await sleep(params.delayAfter);

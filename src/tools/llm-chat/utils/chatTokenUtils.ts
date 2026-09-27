@@ -20,6 +20,7 @@ import type {
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import type { Asset } from "@/types/asset-management";
 import { resolveAttachmentsBatch } from "../core/context-utils/attachment-resolver";
 import { isDocxAssetLike } from "@/utils/docxParser";
@@ -32,6 +33,73 @@ import {
 } from "../types/pipeline-attachment";
 
 const logger = createModuleLogger("llm-chat/token-utils");
+
+/**
+ * 解析发送前图片缩放的有效最大边（像素）
+ *
+ * 与 asset-resolver 的串联缩放语义等价：
+ * 先模型安全约束（capabilities.maxImageDimension），后用户压缩
+ * （imageCompression.maxDimension，默认 4096），串联等比缩小等价于取两者较小值。
+ *
+ * @returns 有效最大边；无任何缩放约束时返回 undefined
+ */
+export function resolveEffectiveImageMaxDimension(
+  capabilities?: { maxImageDimension?: number } | null,
+  imageCompression?: { enabled: boolean; maxDimension?: number } | null
+): number | undefined {
+  let maxDim: number | undefined;
+  const modelMax = capabilities?.maxImageDimension;
+  if (modelMax && modelMax > 0) {
+    maxDim = modelMax;
+  }
+  if (imageCompression?.enabled) {
+    const userMax = imageCompression.maxDimension || 4096;
+    maxDim = maxDim === undefined ? userMax : Math.min(maxDim, userMax);
+  }
+  return maxDim;
+}
+
+/**
+ * 解析指定模型与智能体下发送图片的有效最大边
+ *
+ * 模型安全约束来自模型 capabilities；用户压缩来自智能体参数
+ * （详情未加载时自动按需加载一次）。任一来源缺失时只应用另一项。
+ */
+export async function resolveImageMaxDimensionForModel(
+  modelId: string,
+  agentId?: string | null
+): Promise<number | undefined> {
+  try {
+    const { profiles } = useLlmProfiles();
+    const model = profiles.value
+      .flatMap((profile) => profile.models || [])
+      .find((item) => item.id === modelId);
+
+    let imageCompression:
+      | { enabled: boolean; maxDimension?: number }
+      | undefined;
+    if (agentId) {
+      const agentStore = useAgentStore();
+      let agent = agentStore.getAgentById(agentId);
+      if (agent && agent.parameters === undefined) {
+        agent = (await agentStore.loadAgentDetails(agentId)) ?? agent;
+      }
+      imageCompression = agent?.parameters?.imageCompression;
+    }
+
+    return resolveEffectiveImageMaxDimension(
+      model?.capabilities,
+      imageCompression
+    );
+  } catch (error) {
+    logger.warn("解析图片压缩上限失败，Token 预估将按原始尺寸计算", {
+      modelId,
+      agentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
 
 /**
  * 准备用于 Token 计算的消息内容（本地辅助函数）
@@ -123,7 +191,7 @@ export async function prepareMessageForTokenCalc(
  * 重新计算单个节点的 token
  */
 export async function recalculateNodeTokens(
-  _index: ChatSessionIndex,
+  index: ChatSessionIndex,
   detail: ChatSessionDetail,
   nodeId: string
 ): Promise<void> {
@@ -185,10 +253,17 @@ export async function recalculateNodeTokens(
       mediaAttachments = result.mediaAttachments;
     }
 
+    // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
+    const maxImageDimension = await resolveImageMaxDimensionForModel(
+      modelId,
+      index?.displayAgentId
+    );
+
     const tokenResult = await tokenCalculatorService.calculateMessageTokens(
       fullContent,
       modelId,
-      mediaAttachments
+      mediaAttachments,
+      maxImageDimension !== undefined ? { maxImageDimension } : undefined
     );
 
     if (!node.metadata) node.metadata = {};
@@ -223,7 +298,7 @@ export async function fillMissingTokenMetadata(
   const calculationPromises: Promise<void>[] = [];
   const updatedSessionIds = new Set<string>();
 
-  for (const { detail: session } of sessions) {
+  for (const { index: sessionIndex, detail: session } of sessions) {
     if (!session.nodes) continue;
     for (const [nodeId, node] of Object.entries(session.nodes)) {
       if (!node.content || node.metadata?.contentTokens !== undefined) continue;
@@ -276,11 +351,20 @@ export async function fillMissingTokenMetadata(
               mediaAttachments = result.mediaAttachments;
             }
 
+            // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩）
+            const maxImageDimension = await resolveImageMaxDimensionForModel(
+              currentModelId,
+              sessionIndex?.displayAgentId
+            );
+
             const tokenResult =
               await tokenCalculatorService.calculateMessageTokens(
                 fullContent,
                 currentModelId,
-                mediaAttachments
+                mediaAttachments,
+                maxImageDimension !== undefined
+                  ? { maxImageDimension }
+                  : undefined
               );
 
             if (!node.metadata) node.metadata = {};

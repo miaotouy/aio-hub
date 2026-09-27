@@ -505,7 +505,8 @@ export function useChatHandler() {
       session,
       content,
       agentConfig.modelId,
-      options?.attachments
+      options?.attachments,
+      agentConfig.parameters?.imageCompression
     );
 
     // 前置处理完成，进入真正的请求执行阶段。

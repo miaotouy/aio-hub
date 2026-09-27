@@ -15,6 +15,7 @@
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 
 const logger = createModuleLogger("primary:token-limiter");
 
@@ -78,6 +79,14 @@ export const tokenLimiter: ContextProcessor = {
     }
 
     // 1. 计算所有消息的 Token (包含文本和附件)
+    // 图片 Token 与 asset-resolver 的缩放结果对齐（模型安全约束 + 用户压缩）
+    const maxImageDimension = resolveEffectiveImageMaxDimension(
+      context.capabilities,
+      parameters?.imageCompression
+    );
+    const tokenCalcOptions =
+      maxImageDimension !== undefined ? { maxImageDimension } : undefined;
+
     const messagesWithTokens = await Promise.all(
       messages.map(async (msg) => {
         let contentText = "";
@@ -98,7 +107,8 @@ export const tokenLimiter: ContextProcessor = {
         const { count } = await tokenCalculatorService.calculateMessageTokens(
           contentText,
           modelId,
-          msg._attachments // 传入附件列表
+          msg._attachments, // 传入附件列表
+          tokenCalcOptions
         );
         return { ...msg, tokenCount: count, charCount: contentText.length };
       })
@@ -182,7 +192,8 @@ export const tokenLimiter: ContextProcessor = {
             await tokenCalculatorService.calculateMessageTokens(
               truncatedContent,
               modelId,
-              msg._attachments
+              msg._attachments,
+              tokenCalcOptions
             );
 
           // 如果截断后能放得下

@@ -25,6 +25,7 @@ import {
   processMacros,
 } from "../../core/context-utils/macro";
 import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
+import { resolveImageMaxDimensionForModel } from "@/tools/llm-chat/utils/chatTokenUtils";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import type { Asset } from "@/types/asset-management";
@@ -66,6 +67,14 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         (t.status === "pending" || t.status === "processing")
     );
   });
+
+  /**
+   * 确定当前应使用的智能体 ID（用于读取图片压缩等智能体参数）
+   */
+  const resolveAgentId = (): string | null => {
+    const session = chatStore.currentSession;
+    return currentAgentId.value || session?.displayAgentId || null;
+  };
 
   /**
    * 确定当前应使用的模型 ID
@@ -203,11 +212,18 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
           modelId
         );
 
-      // 4. 调用底层服务计算
+      // 4. 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
+      const maxImageDimension = await resolveImageMaxDimensionForModel(
+        modelId,
+        resolveAgentId()
+      );
+
+      // 5. 调用底层服务计算
       const result = await tokenCalculatorService.calculateMessageTokens(
         combinedText,
         modelId,
-        mediaAttachments.length > 0 ? mediaAttachments : undefined
+        mediaAttachments.length > 0 ? mediaAttachments : undefined,
+        maxImageDimension !== undefined ? { maxImageDimension } : undefined
       );
 
       tokenCount.value = result.count;
@@ -252,6 +268,22 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     },
     () => {
       triggerCalculation();
+    }
+  );
+
+  // 监听图片压缩配置变化（位于智能体 parameters 中，属于深层变更）
+  watch(
+    () => {
+      if (!currentAgentId.value) return null;
+      const agent = agentStore.getAgentById(currentAgentId.value);
+      const compression = agent?.parameters?.imageCompression;
+      if (!compression) return null;
+      return `${compression.enabled}:${compression.maxDimension ?? ""}:${compression.format}:${compression.quality}`;
+    },
+    (newVal, oldVal) => {
+      if (newVal !== oldVal) {
+        triggerCalculation();
+      }
     }
   );
 

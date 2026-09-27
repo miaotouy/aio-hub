@@ -46,6 +46,29 @@ export interface ResizeOptions {
 }
 
 /**
+ * 计算图片在"最大边限制"等比缩放后的最终尺寸（纯计算，不做真实缩放）
+ *
+ * 与 resizeImage 的缩放语义保持一致：
+ * 超出上限时按 scale = min(maxW / w, maxH / h) 等比缩小并向下取整。
+ * 用于 Token 预估等场景，在发送前同步模拟 asset-resolver 的缩放结果。
+ */
+export function computeResizedDimensions(
+  width: number,
+  height: number,
+  maxDimension: number
+): { width: number; height: number } {
+  if (!maxDimension || maxDimension <= 0) return { width, height };
+  if (width <= maxDimension && height <= maxDimension) {
+    return { width, height };
+  }
+  const scale = Math.min(maxDimension / width, maxDimension / height);
+  return {
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
+  };
+}
+
+/**
  * 从 ArrayBuffer 加载 HTMLImageElement
  */
 function loadImageFromBuffer(

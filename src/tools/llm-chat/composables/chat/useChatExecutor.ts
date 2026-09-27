@@ -40,6 +40,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ContextPreviewData } from "../../types/context";
 import { buildPreviewDataFromContext } from "../../core/context-utils/preview-builder";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
+import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
@@ -218,6 +219,7 @@ export function useChatExecutor() {
     content: string,
     modelId: string,
     attachments?: Asset[],
+    imageCompression?: LlmParameters["imageCompression"],
     isContinuation: boolean = false
   ): Promise<void> => {
     try {
@@ -244,10 +246,17 @@ export function useChatExecutor() {
         }
       }
 
+      // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
+      const maxImageDimension = resolveEffectiveImageMaxDimension(
+        profile?.models.find((m) => m.id === modelId)?.capabilities,
+        imageCompression
+      );
+
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         combinedText,
         modelId,
-        mediaAttachments
+        mediaAttachments,
+        maxImageDimension !== undefined ? { maxImageDimension } : undefined
       );
       const node = session.nodes ? session.nodes[userNode.id] : undefined;
       if (node) {
@@ -463,6 +472,12 @@ export function useChatExecutor() {
 
     const basePreviewData = await buildPreviewDataFromContext(pipelineContext);
 
+    // 与 asset-resolver 保持一致：图片按缩放后（模型安全约束 + 用户压缩）的尺寸估算
+    const previewMaxImageDimension = resolveEffectiveImageMaxDimension(
+      pipelineContext.capabilities,
+      pipelineContext.agentConfig?.parameters?.imageCompression
+    );
+
     const finalTokenPromises = pipelineContext.messages.map(async (msg) => {
       let contentText = "";
       if (typeof msg.content === "string") {
@@ -476,7 +491,10 @@ export function useChatExecutor() {
       const tokenResult = await tokenCalculatorService.calculateMessageTokens(
         contentText,
         effectiveModelId,
-        msg._attachments || []
+        msg._attachments || [],
+        previewMaxImageDimension !== undefined
+          ? { maxImageDimension: previewMaxImageDimension }
+          : undefined
       );
       return tokenResult.count;
     });

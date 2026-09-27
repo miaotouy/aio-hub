@@ -257,7 +257,9 @@ Actions:
    └── 不执行递归扫描、分组竞争、sticky/cooldown、向量、Outlet 宏提取或 Knowledge/Recall；相关字段无损保存但运行时忽略
 
 6. primary:macros-renderer (priority: 500)
-   ├── 按管线顺序展开角色、用户、会话、模型与 `ManagedAssetRef` 轻量摘要宏
+   ├── 按管线顺序展开角色、用户、会话、模型、全局 `ManagedAssetRef` 摘要与 Agent 私有资产宏
+   ├── `{{assets}}` 先保留全局附件的原有去重摘要，再追加 `agent.assets` 私有资产（可读文本 + Handle 标识）；`{{assets::group}}` 只列该分组私有资产，`{{assets::default}}` 对齐桌面语义表示未分组或引用了不存在分组的资产
+   ├── 不引入桌面 `agent-asset://` 资源协议：移动端没有对应 resolver，私有资产只输出 `[类型] 文件名 (handle: id)` 文本，不产生可解析引用
    ├── 从导入 Agent 的 `variableConfig` 初始化局部变量，并应用 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`
    ├── 对历史 `last*` 宏只读取该消息之前的同分支历史；转义和未知宏保持字面文本
    └── 仅把替换前文本写到 `ProcessableMessage._originalContent`，不把资产路径或系统 URI 写入聊天数据
@@ -266,7 +268,8 @@ Actions:
    ├── 通过 AssetManager 检查历史 `ManagedAssetRef` 可用性，保留 ready 资产的匿名托管引用
    ├── 原件已清理、缺失或读取失败时，跳过二进制引用；如果聊天附件快照已有 `extractedText`，则以带名称和 MIME 标识的文本块确定性回退
    ├── 文本回退发生在 Token 限制器之前，因此会参与历史裁剪和最终请求 Token 快照
-   └── `useChatExecutor` 只对没有文本回退的失效历史附件显示跳过提示；可用引用继续在最终序列化时交给 Rust 原生传输读取
+   ├── `useChatExecutor` 只对没有文本回退的失效历史附件显示跳过提示；可用引用继续在最终序列化时交给 Rust 原生传输读取
+   └── 纯文本类附件的 `snapshot.extractedText` 由 `AssetPickerSheet` 在确认选择前按需写入（复用 `asset_extract_text`），使新附件在原件被回收后仍有文本回退
 
 8. primary:preset-attachment-processor (priority: 850，位于 token-limiter 700 与 message-formatter 800 之后)
    ├── 读取消息上暂存的 `_privateAttachments`，通过 `useAgentStorage.readAgentAsset` 从 `agents/{id}/` 私有目录读取字节
@@ -286,7 +289,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets` 与导入角色局部变量；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets`（全局附件摘要 + Agent 私有资产，支持 `{{assets::group}}` 分组过滤）与导入角色局部变量；移动端不识别桌面 `agent-asset://` 资源协议，私有资产以可读文本与 Handle 标识输出，不产生可解析引用；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；新选中的纯文本类附件在 `AssetPickerSheet` 确认选择前按需写入快照，超过原生 2 MiB 读取上限则跳过，超过 20 万字符则截断并提示；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -373,20 +376,29 @@ Assistant 续写 → useChatExecutor.continueGeneration(session, assistantNode)
 
 ### 6.1. 列表组件
 
-| 组件                 | 职责                                                     |
-| -------------------- | -------------------------------------------------------- |
-| `MessageList.vue`    | 消息列表容器，处理滚动；自动滚动与字号由聊天 UI 偏好控制 |
-| `MessageContent.vue` | 渲染消息正文、附件状态与统一受控媒体预览                 |
-| `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、模型、时间戳等元信息）   |
-| `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换）         |
-| `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）                      |
-| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支           |
+| 组件                 | 职责                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `MessageList.vue`    | 消息列表容器，处理滚动；自动滚动与字号由聊天 UI 偏好控制                                       |
+| `MessageContent.vue` | 渲染消息正文、附件状态与统一受控媒体预览；可用媒体附件内联缩略图/封面/播放器，其余保持文件卡片 |
+| `ChatMessage.vue`    | 单条消息的整体排版（头像、气泡、模型、时间戳等元信息）                                         |
+| `MessageMenubar.vue` | 操作菜单（重新生成、复制、编辑、删除、分支切换）                                               |
+| `BranchSwitcher.vue` | 兄弟分支切换器（上一分支/下一分支）                                                            |
+| `BranchSelector.vue` | 底部抽屉式分支列表，支持直接切换到任意同级分支                                                 |
+
+### 6.1.1. 附件呈现组件
+
+| 组件                         | 职责                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `AttachmentThumbnail.vue`    | 通用受管内联缩略图：图片按 `assetId` 申请短期 descriptor 显示方形缩略图，其余类型显示类型图标；支持懒加载与撤销 |
+| `useLazyManagedThumbnail.ts` | 内联缩略图的 descriptor 生命周期：视口懒加载、资源切换/卸载撤销，URL 不写入消息或持久状态                        |
+
+消息附件区对齐桌面端 `AttachmentCard` 的信息结构：图片用方形缩略图卡（点击打开 `MediaPreviewHost` `sheet` 查看），音频/视频/文档/其它用横条卡片（类型图标或封面 + 文件名 + 大小/状态，可预览者点击打开 `MediaPreviewHost`），不在附件区内联播放器；`reclaimed`/`missing`/`importing` 只显示状态标签且不申请 descriptor。
 
 ### 6.2. 输入组件
 
-| 组件            | 职责                                                  |
-| --------------- | ----------------------------------------------------- |
-| `ChatInput.vue` | 模型选择、上下文 Token 占比与预警、消息输入和发送按钮 |
+| 组件            | 职责                                                                     |
+| --------------- | ------------------------------------------------------------------------ |
+| `ChatInput.vue` | 模型选择、上下文 Token 占比与预警、消息输入和发送按钮；待发附件 chip 带缩略图/类型图标 |
 
 ## 7. 持久化策略
 
@@ -434,6 +446,9 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - 消息、分支和会话变更在聊天事务内写 usage outbox，再由幂等投递器调用资产服务整体替换业务实体的 usage。
 - `session-loader` 已把消息与附件引用一起加载到强类型 `_attachments`；只有文本为空但存在附件的消息不会被过滤。
 - 附件预览统一由 `MessageContent` 映射 `ManagedAssetRef` 的 `assetId +` 轻量快照到 `MediaItem`，再交给 `MediaPreviewHost` 申请和撤销受控来源；图片、视频和音频共享返回/沉浸层/错误生命周期。发送给模型时仍只传递 `managed-asset-ref`，由 Rust 解析并流式读取，不把原件读入 JS 后再经 base64 IPC 复制。
+- 消息附件区对 `ready` 的图片/视频/音频内联呈现：图片使用 `AttachmentThumbnail` 的受管方形缩略图（视口懒加载），视频使用不自动播放的封面占位，音频/视频/文档/其它使用横条卡片（类型图标 + 文件名 + 大小/状态，视频/音频可预览者叠加播放图标），点击可预览附件由 `MessageContent` 打开 `MediaPreviewHost`（`sheet`），不在附件区内联播放器；`reclaimed`/`missing`/`importing` 只显示状态标签且不申请 descriptor。输入区 `ChatInput` 的待发附件 chip 同样通过 `AttachmentThumbnail` 显示图片缩略图或类型图标。缩略图与全屏预览的 descriptor 均随组件卸载、资源切换或来源变化撤销，preview URL 不写入消息或持久状态。
+- 聊天内 `AssetPickerSheet` 已接入资产管理器的文件/照片/相机导入入口（复用 `assetImportEntry` 与 import job），导入完成后刷新可选列表；导入只产生 `assetId`，不把文件路径、系统 URI 或资产库相对路径写入聊天数据。
+- 纯文本类附件（`text/*`、`application/json` 等，或已知文本扩展名）在确认选择前按需调用 `asset_extract_text` 写入 `snapshot.extractedText`；超过原生 2 MiB 读取上限跳过、超过 20 万字符截断，非文本或提取失败时不写快照且不阻断添加，均以 warning 提示。docx/pptx/xlsx 的深度解析未在移动端实现。
 - 移动端共享 wire 类型和 Rust 原生传输已经支持 `managed-asset-ref`；聊天附件持久化、usage outbox、消息快照展示和 reclaimed/missing 实时降级已接入，provider 请求组装已覆盖 OpenAI-compatible、Gemini 和 Anthropic。
 - 资产为 `reclaimed` 时保留消息和附件快照，界面显示“原件已清理”；`missing` 表示异常缺失，两者不能合并处理。
 - 智能体预设附件继续引用 Agent 私有资产 Handle，随 Agent 资源包迁移，不登记为全局聊天资产。
@@ -517,7 +532,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 
 ### 🔄 管道处理器
 
-- [x] `macros-renderer`：已完成移动端角色聊天限定范围的角色、用户、会话、模型、附件摘要宏与局部变量；工具、Recall、Knowledge、CSS 和全局变量宏不属于当前范围
+- [x] `macros-renderer`：已完成移动端角色聊天限定范围的角色、用户、会话、模型、全局附件摘要与 Agent 私有资产分组宏（`{{assets}}` / `{{assets::group}}` / `{{assets::default}}`）与局部变量；私有资产只输出可读文本与 Handle 标识，不引入桌面 `agent-asset://` 协议；工具、Recall、Knowledge、CSS 和全局变量宏不属于当前范围
 - [x] `regex-processor`：合并全局（移动端当前为空）与导入 Agent 配置，兼容旧配置缺 render 字段，按预设优先级、角色和消息深度执行 request 阶段文本正则；脚本规则不执行；全局/用户档案正则配置源仍待独立能力
 - [x] 正则 render 阶段：`MessageContent` 在显示前应用 `applyTo.render` 规则，`ChatMessage` 以 Message-Bound（`metadata.agentId`）解析并合并 Agent 配置，深度由 `MessageList` 传入；规则解析、阶段排序与应用复用 `utils/chatRegex.ts`，无匹配规则时短路，不修改持久化内容
 - [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
@@ -537,6 +552,8 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 接入 `managed-asset-ref` 原生发送与 `reclaimed`/`missing` 降级展示
 - [x] 图片、视频和音频附件的统一受控预览（`MediaPreviewHost`、短期 descriptor、Teleport 沉浸层和关闭/卸载主动撤销）
 - [x] 文本文档提取结果写入附件快照、blocking usage 降级和 replacement outbox
+- [x] 聊天内 `AssetPickerSheet` 接入文件/照片/相机导入入口，导入完成后刷新可选列表
+- [x] 可读纯文本附件在选定前按需写入 `snapshot.extractedText`，超限跳过或截断并 warning
 
 ### 🔄 智能体支持
 
@@ -544,7 +561,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 基础用户档案管理：多档案 CRUD、启用/禁用、全局默认选择、Agent `userProfileId` 覆盖与请求系统上下文注入
 - [x] 智能体预设加载
 - [x] 执行预设消息的 `injectionStrategy` 和 `modelMatch`
-- [x] `primary:macros-renderer` 已在预设装配后展开角色、用户、会话、模型和当前附件的轻量摘要宏，并复用导入 Agent `variableConfig` 的局部变量定义；仅支持 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`，不注册工具、Recall、Knowledge、CSS 或全局变量宏
+- [x] `primary:macros-renderer` 已在预设装配后展开角色、用户、会话、模型、全局附件摘要与 Agent 私有资产分组宏（`{{assets}}` / `{{assets::group}}` / `{{assets::default}}`），并复用导入 Agent `variableConfig` 的局部变量定义；私有资产以可读文本和 Handle 标识输出，不引入桌面 `agent-asset://` 协议；仅支持 `<svar>`、`getvar` / `setvar` / `incvar` / `decvar`，不注册工具、Recall、Knowledge、CSS 或全局变量宏
 - [x] 已接入移动端限定的传统关键词世界书：有限历史扫描、常量/关键词激活、次要关键词选择性逻辑、0-100 概率激活、六值位置与条目 role、确定性注入；递归扫描、分组竞争、sticky/cooldown、向量 RAG 与 Knowledge/Recall 不属于当前范围（相关字段无损保存但不执行）
 - [x] 聊天内切换 Agent（顶部选择器仅更新会话绑定；历史节点保留原快照，后续助手消息保存 Agent 和模型/渠道快照）
 - [x] 将 Agent 开局消息实例化到新会话（根节点兄弟分支、默认开局选择和旧字符串兼容）；开局消息的 Agent 私有附件以 `node.metadata.privateAttachments` 保留，请求时由 `preset-attachment-processor` 解析并进入请求内容；聊天宏后续按各自范围接入

@@ -3,6 +3,7 @@ import { load as loadYaml } from "js-yaml";
 import { v4 as uuidv4 } from "uuid";
 import {
   AgentCategory,
+  normalizeAgentAssetGroups,
   type ChatAgent,
   type GreetingMessage,
   type PresetMessage,
@@ -148,6 +149,11 @@ function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
     presetMessages: normalizePresetMessages(value.presetMessages),
     presetGroups: Array.isArray(value.presetGroups) ? value.presetGroups : [],
   } as ImportedAgentDraft;
+  // `assetGroups` 兼容旧占位 `unknown[]`：仅归一化合法分组，未知字段随对象保留；
+  // 原值不是数组时不新增字段，避免改变无分组 Agent 的序列化结果。
+  if (Array.isArray(value.assetGroups)) {
+    normalized.assetGroups = normalizeAgentAssetGroups(value.assetGroups);
+  }
   delete normalized.id;
   delete normalized.createdAt;
   delete normalized.lastUsedAt;

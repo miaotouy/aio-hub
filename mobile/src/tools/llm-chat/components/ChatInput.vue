@@ -16,6 +16,7 @@ import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 import AssetPickerSheet from "./AssetPickerSheet.vue";
+import AttachmentThumbnail from "./AttachmentThumbnail.vue";
 import type { ChatMessageAttachment, ChatMessageReference } from "../types";
 
 const props = defineProps<{
@@ -92,6 +93,13 @@ const handleSend = async () => {
     }
   }
 };
+
+const thumbnailItem = (attachment: ChatMessageAttachment) => ({
+  assetId: attachment.assetId,
+  kind: attachment.snapshot.kind,
+  displayName: attachment.snapshot.displayName,
+  mimeType: attachment.snapshot.mimeType,
+});
 
 const addAttachments = (selected: ChatMessageAttachment[]) => {
   const existing = new Set(attachments.value.map((item) => item.assetId));
@@ -210,8 +218,15 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       class="pending-attachments"
       data-testid="chat-pending-attachments"
     >
-      <span v-for="attachment in attachments" :key="attachment.id">
-        {{ attachment.snapshot.displayName }}
+      <span
+        v-for="attachment in attachments"
+        :key="attachment.id"
+        class="pending-attachment"
+      >
+        <AttachmentThumbnail :item="thumbnailItem(attachment)" :size="22" />
+        <span class="pending-attachment-name">{{
+          attachment.snapshot.displayName
+        }}</span>
         <button
           type="button"
           :aria-label="
@@ -445,6 +460,13 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container-low);
   font-size: 0.78rem;
+}
+
+.pending-attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pending-attachments button {

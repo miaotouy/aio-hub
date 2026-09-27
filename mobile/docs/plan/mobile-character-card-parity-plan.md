@@ -48,7 +48,7 @@
 | 世界书高级语义（selective/keysecondary、递归、probability/sticky/cooldown、组竞争、8 位置+role、`worldbookSettings` 覆盖、三源合并） | 🟡 selective / probability / 位置+role 与导入映射已落地（2026-09-26，见 4.1）；递归执行、组竞争、sticky/cooldown、三源合并为显式后续项 | `llm-chat/types/worldbook.ts`、`worldbook-injector.ts`、`worldbookStore.ts` | `src/.../worldbook-processor.ts` |
 | Agent 私有资产目录（头像、`assets/`、`worldbooks/` 提取落盘与回写） | ✅ | `useAgentStorage.ts`（私有资产 API）、`useAgentImporter.ts`（提取）、`AgentList.vue`（落盘回写） | `src/tools/agent-manager/services/agentExportService.ts` |
 | `presetAttachments` 运行时解析与进 vision | ✅ 已补齐（2026-09-26） | `core/context-utils/preset-attachment-resolver.ts`、`core/pipeline/processors/preset-attachment-processor.ts`（图片内联 vision、文本内联回退、其它降级 warning） | `src/.../core/context-utils/preset-attachment-resolver.ts:89-130` |
-| `assetGroups` 分组语义与宏注入 | ❌ 未做（批次 4 边界） | `agent-manager/types/agent.ts` | — |
+| `assetGroups` 分组语义与宏注入 | ✅ 已补齐（2026-09-26） | `agent-manager/types/agent.ts`、`llm-chat/core/pipeline/processors/macros-renderer.ts` | `AssetGroup` + `AgentAsset.group` 已对齐（移动端不引入 `agent-asset://`） |
 | knowledgeAccess / Recall | ❌ 类型占位（符合边界，不做） | `agent-manager/types/agent.ts:94-95` | — |
 
 ## 3. 技术选型（已落地）
@@ -98,7 +98,7 @@
 - 正则 render 后续项：思考内容（`reasoningContent`）的 render 正则、render 规则的宏预处理（`substitutionMode` / `trimStrings`）、render 规则的编辑 UI 与调试预览。
 - 世界书高级语义（selective/keysecondary、递归扫描、probability/sticky/cooldown、组竞争、8 位置 + role、`worldbookSettings` 覆盖与三源绑定合并）——涉及 `MobileWorldbook` 模型扩展，需先立数据结构设计。见下方「4.1 世界书高级语义字段设计」，本轮已落地 selective / probability / 位置+role / 导入映射；递归、组竞争、sticky/cooldown、三源合并仍是显式后续项。
 - [x] Agent 私有 `presetAttachments` 与开局消息附件运行时解析与进 vision（已完成，2026-09-26）：`core/context-utils/preset-attachment-resolver.ts` + `core/pipeline/processors/preset-attachment-processor.ts`（priority 850）从 `agents/{id}/` 私有目录读取字节，图片以纯 JS 内联 base64 进 vision、文本文档内联 `<attachment_text>` 回退、音频/视频/其它二进制降级为文本描述并 warning；`injection-assembler` 把 `presetAttachments` 归一化为 `_privateAttachments`，`session-loader` 读取开局节点 `metadata.privateAttachments`，`greetingService` 固化时保留引用；不接入全局 `asset_manager.db`，无附件时不改变现有行为。
-- Agent 私有 `assetGroups` 的分组语义与宏注入（私有资产目录已落地，见 `mobile-agent-manager-plan.md` 后续增强项）。
+- [x] Agent 私有 `assetGroups` 的分组语义与宏注入（已完成，2026-09-26）：`assetGroups` 从 `unknown[]` 占位转为 `AgentAssetGroup`（`id`/`displayName`/`description`/`icon`/`sortOrder`，索引签名无损保留），`AgentAsset.group` 归类；导入器 `normalizeAgentAssetGroups` 归一化并保留合法字段，旧 `unknown[]` 数据不崩溃；`macros-renderer` 的 `{{assets}}` 纳入 `agent.assets` 并支持 `{{assets::group}}` / `{{assets::default}}` 过滤，全局附件摘要与输出顺序保持不变。移动端不引入桌面 `agent-asset://` 资源协议（无对应 resolver），私有资产只输出可读文本与 Handle 标识。私有音视频进入请求、Agent 资产管理 UI 仍后置。
 - [x] `parameters.custom` 自定义参数透传（已完成，2026-09-26）：`useChatExecutor` 透传，共享 `toOpenAiCompatibleCoreRequest` 按桌面 `buildEffectiveParameters` 语义解包（包裹结构 `enabled` 为真才合并、旧扁平整体合并），允许覆盖标准字段但保护 `messages` / `stream`；「按模型能力过滤」仍待独立排期。
 
 #### 4.1 世界书高级语义字段设计（本轮施工）

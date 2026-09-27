@@ -27,7 +27,7 @@
 
 背景、预设消息附件和 `assets[]` 属于 Agent 私有资源，使用 Agent 内稳定 Handle 与相对路径，随 Agent 一起复制、导入、导出和删除。导入 PNG 角色卡时，当前会把小于 3 MiB 的原卡片保存为 `avatarDataUrl`，用于角色大厅和聊天选择器的即时预览；AIO PNG 包内的头像文件同样会落盘。AIO/ST 导入包内的头像、`assets/` 与 `worldbooks/` 已由导入器提取并落盘：头像写入 `agents/{id}/{filename}` 并把 `icon` 回写为相对文件名，资产写入 `agents/{id}/assets/` 并回写为 `AgentAsset`（`id/filename/path/type/mimeType/size`），包内世界书复用 `worldbookStore.importFromSillyTavern` 落库并把新 id 追加到 `worldbookIds`。这些资源不进入全局 `asset_manager.db`，也不受全局资产按月份回收、批量转写或清理策略影响。用户从全局资产添加资源时执行内容复制，复制后两侧不共享 ID 或生命周期。
 
-私有资产的文件落盘与导入回写已落地；`presetAttachments` 的运行时解析与进 vision 已由 `llm-chat` 的 `preset-attachment-processor` 接通（见下方「私有资产运行时消费边界」），`assetGroups` 的分组语义与宏注入仍是后置项，见 [`mobile-agent-manager-plan.md`](../../../docs/plan/mobile-agent-manager-plan.md) 与 [`mobile-character-card-parity-plan.md`](../../../docs/plan/mobile-character-card-parity-plan.md)。全局可回收资产契约见 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md)。桌面端预设附件使用 Agent Handle 的既有语义见 [LLM Chat 架构](../../../../src/tools/llm-chat/ARCHITECTURE.md) 的预设消息多模态附件记录。
+私有资产的文件落盘与导入回写已落地；`presetAttachments` 的运行时解析与进 vision 已由 `llm-chat` 的 `preset-attachment-processor` 接通（见下方「私有资产运行时消费边界」）。`assetGroups` 已从占位 `unknown[]` 转为结构化分组元数据 `AgentAssetGroup`（`id` / `displayName` / `description` / `icon` / `sortOrder`，索引签名无损保留桌面端其余字段），`AgentAsset.group` 指向分组 `id` 完成归类；导入器用 `normalizeAgentAssetGroups` 归一化并保留合法字段，旧数据中的非对象或缺 `id` 项被安全丢弃而不崩溃。`llm-chat` 的 `{{assets}}` 宏会列出 `agent.assets` 并支持 `{{assets::group}}` / `{{assets::default}}` 过滤，但移动端没有 `agent-asset://` 资源 resolver，宏只输出可读文本与 Handle 标识，不产生可解析引用。分组语义见 [`mobile-character-card-parity-plan.md`](../../../docs/plan/mobile-character-card-parity-plan.md) 批次 4 与 [`mobile-attachment-support-plan.md`](../../../docs/plan/mobile-attachment-support-plan.md) 附件 3。全局可回收资产契约见 [`mobile-asset-manager-design.md`](../../../docs/plan/mobile-asset-manager-design.md)。桌面端预设附件使用 Agent Handle 的既有语义见 [LLM Chat 架构](../../../../src/tools/llm-chat/ARCHITECTURE.md) 的预设消息多模态附件记录。
 
 ## 私有资产运行时消费边界
 
@@ -70,7 +70,7 @@ AgentList --route query(agentId)--> ChatHome
 ## 当前边界
 
 - **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、聊天内 Agent 切换、开局消息实例化、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入、AIO 导入包的头像/私有资产/世界书落盘回写与预设导入导出）。Agent 详情页还可编辑当前移动端请求层实际传递的 `temperature`、`maxTokens`、`topP`、频率/存在惩罚、停止序列，以及 Token limiter 的上下文预算和截断保留字符；留空时不覆盖渠道或模型默认值。切换只更新会话 `displayAgentId`；既有消息不被改写，后续助手消息会固化 Agent 身份和模型/渠道快照。绑定 Agent 的新会话会将有效开局消息固化为根节点下的兄弟分支并优先使用 `defaultGreetingId`；旧字符串开局消息兼容读取；开局消息的私有附件引用随节点 metadata 保留并在请求期解析。分类采用与桌面端一致的 `AgentCategory` 枚举；历史 `custom` 在加载时归一化为 `other`，未知未来值仍保留在完整 Agent 对象中。
-- **后续可选增强**：Agent 私有 `assetGroups` 的分组语义与宏注入，以及工具调用、Knowledge/Recall、媒体/压缩等桌面高级参数继续独立设计；当前 PNG 角色卡的头像预览、导入包头像/资产/世界书落盘与卡片文本导入已经可直接使用。移动端如需这些能力，应按自身产品和平台约束独立设计，不默认复制桌面实现。用户档案已由 `llm-chat` 的基础档案管理页和上下文注入支持；私有资产如后续实施，仍不得以全局 `assetId` 代替 Handle 或相对路径。
+- **后续可选增强**：Agent 私有音频/视频进入请求、Agent 资产管理 UI（移动端暂无该页面），以及工具调用、Knowledge/Recall、媒体/压缩等桌面高级参数继续独立设计；当前 PNG 角色卡的头像预览、导入包头像/资产/世界书落盘、卡片文本导入与 `{{assets}}` 分组宏已经可直接使用。移动端如需这些能力，应按自身产品和平台约束独立设计，不默认复制桌面实现。用户档案已由 `llm-chat` 的基础档案管理页和上下文注入支持；私有资产消费仍不得以全局 `assetId` 代替 Handle 或相对路径。
 
 ## 6. PC 角色卡导入与立即开聊
 

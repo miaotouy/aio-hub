@@ -172,6 +172,196 @@ describe("macrosRenderer", () => {
     );
   });
 
+  it("appends agent private assets after the global attachment summary", async () => {
+    const agent = createAgent();
+    agent.assetGroups = [
+      { id: "bgm", displayName: "背景音乐" },
+      { id: "emoji", displayName: "表情" },
+    ];
+    agent.assets = [
+      {
+        id: "bgm_rain",
+        filename: "rain.mp3",
+        path: "assets/rain.mp3",
+        type: "audio",
+        group: "bgm",
+        description: "雨声循环",
+      },
+      {
+        id: "sticker_ok",
+        filename: "ok.png",
+        path: "assets/ok.png",
+        type: "image",
+      },
+    ];
+    const context = createContext(
+      [
+        {
+          role: "user",
+          content: "Available files:\n{{assets}}",
+          sourceType: "session_history",
+          sourceId: "user-1",
+          _attachments: [
+            {
+              assetId: "asset-image",
+              usagePolicy: "advisory",
+              snapshot: {
+                displayName: "sunset.png",
+                kind: "image",
+                mimeType: "image/png",
+                sizeBytes: 128,
+              },
+            },
+          ],
+        },
+      ],
+      agent
+    );
+
+    await macrosRenderer.execute(context);
+
+    expect(context.messages[0].content).toBe(
+      [
+        "Available files:",
+        "- sunset.png (image/png, asset-image)",
+        "",
+        "Agent private assets:",
+        "- [Audio] rain.mp3 (handle: bgm_rain): 雨声循环",
+        "- [Image] ok.png (handle: sticker_ok)",
+      ].join("\n")
+    );
+  });
+
+  it("lists only agent private assets when there are no global attachments", async () => {
+    const agent = createAgent();
+    agent.assets = [
+      {
+        id: "bgm_rain",
+        filename: "rain.mp3",
+        path: "assets/rain.mp3",
+        type: "audio",
+      },
+    ];
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content: "{{assets}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      agent
+    );
+
+    await macrosRenderer.execute(context);
+
+    expect(context.messages[0].content).toBe(
+      "Agent private assets:\n- [Audio] rain.mp3 (handle: bgm_rain)"
+    );
+  });
+
+  it("filters agent private assets by group with desktop default-bucket semantics", async () => {
+    const agent = createAgent();
+    agent.assetGroups = [{ id: "bgm", displayName: "背景音乐" }];
+    agent.assets = [
+      {
+        id: "bgm_rain",
+        filename: "rain.mp3",
+        path: "assets/rain.mp3",
+        type: "audio",
+        group: "bgm",
+        description: "雨声循环",
+      },
+      {
+        id: "sticker_ok",
+        filename: "ok.png",
+        path: "assets/ok.png",
+        type: "image",
+      },
+      {
+        id: "ghost_ref",
+        filename: "ghost.bin",
+        path: "assets/ghost.bin",
+        type: "file",
+        group: "missing-group",
+      },
+    ];
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content: "{{assets::bgm}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+        {
+          role: "system",
+          content: "{{assets::default}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-2",
+        },
+        {
+          role: "system",
+          content: "{{assets::emoji}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-3",
+        },
+      ],
+      agent
+    );
+
+    await macrosRenderer.execute(context);
+
+    expect(context.messages[0].content).toBe(
+      'Assets in group "bgm":\n- [Audio] rain.mp3 (handle: bgm_rain): 雨声循环'
+    );
+    expect(context.messages[1].content).toBe(
+      [
+        'Assets in group "default":',
+        "- [Image] ok.png (handle: sticker_ok)",
+        "- [File] ghost.bin (handle: ghost_ref)",
+      ].join("\n")
+    );
+    expect(context.messages[2].content).toBe('No assets in group "emoji".');
+  });
+
+  it("tolerates legacy unknown assetGroups payloads without crashing", async () => {
+    const agent = createAgent();
+    agent.assets = [
+      {
+        id: "sticker_ok",
+        filename: "ok.png",
+        path: "assets/ok.png",
+        type: "image",
+      },
+    ];
+    // 旧占位 unknown[] 可能混入非对象或缺少 id 的项
+    (agent as { assetGroups?: unknown }).assetGroups = [
+      "legacy",
+      null,
+      { displayName: "无 id" },
+      { id: "bgm", displayName: "背景音乐" },
+    ];
+    const context = createContext(
+      [
+        {
+          role: "system",
+          content: "{{assets::default}}",
+          sourceType: "agent_preset",
+          sourceId: "preset-1",
+        },
+      ],
+      agent
+    );
+
+    await macrosRenderer.execute(context);
+
+    expect(context.messages[0].content).toBe(
+      'Assets in group "default":\n- [Image] ok.png (handle: sticker_ok)'
+    );
+  });
+
   it("expands time macros from the pipeline timestamp with desktop format semantics", async () => {
     // 本地时间 2026-07-27 14:30:45，避免时区歧义
     const fixedTimestamp = new Date(2026, 6, 27, 14, 30, 45).getTime();

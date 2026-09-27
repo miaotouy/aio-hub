@@ -6,14 +6,26 @@ import {
   FileImage,
   FileText,
   FileVideo,
+  Import,
+  LoaderCircle,
   Paperclip,
   Search,
   X,
 } from "lucide-vue-next";
 import { v4 as uuidv4 } from "uuid";
+import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
-import { listAssets } from "../../asset-manager/services/assetService";
+import ImportSourceSheet from "../../asset-manager/components/ImportSourceSheet.vue";
+import {
+  importAssetSources,
+  listAssets,
+} from "../../asset-manager/services/assetService";
+import {
+  resolveAssetImportSources,
+  type AssetImportPickerSource,
+} from "../../asset-manager/services/assetImportEntry";
+import { resolveAttachmentTextSnapshot } from "../../asset-manager/services/assetTextSnapshotService";
 import type { AssetRecord } from "../../asset-manager/types";
 import type { ChatMessageAttachment } from "../types";
 
@@ -23,10 +35,14 @@ const emit = defineEmits<{
   select: [attachments: ChatMessageAttachment[]];
 }>();
 
+const logger = createModuleLogger("llm-chat/asset-picker");
 const assets = ref<AssetRecord[]>([]);
 const selectedIds = ref<string[]>([]);
 const search = ref("");
 const loading = ref(false);
+const importing = ref(false);
+const confirming = ref(false);
+const importSourceOpen = ref(false);
 const { tRaw } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.AssetPicker.${key}`);
 
@@ -39,29 +55,34 @@ const filteredAssets = computed(() => {
     : assets.value;
 });
 
+async function loadAssets() {
+  loading.value = true;
+  try {
+    assets.value = await listAssets({
+      libraryState: "visible",
+      includeHidden: false,
+      includeUnavailable: false,
+      limit: 100,
+      offset: 0,
+    });
+  } catch (error) {
+    customMessage(
+      error instanceof Error ? error.message : t("无法读取资产列表"),
+      "error"
+    );
+  } finally {
+    loading.value = false;
+  }
+}
+
 watch(
   () => props.open,
   async (open) => {
     if (!open) return;
     selectedIds.value = [];
     search.value = "";
-    loading.value = true;
-    try {
-      assets.value = await listAssets({
-        libraryState: "visible",
-        includeHidden: false,
-        includeUnavailable: false,
-        limit: 100,
-        offset: 0,
-      });
-    } catch (error) {
-      customMessage(
-        error instanceof Error ? error.message : t("无法读取资产列表"),
-        "error"
-      );
-    } finally {
-      loading.value = false;
-    }
+    importSourceOpen.value = false;
+    await loadAssets();
   }
 );
 
@@ -71,23 +92,88 @@ function toggle(assetId: string) {
     : [...selectedIds.value, assetId];
 }
 
-function confirm() {
-  const selected = assets.value
-    .filter((asset) => selectedIds.value.includes(asset.id))
-    .map((asset): ChatMessageAttachment => ({
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-      assetId: asset.id,
-      usagePolicy: "advisory",
-      snapshot: {
-        displayName: asset.displayName,
-        kind: asset.kind,
-        mimeType: asset.mimeType,
-        sizeBytes: asset.sizeBytes,
-      },
-    }));
-  emit("select", selected);
-  emit("close");
+function closeImportSource() {
+  importSourceOpen.value = false;
+}
+
+async function pickImportSource(source: AssetImportPickerSource) {
+  importSourceOpen.value = false;
+  if (importing.value) return;
+  importing.value = true;
+  try {
+    const sources = await resolveAssetImportSources(source, {
+      sourceModule: "llm-chat",
+    });
+    if (!sources?.length) return;
+
+    const results = await importAssetSources(sources);
+    const successCount = results.filter((result) => result.asset).length;
+    const failedCount = results.filter(
+      (result) => result.status === "failed"
+    ).length;
+    if (successCount === 0 && failedCount > 0) {
+      throw new Error(results[0]?.errorCode ?? "ASSET_IMPORT_FAILED");
+    }
+    customMessage(
+      failedCount > 0
+        ? t("已导入 {ok} 项，{failed} 项失败")
+            .replace("{ok}", String(successCount))
+            .replace("{failed}", String(failedCount))
+        : t("已导入 {count} 项资产").replace("{count}", String(successCount)),
+      failedCount > 0 ? "warning" : "success"
+    );
+    await loadAssets();
+  } catch (cause) {
+    logger.warn("聊天内导入资产失败", {
+      reason: cause instanceof Error ? cause.message : String(cause),
+    });
+    customMessage(
+      cause instanceof Error ? cause.message : t("导入失败"),
+      "error"
+    );
+  } finally {
+    importing.value = false;
+  }
+}
+
+async function confirm() {
+  if (!selectedIds.value.length || confirming.value || importing.value) return;
+  confirming.value = true;
+  try {
+    const selectedAssets = assets.value.filter((asset) =>
+      selectedIds.value.includes(asset.id)
+    );
+    const snapshots = await Promise.all(
+      selectedAssets.map((asset) => resolveAttachmentTextSnapshot(asset))
+    );
+    const warnings = snapshots
+      .map((snapshot) => snapshot.warning)
+      .filter((warning): warning is string => Boolean(warning));
+    if (warnings.length) {
+      customMessage([...new Set(warnings)].join("；"), "warning");
+    }
+
+    const selected = selectedAssets.map((asset, index): ChatMessageAttachment => {
+      const extractedText = snapshots[index]?.text;
+      return {
+        id: uuidv4(),
+        createdAt: new Date().toISOString(),
+        assetId: asset.id,
+        usagePolicy: "advisory",
+        snapshot: {
+          displayName: asset.displayName,
+          kind: asset.kind,
+          mimeType: asset.mimeType,
+          sizeBytes: asset.sizeBytes,
+          ...(extractedText ? { extractedText } : {}),
+        },
+      };
+    });
+    emit("select", selected);
+    emit("close");
+  } finally {
+    confirming.value = false;
+  }
 }
 </script>
 
@@ -103,14 +189,27 @@ function confirm() {
       >
         <header>
           <h2>{{ t("选择资产") }}</h2>
-          <button
-            type="button"
-            class="icon-button"
-            :aria-label="t('关闭')"
-            @click="emit('close')"
-          >
-            <X :size="21" />
-          </button>
+          <div class="header-actions">
+            <button
+              type="button"
+              class="import-button"
+              data-testid="chat-asset-import"
+              :disabled="importing"
+              @click="importSourceOpen = true"
+            >
+              <LoaderCircle v-if="importing" class="spin" :size="18" />
+              <Import v-else :size="18" />
+              <span>{{ importing ? t("导入中") : t("导入") }}</span>
+            </button>
+            <button
+              type="button"
+              class="icon-button"
+              :aria-label="t('关闭')"
+              @click="emit('close')"
+            >
+              <X :size="21" />
+            </button>
+          </div>
         </header>
 
         <label class="search-field">
@@ -163,14 +262,23 @@ function confirm() {
             type="button"
             class="primary"
             data-testid="chat-asset-confirm"
-            :disabled="!selectedIds.length"
+            :disabled="!selectedIds.length || confirming || importing"
             @click="confirm"
           >
-            {{ t("添加") }}
-            <span v-if="selectedIds.length"> {{ selectedIds.length }}</span>
+            <LoaderCircle v-if="confirming" class="spin" :size="16" />
+            <span v-else>{{ t("添加") }}</span>
+            <span v-if="selectedIds.length && !confirming">
+              {{ selectedIds.length }}</span
+            >
           </button>
         </footer>
       </section>
+
+      <ImportSourceSheet
+        v-if="importSourceOpen"
+        @close="closeImportSource"
+        @pick="pickImportSource"
+      />
     </div>
   </Teleport>
 </template>
@@ -183,6 +291,10 @@ function confirm() {
   display: flex;
   align-items: flex-end;
   background: var(--color-scrim, rgb(0 0 0 / 42%));
+}
+
+.picker-backdrop :deep(.sheet-layer) {
+  z-index: 1300;
 }
 
 .picker-sheet {
@@ -206,6 +318,12 @@ footer {
   gap: 12px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 h2 {
   margin: 0;
   font-size: 1.05rem;
@@ -224,6 +342,21 @@ button {
   display: grid;
   place-items: center;
   background: transparent;
+}
+
+.import-button {
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  background: var(--color-primary-container, var(--color-surface-container-high));
+  color: var(--color-on-primary-container, inherit);
+  font-size: 13px;
+}
+
+.import-button:disabled {
+  opacity: 0.6;
 }
 
 .search-field {
@@ -300,11 +433,25 @@ footer .secondary {
 }
 
 footer .primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
 
 footer .primary:disabled {
   opacity: 0.45;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

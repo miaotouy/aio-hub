@@ -152,6 +152,53 @@ describe("useAgentImporter", () => {
     expect(result.agents[0].name).toBe("AIO Agent");
   });
 
+  it("preserves assetGroups and AgentAsset.group from an AIO export", async () => {
+    const { parseFile } = useAgentImporter();
+    const payload = {
+      version: 1,
+      type: "AIO_Agent_Export",
+      agents: [
+        {
+          name: "Grouped Agent",
+          displayName: "Grouped Agent",
+          presetMessages: [],
+          assetGroups: [
+            {
+              id: "bgm",
+              displayName: "背景音乐",
+              sortOrder: 1,
+              desktopOnly: true,
+            },
+            "legacy",
+            { displayName: "缺少 id" },
+          ],
+          assets: [
+            {
+              id: "bgm_rain",
+              filename: "rain.mp3",
+              path: "assets/rain.mp3",
+              type: "audio",
+              group: "bgm",
+            },
+          ],
+        },
+      ],
+    };
+    const result = await parseFile(
+      new File([JSON.stringify(payload)], "grouped.agent.json", {
+        type: "application/json",
+      })
+    );
+
+    expect(result.agents[0].assetGroups).toEqual([
+      { id: "bgm", displayName: "背景音乐", sortOrder: 1, desktopOnly: true },
+    ]);
+    expect(result.agents[0].assets?.[0]).toMatchObject({
+      id: "bgm_rain",
+      group: "bgm",
+    });
+  });
+
   it("imports an AIO agent YAML config", async () => {
     const { parseFile } = useAgentImporter();
     const yaml = [

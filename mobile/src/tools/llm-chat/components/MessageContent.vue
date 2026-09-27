@@ -6,16 +6,12 @@ import {
   Brain,
   ChevronDown,
   ChevronRight,
-  Eye,
-  FileAudio,
-  FileImage,
-  FileText,
-  FileVideo,
-  Paperclip,
+  Play,
   Reply,
 } from "lucide-vue-next";
 import MediaPreviewHost from "@/components/media/MediaPreviewHost.vue";
 import type { MediaItem } from "@/components/media/types";
+import AttachmentThumbnail from "./AttachmentThumbnail.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import type { ChatMessageAttachment, ChatMessageNode } from "../types";
 import { isChatMessageReference } from "../utils/replyReference";
@@ -128,6 +124,22 @@ function mediaItemForAttachment(
 }
 
 /**
+ * 附件缩略图通用条目：图片由 AttachmentThumbnail 申请受管来源显示缩略图，
+ * 其余类型只显示类型图标（对齐桌面端 AttachmentCard 的横条布局）。
+ */
+function attachmentThumbItem(attachment: ChatMessageAttachment) {
+  const { kind, mimeType, displayName } = attachment.snapshot;
+  return { assetId: attachment.assetId, kind, displayName, mimeType };
+}
+
+/** 只有确认可用的图片/视频/音频附件可点击打开受控预览。 */
+function isInlineMedia(attachment: ChatMessageAttachment): boolean {
+  const kind = attachment.snapshot.kind;
+  if (kind !== "image" && kind !== "video" && kind !== "audio") return false;
+  return getAttachmentStatus(attachment.assetId) === "ready";
+}
+
+/**
  * Only message-owned attachments can be resolved from Markdown. This keeps an
  * LLM-generated `asset://` URL from probing arbitrary local library assets.
  */
@@ -205,68 +217,96 @@ const formatBytes = (value: number) => {
     </div>
 
     <div v-if="message.attachments?.length" class="attachment-list">
-      <div
-        v-for="attachment in message.attachments"
-        :key="attachment.id"
-        class="attachment-item"
-        :class="{
-          unavailable:
-            getAttachmentStatus(attachment.assetId) !== undefined &&
-            getAttachmentStatus(attachment.assetId) !== 'ready',
-        }"
-      >
-        <FileImage v-if="attachment.snapshot.kind === 'image'" :size="17" />
-        <FileAudio
-          v-else-if="attachment.snapshot.kind === 'audio'"
-          :size="17"
-        />
-        <FileVideo
-          v-else-if="attachment.snapshot.kind === 'video'"
-          :size="17"
-        />
-        <FileText
-          v-else-if="attachment.snapshot.kind === 'document'"
-          :size="17"
-        />
-        <Paperclip v-else :size="17" />
-        <span class="attachment-name">{{
-          attachment.snapshot.displayName
-        }}</span>
-        <span class="attachment-size">{{
-          formatBytes(attachment.snapshot.sizeBytes)
-        }}</span>
+      <template v-for="attachment in message.attachments" :key="attachment.id">
+        <!-- 图片：方形缩略图卡（对齐桌面端 AttachmentCard 的图片布局） -->
         <button
           v-if="
-            mediaItemForAttachment(attachment) &&
+            attachment.snapshot.kind === 'image' &&
             getAttachmentStatus(attachment.assetId) === 'ready'
           "
           type="button"
-          class="attachment-preview-trigger"
+          class="attachment-image"
           :aria-label="
             t('预览 {kind}').replace('{kind}', attachment.snapshot.kind)
           "
+          data-testid="message-attachment-preview-image"
+          @click.stop="
+            openMediaPreview(attachment, getAttachmentStatus(attachment.assetId))
+          "
+        >
+          <AttachmentThumbnail
+            :item="attachmentThumbItem(attachment)"
+            :size="72"
+            lazy
+          />
+        </button>
+
+        <!-- 音频/视频/文档/其它与不可用附件：横条卡片 -->
+        <button
+          v-else
+          type="button"
+          class="attachment-bar"
+          :class="{
+            clickable: isInlineMedia(attachment),
+            unavailable:
+              getAttachmentStatus(attachment.assetId) !== undefined &&
+              getAttachmentStatus(attachment.assetId) !== 'ready',
+          }"
+          :aria-label="
+            isInlineMedia(attachment)
+              ? t('预览 {kind}').replace('{kind}', attachment.snapshot.kind)
+              : attachment.snapshot.displayName
+          "
           :data-testid="`message-attachment-preview-${attachment.snapshot.kind}`"
           @click.stop="
-            openMediaPreview(
-              attachment,
-              getAttachmentStatus(attachment.assetId)
-            )
+            openMediaPreview(attachment, getAttachmentStatus(attachment.assetId))
           "
         >
-          <Eye :size="15" />
+          <span class="attachment-bar-thumb">
+            <AttachmentThumbnail
+              :item="attachmentThumbItem(attachment)"
+              :size="40"
+              :enabled="isInlineMedia(attachment)"
+              lazy
+            />
+            <Play
+              v-if="
+                isInlineMedia(attachment) &&
+                (attachment.snapshot.kind === 'video' ||
+                  attachment.snapshot.kind === 'audio')
+              "
+              class="attachment-bar-play"
+              :size="14"
+              aria-hidden="true"
+            />
+          </span>
+          <span class="attachment-bar-info">
+            <span class="attachment-name">{{
+              attachment.snapshot.displayName
+            }}</span>
+            <span class="attachment-bar-meta">
+              <span class="attachment-size">{{
+                formatBytes(attachment.snapshot.sizeBytes)
+              }}</span>
+              <span
+                v-if="
+                  getAttachmentStatusLabel(
+                    getAttachmentStatus(attachment.assetId)
+                  )
+                "
+                class="attachment-status"
+              >
+                <AlertCircle :size="12" />
+                {{
+                  getAttachmentStatusLabel(
+                    getAttachmentStatus(attachment.assetId)
+                  )
+                }}
+              </span>
+            </span>
+          </span>
         </button>
-        <span
-          v-if="
-            getAttachmentStatusLabel(getAttachmentStatus(attachment.assetId))
-          "
-          class="attachment-status"
-        >
-          <AlertCircle :size="13" />
-          {{
-            getAttachmentStatusLabel(getAttachmentStatus(attachment.assetId))
-          }}
-        </span>
-      </div>
+      </template>
     </div>
 
     <Teleport to="body">
@@ -344,22 +384,73 @@ const formatBytes = (value: number) => {
 }
 
 .attachment-list {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
-.attachment-item {
+/* 图片：方形缩略图卡 */
+.attachment-image {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  line-height: 0;
+  overflow: hidden;
+}
+
+/* 音频/视频/文档/其它：横条卡片，对齐桌面端 AttachmentCard */
+.attachment-bar {
+  flex: 1 1 100%;
   min-width: 0;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 8px 10px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container-low);
+  font: inherit;
+  text-align: left;
+}
+
+.attachment-bar.clickable {
+  cursor: pointer;
+}
+
+.attachment-bar.unavailable {
+  border-color: var(--color-warning, #d58a00);
+}
+
+.attachment-bar-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.attachment-bar-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: #fff;
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 60%));
+}
+
+.attachment-bar-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.attachment-bar-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .attachment-name {
@@ -373,23 +464,7 @@ const formatBytes = (value: number) => {
   white-space: nowrap;
 }
 
-.attachment-preview-trigger {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: inherit;
-  background: transparent;
-}
-
-.attachment-item.unavailable {
-  border-color: var(--color-warning, #d58a00);
-}
-
 .attachment-status {
-  grid-column: 2 / -1;
   display: inline-flex;
   align-items: center;
   gap: 4px;

@@ -22,6 +22,7 @@ import {
   isCommitTab,
   isCommitViewTab,
   isFileViewTab,
+  joinRepoPath,
   normalizeGeneratedCommitMessage,
   parseRemoteInfo,
   renderCommitPromptMacros,
@@ -303,7 +304,9 @@ describe("git-committer tab keys", () => {
       viewMode: "file",
     });
     expect(fileKey).toBe("F:W:src/app.ts");
-    expect(fileKey).not.toBe(buildTabKey({ path: "src/app.ts", isStaged: false }));
+    expect(fileKey).not.toBe(
+      buildTabKey({ path: "src/app.ts", isStaged: false })
+    );
     // 文件视图始终查看工作区当前内容，暂存/工作区来源共享同一个标签页
     expect(
       buildTabKey({ path: "src/app.ts", isStaged: true, viewMode: "file" })
@@ -322,5 +325,30 @@ describe("git-committer tab keys", () => {
       isFileViewTab({ path: "a.ts", isStaged: false, commitHash: "abc123" })
     ).toBe(false);
     expect(isFileViewTab(null)).toBe(false);
+  });
+});
+
+describe("git-committer joinRepoPath", () => {
+  it("joins windows-style repo paths with backslash separator", () => {
+    expect(joinRepoPath("C:\\work\\demo", "src/a.ts")).toBe(
+      "C:\\work\\demo\\src/a.ts"
+    );
+    expect(joinRepoPath("C:\\work\\demo\\", "src/a.ts")).toBe(
+      "C:\\work\\demo\\src/a.ts"
+    );
+  });
+
+  it("joins posix-style repo paths with slash separator", () => {
+    expect(joinRepoPath("/home/user/demo", "src/a.ts")).toBe(
+      "/home/user/demo/src/a.ts"
+    );
+    expect(joinRepoPath("/home/user/demo/", "src/a.ts")).toBe(
+      "/home/user/demo/src/a.ts"
+    );
+  });
+
+  it("handles empty relative paths and root-level files", () => {
+    expect(joinRepoPath("C:\\work\\demo", "")).toBe("C:\\work\\demo");
+    expect(joinRepoPath("C:\\work\\demo", "a.ts")).toBe("C:\\work\\demo\\a.ts");
   });
 });

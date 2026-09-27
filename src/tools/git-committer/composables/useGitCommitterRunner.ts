@@ -370,6 +370,49 @@ export function closeDiffTab(ref: DiffTabRef): void {
   }
 }
 
+/**
+ * 批量关闭标签页后的激活键回落：
+ * 原激活 Tab 仍在时保持不变，否则激活剩余列表的第一个。
+ */
+function resolveActiveTabAfterClose(
+  session: { openTabs: DiffTabRef[]; activeTabPath: string },
+  previousActiveKey: string
+): void {
+  const stillOpen = session.openTabs.some(
+    (t) => buildTabKey(t) === previousActiveKey
+  );
+  if (stillOpen) return;
+  const first = session.openTabs[0];
+  session.activeTabPath = first ? buildTabKey(first) : "";
+}
+
+/** 关闭除指定标签页外的所有标签页 */
+export function closeOtherDiffTabs(ref: DiffTabRef): void {
+  const session = currentSession.value;
+  const key = buildTabKey(ref);
+  const previousActiveKey = session.activeTabPath;
+  session.openTabs = session.openTabs.filter((t) => buildTabKey(t) === key);
+  resolveActiveTabAfterClose(session, previousActiveKey);
+}
+
+/** 关闭指定标签页右侧的所有标签页（按打开顺序） */
+export function closeDiffTabsToRight(ref: DiffTabRef): void {
+  const session = currentSession.value;
+  const key = buildTabKey(ref);
+  const index = session.openTabs.findIndex((t) => buildTabKey(t) === key);
+  if (index < 0) return;
+  const previousActiveKey = session.activeTabPath;
+  session.openTabs = session.openTabs.slice(0, index + 1);
+  resolveActiveTabAfterClose(session, previousActiveKey);
+}
+
+/** 关闭所有标签页 */
+export function closeAllDiffTabs(): void {
+  const session = currentSession.value;
+  session.openTabs = [];
+  session.activeTabPath = "";
+}
+
 /** 打开或激活当前仓库的 AI 提示词编辑标签页 */
 export function openRepoPromptTab(): void {
   openTab({ path: REPO_PROMPT_TAB_PATH, isStaged: false });

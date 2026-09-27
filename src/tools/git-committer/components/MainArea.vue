@@ -29,13 +29,14 @@
           @wheel.passive="handleTabsWheel"
         >
           <div
-            v-for="tab in session.openTabs"
+            v-for="(tab, tabIndex) in session.openTabs"
             :key="buildTabKey(tab)"
             class="tab-item"
             :class="{
               active: session.activeTabPath === buildTabKey(tab),
             }"
             @click="session.activeTabPath = buildTabKey(tab)"
+            @contextmenu.prevent="showTabMenu(tab, tabIndex, $event)"
           >
             <template v-if="isPromptTab(tab.path)">
               <MessageSquareText :size="12" class="tab-prompt-icon" />
@@ -280,12 +281,22 @@ import {
 } from "../composables/useGitCommitterState";
 import {
   closeDiffTab,
+  closeOtherDiffTabs,
+  closeDiffTabsToRight,
+  closeAllDiffTabs,
   loadCommitFileDiff,
   loadFileDiff,
+  openDiffTab,
+  openFileTab,
   stageFile,
   unstageFile,
 } from "../composables/useGitCommitterRunner";
-import type { DiffTab } from "../types";
+import { errorHandler } from "../composables/useGitCommitterErrorHandler";
+import { useGitContextMenu } from "../composables/useGitContextMenu";
+import { buildTabContextMenuItems } from "../contextMenus";
+import { copyTextToClipboard, joinRepoPath } from "../utils";
+import { invoke } from "@tauri-apps/api/core";
+import type { DiffTab, DiffTabRef } from "../types";
 import type * as monaco from "@/utils/monaco";
 import {
   buildTabKey,
@@ -597,6 +608,74 @@ const handleStageFile = async (path: string) => {
 
 const handleUnstageFile = async (path: string) => {
   await unstageFile(currentRepoPath.value, path);
+};
+
+// ===== 标签页右键菜单 =====
+const contextMenu = useGitContextMenu();
+
+const showTabMenu = (tab: DiffTabRef, tabIndex: number, event: MouseEvent) => {
+  contextMenu.show(
+    event,
+    buildTabContextMenuItems(tab, {
+      openCount: session.value.openTabs.length,
+      tabsAfter: session.value.openTabs.length - 1 - tabIndex,
+    }),
+    {
+      dispatch: (itemId) => handleTabMenuAction(itemId, tab),
+    }
+  );
+};
+
+const handleTabMenuAction = async (itemId: string, tab: DiffTabRef) => {
+  switch (itemId) {
+    case "tab:close":
+      closeDiffTab(tab);
+      break;
+    case "tab:close-others":
+      closeOtherDiffTabs(tab);
+      break;
+    case "tab:close-right":
+      closeDiffTabsToRight(tab);
+      break;
+    case "tab:close-all":
+      closeAllDiffTabs();
+      break;
+    case "tab:open-diff":
+      openDiffTab(tab.path, tab.isStaged);
+      break;
+    case "tab:open-file":
+      openFileTab(tab.path, tab.isStaged);
+      break;
+    case "tab:stage":
+      await handleStageFile(tab.path);
+      break;
+    case "tab:unstage":
+      await handleUnstageFile(tab.path);
+      break;
+    case "tab:copy-path":
+      await copyTextToClipboard(
+        joinRepoPath(currentRepoPath.value, tab.path),
+        "已复制完整路径"
+      );
+      break;
+    case "tab:copy-relative":
+      await copyTextToClipboard(tab.path, "已复制相对路径");
+      break;
+    case "tab:copy-hash":
+      if (tab.commitHash) {
+        await copyTextToClipboard(tab.commitHash, "已复制提交哈希");
+      }
+      break;
+    case "tab:reveal":
+      await errorHandler.wrapAsync(
+        () =>
+          invoke<void>("open_file_directory", {
+            path: joinRepoPath(currentRepoPath.value, tab.path),
+          }),
+        { userMessage: "无法在资源管理器中显示该文件" }
+      );
+      break;
+  }
 };
 
 // ===== 辅助函数 =====

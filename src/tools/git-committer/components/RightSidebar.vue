@@ -46,6 +46,7 @@
                 expanded: isExpanded(commit.hash),
                 selected: selectedHash === commit.hash,
               }"
+              @contextmenu.prevent="showCommitMenu(commit, $event)"
             >
               <!-- 连线 -->
               <div class="tree-line-wrapper">
@@ -113,6 +114,9 @@
                     class="commit-file"
                     :title="file.path"
                     @click.stop="openCommitFile(commit.hash, file.path)"
+                    @contextmenu.prevent.stop="
+                      showCommitFileMenu(commit, file, $event)
+                    "
                   >
                     <FileIcon
                       :file-name="file.path"
@@ -189,7 +193,19 @@ import {
   openCommitChangesTab,
   openCommitFileDiffTab,
 } from "../composables/useGitCommitterRunner";
-import { getFileName, getFileDir } from "../utils";
+import { useGitContextMenu } from "../composables/useGitContextMenu";
+import { getRemoteInfo } from "../composables/useGitRemoteInfo";
+import {
+  buildCommitContextMenuItems,
+  buildCommitFileContextMenuItems,
+} from "../contextMenus";
+import {
+  copyTextToClipboard,
+  getFileName,
+  getFileDir,
+  joinRepoPath,
+} from "../utils";
+import { customMessage } from "@/utils/customMessage";
 import type { CommitFileChange, GitCommitSummary } from "../types";
 
 const commits = ref<GitCommitSummary[]>([]);
@@ -363,6 +379,82 @@ const openCommitFile = (hash: string, filePath: string) => {
 const openCommitChanges = (commit: GitCommitSummary) => {
   selectedHash.value = commit.hash;
   openCommitChangesTab(commit.hash);
+};
+
+// ===== 提交历史右键菜单 =====
+const contextMenu = useGitContextMenu();
+
+const showCommitMenu = (commit: GitCommitSummary, event: MouseEvent) => {
+  contextMenu.show(
+    event,
+    buildCommitContextMenuItems({ isExpanded: isExpanded(commit.hash) }),
+    {
+      dispatch: (itemId) => handleCommitMenuAction(itemId, commit),
+    }
+  );
+};
+
+const showCommitFileMenu = (
+  commit: GitCommitSummary,
+  file: CommitFileChange,
+  event: MouseEvent
+) => {
+  contextMenu.show(event, buildCommitFileContextMenuItems(), {
+    dispatch: (itemId) => handleCommitFileMenuAction(itemId, commit, file),
+  });
+};
+
+const handleCommitMenuAction = async (
+  itemId: string,
+  commit: GitCommitSummary
+) => {
+  switch (itemId) {
+    case "commit:open-changes":
+      openCommitChanges(commit);
+      break;
+    case "commit:toggle-expand":
+      toggleExpand(commit);
+      break;
+    case "commit:copy-hash":
+      await copyTextToClipboard(commit.hash, "已复制提交哈希");
+      break;
+    case "commit:copy-message":
+      await copyTextToClipboard(commit.message, "已复制提交信息");
+      break;
+    case "commit:open-remote": {
+      const info = await getRemoteInfo(currentRepoPath.value);
+      if (!info) {
+        customMessage.warning("未找到已知远端平台，无法打开提交页");
+        break;
+      }
+      await errorHandler.wrapAsync(
+        () => invoke("open_url", { url: info.buildCommitUrl(commit.hash) }),
+        { userMessage: "打开远端提交页失败" }
+      );
+      break;
+    }
+  }
+};
+
+const handleCommitFileMenuAction = async (
+  itemId: string,
+  commit: GitCommitSummary,
+  file: CommitFileChange
+) => {
+  switch (itemId) {
+    case "commit-file:open-diff":
+      openCommitFileDiffTab(commit.hash, file.path);
+      break;
+    case "commit-file:copy-path":
+      await copyTextToClipboard(
+        joinRepoPath(currentRepoPath.value, file.path),
+        "已复制完整路径"
+      );
+      break;
+    case "commit-file:copy-relative":
+      await copyTextToClipboard(file.path, "已复制相对路径");
+      break;
+  }
 };
 
 // 仅在当前分支或 HEAD 变化时刷新历史，避免工作区状态轮询重复读取提交记录。

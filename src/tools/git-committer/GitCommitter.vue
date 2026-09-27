@@ -112,6 +112,13 @@
       <LoaderCircle :size="22" class="spin" />
       <span>正在扫描 Git 仓库...</span>
     </div>
+
+    <!-- 工具级右键菜单（各区域通过 provide 的 controller 打开） -->
+    <GitContextMenu
+      :state="contextMenu.state"
+      @select="handleContextMenuSelect"
+      @hide="contextMenu.hide"
+    />
   </div>
 </template>
 
@@ -124,6 +131,11 @@ import Sidebar from "./components/Sidebar.vue";
 import MainArea from "./components/MainArea.vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
+import GitContextMenu from "./components/GitContextMenu.vue";
+import {
+  provideGitContextMenu,
+  type GitContextMenuContext,
+} from "./composables/useGitContextMenu";
 import {
   currentRepoPath,
   sidebarWidth,
@@ -143,6 +155,16 @@ import {
 } from "./composables/useGitRepositoryImport";
 
 const showSettings = ref(false);
+
+// ===== 工具级右键菜单：各区域组件经 inject 获取 controller 并 show() =====
+const contextMenu = provideGitContextMenu();
+const handleContextMenuSelect = (
+  itemId: string,
+  context: GitContextMenuContext
+) => {
+  context.dispatch?.(itemId);
+  contextMenu.hide();
+};
 
 // 监听当前仓库路径变化，自动关闭设置面板
 watch(currentRepoPath, () => {

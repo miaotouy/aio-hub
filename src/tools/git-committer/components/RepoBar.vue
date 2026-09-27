@@ -127,6 +127,7 @@
               managing: isManaging,
             }"
             @click="!isManaging && handleNavigate(repo.path)"
+            @contextmenu.prevent="showRepoMenu(repo, $event)"
           >
             <div v-if="isManaging" class="drag-handle" @click.stop>
               <GripVertical :size="14" />
@@ -175,7 +176,11 @@
                 {{ getBranchName(repo.path) }}
               </div>
             </div>
-            <RepoActionsMenu v-if="isManaging" :repo="repo" />
+            <RepoActionsMenu
+              v-if="isManaging"
+              :repo="repo"
+              @action="(command) => handleRepoAction(command, repo)"
+            />
           </div>
         </VueDraggableNext>
       </div>
@@ -203,6 +208,18 @@
         </div>
       </div>
     </div>
+
+    <!-- 仓库级对话框（由右键菜单与 MoreVertical 下拉共用） -->
+    <RepositoryPromptDialog
+      v-if="dialogRepo"
+      v-model="promptDialogVisible"
+      :repo="dialogRepo"
+    />
+    <RepositoryColorDialog
+      v-if="dialogRepo"
+      v-model="colorDialogVisible"
+      :repo="dialogRepo"
+    />
   </div>
 </template>
 
@@ -223,7 +240,12 @@ import { VueDraggableNext } from "vue-draggable-next";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import Avatar from "@/components/common/Avatar.vue";
 import RepoActionsMenu from "./RepoActionsMenu.vue";
+import RepositoryPromptDialog from "./RepositoryPromptDialog.vue";
+import RepositoryColorDialog from "./RepositoryColorDialog.vue";
 import { importRepositories } from "../composables/useGitRepositoryImport";
+import { useGitContextMenu } from "../composables/useGitContextMenu";
+import { buildRepoContextMenuItems } from "../contextMenus";
+import { useGitRepositoryManagement } from "../composables/useGitRepositoryManagement";
 import {
   repositories,
   currentRepoPath,
@@ -233,9 +255,13 @@ import {
 } from "../composables/useGitCommitterState";
 import {
   refreshAllStatuses,
+  refreshStatus,
+  pushRepo,
+  pullRepo,
   switchRepoWithAutoPull,
 } from "../composables/useGitCommitterRunner";
 import { getAvatarTextColor } from "../utils";
+import type { RepositoryConfig } from "../types";
 
 defineProps<{
   isPinned: boolean;
@@ -250,6 +276,59 @@ const emit = defineEmits<{
 const handleNavigate = (path: string) => {
   emit("navigate");
   switchRepoWithAutoPull(path);
+};
+
+// ===== 仓库右键菜单与统一命令处理 =====
+const contextMenu = useGitContextMenu();
+const { editAlias, openDirectory, remove } = useGitRepositoryManagement();
+const promptDialogVisible = ref(false);
+const colorDialogVisible = ref(false);
+const dialogRepo = ref<RepositoryConfig | null>(null);
+
+const showRepoMenu = (repo: RepositoryConfig, event: MouseEvent) => {
+  contextMenu.show(
+    event,
+    buildRepoContextMenuItems(repo, {
+      isCurrent: currentRepoPath.value === repo.path,
+    }),
+    {
+      dispatch: (itemId) => handleRepoAction(itemId, repo),
+    }
+  );
+};
+
+const handleRepoAction = async (command: string, repo: RepositoryConfig) => {
+  switch (command) {
+    case "repo:open":
+      handleNavigate(repo.path);
+      break;
+    case "repo:reveal":
+      await openDirectory(repo);
+      break;
+    case "repo:refresh":
+      await refreshStatus(repo.path);
+      break;
+    case "repo:pull":
+      await pullRepo(repo.path);
+      break;
+    case "repo:push":
+      await pushRepo(repo.path);
+      break;
+    case "repo:alias":
+      await editAlias(repo);
+      break;
+    case "repo:color":
+      dialogRepo.value = repo;
+      colorDialogVisible.value = true;
+      break;
+    case "repo:prompt":
+      dialogRepo.value = repo;
+      promptDialogVisible.value = true;
+      break;
+    case "repo:remove":
+      await remove(repo);
+      break;
+  }
 };
 
 const isHovered = ref(false);

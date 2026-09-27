@@ -21,36 +21,32 @@
     </el-button>
     <template #dropdown>
       <el-dropdown-menu>
-        <el-dropdown-item command="alias">
+        <el-dropdown-item command="repo:alias">
           <Pencil :size="13" />
           修改别名
         </el-dropdown-item>
-        <el-dropdown-item command="color">
+        <el-dropdown-item command="repo:color">
           <Palette :size="13" />
           修改颜色
         </el-dropdown-item>
-        <el-dropdown-item command="prompt">
+        <el-dropdown-item command="repo:prompt">
           <MessageSquareText :size="13" />
           设置 AI 提示词
         </el-dropdown-item>
-        <el-dropdown-item command="open">
+        <el-dropdown-item command="repo:open-dir">
           <FolderOpen :size="13" />
           打开目录
         </el-dropdown-item>
-        <el-dropdown-item command="remove" divided>
+        <el-dropdown-item command="repo:remove" divided>
           <Trash2 :size="13" />
           移出列表
         </el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>
-
-  <RepositoryPromptDialog v-model="isPromptDialogVisible" :repo="props.repo" />
-  <RepositoryColorDialog v-model="isColorDialogVisible" :repo="props.repo" />
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
 import {
   FolderOpen,
   MessageSquareText,
@@ -59,22 +55,18 @@ import {
   Pencil,
   Trash2,
 } from "lucide-vue-next";
-import type { RepositoryConfig } from "../types";
-import RepositoryPromptDialog from "./RepositoryPromptDialog.vue";
-import RepositoryColorDialog from "./RepositoryColorDialog.vue";
-import { useGitRepositoryManagement } from "../composables/useGitRepositoryManagement";
 
-const props = defineProps<{ repo: RepositoryConfig }>();
-const { editAlias, openDirectory, remove } = useGitRepositoryManagement();
-const isPromptDialogVisible = ref(false);
-const isColorDialogVisible = ref(false);
+/**
+ * 仓库操作下拉菜单（管理模式 MoreVertical 按钮）。
+ * 只负责发出命令，动作与对话框由 RepoBar 统一处理，
+ * 与仓库右键菜单共用同一套命令 id 与处理函数。
+ */
+const emit = defineEmits<{
+  (e: "action", command: string): void;
+}>();
 
-const handleCommand = async (command: string) => {
-  if (command === "alias") await editAlias(props.repo);
-  if (command === "color") isColorDialogVisible.value = true;
-  if (command === "prompt") isPromptDialogVisible.value = true;
-  if (command === "open") await openDirectory(props.repo);
-  if (command === "remove") await remove(props.repo);
+const handleCommand = (command: string) => {
+  emit("action", command);
 };
 </script>
 

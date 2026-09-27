@@ -15,6 +15,7 @@
 import { getExtension } from "@/utils/fileTypeDetector";
 import { hexToRgb } from "@/utils/themeColors";
 import { createTwoFilesPatch } from "diff";
+import { customMessage } from "@/utils/customMessage";
 import type { DiffTabRef } from "./types";
 
 export const COMMIT_LANGUAGE_MACRO = "${language}";
@@ -205,6 +206,20 @@ export function getFileDir(path: string): string {
   const parts = path.split(/[/\\]/);
   if (parts.length <= 1) return "";
   return parts.slice(0, -1).join("/");
+}
+
+/**
+ * 将仓库内的相对路径拼接为完整路径。
+ * git 后端返回的文件路径统一为相对仓库根、以 / 分隔的形式；
+ * 分隔符跟随仓库根路径风格（Windows 下通常为 \）。
+ */
+export function joinRepoPath(repoPath: string, relativePath: string): string {
+  const base = repoPath.replace(/[/\\]+$/, "");
+  const rel = relativePath.replace(/^[/\\]+/, "").replace(/[/\\]+$/, "");
+  if (!base) return rel;
+  if (!rel) return base;
+  const sep = base.includes("\\") ? "\\" : "/";
+  return `${base}${sep}${rel}`;
 }
 
 /**
@@ -430,6 +445,19 @@ export interface RemoteInfo {
   name: string;
   /** 生成该提交在远端平台上的详情页地址 */
   buildCommitUrl: (hash: string) => string;
+}
+
+/** 复制文本到剪贴板并提示；失败时给出错误提示 */
+export async function copyTextToClipboard(
+  text: string,
+  successTip = "已复制"
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    customMessage.success(successTip);
+  } catch {
+    customMessage.error("复制失败");
+  }
 }
 
 /** 从远端 URL 中提取主机名与仓库路径，兼容 scp 简写与标准 URL */

@@ -35,7 +35,11 @@
 
       <div class="cdv-files">
         <div v-for="file in files" :key="file.path" class="cdv-file">
-          <div class="cdv-file-header" @click="toggleFile(file)">
+          <div
+            class="cdv-file-header"
+            @click="toggleFile(file)"
+            @contextmenu.prevent="showFileMenu(file, isStaged, $event)"
+          >
             <ChevronRight
               :size="14"
               class="cdv-chevron"
@@ -101,6 +105,7 @@ import {
   currentStatus,
   hideUnchangedRegions,
 } from "../composables/useGitCommitterState";
+import { useGitFileContextMenu } from "../composables/useGitFileContextMenu";
 import {
   loadFileDiff,
   refreshStatus,
@@ -162,6 +167,9 @@ const editorOptions = computed(() => ({
 const isExpanded = (path: string): boolean => expandedPaths.value.has(path);
 const isLoadingFile = (path: string): boolean => loadingFiles.value.has(path);
 const diffFor = (path: string): DiffTab | undefined => fileDiffs.value[path];
+
+// 更改列表文件右键菜单（与 Sidebar 文件列表共用）
+const { showFileMenu } = useGitFileContextMenu();
 
 const toggleFile = async (file: FileStatus) => {
   if (expandedPaths.value.has(file.path)) {

@@ -180,6 +180,7 @@
               class="file-item"
               :class="{ active: isActiveFile(file.path, true) }"
               @click="openDiffTab(file.path, true)"
+              @contextmenu.prevent="showFileMenu(file, true, $event)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
@@ -269,6 +270,7 @@
               class="file-item"
               :class="{ active: isActiveFile(file.path, false) }"
               @click="handleOpenFile(file)"
+              @contextmenu.prevent="showFileMenu(file, false, $event)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
@@ -364,6 +366,7 @@ import {
   openRepoPromptTab,
 } from "../composables/useGitCommitterRunner";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
+import { useGitFileContextMenu } from "../composables/useGitFileContextMenu";
 import { getFileName, getFileDir, buildTabKey } from "../utils";
 
 const activeCollapseNames = ref(["staged", "unstaged"]);
@@ -382,6 +385,9 @@ const {
   abortGenerateMsg: handleAbortGenerateMessage,
   commit,
 } = useGitRepoWorkflow(currentRepoPath);
+
+// 更改列表文件右键菜单（与 ChangesDiffView 共用）
+const { showFileMenu } = useGitFileContextMenu();
 
 // 生成中转圈时点击即中止，否则发起生成
 const handleAiButtonClick = () => {

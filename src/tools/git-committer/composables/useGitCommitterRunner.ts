@@ -333,6 +333,14 @@ export async function openDiffTab(
   openTab({ path: filePath, isStaged });
 }
 
+/**
+ * 打开或激活一个文件内容标签页（非 diff，直接查看文档现状）。
+ * 始终读取工作区当前内容；暂存来源仅用于标签分组展示。
+ */
+export function openFileTab(filePath: string, isStaged = false): void {
+  openTab({ path: filePath, isStaged, viewMode: "file" });
+}
+
 /** 打开或激活某次提交中单个文件的 Diff 标签页 */
 export function openCommitFileDiffTab(
   commitHash: string,

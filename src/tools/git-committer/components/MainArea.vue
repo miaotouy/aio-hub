@@ -63,6 +63,13 @@
                 shortHashOf(tab.commitHash)
               }}</span>
             </template>
+            <template v-else-if="isFileViewTab(tab)">
+              <FileText :size="12" class="tab-file-icon" />
+              <span class="tab-name" :title="tab.path">{{
+                getFileName(tab.path)
+              }}</span>
+              <span class="tab-stage-badge">文件</span>
+            </template>
             <template v-else>
               <span
                 class="tab-status"
@@ -137,6 +144,22 @@
           <div v-else-if="activeTab.loading" class="loading-wrapper">
             <el-icon class="is-loading" :size="24"><Loading /></el-icon>
             <span class="loading-text text-secondary">正在加载差异...</span>
+          </div>
+
+          <!-- 文件当前内容（非 diff）只读视图 -->
+          <div v-else-if="activeTab.viewMode === 'file'" class="file-view">
+            <div class="diff-toolbar file-toolbar">
+              <span class="file-view-path" :title="activeTab.path">{{
+                activeTab.path
+              }}</span>
+              <span class="file-view-hint">当前内容 · 只读</span>
+            </div>
+            <RichCodeEditor
+              :model-value="activeTab.modified"
+              :language="getFileLanguage(activeTab.path)"
+              read-only
+              class="file-editor"
+            />
           </div>
 
           <div v-else class="diff-view">
@@ -233,6 +256,7 @@ import {
 import {
   X,
   FileDiff,
+  FileText,
   FileWarning,
   GitCommitHorizontal,
   MessageSquareText,
@@ -270,6 +294,7 @@ import {
   isChangesViewTab,
   isCommitTab,
   isCommitViewTab,
+  isFileViewTab,
   REPO_PROMPT_TAB_PATH,
 } from "../utils";
 
@@ -521,36 +546,44 @@ watch(
       path: tabInfo.path,
       isStaged: tabInfo.isStaged,
       commitHash: tabInfo.commitHash,
+      viewMode: tabInfo.viewMode,
       original: "",
       modified: "",
       isBinary: false,
       loading: true,
     };
 
-    const diff = tabInfo.commitHash
-      ? await loadCommitFileDiff(
-          currentRepoPath.value,
-          tabInfo.commitHash,
-          tabInfo.path
-        )
-      : await loadFileDiff(
-          currentRepoPath.value,
-          tabInfo.path,
-          tabInfo.isStaged
-        );
+    // 文件内容视图始终读取工作区当前内容
+    const diff = isFileViewTab(tabInfo)
+      ? await loadFileDiff(currentRepoPath.value, tabInfo.path, false)
+      : tabInfo.commitHash
+        ? await loadCommitFileDiff(
+            currentRepoPath.value,
+            tabInfo.commitHash,
+            tabInfo.path
+          )
+        : await loadFileDiff(
+            currentRepoPath.value,
+            tabInfo.path,
+            tabInfo.isStaged
+          );
     if (diff && session.value.activeTabPath === newKey) {
       activeTab.value = diff;
       triggerEditorLayout();
-    } else if (!diff && session.value.activeTabPath === newKey) {
+    } else if (session.value.activeTabPath === newKey) {
+      const notFoundMessage = isFileViewTab(tabInfo)
+        ? "无法读取文件当前内容，文件可能已不存在"
+        : "加载文件差异失败，文件可能已不存在";
       activeTab.value = {
         path: tabInfo.path,
         isStaged: tabInfo.isStaged,
         commitHash: tabInfo.commitHash,
+        viewMode: tabInfo.viewMode,
         original: "",
         modified: "",
         isBinary: false,
         loading: false,
-        error: "加载文件差异失败，文件可能已不存在",
+        error: notFoundMessage,
       };
     }
   },
@@ -705,6 +738,11 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   flex-shrink: 0;
 }
 
+.tab-file-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
 .tab-commit-badge {
   font-family: monospace;
   font-size: 9px;
@@ -834,6 +872,43 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 }
 
 .diff-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 文件当前内容视图 */
+.file-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.file-toolbar {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.file-view-path {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.file-view-hint {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-editor {
   width: 100%;
   height: 100%;
   min-height: 0;

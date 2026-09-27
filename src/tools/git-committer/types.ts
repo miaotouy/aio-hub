@@ -30,12 +30,17 @@ export interface RepositoryConfig {
   color?: string;
 }
 
+/** 标签页内容形态：diff 为差异对比（默认），file 为文件当前内容（非 diff） */
+export type DiffTabViewMode = "diff" | "file";
+
 /** 已打开的 Diff 标签页引用（可持久化） */
 export interface DiffTabRef {
   path: string;
   isStaged: boolean;
   /** 提交来源：非空表示该标签查看某次提交的文件差异或提交总览 */
   commitHash?: string;
+  /** 内容形态；缺省为 diff，"file" 表示直接查看文件当前内容 */
+  viewMode?: DiffTabViewMode;
 }
 
 /** 单个仓库的会话记忆 */
@@ -168,6 +173,8 @@ export interface DiffTab {
   isStaged: boolean;
   /** 提交来源：非空表示该标签来自某次提交 */
   commitHash?: string;
+  /** 内容形态；缺省为 diff，"file" 表示直接查看文件当前内容 */
+  viewMode?: DiffTabViewMode;
   original: string;
   modified: string;
   isBinary: boolean;

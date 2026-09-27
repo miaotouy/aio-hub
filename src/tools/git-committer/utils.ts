@@ -127,7 +127,7 @@ export const CHANGES_VIEW_TAB_PATH = "__changes__";
 
 /**
  * 构造标签页唯一键。
- * 提交总览、提交单文件与普通暂存/工作区标签互斥，避免键冲突。
+ * 提交总览、提交单文件、文件内容视图与普通暂存/工作区标签互斥，避免键冲突。
  */
 export function buildTabKey(tab: DiffTabRef): string {
   if (tab.commitHash && tab.path === COMMIT_VIEW_TAB_PATH) {
@@ -135,6 +135,9 @@ export function buildTabKey(tab: DiffTabRef): string {
   }
   if (tab.commitHash) {
     return `C:${tab.commitHash}:${tab.path}`;
+  }
+  if (tab.viewMode === "file") {
+    return `F:${tab.isStaged ? "S" : "W"}:${tab.path}`;
   }
   return `${tab.isStaged ? "S" : "W"}:${tab.path}`;
 }
@@ -147,6 +150,11 @@ export function isCommitTab(tab: DiffTabRef): boolean {
 /** 是否为工作区/暂存区「全部更改」总览标签页 */
 export function isChangesViewTab(tab: DiffTabRef | null | undefined): boolean {
   return Boolean(tab && !tab.commitHash && tab.path === CHANGES_VIEW_TAB_PATH);
+}
+
+/** 是否为直接查看文件当前内容（非 diff）的标签页 */
+export function isFileViewTab(tab: DiffTabRef | null | undefined): boolean {
+  return Boolean(tab && !tab.commitHash && tab.viewMode === "file");
 }
 
 /** 是否为提交多文件总览标签页 */

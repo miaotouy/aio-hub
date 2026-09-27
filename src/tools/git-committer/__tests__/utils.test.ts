@@ -21,6 +21,7 @@ import {
   COMMIT_VIEW_TAB_PATH,
   isCommitTab,
   isCommitViewTab,
+  isFileViewTab,
   normalizeGeneratedCommitMessage,
   parseRemoteInfo,
   renderCommitPromptMacros,
@@ -293,5 +294,33 @@ describe("git-committer tab keys", () => {
     expect(buildTabKey({ path: REPO_PROMPT_TAB_PATH, isStaged: false })).toBe(
       `W:${REPO_PROMPT_TAB_PATH}`
     );
+  });
+
+  it("keys file content tabs apart from diff tabs and merges by workspace side", () => {
+    const fileKey = buildTabKey({
+      path: "src/app.ts",
+      isStaged: false,
+      viewMode: "file",
+    });
+    expect(fileKey).toBe("F:W:src/app.ts");
+    expect(fileKey).not.toBe(buildTabKey({ path: "src/app.ts", isStaged: false }));
+    // 文件视图始终查看工作区当前内容，暂存/工作区来源共享同一个标签页
+    expect(
+      buildTabKey({ path: "src/app.ts", isStaged: true, viewMode: "file" })
+    ).toBe("F:S:src/app.ts");
+    expect(fileKey).not.toBe(
+      buildTabKey({ path: "src/app.ts", isStaged: true, viewMode: "file" })
+    );
+  });
+
+  it("classifies file content tabs", () => {
+    expect(
+      isFileViewTab({ path: "a.ts", isStaged: false, viewMode: "file" })
+    ).toBe(true);
+    expect(isFileViewTab({ path: "a.ts", isStaged: false })).toBe(false);
+    expect(
+      isFileViewTab({ path: "a.ts", isStaged: false, commitHash: "abc123" })
+    ).toBe(false);
+    expect(isFileViewTab(null)).toBe(false);
   });
 });

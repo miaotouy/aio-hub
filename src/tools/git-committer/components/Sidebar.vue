@@ -187,6 +187,19 @@
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
               <span class="file-actions">
+                <el-tooltip
+                  v-if="file.status !== 'D'"
+                  content="查看文件当前内容"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="openFileTab(file.path)"
+                  >
+                    <Eye :size="14" />
+                  </button>
+                </el-tooltip>
                 <el-tooltip content="取消暂存" placement="top">
                   <button
                     type="button"
@@ -255,7 +268,7 @@
               :key="file.path"
               class="file-item"
               :class="{ active: isActiveFile(file.path, false) }"
-              @click="openDiffTab(file.path, false)"
+              @click="handleOpenFile(file)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
@@ -263,6 +276,19 @@
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
               <span class="file-actions">
+                <el-tooltip
+                  v-if="file.status !== 'D'"
+                  content="查看文件当前内容"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="openFileTab(file.path)"
+                  >
+                    <Eye :size="14" />
+                  </button>
+                </el-tooltip>
                 <el-tooltip content="放弃更改" placement="top">
                   <button
                     type="button"
@@ -310,6 +336,7 @@ import {
   Minus,
   Undo2,
   FileDiff,
+  Eye,
   MessageSquareText,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
@@ -332,6 +359,7 @@ import {
   discardFile,
   discardFiles,
   openDiffTab,
+  openFileTab,
   openChangesTab,
   openRepoPromptTab,
 } from "../composables/useGitCommitterRunner";
@@ -405,9 +433,26 @@ const handleDiscardFile = (path: string) => {
     });
 };
 
-/** 当前文件是否是对应标签页的激活项 */
-const isActiveFile = (path: string, isStaged: boolean) =>
-  currentSession.value.activeTabPath === buildTabKey({ path, isStaged });
+/** 当前文件是否是对应标签页的激活项（diff 按区匹配，文件内容视图共用工作区键） */
+const isActiveFile = (path: string, isStaged: boolean) => {
+  const active = currentSession.value.activeTabPath;
+  return (
+    active === buildTabKey({ path, isStaged }) ||
+    active === buildTabKey({ path, isStaged: false, viewMode: "file" })
+  );
+};
+
+/**
+ * 未暂存文件点击行为：未跟踪的新文件（状态 A）没有基线版本，
+ * 直接打开文件内容视图；其余文件打开 diff。
+ */
+const handleOpenFile = (file: { path: string; status: string }) => {
+  if (file.status === "A") {
+    openFileTab(file.path, false);
+  } else {
+    openDiffTab(file.path, false);
+  }
+};
 
 const handleOpenChanges = (isStaged: boolean) => {
   openChangesTab(isStaged);

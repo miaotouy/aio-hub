@@ -740,6 +740,12 @@ export class Tokenizer {
               else if (!args[key]) args[key] = value;
             }
 
+            // JEV 自然语言工具调用：块内以 JEV 前缀键携带自然语言指令，没有 tool_name 字段，
+            // 仅识别 JEV 前缀作为工具名展示，指令内容不做二次解析、原样保留在 args 中
+            if (!tool_name && args.JEV) {
+              tool_name = "JEV";
+            }
+
             tokens.push({
               type: "vcp_tool",
               raw: startMarker + vcpContent + (closed ? endMarker : ""),

@@ -62,7 +62,10 @@ function parseToolFields(content: string): ToolFields {
   }
 
   return {
-    toolName: fields.get("tool_name") ?? "未命名工具",
+    // JEV 自然语言工具调用没有 tool_name 字段，仅识别 JEV 前缀作为工具名展示，
+    // 指令内容不做二次解析、原样保留在 args 中
+    toolName:
+      fields.get("tool_name") ?? (fields.has("JEV") ? "JEV" : "未命名工具"),
     command: fields.get("command") ?? "",
     maid: fields.get("maid") ?? "",
     args: [...fields.entries()].filter(

@@ -267,6 +267,25 @@ After`,
     expect(block.text()).toContain("Shanghai");
   });
 
+  it("recognizes a JEV natural-language tool request by its prefix", async () => {
+    const wrapper = mount(RichTextRenderer, {
+      props: {
+        content: `<<<[TOOL_REQUEST]>>>
+maid:「始」咕咕「末」,
+JEV:「始」请使用 {联网搜索} 中的 \`B站搜索\`，搜索【明日方舟 结城理 联动】，并[搜视频]。「末」
+<<<[END_TOOL_REQUEST]>>>`,
+      },
+    });
+
+    const block = wrapper.get('[data-testid="rich-text-vcp-tool_request"]');
+
+    await block.get(".vcp-header").trigger("click");
+    expect(block.text()).toContain("JEV");
+    expect(block.text()).toContain("咕咕");
+    expect(block.text()).toContain("请使用 {联网搜索}");
+    expect(block.text()).not.toContain("未命名工具");
+  });
+
   it("keeps an unfinished streaming VCP request visible without treating it as Markdown", async () => {
     const wrapper = mount(RichTextRenderer, {
       props: {

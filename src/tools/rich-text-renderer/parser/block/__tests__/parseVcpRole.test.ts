@@ -323,4 +323,29 @@ DailyNote 调用成功；ServerCodeSearcher 调用失败。
       },
     ]);
   });
+
+  it("recognizes a JEV natural-language request by its prefix without parsing the instruction", () => {
+    const ast = parse(`
+<<<[TOOL_REQUEST]>>>
+maid:「始」咕咕「末」,
+JEV:「始」请使用 {联网搜索} 中的 \`B站搜索\`，搜索【明日方舟 结城理 联动】，并[搜视频]。「末」
+<<<[END_TOOL_REQUEST]>>>
+<<<[TOOL_REQUEST]>>>
+maid:「始」咕咕「末」,
+JEV:「始」请使用 {联网搜索}，围绕【明日方舟 焰狐龙梓兰 怪猎联动 干员】进行搜索。「末」
+<<<[END_TOOL_REQUEST]>>>
+`);
+
+    const requests = findToolRequests(ast);
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.props.tool_name).toBe("JEV");
+      expect(request.props.maid).toBe("咕咕");
+      expect(request.props.args.JEV).toContain("请使用 {联网搜索}");
+      expect(request.props.closed).toBe(true);
+    }
+    expect(requests[0].props.args.JEV).toContain("B站搜索");
+    expect(requests[1].props.args.JEV).toContain("焰狐龙梓兰");
+  });
 });

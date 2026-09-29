@@ -1303,7 +1303,11 @@ export function useMediaGenerationManager() {
           `读取本地媒体失败：${response.status} ${response.statusText}`
         );
       }
-      return await response.arrayBuffer();
+      return await readBodyWithWatchdog(
+        response.arrayBuffer(),
+        downloadTimeout,
+        url
+      );
     }
 
     const remoteUrl = normalizeRemoteMediaUrl(url);
@@ -1357,7 +1361,13 @@ export function useMediaGenerationManager() {
           `下载远程媒体失败：${response.status} ${response.statusText}`
         );
       }
-      return await response.arrayBuffer();
+      // connectTimeout 只覆盖连接阶段，body 读取需要独立的 watchdog 保护，
+      // 防止底层插件协议异常导致 arrayBuffer() 永久挂起、任务卡在入库状态。
+      return await readBodyWithWatchdog(
+        response.arrayBuffer(),
+        downloadTimeout,
+        remoteUrl
+      );
     } catch (error) {
       if (signal?.aborted) {
         throw signal.reason || new DOMException("Aborted", "AbortError");
@@ -1401,6 +1411,32 @@ function createMediaDownloadTimeoutError(
   );
   error.name = "MediaDownloadTimeoutError";
   return error;
+}
+
+/**
+ * 为响应 body 读取增加独立 watchdog：
+ * 底层 HTTP 插件的 connectTimeout 只覆盖连接阶段，若 body 阶段
+ * 因插件版本协议错配或流异常而永久挂起，这里强制 reject，
+ * 让任务状态机落到 error 而不是卡在「正在入库资产」。
+ */
+async function readBodyWithWatchdog<T>(
+  bodyPromise: Promise<T>,
+  downloadTimeout: number,
+  url: string
+): Promise<T> {
+  let watchdogId: ReturnType<typeof setTimeout> | undefined;
+  const watchdog = new Promise<never>((_, reject) => {
+    watchdogId = setTimeout(() => {
+      reject(createMediaDownloadTimeoutError(url, downloadTimeout));
+    }, downloadTimeout);
+  });
+  try {
+    return await Promise.race([bodyPromise, watchdog]);
+  } finally {
+    if (watchdogId !== undefined) {
+      clearTimeout(watchdogId);
+    }
+  }
 }
 
 function summarizeUrlForLog(url: string): string {

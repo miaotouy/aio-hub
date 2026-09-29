@@ -265,9 +265,10 @@ Actions:
    └── 仅把替换前文本写到 `ProcessableMessage._originalContent`，不把资产路径或系统 URI 写入聊天数据
 
 7. primary:attachment-preparer (priority: 600)
-   ├── 通过 AssetManager 检查历史 `ManagedAssetRef` 可用性，保留 ready 资产的匿名托管引用
-   ├── 原件已清理、缺失或读取失败时，跳过二进制引用；如果聊天附件快照已有 `extractedText`，则以带名称和 MIME 标识的文本块确定性回退
-   ├── 文本回退发生在 Token 限制器之前，因此会参与历史裁剪和最终请求 Token 快照
+   ├── 通过 AssetManager 检查历史 `ManagedAssetRef` 可用性；ready 资产先经过发送前文本化决策
+   ├── ready 的纯文本类附件（document/other 且 MIME 或扩展名可直读）优先内联为带名称和 MIME 标识的 `<attachment_text>` 块，不再进入 managed wire；优先使用选择时持久化的 `snapshot.extractedText`，缺失时对不超过原生 2 MiB 的原件调用 `asset_extract_text` 受控提取，并按内容寻址 `assetId` 做运行时内联缓存；提取失败或超限时保留托管引用原样发送
+   ├── 图片、音频、视频与非文本文档保留匿名托管引用，由 Rust 原生传输读取；原件已清理、缺失或读取失败时跳过二进制引用，快照已有 `extractedText` 或替换缓存命中时以文本块确定性回退
+   ├── 文本内联与回退都发生在 Token 限制器之前，因此会参与历史裁剪和最终请求 Token 快照
    ├── `useChatExecutor` 只对没有文本回退的失效历史附件显示跳过提示；可用引用继续在最终序列化时交给 Rust 原生传输读取
    └── 纯文本类附件的 `snapshot.extractedText` 由 `AssetPickerSheet` 在确认选择前按需写入（复用 `asset_extract_text`），使新附件在原件被回收后仍有文本回退
 
@@ -289,7 +290,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets`（全局附件摘要 + Agent 私有资产，支持 `{{assets::group}}` 分组过滤）与导入角色局部变量；移动端不识别桌面 `agent-asset://` 资源协议，私有资产以可读文本与 Handle 标识输出，不产生可解析引用；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用图片、音频、视频和文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；新选中的纯文本类附件在 `AssetPickerSheet` 确认选择前按需写入快照，超过原生 2 MiB 读取上限则跳过，超过 20 万字符则截断并提示；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets`（全局附件摘要 + Agent 私有资产，支持 `{{assets::group}}` 分组过滤）与导入角色局部变量；移动端不识别桌面 `agent-asset://` 资源协议，私有资产以可读文本与 Handle 标识输出，不产生可解析引用；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用纯文本类附件在发送前由 `attachment-preparer` 内联为文本上下文（快照优先，缺失时受控提取并按 `assetId` 缓存），可用图片、音频、视频与非文本文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；新选中的纯文本类附件在 `AssetPickerSheet` 确认选择前按需写入快照，超过原生 2 MiB 读取上限则跳过，超过 20 万字符则截断并提示；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 

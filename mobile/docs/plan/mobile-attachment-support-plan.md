@@ -1,6 +1,6 @@
 # 移动端附件支持整合计划
 
-> **文档状态**: 现状盘点与施工队列；附件 3 的 `assetGroups` 分组与 `{{assets}}` 宏已施工（2026-09-26），其余条目规划中（已含桌面端对照）
+> **文档状态**: 现状盘点与施工队列；附件 3 的 `assetGroups` 分组与 `{{assets}}` 宏已施工（2026-09-26）；附件 1b 的 ready 纯文本发送前文本化已施工（2026-09-29），PDF 转图/音频转写/图片压缩后置；其余条目规划中（已含桌面端对照）
 > **创建日期**: 2026-09-26
 > **涉及模块**: `mobile/src/tools/llm-chat/`、`mobile/src/tools/agent-manager/`、`mobile/src/tools/asset-manager/`、`mobile/src/components/media/`、`packages/llm-core/`
 > **关联文档**: 移动端 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md)、[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md)、[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)；桌面端 [`src/tools/llm-chat/docs/architecture/attachment-system.md`](../../../src/tools/llm-chat/docs/architecture/attachment-system.md)
@@ -83,6 +83,14 @@ PC 消息气泡遍历 `message.attachments` 渲染 `AttachmentCard`（`src/tools
 
 **1b. 移动端发送前预处理决策层（参考 PC）**
 在 `buildMessageContent` 之前按模型能力决策：文本类先 `smartDecode` 文本化不走 base64；非 PDF 文档可文本化；PDF 在无 document 能力但有 vision 时转图片序列；音频按能力原样发送或转写；图片按需压缩。入口：`mobile/src/tools/llm-chat/utils/attachmentContent.ts` 上游新增处理器，参照 `src/tools/llm-chat/core/context-utils/attachment-resolver.ts`、`core/context-processors/asset-resolver.ts`。
+
+**已实施（2026-09-29）：ready 纯文本附件发送前文本化**
+
+- `attachment-preparer`（priority 600，位于 token-limiter 之前）对 ready 且 MIME/扩展名可直读的 document/other 附件内联 `<attachment_text>` 块，不再产生 managed wire document 引用，规避 llm-core 非 PDF document 非标准形态与 base64 缺口（见 1a）。
+- 文本来源优先级：持久化 `snapshot.extractedText` → 运行时内联缓存（按内容寻址 `assetId`）→ `asset_extract_text` 受控提取（≤2 MiB）；提取失败、超限或非文本类一律保留托管引用原样发送，不阻断。
+- 内联文本上限 20 万字符，超长截断并 warning；内联发生在 Token 限制器之前，文本附件成本进入上下文计数与历史裁剪。
+- 与 PC 的差异：移动端不读原件字节到 WebView（`assetId + snapshot` 契约），无 `smartDecode`——编码质量由 Rust `asset_extract_text` 的 UTF-8/二进制校验保证。
+- 仍后置（依赖现成能力或独立设计）：PDF 转图片序列（无 pdf 依赖）、音频转写（无转写基础设施）、图片压缩（需解码 managed 原件，与受控架构冲突，留待 Rust 侧方案）。
 
 ### 附件 2：正式聊天附件呈现（参考 PC 信息结构）— 已完成
 

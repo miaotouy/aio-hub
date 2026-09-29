@@ -475,6 +475,15 @@ function buildAnthropicContentBlock(
       ...(content.isError === undefined ? {} : { is_error: content.isError }),
     };
   }
+  if (content.type === "audio" || content.type === "video") {
+    // Anthropic Messages has no audio or video content block; emitting an
+    // explicit text marker beats silently dropping the part.
+    const mediaType = content.mediaType ?? content.type;
+    return {
+      type: "text",
+      text: `[content omitted: ${content.type} input (${mediaType}) is not supported by anthropic-messages]`,
+    };
+  }
   return undefined;
 }
 

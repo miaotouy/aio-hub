@@ -1,6 +1,6 @@
 # 移动端附件支持整合计划
 
-> **文档状态**: 现状盘点与施工队列；附件 3 的 `assetGroups` 分组与 `{{assets}}` 宏已施工（2026-09-26）；附件 1b 的 ready 纯文本发送前文本化已施工（2026-09-29），PDF 转图/音频转写/图片压缩后置；其余条目规划中（已含桌面端对照）
+> **文档状态**: 现状盘点与施工队列；附件 1a 的 `packages/llm-core` 共享 wire 修复已施工（2026-09-30）；附件 3 的 `assetGroups` 分组与 `{{assets}}` 宏已施工（2026-09-26）；附件 1b 的 ready 纯文本发送前文本化已施工（2026-09-29），PDF 转图/音频转写/图片压缩后置；其余条目规划中（已含桌面端对照）
 > **创建日期**: 2026-09-26
 > **涉及模块**: `mobile/src/tools/llm-chat/`、`mobile/src/tools/agent-manager/`、`mobile/src/tools/asset-manager/`、`mobile/src/components/media/`、`packages/llm-core/`
 > **关联文档**: 移动端 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md)、[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md)、[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)；桌面端 [`src/tools/llm-chat/docs/architecture/attachment-system.md`](../../../src/tools/llm-chat/docs/architecture/attachment-system.md)
@@ -33,13 +33,13 @@ PC 的 `src/llm-apis/adapters/*/chat.ts` 只是薄封装，最终调用 `@aiohub
 
 移动端同样走共享 core（`mobile/src/tools/llm-api/core/adapters/openai-compatible.ts` 的 `toOpenAiCompatibleCoreRequest`）。因此以下 wire 缺口**两端共有**：
 
-- 音频：`input_audio.data` 只读 `source.data`，`format` 仅 `wav`/`mp3`，其它格式被错标（`packages/llm-core/src/providers/openai-compatible.ts:431`）。
-- 视频：映射为 `image_url` + `video_metadata`（`openai-compatible.ts:444`）。
-- 文档：非 PDF、非图片的 document 输出非标准 `{ type: "document", source }`（`openai-compatible.ts:474`）。
-- Anthropic：audio/video 无分支，被静默丢弃（`packages/llm-core/src/providers/anthropic-messages.ts:422-478`）。
-- OpenAI Responses：有 `input_file`/`input_audio` 路径（`openai-responses.ts:536-568`），可作为支持原生文档/音频模型的优先通道。
+- 音频：`input_audio.data` 只读 `source.data`，`format` 仅 `wav`/`mp3`，其它格式被错标。**已修复**：新增 `audioInputFormat` 按 MIME 推导真实编码（wav/mp3 别名、其它取子类型）。
+- 视频：映射为 `image_url` + `video_metadata`。**保留为平台扩展**：OpenAI Chat Completions 无标准视频输入，移动端 adapter 测试明确依赖 `video_metadata`，本轮不改。
+- 文档：非 PDF、非图片的 document 输出非标准 `{ type: "document", source }`。**已修复**：统一为标准 `{ type: "file", file: { filename, file_data } }`，文件名按 MIME/显式名推导（`documentFilename`）。
+- Anthropic：audio/video 无分支，被静默丢弃。**已修复**：输出显式 `[content omitted: …]` 文本标记，不再静默丢弃。
+- OpenAI Responses：有 `input_file`/`input_audio` 路径（可作为支持原生文档/音频模型的优先通道）。**已规范化**：`input_audio` 归一为 `{ data, format }` 并剥离 data URL 前缀；`input_file` 文件名与 `media_type` 兼容 `contentType`/`mediaType`/`media_type`/`mime_type`。
 
-结论：这是 `packages/llm-core` 的**共享修复项**，不应在移动端单独打补丁。
+结论：这是 `packages/llm-core` 的**共享修复项**，已在 core 层完成（见附件 1a），两端共同受益，不在移动端单独打补丁。
 
 ### 3.2 发送前预处理：PC 的规避层是移动端缺的部分
 
@@ -78,8 +78,18 @@ PC 消息气泡遍历 `message.attachments` 渲染 `AttachmentCard`（`src/tools
 
 ### 附件 1：附件形态正确性（优先）
 
-**1a. `packages/llm-core` 共享 wire 修复（跨端）**
-修正音频仅 wav/mp3、视频当 `image_url`、非 PDF document 非标准、Anthropic 丢弃 audio/video；优先让支持原生文档/音频的模型走 OpenAI Responses 的 `input_file`/`input_audio`。两端共用，修复一处两端受益，需桌面端确认。入口：`packages/llm-core/src/providers/*`。
+**1a. `packages/llm-core` 共享 wire 修复（跨端）— 已实施（2026-09-30）**
+
+新增 `packages/llm-core/src/providers/media-input.ts` 共享媒体工具，修复三处 wire 缺口：
+
+- 音频格式：`audioInputFormat(mediaType)` 把 MIME 映射到真实 `input_audio.format`（`audio/wav`→`wav`、`audio/mpeg`→`mp3` 等别名 + 其它取子类型），不再一律压成 `mp3`；OpenAI 兼容与 Responses 均使用。
+- 文档形态：非图片 document 统一输出标准 `{ type: "file", file: { filename, file_data } }`（不再是 `{ type: "document", source }`），`documentFilename` 按显式 `filename`/`displayName` 或 MIME 推导扩展名。
+- Anthropic：audio/video 输出显式 `[content omitted: … is not supported by anthropic-messages]` 文本块，不再静默丢弃。
+- Responses 规范化：`input_audio` 归一为 `{ data, format }` 并剥离 data URL 前缀；`input_file` 文件名按 MIME，`media_type` 兼容 `contentType`/`mediaType`/`media_type`/`mime_type`。
+
+未改动视频路径：OpenAI 兼容的 `video → image_url + video_metadata` 是移动端 adapter 依赖的平台扩展行为（`mobile/src/tools/llm-api/core/adapters/__tests__/openai-compatible.test.ts`），Chat Completions 无标准视频输入。
+
+单测：`packages/llm-core/tests/media-input.test.ts`（10 例）。入口：`packages/llm-core/src/providers/*`。桌面端消费方按计划原样透传 source，无需改动。
 
 **1b. 移动端发送前预处理决策层（参考 PC）**
 在 `buildMessageContent` 之前按模型能力决策：文本类先 `smartDecode` 文本化不走 base64；非 PDF 文档可文本化；PDF 在无 document 能力但有 vision 时转图片序列；音频按能力原样发送或转写；图片按需压缩。入口：`mobile/src/tools/llm-chat/utils/attachmentContent.ts` 上游新增处理器，参照 `src/tools/llm-chat/core/context-utils/attachment-resolver.ts`、`core/context-processors/asset-resolver.ts`。

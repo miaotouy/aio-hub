@@ -21,6 +21,12 @@ import type {
   TokenUsage,
 } from "../types/response";
 import type { WireRequest, WireResponse } from "../types/transport";
+import {
+  audioInputFormat,
+  base64FromDataUrl,
+  documentFilename,
+  readStringField,
+} from "./media-input";
 
 type JsonObject = Record<string, JsonValue>;
 export type OpenAiResponsesBody = Record<string, WireJsonValue>;
@@ -539,9 +545,37 @@ function buildResponsesContentPart(
     return buildResponsesFilePart(content.source);
   }
   if (content.type === "audio") {
-    return { type: "input_audio", input_audio: content.source };
+    const source = asObject(content.source);
+    const data =
+      readString(source?.data) ??
+      (typeof content.source === "string" ? content.source : undefined);
+    const mediaType =
+      content.mediaType ??
+      readMediaType(source) ??
+      (typeof data === "string" && data.startsWith("data:")
+        ? data.slice(5, data.indexOf(";"))
+        : undefined);
+    const raw = data
+      ? data.startsWith("data:")
+        ? base64FromDataUrl(data)
+        : data
+      : undefined;
+    if (!raw) return undefined;
+    return {
+      type: "input_audio",
+      input_audio: { data: raw, format: audioInputFormat(mediaType) },
+    };
   }
   return { type: "input_video", input_video: content.source };
+}
+
+function readMediaType(source: JsonObject | undefined): string | undefined {
+  return (
+    readStringField(source, "contentType") ??
+    readStringField(source, "mediaType") ??
+    readStringField(source, "media_type") ??
+    readStringField(source, "mime_type")
+  );
 }
 
 function buildResponsesFilePart(source: JsonValue): WireJsonValue | undefined {
@@ -553,18 +587,26 @@ function buildResponsesFilePart(source: JsonValue): WireJsonValue | undefined {
   if (typeof value.file_id === "string") {
     return { type: "input_file", file_id: value.file_id };
   }
+  const mediaType =
+    readMediaType(value) ??
+    (typeof value.file_data === "string" && value.file_data.startsWith("data:")
+      ? value.file_data.slice(5, value.file_data.indexOf(";"))
+      : undefined) ??
+    "application/pdf";
   if (typeof value.file_data === "string") {
     return {
       type: "input_file",
-      filename: readString(value.filename) ?? "document.pdf",
-      file_data: sourceToDataUrl(value) ?? value.file_data,
+      filename: documentFilename(value, mediaType),
+      file_data: value.file_data.startsWith("data:")
+        ? value.file_data
+        : (sourceToDataUrl(value) ?? value.file_data),
     };
   }
   const dataUrl = sourceToDataUrl(value);
   return dataUrl
     ? {
         type: "input_file",
-        filename: readString(value.filename) ?? "document.pdf",
+        filename: documentFilename(value, mediaType),
         file_data: dataUrl,
       }
     : undefined;
@@ -608,6 +650,8 @@ function sourceToDataUrl(source: JsonValue): string | undefined {
   if (!data) return undefined;
   if (data.startsWith("data:")) return data;
   const mediaType =
+    readString(value.contentType) ??
+    readString(value.mediaType) ??
     readString(value.media_type) ??
     readString(value.mime_type) ??
     "application/octet-stream";

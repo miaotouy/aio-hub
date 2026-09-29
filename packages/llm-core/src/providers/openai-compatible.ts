@@ -20,6 +20,7 @@ import type {
   TokenUsage,
 } from "../types/response";
 import type { WireRequest, WireResponse } from "../types/transport";
+import { audioInputFormat, documentFilename } from "./media-input";
 
 type JsonObject = Record<string, JsonValue>;
 export type OpenAiCompatibleBody = Record<string, WireJsonValue>;
@@ -436,7 +437,7 @@ function mapOpenAiContent(part: LlmMessageContent): {
           type: "input_audio",
           input_audio: {
             data: readString(source?.data) ?? "",
-            format: contentType === "audio/wav" ? "wav" : "mp3",
+            format: audioInputFormat(contentType),
           },
         },
       };
@@ -460,18 +461,15 @@ function mapOpenAiContent(part: LlmMessageContent): {
           },
         };
       }
-      if (contentType === "application/pdf") {
-        return {
-          content: {
-            type: "file",
-            file: {
-              filename: "document.pdf",
-              file_data: mediaSourceToUrl(part.source),
-            },
+      return {
+        content: {
+          type: "file",
+          file: {
+            filename: documentFilename(source, contentType),
+            file_data: mediaSourceToUrl(part.source),
           },
-        };
-      }
-      return { content: { type: "document", source: part.source } };
+        },
+      };
     }
     case "tool_use":
       return {

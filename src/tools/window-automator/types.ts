@@ -37,13 +37,28 @@ export interface ClientRect {
 
 // ===================== 坐标系统 =====================
 
-export type CoordinateMode = "pixel" | "percent";
+export type CoordinateMode = "pixel" | "percent" | "center";
+
+/** center 模式的输入表达：直角坐标 / 极坐标（存储与执行前归一化为直角） */
+export type CoordinateForm = "cartesian" | "polar";
 
 export interface Coordinate {
   mode: CoordinateMode;
-  /** pixel 模式为像素值，percent 模式为 0~100 */
+  /**
+   * pixel: 像素值；percent: 0~100；
+   * center: 相对原点的像素偏移（y 向上为正，执行时翻转）。
+   * form="polar" 时复用为 x=angle（度，正右方 0°，逆时针为正）、y=radius（px）。
+   */
   x: number;
   y: number;
+  /** 仅 mode="center" 时有意义，缺省为 cartesian */
+  form?: CoordinateForm;
+}
+
+/** 中心坐标系原点，相对客户区的百分比位置（null = 客户区几何中心 50,50） */
+export interface CoordinateOrigin {
+  xPercent: number;
+  yPercent: number;
 }
 
 export interface RectArea {
@@ -51,7 +66,8 @@ export interface RectArea {
   y: number;
   width: number;
   height: number;
-  mode: CoordinateMode;
+  /** 矩形区域锚定 UI 元素，仅支持左上角系，不扩展 center */
+  mode: "pixel" | "percent";
 }
 
 // ===================== 步骤类型 =====================
@@ -261,6 +277,12 @@ export interface ActionFlow {
   steps: FlowStep[];
   /** 子流程/自定义函数列表（可选，向下兼容旧方案文件） */
   subFlows?: SubFlow[];
+  /**
+   * 中心坐标系原点，相对客户区的百分比位置。
+   * null / 缺省 = 客户区几何中心 (50, 50)。
+   * 用 percent 存储使窗口缩放、换分辨率后原点仍跟随标定位置。
+   */
+  coordinateOrigin?: CoordinateOrigin | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -327,6 +349,19 @@ export interface ScreenshotPickerResult {
   xPercent: number;
   yPercent: number;
   color: string;
+  /** 中心坐标系：相对原点（或几何中心）的像素偏移，y 向上为正 */
+  dx?: number;
+  dy?: number;
+  /** 中心坐标系：相对半宽/半高的百分比偏移 */
+  dxPercent?: number;
+  dyPercent?: number;
+  /** 中心坐标系极坐标表达（度 / px） */
+  angle?: number;
+  radius?: number;
+  /** 所在象限（1~4，坐标轴上为 null） */
+  quadrant?: 1 | 2 | 3 | 4 | null;
+  /** 取点器当前的写入模式（point 模式下有效） */
+  writeMode?: "pixel" | "percent" | "center";
   rect?: {
     x: number;
     y: number;
@@ -337,6 +372,12 @@ export interface ScreenshotPickerResult {
     widthPercent: number;
     heightPercent: number;
   };
+}
+
+/** 原点标定结果（percent 坐标） */
+export interface ScreenshotPickerOriginResult {
+  xPercent: number;
+  yPercent: number;
 }
 
 // ===================== OCR 引擎类型（透传自 smart-ocr） =====================

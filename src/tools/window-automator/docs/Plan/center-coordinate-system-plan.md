@@ -1,6 +1,6 @@
 # 计划：窗口自动化助手中心坐标系与四象限点位
 
-> 状态：方案设计完成，未实施
+> 状态：已实施（阶段一~五代码、单测、类型检查与构建均完成；真实 Tauri 运行态验证待人工执行）
 
 ## 1. 背景与动机
 
@@ -186,18 +186,18 @@ function resolveCoordinate(
 ## 6. 实施步骤
 
 1. **阶段一：类型与转换层**
-   - [ ] `types.ts` 扩展 `CoordinateMode` / `Coordinate.form` / `ActionFlow.coordinateOrigin`
-   - [ ] 新增 `coordinateTransforms.ts` 纯函数（resolveCoordinate / polarToCartesian / getQuadrant / clamp）
-   - [ ] 补 `coordinateTransforms.test.ts`
+   - [x] `types.ts` 扩展 `CoordinateMode` / `Coordinate.form` / `ActionFlow.coordinateOrigin`
+   - [x] 新增 `coordinateTransforms.ts` 纯函数（resolveCoordinate / polarToCartesian / getQuadrant / clamp）
+   - [x] 补 `coordinateTransforms.test.ts`
 2. **阶段二：执行器接入**
-   - [ ] `stepExecutors.ts` 三类坐标消费步骤改走 `resolveCoordinate`
-   - [ ] 未标定原点提示、越界 warn 日志
+   - [x] `stepExecutors.ts` 三类坐标消费步骤改走 `resolveCoordinate`
+   - [x] 未标定原点提示、越界 warn 日志
 3. **阶段三：取点器与原点标定**
-   - [ ] picker `origin` props、十字线叠加层、`mark-origin` mode、原点系悬停显示、写入模式三选
-   - [ ] store 更新 action、FlowEditor 透传与写回分支
+   - [x] picker `origin` props、十字线叠加层、`mark-origin` mode、原点系悬停显示、写入模式三选
+   - [x] store 更新 action、FlowEditor 透传与写回分支
 4. **阶段四：配置面板**
-   - [ ] `ClickConfig` center 模式支持（象限徽标、极坐标切换、去标定引导）
+   - [x] `ClickConfig` center 模式支持（象限徽标、极坐标切换、去标定引导）
 5. **阶段五：验证**
-   - [ ] `bun run check:frontend`（类型检查 + Vite 构建）
-   - [ ] 相关单测全部通过
+   - [x] `bun run check:frontend`（类型检查 + Vite 构建）
+   - [x] 相关单测全部通过
    - [ ] 真实 Tauri 运行态验证：以泰拉瑞亚窗口标定原点 → center 模式点击四象限点位 → 后台/前台两模式各验证一遍 → 窗口缩放后复查原点跟随

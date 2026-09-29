@@ -78,10 +78,14 @@ export function useFlowExecutor() {
   }
 
   /** 为 stepExecutors 构造当前运行上下文 */
-  function buildContext(scope: {
-    local: Record<string, string>;
-    useLocalVariables: boolean;
-  }): StepExecContext {
+  function buildContext(
+    scope: {
+      local: Record<string, string>;
+      useLocalVariables: boolean;
+    },
+    coordinateOrigin: { xPercent: number; yPercent: number } | null,
+    warnOriginUncalibrated: (stepIndex: number) => void
+  ): StepExecContext {
     return {
       boundHwnd: store.boundWindow ? store.boundWindow.hwnd : null,
       appendLog: (level, stepIndex, message) =>
@@ -101,6 +105,8 @@ export function useFlowExecutor() {
         }
       },
       counters: store.runtime.counters,
+      coordinateOrigin,
+      warnOriginUncalibrated,
     };
   }
 
@@ -209,6 +215,22 @@ export function useFlowExecutor() {
     let nextIndex = 0;
 
     /**
+     * 中心坐标系原点（属于整个 flow）；
+     * null 表示未标定，center 步骤按几何中心执行时提示一次。
+     */
+    const coordinateOrigin = flow.coordinateOrigin ?? null;
+    let originWarned = false;
+    const warnOriginUncalibrated = (stepIndex: number) => {
+      if (originWarned) return;
+      originWarned = true;
+      store.appendLog(
+        "warn",
+        stepIndex,
+        "未标定原点，已使用客户区几何中心 (50, 50)"
+      );
+    };
+
+    /**
      * 返回值处理：子流程出栈时调用。
      * 从被弹出栈帧的 localVariables 中读取 returnVariableName 对应的值，
      * 写回调用方作用域（栈顶帧或主流程全局表）。
@@ -308,10 +330,14 @@ export function useFlowExecutor() {
       }
 
       // 每步重建 ctx，使当前帧的 localVariables 反映最新（写操作会回写到 currentLocalVariables）
-      const ctx = buildContext({
-        local: currentLocalVariables,
-        useLocalVariables: currentSubFlowId !== null,
-      });
+      const ctx = buildContext(
+        {
+          local: currentLocalVariables,
+          useLocalVariables: currentSubFlowId !== null,
+        },
+        coordinateOrigin,
+        warnOriginUncalibrated
+      );
       const nextStepId = await executeStep(ctx, step, nextIndex);
       store.runtime.totalStepsExecuted++;
 

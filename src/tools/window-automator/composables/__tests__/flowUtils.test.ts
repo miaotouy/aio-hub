@@ -17,28 +17,11 @@ import {
   colorDistancePercent,
   interpolateVariables,
   parseHex,
-  resolveCoordinate,
   resolveRect,
   rgbToHex,
 } from "../flowUtils";
 
 describe("flowUtils", () => {
-  it("resolves pixel and percent coordinates", async () => {
-    await expect(
-      resolveCoordinate(12, 34, "pixel", async () => ({
-        width: 200,
-        height: 100,
-      }))
-    ).resolves.toEqual({ x: 12, y: 34 });
-
-    await expect(
-      resolveCoordinate(25, 50, "percent", async () => ({
-        width: 200,
-        height: 100,
-      }))
-    ).resolves.toEqual({ x: 50, y: 50 });
-  });
-
   it("resolves pixel and percent rects", () => {
     expect(
       resolveRect(

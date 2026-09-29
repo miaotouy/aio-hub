@@ -183,6 +183,10 @@ const highlightedStepIds = ref<Set<string>>(new Set());
 const showScreenshotPicker = ref(false);
 const screenshotMode = ref<"point" | "rect">("point");
 const screenshotStepId = ref<string | null>(null);
+/** 打开 picker 时的写入模式初始值（跟随目标步骤当前坐标模式） */
+const pickerInitialWriteMode = ref<"pixel" | "percent" | "center">("pixel");
+/** 打开 picker 的目的：取点 / 框选 / 标定原点 */
+const pickerMarkOriginOnly = ref(false);
 
 const isEmpty = computed(() => steps.value.length === 0);
 
@@ -398,9 +402,29 @@ async function scrollToStep(stepId: string) {
 
 // ===================== 截图入口 =====================
 
+/** 读取 click / colorCheck 步骤当前的坐标模式，作为写入模式初始值 */
+function currentWriteModeOf(step: FlowStep): "pixel" | "percent" | "center" {
+  const c = step.stepConfig;
+  if (c.type === "click") return c.params.coordinate.mode;
+  if (c.type === "colorCheck" && c.params.coordinate) {
+    return c.params.coordinate.mode;
+  }
+  return "pixel";
+}
+
 function openScreenshotPicker(step: FlowStep, mode: "point" | "rect") {
   screenshotStepId.value = step.id;
   screenshotMode.value = mode;
+  pickerInitialWriteMode.value = currentWriteModeOf(step);
+  pickerMarkOriginOnly.value = false;
+  showScreenshotPicker.value = true;
+}
+
+/** 打开取点器进入原点标定（ClickConfig"去标定"入口） */
+function openOriginPicker() {
+  screenshotStepId.value = null;
+  screenshotMode.value = "point";
+  pickerMarkOriginOnly.value = true;
   showScreenshotPicker.value = true;
 }
 
@@ -415,7 +439,7 @@ function onPickerConfirm(result: ScreenshotPickerResult) {
   if (c.type === "click") {
     const next: ClickStepParams = {
       ...c.params,
-      coordinate: { mode: "pixel", x: result.x, y: result.y },
+      coordinate: buildCoordinateFromResult(result),
     };
     updateStepByContext(step.id, {
       stepConfig: { type: "click", params: next },
@@ -432,6 +456,16 @@ function onPickerConfirm(result: ScreenshotPickerResult) {
         mode: "pixel",
       },
       coordinate: undefined,
+    };
+    updateStepByContext(step.id, {
+      stepConfig: { type: "colorCheck", params: next },
+    });
+  } else if (c.type === "colorCheck" && !result.rect) {
+    // 单点颜色判断写回（跟随写入模式）
+    const next: ColorCheckStepParams = {
+      ...c.params,
+      checkMode: "point",
+      coordinate: buildCoordinateFromResult(result),
     };
     updateStepByContext(step.id, {
       stepConfig: { type: "colorCheck", params: next },
@@ -453,6 +487,39 @@ function onPickerConfirm(result: ScreenshotPickerResult) {
   }
   showScreenshotPicker.value = false;
   screenshotStepId.value = null;
+}
+
+/**
+ * 按取点器返回的写入模式构造坐标对象：
+ * 像素 / 百分比维持左上角系；中心写相对原点偏移（y 向上为正）。
+ */
+function buildCoordinateFromResult(
+  result: ScreenshotPickerResult
+): ClickStepParams["coordinate"] {
+  switch (result.writeMode) {
+    case "center":
+      return { mode: "center", x: result.dx ?? 0, y: result.dy ?? 0 };
+    case "percent":
+      return {
+        mode: "percent",
+        x: Number(result.xPercent.toFixed(2)),
+        y: Number(result.yPercent.toFixed(2)),
+      };
+    default:
+      return { mode: "pixel", x: result.x, y: result.y };
+  }
+}
+
+/** 原点标定写回：保存到 flow 级 coordinateOrigin */
+function onPickerMarkOrigin(point: {
+  xPercent: number;
+  yPercent: number;
+}) {
+  store.setCoordinateOrigin({
+    xPercent: Number(point.xPercent.toFixed(2)),
+    yPercent: Number(point.yPercent.toFixed(2)),
+  });
+  customMessage.success("中心坐标系原点已标定");
 }
 
 function onPickerCancel() {
@@ -751,7 +818,9 @@ const isStepActive = (index: number) => {
                 (element.stepConfig as Extract<StepParams, { type: 'click' }>)
                   .params
               "
+              :origin="store.currentFlow?.coordinateOrigin ?? null"
               @update:params="(v) => onInlineParamsUpdate(element, v)"
+              @mark-origin="openOriginPicker"
             />
             <KeyPressConfig
               v-else-if="element.stepConfig.type === 'keypress'"
@@ -836,11 +905,18 @@ const isStepActive = (index: number) => {
     </VueDraggableNext>
 
     <ScreenshotPicker
-      v-if="showScreenshotPicker && store.boundWindow && screenshotStepId"
+      v-if="
+        showScreenshotPicker &&
+        store.boundWindow &&
+        (screenshotStepId || pickerMarkOriginOnly)
+      "
       v-model="showScreenshotPicker"
       :hwnd="store.boundWindow.hwnd"
       :mode="screenshotMode"
+      :origin="store.currentFlow?.coordinateOrigin ?? null"
+      :initial-write-mode="pickerInitialWriteMode"
       @confirm="onPickerConfirm"
+      @mark-origin="onPickerMarkOrigin"
       @cancel="onPickerCancel"
     />
 

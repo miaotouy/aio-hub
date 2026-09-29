@@ -180,6 +180,8 @@ export function createEmptyFlow(name = "未命名方案"): ActionFlow {
     targetWindow: null,
     steps: [],
     subFlows: [],
+    // 中心坐标系原点：null = 客户区几何中心 (50, 50)
+    coordinateOrigin: null,
     createdAt: now,
     updatedAt: now,
   };

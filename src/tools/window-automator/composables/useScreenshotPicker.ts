@@ -26,7 +26,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { rgbToHex } from "./flowUtils";
-import type { ScreenshotPickerResult } from "../types";
+import {
+  cartesianToPolar,
+  getQuadrant,
+} from "./coordinateTransforms";
+import type {
+  CoordinateOrigin,
+  ScreenshotPickerResult,
+} from "../types";
 
 const logger = createModuleLogger("window-automator/useScreenshotPicker");
 const errorHandler = createModuleErrorHandler(
@@ -144,11 +151,42 @@ export function useScreenshotPicker() {
     };
   }
 
+  /**
+   * 计算点位的中心坐标系表达（相对原点或几何中心，y 向上为正）。
+   */
+  function computeCenterMetrics(
+    x: number,
+    y: number,
+    origin: CoordinateOrigin | null
+  ): Pick<
+    ScreenshotPickerResult,
+    "dx" | "dy" | "dxPercent" | "dyPercent" | "angle" | "radius" | "quadrant"
+  > {
+    const w = naturalWidth.value;
+    const h = naturalHeight.value;
+    const ox = ((origin ? origin.xPercent : 50) / 100) * w;
+    const oy = ((origin ? origin.yPercent : 50) / 100) * h;
+    const dx = x - ox;
+    const dy = oy - y; // y 向上为正
+    const polar = cartesianToPolar(dx, dy);
+    return {
+      dx: Math.round(dx),
+      dy: Math.round(dy),
+      dxPercent: w > 0 ? (dx / (w / 2)) * 100 : 0,
+      dyPercent: h > 0 ? (dy / (h / 2)) * 100 : 0,
+      angle: polar.angle,
+      radius: polar.radius,
+      quadrant: getQuadrant(dx, dy),
+    };
+  }
+
   /** 单点取色封装：返回完整结果对象 */
   function buildPointResult(
     img: HTMLImageElement,
     clientX: number,
-    clientY: number
+    clientY: number,
+    origin: CoordinateOrigin | null = null,
+    writeMode: "pixel" | "percent" | "center" = "pixel"
   ): ScreenshotPickerResult {
     const { x, y } = clientToImage(img, clientX, clientY);
     const color = pickColor(img, x, y);
@@ -158,6 +196,8 @@ export function useScreenshotPicker() {
       xPercent: naturalWidth.value > 0 ? (x / naturalWidth.value) * 100 : 0,
       yPercent: naturalHeight.value > 0 ? (y / naturalHeight.value) * 100 : 0,
       color,
+      ...computeCenterMetrics(x, y, origin),
+      writeMode,
     };
   }
 
@@ -165,7 +205,8 @@ export function useScreenshotPicker() {
   function buildRectResult(
     img: HTMLImageElement,
     start: { clientX: number; clientY: number },
-    end: { clientX: number; clientY: number }
+    end: { clientX: number; clientY: number },
+    origin: CoordinateOrigin | null = null
   ): ScreenshotPickerResult {
     const a = clientToImage(img, start.clientX, start.clientY);
     const b = clientToImage(img, end.clientX, end.clientY);
@@ -179,6 +220,7 @@ export function useScreenshotPicker() {
       xPercent: naturalWidth.value > 0 ? (x / naturalWidth.value) * 100 : 0,
       yPercent: naturalHeight.value > 0 ? (y / naturalHeight.value) * 100 : 0,
       color: w > 0 && h > 0 ? pickColor(img, x + w / 2, y + h / 2) : "#000000",
+      ...computeCenterMetrics(x + w / 2, y + h / 2, origin),
       rect: {
         x: Math.round(x),
         y: Math.round(y),
@@ -203,6 +245,7 @@ export function useScreenshotPicker() {
     revoke,
     pickColor,
     clientToImage,
+    computeCenterMetrics,
     buildPointResult,
     buildRectResult,
   };

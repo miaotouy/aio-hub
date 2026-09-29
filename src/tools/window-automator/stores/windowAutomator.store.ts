@@ -29,6 +29,7 @@ import { nanoid } from "nanoid";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   ActionFlow,
+  CoordinateOrigin,
   ExecutorLog,
   ExecutorRuntime,
   FlowStep,
@@ -455,6 +456,19 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     return result;
   }
 
+  // ---- 中心坐标系原点 ----
+  /** 标定 / 清除当前方案的中心坐标系原点（percent 坐标） */
+  function setCoordinateOrigin(origin: CoordinateOrigin | null) {
+    const flow = currentFlow.value;
+    if (!flow) return;
+    flow.coordinateOrigin = origin;
+    flow.updatedAt = new Date().toISOString();
+    logger.info("更新中心坐标系原点", {
+      flowId: flow.id,
+      origin,
+    });
+  }
+
   // ---- 视图切换 ----
   function enterFlow(id: string) {
     currentFlowId.value = id;
@@ -562,6 +576,7 @@ export const useWindowAutomatorStore = defineStore("window-automator", () => {
     selectStep,
     // window / runtime
     setBoundWindow,
+    setCoordinateOrigin,
     resetRuntime,
     appendLog,
     clearLogs,

@@ -30,6 +30,8 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
   CallStepParams,
   ColorCheckStepParams,
+  Coordinate,
+  CoordinateOrigin,
   CounterStepParams,
   ExecutorLogLevel,
   FlowStep,
@@ -39,13 +41,13 @@ import type {
   StepParams,
   WindowInfo,
 } from "../types";
+import { resolveCoordinate } from "./coordinateTransforms";
 import {
   ClientSize,
   colorDistancePercent,
   interpolateVariables,
   loadImage,
   parseHex,
-  resolveCoordinate,
   resolveRect,
   rgbToHex,
   sleep,
@@ -76,6 +78,10 @@ export interface StepExecContext {
   setVariable: (key: string, value: string) => void;
   /** counter 步骤用的计数器表（key = step.id） */
   counters: Record<string, number>;
+  /** 当前 flow 的中心坐标系原点（null = 未标定，执行时使用客户区几何中心） */
+  coordinateOrigin: CoordinateOrigin | null;
+  /** center 步骤在未标定原点时的提示（由执行器保证整个运行期只提示一次） */
+  warnOriginUncalibrated: (stepIndex: number) => void;
 }
 
 const errorHandler = createModuleErrorHandler("window-automator/stepExecutors");
@@ -148,6 +154,36 @@ function runCall(
 
 // ===================== 步骤实现 =====================
 
+/**
+ * 统一的步骤坐标解析入口：
+ * pixel 模式直通；其余模式先取客户区尺寸，再走中心坐标系转换层。
+ * center 模式未标定原点时按几何中心执行并提示一次；越界时记录 warn。
+ */
+async function resolveStepCoordinate(
+  ctx: StepExecContext,
+  coordinate: Coordinate,
+  index: number
+): Promise<{ x: number; y: number }> {
+  if (coordinate.mode === "center" && !ctx.coordinateOrigin) {
+    ctx.warnOriginUncalibrated(index);
+  }
+  const clientSize =
+    coordinate.mode === "pixel" ? null : await ctx.getClientSize();
+  const resolved = resolveCoordinate(
+    coordinate,
+    clientSize,
+    ctx.coordinateOrigin
+  );
+  if (resolved.clamped) {
+    ctx.appendLog(
+      "warn",
+      index,
+      `中心坐标越界，已收边至 (${resolved.x}, ${resolved.y})`
+    );
+  }
+  return { x: resolved.x, y: resolved.y };
+}
+
 async function runClick(
   ctx: StepExecContext,
   params: Extract<StepParams, { type: "click" }>["params"],
@@ -157,17 +193,12 @@ async function runClick(
     ctx.appendLog("error", index, "未绑定窗口，跳过点击步骤");
     return null;
   }
-  const coord = await resolveCoordinate(
-    params.coordinate.x,
-    params.coordinate.y,
-    params.coordinate.mode,
-    ctx.getClientSize
-  );
+  const resolved = await resolveStepCoordinate(ctx, params.coordinate, index);
   try {
     const result = await invoke<WaClickResult>("wa_send_click", {
       hwnd: ctx.boundHwnd,
-      x: coord.x,
-      y: coord.y,
+      x: resolved.x,
+      y: resolved.y,
       button: params.button,
       doubleClick: params.clickType === "double",
       mode: params.mode ?? "background",
@@ -240,12 +271,7 @@ async function runColorCheck(
   const clientSize = await ctx.getClientSize();
   let match = false;
   if (params.checkMode === "point" && params.coordinate) {
-    const coord = await resolveCoordinate(
-      params.coordinate.x,
-      params.coordinate.y,
-      params.coordinate.mode,
-      async () => clientSize
-    );
+    const coord = await resolveStepCoordinate(ctx, params.coordinate, index);
     const rgb = await errorHandler.wrapAsync(
       () =>
         invoke<[number, number, number]>("wa_get_pixel", {

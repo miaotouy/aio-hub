@@ -100,6 +100,7 @@ const {
   clearAllModels,
   fetchModels,
   handleAddModels,
+  handleRemoveModels,
   applyModelRoutes,
 } = useModelEditor(editForm, selectedProfile);
 
@@ -1066,6 +1067,7 @@ const networkSettingSummary = computed(() => {
       :existing-models="editForm.models"
       :provider-type="editForm.type"
       @add-models="handleAddModels"
+      @remove-models="handleRemoveModels"
     />
 
     <ModelProbeDialog

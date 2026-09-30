@@ -31,7 +31,7 @@ const props = defineProps<{
   providerType?: string;
 }>();
 
-const emit = defineEmits(["update:visible", "add-models"]);
+const emit = defineEmits(["update:visible", "add-models", "remove-models"]);
 
 const { getDisplayIconPath, getIconPath, materializeModel } =
   useModelMetadata();
@@ -39,7 +39,11 @@ const { getDisplayIconPath, getIconPath, materializeModel } =
 const searchQuery = ref("");
 const selectedCapabilities = ref<string[]>([]);
 const selectedModels = ref<LlmModelInfo[]>([]);
+// 在本窗口内标记为「移除」的已添加模型 ID；确认时统一通知父组件移除
+const removeModelIds = ref<Set<string>>(new Set());
 const expandedGroups = ref<Record<string, boolean>>({});
+// 添加状态筛选：全部 / 未添加 / 已添加
+const addStatusFilter = ref<"all" | "unadded" | "added">("all");
 
 // 根据分组聚合模型（使用 getModelGroup 获取正确的分组）
 const groupedModels = computed(() => {
@@ -68,14 +72,19 @@ const groupedModels = computed(() => {
 const filteredGroups = computed(() => {
   const query = searchQuery.value ? searchQuery.value.toLowerCase() : "";
   const caps = selectedCapabilities.value;
+  const statusFilter = addStatusFilter.value;
 
-  if (!query && caps.length === 0) {
+  if (!query && caps.length === 0 && statusFilter === "all") {
     return groupedModels.value;
   }
 
   const result: Record<string, LlmModelInfo[]> = {};
   for (const group in groupedModels.value) {
     const filtered = groupedModels.value[group].filter((model) => {
+      // 0. 添加状态筛选
+      if (statusFilter === "added" && !isModelExisting(model.id)) return false;
+      if (statusFilter === "unadded" && isModelExisting(model.id)) return false;
+
       // 1. 搜索词匹配
       const matchesQuery =
         !query ||
@@ -108,14 +117,28 @@ const isModelExisting = (modelId: string) => {
   return props.existingModels.some((m) => m.id === modelId);
 };
 
+// 检查已添加模型是否被标记为「待移除」
+const isModelMarkedRemoved = (modelId: string) => {
+  return removeModelIds.value.has(modelId);
+};
+
 // 检查模型是否已选择
 const isModelSelected = (model: LlmModelInfo) => {
   return selectedModels.value.some((m: LlmModelInfo) => m.id === model.id);
 };
 
-// 切换单个模型的选择状态
+// 切换单个模型的状态：未添加 → 选中待添加；已添加 → 标记待移除
 const toggleModelSelection = (model: LlmModelInfo) => {
-  if (isModelExisting(model.id)) return;
+  if (isModelExisting(model.id)) {
+    const next = new Set(removeModelIds.value);
+    if (next.has(model.id)) {
+      next.delete(model.id);
+    } else {
+      next.add(model.id);
+    }
+    removeModelIds.value = next;
+    return;
+  }
   const index = selectedModels.value.findIndex(
     (m: LlmModelInfo) => m.id === model.id
   );
@@ -128,16 +151,33 @@ const toggleModelSelection = (model: LlmModelInfo) => {
 
 // 切换整个分组的选择状态
 const toggleGroupSelection = (groupModels: LlmModelInfo[]) => {
-  const allSelected = groupModels.every(
-    (m) => isModelSelected(m) || isModelExisting(m.id)
-  );
-  if (allSelected) {
-    // 全部取消选择
+  const allChecked = groupModels.every((m) => {
+    if (isModelExisting(m.id)) {
+      return !isModelMarkedRemoved(m.id);
+    }
+    return isModelSelected(m);
+  });
+  if (allChecked) {
+    // 全部取消：清空待添加选中，并把已添加模型标记为移除
     selectedModels.value = selectedModels.value.filter(
       (sm: LlmModelInfo) => !groupModels.some((gm) => gm.id === sm.id)
     );
+    const next = new Set(removeModelIds.value);
+    for (const model of groupModels) {
+      if (isModelExisting(model.id)) {
+        next.add(model.id);
+      }
+    }
+    removeModelIds.value = next;
   } else {
-    // 全部添加
+    // 全部添加：清空移除标记，并把未添加模型加入选中
+    const next = new Set(removeModelIds.value);
+    for (const model of groupModels) {
+      if (isModelExisting(model.id)) {
+        next.delete(model.id);
+      }
+    }
+    removeModelIds.value = next;
     for (const model of groupModels) {
       if (!isModelSelected(model) && !isModelExisting(model.id)) {
         selectedModels.value.push(model);
@@ -163,24 +203,39 @@ const allVisibleModels = computed(() => {
   return Object.values(filteredGroups.value).flat();
 });
 
-// 判断当前可见模型是否已全部选择
+// 判断当前可见模型是否已全部勾选（未添加的已选中，已添加的未标记移除）
 const isAllSelected = computed(() => {
   if (allVisibleModels.value.length === 0) return false;
-  return allVisibleModels.value.every(
-    (m) => isModelSelected(m) || isModelExisting(m.id)
+  return allVisibleModels.value.every((m) =>
+    isModelExisting(m.id)
+      ? !isModelMarkedRemoved(m.id)
+      : isModelSelected(m)
   );
 });
 
-// 切换全部模型的选择状态
+// 切换全部模型的勾选状态（含已添加模型的移除标记）
 const toggleSelectAll = () => {
+  const visibleExisting = allVisibleModels.value.filter((m) =>
+    isModelExisting(m.id)
+  );
   if (isAllSelected.value) {
-    // 全部取消选择
+    // 全部取消：清空待添加选中，并把已添加模型标记为移除
     const visibleIds = new Set(allVisibleModels.value.map((m) => m.id));
     selectedModels.value = selectedModels.value.filter(
       (m) => !visibleIds.has(m.id)
     );
+    const next = new Set(removeModelIds.value);
+    for (const model of visibleExisting) {
+      next.add(model.id);
+    }
+    removeModelIds.value = next;
   } else {
-    // 全部添加
+    // 全部勾选：清空移除标记，并把未添加模型加入选中
+    const next = new Set(removeModelIds.value);
+    for (const model of visibleExisting) {
+      next.delete(model.id);
+    }
+    removeModelIds.value = next;
     for (const model of allVisibleModels.value) {
       if (!isModelSelected(model) && !isModelExisting(model.id)) {
         selectedModels.value.push(model);
@@ -226,7 +281,12 @@ const handleConfirm = () => {
       capabilities: getModelCapabilities(model),
     }).model;
   });
-  emit("add-models", modelsToAdd);
+  if (modelsToAdd.length > 0) {
+    emit("add-models", modelsToAdd);
+  }
+  if (removeModelIds.value.size > 0) {
+    emit("remove-models", [...removeModelIds.value]);
+  }
   closeDialog();
 };
 const closeDialog = () => {
@@ -319,8 +379,17 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
               </div>
             </el-option>
           </el-select>
+          <el-select
+            v-model="addStatusFilter"
+            placeholder="添加状态"
+            style="width: 120px"
+          >
+            <el-option label="全部" value="all" />
+            <el-option label="未添加" value="unadded" />
+            <el-option label="已添加" value="added" />
+          </el-select>
           <el-button @click="toggleSelectAll">{{
-            isAllSelected ? "取消全选" : "全选"
+            isAllSelected ? "全部取消" : "全选"
           }}</el-button>
           <el-dropdown trigger="click">
             <el-button>
@@ -371,10 +440,12 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                 @click.stop="toggleGroupSelection(groupModels)"
               >
                 {{
-                  groupModels.every(
-                    (m) => isModelSelected(m) || isModelExisting(m.id)
+                  groupModels.every((m) =>
+                    isModelExisting(m.id)
+                      ? !isModelMarkedRemoved(m.id)
+                      : isModelSelected(m)
                   )
-                    ? "取消全选"
+                    ? "全部取消"
                     : "全选"
                 }}
               </el-button>
@@ -387,7 +458,8 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                   class="model-item"
                   :class="{
                     selected: isModelSelected(model),
-                    disabled: isModelExisting(model.id),
+                    markedRemove: isModelExisting(model.id) && isModelMarkedRemoved(model.id),
+                    disabled: isModelExisting(model.id) && !isModelMarkedRemoved(model.id),
                   }"
                   @click="toggleModelSelection(model)"
                 >
@@ -444,12 +516,15 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                     </div>
                   </div>
                   <div class="model-status">
-                    <el-tag
-                      v-if="isModelExisting(model.id)"
-                      type="info"
-                      size="small"
-                      >已存在</el-tag
-                    >
+                    <template v-if="isModelExisting(model.id)">
+                      <el-tag
+                        v-if="isModelMarkedRemoved(model.id)"
+                        type="danger"
+                        size="small"
+                        >待移除</el-tag
+                      >
+                      <el-tag v-else type="info" size="small">已添加</el-tag>
+                    </template>
                     <el-icon v-else-if="isModelSelected(model)"
                       ><i-ep-check
                     /></el-icon>
@@ -464,16 +539,20 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
     </template>
 
     <template #footer>
-      <span style="padding-right: 24px"
-        >已选择 {{ selectedModels.length }} 个模型</span
-      >
+      <span style="padding-right: 24px">
+        添加 {{ selectedModels.length }} 个<template
+          v-if="removeModelIds.size > 0"
+        >
+          ，移除 {{ removeModelIds.size }} 个</template
+        >
+      </span>
       <el-button @click="closeDialog">取消</el-button>
       <el-button
         type="primary"
         @click="handleConfirm"
-        :disabled="selectedModels.length === 0"
+        :disabled="selectedModels.length === 0 && removeModelIds.size === 0"
       >
-        添加
+        确定
       </el-button>
     </template>
   </BaseDialog>
@@ -605,6 +684,14 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
     var(--card-bg)
   );
   border-color: var(--el-color-primary);
+}
+.model-item.markedRemove {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 10%,
+    var(--card-bg)
+  );
+  border-color: var(--el-color-danger);
 }
 .model-item.disabled {
   cursor: not-allowed;

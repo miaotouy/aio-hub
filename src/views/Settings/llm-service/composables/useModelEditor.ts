@@ -142,6 +142,19 @@ export function useModelEditor(
     customMessage.success(`成功添加 ${newModels.length} 个模型`);
   };
 
+  // 从获取模型窗口移除已添加的模型
+  const handleRemoveModels = (modelIds: string[]) => {
+    if (modelIds.length === 0) return;
+    const removeSet = new Set(modelIds);
+    const before = editForm.value.models.length;
+    editForm.value.models = editForm.value.models.filter(
+      (m) => !removeSet.has(m.id)
+    );
+    customMessage.success(
+      `成功移除 ${before - editForm.value.models.length} 个模型`
+    );
+  };
+
   // 将用户确认的路由绑定写入模型；保留远端端点声明与既有其他 operation 绑定
   const applyModelRoutes = (
     applications: Array<{
@@ -179,6 +192,7 @@ export function useModelEditor(
     clearAllModels,
     fetchModels,
     handleAddModels,
+    handleRemoveModels,
     applyModelRoutes,
   };
 }

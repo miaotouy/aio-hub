@@ -56,6 +56,11 @@ import {
   initializeMacroEngine,
   type MacroDefinition,
 } from "../../macro-engine";
+import { getSlashCommands, filterCommands } from "../../services/slashCommandService";
+import type {
+  SlashCommandItem,
+  ChatInputContext,
+} from "../../types/slash-command";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ChatCodeMirrorEditor");
@@ -187,6 +192,82 @@ const macroCompletionSource = (
     from: startPos,
     options,
     filter: false, // 我们已经手动过滤过了
+  };
+};
+
+/** 基于当前视图构建斜杠命令执行上下文 */
+function buildSlashCommandContext(editView: EditorView): ChatInputContext {
+  return {
+    getValue: () => editView.state.doc.toString(),
+    replaceValue: (text: string) => {
+      editView.dispatch({
+        changes: { from: 0, to: editView.state.doc.length, insert: text },
+      });
+    },
+    insertText: (text: string) => {
+      const pos = editView.state.selection.main.from;
+      editView.dispatch({
+        changes: { from: pos, to: pos, insert: text },
+      });
+    },
+    requestSubmit: () => emit("submit"),
+    focus: () => editView.focus(),
+  };
+}
+
+/** 斜杠命令补全源：输入 / 唤起（行首或空白后），与 {{宏补全}} 并列生效 */
+const slashCommandCompletionSource = async (
+  context: CompletionContext
+): Promise<CompletionResult | null> => {
+  const line = context.state.doc.lineAt(context.pos);
+  const textBefore = line.text.slice(0, context.pos - line.from);
+
+  // / 必须位于行首或空白字符之后，避免误触发路径、URL 中的斜杠
+  const match = textBefore.match(/(^|\s)\/([^\s/]*)$/);
+  if (!match) return null;
+
+  const prefix = match[2].toLowerCase();
+  // match[1] 长度 + "/" 字符
+  const slashStart = context.pos - match[2].length - 1;
+
+  const commands = await getSlashCommands();
+  const filtered = filterCommands(commands, prefix);
+  if (filtered.length === 0) return null;
+
+  const options: Completion[] = filtered.map((item: SlashCommandItem) => ({
+    label: `/${item.name}`,
+    detail:
+      item.categoryLabel && item.category !== "system"
+        ? `${item.categoryLabel} · ${item.displayName}`
+        : item.description,
+    type: "slash-command",
+    info: item.description,
+    boost: item.category === "system" ? 10 : 0,
+    apply: (applyView: EditorView, _c: Completion, from: number, to: number) => {
+      if (item.type === "action" && item.execute) {
+        // action 型：移除已输入的 /词 后执行
+        applyView.dispatch({
+          changes: { from, to, insert: "" },
+        });
+        item.execute(buildSlashCommandContext(applyView));
+        return;
+      }
+      // insert 型：把 /词 替换为模板
+      const insertText = item.template ?? "";
+      applyView.dispatch({
+        changes: { from, to, insert: insertText },
+        selection: { anchor: from + insertText.length },
+      });
+      if (item.autoSend) {
+        emit("submit");
+      }
+    },
+  }));
+
+  return {
+    from: slashStart,
+    options,
+    filter: false,
   };
 };
 
@@ -326,7 +407,7 @@ onMounted(() => {
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       markdown(),
       autocompletion({
-        override: [macroCompletionSource],
+        override: [macroCompletionSource, slashCommandCompletionSource],
         icons: false, // 暂时关闭图标以保持简洁
       }),
       tooltips({
@@ -600,6 +681,11 @@ defineExpose({
   color: var(--text-color-secondary) !important;
   font-size: 12px !important;
   margin-left: 8px !important;
+}
+
+/* 斜杠命令补全项：徽章样式 */
+.cm-completionItem.slash-command .cm-completionDetail {
+  color: var(--text-color-light) !important;
 }
 </style>
 

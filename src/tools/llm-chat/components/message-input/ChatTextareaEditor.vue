@@ -23,6 +23,14 @@ import {
   ref,
   watch,
 } from "vue";
+import {
+  getSlashCommands,
+  filterCommands,
+} from "../../services/slashCommandService";
+import type {
+  SlashCommandItem,
+  ChatInputContext,
+} from "../../types/slash-command";
 
 interface Props {
   value: string;
@@ -196,15 +204,205 @@ watch(localValue, (newVal) => {
   }
 });
 
+// ===== 斜杠命令浮层 =====
+
+interface SlashState {
+  visible: boolean;
+  items: SlashCommandItem[];
+  activeIndex: number;
+  wordStart: number;
+  wordEnd: number;
+}
+
+const slashState = ref<SlashState>({
+  visible: false,
+  items: [],
+  activeIndex: 0,
+  wordStart: 0,
+  wordEnd: 0,
+});
+
+const slashPopoverStyle = ref<Record<string, string>>({});
+
+// 触发检测：/ 必须位于行首或空白之后
+function detectSlashTrigger() {
+  const el = textareaEl.value;
+  if (!el) return;
+  const cursor = el.selectionStart;
+  if (cursor !== el.selectionEnd) return hideSlashPopover();
+  const textBefore = localValue.value.slice(0, cursor);
+  const match = textBefore.match(/(^|\s)\/([^\s/]*)$/);
+  if (!match) return hideSlashPopover();
+
+  const word = match[2];
+  getSlashCommands().then((all) => {
+    const filtered = filterCommands(all, word);
+    if (filtered.length === 0) return hideSlashPopover();
+    slashState.value = {
+      visible: true,
+      items: filtered,
+      activeIndex: 0,
+      wordStart: cursor - word.length - 1, // 包含 "/"
+      wordEnd: cursor,
+    };
+    updateSlashPopoverPosition();
+  });
+}
+
+function hideSlashPopover() {
+  if (slashState.value.visible) {
+    slashState.value.visible = false;
+    slashState.value.items = [];
+    slashState.value.activeIndex = 0;
+  }
+}
+
+function updateSlashPopoverPosition() {
+  const el = textareaEl.value;
+  if (!el) return;
+  const cursor = el.selectionStart;
+  const textBefore = localValue.value.slice(0, cursor);
+
+  // 用隐藏 span 测量光标位置
+  const span = document.createElement("span");
+  span.textContent = textBefore || " ";
+  const computedStyle = window.getComputedStyle(el);
+  span.style.font = computedStyle.font;
+  span.style.fontFamily = computedStyle.fontFamily;
+  span.style.fontSize = computedStyle.fontSize;
+  span.style.lineHeight = computedStyle.lineHeight;
+  span.style.padding = computedStyle.padding;
+  span.style.whiteSpace = "pre-wrap";
+  span.style.wordBreak = "break-all";
+  span.style.visibility = "hidden";
+  span.style.position = "absolute";
+
+  const wrapper = el.parentElement;
+  if (!wrapper) return;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const spanRect = span.getBoundingClientRect();
+
+  const left = spanRect.left - wrapperRect.left;
+  const top =
+    spanRect.top - wrapperRect.top + parseFloat(computedStyle.lineHeight || "20");
+
+  slashPopoverStyle.value = {
+    left: `${Math.max(0, left)}px`,
+    top: `${Math.max(0, top)}px`,
+  };
+}
+
+function moveSlashActive(delta: number) {
+  const n = slashState.value.items.length;
+  if (n === 0) return;
+  slashState.value.activeIndex =
+    (slashState.value.activeIndex + delta + n) % n;
+}
+
+function buildChatInputContext(): ChatInputContext {
+  return {
+    getValue: () => localValue.value,
+    replaceValue: (text: string) => {
+      flushDebouncedCommit();
+      localValue.value = text;
+      nextTick(() => {
+        textareaEl.value?.focus();
+      });
+    },
+    insertText: (text: string) => {
+      flushDebouncedCommit();
+      const textarea = textareaEl.value;
+      if (!textarea) return;
+      const pos = textarea.selectionStart;
+      localValue.value =
+        localValue.value.slice(0, pos) + text + localValue.value.slice(pos);
+      nextTick(() => {
+        textarea.setSelectionRange(pos + text.length, pos + text.length);
+        textarea.focus();
+      });
+    },
+    requestSubmit: () => emit("submit"),
+    focus: () => textareaEl.value?.focus(),
+  };
+}
+
+function applySlashCommand(item: SlashCommandItem) {
+  const { wordStart, wordEnd } = slashState.value;
+  hideSlashPopover();
+
+  if (item.type === "action" && item.execute) {
+    // action 型：移除已输入的 /词 后执行
+    flushDebouncedCommit();
+    localValue.value =
+      localValue.value.slice(0, wordStart) + localValue.value.slice(wordEnd);
+    nextTick(() => {
+      item.execute?.(buildChatInputContext());
+    });
+    return;
+  }
+
+  // insert 型：把 /词 替换为模板
+  flushDebouncedCommit();
+  localValue.value =
+    localValue.value.slice(0, wordStart) +
+    (item.template || "") +
+    localValue.value.slice(wordEnd);
+  nextTick(() => {
+    const textarea = textareaEl.value;
+    if (textarea) {
+      const newPos = wordStart + (item.template || "").length;
+      textarea.setSelectionRange(newPos, newPos);
+      textarea.focus();
+    }
+    if (item.autoSend) emit("submit");
+  });
+}
+
+function selectSlashCommand(index: number) {
+  const item = slashState.value.items[index];
+  if (item) applySlashCommand(item);
+}
+
+// ===== End 斜杠命令浮层 =====
+
 const handleInput = () => {
   // 用户输入防抖入栈，通过 watch 同步到外部
   scheduleCommit();
+  detectSlashTrigger();
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
   emit("keydown", e);
 
   if (e.isComposing) return;
+
+  // 斜杠命令浮层打开时优先处理导航键
+  if (slashState.value.visible && slashState.value.items.length > 0) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      moveSlashActive(1);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      moveSlashActive(-1);
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      e.stopPropagation();
+      selectSlashCommand(slashState.value.activeIndex);
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      hideSlashPopover();
+      return;
+    }
+  }
 
   // 拦截撤销/重做快捷键，使用自定义栈替代浏览器原生行为
   if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
@@ -334,7 +532,33 @@ defineExpose({
       @input="handleInput"
       @keydown="handleKeydown"
       @paste="handlePaste"
+      @click="detectSlashTrigger"
+      @blur="hideSlashPopover"
     ></textarea>
+
+    <!-- 斜杠命令浮层 -->
+    <div
+      v-if="slashState.visible && slashState.items.length > 0"
+      class="slash-popover"
+      :style="slashPopoverStyle"
+      @mousedown.prevent
+    >
+      <button
+        v-for="(item, index) in slashState.items"
+        :key="item.id"
+        type="button"
+        class="slash-option"
+        :class="{ active: index === slashState.activeIndex }"
+        @click="selectSlashCommand(index)"
+        @mouseenter="slashState.activeIndex = index"
+      >
+        <span class="slash-name">/{{ item.name }}</span>
+        <span class="slash-category-badge">{{
+          item.categoryLabel || item.category
+        }}</span>
+        <span class="slash-desc">{{ item.description }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -395,5 +619,64 @@ defineExpose({
 .chat-textarea-editor.disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 斜杠命令浮层 */
+.slash-popover {
+  position: absolute;
+  z-index: 100;
+  min-width: 320px;
+  max-width: 480px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-light);
+  backdrop-filter: blur(var(--ui-blur));
+  padding: 4px;
+}
+
+.slash-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.slash-option.active {
+  background: var(--el-fill-color-light);
+}
+
+.slash-name {
+  font-weight: 600;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.slash-category-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(var(--el-color-primary-rgb), 0.1);
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.slash-desc {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 </style>

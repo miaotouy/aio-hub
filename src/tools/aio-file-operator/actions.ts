@@ -19,7 +19,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
-import { validatePath, validateFileSize } from "./utils/security";
+import {
+  validatePath,
+  validateFileSize,
+  sanitizeParamsForError,
+  clampErrorMessage,
+} from "./utils/security";
 import { createLineEndingHelper } from "./utils/lineEnding";
 import { DEFAULT_CONFIG } from "./config";
 import type {
@@ -33,6 +38,9 @@ import type {
 } from "./types";
 
 const errorHandler = createModuleErrorHandler("AioFileOperator/Actions");
+
+/** 错误信息回显的最大长度，防止 Rust 侧异常内嵌超长路径污染上下文 */
+const ERROR_MESSAGE_MAX_LENGTH = 500;
 
 export const configManager = createConfigManager<AioFileOperatorConfig>({
   moduleName: "aio-file-operator",
@@ -134,6 +142,7 @@ function recordLog(
 
 /**
  * 构建错误结果并记录日志
+ * 对 params 与 message 做安全预览过滤，防止误传入的正文/超长路径污染日志与 LLM 上下文
  */
 function buildErrorResult(
   method: string,
@@ -141,10 +150,14 @@ function buildErrorResult(
   error: any,
   defaultMessage: string
 ): FileOperationResult {
-  const message = error?.message || defaultMessage;
+  const message = clampErrorMessage(
+    error?.message || defaultMessage,
+    ERROR_MESSAGE_MAX_LENGTH
+  );
+  const sanitizedParams = sanitizeParamsForError(params);
   const result: FileOperationResult = { success: false, message };
-  recordLog(method, params, result);
-  errorHandler.error(error, defaultMessage, params);
+  recordLog(method, sanitizedParams, result);
+  errorHandler.error(error, message, sanitizedParams);
   return result;
 }
 
@@ -578,6 +591,165 @@ export async function pathExists(path: string): Promise<FileOperationResult> {
     return result;
   } catch (error: any) {
     return buildErrorResult("pathExists", { path }, error, "检查路径失败");
+  }
+}
+
+/**
+ * 复制文件或目录（源与目标均执行沙箱校验）
+ */
+export async function copyFile(
+  sourcePath: string,
+  targetPath: string,
+  allowOverwrite?: boolean
+): Promise<FileOperationResult> {
+  try {
+    await ensureInitialized();
+    await Promise.all([
+      validatePath(sourcePath, currentConfig),
+      validatePath(targetPath, currentConfig),
+    ]);
+
+    await invoke("copy_path_force", {
+      sourcePath,
+      targetPath,
+      overwrite: allowOverwrite === true,
+    });
+
+    const result: FileOperationResult = {
+      success: true,
+      message: `成功复制: ${sourcePath} → ${targetPath}`,
+      data: { sourcePath, targetPath },
+    };
+
+    recordLog("copyFile", { sourcePath, targetPath }, result);
+    return result;
+  } catch (error: any) {
+    return buildErrorResult(
+      "copyFile",
+      { sourcePath, targetPath },
+      error,
+      "复制文件失败"
+    );
+  }
+}
+
+/**
+ * 移动或重命名文件/目录（源与目标均执行沙箱校验）
+ */
+export async function moveFile(
+  sourcePath: string,
+  targetPath: string,
+  allowOverwrite?: boolean
+): Promise<FileOperationResult> {
+  try {
+    await ensureInitialized();
+    await Promise.all([
+      validatePath(sourcePath, currentConfig),
+      validatePath(targetPath, currentConfig),
+    ]);
+
+    await invoke("move_path_force", {
+      sourcePath,
+      targetPath,
+      overwrite: allowOverwrite === true,
+    });
+
+    const result: FileOperationResult = {
+      success: true,
+      message: `成功移动: ${sourcePath} → ${targetPath}`,
+      data: { sourcePath, targetPath },
+    };
+
+    recordLog("moveFile", { sourcePath, targetPath }, result);
+    return result;
+  } catch (error: any) {
+    return buildErrorResult(
+      "moveFile",
+      { sourcePath, targetPath },
+      error,
+      "移动文件失败"
+    );
+  }
+}
+
+/**
+ * 查询文件/目录元数据（大小、时间戳、类型），不读取内容
+ */
+export async function getFileInfo(
+  path: string
+): Promise<FileOperationResult> {
+  try {
+    await ensureInitialized();
+    await validatePath(path, currentConfig);
+
+    const metadata = await invoke<{
+      size: number;
+      isFile: boolean;
+      isDir: boolean;
+      modified: number | null;
+      created: number | null;
+    }>("get_file_metadata", { path });
+
+    const result: FileOperationResult = {
+      success: true,
+      message: `成功获取元数据: ${path}`,
+      data: { metadata },
+    };
+
+    recordLog("getFileInfo", { path }, result);
+    return result;
+  } catch (error: any) {
+    return buildErrorResult("getFileInfo", { path }, error, "获取元数据失败");
+  }
+}
+
+/**
+ * 在指定目录下按通配符/子串搜索文件名
+ */
+export async function searchFiles(
+  directoryPath: string,
+  pattern: string,
+  recursive?: boolean,
+  maxResults?: number
+): Promise<FileOperationResult> {
+  try {
+    await ensureInitialized();
+    await validatePath(directoryPath, currentConfig);
+
+    if (!pattern || !pattern.trim()) {
+      throw new Error("搜索模式不能为空");
+    }
+
+    const hits = await invoke<
+      Array<{
+        name: string;
+        relativePath: string;
+        absolutePath: string;
+        isDir: boolean;
+        size: number;
+      }>
+    >("search_files", {
+      directoryPath,
+      pattern: pattern.trim(),
+      recursive: recursive !== false,
+      maxResults,
+    });
+
+    const result: FileOperationResult = {
+      success: true,
+      message: `搜索 "${pattern}" 命中 ${hits.length} 项`,
+      data: { hits, pattern },
+    };
+
+    recordLog("searchFiles", { directoryPath, pattern }, result);
+    return result;
+  } catch (error: any) {
+    return buildErrorResult(
+      "searchFiles",
+      { directoryPath, pattern },
+      error,
+      "搜索文件失败"
+    );
   }
 }
 

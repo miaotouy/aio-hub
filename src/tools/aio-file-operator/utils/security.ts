@@ -22,6 +22,92 @@ import type { AioFileOperatorConfig } from "../types";
 
 const logger = createModuleLogger("AioFileOperator/Security");
 
+/** 错误信息中允许回显的路径预览长度上限 */
+const PATH_ERROR_PREVIEW_LIMIT = 120;
+/** 路径预览截断后保留的头部字符数 */
+const PATH_ERROR_PREVIEW_KEEP = 100;
+/** 非字符串路径参数的占位文案 */
+const EMPTY_PATH_PLACEHOLDER = "<空路径>";
+
+/**
+ * 安全格式化不可信的路径参数，供错误信息与日志回显。
+ *
+ * 模型参数错位时可能把整篇正文塞进 `path`，无截断回显会直接污染 LLM 上下文。
+ * 因此统一压缩换行并在超长时截断，仅保留可诊断的片段与原始长度。
+ */
+export function formatPathForError(
+  rawPath: unknown,
+  maxLength: number = PATH_ERROR_PREVIEW_LIMIT
+): string {
+  if (typeof rawPath !== "string") {
+    return EMPTY_PATH_PLACEHOLDER;
+  }
+
+  // 压缩所有换行/回车与连续空白为单个空格，避免破坏日志与提示排版
+  const collapsed = rawPath.replace(/\s+/g, " ").trim();
+  if (!collapsed) {
+    return EMPTY_PATH_PLACEHOLDER;
+  }
+
+  if (maxLength <= 0 || collapsed.length <= maxLength) {
+    return collapsed;
+  }
+
+  const keep = Math.max(1, Math.min(PATH_ERROR_PREVIEW_KEEP, maxLength - 1));
+  return `${collapsed.slice(0, keep)}... [已截断，原始内容长度: ${collapsed.length} 字符，疑似误将正文/数据传入路径参数]`;
+}
+
+/** 非路径类字符串参数在日志/错误中的最大回显长度 */
+const GENERIC_PARAM_PREVIEW_LIMIT = 200;
+/** 完整错误信息在返回结果中的最大长度 */
+const ERROR_MESSAGE_MAX_LENGTH = 500;
+
+/**
+ * 对参数对象做安全预览过滤，用于日志与错误回显。
+ * path 类字段走 `formatPathForError` 截断；其余长字符串压缩换行后截断，
+ * 防止模型把正文塞进任意参数时污染审计日志与 LLM 上下文。
+ */
+export function sanitizeParamsForError(
+  params: Record<string, any> | undefined | null
+): Record<string, any> {
+  if (!params || typeof params !== "object") {
+    return {};
+  }
+
+  const sanitized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string") {
+      if (/path/i.test(key)) {
+        sanitized[key] = formatPathForError(value);
+      } else if (value.length > GENERIC_PARAM_PREVIEW_LIMIT) {
+        const collapsed = value.replace(/\s+/g, " ").slice(0, GENERIC_PARAM_PREVIEW_LIMIT);
+        sanitized[key] = `${collapsed}... [已截断，原始长度: ${value.length} 字符]`;
+      } else {
+        sanitized[key] = value;
+      }
+      continue;
+    }
+    sanitized[key] = value;
+  }
+  return sanitized;
+}
+
+/**
+ * 限制错误信息长度。安全模块报错已在源头截断，但 Rust 命令或
+ * 第三方异常的 message 仍可能内嵌超长路径，这里统一兜底。
+ */
+export function clampErrorMessage(
+  message: unknown,
+  maxLength: number = ERROR_MESSAGE_MAX_LENGTH
+): string {
+  const text = typeof message === "string" ? message : String(message ?? "");
+  if (maxLength <= 0 || text.length <= maxLength) {
+    return text;
+  }
+  const collapsed = text.replace(/\s+/g, " ");
+  return `${collapsed.slice(0, maxLength)}... [错误信息已截断，原始长度: ${collapsed.length} 字符]`;
+}
+
 type SecurityPolicyResult = {
   status: "allow" | "approve" | "block";
   message?: string;
@@ -110,7 +196,7 @@ export function isPathWithinRoot(
 
 async function resolvePathForSecurity(path: string): Promise<string> {
   if (!isAbsolutePath(path)) {
-    throw new Error(`安全沙箱拦截：路径必须是绝对路径（收到: "${path}"）。`);
+    throw new Error(`安全沙箱拦截：路径必须是绝对路径（收到: "${formatPathForError(path)}")）。`);
   }
 
   const resolved = await invoke<unknown>("resolve_path_for_security", { path });
@@ -149,7 +235,8 @@ export async function validatePath(
       message: policy.message,
     });
     throw new Error(
-      policy.message || `路径安全校验失败：不允许访问 "${targetPath}"。`
+      policy.message ||
+        `路径安全校验失败：不允许访问 "${formatPathForError(targetPath)}"。`
     );
   }
   return true;
@@ -157,17 +244,47 @@ export async function validatePath(
 
 /**
  * 动态安全策略校验
+ * 支持 `path`、`sourcePath`、`targetPath`、`directoryPath`、`filePath` 等多路径参数，
+ * 任一路径被拦截即整体拒绝，防止通过源/目标双路径跨沙箱跳板逃逸。
  */
 export async function checkSecurityPolicy(
   _methodName: string,
   args: Record<string, any>,
   config: AioFileOperatorConfig
 ): Promise<SecurityPolicyResult> {
-  const targetPath = args.path;
-  if (!targetPath || typeof targetPath !== "string") {
+  const pathArgs = collectPathArgs(args);
+  if (pathArgs.length === 0) {
     return { status: "allow" };
   }
 
+  for (const targetPath of pathArgs) {
+    const result = await evaluatePolicyForPath(targetPath, config);
+    if (result.status !== "allow") {
+      return result;
+    }
+  }
+  return { status: "allow" };
+}
+
+/** 需要参与沙箱校验的路径参数键 */
+const PATH_ARG_KEYS = [
+  "path",
+  "sourcePath",
+  "targetPath",
+  "directoryPath",
+  "filePath",
+] as const;
+
+function collectPathArgs(args: Record<string, any>): string[] {
+  return PATH_ARG_KEYS.filter(
+    (key) => typeof args[key] === "string" && args[key]
+  ).map((key) => args[key] as string);
+}
+
+async function evaluatePolicyForPath(
+  targetPath: string,
+  config: AioFileOperatorConfig
+): Promise<SecurityPolicyResult> {
   if (
     config.sandboxMode !== "whitelist" &&
     config.sandboxMode !== "blacklist"
@@ -187,11 +304,11 @@ export async function checkSecurityPolicy(
       message:
         error instanceof Error
           ? error.message
-          : `安全沙箱拦截：无法解析路径 "${targetPath}"。`,
+          : `安全沙箱拦截：无法解析路径 "${formatPathForError(targetPath)}"。`,
     };
   }
 
-  // 1. 基础沙箱校验（白名单/黑名单模式）
+  // 1. 基础沙箱校验（白名单模式）
   if (config.sandboxMode === "whitelist") {
     const allowedDirs = Array.isArray(config.allowedDirectories)
       ? config.allowedDirectories.filter(
@@ -216,12 +333,12 @@ export async function checkSecurityPolicy(
     if (!inWhitelist) {
       return {
         status: "block",
-        message: `安全沙箱拦截：路径 "${targetPath}" 不在允许的白名单目录中。`,
+        message: `安全沙箱拦截：路径 "${formatPathForError(targetPath)}" 不在允许的白名单目录中。`,
       };
     }
   }
 
-  // 2. 细分规则校验（黑名单规则）
+  // 2. 细分规则校验（黑名单模式）
   if (
     config.blackListRules !== undefined &&
     !Array.isArray(config.blackListRules)
@@ -263,12 +380,12 @@ export async function checkSecurityPolicy(
     if (matchedRule.type === "block") {
       return {
         status: "block",
-        message: `安全沙箱拦截：路径 "${targetPath}" 属于完全禁止访问的死区（匹配规则: "${matchedRule.path}"）。`,
+        message: `安全沙箱拦截：路径 "${formatPathForError(targetPath)}" 属于完全禁止访问的死区（匹配规则: "${formatPathForError(matchedRule.path)}"）。`,
       };
     }
     return {
       status: "approve",
-      message: `安全沙箱提示：访问路径 "${targetPath}" 属于高风险审批区，必须人工审批（匹配规则: "${matchedRule.path}"）。`,
+      message: `安全沙箱提示：访问路径 "${formatPathForError(targetPath)}" 属于高风险审批区，必须人工审批（匹配规则: "${formatPathForError(matchedRule.path)}"）。`,
     };
   }
 

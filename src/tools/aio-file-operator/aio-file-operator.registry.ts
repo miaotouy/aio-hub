@@ -264,6 +264,113 @@ export class AioFileOperatorRegistry implements ToolRegistry {
           returnType: "Promise<FileOperationResult>",
           agentCallable: true,
         },
+        {
+          name: "copy_file",
+          displayName: "复制文件/目录",
+          description:
+            "在本地复制文件或整个目录（递归）。源路径与目标路径均会执行沙箱安全校验。目标已存在时需显式允许覆盖。",
+          parameters: [
+            {
+              name: "sourcePath",
+              type: "string",
+              required: true,
+              description: "源文件/目录的绝对路径",
+            },
+            {
+              name: "targetPath",
+              type: "string",
+              required: true,
+              description: "目标文件/目录的绝对路径",
+            },
+            {
+              name: "allowOverwrite",
+              type: "boolean",
+              required: false,
+              description: "目标已存在时是否覆盖，默认 false（已存在则报错）",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
+          name: "move_file",
+          displayName: "移动/重命名文件/目录",
+          description:
+            "移动或重命名本地文件/目录，跨盘符时自动回退为复制+删除。源路径与目标路径均会执行沙箱安全校验。",
+          parameters: [
+            {
+              name: "sourcePath",
+              type: "string",
+              required: true,
+              description: "源文件/目录的绝对路径",
+            },
+            {
+              name: "targetPath",
+              type: "string",
+              required: true,
+              description: "目标文件/目录的绝对路径",
+            },
+            {
+              name: "allowOverwrite",
+              type: "boolean",
+              required: false,
+              description: "目标已存在时是否覆盖，默认 false（已存在则报错）",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
+          name: "get_file_info",
+          displayName: "获取文件元数据",
+          description:
+            "查询文件或目录的元数据：类型（文件/目录）、精确字节大小、创建/修改时间戳。不读取文件内容。",
+          parameters: [
+            {
+              name: "path",
+              type: "string",
+              required: true,
+              description: "本地文件或目录的绝对路径",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
+          name: "search_files",
+          displayName: "搜索文件",
+          description:
+            "在指定目录下按文件名搜索文件/目录。pattern 支持 * 与 ? 通配符；不含通配符时按子串包含匹配，不区分大小写。默认递归子目录。",
+          parameters: [
+            {
+              name: "directoryPath",
+              type: "string",
+              required: true,
+              description: "搜索起始目录的绝对路径",
+            },
+            {
+              name: "pattern",
+              type: "string",
+              required: true,
+              description:
+                "文件名匹配模式，如 *.log、report?.txt 或普通子串如 config",
+            },
+            {
+              name: "recursive",
+              type: "boolean",
+              required: false,
+              description: "是否递归搜索子目录，默认 true",
+            },
+            {
+              name: "maxResults",
+              type: "number",
+              required: false,
+              description: "最大返回结果数（1-1000），默认 100",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
       ],
     };
   }
@@ -328,6 +435,41 @@ export class AioFileOperatorRegistry implements ToolRegistry {
   public async path_exists(args: { path: string }) {
     return await actions.pathExists(args.path);
   }
-}
 
-export default AioFileOperatorRegistry;
+  public async copy_file(args: {
+    sourcePath: string;
+    targetPath: string;
+    allowOverwrite?: unknown;
+  }) {
+    const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
+    return await actions.copyFile(args.sourcePath, args.targetPath, allowOverwrite);
+  }
+
+  public async move_file(args: {
+    sourcePath: string;
+    targetPath: string;
+    allowOverwrite?: unknown;
+  }) {
+    const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
+    return await actions.moveFile(args.sourcePath, args.targetPath, allowOverwrite);
+  }
+
+  public async get_file_info(args: { path: string }) {
+    return await actions.getFileInfo(args.path);
+  }
+
+  public async search_files(args: {
+    directoryPath: string;
+    pattern: string;
+    recursive?: unknown;
+    maxResults?: number;
+  }) {
+    const recursive = parseAgentBoolean(args.recursive);
+    return await actions.searchFiles(
+      args.directoryPath,
+      args.pattern,
+      recursive,
+      args.maxResults
+    );
+  }
+}export default AioFileOperatorRegistry;

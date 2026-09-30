@@ -2448,6 +2448,257 @@ pub async fn create_dir_force(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// ==================== aio-file-operator 文件流转与搜索 ====================
+
+/// 递归复制目录内容
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
+    fs::create_dir_all(dst)
+        .map_err(|e| format!("创建目录 {}: {}", dst.display(), e))?;
+    for entry in fs::read_dir(src)
+        .map_err(|e| format!("读取目录 {}: {}", src.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("遍历目录项失败: {}", e))?;
+        let entry_path = entry.path();
+        let target_path = dst.join(entry.file_name());
+        if entry_path.is_dir() {
+            copy_dir_recursive(&entry_path, &target_path)?;
+        } else {
+            fs::copy(&entry_path, &target_path).map_err(|e| {
+                format!("复制文件 {}: {}", entry_path.display(), e)
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// 校验复制/移动的源与目标，确保目标父目录存在。
+/// 返回 (source, target, 是否需要删除已存在的目标)。
+fn prepare_transfer_paths(
+    source_path: &str,
+    target_path: &str,
+    overwrite: bool,
+) -> Result<(PathBuf, PathBuf, bool), String> {
+    let source = PathBuf::from(source_path);
+    let target = PathBuf::from(target_path);
+
+    if !source.exists() {
+        return Err(format!("源路径不存在: {}", source_path));
+    }
+    if source == target {
+        return Err("源路径与目标路径相同，拒绝操作".to_string());
+    }
+    if source.is_dir() && target.starts_with(&source) {
+        return Err("不能将目录移动/复制到其自身内部".to_string());
+    }
+
+    let mut remove_existing = false;
+    if target.exists() {
+        if !overwrite {
+            return Err(format!("目标路径已存在: {}", target_path));
+        }
+        remove_existing = true;
+    }
+
+    if let Some(parent) = target.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("创建父目录失败: {}", e))?;
+        }
+    }
+
+    Ok((source, target, remove_existing))
+}
+
+fn remove_path(path: &Path, label: &str) -> Result<(), String> {
+    if path.is_dir() {
+        fs::remove_dir_all(path)
+            .map_err(|e| format!("删除{}目录失败: {}", label, e))
+    } else {
+        fs::remove_file(path).map_err(|e| format!("删除{}文件失败: {}", label, e))
+    }
+}
+
+/// 简单通配符匹配：支持 `*`（任意长度）与 `?`（单字符），大小写不敏感。
+/// 无通配符时退化为包含匹配（子串搜索）。
+fn match_search_pattern(pattern: &str, candidate: &str) -> bool {
+    let pattern_lower = pattern.to_lowercase();
+    let candidate_lower = candidate.to_lowercase();
+
+    if !pattern_lower.contains('*') && !pattern_lower.contains('?') {
+        return candidate_lower.contains(&pattern_lower);
+    }
+
+    // 经典双指针通配符匹配（贪心回溯）
+    let p: Vec<char> = pattern_lower.chars().collect();
+    let c: Vec<char> = candidate_lower.chars().collect();
+    let (mut pi, mut ci) = (0usize, 0usize);
+    let (mut star, mut mark) = (usize::MAX, 0usize);
+
+    while ci < c.len() {
+        if pi < p.len() && (p[pi] == '?' || p[pi] == c[ci]) {
+            pi += 1;
+            ci += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star = pi;
+            mark = ci;
+            pi += 1;
+        } else if star != usize::MAX {
+            pi = star + 1;
+            mark += 1;
+            ci = mark;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+/// 文件搜索命中项
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileSearchHit {
+    pub name: String,
+    pub relative_path: String,
+    pub absolute_path: String,
+    pub is_dir: bool,
+    pub size: u64,
+}
+
+/// Tauri 命令：在目录下按通配符/子串搜索文件名（供 aio-file-operator 使用）
+#[tauri::command]
+pub async fn search_files(
+    directory_path: String,
+    pattern: String,
+    recursive: Option<bool>,
+    max_results: Option<usize>,
+) -> Result<Vec<FileSearchHit>, String> {
+    let root = PathBuf::from(&directory_path);
+    if !root.exists() {
+        return Err(format!("目录不存在: {}", directory_path));
+    }
+    if !root.is_dir() {
+        return Err(format!("路径不是目录: {}", directory_path));
+    }
+    if pattern.trim().is_empty() {
+        return Err("搜索模式不能为空".to_string());
+    }
+
+    let do_recursive = recursive.unwrap_or(true);
+    // 结果上限：默认 100，硬上限 1000，防止巨型目录拖垮 IPC
+    let limit = max_results.unwrap_or(100).min(1000).max(1);
+
+    let mut hits: Vec<FileSearchHit> = Vec::new();
+    let mut stack: Vec<PathBuf> = vec![root.clone()];
+
+    while let Some(current) = stack.pop() {
+        let entries = match fs::read_dir(&current) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let name = entry
+                .file_name()
+                .to_string_lossy()
+                .to_string();
+
+            let is_dir = entry_path.is_dir();
+
+            if match_search_pattern(pattern.trim(), &name) {
+                let relative = entry_path
+                    .strip_prefix(&root)
+                    .unwrap_or(&entry_path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                hits.push(FileSearchHit {
+                    name,
+                    relative_path: relative,
+                    absolute_path: entry_path.to_string_lossy().to_string(),
+                    is_dir,
+                    size,
+                });
+                if hits.len() >= limit {
+                    return Ok(hits);
+                }
+            }
+
+            if do_recursive && is_dir {
+                // 不跟随符号链接目录，防止环形遍历
+                if !entry_path.is_symlink() {
+                    stack.push(entry_path);
+                }
+            }
+        }
+    }
+
+    Ok(hits)
+}
+
+/// Tauri 命令：复制文件或目录（供 aio-file-operator 使用，前端已完成沙箱校验）
+#[tauri::command]
+pub async fn copy_path_force(
+    source_path: String,
+    target_path: String,
+    overwrite: Option<bool>,
+) -> Result<(), String> {
+    let (source, target, remove_existing) =
+        prepare_transfer_paths(&source_path, &target_path, overwrite.unwrap_or(false))?;
+
+    if remove_existing {
+        remove_path(&target, "已存在的目标")?;
+    }
+
+    if source.is_dir() {
+        copy_dir_recursive(&source, &target)
+    } else {
+        fs::copy(&source, &target)
+            .map_err(|e| format!("复制文件失败: {}", e))
+            .map(|_| ())
+    }
+}
+
+/// Tauri 命令：移动或重命名文件/目录（供 aio-file-operator 使用，前端已完成沙箱校验）。
+/// rename 失败（如跨盘符）时自动回退为复制 + 删除源。
+#[tauri::command]
+pub async fn move_path_force(
+    source_path: String,
+    target_path: String,
+    overwrite: Option<bool>,
+) -> Result<(), String> {
+    let (source, target, remove_existing) =
+        prepare_transfer_paths(&source_path, &target_path, overwrite.unwrap_or(false))?;
+
+    if remove_existing {
+        remove_path(&target, "已存在的目标")?;
+    }
+
+    match fs::rename(&source, &target) {
+        Ok(()) => Ok(()),
+        Err(rename_err) => {
+            // 跨盘符等场景 rename 会失败，回退为复制 + 删除源
+            let is_dir = source.is_dir();
+            if is_dir {
+                copy_dir_recursive(&source, &target)?;
+            } else {
+                fs::copy(&source, &target)
+                    .map_err(|e| format!("跨盘移动复制失败: {}", e))
+                    .map(|_| ())?;
+            }
+            remove_path(&source, "源").map_err(|remove_err| {
+                format!(
+                    "内容已复制到目标但删除源失败（rename 错误: {}，删除错误: {}）",
+                    rename_err, remove_err
+                )
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod app_log_tests {
     use super::*;

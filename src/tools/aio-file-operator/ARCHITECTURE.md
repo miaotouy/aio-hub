@@ -96,7 +96,7 @@ graph TB
 
 - `toolConfig` 注册工具名称、路由、图标、组件和分类。
 - `settingsSchema` 将常用配置接入全局设置渲染器。
-- `getMetadata()` 暴露 8 个 `agentCallable` 方法，供 `tool-calling` 发现并生成 Prompt。
+- `getMetadata()` 暴露 12 个 `agentCallable` 方法，供 `tool-calling` 发现并生成 Prompt。
 - `checkSecurityPolicy()` 为工具执行器提供前置安全检查，返回 `allow` / `approve` / `block`。
 - 实例方法将 Agent 参数转换后委托给 `actions.ts`，例如 `write_file` 会用 `parseAgentBoolean()` 解析 `allowOverwrite`。
 
@@ -112,6 +112,10 @@ graph TB
 | `apply_diff`       | 对文本文件应用 Search/Replace 修改 | 路径沙箱、换行符保持、diff 匹配策略  |
 | `create_directory` | 递归创建目录                       | 路径沙箱                             |
 | `path_exists`      | 检查路径是否存在                   | 路径沙箱                             |
+| `copy_file`        | 复制文件/目录（递归）              | 双路径沙箱、覆盖策略                 |
+| `move_file`        | 移动/重命名文件/目录               | 双路径沙箱、覆盖策略、跨盘回退       |
+| `get_file_info`    | 查询文件/目录元数据                | 路径沙箱、不读取内容                 |
+| `search_files`     | 按通配符/子串递归搜索文件名        | 路径沙箱、结果数上限（≤1000）        |
 
 ## 5. 数据流
 
@@ -219,6 +223,16 @@ flowchart TD
 
 `validatePath()` 只在动作层将 `block` 视为异常。`approve` 的前置拦截依赖 `AioFileOperatorRegistry.checkSecurityPolicy()` 被工具调用执行器调用；因此后续如果新增 Agent 方法，必须确保方法参数中的路径字段能被该策略识别。
 
+`checkSecurityPolicy()` 会检查 `args` 中的 `path`、`sourcePath`、`targetPath`、`directoryPath`、`filePath` 全部路径字段，任一路径被拦截即整体拒绝，防止通过源/目标双路径跨沙箱跳板逃逸。
+
+### 6.2.1. 错误回显截断
+
+模型参数错位时可能把整篇正文塞进 `path` 等参数，无截断回显会直接污染 LLM 上下文。`utils/security.ts` 提供统一收口：
+
+- `formatPathForError(rawPath, maxLength=120)`：压缩换行与连续空白、非字符串/空值返回 `<空路径>`、超长截断并标注原始长度，所有拦截报错中的路径回显均经过该函数。
+- `sanitizeParamsForError(params)`：审计日志与错误上下文中的参数预览，`*path*` 字段走 `formatPathForError`，其余长字符串截断到 200 字符。
+- `clampErrorMessage(message, maxLength=500)`：`buildErrorResult()` 的最终兜底，防止 Rust 命令或第三方异常的 message 内嵌超长内容。
+
 ### 6.3. 文件大小限制
 
 `readFile()` 在实际读取前调用 `get_file_metadata` 并通过 `validateFileSize()` 校验 `maxFileSize`，默认 10MB，避免读取超大文件导致 IPC、解析器或 WebView 卡顿。
@@ -266,6 +280,9 @@ flowchart TD
 | `list_directory`          | 列出目录直接子项                       |
 | `create_dir_force`        | 创建目录                               |
 | `path_exists`             | 判断路径是否存在                       |
+| `copy_path_force`         | 复制文件/递归复制目录                  |
+| `move_path_force`         | 移动/重命名，跨盘自动回退复制+删除     |
+| `search_files`            | 按通配符/子串递归搜索文件名            |
 | `convert_legacy_document` | 将旧版 Office 文档转换为现代格式后读取 |
 
 ### 9.2. 前端解析器和共享逻辑
@@ -298,6 +315,9 @@ flowchart TD
 - 文本读取、元数据校验和大文件保护
 - 删除、追加、目录列表、创建目录、路径存在检查
 - Search/Replace Diff 匹配与换行符保持
+- 复制/移动（`copy_file` / `move_file`）与双路径沙箱拦截
+- 元数据查询（`get_file_info`）与递归搜索（`search_files`）
+- 超长恶意路径（10KB 正文塞入 path）的错误回显截断
 - 白名单、死区、审批区、目录前缀碰撞和符号链接逃逸等安全策略
 - `getMetadata()` 暴露的 Agent 方法清单
 

@@ -25,7 +25,16 @@
     <div v-if="isLoading" class="loading-placeholder">
       <div class="spinner"></div>
     </div>
-    <div v-else-if="hasError" class="error-placeholder">⚠️ 加载失败</div>
+    <div v-else-if="hasError" class="error-placeholder">
+      <span class="error-placeholder__title">⚠️ 加载失败</span>
+      <span
+        class="error-placeholder__resource"
+        :title="src"
+        data-testid="image-error-resource"
+      >
+        {{ displayResourceName }}
+      </span>
+    </div>
     <template v-else>
       <img
         :src="resolvedSrc"
@@ -65,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, inject, onBeforeUnmount, type ComputedRef } from "vue";
+import { ref, watch, computed, inject, onBeforeUnmount, type ComputedRef } from "vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
@@ -74,6 +83,7 @@ import { customMessage } from "@/utils/customMessage";
 import { resolveAgentAssetUrlSync } from "@/tools/agent-manager/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { resolveLocalPath } from "../../utils/path-utils";
+import { resolveResourceLabel } from "../../utils/resourceLabel";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 
 const props = defineProps<{
@@ -102,6 +112,14 @@ const vcpFixAttempted = ref(false);
 let basePath: string | null = null;
 let ownedObjectUrl: string | null = null;
 let currentAbortController: AbortController | null = null;
+
+/**
+ * 加载失败时展示的资源标识：优先 alt，其次从 src 提取文件名，
+ * 便于在占位中直接看到尝试请求的资源名。
+ */
+const displayResourceName = computed(() =>
+  resolveResourceLabel(props.src, props.alt)
+);
 
 const releaseOwnedObjectUrl = () => {
   if (ownedObjectUrl) {
@@ -508,11 +526,34 @@ onBeforeUnmount(() => {
   min-height: 50px; /* 最小高度，避免加载时闪烁 */
   width: 100%;
   padding: 16px;
-  background-color: var(--container-bg);
-  border: 1px dashed var(--border-color);
+  background-color: var(
+    --rich-text-image-placeholder-bg,
+    var(--container-bg)
+  );
+  border: 1px dashed
+    var(--rich-text-image-placeholder-border, var(--border-color));
   border-radius: 4px;
-  color: var(--text-color-light);
+  color: var(--rich-text-image-placeholder-color, var(--text-color-light));
   font-size: 14px;
+}
+
+.error-placeholder {
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.error-placeholder__resource {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(
+    --rich-text-image-placeholder-resource-color,
+    var(--text-color-light)
+  );
+  font-size: 12px;
+  opacity: 0.85;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spinner {

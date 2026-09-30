@@ -800,8 +800,7 @@ onUnmounted(() => {
 }
 
 .image-item:hover {
-  border-color: var(--el-color-primary-light-5);
-  transform: translateY(-2px);
+  border-color: var(--el-color-primary);
 }
 
 .image-item.active {
@@ -891,7 +890,6 @@ onUnmounted(() => {
 .add-image-btn:hover {
   border-color: var(--el-color-primary);
   background-color: var(--el-color-primary-light-11);
-  transform: translateY(-2px);
 }
 
 .add-image-btn span {

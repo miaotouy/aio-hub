@@ -15,6 +15,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectUpgradeTransition,
+  normalizeAppVersion,
   ReleaseNotesRegistry,
 } from "../releaseNotesRegistry";
 import type { AppLifecycleState, ReleaseNoteManifest } from "../types";
@@ -94,5 +95,19 @@ describe("ReleaseNotesRegistry", () => {
 
     expect(registry.selectAutomatic("0.6.9", lifecycle("0.7.0"))).toEqual([]);
     expect(detectUpgradeTransition("0.6.9", "0.7.0")).toBe("downgrade");
+  });
+
+  it("normalizes build metadata out of runtime versions", () => {
+    expect(normalizeAppVersion("0.7.0-alpha.6.build.55b1344a3")).toBe(
+      "0.7.0-alpha.6"
+    );
+    expect(normalizeAppVersion("v1.2.3+build.9")).toBe("1.2.3");
+    expect(normalizeAppVersion("  1.2.3  ")).toBe("1.2.3");
+    expect(
+      detectUpgradeTransition(
+        "0.7.0-alpha.6.build.55b1344a3",
+        "0.7.0-alpha.5"
+      )
+    ).toBe("upgrade");
   });
 });

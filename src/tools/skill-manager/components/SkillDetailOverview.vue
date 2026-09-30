@@ -16,99 +16,168 @@
 
 <template>
   <div class="tab-scroll-container">
-    <!-- 核心信息卡片 -->
-    <div class="info-grid">
-      <div class="info-card" v-if="manifest.license">
-        <div class="info-label"><ShieldCheck :size="14" /> 许可证</div>
-        <div class="info-value">{{ manifest.license }}</div>
+    <!-- 特征属性胶囊栏 -->
+    <div class="capability-bar" v-if="hasCapabilityChips">
+      <div class="cap-chip" v-if="manifest.license">
+        <ShieldCheck :size="12" />
+        <span>{{ manifest.license }}</span>
       </div>
-      <div class="info-card" v-if="manifest.compatibility">
-        <div class="info-label"><Cpu :size="14" /> 兼容性</div>
-        <div class="info-value">{{ manifest.compatibility }}</div>
+      <div class="cap-chip" v-if="manifest.compatibility">
+        <Cpu :size="12" />
+        <span>{{ manifest.compatibility }}</span>
+      </div>
+      <div class="cap-chip" v-if="manifest.scripts.length > 0">
+        <Terminal :size="12" />
+        <span>{{ manifest.scripts.length }} 个脚本</span>
+      </div>
+      <div class="cap-chip" v-if="manifest.files.length > 0">
+        <Files :size="12" />
+        <span>{{ manifest.files.length }} 个资源文件</span>
+      </div>
+      <div
+        class="cap-chip"
+        v-if="manifest.allowedTools && manifest.allowedTools.length > 0"
+      >
+        <Wrench :size="12" />
+        <span>{{ manifest.allowedTools.length }} 个工具权限</span>
       </div>
     </div>
 
-    <!-- 脚本列表 -->
-    <div
-      class="content-section"
-      v-if="manifest.scripts && manifest.scripts.length > 0"
+    <!-- 说明书主体：剥离 frontmatter 后的 SKILL.md 正文 -->
+    <div v-if="strippedInstructions" class="instruction-wrapper">
+      <DocumentViewer
+        :content="strippedInstructions"
+        file-name="SKILL.md"
+        file-type-hint="markdown"
+      />
+    </div>
+    <el-empty
+      v-else
+      description="该技能没有说明书正文（SKILL.md 指令内容为空）"
+      :image-size="80"
+    />
+
+    <!-- 附加能力：折叠面板 -->
+    <el-collapse
+      v-if="hasExtraSections"
+      class="extra-collapse"
+      @click.stop
     >
-      <div class="section-header">
-        <Terminal :size="16" />
-        <span>可用脚本</span>
-      </div>
-      <div class="script-grid">
-        <div
-          v-for="script in manifest.scripts"
-          :key="script.relativePath"
-          class="script-card"
-        >
-          <div class="script-card-header">
-            <span class="script-name">{{ script.name }}</span>
-            <span class="lang-badge" :class="script.language">{{
-              script.language
-            }}</span>
-          </div>
-          <div class="script-path">{{ script.relativePath }}</div>
-          <div class="script-description" v-if="script.description">
-            {{ script.description }}
+      <el-collapse-item
+        v-if="manifest.scripts.length > 0"
+        :title="`可用脚本 (${manifest.scripts.length})`"
+        name="scripts"
+      >
+        <div class="script-grid">
+          <div
+            v-for="script in manifest.scripts"
+            :key="script.relativePath"
+            class="script-card"
+          >
+            <div class="script-card-header">
+              <span class="script-name">{{ script.name }}</span>
+              <span class="lang-badge" :class="script.language">{{
+                script.language
+              }}</span>
+            </div>
+            <div class="script-path">{{ script.relativePath }}</div>
+            <div class="script-description" v-if="script.description">
+              {{ script.description }}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </el-collapse-item>
 
-    <!-- 允许的工具 -->
-    <div
-      class="content-section"
-      v-if="manifest.allowedTools && manifest.allowedTools.length > 0"
-    >
-      <div class="section-header">
-        <Wrench :size="16" />
-        <span>允许使用的工具</span>
-      </div>
-      <div class="tag-group">
-        <el-tag
-          v-for="tool in manifest.allowedTools"
-          :key="tool"
-          size="small"
-          effect="plain"
-          round
-        >
-          {{ tool }}
-        </el-tag>
-      </div>
-    </div>
-
-    <!-- 元数据 -->
-    <div
-      class="content-section"
-      v-if="manifest.metadata && Object.keys(manifest.metadata).length > 0"
-    >
-      <div class="section-header">
-        <Database :size="16" />
-        <span>元数据</span>
-      </div>
-      <div class="metadata-table">
-        <div
-          v-for="(value, key) in manifest.metadata"
-          :key="key"
-          class="metadata-row"
-        >
-          <span class="meta-key">{{ key }}</span>
-          <span class="meta-value">{{ value }}</span>
+      <el-collapse-item
+        v-if="manifest.allowedTools && manifest.allowedTools.length > 0"
+        :title="`允许使用的工具 (${manifest.allowedTools.length})`"
+        name="tools"
+      >
+        <div class="tag-group">
+          <el-tag
+            v-for="tool in manifest.allowedTools"
+            :key="tool"
+            size="small"
+            effect="plain"
+            round
+          >
+            {{ tool }}
+          </el-tag>
         </div>
-      </div>
-    </div>
+      </el-collapse-item>
+
+      <el-collapse-item
+        v-if="metadataEntries.length > 0"
+        :title="`元数据 (${metadataEntries.length})`"
+        name="metadata"
+      >
+        <div class="metadata-table">
+          <div
+            v-for="[key, value] in metadataEntries"
+            :key="key"
+            class="metadata-row"
+          >
+            <span class="meta-key">{{ key }}</span>
+            <span class="meta-value">{{ value }}</span>
+          </div>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ShieldCheck, Cpu, Terminal, Database, Wrench } from "lucide-vue-next";
+import { computed } from "vue";
+import {
+  ShieldCheck,
+  Cpu,
+  Terminal,
+  Wrench,
+  Files,
+} from "lucide-vue-next";
+import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import type { SkillManifest } from "../types";
 
-defineProps<{
+const props = defineProps<{
   manifest: SkillManifest;
 }>();
+
+const hasCapabilityChips = computed(() => {
+  return Boolean(
+    props.manifest.license ||
+      props.manifest.compatibility ||
+      props.manifest.scripts.length > 0 ||
+      props.manifest.files.length > 0 ||
+      (props.manifest.allowedTools && props.manifest.allowedTools.length > 0)
+  );
+});
+
+/**
+ * 剥离 YAML frontmatter 后的指令内容
+ */
+const strippedInstructions = computed(() => {
+  const content = props.manifest.instructions || "";
+  if (!content.trim().startsWith("---")) return content;
+
+  const match = content.match(/^---\s*\n[\s\S]*?\n---\s*/m);
+  if (match) {
+    const stripped = content.slice(match[0].length);
+    return stripped.trim() ? stripped : content;
+  }
+  return content;
+});
+
+const metadataEntries = computed(() => {
+  return Object.entries(props.manifest.metadata ?? {});
+});
+
+const hasExtraSections = computed(() => {
+  return (
+    props.manifest.scripts.length > 0 ||
+    (props.manifest.allowedTools && props.manifest.allowedTools.length > 0) ||
+    metadataEntries.value.length > 0
+  );
+});
 </script>
 
 <style scoped>
@@ -118,52 +187,59 @@ defineProps<{
   padding: 20px 24px;
 }
 
-/* Overview Styles */
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+/* 特征属性胶囊栏 */
+.capability-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-.info-card {
-  padding: 12px 16px;
+.cap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-color-secondary);
   background: var(--input-bg);
   border: var(--border-width) solid var(--border-color);
+  border-radius: 999px;
+  line-height: 1.2;
+}
+
+.cap-chip :deep(svg) {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+/* 说明书主体 */
+.instruction-wrapper {
+  margin-bottom: 16px;
+}
+
+/* 折叠面板 */
+.extra-collapse {
+  margin-bottom: 16px;
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
+  overflow: hidden;
 }
 
-.info-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-color-secondary);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.info-value {
-  font-size: 14px;
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.content-section {
-  margin-bottom: 24px;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
+.extra-collapse :deep(.el-collapse-item__header) {
+  padding: 0 16px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-color);
-  margin-bottom: 12px;
+  background: var(--input-bg);
 }
 
+.extra-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 16px;
+}
+
+/* Script Styles */
 .script-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -209,16 +285,16 @@ defineProps<{
   background: rgba(55, 118, 171, 0.1);
 }
 .lang-badge.javascript {
-  color: #f7df1e;
-  background: rgba(247, 223, 30, 0.1);
+  color: #b8860b;
+  background: rgba(184, 134, 11, 0.1);
 }
 .lang-badge.powershell {
-  color: #012456;
-  background: rgba(1, 36, 86, 0.1);
+  color: #4a7ebb;
+  background: rgba(74, 126, 187, 0.1);
 }
 .lang-badge.batch {
-  color: #4d4d4d;
-  background: rgba(77, 77, 77, 0.1);
+  color: #8a8a8a;
+  background: rgba(138, 138, 138, 0.1);
 }
 .lang-badge.rust {
   color: #dea584;

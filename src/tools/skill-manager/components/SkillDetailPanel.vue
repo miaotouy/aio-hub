@@ -123,14 +123,9 @@
 
     <!-- Tabs: 详细内容 -->
     <el-tabs v-model="activeTab" class="detail-tabs">
-      <!-- 概览标签 -->
-      <el-tab-pane label="概览" name="overview">
+      <!-- 概览说明书标签：含 SKILL.md 自说明正文与附加能力 -->
+      <el-tab-pane label="概览说明" name="overview">
         <SkillDetailOverview :manifest="manifest" />
-      </el-tab-pane>
-
-      <!-- 指令标签 -->
-      <el-tab-pane label="指令" name="instructions">
-        <SkillDetailInstructions :manifest="manifest" />
       </el-tab-pane>
 
       <!-- 环境变量标签 -->
@@ -202,7 +197,6 @@ import type { SkillManifest } from "../types";
 
 // 引入拆分后的子组件
 import SkillDetailOverview from "./SkillDetailOverview.vue";
-import SkillDetailInstructions from "./SkillDetailInstructions.vue";
 import SkillDetailEnv from "./SkillDetailEnv.vue";
 import SkillDetailFiles from "./SkillDetailFiles.vue";
 

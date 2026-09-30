@@ -36,8 +36,8 @@ const logger = createModuleLogger("stores/modelMetadataStore");
 const errorHandler = createModuleErrorHandler("stores/modelMetadataStore");
 
 const CONFIG_VERSION = "3.0.0";
-const CATALOG_REVISION = "2026.09.09.5";
-const CATALOG_GENERATED_AT = "2026-09-09T00:00:00.000Z";
+const CATALOG_REVISION = "2026.09.30.1";
+const CATALOG_GENERATED_AT = "2026-09-30T00:00:00.000Z";
 
 function createBuiltinCatalog() {
   return createCatalogSnapshot(

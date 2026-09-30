@@ -106,6 +106,23 @@ export const openaiModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       description: "模型前缀 gpt-4o 元数据规则",
     },
     {
+      id: "model-regex-gpt-6.1",
+      matchType: "modelPrefix",
+      matchValue: "^gpt-6\\.1(?:-|$)",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/openai.svg`,
+        group: "OpenAI",
+        tokenizer: "gpt4o",
+        capabilities: openaiFlagshipCapabilities,
+        description:
+          "GPT-6.1 Sol 旗舰模型（2026-09-29 发布，1.05M 上下文，128K 输出；支持高级推理、工具调用与多模态工作流）",
+      },
+      priority: 31,
+      enabled: true,
+      description: "GPT-6.1 系列模型元数据规则",
+    },
+    {
       id: "model-regex-gpt-6",
       matchType: "modelPrefix",
       matchValue: "^gpt-6(?:\\.\\d+)?(?:-|$)",
@@ -115,7 +132,7 @@ export const openaiModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
         group: "OpenAI",
         capabilities: openaiFlagshipCapabilities,
         description:
-          "GPT-6 旗舰模型家族（包括 GPT-6 Astra；支持高级推理、工具调用和多模态工作流）",
+          "GPT-6 旗舰模型家族（包括 GPT-6 Astra、GPT-6 Sol / Luna 与 GPT-6.1 Sol；支持高级推理、工具调用和多模态工作流）",
       },
       priority: 30,
       enabled: true,

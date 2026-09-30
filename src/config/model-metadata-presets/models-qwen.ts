@@ -67,6 +67,51 @@ export const qwenModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] 
   [
     // === 通义千问系列模型 ===
     {
+      id: "model-prefix-qwen3.8-omni",
+      matchType: "modelPrefix",
+      matchValue: "qwen3.8-omni",
+      properties: {
+        icon: `/model-icons/qwen-color.svg`,
+        group: "Qwen3",
+        tokenizer: "qwen3",
+        contextLength: 1048576,
+        maxOutputTokens: 131072,
+        capabilities: {
+          ...qwenVisionVideoCapabilities,
+          audio: true,
+          audioGeneration: true,
+          ...qwenThinkingCapabilities,
+          toolUse: true,
+          webSearch: true,
+          codeExecution: true,
+          jsonOutput: true,
+        },
+        description:
+          "Qwen3.8-Omni 全模态模型（文本、图像、音频、视频输入，文本/语音输出，1M 上下文、131K 输出，支持实时翻译变体）",
+      },
+      priority: 31,
+      enabled: true,
+      description: "模型前缀 qwen3.8-omni 元数据规则",
+    },
+    {
+      id: "model-prefix-qwen3.8",
+      matchType: "modelPrefix",
+      matchValue: "qwen3.8",
+      properties: {
+        icon: `/model-icons/qwen-color.svg`,
+        group: "Qwen3",
+        tokenizer: "qwen3",
+        contextLength: 1048576,
+        maxOutputTokens: 131072,
+        capabilities: qwenFlagshipCapabilities,
+        description:
+          "通义千问 Qwen3.8 系列模型（Qwen3.8-Max / Flash / 27B 等，1M 上下文、131K 输出，原生图像/视频理解、思考、函数调用与内置工具）",
+      },
+      priority: 30,
+      enabled: true,
+      description: "模型前缀 qwen3.8 元数据规则",
+    },
+    {
       id: "model-prefix-qwen3.7",
       matchType: "modelPrefix",
       matchValue: "qwen3.7",

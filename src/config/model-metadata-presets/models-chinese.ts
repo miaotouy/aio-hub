@@ -973,6 +973,52 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
 
     // === StepFun 系列模型 ===
     {
+      id: "model-step-5",
+      matchType: "model",
+      matchValue: "(?:^|/)step-5(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/stepfun-color.svg`,
+        group: "StepFun",
+        tokenizer: "gpt4",
+        contextLength: 1000000,
+        maxOutputTokens: 65536,
+        capabilities: {
+          vision: true,
+          video: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        releaseDate: "2026-09",
+        description:
+          "Step 5 Preview：阶跃星辰（StepFun）旗舰多模态模型，面向长程 Agent 任务，百万级上下文，支持图像/视频理解、思考模式与工具调用。",
+        recommendedFor: [
+          "Agent 工作流",
+          "长上下文分析",
+          "多模态任务",
+          "复杂推理",
+        ],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型正则 Step 5（含渠道后缀）元数据规则",
+    },
+    {
+      id: "model-prefix-step-models",
+      matchType: "modelPrefix",
+      matchValue: "step-",
+      properties: {
+        icon: `/model-icons/stepfun-color.svg`,
+        group: "StepFun",
+        tokenizer: "gpt4",
+      },
+      priority: 20,
+      enabled: true,
+      description: "StepFun step- 模型 ID 兜底分组",
+    },
+    {
       id: "model-prefix-stepfun",
       matchType: "modelPrefix",
       matchValue: "stepfun",
@@ -1069,6 +1115,38 @@ export const chineseModelRules: LegacyModelMetadataRule<ModelMetadataProperties>
       priority: 35,
       enabled: true,
       description: "模型正则 MiMo-V2.5（含渠道后缀）元数据规则",
+    },
+    {
+      id: "model-mimo-v2.6-family",
+      matchType: "model",
+      matchValue: "(?:^|/)mimo-v2\\.6(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
+      properties: {
+        contextLength: 1048576,
+        maxOutputTokens: 131072,
+        capabilities: {
+          vision: true,
+          video: true,
+          audio: true,
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "switch",
+          jsonOutput: true,
+        },
+        releaseDate: "2026-09",
+        description:
+          "MiMo-V2.6 系列：小米开源全模态模型，支持文本/图像/视频/音频输入，1M 上下文、131K 输出，Pro 变体登顶开源综合榜；含 Flash 与 UltraSpeed 高速变体。",
+        recommendedFor: [
+          "多模态 Agent",
+          "长上下文分析",
+          "代码生成",
+          "复杂推理",
+        ],
+      },
+      priority: 36,
+      enabled: true,
+      description:
+        "模型正则 MiMo-V2.6（含 Pro / Flash / UltraSpeed 与渠道后缀）元数据规则",
     },
 
     // === 盘古系列模型 ===

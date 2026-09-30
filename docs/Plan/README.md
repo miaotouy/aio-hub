@@ -4,7 +4,7 @@
 >
 > 最近盘点：2026-08-26
 >
-> 最近修订：2026-09-20，清理已删除计划文档的引用；门禁口径仍为「Alpha 只登记风险，完整检查转正式版前检查清单」
+> 最近修订：2026-09-30，登记「决策模型与 Decisions API 覆盖」候选条目；门禁口径仍为「Alpha 只登记风险，完整检查转正式版前检查清单」
 >
 > 范围：根目录跨模块计划与 `src/tools/*/docs/Plan/`；移动端和独立插件仅在构成桌面任务依赖时列入
 
@@ -98,6 +98,7 @@
 | [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图               |
 | [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback                         |
 | [Regex Applier Agent 接口](./regex-applier-agent-integration.md)              | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                            |
+| [决策模型与 Decisions API 覆盖](./decision-model-and-decisions-api-coverage.md) | 候选   | Jev/System One 已接入；OpenAI Decisions API 渠道与开源决策模型 id 待确认后按需做            |
 
 ## 5. 活动工具计划入口
 

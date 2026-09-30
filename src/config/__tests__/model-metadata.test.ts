@@ -959,3 +959,38 @@ describe("audited model-list metadata coverage", () => {
     ).toMatchObject({ group: "Gemini 2" });
   });
 });
+
+describe("decision model metadata coverage", () => {
+  it("marks System One / decision model ids with the decision capability", () => {
+    for (const id of [
+      "jev-latest",
+      "jev-1.13.0",
+      "typesafe/jev-router",
+      "kev-4b",
+      "kev-0.6b",
+      "laya-decision-1",
+      "openjev-mini",
+      "mini-jev-1",
+      "semif-1",
+      "julia-1",
+      "supersonic/julia-1",
+    ]) {
+      expect(
+        getMatchedModelProperties(DEFAULT_METADATA_RULES, id)?.capabilities
+          ?.decision
+      ).toBe(true);
+    }
+  });
+
+  it("applies verified TypeSafe Jev pricing and context", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "jev-latest")
+    ).toMatchObject({
+      icon: "/model-icons/typesafe.png",
+      group: "Jev",
+      contextLength: 65536,
+      pricing: { input: 0.042, output: 0, unit: "USD" },
+      capabilities: { decision: true },
+    });
+  });
+});

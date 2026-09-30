@@ -198,6 +198,49 @@ export const internationalModelRules: LegacyModelMetadataRule<ModelMetadataPrope
       description: "模型正则 grok 4.6 元数据规则",
     },
     {
+      id: "model-grok-4.7",
+      matchType: "model",
+      matchValue: "(?:^|/)grok[-.]4[-.]7(?::free)?$",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/grok.svg`,
+        group: "xAI",
+        tokenizer: "gpt4",
+        contextLength: 500000,
+        maxOutputTokens: 500000,
+        pricing: {
+          input: 2.0,
+          output: 6.0,
+          cacheHitInput: 0.5,
+          unit: "USD",
+          note: "每百万 token；聚合渠道的 :free 变体价格以渠道为准",
+        },
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          jsonOutput: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "medium", "high"],
+        },
+        features: {
+          streaming: true,
+          functionCalling: true,
+        },
+        description:
+          "Grok 4.7：xAI 最新旗舰模型（2026-09-21 发布），agentic 工具调用、低幻觉、可配置推理，500K 上下文。",
+        recommendedFor: [
+          "工具调用",
+          "代码生成",
+          "长上下文分析",
+          "Agent 工作流",
+        ],
+      },
+      priority: 37,
+      enabled: true,
+      description: "模型正则 grok 4.7 元数据规则",
+    },
+    {
       id: "model-grok-4.1-fast",
       matchType: "model",
       matchValue:

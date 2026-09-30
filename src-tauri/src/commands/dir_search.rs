@@ -634,6 +634,31 @@ fn normalized_resource_limit(value: Option<usize>, default: usize, hard_max: usi
     value.unwrap_or(default).clamp(1, hard_max)
 }
 
+/// 剥离首尾成对引号（直双引号 / 单引号 / 反引号 / 中英文智能引号），
+/// 逐层剥离直到不再成对；UNC 路径等普通内容不受影响。
+fn strip_paired_quotes(input: &str) -> &str {
+    let mut s = input.trim();
+    loop {
+        let first = s.chars().next();
+        let last = s.chars().next_back();
+        let paired = matches!(
+            (first, last),
+            (Some('"'), Some('"'))
+                | (Some('\''), Some('\''))
+                | (Some('`'), Some('`'))
+                | (Some('\u{201C}'), Some('\u{201D}'))
+                | (Some('\u{2018}'), Some('\u{2019}'))
+        );
+        if !paired {
+            return s;
+        }
+        // paired 保证首尾字符都存在
+        let first_len = first.unwrap().len_utf8();
+        let last_len = last.unwrap().len_utf8();
+        s = s[first_len..s.len() - last_len].trim();
+    }
+}
+
 fn normalized_deadline(value: Option<u64>) -> Duration {
     Duration::from_millis(
         value
@@ -649,7 +674,10 @@ pub async fn dir_search(
     cancellation: State<'_, DirSearchCancellation>,
 ) -> Result<SearchSummary, String> {
     let start_time = Instant::now();
-    let root_path = Path::new(&request.root_path);
+    // 防御性规范化：剥离资源管理器「复制路径」产生的首尾成对引号，
+    // 避免 UNC 等带引号路径在存在性校验时被误判为目录不存在。
+    let normalized_root = strip_paired_quotes(&request.root_path);
+    let root_path = Path::new(normalized_root);
 
     if !root_path.exists() || !root_path.is_dir() {
         return Err(format!("目录不存在: {}", request.root_path));
@@ -738,7 +766,7 @@ pub async fn dir_search(
             log::warn!(
                 "[dir-search] 拒绝并发搜索: search_id={}, root={}",
                 search_id,
-                request.root_path
+                normalized_root
             );
             return Ok(SearchSummary {
                 search_id,
@@ -778,7 +806,7 @@ pub async fn dir_search(
     log::info!(
         "[dir-search] 开始搜索: search_id={}, root={}, pattern_length={}, regex={}, max_depth={:?}, max_files={}, max_bytes={}, deadline_ms={}, workers={}, include_hidden={}, include_globs={}, exclude_globs={}",
         search_id,
-        request.root_path,
+        normalized_root,
         request.pattern.len(),
         request.is_regex,
         max_depth,
@@ -1111,7 +1139,7 @@ pub async fn dir_search(
     log::info!(
         "[dir-search] 搜索结束: search_id={}, root={}, stop_reason={:?}, truncated={}, files_scanned={}, bytes_read={}, files_matched={}, matches={}, duration_ms={:.1}, walker_joined={}",
         search_id,
-        request.root_path,
+        normalized_root,
         stop_reason,
         truncated,
         files_scanned,

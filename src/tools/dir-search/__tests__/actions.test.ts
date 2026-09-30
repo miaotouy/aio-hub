@@ -15,6 +15,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import DirSearchRegistry from "../dir-search.registry";
 import { replaceInDirectory, searchDirectory } from "../actions";
+import { normalizeDirectoryInput } from "../composables/useDirSearch";
 import type { FileSearchResult, SearchResultBatch } from "../types";
 
 const { mockInvoke, mockListen, mockUnlisten, listeners } = vi.hoisted(() => ({
@@ -559,5 +560,33 @@ describe("dir-search actions", () => {
         }),
       });
     });
+  });
+});
+
+describe("normalizeDirectoryInput", () => {
+  it("strips paired quotes from copied paths", () => {
+    expect(normalizeDirectoryInput('"E:\\media\\music"')).toBe(
+      "E:\\media\\music"
+    );
+    expect(normalizeDirectoryInput("'E:\\media'")).toBe("E:\\media");
+    expect(normalizeDirectoryInput("`E:\\media`")).toBe("E:\\media");
+    expect(normalizeDirectoryInput("\u201CE:\\media\u201D")).toBe("E:\\media");
+  });
+
+  it("strips quotes from UNC paths without breaking the prefix", () => {
+    const quoted = '"\\\\vita-nas-01\\vitanas-0\\公共素材\\音效"';
+    expect(normalizeDirectoryInput(quoted)).toBe(
+      "\\\\vita-nas-01\\vitanas-0\\公共素材\\音效"
+    );
+  });
+
+  it("keeps plain paths untouched", () => {
+    expect(normalizeDirectoryInput("  E:\\media\\music  ")).toBe(
+      "E:\\media\\music"
+    );
+    expect(normalizeDirectoryInput('"E:\\media\\music')).toBe(
+      '"E:\\media\\music'
+    );
+    expect(normalizeDirectoryInput("")).toBe("");
   });
 });

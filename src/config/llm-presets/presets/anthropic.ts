@@ -55,6 +55,8 @@ export const anthropicPreset: LlmPreset = {
       capabilities: {
         vision: true,
         toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
       },
       description:
         "速度与智能的最佳结合，1M 上下文，128K 输出，自适应思考（2026-06-09）",
@@ -67,6 +69,8 @@ export const anthropicPreset: LlmPreset = {
       capabilities: {
         vision: true,
         toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
       },
       description:
         "复杂 agentic coding 与企业级工作，1M 上下文，128K 输出，自适应思考（2026-06-09）",
@@ -79,6 +83,8 @@ export const anthropicPreset: LlmPreset = {
       capabilities: {
         vision: true,
         toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
       },
       description:
         "Anthropic 最强模型，长程 agent 下一代智能，1M 上下文，128K 输出（2026-06-09）",

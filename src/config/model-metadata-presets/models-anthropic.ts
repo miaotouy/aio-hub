@@ -46,8 +46,11 @@ const claudeExtendedThinkingCapabilities = {
 
 const claudeAdaptiveThinkingCapabilities = {
   ...claudeBaseCapabilities,
-  thinking: false,
-  thinkingConfigType: "none" as const,
+  // 自适应思考模型（Claude 4.7+ / 5.x）思考始终可用：
+  // 保留 budget 配置形态，未开启思考时请求不带 thinking 字段走 API 默认行为。
+  // 之前误标为 thinking: false，导致覆盖分析与参数面板完全没有思考配置。
+  thinking: true,
+  thinkingConfigType: "budget" as const,
 };
 
 export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =

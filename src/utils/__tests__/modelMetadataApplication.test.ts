@@ -82,7 +82,7 @@ describe("current vendor model metadata", () => {
       group: "Claude 5",
       icon: "/model-icons/claude-color.svg",
       tokenizer: "claude",
-      capabilities: { thinking: false, toolUse: true, vision: true },
+      capabilities: { thinking: true, toolUse: true, vision: true },
     });
   });
 

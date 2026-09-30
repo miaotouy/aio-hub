@@ -39,6 +39,10 @@ import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
 import { useOcrExtensions } from "@/tools/smart-ocr/platform";
 import type { OcrExtension } from "@/tools/smart-ocr/platform";
 
+const RetryStatusCodesEditor = defineAsyncComponent(
+  () => import("./RetryStatusCodesEditor.vue")
+);
+
 const getOcrExtensions = (): OcrExtension[] => {
   const { ocrExtensions } = useOcrExtensions();
   return ocrExtensions.value;
@@ -2377,6 +2381,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         ],
         hint: "固定间隔：每次重试等待相同时间<br/>指数退避：每次重试等待时间翻倍（推荐）",
         keywords: "request retry mode strategy 重试 模式 策略",
+      },
+      {
+        id: "retryStatusCodes",
+        label: "自动重试状态码",
+        component: RetryStatusCodesEditor,
+        modelPath: "requestSettings.retryStatusCodes",
+        defaultValue: DEFAULT_SETTINGS.requestSettings.retryStatusCodes,
+        hint: "仅当响应状态码命中这些号段时才自动重试；逗号分隔的区间或单值（如 500-503,520）。2xx、504、524 始终排除，超时与网络错误不受此限制。",
+        keywords: "request retry status code 重试 状态码 白名单 号段",
+        visible: (settings) => settings.requestSettings.maxRetries > 0,
       },
       {
         id: "enableIncrementalSave",

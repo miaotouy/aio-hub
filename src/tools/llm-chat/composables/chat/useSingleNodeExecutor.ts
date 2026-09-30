@@ -36,8 +36,28 @@ import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { buildEffectiveParameters } from "../../config/parameter-config";
 import { createModuleLogger } from "@/utils/logger";
 import { isAbortError } from "@/llm-apis/common";
+import {
+  DEFAULT_RETRY_STATUS_CODES,
+  isRetryableStatusCodeFromConfig,
+} from "../../utils/retryStatusCodes";
 
 const logger = createModuleLogger("llm-chat/single-node-executor");
+
+/** 从错误对象中提取数字 HTTP 状态码，非数字枚举值（如 INVALID_ARGUMENT）返回 undefined */
+function readErrorStatusCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const candidates = [
+    (error as any).code,
+    (error as any).status,
+    (error as any).statusCode,
+    (error as any).httpStatus,
+    (error as any).response?.status,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
 
 export interface SingleNodeExecuteParams {
   session: ChatSessionDetail;
@@ -311,10 +331,21 @@ export function useSingleNodeExecutor() {
             (error instanceof Error &&
               /429|too many requests|rate limit/i.test(error.message)));
 
+        // 自动重试状态码白名单：有明确状态码且未命中白名单时不再重试
+        // （2xx / 504 / 524 始终排除）；无状态码的超时/网络错误不受限。
+        const statusCode = readErrorStatusCode(error);
+        const retryStatusConfig =
+          settings.value.requestSettings.retryStatusCodes ??
+          DEFAULT_RETRY_STATUS_CODES;
+        const statusAllowsRetry =
+          statusCode === undefined ||
+          isRetryableStatusCodeFromConfig(statusCode, retryStatusConfig);
+
         const shouldRetry =
           !isAbort &&
           !isBadRequest &&
           !hasReceivedStreamData &&
+          statusAllowsRetry &&
           attempt < maxRetries;
 
         if (shouldRetry) {
@@ -339,6 +370,17 @@ export function useSingleNodeExecutor() {
 
           await new Promise((resolve) => setTimeout(resolve, delayTime));
           continue;
+        }
+        if (
+          !statusAllowsRetry &&
+          statusCode !== undefined &&
+          !isAbort &&
+          !isBadRequest
+        ) {
+          logger.info(
+            `状态码 ${statusCode} 不在自动重试号段内，跳过重试`,
+            { attempt, statusCode }
+          );
         }
         throw error;
       }

@@ -309,6 +309,8 @@ export interface ChatSettings {
     retryInterval: number;
     /** 重试模式：固定间隔或指数退避 */
     retryMode: "fixed" | "exponential";
+    /** 自动重试状态码号段白名单（逗号分隔的区间或单值，2xx/504/524 始终排除） */
+    retryStatusCodes: string;
     /** 是否启用生成中的增量保存（防止崩溃/刷新丢失） */
     enableIncrementalSave: boolean;
     /** 增量保存间隔（毫秒） */

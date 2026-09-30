@@ -15,6 +15,7 @@
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "../types/chatRegex";
+import { DEFAULT_RETRY_STATUS_CODES } from "../utils/retryStatusCodes";
 import type { ChatSettings } from "../types/settings";
 
 /**
@@ -164,6 +165,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxRetries: 2, // 默认重试 2 次
     retryInterval: 3000, // 默认重试间隔 3 秒
     retryMode: "fixed", // 默认固定间隔
+    retryStatusCodes: DEFAULT_RETRY_STATUS_CODES, // 自动重试状态码号段
     enableIncrementalSave: true, // 默认启用增量保存
     incrementalSaveInterval: 2000, // 默认 2 秒
   },

@@ -32,18 +32,18 @@
 
 ### A — 资产管理器与聊天附件
 
-- [ ] 串通资产导入、列表、详情预览、导出、删除影响分析和应用重启恢复。
-- [ ] 串通聊天内资产选择、正式附件发送、流式回复和消息恢复。
-- [ ] 在真实聊天中保留并呈现 `reclaimed` / `missing` 等异常状态，失败和取消路径先以现有领域命令跑通。
-- [ ] 正式 Rust command 直读系统 URI 并流式导入；需要细化的 Android/iOS 差异记入后置验证队列。
+- [x] 串通资产导入、列表、详情预览、导出、删除影响分析和应用重启恢复。
+- [x] 串通聊天内资产选择、正式附件发送、流式回复和消息恢复。
+- [x] 在真实聊天中保留并呈现 `reclaimed` / `missing` 等异常状态，失败和取消路径先以现有领域命令跑通。
+- [x] 正式 Rust command 直读系统 URI 并流式导入；需要细化的 Android/iOS 差异记入后置验证队列。
 
 实现入口：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-sqlite-migration-plan.md`](./mobile-sqlite-migration-plan.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)。
 
 ### B — 正式聊天媒体
 
-- [ ] 把图片、视频、音频预览接到正式消息和附件，不只停留在资产页或测试页。
-- [ ] 优先完成打开、播放、返回、切换和错误状态等连续操作；手势、方向、后台播放和设备音频随后根据真实设备反馈收口。
-- [ ] 复用受管 preview descriptor 和 URL 回收机制，先保证媒体能用，再集中处理长视频和大媒体表现。
+- [x] 把图片、视频、音频预览接到正式消息和附件，不只停留在资产页或测试页。
+- [x] 优先完成打开、播放、返回、切换和错误状态等连续操作；手势、方向、后台播放和设备音频随后根据真实设备反馈收口。
+- [x] 复用受管 preview descriptor 和 URL 回收机制，先保证媒体能用，再集中处理长视频和大媒体表现。
 
 实现入口：[`mobile-media-components-plan.md`](./mobile-media-components-plan.md)、[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 

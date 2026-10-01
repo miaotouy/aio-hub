@@ -77,7 +77,7 @@
 范围：`useAgentImporter.ts`、`llm-chat/stores/worldbookStore.ts`（新增导入方法）、世界书页导入入口、相关测试。
 
 - [x] 2.1 worldbookStore 新增导入方法：接收 ST 世界书结构，做字段映射到 `MobileWorldbook`（position 三值映射：`before_char`→`before_history`、`after_char`→`after_character`、`at_depth`/`an_*` 等高级位置→就近降级并在条目上记录原始值），重名判重沿用现有 `WORLDBOOK_NAME_DUPLICATE` 策略。
-- [x] 2.2 导入器把 ST 卡内嵌 `character_book`（含 V2 `data.character_book` 与 V3 `extensions.character_book`）转换为上述导入调用，并把返回的世界书 ID 写入 Agent `worldbookIds`，同时清理 `extensionConfig.characterBook` 存档（转换为完成即不再双份保留）。
+- [x] 2.2 导入器把 ST 卡内嵌 `character_book`（对齐桌面端标准路径 `data.character_book`）转换为上述导入调用，并把返回的世界书 ID 写入 Agent `worldbookIds`，同时清理 `extensionConfig.characterBook` 存档（转换为完成即不再双份保留）。
 - [x] 2.3 ST 世界书独立 JSON 文件导入入口：世界书页新增导入按钮，复用 2.1 的转换。
 - [x] 2.4 ST `regex_scripts` → `ChatRegexConfig` 转换：参照桌面 `sillyTavernParser.ts:307-343`，在导入器内生成 `agent.regexConfig.presets`，使移动端 `regex-processor`（request 阶段已可用）直接生效；转换成功的条目从 `extensionConfig.regexScripts` 移除，避免双份。
 - [x] 2.5 不可表达字段策略：递归扫描、probability/sticky/cooldown、组竞争等移动端模型无对应字段，转换时丢弃并在导入结果中汇总告知（一次性 warning），不静默丢失。

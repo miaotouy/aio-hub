@@ -52,8 +52,8 @@
 
 #### 当前移动端场景
 
-- `AssetDetailSheet.vue` 已接入 `MediaPreviewHost`，由 `useManagedMediaPreview` 统一申请和撤销 descriptor；详情页不再持有预览 URL。
-- `llm-chat/components/MessageContent.vue` 已有图片 overlay，并处理资源切换、过期和撤销竞态；它目前没有缩放、平移、视频和音频统一契约。
+- `AssetDetailSheet.vue` 内联原生 `<img>/<video>/<audio>` 并由 `useAssetLibrary.openPreview()` 管理短期 descriptor 申请与撤销，已解耦持久化 URL。
+- `llm-chat/components/MessageContent.vue` 已全量接入 `MediaPreviewHost`，统一承接图片、视频、音频的沉浸式预览与播放生命周期。
 - 资产管理器已有 `AssetDetailSheet` 单测和 Android WebView 预览验证；这使它适合作为第一块真实原型和回归入口。
 
 #### PC 组件可借鉴和不能借鉴的部分

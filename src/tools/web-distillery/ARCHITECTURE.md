@@ -1,6 +1,6 @@
 # 网页蒸馏室 (Web Distillery) — 架构文档
 
-> 最后更新：2026-08-01
+> 最后更新：2026-10-01
 
 ## 1. 概述
 
@@ -9,13 +9,23 @@
 - **Agent 自动化调用**：通过 `ToolRegistry` 暴露 `quickFetch` / `smartExtract` 两个可被 LLM Agent 直接调用的能力。
 - **人工交互操作**：提供可视化的交互式配方编辑器，让用户通过点选元素来定制提取规则，并保存为站点配方复用。
 
-工具采用**三层蒸馏模式**，按能耗和精度递增：
+工具采用**四层蒸馏模式**，按能耗和精度递增：
 
-| 模式          | 触发方式         | 特点                            |
-| ------------- | ---------------- | ------------------------------- |
-| `fast`        | `quickFetch()`   | 纯 HTTP 请求，无浏览器，毫秒级  |
-| `smart`       | `smartExtract()` | 隐藏 Iframe + JS 渲染，支持 SPA |
-| `interactive` | 交互配方 Tab     | 可视化浏览器视口，人工拾取规则  |
+| 模式          | 触发方式         | 特点                                       |
+| ------------- | ---------------- | ------------------------------------------ |
+| `fast`        | `quickFetch()`   | 纯 HTTP 请求，无浏览器，毫秒级             |
+| `smart`       | `smartExtract()` | 隐藏 Iframe + JS 渲染，支持 SPA            |
+| `jina`        | `jinaFetch()`    | Jina Reader 云端引擎，免本地渲染高保真输出 |
+| `interactive` | 交互配方 Tab     | 可视化浏览器视口，人工拾取规则             |
+
+### 全局设置体系
+
+工具配置统一由 [`WebDistilleryConfig`](src/tools/web-distillery/types.ts:32) 定义，持久化到 `AppData/web-distillery/settings.json`：
+
+- **Jina 专有**：`jina.apiKey`（Bearer Token）、`jina.engine`（default / readerlm-v2）、`jina.withGeneratedAlt`、`jina.targetSelector` / `waitForSelector` / `removeSelector`（对应 X-Target-Selector 等请求头）
+- **网络偏好**：`network.timeout`（抓取超时）、`network.maxAutoScrolls` / `network.scrollDelay`（智能模式滚动策略）
+- **默认行为**：`defaultMode`、`defaultFormat`、`defaultCleanMode`（纯净模式）
+- **存取路径**：Store 提供 `updateConfig()`（`saveDebounced` 500ms 防抖落盘）与 `resetConfig()`（一键重置），可视化入口为第 6 个 Tab「偏好设置」（[`SettingsPanel.vue`](src/tools/web-distillery/components/settings/SettingsPanel.vue)）
 
 ---
 
@@ -23,11 +33,13 @@
 
 ```
 src/tools/web-distillery/
-├── WebDistillery.vue           # 根组件，5 Tab 容器
+├── WebDistillery.vue           # 根组件，6 Tab 容器
 ├── web-distillery.registry.ts   # 工具注册 + Agent Facade
-├── actions.ts                  # 顶层操作 Facade（quickFetch / smartExtract）
+├── actions.ts                  # 顶层操作 Facade（quickFetch / smartExtract / jinaFetch）
 ├── formatters.ts               # FetchResult → 字符串格式化
 ├── types.ts                    # 全局类型定义
+├── utils/
+│   └── markdown.ts             # Markdown 轻量处理（链接剥离 / 标题提取）
 │
 ├── core/                       # 核心引擎层
 │   ├── iframe-bridge.ts        # Iframe 生命周期 + 双向通信
@@ -63,6 +75,9 @@ src/tools/web-distillery/
 │   │   ├── IdentityPanel.vue        # 身份卡片快捷切换
 │   │   └── RecipeMetaDrawer.vue     # 配方保存抽屉
 │   │
+│   ├── settings/                # 全局设置
+│   │   └── SettingsPanel.vue     # Tab: 偏好设置（Jina Key、默认行为、网络）
+│   │
 │   ├── cookie/                 # Cookie/身份管理
 │   │   ├── CookieLab.vue           # Tab: 身份卡片管理主面板
 │   │   └── CookieProfileCard.vue   # 单个身份卡片组件
@@ -97,13 +112,13 @@ src-tauri/src/web_distillery/
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Agent / UI 调用层                         │
-│  WebDistilleryRegistry (quickFetch / smartExtract)          │
-│  WebDistillery.vue (5 Tab UI)                               │
+│  WebDistilleryRegistry (quickFetch / smartExtract / jinaFetch)│
+│  WebDistillery.vue (6 Tab UI)                               │
 └──────────────────┬──────────────────────────────────────────┘
                    │ 调用
 ┌──────────────────▼──────────────────────────────────────────┐
 │                    Actions Facade 层                         │
-│  actions.ts  →  quickFetch() / smartExtract()               │
+│  actions.ts  →  quickFetch() / smartExtract() / jinaFetch() │
 │               ↘ processLocalContent() / openDistillery()    │
 └────────┬─────────────────────┬───────────────────────────────┘
          │                     │
@@ -461,13 +476,14 @@ LivePreviewTab → useLivePreview → iframeBridge.extractCurrentDom()
 
 [`WebDistillery.vue`](src/tools/web-distillery/WebDistillery.vue:49) 通过 Element Plus `el-tabs` 组织 5 个功能区：
 
-| Tab name      | 组件                   | 功能                                  |
-| ------------- | ---------------------- | ------------------------------------- |
-| `workbench`   | `DistilleryWorkbench`  | 快速/智能模式输入、结果预览、源码查看 |
-| `interactive` | `InteractiveWorkbench` | 可视化配方编辑器                      |
-| `recipes`     | `RecipeManager`        | 配方 CRUD、导入导出                   |
-| `cookies`     | `CookieLab`            | Cookie 配置管理                       |
-| `sniffer`     | `ApiSniffer`           | 已嗅探 API 列表                       |
+| Tab name      | 组件                   | 功能                                        |
+| ------------- | ---------------------- | ------------------------------------------- |
+| `workbench`   | `DistilleryWorkbench`  | 快速/智能/Jina 模式输入、结果预览、源码查看 |
+| `interactive` | `InteractiveWorkbench` | 可视化配方编辑器                            |
+| `recipes`     | `RecipeManager`        | 配方 CRUD、导入导出                         |
+| `cookies`     | `CookieLab`            | Cookie 配置管理                             |
+| `sniffer`     | `ApiSniffer`           | 已嗅探 API 列表                             |
+| `settings`    | `SettingsPanel`        | 偏好设置（Jina、默认行为、网络）            |
 
 ### 交互工作台布局
 
@@ -493,15 +509,18 @@ InteractiveWorkbench
 
 ## 12. Agent 集成
 
-[`WebDistilleryRegistry`](src/tools/web-distillery/web-distillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露两个 `agentCallable: true` 的方法：
+[`WebDistilleryRegistry`](src/tools/web-distillery/web-distillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露三个 `agentCallable: true` 的方法：
 
-| 方法           | 适用场景                  | 关键参数                      |
-| -------------- | ------------------------- | ----------------------------- |
-| `quickFetch`   | 静态页、博客、API 文档    | `url`, `format`, `cleanMode`  |
-| `smartExtract` | SPA、动态内容、登录后页面 | `url`, `waitFor`, `cleanMode` |
+| 方法           | 适用场景                                     | 关键参数                      |
+| -------------- | -------------------------------------------- | ----------------------------- |
+| `quickFetch`   | 静态页、博客、API 文档                       | `url`, `format`, `cleanMode`  |
+| `smartExtract` | SPA、动态内容、登录后页面                    | `url`, `waitFor`, `cleanMode` |
+| `jinaFetch`    | 公开文档、技术文章、学术资料（免浏览器开销） | `url`, `format`, `cleanMode`  |
 
-两个方法都将结果通过 [`formatFetchResult()`](src/tools/web-distillery/formatters.ts) 格式化为 Markdown 字符串返回给 Agent。
+三个方法都将结果通过 [`formatFetchResult()`](src/tools/web-distillery/formatters.ts) 格式化为 Markdown 字符串返回给 Agent。
 
-Agent 布尔参数统一走共享归一化逻辑，`quickFetch` / `smartExtract` 等入口不应各自实现字符串、数字和布尔值的分支解析。新增蒸馏模式或 recipe action 时，应补充参数归一化、拖拽交互和真实工具调用三类验证。
+`jinaFetch` 的请求通道：在 headers 中构建 Jina Reader 控制头（`X-Respond-With` / `X-Engine` / `X-Wait-For-Selector` 等，API Key 存在时附加 `Authorization: Bearer`），随后复用 Rust 端 `distillery_quick_fetch` 通用 HTTP 客户端向 `https://r.jina.ai/{url}` 发起请求，避开前端 CORS 与 CSP 约束。未配置 Key 时走官方 20 RPM 免费限额。
+
+Agent 布尔参数统一走共享归一化逻辑，`quickFetch` / `smartExtract` / `jinaFetch` 等入口不应各自实现字符串、数字和布尔值的分支解析。新增蒸馏模式或 recipe action 时，应补充参数归一化、拖拽交互和真实工具调用三类验证。
 
 ---

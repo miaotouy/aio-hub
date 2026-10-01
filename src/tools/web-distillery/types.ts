@@ -24,7 +24,54 @@ export type FetchFormat = "markdown" | "text" | "html" | "json";
  * - smart: 智能模式 (Iframe 渲染)
  * - interactive: 交互模式 (可视化配方编辑)
  */
-export type DistillMode = "fast" | "smart" | "interactive";
+export type DistillMode = "fast" | "smart" | "jina" | "interactive";
+
+/**
+ * 网页蒸馏室全局持久化配置
+ */
+export interface WebDistilleryConfig {
+  // 基础运行状态
+  lastUrl: string;
+  defaultMode: "fast" | "smart" | "jina";
+  defaultFormat: FetchFormat;
+  defaultCleanMode: boolean; // 是否默认启用纯净模式（去除所有外链）
+
+  // Jina 专有设置
+  jina: {
+    apiKey: string; // Jina Reader API Key (可选，留空走 20 RPM 免费限额)
+    engine: "default" | "readerlm-v2"; // 提炼引擎，可选 ReaderLM-v2 (专用1.5B模型)
+    withGeneratedAlt: boolean; // 是否启用图像智能描述生成 (X-With-Generated-Alt)
+    targetSelector?: string; // 默认提取选择器 (X-Target-Selector)
+    waitForSelector?: string; // 默认等待选择器 (X-Wait-For-Selector)
+    removeSelector?: string; // 默认剔除选择器 (X-Remove-Selector)
+  };
+
+  // 抓取与网络偏好
+  network: {
+    timeout: number; // 抓取超时时间 (ms，默认 15000)
+    maxAutoScrolls: number; // 智能模式默认自动滚动次数 (默认 3)
+    scrollDelay: number; // 智能模式滚动延迟 (ms，默认 800)
+  };
+
+  // 规则过滤
+  extractionRules: {
+    include: string[];
+    exclude: string[];
+  };
+}
+
+export interface JinaFetchOptions {
+  url: string;
+  format?: FetchFormat;
+  engine?: "default" | "readerlm-v2";
+  apiKey?: string;
+  cleanMode?: boolean;
+  withGeneratedAlt?: boolean;
+  targetSelector?: string;
+  waitForSelector?: string; // 对应的标准头为 X-Wait-For-Selector
+  removeSelector?: string; // 对应的标准头为 X-Remove-Selector
+  timeout?: number;
+}
 
 export interface QuickFetchOptions {
   url: string;

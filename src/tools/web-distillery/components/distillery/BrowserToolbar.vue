@@ -24,6 +24,7 @@ import {
   Globe,
   Zap,
   Scan,
+  Cloud,
   Trash2,
   FileUp,
   Cookie,
@@ -50,10 +51,9 @@ const props = withDefaults(defineProps<Props>(), {
   canGoBack: false,
   canGoForward: false,
 });
-
 const emit = defineEmits<{
   "update:modelValue": [url: string];
-  fetch: [mode: "fast" | "smart"];
+  fetch: [mode: "fast" | "smart" | "jina"];
   navigate: [direction: "back" | "forward"];
   refresh: [];
   upload: [payload: { content: string; fileName: string }];
@@ -63,7 +63,6 @@ const urlInputRef = ref<HTMLInputElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
-
 const modeOptions = [
   {
     label: "快速模式",
@@ -76,6 +75,12 @@ const modeOptions = [
     value: "smart",
     icon: Scan,
     desc: "隐藏 Iframe 渲染 JS，支持动态内容",
+  },
+  {
+    label: "Jina 模式",
+    value: "jina",
+    icon: Cloud,
+    desc: "由 r.jina.ai 云端解析，高保真输出 Markdown",
   },
 ];
 
@@ -130,7 +135,7 @@ function triggerFetch() {
   logger.debug("Triggering fetch", { url: finalUrl, mode: selectedMode.value });
   emit("update:modelValue", finalUrl);
 
-  emit("fetch", selectedMode.value as "fast" | "smart");
+  emit("fetch", selectedMode.value as "fast" | "smart" | "jina");
 
   urlInputRef.value?.blur();
 }

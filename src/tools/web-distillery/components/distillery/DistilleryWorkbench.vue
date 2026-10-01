@@ -17,7 +17,12 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted, onMounted } from "vue";
 import { useWebDistilleryStore } from "../../stores/store";
-import { quickFetch, smartExtract, processLocalContent } from "../../actions";
+import {
+  quickFetch,
+  smartExtract,
+  jinaFetch,
+  processLocalContent,
+} from "../../actions";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -43,7 +48,7 @@ const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
 
 const activeMode = computed(() => {
-  return store.result ? store.result.mode : "fast";
+  return store.result ? store.result.mode : store.config.defaultMode || "fast";
 });
 
 const qualityPercent = computed(() =>
@@ -111,6 +116,14 @@ async function handleFetch(mode: DistillMode) {
       });
       if (!result) {
         throw new Error("智能提取失败");
+      }
+
+      store.setResult(result);
+    } else if (mode === "jina") {
+      logger.info("Executing jinaFetch (Jina Cloud Mode)");
+      const result = await jinaFetch({ url, format: "markdown" });
+      if (!result) {
+        throw new Error("Jina 云端提取失败");
       }
 
       store.setResult(result);
@@ -247,7 +260,15 @@ function handleSendToChat() {
             <div class="section-title">提取质量</div>
             <div class="quality-card">
               <div class="quality-header">
-                <span class="quality-label">模式: {{ store.result.mode }}</span>
+                <span class="quality-label">
+                  模式:
+                  <span
+                    v-if="store.result.mode === 'jina'"
+                    class="mode-badge-jina"
+                    >JINA</span
+                  >
+                  <template v-else>{{ store.result.mode }}</template>
+                </span>
                 <el-tag size="small" :type="qualityStatus"
                   >{{ qualityPercent }}%</el-tag
                 >
@@ -325,6 +346,10 @@ function handleSendToChat() {
             <ul>
               <li><strong>快速模式</strong>: 纯 HTTP 请求，毫秒级响应</li>
               <li><strong>智能模式</strong>: 隐藏 Iframe 渲染，支持动态内容</li>
+              <li>
+                <strong>Jina 模式</strong>: r.jina.ai 云端解析，高保真
+                Markdown（可在偏好设置中配置 API Key）
+              </li>
             </ul>
           </div>
         </InfoCard>
@@ -399,6 +424,25 @@ function handleSendToChat() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+}
+
+/* Jina 模式专属 Badge（中性偏蓝主题色） */
+.mode-badge-jina {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--el-color-primary);
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border: 1px solid
+    rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.3));
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.6;
+  vertical-align: middle;
 }
 
 .quality-label {

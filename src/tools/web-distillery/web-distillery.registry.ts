@@ -11,18 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import type {
-  ToolRegistry,
-  ToolConfig,
-  ServiceMetadata,
-  ToolContext,
-} from "@/services/types";
-import { markRaw } from "vue";
-import { GlassWater } from "lucide-vue-next";
-import { quickFetch, smartExtract } from "./actions";
-import { formatFetchResult } from "./formatters";
+import type { ToolRegistry, ToolConfig, ServiceMetadata, ToolContext, } from "@/services/types";
 import { coerceAgentBoolean } from "@/utils/agentArgs";
+import { GlassWater } from "lucide-vue-next";
+import { markRaw } from "vue";
+
+import { quickFetch, smartExtract, jinaFetch } from "./actions";
+import { formatFetchResult } from "./formatters";
+
 
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
@@ -65,6 +61,25 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     );
     if (!result)
       return "错误: 智能提取失败。目标页面可能需要更长加载时间或需要授权。建议尝试打开交互式 UI 处理。";
+    return formatFetchResult(result);
+  }
+
+  /**
+   * Jina 云端网页提炼（Agent Facade）
+   */
+  public async jinaFetch(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
+    const result = await jinaFetch(
+      {
+        url: String(args.url || ""),
+        format: (args.format as any) || "markdown",
+        cleanMode: coerceAgentBoolean(args.cleanMode),
+      },
+      context
+    );
+    if (!result) return "错误: Jina Reader 提炼失败。";
     return formatFetchResult(result);
   }
 
@@ -120,6 +135,37 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               type: "string",
               description: "等待该 CSS 选择器匹配的元素出现后再进行提取",
               required: false,
+            },
+            {
+              name: "cleanMode",
+              type: "boolean",
+              description:
+                "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
+              required: false,
+              defaultValue: false,
+            },
+          ],
+          returnType: "string",
+        },
+        {
+          name: "jinaFetch",
+          displayName: "Jina 云端网页提炼",
+          description:
+            "使用 Jina Reader 云端高精度引擎将目标网页转换为极简干净的 Markdown。免浏览器开销，适合抓取公开文档、博客、技术文章与学术资料。",
+          agentCallable: true,
+          parameters: [
+            {
+              name: "url",
+              type: "string",
+              description: "目标网页的完整 URL",
+              required: true,
+            },
+            {
+              name: "format",
+              type: "'markdown' | 'text' | 'html' | 'json'",
+              description: "输出格式，默认 markdown",
+              required: false,
+              defaultValue: "markdown",
             },
             {
               name: "cleanMode",

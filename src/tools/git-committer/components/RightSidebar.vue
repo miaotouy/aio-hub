@@ -46,7 +46,7 @@
         </div>
         <div v-else class="commit-tree">
           <CommitDetailPopover
-            v-for="(commit, index) in commits"
+            v-for="commit in commits"
             :key="commit.hash"
             :commit="commit"
           >
@@ -58,11 +58,13 @@
               }"
               @contextmenu.prevent="showCommitMenu(commit, $event)"
             >
-              <!-- 连线 -->
-              <div class="tree-line-wrapper">
-                <div class="tree-dot" />
-                <div v-if="index < commits.length - 1" class="tree-line" />
-              </div>
+              <!-- Git 时间线分支连线与节点 -->
+              <CommitGraphTrack
+                :graph-item="timelineGraph.items.get(commit.hash)"
+                :max-lanes="timelineGraph.maxLanes"
+                :lane-width="13"
+                :node-y="10"
+              />
               <!-- 提交内容 -->
               <div class="commit-info">
                 <div class="commit-msg-row">
@@ -181,8 +183,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
+import CommitGraphTrack from "./CommitGraphTrack.vue";
+import { computeTimelineGraph } from "../utils/gitTimelineGraph";
 import { Loading } from "@element-plus/icons-vue";
 import { invoke } from "@tauri-apps/api/core";
 import { formatDistanceToNow, parseISO } from "date-fns";
@@ -220,6 +224,7 @@ import type { CommitFileChange, GitCommitSummary } from "../types";
 
 const commits = ref<GitCommitSummary[]>([]);
 const chartCommits = ref<GitCommitSummary[]>([]);
+const timelineGraph = computed(() => computeTimelineGraph(commits.value));
 const isLoadingHistory = ref(false);
 const isLoadingMoreHistory = ref(false);
 const hasMoreHistory = ref(true);
@@ -633,39 +638,10 @@ const formatTime = (dateStr: string) => {
   display: flex;
   flex-direction: column;
 }
-
 .commit-node {
   display: flex;
-  gap: 12px;
+  gap: 6px;
   position: relative;
-  padding-bottom: 12px;
-}
-
-.tree-line-wrapper {
-  width: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.tree-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background-color: var(--el-color-primary);
-  border: 2px solid var(--container-bg);
-  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.35);
-  z-index: 2;
-  margin-top: 4px;
-}
-
-.tree-line {
-  width: 2px;
-  flex: 1;
-  background-color: var(--control-border-color);
-  margin-top: -2px;
-  margin-bottom: -12px;
 }
 
 .commit-info {
@@ -674,6 +650,8 @@ const formatTime = (dateStr: string) => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding-top: 2px;
+  padding-bottom: 10px;
 }
 
 .commit-msg-row {

@@ -11,25 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { describe, expect, it } from "vitest";
-import {
-  buildCommitFileDiff,
-  buildCommitPromptMessages,
-  buildTabKey,
-  COMMIT_LANGUAGE_MACRO,
-  COMMIT_VIEW_TAB_PATH,
-  isCommitTab,
-  isCommitViewTab,
-  isFileViewTab,
-  joinRepoPath,
-  normalizeGeneratedCommitMessage,
-  parseRemoteInfo,
-  renderCommitPromptMacros,
-  REPO_PROMPT_TAB_PATH,
-  resolvePersistedPrompt,
-  resolveSystemPrompt,
-} from "../utils";
+
+import { buildCommitFileDiff, buildCommitPromptMessages, buildTabKey, COMMIT_LANGUAGE_MACRO, COMMIT_VIEW_TAB_PATH, isCommitTab, isCommitViewTab, isFileViewTab, joinRepoPath, normalizeGeneratedCommitMessage, parseRemoteInfo, renderCommitPromptMacros, REPO_PROMPT_TAB_PATH, resolvePersistedPrompt, resolveSystemPrompt, searchContentMatches, highlightLineMatch, highlightTextParts, } from "../utils";
+
 
 describe("git-committer system prompt inheritance", () => {
   it("prefers a non-empty repository prompt", () => {
@@ -350,5 +335,54 @@ describe("git-committer joinRepoPath", () => {
   it("handles empty relative paths and root-level files", () => {
     expect(joinRepoPath("C:\\work\\demo", "")).toBe("C:\\work\\demo");
     expect(joinRepoPath("C:\\work\\demo", "a.ts")).toBe("C:\\work\\demo\\a.ts");
+  });
+});
+
+describe("git-committer search utilities", () => {
+  it("searches content and returns up to 3 matches with remaining count", () => {
+    const text = [
+      "const foo = 1;",
+      "const bar = 2;",
+      "const foo2 = 3;",
+      "console.log(foo);",
+      "const fooFinal = 5;",
+    ].join("\n");
+
+    const result = searchContentMatches(text, "foo", 3);
+    expect(result.totalMatches).toBe(4);
+    expect(result.matches).toHaveLength(3);
+    expect(result.remainingCount).toBe(1);
+
+    expect(result.matches[0].lineNumber).toBe(1);
+    expect(result.matches[1].lineNumber).toBe(3);
+    expect(result.matches[2].lineNumber).toBe(4);
+  });
+
+  it("treats multiple occurrences in a single line as one match", () => {
+    const text = "foo and foo and foo in one line";
+    const result = searchContentMatches(text, "foo", 3);
+    expect(result.totalMatches).toBe(1);
+    expect(result.matches).toHaveLength(1);
+    expect(result.remainingCount).toBe(0);
+    // 检查高亮结果包含首处匹配
+    expect(
+      result.matches[0].parts.some((p) => p.isMatch && p.text === "foo")
+    ).toBe(true);
+  });
+
+  it("highlights keywords in text parts", () => {
+    const parts = highlightTextParts("src/views/MyComponent.vue", "Component");
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toEqual({ text: "src/views/My", isMatch: false });
+    expect(parts[1]).toEqual({ text: "Component", isMatch: true });
+    expect(parts[2]).toEqual({ text: ".vue", isMatch: false });
+  });
+
+  it("safely handles empty content or empty keyword", () => {
+    expect(searchContentMatches("", "foo").matches).toEqual([]);
+    expect(searchContentMatches("abc", "").matches).toEqual([]);
+    expect(highlightLineMatch("abc", "")).toEqual([
+      { text: "abc", isMatch: false },
+    ]);
   });
 });

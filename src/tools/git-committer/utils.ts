@@ -11,12 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { getExtension } from "@/utils/fileTypeDetector";
+import { customMessage } from "@/utils/customMessage";
 import { hexToRgb } from "@/utils/themeColors";
 import { createTwoFilesPatch } from "diff";
-import { customMessage } from "@/utils/customMessage";
+
 import type { DiffTabRef } from "./types";
+
 
 export const COMMIT_LANGUAGE_MACRO = "${language}";
 export const DEFAULT_COMMIT_LANGUAGE = "简体中文";
@@ -255,6 +256,143 @@ export function resolveSystemPrompt(
 export interface CommitPromptMessage {
   role: "system" | "user";
   content: string;
+}
+
+export interface HighlightPart {
+  text: string;
+  isMatch: boolean;
+}
+
+export interface FileDiffMatchLine {
+  lineNumber: number;
+  lineContent: string;
+  parts: HighlightPart[];
+}
+
+export interface FileDiffSearchResult {
+  /** 前 3 个匹配行 */
+  matches: FileDiffMatchLine[];
+  /** 内容匹配总行数（一行只算一个） */
+  totalMatches: number;
+  /** 剩余未展示的行数 */
+  remainingCount: number;
+}
+
+/**
+ * 在单行文本中高亮关键词首处出现的位置，并截取上下文。
+ * 单行只高亮首个匹配，并限制展示长度。
+ */
+export function highlightLineMatch(
+  line: string,
+  keyword: string,
+  matchStartIdx?: number,
+  contextChars = 40
+): HighlightPart[] {
+  if (!keyword) return [{ text: line, isMatch: false }];
+  const lowerLine = line.toLowerCase();
+  const lowerKw = keyword.toLowerCase();
+  const start =
+    matchStartIdx !== undefined && matchStartIdx >= 0
+      ? matchStartIdx
+      : lowerLine.indexOf(lowerKw);
+
+  if (start === -1) {
+    return [{ text: line, isMatch: false }];
+  }
+
+  const end = start + keyword.length;
+  const displayStart = Math.max(0, start - contextChars);
+  const displayEnd = Math.min(line.length, end + contextChars);
+
+  const displayContent = line.slice(displayStart, displayEnd);
+  const adjustedStart = start - displayStart;
+  const adjustedEnd = end - displayStart;
+
+  const prefix = displayStart > 0 ? "…" : "";
+  const suffix = displayEnd < line.length ? "…" : "";
+
+  const before = prefix + displayContent.slice(0, adjustedStart);
+  const matched = displayContent.slice(adjustedStart, adjustedEnd);
+  const after = displayContent.slice(adjustedEnd) + suffix;
+
+  const parts: HighlightPart[] = [];
+  if (before) parts.push({ text: before, isMatch: false });
+  if (matched) parts.push({ text: matched, isMatch: true });
+  if (after) parts.push({ text: after, isMatch: false });
+  return parts;
+}
+
+/**
+ * 在文本片段中标记关键词高亮（用于文件名、路径等短文本）。
+ */
+export function highlightTextParts(
+  text: string,
+  keyword: string
+): HighlightPart[] {
+  if (!keyword || !text) return [{ text: text || "", isMatch: false }];
+  const lower = text.toLowerCase();
+  const kw = keyword.toLowerCase();
+  let searchIdx = 0;
+  let matchIdx = lower.indexOf(kw, searchIdx);
+  if (matchIdx === -1) return [{ text, isMatch: false }];
+
+  const parts: HighlightPart[] = [];
+  while (matchIdx !== -1) {
+    if (matchIdx > searchIdx) {
+      parts.push({ text: text.slice(searchIdx, matchIdx), isMatch: false });
+    }
+    parts.push({
+      text: text.slice(matchIdx, matchIdx + keyword.length),
+      isMatch: true,
+    });
+    searchIdx = matchIdx + keyword.length;
+    matchIdx = lower.indexOf(kw, searchIdx);
+  }
+  if (searchIdx < text.length) {
+    parts.push({ text: text.slice(searchIdx), isMatch: false });
+  }
+  return parts;
+}
+
+/**
+ * 在文本（如 modified 或 original 文件内容）中检索匹配行。
+ * 单个文件最多返回 maxMatches (默认 3) 个内容匹配行，一行只算一个匹配，多的计算剩余数量。
+ */
+export function searchContentMatches(
+  content: string,
+  keyword: string,
+  maxMatches = 3
+): FileDiffSearchResult {
+  const trimmedKw = keyword.trim();
+  if (!trimmedKw || !content) {
+    return { matches: [], totalMatches: 0, remainingCount: 0 };
+  }
+
+  const lines = content.split(/\r?\n/);
+  const lowerKw = trimmedKw.toLowerCase();
+  const matches: FileDiffMatchLine[] = [];
+  let totalMatches = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const matchIdx = line.toLowerCase().indexOf(lowerKw);
+    if (matchIdx !== -1) {
+      totalMatches += 1;
+      if (matches.length < maxMatches) {
+        matches.push({
+          lineNumber: i + 1,
+          lineContent: line,
+          parts: highlightLineMatch(line, trimmedKw, matchIdx),
+        });
+      }
+    }
+  }
+
+  return {
+    matches,
+    totalMatches,
+    remainingCount: Math.max(0, totalMatches - maxMatches),
+  };
 }
 
 export interface CommitPromptContext {

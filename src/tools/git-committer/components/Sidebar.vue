@@ -16,61 +16,7 @@
 
 <template>
   <div class="git-committer-sidebar">
-    <!-- 顶部：当前仓库信息与操作 -->
-    <div class="sidebar-header">
-      <div class="repo-meta">
-        <div
-          class="repo-title"
-          :title="currentRepo?.alias || currentRepo?.name"
-        >
-          {{ currentRepo?.alias || currentRepo?.name }}
-        </div>
-        <div class="repo-branch" :title="currentStatus?.branch">
-          <GitBranch :size="14" class="branch-icon" />
-          {{ currentStatus?.branch || "HEAD" }}
-        </div>
-      </div>
-
-      <div class="repo-actions">
-        <el-tooltip content="拉取远程更改" placement="bottom">
-          <el-button
-            circle
-            size="small"
-            :loading="isPulling"
-            @click="handlePull"
-          >
-            <ArrowDown v-if="!isPulling" :size="14" />
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="推送本地提交" placement="bottom">
-          <el-button
-            circle
-            size="small"
-            :loading="isPushing"
-            @click="handlePush"
-          >
-            <ArrowUp v-if="!isPushing" :size="14" />
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="刷新状态" placement="bottom">
-          <el-button
-            circle
-            size="small"
-            :loading="isRefreshing"
-            @click="refreshCurrentStatus"
-          >
-            <RefreshCw v-if="!isRefreshing" :size="14" />
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="打开仓库所在目录" placement="bottom">
-          <el-button circle size="small" @click="handleOpenRepoFolder">
-            <FolderOpen :size="14" />
-          </el-button>
-        </el-tooltip>
-      </div>
-    </div>
-
-    <!-- 中部：AI 提交面板 -->
+    <!-- 顶部：AI 提交面板（仓库信息与操作已迁移至 GitHeaderBar） -->
     <div class="commit-panel">
       <div class="ai-model-row">
         <LlmModelSelector v-model="defaultModel" class="model-selector" />
@@ -332,10 +278,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import {
-  GitBranch,
-  ArrowDown,
-  ArrowUp,
-  RefreshCw,
   Sparkles,
   SquareStop,
   ChevronDown,
@@ -344,24 +286,18 @@ import {
   Undo2,
   FileDiff,
   Eye,
-  FolderOpen,
   MessageSquareText,
 } from "lucide-vue-next";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { ElMessageBox } from "element-plus";
-import { customMessage } from "@/utils/customMessage";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import {
-  currentRepo,
   currentRepoPath,
   currentStatus,
   currentSession,
   defaultModel,
-  isRefreshing,
 } from "../composables/useGitCommitterState";
 import {
-  refreshCurrentStatus,
   stageFile,
   unstageFile,
   stageFiles,
@@ -380,15 +316,11 @@ import { getFileName, getFileDir, buildTabKey } from "../utils";
 const activeCollapseNames = ref(["staged", "unstaged"]);
 const commitAction = ref<"commit" | "commit-push">("commit");
 
-// 使用统一的工作流 Composable
+// 使用统一的工作流 Composable（拉取/推送已上移至 GitHeaderBar）
 const {
-  isPulling,
-  isPushing,
   isGenerating,
   isCommitting,
   draft: commitMessage,
-  pull: handlePull,
-  push: handlePush,
   generateMsg: handleGenerateCommitMessage,
   abortGenerateMsg: handleAbortGenerateMessage,
   commit,
@@ -472,16 +404,6 @@ const handleOpenChanges = (isStaged: boolean) => {
   openChangesTab(isStaged);
 };
 
-const handleOpenRepoFolder = async () => {
-  const repoPath = currentRepoPath.value;
-  if (!repoPath) return;
-  try {
-    await openPath(repoPath);
-  } catch {
-    customMessage.error("无法打开仓库所在目录");
-  }
-};
-
 const discardAll = () => {
   if (!currentStatus.value?.unstaged.length) return;
   ElMessageBox.confirm(
@@ -543,47 +465,6 @@ const unstageAll = async () => {
   --git-status-renamed: #73c991;
 }
 
-/* 顶部仓库信息 */
-.sidebar-header {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  flex-shrink: 0;
-}
-
-.repo-meta {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex: 1;
-  margin-right: 8px;
-}
-
-.repo-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.repo-branch {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-}
-
-.branch-icon {
-  margin-right: 4px;
-}
-
 .commit-btn-group {
   width: 100%;
   display: flex;
@@ -628,16 +509,6 @@ const unstageAll = async () => {
 .header-action-btn:focus-visible {
   outline: 1px solid var(--el-color-primary);
   outline-offset: -1px;
-}
-
-.settings-icon {
-  margin-right: 6px;
-}
-
-.repo-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
 }
 
 /* AI 提交面板 */

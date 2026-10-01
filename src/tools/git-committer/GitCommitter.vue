@@ -24,73 +24,70 @@
       @navigate="showSettings = false"
     />
 
-    <!-- 中部操作栏 (Sidebar) -->
-    <Sidebar
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-      :style="{ width: sidebarWidth + 'px' }"
-    />
-    <div
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-      class="resize-handle"
-      :class="{ active: isResizingSidebar }"
-      @mousedown="handleSidebarResizeStart"
-      @dblclick="resetSidebarWidth"
-    />
-
-    <!-- 中间主区域 (MainArea) -->
-    <div class="main-content-wrapper">
-      <SettingsPanel v-if="showSettings" @close="showSettings = false" />
-      <MainArea
-        v-else
-        :sidebar-width="sidebarWidth"
-        :right-sidebar-width="rightSidebarWidth"
-        :is-right-sidebar-expanded="isRightSidebarExpanded"
+    <!-- 右侧工作区：顶部头部栏 + 下方三栏布局 -->
+    <div class="workspace-wrapper">
+      <!-- 顶部头部栏：仓库信息/操作 + 文件搜索 + 右侧栏开关 -->
+      <GitHeaderBar
+        v-if="
+          currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
+        "
       />
-    </div>
 
-    <!-- 右侧图表侧边栏 (RightSidebar) -->
-    <template
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-    >
-      <div
-        v-if="isRightSidebarExpanded"
-        class="resize-handle right"
-        :class="{ active: isResizingRightSidebar }"
-        @mousedown="handleRightSidebarResizeStart"
-        @dblclick="resetRightSidebarWidth"
-      />
-      <RightSidebar
-        v-if="isRightSidebarExpanded"
-        :style="{ width: rightSidebarWidth + 'px' }"
-      />
-    </template>
+      <!-- 三栏工作区 -->
+      <div class="workspace-body">
+        <!-- 中部操作栏 (Sidebar) -->
+        <Sidebar
+          v-if="
+            currentRepoPath &&
+            currentRepoPath !== '__panorama__' &&
+            !showSettings
+          "
+          :style="{ width: sidebarWidth + 'px' }"
+        />
+        <div
+          v-if="
+            currentRepoPath &&
+            currentRepoPath !== '__panorama__' &&
+            !showSettings
+          "
+          class="resize-handle"
+          :class="{ active: isResizingSidebar }"
+          @mousedown="handleSidebarResizeStart"
+          @dblclick="resetSidebarWidth"
+        />
 
-    <!-- 右侧栏折叠/展开悬浮按钮 -->
-    <div
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-      class="toggle-right-sidebar-btn"
-      :class="{ 'is-expanded': isRightSidebarExpanded }"
-      @click="isRightSidebarExpanded = !isRightSidebarExpanded"
-    >
-      <el-tooltip
-        :content="isRightSidebarExpanded ? '收起历史与统计' : '展开历史与统计'"
-        placement="left"
-      >
-        <el-button circle>
-          <component
-            :is="isRightSidebarExpanded ? PanelRightClose : PanelRight"
-            :size="16"
+        <!-- 中间主区域 (MainArea) -->
+        <div class="main-content-wrapper">
+          <SettingsPanel v-if="showSettings" @close="showSettings = false" />
+          <MainArea
+            v-else
+            :sidebar-width="sidebarWidth"
+            :right-sidebar-width="rightSidebarWidth"
+            :is-right-sidebar-expanded="isRightSidebarExpanded"
           />
-        </el-button>
-      </el-tooltip>
+        </div>
+
+        <!-- 右侧图表侧边栏 (RightSidebar) -->
+        <template
+          v-if="
+            currentRepoPath &&
+            currentRepoPath !== '__panorama__' &&
+            !showSettings
+          "
+        >
+          <div
+            v-if="isRightSidebarExpanded"
+            class="resize-handle right"
+            :class="{ active: isResizingRightSidebar }"
+            @mousedown="handleRightSidebarResizeStart"
+            @dblclick="resetRightSidebarWidth"
+          />
+          <RightSidebar
+            v-if="isRightSidebarExpanded"
+            :style="{ width: rightSidebarWidth + 'px' }"
+          />
+        </template>
+      </div>
     </div>
 
     <!-- 拖拽遮罩层，防止拖拽时鼠标滑入 iframe 或 Monaco 导致事件丢失 -->
@@ -124,9 +121,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { LoaderCircle, PanelRight, PanelRightClose } from "lucide-vue-next";
+import { LoaderCircle } from "lucide-vue-next";
 import DropZone from "@/components/common/DropZone.vue";
 import RepoBar from "./components/RepoBar.vue";
+import GitHeaderBar from "./components/GitHeaderBar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import MainArea from "./components/MainArea.vue";
 import RightSidebar from "./components/RightSidebar.vue";
@@ -286,6 +284,23 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* 右侧工作区：头部栏 + 三栏主体 */
+.workspace-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.workspace-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .main-content-wrapper {
   flex: 1;
   height: 100%;
@@ -331,15 +346,6 @@ onUnmounted(() => {
 .resize-handle.right:hover::after,
 .resize-handle.right.active::after {
   right: 1px;
-}
-
-/* 右侧栏折叠/展开悬浮按钮 */
-.toggle-right-sidebar-btn {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  z-index: 40;
-  transition: transform 0.3s ease;
 }
 
 /* 拖拽遮罩层 */

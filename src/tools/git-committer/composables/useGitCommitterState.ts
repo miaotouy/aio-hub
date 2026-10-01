@@ -1,3 +1,5 @@
+import { createConfigManager } from "@/utils/configManager";
+import { createModuleLogger } from "@/utils/logger";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,34 +13,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
  * Git Committer 全局状态管理与持久化
  *
  * 基于 ConfigManager 进行防抖持久化（默认 500ms），写入
  * `appData/git-committer/config.json`，重启后无缝恢复现场。
  */
-
 import { ref, computed, watch } from "vue";
-import { createConfigManager } from "@/utils/configManager";
-import { createModuleLogger } from "@/utils/logger";
-import type {
-  GitCommitterConfig,
-  RepositoryConfig,
-  RepoSession,
-  RepoStatus,
-  RepoWorkflowState,
-} from "../types";
-import {
-  COMMIT_LANGUAGE_MACRO,
-  DEFAULT_COMMIT_LANGUAGE,
-  DEFAULT_REPO_AVATAR_PALETTE,
-  pickRandomRepoColor,
-  resolvePersistedPrompt,
-  resolveRepoAvatarPalette,
-  resolveRepoColor,
-  resolveSystemPrompt,
-} from "../utils";
+
+import { COMMIT_LANGUAGE_MACRO, DEFAULT_COMMIT_LANGUAGE, DEFAULT_REPO_AVATAR_PALETTE, pickRandomRepoColor, resolvePersistedPrompt, resolveRepoAvatarPalette, resolveRepoColor, resolveSystemPrompt, } from "../utils";
+import type { GitCommitterConfig, RepositoryConfig, RepoSession, RepoStatus, RepoWorkflowState, } from "../types";
+
 
 const logger = createModuleLogger("git-committer/state");
 
@@ -159,6 +144,8 @@ export const repoAvatarPalette = ref<string[]>([
 // 运行时状态（不持久化）
 export const repoStatuses = ref<Record<string, RepoStatus>>({});
 export const isRefreshing = ref<boolean>(false);
+/** 工作区更改文件搜索关键词（头部栏搜索框，仅过滤暂存/未暂存文件列表，不持久化） */
+export const fileSearchKeyword = ref<string>("");
 /** 各仓库的工作流运行态（拉取/推送/生成/提交），按仓库隔离，避免相互串台 */
 export const repoWorkflowStates = ref<Record<string, RepoWorkflowState>>({});
 
@@ -385,6 +372,8 @@ export function removeRepository(path: string): void {
 export function switchRepo(path: string): void {
   if (path === currentRepoPath.value) return;
   currentRepoPath.value = path;
+  // 切换仓库时清空文件搜索，避免新仓库列表被旧关键词过滤成空
+  fileSearchKeyword.value = "";
   persist();
 }
 

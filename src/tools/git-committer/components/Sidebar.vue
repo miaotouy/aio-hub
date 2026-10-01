@@ -62,6 +62,11 @@
             <RefreshCw v-if="!isRefreshing" :size="14" />
           </el-button>
         </el-tooltip>
+        <el-tooltip content="打开仓库所在目录" placement="bottom">
+          <el-button circle size="small" @click="handleOpenRepoFolder">
+            <FolderOpen :size="14" />
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
 
@@ -339,9 +344,12 @@ import {
   Undo2,
   FileDiff,
   Eye,
+  FolderOpen,
   MessageSquareText,
 } from "lucide-vue-next";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { ElMessageBox } from "element-plus";
+import { customMessage } from "@/utils/customMessage";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import {
@@ -462,6 +470,16 @@ const handleOpenFile = (file: { path: string; status: string }) => {
 
 const handleOpenChanges = (isStaged: boolean) => {
   openChangesTab(isStaged);
+};
+
+const handleOpenRepoFolder = async () => {
+  const repoPath = currentRepoPath.value;
+  if (!repoPath) return;
+  try {
+    await openPath(repoPath);
+  } catch {
+    customMessage.error("无法打开仓库所在目录");
+  }
 };
 
 const discardAll = () => {

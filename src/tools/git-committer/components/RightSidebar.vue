@@ -650,11 +650,12 @@ const formatTime = (dateStr: string) => {
 }
 
 .tree-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background-color: var(--el-color-primary);
-  border: 2px solid var(--card-bg);
+  border: 2px solid var(--container-bg);
+  box-shadow: 0 0 0 1px rgba(var(--el-color-primary-rgb), 0.35);
   z-index: 2;
   margin-top: 4px;
 }
@@ -662,7 +663,7 @@ const formatTime = (dateStr: string) => {
 .tree-line {
   width: 2px;
   flex: 1;
-  background-color: var(--border-color);
+  background-color: var(--control-border-color);
   margin-top: -2px;
   margin-bottom: -12px;
 }

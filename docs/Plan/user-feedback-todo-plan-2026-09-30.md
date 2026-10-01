@@ -1,8 +1,8 @@
 # 用户反馈调查与待办实施规划 (2026-09-30)
 
-> 状态：代码已实施（2026-10-01 复核），2.4 真实环境走查与 4.1/4.2 的 aliases/拼音过滤未完成  
-> 来源：群聊与主人反馈收集（kfc50, 莓完莓鸟）  
-> 涉及模块：`skill-manager`, `llm-chat`, `aio-file-operator`  
+> 状态：F-01（Phase 2）重构已落地完成，4.1/4.2 的 aliases/拼音过滤未完成
+> 来源：群聊与主人反馈收集（kfc50, 莓完莓鸟）
+> 涉及模块：`skill-manager`, `llm-chat`, `aio-file-operator`
 > 负责人：咕咕 (Architect)
 
 ---
@@ -45,28 +45,35 @@
 
 ---
 
-### 2.2. [F-01] Skill 管理器概览布局重构 (P1)
+### 2.2. [F-01] Skill 管理器概览布局重构与规范化 (P1)
 
-#### 2.2.1. 问题分析
+#### 2.2.1. 问题诊断与现有实现缺陷
 
-目前 `SkillDetailPanel.vue` 的标签页结构为：
+经 2026-10-01 深度复查，当前代码虽已合并了“指令”Tab，但落地形态存在显著的交互和架构缺陷：
 
-- `overview` (概览: `SkillDetailOverview.vue`)
-- `instructions` (指令: `SkillDetailInstructions.vue`)
-- `env` (环境变量: `SkillDetailEnv.vue`)
-- `files` (文件目录: `SkillDetailFiles.vue`)
+1. **容器高度塌陷与双重滚动条（滚动地狱）**：
+   `SkillDetailOverview.vue` 外层为 `.tab-scroll-container` (`height: 100%; overflow-y: auto`)，直接内嵌了 `DocumentViewer.vue`（自身也是 `height: 100%` + 内部滚动）。导致鼠标在文档区域时文档自己滚，滚到底才滚外层，极度割裂。
+2. **组件误用与视觉“套娃”**：
+   `DocumentViewer` 为通用文件查看器，自带了“文件名 / 源码与预览切换 / 复制 / 下载文件”工具栏和边框，嵌入在 Skill 详情中就像内嵌了一个文件窗口，缺乏原生“详情页/说明书”的一体感。
+3. **关键元数据沉底被淹没**：
+   采用上下硬堆叠布局，长篇指令导致“可用脚本”、“工具权限”、“元数据”折叠面板被挤到几屏之外的“地心深处”，用户根本注意不到该 Skill 是否有脚本和权限。
+4. **Rust 与前端逻辑重复处理 Frontmatter**：
+   Rust 端 `commands/skill_manager.rs:261` 已经把 YAML 剥离并将纯 instructions 传给前端，前端却再次执行正则匹配剥离，一旦正文开头存在 Markdown `---` 分割线便会造成误截断。
 
-绝大多数高质量开源 Skill 纯粹由 `SKILL.md` 指导词驱动，无本地可执行脚本，不声明复杂元数据。用户进入 Skill 详情后默认停留在“概览”，看到的只有空白的区域或只有许可证一条信息，误以为该 Skill 空白无内容；必须手动切换到“指令”Tab 才能看到它到底能干什么。
+#### 2.2.2. 对标参考：VS Code 扩展市场与项目内 `PluginDetailPanel.vue` 标准范式
 
-#### 2.2.2. 改造方案
+姐姐指出的 VS Code 插件市场详情页（以及项目中已成熟落地的 [`src/views/PluginManager/components/PluginDetailPanel.vue`](../../src/views/PluginManager/components/PluginDetailPanel.vue)）是此类“能力组件说明书”的行业标准实践：
 
-1. **重新定位“概览”为“Skill 说明书”**：
-   - 在 `SkillDetailOverview.vue` 中将**剥离 YAML frontmatter 后的自说明文档 (Markdown 正文)** 作为核心主体渲染（复用 `DocumentViewer` 或内嵌 Markdown 渲染器）。
-   - 顶部提供紧凑的**特征属性胶囊栏**：来源（内置/用户/外部）、许可证、适用环境、依赖工具标签（`allowedTools`）、可用脚本数、环境变量状态。
-   - 如果存在脚本或复杂配置，以折叠面板或右侧/下方卡片形式作为附加能力展示，而不是挤占主体。
-2. **简化标签页结构**：
-   - 方案 A（推荐）：将“指令”与“概览”合并为统一的“概览/文档”主视图，不再维护内容重复的单独“指令”Tab。保留 Tab 为：`概览说明 (Overview)`、`环境变量 (Environment)`、`文件目录 (Files)`。
-   - 方案 B：在概览中提取自说明的“首段摘要 / Usage 示例”作为文档预览卡片，并提供“查看完整指令”的直接跳转锚点。
+- **主工作区（左侧 `main-content`）**：
+  - 纯 Markdown 说明书直接流式渲染（复用 `RichTextRenderer`，与外层容器统一平滑滚动，无独立外框和多余工具栏）；
+  - 最大宽度限制（`max-width: 900px`），保证宽屏下的最佳阅读舒适度。
+- **元数据侧边栏（右侧 `info-sidebar`）**：
+  - 固定宽度的信息看板（约 260px~280px）；
+  - 分块展示：特征与规范（许可证、环境兼容性、来源）、可用脚本（带语言 Badge 与执行路径）、依赖工具权限（`allowedTools` 标签）、扩展元数据、资源文件统计等；
+  - 即使文档有几万字，右侧能力要素依然一目了然。
+- **响应式与容器查询（`@container`）**：
+  - 宽屏与标准桌面窗口下采用“左文档 + 右信息”双栏；
+  - 窄屏（如 `< 768px`）自适应变为“信息看板在上，Markdown 说明在下”单列流。
 
 ---
 
@@ -121,12 +128,16 @@
 - [x] 1.3 在 `actions.ts` 的 `buildErrorResult` 中对 params 和 message 加入安全预览过滤。
 - [x] 1.4 编写针对超长恶意路径（如 10KB 文本输入）的单测验证。
 
-### Phase 2: Skill 管理器概览页面重构 (P1)
+### Phase 2: Skill 管理器概览页面重构与对标优化 (P1)
 
-- [x] 2.1 审查 `SkillDetailOverview.vue`，引入 `DocumentViewer` 将指令正文自说明（剥离 frontmatter 后）作为核心内容直观渲染。
-- [x] 2.2 顶部增加技能能力看板（来源、版本、许可证、脚本列表摘要、工具权限标签）。
-- [x] 2.3 评估合并“概览”与“指令”Tab，减少冗余层级，提升进入技能详情时的即时可读性。（已按方案 A 合并，`SkillDetailInstructions.vue` 已删除）
-- [ ] 2.4 走查内置与用户导入的典型 Skill（纯文档 Skill 与含脚本 Skill）显示效果。
+- [x] 2.1 评估合并“概览”与“指令”Tab，减少冗余层级，提升即时可读性（已合并，`SkillDetailInstructions.vue` 已移除）。
+- [x] 2.2 重构 `SkillDetailOverview.vue` 布局为 VS Code / `PluginDetailPanel.vue` 标准范式：
+  - [x] 2.2.1 采用双栏容器查询布局（左侧 `main-content` 渲染 Markdown 说明，右侧 `info-sidebar` 聚合元数据与脚本）；
+  - [x] 2.2.2 移除 `DocumentViewer`，替换为无多余工具栏、无高度硬限制的自然流式 `RichTextRenderer`，消除双重滚动条与套娃感；
+  - [x] 2.2.3 移除前端重复剥离 frontmatter 的脆弱正则，直接信任 Rust 返回的干净 `instructions`；
+  - [x] 2.2.4 右侧侧边栏按专业桌面级层级呈现：属性规格（许可证、环境兼容性）、脚本列表（卡片化/语言标签）、权限依赖（`allowedTools` 标签）、扩展元数据；
+  - [x] 2.2.5 适配 `@container` 响应式，窄屏自动折叠至单列。
+- [x] 2.3 走查内置与用户导入的典型 Skill（纯文档 Skill 如 `context7` 与含丰富脚本的复杂 Skill 如 `gpt-image-2`）的实际视觉与滚动表现。
 
 ### Phase 3: 本地文件操作器功能补齐 (P1)
 

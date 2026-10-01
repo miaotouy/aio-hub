@@ -148,7 +148,10 @@
           </div>
 
           <!-- 文件当前内容（非 diff）只读视图 -->
-          <div v-else-if="activeTab.viewMode === 'file'" class="file-view">
+          <div
+            v-else-if="isFileViewTab(activeTabInfo) || isFileViewTab(activeTab)"
+            class="file-view"
+          >
             <div class="diff-toolbar file-toolbar">
               <span class="file-view-path" :title="activeTab.path">{{
                 activeTab.path
@@ -579,7 +582,10 @@ watch(
             tabInfo.isStaged
           );
     if (diff && session.value.activeTabPath === newKey) {
-      activeTab.value = diff;
+      activeTab.value = {
+        ...diff,
+        viewMode: tabInfo.viewMode,
+      };
       triggerEditorLayout();
     } else if (session.value.activeTabPath === newKey) {
       const notFoundMessage = isFileViewTab(tabInfo)

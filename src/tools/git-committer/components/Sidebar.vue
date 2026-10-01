@@ -379,11 +379,12 @@ const handleDiscardFile = (path: string) => {
     });
 };
 
-/** 当前文件是否是对应标签页的激活项（diff 按区匹配，文件内容视图共用工作区键） */
+/** 当前文件是否是对应标签页的激活项（diff 按区匹配，文件内容视图支持匹配） */
 const isActiveFile = (path: string, isStaged: boolean) => {
   const active = currentSession.value.activeTabPath;
   return (
     active === buildTabKey({ path, isStaged }) ||
+    active === buildTabKey({ path, isStaged, viewMode: "file" }) ||
     active === buildTabKey({ path, isStaged: false, viewMode: "file" })
   );
 };

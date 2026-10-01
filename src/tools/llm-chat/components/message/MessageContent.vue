@@ -568,6 +568,33 @@ const handleEditClearAllAttachments = async () => {
   }
 };
 
+// 点击编辑区域空白处兜底聚焦，防止点中 padding 或编辑器容器留白时丢失焦点
+const handleEditAreaMouseDown = (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+
+  // 如果点中的是按钮、下拉菜单、附件卡片等具有独立交互的元素，不抢占焦点
+  if (
+    target.closest("button") ||
+    target.closest(".el-button") ||
+    target.closest(".el-dropdown") ||
+    target.closest(".attachment-card") ||
+    target.closest(".edit-attachments-actions") ||
+    target.closest(".edit-actions")
+  ) {
+    return;
+  }
+
+  // 如果已经点在 CM 可编辑内容区或 textarea 内，交给原生光标定位
+  if (target.closest(".cm-content") || target.tagName === "TEXTAREA") {
+    return;
+  }
+
+  // 阻止默认 blur 行为，并委托聚焦给编辑器
+  e.preventDefault();
+  editorRef.value?.focus();
+};
+
 // 编辑模式下插入占位符到编辑器
 const handleInsertPlaceholderInEditor = (asset: Asset) => {
   const placeholder = generateAssetPlaceholder(asset.id);
@@ -1039,6 +1066,7 @@ watch(
       ref="editAreaRef"
       class="edit-mode"
       :class="{ 'is-dragging': isDraggingOver }"
+      @mousedown="handleEditAreaMouseDown"
     >
       <!-- 编辑模式的附件展示 -->
       <div
@@ -1581,9 +1609,33 @@ watch(
 .edit-mode :deep(.chat-cm-editor),
 .edit-mode :deep(.textarea-wrapper) {
   min-height: 200px;
-  border: 1px solid var(--primary-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--container-bg);
+  cursor: text;
+}
+
+/* 确保 CodeMirror 内部滚动区与可编辑内容区域彻底撑满 200px+ 容器高度，
+ * 避免文字下方大片留白区域成为未绑定的空白 div 导致点击失焦 */
+.edit-mode :deep(.cm-editor) {
+  min-height: inherit;
+  height: 100%;
+  cursor: text;
+}
+
+.edit-mode :deep(.cm-scroller) {
+  min-height: inherit;
+  cursor: text;
+}
+
+.edit-mode :deep(.cm-content) {
+  min-height: 180px;
+  cursor: text;
+}
+
+/* 原生 textarea 模式同理撑满高度 */
+.edit-mode :deep(.textarea-wrapper textarea) {
+  min-height: 180px;
 }
 
 .edit-mode :deep(.chat-cm-editor:focus-within),

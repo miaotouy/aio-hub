@@ -56,7 +56,10 @@ import {
   initializeMacroEngine,
   type MacroDefinition,
 } from "../../macro-engine";
-import { getSlashCommands, filterCommands } from "../../services/slashCommandService";
+import {
+  getSlashCommands,
+  filterCommands,
+} from "../../services/slashCommandService";
 import type {
   SlashCommandItem,
   ChatInputContext,
@@ -243,7 +246,12 @@ const slashCommandCompletionSource = async (
     type: "slash-command",
     info: item.description,
     boost: item.category === "system" ? 10 : 0,
-    apply: (applyView: EditorView, _c: Completion, from: number, to: number) => {
+    apply: (
+      applyView: EditorView,
+      _c: Completion,
+      from: number,
+      to: number
+    ) => {
       if (item.type === "action" && item.execute) {
         // action 型：移除已输入的 /词 后执行
         applyView.dispatch({
@@ -442,6 +450,14 @@ onMounted(() => {
       }),
       // 监听原始键盘事件
       EditorView.domEventHandlers({
+        mousedown: (event) => {
+          // 点击编辑器内部任何空白区域（如 cm-editor/cm-scroller），确保光标能正确进入 cm-content
+          const target = event.target as HTMLElement | null;
+          if (target && !target.closest(".cm-content") && view.value) {
+            view.value.focus();
+          }
+          return false;
+        },
         compositionstart: () => {
           isComposing = true;
           pendingPropsValueDuringComposition = null;
@@ -628,6 +644,14 @@ defineExpose({
     return view.value?.state.doc.toString() || "";
   },
 });
+
+// 容器点击事件：点击 .chat-cm-editor 边缘或留白时，委托聚焦给内部 view
+const handleContainerMouseDown = (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null;
+  if (!target?.closest(".cm-content") && view.value) {
+    view.value.focus();
+  }
+};
 </script>
 
 <template>
@@ -640,6 +664,7 @@ defineExpose({
       height: typeof height === 'number' ? height + 'px' : height,
       maxHeight: typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
     }"
+    @mousedown="handleContainerMouseDown"
   ></div>
 </template>
 

@@ -21,13 +21,23 @@
       <div class="section-header">
         <History :size="16" class="history-icon" />
         <span class="section-title">最近提交历史</span>
+        <el-icon
+          v-if="isLoadingHistory && commits.length > 0"
+          class="is-loading refresh-spinner"
+          :size="14"
+        >
+          <Loading />
+        </el-icon>
       </div>
       <div
         ref="historyContentRef"
         class="section-content history-content"
         @scroll="handleHistoryScroll"
       >
-        <div v-if="isLoadingHistory" class="loading-wrapper">
+        <div
+          v-if="isLoadingHistory && commits.length === 0"
+          class="loading-wrapper"
+        >
           <el-icon class="is-loading" :size="18"><Loading /></el-icon>
           <span class="loading-text text-secondary">正在加载历史...</span>
         </div>
@@ -217,6 +227,9 @@ const historySkip = ref(0);
 const historyContentRef = ref<HTMLElement | null>(null);
 const HISTORY_PAGE_SIZE = 30;
 let historyRequestId = 0;
+// 记录上次加载历史的仓库与分支，用于区分「同仓库 HEAD 更新」与「仓库/分支切换」
+let lastHistoryRepo = "";
+let lastHistoryBranch = "";
 
 // ===== 展开 / 选中状态（支持同时展开多个提交） =====
 const expandedHashes = ref<Set<string>>(new Set());
@@ -227,18 +240,22 @@ const commitFiles = ref<Record<string, CommitFileChange[]>>({});
 const chartCutoff = () => Date.now() - 14 * 24 * 60 * 60 * 1000;
 
 // ===== 加载 Commit 历史 =====
-const loadHistoryPage = async (reset = false, requestId = historyRequestId) => {
+const loadHistoryPage = async (
+  reset = false,
+  requestId = historyRequestId,
+  keepExisting = false
+) => {
   if (requestId !== historyRequestId) return;
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
     commits.value = [];
-    chartCommits.value = [];
     return;
   }
   const branch = currentStatus.value.branch;
   if (reset) {
     historySkip.value = 0;
     hasMoreHistory.value = true;
-    commits.value = [];
+    // HEAD 更新刷新时保留旧列表，数据到达后整体替换，避免刷新期间列表消失
+    if (!keepExisting) commits.value = [];
   }
   if (
     !hasMoreHistory.value ||
@@ -261,10 +278,16 @@ const loadHistoryPage = async (reset = false, requestId = historyRequestId) => {
   );
   if (requestId !== historyRequestId) return;
   const page = list || [];
-  if (page.length < HISTORY_PAGE_SIZE) hasMoreHistory.value = false;
-  if (page.length > 0) {
-    commits.value = reset ? page : [...commits.value, ...page];
-    historySkip.value += page.length;
+  // wrapAsync 失败时返回 null，此时保留旧数据，避免误清列表或误判已到末尾
+  if (list !== null) {
+    if (page.length < HISTORY_PAGE_SIZE) hasMoreHistory.value = false;
+    if (reset) {
+      commits.value = page;
+      historySkip.value = page.length;
+    } else if (page.length > 0) {
+      commits.value = [...commits.value, ...page];
+      historySkip.value += page.length;
+    }
   }
   if (isInitial) isLoadingHistory.value = false;
   else isLoadingMoreHistory.value = false;
@@ -303,7 +326,24 @@ const loadChartHistory = async (requestId = historyRequestId) => {
   chartCommits.value = result;
 };
 
-const resetInteractionState = () => {
+const resetInteractionState = (keepExisting = false) => {
+  // HEAD 更新刷新时保留旧提交的展开状态与文件缓存，仅移除已不存在的提交
+  if (keepExisting) {
+    const validHashes = new Set(commits.value.map((c) => c.hash));
+    for (const hash of expandedHashes.value) {
+      if (!validHashes.has(hash)) expandedHashes.value.delete(hash);
+    }
+    for (const hash of loadingHashes.value) {
+      if (!validHashes.has(hash)) loadingHashes.value.delete(hash);
+    }
+    for (const hash of Object.keys(commitFiles.value)) {
+      if (!validHashes.has(hash)) delete commitFiles.value[hash];
+    }
+    if (selectedHash.value && !validHashes.has(selectedHash.value)) {
+      selectedHash.value = "";
+    }
+    return;
+  }
   expandedHashes.value = new Set();
   loadingHashes.value = new Set();
   commitFiles.value = {};
@@ -315,14 +355,24 @@ const loadHistory = async () => {
   const requestId = ++historyRequestId;
   isLoadingHistory.value = false;
   isLoadingMoreHistory.value = false;
-  resetInteractionState();
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
+    lastHistoryRepo = "";
+    lastHistoryBranch = "";
     commits.value = [];
     chartCommits.value = [];
+    resetInteractionState();
     return;
   }
+  const repoPath = currentRepoPath.value;
+  const branch = currentStatus.value.branch;
+  // 同仓库同分支的 HEAD 更新（提交后）走静默刷新：旧列表保持可见，只刷新交互状态
+  const keepExisting =
+    repoPath === lastHistoryRepo && branch === lastHistoryBranch;
+  lastHistoryRepo = repoPath;
+  lastHistoryBranch = branch;
+  resetInteractionState(keepExisting);
   await Promise.all([
-    loadHistoryPage(true, requestId),
+    loadHistoryPage(true, requestId, keepExisting),
     loadChartHistory(requestId),
   ]);
   await nextTick();
@@ -534,6 +584,11 @@ const formatTime = (dateStr: string) => {
   font-size: 12px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.refresh-spinner {
+  margin-left: auto;
+  color: var(--el-text-color-secondary);
 }
 
 .section-content {

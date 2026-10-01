@@ -22,6 +22,7 @@ import {
   repoStatuses,
   setRepoStatus,
 } from "../composables/useGitCommitterState";
+import type { GitCommitSummary } from "../types";
 import RightSidebar from "./RightSidebar.vue";
 
 vi.mock("../composables/useGitCommitterRunner", () => ({
@@ -41,6 +42,23 @@ const repoStatus = {
   behind: 0,
 };
 
+const makeCommit = (hash: string): GitCommitSummary => ({
+  hash,
+  author: "tester",
+  email: "tester@example.com",
+  date: "2026-01-01T00:00:00Z",
+  message: `commit ${hash.slice(0, 4)}`,
+});
+
+const stubs = {
+  CommitChart: true,
+  // 透传插槽，保留默认插槽中的 commit-node 以便断言列表内容
+  CommitDetailPopover: { template: "<div><slot /></div>" },
+  FileIcon: true,
+  "el-icon": true,
+  "el-tooltip": true,
+};
+
 describe("RightSidebar", () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -55,17 +73,7 @@ describe("RightSidebar", () => {
   });
 
   it("only reloads commit history after the current repository HEAD changes", async () => {
-    const wrapper = mount(RightSidebar, {
-      global: {
-        stubs: {
-          CommitChart: true,
-          CommitDetailPopover: true,
-          FileIcon: true,
-          "el-icon": true,
-          "el-tooltip": true,
-        },
-      },
-    });
+    const wrapper = mount(RightSidebar, { global: { stubs } });
     await nextTick();
     await flushPromises();
 
@@ -94,6 +102,52 @@ describe("RightSidebar", () => {
       skip: 0,
       limit: 200,
     });
+    wrapper.unmount();
+  });
+
+  it("keeps the previous commit list visible while refreshing after HEAD changes", async () => {
+    const oldCommits = [makeCommit("aaaaaaaa"), makeCommit("bbbbbbbb")];
+    const newCommits = [makeCommit("cccccccc"), ...oldCommits];
+
+    // 首屏：历史页返回旧提交，图表页返回空
+    invokeMock.mockImplementation(async (_command, args) => {
+      const { limit, skip } = args as { limit: number; skip: number };
+      if (limit === 30 && skip === 0) return oldCommits;
+      return [];
+    });
+
+    const wrapper = mount(RightSidebar, { global: { stubs } });
+    await flushPromises();
+    expect(wrapper.findAll(".commit-node")).toHaveLength(oldCommits.length);
+
+    // 模拟提交后慢速 IPC：新数据迟迟未返回
+    let resolveSlow: (commits: GitCommitSummary[]) => void = () => {};
+    invokeMock.mockImplementation(async (_command, args) => {
+      const { limit, skip } = args as { limit: number; skip: number };
+      if (limit === 30 && skip === 0) {
+        return new Promise<GitCommitSummary[]>((resolve) => {
+          resolveSlow = resolve;
+        });
+      }
+      return [];
+    });
+
+    setRepoStatus(repoPath, {
+      ...repoStatus,
+      headCommitHash: "cccccccccccccccccccccccccccccccccccccccc",
+    });
+    await nextTick();
+    await flushPromises();
+
+    // 刷新进行中：旧列表不消失，也不出现整块加载占位
+    expect(wrapper.findAll(".commit-node")).toHaveLength(oldCommits.length);
+    expect(wrapper.find(".loading-wrapper").exists()).toBe(false);
+
+    resolveSlow(newCommits);
+    await flushPromises();
+
+    // 新数据到达后无感替换为新列表
+    expect(wrapper.findAll(".commit-node")).toHaveLength(newCommits.length);
     wrapper.unmount();
   });
 });

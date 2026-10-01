@@ -9,7 +9,8 @@
 
 ## 当前施工口径
 
-先把真实消息中的 Markdown、代码、公式、提示块、思考块、Mermaid 和受管媒体组合跑顺，长消息、流式输出和窄屏可读性随功能链推进。PC AST/Patch、Worker tokenizer 和完整交互迁移暂不作为当前施工前置条件，真机与 iOS 体验在功能稳定后集中验证。
+**AST 语法树解析与统一节点派发是多功能富文本渲染（代码块、公式、思考块、提示块、Mermaid、受管媒体、复杂嵌套）的基石与前置条件**。
+当前工作优先建立移动端标准的 AST 管线与 `AstNodeRenderer` 节点树分发，替换基于脆弱手写正则分段（`renderSegments`）的临时实现；同时接入流式稳定区/待定区（Frozen/Pending）机制以解决流式打字过程中的 DOM 重建与状态抖动。Web Worker 离线分词器作为可选优化按需后置。
 
 ## 1. 背景与目标
 
@@ -64,9 +65,17 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 
 ### 3.2 迁移阶段
 
-- [ ] 复制 PC AST、节点类型、解析器、流式处理和 Patch 更新模块，先完成移动端路径、主题和 Tauri API 适配。
-- [ ] 迁移稳定区/待定区、节点复用和完整资源解析；不在缺乏实测热点时机械复制 PC AST/Patch 管线。
-- [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次完整 Markdown 重算，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。
+- [ ] **第一阶段（前置基础）：直接复用 PC 核心 AST 与分词解析层（杜绝二次重写）**
+  - PC 端 `src/tools/rich-text-renderer/parser/`（`Tokenizer.ts`、`types.ts`、`block/`、`inline/`）与 `core/CustomParser.ts` 均为平台无关的纯 TypeScript，直接引入移动端。
+  - 天然对齐全套语法规范：标准 Markdown、GitHub 提示块、行内/块级 KaTeX、`<think>` 折叠块、VCP 协议及复杂嵌套语法。
+- [ ] **第二阶段：轻量化 `AstNodeRenderer` 统一派发并收敛现有组件**
+  - 用 AST 树遍历分发器替代 `RichTextRenderer.vue` 内部手写正则切分（`renderSegments`），支持完全嵌套的语法树渲染。
+  - 将现存轻量组件（`CodeBlock.vue`、`KatexRenderer.vue`、`ThinkBlock.vue`、`MermaidDiagram.vue`、`RichTextMediaNode.vue`、`AlertBlock.vue`、`VcpBlock.vue`）挂载为 AST 叶子/容器节点。
+  - 剔除 PC 桌面专属重度依赖（CodeMirror、复杂编辑弹窗、Worker 线程通讯）。
+- [ ] **第三阶段：接入 PC 流式稳定区/待定区（Frozen / Pending AST）机制**
+  - 复用 `StreamProcessorV2.ts` 的稳定区切分算法：流式打字中已闭合的块进入稳定区（Frozen），仅对末尾未闭合的待定区（Pending）增量解析。
+  - 彻底解决流式输出时代码高亮重算、公式抖动、视频/音频播放重置、折叠面板状态丢失的问题。
+- [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次刷新，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。
 - [ ] 在真实 Android/iOS 设备完成长消息、窄屏布局、滚动稳定性和内存释放验收；Vitest 只覆盖 Web 层节流与卸载清理，不能替代 WebView/原生运行态证据。
   - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）通过 `rich-text` APK 回归，覆盖 RichText 测试页的普通代码块、Mermaid DOM 挂载、代码自动换行、长无空格代码行的容器横向滚动/页面不溢出，以及长 Markdown 流式进度、预览自动贴底、停止后内容不再增长和 keep-alive 路由停用后的流式清理；`rich-text-media` 进一步以确定性 assistant SSE 验证正式聊天在 `generating` 状态已挂载首个 Markdown 标题，随后覆盖 fenced code、行内 KaTeX、GitHub 风格 `TIP` 提示块、原始 HTML 字面回退及消息自有 `asset://` 图片的受管预览与沉浸层。该聊天流经原生 reqwest 拉取式分块桥接后逐块进入共享 SSE 解码器，避免 Tauri HTTP 插件响应流在 Android WebView 中批量交付。该结果仍不替代 Android 真机、iOS、多指/下拉手势或内存释放验收。
 - [x] 已完成移动端基础 Markdown 代码块交互：独立节点提供可访问的复制与自动换行切换，保留横向滚动、最大高度和原始代码文本；复制反馈 timer 在节点卸载时清理。不在无移动端需求时照搬桌面高亮、导出、CodeMirror 或 HTML 预览交互。

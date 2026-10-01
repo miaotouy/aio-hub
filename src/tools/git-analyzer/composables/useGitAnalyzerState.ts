@@ -37,7 +37,7 @@ const filteredCommits = ref<GitCommit[]>([]);
 const limitCount = ref(100);
 const batchSize = ref(20);
 const includeFiles = ref(true);
-const commitRange = ref<[number, number]>([0, 0]);
+const commitRange = ref<[number, number]>([1, 1]);
 
 const LOAD_CONFIG_STORAGE_KEY = "git-analyzer-load-config";
 const DEFAULT_LOAD_CONFIG: GitLoadConfig = {
@@ -300,7 +300,7 @@ function resetFilters() {
 function resetCommits() {
   commits.value = [];
   filteredCommits.value = [];
-  commitRange.value = [0, 0];
+  commitRange.value = [1, 1];
   enrichedHashes.value = new Set();
   commitCache.clearAll();
 }

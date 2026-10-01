@@ -265,15 +265,15 @@ async function handleBranchChange(branch: string) {
   }
 }
 
-// 处理设置范围起始位置
+// 处理设置范围起始位置（序号从 1 开始）
 function handleSetRangeStart(index: number) {
-  commitRange.value = [index, commitRange.value[1]];
+  commitRange.value = [Math.min(index, commitRange.value[1]), commitRange.value[1]];
   filterCommits();
 }
 
-// 处理设置范围结束位置
+// 处理设置范围结束位置（序号从 1 开始）
 function handleSetRangeEnd(index: number) {
-  commitRange.value = [commitRange.value[0], index];
+  commitRange.value = [commitRange.value[0], Math.max(index, commitRange.value[0])];
   filterCommits();
 }
 
@@ -341,7 +341,17 @@ async function loadConfig() {
         new Date(loadedConfig.dateRange[1]),
       ];
     }
-    commitRange.value = loadedConfig.commitRange || [0, 0];
+    // commitRange 为 1-based 闭区间；旧版本配置可能是 0-based，这里做归一化
+    const loadedRange = loadedConfig.commitRange;
+    if (
+      Array.isArray(loadedRange) &&
+      loadedRange[0] >= 1 &&
+      loadedRange[1] >= loadedRange[0]
+    ) {
+      commitRange.value = loadedRange;
+    } else {
+      commitRange.value = [1, 1];
+    }
   } catch (error) {
     errorHandler.handle(error, {
       userMessage: "加载配置失败",

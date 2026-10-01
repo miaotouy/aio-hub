@@ -85,7 +85,7 @@ function createDefaultConfig(): GitAnalyzerConfig {
     excludeQuery: "",
     dateRange: null,
     authorFilter: "",
-    commitRange: [0, 0],
+    commitRange: [1, 1],
     reverseOrder: false,
     commitTypeFilter: [],
     frequencyGranularity: "day",

@@ -215,20 +215,20 @@ function getOriginalIndex(commit: GitCommit): number {
   return index !== -1 ? index + 1 : 0;
 }
 
-// 设置为范围起始位置
+// 设置为范围起始位置（序号从 1 开始）
 function setAsRangeStart(commit: GitCommit) {
   const index = props.commits.findIndex((c) => c.hash === commit.hash);
   if (index !== -1) {
-    emit("set-range-start", index);
+    emit("set-range-start", index + 1);
     customMessage.success(`已设置 #${index + 1} 为起始位置`);
   }
 }
 
-// 设置为范围结束位置
+// 设置为范围结束位置（序号从 1 开始）
 function setAsRangeEnd(commit: GitCommit) {
   const index = props.commits.findIndex((c) => c.hash === commit.hash);
   if (index !== -1) {
-    emit("set-range-end", index);
+    emit("set-range-end", index + 1);
     customMessage.success(`已设置 #${index + 1} 为结束位置`);
   }
 }

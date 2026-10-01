@@ -169,8 +169,11 @@ export function useGitAnalyzerRunner() {
             state.enrichedHashes.value = new Set(state.enrichedHashes.value);
           }
 
-          // 实时更新 commitRange 以反映当前已加载的数据
-          state.commitRange.value = [0, state.commits.value.length];
+          // 实时更新 commitRange 以反映当前已加载的数据（1-based 闭区间）
+          state.commitRange.value = [
+            1,
+            Math.max(1, state.commits.value.length),
+          ];
 
           // 应用筛选条件，而不是直接赋值
           filterCommits();
@@ -194,7 +197,10 @@ export function useGitAnalyzerRunner() {
       case "end": {
         // 先强制将进度设为 100%，确保用户能看到完成状态
         state.progress.value.loaded = state.progress.value.total;
-        state.commitRange.value = [0, state.commits.value.length];
+        state.commitRange.value = [
+          1,
+          Math.max(1, state.commits.value.length),
+        ];
 
         const loadType = state.batchSize.value === 0 ? "" : "流式";
         if (isIncremental) {
@@ -484,10 +490,11 @@ export function useGitAnalyzerRunner() {
       logger.info(`应用筛选`, state.filterSummary.value);
     }
     // 首先根据范围选择器从原始列表中切片
-    // slice 的 end 参数不包含该索引，所以需要 +1 来包含结束位置的提交
+    // commitRange 为 1-based 闭区间 [第 start 条, 第 end 条]
+    // slice 的 end 参数不包含该索引，因此起始索引需 -1，结束序号正好作为 end
     const rangedCommits = state.commits.value.slice(
-      state.commitRange.value[0],
-      state.commitRange.value[1] + 1
+      state.commitRange.value[0] - 1,
+      state.commitRange.value[1]
     );
 
     // 应用筛选

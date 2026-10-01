@@ -268,17 +268,18 @@
         <div class="range-slider">
           <el-slider
             v-model="commitRange"
+            :min="1"
             :max="commits.length"
             range
             :disabled="commits.length === 0"
             @change="$emit('filter-commits')"
-            :marks="{ [0]: '最新', [commits.length]: '最旧' }"
+            :marks="{ 1: '最新', [commits.length]: '最旧' }"
           />
         </div>
         <div class="range-inputs">
           <el-input-number
             v-model="rangeStart"
-            :min="0"
+            :min="1"
             :max="rangeEnd"
             :disabled="commits.length === 0"
             size="small"
@@ -297,7 +298,7 @@
             @change="handleRangeEndChange"
             style="width: 120px"
           />
-          <span class="range-count">(共 {{ rangeEnd - rangeStart }} 条)</span>
+          <span class="range-count">(共 {{ rangeEnd - rangeStart + 1 }} 条)</span>
         </div>
       </div>
     </div>
@@ -506,7 +507,7 @@ function locateLatestTag() {
   const tagIndex = indices[cursor];
   const isLooped = latestTagCursor.value >= indices.length;
 
-  commitRange.value = [0, tagIndex];
+  commitRange.value = [1, tagIndex + 1];
   emit("filter-commits");
 
   const tagName = props.commits[tagIndex].tags?.[0];
@@ -545,7 +546,7 @@ function locateTagInterval() {
   const startIdx = indices[cursor];
   const endIdx = indices[cursor + 1];
 
-  commitRange.value = [startIdx, endIdx];
+  commitRange.value = [startIdx + 1, endIdx + 1];
   emit("filter-commits");
 
   const startTag = props.commits[startIdx].tags?.[0];

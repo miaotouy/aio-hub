@@ -168,9 +168,19 @@ describe("buildFileContextMenuItems", () => {
     const list = ids(items);
     expect(list).toContain("file:stage");
     expect(list).toContain("file:discard");
+    expect(items.find((i) => i.id === "file:discard")?.label).toBe("放弃更改");
     expect(list).not.toContain("file:unstage");
     expect(list).toContain("file:copy-path");
     expect(list).toContain("file:copy-relative");
+  });
+
+  it("shows delete label for untracked workspace files", () => {
+    const items = buildFileContextMenuItems(
+      { path: "src/new.ts", status: "A" },
+      false
+    );
+    const discardItem = items.find((i) => i.id === "file:discard");
+    expect(discardItem?.label).toBe("删除文件");
   });
 
   it("offers unstaging for staged files without discard", () => {

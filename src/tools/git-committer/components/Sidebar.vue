@@ -242,13 +242,17 @@
                     <Eye :size="14" />
                   </button>
                 </el-tooltip>
-                <el-tooltip content="放弃更改" placement="top">
+                <el-tooltip
+                  :content="file.status === 'A' ? '删除文件' : '放弃更改'"
+                  placement="top"
+                >
                   <button
                     type="button"
                     class="action-btn"
-                    @click.stop="handleDiscardFile(file.path)"
+                    @click.stop="handleDiscardFile(file)"
                   >
-                    <Undo2 :size="14" />
+                    <Trash2 v-if="file.status === 'A'" :size="14" />
+                    <Undo2 v-else :size="14" />
                   </button>
                 </el-tooltip>
                 <el-tooltip content="暂存更改" placement="top">
@@ -284,6 +288,7 @@ import {
   Plus,
   Minus,
   Undo2,
+  Trash2,
   FileDiff,
   Eye,
   MessageSquareText,
@@ -361,19 +366,22 @@ const handleUnstageFile = async (path: string) => {
   await unstageFile(currentRepoPath.value, path);
 };
 
-const handleDiscardFile = (path: string) => {
-  ElMessageBox.confirm(
-    `确定要放弃「${getFileName(path)}」的更改吗？此操作不可撤销。`,
-    "放弃更改",
-    {
-      confirmButtonText: "放弃更改",
-      cancelButtonText: "取消",
-      type: "warning",
-      confirmButtonClass: "el-button--danger",
-      lockScroll: false,
-    }
-  )
-    .then(() => discardFile(currentRepoPath.value, path))
+const handleDiscardFile = (file: { path: string; status: string }) => {
+  const isUntracked = file.status === "A";
+  const title = isUntracked ? "删除文件" : "放弃更改";
+  const message = isUntracked
+    ? `确定要删除「${getFileName(file.path)}」吗？文件将被移至系统回收站。`
+    : `确定要放弃「${getFileName(file.path)}」的更改吗？此操作不可撤销。`;
+  const confirmButtonText = isUntracked ? "移入回收站" : "放弃更改";
+
+  ElMessageBox.confirm(message, title, {
+    confirmButtonText,
+    cancelButtonText: "取消",
+    type: "warning",
+    confirmButtonClass: "el-button--danger",
+    lockScroll: false,
+  })
+    .then(() => discardFile(currentRepoPath.value, file.path))
     .catch(() => {
       // 用户取消
     });
@@ -407,17 +415,25 @@ const handleOpenChanges = (isStaged: boolean) => {
 
 const discardAll = () => {
   if (!currentStatus.value?.unstaged.length) return;
-  ElMessageBox.confirm(
-    `确定要放弃全部 ${currentStatus.value.unstaged.length} 个文件的更改吗？此操作不可撤销。`,
-    "放弃全部更改",
-    {
-      confirmButtonText: "全部放弃",
-      cancelButtonText: "取消",
-      type: "warning",
-      confirmButtonClass: "el-button--danger",
-      lockScroll: false,
-    }
-  )
+  const count = currentStatus.value.unstaged.length;
+  const untrackedCount = currentStatus.value.unstaged.filter(
+    (f) => f.status === "A"
+  ).length;
+
+  let message = `确定要放弃全部 ${count} 个文件的更改吗？此操作不可撤销。`;
+  if (untrackedCount === count) {
+    message = `确定要删除全部 ${count} 个未跟踪文件吗？文件将被移至系统回收站。`;
+  } else if (untrackedCount > 0) {
+    message = `确定要放弃全部 ${count} 个文件的更改吗？其中 ${untrackedCount} 个未跟踪文件将被移至系统回收站，其余更改不可撤销。`;
+  }
+
+  ElMessageBox.confirm(message, "放弃全部更改", {
+    confirmButtonText: "全部放弃",
+    cancelButtonText: "取消",
+    type: "warning",
+    confirmButtonClass: "el-button--danger",
+    lockScroll: false,
+  })
     .then(() =>
       discardFiles(
         currentRepoPath.value,

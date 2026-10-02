@@ -54,23 +54,26 @@ export function useGitFileContextMenu() {
     );
   };
 
-  const discardWithConfirm = async (path: string) => {
+  const discardWithConfirm = async (file: { path: string; status: string }) => {
+    const isUntracked = file.status === "A";
+    const title = isUntracked ? "删除文件" : "放弃更改";
+    const message = isUntracked
+      ? `确定要删除「${getFileName(file.path)}」吗？文件将被移至系统回收站。`
+      : `确定要放弃「${getFileName(file.path)}」的更改吗？此操作不可撤销。`;
+    const confirmButtonText = isUntracked ? "移入回收站" : "放弃更改";
+
     try {
-      await ElMessageBox.confirm(
-        `确定要放弃「${getFileName(path)}」的更改吗？此操作不可撤销。`,
-        "放弃更改",
-        {
-          confirmButtonText: "放弃更改",
-          cancelButtonText: "取消",
-          type: "warning",
-          confirmButtonClass: "el-button--danger",
-          lockScroll: false,
-        }
-      );
+      await ElMessageBox.confirm(message, title, {
+        confirmButtonText,
+        cancelButtonText: "取消",
+        type: "warning",
+        confirmButtonClass: "el-button--danger",
+        lockScroll: false,
+      });
     } catch {
       return; // 用户取消
     }
-    await discardFile(currentRepoPath.value, path);
+    await discardFile(currentRepoPath.value, file.path);
   };
 
   const handleFileMenuAction = async (
@@ -104,7 +107,7 @@ export function useGitFileContextMenu() {
         await unstageFile(currentRepoPath.value, file.path);
         break;
       case "file:discard":
-        await discardWithConfirm(file.path);
+        await discardWithConfirm(file);
         break;
     }
   };

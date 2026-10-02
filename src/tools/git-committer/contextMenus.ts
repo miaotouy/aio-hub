@@ -202,10 +202,16 @@ export function buildFileContextMenuItems(
   if (isStaged) {
     items.push(sep(), { id: "file:unstage", label: "取消暂存", icon: Minus });
   } else {
+    const isUntracked = file.status === "A";
     items.push(
       sep(),
       { id: "file:stage", label: "暂存文件", icon: Plus },
-      { id: "file:discard", label: "放弃更改", icon: Undo2, danger: true }
+      {
+        id: "file:discard",
+        label: isUntracked ? "删除文件" : "放弃更改",
+        icon: isUntracked ? Trash2 : Undo2,
+        danger: true,
+      }
     );
   }
   return items;

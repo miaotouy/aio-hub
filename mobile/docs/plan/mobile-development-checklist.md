@@ -1,7 +1,7 @@
 # 移动端当前施工总表
 
 > 状态：狂奔施工模式；优先连续补齐可见功能链，平台验证与性能收口后置
-> 最近核对：2026-09-23
+> 最近核对：2026-10-02
 > 文档定位：移动端跨模块施工顺序、功能队列和后置验证入口；实现细节仍以各模块 `ARCHITECTURE.md` 和专项计划为准
 
 ## 1. 当前施工口径
@@ -54,15 +54,15 @@
   - 用轻量化 `AstNodeRenderer` 统一派发机制替代现存脆弱的手写正则分段（`renderSegments`），收敛并挂载移动端现有轻量节点组件（`CodeBlock`、`KatexRenderer`、`ThinkBlock`、`MermaidDiagram`、`RichTextMediaNode`）。
   - 直接启用 PC 已成熟的流式稳定区/待定区（Frozen/Pending AST）机制，彻底解决打字流式过程中 DOM 重建导致的公式抖动、代码高亮重刷、折叠与媒体播放状态重置。
 - [x] 在正式聊天与独立测试页中完成 Markdown、代码块、KaTeX、提示块、思考块、Mermaid 与受管媒体的组合验证。
-- [ ] 优化窄屏排版、自动断行、横向滚动与长消息滚动体验。
+- [x] 优化窄屏排版、自动断行、横向滚动与长消息滚动体验。渲染器根容器统一 `overflow-wrap: anywhere`，行内代码与 HTML 字面块不再一刀切 `break-all`；表格 `min-width: max-content` 保证列不被压碎并继续走 `.md-table-wrapper` 横向滚动；VCP 结果 `pre` 对齐代码块 50vh 内部滚动；消息气泡补齐 `min-width: 0` 收缩链路，长消息仍由消息列表统一纵向滚动，不产生渲染器内部滚动或水平溢出。
 
 实现入口：[`rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)、[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。
 
 ### D — Agent 与聊天可见功能
 
-- [ ] 继续补齐 Agent 详情、预设、开局消息、宏变量和聊天切换中的用户可见行为。
+- [x] 继续补齐 Agent 详情、预设、开局消息、宏变量和聊天切换中的用户可见行为。详情编辑、预设消息体系、开局消息固化、宏展开与聊天内 Agent 选择器均已落地（2026-09-26 前后，见角色卡对齐计划与 agent-manager 计划）。
 - [x] PC PNG 角色卡的小型头像预览随 Agent 配置保存并在角色大厅、聊天选择器复用。
-- [ ] 私有头像文件、背景、预设附件和随包二进制资源按实际需求接入；继续沿用 Agent 私有资产边界。
+- [ ] 私有头像、预设附件与随包二进制资源已按 Agent 私有资产边界接入；剩余为私有音频/视频按 provider 能力进请求与 Agent 资产管理 UI（记入附件支持计划后置项）。
 - [ ] 工具调用、RAG、Knowledge/Recall 和自主工作流保持独立设计，需求出现时再连续施工。
 
 实现入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。

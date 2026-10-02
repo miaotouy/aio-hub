@@ -99,3 +99,11 @@ AVD 不是 Android 真机或 iOS 发布后续验证；真实手势、内存释�
 - 代码块保留复制和换行操作，表格在窄屏下保持可读的横向滚动，图片限制最大宽度并允许长文本安全断行。
 - 流式刷新继续使用固定节奏节流，完成态立即提交最后内容；这保证输入流畅，也避免消息列表随着每个字符抖动。
 - 渲染器不恢复 raw `v-html`；HTML token、危险协议和未受管本地资源维持安全降级。
+
+## 11. 2026-10-02 窄屏排版收口
+
+- **断行策略**：渲染器根容器统一使用 `overflow-wrap: anywhere` + `word-break: normal`，长 URL / 长 token 在段落、标题、列表项内可断；`.md-inline-code` 与 `.md-html` 从 `word-break: break-all` 升级为 `overflow-wrap: anywhere`，避免破坏常规英文排版。
+- **表格**：`.md-table-wrapper` 维持横向滚动（补 `min-width: 0` 与触摸惯性滚动），`table` 设 `min-width: max-content` 保证列不被压碎；`th`/`td` 允许长文本断行，宽表格只在 wrapper 内滚动，不撑破消息容器。
+- **代码块**：`CodeBlock.vue` 保持 `white-space: pre` + `max-height: 50vh` + 内部横向/纵向滚动为默认，仅补 `min-width: 0`，使 `max-width: 100%` 在 flex/grid 父容器中不失效；换行按钮交互未改动。
+- **VCP 结果**：`.vcp-pre` 对齐代码块策略补 `max-height: 50vh` + `overflow: auto`，长工具结果不再撑爆单条消息高度；折叠交互未改动。ThinkBlock 无独立 `pre`，长文本由渲染器根约束，未加内部滚动。
+- **长消息滚动**：渲染器自身不建立纵向滚动容器，由 `.message-scroll-container` 统一滚动；消息气泡链路（`.content-body`、`.message-content`、`.text-content`、`.reasoning-content`）补齐 `min-width: 0` / `max-width: 100%`，配合根断行约束消除水平溢出。

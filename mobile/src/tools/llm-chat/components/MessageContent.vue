@@ -376,11 +376,16 @@ const formatBytes = (value: number) => {
 .message-content {
   font-size: 0.95rem;
   line-height: 1.5;
-  word-break: break-word;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .text-content {
   margin-top: 4px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .attachment-list {
@@ -503,7 +508,9 @@ const formatBytes = (value: number) => {
 }
 
 .reasoning-content {
+  min-width: 0;
   padding: 0 12px 12px 12px;
+  overflow-wrap: anywhere;
   font-size: 0.85rem;
   color: var(--el-text-color-regular);
   opacity: 0.85;

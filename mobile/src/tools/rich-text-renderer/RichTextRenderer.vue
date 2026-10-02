@@ -198,7 +198,10 @@ onBeforeUnmount(() => {
   font-size: 1rem;
   line-height: 1.6;
   color: var(--text-color);
-  word-break: break-word;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 /* 段落与文本排版 */
@@ -262,7 +265,8 @@ onBeforeUnmount(() => {
   background-color: var(--input-bg);
   border-radius: 4px;
   color: var(--color-error, #d14343);
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 /* 链接与图片 */
@@ -325,7 +329,10 @@ onBeforeUnmount(() => {
 /* 表格 */
 :deep(.md-table-wrapper) {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin: 12px 0;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -333,6 +340,7 @@ onBeforeUnmount(() => {
 
 :deep(table) {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   font-size: 0.9rem;
 }
@@ -341,6 +349,8 @@ onBeforeUnmount(() => {
 :deep(td) {
   padding: 8px 12px;
   border: 1px solid var(--border-color);
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 :deep(th) {
@@ -355,9 +365,11 @@ onBeforeUnmount(() => {
 /* HTML 安全字面输出 */
 :deep(.md-html) {
   margin: 8px 0;
+  max-width: 100%;
   overflow-x: auto;
   white-space: pre-wrap;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: normal;
   font-family: monospace;
   font-size: 0.85em;
   padding: 8px 12px;

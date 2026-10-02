@@ -226,6 +226,8 @@ function handleContentClick(event: MouseEvent) {
   position: relative;
   transition: all 0.2s ease;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   font-size: calc(1rem * var(--chat-message-font-scale, 1));
   line-height: 1.6;
 }
@@ -236,6 +238,7 @@ function handleContentClick(event: MouseEvent) {
   background: var(--el-fill-color-light);
   color: var(--el-text-color-primary);
   width: auto;
+  min-width: 0;
   align-self: flex-end;
   max-width: 92%;
 }

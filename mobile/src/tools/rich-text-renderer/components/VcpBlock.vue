@@ -331,6 +331,8 @@ const statusText = computed(() => {
 }
 
 .vcp-pre {
+  max-width: 100%;
+  max-height: 50vh;
   margin: 10px 0 0;
   overflow: auto;
   color: inherit;
@@ -338,6 +340,7 @@ const statusText = computed(() => {
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .vcp-summary {

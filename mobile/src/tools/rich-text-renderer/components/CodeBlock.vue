@@ -76,6 +76,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .mobile-code-block {
   max-width: 100%;
+  min-width: 0;
   margin: 12px 0;
   overflow: hidden;
   border: var(--border-width) solid var(--border-color);

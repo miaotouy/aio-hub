@@ -12,7 +12,8 @@ import { presetAttachmentProcessor } from "../preset-attachment-processor";
 
 function context(
   messages: PipelineContext["messages"],
-  assets: ChatAgent["assets"] = []
+  assets: ChatAgent["assets"] = [],
+  capabilities?: PipelineContext["capabilities"]
 ): PipelineContext {
   return {
     messages,
@@ -26,6 +27,7 @@ function context(
       assets,
     },
     settings: {} as PipelineContext["settings"],
+    capabilities,
     timestamp: 0,
     sharedData: new Map(),
     logs: [],
@@ -139,6 +141,102 @@ describe("presetAttachmentProcessor", () => {
     ).toMatchObject({ missingCount: 1 });
     expect(pipelineContext.messages[0].content).toBe("keep me");
     expect(pipelineContext.messages[0]._privateAttachments).toBeUndefined();
+  });
+
+  it("inlines private audio into the request and keeps description when capability is off", async () => {
+    storage.readAgentAsset.mockResolvedValue(new Uint8Array([0x01, 0x02]));
+    const assets = [
+      {
+        id: "bgm",
+        filename: "theme.mp3",
+        path: "assets/theme.mp3",
+        type: "audio" as const,
+        mimeType: "audio/mpeg",
+      },
+    ];
+    const message = {
+      role: "user" as const,
+      content: "听这段",
+      sourceType: "agent_preset" as const,
+      sourceId: "preset-3",
+      _privateAttachments: [{ assetId: "bgm" }],
+    };
+
+    const inlinedContext = context([{ ...message }], assets, { audio: true });
+    const inlined = await presetAttachmentProcessor.execute(inlinedContext);
+
+    const inlinedContent = inlinedContext.messages[0].content;
+    expect(Array.isArray(inlinedContent)).toBe(true);
+    expect(inlinedContent).toEqual([
+      { type: "text", text: "听这段" },
+      expect.objectContaining({
+        type: "audio",
+        mimeType: "audio/mpeg",
+        source: expect.objectContaining({ type: "base64" }),
+      }),
+    ]);
+    expect(
+      inlinedContext.sharedData.get("presetAttachmentResolutionStats")
+    ).toMatchObject({ audioCount: 1, degradedCount: 0 });
+    expect(inlined.status).toBe("applied");
+
+    const degradedContext = context([{ ...message }], assets, {
+      audio: false,
+    });
+    const degraded = await presetAttachmentProcessor.execute(degradedContext);
+
+    const degradedContent = degradedContext.messages[0].content;
+    expect(Array.isArray(degradedContent)).toBe(true);
+    expect(degradedContent).toHaveLength(2);
+    expect(degradedContent![1]).toMatchObject({ type: "text" });
+    expect(
+      (degradedContent![1] as { text: string }).text
+    ).toContain("音频附件");
+    expect(
+      degradedContext.sharedData.get("presetAttachmentResolutionStats")
+    ).toMatchObject({ audioCount: 0, degradedCount: 1 });
+    expect(degraded.status).toBe("degraded");
+  });
+
+  it("inlines private video when capability allows", async () => {
+    storage.readAgentAsset.mockResolvedValue(new Uint8Array([0x03, 0x04]));
+    const pipelineContext = context(
+      [
+        {
+          role: "user",
+          content: "看这段",
+          sourceType: "agent_preset",
+          sourceId: "preset-4",
+          _privateAttachments: [{ assetId: "clip" }],
+        },
+      ],
+      [
+        {
+          id: "clip",
+          filename: "intro.mp4",
+          path: "assets/intro.mp4",
+          type: "video",
+          mimeType: "video/mp4",
+        },
+      ],
+      { video: true }
+    );
+
+    const result = await presetAttachmentProcessor.execute(pipelineContext);
+
+    const content = pipelineContext.messages[0].content;
+    expect(content).toEqual([
+      { type: "text", text: "看这段" },
+      expect.objectContaining({
+        type: "video",
+        mimeType: "video/mp4",
+        source: expect.objectContaining({ type: "base64" }),
+      }),
+    ]);
+    expect(
+      pipelineContext.sharedData.get("presetAttachmentResolutionStats")
+    ).toMatchObject({ videoCount: 1, degradedCount: 0 });
+    expect(result.status).toBe("applied");
   });
 
   it("leaves messages untouched when no private attachments exist", async () => {

@@ -129,6 +129,8 @@ describe("resolveAgentAttachmentParts", () => {
     expect(result.stats).toEqual({
       totalCount: 1,
       imageCount: 1,
+      audioCount: 0,
+      videoCount: 0,
       textFallbackCount: 0,
       degradedCount: 0,
       missingCount: 0,
@@ -163,31 +165,111 @@ describe("resolveAgentAttachmentParts", () => {
     expect(result.stats.textFallbackCount).toBe(1);
   });
 
-  it("degrades binary media to a text description with a warning", async () => {
+  it("inlines audio bytes by default and keeps an explicit description when unsupported", async () => {
     const bytes = new Uint8Array([0x00, 0x01, 0x02, 0x03]);
+    const base64 = bytesToBase64(bytes);
+    const bgmAsset = asset({
+      id: "bgm",
+      filename: "theme.mp3",
+      path: "assets/theme.mp3",
+      type: "audio",
+      mimeType: "audio/mpeg",
+    });
 
-    const result = await resolveAgentAttachmentParts(
+    const inlined = await resolveAgentAttachmentParts(
       [{ assetId: "bgm" }],
       "agent-1",
-      [
-        asset({
-          id: "bgm",
-          filename: "theme.mp3",
-          path: "assets/theme.mp3",
-          type: "audio",
-          mimeType: "audio/mpeg",
-        }),
-      ],
+      [bgmAsset],
       async () => bytes
     );
 
-    expect(result.parts[0]).toMatchObject({ type: "text" });
-    expect((result.parts[0] as { text: string }).text).toContain(
+    expect(inlined.parts).toEqual([
+      {
+        type: "audio",
+        mimeType: "audio/mpeg",
+        source: { type: "base64", media_type: "audio/mpeg", data: base64 },
+      },
+    ]);
+    expect(inlined.stats).toEqual({
+      totalCount: 1,
+      imageCount: 0,
+      audioCount: 1,
+      videoCount: 0,
+      textFallbackCount: 0,
+      degradedCount: 0,
+      missingCount: 0,
+    });
+    expect(inlined.warnings).toEqual([]);
+
+    const degraded = await resolveAgentAttachmentParts(
+      [{ assetId: "bgm" }],
+      "agent-1",
+      [bgmAsset],
+      async () => bytes,
+      { audio: false, video: true }
+    );
+
+    expect(degraded.parts).toHaveLength(1);
+    expect(degraded.parts[0]).toMatchObject({ type: "text" });
+    expect((degraded.parts[0] as { text: string }).text).toContain(
       'name="theme.mp3"'
     );
-    expect((result.parts[0] as { text: string }).text).toContain("音频附件");
-    expect(result.stats.degradedCount).toBe(1);
-    expect(result.warnings).toHaveLength(1);
+    expect((degraded.parts[0] as { text: string }).text).toContain("音频附件");
+    expect(degraded.stats.degradedCount).toBe(1);
+    expect(degraded.stats.audioCount).toBe(0);
+    expect(degraded.warnings).toHaveLength(1);
+    expect(degraded.warnings[0]).toContain("音频输入");
+  });
+
+  it("inlines video bytes with the platform-extension part shape", async () => {
+    const bytes = new Uint8Array([0x0a, 0x0b, 0x0c]);
+    const base64 = bytesToBase64(bytes);
+
+    const result = await resolveAgentAttachmentParts(
+      [{ assetId: "clip" }],
+      "agent-1",
+      [
+        asset({
+          id: "clip",
+          filename: "intro.mp4",
+          path: "assets/intro.mp4",
+          type: "video",
+          mimeType: "video/mp4",
+        }),
+      ],
+      async () => bytes,
+      { video: true }
+    );
+
+    expect(result.parts).toEqual([
+      {
+        type: "video",
+        mimeType: "video/mp4",
+        source: { type: "base64", media_type: "video/mp4", data: base64 },
+      },
+    ]);
+    expect(result.stats.videoCount).toBe(1);
+    expect(result.stats.degradedCount).toBe(0);
+
+    const degraded = await resolveAgentAttachmentParts(
+      [{ assetId: "clip" }],
+      "agent-1",
+      [
+        asset({
+          id: "clip",
+          filename: "intro.mp4",
+          path: "assets/intro.mp4",
+          type: "video",
+          mimeType: "video/mp4",
+        }),
+      ],
+      async () => bytes,
+      { video: false }
+    );
+
+    expect(degraded.parts[0]).toMatchObject({ type: "text" });
+    expect(degraded.stats.degradedCount).toBe(1);
+    expect(degraded.warnings[0]).toContain("视频输入");
   });
 
   it("warns instead of silently dropping unresolved or unreadable assets", async () => {

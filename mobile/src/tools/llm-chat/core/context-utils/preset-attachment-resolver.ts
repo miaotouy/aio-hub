@@ -7,8 +7,10 @@ import type { AgentAttachmentRef } from "../../types/context";
  *
  * 边界：Agent 私有资产不接入全局 `asset_manager.db`，不登记全局 usage，
  * 也不转换成全局 `assetId`。运行时直接通过 Tauri fs 从 `agents/{id}/` 读取字节，
- * 图片以纯 JS 解码为内联 base64 进入 vision；文本文档以内联文本块回退；
- * 其余二进制类型降级为文本描述并 warning，不静默丢弃。
+ * 图片以纯 JS 解码为内联 base64 进入 vision；音频/视频在模型能力未显式关闭时
+ * 同样内联 base64（音频走 `input_audio`，视频走移动端 `image_url + video_metadata`
+ * 平台扩展）；文本文档以内联文本块回退；无法表达时降级为文本描述并 warning，
+ * 不静默丢弃。
  */
 
 export type AgentAttachmentKind =
@@ -30,9 +32,21 @@ export interface ResolvedAgentAttachment {
 export interface AgentAttachmentResolutionStats {
   totalCount: number;
   imageCount: number;
+  audioCount: number;
+  videoCount: number;
   textFallbackCount: number;
   degradedCount: number;
   missingCount: number;
+}
+
+/**
+ * 私有音频/视频内联发送的模型能力开关（来自 `ModelCapabilities`）。
+ * `false` 表示模型明确不支持该输入，附件保留显式降级描述；
+ * `undefined` / `true` 均视为尝试内联，与图片不判 vision 的行为一致。
+ */
+export interface AgentAttachmentInlineSupport {
+  audio?: boolean;
+  video?: boolean;
 }
 
 export interface AgentAttachmentResolutionResult {
@@ -342,18 +356,22 @@ function pushPart(
  * 解析并物化一组 Agent 私有附件引用。
  *
  * @param readBytes 读取私有资产字节的注入点；生产环境使用 Tauri fs，测试可注入 mock。
+ * @param inlineSupport 音频/视频内联的模型能力开关；缺省视为支持。
  */
 export async function resolveAgentAttachmentParts(
   refs: AgentAttachmentRef[],
   agentId: string,
   assets: AgentAsset[] | undefined,
-  readBytes: AgentAssetReader
+  readBytes: AgentAssetReader,
+  inlineSupport?: AgentAttachmentInlineSupport
 ): Promise<AgentAttachmentResolutionResult> {
   const parts: LlmMessageContent[] = [];
   const warnings: string[] = [];
   const stats: AgentAttachmentResolutionStats = {
     totalCount: refs.length,
     imageCount: 0,
+    audioCount: 0,
+    videoCount: 0,
     textFallbackCount: 0,
     degradedCount: 0,
     missingCount: 0,
@@ -389,6 +407,39 @@ export async function resolveAgentAttachmentParts(
         },
       });
       stats.imageCount += 1;
+      continue;
+    }
+
+    if (resolved.kind === "audio" || resolved.kind === "video") {
+      const inlineAllowed =
+        resolved.kind === "audio"
+          ? inlineSupport?.audio !== false
+          : inlineSupport?.video !== false;
+      if (inlineAllowed) {
+        const base64 = bytesToBase64(bytes);
+        pushPart(parts, {
+          type: resolved.kind,
+          mimeType: resolved.mimeType,
+          source: {
+            type: "base64",
+            media_type: resolved.mimeType,
+            data: base64,
+          },
+        });
+        if (resolved.kind === "audio") stats.audioCount += 1;
+        else stats.videoCount += 1;
+        continue;
+      }
+      pushPart(parts, {
+        type: "text",
+        text: formatDegradedDescription(resolved),
+      });
+      stats.degradedCount += 1;
+      warnings.push(
+        resolved.kind === "audio"
+          ? `模型能力未开启音频输入，附件已降级为文本描述：${resolved.filename}`
+          : `模型能力未开启视频输入，附件已降级为文本描述：${resolved.filename}`
+      );
       continue;
     }
 

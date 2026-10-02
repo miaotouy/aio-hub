@@ -18,6 +18,12 @@ const PROCESSOR_ID = "primary:worldbook-injector";
 /** 无 scanDepth 时的移动端兜底扫描深度，保持与旧行为一致。 */
 const DEFAULT_SCAN_DEPTH = 8;
 
+/** 递归扫描硬性轮次上限，避免条目内容互相触发导致死循环。 */
+const MAX_RECURSION_LOOPS = 20;
+
+/** 递归缓冲段与历史窗口之间的分隔符，避免跨段关键词误匹配。 */
+const RECURSION_SEPARATOR = "\x01";
+
 export interface InjectWorldbookOptions {
   /** 可注入的随机源，测试用于确定性验证概率激活；默认 Math.random。 */
   random?: () => number;
@@ -133,6 +139,77 @@ function effectiveScanDepth(
   return Math.max(1, Math.floor(requested));
 }
 
+interface ScanCandidate {
+  entry: MobileWorldbookEntry;
+  worldbook: MobileWorldbook;
+  worldbookIndex: number;
+  bookSettings: MobileWorldbookSettings;
+}
+
+/** 拼接历史窗口与递归缓冲；递归段以分隔符隔开，避免跨消息关键词误匹配。 */
+function buildScanText(
+  history: readonly string[],
+  depth: number,
+  recurseBuffer: readonly string[]
+): string {
+  const historyText = history.slice(-depth).join("\n");
+  if (recurseBuffer.length === 0) return historyText;
+  return (
+    historyText +
+    "\n" +
+    RECURSION_SEPARATOR +
+    "\n" +
+    recurseBuffer.join("\n" + RECURSION_SEPARATOR + "\n")
+  );
+}
+
+/**
+ * 递归开关：Agent 级或任一书级明确 disableRecursion / recursive=false 时关闭。
+ * ST 默认递归开启，因此 recursive 未定义视为开启，仅显式 false 才关闭。
+ */
+function resolveRecursionEnabled(
+  agentSettings: MobileWorldbookSettings,
+  worldbooks: readonly MobileWorldbook[]
+): boolean {
+  if (
+    agentSettings.disableRecursion === true ||
+    agentSettings.recursive === false
+  ) {
+    return false;
+  }
+  return worldbooks.every((worldbook) => {
+    const bookSettings = resolveWorldbookSettings(worldbook.settings);
+    return (
+      bookSettings.disableRecursion !== true &&
+      bookSettings.recursive !== false
+    );
+  });
+}
+
+/** 递归轮次上限：Agent 级优先，其次任一书级；未配置为 0（不限制）。 */
+function resolveMaxRecursionSteps(
+  agentSettings: MobileWorldbookSettings,
+  worldbooks: readonly MobileWorldbook[]
+): number {
+  if (agentSettings.maxRecursionSteps !== undefined) {
+    return agentSettings.maxRecursionSteps;
+  }
+  for (const worldbook of worldbooks) {
+    const steps = resolveWorldbookSettings(worldbook.settings)
+      .maxRecursionSteps;
+    if (steps !== undefined) return steps;
+  }
+  return 0;
+}
+
+/**
+ * 多轮递归扫描：
+ * - INITIAL：按历史窗口做首轮关键词 / 次要关键词 / 概率匹配。
+ * - RECURSION：把上一轮新激活且未 preventRecursion 的条目内容拼进扫描文本，
+ *   再次匹配未激活条目；excludeRecursion / preventRecursion 条目仅在首轮参与，
+ *   delayUntilRecursion 条目仅在递归轮且层级提升到位后参与。
+ * - DONE：本轮无新增激活且无待提升的 delay 层级。
+ */
 function matchEntries(
   context: PipelineContext,
   worldbooks: readonly MobileWorldbook[],
@@ -145,34 +222,106 @@ function matchEntries(
     context.agentConfig?.worldbookSettings
   );
 
-  const matched: MatchedEntry[] = [];
+  const candidates: ScanCandidate[] = [];
   worldbooks.forEach((worldbook, worldbookIndex) => {
     const bookSettings = resolveWorldbookSettings(worldbook.settings);
     worldbook.entries.forEach((entry) => {
       if (!entry.enabled || !entry.content.trim()) return;
-      let matchedKeys: string[] = [];
-      if (!entry.constant) {
-        const scanText = history
-          .slice(-effectiveScanDepth(entry, bookSettings, agentSettings))
-          .join("\n");
-        matchedKeys = entry.keys.filter((key) =>
-          matchesKey(scanText, key, entry)
-        );
-        if (matchedKeys.length === 0) return;
-        if (!passesSelective(entry, scanText)) return;
-      }
-      if (!passesProbability(entry, random)) return;
-      matched.push({
-        entry,
-        worldbookId: worldbook.id,
-        worldbookName: worldbook.name,
-        worldbookIndex,
-        matchedKeys,
-      });
+      candidates.push({ entry, worldbook, worldbookIndex, bookSettings });
     });
   });
 
-  return matched.sort(
+  const recursionEnabled = resolveRecursionEnabled(agentSettings, worldbooks);
+  const maxRecursionSteps = resolveMaxRecursionSteps(agentSettings, worldbooks);
+
+  // 延迟递归层级按升序分层提升；无 delayUntilRecursion 条目时列表为空。
+  const delayLevels = [
+    ...new Set(
+      candidates
+        .filter((candidate) => candidate.entry.delayUntilRecursion)
+        .map((candidate) => candidate.entry.delayUntilRecursionLevel ?? 1)
+    ),
+  ].sort((left, right) => left - right);
+  let currentDelayLevel = delayLevels.length > 0 ? delayLevels[0] : 0;
+  let nextDelayIndex = 1;
+
+  const activated = new Map<string, MatchedEntry>();
+  const recurseBuffer: string[] = [];
+  let scanState: "INITIAL" | "RECURSION" | "DONE" = "INITIAL";
+  let loopCount = 0;
+
+  while (scanState !== "DONE") {
+    if (maxRecursionSteps > 0 && loopCount >= maxRecursionSteps) break;
+    if (loopCount >= MAX_RECURSION_LOOPS) break;
+
+    loopCount++;
+    const newlyActivated: MatchedEntry[] = [];
+
+    for (const candidate of candidates) {
+      const { entry } = candidate;
+      const activationKey = `${candidate.worldbook.id}:${entry.id}`;
+      if (activated.has(activationKey)) continue;
+
+      if (entry.delayUntilRecursion) {
+        // 延迟条目只在递归轮、且层级提升到位后才参与。
+        if (!recursionEnabled || scanState !== "RECURSION") continue;
+        if ((entry.delayUntilRecursionLevel ?? 1) > currentDelayLevel) continue;
+      } else if (scanState === "RECURSION" && entry.excludeRecursion === true) {
+        // excludeRecursion 条目不被其他条目的递归激活，只在 INITIAL 轮有机会。
+        continue;
+      }
+
+      let matchedKeys: string[] = [];
+      if (!entry.constant) {
+        const scanText = buildScanText(
+          history,
+          effectiveScanDepth(entry, candidate.bookSettings, agentSettings),
+          recurseBuffer
+        );
+        matchedKeys = entry.keys.filter((key) =>
+          matchesKey(scanText, key, entry)
+        );
+        if (matchedKeys.length === 0) continue;
+        if (!passesSelective(entry, scanText)) continue;
+      }
+      if (!passesProbability(entry, random)) continue;
+
+      newlyActivated.push({
+        entry,
+        worldbookId: candidate.worldbook.id,
+        worldbookName: candidate.worldbook.name,
+        worldbookIndex: candidate.worldbookIndex,
+        matchedKeys,
+      });
+    }
+
+    if (newlyActivated.length > 0) {
+      let addedForRecursion = false;
+      for (const item of newlyActivated) {
+        activated.set(`${item.worldbookId}:${item.entry.id}`, item);
+        if (recursionEnabled && item.entry.preventRecursion !== true) {
+          recurseBuffer.push(item.entry.content);
+          addedForRecursion = true;
+        }
+      }
+      if (addedForRecursion) {
+        scanState = "RECURSION";
+      } else if (recursionEnabled && nextDelayIndex < delayLevels.length) {
+        currentDelayLevel = delayLevels[nextDelayIndex++];
+        scanState = "RECURSION";
+      } else {
+        scanState = "DONE";
+      }
+    } else if (recursionEnabled && nextDelayIndex < delayLevels.length) {
+      // 本轮无新增激活，但仍有待提升的 delay 层级。
+      currentDelayLevel = delayLevels[nextDelayIndex++];
+      scanState = "RECURSION";
+    } else {
+      scanState = "DONE";
+    }
+  }
+
+  return [...activated.values()].sort(
     (left, right) =>
       right.entry.order - left.entry.order ||
       left.worldbookIndex - right.worldbookIndex ||
@@ -304,7 +453,7 @@ export const worldbookInjector: ContextProcessor = {
   id: PROCESSOR_ID,
   name: "关键词世界书注入器",
   description:
-    "按 Agent 选择的世界书执行确定性关键词、次要关键词与概率匹配，并在预设和历史之间注入上下文。",
+    "按 Agent 选择的世界书执行确定性关键词、次要关键词与概率匹配，并按递归扫描激活关联条目后注入上下文。",
   priority: 450,
   isCore: true,
   execute: async (context) => {

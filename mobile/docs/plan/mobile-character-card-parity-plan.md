@@ -1,6 +1,6 @@
 # 移动端角色卡与 AIO 导入包运行时对齐计划
 
-> **文档状态**: 批次 1–3 已完成（2026-09-25）；批次 1.7 私有资产落盘、批次 4 正则 render/多源合并、Agent 私有预设/开局附件运行时、`parameters.custom` 透传、世界书高级语义（selective/probability/位置+role）均已完成（2026-09-26）；本文档记录施工队列与剩余待办；批次 4 其余项与「明确不做」为边界
+> **文档状态**: 批次 1–3 已完成（2026-09-25）；批次 1.7 私有资产落盘、批次 4 正则 render/多源合并、Agent 私有预设/开局附件运行时、`parameters.custom` 透传、世界书高级语义（selective/probability/位置+role）均已完成（2026-09-26）；世界书递归扫描执行已完成（2026-10-02）；本文档记录施工队列与剩余待办；批次 4 其余项与「明确不做」为边界
 > **涉及模块**: `mobile/src/tools/agent-manager/`（导入器与 Agent 数据）、`mobile/src/tools/llm-chat/`（世界书、宏、正则、预设装配运行时）
 > **关联文档**: [`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、桌面端参照 [`src/tools/agent-manager/`](../../../src/tools/agent-manager/) 与 [`src/tools/llm-chat/`](../../../src/tools/llm-chat/)
 
@@ -45,7 +45,7 @@
 | `parameters.custom` 透传 | ✅ 已补齐 | `useChatExecutor.ts:306-329` 传入 `custom`；共享 `llm-api/core/adapters/openai-compatible.ts` 的 `toOpenAiCompatibleCoreRequest` 解包合并 | `src/.../config/parameter-config.ts:441-480` |
 | 世界书最小闭环（constant / scanDepth / 关键词 / 3 位置 / order） | ✅ | `core/pipeline/processors/worldbook-injector.ts:48-83`、`useChatExecutor.ts:215-216` | 桌面为 ST 完整语义 |
 | ST 世界书导入（内嵌 `character_book` 或独立 JSON） | ✅ 已补齐 | 导入器提取 + `worldbookStore.importFromSillyTavern` 落库 + `worldbookIds` 回写；世界书页支持独立 JSON 导入 | `src/tools/st-worldbook-manager/services/worldbookImportService.ts:40-138` |
-| 世界书高级语义（selective/keysecondary、递归、probability/sticky/cooldown、组竞争、8 位置+role、`worldbookSettings` 覆盖、三源合并） | 🟡 selective / probability / 位置+role 与导入映射已落地（2026-09-26，见 4.1）；递归执行、组竞争、sticky/cooldown、三源合并为显式后续项 | `llm-chat/types/worldbook.ts`、`worldbook-injector.ts`、`worldbookStore.ts` | `src/.../worldbook-processor.ts` |
+| 世界书高级语义（selective/keysecondary、递归、probability/sticky/cooldown、组竞争、8 位置+role、`worldbookSettings` 覆盖、三源合并） | 🟡 selective / probability / 位置+role 与导入映射已落地（2026-09-26，见 4.1）；递归扫描执行已落地（2026-10-02，见 4.1）；组竞争、sticky/cooldown、三源合并为显式后续项 | `llm-chat/types/worldbook.ts`、`worldbook-injector.ts`、`worldbookStore.ts` | `src/.../worldbook-processor.ts` |
 | Agent 私有资产目录（头像、`assets/`、`worldbooks/` 提取落盘与回写） | ✅ | `useAgentStorage.ts`（私有资产 API）、`useAgentImporter.ts`（提取）、`AgentList.vue`（落盘回写） | `src/tools/agent-manager/services/agentExportService.ts` |
 | `presetAttachments` 运行时解析与进 vision | ✅ 已补齐（2026-09-26） | `core/context-utils/preset-attachment-resolver.ts`、`core/pipeline/processors/preset-attachment-processor.ts`（图片内联 vision、文本内联回退、其它降级 warning） | `src/.../core/context-utils/preset-attachment-resolver.ts:89-130` |
 | `assetGroups` 分组语义与宏注入 | ✅ 已补齐（2026-09-26） | `agent-manager/types/agent.ts`、`llm-chat/core/pipeline/processors/macros-renderer.ts` | `AssetGroup` + `AgentAsset.group` 已对齐（移动端不引入 `agent-asset://`） |
@@ -96,7 +96,7 @@
 - [x] 正则 render（显示前）阶段（2026-09-26）：`MessageContent` 显示前应用 `applyTo.render` 规则，`ChatMessage` 以 `metadata.agentId` 做 Message-Bound 解析，深度由 `MessageList` 传入；解析/排序/应用复用 `utils/chatRegex.ts`，与 request 阶段语义一致；ST `markdownOnly` 导入转换为 `render: true`，旧配置缺 render 字段按 false 安全降级。
 - [x] 多配置源合并函数（2026-09-26）：`mergeRegexConfigs(...sources)` 按参数顺序（对齐桌面 global → agent → profile）拼接，`collectStageRules` 统一按预设 `priority`、规则 `order` 排序，同权重保持来源顺序。**移动端全局/档案级 `regexConfig` 无存储与 UI 载体，调用时全局源恒空**；后续接入时无需改动合并与应用函数，只需补齐设置模型与 UI。
 - 正则 render 后续项：思考内容（`reasoningContent`）的 render 正则、render 规则的宏预处理（`substitutionMode` / `trimStrings`）、render 规则的编辑 UI 与调试预览。
-- 世界书高级语义（selective/keysecondary、递归扫描、probability/sticky/cooldown、组竞争、8 位置 + role、`worldbookSettings` 覆盖与三源绑定合并）——涉及 `MobileWorldbook` 模型扩展，需先立数据结构设计。见下方「4.1 世界书高级语义字段设计」，本轮已落地 selective / probability / 位置+role / 导入映射；递归、组竞争、sticky/cooldown、三源合并仍是显式后续项。
+- 世界书高级语义（selective/keysecondary、递归扫描、probability/sticky/cooldown、组竞争、8 位置 + role、`worldbookSettings` 覆盖与三源绑定合并）——涉及 `MobileWorldbook` 模型扩展，需先立数据结构设计。见下方「4.1 世界书高级语义字段设计」，本轮已落地 selective / probability / 位置+role / 导入映射；递归扫描执行已于 2026-10-02 落地（见 4.1）；组竞争、sticky/cooldown、三源合并仍是显式后续项。
 - [x] Agent 私有 `presetAttachments` 与开局消息附件运行时解析与进 vision（已完成，2026-09-26）：`core/context-utils/preset-attachment-resolver.ts` + `core/pipeline/processors/preset-attachment-processor.ts`（priority 850）从 `agents/{id}/` 私有目录读取字节，图片以纯 JS 内联 base64 进 vision、文本文档内联 `<attachment_text>` 回退、音频/视频/其它二进制降级为文本描述并 warning；`injection-assembler` 把 `presetAttachments` 归一化为 `_privateAttachments`，`session-loader` 读取开局节点 `metadata.privateAttachments`，`greetingService` 固化时保留引用；不接入全局 `asset_manager.db`，无附件时不改变现有行为。
 - [x] Agent 私有 `assetGroups` 的分组语义与宏注入（已完成，2026-09-26）：`assetGroups` 从 `unknown[]` 占位转为 `AgentAssetGroup`（`id`/`displayName`/`description`/`icon`/`sortOrder`，索引签名无损保留），`AgentAsset.group` 归类；导入器 `normalizeAgentAssetGroups` 归一化并保留合法字段，旧 `unknown[]` 数据不崩溃；`macros-renderer` 的 `{{assets}}` 纳入 `agent.assets` 并支持 `{{assets::group}}` / `{{assets::default}}` 过滤，全局附件摘要与输出顺序保持不变。移动端不引入桌面 `agent-asset://` 资源协议（无对应 resolver），私有资产只输出可读文本与 Handle 标识。私有音视频进入请求、Agent 资产管理 UI 仍后置。
 - [x] `parameters.custom` 自定义参数透传（已完成，2026-09-26）：`useChatExecutor` 透传，共享 `toOpenAiCompatibleCoreRequest` 按桌面 `buildEffectiveParameters` 语义解包（包裹结构 `enabled` 为真才合并、旧扁平整体合并），允许覆盖标准字段但保护 `messages` / `stream`；「按模型能力过滤」仍待独立排期。
@@ -142,7 +142,9 @@ AN / EM 区分在移动端管线中没有独立锚点，因此 2/3/5/6 合并到
 4. `depth` 计算继续基于**注入前 session history 锚点**（见 `mobile-pc-parity-construction-review.md` 4.6），不回退为按注入后索引计算。
 5. 位置注入：`before_character` 在角色 system 预设前、`before_history` 在历史前、`after_character` 在角色 system 预设后、`after_history` 在首条历史后、`depth` 按深度、`outlet` 不注入消息但计入激活列表。
 
-**世界书设置（`worldbookSettings`）**：新增 `MobileWorldbookSettings`，可挂在 `MobileWorldbook.settings`（书级）或既有 `ChatAgent.worldbookSettings`（Agent 级，`unknown`）。运行时当前只消费 `defaultScanDepth`（扫描深度兜底，优先级 `entry.scanDepth > 书级 > Agent 级 > 8`）；`recursive` / `disableRecursion` / `maxRecursionSteps` 字段先无损保存，递归执行与三源（全局/档案/Agent）合并为后续项。
+**世界书设置（`worldbookSettings`）**：新增 `MobileWorldbookSettings`，可挂在 `MobileWorldbook.settings`（书级）或既有 `ChatAgent.worldbookSettings`（Agent 级，`unknown`）。运行时消费 `defaultScanDepth`（扫描深度兜底，优先级 `entry.scanDepth > 书级 > Agent 级 > 8`）与递归开关（`recursive` 未定义视为开启、`disableRecursion` 强制单轮、`maxRecursionSteps` 限轮次并另有 20 轮硬上限）；`recursive` / `disableRecursion` / `maxRecursionSteps` 已参与 2026-10-02 落地的递归扫描执行，全局默认世界书与 Agent 绑定世界书的三源（全局/档案/Agent）合并仍是后续项。
+
+**递归扫描执行（2026-10-02 落地）**：`worldbook-injector` 从单轮匹配升级为 `INITIAL → RECURSION → DONE` 多轮扫描。首轮语义与旧版完全一致；新激活且未 `preventRecursion` 的条目内容进入递归缓冲（以 `\x01` 分隔拼接进下一轮扫描文本，避免跨段关键词误匹配）；`excludeRecursion` 条目不被递归激活、`preventRecursion` 条目内容不外溢但仍可被递归激活（对齐 ST/桌面端）；`delayUntilRecursion` 条目按 `delayUntilRecursionLevel` 分层在递归轮参与；书级或 Agent 级设置可整体关闭递归。全部 14 个既有用例回归通过并新增 7 个递归用例。
 
 **向后兼容**
 - 旧条目只含原字段时行为完全不变；新字段全部可选。
@@ -150,10 +152,11 @@ AN / EM 区分在移动端管线中没有独立锚点，因此 2/3/5/6 合并到
 - 导入仍有 warning 汇总，不静默丢失；`raw` 与 `[key: string]` 保证未知字段可回写。
 
 **本轮显式后续项（未实现，勿误标完成）**
-- 递归扫描执行（`recursive` / `excludeRecursion` / `preventRecursion` / `delayUntilRecursion` 只存储不执行）。
 - 组竞争（`group` / `groupWeight` / `groupOverride`）与 sticky / cooldown / delay。
 - 全局默认世界书与 Agent 绑定世界书的三源合并。
 - AN / EM 独立锚点与 Outlet 宏提取。
+
+（递归扫描执行已于 2026-10-02 完成，见上文「递归扫描执行」。）
 
 ### 明确不做
 

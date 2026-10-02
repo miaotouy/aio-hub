@@ -21,23 +21,24 @@ export type WorldbookSelectiveLogic =
 
 /**
  * 世界书运行时设置（对齐 ST `world_info_*` 全局项）。
- * 当前运行时只消费 `defaultScanDepth`；递归字段先无损保存，执行属后续项。
+ * `defaultScanDepth` 控制扫描深度，递归字段控制多轮递归扫描行为。
  */
 export interface MobileWorldbookSettings {
   /** 条目不指定 scanDepth 时的兜底扫描深度。 */
   defaultScanDepth?: number;
-  /** 递归扫描开关（当前未执行）。 */
+  /** 递归扫描开关；未定义视为开启（对齐 ST），显式 false 关闭。 */
   recursive?: boolean;
-  /** 完全关闭递归（当前未执行）。 */
+  /** 完全关闭递归，行为等同单轮扫描。 */
   disableRecursion?: boolean;
-  /** 递归最大步数（当前未执行）。 */
+  /** 递归最大轮次；大于 0 时限制总循环次数，未配置不限制。 */
   maxRecursionSteps?: number;
   [key: string]: unknown;
 }
 
 /**
  * Mobile-first 世界书条目：确定性关键词匹配 + ST 高级语义子集。
- * 向量检索、递归执行、组竞争、自动化为显式边界；相关字段仅无损保存。
+ * 向量检索、组竞争、自动化为显式边界；相关字段仅无损保存。
+ * 递归字段已参与运行时多轮递归扫描。
  */
 export interface MobileWorldbookEntry {
   id: string;
@@ -70,7 +71,13 @@ export interface MobileWorldbookEntry {
   probability?: number;
   /** 是否启用概率；缺省 false。 */
   useProbability?: boolean;
-  /** 递归语义字段：当前仅无损保存，运行时未执行递归扫描。 */
+  /**
+   * 递归语义字段：
+   * - excludeRecursion：命中后不参与递归轮扫描，只在首轮激活。
+   * - preventRecursion：激活后内容不写入递归缓冲，且不参与递归轮扫描。
+   * - delayUntilRecursion：只在递归轮参与，延迟到 delayUntilRecursionLevel。
+   * - delayUntilRecursionLevel：延迟递归层级，默认 1，数值越大越晚参与。
+   */
   excludeRecursion?: boolean;
   preventRecursion?: boolean;
   delayUntilRecursion?: boolean;

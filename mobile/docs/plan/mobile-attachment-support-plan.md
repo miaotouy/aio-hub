@@ -1,6 +1,6 @@
 # 移动端附件支持整合计划
 
-> **文档状态**: 现状盘点与施工队列；附件 1a 的 `packages/llm-core` 共享 wire 修复已施工（2026-09-30）；附件 3 的 `assetGroups` 分组与 `{{assets}}` 宏已施工（2026-09-26）；附件 1b 的 ready 纯文本发送前文本化已施工（2026-09-29），PDF 转图/音频转写/图片压缩后置；其余条目规划中（已含桌面端对照）
+> **文档状态**: 现状盘点与施工队列；附件 1a 的 `packages/llm-core` 共享 wire 修复已施工（2026-09-30）；附件 3 的 `assetGroups` 分组与 `{{assets}}` 宏已施工（2026-09-26），私有音视频按能力内联与 Agent 资产管理 UI 已施工（2026-10-03）；附件 1b 的 ready 纯文本发送前文本化已施工（2026-09-29），PDF 转图/音频转写/图片压缩后置；其余条目规划中（已含桌面端对照）
 > **创建日期**: 2026-09-26
 > **涉及模块**: `mobile/src/tools/llm-chat/`、`mobile/src/tools/agent-manager/`、`mobile/src/tools/asset-manager/`、`mobile/src/components/media/`、`packages/llm-core/`
 > **关联文档**: 移动端 [`mobile-media-components-plan.md`](./mobile-media-components-plan.md)、[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md)、[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)；桌面端 [`src/tools/llm-chat/docs/architecture/attachment-system.md`](../../../src/tools/llm-chat/docs/architecture/attachment-system.md)
@@ -116,10 +116,9 @@ PC 消息气泡遍历 `message.attachments` 渲染 `AttachmentCard`（`src/tools
 
 - [x] 把 `assetGroups` 从占位转为 `AgentAssetGroup` 元数据（`id`/`displayName`/`description`/`icon`/`sortOrder`）+ `AgentAsset.group`，用于管理与分组；导入器归一化并无损保留，旧 `unknown[]` 数据不崩溃（2026-09-26）。
 - [x] `{{assets}}` 宏纳入 Agent 私有附件并支持按分组过滤（`{{assets::group}}`，`{{assets::default}}` 对齐桌面未分组/无效分组语义）；全局附件摘要与输出顺序保持不变（2026-09-26）。**移动端不引入 `agent-asset://{group}/{id}` 引用协议**：没有对应 resolver，私有资产只输出 `[类型] 文件名 (handle: id)` 可读文本，不产生可解析引用。
-- [ ] 私有音频/视频按 provider 能力进入请求，无法表达时保留显式降级（仍后置，见附件 1a / 1b）。
-- [ ] Agent 资产管理 UI（移动端暂无该页面，后置）。
-
-入口：`agent-manager/types/agent.ts:111`、`macros-renderer.ts:217`、`preset-attachment-resolver.ts:416`；参照 `src/tools/llm-chat/macro-engine/macros/assets.ts`。对应 parity 计划批次 4 剩余项。
+- [x] 私有音频/视频按 provider 能力进入请求，无法表达时保留显式降级（已实施，2026-10-03）：`preset-attachment-resolver` 新增 `AgentAttachmentInlineSupport` 能力开关与 audio/video 内联分支，音频输出 base64 source 的 audio part（共享包按 `audioInputFormat` 推导 `input_audio.format`），视频输出 base64 source 的 video part（走移动端 `image_url + video_metadata` 平台扩展）；内联策略与图片一致——capabilities 未配置或 `true` 时尝试内联，显式 `false` 才降级为文本描述并 warning；`preset-attachment-processor` 从 `context.capabilities` 读取开关，stats 新增 `audioCount`/`videoCount`。
+- [x] Agent 资产管理 UI（已实施，2026-10-03）：新增 `components/AgentAssetsSection.vue` 并挂入 `AgentDetail.vue`；分组过滤 chips、原生 file input 多选添加（即选即落盘 `saveAgentAsset`，记录 `{id, filename, path, type, mimeType?, size?}`，id 用文件基名作宏 Handle 冲突追加序号）、描述/分组编辑底部弹层、删除经 `deleteAgentAsset`（仅允许 `assets/` 前缀）并提示残留引用，页面级联清理 `presetMessages[].presetAttachments` 与 `greetings[].attachments` 引用；`assetGroups` 分组的新建/改名/删除 UI 仍后置。
+- 入口：`agent-manager/types/agent.ts:111`、`macros-renderer.ts:217`、`preset-attachment-resolver.ts`、`preset-attachment-processor.ts`、`agent-manager/components/AgentAssetsSection.vue`；参照 `src/tools/llm-chat/macro-engine/macros/assets.ts`。对应 parity 计划批次 4 剩余项均已落地。
 
 ### 附件 4：附件回退与输入体验（参考 PC）
 

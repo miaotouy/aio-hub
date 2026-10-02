@@ -275,8 +275,9 @@ Actions:
 8. primary:preset-attachment-processor (priority: 850，位于 token-limiter 700 与 message-formatter 800 之后)
    ├── 读取消息上暂存的 `_privateAttachments`，通过 `useAgentStorage.readAgentAsset` 从 `agents/{id}/` 私有目录读取字节
    ├── 图片：纯 JS 编码为内联 base64，写入 vision part（`source.type = "base64"`），不经过全局资产或 Rust 原生传输
+   ├── 音频 / 视频：模型能力未显式关闭时同样内联 base64（audio part → 共享包 `input_audio`，video part → 移动端 `image_url + video_metadata` 平台扩展）；`context.capabilities.audio/video` 显式为 false 时降级为文本描述并 warning（2026-10-03，与图片不判 vision 的行为一致）
    ├── 文本文档：以内联 `<attachment_text name mime_type>` 块确定性回退，超长截断
-   ├── 音频 / 视频 / 其它二进制：降级为 `<attachment …>` 文本描述并 warning，不静默丢弃
+   ├── 其它二进制：降级为 `<attachment …>` 文本描述并 warning，不静默丢弃
    ├── 资产引用缺失或读取失败：记录缺失并 warning；无附件时直接 skipped，不改变任何消息
    └── 放在 message-formatter 之后，避免私有图片在连续的 system / 同角色消息合并时被文本化丢弃；处理结果写入 `sharedData.presetAttachmentResolutionStats`
 
@@ -290,7 +291,7 @@ LlamaChatView.send() → useChatExecutor.execute()
   → 输出 messages[] 给 llmRequest.sendRequest()
 ```
 
-**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets`（全局附件摘要 + Agent 私有资产，支持 `{{assets::group}}` 分组过滤）与导入角色局部变量；移动端不识别桌面 `agent-asset://` 资源协议，私有资产以可读文本与 Handle 标识输出，不产生可解析引用；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用纯文本类附件在发送前由 `attachment-preparer` 内联为文本上下文（快照优先，缺失时受控提取并按 `assetId` 缓存），可用图片、音频、视频与非文本文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；新选中的纯文本类附件在 `AssetPickerSheet` 确认选择前按需写入快照，超过原生 2 MiB 读取上限则跳过，超过 20 万字符则截断并提示；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
+**扩展点**: `registerProcessor()` / `unregisterProcessor()` 可动态增删处理器，`reorderProcessors()` 可调整执行顺序。当前内置会话加载、基础用户档案注入、导入 Agent 的 request 阶段正则、预设注入组装、移动端限定范围的关键词世界书注入、宏/局部变量渲染、附件可用性与提取文本回退、Token 裁剪和最终消息格式化；预设支持默认、深度、高级深度、锚点与模型匹配，格式化支持模型默认规则与 Agent 覆盖的 system 合并、连续角色合并、system 转 user 和角色交替。宏只覆盖角色聊天当前消费的 `user` / `agent` / `char`、用户档案、会话 `last*` / `input`、模型、`assets`（全局附件摘要 + Agent 私有资产，支持 `{{assets::group}}` 分组过滤）与导入角色局部变量；移动端不识别桌面 `agent-asset://` 资源协议，私有资产以可读文本与 Handle 标识输出，不产生可解析引用；未知与转义宏不会被执行。Agent 私有预设/开局附件在请求构建末期由 `preset-attachment-processor` 从私有目录读取：图片内联进 vision，音频/视频按 `context.capabilities` 内联（未配置或 true 尝试内联，显式 false 降级为文本描述），文本以内联块回退，其余降级为文本描述；它不接入全局资产管理，也不转换成全局 `assetId`，无附件时处理器直接跳过。世界书由 `worldbookStore` 用 `llm-chat/worldbooks.json` 单独持久化，数据包含文本、关键词、扫描深度、位置、顺序、次要关键词/选择性逻辑、概率与角色等 ST 高级语义子集（未知字段保留在条目 `raw`）；世界书管理页创建条目，Agent 编辑页使用既有 `worldbookIds` 选择。资源解析当前边界为：聊天只持久化 `assetId +` 轻量快照；可用纯文本类附件在发送前由 `attachment-preparer` 内联为文本上下文（快照优先，缺失时受控提取并按 `assetId` 缓存），可用图片、音频、视频与非文本文档以托管引用在 Rust 原生传输层读取，历史文档在用户执行“提取文本并清理原件”后可用持久化 `extractedText` 回退；新选中的纯文本类附件在 `AssetPickerSheet` 确认选择前按需写入快照，超过原生 2 MiB 读取上限则跳过，超过 20 万字符则截断并提示；同一进程中的活跃会话通过轻量缓存立即可见，重载后以 SQLite 快照为准。媒体压缩、PDF/Office 深度解析、转写、工具调用、向量 RAG、Knowledge/Recall 不属于这条管线完成的前置条件。Token 限制器当前计算文本，附件和其他多模态成本继续按实际模型与渠道协议独立估算。当前施工顺序见 [`mobile-development-checklist.md`](../../../docs/plan/mobile-development-checklist.md)。
 
 ### 4.3. Token 统计与上下文预警
 
@@ -538,7 +539,7 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 - [x] 正则 render 阶段：`MessageContent` 在显示前应用 `applyTo.render` 规则，`ChatMessage` 以 Message-Bound（`metadata.agentId`）解析并合并 Agent 配置，深度由 `MessageList` 传入；规则解析、阶段排序与应用复用 `utils/chatRegex.ts`，无匹配规则时短路，不修改持久化内容
 - [x] `message-formatter`：模型默认规则与 Agent 覆盖的消息合并、角色转换和交替补位
 - [x] `injection-assembler`：默认、深度/高级深度和锚点预设组装；把 `presetAttachments` 归一化为 `ProcessableMessage._privateAttachments`，并保留只有附件而无正文的预设消息
-- [x] `preset-attachment-processor`（priority 850）：从 Agent 私有目录读取预设与开局附件字节，图片内联进 vision，文本以内联块回退，其余类型降级为文本描述并 warning；不接入全局资产，无附件时跳过
+- [x] `preset-attachment-processor`（priority 850）：从 Agent 私有目录读取预设与开局附件字节，图片内联进 vision，音频/视频按模型能力内联（显式 false 才降级），文本以内联块回退，其余类型降级为文本描述并 warning；不接入全局资产，无附件时跳过
 - [x] `user-profile-injector`：启用的 Agent 绑定或全局默认基础档案在历史前以 `<user_profile>` 系统上下文注入；完整桌面用户档案宏契约仍不在此范围
 - [x] 模型与渠道匹配：由 `injection-assembler` 统一执行；Agent 的 `profileId` 与 provider-native `modelId` 分字段保存，Ollama 等带冒号模型 ID 不再二次拆分
 - [x] `token-limiter`：复用现有 Rust `o200k` 批量计数，预设先占预算、从最新历史倒序保留；部分截断保留消息开头并对候选文本重新计数，附件、工具 schema 和多模态额外开销仍由独立估算处理

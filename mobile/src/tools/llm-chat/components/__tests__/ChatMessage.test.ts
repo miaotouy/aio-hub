@@ -19,6 +19,9 @@ vi.mock("../../stores/llmChatStore", () => ({
 vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
   useAgentStore: () => ({ getAgentById: () => null }),
 }));
+vi.mock("../../stores/userProfileStore", () => ({
+  useUserProfileStore: () => ({ getEffectiveProfile: () => null }),
+}));
 vi.mock("../../composables/useChatSettings", () => ({
   useChatSettings: () => ({ settings }),
 }));

@@ -30,6 +30,15 @@ export interface ChatRegexRule {
   depthRange?: { min?: number; max?: number };
   /** 移动端不执行脚本规则，仅保留字段用于统计与降级提示。 */
   replacementType?: "regex" | "script";
+  /**
+   * 宏替换模式，对齐 ST `substituteRegex`：
+   * - NONE（缺省）：不对规则中的 `{{user}}`/`{{char}}` 宏做替换；
+   * - RAW：宏结果原样写入 regex / trimStrings；
+   * - ESCAPED：宏结果先做正则元字符转义再写入。
+   */
+  substitutionMode?: "NONE" | "RAW" | "ESCAPED";
+  /** 捕获组后处理裁剪串，用于在替换前从捕获组内容中移除指定子串。 */
+  trimStrings?: string[];
   order?: number;
 }
 

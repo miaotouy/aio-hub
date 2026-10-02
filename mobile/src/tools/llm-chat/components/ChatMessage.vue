@@ -4,9 +4,10 @@ import type { ChatMessageNode } from "../types";
 import { User, Bot } from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
 import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
-import { mergeRegexConfigs } from "../utils/chatRegex";
+import { mergeRegexConfigs, type RegexMacroValues } from "../utils/chatRegex";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import BranchSwitcher from "./BranchSwitcher.vue";
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 const { settings } = useChatSettings();
 const { tRaw, locale } = useI18n();
 const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
@@ -60,6 +62,19 @@ const messageRegexConfig = computed(() =>
     agentStore.getAgentById(props.message.metadata?.agentId)?.regexConfig
   )
 );
+
+/**
+ * render 正则宏值：message 绑定的 agent 名与有效用户档案名。
+ * 语境有限，只提供 `{{user}}`/`{{char}}`，与 request 阶段保持同一取值语义。
+ */
+const regexMacroValues = computed<RegexMacroValues>(() => {
+  const agent = agentStore.getAgentById(props.message.metadata?.agentId);
+  const profile = userProfileStore.getEffectiveProfile(agent?.userProfileId);
+  return {
+    user: profile?.displayName || profile?.name || "User",
+    char: agent?.displayName || agent?.name || "Assistant",
+  };
+});
 const timestampLabel = computed(() => {
   if (!props.message.timestamp) return null;
 
@@ -129,6 +144,7 @@ function handleContentClick(event: MouseEvent) {
         <MessageContent
           :message="message"
           :regex-config="messageRegexConfig"
+          :regex-macros="regexMacroValues"
           :message-depth="messageDepth"
         />
       </div>

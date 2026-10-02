@@ -53,6 +53,12 @@ export function readRegexRule(value: unknown): ChatRegexRule | null {
   const targetRoles = record.targetRoles.filter(isMessageRole);
   if (!targetRoles.length) return null;
   const depth = asRecord(record.depthRange);
+  // 宽容解析 trimStrings：仅保留字符串元素，无有效项时视为未配置。
+  const trimStrings = Array.isArray(record.trimStrings)
+    ? record.trimStrings.filter(
+        (item): item is string => typeof item === "string"
+      )
+    : [];
   return {
     id: typeof record.id === "string" ? record.id : undefined,
     enabled: record.enabled,
@@ -69,6 +75,12 @@ export function readRegexRule(value: unknown): ChatRegexRule | null {
         }
       : undefined,
     replacementType: record.replacementType === "script" ? "script" : "regex",
+    // 非法/缺失的 substitutionMode 一律回退 NONE，保证旧配置行为不变。
+    substitutionMode:
+      record.substitutionMode === "RAW" || record.substitutionMode === "ESCAPED"
+        ? record.substitutionMode
+        : "NONE",
+    trimStrings: trimStrings.length ? trimStrings : undefined,
     order: typeof record.order === "number" ? record.order : undefined,
   };
 }
@@ -220,6 +232,69 @@ export function parseRegexString(regex: string): {
     : { pattern: regex, flags: "gm" };
 }
 
+/** render/request 两阶段可安全解析的宏值，移动端只暴露 user / char。 */
+export interface RegexMacroValues {
+  user?: string;
+  char?: string;
+}
+
+const REGEX_MACRO_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
+
+/** 正则元字符转义，用于 substitutionMode=ESCAPED 的宏结果。 */
+function escapeRegexValue(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** 解析单个宏名；未知宏返回 undefined，由调用方保留原文。 */
+function resolveRegexMacroValue(
+  rawName: string,
+  macroValues: RegexMacroValues
+): string | undefined {
+  const name = rawName.trim().toLowerCase();
+  if (name === "user") return macroValues.user;
+  // 宏引擎中 `agent` 与 `char` 等价，这里保持同一语义。
+  if (name === "char" || name === "agent") return macroValues.char;
+  return undefined;
+}
+
+/**
+ * render / request 阶段共享的宏预处理纯函数。
+ *
+ * render 阶段在组件层执行、拿不到完整 PipelineContext，因此不接入完整宏引擎，
+ * 只把规则 `regex` 与 `trimStrings` 中的 `{{user}}`/`{{char}}` 替换为调用方
+ * 提供的值。substitutionMode=NONE（缺省）不做任何替换；RAW 原样写入；ESCAPED
+ * 先对宏结果做正则元字符转义。无实际替换时返回原对象，避免下游无谓重算。
+ */
+export function preprocessRegexRuleMacros(
+  rule: ChatRegexRule,
+  macroValues: RegexMacroValues
+): ChatRegexRule {
+  const mode = rule.substitutionMode ?? "NONE";
+  if (mode === "NONE") return rule;
+
+  const substitute = (source: string): string =>
+    source.replace(REGEX_MACRO_PATTERN, (full, rawName: string) => {
+      const value = resolveRegexMacroValue(rawName, macroValues);
+      if (value === undefined) return full;
+      return mode === "ESCAPED" ? escapeRegexValue(value) : value;
+    });
+
+  const nextRegex = substitute(rule.regex);
+  const nextTrimStrings = rule.trimStrings?.map((item) => substitute(item));
+  const regexChanged = nextRegex !== rule.regex;
+  const trimChanged =
+    nextTrimStrings?.some(
+      (item, index) => item !== rule.trimStrings?.[index]
+    ) === true;
+
+  if (!regexChanged && !trimChanged) return rule;
+  return {
+    ...rule,
+    regex: nextRegex,
+    ...(nextTrimStrings ? { trimStrings: nextTrimStrings } : {}),
+  };
+}
+
 export interface ApplyRegexRulesResult {
   text: string;
   replacements: number;
@@ -247,10 +322,34 @@ export function applyRegexRules(
     }
     try {
       const parsed = parseRegexString(rule.regex);
-      const replaced = next.replace(
-        new RegExp(parsed.pattern, rule.flags || parsed.flags || "gm"),
-        rule.replacement
+      const regex = new RegExp(
+        parsed.pattern,
+        rule.flags || parsed.flags || "gm"
       );
+      let replaced: string;
+      if (rule.trimStrings && rule.trimStrings.length) {
+        // 捕获组后处理：先按 trimStrings 裁剪每个捕获组，再回填 replacement
+        // 中的 $N / ${N} / $&（对齐桌面端语义，但不额外转换 \n / \t）。
+        replaced = next.replace(regex, (...args: unknown[]) => {
+          const match = args[0] as string;
+          const groups = args.slice(1, -2);
+          let processed = rule.replacement;
+          groups.forEach((group, index) => {
+            if (typeof group !== "string") return;
+            let trimmed = group;
+            for (const trimString of rule.trimStrings!) {
+              trimmed = trimmed.split(trimString).join("");
+            }
+            processed = processed
+              .replace(new RegExp(`\\$${index + 1}(?!\\d)`, "g"), trimmed)
+              .replace(new RegExp(`\\$\\{${index + 1}\\}`, "g"), trimmed);
+          });
+          processed = processed.replace(/\$&/g, match);
+          return processed;
+        });
+      } else {
+        replaced = next.replace(regex, rule.replacement);
+      }
       if (replaced !== next) replacements++;
       next = replaced;
     } catch (error) {

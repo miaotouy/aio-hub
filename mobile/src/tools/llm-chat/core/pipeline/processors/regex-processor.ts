@@ -10,6 +10,8 @@ import {
   collectStageRules,
   filterRulesByDepth,
   filterRulesByRole,
+  preprocessRegexRuleMacros,
+  type RegexMacroValues,
 } from "../../../utils/chatRegex";
 
 const logger = createModuleLogger("llm-chat/regex-processor");
@@ -55,12 +57,23 @@ export const regexProcessor: ContextProcessor = {
     let replacements = 0;
     let skippedScripts = 0;
     const failedRules: Array<{ name: string; error: string }> = [];
+    // request 阶段已有 agentConfig / userProfile 上下文，可低成本接入宏预处理。
+    const macroValues: RegexMacroValues = {
+      user:
+        context.userProfile?.displayName ||
+        context.userProfile?.name ||
+        "User",
+      char:
+        context.agentConfig?.displayName ||
+        context.agentConfig?.name ||
+        "Assistant",
+    };
     const total = context.messages.length;
     for (const [index, message] of context.messages.entries()) {
       const applicable = filterRulesByDepth(
         filterRulesByRole(rules, message.role),
         total - index - 1
-      );
+      ).map((rule) => preprocessRegexRuleMacros(rule, macroValues));
       if (!applicable.length) continue;
 
       const textPart = getTextPart(message);

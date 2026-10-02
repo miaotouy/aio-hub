@@ -6,6 +6,7 @@ import {
   filterRulesByDepth,
   filterRulesByRole,
   mergeRegexConfigs,
+  preprocessRegexRuleMacros,
   readRegexRule,
   resolveMessageRules,
 } from "../chatRegex";
@@ -244,5 +245,128 @@ describe("chatRegex applyRegexRules", () => {
     expect(outcome.text).toBe("foo");
     expect(outcome.skippedScripts).toBe(1);
     expect(outcome.failedRules).toHaveLength(1);
+  });
+});
+
+describe("chatRegex substitution options", () => {
+  it("parses valid substitutionMode and drops non-string trimStrings", () => {
+    const parsed = readRegexRule({
+      enabled: true,
+      regex: "a",
+      replacement: "b",
+      applyTo: { render: true },
+      targetRoles: ["user"],
+      substitutionMode: "ESCAPED",
+      trimStrings: [" ", 42, null, "\n"],
+    });
+
+    expect(parsed?.substitutionMode).toBe("ESCAPED");
+    expect(parsed?.trimStrings).toEqual([" ", "\n"]);
+  });
+
+  it("falls back to NONE for invalid mode and omits empty trimStrings", () => {
+    const parsed = readRegexRule({
+      enabled: true,
+      regex: "a",
+      replacement: "b",
+      applyTo: { render: true },
+      targetRoles: ["user"],
+      substitutionMode: "WEIRD",
+      trimStrings: [1, 2],
+    });
+
+    expect(parsed?.substitutionMode).toBe("NONE");
+    expect(parsed?.trimStrings).toBeUndefined();
+  });
+});
+
+describe("chatRegex trimStrings post-processing", () => {
+  it("trims capture groups before expanding $1 and $&", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "/<(.*?)>/g",
+      replacement: "[$1]($&)",
+      trimStrings: [" "],
+    };
+
+    const outcome = applyRegexRules("< hi >", [rule]);
+    expect(outcome.text).toBe("[hi](< hi >)");
+    expect(outcome.replacements).toBe(1);
+  });
+
+  it("applies multiple trimStrings and ${n} replacement syntax", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "\\{(.*?)\\}",
+      replacement: "<${1}>",
+      trimStrings: ["[", "]"],
+    };
+
+    expect(applyRegexRules("{[abc]}", [rule]).text).toBe("<abc>");
+  });
+
+  it("keeps the plain replacement when the pattern has no capture group", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "foo",
+      replacement: "bar",
+      trimStrings: ["x"],
+    };
+
+    expect(applyRegexRules("foo", [rule]).text).toBe("bar");
+  });
+});
+
+describe("chatRegex macro preprocessing", () => {
+  it("leaves NONE rules untouched", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "{{user}}",
+      substitutionMode: "NONE",
+    };
+
+    expect(preprocessRegexRuleMacros(rule, { user: "Ada" })).toBe(rule);
+  });
+
+  it("substitutes macros verbatim in RAW mode for regex and trimStrings", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "a{{user}}b",
+      trimStrings: ["{{char}}"],
+      substitutionMode: "RAW",
+    };
+
+    const processed = preprocessRegexRuleMacros(rule, {
+      user: "A.B",
+      char: "C(D)",
+    });
+    expect(processed.regex).toBe("aA.Bb");
+    expect(processed.trimStrings).toEqual(["C(D)"]);
+  });
+
+  it("escapes regex metacharacters in ESCAPED mode", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "{{user}}",
+      trimStrings: ["{{char}}"],
+      substitutionMode: "ESCAPED",
+    };
+
+    const processed = preprocessRegexRuleMacros(rule, {
+      user: "A.B(C)",
+      char: "[x]",
+    });
+    expect(processed.regex).toBe("A\\.B\\(C\\)");
+    expect(processed.trimStrings).toEqual(["\\[x\\]"]);
+  });
+
+  it("keeps unknown macros and returns the original object when nothing changes", () => {
+    const rule: ChatRegexRule = {
+      ...renderRule,
+      regex: "{{model}}",
+      substitutionMode: "RAW",
+    };
+
+    expect(preprocessRegexRuleMacros(rule, { user: "Ada" })).toBe(rule);
   });
 });

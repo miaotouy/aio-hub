@@ -369,4 +369,70 @@ describe("useAgentImporter", () => {
     expect(result.warnings.join(" ")).toContain("渲染阶段 1 条");
     expect(result.warnings.join(" ")).not.toContain("仅渲染");
   });
+
+  it("converts substituteRegex and trimStrings instead of warning", async () => {
+    const { parseFile } = useAgentImporter();
+    const card = {
+      spec: "chara_card_v2",
+      name: "Substitute Keeper",
+      first_mes: "Hello",
+      extensions: {
+        regex_scripts: [
+          {
+            scriptName: "Raw",
+            findRegex: "/{{user}}/g",
+            replaceString: "x",
+            substituteRegex: 1,
+            trimStrings: [" ", 7, "\\n"],
+          },
+          {
+            scriptName: "Escaped",
+            findRegex: "/a/g",
+            replaceString: "b",
+            substituteRegex: 2,
+          },
+          {
+            scriptName: "None",
+            findRegex: "/c/g",
+            replaceString: "d",
+            substituteRegex: 0,
+          },
+          {
+            scriptName: "Unknown",
+            findRegex: "/e/g",
+            replaceString: "f",
+            substituteRegex: 9,
+          },
+        ],
+      },
+    };
+
+    const result = await parseFile(
+      new File([JSON.stringify(card)], "substitute.json", {
+        type: "application/json",
+      })
+    );
+
+    const config = result.agents[0].regexConfig as {
+      presets: Array<{
+        rules: Array<{
+          name: string;
+          substitutionMode?: string;
+          trimStrings?: string[];
+        }>;
+      }>;
+    };
+    const byName = Object.fromEntries(
+      config.presets[0].rules.map((rule) => [rule.name, rule])
+    );
+    expect(byName.Raw.substitutionMode).toBe("RAW");
+    expect(byName.Raw.trimStrings).toEqual([" ", "\\n"]);
+    expect(byName.Escaped.substitutionMode).toBe("ESCAPED");
+    expect(byName.None.substitutionMode).toBeUndefined();
+    expect(byName.Unknown.substitutionMode).toBeUndefined();
+
+    const warnings = result.warnings.join(" ");
+    expect(warnings).not.toContain("高级选项未迁移");
+    expect(warnings).toContain("substituteRegex 存在未识别值（9）");
+  });
 });

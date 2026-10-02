@@ -207,6 +207,8 @@ export interface MobileRegexConfig {
       applyTo: { render: boolean; request: boolean };
       targetRoles: Array<"system" | "user" | "assistant">;
       depthRange?: { min?: number; max?: number };
+      substitutionMode?: "NONE" | "RAW" | "ESCAPED";
+      trimStrings?: string[];
       order?: number;
     }>;
   }>;
@@ -221,6 +223,22 @@ function parseRegexString(regexString: string): {
   const matched = regexString.match(/^\/(.*)\/([gimsuy]*)$/s);
   if (matched) return { pattern: matched[1], flags: matched[2] || "gm" };
   return { pattern: regexString, flags: "gm" };
+}
+
+/**
+ * ST `substituteRegex` 枚举 → 移动端 substitutionMode：
+ * 0/undefined → NONE、1 → RAW、2 → ESCAPED；其他值回退 NONE 并标记未知。
+ */
+function convertSubstituteRegex(value: unknown): {
+  mode: "NONE" | "RAW" | "ESCAPED";
+  unknown: boolean;
+} {
+  if (value === undefined || value === null || value === 0) {
+    return { mode: "NONE", unknown: false };
+  }
+  if (value === 1) return { mode: "RAW", unknown: false };
+  if (value === 2) return { mode: "ESCAPED", unknown: false };
+  return { mode: "NONE", unknown: true };
 }
 
 /**
@@ -261,7 +279,7 @@ function convertRegexScripts(
   if (!Array.isArray(scripts)) return undefined;
   const rules: MobileRegexConfig["presets"][number]["rules"] = [];
   let skippedEmpty = 0;
-  let warnedAdvancedFields = false;
+  const unknownSubstituteValues = new Set<unknown>();
 
   scripts.forEach((raw, index) => {
     if (!isRecord(raw)) return;
@@ -278,15 +296,15 @@ function convertRegexScripts(
       : script.promptOnly
         ? { render: false, request: true }
         : { render: false, request: true };
-    if (
-      !warnedAdvancedFields &&
-      (Array.isArray(script.trimStrings) ||
-        (script.substituteRegex ?? 0) !== 0)
-    ) {
-      warnings.push("正则脚本的 trimStrings / substituteRegex 高级选项未迁移。");
-      warnedAdvancedFields = true;
-    }
     const { pattern, flags } = parseRegexString(findRegex);
+    const { mode: substitutionMode, unknown: unknownSubstitute } =
+      convertSubstituteRegex(script.substituteRegex);
+    if (unknownSubstitute) unknownSubstituteValues.add(script.substituteRegex);
+    const trimStrings = Array.isArray(script.trimStrings)
+      ? script.trimStrings.filter(
+          (value): value is string => typeof value === "string"
+        )
+      : [];
     const depthRange =
       typeof script.minDepth === "number" || typeof script.maxDepth === "number"
         ? {
@@ -305,12 +323,21 @@ function convertRegexScripts(
       applyTo,
       targetRoles: convertPlacementToTargetRoles(script),
       depthRange,
+      ...(substitutionMode !== "NONE" ? { substitutionMode } : {}),
+      ...(trimStrings.length ? { trimStrings } : {}),
       order: index,
     });
   });
 
   if (skippedEmpty > 0) {
     warnings.push(`跳过 ${skippedEmpty} 条缺少匹配表达式的正则规则。`);
+  }
+  if (unknownSubstituteValues.size > 0) {
+    warnings.push(
+      `正则脚本 substituteRegex 存在未识别值（${[...unknownSubstituteValues].join(
+        ", "
+      )}），已回退为 NONE。`
+    );
   }
   if (rules.length === 0) return undefined;
 

@@ -20,6 +20,8 @@ import {
   collectStageRules,
   filterRulesByDepth,
   filterRulesByRole,
+  preprocessRegexRuleMacros,
+  type RegexMacroValues,
 } from "../utils/chatRegex";
 import {
   getAttachmentAvailabilityMap,
@@ -34,6 +36,8 @@ const props = withDefaults(
     message: ChatMessageNode;
     /** 该消息渲染阶段使用的正则配置（由 ChatMessage 解析并合并）。 */
     regexConfig?: unknown;
+    /** render 正则宏（`{{user}}`/`{{char}}`）的替换值，由 ChatMessage 解析传入。 */
+    regexMacros?: RegexMacroValues;
     /** 距离最新消息的深度，0 表示最新。 */
     messageDepth?: number;
   }>(),
@@ -56,11 +60,29 @@ const renderRules = computed(() => {
   );
 });
 
+/**
+ * 宏预处理后的 render 规则：仅在存在宏值时做一次替换，无规则/无宏时短路，
+ * 避免流式期间对每个 chunk 重复计算。RAW/ESCAPED 语义见 chatRegex。
+ */
+const preparedRenderRules = computed(() => {
+  const rules = renderRules.value;
+  const macros = props.regexMacros;
+  if (!rules.length || !macros) return rules;
+  return rules.map((rule) => preprocessRegexRuleMacros(rule, macros));
+});
+
 /** 显示前应用 render 规则；不修改 message.content，只影响界面。 */
 const displayedContent = computed(() => {
   const content = props.message.content;
-  if (!content || !renderRules.value.length) return content;
-  return applyRegexRules(content, renderRules.value).text;
+  if (!content || !preparedRenderRules.value.length) return content;
+  return applyRegexRules(content, preparedRenderRules.value).text;
+});
+
+/** 思考内容沿用同一套 render 规则与深度/角色过滤，仅影响显示。 */
+const displayedReasoningContent = computed(() => {
+  const reasoning = props.message.metadata?.reasoningContent;
+  if (!reasoning || !preparedRenderRules.value.length) return reasoning;
+  return applyRegexRules(reasoning, preparedRenderRules.value).text;
 });
 
 const isReasoningExpanded = ref(true);
@@ -335,7 +357,7 @@ const formatBytes = (value: number) => {
       </div>
       <div v-show="isReasoningExpanded" class="reasoning-content">
         <RichTextRenderer
-          :content="message.metadata.reasoningContent"
+          :content="displayedReasoningContent"
           :resolve-media-item="resolveMessageMediaItem"
         />
       </div>

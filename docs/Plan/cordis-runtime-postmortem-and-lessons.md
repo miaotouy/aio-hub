@@ -1,8 +1,10 @@
 # Cordis 运行时重构经验复盘与范式校正
 
-> 状态：总结归档  
-> 日期：2026-10-02  
+> 状态：总结归档
+> 日期：2026-10-02
 > 参考基准：`E:\git\deepseek-harness`（DSH）与 `feature/cordis-runtime` 实验分支施工全过程
+> 关联地基总纲：[`electron-migration-master-plan.md`](./electron-migration-master-plan.md)
+> 关联架构总纲：[`cordis-modular-architecture-blueprint.md`](./cordis-modular-architecture-blueprint.md)
 
 ---
 
@@ -36,6 +38,14 @@
   底座是极简平铺的 **仅追加事件日志（Append-only `SessionEvent` Log）**。模型回复、打字增量（`live-chunk`）、工具请求、审批、取消等均是事件事实。前端依靠目标中立的装配器（`ui-conversation`）折叠出状态并投影给不同视图（Chat / Trajectory）。
 - **实验分支的异化**：
   直接在树节点（`ConversationNode`）上硬塞运行状态，导致结构极其沉重，为了兼容 Chat 的既有字典结构写了极其臃肿的 `chatSessionToConversation` ↔ `conversationToChatSession` 映射层，在内存中不断折腾。
+
+### 2.4 病灶四：机械抄袭与私有命名污染（把参照物名字带进代码）
+
+- **错误路径**：
+  AI 在参考外部仓库（DSH）时，缺乏本地化重构和语义提炼意识。在有了参照物之后，不仅架构抄得变形走样，竟然机械照搬，把 `dsh`、`dsh-*` 等私有项目代号原封不动地写进了组件名、文件路径和内部变量中。
+- **恶果**：
+  项目命名严重失范，外部代码专有标识四处弥散，造成了极其恶劣的代码污染和概念混淆。
+  明明这种东西只要参考后留个参考对象署名就可以了。
 
 ---
 
@@ -80,4 +90,22 @@
 
 - 杜绝脱离实际运行流的抽象层（如通用的万能 Recipe 编排器、多重双向适配器、未被使用的拓扑排序器）。
 - 每一个能力落地必须直接服务于：**用户在 Composer 发送 -> Agent 运行时执行 -> 事件落盘与增量渲染 -> 得到明确结果**。
+
+### 红线 5：严禁命名污染，代码中绝对禁止出现 `dsh` 标识
+
+- 外部仓库（DSH）**仅作为架构理念与模式参照物**（仅参考其仅追加事件日志、目标中立视图装配与极简工作台布局），**绝不是下游代码包**。
+- **强制红线**：严禁在任何生产代码、目录名、文件名、变量名、类型名、组件名、CSS 类名、事件名或日志中出现 `dsh` 或 `DSH` 字样。
+- 所有落地资产必须完全内化为 AIO Hub 自身的领域命名（如 `agent-workbench`、`session-event`、`conversation-assembler` 等）。借鉴代码必须彻底完成语义重命名与本地规范净化。
+
+---
+
+## 5. 终局收敛：宿主物理地基升级（对齐 Electron）
+
+实验分支中遇到的另一个隐蔽障碍是 **Tauri + WebView2 前端无独立常驻后台** 的先天限制。在 WebView 内部强行维护 Cordis Scope，窗口关闭或切换路由时极易丢失状态，多窗口所有权划分也异常别扭。
+
+随着 [`electron-migration-master-plan.md`](./electron-migration-master-plan.md) 的确立，这一物理瓶颈在架构层面彻底消解：
+
+- **真正的后台驻留**：Cordis 微内核与长程 Agent 运行时将直接运行在 Node.js 主进程/守护进程中；
+- **前端轻量消费**：前端渲染进程仅通过 `@/platform/bridge` 与后台通信，消费事件日志并负责装配视图；
+- **生命周期天然闭环**：Node.js 原生进程拥有对子进程、定时器、网络连接的完全控制权，Scope 回收与反向销毁具备了可靠的系统级保障。
 

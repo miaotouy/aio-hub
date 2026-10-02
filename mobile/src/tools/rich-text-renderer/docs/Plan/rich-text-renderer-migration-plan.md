@@ -65,14 +65,14 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 
 ### 3.2 迁移阶段
 
-- [ ] **第一阶段（前置基础）：直接复用 PC 核心 AST 与分词解析层（杜绝二次重写）**
+- [x] **第一阶段（前置基础）：直接复用 PC 核心 AST 与分词解析层（杜绝二次重写）**
   - PC 端 `src/tools/rich-text-renderer/parser/`（`Tokenizer.ts`、`types.ts`、`block/`、`inline/`）与 `core/CustomParser.ts` 均为平台无关的纯 TypeScript，直接引入移动端。
   - 天然对齐全套语法规范：标准 Markdown、GitHub 提示块、行内/块级 KaTeX、`<think>` 折叠块、VCP 协议及复杂嵌套语法。
-- [ ] **第二阶段：轻量化 `AstNodeRenderer` 统一派发并收敛现有组件**
+- [x] **第二阶段：轻量化 `AstNodeRenderer` 统一派发并收敛现有组件**
   - 用 AST 树遍历分发器替代 `RichTextRenderer.vue` 内部手写正则切分（`renderSegments`），支持完全嵌套的语法树渲染。
   - 将现存轻量组件（`CodeBlock.vue`、`KatexRenderer.vue`、`ThinkBlock.vue`、`MermaidDiagram.vue`、`RichTextMediaNode.vue`、`AlertBlock.vue`、`VcpBlock.vue`）挂载为 AST 叶子/容器节点。
   - 剔除 PC 桌面专属重度依赖（CodeMirror、复杂编辑弹窗、Worker 线程通讯）。
-- [ ] **第三阶段：接入 PC 流式稳定区/待定区（Frozen / Pending AST）机制**
+- [x] **第三阶段：接入 PC 流式稳定区/待定区（Frozen / Pending AST）机制**
   - 复用 `StreamProcessorV2.ts` 的稳定区切分算法：流式打字中已闭合的块进入稳定区（Frozen），仅对末尾未闭合的待定区（Pending）增量解析。
   - 彻底解决流式输出时代码高亮重算、公式抖动、视频/音频播放重置、折叠面板状态丢失的问题。
 - [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次刷新，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。

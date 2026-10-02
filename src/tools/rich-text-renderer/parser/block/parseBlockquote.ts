@@ -123,7 +123,13 @@ export function parseBlockquote(
         const type = contentText.substring(1).toUpperCase(); // 去掉 !
         const validTypes = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"];
 
-        if (validTypes.includes(type)) {
+        // GitHub 规范：[!NOTE] 必须独占首行（或者首行只有空白），不能有行内后缀
+        const remainingFirstLineTokens = firstLine.slice(closeIndex + 1);
+        const hasInlineSuffix = remainingFirstLineTokens.some(
+          (t) => t.type !== "newline" && (t.type !== "text" || t.content.trim() !== "")
+        );
+
+        if (validTypes.includes(type) && !hasInlineSuffix) {
           alertType = type.toLowerCase() as
             "note" | "tip" | "important" | "warning" | "caution";
           // 移除 Alert 标记 tokens (从 [ 到 ])

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   Bot,
   Braces,
@@ -24,7 +24,14 @@ const props = defineProps<{
   role?: "user" | "assistant" | "system";
 }>();
 
-const isCollapsed = ref(props.variant !== "role");
+const isCollapsed = ref(false);
+
+watch(
+  () => props.variant,
+  () => {
+    isCollapsed.value = false;
+  }
+);
 
 interface ToolFields {
   toolName: string;
@@ -227,7 +234,15 @@ const statusText = computed(() => {
         <li v-for="item in summaryItems" :key="item">{{ item }}</li>
       </ul>
 
-      <pre v-else class="vcp-pre">{{ content.trim() }}</pre>
+      <template v-else-if="variant === 'role'">
+        <slot>
+          <div class="vcp-role-content">{{ content.trim() }}</div>
+        </slot>
+      </template>
+
+      <template v-else>
+        <pre class="vcp-pre">{{ content.trim() }}</pre>
+      </template>
     </div>
   </section>
 </template>

@@ -49,11 +49,11 @@
 
 ### C — 富文本渲染引擎与 AST 管线
 
-- [ ] **复用 PC 核心 AST 解析与流式管线（多功能渲染前置基础，杜绝二次重写）**：
+- [x] **复用 PC 核心 AST 解析与流式管线（多功能渲染前置基础，杜绝二次重写）**：
   - 直接复制/移植 PC 现成纯 TS 解析层（`parser/Tokenizer.ts`、`parser/block/`、`parser/inline/`、`core/CustomParser.ts`、`core/StreamProcessorV2.ts`），天然支持完整 Markdown、KaTeX、思考块、VCP 协议及复杂嵌套。
   - 用轻量化 `AstNodeRenderer` 统一派发机制替代现存脆弱的手写正则分段（`renderSegments`），收敛并挂载移动端现有轻量节点组件（`CodeBlock`、`KatexRenderer`、`ThinkBlock`、`MermaidDiagram`、`RichTextMediaNode`）。
   - 直接启用 PC 已成熟的流式稳定区/待定区（Frozen/Pending AST）机制，彻底解决打字流式过程中 DOM 重建导致的公式抖动、代码高亮重刷、折叠与媒体播放状态重置。
-- [ ] 在正式聊天与独立测试页中完成 Markdown、代码块、KaTeX、提示块、思考块、Mermaid 与受管媒体的组合验证。
+- [x] 在正式聊天与独立测试页中完成 Markdown、代码块、KaTeX、提示块、思考块、Mermaid 与受管媒体的组合验证。
 - [ ] 优化窄屏排版、自动断行、横向滚动与长消息滚动体验。
 
 实现入口：[`rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)、[`rich-text-renderer-migration-plan.md`](../../src/tools/rich-text-renderer/docs/Plan/rich-text-renderer-migration-plan.md)。

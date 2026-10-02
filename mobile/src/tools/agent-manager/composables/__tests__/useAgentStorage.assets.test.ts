@@ -102,6 +102,24 @@ describe("useAgentStorage 私有资产目录", () => {
     expect(mocks.files.has("/app/agent-manager/evil.bin")).toBe(false);
   });
 
+  it("删除资产仅允许 assets/ 前缀内的文件", async () => {
+    const storage = useAgentStorage();
+    await storage.saveAgentAsset("a", "assets/x.png", new Uint8Array([1]));
+    await storage.saveAgentAvatar("a", "avatar.png", new Uint8Array([2]));
+
+    await storage.deleteAgentAsset("a", "assets/x.png");
+    expect(mocks.files.has(`${AGENT_ROOT}/assets/x.png`)).toBe(false);
+    // 头像位于 Agent 根目录，必须拒绝删除
+    await expect(storage.deleteAgentAsset("a", "avatar.png")).rejects.toThrow(
+      "INVALID_ASSET_PATH"
+    );
+    expect(mocks.files.has(`${AGENT_ROOT}/avatar.png`)).toBe(true);
+    // 不存在的路径静默成功（幂等）
+    await expect(
+      storage.deleteAgentAsset("a", "assets/missing.bin")
+    ).resolves.toBeUndefined();
+  });
+
   it("递归列出 assets 目录下的文件（相对 Agent 目录）", async () => {
     mocks.dirs.add(`${AGENT_ROOT}/assets`);
     mocks.dirs.add(`${AGENT_ROOT}/assets/sub`);

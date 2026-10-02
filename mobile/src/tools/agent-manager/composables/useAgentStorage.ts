@@ -282,6 +282,33 @@ export function useAgentStorage() {
   }
 
   /**
+   * 删除 `agents/{id}/assets/` 下的二进制资产。
+   * 仅允许删除 `assets/` 前缀内的文件，避免误删 Agent 根目录的头像与 agent.json。
+   */
+  async function deleteAgentAsset(
+    agentId: string,
+    relativePath: string
+  ): Promise<void> {
+    try {
+      const safePath = sanitizeRelativePath(relativePath);
+      if (!safePath.startsWith("assets/")) {
+        throw new Error("INVALID_ASSET_PATH");
+      }
+      const fullPath = await join(await getAgentDir(agentId), safePath);
+      if (await exists(fullPath)) {
+        await remove(fullPath);
+      }
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "删除智能体资产失败",
+        showToUser: false,
+        context: { agentId, relativePath },
+      });
+      throw error;
+    }
+  }
+
+  /**
    * 列出 `agents/{id}/assets/` 下所有文件。
    * 返回相对 Agent 目录的路径（如 `assets/sub/x.png`），与 `AgentAsset.path` 语义一致。
    */
@@ -327,5 +354,6 @@ export function useAgentStorage() {
     readAgentAsset,
     saveAgentAvatar,
     listAgentAssets,
+    deleteAgentAsset,
   };
 }

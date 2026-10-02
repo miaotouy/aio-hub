@@ -11,6 +11,8 @@ import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
 import type { ChatAgent } from "../types/agent";
 import PresetMessageEditor from "../components/PresetMessageEditor.vue";
 import AgentParametersEditor from "../components/AgentParametersEditor.vue";
+import AgentAssetsSection from "../components/AgentAssetsSection.vue";
+import type { AgentAsset } from "../types/agent";
 
 const route = useRoute();
 const router = useRouter();
@@ -77,6 +79,41 @@ async function save() {
   });
   customMessage(tRaw("tools.agent-manager.AgentDetail.保存成功"), "success");
   router.back();
+}
+
+/**
+ * 资产删除后级联清理 draft 内的引用：预设消息 presetAttachments 与
+ * 开局消息 attachments 中匹配该资产 id 的条目同步移除，避免悬空引用。
+ */
+function handleAssetRemoved(asset: AgentAsset): void {
+  if (!draft.value) return;
+  if (draft.value.presetMessages?.length) {
+    draft.value.presetMessages = draft.value.presetMessages.map((message) => {
+      const attachments = message.presetAttachments;
+      if (!attachments?.length) return message;
+      const remaining = attachments.filter(
+        (attachment) => attachment.assetId !== asset.id
+      );
+      return remaining.length === attachments.length
+        ? message
+        : { ...message, presetAttachments: remaining };
+    });
+  }
+  if (draft.value.greetings?.length) {
+    draft.value.greetings = draft.value.greetings.map((greeting) => {
+      const attachments = greeting.attachments;
+      if (!Array.isArray(attachments) || !attachments.length) return greeting;
+      const remaining = attachments.filter((item) => {
+        if (item && typeof item === "object" && "assetId" in item) {
+          return (item as { assetId?: unknown }).assetId !== asset.id;
+        }
+        return true;
+      });
+      return remaining.length === attachments.length
+        ? greeting
+        : { ...greeting, attachments: remaining };
+    });
+  }
 }
 </script>
 
@@ -158,8 +195,7 @@ async function save() {
           <router-link class="worldbook-link" to="/tools/llm-chat/worldbooks">
             {{ tRaw("tools.agent-manager.AgentDetail.管理世界书") }}
           </router-link>
-        </div>
-        <p
+        </div>        <p
           v-if="!worldbookStore.sortedWorldbooks.length"
           class="worldbook-empty"
         >
@@ -184,6 +220,15 @@ async function save() {
           </span>
         </label>
       </section>
+      <AgentAssetsSection
+        :agent-id="draft.id"
+        :assets="draft.assets || []"
+        :groups="draft.assetGroups || []"
+        :preset-messages="draft.presetMessages"
+        :greetings="draft.greetings"
+        @update:assets="draft.assets = $event"
+        @asset-removed="handleAssetRemoved"
+      />
       <AgentParametersEditor v-model="draft.parameters" />
       <PresetMessageEditor
         v-model:messages="draft.presetMessages"

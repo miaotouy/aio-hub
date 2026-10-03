@@ -124,6 +124,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
       <button
         class="icon-button"
         type="button"
+        data-testid="agent-detail-back"
         aria-label="返回"
         @click="router.back()"
       >
@@ -145,25 +146,29 @@ function handleAssetRemoved(asset: AgentAsset): void {
       <section class="form-section">
         <label
           ><span>{{ tRaw("tools.agent-manager.AgentDetail.显示名称") }}</span
-          ><input v-model="draft.displayName"
+          ><input v-model="draft.displayName" data-testid="agent-display-name"
         /></label>
         <label
           ><span>{{ tRaw("tools.agent-manager.AgentDetail.内部名称") }}</span
-          ><input v-model="draft.name"
+          ><input v-model="draft.name" data-testid="agent-name"
         /></label>
         <label
           ><span>{{ tRaw("tools.agent-manager.AgentDetail.描述") }}</span
-          ><textarea v-model="draft.description" rows="3"></textarea>
+          ><textarea
+            v-model="draft.description"
+            data-testid="agent-description"
+            rows="3"
+          ></textarea>
         </label>
         <label
           ><span>{{ tRaw("tools.agent-manager.AgentDetail.图标") }}</span
-          ><input v-model="draft.icon"
+          ><input v-model="draft.icon" data-testid="agent-icon"
         /></label>
       </section>
       <section class="form-section two-column">
         <label
           ><span>{{ tRaw("tools.agent-manager.AgentDetail.模型渠道") }}</span
-          ><select v-model="draft.profileId">
+          ><select v-model="draft.profileId" data-testid="agent-model-channel">
             <option
               v-for="profile in enabledProfiles"
               :key="profile.id"
@@ -175,7 +180,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
         >
         <label
           ><span>{{ tRaw("tools.agent-manager.AgentDetail.模型") }}</span
-          ><select v-model="draft.modelId">
+          ><select v-model="draft.modelId" data-testid="agent-model">
             <option
               v-for="model in availableModels"
               :key="model.id"
@@ -195,7 +200,8 @@ function handleAssetRemoved(asset: AgentAsset): void {
           <router-link class="worldbook-link" to="/tools/llm-chat/worldbooks">
             {{ tRaw("tools.agent-manager.AgentDetail.管理世界书") }}
           </router-link>
-        </div>        <p
+        </div>
+        <p
           v-if="!worldbookStore.sortedWorldbooks.length"
           class="worldbook-empty"
         >
@@ -211,6 +217,8 @@ function handleAssetRemoved(asset: AgentAsset): void {
           <input
             v-model="draft.worldbookIds"
             type="checkbox"
+            data-testid="agent-worldbook"
+            :data-worldbook-id="worldbook.id"
             :value="worldbook.id"
             :disabled="!worldbook.enabled"
           />

@@ -215,6 +215,7 @@ const goToChatHome = () => {
           text
           color="transparent"
           text-color="var(--text-color)"
+          data-testid="chat-back"
           @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
@@ -224,6 +225,7 @@ const goToChatHome = () => {
         <button
           class="active-agent"
           type="button"
+          data-testid="chat-agent-selector-toggle"
           :title="tRaw('tools.llm-chat.ChatView.切换智能体')"
           :aria-label="tRaw('tools.llm-chat.ChatView.切换智能体')"
           :disabled="selectableAgents.length === 0 || chatStore.isSending"
@@ -285,6 +287,8 @@ const goToChatHome = () => {
             :key="agent.id"
             type="button"
             class="agent-selector-item"
+            data-testid="chat-agent-selector-item"
+            :data-agent-id="agent.id"
             :class="{
               active: agent.id === chatStore.currentSession?.displayAgentId,
             }"

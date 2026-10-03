@@ -332,7 +332,14 @@ defineExpose({ collectAttachmentReferences });
         <Plus :size="16" />
         {{ tRaw("tools.agent-manager.AgentAssets.添加") }}
       </button>
-      <input ref="fileInput" type="file" multiple hidden @change="onAddFiles" />
+      <input
+        ref="fileInput"
+        type="file"
+        data-testid="agent-assets-input"
+        multiple
+        hidden
+        @change="onAddFiles"
+      />
     </div>
 
     <div v-if="groups.length" class="group-filter">
@@ -342,6 +349,8 @@ defineExpose({ collectAttachmentReferences });
         class="group-chip"
         :class="{ active: filterGroup === option.id }"
         type="button"
+        data-testid="agent-asset-group-chip"
+        :data-group-id="option.id"
         @click="filterGroup = option.id"
       >
         {{ option.label }} ({{ option.count }})
@@ -388,6 +397,7 @@ defineExpose({ collectAttachmentReferences });
             <button
               class="icon-action"
               type="button"
+              :data-testid="`agent-asset-edit-button-${asset.id}`"
               :aria-label="tRaw('tools.agent-manager.AgentAssets.编辑')"
               @click="startEdit(asset)"
             >
@@ -436,11 +446,14 @@ defineExpose({ collectAttachmentReferences });
           <p class="edit-filename">{{ editingAsset.filename }}</p>
           <label>
             <span>{{ tRaw("tools.agent-manager.AgentAssets.描述") }}</span>
-            <input v-model="editDescription" />
+            <input
+              v-model="editDescription"
+              data-testid="agent-asset-edit-description"
+            />
           </label>
           <label>
             <span>{{ tRaw("tools.agent-manager.AgentAssets.分组") }}</span>
-            <select v-model="editGroupId">
+            <select v-model="editGroupId" data-testid="agent-asset-edit-group">
               <option value="">
                 {{ tRaw("tools.agent-manager.AgentAssets.未分组") }}
               </option>

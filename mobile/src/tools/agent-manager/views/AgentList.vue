@@ -314,6 +314,7 @@ async function importAgents(event: Event): Promise<void> {
       <button
         class="icon-button"
         type="button"
+        data-testid="agent-list-back"
         aria-label="返回"
         @click="router.push('/')"
       >
@@ -327,6 +328,7 @@ async function importAgents(event: Event): Promise<void> {
         <button
           class="icon-button"
           type="button"
+          data-testid="agent-import-button"
           :title="tRaw('tools.agent-manager.AgentList.导入')"
           @click="importFileInput?.click()"
         >
@@ -335,6 +337,7 @@ async function importAgents(event: Event): Promise<void> {
         <button
           class="icon-button primary"
           type="button"
+          data-testid="agent-create"
           :title="tRaw('tools.agent-manager.AgentList.新建')"
           @click="createAgent"
         >
@@ -344,6 +347,7 @@ async function importAgents(event: Event): Promise<void> {
           ref="importFileInput"
           class="file-input"
           type="file"
+          data-testid="agent-import-input"
           accept="application/json,image/png,.json,.png,.yaml,.yml,.zip"
           multiple
           @change="importAgents"
@@ -356,11 +360,13 @@ async function importAgents(event: Event): Promise<void> {
         <Search :size="19" />
         <input
           v-model="search"
+          data-testid="agent-search"
           :placeholder="tRaw('tools.agent-manager.AgentList.搜索智能体')"
         />
       </label>
       <select
         v-model="category"
+        data-testid="agent-category"
         :aria-label="tRaw('tools.agent-manager.AgentList.分类')"
       >
         <option value="all">
@@ -418,6 +424,7 @@ async function importAgents(event: Event): Promise<void> {
           <button
             type="button"
             class="icon-button accent"
+            data-testid="agent-start-chat"
             :title="tRaw('tools.agent-manager.AgentList.开始对话')"
             @click="startChat(agent)"
           >
@@ -435,6 +442,7 @@ async function importAgents(event: Event): Promise<void> {
           <button
             type="button"
             class="icon-button danger"
+            data-testid="agent-delete"
             :title="tRaw('tools.agent-manager.AgentList.删除')"
             @click="deleteAgent(agent)"
           >

@@ -131,7 +131,11 @@ const goHome = () => {
         </div>
       </div>
 
-      <div class="action-card" @click="goToAgents">
+      <div
+        class="action-card"
+        data-testid="chat-agent-hall"
+        @click="goToAgents"
+      >
         <div class="icon-box">
           <Users :size="24" />
         </div>

@@ -243,7 +243,7 @@ watch(
     if (newValue) {
       hasOpened.value = true;
       emit("open");
-      dynamicZIndex.value = Math.max(acquireZIndex(), props.zIndex);
+      dynamicZIndex.value = acquireZIndex(props.zIndex);
 
       // DOM 更新后启动入场动画
       // 使用双重 requestAnimationFrame 确保在浏览器重绘后应用类名

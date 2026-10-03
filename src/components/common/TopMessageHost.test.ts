@@ -1,3 +1,7 @@
+import { acquireZIndex, releaseZIndex, resetDialogZIndexCounter, } from "@/composables/useDialogZIndex";
+import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,13 +15,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import TopMessageHost from "./TopMessageHost.vue";
-import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
-import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
+
 
 describe("TopMessageHost", () => {
   beforeEach(() => {
@@ -28,6 +30,7 @@ describe("TopMessageHost", () => {
   afterEach(() => {
     closeAllFloatingMessages();
     errorHandler.clearErrorQueue();
+    resetDialogZIndexCounter();
     vi.useRealTimers();
   });
 
@@ -130,5 +133,46 @@ describe("TopMessageHost", () => {
       true
     );
     expect(wrapper.find("button[aria-label='关闭消息']").exists()).toBe(true);
+  });
+
+  it("dynamically elevates z-index above active dialogs", async () => {
+    const wrapper = mount(TopMessageHost);
+    customMessage.info({ message: "普通消息", duration: 0 });
+    await nextTick();
+
+    const hostEl = wrapper.get(".top-message-host");
+    const initialZIndex = parseInt(
+      (hostEl.element as HTMLElement).style.zIndex,
+      10
+    );
+    expect(initialZIndex).toBeGreaterThanOrEqual(2030);
+
+    // 模拟弹窗开启，分配高层级 3000
+    const dialogZ = acquireZIndex(3000);
+    expect(dialogZ).toBeGreaterThanOrEqual(3001);
+
+    // 弹窗中触发了新消息
+    customMessage.success({ message: "弹窗内操作成功", duration: 0 });
+    await nextTick();
+
+    const elevatedZIndex = parseInt(
+      (hostEl.element as HTMLElement).style.zIndex,
+      10
+    );
+    expect(elevatedZIndex).toBeGreaterThan(dialogZ);
+
+    // 弹窗关闭后
+    releaseZIndex(dialogZ);
+  });
+
+  it("respects custom message z-index up to safety maximum", async () => {
+    const wrapper = mount(TopMessageHost);
+    customMessage.warning({ message: "高层级消息", zIndex: 5000, duration: 0 });
+    await nextTick();
+
+    const hostEl = wrapper.get(".top-message-host");
+    const zIndex = parseInt((hostEl.element as HTMLElement).style.zIndex, 10);
+    expect(zIndex).toBeGreaterThanOrEqual(5000);
+    expect(zIndex).toBeLessThanOrEqual(9990);
   });
 });

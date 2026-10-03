@@ -41,6 +41,7 @@ import {
 } from "@/utils/customMessage";
 import type { CustomMessageType, FloatingMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import { getTopMessageZIndex } from "@/composables/useDialogZIndex";
 
 const logger = createModuleLogger("components/common/TopMessageHost");
 const TIMER_INTERVAL = 16;
@@ -79,11 +80,66 @@ const MessageBody = defineComponent({
   },
 });
 
+const currentHostZIndex = ref(getTopMessageZIndex());
+let observer: MutationObserver | null = null;
+let rafId: number | null = null;
+
+function updateHostZIndex() {
+  const customZIndex = Math.max(
+    0,
+    ...floatingMessages.map((item) => item.zIndex ?? 0)
+  );
+  currentHostZIndex.value = getTopMessageZIndex(customZIndex);
+}
+
+function scheduleUpdateHostZIndex() {
+  if (rafId !== null) return;
+  if (typeof window !== "undefined" && window.requestAnimationFrame) {
+    rafId = window.requestAnimationFrame(() => {
+      rafId = null;
+      updateHostZIndex();
+    });
+  } else {
+    updateHostZIndex();
+  }
+}
+
+function startObserver() {
+  if (
+    observer ||
+    typeof MutationObserver === "undefined" ||
+    typeof document === "undefined"
+  ) {
+    return;
+  }
+  observer = new MutationObserver(() => {
+    scheduleUpdateHostZIndex();
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style", "class"],
+  });
+}
+
+function stopObserver() {
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+  if (rafId !== null && typeof window !== "undefined") {
+    window.cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
 const containerStyle = computed(() => ({
   top: `${Math.max(
     DEFAULT_MESSAGE_OFFSET,
     floatingMessages[0]?.offset ?? DEFAULT_MESSAGE_OFFSET
   )}px`,
+  zIndex: currentHostZIndex.value,
 }));
 
 function getTypeIcon(type: CustomMessageType) {
@@ -261,13 +317,32 @@ function getMessageClass(message: FloatingMessage) {
     message.customClass,
   ];
 }
+watch(
+  floatingMessages,
+  () => {
+    synchronizeTimers();
+    updateHostZIndex();
+    if (floatingMessages.length > 0) {
+      startObserver();
+    } else {
+      stopObserver();
+    }
+  },
+  { deep: true, flush: "post" }
+);
 
-watch(floatingMessages, synchronizeTimers, { deep: true, flush: "post" });
+onMounted(() => {
+  synchronizeTimers();
+  updateHostZIndex();
+  if (floatingMessages.length > 0) {
+    startObserver();
+  }
+});
 
-onMounted(synchronizeTimers);
 onBeforeUnmount(() => {
   timers.forEach((timer) => window.clearTimeout(timer));
   timers.clear();
+  stopObserver();
   if (copiedStateTimer !== undefined) window.clearTimeout(copiedStateTimer);
 });
 </script>

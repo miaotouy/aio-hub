@@ -1,3 +1,4 @@
+import type { Component, VNode } from "vue";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,16 +12,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
  * 顶部浮动消息状态与调用入口。
  *
  * 该实现保留原 customMessage 的常用调用契约，并由 TopMessageHost 统一渲染，
  * 以支持可暂停的倒计时、可视化进度与点击复制。
  */
-
 import { isVNode, reactive } from "vue";
-import type { Component, VNode } from "vue";
+
 
 export type CustomMessageType =
   "primary" | "success" | "info" | "warning" | "error";
@@ -42,6 +41,8 @@ export interface CustomMessageOptions {
   repeatNum?: number;
   /** 覆盖点击消息卡片时写入剪贴板的内容，适合 VNode 消息。 */
   copyText?: string;
+  /** 自定义最低 z-index 层级 */
+  zIndex?: number;
 }
 
 export type CustomMessageInput = CustomMessageOptions | CustomMessageContent;
@@ -64,6 +65,7 @@ export interface FloatingMessage {
   plain: boolean;
   offset: number;
   copyText?: string;
+  zIndex?: number;
   onClose?: () => void;
 }
 
@@ -168,6 +170,7 @@ function showMessage(
     plain: options.plain ?? false,
     offset: options.offset ?? DEFAULT_MESSAGE_OFFSET,
     copyText: options.copyText,
+    zIndex: options.zIndex,
     onClose: options.onClose,
   };
 

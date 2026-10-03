@@ -3,7 +3,7 @@
 > 本文档按当前 `HEAD`（2026-07-31）翻新，汇总 `src/tools/` 下已经提供 `ARCHITECTURE.md` 的 **41 个工具模块**。
 > 每个条目只保留定位、架构主线和近期需要关注的边界；完整设计、数据流和实现约束请参阅对应模块的 `ARCHITECTURE.md`。
 >
-> 当前 `src/tools/` 共包含 47 个顶层工具目录，另有 `agent-manager`、`git-committer`、`retrieval`、`user-profile-manager`、`wallpaper-detector`、`window-automator` 6 个目录尚未建立架构文档，因此不纳入本篇 41 个文档条目的统计。
+> 当前 `src/tools/` 共包含 47 个顶层工具目录，另有 `agent-manager`、`retrieval`、`user-profile-manager`、`wallpaper-detector`、`window-automator` 5 个目录尚未建立架构文档，因此不纳入本篇 42 个文档条目的统计。
 
 ---
 
@@ -138,9 +138,22 @@ Agent Skills 规范的运行时基础设施。采用 **Backend-First** 架构（
 
 ---
 
+### 16. [git-committer](../../src/tools/git-committer/ARCHITECTURE.md) — Git 提交助手
+
+多仓库并发的轻量级 Git 提交与版本管理工作流工具，聚焦暂存管理、AI 智能生成 Commit Message、拓扑分支泳道图谱、工作区秒级搜索与多媒体差异对比。
+
+- **多仓库状态隔离**：通过 Edge 风格垂直仓库栏与全景看板快速切换仓库，每个仓库维护独立的打开 Tab、激活状态、会话记忆与草稿。
+- **分支泳道与图谱可视化**：纯前端拓扑排序算法，动态追踪活跃泳道槽位，紧凑渲染分叉与合并流向。
+- **右键菜单与安全交互**：全区域覆盖单例右键菜单，未跟踪文件显式区分物理删除与放弃修改，就地暂存/取消暂存与差异跳转。
+- **AI 提交流程与个性化**：Unified Diff 增量差异提取，自动剥离 Markdown 围栏；支持仓库专属 System Prompt、首选生成语言及色盘个性化。
+
+**亮点**：多仓库并发隔离、分支拓扑泳道、统一右键菜单体系、工作区全文与文件名快速搜索、多媒体差异对比（图像/音频/视频）和仓库级 AI 提交流程定制。
+
+---
+
 ## 三、文件与数据处理
 
-### 16. [dir-search](../../src/tools/dir-search/ARCHITECTURE.md) — 目录内容搜索
+### 17. [dir-search](../../src/tools/dir-search/ARCHITECTURE.md) — 目录内容搜索
 
 Rust 后端流式搜索与前端实时渲染的目录内容搜索/替换工具。基于 `ignore` 并行遍历和有界 channel 背压，支持正则、大小写、全词匹配、上下文展示、预览和单项替换。
 
@@ -240,9 +253,9 @@ Rust 后端驱动的目录清理工具，支持 Glob 名称、年龄、大小和
 
 ### 28. [ffmpeg-tools](../../src/tools/ffmpeg-tools/ARCHITECTURE.md) — FFmpeg 多媒体工作台
 
-基于 Tokio 异步进程管理的 FFmpeg 前端，负责参数构建、子进程生命周期、stderr 进度解析、元数据提取和多任务并行；同时通过 Agent actions 支持自定义命令、串行 Pipeline 和媒体信息查询。
+基于 Tokio 异步进程管理的 FFmpeg 工作台，负责参数构建、三作用域积木式参数编辑、子进程生命周期、stderr/pipe:1 结构化进度解析、时间片段裁剪与关键帧吸附；同时通过 Agent actions 支持自定义命令、串行 Pipeline 和媒体信息查询。
 
-**亮点**：流式进度解析、Agent 命令编排、串行 Pipeline、任务并行、取消控制和智能码率计算。
+**亮点**：积木式参数编辑、时间裁剪关键帧吸附、流式进度解析、单文件任务防覆盖保护、串行 Pipeline 与智能码率计算。
 
 ---
 
@@ -272,9 +285,9 @@ Rust 后端驱动的目录清理工具，支持 Glob 名称、年龄、大小和
 
 ### 32. [realtime-subtitle-ocr](../../src/tools/realtime-subtitle-ocr/ARCHITECTURE.md) — 实时字幕 OCR
 
-定时采样屏幕字幕区域，通过 Rust 后端 aHash 去重后将截图放入异步 OCR 队列；前端按 `pending / processing / done / error` 管理字幕状态，再对已完成条目进行编辑距离合并、断句和 SRT 导出。
+具备屏幕实时监控与本地离线视频双工作台的字幕提取工具。支持屏幕定时采样、Rust aHash 去重、可调图像滤镜与行内实时编辑；本地视频工作台提供 PR/达芬奇式视口控制、Konva 时间轴轨道、时间片段与关键帧吸附及双栏校验。
 
-**亮点**：后端图像去重、异步 OCR 队列、失败状态可见、窗口几何同步、引用计数生命周期、独立 MonitorBox 和 SRT 输出。
+**亮点**：屏幕/视频双工作台并行隔离、后端图像去重、滤镜实时对比预览、离线视频时间轴视口、行内实时编辑与 SRT 导出。
 
 ---
 
@@ -328,11 +341,11 @@ VCP 运行时桌面连接工具，分别管理 Observer 消息监控和分布式
 
 ---
 
-### 39. [color-picker](../../src/tools/color-picker/ARCHITECTURE.md) — 智能取色器
+### 39. [color-picker](../../src/tools/color-picker/ARCHITECTURE.md) — 智能取色器与批量色彩整理
 
-图片颜色分析工具，并行运行 Quantize、Vibrant 和 Average Color 三种算法，结合资产服务和历史记录输出多维配色洞察。
+多算法图片颜色分析工具与批量色彩整理工作台。单图支持 Quantize、Vibrant、Average 三种算法并行提取；批量整理下沉至 Rust 后端并行计算，前端支持 1~4 档动态亮度阈值调节、H/S 圆盘欧氏距离最近邻色系分类、预设快照管理与一键归档。
 
-**亮点**：并行多算法、资产复用、持久化历史和颜色结果对比。
+**亮点**：三算法并行取色、Rust 后端多线程批量采样、H/S 圆盘分类编辑器、1~4 档动态亮度阈值与批量结果归档。
 
 ---
 
@@ -385,18 +398,18 @@ VCP 运行时桌面连接工具，分别管理 Observer 消息监控和分布式
 |  25 | directory-tree        | [`src/tools/directory-tree/ARCHITECTURE.md`](../../src/tools/directory-tree/ARCHITECTURE.md)               | Rust 遍历与前端目录树         |
 |  26 | directory-janitor     | [`src/tools/directory-janitor/ARCHITECTURE.md`](../../src/tools/directory-janitor/ARCHITECTURE.md)         | 条件扫描与回收站清理          |
 |  27 | symlink-mover         | [`src/tools/symlink-mover/ARCHITECTURE.md`](../../src/tools/symlink-mover/ARCHITECTURE.md)                 | 符号/硬链接搬家               |
-|  28 | ffmpeg-tools          | [`src/tools/ffmpeg-tools/ARCHITECTURE.md`](../../src/tools/ffmpeg-tools/ARCHITECTURE.md)                   | FFmpeg 异步进程工作台         |
-|  29 | media-info-reader     | [`src/tools/media-info-reader/ARCHITECTURE.md`](../../src/tools/media-info-reader/ARCHITECTURE.md)         | 多层媒体元数据解析            |
-|  30 | danmaku-player        | [`src/tools/danmaku-player/ARCHITECTURE.md`](../../src/tools/danmaku-player/ARCHITECTURE.md)               | 外部播放器弹幕同步            |
-|  31 | transcription         | [`src/tools/transcription/ARCHITECTURE.md`](../../src/tools/transcription/ARCHITECTURE.md)                 | 插件化多模态转写              |
-|  32 | realtime-subtitle-ocr | [`src/tools/realtime-subtitle-ocr/ARCHITECTURE.md`](../../src/tools/realtime-subtitle-ocr/ARCHITECTURE.md) | 屏幕字幕采样与 SRT 输出       |
-|  33 | smart-ocr             | [`src/tools/smart-ocr/ARCHITECTURE.md`](../../src/tools/smart-ocr/ARCHITECTURE.md)                         | 多引擎 OCR 与作业协议         |
-|  34 | sketch-pad            | [`src/tools/sketch-pad/ARCHITECTURE.md`](../../src/tools/sketch-pad/ARCHITECTURE.md)                       | 位图/矢量混合画板             |
-|  35 | web-canvas            | [`src/tools/web-canvas/ARCHITECTURE.md`](../../src/tools/web-canvas/ARCHITECTURE.md)                       | Physical-First Agent 画布     |
-|  36 | git-analyzer          | [`src/tools/git-analyzer/ARCHITECTURE.md`](../../src/tools/git-analyzer/ARCHITECTURE.md)                   | git2-rs 仓库分析              |
-|  37 | web-distillery        | [`src/tools/web-distillery/ARCHITECTURE.md`](../../src/tools/web-distillery/ARCHITECTURE.md)               | 三层网页蒸馏与本地代理        |
-|  38 | vcp-connector         | [`src/tools/vcp-connector/ARCHITECTURE.md`](../../src/tools/vcp-connector/ARCHITECTURE.md)                 | VCP 监控、节点与桥接          |
-|  39 | color-picker          | [`src/tools/color-picker/ARCHITECTURE.md`](../../src/tools/color-picker/ARCHITECTURE.md)                   | 三算法并行取色                |
+|  28 | ffmpeg-tools          | [`src/tools/ffmpeg-tools/ARCHITECTURE.md`](../../src/tools/ffmpeg-tools/ARCHITECTURE.md)                   | FFmpeg 异步多媒体工作台与积木编辑 |
+|  29 | asset-manager         | [`src/tools/asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)                 | 跨工具统一资产与元数据管理    |
+|  30 | knowledge-base        | [`src/tools/knowledge-base/ARCHITECTURE.md`](../../src/tools/knowledge-base/ARCHITECTURE.md)               | 知识库与本地 RAG 检索         |
+|  31 | service-monitor       | [`src/tools/service-monitor/ARCHITECTURE.md`](../../src/tools/service-monitor/ARCHITECTURE.md)             | 本地与远程服务健康监控        |
+|  32 | realtime-subtitle-ocr | [`src/tools/realtime-subtitle-ocr/ARCHITECTURE.md`](../../src/tools/realtime-subtitle-ocr/ARCHITECTURE.md) | 屏幕实时监控与离线视频双工作台 |
+|  33 | media-info-reader     | [`src/tools/media-info-reader/ARCHITECTURE.md`](../../src/tools/media-info-reader/ARCHITECTURE.md)         | 媒体元数据与流信息解析        |
+|  34 | llm-chat              | [`src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)                           | 统一大模型聊天与会话治理      |
+|  35 | recall                | [`src/tools/recall/ARCHITECTURE.md`](../../src/tools/recall/ARCHITECTURE.md)                               | 记忆回溯与上下文沉淀          |
+|  36 | rich-text-renderer    | [`src/tools/rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)       | Markdown / 流式富文本渲染     |
+|  37 | web-distillery        | [`src/tools/web-distillery/ARCHITECTURE.md`](../../src/tools/web-distillery/ARCHITECTURE.md)               | 网页内容提取与蒸馏            |
+|  38 | smart-ocr             | [`src/tools/smart-ocr/ARCHITECTURE.md`](../../src/tools/smart-ocr/ARCHITECTURE.md)                         | 统一 OCR 平台调度层           |
+|  39 | color-picker          | [`src/tools/color-picker/ARCHITECTURE.md`](../../src/tools/color-picker/ARCHITECTURE.md)                   | 三算法并行取色与批量色彩整理  |
 |  40 | system-pulse          | [`src/tools/system-pulse/ARCHITECTURE.md`](../../src/tools/system-pulse/ARCHITECTURE.md)                   | 推送式系统硬件监控            |
 |  41 | rich-text-renderer    | [`src/tools/rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)       | 流式富文本渲染与交互          |
 

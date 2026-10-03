@@ -1,8 +1,8 @@
 # Agent、工具调用与技能系统：集成架构文档
 
-> **状态**: Active | **最后更新**: 2026-05-10
+> **状态**: Active | **最后更新**: 2026-10-04
 
-本文档解释了 AIO Hub 中 **Agent 系统**、**工具调用系统** 和 **技能系统** 是如何串联运作的，包括完整的请求循环体系、用户控制机制以及它们之间的数据流。
+本文档解释了 AIO Hub 中 **Agent 系统**、**工具调用系统** 和 **技能系统** 是如何串联运作的，包括完整的请求循环体系、用户控制机制以及它们之间的数据流。同时涵盖后台任务与子智能体系统 (`sub-agent` / `background-runtime`) 的异步长效运行机制。
 
 ---
 
@@ -471,12 +471,50 @@ graph TD
 
 ---
 
-## 8. 总结
+## 8. 后台任务与子智能体系统 (Sub-Agent & Background Runtime)
 
-Agent、Tool Calling 和 Skill 系统形成了一个层次分明、职责清晰的能力扩展体系：
+在复杂的自主协作场景中，前台会话的单线程阻塞式工具调用无法满足耗时长、需要多智能体协作或脱离前台视窗运行的需求。AIO Hub 引入了子智能体与后台运行时体系：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 主会话 / 调度 Agent                          │
+│   通过 tool:sub-agent (ask / tell / cancel / status) 调度   │
+├───────────────────────────────┬─────────────────────────────┤
+│   BackgroundTaskRegistry      │  Companion Dock / 任务中心   │
+│   任务状态机、快照、持久化、通知   │  只读伴生分栏透视、人工干预叫停│
+├───────────────────────────────┴─────────────────────────────┤
+│           Background JS Runtime (PoC / 脱离 UI 视窗)        │
+│   src/background-runtime 独立后台 WebView + Tauri IPC Bridge│
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 8.1. 后台运行时 (Background JS Runtime Bridge)
+
+- **定位与解耦**: 落地于 `src/background-runtime`，依托 Tauri 后台无头/独立 JS 运行时 Bridge，摆脱主 UI 窗口的生命周期限制，验证脱离 UI 窗口的长效运行。
+- **IPC 通信协议**: 通过 `BACKGROUND_JS_RUNTIME_EVENTS`（`request` / `response` / `ready`）与 Tauri command (`background_runtime_ready`, `background_runtime_heartbeat`) 维持保活心跳与双向消息调度。
+
+### 8.2. 任务中心与可观测性调度 (Observability & Intervention)
+
+- **任务中心面板 (`BackgroundTaskCenter`)**: 负责后台 Agent 任务的集中运行调度、生命周期观测、历史状态查询与卡片渲染。
+- **人工干预机制**:
+  - **中途指导叮嘱**: 用户或调度方可向正在执行的子任务追加指令，在下一个安全执行点消费；
+  - **紧急叫停中止**: 支持主动发出中断指令，原子级更新任务状态为 `cancelled` 并终止下属 Agent 的推理与工具执行。
+- **主会话伴生视图 (Companion View)**:
+  - 在主会话右侧伴生分栏槽位（`chat-companion-dock-slot`）或浮动画中画中，以**严格只读模式**（属性、菜单、事件三重只读防线）实时透视子智能体的上下文树与执行流；
+  - 触发主会话内容自适应 Flex 让位收缩。
+- **主会话工具消息协同**:
+  - 主会话内呈现子智能体派遣卡片（`BackgroundTaskDispatchLink`）；
+  - 动态展示真实执行 Agent 头像与名称标识、活动时间轴以及关键执行步骤摘要。
+
+---
+
+## 9. 总结
+
+Agent、Tool Calling、Skill 以及 Sub-Agent 后台运行时系统形成了一个层次分明、职责清晰的能力扩展体系：
 
 1. **Agent** 是「策略层」，通过 `ToolCallConfig` 定义**什么可以用、怎么用**
 2. **Tool Calling** 是「执行层」，提供**解析 → 路由 → 执行 → 回注**的标准化闭环
 3. **Skill** 是「扩展层」，通过 `ToolRegistryFactory` 桥接为**对 LLM 透明的工具能力**
+4. **Sub-Agent & Background Runtime** 是「长效协作层」，提供**后台调度、上下文透视、人工介入与解耦运行**的自主 Agent 任务体系
 
-三者通过 `toolRegistryManager` 统一注册、通过 VCP 协议统一通信、通过 `useToolCallOrchestrator` 统一编排。用户在整个过程中拥有**逐项审批、批量批准、静默执行**等精细控制能力，而 Skill 的渐进式披露策略确保了 LLM 上下文的高效利用。
+四者通过 `toolRegistryManager` 与 `backgroundTaskRegistry` 统一注册、通过 VCP 协议统一通信、通过 `useToolCallOrchestrator` 与任务中心统一编排。用户在整个过程中拥有**逐项审批、批量批准、静默执行以及后台任务随时透视与中断**等精细控制能力。

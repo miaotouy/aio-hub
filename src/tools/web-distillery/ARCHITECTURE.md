@@ -15,7 +15,7 @@
 | ------------- | ---------------- | ------------------------------------------ |
 | `fast`        | `quickFetch()`   | 纯 HTTP 请求，无浏览器，毫秒级             |
 | `smart`       | `smartExtract()` | 隐藏 Iframe + JS 渲染，支持 SPA            |
-| `jina`        | `jinaFetch()`    | Jina Reader 云端引擎，免本地渲染高保真输出 |
+| `jina`        | `jinaFetch()`    | Jina Reader 云端提取引擎，免本地渲染高保真输出，支持全局偏好设置 |
 | `interactive` | 交互配方 Tab     | 可视化浏览器视口，人工拾取规则             |
 
 ### 全局设置体系

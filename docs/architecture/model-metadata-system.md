@@ -1,7 +1,7 @@
 # 模型元数据系统架构
 
 > **状态**: Stable（v3 分层目录与跨端物化已落地）
-> **最后更新**: 2026-08-24
+> **最后更新**: 2026-09-24
 
 ---
 
@@ -32,9 +32,11 @@
 ### 核心特性
 
 - **规则匹配**：支持 Provider / 精确模型 / 前缀 / 包含 / 正则五种匹配模式
-- **优先级合并**：多条规则同时命中时按稳定顺序合并；对象递归合并，数组整体替换，并支持 `unsetPaths`
+- **优先级合并与分层覆盖**：多条规则同时命中时按稳定顺序合并；对象递归合并，数组整体替换，并支持 `unsetPaths`。用户自定义规则与本地 override 优先级高于内置规则与渠道分组，保障用户个性化分类不被覆盖。
 - **独占规则**：`exclusive: true` 可截断优先级更低的所有匹配，实现"完全覆盖"语义
 - **v3 分层持久化**：内置目录随版本重载，本地仅持久化 override、屏蔽项和自定义规则
+- **全量内置目录自动更新与刷新预览**：内置元数据目录随版本升级自动应用；设置界面提供覆盖分析视图、合并链与最终规则详情透视，以及模型刷新预览弹窗（`ModelMetadataRefreshPreviewDialog`），支持受管属性的精准回写确认。
+- **主流模型生态收录**：出厂全量收录 DeepSeek V4/V4.1（原生视觉多模态与 `deepseek_image_v41` 计费）、Claude 5 系列、GLM-5.2/5.3、Gemini 3 系列及数十种国产大模型的最新定价与能力参数。
 - **迁移与自动更新**：v2 规则可迁移为 v3；内置目录在加载时自动切换为当前应用版本，用户改动不被覆盖
 
 ### 文件清单
@@ -50,6 +52,9 @@
 | [`src/views/Settings/model-metadata/ModelMetadataSettings.vue`](../../src/views/Settings/model-metadata/ModelMetadataSettings.vue)                               | 设置页主视图                                       |
 | [`src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue`](../../src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue) | 规则编辑对话框                                     |
 | [`src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue`](../../src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue)           | 媒体生成参数可视化编辑器                           |
+| [`src/views/Settings/model-metadata/components/ModelMetadataRefreshPreviewDialog.vue`](../../src/views/Settings/model-metadata/components/ModelMetadataRefreshPreviewDialog.vue) | 模型刷新属性变更预览弹窗                           |
+| [`src/views/Settings/model-metadata/components/CoverageAnalysisDialog.vue`](../../src/views/Settings/model-metadata/components/CoverageAnalysisDialog.vue)     | 规则覆盖分析与规则链诊断对话框                     |
+| [`src/views/Settings/model-metadata/components/RuleMergeChain.vue`](../../src/views/Settings/model-metadata/components/RuleMergeChain.vue)                     | 规则合并链与生效属性树状透视组件                   |
 | [`src/views/Settings/model-metadata/components/OptionListEditor.vue`](../../src/views/Settings/model-metadata/components/OptionListEditor.vue)                   | 通用 `{label, value}[]` 编辑组件                   |
 
 ---
@@ -340,13 +345,30 @@ getModelIconPath(rules, modelId, provider):
 
 ```json
 {
-  "version": "2.0.0",
-  "rules": [...],
-  "updatedAt": "2026-04-23T00:00:00.000Z"
+  "version": "3.0.0",
+  "sourceSnapshot": {
+    "revision": "2026.09.24.1",
+    "rules": [...]
+  },
+  "builtinOverrides": {},
+  "suppressedBuiltinRuleIds": [],
+  "customRules": [...],
+  "updatedAt": "2026-09-24T00:00:00.000Z"
 }
 ```
 
-### 6.2 测试模式
+### 6.2 覆盖分析与刷新预览体系
+
+为了让用户直观理解多规则合并与版本迭代对本地已配置模型的影响，v3 提供了两套高级诊断与预览面板：
+
+1. **覆盖分析与合并链透视 (`CoverageAnalysisDialog.vue` & `RuleMergeChain.vue`)**：
+   - 逐模型列出所有命中的规则链条（按合并顺序从低到高排列）。
+   - 精确区分各规则中**实际生效的属性**（`effectiveFields`）与**被更高优先级规则覆盖的属性**（`overriddenFields`），并树状展示最终物化的属性包。
+2. **模型刷新预览弹窗 (`ModelMetadataRefreshPreviewDialog.vue`)**：
+   - 当内置元数据更新或用户调整规则后，点击“刷新模型配置”不会直接静默修改已保存的模型，而是收集所有存在受管字段差异的模型并弹出预览对话框。
+   - 逐项对比模型的原始属性与即将物化的新属性（包含能力标签、图标、上下文上限、思考开关等），供用户审查并勾选确认后再批量回写，保障用户已定制模型的稳定性。
+
+### 6.3 测试模式
 
 工具栏提供一个开关进入测试模式。进入后：
 
@@ -358,7 +380,7 @@ getModelIconPath(rules, modelId, provider):
 
 候选规则筛选逻辑：`matchValue` 包含搜索词、或搜索词包含 `matchValue`、或 provider 类型规则与 provider 输入相关。
 
-### 6.3 `ModelMetadataConfigEditor.vue` — 规则编辑对话框
+### 6.4 `ModelMetadataConfigEditor.vue` — 规则编辑对话框
 
 尺寸：`width="min(90%, 1000px)"` / `height="85vh"`，使用 `BaseDialog` 封装。
 
@@ -391,7 +413,7 @@ getModelIconPath(rules, modelId, provider):
 
 **本地文件选择**：调用 `@tauri-apps/plugin-dialog` 的 `open()`，过滤 `png/jpg/jpeg/svg/webp/ico` 格式。
 
-### 6.4 `MediaGenParamsEditor.vue` — 媒体参数编辑
+### 6.5 `MediaGenParamsEditor.vue` — 媒体参数编辑
 
 接受 `v-model: MediaGenParamRules | undefined`，内部维护本地状态，通过 `watch` 双向同步。
 
@@ -425,7 +447,7 @@ getModelIconPath(rules, modelId, provider):
 
 状态变化时：`unlimited` → 删除该字段；`unsupported` → `{ supported: false }`；`supported` → 按类型初始化 `{ supported: true, options: [] }` 或 `{ supported: true }`。
 
-### 6.5 `OptionListEditor.vue` — 通用选项列表编辑器
+### 6.6 `OptionListEditor.vue` — 通用选项列表编辑器
 
 接受 `v-model: Array<{label: string; value: string}>`，提供添加/删除操作。
 

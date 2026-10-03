@@ -7,12 +7,14 @@
 
 `skill-manager` 是 AIO 的 **Agent Skills 运行时基础设施**。它负责从本地文件系统加载符合 [Agent Skills 规范](https://agentskills.io/llms.txt) 的 Skill 包，将其桥接到 AIO 的工具调用系统（`toolRegistryManager`），并提供可视化管理界面。
 
-## 2. 分层架构
+## 2. 分层架构与 UI 设计
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  UI 层 (View)                                       │
-│  SkillManager.vue → SkillManagerPage → Panels       │
+│  SkillManager.vue → SkillManagerPage                │
+│  ├─ SkillListPanel (左侧技能索引列表)               │
+│  └─ SkillDetailPanel (右侧自说明详情与脚本/权限面板)│
 ├─────────────────────────────────────────────────────┤
 │  组合层 (Composable)                                │
 │  useSkillManager — UI ↔ Store/Service 粘合剂        │
@@ -39,6 +41,12 @@
 │  toolRegistryManager · tool-calling · configManager │
 └─────────────────────────────────────────────────────┘
 ```
+
+### 2.0. 双栏自说明展示 (UI 交互改进 F-01)
+
+管理界面采用左右双栏结构，彻底解决此前技能概览空洞、说明淹没在指令中的问题：
+- **左栏（`SkillListPanel`）**：高效浏览已安装技能，提供启用状态切换与快速状态指示。
+- **右栏（`SkillDetailPanel`）**：自说明信息展示中心，将技能元数据、详细描述、SKILL.md 核心说明结构化分块呈现；同时**突出展示技能暴露的可用脚本与所需执行权限**，使安全审计一目了然；优化滚动流并解决嵌套滚动冲突。
 
 ### 2.1. Backend-First 设计
 

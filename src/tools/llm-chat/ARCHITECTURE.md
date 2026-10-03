@@ -1,6 +1,6 @@
 # LLM Chat: 架构与开发者指南
 
-> 最后更新：2026-09-22
+> 最后更新：2026-10-04
 
 本文档是 `llm-chat` 工具的**架构概览**。每个章节只保留核心理念与定位，详细实现请参考 [`docs/architecture/`](./docs/architecture/) 下的专题文档。
 
@@ -82,9 +82,11 @@ graph TD
 
 #### 1.2.1. 多会话架构与子管理器 (Multi-Session Sub-Managers)
 
-系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。消息排队以**目标父节点到根节点的路径**为粒度：同一路径上的后续消息按顺序恢复生成；切换到树的其它分支后，新分支可与已有分支并行执行。调度器同时扫描会话节点上的持久化排队标记，避免切换会话或运行时集合清理后遗留的 `queued` 节点无法恢复。
+系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。
 
-排队恢复时按占位节点内容区分：内容为空的 Assistant 占位节点直接复用（`reuseNode`）；已有部分内容的节点创建续写分支。用户主动停止生成时，会话内所有仍处于排队态的节点被标记为 `error` 并写入 `metadata.error = "队列已停止"`，同时清除 `isQueued`，UI 以「已停止」呈现。
+- **消息生命周期与排队控制**：引入规范的节点生命周期状态（`waiting` / `generating` / `queued` / `complete` / `error`）。请求发出后未收到流式首字前呈现为「等待中 (`waiting`)」，收到有效内容后平滑切换为「生成中 (`generating`)」；消息排队以**目标父节点到根节点的路径**为粒度：同一路径上的后续消息按顺序恢复生成；切换到树的其它分支后，新分支可与已有分支并行执行。调度器同时扫描会话节点上的持久化排队标记，避免切换会话或运行时集合清理后遗留的 `queued` 节点无法恢复。
+- **持久化自愈机制**：在应用重启、异常退出或崩溃恢复时，`sessionLifecycleManager` 在会话载入阶段会自动扫描详情树，将残存的非正常 `generating` / `waiting` 异常节点自愈修复为 `complete` 或包含中断说明的 `error` 终态（`metadata.error = "生成已中断"`），避免由于进程中止导致节点永远挂起在加载骨架态。
+- **排队恢复与停止语义**：排队恢复时按占位节点内容区分：内容为空的 Assistant 占位节点直接复用（`reuseNode`）；已有部分内容的节点创建续写分支。用户主动停止生成时，会话内所有仍处于排队态的节点被标记为 `error` 并写入 `metadata.error = "队列已停止"`，同时清除 `isQueued`，UI 以「已停止」呈现。
 
 详见 [`data-persistence.md`](./docs/architecture/data-persistence.md) 第 3 节与 [`key-types.md`](./docs/architecture/key-types.md)。
 
@@ -255,13 +257,17 @@ graph TD
 
 详见 [`agent-assets.md`](./docs/architecture/agent-assets.md) 与 [`asset-macro-examples.md`](./docs/architecture/asset-macro-examples.md)。
 
-### 1.18. 快捷操作 (Quick Actions)
+### 1.18. 快捷操作与斜杠指令系统 (Quick Actions & Slash Commands)
 
-快捷操作允许用户在输入框中通过点击按钮快速执行预定义的文本包装或指令发送。
+快捷操作与斜杠指令系统允许用户在输入框中高效唤起动作模板、宏以及系统控制指令。
 
 - **类世界书管理**: 采用多级关联机制（全局、智能体、用户档案），支持按组管理。
 - **模板化注入**: 支持 `{{input}}` 占位符，可将输入框选中的内容（或全文）包装进特定的 HTML 标签或指令中。
 - **自动发送**: 支持配置点击后立即发送，提升操作效率。
+- **斜杠指令引擎 (`Slash Commands`)**:
+  - 输入框键入 `/` 触发命令自动补全面板（支持 CodeMirror 6 与原生 textarea 双编辑器）。
+  - 内置命令（`/clear` 清空会话、`/export` 导出会话、`/compact` 压缩上下文、`/settings` 打开设置等）与快捷操作（Quick Actions）动态聚合。
+  - 支持快捷指令执行与参数分发，与现有宏引擎（Macro System）无缝协同。
 
 ### 1.19. 续写与补全功能 (Continue & Completion)
 
@@ -278,7 +284,7 @@ graph TD
 确保用户数据的可流动性和系统的可维护性。
 
 - **多格式支持**: 支持将会话、智能体、世界书、快捷操作导出为 JSON、Markdown 或 Zip 压缩包。
-- **单会话备份 JSON**: 会话导出提供 `backup` 格式（`exportSessionAsBackupJson`，信封 `format: "aiohub-chat-session"` / `version` / `session.index` + `session.detail`），与阅读型 JSON 区分；导入时校验信封版本与 `nodes` / `rootNodeId` / `activeLeafId` 的完整性，完整会话对象方可还原。详见 [`composables-reference.md`](./docs/architecture/composables-reference.md) 第 9 节。
+- **单会话完整备份 JSON**: 会话导出提供 `backup` 格式（`exportSessionAsBackupJson`，信封 `format: "aiohub-chat-session"` / `version` / `session.index` + `session.detail`），与阅读型 JSON 区分；完整打包节点树、关联附件引用、上下文参数快照及分支记忆；导入时严格校验信封版本与 `nodes` / `rootNodeId` / `activeLeafId` 的数据结构完整性，支持无损还原单会话。详见 [`composables-reference.md`](./docs/architecture/composables-reference.md) 第 9 节。
 - **智能迁移**: `agent-manager/services/agentMigrationService` 负责处理不同版本间的配置结构差异，确保旧版 Agent 能够平滑升级到新架构。
 - **资产打包**: 导出智能体时，会自动扫描并包含其引用的所有私有资产。
 
@@ -302,13 +308,16 @@ graph TD
 
 详见 [`skill-integration.md`](./docs/architecture/skill-integration.md)。
 
-### 1.23. 性能监控与指标
+### 1.23. 性能监控、Token 预估与重试控制
 
-系统实时收集并展示 LLM 请求的关键性能指标，帮助用户评估模型响应质量。
+系统实时收集并展示 LLM 请求的关键性能指标，并在发送前提供精准的 Token 消耗预估与稳健的重试策略。
 
 - **TTFT (Time to First Token)**: 记录从请求发送到接收到第一个 Token 的耗时。
 - **TPS (Tokens Per Second)**: 计算生成过程中的平均速度。
-- **Token 统计**: 区分 `promptTokens` 和 `completionTokens`，并提供本地估算功能。
+- **Token 统计与精准预估**: 区分 `promptTokens` 和 `completionTokens`。输入端本地预估已与实际发送管道完全对齐：
+  - **图片 Token 压缩对齐**: 预估时计入客户端图片缩放与压缩配置（`imageCompression.maxDimension`），等比缩小尺寸后再进行 Token 预算核算，消除预估虚高。
+  - **思考模型 Token 预留**: 针对开启思考推理的大模型（如 DeepSeek R1、Gemini 2.0 Flash Thinking 等），支持配置 `thinkingTokenReserve`（默认 4096），在 `maxTokens` 之外为长链推理额外预留充足的思考生成空间。
+- **自适应重试 HTTP 状态码白名单**: 支持会话/全局请求层配置可重试状态码（`retryStatusCodes`，如 `429,500,502,503,504`）。单节点执行器在遭遇网络抖动或上游临时限流时按指数退避自动重试，遇到非白名单致命错误（如 `400 Bad Request`、`401 Unauthorized`）立即终止并报错。
 
 ### 1.24. 插件化设置系统
 
@@ -439,6 +448,8 @@ Token 限制器位于注入组装器之后（priority 600）、消息格式化�
 - **输入草稿与拖放增强**: 支持跨会话的草稿剪切与粘贴（全局草稿剪贴板同步），以及 H5 原生文件拖放（`useFileDrop` 双信号融合去重，支持直接导入 File 对象）。
 - **面板尺寸调整**: 采用通用的 `useResizable` 组合函数，支持四个方向的尺寸调整，自动管理鼠标事件、光标样式与面板宽度配置的持久化，统一各工具面板的拖拽行为。
 - **富文本渲染**: 消息内容由 `src/tools/rich-text-renderer/` 负责，代码块展示固定使用 CodeMirror + `IntersectionObserver` 延迟初始化，旧的 Monaco/CodeMirror 双引擎代码块设置已移除。
+- **悬浮与外置操作栏**: 消息操作栏（`MessageMenubar`）采用外置独立渲染（外层通过 `display: flow-root` 触发独立 BFC），不再作为气泡内部 DOM 元素。彻底消除了气泡模式下的常驻空位占位，并杜绝了因圆角剪切（`overflow: hidden`）导致的操作菜单边框裁切问题。
+- **伴生分栏槽位 (Companion Dock Slot)**: 工作区原生集成平台级伴生挂载槽位（`.chat-companion-dock` 与 `#chat-companion-dock-slot`，通过 `useChatCompanionDock` 控制）。采用宿主受控外壳 + 定向 Teleport 模式，当后台子智能体透视（`sub-agent`）或辅助视窗激活时，触发 100% 结构性 Flex 让位与消息列表平滑收缩，支持 360px ~ 720px 手柄拖拽调宽，宿主无需反向引入具体业务组件。
 - **窗口分离**: 支持被拽出成为独立的 Tauri 浮动窗口，采用**主从架构**通过 `useWindowSyncBus` 进行跨窗口同步。
 - **气泡布局模式**: 支持在**卡片模式**和**气泡模式**之间无缝切换，通过 `BubbleLayoutConfig` 配置驱动。
 

@@ -169,6 +169,16 @@ Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
 
 `useGitProcessor` 提供纯函数式的筛选能力，支持：关键词搜索、作者过滤、日期范围、提交类型（feat/fix/chore 等）、正序/倒序。筛选在前端实时执行，不需要重新请求后端。
 
+#### 提交范围区间归一化 (commitRange 1-Based 规范)
+
+在 v0.7.0 中，提交选择范围 `commitRange` 统一调整为 **1-based 闭区间** `[start, end]`（即 `[第 start 条, 第 end 条]`）：
+- **设计初衷**：与自然语言、表格行号及界面展示完全对齐（第 1 条到第 N 条），消除 0-based 边界导致的用户心理认知落差与越界异常。
+- **向后兼容与归一化**：在 `GitAnalyzer.vue` 加载历史预设与旧版本配置时，若探测到区间为 0-based（如 `[0, 10]`），自动执行归一化校正（转换为 `[1, 11]`）；同时在数据增量流式加载与总提交数变更时，自适应更新区间的上限。
+- **业务消费联动**：
+  - 在 `useGitAnalyzerRunner.ts` 中切片真实数组时转换为 0-based 索引：`state.commitRange.value[0] - 1` 至 `state.commitRange.value[1]`。
+  - 在 `ControlPanel.vue` 中绑定双向滑块与数值输入，直观显示提交范围序号。
+  - 在 `ExportModule.vue` 与 `ExportConfiguration.vue` 导出报告时，精准限定导出提交范围（全部 / 筛选结果 / 自定义 1-based 区间）。
+
 ### 4.5. 导出报告与格式化
 
 - **积木式格式化 (`formatters.ts`)**: 报告生成通过原子化的格式化函数（如 `commitItem`, `statistics`）拼装而成，不再是面条代码。这保证了 Agent 在对话中输出的内容与用户手动导出的报告在格式上高度一致。

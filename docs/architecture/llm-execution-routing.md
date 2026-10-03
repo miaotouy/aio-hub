@@ -103,6 +103,8 @@ type LlmOperation =
 | `xai`                                                                                                   | chat           | `openai-chat-completions`  | image                                    |
 | `suno-newapi`                                                                                           | music          | `suno-newapi`              | —                                        |
 | `minimax-music`                                                                                         | music          | `minimax-music`            | —                                        |
+| `audiocpp`                                                                                              | audio          | `openai-chat-completions`  | chat, transcribe (ASR), audio (TTS)      |
+| `typesafe`                                                                                              | decision       | `typesafe-system-one`      | decision (专用端点 `/v1/systemone`)      |
 | `new-api`、`sub2api`（聚合）                                                                            | chat           | `openai-chat-completions`  | embedding, rerank, image；可配置渠道默认 |
 | `aggregate-compatible`（聚合）                                                                          | chat           | 无（须绑定/探测/渠道默认） | —                                        |
 | `opencode-go`（聚合）                                                                                   | chat           | 内置 `modelRoutes` 路由表  | —                                        |

@@ -33,7 +33,10 @@ src/tools/data-filter/
 
 - **数据定位**: 使用 `lodash-es` 的 `get` 函数，支持通过 `dataPath` 定位深层数组。
 - **多键 OR 匹配**: `FilterCondition.key` 支持逗号分隔（如 `name,title`），只要其中一个键满足条件，该行即视为通过。
-- **自定义脚本实现**: 通过 `new Function("item", "value", ...)` 执行用户提供的 JS 表达式。
+- **自定义脚本实现与安全隔离 (KI-002)**:
+  - 仅在 UI 人工配置界面允许通过 `new Function("item", "value", ...)` 执行用户编写的简单 JS 表达式。
+  - **脚本模式严格分离**: Agent/自动化调用入口（`applyFilter`）严格限制为声明式过滤规则（仅开放 `eq`、`ne`、`contains`、`truthy`、`falsy`、`gt`、`ge`、`lt`、`le` 9 种声明式操作符）。
+  - **参数层硬拦截**: 在参数解析层（`parseFilterOptions`）显式拦截包含 `operator: "custom"` 或任何 `customScript` 属性的非法注入请求，彻底消除通过 LLM 工具调用进行代码执行与原型污染的风险。
 - **容错处理**: 内置自动识别 JSON/YAML 格式，并在解析失败时提供友好的错误提示。
 
 ### 3.2 纯文本筛选方法
@@ -85,15 +88,16 @@ src/tools/data-filter/
    - 结果只读展示，附带统计信息（总数/过滤后/剔除数）。
    - 操作区：复制结果、发送到聊天。
 
-## 5. Agent 接入能力
+## 5. Agent 接入能力与安全边界
 
 [`DataFilterRegistry`](./data-filter.registry.ts) 暴露了 `applyFilter` 方法，使 LLM 能够处理本地数据文件：
 
 - **调用流程**:
   1. Agent 提供文件路径 `path`。
   2. Agent 定义 `conditions` (JSON 字符串)。
-  3. 注册器调用 `logic.applyFilterFromFile` 执行。
-  4. 返回包含统计信息和结果数据的 Markdown 报表。
+  3. 参数解析层前置安全校验：严格拦截 `custom` 操作符与 `customScript`，拒绝执行任何非声明式脚本。
+  4. 注册器调用 `logic.applyFilterFromFile` 执行。
+  5. 返回包含统计信息和结果数据的 Markdown 报表。
 
 ## 6. 核心依赖
 

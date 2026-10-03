@@ -154,7 +154,10 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **HTML 深度支持**: 将 HTML 标签视为一等公民，支持任意深度的 HTML 与 Markdown 混合嵌套，包括 `<details>`, `<article>` 等复杂的语义化标签。通过 `GenericHtmlNode` 实现结构化 HTML 标签的 AST 表示。`<video>` / `<audio>` / `<details>` 标签会自动拦截并分发至专门的 `VideoNode` / `AudioNode` / `DetailsNode` 组件。
 - **LLM 思考块**: 原生支持 `<think>`、`<guguthink>` 等自定义标签，将其解析为结构化的 `LlmThinkNode`。
 - **GitHub Alert 块**: 支持 `> [!NOTE]`、`> [!TIP]`、`> [!IMPORTANT]`、`> [!WARNING]`、`> [!CAUTION]` 语法，解析为 `AlertNode`。
-- **VCP 协议深度支持**: 支持 `<<<[TOOL_REQUEST]>>>` / `<<<[TOOL_REQUEST_ESCAPE]>>>` 工具调用格式、VCP 角色分割 (`vcp_role`)、本轮工具调用摘要 (`vcp_role` + `variant: "tool_summary"`) 和日记容器 (`vcp_daily_note`) 解析。支持嵌套工具调用、参数值转义、工具结果汇总解析，以及摘要与结果详情的重复展示去重。
+- **VCP 协议深度支持与容错**: 支持 `<<<[TOOL_REQUEST]>>>` / `<<<[TOOL_REQUEST_ESCAPE]>>>` 工具调用格式、VCP 角色分割 (`vcp_role`)、本轮工具调用摘要 (`vcp_role` + `variant: "tool_summary"`) 和日记容器 (`vcp_daily_note`) 解析。
+  - **坏块恢复与防吞噬 (KI-007)**: 引入 `vcpBlockBoundary.ts` 与 `vcpFenceRecovery.ts` 边界判定算法。当检测到未闭合或损坏的 VCP 请求块时，遇到下一个起始标记会自动丢弃并恢复，防止残损块误吞噬后续合法调用块或导致同类标记错误合并。
+  - **JEV 自然语言工具调用识别**: 针对不含 `tool_name` 但以 `JEV` 前缀键携带自然语言指令的工具调用模式，解析器在词法层自动识别 `JEV` 作为工具名展示，并将自然语言指令原样保存在参数对象中，不执行破坏性二次解析。
+  - **图片加载失败占位与资源名提示**: `ImageNode` 增强了对外部或智能体协议图片加载失败的防御。提供独立的错误占位卡片，展示失败提示并截断安全显示原始资源名称/链接，避免破坏排版流。
 
 ### 3.3 样式系统与隔离机制 (Styling & Isolation)
 

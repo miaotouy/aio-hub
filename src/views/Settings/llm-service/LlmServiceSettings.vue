@@ -31,6 +31,7 @@ import ModelList from "./components/ModelList.vue";
 import ModelProbeDialog from "./components/ModelProbeDialog.vue";
 import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
+import BatchAddModelDialog from "./components/BatchAddModelDialog.vue";
 import BatchRouteBindingDialog from "./components/BatchRouteBindingDialog.vue";
 import CreateProfileDialog from "./components/CreateProfileDialog.vue";
 import ConfigImportDialog from "./components/ConfigImportDialog.vue";
@@ -43,7 +44,6 @@ import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
-import { llmPresets } from "@/config/llm-presets";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import {
   generateLlmApiEndpointPreview,
@@ -61,6 +61,7 @@ import { useProfileEditor } from "./composables/useProfileEditor";
 import { useModelEditor } from "./composables/useModelEditor";
 import { useConnectionTest } from "./composables/useConnectionTest";
 import type { ParsedLlmProfileDraft } from "@/utils/llm-config-import";
+import { findPresetModel } from "./utils/model-preset-lookup";
 import { customMessage } from "@/utils/customMessage";
 
 // ─── Composables ───
@@ -88,6 +89,7 @@ const {
   showModelDialog,
   editingModel,
   isEditingModel,
+  showBatchAddDialog,
   showModelFetcherDialog,
   fetchedModels,
   fetchedRawResponse,
@@ -489,33 +491,6 @@ const applyImportedProfileDraft = (draft: ParsedLlmProfileDraft) => {
     };
   }
   customMessage.success("已应用导入配置");
-};
-
-/**
- * 从预设模板中查找匹配的完整模型信息
- * 优先匹配同类型预设，再全局搜索
- */
-const findPresetModel = (
-  modelId: string,
-  providerType: string
-): LlmModelInfo | null => {
-  // 先在同类型的预设中查找
-  for (const preset of llmPresets) {
-    if (preset.type === providerType && preset.defaultModels) {
-      const found = preset.defaultModels.find((m) => m.id === modelId);
-      if (found) return { ...found };
-    }
-  }
-
-  // 再在所有预设中查找（模型可能出现在不同类型的预设中）
-  for (const preset of llmPresets) {
-    if (preset.type !== providerType && preset.defaultModels) {
-      const found = preset.defaultModels.find((m) => m.id === modelId);
-      if (found) return { ...found };
-    }
-  }
-
-  return null;
 };
 
 const applyMatchedModelMetadata = (
@@ -1057,6 +1032,14 @@ const networkSettingSummary = computed(() => {
         />
       </template>
     </BaseDialog>
+
+    <!-- 批量添加模型对话框（手动添加默认入口） -->
+    <BatchAddModelDialog
+      v-model:visible="showBatchAddDialog"
+      :existing-models="editForm.models"
+      :provider-type="editForm.type"
+      @add-models="handleAddModels"
+    />
 
     <!-- 模型获取对话框 -->
     <ModelFetcherDialog

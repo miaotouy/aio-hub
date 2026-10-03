@@ -1,3 +1,6 @@
+import type { LlmOperation, ModelRouteBinding } from "@aiohub/llm-core";
+import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,19 +14,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
  * 模型管理逻辑
  * 负责模型的增删改、从 API 获取模型列表
  */
 import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
-import type { LlmOperation, ModelRouteBinding } from "@aiohub/llm-core";
-import { ref } from "vue";
-import type { Ref, ComputedRef } from "vue";
-import { customMessage } from "@/utils/customMessage";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
-import type { LlmProfile, LlmModelInfo } from "@/types/llm-profiles";
+import { customMessage } from "@/utils/customMessage";
+import type { Ref, ComputedRef } from "vue";
+import { ref } from "vue";
+
 
 const errorHandler = createModuleErrorHandler("LlmServiceSettings/ModelEditor");
 
@@ -51,16 +51,18 @@ export function useModelEditor(
   const editingModel = ref<LlmModelInfo | null>(null);
   const isEditingModel = ref(false);
 
+  // 批量添加模型对话框状态
+  const showBatchAddDialog = ref(false);
+
   // 模型获取对话框状态
   const showModelFetcherDialog = ref(false);
   const fetchedModels = ref<LlmModelInfo[]>([]);
   const fetchedRawResponse = ref<any>(null);
   const isFetchingModels = ref(false);
 
+  // 手动添加默认进入批量添加（支持单/多模型输入），细粒度配置走列表中的单模型编辑
   const addModel = () => {
-    editingModel.value = null;
-    isEditingModel.value = false;
-    showModelDialog.value = true;
+    showBatchAddDialog.value = true;
   };
 
   const editModel = (index: number) => {
@@ -180,6 +182,7 @@ export function useModelEditor(
     showModelDialog,
     editingModel,
     isEditingModel,
+    showBatchAddDialog,
     showModelFetcherDialog,
     fetchedModels,
     fetchedRawResponse,

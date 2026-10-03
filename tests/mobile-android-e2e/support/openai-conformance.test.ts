@@ -10,8 +10,11 @@ import {
   sseEventCountForMode,
   summarizeOpenAiAttachments,
   hasUserProfileTag,
+  hasAgentMarker,
+  hasUnrenderedAgentMacro,
   summarizeGenerationParameters,
 } from "./openai-conformance";
+import { E2E_AGENT_MARKER } from "./fixtures";
 
 describe("mobile OpenAI attachment summaries", () => {
   it("records MIME, decoded bytes, and hash without retaining base64", () => {
@@ -78,6 +81,40 @@ describe("mobile OpenAI profile context summaries", () => {
 
     expect(hasUserProfileTag(messages)).toBe(true);
     expect(hasUserProfileTag([{ role: "user", content: "Hello" }])).toBe(false);
+  });
+});
+
+describe("mobile OpenAI agent persona summaries", () => {
+  it("records agent marker presence without retaining the marker text", () => {
+    const messages = [
+      {
+        role: "system",
+        content: `You are an Android E2E assistant. ${E2E_AGENT_MARKER}`,
+      },
+    ];
+
+    expect(hasAgentMarker(messages)).toBe(true);
+    expect(hasAgentMarker([{ role: "user", content: "Hello" }])).toBe(false);
+
+    const summary = {
+      hasAgentMarker: hasAgentMarker(messages),
+      hasUnrenderedAgentMacro: hasUnrenderedAgentMacro(messages),
+    };
+    expect(summary).toEqual({
+      hasAgentMarker: true,
+      hasUnrenderedAgentMacro: false,
+    });
+    expect(JSON.stringify(summary)).not.toContain(E2E_AGENT_MARKER);
+  });
+
+  it("detects unrendered char/user macros in content arrays", () => {
+    expect(hasUnrenderedAgentMacro("{{char}} greets {{user}}")).toBe(true);
+    expect(
+      hasUnrenderedAgentMacro([
+        { role: "assistant", content: [{ type: "text", text: "{{char}}" }] },
+      ])
+    ).toBe(true);
+    expect(hasUnrenderedAgentMacro("Aiohub greets the tester")).toBe(false);
   });
 });
 

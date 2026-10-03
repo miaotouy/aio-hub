@@ -11,6 +11,9 @@ import { runAudioMediaScenario } from "./specs/audio-media.spec";
 import { runVideoMediaScenario } from "./specs/video-media.spec";
 import { runRichTextRendererScenario } from "./specs/rich-text-renderer.spec";
 import { runRichTextManagedMediaScenario } from "./specs/rich-text-managed-media.spec";
+import { runAgentImportScenario } from "./specs/agent-import.spec";
+import { runChatAgentScenario } from "./specs/chat-agent.spec";
+import { runAgentAssetsScenario } from "./specs/agent-assets.spec";
 import type { MobileE2ePresetId } from "./support/runner-options";
 
 export interface MobileE2ePreset {
@@ -96,6 +99,19 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
     scenarios: [
       { id: "feasibility", run: runFeasibilityScenario },
       { id: "chat-attachment", run: runDeterministicAttachmentScenario },
+    ],
+    requiresDeterministicServer: true,
+    requiresOllama: false,
+    apkSizeBaselineBytes: E2E_APK_SIZE_BASELINE_BYTES,
+  },
+  agent: {
+    id: "agent",
+    purpose:
+      "Character-card import, agent chat with greeting macros, and private assets",
+    scenarios: [
+      { id: "agent-import", run: runAgentImportScenario },
+      { id: "chat-agent", run: runChatAgentScenario },
+      { id: "agent-assets", run: runAgentAssetsScenario },
     ],
     requiresDeterministicServer: true,
     requiresOllama: false,

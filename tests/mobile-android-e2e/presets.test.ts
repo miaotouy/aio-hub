@@ -26,4 +26,15 @@ describe("mobile E2E preset gates", () => {
     expect(preset.requiresDeterministicServer).toBe(true);
     expect(preset.requiresOllama).toBe(false);
   });
+
+  it("registers the agent scenarios with deterministic transport", () => {
+    const preset = MOBILE_E2E_PRESETS["agent"];
+    expect(preset.scenarios.map((scenario) => scenario.id)).toEqual([
+      "agent-import",
+      "chat-agent",
+      "agent-assets",
+    ]);
+    expect(preset.requiresDeterministicServer).toBe(true);
+    expect(preset.requiresOllama).toBe(false);
+  });
 });

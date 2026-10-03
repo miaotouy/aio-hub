@@ -496,6 +496,12 @@ const selectScanFolders = async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.repo-list::-webkit-scrollbar {
+  display: none;
 }
 
 .repo-draggable-list {

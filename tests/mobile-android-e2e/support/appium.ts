@@ -100,7 +100,7 @@ export async function createAndroidSession(options: {
 
 export async function waitForWebview(
   driver: Browser,
-  timeoutMs = 30_000
+  timeoutMs = 240_000
 ): Promise<string> {
   return waitUntil(
     async () => {
@@ -115,9 +115,24 @@ export async function waitForWebview(
 }
 
 export async function switchToWebview(driver: Browser): Promise<string> {
-  const context = await waitForWebview(driver);
-  await driver.switchContext(context);
-  return context;
+  const deadline = Date.now() + 240_000;
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    try {
+      const context = await waitForWebview(driver, 30_000);
+      await driver.switchContext(context);
+      return context;
+    } catch (error) {
+      if (error instanceof FatalWaitError) throw error;
+      // Appium can advertise a WebView context that is being recreated before
+      // the app settles; re-discover it instead of failing the whole run.
+      lastError = error;
+      await driver.pause(1_000);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Unable to switch to the AIO Hub WebView context.");
 }
 
 export async function switchToNative(driver: Browser): Promise<void> {

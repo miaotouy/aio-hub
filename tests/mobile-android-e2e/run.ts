@@ -327,6 +327,9 @@ async function main(): Promise<void> {
       serial: device.serial,
       chromedriverPath,
     });
+    // A cold-booted AVD can expose its WebView before the app and chromedriver
+    // are ready to attach; let the app settle, then wait for a usable context.
+    await driver.pause(3_000);
     await waitForWebview(driver);
     const contexts = (await driver.getContexts()).map(String);
     result.appium = {

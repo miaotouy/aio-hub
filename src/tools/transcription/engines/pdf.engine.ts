@@ -11,29 +11,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { assetManagerEngine } from "@/composables/useAssetManager";
-import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { convertPdfToImages } from "@/utils/pdfUtils";
-import { parseModelCombo } from "@/utils/modelIdUtils";
+import { getCurrentEngineConfig, loadSmartOcrConfig, } from "@/tools/smart-ocr/config/config";
 import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
-import {
-  getCurrentEngineConfig,
-  loadSmartOcrConfig,
-} from "@/tools/smart-ocr/config/config";
-import type { OcrResult } from "@/tools/smart-ocr/types";
-import { createModuleLogger } from "@/utils/logger";
-import type { Asset } from "@/types/asset-management";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmRequest } from "@/composables/useLlmRequest";
 import type { LlmMessageContent } from "@/llm-apis/common";
+import type { OcrResult } from "@/tools/smart-ocr/types";
+import { parseModelCombo } from "@/utils/modelIdUtils";
+import type { Asset } from "@/types/asset-management";
+import { convertPdfToImages } from "@/utils/pdfUtils";
+import { createModuleLogger } from "@/utils/logger";
+
+import type { ITranscriptionEngine, EngineContext, EngineResult, DocumentSpecificConfig, } from "../types";
+import { cleanLlmOutput, detectRepetition, detectModelRefusal, } from "../utils/text";
 import { getEffectiveConfig, getModelParams } from "./base";
-import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type {
-  ITranscriptionEngine,
-  EngineContext,
-  EngineResult,
-  DocumentSpecificConfig,
-} from "../types";
+
 
 const logger = createModuleLogger("transcription/engines/pdf");
 
@@ -65,6 +58,8 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       maxTokens,
       timeout,
       enableRepetitionDetection,
+      enableRefusalDetection,
+      refusalKeywords,
     } = getModelParams(ctx, "document");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
@@ -219,9 +214,15 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 
+    const refusal = detectModelRefusal(cleanedText, {
+      enabled: enableRefusalDetection,
+      refusalKeywords,
+    });
+
     return {
       text: cleanedText,
       isEmpty: !cleanedText || cleanedText.trim().length === 0,
+      warning: refusal.isRefusal ? refusal.reason : undefined,
     };
   }
 
@@ -320,11 +321,19 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       throw new Error(firstError || "OCR 识别失败");
     }
 
+    const refusal = detectModelRefusal(text, {
+      // 与 LLM/视觉路径保持一致：文档分类型配置优先，其次回退到全局开关
+      enabled:
+        documentConfig.enableRefusalDetection ?? config.enableRefusalDetection,
+      refusalKeywords: config.refusalKeywords,
+    });
+
     return {
       text,
       isEmpty: text.length === 0,
-      warning:
-        failedResults.length > 0
+      warning: refusal.isRefusal
+        ? refusal.reason
+        : failedResults.length > 0
           ? `OCR 有 ${failedResults.length} 页识别失败`
           : undefined,
     };

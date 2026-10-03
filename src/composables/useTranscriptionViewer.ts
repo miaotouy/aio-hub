@@ -11,9 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { ref } from "vue";
 import type { Asset } from "@/types/asset-management";
+import { ref } from "vue";
+
 
 export interface TranscriptionViewerState {
   visible: boolean;
@@ -26,6 +26,7 @@ export interface TranscriptionViewerState {
     modelId: string;
     prompt: string;
     enableRepetitionDetection: boolean;
+    enableRefusalDetection?: boolean;
     overrideConfig?: any;
   }) => void;
   onDelete?: () => void | Promise<void>;
@@ -53,6 +54,7 @@ export function useTranscriptionViewer() {
       modelId: string;
       prompt: string;
       enableRepetitionDetection: boolean;
+      enableRefusalDetection?: boolean;
       overrideConfig?: any;
     }) => void;
     onDelete?: () => void | Promise<void>;

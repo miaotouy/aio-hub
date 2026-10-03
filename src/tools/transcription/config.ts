@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import {
   Settings2,
   Zap,
@@ -20,11 +19,12 @@ import {
   Video,
   FileText,
 } from "lucide-vue-next";
-import type { SettingsSection } from "@/types/settings-renderer";
-import type { TranscriptionConfig } from "./types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+import type { SettingsSection } from "@/types/settings-renderer";
 import type { OcrExtension } from "@/tools/smart-ocr/platform";
+import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+
+import type { TranscriptionConfig } from "./types";
 
 const getOcrExtensions = (): OcrExtension[] => {
   const { ocrExtensions } = useOcrExtensions();
@@ -80,6 +80,8 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     globalThreshold: 10,
     whitelist: [],
   },
+  enableRefusalDetection: true,
+  refusalKeywords: [],
   enableImageSlicer: true,
   imageSlicerConfig: {
     aspectRatioThreshold: 3,
@@ -315,6 +317,31 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           hint: "包含这些片段的内容将不会被判定为复读（常用于固定格式的转写）",
           keywords: "repetition whitelist 复读 白名单",
           visible: (s) => s.enableRepetitionDetection,
+        },
+        {
+          id: "enableRefusalDetection",
+          label: "启用模型拒绝/异常检测",
+          layout: "inline",
+          component: "ElSwitch",
+          modelPath: "enableRefusalDetection",
+          hint: "自动识别模型自称纯文本模型、触发安全围栏拒绝或返回内嵌报错的情况，并将转写结果标记为警告",
+          keywords: "refusal reject refusal 拒绝 异常 报错 安全围栏 纯文本模型",
+        },
+        {
+          id: "refusalKeywords",
+          label: "自定义拒绝关键词",
+          component: "ElSelect",
+          props: {
+            multiple: true,
+            filterable: true,
+            allowCreate: true,
+            defaultFirstOption: true,
+            placeholder: "输入额外的拒绝检测关键词并回车",
+          },
+          modelPath: "refusalKeywords",
+          hint: "结果中包含这些关键词时将被判定为模型拒绝（在内置检测规则之外补充）",
+          keywords: "refusal keywords 拒绝 关键词 自定义",
+          visible: (s) => s.enableRefusalDetection,
         },
         {
           id: "customPrompt",

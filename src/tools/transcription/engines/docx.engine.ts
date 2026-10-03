@@ -11,21 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { assetManagerEngine } from "@/composables/useAssetManager";
-import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { isDocxAssetLike, parseDocx, type DocxImage } from "@/utils/docxParser";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import type { LlmMessageContent } from "@/llm-apis/common";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
-import type { LlmMessageContent } from "@/llm-apis/common";
+
+import { cleanLlmOutput, detectRepetition, detectModelRefusal, } from "../utils/text";
+import type { EngineContext, EngineResult, ITranscriptionEngine, } from "../types";
 import { getModelParams } from "./base";
-import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type {
-  EngineContext,
-  EngineResult,
-  ITranscriptionEngine,
-} from "../types";
+
 
 /**
  * 小图阈值：base64 解码后 < 50KB 的图片视为小图，可以合并请求
@@ -105,6 +102,8 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
       maxTokens,
       timeout,
       enableRepetitionDetection,
+      enableRefusalDetection,
+      refusalKeywords,
     } = getModelParams(ctx, "document");
 
     const buffer = await assetManagerEngine.getAssetBinary(task.path);
@@ -148,6 +147,17 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
       );
       if (repetition.isRepetitive) {
         throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
+      }
+    }
+
+    // 模型拒绝/内嵌报错检测（仅在有图片转写时才有意义）
+    if (parsed.hasImages) {
+      const refusal = detectModelRefusal(transcriptionText, {
+        enabled: enableRefusalDetection,
+        refusalKeywords,
+      });
+      if (refusal.isRefusal) {
+        warning = warning ? `${warning}；${refusal.reason}` : refusal.reason;
       }
     }
 

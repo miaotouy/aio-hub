@@ -11,28 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { invoke } from "@tauri-apps/api/core";
+import type { TranscriptionAudioSource } from "@/llm-apis/transcription-types";
+import { buildExecutionPlan } from "@/tools/ffmpeg-tools/utils/executionPlan";
+import { assetManagerEngine } from "@/composables/useAssetManager";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import type { LlmMessageContent } from "@/llm-apis/common";
+import { parseModelCombo } from "@/utils/modelIdUtils";
+import type { Asset } from "@/types/asset-management";
+import { useFFmpeg } from "@/composables/useFFmpeg";
+import { createModuleLogger } from "@/utils/logger";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { stat } from "@tauri-apps/plugin-fs";
 import { computed } from "vue";
-import { assetManagerEngine } from "@/composables/useAssetManager";
-import { useFFmpeg } from "@/composables/useFFmpeg";
-import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { createModuleLogger } from "@/utils/logger";
-import { parseModelCombo } from "@/utils/modelIdUtils";
-import { buildExecutionPlan } from "@/tools/ffmpeg-tools/utils/executionPlan";
-import type { Asset } from "@/types/asset-management";
-import type { LlmMessageContent } from "@/llm-apis/common";
-import type { TranscriptionAudioSource } from "@/llm-apis/transcription-types";
+
+import { cleanLlmOutput, detectRepetition, detectModelRefusal, } from "../utils/text";
+import type { ITranscriptionEngine, EngineContext, EngineResult, } from "../types";
 import { getModelParams, getEffectiveConfig } from "./base";
-import { cleanLlmOutput, detectRepetition } from "../utils/text";
-import type {
-  ITranscriptionEngine,
-  EngineContext,
-  EngineResult,
-} from "../types";
+
 
 const logger = createModuleLogger("transcription/engines/audio");
 
@@ -57,6 +54,8 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
       maxTokens,
       timeout,
       enableRepetitionDetection,
+      enableRefusalDetection,
+      refusalKeywords,
     } = getModelParams(ctx, "audio");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
@@ -298,9 +297,15 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
         throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
       }
 
+      const sttRefusal = detectModelRefusal(cleanedText, {
+        enabled: enableRefusalDetection,
+        refusalKeywords,
+      });
+
       return {
         text: cleanedText,
         isEmpty: !cleanedText || cleanedText.trim().length === 0,
+        warning: sttRefusal.isRefusal ? sttRefusal.reason : undefined,
       };
     }
 
@@ -362,9 +367,15 @@ export class AudioTranscriptionEngine implements ITranscriptionEngine {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 
+    const refusal = detectModelRefusal(cleanedText, {
+      enabled: enableRefusalDetection,
+      refusalKeywords,
+    });
+
     return {
       text: cleanedText,
       isEmpty: !cleanedText || cleanedText.trim().length === 0,
+      warning: refusal.isRefusal ? refusal.reason : undefined,
     };
   }
 }

@@ -11,29 +11,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { useTranscriptionStore } from "../stores/transcriptionStore";
-import { ImageTranscriptionEngine } from "../engines/image.engine";
-import { AudioTranscriptionEngine } from "../engines/audio.engine";
-import { VideoTranscriptionEngine } from "../engines/video.engine";
-import { PdfTranscriptionEngine } from "../engines/pdf.engine";
-import { DocxTranscriptionEngine } from "../engines/docx.engine";
-import { saveTranscriptionResult, updateDerivedStatus } from "../engines/base";
-import { sanitizeErrorMessage } from "../utils/text";
-import { createModuleLogger } from "@/utils/logger";
-import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
-import { smartDecode } from "@/utils/encoding";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import type { Asset } from "@/types/asset-management";
 import { getPureModelId } from "@/utils/modelIdUtils";
+import { createModuleLogger } from "@/utils/logger";
+import { smartDecode } from "@/utils/encoding";
 import { remove } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { merge } from "lodash-es";
-import type { Asset } from "@/types/asset-management";
-import type {
-  TranscriptionTask,
-  ITranscriptionEngine,
-  TranscriptionConfig,
-} from "../types";
+
+import type { TranscriptionTask, ITranscriptionEngine, TranscriptionConfig, } from "../types";
+import { saveTranscriptionResult, updateDerivedStatus } from "../engines/base";
+import { useTranscriptionStore } from "../stores/transcriptionStore";
+import { VideoTranscriptionEngine } from "../engines/video.engine";
+import { ImageTranscriptionEngine } from "../engines/image.engine";
+import { AudioTranscriptionEngine } from "../engines/audio.engine";
+import { DocxTranscriptionEngine } from "../engines/docx.engine";
+import { PdfTranscriptionEngine } from "../engines/pdf.engine";
+import { sanitizeErrorMessage } from "../utils/text";
+
 
 const logger = createModuleLogger("transcription/manager");
 const errorHandler = createModuleErrorHandler("transcription/manager");
@@ -124,11 +121,13 @@ export function useTranscriptionManager() {
         pendingTask.path,
         result.text,
         modelId,
-        result.isEmpty
+        result.isEmpty,
+        result.warning
       );
 
       pendingTask.resultPath = resultPath;
       pendingTask.resultText = result.text;
+      pendingTask.warning = result.warning;
       pendingTask.status = "completed";
       pendingTask.completedAt = Date.now();
 

@@ -11,9 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import type { Asset } from "@/types/asset-management";
 import type { OcrEngineType } from "@/tools/smart-ocr/types";
+import type { Asset } from "@/types/asset-management";
+
 
 /**
  * 转写任务状态
@@ -31,6 +31,7 @@ export interface TranscriptionTask {
   path: string; // Asset 相对路径
   status: TranscriptionTaskStatus;
   error?: string;
+  warning?: string;
   retryCount: number;
   createdAt: number;
   startedAt?: number; // 开始处理时间
@@ -57,6 +58,8 @@ export interface TypeSpecificConfig {
   temperature: number;
   maxTokens: number;
   enableRepetitionDetection?: boolean;
+  /** 是否启用模型拒绝/异常报错检测 */
+  enableRefusalDetection?: boolean;
 }
 
 export type ImageTranscriptionMode = "vlm" | "ocr";
@@ -144,6 +147,10 @@ export interface TranscriptionConfig {
     /** 白名单片段，不触发复读检测 */
     whitelist?: string[];
   };
+  /** 是否启用模型拒绝/异常报错检测 */
+  enableRefusalDetection: boolean;
+  /** 模型拒绝检测自定义关键词列表 */
+  refusalKeywords?: string[];
   enableImageSlicer: boolean;
   imageSlicerConfig: {
     aspectRatioThreshold: number;

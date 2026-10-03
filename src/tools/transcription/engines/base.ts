@@ -11,13 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { invoke } from "@tauri-apps/api/core";
-import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
-import { merge } from "lodash-es";
 import type { DerivedDataInfo } from "@/types/asset-management";
+import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
+import { merge } from "lodash-es";
+
 import type { EngineContext } from "../types";
+
 
 /**
  * 获取任务最终使用的配置（合并覆盖配置）
@@ -49,6 +50,8 @@ export function getModelParams(
   let temperature = config.temperature;
   let maxTokens = config.maxTokens;
   let enableRepetitionDetection = config.enableRepetitionDetection;
+  let enableRefusalDetection = config.enableRefusalDetection;
+  let refusalKeywords = config.refusalKeywords;
 
   // 1. 合并分类型特定配置 (specific)
   // 注意：这里的 config 已经是 store.config 和 task.overrideConfig 合并后的结果
@@ -60,6 +63,8 @@ export function getModelParams(
     maxTokens = specific.maxTokens ?? maxTokens;
     enableRepetitionDetection =
       specific.enableRepetitionDetection ?? enableRepetitionDetection;
+    enableRefusalDetection =
+      specific.enableRefusalDetection ?? enableRefusalDetection;
   }
 
   // 2. 特殊处理：如果 overrideConfig 中显式提供了针对该类型的模型，则它具有最高优先级
@@ -89,6 +94,10 @@ export function getModelParams(
     timeout,
     /** 最终生效的复读检测开关 */
     enableRepetitionDetection,
+    /** 最终生效的模型拒绝/异常检测开关 */
+    enableRefusalDetection,
+    /** 模型拒绝检测自定义关键词 */
+    refusalKeywords,
   };
 }
 
@@ -100,7 +109,8 @@ export async function saveTranscriptionResult(
   assetPath: string,
   text: string,
   modelId: string,
-  isEmpty: boolean = false
+  isEmpty: boolean = false,
+  warning?: string
 ): Promise<string> {
   // 构建保存路径: derived/{type}/{date}/{uuid}/transcription.md
   const pathParts = assetPath.split("/");
@@ -125,7 +135,9 @@ export async function saveTranscriptionResult(
     provider: modelId,
   };
 
-  if (isEmpty) {
+  if (warning) {
+    derivedInfo.warning = warning;
+  } else if (isEmpty) {
     derivedInfo.warning = "模型返回空内容";
   }
 

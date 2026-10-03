@@ -199,3 +199,133 @@ export const detectRepetition = (
 
   return { isRepetitive: false };
 };
+
+/**
+ * 内置常见模型拒绝与报错模式
+ */
+const REFUSAL_PATTERNS: Array<{ regex: RegExp; desc: string }> = [
+  // 1. 纯文本认知偏差（自称纯文本模型，无法查看图片、音频等）
+  {
+    regex: /(?:作为|我(?:只是|是一个))(?:一个)?(?:纯)?文本(?:大)?模型/i,
+    desc: "模型自称纯文本模型",
+  },
+  {
+    regex:
+      /(?:无法|不能)(?:直接)?(?:查看|读取|处理|分析|识别|浏览|感知|听|看)(?:此|该|这|任何)?(?:图片|图像|音频|视频|文件|照片)/i,
+    desc: "模型拒绝处理多媒体文件",
+  },
+  {
+    regex: /as a text(?:-based)? (?:ai|model|assistant)/i,
+    desc: "模型自称纯文本模型 (英文)",
+  },
+  {
+    regex:
+      /i (?:can ?not|cannot|can't) (?:see|view|process|listen to|hear|watch|access) (?:any )?(?:images?|audio|videos?|files?|pictures?)/i,
+    desc: "模型拒绝查看多媒体文件 (英文)",
+  },
+  {
+    regex:
+      /i do(?:n't| not) have the ability to (?:see|view|process|hear|listen|watch)/i,
+    desc: "模型声称缺乏感知能力 (英文)",
+  },
+
+  // 2. 安全合规围栏拒绝
+  {
+    regex:
+      /(?:抱歉|对不起)[，,]?(?:我)?(?:无法|不能)(?:协助|提供|处理|转录|转写|完成)(?:此类|该|此|这个)?(?:请求|内容)?/i,
+    desc: "模型安全合规拒绝",
+  },
+  {
+    regex:
+      /违反(?:了)?(?:我们的)?(?:安全规范|使用政策|使用规范|社区准则|服务条款)/i,
+    desc: "模型触发安全规范拒绝",
+  },
+  {
+    regex: /涉及(?:敏感|违规|不当|违法)内容/i,
+    desc: "模型提示涉及敏感违规内容",
+  },
+  {
+    regex: /i (?:cannot|can not|can't) assist with (?:this|that|your) request/i,
+    desc: "模型拒绝提供协助 (英文)",
+  },
+  {
+    regex: /violates? (?:our|the) (?:safety|content|usage) policy/i,
+    desc: "模型触发安全策略拒绝 (英文)",
+  },
+  {
+    regex: /sorry, (?:but )?i (?:cannot|can't)/i,
+    desc: "模型道歉并拒绝 (英文)",
+  },
+
+  // 3. 常见内嵌错误
+  {
+    regex: /\[Error:\s*[^\]]+\]/i,
+    desc: "内嵌错误标记",
+  },
+  {
+    regex:
+      /(?:Internal Server Error|Bad Gateway|Gateway Timeout|Service Unavailable|Rate limit exceeded|Model overloaded)/i,
+    desc: "内嵌服务错误",
+  },
+];
+
+export interface RefusalDetectionResult {
+  isRefusal: boolean;
+  reason?: string;
+}
+
+/**
+ * 检测转写结果是否为模型拒绝、能力认知偏差或内嵌报错
+ */
+export const detectModelRefusal = (
+  text: string,
+  options?: {
+    enabled?: boolean;
+    refusalKeywords?: string[];
+  }
+): RefusalDetectionResult => {
+  if (!text || text.trim().length === 0) {
+    return { isRefusal: false };
+  }
+
+  const { enabled = true, refusalKeywords = [] } = options || {};
+  if (!enabled) {
+    return { isRefusal: false };
+  }
+
+  const trimmed = text.trim();
+
+  // 1. 自定义关键词检查（若用户输入了自定义关键词，任何位置命中即触发）
+  if (refusalKeywords && refusalKeywords.length > 0) {
+    for (const kw of refusalKeywords) {
+      const cleanKw = kw.trim();
+      if (cleanKw && trimmed.includes(cleanKw)) {
+        return {
+          isRefusal: true,
+          reason: `命中自定义拒绝关键词: "${cleanKw}"`,
+        };
+      }
+    }
+  }
+
+  // 2. 检查文本首尾区间与全文
+  // 如果文本很短（<= 400 字符），模型往往直接就是拒绝说明，全文检查
+  // 如果文本较长，拒绝通常在开头前 300 字符或结尾后 300 字符，避免在正常长文转录（如讨论AI规则的文档）中误杀
+  const checkScope =
+    trimmed.length <= 400
+      ? [trimmed]
+      : [trimmed.slice(0, 300), trimmed.slice(-300)];
+
+  for (const segment of checkScope) {
+    for (const pattern of REFUSAL_PATTERNS) {
+      if (pattern.regex.test(segment)) {
+        return {
+          isRefusal: true,
+          reason: `疑似模型拒绝或内嵌报错 (${pattern.desc})`,
+        };
+      }
+    }
+  }
+
+  return { isRefusal: false };
+};

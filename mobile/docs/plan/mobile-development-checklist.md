@@ -67,7 +67,63 @@
 
 实现入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。
 
-## 4. 后置验证队列
+## 4. 新增功能模拟器 E2E 测试需求清单
+
+> 引用：[`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md) 已定义 runner、selector、设备所有权、产物脱敏和确定性 mock 服务的长期契约；以下只列 2026-09-25 之后新落地功能在 Android AVD 回归中的缺口，不重复既有 smoke/asset/media/rich-text/attachment/recovery 覆盖。
+> 现状：Agent 角色卡导入、预设消息、开局消息、私有资产与运行时消费已有 Vitest/Rust 覆盖，但缺 Android 运行态的「正式 UI + Tauri IPC + 原生文件选择器」闭环。
+> 最近核对：2026-10-03
+
+### 4.1 施工口径与边界
+
+- runner 入口、单 ABI APK 校验、失败取证与脱敏规则沿用 `tests/mobile-android-e2e/`，不新建第二套 driver。
+- 断言走稳定 `data-testid`、可访问名称和可观察状态；禁止坐标、截图识别和固定 `sleep`。
+- 涉及聊天/私有附件时复用确定性 OpenAI-compatible mock 服务，证明服务端确实收到 Agent system prompt 与私有附件字节，并记录脱敏请求摘要。
+- 结果只解除 AVD 自动化回归，不替代 Android 真机、iOS、真实模型理解或性能报告。
+
+**实现状态（2026-10-03）**：`agent` preset、三个 spec、角色卡 fixture、mock 人设检测、app 侧 `data-testid` 已落地；`bun run test:mobile:e2e -- --unit`（42 用例）与 `--typecheck` 均通过，移动端 `bun run build` 通过。**Android Studio AVD 单次运行已通过**（run `2026-10-02T19-31-36-347Z`，`agent-import` / `chat-agent` / `agent-assets` 全部 passed，约 4 分 13 秒）。**10 次稳定性连跑与并入 `core` 仍待执行**：该主机连续运行无论逐轮冷启动、复用常驻 AVD 还是每轮重启 adb/emulator，都会在**第 2 轮**出现 `adb shell` 无响应（`cat /proc/net/unix` / `pgrep` 超时，而 `adb devices` 正常），属宿主 adb/模拟器稳定性问题，需环境修复后再执行连跑。下列断言项即为连跑验证清单。
+
+### 4.2 A — Agent 角色卡导入与详情闭环（`agent-import`）
+
+- [ ] 从角色大厅正式导入入口选择 PNG V2 角色卡 fixture，等待导入反馈完成（不通过测试 IPC 直接写 Agent）。
+- [ ] 断言解析后的角色名、系统提示、描述、性格、场景与开场白正确落入 Agent 详情。
+- [ ] 断言小于 3 MiB 的头像在角色大厅与详情页可见，编辑保存后不丢失。
+- [ ] 断言导入错误文件时反馈包含文件名与首个可行动原因，不产生半成品 Agent。
+- [ ] 冷启动重启后断言 Agent 配置与头像持久化。
+- [ ] （可选，视 fixture 能力）AIO 包导入时断言头像文件、`assets/` 与 `worldbooks/` 落盘回写。
+
+### 4.3 B — 聊天内 Agent 绑定与开局消息（`chat-agent`）
+
+- [ ] 从角色大厅发起对话，断言新会话 `displayAgentId` 绑定该 Agent。
+- [ ] 断言有效开局消息按 `defaultGreetingId` 固化为根节点下的兄弟分支，分支切换保留。
+- [ ] 断言开局消息在 UI 显示原文，`{{char}}` / `{{user}}` / `{{persona}}` 等宏由请求管线展开，请求侧不再残留未展开宏标记。
+- [ ] 在聊天内 Agent 选择器切换角色，断言只更新会话 `displayAgentId`，既有消息不被改写，后续助手消息固化新 Agent 与模型/渠道快照。
+- [ ] 通过确定性 mock 服务断言请求携带 Agent system prompt、预设注入顺序与 Agent 模型参数；返回分段 SSE 并断言 UI 流式完成。
+- [ ] 冷启动重启后断言会话、Agent 绑定、开局分支与消息从 SQLite 恢复。
+
+### 4.4 C — Agent 私有资产与运行时消费（`agent-assets`）
+
+- [ ] 在 Agent 详情页内嵌资产区多选添加图片与音频，断言即选即落盘、分组过滤、描述与分组编辑。
+- [ ] 断言全局资产管理器不暴露 Agent 私有资产，私有资产不登记全局 usage。
+- [ ] 私有图片被预设消息 / 开局附件引用时，经确定性 mock 断言以 base64 内联进 vision，字节与 fixture 一致。
+- [ ] 私有音频/视频按模型 capability 内联或降级为文本描述，断言降级路径 warning 与请求形态。
+- [ ] 删除私有资产时断言预设 `presetAttachments` 与 `greetings[].attachments` 引用被级联清理。
+- [ ] 删除 Agent 断言 `agents/{id}/` 私有目录（头像与 `assets/`）被递归清理，重启后不再出现。
+
+### 4.5 D — 已覆盖与暂缓
+
+- 富文本 AST 管线、受管媒体、确定性聊天附件与失败恢复已分别由 `rich-text`、`rich-text-media`、`media`、`attachment`、`recovery` preset 覆盖，不重复施工。
+- 工具调用、Knowledge/Recall、RAG 与自主工作流尚未实现，其 E2E 需求随功能设计一并补充。
+
+### 4.6 交付物
+
+- [x] `presets.ts` 新增 `agent` preset（确定性 mock、80 MiB 基线）；并入 `core` 待 AVD 运行稳定后执行。
+- [x] `runner-options.ts` 增加 `agent` preset id 与单元测试。
+- [x] `agent-import` / `chat-agent` / `agent-assets` 三个 spec 走正式 UI 与领域链路。
+- [x] fixture：PNG V2 角色卡（内置固定人设标记），私有图片复用现有 image fixture；导入错误样本、私有音频 fixture 暂缺，按需补。
+- [x] AVD 单次运行通过（2026-10-03，三场景 passed），结果已回写 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
+- [ ] 10 次稳定性连跑与并入 `core`，并回写 `agent-manager/ARCHITECTURE.md`。
+
+## 5. 后置验证队列
 
 以下事项继续记录真实状态，但只在对应功能链完成后集中处理：
 
@@ -80,7 +136,7 @@ AVD、普通浏览器和单元测试的结果仍需按实际环境标记；它�
 
 入口：[`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)、[`platform-validation-workbench-plan.md`](../../src/tools/ui-tester/docs/Plan/platform-validation-workbench-plan.md)、[`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 
-## 5. 已落地基础
+## 6. 已落地基础
 
 - [x] Chat 会话 CRUD/恢复/分支/引用/停止/重试、Agent/预设/开局消息、宏变量、传统关键词世界书、注入编排、文本 Token 预算和上下文裁剪。
 - [x] `ManagedAssetRef` 轻量快照、SQLite 会话/消息与附件引用、原生 Provider wire、文档提取文本回退、usage outbox 和降级状态。
@@ -88,14 +144,14 @@ AVD、普通浏览器和单元测试的结果仍需按实际环境标记；它�
 - [x] RichTextRenderer 的代码块、KaTeX、GitHub 风格提示块、思考块、只读 VCP 展示、Mermaid 安全基础渲染和受管媒体节点。
 - [x] Agent Manager 基础 CRUD、角色大厅、预设消息编辑和导入导出能力。
 
-## 6. 暂缓队列
+## 7. 暂缓队列
 
 - Worker 离线线程分词器（优先保证主线程轻量 AST 稳定与性能，待有实测卡顿数据后再评估下沉）。
 - HTML 输出白名单或沙箱；当前保持现有安全字面量渲染边界。
 - 相机、分享进入 AIO、移动端文件关联、批量转写、音视频模型转写、PDF/Office 深度提取和跨设备同步。
 - 跨端完全对齐、统一抽象、性能基线和共享包抽取；先等功能链和真实数据说明收益。
 
-## 7. 执行节奏
+## 8. 执行节奏
 
 1. 连续施工 A/B/C/D 功能队列，优先让链路在当前环境可操作、可观察、可恢复。
 2. 每条链完成后做一次最小冒烟，出现真实回归再补测试和修复。

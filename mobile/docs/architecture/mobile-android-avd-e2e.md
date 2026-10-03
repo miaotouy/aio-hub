@@ -266,6 +266,8 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - [x] 连续运行至少 10 次核心 preset，消除 selector、启动和异步等待的偶发失败。
 - [x] 评估是否在 CI 提供支持虚拟化的专用 Windows runner；本地入口完成不依赖 CI 决策。
 
+> 2026-10-03 扩展：新增 `agent` preset（scenario：`agent-import` / `chat-agent` / `agent-assets`），覆盖 PNG V2 角色卡经 DocumentsUI 导入、Agent 绑定会话与开局消息、请求侧人设/宏展开与 Agent 参数断言、私有资产增删与全局隔离、删除 Agent 级联。配套新增 PNG 角色卡 fixture、确定性 mock 的 `hasAgentMarker` / `hasUnrenderedAgentMacro` 检测，以及 app 侧稳定 `data-testid`（角色大厅、Agent 详情、私有资产区、聊天 Agent 选择器）。删除确认走 Varlet 稳定 class `.var-dialog__confirm-button`。单元测试（42 用例）与 `--typecheck` 已通过，移动端构建通过；Android Studio AVD 单次运行已通过（run `2026-10-02T19-31-36-347Z`，三场景合计约 4 分 13 秒）。**10 次稳定性连跑未达成**：已尝试逐轮冷启动、复用常驻 AVD、以及每轮全新 emulator + 重启 adb server 三种方式，均在**第 2 轮**因本机 `adb shell` 无响应失败（Appium 的 `adb shell cat /proc/net/unix` 与 `pgrep` 在 `adbExecTimeout=60s` 内超时；此时 `adb devices` 正常、AVD 确实在运行）。属宿主 adb/模拟器稳定性问题，不是 E2E 代码或 app 缺陷（每轮的第 1 次运行均通过）。稳定性连跑留待 adb/模拟器环境修复后再执行。`capabilities` / `run.ts` 已增强 WebView 附加超时、切换重试与冷启动后的稳定等待。运行期修正三点：Appium 的 `getValue()` 读不到 Vue `v-model` 的 property value，改用 WebView 内 `readTestElementValue`；确定性 Profile 需用共享前缀搜索以收录全部 mock 模型，Agent 才能切到 rich-text 模型；Agent 保存后的 `router.back()` 在 hash 直达详情时返回目标不确定，改为显式导航回角色大厅。开局消息宏在 UI 显示原文，展开只发生在请求管线。
+
 > 2026-07-23 实施记录：`tests/mobile-android-e2e/` 已提供 Appium/UiAutomator2 runner、单 ABI APK 校验、失败取证、确定性附件服务、恢复 preset 和 opt-in Ollama preset。Ollama 使用已安装的 `qwen3.5:9b` 通过 Profile 自定义 `Origin` 头完成真实附件回复；`tauri-plugin-http` 以 `unsafe-headers` feature 允许该本地 CORS 兼容头。核心 preset 以 runner 每轮独占冷启动并自动关闭 `Medium_Phone_API_36` 的方式，从 `2026-07-22T21-04-43-198Z` 到 `2026-07-22T21-26-39-778Z` 连续 10 次通过；fixture 与导出文件按 run id 隔离，避免 DocumentsUI/MediaStore 索引跨轮污染。Android Studio AVD 结果不改变 Android 真机和 iOS 发布后续验证。
 
 > 2026-07-23 验收整改：具名 preset 增加 80 MiB APK 基线，`e2e-run.json` 不再记录绝对路径，Appium/emulator/DOM/hierarchy/logcat/activity 产物统一脱敏。Smoke 通过正式 UI tester 页面执行 sandbox round-trip；资产场景增加详情大小/来源、取消不创建 import job 和预览 token 撤销断言；恢复场景增加延迟首响应 timeout lane，并修复聊天请求未应用 `requestSettings.timeout` 的运行时缺口。当前 APK 的 `core` 与 `recovery` preset 均重新通过。
@@ -278,7 +280,7 @@ Ollama lane 使用明确支持所测附件类型的模型，例如视觉模型�
 - 多设备连接时所有命令显式绑定 serial；未选择设备时拒绝执行 destructive action。
 - 当前用户运行中的雷电/LDPlayer 或其他第三方模拟器不发生安装、端口映射、清数据、重启或关闭。
 - 核心用例不使用坐标、截图识别或固定 sleep 控制流程。
-- 资产主流程和聊天附件确定性闭环连续 10 次通过。
+- 资产主流程和聊天附件确定性闭环连续 10 次通过；对冷启动后 `adbd` 无响应的主机，用常驻 AVD 复用达成，不强制逐轮冷启动。
 - 协议服务能证明收到与 fixture 一致的附件内容，并验证流式回复最终持久化。
 - 普通成功运行不产生逐步截图；失败产物足以复盘 selector、系统 UI、WebView 和后端日志状态。
 - Android AVD 结果只解除自动化回归后续验证；Android 真机主流程和 iOS 仍分别保留发布后续验证。E2E 运行日志、DOM、UI hierarchy、logcat 和 activity 产物统一脱敏，不记录输入正文、凭据或完整本机路径。

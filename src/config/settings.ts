@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { defineAsyncComponent, type Component } from "vue";
+
 
 export interface SettingsModule {
   id: string;
@@ -56,7 +56,7 @@ export const settingsModules: SettingsModule[] = [
   },
   {
     id: "llm-service",
-    title: "LLM AI 服务配置",
+    title: "AI 服务配置",
     component: defineAsyncComponent(
       () => import("../views/Settings/llm-service/LlmServiceSettings.vue")
     ),

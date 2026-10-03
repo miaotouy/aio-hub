@@ -21,9 +21,23 @@ import { createModuleLogger } from "@/utils/logger";
  */
 import { ref, computed, watch } from "vue";
 
-import { COMMIT_LANGUAGE_MACRO, DEFAULT_COMMIT_LANGUAGE, DEFAULT_REPO_AVATAR_PALETTE, pickRandomRepoColor, resolvePersistedPrompt, resolveRepoAvatarPalette, resolveRepoColor, resolveSystemPrompt, } from "../utils";
-import type { GitCommitterConfig, RepositoryConfig, RepoSession, RepoStatus, RepoWorkflowState, } from "../types";
-
+import {
+  COMMIT_LANGUAGE_MACRO,
+  DEFAULT_COMMIT_LANGUAGE,
+  DEFAULT_REPO_AVATAR_PALETTE,
+  pickRandomRepoColor,
+  resolvePersistedPrompt,
+  resolveRepoAvatarPalette,
+  resolveRepoColor,
+  resolveSystemPrompt,
+} from "../utils";
+import type {
+  GitCommitterConfig,
+  RepositoryConfig,
+  RepoSession,
+  RepoStatus,
+  RepoWorkflowState,
+} from "../types";
 
 const logger = createModuleLogger("git-committer/state");
 

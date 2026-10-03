@@ -37,16 +37,14 @@ use windows::Win32::System::Threading::{
     PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    IsWindowEnabled, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, INPUT, INPUT_0,
-    INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, MapVirtualKeyW, MAPVK_VK_TO_VSC,
+    IsWindowEnabled, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
+    KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC,
     MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-    MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
+    MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     ChildWindowFromPointEx,
-    CWP_SKIPINVISIBLE,
-    CWP_SKIPTRANSPARENT,
     EnumWindows,
     GetClassNameW,
     GetClientRect,
@@ -63,6 +61,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SetCursorPos,
     SetForegroundWindow,
     ShowWindow,
+    CWP_SKIPINVISIBLE,
+    CWP_SKIPTRANSPARENT,
     SM_CXVIRTUALSCREEN,
     SM_CYVIRTUALSCREEN,
     SM_XVIRTUALSCREEN,
@@ -224,9 +224,8 @@ fn hit_test_child_window(top: HWND, x: i32, y: i32) -> (HWND, POINT) {
     let mut cur = top;
     let mut pt = POINT { x, y };
     loop {
-        let child = unsafe {
-            ChildWindowFromPointEx(cur, pt, CWP_SKIPINVISIBLE | CWP_SKIPTRANSPARENT)
-        };
+        let child =
+            unsafe { ChildWindowFromPointEx(cur, pt, CWP_SKIPINVISIBLE | CWP_SKIPTRANSPARENT) };
         // 无子窗口命中时返回父窗口自身；点落到客户区外时返回 NULL
         if child.is_invalid() || child == cur {
             return (cur, pt);
@@ -325,21 +324,22 @@ fn send_input_click(pt_screen: POINT, button: &str) -> Result<(), String> {
         }
         let nx = (((pt_screen.x - vx) as f64 / vw as f64) * 65535.0).round() as i32;
         let ny = (((pt_screen.y - vy) as f64 / vh as f64) * 65535.0).round() as i32;
-        let click_input = |dw_flags: windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS,
-                           dx: i32,
-                           dy: i32| INPUT {
-            r#type: INPUT_MOUSE,
-            Anonymous: INPUT_0 {
-                mi: MOUSEINPUT {
-                    dx,
-                    dy,
-                    mouseData: 0,
-                    dwFlags: dw_flags,
-                    time: 0,
-                    dwExtraInfo: 0,
+        let click_input =
+            |dw_flags: windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS,
+             dx: i32,
+             dy: i32| INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dx,
+                        dy,
+                        mouseData: 0,
+                        dwFlags: dw_flags,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
                 },
-            },
-        };
+            };
         let inputs = [
             click_input(
                 MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,

@@ -197,10 +197,7 @@ export function useGitAnalyzerRunner() {
       case "end": {
         // 先强制将进度设为 100%，确保用户能看到完成状态
         state.progress.value.loaded = state.progress.value.total;
-        state.commitRange.value = [
-          1,
-          Math.max(1, state.commits.value.length),
-        ];
+        state.commitRange.value = [1, Math.max(1, state.commits.value.length)];
 
         const loadType = state.batchSize.value === 0 ? "" : "流式";
         if (isIncremental) {

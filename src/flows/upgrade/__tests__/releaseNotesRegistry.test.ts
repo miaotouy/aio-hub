@@ -104,10 +104,7 @@ describe("ReleaseNotesRegistry", () => {
     expect(normalizeAppVersion("v1.2.3+build.9")).toBe("1.2.3");
     expect(normalizeAppVersion("  1.2.3  ")).toBe("1.2.3");
     expect(
-      detectUpgradeTransition(
-        "0.7.0-alpha.6.build.55b1344a3",
-        "0.7.0-alpha.5"
-      )
+      detectUpgradeTransition("0.7.0-alpha.6.build.55b1344a3", "0.7.0-alpha.5")
     ).toBe("upgrade");
   });
 });

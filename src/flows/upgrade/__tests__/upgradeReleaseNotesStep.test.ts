@@ -54,7 +54,9 @@ describe("UpgradeReleaseNotesStep", () => {
         versions: viewer.versions,
         primaryVersion: viewer.primaryVersion,
       },
-      global: { stubs: { ElInput: ElInputStub, ElEmpty: { template: "<div />" } } },
+      global: {
+        stubs: { ElInput: ElInputStub, ElEmpty: { template: "<div />" } },
+      },
     });
 
     expect(wrapper.findAll(".archive-item")).toHaveLength(2);

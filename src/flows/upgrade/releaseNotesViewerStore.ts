@@ -5,7 +5,10 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { compareVersions, validate } from "compare-versions";
-import { normalizeAppVersion, releaseNotesRegistry } from "./releaseNotesRegistry";
+import {
+  normalizeAppVersion,
+  releaseNotesRegistry,
+} from "./releaseNotesRegistry";
 
 export interface OpenReleaseNotesInput {
   versions: string[];

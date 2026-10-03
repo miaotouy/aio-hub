@@ -108,7 +108,9 @@ export function parseRetryStatusCodes(input: string): ParsedRetryStatusCodes {
       rangesOverlap(range, excludedRange)
     );
     if (hitExcluded) {
-      excluded.push(`号段 ${formatRange(range)} 命中排除规则（2xx / 504 / 524）`);
+      excluded.push(
+        `号段 ${formatRange(range)} 命中排除规则（2xx / 504 / 524）`
+      );
     }
   }
 

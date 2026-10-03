@@ -81,7 +81,8 @@ async function loadFromQuickActions(): Promise<SlashCommandItem[]> {
           name: action.label,
           displayName: action.label,
           description:
-            action.description || action.content.slice(0, 60).replace(/\s+/g, " "),
+            action.description ||
+            action.content.slice(0, 60).replace(/\s+/g, " "),
           category: meta.id,
           categoryLabel: meta.name,
           type: "insert",

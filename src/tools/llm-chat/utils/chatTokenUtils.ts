@@ -76,8 +76,7 @@ export async function resolveImageMaxDimensionForModel(
       .find((item) => item.id === modelId);
 
     let imageCompression:
-      | { enabled: boolean; maxDimension?: number }
-      | undefined;
+      { enabled: boolean; maxDimension?: number } | undefined;
     if (agentId) {
       const agentStore = useAgentStore();
       let agent = agentStore.getAgentById(agentId);

@@ -14,7 +14,6 @@
 import type { Asset } from "@/types/asset-management";
 import { ref } from "vue";
 
-
 export interface TranscriptionViewerState {
   visible: boolean;
   asset: Asset | null;

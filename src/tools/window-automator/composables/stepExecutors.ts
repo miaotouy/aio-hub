@@ -203,7 +203,8 @@ async function runClick(
       doubleClick: params.clickType === "double",
       mode: params.mode ?? "background",
     });
-    const modeLabel = (params.mode ?? "background") === "foreground" ? "前台模拟" : "后台消息";
+    const modeLabel =
+      (params.mode ?? "background") === "foreground" ? "前台模拟" : "后台消息";
     const targetDesc = result.targetClass || "未知类名";
     ctx.appendLog(
       "debug",

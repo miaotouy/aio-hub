@@ -369,49 +369,49 @@ VCP 运行时桌面连接工具，分别管理 Observer 消息监控和分布式
 
 ## 附录：架构文档索引
 
-|   # | 工具                  | 架构文档                                                                                                   | 一句话定位                    |
-| --: | --------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------- |
-|   1 | llm-chat              | [`src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)                           | 树状会话与统一上下文管道      |
-|   2 | media-generator       | [`src/tools/media-generator/ARCHITECTURE.md`](../../src/tools/media-generator/ARCHITECTURE.md)             | 多模态媒体生成工作站          |
-|   3 | tool-calling          | [`src/tools/tool-calling/ARCHITECTURE.md`](../../src/tools/tool-calling/ARCHITECTURE.md)                   | Agent 工具发现与执行基础设施  |
-|   4 | knowledge-base        | [`src/tools/knowledge-base/ARCHITECTURE.md`](../../src/tools/knowledge-base/ARCHITECTURE.md)               | Knowledge 文档资料域          |
-|   5 | recall                | [`src/tools/recall/ARCHITECTURE.md`](../../src/tools/recall/ARCHITECTURE.md)                               | Recall 完整语义条目与检索管线 |
-|   6 | embedding-playground  | [`src/tools/embedding-playground/ARCHITECTURE.md`](../../src/tools/embedding-playground/ARCHITECTURE.md)   | Embedding 评估与检索模拟      |
-|   7 | token-calculator      | [`src/tools/token-calculator/ARCHITECTURE.md`](../../src/tools/token-calculator/ARCHITECTURE.md)           | Worker 化 Token 与图片估算    |
-|   8 | skill-manager         | [`src/tools/skill-manager/ARCHITECTURE.md`](../../src/tools/skill-manager/ARCHITECTURE.md)                 | Agent Skills 运行时桥接       |
-|   9 | translator            | [`src/tools/translator/ARCHITECTURE.md`](../../src/tools/translator/ARCHITECTURE.md)                       | 多渠道流式翻译                |
-|  10 | st-worldbook-manager  | [`src/tools/st-worldbook-manager/ARCHITECTURE.md`](../../src/tools/st-worldbook-manager/ARCHITECTURE.md)   | 独立 ST 世界书管理            |
-|  11 | llm-inspector         | [`src/tools/llm-inspector/ARCHITECTURE.md`](../../src/tools/llm-inspector/ARCHITECTURE.md)                 | LLM 请求调试与拦截            |
-|  12 | api-tester            | [`src/tools/api-tester/ARCHITECTURE.md`](../../src/tools/api-tester/ARCHITECTURE.md)                       | HTTP API 请求调试             |
-|  13 | code-formatter        | [`src/tools/code-formatter/ARCHITECTURE.md`](../../src/tools/code-formatter/ARCHITECTURE.md)               | Prettier 格式化与插件加载     |
-|  14 | component-tester      | [`src/tools/component-tester/ARCHITECTURE.md`](../../src/tools/component-tester/ARCHITECTURE.md)           | UI 组件调试面板               |
-|  15 | service-monitor       | [`src/tools/service-monitor/ARCHITECTURE.md`](../../src/tools/service-monitor/ARCHITECTURE.md)             | 服务注册中心观察              |
-|  16 | dir-search            | [`src/tools/dir-search/ARCHITECTURE.md`](../../src/tools/dir-search/ARCHITECTURE.md)                       | 流式目录搜索与安全取消        |
-|  17 | aio-file-operator     | [`src/tools/aio-file-operator/ARCHITECTURE.md`](../../src/tools/aio-file-operator/ARCHITECTURE.md)         | Agent 文件读写与安全沙箱      |
-|  18 | asset-manager         | [`src/tools/asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)                 | 全局资产索引与去重            |
-|  19 | content-deduplicator  | [`src/tools/content-deduplicator/ARCHITECTURE.md`](../../src/tools/content-deduplicator/ARCHITECTURE.md)   | 文本文件查重                  |
-|  20 | data-filter           | [`src/tools/data-filter/ARCHITECTURE.md`](../../src/tools/data-filter/ARCHITECTURE.md)                     | JSON/YAML 数据筛选            |
-|  21 | json-formatter        | [`src/tools/json-formatter/ARCHITECTURE.md`](../../src/tools/json-formatter/ARCHITECTURE.md)               | 可控展开的 JSON 格式化        |
-|  22 | config-converter      | [`src/tools/config-converter/ARCHITECTURE.md`](../../src/tools/config-converter/ARCHITECTURE.md)           | 六种格式 N×N 转换             |
-|  23 | regex-applier         | [`src/tools/regex-applier/ARCHITECTURE.md`](../../src/tools/regex-applier/ARCHITECTURE.md)                 | 前后端双引擎正则处理          |
-|  24 | text-diff             | [`src/tools/text-diff/ARCHITECTURE.md`](../../src/tools/text-diff/ARCHITECTURE.md)                         | Monaco Diff 与 Unified Patch  |
-|  25 | directory-tree        | [`src/tools/directory-tree/ARCHITECTURE.md`](../../src/tools/directory-tree/ARCHITECTURE.md)               | Rust 遍历与前端目录树         |
-|  26 | directory-janitor     | [`src/tools/directory-janitor/ARCHITECTURE.md`](../../src/tools/directory-janitor/ARCHITECTURE.md)         | 条件扫描与回收站清理          |
-|  27 | symlink-mover         | [`src/tools/symlink-mover/ARCHITECTURE.md`](../../src/tools/symlink-mover/ARCHITECTURE.md)                 | 符号/硬链接搬家               |
+|   # | 工具                  | 架构文档                                                                                                   | 一句话定位                        |
+| --: | --------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------- |
+|   1 | llm-chat              | [`src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)                           | 树状会话与统一上下文管道          |
+|   2 | media-generator       | [`src/tools/media-generator/ARCHITECTURE.md`](../../src/tools/media-generator/ARCHITECTURE.md)             | 多模态媒体生成工作站              |
+|   3 | tool-calling          | [`src/tools/tool-calling/ARCHITECTURE.md`](../../src/tools/tool-calling/ARCHITECTURE.md)                   | Agent 工具发现与执行基础设施      |
+|   4 | knowledge-base        | [`src/tools/knowledge-base/ARCHITECTURE.md`](../../src/tools/knowledge-base/ARCHITECTURE.md)               | Knowledge 文档资料域              |
+|   5 | recall                | [`src/tools/recall/ARCHITECTURE.md`](../../src/tools/recall/ARCHITECTURE.md)                               | Recall 完整语义条目与检索管线     |
+|   6 | embedding-playground  | [`src/tools/embedding-playground/ARCHITECTURE.md`](../../src/tools/embedding-playground/ARCHITECTURE.md)   | Embedding 评估与检索模拟          |
+|   7 | token-calculator      | [`src/tools/token-calculator/ARCHITECTURE.md`](../../src/tools/token-calculator/ARCHITECTURE.md)           | Worker 化 Token 与图片估算        |
+|   8 | skill-manager         | [`src/tools/skill-manager/ARCHITECTURE.md`](../../src/tools/skill-manager/ARCHITECTURE.md)                 | Agent Skills 运行时桥接           |
+|   9 | translator            | [`src/tools/translator/ARCHITECTURE.md`](../../src/tools/translator/ARCHITECTURE.md)                       | 多渠道流式翻译                    |
+|  10 | st-worldbook-manager  | [`src/tools/st-worldbook-manager/ARCHITECTURE.md`](../../src/tools/st-worldbook-manager/ARCHITECTURE.md)   | 独立 ST 世界书管理                |
+|  11 | llm-inspector         | [`src/tools/llm-inspector/ARCHITECTURE.md`](../../src/tools/llm-inspector/ARCHITECTURE.md)                 | LLM 请求调试与拦截                |
+|  12 | api-tester            | [`src/tools/api-tester/ARCHITECTURE.md`](../../src/tools/api-tester/ARCHITECTURE.md)                       | HTTP API 请求调试                 |
+|  13 | code-formatter        | [`src/tools/code-formatter/ARCHITECTURE.md`](../../src/tools/code-formatter/ARCHITECTURE.md)               | Prettier 格式化与插件加载         |
+|  14 | component-tester      | [`src/tools/component-tester/ARCHITECTURE.md`](../../src/tools/component-tester/ARCHITECTURE.md)           | UI 组件调试面板                   |
+|  15 | service-monitor       | [`src/tools/service-monitor/ARCHITECTURE.md`](../../src/tools/service-monitor/ARCHITECTURE.md)             | 服务注册中心观察                  |
+|  16 | dir-search            | [`src/tools/dir-search/ARCHITECTURE.md`](../../src/tools/dir-search/ARCHITECTURE.md)                       | 流式目录搜索与安全取消            |
+|  17 | aio-file-operator     | [`src/tools/aio-file-operator/ARCHITECTURE.md`](../../src/tools/aio-file-operator/ARCHITECTURE.md)         | Agent 文件读写与安全沙箱          |
+|  18 | asset-manager         | [`src/tools/asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)                 | 全局资产索引与去重                |
+|  19 | content-deduplicator  | [`src/tools/content-deduplicator/ARCHITECTURE.md`](../../src/tools/content-deduplicator/ARCHITECTURE.md)   | 文本文件查重                      |
+|  20 | data-filter           | [`src/tools/data-filter/ARCHITECTURE.md`](../../src/tools/data-filter/ARCHITECTURE.md)                     | JSON/YAML 数据筛选                |
+|  21 | json-formatter        | [`src/tools/json-formatter/ARCHITECTURE.md`](../../src/tools/json-formatter/ARCHITECTURE.md)               | 可控展开的 JSON 格式化            |
+|  22 | config-converter      | [`src/tools/config-converter/ARCHITECTURE.md`](../../src/tools/config-converter/ARCHITECTURE.md)           | 六种格式 N×N 转换                 |
+|  23 | regex-applier         | [`src/tools/regex-applier/ARCHITECTURE.md`](../../src/tools/regex-applier/ARCHITECTURE.md)                 | 前后端双引擎正则处理              |
+|  24 | text-diff             | [`src/tools/text-diff/ARCHITECTURE.md`](../../src/tools/text-diff/ARCHITECTURE.md)                         | Monaco Diff 与 Unified Patch      |
+|  25 | directory-tree        | [`src/tools/directory-tree/ARCHITECTURE.md`](../../src/tools/directory-tree/ARCHITECTURE.md)               | Rust 遍历与前端目录树             |
+|  26 | directory-janitor     | [`src/tools/directory-janitor/ARCHITECTURE.md`](../../src/tools/directory-janitor/ARCHITECTURE.md)         | 条件扫描与回收站清理              |
+|  27 | symlink-mover         | [`src/tools/symlink-mover/ARCHITECTURE.md`](../../src/tools/symlink-mover/ARCHITECTURE.md)                 | 符号/硬链接搬家                   |
 |  28 | ffmpeg-tools          | [`src/tools/ffmpeg-tools/ARCHITECTURE.md`](../../src/tools/ffmpeg-tools/ARCHITECTURE.md)                   | FFmpeg 异步多媒体工作台与积木编辑 |
-|  29 | asset-manager         | [`src/tools/asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)                 | 跨工具统一资产与元数据管理    |
-|  30 | knowledge-base        | [`src/tools/knowledge-base/ARCHITECTURE.md`](../../src/tools/knowledge-base/ARCHITECTURE.md)               | 知识库与本地 RAG 检索         |
-|  31 | service-monitor       | [`src/tools/service-monitor/ARCHITECTURE.md`](../../src/tools/service-monitor/ARCHITECTURE.md)             | 本地与远程服务健康监控        |
-|  32 | realtime-subtitle-ocr | [`src/tools/realtime-subtitle-ocr/ARCHITECTURE.md`](../../src/tools/realtime-subtitle-ocr/ARCHITECTURE.md) | 屏幕实时监控与离线视频双工作台 |
-|  33 | media-info-reader     | [`src/tools/media-info-reader/ARCHITECTURE.md`](../../src/tools/media-info-reader/ARCHITECTURE.md)         | 媒体元数据与流信息解析        |
-|  34 | llm-chat              | [`src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)                           | 统一大模型聊天与会话治理      |
-|  35 | recall                | [`src/tools/recall/ARCHITECTURE.md`](../../src/tools/recall/ARCHITECTURE.md)                               | 记忆回溯与上下文沉淀          |
-|  36 | rich-text-renderer    | [`src/tools/rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)       | Markdown / 流式富文本渲染     |
-|  37 | web-distillery        | [`src/tools/web-distillery/ARCHITECTURE.md`](../../src/tools/web-distillery/ARCHITECTURE.md)               | 网页内容提取与蒸馏            |
-|  38 | smart-ocr             | [`src/tools/smart-ocr/ARCHITECTURE.md`](../../src/tools/smart-ocr/ARCHITECTURE.md)                         | 统一 OCR 平台调度层           |
-|  39 | color-picker          | [`src/tools/color-picker/ARCHITECTURE.md`](../../src/tools/color-picker/ARCHITECTURE.md)                   | 三算法并行取色与批量色彩整理  |
-|  40 | system-pulse          | [`src/tools/system-pulse/ARCHITECTURE.md`](../../src/tools/system-pulse/ARCHITECTURE.md)                   | 推送式系统硬件监控            |
-|  41 | rich-text-renderer    | [`src/tools/rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)       | 流式富文本渲染与交互          |
+|  29 | asset-manager         | [`src/tools/asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)                 | 跨工具统一资产与元数据管理        |
+|  30 | knowledge-base        | [`src/tools/knowledge-base/ARCHITECTURE.md`](../../src/tools/knowledge-base/ARCHITECTURE.md)               | 知识库与本地 RAG 检索             |
+|  31 | service-monitor       | [`src/tools/service-monitor/ARCHITECTURE.md`](../../src/tools/service-monitor/ARCHITECTURE.md)             | 本地与远程服务健康监控            |
+|  32 | realtime-subtitle-ocr | [`src/tools/realtime-subtitle-ocr/ARCHITECTURE.md`](../../src/tools/realtime-subtitle-ocr/ARCHITECTURE.md) | 屏幕实时监控与离线视频双工作台    |
+|  33 | media-info-reader     | [`src/tools/media-info-reader/ARCHITECTURE.md`](../../src/tools/media-info-reader/ARCHITECTURE.md)         | 媒体元数据与流信息解析            |
+|  34 | llm-chat              | [`src/tools/llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md)                           | 统一大模型聊天与会话治理          |
+|  35 | recall                | [`src/tools/recall/ARCHITECTURE.md`](../../src/tools/recall/ARCHITECTURE.md)                               | 记忆回溯与上下文沉淀              |
+|  36 | rich-text-renderer    | [`src/tools/rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)       | Markdown / 流式富文本渲染         |
+|  37 | web-distillery        | [`src/tools/web-distillery/ARCHITECTURE.md`](../../src/tools/web-distillery/ARCHITECTURE.md)               | 网页内容提取与蒸馏                |
+|  38 | smart-ocr             | [`src/tools/smart-ocr/ARCHITECTURE.md`](../../src/tools/smart-ocr/ARCHITECTURE.md)                         | 统一 OCR 平台调度层               |
+|  39 | color-picker          | [`src/tools/color-picker/ARCHITECTURE.md`](../../src/tools/color-picker/ARCHITECTURE.md)                   | 三算法并行取色与批量色彩整理      |
+|  40 | system-pulse          | [`src/tools/system-pulse/ARCHITECTURE.md`](../../src/tools/system-pulse/ARCHITECTURE.md)                   | 推送式系统硬件监控                |
+|  41 | rich-text-renderer    | [`src/tools/rich-text-renderer/ARCHITECTURE.md`](../../src/tools/rich-text-renderer/ARCHITECTURE.md)       | 流式富文本渲染与交互              |
 
 ---
 

@@ -884,9 +884,7 @@ describe("AioFileOperator Registry", () => {
   describe("超长路径安全截断 (Path Error Truncation)", () => {
     /** 生成约 10KB 的伪正文文本 */
     function buildHugePayload(): string {
-      return ("这是一段被模型误塞进路径参数的正文内容。").repeat(
-        300
-      );
+      return "这是一段被模型误塞进路径参数的正文内容。".repeat(300);
     }
 
     beforeEach(async () => {

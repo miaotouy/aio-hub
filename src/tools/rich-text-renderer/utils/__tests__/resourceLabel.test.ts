@@ -30,7 +30,10 @@ describe("resolveResourceLabel", () => {
 
   it("drops query strings and decodes percent-encoding", () => {
     expect(
-      resolveResourceLabel("https://example.com/%E8%A1%A8%E6%83%85%E5%8C%85.png?token=1", "")
+      resolveResourceLabel(
+        "https://example.com/%E8%A1%A8%E6%83%85%E5%8C%85.png?token=1",
+        ""
+      )
     ).toBe("表情包.png");
   });
 

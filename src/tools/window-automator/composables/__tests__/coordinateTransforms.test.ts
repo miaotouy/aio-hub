@@ -114,11 +114,10 @@ describe("resolveCoordinate", () => {
   it("supports custom calibrated origin", () => {
     // 原点 (50, 25)：dx=+5, dy=+5 -> (55, 20)
     expect(
-      resolveCoordinate(
-        { mode: "center", x: 5, y: 5 },
-        SIZE,
-        { xPercent: 25, yPercent: 25 }
-      )
+      resolveCoordinate({ mode: "center", x: 5, y: 5 }, SIZE, {
+        xPercent: 25,
+        yPercent: 25,
+      })
     ).toEqual({ x: 55, y: 20, clamped: false });
   });
 

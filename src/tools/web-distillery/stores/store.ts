@@ -14,8 +14,13 @@ import { createConfigManager } from "@/utils/configManager";
 // limitations under the License.
 import { defineStore } from "pinia";
 
-import type { FetchResult, ApiInfo, SiteRecipe, ActionStep, WebDistilleryConfig, } from "../types";
-
+import type {
+  FetchResult,
+  ApiInfo,
+  SiteRecipe,
+  ActionStep,
+  WebDistilleryConfig,
+} from "../types";
 
 export const createDefaultWebDistilleryConfig = (): WebDistilleryConfig => ({
   lastUrl: "",

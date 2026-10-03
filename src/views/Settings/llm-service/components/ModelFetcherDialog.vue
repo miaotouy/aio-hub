@@ -207,9 +207,7 @@ const allVisibleModels = computed(() => {
 const isAllSelected = computed(() => {
   if (allVisibleModels.value.length === 0) return false;
   return allVisibleModels.value.every((m) =>
-    isModelExisting(m.id)
-      ? !isModelMarkedRemoved(m.id)
-      : isModelSelected(m)
+    isModelExisting(m.id) ? !isModelMarkedRemoved(m.id) : isModelSelected(m)
   );
 });
 
@@ -458,8 +456,12 @@ const getActiveCapabilities = (model: LlmModelInfo) => {
                   class="model-item"
                   :class="{
                     selected: isModelSelected(model),
-                    markedRemove: isModelExisting(model.id) && isModelMarkedRemoved(model.id),
-                    disabled: isModelExisting(model.id) && !isModelMarkedRemoved(model.id),
+                    markedRemove:
+                      isModelExisting(model.id) &&
+                      isModelMarkedRemoved(model.id),
+                    disabled:
+                      isModelExisting(model.id) &&
+                      !isModelMarkedRemoved(model.id),
                   }"
                   @click="toggleModelSelection(model)"
                 >

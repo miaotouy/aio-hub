@@ -61,7 +61,11 @@ function restoreDefault() {
           effect="plain"
           type="info"
         >
-          {{ range.start === range.end ? range.start : `${range.start}-${range.end}` }}
+          {{
+            range.start === range.end
+              ? range.start
+              : `${range.start}-${range.end}`
+          }}
         </el-tag>
       </template>
       <span v-else class="retry-status-editor__empty">
@@ -69,15 +73,24 @@ function restoreDefault() {
       </span>
     </div>
 
-    <ul v-if="parsed.errors.length" class="retry-status-editor__issues is-error">
+    <ul
+      v-if="parsed.errors.length"
+      class="retry-status-editor__issues is-error"
+    >
       <li v-for="(err, idx) in parsed.errors" :key="`err-${idx}`">{{ err }}</li>
     </ul>
-    <ul v-if="parsed.overlaps.length" class="retry-status-editor__issues is-warning">
+    <ul
+      v-if="parsed.overlaps.length"
+      class="retry-status-editor__issues is-warning"
+    >
       <li v-for="(msg, idx) in parsed.overlaps" :key="`overlap-${idx}`">
         {{ msg }}
       </li>
     </ul>
-    <ul v-if="parsed.excluded.length" class="retry-status-editor__issues is-warning">
+    <ul
+      v-if="parsed.excluded.length"
+      class="retry-status-editor__issues is-warning"
+    >
       <li v-for="(msg, idx) in parsed.excluded" :key="`excluded-${idx}`">
         {{ msg }}
       </li>

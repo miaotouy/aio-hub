@@ -13,7 +13,6 @@
 // limitations under the License.
 import { useZIndex } from "element-plus";
 
-
 const BASE_DIALOG_INITIAL_Z_INDEX = 2000;
 const MIN_NOTIFICATION_Z_INDEX = 2030;
 const MAX_NOTIFICATION_Z_INDEX = 9990;

@@ -377,10 +377,10 @@ export function useSingleNodeExecutor() {
           !isAbort &&
           !isBadRequest
         ) {
-          logger.info(
-            `状态码 ${statusCode} 不在自动重试号段内，跳过重试`,
-            { attempt, statusCode }
-          );
+          logger.info(`状态码 ${statusCode} 不在自动重试号段内，跳过重试`, {
+            attempt,
+            statusCode,
+          });
         }
         throw error;
       }

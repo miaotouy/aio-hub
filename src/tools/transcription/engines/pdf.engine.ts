@@ -11,7 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import { getCurrentEngineConfig, loadSmartOcrConfig, } from "@/tools/smart-ocr/config/config";
+import {
+  getCurrentEngineConfig,
+  loadSmartOcrConfig,
+} from "@/tools/smart-ocr/config/config";
 import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -23,10 +26,18 @@ import type { Asset } from "@/types/asset-management";
 import { convertPdfToImages } from "@/utils/pdfUtils";
 import { createModuleLogger } from "@/utils/logger";
 
-import type { ITranscriptionEngine, EngineContext, EngineResult, DocumentSpecificConfig, } from "../types";
-import { cleanLlmOutput, detectRepetition, detectModelRefusal, } from "../utils/text";
+import type {
+  ITranscriptionEngine,
+  EngineContext,
+  EngineResult,
+  DocumentSpecificConfig,
+} from "../types";
+import {
+  cleanLlmOutput,
+  detectRepetition,
+  detectModelRefusal,
+} from "../utils/text";
 import { getEffectiveConfig, getModelParams } from "./base";
-
 
 const logger = createModuleLogger("transcription/engines/pdf");
 

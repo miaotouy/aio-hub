@@ -267,13 +267,19 @@ async function handleBranchChange(branch: string) {
 
 // 处理设置范围起始位置（序号从 1 开始）
 function handleSetRangeStart(index: number) {
-  commitRange.value = [Math.min(index, commitRange.value[1]), commitRange.value[1]];
+  commitRange.value = [
+    Math.min(index, commitRange.value[1]),
+    commitRange.value[1],
+  ];
   filterCommits();
 }
 
 // 处理设置范围结束位置（序号从 1 开始）
 function handleSetRangeEnd(index: number) {
-  commitRange.value = [commitRange.value[0], Math.max(index, commitRange.value[0])];
+  commitRange.value = [
+    commitRange.value[0],
+    Math.max(index, commitRange.value[0]),
+  ];
   filterCommits();
 }
 

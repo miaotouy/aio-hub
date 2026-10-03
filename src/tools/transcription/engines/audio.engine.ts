@@ -26,10 +26,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { stat } from "@tauri-apps/plugin-fs";
 import { computed } from "vue";
 
-import { cleanLlmOutput, detectRepetition, detectModelRefusal, } from "../utils/text";
-import type { ITranscriptionEngine, EngineContext, EngineResult, } from "../types";
+import {
+  cleanLlmOutput,
+  detectRepetition,
+  detectModelRefusal,
+} from "../utils/text";
+import type {
+  ITranscriptionEngine,
+  EngineContext,
+  EngineResult,
+} from "../types";
 import { getModelParams, getEffectiveConfig } from "./base";
-
 
 const logger = createModuleLogger("transcription/engines/audio");
 

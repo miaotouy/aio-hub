@@ -101,7 +101,9 @@ watch(
 
 const parseStats = computed(() => {
   const total = parsedModels.value.length;
-  const existing = parsedModels.value.filter((m) => isModelExisting(m.id)).length;
+  const existing = parsedModels.value.filter((m) =>
+    isModelExisting(m.id)
+  ).length;
   return {
     total,
     existing,
@@ -212,7 +214,8 @@ const isAllSelected = computed(() => {
     (m) => !isModelExisting(m.id)
   );
   return (
-    selectable.length > 0 && selectable.every((m) => selectedIds.value.has(m.id))
+    selectable.length > 0 &&
+    selectable.every((m) => selectedIds.value.has(m.id))
   );
 });
 
@@ -403,11 +406,11 @@ const closeDialog = () => {
                     @click="toggleGroupExpand(groupName)"
                   >
                     <el-icon
-                    class="expand-icon"
-                    :class="{ expanded: isGroupExpanded(groupName) }"
-                  >
-                    <ArrowRight />
-                  </el-icon>
+                      class="expand-icon"
+                      :class="{ expanded: isGroupExpanded(groupName) }"
+                    >
+                      <ArrowRight />
+                    </el-icon>
                     <span class="group-name">{{ groupName }}</span>
                     <span class="group-count">{{ groupModels.length }}</span>
                   </div>

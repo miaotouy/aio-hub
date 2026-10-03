@@ -16,7 +16,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import WebDistilleryRegistry from "../web-distillery.registry";
 import type { FetchResult, ExtractResult } from "../types";
 
-
 const {
   mockQuickFetch,
   mockSmartExtract,

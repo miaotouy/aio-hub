@@ -80,7 +80,11 @@ function onFormChange(form: "cartesian" | "polar") {
   const coord = props.params.coordinate;
   if (form === "polar") {
     const polar = cartesianToPolar(coord.x, coord.y);
-    updateCoordinate({ form, x: Number(polar.angle.toFixed(1)), y: Math.round(polar.radius) });
+    updateCoordinate({
+      form,
+      x: Number(polar.angle.toFixed(1)),
+      y: Math.round(polar.radius),
+    });
   } else {
     const c = polarToCartesian(coord.x, coord.y);
     updateCoordinate({ form, x: Math.round(c.dx), y: Math.round(c.dy) });
@@ -114,7 +118,8 @@ const polarPreview = computed(() => {
     props.params.coordinate.x,
     props.params.coordinate.y
   );
-  const sign = (n: number) => (n >= 0 ? `+${Math.round(n)}` : `${Math.round(n)}`);
+  const sign = (n: number) =>
+    n >= 0 ? `+${Math.round(n)}` : `${Math.round(n)}`;
   return `等效偏移 dx=${sign(c.dx)}, dy=${sign(c.dy)}`;
 });
 </script>
@@ -158,7 +163,9 @@ const polarPreview = computed(() => {
       </template>
       <template v-else>
         <div class="field grow">
-          <label>{{ isPolar ? "角度（°，逆时针为正）" : "东西偏移（右正）" }}</label>
+          <label>{{
+            isPolar ? "角度（°，逆时针为正）" : "东西偏移（右正）"
+          }}</label>
           <el-input-number
             :model-value="params.coordinate.x"
             :step="isPolar ? 5 : 1"
@@ -166,7 +173,9 @@ const polarPreview = computed(() => {
             controls-position="right"
             @update:model-value="
               (v: number | undefined) =>
-                updateCoordinate({ x: v === undefined || Number.isNaN(v) ? 0 : v })
+                updateCoordinate({
+                  x: v === undefined || Number.isNaN(v) ? 0 : v,
+                })
             "
           />
         </div>
@@ -180,7 +189,9 @@ const polarPreview = computed(() => {
             controls-position="right"
             @update:model-value="
               (v: number | undefined) =>
-                updateCoordinate({ y: v === undefined || Number.isNaN(v) ? 0 : v })
+                updateCoordinate({
+                  y: v === undefined || Number.isNaN(v) ? 0 : v,
+                })
             "
           />
         </div>
@@ -226,7 +237,12 @@ const polarPreview = computed(() => {
       <span v-if="!origin" class="origin-warning">
         <LocateFixed :size="12" />
         未标定原点，执行时使用客户区几何中心 (50, 50)
-        <el-button size="small" text type="primary" @click="emit('mark-origin')">
+        <el-button
+          size="small"
+          text
+          type="primary"
+          @click="emit('mark-origin')"
+        >
           去标定
         </el-button>
       </span>

@@ -18,7 +18,6 @@ import { createTwoFilesPatch } from "diff";
 
 import type { DiffTabRef } from "./types";
 
-
 export const COMMIT_LANGUAGE_MACRO = "${language}";
 export const DEFAULT_COMMIT_LANGUAGE = "简体中文";
 /** 提交信息上下文使用少量上下文行，避免把完整文件快照发送给模型。 */

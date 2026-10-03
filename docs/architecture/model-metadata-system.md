@@ -41,21 +41,21 @@
 
 ### 文件清单
 
-| 文件                                                                                                                                                             | 职责                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| [`src/types/model-metadata.ts`](../../src/types/model-metadata.ts)                                                                                               | 全部 TypeScript 类型定义                           |
-| [`src/config/model-metadata-presets.ts`](../../src/config/model-metadata-presets.ts)                                                                             | 出厂默认规则数据（只读，纯数据）                   |
-| [`src/config/model-metadata.ts`](../../src/config/model-metadata.ts)                                                                                             | 匹配引擎纯函数 + 图标路径处理                      |
-| [`src/config/preset-icons.ts`](../../src/config/preset-icons.ts)                                                                                                 | 预设图标清单（`PRESET_ICONS` / `AVAILABLE_ICONS`） |
-| [`src/stores/modelMetadataStore.ts`](../../src/stores/modelMetadataStore.ts)                                                                                     | Pinia Store，全局唯一真理源                        |
-| [`src/composables/useModelMetadata.ts`](../../src/composables/useModelMetadata.ts)                                                                               | Store 的薄包装，供 Vue 组件使用                    |
-| [`src/views/Settings/model-metadata/ModelMetadataSettings.vue`](../../src/views/Settings/model-metadata/ModelMetadataSettings.vue)                               | 设置页主视图                                       |
-| [`src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue`](../../src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue) | 规则编辑对话框                                     |
-| [`src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue`](../../src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue)           | 媒体生成参数可视化编辑器                           |
+| 文件                                                                                                                                                                             | 职责                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [`src/types/model-metadata.ts`](../../src/types/model-metadata.ts)                                                                                                               | 全部 TypeScript 类型定义                           |
+| [`src/config/model-metadata-presets.ts`](../../src/config/model-metadata-presets.ts)                                                                                             | 出厂默认规则数据（只读，纯数据）                   |
+| [`src/config/model-metadata.ts`](../../src/config/model-metadata.ts)                                                                                                             | 匹配引擎纯函数 + 图标路径处理                      |
+| [`src/config/preset-icons.ts`](../../src/config/preset-icons.ts)                                                                                                                 | 预设图标清单（`PRESET_ICONS` / `AVAILABLE_ICONS`） |
+| [`src/stores/modelMetadataStore.ts`](../../src/stores/modelMetadataStore.ts)                                                                                                     | Pinia Store，全局唯一真理源                        |
+| [`src/composables/useModelMetadata.ts`](../../src/composables/useModelMetadata.ts)                                                                                               | Store 的薄包装，供 Vue 组件使用                    |
+| [`src/views/Settings/model-metadata/ModelMetadataSettings.vue`](../../src/views/Settings/model-metadata/ModelMetadataSettings.vue)                                               | 设置页主视图                                       |
+| [`src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue`](../../src/views/Settings/model-metadata/components/ModelMetadataConfigEditor.vue)                 | 规则编辑对话框                                     |
+| [`src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue`](../../src/views/Settings/model-metadata/components/MediaGenParamsEditor.vue)                           | 媒体生成参数可视化编辑器                           |
 | [`src/views/Settings/model-metadata/components/ModelMetadataRefreshPreviewDialog.vue`](../../src/views/Settings/model-metadata/components/ModelMetadataRefreshPreviewDialog.vue) | 模型刷新属性变更预览弹窗                           |
-| [`src/views/Settings/model-metadata/components/CoverageAnalysisDialog.vue`](../../src/views/Settings/model-metadata/components/CoverageAnalysisDialog.vue)     | 规则覆盖分析与规则链诊断对话框                     |
-| [`src/views/Settings/model-metadata/components/RuleMergeChain.vue`](../../src/views/Settings/model-metadata/components/RuleMergeChain.vue)                     | 规则合并链与生效属性树状透视组件                   |
-| [`src/views/Settings/model-metadata/components/OptionListEditor.vue`](../../src/views/Settings/model-metadata/components/OptionListEditor.vue)                   | 通用 `{label, value}[]` 编辑组件                   |
+| [`src/views/Settings/model-metadata/components/CoverageAnalysisDialog.vue`](../../src/views/Settings/model-metadata/components/CoverageAnalysisDialog.vue)                       | 规则覆盖分析与规则链诊断对话框                     |
+| [`src/views/Settings/model-metadata/components/RuleMergeChain.vue`](../../src/views/Settings/model-metadata/components/RuleMergeChain.vue)                                       | 规则合并链与生效属性树状透视组件                   |
+| [`src/views/Settings/model-metadata/components/OptionListEditor.vue`](../../src/views/Settings/model-metadata/components/OptionListEditor.vue)                                   | 通用 `{label, value}[]` 编辑组件                   |
 
 ---
 

@@ -15,7 +15,6 @@ import { describe, expect, it } from "vitest";
 
 import { isValidModelId, parseModelIdList } from "../model-id-parser";
 
-
 describe("parseModelIdList", () => {
   it("parses comma-separated model ids", () => {
     const input =
@@ -33,11 +32,9 @@ describe("parseModelIdList", () => {
   });
 
   it("parses full-width commas and semicolons", () => {
-    expect(parseModelIdList("glm-5.3，deepseek-v4.1；ark-code-latest")).toEqual([
-      "glm-5.3",
-      "deepseek-v4.1",
-      "ark-code-latest",
-    ]);
+    expect(parseModelIdList("glm-5.3，deepseek-v4.1；ark-code-latest")).toEqual(
+      ["glm-5.3", "deepseek-v4.1", "ark-code-latest"]
+    );
   });
 
   it("parses newline-separated lists", () => {
@@ -64,7 +61,7 @@ describe("parseModelIdList", () => {
 
   it("strips surrounding quotes", () => {
     expect(
-      parseModelIdList('"doubao-seed-2.1-pro", \'glm-5.3\', `deepseek-v4.1`')
+      parseModelIdList("\"doubao-seed-2.1-pro\", 'glm-5.3', `deepseek-v4.1`")
     ).toEqual(["doubao-seed-2.1-pro", "glm-5.3", "deepseek-v4.1"]);
   });
 
@@ -82,10 +79,7 @@ describe("parseModelIdList", () => {
         { id: "glm-5.3", object: "model" },
       ],
     });
-    expect(parseModelIdList(input)).toEqual([
-      "doubao-seed-2.1-pro",
-      "glm-5.3",
-    ]);
+    expect(parseModelIdList(input)).toEqual(["doubao-seed-2.1-pro", "glm-5.3"]);
   });
 
   it("parses config dictionaries with a models field", () => {
@@ -99,10 +93,7 @@ describe("parseModelIdList", () => {
       "doubao-seed-2.1-pro": { maxTokens: 8192 },
       "glm-5.3": { maxTokens: 4096 },
     });
-    expect(parseModelIdList(input)).toEqual([
-      "doubao-seed-2.1-pro",
-      "glm-5.3",
-    ]);
+    expect(parseModelIdList(input)).toEqual(["doubao-seed-2.1-pro", "glm-5.3"]);
   });
 
   it("dedupes while preserving order", () => {
@@ -119,9 +110,9 @@ describe("parseModelIdList", () => {
   });
 
   it("keeps scoped ids with slash and colon", () => {
-    expect(parseModelIdList("deepseek/deepseek-chat:free, qwen/qwen3-max")).toEqual(
-      ["deepseek/deepseek-chat:free", "qwen/qwen3-max"]
-    );
+    expect(
+      parseModelIdList("deepseek/deepseek-chat:free, qwen/qwen3-max")
+    ).toEqual(["deepseek/deepseek-chat:free", "qwen/qwen3-max"]);
   });
 });
 

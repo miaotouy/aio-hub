@@ -298,7 +298,9 @@
             @change="handleRangeEndChange"
             style="width: 120px"
           />
-          <span class="range-count">(共 {{ rangeEnd - rangeStart + 1 }} 条)</span>
+          <span class="range-count"
+            >(共 {{ rangeEnd - rangeStart + 1 }} 条)</span
+          >
         </div>
       </div>
     </div>

@@ -20,7 +20,6 @@ import type { Component, VNode } from "vue";
  */
 import { isVNode, reactive } from "vue";
 
-
 export type CustomMessageType =
   "primary" | "success" | "info" | "warning" | "error";
 

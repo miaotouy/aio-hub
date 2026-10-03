@@ -74,7 +74,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, inject, onBeforeUnmount, type ComputedRef } from "vue";
+import {
+  ref,
+  watch,
+  computed,
+  inject,
+  onBeforeUnmount,
+  type ComputedRef,
+} from "vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
@@ -526,10 +533,7 @@ onBeforeUnmount(() => {
   min-height: 50px; /* 最小高度，避免加载时闪烁 */
   width: 100%;
   padding: 16px;
-  background-color: var(
-    --rich-text-image-placeholder-bg,
-    var(--container-bg)
-  );
+  background-color: var(--rich-text-image-placeholder-bg, var(--container-bg));
   border: 1px dashed
     var(--rich-text-image-placeholder-border, var(--border-color));
   border-radius: 4px;

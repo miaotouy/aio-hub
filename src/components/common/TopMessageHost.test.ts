@@ -1,4 +1,8 @@
-import { acquireZIndex, releaseZIndex, resetDialogZIndexCounter, } from "@/composables/useDialogZIndex";
+import {
+  acquireZIndex,
+  releaseZIndex,
+  resetDialogZIndexCounter,
+} from "@/composables/useDialogZIndex";
 import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
@@ -19,7 +23,6 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 
 import TopMessageHost from "./TopMessageHost.vue";
-
 
 describe("TopMessageHost", () => {
   beforeEach(() => {

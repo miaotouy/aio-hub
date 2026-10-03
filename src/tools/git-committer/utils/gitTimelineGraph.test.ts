@@ -16,7 +16,6 @@ import { describe, expect, it } from "vitest";
 import { computeTimelineGraph, GIT_GRAPH_COLORS } from "./gitTimelineGraph";
 import type { GitCommitSummary } from "../types";
 
-
 const makeCommit = (
   hash: string,
   parents: string[] = []

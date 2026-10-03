@@ -22,11 +22,21 @@
 import { ref, computed, watch, type Ref } from "vue";
 import { useDebounceFn } from "@vueuse/core";
 
-import { getFileName, getFileDir, highlightTextParts, searchContentMatches, type HighlightPart, type FileDiffSearchResult, } from "../utils";
-import { loadFileDiff, openDiffTab, openFileTab, } from "./useGitCommitterRunner";
+import {
+  getFileName,
+  getFileDir,
+  highlightTextParts,
+  searchContentMatches,
+  type HighlightPart,
+  type FileDiffSearchResult,
+} from "../utils";
+import {
+  loadFileDiff,
+  openDiffTab,
+  openFileTab,
+} from "./useGitCommitterRunner";
 import { currentStatus, fileSearchKeyword } from "./useGitCommitterState";
 import type { FileStatus } from "../types";
-
 
 export interface GitSearchResultFileItem {
   path: string;

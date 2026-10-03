@@ -2452,20 +2452,16 @@ pub async fn create_dir_force(path: String) -> Result<(), String> {
 
 /// 递归复制目录内容
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst)
-        .map_err(|e| format!("创建目录 {}: {}", dst.display(), e))?;
-    for entry in fs::read_dir(src)
-        .map_err(|e| format!("读取目录 {}: {}", src.display(), e))?
-    {
+    fs::create_dir_all(dst).map_err(|e| format!("创建目录 {}: {}", dst.display(), e))?;
+    for entry in fs::read_dir(src).map_err(|e| format!("读取目录 {}: {}", src.display(), e))? {
         let entry = entry.map_err(|e| format!("遍历目录项失败: {}", e))?;
         let entry_path = entry.path();
         let target_path = dst.join(entry.file_name());
         if entry_path.is_dir() {
             copy_dir_recursive(&entry_path, &target_path)?;
         } else {
-            fs::copy(&entry_path, &target_path).map_err(|e| {
-                format!("复制文件 {}: {}", entry_path.display(), e)
-            })?;
+            fs::copy(&entry_path, &target_path)
+                .map_err(|e| format!("复制文件 {}: {}", entry_path.display(), e))?;
         }
     }
     Ok(())
@@ -2501,8 +2497,7 @@ fn prepare_transfer_paths(
 
     if let Some(parent) = target.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("创建父目录失败: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("创建父目录失败: {}", e))?;
         }
     }
 
@@ -2511,8 +2506,7 @@ fn prepare_transfer_paths(
 
 fn remove_path(path: &Path, label: &str) -> Result<(), String> {
     if path.is_dir() {
-        fs::remove_dir_all(path)
-            .map_err(|e| format!("删除{}目录失败: {}", label, e))
+        fs::remove_dir_all(path).map_err(|e| format!("删除{}目录失败: {}", label, e))
     } else {
         fs::remove_file(path).map_err(|e| format!("删除{}文件失败: {}", label, e))
     }
@@ -2601,10 +2595,7 @@ pub async fn search_files(
 
         for entry in entries.flatten() {
             let entry_path = entry.path();
-            let name = entry
-                .file_name()
-                .to_string_lossy()
-                .to_string();
+            let name = entry.file_name().to_string_lossy().to_string();
 
             let is_dir = entry_path.is_dir();
 

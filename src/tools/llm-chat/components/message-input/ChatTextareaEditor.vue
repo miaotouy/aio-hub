@@ -284,7 +284,9 @@ function updateSlashPopoverPosition() {
 
   const left = spanRect.left - wrapperRect.left;
   const top =
-    spanRect.top - wrapperRect.top + parseFloat(computedStyle.lineHeight || "20");
+    spanRect.top -
+    wrapperRect.top +
+    parseFloat(computedStyle.lineHeight || "20");
 
   slashPopoverStyle.value = {
     left: `${Math.max(0, left)}px`,
@@ -295,8 +297,7 @@ function updateSlashPopoverPosition() {
 function moveSlashActive(delta: number) {
   const n = slashState.value.items.length;
   if (n === 0) return;
-  slashState.value.activeIndex =
-    (slashState.value.activeIndex + delta + n) % n;
+  slashState.value.activeIndex = (slashState.value.activeIndex + delta + n) % n;
 }
 
 function buildChatInputContext(): ChatInputContext {

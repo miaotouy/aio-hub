@@ -148,11 +148,7 @@ export interface VisionTokenCost {
    * - 'deepseek_image_v41': DeepSeek V4.1 视觉输入尺寸折算
    */
   calculationMethod:
-    | "fixed"
-    | "openai_tile"
-    | "claude_3"
-    | "gemini_2_0"
-    | "deepseek_image_v41";
+    "fixed" | "openai_tile" | "claude_3" | "gemini_2_0" | "deepseek_image_v41";
 
   /**
    * 计算参数

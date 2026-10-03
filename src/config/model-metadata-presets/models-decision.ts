@@ -50,8 +50,7 @@ export const decisionModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       properties: {
         group: "Laya",
         capabilities: { decision: true },
-        description:
-          "Laya 开源决策模型家族（编码器风格，面向本地类型化决策）",
+        description: "Laya 开源决策模型家族（编码器风格，面向本地类型化决策）",
       },
       priority: 36,
       enabled: true,

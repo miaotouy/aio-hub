@@ -442,7 +442,11 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     allowOverwrite?: unknown;
   }) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.copyFile(args.sourcePath, args.targetPath, allowOverwrite);
+    return await actions.copyFile(
+      args.sourcePath,
+      args.targetPath,
+      allowOverwrite
+    );
   }
 
   public async move_file(args: {
@@ -451,7 +455,11 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     allowOverwrite?: unknown;
   }) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.moveFile(args.sourcePath, args.targetPath, allowOverwrite);
+    return await actions.moveFile(
+      args.sourcePath,
+      args.targetPath,
+      allowOverwrite
+    );
   }
 
   public async get_file_info(args: { path: string }) {
@@ -472,4 +480,5 @@ export class AioFileOperatorRegistry implements ToolRegistry {
       args.maxResults
     );
   }
-}export default AioFileOperatorRegistry;
+}
+export default AioFileOperatorRegistry;

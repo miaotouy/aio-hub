@@ -485,6 +485,7 @@ useLlmRequest.sendRequest(options)
 
 1. **Gemini 思考参数 wire 映射**：
    Gemini 模型经 `openai` / `openai-compatible` 渠道（典型场景：本地 NewAPI 转发 Gemini 官方 Key）访问时，OpenAI Chat Adapter 为 Gemini 模型家族生成 Google 扩展结构，而不是顶层推理参数：
+
    ```json
    {
      "extra_body": {

@@ -13,7 +13,6 @@
 // limitations under the License.
 import type { GitCommitSummary } from "../types";
 
-
 /**
  * 经典 VSCode / Git Graph 风格分支泳道调色板
  */

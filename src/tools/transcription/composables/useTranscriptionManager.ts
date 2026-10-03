@@ -21,7 +21,11 @@ import { remove } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import { merge } from "lodash-es";
 
-import type { TranscriptionTask, ITranscriptionEngine, TranscriptionConfig, } from "../types";
+import type {
+  TranscriptionTask,
+  ITranscriptionEngine,
+  TranscriptionConfig,
+} from "../types";
 import { saveTranscriptionResult, updateDerivedStatus } from "../engines/base";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import { VideoTranscriptionEngine } from "../engines/video.engine";
@@ -30,7 +34,6 @@ import { AudioTranscriptionEngine } from "../engines/audio.engine";
 import { DocxTranscriptionEngine } from "../engines/docx.engine";
 import { PdfTranscriptionEngine } from "../engines/pdf.engine";
 import { sanitizeErrorMessage } from "../utils/text";
-
 
 const logger = createModuleLogger("transcription/manager");
 const errorHandler = createModuleErrorHandler("transcription/manager");

@@ -24,7 +24,6 @@ import { customMessage } from "@/utils/customMessage";
 import type { Ref, ComputedRef } from "vue";
 import { ref } from "vue";
 
-
 const errorHandler = createModuleErrorHandler("LlmServiceSettings/ModelEditor");
 
 function mergeFetchedRouteDeclarations(

@@ -11,14 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import type { ToolRegistry, ToolConfig, ServiceMetadata, ToolContext, } from "@/services/types";
+import type {
+  ToolRegistry,
+  ToolConfig,
+  ServiceMetadata,
+  ToolContext,
+} from "@/services/types";
 import { coerceAgentBoolean } from "@/utils/agentArgs";
 import { GlassWater } from "lucide-vue-next";
 import { markRaw } from "vue";
 
 import { quickFetch, smartExtract, jinaFetch } from "./actions";
 import { formatFetchResult } from "./formatters";
-
 
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";

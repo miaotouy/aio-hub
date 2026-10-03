@@ -13,7 +13,6 @@
 // limitations under the License.
 import { defineAsyncComponent, type Component } from "vue";
 
-
 export interface SettingsModule {
   id: string;
   title: string;

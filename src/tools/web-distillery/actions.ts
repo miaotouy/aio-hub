@@ -20,7 +20,16 @@ import { getLocalISOString } from "@/utils/time";
 import { invoke } from "@tauri-apps/api/core";
 import router from "@/router";
 
-import type { QuickFetchOptions, SmartExtractOptions, JinaFetchOptions, FetchResult, ExtractResult, RawFetchPayload, CookieProfile, FetchFormat, } from "./types";
+import type {
+  QuickFetchOptions,
+  SmartExtractOptions,
+  JinaFetchOptions,
+  FetchResult,
+  ExtractResult,
+  RawFetchPayload,
+  CookieProfile,
+  FetchFormat,
+} from "./types";
 import { stripMarkdownLinks, extractTitleFromMarkdown } from "./utils/markdown";
 import { cookieProfileStore } from "./core/cookie-profile-store";
 import { getWebViewFingerprint } from "./core/fingerprint";
@@ -29,7 +38,6 @@ import { iframeBridge } from "./core/iframe-bridge";
 import { actionRunner } from "./core/action-runner";
 import { recipeStore } from "./core/recipe-store";
 import { transformer } from "./core/transformer";
-
 
 const errorHandler = createModuleErrorHandler("web-distillery/actions");
 const logger = createModuleLogger("web-distillery/actions");

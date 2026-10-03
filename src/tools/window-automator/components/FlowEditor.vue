@@ -511,10 +511,7 @@ function buildCoordinateFromResult(
 }
 
 /** 原点标定写回：保存到 flow 级 coordinateOrigin */
-function onPickerMarkOrigin(point: {
-  xPercent: number;
-  yPercent: number;
-}) {
+function onPickerMarkOrigin(point: { xPercent: number; yPercent: number }) {
   store.setCoordinateOrigin({
     xPercent: Number(point.xPercent.toFixed(2)),
     yPercent: Number(point.yPercent.toFixed(2)),

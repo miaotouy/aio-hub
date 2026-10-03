@@ -80,8 +80,11 @@ export function sanitizeParamsForError(
       if (/path/i.test(key)) {
         sanitized[key] = formatPathForError(value);
       } else if (value.length > GENERIC_PARAM_PREVIEW_LIMIT) {
-        const collapsed = value.replace(/\s+/g, " ").slice(0, GENERIC_PARAM_PREVIEW_LIMIT);
-        sanitized[key] = `${collapsed}... [已截断，原始长度: ${value.length} 字符]`;
+        const collapsed = value
+          .replace(/\s+/g, " ")
+          .slice(0, GENERIC_PARAM_PREVIEW_LIMIT);
+        sanitized[key] =
+          `${collapsed}... [已截断，原始长度: ${value.length} 字符]`;
       } else {
         sanitized[key] = value;
       }
@@ -196,7 +199,9 @@ export function isPathWithinRoot(
 
 async function resolvePathForSecurity(path: string): Promise<string> {
   if (!isAbsolutePath(path)) {
-    throw new Error(`安全沙箱拦截：路径必须是绝对路径（收到: "${formatPathForError(path)}")）。`);
+    throw new Error(
+      `安全沙箱拦截：路径必须是绝对路径（收到: "${formatPathForError(path)}")）。`
+    );
   }
 
   const resolved = await invoke<unknown>("resolve_path_for_security", { path });

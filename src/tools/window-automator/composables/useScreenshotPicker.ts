@@ -26,14 +26,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { rgbToHex } from "./flowUtils";
-import {
-  cartesianToPolar,
-  getQuadrant,
-} from "./coordinateTransforms";
-import type {
-  CoordinateOrigin,
-  ScreenshotPickerResult,
-} from "../types";
+import { cartesianToPolar, getQuadrant } from "./coordinateTransforms";
+import type { CoordinateOrigin, ScreenshotPickerResult } from "../types";
 
 const logger = createModuleLogger("window-automator/useScreenshotPicker");
 const errorHandler = createModuleErrorHandler(

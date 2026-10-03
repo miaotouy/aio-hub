@@ -32,7 +32,9 @@ const MODEL_ID_PATTERN = /^[A-Za-z0-9._/@:+-]+$/;
 
 /** 判断一个字符串是否是合法的模型 ID */
 export function isValidModelId(value: string): boolean {
-  return value.length > 0 && value.length <= 256 && MODEL_ID_PATTERN.test(value);
+  return (
+    value.length > 0 && value.length <= 256 && MODEL_ID_PATTERN.test(value)
+  );
 }
 
 /** 剥离行尾注释（# 或 //）。注意保护 URL 中的 //（模型 ID 场景基本无 URL，直接处理即可） */

@@ -19,10 +19,17 @@ import type { LlmMessageContent } from "@/llm-apis/common";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 
-import { cleanLlmOutput, detectRepetition, detectModelRefusal, } from "../utils/text";
-import type { EngineContext, EngineResult, ITranscriptionEngine, } from "../types";
+import {
+  cleanLlmOutput,
+  detectRepetition,
+  detectModelRefusal,
+} from "../utils/text";
+import type {
+  EngineContext,
+  EngineResult,
+  ITranscriptionEngine,
+} from "../types";
 import { getModelParams } from "./base";
-
 
 /**
  * 小图阈值：base64 解码后 < 50KB 的图片视为小图，可以合并请求

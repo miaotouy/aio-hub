@@ -675,9 +675,7 @@ export async function moveFile(
 /**
  * 查询文件/目录元数据（大小、时间戳、类型），不读取内容
  */
-export async function getFileInfo(
-  path: string
-): Promise<FileOperationResult> {
+export async function getFileInfo(path: string): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
     await validatePath(path, currentConfig);

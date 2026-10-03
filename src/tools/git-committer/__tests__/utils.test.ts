@@ -13,8 +13,26 @@
 // limitations under the License.
 import { describe, expect, it } from "vitest";
 
-import { buildCommitFileDiff, buildCommitPromptMessages, buildTabKey, COMMIT_LANGUAGE_MACRO, COMMIT_VIEW_TAB_PATH, isCommitTab, isCommitViewTab, isFileViewTab, joinRepoPath, normalizeGeneratedCommitMessage, parseRemoteInfo, renderCommitPromptMacros, REPO_PROMPT_TAB_PATH, resolvePersistedPrompt, resolveSystemPrompt, searchContentMatches, highlightLineMatch, highlightTextParts, } from "../utils";
-
+import {
+  buildCommitFileDiff,
+  buildCommitPromptMessages,
+  buildTabKey,
+  COMMIT_LANGUAGE_MACRO,
+  COMMIT_VIEW_TAB_PATH,
+  isCommitTab,
+  isCommitViewTab,
+  isFileViewTab,
+  joinRepoPath,
+  normalizeGeneratedCommitMessage,
+  parseRemoteInfo,
+  renderCommitPromptMacros,
+  REPO_PROMPT_TAB_PATH,
+  resolvePersistedPrompt,
+  resolveSystemPrompt,
+  searchContentMatches,
+  highlightLineMatch,
+  highlightTextParts,
+} from "../utils";
 
 describe("git-committer system prompt inheritance", () => {
   it("prefers a non-empty repository prompt", () => {

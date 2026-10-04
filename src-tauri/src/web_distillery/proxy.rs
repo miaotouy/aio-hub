@@ -24,10 +24,10 @@ use log::{error, info, warn};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::sync::Arc;
+use tauri::AppHandle;
 use tokio::sync::{oneshot, Mutex};
 use url::Url;
 use wreq::header::HeaderValue;
-use wreq_util::Emulation;
 
 // 全局代理服务状态
 pub static DISTILLERY_PROXY_STATE: Lazy<Arc<Mutex<DistilleryProxyState>>> =
@@ -43,6 +43,8 @@ pub struct DistilleryProxyState {
     pub active_local_storage: Option<String>,
     /// 当前代理的目标 origin（如 "http://127.0.0.1:6565"），用于 fallback 路由转发
     pub active_target_origin: Option<String>,
+    /// 应用句柄，用于按应用统一代理设置构建出站 HTTP 客户端
+    pub app_handle: Option<AppHandle>,
 }
 
 /// 从 Set-Cookie 响应头中解析 name=value，并合并到现有的 cookie 字符串中。
@@ -107,8 +109,9 @@ pub struct ProxyQuery {
 
 /// 启动代理服务器
 #[tauri::command]
-pub async fn distillery_start_proxy() -> Result<u16, String> {
+pub async fn distillery_start_proxy(app: AppHandle) -> Result<u16, String> {
     let mut state = DISTILLERY_PROXY_STATE.lock().await;
+    state.app_handle = Some(app.clone());
     if state.is_running {
         return Ok(state.port);
     }
@@ -124,7 +127,7 @@ pub async fn distillery_start_proxy() -> Result<u16, String> {
     let forbidden_ports = [3000, 5000, 8000, 8080];
     if forbidden_ports.contains(&port) {
         // 递归重试一次，或者直接报错让用户重试
-        return Box::pin(distillery_start_proxy()).await;
+        return Box::pin(distillery_start_proxy(app)).await;
     }
 
     let (tx, rx) = oneshot::channel::<()>();
@@ -263,11 +266,12 @@ async fn handle_proxy_html(
         decoded_url, target_origin
     );
 
-    let client = wreq::Client::builder()
-        .emulation(Emulation::Chrome133)
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let app_handle = DISTILLERY_PROXY_STATE.lock().await.app_handle.clone();
+    let client = super::net::build_impersonated_client(
+        app_handle.as_ref(),
+        std::time::Duration::from_secs(15),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let mut request = client.get(decoded_url.as_ref());
 
@@ -410,11 +414,12 @@ async fn handle_proxy_resource(
             )
         })?;
 
-    let client = wreq::Client::builder()
-        .emulation(Emulation::Chrome133)
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let app_handle = DISTILLERY_PROXY_STATE.lock().await.app_handle.clone();
+    let client = super::net::build_impersonated_client(
+        app_handle.as_ref(),
+        std::time::Duration::from_secs(15),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let wreq_method =
         wreq::Method::from_bytes(req_method.as_str().as_bytes()).unwrap_or(wreq::Method::GET);
@@ -525,11 +530,12 @@ async fn handle_proxy_resource(
 /// Fallback 路由：将所有未匹配的请求透传到目标服务器（完整反向代理）
 /// 这解决了 CORS 问题 — 页面内的 XHR/fetch 请求不再跨域
 async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let (target_origin, cookies) = {
+    let (target_origin, cookies, app_handle) = {
         let state = DISTILLERY_PROXY_STATE.lock().await;
         let origin = state.active_target_origin.clone();
         let cookies = state.active_cookies.clone();
-        (origin, cookies)
+        let app_handle = state.app_handle.clone();
+        (origin, cookies, app_handle)
     };
 
     let target_origin = match target_origin {
@@ -563,11 +569,11 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
             )
         })?;
 
-    let client = wreq::Client::builder()
-        .emulation(Emulation::Chrome133)
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let client = super::net::build_impersonated_client(
+        app_handle.as_ref(),
+        std::time::Duration::from_secs(30),
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let wreq_method =
         wreq::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(wreq::Method::GET);

@@ -15,8 +15,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::command;
-use wreq::Client;
-use wreq_util::Emulation;
+use tauri::AppHandle;
 
 /// 前端传来的浏览器指纹参数
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -52,6 +51,7 @@ pub struct RawFetchPayload {
 
 #[command]
 pub async fn distillery_quick_fetch(
+    app: AppHandle,
     url: String,
     options: Option<QuickFetchOptions>,
     cookies: Option<String>,
@@ -61,12 +61,11 @@ pub async fn distillery_quick_fetch(
 
     let timeout_ms = options.as_ref().and_then(|o| o.timeout).unwrap_or(15000);
 
-    // 使用 wreq 的 Chrome 指纹模拟（TLS + H2 + Header 顺序）
-    let client = Client::builder()
-        .emulation(Emulation::Chrome133)
-        .timeout(std::time::Duration::from_millis(timeout_ms))
-        .build()
-        .map_err(|e| format!("Failed to create impersonated client: {}", e))?;
+    // 按应用统一代理设置构建客户端（TLS/H2 指纹模拟）
+    let client = crate::web_distillery::net::build_impersonated_client(
+        Some(&app),
+        std::time::Duration::from_millis(timeout_ms),
+    )?;
 
     let mut request = client.get(&url);
 

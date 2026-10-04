@@ -120,6 +120,9 @@ export function getAvatarTextColor(backgroundColor: string): string {
 /** 仓库 AI 提示词编辑标签页使用的保留路径 */
 export const REPO_PROMPT_TAB_PATH = "__repo_prompt__";
 
+/** 仓库全景概览仪表盘标签页使用的保留路径 */
+export const REPO_OVERVIEW_TAB_PATH = "__repo_overview__";
+
 /** 提交多文件 Diff 总览标签页使用的保留路径 */
 export const COMMIT_VIEW_TAB_PATH = "__commit__";
 
@@ -161,6 +164,11 @@ export function isFileViewTab(tab: DiffTabRef | null | undefined): boolean {
 /** 是否为提交多文件总览标签页 */
 export function isCommitViewTab(tab: DiffTabRef | null | undefined): boolean {
   return Boolean(tab?.commitHash && tab.path === COMMIT_VIEW_TAB_PATH);
+}
+
+/** 是否为仓库全景概览仪表盘标签页 */
+export function isRepoOverviewTab(tab: DiffTabRef | null | undefined): boolean {
+  return Boolean(tab && !tab.commitHash && tab.path === REPO_OVERVIEW_TAB_PATH);
 }
 
 /**

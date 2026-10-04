@@ -81,6 +81,12 @@
                 <el-dropdown-item command="commit-push"
                   >提交并推送 (Commit & Push)</el-dropdown-item
                 >
+                <el-dropdown-item divided command="commit-amend"
+                  >追加到上次提交 (Amend)</el-dropdown-item
+                >
+                <el-dropdown-item command="undo-last-commit"
+                  >撤销上一次提交 (Undo Commit)</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -314,6 +320,11 @@ import {
   openChangesTab,
   openRepoPromptTab,
 } from "../composables/useGitCommitterRunner";
+import {
+  commitAmend,
+  undoLastCommit,
+} from "../composables/useGitOverview";
+import { customMessage } from "@/utils/customMessage";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
 import { useGitFileContextMenu } from "../composables/useGitFileContextMenu";
 import { getFileName, getFileDir, buildTabKey } from "../utils";
@@ -328,7 +339,7 @@ const {
   draft: commitMessage,
   generateMsg: handleGenerateCommitMessage,
   abortGenerateMsg: handleAbortGenerateMessage,
-  commit,
+  commit: handleCommitWorkflow,
 } = useGitRepoWorkflow(currentRepoPath);
 
 // 更改列表文件右键菜单（与 ChangesDiffView 共用）
@@ -349,13 +360,56 @@ const commitActionText = computed(() => {
     : "提交并推送 (Commit & Push)";
 });
 
-const handleCommitCommand = (command: "commit" | "commit-push") => {
+const handleCommitCommand = async (command: "commit" | "commit-push" | "commit-amend" | "undo-last-commit") => {
+  if (command === "commit-amend") {
+    if (!commitMessage.value.trim()) {
+      customMessage.warning("请输入要追加的提交信息");
+      return;
+    }
+    ElMessageBox.confirm(
+      "确定要将当前暂存的更改追加合并到上一次提交吗？这会改写最近一次提交的哈希。",
+      "追加提交确认 (Amend)",
+      {
+        confirmButtonText: "确认追加",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    )
+      .then(async () => {
+        const ok = await commitAmend(currentRepoPath.value, commitMessage.value.trim());
+        if (ok) {
+          commitMessage.value = "";
+        }
+      })
+      .catch(() => {});
+    return;
+  }
+
+  if (command === "undo-last-commit") {
+    ElMessageBox.confirm(
+      "确定要撤销最近一次提交吗？提交记录将被撤回，所有变更将保留在暂存区（相当于 git reset --soft HEAD~1）。",
+      "撤销上一次提交",
+      {
+        confirmButtonText: "撤销提交",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    )
+      .then(async () => {
+        await undoLastCommit(currentRepoPath.value);
+      })
+      .catch(() => {});
+    return;
+  }
+
   commitAction.value = command;
 };
 
 const handleCommit = async () => {
   const pushAfter = commitAction.value === "commit-push";
-  await commit(pushAfter);
+  await handleCommitWorkflow(pushAfter);
 };
 
 const handleStageFile = async (path: string) => {

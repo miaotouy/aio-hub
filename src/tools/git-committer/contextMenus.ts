@@ -40,12 +40,17 @@ import {
   Trash2,
   Undo2,
   X,
+  Terminal,
+  Gauge,
+  GitBranch,
+  Tag,
 } from "lucide-vue-next";
 import type { DiffTabRef, RepositoryConfig } from "./types";
 import {
   CHANGES_VIEW_TAB_PATH,
   COMMIT_VIEW_TAB_PATH,
   REPO_PROMPT_TAB_PATH,
+  REPO_OVERVIEW_TAB_PATH,
 } from "./utils";
 
 /** 单个右键菜单项；separator 为 true 时该项渲染为分隔线 */
@@ -77,7 +82,10 @@ export function buildRepoContextMenuItems(
       icon: FolderGit2,
       disabled: ctx.isCurrent,
     },
+    { id: "repo:overview", label: "仓库全景概览", icon: Gauge },
+    { id: "repo:terminal", label: "在终端中打开", icon: Terminal },
     { id: "repo:reveal", label: "在资源管理器中显示", icon: FolderOpen },
+    sep(),
     { id: "repo:refresh", label: "刷新状态", icon: RefreshCw },
     { id: "repo:pull", label: "拉取 (Pull)", icon: ArrowDown },
     { id: "repo:push", label: "推送 (Push)", icon: ArrowUp },
@@ -171,6 +179,7 @@ function isFileTab(tab: DiffTabRef): boolean {
   if (tab.path === REPO_PROMPT_TAB_PATH) return false;
   if (tab.path === COMMIT_VIEW_TAB_PATH) return false;
   if (tab.path === CHANGES_VIEW_TAB_PATH) return false;
+  if (tab.path === REPO_OVERVIEW_TAB_PATH) return false;
   return true;
 }
 
@@ -229,6 +238,9 @@ export function buildCommitContextMenuItems(ctx: {
       label: ctx.isExpanded ? "收起变更文件" : "展开变更文件",
       icon: GitCommitHorizontal,
     },
+    sep(),
+    { id: "commit:create-branch", label: "在此提交创建分支...", icon: GitBranch },
+    { id: "commit:create-tag", label: "在此提交创建标签...", icon: Tag },
     sep(),
     { id: "commit:copy-hash", label: "复制提交哈希", icon: Copy },
     { id: "commit:copy-message", label: "复制提交信息", icon: Copy },

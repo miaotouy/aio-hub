@@ -19,9 +19,9 @@ import { computed, ref, onMounted } from "vue";
 import { Save, Info, Cookie } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
 import { cookieProfileStore } from "../../core/cookie-profile-store";
+import { recipeStore } from "../../core/recipe-store";
 import { customMessage } from "@/utils/customMessage";
-import { invoke } from "@tauri-apps/api/core";
-import type { CookieProfile } from "../../types";
+import type { CookieProfile, SiteRecipe } from "../../types";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -53,8 +53,8 @@ const handleSave = async () => {
   }
 
   try {
-    // 调用后端的 upsert_recipe
-    await invoke("distillery_upsert_recipe", { recipe: store.recipeDraft });
+    // 保存至前端配方管理存储 (recipeStore)
+    await recipeStore.upsert(store.recipeDraft as SiteRecipe);
 
     customMessage.success("配方保存成功");
     store.isDraftDirty = false;

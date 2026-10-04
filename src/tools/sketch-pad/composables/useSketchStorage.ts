@@ -359,9 +359,8 @@ export function useSketchStorage() {
         const root = await getSketchRootDir();
         const thumbPath = await join(root, "thumbnails", `${id}.png`);
         if (await exists(thumbPath)) {
-          await invoke("delete_file_in_app_data", {
-            relativePath: `sketch-pad/thumbnails/${id}.png`,
-          });
+          const { remove } = await import("@tauri-apps/plugin-fs");
+          await remove(thumbPath);
         }
 
         // 更新索引

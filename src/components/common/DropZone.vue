@@ -87,7 +87,7 @@
  */
 import { ref, computed } from "vue";
 import { FolderAdd, Upload } from "@element-plus/icons-vue";
-import { open } from "@tauri-apps/plugin-dialog";
+import { showOpenDialog } from "@/platform";
 import { useFileDrop } from "@/composables/useFileDrop";
 
 interface Props {
@@ -242,7 +242,7 @@ const { isDraggingOver } = useFileDrop({
 const openFileDialog = async () => {
   if (props.disabled) return;
   try {
-    const selected = await open({
+    const selected = await showOpenDialog({
       multiple: props.multiple,
       directory: props.directoryOnly,
       filters:

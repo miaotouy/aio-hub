@@ -25,7 +25,10 @@ import {
   watch,
 } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  saveWindowConfig as saveWindowConfigToStorage,
+  closeDetachedWindow,
+} from "@/platform";
 import {
   Minus,
   CopyDocument,
@@ -337,7 +340,7 @@ const saveWindowConfig = useDebounceFn(async () => {
   const windowLabel = appWindow.label;
 
   try {
-    await invoke("save_window_config", { label: windowLabel });
+    await saveWindowConfigToStorage(windowLabel);
     logger.debug(`窗口配置已保存: ${windowLabel}`);
   } catch (error) {
     errorHandler.handle(error, {
@@ -458,7 +461,7 @@ const handleReattach = async () => {
   try {
     logger.info("请求重新附着到主窗口");
     // 使用统一的关闭命令，它会自动处理重新附着事件
-    await invoke("close_detached_window", { label: appWindow.label });
+    await closeDetachedWindow(appWindow.label);
   } catch (error) {
     errorHandler.error(error, "重新附着失败");
   }

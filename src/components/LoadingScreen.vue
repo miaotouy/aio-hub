@@ -28,7 +28,7 @@ import {
   Link,
 } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
-import { invoke } from "@tauri-apps/api/core";
+import { openExternalUrl, writeClipboardText } from "@/platform";
 
 const isDark = useDark();
 const appInitStore = useAppInitStore();
@@ -47,7 +47,7 @@ const copyError = async () => {
   if (!error.value) return;
   const text = `Error: ${error.value.message}\n\nStack:\n${error.value.stack || "No stack trace available"}`;
   try {
-    await navigator.clipboard.writeText(text);
+    await writeClipboardText(text);
     customMessage.success("错误信息已复制到剪贴板");
   } catch (e) {
     customMessage.error("复制失败");
@@ -56,7 +56,7 @@ const copyError = async () => {
 
 const openUrl = async (url: string) => {
   try {
-    await invoke("open_url", { url });
+    await openExternalUrl(url);
   } catch (e) {
     customMessage.error("无法打开链接");
   }

@@ -46,10 +46,8 @@ let unlistenAssetImport: UnlistenFn | null = null;
  * 且不会重复注册监听器。
  */
 
-// 模块级别的状态引用
-const { settings } = useChatSettings();
-
 export function useTranscriptionManager() {
+  const { settings } = useChatSettings();
   const { currentAgentId } = useLlmChatUiState();
   const transcriptionStore = useTranscriptionStore();
 

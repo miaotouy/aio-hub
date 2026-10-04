@@ -59,11 +59,14 @@ import {
 import {
   getSlashCommands,
   filterCommands,
+  applyCommand,
 } from "../../services/slashCommandService";
 import type {
   SlashCommandItem,
   ChatInputContext,
 } from "../../types/slash-command";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("ChatCodeMirrorEditor");
@@ -75,6 +78,7 @@ interface Props {
   height?: string | number;
   maxHeight?: string | number;
   sendKey?: "ctrl+enter" | "enter";
+  isDetached?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -84,6 +88,7 @@ const props = withDefaults(defineProps<Props>(), {
   height: "auto",
   maxHeight: "70vh",
   sendKey: "ctrl+enter",
+  isDetached: false,
 });
 
 const emit = defineEmits<{
@@ -200,6 +205,8 @@ const macroCompletionSource = (
 
 /** 基于当前视图构建斜杠命令执行上下文 */
 function buildSlashCommandContext(editView: EditorView): ChatInputContext {
+  const { currentAgentId } = useLlmChatUiState();
+  const chatStore = useLlmChatStore();
   return {
     getValue: () => editView.state.doc.toString(),
     replaceValue: (text: string) => {
@@ -207,14 +214,19 @@ function buildSlashCommandContext(editView: EditorView): ChatInputContext {
         changes: { from: 0, to: editView.state.doc.length, insert: text },
       });
     },
-    insertText: (text: string) => {
-      const pos = editView.state.selection.main.from;
+    insertText: (text: string, from?: number, to?: number) => {
+      const start = from ?? editView.state.selection.main.from;
+      const end = to ?? editView.state.selection.main.to;
       editView.dispatch({
-        changes: { from: pos, to: pos, insert: text },
+        changes: { from: start, to: end, insert: text },
+        selection: { anchor: start + text.length },
       });
     },
     requestSubmit: () => emit("submit"),
     focus: () => editView.focus(),
+    isDetached: props.isDetached,
+    agentId: currentAgentId.value || undefined,
+    sessionId: chatStore.currentSessionId || undefined,
   };
 }
 
@@ -233,7 +245,10 @@ const slashCommandCompletionSource = async (
   // match[1] 长度 + "/" 字符
   const slashStart = context.pos - match[2].length - 1;
 
-  const commands = await getSlashCommands();
+  const { currentAgentId } = useLlmChatUiState();
+  const commands = await getSlashCommands({
+    agentId: currentAgentId.value || undefined,
+  });
   const filtered = filterCommands(commands, prefix);
   if (filtered.length === 0) return null;
 
@@ -252,23 +267,12 @@ const slashCommandCompletionSource = async (
       from: number,
       to: number
     ) => {
-      if (item.type === "action" && item.execute) {
-        // action 型：移除已输入的 /词 后执行
-        applyView.dispatch({
-          changes: { from, to, insert: "" },
-        });
-        item.execute(buildSlashCommandContext(applyView));
-        return;
-      }
-      // insert 型：把 /词 替换为模板
-      const insertText = item.template ?? "";
+      // 移除已输入的 /词
       applyView.dispatch({
-        changes: { from, to, insert: insertText },
-        selection: { anchor: from + insertText.length },
+        changes: { from, to, insert: "" },
       });
-      if (item.autoSend) {
-        emit("submit");
-      }
+      const ctx = buildSlashCommandContext(applyView);
+      applyCommand(item, ctx);
     },
   }));
 

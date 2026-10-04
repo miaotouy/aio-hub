@@ -26,11 +26,14 @@ import {
 import {
   getSlashCommands,
   filterCommands,
+  applyCommand,
 } from "../../services/slashCommandService";
 import type {
   SlashCommandItem,
   ChatInputContext,
 } from "../../types/slash-command";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 
 interface Props {
   value: string;
@@ -39,6 +42,7 @@ interface Props {
   height?: string | number;
   maxHeight?: string | number;
   sendKey?: "ctrl+enter" | "enter";
+  isDetached?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -48,6 +52,7 @@ const props = withDefaults(defineProps<Props>(), {
   height: "auto",
   maxHeight: "70vh",
   sendKey: "ctrl+enter",
+  isDetached: false,
 });
 
 const emit = defineEmits<{
@@ -235,7 +240,10 @@ function detectSlashTrigger() {
   if (!match) return hideSlashPopover();
 
   const word = match[2];
-  getSlashCommands().then((all) => {
+  const { currentAgentId } = useLlmChatUiState();
+  getSlashCommands({
+    agentId: currentAgentId.value || undefined,
+  }).then((all) => {
     const filtered = filterCommands(all, word);
     if (filtered.length === 0) return hideSlashPopover();
     slashState.value = {
@@ -301,6 +309,8 @@ function moveSlashActive(delta: number) {
 }
 
 function buildChatInputContext(): ChatInputContext {
+  const { currentAgentId } = useLlmChatUiState();
+  const chatStore = useLlmChatStore();
   return {
     getValue: () => localValue.value,
     replaceValue: (text: string) => {
@@ -310,20 +320,25 @@ function buildChatInputContext(): ChatInputContext {
         textareaEl.value?.focus();
       });
     },
-    insertText: (text: string) => {
+    insertText: (text: string, from?: number, to?: number) => {
       flushDebouncedCommit();
       const textarea = textareaEl.value;
       if (!textarea) return;
-      const pos = textarea.selectionStart;
+      const start = from ?? textarea.selectionStart;
+      const end = to ?? textarea.selectionEnd;
       localValue.value =
-        localValue.value.slice(0, pos) + text + localValue.value.slice(pos);
+        localValue.value.slice(0, start) + text + localValue.value.slice(end);
       nextTick(() => {
-        textarea.setSelectionRange(pos + text.length, pos + text.length);
+        const newPos = start + text.length;
+        textarea.setSelectionRange(newPos, newPos);
         textarea.focus();
       });
     },
     requestSubmit: () => emit("submit"),
     focus: () => textareaEl.value?.focus(),
+    isDetached: props.isDetached,
+    agentId: currentAgentId.value || undefined,
+    sessionId: chatStore.currentSessionId || undefined,
   };
 }
 
@@ -331,31 +346,13 @@ function applySlashCommand(item: SlashCommandItem) {
   const { wordStart, wordEnd } = slashState.value;
   hideSlashPopover();
 
-  if (item.type === "action" && item.execute) {
-    // action 型：移除已输入的 /词 后执行
-    flushDebouncedCommit();
-    localValue.value =
-      localValue.value.slice(0, wordStart) + localValue.value.slice(wordEnd);
-    nextTick(() => {
-      item.execute?.(buildChatInputContext());
-    });
-    return;
-  }
-
-  // insert 型：把 /词 替换为模板
+  // 移除已输入的 /词
   flushDebouncedCommit();
   localValue.value =
-    localValue.value.slice(0, wordStart) +
-    (item.template || "") +
-    localValue.value.slice(wordEnd);
+    localValue.value.slice(0, wordStart) + localValue.value.slice(wordEnd);
   nextTick(() => {
-    const textarea = textareaEl.value;
-    if (textarea) {
-      const newPos = wordStart + (item.template || "").length;
-      textarea.setSelectionRange(newPos, newPos);
-      textarea.focus();
-    }
-    if (item.autoSend) emit("submit");
+    const ctx = buildChatInputContext();
+    applyCommand(item, ctx);
   });
 }
 

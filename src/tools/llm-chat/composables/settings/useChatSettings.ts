@@ -28,6 +28,10 @@ import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
 
+// 全局设置状态（提升到顶部避免循环依赖导入时出现 TDZ 临时死区）
+const settings = ref<ChatSettings>({ ...DEFAULT_SETTINGS });
+const isLoaded = ref(false);
+
 /**
  * 创建聊天设置配置管理器
  */
@@ -124,9 +128,6 @@ const settingsManager = createConfigManager<ChatSettings>({
   },
 });
 
-// 全局设置状态
-const settings = ref<ChatSettings>({ ...DEFAULT_SETTINGS });
-const isLoaded = ref(false);
 /**
  * 加载设置
  */

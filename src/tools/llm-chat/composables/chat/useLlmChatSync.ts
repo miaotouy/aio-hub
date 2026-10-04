@@ -434,6 +434,12 @@ export function useLlmChatSync() {
           "llm-chat-ui:select-continuation-model",
           params
         );
+      case "select-temporary-model":
+        logger.info("主窗口收到临时模型选择请求，转发至 UI 命名空间");
+        return bus.requestAction(
+          "llm-chat-ui:select-temporary-model",
+          params
+        );
       case "open-agent-settings":
         logger.info("主窗口收到打开智能体设置请求，转发至 UI 命名空间");
         return bus.requestAction("llm-chat-ui:open-agent-settings", params);

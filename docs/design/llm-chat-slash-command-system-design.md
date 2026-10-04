@@ -93,7 +93,7 @@ classDiagram
 结合 AIO Hub 本地能力，装配种类明确划分为 5 大类别：
 
 1. **`system`（系统与编辑工具）**：
-   - `/clear` (清空输入框)
+   - `/new` (新建会话)
    - `/translate` (翻译输入框/选区文本)
    - `/compress` (手动执行上下文压缩)
    - `/analyze` (打开当前输入与会话的上下文分析器)
@@ -216,10 +216,10 @@ graph TD
 
 ### 3.2 系统高频动作映射表
 
-| 命令 (`name`) | 别名 (`aliases`)   | 显示名称         | 说明                                           | 对应运行时 Action                            |
-| :------------ | :----------------- | :--------------- | :--------------------------------------------- | :------------------------------------------- |
-| `清空`        | `clear`, `qk`      | 清空输入框       | 清空当前输入框全部内容与草稿                   | `context.replaceValue("")`                   |
-| `翻译`        | `translate`, `fy`  | 翻译输入         | 对输入框选区或全文执行即时中英互译             | `inputStore.handleTranslateInput()`          |
+| 命令 (`name`) | 别名 (`aliases`)               | 显示名称         | 说明                                           | 对应运行时 Action                            |
+| :------------ | :----------------------------- | :--------------- | :--------------------------------------------- | :------------------------------------------- |
+| `新建会话`    | `new`, `new-session`, `clear`, `xj` | 新建会话         | 开启一个全新的对话会话                         | `chatStore.beginNewSession()`                |
+| `翻译`        | `translate`, `fy`              | 翻译输入         | 对输入框选区或全文执行即时中英互译             | `inputStore.handleTranslateInput()`          |
 | `压缩`        | `compress`, `ys`   | 压缩上下文       | 对当前历史对话发起智能上下文压缩               | `inputStore.handleCompressContext()`         |
 | `分析`        | `analyze`, `fx`    | 上下文分析器     | 预览当前输入拼装后的完整 LLM 请求与 Token 构成 | `inputStore.handleAnalyzeContextWithInput()` |
 | `路径转附件`  | `path2file`, `lj`  | 路径转附件       | 扫描并提取输入文本中的本地文件/图片为附件      | `inputStore.handleConvertPaths()`            |
@@ -227,6 +227,16 @@ graph TD
 | `临时模型`    | `model`, `ls`      | 指定临时模型     | 覆盖当前单轮对话模型（支持随时清除）           | `inputStore.handleSelectTemporaryModel()`    |
 | `剪切草稿`    | `cut-draft`        | 剪切全局草稿     | 将输入框草稿剪切到跨会话全局剪贴板             | `inputStore.handleCutDraft()`                |
 | `粘贴草稿`    | `paste-draft`      | 粘贴全局草稿     | 从全局剪贴板恢复草稿内容与附件                 | `inputStore.handlePasteDraft()`              |
+
+### 3.3 拼音与多别名检索机制
+
+为保障中国用户直接键入拼音首字母即可快速呼出系统动作（例如 `/xj` 唤起新建会话、`/fy` 唤起翻译、`/ys` 唤起压缩、`/fx` 唤起分析、`/zx` 唤起转写、`/ls` 唤起临时模型）：
+1. **静态首字母索引与 aliases 契约**：在 `SlashCommandItem` 中明确定义 `aliases: string[]`，系统内置指令默认内嵌常用拼音缩写和英文别名。
+2. **轻量通用拼音首字母提取器**：在过滤逻辑中实现轻量中文首字母映射表（覆盖常用一二级汉字 Unicode 范围），无需引入庞大第三方依赖即可支持任意快捷操作中文名称的首字母检索。
+3. **多维加权匹配策略**：
+   - 指令原名（`name`）或中文名称（`displayName`）前缀完全匹配：权重最高；
+   - `aliases` 别名完全或前缀匹配：次高；
+   - 描述、标签或拼音首字母模糊包含匹配：权重兜底。
 
 ---
 

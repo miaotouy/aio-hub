@@ -49,6 +49,7 @@ import ShareScreenshotDialog from "./screenshot/ShareScreenshotDialog.vue";
 import { useChatSettings } from "../composables/settings/useChatSettings";
 import { useLlmChatUiState } from "../composables/ui/useLlmChatUiState";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { useMessageInputStore } from "../stores/messageInputStore";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 import { isEqual } from "lodash-es";
@@ -456,6 +457,11 @@ onMounted(async () => {
     if (action === "select-continuation-model") {
       logger.info("收到续写模型选择 UI 请求");
       emit("select-continuation-model");
+      return true;
+    } else if (action === "select-temporary-model") {
+      logger.info("收到临时模型选择 UI 请求");
+      const inputStore = useMessageInputStore();
+      inputStore.handleSelectTemporaryModel();
       return true;
     } else if (action === "open-agent-settings") {
       logger.info("收到打开智能体设置 UI 请求", data);

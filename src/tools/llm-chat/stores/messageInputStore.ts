@@ -600,12 +600,39 @@ export const useMessageInputStore = defineStore(
     };
 
     const handleSmartTranscribeAll = async (
-      getWillUseTranscription: (asset: any) => boolean
+      getWillUseTranscription?: (asset: any) => boolean
     ) => {
+      // 默认转写判断逻辑：若未传参则通过 transcriptionManager 与当前激活模型做推导
+      const checkFn =
+        getWillUseTranscription ||
+        ((asset: any) => {
+          let modelId = "";
+          let profileId = "";
+          if (temporaryModel.value) {
+            modelId = temporaryModel.value.modelId;
+            profileId = temporaryModel.value.profileId;
+          } else {
+            const { currentAgentId } = useLlmChatUiState();
+            if (currentAgentId.value) {
+              const agent = agentStore.getAgentById(currentAgentId.value);
+              if (agent) {
+                modelId = agent.modelId;
+                profileId = agent.profileId;
+              }
+            }
+          }
+          return transcriptionManager.computeWillUseTranscription(
+            asset,
+            modelId,
+            profileId,
+            undefined
+          );
+        });
+
       for (const asset of attachments.value) {
         const latestAsset = await assetManagerEngine.getAssetById(asset.id);
         const assetToCheck = latestAsset || asset;
-        if (getWillUseTranscription(assetToCheck)) {
+        if (checkFn(assetToCheck)) {
           const status =
             transcriptionManager.getTranscriptionStatus(assetToCheck);
           if (status === "none" || status === "error") {

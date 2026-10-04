@@ -23,11 +23,18 @@
 /** 预定义装配种类标识（支持通过来源动态扩展） */
 export type SlashCommandCategory =
   | "system" // 系统操作
+  | "model" // 模型操作
+  | "quick-action" // 快捷操作
+  | "knowledge" // 知识库
+  | "macro" // 宏
   | "prompt" // 提示词预设 / 装配
   | "role" // 角色设定
   | "format" // 格式规范
   | "workflow" // 工作流与思考链
   | "custom"; // 用户自定义装配种类
+
+/** 斜杠命令来源作用域 */
+export type SlashCommandScope = "global" | "agent" | "profile" | "system";
 
 /** 斜杠命令执行上下文，由编辑器组件注入 */
 export interface ChatInputContext {
@@ -35,12 +42,18 @@ export interface ChatInputContext {
   getValue(): string;
   /** 用指定文本替换整个输入框内容 */
   replaceValue(text: string): void;
-  /** 在当前光标处插入文本 */
-  insertText(text: string): void;
+  /** 在当前光标处或指定范围插入文本 */
+  insertText(text: string, from?: number, to?: number): void;
   /** 请求发送当前内容（用于 autoSend 类指令） */
   requestSubmit(): void;
   /** 聚焦输入框 */
   focus(): void;
+  /** 是否处于独立分离窗口环境 */
+  isDetached?: boolean;
+  /** 当前智能体 ID */
+  agentId?: string;
+  /** 当前会话 ID */
+  sessionId?: string;
 }
 
 /** 斜杠命令条目 */
@@ -49,12 +62,16 @@ export interface SlashCommandItem {
   id: string;
   /** 指令名（不含斜杠，如 "review"） */
   name: string;
+  /** 别名列表（如 ["clear", "qk"]） */
+  aliases?: string[];
   /** 友好显示名称（如 "代码审校框架"） */
   displayName: string;
   /** 描述或功能摘要 */
   description: string;
+  /** 来源作用域 */
+  scope?: SlashCommandScope;
   /** 装配种类标识（支持动态扩展，快捷操作组使用其组 ID） */
-  category: string;
+  category: SlashCommandCategory | string;
   /** 种类中文标签（如 "工作流规范"），快捷操作组使用组名 */
   categoryLabel?: string;
   /** 图标（lucide 组件），可选 */

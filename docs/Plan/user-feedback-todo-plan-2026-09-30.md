@@ -153,11 +153,11 @@
 
 > 对应详细设计：[`docs/design/llm-chat-slash-command-system-design.md`](../design/llm-chat-slash-command-system-design.md)
 
-- [x] 4.1 落地 `slashCommandService.ts` 与类型定义，支持中英文指令名与 aliases 别名查询。（中英文指令名已支持；`aliases` 独立别名与拼音匹配未实现，现以 `name`/`displayName`/`description`/`categoryLabel` 子串过滤替代）
-- [x] 4.2 支持从快捷操作组加载自定义装配种类，支持中英文与拼音过滤。（快捷操作组映射已落地；拼音过滤未实现）
-- [x] 4.3 在 `ChatCodeMirrorEditor.vue` 中集成 `slashCommandCompletionSource`，处理 IME 兼容与中文输入。
-- [x] 4.4 美化斜杠指令补全下拉项，高亮显示分类 Badge、快捷键与参数说明。（已适配主题变量、详情列与匹配高亮；分类 Badge 与快捷键提示为简化展示，可后续增强）
-- [x] 4.5 为 `ChatTextareaEditor.vue` 补充通用浮层触发支持。
+- [x] 4.1 扩展 `src/tools/llm-chat/types/slash-command.ts` 类型契约：补齐 `aliases`、`scope`（`global` | `agent` | `profile` | `system`）、`isDetached` 等上下文与种类声明。
+- [x] 4.2 重构 `slashCommandService.ts` 系统内置动作注册表，完整接入高频动作映射（新建会话、翻译、压缩、上下文分析、路径转附件、智能转写、临时模型切换、草稿剪切/粘贴等 9 大核心指令）。
+- [x] 4.3 重构快捷操作组装配加载：与 `MessageInputToolbar` 完全对齐，聚合 Global + Agent + UserProfile 三层动态操作组，执行时完整调用 `inputStore.handleQuickAction` 保留宏上下文与行正则处理。
+- [x] 4.4 完善命令过滤算法与别名索引（支持中文指令名、英文别名、拼音缩写及 aliases 别名检索）。
+- [x] 4.5 适配分离窗口（Detached Window）调度通道与双编辑器（CodeMirror / Textarea）交互对齐。
 
 ---
 

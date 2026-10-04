@@ -571,6 +571,7 @@ const handleDragStart = (e: MouseEvent) => {
             :height="editorHeight"
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
+            :is-detached="props.isDetached"
             @submit="inputStore.handleSend()"
             @paste="inputStore.handlePaste"
           />
@@ -583,6 +584,7 @@ const handleDragStart = (e: MouseEvent) => {
             :height="editorHeight"
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
+            :is-detached="props.isDetached"
             @submit="inputStore.handleSend()"
             @paste="inputStore.handlePaste"
           />

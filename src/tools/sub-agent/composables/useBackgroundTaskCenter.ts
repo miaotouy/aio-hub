@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 /**
  * 后台任务中心 UI 状态（进程内单例）
  *
@@ -22,20 +21,29 @@
  * 任务中心组件本身只在 TitleBar 中挂载一次，其它入口通过 openTaskCenter()
  * 触发打开；不涉及任何任务数据或服务层语义。
  */
-
 import { ref } from "vue";
+
+
+/** 任务中心是否可见（模块级单例状态） */
+export type TaskCenterTab = "tasks" | "subagents";
 
 /** 任务中心是否可见（模块级单例状态） */
 const isTaskCenterOpen = ref(false);
+/** 当前激活的选项卡 */
+const activeTab = ref<TaskCenterTab>("tasks");
 /** 外部入口指定的任务中心列表焦点；由唯一挂载的任务中心消费。 */
 const focusedTaskId = ref<string | null>(null);
 
 export interface UseBackgroundTaskCenterReturn {
   /** 任务中心可见性（供 v-model 绑定唯一挂载点） */
   isTaskCenterOpen: typeof isTaskCenterOpen;
+  /** 当前激活的选项卡 */
+  activeTab: typeof activeTab;
   /** 当前请求在任务列表中定位的任务 ID */
   focusedTaskId: typeof focusedTaskId;
-  /** 打开任务中心 */
+  /** 切换到指定选项卡 */
+  setActiveTab: (tab: TaskCenterTab) => void;
+  /** 打开任务中心（默认切到任务列表） */
   openTaskCenter: () => void;
   /** 打开任务中心并定位任务列表项 */
   focusTaskInCenter: (taskId: string) => void;
@@ -45,6 +53,10 @@ export interface UseBackgroundTaskCenterReturn {
   closeTaskCenter: () => void;
   /** 切换任务中心可见性 */
   toggleTaskCenter: () => void;
+  /** 直接打开子智能体管理面板（同一工作台切换 tab） */
+  openSubagentPanel: () => void;
+  /** 关闭子智能体面板（等价于关闭任务中心） */
+  closeSubagentPanel: () => void;
 }
 
 /**
@@ -54,11 +66,17 @@ export interface UseBackgroundTaskCenterReturn {
  * 标题栏活动胶囊始终指向同一个任务中心实例。
  */
 export function useBackgroundTaskCenter(): UseBackgroundTaskCenterReturn {
+  function setActiveTab(tab: TaskCenterTab): void {
+    activeTab.value = tab;
+  }
+
   function openTaskCenter(): void {
+    activeTab.value = "tasks";
     isTaskCenterOpen.value = true;
   }
 
   function focusTaskInCenter(taskId: string): void {
+    activeTab.value = "tasks";
     focusedTaskId.value = taskId;
     isTaskCenterOpen.value = true;
   }
@@ -75,13 +93,26 @@ export function useBackgroundTaskCenter(): UseBackgroundTaskCenterReturn {
     isTaskCenterOpen.value = !isTaskCenterOpen.value;
   }
 
+  function openSubagentPanel(): void {
+    activeTab.value = "subagents";
+    isTaskCenterOpen.value = true;
+  }
+
+  function closeSubagentPanel(): void {
+    isTaskCenterOpen.value = false;
+  }
+
   return {
     isTaskCenterOpen,
+    activeTab,
     focusedTaskId,
+    setActiveTab,
     openTaskCenter,
     focusTaskInCenter,
     clearFocusedTask,
     closeTaskCenter,
     toggleTaskCenter,
+    openSubagentPanel,
+    closeSubagentPanel,
   };
 }

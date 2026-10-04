@@ -76,6 +76,8 @@ interface ExecuteRequestParams {
   };
   /** 执行所使用的 Agent ID（可选，默认回退当前 UI Agent） */
   agentId?: string;
+  /** 子智能体派发深度（透传至工具调用链 ToolContext.delegationDepth） */
+  delegationDepth?: number;
 }
 
 export function useChatExecutor() {
@@ -94,6 +96,7 @@ export function useChatExecutor() {
     generatingNodes,
     agentConfig: providedAgentConfig,
     agentId,
+    delegationDepth,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
     const effectiveAgentId = agentId || currentAgentId.value;
@@ -167,6 +170,7 @@ export function useChatExecutor() {
       abortControllers,
       generatingNodes,
       consumeTextCallsLocally,
+      delegationDepth,
     });
   };
 

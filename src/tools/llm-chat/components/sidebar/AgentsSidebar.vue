@@ -180,6 +180,9 @@ const filteredAndSortedAgents = computed(() => {
   const start = performance.now();
   let agents = [...agentStore.agents];
 
+  // 0. 子智能体可见性过滤：仅作为子智能体使用的专项节点不进入主聊天角色列表
+  agents = agents.filter((agent) => agent.subAgentConfig?.onlySubVisible !== true);
+
   // 1. 分类过滤
   if (selectedCategory.value !== "all") {
     agents = agents.filter(
@@ -248,6 +251,8 @@ const searchResultAgents = computed(() => {
   for (const result of agentResults.value) {
     const agent = agentStore.getAgentById(result.id);
     if (agent) {
+      // 仅作为子智能体可见的专项节点不进入主聊天角色列表
+      if (agent.subAgentConfig?.onlySubVisible === true) continue;
       // 如果有分类筛选，也需要应用
       if (
         selectedCategory.value === "all" ||

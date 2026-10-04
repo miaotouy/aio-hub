@@ -484,6 +484,8 @@ export class LlmChatService {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
       disableMacroParsing?: boolean;
+      /** 子智能体派发深度：sub-agent 派发子会话时传 parent depth + 1 */
+      delegationDepth?: number;
     }
   ): Promise<void> {
     await errorHandler.wrapAsync(

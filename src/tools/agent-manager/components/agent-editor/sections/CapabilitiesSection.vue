@@ -33,6 +33,29 @@ const mode = inject<any>("mode");
 const assetsDialogVisible = inject<any>("assets-dialog-visible");
 const macroSelectorVisible = ref(false);
 
+// 子智能体调用扩展配置：以可写 computed 双向绑定到 editForm.subAgentConfig，
+// 缺省字段自动按默认值补齐（旧存量配置不含 modelBindingMode 等字段）
+const subAgentModelBindingMode = computed({
+  get: () => editForm.subAgentConfig?.modelBindingMode ?? "inherit_caller",
+  set: (value: "inherit_caller" | "prefer_self") => {
+    editForm.subAgentConfig.modelBindingMode = value;
+  },
+});
+
+const subAgentMaxDelegationDepth = computed({
+  get: () => editForm.subAgentConfig?.maxDelegationDepth ?? 1,
+  set: (value: number | undefined) => {
+    editForm.subAgentConfig.maxDelegationDepth = value ?? 1;
+  },
+});
+
+const subAgentOnlySubVisible = computed({
+  get: () => editForm.subAgentConfig?.onlySubVisible === true,
+  set: (value: boolean) => {
+    editForm.subAgentConfig.onlySubVisible = value;
+  },
+});
+
 // 资产分组统计
 const assetGroupStats = computed(() => {
   const counts: Record<string, number> = {};
@@ -244,6 +267,36 @@ const handleInsertMacro = (macro: MacroDefinition) => {
           inactive-text="仅用于普通对话"
         />
       </el-form-item>
+
+      <template v-if="editForm.subAgentConfig.enabled">
+        <el-form-item label="模型偏好">
+          <el-radio-group v-model="subAgentModelBindingMode">
+            <el-radio value="inherit_caller">跟随父会话模型</el-radio>
+            <el-radio value="prefer_self">优先自身模型</el-radio>
+          </el-radio-group>
+          <div class="setting-hint">
+            「跟随父会话」上下文成本最低且开箱即用；「优先自身模型」用于大模型特化节点，自身配置失效时自动回退父会话模型。
+          </div>
+        </el-form-item>
+        <el-form-item label="最大派发深度">
+          <el-input-number
+            v-model="subAgentMaxDelegationDepth"
+            :min="1"
+            :max="3"
+            :step="1"
+            :precision="0"
+          />
+          <div class="setting-hint">
+            允许的子智能体嵌套调用层数（1 ~ 3）。设为 1 时子智能体不可继续派发子任务，防止递归失控。
+          </div>
+        </el-form-item>
+        <el-form-item label="仅子智能体可见">
+          <el-switch v-model="subAgentOnlySubVisible" />
+          <div class="setting-hint">
+            开启后在主聊天的智能体列表中隐藏当前智能体，仅在子智能体调度与智能体大厅中可见，避免专项工作节点污染日常对话列表。
+          </div>
+        </el-form-item>
+      </template>
     </div>
 
     <el-divider />

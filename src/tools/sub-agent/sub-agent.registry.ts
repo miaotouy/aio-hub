@@ -23,8 +23,18 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { llmChatService } from "@/tools/llm-chat/services/llmChatService";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import {
+  MAX_DELEGATION_DEPTH_LIMIT,
+} from "@/tools/agent-manager/types/agent";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
+import {
+  subAgentBaselineService,
+} from "@/tools/sub-agent/services/subAgentBaselineService";
+import {
+  resolveSubAgentModel,
+  type SubAgentResolveContext,
+} from "@/tools/sub-agent/services/subAgentModelResolver";
 import type {
   ChatMessageNode,
   ChatSessionDetail,
@@ -60,9 +70,9 @@ const TASK_STATE_LABELS: Record<string, string> = {
   interrupted: "已中断",
 };
 
-/** 工具参数摘要中需要脱敏的键名。 */
+/** 工具参数摘要中需要脱敏的键名（大小写不敏感，覆盖 token/key/auth/secret/cookie/credential 等）。 */
 const SENSITIVE_ARG_KEY_PATTERN =
-  /(key|token|secret|password|passwd|authorization|auth|cookie|credential)/i;
+  /(key|token|secret|password|passwd|authorization|auth|cookie|credential|access_token|refresh_token|private_key|api_key|apikey)/i;
 
 /** 已加载的子智能体定义（带 subAgentConfig）。 */
 type LoadedSubAgent = NonNullable<
@@ -186,6 +196,59 @@ export default class SubAgentRegistry implements ToolRegistry {
     const count = this.activeTargetAgentIds.get(agentId) ?? 0;
     if (count <= 1) this.activeTargetAgentIds.delete(agentId);
     else this.activeTargetAgentIds.set(agentId, count - 1);
+  }
+
+  /**
+   * 深度链校验（Delegation Depth Chain）：
+   * - 主会话发起时 context.delegationDepth 未指定，视为 0；
+   * - 每次子智能体调用前校验 (当前深度 + 1) <= maxDepth；
+   * - maxDepth 读取目标 Agent 的 subAgentConfig.maxDelegationDepth（默认 1），
+   *   全局安全硬上限 clamp 至 MAX_DELEGATION_DEPTH_LIMIT；
+   * - 允许自调用（同名派发），由深度链精准防范死循环递归。
+   */
+  private assertDelegationDepth(
+    targetAgent: LoadedSubAgent,
+    context?: ToolContext
+  ): void {
+    const currentDepth = context?.delegationDepth ?? 0;
+    const rawMaxDepth =
+      targetAgent.subAgentConfig?.maxDelegationDepth ?? 1;
+    const maxDepth = Math.max(
+      1,
+      Math.min(MAX_DELEGATION_DEPTH_LIMIT, Math.floor(rawMaxDepth) || 1)
+    );
+    if (currentDepth + 1 > maxDepth) {
+      throw new Error(
+        `已达到允许的最大子任务派发深度（当前深度：${currentDepth}，限制：${maxDepth}）`
+      );
+    }
+  }
+
+  /**
+   * 提取调用方模型上下文：优先取父会话绑定的 Agent，其次当前活跃 Agent。
+   * 子会话派发下一级时通过 ToolContext.delegationDepth 透传深度。
+   */
+  private buildCallerResolveContext(
+    context?: ToolContext
+  ): {
+    resolveContext: SubAgentResolveContext;
+    delegationDepth: number;
+  } {
+    const agentStore = useAgentStore();
+    const parentSession = llmChatService.getCurrentSession();
+    const parentAgentId =
+      parentSession?.displayAgentId || context?.agent?.id;
+    const parentAgent = parentAgentId
+      ? agentStore.getAgentById(parentAgentId)
+      : llmChatService.getCurrentAgent();
+
+    return {
+      resolveContext: {
+        callerProfileId: parentAgent?.profileId,
+        callerModelId: parentAgent?.modelId,
+      },
+      delegationDepth: context?.delegationDepth ?? 0,
+    };
   }
 
   private executionLaneKey(childSessionId: string): string {
@@ -400,6 +463,9 @@ export default class SubAgentRegistry implements ToolRegistry {
 
   public async list_available_agents(): Promise<string> {
     await llmChatService.ensureInitialized();
+    // 触发按需释出检查（若内置基线已全量存在则快速跳过）
+    await subAgentBaselineService.ensureBaselineMaterialized();
+
     const agentStore = useAgentStore();
     const loadedAgents = await Promise.all(
       agentStore.agents.map((agent) => agentStore.loadAgentDetails(agent.id))
@@ -584,21 +650,22 @@ export default class SubAgentRegistry implements ToolRegistry {
     const message = args.message?.trim();
     if (!args.agentId?.trim()) throw new Error("必须提供目标智能体 ID");
     if (!message) throw new Error("必须提供要交给子智能体的消息");
-    if (context?.agent?.id === args.agentId) {
-      throw new Error("当前智能体不能调用自身，避免形成递归调用");
-    }
-    if (context?.agent?.id && this.activeTargetAgentIds.has(context.agent.id)) {
-      throw new Error("子智能体调用暂时限制为单层，当前目标不能继续委托子任务");
-    }
 
     await llmChatService.ensureInitialized();
     await this.ensureConversationIndexLoaded();
+    // 触发按需释出检查（覆盖"首次直接 ask"路径；已全量存在则快速跳过）
+    await subAgentBaselineService.ensureBaselineMaterialized();
+
     const agentStore = useAgentStore();
     const targetAgent = await agentStore.loadAgentDetails(args.agentId);
     if (!targetAgent) throw new Error(`目标智能体不存在：${args.agentId}`);
     if (targetAgent.subAgentConfig?.enabled !== true) {
       throw new Error("目标智能体未开启“允许被调用”开关");
     }
+
+    // 深度链校验：允许自调用分身（同 ID 派发到独立 detached session），
+    // 由 delegationDepth 防范死循环递归，替代旧的同名拦截与强单层拦截。
+    this.assertDelegationDepth(targetAgent, context);
 
     const existingConversation = args.conversationId
       ? this.conversations.get(args.conversationId)
@@ -617,12 +684,20 @@ export default class SubAgentRegistry implements ToolRegistry {
 
     // Phase 2：background 模式创建任务与子会话后立即返回 handle，父 Agent 继续执行
     if (args.mode === "background") {
+      const { resolveContext: callerResolveContext, delegationDepth: bgCurrentDepth } =
+        this.buildCallerResolveContext(context);
+      const resolved = resolveSubAgentModel(targetAgent, callerResolveContext);
       const result = await this.askInBackground({
         args,
         context,
         targetAgent,
         existingConversation,
         message,
+        resolvedModel: {
+          profileId: resolved.profileId,
+          modelId: resolved.modelId,
+        },
+        delegationDepth: bgCurrentDepth + 1,
       });
       const handle = JSON.parse(result) as {
         taskId?: string;
@@ -639,6 +714,11 @@ export default class SubAgentRegistry implements ToolRegistry {
     const previousSessionId = llmChatService.getCurrentSession()?.id;
     let conversation = existingConversation;
     this.retainTargetAgent(targetAgent.id);
+
+    // 模型晚绑定：解析子智能体最终生效的模型（prefer_self / inherit_caller / fallback）
+    const { resolveContext: callerResolveContext, delegationDepth: currentDepth } =
+      this.buildCallerResolveContext(context);
+    const resolved = resolveSubAgentModel(targetAgent, callerResolveContext);
 
     // Phase 1 前台 ask 埋点状态：taskId 与取消订阅句柄在 finally 清理
     const store = useLlmChatStore();
@@ -735,6 +815,12 @@ export default class SubAgentRegistry implements ToolRegistry {
             await llmChatService.sendMessage(message, {
               agentId: targetAgent.id,
               sessionId,
+              temporaryModel: {
+                profileId: resolved.profileId,
+                modelId: resolved.modelId,
+              },
+              // 向子会话透传递增后的派发深度，供其继续派发时深度链校验
+              delegationDepth: currentDepth + 1,
             });
 
             const detail = store.sessionDetailMap.get(sessionId);
@@ -748,6 +834,13 @@ export default class SubAgentRegistry implements ToolRegistry {
 
             if (taskId && detail && this.isTaskActive(taskId)) {
               const resultSummary = this.buildReplySummary(leaf.content);
+              // 补充工具调用类活动（§4.1 摘要），读不到工具节点则自动跳过
+              this.appendToolActivities(
+                taskId,
+                detail,
+                detail.activeLeafId,
+                targetOrigin
+              );
               backgroundTaskRegistry.appendActivity(taskId, {
                 kind: "llm_progress",
                 actor: targetOrigin,
@@ -858,8 +951,18 @@ export default class SubAgentRegistry implements ToolRegistry {
     targetAgent: LoadedSubAgent;
     existingConversation?: SubAgentConversation;
     message: string;
+    resolvedModel: { profileId: string; modelId: string };
+    /** 递增后的派发深度，透传给子会话的执行链 */
+    delegationDepth: number;
   }): Promise<string> {
-    const { context, targetAgent, existingConversation, message } = params;
+    const {
+      context,
+      targetAgent,
+      existingConversation,
+      message,
+      resolvedModel,
+      delegationDepth,
+    } = params;
     const targetName = targetAgent.displayName || targetAgent.name;
     const store = useLlmChatStore();
     const parentSessionId = llmChatService.getCurrentSession()?.id ?? null;
@@ -958,6 +1061,8 @@ export default class SubAgentRegistry implements ToolRegistry {
               await llmChatService.sendMessage(message, {
                 agentId: targetAgent.id,
                 sessionId: activeSessionId,
+                temporaryModel: resolvedModel,
+                delegationDepth,
               });
 
               const detail = store.sessionDetailMap.get(activeSessionId);

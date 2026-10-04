@@ -30,6 +30,8 @@ export interface ToolCallEngineOptions {
   protocol: ToolCallingProtocol;
   config: ToolCallConfig;
   agent?: ToolContext["agent"];
+  /** 子智能体派发深度，向下透传至 ToolContext.delegationDepth */
+  delegationDepth?: number;
   onBeforeExecute?: (
     request: ParsedToolRequest
   ) => Promise<ToolApprovalResult | boolean>;
@@ -67,6 +69,7 @@ export async function processToolCallCycle(
   const executionResults = await executeToolRequests(parsedRequests, {
     config: options.config,
     agent: options.agent,
+    delegationDepth: options.delegationDepth,
     onBeforeExecute: options.onBeforeExecute,
     onStatusChange: options.onStatusChange,
   });

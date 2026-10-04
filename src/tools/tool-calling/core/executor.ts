@@ -29,6 +29,8 @@ const logger = createModuleLogger("tool-calling/executor");
 export interface ExecutorOptions {
   config: ToolCallConfig;
   agent?: ToolContext["agent"];
+  /** 子智能体派发深度，注入 ToolContext.delegationDepth 供 sub-agent 深度链校验 */
+  delegationDepth?: number;
   onBeforeExecute?: (
     request: ParsedToolRequest
   ) => Promise<ToolApprovalResult | boolean>;
@@ -378,6 +380,7 @@ async function executeSingleRequest(
     const toolContext: ToolContext = {
       isAsync: false,
       agent: options.agent,
+      delegationDepth: options.delegationDepth,
       requestId: request.requestId,
       signal: abortController.signal,
       reportStatus: (message: string) => {

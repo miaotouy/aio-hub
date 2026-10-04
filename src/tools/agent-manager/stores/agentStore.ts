@@ -112,6 +112,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
      * @param profileId 服务配置 ID
      * @param modelId 模型 ID
      * @param options 可选的智能体配置（使用黑名单模式，自动支持未来新增字段和插件扩展）
+     * @param options.customId 可选的显式智能体 ID（用于按需释出内置预设时保持稳定 ID；传入已存在的 ID 会创建失败并返回空串）
      */
     createAgent(
       name: string,
@@ -120,13 +121,27 @@ export const useAgentStore = defineStore("llmChatAgent", {
       options?: Partial<
         Omit<
           ChatAgent,
-          "id" | "name" | "profileId" | "modelId" | "createdAt" | "lastUsedAt"
+          | "id"
+          | "name"
+          | "profileId"
+          | "modelId"
+          | "createdAt"
+          | "lastUsedAt"
         >
-      >
+      > & { customId?: string }
     ): string {
-      const agentId = `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      const customId = options?.customId?.trim();
+      if (customId && this.getAgentById(customId)) {
+        logger.warn("创建智能体失败：显式 ID 已存在", {
+          customId,
+          name,
+        });
+        return "";
+      }
+      const agentId = customId || `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
       const {
+        customId: _customId,
         knowledgeBaseConfig: _legacyKnowledgeBaseConfig,
         knowledgeConfig: _legacyKnowledgeConfig,
         knowledgeSettings: _legacyKnowledgeSettings,

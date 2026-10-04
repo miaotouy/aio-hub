@@ -292,6 +292,13 @@ export interface ToolContext {
   taskId?: string;
 
   /**
+   * 子智能体派发深度（Delegation Depth）。
+   * 主会话发起的工具调用未指定时视为 0；子智能体派发下一级子会话时透传 depth + 1，
+   * 用于 sub-agent 深度链校验，防范不可控递归。
+   */
+  delegationDepth?: number;
+
+  /**
    * 是否处于异步任务模式
    * - true：由 TaskManager 管理，支持持久化进度、取消、重试
    * - false：同步阻塞执行，进度仅用于实时 UI 反馈

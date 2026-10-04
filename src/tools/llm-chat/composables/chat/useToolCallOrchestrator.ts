@@ -55,6 +55,8 @@ export interface OrchestrateParams {
   consumeTextCallsLocally: boolean;
   /** 是否为重新解析模式（跳过第一轮 LLM 请求，直接解析现有内容） */
   isReparse?: boolean;
+  /** 子智能体派发深度（透传至工具执行 ToolContext.delegationDepth） */
+  delegationDepth?: number;
 }
 
 export function useToolCallOrchestrator() {
@@ -80,6 +82,7 @@ export function useToolCallOrchestrator() {
       generatingNodes,
       consumeTextCallsLocally,
       isReparse = false,
+      delegationDepth,
     } = params;
 
     const llmChatStore = useLlmChatStore();
@@ -323,7 +326,8 @@ export function useToolCallOrchestrator() {
             {
               id: executionAgent.id,
               knowledgeAccess: executionAgent.knowledgeAccess,
-            }
+            },
+            delegationDepth
           );
 
           if (cycleResult.hasToolRequests) {

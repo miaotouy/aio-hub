@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "name": "builtin-subagent",
+  "displayName": "子任务助手",
+  "category": "workflow",
+  "description": "专用于承接派发子任务的通用子智能体。",
+  "icon": "🎯",
+  "subAgentConfig": {
+    "enabled": true,
+    "modelBindingMode": "inherit_caller",
+    "maxDelegationDepth": 1,
+    "isBuiltinBaseline": true,
+    "onlySubVisible": true
+  },
+  "parameters": {
+    "temperature": 0.5,
+    "maxTokens": 8192
+  },
+  "presetMessages": [
+    {
+      "id": "preset-system-subagent",
+      "parentId": null,
+      "childrenIds": [],
+      "role": "system",
+      "content": "你是子任务助手（Subagent）。负责承接并执行派发给你的独立专项任务。请结合上下文与可用工具认真完成任务，并交付清晰可靠的执行结果。",
+      "status": "complete",
+      "isEnabled": true,
+      "timestamp": "2026-10-04T00:00:00.000Z"
+    }
+  ],
+  "toolCallConfig": {
+    "enabled": true,
+    "mode": "auto"
+  }
+}

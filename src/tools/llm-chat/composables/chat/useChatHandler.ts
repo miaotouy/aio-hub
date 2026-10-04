@@ -102,6 +102,8 @@ export function useChatHandler() {
       disableMacroParsing?: boolean;
       skipGeneration?: boolean;
       agentId?: string;
+      /** 子智能体派发深度：由 sub-agent 派发时传入 parent depth + 1，用于深度链校验 */
+      delegationDepth?: number;
     },
     currentSessionId?: string | null
   ): Promise<void> => {
@@ -581,6 +583,7 @@ export function useChatHandler() {
       generatingNodes,
       agentConfig,
       agentId: effectiveAgentId,
+      delegationDepth: options?.delegationDepth,
     });
   };
 

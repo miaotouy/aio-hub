@@ -658,6 +658,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       disableMacroParsing?: boolean;
       agentId?: string;
       sessionId?: string;
+      /** 子智能体派发深度：sub-agent 派发子会话时传 parent depth + 1 */
+      delegationDepth?: number;
     }
   ): Promise<void> {
     let targetOptions = options;

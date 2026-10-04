@@ -46,13 +46,15 @@ export function useToolCalling() {
       request: ParsedToolRequest
     ) => Promise<ToolApprovalResult | boolean>,
     onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
-    agent?: ToolContext["agent"]
+    agent?: ToolContext["agent"],
+    delegationDepth?: number
   ): Promise<ToolCallCycleResult> => {
     const protocol = resolveProtocol(config.protocol);
     return await processToolCallCycle(assistantText, {
       protocol,
       config,
       agent,
+      delegationDepth,
       onBeforeExecute,
       onStatusChange,
     });

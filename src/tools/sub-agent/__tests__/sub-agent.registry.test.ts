@@ -25,9 +25,11 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   abortSending: vi.fn(),
   getSessions: vi.fn(),
+  createSession: vi.fn(),
   createDetachedSession: vi.fn(),
   appendMessageNode: vi.fn(),
   updateMessageMetadata: vi.fn(),
+  loadAgentDetails: vi.fn(),
   sessionDetailMap: new Map<string, unknown>(),
 }));
 
@@ -39,6 +41,18 @@ vi.mock("@/tools/llm-chat/services/llmChatService", () => ({
     sendMessage: mocks.sendMessage,
   },
 }));
+vi.mock("@/tools/sub-agent/services/subAgentBaselineService", () => ({
+  subAgentBaselineService: {
+    ensureBaselineMaterialized: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+vi.mock("@/tools/sub-agent/services/subAgentModelResolver", () => ({
+  resolveSubAgentModel: vi.fn(() => ({
+    profileId: "profile-caller",
+    modelId: "model-caller",
+    source: "caller",
+  })),
+}));
 vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
   useAgentStore: () => ({
     getAgentById: (id: string) => ({
@@ -46,12 +60,16 @@ vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
       name: id,
       displayName: `Agent ${id}`,
     }),
-    loadAgentDetails: async (id: string) => ({
-      id,
-      name: id,
-      displayName: `Agent ${id}`,
-      subAgentConfig: { enabled: true },
-    }),
+    loadAgentDetails: async (id: string) => {
+      const mocked = await mocks.loadAgentDetails(id);
+      if (mocked) return mocked;
+      return {
+        id,
+        name: id,
+        displayName: `Agent ${id}`,
+        subAgentConfig: { enabled: true },
+      };
+    },
   }),
 }));
 vi.mock("@/tools/llm-chat/stores/userProfileStore", () => ({
@@ -67,10 +85,12 @@ vi.mock("@/tools/llm-chat/stores/userProfileStore", () => ({
 vi.mock("@/tools/llm-chat/stores/llmChatStore", () => ({
   useLlmChatStore: () => ({
     sessionDetailMap: mocks.sessionDetailMap,
+    createSession: mocks.createSession,
     createDetachedSession: mocks.createDetachedSession,
     appendMessageNode: mocks.appendMessageNode,
     updateMessageMetadata: mocks.updateMessageMetadata,
     abortSending: mocks.abortSending,
+    switchSession: vi.fn(),
   }),
 }));
 
@@ -156,6 +176,11 @@ describe("SubAgentRegistry 后台续聊", () => {
     mocks.sessionDetailMap.clear();
     mocks.createDetachedSession.mockImplementation(async () => {
       const sessionId = `child-${Date.now()}-${Math.random()}`;
+      mocks.sessionDetailMap.set(sessionId, createDetail(sessionId));
+      return sessionId;
+    });
+    mocks.createSession.mockImplementation(async () => {
+      const sessionId = `child-session-${Date.now()}-${Math.random()}`;
       mocks.sessionDetailMap.set(sessionId, createDetail(sessionId));
       return sessionId;
     });
@@ -392,5 +417,41 @@ describe("SubAgentRegistry 后台续聊", () => {
       kind: "agent",
       actorId: "agent-child",
     });
+  });
+
+  it("当 delegationDepth 达到或超过 maxDelegationDepth 时抛出深度拦截错误", async () => {
+    const registry = new SubAgentRegistry();
+    // agent-child 默认 maxDelegationDepth 未配置时视为 1，当前深度为 1 时 (1 + 1 > 1) 应当被拦截
+    await expect(
+      registry.ask(
+        { agentId: "agent-child", message: "nested" },
+        { ...callerContext, delegationDepth: 1 }
+      )
+    ).rejects.toThrow("已达到允许的最大子任务派发深度");
+  });
+
+  it("当 delegationDepth 处于允许范围且配置了更深限制时成功派发", async () => {
+    const registry = new SubAgentRegistry();
+    mocks.loadAgentDetails.mockResolvedValueOnce({
+      id: "agent-deep",
+      name: "agent-deep",
+      subAgentConfig: { enabled: true, maxDelegationDepth: 3 },
+    });
+    mocks.sendMessage.mockImplementationOnce(
+      async (content: string, options: { sessionId: string }) => {
+        const detail = mocks.sessionDetailMap.get(
+          options.sessionId
+        ) as ChatSessionDetail;
+        appendNode(detail, "user", content);
+        appendNode(detail, "assistant", "reply:depth-ok");
+      }
+    );
+
+    const result = await registry.ask(
+      { agentId: "agent-deep", message: "depth test" },
+      { ...callerContext, delegationDepth: 1 }
+    );
+    const parsed = parseAskResult(result);
+    expect(parsed.response).toBe("reply:depth-ok");
   });
 });

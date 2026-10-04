@@ -186,8 +186,11 @@ const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 // Level 3 全局托底（设计文档 §6.3）：有活动任务时在标题栏显示轻量胶囊，
 // 点击打开任务中心；任务中心组件在本组件内唯一挂载，与 ChatAreaHeader 入口
 // 共享 useBackgroundTaskCenter 的打开状态。
-const { isTaskCenterOpen, focusTaskInCenter, openTaskCenter } =
-  useBackgroundTaskCenter();
+const {
+  isTaskCenterOpen,
+  focusTaskInCenter,
+  openTaskCenter,
+} = useBackgroundTaskCenter();
 const chatStore = useLlmChatStore();
 const { openCompanion } = useCompanionSession();
 
@@ -549,7 +552,7 @@ watch(
     <!-- 用户档案管理弹窗 -->
     <UserProfileManagerDialog v-model:visible="showProfileManagerDialog" />
 
-    <!-- 后台任务中心：全应用唯一挂载点，由标题栏胶囊 / 聊天区入口共同打开 -->
+    <!-- 后台任务与子智能体中心：全应用唯一挂载点，由标题栏胶囊 / 聊天区入口共同打开 -->
     <BackgroundTaskCenter v-model="isTaskCenterOpen" />
 
     <!-- 侧边栏抽屉 -->

@@ -93,6 +93,15 @@ export const builtinPresets: AgentPresetMetadata[] = [
     configUrl: "/agent-presets/world-sim-eldra-continent/config.yaml",
   },
   {
+    id: "builtin-subagent",
+    name: "子任务助手",
+    description: "专用于承接派发子任务的通用子智能体。",
+    icon: "🤖",
+    category: AgentCategory.Workflow,
+    tags: ["系统", "子智能体"],
+    configUrl: "/agent-presets/builtin-subagent/config.json",
+  },
+  {
     id: "code-assistant",
     name: "代码助手（过时）",
     description:

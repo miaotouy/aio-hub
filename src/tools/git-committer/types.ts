@@ -167,6 +167,70 @@ export interface CommitFileDiff {
   modifiedSide: GitDiffSide;
 }
 
+/** 分支项 */
+export interface GitBranchItem {
+  name: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  upstream?: string | null;
+}
+
+/** 标签项 */
+export interface GitTagItem {
+  name: string;
+  hash: string;
+  message?: string | null;
+  tagger?: string | null;
+  date?: string | null;
+}
+
+/** 储藏项 (Stash) */
+export interface GitStashItem {
+  index: number;
+  name: string;
+  message: string;
+  hash: string;
+  date: string;
+}
+
+/** 远程仓库配置 */
+export interface GitRemoteConfig {
+  name: string;
+  fetchUrl?: string | null;
+  pushUrl?: string | null;
+}
+
+/** 作者提交统计 */
+export interface GitAuthorStat {
+  name: string;
+  email: string;
+  commitCount: number;
+}
+
+/** 仓库全景概览数据 */
+export interface RepoOverview {
+  path: string;
+  branch: string;
+  headHash: string;
+  localUserName?: string | null;
+  localUserEmail?: string | null;
+  globalUserName?: string | null;
+  globalUserEmail?: string | null;
+  remotes: GitRemoteConfig[];
+  branches: GitBranchItem[];
+  tags: GitTagItem[];
+  stashes: GitStashItem[];
+  totalCommits: number;
+  topAuthors: GitAuthorStat[];
+}
+
+/** 分支合并结果 */
+export interface MergeResult {
+  success: boolean;
+  hasConflicts: boolean;
+  message: string;
+}
+
 /** Diff 标签页运行时态 */
 export interface DiffTab {
   path: string;

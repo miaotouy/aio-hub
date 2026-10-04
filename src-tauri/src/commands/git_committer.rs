@@ -68,6 +68,77 @@ pub struct RepositoryScanResult {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct GitBranchItem {
+    pub name: String,
+    pub is_current: bool,
+    pub is_remote: bool,
+    pub upstream: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitTagItem {
+    pub name: String,
+    pub hash: String,
+    pub message: Option<String>,
+    pub tagger: Option<String>,
+    pub date: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStashItem {
+    pub index: usize,
+    pub name: String,
+    pub message: String,
+    pub hash: String,
+    pub date: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoteConfig {
+    pub name: String,
+    pub fetch_url: Option<String>,
+    pub push_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitAuthorStat {
+    pub name: String,
+    pub email: String,
+    pub commit_count: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoOverview {
+    pub path: String,
+    pub branch: String,
+    pub head_hash: String,
+    pub local_user_name: Option<String>,
+    pub local_user_email: Option<String>,
+    pub global_user_name: Option<String>,
+    pub global_user_email: Option<String>,
+    pub remotes: Vec<GitRemoteConfig>,
+    pub branches: Vec<GitBranchItem>,
+    pub tags: Vec<GitTagItem>,
+    pub stashes: Vec<GitStashItem>,
+    pub total_commits: usize,
+    pub top_authors: Vec<GitAuthorStat>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeResult {
+    pub success: bool,
+    pub has_conflicts: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoStatus {
     pub branch: String,
     /// 当前 HEAD 的完整提交哈希；未创建首个提交时为空。
@@ -967,6 +1038,448 @@ pub async fn git_push(app: AppHandle, path: String) -> Result<(), String> {
 pub async fn git_pull(app: AppHandle, path: String) -> Result<(), String> {
     let _ = run_git_with_guard(&app, &path, ["pull", "--no-edit"]).await?;
     Ok(())
+}
+
+/// 撤销最近一次提交（保留更改在暂存区，等同于 git reset --soft HEAD~1）。
+#[tauri::command]
+pub async fn git_undo_last_commit(app: AppHandle, path: String) -> Result<(), String> {
+    let _ = run_git_with_guard(&app, &path, ["reset", "--soft", "HEAD~1"]).await?;
+    Ok(())
+}
+
+/// 追加修改到上次提交（git commit --amend）。
+#[tauri::command]
+pub async fn git_commit_amend(app: AppHandle, path: String, message: String) -> Result<(), String> {
+    let _ = run_git_with_guard(&app, &path, ["commit", "--amend", "-m", &message]).await?;
+    Ok(())
+}
+
+/// 切换/检出分支。
+#[tauri::command]
+pub async fn git_checkout_branch(app: AppHandle, path: String, branch_name: String) -> Result<(), String> {
+    let _ = run_git_with_guard(&app, &path, ["checkout", &branch_name]).await?;
+    Ok(())
+}
+
+/// 新建分支（可选指定起始 commit 或分支）。
+#[tauri::command]
+pub async fn git_create_branch(
+    app: AppHandle,
+    path: String,
+    branch_name: String,
+    start_point: Option<String>,
+) -> Result<(), String> {
+    let mut args = vec!["branch", &branch_name];
+    let start = start_point.unwrap_or_default();
+    if !start.is_empty() {
+        args.push(&start);
+    }
+    let _ = run_git_with_guard(&app, &path, args).await?;
+    Ok(())
+}
+
+/// 删除分支（本地）。
+#[tauri::command]
+pub async fn git_delete_branch(
+    app: AppHandle,
+    path: String,
+    branch_name: String,
+    force: Option<bool>,
+) -> Result<(), String> {
+    let flag = if force.unwrap_or(false) { "-D" } else { "-d" };
+    let _ = run_git_with_guard(&app, &path, ["branch", flag, &branch_name]).await?;
+    Ok(())
+}
+
+/// 合并分支到当前分支。
+#[tauri::command]
+pub async fn git_merge_branch(
+    app: AppHandle,
+    path: String,
+    branch_name: String,
+) -> Result<MergeResult, String> {
+    let repo_path = if path.is_empty() { "." } else { &path };
+    let mut cmd = Command::new("git");
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
+
+    let proxy = crate::commands::config_manager::get_proxy_settings(&app);
+    if proxy.mode == "custom" && !proxy.custom_url.is_empty() {
+        cmd.env("http_proxy", &proxy.custom_url)
+            .env("https_proxy", &proxy.custom_url);
+    }
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    cmd.arg("-C").arg(repo_path);
+    cmd.arg("merge").arg(&branch_name).arg("--no-edit");
+
+    let output = match tokio::time::timeout(Duration::from_secs(30), cmd.output()).await {
+        Ok(Ok(out)) => out,
+        Ok(Err(e)) => return Err(format!("启动 git 失败: {}", e)),
+        Err(_) => return Err("git merge 执行超时".to_string()),
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let combined = format!("{}\n{}", stdout, stderr).trim().to_string();
+
+    if output.status.success() {
+        Ok(MergeResult {
+            success: true,
+            has_conflicts: false,
+            message: if combined.is_empty() { "分支合并成功".to_string() } else { combined },
+        })
+    } else {
+        let has_conflicts = combined.contains("CONFLICT") || combined.contains("Automatic merge failed");
+        Ok(MergeResult {
+            success: false,
+            has_conflicts,
+            message: combined,
+        })
+    }
+}
+
+/// 内部函数：读取仓库标签列表
+fn read_git_tags(repo: &Repository) -> Vec<GitTagItem> {
+    let mut tags = Vec::new();
+
+    if let Ok(tag_names) = repo.tag_names(None) {
+        for name_opt in tag_names.iter() {
+            let Some(name) = name_opt else { continue };
+            if let Ok(reference) = repo.find_reference(&format!("refs/tags/{}", name)) {
+                let target_oid = reference.target();
+                if let Ok(obj) = reference.peel(git2::ObjectType::Any) {
+                    let (hash, msg, tagger, date) = if let Ok(tag_obj) = obj.clone().into_tag() {
+                        let d = tag_obj.tagger().map(|sig| {
+                            let time = sig.when();
+                            chrono::DateTime::from_timestamp(time.seconds(), 0)
+                                .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                                .unwrap_or_default()
+                        });
+                        (
+                            tag_obj.target_id().to_string(),
+                            tag_obj.message().map(|m| m.to_string()),
+                            tag_obj.tagger().and_then(|t| t.name().map(|s| s.to_string())),
+                            d,
+                        )
+                    } else {
+                        let h = target_oid.map(|o| o.to_string()).unwrap_or_else(|| obj.id().to_string());
+                        (h, None, None, None)
+                    };
+
+                    tags.push(GitTagItem {
+                        name: name.to_string(),
+                        hash,
+                        message: msg,
+                        tagger,
+                        date,
+                    });
+                }
+            }
+        }
+    }
+    tags.reverse();
+    tags
+}
+
+/// 获取标签列表。
+#[tauri::command]
+pub async fn git_get_tags(path: String) -> Result<Vec<GitTagItem>, String> {
+    let repo = open_repo(&path)?;
+    Ok(read_git_tags(&repo))
+}
+
+/// 创建标签。
+#[tauri::command]
+pub async fn git_create_tag(
+    app: AppHandle,
+    path: String,
+    tag_name: String,
+    target_hash: Option<String>,
+    message: Option<String>,
+) -> Result<(), String> {
+    let mut args = vec!["tag"];
+    let msg = message.unwrap_or_default();
+    if !msg.is_empty() {
+        args.push("-a");
+        args.push(&tag_name);
+        args.push("-m");
+        args.push(&msg);
+    } else {
+        args.push(&tag_name);
+    }
+    let target = target_hash.unwrap_or_default();
+    if !target.is_empty() {
+        args.push(&target);
+    }
+    let _ = run_git_with_guard(&app, &path, args).await?;
+    Ok(())
+}
+
+/// 删除标签。
+#[tauri::command]
+pub async fn git_delete_tag(app: AppHandle, path: String, tag_name: String) -> Result<(), String> {
+    let _ = run_git_with_guard(&app, &path, ["tag", "-d", &tag_name]).await?;
+    Ok(())
+}
+
+/// 获取 Stash 列表。
+#[tauri::command]
+pub async fn git_stash_list(path: String) -> Result<Vec<GitStashItem>, String> {
+    let mut repo = open_repo(&path)?;
+    let mut stashes = Vec::new();
+
+    repo.stash_foreach(|index, name, oid| {
+        stashes.push(GitStashItem {
+            index,
+            name: format!("stash@{{{}}}", index),
+            message: name.to_string(),
+            hash: oid.to_string().chars().take(7).collect(),
+            date: "".to_string(),
+        });
+        true
+    })
+    .map_err(|e| format!("遍历 stash 失败: {}", e))?;
+
+    Ok(stashes)
+}
+
+/// 保存工作区到 Stash。
+#[tauri::command]
+pub async fn git_stash_save(
+    app: AppHandle,
+    path: String,
+    message: Option<String>,
+    include_untracked: Option<bool>,
+) -> Result<(), String> {
+    let mut args = vec!["stash", "push"];
+    if include_untracked.unwrap_or(false) {
+        args.push("-u");
+    }
+    let msg = message.unwrap_or_default();
+    if !msg.is_empty() {
+        args.push("-m");
+        args.push(&msg);
+    }
+    let _ = run_git_with_guard(&app, &path, args).await?;
+    Ok(())
+}
+
+/// 弹出 Stash (Pop)。
+#[tauri::command]
+pub async fn git_stash_pop(app: AppHandle, path: String, index: Option<usize>) -> Result<(), String> {
+    let idx_str = format!("stash@{{{}}}", index.unwrap_or(0));
+    let _ = run_git_with_guard(&app, &path, ["stash", "pop", &idx_str]).await?;
+    Ok(())
+}
+
+/// 应用 Stash (Apply)。
+#[tauri::command]
+pub async fn git_stash_apply(app: AppHandle, path: String, index: Option<usize>) -> Result<(), String> {
+    let idx_str = format!("stash@{{{}}}", index.unwrap_or(0));
+    let _ = run_git_with_guard(&app, &path, ["stash", "apply", &idx_str]).await?;
+    Ok(())
+}
+
+/// 删除 Stash (Drop)。
+#[tauri::command]
+pub async fn git_stash_drop(app: AppHandle, path: String, index: Option<usize>) -> Result<(), String> {
+    let idx_str = format!("stash@{{{}}}", index.unwrap_or(0));
+    let _ = run_git_with_guard(&app, &path, ["stash", "drop", &idx_str]).await?;
+    Ok(())
+}
+
+/// 在系统终端中打开当前仓库目录。
+#[tauri::command]
+pub async fn git_open_terminal(path: String) -> Result<(), String> {
+    let dir = Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("目录不存在: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        // 探测系统中是否存在 wt.exe（通过 where.exe）
+        let has_wt = std::process::Command::new("where")
+            .arg("wt")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map(|out| out.status.success())
+            .unwrap_or(false);
+
+        if has_wt {
+            let _ = std::process::Command::new("wt")
+                .arg("-d")
+                .arg(&path)
+                .spawn()
+                .or_else(|_| {
+                    std::process::Command::new("powershell")
+                        .arg("-NoExit")
+                        .arg("-Command")
+                        .arg(format!("Set-Location -LiteralPath '{}'", path))
+                        .spawn()
+                })
+                .map_err(|e| format!("启动终端失败: {}", e))?;
+        } else {
+            let _ = std::process::Command::new("powershell")
+                .arg("-NoExit")
+                .arg("-Command")
+                .arg(format!("Set-Location -LiteralPath '{}'", path))
+                .spawn()
+                .map_err(|e| format!("启动终端失败: {}", e))?;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("-a")
+            .arg("Terminal")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("启动终端失败: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("x-terminal-emulator")
+            .arg(format!("--working-directory={}", path))
+            .spawn()
+            .map_err(|e| format!("启动终端失败: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// 获取仓库全景详细信息（分支、Tag、Stash、配置、远端、贡献统计）。
+#[tauri::command]
+pub async fn git_get_repo_overview(path: String) -> Result<RepoOverview, String> {
+    let repo = open_repo(&path)?;
+    let (current_branch, head_hash) = current_branch_and_head(&repo);
+
+    // 1. 读取本地与全局配置
+    let (local_user_name, local_user_email) = if let Ok(config) = repo.config() {
+        (
+            config.get_string("user.name").ok(),
+            config.get_string("user.email").ok(),
+        )
+    } else {
+        (None, None)
+    };
+
+    let (global_user_name, global_user_email) = if let Ok(global_config) = git2::Config::open_default() {
+        (
+            global_config.get_string("user.name").ok(),
+            global_config.get_string("user.email").ok(),
+        )
+    } else {
+        (None, None)
+    };
+
+    // 2. 读取 Remote
+    let mut remotes = Vec::new();
+    if let Ok(remote_names) = repo.remotes() {
+        for name_opt in remote_names.iter() {
+            let Some(name) = name_opt else { continue };
+            if let Ok(r) = repo.find_remote(name) {
+                remotes.push(GitRemoteConfig {
+                    name: name.to_string(),
+                    fetch_url: r.url().map(|s| s.to_string()),
+                    push_url: r.pushurl().or_else(|| r.url()).map(|s| s.to_string()),
+                });
+            }
+        }
+    }
+
+    // 3. 读取本地与远程分支
+    let mut branches = Vec::new();
+    if let Ok(branches_iter) = repo.branches(None) {
+        for item in branches_iter.flatten() {
+            let (branch, branch_type) = item;
+            let name = branch.name().ok().flatten().unwrap_or("").to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let is_remote = branch_type == BranchType::Remote;
+            let is_current = !is_remote && name == current_branch;
+            let upstream = branch
+                .upstream()
+                .ok()
+                .and_then(|u| u.name().ok().flatten().map(|s| s.to_string()));
+
+            branches.push(GitBranchItem {
+                name,
+                is_current,
+                is_remote,
+                upstream,
+            });
+        }
+    }
+
+    // 4. 读取标签列表（同步读取，避免跨 await 引用 non-Send 类型）
+    let tags = read_git_tags(&repo);
+
+    // 5. 读取 Stash 列表
+    let mut stashes = Vec::new();
+    let mut mut_repo = open_repo(&path)?;
+    let _ = mut_repo.stash_foreach(|index, name, oid| {
+        stashes.push(GitStashItem {
+            index,
+            name: format!("stash@{{{}}}", index),
+            message: name.to_string(),
+            hash: oid.to_string().chars().take(7).collect(),
+            date: "".to_string(),
+        });
+        true
+    });
+
+    // 6. 统计总 Commit 数与 Top 作者（遍历 HEAD 历史，上限采样 5000 次提交保证毫秒级返回）
+    let mut total_commits = 0usize;
+    let mut author_counts: std::collections::HashMap<(String, String), usize> = std::collections::HashMap::new();
+
+    if let Ok(mut revwalk) = repo.revwalk() {
+        if revwalk.push_head().is_ok() {
+            for oid in revwalk.take(5000).flatten() {
+                total_commits += 1;
+                if let Ok(commit) = repo.find_commit(oid) {
+                    let author = commit.author();
+                    let name = author.name().unwrap_or("Unknown").to_string();
+                    let email = author.email().unwrap_or("").to_string();
+                    *author_counts.entry((name, email)).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    let mut top_authors: Vec<GitAuthorStat> = author_counts
+        .into_iter()
+        .map(|((name, email), commit_count)| GitAuthorStat {
+            name,
+            email,
+            commit_count,
+        })
+        .collect();
+    top_authors.sort_by_key(|a| std::cmp::Reverse(a.commit_count));
+    top_authors.truncate(10);
+
+    Ok(RepoOverview {
+        path,
+        branch: current_branch,
+        head_hash,
+        local_user_name,
+        local_user_email,
+        global_user_name,
+        global_user_email,
+        remotes,
+        branches,
+        tags,
+        stashes,
+        total_commits,
+        top_authors,
+    })
 }
 
 /// 仅供内部测试使用的辅助函数：将 Oid 转为短哈希字符串。保留以备后续命令复用。

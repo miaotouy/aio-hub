@@ -42,6 +42,10 @@
               <MessageSquareText :size="12" class="tab-prompt-icon" />
               <span class="tab-name">AI 提示词</span>
             </template>
+            <template v-else-if="isRepoOverviewTab(tab)">
+              <Gauge :size="12" class="tab-commit-icon" />
+              <span class="tab-name">仓库概览</span>
+            </template>
             <template v-else-if="isCommitViewTab(tab)">
               <GitCommitHorizontal :size="12" class="tab-commit-icon" />
               <span class="tab-name">提交更改</span>
@@ -95,6 +99,8 @@
       <!-- 中部：Diff 编辑器或空状态 -->
       <div class="main-content">
         <RepoPromptEditor v-if="isPromptTabActive" />
+
+        <RepoOverviewView v-else-if="isRepoOverviewTabActive" />
 
         <CommitDiffView
           v-else-if="isCommitViewTabActive"
@@ -268,11 +274,13 @@ import {
   ArrowDown,
   FoldVertical,
   UnfoldVertical,
+  Gauge,
 } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import PanoramaDashboard from "./PanoramaDashboard.vue";
 import RepoPromptEditor from "./RepoPromptEditor.vue";
+import RepoOverviewView from "./RepoOverviewView.vue";
 import CommitDiffView from "./CommitDiffView.vue";
 import ChangesDiffView from "./ChangesDiffView.vue";
 import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
@@ -309,6 +317,7 @@ import {
   isCommitTab,
   isCommitViewTab,
   isFileViewTab,
+  isRepoOverviewTab,
   REPO_PROMPT_TAB_PATH,
 } from "../utils";
 
@@ -440,6 +449,10 @@ const isPromptTabActive = computed(() => {
   return isPromptTab(activeTabInfo.value?.path || "");
 });
 
+const isRepoOverviewTabActive = computed(() => {
+  return isRepoOverviewTab(activeTabInfo.value);
+});
+
 const isCommitViewTabActive = computed(() => {
   return isCommitViewTab(activeTabInfo.value);
 });
@@ -549,6 +562,7 @@ watch(
     if (
       !tabInfo ||
       isPromptTab(tabInfo.path) ||
+      isRepoOverviewTab(tabInfo) ||
       isCommitViewTab(tabInfo) ||
       isChangesViewTab(tabInfo)
     ) {

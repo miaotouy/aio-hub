@@ -41,6 +41,7 @@ import {
   MAX_COMMIT_FILE_DIFF_CHARS,
   MAX_COMMIT_PROMPT_DIFF_CHARS,
   REPO_PROMPT_TAB_PATH,
+  REPO_OVERVIEW_TAB_PATH,
 } from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import {
@@ -357,6 +358,11 @@ export function openCommitChangesTab(commitHash: string): void {
 /** 打开或激活工作区/暂存区的多文件 Diff 总览标签页 */
 export function openChangesTab(isStaged: boolean): void {
   openTab({ path: CHANGES_VIEW_TAB_PATH, isStaged });
+}
+
+/** 打开或激活仓库全景概览仪表盘标签页 */
+export function openRepoOverviewTab(): void {
+  openTab({ path: REPO_OVERVIEW_TAB_PATH, isStaged: false });
 }
 
 /** 关闭一个标签页 */

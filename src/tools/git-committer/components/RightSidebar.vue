@@ -188,6 +188,7 @@ import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
 import CommitGraphTrack from "./CommitGraphTrack.vue";
 import { computeTimelineGraph } from "../utils/gitTimelineGraph";
 import { Loading } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/core";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -207,6 +208,10 @@ import {
   openCommitChangesTab,
   openCommitFileDiffTab,
 } from "../composables/useGitCommitterRunner";
+import {
+  createBranch,
+  createTag,
+} from "../composables/useGitOverview";
 import { useGitContextMenu } from "../composables/useGitContextMenu";
 import { getRemoteInfo } from "../composables/useGitRemoteInfo";
 import {
@@ -486,6 +491,48 @@ const handleCommitMenuAction = async (
         () => invoke("open_url", { url: info.buildCommitUrl(commit.hash) }),
         { userMessage: "打开远端提交页失败" }
       );
+      break;
+    }
+    case "commit:create-branch": {
+      ElMessageBox.prompt(
+        `在此提交 (${commit.hash.substring(0, 7)}) 上创建新分支：`,
+        "新建分支",
+        {
+          confirmButtonText: "创建分支",
+          cancelButtonText: "取消",
+          inputPlaceholder: "输入分支名称，例如 feature/xxx",
+          inputPattern: /\S+/,
+          inputErrorMessage: "分支名不能为空",
+          lockScroll: false,
+        }
+      )
+        .then(async ({ value }) => {
+          if (value && currentRepoPath.value) {
+            await createBranch(currentRepoPath.value, value.trim(), commit.hash);
+          }
+        })
+        .catch(() => {});
+      break;
+    }
+    case "commit:create-tag": {
+      ElMessageBox.prompt(
+        `在此提交 (${commit.hash.substring(0, 7)}) 上创建标签：`,
+        "新建标签",
+        {
+          confirmButtonText: "创建标签",
+          cancelButtonText: "取消",
+          inputPlaceholder: "输入标签名称，例如 v1.0.0",
+          inputPattern: /\S+/,
+          inputErrorMessage: "标签名不能为空",
+          lockScroll: false,
+        }
+      )
+        .then(async ({ value }) => {
+          if (value && currentRepoPath.value) {
+            await createTag(currentRepoPath.value, value.trim(), commit.hash);
+          }
+        })
+        .catch(() => {});
       break;
     }
   }

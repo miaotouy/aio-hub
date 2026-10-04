@@ -259,7 +259,9 @@ import {
   pushRepo,
   pullRepo,
   switchRepoWithAutoPull,
+  openRepoOverviewTab,
 } from "../composables/useGitCommitterRunner";
+import { openTerminal } from "../composables/useGitOverview";
 import { getAvatarTextColor } from "../utils";
 import type { RepositoryConfig } from "../types";
 
@@ -304,6 +306,13 @@ const handleRepoAction = async (command: string, repo: RepositoryConfig) => {
       break;
     case "repo:reveal":
       await openDirectory(repo);
+      break;
+    case "repo:overview":
+      handleNavigate(repo.path);
+      openRepoOverviewTab();
+      break;
+    case "repo:terminal":
+      await openTerminal(repo.path);
       break;
     case "repo:refresh":
       await refreshStatus(repo.path);

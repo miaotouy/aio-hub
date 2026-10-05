@@ -43,7 +43,8 @@ export function useToolCalling() {
     assistantText: string,
     config: ToolCallConfig,
     onBeforeExecute?: (
-      request: ParsedToolRequest
+      request: ParsedToolRequest,
+      security?: { forceApproval: boolean }
     ) => Promise<ToolApprovalResult | boolean>,
     onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
     agent?: ToolContext["agent"],

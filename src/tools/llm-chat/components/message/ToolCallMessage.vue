@@ -76,6 +76,8 @@ import MessageMenubar from "./MessageMenubar.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "../message-input/ChatTextareaEditor.vue";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
+import { useToolCallingStore } from "../../stores/toolCallingStore";
+import { describeArbitration } from "@/services/decision-arbiter";
 import BackgroundTaskDispatchLink from "@/tools/sub-agent/components/BackgroundTaskDispatchLink.vue";
 import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
 import type { AsyncTaskMetadata } from "@/tools/tool-calling/core/async-task/types";
@@ -150,6 +152,7 @@ const userProfileStore = useUserProfileStore();
 const { copy } = useClipboard();
 const { translateText } = useTranslation();
 const asyncTaskStore = useAsyncTaskStore();
+const toolCallingStore = useToolCallingStore();
 
 // 编辑状态（内部管理）
 const isEditing = ref(false);
@@ -368,6 +371,11 @@ const toolCalls = computed(() => {
 
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
+  // JEV 仲裁等待态优先（§2.4 两段式：仅 arbitrating 阶段展示「等待 AI 审核」）
+  const isArbitrating = toolCalls.value.some(
+    (t) => toolCallingStore.arbitrationStates.get(t.requestId) === "arbitrating"
+  );
+  if (isArbitrating) return "arbitrating";
   // 优先识别等待审批状态
   if (toolCalls.value.some((t) => t.status === "awaiting_approval"))
     return "pending";
@@ -393,12 +401,63 @@ const statusIcon = computed(() => {
       return XCircle;
     case "pending":
       return Clock;
+    case "arbitrating":
+      return Loader2;
     default:
       return Terminal;
   }
 });
 
 const statusClass = computed(() => `status-${mainStatus.value}`);
+
+// ----- 放行源徽标（§3.2，旁路审计映射 + executor rule 旁路） -----
+// action 语义统一由 describeArbitration 判定，禁止在此把 escalate 当作
+// approve 渲染（否则人工审批弹窗出现前会误显示「Jev 自动放行」）。
+interface AuditBadge {
+  key: "jev-approve" | "jev-deny" | "jev-escalate" | "manual" | "rule";
+  label: string;
+  tone: "success" | "danger" | "warning" | "primary";
+}
+
+const auditBadge = computed<AuditBadge | null>(() => {
+  if (toolCalls.value.length !== 1) return null;
+  const tc = toolCalls.value[0];
+  if (!tc) return null;
+  const presentation = describeArbitration(
+    toolCallingStore.getAuditRecord?.(tc.requestId)
+  );
+  if (presentation?.kind === "jev") {
+    const risk = presentation.riskPercent ?? 0;
+    if (presentation.action === "deny") {
+      return {
+        key: "jev-deny",
+        label: `Jev 风险拦截 (风险 ${risk}%)`,
+        tone: "danger",
+      };
+    }
+    if (presentation.action === "escalate") {
+      return {
+        key: "jev-escalate",
+        label: presentation.degraded
+          ? "Jev 离线 · 安全兜底"
+          : "Jev 建议人工确认",
+        tone: "warning",
+      };
+    }
+    return {
+      key: "jev-approve",
+      label: `Jev 自动放行 (风险 ${risk}%)`,
+      tone: "success",
+    };
+  }
+  if (presentation?.kind === "manual") {
+    return { key: "manual", label: "人工确认放行", tone: "primary" };
+  }
+  if (tc.resultMetadata?.approvalOrigin === "rule") {
+    return { key: "rule", label: "规则自动放行", tone: "primary" };
+  }
+  return null;
+});
 
 const formattedTime = computed(() => {
   if (!props.message.timestamp) return "";
@@ -801,6 +860,19 @@ defineExpose({
           >
             <Clock :size="10" />
             {{ toolCalls[0].durationMs }}ms
+          </span>
+          <!-- 放行源徽标（§3.2 审计回溯） -->
+          <span
+            v-if="auditBadge && mainStatus !== 'arbitrating'"
+            class="audit-badge"
+            :class="`tone-${auditBadge.tone}`"
+          >
+            {{ auditBadge.label }}
+          </span>
+          <!-- JEV 仲裁等待态（§2.4） -->
+          <span v-if="mainStatus === 'arbitrating'" class="arbitrating-hint">
+            <Loader2 :size="10" class="spinning-icon" />
+            等待 AI 审核
           </span>
           <span class="time">{{ formattedTime }}</span>
         </div>
@@ -1314,6 +1386,9 @@ defineExpose({
 .tool-bar.status-pending {
   color: var(--el-color-warning);
 }
+.tool-bar.status-arbitrating {
+  color: var(--el-color-warning);
+}
 
 .bar-line {
   flex: 1;
@@ -1451,6 +1526,86 @@ defineExpose({
     var(--el-color-warning) 30%,
     var(--border-color)
   );
+}
+
+/* 放行源徽标（§3.2）：小型 Badge，不使用粗边线 */
+.audit-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  border: var(--border-width) solid transparent;
+}
+
+.audit-badge.tone-success {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 12%,
+    var(--card-bg)
+  );
+  color: var(--el-color-success);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-success) 25%,
+    var(--border-color)
+  );
+}
+
+.audit-badge.tone-danger {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 12%,
+    var(--card-bg)
+  );
+  color: var(--el-color-danger);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 25%,
+    var(--border-color)
+  );
+}
+
+.audit-badge.tone-warning {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 12%,
+    var(--card-bg)
+  );
+  color: var(--el-color-warning);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 25%,
+    var(--border-color)
+  );
+}
+
+.audit-badge.tone-primary {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    var(--card-bg)
+  );
+  color: var(--el-color-primary);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 25%,
+    var(--border-color)
+  );
+}
+
+/* JEV 仲裁等待态提示（§3.2） */
+.arbitrating-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--el-color-warning);
+  white-space: nowrap;
+}
+
+.arbitrating-hint .spinning-icon {
+  animation: spin 1.2s linear infinite;
 }
 
 .tool-name {

@@ -31,13 +31,14 @@
 3. **静态规则**：`shouldAutoApprove()`（executor.ts:452）基于 `mode` + `autoApproveTools` + `autoApproveMethods` 白名单判定；
 4. **人工审批**：未命中自动批准的请求经 `onBeforeExecute` 回调 → [`toolCallingStore.requestApproval()`](../../src/tools/llm-chat/stores/toolCallingStore.ts:148) 弹窗等待人工，带超时与生命周期清理（KI-006 已修复）。
 
-**人工审批唯一收口点**：`toolCallingStore.requestApproval()`。以下来源全部经过它：
+**人工审批唯一收口点**：`toolCallingStore.requestApproval()`。生产代码中实际调用它的来源只有 4 处：
 
 - llm-chat 编排器（`useToolCallOrchestrator.ts`）
 - VCPLog 频道（`vcpConnectorStore.ts`）
 - VCP Node 协议（`vcpNodeProtocol.ts`）
-- 跨窗口审批代理（`useLlmChatSync.ts`）
-- sub-agent / 后台任务（`awaiting_approval` 状态）
+- VCP 外部文件传输（`vcpNodeProtocol.ts`）
+
+> 施工状态注记：`sync` / `background` / sub-agent / 后台任务 `awaiting_approval` **尚无生产实现**，属 P4，未接入。VCP 三个调用点虽已传 `source`，但**本波不接入 JEV 仲裁**（VCP 请求无 AIO Agent 绑定，只有 VCP 端 `maid`），详见 §11。因此 §2.6 红线 5 中「VCP 默认只允许 escalate/deny」当前是**前瞻约束**，尚未在运行时生效。
 
 **参考项目审批模式差异**：
 
@@ -100,14 +101,14 @@ src/services/decision-arbiter/          ← 新增，决策仲裁服务
 ```ts
 // toolCallingStore（示意）
 interface ApprovalArbiter {
-  arbitrate(ctx: ArbitrationContext): Promise<ArbiterDecision>;
+  arbitrate(ctx: ArbitrationContext, signal?: AbortSignal): Promise<ArbiterDecision>;
 }
 let arbiter: ApprovalArbiter | null = null;
 export function setApprovalArbiter(a: ApprovalArbiter | null) { arbiter = a; }
 
 async function requestApproval(sessionId, request, externalId?, options?) {
   if (arbiter && options?.skipArbitration !== true) {
-    const verdict = await arbiter.arbitrate(buildArbitrationContext(request));
+    const verdict = await arbiter.arbitrate(buildArbitrationContext(request), signal);
     if (verdict.action === "approve") return "approved";   // 记录审计后放行
     if (verdict.action === "deny") return "rejected";      // 记录审计后拒绝
     // escalate → 继续走原有人工弹窗流程
@@ -116,9 +117,22 @@ async function requestApproval(sessionId, request, externalId?, options?) {
 }
 ```
 
-- `executor.ts` **零改动**：preview hook 时序、approvalCache、安全策略短路全部保持原状（preview 在仲裁之前已由 executor 分发）。
-- 所有审批来源（本地会话 / VCP / 跨窗口）天然统一获得仲裁能力。
-- VCP 等外部来源可通过 `ArbitrationContext.source` 识别并按配置豁免自动放行（§2.6 红线 5）。
+- **`executor.ts` 审批契约零改动**：preview hook 时序、`approvalCache`、安全策略短路、`ToolApprovalResult` 字符串字面量比较全部保持原状（preview 在仲裁之前已由 executor 分发）。实际落地时 executor 仅新增两处旁路：`onBeforeExecute` 回调透传 `{ forceApproval }`（供 store 组装审批上下文）、静态白名单放行时在 result metadata 带出 `approvalOrigin: "rule"`——均不改变审批控制流与结果类型。
+- **`forceApproval` 归属**：它是审批请求上下文的一部分（`ToolApprovalOptions.forceApproval` → `ArbitrationContext.forceApproval`），而非 executor 私有状态；后续新增字段应继续并入审批上下文，不再逐层追加参数。
+- 审批入口统一获得仲裁能力，但**外部来源（VCP）本波不接入**（见 §11），仅本地编排器路径真实进入 JEV。
+- VCP 等外部来源已通过 `ArbitrationContext.source` 标记，为后续接入预留（§2.6 红线 5）。
+
+**安全收口修订（审查修复，均已实现）**：
+
+1. **仲裁可中止**：store 为每个仲裁请求建立 `AbortController` 并透传给 `arbitrate(ctx, signal)`；`cancelBySession` / `cancelByExternalId` / `cancelExternalRequests` / `cancelAll` 均会中止进行中的 JEV 渠道调用，仲裁返回后再次校验中止状态，被取消的请求一律 `rejected`，不得在会话结束后自动放行；
+2. **外部请求仲裁期生命周期**：`externalId → requestId` 索引在仲裁开始前建立，重复 externalId 到达时立即取消旧仲裁（旧请求尚未入列 `pendingRequests` 也可被替换），杜绝同一外部请求被放行两次；
+3. **JEV 上下文按会话隔离**：`ArbitrationContext.sessionId` 由 store 写入，`getRecentUserMessage` 仅读取该会话的最近用户消息；外部 / VCP 请求（`vcp-*` 会话）查不到对应聊天会话时不附加任何用户消息，杜绝跨会话数据混合；
+4. **渠道运行时校验**：每次仲裁前重新解析持久化渠道——`profile.enabled`、`channel.model` 存在于 `profile.models`、`capabilities.decision === true` 三者任一失效即 fail-closed escalate，不沿用过期配置；
+5. **越界分数不修正**：`risk` / `intent` / `confidence` 仅接受严格处于 [0, 1] 的有限数值，越界（含负值 / >1）按答案非法 fail-closed escalate，不再 clamp 截断；
+6. **脱敏命名风格覆盖**：密钥字段匹配前先做命名风格归一化（camelCase / PascalCase / kebab / 下划线 / 连续写法统一），`apiKey` / `accessToken` / `clientSecret` / `authToken` / `authorization` 等写法均脱敏；
+7. **配置关闭完全绕过仲裁**：`ApprovalArbiter.isArbitrationEnabled(ctx)` 在写入 `arbitrating` 等待态之前同步判定；未启用仲裁的 Agent 直接进入原有人工审批，不再产生「等待 AI 审核」的假状态，避免可选层名不副实；
+8. **展示语义收口**：`describeArbitration(auditRecord)` 统一判定 `approve / deny / escalate`，消息卡片与审批浮窗共用；`escalate` 不得被渲染为「Jev 自动放行」（回归测试见 `presentation.test.ts`）；
+9. **外部来源本波不接入**：VCP 请求无 AIO Agent 绑定，`ArbitrationContext.source` 已标记但 `resolveArbitrationConfig(undefined)` 明确回落「未启用」，不再声称 VCP 已进入 JEV（见 §11）。
 
 ### 2.4. 仲裁等待态与浮窗出现时机（用户已裁决）
 
@@ -331,6 +345,7 @@ interface DecisionArbitrationConfig {
    - 自动放行风险上限最高锁定在 `30%`，超出需弹出二次确认框，防止误配置导致全自动放行；
 3. **受保护字段防篡改 (KI-003 对齐)**：
    - 本区域的所有表单变更均标记为敏感字段，Agent 无法通过工具调用静默下调阈值。
+4. **外部来源开关当前不生效**：`autoApproveExternalSources` 仅作用于经该 Agent 配置仲裁的请求；VCP 无 Agent 绑定，本波不接入 JEV，故该开关对 VCP 暂为死配置（见 §11.2）。
 
 ---
 
@@ -338,41 +353,45 @@ interface DecisionArbitrationConfig {
 
 全局设置用于指定默认 System One 仲裁服务端点与渠道绑定：
 
-1. **服务提供者选择器**：
-   - 复用 [`LlmModelSelector`](../../src/components/common/LlmModelSelector.vue)，需**新增** `filter-capability` 属性（当前组件无此能力，`ModelSelectDialog.vue` 有 capability 展示逻辑可参考）；
+1. **服务提供者选择器**（✅ 已实现）：
+   - 复用 [`LlmModelSelector`](../../src/components/common/LlmModelSelector.vue) 现有的 `capabilities?: Partial<ModelCapabilities>` 属性（无需新增属性），传入 `:capabilities="{ decision: true }"` 即可完成能力过滤；
    - 自动筛选出打上 `capabilities.decision: true` 标记的模型（如 `jev-latest`, `jev-1.13.0`, `openjev-mini`）；
-2. **连通性与决策探测器 (Ping & Decision Test)**：
+2. **连通性与决策探测器 (Ping & Decision Test)**（❌ 未实现，待补）：
    - 选项旁提供「⚡ 测试仲裁连通性」轻量按钮；
    - 点击后在 1 秒内向 System One 发送预设 mock 决策请求（`test-decision`），在按钮下方通过 `Tag` 动态呈现：
      - 成功：`✅ 延迟 124ms · 计费: $0.000002 · 决策状态正常`；
      - 失败：`❌ 渠道无响应 / 401 密钥失效`，附带排查引导。
+   - 当前 `LlmServiceSettings.vue` 仅实现「选择决策模型 + 保存配置」。
 
 ---
 
 ## 4. 实施拆解
 
+> 施工状态图例：`[x]` 已完成 · `[~]` 部分完成 · `[ ]` 未完成 · `[!]` 已裁决本波不做
+
 ### P1 — 决策仲裁服务（纯逻辑层）
-- [ ] 新建 `src/services/decision-arbiter/`：types / evaluator / jevQuestionnaire / index
-- [ ] `callTypeSafeSystemOneApi` 接入：profile 解析、超时、AbortSignal 透传、有限重试（红线 9，429/529/网络错误，默认 1 次 + 250ms 退避，计入 timeoutMs）；并发上限（默认 3）与请求指纹缓存（红线 8）
-- [ ] `jevQuestionnaire.ts`：verdict question 带 **per-option criteria**（§2.5）；state 摘要实现「保首尾缩中间」裁剪 + base64/密钥脱敏 + **inline 脚本内容检测**（node -e / python -c / sh -c 等）
-- [ ] `evaluator.ts`：阈值裁决 + **矛盾即升级**规则（verdict 与 noul 分数相悖 → escalate）
-- [ ] 单测：evaluator 阈值边界（含 confidence 双向门槛）、矛盾裁决、fail-closed 路径、重试退避、答案类型校验失败、state 摘要截断/脱敏/脚本检测
+- [x] 新建 `src/services/decision-arbiter/`：types / evaluator / jevQuestionnaire / index（另有 dangerFeatures / presentation / channelConfig）
+- [x] `callTypeSafeSystemOneApi` 接入：profile 解析、超时、AbortSignal 透传、有限重试（红线 9，429/529/网络错误，默认 1 次 + 250ms 退避，计入 timeoutMs）；并发上限（默认 3）与请求指纹缓存（红线 8）
+- [x] `jevQuestionnaire.ts`：verdict question 带 **per-option criteria**（§2.5）；state 摘要实现「保首尾缩中间」裁剪 + base64/密钥脱敏 + **inline 脚本内容检测**（node -e / python -c / sh -c 等）
+- [x] `evaluator.ts`：阈值裁决 + **矛盾即升级**规则（verdict 与 noul 分数相悖 → escalate）
+- [x] 单测：evaluator 阈值边界（含 confidence 双向门槛）、矛盾裁决、fail-closed 路径、重试退避、答案类型校验失败、state 摘要截断/脱敏/脚本检测
 
 ### P2 — 审批链路接入
-- [ ] `toolCallingStore`：`setApprovalArbiter` 注入口 + `requestApproval` 仲裁前置（escalate 才入列，浮窗后置出现）+ `skipArbitration` 选项
-- [ ] `arbitrationStates` 响应式 map（`arbitrating` / `escalated` / `auto-approved` / `auto-denied`）**以 `request.requestId` 为 key**（红线 7 契约），并在 `cancelBySession`/窗口关闭时联动清理（LRU 上限 100）
-- [ ] 放行来源（规则 / JEV / 人工）走**旁路审计映射** `auditRecords: Map<requestId, AuditInfo>`，**不改 `ToolApprovalResult` 字符串契约**（红线 7）
-- [ ] llm-chat 初始化时按全局 + Agent 配置装配 arbiter
-- [ ] `ArbitrationContext.source` 来源标记：编排器 / vcp-log / vcp-node / sync（需改 `vcpConnectorStore.ts:578`、`vcpNodeProtocol.ts:313/620` 调用点传参）
-- [ ] 集成测试：mock arbiter 的 approve / deny / escalate / 渠道异常 / 超时路径；确认 preview hook 与 approvalCache 时序不受影响；deny-重试防循环生效
+- [x] `toolCallingStore`：`setApprovalArbiter` 注入口 + `requestApproval` 仲裁前置（escalate 才入列，浮窗后置出现）+ `skipArbitration` 选项
+- [x] `arbitrationStates` 响应式 map（`arbitrating` / `escalated` / `auto-approved` / `auto-denied`）**以 `request.requestId` 为 key**（红线 7 契约），并在 `cancelBySession`/窗口关闭时联动清理（LRU 上限 100）
+- [x] 放行来源（规则 / JEV / 人工）走**旁路审计映射** `auditRecords: Map<requestId, AuditInfo>`，**不改 `ToolApprovalResult` 字符串契约**（红线 7）
+- [x] llm-chat 初始化时按全局 + Agent 配置装配 arbiter（`setupApprovalArbiter`）
+- [~] `ArbitrationContext.source` 来源标记：编排器已传；vcp-log / vcp-node / vcp-file-transfer 三个调用点已传 `source`，但**本波不接入 JEV**（无 Agent 绑定，`[!]` 见 §11）；`sync` 未实现
+- [x] 集成测试：mock arbiter 的 approve / deny / escalate / 渠道异常 / 超时路径；确认 preview hook 与 approvalCache 时序不受影响；deny-重试防循环生效
+- [x] `isArbitrationEnabled` 配置关闭绕过：未启用仲裁时直接人工，不写 `arbitrating` 等待态
 
 ### P3 — 安全加固与 UI
-- [ ] `set_agent_field` 受保护路径验证：`decisionArbitration` 若置于 `toolCallConfig` 下则已被 `SECURITY_SENSITIVE_AGENT_PATHS` 前缀覆盖（agentManagementService.ts:94），仅需补专项测试；若置于 Agent 顶层则需扩展保护列表
-- [ ] 危险特征跳过仲裁判定：任一来源命中静态危险特征（权限提升 / 递归删除 / 工作区外绝对路径 / 危险内嵌脚本）→ 直接转人工，不调 arbiter（红线 6）
-- [ ] `ToolCallMessage.vue`：新增 `arbitrating` 等待态（「等待 AI 审核」+ 环形加载）+ 放行源徽标（规则放行 / Jev 放行 / 人工放行 / Jev 阻断）与审计详情（SVG 图标为主，避免 emoji）
-- [ ] `ToolCallingApprovalBar.vue`：单项卡片增加 JEV 仲裁徽标、风险/意图微型进度条与折叠面板（仅 escalate 后出现）
-- [ ] `ToolCallingSection.vue`：新增「AI 决策自动审批」配置卡片（模式选择、阈值滑块含 confidence 与 forceApproval、VCP 外部来源开关）
-- [ ] 设置中心：决策渠道选择（按 `capabilities.decision` 过滤）+ 快速连通性测试按钮
+- [~] `set_agent_field` 受保护路径验证：`decisionArbitration` 位于 `toolCallConfig` 下，已被 `SECURITY_SENSITIVE_AGENT_PATHS` 前缀覆盖（agentManagementService.ts:94）；专项篡改回归测试待补
+- [x] 危险特征跳过仲裁判定：任一来源命中静态危险特征（权限提升 / 递归删除 / 工作区外绝对路径 / 危险内嵌脚本）→ 直接转人工，不调 arbiter（红线 6）
+- [x] `ToolCallMessage.vue`：新增 `arbitrating` 等待态（「等待 AI 审核」+ 环形加载）+ 放行源徽标（规则放行 / Jev 放行 / 人工放行 / Jev 阻断 / Jev 建议人工确认）（SVG 图标为主，避免 emoji）
+- [x] `ToolCallingApprovalBar.vue`：单项卡片增加 JEV 仲裁徽标、风险/意图微型进度条与折叠面板（仅 escalate 后出现）
+- [x] `ToolCallingSection.vue`：新增「AI 决策自动审批」配置卡片（模式选择、阈值滑块含 confidence 与 forceApproval、VCP 外部来源开关）
+- [~] 设置中心：决策渠道选择（按 `capabilities.decision` 过滤）已完成；**快速连通性测试按钮未实现**
 
 ### P4 — 后台任务与 sub-agent 接入
 - [ ] 先调查后台任务 `awaiting_approval` 实际审批路径是否经过 `requestApproval` 收口（当前 grep 仅编排器与 VCP 三处调用；参考 snow-cli `subAgentToolApproval.ts` 的 sub-agent 逐项确认 + reject 即停模式）
@@ -382,7 +401,7 @@ interface DecisionArbitrationConfig {
 ### P5 — 验证收口
 - [ ] 真实 `jev-latest` 渠道冒烟（含网络失败降级）
 - [ ] 死区绕过尝试、配置篡改链路回归
-- [ ] `bun run check` 全绿 + 相关测试
+- [~] `bun run check:frontend` / `build:vite` / 相关测试通过；`bun run check` 全量待跑
 
 ---
 
@@ -391,12 +410,13 @@ interface DecisionArbitrationConfig {
 | 类别             | 用例                                                                                                                                   |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | evaluator 纯函数 | 阈值边界值、choice/score 组合、confidence 门槛（approve 与 deny 双向）、**verdict 与 noul 矛盾 → escalate**、类型不匹配 → escalate     |
-| fail-closed      | 渠道超时 / 熔断 / JSON 解析失败 / noul 越界 → escalate                                                                                 |
+| fail-closed      | 渠道超时 / 熔断 / JSON 解析失败 / noul 越界（含负值与 >1，不截断修正）→ escalate；profile 停用 / 模型缺失 / decision 能力失效 → escalate；仲裁 signal 中止 → escalate |
 | 重试预算         | 429/网络错误有限重试成功；重试总耗时超 timeoutMs → escalate                                                                            |
-| state 摘要       | 「保首尾缩中间」截断、base64 与密钥字段脱敏、inline 脚本内容被附加进 state                                                             |
+| state 摘要       | 「保首尾缩中间」截断、base64 与密钥字段脱敏（含 camelCase / PascalCase / kebab / 连续写法）、inline 脚本内容被附加进 state              |
 | 收口点           | approve 短路返回、deny 短路返回、escalate 才入列 pendingRequests、skipArbitration 生效                                                 |
 | 等待态           | arbitrating 状态渲染、escalate 后浮窗出现、人工超时不包含仲裁耗时                                                                      |
 | 状态契约         | `arbitrationStates` 以 `request.requestId` 为 key 命中消息卡片；会话清理后未决项被删除                                                 |
+| 取消语义         | 仲裁进行中 `cancelBySession` / 重复 externalId 替换 / `cancelExternalRequests` → signal 中止且 JEV 迟到 approve 仍 rejected             |
 | 时序兼容         | preview hook 仍先于审批分发一次；批量审批 approvalCache 不重复仲裁                                                                     |
 | 强制审批         | gray-zone 下两个来源跳过仲裁；aggressive 下超过 forceApprovalRiskThreshold 仍不放行                                                    |
 | 危险特征         | 静态危险特征（权限提升 / 递归删除 / 工作区外路径）跳过仲裁直接人工                                                                     |
@@ -462,3 +482,37 @@ interface DecisionArbitrationConfig {
    在 [`ToolCallMessage.vue`](src/tools/llm-chat/components/ToolCallMessage.vue) 中渲染 `arbitrating` 等待态时，应注意与现有的骨架光晕或加载动画样式保持一致（复用项目现有的 UI token 和变量，严禁出现硬编码颜色）。
 3. **测试覆盖重点**：
    务必对 `evaluator.ts` 中的**“矛盾即升级”**（如 verdict=approve 但 risk 高于 denyThreshold）编写详尽的单元测试，这是保证系统在面对 AI 逻辑自相矛盾时能够“宁错杀不放过（fail-closed/escalate）”的关键安全防线。
+
+---
+
+## 11. 审查回写与偏差记录（施工收官）
+
+本节记录一轮施工审查后的收口结论，作为文档与代码对齐的依据。
+
+### 11.1 本轮已修复
+
+1. **`escalate` 展示语义 bug（P1，行为 bug）**：`ToolCallMessage.vue` 原先把任何非 deny 的 `origin:"jev"` 都渲染为「Jev 自动放行」，导致 JEV 升级人工时卡片显示与实际相反。现抽取共享判定 [`describeArbitration()`](../../src/services/decision-arbiter/presentation.ts)，`escalate` 明确渲染为「Jev 建议人工确认」（渠道降级为「Jev 离线 · 安全兜底」），审批浮窗与消息卡片共用同一 action 解释，回归测试见 `presentation.test.ts`。
+2. **配置关闭时仍显示「等待 AI 审核」（P1）**：新增 `ApprovalArbiter.isArbitrationEnabled()`，`requestApproval` 在写入 `arbitrating` 等待态之前同步判定；未启用仲裁直接走人工，可选层真正可选（`toolCallingStore.ts` + `index.ts`）。
+3. **审计展示收口**：两个 UI 不再各自解释 approve/deny/escalate、风险/意图百分比与 degraded 状态，统一由 `describeArbitration()` 产出结构化语义，文案由各 UI 决定。
+
+### 11.2 本波明确不接入（已裁决 `[!]`）
+
+- **VCP / 外部来源不走 JEV**：VCP 请求只有 VCP 端 `maid`，没有 AIO Agent 绑定，`resolveArbitrationConfig(undefined)` 会静默回落到默认禁用。本波决定**不**通过「静默默认启用」或「绑定当前活动 Agent」的方式强行接入，而是明确保持「外部来源直接人工」。
+- 三个 VCP 调用点仍保留 `source` 标记（`vcp-log` / `vcp-node` / `vcp-file-transfer`），为后续「全局外部来源仲裁配置」预留，但不声称已生效。
+- `DecisionArbitrationConfig.autoApproveExternalSources` 与 §3.3 的「外部来源安全防线」开关当前对 VCP **是死配置**，待 P4 定义外部来源配置归属后再启用。
+- §2.6 红线 5「VCP 默认只允许 escalate/deny」当前是前瞻约束，未在运行时生效。
+
+### 11.3 计划文本已修正的偏差
+
+- 删除 §3.4 中「需给 `LlmModelSelector` 新增 `filter-capability` 属性」的待施工项：该能力已由现有 `capabilities?: Partial<ModelCapabilities>` 提供。
+- §2.3「`executor.ts` 零改动」修正为「审批契约/控制流零改动」，并记录实际新增的两处旁路（`forceApproval` 透传、`approvalOrigin: "rule"`）。
+- 明确 `forceApproval` 属于**审批请求上下文**（`ToolApprovalOptions.forceApproval`），非 executor 私有状态。
+- 移除审查前文档中写死的未来日期，改为不绑定具体日期的表述。
+- §1.2 审批来源列表按生产代码修正：仅编排器 + VCP 三处；`sync` / `background` / sub-agent 未实现，归 P4。
+
+### 11.4 仍未实现（保留为待办）
+
+- 设置中心「测试仲裁连通性」按钮（§3.4 第 2 项）。
+- `set_agent_field` 篡改链路的专项回归测试。
+- 真实 `jev-latest` 渠道冒烟与死区绕过回归。
+- 本地 Agent 真实装配链路（`llmChatStore → setupApprovalArbiter → createDecisionArbiter → resolveArbitrationConfig`）的集成测试；当前 store 测试使用 mock arbiter，仅覆盖收口行为。

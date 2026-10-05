@@ -313,7 +313,8 @@ export class VcpNodeProtocol {
     const result = await toolCallingStore.requestApproval(
       sessionId,
       parsedRequest as any,
-      requestId
+      requestId,
+      { source: "vcp-node" }
     );
 
     // 4. 发送响应回 VCP
@@ -621,7 +622,11 @@ export class VcpNodeProtocol {
           `vcp-file-transfer:${this.serverId}`,
           approvalRequest as any,
           requestId,
-          { signal, timeoutMs: DISTRIBUTED_TOOL_TIMEOUT_MS }
+          {
+            signal,
+            timeoutMs: DISTRIBUTED_TOOL_TIMEOUT_MS,
+            source: "vcp-file-transfer",
+          }
         );
         approvalGranted = result === "approved";
         if (!approvalGranted) throw new Error("用户拒绝了外部文件传输请求");

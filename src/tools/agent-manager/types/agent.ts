@@ -207,6 +207,12 @@ export interface ToolCallConfig {
   rateLimitEnabled?: boolean;
   /** API 请求频率限制（秒） */
   rateLimitInterval?: number;
+  /**
+   * JEV 决策自动审批仲裁配置（§2.7）。
+   * 未定义视为禁用；位于 toolCallConfig 前缀下，自动被
+   * SECURITY_SENSITIVE_AGENT_PATHS 的 KI-003 本地确认保护覆盖。
+   */
+  decisionArbitration?: import("@/services/decision-arbiter/types").DecisionArbitrationConfig;
 }
 /**
  * 子智能体调用配置
@@ -311,7 +317,6 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   rateLimitEnabled: false,
   rateLimitInterval: 0,
 };
-
 export type PresetGroupSelectionMode = "checkbox" | "radio";
 
 export interface PresetMessageGroup {

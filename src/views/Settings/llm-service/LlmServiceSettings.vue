@@ -43,6 +43,12 @@ import LlmProfileExportDialog from "./components/LlmProfileExportDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
+import {
+  getDecisionChannelSettings,
+  loadDecisionChannelSettings,
+  saveDecisionChannelSettings,
+} from "@/services/decision-arbiter/channelConfig";
 import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import {
@@ -553,6 +559,52 @@ const networkSettingSummary = computed(() => {
 
   return parts.join(" · ");
 });
+
+// ─── JEV 决策渠道（全局单渠道，持久化于 decision-arbiter/channel.json） ───
+const decisionChannelSettings = ref({
+  ...getDecisionChannelSettings(),
+});
+const decisionChannelCombo = computed<string>({
+  get: () => {
+    const { profileId, model } = decisionChannelSettings.value;
+    return profileId ? `${profileId}:${model}` : "";
+  },
+  set: (combo) => {
+    if (!combo) {
+      decisionChannelSettings.value = {
+        ...decisionChannelSettings.value,
+        profileId: null,
+      };
+      return;
+    }
+    const sepIndex = combo.indexOf(":");
+    decisionChannelSettings.value = {
+      ...decisionChannelSettings.value,
+      profileId: combo.slice(0, sepIndex),
+      model: combo.slice(sepIndex + 1),
+    };
+  },
+});
+const isDecisionChannelSaving = ref(false);
+
+const handleSaveDecisionChannel = async () => {
+  isDecisionChannelSaving.value = true;
+  try {
+    await saveDecisionChannelSettings(decisionChannelSettings.value);
+    customMessage.success("决策渠道已保存");
+  } catch {
+    customMessage.error("决策渠道保存失败");
+  } finally {
+    isDecisionChannelSaving.value = false;
+  }
+};
+
+onMounted(() => {
+  loadDecisionChannelSettings().then((settings) => {
+    decisionChannelSettings.value = { ...settings };
+  });
+});
+
 </script>
 
 <template>
@@ -779,6 +831,32 @@ const networkSettingSummary = computed(() => {
               <div class="form-hint">
                 明确调用消费方和上游协议。自动检测仅为旧渠道保留 API 地址与 VCP
                 WebSocket 同主机的兼容期启发式；显式声明会优先覆盖它。
+              </div>
+            </el-form-item>
+
+            <!-- JEV 决策渠道（全局单渠道，§3.5） -->
+            <el-form-item label="决策渠道">
+              <div style="width: 100%; display: flex; gap: 8px">
+                <LlmModelSelector
+                  v-model="decisionChannelCombo"
+                  :capabilities="{ decision: true }"
+                  :clearable="true"
+                  placeholder="未配置（JEV 决策仲裁将走安全兜底）"
+                  test-id="decision-channel-selector"
+                />
+                <el-button
+                  type="primary"
+                  plain
+                  size="small"
+                  :loading="isDecisionChannelSaving"
+                  @click="handleSaveDecisionChannel"
+                >
+                  保存
+                </el-button>
+              </div>
+              <div class="form-hint">
+                用于工具调用审批仲裁的 JEV 决策模型（需具备 decision
+                能力标记，如 jev-latest）。全局单渠道，所有智能体共用。
               </div>
             </el-form-item>
 

@@ -62,6 +62,7 @@ import { createSessionHistoryManager } from "./session/sessionHistoryManager";
 import { createSessionGenerationManager } from "./session/sessionGenerationManager";
 import { createSessionLifecycleManager } from "./session/sessionLifecycleManager";
 import { useToolCallingStore } from "./toolCallingStore";
+import { setupApprovalArbiter } from "../composables/chat/setupApprovalArbiter";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -116,6 +117,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   });
   const inputManager = useChatInputManager();
   const toolCallingStore = useToolCallingStore();
+  // 装配 JEV 审批仲裁器（幂等；渠道设置异步加载）
+  setupApprovalArbiter();
 
   watch(
     newSessionDraft,

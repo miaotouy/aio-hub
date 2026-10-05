@@ -27,6 +27,7 @@ import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling"
 import ToolCallingHelpDialog from "@/tools/llm-chat/components/common/ToolCallingHelpDialog.vue";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
+import { DEFAULT_DECISION_ARBITRATION_CONFIG } from "@/services/decision-arbiter/types";
 import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import ToolCallingItem from "./ToolCallingItem.vue";
@@ -107,6 +108,68 @@ const ensureConfig = () => {
     editForm.toolCallConfig.rateLimitInterval = 0;
   }
 };
+
+// JEV 决策仲裁（§3.3）：undefined = 禁用，开关写入显式对象
+const arbitrationEnabled = computed({
+  get: () => !!editForm?.toolCallConfig?.decisionArbitration,
+  set: (val: boolean) => {
+    ensureConfig();
+    editForm.toolCallConfig.decisionArbitration = val
+      ? JSON.parse(
+          JSON.stringify({
+            ...DEFAULT_DECISION_ARBITRATION_CONFIG,
+          })
+        )
+      : undefined;
+  },
+});
+
+type ArbitrationNumericKey =
+  | "autoRiskThreshold"
+  | "denyRiskThreshold"
+  | "intentThreshold"
+  | "confidenceThreshold"
+  | "forceApprovalRiskThreshold";
+
+// 阈值为 0-1 小数，滑杆使用 0-100 整数；自动放行类阈值上限锁定 30%（§3.3）
+const toPercentModel = (key: ArbitrationNumericKey, maxPercent = 100) =>
+  computed<number>({
+    get: () =>
+      Math.round((editForm.toolCallConfig.decisionArbitration?.[key] ?? 0) * 100),
+    set: (val: number) => {
+      ensureConfig();
+      const arb = editForm.toolCallConfig.decisionArbitration;
+      if (!arb) return;
+      arb[key] = Math.min(maxPercent, Math.max(0, val)) / 100;
+    },
+  });
+
+const autoRiskPercent = toPercentModel("autoRiskThreshold", 30);
+const denyRiskPercent = toPercentModel("denyRiskThreshold");
+const intentPercent = toPercentModel("intentThreshold");
+const confidencePercent = toPercentModel("confidenceThreshold");
+const forceApprovalRiskPercent = toPercentModel("forceApprovalRiskThreshold", 30);
+
+const arbitrationMode = computed<"gray-zone" | "aggressive">({
+  get: () =>
+    editForm.toolCallConfig.decisionArbitration?.mode ?? "gray-zone",
+  set: (val: "gray-zone" | "aggressive") => {
+    ensureConfig();
+    const arb = editForm.toolCallConfig.decisionArbitration;
+    if (arb) arb.mode = val;
+  },
+});
+
+const autoApproveExternal = computed<boolean>({
+  get: () =>
+    editForm.toolCallConfig.decisionArbitration?.autoApproveExternalSources ??
+    false,
+  set: (val: boolean) => {
+    ensureConfig();
+    const arb = editForm.toolCallConfig.decisionArbitration;
+    if (arb) arb.autoApproveExternalSources = val;
+  },
+});
 
 // 初始化时确保配置完整
 ensureConfig();
@@ -350,6 +413,107 @@ const pasteAllToolSettings = async () => {
           </el-form-item>
         </div>
 
+        <!-- JEV 决策仲裁（§3.3）：进阶折叠区 -->
+        <div class="arbitration-card">
+          <div class="arbitration-card-header">
+            <div class="arbitration-card-title">
+              <span>JEV 决策仲裁</span>
+              <el-tooltip
+                content="审批前先由 JEV 决策模型仲裁：低风险自动放行、高风险自动拒绝、不确定时升级人工审批。默认关闭。"
+                placement="top"
+              >
+                <el-icon :size="14" style="color: var(--el-text-color-secondary)"
+                  ><InfoFilled
+                /></el-icon>
+              </el-tooltip>
+            </div>
+            <el-switch v-model="arbitrationEnabled" />
+          </div>
+          <template v-if="arbitrationEnabled">
+            <div class="form-hint" style="margin-bottom: 8px">
+              决策渠道在「设置中心 → 模型服务」统一配置。此智能体启用后，其工具调用审批将先经
+              JEV 仲裁，仅不确定的请求会弹出人工审批。
+            </div>
+            <el-form label-position="top" size="small">
+              <el-form-item label="仲裁策略模式">
+                <el-radio-group v-model="arbitrationMode">
+                  <el-radio-button value="gray-zone">
+                    保守灰区（推荐）
+                  </el-radio-button>
+                  <el-radio-button value="aggressive">激进模式</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <el-alert
+                v-if="arbitrationMode === 'aggressive'"
+                type="warning"
+                :closable="false"
+                show-icon
+                title="激进模式允许 JEV 在极低风险下放行强制审批操作（安全沙箱等），存在一定风险。"
+                style="margin-bottom: 12px"
+              />
+              <div class="tool-config-grid" style="margin-bottom: 0; padding: 0">
+                <el-form-item label="自动放行风险上限 (%)">
+                  <el-slider
+                    v-model="autoRiskPercent"
+                    :min="0"
+                    :max="30"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item label="风险自动拒绝下限 (%)">
+                  <el-slider
+                    v-model="denyRiskPercent"
+                    :min="0"
+                    :max="100"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item label="意图一致性最低要求 (%)">
+                  <el-slider
+                    v-model="intentPercent"
+                    :min="0"
+                    :max="100"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item label="裁决置信度最低要求 (%)">
+                  <el-slider
+                    v-model="confidencePercent"
+                    :min="0"
+                    :max="100"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+                <el-form-item
+                  v-if="arbitrationMode === 'aggressive'"
+                  label="强制审批放行风险上限 (%)"
+                >
+                  <el-slider
+                    v-model="forceApprovalRiskPercent"
+                    :min="0"
+                    :max="30"
+                    :step="1"
+                    style="width: 100%"
+                  />
+                </el-form-item>
+              </div>
+              <el-form-item label="外部来源安全防线">
+                <div class="arbitration-external-row">
+                  <el-switch v-model="autoApproveExternal" />
+                  <span class="form-hint">
+                    允许 VCP / 外部协同工具调用自动放行；关闭时外部来源仅提供 JEV
+                    建议，必须人工确认。
+                  </span>
+                </div>
+              </el-form-item>
+            </el-form>
+          </template>
+        </div>
+
         <!-- 工具发现列表 -->
         <div class="discovered-tools-box">
           <div class="box-header">
@@ -498,6 +662,40 @@ const pasteAllToolSettings = async () => {
   background: var(--container-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
+}
+
+.arbitration-card {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+}
+
+.arbitration-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.arbitration-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--el-text-color-primary);
+}
+
+.arbitration-external-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arbitration-external-row .form-hint {
+  margin: 0;
+  flex: 1;
 }
 
 .tool-config-grid :deep(.el-form-item) {

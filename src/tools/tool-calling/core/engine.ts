@@ -33,7 +33,8 @@ export interface ToolCallEngineOptions {
   /** 子智能体派发深度，向下透传至 ToolContext.delegationDepth */
   delegationDepth?: number;
   onBeforeExecute?: (
-    request: ParsedToolRequest
+    request: ParsedToolRequest,
+    security?: { forceApproval: boolean }
   ) => Promise<ToolApprovalResult | boolean>;
   onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }

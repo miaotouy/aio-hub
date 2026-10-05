@@ -452,7 +452,11 @@ command:「始」readContext「末」
     });
 
     expect(JSON.parse(results[0].result)).toEqual({ agentId: "agent-1" });
-    expect(results[0].metadata).toEqual({ sourceCount: 2 });
+    // mode:"auto" 下规则旁路自动放行，metadata 带出放行源标记（红线 7）
+    expect(results[0].metadata).toEqual({
+      sourceCount: 2,
+      approvalOrigin: "rule",
+    });
   });
 
   it("保留工具错误的结构化失败类型", async () => {

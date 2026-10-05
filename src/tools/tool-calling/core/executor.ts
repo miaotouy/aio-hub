@@ -32,7 +32,8 @@ export interface ExecutorOptions {
   /** 子智能体派发深度，注入 ToolContext.delegationDepth 供 sub-agent 深度链校验 */
   delegationDepth?: number;
   onBeforeExecute?: (
-    request: ParsedToolRequest
+    request: ParsedToolRequest,
+    security?: { forceApproval: boolean }
   ) => Promise<ToolApprovalResult | boolean>;
   onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }
@@ -239,6 +240,10 @@ async function executeSingleRequest(
   const toolInstance = ctx.toolInstance;
   const methodMeta = ctx.methodMeta;
 
+  // 旁路放行来源标记（红线 7）：静态白名单自动批准时经 result metadata 带出，
+  // 不改 ToolApprovalResult 契约与控制流。
+  const isRuleAutoApprove = !(forceApproval || !shouldAutoApprove(request, options.config));
+
   // 2. 检查是否需要审批
   if (forceApproval || !shouldAutoApprove(request, options.config)) {
     // 批量执行器已经在创建审批请求前分发过预览；避免同一请求重复触发 hook。
@@ -265,7 +270,9 @@ async function executeSingleRequest(
     // 优先从缓存中获取审批结果，避免重复触发审批流程
     const approvalResult = approvalCache?.has(request.requestId)
       ? await approvalCache.get(request.requestId)
-      : await options.onBeforeExecute?.(request);
+      : await options.onBeforeExecute?.(request, {
+          forceApproval,
+        });
     const explicitlyApproved =
       approvalResult === true || approvalResult === "approved";
     if (!explicitlyApproved) {
@@ -425,7 +432,9 @@ async function executeSingleRequest(
       status: "success",
       result,
       durationMs,
-      metadata: structured?.executionMetadata,
+      metadata: isRuleAutoApprove
+        ? { ...(structured?.executionMetadata ?? {}), approvalOrigin: "rule" }
+        : structured?.executionMetadata,
     };
   } catch (error) {
     const durationMs = Date.now() - startedAt;
@@ -524,7 +533,10 @@ export async function executeToolRequests(
         }
 
         // 发起审批并存入缓存
-        approvalCache.set(request.requestId, options.onBeforeExecute(request));
+        approvalCache.set(
+          request.requestId,
+          options.onBeforeExecute(request, { forceApproval })
+        );
       }
     }
 

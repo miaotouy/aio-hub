@@ -578,7 +578,8 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     const result = await toolCallingStore.requestApproval(
       sessionId,
       parsedRequest as any,
-      requestId
+      requestId,
+      { source: "vcp-log" }
     );
 
     // 通过 VCPLog 连接发送审批响应回 VCP

@@ -279,12 +279,18 @@ export function useToolCallOrchestrator() {
           const cycleResult = await processCycle(
             responseContent,
             executionAgent.toolCallConfig,
-            async (request) =>
+            async (request, security) =>
               await toolCallingStore.requestApproval(
                 session.id,
                 request,
                 undefined,
-                { signal: abortController.signal }
+                {
+                  signal: abortController.signal,
+                  source: "orchestrator",
+                  agentId: executionAgent.id,
+                  agentName: executionAgent.displayName,
+                  forceApproval: security?.forceApproval === true,
+                }
               ),
             async (requestId, status) => {
               // 简化回调：仅更新已有节点的元数据状态

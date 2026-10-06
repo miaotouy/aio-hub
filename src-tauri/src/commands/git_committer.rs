@@ -822,6 +822,36 @@ pub async fn git_read_file_preview_binary(
     Ok(tauri::ipc::Response::new(blob.content().to_vec()))
 }
 
+/// 单次 `git` 调用的命令行字符预算。
+///
+/// Windows `CreateProcess` 的命令行上限约 32767 字符，超过会报
+/// `os error 206`（文件名或扩展名太长）。这里用保守预算分批，给引号、
+/// `-C <path>` 前缀和环境变量留出余量。
+const GIT_ARGS_CHAR_BUDGET: usize = 16_000;
+
+/// 按字符预算把文件路径分批，保证单次 `git` 命令行不会溢出系统上限。
+///
+/// 单个路径即使超过预算也会独占一批（无法再拆），顺序保持不变。
+fn chunk_files_by_budget(files: Vec<String>, budget: usize) -> Vec<Vec<String>> {
+    let mut batches: Vec<Vec<String>> = Vec::new();
+    let mut current: Vec<String> = Vec::new();
+    let mut current_len = 0usize;
+    for file in files {
+        // 每个路径在命令行中会被引号包裹，额外预留 3 个字符
+        let entry_len = file.len() + 3;
+        if !current.is_empty() && current_len + entry_len > budget {
+            batches.push(std::mem::take(&mut current));
+            current_len = 0;
+        }
+        current_len += entry_len;
+        current.push(file);
+    }
+    if !current.is_empty() {
+        batches.push(current);
+    }
+    batches
+}
+
 /// 将指定文件添加到暂存区（使用系统 `git add --`）。
 ///
 /// 不能用 `git2::Index::add_path` 替代：对工作区中已删除的文件，
@@ -837,11 +867,15 @@ pub async fn git_stage_files(
         return Ok(());
     }
 
-    let mut args = Vec::with_capacity(files.len() + 1);
-    args.push("add".to_string());
-    args.push("--".to_string());
-    args.extend(files);
-    let _ = run_git_with_guard(&app, &path, args).await?;
+    // 大仓（数千个文件）一次性传参会让命令行超出系统上限，
+    // 因此按字符预算分批执行 `git add -- <chunk>`。
+    for batch in chunk_files_by_budget(files, GIT_ARGS_CHAR_BUDGET) {
+        let mut args = Vec::with_capacity(batch.len() + 2);
+        args.push("add".to_string());
+        args.push("--".to_string());
+        args.extend(batch);
+        let _ = run_git_with_guard(&app, &path, args).await?;
+    }
     Ok(())
 }
 
@@ -1521,6 +1555,37 @@ mod tests {
             &[],
         )
         .expect("create initial commit")
+    }
+
+    #[test]
+    fn splits_large_file_lists_into_bounded_git_batches() {
+        let budget = 100usize;
+        let files: Vec<String> = (0..50)
+            .map(|i| format!("dir/file-{:03}.txt", i))
+            .collect();
+
+        let batches = chunk_files_by_budget(files.clone(), budget);
+
+        // 确实发生切分，且覆盖全部文件、顺序不变
+        assert!(batches.len() > 1);
+        let flat: Vec<String> = batches.into_iter().flatten().collect();
+        assert_eq!(flat, files);
+
+        // 单个批次（不含独占一批的超长路径）不超预算
+        for batch in chunk_files_by_budget(files, budget) {
+            let len: usize = batch.iter().map(|f| f.len() + 3).sum();
+            assert!(len <= budget || batch.len() == 1);
+        }
+    }
+
+    #[test]
+    fn keeps_an_oversized_single_path_in_its_own_batch() {
+        let huge = format!("a/{}", "x".repeat(4096));
+        let batches = chunk_files_by_budget(vec![huge.clone(), "small.txt".to_string()], 100);
+
+        assert_eq!(batches.len(), 2);
+        assert_eq!(batches[0], vec![huge]);
+        assert_eq!(batches[1], vec!["small.txt".to_string()]);
     }
 
     #[test]

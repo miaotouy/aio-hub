@@ -420,7 +420,7 @@ const handleModelAction = (
   justify-content: center;
   min-height: 44px;
   border: 0;
-  border-radius: var(--app-radius-md, 10px);
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: transparent;
 }
@@ -454,7 +454,7 @@ const handleModelAction = (
   overflow: hidden;
   padding: 5px;
   border: 1px solid var(--border-color);
-  border-radius: var(--app-radius-md, 10px);
+  border-radius: var(--app-radius-md);
   background: var(--container-bg, var(--container-bg));
   box-shadow: 0 8px 24px
     color-mix(in srgb, var(--text-color) 15%, transparent);
@@ -473,7 +473,7 @@ const handleModelAction = (
   min-height: 44px;
   padding: 0 11px;
   border: 0;
-  border-radius: calc(var(--app-radius-md, 10px) - 3px);
+  border-radius: calc(var(--app-radius-md) - 3px);
   color: var(--text-color);
   text-align: left;
   background: transparent;
@@ -518,7 +518,7 @@ const handleModelAction = (
   margin-top: 16px;
   padding: 0 16px;
   border: 1px solid var(--primary-color);
-  border-radius: var(--app-radius-md, 10px);
+  border-radius: var(--app-radius-md);
   color: var(--color-on-primary);
   background: var(--primary-color);
   font-weight: 700;
@@ -692,7 +692,7 @@ const handleModelAction = (
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   background: color-mix(
     in srgb,
     var(--cap-color, currentColor) 12%,

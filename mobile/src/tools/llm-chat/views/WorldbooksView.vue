@@ -549,7 +549,7 @@ async function importWorldbookFile(event: Event) {
 }
 .worldbook-title span {
   padding: 2px 6px;
-  border-radius: 9px;
+  border-radius: var(--app-radius-md);
   color: var(--color-on-primary-container);
   background: var(--color-primary-container);
   font-size: var(--font-size-xs);

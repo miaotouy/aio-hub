@@ -219,7 +219,7 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
   color: var(--text-primary);
   background: var(--input-bg);
   border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.25));
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 .database-actions {
   display: flex;

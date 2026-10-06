@@ -310,7 +310,7 @@ summary::-webkit-details-marker {
   max-width: 150px;
   padding: 6px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font: inherit;

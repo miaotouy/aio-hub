@@ -360,7 +360,7 @@ const showDrawer = ref(false);
 .color-dot {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   border: var(--border-width) solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }

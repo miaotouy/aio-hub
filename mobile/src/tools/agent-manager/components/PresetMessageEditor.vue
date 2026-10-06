@@ -622,7 +622,7 @@ onBeforeUnmount(stopDrag);
   align-items: center;
   gap: 5px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: white;
   background: var(--primary-color);
 }
@@ -639,7 +639,7 @@ onBeforeUnmount(stopDrag);
   gap: 5px;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font-size: var(--font-size-xs);
@@ -672,7 +672,7 @@ onBeforeUnmount(stopDrag);
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
   font-size: var(--font-size-xs);
   white-space: nowrap;
@@ -687,7 +687,7 @@ onBeforeUnmount(stopDrag);
   align-items: center;
   gap: 4px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
 }
 .group-control.disabled {
@@ -765,7 +765,7 @@ onBeforeUnmount(stopDrag);
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
 }

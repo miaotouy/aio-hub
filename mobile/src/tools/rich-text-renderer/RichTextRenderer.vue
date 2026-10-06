@@ -288,7 +288,7 @@ onBeforeUnmount(() => {
 :deep(img) {
   max-width: 100%;
   height: auto;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   margin: 8px 0;
   display: block;
 }
@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
   -webkit-overflow-scrolling: touch;
   margin: 12px 0;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 
 :deep(table) {
@@ -374,7 +374,7 @@ onBeforeUnmount(() => {
   font-size: 0.85em;
   padding: 8px 12px;
   background-color: var(--input-bg);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   border: 1px solid var(--border-color);
 }
 

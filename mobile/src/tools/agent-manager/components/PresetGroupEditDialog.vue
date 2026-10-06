@@ -117,7 +117,7 @@ select,
 textarea {
   padding: 10px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font: inherit;
@@ -140,7 +140,7 @@ footer .spacer {
 footer button {
   padding: 9px 14px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
 }

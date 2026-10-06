@@ -399,7 +399,7 @@ const goToChatHome = () => {
   flex: 0 0 28px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   background: var(--primary-color);
   color: white;
   font-size: var(--font-size-xs);

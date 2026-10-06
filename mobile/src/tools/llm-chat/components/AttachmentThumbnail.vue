@@ -92,7 +92,7 @@ const fallbackIcon = computed(() => {
   display: inline-grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color-light);
   background: var(--card-bg);
 }

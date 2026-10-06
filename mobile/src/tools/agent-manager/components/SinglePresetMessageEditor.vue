@@ -310,7 +310,7 @@ function save(): void {
 .save-button {
   padding: 8px 13px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: white;
   background: var(--primary-color);
 }
@@ -346,7 +346,7 @@ textarea {
   flex: 1;
   padding: 9px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: transparent;
   text-transform: capitalize;

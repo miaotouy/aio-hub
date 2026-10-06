@@ -120,7 +120,7 @@ button,
 select {
   padding: 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
 }

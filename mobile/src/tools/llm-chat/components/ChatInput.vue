@@ -453,7 +453,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   gap: 5px;
   padding: 4px 5px 4px 9px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

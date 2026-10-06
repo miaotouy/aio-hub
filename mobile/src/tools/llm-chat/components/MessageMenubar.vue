@@ -228,7 +228,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   min-width: 42px;
   text-align: center;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 
 .branch-indicator:active {

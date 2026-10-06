@@ -1008,7 +1008,7 @@ onUnmounted(() => {
   font-size: var(--font-size-sm);
   line-height: 1.5;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   box-sizing: border-box;
 }
 
@@ -1229,7 +1229,7 @@ onUnmounted(() => {
   font-size: var(--font-size-xs);
   background-color: var(--input-bg);
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   overflow-x: auto;
 }
 </style>

@@ -693,7 +693,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   background: color-mix(
     in srgb,
     var(--cap-color, currentColor) 12%,
@@ -712,7 +712,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 
 .status-tag {
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   font-size: var(--font-size-sm);
   font-weight: 500;
 }

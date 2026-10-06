@@ -269,7 +269,7 @@ onMounted(async () => {
   gap: 1px;
   background: var(--divider-color, rgba(127, 127, 127, 0.18));
   border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18));
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   overflow: hidden;
 }
 .overview-band div {

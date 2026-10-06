@@ -349,7 +349,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   background: var(--color-primary-container, var(--input-bg));
   color: var(--color-on-primary-container, inherit);
   font-size: var(--font-size-md);
@@ -367,7 +367,7 @@ button {
   padding: 0 12px;
   min-height: 44px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color-light);
 }
 
@@ -395,7 +395,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   text-align: left;
   background: transparent;
 }
@@ -425,7 +425,7 @@ footer {
 footer button {
   min-width: 88px;
   padding: 0 16px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 
 footer .secondary {

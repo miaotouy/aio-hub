@@ -35,6 +35,17 @@ describe("resolveProbePlan", () => {
       resolveProbePlan({ id: "image", capabilities: { imageGeneration: true } })
     ).toMatchObject({ capability: "image", requiresExplicitConsent: true });
   });
+
+  it("routes decision models to the structured decision probe", () => {
+    const plan = resolveProbePlan({
+      id: "jev-1.13.0",
+      capabilities: { decision: true },
+    });
+    expect(plan).toMatchObject({ capability: "decision", supported: true });
+    expect(plan.decision?.questions.reachable).toMatchObject({
+      type: "choice",
+    });
+  });
 });
 
 describe("validateProbeResponse", () => {
@@ -96,6 +107,19 @@ describe("validateProbeResponse", () => {
         rerankDocumentCount: 2,
       }).valid
     ).toBe(true);
+  });
+
+  it("requires structured answers for decision probes", () => {
+    expect(
+      validateProbeResponse({
+        capability: "decision",
+        decision: { answers: { reachable: { type: "choice" } } },
+      }).valid
+    ).toBe(true);
+    expect(
+      validateProbeResponse({ capability: "decision", decision: { answers: {} } })
+        .valid
+    ).toBe(false);
   });
 });
 

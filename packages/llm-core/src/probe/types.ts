@@ -1,9 +1,21 @@
 import type { TokenUsage } from "../types/response";
+import type {
+  SystemOneContent,
+  SystemOneQuestion,
+  SystemOneResponse,
+} from "../types/system-one";
 
 export type ProbeKind = "model-list" | "inference" | "key" | "batch-model";
 
 export type ProbeCapability =
-  "chat" | "embedding" | "rerank" | "image" | "audio" | "video" | "music";
+  | "chat"
+  | "embedding"
+  | "rerank"
+  | "decision"
+  | "image"
+  | "audio"
+  | "video"
+  | "music";
 
 export type ProbePhase =
   | "prepare"
@@ -31,6 +43,7 @@ export type ProbeErrorCategory =
 export interface ProbeModelCapabilities {
   embedding?: boolean;
   rerank?: boolean;
+  decision?: boolean;
   imageGeneration?: boolean;
   audioGeneration?: boolean;
   videoGeneration?: boolean;
@@ -50,6 +63,10 @@ export interface ProbePlan {
   chat?: { prompt: string; maxTokens: number };
   embedding?: { input: string };
   rerank?: { query: string; documents: string[] };
+  decision?: {
+    state: SystemOneContent;
+    questions: Record<string, SystemOneQuestion>;
+  };
   media?: { prompt: string };
 }
 
@@ -68,6 +85,7 @@ export interface ProbeValidationInput {
   embedding?: { data?: Array<{ embedding?: number[] }> };
   rerank?: { results?: Array<{ index?: number; relevanceScore?: number }> };
   rerankDocumentCount?: number;
+  decision?: Pick<SystemOneResponse, "answers">;
 }
 
 export interface ProbeValidationResult {

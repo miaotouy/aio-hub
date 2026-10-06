@@ -151,4 +151,25 @@ describe("probe endpoint options", () => {
     expect(resolveEffectiveProbeEndpointType(source, "chat")).toBe("auto");
     expect(resolveEffectiveProbeEndpointType(source, "audio")).toBe("auto");
   });
+
+  it("resolves the TypeSafe System One decision endpoint", () => {
+    const source = profile();
+    source.type = "typesafe";
+    source.customEndpoints = { systemOne: "/custom/systemone" };
+
+    expect(getConfiguredProbeEndpoint(source, "typesafe-system-one")).toBe(
+      "/custom/systemone"
+    );
+    expect(resolveProbeTarget(source, "typesafe-system-one")).toMatchObject({
+      capability: "decision",
+      supportsStream: false,
+      profile: { type: "typesafe" },
+    });
+    expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe(
+      "typesafe-system-one"
+    );
+
+    source.type = "openai";
+    expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe("auto");
+  });
 });

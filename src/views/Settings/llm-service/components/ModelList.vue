@@ -439,6 +439,7 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                   <div
                     v-if="
                       item.model.routing?.bindings?.chat ||
+                      item.model.routing?.bindings?.decision ||
                       item.model.routing?.supportedEndpointTypes?.length
                     "
                     class="model-route"
@@ -453,6 +454,19 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                       {{
                         getAdapterLabel(
                           item.model.routing.bindings.chat.adapterId
+                        )
+                      }}
+                    </el-tag>
+                    <el-tag
+                      v-if="item.model.routing?.bindings?.decision"
+                      size="small"
+                      type="warning"
+                      effect="plain"
+                    >
+                      决策 ·
+                      {{
+                        getAdapterLabel(
+                          item.model.routing.bindings.decision.adapterId
                         )
                       }}
                     </el-tag>

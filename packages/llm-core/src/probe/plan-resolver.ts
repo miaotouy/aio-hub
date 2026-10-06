@@ -7,6 +7,7 @@ export function resolveProbeCapability(
   if (requested) return requested;
 
   const capabilities = model.capabilities;
+  if (capabilities?.decision) return "decision";
   if (capabilities?.embedding) return "embedding";
   if (capabilities?.rerank) return "rerank";
   if (capabilities?.imageGeneration) return "image";
@@ -46,6 +47,27 @@ export function resolveProbePlan(
         requiresExplicitConsent: false,
         supported: true,
         rerank: { query: "hi", documents: ["hello", "world"] },
+      };
+    case "decision":
+      return {
+        capability,
+        stream: false,
+        requiresExplicitConsent: false,
+        supported: true,
+        decision: {
+          state: { probe: "connectivity-check" },
+          questions: {
+            reachable: {
+              type: "choice",
+              instructions:
+                "Answer whether the structured decision service responded.",
+              criteria: {
+                yes: "The decision service returned a valid answer.",
+                no: "The decision service did not return a valid answer.",
+              },
+            },
+          },
+        },
       };
     case "image":
       return {

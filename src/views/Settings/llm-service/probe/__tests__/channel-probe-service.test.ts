@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SystemOneResponse } from "@aiohub/llm-core";
 import type { LlmAdapter } from "@/llm-apis/adapters";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { createChannelProbeService } from "../channel-probe-service";
@@ -219,6 +220,45 @@ describe("createChannelProbeService", () => {
       modelId: "video",
     });
     expect(result.category).toBe("unsupported-capability");
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it("probes decision models through the System One executor", async () => {
+    const source = profile(["jev-1.13.0"]);
+    source.type = "typesafe";
+    source.models[0].capabilities = { decision: true };
+    const chat = vi.fn(async () => ({ content: "wrong" }));
+    const callSystemOne = vi.fn(
+      async (): Promise<SystemOneResponse> => ({
+        model: "jev-1.13.0",
+        answers: {
+          reachable: {
+            type: "choice",
+            choice: "yes",
+            probabilities: { yes: 1 },
+            confidence: 0.9,
+          },
+        },
+        usage: { inputTokens: 3, outputTokens: 2 },
+      })
+    );
+    const service = createChannelProbeService({
+      adapters: { typesafe: { chat } },
+      callSystemOne,
+    });
+
+    const result = await service.probe({
+      kind: "inference",
+      profile: source,
+      modelId: "jev-1.13.0",
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      capability: "decision",
+      endpointType: "typesafe-system-one",
+    });
+    expect(callSystemOne).toHaveBeenCalledOnce();
     expect(chat).not.toHaveBeenCalled();
   });
 });

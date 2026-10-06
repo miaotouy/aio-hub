@@ -77,6 +77,15 @@ export const PROBE_ENDPOINT_DEFINITIONS: ProbeEndpointDefinition[] = [
     supportsStream: false,
   },
   {
+    value: "typesafe-system-one",
+    label: "TypeSafe System One",
+    defaultPath: "/v1/systemone",
+    configKey: "systemOne",
+    capability: "decision",
+    providerType: "typesafe",
+    supportsStream: false,
+  },
+  {
     value: "image-generation",
     label: "Image Generation",
     defaultPath: "/v1/images/generations",
@@ -126,6 +135,8 @@ export function resolveEffectiveProbeEndpointType(
       return "embeddings";
     case "rerank":
       return "jina-rerank";
+    case "decision":
+      return profile.type === "typesafe" ? "typesafe-system-one" : "auto";
     case "image":
       return "image-generation";
     case "chat":

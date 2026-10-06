@@ -4,7 +4,7 @@ import { materializeModelIdentity } from "@aiohub/llm-core";
 import { useRouter } from "vue-router";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { Plus, Layers, ChevronLeft } from "lucide-vue-next";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
 import type { LlmProfile } from "../types";
 import { generateUuid } from "@/utils/uuid";
@@ -89,18 +89,18 @@ const handleSave = (profile: LlmProfile) => {
   }
 
   showEditPopup.value = false;
-  Snackbar.success(t("tools.llm-api.common.配置已保存"));
+  customMessage(t("tools.llm-api.common.配置已保存"), "success");
 };
 
 const handleDelete = (id: string) => {
   store.deleteProfile(id);
   showEditPopup.value = false;
-  Snackbar.success(t("common.删除成功"));
+  customMessage(t("common.删除成功"), "success");
 };
 
 const handleToggleEnabled = (profileId: string, enabled: boolean) => {
   store.updateProfile(profileId, { enabled });
-  Snackbar.success(enabled ? t("common.已启用") : t("common.已禁用"));
+  customMessage(enabled ? t("common.已启用") : t("common.已禁用"), "success");
 };
 
 const handleToggleMultiSelect = (id: string) => {

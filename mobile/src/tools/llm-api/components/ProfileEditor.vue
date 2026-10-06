@@ -22,7 +22,7 @@ import {
   EyeOff,
   ShieldCheck,
 } from "lucide-vue-next";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { providerTypes } from "../config/llm-providers";
 import { fetchModelsFromApi } from "../core/model-fetcher";
@@ -109,7 +109,7 @@ watch(
 const saveEdit = () => {
   if (innerProfile.value) {
     if (!innerProfile.value.name.trim()) {
-      Snackbar.warning(t("tools.llm-api.ProfileEditor.请输入渠道名称"));
+      customMessage(t("tools.llm-api.ProfileEditor.请输入渠道名称"), "warning");
       return;
     }
     emit("save", innerProfile.value);
@@ -118,7 +118,7 @@ const saveEdit = () => {
 
 const handleDelete = async () => {
   if (!innerProfile.value) return;
-  const confirm = await Dialog({
+  const confirmed = await customDialog({
     title: t("common.确认"),
     message: t("tools.llm-api.ProfileEditor.删除确认", {
       name: innerProfile.value.name,
@@ -127,7 +127,7 @@ const handleDelete = async () => {
     cancelButtonText: t("common.取消"),
   });
 
-  if (confirm === "confirm") {
+  if (confirmed) {
     emit("delete", innerProfile.value.id);
   }
 };
@@ -149,7 +149,7 @@ const handleFetchModels = async () => {
     fetchedModels.value = models;
     showModelFetcherPopup.value = true;
   } catch (err: any) {
-    Snackbar.error(`${t("common.获取失败")}: ${err.message}`);
+    customMessage(`${t("common.获取失败")}: ${err.message}`, "error");
   } finally {
     isFetchingModels.value = false;
   }
@@ -175,10 +175,11 @@ const handleAddModels = (models: LlmModelInfo[]) => {
     innerProfile.value.modelGroupsExpandState = Array.from(currentExpandState);
   }
 
-  Snackbar.success(
+  customMessage(
     t("tools.llm-api.ProfileEditor.成功添加N个模型", {
       count: newModels.length,
-    })
+    }),
+    "success"
   );
 };
 
@@ -209,7 +210,7 @@ const handleSaveModel = async (model: LlmModelInfo) => {
       materializeModel(model).model,
     ];
   }
-  Snackbar.success(t("tools.llm-api.ProfileEditor.模型已保存"));
+  customMessage(t("tools.llm-api.ProfileEditor.模型已保存"), "success");
 };
 
 const handleDeleteModel = (modelId: string) => {
@@ -217,7 +218,7 @@ const handleDeleteModel = (modelId: string) => {
   innerProfile.value.models = innerProfile.value.models.filter(
     (m: LlmModelInfo) => m.id !== modelId
   );
-  Snackbar.success(t("tools.llm-api.ProfileEditor.模型已删除"));
+  customMessage(t("tools.llm-api.ProfileEditor.模型已删除"), "success");
 };
 
 const handleDeleteGroup = (modelIds: string[]) => {
@@ -225,17 +226,18 @@ const handleDeleteGroup = (modelIds: string[]) => {
   innerProfile.value.models = innerProfile.value.models.filter(
     (m: LlmModelInfo) => !modelIds.includes(m.id)
   );
-  Snackbar.success(
+  customMessage(
     t("tools.llm-api.ProfileEditor.已删除N个模型", {
       count: modelIds.length,
-    })
+    }),
+    "success"
   );
 };
 
 const handleClearModels = () => {
   if (!innerProfile.value) return;
   innerProfile.value.models = [];
-  Snackbar.success(t("tools.llm-api.ProfileEditor.已清空所有模型"));
+  customMessage(t("tools.llm-api.ProfileEditor.已清空所有模型"), "success");
 };
 
 const handleOpenProbe = (modelId?: string) => {
@@ -317,7 +319,7 @@ const handleIconSelect = (icon: { path: string }) => {
   if (innerProfile.value) {
     innerProfile.value.icon = icon.path;
     showIconSelectorPopup.value = false;
-    Snackbar.success(t("tools.llm-api.ProfileEditor.已选择图标"));
+    customMessage(t("tools.llm-api.ProfileEditor.已选择图标"), "success");
   }
 };
 // 处理输入框聚焦时滚动到可见区域

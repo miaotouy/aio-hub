@@ -12,7 +12,7 @@ import {
   ChevronLeft,
 } from "lucide-vue-next";
 import LogEntryItem from "../components/LogEntryItem.vue";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 import { useRouter } from "vue-router";
 
 const { useScopedT, t: gt } = useI18n();
@@ -82,15 +82,15 @@ onUnmounted(() => {
 
 // 操作
 const handleClear = async () => {
-  const result = await Dialog({
+  const confirmed = await customDialog({
     title: gt("common.提示"),
     message: t("确认清空"),
   });
 
-  if (result === "confirm") {
+  if (confirmed) {
     logger.clearLogs();
     logs.value = [];
-    Snackbar.success(gt("common.成功"));
+    customMessage(gt("common.成功"), "success");
   }
 };
 
@@ -103,16 +103,16 @@ const handleExport = () => {
   a.download = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  Snackbar.success(t("导出成功"));
+  customMessage(t("导出成功"), "success");
 };
 
 const handleCopyAll = async () => {
   const content = logger.exportLogs();
   try {
     await navigator.clipboard.writeText(content);
-    Snackbar.success(t("已复制到剪贴板"));
+    customMessage(t("已复制到剪贴板"), "success");
   } catch (err) {
-    Snackbar.error(gt("common.失败"));
+    customMessage(gt("common.失败"), "error");
   }
 };
 

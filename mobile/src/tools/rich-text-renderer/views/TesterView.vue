@@ -22,7 +22,7 @@ import {
 import RichTextRenderer from "../RichTextRenderer.vue";
 import { presets } from "../presets/test-cases";
 import { marked } from "marked";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
@@ -409,7 +409,7 @@ const normalizeWhitespace = (text: string): string => {
 // 复制原文和渲染结果的对比报告
 const copyComparison = async () => {
   if (!inputContent.value.trim()) {
-    Snackbar.warning(t("tools.rich-text-renderer.tester.无原文可复制"));
+    customMessage(t("tools.rich-text-renderer.tester.无原文可复制"), "warning");
     return;
   }
 
@@ -417,7 +417,7 @@ const copyComparison = async () => {
     ".rich-text-renderer"
   );
   if (!rendererEl) {
-    Snackbar.warning(t("tools.rich-text-renderer.tester.无渲染容器"));
+    customMessage(t("tools.rich-text-renderer.tester.无渲染容器"), "warning");
     return;
   }
 
@@ -479,9 +479,12 @@ HTML 完整字符数: ${htmlContent.length}
 
   try {
     await navigator.clipboard.writeText(comparisonText);
-    Snackbar.success(t("tools.rich-text-renderer.tester.对比报告已复制"));
+    customMessage(
+      t("tools.rich-text-renderer.tester.对比报告已复制"),
+      "success"
+    );
   } catch (err) {
-    Snackbar.error(t("tools.rich-text-renderer.tester.复制失败权限"));
+    customMessage(t("tools.rich-text-renderer.tester.复制失败权限"), "error");
     console.error("Failed to copy comparison:", err);
   }
 };
@@ -489,15 +492,15 @@ HTML 完整字符数: ${htmlContent.length}
 // 复制完整 AST JSON
 const copyAstJson = async () => {
   if (!currentContent.value) {
-    Snackbar.warning(t("tools.rich-text-renderer.tester.无AST数据"));
+    customMessage(t("tools.rich-text-renderer.tester.无AST数据"), "warning");
     return;
   }
   try {
     const jsonStr = JSON.stringify(astJson.value, null, 2);
     await navigator.clipboard.writeText(jsonStr);
-    Snackbar.success(t("tools.rich-text-renderer.tester.AST已复制"));
+    customMessage(t("tools.rich-text-renderer.tester.AST已复制"), "success");
   } catch (err) {
-    Snackbar.error(t("tools.rich-text-renderer.tester.复制失败"));
+    customMessage(t("tools.rich-text-renderer.tester.复制失败"), "error");
     console.error("Failed to copy AST:", err);
   }
 };
@@ -508,14 +511,14 @@ const copyHtml = async () => {
     ".rich-text-renderer"
   );
   if (!rendererEl) {
-    Snackbar.warning(t("tools.rich-text-renderer.tester.无渲染内容"));
+    customMessage(t("tools.rich-text-renderer.tester.无渲染内容"), "warning");
     return;
   }
   try {
     await navigator.clipboard.writeText(rendererEl.innerHTML || "");
-    Snackbar.success(t("tools.rich-text-renderer.tester.HTML已复制"));
+    customMessage(t("tools.rich-text-renderer.tester.HTML已复制"), "success");
   } catch (err) {
-    Snackbar.error(t("tools.rich-text-renderer.tester.复制失败"));
+    customMessage(t("tools.rich-text-renderer.tester.复制失败"), "error");
   }
 };
 

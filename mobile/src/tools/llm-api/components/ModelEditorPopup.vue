@@ -10,7 +10,7 @@ import { ChevronLeft, Sparkles, Trash2, Check } from "lucide-vue-next";
 import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import { useTranslatedCapabilities } from "../config/model-capabilities";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 import { useI18n, type I18nKey } from "@/i18n";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import IconSelector from "./IconSelector.vue";
@@ -168,7 +168,7 @@ const isEditMode = computed(() => !!props.model);
 
 const handleApplyPreset = async () => {
   if (!innerModel.value.id) {
-    Snackbar.warning(t("tools.llm-api.ModelEditorPopup.请先输入模型 ID"));
+    customMessage(t("tools.llm-api.ModelEditorPopup.请先输入模型 ID"), "warning");
     return;
   }
 
@@ -189,30 +189,29 @@ const handleApplyPreset = async () => {
   if (materialized.changes.length > 0) {
     innerModel.value = materialized.model;
   }
-  Snackbar[
-    materialized.changes.length > 0 || identityApplied ? "success" : "info"
-  ](
+  customMessage(
     t(
       materialized.changes.length > 0 || identityApplied
         ? "tools.llm-api.ModelEditorPopup.已应用预设配置"
         : "tools.llm-api.ModelEditorPopup.未找到匹配的预设配置"
-    )
+    ),
+    materialized.changes.length > 0 || identityApplied ? "success" : "info"
   );
 };
 
 const handleIconSelect = (icon: any) => {
   innerModel.value.icon = icon.path;
   showIconSelector.value = false;
-  Snackbar.success(t("tools.llm-api.ModelEditorPopup.已选择图标"));
+  customMessage(t("tools.llm-api.ModelEditorPopup.已选择图标"), "success");
 };
 
 const handleSave = () => {
   if (!innerModel.value.id.trim()) {
-    Snackbar.warning(t("tools.llm-api.ModelEditorPopup.请输入模型 ID"));
+    customMessage(t("tools.llm-api.ModelEditorPopup.请输入模型 ID"), "warning");
     return;
   }
   if (!innerModel.value.name.trim()) {
-    Snackbar.warning(t("tools.llm-api.ModelEditorPopup.请输入模型名称"));
+    customMessage(t("tools.llm-api.ModelEditorPopup.请输入模型名称"), "warning");
     return;
   }
 
@@ -224,7 +223,7 @@ const handleSave = () => {
   if (identityInput) {
     const canonicalId = normalizeCanonicalModelId(identityInput);
     if (!canonicalId) {
-      Snackbar.warning(t("tools.llm-api.ModelEditorPopup.模型身份格式错误"));
+      customMessage(t("tools.llm-api.ModelEditorPopup.模型身份格式错误"), "warning");
       return;
     }
     const revision = modelIdentityRevision.value.trim();
@@ -250,7 +249,7 @@ const handleSave = () => {
 const handleDelete = async () => {
   if (!innerModel.value.id) return;
 
-  const confirm = await Dialog({
+  const confirmed = await customDialog({
     title: t("common.确认"),
     message: t("tools.llm-api.ModelEditorPopup.删除确认", {
       name: innerModel.value.name,
@@ -259,7 +258,7 @@ const handleDelete = async () => {
     cancelButtonText: t("common.取消"),
   });
 
-  if (confirm === "confirm") {
+  if (confirmed) {
     emit("delete", innerModel.value.id);
     emit("update:show", false);
   }
@@ -268,10 +267,7 @@ const handleDelete = async () => {
 let longPressTimer: number | null = null;
 const handleCapabilityTouchStart = (cap: any) => {
   longPressTimer = window.setTimeout(() => {
-    Snackbar.info({
-      content: cap.description,
-      duration: 2000,
-    });
+    customMessage(cap.description, "info");
     longPressTimer = null;
   }, 500);
 };

@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { LogLevel, type LogEntry } from "@/utils/logger";
 import { useI18n } from "@/i18n";
 import { Copy, ChevronRight, ChevronDown } from "lucide-vue-next";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 
 const props = defineProps<{
   log: LogEntry;
@@ -45,9 +45,9 @@ const handleCopy = async (e: Event) => {
 
   try {
     await navigator.clipboard.writeText(text);
-    Snackbar.success(t("复制成功"));
+    customMessage(t("复制成功"), "success");
   } catch (err) {
-    Snackbar.error(gt("common.失败"));
+    customMessage(gt("common.失败"), "error");
   }
 };
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import {
   ChevronLeft,
   Check,
@@ -79,12 +79,15 @@ const handleBack = () => {
 
 const handleReset = async () => {
   await resetAppearanceDraft();
-  Snackbar.success(t("common.重置成功"));
+  customMessage(t("common.重置成功"), "success");
 };
 
 const handleThemeChange = async (value: any) => {
   await updateAppearanceDraft({ theme: value });
-  Snackbar.success(t("settings.已切换至", { theme: currentThemeLabel.value }));
+  customMessage(
+    t("settings.已切换至", { theme: currentThemeLabel.value }),
+    "success"
+  );
 };
 
 const handleThemeColorChange = async (color: string) => {

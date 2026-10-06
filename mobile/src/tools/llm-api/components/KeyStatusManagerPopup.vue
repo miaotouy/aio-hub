@@ -12,7 +12,7 @@ import {
   AlertCircle,
   Plus,
 } from "lucide-vue-next";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 
 const props = defineProps<{
   show: boolean;
@@ -77,7 +77,7 @@ const maskKey = (key: string) => {
 const handleResetBroken = () => {
   if (!props.profile) return;
   keyManager.resetAllBroken(props.profile.id);
-  Snackbar.success(t("tools.llm-api.KeyManager.已重置所有熔断"));
+  customMessage(t("tools.llm-api.KeyManager.已重置所有熔断"), "success");
 };
 
 const toggleKeyEnabled = (key: string, current: boolean) => {
@@ -97,7 +97,7 @@ const handleResetSingle = (key: string) => {
 
 const showDetails = (status: any) => {
   if (!status.lastErrorMessage) return;
-  Dialog({
+  void customDialog({
     title: t("common.错误详情"),
     message: status.lastErrorMessage,
     confirmButtonText: t("common.确定"),
@@ -128,10 +128,11 @@ const handleBatchImport = () => {
       apiKeys: updatedKeys,
     });
 
-    Snackbar.success(
+    customMessage(
       t("tools.llm-api.KeyManager.导入成功N个", {
         count: uniqueNewKeys.length,
-      })
+      }),
+      "success"
     );
   }
 

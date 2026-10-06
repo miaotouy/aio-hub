@@ -7,7 +7,7 @@ import {
   Palette,
   ChevronRight,
 } from "lucide-vue-next";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -158,15 +158,16 @@ const currentThemeColorName = computed(() => {
 const selectColor = async (color: string, name?: string) => {
   emit("change", color);
   if (name) {
-    Snackbar.success(
-      t("settings.主题色板.切换成功", { name, color: color.toUpperCase() })
+    customMessage(
+      t("settings.主题色板.切换成功", { name, color: color.toUpperCase() }),
+      "success"
     );
   }
 };
 
 const resetColor = async () => {
   emit("change", "#409eff");
-  Snackbar.success(t("settings.主题色板.重置成功"));
+  customMessage(t("settings.主题色板.重置成功"), "success");
 };
 
 // 自定义颜色处理
@@ -183,7 +184,7 @@ const handleCustomColorApply = async () => {
     await selectColor(customColor.value);
     showCustomPicker.value = false;
   } else {
-    Snackbar.error(t("settings.主题色板.无效颜色值"));
+    customMessage(t("settings.主题色板.无效颜色值"), "error");
   }
 };
 

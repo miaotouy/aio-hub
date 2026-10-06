@@ -204,6 +204,11 @@ const goHome = () => {
   gap: 12px;
 }
 
+.header-main :deep(.var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .header-title {
   display: flex;
   align-items: center;

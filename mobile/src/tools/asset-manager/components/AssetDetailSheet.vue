@@ -384,7 +384,7 @@ const createdAt = computed(() =>
 }
 
 .detail-actions button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 11px;
   display: inline-flex;
   align-items: center;

@@ -804,6 +804,11 @@ const handleRadiusScaleChange = async (value: any) => {
   height: 32px;
 }
 
+:deep(.var-app-bar .var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 :deep(.var-cell) {
   --cell-padding: 12px 16px;
   --cell-min-height: 64px;

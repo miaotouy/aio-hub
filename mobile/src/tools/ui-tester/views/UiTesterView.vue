@@ -216,6 +216,8 @@ onMounted(async () => {
   display: grid;
   width: 40px;
   height: 40px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 40px;
   place-items: center;
   padding: 0;

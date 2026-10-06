@@ -268,6 +268,8 @@ function handleAssetRemoved(asset: AgentAsset): void {
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md);
   display: inline-flex;

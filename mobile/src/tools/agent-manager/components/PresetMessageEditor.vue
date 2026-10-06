@@ -618,6 +618,7 @@ onBeforeUnmount(stopDrag);
 }
 .editor-header .primary {
   padding: 9px 12px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -634,6 +635,7 @@ onBeforeUnmount(stopDrag);
 }
 .utility-bar button {
   padding: 8px 9px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -669,6 +671,7 @@ onBeforeUnmount(stopDrag);
 .all-group,
 .group-add {
   padding: 8px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -696,6 +699,7 @@ onBeforeUnmount(stopDrag);
 .group-filter {
   max-width: 150px;
   overflow: hidden;
+  min-height: 44px;
   font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -705,6 +709,8 @@ onBeforeUnmount(stopDrag);
 }
 .group-edit {
   padding: 5px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-flex;
 }
 .group-add {
@@ -762,6 +768,8 @@ onBeforeUnmount(stopDrag);
 .pagination button {
   width: 34px;
   height: 34px;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   border: 0;

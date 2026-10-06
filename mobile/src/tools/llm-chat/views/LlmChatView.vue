@@ -369,6 +369,11 @@ const goToChatHome = () => {
   color: var(--text-color) !important;
 }
 
+.nav-bar :deep(.var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .nav-bar-placeholder {
   height: 54px;
   padding-top: env(safe-area-inset-top);
@@ -381,6 +386,7 @@ const goToChatHome = () => {
   align-items: center;
   gap: 7px;
   padding: 4px 6px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md);
   color: inherit;
@@ -562,5 +568,9 @@ const goToChatHome = () => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.edit-actions :deep(.var-button) {
+  min-height: 44px;
 }
 </style>

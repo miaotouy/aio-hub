@@ -361,6 +361,11 @@ const goToChatHome = () => {
   color: var(--text-color) !important;
 }
 
+.nav-bar :deep(.var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .list-container {
   flex: 1;
   overflow-y: auto;
@@ -395,6 +400,8 @@ const goToChatHome = () => {
 .search-field button {
   width: 30px;
   height: 30px;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   flex: 0 0 30px;
@@ -580,6 +587,8 @@ const goToChatHome = () => {
   background: none;
   color: var(--danger-color);
   padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;

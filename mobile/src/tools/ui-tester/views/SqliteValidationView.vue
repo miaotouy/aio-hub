@@ -214,7 +214,7 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
 }
 .sqlite-toolbar select {
   min-width: 110px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 10px;
   color: var(--text-primary);
   background: var(--input-bg);
@@ -226,6 +226,10 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
   flex-wrap: wrap;
   gap: 8px;
   padding: 18px 0;
+}
+.sqlite-toolbar :deep(.var-button),
+.database-actions :deep(.var-button) {
+  min-height: 44px;
 }
 .metrics-table-wrap {
   max-width: 100%;

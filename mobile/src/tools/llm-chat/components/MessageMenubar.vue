@@ -226,6 +226,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   padding: 0 4px;
   color: var(--text-color-light);
   min-width: 42px;
+  min-height: 44px;
   text-align: center;
   height: 28px;
   border-radius: var(--app-radius-md);
@@ -251,7 +252,8 @@ const handleSwitchToBranch = (nodeId: string) => {
 .menu-btn {
   width: 28px !important;
   height: 28px !important;
-  min-width: 28px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
   padding: 0 !important;
   color: var(--text-color-light) !important;
 }

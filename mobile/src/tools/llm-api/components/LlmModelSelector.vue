@@ -126,6 +126,7 @@ const togglePopup = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 44px;
   padding: 6px 10px;
   background: var(--input-bg);
   border-radius: var(--app-radius-xl);

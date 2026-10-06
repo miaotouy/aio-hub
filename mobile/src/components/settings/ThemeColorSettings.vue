@@ -414,6 +414,7 @@ const showDrawer = ref(false);
 .action-item {
   flex: 1;
   height: 40px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -529,6 +530,8 @@ const showDrawer = ref(false);
 .color-swatch {
   width: 32px;
   height: 32px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: 2px solid transparent;
   padding: 0;
@@ -568,10 +571,16 @@ const showDrawer = ref(false);
 .native-picker {
   width: 24px;
   height: 24px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
+}
+
+.drawer-header :deep(.var-button) {
+  min-height: 44px;
 }
 
 .fade-enter-active,

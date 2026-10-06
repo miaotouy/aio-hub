@@ -64,6 +64,8 @@ const handleNext = () => {
   justify-content: center;
   width: 18px;
   height: 18px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   background: transparent;
   color: inherit;

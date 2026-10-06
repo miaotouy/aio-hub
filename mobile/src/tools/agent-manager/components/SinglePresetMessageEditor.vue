@@ -284,7 +284,7 @@ function save(): void {
   min-height: 58px;
   padding: env(safe-area-inset-top) 14px 0;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   border-bottom: var(--border-width) solid var(--border-color);
 }
@@ -303,12 +303,15 @@ function save(): void {
 }
 .icon-button {
   padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   color: inherit;
   background: transparent;
 }
 .save-button {
   padding: 8px 13px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md);
   color: white;
@@ -345,6 +348,7 @@ textarea {
 .role-tabs button {
   flex: 1;
   padding: 9px;
+  min-height: 44px;
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--app-radius-md);
   color: var(--text-color);
@@ -364,6 +368,7 @@ textarea {
 .advanced > button {
   width: 100%;
   padding: 12px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;

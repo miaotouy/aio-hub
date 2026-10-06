@@ -920,6 +920,10 @@ onUnmounted(() => {
   font-size: var(--font-size-sm);
 }
 
+:deep(.var-button) {
+  min-height: 44px;
+}
+
 /* 顶部控制栏 */
 .tester-header {
   background-color: var(--card-bg);
@@ -963,6 +967,7 @@ onUnmounted(() => {
 
 .tab-item {
   flex: 1;
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;

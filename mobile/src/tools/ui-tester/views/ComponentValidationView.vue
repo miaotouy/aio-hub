@@ -564,6 +564,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+:deep(.var-button) {
+  min-height: 44px;
+}
+
 .component-observation {
   padding: 14px 0 2px;
 }

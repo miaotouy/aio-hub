@@ -733,7 +733,7 @@ onBeforeUnmount(() => {
 }
 
 .filter-segments button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 10px;
   border: 0;
   border-right: 1px solid var(--border-color, var(--border-color));

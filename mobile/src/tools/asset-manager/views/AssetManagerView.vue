@@ -767,11 +767,12 @@ onUnmounted(() => {
 .state-panel button,
 .selection-bar button,
 .maintenance button {
-  min-height: 42px;
+  min-height: 44px;
 }
 
 .icon-button {
   width: 42px;
+  min-width: 44px;
   display: grid;
   place-items: center;
   flex: 0 0 42px;
@@ -842,7 +843,7 @@ onUnmounted(() => {
 }
 
 .import-copy button {
-  min-height: 28px;
+  min-height: 44px;
   padding: 0 7px;
   color: var(--danger-color);
   background: transparent;
@@ -992,7 +993,7 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 32px;
+  min-height: 44px;
   background: transparent;
   border-radius: var(--app-radius-md);
 }
@@ -1215,6 +1216,7 @@ onUnmounted(() => {
 
 .selection-bar .close-selection {
   width: 32px;
+  min-width: 44px;
   padding: 0;
   justify-content: center;
   border: 0;

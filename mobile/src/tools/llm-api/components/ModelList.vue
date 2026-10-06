@@ -691,6 +691,7 @@ const handleModelAction = (
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   padding: 4px 8px;
   border-radius: var(--app-radius-md);
   background: color-mix(

@@ -146,7 +146,7 @@ function moveGroup(event: Event): void {
 .message-card {
   padding: 12px 10px;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   border: var(--border-width) solid var(--border-color);
@@ -181,6 +181,8 @@ summary,
 }
 .drag-handle {
   padding: 4px;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--text-color-light);
   touch-action: none;
 }
@@ -293,6 +295,7 @@ summary::-webkit-details-marker {
 .menu button {
   width: 100%;
   padding: 8px;
+  min-height: 44px;
   display: flex;
   gap: 7px;
   text-align: left;

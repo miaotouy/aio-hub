@@ -93,6 +93,7 @@ const statusText: Record<ValidationRunStatus, string> = {
 }
 .run-button {
   flex: 0 0 auto;
+  min-height: 44px;
 }
 
 @media (max-width: 380px) {

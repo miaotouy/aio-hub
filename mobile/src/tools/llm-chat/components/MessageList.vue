@@ -298,7 +298,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 12px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 999px;

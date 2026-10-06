@@ -309,6 +309,11 @@ const handleReset = async () => {
   background-color: var(--bg-color);
 }
 
+.chat-settings-view :deep(.var-app-bar .var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .view-content {
   flex: 1;
   overflow-y: auto;

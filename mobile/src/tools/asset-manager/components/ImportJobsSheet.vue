@@ -257,7 +257,7 @@ function progress(job: AssetImportJob) {
 }
 
 .cancel-button {
-  min-height: 36px;
+  min-height: 44px;
   margin-top: 9px;
   padding: 0 11px;
   color: var(--danger-color);

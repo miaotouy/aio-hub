@@ -366,6 +366,8 @@ const handleRefresh = async () => {
 
 .back-button {
   flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--text-color);
 }
 

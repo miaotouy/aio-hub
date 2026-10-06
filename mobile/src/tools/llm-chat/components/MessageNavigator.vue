@@ -111,7 +111,8 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 .navigator-button {
   width: 30px !important;
   height: 30px !important;
-  min-width: 30px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
   padding: 0 !important;
   color: var(--text-color-secondary) !important;
 }
@@ -134,7 +135,8 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 
   .navigator-button {
     width: 28px !important;
-    min-width: 28px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
   }
 
   .navigator-counter {

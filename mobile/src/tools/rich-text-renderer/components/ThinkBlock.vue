@@ -97,6 +97,7 @@ async function copyContent() {
 
 .llm-think-toggle {
   min-width: 0;
+  min-height: 44px;
   flex: 1;
   gap: 6px;
   padding: 9px 0;
@@ -123,6 +124,8 @@ async function copyContent() {
 }
 
 .llm-think-copy {
+  min-width: 44px;
+  min-height: 44px;
   padding: 7px;
   border-radius: var(--app-radius-sm);
   cursor: pointer;

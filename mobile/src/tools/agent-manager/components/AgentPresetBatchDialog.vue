@@ -124,6 +124,9 @@ select {
   color: var(--text-color);
   background: var(--input-bg);
 }
+.dialog button {
+  min-height: 44px;
+}
 .actions {
   padding: 12px;
   display: flex;

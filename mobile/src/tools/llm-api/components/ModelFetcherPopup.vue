@@ -520,6 +520,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   padding: 6px 10px;
   border-radius: var(--app-radius-md);
   background: var(--container-bg);

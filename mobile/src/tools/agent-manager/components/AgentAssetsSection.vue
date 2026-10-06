@@ -512,6 +512,7 @@ defineExpose({ collectAttachmentReferences });
   font: inherit;
   font-size: var(--font-size-sm);
   white-space: nowrap;
+  min-height: 44px;
 }
 .group-filter {
   display: flex;
@@ -526,6 +527,7 @@ defineExpose({ collectAttachmentReferences });
   color: var(--text-color-light);
   font: inherit;
   font-size: var(--font-size-xs);
+  min-height: 44px;
 }
 .group-chip.active {
   border-color: var(--primary-color);
@@ -608,6 +610,8 @@ defineExpose({ collectAttachmentReferences });
 .icon-action {
   width: 34px;
   height: 34px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md);
   display: inline-flex;
@@ -683,6 +687,7 @@ defineExpose({ collectAttachmentReferences });
   background: transparent;
   color: var(--text-color);
   font: inherit;
+  min-height: 44px;
 }
 .edit-actions button:last-child {
   border: var(--border-width) solid var(--primary-color);

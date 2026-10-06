@@ -495,6 +495,8 @@ async function importWorldbookFile(event: Event) {
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
 }
 .icon-button.primary,
@@ -528,6 +530,7 @@ async function importWorldbookFile(event: Event) {
   border: 0;
   border-radius: var(--app-radius-xl);
   padding: 9px 16px;
+  min-height: 44px;
 }
 .worldbook-card {
   display: grid;
@@ -571,6 +574,8 @@ async function importWorldbookFile(event: Event) {
 .card-actions button {
   width: 30px;
   height: 30px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
 }
 .danger {
@@ -615,6 +620,8 @@ async function importWorldbookFile(event: Event) {
 .entry-actions button {
   width: 27px;
   height: 27px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .add-entry {
   display: inline-flex;
@@ -668,5 +675,9 @@ async function importWorldbookFile(event: Event) {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.form-actions :deep(.var-button) {
+  min-height: 44px;
 }
 </style>

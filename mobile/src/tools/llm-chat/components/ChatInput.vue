@@ -379,6 +379,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .reply-preview-dismiss {
   width: 28px;
   height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 28px;
   display: grid;
   place-items: center;
@@ -400,6 +402,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .attachment-btn {
   width: 36px;
   height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 36px;
   display: grid;
   place-items: center;
@@ -424,6 +428,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .send-btn {
   width: 36px;
   height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
   background: var(--primary-color);
@@ -472,6 +478,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .pending-attachments button {
   width: 24px;
   height: 24px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 24px;
   display: grid;
   place-items: center;

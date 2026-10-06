@@ -339,6 +339,8 @@ button {
 
 .icon-button {
   width: 42px;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   background: transparent;
@@ -346,6 +348,7 @@ button {
 
 .import-button {
   padding: 0 12px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -424,6 +427,7 @@ footer {
 
 footer button {
   min-width: 88px;
+  min-height: 44px;
   padding: 0 16px;
   border-radius: var(--app-radius-md);
 }

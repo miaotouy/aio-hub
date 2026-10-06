@@ -139,6 +139,7 @@ footer .spacer {
 }
 footer button {
   padding: 9px 14px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md);
   color: var(--text-color);

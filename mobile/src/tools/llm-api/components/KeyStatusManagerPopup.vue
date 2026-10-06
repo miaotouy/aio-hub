@@ -460,6 +460,7 @@ const handleBatchImport = () => {
   font-size: var(--font-size-sm);
   color: var(--danger-color);
   flex: 1;
+  min-height: 44px;
 }
 
 .text-truncate {

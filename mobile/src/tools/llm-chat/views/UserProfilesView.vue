@@ -323,6 +323,8 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .icon-button.primary,
 .create-button {
@@ -346,6 +348,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   border: 0;
   border-radius: var(--app-radius-xl);
   padding: 9px 16px;
+  min-height: 44px;
 }
 .profile-card {
   display: grid;
@@ -406,6 +409,8 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .profile-actions button {
   width: 30px;
   height: 30px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .profile-actions .danger {
   color: var(--danger-color);
@@ -453,5 +458,9 @@ async function toggleEnabled(profile: MobileUserProfile) {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.form-actions :deep(.var-button) {
+  min-height: 44px;
 }
 </style>

@@ -483,6 +483,8 @@ async function importAgents(event: Event): Promise<void> {
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md);
   display: inline-flex;
@@ -606,6 +608,8 @@ async function importAgents(event: Event): Promise<void> {
 .agent-actions .icon-button {
   width: 38px;
   height: 38px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .empty-state {
   min-height: 220px;

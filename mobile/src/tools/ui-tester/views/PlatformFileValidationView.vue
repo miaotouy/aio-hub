@@ -435,6 +435,9 @@ function recordObservation(verdict: "passed" | "failed"): void {
   gap: 8px;
   margin-top: 10px;
 }
+.manual-actions :deep(.var-button) {
+  min-height: 44px;
+}
 .read-progress {
   display: flex;
   min-height: 44px;
@@ -448,6 +451,9 @@ function recordObservation(verdict: "passed" | "failed"): void {
 .read-progress strong {
   color: var(--text-primary);
   font-weight: 600;
+}
+.read-progress :deep(.var-button) {
+  min-height: 44px;
 }
 .error-text {
   color: var(--danger-color, #c23b3b);

@@ -402,7 +402,7 @@ const goToChatHome = () => {
   border-radius: 6px;
   background: var(--primary-color);
   color: white;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   overflow: hidden;
 }
@@ -418,7 +418,7 @@ const goToChatHome = () => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .agent-selector {
@@ -445,11 +445,11 @@ const goToChatHome = () => {
 }
 .agent-selector-header h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .agent-selector-header span {
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .agent-selector-list {
   display: flex;
@@ -483,7 +483,7 @@ const goToChatHome = () => {
   border-radius: var(--app-radius-md);
   color: white;
   background: var(--primary-color);
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   overflow: hidden;
 }
@@ -502,7 +502,7 @@ const goToChatHome = () => {
 }
 .agent-selector-copy small {
   color: var(--text-color-light);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 .agent-selector-check {
   flex: 0 0 auto;
@@ -547,7 +547,7 @@ const goToChatHome = () => {
   background: var(--input-bg);
   color: var(--text-color);
   padding: 12px;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   line-height: 1.55;
   outline: none;
 }

@@ -369,7 +369,7 @@ const handleRefresh = async () => {
 }
 
 .title {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   color: var(--text-color);
   margin: 0;
@@ -390,7 +390,7 @@ const handleRefresh = async () => {
 
 .group-title {
   padding: 16px 16px 8px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--primary-color);
   text-transform: uppercase;
@@ -423,12 +423,12 @@ const handleRefresh = async () => {
 }
 
 .cell-label {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -441,7 +441,7 @@ const handleRefresh = async () => {
 .footer-hint {
   margin-top: 24px;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.4;
 }

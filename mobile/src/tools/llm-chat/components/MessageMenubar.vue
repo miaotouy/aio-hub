@@ -222,7 +222,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   padding: 0 4px;
   color: var(--text-color-light);
   min-width: 42px;

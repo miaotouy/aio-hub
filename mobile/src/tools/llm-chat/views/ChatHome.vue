@@ -191,7 +191,7 @@ const goHome = () => {
 }
 
 .header h1 {
-  font-size: 1.8rem;
+  font-size: var(--font-size-2xl);
   margin: 0;
   color: var(--text-color);
 }
@@ -213,7 +213,7 @@ const goHome = () => {
 
 .header p {
   color: var(--text-color-light);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .action-grid {
@@ -266,12 +266,12 @@ const goHome = () => {
 
 .text-box h3 {
   margin: 0 0 4px 0;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .text-box p {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 </style>

@@ -223,7 +223,7 @@ function handleSelect(icon: PresetIconInfo) {
 }
 
 .preset-name {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-color);
   line-height: 1.4;
@@ -249,7 +249,7 @@ function handleSelect(icon: PresetIconInfo) {
   background-color: var(--color-primary-container);
   color: var(--color-on-primary-container);
   border-radius: var(--app-radius-sm);
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 

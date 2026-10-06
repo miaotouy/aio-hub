@@ -191,14 +191,14 @@ function updateContextNumber(
 .context-heading h3 {
   margin: 0;
   color: var(--text-color);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .section-heading p,
 .context-heading p,
 small {
   margin: 4px 0 0;
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   line-height: 1.45;
 }
 .parameter-grid {
@@ -213,7 +213,7 @@ label {
 }
 label > span {
   color: var(--text-color);
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
 }
 input:not([type="checkbox"]),
 textarea {
@@ -249,7 +249,7 @@ textarea {
   white-space: nowrap;
 }
 .switch-label span {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .muted {
   opacity: 0.58;

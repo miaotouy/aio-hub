@@ -125,13 +125,13 @@ const handleSwitch = (nodeId: string) => {
 }
 
 .title {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
 }
 
 .count {
   color: var(--text-color-secondary);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 
 .branch-list {
@@ -186,19 +186,19 @@ const handleSwitch = (nodeId: string) => {
 }
 
 .branch-title {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
 .branch-time {
   color: var(--text-color-secondary);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 
 .branch-preview {
   color: var(--text-color-secondary);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;

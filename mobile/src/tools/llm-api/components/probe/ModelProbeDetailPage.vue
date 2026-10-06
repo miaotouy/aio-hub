@@ -235,7 +235,7 @@ async function copyDiagnostic() {
 .detail-header h2 {
   overflow: hidden;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -263,7 +263,7 @@ async function copyDiagnostic() {
 }
 
 .model-name {
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -277,13 +277,13 @@ pre,
 .model-heading code,
 .diagnostic-list code {
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   overflow-wrap: anywhere;
 }
 
 .capability-label {
   color: var(--primary-color);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
@@ -301,7 +301,7 @@ pre,
 
 .detail-section h3 {
   margin: 0 0 10px;
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
 }
 
 .status-summary {
@@ -323,7 +323,7 @@ pre,
 
 .status-summary span {
   color: var(--text-color-light);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -347,12 +347,12 @@ pre,
 .metric-grid dt,
 .diagnostic-list dt {
   color: var(--text-color-light);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 .metric-grid dd {
   margin: 4px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -374,7 +374,7 @@ pre,
   display: grid;
   gap: 3px;
   margin: 0;
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   overflow-wrap: anywhere;
 }
 
@@ -401,7 +401,7 @@ pre {
   border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg, var(--container-bg));
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

@@ -248,7 +248,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .popup-title {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color);
   text-align: center;
@@ -286,7 +286,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .profile-header {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--primary-color);
   margin-bottom: 12px;
@@ -312,7 +312,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .sub-group-header {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-color-light);
   margin-bottom: 8px;
@@ -358,14 +358,14 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .item-name {
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   color: var(--text-color);
   margin-bottom: 2px;
 }
 
 .item-id {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-light);
   font-family: monospace;
   white-space: nowrap;

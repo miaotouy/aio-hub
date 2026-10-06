@@ -65,14 +65,14 @@ const emit = defineEmits<{
 .confirm-sheet h2 {
   margin: 0;
   color: var(--text-color);
-  font-size: 1.08rem;
+  font-size: var(--font-size-lg);
   line-height: 1.4;
 }
 
 .confirm-sheet p {
   margin: 10px 0 22px;
   color: var(--text-color-light);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   line-height: 1.6;
 }
 

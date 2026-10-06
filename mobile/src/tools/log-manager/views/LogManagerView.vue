@@ -319,7 +319,7 @@ watch([searchQuery, selectedLevel], () => {
 }
 
 .empty-text {
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .footer-actions {
@@ -346,7 +346,7 @@ watch([searchQuery, selectedLevel], () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 :deep(.var-input) {

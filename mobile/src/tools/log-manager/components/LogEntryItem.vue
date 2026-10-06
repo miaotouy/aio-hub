@@ -138,7 +138,7 @@ const toggleExpand = () => {
 }
 
 .level-badge {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   padding: 1px 4px;
   border-radius: var(--app-radius-sm);
   font-weight: bold;
@@ -164,13 +164,13 @@ const toggleExpand = () => {
 }
 
 .timestamp {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--border-color);
   white-space: nowrap;
 }
 
 .module {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--primary-color);
   white-space: nowrap;
   overflow: hidden;
@@ -178,7 +178,7 @@ const toggleExpand = () => {
 }
 
 .entry-message {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   word-break: break-all;
   color: var(--text-color);
@@ -199,7 +199,7 @@ const toggleExpand = () => {
   padding: 8px;
   background-color: var(--overlay-bg);
   border-radius: var(--app-radius-sm);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .detail-section {
@@ -227,7 +227,7 @@ const toggleExpand = () => {
 
 .stack {
   color: var(--danger-color);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 /* 级别特定的边框或背景微调 */

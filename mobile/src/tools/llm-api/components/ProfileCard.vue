@@ -124,14 +124,14 @@ defineEmits<{
 
 .profile-name {
   font-weight: bold;
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .profile-url {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   opacity: 0.6;
   white-space: nowrap;
   overflow: hidden;
@@ -145,7 +145,7 @@ defineEmits<{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   opacity: 0.5;
 }
 

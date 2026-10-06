@@ -402,7 +402,7 @@ const handleModelAction = (
 }
 
 .model-count {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-color);
 }
@@ -504,7 +504,7 @@ const handleModelAction = (
 }
 
 .list-empty .hint {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   margin-top: 8px;
   opacity: 0.7;
 }
@@ -549,12 +549,12 @@ const handleModelAction = (
 
 .group-name {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color);
 }
 
 .group-count {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--primary-color);
   padding: 2px 8px;
   background: var(--color-primary-container);
@@ -611,7 +611,7 @@ const handleModelAction = (
 }
 
 .model-name {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   color: var(--text-color);
   margin-bottom: 2px;
@@ -619,7 +619,7 @@ const handleModelAction = (
 }
 
 .model-id {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
   font-family: monospace;
   line-height: 1.4;
@@ -631,7 +631,7 @@ const handleModelAction = (
 .model-identity {
   color: var(--primary-color);
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -657,7 +657,7 @@ const handleModelAction = (
   color: var(--text-color-light);
   text-align: left;
   background: transparent;
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
 }
 
 .probe-summary span {
@@ -698,7 +698,7 @@ const handleModelAction = (
     var(--cap-color, currentColor) 12%,
     transparent
   );
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 
 .capability-label {

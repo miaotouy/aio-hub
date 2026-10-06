@@ -99,14 +99,14 @@ const goToSettings = () => {
 }
 
 .greeting {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-color);
   margin: 0 0 8px 0;
 }
 
 .subtitle {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-light);
   margin: 0;
 }
@@ -141,12 +141,12 @@ const goToSettings = () => {
 }
 
 .tool-icon {
-  font-size: 2.3rem;
+  font-size: var(--font-size-2xl);
   color: var(--primary-color);
 }
 
 .tool-name {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color);
 }
 </style>

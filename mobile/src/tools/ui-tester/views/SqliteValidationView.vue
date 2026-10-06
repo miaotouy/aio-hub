@@ -209,7 +209,7 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
   padding: 16px 0 8px;
 }
 .sqlite-toolbar label {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .sqlite-toolbar select {
@@ -235,7 +235,7 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
 .metrics-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .metrics-table th,
 .metrics-table td {
@@ -250,7 +250,7 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
 }
 .error-text {
   color: var(--danger-color, #c23b3b);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }

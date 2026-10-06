@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .rich-text-renderer {
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   line-height: 1.6;
   color: var(--text-color);
   max-width: 100%;
@@ -221,22 +221,22 @@ onBeforeUnmount(() => {
 }
 
 :deep(h1) {
-  font-size: 1.5rem;
+  font-size: var(--font-size-xl);
 }
 :deep(h2) {
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
 }
 :deep(h3) {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
 }
 :deep(h4) {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 :deep(h5) {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 :deep(h6) {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
 }
 
 :deep(.md-text) {
@@ -342,7 +342,7 @@ onBeforeUnmount(() => {
   width: 100%;
   min-width: max-content;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 :deep(th),

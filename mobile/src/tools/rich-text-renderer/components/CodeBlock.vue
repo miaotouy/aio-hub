@@ -100,7 +100,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: var(--text-color-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   text-overflow: ellipsis;
   text-transform: lowercase;
@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: var(--app-radius-sm);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 
 .mobile-code-action:focus-visible {
@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
   padding: 12px;
   color: var(--text-color);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   white-space: pre;
 }

@@ -307,7 +307,7 @@ defineExpose({
   box-shadow: 0 6px 18px
     color-mix(in srgb, var(--color-shadow, #000) 18%, transparent);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .jump-to-bottom:active {
@@ -338,14 +338,14 @@ defineExpose({
 }
 
 .empty-title {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-color);
   margin-bottom: 8px;
 }
 
 .empty-subtitle {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 </style>

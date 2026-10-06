@@ -284,7 +284,7 @@ function handleContentClick(event: MouseEvent) {
 
 .model-info,
 .timestamp-info {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-color-light);
   opacity: 0.9;
@@ -297,7 +297,7 @@ function handleContentClick(event: MouseEvent) {
 .token-info {
   margin-top: 4px;
   color: var(--text-color-light);
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
 }
 
 /* 悬挂操作栏布局 */

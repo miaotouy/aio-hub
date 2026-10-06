@@ -290,7 +290,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   min-width: 0;
   flex: 1;
   color: var(--text-color-light);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 
 .context-usage-line {
@@ -368,12 +368,12 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 }
 
 .reply-preview-copy strong {
-  font-size: 0.74rem;
+  font-size: var(--font-size-xs);
   color: var(--primary-color);
 }
 
 .reply-preview-copy span {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .reply-preview-dismiss {
@@ -415,7 +415,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   background: none;
   resize: none;
   padding: 8px 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   max-height: 120px;
   color: var(--text-color);
   outline: none;
@@ -459,7 +459,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   white-space: nowrap;
   color: var(--text-color-light);
   background: var(--card-bg);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .pending-attachment-name {

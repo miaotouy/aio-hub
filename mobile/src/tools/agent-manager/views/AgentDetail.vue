@@ -262,7 +262,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
 }
 .page-header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   text-align: center;
 }
 .icon-button {
@@ -305,17 +305,17 @@ function handleAssetRemoved(asset: AgentAsset): void {
 .section-heading h2 {
   margin: 0;
   color: var(--text-color);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .section-heading p,
 .worldbook-empty {
   margin: 4px 0 0;
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 .worldbook-link {
   color: var(--primary-color);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -335,7 +335,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
 }
 .worldbook-option small {
   color: var(--text-color-light);
-  font-size: 0.74rem;
+  font-size: var(--font-size-xs);
 }
 .worldbook-option.disabled {
   opacity: 0.58;
@@ -347,7 +347,7 @@ label {
   min-width: 0;
 }
 label span {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 input,

@@ -787,14 +787,14 @@ onUnmounted(() => {
 
 .header-copy h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   line-height: 1.3;
 }
 
 .header-copy p {
   margin: 3px 0 0;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .header-action {
@@ -838,7 +838,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .import-copy button {
@@ -854,7 +854,7 @@ onUnmounted(() => {
   display: block;
   margin-top: 4px;
   color: var(--text-color-light);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   text-align: right;
 }
 
@@ -892,7 +892,7 @@ onUnmounted(() => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--app-radius-md);
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .mode-tabs button.active {
@@ -977,7 +977,7 @@ onUnmounted(() => {
   background: var(--container-bg);
   border: 1px solid var(--border-color);
   border-radius: 99px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
@@ -1080,11 +1080,11 @@ onUnmounted(() => {
 .kind-label,
 .quiet {
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .storage-total strong {
-  font-size: 28px;
+  font-size: var(--font-size-2xl);
   line-height: 1.2;
 }
 
@@ -1104,7 +1104,7 @@ onUnmounted(() => {
 
 .storage-stats strong {
   overflow-wrap: anywhere;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .section-heading {
@@ -1116,7 +1116,7 @@ onUnmounted(() => {
 
 .section-heading h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--font-size-md);
 }
 
 .kind-bars {
@@ -1161,7 +1161,7 @@ onUnmounted(() => {
 
 .maintenance small {
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .selection-bar {
@@ -1178,7 +1178,7 @@ onUnmounted(() => {
 .selection-bar strong {
   min-width: 0;
   flex: 0 0 auto;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .selection-actions {
@@ -1204,7 +1204,7 @@ onUnmounted(() => {
   background: transparent;
   border: 1px solid var(--border-color);
   border-radius: var(--app-radius-md);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
@@ -1218,7 +1218,7 @@ onUnmounted(() => {
   padding: 0;
   justify-content: center;
   border: 0;
-  font-size: 22px;
+  font-size: var(--font-size-xl);
 }
 
 .spin {

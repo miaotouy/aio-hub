@@ -914,7 +914,7 @@ onUnmounted(() => {
   height: 100%;
   background-color: var(--bg-color);
   color: var(--text-color);
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 /* 顶部控制栏 */
@@ -969,7 +969,7 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   color: var(--text-color-secondary);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   transition: all 0.2s;
 }
 
@@ -1005,7 +1005,7 @@ onUnmounted(() => {
   background-color: var(--input-bg);
   color: var(--text-color);
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   padding: 8px;
   border-radius: 6px;
@@ -1037,7 +1037,7 @@ onUnmounted(() => {
 }
 
 .render-title {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-color-secondary);
 }
@@ -1073,7 +1073,7 @@ onUnmounted(() => {
 .curtain-karaoke {
   padding: 12px 16px;
   font-family: monospace;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   border-top: 1px dashed var(--border-color);
   background-color: rgba(var(--primary-color-rgb), 0.02);
@@ -1106,7 +1106,7 @@ onUnmounted(() => {
 }
 
 .karaoke-more {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-placeholder);
   text-align: center;
   margin-top: 4px;
@@ -1127,7 +1127,7 @@ onUnmounted(() => {
 
 .config-title {
   margin: 0 0 12px 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-color);
   border-left: 3px solid var(--primary-color);
@@ -1146,7 +1146,7 @@ onUnmounted(() => {
 }
 
 .config-label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-secondary);
 }
 
@@ -1184,13 +1184,13 @@ onUnmounted(() => {
 }
 
 .stat-val {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-color);
 }
 
 .stat-lbl {
-  font-size: 0.65rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-placeholder);
 }
 
@@ -1213,7 +1213,7 @@ onUnmounted(() => {
 
 .drawer-header h3 {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
@@ -1226,7 +1226,7 @@ onUnmounted(() => {
 .ast-json {
   margin: 0;
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   background-color: var(--input-bg);
   padding: 8px;
   border-radius: 6px;

@@ -161,7 +161,7 @@ onBeforeUnmount(() => {
   color: var(--text-color);
   background: var(--input-bg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   white-space: pre;
 }

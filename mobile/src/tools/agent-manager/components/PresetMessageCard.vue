@@ -197,7 +197,7 @@ summary,
 }
 .card-heading strong {
   overflow: hidden;
-  font-size: 0.92rem;
+  font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -207,7 +207,7 @@ summary,
   border-radius: 999px;
   color: var(--primary-color);
   background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 .group-pill {
@@ -219,7 +219,7 @@ p {
   display: -webkit-box;
   overflow: hidden;
   color: var(--text-color-light);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
@@ -229,7 +229,7 @@ p {
 }
 small {
   color: var(--text-color-light);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .card-actions {
   display: flex;
@@ -296,7 +296,7 @@ summary::-webkit-details-marker {
   display: flex;
   gap: 7px;
   text-align: left;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 .group-move {
   padding: 6px 8px;
@@ -304,7 +304,7 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: 4px;
   color: var(--text-color-light);
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
 }
 .group-move select {
   max-width: 150px;

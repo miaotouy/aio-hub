@@ -568,7 +568,7 @@ onBeforeUnmount(() => {
 .probe-header h1 {
   overflow: hidden;
   margin: 0;
-  font-size: 1.06rem;
+  font-size: var(--font-size-lg);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -625,7 +625,7 @@ onBeforeUnmount(() => {
 }
 
 .progress-heading {
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
 }
 
 .progress-track {
@@ -651,7 +651,7 @@ onBeforeUnmount(() => {
   gap: 5px 12px;
   margin-top: 8px;
   color: var(--text-color-light);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
 }
 
 .result-summary {
@@ -659,7 +659,7 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-color, var(--border-color));
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 
 .result-summary strong {
@@ -674,7 +674,7 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
   color: var(--danger-color);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
 }
 
 .success {
@@ -690,7 +690,7 @@ onBeforeUnmount(() => {
   border-left: 3px solid var(--warning-color);
   color: var(--text-color);
   background: color-mix(in srgb, var(--warning-color) 12%, transparent);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   line-height: 1.45;
 }
 
@@ -715,7 +715,7 @@ onBeforeUnmount(() => {
   outline: 0;
   color: var(--text-color);
   background: transparent;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .filter-row {
@@ -760,13 +760,13 @@ onBeforeUnmount(() => {
 .selection-count {
   padding: 9px 0;
   color: var(--text-color-light);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 .filter-empty,
 .footer-hint {
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   text-align: center;
 }
 
@@ -784,13 +784,13 @@ onBeforeUnmount(() => {
 
 .empty-state h2 {
   margin: 6px 0 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 .empty-state p {
   max-width: 26rem;
   margin: 0 0 8px;
   color: var(--text-color-light);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
 }
 

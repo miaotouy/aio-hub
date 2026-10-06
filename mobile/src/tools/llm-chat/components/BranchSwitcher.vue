@@ -52,7 +52,7 @@ const handleNext = () => {
   padding: 2px 4px;
   background: var(--container-bg);
   border-radius: var(--app-radius-lg);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-light);
   user-select: none;
   margin-top: 4px;

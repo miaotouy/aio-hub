@@ -111,7 +111,7 @@ function apply(action: "enable" | "disable" | "delete" | "group"): void {
 }
 h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 header small {
   color: var(--text-color-light);

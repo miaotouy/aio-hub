@@ -625,7 +625,7 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .group-title {
   padding: 16px 16px 8px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--primary-color);
   text-transform: uppercase;
@@ -644,12 +644,12 @@ const handleRadiusScaleChange = async (value: any) => {
 }
 
 .cell-label {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -658,7 +658,7 @@ const handleRadiusScaleChange = async (value: any) => {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--primary-color);
 }
 
@@ -701,7 +701,7 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .wallpaper-option-label {
   max-width: 100%;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color);
   opacity: 0.78;
   overflow: hidden;
@@ -788,7 +788,7 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .value-label {
   flex-shrink: 0;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--primary-color);
 }

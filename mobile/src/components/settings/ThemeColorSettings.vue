@@ -341,12 +341,12 @@ const showDrawer = ref(false);
 }
 
 .cell-label {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -387,7 +387,7 @@ const showDrawer = ref(false);
 }
 
 .drawer-title {
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--text-color);
 }
@@ -419,7 +419,7 @@ const showDrawer = ref(false);
   gap: 8px;
   background-color: var(--input-bg);
   border-radius: var(--app-radius-md);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color);
 }
 
@@ -444,7 +444,7 @@ const showDrawer = ref(false);
 }
 
 .preview-label {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 
@@ -455,13 +455,13 @@ const showDrawer = ref(false);
 }
 
 .color-name {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color);
 }
 
 .color-hex {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-family: monospace;
   color: var(--text-color-light);
   opacity: 0.8;
@@ -489,13 +489,13 @@ const showDrawer = ref(false);
 }
 
 .group-title {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color);
 }
 
 .group-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
   opacity: 0.7;
 }
@@ -516,7 +516,7 @@ const showDrawer = ref(false);
 }
 
 .swatch-name {
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-light);
   text-align: center;
   width: 100%;

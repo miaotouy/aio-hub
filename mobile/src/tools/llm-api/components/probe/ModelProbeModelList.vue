@@ -187,7 +187,7 @@ function onRowClick(model: LlmModelInfo) {
   margin: 0;
   padding: 0 16px 7px;
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 
@@ -251,7 +251,7 @@ function onRowClick(model: LlmModelInfo) {
 .model-title-line strong {
   min-width: 0;
   overflow: hidden;
-  font-size: 0.92rem;
+  font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -259,7 +259,7 @@ function onRowClick(model: LlmModelInfo) {
 .capability {
   flex: none;
   color: var(--primary-color);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 
@@ -267,7 +267,7 @@ code {
   overflow: hidden;
   color: var(--text-color-light);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -278,7 +278,7 @@ code {
   min-width: 0;
   gap: 5px;
   color: var(--text-color-light);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
 }
 
 .row-status span:not(.ttfb) {

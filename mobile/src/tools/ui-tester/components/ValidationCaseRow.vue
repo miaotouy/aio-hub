@@ -64,13 +64,13 @@ const statusText: Record<ValidationRunStatus, string> = {
 }
 .case-title {
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .case-description {
   margin-top: 4px;
   color: var(--text-secondary, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -79,7 +79,7 @@ const statusText: Record<ValidationRunStatus, string> = {
   display: inline-block;
   margin-top: 7px;
   color: var(--text-secondary, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .case-status[data-status="passed"] {

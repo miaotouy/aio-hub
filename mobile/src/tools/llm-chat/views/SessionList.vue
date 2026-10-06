@@ -416,7 +416,7 @@ const goToChatHome = () => {
   justify-content: center;
   gap: 8px;
   color: var(--text-color-light);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
 }
 
 .error-state {
@@ -453,13 +453,13 @@ const goToChatHome = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .search-result-header time {
   flex: 0 0 auto;
   color: var(--text-color-light);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 
 .search-result p {
@@ -467,7 +467,7 @@ const goToChatHome = () => {
   margin: 7px 0 0;
   overflow: hidden;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -555,7 +555,7 @@ const goToChatHome = () => {
 
 .session-name {
   font-weight: 500;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -563,7 +563,7 @@ const goToChatHome = () => {
 }
 
 .session-time {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
   opacity: 0.7;
 }

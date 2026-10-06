@@ -374,7 +374,7 @@ const handleBatchImport = () => {
 }
 
 .banner-text {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -420,7 +420,7 @@ const handleBatchImport = () => {
 }
 
 .key-text {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
 }
 
@@ -431,7 +431,7 @@ const handleBatchImport = () => {
 .key-meta {
   display: flex;
   gap: 12px;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 
@@ -456,7 +456,7 @@ const handleBatchImport = () => {
 }
 
 .error-msg {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--danger-color);
   flex: 1;
 }
@@ -486,7 +486,7 @@ const handleBatchImport = () => {
 }
 
 .section-header {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--primary-color);

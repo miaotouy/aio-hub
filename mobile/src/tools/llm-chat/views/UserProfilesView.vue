@@ -304,12 +304,12 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .page-header h1 {
   margin: 0;
   color: var(--text-color);
-  font-size: 1.35rem;
+  font-size: var(--font-size-xl);
 }
 .page-header p {
   margin: 3px 0 0;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .icon-button,
 .profile-actions button {
@@ -384,7 +384,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   border-radius: 9px;
   color: var(--color-on-primary-container);
   background: var(--color-primary-container);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .profile-copy small,
 .profile-copy p {
@@ -394,7 +394,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   display: -webkit-box;
   margin: 5px 0 0;
   overflow: hidden;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   white-space: pre-wrap;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -416,7 +416,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   gap: 6px;
   align-items: center;
   color: var(--text-color-light);
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
 }
 .profile-form {
   display: grid;
@@ -427,7 +427,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   display: grid;
   gap: 6px;
   color: var(--text-color);
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
 }
 .profile-form input:not([type="checkbox"]),
 .profile-form textarea {

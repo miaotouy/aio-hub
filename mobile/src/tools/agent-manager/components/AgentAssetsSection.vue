@@ -493,12 +493,12 @@ defineExpose({ collectAttachmentReferences });
 .section-heading h2 {
   margin: 0;
   color: var(--text-color);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .section-heading p {
   margin: 4px 0 0;
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 .add-button {
   display: inline-flex;
@@ -510,7 +510,7 @@ defineExpose({ collectAttachmentReferences });
   background: transparent;
   color: var(--primary-color);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 .group-filter {
@@ -525,7 +525,7 @@ defineExpose({ collectAttachmentReferences });
   background: transparent;
   color: var(--text-color-light);
   font: inherit;
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
 }
 .group-chip.active {
   border-color: var(--primary-color);
@@ -538,7 +538,7 @@ defineExpose({ collectAttachmentReferences });
   border: 1px dashed var(--border-color);
   border-radius: var(--app-radius-md);
   color: var(--text-color-light);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   text-align: center;
 }
 .asset-list {
@@ -588,14 +588,14 @@ defineExpose({ collectAttachmentReferences });
   cursor: pointer;
 }
 .asset-meta strong {
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .asset-meta small {
   color: var(--text-color-light);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -646,19 +646,19 @@ defineExpose({ collectAttachmentReferences });
 }
 .edit-sheet h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .edit-filename {
   margin: 0;
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 .edit-sheet label {
   display: grid;
   gap: 6px;
 }
 .edit-sheet label span {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 .edit-sheet input,

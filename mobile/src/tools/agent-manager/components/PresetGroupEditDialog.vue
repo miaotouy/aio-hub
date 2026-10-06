@@ -103,14 +103,14 @@ function save(): void {
 }
 h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 label {
   display: flex;
   flex-direction: column;
   gap: 6px;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 input,
 select,

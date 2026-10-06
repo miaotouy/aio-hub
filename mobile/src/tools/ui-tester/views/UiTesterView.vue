@@ -204,13 +204,13 @@ onMounted(async () => {
 }
 .workbench-header h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   letter-spacing: 0;
 }
 .workbench-header p {
   margin: 3px 0 0;
   color: var(--text-secondary, #6b7280);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 .icon-button {
   display: grid;
@@ -251,7 +251,7 @@ onMounted(async () => {
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 .section-tabs button.active {
   color: var(--primary-color, #2563eb);
@@ -284,11 +284,11 @@ onMounted(async () => {
 }
 .overview-band span {
   color: var(--text-secondary, #6b7280);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 .overview-band strong {
   margin-top: 5px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 .overview-summary {
   display: flex;
@@ -296,7 +296,7 @@ onMounted(async () => {
   gap: 16px;
   padding: 16px 0;
   border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18));
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 .passed {
   color: var(--success-color, #25804b);
@@ -314,7 +314,7 @@ onMounted(async () => {
 .overview-section h2,
 .resume-section h2 {
   margin: 0 0 8px;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 .recent-row {
   display: flex;
@@ -333,18 +333,18 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 .recent-row strong {
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 .recent-row div span,
 .empty-text,
 .resume-section p {
   margin-top: 4px;
   color: var(--text-secondary, #6b7280);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 .recent-row .status {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .status[data-status="passed"] {
   color: var(--success-color, #25804b);

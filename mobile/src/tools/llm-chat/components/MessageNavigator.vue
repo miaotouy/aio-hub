@@ -119,7 +119,7 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 .navigator-counter {
   min-width: 42px;
   color: var(--text-color-secondary);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
@@ -139,7 +139,7 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 
   .navigator-counter {
     min-width: 38px;
-    font-size: 0.68rem;
+    font-size: var(--font-size-xs);
   }
 }
 </style>

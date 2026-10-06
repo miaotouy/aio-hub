@@ -160,12 +160,12 @@ function progress(job: AssetImportJob) {
 
 .sheet-header h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--font-size-lg);
 }
 .sheet-header p {
   margin: 4px 0 0;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .icon-button {
@@ -211,14 +211,14 @@ function progress(job: AssetImportJob) {
 }
 
 .job-header strong {
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 .job-header span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .job-header span[data-state="failed"] {
   color: var(--danger-color);
@@ -232,7 +232,7 @@ function progress(job: AssetImportJob) {
 .job-meta {
   margin-top: 5px;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .job-progress {
@@ -252,7 +252,7 @@ function progress(job: AssetImportJob) {
 .job-error {
   margin: 8px 0 0;
   color: var(--danger-color);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   overflow-wrap: anywhere;
 }
 
@@ -264,7 +264,7 @@ function progress(job: AssetImportJob) {
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--danger-color) 35%, transparent);
   border-radius: var(--app-radius-md);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .spin {

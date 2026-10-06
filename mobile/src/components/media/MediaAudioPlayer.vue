@@ -324,7 +324,7 @@ button {
 .time {
   flex: 0 0 auto;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 

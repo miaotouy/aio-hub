@@ -609,12 +609,12 @@ onBeforeUnmount(stopDrag);
 }
 .editor-header h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 .editor-header p {
   margin: 3px 0 0;
   color: var(--text-color-light);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
 }
 .editor-header .primary {
   padding: 9px 12px;
@@ -642,7 +642,7 @@ onBeforeUnmount(stopDrag);
   border-radius: 7px;
   color: var(--text-color);
   background: var(--input-bg);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 .file-input {
   display: none;
@@ -674,7 +674,7 @@ onBeforeUnmount(stopDrag);
   gap: 3px;
   border-radius: 7px;
   background: var(--input-bg);
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 .all-group.active {
@@ -696,7 +696,7 @@ onBeforeUnmount(stopDrag);
 .group-filter {
   max-width: 150px;
   overflow: hidden;
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -750,7 +750,7 @@ onBeforeUnmount(stopDrag);
   border: var(--border-width) dashed var(--border-color);
   border-radius: var(--app-radius-md);
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
 }
 .pagination {
@@ -774,6 +774,6 @@ onBeforeUnmount(stopDrag);
 }
 .pagination span {
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 </style>

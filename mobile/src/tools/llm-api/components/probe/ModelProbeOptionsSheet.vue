@@ -139,7 +139,7 @@ const emit = defineEmits<{
 
 .sheet-header h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 
 .icon-button {
@@ -182,7 +182,7 @@ const emit = defineEmits<{
 .option-hint {
   margin-top: 3px;
   color: var(--text-color-light);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .segment-control {

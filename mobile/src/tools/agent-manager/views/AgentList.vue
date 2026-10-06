@@ -473,12 +473,12 @@ async function importAgents(event: Event): Promise<void> {
 }
 .header-copy h1 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: var(--font-size-xl);
 }
 .header-copy p {
   margin: 3px 0 0;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .icon-button {
   width: 42px;
@@ -542,7 +542,7 @@ async function importAgents(event: Event): Promise<void> {
   outline: 0;
   background: transparent;
   color: var(--text-color);
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
 }
 .agent-list {
   display: flex;
@@ -568,7 +568,7 @@ async function importAgents(event: Event): Promise<void> {
   place-items: center;
   background: var(--primary-color);
   color: white;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
   overflow: hidden;
 }
@@ -582,7 +582,7 @@ async function importAgents(event: Event): Promise<void> {
 }
 .agent-copy h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -590,13 +590,13 @@ async function importAgents(event: Event): Promise<void> {
 .agent-copy p {
   margin: 4px 0;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 .agent-copy span {
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-light);
 }
 .agent-actions {
@@ -618,13 +618,13 @@ async function importAgents(event: Event): Promise<void> {
   text-align: center;
 }
 .empty-state span {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   max-width: 260px;
 }
 @media (min-width: 520px) {
   .header-action-label {
     display: inline;
-    font-size: 0.82rem;
+    font-size: var(--font-size-sm);
   }
 }
 @media (max-width: 420px) {

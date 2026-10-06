@@ -326,7 +326,7 @@ footer {
 
 h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   letter-spacing: 0;
 }
 
@@ -352,7 +352,7 @@ button {
   border-radius: 6px;
   background: var(--color-primary-container, var(--input-bg));
   color: var(--color-on-primary-container, inherit);
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .import-button:disabled {

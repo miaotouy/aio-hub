@@ -319,7 +319,7 @@ function save(): void {
   flex-direction: column;
   gap: 7px;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 input,
 select,
@@ -377,7 +377,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 .advanced-body label {
   display: flex;

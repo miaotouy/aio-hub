@@ -803,7 +803,7 @@ const setTokenLimit = (
 }
 
 .section-header {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   margin-bottom: 12px;
   color: var(--primary-color);
@@ -834,7 +834,7 @@ const setTokenLimit = (
 }
 
 .native-input-label {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-color);
 }
@@ -842,7 +842,7 @@ const setTokenLimit = (
 .native-input {
   width: 100%;
   padding: 14px 16px;
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   line-height: 1.5;
   color: var(--text-color);
   background: var(--container-bg);
@@ -869,7 +869,7 @@ const setTokenLimit = (
 .custom-var-select {
   --select-border-radius: var(--app-radius-lg);
   --select-padding: 14px 16px;
-  --select-font-size: 1.15rem;
+  --select-font-size: var(--font-size-lg);
   --field-decorator-outlined-border-color: var(--border-color);
   --field-decorator-focus-color: var(--primary-color);
   --field-decorator-text-color: var(--text-color);
@@ -889,7 +889,7 @@ const setTokenLimit = (
 
 .native-input.mono {
   font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .native-input-with-action {
@@ -971,18 +971,18 @@ const setTokenLimit = (
 }
 
 .avatar-label {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .avatar-hint {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 
 .input-hint {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
   opacity: 0.6;
   margin-top: 4px;
@@ -1035,7 +1035,7 @@ const setTokenLimit = (
 }
 
 .capability-toggle span {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   text-align: center;
 }

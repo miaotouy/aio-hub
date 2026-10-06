@@ -44,7 +44,7 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   white-space: nowrap;
 }
 

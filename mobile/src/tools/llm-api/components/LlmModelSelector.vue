@@ -154,7 +154,7 @@ const togglePopup = () => {
 }
 
 .model-name {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-color);
   white-space: nowrap;
@@ -168,7 +168,7 @@ const togglePopup = () => {
 }
 
 .placeholder-text {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
 }
 
@@ -200,7 +200,7 @@ const togglePopup = () => {
 }
 
 .popup-title {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--text-color);
   text-align: center;
@@ -238,7 +238,7 @@ const togglePopup = () => {
 }
 
 .profile-header {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--primary-color);
   margin-bottom: 12px;
@@ -264,7 +264,7 @@ const togglePopup = () => {
 }
 
 .sub-group-header {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-color-light);
   margin-bottom: 8px;
@@ -310,14 +310,14 @@ const togglePopup = () => {
 }
 
 .item-name {
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   color: var(--text-color);
   margin-bottom: 2px;
 }
 
 .item-id {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-light);
   font-family: monospace;
   white-space: nowrap;

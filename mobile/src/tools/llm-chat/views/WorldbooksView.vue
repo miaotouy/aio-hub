@@ -476,12 +476,12 @@ async function importWorldbookFile(event: Event) {
 .page-header h1 {
   margin: 0;
   color: var(--text-color);
-  font-size: 1.35rem;
+  font-size: var(--font-size-xl);
 }
 .page-header p {
   margin: 3px 0 0;
   color: var(--text-color-light);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .icon-button,
 .card-actions button,
@@ -552,7 +552,7 @@ async function importWorldbookFile(event: Event) {
   border-radius: 9px;
   color: var(--color-on-primary-container);
   background: var(--color-primary-container);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .worldbook-copy p,
 .entry-card p,
@@ -561,7 +561,7 @@ async function importWorldbookFile(event: Event) {
 }
 .worldbook-copy p {
   margin: 5px 0 0;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .card-actions,
 .entry-actions {
@@ -582,7 +582,7 @@ async function importWorldbookFile(event: Event) {
   align-items: center;
   gap: 6px;
   color: var(--text-color-light);
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
 }
 .entry-list {
   grid-column: 1 / -1;
@@ -601,14 +601,14 @@ async function importWorldbookFile(event: Event) {
 .entry-card small {
   display: block;
   margin-top: 3px;
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .entry-card p {
   display: -webkit-box;
   margin: 5px 0 0;
   overflow: hidden;
   white-space: pre-wrap;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -634,7 +634,7 @@ async function importWorldbookFile(event: Event) {
   display: grid;
   gap: 6px;
   color: var(--text-color);
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
 }
 .editor-form input:not([type="checkbox"]),
 .editor-form textarea,

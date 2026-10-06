@@ -320,7 +320,7 @@ const handleReset = async () => {
 }
 
 .section-title {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--primary-color);
   font-weight: 600;
   padding: 0 4px 8px;
@@ -357,7 +357,7 @@ const handleReset = async () => {
 }
 
 :deep(.var-cell__title) {
-  font-size: 15px;
+  font-size: var(--font-size-md);
   color: var(--text-color);
 }
 

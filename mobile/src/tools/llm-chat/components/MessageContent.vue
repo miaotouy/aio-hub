@@ -396,7 +396,7 @@ const formatBytes = (value: number) => {
 
 <style scoped>
 .message-content {
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   max-width: 100%;
   min-width: 0;
@@ -487,7 +487,7 @@ const formatBytes = (value: number) => {
 }
 
 .attachment-size {
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 
@@ -496,7 +496,7 @@ const formatBytes = (value: number) => {
   align-items: center;
   gap: 4px;
   color: var(--warning-color, #a86400);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
 }
 
 .reasoning-container {
@@ -512,7 +512,7 @@ const formatBytes = (value: number) => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-light);
   cursor: pointer;
   user-select: none;
@@ -533,7 +533,7 @@ const formatBytes = (value: number) => {
   min-width: 0;
   padding: 0 12px 12px 12px;
   overflow-wrap: anywhere;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.85;
 }
@@ -543,7 +543,7 @@ const formatBytes = (value: number) => {
   align-items: flex-start;
   gap: 6px;
   color: var(--danger-color);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   margin-top: 8px;
   padding: 8px;
   background: color-mix(in srgb, var(--danger-color) 8%, var(--card-bg));
@@ -562,7 +562,7 @@ const formatBytes = (value: number) => {
 
 .error-detail {
   opacity: 0.8;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   word-break: break-all;
 }
 

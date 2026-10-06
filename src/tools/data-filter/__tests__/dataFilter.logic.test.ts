@@ -90,6 +90,46 @@ describe("data-filter logic", () => {
       expect(result.text).toBe(applyPlainTextFilter(input, options).text);
     });
 
+    it("按目标保留行数随机保留指定数量并删除其余行", () => {
+      const input = "1\n2\n3\n4\n5";
+      const options = {
+        method: "random-remove" as const,
+        removeMode: "keep" as const,
+        keepCount: 2,
+        seed: 99,
+      };
+      const result = applyPlainTextFilter(input, options);
+
+      expect(result.total).toBe(5);
+      expect(result.filtered).toBe(2);
+      expect(result.removed).toBe(3);
+      expect(result.text.split("\n")).toHaveLength(2);
+      expect(result.text).toBe(applyPlainTextFilter(input, options).text);
+    });
+
+    it("目标保留行数超过实际行数时应全部保留", () => {
+      const result = applyPlainTextFilter("a\nb\nc", {
+        method: "random-remove",
+        removeMode: "keep",
+        keepCount: 10,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(result.filtered).toBe(3);
+      expect(result.text).toBe("a\nb\nc");
+    });
+
+    it("目标保留行数为负数时应返回错误", () => {
+      const result = applyPlainTextFilter("a\nb", {
+        method: "random-remove",
+        removeMode: "keep",
+        keepCount: -1,
+      });
+
+      expect(result.removed).toBe(0);
+      expect(result.error).toContain("大于等于 0");
+    });
+
     it("按比例删除并校验范围", () => {
       const result = applyPlainTextFilter("1\r\n2\r\n3\r\n4", {
         method: "random-remove",

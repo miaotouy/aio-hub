@@ -165,7 +165,7 @@
 
 ### 3.3 Element Plus 变量清理记录（2026-10 已完成）
 
-`--el-color-*` 全部 15 处已替换，残留为 0：
+`--el-*` 全部 33 处已替换，残留为 0。其中 `--el-color-*` 15 处见下表；另 `--el-fill-color` / `--el-fill-color-light` / `--el-fill-color-lighter`（共 8 处）→ `--container-bg`、`--el-text-color-primary` / `-regular`（4 处）→ `--text-color`、`--el-text-color-secondary`（4 处）→ `--text-color-light`、`--el-border-color-darker`（1 处）→ `--border-color`：
 
 | 位置 | 原值 | 替换为 |
 | ---- | ---- | ------ |
@@ -404,6 +404,7 @@
 - 壁纸预览渐变、图片遮罩、图表数据色（内容本身）。
 - 第三方组件内部样式（经 `:deep` 适配，尽量收敛到 `theme.css`）。
 - 单次性品牌图形。
+- 媒体 / 图片 / 视频叠加层上的白色文字与图标（底色为任意内容，配 `drop-shadow` 保证可读），如消息缩略图上的播放图标。
 
 ---
 

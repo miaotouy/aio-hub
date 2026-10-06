@@ -30,6 +30,11 @@ export async function callTypeSafeSystemOneApi(
   options: TypeSafeSystemOneCallOptions
 ): Promise<SystemOneResponse> {
   const requestId = options.requestId ?? createRequestId();
+  // 本地 / IP 地址的决策端点必须走 Rust 代理，以绕过前端 capability 限制；
+  // 与 useLlmRequest 的 chat 路径保持一致，否则会 fail-closed 转人工。
+  const strategy: NetworkStrategy | undefined = isLocalOrIpUrl(profile.baseUrl)
+    ? "proxy"
+    : (options.networkStrategy ?? profile.networkStrategy);
   return executeSystemOneRequest({
     adapter: typeSafeSystemOneAdapter,
     profile: {
@@ -53,7 +58,7 @@ export async function callTypeSafeSystemOneApi(
       signal: options.signal,
       observer: options.transportObserver,
       network: {
-        strategy: options.networkStrategy ?? profile.networkStrategy,
+        strategy,
         relaxInvalidCerts: options.relaxInvalidCerts ?? profile.relaxIdCerts,
         http1Only: options.http1Only ?? profile.http1Only,
       },
@@ -65,4 +70,14 @@ function createRequestId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `typesafe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** 判定 baseUrl 是否指向本地地址或 IP（这类请求在前端直连会被 capability 限制拦截）。 */
+function isLocalOrIpUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return (
+    lower.includes("localhost") ||
+    lower.includes("127.0.0.1") ||
+    /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(url)
+  );
 }

@@ -160,6 +160,32 @@ This starts a new virtual session through the Chat UI, sends its first message,
 and verifies that the session detail and index are persisted and the session
 appears in the history list.
 
+## JEV decision arbitration lane
+
+`specs/decision-arbitration.spec.ts` drives the gray-zone approval arbiter
+through the real Chat UI. The runner seeds an Agent with
+`toolCallConfig.decisionArbitration.enabled = true` and a global decision channel
+pointing at the deterministic mock's `e2e-jev` model; the mock answers
+`/v1/systemone` per user-message marker and emits VCP tool calls for the first
+turn:
+
+```powershell
+bun run test:tauri:e2e -- --preset decision-arbitration
+```
+
+The lane covers the three visible verdict paths (`Jev 自动放行`, `Jev 风险拦截`,
+escalate-to-approval-bar) plus the safety red lines: static danger features skip
+arbitration without touching the decision channel, a channel error fails closed
+to a degraded manual approval, and gray-zone force-approval requests skip
+arbitration entirely. Decision and Chat request summaries are written to
+`decision-requests.jsonl` and `chat-requests.jsonl` in the artifact directory.
+
+Note: because the mock listens on `127.0.0.1`, decision requests are routed
+through the app's Rust LLM proxy (local/IP base URLs always force proxy mode).
+Each marker uses a distinct VCP tool argument (`{"e2e":"<marker>"}`) so the
+in-window arbitration fingerprint dedup (anti-loop red line) does not collapse
+otherwise-identical test requests.
+
 Run the deterministic Recall workflow directly:
 
 ```powershell

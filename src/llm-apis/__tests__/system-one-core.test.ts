@@ -55,6 +55,38 @@ describe("desktop TypeSafe System One facade", () => {
       usage: { inputTokens: 25, outputTokens: 4 },
     });
   });
+
+  it("forces the Rust proxy for local decision endpoints marked native", async () => {
+    const profile = createProfile();
+    profile.baseUrl = "http://127.0.0.1:13469/v1";
+    profile.networkStrategy = "native";
+    const send = vi.spyOn(desktopLlmTransport, "send").mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      body: chunks({
+        model: "e2e-jev",
+        answers: { risk: { type: "noul", noul: 0.1 } },
+        usage: { input_tokens: 1, output_tokens: 0 },
+      }),
+    });
+
+    await callTypeSafeSystemOneApi(profile, {
+      model: "e2e-jev",
+      state: "approve",
+      questions: {
+        risk: { type: "noul", instructions: "risk?" },
+      },
+      requestId: "typesafe-local",
+    });
+
+    expect(send.mock.calls[0][0].url).toBe(
+      "http://127.0.0.1:13469/v1/systemone"
+    );
+    expect(send.mock.calls[0][1]).toMatchObject({
+      network: { strategy: "proxy" },
+    });
+  });
 });
 
 function createProfile(): LlmProfile {

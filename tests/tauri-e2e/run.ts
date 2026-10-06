@@ -11,6 +11,10 @@ import {
   seedRecallWorkflowFixtures,
   seedRecallWorkspaceConfig,
 } from "./support/fixture-seeder";
+import {
+  DECISION_ARBITRATION_IDS,
+  seedDecisionArbitrationFixtures,
+} from "./support/decision-arbitration-fixture";
 import { prepareExternalRecallCorpus } from "./support/external-recall-corpus";
 import {
   cleanupStagedMigrationData,
@@ -495,6 +499,13 @@ function createMockProfile(includeEmbedding: boolean): LlmProfile {
         provider: "openai",
         capabilities: { toolUse: true },
       },
+      {
+        id: "e2e-jev",
+        name: "E2E JEV",
+        group: "E2E",
+        provider: "typesafe",
+        capabilities: { decision: true },
+      },
       ...(includeEmbedding
         ? [
             {
@@ -645,11 +656,6 @@ let fixtureSeedResult:
 let workspaceSeedFile: string | undefined;
 
 if (shouldSeedFixtures) {
-  if (!embeddingRole.dimension) {
-    throw new Error(
-      "The selected E2E lane has no resolved embedding dimension."
-    );
-  }
   const profileDir = path.join(dataDir, "llm-service");
   fs.mkdirSync(profileDir, { recursive: true });
   fs.writeFileSync(
@@ -665,45 +671,66 @@ if (shouldSeedFixtures) {
     "utf8"
   );
 
-  const fixtureCorpusMode = isExternalCorpusMode(runnerOptions.corpusMode)
-    ? "smoke"
-    : runnerOptions.corpusMode;
-  recallManifest = buildRecallWorkflowManifestForCorpus(
-    {
-      chat: chatRole,
-      embedding: {
-        profileId: embeddingRole.profileId,
-        modelId: embeddingRole.modelId,
-        dimension: embeddingRole.dimension,
-      },
-    },
-    fixtureCorpusMode
-  );
-  if (
-    runnerOptions.lane.kind === "ollama" &&
-    ollamaChatPreflight?.status === "success"
-  ) {
-    recallManifest.agent.parameters.maxTokens = 96;
-    recallManifest.agent.recallSettings.maxRecallChars = 1200;
-  }
-  if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
-    fixtureSeedResult = seedRecallWorkflowFixtures({
+  if (runnerOptions.presetId === "decision-arbitration") {
+    const decisionFiles = seedDecisionArbitrationFixtures({
       dataDir,
-      artifactDir,
-      manifest: recallManifest,
-      enabled: true,
+      chat: chatRole,
+    });
+    fixtureSeedResult = {
+      schemaVersion: 1,
+      mode: "write",
+      agentIds: [DECISION_ARBITRATION_IDS.agentId],
+      sessionIds: [DECISION_ARBITRATION_IDS.sessionId],
+      recallIds: [],
+      files: decisionFiles,
+    };
+  } else {
+    if (!embeddingRole.dimension) {
+      throw new Error(
+        "The selected E2E lane has no resolved embedding dimension."
+      );
+    }
+    const fixtureCorpusMode = isExternalCorpusMode(runnerOptions.corpusMode)
+      ? "smoke"
+      : runnerOptions.corpusMode;
+    recallManifest = buildRecallWorkflowManifestForCorpus(
+      {
+        chat: chatRole,
+        embedding: {
+          profileId: embeddingRole.profileId,
+          modelId: embeddingRole.modelId,
+          dimension: embeddingRole.dimension,
+        },
+      },
+      fixtureCorpusMode
+    );
+    if (
+      runnerOptions.lane.kind === "ollama" &&
+      ollamaChatPreflight?.status === "success"
+    ) {
+      recallManifest.agent.parameters.maxTokens = 96;
+      recallManifest.agent.recallSettings.maxRecallChars = 1200;
+    }
+    if (!isExternalCorpusMode(runnerOptions.corpusMode)) {
+      fixtureSeedResult = seedRecallWorkflowFixtures({
+        dataDir,
+        artifactDir,
+        manifest: recallManifest,
+        enabled: true,
+        mode:
+          process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
+      });
+    }
+    workspaceSeedFile = seedRecallWorkspaceConfig({
+      dataDir,
+      recallId: recallManifest.recall.id,
+      embeddingProfileId: embeddingRole.profileId,
+      embeddingModelId: embeddingRole.modelId,
+      embeddingDimension: embeddingRole.dimension,
       mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
     });
+    fixtureSeedResult?.files.push(workspaceSeedFile);
   }
-  workspaceSeedFile = seedRecallWorkspaceConfig({
-    dataDir,
-    recallId: recallManifest.recall.id,
-    embeddingProfileId: embeddingRole.profileId,
-    embeddingModelId: embeddingRole.modelId,
-    embeddingDimension: embeddingRole.dimension,
-    mode: process.env.AIO_E2E_FIXTURE_MODE === "verify" ? "verify" : "write",
-  });
-  fixtureSeedResult?.files.push(workspaceSeedFile);
 }
 
 if (runnerOptions.presetId === "guided-flow-baseline") {

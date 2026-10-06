@@ -208,3 +208,127 @@ describe("Recall E2E OpenAI mock", () => {
     expect(dataLines.at(-1)).toBe("data: [DONE]");
   });
 });
+
+function systemOneRequest(state: Record<string, unknown>): Request {
+  return new Request("http://127.0.0.1/v1/systemone", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "e2e-jev",
+      state,
+      questions: {
+        risk: { type: "noul" },
+        intent: { type: "noul" },
+        verdict: { type: "choice" },
+      },
+    }),
+  });
+}
+
+describe("JEV decision arbitration E2E mock", () => {
+  it("exposes the decision model in /v1/models", async () => {
+    const handler = createOpenAiMockHandler();
+    const response = await handler.fetch(
+      new Request("http://127.0.0.1/v1/models")
+    );
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(body.data.map((item) => item.id)).toContain("e2e-jev");
+  });
+
+  it("returns the marker-specific verdict from /v1/systemone", async () => {
+    const writeDecisionSummary = vi.fn();
+    const handler = createOpenAiMockHandler({ writeDecisionSummary });
+
+    const approve = await handler.fetch(
+      systemOneRequest({ recentUserMessage: "[e2e:jev:approve]" })
+    );
+    const approveBody = (await approve.json()) as {
+      answers: {
+        risk: { noul: number };
+        intent: { noul: number };
+        verdict: { choice: string; confidence: number };
+      };
+    };
+    expect(approveBody.answers.verdict.choice).toBe("approve");
+    expect(approveBody.answers.risk.noul).toBeLessThan(0.15);
+    expect(approveBody.answers.intent.noul).toBeGreaterThan(0.6);
+
+    const deny = await handler.fetch(
+      systemOneRequest({ recentUserMessage: "[e2e:jev:deny]" })
+    );
+    const denyBody = (await deny.json()) as {
+      answers: { verdict: { choice: string } };
+    };
+    expect(denyBody.answers.verdict.choice).toBe("deny");
+
+    expect(writeDecisionSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ marker: "approve", verdict: "approve" })
+    );
+  });
+
+  it("injects a channel failure for the fail marker", async () => {
+    const writeDecisionSummary = vi.fn();
+    const handler = createOpenAiMockHandler({ writeDecisionSummary });
+    const response = await handler.fetch(
+      systemOneRequest({ recentUserMessage: "[e2e:jev:fail]" })
+    );
+    expect(response.status).toBe(500);
+    expect(writeDecisionSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ marker: "fail", status: 500 })
+    );
+  });
+
+  it("streams a VCP tool call for the first turn and closes on the tool result", async () => {
+    const handler = createOpenAiMockHandler();
+    const first = await handler.fetch(
+      chatRequest({
+        stream: true,
+        messages: [{ role: "user", content: "[e2e:jev:approve]" }],
+      })
+    );
+    const firstPayload = await first.text();
+    expect(firstPayload).toContain("<<<[TOOL_REQUEST]>>>");
+    expect(firstPayload).toContain("json-formatter");
+    expect(firstPayload).toContain("formatJson");
+
+    const second = await handler.fetch(
+      chatRequest({
+        stream: true,
+        messages: [
+          { role: "user", content: "[e2e:jev:approve]" },
+          {
+            role: "user",
+            content: "[[AIO工具调用结果信息汇总: ... ]]",
+          },
+        ],
+      })
+    );
+    const secondPayload = await second.text();
+    expect(secondPayload).toContain("E2E JEV 工具执行完成");
+    expect(secondPayload).not.toContain("<<<[TOOL_REQUEST]>>>");
+  });
+
+  it("routes danger and force markers to their dedicated tools", async () => {
+    const handler = createOpenAiMockHandler();
+
+    const danger = await handler.fetch(
+      chatRequest({
+        stream: true,
+        messages: [{ role: "user", content: "[e2e:jev:danger]" }],
+      })
+    );
+    expect(await danger.text()).toContain("sudo rm -rf /");
+
+    const force = await handler.fetch(
+      chatRequest({
+        stream: true,
+        messages: [{ role: "user", content: "[e2e:jev:force]" }],
+      })
+    );
+    const forcePayload = await force.text();
+    expect(forcePayload).toContain("llm-chat-agent-mgmt");
+    expect(forcePayload).toContain("set_agent_field");
+  });
+});

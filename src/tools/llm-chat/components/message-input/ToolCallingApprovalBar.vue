@@ -198,7 +198,11 @@ const handleRejectAll = () => {
 
 <template>
   <transition name="slide-up">
-    <div v-if="hasRequests" class="tool-approval-bar">
+    <div
+      v-if="hasRequests"
+      class="tool-approval-bar"
+      data-testid="tool-approval-bar"
+    >
       <div class="bar-header">
         <div class="header-left">
           <ShieldCheck :size="16" class="security-icon" />
@@ -250,6 +254,8 @@ const handleRejectAll = () => {
           v-for="item in currentSessionPendingRequests"
           :key="item.id"
           class="request-item"
+          data-testid="approval-request-item"
+          :data-request-id="item.request.requestId"
         >
           <div class="item-info">
             <div class="item-main">
@@ -274,6 +280,13 @@ const handleRejectAll = () => {
                 :class="{
                   'is-degraded': getPresentation(item.request.requestId)?.degraded,
                 }"
+                data-testid="approval-jev-badge"
+                :data-jev-action="
+                  getPresentation(item.request.requestId)?.action
+                "
+                :data-jev-degraded="
+                  getPresentation(item.request.requestId)?.degraded
+                "
               >
                 <span class="jev-dot"></span>
                 <template v-if="getPresentation(item.request.requestId)?.degraded">
@@ -390,6 +403,7 @@ const handleRejectAll = () => {
                 size="small"
                 circle
                 type="warning"
+                data-testid="approval-allow"
                 @click="handleApprove(item.id)"
               >
                 <template #icon><Play :size="12" /></template>
@@ -400,6 +414,7 @@ const handleRejectAll = () => {
                 size="small"
                 circle
                 type="primary"
+                data-testid="approval-allow"
                 @click="handleApprove(item.id)"
               >
                 <template #icon><Play :size="12" /></template>
@@ -411,6 +426,7 @@ const handleRejectAll = () => {
                 size="small"
                 circle
                 type="danger"
+                data-testid="approval-reject"
                 @click="handleReject(item.id)"
               >
                 <template #icon><X :size="12" /></template>

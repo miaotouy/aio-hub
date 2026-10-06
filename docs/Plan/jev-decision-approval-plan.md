@@ -401,6 +401,10 @@ interface DecisionArbitrationConfig {
 ### P5 — 验证收口
 - [ ] 真实 `jev-latest` 渠道冒烟（含网络失败降级）
 - [ ] 死区绕过尝试、配置篡改链路回归
+- [x] `tests/tauri-e2e` 新增 `decision-arbitration` preset / spec：mock System One 决策端点 + VCP 工具调用场景，覆盖 approve 自动放行、deny 风险拦截、escalate 弹窗、静态危险特征跳过、渠道失败 fail-closed 降级、gray-zone 强制审批跳过（approve/deny/escalate 三条可见路径 + 安全红线）
+  - 已在真机运行验证：`bun run test:tauri:e2e -- --preset decision-arbitration` → 6 passing（真实 app 装配 + Rust 代理 + mock 渠道）。
+  - 回归中发现并修复一处产品缺陷：`callTypeSafeSystemOneApi`（`src/llm-apis/system-one-core.ts`）对本地 / IP 决策端点未像 chat 路径那样强制走 Rust 代理，导致被前端 capability 限制拦截而 fail-closed 转人工；现按 `useLlmRequest` 同规则对本地 / IP baseUrl 强制 `networkStrategy: "proxy"`，并补单测。
+  - 测试夹具修正：mock 的 VCP 工具参数改为随 marker 变化（`{"e2e":"<marker>"}`），避免红线 8 的 60s 指纹去重把不同用例误判为同一请求。
 - [~] `bun run check:frontend` / `build:vite` / 相关测试通过；`bun run check` 全量待跑
 
 ---
@@ -515,4 +519,4 @@ interface DecisionArbitrationConfig {
 - 设置中心「测试仲裁连通性」按钮（§3.4 第 2 项）。
 - `set_agent_field` 篡改链路的专项回归测试。
 - 真实 `jev-latest` 渠道冒烟与死区绕过回归。
-- 本地 Agent 真实装配链路（`llmChatStore → setupApprovalArbiter → createDecisionArbiter → resolveArbitrationConfig`）的集成测试；当前 store 测试使用 mock arbiter，仅覆盖收口行为。
+- 本地 Agent 真实装配链路（`llmChatStore → setupApprovalArbiter → createDecisionArbiter → resolveArbitrationConfig`）的**真机**集成测试：已由 `bun run test:tauri:e2e -- --preset decision-arbitration` 覆盖（mock 渠道，真实 app 装配）；单元层仍以 mock arbiter 覆盖收口行为。

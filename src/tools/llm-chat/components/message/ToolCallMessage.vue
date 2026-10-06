@@ -866,6 +866,8 @@ defineExpose({
             v-if="auditBadge && mainStatus !== 'arbitrating'"
             class="audit-badge"
             :class="`tone-${auditBadge.tone}`"
+            data-testid="tool-audit-badge"
+            :data-audit-key="auditBadge.key"
           >
             {{ auditBadge.label }}
           </span>

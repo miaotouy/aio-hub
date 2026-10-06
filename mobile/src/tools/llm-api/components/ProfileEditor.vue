@@ -58,7 +58,7 @@ const emit = defineEmits<{
   (e: "delete", id: string): void;
 }>();
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const { keyboardHeight } = useKeyboardAvoidance();
 const { loadRules, materializeModel } = useModelMetadata();
 const isFetchingModels = ref(false);
@@ -109,7 +109,7 @@ watch(
 const saveEdit = () => {
   if (innerProfile.value) {
     if (!innerProfile.value.name.trim()) {
-      Snackbar.warning(tRaw("tools.llm-api.ProfileEditor.请输入渠道名称"));
+      Snackbar.warning(t("tools.llm-api.ProfileEditor.请输入渠道名称"));
       return;
     }
     emit("save", innerProfile.value);
@@ -120,7 +120,7 @@ const handleDelete = async () => {
   if (!innerProfile.value) return;
   const confirm = await Dialog({
     title: t("common.确认"),
-    message: tRaw("tools.llm-api.ProfileEditor.删除确认", {
+    message: t("tools.llm-api.ProfileEditor.删除确认", {
       name: innerProfile.value.name,
     }),
     confirmButtonText: t("common.确定"),
@@ -176,7 +176,7 @@ const handleAddModels = (models: LlmModelInfo[]) => {
   }
 
   Snackbar.success(
-    tRaw("tools.llm-api.ProfileEditor.成功添加N个模型", {
+    t("tools.llm-api.ProfileEditor.成功添加N个模型", {
       count: newModels.length,
     })
   );
@@ -209,7 +209,7 @@ const handleSaveModel = async (model: LlmModelInfo) => {
       materializeModel(model).model,
     ];
   }
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.模型已保存"));
+  Snackbar.success(t("tools.llm-api.ProfileEditor.模型已保存"));
 };
 
 const handleDeleteModel = (modelId: string) => {
@@ -217,7 +217,7 @@ const handleDeleteModel = (modelId: string) => {
   innerProfile.value.models = innerProfile.value.models.filter(
     (m: LlmModelInfo) => m.id !== modelId
   );
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.模型已删除"));
+  Snackbar.success(t("tools.llm-api.ProfileEditor.模型已删除"));
 };
 
 const handleDeleteGroup = (modelIds: string[]) => {
@@ -226,7 +226,7 @@ const handleDeleteGroup = (modelIds: string[]) => {
     (m: LlmModelInfo) => !modelIds.includes(m.id)
   );
   Snackbar.success(
-    tRaw("tools.llm-api.ProfileEditor.已删除N个模型", {
+    t("tools.llm-api.ProfileEditor.已删除N个模型", {
       count: modelIds.length,
     })
   );
@@ -235,7 +235,7 @@ const handleDeleteGroup = (modelIds: string[]) => {
 const handleClearModels = () => {
   if (!innerProfile.value) return;
   innerProfile.value.models = [];
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.已清空所有模型"));
+  Snackbar.success(t("tools.llm-api.ProfileEditor.已清空所有模型"));
 };
 
 const handleOpenProbe = (modelId?: string) => {
@@ -317,7 +317,7 @@ const handleIconSelect = (icon: { path: string }) => {
   if (innerProfile.value) {
     innerProfile.value.icon = icon.path;
     showIconSelectorPopup.value = false;
-    Snackbar.success(tRaw("tools.llm-api.ProfileEditor.已选择图标"));
+    Snackbar.success(t("tools.llm-api.ProfileEditor.已选择图标"));
   }
 };
 // 处理输入框聚焦时滚动到可见区域
@@ -365,7 +365,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   >
     <div class="editor-popup" data-testid="llm-profile-editor">
       <var-app-bar
-        :title="tRaw('tools.llm-api.ProfileEditor.编辑渠道')"
+        :title="t('tools.llm-api.ProfileEditor.编辑渠道')"
         fixed
         safe-area
       >
@@ -384,7 +384,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
       <div class="editor-content" v-if="innerProfile">
         <!-- 基础信息 -->
         <div class="section-header">
-          {{ tRaw("tools.llm-api.ProfileEditor.基础信息") }}
+          {{ t("tools.llm-api.ProfileEditor.基础信息") }}
         </div>
         <div class="config-card">
           <!-- 头像选择区域 -->
@@ -401,31 +401,31 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             </div>
             <div class="avatar-info">
               <div class="avatar-label">
-                {{ tRaw("tools.llm-api.ProfileEditor.渠道图标") }}
+                {{ t("tools.llm-api.ProfileEditor.渠道图标") }}
               </div>
               <div class="avatar-hint">
-                {{ tRaw("tools.llm-api.ProfileEditor.点击图标选择预设") }}
+                {{ t("tools.llm-api.ProfileEditor.点击图标选择预设") }}
               </div>
             </div>
           </div>
 
           <div class="native-input-group form-item">
             <label class="native-input-label">{{
-              tRaw("tools.llm-api.ProfileEditor.渠道名称")
+              t("tools.llm-api.ProfileEditor.渠道名称")
             }}</label>
             <input
               v-model="profileName"
               data-testid="llm-profile-name"
               type="text"
               class="native-input"
-              :placeholder="tRaw('tools.llm-api.ProfileEditor.请输入渠道名称')"
+              :placeholder="t('tools.llm-api.ProfileEditor.请输入渠道名称')"
               @focus="scrollIntoViewOnFocus"
             />
           </div>
 
           <div class="native-input-group form-item">
             <label class="native-input-label">{{
-              tRaw("tools.llm-api.ProfileEditor.提供商类型")
+              t("tools.llm-api.ProfileEditor.提供商类型")
             }}</label>
             <select v-model="profileType" class="native-select">
               <option v-for="t in providerTypes" :key="t.type" :value="t.type">
@@ -436,7 +436,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
           <div class="native-input-group form-item">
             <label class="native-input-label">{{
-              tRaw("tools.llm-api.ProfileEditor.图标路径")
+              t("tools.llm-api.ProfileEditor.图标路径")
             }}</label>
             <div class="native-input-with-action">
               <input
@@ -444,7 +444,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 type="text"
                 class="native-input"
                 :placeholder="
-                  tRaw('tools.llm-api.ProfileEditor.输入图标路径或URL')
+                  t('tools.llm-api.ProfileEditor.输入图标路径或URL')
                 "
                 @focus="scrollIntoViewOnFocus"
               />
@@ -460,13 +460,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
         <!-- 连接配置 -->
         <div class="section-header">
-          {{ tRaw("tools.llm-api.ProfileEditor.连接配置") }}
+          {{ t("tools.llm-api.ProfileEditor.连接配置") }}
         </div>
         <div class="config-card">
           <div class="native-input-group form-item">
             <label class="native-input-label"
               ><Globe :size="16" class="label-icon" />
-              {{ tRaw("tools.llm-api.ProfileEditor.API 基础地址") }}
+              {{ t("tools.llm-api.ProfileEditor.API 基础地址") }}
             </label>
 
             <div v-if="apiEndpointPreview" class="url-preview in-group">
@@ -481,7 +481,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               data-testid="llm-profile-base-url"
               type="url"
               class="native-input mono"
-              :placeholder="tRaw('tools.llm-api.ProfileEditor.请输入基础 URL')"
+              :placeholder="t('tools.llm-api.ProfileEditor.请输入基础 URL')"
               autocomplete="off"
               autocorrect="off"
               autocapitalize="none"
@@ -494,7 +494,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <div class="label-row">
               <label class="native-input-label">
                 <Key :size="16" class="label-icon" />
-                {{ tRaw("tools.llm-api.ProfileEditor.API Key") }}
+                {{ t("tools.llm-api.ProfileEditor.API Key") }}
               </label>
               <var-button
                 v-if="innerProfile && innerProfile.apiKeys.length > 0"
@@ -505,20 +505,20 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 @click="showKeyManagerPopup = true"
               >
                 <ShieldCheck :size="14" class="mr-1" />
-                {{ tRaw("tools.llm-api.ProfileEditor.状态管理") }}
+                {{ t("tools.llm-api.ProfileEditor.状态管理") }}
               </var-button>
             </div>
             <div class="native-input-group form-item">
               <label class="native-input-label">
                 <ShieldCheck :size="16" class="label-icon" />
-                {{ tRaw("tools.llm-api.ProfileEditor.代理行为") }}
+                {{ t("tools.llm-api.ProfileEditor.代理行为") }}
               </label>
               <div class="checkbox-row">
                 <var-checkbox v-model="innerProfile.relaxIdCerts">
-                  {{ tRaw("tools.llm-api.ProfileEditor.放宽证书校验") }}
+                  {{ t("tools.llm-api.ProfileEditor.放宽证书校验") }}
                 </var-checkbox>
                 <var-checkbox v-model="innerProfile.http1Only">
-                  {{ tRaw("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
+                  {{ t("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
                 </var-checkbox>
               </div>
             </div>
@@ -530,7 +530,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 :type="showApiKey ? 'text' : 'password'"
                 class="native-input mono"
                 :placeholder="
-                  tRaw('tools.llm-api.ProfileEditor.API Key 占位符')
+                  t('tools.llm-api.ProfileEditor.API Key 占位符')
                 "
                 autocomplete="off"
                 autocorrect="off"
@@ -561,9 +561,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               <template #icon
                 ><Settings2 :size="18" class="field-icon"
               /></template>
-              {{ tRaw("tools.llm-api.ProfileEditor.自定义请求头") }}
+              {{ t("tools.llm-api.ProfileEditor.自定义请求头") }}
               <template #description>
-                {{ tRaw("tools.llm-api.ProfileEditor.已配置") }}
+                {{ t("tools.llm-api.ProfileEditor.已配置") }}
                 {{
                   t("common.N个", {
                     count: Object.keys(innerProfile.customHeaders || {}).length,
@@ -581,9 +581,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               <template #icon
                 ><ExternalLink :size="18" class="field-icon"
               /></template>
-              {{ tRaw("tools.llm-api.ProfileEditor.高级端点配置") }}
+              {{ t("tools.llm-api.ProfileEditor.高级端点配置") }}
               <template #description>
-                {{ tRaw("tools.llm-api.ProfileEditor.针对不同功能的路径微调") }}
+                {{ t("tools.llm-api.ProfileEditor.针对不同功能的路径微调") }}
               </template>
               <template #extra><ChevronRight :size="18" /></template>
             </var-cell>
@@ -620,7 +620,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
         <div class="danger-zone">
           <var-button block type="danger" outline @click="handleDelete">
             <Trash2 :size="18" />
-            {{ tRaw("tools.llm-api.ProfileEditor.删除此渠道") }}
+            {{ t("tools.llm-api.ProfileEditor.删除此渠道") }}
           </var-button>
         </div>
       </div>

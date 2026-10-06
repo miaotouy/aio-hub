@@ -16,7 +16,7 @@ import type { AgentAsset } from "../types/agent";
 
 const route = useRoute();
 const router = useRouter();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const agentStore = useAgentStore();
 const worldbookStore = useWorldbookStore();
 const profilesStore = useLlmProfilesStore();
@@ -66,7 +66,7 @@ async function save() {
     !draft.value.profileId ||
     !draft.value.modelId
   ) {
-    customMessage(tRaw("tools.agent-manager.AgentDetail.必填提示"), "warning");
+    customMessage(t("tools.agent-manager.AgentDetail.必填提示"), "warning");
     return;
   }
 
@@ -77,7 +77,7 @@ async function save() {
     presetMessages: draft.value.presetMessages || [],
     presetGroups: draft.value.presetGroups || [],
   });
-  customMessage(tRaw("tools.agent-manager.AgentDetail.保存成功"), "success");
+  customMessage(t("tools.agent-manager.AgentDetail.保存成功"), "success");
   router.back();
 }
 
@@ -130,12 +130,12 @@ function handleAssetRemoved(asset: AgentAsset): void {
       >
         <ChevronLeft :size="24" />
       </button>
-      <h1>{{ tRaw("tools.agent-manager.common.编辑智能体") }}</h1>
+      <h1>{{ t("tools.agent-manager.common.编辑智能体") }}</h1>
       <button
         class="icon-button primary"
         type="button"
         data-testid="agent-save"
-        :title="tRaw('tools.agent-manager.AgentDetail.保存')"
+        :title="t('tools.agent-manager.AgentDetail.保存')"
         @click="save"
       >
         <Save :size="20" />
@@ -145,15 +145,15 @@ function handleAssetRemoved(asset: AgentAsset): void {
     <main v-if="draft" class="editor">
       <section class="form-section">
         <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.显示名称") }}</span
+          ><span>{{ t("tools.agent-manager.AgentDetail.显示名称") }}</span
           ><input v-model="draft.displayName" data-testid="agent-display-name"
         /></label>
         <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.内部名称") }}</span
+          ><span>{{ t("tools.agent-manager.AgentDetail.内部名称") }}</span
           ><input v-model="draft.name" data-testid="agent-name"
         /></label>
         <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.描述") }}</span
+          ><span>{{ t("tools.agent-manager.AgentDetail.描述") }}</span
           ><textarea
             v-model="draft.description"
             data-testid="agent-description"
@@ -161,13 +161,13 @@ function handleAssetRemoved(asset: AgentAsset): void {
           ></textarea>
         </label>
         <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.图标") }}</span
+          ><span>{{ t("tools.agent-manager.AgentDetail.图标") }}</span
           ><input v-model="draft.icon" data-testid="agent-icon"
         /></label>
       </section>
       <section class="form-section two-column">
         <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.模型渠道") }}</span
+          ><span>{{ t("tools.agent-manager.AgentDetail.模型渠道") }}</span
           ><select v-model="draft.profileId" data-testid="agent-model-channel">
             <option
               v-for="profile in enabledProfiles"
@@ -179,7 +179,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
           </select></label
         >
         <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.模型") }}</span
+          ><span>{{ t("tools.agent-manager.AgentDetail.模型") }}</span
           ><select v-model="draft.modelId" data-testid="agent-model">
             <option
               v-for="model in availableModels"
@@ -194,18 +194,18 @@ function handleAssetRemoved(asset: AgentAsset): void {
       <section class="form-section worldbook-section">
         <div class="section-heading">
           <div>
-            <h2>{{ tRaw("tools.agent-manager.AgentDetail.世界书") }}</h2>
-            <p>{{ tRaw("tools.agent-manager.AgentDetail.世界书说明") }}</p>
+            <h2>{{ t("tools.agent-manager.AgentDetail.世界书") }}</h2>
+            <p>{{ t("tools.agent-manager.AgentDetail.世界书说明") }}</p>
           </div>
           <router-link class="worldbook-link" to="/tools/llm-chat/worldbooks">
-            {{ tRaw("tools.agent-manager.AgentDetail.管理世界书") }}
+            {{ t("tools.agent-manager.AgentDetail.管理世界书") }}
           </router-link>
         </div>
         <p
           v-if="!worldbookStore.sortedWorldbooks.length"
           class="worldbook-empty"
         >
-          {{ tRaw("tools.agent-manager.AgentDetail.暂无世界书") }}
+          {{ t("tools.agent-manager.AgentDetail.暂无世界书") }}
         </p>
         <label
           v-for="worldbook in worldbookStore.sortedWorldbooks"

@@ -30,7 +30,7 @@ import {
 const router = useRouter();
 const chatStore = useLlmChatStore();
 const { settings, loadSettings } = useChatSettings();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const moduleErrorHandler = createModuleErrorHandler("llm-chat/session-list");
 const searchQuery = ref("");
 const searchResults = ref<ChatSearchResult[]>([]);
@@ -125,13 +125,13 @@ const deleteSession = async (
 
   if (settings.value.messageManagement.confirmBeforeDeleteSession) {
     const confirmed = await customDialog({
-      title: tRaw("tools.llm-chat.SessionList.删除会话"),
-      message: tRaw("tools.llm-chat.SessionList.删除会话提示").replace(
+      title: t("tools.llm-chat.SessionList.删除会话"),
+      message: t("tools.llm-chat.SessionList.删除会话提示").replace(
         "{name}",
         session.name
       ),
-      confirmButtonText: tRaw("tools.llm-chat.SessionList.删除"),
-      cancelButtonText: tRaw("tools.llm-chat.SessionList.取消"),
+      confirmButtonText: t("tools.llm-chat.SessionList.删除"),
+      cancelButtonText: t("tools.llm-chat.SessionList.取消"),
     });
     if (!confirmed) return;
   }
@@ -139,9 +139,9 @@ const deleteSession = async (
   isMutatingSessions.value = true;
   try {
     await chatStore.deleteSession(session.id);
-    customMessage(tRaw("tools.llm-chat.SessionList.会话已删除"), "success");
+    customMessage(t("tools.llm-chat.SessionList.会话已删除"), "success");
   } catch (error) {
-    showMutationError(error, tRaw("tools.llm-chat.SessionList.删除会话失败"));
+    showMutationError(error, t("tools.llm-chat.SessionList.删除会话失败"));
   } finally {
     isMutatingSessions.value = false;
   }
@@ -152,10 +152,10 @@ const clearAllSessions = async () => {
 
   if (settings.value.messageManagement.confirmBeforeClearAll) {
     const confirmed = await customDialog({
-      title: tRaw("tools.llm-chat.SessionList.清空所有会话"),
-      message: tRaw("tools.llm-chat.SessionList.清空所有会话提示"),
-      confirmButtonText: tRaw("tools.llm-chat.SessionList.清空"),
-      cancelButtonText: tRaw("tools.llm-chat.SessionList.取消"),
+      title: t("tools.llm-chat.SessionList.清空所有会话"),
+      message: t("tools.llm-chat.SessionList.清空所有会话提示"),
+      confirmButtonText: t("tools.llm-chat.SessionList.清空"),
+      cancelButtonText: t("tools.llm-chat.SessionList.取消"),
     });
     if (!confirmed) return;
   }
@@ -164,14 +164,14 @@ const clearAllSessions = async () => {
   try {
     const clearedCount = await chatStore.clearAllSessions();
     customMessage(
-      tRaw("tools.llm-chat.SessionList.已清空会话").replace(
+      t("tools.llm-chat.SessionList.已清空会话").replace(
         "{count}",
         String(clearedCount)
       ),
       "success"
     );
   } catch (error) {
-    showMutationError(error, tRaw("tools.llm-chat.SessionList.清空会话失败"));
+    showMutationError(error, t("tools.llm-chat.SessionList.清空会话失败"));
   } finally {
     isMutatingSessions.value = false;
   }
@@ -185,7 +185,7 @@ const goToChatHome = () => {
 <template>
   <div class="session-list-view" data-testid="chat-session-list">
     <var-app-bar
-      :title="tRaw('tools.llm-chat.common.历史会话')"
+      :title="t('tools.llm-chat.common.历史会话')"
       title-size="1.1rem"
       safe-area
       fixed
@@ -209,7 +209,7 @@ const goToChatHome = () => {
           text
           color="transparent"
           :disabled="isMutatingSessions || chatStore.sessionMetas.length === 0"
-          :aria-label="tRaw('tools.llm-chat.SessionList.清空所有会话')"
+          :aria-label="t('tools.llm-chat.SessionList.清空所有会话')"
           data-testid="chat-sessions-clear-all"
           @click="clearAllSessions"
         >
@@ -224,13 +224,13 @@ const goToChatHome = () => {
         <input
           v-model="searchQuery"
           type="search"
-          :placeholder="tRaw('tools.llm-chat.SessionList.搜索消息')"
-          :aria-label="tRaw('tools.llm-chat.SessionList.搜索消息')"
+          :placeholder="t('tools.llm-chat.SessionList.搜索消息')"
+          :aria-label="t('tools.llm-chat.SessionList.搜索消息')"
         />
         <button
           v-if="searchQuery"
           type="button"
-          :aria-label="tRaw('tools.llm-chat.SessionList.清除搜索')"
+          :aria-label="t('tools.llm-chat.SessionList.清除搜索')"
           @click="clearSearch"
         >
           <X :size="16" />
@@ -240,14 +240,14 @@ const goToChatHome = () => {
       <div v-if="searchQuery.trim()" class="search-results" aria-live="polite">
         <div v-if="searchLoading" class="search-state">
           <LoaderCircle class="spin" :size="20" />
-          <span>{{ tRaw("tools.llm-chat.SessionList.搜索中") }}</span>
+          <span>{{ t("tools.llm-chat.SessionList.搜索中") }}</span>
         </div>
         <div v-else-if="searchError" class="search-state error-state">
           <span>{{ searchError }}</span>
         </div>
         <div v-else-if="searchResults.length === 0" class="search-state">
           <MessageSquare :size="24" />
-          <span>{{ tRaw("tools.llm-chat.SessionList.暂无匹配消息") }}</span>
+          <span>{{ t("tools.llm-chat.SessionList.暂无匹配消息") }}</span>
         </div>
         <button
           v-for="result in searchResults"
@@ -277,31 +277,31 @@ const goToChatHome = () => {
             <select
               v-model="sessionSort"
               data-testid="chat-session-sort"
-              :aria-label="tRaw('tools.llm-chat.SessionList.排序方式')"
+              :aria-label="t('tools.llm-chat.SessionList.排序方式')"
             >
               <option value="updatedAt:desc">
-                {{ tRaw("tools.llm-chat.SessionList.最近更新") }}
+                {{ t("tools.llm-chat.SessionList.最近更新") }}
               </option>
               <option value="updatedAt:asc">
-                {{ tRaw("tools.llm-chat.SessionList.最早更新") }}
+                {{ t("tools.llm-chat.SessionList.最早更新") }}
               </option>
               <option value="createdAt:desc">
-                {{ tRaw("tools.llm-chat.SessionList.最近创建") }}
+                {{ t("tools.llm-chat.SessionList.最近创建") }}
               </option>
               <option value="createdAt:asc">
-                {{ tRaw("tools.llm-chat.SessionList.最早创建") }}
+                {{ t("tools.llm-chat.SessionList.最早创建") }}
               </option>
               <option value="messageCount:desc">
-                {{ tRaw("tools.llm-chat.SessionList.消息最多") }}
+                {{ t("tools.llm-chat.SessionList.消息最多") }}
               </option>
               <option value="messageCount:asc">
-                {{ tRaw("tools.llm-chat.SessionList.消息最少") }}
+                {{ t("tools.llm-chat.SessionList.消息最少") }}
               </option>
               <option value="name:asc">
-                {{ tRaw("tools.llm-chat.SessionList.名称正序") }}
+                {{ t("tools.llm-chat.SessionList.名称正序") }}
               </option>
               <option value="name:desc">
-                {{ tRaw("tools.llm-chat.SessionList.名称倒序") }}
+                {{ t("tools.llm-chat.SessionList.名称倒序") }}
               </option>
             </select>
           </label>
@@ -309,7 +309,7 @@ const goToChatHome = () => {
 
         <div v-if="chatStore.sessionMetas.length === 0" class="empty-state">
           <MessageSquare :size="48" />
-          <p>{{ tRaw("tools.llm-chat.SessionList.暂无历史会话") }}</p>
+          <p>{{ t("tools.llm-chat.SessionList.暂无历史会话") }}</p>
         </div>
 
         <div
@@ -334,7 +334,7 @@ const goToChatHome = () => {
               class="delete-btn"
               data-testid="chat-session-delete"
               :disabled="isMutatingSessions"
-              :aria-label="tRaw('tools.llm-chat.SessionList.删除会话')"
+              :aria-label="t('tools.llm-chat.SessionList.删除会话')"
               @click="deleteSession($event, session)"
             >
               <Trash2 :size="18" />

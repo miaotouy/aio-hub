@@ -3,12 +3,11 @@ import { computed } from "vue";
 import { ChevronLeft, Copy, RotateCcw } from "lucide-vue-next";
 import type { ChannelProbeResult } from "@aiohub/llm-core";
 import { customMessage } from "@/utils/feedback";
-import { useI18n } from "@/i18n";
+import { useScopedT, type SubKeyOf } from "@/i18n";
 import type { LlmModelInfo } from "../../types";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw(`tools.llm-api.ModelProbe.${key}`, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
+type ProbeKey = SubKeyOf<"tools.llm-api.ModelProbe">;
 
 const props = defineProps<{
   show: boolean;
@@ -22,7 +21,7 @@ const emit = defineEmits<{
   (event: "retry", modelId: string): void;
 }>();
 
-const phaseLabels: Record<string, string> = {
+const phaseLabels: Record<string, ProbeKey> = {
   prepare: "准备检查",
   "build-request": "构建请求",
   transport: "网络传输",
@@ -31,7 +30,7 @@ const phaseLabels: Record<string, string> = {
   "semantic-validation": "响应校验",
 };
 
-const categoryLabels: Record<string, string> = {
+const categoryLabels: Record<string, ProbeKey> = {
   authentication: "认证失败",
   authorization: "权限不足",
   "rate-limit": "请求受限",
@@ -47,7 +46,7 @@ const categoryLabels: Record<string, string> = {
   unknown: "未知错误",
 };
 
-const capabilityLabels: Record<string, string> = {
+const capabilityLabels: Record<string, ProbeKey> = {
   chat: "Chat",
   embedding: "向量",
   rerank: "重排",

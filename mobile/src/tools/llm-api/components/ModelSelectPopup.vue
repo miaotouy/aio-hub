@@ -31,7 +31,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const store = useLlmProfilesStore();
 const { getModelIcon } = useModelMetadata();
 
@@ -148,7 +148,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
     <div class="model-select-popup" data-testid="chat-model-popup">
       <div class="popup-header">
         <div class="popup-title">
-          {{ tRaw("tools.llm-api.common.选择模型") }}
+          {{ t("tools.llm-api.common.选择模型") }}
         </div>
         <div class="search-bar">
           <var-input
@@ -166,13 +166,13 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 
       <div class="popup-content">
         <div v-if="modelGroups.length === 0" class="empty-state">
-          <p>{{ tRaw("tools.llm-api.common.未配置模型") }}</p>
+          <p>{{ t("tools.llm-api.common.未配置模型") }}</p>
           <var-button
             type="primary"
             size="small"
             @click="router.push('/tools/llm-api')"
           >
-            {{ tRaw("tools.llm-api.common.去配置") }}
+            {{ t("tools.llm-api.common.去配置") }}
           </var-button>
         </div>
 

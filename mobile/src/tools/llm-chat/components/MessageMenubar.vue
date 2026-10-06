@@ -35,8 +35,8 @@ const emit = defineEmits<{
   (e: "switch-branch", nodeId: string): void;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.ChatView");
 const showBranchSelector = ref(false);
 
 const siblings = computed(() => {

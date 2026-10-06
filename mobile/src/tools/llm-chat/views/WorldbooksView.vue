@@ -21,8 +21,8 @@ import type {
 
 const router = useRouter();
 const store = useWorldbookStore();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.Worldbooks.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.Worldbooks");
 const editorOpen = ref(false);
 const entryEditorOpen = ref(false);
 const editingId = ref<string | null>(null);

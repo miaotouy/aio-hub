@@ -30,8 +30,8 @@ export const vertexAiUrlHandler = {
       : `${versionedHost}projects/{project}/locations/{location}/publishers/google/models/{model}:generateContent`;
   },
   getHint: (): string => {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.Adapters.VertexAI提示");
+    const { t } = useI18n();
+    return t("tools.llm-api.Adapters.VertexAI提示");
   },
 };
 

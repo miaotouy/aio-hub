@@ -4,7 +4,7 @@ import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { llmPresets } from "../config/llm-presets";
 import { useI18n } from "@/i18n";
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 defineProps<{
   show: boolean;
@@ -37,7 +37,7 @@ const handleCreateCustom = () => {
         <div class="popup-title-group">
           <Zap :size="20" class="title-icon" />
           <span class="popup-title">{{
-            tRaw("tools.llm-api.PresetSelector.选择预设渠道")
+            t("tools.llm-api.PresetSelector.选择预设渠道")
           }}</span>
         </div>
         <var-button round text @click="emit('update:show', false)">
@@ -72,7 +72,7 @@ const handleCreateCustom = () => {
           @click="handleCreateCustom"
         >
           <Plus :size="18" />
-          {{ tRaw("tools.llm-api.PresetSelector.自定义添加") }}
+          {{ t("tools.llm-api.PresetSelector.自定义添加") }}
         </var-button>
       </div>
     </div>

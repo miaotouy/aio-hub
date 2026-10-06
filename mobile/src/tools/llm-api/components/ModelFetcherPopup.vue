@@ -22,7 +22,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 
 const { getModelIcon, getModelGroup } = useModelMetadata();
 const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
@@ -211,7 +211,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   >
     <div class="fetcher-popup" data-testid="llm-model-fetcher">
       <var-app-bar
-        :title="tRaw('tools.llm-api.ModelFetcherPopup.从 API 添加模型')"
+        :title="t('tools.llm-api.ModelFetcherPopup.从 API 添加模型')"
         fixed
         safe-area
       >
@@ -227,7 +227,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             :disabled="selectedModels.length === 0"
             @click="handleConfirm"
           >
-            {{ tRaw("tools.llm-api.ModelFetcherPopup.添加模型") }}
+            {{ t("tools.llm-api.ModelFetcherPopup.添加模型") }}
           </var-button>
         </template>
       </var-app-bar>
@@ -241,7 +241,7 @@ const toggleCapabilityFilter = (capKey: string) => {
               type="text"
               class="search-input"
               :placeholder="
-                tRaw('tools.llm-api.ModelFetcherPopup.搜索模型 占位符')
+                t('tools.llm-api.ModelFetcherPopup.搜索模型 占位符')
               "
             />
           </div>
@@ -250,7 +250,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             <div class="filter-label">
               <Filter :size="14" />
               <span>{{
-                tRaw("tools.llm-api.ModelFetcherPopup.能力筛选")
+                t("tools.llm-api.ModelFetcherPopup.能力筛选")
               }}</span>
             </div>
             <div class="filter-chips">
@@ -278,7 +278,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 
         <div class="toolbar">
           <span class="toolbar-hint">{{
-            tRaw("tools.llm-api.ModelFetcherPopup.共 N 个模型", {
+            t("tools.llm-api.ModelFetcherPopup.共 N 个模型", {
               count: allVisibleModels.length,
             })
           }}</span>
@@ -299,7 +299,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             class="empty-state"
           >
             <p>
-              {{ tRaw("tools.llm-api.ModelFetcherPopup.没有找到匹配的模型") }}
+              {{ t("tools.llm-api.ModelFetcherPopup.没有找到匹配的模型") }}
             </p>
           </div>
 
@@ -387,7 +387,7 @@ const toggleCapabilityFilter = (capKey: string) => {
                           v-if="isModelExisting(model.id)"
                           class="status-tag existing"
                         >
-                          {{ tRaw("tools.llm-api.ModelFetcherPopup.已存在") }}
+                          {{ t("tools.llm-api.ModelFetcherPopup.已存在") }}
                         </div>
                         <Check
                           v-else-if="isModelSelected(model)"
@@ -436,7 +436,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 
       <div class="footer-bar">
         <span class="selected-count">{{
-          tRaw("tools.llm-api.ModelFetcherPopup.已选择 N 个模型", {
+          t("tools.llm-api.ModelFetcherPopup.已选择 N 个模型", {
             count: selectedModels.length,
           })
         }}</span>

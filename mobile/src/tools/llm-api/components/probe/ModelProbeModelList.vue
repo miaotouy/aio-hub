@@ -10,14 +10,12 @@ import {
   Square,
 } from "lucide-vue-next";
 import { resolveProbePlan, type ChannelProbeResult } from "@aiohub/llm-core";
-import { useI18n } from "@/i18n";
+import { useScopedT, type SubKeyOf } from "@/i18n";
 import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 import type { ModelProbeRowStatus } from "../../composables/useModelProbe";
 import type { LlmModelInfo } from "../../types";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw(`tools.llm-api.ModelProbe.${key}`, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
 
 const props = defineProps<{
   models: LlmModelInfo[];
@@ -47,7 +45,7 @@ const groups = computed(() => {
   })).sort((left, right) => compareModelGroup(left.name, right.name));
 });
 
-const capabilityLabelKeys: Record<string, string> = {
+const capabilityLabelKeys: Record<string, SubKeyOf<"tools.llm-api.ModelProbe">> = {
   chat: "Chat",
   embedding: "向量",
   rerank: "重排",

@@ -11,8 +11,8 @@ const props = defineProps<{
   groups: PresetMessageGroup[];
 }>();
 const emit = defineEmits<{ close: []; save: [message: PresetMessage] }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const roles: PresetMessage["role"][] = ["system", "user", "assistant"];
 const form = ref<PresetMessage>(createEmptyMessage());
 const advancedOpen = ref(false);

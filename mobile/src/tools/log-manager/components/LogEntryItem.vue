@@ -9,8 +9,8 @@ const props = defineProps<{
   log: LogEntry;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.log-manager.LogEntryItem.${key}`);
+const { useScopedT, t: gt } = useI18n();
+const t = useScopedT("tools.log-manager.LogEntryItem");
 
 const expanded = ref(false);
 
@@ -47,7 +47,7 @@ const handleCopy = async (e: Event) => {
     await navigator.clipboard.writeText(text);
     Snackbar.success(t("复制成功"));
   } catch (err) {
-    Snackbar.error(t("common.失败"));
+    Snackbar.error(gt("common.失败"));
   }
 };
 

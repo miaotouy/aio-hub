@@ -13,8 +13,8 @@ const emit = defineEmits<{
   save: [group: PresetMessageGroup];
   remove: [group: PresetMessageGroup];
 }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const form = ref<PresetMessageGroup>(createEmptyGroup());
 
 function createEmptyGroup(): PresetMessageGroup {

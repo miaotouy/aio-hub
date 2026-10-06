@@ -7,7 +7,7 @@ import { ChevronLeft, RotateCcw } from "lucide-vue-next";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 
 const router = useRouter();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const { settings, loadSettings, updateSettingItem, resetSettings } =
   useChatSettings();
 
@@ -27,7 +27,7 @@ const handleReset = async () => {
 <template>
   <div class="chat-settings-view">
     <var-app-bar
-      :title="tRaw('tools.llm-chat.common.聊天设置')"
+      :title="t('tools.llm-chat.common.聊天设置')"
       title-position="center"
       fixed
       safe-area
@@ -49,10 +49,10 @@ const handleReset = async () => {
       <!-- UI 偏好 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.界面偏好") }}
+          {{ t("tools.llm-chat.ChatSettingsView.界面偏好") }}
         </div>
         <div class="section-card">
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.流式输出')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.流式输出')">
             <template #extra>
               <var-switch
                 v-model="settings.uiPreferences.isStreaming"
@@ -65,7 +65,7 @@ const handleReset = async () => {
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.显示时间戳')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.显示时间戳')">
             <template #extra>
               <var-switch
                 v-model="settings.uiPreferences.showTimestamp"
@@ -79,7 +79,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.显示 Token 统计')"
+            :title="t('tools.llm-chat.ChatSettingsView.显示 Token 统计')"
           >
             <template #extra>
               <var-switch
@@ -94,7 +94,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.显示模型信息')"
+            :title="t('tools.llm-chat.ChatSettingsView.显示模型信息')"
           >
             <template #extra>
               <var-switch
@@ -108,7 +108,7 @@ const handleReset = async () => {
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.自动滚动')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.自动滚动')">
             <template #extra>
               <var-switch
                 v-model="settings.uiPreferences.autoScroll"
@@ -122,7 +122,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.显示消息导航器')"
+            :title="t('tools.llm-chat.ChatSettingsView.显示消息导航器')"
           >
             <template #extra>
               <var-switch
@@ -139,7 +139,7 @@ const handleReset = async () => {
 
           <var-cell
             :title="
-              tRaw('tools.llm-chat.ChatSettingsView.聊天字体缩放') +
+              t('tools.llm-chat.ChatSettingsView.聊天字体缩放') +
               ` (${Math.round(settings.uiPreferences.fontSize * 100)}%)`
             "
           >
@@ -165,10 +165,10 @@ const handleReset = async () => {
       <!-- 模型偏好 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.模型偏好") }}
+          {{ t("tools.llm-chat.ChatSettingsView.模型偏好") }}
         </div>
         <div class="section-card">
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.默认模型')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.默认模型')">
             <template #description>
               <div class="selector-container">
                 <llm-model-selector
@@ -189,11 +189,11 @@ const handleReset = async () => {
       <!-- 消息管理 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.消息管理") }}
+          {{ t("tools.llm-chat.ChatSettingsView.消息管理") }}
         </div>
         <div class="section-card">
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.删除消息前确认')"
+            :title="t('tools.llm-chat.ChatSettingsView.删除消息前确认')"
           >
             <template #extra>
               <var-switch
@@ -209,7 +209,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.删除会话前确认')"
+            :title="t('tools.llm-chat.ChatSettingsView.删除会话前确认')"
           >
             <template #extra>
               <var-switch
@@ -225,7 +225,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.清空会话前确认')"
+            :title="t('tools.llm-chat.ChatSettingsView.清空会话前确认')"
           >
             <template #extra>
               <var-switch
@@ -245,12 +245,12 @@ const handleReset = async () => {
       <!-- 请求设置 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.请求设置") }}
+          {{ t("tools.llm-chat.ChatSettingsView.请求设置") }}
         </div>
         <div class="section-card">
           <var-cell
             :title="
-              tRaw('tools.llm-chat.ChatSettingsView.请求超时时间') +
+              t('tools.llm-chat.ChatSettingsView.请求超时时间') +
               ` (${settings.requestSettings.timeout / 1000}s)`
             "
           >
@@ -273,7 +273,7 @@ const handleReset = async () => {
 
           <var-cell
             :title="
-              tRaw('tools.llm-chat.ChatSettingsView.最大重试次数') +
+              t('tools.llm-chat.ChatSettingsView.最大重试次数') +
               ` (${settings.requestSettings.maxRetries})`
             "
           >

@@ -48,8 +48,8 @@ const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
 const userProfileStore = useUserProfileStore();
 const { settings } = useChatSettings();
-const { tRaw, locale } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+const { useScopedT, locale } = useI18n();
+const t = useScopedT("tools.llm-chat.TokenUsage");
 
 /**
  * 该消息渲染阶段使用的正则配置（Message-Bound）。

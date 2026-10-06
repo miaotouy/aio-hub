@@ -29,7 +29,7 @@ const { isKeyboardVisible } = useKeyboardAvoidance();
 const { regenerate, continueGeneration } = useChatExecutor();
 const nodeManager = useNodeManager();
 const { settings, loadSettings } = useChatSettings();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 const messageListRef = ref<any>(null);
 const editingMessage = ref<ChatMessageNode | null>(null);
@@ -50,14 +50,14 @@ const activeAgentLabel = computed(
   () =>
     activeAgent.value?.displayName ||
     activeAgent.value?.name ||
-    tRaw("tools.llm-chat.ChatView.选择智能体")
+    t("tools.llm-chat.ChatView.选择智能体")
 );
 
 async function handleSelectAgent(agentId: string) {
   const changed = await chatStore.setSessionAgent(agentId);
   if (!changed) return;
   showAgentSelector.value = false;
-  showChatSuccess(tRaw("tools.llm-chat.ChatView.已切换智能体"));
+  showChatSuccess(t("tools.llm-chat.ChatView.已切换智能体"));
 }
 
 // 初始化会话
@@ -140,16 +140,16 @@ const handleDelete = async (message: ChatMessageNode) => {
 
     nodeManager.hardDeleteNode(chatStore.currentSession, message.id);
     await chatStore.persistCurrentSession();
-    showChatSuccess(tRaw("tools.llm-chat.ChatView.消息已删除"));
+    showChatSuccess(t("tools.llm-chat.ChatView.消息已删除"));
   }
 };
 
 const handleCopy = () => {
-  showChatSuccess(tRaw("tools.llm-chat.ChatView.已复制内容"));
+  showChatSuccess(t("tools.llm-chat.ChatView.已复制内容"));
 };
 
 const handleCopyError = () => {
-  showChatError(tRaw("tools.llm-chat.ChatView.复制失败"));
+  showChatError(t("tools.llm-chat.ChatView.复制失败"));
 };
 
 const handleEdit = (message: ChatMessageNode) => {
@@ -162,7 +162,7 @@ const handleSaveEdit = async () => {
   if (!editingMessage.value) return;
   await chatStore.editMessage(editingMessage.value.id, editContent.value);
   showEditDialog.value = false;
-  showChatSuccess(tRaw("tools.llm-chat.ChatView.消息已更新"));
+  showChatSuccess(t("tools.llm-chat.ChatView.消息已更新"));
 };
 
 const handleSaveEditAsBranch = async () => {
@@ -173,7 +173,7 @@ const handleSaveEditAsBranch = async () => {
   );
   showEditDialog.value = false;
   if (branch) {
-    showChatSuccess(tRaw("tools.llm-chat.ChatView.已保存为新分支"));
+    showChatSuccess(t("tools.llm-chat.ChatView.已保存为新分支"));
   }
 };
 
@@ -201,7 +201,7 @@ const goToChatHome = () => {
   >
     <var-app-bar
       :title="
-        chatStore.currentSession?.name || tRaw('tools.llm-chat.ChatView.对话')
+        chatStore.currentSession?.name || t('tools.llm-chat.ChatView.对话')
       "
       title-size="1.1rem"
       safe-area
@@ -226,8 +226,8 @@ const goToChatHome = () => {
           class="active-agent"
           type="button"
           data-testid="chat-agent-selector-toggle"
-          :title="tRaw('tools.llm-chat.ChatView.切换智能体')"
-          :aria-label="tRaw('tools.llm-chat.ChatView.切换智能体')"
+          :title="t('tools.llm-chat.ChatView.切换智能体')"
+          :aria-label="t('tools.llm-chat.ChatView.切换智能体')"
           :disabled="selectableAgents.length === 0 || chatStore.isSending"
           @click="showAgentSelector = true"
         >
@@ -278,7 +278,7 @@ const goToChatHome = () => {
       <section class="agent-selector" data-testid="chat-agent-selector">
         <div class="drawer-handle"></div>
         <header class="agent-selector-header">
-          <h2>{{ tRaw("tools.llm-chat.ChatView.切换智能体") }}</h2>
+          <h2>{{ t("tools.llm-chat.ChatView.切换智能体") }}</h2>
           <span>{{ selectableAgents.length }}</span>
         </header>
         <div class="agent-selector-list">
@@ -313,7 +313,7 @@ const goToChatHome = () => {
             />
           </button>
           <p v-if="selectableAgents.length === 0" class="agent-selector-empty">
-            {{ tRaw("tools.llm-chat.ChatView.暂无可切换智能体") }}
+            {{ t("tools.llm-chat.ChatView.暂无可切换智能体") }}
           </p>
         </div>
       </section>
@@ -321,7 +321,7 @@ const goToChatHome = () => {
 
     <var-dialog
       v-model:show="showEditDialog"
-      :title="tRaw('tools.llm-chat.ChatView.编辑消息')"
+      :title="t('tools.llm-chat.ChatView.编辑消息')"
       :close-on-click-overlay="true"
       :show-cancel-button="false"
       :show-confirm-button="false"
@@ -331,17 +331,17 @@ const goToChatHome = () => {
           v-model="editContent"
           class="edit-textarea"
           rows="8"
-          :placeholder="tRaw('tools.llm-chat.ChatView.输入消息内容')"
+          :placeholder="t('tools.llm-chat.ChatView.输入消息内容')"
         ></textarea>
         <div class="edit-actions">
           <var-button text @click="showEditDialog = false">
-            {{ tRaw("tools.llm-chat.ChatView.取消") }}
+            {{ t("tools.llm-chat.ChatView.取消") }}
           </var-button>
           <var-button type="primary" plain @click="handleSaveEditAsBranch">
-            {{ tRaw("tools.llm-chat.ChatView.另存为分支") }}
+            {{ t("tools.llm-chat.ChatView.另存为分支") }}
           </var-button>
           <var-button type="primary" @click="handleSaveEdit">
-            {{ tRaw("tools.llm-chat.ChatView.保存") }}
+            {{ t("tools.llm-chat.ChatView.保存") }}
           </var-button>
         </div>
       </div>

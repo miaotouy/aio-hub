@@ -16,7 +16,7 @@ import PresetSelector from "../components/PresetSelector.vue";
 import ProfileEditor from "../components/ProfileEditor.vue";
 
 const router = useRouter();
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const store = useLlmProfilesStore();
 const { loadRules, materializeModel } = useModelMetadata();
 const isManagementMode = ref(false);
@@ -61,7 +61,7 @@ const applyPreset = async (preset: any) => {
 const createCustomProfile = () => {
   const newProfile: LlmProfile = {
     id: generateUuid(),
-    name: tRaw("tools.llm-api.ProfileEditor.新渠道"),
+    name: t("tools.llm-api.ProfileEditor.新渠道"),
     type: "openai",
     baseUrl: "https://api.openai.com/v1",
     apiKeys: [""],
@@ -89,7 +89,7 @@ const handleSave = (profile: LlmProfile) => {
   }
 
   showEditPopup.value = false;
-  Snackbar.success(tRaw("tools.llm-api.common.配置已保存"));
+  Snackbar.success(t("tools.llm-api.common.配置已保存"));
 };
 
 const handleDelete = (id: string) => {
@@ -119,7 +119,7 @@ const goHome = () => {
 <template>
   <div class="llm-settings-view" data-testid="llm-settings-view">
     <var-app-bar
-      :title="tRaw('tools.llm-api.common.LLM 渠道管理')"
+      :title="t('tools.llm-api.common.LLM 渠道管理')"
       fixed
       safe-area
     >
@@ -144,7 +144,7 @@ const goHome = () => {
     <div class="view-content">
       <div v-if="store.profiles.length === 0" class="empty-state">
         <Layers :size="64" class="empty-icon" />
-        <p>{{ tRaw("tools.llm-api.LlmSettingsView.暂无渠道提示") }}</p>
+        <p>{{ t("tools.llm-api.LlmSettingsView.暂无渠道提示") }}</p>
       </div>
 
       <div v-else class="profile-list" data-testid="llm-profile-list">

@@ -20,9 +20,13 @@ vi.mock("@/utils/feedback", () => ({
   customMessage: (...args: unknown[]) => mocks.message(...args),
 }));
 
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key.split(".").pop() ?? key }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({ t: (key: string) => key.split(".").pop() ?? key, useScopedT }),
+  };
+});
 
 // jsdom 没有 createObjectURL
 if (typeof URL.createObjectURL !== "function") {

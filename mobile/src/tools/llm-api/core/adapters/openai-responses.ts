@@ -28,8 +28,8 @@ export const openAiResponsesUrlHandler = {
       : `${versionedHost}responses`;
   },
   getHint: (): string => {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.Adapters.OpenAIResponses提示");
+    const { t } = useI18n();
+    return t("tools.llm-api.Adapters.OpenAIResponses提示");
   },
 };
 

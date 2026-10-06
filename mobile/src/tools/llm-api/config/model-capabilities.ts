@@ -8,7 +8,7 @@
  */
 
 import { markRaw, type Component, computed } from "vue";
-import { useI18n } from "@/i18n";
+import { useI18n, type SubKeyOf } from "@/i18n";
 import {
   Eye,
   BrainCircuit,
@@ -37,10 +37,10 @@ import type { ModelCapabilities } from "../types/common";
 export interface CapabilityConfig {
   /** 能力键名（对应 LlmModelInfo.capabilities 中的字段） */
   key: keyof ModelCapabilities;
-  /** 显示标签 */
-  label: string;
-  /** 能力描述 */
-  description: string;
+  /** 显示标签（语言包 key） */
+  label: SubKeyOf<"tools.llm-api.Capabilities">;
+  /** 能力描述（语言包 key） */
+  description: SubKeyOf<"tools.llm-api.Capabilities">;
   /** 图标组件（markRaw 包裹的 Vue 组件） */
   icon?: Component;
   /** 图标颜色（CSS 颜色值） */
@@ -48,6 +48,17 @@ export interface CapabilityConfig {
   /** CSS 类名（用于自定义样式） */
   className?: string;
 }
+
+/**
+ * 已翻译的能力配置项：label / description 为翻译后文本
+ */
+export type TranslatedCapabilityConfig = Omit<
+  CapabilityConfig,
+  "label" | "description"
+> & {
+  label: string;
+  description: string;
+};
 
 /**
  * 所有可用的模型能力配置
@@ -226,13 +237,14 @@ export function getCapabilityConfig(key: string): CapabilityConfig | undefined {
  * 获取翻译后的能力配置列表 (Hook)
  */
 export function useTranslatedCapabilities() {
-  const { tRaw } = useI18n();
+  const { useScopedT } = useI18n();
+  const t = useScopedT("tools.llm-api.Capabilities");
 
   const translatedCapabilities = computed(() => {
     return MODEL_CAPABILITIES.map((cap) => ({
       ...cap,
-      label: tRaw(`tools.llm-api.Capabilities.${cap.label}`),
-      description: tRaw(`tools.llm-api.Capabilities.${cap.description}`),
+      label: t(cap.label),
+      description: t(cap.description),
     }));
   });
 
@@ -241,8 +253,8 @@ export function useTranslatedCapabilities() {
     if (!cap) return undefined;
     return {
       ...cap,
-      label: tRaw(`tools.llm-api.Capabilities.${cap.label}`),
-      description: tRaw(`tools.llm-api.Capabilities.${cap.description}`),
+      label: t(cap.label),
+      description: t(cap.description),
     };
   };
 

@@ -17,7 +17,7 @@ import {
 } from "lucide-vue-next";
 import { resolveProbePlan, type ChannelProbeResult } from "@aiohub/llm-core";
 import { customDialog } from "@/utils/feedback";
-import { useI18n } from "@/i18n";
+import { useScopedT } from "@/i18n";
 import { useModelProbe } from "../../composables/useModelProbe";
 import type { LlmProfile } from "../../types";
 import ModelProbeCostConfirm from "./ModelProbeCostConfirm.vue";
@@ -25,9 +25,7 @@ import ModelProbeDetailPage from "./ModelProbeDetailPage.vue";
 import ModelProbeModelList from "./ModelProbeModelList.vue";
 import ModelProbeOptionsSheet from "./ModelProbeOptionsSheet.vue";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw("tools.llm-api.ModelProbe." + key, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
 
 const props = defineProps<{
   show: boolean;
@@ -289,7 +287,9 @@ function fetchModels() {
 
 function filterLabel(value: Filter) {
   return tr(
-    { all: "全部", checkable: "可检查", failed: "失败", success: "成功" }[value]
+    ({ all: "全部", checkable: "可检查", failed: "失败", success: "成功" } as const)[
+      value
+    ]
   );
 }
 

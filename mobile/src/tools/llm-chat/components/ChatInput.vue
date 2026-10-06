@@ -34,9 +34,9 @@ const inputText = ref("");
 const attachments = ref<ChatMessageAttachment[]>([]);
 const pickerOpen = ref(false);
 const { settings } = useChatSettings();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
-const inputT = (key: string) => tRaw(`tools.llm-chat.ChatInput.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.TokenUsage");
+const inputT = useScopedT("tools.llm-chat.ChatInput");
 const {
   estimatedTokens,
   contextLength,

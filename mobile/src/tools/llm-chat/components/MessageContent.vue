@@ -28,8 +28,8 @@ import {
   type ChatAttachmentAvailability,
 } from "../utils/attachmentStatus";
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.MessageContent.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.MessageContent");
 
 const props = withDefaults(
   defineProps<{

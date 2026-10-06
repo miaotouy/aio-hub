@@ -7,8 +7,8 @@ import ChatMessage from "./ChatMessage.vue";
 import MessageNavigator from "./MessageNavigator.vue";
 import { ArrowDown } from "lucide-vue-next";
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.MessageList.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.MessageList");
 
 const props = withDefaults(
   defineProps<{

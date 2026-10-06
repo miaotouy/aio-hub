@@ -43,8 +43,8 @@ const loading = ref(false);
 const importing = ref(false);
 const confirming = ref(false);
 const importSourceOpen = ref(false);
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.AssetPicker.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.AssetPicker");
 
 const filteredAssets = computed(() => {
   const query = search.value.trim().toLocaleLowerCase();

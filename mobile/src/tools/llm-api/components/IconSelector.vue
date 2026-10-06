@@ -3,7 +3,7 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import { PRESET_ICONS } from "../config/preset-icons";
 import { useI18n } from "@/i18n";
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 defineProps<{
   show: boolean;
@@ -25,7 +25,7 @@ const emit = defineEmits<{
     <div class="icon-selector-container">
       <div class="popup-header">
         <span class="popup-title">{{
-          tRaw("tools.llm-api.IconSelector.选择预设图标")
+          t("tools.llm-api.IconSelector.选择预设图标")
         }}</span>
         <var-button round text @click="emit('update:show', false)">
           <span class="close-icon">×</span>

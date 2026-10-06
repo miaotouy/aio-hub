@@ -6,7 +6,7 @@ import type { LlmProfile } from "../types";
 
 type CustomEndpoints = NonNullable<LlmProfile["customEndpoints"]>;
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 useKeyboardAvoidance();
 
 const props = defineProps<{
@@ -33,7 +33,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   >
     <div class="full-popup">
       <var-app-bar
-        :title="tRaw('tools.llm-api.CustomEndpointsEditor.高级端点配置')"
+        :title="t('tools.llm-api.CustomEndpointsEditor.高级端点配置')"
         fixed
         safe-area
       >
@@ -53,7 +53,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
         <div class="info-card">
           <Info :size="20" class="info-icon" />
           <div class="info-text">
-            {{ tRaw("tools.llm-api.CustomEndpointsEditor.填写相对路径提示") }}
+            {{ t("tools.llm-api.CustomEndpointsEditor.填写相对路径提示") }}
           </div>
         </div>
 
@@ -61,7 +61,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           <var-input
             :model-value="endpoints.chatCompletions"
             @update:model-value="updateField('chatCompletions', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.聊天补全 (Chat)')"
+            :label="t('tools.llm-api.CustomEndpointsEditor.聊天补全 (Chat)')"
             placeholder="/v1/chat/completions"
             variant="outlined"
           />
@@ -69,7 +69,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
             :model-value="endpoints.models"
             @update:model-value="updateField('models', $event)"
             :label="
-              tRaw('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')
+              t('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')
             "
             placeholder="/v1/models"
             variant="outlined"
@@ -78,7 +78,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
             :model-value="endpoints.embeddings"
             @update:model-value="updateField('embeddings', $event)"
             :label="
-              tRaw('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')
+              t('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')
             "
             placeholder="/v1/embeddings"
             variant="outlined"
@@ -86,7 +86,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           <var-input
             :model-value="endpoints.audioSpeech"
             @update:model-value="updateField('audioSpeech', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.语音合成 (TTS)')"
+            :label="t('tools.llm-api.CustomEndpointsEditor.语音合成 (TTS)')"
             placeholder="/v1/audio/speech"
             variant="outlined"
           />
@@ -94,7 +94,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
             :model-value="endpoints.audioTranscriptions"
             @update:model-value="updateField('audioTranscriptions', $event)"
             :label="
-              tRaw('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')
+              t('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')
             "
             placeholder="/v1/audio/transcriptions"
             variant="outlined"

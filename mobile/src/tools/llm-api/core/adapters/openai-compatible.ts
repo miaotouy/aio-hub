@@ -102,8 +102,8 @@ export const openAiUrlHandler = {
       : `${versionedHost}chat/completions`;
   },
   getHint: (): string => {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.Adapters.OpenAI提示");
+    const { t } = useI18n();
+    return t("tools.llm-api.Adapters.OpenAI提示");
   },
 };
 

@@ -26,9 +26,17 @@ vi.mock("@/composables/useKeyboardAvoidance", () => ({
 vi.mock("../../composables/useChatSettings", () => ({
   useChatSettings: () => ({ settings }),
 }));
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key, locale: { value: "zh-CN" } }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({
+      t: (key: string) => key,
+      locale: { value: "zh-CN" },
+      useScopedT,
+    }),
+  };
+});
 vi.mock("../../composables/useContextTokenUsage", async () => {
   const { ref } = await import("vue");
   return {

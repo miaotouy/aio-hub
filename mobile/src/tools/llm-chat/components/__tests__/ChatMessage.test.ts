@@ -25,12 +25,17 @@ vi.mock("../../stores/userProfileStore", () => ({
 vi.mock("../../composables/useChatSettings", () => ({
   useChatSettings: () => ({ settings }),
 }));
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({
-    tRaw: (key: string) => key,
-    locale: { value: "en-US" },
-  }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({
+      t: (key: string) => key,
+      locale: { value: "en-US" },
+      useScopedT,
+    }),
+  };
+});
 
 const message: ChatMessageNode = {
   id: "message-1",

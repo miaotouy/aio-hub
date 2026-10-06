@@ -5,9 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import MessageNavigator from "../MessageNavigator.vue";
 
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({ t: (key: string) => key, useScopedT }),
+  };
+});
 
 const VarButtonStub = defineComponent({
   inheritAttrs: false,

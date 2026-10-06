@@ -27,8 +27,8 @@ const messages = defineModel<PresetMessage[]>("messages", {
 const groups = defineModel<PresetMessageGroup[]>("groups", {
   default: () => [],
 });
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const { totalTokens, isCalculating, isFallback, getTokenCount } =
   usePresetTokenCalculator(messages, groups);
 const editMessage = ref<PresetMessage | null>(null);

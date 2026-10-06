@@ -16,8 +16,8 @@ const emit = defineEmits<{
     groupId?: string,
   ];
 }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const selected = ref<string[]>([]);
 const groupId = ref<string | undefined>();
 const allSelected = computed(

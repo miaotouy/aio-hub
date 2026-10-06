@@ -31,8 +31,8 @@ const emit = defineEmits<{
   dragStart: [event: PointerEvent];
   "update:expanded": [value: boolean];
 }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const roleLabel = computed(
   () =>
     ({ system: "System", user: "User", assistant: "Assistant" })[

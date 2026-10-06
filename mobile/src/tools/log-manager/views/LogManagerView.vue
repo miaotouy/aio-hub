@@ -15,8 +15,8 @@ import LogEntryItem from "../components/LogEntryItem.vue";
 import { Snackbar, Dialog } from "@varlet/ui";
 import { useRouter } from "vue-router";
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.log-manager.LogManagerView.${key}`);
+const { useScopedT, t: gt } = useI18n();
+const t = useScopedT("tools.log-manager.LogManagerView");
 const router = useRouter();
 
 // 状态
@@ -83,14 +83,14 @@ onUnmounted(() => {
 // 操作
 const handleClear = async () => {
   const result = await Dialog({
-    title: t("common.提示"),
+    title: gt("common.提示"),
     message: t("确认清空"),
   });
 
   if (result === "confirm") {
     logger.clearLogs();
     logs.value = [];
-    Snackbar.success(t("common.成功"));
+    Snackbar.success(gt("common.成功"));
   }
 };
 
@@ -112,7 +112,7 @@ const handleCopyAll = async () => {
     await navigator.clipboard.writeText(content);
     Snackbar.success(t("已复制到剪贴板"));
   } catch (err) {
-    Snackbar.error(t("common.失败"));
+    Snackbar.error(gt("common.失败"));
   }
 };
 

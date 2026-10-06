@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { X } from "lucide-vue-next";
-import { useI18n } from "@/i18n";
+import { useScopedT } from "@/i18n";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw(`tools.llm-api.ModelProbe.${key}`, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
 
 defineProps<{
   show: boolean;

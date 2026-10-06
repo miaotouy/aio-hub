@@ -21,8 +21,8 @@ const emit = defineEmits<{
   (e: "bottom"): void;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.MessageNavigator.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.MessageNavigator");
 const hasMessages = computed(() => props.total > 1);
 const canMovePrevious = computed(() => props.currentIndex > 1);
 const canMoveNext = computed(() => props.currentIndex < props.total);

@@ -22,7 +22,7 @@ import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import {
   useTranslatedCapabilities,
-  type CapabilityConfig,
+  type TranslatedCapabilityConfig,
 } from "../config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
@@ -88,7 +88,7 @@ const handleExpandChange = (value: any) => {
   emit("update:expandState", state);
 };
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const profilesStore = useLlmProfilesStore();
 
 const identityRouteAudit = (model: LlmModelInfo) => {
@@ -112,8 +112,8 @@ const deleteGroup = async (group: {
   models: { model: LlmModelInfo }[];
 }) => {
   const confirm = await customDialog({
-    title: tRaw("tools.llm-api.ModelList.确认删除分组"),
-    message: tRaw("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
+    title: t("tools.llm-api.ModelList.确认删除分组"),
+    message: t("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
       name: group.name,
       count: group.models.length,
     }),
@@ -126,13 +126,15 @@ const deleteGroup = async (group: {
     emit("delete-group", modelIds);
   }
 };
-const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
+const getEnabledCapabilities = (
+  model: LlmModelInfo
+): TranslatedCapabilityConfig[] => {
   return translatedCapabilities.value.filter(
     (cap) => model.capabilities?.[cap.key]
   );
 };
 
-const showCapabilityDesc = (capability: CapabilityConfig) => {
+const showCapabilityDesc = (capability: TranslatedCapabilityConfig) => {
   customMessage(capability.description, "info");
 };
 
@@ -192,11 +194,11 @@ const handleModelAction = (
           <div v-if="showHeaderMenu" class="action-menu header-menu">
             <button @click="handleHeaderAction('fetch')">
               <List :size="17" />{{
-                tRaw("tools.llm-api.ModelList.从 API 获取")
+                t("tools.llm-api.ModelList.从 API 获取")
               }}
             </button>
             <button @click="handleHeaderAction('add')">
-              <Plus :size="17" />{{ tRaw("tools.llm-api.ModelList.手动添加") }}
+              <Plus :size="17" />{{ t("tools.llm-api.ModelList.手动添加") }}
             </button>
             <button
               v-if="models.length"
@@ -212,10 +214,10 @@ const handleModelAction = (
 
     <div class="list-content">
       <div v-if="models.length === 0" class="list-empty">
-        <p>{{ tRaw("tools.llm-api.ModelList.还没有添加任何模型") }}</p>
+        <p>{{ t("tools.llm-api.ModelList.还没有添加任何模型") }}</p>
         <p class="hint">
           {{
-            tRaw("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型")
+            t("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型")
           }}
         </p>
         <button
@@ -226,7 +228,7 @@ const handleModelAction = (
         >
           <List :size="17" />
           {{
-            loading ? "正在获取" : tRaw("tools.llm-api.ModelList.从 API 获取")
+            loading ? "正在获取" : t("tools.llm-api.ModelList.从 API 获取")
           }}
         </button>
       </div>

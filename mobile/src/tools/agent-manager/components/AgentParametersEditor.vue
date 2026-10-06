@@ -15,8 +15,8 @@ interface NumberField {
 
 const props = defineProps<{ modelValue?: LlmParameters }>();
 const emit = defineEmits<{ "update:modelValue": [value: LlmParameters] }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.Parameters.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.Parameters");
 
 const parameters = computed<LlmParameters>(() => props.modelValue ?? {});
 const contextManagement = computed(

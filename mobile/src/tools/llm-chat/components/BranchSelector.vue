@@ -10,8 +10,8 @@ const props = defineProps<{
   currentSiblingIndex: number;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.BranchSelector.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.BranchSelector");
 
 const emit = defineEmits<{
   (e: "update:show", value: boolean): void;

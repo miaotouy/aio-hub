@@ -22,8 +22,8 @@ export const claudeUrlHandler = {
       : `${versionedHost}messages`;
   },
   getHint: (): string => {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.Adapters.Claude提示");
+    const { t } = useI18n();
+    return t("tools.llm-api.Adapters.Claude提示");
   },
 };
 

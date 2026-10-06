@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("CustomHeadersEditor");
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 
 const props = defineProps<{
   show: boolean;
@@ -129,7 +129,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
   >
     <div class="popup-container" data-testid="llm-custom-headers-editor">
       <var-app-bar
-        :title="tRaw('tools.llm-api.CustomHeadersEditor.自定义请求头')"
+        :title="t('tools.llm-api.CustomHeadersEditor.自定义请求头')"
         fixed
         safe-area
       >
@@ -185,7 +185,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
         </div>
 
         <div v-if="headerDrafts.length === 0" class="empty-hint">
-          {{ tRaw("tools.llm-api.CustomHeadersEditor.暂无自定义请求头") }}
+          {{ t("tools.llm-api.CustomHeadersEditor.暂无自定义请求头") }}
         </div>
       </div>
 

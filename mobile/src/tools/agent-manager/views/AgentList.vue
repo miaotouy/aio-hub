@@ -36,7 +36,7 @@ const profilesStore = useLlmProfilesStore();
 const worldbookStore = useWorldbookStore();
 const agentStorage = useAgentStorage();
 const { parseFile } = useAgentImporter();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const search = ref("");
 const category = ref<AgentCategory | "all">("all");
 const importFileInput = ref<HTMLInputElement | null>(null);
@@ -66,7 +66,7 @@ async function createAgent() {
     name: `agent-${Date.now()}`,
   });
   if (!agent) {
-    customMessage(tRaw("tools.agent-manager.AgentList.创建失败"), "warning");
+    customMessage(t("tools.agent-manager.AgentList.创建失败"), "warning");
     return;
   }
   router.push(`/tools/agent-manager/${agent.id}`);
@@ -79,8 +79,8 @@ async function startChat(agent: ChatAgent) {
 
 async function deleteAgent(agent: ChatAgent) {
   const confirmed = await customDialog({
-    title: tRaw("tools.agent-manager.AgentList.删除"),
-    message: tRaw("tools.agent-manager.AgentList.删除确认"),
+    title: t("tools.agent-manager.AgentList.删除"),
+    message: t("tools.agent-manager.AgentList.删除确认"),
   });
   if (confirmed) await agentStore.removeAgent(agent.id);
 }
@@ -117,7 +117,7 @@ function describeImportError(error: unknown, fileName: string): string {
               : code === "EMPTY_WORLDBOOK"
                 ? "世界书没有可用条目"
                 : "导入失败";
-  return `${fileName}：${tRaw(`tools.agent-manager.AgentList.${reasonKey}`)}`;
+  return `${fileName}：${t(`tools.agent-manager.AgentList.${reasonKey}`)}`;
 }
 
 function bundleBasename(path: string): string {
@@ -292,12 +292,12 @@ async function importAgents(event: Event): Promise<void> {
     }
     if (importedCount > 0)
       customMessage(
-        `${tRaw("tools.agent-manager.AgentList.导入成功")} ${importedCount}`,
+        `${t("tools.agent-manager.AgentList.导入成功")} ${importedCount}`,
         "success"
       );
     if (failedCount > 0)
       customMessage(
-        `${tRaw("tools.agent-manager.AgentList.导入失败")} ${failedCount}`,
+        `${t("tools.agent-manager.AgentList.导入失败")} ${failedCount}`,
         "warning"
       );
     if (notices.length > 0) customMessage(notices.join("\n"), "warning");
@@ -321,15 +321,15 @@ async function importAgents(event: Event): Promise<void> {
         <ChevronLeft :size="24" />
       </button>
       <div class="header-copy">
-        <h1>{{ tRaw("tools.agent-manager.common.智能体大厅") }}</h1>
-        <p>{{ tRaw("tools.agent-manager.common.管理角色设定与模型绑定") }}</p>
+        <h1>{{ t("tools.agent-manager.common.智能体大厅") }}</h1>
+        <p>{{ t("tools.agent-manager.common.管理角色设定与模型绑定") }}</p>
       </div>
       <div class="header-actions">
         <button
           class="icon-button"
           type="button"
           data-testid="agent-import-button"
-          :title="tRaw('tools.agent-manager.AgentList.导入')"
+          :title="t('tools.agent-manager.AgentList.导入')"
           @click="importFileInput?.click()"
         >
           <Upload :size="20" />
@@ -338,7 +338,7 @@ async function importAgents(event: Event): Promise<void> {
           class="icon-button primary"
           type="button"
           data-testid="agent-create"
-          :title="tRaw('tools.agent-manager.AgentList.新建')"
+          :title="t('tools.agent-manager.AgentList.新建')"
           @click="createAgent"
         >
           <Plus :size="22" />
@@ -361,34 +361,34 @@ async function importAgents(event: Event): Promise<void> {
         <input
           v-model="search"
           data-testid="agent-search"
-          :placeholder="tRaw('tools.agent-manager.AgentList.搜索智能体')"
+          :placeholder="t('tools.agent-manager.AgentList.搜索智能体')"
         />
       </label>
       <select
         v-model="category"
         data-testid="agent-category"
-        :aria-label="tRaw('tools.agent-manager.AgentList.分类')"
+        :aria-label="t('tools.agent-manager.AgentList.分类')"
       >
         <option value="all">
-          {{ tRaw("tools.agent-manager.AgentList.全部分类") }}
+          {{ t("tools.agent-manager.AgentList.全部分类") }}
         </option>
         <option :value="AgentCategory.Assistant">
-          {{ tRaw("tools.agent-manager.AgentList.助手") }}
+          {{ t("tools.agent-manager.AgentList.助手") }}
         </option>
         <option :value="AgentCategory.Character">
-          {{ tRaw("tools.agent-manager.AgentList.角色") }}
+          {{ t("tools.agent-manager.AgentList.角色") }}
         </option>
         <option :value="AgentCategory.Expert">
-          {{ tRaw("tools.agent-manager.AgentList.专家") }}
+          {{ t("tools.agent-manager.AgentList.专家") }}
         </option>
         <option :value="AgentCategory.Creative">
-          {{ tRaw("tools.agent-manager.AgentList.创意") }}
+          {{ t("tools.agent-manager.AgentList.创意") }}
         </option>
         <option :value="AgentCategory.Workflow">
-          {{ tRaw("tools.agent-manager.AgentList.工作流") }}
+          {{ t("tools.agent-manager.AgentList.工作流") }}
         </option>
         <option :value="AgentCategory.Other">
-          {{ tRaw("tools.agent-manager.AgentList.其他") }}
+          {{ t("tools.agent-manager.AgentList.其他") }}
         </option>
       </select>
     </div>
@@ -397,8 +397,8 @@ async function importAgents(event: Event): Promise<void> {
       <div v-if="agentStore.isLoading" class="empty-state"><var-loading /></div>
       <div v-else-if="filteredAgents.length === 0" class="empty-state">
         <Bot :size="36" />
-        <strong>{{ tRaw("tools.agent-manager.AgentList.暂无智能体") }}</strong>
-        <span>{{ tRaw("tools.agent-manager.AgentList.先配置可用模型") }}</span>
+        <strong>{{ t("tools.agent-manager.AgentList.暂无智能体") }}</strong>
+        <span>{{ t("tools.agent-manager.AgentList.先配置可用模型") }}</span>
       </div>
       <article
         v-for="agent in filteredAgents"
@@ -425,7 +425,7 @@ async function importAgents(event: Event): Promise<void> {
             type="button"
             class="icon-button accent"
             data-testid="agent-start-chat"
-            :title="tRaw('tools.agent-manager.AgentList.开始对话')"
+            :title="t('tools.agent-manager.AgentList.开始对话')"
             @click="startChat(agent)"
           >
             <MessageCircle :size="19" />
@@ -434,7 +434,7 @@ async function importAgents(event: Event): Promise<void> {
             type="button"
             class="icon-button"
             data-testid="agent-edit"
-            :title="tRaw('tools.agent-manager.AgentList.编辑')"
+            :title="t('tools.agent-manager.AgentList.编辑')"
             @click="router.push(`/tools/agent-manager/${agent.id}`)"
           >
             <Pencil :size="18" />
@@ -443,7 +443,7 @@ async function importAgents(event: Event): Promise<void> {
             type="button"
             class="icon-button danger"
             data-testid="agent-delete"
-            :title="tRaw('tools.agent-manager.AgentList.删除')"
+            :title="t('tools.agent-manager.AgentList.删除')"
             @click="deleteAgent(agent)"
           >
             <Trash2 :size="18" />

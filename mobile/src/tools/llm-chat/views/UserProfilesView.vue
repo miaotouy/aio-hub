@@ -17,7 +17,7 @@ import type { MobileUserProfile } from "../types";
 
 const router = useRouter();
 const store = useUserProfileStore();
-const { tRaw } = useI18n();
+const { useScopedT } = useI18n();
 const editorOpen = ref(false);
 const editingId = ref<string | null>(null);
 const draft = ref({
@@ -29,7 +29,7 @@ const draft = ref({
 });
 const saving = ref(false);
 
-const t = (key: string) => tRaw(`tools.llm-chat.UserProfiles.${key}`);
+const t = useScopedT("tools.llm-chat.UserProfiles");
 
 onMounted(async () => {
   await store.init();

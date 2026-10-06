@@ -18,7 +18,7 @@ import { useChatSettings } from "../composables/useChatSettings";
 
 const router = useRouter();
 const route = useRoute();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
 const { settings, loadSettings } = useChatSettings();
@@ -85,14 +85,14 @@ const goHome = () => {
           <var-button round text color="transparent" @click="goHome">
             <ChevronLeft :size="24" />
           </var-button>
-          <h1>{{ tRaw("tools.llm-chat.common.AI 对话") }}</h1>
+          <h1>{{ t("tools.llm-chat.common.AI 对话") }}</h1>
         </div>
         <var-button round text color="transparent" @click="goToSettings">
           <Settings :size="24" />
         </var-button>
       </div>
       <p>
-        {{ tRaw("tools.llm-chat.ChatHome.开始一段新的对话或继续历史会话") }}
+        {{ t("tools.llm-chat.ChatHome.开始一段新的对话或继续历史会话") }}
       </p>
     </div>
 
@@ -109,8 +109,8 @@ const goHome = () => {
           <Plus :size="32" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.开启新对话") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.即刻开始即时交流") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.开启新对话") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.即刻开始即时交流") }}</p>
         </div>
       </div>
 
@@ -126,8 +126,8 @@ const goHome = () => {
           <MessageSquare :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.common.历史会话") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.查看并继续之前的交流") }}</p>
+          <h3>{{ t("tools.llm-chat.common.历史会话") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.查看并继续之前的交流") }}</p>
         </div>
       </div>
 
@@ -140,8 +140,8 @@ const goHome = () => {
           <Users :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.角色大厅") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.选择智能体并开始对话") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.角色大厅") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.选择智能体并开始对话") }}</p>
         </div>
       </div>
 
@@ -157,8 +157,8 @@ const goHome = () => {
           <UserCircle :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.用户档案") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.管理用户档案") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.用户档案") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.管理用户档案") }}</p>
         </div>
       </div>
 
@@ -174,8 +174,8 @@ const goHome = () => {
           <BookOpen :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.世界书") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.管理世界书") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.世界书") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.管理世界书") }}</p>
         </div>
       </div>
     </div>

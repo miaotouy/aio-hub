@@ -24,11 +24,11 @@ const emit = defineEmits<{
   (e: "change", value: { profileId: string; modelId: string }): void;
 }>();
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const store = useLlmProfilesStore();
 
 const displayPlaceholder = computed(
-  () => props.placeholder || tRaw("tools.llm-api.common.选择模型")
+  () => props.placeholder || t("tools.llm-api.common.选择模型")
 );
 const { getModelIcon } = useModelMetadata();
 

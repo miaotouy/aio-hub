@@ -23,7 +23,7 @@ const emit = defineEmits<{
   (e: "update:show", value: boolean): void;
 }>();
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const keyManager = useLlmKeyManager();
 const profilesStore = useLlmProfilesStore();
 
@@ -77,7 +77,7 @@ const maskKey = (key: string) => {
 const handleResetBroken = () => {
   if (!props.profile) return;
   keyManager.resetAllBroken(props.profile.id);
-  Snackbar.success(tRaw("tools.llm-api.KeyManager.已重置所有熔断"));
+  Snackbar.success(t("tools.llm-api.KeyManager.已重置所有熔断"));
 };
 
 const toggleKeyEnabled = (key: string, current: boolean) => {
@@ -129,7 +129,7 @@ const handleBatchImport = () => {
     });
 
     Snackbar.success(
-      tRaw("tools.llm-api.KeyManager.导入成功N个", {
+      t("tools.llm-api.KeyManager.导入成功N个", {
         count: uniqueNewKeys.length,
       })
     );
@@ -149,7 +149,7 @@ const handleBatchImport = () => {
   >
     <div class="manager-popup">
       <var-app-bar
-        :title="tRaw('tools.llm-api.KeyManager.多Key状态管理')"
+        :title="t('tools.llm-api.KeyManager.多Key状态管理')"
         fixed
         safe-area
       >
@@ -162,7 +162,7 @@ const handleBatchImport = () => {
           <div class="flex items-center">
             <var-button text @click="showImportDialog = true">
               <Plus :size="18" class="mr-1" />
-              {{ tRaw("tools.llm-api.KeyManager.批量导入") }}
+              {{ t("tools.llm-api.KeyManager.批量导入") }}
             </var-button>
             <var-button v-if="hasBrokenKeys" text @click="handleResetBroken">
               <RotateCcw :size="18" class="mr-1" />
@@ -176,28 +176,28 @@ const handleBatchImport = () => {
         <div class="info-banner">
           <ShieldCheck :size="20" class="banner-icon" />
           <div class="banner-text">
-            {{ tRaw("tools.llm-api.KeyManager.提示说明") }}
+            {{ t("tools.llm-api.KeyManager.提示说明") }}
           </div>
         </div>
 
         <div class="settings-group">
           <div class="section-header">
-            {{ tRaw("tools.llm-api.KeyManager.策略设置") }}
+            {{ t("tools.llm-api.KeyManager.策略设置") }}
           </div>
           <div class="config-card">
             <var-cell>
-              {{ tRaw("tools.llm-api.KeyManager.自动熔断") }}
+              {{ t("tools.llm-api.KeyManager.自动熔断") }}
               <template #description>{{
-                tRaw("tools.llm-api.KeyManager.自动熔断说明")
+                t("tools.llm-api.KeyManager.自动熔断说明")
               }}</template>
               <template #extra>
                 <var-switch v-model="enableAutoDisable" />
               </template>
             </var-cell>
             <var-cell>
-              {{ tRaw("tools.llm-api.KeyManager.自动恢复时长") }}
+              {{ t("tools.llm-api.KeyManager.自动恢复时长") }}
               <template #description>{{
-                tRaw("tools.llm-api.KeyManager.自动恢复说明")
+                t("tools.llm-api.KeyManager.自动恢复说明")
               }}</template>
               <template #extra>
                 <var-select
@@ -206,19 +206,19 @@ const handleBatchImport = () => {
                   style="width: 100px"
                 >
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.1分钟')"
+                    :label="t('tools.llm-api.KeyManager.1分钟')"
                     :value="60000"
                   />
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.5分钟')"
+                    :label="t('tools.llm-api.KeyManager.5分钟')"
                     :value="300000"
                   />
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.30分钟')"
+                    :label="t('tools.llm-api.KeyManager.30分钟')"
                     :value="1800000"
                   />
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.从不')"
+                    :label="t('tools.llm-api.KeyManager.从不')"
                     :value="0"
                   />
                 </var-select>
@@ -229,12 +229,12 @@ const handleBatchImport = () => {
 
         <div v-if="keyStatuses.length === 0" class="empty-state">
           <AlertCircle :size="48" class="empty-icon" />
-          <p>{{ tRaw("tools.llm-api.KeyManager.暂无Key") }}</p>
+          <p>{{ t("tools.llm-api.KeyManager.暂无Key") }}</p>
         </div>
 
         <div v-else class="key-list">
           <div class="section-header">
-            {{ tRaw("tools.llm-api.KeyManager.Key列表") }}
+            {{ t("tools.llm-api.KeyManager.Key列表") }}
           </div>
           <div
             v-for="status in keyStatuses"
@@ -255,7 +255,7 @@ const handleBatchImport = () => {
                     size="mini"
                     class="status-chip"
                   >
-                    {{ tRaw("tools.llm-api.KeyManager.已熔断") }}
+                    {{ t("tools.llm-api.KeyManager.已熔断") }}
                   </var-chip>
                   <var-chip
                     v-else-if="!status.isEnabled"
@@ -281,7 +281,7 @@ const handleBatchImport = () => {
                   <span v-if="status.errorCount > 0" class="meta-item error">
                     <AlertCircle :size="12" />
                     {{
-                      tRaw("tools.llm-api.KeyManager.N次失败", {
+                      t("tools.llm-api.KeyManager.N次失败", {
                         count: status.errorCount,
                       })
                     }}
@@ -324,19 +324,19 @@ const handleBatchImport = () => {
     <!-- 批量导入弹窗 -->
     <var-dialog
       v-model:show="showImportDialog"
-      :title="tRaw('tools.llm-api.KeyManager.批量导入')"
+      :title="t('tools.llm-api.KeyManager.批量导入')"
       @confirm="handleBatchImport"
     >
       <div class="import-dialog-content">
         <p class="import-tip">
-          {{ tRaw("tools.llm-api.KeyManager.批量导入提示") }}
+          {{ t("tools.llm-api.KeyManager.批量导入提示") }}
         </p>
         <var-input
           v-model="importText"
           textarea
           :rows="8"
           variant="outlined"
-          :placeholder="tRaw('tools.llm-api.ProfileEditor.API Key 占位符')"
+          :placeholder="t('tools.llm-api.ProfileEditor.API Key 占位符')"
         />
       </div>
     </var-dialog>

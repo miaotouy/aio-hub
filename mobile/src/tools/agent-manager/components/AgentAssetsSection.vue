@@ -34,7 +34,7 @@ const emit = defineEmits<{
   "asset-removed": [asset: AgentAsset];
 }>();
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const agentStorage = useAgentStorage();
 
 const UNGROUPED = "__ungrouped__";
@@ -107,7 +107,7 @@ const groupFilterOptions = computed(() => {
   const options: Array<{ id: string; label: string; count: number }> = [
     {
       id: "",
-      label: tRaw("tools.agent-manager.AgentAssets.全部"),
+      label: t("tools.agent-manager.AgentAssets.全部"),
       count: props.assets.length,
     },
   ];
@@ -121,7 +121,7 @@ const groupFilterOptions = computed(() => {
   if (props.assets.some((asset) => !asset.group)) {
     options.push({
       id: UNGROUPED,
-      label: tRaw("tools.agent-manager.AgentAssets.未分组"),
+      label: t("tools.agent-manager.AgentAssets.未分组"),
       count: props.assets.filter((asset) => !asset.group).length,
     });
   }
@@ -129,7 +129,7 @@ const groupFilterOptions = computed(() => {
 });
 
 function groupLabel(groupId: string | undefined): string {
-  if (!groupId) return tRaw("tools.agent-manager.AgentAssets.未分组");
+  if (!groupId) return t("tools.agent-manager.AgentAssets.未分组");
   return (
     props.groups.find((group) => group.id === groupId)?.displayName ?? groupId
   );
@@ -192,7 +192,7 @@ async function onAddFiles(event: Event): Promise<void> {
         });
       } catch {
         customMessage(
-          `${tRaw("tools.agent-manager.AgentAssets.添加失败")}${file.name}`,
+          `${t("tools.agent-manager.AgentAssets.添加失败")}${file.name}`,
           "error"
         );
       }
@@ -203,7 +203,7 @@ async function onAddFiles(event: Event): Promise<void> {
         props.assets.concat(records.map((record) => ({ ...record })))
       );
       customMessage(
-        `${tRaw("tools.agent-manager.AgentAssets.添加成功")}${records.length}`,
+        `${t("tools.agent-manager.AgentAssets.添加成功")}${records.length}`,
         "success"
       );
     }
@@ -259,11 +259,11 @@ function collectAttachmentReferences(assetId: string): string {
   const parts: string[] = [];
   if (presetCount)
     parts.push(
-      `${tRaw("tools.agent-manager.AgentAssets.预设消息引用")}×${presetCount}`
+      `${t("tools.agent-manager.AgentAssets.预设消息引用")}×${presetCount}`
     );
   if (greetingCount)
     parts.push(
-      `${tRaw("tools.agent-manager.AgentAssets.开局消息引用")}×${greetingCount}`
+      `${t("tools.agent-manager.AgentAssets.开局消息引用")}×${greetingCount}`
     );
   return parts.join("，");
 }
@@ -283,10 +283,10 @@ function normalizeGreetingRefs(value: unknown): string[] {
 async function removeAsset(asset: AgentAsset): Promise<void> {
   const references = collectAttachmentReferences(asset.id);
   const confirmText = references
-    ? `${tRaw("tools.agent-manager.AgentAssets.删除确认引用")}${references}`
-    : tRaw("tools.agent-manager.AgentAssets.删除确认");
+    ? `${t("tools.agent-manager.AgentAssets.删除确认引用")}${references}`
+    : t("tools.agent-manager.AgentAssets.删除确认");
   const confirmed = await customDialog({
-    title: tRaw("tools.agent-manager.AgentAssets.删除"),
+    title: t("tools.agent-manager.AgentAssets.删除"),
     message: confirmText,
   });
   if (!confirmed) return;
@@ -294,7 +294,7 @@ async function removeAsset(asset: AgentAsset): Promise<void> {
     await agentStorage.deleteAgentAsset(props.agentId, asset.path);
   } catch {
     customMessage(
-      tRaw("tools.agent-manager.AgentAssets.删除文件失败"),
+      t("tools.agent-manager.AgentAssets.删除文件失败"),
       "error"
     );
     return;
@@ -309,7 +309,7 @@ async function removeAsset(asset: AgentAsset): Promise<void> {
     props.assets.filter((item) => item.id !== asset.id)
   );
   emit("asset-removed", asset);
-  customMessage(tRaw("tools.agent-manager.AgentAssets.删除成功"), "success");
+  customMessage(t("tools.agent-manager.AgentAssets.删除成功"), "success");
 }
 
 defineExpose({ collectAttachmentReferences });
@@ -319,8 +319,8 @@ defineExpose({ collectAttachmentReferences });
   <section class="form-section assets-section" data-testid="agent-assets">
     <div class="section-heading">
       <div>
-        <h2>{{ tRaw("tools.agent-manager.AgentAssets.标题") }}</h2>
-        <p>{{ tRaw("tools.agent-manager.AgentAssets.说明") }}</p>
+        <h2>{{ t("tools.agent-manager.AgentAssets.标题") }}</h2>
+        <p>{{ t("tools.agent-manager.AgentAssets.说明") }}</p>
       </div>
       <button
         class="add-button"
@@ -330,7 +330,7 @@ defineExpose({ collectAttachmentReferences });
         @click="fileInput?.click()"
       >
         <Plus :size="16" />
-        {{ tRaw("tools.agent-manager.AgentAssets.添加") }}
+        {{ t("tools.agent-manager.AgentAssets.添加") }}
       </button>
       <input
         ref="fileInput"
@@ -358,10 +358,10 @@ defineExpose({ collectAttachmentReferences });
     </div>
 
     <p v-if="!assets.length" class="assets-empty">
-      {{ tRaw("tools.agent-manager.AgentAssets.暂无资产") }}
+      {{ t("tools.agent-manager.AgentAssets.暂无资产") }}
     </p>
     <p v-else-if="!filteredAssets.length" class="assets-empty">
-      {{ tRaw("tools.agent-manager.AgentAssets.分组无资产") }}
+      {{ t("tools.agent-manager.AgentAssets.分组无资产") }}
     </p>
 
     <ul v-else class="asset-list">
@@ -398,7 +398,7 @@ defineExpose({ collectAttachmentReferences });
               class="icon-action"
               type="button"
               :data-testid="`agent-asset-edit-button-${asset.id}`"
-              :aria-label="tRaw('tools.agent-manager.AgentAssets.编辑')"
+              :aria-label="t('tools.agent-manager.AgentAssets.编辑')"
               @click="startEdit(asset)"
             >
               <Pencil :size="16" />
@@ -407,7 +407,7 @@ defineExpose({ collectAttachmentReferences });
               class="icon-action danger"
               type="button"
               :data-testid="`agent-asset-delete-${asset.id}`"
-              :aria-label="tRaw('tools.agent-manager.AgentAssets.删除')"
+              :aria-label="t('tools.agent-manager.AgentAssets.删除')"
               @click="removeAsset(asset)"
             >
               <Trash2 :size="16" />
@@ -442,20 +442,20 @@ defineExpose({ collectAttachmentReferences });
         @click.self="editingAsset = null"
       >
         <div class="edit-sheet" data-testid="agent-asset-edit">
-          <h3>{{ tRaw("tools.agent-manager.AgentAssets.编辑") }}</h3>
+          <h3>{{ t("tools.agent-manager.AgentAssets.编辑") }}</h3>
           <p class="edit-filename">{{ editingAsset.filename }}</p>
           <label>
-            <span>{{ tRaw("tools.agent-manager.AgentAssets.描述") }}</span>
+            <span>{{ t("tools.agent-manager.AgentAssets.描述") }}</span>
             <input
               v-model="editDescription"
               data-testid="agent-asset-edit-description"
             />
           </label>
           <label>
-            <span>{{ tRaw("tools.agent-manager.AgentAssets.分组") }}</span>
+            <span>{{ t("tools.agent-manager.AgentAssets.分组") }}</span>
             <select v-model="editGroupId" data-testid="agent-asset-edit-group">
               <option value="">
-                {{ tRaw("tools.agent-manager.AgentAssets.未分组") }}
+                {{ t("tools.agent-manager.AgentAssets.未分组") }}
               </option>
               <option v-for="group in groups" :key="group.id" :value="group.id">
                 {{ group.displayName }}
@@ -464,14 +464,14 @@ defineExpose({ collectAttachmentReferences });
           </label>
           <div class="edit-actions">
             <button type="button" @click="editingAsset = null">
-              {{ tRaw("tools.agent-manager.AgentAssets.取消") }}
+              {{ t("tools.agent-manager.AgentAssets.取消") }}
             </button>
             <button
               type="button"
               data-testid="agent-asset-edit-confirm"
               @click="confirmEdit"
             >
-              {{ tRaw("tools.agent-manager.AgentAssets.保存") }}
+              {{ t("tools.agent-manager.AgentAssets.保存") }}
             </button>
           </div>
         </div>

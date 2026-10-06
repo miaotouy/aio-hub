@@ -147,7 +147,6 @@ export default class SubAgentRegistry implements ToolRegistry {
     });
   /** 同一 child session 的生成与追加消息共享一条串行执行 lane。 */
   private executionLaneTails = new Map<string, Promise<unknown>>();
-  private activeLaneTaskIds = new Map<string, string>();
   /** 首版限制为单层子智能体调用，避免工具链递归扩大。 */
   private activeTargetAgentIds = new Map<string, number>();
 
@@ -289,16 +288,15 @@ export default class SubAgentRegistry implements ToolRegistry {
     });
     backgroundTaskRegistry.setCurrentOperation(taskId, operation);
     if (!this.isTaskActive(taskId)) return false;
-    this.activeLaneTaskIds.set(snapshot.executionLaneKey, taskId);
+    // lane 执行归属登记到共享 registry，供审批桥接按执行任务确认归属，
+    // 避免同会话存在排队任务时把审批误挂到排队任务上。
+    backgroundTaskRegistry.markExecutingTask(taskId);
     return true;
   }
 
-  private releaseTaskGeneration(
-    taskId: string | undefined,
-    laneKey: string
-  ): void {
-    if (taskId && this.activeLaneTaskIds.get(laneKey) === taskId) {
-      this.activeLaneTaskIds.delete(laneKey);
+  private releaseTaskGeneration(taskId: string | undefined): void {
+    if (taskId) {
+      backgroundTaskRegistry.clearExecutingTask(taskId);
     }
   }
 
@@ -510,7 +508,7 @@ export default class SubAgentRegistry implements ToolRegistry {
       const snapshot = backgroundTaskRegistry.getSnapshot(taskId);
       if (
         snapshot?.state !== "cancelled" ||
-        this.activeLaneTaskIds.get(snapshot.executionLaneKey) !== taskId
+        !backgroundTaskRegistry.isExecutingTask(taskId)
       ) {
         return;
       }
@@ -873,7 +871,7 @@ export default class SubAgentRegistry implements ToolRegistry {
             }
             return leaf;
           } finally {
-            this.releaseTaskGeneration(taskId, executionLaneKey);
+            this.releaseTaskGeneration(taskId);
           }
         }
       );
@@ -1112,7 +1110,7 @@ export default class SubAgentRegistry implements ToolRegistry {
                 );
               }
             } finally {
-              this.releaseTaskGeneration(taskId, executionLaneKey);
+              this.releaseTaskGeneration(taskId);
             }
           });
         } catch (error) {

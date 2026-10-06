@@ -72,7 +72,13 @@ export interface ArbiterAnswerSnapshot {
 /** 审计信息旁路对象（红线 7：不改 ToolApprovalResult 字符串契约）。 */
 export interface ArbiterAuditInfo {
   origin: "rule" | "jev" | "manual" | "timeout" | "cancelled";
-  /** 仅 origin = "jev" 时有值。 */
+  /**
+   * JEV 仲裁快照。
+   *
+   * origin = "jev" 时为本次裁决证据；origin 为 manual / timeout / cancelled
+   * 时表示该请求此前经 JEV escalate 保留的仲裁证据（最终处理来源与 JEV 证据
+   * 分别保留，供任务审计回放升级人工的依据）。
+   */
   arbiter?: {
     action: ArbiterAction;
     model: string;

@@ -15,6 +15,10 @@ import {
   DECISION_ARBITRATION_IDS,
   seedDecisionArbitrationFixtures,
 } from "./support/decision-arbitration-fixture";
+import {
+  BACKGROUND_TASK_APPROVAL_IDS,
+  seedBackgroundTaskApprovalFixtures,
+} from "./support/background-task-approval-fixture";
 import { prepareExternalRecallCorpus } from "./support/external-recall-corpus";
 import {
   cleanupStagedMigrationData,
@@ -683,6 +687,22 @@ if (shouldSeedFixtures) {
       sessionIds: [DECISION_ARBITRATION_IDS.sessionId],
       recallIds: [],
       files: decisionFiles,
+    };
+  } else if (runnerOptions.presetId === "background-task-approval") {
+    const backgroundFiles = seedBackgroundTaskApprovalFixtures({
+      dataDir,
+      chat: chatRole,
+    });
+    fixtureSeedResult = {
+      schemaVersion: 1,
+      mode: "write",
+      agentIds: [
+        BACKGROUND_TASK_APPROVAL_IDS.parentAgentId,
+        BACKGROUND_TASK_APPROVAL_IDS.childAgentId,
+      ],
+      sessionIds: [BACKGROUND_TASK_APPROVAL_IDS.sessionId],
+      recallIds: [],
+      files: backgroundFiles,
     };
   } else {
     if (!embeddingRole.dimension) {

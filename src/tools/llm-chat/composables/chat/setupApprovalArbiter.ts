@@ -20,12 +20,16 @@
  * 解析并合并默认值。
  */
 
-import { setApprovalArbiter } from "@/tools/llm-chat/stores/toolCallingStore";
+import {
+  setApprovalArbiter,
+  setTaskApprovalBridge,
+} from "@/tools/llm-chat/stores/toolCallingStore";
 import {
   createDecisionArbiter,
   getDecisionChannelSettings,
   loadDecisionChannelSettings,
 } from "@/services/decision-arbiter";
+import { backgroundTaskApprovalBridge } from "@/services/background-tasks/approvalBridge";
 import {
   DEFAULT_DECISION_ARBITRATION_CONFIG,
   type DecisionArbitrationConfig,
@@ -95,5 +99,7 @@ export function setupApprovalArbiter(): void {
   });
 
   setApprovalArbiter(arbiter);
-  logger.info("审批仲裁器已装配");
+  // P4：装配后台任务审批桥接，把子会话审批状态投影到任务快照与可靠通知队列。
+  setTaskApprovalBridge(backgroundTaskApprovalBridge);
+  logger.info("审批仲裁器与后台任务审批桥接已装配");
 }

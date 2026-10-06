@@ -5,6 +5,7 @@ export type E2ePresetId =
   | "recall-chat"
   | "chat-session-persistence"
   | "decision-arbitration"
+  | "background-task-approval"
   | "corpus-sample"
   | "corpus-full"
   | "ollama-vector"
@@ -39,6 +40,8 @@ const CHAT_SESSION_PERSISTENCE_SPEC =
   "tests/tauri-e2e/specs/virtual-new-session.spec.ts";
 const DECISION_ARBITRATION_SPEC =
   "tests/tauri-e2e/specs/decision-arbitration.spec.ts";
+const BACKGROUND_TASK_APPROVAL_SPEC =
+  "tests/tauri-e2e/specs/background-task-approval.spec.ts";
 const EXTERNAL_SPEC = "tests/tauri-e2e/specs/recall-external-corpus.spec.ts";
 const EXTERNAL_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts";
@@ -104,6 +107,17 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
     prerequisites: [],
     runtimeRequirements: [
       "Deterministic mock lane; seeds an Agent with decisionArbitration enabled and a mock System One channel",
+    ],
+    includesRestart: false,
+  },
+  {
+    id: "background-task-approval",
+    purpose:
+      "Background sub-agent tool approval: task awaiting_approval, task-center resolve, auto-approve",
+    args: ["--spec", BACKGROUND_TASK_APPROVAL_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Deterministic mock lane; seeds a dispatcher Agent plus a callable sub-Agent with decisionArbitration enabled and a mock System One channel",
     ],
     includesRestart: false,
   },

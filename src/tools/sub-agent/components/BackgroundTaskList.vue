@@ -98,6 +98,8 @@ const items = computed<TaskListItem[]>(() => {
         <button
           type="button"
           class="task-card"
+          data-testid="background-task-row"
+          :data-task-id="item.taskId"
           :class="{ selected: item.taskId === props.selectedTaskId }"
           @click="emit('select', item.taskId)"
         >
@@ -115,7 +117,12 @@ const items = computed<TaskListItem[]>(() => {
               <span class="task-card-name" :title="item.agentName">
                 {{ item.agentName }}
               </span>
-              <span class="state-badge" :class="`state-${item.tone}`">
+              <span
+                class="state-badge"
+                data-testid="background-task-state"
+                :data-task-state="item.state"
+                :class="`state-${item.tone}`"
+              >
                 <span class="state-dot" />
                 {{ item.stateLabel }}
               </span>

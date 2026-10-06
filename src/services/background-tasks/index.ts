@@ -28,3 +28,7 @@ export {
   type ListQueuedTaskMessagesFilter,
   type ListTaskNotificationsFilter,
 } from "./deliveryQueue";
+export {
+  BackgroundTaskApprovalBridgeImpl,
+  backgroundTaskApprovalBridge,
+} from "./approvalBridge";

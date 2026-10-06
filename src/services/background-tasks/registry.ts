@@ -31,6 +31,7 @@ import { createModuleLogger } from "@/utils/logger";
 import type {
   AppendActivityInput,
   BackgroundTaskActivity,
+  BackgroundTaskApprovalRecord,
   BackgroundTaskChangeListener,
   BackgroundTaskChangeEvent,
   BackgroundTaskOperation,
@@ -53,6 +54,9 @@ const CURRENT_RUNTIME_GENERATION = 1;
 
 /** recentActivity 保留的最大条数 */
 const RECENT_ACTIVITY_LIMIT = 8;
+
+/** 每条任务保留的审批审计记录上限（超出淘汰最旧项） */
+const TASK_APPROVAL_LIMIT = 10;
 
 /** lastOperationSummary 与活动摘要的最大长度（超出截断） */
 const SUMMARY_MAX_LENGTH = 120;
@@ -132,7 +136,42 @@ function cloneSnapshot(
   if (snapshot.error) {
     cloned.error = { ...snapshot.error };
   }
+  if (snapshot.approvals) {
+    cloned.approvals = snapshot.approvals.map((record) => ({ ...record }));
+  }
   return cloned;
+}
+
+/** 规整持久化加载的审批记录，过滤损坏项。 */
+function normalizeApprovalRecord(
+  raw: unknown
+): BackgroundTaskApprovalRecord | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const candidate = raw as Partial<BackgroundTaskApprovalRecord>;
+  if (
+    typeof candidate.requestId !== "string" ||
+    typeof candidate.toolId !== "string" ||
+    typeof candidate.methodName !== "string" ||
+    (candidate.decision !== "approved" && candidate.decision !== "rejected")
+  ) {
+    return null;
+  }
+  return {
+    requestId: candidate.requestId,
+    toolId: candidate.toolId,
+    methodName: candidate.methodName,
+    toolName:
+      typeof candidate.toolName === "string" ? candidate.toolName : "",
+    decision: candidate.decision,
+    origin: candidate.origin ?? "manual",
+    jevAction: candidate.jevAction ?? null,
+    risk: candidate.risk ?? null,
+    confidence: candidate.confidence ?? null,
+    reason: candidate.reason ?? null,
+    at: candidate.at ?? nowIso(),
+  };
 }
 
 /**
@@ -178,6 +217,11 @@ function normalizeLoadedSnapshot(raw: unknown): BackgroundTaskSnapshot | null {
     recentActivity: candidate.recentActivity.filter(
       (activity) => !!activity && typeof activity.id === "string"
     ),
+    approvals: Array.isArray(candidate.approvals)
+      ? candidate.approvals
+          .map(normalizeApprovalRecord)
+          .filter((record): record is BackgroundTaskApprovalRecord => !!record)
+      : undefined,
   };
 }
 
@@ -196,6 +240,16 @@ export class BackgroundTaskRegistry {
 
   /** 任务事件监听器 */
   private listeners = new Set<BackgroundTaskChangeListener>();
+
+  /**
+   * executionLaneKey → 当前 lane 上正在执行的任务 ID。
+   *
+   * 同一 lane 串行，但可能存在排队任务（`queued`）与非终态的当前任务共存；
+   * 审批归属必须落在真正执行的那一个，而不是按 updatedAt 倒序取到排队任务。
+   * 该映射由执行方（sub-agent registry）在开始 / 结束生成轮次时维护，
+   * 只存在于内存，随进程生命周期释放。
+   */
+  private executingTaskByLane = new Map<string, string>();
 
   /** 持久化管理器 */
   private persistence: ReturnType<
@@ -347,6 +401,40 @@ export class BackgroundTaskRegistry {
     );
   }
 
+  // ==================== 执行 lane 归属 ====================
+
+  /**
+   * 标记某任务为其 execution lane 上正在执行的任务。
+   *
+   * 由执行方在生成轮次真正开始时调用（排队任务被调度执行时随之更新）。
+   * lane 上同一时刻只应有一个执行任务。
+   */
+  public markExecutingTask(taskId: string): void {
+    const snapshot = this.tasks.get(taskId);
+    if (!snapshot) return;
+    this.executingTaskByLane.set(snapshot.executionLaneKey, taskId);
+  }
+
+  /**
+   * 清除某任务的执行 lane 标记（仅当它仍是该 lane 的执行任务时）。
+   *
+   * 生成轮次结束（完成 / 失败 / 取消）时调用，避免把后续审批误挂到已结束任务。
+   */
+  public clearExecutingTask(taskId: string): void {
+    const snapshot = this.tasks.get(taskId);
+    if (!snapshot) return;
+    if (this.executingTaskByLane.get(snapshot.executionLaneKey) === taskId) {
+      this.executingTaskByLane.delete(snapshot.executionLaneKey);
+    }
+  }
+
+  /** 判断某任务当前是否是其 execution lane 上的执行任务。 */
+  public isExecutingTask(taskId: string): boolean {
+    const snapshot = this.tasks.get(taskId);
+    if (!snapshot) return false;
+    return this.executingTaskByLane.get(snapshot.executionLaneKey) === taskId;
+  }
+
   // ==================== 活动与状态 ====================
 
   /**
@@ -428,7 +516,7 @@ export class BackgroundTaskRegistry {
           snapshot.staleReason = staleReason;
         }
         if (attention !== undefined) {
-          snapshot.attention = attention;
+          snapshot.attention = attention ?? undefined;
         }
         if (phase !== undefined) {
           snapshot.phase = phase;
@@ -491,6 +579,47 @@ export class BackgroundTaskRegistry {
         userMessage: "更新后台任务当前操作失败",
         context: { taskId },
       }
+    );
+  }
+
+  /**
+   * 写入一条工具审批精简审计记录。
+   *
+   * 记录随任务快照持久化，使历史回溯不依赖 llm-chat store 的内存审计 Map；
+   * 同一 requestId 重复写入时覆盖旧记录（例如先从 escalate 建议更新为最终裁决），
+   * 每条任务保留最近 {@link TASK_APPROVAL_LIMIT} 条。
+   *
+   * @returns 更新后的快照拷贝；任务不存在时返回 null
+   */
+  public recordTaskApproval(
+    taskId: string,
+    record: BackgroundTaskApprovalRecord
+  ): BackgroundTaskSnapshot | null {
+    return errorHandler.wrapSync(
+      () => {
+        const snapshot = this.tasks.get(taskId);
+        if (!snapshot) {
+          return null;
+        }
+        const list = snapshot.approvals ?? [];
+        const index = list.findIndex(
+          (item) => item.requestId === record.requestId
+        );
+        if (index >= 0) {
+          list[index] = { ...record };
+        } else {
+          list.push({ ...record });
+        }
+        if (list.length > TASK_APPROVAL_LIMIT) {
+          list.splice(0, list.length - TASK_APPROVAL_LIMIT);
+        }
+        snapshot.approvals = list;
+        snapshot.updatedAt = nowIso();
+        this.emit({ taskId, seq: snapshot.seq, type: "updated" });
+        this.persistDebounced();
+        return cloneSnapshot(snapshot);
+      },
+      { userMessage: "写入后台任务审批记录失败", context: { taskId } }
     );
   }
 

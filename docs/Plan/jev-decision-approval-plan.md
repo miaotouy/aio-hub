@@ -38,7 +38,7 @@
 - VCP Node 协议（`vcpNodeProtocol.ts`）
 - VCP 外部文件传输（`vcpNodeProtocol.ts`）
 
-> 施工状态注记：`sync` / `background` / sub-agent / 后台任务 `awaiting_approval` **尚无生产实现**，属 P4，未接入。VCP 三个调用点虽已传 `source`，但**本波不接入 JEV 仲裁**（VCP 请求无 AIO Agent 绑定，只有 VCP 端 `maid`），详见 §11。因此 §2.6 红线 5 中「VCP 默认只允许 escalate/deny」当前是**前瞻约束**，尚未在运行时生效。
+> 施工状态注记（2026-10-06 调查修正）：sub-agent 的同步与后台模式均复用聊天编排器，已间接进入 `requestApproval`，符合子 Agent 配置时可走 JEV；生产请求仍标记 `source: "orchestrator"`。`sync` / `background` 专用来源标记、任务级 `awaiting_approval` 状态联动与任务中心审批入口待 P4 接入。详见 §12。VCP 三个调用点虽已传 `source`，但**本波不接入 JEV 仲裁**（VCP 请求无 AIO Agent 绑定，只有 VCP 端 `maid`），详见 §11。因此 §2.6 红线 5 中「VCP 默认只允许 escalate/deny」当前是**前瞻约束**，尚未在运行时生效。
 
 **参考项目审批模式差异**：
 
@@ -394,9 +394,9 @@ interface DecisionArbitrationConfig {
 - [~] 设置中心：决策渠道选择（按 `capabilities.decision` 过滤）已完成；**快速连通性测试按钮未实现**
 
 ### P4 — 后台任务与 sub-agent 接入
-- [ ] 先调查后台任务 `awaiting_approval` 实际审批路径是否经过 `requestApproval` 收口（当前 grep 仅编排器与 VCP 三处调用；参考 snow-cli `subAgentToolApproval.ts` 的 sub-agent 逐项确认 + reject 即停模式）
-- [ ] 后台任务接入仲裁，减少长效任务的人工等待中断；跨窗口来源遵循红线 5（默认不自动放行）
-- [ ] 任务中心卡片展示仲裁记录
+- [x] 调查后台任务实际审批路径（2026-10-06）：同步 / 后台 sub-agent 均经聊天编排器间接进入 `requestApproval`，JEV 按子 Agent 配置生效；任务级 `awaiting_approval` 尚未联动。调查结果与后续边界见 §12。
+- [x] 补齐任务审批上下文与状态联动：审批入口按子会话（即 execution lane 身份）解析活动后台任务，命中后来源标记 `background`，并把仲裁中 / 人工等待 / 审批结算投影到任务快照；复用现有仲裁收口。独立运行时与跨窗口来源仍另行定义可信身份和配置归属，遵循红线 5。
+- [x] 任务中心提供逐项批准 / 拒绝、待审批提醒与仲裁记录；`approval_required` 通知复用可靠投递队列，任务快照持久化精简审批审计（`approvals`），历史回溯不依赖 store 的内存审计 Map。父会话审批条按 `parentSessionId` 展示后台子任务升级人工的提醒。
 
 ### P5 — 验证收口
 - [ ] 真实 `jev-latest` 渠道冒烟（含网络失败降级）
@@ -405,6 +405,8 @@ interface DecisionArbitrationConfig {
   - 已在真机运行验证：`bun run test:tauri:e2e -- --preset decision-arbitration` → 6 passing（真实 app 装配 + Rust 代理 + mock 渠道）。
   - 回归中发现并修复一处产品缺陷：`callTypeSafeSystemOneApi`（`src/llm-apis/system-one-core.ts`）对本地 / IP 决策端点未像 chat 路径那样强制走 Rust 代理，导致被前端 capability 限制拦截而 fail-closed 转人工；现按 `useLlmRequest` 同规则对本地 / IP baseUrl 强制 `networkStrategy: "proxy"`，并补单测。
   - 测试夹具修正：mock 的 VCP 工具参数改为随 marker 变化（`{"e2e":"<marker>"}`），避免红线 8 的 60s 指纹去重把不同用例误判为同一请求。
+- [x] `tests/tauri-e2e` 新增 `background-task-approval` preset / spec：种子调度方 + 可被调用子 Agent（`subAgentConfig.enabled` + `decisionArbitration.enabled`），覆盖「子任务升级人工 → 任务中心 `awaiting_approval` → 逐项批准 → 恢复完成 + 审计记录」与「JEV 自动放行不弹审批」两条路径。
+  - 真机运行验证：`bun run test:tauri:e2e -- --preset background-task-approval` → 2 passing。
 - [~] `bun run check:frontend` / `build:vite` / 相关测试通过；`bun run check` 全量待跑
 
 ---
@@ -474,7 +476,7 @@ interface DecisionArbitrationConfig {
 
 **未采纳 / 差异项**：
 
-- mmcode 全局单开关 + 仅在 Task/命令审批单点接入；本计划采用「Agent 级 `enabled` + 全局渠道」分层，并在 `requestApproval` 单一收口覆盖本地 / VCP / 跨窗口 / sub-agent 全部来源；
+- mmcode 全局单开关 + 仅在 Task/命令审批单点接入；本计划采用「Agent 级 `enabled` + 全局渠道」分层，本地聊天与 sub-agent 已复用 `requestApproval` 仲裁收口；VCP 保持人工，跨窗口与独立后台运行时的仲裁归属待定义（§11 / §12）；
 - mmcode 无并发上限、请求指纹防循环与外部来源隔离；本计划补齐（红线 5/8）。
 
 
@@ -512,7 +514,7 @@ interface DecisionArbitrationConfig {
 - §2.3「`executor.ts` 零改动」修正为「审批契约/控制流零改动」，并记录实际新增的两处旁路（`forceApproval` 透传、`approvalOrigin: "rule"`）。
 - 明确 `forceApproval` 属于**审批请求上下文**（`ToolApprovalOptions.forceApproval`），非 executor 私有状态。
 - 移除审查前文档中写死的未来日期，改为不绑定具体日期的表述。
-- §1.2 审批来源列表按生产代码修正：仅编排器 + VCP 三处；`sync` / `background` / sub-agent 未实现，归 P4。
+- §1.2 直接调用点为编排器 + VCP 三处；2026-10-06 进一步沿调用链确认 sub-agent 同步 / 后台模式复用编排器，已间接接入仲裁。P4 待补齐专用来源标记、任务状态与人工处理入口，详见 §12。
 
 ### 11.4 仍未实现（保留为待办）
 
@@ -520,3 +522,81 @@ interface DecisionArbitrationConfig {
 - `set_agent_field` 篡改链路的专项回归测试。
 - 真实 `jev-latest` 渠道冒烟与死区绕过回归。
 - 本地 Agent 真实装配链路（`llmChatStore → setupApprovalArbiter → createDecisionArbiter → resolveArbitrationConfig`）的**真机**集成测试：已由 `bun run test:tauri:e2e -- --preset decision-arbitration` 覆盖（mock 渠道，真实 app 装配）；单元层仍以 mock arbiter 覆盖收口行为。
+
+---
+
+## 12. P4 后台任务审批调查（2026-10-06）
+
+### 12.1 调查结论与实际调用链
+
+**本地 sub-agent 已复用工具审批和 JEV 仲裁；P4 主要补齐任务级状态、人工处理入口与审计关联。** 仅搜索 `requestApproval()` 的直接调用点，会遗漏子会话经聊天服务进入编排器的间接路径。
+
+```text
+sub-agent.ask(mode: foreground / background)
+  → runInExecutionLane(sub-agent:<childSessionId>)
+  → llmChatService.sendMessage({ sessionId, agentId: targetAgent.id, delegationDepth })
+  → llmChatStore.sendMessage → sessionGenerationManager → useChatHandler
+  → useChatExecutor.executeRequest → useToolCallOrchestrator.orchestrate
+  → processCycle → executeToolRequests
+      ├─ 安全策略 block：直接 denied
+      ├─ 静态规则自动批准：直接执行
+      └─ 需要审批：toolCallingStore.requestApproval(childSessionId, request, ...)
+          → 子 Agent 配置启用时 JEV 仲裁
+          → approve / deny 返回；escalate 或关闭仲裁时进入人工待处理队列
+```
+
+依据：[`sub-agent.registry.ts`](../../src/tools/sub-agent/sub-agent.registry.ts) 的同步派发（约 800–824 行）与 `askInBackground`（约 1045–1066 行）、[`useChatExecutor.ts`](../../src/tools/llm-chat/composables/chat/useChatExecutor.ts) 的 Agent 解析与编排器入口、[`useToolCallOrchestrator.ts`](../../src/tools/llm-chat/composables/chat/useToolCallOrchestrator.ts) 的 `requestApproval` 回调（约 279–294 行）。
+
+- 审批携带子会话 ID、`executionAgent.id`、Agent 显示名、`forceApproval` 与该轮 `AbortSignal`。仲裁配置通过 [`setupApprovalArbiter.ts`](../../src/tools/llm-chat/composables/chat/setupApprovalArbiter.ts) 读取**子 Agent 自身**的 `toolCallConfig.decisionArbitration`；仅开启父 Agent 的仲裁配置无法启用子 Agent 仲裁。
+- intent 摘要按子会话读取最近一条 `role: "user"` 消息，通常是派发给子 Agent 的指令；父会话用户消息没有单独透传。
+- 同步 / 后台模式都传 `source: "orchestrator"`。`ask` 的实际 mode 枚举是 `foreground` / `background`（默认 `foreground`）；`ArbitrationSource` 定义的 `sync` / `background` 是另一套来源标记，生产代码尚未使用这两个标记。当前 [`isExternalSource()`](../../src/services/decision-arbiter/types.ts) 将 `orchestrator` 与 `background` 视为本地来源，其余来源视为外部；使用 `sync` 前需明确其含义与安全分类。
+- JEV 仅处理进入审批环节的请求；死区拦截与静态自动批准继续保持 executor 的既有优先级。
+
+### 12.2 已落地能力与任务层缺口
+
+| 项目 | 当前实现 | P4 影响 |
+| --- | --- | --- |
+| 后台派发 | `askInBackground` 创建 detached 子会话，以异步链立即返回 handle；同一子会话按 lane 串行 | 可直接在现有执行链补任务审批上下文 |
+| JEV 仲裁 | 聊天 store 初始化装配 arbiter；子会话复用 `requestApproval` | 避免新增另一套后台仲裁器 |
+| 任务审批状态 | `awaiting_approval`、`approval_requested`、`currentOperation.kind: "approval"` 与 `attention` 已有数据契约和展示映射，执行链尚未写入 | 工具消息可显示等待审批，任务快照仍保留 `running` / `llm_generation` |
+| 人工处理入口 | [`ToolCallingApprovalBar.vue`](../../src/tools/llm-chat/components/message-input/ToolCallingApprovalBar.vue) 只展示当前主会话或带 `externalId` 的请求；后台本地请求未传 `externalId` | 留在父会话时子任务的审批条被过滤；当前需打开子会话处理 |
+| 任务中心 / 伴生视图 | 详情支持查看、打开子会话、取消、追加消息；伴生视图只读，均缺少审批控件 | 透视等待状态后仍需切换子会话才能人工处理 |
+| 审批关联 | `ToolApprovalOptions` / `PendingToolRequest` 未携带 `taskId`；仲裁与审计按工具 `requestId` 保存 | 任务中心缺少明确的 task → request 关联，需建立执行期关联 |
+| 历史审计 | `arbitrationStates` / `auditRecords` 为有容量上限的内存 Map；任务关系 metadata 在轮次结束后写入 | 历史任务仲裁展示需保存摘要或引用，不能只依赖当前 Map |
+| 可靠审批提醒 | `TaskNotification.kind: "approval_required"` 与持久化队列已定义，生产调用未接入 | 复用 [`deliveryQueue.ts`](../../src/services/background-tasks/deliveryQueue.ts) 投递提醒，父会话未加载时保留待处理信息 |
+
+**用户可感知的风险**：子任务进入人工审批时，父会话看不到审批条，任务中心仍显示运行中。默认人工审批持续等待，启用审批超时后才自动拒绝；这会呈现为任务长期停滞。该结论来自代码路径核对，待真实 Tauri 场景确认交互表现。
+
+### 12.3 取消、拒绝与追加指令的现有行为
+
+1. **取消已贯通**：`bindTaskCancellation` 仅对 lane 当前活动任务调用 `llmChatStore.abortSending(childSessionId)`；后者先 `cancelBySession` 清理人工待处理和仲裁中的请求，再中止生成。取消排队任务保留当前活动任务的执行。
+2. **拒绝粒度为单个工具请求**：[`executor.ts`](../../src/tools/tool-calling/core/executor.ts) 先为本批需要审批的请求创建审批 Promise，再串行或并行执行。单项拒绝返回 `denied`，后续请求继续按各自审批结果执行；编排器仅在整批结果均为 `denied`（或静默标记）时停止工具循环。参考 snow-cli 的“任一拒绝即停”会改变当前行为，需单独裁决。
+3. **追加指导等待 lane 释放**：`send_task_message` 与生成共享 lane，保持 append-only 契约。任务卡在审批时，追加消息也会排在该轮生成之后；本轮审批处理应提供专门入口，后续安全点消费沿后台任务 Phase 4 的 runner 方案推进。
+4. **重启以中断恢复**：registry 加载持久化快照后，将非终态任务标记 `interrupted`。审批 Promise 和内存仲裁记录随进程结束释放；后续重试应产生新的执行尝试和审批请求。
+
+### 12.4 独立后台 JS 运行时边界
+
+[`src/background-runtime/main.ts`](../../src/background-runtime/main.ts) 当前标记版本为 `0.1.0-poc`，仅处理 `runtime.ping` / `runtime.getInfo`、ready 事件和心跳，尚未承接子 Agent 推理或工具审批。
+
+当前 `mode: "background"` 的子任务在主窗口的聊天 store / 异步链中执行；独立隐藏窗口虽已具备生命周期与通信壳，其能力不能直接推导为子 Agent 已支持关闭主窗口后持续执行。将 runner 移入该运行时后，需补充跨窗口审批请求 / 响应协议、可信 Agent 与任务身份、取消传递及配置读取边界。
+
+### 12.5 建议的 P4 实施顺序
+
+1. **任务与执行上下文关联**：发送链透传任务 ID、lane 与本地后台来源；沿用 `request.requestId` 作为工具请求和审计主键。人工队列的 `pending.id` 是另一标识，批准 / 拒绝操作需解析到对应队列项，并校验任务仍活动及 lane 归属。
+2. **状态与可操作入口**：仲裁阶段展示等待 AI 审核；升级人工后更新任务 `awaiting_approval`、当前操作、attention 与活动记录。任务中心提供逐项批准 / 拒绝，父会话展示待处理提醒；一批存在多个审批时，待处理集合清空后再恢复执行态。
+3. **审计与可靠提醒**：保存任务所需的精简仲裁摘要，复用可靠通知队列。取消、超时与终态返回统一收敛状态，迟到裁决保持终态保护。
+4. **独立 runner / 跨窗口承接**：与 [`background-agent-observability-and-intervention.md`](../../src/tools/sub-agent/docs/Plan/background-agent-observability-and-intervention.md) 的 Phase 4 runner 抽取协同，另行明确外部来源授权归属与“单项拒绝是否停整个任务”的策略。
+
+**现有验证边界**：`sub-agent.registry.test.ts` mock 了 `llmChatService.sendMessage`，覆盖会话句柄、lane 串行、排队任务取消与追加消息契约；store 仲裁测试覆盖收口行为，两者尚未贯通真实子会话审批链。本次仅调查与回写文档，未执行代码测试或真机验证。后续优先覆盖后台请求的子 Agent 配置归属、人工等待可见与可处理、取消审批后迟到结果无法重新执行这三类行为。
+
+### 12.6 P4 已落地实现（2026-10-06）
+
+在 §12.5 建议顺序的第 1~3 步范围内落地，第 4 步（独立 runner / 跨窗口）保持待办：
+
+1. **任务与执行上下文关联（实现偏差）**：未沿 `sendMessage` 链逐层透传 `taskId`，而是在执行方于生成轮次开始时把该 lane 的执行任务登记到 registry（`markExecutingTask` / `clearExecutingTask`），审批收口点再用审批请求的 `sessionId`（子会话 ID，即 `executionLaneKey = sub-agent:<childSessionId>` 的身份）反查该 lane 上**正在执行**的任务。**同一 lane 串行执行，但同一子会话可同时存在多个非终态任务**（运行中的任务 + `queued` 排队任务），因此不存在「同一子会话至多一个非终态任务」的前提；`resolveActiveTask()` 优先命中执行中的任务，无法确定执行归属时放弃关联而不是误挂到排队任务。`request.requestId` 仍为审批与审计主键。该校验点见 [`approvalBridge.ts`](../../src/services/background-tasks/approvalBridge.ts) 的 `resolveActiveTask()`。
+2. **桥接装配**：新增 `BackgroundTaskApprovalBridge` 接口（[`background-tasks/types.ts`](../../src/services/background-tasks/types.ts)），由 `setupApprovalArbiter()` 注入 `toolCallingStore`。审批入口在仲裁中 / 升级人工 / 结算三个节点回调：升级人工时任务进入 `awaiting_approval` + `attention`，追加 `approval_requested` 活动并投递 `approval_required` 可靠通知；一批审批全部结算后才恢复 `running`，每条请求在自身结算时确认对应通知（避免多项审批残留 pending 通知）。
+3. **审计持久化**：任务快照新增 `approvals: BackgroundTaskApprovalRecord[]`（每任务保留最近 10 条），在结算时写入精简审计（结果 / 来源 / JEV 动作与风险 / 原因），不再依赖 store 有容量上限的内存审计 Map。**最终处理来源与 JEV 证据分别保留**：escalate 后人工 / 超时 / 取消结算时，最终 `origin` 取本次处理来源，此前的 JEV `arbiter` 快照（action / risk / confidence / reason）从原审计记录保留，任务历史可回放升级人工的仲裁依据。
+4. **人工入口**：任务中心详情新增「工具审批」区，逐项批准 / 拒绝未决请求，并在批准前展示请求参数、解析 / 验证错误与此前的 JEV 仲裁意见；回放审计记录。父会话审批条按 `PendingToolRequest.parentSessionId` 展示后台子任务的升级人工提醒，用户无需切换到子会话。JEV 自动裁决（approve / deny）后清除该请求的「等待 AI 审核」当前操作，不残留等待态。
+5. **e2e**：`tests/tauri-e2e/specs/background-task-approval.spec.ts`（preset `background-task-approval`）覆盖 escalate → 任务中心批准 → 恢复完成 + 审计记录，以及 JEV 自动放行不弹审批两条路径；真机运行 2 passing。
+
+**仍需后续**：独立后台运行时 / 跨窗口来源的可信身份与配置归属；任务中心对 `approval_required` 通知的独立展示与手动确认；多项审批的「单项拒绝是否停整个任务」策略裁决。

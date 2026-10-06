@@ -186,6 +186,26 @@ Each marker uses a distinct VCP tool argument (`{"e2e":"<marker>"}`) so the
 in-window arbitration fingerprint dedup (anti-loop red line) does not collapse
 otherwise-identical test requests.
 
+## Background task approval lane
+
+`specs/background-task-approval.spec.ts` drives a background sub-agent tool
+approval through the real Chat UI and task center. The runner seeds a dispatcher
+Agent (`mode: "auto"`, only `sub-agent.ask` enabled) plus a callable sub-Agent
+(`subAgentConfig.enabled = true`, `mode: "manual"`, `decisionArbitration.enabled
+= true`) and the same mock System One channel as the arbitration lane; the mock
+answers a `[e2e:bg:<child-marker>]` dispatcher turn with a `sub-agent.ask`
+background call whose delegated message carries the child JEV marker:
+
+```powershell
+bun run test:tauri:e2e -- --preset background-task-approval
+```
+
+The lane covers two visible paths: an escalated sub-agent approval that projects
+the task to `awaiting_approval`, surfaces a reminder in the parent session's
+approval bar, resolves from the task center detail, resumes execution, and
+writes back a persisted approval record; and a low-risk sub-agent call that JEV
+auto-approves without ever opening approval UI.
+
 Run the deterministic Recall workflow directly:
 
 ```powershell

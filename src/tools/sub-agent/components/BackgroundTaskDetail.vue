@@ -32,8 +32,15 @@ import {
 } from "lucide-vue-next";
 import {
   backgroundTaskRegistry,
+  type BackgroundTaskApprovalRecord,
   type BackgroundTaskSnapshot,
 } from "@/services/background-tasks";
+import {
+  describeArbitration,
+  type ArbitrationPresentation,
+} from "@/services/decision-arbiter";
+import { useToolCallingStore } from "@/tools/llm-chat/stores/toolCallingStore";
+import type { ParsedToolRequest } from "@/tools/tool-calling/types";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { toolRegistryManager } from "@/services/registry";
 import type SubAgentRegistry from "../sub-agent.registry";
@@ -150,6 +157,85 @@ const canCancel = computed(
   () => !!props.task && isActiveTaskState(props.task.state)
 );
 
+// ----- P4：任务级工具审批（逐项批准 / 拒绝 + 仲裁记录回放） -----
+const toolCallingStore = useToolCallingStore();
+
+/** 当前任务未决的审批请求（由 store 按 taskId 关联）。 */
+const pendingApprovals = computed(() => {
+  const taskId = props.task?.taskId;
+  if (!taskId) return [];
+  return toolCallingStore.pendingRequests.filter((r) => r.taskId === taskId);
+});
+
+/** 已结算的审批审计记录（最新在上）。 */
+const settledApprovals = computed<BackgroundTaskApprovalRecord[]>(() =>
+  [...(props.task?.approvals ?? [])].reverse()
+);
+
+const APPROVAL_ORIGIN_LABELS: Record<string, string> = {
+  rule: "规则自动放行",
+  jev: "JEV 仲裁",
+  manual: "人工确认",
+  timeout: "审批超时",
+  cancelled: "已取消",
+};
+
+function approvalOriginLabel(origin: string): string {
+  return APPROVAL_ORIGIN_LABELS[origin] ?? origin;
+}
+
+function approvalRiskText(record: BackgroundTaskApprovalRecord): string {
+  if (record.risk === null || record.risk === undefined) return "";
+  return `风险 ${Math.round(Math.min(1, Math.max(0, record.risk)) * 100)}%`;
+}
+
+/** 待审批请求的参数预览（批准前确认实际操作内容）。 */
+function approvalArgsText(request: ParsedToolRequest): string {
+  const entries = Object.entries(request.args ?? {});
+  return entries.map(([key, value]) => `${key}: ${value}`).join(", ");
+}
+
+/** 待审批请求的解析 / 验证错误提示。 */
+function approvalValidationError(request: ParsedToolRequest): string {
+  if (request.validation?.isValid !== false) return "";
+  return request.validation.reason || "解析或验证错误";
+}
+
+/** 待审批请求此前 escalate 保留的 JEV 仲裁证据。 */
+function arbitrationFor(requestId: string): ArbitrationPresentation | null {
+  const presentation = describeArbitration(
+    toolCallingStore.getAuditRecord(requestId)
+  );
+  return presentation?.kind === "jev" ? presentation : null;
+}
+
+interface PendingApprovalView {
+  id: string;
+  request: ParsedToolRequest;
+  argsText: string;
+  validationError: string;
+  jev: ArbitrationPresentation | null;
+}
+
+/** 待审批项视图：附带参数、验证错误与 JEV 仲裁意见，供批准前核对。 */
+const pendingApprovalViews = computed<PendingApprovalView[]>(() =>
+  pendingApprovals.value.map((item) => ({
+    id: item.id,
+    request: item.request,
+    argsText: approvalArgsText(item.request),
+    validationError: approvalValidationError(item.request),
+    jev: arbitrationFor(item.request.requestId),
+  }))
+);
+
+function approveTaskApproval(id: string): void {
+  toolCallingStore.approveRequest(id);
+}
+
+function rejectTaskApproval(id: string): void {
+  toolCallingStore.rejectRequest(id);
+}
+
 const showAppendInput = ref(false);
 const appendDraft = ref("");
 const isAppending = ref(false);
@@ -261,6 +347,8 @@ async function handleCancelTask(): Promise<void> {
             </span>
             <span
               class="state-badge"
+              data-testid="task-detail-state"
+              :data-task-state="props.task.state"
               :class="`state-${statePresentation.tone}`"
             >
               <span class="state-dot" />
@@ -407,6 +495,118 @@ async function handleCancelTask(): Promise<void> {
           </span>
           <span class="result-text">{{ props.task.error.message }}</span>
         </div>
+      </section>
+
+      <!-- 工具审批：逐项批准 / 拒绝与仲裁记录 -->
+      <section
+        v-if="pendingApprovals.length > 0 || settledApprovals.length > 0"
+        class="detail-section"
+      >
+        <h4 class="detail-section-title">
+          工具审批
+          <span v-if="pendingApprovals.length > 0" class="detail-section-hint">
+            {{ pendingApprovals.length }} 项待处理
+          </span>
+        </h4>
+
+        <div
+          v-for="item in pendingApprovalViews"
+          :key="item.id"
+          class="approval-item"
+          data-testid="task-pending-approval"
+        >
+          <div class="approval-item-main">
+            <div class="approval-item-head">
+              <span class="approval-item-tool">
+                {{ item.request.methodDisplayName || item.request.toolName }}
+              </span>
+              <span class="approval-item-desc">
+                {{ item.request.toolId }}.{{ item.request.methodName }}
+              </span>
+            </div>
+            <div v-if="item.validationError" class="approval-item-error">
+              {{ item.validationError }}
+            </div>
+            <div
+              v-if="item.argsText"
+              class="approval-item-args"
+              :title="item.argsText"
+            >
+              {{ item.argsText }}
+            </div>
+            <div
+              v-if="item.jev"
+              class="approval-item-jev"
+              :class="{ 'is-degraded': item.jev.degraded }"
+              data-testid="task-approval-jev"
+            >
+              <span class="approval-item-jev-dot" />
+              <template v-if="item.jev.degraded">
+                Jev 离线 · 安全兜底
+              </template>
+              <template v-else>
+                Jev 建议人工确认
+                <template v-if="item.jev.riskPercent != null">
+                  · 风险 {{ item.jev.riskPercent }}%
+                </template>
+                <template v-if="item.jev.intentPercent != null">
+                  · 意图 {{ item.jev.intentPercent }}%
+                </template>
+              </template>
+            </div>
+            <div v-if="item.jev?.reason" class="approval-item-jev-reason">
+              {{ item.jev.reason }}
+            </div>
+          </div>
+          <div class="approval-item-actions">
+            <button
+              type="button"
+              class="approval-approve"
+              data-testid="task-approval-approve"
+              @click="approveTaskApproval(item.id)"
+            >
+              允许
+            </button>
+            <button
+              type="button"
+              class="approval-reject"
+              data-testid="task-approval-reject"
+              @click="rejectTaskApproval(item.id)"
+            >
+              拒绝
+            </button>
+          </div>
+        </div>
+
+        <ul v-if="settledApprovals.length > 0" class="approval-history">
+          <li
+            v-for="record in settledApprovals"
+            :key="record.requestId"
+            class="approval-history-item"
+            data-testid="task-approval-record"
+          >
+            <span
+              class="approval-history-dot"
+              :class="
+                record.decision === 'approved'
+                  ? 'is-approved'
+                  : 'is-rejected'
+              "
+            />
+            <span class="approval-history-tool">
+              {{ record.toolName || record.methodName }}
+            </span>
+            <span class="approval-history-origin">
+              {{ approvalOriginLabel(record.origin) }}
+            </span>
+            <span v-if="record.jevAction" class="approval-history-jev">
+              JEV {{ record.jevAction }}
+            </span>
+            <span v-if="approvalRiskText(record)" class="approval-history-risk">
+              {{ approvalRiskText(record) }}
+            </span>
+          </li>
+        </ul>
       </section>
 
       <!-- 活动流水 -->
@@ -821,6 +1021,182 @@ async function handleCancelTask(): Promise<void> {
   border-color: color-mix(in srgb, var(--danger-color) 50%, transparent);
 }
 
+/* ---------- 工具审批 ---------- */
+.approval-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: var(--border-width) solid
+    color-mix(in srgb, var(--warning-color) 50%, var(--border-color));
+  background-color: color-mix(in srgb, var(--warning-color) 8%, var(--card-bg));
+}
+
+.approval-item + .approval-item {
+  margin-top: 6px;
+}
+
+.approval-item-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approval-item-tool {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-item-desc {
+  font-size: 11px;
+  color: var(--text-color-light);
+  font-family: var(--font-mono, monospace);
+}
+
+.approval-item-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.approval-item-error {
+  font-size: 11px;
+  color: var(--danger-color);
+  word-break: break-word;
+}
+
+.approval-item-args {
+  font-size: 11px;
+  color: var(--text-color-light);
+  font-family: var(--font-mono, monospace);
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.approval-item-jev {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--warning-color);
+  background-color: color-mix(in srgb, var(--warning-color) 14%, transparent);
+}
+
+.approval-item-jev.is-degraded {
+  color: var(--info-color);
+  background-color: color-mix(in srgb, var(--info-color) 14%, transparent);
+}
+
+.approval-item-jev-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  flex-shrink: 0;
+}
+
+.approval-item-jev-reason {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-color-light);
+  word-break: break-word;
+}
+
+.approval-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.approval-approve,
+.approval-reject {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.approval-approve {
+  color: var(--success-color);
+  background-color: color-mix(in srgb, var(--success-color) 10%, transparent);
+  border-color: var(--success-color);
+}
+
+.approval-approve:hover {
+  background-color: color-mix(in srgb, var(--success-color) 20%, transparent);
+}
+
+.approval-reject {
+  color: var(--danger-color);
+  background-color: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  border-color: var(--danger-color);
+}
+
+.approval-reject:hover {
+  background-color: color-mix(in srgb, var(--danger-color) 20%, transparent);
+}
+
+.approval-history {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approval-history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px;
+  font-size: 12px;
+  color: var(--text-color-light);
+}
+
+.approval-history-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--info-color);
+}
+
+.approval-history-dot.is-approved {
+  background-color: var(--success-color);
+}
+
+.approval-history-dot.is-rejected {
+  background-color: var(--danger-color);
+}
+
+.approval-history-tool {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.approval-history-jev,
+.approval-history-risk {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- 活动流水 ---------- */
 .activity-list {
   list-style: none;
@@ -862,6 +1238,14 @@ async function handleCancelTask(): Promise<void> {
 }
 
 .activity-dot.kind-state_changed {
+  background-color: var(--success-color);
+}
+
+.activity-dot.kind-approval_requested {
+  background-color: var(--warning-color);
+}
+
+.activity-dot.kind-approval_resolved {
   background-color: var(--success-color);
 }
 

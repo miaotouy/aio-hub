@@ -26,6 +26,11 @@ import type {
   ArbitrationState,
   ApprovalArbiter,
 } from "@/services/decision-arbiter/types";
+import type {
+  BackgroundTaskApprovalBridge,
+  BackgroundTaskApprovalInfo,
+  BackgroundTaskApprovalSettlement,
+} from "@/services/background-tasks/types";
 import { createModuleLogger } from "@/utils/logger";
 import { useChatSettings } from "../composables/settings/useChatSettings";
 
@@ -64,6 +69,12 @@ export interface PendingToolRequest {
   /** 是否跟随全局审批超时设置，显式 timeoutMs 的请求不受开关变化影响。 */
   usesDefaultTimeout: boolean;
   resolve: (result: ToolApprovalResult) => void;
+  /** 归属后台任务 ID（P4：子会话审批时由桥接解析写入）。 */
+  taskId?: string;
+  /** 归属后台任务的父会话 ID（用于在父会话审批条中展示提醒）。 */
+  parentSessionId?: string | null;
+  /** 是否命中安全策略强制审批（审批上下文的一部分）。 */
+  forceApproval?: boolean;
 }
 
 interface PendingLifecycle {
@@ -77,10 +88,63 @@ interface PendingLifecycle {
 // ---------------------------------------------------------------------------
 
 let arbiterInstance: ApprovalArbiter | null = null;
+let taskApprovalBridge: BackgroundTaskApprovalBridge | null = null;
 
 /** 注入审批仲裁器（llm-chat 初始化时装配）；传 null 可卸载。 */
 export function setApprovalArbiter(arbiter: ApprovalArbiter | null): void {
   arbiterInstance = arbiter;
+}
+
+/** 构造后台任务审批事件载荷。 */
+function buildApprovalInfo(
+  taskId: string,
+  sessionId: string,
+  request: ParsedToolRequest,
+  forceApproval: boolean
+): BackgroundTaskApprovalInfo {
+  const displayName =
+    request.methodDisplayName || request.toolName || request.methodName;
+  return {
+    taskId,
+    requestId: request.requestId,
+    childSessionId: sessionId,
+    toolId: request.toolId,
+    methodName: request.methodName,
+    toolName: request.toolName,
+    displayName,
+    forceApproval,
+    summary: `${displayName}（${request.toolId}.${request.methodName}）`,
+  };
+}
+
+/** 由审批结果与旁路审计构造结算载荷。 */
+function buildApprovalSettlement(
+  result: ToolApprovalResult,
+  audit?: ArbiterAuditInfo
+): BackgroundTaskApprovalSettlement {
+  // 最终处理来源取本次审计；JEV 证据可能来自本次（origin=jev）或此前
+  // escalate 保留在记录里的仲裁快照，二者都通过 audit.arbiter 读取。
+  const arbiter = audit?.arbiter;
+  return {
+    decision: result,
+    origin: audit?.origin ?? (result === "rejected" ? "cancelled" : "manual"),
+    jevAction: arbiter?.action ?? null,
+    risk: arbiter?.risk ?? null,
+    confidence: arbiter?.confidence ?? null,
+    reason: arbiter?.reason ?? null,
+  };
+}
+
+/**
+ * 注入后台任务审批桥接（P4）；传 null 可卸载。
+ *
+ * 注入后，审批入口按会话解析活动后台任务：来源标记为 `background`，
+ * 并在仲裁中 / 升级人工 / 结算时回调桥接，把状态投影到任务快照。
+ */
+export function setTaskApprovalBridge(
+  bridge: BackgroundTaskApprovalBridge | null
+): void {
+  taskApprovalBridge = bridge;
 }
 
 export const useToolCallingStore = defineStore("toolCalling", () => {
@@ -160,10 +224,31 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
     if (index === -1) return false;
     const [pending] = pendingRequests.value.splice(index, 1);
     cleanupLifecycle(id);
+    const requestId = pending.request.requestId;
+    let finalAudit = audit;
     if (audit) {
-      setAuditRecord(pending.request.requestId, audit);
+      // 人工 / 超时 / 取消结算时不得覆盖此前 escalate 留下的 JEV 证据：
+      // 最终来源取本次审计，仲裁快照从原记录保留，任务历史才能回放升级依据。
+      const previous = auditRecords.value.get(requestId);
+      const nextAudit: ArbiterAuditInfo =
+        audit.origin !== "jev" && previous?.origin === "jev" && previous.arbiter
+          ? { ...audit, arbiter: previous.arbiter }
+          : audit;
+      finalAudit = nextAudit;
+      setAuditRecord(requestId, nextAudit);
     }
     pending.resolve(result);
+    if (pending.taskId && taskApprovalBridge) {
+      taskApprovalBridge.onApprovalSettled(
+        buildApprovalInfo(
+          pending.taskId,
+          pending.sessionId,
+          pending.request,
+          pending.forceApproval === true
+        ),
+        buildApprovalSettlement(result, finalAudit)
+      );
+    }
     logger.info("工具审批请求已结束", {
       id,
       externalId: pending.externalId,
@@ -238,11 +323,24 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
   ): Promise<ToolApprovalResult> {
     if (options.signal?.aborted) return "rejected";
 
+    // P4：按会话解析活动后台任务；命中后来源标记为 background（本地来源），
+    // 并把仲裁中 / 人工等待 / 结算投影到任务快照。
+    const resolvedTask = taskApprovalBridge?.resolveActiveTask(sessionId) ?? null;
+    const approvalForceApproval = options.forceApproval === true;
+    const approvalInfo = resolvedTask
+      ? buildApprovalInfo(
+          resolvedTask.taskId,
+          sessionId,
+          request,
+          approvalForceApproval
+        )
+      : null;
+
     const arbiter = arbiterInstance;
     const arbitrationContext: ArbitrationContext = {
       request,
-      source: options.source ?? "orchestrator",
-      forceApproval: options.forceApproval === true,
+      source: options.source ?? (resolvedTask ? "background" : "orchestrator"),
+      forceApproval: approvalForceApproval,
       sessionId,
       agentId: options.agentId,
       agentName: options.agentName,
@@ -269,6 +367,9 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
       setArbitrationState(requestId, "arbitrating");
       arbitrationSessionIndex.set(requestId, sessionId);
       arbitrationAbortControllers.set(requestId, arbitrationController);
+      if (approvalInfo) {
+        taskApprovalBridge?.onApprovalArbitrating(approvalInfo);
+      }
       // 调用方 signal 中止时联动中止仲裁
       const onCallerAbort = () => arbitrationController.abort();
       options.signal?.addEventListener("abort", onCallerAbort, { once: true });
@@ -324,11 +425,18 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
         }
 
         if (decision?.action === "approve") {
-          setArbitrationState(requestId, "auto-approved");
-          setAuditRecord(requestId, {
+          const audit: ArbiterAuditInfo = {
             origin: "jev",
             arbiter: decision.audit ?? undefined,
-          });
+          };
+          setArbitrationState(requestId, "auto-approved");
+          setAuditRecord(requestId, audit);
+          if (approvalInfo) {
+            taskApprovalBridge?.onApprovalSettled(
+              approvalInfo,
+              buildApprovalSettlement("approved", audit)
+            );
+          }
           logger.info("JEV 自动放行", {
             requestId,
             toolId: request.toolId,
@@ -337,11 +445,18 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
           return "approved";
         }
         if (decision?.action === "deny") {
-          setArbitrationState(requestId, "auto-denied");
-          setAuditRecord(requestId, {
+          const audit: ArbiterAuditInfo = {
             origin: "jev",
             arbiter: decision.audit ?? undefined,
-          });
+          };
+          setArbitrationState(requestId, "auto-denied");
+          setAuditRecord(requestId, audit);
+          if (approvalInfo) {
+            taskApprovalBridge?.onApprovalSettled(
+              approvalInfo,
+              buildApprovalSettlement("rejected", audit)
+            );
+          }
           logger.info("JEV 风险拦截", {
             requestId,
             toolId: request.toolId,
@@ -378,11 +493,20 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
         expiresAt: null,
         usesDefaultTimeout: options.timeoutMs === undefined,
         resolve,
+        taskId: resolvedTask?.taskId,
+        parentSessionId: resolvedTask?.parentSessionId ?? null,
+        forceApproval: approvalForceApproval,
       };
       pendingRequests.value.push(pending);
+      if (approvalInfo) {
+        taskApprovalBridge?.onApprovalPending(approvalInfo);
+      }
 
       const abortHandler = options.signal
-        ? () => settleRequest(id, "rejected", "调用已取消")
+        ? () =>
+            settleRequest(id, "rejected", "调用已取消", {
+              origin: "cancelled",
+            })
         : undefined;
       if (options.signal && abortHandler) {
         options.signal.addEventListener("abort", abortHandler, { once: true });

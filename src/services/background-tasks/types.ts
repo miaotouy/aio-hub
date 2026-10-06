@@ -118,6 +118,7 @@ export type BackgroundTerminalTaskState =
  * - `llm_started` / `llm_progress`：模型生成开始与进度；
  * - `tool_started` / `tool_progress` / `tool_finished`：工具调用生命周期；
  * - `approval_requested`：触发敏感审批等待；
+ * - `approval_resolved`：审批得到裁决（自动或人工）；
  * - `user_intervention`：用户追加指导/介入；
  * - `state_changed`：任务状态流转；
  * - `error`：发生错误。
@@ -130,6 +131,7 @@ export type BackgroundActivityKind =
   | "tool_progress"
   | "tool_finished"
   | "approval_requested"
+  | "approval_resolved"
   | "user_intervention"
   | "state_changed"
   | "error";
@@ -221,6 +223,109 @@ export type BackgroundTaskStaleReason =
 export type BackgroundTaskAttention = "awaiting_input" | "awaiting_approval";
 
 /**
+ * 审批放行来源。
+ *
+ * 与 decision-arbiter 的 `ArbiterAuditInfo.origin` 对齐：规则自动放行、JEV
+ * 仲裁放行/拦截、人工批准/拒绝、超时与取消。用于任务中心回溯放行凭证。
+ */
+export type BackgroundTaskApprovalOrigin =
+  | "rule"
+  | "jev"
+  | "manual"
+  | "timeout"
+  | "cancelled";
+
+/**
+ * 后台任务内一次工具审批的精简审计记录（随任务快照持久化）。
+ *
+ * 任务审批发生在子会话的 llm-chat store 中，其仲裁等待态与审计映射是
+ * 有容量上限的内存 Map；本记录在审批结算时写入任务快照，使任务中心与
+ * 历史回溯不依赖该内存生命周期。
+ */
+export interface BackgroundTaskApprovalRecord {
+  /** 工具请求 ID（与消息卡片 requestId 一致）。 */
+  requestId: string;
+  /** 工具 ID（如 json-formatter）。 */
+  toolId: string;
+  /** 工具方法名。 */
+  methodName: string;
+  /** 工具展示名。 */
+  toolName: string;
+  /** 最终裁决结果。 */
+  decision: "approved" | "rejected";
+  /** 放行/拒绝来源。 */
+  origin: BackgroundTaskApprovalOrigin;
+  /** JEV 裁决动作（origin = "jev" 时有值）。 */
+  jevAction?: "approve" | "deny" | "escalate" | null;
+  /** JEV 风险概率（0~1，无有效值为 null）。 */
+  risk?: number | null;
+  /** JEV 裁决置信度（0~1，无有效值为 null）。 */
+  confidence?: number | null;
+  /** JEV 裁决原因或人工处理说明。 */
+  reason?: string | null;
+  /** 结算时间（ISO 8601 字符串）。 */
+  at: string;
+}
+
+/**
+ * 审批上下文（桥接事件载荷）。
+ *
+ * 由 toolCallingStore 在审批入口构造，携带已解析到的后台任务归属；不含
+ * 运行时对象，便于纯逻辑单测。
+ */
+export interface BackgroundTaskApprovalInfo {
+  /** 归属后台任务 ID。 */
+  taskId: string;
+  /** 工具请求 ID。 */
+  requestId: string;
+  /** 子会话 ID（审批发生在该会话内）。 */
+  childSessionId: string;
+  toolId: string;
+  methodName: string;
+  toolName: string;
+  /** 方法展示名（缺失时回退 toolName）。 */
+  displayName: string;
+  /** 是否命中安全策略强制审批。 */
+  forceApproval: boolean;
+  /** 面向任务中心的单行摘要。 */
+  summary: string;
+}
+
+/** 审批结算载荷（桥接回写任务快照）。 */
+export interface BackgroundTaskApprovalSettlement {
+  decision: "approved" | "rejected";
+  origin: BackgroundTaskApprovalOrigin;
+  jevAction?: "approve" | "deny" | "escalate" | null;
+  risk?: number | null;
+  confidence?: number | null;
+  reason?: string | null;
+}
+
+/**
+ * 后台任务审批桥接契约。
+ *
+ * toolCallingStore 在审批入口按会话解析活动后台任务，并在仲裁中 / 升级人工 /
+ * 结算三个节点回调本接口。实现方（backgroundTaskApprovalBridge）负责把状态
+ * 投影到任务快照、追加活动与投递可靠通知。store 侧只依赖该接口，不感知任务
+ * 数据模型与持久化细节。
+ */
+export interface BackgroundTaskApprovalBridge {
+  /** 按子会话解析当前活动的后台任务（无则 null）。 */
+  resolveActiveTask(
+    sessionId: string
+  ): { taskId: string; parentSessionId: string | null } | null;
+  /** 仲裁开始（JEV 渠道调用期间）。 */
+  onApprovalArbitrating(info: BackgroundTaskApprovalInfo): void;
+  /** 升级人工 / 无仲裁直接进入人工等待。 */
+  onApprovalPending(info: BackgroundTaskApprovalInfo): void;
+  /** 审批结算（自动放行 / 自动拦截 / 人工 / 超时 / 取消）。 */
+  onApprovalSettled(
+    info: BackgroundTaskApprovalInfo,
+    settlement: BackgroundTaskApprovalSettlement
+  ): void;
+}
+
+/**
  * 后台任务快照。
  *
  * “事件流 + 当前快照”组合中的当前快照部分：调用方先读 snapshot 与 seq，
@@ -281,6 +386,8 @@ export interface BackgroundTaskSnapshot {
   result?: BackgroundTaskResult;
   /** 任务错误（failed / cancelled 终态可附带） */
   error?: BackgroundTaskError;
+  /** 工具审批精简审计记录（只保留最近若干条，随快照持久化） */
+  approvals?: BackgroundTaskApprovalRecord[];
 }
 
 /**
@@ -400,8 +507,8 @@ export interface UpdateTaskStatePatch {
   stale?: boolean;
   /** 停滞原因 */
   staleReason?: BackgroundTaskStaleReason;
-  /** 需要关注标记 */
-  attention?: BackgroundTaskAttention;
+  /** 需要关注标记；传 null 显式清除 */
+  attention?: BackgroundTaskAttention | null;
   /** 任务所处阶段 */
   phase?: string;
 }

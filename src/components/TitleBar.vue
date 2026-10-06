@@ -813,6 +813,7 @@ watch(
           <template #reference>
             <button
               class="task-capsule"
+              data-testid="task-center-capsule"
               :title="`后台任务运行中：${activeTaskCount}`"
               @click="openTaskCenter"
             >

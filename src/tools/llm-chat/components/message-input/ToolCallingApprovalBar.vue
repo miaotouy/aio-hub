@@ -63,7 +63,12 @@ function formatApprovalWait(expiresAt: number | null): string {
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter(
-    (r) => r.sessionId === llmChatStore.currentSessionId || !!r.externalId
+    (r) =>
+      r.sessionId === llmChatStore.currentSessionId ||
+      !!r.externalId ||
+      // P4：父会话展示后台子任务升级人工的审批，避免用户必须切到子会话。
+      (!!r.parentSessionId &&
+        r.parentSessionId === llmChatStore.currentSessionId)
   );
 });
 

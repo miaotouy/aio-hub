@@ -29,6 +29,41 @@ interface OpenAiMockHandlerOptions {
 const JEV_MARKER_PATTERN = /\[e2e:jev:([a-z-]+)\]/;
 const JEV_TOOL_RESULT_MARKER = "[[AIO工具调用结果信息汇总:";
 
+/** 后台任务派发标记：调度方用户消息携带，触发 sub-agent.ask 工具调用。 */
+const BACKGROUND_MARKER_PATTERN = /\[e2e:bg:([a-z-]+)\]/;
+
+/** 后台任务审批 e2e 固定的子智能体 ID（与 fixture 一致）。 */
+const BACKGROUND_CHILD_AGENT_ID = "e2e-bg-child";
+
+/** 后台派发标记 → 委托给子智能体的 JEV 标记。 */
+const BACKGROUND_CHILD_MARKERS: Record<string, string> = {
+  approve: "approve",
+  escalate: "escalate",
+};
+
+function extractBackgroundMarker(messages: MockChatMessage[]): string | null {
+  for (const message of messages) {
+    const match = BACKGROUND_MARKER_PATTERN.exec(
+      extractMessageText(message.content)
+    );
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/** 构造调度方派发后台子任务的 VCP 工具调用块。 */
+function buildBackgroundDispatchToolCall(childMarker: string): string {
+  return [
+    "<<<[TOOL_REQUEST]>>>",
+    "tool_name:「始」sub-agent「末」,",
+    "command:「始」ask「末」,",
+    `agentId:「始」${BACKGROUND_CHILD_AGENT_ID}「末」,`,
+    "mode:「始」background「末」,",
+    `message:「始」执行后台任务 [e2e:jev:${childMarker}]「末」`,
+    "<<<[END_TOOL_REQUEST]>>>",
+  ].join("\n");
+}
+
 type JevMarker =
   | "approve"
   | "deny"
@@ -283,6 +318,54 @@ export function createOpenAiMockHandler(
         : [];
       const stream = body.stream === true;
       rawChatRequests.push({ requestId, messages });
+
+      // 后台任务审批 E2E：调度方按 bg 标记派发 sub-agent.ask（background）。
+      const backgroundMarker = extractBackgroundMarker(messages);
+      if (backgroundMarker) {
+        const toolResultPresent = hasToolResult(messages);
+        const childMarker =
+          BACKGROUND_CHILD_MARKERS[backgroundMarker] ?? "escalate";
+        const content = toolResultPresent
+          ? "E2E 后台任务已派发。"
+          : buildBackgroundDispatchToolCall(childMarker);
+        const backgroundSummary = {
+          requestId,
+          at: new Date().toISOString(),
+          endpoint: url.pathname,
+          model: typeof body.model === "string" ? body.model : "e2e-chat",
+          stream,
+          messages: summarizeMessages(messages),
+          scenarioId: `e2e:bg:${backgroundMarker}${toolResultPresent ? ":result" : ""}`,
+          scenarioMatch: true,
+          status: 200,
+          durationMs: Number((performance.now() - startedAt).toFixed(3)),
+        };
+        requests.push({ type: "chat", ...backgroundSummary });
+        options.writeChatSummary?.(backgroundSummary);
+        if (stream) {
+          return new Response(createSsePayload([content], "stop"), {
+            headers: {
+              "content-type": "text/event-stream",
+              "cache-control": "no-cache",
+              "access-control-allow-origin": "*",
+              "x-e2e-request-id": requestId,
+            },
+          });
+        }
+        return json({
+          id: "chatcmpl-e2e",
+          object: "chat.completion",
+          model: body.model ?? "e2e-chat",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        });
+      }
 
       // JEV 决策仲裁 E2E：按用户消息标记返回 VCP 工具调用或收尾文本。
       const jevMarker = extractJevMarker(messages);

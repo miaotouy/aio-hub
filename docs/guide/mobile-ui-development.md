@@ -1,6 +1,6 @@
 # 移动端 UI 开发指南
 
-本文是移动端新增和修改 UI 的当前规范。设计语言的完整决议、迁移理由与修订记录见 [`mobile-design-language.md`](./mobile-design-language.md)。
+本文是移动端新增和修改 UI 的当前规范。设计语言的完整决议、迁移理由与修订记录见 [`mobile-design-language.md`](./mobile-design-language.md)。页面/组件级的具体数值契约（间距、排版、圆角、颜色 token、组件规格、页面模板、变量迁移映射表）见 [`mobile-ui-design-spec.md`](./mobile-ui-design-spec.md)。
 
 ## 1. 分层原则
 

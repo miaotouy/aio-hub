@@ -8,7 +8,7 @@
 | [`architecture/`](./architecture/) | 已实施并需要长期维护的架构、运行契约和验证边界 |
 | [`archive/`](./archive/)           | 历史盘点、调研和被当前计划取代的材料           |
 
-工具级实现以对应的 [`ARCHITECTURE.md`](../src/tools/) 为准；项目级 UI 规范以 [`docs/guide/mobile-ui-development.md`](../../docs/guide/mobile-ui-development.md) 和 [`docs/guide/mobile-design-language.md`](../../docs/guide/mobile-design-language.md) 为准。
+工具级实现以对应的 [`ARCHITECTURE.md`](../src/tools/) 为准；项目级 UI 规范以 [`docs/guide/mobile-ui-development.md`](../../docs/guide/mobile-ui-development.md)、[`docs/guide/mobile-ui-design-spec.md`](../../docs/guide/mobile-ui-design-spec.md)（页面级数值与组件契约）和 [`docs/guide/mobile-design-language.md`](../../docs/guide/mobile-design-language.md) 为准。
 
 ## 当前文档
 

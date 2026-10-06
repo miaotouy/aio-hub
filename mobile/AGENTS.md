@@ -5,6 +5,7 @@
 ## 文档入口
 
 - 当前 UI 规范：[`docs/guide/mobile-ui-development.md`](../docs/guide/mobile-ui-development.md)
+- 页面级 UI 设计规范：[`docs/guide/mobile-ui-design-spec.md`](../docs/guide/mobile-ui-design-spec.md)（token 契约、组件规格、页面模板、迁移映射，UI review 判定依据）
 - 设计语言决议：[`docs/guide/mobile-design-language.md`](../docs/guide/mobile-design-language.md)
 - 模块架构：`mobile/src/tools/{toolId}/ARCHITECTURE.md`
 - 仍在施工的跨模块计划：`mobile/docs/plan/`

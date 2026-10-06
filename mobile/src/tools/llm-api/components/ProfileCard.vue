@@ -78,7 +78,7 @@ defineEmits<{
 .profile-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   margin-bottom: 12px;
   transition: all 0.2s ease;
@@ -102,7 +102,7 @@ defineEmits<{
 .icon-wrapper {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: var(--container-bg);
   overflow: hidden;
   padding: 8px;

@@ -184,7 +184,7 @@ function updateContextNumber(
   display: grid;
   gap: 14px;
   padding: 16px;
-  border-radius: 14px;
+  border-radius: var(--app-radius-lg);
   background: var(--card-bg);
 }
 .section-heading h2,
@@ -220,7 +220,7 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 10px;
   color: var(--text-color);
   background: var(--input-bg);

@@ -202,7 +202,7 @@ function handleSelect(icon: PresetIconInfo) {
   padding: 12px 8px;
   background-color: var(--container-bg);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -248,7 +248,7 @@ function handleSelect(icon: PresetIconInfo) {
   padding: 1px 4px;
   background-color: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   font-size: 0.7rem;
   white-space: nowrap;
 }

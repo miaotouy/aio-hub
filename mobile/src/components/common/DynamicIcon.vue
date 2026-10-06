@@ -146,7 +146,7 @@ const wrapperStyle = computed(() => ({
   align-items: center;
   justify-content: center;
   background-color: var(--container-bg);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   border: 1px solid var(--border-color);
   color: var(--text-color-light);
   font-weight: 600;

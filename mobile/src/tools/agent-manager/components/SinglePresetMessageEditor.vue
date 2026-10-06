@@ -328,7 +328,7 @@ textarea {
   width: 100%;
   padding: 11px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font: inherit;
@@ -359,7 +359,7 @@ textarea {
 .advanced {
   overflow: hidden;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 .advanced > button {
   width: 100%;

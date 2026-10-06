@@ -330,7 +330,7 @@ const handleReset = async () => {
 
 .section-card {
   background-color: var(--input-bg);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   overflow: hidden;
 }
 

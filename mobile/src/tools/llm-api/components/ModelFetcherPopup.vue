@@ -472,7 +472,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   gap: 8px;
   padding: 12px 16px;
   background: var(--container-bg);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   border: 1.5px solid var(--border-color);
 }
 
@@ -521,7 +521,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   align-items: center;
   gap: 4px;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--container-bg);
   border: 1px solid var(--border-color);
   font-size: 0.85rem;
@@ -562,7 +562,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-group {
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
   background: var(--container-bg);
   margin-bottom: 12px;
@@ -591,7 +591,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   padding: 2px 8px;
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
@@ -612,7 +612,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   border: 1px solid var(--border-color);
   background: var(--bg-color);
   transition: all 0.2s;
@@ -639,7 +639,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .model-info {

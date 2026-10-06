@@ -101,7 +101,7 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
   min-height: 38px;
   padding: 3px 4px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   color: var(--text-color-secondary);
   background: var(--card-bg);
   box-shadow: 0 4px 14px rgb(0 0 0 / 12%);

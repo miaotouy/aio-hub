@@ -484,7 +484,7 @@ async function importAgents(event: Event): Promise<void> {
   width: 42px;
   height: 42px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -503,7 +503,7 @@ async function importAgents(event: Event): Promise<void> {
   background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 .icon-button.danger {
-  color: var(--danger-color, #d14343);
+  color: var(--danger-color);
 }
 .header-actions {
   display: flex;
@@ -521,7 +521,7 @@ async function importAgents(event: Event): Promise<void> {
   max-width: 116px;
   padding: 0 10px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
 }
@@ -532,7 +532,7 @@ async function importAgents(event: Event): Promise<void> {
   gap: 10px;
   padding: 0 14px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
 }
 .search-box input {
@@ -563,7 +563,7 @@ async function importAgents(event: Event): Promise<void> {
 .agent-avatar {
   width: 52px;
   height: 52px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: grid;
   place-items: center;
   background: var(--primary-color);

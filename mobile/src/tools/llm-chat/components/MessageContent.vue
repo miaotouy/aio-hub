@@ -423,7 +423,7 @@ const formatBytes = (value: number) => {
   flex: 0 0 auto;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: transparent;
   line-height: 0;
   overflow: hidden;
@@ -438,7 +438,7 @@ const formatBytes = (value: number) => {
   gap: 10px;
   padding: 8px 10px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color-light);
   background: var(--card-bg);
   font: inherit;
@@ -501,9 +501,9 @@ const formatBytes = (value: number) => {
 
 .reasoning-container {
   margin-bottom: 12px;
-  border-left: 3px solid var(--el-border-color-darker);
-  background: var(--el-fill-color-lighter);
-  border-radius: 0 8px 8px 0;
+  border-left: 3px solid var(--border-color);
+  background: var(--container-bg);
+  border-radius: 0 var(--app-radius-md) var(--app-radius-md) 0;
   overflow: hidden;
 }
 
@@ -513,7 +513,7 @@ const formatBytes = (value: number) => {
   justify-content: space-between;
   padding: 8px 12px;
   font-size: 0.8rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
   cursor: pointer;
   user-select: none;
 }
@@ -534,7 +534,7 @@ const formatBytes = (value: number) => {
   padding: 0 12px 12px 12px;
   overflow-wrap: anywhere;
   font-size: 0.85rem;
-  color: var(--el-text-color-regular);
+  color: var(--text-color);
   opacity: 0.85;
 }
 
@@ -547,7 +547,7 @@ const formatBytes = (value: number) => {
   margin-top: 8px;
   padding: 8px;
   background: color-mix(in srgb, var(--danger-color) 8%, var(--card-bg));
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .error-text {

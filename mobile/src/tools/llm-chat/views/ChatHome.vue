@@ -226,7 +226,7 @@ const goHome = () => {
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   padding: 20px;
   display: flex;
   align-items: center;

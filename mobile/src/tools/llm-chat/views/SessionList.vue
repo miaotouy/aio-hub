@@ -379,7 +379,7 @@ const goToChatHome = () => {
   color: var(--text-color-light);
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
 }
 
 .search-field input {
@@ -433,7 +433,7 @@ const goToChatHome = () => {
   color: var(--text-color);
   background: var(--container-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
 }
 
 .search-result:active {
@@ -498,7 +498,7 @@ const goToChatHome = () => {
   color: var(--text-color-light);
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
 }
 
 .session-sort-control select {
@@ -523,7 +523,7 @@ const goToChatHome = () => {
 .session-item {
   background: var(--container-bg);
   border: 1.5px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   padding: 14px 16px;
   margin-bottom: 12px;
   display: flex;
@@ -540,7 +540,7 @@ const goToChatHome = () => {
 .session-icon {
   width: 42px;
   height: 42px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   display: flex;

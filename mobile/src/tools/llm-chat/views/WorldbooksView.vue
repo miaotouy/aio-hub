@@ -526,7 +526,7 @@ async function importWorldbookFile(event: Event) {
 .create-button,
 .add-entry {
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 9px 16px;
 }
 .worldbook-card {
@@ -534,7 +534,7 @@ async function importWorldbookFile(event: Event) {
   grid-template-columns: 1fr auto;
   gap: 9px;
   padding: 14px;
-  border-radius: 14px;
+  border-radius: var(--app-radius-lg);
   background: var(--input-bg);
 }
 .worldbook-card.disabled,
@@ -595,7 +595,7 @@ async function importWorldbookFile(event: Event) {
   grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 10px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
 }
 .entry-card small {
@@ -643,7 +643,7 @@ async function importWorldbookFile(event: Event) {
   box-sizing: border-box;
   padding: 9px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--card-bg);
   font: inherit;

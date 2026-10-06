@@ -149,7 +149,7 @@ const handleSwitch = (nodeId: string) => {
   gap: 10px;
   padding: 12px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
   color: inherit;
   text-align: left;
@@ -163,7 +163,7 @@ const handleSwitch = (nodeId: string) => {
 .branch-avatar {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
   display: flex;
   align-items: center;

@@ -363,7 +363,7 @@ const handleBatchImport = () => {
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   margin-bottom: 20px;
   align-items: flex-start;
 }
@@ -387,7 +387,7 @@ const handleBatchImport = () => {
 
 .key-item-card {
   background: var(--container-bg);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   border: 1.5px solid var(--border-color);
   transition: all 0.2s ease;
@@ -496,7 +496,7 @@ const handleBatchImport = () => {
 
 .config-card {
   background: var(--container-bg);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
   border: 1.5px solid var(--border-color);
 }

@@ -130,7 +130,7 @@ const handleCreateCustom = () => {
 .preset-item {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   display: flex;
   flex-direction: column;

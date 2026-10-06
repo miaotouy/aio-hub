@@ -97,7 +97,7 @@ function save(): void {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--card-bg);
 }
@@ -149,7 +149,7 @@ footer .primary {
   background: var(--primary-color);
 }
 footer .danger {
-  color: var(--danger-color, #d14343);
+  color: var(--danger-color);
 }
 .icon-command {
   display: inline-flex;

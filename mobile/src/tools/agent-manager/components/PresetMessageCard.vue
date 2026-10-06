@@ -151,7 +151,7 @@ function moveGroup(event: Event): void {
   align-items: center;
   border: var(--border-width) solid var(--border-color);
   border-left: 3px solid var(--primary-color);
-  border-radius: var(--app-radius-md, 8px);
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
   transition:
     opacity 0.16s,
@@ -286,7 +286,7 @@ summary::-webkit-details-marker {
   min-width: 116px;
   padding: 5px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
   box-shadow: 0 8px 24px #0002;
 }
@@ -319,7 +319,7 @@ summary::-webkit-details-marker {
   opacity: 0.4;
 }
 .menu .danger {
-  color: var(--danger-color, #d14343);
+  color: var(--danger-color);
 }
 .expand-icon {
   color: var(--text-color-light);

@@ -128,7 +128,7 @@ const togglePopup = () => {
   justify-content: space-between;
   padding: 6px 10px;
   background: var(--input-bg);
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   cursor: pointer;
   transition: all 0.2s;
   border: 1px solid var(--border-color);
@@ -149,7 +149,7 @@ const togglePopup = () => {
 .model-icon {
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   flex-shrink: 0;
 }
 
@@ -284,7 +284,7 @@ const togglePopup = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: var(--container-bg);
   transition: all 0.2s;
 }

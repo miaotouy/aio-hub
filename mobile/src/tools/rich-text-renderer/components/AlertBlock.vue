@@ -67,7 +67,7 @@ const icon = computed(() => {
   margin: 12px 0;
   padding: 10px 12px;
   border-left: 4px solid var(--color-secondary);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 var(--app-radius-md) var(--app-radius-md) 0;
   background: var(--color-secondary-container);
   color: var(--color-on-secondary-container);
 }

@@ -50,10 +50,10 @@ const handleNext = () => {
   align-items: center;
   gap: 4px;
   padding: 2px 4px;
-  background: var(--el-fill-color-light);
-  border-radius: 12px;
+  background: var(--container-bg);
+  border-radius: var(--app-radius-lg);
   font-size: 0.75rem;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
   user-select: none;
   margin-top: 4px;
 }
@@ -73,7 +73,7 @@ const handleNext = () => {
 }
 
 .nav-btn:active {
-  background: var(--el-fill-color);
+  background: var(--container-bg);
 }
 
 .branch-info {

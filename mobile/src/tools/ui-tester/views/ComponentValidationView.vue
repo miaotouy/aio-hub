@@ -644,7 +644,7 @@ onMounted(() => {
 }
 
 .rounded {
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .flex {

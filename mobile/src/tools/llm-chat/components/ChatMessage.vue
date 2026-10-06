@@ -200,7 +200,7 @@ function handleContentClick(event: MouseEvent) {
 }
 
 .message-item.is-active {
-  background-color: var(--el-fill-color-lighter);
+  background-color: var(--container-bg);
 }
 
 .message-header {
@@ -218,13 +218,13 @@ function handleContentClick(event: MouseEvent) {
 .avatar {
   width: 20px;
   height: 20px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
+  border-radius: var(--app-radius-sm);
+  background: var(--container-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
 }
 
 .user .avatar {
@@ -250,9 +250,9 @@ function handleContentClick(event: MouseEvent) {
 
 .user .content-body {
   padding: 12px 16px;
-  border-radius: 16px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
+  border-radius: var(--app-radius-xl);
+  background: var(--container-bg);
+  color: var(--text-color);
   width: auto;
   min-width: 0;
   align-self: flex-end;
@@ -263,7 +263,7 @@ function handleContentClick(event: MouseEvent) {
   padding: 0;
   background: transparent;
   border: none;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
   font-size: calc(1.05rem * var(--chat-message-font-scale, 1));
 }
 
@@ -286,7 +286,7 @@ function handleContentClick(event: MouseEvent) {
 .timestamp-info {
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
   opacity: 0.9;
 }
 

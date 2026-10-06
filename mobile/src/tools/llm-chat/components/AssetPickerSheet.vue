@@ -305,7 +305,7 @@ async function confirm() {
   gap: 12px;
   padding: 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--app-radius-md) var(--app-radius-md) 0 0;
   background: var(--bg-color);
   color: var(--text-color);
 }

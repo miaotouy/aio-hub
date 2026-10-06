@@ -382,7 +382,7 @@ const goToChatHome = () => {
   gap: 7px;
   padding: 4px 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: inherit;
   background: transparent;
 }
@@ -465,7 +465,7 @@ const goToChatHome = () => {
   gap: 10px;
   padding: 12px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: inherit;
   background: var(--input-bg);
   text-align: left;
@@ -480,7 +480,7 @@ const goToChatHome = () => {
   flex: 0 0 38px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: white;
   background: var(--primary-color);
   font-size: 0.84rem;
@@ -543,7 +543,7 @@ const goToChatHome = () => {
   max-height: 42vh;
   resize: vertical;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
   color: var(--text-color);
   padding: 12px;

@@ -269,7 +269,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
   width: 42px;
   height: 42px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -326,7 +326,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
   gap: 9px;
   padding: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
 }
 .worldbook-option span {
@@ -356,7 +356,7 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 11px 12px;
   background: var(--input-bg);
   color: var(--text-color);

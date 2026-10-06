@@ -332,7 +332,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: var(--container-bg);
   transition: all 0.2s;
 }

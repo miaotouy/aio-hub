@@ -731,7 +731,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .config-card {
   background: var(--container-bg);
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 20px;
   margin-bottom: 32px;
 }
@@ -799,7 +799,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   color: var(--text-color);
   background: var(--container-bg);
   border: 1.5px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   outline: none;
   transition: all 0.2s ease;
   appearance: none;
@@ -838,7 +838,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   gap: 0;
   background: var(--container-bg);
   border: 1.5px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   overflow: hidden;
   transition: all 0.2s ease;
 }
@@ -897,7 +897,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   width: 80px;
   height: 80px;
   background: var(--input-bg);
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   border: 1.5px solid var(--border-color);
   display: flex;
@@ -973,7 +973,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .custom-cell {
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   border: 1.5px solid var(--border-color);
   background: var(--container-bg);
 }

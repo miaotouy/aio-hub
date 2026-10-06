@@ -201,7 +201,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   align-items: center;
   gap: 4px;
   padding: 2px 4px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
@@ -224,7 +224,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   gap: 3px;
   font-size: 0.7rem;
   padding: 0 4px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
   min-width: 42px;
   text-align: center;
   height: 28px;
@@ -253,7 +253,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   height: 28px !important;
   min-width: 28px !important;
   padding: 0 !important;
-  color: var(--el-text-color-secondary) !important;
+  color: var(--text-color-light) !important;
 }
 
 .menu-btn.danger {

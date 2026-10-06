@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
   margin: 0 4px;
   font-size: 0.85em;
   background-color: var(--input-bg);
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   color: var(--danger-color, #d14343);
   overflow-wrap: anywhere;
   word-break: normal;
@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
   border-left: 4px solid var(--border-color);
   background-color: var(--card-bg);
   color: var(--text-color);
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 var(--app-radius-sm) var(--app-radius-sm) 0;
 }
 
 /* 列表 */

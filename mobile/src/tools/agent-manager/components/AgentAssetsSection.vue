@@ -505,7 +505,7 @@ defineExpose({ collectAttachmentReferences });
   align-items: center;
   gap: 4px;
   border: var(--border-width) solid var(--primary-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 7px 12px;
   background: transparent;
   color: var(--primary-color);
@@ -536,7 +536,7 @@ defineExpose({ collectAttachmentReferences });
   margin: 0;
   padding: 14px;
   border: 1px dashed var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color-light);
   font-size: 0.8rem;
   text-align: center;
@@ -553,7 +553,7 @@ defineExpose({ collectAttachmentReferences });
   gap: 8px;
   padding: 9px 10px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
 }
 .asset-row {
@@ -565,14 +565,14 @@ defineExpose({ collectAttachmentReferences });
 .asset-thumb {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   object-fit: cover;
   flex-shrink: 0;
 }
 .asset-icon {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -609,7 +609,7 @@ defineExpose({ collectAttachmentReferences });
   width: 34px;
   height: 34px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -617,11 +617,11 @@ defineExpose({ collectAttachmentReferences });
   color: var(--text-color-light);
 }
 .icon-action.danger {
-  color: var(--danger-color, #d32f2f);
+  color: var(--danger-color);
 }
 .asset-preview {
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: block;
 }
 .asset-player {
@@ -639,7 +639,7 @@ defineExpose({ collectAttachmentReferences });
   width: 100%;
   box-sizing: border-box;
   padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--app-radius-xl) var(--app-radius-xl) 0 0;
   background: var(--card-bg, var(--input-bg));
   display: grid;
   gap: 12px;
@@ -664,7 +664,7 @@ defineExpose({ collectAttachmentReferences });
 .edit-sheet input,
 .edit-sheet select {
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 10px 12px;
   background: var(--input-bg);
   color: var(--text-color);
@@ -678,7 +678,7 @@ defineExpose({ collectAttachmentReferences });
 }
 .edit-actions button {
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 11px;
   background: transparent;
   color: var(--text-color);

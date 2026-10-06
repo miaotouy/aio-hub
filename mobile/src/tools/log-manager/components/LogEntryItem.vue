@@ -140,7 +140,7 @@ const toggleExpand = () => {
 .level-badge {
   font-size: 10px;
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   font-weight: bold;
   min-width: 45px;
   text-align: center;
@@ -198,7 +198,7 @@ const toggleExpand = () => {
   margin-top: 8px;
   padding: 8px;
   background-color: var(--overlay-bg);
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   font-size: 12px;
 }
 

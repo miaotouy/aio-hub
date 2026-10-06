@@ -1022,7 +1022,7 @@ onUnmounted(() => {
 }
 .render-wrapper {
   background-color: var(--card-bg);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 16px;
   border: var(--border-width) solid var(--border-color);
 }
@@ -1119,7 +1119,7 @@ onUnmounted(() => {
 
 .config-group {
   background-color: var(--card-bg);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 12px;
   margin-bottom: 16px;
   border: var(--border-width) solid var(--border-color);
@@ -1197,7 +1197,7 @@ onUnmounted(() => {
 /* AST 抽屉 */
 .ast-drawer {
   height: 60vh;
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-color);

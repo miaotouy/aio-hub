@@ -227,7 +227,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
   margin-bottom: 20px;
   padding: 16px;
   background: var(--container-bg);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   align-items: center;
   border: 1px solid var(--border-color);
 }

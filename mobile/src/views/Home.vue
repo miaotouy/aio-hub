@@ -137,7 +137,7 @@ const goToSettings = () => {
 }
 
 .tool-card:active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.1);
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 
 .tool-icon {

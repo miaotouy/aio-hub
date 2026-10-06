@@ -344,7 +344,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
 }
 .create-button {
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 9px 16px;
 }
 .profile-card {
@@ -352,7 +352,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   grid-template-columns: auto 1fr auto;
   gap: 10px;
   padding: 14px;
-  border-radius: 14px;
+  border-radius: var(--app-radius-lg);
   background: var(--input-bg);
 }
 .profile-card.global {
@@ -434,7 +434,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 9px;
   color: var(--text-color);
   background: var(--card-bg);

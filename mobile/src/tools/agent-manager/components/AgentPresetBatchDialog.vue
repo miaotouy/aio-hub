@@ -98,7 +98,7 @@ function apply(action: "enable" | "disable" | "delete" | "group"): void {
   display: flex;
   flex-direction: column;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--card-bg);
 }
@@ -132,7 +132,7 @@ select {
   border-bottom: var(--border-width) solid var(--border-color);
 }
 .danger {
-  color: var(--danger-color, #d14343);
+  color: var(--danger-color);
 }
 .message {
   padding: 13px 16px;

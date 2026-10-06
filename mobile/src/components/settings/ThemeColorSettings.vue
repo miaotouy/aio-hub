@@ -418,7 +418,7 @@ const showDrawer = ref(false);
   justify-content: center;
   gap: 8px;
   background-color: var(--input-bg);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   font-size: 1rem;
   color: var(--text-color);
 }
@@ -433,7 +433,7 @@ const showDrawer = ref(false);
   justify-content: space-between;
   padding: 16px;
   background-color: var(--card-bg);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   border: var(--border-width) solid var(--border-color);
 }
 
@@ -470,7 +470,7 @@ const showDrawer = ref(false);
 .preview-dot {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   border: 2px solid #fff;
 }
@@ -559,7 +559,7 @@ const showDrawer = ref(false);
 .preview-box {
   width: 100%;
   height: 60px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   border: 1px solid var(--border-color);
   transition: background-color 0.2s ease;
 }

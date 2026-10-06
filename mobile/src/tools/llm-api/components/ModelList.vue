@@ -499,7 +499,7 @@ const handleModelAction = (
   padding: 48px 24px;
   color: var(--text-color-light);
   background: var(--container-bg);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   border: 1px dashed var(--border-color);
 }
 
@@ -530,7 +530,7 @@ const handleModelAction = (
 }
 
 .model-group {
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
   background: var(--container-bg);
   margin-bottom: 12px;
@@ -559,7 +559,7 @@ const handleModelAction = (
   padding: 2px 8px;
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
@@ -580,7 +580,7 @@ const handleModelAction = (
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   border: 1px solid var(--border-color);
   background: var(--bg-color);
   transition:
@@ -602,7 +602,7 @@ const handleModelAction = (
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .model-info {

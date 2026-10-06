@@ -813,7 +813,7 @@ const setTokenLimit = (
 
 .config-card {
   background: var(--container-bg);
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 20px;
   margin-bottom: 32px;
 }
@@ -847,7 +847,7 @@ const setTokenLimit = (
   color: var(--text-color);
   background: var(--container-bg);
   border: 1.5px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   outline: none;
   transition: all 0.2s ease;
   appearance: none;
@@ -867,7 +867,7 @@ const setTokenLimit = (
 
 /* 自定义 VarSelect 样式以匹配 native-input */
 .custom-var-select {
-  --select-border-radius: 12px;
+  --select-border-radius: var(--app-radius-lg);
   --select-padding: 14px 16px;
   --select-font-size: 1.15rem;
   --field-decorator-outlined-border-color: var(--border-color);
@@ -898,7 +898,7 @@ const setTokenLimit = (
   gap: 0;
   background: var(--container-bg);
   border: 1.5px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   overflow: hidden;
   transition: all 0.2s ease;
 }
@@ -957,7 +957,7 @@ const setTokenLimit = (
   width: 80px;
   height: 80px;
   background: var(--input-bg);
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   border: 1.5px solid var(--border-color);
   display: flex;
@@ -1020,7 +1020,7 @@ const setTokenLimit = (
   justify-content: center;
   gap: 6px;
   padding: 12px 8px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   border: 1.5px solid var(--border-color);
   background: var(--bg-color);
   cursor: pointer;

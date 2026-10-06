@@ -748,7 +748,7 @@ onBeforeUnmount(stopDrag);
   margin: 0;
   padding: 18px 12px;
   border: var(--border-width) dashed var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color-light);
   font-size: 0.82rem;
   line-height: 1.55;

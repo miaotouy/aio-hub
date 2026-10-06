@@ -347,7 +347,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color-light);
   background: var(--card-bg);
 }
@@ -392,8 +392,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  background: var(--el-fill-color-light);
-  border-radius: 20px;
+  background: var(--input-bg);
+  border-radius: var(--app-radius-xl);
   padding: 4px;
 }
 
@@ -417,7 +417,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   padding: 8px 0;
   font-size: 1rem;
   max-height: 120px;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
   outline: none;
 }
 

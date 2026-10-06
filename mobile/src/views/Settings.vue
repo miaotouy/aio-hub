@@ -383,7 +383,7 @@ const handleRefresh = async () => {
 }
 
 .settings-group {
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
   background-color: var(--card-bg);
 }

@@ -134,7 +134,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   background: var(--color-primary-container);
   color: var(--primary-color);
   font-size: 0.85rem;

@@ -327,6 +327,35 @@
                       >忽略空行，不参与随机处理</el-checkbox
                     >
                   </el-form-item>
+                  <el-form-item>
+                    <div class="keep-keywords-header">
+                      <span class="keep-keywords-label">保留关键字（可选）</span>
+                      <el-switch
+                        v-model="plainTextOptions.keepKeywordsEnabled"
+                        size="small"
+                        inline-prompt
+                        active-text="启用"
+                        inactive-text="停用"
+                      />
+                    </div>
+                    <el-select
+                      v-model="plainTextOptions.keepKeywords"
+                      multiple
+                      filterable
+                      allow-create
+                      default-first-option
+                      :reserve-keyword="false"
+                      placeholder="输入关键字后回车，包含关键字的行不删除"
+                      class="op-select"
+                    />
+                    <div class="field-hint">
+                      {{
+                        plainTextOptions.keepKeywordsEnabled
+                          ? "包含任一关键字的行始终保留，不参与随机删除。"
+                          : "已停用：关键字会保留，但当前不参与筛选。"
+                      }}
+                    </div>
+                  </el-form-item>
                   <el-form-item label="随机种子（可选）">
                     <el-input-number
                       v-model="plainTextOptions.seed"
@@ -510,6 +539,8 @@ const plainTextOptions = reactive<logic.PlainTextFilterOptions>({
   removeCount: 1,
   keepCount: 1,
   ignoreEmptyLines: false,
+  keepKeywords: [],
+  keepKeywordsEnabled: true,
 });
 
 const options = reactive<logic.FilterOptions>({
@@ -562,6 +593,11 @@ onMounted(async () => {
       plainTextOptions.removeCount = persisted.removeCount ?? 1;
       plainTextOptions.keepCount = persisted.keepCount ?? 1;
       plainTextOptions.ignoreEmptyLines = persisted.ignoreEmptyLines ?? false;
+      plainTextOptions.keepKeywords = Array.isArray(persisted.keepKeywords)
+        ? [...persisted.keepKeywords]
+        : [];
+      plainTextOptions.keepKeywordsEnabled =
+        persisted.keepKeywordsEnabled ?? true;
       plainTextOptions.seed = persisted.seed;
     }
   }
@@ -862,6 +898,26 @@ function doExecuteFilter() {
   padding: 8px 10px;
   border-radius: 4px;
   background-color: var(--input-bg);
+}
+
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-color-light);
+}
+
+.keep-keywords-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.keep-keywords-label {
+  font-size: 12px;
+  color: var(--text-color-light);
 }
 
 /* 主内容区 */

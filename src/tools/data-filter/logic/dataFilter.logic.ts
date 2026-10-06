@@ -61,6 +61,8 @@ export interface PlainTextFilterOptions {
   keepCount?: number;
   removeMode?: "count" | "ratio" | "keep";
   ignoreEmptyLines?: boolean;
+  keepKeywords?: string[]; // 包含这些关键字的行不参与删除，始终保留
+  keepKeywordsEnabled?: boolean; // 是否启用保留关键字，默认启用
   seed?: number;
 }
 
@@ -103,9 +105,16 @@ export function applyPlainTextFilter(
   options: PlainTextFilterOptions
 ): PlainTextFilterResult {
   const { lines, newline, hasTrailingNewline } = splitPlainTextLines(input);
+  const keepKeywords =
+    options.keepKeywordsEnabled === false
+      ? []
+      : (options.keepKeywords ?? []).filter(
+          (keyword) => typeof keyword === "string" && keyword.trim().length > 0
+        );
   const eligibleIndexes = lines.reduce<number[]>((indexes, line, index) => {
-    if (!options.ignoreEmptyLines || line.trim().length > 0)
-      indexes.push(index);
+    if (options.ignoreEmptyLines && line.trim().length === 0) return indexes;
+    if (keepKeywords.some((keyword) => line.includes(keyword))) return indexes;
+    indexes.push(index);
     return indexes;
   }, []);
 

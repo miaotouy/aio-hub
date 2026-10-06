@@ -130,6 +130,34 @@ describe("data-filter logic", () => {
       expect(result.error).toContain("大于等于 0");
     });
 
+    it("保留关键字命中的行始终不删除", () => {
+      const result = applyPlainTextFilter("keep-a\nb\nc\nkeep-b", {
+        method: "random-remove",
+        removeMode: "ratio",
+        removeRatio: 100,
+        keepKeywords: ["keep"],
+        seed: 5,
+      });
+
+      expect(result.removed).toBe(2);
+      expect(result.filtered).toBe(2);
+      expect(result.text).toBe("keep-a\nkeep-b");
+    });
+
+    it("停用保留关键字后关键字行也参与删除", () => {
+      const result = applyPlainTextFilter("keep-a\nb\nkeep-b\nc", {
+        method: "random-remove",
+        removeMode: "ratio",
+        removeRatio: 100,
+        keepKeywords: ["keep"],
+        keepKeywordsEnabled: false,
+      });
+
+      expect(result.removed).toBe(4);
+      expect(result.filtered).toBe(0);
+      expect(result.text).toBe("");
+    });
+
     it("按比例删除并校验范围", () => {
       const result = applyPlainTextFilter("1\r\n2\r\n3\r\n4", {
         method: "random-remove",

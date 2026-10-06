@@ -286,13 +286,16 @@ async function importWorldbookFile(event: Event) {
           <p>{{ worldbook.description || t("无描述") }}</p>
         </div>
         <div class="card-actions">
-          <button type="button" :title="t('编辑')" @click="openEdit(worldbook)">
+          <button type="button"             :title="t('编辑')"
+            :aria-label="t('编辑')"
+            @click="openEdit(worldbook)">
             <Pencil :size="18" />
           </button>
           <button
             type="button"
             class="danger"
             :title="t('删除')"
+            :aria-label="t('删除')"
             @click="removeWorldbook(worldbook)"
           >
             <Trash2 :size="18" />
@@ -329,6 +332,7 @@ async function importWorldbookFile(event: Event) {
               <button
                 type="button"
                 :title="t('编辑')"
+                :aria-label="t('编辑')"
                 @click="openEditEntry(worldbook, entry)"
               >
                 <Pencil :size="16" /></button
@@ -336,6 +340,7 @@ async function importWorldbookFile(event: Event) {
                 type="button"
                 class="danger"
                 :title="t('删除')"
+                :aria-label="t('删除')"
                 @click="removeEntry(worldbook, entry)"
               >
                 <Trash2 :size="16" />

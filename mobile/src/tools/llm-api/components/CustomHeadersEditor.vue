@@ -134,7 +134,12 @@ const scrollIntoViewOnFocus = (event: Event) => {
         safe-area
       >
         <template #left>
-          <var-button round text @click="$emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="$emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -178,6 +183,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
             text
             type="danger"
             class="delete-btn"
+            aria-label="删除请求头"
             @click="removeHeader(draft.id)"
           >
             <Trash2 :size="18" />

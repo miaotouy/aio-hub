@@ -60,7 +60,10 @@ const goToSettings = () => {
           :data-testid="`home-tool-${tool.id}`"
           :aria-label="tool.name"
           v-ripple
+          role="button"
+          tabindex="0"
           @click="handleToolClick(tool)"
+          @keydown.enter="handleToolClick(tool)"
         >
           <div class="tool-icon">
             <ToolIcon :icon="tool.icon" :size="32" />

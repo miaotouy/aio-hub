@@ -346,7 +346,10 @@ const formatBytes = (value: number) => {
     <div v-if="message.metadata?.reasoningContent" class="reasoning-container">
       <div
         class="reasoning-header"
+        role="button"
+        tabindex="0"
         @click="isReasoningExpanded = !isReasoningExpanded"
+        @keydown.enter="isReasoningExpanded = !isReasoningExpanded"
       >
         <div class="reasoning-title">
           <Brain :size="14" class="brain-icon" />

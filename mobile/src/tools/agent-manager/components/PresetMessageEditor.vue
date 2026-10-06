@@ -516,6 +516,7 @@ onBeforeUnmount(stopDrag);
           class="group-edit"
           type="button"
           :title="t('编辑消息组')"
+          :aria-label="t('编辑消息组')"
           @click="openExistingGroup(group)"
         >
           <Pencil :size="14" />

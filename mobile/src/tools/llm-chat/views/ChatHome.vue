@@ -82,12 +82,24 @@ const goHome = () => {
     <div class="header">
       <div class="header-main">
         <div class="header-title">
-          <var-button round text color="transparent" @click="goHome">
+          <var-button
+            round
+            text
+            color="transparent"
+            aria-label="返回"
+            @click="goHome"
+          >
             <ChevronLeft :size="24" />
           </var-button>
           <h1>{{ t("tools.llm-chat.common.AI 对话") }}</h1>
         </div>
-        <var-button round text color="transparent" @click="goToSettings">
+        <var-button
+          round
+          text
+          color="transparent"
+          :aria-label="t('nav.设置')"
+          @click="goToSettings"
+        >
           <Settings :size="24" />
         </var-button>
       </div>
@@ -133,8 +145,11 @@ const goHome = () => {
 
       <div
         class="action-card"
+        role="button"
+        tabindex="0"
         data-testid="chat-agent-hall"
         @click="goToAgents"
+        @keydown.enter="goToAgents"
       >
         <div class="icon-box">
           <Users :size="24" />

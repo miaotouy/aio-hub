@@ -83,7 +83,10 @@ const togglePopup = () => {
     class="llm-model-selector"
     data-testid="chat-model-selector"
     :class="{ disabled }"
+    role="button"
+    tabindex="0"
     @click="togglePopup"
+    @keydown.enter="togglePopup"
   >
     <div class="selector-trigger" v-ripple>
       <div class="selected-content">

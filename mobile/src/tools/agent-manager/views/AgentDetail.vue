@@ -136,6 +136,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
         type="button"
         data-testid="agent-save"
         :title="t('tools.agent-manager.AgentDetail.保存')"
+        :aria-label="t('tools.agent-manager.AgentDetail.保存')"
         @click="save"
       >
         <Save :size="20" />

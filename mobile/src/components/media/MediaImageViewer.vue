@@ -191,10 +191,13 @@ watch(
       :alt="alt"
       :data-testid="imageTestId"
       draggable="false"
+      role="button"
+      tabindex="0"
       :style="{ transform: imageTransform }"
       @load="emit('ready')"
       @error="emit('error')"
       @click="!immersive && emit('open')"
+      @keydown.enter="!immersive && emit('open')"
     />
     <div
       v-if="immersive"

@@ -216,6 +216,7 @@ const goToChatHome = () => {
           color="transparent"
           text-color="var(--text-color)"
           data-testid="chat-back"
+          aria-label="返回"
           @click="goToChatHome"
         >
           <ChevronLeft :size="24" />

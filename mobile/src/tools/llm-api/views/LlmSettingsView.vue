@@ -124,7 +124,7 @@ const goHome = () => {
       safe-area
     >
       <template #left>
-        <var-button round text @click="goHome">
+        <var-button round text aria-label="返回" @click="goHome">
           <ChevronLeft :size="24" />
         </var-button>
       </template>

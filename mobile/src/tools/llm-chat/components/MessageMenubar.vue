@@ -107,6 +107,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="上一条分支"
         @click="handleSwitchBranch('prev')"
       >
         <ChevronLeft :size="14" />
@@ -120,6 +121,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="下一条分支"
         @click="handleSwitchBranch('next')"
       >
         <ChevronRight :size="14" />
@@ -135,11 +137,19 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="复制消息"
         @click="handleCopy"
       >
         <Copy :size="14" />
       </var-button>
-      <var-button text round size="mini" class="menu-btn" @click="handleEdit">
+      <var-button
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        aria-label="编辑消息"
+        @click="handleEdit"
+      >
         <Edit3 :size="14" />
       </var-button>
       <var-button
@@ -148,6 +158,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="回复消息"
         @click="handleReply"
       >
         <Reply :size="14" />
@@ -171,6 +182,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="重新生成"
         @click="handleRegenerate"
       >
         <RotateCcw :size="14" />
@@ -180,6 +192,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn danger"
+        aria-label="删除消息"
         @click="handleDelete"
       >
         <Trash2 :size="14" />

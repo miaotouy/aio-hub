@@ -155,7 +155,12 @@ const handleBatchImport = () => {
         safe-area
       >
         <template #left>
-          <var-button round text @click="emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -302,7 +307,13 @@ const handleBatchImport = () => {
               v-if="status.isBroken || status.lastErrorMessage"
               class="key-footer"
             >
-              <div class="error-msg text-truncate" @click="showDetails(status)">
+              <div
+                class="error-msg text-truncate"
+                role="button"
+                tabindex="0"
+                @click="showDetails(status)"
+                @keydown.enter="showDetails(status)"
+              >
                 {{
                   status.lastErrorMessage || status.note || t("common.未知错误")
                 }}

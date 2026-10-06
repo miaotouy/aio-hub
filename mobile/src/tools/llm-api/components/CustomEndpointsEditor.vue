@@ -38,7 +38,12 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
         safe-area
       >
         <template #left>
-          <var-button round text @click="$emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="$emit('update:show', false)"
+          >
             <ChevronRight :size="24" class="back-btn" />
           </var-button>
         </template>

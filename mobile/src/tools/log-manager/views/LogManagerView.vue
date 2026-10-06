@@ -139,6 +139,7 @@ watch([searchQuery, selectedLevel], () => {
           color="transparent"
           text-color="var(--text-color)"
           class="back-button"
+          aria-label="返回"
           @click="goHome"
         >
           <ChevronLeft :size="24" />

@@ -260,6 +260,7 @@ const handleModelAction = (
                 type="danger"
                 plain
                 round
+                aria-label="删除分组"
                 @click.stop="deleteGroup(group)"
               >
                 <Trash2 :size="14" />
@@ -349,7 +350,10 @@ const handleModelAction = (
                         color: capability.color,
                       }"
                       v-ripple
+                      role="button"
+                      tabindex="0"
                       @click.stop="showCapabilityDesc(capability)"
+                      @keydown.enter="showCapabilityDesc(capability)"
                     >
                       <component :is="capability.icon" :size="12" />
                       <span class="capability-label">{{

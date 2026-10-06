@@ -330,6 +330,7 @@ async function importAgents(event: Event): Promise<void> {
           type="button"
           data-testid="agent-import-button"
           :title="t('tools.agent-manager.AgentList.导入')"
+          :aria-label="t('tools.agent-manager.AgentList.导入')"
           @click="importFileInput?.click()"
         >
           <Upload :size="20" />
@@ -339,6 +340,7 @@ async function importAgents(event: Event): Promise<void> {
           type="button"
           data-testid="agent-create"
           :title="t('tools.agent-manager.AgentList.新建')"
+          :aria-label="t('tools.agent-manager.AgentList.新建')"
           @click="createAgent"
         >
           <Plus :size="22" />
@@ -426,6 +428,7 @@ async function importAgents(event: Event): Promise<void> {
             class="icon-button accent"
             data-testid="agent-start-chat"
             :title="t('tools.agent-manager.AgentList.开始对话')"
+            :aria-label="t('tools.agent-manager.AgentList.开始对话')"
             @click="startChat(agent)"
           >
             <MessageCircle :size="19" />
@@ -435,6 +438,7 @@ async function importAgents(event: Event): Promise<void> {
             class="icon-button"
             data-testid="agent-edit"
             :title="t('tools.agent-manager.AgentList.编辑')"
+            :aria-label="t('tools.agent-manager.AgentList.编辑')"
             @click="router.push(`/tools/agent-manager/${agent.id}`)"
           >
             <Pencil :size="18" />
@@ -444,6 +448,7 @@ async function importAgents(event: Event): Promise<void> {
             class="icon-button danger"
             data-testid="agent-delete"
             :title="t('tools.agent-manager.AgentList.删除')"
+            :aria-label="t('tools.agent-manager.AgentList.删除')"
             @click="deleteAgent(agent)"
           >
             <Trash2 :size="18" />

@@ -51,7 +51,10 @@
           :key="icon.path"
           v-ripple
           class="preset-item"
+          role="button"
+          tabindex="0"
           @click="handleSelect(icon)"
+          @keydown.enter="handleSelect(icon)"
         >
           <div class="preset-icon">
             <DynamicIcon :src="getIconPath(icon.path)" :alt="icon.name" lazy />

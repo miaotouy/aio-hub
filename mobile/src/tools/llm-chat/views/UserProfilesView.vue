@@ -185,6 +185,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
             type="button"
             data-testid="user-profile-set-default"
             :title="t('设为默认')"
+            :aria-label="t('设为默认')"
             @click="setGlobal(profile)"
           >
             <Star
@@ -198,6 +199,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
             type="button"
             data-testid="user-profile-edit"
             :title="t('编辑')"
+            :aria-label="t('编辑')"
             @click="openEdit(profile)"
           >
             <Pencil :size="18" />
@@ -206,6 +208,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
             type="button"
             data-testid="user-profile-delete"
             :title="t('删除')"
+            :aria-label="t('删除')"
             class="danger"
             @click="remove(profile)"
           >

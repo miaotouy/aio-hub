@@ -27,7 +27,7 @@ const emit = defineEmits<{
         <span class="popup-title">{{
           t("tools.llm-api.IconSelector.选择预设图标")
         }}</span>
-        <var-button round text @click="emit('update:show', false)">
+        <var-button round text aria-label="关闭" @click="emit('update:show', false)">
           <span class="close-icon">×</span>
         </var-button>
       </div>

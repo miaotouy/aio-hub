@@ -202,7 +202,10 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
                     :data-profile-id="item.profile.id"
                     :class="{ active: modelValue === item.value }"
                     v-ripple
+                    role="button"
+                    tabindex="0"
                     @click="handleSelect(item)"
+                    @keydown.enter="handleSelect(item)"
                   >
                     <DynamicIcon
                       :src="getModelIcon(item.model) || ''"

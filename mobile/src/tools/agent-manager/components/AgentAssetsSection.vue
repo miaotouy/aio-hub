@@ -383,7 +383,13 @@ defineExpose({ collectAttachmentReferences });
             <FileAudio v-else-if="asset.type === 'audio'" :size="20" />
             <FileText v-else :size="20" />
           </span>
-          <span class="asset-meta" @click="toggleExpand(asset)">
+          <span
+            class="asset-meta"
+            role="button"
+            tabindex="0"
+            @click="toggleExpand(asset)"
+            @keydown.enter="toggleExpand(asset)"
+          >
             <strong>{{ asset.filename }}</strong>
             <small>
               {{ groupLabel(asset.group) }}<template v-if="asset.size">

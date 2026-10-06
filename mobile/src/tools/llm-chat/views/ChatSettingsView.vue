@@ -34,12 +34,24 @@ const handleReset = async () => {
       z-index="100"
     >
       <template #left>
-        <var-button round text color="transparent" @click="handleBack">
+        <var-button
+          round
+          text
+          color="transparent"
+          aria-label="返回"
+          @click="handleBack"
+        >
           <ChevronLeft :size="24" />
         </var-button>
       </template>
       <template #right>
-        <var-button round text color="transparent" @click="handleReset">
+        <var-button
+          round
+          text
+          color="transparent"
+          aria-label="重置设置"
+          @click="handleReset"
+        >
           <RotateCcw :size="20" />
         </var-button>
       </template>

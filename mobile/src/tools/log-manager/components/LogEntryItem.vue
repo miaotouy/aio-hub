@@ -65,7 +65,10 @@ const toggleExpand = () => {
       `level-${getLevelName(log.level).toLowerCase()}`,
       { 'is-expandable': log.data || log.stack },
     ]"
+    role="button"
+    tabindex="0"
     @click="toggleExpand"
+    @keydown.enter="toggleExpand"
   >
     <div class="entry-header">
       <div class="header-left">
@@ -76,7 +79,7 @@ const toggleExpand = () => {
         <span class="module">[{{ log.module }}]</span>
       </div>
       <div class="header-right">
-        <var-button round text size="mini" @click="handleCopy">
+        <var-button round text size="mini" aria-label="复制日志" @click="handleCopy">
           <Copy :size="14" />
         </var-button>
       </div>

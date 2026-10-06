@@ -52,7 +52,10 @@ const handleCreateCustom = () => {
             :key="preset.name"
             class="preset-item"
             v-ripple
+            role="button"
+            tabindex="0"
             @click="handleSelect(preset)"
+            @keydown.enter="handleSelect(preset)"
           >
             <div class="preset-icon-wrapper">
               <DynamicIcon :src="preset.logoUrl || ''" :alt="preset.name" />

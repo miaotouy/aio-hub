@@ -32,13 +32,13 @@ const handleNext = () => {
 
 <template>
   <div v-if="hasMultipleBranches" class="branch-switcher" @click.stop>
-    <button class="nav-btn" @click="handlePrev">
+    <button class="nav-btn" aria-label="上一条分支" @click="handlePrev">
       <ChevronLeft :size="14" />
     </button>
     <span class="branch-info">
       {{ branchInfo.index + 1 }} / {{ branchInfo.total }}
     </span>
-    <button class="nav-btn" @click="handleNext">
+    <button class="nav-btn" aria-label="下一条分支" @click="handleNext">
       <ChevronRight :size="14" />
     </button>
   </div>

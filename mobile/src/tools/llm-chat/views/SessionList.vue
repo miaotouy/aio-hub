@@ -198,6 +198,7 @@ const goToChatHome = () => {
           text
           color="transparent"
           text-color="var(--text-color)"
+          aria-label="返回"
           @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
@@ -318,7 +319,10 @@ const goToChatHome = () => {
           class="session-item"
           data-testid="chat-session-row"
           :data-session-id="session.id"
+          role="button"
+          tabindex="0"
           @click="goToChat(session.id)"
+          @keydown.enter="goToChat(session.id)"
         >
           <div class="session-icon">
             <MessageSquare :size="20" />

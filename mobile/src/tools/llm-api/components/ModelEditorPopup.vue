@@ -340,7 +340,12 @@ const setTokenLimit = (
         safe-area
       >
         <template #left>
-          <var-button round text @click="emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -361,7 +366,10 @@ const setTokenLimit = (
             <div
               class="avatar-preview-large"
               v-ripple
+              role="button"
+              tabindex="0"
               @click="showIconSelector = true"
+              @keydown.enter="showIconSelector = true"
             >
               <DynamicIcon
                 :src="innerModel.icon || ''"
@@ -437,7 +445,11 @@ const setTokenLimit = (
                     t('tools.llm-api.ModelEditorPopup.模型 ID 示例')
                   "
                 />
-                <button class="input-action-btn" @click="handleApplyPreset">
+                <button
+                  class="input-action-btn"
+                  aria-label="自动填充预设"
+                  @click="handleApplyPreset"
+                >
                   <Sparkles :size="18" />
                 </button>
               </div>
@@ -495,6 +507,7 @@ const setTokenLimit = (
                 />
                 <button
                   class="input-action-btn"
+                  aria-label="选择图标"
                   @click="showIconSelector = true"
                 >
                   <Sparkles :size="18" />
@@ -616,6 +629,7 @@ const setTokenLimit = (
                   : 'transparent',
               }"
               @click="toggleCapability(String(cap.key))"
+              @keydown.enter="toggleCapability(String(cap.key))"
               @touchstart="handleCapabilityTouchStart(cap)"
               @touchend="handleCapabilityTouchEnd"
               @touchmove="handleCapabilityTouchEnd"

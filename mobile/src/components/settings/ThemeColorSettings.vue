@@ -228,11 +228,23 @@ const showDrawer = ref(false);
 
         <div class="scroll-area">
           <div class="action-bar">
-            <div class="action-item" @click="openCustomPicker">
+            <div
+              class="action-item"
+              role="button"
+              tabindex="0"
+              @click="openCustomPicker"
+              @keydown.enter="openCustomPicker"
+            >
               <Pipette :size="18" />
               <span>{{ t("settings.主题色板.自定义") }}</span>
             </div>
-            <div class="action-item" @click="resetColor">
+            <div
+              class="action-item"
+              role="button"
+              tabindex="0"
+              @click="resetColor"
+              @keydown.enter="resetColor"
+            >
               <RotateCcw :size="18" />
               <span>{{ t("settings.主题色板.重置默认") }}</span>
             </div>
@@ -277,6 +289,7 @@ const showDrawer = ref(false);
                   <button
                     class="color-swatch"
                     :style="{ backgroundColor: preset.color }"
+                    :aria-label="preset.name"
                     @click="selectColor(preset.color, preset.name)"
                   >
                     <Transition name="fade">

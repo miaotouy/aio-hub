@@ -216,7 +216,7 @@ const toggleCapabilityFilter = (capKey: string) => {
         safe-area
       >
         <template #left>
-          <var-button round text @click="closePopup">
+          <var-button round text aria-label="返回" @click="closePopup">
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -267,7 +267,10 @@ const toggleCapabilityFilter = (capKey: string) => {
                     ? `${cap.color}15`
                     : 'transparent',
                 }"
+                role="button"
+                tabindex="0"
                 @click="toggleCapabilityFilter(String(cap.key))"
+                @keydown.enter="toggleCapabilityFilter(String(cap.key))"
               >
                 <component v-if="cap.icon" :is="cap.icon" :size="14" />
                 <span>{{ cap.label }}</span>
@@ -352,7 +355,10 @@ const toggleCapabilityFilter = (capKey: string) => {
                       disabled: isModelExisting(model.id),
                     }"
                     v-ripple
+                    role="button"
+                    tabindex="0"
                     @click="toggleModelSelection(model)"
+                    @keydown.enter="toggleModelSelection(model)"
                   >
                     <div class="model-card-main">
                       <DynamicIcon

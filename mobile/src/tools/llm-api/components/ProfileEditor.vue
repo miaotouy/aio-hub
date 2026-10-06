@@ -372,7 +372,12 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
         safe-area
       >
         <template #left>
-          <var-button round text @click="emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -394,7 +399,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <div
               class="avatar-preview-large"
               v-ripple
+              role="button"
+              tabindex="0"
               @click="showIconSelectorPopup = true"
+              @keydown.enter="showIconSelectorPopup = true"
             >
               <DynamicIcon
                 :src="innerProfile.icon || ''"
@@ -452,6 +460,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               />
               <button
                 class="input-action-btn"
+                aria-label="选择图标"
                 @click="showIconSelectorPopup = true"
               >
                 <Sparkles :size="18" />
@@ -542,6 +551,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               />
               <button
                 class="input-action-btn"
+                :aria-label="showApiKey ? '隐藏密钥' : '显示密钥'"
                 @click="showApiKey = !showApiKey"
               >
                 <Eye v-if="showApiKey" :size="18" />

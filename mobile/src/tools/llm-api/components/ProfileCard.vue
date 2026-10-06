@@ -28,7 +28,10 @@ defineEmits<{
     :data-profile-id="profile.id"
     :data-profile-name="profile.name"
     :class="{ 'is-disabled': !profile.enabled }"
+    role="button"
+    tabindex="0"
     @click="$emit('click')"
+    @keydown.enter="$emit('click')"
   >
     <div class="card-content">
       <div class="icon-wrapper">

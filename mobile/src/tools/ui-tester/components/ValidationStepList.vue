@@ -83,10 +83,10 @@ defineProps<{ steps: ValidationStepResult[] }>();
   overflow-wrap: anywhere;
 }
 .passed {
-  color: var(--color-success, #25804b);
+  color: var(--success-color, #25804b);
 }
 .failed {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
 }
 .skipped {
   color: var(--text-secondary, #6b7280);

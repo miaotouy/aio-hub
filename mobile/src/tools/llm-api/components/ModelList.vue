@@ -404,7 +404,7 @@ const handleModelAction = (
 .model-count {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .list-actions {
@@ -421,14 +421,14 @@ const handleModelAction = (
   min-height: 44px;
   border: 0;
   border-radius: var(--app-radius-md, 10px);
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
 }
 
 .header-action {
   gap: 6px;
   padding: 0 10px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-weight: 700;
 }
 
@@ -453,11 +453,11 @@ const handleModelAction = (
   min-width: 170px;
   overflow: hidden;
   padding: 5px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   border-radius: var(--app-radius-md, 10px);
-  background: var(--container-bg, var(--color-surface-container));
+  background: var(--container-bg, var(--container-bg));
   box-shadow: 0 8px 24px
-    color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+    color-mix(in srgb, var(--text-color) 15%, transparent);
 }
 
 .header-menu,
@@ -474,14 +474,14 @@ const handleModelAction = (
   padding: 0 11px;
   border: 0;
   border-radius: calc(var(--app-radius-md, 10px) - 3px);
-  color: var(--color-on-surface);
+  color: var(--text-color);
   text-align: left;
   background: transparent;
   white-space: nowrap;
 }
 
 .action-menu button:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .action-menu button.danger {
@@ -497,10 +497,10 @@ const handleModelAction = (
 .list-empty {
   text-align: center;
   padding: 48px 24px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container);
+  color: var(--text-color-light);
+  background: var(--container-bg);
   border-radius: 16px;
-  border: 1px dashed var(--color-outline-variant);
+  border: 1px dashed var(--border-color);
 }
 
 .list-empty .hint {
@@ -517,10 +517,10 @@ const handleModelAction = (
   min-height: 44px;
   margin-top: 16px;
   padding: 0 16px;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
   border-radius: var(--app-radius-md, 10px);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
   font-weight: 700;
 }
 
@@ -532,7 +532,7 @@ const handleModelAction = (
 .model-group {
   border-radius: 16px;
   overflow: hidden;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   margin-bottom: 12px;
 }
 
@@ -550,12 +550,12 @@ const handleModelAction = (
 .group-name {
   font-weight: 600;
   font-size: 1rem;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .group-count {
   font-size: 0.85rem;
-  color: var(--color-primary);
+  color: var(--primary-color);
   padding: 2px 8px;
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
@@ -581,15 +581,15 @@ const handleModelAction = (
   gap: 8px;
   padding: 10px;
   border-radius: 12px;
-  border: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
   transition:
     transform 0.18s,
     opacity 0.18s;
 }
 
 .model-card:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .model-card-main {
@@ -613,14 +613,14 @@ const handleModelAction = (
 .model-name {
   font-size: 1rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   margin-bottom: 2px;
   line-height: 1.4;
 }
 
 .model-id {
   font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-family: monospace;
   line-height: 1.4;
   overflow: hidden;
@@ -629,7 +629,7 @@ const handleModelAction = (
 }
 
 .model-identity {
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-family: monospace;
   font-size: 0.75rem;
   line-height: 1.35;
@@ -653,8 +653,8 @@ const handleModelAction = (
   min-height: 44px;
   padding: 7px 2px 0;
   border: 0;
-  border-top: 1px dashed var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
+  border-top: 1px dashed var(--border-color);
+  color: var(--text-color-light);
   text-align: left;
   background: transparent;
   font-size: 0.76rem;
@@ -683,7 +683,7 @@ const handleModelAction = (
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  border-top: 1px dashed var(--color-outline-variant);
+  border-top: 1px dashed var(--border-color);
   padding-top: 8px;
 }
 

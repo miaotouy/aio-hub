@@ -150,7 +150,7 @@ function moveGroup(event: Event): void {
   gap: 8px;
   align-items: center;
   border: var(--border-width) solid var(--border-color);
-  border-left: 3px solid var(--color-primary);
+  border-left: 3px solid var(--primary-color);
   border-radius: var(--app-radius-md, 8px);
   background: var(--card-bg);
   transition:
@@ -181,7 +181,7 @@ summary,
 }
 .drag-handle {
   padding: 4px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   touch-action: none;
 }
 .card-main {
@@ -205,20 +205,20 @@ summary,
 .group-pill {
   padding: 2px 6px;
   border-radius: 999px;
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
   font-size: 0.68rem;
   white-space: nowrap;
 }
 .group-pill {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   background: var(--input-bg);
 }
 p {
   margin: 6px 0 3px;
   display: -webkit-box;
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.8rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -228,7 +228,7 @@ p {
   display: block;
 }
 small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.68rem;
 }
 .card-actions {
@@ -259,7 +259,7 @@ small {
   transition: 0.18s;
 }
 .switch input:checked + i {
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .switch input:checked + i::after {
   transform: translateX(14px);
@@ -303,7 +303,7 @@ summary::-webkit-details-marker {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.7rem;
 }
 .group-move select {
@@ -319,10 +319,10 @@ summary::-webkit-details-marker {
   opacity: 0.4;
 }
 .menu .danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color, #d14343);
 }
 .expand-icon {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   transition: 0.18s;
 }
 .rotate {

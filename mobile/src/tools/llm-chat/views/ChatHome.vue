@@ -193,7 +193,7 @@ const goHome = () => {
 .header h1 {
   font-size: 1.8rem;
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .header-main {
@@ -212,7 +212,7 @@ const goHome = () => {
 }
 
 .header p {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.9rem;
 }
 
@@ -238,12 +238,12 @@ const goHome = () => {
 
 .action-card:active {
   transform: scale(0.98);
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
 }
 
 .action-card.primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .action-card.primary .icon-box,
@@ -258,7 +258,7 @@ const goHome = () => {
 }
 
 .icon-box {
-  color: var(--color-primary);
+  color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,6 +272,6 @@ const goHome = () => {
 .text-box p {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 </style>

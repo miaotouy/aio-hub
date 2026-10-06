@@ -93,8 +93,8 @@ const fallbackIcon = computed(() => {
   place-items: center;
   overflow: hidden;
   border-radius: 6px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
 }
 
 .attachment-thumbnail img {

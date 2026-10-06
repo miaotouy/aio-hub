@@ -189,7 +189,7 @@ const goHome = () => {
   flex-direction: column;
   /* 移动端避免使用 100vh，使用 flex 填充父容器 */
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .view-content {

@@ -392,12 +392,12 @@ const toggleCapabilityFilter = (capKey: string) => {
                         <Check
                           v-else-if="isModelSelected(model)"
                           :size="20"
-                          color="var(--color-primary)"
+                          color="var(--primary-color)"
                         />
                         <Plus
                           v-else
                           :size="20"
-                          color="var(--color-on-surface-variant)"
+                          color="var(--text-color-light)"
                         />
                       </div>
                     </div>
@@ -450,7 +450,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .fetcher-content {
@@ -471,13 +471,13 @@ const toggleCapabilityFilter = (capKey: string) => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   border-radius: 12px;
-  border: 1.5px solid var(--color-outline);
+  border: 1.5px solid var(--border-color);
 }
 
 .search-icon {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   flex-shrink: 0;
 }
 
@@ -486,12 +486,12 @@ const toggleCapabilityFilter = (capKey: string) => {
   border: none;
   background: transparent;
   font-size: 1.05rem;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   outline: none;
 }
 
 .search-input::placeholder {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.5;
 }
 
@@ -507,7 +507,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   gap: 6px;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .filter-chips {
@@ -522,16 +522,16 @@ const toggleCapabilityFilter = (capKey: string) => {
   gap: 4px;
   padding: 6px 10px;
   border-radius: 8px;
-  background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
   font-size: 0.85rem;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .filter-chip.active {
-  border-color: var(--cap-color, var(--color-primary));
+  border-color: var(--cap-color, var(--primary-color));
   background: var(--cap-bg, var(--color-primary-container));
   color: var(--cap-color, var(--color-on-primary-container));
 }
@@ -552,7 +552,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   justify-content: center;
   align-items: center;
   padding: 48px 24px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 
@@ -564,7 +564,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 .model-group {
   border-radius: 16px;
   overflow: hidden;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   margin-bottom: 12px;
 }
 
@@ -582,12 +582,12 @@ const toggleCapabilityFilter = (capKey: string) => {
 .group-name {
   font-weight: 600;
   font-size: 1rem;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .group-count {
   font-size: 0.85rem;
-  color: var(--color-primary);
+  color: var(--primary-color);
   padding: 2px 8px;
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
@@ -613,15 +613,15 @@ const toggleCapabilityFilter = (capKey: string) => {
   gap: 8px;
   padding: 10px;
   border-radius: 12px;
-  border: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
   transition: all 0.2s;
   cursor: pointer;
 }
 
 .model-card.selected {
   background: var(--color-primary-container);
-  border-color: var(--color-primary);
+  border-color: var(--primary-color);
 }
 
 .model-card.disabled {
@@ -650,14 +650,14 @@ const toggleCapabilityFilter = (capKey: string) => {
 .model-name {
   font-size: 1rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   margin-bottom: 2px;
   line-height: 1.4;
 }
 
 .model-id {
   font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-family: monospace;
   line-height: 1.4;
   overflow: hidden;
@@ -666,7 +666,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-identity {
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-family: monospace;
   font-size: 0.75rem;
   line-height: 1.35;
@@ -676,7 +676,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-identity.is-suggestion {
-  color: var(--color-warning);
+  color: var(--warning-color);
 }
 
 .model-capabilities {
@@ -684,7 +684,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  border-top: 1px dashed var(--color-outline-variant);
+  border-top: 1px dashed var(--border-color);
   padding-top: 8px;
 }
 
@@ -718,14 +718,14 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .status-tag.existing {
-  background: var(--color-surface-container);
-  color: var(--color-on-surface-variant);
+  background: var(--container-bg);
+  color: var(--text-color-light);
 }
 
 .footer-bar {
   padding: 16px 24px;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-outline-variant);
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: center;
   padding-bottom: calc(16px + var(--safe-area-bottom));
@@ -734,7 +734,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 .selected-count {
   font-size: 1.15rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   padding-bottom: 16px;
 }
 </style>

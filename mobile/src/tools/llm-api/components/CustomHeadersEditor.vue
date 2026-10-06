@@ -209,7 +209,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-content {
@@ -226,10 +226,10 @@ const scrollIntoViewOnFocus = (event: Event) => {
   gap: 12px;
   margin-bottom: 20px;
   padding: 16px;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   border-radius: 16px;
   align-items: center;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
 }
 
 .input-col {
@@ -257,7 +257,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
 
 .popup-footer {
   padding: 20px;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-outline-variant);
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
 }
 </style>

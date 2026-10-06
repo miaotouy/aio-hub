@@ -111,7 +111,7 @@ const emit = defineEmits<{
   position: absolute;
   inset: 0;
   border: 0;
-  background: color-mix(in srgb, var(--color-on-surface) 28%, transparent);
+  background: color-mix(in srgb, var(--text-color) 28%, transparent);
 }
 
 .options-sheet {
@@ -119,9 +119,9 @@ const emit = defineEmits<{
   width: 100%;
   padding: 8px 20px calc(20px + env(safe-area-inset-bottom));
   border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
-  background: var(--container-bg, var(--color-surface-container));
+  background: var(--container-bg, var(--container-bg));
   box-shadow: 0 -8px 28px
-    color-mix(in srgb, var(--color-on-surface) 14%, transparent);
+    color-mix(in srgb, var(--text-color) 14%, transparent);
 }
 
 .sheet-header,
@@ -134,7 +134,7 @@ const emit = defineEmits<{
 
 .sheet-header {
   min-height: 52px;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
 }
 
 .sheet-header h2 {
@@ -149,13 +149,13 @@ const emit = defineEmits<{
   place-items: center;
   border: 0;
   border-radius: var(--app-radius-md);
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
 }
 
 .option-row {
   min-height: 64px;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
 }
 
 .option-row:last-child {
@@ -175,13 +175,13 @@ const emit = defineEmits<{
 }
 
 .option-label {
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-weight: 600;
 }
 
 .option-hint {
   margin-top: 3px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
 }
 
@@ -189,16 +189,16 @@ const emit = defineEmits<{
   display: grid;
   grid-template-columns: repeat(4, minmax(44px, 1fr));
   overflow: hidden;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
 }
 
 .segment-control button {
   min-height: 44px;
   border: 0;
-  border-right: 1px solid var(--border-color, var(--color-outline-variant));
-  color: var(--color-on-surface-variant);
-  background: var(--input-bg, var(--color-surface));
+  border-right: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color-light);
+  background: var(--input-bg, var(--bg-color));
 }
 
 .segment-control button:last-child {
@@ -215,9 +215,9 @@ const emit = defineEmits<{
   width: 100%;
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
-  color: var(--color-on-surface);
-  background: var(--input-bg, var(--color-surface));
+  color: var(--text-color);
+  background: var(--input-bg, var(--bg-color));
 }
 </style>

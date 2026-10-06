@@ -96,13 +96,13 @@ const icon = computed(() => {
 }
 
 .rich-text-alert--important {
-  border-left-color: var(--color-primary);
+  border-left-color: var(--primary-color);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
 }
 
 .rich-text-alert--important .rich-text-alert__header {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 
 .rich-text-alert--warning {
@@ -116,12 +116,12 @@ const icon = computed(() => {
 }
 
 .rich-text-alert--caution {
-  border-left-color: var(--color-error);
+  border-left-color: var(--danger-color);
   background: var(--color-error-container);
   color: var(--color-on-error-container);
 }
 
 .rich-text-alert--caution .rich-text-alert__header {
-  color: var(--color-error);
+  color: var(--danger-color);
 }
 </style>

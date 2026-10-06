@@ -114,7 +114,7 @@ h2 {
   font-size: 1.05rem;
 }
 header small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 button,
 select {
@@ -132,7 +132,7 @@ select {
   border-bottom: var(--border-width) solid var(--border-color);
 }
 .danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color, #d14343);
 }
 .message {
   padding: 13px 16px;
@@ -148,7 +148,7 @@ select {
 }
 .message small {
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -348,7 +348,7 @@ const handleBatchImport = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .manager-content {
@@ -386,15 +386,15 @@ const handleBatchImport = () => {
 }
 
 .key-item-card {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   border-radius: 16px;
   padding: 16px;
-  border: 1.5px solid var(--color-outline-variant);
+  border: 1.5px solid var(--border-color);
   transition: all 0.2s ease;
 }
 
 .key-item-card.is-broken {
-  border-color: var(--color-danger);
+  border-color: var(--danger-color);
   background: var(--color-danger-container);
 }
 
@@ -432,7 +432,7 @@ const handleBatchImport = () => {
   display: flex;
   gap: 12px;
   font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .meta-item {
@@ -442,13 +442,13 @@ const handleBatchImport = () => {
 }
 
 .meta-item.error {
-  color: var(--color-danger);
+  color: var(--danger-color);
 }
 
 .key-footer {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -457,7 +457,7 @@ const handleBatchImport = () => {
 
 .error-msg {
   font-size: 0.85rem;
-  color: var(--color-danger);
+  color: var(--danger-color);
   flex: 1;
 }
 
@@ -473,7 +473,7 @@ const handleBatchImport = () => {
   align-items: center;
   justify-content: center;
   padding: 48px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .empty-icon {
@@ -489,16 +489,16 @@ const handleBatchImport = () => {
   font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 12px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .config-card {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   border-radius: 16px;
   overflow: hidden;
-  border: 1.5px solid var(--color-outline-variant);
+  border: 1.5px solid var(--border-color);
 }
 
 .mr-1 {

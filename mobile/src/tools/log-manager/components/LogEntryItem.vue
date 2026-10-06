@@ -108,7 +108,7 @@ const toggleExpand = () => {
 <style scoped>
 .log-entry-item {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
@@ -116,7 +116,7 @@ const toggleExpand = () => {
 }
 
 .log-entry-item:active {
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
 }
 
 .is-expandable {
@@ -147,31 +147,31 @@ const toggleExpand = () => {
 }
 
 .level-badge.default {
-  background-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background-color: var(--border-color);
+  color: var(--text-color);
 }
 .level-badge.info {
-  background-color: var(--color-info);
+  background-color: var(--info-color);
   color: white;
 }
 .level-badge.warning {
-  background-color: var(--color-warning);
+  background-color: var(--warning-color);
   color: white;
 }
 .level-badge.danger {
-  background-color: var(--color-danger);
+  background-color: var(--danger-color);
   color: white;
 }
 
 .timestamp {
   font-size: 11px;
-  color: var(--color-outline);
+  color: var(--border-color);
   white-space: nowrap;
 }
 
 .module {
   font-size: 11px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -181,7 +181,7 @@ const toggleExpand = () => {
   font-size: 13px;
   line-height: 1.5;
   word-break: break-all;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   display: flex;
   align-items: flex-start;
   gap: 4px;
@@ -190,14 +190,14 @@ const toggleExpand = () => {
 .expand-hint {
   display: inline-flex;
   align-items: center;
-  color: var(--color-outline);
+  color: var(--border-color);
   margin-top: 2px;
 }
 
 .entry-details {
   margin-top: 8px;
   padding: 8px;
-  background-color: var(--color-surface-container-highest);
+  background-color: var(--overlay-bg);
   border-radius: 4px;
   font-size: 12px;
 }
@@ -212,7 +212,7 @@ const toggleExpand = () => {
 
 .detail-label {
   font-weight: bold;
-  color: var(--color-outline);
+  color: var(--border-color);
   margin-bottom: 2px;
 }
 
@@ -220,22 +220,22 @@ const toggleExpand = () => {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   background: transparent;
   padding: 0;
 }
 
 .stack {
-  color: var(--color-danger);
+  color: var(--danger-color);
   font-size: 11px;
 }
 
 /* 级别特定的边框或背景微调 */
 .level-error {
-  background-color: rgba(var(--color-danger-rgb), 0.05);
+  background-color: rgba(var(--danger-color-rgb), 0.05);
 }
 
 .level-warn {
-  background-color: rgba(var(--color-warning-rgb), 0.05);
+  background-color: rgba(var(--warning-color-rgb), 0.05);
 }
 </style>

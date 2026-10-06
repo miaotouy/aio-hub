@@ -417,10 +417,10 @@ const showDrawer = ref(false);
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
   border-radius: 8px;
   font-size: 1rem;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .action-item:active {
@@ -432,7 +432,7 @@ const showDrawer = ref(false);
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background-color: var(--color-surface-container-low);
+  background-color: var(--card-bg);
   border-radius: 12px;
   border: var(--border-width) solid var(--border-color);
 }
@@ -445,7 +445,7 @@ const showDrawer = ref(false);
 
 .preview-label {
   font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .preview-value {
@@ -457,13 +457,13 @@ const showDrawer = ref(false);
 .color-name {
   font-size: 1.15rem;
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .color-hex {
   font-size: 0.85rem;
   font-family: monospace;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.8;
 }
 
@@ -491,12 +491,12 @@ const showDrawer = ref(false);
 .group-title {
   font-size: 1.05rem;
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .group-desc {
   font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.7;
 }
 
@@ -517,7 +517,7 @@ const showDrawer = ref(false);
 
 .swatch-name {
   font-size: 0.7rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
   width: 100%;
   overflow: hidden;
@@ -560,7 +560,7 @@ const showDrawer = ref(false);
   width: 100%;
   height: 60px;
   border-radius: 8px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   transition: background-color 0.2s ease;
 }
 

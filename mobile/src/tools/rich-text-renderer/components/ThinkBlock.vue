@@ -83,7 +83,7 @@ async function copyContent() {
   justify-content: space-between;
   min-height: 38px;
   padding: 0 8px 0 10px;
-  background: color-mix(in srgb, var(--card-bg) 84%, var(--color-primary));
+  background: color-mix(in srgb, var(--card-bg) 84%, var(--primary-color));
 }
 
 .llm-think-toggle,
@@ -140,6 +140,6 @@ async function copyContent() {
 }
 
 .is-thinking .llm-think-toggle {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 </style>

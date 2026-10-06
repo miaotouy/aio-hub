@@ -76,8 +76,8 @@ defineEmits<{
 
 <style scoped>
 .profile-card {
-  background: var(--color-surface-container-low);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 12px;
@@ -103,10 +103,10 @@ defineEmits<{
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   overflow: hidden;
   padding: 8px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -141,7 +141,7 @@ defineEmits<{
 .card-footer {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -161,13 +161,13 @@ defineEmits<{
 }
 
 .status-enabled {
-  color: var(--color-success);
+  color: var(--success-color);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .status-disabled {
-  color: var(--color-warning);
+  color: var(--warning-color);
 }
 </style>

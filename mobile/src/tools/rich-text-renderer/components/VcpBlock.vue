@@ -254,7 +254,7 @@ const statusText = computed(() => {
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--app-radius-md);
   color: var(--text-color);
-  background: var(--color-surface-container-low);
+  background: var(--card-bg);
 }
 
 .vcp-block.is-pending {
@@ -263,7 +263,7 @@ const statusText = computed(() => {
 
 .vcp-block.is-error,
 .vcp-block.is-incomplete {
-  border-color: var(--color-error, var(--el-color-danger));
+  border-color: var(--danger-color);
 }
 
 .vcp-header {
@@ -294,7 +294,7 @@ const statusText = computed(() => {
 }
 
 .vcp-heading small {
-  color: var(--color-on-surface-variant, var(--text-color-light));
+  color: var(--text-color-light, var(--text-color-light));
 }
 
 .vcp-content {
@@ -319,7 +319,7 @@ const statusText = computed(() => {
 }
 
 .vcp-fields dt {
-  color: var(--color-on-surface-variant, var(--text-color-light));
+  color: var(--text-color-light, var(--text-color-light));
   font-size: 0.85em;
 }
 

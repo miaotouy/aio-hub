@@ -278,7 +278,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
 }
 .icon-button.primary {
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .editor {
   display: flex;
@@ -304,17 +304,17 @@ function handleAssetRemoved(asset: AgentAsset): void {
 }
 .section-heading h2 {
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 1rem;
 }
 .section-heading p,
 .worldbook-empty {
   margin: 4px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
 }
 .worldbook-link {
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-size: 0.78rem;
   text-decoration: none;
   white-space: nowrap;
@@ -334,7 +334,7 @@ function handleAssetRemoved(asset: AgentAsset): void {
   gap: 3px;
 }
 .worldbook-option small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.74rem;
 }
 .worldbook-option.disabled {
@@ -348,7 +348,7 @@ label {
 }
 label span {
   font-size: 0.8rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 input,
 select,
@@ -370,7 +370,7 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--color-primary);
+  border-color: var(--primary-color);
 }
 @media (max-width: 440px) {
   .form-section.two-column {

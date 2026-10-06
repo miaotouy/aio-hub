@@ -112,7 +112,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .back-btn {
@@ -136,7 +136,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   padding: 16px;
   border-radius: 16px;
   background: var(--color-primary-container);
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-size: 0.85rem;
   line-height: 1.6;
   margin-bottom: 32px;

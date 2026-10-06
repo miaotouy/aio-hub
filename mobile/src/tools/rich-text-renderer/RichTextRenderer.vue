@@ -264,14 +264,14 @@ onBeforeUnmount(() => {
   font-size: 0.85em;
   background-color: var(--input-bg);
   border-radius: 4px;
-  color: var(--color-error, #d14343);
+  color: var(--danger-color, #d14343);
   overflow-wrap: anywhere;
   word-break: normal;
 }
 
 /* 链接与图片 */
 :deep(a) {
-  color: var(--color-primary);
+  color: var(--primary-color);
   text-decoration: none;
   font-weight: 500;
 }
@@ -359,7 +359,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(tr:nth-child(even)) {
-  background-color: var(--color-surface-container-low, var(--card-bg));
+  background-color: var(--card-bg, var(--card-bg));
 }
 
 /* HTML 安全字面输出 */

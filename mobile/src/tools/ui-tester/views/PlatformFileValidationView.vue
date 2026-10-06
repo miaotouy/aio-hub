@@ -450,7 +450,7 @@ function recordObservation(verdict: "passed" | "failed"): void {
   font-weight: 600;
 }
 .error-text {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;

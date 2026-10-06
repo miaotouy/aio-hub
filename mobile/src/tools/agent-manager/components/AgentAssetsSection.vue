@@ -492,23 +492,23 @@ defineExpose({ collectAttachmentReferences });
 }
 .section-heading h2 {
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 1rem;
 }
 .section-heading p {
   margin: 4px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
 }
 .add-button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: var(--border-width) solid var(--color-primary);
+  border: var(--border-width) solid var(--primary-color);
   border-radius: 8px;
   padding: 7px 12px;
   background: transparent;
-  color: var(--color-primary);
+  color: var(--primary-color);
   font: inherit;
   font-size: 0.8rem;
   white-space: nowrap;
@@ -523,21 +523,21 @@ defineExpose({ collectAttachmentReferences });
   border-radius: 999px;
   padding: 6px 12px;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font: inherit;
   font-size: 0.76rem;
 }
 .group-chip.active {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 .assets-empty {
   margin: 0;
   padding: 14px;
   border: 1px dashed var(--border-color);
   border-radius: 10px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.8rem;
   text-align: center;
 }
@@ -576,8 +576,8 @@ defineExpose({ collectAttachmentReferences });
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  color: var(--primary-color);
   flex-shrink: 0;
 }
 .asset-meta {
@@ -594,7 +594,7 @@ defineExpose({ collectAttachmentReferences });
   white-space: nowrap;
 }
 .asset-meta small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.72rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -614,10 +614,10 @@ defineExpose({ collectAttachmentReferences });
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .icon-action.danger {
-  color: var(--color-error, #d32f2f);
+  color: var(--danger-color, #d32f2f);
 }
 .asset-preview {
   max-width: 100%;
@@ -650,7 +650,7 @@ defineExpose({ collectAttachmentReferences });
 }
 .edit-filename {
   margin: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
 }
 .edit-sheet label {
@@ -659,7 +659,7 @@ defineExpose({ collectAttachmentReferences });
 }
 .edit-sheet label span {
   font-size: 0.8rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .edit-sheet input,
 .edit-sheet select {
@@ -685,8 +685,8 @@ defineExpose({ collectAttachmentReferences });
   font: inherit;
 }
 .edit-actions button:last-child {
-  border: var(--border-width) solid var(--color-primary);
-  background: var(--color-primary);
+  border: var(--border-width) solid var(--primary-color);
+  background: var(--primary-color);
   color: white;
 }
 </style>

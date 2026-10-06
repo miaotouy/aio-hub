@@ -42,6 +42,12 @@
   /* 字体与质感 */
   --app-font-size: 14px;
   --app-font-scale: 1;
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 28px;
   --ui-blur: 0px;
   --ui-effects-enabled: 0;
   --card-opacity: 1;
@@ -55,6 +61,26 @@
   --app-radius-md: 8px;
   --app-radius-sm: 4px;
   --border-width: 1px;
+
+  /* 间距刻度（4pt 基） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* 层级 */
+  --z-sticky: 100;
+  --z-page: 1000;
+  --z-sheet: 1100;
+  --z-dialog: 1200;
+  --z-toast: 2000;
+
+  /* 弹层阴影（单层） */
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.16);
 
   /* 导航栏与安全区域变量 */
   --app-bar-height: 54px;

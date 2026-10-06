@@ -793,7 +793,7 @@ const setTokenLimit = (
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .editor-content {
@@ -806,13 +806,13 @@ const setTokenLimit = (
   font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 12px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .config-card {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   border-radius: 20px;
   padding: 20px;
   margin-bottom: 32px;
@@ -836,7 +836,7 @@ const setTokenLimit = (
 .native-input-label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .native-input {
@@ -844,9 +844,9 @@ const setTokenLimit = (
   padding: 14px 16px;
   font-size: 1.15rem;
   line-height: 1.5;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline);
+  color: var(--text-color);
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 12px;
   outline: none;
   transition: all 0.2s ease;
@@ -855,13 +855,13 @@ const setTokenLimit = (
 }
 
 .native-input::placeholder {
-  color: var(--color-on-surface);
+  color: var(--text-color);
   opacity: 0.4;
 }
 
 .native-input:focus {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
@@ -870,20 +870,20 @@ const setTokenLimit = (
   --select-border-radius: 12px;
   --select-padding: 14px 16px;
   --select-font-size: 1.15rem;
-  --field-decorator-outlined-border-color: var(--color-outline);
-  --field-decorator-focus-color: var(--color-primary);
-  --field-decorator-text-color: var(--color-on-surface);
-  --field-decorator-placeholder-color: rgba(var(--color-on-surface), 0.4);
+  --field-decorator-outlined-border-color: var(--border-color);
+  --field-decorator-focus-color: var(--primary-color);
+  --field-decorator-text-color: var(--text-color);
+  --field-decorator-placeholder-color: rgba(var(--text-color), 0.4);
 }
 
 :deep(.custom-var-select .var-field-decorator--outlined) {
   border-width: 1.5px;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   transition: all 0.2s ease;
 }
 
 :deep(.custom-var-select .var-field-decorator--focus) {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
@@ -896,16 +896,16 @@ const setTokenLimit = (
   display: flex;
   align-items: stretch;
   gap: 0;
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline);
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .native-input-with-action:focus-within {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
@@ -927,7 +927,7 @@ const setTokenLimit = (
   width: 48px;
   background: transparent;
   border: none;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   opacity: 0.6;
   cursor: pointer;
   transition:
@@ -937,11 +937,11 @@ const setTokenLimit = (
 
 .input-action-btn:hover {
   opacity: 1;
-  background: var(--color-surface-container-highest);
+  background: var(--overlay-bg);
 }
 
 .input-action-btn:active {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
 }
 
 .avatar-select-section {
@@ -956,10 +956,10 @@ const setTokenLimit = (
   position: relative;
   width: 80px;
   height: 80px;
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
   border-radius: 20px;
   padding: 16px;
-  border: 1.5px solid var(--color-outline);
+  border: 1.5px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -978,12 +978,12 @@ const setTokenLimit = (
 
 .avatar-hint {
   font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  color: var(--text-color-light);
 }
 
 .input-hint {
   font-size: 0.8rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.6;
   margin-top: 4px;
 }
@@ -1021,15 +1021,15 @@ const setTokenLimit = (
   gap: 6px;
   padding: 12px 8px;
   border-radius: 10px;
-  border: 1.5px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-color);
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
 }
 
 .capability-toggle.active {
-  border-color: var(--cap-color, var(--color-primary));
+  border-color: var(--cap-color, var(--primary-color));
   background: var(--cap-bg, var(--color-primary-container));
   color: var(--cap-color, var(--color-on-primary-container));
 }
@@ -1044,7 +1044,7 @@ const setTokenLimit = (
   position: absolute;
   top: 6px;
   right: 6px;
-  color: var(--cap-color, var(--color-primary));
+  color: var(--cap-color, var(--primary-color));
 }
 
 .pricing-grid {

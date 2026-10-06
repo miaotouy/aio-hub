@@ -218,8 +218,8 @@ async function copyDiagnostic() {
   z-index: 20;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  color: var(--color-on-surface);
-  background: var(--color-surface);
+  color: var(--text-color);
+  background: var(--bg-color);
 }
 
 .detail-header {
@@ -228,8 +228,8 @@ async function copyDiagnostic() {
   align-items: center;
   min-height: calc(56px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) 8px 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
-  background: var(--container-bg, var(--color-surface));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
+  background: var(--container-bg, var(--bg-color));
 }
 
 .detail-header h2 {
@@ -276,13 +276,13 @@ pre,
 
 .model-heading code,
 .diagnostic-list code {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
   overflow-wrap: anywhere;
 }
 
 .capability-label {
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -291,7 +291,7 @@ pre,
   margin-top: 14px;
   padding: 10px 12px;
   border-left: 3px solid var(--warning-color);
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: color-mix(in srgb, var(--warning-color) 12%, transparent);
 }
 
@@ -308,8 +308,8 @@ pre,
   display: grid;
   gap: 4px;
   padding: 12px 0;
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-top: 1px solid var(--border-color, var(--border-color));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
 }
 
 .status-summary strong.success,
@@ -322,7 +322,7 @@ pre,
 }
 
 .status-summary span {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.86rem;
   line-height: 1.5;
 }
@@ -333,20 +333,20 @@ pre,
   gap: 1px;
   overflow: hidden;
   margin: 0;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
-  background: var(--border-color, var(--color-outline-variant));
+  background: var(--border-color, var(--border-color));
 }
 
 .metric-grid div {
   min-width: 0;
   padding: 12px;
-  background: var(--container-bg, var(--color-surface-container));
+  background: var(--container-bg, var(--container-bg));
 }
 
 .metric-grid dt,
 .diagnostic-list dt {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.75rem;
 }
 
@@ -359,7 +359,7 @@ pre,
 
 .diagnostic-list {
   margin: 0;
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
+  border-top: 1px solid var(--border-color, var(--border-color));
 }
 
 .diagnostic-list > div {
@@ -367,7 +367,7 @@ pre,
   grid-template-columns: 76px minmax(0, 1fr);
   gap: 12px;
   padding: 11px 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
 }
 
 .diagnostic-list dd {
@@ -390,17 +390,17 @@ pre,
   gap: 5px;
   min-height: 44px;
   border: 0;
-  color: var(--color-primary);
+  color: var(--primary-color);
   background: transparent;
 }
 
 pre {
   margin: 0;
   padding: 12px;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
-  color: var(--color-on-surface);
-  background: var(--input-bg, var(--color-surface-container));
+  color: var(--text-color);
+  background: var(--input-bg, var(--container-bg));
   font-size: 0.76rem;
   line-height: 1.55;
   white-space: pre-wrap;
@@ -409,8 +409,8 @@ pre {
 
 .detail-footer {
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
-  background: var(--container-bg, var(--color-surface));
+  border-top: 1px solid var(--border-color, var(--border-color));
+  background: var(--container-bg, var(--bg-color));
   backdrop-filter: blur(var(--ui-blur));
 }
 
@@ -421,10 +421,10 @@ pre {
   gap: 8px;
   width: 100%;
   min-height: 46px;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
   border-radius: var(--app-radius-md);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
   font-weight: 700;
 }
 </style>

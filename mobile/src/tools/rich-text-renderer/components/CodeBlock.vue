@@ -131,18 +131,18 @@ onBeforeUnmount(() => {
 }
 
 .mobile-code-action:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--primary-color);
   outline-offset: -2px;
 }
 
 .mobile-code-action:active,
 .mobile-code-action[aria-pressed="true"] {
   color: var(--text-color);
-  background: var(--color-surface-container-high, var(--card-bg));
+  background: var(--input-bg, var(--card-bg));
 }
 
 .copy-success {
-  color: var(--success-color, var(--el-color-success));
+  color: var(--success-color);
 }
 
 .mobile-code-pre {

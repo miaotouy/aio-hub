@@ -51,7 +51,7 @@ const emit = defineEmits<{
   position: absolute;
   inset: 0;
   border: 0;
-  background: color-mix(in srgb, var(--color-on-surface) 32%, transparent);
+  background: color-mix(in srgb, var(--text-color) 32%, transparent);
 }
 
 .confirm-sheet {
@@ -59,19 +59,19 @@ const emit = defineEmits<{
   width: 100%;
   padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
   border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
-  background: var(--container-bg, var(--color-surface-container));
+  background: var(--container-bg, var(--container-bg));
 }
 
 .confirm-sheet h2 {
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 1.08rem;
   line-height: 1.4;
 }
 
 .confirm-sheet p {
   margin: 10px 0 22px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.9rem;
   line-height: 1.6;
 }
@@ -89,14 +89,14 @@ const emit = defineEmits<{
 }
 
 .secondary-button {
-  border: 1px solid var(--border-color, var(--color-outline));
-  color: var(--color-on-surface);
+  border: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color);
   background: transparent;
 }
 
 .primary-button {
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 </style>

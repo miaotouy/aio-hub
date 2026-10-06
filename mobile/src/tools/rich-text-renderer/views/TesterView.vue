@@ -912,8 +912,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface);
-  color: var(--color-on-surface);
+  background-color: var(--bg-color);
+  color: var(--text-color);
   font-size: 0.9rem;
 }
 
@@ -974,8 +974,8 @@ onUnmounted(() => {
 }
 
 .tab-item.active {
-  color: var(--color-primary);
-  background-color: rgba(var(--color-primary-rgb), 0.05);
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.05);
 }
 
 /* 主工作区 */
@@ -1076,7 +1076,7 @@ onUnmounted(() => {
   font-size: 0.8rem;
   line-height: 1.5;
   border-top: 1px dashed var(--border-color);
-  background-color: rgba(var(--color-primary-rgb), 0.02);
+  background-color: rgba(var(--primary-color-rgb), 0.02);
   margin-top: auto;
 }
 
@@ -1091,8 +1091,8 @@ onUnmounted(() => {
 }
 
 .karaoke-consumed {
-  color: var(--color-primary);
-  background-color: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.08);
   border-radius: 2px;
 }
 
@@ -1130,7 +1130,7 @@ onUnmounted(() => {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-color);
-  border-left: 3px solid var(--color-primary);
+  border-left: 3px solid var(--primary-color);
   padding-left: 6px;
 }
 
@@ -1200,7 +1200,7 @@ onUnmounted(() => {
   border-radius: 12px 12px 0 0;
   display: flex;
   flex-direction: column;
-  background-color: var(--color-surface);
+  background-color: var(--bg-color);
 }
 
 .drawer-header {

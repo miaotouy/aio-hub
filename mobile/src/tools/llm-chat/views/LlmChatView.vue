@@ -400,7 +400,7 @@ const goToChatHome = () => {
   display: grid;
   place-items: center;
   border-radius: 6px;
-  background: var(--color-primary);
+  background: var(--primary-color);
   color: white;
   font-size: 0.7rem;
   font-weight: 700;
@@ -448,7 +448,7 @@ const goToChatHome = () => {
   font-size: 1rem;
 }
 .agent-selector-header span {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
 }
 .agent-selector-list {
@@ -471,8 +471,8 @@ const goToChatHome = () => {
   text-align: left;
 }
 .agent-selector-item.active {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, var(--input-bg));
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--input-bg));
 }
 .agent-selector-avatar {
   width: 38px;
@@ -482,7 +482,7 @@ const goToChatHome = () => {
   place-items: center;
   border-radius: 8px;
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
   font-size: 0.84rem;
   font-weight: 700;
   overflow: hidden;
@@ -501,16 +501,16 @@ const goToChatHome = () => {
   text-overflow: ellipsis;
 }
 .agent-selector-copy small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.75rem;
 }
 .agent-selector-check {
   flex: 0 0 auto;
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 .agent-selector-empty {
   margin: 16px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 
@@ -553,7 +553,7 @@ const goToChatHome = () => {
 }
 
 .edit-textarea:focus {
-  border-color: var(--el-color-primary);
+  border-color: var(--primary-color);
 }
 
 .edit-actions {

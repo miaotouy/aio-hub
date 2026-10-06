@@ -477,7 +477,7 @@ async function importAgents(event: Event): Promise<void> {
 }
 .header-copy p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
 }
 .icon-button {
@@ -496,14 +496,14 @@ async function importAgents(event: Event): Promise<void> {
 }
 .icon-button.primary {
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .icon-button.accent {
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 .icon-button.danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color, #d14343);
 }
 .header-actions {
   display: flex;
@@ -566,7 +566,7 @@ async function importAgents(event: Event): Promise<void> {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: var(--color-primary);
+  background: var(--primary-color);
   color: white;
   font-size: 1rem;
   font-weight: 700;
@@ -589,7 +589,7 @@ async function importAgents(event: Event): Promise<void> {
 }
 .agent-copy p {
   margin: 4px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
   overflow: hidden;
   white-space: nowrap;
@@ -597,7 +597,7 @@ async function importAgents(event: Event): Promise<void> {
 }
 .agent-copy span {
   font-size: 0.72rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .agent-actions {
   display: flex;
@@ -614,7 +614,7 @@ async function importAgents(event: Event): Promise<void> {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 .empty-state span {

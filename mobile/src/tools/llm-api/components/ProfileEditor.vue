@@ -683,7 +683,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 /* 确保 AppBar 层级高于内容区域，避免滚动时被卡片遮挡 */
@@ -709,7 +709,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 12px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -730,7 +730,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .config-card {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   border-radius: 20px;
   padding: 20px;
   margin-bottom: 32px;
@@ -769,7 +769,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 .native-input-label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -796,9 +796,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   padding: 14px 16px;
   font-size: 1.15rem;
   line-height: 1.5;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline);
+  color: var(--text-color);
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 12px;
   outline: none;
   transition: all 0.2s ease;
@@ -807,14 +807,14 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .native-input::placeholder {
-  color: var(--color-on-surface);
+  color: var(--text-color);
   opacity: 0.4;
 }
 
 .native-input:focus,
 .native-select:focus {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
@@ -836,16 +836,16 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   display: flex;
   align-items: stretch;
   gap: 0;
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline);
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .native-input-with-action:focus-within {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
@@ -867,7 +867,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   width: 48px;
   background: transparent;
   border: none;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   opacity: 0.6;
   cursor: pointer;
   transition:
@@ -877,11 +877,11 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .input-action-btn:hover {
   opacity: 1;
-  background: var(--color-surface-container-highest);
+  background: var(--overlay-bg);
 }
 
 .input-action-btn:active {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
 }
 
 .avatar-select-section {
@@ -896,10 +896,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   position: relative;
   width: 80px;
   height: 80px;
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
   border-radius: 20px;
   padding: 16px;
-  border: 1.5px solid var(--color-outline);
+  border: 1.5px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -912,13 +912,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   bottom: -6px;
   width: 28px;
   height: 28px;
-  background: var(--color-primary);
+  background: var(--primary-color);
   color: var(--color-on-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--color-surface-container);
+  border: 2px solid var(--container-bg);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -934,7 +934,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .avatar-hint {
   font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  color: var(--text-color-light);
 }
 
 .field-icon {
@@ -962,7 +962,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .preview-hint {
   font-size: 0.8rem;
-  color: var(--color-primary);
+  color: var(--primary-color);
   margin-top: 4px;
 }
 
@@ -974,8 +974,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .custom-cell {
   border-radius: 12px;
-  border: 1.5px solid var(--color-outline);
-  background: var(--color-surface-container);
+  border: 1.5px solid var(--border-color);
+  background: var(--container-bg);
 }
 
 .danger-zone {

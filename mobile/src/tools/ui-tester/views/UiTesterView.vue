@@ -254,7 +254,7 @@ onMounted(async () => {
   font-size: 13px;
 }
 .section-tabs button.active {
-  color: var(--color-primary, #2563eb);
+  color: var(--primary-color, #2563eb);
   border-bottom-color: currentColor;
 }
 .workbench-content {
@@ -299,13 +299,13 @@ onMounted(async () => {
   font-size: 13px;
 }
 .passed {
-  color: var(--color-success, #25804b);
+  color: var(--success-color, #25804b);
 }
 .failed {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
 }
 .pending {
-  color: var(--color-warning, #9a6500);
+  color: var(--warning-color, #9a6500);
 }
 .overview-section,
 .resume-section {
@@ -347,18 +347,18 @@ onMounted(async () => {
   font-size: 12px;
 }
 .status[data-status="passed"] {
-  color: var(--color-success, #25804b);
+  color: var(--success-color, #25804b);
 }
 .status[data-status="failed"] {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
 }
 .status[data-status="manualPending"] {
-  color: var(--color-warning, #9a6500);
+  color: var(--warning-color, #9a6500);
 }
 .resume-section {
   padding: 12px;
   background: var(--input-bg);
-  border-left: 3px solid var(--color-warning, #9a6500);
+  border-left: 3px solid var(--warning-color, #9a6500);
 }
 @media (max-width: 380px) {
   .overview-band {

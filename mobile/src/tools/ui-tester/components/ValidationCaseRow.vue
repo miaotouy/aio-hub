@@ -83,13 +83,13 @@ const statusText: Record<ValidationRunStatus, string> = {
 }
 
 .case-status[data-status="passed"] {
-  color: var(--color-success, #25804b);
+  color: var(--success-color, #25804b);
 }
 .case-status[data-status="failed"] {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
 }
 .case-status[data-status="manualPending"] {
-  color: var(--color-warning, #9a6500);
+  color: var(--warning-color, #9a6500);
 }
 .run-button {
   flex: 0 0 auto;

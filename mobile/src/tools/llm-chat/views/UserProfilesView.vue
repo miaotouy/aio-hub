@@ -292,7 +292,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .user-profiles-view {
   min-height: 100%;
   padding: 18px 16px 32px;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 .page-header {
   display: grid;
@@ -303,12 +303,12 @@ async function toggleEnabled(profile: MobileUserProfile) {
 }
 .page-header h1 {
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 1.35rem;
 }
 .page-header p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
 }
 .icon-button,
@@ -317,7 +317,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   place-items: center;
   border: 0;
   border-radius: 50%;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   background: transparent;
 }
 .icon-button {
@@ -327,7 +327,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .icon-button.primary,
 .create-button {
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .profile-list {
   display: grid;
@@ -339,7 +339,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   place-items: center;
   align-content: center;
   gap: 9px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 .create-button {
@@ -353,10 +353,10 @@ async function toggleEnabled(profile: MobileUserProfile) {
   gap: 10px;
   padding: 14px;
   border-radius: 14px;
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 .profile-card.global {
-  outline: 1px solid var(--color-primary);
+  outline: 1px solid var(--primary-color);
 }
 .profile-card.disabled {
   opacity: 0.58;
@@ -377,7 +377,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 .profile-title span {
   padding: 2px 6px;
@@ -388,7 +388,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
 }
 .profile-copy small,
 .profile-copy p {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .profile-copy p {
   display: -webkit-box;
@@ -408,14 +408,14 @@ async function toggleEnabled(profile: MobileUserProfile) {
   height: 30px;
 }
 .profile-actions .danger {
-  color: var(--color-error);
+  color: var(--danger-color);
 }
 .enabled-toggle {
   grid-column: 2 / -1;
   display: flex;
   gap: 6px;
   align-items: center;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.76rem;
 }
 .profile-form {
@@ -426,18 +426,18 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .profile-form label {
   display: grid;
   gap: 6px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 0.85rem;
 }
 .profile-form input:not([type="checkbox"]),
 .profile-form textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 9px;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-low);
+  color: var(--text-color);
+  background: var(--card-bg);
   font: inherit;
 }
 .profile-form textarea {

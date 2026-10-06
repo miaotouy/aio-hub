@@ -257,6 +257,6 @@ const handleSwitchToBranch = (nodeId: string) => {
 }
 
 .menu-btn.danger {
-  color: var(--el-color-danger) !important;
+  color: var(--danger-color) !important;
 }
 </style>

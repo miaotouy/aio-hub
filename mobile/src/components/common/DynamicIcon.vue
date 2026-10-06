@@ -145,10 +145,10 @@ const wrapperStyle = computed(() => ({
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-surface-container);
+  background-color: var(--container-bg);
   border-radius: 8px;
-  border: 1px solid var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
+  border: 1px solid var(--border-color);
+  color: var(--text-color-light);
   font-weight: 600;
   text-transform: uppercase;
   box-sizing: border-box;

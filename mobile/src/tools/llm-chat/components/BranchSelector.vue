@@ -156,8 +156,8 @@ const handleSwitch = (nodeId: string) => {
 }
 
 .branch-item.active {
-  border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color), transparent 90%);
 }
 
 .branch-avatar {
@@ -208,7 +208,7 @@ const handleSwitch = (nodeId: string) => {
 
 .active-icon {
   margin-top: 5px;
-  color: var(--el-color-primary);
+  color: var(--primary-color);
   flex-shrink: 0;
 }
 </style>

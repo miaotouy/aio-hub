@@ -613,7 +613,7 @@ onBeforeUnmount(stopDrag);
 }
 .editor-header p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.72rem;
 }
 .editor-header .primary {
@@ -624,7 +624,7 @@ onBeforeUnmount(stopDrag);
   border: 0;
   border-radius: 7px;
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .utility-bar {
   display: flex;
@@ -678,8 +678,8 @@ onBeforeUnmount(stopDrag);
   white-space: nowrap;
 }
 .all-group.active {
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
 }
 .group-control {
   padding: 3px 4px 3px 8px;
@@ -701,7 +701,7 @@ onBeforeUnmount(stopDrag);
   white-space: nowrap;
 }
 .group-filter.active {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 .group-edit {
   padding: 5px;
@@ -734,7 +734,7 @@ onBeforeUnmount(stopDrag);
   transition: 0.16s;
 }
 .mini-switch input:checked + i {
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .mini-switch input:checked + i::after {
   transform: translateX(11px);
@@ -749,7 +749,7 @@ onBeforeUnmount(stopDrag);
   padding: 18px 12px;
   border: var(--border-width) dashed var(--border-color);
   border-radius: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
   line-height: 1.55;
 }
@@ -773,7 +773,7 @@ onBeforeUnmount(stopDrag);
   opacity: 0.4;
 }
 .pagination span {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
 }
 </style>

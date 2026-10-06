@@ -228,8 +228,8 @@ function handleContentClick(event: MouseEvent) {
 }
 
 .user .avatar {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  color: var(--primary-color);
 }
 
 .message-container {
@@ -268,7 +268,7 @@ function handleContentClick(event: MouseEvent) {
 }
 
 .message-item.is-active .content-body {
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
 .message-footer {
@@ -296,7 +296,7 @@ function handleContentClick(event: MouseEvent) {
 
 .token-info {
   margin-top: 4px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.7rem;
 }
 

@@ -464,7 +464,7 @@ async function importWorldbookFile(event: Event) {
 .worldbooks-view {
   min-height: 100%;
   padding: 18px 16px 32px;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 .page-header {
   display: grid;
@@ -475,12 +475,12 @@ async function importWorldbookFile(event: Event) {
 }
 .page-header h1 {
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 1.35rem;
 }
 .page-header p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
 }
 .icon-button,
@@ -490,7 +490,7 @@ async function importWorldbookFile(event: Event) {
   place-items: center;
   border: 0;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .icon-button {
   width: 42px;
@@ -500,7 +500,7 @@ async function importWorldbookFile(event: Event) {
 .icon-button.primary,
 .create-button {
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .header-actions {
   display: flex;
@@ -520,7 +520,7 @@ async function importWorldbookFile(event: Event) {
   place-items: center;
   align-content: center;
   gap: 9px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 .create-button,
@@ -535,7 +535,7 @@ async function importWorldbookFile(event: Event) {
   gap: 9px;
   padding: 14px;
   border-radius: 14px;
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 .worldbook-card.disabled,
 .entry-card.disabled {
@@ -545,7 +545,7 @@ async function importWorldbookFile(event: Event) {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 .worldbook-title span {
   padding: 2px 6px;
@@ -557,7 +557,7 @@ async function importWorldbookFile(event: Event) {
 .worldbook-copy p,
 .entry-card p,
 .entry-card small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .worldbook-copy p {
   margin: 5px 0 0;
@@ -574,14 +574,14 @@ async function importWorldbookFile(event: Event) {
   border-radius: 50%;
 }
 .danger {
-  color: var(--color-error) !important;
+  color: var(--danger-color) !important;
 }
 .enabled-toggle {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.76rem;
 }
 .entry-list {
@@ -596,7 +596,7 @@ async function importWorldbookFile(event: Event) {
   gap: 8px;
   padding: 10px;
   border-radius: 10px;
-  background: var(--color-surface-container-low);
+  background: var(--card-bg);
 }
 .entry-card small {
   display: block;
@@ -621,9 +621,9 @@ async function importWorldbookFile(event: Event) {
   justify-content: center;
   align-items: center;
   gap: 5px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   background: transparent;
-  border: 1px dashed var(--color-outline);
+  border: 1px dashed var(--border-color);
 }
 .editor-form {
   display: grid;
@@ -633,7 +633,7 @@ async function importWorldbookFile(event: Event) {
 .editor-form label {
   display: grid;
   gap: 6px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 0.85rem;
 }
 .editor-form input:not([type="checkbox"]),
@@ -642,10 +642,10 @@ async function importWorldbookFile(event: Event) {
   width: 100%;
   box-sizing: border-box;
   padding: 9px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-low);
+  color: var(--text-color);
+  background: var(--card-bg);
   font: inherit;
 }
 .editor-form textarea {

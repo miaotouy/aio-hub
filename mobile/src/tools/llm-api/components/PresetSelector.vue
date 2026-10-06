@@ -84,7 +84,7 @@ const handleCreateCustom = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-header {
@@ -92,7 +92,7 @@ const handleCreateCustom = () => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .popup-title-group {
@@ -107,7 +107,7 @@ const handleCreateCustom = () => {
 }
 
 .title-icon {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 
 .close-icon {
@@ -128,8 +128,8 @@ const handleCreateCustom = () => {
 }
 
 .preset-item {
-  background: var(--color-surface-container-low);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 16px;
   display: flex;
@@ -141,7 +141,7 @@ const handleCreateCustom = () => {
 
 .preset-item:active {
   transform: scale(0.96);
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .preset-icon-wrapper {
@@ -164,12 +164,12 @@ const handleCreateCustom = () => {
   font-size: 1.05rem;
   font-weight: 600;
   margin-bottom: 4px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .preset-desc {
   font-size: 0.8rem;
-  color: var(--color-text-secondary);
+  color: var(--text-color-light);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -181,6 +181,6 @@ const handleCreateCustom = () => {
 .popup-footer {
   padding: 20px;
   padding-bottom: calc(20px + var(--safe-area-bottom));
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
 }
 </style>

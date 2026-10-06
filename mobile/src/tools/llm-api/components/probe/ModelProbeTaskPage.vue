@@ -551,8 +551,8 @@ onBeforeUnmount(() => {
   z-index: 2000;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  color: var(--color-on-surface);
-  background: var(--color-surface);
+  color: var(--text-color);
+  background: var(--bg-color);
 }
 
 .probe-header {
@@ -561,8 +561,8 @@ onBeforeUnmount(() => {
   align-items: center;
   min-height: calc(56px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) 4px 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
-  background: var(--container-bg, var(--color-surface));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
+  background: var(--container-bg, var(--bg-color));
 }
 
 .probe-header h1 {
@@ -580,14 +580,14 @@ onBeforeUnmount(() => {
   min-width: 44px;
   min-height: 44px;
   border: 0;
-  color: var(--color-primary);
+  color: var(--primary-color);
   background: transparent;
 }
 
 .icon-button {
   display: grid;
   place-items: center;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .text-button:disabled,
@@ -633,7 +633,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   margin-top: 9px;
   border-radius: 2px;
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .progress-track span {
@@ -641,7 +641,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   transform-origin: left;
-  background: var(--color-primary);
+  background: var(--primary-color);
   transition: transform 180ms ease;
 }
 
@@ -650,7 +650,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 5px 12px;
   margin-top: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.72rem;
 }
 
@@ -658,7 +658,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
   font-size: 0.8rem;
 }
 
@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
   padding: 9px 11px;
   border-left: 3px solid var(--warning-color);
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: color-mix(in srgb, var(--warning-color) 12%, transparent);
   font-size: 0.78rem;
   line-height: 1.45;
@@ -700,10 +700,10 @@ onBeforeUnmount(() => {
   align-items: center;
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
-  color: var(--color-on-surface-variant);
-  background: var(--input-bg, var(--color-surface-container));
+  color: var(--text-color-light);
+  background: var(--input-bg, var(--container-bg));
 }
 
 .search-box input {
@@ -713,7 +713,7 @@ onBeforeUnmount(() => {
   padding: 0 8px;
   border: 0;
   outline: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
   font-size: 0.9rem;
 }
@@ -728,7 +728,7 @@ onBeforeUnmount(() => {
   grid-auto-flow: column;
   overflow: hidden;
   min-width: 0;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
 }
 
@@ -736,8 +736,8 @@ onBeforeUnmount(() => {
   min-height: 38px;
   padding: 0 10px;
   border: 0;
-  border-right: 1px solid var(--border-color, var(--color-outline-variant));
-  color: var(--color-on-surface-variant);
+  border-right: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color-light);
   background: transparent;
   white-space: nowrap;
 }
@@ -759,13 +759,13 @@ onBeforeUnmount(() => {
 
 .selection-count {
   padding: 9px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.75rem;
 }
 
 .filter-empty,
 .footer-hint {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
   text-align: center;
 }
@@ -789,15 +789,15 @@ onBeforeUnmount(() => {
 .empty-state p {
   max-width: 26rem;
   margin: 0 0 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.86rem;
   line-height: 1.55;
 }
 
 .probe-footer {
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
-  background: var(--container-bg, var(--color-surface));
+  border-top: 1px solid var(--border-color, var(--border-color));
+  background: var(--container-bg, var(--bg-color));
   backdrop-filter: blur(var(--ui-blur));
 }
 
@@ -830,15 +830,15 @@ onBeforeUnmount(() => {
 
 .options-button {
   padding: 0 12px;
-  border: 1px solid var(--border-color, var(--color-outline));
-  color: var(--color-on-surface);
+  border: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color);
   background: transparent;
 }
 
 .reselect-button {
   padding: 0 8px;
-  border: 1px solid var(--border-color, var(--color-outline));
-  color: var(--color-on-surface);
+  border: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color);
   background: transparent;
   white-space: nowrap;
 }
@@ -859,15 +859,15 @@ onBeforeUnmount(() => {
 
 .primary-button {
   padding: 0 16px;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 
 .primary-button:disabled {
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-high);
+  border-color: var(--border-color);
+  color: var(--text-color-light);
+  background: var(--input-bg);
 }
 
 @media (max-width: 340px) {

@@ -249,14 +249,14 @@ watch([searchQuery, selectedLevel], () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-body);
+  background-color: var(--bg-color);
 }
 
 .toolbar {
   padding: 8px 16px;
   padding-top: calc(8px + var(--app-safe-area-top));
-  background-color: var(--color-surface-container);
-  border-bottom: 1px solid var(--color-outline-variant);
+  background-color: var(--container-bg);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -310,7 +310,7 @@ watch([searchQuery, selectedLevel], () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-placeholder);
+  color: var(--text-color-light);
 }
 
 .empty-icon {
@@ -326,8 +326,8 @@ watch([searchQuery, selectedLevel], () => {
   padding: 12px 16px;
   /* 默认包含底部安全区，但在键盘弹出时会被 App.vue 的全局样式抵消 padding */
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
-  background-color: var(--color-surface-container);
-  border-top: 1px solid var(--color-outline-variant);
+  background-color: var(--container-bg);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-around;
   align-items: center;

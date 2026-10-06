@@ -109,7 +109,7 @@ label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
 }
 input,
@@ -146,10 +146,10 @@ footer button {
 }
 footer .primary {
   color: #fff;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 footer .danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color, #d14343);
 }
 .icon-command {
   display: inline-flex;

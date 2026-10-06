@@ -49,7 +49,7 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-header {
@@ -57,7 +57,7 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .popup-title {

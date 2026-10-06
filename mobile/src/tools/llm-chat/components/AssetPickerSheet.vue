@@ -306,8 +306,8 @@ async function confirm() {
   padding: 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
   border-radius: 8px 8px 0 0;
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--bg-color);
+  color: var(--text-color);
 }
 
 header,
@@ -350,7 +350,7 @@ button {
   align-items: center;
   gap: 6px;
   border-radius: 6px;
-  background: var(--color-primary-container, var(--color-surface-container-high));
+  background: var(--color-primary-container, var(--input-bg));
   color: var(--color-on-primary-container, inherit);
   font-size: 13px;
 }
@@ -368,7 +368,7 @@ button {
   min-height: 44px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .search-field input {
@@ -376,7 +376,7 @@ button {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font: inherit;
 }
 
@@ -415,7 +415,7 @@ button {
   min-height: 180px;
   display: grid;
   place-items: center;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 footer {
@@ -429,7 +429,7 @@ footer button {
 }
 
 footer .secondary {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 footer .primary {
@@ -437,7 +437,7 @@ footer .primary {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--color-primary);
+  background: var(--primary-color);
   color: var(--color-on-primary);
 }
 

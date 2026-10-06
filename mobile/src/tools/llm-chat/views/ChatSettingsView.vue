@@ -306,7 +306,7 @@ const handleReset = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface);
+  background-color: var(--bg-color);
 }
 
 .view-content {
@@ -321,7 +321,7 @@ const handleReset = async () => {
 
 .section-title {
   font-size: 13px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-weight: 600;
   padding: 0 4px 8px;
   text-transform: uppercase;
@@ -329,7 +329,7 @@ const handleReset = async () => {
 }
 
 .section-card {
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -349,7 +349,7 @@ const handleReset = async () => {
 :deep(.var-cell) {
   --cell-padding: 12px 16px;
   background-color: transparent;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
 }
 
 :deep(.var-cell:last-child) {
@@ -358,7 +358,7 @@ const handleReset = async () => {
 
 :deep(.var-cell__title) {
   font-size: 15px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 :deep(.var-cell__description) {

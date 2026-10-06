@@ -352,13 +352,13 @@ const goToChatHome = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface);
+  background-color: var(--bg-color);
 }
 
 .nav-bar {
-  background-color: var(--color-surface) !important;
+  background-color: var(--bg-color) !important;
   backdrop-filter: blur(var(--ui-blur));
-  color: var(--color-on-surface) !important;
+  color: var(--text-color) !important;
 }
 
 .list-container {
@@ -376,8 +376,8 @@ const goToChatHome = () => {
   gap: 8px;
   margin-bottom: 14px;
   padding: 0 12px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 10px;
 }
@@ -387,7 +387,7 @@ const goToChatHome = () => {
   flex: 1;
   border: 0;
   outline: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
   font: inherit;
 }
@@ -415,12 +415,12 @@ const goToChatHome = () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.86rem;
 }
 
 .error-state {
-  color: var(--color-error);
+  color: var(--danger-color);
   overflow-wrap: anywhere;
   text-align: center;
 }
@@ -430,14 +430,14 @@ const goToChatHome = () => {
   display: block;
   padding: 12px 14px;
   text-align: left;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
+  color: var(--text-color);
+  background: var(--container-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 10px;
 }
 
 .search-result:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .search-result-header {
@@ -458,7 +458,7 @@ const goToChatHome = () => {
 
 .search-result-header time {
   flex: 0 0 auto;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.68rem;
 }
 
@@ -466,7 +466,7 @@ const goToChatHome = () => {
   display: -webkit-box;
   margin: 7px 0 0;
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
   line-height: 1.45;
   -webkit-box-orient: vertical;
@@ -495,8 +495,8 @@ const goToChatHome = () => {
   gap: 7px;
   min-height: 36px;
   padding: 0 10px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 10px;
 }
@@ -505,7 +505,7 @@ const goToChatHome = () => {
   max-width: min(46vw, 220px);
   border: 0;
   outline: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
   font: inherit;
 }
@@ -516,13 +516,13 @@ const goToChatHome = () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   gap: 12px;
 }
 
 .session-item {
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline-variant);
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
   border-radius: 16px;
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -533,7 +533,7 @@ const goToChatHome = () => {
 }
 
 .session-item:active {
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
   transform: scale(0.98);
 }
 
@@ -564,7 +564,7 @@ const goToChatHome = () => {
 
 .session-time {
   font-size: 0.8rem;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.7;
 }
 
@@ -572,13 +572,13 @@ const goToChatHome = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .delete-btn {
   border: none;
   background: none;
-  color: var(--color-error);
+  color: var(--danger-color);
   padding: 8px;
   display: flex;
   align-items: center;
@@ -587,6 +587,6 @@ const goToChatHome = () => {
 }
 
 .delete-btn:active {
-  background: var(--el-color-danger-light-9);
+  background: color-mix(in srgb, var(--danger-color) 8%, var(--card-bg));
 }
 </style>

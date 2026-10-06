@@ -186,17 +186,17 @@ function onRowClick(model: LlmModelInfo) {
   gap: 7px;
   margin: 0;
   padding: 0 16px 7px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
   font-weight: 700;
 }
 
 .probe-group h3 span {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 
 .probe-rows {
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
+  border-top: 1px solid var(--border-color, var(--border-color));
 }
 
 .probe-row {
@@ -207,15 +207,15 @@ function onRowClick(model: LlmModelInfo) {
   min-height: 76px;
   padding: 7px 12px 7px 6px;
   border: 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
-  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color);
   text-align: left;
   background: transparent;
 }
 
 .probe-row:active:not([aria-disabled="true"]) {
   transform: scale(0.995);
-  background: var(--color-surface-container);
+  background: var(--container-bg);
 }
 
 .probe-row.unsupported .model-copy {
@@ -232,7 +232,7 @@ function onRowClick(model: LlmModelInfo) {
 .check-target input {
   width: 20px;
   height: 20px;
-  accent-color: var(--color-primary);
+  accent-color: var(--primary-color);
 }
 
 .model-copy {
@@ -258,14 +258,14 @@ function onRowClick(model: LlmModelInfo) {
 
 .capability {
   flex: none;
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-size: 0.72rem;
   font-weight: 700;
 }
 
 code {
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.72rem;
   text-overflow: ellipsis;
@@ -277,7 +277,7 @@ code {
   align-items: center;
   min-width: 0;
   gap: 5px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.72rem;
 }
 
@@ -308,7 +308,7 @@ code {
 
 .detail-chevron {
   margin-left: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .spinning {

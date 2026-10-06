@@ -312,13 +312,13 @@ function save(): void {
   border: 0;
   border-radius: 7px;
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.82rem;
 }
 input,
@@ -352,9 +352,9 @@ textarea {
   text-transform: capitalize;
 }
 .role-tabs .active {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 .advanced {
   overflow: hidden;

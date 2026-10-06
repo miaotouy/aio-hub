@@ -185,19 +185,19 @@ function updateContextNumber(
   gap: 14px;
   padding: 16px;
   border-radius: 14px;
-  background: var(--color-surface-container-low);
+  background: var(--card-bg);
 }
 .section-heading h2,
 .context-heading h3 {
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 1rem;
 }
 .section-heading p,
 .context-heading p,
 small {
   margin: 4px 0 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.78rem;
   line-height: 1.45;
 }
@@ -212,18 +212,18 @@ label {
   min-width: 0;
 }
 label > span {
-  color: var(--color-on-surface);
+  color: var(--text-color);
   font-size: 0.84rem;
 }
 input:not([type="checkbox"]),
 textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 10px;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-high);
+  color: var(--text-color);
+  background: var(--input-bg);
   font: inherit;
 }
 textarea {
@@ -233,7 +233,7 @@ textarea {
   display: grid;
   gap: 12px;
   padding-top: 4px;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
 }
 .context-heading {
   display: flex;

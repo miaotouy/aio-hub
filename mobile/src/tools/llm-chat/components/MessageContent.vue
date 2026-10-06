@@ -439,8 +439,8 @@ const formatBytes = (value: number) => {
   padding: 8px 10px;
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
   font: inherit;
   text-align: left;
 }
@@ -450,7 +450,7 @@ const formatBytes = (value: number) => {
 }
 
 .attachment-bar.unavailable {
-  border-color: var(--color-warning, #d58a00);
+  border-color: var(--warning-color, #d58a00);
 }
 
 .attachment-bar-thumb {
@@ -495,7 +495,7 @@ const formatBytes = (value: number) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--color-warning, #a86400);
+  color: var(--warning-color, #a86400);
   font-size: 0.72rem;
 }
 
@@ -526,7 +526,7 @@ const formatBytes = (value: number) => {
 }
 
 .brain-icon {
-  color: var(--el-color-primary);
+  color: var(--primary-color);
 }
 
 .reasoning-content {
@@ -542,11 +542,11 @@ const formatBytes = (value: number) => {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  color: var(--el-color-danger);
+  color: var(--danger-color);
   font-size: 0.8rem;
   margin-top: 8px;
   padding: 8px;
-  background: var(--el-color-danger-light-9);
+  background: color-mix(in srgb, var(--danger-color) 8%, var(--card-bg));
   border-radius: 8px;
 }
 

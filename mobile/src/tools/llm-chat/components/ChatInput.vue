@@ -289,7 +289,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .context-usage {
   min-width: 0;
   flex: 1;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-size: 0.68rem;
 }
 
@@ -322,24 +322,24 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .context-meter i {
   height: 100%;
   display: block;
-  background: var(--color-primary);
+  background: var(--primary-color);
   transition: width 0.2s;
 }
 
 .context-usage.warning {
-  color: var(--color-warning, #a86400);
+  color: var(--warning-color, #a86400);
 }
 
 .context-usage.warning .context-meter i {
-  background: var(--color-warning, #d58a00);
+  background: var(--warning-color, #d58a00);
 }
 
 .context-usage.critical {
-  color: var(--color-danger, #c43c3c);
+  color: var(--danger-color, #c43c3c);
 }
 
 .context-usage.critical .context-meter i {
-  background: var(--color-danger, #d14343);
+  background: var(--danger-color, #d14343);
 }
 
 .reply-preview {
@@ -348,8 +348,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   gap: 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
 }
 
 .reply-preview-copy {
@@ -369,7 +369,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 
 .reply-preview-copy strong {
   font-size: 0.74rem;
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 
 .reply-preview-copy span {
@@ -406,7 +406,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .text-area {
@@ -426,7 +426,7 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--el-color-primary);
+  background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
@@ -457,8 +457,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
   font-size: 0.78rem;
 }
 

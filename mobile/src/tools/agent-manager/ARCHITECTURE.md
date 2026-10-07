@@ -71,6 +71,7 @@ AgentList --route query(agentId)--> ChatHome
 
 - **已支持**：基础 CRUD、搜索与分类筛选、模型绑定、会话绑定、聊天内 Agent 切换、开局消息实例化、预设注入，以及完整预设消息编辑器体系（多轮消息、消息组、注入策略、模型匹配、触摸排序、批量管理、Rust o200k Token 估算、AIO/SillyTavern 导入、AIO 导入包的头像/私有资产/世界书落盘回写与预设导入导出）。Agent 详情页还可编辑当前移动端请求层实际传递的 `temperature`、`maxTokens`、`topP`、频率/存在惩罚、停止序列，以及 Token limiter 的上下文预算和截断保留字符；留空时不覆盖渠道或模型默认值。切换只更新会话 `displayAgentId`；既有消息不被改写，后续助手消息会固化 Agent 身份和模型/渠道快照。绑定 Agent 的新会话会将有效开局消息固化为根节点下的兄弟分支并优先使用 `defaultGreetingId`；旧字符串开局消息兼容读取；开局消息的私有附件引用随节点 metadata 保留并在请求期解析。分类采用与桌面端一致的 `AgentCategory` 枚举；历史 `custom` 在加载时归一化为 `other`，未知未来值仍保留在完整 Agent 对象中。
 - **私有资产管理（2026-10-03）**：Agent 详情页内嵌 `AgentAssetsSection`，提供分组过滤（含未分组）、多选文件添加（即选即落盘 `saveAgentAsset`，记录 `{id, filename, path, type, mimeType?, size?}`，id 用文件基名作宏 Handle、冲突追加序号）、描述与分组编辑、删除（`deleteAgentAsset` 仅允许 `assets/` 前缀，确认框提示预设/开局消息残留引用，页面级联清理 `presetAttachments` 与 `greetings[].attachments`）。图片缩略图与展开预览使用 `readAgentAsset` → Blob URL 并按时回收；`assetGroups` 分组元数据的新建/改名/删除 UI 仍后置。
+- **详情页编辑补齐（2026-10-07）**：新增 `AgentGreetingsSection`（开局消息列表、新增/编辑/删除/设为默认，随整体 `save()` 落库）与 `AgentRegexSection`（只读展示 `regexConfig.presets` 与规则，支持整体启用/禁用，脚本型规则标记为移动端跳过）；基本信息区新增分类下拉与标签输入（分类选项复用 `AgentCategory` 枚举，标签为逗号分隔数组）。`save()`/删除补 try/catch，失败以 `feedback` 提示。
 - **后续可选增强**：`assetGroups` 分组管理 UI（新建/改名/删除分组），以及工具调用、Knowledge/Recall、媒体/压缩等桌面高级参数继续独立设计；当前 PNG 角色卡的头像预览、导入包头像/资产/世界书落盘、卡片文本导入、`{{assets}}` 分组宏与私有资产增删改查已经可直接使用。移动端如需这些能力，应按自身产品和平台约束独立设计，不默认复制桌面实现。用户档案已由 `llm-chat` 的基础档案管理页和上下文注入支持；私有资产消费仍不得以全局 `assetId` 代替 Handle 或相对路径。
 
 ## 6. PC 角色卡导入与立即开聊
@@ -80,6 +81,7 @@ AgentList --route query(agentId)--> ChatHome
 - 支持 JSON 角色卡、PNG V2 的 `chara` 元数据和 PNG V3 的 `ccv3` 元数据；PNG 元数据可来自 `tEXt`、`iTXt` 或压缩文本块。
 - V2/V3 的 `data` 结构统一归一化，保留系统提示、描述、性格、场景、示例对话、历史后置指令、深度提示和多开场白。
 - 常见角色宏会转成移动端请求管线使用的 `{{char}}`、`{{user}}`、`{{persona}}` 等形式；原始角色书、正则脚本和创作者信息暂存在 `extensionConfig`，不会因为导入而丢失。
+- **AIO 导出包（2026-10-07 补齐）**：桌面 `embedWorldbooks=true` 时 `bundledWorldbooks[].content` 内嵌世界书，移动端导入器 `postProcessAioAgent` 解析后复用 `importedWorldbooks` 通道落库并回写 `worldbookIds`；`fileName` 外链模式由包内 `worldbooks/` 目录解析，不双份落库。AIO `regexConfig` 中脚本型规则（`replacementType: "script"`）在移动端静默跳过，导入时汇总 warning；VCP Chat 的 `config.json` 被识别后跳过并明确提示「暂不支持」，不再误当 AIO Agent 导入。
 - PNG 小于 3 MiB 时会保留一个受控的 data URL 作为角色头像，详情页、角色大厅、聊天顶部和切换面板统一展示；大文件仍可正常读取卡片文本。
 - 导入后由当前可用模型 Profile 自动补齐模型绑定，角色可从导入结果直接进入新会话。文件错误会在导入反馈中显示文件名和首个可行动原因。
 

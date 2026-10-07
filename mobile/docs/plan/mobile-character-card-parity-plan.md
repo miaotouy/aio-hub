@@ -1,6 +1,6 @@
 # 移动端角色卡与 AIO 导入包运行时对齐计划
 
-> **文档状态**: 批次 1–3 已完成（2026-09-25）；批次 1.7 私有资产落盘、批次 4 正则 render/多源合并、Agent 私有预设/开局附件运行时、`parameters.custom` 透传、世界书高级语义（selective/probability/位置+role）均已完成（2026-09-26）；世界书递归扫描执行已完成（2026-10-02）；本文档记录施工队列与剩余待办；批次 4 其余项与「明确不做」为边界
+> **文档状态**: 批次 1–3 已完成（2026-09-25）；批次 1.7 私有资产落盘、批次 4 正则 render/多源合并、Agent 私有预设/开局附件运行时、`parameters.custom` 透传、世界书高级语义（selective/probability/位置+role）均已完成（2026-09-26）；世界书递归扫描执行已完成（2026-10-02）；2026-10-07 补齐 AIO `bundledWorldbooks` 内嵌世界书导入落库（`embedWorldbooks` 内容模式）、VCP Chat config 防护跳过、script 型正则导入告警，以及 Agent 详情开局消息编辑/正则查看启用 UI 与分类标签编辑、世界书条目高级字段编辑 UI；本文档记录施工队列与剩余待办；批次 4 其余项与「明确不做」为边界
 > **涉及模块**: `mobile/src/tools/agent-manager/`（导入器与 Agent 数据）、`mobile/src/tools/llm-chat/`（世界书、宏、正则、预设装配运行时）
 > **关联文档**: [`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、桌面端参照 [`src/tools/agent-manager/`](../../../src/tools/agent-manager/) 与 [`src/tools/llm-chat/`](../../../src/tools/llm-chat/)
 

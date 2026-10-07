@@ -63,6 +63,7 @@
 - [x] 继续补齐 Agent 详情、预设、开局消息、宏变量和聊天切换中的用户可见行为。详情编辑、预设消息体系、开局消息固化、宏展开与聊天内 Agent 选择器均已落地（2026-09-26 前后，见角色卡对齐计划与 agent-manager 计划）。
 - [x] PC PNG 角色卡的小型头像预览随 Agent 配置保存并在角色大厅、聊天选择器复用。
 - [x] 私有音频/视频按模型能力内联进请求（capabilities 未配置或 true 时尝试内联，显式 false 才降级为文本描述；2026-10-03）；Agent 资产管理 UI 已接入 Agent 详情页（分组过滤、添加落盘、编辑、删除与引用级联清理，2026-10-03）。
+- [x] 角色卡导入与详情编辑补齐（2026-10-07）：AIO 导出包 `bundledWorldbooks` 内嵌世界书落库并回写 `worldbookIds`（VCP Chat config 跳过 + script 正则告警）；Agent 详情页新增开局消息编辑、正则脚本查看/启用、分类与标签编辑，保存失败反馈；世界书条目编辑器暴露 selective/probability/role 高级字段与 6 值位置，会话支持重命名，上下文预警阈值可调。
 - [ ] 工具调用、RAG、Knowledge/Recall 和自主工作流保持独立设计，需求出现时再连续施工。
 
 实现入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。

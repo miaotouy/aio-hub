@@ -328,6 +328,8 @@ export interface GenerationSessionDetail {
   updatedAt: string;
   /** 输入框内容草稿 */
   inputPrompt?: string;
+  /** 输入框附件快照（已入库资产的元数据，重启/切会话时还原） */
+  inputAttachments?: Asset[];
   /** 历史记录（撤销/重做栈，通常不持久化） */
   history?: any[];
   /** 历史记录索引 */

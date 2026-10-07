@@ -14,6 +14,7 @@
 
 import { ref, watch } from "vue";
 import { debounce } from "lodash-es";
+import type { Asset } from "@/types/asset-management";
 import type {
   GenerationSession,
   GenerationSessionDetail,
@@ -44,6 +45,7 @@ export function useMediaGenPersistence(options: {
   activeLeafId: { value: string };
   currentSessionId: { value: string | null };
   inputPrompt: { value: string };
+  inputAttachments: { value: Asset[] };
   currentConfig: {
     value: { activeType: MediaTaskType; includeContext: boolean; types: any };
   };
@@ -58,6 +60,7 @@ export function useMediaGenPersistence(options: {
     activeLeafId,
     currentSessionId,
     inputPrompt,
+    inputAttachments,
     currentConfig,
     settings,
     tasks,
@@ -237,6 +240,11 @@ export function useMediaGenPersistence(options: {
 
       inputPrompt.value = session.inputPrompt || "";
 
+      // 还原输入框附件快照
+      inputAttachments.value = session.inputAttachments
+        ? [...session.inputAttachments]
+        : [];
+
       // 加载全局媒体生成配置，不再跟随会话
       const globalGenConfig = await storage.loadGenerationConfig();
       currentConfig.value =
@@ -270,6 +278,9 @@ export function useMediaGenPersistence(options: {
       detail.updatedAt = now;
     }
     detail.inputPrompt = inputPrompt.value;
+    detail.inputAttachments = inputAttachments.value.length
+      ? JSON.parse(JSON.stringify(inputAttachments.value))
+      : undefined;
     detail.generationConfig = {
       activeType: currentConfig.value.activeType,
       includeContext: currentConfig.value.includeContext,
@@ -299,7 +310,7 @@ export function useMediaGenPersistence(options: {
 
   // 仅监听输入和配置的防抖保存（不更新 updatedAt）
   watch(
-    [inputPrompt, currentConfig],
+    [inputPrompt, inputAttachments, currentConfig],
     () => {
       if (!isInitialized.value || !currentSessionId.value) return;
 
@@ -308,6 +319,9 @@ export function useMediaGenPersistence(options: {
 
       // 仅同步配置类状态
       detail.inputPrompt = inputPrompt.value;
+      detail.inputAttachments = inputAttachments.value.length
+        ? JSON.parse(JSON.stringify(inputAttachments.value))
+        : undefined;
       detail.generationConfig = {
         activeType: currentConfig.value.activeType,
         includeContext: currentConfig.value.includeContext,

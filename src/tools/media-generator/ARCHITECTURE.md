@@ -310,7 +310,7 @@ graph TD
   - `settings`: 用户配置
   - `currentConfig`: 当前生成配置（类型、参数等）
   - `inputPrompt`: 输入框内容
-  - `attachments`: 输入框附件（通过 `useAttachmentManager` 委托暴露，Store 自身不持独立的附件 ref）
+  - `attachments`: 输入框附件（通过 `useAttachmentManager` 委托暴露，Store 自身不持独立的附件 ref；随会话详情 `inputAttachments` 持久化）
 
 - **职责**:
   - 协调 `useMediaPersistence`、`useSessionManager`、`useNodeManager`、`useTaskActionManager` 等模块
@@ -747,5 +747,5 @@ sequenceDiagram
 | 会话详情 | `AppData/media-generator/sessions/{id}.json`  | JSON | 按需加载（切换会话时），保存时写入  |
 | 全局任务 | `AppData/media-generator/tasks.json`          | JSON | 启动时加载，通过 watch 自动防抖保存 |
 | 用户配置 | `AppData/media-generator/settings.json`       | JSON | 启动时加载，通过 watch 自动防抖保存 |
-| 输入状态 | 内存 (localStorage 无直接持久化)              | -    | 通过跨窗口同步引擎同步              |
-| 附件     | 内存                                          | -    | 与输入状态一致，跨窗口同步          |
+| 输入状态 | 内存 + 会话详情 `inputPrompt`/`inputAttachments` | JSON | 跨窗口同步；随会话持久化，重启/切会话还原 |
+| 附件     | 内存 + 会话详情 `inputAttachments`          | JSON | 已入库资产的元数据快照，随会话防抖保存 |

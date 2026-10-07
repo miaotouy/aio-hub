@@ -263,15 +263,13 @@ export class KnowledgeStorage {
    */
   async loadEntry(
     baseId: string,
-    entryId: string,
-    modelId?: string
+    entryId: string
   ): Promise<RecallEntry | null> {
     return await errorHandler.wrapAsync(
       async () => {
         return await invoke<RecallEntry | null>("recall_load_entry", {
           recallId: baseId,
           entryId,
-          modelId: modelId || null,
         });
       },
       { userMessage: "加载条目失败", showToUser: false }

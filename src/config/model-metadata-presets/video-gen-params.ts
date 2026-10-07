@@ -480,6 +480,7 @@ export const videoGenParamsRules: LegacyModelMetadataRule<ModelMetadataPropertie
       properties: {
         mediaGenParams: {
           aspectRatioMode: {
+            ratios: agnesVideoAspectRatios,
             resolutions: [{ label: "720P", value: "720p" }],
             defaultResolution: "720p",
           },

@@ -48,7 +48,7 @@ export interface CommandMap {
   create_dir_force: CommandDefinition<{ path: string }, void>;
   delete_file_to_trash: CommandDefinition<{ filePath: string }, void>;
   delete_directory_in_app_data: CommandDefinition<{ relativePath: string }, void>;
-  copy_file_to_app_data: CommandDefinition<{ sourcePath: string; targetRelativePath: string }, string>;
+  copy_file_to_app_data: CommandDefinition<{ sourcePath: string; subdirectory: string; newFilename?: string }, string>;
   list_directory: CommandDefinition<{ path: string }, string[]>;
   open_file_directory: CommandDefinition<{ filePath: string }, void>;
   resolve_path_for_security: CommandDefinition<{ path: string }, unknown>;

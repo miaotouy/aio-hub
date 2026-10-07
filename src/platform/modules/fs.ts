@@ -122,11 +122,13 @@ export async function deleteDirectoryInAppData(
  */
 export async function copyFileToAppData(
   sourcePath: string,
-  targetRelativePath: string
+  subdirectory: string,
+  newFilename?: string
 ): Promise<string> {
   return await invoke("copy_file_to_app_data", {
     sourcePath,
-    targetRelativePath,
+    subdirectory,
+    newFilename,
   });
 }
 

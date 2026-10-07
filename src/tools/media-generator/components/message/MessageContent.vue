@@ -267,6 +267,7 @@ const generationMetaForRenderer = computed(() => {
           :asset="attachment"
           :all-assets="message.attachments"
           :removable="false"
+          :show-transcription="false"
           size="large"
         />
       </div>
@@ -309,6 +310,7 @@ const generationMetaForRenderer = computed(() => {
             :asset="attachment"
             :all-assets="attachmentManager.attachments.value"
             :removable="true"
+            :show-transcription="false"
             size="medium"
             @remove="attachmentManager.removeAttachment($event.id)"
           />

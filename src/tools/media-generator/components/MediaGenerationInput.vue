@@ -535,6 +535,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
             :asset="asset"
             :all-assets="store.attachments"
             :removable="true"
+            :show-transcription="false"
             size="small"
             @remove="store.removeAttachment(asset.id)"
           />

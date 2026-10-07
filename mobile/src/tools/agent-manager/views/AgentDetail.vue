@@ -8,11 +8,52 @@ import { customMessage } from "@/utils/feedback";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentStore } from "../stores/agentStore";
 import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
+import { AgentCategory, normalizeAgentCategory } from "../types/agent";
 import type { ChatAgent } from "../types/agent";
 import PresetMessageEditor from "../components/PresetMessageEditor.vue";
 import AgentParametersEditor from "../components/AgentParametersEditor.vue";
 import AgentAssetsSection from "../components/AgentAssetsSection.vue";
+import AgentGreetingsSection from "../components/AgentGreetingsSection.vue";
+import AgentRegexSection from "../components/AgentRegexSection.vue";
 import type { AgentAsset } from "../types/agent";
+
+const categoryOptions: AgentCategory[] = [
+  AgentCategory.Assistant,
+  AgentCategory.Character,
+  AgentCategory.Expert,
+  AgentCategory.Creative,
+  AgentCategory.Workflow,
+  AgentCategory.Other,
+];
+
+function categoryLabel(value: AgentCategory): string {
+  switch (value) {
+    case AgentCategory.Assistant:
+      return t("tools.agent-manager.AgentList.助手");
+    case AgentCategory.Character:
+      return t("tools.agent-manager.AgentList.角色");
+    case AgentCategory.Expert:
+      return t("tools.agent-manager.AgentList.专家");
+    case AgentCategory.Creative:
+      return t("tools.agent-manager.AgentList.创意");
+    case AgentCategory.Workflow:
+      return t("tools.agent-manager.AgentList.工作流");
+    case AgentCategory.Other:
+      return t("tools.agent-manager.AgentList.其他");
+  }
+}
+
+const tagsText = computed({
+  get: () => (draft.value?.tags ?? []).join(", "),
+  set: (value: string) => {
+    if (!draft.value) return;
+    const tags = value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    draft.value.tags = tags.length ? tags : undefined;
+  },
+});
 
 const route = useRoute();
 const router = useRouter();
@@ -54,6 +95,7 @@ onMounted(async () => {
   // Pinia returns a reactive proxy; clone its raw value before making an editable draft.
   draft.value = {
     ...structuredClone(toRaw(agent)),
+    greetings: [...(agent.greetings ?? [])],
     worldbookIds: [...(agent.worldbookIds ?? [])],
   };
 });
@@ -70,15 +112,24 @@ async function save() {
     return;
   }
 
-  await agentStore.updateAgent(draft.value.id, {
-    ...draft.value,
-    displayName: draft.value.displayName.trim(),
-    name: draft.value.name.trim(),
-    presetMessages: draft.value.presetMessages || [],
-    presetGroups: draft.value.presetGroups || [],
-  });
-  customMessage(t("tools.agent-manager.AgentDetail.保存成功"), "success");
-  router.back();
+  try {
+    await agentStore.updateAgent(draft.value.id, {
+      ...draft.value,
+      displayName: draft.value.displayName.trim(),
+      name: draft.value.name.trim(),
+      category: normalizeAgentCategory(draft.value.category),
+      presetMessages: draft.value.presetMessages || [],
+      presetGroups: draft.value.presetGroups || [],
+    });
+    customMessage(t("tools.agent-manager.AgentDetail.保存成功"), "success");
+    router.back();
+  } catch (error) {
+    console.error("Save agent failed:", error);
+    customMessage(
+      t("tools.agent-manager.AgentDetail.保存失败"),
+      "error"
+    );
+  }
 }
 
 /**
@@ -165,6 +216,29 @@ function handleAssetRemoved(asset: AgentAsset): void {
           ><span>{{ t("tools.agent-manager.AgentDetail.图标") }}</span
           ><input v-model="draft.icon" data-testid="agent-icon"
         /></label>
+        <label
+          ><span>{{ t("tools.agent-manager.AgentDetail.分类") }}</span
+          ><select
+            v-model="draft.category"
+            data-testid="agent-category-edit"
+          >
+            <option
+              v-for="option in categoryOptions"
+              :key="option"
+              :value="option"
+            >
+              {{ categoryLabel(option) }}
+            </option>
+          </select></label
+        >
+        <label
+          ><span>{{ t("tools.agent-manager.AgentDetail.标签") }}</span
+          ><input
+            v-model="tagsText"
+            data-testid="agent-tags"
+            :placeholder="t('tools.agent-manager.AgentDetail.标签占位')"
+          /></label
+        >
       </section>
       <section class="form-section two-column">
         <label
@@ -229,6 +303,11 @@ function handleAssetRemoved(asset: AgentAsset): void {
           </span>
         </label>
       </section>
+      <AgentGreetingsSection
+        v-model:greetings="draft.greetings"
+        v-model:default-greeting-id="draft.defaultGreetingId"
+      />
+      <AgentRegexSection v-model:config="draft.regexConfig" />
       <AgentAssetsSection
         :agent-id="draft.id"
         :assets="draft.assets || []"

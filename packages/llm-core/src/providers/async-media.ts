@@ -413,6 +413,15 @@ function buildOpenAiVideoBody(
     ...providerParameters,
   };
   if (isAgnes) {
+    // Agnes video API uses "size" for resolution grade ("720P", "1080P", "1K", "2K")
+    // and does NOT accept a "resolution" parameter at the top level.
+    const resolution = readString(parameters.resolution);
+    if (resolution) {
+      body.size = resolution.toUpperCase();
+    } else {
+      body.size = "720P";
+    }
+    delete body.resolution;
     const images = (request.inputs ?? [])
       .filter((input) => input.type === "image" || input.type === "mask")
       .map((input) => mediaSourceToWire(input.source));

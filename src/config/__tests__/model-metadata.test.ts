@@ -140,6 +140,41 @@ describe("model-metadata presets", () => {
       capabilities: { videoGeneration: true, vision: true },
     });
   });
+  it("provides Agnes Video mediaGenParams resolution tiers and ratios", () => {
+    const standard = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "agnes-video-2.5"
+    );
+    const standardAspect = standard?.mediaGenParams?.aspectRatioMode;
+    expect(standardAspect?.resolutions?.map((r) => r.value)).toEqual([
+      "720p",
+      "1080p",
+      "1k",
+      "2k",
+    ]);
+    expect(standardAspect?.ratios?.map((r) => r.value)).toContain("21:9");
+    expect(standardAspect?.defaultResolution).toBe("720p");
+    expect(standard?.mediaGenParams?.negativePrompt).toEqual({
+      supported: false,
+    });
+
+    const v20 = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "agnes-video-v2.0"
+    );
+    expect(v20?.mediaGenParams?.aspectRatioMode?.resolutions?.length).toBe(4);
+
+    const flash = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "agnes-video-2.5-flash"
+    );
+    expect(flash?.mediaGenParams?.aspectRatioMode?.resolutions?.map((r) => r.value)).toEqual([
+      "720p",
+    ]);
+    expect(flash?.mediaGenParams?.aspectRatioMode?.defaultResolution).toBe(
+      "720p"
+    );
+  });
   it("marks image generation parameter presets as image generation models", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "dall-e-3")

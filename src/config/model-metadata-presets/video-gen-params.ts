@@ -33,6 +33,22 @@ const commonVideoResolutions = [
   { label: "1080p", value: "1080p" },
 ];
 
+const agnesVideoAspectRatios = [
+  { label: "21:9 (超宽屏)", value: "21:9" },
+  { label: "16:9 (横屏)", value: "16:9" },
+  { label: "4:3", value: "4:3" },
+  { label: "1:1", value: "1:1" },
+  { label: "3:4", value: "3:4" },
+  { label: "9:16 (竖屏)", value: "9:16" },
+];
+
+const agnesVideoResolutions = [
+  { label: "720P", value: "720p" },
+  { label: "1080P", value: "1080p" },
+  { label: "1K", value: "1k" },
+  { label: "2K", value: "2k" },
+];
+
 export const videoGenParamsRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
   [
     // === OpenAI Sora ===
@@ -415,6 +431,63 @@ export const videoGenParamsRules: LegacyModelMetadataRule<ModelMetadataPropertie
       priority: 16,
       enabled: true,
       description: "ByteDance Seedance / Doubao 视频生成参数规则",
+    },
+
+    // === Agnes Video 2.5 / V2.0 ===
+    {
+      id: "media-params-agnes-video",
+      matchType: "modelPrefix",
+      matchValue: "agnes-video-",
+      properties: {
+        capabilities: { videoGeneration: true, vision: true },
+        mediaGenParams: {
+          aspectRatioMode: {
+            ratios: agnesVideoAspectRatios,
+            resolutions: agnesVideoResolutions,
+            defaultRatio: "16:9",
+            defaultResolution: "720p",
+          },
+          duration: {
+            supported: true,
+            min: 4,
+            max: 12,
+            step: 1,
+            default: 5,
+          },
+          negativePrompt: { supported: false },
+          seed: { supported: true, min: -1 },
+          steps: { supported: false },
+          guidanceScale: { supported: false },
+          quality: { supported: false },
+          style: { supported: false },
+          batchSize: { supported: false },
+          promptEnhancement: { supported: false },
+          generateAudio: { supported: false },
+          watermark: { supported: false },
+          cameraFixed: { supported: false },
+          movementAmplitude: { supported: false },
+        },
+      },
+      priority: 26,
+      enabled: true,
+      description:
+        "Agnes Video 系列参数规则（size 档位 720P/1080P/1K/2K，画幅含 21:9）",
+    },
+    {
+      id: "media-params-agnes-video-flash",
+      matchType: "model",
+      matchValue: "agnes-video-2.5-flash",
+      properties: {
+        mediaGenParams: {
+          aspectRatioMode: {
+            resolutions: [{ label: "720P", value: "720p" }],
+            defaultResolution: "720p",
+          },
+        },
+      },
+      priority: 27,
+      enabled: true,
+      description: "Agnes Video 2.5 Flash 参数规则（size 固定 720P）",
     },
 
     // === SkyReels / Agnes 等通用视频模型 ===

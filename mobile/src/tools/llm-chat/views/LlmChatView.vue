@@ -36,6 +36,9 @@ const editingMessage = ref<ChatMessageNode | null>(null);
 const editContent = ref("");
 const showEditDialog = ref(false);
 const showAgentSelector = ref(false);
+const showRenameDialog = ref(false);
+const renamingName = ref("");
+const renameSaving = ref(false);
 const replyTo = ref<ChatMessageReference | null>(null);
 const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
@@ -58,6 +61,35 @@ async function handleSelectAgent(agentId: string) {
   if (!changed) return;
   showAgentSelector.value = false;
   showChatSuccess(t("tools.llm-chat.ChatView.已切换智能体"));
+}
+
+function openRenameDialog() {
+  if (!chatStore.currentSession) return;
+  renamingName.value = chatStore.currentSession.name;
+  showRenameDialog.value = true;
+}
+
+async function handleRename() {
+  if (!chatStore.currentSession) return;
+  const trimmed = renamingName.value.trim();
+  if (!trimmed) {
+    showChatError(t("tools.llm-chat.SessionList.会话名称不能为空"));
+    return;
+  }
+  renameSaving.value = true;
+  try {
+    const success = await chatStore.renameSession(chatStore.currentSession.id, trimmed);
+    if (success) {
+      showRenameDialog.value = false;
+      showChatSuccess(t("tools.llm-chat.SessionList.重命名成功"));
+    } else {
+      showChatError(t("tools.llm-chat.SessionList.重命名失败"));
+    }
+  } catch (error) {
+    showChatError(t("tools.llm-chat.SessionList.重命名失败"));
+  } finally {
+    renameSaving.value = false;
+  }
 }
 
 // 初始化会话
@@ -200,15 +232,22 @@ const goToChatHome = () => {
     :class="{ 'keyboard-open': isKeyboardVisible }"
   >
     <var-app-bar
-      :title="
-        chatStore.currentSession?.name || t('tools.llm-chat.ChatView.对话')
-      "
       title-size="1.1rem"
       safe-area
       fixed
       z-index="1000"
       class="nav-bar"
     >
+      <template #default>
+        <span
+          class="chat-title-clickable"
+          data-testid="chat-session-title"
+          :title="t('tools.llm-chat.SessionList.重命名会话')"
+          @click="openRenameDialog"
+        >
+          {{ chatStore.currentSession?.name || t("tools.llm-chat.ChatView.对话") }}
+        </span>
+      </template>
       <template #left>
         <var-button
           round
@@ -346,6 +385,37 @@ const goToChatHome = () => {
           </var-button>
         </div>
       </div>
+    </var-dialog>
+
+    <var-dialog
+      v-model:show="showRenameDialog"
+      :title="t('tools.llm-chat.SessionList.重命名会话')"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
+    >
+      <form class="rename-form" @submit.prevent="handleRename">
+        <label>
+          {{ t("tools.llm-chat.SessionList.会话名称") }}
+          <input
+            v-model="renamingName"
+            class="rename-input"
+            autofocus
+            :placeholder="t('tools.llm-chat.SessionList.会话名称提示')"
+          />
+        </label>
+        <div class="rename-actions">
+          <var-button text native-type="button" @click="showRenameDialog = false">
+            {{ t("tools.llm-chat.SessionList.取消") }}
+          </var-button>
+          <var-button
+            type="primary"
+            native-type="submit"
+            :loading="renameSaving"
+          >
+            {{ t("tools.llm-chat.SessionList.保存") }}
+          </var-button>
+        </div>
+      </form>
     </var-dialog>
   </div>
 </template>
@@ -573,5 +643,46 @@ const goToChatHome = () => {
 
 .edit-actions :deep(.var-button) {
   min-height: 44px;
+}
+
+.chat-title-clickable {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  max-width: 60vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+.rename-form {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.rename-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+.rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
+  background: var(--input-bg);
+  font: inherit;
+}
+
+.rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Trash2,
   Trash,
+  Pencil,
   ArrowUpDown,
   ChevronLeft,
   Search,
@@ -37,6 +38,10 @@ const searchResults = ref<ChatSearchResult[]>([]);
 const searchLoading = ref(false);
 const searchError = ref<string | null>(null);
 const isMutatingSessions = ref(false);
+const renameDialogOpen = ref(false);
+const renamingSessionId = ref<string | null>(null);
+const renamingName = ref("");
+const renameSaving = ref(false);
 const sessionSortOptions = {
   "updatedAt:desc": DEFAULT_SESSION_SORT,
   "updatedAt:asc": { field: "updatedAt", direction: "asc" },
@@ -106,6 +111,39 @@ const openSearchResult = async (result: ChatSearchResult) => {
 
 const clearSearch = () => {
   searchQuery.value = "";
+};
+
+const openRenameDialog = (
+  event: Event,
+  session: { id: string; name: string }
+) => {
+  event.stopPropagation();
+  renamingSessionId.value = session.id;
+  renamingName.value = session.name;
+  renameDialogOpen.value = true;
+};
+
+const handleRename = async () => {
+  if (!renamingSessionId.value) return;
+  const trimmed = renamingName.value.trim();
+  if (!trimmed) {
+    customMessage(t("tools.llm-chat.SessionList.会话名称不能为空"), "warning");
+    return;
+  }
+  renameSaving.value = true;
+  try {
+    const success = await chatStore.renameSession(renamingSessionId.value, trimmed);
+    if (success) {
+      renameDialogOpen.value = false;
+      customMessage(t("tools.llm-chat.SessionList.重命名成功"), "success");
+    } else {
+      customMessage(t("tools.llm-chat.SessionList.重命名失败"), "error");
+    }
+  } catch (error) {
+    showMutationError(error, t("tools.llm-chat.SessionList.重命名失败"));
+  } finally {
+    renameSaving.value = false;
+  }
 };
 
 const showMutationError = (error: unknown, message: string) => {
@@ -335,6 +373,15 @@ const goToChatHome = () => {
           </div>
           <div class="actions">
             <button
+              class="rename-btn"
+              data-testid="chat-session-rename"
+              :disabled="isMutatingSessions"
+              :aria-label="t('tools.llm-chat.SessionList.重命名会话')"
+              @click="openRenameDialog($event, session)"
+            >
+              <Pencil :size="18" />
+            </button>
+            <button
               class="delete-btn"
               data-testid="chat-session-delete"
               :disabled="isMutatingSessions"
@@ -348,6 +395,37 @@ const goToChatHome = () => {
         </div>
       </template>
     </div>
+
+    <var-dialog
+      v-model:show="renameDialogOpen"
+      :title="t('tools.llm-chat.SessionList.重命名会话')"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
+    >
+      <form class="rename-form" @submit.prevent="handleRename">
+        <label>
+          {{ t("tools.llm-chat.SessionList.会话名称") }}
+          <input
+            v-model="renamingName"
+            class="rename-input"
+            autofocus
+            :placeholder="t('tools.llm-chat.SessionList.会话名称提示')"
+          />
+        </label>
+        <div class="rename-actions">
+          <var-button text native-type="button" @click="renameDialogOpen = false">
+            {{ t("tools.llm-chat.SessionList.取消") }}
+          </var-button>
+          <var-button
+            type="primary"
+            native-type="submit"
+            :loading="renameSaving"
+          >
+            {{ t("tools.llm-chat.SessionList.保存") }}
+          </var-button>
+        </div>
+      </form>
+    </var-dialog>
   </div>
 </template>
 
@@ -586,10 +664,10 @@ const goToChatHome = () => {
   color: var(--text-color-light);
 }
 
+.rename-btn,
 .delete-btn {
   border: none;
   background: none;
-  color: var(--danger-color);
   padding: 8px;
   min-width: 44px;
   min-height: 44px;
@@ -599,7 +677,50 @@ const goToChatHome = () => {
   border-radius: 50%;
 }
 
+.rename-btn {
+  color: var(--text-color-light);
+}
+
+.rename-btn:active {
+  background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+  color: var(--primary-color);
+}
+
+.delete-btn {
+  color: var(--danger-color);
+}
+
 .delete-btn:active {
   background: color-mix(in srgb, var(--danger-color) 8%, var(--card-bg));
+}
+
+.rename-form {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.rename-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+.rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
+  background: var(--input-bg);
+  font: inherit;
+}
+
+.rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

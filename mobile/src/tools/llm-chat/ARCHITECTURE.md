@@ -171,6 +171,7 @@ ChatSettings
 ├── uiPreferences         # 流式输出、时间戳、Token统计、模型信息、自动滚动、字体、消息导航
 ├── modelPreferences      # 默认模型（主页/聊天页初始化时校验并同步当前选择）
 ├── messageManagement     # 删除/清空确认开关
+├── contextManagement     # 上下文预警阈值（warning/critical，运行时读 settings）
 └── requestSettings       # 超时（60s）与重试次数（2）
 ```
 

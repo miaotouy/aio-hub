@@ -17,6 +17,8 @@ import type {
   MobileWorldbook,
   MobileWorldbookEntry,
   WorldbookEntryPosition,
+  WorldbookSelectiveLogic,
+  MessageRole,
 } from "../types";
 
 const router = useRouter();
@@ -43,6 +45,12 @@ const entryDraft = ref({
   scanDepth: 8,
   caseSensitive: false,
   matchWholeWords: false,
+  selective: false,
+  secondaryKeys: "",
+  selectiveLogic: "and_any" as WorldbookSelectiveLogic,
+  useProbability: false,
+  probability: 100,
+  role: "system" as MessageRole,
 });
 
 onMounted(async () => {
@@ -119,6 +127,12 @@ function openCreateEntry(worldbook: MobileWorldbook) {
     scanDepth: 8,
     caseSensitive: false,
     matchWholeWords: false,
+    selective: false,
+    secondaryKeys: "",
+    selectiveLogic: "and_any",
+    useProbability: false,
+    probability: 100,
+    role: "system",
   };
   entryEditorOpen.value = true;
 }
@@ -141,6 +155,12 @@ function openEditEntry(
     scanDepth: entry.scanDepth ?? 8,
     caseSensitive: entry.caseSensitive ?? false,
     matchWholeWords: entry.matchWholeWords ?? false,
+    selective: entry.selective ?? false,
+    secondaryKeys: (entry.secondaryKeys ?? []).join(", "),
+    selectiveLogic: entry.selectiveLogic ?? "and_any",
+    useProbability: entry.useProbability ?? false,
+    probability: entry.probability ?? 100,
+    role: entry.role ?? "system",
   };
   entryEditorOpen.value = true;
 }
@@ -152,13 +172,27 @@ async function saveEntry() {
   }
   saving.value = true;
   try {
+    const secondaryKeys = entryDraft.value.selective
+      ? entryDraft.value.secondaryKeys
+          .split(",")
+          .map((key) => key.trim())
+          .filter(Boolean)
+      : undefined;
+
     await store.upsertEntry(entryWorldbookId.value, {
       id: entryEditingId.value ?? undefined,
       ...entryDraft.value,
       keys: entryDraft.value.keys.split(",").map((key) => key.trim()),
+      secondaryKeys,
+      probability: entryDraft.value.useProbability
+        ? entryDraft.value.probability
+        : undefined,
     });
     entryEditorOpen.value = false;
     customMessage(t("条目已保存"), "success");
+  } catch (error) {
+    console.error("Save entry error:", error);
+    customMessage(t("保存失败"), "error");
   } finally {
     saving.value = false;
   }
@@ -413,6 +447,9 @@ async function importWorldbookFile(event: Event) {
               <option value="before_history">before_history</option>
               <option value="after_character">after_character</option>
               <option value="depth">depth</option>
+              <option value="before_character">before_character</option>
+              <option value="after_history">after_history</option>
+              <option value="outlet">outlet (仅保留不注入)</option>
             </select></label
           ><label
             >{{ t("深度")
@@ -448,8 +485,41 @@ async function importWorldbookFile(event: Event) {
             ><input v-model="entryDraft.matchWholeWords" type="checkbox" />{{
               t("全词匹配")
             }}</label
+          ><label class="check-label"
+            ><input v-model="entryDraft.selective" type="checkbox" />{{
+              t("启用次要关键词")
+            }}</label
+          ><label class="check-label"
+            ><input v-model="entryDraft.useProbability" type="checkbox" />{{
+              t("触发概率")
+            }}</label
           >
         </div>
+        <label v-if="entryDraft.selective"
+          >{{ t("次要关键词")
+          }}<input v-model="entryDraft.secondaryKeys" :placeholder="t('关键词提示')"
+        /></label>
+        <label v-if="entryDraft.selective"
+          >{{ t("次要逻辑")
+          }}<select v-model="entryDraft.selectiveLogic">
+            <option value="and_any">and_any</option>
+            <option value="and_all">and_all</option>
+            <option value="not_any">not_any</option>
+            <option value="not_all">not_all</option>
+          </select></label
+        >
+        <label v-if="entryDraft.useProbability"
+          >{{ t("触发概率 (%)")
+          }}<input v-model.number="entryDraft.probability" type="number" min="0" max="100"
+        /></label>
+        <label
+          >{{ t("注入角色")
+          }}<select v-model="entryDraft.role">
+            <option value="system">system</option>
+            <option value="user">user</option>
+            <option value="assistant">assistant</option>
+          </select></label
+        >
         <div class="form-actions">
           <var-button
             text

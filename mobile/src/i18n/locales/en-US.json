@@ -304,7 +304,13 @@
         "顺序": "Order",
         "常量": "Constant",
         "区分大小写": "Case sensitive",
-        "全词匹配": "Match whole words"
+        "全词匹配": "Match whole words",
+        "启用次要关键词": "Enable Secondary Keys",
+        "次要关键词": "Secondary Keys",
+        "次要逻辑": "Selective Logic",
+        "触发概率": "Trigger Probability",
+        "触发概率 (%)": "Trigger Probability (%)",
+        "注入角色": "Injection Role"
       },
       "ChatView": {
         "选择智能体": "Select agent",
@@ -354,7 +360,10 @@
         "删除会话前确认": "Confirm before deleting session",
         "清空会话前确认": "Confirm before clearing all",
         "请求超时时间": "Request Timeout",
-        "最大重试次数": "Max Retries"
+        "最大重试次数": "Max Retries",
+        "上下文管理": "Context Management",
+        "预警阈值": "Warning Threshold",
+        "高危阈值": "Critical Threshold"
       },
       "SessionList": {
         "删除会话": "Delete chat",
@@ -362,9 +371,16 @@
         "清空所有会话": "Clear all chats",
         "清空所有会话提示": "All chat history will be permanently deleted. This action cannot be undone.",
         "删除": "Delete",
+        "保存": "Save",
         "清空": "Clear all",
         "取消": "Cancel",
         "会话已删除": "Chat deleted",
+        "重命名会话": "Rename session",
+        "会话名称": "Session name",
+        "会话名称提示": "Enter session name",
+        "会话名称不能为空": "Session name cannot be empty",
+        "重命名成功": "Session renamed",
+        "重命名失败": "Failed to rename session, please try again",
         "已清空会话": "Cleared {count} chats",
         "删除会话失败": "Couldn't delete the chat. Try again later.",
         "清空会话失败": "Couldn't clear chats. Try again later.",
@@ -530,7 +546,42 @@
         "世界书说明": "Selected enabled Worldbooks are injected deterministically by keyword before requests.",
         "管理世界书": "Manage",
         "暂无世界书": "No Worldbooks are available yet. Create one first.",
-        "必填提示": "Display name, internal name, and model are required"
+        "必填提示": "Display name, internal name, and model are required",
+        "保存失败": "Failed to save the agent. Please try again",
+        "分类": "Category",
+        "标签": "Tags",
+        "标签占位": "Comma-separated tags, e.g. gentle, tsundere"
+      },
+      "Greetings": {
+        "标题": "Greetings",
+        "说明": "One greeting becomes the opening message of a new session; the default is used when set, otherwise the first one.",
+        "新增": "Add",
+        "暂无": "No greetings yet. Add one from the top-right corner.",
+        "默认": "Default",
+        "设为默认": "Set as default",
+        "编辑": "Edit",
+        "删除": "Delete",
+        "空内容": "(empty message)",
+        "附件数量": "{count} attachment(s)",
+        "新增开局消息": "New greeting",
+        "编辑开局消息": "Edit greeting",
+        "保存": "Save",
+        "返回": "Back",
+        "角色": "Role",
+        "名称": "Name",
+        "名称占位": "Optional, to tell greetings apart in the list",
+        "内容": "Content",
+        "内容占位": "Opening text; macros like {{char}} / {{user}} are supported",
+        "内容不能为空": "Greeting content cannot be empty"
+      },
+      "Regex": {
+        "标题": "Regex scripts",
+        "说明": "Rules applied before requests and before display; each preset can be toggled. Script-type rules are not supported on mobile.",
+        "未命名": "Untitled",
+        "规则数": "{count} rules",
+        "启用": "Enabled",
+        "规则": "Rule",
+        "脚本规则跳过": "Script type (skipped on mobile)"
       },
       "AgentAssets": {
         "标题": "Private assets",

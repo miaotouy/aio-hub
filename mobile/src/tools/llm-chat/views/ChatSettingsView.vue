@@ -22,6 +22,38 @@ const handleBack = () => {
 const handleReset = async () => {
   await resetSettings();
 };
+
+const handleWarningRatioChange = (val: number | number[]) => {
+  const input = Array.isArray(val) ? val[0] : val;
+  let warning = input;
+  let critical = settings.value.contextManagement.criticalRatio;
+  if (warning >= critical) {
+    critical = Math.min(1, Number((warning + 0.05).toFixed(2)));
+    if (critical <= warning) {
+      warning = Math.max(0, Number((critical - 0.05).toFixed(2)));
+    }
+  }
+  updateSettingItem("contextManagement", {
+    warningRatio: warning,
+    criticalRatio: critical,
+  });
+};
+
+const handleCriticalRatioChange = (val: number | number[]) => {
+  const input = Array.isArray(val) ? val[0] : val;
+  let critical = input;
+  let warning = settings.value.contextManagement.warningRatio;
+  if (critical <= warning) {
+    warning = Math.max(0, Number((critical - 0.05).toFixed(2)));
+    if (warning >= critical) {
+      critical = Math.min(1, Number((warning + 0.05).toFixed(2)));
+    }
+  }
+  updateSettingItem("contextManagement", {
+    warningRatio: warning,
+    criticalRatio: critical,
+  });
+};
 </script>
 
 <template>
@@ -301,6 +333,52 @@ const handleReset = async () => {
                       maxRetries: settings.requestSettings.maxRetries,
                     })
                   "
+                />
+              </div>
+            </template>
+          </var-cell>
+        </div>
+      </div>
+
+      <!-- 上下文管理 -->
+      <div class="section">
+        <div class="section-title">
+          {{ t("tools.llm-chat.ChatSettingsView.上下文管理") }}
+        </div>
+        <div class="section-card">
+          <var-cell
+            :title="
+              t('tools.llm-chat.ChatSettingsView.预警阈值') +
+              ` (${Math.round(settings.contextManagement.warningRatio * 100)}%)`
+            "
+          >
+            <template #description>
+              <div class="slider-container">
+                <var-slider
+                  v-model="settings.contextManagement.warningRatio"
+                  :min="0.1"
+                  :max="0.95"
+                  :step="0.05"
+                  @change="handleWarningRatioChange"
+                />
+              </div>
+            </template>
+          </var-cell>
+
+          <var-cell
+            :title="
+              t('tools.llm-chat.ChatSettingsView.高危阈值') +
+              ` (${Math.round(settings.contextManagement.criticalRatio * 100)}%)`
+            "
+          >
+            <template #description>
+              <div class="slider-container">
+                <var-slider
+                  v-model="settings.contextManagement.criticalRatio"
+                  :min="0.2"
+                  :max="1"
+                  :step="0.05"
+                  @change="handleCriticalRatioChange"
                 />
               </div>
             </template>

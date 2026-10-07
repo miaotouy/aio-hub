@@ -690,7 +690,7 @@ const handleTabMenuAction = async (itemId: string, tab: DiffTabRef) => {
       await errorHandler.wrapAsync(
         () =>
           invoke<void>("open_file_directory", {
-            path: joinRepoPath(currentRepoPath.value, tab.path),
+            filePath: joinRepoPath(currentRepoPath.value, tab.path),
           }),
         { userMessage: "无法在资源管理器中显示该文件" }
       );

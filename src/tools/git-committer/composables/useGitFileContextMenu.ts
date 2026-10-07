@@ -48,7 +48,7 @@ export function useGitFileContextMenu() {
     await errorHandler.wrapAsync(
       () =>
         invoke<void>("open_file_directory", {
-          path: joinRepoPath(currentRepoPath.value, relativePath),
+          filePath: joinRepoPath(currentRepoPath.value, relativePath),
         }),
       { userMessage: "无法在资源管理器中显示该文件" }
     );

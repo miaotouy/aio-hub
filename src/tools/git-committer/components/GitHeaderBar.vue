@@ -258,9 +258,9 @@ import {
   Undo2,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { onClickOutside } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
+import { invoke, PlatformError } from "@/platform";
 import {
   currentRepo,
   currentRepoPath,
@@ -344,9 +344,15 @@ const handleOpenRepoFolder = async () => {
   const repoPath = currentRepoPath.value;
   if (!repoPath) return;
   try {
-    await openPath(repoPath);
-  } catch {
-    customMessage.error("无法打开仓库所在目录");
+    await invoke("open_file_directory", { filePath: repoPath });
+  } catch (err) {
+    const detail =
+      err instanceof PlatformError && err.cause != null
+        ? String(err.cause)
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    customMessage.error(`无法打开仓库所在目录：${detail}`);
   }
 };
 

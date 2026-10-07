@@ -19,11 +19,14 @@ import { computed, ref, watch } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { MEDIA_GENERATOR_TARGET_LANG_OPTIONS } from "../config";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { type MediaTaskType } from "../types";
+import type { LlmMessage, LlmMessageContent } from "@/llm-apis/common";
 import { Sparkles, Info } from "lucide-vue-next";
 
 const logger = createModuleLogger("media-generator/PromptOptimizePanel");
@@ -39,6 +42,7 @@ const emit = defineEmits<{
 
 const store = useMediaGenStore();
 const { sendRequest } = useLlmRequest();
+const { getProfileById } = useLlmProfiles();
 
 const MEDIA_TYPE_LABELS: Record<MediaTaskType, string> = {
   image: "图片",
@@ -73,6 +77,27 @@ const currentOptimizationConfig = computed(() => {
       config.promptsByType?.image ||
       "",
   };
+});
+
+// 当前输入框中可作参考的图片附件
+const referenceImages = computed(() =>
+  store.attachments.filter(
+    (asset) =>
+      asset.type === "image" &&
+      (asset.importStatus === undefined || asset.importStatus === "complete")
+  )
+);
+
+// 判断优化模型是否支持视觉输入
+const optimizeModelSupportsVision = computed(() => {
+  const modelCombo =
+    optimizeModelId.value || currentOptimizationConfig.value.modelCombo;
+  if (!modelCombo) return false;
+  const [profileId, modelId] = parseModelCombo(modelCombo);
+  if (!profileId || !modelId) return false;
+  const profile = getProfileById(profileId);
+  const model = profile?.models.find((item) => item.id === modelId);
+  return model?.capabilities?.vision === true;
 });
 
 const targetLangOptions = computed(() => {
@@ -136,6 +161,28 @@ const buildOptimizationPrompt = (template: string, text: string) => {
   return `${rendered}\n\n## 用户输入\n${text}`;
 };
 
+// 读取参考图并转为多模态内容（仅视觉模型）
+const buildReferenceImageContents = async (): Promise<
+  LlmMessageContent[]
+> => {
+  const contents: LlmMessageContent[] = [];
+  for (const asset of referenceImages.value) {
+    try {
+      if (!asset.path) continue;
+      const base64 = await assetManagerEngine.getAssetBase64(asset.path);
+      if (!base64) continue;
+      contents.push({ type: "image", imageBase64: base64 });
+    } catch (error) {
+      logger.warn("读取参考图失败，跳过该图片", {
+        error,
+        assetId: asset.id,
+        path: asset.path,
+      });
+    }
+  }
+  return contents;
+};
+
 const handleOptimizePrompt = async () => {
   if (!props.promptText.trim()) {
     customMessage.warning("请先输入需要处理的提示词");
@@ -179,15 +226,34 @@ const handleOptimizePrompt = async () => {
       finalPrompt += `\n\n附加要求：${optimizePrompt.value.trim()}`;
     }
 
+    // 视觉模型：把输入框中的参考图一并提供，辅助优化
+    let messages: LlmMessage[];
+    if (optimizeModelSupportsVision.value) {
+      const imageContents = await buildReferenceImageContents();
+      messages =
+        imageContents.length > 0
+          ? [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "以下是用户添加的参考图，优化提示词时请结合参考图的内容与风格：",
+                  },
+                  ...imageContents,
+                  { type: "text", text: finalPrompt },
+                ],
+              },
+            ]
+          : [{ role: "user", content: finalPrompt }];
+    } else {
+      messages = [{ role: "user", content: finalPrompt }];
+    }
+
     const response = await sendRequest({
       profileId,
       modelId,
-      messages: [
-        {
-          role: "user",
-          content: finalPrompt,
-        },
-      ],
+      messages,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       inspectorContext: {
@@ -299,6 +365,12 @@ defineExpose({
       <el-icon><Info /></el-icon>
       <div class="tip-content">
         <p>优化将基于当前输入框中的内容进行扩展</p>
+        <p v-if="referenceImages.length > 0 && optimizeModelSupportsVision">
+          将同时参考输入框中的 {{ referenceImages.length }} 张参考图
+        </p>
+        <p v-else-if="referenceImages.length > 0">
+          当前优化模型不支持视觉，不会参考附件图片
+        </p>
       </div>
     </div>
 

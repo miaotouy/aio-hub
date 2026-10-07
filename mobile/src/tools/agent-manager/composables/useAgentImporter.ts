@@ -160,6 +160,111 @@ function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
   return normalized;
 }
 
+/** 校验包内存在指定相对路径条目（兼容配置文件位于子目录的场景）。 */
+function bundleHasEntry(entries: Set<string>, fileName: string): boolean {
+  const normalized = normalizeEntryPath(fileName);
+  for (const name of entries) {
+    if (name === normalized || name.endsWith(`/${normalized}`)) return true;
+  }
+  return false;
+}
+
+/**
+ * 消费 AIO Agent 导出中的 bundledWorldbooks：
+ * - content 内嵌（桌面 embedWorldbooks=true 导出）：内容为桌面世界书 JSON
+ *   （STWorldbook，entries 为字典），转进 importedWorldbooks 通道由调用方
+ *   落库并回写 worldbookIds；
+ * - fileName 外链（embedWorldbooks=false，包内 worldbooks/ 目录）：包内文件
+ *   已由 extractBundleResources 解析落库，这里仅校验包内文件存在，避免双份落库。
+ * 无法解析的项进 warnings，不静默丢失；处理后从 draft 删除该字段，避免残留写进落库数据。
+ */
+function postProcessAioAgent(
+  draft: ImportedAgentDraft,
+  agentIndex: number,
+  importedWorldbooks: ImportedWorldbookSource[],
+  warnings: string[],
+  bundleEntries?: Set<string>
+): void {
+  const record = draft as UnknownRecord;
+  const bundled = record.bundledWorldbooks;
+  delete record.bundledWorldbooks;
+  if (!Array.isArray(bundled)) return;
+
+  bundled.forEach((item, index) => {
+    if (!isRecord(item)) {
+      warnings.push(`随包世界书第 ${index + 1} 项格式无法识别，已跳过。`);
+      return;
+    }
+    const name = readString(item, "name") || `随包世界书 ${index + 1}`;
+    const content = item.content;
+    if (content !== undefined && content !== null) {
+      if (
+        isRecord(content) &&
+        (Array.isArray(content.entries) || isRecord(content.entries))
+      ) {
+        importedWorldbooks.push({
+          book: content,
+          name,
+          agentIndexes: [agentIndex],
+        });
+        return;
+      }
+      warnings.push(`随包世界书「${name}」内容解析失败，已跳过。`);
+      return;
+    }
+    const fileName = readString(item, "fileName");
+    if (fileName && bundleEntries && bundleHasEntry(bundleEntries, fileName)) {
+      // 包内 worldbooks/ 文件由 extractBundleResources 统一解析落库，不重复转换
+      return;
+    }
+    warnings.push(
+      fileName
+        ? `随包世界书「${name}」引用的包内文件 ${fileName} 缺失，已跳过。`
+        : `随包世界书「${name}」缺少可解析的世界书内容，已跳过。`
+    );
+  });
+}
+
+/**
+ * 统计 AIO regexConfig 中的脚本型规则（replacementType === "script"）。
+ * 移动端运行时仅支持正则替换、脚本型规则会被静默跳过，导入时汇总提示避免静默丢失。
+ */
+function collectScriptRegexWarnings(
+  agents: ImportedAgentDraft[],
+  warnings: string[]
+): void {
+  let count = 0;
+  for (const draft of agents) {
+    const config = draft.regexConfig;
+    if (!isRecord(config) || !Array.isArray(config.presets)) continue;
+    for (const preset of config.presets) {
+      if (!isRecord(preset) || !Array.isArray(preset.rules)) continue;
+      for (const rule of preset.rules) {
+        if (isRecord(rule) && rule.replacementType === "script") count++;
+      }
+    }
+  }
+  if (count > 0) {
+    warnings.push(`${count} 条脚本型正则规则在移动端不支持，已跳过。`);
+  }
+}
+
+/**
+ * VCP Chat config.json 识别（与桌面 agentImportService 使用的 isVcpChatConfig 判定一致）：
+ * 具备 systemPrompt 系列字段之一或 name/model 字段，且不含 AIO 导出的 type/agents 字段。
+ */
+function isVcpChatConfigPayload(value: UnknownRecord): boolean {
+  const hasVcpSignature =
+    typeof value.systemPrompt === "string" ||
+    typeof value.originalSystemPrompt === "string" ||
+    typeof value.presetSystemPrompt === "string" ||
+    typeof value.advancedSystemPrompt === "string" ||
+    Boolean(value.name) ||
+    Boolean(value.model);
+  if (!hasVcpSignature) return false;
+  return !("type" in value) && !("agents" in value);
+}
+
 function isSillyTavernCard(value: unknown): value is UnknownRecord {
   if (!isRecord(value)) return false;
   if (value.spec === "chara_card_v2" || value.spec === "chara_card_v3") {
@@ -910,7 +1015,10 @@ function parseAgentBundle(zipBytes: Uint8Array): AgentImportResult {
 
   for (const config of configEntries) {
     const payload = parseConfigBytes(config.name, config.data);
-    const parsed = parseImportPayload(payload);
+    const parsed = parseImportPayload(
+      payload,
+      new Set(normalizedEntries.keys())
+    );
     source = parsed.source;
     const offset = agents.length;
     agents.push(...parsed.agents);
@@ -956,7 +1064,10 @@ function parseAgentBundle(zipBytes: Uint8Array): AgentImportResult {
   };
 }
 
-function parseImportPayload(payload: unknown): AgentImportResult {
+function parseImportPayload(
+  payload: unknown,
+  bundleEntries?: Set<string>
+): AgentImportResult {
   const warnings: string[] = [];
   const importedWorldbooks: ImportedWorldbookSource[] = [];
 
@@ -972,6 +1083,21 @@ function parseImportPayload(payload: unknown): AgentImportResult {
   }
   if (!isRecord(payload)) throw new Error("Unsupported agent file");
 
+  const isAioExport =
+    payload.type === "AIO_Agent_Export" && Array.isArray(payload.agents);
+
+  // VCP Chat 的 config.json 顶层恰有 name 时会命中下方单对象兜底被误当
+  // AIO Agent 导入；按桌面 isVcpChatConfig 特征识别后跳过并明确提示。
+  if (!isAioExport && isVcpChatConfigPayload(payload)) {
+    return {
+      agents: [],
+      source: "aio",
+      warnings: [
+        "检测到 VCP Chat 配置文件，移动端暂不支持 VCP Chat 配置导入，已跳过该文件。",
+      ],
+    };
+  }
+
   const candidates =
     payload.type === "AIO_Agent_Export" && Array.isArray(payload.agents)
       ? payload.agents
@@ -980,7 +1106,22 @@ function parseImportPayload(payload: unknown): AgentImportResult {
     .map(normalizeAioAgent)
     .filter((agent): agent is ImportedAgentDraft => agent !== null);
   if (agents.length === 0) throw new Error("No valid agents found");
-  return { agents, source: "aio", warnings };
+  agents.forEach((agent, index) =>
+    postProcessAioAgent(
+      agent,
+      index,
+      importedWorldbooks,
+      warnings,
+      bundleEntries
+    )
+  );
+  collectScriptRegexWarnings(agents, warnings);
+  return {
+    agents,
+    source: "aio",
+    warnings,
+    ...(importedWorldbooks.length > 0 ? { importedWorldbooks } : {}),
+  };
 }
 
 export function useAgentImporter() {

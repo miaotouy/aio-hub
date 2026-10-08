@@ -42,7 +42,7 @@ const emit = defineEmits<{
 
 const store = useMediaGenStore();
 const { sendRequest } = useLlmRequest();
-const { getProfileById } = useLlmProfiles();
+const { getProfileById, enabledProfiles } = useLlmProfiles();
 
 const MEDIA_TYPE_LABELS: Record<MediaTaskType, string> = {
   image: "图片",
@@ -58,12 +58,36 @@ const activeTypeLabel = computed(
 // 提示词优化逻辑
 const isOptimizing = ref(false);
 const optimizedResult = ref("");
+const optimizeError = ref("");
 const optimizeModelId = ref("");
 const optimizePrompt = ref("");
 const optimizeMode = ref<"optimize" | "translate" | "optimize_translate">(
   "optimize"
 );
 const optimizeTargetLang = ref("");
+
+// 仅当模型在当前启用的渠道中真实存在时才视为有效，避免展示已失效的 combo 原文
+const resolveAvailableModelCombo = (combo?: string) => {
+  if (!combo) return "";
+  const [profileId, modelId] = parseModelCombo(combo);
+  if (!profileId || !modelId) return "";
+  const profile = enabledProfiles.value.find((item) => item.id === profileId);
+  if (!profile || !profile.models.some((item) => item.id === modelId))
+    return "";
+  return combo;
+};
+
+const optimizeModelCombo = computed({
+  get: () => resolveAvailableModelCombo(optimizeModelId.value),
+  set: (value: string) => {
+    const combo = value || "";
+    optimizeModelId.value = combo;
+    // 同步回全局设置，避免重开面板时回退到旧值/失效值
+    if (store.settings.promptOptimization) {
+      store.settings.promptOptimization.modelCombo = combo;
+    }
+  },
+});
 
 const currentOptimizationConfig = computed(() => {
   const config = store.settings.promptOptimization;
@@ -90,8 +114,7 @@ const referenceImages = computed(() =>
 
 // 判断优化模型是否支持视觉输入
 const optimizeModelSupportsVision = computed(() => {
-  const modelCombo =
-    optimizeModelId.value || currentOptimizationConfig.value.modelCombo;
+  const modelCombo = optimizeModelCombo.value;
   if (!modelCombo) return false;
   const [profileId, modelId] = parseModelCombo(modelCombo);
   if (!profileId || !modelId) return false;
@@ -126,24 +149,40 @@ const resolveDefaultTargetLang = () => {
 const resetOptimizeDraft = () => {
   optimizePrompt.value = "";
   optimizedResult.value = "";
+  optimizeError.value = "";
   optimizeMode.value = "optimize";
   optimizeTargetLang.value = resolveDefaultTargetLang();
 };
 
-// 初始化优化配置
+// 提取可读的失败原因，去掉上游响应体等冗长细节
+const resolveOptimizeErrorText = (error: unknown) => {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const bodyIndex = raw.search(/\s*[:：]\s*[[{]/);
+  const summary = bodyIndex > 0 ? raw.slice(0, bodyIndex) : raw;
+  return summary.trim() || "未知错误";
+};
+
+// 初始化优化配置：模型选择单独同步，避免面板内改动触发草稿重置
+watch(
+  () => store.settings.promptOptimization?.modelCombo,
+  (modelCombo) => {
+    logger.debug("同步优化模型选择", {
+      modelCombo: modelCombo || "",
+      resolvedCombo: resolveAvailableModelCombo(modelCombo || ""),
+    });
+    optimizeModelId.value = modelCombo || "";
+  },
+  { immediate: true }
+);
+
 watch(
   () => [
-    store.settings.promptOptimization?.modelCombo,
     store.settings.promptOptimization?.defaultTargetLang,
     store.settings.promptOptimization?.targetLangList?.join(","),
     store.currentConfig.activeType,
   ],
   () => {
-    const config = store.settings.promptOptimization;
-    if (config) {
-      optimizeModelId.value = config.modelCombo || "";
-      resetOptimizeDraft();
-    }
+    resetOptimizeDraft();
   },
   { immediate: true }
 );
@@ -162,9 +201,7 @@ const buildOptimizationPrompt = (template: string, text: string) => {
 };
 
 // 读取参考图并转为多模态内容（仅视觉模型）
-const buildReferenceImageContents = async (): Promise<
-  LlmMessageContent[]
-> => {
+const buildReferenceImageContents = async (): Promise<LlmMessageContent[]> => {
   const contents: LlmMessageContent[] = [];
   for (const asset of referenceImages.value) {
     try {
@@ -185,26 +222,32 @@ const buildReferenceImageContents = async (): Promise<
 
 const handleOptimizePrompt = async () => {
   if (!props.promptText.trim()) {
+    logger.warn("提示词优化被中断：输入框内容为空");
     customMessage.warning("请先输入需要处理的提示词");
     return;
   }
 
   const config = currentOptimizationConfig.value;
-  const modelCombo = optimizeModelId.value || config.modelCombo;
+  const modelCombo = optimizeModelCombo.value;
 
   if (!modelCombo) {
+    logger.warn("提示词优化被中断：未选择优化模型", {
+      rawOptimizeModelId: optimizeModelId.value,
+    });
     customMessage.warning("请先选择优化模型");
     return;
   }
 
   const [profileId, modelId] = parseModelCombo(modelCombo);
   if (!profileId || !modelId) {
+    logger.warn("提示词优化被中断：优化模型 combo 无法解析", { modelCombo });
     customMessage.warning("优化模型配置无效");
     return;
   }
 
   isOptimizing.value = true;
   optimizedResult.value = "";
+  optimizeError.value = "";
   try {
     let finalPrompt = "";
     const targetLang = optimizeTargetLang.value || resolveDefaultTargetLang();
@@ -226,10 +269,44 @@ const handleOptimizePrompt = async () => {
       finalPrompt += `\n\n附加要求：${optimizePrompt.value.trim()}`;
     }
 
+    logger.info("开始提示词优化", {
+      mode: optimizeMode.value,
+      targetLang,
+      profileId,
+      modelId,
+      activeType: store.currentConfig.activeType,
+      inputLength: props.promptText.length,
+      hasExtraRequirement: !!optimizePrompt.value.trim(),
+      promptTemplateLength: config.prompt?.length || 0,
+      templateHasPlaceholder: config.prompt?.includes("{text}") ?? false,
+      supportsVision: optimizeModelSupportsVision.value,
+      referenceImageCount: referenceImages.value.length,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+    });
+
+    if (
+      optimizeMode.value !== "translate" &&
+      !config.prompt?.trim()
+    ) {
+      logger.warn("提示词优化模板为空，将仅提交用户原文", {
+        activeType: store.currentConfig.activeType,
+      });
+    }
+
+    logger.debug("提示词优化最终提示词已构建", {
+      finalPromptLength: finalPrompt.length,
+      finalPrompt,
+    });
+
     // 视觉模型：把输入框中的参考图一并提供，辅助优化
     let messages: LlmMessage[];
     if (optimizeModelSupportsVision.value) {
       const imageContents = await buildReferenceImageContents();
+      logger.info("视觉优化模式：参考图内容构建完成", {
+        requested: referenceImages.value.length,
+        resolved: imageContents.length,
+      });
       messages =
         imageContents.length > 0
           ? [
@@ -264,9 +341,24 @@ const handleOptimizePrompt = async () => {
 
     if (response && response.content) {
       optimizedResult.value = response.content;
+      logger.info("提示词优化完成", {
+        contentLength: response.content.length,
+        finishReason: response.finishReason,
+        reasoningContentLength: response.reasoningContent?.length || 0,
+        usage: response.usage,
+      });
+    } else {
+      logger.warn("提示词优化返回内容为空", {
+        hasResponse: !!response,
+        finishReason: response?.finishReason,
+        reasoningContentLength: response?.reasoningContent?.length || 0,
+        usage: response?.usage,
+      });
+      optimizeError.value = "模型未返回有效内容，请重试或更换优化模型";
     }
   } catch (error) {
     logger.error("提示词优化失败", error);
+    optimizeError.value = resolveOptimizeErrorText(error);
     customMessage.error("提示词优化失败，请检查网络或模型配置");
   } finally {
     isOptimizing.value = false;
@@ -275,12 +367,25 @@ const handleOptimizePrompt = async () => {
 
 const applyOptimizedPrompt = () => {
   if (optimizedResult.value) {
+    logger.info("应用优化结果", {
+      contentLength: optimizedResult.value.length,
+      activeType: store.currentConfig.activeType,
+    });
     emit("apply", optimizedResult.value);
     resetOptimizeDraft();
+  } else {
+    logger.warn("应用优化结果被忽略：结果为空");
   }
 };
 
+const regenerateOptimize = () => {
+  logger.debug("重置优化结果以重新生成");
+  optimizedResult.value = "";
+  optimizeError.value = "";
+};
+
 const cancelOptimize = () => {
+  logger.debug("取消提示词优化");
   emit("cancel");
   resetOptimizeDraft();
 };
@@ -301,7 +406,7 @@ defineExpose({
     <div class="form-item model-form-item">
       <label>优化模型</label>
       <LlmModelSelector
-        v-model="optimizeModelId"
+        v-model="optimizeModelCombo"
         placeholder="选择优化模型"
         :capabilities="{ embedding: false, rerank: false }"
         :teleported="false"
@@ -348,6 +453,17 @@ defineExpose({
       </div>
     </div>
 
+    <el-alert
+      v-else-if="optimizeError"
+      class="optimize-error"
+      type="error"
+      title="优化失败"
+      :closable="false"
+      show-icon
+    >
+      {{ optimizeError }}
+    </el-alert>
+
     <div class="form-item">
       <label>处理模式</label>
       <el-radio-group
@@ -387,9 +503,7 @@ defineExpose({
         </el-button>
       </template>
       <template v-else>
-        <el-button size="small" @click="optimizedResult = ''"
-          >重新生成</el-button
-        >
+        <el-button size="small" @click="regenerateOptimize">重新生成</el-button>
         <el-button size="small" type="primary" @click="applyOptimizedPrompt">
           确认并应用
         </el-button>
@@ -454,6 +568,14 @@ defineExpose({
   font-size: 13px;
   font-weight: 500;
   color: var(--el-color-success);
+}
+
+.optimize-error {
+  align-items: flex-start;
+}
+
+.optimize-error :deep(.el-alert__content) {
+  word-break: break-word;
 }
 
 .result-content {

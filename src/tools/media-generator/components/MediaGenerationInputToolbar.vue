@@ -28,8 +28,11 @@ import {
   Video,
 } from "lucide-vue-next";
 import type { ContextToggleMode } from "../utils/contextToggleUi";
+import { createModuleLogger } from "@/utils/logger";
 import PromptOptimizePanel from "./PromptOptimizePanel.vue";
 import QuickPromptLibrary from "./QuickPromptLibrary.vue";
+
+const logger = createModuleLogger("media-generator/InputToolbar");
 
 const props = defineProps<{
   disabled?: boolean;
@@ -76,11 +79,16 @@ const contextToggleTooltip = computed(
 );
 
 const handleApplyOptimized = (value: string) => {
+  logger.info("提示词优化结果已写回输入框", {
+    contentLength: value.length,
+    previousLength: store.inputPrompt?.length || 0,
+  });
   store.inputPrompt = value;
   showOptimizePopover.value = false;
 };
 
 const handleCancelOptimize = () => {
+  logger.debug("关闭提示词优化面板");
   showOptimizePopover.value = false;
 };
 

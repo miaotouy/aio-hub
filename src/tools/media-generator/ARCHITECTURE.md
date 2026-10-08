@@ -560,6 +560,7 @@ interface GenerationSession {
   - `status`: `"pending" | "processing" | "completed" | "error" | "cancelled"`
   - `input`: 输入参数（prompt, negativePrompt, modelId, profileId, params, referenceAssetIds, inputAttachments, contextMessageIds, includeContext 等）
   - `progress`, `statusText`, `error`: 进度追踪
+    - 轮询型任务（视频/音乐异步生成）通过 `MediaGenerationOptions.onMediaProgress` 回调实时上报：适配器在 `executeAsyncMediaTask` 每次轮询后触发，`sendRequest` 透传该回调，Manager 将其映射为 `30~89` 区间的任务进度并刷新 `statusText`；上游未携带百分比时进度缓慢自增，避免进度条长时间静止
   - `resultAssetIds`, `resultAssets`, `previewUrls`: 结果关联
 
 ### 6.4. 配置相关

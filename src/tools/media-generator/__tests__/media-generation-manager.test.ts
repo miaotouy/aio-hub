@@ -146,4 +146,41 @@ describe("media generation queue", () => {
     releaseFirst();
     await firstRun;
   });
+
+  it("生成期间通过 onMediaProgress 接收上游轮询进度并刷新任务", async () => {
+    const task = makeTask("progress-task");
+    const taskManager = useMediaTaskManager();
+    taskManager.addTask(task);
+
+    sendRequest.mockReset();
+    sendRequest.mockImplementationOnce(async (options: any) => {
+      expect(typeof options.onMediaProgress).toBe("function");
+      options.onMediaProgress({
+        status: "generating",
+        progress: 55,
+        statusText: "上游生成中...",
+      });
+      expect(taskManager.getTask(task.id)).toMatchObject({
+        status: "processing",
+        progress: 55,
+        statusText: "上游生成中...",
+      });
+      options.onMediaProgress({
+        status: "generating",
+        progress: 55,
+        statusText: "上游推进中...",
+      });
+      expect(taskManager.getTask(task.id)).toMatchObject({
+        status: "processing",
+        progress: 55,
+        statusText: "上游推进中...",
+      });
+      return { images: [], videos: [], audios: [] };
+    });
+
+    const manager = useMediaGenerationManager();
+    await manager.executeGeneration(task);
+
+    expect(sendRequest).toHaveBeenCalledTimes(1);
+  });
 });

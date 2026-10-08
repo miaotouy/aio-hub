@@ -172,6 +172,45 @@ export interface LlmMessage {
 }
 
 /**
+ * 异步媒体任务（视频/音乐轮询型生成）的进度快照。
+ * 由适配器在每次轮询后上报，进度未知的 provider 允许只带 statusText。
+ */
+export interface MediaProgressUpdate {
+  /** 任务状态：queued/running 归一为 generating，succeeded 归一为 finishing */
+  status: "generating" | "finishing";
+  /** 0-100 进度百分比，provider 未提供时为 undefined */
+  progress?: number;
+  /** 面向用户的进度说明文本 */
+  statusText?: string;
+  /** 上游任务 ID（如 Ark task id），仅用于展示与诊断 */
+  providerTaskId?: string;
+}
+
+/** 轮询型媒体任务的归一化状态 → 面向用户的进度说明文本 */
+export const MEDIA_STATUS_TEXT: Record<string, string> = {
+  queued: "任务已排队，等待上游处理...",
+  running: "上游生成中...",
+  succeeded: "生成完成，正在获取结果...",
+};
+
+/**
+ * 将异步媒体任务快照归一化为进度回调载荷。
+ * 接收带 id/status/progress 的任务快照（llm-core AsyncMediaTaskSnapshot 或其子集）。
+ */
+export function toMediaProgressUpdate(task: {
+  id: string;
+  status: string;
+  progress?: number;
+}): MediaProgressUpdate {
+  return {
+    status: task.status === "succeeded" ? "finishing" : "generating",
+    progress: task.progress,
+    statusText: MEDIA_STATUS_TEXT[task.status] ?? "上游处理中...",
+    providerTaskId: task.id,
+  };
+}
+
+/**
  * LLM 请求参数
  */
 export interface LlmRequestOptions {
@@ -191,6 +230,8 @@ export interface LlmRequestOptions {
   onReasoningStream?: (chunk: string) => void;
   /** 流式预览图回调 (OpenAI Responses gpt-image-2 特性) */
   onPartialImage?: (base64: string, index: number) => void;
+  /** 异步媒体任务进度快照（轮询型视频/音乐生成上报） */
+  onMediaProgress?: (update: MediaProgressUpdate) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
   /** 用于中止请求的 AbortSignal */

@@ -371,6 +371,11 @@ export function useLlmRequest() {
         filteredOptions.requestId = options.requestId;
       }
 
+      // 透传异步媒体任务进度回调，filterParametersByCapabilities 不会复制函数字段
+      if (options.onMediaProgress) {
+        filteredOptions.onMediaProgress = options.onMediaProgress;
+      }
+
       // 合并模型的自定义参数
       // customParameters 的优先级低于用户在 options 中明确设置的参数
       if (model.customParameters) {

@@ -51,6 +51,7 @@ import type {
 } from "../types";
 import type {
   MediaGenerationOptions,
+  MediaProgressUpdate,
   LlmMessage,
   LlmMessageContent,
   LlmResponse,
@@ -676,6 +677,22 @@ export function useMediaGenerationManager() {
           });
         };
       }
+
+      // 轮询型媒体任务（视频/音乐）进度透传：上游每次 poll 后刷新任务进度。
+      // 未携带百分比时以 30 为底线缓慢推进，避免进度条长时间静止。
+      let lastReportedProgress = 30;
+      (finalOptions as any).onMediaProgress = (update: MediaProgressUpdate) => {
+        if (controller.signal.aborted) return;
+        const progress =
+          typeof update.progress === "number"
+            ? Math.max(lastReportedProgress, Math.min(89, update.progress))
+            : Math.min(88, lastReportedProgress + 1);
+        lastReportedProgress = progress;
+        taskManager.updateTaskStatus(taskId, "processing", {
+          statusText: update.statusText || "上游生成中...",
+          progress,
+        });
+      };
 
       taskManager.updateTaskStatus(taskId, "processing", {
         statusText: "正在生成中...",

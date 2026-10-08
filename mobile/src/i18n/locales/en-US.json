@@ -550,7 +550,22 @@
         "保存失败": "Failed to save the agent. Please try again",
         "分类": "Category",
         "标签": "Tags",
-        "标签占位": "Comma-separated tags, e.g. gentle, tsundere"
+        "标签占位": "Comma-separated tags, e.g. gentle, tsundere",
+        "基础": "Basic",
+        "对话": "Chat",
+        "资源": "Assets",
+        "高级": "Advanced",
+        "头像": "Avatar",
+        "更换图片": "Change image",
+        "移除图片": "Remove image",
+        "头像说明": "Pick a local image; it is resized to a 256px preview automatically",
+        "头像格式提示": "Only image files are supported",
+        "头像读取失败": "Failed to read the image. Try another one",
+        "参数摘要空": "Not customized; defaults apply",
+        "未保存标题": "Unsaved changes",
+        "未保存说明": "Your edits have not been saved yet. Leaving now will discard them.",
+        "离开": "Leave",
+        "继续编辑": "Keep editing"
       },
       "Greetings": {
         "标题": "Greetings",

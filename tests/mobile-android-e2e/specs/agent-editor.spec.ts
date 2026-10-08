@@ -110,6 +110,8 @@ async function verifyImportedBundleAgent(
   await (await bundleRow.$('[data-testid="agent-edit"]')).click();
   await testElement(context.driver, "agent-detail");
 
+  // 详情页 tab 化后正则预设位于「资源」页签
+  await clickTestElement(context.driver, "segmented-tab-resources");
   await testElement(context.driver, "agent-regex");
   const preset = await testElement(context.driver, "agent-regex-preset");
   const presetName = await preset.getAttribute("data-preset-name");
@@ -231,6 +233,8 @@ async function verifyGreetingAndCategoryEditing(
   await (await agentRow.$('[data-testid="agent-edit"]')).click();
   await testElement(context.driver, "agent-detail");
 
+  // 开局消息位于「对话」页签
+  await clickTestElement(context.driver, "segmented-tab-dialog");
   await testElement(context.driver, "agent-greetings");
   await clickUntilExists(
     context,
@@ -265,6 +269,8 @@ async function verifyGreetingAndCategoryEditing(
     { timeout: 10_000, timeoutMsg: "Default greeting badge did not appear." }
   );
 
+  // 分类与标签位于「基础」页签
+  await clickTestElement(context.driver, "segmented-tab-basic");
   const categorySelect = await testElement(context.driver, "agent-category-edit");
   await categorySelect.selectByAttribute("value", E2E_AGENT_CATEGORY);
   const tagsInput = await testElement(context.driver, "agent-tags");
@@ -292,6 +298,8 @@ async function verifyGreetingAndCategoryEditing(
   if (recoveredTags !== E2E_AGENT_TAGS) {
     throw new Error("Edited tags did not persist after restart.");
   }
+  // 默认打开「基础」页签；切到「对话」页签断言默认开局消息标记持久化
+  await clickTestElement(context.driver, "segmented-tab-dialog");
   await context.driver.waitUntil(
     async () =>
       Boolean(

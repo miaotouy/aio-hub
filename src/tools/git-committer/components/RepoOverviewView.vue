@@ -982,7 +982,6 @@ const handleDropStash = (index: number) => {
 .branch-item.is-current {
   background: rgba(64, 158, 255, 0.1);
   border: 1px solid rgba(64, 158, 255, 0.35);
-  border-left: 3px solid var(--el-color-primary, #409eff);
 }
 
 .branch-item-left {

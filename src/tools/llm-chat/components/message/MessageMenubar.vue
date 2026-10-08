@@ -459,7 +459,7 @@ const handleTranslateClick = (e: MouseEvent) => {
         placement="top"
         :width="360"
         trigger="click"
-        popper-class="branch-selector-popover"
+        popper-class="llm-chat-branch-selector-popover"
       >
         <template #reference>
           <div class="branch-indicator-wrapper">

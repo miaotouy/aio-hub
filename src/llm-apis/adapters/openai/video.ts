@@ -39,7 +39,7 @@ export async function callOpenAiVideoApi(
         watermark: options.watermark,
         cameraFixed: options.cameraFixed,
       }),
-      providerParameters: buildProviderParameters(profile, options),
+      providerParameters: buildProviderParameters(profile, options, apiStyle),
     },
   };
   const endpoints: Record<string, string> = {};
@@ -109,7 +109,8 @@ export async function callOpenAiVideoApi(
 
 function buildProviderParameters(
   profile: LlmProfile,
-  options: MediaGenerationOptions
+  options: MediaGenerationOptions,
+  apiStyle: "openai" | "ark" | "agnes"
 ): Record<string, JsonValue> {
   const values: Record<string, unknown> = {
     ...(options.params ?? {}),
@@ -128,7 +129,13 @@ function buildProviderParameters(
     quality: options.quality,
     style: options.style,
   };
-  if (!(profile.baseUrl || "").includes("api.openai.com")) {
+  // Ark 用 prompt 内嵌 flag（--duration/--ratio），Agnes 走 OpenAI Sora 兼容的顶层 seconds/size，
+  // 这组 snake_case 注入字段只适用于其他第三方 OpenAI 兼容网关。
+  if (
+    apiStyle !== "ark" &&
+    apiStyle !== "agnes" &&
+    !(profile.baseUrl || "").includes("api.openai.com")
+  ) {
     values.duration = options.durationSeconds ?? 8;
     values.ratio = options.aspectRatio;
     values.prompt_optimizer = options.promptEnhancement;

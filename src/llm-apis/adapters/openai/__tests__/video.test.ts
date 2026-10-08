@@ -292,4 +292,49 @@ describe("OpenAI Adapter - Video", () => {
     });
     expect(result.videos?.[0]?.url).toBe("https://example.com/agnes-video.mp4");
   });
+
+  it("omits gateway-only fields (duration/ratio/prompt_optimizer) for Agnes requests", async () => {
+    const profile: LlmProfile = {
+      id: "agnes",
+      name: "Agnes",
+      baseUrl: "https://api.agnes-ai.com/v1",
+      apiKeys: ["agnes-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+    };
+    const options: MediaGenerationOptions & { pollIntervalMs: number } = {
+      profileId: "agnes",
+      modelId: "agnes-video-2.5-flash",
+      prompt: "a timelapse of a blooming flower",
+      aspectRatio: "16:9",
+      durationSeconds: 5,
+      pollIntervalMs: 0,
+    };
+
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "task-3", status: "processing" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "task-3",
+          status: "completed",
+          content: { video_url: "https://example.com/agnes-video.mp4" },
+        }),
+      });
+
+    const result = await callOpenAiVideoApi(profile, options);
+
+    const [, createOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const createBody = JSON.parse(createOptions.body);
+
+    expect(createBody.duration).toBeUndefined();
+    expect(createBody.ratio).toBeUndefined();
+    expect(createBody.prompt_optimizer).toBeUndefined();
+    expect(createBody.seconds).toBe("5");
+    expect(result.videos?.[0]?.url).toBe("https://example.com/agnes-video.mp4");
+  });
 });

@@ -397,7 +397,6 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                         :icon="Delete"
                         circle
                         aria-label="删除分组"
-                        @click.stop
                       />
                     </el-tooltip>
                   </span>

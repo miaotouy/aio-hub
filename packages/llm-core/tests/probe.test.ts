@@ -113,7 +113,16 @@ describe("validateProbeResponse", () => {
     expect(
       validateProbeResponse({
         capability: "decision",
-        decision: { answers: { reachable: { type: "choice" } } },
+        decision: {
+          answers: {
+            reachable: {
+              type: "choice",
+              choice: "yes",
+              probabilities: { yes: 1 },
+              confidence: 1,
+            },
+          },
+        },
       }).valid
     ).toBe(true);
     expect(

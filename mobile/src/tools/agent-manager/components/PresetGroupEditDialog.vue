@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import { Trash2 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
+import { generateUuid } from "@/utils/uuid";
 import type { PresetMessageGroup } from "../types/agent";
 
 const props = defineProps<{
@@ -19,7 +20,7 @@ const form = ref<PresetMessageGroup>(createEmptyGroup());
 
 function createEmptyGroup(): PresetMessageGroup {
   return {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     name: "",
     selectionMode: "checkbox",
     enabled: true,

@@ -571,7 +571,7 @@
         "名称": "Name",
         "名称占位": "Optional, to tell greetings apart in the list",
         "内容": "Content",
-        "内容占位": "Opening text; macros like {{char}} / {{user}} are supported",
+        "内容占位": "Opening text; macros like {'{{char}}'} / {'{{user}}'} are supported",
         "内容不能为空": "Greeting content cannot be empty"
       },
       "Regex": {

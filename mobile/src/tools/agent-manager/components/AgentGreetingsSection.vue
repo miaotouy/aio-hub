@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { Check, ChevronLeft, MessageCircle, Plus, Trash2 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import { customMessage } from "@/utils/feedback";
+import { generateUuid } from "@/utils/uuid";
 import type { GreetingMessage } from "../types/agent";
 
 const props = defineProps<{
@@ -25,7 +26,7 @@ const form = ref<GreetingMessage>(createEmptyGreeting());
 
 function createEmptyGreeting(): GreetingMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     role: "assistant",
     content: "",
   };
@@ -99,13 +100,18 @@ function excerpt(content: string): string {
 </script>
 
 <template>
-  <section class="form-section">
+  <section class="form-section" data-testid="agent-greetings">
     <div class="section-heading">
       <div>
         <h2>{{ t("标题") }}</h2>
         <p>{{ t("说明") }}</p>
       </div>
-      <button class="add-button" type="button" @click="openCreate">
+      <button
+        class="add-button"
+        type="button"
+        data-testid="agent-greeting-add"
+        @click="openCreate"
+      >
         <Plus :size="16" />
         {{ t("新增") }}
       </button>
@@ -115,11 +121,21 @@ function excerpt(content: string): string {
       {{ t("暂无") }}
     </p>
 
-    <div v-for="greeting in greetings" :key="greeting.id" class="greeting-item">
+    <div
+      v-for="greeting in greetings"
+      :key="greeting.id"
+      class="greeting-item"
+      data-testid="agent-greeting-item"
+      :data-greeting-id="greeting.id"
+    >
       <div class="greeting-copy">
         <div class="greeting-meta">
           <span class="role-badge">{{ greeting.role }}</span>
-          <span v-if="defaultGreetingId === greeting.id" class="default-badge">
+          <span
+            v-if="defaultGreetingId === greeting.id"
+            class="default-badge"
+            data-testid="agent-greeting-default-badge"
+          >
             <Check :size="12" />
             {{ t("默认") }}
           </span>
@@ -139,6 +155,7 @@ function excerpt(content: string): string {
           class="icon-button"
           :title="t('设为默认')"
           :aria-label="t('设为默认')"
+          data-testid="agent-greeting-set-default"
           @click="setDefault(greeting)"
         >
           <Check :size="17" />
@@ -148,6 +165,7 @@ function excerpt(content: string): string {
           class="icon-button"
           :title="t('编辑')"
           :aria-label="t('编辑')"
+          data-testid="agent-greeting-edit"
           @click="openEdit(greeting)"
         >
           <MessageCircle :size="17" />
@@ -157,6 +175,7 @@ function excerpt(content: string): string {
           class="icon-button danger"
           :title="t('删除')"
           :aria-label="t('删除')"
+          data-testid="agent-greeting-delete"
           @click="remove(greeting)"
         >
           <Trash2 :size="17" />
@@ -165,7 +184,13 @@ function excerpt(content: string): string {
     </div>
 
     <Transition name="sheet">
-      <section v-if="editorOpen" class="editor-overlay" role="dialog" aria-modal="true">
+      <section
+        v-if="editorOpen"
+        class="editor-overlay"
+        role="dialog"
+        aria-modal="true"
+        data-testid="agent-greeting-editor"
+      >
         <header>
           <button
             type="button"
@@ -176,7 +201,12 @@ function excerpt(content: string): string {
             <ChevronLeft :size="24" />
           </button>
           <strong>{{ isNew ? t("新增开局消息") : t("编辑开局消息") }}</strong>
-          <button class="save-button" type="button" @click="save">
+          <button
+            class="save-button"
+            type="button"
+            data-testid="agent-greeting-save"
+            @click="save"
+          >
             {{ t("保存") }}
           </button>
         </header>
@@ -189,6 +219,7 @@ function excerpt(content: string): string {
                 :key="role"
                 type="button"
                 :class="{ active: form.role === role }"
+                :data-testid="`agent-greeting-role-${role}`"
                 @click="form.role = role"
               >
                 {{ role }}
@@ -197,13 +228,18 @@ function excerpt(content: string): string {
           </div>
           <label class="field">
             <span>{{ t("名称") }}</span>
-            <input v-model="form.name" :placeholder="t('名称占位')" />
+            <input
+              v-model="form.name"
+              data-testid="agent-greeting-name"
+              :placeholder="t('名称占位')"
+            />
           </label>
           <label class="field content-field">
             <span>{{ t("内容") }}</span>
             <textarea
               v-model="form.content"
               rows="12"
+              data-testid="agent-greeting-content"
               :placeholder="t('内容占位')"
             />
           </label>

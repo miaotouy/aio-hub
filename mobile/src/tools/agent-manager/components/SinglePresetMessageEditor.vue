@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import { customMessage } from "@/utils/feedback";
+import { generateUuid } from "@/utils/uuid";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 
 const props = defineProps<{
@@ -21,7 +22,7 @@ const isNew = computed(() => !props.message);
 
 function createEmptyMessage(): PresetMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     parentId: null,
     childrenIds: [],
     role: "system",

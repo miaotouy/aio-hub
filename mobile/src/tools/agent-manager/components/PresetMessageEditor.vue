@@ -14,6 +14,7 @@ import {
 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
+import { generateUuid } from "@/utils/uuid";
 import { usePresetTokenCalculator } from "../composables/usePresetTokenCalculator";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
@@ -79,7 +80,7 @@ function openMessage(message: PresetMessage): void {
 function cloneMessage(message: PresetMessage): void {
   editMessage.value = {
     ...structuredClone(message),
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     parentId: null,
     childrenIds: [],
     name: `${message.name || t("未命名预设")} ${t("副本")}`,
@@ -292,7 +293,7 @@ function normalizeImportedMessage(value: unknown): PresetMessage | null {
     : "system";
   return {
     ...source,
-    id: typeof source.id === "string" ? source.id : crypto.randomUUID(),
+    id: typeof source.id === "string" ? source.id : generateUuid(),
     parentId: typeof source.parentId === "string" ? source.parentId : null,
     childrenIds: Array.isArray(source.childrenIds) ? source.childrenIds : [],
     role,

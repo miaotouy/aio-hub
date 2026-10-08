@@ -168,5 +168,6 @@ AN / EM 区分在移动端管线中没有独立锚点，因此 2/3/5/6 合并到
 
 - 每批次：`bun run check:frontend` + `bun run test:run`（只跑相关用例）；收尾统一 `bun run build`。
 - 真实运行态走查：依次导入 `.agent.json` / `.agent.yaml` / `.agent.png`（AIO 与 ST 各一）/ `.agent.zip`、带内嵌世界书与 regex 的 ST 卡，确认预设、世界书注入、正则、时间宏在会话中生效。
+- **2026-10-07 批次 Android AVD 验证（2026-10-08 完成）**：`tests/mobile-android-e2e` 新增 `agent-editor` 场景（`agent` preset 第 4 场景），经 DocumentsUI 正式导入含 `bundledWorldbooks` 内嵌世界书与正则预设的 AIO 导出包，断言世界书落库与 Agent 勾选回写、正则预设查看、开局消息新增/设默认、分类标签编辑与冷启动持久化、世界书条目 selective 字段编辑、会话重命名与上下文阈值；AVD 单场景运行通过（run `2026-10-08T17-49-06-589Z`）。过程中修复两个运行态缺陷：语言包裸 `{{char}}` 插值崩溃（literal 语法修正）与 `crypto.randomUUID` 非安全上下文崩溃（统一 `generateUuid`）。详见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md) 2026-10-08 扩展记录。
 - 后置平台验证（不阻塞施工）：Android 真机 SAF 文件选择路径导入、大 ZIP 包内存占用。
 - 施工完成后将稳定边界回写 `mobile/src/tools/agent-manager/ARCHITECTURE.md` 与 `mobile/src/tools/llm-chat/ARCHITECTURE.md`，本文档转入已完成批次记录。

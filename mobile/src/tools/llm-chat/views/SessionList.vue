@@ -409,6 +409,7 @@ const goToChatHome = () => {
             v-model="renamingName"
             class="rename-input"
             autofocus
+            data-testid="chat-session-rename-input"
             :placeholder="t('tools.llm-chat.SessionList.会话名称提示')"
           />
         </label>
@@ -420,6 +421,7 @@ const goToChatHome = () => {
             type="primary"
             native-type="submit"
             :loading="renameSaving"
+            data-testid="chat-session-rename-save"
           >
             {{ t("tools.llm-chat.SessionList.保存") }}
           </var-button>

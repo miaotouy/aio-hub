@@ -359,6 +359,7 @@ const handleCriticalRatioChange = (val: number | number[]) => {
                   :min="0.1"
                   :max="0.95"
                   :step="0.05"
+                  data-testid="chat-context-warning-ratio"
                   @change="handleWarningRatioChange"
                 />
               </div>
@@ -378,6 +379,7 @@ const handleCriticalRatioChange = (val: number | number[]) => {
                   :min="0.2"
                   :max="1"
                   :step="0.05"
+                  data-testid="chat-context-critical-ratio"
                   @change="handleCriticalRatioChange"
                 />
               </div>

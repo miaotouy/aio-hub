@@ -62,7 +62,7 @@ function ruleReplacementType(
 </script>
 
 <template>
-  <section v-if="presets.length" class="form-section">
+  <section v-if="presets.length" class="form-section" data-testid="agent-regex">
     <div class="section-heading">
       <div>
         <h2>{{ t("标题") }}</h2>
@@ -70,11 +70,18 @@ function ruleReplacementType(
       </div>
     </div>
 
-    <div v-for="preset in presets" :key="preset.id" class="preset-card">
+    <div
+      v-for="preset in presets"
+      :key="preset.id"
+      class="preset-card"
+      data-testid="agent-regex-preset"
+      :data-preset-name="preset.name || ''"
+    >
       <div class="preset-head">
         <button
           type="button"
           class="preset-toggle"
+          data-testid="agent-regex-toggle"
           @click="toggleExpanded(preset.id)"
         >
           <ChevronDown
@@ -90,6 +97,7 @@ function ruleReplacementType(
           <input
             type="checkbox"
             :checked="preset.enabled"
+            data-testid="agent-regex-enabled"
             @change="togglePreset(preset)"
           />
           <span>{{ t("启用") }}</span>
@@ -102,6 +110,7 @@ function ruleReplacementType(
           :key="rule.id || index"
           class="rule-item"
           :class="{ disabled: rule.enabled === false }"
+          data-testid="agent-regex-rule"
         >
           <div class="rule-meta">
             <span class="rule-name">{{ rule.name || t("规则") }}</span>

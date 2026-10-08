@@ -14,6 +14,7 @@ import { runRichTextManagedMediaScenario } from "./specs/rich-text-managed-media
 import { runAgentImportScenario } from "./specs/agent-import.spec";
 import { runChatAgentScenario } from "./specs/chat-agent.spec";
 import { runAgentAssetsScenario } from "./specs/agent-assets.spec";
+import { runAgentEditorScenario } from "./specs/agent-editor.spec";
 import type { MobileE2ePresetId } from "./support/runner-options";
 
 export interface MobileE2ePreset {
@@ -107,11 +108,12 @@ export const MOBILE_E2E_PRESETS: Record<MobileE2ePresetId, MobileE2ePreset> = {
   agent: {
     id: "agent",
     purpose:
-      "Character-card import, agent chat with greeting macros, and private assets",
+      "Character-card import, agent chat with greeting macros, private assets, and AIO bundle editor flows",
     scenarios: [
       { id: "agent-import", run: runAgentImportScenario },
       { id: "chat-agent", run: runChatAgentScenario },
       { id: "agent-assets", run: runAgentAssetsScenario },
+      { id: "agent-editor", run: runAgentEditorScenario },
     ],
     requiresDeterministicServer: true,
     requiresOllama: false,

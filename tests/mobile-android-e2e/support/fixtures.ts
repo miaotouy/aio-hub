@@ -16,6 +16,16 @@ export const E2E_AGENT_GREETING_MARKER = "AIOHUB_E2E_GREETING";
 export const E2E_AGENT_CHARACTER_NAME = "Aiohub E2E Agent";
 export const E2E_AGENT_CREATOR_NOTES = "AIOHUB_E2E_AGENT_DESCRIPTION";
 export const E2E_AGENT_SCENARIO = "AIOHUB_E2E_AGENT_SCENARIO";
+/** AIO 内嵌世界书导出中的确定性标记：世界书条目关键词与内容。 */
+export const E2E_WORLDBOOK_ENTRY_KEY = "e2e starport";
+export const E2E_WORLDBOOK_ENTRY_CONTENT = "AIOHUB_E2E_WORLDBOOK_ENTRY";
+export const E2E_AIO_BUNDLE_AGENT_NAME = "Aiohub E2E Bundle Agent";
+export const E2E_AIO_BUNDLE_WORLDBOOK_NAME = "E2E Bundled Book";
+export const E2E_AIO_REGEX_PRESET_NAME = "E2E Regex Preset";
+/** 会话重命名与分类标签编辑断言使用的固定值。 */
+export const E2E_RENAMED_SESSION_NAME = "E2E Renamed Session";
+export const E2E_AGENT_CATEGORY = "expert";
+export const E2E_AGENT_TAGS = "e2e, deterministic";
 
 // CRC32 (IEEE) table used by PNG chunk checksums.
 const CRC_TABLE = (() => {
@@ -90,6 +100,75 @@ export function buildAgentCardPng(): Buffer {
   ]);
 }
 
+/**
+ * AIO 桌面导出包（单文件 JSON 形态）中的单个 Agent：
+ * `bundledWorldbooks` 携带 content 内嵌桌面世界书（embedWorldbooks=true 形态），
+ * 并附带正则预设（render 阶段规则）验证导入转换。
+ */
+export function buildAioBundleAgentPayload() {
+  return {
+    version: 1,
+    type: "AIO_Agent_Export",
+    agents: [
+      {
+        name: E2E_AIO_BUNDLE_AGENT_NAME,
+        displayName: E2E_AIO_BUNDLE_AGENT_NAME,
+        description: `[Bundle Agent] ${E2E_AGENT_MARKER} from the AIO export lane.`,
+        systemPrompt: `You are an AIO bundle agent. ${E2E_AGENT_MARKER}`,
+        presetMessages: [],
+        category: "character",
+        tags: ["aio", "e2e"],
+        worldbookIds: ["wb-desktop-1"],
+        bundledWorldbooks: [
+          {
+            id: "wb-desktop-1",
+            name: E2E_AIO_BUNDLE_WORLDBOOK_NAME,
+            content: {
+              entries: {
+                "0": {
+                  uid: 0,
+                  key: [E2E_WORLDBOOK_ENTRY_KEY],
+                  keysecondary: [],
+                  content: `${E2E_WORLDBOOK_ENTRY_CONTENT} starport manifest.`,
+                  constant: false,
+                  selective: false,
+                  order: 100,
+                  position: 0,
+                  disable: false,
+                  probability: 100,
+                  depth: 4,
+                },
+              },
+            },
+          },
+        ],
+        regexConfig: {
+          presets: [
+            {
+              id: "preset-e2e",
+              name: "E2E Regex Preset",
+              enabled: true,
+              order: 0,
+              createdAt: 1,
+              updatedAt: 1,
+              rules: [
+                {
+                  id: "rule-e2e",
+                  name: "TrimMarker",
+                  enabled: true,
+                  regex: "\\s+$",
+                  replacement: "",
+                  applyTo: { render: true, request: false },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
+
 function createWavFixture() {
   const sampleRate = 8_000;
   // Keep this longer than the playback assertion so Android WebView can advance
@@ -150,6 +229,13 @@ export interface PreparedFixtures {
     sha256: string;
     mimeType: "image/png";
   };
+  aioBundle: {
+    fileName: string;
+    hostPath: string;
+    devicePath: string;
+    bytes: number;
+    sha256: string;
+  };
 }
 
 function metadata(hostPath: string, devicePath: string) {
@@ -179,17 +265,23 @@ export async function prepareFixtures(options: {
   const audioFileName = `aiohub-e2e-audio-${suffix}.wav`;
   const videoFileName = `aiohub-e2e-video-${suffix}.mp4`;
   const agentCardFileName = `aiohub-e2e-agent-card-${suffix}.png`;
+  const aioBundleFileName = `aiohub-e2e-aio-bundle-${suffix}.agent.json`;
   fs.mkdirSync(hostDirectory, { recursive: true });
   const imageHostPath = path.join(hostDirectory, imageFileName);
   const noteHostPath = path.join(hostDirectory, noteFileName);
   const audioHostPath = path.join(hostDirectory, audioFileName);
   const videoHostPath = path.join(hostDirectory, videoFileName);
   const agentCardHostPath = path.join(hostDirectory, agentCardFileName);
+  const aioBundleHostPath = path.join(hostDirectory, aioBundleFileName);
   fs.writeFileSync(imageHostPath, Buffer.from(IMAGE_BASE64, "base64"));
   fs.writeFileSync(noteHostPath, NOTE_TEXT, "utf8");
   fs.writeFileSync(audioHostPath, createWavFixture());
   fs.writeFileSync(videoHostPath, Buffer.from(VIDEO_BASE64, "base64"));
   fs.writeFileSync(agentCardHostPath, buildAgentCardPng());
+  fs.writeFileSync(
+    aioBundleHostPath,
+    JSON.stringify(buildAioBundleAgentPayload())
+  );
   await options.adb.serial(options.serial, [
     "shell",
     "mkdir",
@@ -201,11 +293,13 @@ export async function prepareFixtures(options: {
   const audioDevicePath = `${deviceDirectory}/${audioFileName}`;
   const videoDevicePath = `${deviceDirectory}/${videoFileName}`;
   const agentCardDevicePath = `${deviceDirectory}/${agentCardFileName}`;
+  const aioBundleDevicePath = `${deviceDirectory}/${aioBundleFileName}`;
   await options.adb.push(options.serial, imageHostPath, imageDevicePath);
   await options.adb.push(options.serial, noteHostPath, noteDevicePath);
   await options.adb.push(options.serial, audioHostPath, audioDevicePath);
   await options.adb.push(options.serial, videoHostPath, videoDevicePath);
   await options.adb.push(options.serial, agentCardHostPath, agentCardDevicePath);
+  await options.adb.push(options.serial, aioBundleHostPath, aioBundleDevicePath);
   await options.adb.serial(options.serial, [
     "shell",
     "am",
@@ -242,6 +336,15 @@ export async function prepareFixtures(options: {
     "-d",
     `file://${agentCardDevicePath}`,
   ]);
+  await options.adb.serial(options.serial, [
+    "shell",
+    "am",
+    "broadcast",
+    "-a",
+    "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+    "-d",
+    `file://${aioBundleDevicePath}`,
+  ]);
   // DocumentsUI queries MediaStore asynchronously after the scanner broadcast.
   // Wait on the selected device so a just-pushed audio fixture is selectable.
   await options.adb.serial(options.serial, ["shell", "sleep", "2"]);
@@ -256,5 +359,6 @@ export async function prepareFixtures(options: {
       ...metadata(agentCardHostPath, agentCardDevicePath),
       mimeType: "image/png",
     },
+    aioBundle: metadata(aioBundleHostPath, aioBundleDevicePath),
   };
 }

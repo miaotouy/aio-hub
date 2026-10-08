@@ -83,6 +83,8 @@
 
 **实现状态（2026-10-03）**：`agent` preset、三个 spec、角色卡 fixture、mock 人设检测、app 侧 `data-testid` 已落地；`bun run test:mobile:e2e -- --unit`（42 用例）与 `--typecheck` 均通过，移动端 `bun run build` 通过。**Android Studio AVD 单次运行已通过**（run `2026-10-02T19-31-36-347Z`，`agent-import` / `chat-agent` / `agent-assets` 全部 passed，约 4 分 13 秒）。**10 次稳定性连跑与并入 `core` 仍待执行**：该主机连续运行无论逐轮冷启动、复用常驻 AVD 还是每轮重启 adb/emulator，都会在**第 2 轮**出现 `adb shell` 无响应（`cat /proc/net/unix` / `pgrep` 超时，而 `adb devices` 正常），属宿主 adb/模拟器稳定性问题，需环境修复后再执行连跑。下列断言项即为连跑验证清单。
 
+**2026-10-08 扩展（`agent-editor` 场景）**：`agent` preset 新增第四个场景 `agent-editor`，覆盖 2026-10-07 批次施工的用户可见链路：AIO 导出包 `bundledWorldbooks` 内嵌世界书经 DocumentsUI 正式导入落库并在 Agent 详情勾选回写、正则预设展开查看（含 render 阶段标签）、开局消息新增/切角色/设默认、分类与标签编辑及冷启动持久化、世界书条目 selective 高级字段编辑器、会话重命名、聊天设置上下文阈值滑块。配套新增 AIO bundle JSON fixture（`buildAioBundleAgentPayload`）与 app 侧 `data-testid`（`agent-greeting-*`、`agent-regex-*`、`worldbook-entry-*`、`chat-session-rename-input/save`、`chat-context-warning/critical-ratio`）。AVD 单场景运行已通过（run `2026-10-08T17-49-06-589Z`）；完整 4 场景连跑仍受上述宿主 adb 挂起限制（每轮 adb 重启后首次运行正常，约 3 分钟后 `adb shell` 无响应复发）。施工中发现并修复两个运行态缺陷：vue-i18n 语言包 `"内容占位"` 中的裸 `{{char}}`/`{{user}}` 被当作插值占位符，编辑器渲染抛 `Not allowed nest placeholder` 导致开局消息 overlay 无法打开（改为 `{'{{char}}'} literal 语法）；`AgentGreetingsSection`/`PresetGroupEditDialog`/`SinglePresetMessageEditor`/`PresetMessageEditor` 直接调用 `crypto.randomUUID()`，Android WebView 的 `http://tauri.localhost` 非安全上下文下为 undefined（统一改用 `@/utils/uuid` 的 `generateUuid`）。
+
 ### 4.2 A — Agent 角色卡导入与详情闭环（`agent-import`）
 
 - [ ] 从角色大厅正式导入入口选择 PNG V2 角色卡 fixture，等待导入反馈完成（不通过测试 IPC 直接写 Agent）。

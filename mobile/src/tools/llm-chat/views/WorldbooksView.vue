@@ -348,6 +348,8 @@ async function importWorldbookFile(event: Event) {
             :key="entry.id"
             class="entry-card"
             :class="{ disabled: !entry.enabled }"
+            data-testid="worldbook-entry"
+            :data-entry-id="entry.id"
           >
             <div>
               <strong>{{ entry.name || t("未命名条目") }}</strong>
@@ -367,6 +369,7 @@ async function importWorldbookFile(event: Event) {
                 type="button"
                 :title="t('编辑')"
                 :aria-label="t('编辑')"
+                data-testid="worldbook-entry-edit"
                 @click="openEditEntry(worldbook, entry)"
               >
                 <Pencil :size="16" /></button
@@ -375,6 +378,7 @@ async function importWorldbookFile(event: Event) {
                 class="danger"
                 :title="t('删除')"
                 :aria-label="t('删除')"
+                data-testid="worldbook-entry-delete"
                 @click="removeEntry(worldbook, entry)"
               >
                 <Trash2 :size="16" />
@@ -384,6 +388,7 @@ async function importWorldbookFile(event: Event) {
           <button
             type="button"
             class="add-entry"
+            data-testid="worldbook-entry-add"
             @click="openCreateEntry(worldbook)"
           >
             <Plus :size="16" />{{ t("添加条目") }}
@@ -432,18 +437,28 @@ async function importWorldbookFile(event: Event) {
       :show-cancel-button="false"
     >
       <form class="editor-form" @submit.prevent="saveEntry">
-        <label>{{ t("条目名称") }}<input v-model="entryDraft.name" /></label>
         <label
-          >{{ t("关键词")
-          }}<input v-model="entryDraft.keys" :placeholder="t('关键词提示')"
+          >{{ t("条目名称")
+          }}<input v-model="entryDraft.name" data-testid="worldbook-entry-name"
         /></label>
         <label
-          >{{ t("条目内容") }}<textarea v-model="entryDraft.content" rows="7" />
-        </label>
+          >{{ t("关键词")
+          }}<input
+            v-model="entryDraft.keys"
+            data-testid="worldbook-entry-keys"
+            :placeholder="t('关键词提示')"
+        /></label>
+        <label
+          >{{ t("条目内容")
+          }}<textarea
+            v-model="entryDraft.content"
+            rows="7"
+            data-testid="worldbook-entry-content"
+        /></label>
         <div class="form-grid">
           <label
             >{{ t("位置")
-            }}<select v-model="entryDraft.position">
+            }}<select v-model="entryDraft.position" data-testid="worldbook-entry-position">
               <option value="before_history">before_history</option>
               <option value="after_character">after_character</option>
               <option value="depth">depth</option>
@@ -486,22 +501,36 @@ async function importWorldbookFile(event: Event) {
               t("全词匹配")
             }}</label
           ><label class="check-label"
-            ><input v-model="entryDraft.selective" type="checkbox" />{{
+            ><input
+              v-model="entryDraft.selective"
+              type="checkbox"
+              data-testid="worldbook-entry-selective"
+            />{{
               t("启用次要关键词")
             }}</label
           ><label class="check-label"
-            ><input v-model="entryDraft.useProbability" type="checkbox" />{{
+            ><input
+              v-model="entryDraft.useProbability"
+              type="checkbox"
+              data-testid="worldbook-entry-use-probability"
+            />{{
               t("触发概率")
             }}</label
           >
         </div>
         <label v-if="entryDraft.selective"
           >{{ t("次要关键词")
-          }}<input v-model="entryDraft.secondaryKeys" :placeholder="t('关键词提示')"
+          }}<input
+            v-model="entryDraft.secondaryKeys"
+            data-testid="worldbook-entry-secondary-keys"
+            :placeholder="t('关键词提示')"
         /></label>
         <label v-if="entryDraft.selective"
           >{{ t("次要逻辑")
-          }}<select v-model="entryDraft.selectiveLogic">
+          }}<select
+            v-model="entryDraft.selectiveLogic"
+            data-testid="worldbook-entry-selective-logic"
+          >
             <option value="and_any">and_any</option>
             <option value="and_all">and_all</option>
             <option value="not_any">not_any</option>
@@ -510,11 +539,16 @@ async function importWorldbookFile(event: Event) {
         >
         <label v-if="entryDraft.useProbability"
           >{{ t("触发概率 (%)")
-          }}<input v-model.number="entryDraft.probability" type="number" min="0" max="100"
+          }}<input
+            v-model.number="entryDraft.probability"
+            type="number"
+            min="0"
+            max="100"
+            data-testid="worldbook-entry-probability"
         /></label>
         <label
           >{{ t("注入角色")
-          }}<select v-model="entryDraft.role">
+          }}<select v-model="entryDraft.role" data-testid="worldbook-entry-role">
             <option value="system">system</option>
             <option value="user">user</option>
             <option value="assistant">assistant</option>
@@ -526,9 +560,15 @@ async function importWorldbookFile(event: Event) {
             native-type="button"
             @click="entryEditorOpen = false"
             >{{ t("取消") }}</var-button
-          ><var-button type="primary" native-type="submit" :loading="saving">{{
-            t("保存")
-          }}</var-button>
+          ><var-button
+            type="primary"
+            native-type="submit"
+            :loading="saving"
+            data-testid="worldbook-entry-save"
+            >{{
+              t("保存")
+            }}</var-button
+          >
         </div>
       </form>
     </var-dialog>

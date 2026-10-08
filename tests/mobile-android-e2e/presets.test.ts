@@ -33,6 +33,7 @@ describe("mobile E2E preset gates", () => {
       "agent-import",
       "chat-agent",
       "agent-assets",
+      "agent-editor",
     ]);
     expect(preset.requiresDeterministicServer).toBe(true);
     expect(preset.requiresOllama).toBe(false);

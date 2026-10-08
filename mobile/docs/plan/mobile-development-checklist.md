@@ -64,6 +64,7 @@
 - [x] PC PNG 角色卡的小型头像预览随 Agent 配置保存并在角色大厅、聊天选择器复用。
 - [x] 私有音频/视频按模型能力内联进请求（capabilities 未配置或 true 时尝试内联，显式 false 才降级为文本描述；2026-10-03）；Agent 资产管理 UI 已接入 Agent 详情页（分组过滤、添加落盘、编辑、删除与引用级联清理，2026-10-03）。
 - [x] 角色卡导入与详情编辑补齐（2026-10-07）：AIO 导出包 `bundledWorldbooks` 内嵌世界书落库并回写 `worldbookIds`（VCP Chat config 跳过 + script 正则告警）；Agent 详情页新增开局消息编辑、正则脚本查看/启用、分类与标签编辑，保存失败反馈；世界书条目编辑器暴露 selective/probability/role 高级字段与 6 值位置，会话支持重命名，上下文预警阈值可调。
+- [x] Agent 详情页分区重构与头像能力对齐桌面端（2026-10-09）：编辑页改为分段页签（基础/对话/资源/高级，SegmentedTabs 沉淀 mobile/src/components/base/），预设消息与开局消息前置，运行参数折叠并显示摘要，未保存离开二次确认；头像链路对齐桌面 AvatarSelector 语义——useAgentAvatar 统一「icon 私有文件名解析（plugin-fs 读取 → dataURL 缓存）> avatarDataUrl 导入预览 > emoji 回退」显示优先级（AgentList / LlmChatView 顶栏与切换面板共用），上传经 saveAgentAvatar 落盘 avatar-{ts}.{ext} 回写 icon + avatarHistory，历史头像 sheet 支持选择/删除（仅图片文件，agent.json 不可触碰）/重置。桌面预设图标（依赖桌面 model-icons 资源）与剪贴板粘贴上传（Android WebView 支持不可靠）为移动端显式后置项。
 - [ ] 工具调用、RAG、Knowledge/Recall 和自主工作流保持独立设计，需求出现时再连续施工。
 
 实现入口：[`mobile-agent-manager-plan.md`](./mobile-agent-manager-plan.md)、[`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)。

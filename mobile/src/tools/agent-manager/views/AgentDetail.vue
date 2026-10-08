@@ -4,9 +4,12 @@ import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import {
   ChevronDown,
   ChevronLeft,
+  Clock,
   ImagePlus,
+  RotateCcw,
   Save,
   Trash2,
+  Upload,
 } from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
 import SegmentedTabs from "@/components/base/SegmentedTabs.vue";
@@ -23,10 +26,11 @@ import AgentParametersEditor from "../components/AgentParametersEditor.vue";
 import AgentAssetsSection from "../components/AgentAssetsSection.vue";
 import AgentGreetingsSection from "../components/AgentGreetingsSection.vue";
 import AgentRegexSection from "../components/AgentRegexSection.vue";
+import {
+  useAgentAvatar,
+  isAgentIconFilename,
+} from "../composables/useAgentAvatar";
 import type { AgentAsset } from "../types/agent";
-
-/** 头像预览压缩上限：与角色卡导入的 avatarDataUrl 量级保持一致。 */
-const AVATAR_MAX_EDGE = 256;
 
 const categoryOptions: AgentCategory[] = [
   AgentCategory.Assistant,
@@ -72,6 +76,8 @@ const { t } = useI18n();
 const agentStore = useAgentStore();
 const worldbookStore = useWorldbookStore();
 const profilesStore = useLlmProfilesStore();
+const { resolveAgentAvatarUrl, listAvatarHistory, saveAvatarFile, deleteAvatarFile } =
+  useAgentAvatar();
 const draft = ref<ChatAgent | null>(null);
 
 /** 保存快照：与 draft 序列化不一致即视为有未保存修改。 */
@@ -91,13 +97,33 @@ const tabs = computed<SegmentedTab[]>(() => [
 ]);
 
 const avatarFileInput = ref<HTMLInputElement | null>(null);
-const isAvatarImage = computed(() =>
-  Boolean(draft.value?.avatarDataUrl?.startsWith("data:image/"))
+const avatarSrc = ref<string | null>(null);
+const avatarUploading = ref(false);
+const historyOpen = ref(false);
+const historyAvatars = ref<string[]>([]);
+const historyDeleting = ref<string[]>([]);
+const hasAvatarImage = computed(() => avatarSrc.value !== null);
+const iconIsFilename = computed(() =>
+  isAgentIconFilename(draft.value?.icon?.trim())
 );
 const avatarFallback = computed(() => {
   const icon = draft.value?.icon;
   return icon && icon.length <= 4 ? icon : "AI";
 });
+
+/** icon / avatarDataUrl 变化后重新解析预览（含私有目录文件读取）。 */
+watch(
+  () => [draft.value?.id, draft.value?.icon, draft.value?.avatarDataUrl] as const,
+  async () => {
+    if (!draft.value) return;
+    avatarSrc.value = await resolveAgentAvatarUrl({
+      id: draft.value.id,
+      icon: draft.value.icon,
+      avatarDataUrl: draft.value.avatarDataUrl,
+    });
+  },
+  { immediate: true }
+);
 
 const parametersOpen = ref(false);
 const parametersSummary = computed(() => {
@@ -165,46 +191,9 @@ onBeforeRouteLeave(async () => {
 });
 
 /**
- * 将用户选择的图片压缩为最长边 256px 的 dataURL 头像预览；
- * JPEG 输出 JPEG 以减小体积，其余格式（含透明 PNG）输出 PNG。
+ * 将用户选择的图片上传为 Agent 私有头像文件（`agents/{id}/avatar-{ts}.{ext}`），
+ * 与桌面端一致：icon 保存相对文件名，原文件进入历史记录，保存时随配置持久化。
  */
-function readImageAsAvatarDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("AVATAR_READ_FAILED"));
-    reader.onload = () => {
-      const image = new Image();
-      image.onerror = () => reject(new Error("AVATAR_DECODE_FAILED"));
-      image.onload = () => {
-        try {
-          const scale = Math.min(
-            1,
-            AVATAR_MAX_EDGE / Math.max(image.width, image.height)
-          );
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(image.width * scale));
-          canvas.height = Math.max(1, Math.round(image.height * scale));
-          const context = canvas.getContext("2d");
-          if (!context) {
-            reject(new Error("AVATAR_CANVAS_UNAVAILABLE"));
-            return;
-          }
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          resolve(
-            file.type === "image/jpeg"
-              ? canvas.toDataURL("image/jpeg", 0.85)
-              : canvas.toDataURL("image/png")
-          );
-        } catch (error) {
-          reject(error instanceof Error ? error : new Error(String(error)));
-        }
-      };
-      image.src = String(reader.result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 async function onAvatarPicked(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -214,16 +203,85 @@ async function onAvatarPicked(event: Event): Promise<void> {
     customMessage(t("tools.agent-manager.AgentDetail.头像格式提示"), "warning");
     return;
   }
+  avatarUploading.value = true;
   try {
-    draft.value.avatarDataUrl = await readImageAsAvatarDataUrl(file);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const filename = await saveAvatarFile(draft.value.id, file.name, bytes);
+    draft.value.icon = filename;
+    draft.value.avatarHistory = [
+      filename,
+      ...(draft.value.avatarHistory ?? []).filter((name) => name !== filename),
+    ];
   } catch (error) {
-    console.error("Read avatar image failed:", error);
-    customMessage(t("tools.agent-manager.AgentDetail.头像读取失败"), "error");
+    console.error("Save avatar file failed:", error);
+    customMessage(t("tools.agent-manager.AgentDetail.头像上传失败"), "error");
+  } finally {
+    avatarUploading.value = false;
   }
 }
 
-function removeAvatar(): void {
+async function openAvatarHistory(): Promise<void> {
   if (!draft.value) return;
+  try {
+    historyAvatars.value = await listAvatarHistory({
+      id: draft.value.id,
+      avatarHistory: draft.value.avatarHistory,
+    });
+  } catch (error) {
+    console.error("List avatar history failed:", error);
+    historyAvatars.value = [];
+  }
+  await resolveHistoryThumbnails();
+  historyOpen.value = true;
+}
+
+/** 历史头像缩略图的 dataURL 映射（复用模块级文件缓存）。 */
+const avatarHistoryUrls = ref<Record<string, string>>({});
+
+async function resolveHistoryThumbnails(): Promise<void> {
+  if (!draft.value) return;
+  const agentId = draft.value.id;
+  const next: Record<string, string> = { ...avatarHistoryUrls.value };
+  for (const filename of historyAvatars.value) {
+    if (next[filename]) continue;
+    const url = await resolveAgentAvatarUrl({ id: agentId, icon: filename });
+    if (url) next[filename] = url;
+  }
+  avatarHistoryUrls.value = next;
+}
+
+function selectHistoryAvatar(filename: string): void {
+  if (!draft.value) return;
+  draft.value.icon = filename;
+  historyOpen.value = false;
+}
+
+async function removeHistoryAvatar(filename: string): Promise<void> {
+  if (!draft.value || historyDeleting.value.includes(filename)) return;
+  historyDeleting.value.push(filename);
+  try {
+    await deleteAvatarFile(draft.value.id, filename);
+    draft.value.avatarHistory = (draft.value.avatarHistory ?? []).filter(
+      (name) => name !== filename
+    );
+    if (draft.value.icon === filename) draft.value.icon = "";
+    historyAvatars.value = historyAvatars.value.filter(
+      (name) => name !== filename
+    );
+  } catch (error) {
+    console.error("Delete avatar file failed:", error);
+    customMessage(t("tools.agent-manager.AgentDetail.头像删除失败"), "error");
+  } finally {
+    historyDeleting.value = historyDeleting.value.filter(
+      (name) => name !== filename
+    );
+  }
+}
+
+/** 重置为默认：清空 icon 与导入预览（对齐桌面端 clearIcon 语义）。 */
+function clearAvatar(): void {
+  if (!draft.value) return;
+  draft.value.icon = "";
   draft.value.avatarDataUrl = undefined;
 }
 
@@ -335,8 +393,8 @@ function handleAssetRemoved(asset: AgentAsset): void {
         <section class="avatar-card">
           <div class="avatar-preview">
             <img
-              v-if="isAvatarImage"
-              :src="draft.avatarDataUrl"
+              v-if="hasAvatarImage && avatarSrc"
+              :src="avatarSrc"
               :alt="draft.displayName || draft.name"
             />
             <span v-else>{{ avatarFallback }}</span>
@@ -347,20 +405,30 @@ function handleAssetRemoved(asset: AgentAsset): void {
                 type="button"
                 class="secondary-button"
                 data-testid="agent-avatar-pick"
+                :disabled="avatarUploading"
                 @click="avatarFileInput?.click()"
               >
                 <ImagePlus :size="16" />
                 {{ t("tools.agent-manager.AgentDetail.更换图片") }}
               </button>
               <button
-                v-if="isAvatarImage"
+                type="button"
+                class="secondary-button"
+                data-testid="agent-avatar-history"
+                @click="openAvatarHistory"
+              >
+                <Clock :size="16" />
+                {{ t("tools.agent-manager.AgentDetail.历史头像") }}
+              </button>
+              <button
+                v-if="hasAvatarImage || iconIsFilename"
                 type="button"
                 class="secondary-button danger"
-                data-testid="agent-avatar-remove"
-                @click="removeAvatar"
+                data-testid="agent-avatar-clear"
+                @click="clearAvatar"
               >
-                <Trash2 :size="16" />
-                {{ t("tools.agent-manager.AgentDetail.移除图片") }}
+                <RotateCcw :size="16" />
+                {{ t("tools.agent-manager.AgentDetail.重置头像") }}
               </button>
             </div>
             <small>{{ t("tools.agent-manager.AgentDetail.头像说明") }}</small>
@@ -544,10 +612,81 @@ function handleAssetRemoved(asset: AgentAsset): void {
       ref="avatarFileInput"
       class="file-input"
       type="file"
-      accept="image/*"
+      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/*"
       data-testid="agent-avatar-input"
       @change="onAvatarPicked"
     />
+
+    <Transition name="sheet">
+      <section
+        v-if="historyOpen"
+        class="history-overlay"
+        role="dialog"
+        aria-modal="true"
+        data-testid="agent-avatar-history-dialog"
+      >
+        <div class="history-sheet">
+          <header class="history-header">
+            <strong>{{ t("tools.agent-manager.AgentDetail.历史头像") }}</strong>
+            <button
+              type="button"
+              class="icon-button"
+              aria-label="关闭"
+              @click="historyOpen = false"
+            >
+              <ChevronDown :size="20" />
+            </button>
+          </header>
+          <p v-if="!historyAvatars.length" class="history-empty">
+            {{ t("tools.agent-manager.AgentDetail.历史头像空") }}
+          </p>
+          <div v-else class="history-grid">
+            <button
+              v-for="filename in historyAvatars"
+              :key="filename"
+              type="button"
+              class="history-item"
+              :class="{ active: draft?.icon === filename }"
+              data-testid="agent-avatar-history-item"
+              :data-avatar-filename="filename"
+              @click="selectHistoryAvatar(filename)"
+            >
+              <img
+                :src="avatarHistoryUrls[filename]"
+                :alt="filename"
+                loading="lazy"
+              />
+              <span
+                v-if="historyDeleting.includes(filename)"
+                class="history-deleting"
+              >
+                <Trash2 :size="16" />
+              </span>
+              <span
+                v-else-if="draft?.icon === filename"
+                class="history-active-badge"
+              >
+                {{ t("tools.agent-manager.AgentDetail.当前使用") }}
+              </span>
+              <span
+                class="history-delete"
+                role="button"
+                tabindex="0"
+                :aria-label="t('tools.agent-manager.AgentDetail.删除头像')"
+                @click.stop="removeHistoryAvatar(filename)"
+                @keydown.enter.stop.prevent="removeHistoryAvatar(filename)"
+              >
+                <Trash2 :size="13" />
+              </span>
+            </button>
+          </div>
+          <p class="history-hint">
+            {{ t("tools.agent-manager.AgentDetail.历史头像提示") }}
+            <Upload :size="12" style="vertical-align: -2px" />
+          </p>
+        </div>
+      </section>
+    </Transition>
   </div>
 </template>
 
@@ -803,6 +942,105 @@ textarea:focus {
 }
 .file-input {
   display: none;
+}
+.history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  align-items: flex-end;
+  background: var(--overlay-bg);
+}
+.history-sheet {
+  width: 100%;
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  padding: var(--space-4);
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  border-radius: var(--app-radius-xl) var(--app-radius-xl) 0 0;
+  background: var(--card-bg);
+}
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.history-header strong {
+  font-size: var(--font-size-lg);
+}
+.history-empty,
+.history-hint {
+  margin: 0;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
+}
+.history-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space-3);
+}
+.history-item {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+.history-item.active {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+.history-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--app-radius-sm);
+}
+.history-active-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: var(--app-radius-sm);
+  background: var(--primary-color);
+  color: white;
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.history-deleting,
+.history-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--danger-color);
+  color: white;
+}
+.history-deleting {
+  opacity: 0.7;
+}
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.18s ease;
+}
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
 }
 @media (max-width: 440px) {
   .form-section.two-column {

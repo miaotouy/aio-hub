@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick, watch } from "vue";
+import { computed, reactive, ref, onMounted, nextTick, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
@@ -7,6 +7,7 @@ import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useChatExecutor } from "../composables/useChatExecutor";
 import { useNodeManager } from "../composables/useNodeManager";
 import { useChatSettings } from "../composables/useChatSettings";
+import { useAgentAvatar } from "@/tools/agent-manager/composables/useAgentAvatar";
 import {
   confirmDeleteMessage,
   showChatError,
@@ -44,10 +45,26 @@ const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
 );
 const selectableAgents = computed(() => agentStore.sortedAgents);
-const isAvatarImage = (agent: { avatarDataUrl?: string }) =>
-  Boolean(agent.avatarDataUrl?.startsWith("data:image/"));
+const { resolveAgentAvatarUrl } = useAgentAvatar();
+
+/** agentId → 头像 dataURL（icon 文件名解析与导入预览统一经 useAgentAvatar）。 */
+const avatarUrls = reactive<Record<string, string>>({});
+
+watch(
+  () => agentStore.sortedAgents.map((agent) => agent.id).join(","),
+  () => {
+    for (const agent of agentStore.sortedAgents) {
+      if (avatarUrls[agent.id]) continue;
+      resolveAgentAvatarUrl(agent).then((url) => {
+        if (url) avatarUrls[agent.id] = url;
+      });
+    }
+  },
+  { immediate: true }
+);
+
 const avatarLabel = (agent: { icon?: string }) =>
-  agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI";
+  agent.icon?.length && !agent.icon.includes(".") ? (agent.icon) : "AI";
 
 const activeAgentLabel = computed(
   () =>
@@ -273,8 +290,8 @@ const goToChatHome = () => {
         >
           <span class="active-agent-avatar">
             <img
-              v-if="activeAgent && isAvatarImage(activeAgent)"
-              :src="activeAgent.avatarDataUrl"
+              v-if="activeAgent && avatarUrls[activeAgent.id]"
+              :src="avatarUrls[activeAgent.id]"
               :alt="activeAgentLabel"
             />
             <span v-else>{{
@@ -336,8 +353,8 @@ const goToChatHome = () => {
           >
             <span class="agent-selector-avatar">
               <img
-                v-if="isAvatarImage(agent)"
-                :src="agent.avatarDataUrl"
+                v-if="avatarUrls[agent.id]"
+                :src="avatarUrls[agent.id]"
                 :alt="agent.displayName || agent.name"
               />
               <span v-else>{{ avatarLabel(agent) }}</span>

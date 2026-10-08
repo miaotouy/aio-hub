@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   Bot,
@@ -22,6 +22,7 @@ import {
   type ImportedAgentPrivateAssets,
 } from "../composables/useAgentImporter";
 import { useAgentStorage } from "../composables/useAgentStorage";
+import { useAgentAvatar } from "../composables/useAgentAvatar";
 import { useAgentStore } from "../stores/agentStore";
 import {
   AgentCategory,
@@ -35,11 +36,32 @@ const agentStore = useAgentStore();
 const profilesStore = useLlmProfilesStore();
 const worldbookStore = useWorldbookStore();
 const agentStorage = useAgentStorage();
+const { resolveAgentAvatarUrl } = useAgentAvatar();
 const { parseFile } = useAgentImporter();
 const { t } = useI18n();
 const search = ref("");
 const category = ref<AgentCategory | "all">("all");
 const importFileInput = ref<HTMLInputElement | null>(null);
+
+/** agentId → 头像 dataURL；icon 文件名解析与导入预览统一经 useAgentAvatar。 */
+const avatarUrls = reactive<Record<string, string>>({});
+
+watch(
+  () => agentStore.sortedAgents.map((agent) => agent.id).join(","),
+  () => {
+    for (const agent of agentStore.sortedAgents) {
+      if (avatarUrls[agent.id]) continue;
+      resolveAgentAvatarUrl(agent).then((url) => {
+        if (url) avatarUrls[agent.id] = url;
+      });
+    }
+  },
+  { immediate: true }
+);
+
+function isAvatarImage(agent: ChatAgent): boolean {
+  return Boolean(avatarUrls[agent.id]);
+}
 
 const filteredAgents = computed(() => {
   const keyword = search.value.trim().toLowerCase();
@@ -85,12 +107,8 @@ async function deleteAgent(agent: ChatAgent) {
   if (confirmed) await agentStore.removeAgent(agent.id);
 }
 
-function isAvatarImage(agent: ChatAgent): boolean {
-  return Boolean(agent.avatarDataUrl?.startsWith("data:image/"));
-}
-
 function avatarLabel(agent: ChatAgent): string {
-  return agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI";
+  return agent.icon?.length && !agent.icon.includes(".") ? (agent.icon) : "AI";
 }
 
 function uniqueAgentName(baseName: string): string {
@@ -155,6 +173,9 @@ async function persistAgentPrivateResources(
         avatar.bytes
       );
       patch.icon = filename;
+      // 头像文件内容已更新；若同名文件被重新导入，需失效显示缓存
+      const { invalidateAgentAvatar } = useAgentAvatar();
+      invalidateAgentAvatar(agent.id, filename);
     } catch {
       notices.push(`${label}：头像保存失败，已跳过。`);
     }
@@ -412,7 +433,7 @@ async function importAgents(event: Event): Promise<void> {
         <div class="agent-avatar">
           <img
             v-if="isAvatarImage(agent)"
-            :src="agent.avatarDataUrl"
+            :src="avatarUrls[agent.id]"
             :alt="agent.displayName || agent.name"
           />
           <span v-else>{{ avatarLabel(agent) }}</span>

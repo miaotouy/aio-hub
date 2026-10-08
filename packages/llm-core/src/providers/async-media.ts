@@ -41,6 +41,22 @@ export const openAiVideoTaskAdapter: AsyncMediaTaskAdapter = {
   },
   buildPollRequest(profile, request, task) {
     const apiStyle = readString(request.parameters?.apiStyle) ?? "openai";
+    if (apiStyle === "agnes" && !profile.endpoints?.videoStatus) {
+      const videoId = readString(task.metadata?.videoId) ?? task.id;
+      const base = profile.baseUrl
+        .replace(/\/+$/, "")
+        .replace(/\/v\d+(?:beta)?$/i, "");
+      const query = new URLSearchParams({
+        video_id: videoId,
+        model_name: request.model,
+      });
+      return {
+        method: "GET",
+        url: `${base}/agnesapi?${query.toString()}`,
+        headers: buildBearerHeaders(profile),
+        streaming: false,
+      };
+    }
     const endpoint =
       apiStyle === "ark"
         ? `contents/generations/tasks/${encodeURIComponent(task.id)}`
@@ -58,12 +74,12 @@ export const openAiVideoTaskAdapter: AsyncMediaTaskAdapter = {
     return parseOpenAiVideoTask(
       await readWireResponseJson(response),
       request,
-      previous.id
+      previous
     );
   },
   buildResultRequests(profile, request, task) {
     const apiStyle = readString(request.parameters?.apiStyle) ?? "openai";
-    if (apiStyle === "ark" || task.assets?.length) return [];
+    if (apiStyle !== "openai" || task.assets?.length) return [];
     return [
       {
         method: "GET",
@@ -334,10 +350,11 @@ export const minimaxMusicTaskAdapter: AsyncMediaTaskAdapter = {
 function parseOpenAiVideoTask(
   value: unknown,
   request: AsyncMediaRequest,
-  fallbackId?: string
+  fallback: string | AsyncMediaTaskSnapshot | undefined
 ): AsyncMediaTaskSnapshot {
   const root = asRecord(normalizeJson(value));
   const data = asRecord(root.data);
+  const fallbackId = typeof fallback === "string" ? fallback : fallback?.id;
   const id =
     firstString([
       root.id,
@@ -361,6 +378,7 @@ function parseOpenAiVideoTask(
   const assets = url
     ? [{ kind: "remote-url" as const, url, contentType: "video/mp4" }]
     : undefined;
+  const videoId = firstString([root.video_id, root.videoId]);
   return {
     id,
     status,
@@ -368,6 +386,11 @@ function parseOpenAiVideoTask(
     assets,
     error: status === "failed" ? extractError(root) : undefined,
     metadata: compactJson({
+      videoId:
+        videoId ??
+        (typeof fallback === "object"
+          ? fallback?.metadata?.videoId
+          : undefined),
       thumbnailUrl: extractThumbnailUrl(root),
       raw: root,
     }),
@@ -399,40 +422,69 @@ function parseGeminiVideoOperation(value: unknown): AsyncMediaTaskSnapshot {
   return { id, status: "succeeded", progress: 100, assets };
 }
 
+const AGNES_VIDEO_SIZES = ["720P", "1080P", "1K", "2K"];
+const AGNES_VIDEO_ASPECT_RATIOS = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
+
 function buildOpenAiVideoBody(
   request: AsyncMediaRequest,
   isAgnes: boolean
 ): WireJsonValue {
   const parameters = request.parameters ?? {};
+  if (isAgnes) {
+    return buildAgnesVideoBody(request, parameters);
+  }
   const providerParameters = asWireRecord(parameters.providerParameters) ?? {};
-  const body: Record<string, WireJsonValue> = {
+  return {
     model: request.model,
     prompt: request.prompt,
     size: readString(parameters.size) ?? "1280x720",
     seconds: String(readNumber(parameters.durationSeconds) ?? 8),
     ...providerParameters,
   };
-  if (isAgnes) {
-    // Agnes video API uses "size" for resolution grade ("720P", "1080P", "1K", "2K")
-    // and does NOT accept a "resolution" parameter at the top level.
-    const resolution = readString(parameters.resolution);
-    if (resolution) {
-      body.size = resolution.toUpperCase();
-    } else {
-      body.size = "720P";
-    }
-    delete body.resolution;
-    const images = (request.inputs ?? [])
-      .filter((input) => input.type === "image" || input.type === "mask")
-      .map((input) => mediaSourceToWire(input.source));
-    if (images.length) {
-      body.extra_body = {
-        ...asWireRecord(body.extra_body),
-        image: images,
-      };
-    }
+}
+
+// Agnes Video 2.5 / 2.5 Flash 采用严格字段校验：
+// https://www.agnes-ai.com/zh-Hans/docs/agnes-video-25
+// 必填 mode（text/keyframe/reference），时长用字符串 seconds（4-12），
+// 分辨率档位用 size（720P/1080P/1K/2K），画幅用 aspect_ratio 白名单，
+// 参考媒体为顶层 images/audios/videos；negative_prompt 等额外字段会返回 400。
+function buildAgnesVideoBody(
+  request: AsyncMediaRequest,
+  parameters: Record<string, JsonValue>
+): WireJsonValue {
+  const images = (request.inputs ?? [])
+    .filter((input) => input.type === "image" || input.type === "mask")
+    .map((input) => mediaSourceToWire(input.source));
+  const size = readString(parameters.resolution)?.toUpperCase();
+  const aspectRatio = readString(parameters.aspectRatio);
+  const seed = readNumber(parameters.seed);
+  const body: Record<string, WireJsonValue> = {
+    model: request.model,
+    prompt: request.prompt,
+    mode: images.length ? "reference" : "text",
+    seconds: String(clampInt(readNumber(parameters.durationSeconds), 4, 12, 5)),
+    size: size && AGNES_VIDEO_SIZES.includes(size) ? size : "720P",
+  };
+  if (aspectRatio && AGNES_VIDEO_ASPECT_RATIOS.includes(aspectRatio)) {
+    body.aspect_ratio = aspectRatio;
+  }
+  if (seed !== undefined && seed !== -1) {
+    body.seed = seed;
+  }
+  if (images.length) {
+    body.images = images;
   }
   return body;
+}
+
+function clampInt(
+  value: number | undefined,
+  min: number,
+  max: number,
+  fallback: number
+): number {
+  const source = value ?? fallback;
+  return Math.min(Math.max(Math.round(source), min), max);
 }
 
 function buildArkVideoBody(request: AsyncMediaRequest): WireJsonValue {
@@ -482,6 +534,11 @@ function normalizeVideoStatus(
   if (["in_progress", "processing", "running"].includes(status))
     return "running";
   if (["queued", "pending", "created"].includes(status)) return "queued";
+  if (apiStyle === "agnes") {
+    // Agnes 查询接口对未知状态保守视为运行中，避免误判成功。
+    return "running";
+  }
+  // Ark 创建响应可能不带 status 字段，未知状态需保持轮询。
   return apiStyle === "ark" ? "queued" : "succeeded";
 }
 

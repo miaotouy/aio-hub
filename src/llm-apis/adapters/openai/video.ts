@@ -9,6 +9,7 @@ import {
   type ProviderProfile,
 } from "@aiohub/llm-core";
 import type { LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
+import { toMediaProgressUpdate } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { toCoreMediaInput } from "./image";
@@ -77,6 +78,9 @@ export async function callOpenAiVideoApi(
       typeof extended.pollIntervalMs === "number"
         ? Math.max(0, extended.pollIntervalMs)
         : 5_000,
+    onProgress: options.onMediaProgress
+      ? (task) => options.onMediaProgress?.(toMediaProgressUpdate(task))
+      : undefined,
   });
   if (apiStyle === "ark" && !task.assets?.length) {
     throw new Error(
@@ -112,6 +116,11 @@ function buildProviderParameters(
   options: MediaGenerationOptions,
   apiStyle: "openai" | "ark" | "agnes"
 ): Record<string, JsonValue> {
+  // Agnes 采用严格白名单校验，llm-core 已按官方文档构造请求体，
+  // 任何多余字段（含 negative_prompt、providerParameters 展开）都会返回 400。
+  if (apiStyle === "agnes") {
+    return {};
+  }
   const values: Record<string, unknown> = {
     ...(options.params ?? {}),
     ...(options.extraBody ?? {}),
@@ -129,11 +138,10 @@ function buildProviderParameters(
     quality: options.quality,
     style: options.style,
   };
-  // Ark 用 prompt 内嵌 flag（--duration/--ratio），Agnes 走 OpenAI Sora 兼容的顶层 seconds/size，
+  // Ark 用 prompt 内嵌 flag（--duration/--ratio），
   // 这组 snake_case 注入字段只适用于其他第三方 OpenAI 兼容网关。
   if (
     apiStyle !== "ark" &&
-    apiStyle !== "agnes" &&
     !(profile.baseUrl || "").includes("api.openai.com")
   ) {
     values.duration = options.durationSeconds ?? 8;

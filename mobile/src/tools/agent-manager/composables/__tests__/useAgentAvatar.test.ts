@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { nextTick, ref } from "vue";
 
 const mocks = vi.hoisted(() => ({
   files: new Map<string, Uint8Array>(),
@@ -75,6 +76,7 @@ vi.mock("@/utils/errorHandler", () => ({
 import {
   isAgentIconFilename,
   useAgentAvatar,
+  useAgentAvatarUrls,
 } from "../useAgentAvatar";
 
 const AGENT_ROOT = "/app/agent-manager/agents/a";
@@ -186,5 +188,58 @@ describe("useAgentAvatar", () => {
 
     await deleteAvatarFile("a", "avatar-5.png");
     expect(mocks.files.has(`${AGENT_ROOT}/avatar-5.png`)).toBe(false);
+  });
+});
+
+describe("useAgentAvatarUrls", () => {
+  beforeEach(() => {
+    mocks.files.clear();
+    mocks.dirs.clear();
+    vi.clearAllMocks();
+  });
+
+  it("按 agent 列表解析头像，icon 变化后重新解析（修复陈旧缓存）", async () => {
+    const { useAgentStorage } = await import("../useAgentStorage");
+    const storage = useAgentStorage();
+    await storage.saveAgentAvatar("a", "avatar-1.png", new Uint8Array([137, 80, 78, 71]));
+    await storage.saveAgentAvatar("a", "avatar-2.png", new Uint8Array([137, 80, 78, 71]));
+
+    const agents = ref<Array<{ id: string; icon?: string }>>([
+      { id: "a", icon: "avatar-1.png" },
+    ]);
+    const avatarUrls = useAgentAvatarUrls(() => agents.value);
+    await nextTick();
+    await vi.waitFor(() =>
+      expect(avatarUrls["a"]).toBe("data:image/png;base64,iVBORw==")
+    );
+
+    // 换新头像：签名变化必须重新解析，而不是命中旧显示条目
+    agents.value = [{ id: "a", icon: "avatar-2.png" }];
+    await vi.waitFor(() => expect(avatarUrls["a"]).toBe("data:image/png;base64,iVBORw=="));
+
+    // emoji icon：条目移除，由调用方回退文本
+    agents.value = [{ id: "a", icon: "温柔" }];
+    await vi.waitFor(() => expect(avatarUrls["a"]).toBeUndefined());
+  });
+
+  it("Agent 被删除后清理显示条目并失效模块级缓存", async () => {
+    const { useAgentStorage } = await import("../useAgentStorage");
+    const storage = useAgentStorage();
+    await storage.saveAgentAvatar("a", "avatar-1.png", new Uint8Array([137, 80, 78, 71]));
+
+    const agents = ref<Array<{ id: string; icon?: string }>>([
+      { id: "a", icon: "avatar-1.png" },
+    ]);
+    const avatarUrls = useAgentAvatarUrls(() => agents.value);
+    await nextTick();
+    await vi.waitFor(() => expect(avatarUrls["a"]).toBeTruthy());
+
+    agents.value = [];
+    await vi.waitFor(() => expect(avatarUrls["a"]).toBeUndefined());
+
+    // 重建同名 Agent（测试场景）：缓存已被 invalidate，重新读文件而非沿用旧 dataURL
+    await storage.saveAgentAvatar("a", "avatar-1.png", new Uint8Array([1]));
+    agents.value = [{ id: "a", icon: "avatar-1.png" }];
+    await vi.waitFor(() => expect(avatarUrls["a"]).toBe("data:image/png;base64,AQ=="));
   });
 });

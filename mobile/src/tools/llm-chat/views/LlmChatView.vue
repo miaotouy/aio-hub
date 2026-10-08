@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted, nextTick, watch } from "vue";
+import { computed, ref, onMounted, nextTick, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useLlmProfilesStore } from "../../llm-api/stores/llmProfiles";
@@ -7,7 +7,10 @@ import { useKeyboardAvoidance } from "@/composables/useKeyboardAvoidance";
 import { useChatExecutor } from "../composables/useChatExecutor";
 import { useNodeManager } from "../composables/useNodeManager";
 import { useChatSettings } from "../composables/useChatSettings";
-import { useAgentAvatar } from "@/tools/agent-manager/composables/useAgentAvatar";
+import {
+  useAgentAvatarUrls,
+  isAgentIconFilename,
+} from "@/tools/agent-manager/composables/useAgentAvatar";
 import {
   confirmDeleteMessage,
   showChatError,
@@ -45,26 +48,13 @@ const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
 );
 const selectableAgents = computed(() => agentStore.sortedAgents);
-const { resolveAgentAvatarUrl } = useAgentAvatar();
+const avatarUrls = useAgentAvatarUrls(() => agentStore.sortedAgents);
 
-/** agentId → 头像 dataURL（icon 文件名解析与导入预览统一经 useAgentAvatar）。 */
-const avatarUrls = reactive<Record<string, string>>({});
-
-watch(
-  () => agentStore.sortedAgents.map((agent) => agent.id).join(","),
-  () => {
-    for (const agent of agentStore.sortedAgents) {
-      if (avatarUrls[agent.id]) continue;
-      resolveAgentAvatarUrl(agent).then((url) => {
-        if (url) avatarUrls[agent.id] = url;
-      });
-    }
-  },
-  { immediate: true }
-);
-
-const avatarLabel = (agent: { icon?: string }) =>
-  agent.icon?.length && !agent.icon.includes(".") ? (agent.icon) : "AI";
+/** emoji/短文本回退：icon 形如文件名（含扩展名）时显示 AI 兜底，统一走 isAgentIconFilename 判定。 */
+const avatarLabel = (agent: { icon?: string }) => {
+  const icon = agent.icon?.trim();
+  return icon && !isAgentIconFilename(icon) ? icon : "AI";
+};
 
 const activeAgentLabel = computed(
   () =>

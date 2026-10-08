@@ -1,6 +1,7 @@
 import { unzipSync, type Unzipped } from "fflate";
 import { load as loadYaml } from "js-yaml";
 import { v4 as uuidv4 } from "uuid";
+import { bytesToBase64 } from "@/utils/base64";
 import {
   AgentCategory,
   normalizeAgentAssetGroups,
@@ -633,15 +634,6 @@ function decodeBase64Json(value: string): unknown {
     character.charCodeAt(0)
   );
   return JSON.parse(new TextDecoder().decode(bytes));
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
 }
 
 function base64ToBytes(base64: string): Uint8Array {

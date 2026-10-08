@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   Bot,
@@ -22,7 +22,10 @@ import {
   type ImportedAgentPrivateAssets,
 } from "../composables/useAgentImporter";
 import { useAgentStorage } from "../composables/useAgentStorage";
-import { useAgentAvatar } from "../composables/useAgentAvatar";
+import {
+  useAgentAvatarUrls,
+  invalidateAgentAvatar,
+} from "../composables/useAgentAvatar";
 import { useAgentStore } from "../stores/agentStore";
 import {
   AgentCategory,
@@ -36,28 +39,12 @@ const agentStore = useAgentStore();
 const profilesStore = useLlmProfilesStore();
 const worldbookStore = useWorldbookStore();
 const agentStorage = useAgentStorage();
-const { resolveAgentAvatarUrl } = useAgentAvatar();
+const avatarUrls = useAgentAvatarUrls(() => agentStore.sortedAgents);
 const { parseFile } = useAgentImporter();
 const { t } = useI18n();
 const search = ref("");
 const category = ref<AgentCategory | "all">("all");
 const importFileInput = ref<HTMLInputElement | null>(null);
-
-/** agentId → 头像 dataURL；icon 文件名解析与导入预览统一经 useAgentAvatar。 */
-const avatarUrls = reactive<Record<string, string>>({});
-
-watch(
-  () => agentStore.sortedAgents.map((agent) => agent.id).join(","),
-  () => {
-    for (const agent of agentStore.sortedAgents) {
-      if (avatarUrls[agent.id]) continue;
-      resolveAgentAvatarUrl(agent).then((url) => {
-        if (url) avatarUrls[agent.id] = url;
-      });
-    }
-  },
-  { immediate: true }
-);
 
 function isAvatarImage(agent: ChatAgent): boolean {
   return Boolean(avatarUrls[agent.id]);
@@ -174,7 +161,6 @@ async function persistAgentPrivateResources(
       );
       patch.icon = filename;
       // 头像文件内容已更新；若同名文件被重新导入，需失效显示缓存
-      const { invalidateAgentAvatar } = useAgentAvatar();
       invalidateAgentAvatar(agent.id, filename);
     } catch {
       notices.push(`${label}：头像保存失败，已跳过。`);

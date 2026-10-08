@@ -16,6 +16,7 @@ import SegmentedTabs from "@/components/base/SegmentedTabs.vue";
 import type { SegmentedTab } from "@/components/base/SegmentedTabs.vue";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
+import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentStore } from "../stores/agentStore";
 import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
@@ -31,6 +32,8 @@ import {
   isAgentIconFilename,
 } from "../composables/useAgentAvatar";
 import type { AgentAsset } from "../types/agent";
+
+const logger = createModuleLogger("agent-manager/detail");
 
 const categoryOptions: AgentCategory[] = [
   AgentCategory.Assistant,
@@ -213,7 +216,7 @@ async function onAvatarPicked(event: Event): Promise<void> {
       ...(draft.value.avatarHistory ?? []).filter((name) => name !== filename),
     ];
   } catch (error) {
-    console.error("Save avatar file failed:", error);
+    logger.error("保存头像文件失败", error);
     customMessage(t("tools.agent-manager.AgentDetail.头像上传失败"), "error");
   } finally {
     avatarUploading.value = false;
@@ -228,7 +231,7 @@ async function openAvatarHistory(): Promise<void> {
       avatarHistory: draft.value.avatarHistory,
     });
   } catch (error) {
-    console.error("List avatar history failed:", error);
+    logger.error("读取历史头像列表失败", error);
     historyAvatars.value = [];
   }
   await resolveHistoryThumbnails();
@@ -269,7 +272,7 @@ async function removeHistoryAvatar(filename: string): Promise<void> {
       (name) => name !== filename
     );
   } catch (error) {
-    console.error("Delete avatar file failed:", error);
+    logger.error("删除历史头像文件失败", error);
     customMessage(t("tools.agent-manager.AgentDetail.头像删除失败"), "error");
   } finally {
     historyDeleting.value = historyDeleting.value.filter(
@@ -310,7 +313,7 @@ async function save() {
     savedSnapshot.value = JSON.stringify(draft.value);
     router.back();
   } catch (error) {
-    console.error("Save agent failed:", error);
+    logger.error("保存智能体失败", error);
     customMessage(
       t("tools.agent-manager.AgentDetail.保存失败"),
       "error"

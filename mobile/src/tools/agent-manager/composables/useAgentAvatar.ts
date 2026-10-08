@@ -1,6 +1,8 @@
 import { readDir, remove } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
+import { reactive, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
+import { bytesToBase64 } from "@/utils/base64";
 import { useAgentStorage } from "./useAgentStorage";
 
 const logger = createModuleLogger("agent-manager/avatar");
@@ -59,15 +61,6 @@ function filenameTimestamp(filename: string): number {
   return 0;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
-}
-
 function guessMime(filename: string): string {
   const dotIndex = filename.lastIndexOf(".");
   const extension =
@@ -75,11 +68,35 @@ function guessMime(filename: string): string {
   return MIME_BY_EXTENSION[extension] ?? "application/octet-stream";
 }
 
-/** 模块级 dataURL 缓存：key 为 `${agentId}/${filename}`，跨视图共享。 */
+/**
+ * 模块级 dataURL LRU 缓存（key 为 `${agentId}/${filename}`，跨视图共享）。
+ * 上限 32 条：单头像通常几十至几百 KB，防止 Agent 数量增长后 base64 无限常驻内存。
+ */
+const DATA_URL_CACHE_MAX = 32;
 const dataUrlCache = new Map<string, string>();
 
 function cacheKey(agentId: string, filename: string): string {
   return `${agentId}/${filename}`;
+}
+
+function cacheGet(key: string): string | undefined {
+  const value = dataUrlCache.get(key);
+  if (value !== undefined) {
+    // Map 迭代按插入序：命中后移到末尾实现 LRU。
+    dataUrlCache.delete(key);
+    dataUrlCache.set(key, value);
+  }
+  return value;
+}
+
+function cacheSet(key: string, value: string): void {
+  dataUrlCache.delete(key);
+  dataUrlCache.set(key, value);
+  while (dataUrlCache.size > DATA_URL_CACHE_MAX) {
+    const oldest = dataUrlCache.keys().next().value;
+    if (oldest === undefined) break;
+    dataUrlCache.delete(oldest);
+  }
 }
 
 export interface AgentAvatarSource {
@@ -107,13 +124,13 @@ export function useAgentAvatar() {
     const icon = agent.icon?.trim();
     if (icon && isAgentIconFilename(icon)) {
       const key = cacheKey(agent.id, icon);
-      const cached = dataUrlCache.get(key);
+      const cached = cacheGet(key);
       if (cached) return cached;
       try {
         const bytes = await storage.readAgentAsset(agent.id, icon);
         if (bytes?.length) {
           const dataUrl = `data:${guessMime(icon)};base64,${bytesToBase64(bytes)}`;
-          dataUrlCache.set(key, dataUrl);
+          cacheSet(key, dataUrl);
           return dataUrl;
         }
       } catch (error) {
@@ -209,4 +226,78 @@ export function useAgentAvatar() {
     deleteAvatarFile,
     invalidateAgentAvatar,
   };
+}
+
+/**
+ * 模块级失效入口：供视图在删除 Agent、同名文件重新导入后清空对应缓存，
+ * 无需为拿这一个函数而实例化整个 useAgentAvatar。
+ */
+export function invalidateAgentAvatar(agentId: string, filename?: string): void {
+  if (filename) {
+    dataUrlCache.delete(cacheKey(agentId, filename));
+    return;
+  }
+  for (const key of Array.from(dataUrlCache.keys())) {
+    if (key.startsWith(`${agentId}/`)) dataUrlCache.delete(key);
+  }
+}
+
+/**
+ * 面向视图的响应式头像 URL 绑定：watch 智能体列表，按「icon + 导入预览」签名
+ * 自动解析/失效，并在 Agent 被删除后清理显示条目与模块级缓存。
+ *
+ * 此前 AgentList 与 LlmChatView 各自复制了一份 "watch id 列表 + 已存在即跳过"
+ * 的实现，导致编辑页更换头像后两处一直显示旧 dataURL、删除 Agent 后内存残留；
+ * 该 composable 是两者的唯一实现。
+ */
+export function useAgentAvatarUrls(
+  getAgents: () => AgentAvatarSource[]
+): Record<string, string> {
+  const { resolveAgentAvatarUrl } = useAgentAvatar();
+  const avatarUrls = reactive<Record<string, string>>({});
+  const resolvedSignatures = new Map<string, string>();
+
+  watch(
+    () =>
+      getAgents()
+        .map(
+          (agent) =>
+            `${agent.id}\u0000${agent.icon ?? ""}\u0000${
+              agent.avatarDataUrl?.length ?? 0
+            }`
+        )
+        .join("\u0001"),
+    async () => {
+      const agents = getAgents();
+      const signatures = new Map(
+        agents.map((agent) => [
+          agent.id,
+          `${agent.icon ?? ""}|${agent.avatarDataUrl?.length ?? 0}`,
+        ])
+      );
+      const validIds = new Set(agents.map((agent) => agent.id));
+      for (const key of Object.keys(avatarUrls)) {
+        if (!validIds.has(key)) delete avatarUrls[key];
+      }
+      for (const key of Array.from(resolvedSignatures.keys())) {
+        if (!validIds.has(key)) {
+          resolvedSignatures.delete(key);
+          invalidateAgentAvatar(key);
+        }
+      }
+      for (const [agentId, signature] of signatures) {
+        if (resolvedSignatures.get(agentId) === signature) continue;
+        resolvedSignatures.set(agentId, signature);
+        const agent = agents.find((item) => item.id === agentId)!;
+        const url = await resolveAgentAvatarUrl(agent);
+        // 异步回调可能乱序完成：签名已变化时本次结果过期，丢弃写入。
+        if (resolvedSignatures.get(agentId) !== signature) continue;
+        if (url) avatarUrls[agentId] = url;
+        else delete avatarUrls[agentId];
+      }
+    },
+    { immediate: true }
+  );
+
+  return avatarUrls;
 }

@@ -1,6 +1,7 @@
 import type { LlmMessageContent } from "@/tools/llm-api/types";
 import type { AgentAsset } from "@/tools/agent-manager/types/agent";
 import type { AgentAttachmentRef } from "../../types/context";
+import { bytesToBase64 } from "@/utils/base64";
 
 /**
  * 将预设消息 / 开局消息的 Agent 私有附件引用解析为可进入请求的内容片段。
@@ -292,16 +293,8 @@ export function resolveAgentAttachmentRef(
   return { ref, path, filename, kind, mimeType };
 }
 
-export function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(
-      ...bytes.subarray(offset, offset + chunkSize)
-    );
-  }
-  return btoa(binary);
-}
+// 统一走 @/utils/base64；保留导出以兼容既有引用。
+export { bytesToBase64 };
 
 function decodeTextBytes(bytes: Uint8Array): string | null {
   try {

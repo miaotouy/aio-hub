@@ -62,9 +62,7 @@ import type {
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
-import { useChatInputManager } from "../../composables/input/useChatInputManager";
-import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelReselection } from "../../composables/ui/useModelReselection";
 import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
@@ -104,8 +102,8 @@ interface Emits {
 }
 
 const agentStore = useAgentStore();
-const { open: openModelSelectDialog } = useModelSelectDialog();
-const { getProfileById } = useLlmProfiles();
+const { getTemporaryModelPayload, openModelReselectDialog } =
+  useModelReselection();
 const { settings } = useChatSettings();
 
 const props = withDefaults(defineProps<Props>(), {
@@ -207,14 +205,10 @@ const { currentAgentId } = useLlmChatUiState();
 
 const handleContinue = () => {
   // 检查是否有临时模型
-  const inputManager = useChatInputManager();
-  const temporaryModel = inputManager.temporaryModel.value;
+  const temporaryModel = getTemporaryModelPayload();
 
   if (temporaryModel) {
-    emit("continue", {
-      modelId: temporaryModel.modelId,
-      profileId: temporaryModel.profileId,
-    });
+    emit("continue", temporaryModel);
   } else {
     emit("continue");
   }
@@ -222,34 +216,7 @@ const handleContinue = () => {
 
 // 切换模型续写
 const handleContinueWithModel = async () => {
-  let currentSelection = null;
-  let targetModelId = props.message.metadata?.modelId;
-  let targetProfileId = props.message.metadata?.profileId;
-
-  if (!targetModelId || !targetProfileId) {
-    if (currentAgentId.value) {
-      const agent = agentStore.getAgentById(currentAgentId.value);
-      if (agent) {
-        targetModelId = targetModelId || agent.modelId;
-        targetProfileId = targetProfileId || agent.profileId;
-      }
-    }
-  }
-
-  if (targetProfileId && targetModelId) {
-    const profile = getProfileById(targetProfileId);
-    if (profile) {
-      const model = profile.models.find((m) => m.id === targetModelId);
-      if (model) {
-        currentSelection = { profile, model };
-      }
-    }
-  }
-
-  const result = await openModelSelectDialog({
-    current: currentSelection,
-    initialCapabilities: { embedding: false, rerank: false },
-  });
+  const result = await openModelReselectDialog(props.message.metadata);
   if (result) {
     emit("continue", {
       modelId: result.model.id,
@@ -260,14 +227,10 @@ const handleContinueWithModel = async () => {
 
 const handleRegenerate = () => {
   // 检查是否有临时模型
-  const inputManager = useChatInputManager();
-  const temporaryModel = inputManager.temporaryModel.value;
+  const temporaryModel = getTemporaryModelPayload();
 
   if (temporaryModel) {
-    emit("regenerate", {
-      modelId: temporaryModel.modelId,
-      profileId: temporaryModel.profileId,
-    });
+    emit("regenerate", temporaryModel);
   } else {
     emit("regenerate");
   }
@@ -276,34 +239,7 @@ const handleRegenerate = () => {
 // 切换模型重新生成
 const handleRegenerateWithModel = async () => {
   // 尝试定位当前消息使用的模型，如果消息没有记录（如 User 消息），则回退到当前智能体的模型
-  let currentSelection = null;
-  let targetModelId = props.message.metadata?.modelId;
-  let targetProfileId = props.message.metadata?.profileId;
-
-  if (!targetModelId || !targetProfileId) {
-    if (currentAgentId.value) {
-      const agent = agentStore.getAgentById(currentAgentId.value);
-      if (agent) {
-        targetModelId = targetModelId || agent.modelId;
-        targetProfileId = targetProfileId || agent.profileId;
-      }
-    }
-  }
-
-  if (targetProfileId && targetModelId) {
-    const profile = getProfileById(targetProfileId);
-    if (profile) {
-      const model = profile.models.find((m) => m.id === targetModelId);
-      if (model) {
-        currentSelection = { profile, model };
-      }
-    }
-  }
-
-  const result = await openModelSelectDialog({
-    current: currentSelection,
-    initialCapabilities: { embedding: false, rerank: false },
-  });
+  const result = await openModelReselectDialog(props.message.metadata);
   if (result) {
     emit("regenerate", {
       modelId: result.model.id,
@@ -315,14 +251,10 @@ const handleRegenerateWithModel = async () => {
 const handleToggleEnabled = () => emit("toggle-enabled");
 const handleReparseTools = () => {
   // 检查是否有临时模型，确保渠道判断使用正确的 profileId
-  const inputManager = useChatInputManager();
-  const temporaryModel = inputManager.temporaryModel.value;
+  const temporaryModel = getTemporaryModelPayload();
 
   if (temporaryModel) {
-    emit("reparse-tools", {
-      modelId: temporaryModel.modelId,
-      profileId: temporaryModel.profileId,
-    });
+    emit("reparse-tools", temporaryModel);
   } else {
     emit("reparse-tools");
   }

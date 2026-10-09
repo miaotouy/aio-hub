@@ -92,13 +92,13 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 
 | 模块                        | 实现方式                                                         | 为什么保留                                                                                                                                               | Node.js 替代难度 |
 | --------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| **knowledge/**              | HNSW + rayon 并行向量计算 + nalgebra SVD + jieba 分词            | 4 个检索引擎（Keyword/Vector/Lens/Blender）包含复杂数学算法（SVD 伪逆、残差挖掘、Tag Anchoring），163KB 精心调优的算法代码。并行计算是实时检索的性能保障 | 🔴 极高          |
-| **dir_search.rs**           | `ignore` crate 并行遍历 + `regex` + GBK 编码 + 有界 channel 背压 | 多线程并行文件搜索，ripgrep 级性能。Node.js 单线程 + worker_threads 难以匹敌。背压机制防止 IPC 积压也设计精巧                                            | 🔴 高            |
-| **content_deduplicator.rs** | `blake3` 哈希 + `ignore` 遍历 + 规范化流式哈希                   | 漏斗式多层过滤（尺寸→指纹→全文哈希），blake3 的 Rust 实现比 JS 快 5-10x。大目录扫描时差距明显                                                            | 🔴 高            |
-| **system_pulse.rs**         | `sysinfo` + `nvml-wrapper` + PDH (Windows 实时 CPU 频率)         | PDH 动态加载 pdh.dll 获取真实睿频频率、NVML 获取 GPU 编解码器利用率。`systeminformation` npm 包无法提供同等精度                                          | 🟡 中高          |
-| **ocr.rs**                  | `windows` crate 直接调用 WinRT OCR API                           | 零依赖调用系统 OCR 引擎，无需安装额外软件。Node.js 需要 edge-js 或 PowerShell 子进程，延迟高且不稳定                                                     | 🔴 高            |
-| **external_player.rs**      | Win32 API (EnumWindows, SetWindowPos, Z-Order 管理)              | 深度操作窗口句柄、DPI 感知、全屏检测、弹幕覆盖层 Z-Order 吸附。纯 Windows 原生能力，Node.js 无法直接实现                                                 | 🔴 极高          |
-| **native_plugin.rs**        | `libloading` 动态库加载 + C ABI 调用                             | 运行时加载 .dll/.so/.dylib 并通过 C ABI 调用函数。Node.js 的 ffi-napi 可替代但稳定性和性能不如                                                           | 🟡 中            |
+| **knowledge/**              | HNSW + rayon 并行向量计算 + nalgebra SVD + jieba 分词            | 4 个检索引擎（Keyword/Vector/Lens/Blender）包含复杂数学算法（SVD 伪逆、残差挖掘、Tag Anchoring），163KB 精心调优的算法代码。并行计算是实时检索的性能保障 | 🔴 极高           |
+| **dir_search.rs**           | `ignore` crate 并行遍历 + `regex` + GBK 编码 + 有界 channel 背压 | 多线程并行文件搜索，ripgrep 级性能。Node.js 单线程 + worker_threads 难以匹敌。背压机制防止 IPC 积压也设计精巧                                            | 🔴 高             |
+| **content_deduplicator.rs** | `blake3` 哈希 + `ignore` 遍历 + 规范化流式哈希                   | 漏斗式多层过滤（尺寸→指纹→全文哈希），blake3 的 Rust 实现比 JS 快 5-10x。大目录扫描时差距明显                                                            | 🔴 高             |
+| **system_pulse.rs**         | `sysinfo` + `nvml-wrapper` + PDH (Windows 实时 CPU 频率)         | PDH 动态加载 pdh.dll 获取真实睿频频率、NVML 获取 GPU 编解码器利用率。`systeminformation` npm 包无法提供同等精度                                          | 🟡 中高           |
+| **ocr.rs**                  | `windows` crate 直接调用 WinRT OCR API                           | 零依赖调用系统 OCR 引擎，无需安装额外软件。Node.js 需要 edge-js 或 PowerShell 子进程，延迟高且不稳定                                                     | 🔴 高             |
+| **external_player.rs**      | Win32 API (EnumWindows, SetWindowPos, Z-Order 管理)              | 深度操作窗口句柄、DPI 感知、全屏检测、弹幕覆盖层 Z-Order 吸附。纯 Windows 原生能力，Node.js 无法直接实现                                                 | 🔴 极高           |
+| **native_plugin.rs**        | `libloading` 动态库加载 + C ABI 调用                             | 运行时加载 .dll/.so/.dylib 并通过 C ABI 调用函数。Node.js 的 ffi-napi 可替代但稳定性和性能不如                                                           | 🟡 中             |
 
 #### 🟡 可替代但 Rust 有明显优势（建议评估后决定）
 
@@ -112,28 +112,28 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 
 #### 🟢 可安全用 Node.js 重写（无性能顾虑或本身就是 workaround）
 
-| 模块                          | 实现方式                               | 迁移说明                                                                                                                            |
-| ----------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 模块                          | 实现方式                               | 迁移说明                                                                                                                           |
+| ----------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **llm_proxy.rs**              | Axum + reqwest 代理服务                | ❌ **迁移后直接删除**。这是 WebView2 限制的 workaround，Electron 的 Node.js 主进程原生支持 HTTP/HTTPS 请求，无 CORS/证书/HTTP1 限制 |
 | **llm_inspector.rs**          | Axum 代理 + 请求/响应记录 + SSE 流转发 | ❌ **迁移后直接删除**。同上，Electron 中可用 Node.js http-proxy 实现，或直接在主进程拦截                                            |
-| **file_operations.rs**        | `fs_extra` + `trash` + `walkdir`       | Node.js `fs/promises` + `trash` npm + `glob`。功能完全对等                                                                          |
-| **asset_manager.rs**          | 文件读写 + 路径管理                    | Node.js `fs` + `path`。纯 IO 操作                                                                                                   |
-| **directory_janitor.rs**      | 递归遍历 + 过滤 + trash 删除           | Node.js `fs` + `trash` npm。逻辑简单                                                                                                |
-| **ffmpeg_processor.rs**       | 子进程调用 FFmpeg + stderr 进度解析    | Node.js `child_process.spawn` + readline。本质就是进程管理                                                                          |
-| **config_manager.rs**         | JSON 配置读写                          | Node.js `fs` + `JSON.parse/stringify`                                                                                               |
-| **window_manager.rs**         | Tauri 窗口 API 封装                    | Electron `BrowserWindow` API 直接替代                                                                                               |
-| **window_config.rs**          | 窗口配置持久化                         | Electron `electron-store` 或 JSON 文件                                                                                              |
-| **clipboard.rs**              | 轮询式剪贴板监听                       | Electron `clipboard` API + 定时器，或 `clipboard-event` npm                                                                         |
-| **system.rs**                 | 打开 URL + 获取本地 IP                 | Electron `shell.openExternal` + Node.js `os.networkInterfaces()`                                                                    |
-| **canvas_window.rs**          | 画布窗口管理                           | Electron `BrowserWindow`                                                                                                            |
-| **sidecar_plugin.rs**         | 子进程管理                             | Node.js `child_process`                                                                                                             |
-| **agent_asset_manager.rs**    | Agent 资产文件管理                     | Node.js `fs`                                                                                                                        |
-| **media_generator_search.rs** | 文件搜索                               | Node.js `glob` + `fs`                                                                                                               |
+| **file_operations.rs**        | `fs_extra` + `trash` + `walkdir`       | Node.js `fs/promises` + `trash` npm + `glob`。功能完全对等                                                                         |
+| **asset_manager.rs**          | 文件读写 + 路径管理                    | Node.js `fs` + `path`。纯 IO 操作                                                                                                  |
+| **directory_janitor.rs**      | 递归遍历 + 过滤 + trash 删除           | Node.js `fs` + `trash` npm。逻辑简单                                                                                               |
+| **ffmpeg_processor.rs**       | 子进程调用 FFmpeg + stderr 进度解析    | Node.js `child_process.spawn` + readline。本质就是进程管理                                                                         |
+| **config_manager.rs**         | JSON 配置读写                          | Node.js `fs` + `JSON.parse/stringify`                                                                                              |
+| **window_manager.rs**         | Tauri 窗口 API 封装                    | Electron `BrowserWindow` API 直接替代                                                                                              |
+| **window_config.rs**          | 窗口配置持久化                         | Electron `electron-store` 或 JSON 文件                                                                                             |
+| **clipboard.rs**              | 轮询式剪贴板监听                       | Electron `clipboard` API + 定时器，或 `clipboard-event` npm                                                                        |
+| **system.rs**                 | 打开 URL + 获取本地 IP                 | Electron `shell.openExternal` + Node.js `os.networkInterfaces()`                                                                   |
+| **canvas_window.rs**          | 画布窗口管理                           | Electron `BrowserWindow`                                                                                                           |
+| **sidecar_plugin.rs**         | 子进程管理                             | Node.js `child_process`                                                                                                            |
+| **agent_asset_manager.rs**    | Agent 资产文件管理                     | Node.js `fs`                                                                                                                       |
+| **media_generator_search.rs** | 文件搜索                               | Node.js `glob` + `fs`                                                                                                              |
 
 #### 📊 总结
 
-| 分类               | 模块数 | 占比 |
-| ------------------ | ------ | ---- |
+| 分类              | 模块数 | 占比 |
+| ----------------- | ------ | ---- |
 | 🔴 强烈建议保留    | 7      | 26%  |
 | 🟡 有优势，可评估  | 5      | 18%  |
 | 🟢 可安全重写/删除 | 15     | 56%  |
@@ -298,13 +298,13 @@ strategy:
 
 | 风险                | 严重程度 | 说明                                                   |
 | ------------------- | -------- | ------------------------------------------------------ |
-| 未合入 Tauri 主线   | 🟡 中    | 仍在 `feat/cef` 分支，无明确发布时间线                 |
-| CEF 包体大          | 🟡 中    | ~180-220MB Chromium 二进制，但用户可选择 Standard 版本 |
-| 内存问题未必解决    | 🔴 高    | Chromium 本身也是内存大户，需实测验证                  |
-| CORS/证书限制待验证 | 🟡 中    | CEF 理论上可配置，但需确认 Tauri 层是否暴露了这些选项  |
-| LLM 代理层能否删除  | 🟡 中    | 取决于 CEF 模式下 fetch 的限制情况                     |
-| 后台 JS 运行时      | 🔴 高    | CEF 不提供 Node.js；需额外引入 sidecar 和 IPC          |
-| 上游稳定性          | 🟡 中    | 作为新方案，可能有未知 bug                             |
+| 未合入 Tauri 主线   | 🟡 中     | 仍在 `feat/cef` 分支，无明确发布时间线                 |
+| CEF 包体大          | 🟡 中     | ~180-220MB Chromium 二进制，但用户可选择 Standard 版本 |
+| 内存问题未必解决    | 🔴 高     | Chromium 本身也是内存大户，需实测验证                  |
+| CORS/证书限制待验证 | 🟡 中     | CEF 理论上可配置，但需确认 Tauri 层是否暴露了这些选项  |
+| LLM 代理层能否删除  | 🟡 中     | 取决于 CEF 模式下 fetch 的限制情况                     |
+| 后台 JS 运行时      | 🔴 高     | CEF 不提供 Node.js；需额外引入 sidecar 和 IPC          |
+| 上游稳定性          | 🟡 中     | 作为新方案，可能有未知 bug                             |
 
 #### 待验证清单
 
@@ -379,12 +379,12 @@ PoC 首先验证以下行为：
 
 | 优先级 | 方案                            | 改动量 | 风险 | 理由                                                            |
 | ------ | ------------------------------- | ------ | ---- | --------------------------------------------------------------- |
-| 1️⃣     | **B: Electron + Rust Sidecar**  | 中     | 中   | 先建立独立 Node.js 后台 JS 运行时，同时最大限度复用 Rust 后端   |
-| 2️⃣     | **A: 纯 Electron**              | 中高   | 中   | 长期统一到 Node.js 后端，彻底解决渲染与 Agent 生命周期耦合      |
-| 3️⃣     | F: Hidden Background JS WebView | 低     | 中   | 先解决后台任务与 Renderer 的生命周期边界，可在现有 Tauri 内验证 |
-| 4️⃣     | E: Tauri + CEF                  | 中     | 中高 | 可解决渲染一致性，但不能单独提供后台 JS 运行时                  |
-| 5️⃣     | C: Tauri 内缓解                 | 低     | 低   | 短期止血，但无法解决 Agent 与窗口生命周期绑定                   |
-| 6️⃣     | D: Servo                        | 零     | 高   | 遥遥无期，且不直接解决后端运行时边界                            |
+| 1️⃣      | **B: Electron + Rust Sidecar**  | 中     | 中   | 先建立独立 Node.js 后台 JS 运行时，同时最大限度复用 Rust 后端   |
+| 2️⃣      | **A: 纯 Electron**              | 中高   | 中   | 长期统一到 Node.js 后端，彻底解决渲染与 Agent 生命周期耦合      |
+| 3️⃣      | F: Hidden Background JS WebView | 低     | 中   | 先解决后台任务与 Renderer 的生命周期边界，可在现有 Tauri 内验证 |
+| 4️⃣      | E: Tauri + CEF                  | 中     | 中高 | 可解决渲染一致性，但不能单独提供后台 JS 运行时                  |
+| 5️⃣      | C: Tauri 内缓解                 | 低     | 低   | 短期止血，但无法解决 Agent 与窗口生命周期绑定                   |
+| 6️⃣      | D: Servo                        | 零     | 高   | 遥遥无期，且不直接解决后端运行时边界                            |
 
 **建议执行路径**：先在现有 Tauri 内完成方案 F 的最小 PoC，验证 Renderer 刷新/关闭、托盘驻留、多窗口订阅和后台任务 Runtime 重建；随后再做 Electron + Node.js 后台运行时的对照 PoC，比较浏览器运行时限制与进程级隔离收益。CEF PoC 仍作为渲染一致性专项验证，不替代后台 JS 运行时解耦任务。方案 C 的虚拟化等优化可以并行推进，无论最终选哪条路都有价值。
 
@@ -404,6 +404,52 @@ PoC 首先验证以下行为：
 | Linux Flatpak       | 72 MB  |
 
 Electron 的 Chromium 增量约 80-100MB，但如果删除大量 Rust 依赖（git2 vendored ~30MB、sysinfo、nvml 等），最终包体增幅可能只有 30-50%，完全可接受。
+
+#### Electron PoC 实测数据（2026-10-09，本地 PoC，不入库）
+
+最小 Electron 壳（Electron 39.8.10 + `protocol.handle('app')` 加载现有 `dist/` 产物）在 `.tmp/electron-poc/` 完成，未做任何资源裁剪：
+
+| 项目                          | 实测值                  | 说明                                                                                           |
+| ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
+| Electron 运行时（解压）       | 326 MB                  | node_modules/electron/dist，含 Chromium + Node.js                                              |
+| 应用资源（dist/）             | 99.7 MB                 | 与 Tauri 打包复制的资源一致（tokenizers 15.5MB、tesseract-lang 12MB 等）                       |
+| **win-unpacked 总计（解压）** | **425 MB**              | 含 locales 44MB（可裁剪至 ~4MB）、LICENSES.chromium.html 14.4MB（可删）、dxcompiler.dll 24.9MB |
+| **Portable exe（压缩）**      | **125 MB**              | 对比 Tauri Portable 103 MB，**+21%**，好于此前 30-50% 的推算                                   |
+| 运行态内存（主页空场景）      | 687 MB WS / 618 MB 私有 | 4 进程合计；主进程 406MB、GPU 133MB、渲染进程 110MB、utility 42MB                              |
+
+**WebView2 同场景对照实测**（同日，release 构建 `aiohub.exe` 110.3MB，主页空场景，启动后 45 秒采样）：
+
+| 引擎                      | 进程数 | 进程构成                                       | WorkingSet | Private |
+| ------------------------- | ------ | ---------------------------------------------- | ---------- | ------- |
+| Tauri + WebView2          | 9      | aiohub 170MB + msedgewebview2 ×7 + OCR sidecar | 777 MB     | 723 MB  |
+| Electron PoC（20 秒采样） | 4      | main + gpu + renderer + utility                | 687 MB     | 618 MB  |
+
+WebView2 侧最大的进程是渲染进程（WS 226MB / Private 293MB）和 browser 进程（WS 143MB）。**空载状态下两者同一水平，WebView2 略高**（多进程数更多 + Rust 主进程本身占 170MB WS），此前「Electron 基线内存略高」的假设在空载场景下不成立。仍需富文本长对话等真实负载场景才能下最终结论。
+
+**富文本负载场景实测**（2026-10-09）：
+
+测试负载由富文本渲染测试预设组装：14 个高负载预设（complex-rendering-test 模拟科幻感量子协议监控台、html-game-snake、katex-formulas、mermaid-diagrams、xml、agent-bubble-test 等）循环 4 轮，共 56 轮 user/assistant 消息、113 节点、约 37 万字符富文本内容（含思考链 metadata），单文件 0.42MB。
+
+| 引擎 | 负载 | 进程数 | WorkingSet | Private | 主要构成 |
+| ---- | ---- | ------ | ---------- | ------- | -------- |
+| Electron PoC | 37 万字符富文本会话 | 4 | **1315 MB** | **1306 MB** | 渲染进程 1033MB WS + GPU 124MB + browser 109MB + utility 48MB |
+| Tauri + WebView2 | 真实 82K token 长对话（富文本渲染） | 11 | **3322 MB** | **3191 MB** | 渲染进程 1536MB + browser 926MB + 多个 helper |
+
+**关键发现**：
+
+1. **同量级富文本负载下 Electron 内存约为 WebView2 的 40%**（1315MB vs 3322MB WS）。WebView2 侧进程树中渲染进程（1.5GB）与 browser 进程（0.9GB）双高，而 Electron 渲染进程 1GB 且无 browser 进程膨胀。需要说明：WebView2 侧当时加载的是用户的真实 82K token 会话（内容量级相当，但非严格同数据），数据量差异可能贡献部分差距，结论方向可信但数值精度有限。
+2. Electron PoC 通过 preload 注入 `__TAURI_INTERNALS__` shim（invoke→IPC→Node fs、transformCallback、metadata、`__TAURI_OS_PLUGIN_INTERNALS__`）+ 独立数据目录，即可让现有前端完整跑通会话加载、富文本渲染、主题壁纸全链路；未知 Tauri command 返回 null 即可糊弄（详见 `.tmp/electron-poc/main.js` 的 command 清单）。
+3. 前端与 Tauri 的实际耦合面比预期小：会话加载/持久化只需要 `get_app_config_dir`、`path_exists`、`read_text_file_force`、`create_dir_force`、`llm_chat_atomic_write`、`llm_chat_delete_session`、`plugin:fs|*`、`plugin:path|*` 十余个入口。
+4. shim 验证同时确认：`@tauri-apps/plugin-os` 的 `platform()` 走 `window.__TAURI_OS_PLUGIN_INTERNALS__`（同步读取），TitleBar 等组件依赖它，Electron 侧需在 preload 补齐。
+
+**PoC 验证结论**：
+
+1. **前端 Vue 代码可直接跑起来**：`app://` 协议 + importmap + ES Module 全部正常，主页 46 个工具完整渲染，主题/图标正常。
+2. **预期报错边界符合分析**：Tauri `invoke` 不可用导致部分初始化失败（"应用挂载失败, Cannot read properties of undefined (reading 'metadata')"），印证 3.1 节耦合点清单。
+3. **渲染完成即可测量**：空载内存与文档 2.1 节 WebView2 的 2GB+ 场景不可直接对比（非同等负载），WebView2 同场景对照数据仍待补。
+4. **包体优化空间明确**：裁剪 locales + LICENSE 后 Portable 预计可降至 ~110MB；若删掉 dist 中的 tesseract-lang/tokenizers（改用 Rust sidecar 提供），可进一步逼近 Tauri 的 103MB。
+
+测量方法备注：打包用 electron-builder portable（`files` 必须排除 `node_modules/**`，否则 bun 目录结构导致 electron-builder 把 devDependencies 全量打进 asar，体积膨胀至 1.5GB）；内存采样在启动后 20 秒用进程树 WorkingSet/Private 汇总。
 
 ---
 
@@ -518,7 +564,7 @@ export async function callBackend(cmd: string, args: any) {
 - [ ] 调研 Electron 的 `protocol.registerFileProtocol` 能否完美替代 Tauri 的 asset 协议
 - [ ] 评估移动端代码共享策略（前端代码如何同时服务 Electron 桌面端和 Tauri 移动端）
 - [ ] 调研 Electron Forge vs electron-builder 的选型
-- [ ] 内存基准测试：同等场景下 Electron vs WebView2 的内存占用对比
+- [ ] 内存基准测试：同等场景下 Electron vs WebView2 的内存占用对比（✅ 初步完成：2026-10-09 空载 Electron 687MB vs WebView2 777MB WS；富文本负载 Electron 1315MB vs WebView2 3322MB WS，见[第 5 节实测数据](#5-包体影响评估)；严格同数据对照待后续补充）
 - [ ] 盘点当前 Agent 入口、会话状态、工具调用和定时器，标注所有与 Vue/渲染窗口绑定的代码
 - [ ] 设计 Renderer ↔ Node.js Background JS Runtime 的类型化 IPC 协议（命令、事件、流式数据、错误和取消）
 - [ ] 验证渲染窗口关闭、刷新、崩溃和重连时 Agent 会话的存活与恢复
@@ -545,8 +591,8 @@ export async function callBackend(cmd: string, args: any) {
 
 ## 9. 附录索引
 
-| 编号                                            | 标题                            | 状态    | 说明                                                           |
-| ----------------------------------------------- | ------------------------------- | ------- | -------------------------------------------------------------- |
+| 编号                                            | 标题                            | 状态   | 说明                                                           |
+| ----------------------------------------------- | ------------------------------- | ------ | -------------------------------------------------------------- |
 | [附录 A](./appendix-web-distillery-analysis.md) | web_distillery 模块迁移影响分析 | ✅ 完成 | 确认为最适合作为迁移 PoC 切入点的模块                          |
 | [附录 B](./appendix-knowledge-base-analysis.md) | knowledge 模块迁移影响分析      | ✅ 完成 | 确认为必须保留 Rust 的核心模块，推荐 napi-rs Native Addon 方案 |
 
@@ -562,3 +608,6 @@ export async function callBackend(cmd: string, args: any) {
 | 2026-09-14 | 新增 Agent 后端 JavaScript 运行时需求：补充渲染窗口生命周期耦合问题，调整方案评估、优先级和执行策略 |
 | 2026-09-22 | 新增方案 F：在现有 Tauri 内试做隐藏 Background JS WebView；以子智能体交互作为第一个真实业务切入点   |
 | 2026-09-22 | 延伸方案 F：规划后台任务观察、调度 Agent 摘要、用户干预和消息来源标记                               |
+| 2026-10-09 | 新增第 5 节 Electron PoC 实测数据：Portable 125MB（+21%）、空载内存 687MB WS、前端可直接渲染        |
+| 2026-10-09 | 补充 WebView2 空载对照：777MB WS / 723MB 私有，空载下两者同一水平，Electron 并不更高                |
+| 2026-10-09 | 富文本负载实测：Electron 1315MB vs WebView2 3322MB WS（约 40%），验证 __TAURI_INTERNALS__ shim 可行性 |

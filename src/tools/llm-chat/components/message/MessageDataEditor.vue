@@ -122,7 +122,10 @@ watch(
         handleClose();
       }
     }
-  }
+  },
+  // 树图入口使用 v-if 按需挂载，组件创建时 modelValue 已为 true，
+  // 必须立即执行一次才能完成数据填充
+  { immediate: true }
 );
 
 const handleSave = async () => {

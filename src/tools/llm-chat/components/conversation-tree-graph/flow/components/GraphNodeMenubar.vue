@@ -93,13 +93,33 @@ const showDataEditor = ref(false);
 
 const isMoreMenuOpen = ref(false);
 const isDeleteConfirmOpen = ref(false);
+// 全局模型选择弹窗打开期间必须保持 menubar 挂载：
+// 选完模型后要在此组件上下文中异步 emit("regenerate")，
+// 若 menubar 被悬停超时卸载，Vue 会丢弃已卸载组件的 emit 事件。
+const isModelSelectOpen = ref(false);
 
 watch(
-  [showExportDialog, showDataEditor, isMoreMenuOpen, isDeleteConfirmOpen],
-  ([exportVisible, editorVisible, moreMenuOpen, deleteConfirmOpen]) => {
+  [
+    showExportDialog,
+    showDataEditor,
+    isMoreMenuOpen,
+    isDeleteConfirmOpen,
+    isModelSelectOpen,
+  ],
+  ([
+    exportVisible,
+    editorVisible,
+    moreMenuOpen,
+    deleteConfirmOpen,
+    modelSelectOpen,
+  ]) => {
     emit(
       "interaction-active-change",
-      exportVisible || editorVisible || moreMenuOpen || deleteConfirmOpen
+      exportVisible ||
+        editorVisible ||
+        moreMenuOpen ||
+        deleteConfirmOpen ||
+        modelSelectOpen
     );
   }
 );
@@ -200,52 +220,58 @@ const { getProfileById } = useLlmProfiles();
 const agentStore = useAgentStore();
 
 const handleSelectModelAndRegenerate = async () => {
-  let currentSelection = null;
+  // 弹窗打开期间保持 menubar 挂载，防止悬停超时卸载后 emit 丢失
+  isModelSelectOpen.value = true;
+  try {
+    let currentSelection = null;
 
-  // 确定回显的目标模型：节点自身 -> 临时模型 -> 智能体默认
-  let targetModelId = props.modelId;
-  let targetProfileId = props.profileId;
+    // 确定回显的目标模型：节点自身 -> 临时模型 -> 智能体默认
+    let targetModelId = props.modelId;
+    let targetProfileId = props.profileId;
 
-  // 1. 如果节点没有模型信息，尝试使用输入框的临时模型
-  if (!targetModelId || !targetProfileId) {
-    const inputManager = useChatInputManager();
-    if (inputManager.temporaryModel.value) {
-      targetModelId = inputManager.temporaryModel.value.modelId;
-      targetProfileId = inputManager.temporaryModel.value.profileId;
-    }
-  }
-
-  // 2. 如果还是没有，尝试使用当前智能体的默认模型
-  if (!targetModelId || !targetProfileId) {
-    if (currentAgentId.value) {
-      const agent = agentStore.getAgentById(currentAgentId.value);
-      if (agent) {
-        targetModelId = agent.modelId;
-        targetProfileId = agent.profileId;
+    // 1. 如果节点没有模型信息，尝试使用输入框的临时模型
+    if (!targetModelId || !targetProfileId) {
+      const inputManager = useChatInputManager();
+      if (inputManager.temporaryModel.value) {
+        targetModelId = inputManager.temporaryModel.value.modelId;
+        targetProfileId = inputManager.temporaryModel.value.profileId;
       }
     }
-  }
 
-  // 构建选中状态对象
-  if (targetProfileId && targetModelId) {
-    const profile = getProfileById(targetProfileId);
-    if (profile) {
-      const model = profile.models.find((m) => m.id === targetModelId);
-      if (model) {
-        currentSelection = { profile, model };
+    // 2. 如果还是没有，尝试使用当前智能体的默认模型
+    if (!targetModelId || !targetProfileId) {
+      if (currentAgentId.value) {
+        const agent = agentStore.getAgentById(currentAgentId.value);
+        if (agent) {
+          targetModelId = agent.modelId;
+          targetProfileId = agent.profileId;
+        }
       }
     }
-  }
 
-  const result = await openModelSelectDialog({
-    current: currentSelection,
-    initialCapabilities: { embedding: false, rerank: false },
-  });
-  if (result) {
-    emit("regenerate", {
-      modelId: result.model.id,
-      profileId: result.profile.id,
+    // 构建选中状态对象
+    if (targetProfileId && targetModelId) {
+      const profile = getProfileById(targetProfileId);
+      if (profile) {
+        const model = profile.models.find((m) => m.id === targetModelId);
+        if (model) {
+          currentSelection = { profile, model };
+        }
+      }
+    }
+
+    const result = await openModelSelectDialog({
+      current: currentSelection,
+      initialCapabilities: { embedding: false, rerank: false },
     });
+    if (result) {
+      emit("regenerate", {
+        modelId: result.model.id,
+        profileId: result.profile.id,
+      });
+    }
+  } finally {
+    isModelSelectOpen.value = false;
   }
 };
 </script>

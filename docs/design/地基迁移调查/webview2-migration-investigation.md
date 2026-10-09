@@ -414,6 +414,7 @@ Electron 的 Chromium 增量约 80-100MB，但如果删除大量 Rust 依赖（g
 | Electron 运行时（解压）       | 326 MB                  | node_modules/electron/dist，含 Chromium + Node.js                                              |
 | 应用资源（dist/）             | 99.7 MB                 | 与 Tauri 打包复制的资源一致（tokenizers 15.5MB、tesseract-lang 12MB 等）                       |
 | **win-unpacked 总计（解压）** | **425 MB**              | 含 locales 44MB（可裁剪至 ~4MB）、LICENSES.chromium.html 14.4MB（可删）、dxcompiler.dll 24.9MB |
+| **NSIS Setup exe（压缩）**    | **149.4 MB**            | 对比 Tauri Setup 71 MB，**约 2.1 倍**；静默安装（/S）后实测占 425.5 MB，与 win-unpacked 一致   |
 | **Portable exe（压缩）**      | **125 MB**              | 对比 Tauri Portable 103 MB，**+21%**，好于此前 30-50% 的推算                                   |
 | 运行态内存（主页空场景）      | 687 MB WS / 618 MB 私有 | 4 进程合计；主进程 406MB、GPU 133MB、渲染进程 110MB、utility 42MB                              |
 
@@ -430,10 +431,10 @@ WebView2 侧最大的进程是渲染进程（WS 226MB / Private 293MB）和 brow
 
 测试负载由富文本渲染测试预设组装：14 个高负载预设（complex-rendering-test 模拟科幻感量子协议监控台、html-game-snake、katex-formulas、mermaid-diagrams、xml、agent-bubble-test 等）循环 4 轮，共 56 轮 user/assistant 消息、113 节点、约 37 万字符富文本内容（含思考链 metadata），单文件 0.42MB。
 
-| 引擎 | 负载 | 进程数 | WorkingSet | Private | 主要构成 |
-| ---- | ---- | ------ | ---------- | ------- | -------- |
-| Electron PoC | 37 万字符富文本会话 | 4 | **1315 MB** | **1306 MB** | 渲染进程 1033MB WS + GPU 124MB + browser 109MB + utility 48MB |
-| Tauri + WebView2 | 真实 82K token 长对话（富文本渲染） | 11 | **3322 MB** | **3191 MB** | 渲染进程 1536MB + browser 926MB + 多个 helper |
+| 引擎             | 负载                                | 进程数 | WorkingSet  | Private     | 主要构成                                                      |
+| ---------------- | ----------------------------------- | ------ | ----------- | ----------- | ------------------------------------------------------------- |
+| Electron PoC     | 37 万字符富文本会话                 | 4      | **1315 MB** | **1306 MB** | 渲染进程 1033MB WS + GPU 124MB + browser 109MB + utility 48MB |
+| Tauri + WebView2 | 真实 82K token 长对话（富文本渲染） | 11     | **3322 MB** | **3191 MB** | 渲染进程 1536MB + browser 926MB + 多个 helper                 |
 
 **关键发现**：
 
@@ -449,7 +450,9 @@ WebView2 侧最大的进程是渲染进程（WS 226MB / Private 293MB）和 brow
 3. **渲染完成即可测量**：空载内存与文档 2.1 节 WebView2 的 2GB+ 场景不可直接对比（非同等负载），WebView2 同场景对照数据仍待补。
 4. **包体优化空间明确**：裁剪 locales + LICENSE 后 Portable 预计可降至 ~110MB；若删掉 dist 中的 tesseract-lang/tokenizers（改用 Rust sidecar 提供），可进一步逼近 Tauri 的 103MB。
 
-测量方法备注：打包用 electron-builder portable（`files` 必须排除 `node_modules/**`，否则 bun 目录结构导致 electron-builder 把 devDependencies 全量打进 asar，体积膨胀至 1.5GB）；内存采样在启动后 20 秒用进程树 WorkingSet/Private 汇总。
+测量方法备注：打包用 electron-builder portable + nsis（`files` 必须排除 `node_modules/**`，否则 bun 目录结构导致 electron-builder 把 devDependencies 全量打进 asar，体积膨胀至 1.5GB）；NSIS 包用 `/S` 静默安装到 `%LOCALAPPDATA%\Programs\aiohub-electron-poc` 验证解压后体积；内存采样在启动后 20 秒用进程树 WorkingSet/Private 汇总。
+
+包体对比补充说明：Tauri Setup（71MB）远小于 Tauri Portable（103MB），因为 NSIS 用 LZMA 高压缩且不含自解压开销；Electron Setup（149.4MB）与 Portable（125MB）反而接近，因为 electron-builder 的 NSIS 包内嵌 webview2 引导逻辑且 asar 压缩率有限。**按安装包口径，Electron 是 Tauri 的 2.1 倍；按解压后磁盘占用口径，是 425MB vs 约 110MB（aiohub.exe 110.3MB，前端内嵌；WebView2 运行时为系统共享组件不占应用空间），约 3.9 倍**。
 
 ---
 
@@ -600,14 +603,15 @@ export async function callBackend(cmd: string, args: any) {
 
 ## 10. 变更日志
 
-| 日期       | 变更内容                                                                                            |
-| ---------- | --------------------------------------------------------------------------------------------------- |
-| 2025-05-20 | 初始版本：问题陈述、耦合度分析、方案 A-D、执行策略                                                  |
-| 2025-05-20 | 新增附录 A (web_distillery) 和附录 B (knowledge)                                                    |
-| 2026-05-20 | 新增方案 E (Tauri + CEF 双轨发布)，更新方案优先级排序，重组待调查任务列表                           |
-| 2026-09-14 | 新增 Agent 后端 JavaScript 运行时需求：补充渲染窗口生命周期耦合问题，调整方案评估、优先级和执行策略 |
-| 2026-09-22 | 新增方案 F：在现有 Tauri 内试做隐藏 Background JS WebView；以子智能体交互作为第一个真实业务切入点   |
-| 2026-09-22 | 延伸方案 F：规划后台任务观察、调度 Agent 摘要、用户干预和消息来源标记                               |
-| 2026-10-09 | 新增第 5 节 Electron PoC 实测数据：Portable 125MB（+21%）、空载内存 687MB WS、前端可直接渲染        |
-| 2026-10-09 | 补充 WebView2 空载对照：777MB WS / 723MB 私有，空载下两者同一水平，Electron 并不更高                |
+| 日期       | 变更内容                                                                                              |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| 2025-05-20 | 初始版本：问题陈述、耦合度分析、方案 A-D、执行策略                                                    |
+| 2025-05-20 | 新增附录 A (web_distillery) 和附录 B (knowledge)                                                      |
+| 2026-05-20 | 新增方案 E (Tauri + CEF 双轨发布)，更新方案优先级排序，重组待调查任务列表                             |
+| 2026-09-14 | 新增 Agent 后端 JavaScript 运行时需求：补充渲染窗口生命周期耦合问题，调整方案评估、优先级和执行策略   |
+| 2026-09-22 | 新增方案 F：在现有 Tauri 内试做隐藏 Background JS WebView；以子智能体交互作为第一个真实业务切入点     |
+| 2026-09-22 | 延伸方案 F：规划后台任务观察、调度 Agent 摘要、用户干预和消息来源标记                                 |
+| 2026-10-09 | 新增第 5 节 Electron PoC 实测数据：Portable 125MB（+21%）、空载内存 687MB WS、前端可直接渲染          |
+| 2026-10-09 | 补充 WebView2 空载对照：777MB WS / 723MB 私有，空载下两者同一水平，Electron 并不更高                  |
 | 2026-10-09 | 富文本负载实测：Electron 1315MB vs WebView2 3322MB WS（约 40%），验证 __TAURI_INTERNALS__ shim 可行性 |
+| 2026-10-09 | 补充安装包实测：Electron NSIS Setup 149.4MB（Tauri 71MB 的 2.1 倍），安装后 425.5MB（约 3.9 倍）      |

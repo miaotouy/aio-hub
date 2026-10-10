@@ -28,6 +28,15 @@
         <FFmpegWorkbench />
       </el-tab-pane>
 
+      <el-tab-pane name="sequence">
+        <template #label>
+          <div class="tab-label">
+            <el-icon><Images /></el-icon><span>序列帧合成</span>
+          </div>
+        </template>
+        <FFmpegImageSequence />
+      </el-tab-pane>
+
       <!-- 任务监控 -->
       <el-tab-pane name="tasks">
         <template #label>
@@ -62,10 +71,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { LayoutDashboard, Activity, Settings } from "lucide-vue-next";
+import { LayoutDashboard, Activity, Settings, Images } from "lucide-vue-next";
 import { useFFmpegStore } from "./ffmpegStore";
 import { useFFmpegCore } from "./composables/useFFmpegCore";
 import FFmpegWorkbench from "./components/FFmpegWorkbench.vue";
+import FFmpegImageSequence from "./components/FFmpegImageSequence.vue";
 import FFmpegTaskMonitor from "./components/FFmpegTaskMonitor.vue";
 import FFmpegSettings from "./components/FFmpegSettings.vue";
 

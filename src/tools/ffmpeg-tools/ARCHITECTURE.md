@@ -10,6 +10,7 @@ FFmpeg 多媒体工作台是 AIO Hub 中的核心音视频处理模块。它通�
 src/tools/ffmpeg-tools/
 ├── components/                 # UI 组件
 │   ├── FFmpegWorkbench.vue     # 工作台主面板（文件导入、参数配置）
+│   ├── FFmpegImageSequence.vue # 序列帧工作区（目录识别、帧范围、配音与输出）
 │   ├── FFmpegTaskMonitor.vue   # 任务监控（进度跟踪、状态管理）
 │   ├── FFmpegSettings.vue      # 全局配置（二进制路径、并发控制）
 │   ├── FFmpegParamsForm.vue    # 参数表单（音视频编码器、码率、分辨率等）
@@ -22,6 +23,7 @@ src/tools/ffmpeg-tools/
 │   └── useTrimKeyframes.ts     # 关键帧查询服务（按输入文件缓存、过期请求丢弃）
 ├── utils/
 │   ├── executionPlan.ts        # 唯一执行计划：argv、质量/编码器策略与终端格式化
+│   ├── imageSequence.ts        # 序列识别、补零模式与连续帧范围校验
 │   ├── naming.ts               # 自动命名与输出容器推导（纯逻辑）
 │   ├── args.ts                 # 命令文本解析与序列化（引号、转义、PowerShell 引用）
 │   ├── paramBlocks.ts          # 自定义参数积木与作用域转换（纯逻辑）
@@ -135,3 +137,14 @@ graph TD
 - 进程异常退出捕捉。
 - 应用重启时自动清理旧任务状态（将 `processing` 标记为 `cancelled`）。
 - 适配 AIO Hub 的毛玻璃外观系统；当前工作台为单文件模式，拖入多个文件时仅取第一个。
+
+## 8. 序列帧合成
+
+入口为独立的「序列帧合成」页签，工作区始终展示来源、帧范围、编码、配音、输出与预览。选择目录或任意一帧后，通过 Tauri 文件系统读取当前目录中的文件，按文件名最后一段数字识别序列；前后缀、扩展名和补零规则不同的序列分别列出。支持 PNG、JPEG、TIFF、BMP、WebP、EXR；实际解码能力取决于当前 FFmpeg。EXR 等线性 / HDR 输入需要由用户在渲染软件中完成适合输出的色彩转换。
+
+- 选择序列后默认使用整个帧范围，允许调整起止帧与小数帧率。
+- `utils/imageSequence.ts` 共用连续范围校验。预览与提交均检查缺帧，提交前重读目录，提示缺失编号供用户补齐或缩小范围。
+- 配音支持音频与视频输入，选择与提交时读取媒体元数据确认音轨；执行显式映射序列画面 `0:v:0` 和外部文件第一条音轨 `1:a:0`，音频编码为 AAC。音轨从输出起点播放，超出画面时长的部分截断，短音轨通过 `apad` 补静音。
+- `buildExecutionPlan(params, { imageSequence })` 生成 image2 输入参数（帧率、起始编号、编号模板）和多输入 argv，复用 `buildOutputArgs` 的画质与编码器规则。实际输出保留源尺寸，奇数宽高向上补齐到偶数；输出为 yuv420p 的 MP4 / MOV / MKV。
+- `inputPath` 指向所选范围真实起始图像，argv 的图像输入使用转义后的编号模板。输出以选定帧数和时长共同限定，进度分母为帧数 / 帧率。
+- 预览、PowerShell 复制与执行共享计划；任务复用 Store 的输出路径预留、日志、取消和终态处理，统一出现在任务监控中。输出覆盖须确认，并检查输入同路径和其他任务占用。

@@ -14,6 +14,11 @@
 
 import type { FFmpegParams, ProcessingMode } from "../types";
 import { quotePowerShellArg } from "./args";
+import {
+  getImageSequenceRange,
+  joinSequencePath,
+  type ImageSequenceInput,
+} from "./imageSequence";
 import { formatTrimTime, hasTrimRange } from "./trim";
 
 export interface FFmpegExecutionPlan {
@@ -29,6 +34,7 @@ export interface FFmpegExecutionPlan {
 
 export interface BuildPlanOptions {
   durationSec?: number;
+  imageSequence?: ImageSequenceInput;
 }
 
 export interface VideoQualitySpec {
@@ -298,6 +304,9 @@ export function buildExecutionPlan(
   params: FFmpegParams,
   options: BuildPlanOptions = {}
 ): FFmpegExecutionPlan {
+  if (options.imageSequence) {
+    return buildImageSequencePlan(params, options.imageSequence);
+  }
   const executable = params.ffmpegPath?.trim() || "ffmpeg";
   const inputPath = params.inputPath || "input.mp4";
   const outputPath = params.outputPath || "output.mp4";
@@ -363,6 +372,80 @@ export function buildExecutionPlan(
     outputPath,
     args,
     totalDuration,
+  };
+}
+
+/** 序列输入与常规任务共享编码、预览和后端执行规则。 */
+function buildImageSequencePlan(
+  params: FFmpegParams,
+  input: ImageSequenceInput
+): FFmpegExecutionPlan {
+  if (
+    !Number.isFinite(input.frameRate) ||
+    input.frameRate <= 0 ||
+    input.frameRate > 1000
+  ) {
+    throw new Error("帧率应大于 0 且不超过 1000");
+  }
+  if (!input.directory.trim() || !params.outputPath.trim()) {
+    throw new Error("请选择序列帧目录和输出文件");
+  }
+  if (params.videoEncoder === "copy" || params.videoEncoder === "none") {
+    throw new Error("序列帧合成需要选择视频编码器");
+  }
+  const { frameCount, firstFileName } = getImageSequenceRange(
+    input.sequence,
+    input.startFrame,
+    input.endFrame
+  );
+  const totalDuration = frameCount / input.frameRate;
+  const executable = params.ffmpegPath?.trim() || "ffmpeg";
+  const globalArgs = ["-hide_banner", "-y"];
+  const inputArgs = [
+    "-f",
+    "image2",
+    "-pattern_type",
+    "sequence",
+    "-framerate",
+    String(input.frameRate),
+    "-start_number",
+    String(input.startFrame),
+    "-start_number_range",
+    "1",
+  ];
+  const imagePattern = joinSequencePath(
+    input.directory.replace(/%/g, "%%"),
+    input.sequence.pattern
+  );
+  const inputs = [...inputArgs, "-i", imagePattern];
+  if (input.audioPath) inputs.push("-i", input.audioPath);
+  const outputArgs = ["-map", "0:v:0"];
+  if (input.audioPath) outputArgs.push("-map", "1:a:0");
+  outputArgs.push(
+    ...buildOutputArgs(
+      {
+        ...params,
+        fps: undefined,
+        audioEncoder: input.audioPath ? "aac" : "none",
+        audioBitrate: params.audioBitrate || "192k",
+        scale: params.scale || "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+      },
+      "video",
+      params.outputPath,
+      totalDuration
+    )
+  );
+  if (input.audioPath) outputArgs.push("-af", "apad");
+  outputArgs.push("-frames:v", String(frameCount), "-t", String(totalDuration));
+  return {
+    executable,
+    globalArgs,
+    inputArgs,
+    inputPath: joinSequencePath(input.directory, firstFileName),
+    outputPath: params.outputPath,
+    outputArgs,
+    totalDuration,
+    args: [...globalArgs, ...inputs, ...outputArgs, params.outputPath],
   };
 }
 

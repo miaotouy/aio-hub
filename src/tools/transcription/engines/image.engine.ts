@@ -401,7 +401,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         });
 
         if (response.content) {
-          batchTexts[i] = response.content;
+          batchTexts[i] = cleanLlmOutput(response.content);
         }
       };
 
@@ -452,10 +452,10 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         timeout: timeout * 1000,
         signal: ctx.signal,
       });
-      transcriptionText = response.content;
+      transcriptionText = cleanLlmOutput(response.content);
     }
 
-    const cleanedText = cleanLlmOutput(transcriptionText);
+    const cleanedText = transcriptionText;
     const repetition = detectRepetition(cleanedText, config.repetitionConfig);
 
     if (enableRepetitionDetection && repetition.isRepetitive) {

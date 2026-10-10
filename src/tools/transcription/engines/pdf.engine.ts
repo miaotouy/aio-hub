@@ -133,7 +133,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
         timeout: timeout * 1000,
         signal: ctx.signal,
       });
-      transcriptionText = response.content;
+      transcriptionText = cleanLlmOutput(response.content);
     }
     // 2. 如果模型不支持 PDF 但支持视觉，则将 PDF 转为图片
     else if (capabilities.vision) {
@@ -168,7 +168,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
           timeout: timeout * 1000,
           signal: ctx.signal,
         });
-        transcriptionText = response.content;
+        transcriptionText = cleanLlmOutput(response.content);
       } else {
         // 分批逻辑迁移
         const batchResults: string[] = [];
@@ -204,7 +204,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
             signal: ctx.signal,
           });
           batchResults.push(
-            `## ${startLabel}-${endLabel}\n\n${response.content}`
+            `## ${startLabel}-${endLabel}\n\n${cleanLlmOutput(response.content)}`
           );
         }
         transcriptionText = batchResults.join("\n---\n\n");
@@ -215,7 +215,7 @@ export class PdfTranscriptionEngine implements ITranscriptionEngine {
       );
     }
 
-    const cleanedText = cleanLlmOutput(transcriptionText);
+    const cleanedText = transcriptionText;
     const repetition = detectRepetition(
       cleanedText,
       ctx.config.repetitionConfig

@@ -1,6 +1,6 @@
 # 多模态转写管理 (Transcription): 架构与开发者指南
 
-> 最后更新：2026-08-01
+> 最后更新：2026-10-11
 
 本文档旨在深入解析 `transcription` 工具的内部架构、设计理念和数据流，为后续的开发和维护提供清晰的指引。
 
@@ -43,6 +43,8 @@
 - **Store (状态层)**: `transcriptionStore.ts` 维护任务队列和配置。
 - **Manager (调度层)**: `useTranscriptionManager.ts` 执行任务队列的调度逻辑。
 - **Engines (执行层)**: 各模态引擎负责具体的 LLM 请求构建和数据转换。
+
+各引擎的 LLM 回复统一通过 `utils/text.ts` 的 `cleanLlmOutput` 清理思考链，并检查开头前三行：同时命中“以下／下面是／为”起手式与“转写／转录”关键词的说明行会被剔除。图片与 PDF 分批处理在每批回复合并前执行清理，正文从原始第四行起保持原样。
 
 ### 2.2. 视频处理管道 (Video Processing Pipeline)
 

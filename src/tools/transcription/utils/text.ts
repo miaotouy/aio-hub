@@ -24,7 +24,7 @@ export const sanitizeErrorMessage = (
 };
 
 /**
- * 清理 LLM 输出，移除思考链部分
+ * 清理 LLM 输出，移除思考链与开头的转写说明
  */
 export const cleanLlmOutput = (text: string): string => {
   let cleaned = text;
@@ -43,6 +43,22 @@ export const cleanLlmOutput = (text: string): string => {
 
   // 4. 移除开头可能残留的 **Response:** 标记
   cleaned = cleaned.replace(/^\s*\*\*Response:\*\*\s*/i, "");
+
+  // 5. 仅检查原始回复开头三行，保留后续正文中的相同措辞。
+  const lines = cleaned.trim().split("\n");
+  cleaned = lines
+    .filter((line, index) => {
+      if (index >= 3) return true;
+      const content = line
+        .trim()
+        .replace(/^(?:#{1,6}\s+)?(?:\*\*|__|【|\[)?/, "");
+      const isIntroduction =
+        /^(?:(?:好的|当然|可以)[，,。！!\s]*)?(?:以下|下面)(?:是|为)/.test(
+          content
+        );
+      return !(isIntroduction && /转写|转录/.test(content));
+    })
+    .join("\n");
 
   return cleaned.trim();
 };

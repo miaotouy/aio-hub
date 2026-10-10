@@ -17,6 +17,13 @@
             @update:model-value="$emit('update:directoryPath', $event)"
             @keyup.enter="$emit('scan-path')"
           />
+          <el-tooltip content="扫描目录中的图片" placement="top">
+            <el-button
+              :icon="Search"
+              :disabled="analyzing"
+              @click.stop="$emit('scan-path')"
+            />
+          </el-tooltip>
           <el-button :icon="FolderOpened" @click.stop="$emit('add-directory')">
             选择
           </el-button>
@@ -123,7 +130,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { FolderOpened } from "@element-plus/icons-vue";
+import { FolderOpened, Search } from "@element-plus/icons-vue";
 import DropZone from "@/components/common/DropZone.vue";
 import ColorFamilyPointsEditor from "./ColorFamilyPointsEditor.vue";
 import type { ColorFamilyPoint } from "../colorFamilyPoints";

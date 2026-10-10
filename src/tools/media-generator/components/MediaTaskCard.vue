@@ -409,7 +409,7 @@ const openFileDirectory = async () => {
 
       <!-- 结果展示区域 -->
       <div class="result-row" :class="{ 'has-reference': hasReferenceImages }">
-        <!-- 参考图区域：竖向排列，超过3个可滚动 -->
+        <!-- 参考图区域：竖向排列，超出可用高度时独立滚动 -->
         <div v-if="hasReferenceImages" class="reference-panel">
           <div class="reference-label">
             参考图 ({{ referenceAssetUrls.length }})
@@ -659,6 +659,7 @@ const openFileDirectory = async () => {
 }
 
 .task-header {
+  flex-shrink: 0;
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;
@@ -694,6 +695,8 @@ const openFileDirectory = async () => {
 }
 
 .task-content {
+  min-height: 0;
+  overflow: hidden;
   padding: 12px;
   flex: 1;
   display: flex;
@@ -702,6 +705,7 @@ const openFileDirectory = async () => {
 }
 
 .prompt-wrapper {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   gap: 4px;
@@ -751,6 +755,7 @@ const openFileDirectory = async () => {
 .result-row.has-reference .reference-panel {
   flex: 0 0 72px;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -771,6 +776,7 @@ const openFileDirectory = async () => {
 
 .reference-list {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -831,6 +837,7 @@ const openFileDirectory = async () => {
 }
 
 .result-area {
+  min-height: 0;
   aspect-ratio: 16 / 9;
   background-color: var(--el-fill-color-lighter);
   border-radius: 8px;
@@ -1066,6 +1073,7 @@ const openFileDirectory = async () => {
 }
 
 .task-footer {
+  flex-shrink: 0;
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;

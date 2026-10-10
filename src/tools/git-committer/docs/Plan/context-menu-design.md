@@ -68,6 +68,8 @@
 
 路径说明：git 后端（`repository_relative_path`）返回的文件路径统一为相对仓库根、以 `/` 分隔的形式。「复制相对路径」直接使用该路径；「复制完整路径」与「在资源管理器中显示」通过 `joinRepoPath(repoPath, relativePath)` 拼接为绝对路径（分隔符跟随仓库根风格）。
 
+Windows 定位由 `open_file_directory` 后端统一转换为原生路径分隔符，再调用已有 opener 的系统 Shell 接口：目录直接打开，文件打开父目录并选中。
+
 ### 4. 提交历史
 
 **commit-node：**

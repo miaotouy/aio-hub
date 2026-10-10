@@ -1475,18 +1475,14 @@ pub fn open_file_directory(file_path: String) -> Result<String, String> {
 
     #[cfg(target_os = "windows")]
     {
-        let path_str = path.to_str().ok_or("路径包含无效的 Unicode 字符")?;
+        // Git 返回的相对路径使用 /，Windows Shell 需要原生分隔符。
+        let shell_path = PathBuf::from(file_path.replace('/', "\\"));
         if path.is_dir() {
-            // 是目录，直接打开
-            std::process::Command::new("explorer")
-                .arg(path_str)
-                .spawn()
+            tauri_plugin_opener::open_path(&shell_path, None::<&str>)
                 .map_err(|e| format!("打开目录失败: {}", e))?;
         } else {
-            // 是文件，在目录中选中它
-            std::process::Command::new("explorer")
-                .arg(format!("/select,{}", path_str))
-                .spawn()
+            // 原生 Shell API 会规范化路径，避免 Explorer /select 参数的解析歧义。
+            tauri_plugin_opener::reveal_item_in_dir(&shell_path)
                 .map_err(|e| format!("打开并选中文件失败: {}", e))?;
         }
     }

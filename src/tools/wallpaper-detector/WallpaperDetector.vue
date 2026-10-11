@@ -6,7 +6,7 @@
         <el-icon class="title-icon"><Monitor /></el-icon>
         <span class="title-text">壁纸探测器</span>
         <span class="subtitle-text"
-          >获取系统当前多屏壁纸，支持一键定位和复制</span
+          >获取系统当前多屏壁纸，支持图片查看、定位和复制</span
         >
       </div>
       <div class="action-section">
@@ -53,8 +53,9 @@
           <button
             type="button"
             class="preview-container"
-            :aria-label="`在文件管理器中定位${item.monitorName}的壁纸`"
-            @click="locateWallpaper(item.path)"
+            :aria-label="`查看${item.monitorName}的壁纸`"
+            :disabled="!item.previewUrl || item.previewFailed"
+            @click="viewWallpaper(item)"
           >
             <img
               v-if="item.previewUrl && !item.previewFailed"
@@ -68,9 +69,12 @@
               <el-icon class="no-preview-icon"><Picture /></el-icon>
               <span>此格式暂不支持预览</span>
             </div>
-            <div class="preview-overlay">
-              <el-icon class="overlay-icon"><FolderOpened /></el-icon>
-              <span>点击定位文件</span>
+            <div
+              v-if="item.previewUrl && !item.previewFailed"
+              class="preview-overlay"
+            >
+              <el-icon class="overlay-icon"><ZoomIn /></el-icon>
+              <span>点击查看图片</span>
             </div>
           </button>
 
@@ -123,7 +127,9 @@ import {
   Picture,
   FolderOpened,
   CopyDocument,
+  ZoomIn,
 } from "@element-plus/icons-vue";
+import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -140,6 +146,7 @@ interface WallpaperInfo {
   previewFailed?: boolean;
 }
 
+const { show: showImageViewer } = useImageViewer();
 const wallpapers = ref<WallpaperInfo[]>([]);
 const loading = ref(false);
 const loadFailed = ref(false);
@@ -189,6 +196,12 @@ const fetchWallpapers = async () => {
 const handlePreviewError = (item: WallpaperInfo) => {
   item.previewFailed = true;
   logger.warn("壁纸格式无法在 WebView 中预览", { path: item.path });
+};
+
+const viewWallpaper = (item: WallpaperInfo) => {
+  if (!item.previewUrl || item.previewFailed) return;
+
+  showImageViewer(item.previewUrl);
 };
 
 /**
@@ -352,6 +365,10 @@ onMounted(() => {
   text-align: inherit;
 }
 
+.preview-container:disabled {
+  cursor: default;
+}
+
 .preview-container:focus-visible {
   outline: 2px solid var(--el-color-primary);
   outline-offset: 2px;
@@ -364,7 +381,7 @@ onMounted(() => {
   transition: transform 0.5s ease;
 }
 
-.preview-container:hover .wallpaper-preview {
+.preview-container:enabled:hover .wallpaper-preview {
   transform: scale(1.05);
 }
 
@@ -402,7 +419,8 @@ onMounted(() => {
   backdrop-filter: blur(2px);
 }
 
-.preview-container:hover .preview-overlay {
+.preview-container:enabled:hover .preview-overlay,
+.preview-container:focus-visible .preview-overlay {
   opacity: 1;
 }
 

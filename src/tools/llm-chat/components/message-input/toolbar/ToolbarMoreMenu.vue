@@ -15,281 +15,230 @@
 -->
 
 <script setup lang="ts">
+import { computed, ref } from "vue";
+import { ElDropdown, ElDropdownItem, ElDropdownMenu } from "element-plus";
 import {
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElIcon,
-} from "element-plus";
-import {
-  AtSign,
-  X,
-  Languages,
-  Package,
-  Sparkles,
-  FileUp,
-  ScanSearch,
+  Check,
   Grip,
-  Unlock,
-  Scissors,
-  ClipboardPaste,
+  Settings,
+  SlidersHorizontal,
+  LoaderCircle,
 } from "lucide-vue-next";
-import { useMessageInputStore } from "../../../stores/messageInputStore";
-
-const inputStore = useMessageInputStore();
-
+import type { ToolbarAction } from "./inputToolbarActions";
+import type { QuickAction, QuickActionSet } from "../../../types/quick-action";
 const props = defineProps<{
   isDetached?: boolean;
-  inputText: string;
-  isSending: boolean;
-  isCompleting: boolean;
-  disabled: boolean;
-  translationEnabled?: boolean;
-  isContextCompressionEnabled: boolean;
-  isInputHeightLocked?: boolean;
-  continuationModelInfo: { profileName: string; modelName: string } | null;
+  actions: ToolbarAction[];
+  overflowActions: ToolbarAction[];
+  quickActionSets: QuickActionSet[];
+  statistics?: {
+    contextTokens?: number;
+    inputTokens: number;
+    contextEstimated?: boolean;
+    inputEstimated?: boolean;
+  };
 }>();
-
 const emit = defineEmits<{
-  (e: "complete-input", text: string): void;
-  (e: "select-continuation-model"): void;
-  (e: "analyze-context-with-input"): void;
-  (e: "open-quick-action-manager"): void;
-  (e: "unlock-input-height"): void;
-  (e: "visible-change", visible: boolean): void;
+  execute: [action: ToolbarAction];
+  "execute-quick-action": [action: QuickAction];
+  "open-input-settings": [];
+  "open-quick-action-manager": [];
+  customize: [];
+  "visible-change": [visible: boolean];
 }>();
+const dropdown = ref<InstanceType<typeof ElDropdown>>();
+const collectedOverflow = computed(() =>
+  props.overflowActions.filter((action) => action.id !== "input-settings")
+);
+const groups = computed(() =>
+  ["聊天与资料", "输入处理", "会话与显示"]
+    .map((name) => ({
+      name,
+      actions: props.actions.filter(
+        (action) => action.group === name && action.id !== "input-settings"
+      ),
+    }))
+    .filter((group) => group.actions.length)
+);
+function close() {
+  dropdown.value?.handleClose();
+}
+defineExpose({ close });
 </script>
-
 <template>
   <el-dropdown
+    ref="dropdown"
     trigger="click"
-    :placement="props.isDetached ? 'bottom' : 'top'"
-    :popper-class="props.isDetached ? 'detached-dropdown-menu' : ''"
-    @visible-change="(val: boolean) => emit('visible-change', val)"
+    :placement="isDetached ? 'bottom-start' : 'top-start'"
+    :popper-class="[
+      'input-toolbar-menu',
+      { 'detached-dropdown-menu': Boolean(isDetached) },
+    ]"
+    @visible-change="emit('visible-change', $event)"
   >
     <slot />
     <template #dropdown>
-      <el-dropdown-menu>
-        <!-- 智能补全 -->
-        <el-dropdown-item
-          :disabled="
-            props.isSending ||
-            props.isCompleting ||
-            props.disabled ||
-            !props.inputText.trim()
-          "
-          @click="emit('complete-input', props.inputText)"
-        >
-          <div class="dropdown-item-content">
-            <Sparkles :size="16" class="sparkles-icon" /> <span>智能补全</span
-            ><span v-if="props.isCompleting" class="loading-dots">...</span>
+      <el-dropdown-menu class="toolbar-menu-content">
+        <template v-if="collectedOverflow.length">
+          <div class="section-label" aria-hidden="true">常用操作</div>
+          <el-dropdown-item
+            v-for="action in collectedOverflow"
+            :key="action.id"
+            :disabled="action.disabled"
+            @click="emit('execute', action)"
+          >
+            <div class="menu-action" :data-action-id="action.id">
+              <component
+                :is="action.busy ? LoaderCircle : action.icon"
+                :size="16"
+                :class="{ spinner: action.busy }"
+              />
+              <span>{{ action.label }}</span
+              ><Check
+                v-if="action.kind === 'toggle' && action.active"
+                :size="14"
+                class="item-end"
+              />
+              <span v-else-if="action.badge" class="badge">{{
+                action.badge
+              }}</span>
+            </div>
+          </el-dropdown-item>
+        </template>
+        <template v-for="group in groups" :key="group.name">
+          <div class="section-label" aria-hidden="true">{{ group.name }}</div>
+          <el-dropdown-item
+            v-for="action in group.actions"
+            :key="action.id"
+            :disabled="action.disabled"
+            @click="emit('execute', action)"
+          >
+            <div class="menu-action" :data-action-id="action.id">
+              <component
+                :is="action.busy ? LoaderCircle : action.icon"
+                :size="16"
+                :class="{ spinner: action.busy }"
+              />
+              <span>{{ action.label }}</span
+              ><Check
+                v-if="action.kind === 'toggle' && action.active"
+                :size="14"
+                class="item-end"
+              />
+              <span v-else-if="action.badge" class="badge">{{
+                action.badge
+              }}</span>
+            </div>
+          </el-dropdown-item>
+        </template>
+        <template v-for="set in quickActionSets" :key="set.id">
+          <div class="section-label" aria-hidden="true">
+            快捷操作 · {{ set.name }}
           </div>
-        </el-dropdown-item>
-
-        <!-- 指定补全模型 -->
-        <el-dropdown-item
-          :disabled="
-            props.isSending ||
-            props.isCompleting ||
-            props.disabled ||
-            !props.inputText.trim()
-          "
-          @click="emit('select-continuation-model')"
-        >
-          <div class="dropdown-item-content">
-            <AtSign :size="16" />
-            <span>指定补全模型</span>
-            <span v-if="props.continuationModelInfo" class="model-badge">
-              {{ props.continuationModelInfo.modelName }}
-            </span>
-          </div>
-        </el-dropdown-item>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- 翻译 -->
-        <el-dropdown-item
-          v-if="props.translationEnabled"
-          :disabled="inputStore.isTranslating || !props.inputText.trim()"
-          @click="inputStore.handleTranslateInput()"
-        >
-          <div class="dropdown-item-content">
-            <Languages :size="16" />
-            <span>翻译输入</span>
-            <span v-if="inputStore.isTranslating" class="loading-dots"
-              >...</span
+          <el-dropdown-item
+            v-for="action in set.actions"
+            :key="action.id"
+            @click="emit('execute-quick-action', action)"
+          >
+            <span
+              class="quick-action-name"
+              :title="action.description || action.label"
+              >{{ action.label }}</span
             >
-          </div>
-        </el-dropdown-item>
-
-        <!-- 压缩 -->
+          </el-dropdown-item>
+        </template>
+        <div v-if="statistics" class="statistics-summary">
+          <span v-if="statistics.contextTokens !== undefined"
+            >上下文 {{ statistics.contextTokens.toLocaleString()
+            }}{{ statistics.contextEstimated ? "~" : "" }}</span
+          ><span
+            >输入 {{ statistics.inputTokens.toLocaleString()
+            }}{{ statistics.inputEstimated ? "~" : "" }} tokens</span
+          >
+        </div>
         <el-dropdown-item
-          :disabled="
-            inputStore.isCompressing ||
-            props.disabled ||
-            !props.isContextCompressionEnabled
-          "
-          @click="inputStore.handleCompressContext()"
+          divided
+          data-testid="chat-toolbar-input-settings"
+          @click="emit('open-input-settings')"
+          ><div class="menu-action">
+            <Settings :size="16" /><span>输入设置…</span>
+          </div></el-dropdown-item
         >
-          <div class="dropdown-item-content">
-            <Package :size="16" />
-            <span>压缩上下文</span>
-            <span v-if="inputStore.isCompressing" class="loading-dots"
-              >...</span
-            >
-          </div>
-        </el-dropdown-item>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- 路径转附件 -->
+        <el-dropdown-item @click="emit('open-quick-action-manager')"
+          ><div class="menu-action">
+            <Grip :size="16" /><span>管理快捷操作…</span>
+          </div></el-dropdown-item
+        >
         <el-dropdown-item
-          :disabled="props.disabled || !props.inputText.trim()"
-          @click="inputStore.handleConvertPaths()"
+          data-testid="chat-toolbar-customize"
+          @click="emit('customize')"
+          ><div class="menu-action">
+            <SlidersHorizontal :size="16" /><span>自定义工具栏…</span>
+          </div></el-dropdown-item
         >
-          <div class="dropdown-item-content">
-            <FileUp :size="16" />
-            <span>路径转附件</span>
-          </div>
-        </el-dropdown-item>
-
-        <!-- 清理无效占位符 -->
-        <el-dropdown-item
-          :disabled="props.disabled || !props.inputText.trim()"
-          @click="inputStore.handleCleanupPlaceholders()"
-        >
-          <div class="dropdown-item-content">
-            <el-icon><X /></el-icon>
-            <span>清理无效占位符</span>
-          </div>
-        </el-dropdown-item>
-
-        <!-- 分析当前上下文 -->
-        <el-dropdown-item
-          :disabled="props.disabled"
-          @click="emit('analyze-context-with-input')"
-        >
-          <div class="dropdown-item-content">
-            <ScanSearch :size="16" />
-            <span>分析当前上下文</span>
-          </div>
-        </el-dropdown-item>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- 剪切输入草稿 -->
-        <el-dropdown-item
-          :disabled="
-            props.disabled ||
-            (!props.inputText.trim() && inputStore.attachmentCount === 0)
-          "
-          @click="inputStore.handleCutDraft()"
-        >
-          <div class="dropdown-item-content">
-            <Scissors :size="16" />
-            <span>剪切输入草稿</span>
-          </div>
-        </el-dropdown-item>
-
-        <!-- 粘贴输入草稿 -->
-        <el-dropdown-item
-          :disabled="props.disabled || !inputStore.hasClipboardDraft"
-          @click="inputStore.handlePasteDraft()"
-        >
-          <div class="dropdown-item-content">
-            <ClipboardPaste :size="16" />
-            <span>粘贴输入草稿</span>
-          </div>
-        </el-dropdown-item>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- 解除输入框高度锁定 -->
-        <el-dropdown-item
-          :disabled="!props.isInputHeightLocked"
-          @click="emit('unlock-input-height')"
-        >
-          <div class="dropdown-item-content">
-            <Unlock :size="16" />
-            <span>{{
-              props.isInputHeightLocked ? "解除高度锁定" : "高度自动调整"
-            }}</span>
-            <span v-if="props.isInputHeightLocked" class="state-badge">
-              已锁定
-            </span>
-          </div>
-        </el-dropdown-item>
-
-        <div class="dropdown-divider"></div>
-
-        <!-- 管理快捷操作 -->
-        <el-dropdown-item @click="emit('open-quick-action-manager')">
-          <div class="dropdown-item-content">
-            <Grip :size="16" />
-            <span>管理快捷操作</span>
-          </div>
-        </el-dropdown-item>
       </el-dropdown-menu>
     </template>
   </el-dropdown>
 </template>
-
 <style scoped>
-.dropdown-item-content {
+.toolbar-menu-content {
+  max-height: min(65vh, 480px);
+  overflow-y: auto;
+  min-width: 228px;
+  max-width: min(360px, calc(100vw - 24px));
+}
+.section-label {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  border-top: 1px solid var(--border-color);
+}
+.section-label:first-child {
+  border-top: 0;
+}
+.menu-action {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 160px;
+  min-width: 196px;
+  width: 100%;
 }
-
-.dropdown-divider {
-  height: 1px;
-  background-color: var(--el-border-color-lighter);
-  margin: 4px 0;
+.menu-action > svg {
+  flex: none;
 }
-
-.model-badge {
+.item-end,
+.badge {
   margin-left: auto;
+}
+.badge {
   font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background-color: var(--el-fill-color-darker);
-  color: var(--text-color-secondary);
-  max-width: 80px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.state-badge {
-  margin-left: auto;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background-color: color-mix(in srgb, var(--primary-color) 12%, transparent);
   color: var(--primary-color);
+}
+.statistics-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  border-top: 1px solid var(--border-color);
+}
+.quick-action-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 290px;
 }
-
-.sparkles-icon {
-  color: var(--el-color-warning);
+.spinner {
+  animation: spin 1s linear infinite;
 }
-
-.loading-dots {
-  font-size: 12px;
-  font-weight: bold;
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.3;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

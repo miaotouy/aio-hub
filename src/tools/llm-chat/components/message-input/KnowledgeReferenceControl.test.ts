@@ -8,9 +8,14 @@ const mocks = vi.hoisted(() => ({
   listKnowledgeForAgent: vi.fn(),
 }));
 
-vi.mock("../../composables/ui/useLlmChatUiState", () => ({
-  useLlmChatUiState: () => ({ currentAgentId: mocks.currentAgentId }),
-}));
+vi.mock("../../composables/ui/useLlmChatUiState", async () => {
+  const { ref } = await import("vue");
+  return {
+    useLlmChatUiState: () => ({
+      currentAgentId: ref(mocks.currentAgentId.value),
+    }),
+  };
+});
 
 vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
   useAgentStore: () => ({
@@ -46,10 +51,14 @@ const KnowledgeReferenceControl = (
   await import("./KnowledgeReferenceControl.vue")
 ).default;
 
-function mountControl() {
+function mountControl(props: { headless?: boolean; visible?: boolean } = {}) {
   return mount(KnowledgeReferenceControl, {
+    props,
     global: {
       stubs: {
+        "el-switch": true,
+        "el-button": true,
+        "el-empty": true,
         "el-tooltip": {
           template: "<div><slot /></div>",
         },
@@ -88,6 +97,21 @@ describe("KnowledgeReferenceControl", () => {
         indexStatus: { keyword: "unavailable", semantic: "notBuilt" },
       },
     ]);
+  });
+
+  it("opens the authorized selector from an external menu trigger", async () => {
+    const wrapper = mountControl({ headless: true, visible: false });
+    await wrapper.setProps({ visible: true });
+    await flushPromises();
+    expect(mocks.listKnowledgeForAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: "agent-a" })
+    );
+    await wrapper
+      .findAll("button.library-option")[0]
+      .trigger("keydown", { key: "Enter" });
+    expect(mocks.setKnowledgeReference).toHaveBeenCalledWith(
+      expect.objectContaining({ libraryIds: ["library-a"] })
+    );
   });
 
   it("exposes an independent accessible button and authorized multi-select", async () => {

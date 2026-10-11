@@ -358,6 +358,14 @@ export function useLlmChatSync() {
       case "update-user-profile":
         userProfileStore.updateProfile(params.profileId, params.updates);
         return Promise.resolve();
+      case "open-toolbar-customizer":
+        return import("../../stores/messageInputStore").then(
+          ({ useMessageInputStore }) => {
+            useMessageInputStore().toolbarCustomizeVisible = true;
+          }
+        );
+      case "update-input-toolbar-layout":
+        return useChatSettings().saveInputToolbarLayout(params.layout);
       case "update-chat-settings":
         const { updateSettings } = useChatSettings();
         return updateSettings(params.updates);
@@ -436,10 +444,7 @@ export function useLlmChatSync() {
         );
       case "select-temporary-model":
         logger.info("主窗口收到临时模型选择请求，转发至 UI 命名空间");
-        return bus.requestAction(
-          "llm-chat-ui:select-temporary-model",
-          params
-        );
+        return bus.requestAction("llm-chat-ui:select-temporary-model", params);
       case "open-agent-settings":
         logger.info("主窗口收到打开智能体设置请求，转发至 UI 命名空间");
         return bus.requestAction("llm-chat-ui:open-agent-settings", params);

@@ -14,6 +14,10 @@
 
 多会话计划不是整体待实施：Phase 1–4 核心重构已经落地，待实施项仅指后台会话服务与后续多窗口 UI。上下文管道扩展示例插件和宿主接线已存在，剩余为真实 Tauri 运行态验收。
 
+## 近期实施记录
+
+- [Chat 输入工具栏自定义收纳](./input-toolbar-customization-research.md)：2026-10-11 已实施并完成验证；涵盖常驻/菜单配置、排序、快捷操作展示、窄窗口溢出和分离窗口同步。
+
 ## 已完成记录
 
 - **Agent 配置解耦与智能体大厅 / User Profile 配置解耦**：分别落在 `src/tools/agent-manager/`、`src/tools/user-profile-manager/`，已随 `v0.6.6-r.1` 发布，活动路径已统一。后续以现有目录、存储实现和迁移代码为基线，不再执行早期 RFC 中的历史 `git mv` 指令。

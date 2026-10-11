@@ -23,6 +23,7 @@ import {
   defineAsyncComponent,
   nextTick,
 } from "vue";
+import { useMessageInputStore } from "./stores/messageInputStore";
 import { useLlmChatStore } from "./stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
@@ -59,6 +60,11 @@ import { ElMessageBox } from "element-plus";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+
+const ToolbarCustomizeDialog = defineAsyncComponent(
+  () => import("./components/message-input/toolbar/ToolbarCustomizeDialog.vue")
+);
+const messageInputStore = useMessageInputStore();
 
 const logger = createModuleLogger("LlmChat");
 const errorHandler = createModuleErrorHandler("LlmChat");
@@ -779,6 +785,8 @@ useStateSyncEngine(parametersToSync, {
     >
       {{ agentCustomStyles }}
     </component>
+
+    <ToolbarCustomizeDialog v-if="messageInputStore.toolbarCustomizeVisible" />
 
     <!-- 上下文分析对话框 -->
     <ContextAnalyzerDialog

@@ -33,6 +33,7 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
 import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
 import { useLlmChatUiState } from "./useLlmChatUiState";
+import { useChatSettings } from "../settings/useChatSettings";
 import { createModuleLogger } from "@/utils/logger";
 import type {
   ChatAgent,
@@ -62,6 +63,8 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
   const worldbookStore = useWorldbookStore();
   const bus = useWindowSyncBus();
   const uiState = useLlmChatUiState();
+  const { settings: chatSettings, isLoaded: settingsLoaded } =
+    useChatSettings();
 
   logger.info("初始化 LLM Chat 状态消费者", { syncAllSessions });
 
@@ -97,17 +100,31 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     { state: syncedIsSending, key: CHAT_STATE_KEYS.IS_SENDING }, // 关键修复：同步 isSending 状态
     { state: syncedGeneratingNodes, key: CHAT_STATE_KEYS.GENERATING_NODES }, // 关键修复：同步 generatingNodes 状态
     // { state: syncedParameters, key: CHAT_STATE_KEYS.PARAMETERS }, // 已废弃
-    // 设置也需要同步，因为它影响UI（例如流式开关）
-    { state: ref({}), key: CHAT_STATE_KEYS.SETTINGS },
   ];
 
   for (const { state, key } of engines) {
-    useStateSyncEngine(state, {
+    useStateSyncEngine<unknown>(state, {
       ...createChatSyncConfig(key),
       autoPush: false,
       requestOnMount: false, // 所有状态由一次总请求触发
     });
   }
+
+  // 设置直接应用到分离输入区读取的共享状态。
+  useStateSyncEngine(chatSettings, {
+    ...createChatSyncConfig(CHAT_STATE_KEYS.SETTINGS),
+    autoPush: false,
+    requestOnMount: false,
+  });
+
+  // 接收到上游设置后，避免本地加载覆盖同步值。
+  watch(
+    chatSettings,
+    () => {
+      settingsLoaded.value = true;
+    },
+    { deep: true }
+  );
 
   // 3. 一次性请求所有初始状态
   bus.requestInitialState();

@@ -27,6 +27,7 @@ import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 
 const props = defineProps<{
   isDetached?: boolean;
+  compact?: boolean;
   isCanvasEnabled: boolean;
   canvasBindingInfo: { id: string; name: string } | null;
   hasCanvasPendingChanges: boolean;
@@ -73,7 +74,7 @@ const onCanvasVisibleChange = (val: boolean) => {
   >
     <div class="temporary-model-indicator continuation-model">
       <Sparkles :size="14" />
-      <span class="model-name">{{
+      <span class="model-name" :class="{ compact: props.compact }">{{
         inputStore.continuationModelInfo.modelName
       }}</span>
       <button class="clear-btn" @click="inputStore.clearContinuationModel()">
@@ -162,6 +163,7 @@ const onCanvasVisibleChange = (val: boolean) => {
   <!-- 历史上下文统计 -->
   <el-tooltip
     v-if="
+      !props.compact &&
       inputStore.settings.showTokenUsage &&
       props.contextStats &&
       props.contextStats.totalTokenCount !== undefined
@@ -243,6 +245,7 @@ const onCanvasVisibleChange = (val: boolean) => {
   <!-- 当前输入 Token 计数 -->
   <el-tooltip
     v-if="
+      !props.compact &&
       inputStore.settings.showTokenUsage &&
       (inputStore.tokenCount > 0 || inputStore.isCalculatingTokens)
     "
@@ -335,6 +338,10 @@ const onCanvasVisibleChange = (val: boolean) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.temporary-model-indicator .model-name.compact {
+  max-width: 56px;
 }
 
 .temporary-model-indicator .clear-btn {

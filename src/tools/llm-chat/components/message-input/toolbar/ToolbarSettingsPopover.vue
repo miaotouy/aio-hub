@@ -23,8 +23,11 @@ import { useChatSettings } from "../../../composables/settings/useChatSettings";
 
 const props = defineProps<{
   isDetached?: boolean;
+  headless?: boolean;
+  virtualRef?: HTMLElement;
 }>();
 
+const emit = defineEmits<{ customize: [] }>();
 const inputStore = useMessageInputStore();
 const { settings: chatSettings, updateSettings: updateChatSettings } =
   useChatSettings();
@@ -38,12 +41,20 @@ function updateSetting(
 </script>
 
 <template>
-  <el-tooltip content="工具栏设置" placement="top" :show-after="800">
+  <el-tooltip
+    content="输入设置"
+    placement="top"
+    :show-after="800"
+    :disabled="props.headless"
+  >
     <div>
       <el-popover
+        v-model:visible="inputStore.settingsVisible"
+        :virtual-triggering="props.headless"
+        :virtual-ref="props.virtualRef"
         :placement="props.isDetached ? 'bottom' : 'top'"
         :width="240"
-        trigger="click"
+        :trigger="props.headless ? [] : 'click'"
         :popper-class="[
           'toolbar-settings-popover',
           { 'detached-popover': props.isDetached },
@@ -51,14 +62,24 @@ function updateSetting(
         @show="inputStore.settingsVisible = true"
         @hide="inputStore.settingsVisible = false"
       >
-        <template #reference>
+        <template v-if="!props.headless" #reference>
           <slot>
             <button class="tool-btn settings-btn">
               <Settings :size="16" />
             </button>
           </slot>
         </template>
-        <div class="toolbar-settings-content">
+        <div
+          class="toolbar-settings-content"
+          @keydown.esc.stop.prevent="inputStore.settingsVisible = false"
+        >
+          <button
+            class="customize-link"
+            type="button"
+            @click="emit('customize')"
+          >
+            自定义工具栏…
+          </button>
           <div class="setting-item">
             <span class="setting-label">显示 Token 统计</span>
             <el-switch
@@ -259,6 +280,30 @@ function updateSetting(
 </template>
 
 <style scoped>
+.toolbar-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-color-primary);
+}
+.customize-link {
+  width: 100%;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--primary-color);
+  cursor: pointer;
+}
 .approval-timeout-input {
   width: 104px;
 }

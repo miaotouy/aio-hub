@@ -11,13 +11,30 @@ import { createKnowledgeReference } from "@/tools/knowledge-base/services/refere
 import type { KnowledgeLibrarySummary } from "@/tools/knowledge-base/types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
-const props = defineProps<{ disabled?: boolean; isDetached?: boolean }>();
+const props = withDefaults(
+  defineProps<{
+    disabled?: boolean;
+    isDetached?: boolean;
+    headless?: boolean;
+    visible?: boolean;
+    virtualRef?: HTMLElement;
+  }>(),
+  { visible: undefined }
+);
+const emit = defineEmits<{ "update:visible": [visible: boolean] }>();
 
 const errorHandler = createModuleErrorHandler("KnowledgeReferenceControl");
 const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const inputManager = useChatInputManager();
-const visible = ref(false);
+const localVisible = ref(false);
+const visible = computed({
+  get: () => props.visible ?? localVisible.value,
+  set: (value: boolean) => {
+    localVisible.value = value;
+    emit("update:visible", value);
+  },
+});
 const loading = ref(false);
 const searchText = ref("");
 const libraries = ref<KnowledgeLibrarySummary[]>([]);
@@ -174,20 +191,27 @@ watch(currentAgentId, () => {
 </script>
 
 <template>
-  <el-tooltip :content="tooltipText" placement="top" :show-after="500">
+  <el-tooltip
+    :content="tooltipText"
+    placement="top"
+    :show-after="500"
+    :disabled="headless"
+  >
     <div class="knowledge-control-wrapper">
       <el-popover
         v-model:visible="visible"
-        placement="bottom-start"
+        :placement="props.isDetached ? 'bottom-start' : 'top-start'"
+        :virtual-triggering="headless"
+        :virtual-ref="virtualRef"
         :width="340"
-        trigger="click"
+        :trigger="headless ? [] : 'click'"
         :disabled="!canOpen"
         :popper-class="[
           'knowledge-reference-popover',
           { 'detached-popover': props.isDetached },
         ]"
       >
-        <template #reference>
+        <template v-if="!headless" #reference>
           <button
             class="knowledge-button"
             :class="{
@@ -211,6 +235,7 @@ watch(currentAgentId, () => {
 
         <div
           class="knowledge-selector"
+          @keydown.esc.stop.prevent="visible = false"
           data-testid="chat-knowledge-reference-selector"
           aria-label="Knowledge 资料库选择器"
         >

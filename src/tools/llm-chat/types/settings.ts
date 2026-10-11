@@ -117,6 +117,8 @@ export interface BubbleLayoutConfig {
 export interface ChatSettings {
   /** UI 偏好设置 */
   uiPreferences: {
+    /** 输入区操作位置、顺序与快捷操作展示 */
+    inputToolbar: import("./input-toolbar").InputToolbarLayout;
     /** 是否启用流式输出 */
     isStreaming: boolean;
     /** 是否显示消息时间戳 */

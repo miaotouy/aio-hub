@@ -24,6 +24,11 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { type ChatSettings } from "../../types/settings";
 import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
+import {
+  mergeInputToolbarLayout,
+  normalizeInputToolbarLayout,
+} from "../../config/inputToolbar";
+import type { InputToolbarLayout } from "../../types/input-toolbar";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
@@ -38,7 +43,7 @@ const isLoaded = ref(false);
 const settingsManager = createConfigManager<ChatSettings>({
   moduleName: "llm-chat",
   fileName: "chat-settings.json",
-  version: "1.0.0",
+  version: "1.1.0",
   createDefault: () => ({ ...DEFAULT_SETTINGS }),
   mergeConfig: (defaultConfig, loadedConfig) => {
     return {
@@ -47,6 +52,9 @@ const settingsManager = createConfigManager<ChatSettings>({
       uiPreferences: {
         ...defaultConfig.uiPreferences,
         ...(loadedConfig.uiPreferences || {}),
+        inputToolbar: mergeInputToolbarLayout(
+          loadedConfig.uiPreferences?.inputToolbar
+        ),
         bubbleLayout: {
           ...defaultConfig.uiPreferences.bubbleLayout,
           ...((loadedConfig.uiPreferences || {}).bubbleLayout || {}),
@@ -288,6 +296,35 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
   }
 }
 
+/** Persist before publishing so a failed save leaves the active layout unchanged. */
+async function saveInputToolbarLayout(
+  layout: InputToolbarLayout
+): Promise<void> {
+  const normalized = normalizeInputToolbarLayout(layout);
+  const next = {
+    ...settings.value,
+    uiPreferences: {
+      ...settings.value.uiPreferences,
+      inputToolbar: normalized,
+    },
+  };
+  try {
+    await settingsManager.save(next);
+    settings.value = {
+      ...settings.value,
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        inputToolbar: normalized,
+      },
+    };
+  } catch (error) {
+    moduleErrorHandler.error(error, "工具栏布局保存失败", {
+      action: "saveInputToolbarLayout",
+    });
+    throw error;
+  }
+}
+
 /**
  * 使用聊天设置
  */
@@ -299,5 +336,6 @@ export function useChatSettings() {
     saveSettings,
     resetSettings,
     updateSettings,
+    saveInputToolbarLayout,
   };
 }

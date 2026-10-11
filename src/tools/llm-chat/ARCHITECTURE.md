@@ -269,6 +269,16 @@ graph TD
   - 内置命令（`/clear` 清空会话、`/export` 导出会话、`/compact` 压缩上下文、`/settings` 打开设置等）与快捷操作（Quick Actions）动态聚合。
   - 支持快捷指令执行与参数分发，与现有宏引擎（Macro System）无缝协同。
 
+#### 输入工具栏布局
+
+- 用户偏好保存于 `ChatSettings.uiPreferences.inputToolbar`：系统操作记录常驻 ID 顺序，快捷操作记录展示方式与 `{ setId, actionId }` 引用。
+- `inputToolbarActions.ts` 统一操作描述与可用条件，常驻按钮和更多菜单使用同一执行入口。发送、停止和更多入口保持直接可达；宽度不足时按顺序临时收纳末尾操作。
+- `config/inputToolbar.ts` 提供简洁/完整预设、旧配置兼容及分区解析。全新配置采用简洁布局；旧配置缺失布局字段时沿用原入口与快捷操作平铺。未知 ID 保留配置并跳过渲染。
+- 快捷操作有效范围仍由全局、Agent 和 User Profile 引用聚合；布局采用派生过滤，执行复用现有模板处理逻辑。
+- 编辑器挂载在 `LlmChat.vue`。分离输入窗通过 `open-toolbar-customizer` 动作在主窗口打开；布局通过 `saveInputToolbarLayout` 先持久化再发布，状态沿既有 ChatSettings 通道同步。
+
+详见 [输入工具栏自定义收纳](./docs/Plan/input-toolbar-customization-research.md)。
+
 ### 1.19. 续写与补全功能 (Continue & Completion)
 
 利用 LLM 的预测能力，系统提供了多场景的内容延续功能。

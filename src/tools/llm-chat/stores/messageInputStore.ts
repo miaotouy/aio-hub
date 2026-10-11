@@ -58,6 +58,8 @@ export const useMessageInputStore = defineStore(
     const moreMenuVisible = ref(false);
     const settingsVisible = ref(false);
     const canvasMenuOpen = ref(false);
+    const knowledgeSelectorVisible = ref(false);
+    const toolbarCustomizeVisible = ref(false);
 
     const anyMenuOpen = computed(
       () =>
@@ -66,7 +68,9 @@ export const useMessageInputStore = defineStore(
         toolSettingsVisible.value ||
         moreMenuVisible.value ||
         settingsVisible.value ||
-        canvasMenuOpen.value
+        canvasMenuOpen.value ||
+        knowledgeSelectorVisible.value ||
+        toolbarCustomizeVisible.value
     );
 
     // === 2. 持久化设置 ===
@@ -770,6 +774,8 @@ export const useMessageInputStore = defineStore(
       moreMenuVisible,
       settingsVisible,
       canvasMenuOpen,
+      knowledgeSelectorVisible,
+      toolbarCustomizeVisible,
       anyMenuOpen,
       // 持久化设置
       settings,

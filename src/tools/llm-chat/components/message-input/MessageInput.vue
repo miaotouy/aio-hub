@@ -272,7 +272,8 @@ watch(inputManager.focusRequest, () => {
 const updateDetachedWindowSize = async (
   expanding: boolean = inputStore.anyMenuOpen
 ) => {
-  if (!props.isDetached || isUpdatingSize.value) return;
+  if (!props.isDetached || isUpdatingSize.value || containerHeight.value <= 0)
+    return;
   isUpdatingSize.value = true;
   try {
     const scale = window.devicePixelRatio || 1;
@@ -375,10 +376,10 @@ onMounted(async () => {
   transcriptionManager.init();
   if (!settingsLoaded.value) {
     await loadSettings();
-    if (props.isDetached) {
-      // 初始状态下收缩窗口到输入框实际大小
-      setTimeout(() => updateDetachedWindowSize(false), 300);
-    }
+  }
+  if (props.isDetached) {
+    // 同步设置已就绪时，也需要按渲染后的输入区尺寸初始化窗口。
+    setTimeout(() => updateDetachedWindowSize(), 300);
   }
 });
 

@@ -59,10 +59,7 @@ const switchToPersonality = () => {
 
 // 工具发现逻辑
 const { getDiscoveredMethods } = useToolCalling();
-const discoveredTools = computed(() => {
-  if (!editForm.toolCallConfig?.enabled) return [];
-  return getDiscoveredMethods();
-});
+const discoveredTools = computed(() => getDiscoveredMethods());
 
 const searchQuery = ref("");
 const { filteredTools } = useToolSearch(discoveredTools, searchQuery);
@@ -315,7 +312,7 @@ const pasteAllToolSettings = async () => {
         </div>
       </transition>
 
-      <template v-if="editForm.toolCallConfig?.enabled">
+      <template v-if="editForm.toolCallConfig">
         <div class="tool-config-grid">
           <el-form-item label="自动批准">
             <el-switch

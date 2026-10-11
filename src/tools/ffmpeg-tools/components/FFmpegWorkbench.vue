@@ -387,6 +387,7 @@
                           isProgressIndeterminate(currentFileTask.progress)
                         "
                         :percentage="currentFileTask.progress.percent"
+                        :format="formatPercent"
                         :show-text="
                           !isProgressIndeterminate(currentFileTask.progress)
                         "
@@ -639,6 +640,8 @@ const formatTime = (seconds: number) => {
     .toString()
     .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 };
+
+const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
 
 const resolvedOutputPath = ref("");
 

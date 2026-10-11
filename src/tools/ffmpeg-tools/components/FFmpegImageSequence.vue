@@ -193,6 +193,7 @@
             v-if="lastTask.status === 'processing'"
             :percentage="lastTask.progress.percent"
             :indeterminate="isProgressIndeterminate(lastTask.progress)"
+            :format="formatPercent"
           />
           <el-alert
             v-if="lastTask.error"
@@ -276,6 +277,8 @@ import {
   normalizeOutputPathKey,
 } from "../utils/lifecycle";
 import { sanitizeOutputName } from "../utils/naming";
+
+const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
 
 const store = useFFmpegStore();
 const { activeFfmpegPath, getMetadata, startProcess, killProcess } =

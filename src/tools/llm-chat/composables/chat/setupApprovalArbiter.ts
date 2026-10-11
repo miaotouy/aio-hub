@@ -64,18 +64,21 @@ export function resolveArbitrationConfig(
  * 必须按请求所属会话读取：外部 / VCP 请求未携带本地聊天会话时不返回任何内容，
  * 避免把当前 UI 会话的无关用户消息附加到外部请求的裁决上下文。
  */
-function getRecentUserMessage(sessionId?: string): string | undefined {
+export function getRecentUserMessage(sessionId?: string): string | undefined {
   if (!sessionId) return undefined;
   try {
     const llmChatStore = useLlmChatStore();
-    const detail = llmChatStore.sessionDetailMap.get(sessionId);
-    if (!detail?.nodes) return undefined;
-    const candidates = Object.values(detail.nodes)
-      .filter((node) => node.role === "user" && node.content?.trim())
-      .sort(
-        (a, b) => (b.timestamp ?? "").localeCompare(a.timestamp ?? "") // ISO 字符串倒序即最新在前
+    const path = llmChatStore.getActivePathBySessionId(sessionId);
+    const recentUser = path
+      .slice()
+      .reverse()
+      .find(
+        (node) =>
+          node.role === "user" &&
+          node.isEnabled !== false &&
+          node.content?.trim()
       );
-    return candidates[0]?.content.slice(0, 400);
+    return recentUser?.content.slice(0, 400);
   } catch {
     return undefined;
   }
@@ -93,8 +96,7 @@ export function setupApprovalArbiter(): void {
   const arbiter = createDecisionArbiter({
     getChannelSettings: () => getDecisionChannelSettings(),
     getArbitrationConfig: (agentId) => resolveArbitrationConfig(agentId),
-    getProfileById: (profileId) =>
-      useLlmProfiles().getProfileById(profileId),
+    getProfileById: (profileId) => useLlmProfiles().getProfileById(profileId),
     getRecentUserMessage: (ctx) => getRecentUserMessage(ctx.sessionId),
   });
 

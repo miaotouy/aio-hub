@@ -7,7 +7,7 @@ import { useLlmChatUiState } from "../ui/useLlmChatUiState";
 import { useChatSettings } from "../settings/useChatSettings";
 import type { QuickActionSet } from "../../types/quick-action";
 
-/** Shared effective scope for the composer and its editor, including detached input windows. */
+/** Explicitly linked groups for the independent shortcut bar, including detached input windows. */
 export function useActiveQuickActionSets() {
   const { currentAgentId } = useLlmChatUiState();
   const { settings } = useChatSettings();

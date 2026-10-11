@@ -25,12 +25,10 @@ import {
   LoaderCircle,
 } from "lucide-vue-next";
 import type { ToolbarAction } from "./inputToolbarActions";
-import type { QuickAction, QuickActionSet } from "../../../types/quick-action";
 const props = defineProps<{
   isDetached?: boolean;
   actions: ToolbarAction[];
   overflowActions: ToolbarAction[];
-  quickActionSets: QuickActionSet[];
   statistics?: {
     contextTokens?: number;
     inputTokens: number;
@@ -40,7 +38,6 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   execute: [action: ToolbarAction];
-  "execute-quick-action": [action: QuickAction];
   "open-input-settings": [];
   "open-quick-action-manager": [];
   customize: [];
@@ -131,22 +128,6 @@ defineExpose({ close });
             </div>
           </el-dropdown-item>
         </template>
-        <template v-for="set in quickActionSets" :key="set.id">
-          <div class="section-label" aria-hidden="true">
-            快捷操作 · {{ set.name }}
-          </div>
-          <el-dropdown-item
-            v-for="action in set.actions"
-            :key="action.id"
-            @click="emit('execute-quick-action', action)"
-          >
-            <span
-              class="quick-action-name"
-              :title="action.description || action.label"
-              >{{ action.label }}</span
-            >
-          </el-dropdown-item>
-        </template>
         <div v-if="statistics" class="statistics-summary">
           <span v-if="statistics.contextTokens !== undefined"
             >上下文 {{ statistics.contextTokens.toLocaleString()
@@ -226,12 +207,6 @@ defineExpose({ close });
   font-size: 11px;
   color: var(--text-color-secondary);
   border-top: 1px solid var(--border-color);
-}
-.quick-action-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 290px;
 }
 .spinner {
   animation: spin 1s linear infinite;

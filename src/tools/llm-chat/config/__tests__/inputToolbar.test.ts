@@ -6,16 +6,14 @@ import {
   mergeInputToolbarLayout,
   normalizeInputToolbarLayout,
   partitionToolbarActions,
-  partitionQuickActions,
   visibleToolbarActionCount,
 } from "../inputToolbar";
 import {
   resolveInputToolbarActions,
   type ToolbarActionState,
 } from "../../components/message-input/toolbar/inputToolbarActions";
-import type { QuickActionSet } from "../../types/quick-action";
 
-// Protects persisted user choices, enabled action scope, and action availability contracts.
+// Protects persisted user choices and action availability contracts.
 // Assertions intentionally ignore component structure and visible wording.
 describe("input toolbar user layout", () => {
   it("uses compact defaults for fresh configs and preserves existing layouts during upgrade", () => {
@@ -29,7 +27,6 @@ describe("input toolbar user layout", () => {
     );
     const empty = normalizeInputToolbarLayout({
       pinnedActionIds: [],
-      quickActions: { mode: "selected", pinned: [] },
     });
     expect(mergeInputToolbarLayout(empty)).toEqual(empty);
     expect(empty.pinnedActionIds).toEqual([]);
@@ -38,11 +35,11 @@ describe("input toolbar user layout", () => {
     expect(createCompactToolbarLayout().pinnedActionIds).toHaveLength(3);
   });
 
-  it("repairs malformed fields while preserving unknown IDs and valid empty choices", () => {
+  it("preserves system choices when migrating saved shortcut layout preferences", () => {
     const layout = normalizeInputToolbarLayout({
       pinnedActionIds: ["macro", "future-action", false, "macro", "", null],
       quickActions: {
-        mode: "bad-mode",
+        mode: "menu",
         pinned: [
           { setId: "s", actionId: "a" },
           { setId: "s", actionId: "a" },
@@ -51,9 +48,9 @@ describe("input toolbar user layout", () => {
       },
     });
     expect(layout.pinnedActionIds).toEqual(["macro", "future-action"]);
-    expect(layout.quickActions).toEqual({
-      mode: "menu",
-      pinned: [{ setId: "s", actionId: "a" }],
+    expect(layout).toEqual({
+      version: 1,
+      pinnedActionIds: ["macro", "future-action"],
     });
     expect(normalizeInputToolbarLayout(null)).toEqual(
       createCompactToolbarLayout()
@@ -93,73 +90,6 @@ describe("input toolbar user layout", () => {
       "macro",
       "translate",
     ]);
-  });
-
-  it("scopes selected shortcuts by both set and action, excludes disabled entries and never edits source groups", () => {
-    const set = (id: string, enabled = true): QuickActionSet => ({
-      id,
-      name: id,
-      isEnabled: enabled,
-      updatedAt: "",
-      actions: [
-        {
-          id: "shared",
-          label: "action",
-          content: "{{input}}",
-          autoSend: false,
-        },
-        {
-          id: "disabled",
-          label: "off",
-          content: "",
-          autoSend: false,
-          isEnabled: false,
-        },
-      ],
-    });
-    const sets = [set("one"), set("two"), set("off", false)];
-    const original = JSON.stringify(sets);
-    const layout = normalizeInputToolbarLayout({
-      pinnedActionIds: [],
-      quickActions: {
-        mode: "selected",
-        pinned: [
-          { setId: "one", actionId: "shared" },
-          { setId: "inactive", actionId: "shared" },
-        ],
-      },
-    });
-    const selected = partitionQuickActions(sets, layout);
-    expect(
-      selected.pinned.map((group) => [
-        group.id,
-        group.actions.map((action) => action.id),
-      ])
-    ).toEqual([["one", ["shared"]]]);
-    expect(
-      selected.menu.map((group) => [
-        group.id,
-        group.actions.map((action) => action.id),
-      ])
-    ).toEqual([["two", ["shared"]]]);
-    expect(
-      partitionQuickActions(sets, {
-        ...layout,
-        quickActions: { ...layout.quickActions, mode: "all" },
-      }).pinned
-    ).toHaveLength(2);
-    expect(
-      partitionQuickActions(sets, {
-        ...layout,
-        quickActions: { ...layout.quickActions, mode: "menu" },
-      }).menu
-    ).toHaveLength(2);
-    expect(
-      partitionQuickActions([set("inactive")], layout).pinned.map(
-        (group) => group.id
-      )
-    ).toEqual(["inactive"]);
-    expect(JSON.stringify(sets)).toBe(original);
   });
 
   it("reserves access to more actions and restores pins as the window expands", () => {

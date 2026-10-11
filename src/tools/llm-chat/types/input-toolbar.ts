@@ -21,17 +21,9 @@ export type InputToolbarActionId =
   | "paste-draft"
   | "unlock-height";
 
-export interface QuickActionReference {
-  setId: string;
-  actionId: string;
-}
-
+/** Layout preferences for the system-action toolbar. */
 export interface InputToolbarLayout {
   version: 1;
   /** Unknown IDs are retained for forward/backward compatibility. */
   pinnedActionIds: string[];
-  quickActions: {
-    mode: "all" | "selected" | "menu";
-    pinned: QuickActionReference[];
-  };
 }

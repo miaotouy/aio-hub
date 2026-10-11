@@ -2,9 +2,7 @@
 import type {
   InputToolbarActionId,
   InputToolbarLayout,
-  QuickActionReference,
 } from "../types/input-toolbar";
-import type { QuickActionSet } from "../types/quick-action";
 
 export const INPUT_TOOLBAR_ACTION_IDS: InputToolbarActionId[] = [
   "attachment",
@@ -32,7 +30,6 @@ export function createCompactToolbarLayout(): InputToolbarLayout {
   return {
     version: 1,
     pinnedActionIds: ["attachment", "temporary-model", "knowledge"],
-    quickActions: { mode: "menu", pinned: [] },
   };
 }
 
@@ -50,7 +47,6 @@ export function createLegacyToolbarLayout(): InputToolbarLayout {
       "input-settings",
       "expand",
     ],
-    quickActions: { mode: "all", pinned: [] },
   };
 }
 
@@ -58,7 +54,6 @@ export function createFullToolbarLayout(): InputToolbarLayout {
   return {
     version: 1,
     pinnedActionIds: [...INPUT_TOOLBAR_ACTION_IDS],
-    quickActions: { mode: "all", pinned: [] },
   };
 }
 
@@ -68,40 +63,14 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-export function quickActionReferenceKey(ref: QuickActionReference): string {
-  return JSON.stringify([ref.setId, ref.actionId]);
-}
-
 export function normalizeInputToolbarLayout(
   value: unknown,
   fallback: InputToolbarLayout = createCompactToolbarLayout()
 ): InputToolbarLayout {
   const source = record(value);
-  const quick = record(source.quickActions);
   const ids = Array.isArray(source.pinnedActionIds)
     ? source.pinnedActionIds
     : fallback.pinnedActionIds;
-  const refs = Array.isArray(quick.pinned)
-    ? quick.pinned
-    : fallback.quickActions.pinned;
-  const seen = new Set<string>();
-  const pinned: QuickActionReference[] = [];
-  for (const item of refs) {
-    const ref = record(item);
-    if (
-      typeof ref.setId !== "string" ||
-      !ref.setId ||
-      typeof ref.actionId !== "string" ||
-      !ref.actionId
-    )
-      continue;
-    const entry = { setId: ref.setId, actionId: ref.actionId };
-    const key = quickActionReferenceKey(entry);
-    if (!seen.has(key)) {
-      seen.add(key);
-      pinned.push(entry);
-    }
-  }
   return {
     version: 1,
     pinnedActionIds: [
@@ -111,15 +80,6 @@ export function normalizeInputToolbarLayout(
         )
       ),
     ],
-    quickActions: {
-      mode:
-        quick.mode === "all" ||
-        quick.mode === "selected" ||
-        quick.mode === "menu"
-          ? quick.mode
-          : fallback.quickActions.mode,
-      pinned,
-    },
   };
 }
 
@@ -146,33 +106,6 @@ export function partitionToolbarActions<
     pinned,
     menu: available.filter((action) => !selected.has(action.id)),
   };
-}
-
-/** Both surfaces derive from the same enabled scope, without changing source sets. */
-export function partitionQuickActions(
-  sets: readonly QuickActionSet[],
-  layout: InputToolbarLayout
-) {
-  const selected = new Set(
-    layout.quickActions.pinned.map(quickActionReferenceKey)
-  );
-  const pinned: QuickActionSet[] = [];
-  const menu: QuickActionSet[] = [];
-  for (const set of sets) {
-    if (!set.isEnabled) continue;
-    const available = set.actions.filter(
-      (action) => action.isEnabled !== false
-    );
-    const isPinned = (actionId: string) =>
-      layout.quickActions.mode === "all" ||
-      (layout.quickActions.mode === "selected" &&
-        selected.has(quickActionReferenceKey({ setId: set.id, actionId })));
-    const pinnedActions = available.filter((action) => isPinned(action.id));
-    const menuActions = available.filter((action) => !isPinned(action.id));
-    if (pinnedActions.length) pinned.push({ ...set, actions: pinnedActions });
-    if (menuActions.length) menu.push({ ...set, actions: menuActions });
-  }
-  return { pinned, menu };
 }
 
 /** Reserve the always-visible more button; widths match the toolbar's 32px buttons / 2px gap. */

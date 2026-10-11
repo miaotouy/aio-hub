@@ -119,16 +119,15 @@ describe("Chat toolbar customization", () => {
       () => {
         const layout = persistedLayout() as {
           pinnedActionIds?: string[];
-          quickActions?: { mode?: string };
         } | null;
         return (
           JSON.stringify(layout?.pinnedActionIds) ===
-            JSON.stringify([
-              "attachment",
-              "temporary-model",
-              "knowledge",
-              "macro",
-            ]) && layout?.quickActions?.mode === "menu"
+          JSON.stringify([
+            "attachment",
+            "temporary-model",
+            "knowledge",
+            "macro",
+          ])
         );
       },
       {

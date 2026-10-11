@@ -1,7 +1,7 @@
 <!-- Copyright 2025-2026 miaotouy(Github@miaotouy) -->
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from "vue";
-import { ElButton, ElInput, ElRadioButton, ElRadioGroup } from "element-plus";
+import { computed, ref, watch } from "vue";
+import { ElButton, ElInput } from "element-plus";
 import {
   ArrowUp,
   ArrowDown,
@@ -19,22 +19,14 @@ import {
   createCompactToolbarLayout,
   createFullToolbarLayout,
   normalizeInputToolbarLayout,
-  partitionQuickActions,
-  quickActionReferenceKey,
 } from "../../../config/inputToolbar";
-import type {
-  InputToolbarLayout,
-  QuickActionReference,
-} from "../../../types/input-toolbar";
-import { useActiveQuickActionSets } from "../../../composables/input/useActiveQuickActionSets";
+import type { InputToolbarLayout } from "../../../types/input-toolbar";
 
 const props = defineProps<{ isDetached?: boolean }>();
-const activeActionSets = useActiveQuickActionSets();
 const inputStore = useMessageInputStore();
 const { settings, saveInputToolbarLayout } = useChatSettings();
 const bus = useWindowSyncBus();
 const draft = ref<InputToolbarLayout>(createCompactToolbarLayout());
-const tab = ref<"system" | "quick">("system");
 const search = ref("");
 const saving = ref(false);
 const saveError = ref("");
@@ -58,34 +50,6 @@ const menuActions = computed(() =>
       !draft.value.pinnedActionIds.includes(action.id) && matches(action.label)
   )
 );
-const quickSets = computed(() =>
-  activeActionSets.value
-    .filter((set) => set.isEnabled)
-    .map((set) => ({
-      ...set,
-      actions: set.actions.filter(
-        (action) =>
-          action.isEnabled !== false &&
-          (matches(action.label) || matches(set.name))
-      ),
-    }))
-    .filter((set) => set.actions.length)
-);
-const selectedKeys = computed(
-  () => new Set(draft.value.quickActions.pinned.map(quickActionReferenceKey))
-);
-const quickPreview = computed(() =>
-  partitionQuickActions(activeActionSets.value, draft.value).pinned.flatMap(
-    (set) =>
-      set.actions.map((action) => ({
-        ...action,
-        previewKey: quickActionReferenceKey({
-          setId: set.id,
-          actionId: action.id,
-        }),
-      }))
-  )
-);
 watch(
   () => inputStore.toolbarCustomizeVisible,
   (visible) => {
@@ -100,17 +64,6 @@ watch(
   { immediate: true }
 );
 
-function selectTab(value: "system" | "quick") {
-  tab.value = value;
-  search.value = "";
-  void nextTick().then(() =>
-    document
-      .getElementById(
-        value === "system" ? "toolbar-system-tab" : "toolbar-quick-tab"
-      )
-      ?.focus()
-  );
-}
 function pin(id: string) {
   if (!draft.value.pinnedActionIds.includes(id))
     draft.value.pinnedActionIds.push(id);
@@ -143,14 +96,6 @@ function dropOn(targetId: string) {
   const ids = draft.value.pinnedActionIds.filter((id) => id !== source);
   ids.splice(ids.indexOf(targetId), 0, source);
   draft.value.pinnedActionIds = ids;
-}
-function toggleQuick(ref: QuickActionReference) {
-  const key = quickActionReferenceKey(ref);
-  draft.value.quickActions.pinned = selectedKeys.value.has(key)
-    ? draft.value.quickActions.pinned.filter(
-        (item) => quickActionReferenceKey(item) !== key
-      )
-    : [...draft.value.quickActions.pinned, ref];
 }
 function close(visible: boolean) {
   if (!saving.value) inputStore.toolbarCustomizeVisible = visible;
@@ -186,11 +131,6 @@ async function save() {
   >
     <div class="customizer" data-testid="chat-toolbar-customizer">
       <section class="layout-preview" aria-label="工具栏布局预览">
-        <div v-if="quickPreview.length" class="preview-quick">
-          <span v-for="action in quickPreview" :key="action.previewKey">{{
-            action.label
-          }}</span>
-        </div>
         <div class="preview-bottom">
           <div class="preview-actions">
             <span
@@ -209,50 +149,7 @@ async function save() {
         </div>
       </section>
       <div class="editor-navigation">
-        <div
-          class="tabs"
-          role="tablist"
-          aria-label="操作类型"
-          @keydown.left.prevent="
-            selectTab(tab === 'system' ? 'quick' : 'system')
-          "
-          @keydown.right.prevent="
-            selectTab(tab === 'system' ? 'quick' : 'system')
-          "
-          @keydown.home.prevent="selectTab('system')"
-          @keydown.end.prevent="selectTab('quick')"
-        >
-          <button
-            id="toolbar-system-tab"
-            type="button"
-            role="tab"
-            :aria-selected="tab === 'system'"
-            :tabindex="tab === 'system' ? 0 : -1"
-            aria-controls="toolbar-system-panel"
-            :class="{ selected: tab === 'system' }"
-            @click="
-              tab = 'system';
-              search = '';
-            "
-          >
-            系统操作
-          </button>
-          <button
-            id="toolbar-quick-tab"
-            type="button"
-            role="tab"
-            :aria-selected="tab === 'quick'"
-            :tabindex="tab === 'quick' ? 0 : -1"
-            aria-controls="toolbar-quick-panel"
-            :class="{ selected: tab === 'quick' }"
-            @click="
-              tab = 'quick';
-              search = '';
-            "
-          >
-            快捷操作
-          </button>
-        </div>
+        <h3 class="editor-title">系统操作</h3>
         <el-input
           v-model="search"
           placeholder="搜索操作"
@@ -263,13 +160,7 @@ async function save() {
         ></el-input>
       </div>
       <fieldset :disabled="saving" class="editor-fieldset">
-        <div
-          v-show="tab === 'system'"
-          id="toolbar-system-panel"
-          role="tabpanel"
-          aria-labelledby="toolbar-system-tab"
-          class="placement-columns"
-        >
+        <div id="toolbar-system-panel" class="placement-columns">
           <section class="placement-column">
             <h4>
               常驻 <span>{{ pinnedActions.length }}</span>
@@ -359,55 +250,6 @@ async function save() {
             </div>
           </section>
         </div>
-        <div
-          v-show="tab === 'quick'"
-          id="toolbar-quick-panel"
-          role="tabpanel"
-          aria-labelledby="toolbar-quick-tab"
-          class="quick-placement"
-        >
-          <el-radio-group
-            v-model="draft.quickActions.mode"
-            :disabled="saving"
-            aria-label="快捷操作展示方式"
-            ><el-radio-button value="all">全部常驻</el-radio-button
-            ><el-radio-button value="selected">挑选常驻</el-radio-button
-            ><el-radio-button value="menu"
-              >全部收纳</el-radio-button
-            ></el-radio-group
-          >
-          <div class="quick-set-list">
-            <section v-for="set in quickSets" :key="set.id" class="quick-set">
-              <h4>{{ set.name }}</h4>
-              <label
-                v-for="action in set.actions"
-                :key="action.id"
-                class="quick-choice"
-                ><input
-                  type="checkbox"
-                  :checked="
-                    draft.quickActions.mode === 'all' ||
-                    (draft.quickActions.mode === 'selected' &&
-                      selectedKeys.has(
-                        quickActionReferenceKey({
-                          setId: set.id,
-                          actionId: action.id,
-                        })
-                      ))
-                  "
-                  :disabled="draft.quickActions.mode !== 'selected' || saving"
-                  @change="toggleQuick({ setId: set.id, actionId: action.id })"
-                />
-                <span :title="action.description">{{
-                  action.label
-                }}</span></label
-              >
-            </section>
-            <p v-if="!quickSets.length" class="empty-list">
-              {{ search ? "没有匹配的操作" : "当前聊天尚未关联快捷操作组" }}
-            </p>
-          </div>
-        </div>
       </fieldset>
       <p v-if="saveError" class="save-error" role="alert">{{ saveError }}</p>
     </div>
@@ -466,20 +308,6 @@ async function save() {
   border-radius: 8px;
   background: var(--card-bg);
 }
-.preview-quick {
-  display: flex;
-  gap: 6px;
-  padding-bottom: 10px;
-  overflow-x: auto;
-}
-.preview-quick > span {
-  flex: none;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-size: 11px;
-  color: var(--text-color-secondary);
-}
 .preview-bottom {
   display: flex;
   gap: 2px;
@@ -515,24 +343,10 @@ async function save() {
   justify-content: space-between;
   gap: 12px;
 }
-.tabs {
-  display: flex;
-  gap: 16px;
-  flex: none;
-}
-.tabs > button {
-  font: inherit;
+.editor-title {
+  margin: 0;
   font-size: 13px;
-  padding: 8px 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--text-color-secondary);
-  cursor: pointer;
-}
-.tabs > button.selected {
-  border-bottom-color: var(--primary-color);
-  color: var(--text-color-primary);
+  font-weight: 600;
 }
 .action-search {
   max-width: 220px;
@@ -643,35 +457,6 @@ h4 > span {
   text-align: center;
   font-size: 12px;
   color: var(--text-color-secondary);
-}
-.quick-placement {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.quick-set-list {
-  height: min(350px, 42vh);
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-.quick-set + .quick-set {
-  border-top: 1px solid var(--border-color);
-}
-.quick-choice {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 12px;
-  font-size: 12px;
-}
-.quick-choice > input {
-  accent-color: var(--primary-color);
-}
-.quick-choice > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .customizer-footer,
 .presets,

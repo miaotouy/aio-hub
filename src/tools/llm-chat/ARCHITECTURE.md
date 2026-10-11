@@ -271,10 +271,10 @@ graph TD
 
 #### 输入工具栏布局
 
-- 用户偏好保存于 `ChatSettings.uiPreferences.inputToolbar`：系统操作记录常驻 ID 顺序，快捷操作记录展示方式与 `{ setId, actionId }` 引用。
+- 用户偏好保存于 `ChatSettings.uiPreferences.inputToolbar`，记录底部系统操作的常驻 ID 顺序。
 - `inputToolbarActions.ts` 统一操作描述与可用条件，常驻按钮和更多菜单使用同一执行入口。发送、停止和更多入口保持直接可达；宽度不足时按顺序临时收纳末尾操作。
 - `config/inputToolbar.ts` 提供简洁/完整预设、旧配置兼容及分区解析。全新配置采用简洁布局；旧配置缺失布局字段时沿用原入口与快捷操作平铺。未知 ID 保留配置并跳过渲染。
-- 快捷操作有效范围仍由全局、Agent 和 User Profile 引用聚合；布局采用派生过滤，执行复用现有模板处理逻辑。
+- 快捷操作栏独立展示全局、Agent 和 User Profile 关联的操作组，单项 `isEnabled !== false` 控制“操作区可见”，`groupQuickActionsBySet` 控制按组分行。显式关联的组沿用原显示语义，执行复用现有模板处理逻辑。旧布局中的 `quickActions` 字段在规范化时清理。
 - 编辑器挂载在 `LlmChat.vue`。分离输入窗通过 `open-toolbar-customizer` 动作在主窗口打开；布局通过 `saveInputToolbarLayout` 先持久化再发布，状态沿既有 ChatSettings 通道同步。
 
 详见 [输入工具栏自定义收纳](./docs/Plan/input-toolbar-customization-research.md)。

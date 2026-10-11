@@ -44,7 +44,6 @@ import {
 import {
   normalizeInputToolbarLayout,
   partitionToolbarActions,
-  partitionQuickActions,
   visibleToolbarActionCount,
 } from "../../config/inputToolbar";
 import { useActiveQuickActionSets } from "../../composables/input/useActiveQuickActionSets";
@@ -230,9 +229,6 @@ useResizeObserver(bottomBarRef, (entries) => {
 const compactStatistics = computed(() => bottomWidth.value < 650);
 const layout = computed(() =>
   normalizeInputToolbarLayout(chatSettings.value.uiPreferences.inputToolbar)
-);
-const quickActions = computed(() =>
-  partitionQuickActions(activeActionSets.value, layout.value)
 );
 const openPanel = computed(() => panel.activePanel.value?.id);
 const panelComponents: Partial<Record<ToolbarAction["id"], Component>> = {
@@ -426,8 +422,8 @@ onBeforeUnmount(closePanels);
     @contextmenu.self.prevent="openCustomizer"
   >
     <QuickActionsBar
-      v-if="quickActions.pinned.length"
-      :active-action-sets="quickActions.pinned"
+      v-if="activeActionSets.length"
+      :active-action-sets="activeActionSets"
       :group-quick-actions-by-set="inputSettings.groupQuickActionsBySet"
       @execute-quick-action="inputStore.handleQuickAction($event)"
     />
@@ -448,7 +444,6 @@ onBeforeUnmount(closePanels);
           :is-detached="props.isDetached"
           :actions="actionPlacement.menu"
           :overflow-actions="overflowActions"
-          :quick-action-sets="quickActions.menu"
           :statistics="
             compactStatistics &&
             inputSettings.showTokenUsage &&
@@ -463,7 +458,6 @@ onBeforeUnmount(closePanels);
               : undefined
           "
           @execute="executeAction"
-          @execute-quick-action="inputStore.handleQuickAction($event)"
           @open-input-settings="openInputSettings"
           @open-quick-action-manager="handleOpenQuickActionManager"
           @customize="openCustomizer"

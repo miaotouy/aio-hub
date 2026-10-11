@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import type { LlmParameters } from "@/tools/llm-chat/types";
 import type {
   ProviderType,
@@ -24,11 +24,7 @@ import type {
 } from "@/types/llm-profiles";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
-import { useAgentStore } from "../../stores/agentStore";
-import { useChatHandler } from "@/tools/llm-chat/composables/chat/useChatHandler";
 import type { ContextPreviewData } from "@/tools/llm-chat/types/context";
-import { getModelFamily } from "@/llm-apis/request-builder";
 import ConfigSection from "@/tools/llm-chat/components/common/ConfigSection.vue";
 import ParameterItem from "./ParameterItem.vue";
 import ContextCompressionConfigPanel from "./ContextCompressionConfigPanel.vue";
@@ -38,7 +34,15 @@ import {
 } from "@/tools/llm-chat/config/parameter-config";
 import { DEFAULT_CONTEXT_COMPRESSION_CONFIG } from "@/tools/llm-chat/types/llm";
 
-// New Components
+import {
+  getParameterSettingGroup,
+  isEditorParameterVisible,
+  isSafetySettingsVisible,
+  type ModelParameterGroup,
+  type ParameterEditorPresentation,
+} from "./parameterEditorConfig";
+
+// 参数面板
 import SafetySettingsPanel from "./SafetySettingsPanel.vue";
 import PostProcessingPanel from "./PostProcessingPanel.vue";
 import CustomParamsPanel from "./CustomParamsPanel.vue";
@@ -67,15 +71,18 @@ interface Props {
   /** 模型的 Token 限制信息 */
   tokenLimits?: LlmModelInfo["tokenLimits"];
   compact?: boolean;
+  groups?: readonly ModelParameterGroup[];
+  presentation?: ParameterEditorPresentation;
   /** 模型的上下文窗口限制（如果为 undefined 则使用默认最大值） */
   contextLengthLimit?: number;
-  /** 外部传入的上下文统计数据（如果有，组件将不再自行计算） */
+  /** 由聊天入口传入的上下文统计数据 */
   externalStats?: ContextPreviewData["statistics"] | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   compact: false,
-  externalStats: undefined,
+  externalStats: null,
+  presentation: "sidebar",
 });
 
 const emit = defineEmits<{
@@ -97,7 +104,7 @@ const supportedParameters = computed<LlmParameterSupport>(() => {
 
 // 初始化参数逻辑：如果 enabledParameters 不存在，根据值是否为 undefined 智能推断
 const initLocalParams = (params: LlmParameters): LlmParameters => {
-  const newParams = { ...params };
+  const newParams: LlmParameters = JSON.parse(JSON.stringify(params));
 
   // 确保 contextCompression 有默认结构并补全缺失字段
   newParams.contextCompression = {
@@ -181,7 +188,20 @@ const toggleParameterEnabled = (key: keyof LlmParameters, enabled: boolean) => {
   emit("update:modelValue", localParams.value);
 };
 
-// 折叠状态管理 - 使用 useLlmChatUiState
+// 设置页独立管理展开状态，侧边栏沿用持久化的折叠偏好。
+const expandedState =
+  props.presentation === "sidebar"
+    ? useLlmChatUiState()
+    : {
+        basicParamsExpanded: ref(true),
+        advancedParamsExpanded: ref(true),
+        contextManagementExpanded: ref(true),
+        contextCompressionExpanded: ref(true),
+        postProcessingExpanded: ref(true),
+        safetySettingsExpanded: ref(true),
+        specialFeaturesExpanded: ref(true),
+        customParamsExpanded: ref(true),
+      };
 const {
   basicParamsExpanded,
   advancedParamsExpanded,
@@ -191,10 +211,35 @@ const {
   safetySettingsExpanded,
   specialFeaturesExpanded,
   customParamsExpanded,
-} = useLlmChatUiState();
+} = expandedState;
 
 // 图片压缩配置的折叠状态（本地，不持久化）
-const imageCompressionExpanded = ref(false);
+const imageCompressionExpanded = ref(props.presentation === "settings");
+const editorRef = ref<HTMLElement | null>(null);
+const expandedGroups = {
+  basic: basicParamsExpanded,
+  advanced: advancedParamsExpanded,
+  contextManagement: contextManagementExpanded,
+  contextCompression: contextCompressionExpanded,
+  contextPostProcessing: postProcessingExpanded,
+  imageCompression: imageCompressionExpanded,
+  safetySettings: safetySettingsExpanded,
+  special: specialFeaturesExpanded,
+  custom: customParamsExpanded,
+};
+const showGroup = (group: ModelParameterGroup) =>
+  !props.groups || props.groups.includes(group);
+const revealSetting = async (settingId: string) => {
+  const group = getParameterSettingGroup(settingId);
+  if (!group || !showGroup(group)) return settingId;
+  expandedGroups[group].value = true;
+  await nextTick();
+  const hasTarget = Array.from(
+    editorRef.value?.querySelectorAll<HTMLElement>("[data-setting-id]") || []
+  ).some((element) => element.dataset.settingId === settingId);
+  return hasTarget ? settingId : `parameters.${group}`;
+};
+defineExpose({ revealSetting });
 
 // 图片压缩配置的帮助方法
 const updateImageCompression = (path: string, value: any) => {
@@ -261,48 +306,15 @@ const processedConfigs = computed(() => {
   });
 });
 
-// 根据 provider 支持和 thinkingConfigType 决定是否显示参数
-const shouldShowParameter = (key: keyof LlmParameters): boolean => {
-  const cap = props.capabilities;
-  const config = parameterConfigs.find((c) => c.key === key);
-  if (!config) return false;
-
-  if (key === "includeThoughts") {
-    return (
-      supportedParameters.value.thinkingConfig === true ||
-      (!!props.modelId &&
-        getModelFamily(props.modelId, props.providerType) === "gemini" &&
-        cap?.thinking === true)
-    );
-  }
-
-  // 对于思考相关的参数，直接根据模型自身 capabilities 判断，绕过 provider 检查
-  if (config.supportedKey === "thinking") {
-    const thinkingType = cap?.thinkingConfigType ?? "none";
-    switch (key) {
-      case "thinkingEnabled":
-        return thinkingType === "switch" || thinkingType === "budget";
-      case "thinkingBudget":
-        // 只有在预算模式且启用了思考时才显示
-        return (
-          thinkingType === "budget" &&
-          localParams.value.thinkingEnabled === true
-        );
-      case "reasoningEffort":
-        return thinkingType === "effort";
-      default:
-        // 对于未知的 thinking 参数，默认不显示
-        return false;
-    }
-  }
-
-  // 对于其他参数，维持原有的 provider 检查
-  if (!supportedParameters.value[config.supportedKey]) {
-    return false;
-  }
-
-  return true;
-};
+const editorContext = computed(() => ({
+  parameters: localParams.value,
+  supportedParameters: supportedParameters.value,
+  providerType: props.providerType,
+  modelId: props.modelId,
+  capabilities: props.capabilities,
+}));
+const shouldShowParameter = (key: keyof LlmParameters) =>
+  isEditorParameterVisible(key, editorContext.value);
 
 // --- 动态覆盖逻辑 ---
 
@@ -430,20 +442,9 @@ watch(
 
 // --- Gemini 安全设置逻辑 ---
 
-// 判断是否显示安全设置：Provider 支持 OR 模型属于 Gemini 家族
-const showSafetySettings = computed(() => {
-  if (supportedParameters.value.safetySettings) {
-    return true;
-  }
-
-  // 如果提供了 modelId，使用元数据判断模型家族
-  if (props.modelId) {
-    const family = getModelFamily(props.modelId, props.providerType);
-    return family === "gemini";
-  }
-
-  return false;
-});
+const showSafetySettings = computed(() =>
+  isSafetySettingsVisible(editorContext.value)
+);
 
 // --- 上下文管理参数配置 ---
 const maxContextTokensConfig: ParameterConfig = {
@@ -489,120 +490,7 @@ const retainedCharactersConfig: ParameterConfig = {
 
 // --- 上下文统计数据逻辑 ---
 
-// 本地计算的统计数据
-const localContextStats = ref<ContextPreviewData["statistics"] | null>(null);
-const isLoadingStats = ref(false);
-
-// 最终使用的统计数据（优先使用外部传入）
-const contextStats = computed(() => {
-  if (props.externalStats !== undefined) {
-    return props.externalStats;
-  }
-  return localContextStats.value;
-});
-
-const loadContextStats = async () => {
-  // 如果有外部统计数据，跳过本地计算
-  if (props.externalStats !== undefined) return;
-
-  const chatStore = useLlmChatStore();
-  const session = chatStore.currentSessionDetail;
-
-  if (!session || !session.activeLeafId) {
-    localContextStats.value = null;
-    return;
-  }
-
-  isLoadingStats.value = true;
-  try {
-    const { getLlmContextForPreview } = useChatHandler();
-    const previewData = await getLlmContextForPreview(
-      session,
-      session.activeLeafId,
-      currentAgentId.value ?? undefined,
-      {
-        parameterOverrides: localParams.value,
-      }
-    );
-
-    if (previewData) {
-      localContextStats.value = previewData.statistics;
-    }
-  } catch (error) {
-    console.warn("获取上下文统计失败", error);
-    localContextStats.value = null;
-  } finally {
-    isLoadingStats.value = false;
-  }
-};
-
-const chatStore = useLlmChatStore();
-const agentStore = useAgentStore();
-const { currentAgentId } = useLlmChatUiState();
-let previousGeneratingCount = 0;
-
-onMounted(() => {
-  loadContextStats();
-});
-
-// 统一的 Watcher 处理逻辑
-const handleStateChange = () => {
-  if (props.externalStats === undefined) {
-    loadContextStats();
-  }
-};
-
-watch(() => chatStore.currentSessionId, handleStateChange);
-watch(() => chatStore.currentSessionDetail?.activeLeafId, handleStateChange);
-watch(() => currentAgentId.value, handleStateChange);
-watch(() => {
-  if (!currentAgentId.value) return null;
-  const agent = agentStore.getAgentById(currentAgentId.value);
-  return agent?.modelId;
-}, handleStateChange);
-watch(
-  () => localParams.value.contextManagement,
-  (newVal, oldVal) => {
-    if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
-    if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
-  },
-  { deep: true }
-);
-// 注意：contextCompression 是运行时压缩配置，不影响预览结构，无需触发预览更新
-watch(
-  () => localParams.value.contextPostProcessing,
-  (newVal, oldVal) => {
-    if (JSON.stringify(newVal) === JSON.stringify(oldVal)) return;
-    if (props.externalStats === undefined) setTimeout(loadContextStats, 300);
-  },
-  { deep: true }
-);
-watch(
-  () => chatStore.generatingNodes.size,
-  (newSize) => {
-    if (previousGeneratingCount > 0 && newSize === 0) {
-      handleStateChange();
-    }
-    previousGeneratingCount = newSize;
-  }
-);
-watch(
-  () => {
-    if (!currentAgentId.value) return null;
-    const agent = agentStore.getAgentById(currentAgentId.value);
-    return agent?.presetMessages;
-  },
-  handleStateChange,
-  { deep: true }
-);
-watch(
-  () => chatStore.currentSession?.updatedAt, // 索引中的 updatedAt 变化也触发
-  (newTime, oldTime) => {
-    if (chatStore.generatingNodes.size === 0 && newTime !== oldTime) {
-      handleStateChange();
-    }
-  }
-);
+const contextStats = computed(() => props.externalStats ?? null);
 
 // 计算是否有开启的后处理规则 (用于 ContextStatsCard 传递)
 const hasActivePostProcessingRules = computed(() => {
@@ -612,9 +500,11 @@ const hasActivePostProcessingRules = computed(() => {
 </script>
 
 <template>
-  <div class="model-parameters-editor" :class="{ compact }">
+  <div ref="editorRef" class="model-parameters-editor" :class="{ compact }">
     <!-- 基础参数分组 -->
     <ConfigSection
+      v-if="showGroup('basic')"
+      data-setting-id="parameters.basic"
       title="基础参数"
       :icon="Setting"
       v-model:expanded="basicParamsExpanded"
@@ -623,6 +513,7 @@ const hasActivePostProcessingRules = computed(() => {
         v-for="config in basicConfigs"
         :key="config.key"
         :config="config"
+        :data-setting-id="`parameters.${config.key}`"
         :model-value="localParams[config.key]"
         :enabled="isParameterEnabled(config.key)"
         @update:model-value="updateParameter(config.key, $event)"
@@ -636,7 +527,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 高级参数分组 -->
     <ConfigSection
-      v-if="advancedConfigs.length > 0"
+      v-if="showGroup('advanced') && advancedConfigs.length > 0"
+      data-setting-id="parameters.advanced"
       title="高级参数"
       :icon="Tools"
       v-model:expanded="advancedParamsExpanded"
@@ -645,6 +537,7 @@ const hasActivePostProcessingRules = computed(() => {
         v-for="config in advancedConfigs"
         :key="config.key"
         :config="config"
+        :data-setting-id="`parameters.${config.key}`"
         :model-value="localParams[config.key]"
         :enabled="isParameterEnabled(config.key)"
         @update:model-value="updateParameter(config.key, $event)"
@@ -655,6 +548,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 上下文管理分组 -->
     <ConfigSection
+      v-if="showGroup('contextManagement')"
+      data-setting-id="parameters.contextManagement"
       title="上下文管理"
       :icon="Document"
       v-model:expanded="contextManagementExpanded"
@@ -695,6 +590,7 @@ const hasActivePostProcessingRules = computed(() => {
       <ParameterItem
         v-if="localParams.contextManagement?.enabled"
         :config="maxContextTokensConfig"
+        data-setting-id="parameters.contextManagement.maxContextTokens"
         :model-value="localParams.contextManagement?.maxContextTokens"
         :overrides="{ max: contextLengthLimit || 4000000 }"
         :enabled="true"
@@ -716,6 +612,7 @@ const hasActivePostProcessingRules = computed(() => {
       <ParameterItem
         v-if="localParams.contextManagement?.enabled"
         :config="retainedCharactersConfig"
+        data-setting-id="parameters.contextManagement.retainedCharacters"
         :model-value="localParams.contextManagement?.retainedCharacters"
         :enabled="
           localParams.contextManagement?.retainedCharacters !== undefined
@@ -737,6 +634,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 上下文压缩分组 -->
     <ConfigSection
+      v-if="showGroup('contextCompression')"
+      data-setting-id="parameters.contextCompression"
       title="上下文压缩"
       :icon="Files"
       v-model:expanded="contextCompressionExpanded"
@@ -749,6 +648,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 上下文后处理管道分组 -->
     <ConfigSection
+      v-if="showGroup('contextPostProcessing')"
+      data-setting-id="parameters.contextPostProcessing"
       title="上下文后处理"
       :icon="Connection"
       v-model:expanded="postProcessingExpanded"
@@ -763,6 +664,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 图片压缩分组 -->
     <ConfigSection
+      v-if="showGroup('imageCompression')"
+      data-setting-id="parameters.imageCompression"
       title="图片压缩"
       :icon="Image"
       v-model:expanded="imageCompressionExpanded"
@@ -896,7 +799,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- Gemini 安全设置分组 -->
     <ConfigSection
-      v-if="showSafetySettings"
+      v-if="showGroup('safetySettings') && showSafetySettings"
+      data-setting-id="parameters.safetySettings"
       title="Gemini 安全设置"
       :icon="Shield"
       v-model:expanded="safetySettingsExpanded"
@@ -909,7 +813,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 特殊功能分组 -->
     <ConfigSection
-      v-if="specialConfigs.length > 0"
+      v-if="showGroup('special') && specialConfigs.length > 0"
+      data-setting-id="parameters.special"
       title="特殊功能"
       :icon="MagicStick"
       v-model:expanded="specialFeaturesExpanded"
@@ -918,6 +823,7 @@ const hasActivePostProcessingRules = computed(() => {
         v-for="config in specialConfigs"
         :key="config.key"
         :config="config"
+        :data-setting-id="`parameters.${config.key}`"
         :model-value="localParams[config.key]"
         :enabled="isParameterEnabled(config.key)"
         @update:model-value="updateParameter(config.key, $event)"
@@ -932,6 +838,8 @@ const hasActivePostProcessingRules = computed(() => {
 
     <!-- 自定义参数分组 -->
     <ConfigSection
+      v-if="showGroup('custom')"
+      data-setting-id="parameters.custom"
       title="自定义参数"
       :icon="CirclePlus"
       v-model:expanded="customParamsExpanded"

@@ -22,13 +22,21 @@ import {
   Sparkles,
   Brain,
   BookOpen,
+  SlidersHorizontal,
+  FileStack,
 } from "lucide-vue-next";
 import type { Component } from "vue";
+import type { LlmParameters } from "@/tools/llm-chat/types";
+import {
+  modelParameterSearchItems,
+  contextParameterSearchItems,
+} from "../parameters/parameterEditorConfig";
 
 export interface AgentEditItem {
   id: string;
   label: string;
   keywords: string;
+  parameterKey?: keyof LlmParameters;
 }
 
 export interface AgentEditTab {
@@ -62,7 +70,6 @@ export const agentEditTabs: AgentEditTab[] = [
     label: "角色设定",
     icon: UserCircle,
     items: [
-      { id: "model", label: "模型", keywords: "model 模型" },
       {
         id: "userProfile",
         label: "关联用户档案",
@@ -95,6 +102,21 @@ export const agentEditTabs: AgentEditTab[] = [
         keywords: "preset messages 预设消息",
       },
     ],
+  },
+  {
+    id: "model",
+    label: "模型参数",
+    icon: SlidersHorizontal,
+    items: [
+      { id: "model", label: "模型", keywords: "model 模型 渠道" },
+      ...modelParameterSearchItems,
+    ],
+  },
+  {
+    id: "context",
+    label: "上下文",
+    icon: FileStack,
+    items: contextParameterSearchItems,
   },
   {
     id: "capabilities",

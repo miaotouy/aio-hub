@@ -77,19 +77,27 @@
 
 ## 3. 动态能力适配 (`ModelParametersEditor`)
 
-编辑器位于 [`components/agent/parameters/ModelParametersEditor.vue`](../../../agent-manager/components/parameters/ModelParametersEditor.vue)，由 [`config/parameter-config.ts`](../../config/parameter-config.ts) 中的 `parameterConfigs` 表驱动，配合 [`ParameterItem.vue`](../../../agent-manager/components/parameters/ParameterItem.vue) 渲染单条参数。
+共享编辑器位于 [`ModelParametersEditor.vue`](../../../agent-manager/components/parameters/ModelParametersEditor.vue)，由 [`parameterConfigs`](../../config/parameter-config.ts) 驱动单条参数控件，分组、搜索元数据和模型可见性规则集中在 [`parameterEditorConfig.ts`](../../../agent-manager/components/parameters/parameterEditorConfig.ts)。
+
+智能体完整设置页提供「模型参数」「上下文」两页：前者承载模型选择、基础参数、高级参数、安全设置、特殊功能与自定义参数，后者承载上下文管理、压缩、后处理与图片压缩。聊天侧边栏保留全部原有分组和操作入口。两个入口通过 [`useAgentModelContext`](../../../agent-manager/composables/useAgentModelContext.ts) 解析目标智能体的模型、渠道和 Token 上限，并复用同一套参数控件与预算联动。
+
+- 编辑页将 `parameters` 深拷贝到表单草稿，点击保存或切换编辑对象时写入智能体；跨页编辑保留启用列表、嵌套配置和隐藏参数。
+- 侧边栏即时写入当前智能体。`defaultToolCallCollapsed` 与 `visualGuideline` 同步纳入编辑页的加载与保存链路。
+- 编辑页分组默认展开并独立管理折叠状态；侧边栏沿用聊天 UI 的折叠偏好。`groups` 属性控制展示分组，`presentation` 区分两个入口。
+- 上下文统计通过 `externalStats` 由侧边栏传入；共享编辑器直接消费输入数据。完整设置页只展示配置。
+- 搜索按所选模型能力筛选参数，定位限定在当前编辑器内并展开目标分组。旧的角色设定模型定位入口转到模型参数页。
 
 ### 3.1 参数分组动态过滤
 
-每个参数携带 `group: "basic" | "advanced" | "special"` 与 `supportedKey` 字段，由 [`shouldShowParameter()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:249) 与 `getSupportedParameters(providerType)` 联合裁剪——某 `supportedKey` 在该 Provider 上为 `false` 时整条参数隐藏，从而避免给不支持的 Provider 展示无用项。
+每个参数携带 `group: "basic" | "advanced" | "special"` 与 `supportedKey` 字段，由共享的 [`isEditorParameterVisible()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 与 `getSupportedParameters(providerType)` 联合裁剪——某 `supportedKey` 在该 Provider 上为 `false` 时整条参数隐藏，从而避免给不支持的 Provider 展示无用项。
 
 ### 3.2 思考能力控件三态切换
 
-所有思考参数共享 `supportedKey: "thinking"`，最终控件类型完全由模型 `capabilities.thinkingConfigType` 决定（**不是简单的"滑块 vs 下拉"二选一**）：
+所有思考参数共享 `supportedKey: "thinking"`，最终控件类型完全由模型 `capabilities.thinkingConfigType` 决定（支持以下控件模式）：
 
 - `"switch"` → 仅显示 `thinkingEnabled` 开关，不暴露任何细粒度控件；
 - `"budget"` → 显示 `thinkingEnabled` 开关，并在 `thinkingEnabled === true` 时**追加显示 `thinkingBudget` 滑块**；
-- `"effort"` → 隐藏开关，显示 `reasoningEffort` 下拉，选项由 `capabilities.reasoningEffortOptions` **动态注入**（前面加一条 `"默认" → ""` 兜底，见 [`processedConfigs`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:218)）；
+- `"effort"` → 隐藏开关，显示 `reasoningEffort` 下拉，选项由 `capabilities.reasoningEffortOptions` **动态注入**（前面加一条 `"默认" → ""` 兜底，见 [`processedConfigs`](../../../agent-manager/components/parameters/ModelParametersEditor.vue)）；
 - `"none"` 或缺省 → 整组思考参数都不显示；
 - `includeThoughts`（Gemini 思考摘要回传）单独走 `supportedKey: "thinkingConfig"` 检查 Provider 支持，与上述三态正交。
 
@@ -109,16 +117,16 @@
 
 ### 3.5 厂商专属配置的条件渲染
 
-- **Gemini `safetySettings`**: 由 [`showSafetySettings`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:409) 计算属性控制——`supportedParameters.safetySettings === true` 或 `getModelFamily(modelId, providerType) === "gemini"` 任一成立即显示 [`SafetySettingsPanel`](../../../agent-manager/components/parameters/SafetySettingsPanel.vue)。
+- **Gemini `safetySettings`**: 由 [`showSafetySettings`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 计算属性控制——`supportedParameters.safetySettings === true` 或 `getModelFamily(modelId, providerType) === "gemini"` 任一成立即显示 [`SafetySettingsPanel`](../../../agent-manager/components/parameters/SafetySettingsPanel.vue)。
 - **Claude `stopSequences` / `claudeMetadata`**: 这两个参数**不走单独的厂商面板**，而是在 [`ALL_LLM_PARAMETER_KEYS`](../../config/parameter-config.ts:11) 白名单中作为标准参数与 `temperature` 等并列；UI 显示与否完全由 `enabledParameters` 白名单和参数表的 `supportedKey` 共同决定，没有专门的"Claude 配置区"。
 
 ### 3.6 `enabledParameters` 白名单 UI
 
-**没有独立的"启用列表编辑器"面板**，而是把启用/停用开关直接内嵌到每个 [`ParameterItem`](../../../agent-manager/components/parameters/ParameterItem.vue) 的右上角 `el-switch`（受 `hideSwitch` 控制，少数固定项如 `maxContextTokens` 隐藏开关默认启用）。状态由 [`isParameterEnabled()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:136) 与 [`toggleParameterEnabled()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:143) 双向管理，开关切换会立刻把 key 加入 / 移出 `enabledParameters` 数组；最终发送给 LLM 时由 [`buildEffectiveParameters()`](../../config/parameter-config.ts:406) 严格按白名单过滤。
+**没有独立的"启用列表编辑器"面板**，而是把启用/停用开关直接内嵌到每个 [`ParameterItem`](../../../agent-manager/components/parameters/ParameterItem.vue) 的右上角 `el-switch`（受 `hideSwitch` 控制，少数固定项如 `maxContextTokens` 隐藏开关默认启用）。状态由 [`isParameterEnabled()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 与 [`toggleParameterEnabled()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 双向管理，开关切换会立刻把 key 加入 / 移出 `enabledParameters` 数组；最终发送给 LLM 时由 [`buildEffectiveParameters()`](../../config/parameter-config.ts:406) 严格按白名单过滤。
 
 ### 3.7 `enabledParameters` 智能初始化
 
-首次加载或外部 `modelValue` 变化时，[`initLocalParams()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue:83) 会检测 `enabledParameters` 字段——不存在则取所有"已有非 undefined 值且不属于 custom"的 key 自动构造白名单，兼容旧版未带白名单的 Agent 配置，避免在升级后误把已设值的参数置为"未启用"。
+首次加载或外部 `modelValue` 变化时，[`initLocalParams()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 会检测 `enabledParameters` 字段——不存在则取所有"已有非 undefined 值且不属于 custom"的 key 自动构造白名单，兼容旧版未带白名单的 Agent 配置，避免在升级后误把已设值的参数置为"未启用"。
 
 ## 4. 推理状态精确回放 (Reasoning Artifacts)
 

@@ -18,6 +18,7 @@
 import { ref, computed } from "vue";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
+import { useAgentModelContext } from "@/tools/agent-manager/composables/useAgentModelContext";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { useResolvedAgentAvatar } from "@/tools/agent-manager/utils/agentAssetUtils";
@@ -41,7 +42,7 @@ import { Edit, Setting, ChatLineRound, Refresh } from "@element-plus/icons-vue";
 const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
-const { enabledProfiles, getProfileById, saveProfile } = useLlmProfiles();
+const { getProfileById, saveProfile } = useLlmProfiles();
 
 // 获取当前智能体（从 store 读取）
 const currentAgent = computed(() => {
@@ -51,43 +52,12 @@ const currentAgent = computed(() => {
 
 const agentAvatarSrc = useResolvedAgentAvatar(currentAgent);
 
-// 获取当前选中的 profile
-const currentProfile = computed(() => {
-  if (!currentAgent.value) return null;
-  return enabledProfiles.value.find(
-    (p) => p.id === currentAgent.value!.profileId
-  );
-});
-
-// 获取当前渠道类型
-const currentProviderType = computed(() => {
-  const type = currentProfile.value?.type;
-  // 特殊处理：如果是 OpenAI 兼容接口，但模型名包含 gemini，强制识别为 gemini 类型
-  // 这样可以激活 Gemini 专属的 UI 配置（如安全设置）
-  if (
-    type === "openai" &&
-    currentAgent.value?.modelId.toLowerCase().includes("gemini")
-  ) {
-    return "gemini";
-  }
-  return type;
-});
-
-// 获取当前选中的模型
-const currentModel = computed(() => {
-  if (!currentProfile.value || !currentAgent.value) return null;
-  const model = currentProfile.value.models.find(
-    (m) => m.id === currentAgent.value!.modelId
-  );
-  return model || null;
-});
-
-// 获取模型的上下文窗口限制
-const contextLengthLimit = computed(() => {
-  const contextLength = currentModel.value?.tokenLimits?.contextLength;
-  // 如果为 0 或 undefined，返回 undefined 表示不限制
-  return contextLength && contextLength > 0 ? contextLength : undefined;
-});
+const {
+  currentProfile,
+  currentModel,
+  currentProviderType,
+  contextLengthLimit,
+} = useAgentModelContext(currentAgent);
 
 // 当前选中的模型组合值
 const selectedModelCombo = computed({
@@ -338,6 +308,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
         <ModelParametersEditor
           v-model="modelParameters"
           :provider-type="currentProviderType"
+          :model-id="currentAgent.modelId"
           :capabilities="currentModel?.capabilities"
           :token-limits="currentModel?.tokenLimits"
           :context-length-limit="contextLengthLimit"

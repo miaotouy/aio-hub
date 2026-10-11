@@ -39,11 +39,14 @@ import type { PendingInputData } from "../types/context";
 import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/services/reference";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 
+import type { MessageInputPanelRepeatClickAction } from "../composables/input/useMessageInputPanel";
+
 export interface InputToolbarSettings {
   showTokenUsage: boolean;
   enableMacroParsing: boolean;
   extractBase64FromPaste: boolean;
   groupQuickActionsBySet: boolean;
+  panelRepeatClickAction: MessageInputPanelRepeatClickAction;
 }
 
 const errorHandler = createModuleErrorHandler("messageInputStore");
@@ -52,23 +55,11 @@ export const useMessageInputStore = defineStore(
   "llm-chat-message-input",
   () => {
     // === 1. UI 菜单可见性 ===
-    const macroSelectorVisible = ref(false);
-    const sessionListVisible = ref(false);
-    const toolSettingsVisible = ref(false);
     const moreMenuVisible = ref(false);
-    const canvasMenuOpen = ref(false);
-    const knowledgeSelectorVisible = ref(false);
     const toolbarCustomizeVisible = ref(false);
 
     const anyMenuOpen = computed(
-      () =>
-        macroSelectorVisible.value ||
-        sessionListVisible.value ||
-        toolSettingsVisible.value ||
-        moreMenuVisible.value ||
-        canvasMenuOpen.value ||
-        knowledgeSelectorVisible.value ||
-        toolbarCustomizeVisible.value
+      () => moreMenuVisible.value || toolbarCustomizeVisible.value
     );
 
     // === 2. 持久化设置 ===
@@ -79,6 +70,7 @@ export const useMessageInputStore = defineStore(
         enableMacroParsing: true,
         extractBase64FromPaste: true,
         groupQuickActionsBySet: false,
+        panelRepeatClickAction: "collapse",
       },
       localStorage,
       { mergeDefaults: true }
@@ -147,7 +139,6 @@ export const useMessageInputStore = defineStore(
       } else {
         chatStore.switchSession(sessionId);
       }
-      sessionListVisible.value = false;
     };
 
     const handleNewSession = () => {
@@ -155,14 +146,14 @@ export const useMessageInputStore = defineStore(
       const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
       if (!agentId) {
         customMessage.warning("没有可用的智能体来创建新会话");
-        return;
+        return false;
       }
       if (isDetached.value) {
         bus.requestAction("llm-chat:begin-new-session", { agentId });
       } else {
         chatStore.beginNewSession(agentId);
       }
-      sessionListVisible.value = false;
+      return true;
     };
 
     // 2. 模型选择
@@ -473,8 +464,6 @@ export const useMessageInputStore = defineStore(
       setTimeout(() => {
         textarea.focus();
       }, 0);
-
-      macroSelectorVisible.value = false;
     };
 
     // 处理分析当前上下文
@@ -766,12 +755,7 @@ export const useMessageInputStore = defineStore(
 
     return {
       // 菜单可见性
-      macroSelectorVisible,
-      sessionListVisible,
-      toolSettingsVisible,
       moreMenuVisible,
-      canvasMenuOpen,
-      knowledgeSelectorVisible,
       toolbarCustomizeVisible,
       anyMenuOpen,
       // 持久化设置

@@ -16,11 +16,9 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ElTooltip, ElPopover } from "element-plus";
+import { ElTooltip } from "element-plus";
 import { AtSign, X, Sparkles, Brush } from "lucide-vue-next";
-import { ref, watch } from "vue";
 import { useMessageInputPanel } from "../../../composables/input/useMessageInputPanel";
-import MiniCanvasControl from "../MiniCanvasControl.vue";
 import type { ContextPreviewData } from "../../../types/context";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useMessageInputStore } from "../../../stores/messageInputStore";
@@ -36,15 +34,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "canvas-visible-change", visible: boolean): void;
+  "open-canvas": [anchor: HTMLElement];
 }>();
 
 const { currentAgentId } = useLlmChatUiState();
-const canvasControlVisible = ref(false);
 const panel = useMessageInputPanel();
-watch(panel.activePanel, (active) => {
-  if (active) canvasControlVisible.value = false;
-});
 const agentStore = useAgentStore();
 const inputStore = useMessageInputStore();
 
@@ -61,11 +55,6 @@ const unbindCanvas = () => {
   }
   agent.toolCallConfig!.toolSettings!["web-canvas"] = { canvasId: null };
   agentStore.persistAgent(agent);
-};
-
-const onCanvasVisibleChange = (val: boolean) => {
-  canvasControlVisible.value = val;
-  emit("canvas-visible-change", val);
 };
 </script>
 
@@ -117,51 +106,39 @@ const onCanvasVisibleChange = (val: boolean) => {
     placement="top"
     :show-after="500"
   >
-    <div>
-      <el-popover
-        v-model:visible="canvasControlVisible"
-        :placement="props.isDetached ? 'bottom-end' : 'top-end'"
-        :width="320"
-        trigger="click"
-        :popper-class="[
-          'canvas-control-popover',
-          { 'detached-popover': props.isDetached },
-        ]"
-        @show="onCanvasVisibleChange(true)"
-        @hide="onCanvasVisibleChange(false)"
+    <div
+      class="temporary-model-indicator canvas-indicator"
+      :class="{
+        'has-pending': props.hasCanvasPendingChanges,
+        'is-unbound': !props.canvasBindingInfo,
+        'is-active': panel.activePanel.value?.id === 'canvas',
+      }"
+    >
+      <button
+        type="button"
+        class="canvas-trigger"
+        aria-label="画布管理"
+        :aria-expanded="
+          panel.activePanel.value?.id === 'canvas' && !panel.collapsed.value
+        "
+        :aria-controls="panel.contentId"
+        @click="emit('open-canvas', $event.currentTarget as HTMLElement)"
       >
-        <template #reference>
-          <div
-            class="temporary-model-indicator canvas-indicator"
-            :class="{
-              'has-pending': props.hasCanvasPendingChanges,
-              'is-unbound': !props.canvasBindingInfo,
-              'is-active': canvasControlVisible,
-            }"
-          >
-            <Brush :size="14" />
-            <span class="model-name">
-              {{
-                props.canvasBindingInfo
-                  ? props.canvasBindingInfo.name
-                  : "未绑定"
-              }}
-            </span>
-            <div
-              v-if="props.hasCanvasPendingChanges"
-              class="pending-pulse"
-            ></div>
-            <button
-              v-if="props.canvasBindingInfo"
-              class="clear-btn"
-              @click.stop="unbindCanvas"
-            >
-              <X :size="14" />
-            </button>
-          </div>
-        </template>
-        <div v-if="canvasControlVisible"><MiniCanvasControl /></div>
-      </el-popover>
+        <Brush :size="14" />
+        <span class="model-name">{{
+          props.canvasBindingInfo ? props.canvasBindingInfo.name : "未绑定"
+        }}</span>
+        <span v-if="props.hasCanvasPendingChanges" class="pending-pulse"></span>
+      </button>
+      <button
+        v-if="props.canvasBindingInfo"
+        type="button"
+        class="clear-btn"
+        aria-label="解绑当前画布"
+        @click.stop="unbindCanvas"
+      >
+        <X :size="14" />
+      </button>
     </div>
   </el-tooltip>
 
@@ -432,5 +409,20 @@ const onCanvasVisibleChange = (val: boolean) => {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(var(--el-color-warning-rgb), 0);
   }
+}
+.canvas-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.canvas-trigger:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 </style>

@@ -1,9 +1,12 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
-import { defineComponent, nextTick, ref } from "vue";
+import { defineComponent, nextTick, ref, type PropType } from "vue";
 import MessageInputPanelHost from "./MessageInputPanelHost.vue";
-import { provideMessageInputPanel } from "../../composables/input/useMessageInputPanel";
+import {
+  provideMessageInputPanel,
+  type MessageInputPanelRepeatClickAction,
+} from "../../composables/input/useMessageInputPanel";
 
 // Protects the slot lifecycle and keyboard contract through actual user interactions.
 // Local edits survive folding; replacement and close release the previous panel.
@@ -18,8 +21,14 @@ const LocalEditor = defineComponent({
 
 const Harness = defineComponent({
   components: { MessageInputPanelHost },
-  setup() {
-    const panel = provideMessageInputPanel();
+  props: {
+    repeatClickAction: {
+      type: String as PropType<MessageInputPanelRepeatClickAction>,
+      default: "collapse",
+    },
+  },
+  setup(props) {
+    const panel = provideMessageInputPanel(() => props.repeatClickAction);
     const triggerA = ref<HTMLButtonElement>();
     const triggerB = ref<HTMLButtonElement>();
     const draft = ref("草稿保留");
@@ -64,6 +73,48 @@ async function click(label: string) {
 }
 
 describe("message input panel slot", () => {
+  // Protects configurable trigger behavior independently of title controls and panel layout.
+  it("folds on repeated trigger clicks by default and restores the current edits", async () => {
+    wrapper = mount(Harness, { attachTo: document.body });
+    await click("打开 A");
+    await wrapper.get("input").setValue("保留搜索");
+    await click("打开 A");
+    expect(wrapper.get("input").isVisible()).toBe(false);
+    await click("打开 A");
+    expect(wrapper.get("input").isVisible()).toBe(true);
+    expect((wrapper.get("input").element as HTMLInputElement).value).toBe(
+      "保留搜索"
+    );
+  });
+
+  it("applies close mode immediately, reopens folded panels, and releases edits on close", async () => {
+    wrapper = mount(Harness, { attachTo: document.body });
+    await click("打开 A");
+    await wrapper.get("input").setValue("临时搜索");
+    await wrapper.setProps({ repeatClickAction: "close" });
+    await click("折叠面板");
+    await click("打开 A");
+    expect(wrapper.get("input").isVisible()).toBe(true);
+    expect((wrapper.get("input").element as HTMLInputElement).value).toBe(
+      "临时搜索"
+    );
+    await click("打开 B");
+    await click("打开 A");
+    await wrapper.get("input").setValue("即将释放");
+    await click("打开 A");
+    expect(wrapper.find("input").exists()).toBe(false);
+    expect(wrapper.findComponent(MessageInputPanelHost).exists()).toBe(false);
+    expect(document.activeElement).toBe(button("打开 A").element);
+    await click("打开 A");
+    expect((wrapper.get("input").element as HTMLInputElement).value).toBe("A");
+    await wrapper.setProps({ repeatClickAction: "collapse" });
+    await click("打开 A");
+    expect(wrapper.get("input").isVisible()).toBe(false);
+    expect((wrapper.get("textarea").element as HTMLTextAreaElement).value).toBe(
+      "草稿保留"
+    );
+  });
+
   it("preserves the active panel's edits while folding and lets the draft remain editable", async () => {
     wrapper = mount(Harness, { attachTo: document.body });
     await click("打开 A");
@@ -108,5 +159,39 @@ describe("message input panel slot", () => {
     expect(document.activeElement).toBe(button("打开 A").element);
     await click("打开 B");
     expect((wrapper.get("input").element as HTMLInputElement).value).toBe("B");
+  });
+
+  // Fixed regions share the host's visibility and keyboard/focus contract.
+  it("folds all named regions together and handles focus and Escape from the footer", async () => {
+    wrapper = mount(MessageInputPanelHost, {
+      attachTo: document.body,
+      props: {
+        panel: { id: "fixed-controls", title: "面板", component: LocalEditor },
+        contentId: "fixed-controls-content",
+        collapsed: false,
+      },
+      slots: {
+        controls: '<input aria-label="筛选内容" />',
+        default: '<button aria-label="选择项目">选择</button>',
+        footer: '<button aria-label="底部操作">操作</button>',
+      },
+    });
+    await nextTick();
+    const filter = wrapper.get('input[aria-label="筛选内容"]');
+    const footer = button("底部操作");
+    expect(document.activeElement).toBe(filter.element);
+    await filter.setValue("保留筛选");
+    (footer.element as HTMLButtonElement).focus();
+    await wrapper.setProps({ collapsed: true });
+    expect(document.activeElement).toBe(button("展开面板").element);
+    expect(filter.isVisible()).toBe(false);
+    expect(button("选择项目").isVisible()).toBe(false);
+    expect(footer.isVisible()).toBe(false);
+    await wrapper.setProps({ collapsed: false });
+    expect(filter.isVisible()).toBe(true);
+    expect(footer.isVisible()).toBe(true);
+    expect((filter.element as HTMLInputElement).value).toBe("保留筛选");
+    await footer.trigger("keydown", { key: "Escape" });
+    expect(wrapper.emitted("close")).toHaveLength(1);
   });
 });

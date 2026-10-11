@@ -10,6 +10,8 @@ import {
   type InjectionKey,
 } from "vue";
 
+export type MessageInputPanelRepeatClickAction = "collapse" | "close";
+
 export interface MessageInputPanelDefinition {
   id: string;
   title: string;
@@ -17,10 +19,15 @@ export interface MessageInputPanelDefinition {
   summary?: string;
   component: Component;
   props?: Record<string, unknown>;
+  scroll?: "host" | "content" | "layout";
 }
 
 /** A single window-local slot; replacing a panel releases the previous instance. */
-export function createMessageInputPanelController(contentId: string) {
+export function createMessageInputPanelController(
+  contentId: string,
+  getRepeatClickAction: () => MessageInputPanelRepeatClickAction = () =>
+    "collapse"
+) {
   const activePanel = shallowRef<MessageInputPanelDefinition | null>(null);
   const collapsed = ref(false);
   let returnFocus: (() => HTMLElement | undefined) | undefined;
@@ -39,8 +46,12 @@ export function createMessageInputPanelController(contentId: string) {
     trigger?: () => HTMLElement | undefined
   ) {
     if (activePanel.value?.id === panel.id) {
-      collapsed.value = !collapsed.value;
       returnFocus = trigger ?? returnFocus;
+      if (!collapsed.value && getRepeatClickAction() === "close") {
+        close(true);
+      } else {
+        collapsed.value = !collapsed.value;
+      }
     } else open(panel, trigger);
   }
 
@@ -71,9 +82,12 @@ const panelKey: InjectionKey<
   ReturnType<typeof createMessageInputPanelController>
 > = Symbol("message-input-panel");
 
-export function provideMessageInputPanel() {
+export function provideMessageInputPanel(
+  getRepeatClickAction?: () => MessageInputPanelRepeatClickAction
+) {
   const panel = createMessageInputPanelController(
-    `chat-input-panel-${useId()}`
+    `chat-input-panel-${useId()}`,
+    getRepeatClickAction
   );
   provide(panelKey, panel);
   return panel;

@@ -138,15 +138,17 @@ describe("Chat toolbar customization", () => {
     );
 
     await openAction("macro");
-    await $(".macro-selector-popover .macro-selector").waitForDisplayed();
+    await $(".input-panel-host .macro-selector").waitForDisplayed();
     await browser.keys("Escape");
-    await $(".macro-selector-popover .macro-selector").waitForDisplayed({
+    await $(".input-panel-host .macro-selector").waitForDisplayed({
       reverse: true,
     });
     await openAction("sessions");
-    await $(".session-list-popover").waitForDisplayed();
+    await $(".input-panel-host .mini-session-list").waitForDisplayed();
     await browser.keys("Escape");
-    await $(".session-list-popover").waitForDisplayed({ reverse: true });
+    await $(".input-panel-host .mini-session-list").waitForDisplayed({
+      reverse: true,
+    });
     await openAction("knowledge");
     await $(
       '[data-testid="chat-knowledge-reference-selector"]'

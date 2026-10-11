@@ -21,10 +21,10 @@ export type { InputToolbarSettings } from "../../stores/messageInputStore";
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ElPopover } from "element-plus";
 import { useResizeObserver } from "@vueuse/core";
-import { MoreHorizontal, LoaderCircle } from "lucide-vue-next";
-import MacroSelector from "@/tools/agent-manager/components/selectors/MacroSelector.vue";
+import { MoreHorizontal, LoaderCircle, Brush } from "lucide-vue-next";
+import MacroInputPanel from "./MacroInputPanel.vue";
+import MiniCanvasControl from "./MiniCanvasControl.vue";
 import MiniSessionList from "./MiniSessionList.vue";
 import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
 import QuickActionsBar from "./toolbar/QuickActionsBar.vue";
@@ -32,9 +32,8 @@ import ToolbarMoreMenu from "./toolbar/ToolbarMoreMenu.vue";
 import InputSettingsPanel from "./toolbar/InputSettingsPanel.vue";
 import { useMessageInputPanel } from "../../composables/input/useMessageInputPanel";
 import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
-import KnowledgeReferenceControl from "./KnowledgeReferenceControl.vue";
+import KnowledgeReferencePanel from "./KnowledgeReferencePanel.vue";
 import type { ContextPreviewData } from "../../types/context";
-import type { MacroDefinition } from "../../macro-engine";
 import { useQuickActionStore } from "../../stores/quickActionStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import ToolbarActionButton from "./toolbar/ToolbarActionButton.vue";
@@ -60,12 +59,11 @@ import { useMessageInputStore } from "../../stores/messageInputStore";
 import {
   computed,
   ref,
-  shallowRef,
-  nextTick,
   onMounted,
   onBeforeUnmount,
   defineAsyncComponent,
   watch,
+  type Component,
 } from "vue";
 import { storeToRefs } from "pinia";
 import { useChatContext } from "../../composables/chat/useChatContext";
@@ -113,12 +111,7 @@ const { send, abort, triggerAttachment } = context.actions;
 const inputStore = useMessageInputStore();
 const panel = useMessageInputPanel();
 const {
-  macroSelectorVisible,
-  sessionListVisible,
-  toolSettingsVisible,
   moreMenuVisible,
-  canvasMenuOpen,
-  knowledgeSelectorVisible,
   toolbarCustomizeVisible,
   settings: inputSettings,
 } = storeToRefs(inputStore);
@@ -152,10 +145,6 @@ onMounted(() => {
 });
 
 const activeActionSets = useActiveQuickActionSets();
-
-const miniSessionListRef = ref<InstanceType<typeof MiniSessionList> | null>(
-  null
-);
 
 const isCanvasEnabled = computed(() => {
   if (!isToolCallingEnabled.value) return false;
@@ -206,12 +195,8 @@ const canvasBindingInfo = computed(() => {
   }
 });
 
-const handleSessionListShow = () => {
-  setTimeout(() => miniSessionListRef.value?.scrollToCurrent(), 100);
-};
-
 const handleOpenAdvanced = (tab: string | undefined) => {
-  toolSettingsVisible.value = false;
+  panel.close();
   if (props.isDetached) {
     bus.requestAction("llm-chat:open-agent-settings", { tab });
     customMessage.info("正在主窗口中打开智能体设置...");
@@ -221,6 +206,7 @@ const handleOpenAdvanced = (tab: string | undefined) => {
 };
 
 const handleOpenQuickActionManager = () => {
+  panel.close();
   if (props.isDetached) {
     bus.requestAction("llm-chat:open-quick-action-manager", {});
     customMessage.info("正在主窗口中打开快捷操作管理...");
@@ -233,7 +219,6 @@ const toolActionsRef = ref<HTMLElement>();
 const bottomBarRef = ref<HTMLElement>();
 const moreButtonRef = ref<HTMLButtonElement>();
 const moreMenuRef = ref<InstanceType<typeof ToolbarMoreMenu>>();
-const panelAnchor = shallowRef<HTMLElement>();
 const availableWidth = ref(0);
 const bottomWidth = ref(0);
 useResizeObserver(toolActionsRef, (entries) => {
@@ -249,30 +234,14 @@ const layout = computed(() =>
 const quickActions = computed(() =>
   partitionQuickActions(activeActionSets.value, layout.value)
 );
-const openPanel = computed(() =>
-  macroSelectorVisible.value
-    ? "macro"
-    : sessionListVisible.value
-      ? "sessions"
-      : toolSettingsVisible.value
-        ? "tool-settings"
-        : knowledgeSelectorVisible.value
-          ? "knowledge"
-          : panel.activePanel.value?.id
-);
-const sharedPanelVisible = computed({
-  get: () =>
-    macroSelectorVisible.value ||
-    sessionListVisible.value ||
-    toolSettingsVisible.value,
-  set: (visible: boolean) => {
-    if (!visible) {
-      macroSelectorVisible.value = false;
-      sessionListVisible.value = false;
-      toolSettingsVisible.value = false;
-    }
-  },
-});
+const openPanel = computed(() => panel.activePanel.value?.id);
+const panelComponents: Partial<Record<ToolbarAction["id"], Component>> = {
+  macro: MacroInputPanel,
+  sessions: MiniSessionList,
+  "tool-settings": MiniToolCallingSettings,
+  knowledge: KnowledgeReferencePanel,
+  "input-settings": InputSettingsPanel,
+};
 const actions = computed(() =>
   resolveInputToolbarActions({
     disabled: disabled.value,
@@ -297,7 +266,7 @@ const actions = computed(() =>
     continuationModelName: inputStore.continuationModelInfo?.modelName,
     openPanel: openPanel.value,
   }).map((action) =>
-    action.id === "input-settings"
+    action.kind === "panel"
       ? {
           ...action,
           controls: panel.contentId,
@@ -332,51 +301,52 @@ const hasCollectedActivity = computed(() =>
   )
 );
 function closePanels() {
-  macroSelectorVisible.value = false;
-  sessionListVisible.value = false;
-  toolSettingsVisible.value = false;
-  knowledgeSelectorVisible.value = false;
   panel.close();
+}
+function openCanvasPanel(anchor: HTMLElement) {
+  if (!isCanvasEnabled.value) return;
+  moreMenuRef.value?.close();
+  panel.toggle(
+    {
+      id: "canvas",
+      title: "画布管理",
+      icon: Brush,
+      component: MiniCanvasControl,
+    },
+    () => (anchor.isConnected ? anchor : moreButtonRef.value)
+  );
 }
 async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
   const current = actions.value.find((item) => item.id === action.id);
   if (!current || !current.visible || current.disabled) return;
-  const wasOpen = openPanel.value === action.id;
   moreMenuRef.value?.close();
-  if (action.id === "input-settings") {
-    macroSelectorVisible.value = false;
-    sessionListVisible.value = false;
-    toolSettingsVisible.value = false;
-    knowledgeSelectorVisible.value = false;
+  const component = panelComponents[action.id];
+  if (component) {
     panel.toggle(
       {
         id: action.id,
         title: action.label,
         icon: action.icon,
-        component: InputSettingsPanel,
+        component,
+        scroll:
+          action.id === "sessions" || action.id === "macro"
+            ? "content"
+            : action.id === "tool-settings" || action.id === "knowledge"
+              ? "layout"
+              : "host",
+        props:
+          action.id === "tool-settings"
+            ? { isVcp: isVcpChannel }
+            : action.id === "knowledge"
+              ? { disabled }
+              : undefined,
       },
       () => (anchor?.isConnected ? anchor : moreButtonRef.value)
     );
     return;
   }
-  closePanels();
-  panelAnchor.value = anchor ?? moreButtonRef.value;
-  await nextTick();
   try {
     switch (action.id) {
-      case "macro":
-        macroSelectorVisible.value = !wasOpen;
-        break;
-      case "sessions":
-        sessionListVisible.value = !wasOpen;
-        if (!wasOpen) handleSessionListShow();
-        break;
-      case "tool-settings":
-        toolSettingsVisible.value = !wasOpen;
-        break;
-      case "knowledge":
-        knowledgeSelectorVisible.value = !wasOpen;
-        break;
       case "streaming":
         emit("toggle-streaming");
         break;
@@ -387,12 +357,14 @@ async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
         await triggerAttachment?.();
         break;
       case "temporary-model":
+        panel.close();
         await inputStore.handleSelectTemporaryModel();
         break;
       case "complete":
         await inputStore.handleCompleteInput(props.inputText);
         break;
       case "continuation-model":
+        panel.close();
         await inputStore.handleSelectContinuationModel();
         break;
       case "translate":
@@ -408,6 +380,7 @@ async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
         inputStore.handleCleanupPlaceholders();
         break;
       case "analyze-context":
+        panel.close();
         await inputStore.handleAnalyzeContextWithInput();
         break;
       case "cut-draft":
@@ -440,40 +413,10 @@ async function openCustomizer() {
     toolbarErrorHandler.error(error, "打开工具栏设置失败，请重试");
   }
 }
-watch(
-  pinnedActions,
-  () => {
-    if (panelAnchor.value && !panelAnchor.value.isConnected)
-      panelAnchor.value = moreButtonRef.value;
-  },
-  { flush: "post" }
-);
-watch(openPanel, async (currentPanel, previous) => {
-  await nextTick();
-  if (currentPanel === "input-settings") return;
-  if (currentPanel) {
-    const selector =
-      currentPanel === "knowledge"
-        ? ".knowledge-reference-popover"
-        : ".input-toolbar-panel";
-    document
-      .querySelector<HTMLElement>(selector)
-      ?.querySelector<HTMLElement>(
-        'input:not(:disabled),button:not(:disabled),[tabindex="0"]'
-      )
-      ?.focus({ preventScroll: true });
-  } else if (
-    previous &&
-    previous !== "input-settings" &&
-    !toolbarCustomizeVisible.value &&
-    document.activeElement === document.body
-  )
-    panelAnchor.value?.focus();
+watch(isCanvasEnabled, (enabled) => {
+  if (!enabled && panel.activePanel.value?.id === "canvas") panel.close();
 });
-watch(canvasMenuOpen, (visible) => {
-  if (visible) panel.close();
-});
-defineExpose({ openCustomizer });
+defineExpose({ openCustomizer, openAdvanced: handleOpenAdvanced });
 onBeforeUnmount(closePanels);
 </script>
 
@@ -556,7 +499,7 @@ onBeforeUnmount(closePanels);
             :canvas-binding-info="canvasBindingInfo"
             :has-canvas-pending-changes="hasCanvasPendingChanges"
             :context-stats="props.contextStats"
-            @canvas-visible-change="canvasMenuOpen = $event"
+            @open-canvas="openCanvasPanel"
           />
         </div>
         <!-- 停止 & 发送 -->
@@ -618,49 +561,6 @@ onBeforeUnmount(closePanels);
       >
     </div>
   </div>
-  <el-popover
-    v-model:visible="sharedPanelVisible"
-    :virtual-ref="panelAnchor"
-    virtual-triggering
-    :trigger="[]"
-    :persistent="false"
-    :placement="props.isDetached ? 'bottom-start' : 'top-start'"
-    :width="openPanel === 'tool-settings' ? 360 : 300"
-    :popper-class="[
-      'input-toolbar-panel',
-      openPanel === 'macro'
-        ? 'macro-selector-popover'
-        : openPanel === 'sessions'
-          ? 'session-list-popover'
-          : 'tool-settings-popover',
-      { 'detached-popover': props.isDetached },
-    ]"
-  >
-    <div @keydown.esc.stop.prevent="closePanels">
-      <MacroSelector
-        v-if="macroSelectorVisible"
-        @insert="
-          (macro: MacroDefinition) => inputStore.handleInsertMacro(macro)
-        "
-      />
-      <MiniSessionList
-        v-else-if="sessionListVisible"
-        ref="miniSessionListRef"
-      />
-      <MiniToolCallingSettings
-        v-else-if="toolSettingsVisible"
-        :is-vcp="isVcpChannel"
-        @open-advanced="handleOpenAdvanced"
-      />
-    </div>
-  </el-popover>
-  <KnowledgeReferenceControl
-    v-model:visible="knowledgeSelectorVisible"
-    headless
-    :virtual-ref="panelAnchor"
-    :disabled="disabled"
-    :is-detached="props.isDetached"
-  />
   <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
 </template>
 
@@ -804,23 +704,6 @@ onBeforeUnmount(closePanels);
 </style>
 
 <style>
-.input-toolbar-panel.macro-selector-popover {
-  max-height: 70vh;
-  overflow: hidden;
-}
-.input-toolbar-panel.macro-selector-popover .macro-selector-body {
-  max-height: calc(70vh - 100px);
-  overflow-y: auto;
-}
-.input-toolbar-panel.session-list-popover {
-  padding: 0;
-}
-.detached-popover.macro-selector-popover {
-  max-height: 320px;
-}
-.detached-popover.macro-selector-popover .macro-selector-body {
-  max-height: 220px;
-}
 .detached-popover,
 .detached-dropdown-menu {
   background: var(--card-bg-solid) !important;

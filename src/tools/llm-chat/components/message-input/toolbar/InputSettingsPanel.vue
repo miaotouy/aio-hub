@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ElInputNumber, ElSwitch } from "element-plus";
+import { ElInputNumber, ElSwitch, ElSelect, ElOption } from "element-plus";
 import {
   useMessageInputStore,
   type InputToolbarSettings,
@@ -28,7 +28,11 @@ const { settings: chatSettings, updateSettings: updateChatSettings } =
   useChatSettings();
 
 function updateSetting(
-  key: keyof InputToolbarSettings,
+  key: {
+    [K in keyof InputToolbarSettings]: InputToolbarSettings[K] extends boolean
+      ? K
+      : never;
+  }[keyof InputToolbarSettings],
   val: boolean | string | number
 ) {
   inputStore.settings[key] = val as boolean;
@@ -40,6 +44,18 @@ function updateSetting(
     <button class="customize-link" type="button" @click="emit('customize')">
       自定义工具栏…
     </button>
+    <div class="setting-item">
+      <span class="setting-label">再次点击面板图标</span>
+      <el-select
+        v-model="inputStore.settings.panelRepeatClickAction"
+        class="panel-click-action-select"
+        aria-label="再次点击面板图标的行为"
+        size="small"
+      >
+        <el-option label="折叠" value="collapse" />
+        <el-option label="关闭" value="close" />
+      </el-select>
+    </div>
     <div class="setting-item">
       <span class="setting-label">显示 Token 统计</span>
       <el-switch
@@ -254,6 +270,10 @@ function updateSetting(
   background: transparent;
   color: var(--primary-color);
   cursor: pointer;
+}
+.panel-click-action-select {
+  width: 104px;
+  flex-shrink: 0;
 }
 .approval-timeout-input {
   width: 104px;

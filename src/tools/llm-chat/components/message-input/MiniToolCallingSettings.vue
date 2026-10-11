@@ -29,6 +29,7 @@ import {
 } from "lucide-vue-next";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import ToolCallingHelpDialog from "../common/ToolCallingHelpDialog.vue";
+import MessageInputPanelLayout from "./MessageInputPanelLayout.vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { useToolsStore } from "@/stores/tools";
@@ -203,69 +204,58 @@ const effectiveIsVcp = computed(() => {
 </script>
 
 <template>
-  <div class="mini-tool-settings">
-    <div class="settings-header">
-      <div
-        class="header-title"
-        style="display: flex; align-items: center; gap: 6px"
-      >
-        <Cpu :size="14" />
-        <span>工具调用 (Agent)</span>
+  <MessageInputPanelLayout class="mini-tool-settings">
+    <template #controls>
+      <div class="settings-toolbar">
+        <div class="settings-toggle">
+          <span>启用工具</span>
+          <el-switch
+            :model-value="config.enabled"
+            aria-label="启用工具调用"
+            @update:model-value="toggleGlobal"
+            size="small"
+          />
+        </div>
+        <div class="settings-toggle">
+          <span>自动批准</span>
+          <el-switch
+            :model-value="config.mode === 'auto'"
+            aria-label="自动批准工具调用"
+            @update:model-value="toggleAutoMode"
+            size="small"
+          />
+        </div>
+        <div class="settings-toggle">
+          <span>显示统计</span>
+          <el-switch
+            :model-value="config.showMethodsCount"
+            aria-label="显示工具方法统计"
+            @update:model-value="toggleShowMethodsCount"
+            size="small"
+          />
+        </div>
+        <el-input
+          v-if="config.enabled"
+          v-model="searchQuery"
+          class="tool-search"
+          placeholder="搜索工具或方法..."
+          aria-label="搜索工具或方法"
+          size="small"
+          clearable
+          :prefix-icon="Search"
+        />
         <button
+          type="button"
           class="help-btn"
-          style="
-            background: transparent;
-            border: none;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-            color: var(--el-text-color-secondary);
-          "
+          aria-label="工具调用帮助"
+          title="工具调用帮助"
           @click="showHelpDialog = true"
         >
-          <HelpCircle :size="13" />
+          <HelpCircle :size="14" />
         </button>
       </div>
-      <div class="header-actions">
-        <el-switch
-          :model-value="config.enabled"
-          @update:model-value="toggleGlobal"
-          size="small"
-        />
-      </div>
-    </div>
-
-    <!-- VCP 渠道提示条 -->
-    <el-tooltip
-      v-if="effectiveIsVcp && config.enabled"
-      placement="bottom"
-      :show-after="400"
-    >
-      <template #content>
-        <div style="max-width: 260px; line-height: 1.5">
-          当前渠道由 <strong>VCP 后端</strong>管理工具调用和工具执行。<br />
-          AIO 内置的工具解析已自动禁用，以避免重复解析。<br />
-          此处工具开关仅影响提示词注入，不影响后端执行。
-        </div>
-      </template>
-      <div class="vcp-channel-banner">
-        <Share2 :size="12" />
-        <span>VCP 后端接管工具调用 &mdash; 本地解析已禁用</span>
-      </div>
-    </el-tooltip>
-
-    <!-- 搜索框移到列表外部，固定在上方 -->
-    <div v-if="config.enabled" class="search-container">
-      <el-input
-        v-model="searchQuery"
-        placeholder="搜索工具或方法..."
-        size="small"
-        clearable
-        :prefix-icon="Search"
-      />
-    </div>
-
+      <ToolCallingHelpDialog v-model="showHelpDialog" />
+    </template>
     <div v-if="config.enabled" class="tools-mini-list">
       <div v-if="filteredTools.length === 0" class="empty-hint">
         <el-empty
@@ -274,7 +264,11 @@ const effectiveIsVcp = computed(() => {
         />
       </div>
       <div v-else class="tool-items-container">
-        <template v-for="tool in filteredTools" :key="tool.toolId">
+        <div
+          v-for="tool in filteredTools"
+          :key="tool.toolId"
+          class="tool-group"
+        >
           <div
             class="mini-tool-item"
             :class="{ disabled: !isToolEnabled(tool.toolId) }"
@@ -283,7 +277,9 @@ const effectiveIsVcp = computed(() => {
               <el-icon class="tool-icon">
                 <component :is="getToolIcon(tool.toolId)" />
               </el-icon>
-              <span class="tool-name">{{ tool.toolName }}</span>
+              <span :title="tool.toolName" class="tool-name">{{
+                tool.toolName
+              }}</span>
               <span
                 v-if="config.showMethodsCount"
                 class="methods-count"
@@ -424,97 +420,100 @@ const effectiveIsVcp = computed(() => {
               </div>
             </div>
           </transition>
-        </template>
+        </div>
       </div>
     </div>
+    <template #footer>
+      <div class="settings-footer">
+        <!-- 渠道状态与高级操作共享底栏 -->
+        <el-tooltip
+          v-if="effectiveIsVcp && config.enabled"
+          placement="bottom"
+          :show-after="400"
+        >
+          <template #content>
+            <div style="max-width: 260px; line-height: 1.5">
+              当前渠道由 <strong>VCP 后端</strong>管理工具调用和工具执行。<br />
+              AIO 内置的工具解析已自动禁用，以避免重复解析。<br />
+              此处工具开关仅影响提示词注入，不影响后端执行。
+            </div>
+          </template>
+          <div class="vcp-channel-status">
+            <Share2 :size="12" />
+            <span>VCP 后端管理工具调用</span>
+          </div>
+        </el-tooltip>
 
-    <div class="settings-footer">
-      <div class="footer-left">
-        <span class="footer-label">自动批准</span>
-        <el-switch
-          :model-value="config.mode === 'auto'"
-          @update:model-value="toggleAutoMode"
-          size="small"
-        />
+        <button
+          type="button"
+          class="advanced-btn"
+          @click="emit('open-advanced', 'tool-calling')"
+        >
+          <Settings2 :size="12" />
+          <span>高级设置</span>
+        </button>
       </div>
-      <div class="footer-left">
-        <span class="footer-label">显示统计</span>
-        <el-switch
-          :model-value="config.showMethodsCount"
-          @update:model-value="toggleShowMethodsCount"
-          size="small"
-        />
-      </div>
-      <button
-        class="advanced-btn"
-        @click="emit('open-advanced', 'tool-calling')"
-      >
-        <Settings2 :size="12" />
-        <span>高级设置</span>
-      </button>
-    </div>
-
-    <!-- 说明弹窗 -->
-    <ToolCallingHelpDialog v-model="showHelpDialog" />
-  </div>
+    </template>
+  </MessageInputPanelLayout>
 </template>
 
 <style scoped>
 .mini-tool-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
   color: var(--text-color);
-  padding: 4px;
 }
 
-.settings-header {
+.settings-toolbar {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 4px 8px 10px;
-  border-bottom: var(--border-width) solid var(--border-color);
+  gap: 6px 16px;
+  min-width: 0;
 }
-
-.header-title {
+.settings-toggle {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  white-space: nowrap;
 }
-
-.header-actions {
+.tool-search {
+  flex: 1 1 180px;
+  width: auto;
+  min-width: min(100%, 160px);
+}
+.help-btn {
   display: flex;
+  flex: none;
   align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
 }
-
-.tools-mini-list {
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 4px 0;
+.help-btn:hover {
+  background: var(--el-fill-color-light);
+  color: var(--text-color-primary);
 }
-
-.search-container {
-  padding: 8px 8px 4px;
-  border-bottom: var(--border-width) solid var(--border-color);
+.help-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
 }
-
-/* 自定义滚动条 */
-.tools-mini-list::-webkit-scrollbar {
-  width: 4px;
-}
-.tools-mini-list::-webkit-scrollbar-thumb {
-  background: var(--el-border-color-lighter);
-  border-radius: 2px;
-}
-
 .tool-items-container {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  align-items: start;
+  gap: 4px 12px;
+}
+.tool-group {
+  min-width: 0;
 }
 
 .mini-tool-item {
@@ -537,6 +536,7 @@ const effectiveIsVcp = computed(() => {
 }
 
 .tool-main {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -551,6 +551,10 @@ const effectiveIsVcp = computed(() => {
 }
 
 .tool-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 400;
 }
@@ -634,30 +638,16 @@ const effectiveIsVcp = computed(() => {
 }
 
 .settings-footer {
-  margin-top: 4px;
-  padding: 8px 8px 4px;
-  border-top: var(--border-width) solid var(--border-color);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
-}
-
-.footer-left {
-  display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.footer-label {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  font-weight: 500;
-  white-space: nowrap;
+  gap: 6px 12px;
+  min-height: 24px;
 }
 
 .advanced-btn {
+  margin-left: auto;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -676,24 +666,13 @@ const effectiveIsVcp = computed(() => {
   background: rgba(var(--el-color-primary-rgb), 0.08);
 }
 
-.vcp-channel-banner {
+.vcp-channel-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-primary) 12%, transparent),
-    color-mix(in srgb, #8b5cf6 8%, transparent)
-  );
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--el-color-primary) 20%, transparent);
   color: var(--el-color-primary);
   font-size: 11px;
-  font-weight: 500;
   cursor: help;
-  user-select: none;
-  letter-spacing: 0.1px;
 }
 
 .expand-chevron {

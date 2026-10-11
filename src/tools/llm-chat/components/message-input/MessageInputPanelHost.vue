@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
 import { ChevronDown, ChevronUp, X } from "lucide-vue-next";
+import MessageInputPanelLayout from "./MessageInputPanelLayout.vue";
 import type { MessageInputPanelDefinition } from "../../composables/input/useMessageInputPanel";
 
 const props = defineProps<{
@@ -102,7 +103,13 @@ function onEscape(event: KeyboardEvent) {
       class="panel-content"
       tabindex="-1"
     >
-      <slot />
+      <MessageInputPanelLayout :scroll="panel.scroll">
+        <template v-if="$slots.controls" #controls
+          ><slot name="controls"
+        /></template>
+        <slot />
+        <template v-if="$slots.footer" #footer><slot name="footer" /></template>
+      </MessageInputPanelLayout>
     </div>
   </section>
 </template>
@@ -165,10 +172,6 @@ function onEscape(event: KeyboardEvent) {
 }
 .panel-content {
   min-height: 0;
-  max-height: var(--input-panel-max-height, min(260px, 32vh));
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 12px;
   border-top: var(--border-width) solid var(--border-color);
 }
 </style>

@@ -24,6 +24,7 @@ import {
   watch,
   nextTick,
   onBeforeUnmount,
+  unref,
 } from "vue";
 import { useElementSize, useWindowSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
@@ -135,8 +136,22 @@ const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const extraContentRef = ref<HTMLDivElement>();
 const panelHostRef = ref<InstanceType<typeof MessageInputPanelHost>>();
 const toolbarRef = ref<InstanceType<typeof MessageInputToolbar>>();
-const panel = provideMessageInputPanel();
+const panel = provideMessageInputPanel(
+  () => inputStore.settings.panelRepeatClickAction
+);
 const { activePanel, collapsed: panelCollapsed } = panel;
+const panelProps = computed(() =>
+  Object.fromEntries(
+    Object.entries(activePanel.value?.props ?? {}).map(([key, value]) => [
+      key,
+      unref(value),
+    ])
+  )
+);
+function completePanel() {
+  panel.close();
+  void nextTick(() => textareaRef.value?.focus());
+}
 const { height: viewportHeight } = useWindowSize();
 const detachedAvailableHeight = ref(window.screen.availHeight);
 const { height: panelHeight } = useElementSize(
@@ -208,6 +223,10 @@ const {
 });
 
 const { currentAgentId } = useLlmChatUiState();
+watch([currentAgentId, () => chatStore.currentSessionId], () => {
+  if (activePanel.value && activePanel.value.id !== "input-settings")
+    panel.close();
+});
 
 /**
  * 检查附件是否会使用转写
@@ -609,9 +628,11 @@ const handleDragStart = (e: MouseEvent) => {
           <component
             :is="activePanel.component"
             :key="activePanel.id"
-            v-bind="activePanel.props"
+            v-bind="panelProps"
             @close="panel.close(true)"
             @focus-editor="textareaRef?.focus()"
+            @complete="completePanel"
+            @open-advanced="toolbarRef?.openAdvanced($event)"
             @customize="toolbarRef?.openCustomizer()"
           />
         </MessageInputPanelHost>

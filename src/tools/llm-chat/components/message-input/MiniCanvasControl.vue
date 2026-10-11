@@ -17,8 +17,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { ElSelect, ElOption, ElButton, ElDivider } from "element-plus";
-import { Brush, Plus, Eye, FolderOpen, X } from "lucide-vue-next";
+import { ElSelect, ElOption, ElButton } from "element-plus";
+import { Plus, Eye, FolderOpen, X } from "lucide-vue-next";
 import { useCanvasStore } from "@/tools/web-canvas/stores/canvasStore";
 import { formatDateTime } from "@/utils/time";
 import { useToolsStore } from "@/stores/tools";
@@ -141,21 +141,17 @@ onMounted(() => {
 
 <template>
   <div class="mini-canvas-control">
-    <div class="control-header">
-      <Brush :size="16" />
-      <span class="title">画布控制</span>
-    </div>
-
-    <div class="control-body">
-      <div class="section-label">当前绑定画布</div>
+    <div class="canvas-toolbar">
       <div class="canvas-selector-row">
+        <span class="section-label">绑定画布</span>
         <el-select
           :model-value="boundCanvasId"
           @update:model-value="bindCanvas"
           placeholder="选择或创建画布"
           clearable
-          size="default"
+          size="small"
           class="canvas-select"
+          aria-label="绑定画布"
         >
           <el-option
             v-for="item in canvasList"
@@ -173,11 +169,32 @@ onMounted(() => {
           link
           @click="bindCanvas(null)"
           class="unbind-btn"
+          aria-label="解除画布绑定"
+          title="解除画布绑定"
         >
           <X :size="14" />
         </el-button>
       </div>
-
+      <div class="control-footer">
+        <el-button size="small" @click="handleCreateCanvas">
+          <template #icon><Plus :size="14" /></template>
+          新建
+        </el-button>
+        <el-button
+          size="small"
+          :disabled="!boundCanvasId"
+          @click="handlePreview"
+        >
+          <template #icon><Eye :size="14" /></template>
+          预览
+        </el-button>
+        <el-button size="small" @click="handleManage">
+          <template #icon><FolderOpen :size="14" /></template>
+          管理
+        </el-button>
+      </div>
+    </div>
+    <div v-if="!boundCanvasId || pendingChangesCount > 0" class="canvas-status">
       <div v-if="!boundCanvasId" class="hint-text">
         <div class="dot"></div>
         <span>首次工具调用写入时将自动创建</span>
@@ -188,23 +205,6 @@ onMounted(() => {
         <span>{{ pendingChangesCount }} 个待定更改</span>
       </div>
     </div>
-
-    <el-divider />
-
-    <div class="control-footer">
-      <el-button size="small" @click="handleCreateCanvas">
-        <template #icon><Plus :size="14" /></template>
-        新建
-      </el-button>
-      <el-button size="small" :disabled="!boundCanvasId" @click="handlePreview">
-        <template #icon><Eye :size="14" /></template>
-        预览
-      </el-button>
-      <el-button size="small" @click="handleManage">
-        <template #icon><FolderOpen :size="14" /></template>
-        管理
-      </el-button>
-    </div>
   </div>
 </template>
 
@@ -212,43 +212,46 @@ onMounted(() => {
 .mini-canvas-control {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   color: var(--el-text-color-primary);
 }
 
-.control-header {
+.canvas-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-color-primary);
+  gap: 8px 12px;
 }
-
-.control-body {
+.canvas-status {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
 }
 
 .section-label {
+  flex: none;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 
 .canvas-selector-row {
   display: flex;
-  gap: 4px;
+  flex: 1 1 260px;
+  min-width: 0;
+  gap: 8px;
   align-items: center;
 }
 
 .canvas-select {
   flex: 1;
+  min-width: 0;
 }
 
 .unbind-btn {
   padding: 4px;
-  height: 32px;
+  height: 24px;
 }
 
 .hint-text,
@@ -258,7 +261,7 @@ onMounted(() => {
   gap: 6px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  padding: 2px 4px;
+  padding: 0;
 }
 
 .dot {
@@ -281,17 +284,12 @@ onMounted(() => {
 
 .control-footer {
   display: flex;
-  justify-content: space-between;
+  flex: none;
   gap: 8px;
 }
 
 .control-footer :deep(.el-button) {
-  flex: 1;
   margin: 0;
-  padding: 8px 4px;
-}
-
-:deep(.el-divider--horizontal) {
-  margin: 4px 0;
+  padding: 6px 8px;
 }
 </style>

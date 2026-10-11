@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
 import { useVirtualList } from "@vueuse/core";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -33,6 +33,7 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageInputStore } from "../../stores/messageInputStore";
 
 const inputStore = useMessageInputStore();
+const emit = defineEmits<{ complete: [] }>();
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
 const searchQuery = ref("");
@@ -199,10 +200,11 @@ const handleSessionClick = (session: ChatSessionIndex) => {
     }
   }
   inputStore.handleSwitchSession(session.id);
+  emit("complete");
 };
 
 const handleNewSession = () => {
-  inputStore.handleNewSession();
+  if (inputStore.handleNewSession()) emit("complete");
 };
 
 // 获取消息数量（排除系统根节点）
@@ -246,19 +248,19 @@ const scrollToCurrentSession = () => {
   container.scrollTop = Math.max(0, scrollToY);
 };
 
+let disposed = false;
 watch(
-  () => displaySessions.value,
-  (newSessions) => {
-    if (newSessions.length > 0) {
-      // 延迟一下确保 DOM 已更新
-      setTimeout(scrollToCurrentSession, 0);
-    }
+  displaySessions,
+  async (sessions) => {
+    if (!sessions.length) return;
+    await nextTick();
+    if (!disposed) scrollToCurrentSession();
   },
-  { immediate: true }
+  { immediate: true, flush: "post" }
 );
-
-defineExpose({
-  scrollToCurrent: scrollToCurrentSession,
+onBeforeUnmount(() => {
+  disposed = true;
+  if (isSearching.value) clearSearch();
 });
 </script>
 
@@ -290,6 +292,10 @@ defineExpose({
           :data-session-id="session.id"
           :data-session-active="session.id === chatStore.currentSessionId"
           :style="{ height: 'auto', minHeight: '50px' }"
+          role="button"
+          tabindex="0"
+          @keydown.enter.prevent="handleSessionClick(session)"
+          @keydown.space.prevent="handleSessionClick(session)"
           @click="handleSessionClick(session)"
         >
           <div class="session-content">
@@ -414,20 +420,24 @@ defineExpose({
 .mini-session-list {
   display: flex;
   flex-direction: column;
-  height: 300px;
+  height: 100%;
+  min-height: 0;
   width: 100%;
 }
 
 .header {
   display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 0 0;
   border-top: var(--border-width) solid var(--border-color);
   align-items: center;
 }
 
 .search-input {
-  flex: 1;
+  flex: 1 1 160px;
+  min-width: min(100%, 120px);
 }
 
 .match-mode-btn {
@@ -444,6 +454,7 @@ defineExpose({
 
 .list-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px;
 }
@@ -584,5 +595,9 @@ defineExpose({
 
 .list-container::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover-color);
+}
+.session-item:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
 }
 </style>

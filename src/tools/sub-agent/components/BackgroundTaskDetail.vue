@@ -175,6 +175,7 @@ const settledApprovals = computed<BackgroundTaskApprovalRecord[]>(() =>
 const APPROVAL_ORIGIN_LABELS: Record<string, string> = {
   rule: "规则自动放行",
   jev: "JEV 仲裁",
+  llm: "LLM 自动审批",
   manual: "人工确认",
   timeout: "审批超时",
   cancelled: "已取消",
@@ -184,7 +185,22 @@ function approvalOriginLabel(origin: string): string {
   return APPROVAL_ORIGIN_LABELS[origin] ?? origin;
 }
 
+function approvalActionLabel(action: string): string {
+  return (
+    (
+      { approve: "批准", deny: "拒绝", escalate: "建议人工确认" } as Record<
+        string,
+        string
+      >
+    )[action] ?? action
+  );
+}
+
 function approvalRiskText(record: BackgroundTaskApprovalRecord): string {
+  if (record.riskLevel)
+    return { low: "低风险", medium: "中风险", high: "高风险" }[
+      record.riskLevel
+    ];
   if (record.risk === null || record.risk === undefined) return "";
   return `风险 ${Math.round(Math.min(1, Math.max(0, record.risk)) * 100)}%`;
 }
@@ -206,7 +222,9 @@ function arbitrationFor(requestId: string): ArbitrationPresentation | null {
   const presentation = describeArbitration(
     toolCallingStore.getAuditRecord(requestId)
   );
-  return presentation?.kind === "jev" ? presentation : null;
+  return presentation?.kind === "jev" || presentation?.kind === "llm"
+    ? presentation
+    : null;
 }
 
 interface PendingApprovalView {
@@ -214,7 +232,7 @@ interface PendingApprovalView {
   request: ParsedToolRequest;
   argsText: string;
   validationError: string;
-  jev: ArbitrationPresentation | null;
+  arbiter: ArbitrationPresentation | null;
 }
 
 /** 待审批项视图：附带参数、验证错误与 JEV 仲裁意见，供批准前核对。 */
@@ -224,7 +242,7 @@ const pendingApprovalViews = computed<PendingApprovalView[]>(() =>
     request: item.request,
     argsText: approvalArgsText(item.request),
     validationError: approvalValidationError(item.request),
-    jev: arbitrationFor(item.request.requestId),
+    arbiter: arbitrationFor(item.request.requestId),
   }))
 );
 
@@ -535,27 +553,38 @@ async function handleCancelTask(): Promise<void> {
               {{ item.argsText }}
             </div>
             <div
-              v-if="item.jev"
+              v-if="item.arbiter"
               class="approval-item-jev"
-              :class="{ 'is-degraded': item.jev.degraded }"
-              data-testid="task-approval-jev"
+              :class="{ 'is-degraded': item.arbiter.degraded }"
+              :data-testid="
+                item.arbiter.kind === 'llm'
+                  ? 'task-approval-llm'
+                  : 'task-approval-jev'
+              "
             >
               <span class="approval-item-jev-dot" />
-              <template v-if="item.jev.degraded">
-                Jev 离线 · 安全兜底
+              <template v-if="item.arbiter.degraded">
+                {{
+                  item.arbiter.kind === "llm"
+                    ? "LLM 审核暂不可用 · 需人工确认"
+                    : "Jev 离线 · 安全兜底"
+                }}
               </template>
               <template v-else>
-                Jev 建议人工确认
-                <template v-if="item.jev.riskPercent != null">
-                  · 风险 {{ item.jev.riskPercent }}%
+                {{ item.arbiter.kind === "llm" ? "LLM" : "Jev" }} 建议人工确认
+                <template v-if="item.arbiter.riskLabel">
+                  · {{ item.arbiter.riskLabel }}</template
+                >
+                <template v-if="item.arbiter.riskPercent != null">
+                  · 风险 {{ item.arbiter.riskPercent }}%
                 </template>
-                <template v-if="item.jev.intentPercent != null">
-                  · 意图 {{ item.jev.intentPercent }}%
+                <template v-if="item.arbiter.intentPercent != null">
+                  · 意图 {{ item.arbiter.intentPercent }}%
                 </template>
               </template>
             </div>
-            <div v-if="item.jev?.reason" class="approval-item-jev-reason">
-              {{ item.jev.reason }}
+            <div v-if="item.arbiter?.reason" class="approval-item-jev-reason">
+              {{ item.arbiter.reason }}
             </div>
           </div>
           <div class="approval-item-actions">
@@ -588,9 +617,7 @@ async function handleCancelTask(): Promise<void> {
             <span
               class="approval-history-dot"
               :class="
-                record.decision === 'approved'
-                  ? 'is-approved'
-                  : 'is-rejected'
+                record.decision === 'approved' ? 'is-approved' : 'is-rejected'
               "
             />
             <span class="approval-history-tool">
@@ -599,8 +626,16 @@ async function handleCancelTask(): Promise<void> {
             <span class="approval-history-origin">
               {{ approvalOriginLabel(record.origin) }}
             </span>
-            <span v-if="record.jevAction" class="approval-history-jev">
-              JEV {{ record.jevAction }}
+            <span
+              v-if="record.arbiterAction || record.jevAction"
+              class="approval-history-jev"
+            >
+              {{ record.arbiterEngine === "llm" ? "LLM" : "JEV" }}
+              {{
+                approvalActionLabel(
+                  record.arbiterAction || record.jevAction || ""
+                )
+              }}
             </span>
             <span v-if="approvalRiskText(record)" class="approval-history-risk">
               {{ approvalRiskText(record) }}

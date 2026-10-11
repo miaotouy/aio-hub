@@ -414,7 +414,15 @@ const statusClass = computed(() => `status-${mainStatus.value}`);
 // action 语义统一由 describeArbitration 判定，禁止在此把 escalate 当作
 // approve 渲染（否则人工审批弹窗出现前会误显示「Jev 自动放行」）。
 interface AuditBadge {
-  key: "jev-approve" | "jev-deny" | "jev-escalate" | "manual" | "rule";
+  key:
+    | "jev-approve"
+    | "jev-deny"
+    | "jev-escalate"
+    | "llm-approve"
+    | "llm-deny"
+    | "llm-escalate"
+    | "manual"
+    | "rule";
   label: string;
   tone: "success" | "danger" | "warning" | "primary";
 }
@@ -426,27 +434,37 @@ const auditBadge = computed<AuditBadge | null>(() => {
   const presentation = describeArbitration(
     toolCallingStore.getAuditRecord?.(tc.requestId)
   );
-  if (presentation?.kind === "jev") {
-    const risk = presentation.riskPercent ?? 0;
+  if (presentation?.kind === "jev" || presentation?.kind === "llm") {
+    const engine = presentation.kind;
+    const label = engine === "llm" ? "LLM" : "Jev";
+    const riskText =
+      engine === "llm"
+        ? presentation.riskLabel
+        : presentation.riskPercent != null
+          ? "风险 " + presentation.riskPercent + "%"
+          : null;
+    const suffix = riskText ? " (" + riskText + ")" : "";
     if (presentation.action === "deny") {
       return {
-        key: "jev-deny",
-        label: `Jev 风险拦截 (风险 ${risk}%)`,
+        key: ("" + engine + "-deny") as AuditBadge["key"],
+        label: label + " 风险拦截" + suffix,
         tone: "danger",
       };
     }
     if (presentation.action === "escalate") {
       return {
-        key: "jev-escalate",
+        key: (engine + "-escalate") as AuditBadge["key"],
         label: presentation.degraded
-          ? "Jev 离线 · 安全兜底"
-          : "Jev 建议人工确认",
+          ? engine === "llm"
+            ? "LLM 审核暂不可用 · 需人工确认"
+            : "Jev 离线 · 安全兜底"
+          : label + " 建议人工确认",
         tone: "warning",
       };
     }
     return {
-      key: "jev-approve",
-      label: `Jev 自动放行 (风险 ${risk}%)`,
+      key: (engine + "-approve") as AuditBadge["key"],
+      label: label + " 自动放行" + suffix,
       tone: "success",
     };
   }

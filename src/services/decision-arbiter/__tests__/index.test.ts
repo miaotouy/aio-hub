@@ -25,9 +25,7 @@ import {
 } from "../types";
 import type { LlmProfile } from "@/types/llm-profiles";
 
-function ctx(
-  overrides: Partial<ArbitrationContext> = {}
-): ArbitrationContext {
+function ctx(overrides: Partial<ArbitrationContext> = {}): ArbitrationContext {
   return {
     request: {
       requestId: "req-1",
@@ -111,9 +109,7 @@ describe("createDecisionArbiter", () => {
   });
 
   it("静态危险特征命中时跳过仲裁转人工（红线 6）", async () => {
-    const arbiter = createDecisionArbiter(
-      buildDeps({ enabled: true })
-    );
+    const arbiter = createDecisionArbiter(buildDeps({ enabled: true }));
     const decision = await arbiter.arbitrate(
       ctx({
         request: {
@@ -350,7 +346,120 @@ describe("createDecisionArbiter", () => {
         enabled: agentId === "agent-1",
       }),
     });
-    expect(arbiter.isArbitrationEnabled(ctx({ agentId: "agent-1" }))).toBe(true);
+    expect(arbiter.isArbitrationEnabled(ctx({ agentId: "agent-1" }))).toBe(
+      true
+    );
     expect(arbiter.isArbitrationEnabled(ctx())).toBe(false);
+  });
+});
+
+describe("createDecisionArbiter 普通 LLM 引擎", () => {
+  const callLlm = vi.fn();
+  const answer = {
+    action: "approve",
+    riskLevel: "low",
+    matchesUserIntent: true,
+    explicitlyAuthorized: true,
+    reason: "操作在用户授权范围内",
+  };
+  const llmContext = () =>
+    ctx({
+      recentUserMessage: "读取 workspace/input.txt",
+      toolDescription: "读取指定路径的文本文件",
+      effectiveArgs: { path: "workspace/input.txt" },
+    });
+  const deps = () => ({
+    ...buildDeps({ enabled: true }, { engine: "llm", model: "reviewer" }),
+    getProfileById: () =>
+      ({
+        id: "profile-1",
+        enabled: true,
+        models: [{ id: "reviewer", name: "审核模型" }],
+      }) as LlmProfile,
+    callLlm,
+  });
+  beforeEach(() => {
+    callLlm.mockReset();
+    callSystemOne.mockReset();
+    callLlm.mockResolvedValue({ content: JSON.stringify(answer) });
+  });
+
+  it("通过普通聊天接口裁决并保留 LLM 来源和离散风险证据", async () => {
+    const decision =
+      await createDecisionArbiter(deps()).arbitrate(llmContext());
+    expect(decision).toMatchObject({
+      engine: "llm",
+      action: "approve",
+      audit: { engine: "llm", risk: null, confidence: null, llm: answer },
+    });
+    expect(callLlm.mock.calls[0][0]).toMatchObject({
+      profileId: "profile-1",
+      modelId: "reviewer",
+      stream: false,
+    });
+    expect(callSystemOne).not.toHaveBeenCalled();
+  });
+
+  it("保留模型拒绝与升级人工的动作", async () => {
+    callLlm.mockResolvedValueOnce({
+      content: JSON.stringify({ ...answer, action: "deny", riskLevel: "high" }),
+    });
+    expect(
+      (await createDecisionArbiter(deps()).arbitrate(llmContext())).action
+    ).toBe("deny");
+    callLlm.mockResolvedValueOnce({
+      content: JSON.stringify({
+        ...answer,
+        action: "escalate",
+        riskLevel: "medium",
+      }),
+    });
+    expect(
+      (await createDecisionArbiter(deps()).arbitrate(llmContext())).action
+    ).toBe("escalate");
+  });
+
+  it("非结构化响应安全转人工", async () => {
+    callLlm.mockResolvedValue({ content: "可以执行" });
+    expect(
+      await createDecisionArbiter(deps()).arbitrate(llmContext())
+    ).toMatchObject({
+      action: "escalate",
+      audit: { engine: "llm", degraded: true },
+    });
+  });
+
+  it("按共享预算处理限流重试", async () => {
+    callLlm.mockRejectedValueOnce(new Error("429 rate limit"));
+    const result = await createDecisionArbiter(deps()).arbitrate(llmContext());
+    expect(result.action).toBe("approve");
+    expect(callLlm).toHaveBeenCalledTimes(2);
+    expect(result.telemetry?.retried).toBe(true);
+  });
+
+  it("取消后迟到的批准结果保持人工/取消路径", async () => {
+    let finish!: (response: { content: string }) => void;
+    callLlm.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const controller = new AbortController();
+    const result = createDecisionArbiter(deps()).arbitrate(
+      llmContext(),
+      controller.signal
+    );
+    controller.abort();
+    finish({ content: JSON.stringify(answer) });
+    expect((await result).action).toBe("escalate");
+  });
+
+  it("实际参数中的危险操作在调用审核模型前转人工", async () => {
+    const request = { ...llmContext(), effectiveArgs: { command: "rm -rf /" } };
+    expect(
+      (await createDecisionArbiter(deps()).arbitrate(request)).action
+    ).toBe("escalate");
+    expect(callLlm).not.toHaveBeenCalled();
   });
 });

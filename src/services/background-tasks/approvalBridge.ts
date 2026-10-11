@@ -56,6 +56,7 @@ const TERMINAL_STATES: ReadonlySet<string> = new Set([
 const ORIGIN_LABELS: Record<BackgroundTaskApprovalOrigin, string> = {
   rule: "规则自动放行",
   jev: "JEV 仲裁",
+  llm: "LLM 自动审批",
   manual: "人工确认",
   timeout: "审批超时",
   cancelled: "已取消",
@@ -176,6 +177,9 @@ export class BackgroundTaskApprovalBridgeImpl implements BackgroundTaskApprovalB
       decision: settlement.decision,
       origin: settlement.origin,
       jevAction: settlement.jevAction ?? null,
+      arbiterEngine: settlement.arbiterEngine,
+      arbiterAction: settlement.arbiterAction,
+      riskLevel: settlement.riskLevel,
       risk: settlement.risk ?? null,
       confidence: settlement.confidence ?? null,
       reason: settlement.reason ?? null,

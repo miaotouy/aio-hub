@@ -36,6 +36,7 @@ import {
 } from "@/services/decision-arbiter/types";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -64,7 +65,10 @@ export function resolveArbitrationConfig(
  * 必须按请求所属会话读取：外部 / VCP 请求未携带本地聊天会话时不返回任何内容，
  * 避免把当前 UI 会话的无关用户消息附加到外部请求的裁决上下文。
  */
-export function getRecentUserMessage(sessionId?: string): string | undefined {
+export function getRecentUserMessage(
+  sessionId?: string,
+  maxChars = 400
+): string | undefined {
   if (!sessionId) return undefined;
   try {
     const llmChatStore = useLlmChatStore();
@@ -78,7 +82,7 @@ export function getRecentUserMessage(sessionId?: string): string | undefined {
           node.isEnabled !== false &&
           node.content?.trim()
       );
-    return recentUser?.content.slice(0, 400);
+    return recentUser?.content.slice(0, maxChars);
   } catch {
     return undefined;
   }
@@ -97,7 +101,12 @@ export function setupApprovalArbiter(): void {
     getChannelSettings: () => getDecisionChannelSettings(),
     getArbitrationConfig: (agentId) => resolveArbitrationConfig(agentId),
     getProfileById: (profileId) => useLlmProfiles().getProfileById(profileId),
-    getRecentUserMessage: (ctx) => getRecentUserMessage(ctx.sessionId),
+    callLlm: (options) => useLlmRequest().sendRequest(options),
+    getRecentUserMessage: (ctx) =>
+      getRecentUserMessage(
+        ctx.sessionId,
+        getDecisionChannelSettings().engine === "llm" ? 16_001 : 400
+      ),
   });
 
   setApprovalArbiter(arbiter);

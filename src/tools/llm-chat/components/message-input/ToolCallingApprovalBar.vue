@@ -76,14 +76,16 @@ const currentSessionPendingRequests = computed(() => {
 const expandedArbiterIds = ref<Set<string>>(new Set());
 
 /**
- * 审批浮窗只展示 JEV 来源的仲裁建议；展示判定统一由 describeArbitration 产出，
+ * 审批浮窗展示模型来源的仲裁建议；展示判定统一由 describeArbitration 产出，
  * 与消息卡片保持同一套 action 语义（escalate 不得被当作 approve）。
  */
 function getPresentation(requestId: string) {
   const presentation = describeArbitration(
     toolCallingStore.getAuditRecord?.(requestId)
   );
-  return presentation?.kind === "jev" ? presentation : null;
+  return presentation?.kind === "jev" || presentation?.kind === "llm"
+    ? presentation
+    : null;
 }
 
 function toggleArbiterDetail(requestId: string): void {
@@ -283,9 +285,14 @@ const handleRejectAll = () => {
                 v-if="getPresentation(item.request.requestId)"
                 class="jev-badge"
                 :class="{
-                  'is-degraded': getPresentation(item.request.requestId)?.degraded,
+                  'is-degraded': getPresentation(item.request.requestId)
+                    ?.degraded,
                 }"
-                data-testid="approval-jev-badge"
+                :data-testid="
+                  getPresentation(item.request.requestId)?.kind === 'llm'
+                    ? 'approval-llm-badge'
+                    : 'approval-jev-badge'
+                "
                 :data-jev-action="
                   getPresentation(item.request.requestId)?.action
                 "
@@ -294,20 +301,46 @@ const handleRejectAll = () => {
                 "
               >
                 <span class="jev-dot"></span>
-                <template v-if="getPresentation(item.request.requestId)?.degraded">
-                  Jev 离线 · 安全兜底
+                <template
+                  v-if="getPresentation(item.request.requestId)?.degraded"
+                >
+                  {{
+                    getPresentation(item.request.requestId)?.kind === "llm"
+                      ? "LLM 审核暂不可用 · 需人工确认"
+                      : "Jev 离线 · 安全兜底"
+                  }}
                 </template>
                 <template v-else>
-                  Jev 建议: 需人工确认
+                  {{
+                    getPresentation(item.request.requestId)?.kind === "llm"
+                      ? "LLM"
+                      : "Jev"
+                  }}
+                  建议: 需人工确认
                   <template
-                    v-if="getPresentation(item.request.requestId)?.riskPercent != null"
+                    v-if="getPresentation(item.request.requestId)?.riskLabel"
                   >
-                    · 风险 {{ getPresentation(item.request.requestId)?.riskPercent }}%
+                    · {{ getPresentation(item.request.requestId)?.riskLabel }}
                   </template>
                   <template
-                    v-if="getPresentation(item.request.requestId)?.intentPercent != null"
+                    v-if="
+                      getPresentation(item.request.requestId)?.riskPercent !=
+                      null
+                    "
                   >
-                    · 意图 {{ getPresentation(item.request.requestId)?.intentPercent }}%
+                    · 风险
+                    {{ getPresentation(item.request.requestId)?.riskPercent }}%
+                  </template>
+                  <template
+                    v-if="
+                      getPresentation(item.request.requestId)?.intentPercent !=
+                      null
+                    "
+                  >
+                    · 意图
+                    {{
+                      getPresentation(item.request.requestId)?.intentPercent
+                    }}%
                   </template>
                 </template>
               </div>
@@ -342,14 +375,20 @@ const handleRejectAll = () => {
                 "
                 :size="11"
               />
-              Jev 仲裁详情
+              {{
+                getPresentation(item.request.requestId)?.kind === "llm"
+                  ? "LLM"
+                  : "Jev"
+              }}
+              审核详情
               {{ getPresentation(item.request.requestId)?.model || "" }}
               <template
-                v-if="getPresentation(item.request.requestId)?.durationMs != null"
+                v-if="
+                  getPresentation(item.request.requestId)?.durationMs != null
+                "
               >
                 · {{ getPresentation(item.request.requestId)?.durationMs }}ms
               </template>
-              · System One
             </button>
             <div
               v-if="
@@ -358,7 +397,12 @@ const handleRejectAll = () => {
               "
               class="arbiter-detail-panel"
             >
-              <div class="arbiter-meter">
+              <div
+                v-if="
+                  getPresentation(item.request.requestId)?.riskPercent != null
+                "
+                class="arbiter-meter"
+              >
                 <span class="meter-label">风险评估</span>
                 <div class="meter-track">
                   <div
@@ -369,10 +413,17 @@ const handleRejectAll = () => {
                   ></div>
                 </div>
                 <span class="meter-value"
-                  >{{ getPresentation(item.request.requestId)?.riskPercent }}%</span
+                  >{{
+                    getPresentation(item.request.requestId)?.riskPercent
+                  }}%</span
                 >
               </div>
-              <div class="arbiter-meter">
+              <div
+                v-if="
+                  getPresentation(item.request.requestId)?.intentPercent != null
+                "
+                class="arbiter-meter"
+              >
                 <span class="meter-label">意图置信</span>
                 <div class="meter-track">
                   <div
@@ -383,7 +434,9 @@ const handleRejectAll = () => {
                   ></div>
                 </div>
                 <span class="meter-value"
-                  >{{ getPresentation(item.request.requestId)?.intentPercent }}%</span
+                  >{{
+                    getPresentation(item.request.requestId)?.intentPercent
+                  }}%</span
                 >
               </div>
               <div

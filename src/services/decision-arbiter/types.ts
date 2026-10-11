@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /**
- * JEV 决策仲裁服务类型定义
+ * 工具审批决策仲裁服务类型定义
  *
  * 定位：在「需要审批」与「弹人工」之间插入一个可选的决策模型仲裁环节。
  * 全部类型保持零依赖（不依赖 Pinia / Tauri），便于纯逻辑单测。
@@ -30,6 +30,18 @@ export type ArbitrationSource =
   | "sync"
   | "background";
 
+/** 审批引擎；旧配置默认使用 JEV。 */
+export type DecisionEngine = "jev" | "llm";
+
+/** 普通 LLM 的离散风险与授权评估，独立于 JEV 概率阈值。 */
+export interface LlmApprovalAssessment {
+  action: ArbiterAction;
+  riskLevel: "low" | "medium" | "high";
+  matchesUserIntent: boolean;
+  explicitlyAuthorized: boolean;
+  reason: string;
+}
+
 /** 仲裁最终裁决动作。 */
 export type ArbiterAction = "approve" | "deny" | "escalate";
 
@@ -43,15 +55,19 @@ export interface ArbitrationContext {
   request: ParsedToolRequest;
   /** 请求来源，外部来源默认只允许 escalate/deny。 */
   source: ArbitrationSource;
+  /** 执行器完成默认值合并和类型转换后的实际参数。 */
+  effectiveArgs?: Record<string, unknown>;
+  /** 工具注册元数据中的方法说明。 */
+  toolDescription?: string;
   /** 是否命中安全策略强制审批（checkSecurityPolicy → approve）。 */
   forceApproval: boolean;
-  /** 发起请求所属会话 ID（JEV 上下文按会话隔离，外部请求无对应会话时不读用户消息）。 */
+  /** 发起请求所属会话 ID（审批上下文按会话隔离，外部请求无对应会话时不读用户消息）。 */
   sessionId?: string;
   /** 发起会话绑定的 Agent，用于解析 Agent 级仲裁配置。 */
   agentId?: string;
-  /** Agent 显示名，用于 JEV state 摘要。 */
+  /** Agent 显示名，用于审批上下文摘要。 */
   agentName?: string;
-  /** 最近一条用户消息摘要，用于 JEV intent 评估。 */
+  /** 最近一条用户消息摘要，用于用户意图评估。 */
   recentUserMessage?: string;
   /** 发起时间戳（ms）。 */
   requestedAt?: number;
@@ -71,15 +87,18 @@ export interface ArbiterAnswerSnapshot {
 
 /** 审计信息旁路对象（红线 7：不改 ToolApprovalResult 字符串契约）。 */
 export interface ArbiterAuditInfo {
-  origin: "rule" | "jev" | "manual" | "timeout" | "cancelled";
+  origin: "rule" | "jev" | "llm" | "manual" | "timeout" | "cancelled";
   /**
-   * JEV 仲裁快照。
+   * 模型仲裁快照。
    *
-   * origin = "jev" 时为本次裁决证据；origin 为 manual / timeout / cancelled
-   * 时表示该请求此前经 JEV escalate 保留的仲裁证据（最终处理来源与 JEV 证据
+   * origin = "jev" / "llm" 时为本次裁决证据；origin 为 manual / timeout / cancelled
+   * 时表示该请求此前升级人工时保留的仲裁证据（最终处理来源与模型证据
    * 分别保留，供任务审计回放升级人工的依据）。
    */
   arbiter?: {
+    /** 历史快照缺省时按 JEV 解释。 */
+    engine?: DecisionEngine;
+    llm?: LlmApprovalAssessment;
     action: ArbiterAction;
     model: string;
     /** 端到端仲裁耗时（ms），含重试。 */
@@ -97,6 +116,7 @@ export interface ArbiterAuditInfo {
 
 /** 仲裁结果。 */
 export interface ArbiterDecision {
+  engine?: DecisionEngine;
   action: ArbiterAction;
   /** 裁决原因（人类可读，用于审批条与审计）。 */
   reason: string;
@@ -111,18 +131,15 @@ export interface ArbiterDecision {
 
 /** 仲裁等待态，与消息卡片共享的响应式状态。 */
 export type ArbitrationState =
-  | "arbitrating"
-  | "escalated"
-  | "auto-approved"
-  | "auto-denied";
+  "arbitrating" | "escalated" | "auto-approved" | "auto-denied";
 
 /**
- * JEV 问答阈值配置（Agent 级，ToolCallConfig 扩展）。
+ * 智能体级审批策略与 JEV 问答阈值（ToolCallConfig 扩展）。
  * 所有阈值用户可配，默认取保守值（宁可多升级人工）。
  */
 export interface DecisionArbitrationConfig {
   enabled: boolean;
-  /** gray-zone：强制审批跳过仲裁；aggressive：强制审批也送 JEV（更严门槛）。 */
+  /** gray-zone：强制审批跳过仲裁；aggressive：强制审批也由模型审核（更严要求）。 */
   mode: "gray-zone" | "aggressive";
   autoRiskThreshold: number;
   denyRiskThreshold: number;
@@ -147,7 +164,10 @@ export const DEFAULT_DECISION_ARBITRATION_CONFIG: DecisionArbitrationConfig = {
 
 /** 全局决策渠道设置（设置中心 → LLM 服务，全局单例）。 */
 export interface DecisionChannelSettings {
-  /** 需标记 capabilities.decision 的 profile，null 表示未配置。 */
+  engine: DecisionEngine;
+  /** 普通 LLM 的补充审批规则。 */
+  llmInstructions?: string;
+  /** 审批模型所属渠道，null 表示未配置；运行时按引擎检查模型能力。 */
   profileId: string | null;
   /** 模型 ID，默认 jev-latest。 */
   model: string;
@@ -158,6 +178,8 @@ export interface DecisionChannelSettings {
 }
 
 export const DEFAULT_DECISION_CHANNEL_SETTINGS: DecisionChannelSettings = {
+  engine: "jev",
+  llmInstructions: "",
   profileId: null,
   model: "jev-latest",
   timeoutMs: 8_000,
@@ -166,10 +188,7 @@ export const DEFAULT_DECISION_CHANNEL_SETTINGS: DecisionChannelSettings = {
 
 /** 判定来源是否为外部（VCP / 跨窗口同步）。 */
 export function isExternalSource(source: ArbitrationSource): boolean {
-  return (
-    source !== "orchestrator" &&
-    source !== "background"
-  );
+  return source !== "orchestrator" && source !== "background";
 }
 
 /**
@@ -179,7 +198,10 @@ export function isExternalSource(source: ArbitrationSource): boolean {
  * 宿主（llm-chat）用 createDecisionArbiter() 装配。
  */
 export interface ApprovalArbiter {
-  arbitrate(ctx: ArbitrationContext, signal?: AbortSignal): Promise<ArbiterDecision>;
+  arbitrate(
+    ctx: ArbitrationContext,
+    signal?: AbortSignal
+  ): Promise<ArbiterDecision>;
   /**
    * 快速判定该请求是否启用仲裁。
    *

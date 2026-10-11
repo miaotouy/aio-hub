@@ -88,7 +88,11 @@ export const INLINE_SCRIPT_PATTERNS: Array<{
   { label: "node -e", pattern: /\bnode\s+(?:--[\w-]+\s+)*-(?:e|p|eval)\b/i },
   { label: "python -c", pattern: /\bpython3?\s+(?:--[\w-]+\s+)*-c\b/i },
   { label: "sh/bash -c", pattern: /\b(?:ba|z|da|fi)?sh\s+-c\b/i },
-  { label: "powershell -Command", pattern: /\bpowershell(?:\.exe)?\s+(?:-[^\s]+\s+)*-(?:Command|EncodedCommand)\b/i },
+  {
+    label: "powershell -Command",
+    pattern:
+      /\bpowershell(?:\.exe)?\s+(?:-[^\s]+\s+)*-(?:Command|EncodedCommand)\b/i,
+  },
   { label: "perl -e", pattern: /\bperl\s+-e\b/i },
   { label: "ruby -e", pattern: /\bruby\s+-e\b/i },
 ];
@@ -151,7 +155,9 @@ export interface DangerFeatureReport {
  * 检测范围：toolName / methodName / 全部参数值 / 内嵌脚本正文。
  */
 export function detectDangerFeatures(
-  request: ParsedToolRequest
+  request: Pick<ParsedToolRequest, "toolId" | "toolName" | "methodName"> & {
+    args: Record<string, unknown>;
+  }
 ): DangerFeatureReport {
   const features: string[] = [];
   const text = [

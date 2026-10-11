@@ -270,4 +270,52 @@ describe("toolCallingStore 后台任务审批桥接（P4）", () => {
     expect(audit?.arbiter?.action).toBe("escalate");
     expect(audit?.arbiter?.risk).toBe(0.42);
   });
+  it("LLM 升级人工后保留证据，并以人工来源结算后台任务", async () => {
+    const harness = mockBridge({
+      taskId: "bgtask-llm",
+      parentSessionId: "parent-1",
+    });
+    setTaskApprovalBridge(harness.bridge);
+    setApprovalArbiter(
+      mockArbiter(async () => ({
+        engine: "llm",
+        action: "escalate",
+        reason: "需要确认操作范围",
+        audit: {
+          engine: "llm",
+          action: "escalate",
+          model: "reviewer",
+          durationMs: 10,
+          risk: null,
+          intent: null,
+          confidence: null,
+          verdict: "escalate",
+          reason: "需要确认操作范围",
+          degraded: false,
+          llm: {
+            action: "escalate",
+            riskLevel: "medium",
+            matchesUserIntent: false,
+            explicitlyAuthorized: false,
+            reason: "需要确认操作范围",
+          },
+        },
+      }))
+    );
+    const store = useToolCallingStore();
+    const result = store.requestApproval("child-1", request("req-llm"));
+    await flush();
+    expect(store.auditRecords.get("req-llm")?.origin).toBe("llm");
+    store.approveRequest(store.pendingRequests[0].id);
+    await expect(result).resolves.toBe("approved");
+    expect(harness.settledCalls[0].settlement).toMatchObject({
+      origin: "manual",
+      arbiterEngine: "llm",
+      arbiterAction: "escalate",
+      riskLevel: "medium",
+      reason: "需要确认操作范围",
+      jevAction: null,
+    });
+    expect(store.auditRecords.get("req-llm")?.arbiter?.engine).toBe("llm");
+  });
 });

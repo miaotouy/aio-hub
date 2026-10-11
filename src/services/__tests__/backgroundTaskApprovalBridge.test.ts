@@ -254,9 +254,9 @@ describe("BackgroundTaskApprovalBridge", () => {
     bridge.onApprovalArbitrating(
       approvalInfo({ taskId: task.taskId, requestId: "req-auto" })
     );
-    expect(
-      registry.getSnapshot(task.taskId)!.currentOperation?.requestId
-    ).toBe("req-auto");
+    expect(registry.getSnapshot(task.taskId)!.currentOperation?.requestId).toBe(
+      "req-auto"
+    );
 
     bridge.onApprovalSettled(
       approvalInfo({ taskId: task.taskId, requestId: "req-auto" }),
@@ -276,5 +276,25 @@ describe("BackgroundTaskApprovalBridge", () => {
     expect(
       queue.listNotifications({ taskId: task.taskId, pendingOnly: true })
     ).toHaveLength(0);
+  });
+  it("将 LLM 审批证据写入任务快照，人工结算保留模型依据", () => {
+    const task = registry.createTask(taskInput())!;
+    const info = approvalInfo({ taskId: task.taskId });
+    bridge.onApprovalPending(info);
+    bridge.onApprovalSettled(info, {
+      decision: "approved",
+      origin: "manual",
+      arbiterEngine: "llm",
+      arbiterAction: "escalate",
+      riskLevel: "medium",
+      reason: "范围待确认",
+    });
+    expect(registry.getSnapshot(task.taskId)!.approvals![0]).toMatchObject({
+      origin: "manual",
+      arbiterEngine: "llm",
+      arbiterAction: "escalate",
+      riskLevel: "medium",
+      reason: "范围待确认",
+    });
   });
 });

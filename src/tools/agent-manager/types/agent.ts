@@ -11,14 +11,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import type { LlmThinkRule, RichTextRendererStyleOptions, } from "@/tools/rich-text-renderer/types";
+import type {
+  LlmThinkRule,
+  RichTextRendererStyleOptions,
+} from "@/tools/rich-text-renderer/types";
 import type { VariableConfig } from "@/tools/llm-chat/types/sessionVariable";
 import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { MessageRole } from "@/tools/llm-chat/types/common";
 import type { LlmParameters } from "@/tools/llm-chat/types/llm";
 import type { Asset } from "@/types/asset-management";
-
 
 /**
  * 资产类型
@@ -208,7 +210,7 @@ export interface ToolCallConfig {
   /** API 请求频率限制（秒） */
   rateLimitInterval?: number;
   /**
-   * JEV 决策自动审批仲裁配置（§2.7）。
+   * AI 自动审批配置，支持 JEV 与普通 LLM 引擎。
    * 未定义视为禁用；位于 toolCallConfig 前缀下，自动被
    * SECURITY_SENSITIVE_AGENT_PATHS 的 KI-003 本地确认保护覆盖。
    */
@@ -259,7 +261,6 @@ export const DEFAULT_SUB_AGENT_CONFIG: SubAgentConfig = {
 
 /** 全局安全硬上限：maxDelegationDepth 的最大允许值。 */
 export const MAX_DELEGATION_DEPTH_LIMIT = 3;
-
 
 /**
  * Agent 扩展配置

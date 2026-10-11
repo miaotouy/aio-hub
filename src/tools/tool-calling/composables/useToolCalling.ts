@@ -18,6 +18,7 @@ import type {
   ToolCallConfig,
   ToolCallCycleResult,
   ToolApprovalResult,
+  ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
 import type { ToolCallingProtocol } from "../core/protocols/base";
@@ -44,7 +45,7 @@ export function useToolCalling() {
     config: ToolCallConfig,
     onBeforeExecute?: (
       request: ParsedToolRequest,
-      security?: { forceApproval: boolean }
+      security?: ToolApprovalSecurityContext
     ) => Promise<ToolApprovalResult | boolean>,
     onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
     agent?: ToolContext["agent"],

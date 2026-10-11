@@ -600,3 +600,11 @@ sub-agent.ask(mode: foreground / background)
 5. **e2e**：`tests/tauri-e2e/specs/background-task-approval.spec.ts`（preset `background-task-approval`）覆盖 escalate → 任务中心批准 → 恢复完成 + 审计记录，以及 JEV 自动放行不弹审批两条路径；真机运行 2 passing。
 
 **仍需后续**：独立后台运行时 / 跨窗口来源的可信身份与配置归属；任务中心对 `approval_required` 通知的独立展示与手动确认；多项审批的「单项拒绝是否停整个任务」策略裁决。
+
+## 13. 普通 LLM 审批引擎扩展（2026-10-11）
+
+审批仲裁已扩展为 JEV 与普通 LLM 两种全局可选引擎。普通 LLM 使用独立提示词、严格 JSON 裁决和离散风险等级；两种引擎共用安全限制、取消、超时、重试及人工接管流程。聊天与后台任务的来源、审计和展示已覆盖 LLM。
+
+执行器把合并默认值并完成类型转换后的实际参数传入审批上下文。用户意图读取已修正为请求所属会话的活动分支，跳过停用和空白消息。
+
+当前实现与配置契约见 [工具自动审批仲裁架构](../architecture/tool-approval-arbitration.md)，用户操作见 [审批策略与交互](../user-guide/tools/llm-chat/tool-calling/approval-strategy.md)。此前各节的 JEV 专用问卷和阈值说明继续适用于 JEV 引擎。

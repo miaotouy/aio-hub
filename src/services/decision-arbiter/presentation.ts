@@ -26,7 +26,9 @@ import type { ArbiterAction, ArbiterAuditInfo } from "./types";
 
 export interface ArbitrationPresentation {
   /** 审计来源：JEV 仲裁或人工确认。 */
-  kind: "jev" | "manual";
+  kind: "jev" | "llm" | "manual";
+  /** 普通 LLM 的离散风险说明。 */
+  riskLabel: string | null;
   /**
    * 裁决动作。escalate 表示 JEV 未通过、建议人工确认，
    * 调用方不得将其当作 approve 渲染。
@@ -66,6 +68,7 @@ export function describeArbitration(
   if (info.origin === "manual") {
     return {
       kind: "manual",
+      riskLabel: null,
       action: "approve",
       degraded: false,
       riskPercent: null,
@@ -76,10 +79,15 @@ export function describeArbitration(
     };
   }
 
-  if (info.origin === "jev" && info.arbiter) {
+  if ((info.origin === "jev" || info.origin === "llm") && info.arbiter) {
     const arbiter = info.arbiter;
     return {
-      kind: "jev",
+      kind: info.origin,
+      riskLabel: arbiter.llm
+        ? { low: "低风险", medium: "中风险", high: "高风险" }[
+            arbiter.llm.riskLevel
+          ]
+        : null,
       action: arbiter.action,
       degraded: arbiter.degraded === true,
       riskPercent: toPercent(arbiter.risk),

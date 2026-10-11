@@ -18,6 +18,7 @@ import type {
   ToolExecutionResult,
   ToolCallConfig,
   ToolApprovalResult,
+  ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
 import type { ToolContext, ToolMethodResult } from "@/services/types";
@@ -33,7 +34,7 @@ export interface ExecutorOptions {
   delegationDepth?: number;
   onBeforeExecute?: (
     request: ParsedToolRequest,
-    security?: { forceApproval: boolean }
+    security?: ToolApprovalSecurityContext
   ) => Promise<ToolApprovalResult | boolean>;
   onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }
@@ -242,7 +243,9 @@ async function executeSingleRequest(
 
   // 旁路放行来源标记（红线 7）：静态白名单自动批准时经 result metadata 带出，
   // 不改 ToolApprovalResult 契约与控制流。
-  const isRuleAutoApprove = !(forceApproval || !shouldAutoApprove(request, options.config));
+  const isRuleAutoApprove = !(
+    forceApproval || !shouldAutoApprove(request, options.config)
+  );
 
   // 2. 检查是否需要审批
   if (forceApproval || !shouldAutoApprove(request, options.config)) {
@@ -272,6 +275,8 @@ async function executeSingleRequest(
       ? await approvalCache.get(request.requestId)
       : await options.onBeforeExecute?.(request, {
           forceApproval,
+          effectiveArgs: mergedArgs,
+          toolDescription: ctx.methodMeta?.description,
         });
     const explicitlyApproved =
       approvalResult === true || approvalResult === "approved";
@@ -535,7 +540,11 @@ export async function executeToolRequests(
         // 发起审批并存入缓存
         approvalCache.set(
           request.requestId,
-          options.onBeforeExecute(request, { forceApproval })
+          options.onBeforeExecute(request, {
+            forceApproval,
+            effectiveArgs: ctx?.mergedArgs,
+            toolDescription: ctx?.methodMeta?.description,
+          })
         );
       }
     }

@@ -24,6 +24,7 @@ vi.mock("@/services/background-tasks/approvalBridge", () => ({
 vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
   useAgentStore: vi.fn(),
 }));
+vi.mock("@/composables/useLlmRequest", () => ({ useLlmRequest: vi.fn() }));
 vi.mock("@/composables/useLlmProfiles", () => ({
   useLlmProfiles: vi.fn(),
 }));

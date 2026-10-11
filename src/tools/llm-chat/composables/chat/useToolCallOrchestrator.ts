@@ -290,6 +290,8 @@ export function useToolCallOrchestrator() {
                   agentId: executionAgent.id,
                   agentName: executionAgent.displayName,
                   forceApproval: security?.forceApproval === true,
+                  effectiveArgs: security?.effectiveArgs,
+                  toolDescription: security?.toolDescription,
                 }
               ),
             async (requestId, status) => {

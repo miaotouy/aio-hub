@@ -13,17 +13,14 @@
 // limitations under the License.
 
 /**
- * 决策仲裁服务（JEV 灰区仲裁层）
+ * 决策仲裁服务（JEV / 普通 LLM 审批引擎）
  *
  * createDecisionArbiter() 封装：profile 解析、渠道调用、超时、有限重试、
  * 失败降级（fail-closed）、请求指纹防循环、并发上限与审计日志。
  * 本模块不直接依赖 Pinia，由宿主（llm-chat）装配。
  */
 
-import type {
-  SystemOneRequest,
-  SystemOneResponse,
-} from "@aiohub/llm-core";
+import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { callTypeSafeSystemOneApi } from "@/llm-apis/system-one-core";
 import { createModuleLogger } from "@/utils/logger";
@@ -31,11 +28,18 @@ import { evaluateArbitration } from "./evaluator";
 import { buildJevQuestionnaire } from "./jevQuestionnaire";
 import { detectDangerFeatures } from "./dangerFeatures";
 import {
+  buildLlmApprovalRequest,
+  evaluateLlmApproval,
+  isLlmApprovalModel,
+  parseLlmApproval,
+} from "./llmApproval";
+import {
   DEFAULT_DECISION_ARBITRATION_CONFIG,
   type ArbiterDecision,
   type ArbitrationContext,
   type DecisionArbitrationConfig,
   type DecisionChannelSettings,
+  type DecisionEngine,
 } from "./types";
 
 const logger = createModuleLogger("decision-arbiter");
@@ -58,6 +62,8 @@ export interface DecisionArbiterDeps {
   getProfileById: (profileId: string) => LlmProfile | undefined;
   /** 渠道调用（测试可注入 mock）。 */
   callSystemOne?: typeof callTypeSafeSystemOneApi;
+  /** 宿主提供普通聊天调用，保持服务与 Pinia 解耦。 */
+  callLlm?: (options: LlmRequestOptions) => Promise<LlmResponse>;
   /** 当前时间（测试可注入）。 */
   now?: () => number;
   /** 最近用户消息摘要读取（按请求所属会话隔离，帮助 intent 评估，可选）。 */
@@ -65,7 +71,10 @@ export interface DecisionArbiterDeps {
 }
 
 export interface Arbiter {
-  arbitrate(ctx: ArbitrationContext, signal?: AbortSignal): Promise<ArbiterDecision>;
+  arbitrate(
+    ctx: ArbitrationContext,
+    signal?: AbortSignal
+  ): Promise<ArbiterDecision>;
   /** 快速判定该请求是否启用仲裁（未启用时 store 直接走人工，不写等待态）。 */
   isArbitrationEnabled(ctx: ArbitrationContext): boolean;
 }
@@ -78,7 +87,7 @@ const ABORT_ERROR_PATTERN = /abort|cancel/i;
 function buildRequestFingerprint(ctx: ArbitrationContext): string {
   try {
     return `${ctx.request.toolId}#${ctx.request.methodName}#${JSON.stringify(
-      ctx.request.args ?? {}
+      ctx.effectiveArgs ?? ctx.request.args ?? {}
     )}`;
   } catch {
     return `${ctx.request.toolId}#${ctx.request.methodName}`;
@@ -89,13 +98,16 @@ function escalate(
   reason: string,
   startedAt: number,
   now: () => number,
-  model = ""
+  model = "",
+  engine: DecisionEngine = "jev"
 ): ArbiterDecision {
   return {
+    engine,
     action: "escalate",
     reason,
     audit: model
       ? {
+          engine,
           action: "escalate",
           model,
           durationMs: now() - startedAt,
@@ -135,13 +147,12 @@ export function createDecisionArbiter(deps: DecisionArbiterDeps): Arbiter {
     }
   }
 
-  async function callWithRetry(
-    profile: LlmProfile,
-    request: SystemOneRequest,
+  async function callWithRetry<T>(
+    invoke: (signal: AbortSignal, timeoutMs: number) => Promise<T>,
     budgetMs: number,
     maxRetries: number,
     signal?: AbortSignal
-  ): Promise<{ response: SystemOneResponse | null; retried: boolean }> {
+  ): Promise<{ response: T | null; retried: boolean }> {
     const deadline = now() + budgetMs;
     let retried = false;
     let lastError: unknown = null;
@@ -161,11 +172,7 @@ export function createDecisionArbiter(deps: DecisionArbiterDeps): Arbiter {
       signal?.addEventListener("abort", onExternalAbort, { once: true });
 
       try {
-        const response = await callSystemOne(profile, {
-          ...request,
-          timeoutMs: remaining,
-          signal: controller.signal,
-        });
+        const response = await invoke(controller.signal, remaining);
         return { response, retried };
       } catch (error) {
         lastError = error;
@@ -191,9 +198,9 @@ export function createDecisionArbiter(deps: DecisionArbiterDeps): Arbiter {
     }
 
     if (lastError) {
-      logger.warn("JEV 仲裁渠道调用失败（fail-closed）", lastError);
+      logger.warn("审批仲裁渠道调用失败（fail-closed）", lastError);
     } else {
-      logger.warn("JEV 仲裁渠道调用超出时间预算（fail-closed）");
+      logger.warn("审批仲裁渠道调用超出时间预算（fail-closed）");
     }
     return { response: null, retried };
   }
@@ -217,151 +224,184 @@ export function createDecisionArbiter(deps: DecisionArbiterDeps): Arbiter {
         return escalate("决策仲裁未启用", startedAt, now);
       }
 
-      // --- 红线 6：静态危险特征跳过仲裁 ---
-      const danger = detectDangerFeatures(ctx.request);
-      if (danger.features.length > 0) {
-        const decision = escalate(
-          `命中静态危险特征（${danger.features.join("、")}），直接转人工`,
-          startedAt,
-          now
-        );
-        recordEscalation(buildRequestFingerprint(ctx));
-        return decision;
+      const channel = deps.getChannelSettings();
+      const engine = channel.engine ?? "jev";
+      const manual = (reason: string, model = "") =>
+        escalate(reason, startedAt, now, model, engine);
+      if (engine !== "jev" && engine !== "llm") {
+        return manual("审批引擎配置异常，转人工");
       }
 
-      // --- 红线 8：防仲裁循环 ---
+      const danger = detectDangerFeatures({
+        ...ctx.request,
+        args: ctx.effectiveArgs ?? ctx.request.args ?? {},
+      });
+      if (danger.features.length > 0) {
+        recordEscalation(buildRequestFingerprint(ctx));
+        return manual(
+          `命中静态危险特征（${danger.features.join("、")}），直接转人工`
+        );
+      }
+
       const fingerprint = buildRequestFingerprint(ctx);
       const lastEscalatedAt = recentEscalations.get(fingerprint);
       if (
         lastEscalatedAt !== undefined &&
         now() - lastEscalatedAt < FINGERPRINT_WINDOW_MS
       ) {
-        return escalate(
-          "同一请求短时间内已升级人工，跳过仲裁",
-          startedAt,
-          now
-        );
+        return manual("同一请求短时间内已升级人工，跳过仲裁");
       }
-
-      // --- 红线 6：gray-zone 下强制审批直接人工 ---
       if (ctx.forceApproval && config.mode !== "aggressive") {
-        return escalate("强制审批区操作直接转人工（保守灰区模式）", startedAt, now);
+        return manual("强制审批区操作直接转人工（保守灰区模式）");
       }
-
-      // --- 并发上限（§2.4 要点 5）---
       if (activeArbitrations >= MAX_CONCURRENT_ARBITRATIONS) {
-        return escalate("仲裁并发已达上限，转人工", startedAt, now);
+        return manual("仲裁并发已达上限，转人工");
       }
-
-      // --- 渠道解析 ---
-      const channel = deps.getChannelSettings();
-      if (!channel.profileId) {
-        return escalate("决策渠道未配置", startedAt, now);
-      }
+      if (!channel.profileId) return manual("决策渠道未配置");
       const profile = deps.getProfileById(channel.profileId);
-      // 渠道设置持久化后可能过期：profile 被停用 / 删除、channel.model 已不存在
-      // 或模型不再具备 decision 能力时，不允许沿用旧配置继续调用（fail-closed）。
       if (!profile || profile.enabled === false) {
-        return escalate("决策渠道配置不存在或已停用", startedAt, now);
+        return manual("决策渠道配置不存在或已停用");
       }
-      const decisionModel = profile.models?.find(
+      const approvalModel = profile.models?.find(
         (model) => model.id === channel.model
       );
-      if (decisionModel?.capabilities?.decision !== true) {
-        return escalate(
-          "决策渠道模型缺失或已不具备 decision 能力，转人工",
-          startedAt,
-          now
-        );
+      if (engine === "jev" && approvalModel?.capabilities?.decision !== true) {
+        return manual("决策渠道模型缺失或已不具备 decision 能力，转人工");
       }
-
-      // --- JEV 问答构造 ---
-      const questionnaire = buildJevQuestionnaire({
+      if (
+        engine === "llm" &&
+        (!approvalModel || !isLlmApprovalModel(approvalModel))
+      ) {
+        return manual("审批模型缺失或无法用于文本审批，转人工");
+      }
+      if (engine === "llm" && !deps.callLlm) {
+        return manual("普通 LLM 审批调用尚未装配，转人工");
+      }
+      const modelContext = {
         ...ctx,
         recentUserMessage:
           ctx.recentUserMessage ?? deps.getRecentUserMessage?.(ctx),
-      });
+      };
 
       activeArbitrations++;
       try {
         const budgetMs = Math.max(500, channel.timeoutMs);
-        const { response, retried } = await callWithRetry(
-          profile,
-          {
-            model: channel.model,
-            state: questionnaire.request.state,
-            questions: questionnaire.request.questions,
-          },
-          budgetMs,
-          channel.maxRetries,
-          signal
-        );
-
-        const durationMs = now() - startedAt;
-        const evaluation = evaluateArbitration({
-          response,
-          config,
-          source: ctx.source,
-          forceApproval: ctx.forceApproval,
-          model: channel.model,
-          durationMs,
-        });
-
-        const decision: ArbiterDecision = {
-          action: evaluation.action,
-          reason: evaluation.reason,
-          audit: {
+        let decision: ArbiterDecision;
+        if (engine === "llm") {
+          let request: LlmRequestOptions;
+          try {
+            request = buildLlmApprovalRequest(
+              modelContext,
+              profile.id,
+              approvalModel!,
+              channel.llmInstructions
+            );
+          } catch (error) {
+            recordEscalation(fingerprint);
+            return manual(
+              error instanceof Error
+                ? error.message
+                : "审批上下文不可用，转人工",
+              channel.model
+            );
+          }
+          const { response, retried } = await callWithRetry(
+            (callSignal, timeoutMs) =>
+              deps.callLlm!({
+                ...request,
+                signal: callSignal,
+                timeout: timeoutMs,
+              }),
+            budgetMs,
+            channel.maxRetries,
+            signal
+          );
+          if (signal?.aborted) return manual("仲裁已被取消", channel.model);
+          const assessment = response
+            ? parseLlmApproval(response.content)
+            : null;
+          const evaluation = evaluateLlmApproval(assessment, ctx, config);
+          decision = {
+            engine,
             action: evaluation.action,
-            model: channel.model,
-            durationMs,
-            risk: evaluation.answers.risk,
-            intent: evaluation.answers.intent,
-            verdict: evaluation.answers.verdict,
-            confidence: evaluation.answers.confidence,
             reason: evaluation.reason,
-            degraded: response === null,
-          },
-          telemetry: {
-            stateChars: questionnaire.stateChars,
-            retried,
-          },
-        };
-
-        // escalate / deny 均记录指纹，deny 后同指纹重试将走人工
-        if (evaluation.action === "escalate") {
-          recordEscalation(fingerprint);
+            audit: {
+              engine,
+              ...(assessment ? { llm: assessment } : {}),
+              action: evaluation.action,
+              model: channel.model,
+              durationMs: now() - startedAt,
+              risk: null,
+              intent: null,
+              verdict: assessment?.action ?? null,
+              confidence: null,
+              reason: evaluation.reason,
+              degraded: assessment === null,
+            },
+            telemetry: {
+              stateChars: JSON.stringify(request.messages).length,
+              retried,
+            },
+          };
+        } else {
+          const questionnaire = buildJevQuestionnaire(modelContext);
+          const { response, retried } = await callWithRetry(
+            (callSignal, timeoutMs) =>
+              callSystemOne(profile, {
+                model: channel.model,
+                state: questionnaire.request.state,
+                questions: questionnaire.request.questions,
+                timeoutMs,
+                signal: callSignal,
+              }),
+            budgetMs,
+            channel.maxRetries,
+            signal
+          );
+          if (signal?.aborted) return manual("仲裁已被取消", channel.model);
+          const evaluation = evaluateArbitration({
+            response,
+            config,
+            source: ctx.source,
+            forceApproval: ctx.forceApproval,
+            model: channel.model,
+            durationMs: now() - startedAt,
+          });
+          decision = {
+            engine,
+            action: evaluation.action,
+            reason: evaluation.reason,
+            audit: {
+              engine,
+              action: evaluation.action,
+              model: channel.model,
+              durationMs: now() - startedAt,
+              risk: evaluation.answers.risk,
+              intent: evaluation.answers.intent,
+              verdict: evaluation.answers.verdict,
+              confidence: evaluation.answers.confidence,
+              reason: evaluation.reason,
+              degraded: response === null,
+            },
+            telemetry: { stateChars: questionnaire.stateChars, retried },
+          };
         }
-
-        logger.info("JEV 仲裁完成", {
+        if (decision.action === "escalate") recordEscalation(fingerprint);
+        logger.info("审批仲裁完成", {
           requestId: ctx.request.requestId,
           toolId: ctx.request.toolId,
           methodName: ctx.request.methodName,
           source: ctx.source,
-          model: channel.model,
-          action: decision.action,
-          reason: decision.reason,
-          risk: evaluation.answers.risk,
-          intent: evaluation.answers.intent,
-          verdict: evaluation.answers.verdict,
-          confidence: evaluation.answers.confidence,
-          thresholds: {
-            autoRiskThreshold: config.autoRiskThreshold,
-            denyRiskThreshold: config.denyRiskThreshold,
-            intentThreshold: config.intentThreshold,
-            confidenceThreshold: config.confidenceThreshold,
-          },
-          durationMs,
-          stateChars: questionnaire.stateChars,
-          retried,
-          degraded: response === null,
+          engine,
+          ...decision.audit,
+          ...decision.telemetry,
         });
-
         return decision;
       } catch (error) {
-        logger.error("JEV 仲裁出现意外错误（fail-closed）", error, {
+        logger.error("审批仲裁出现意外错误（fail-closed）", error, {
           requestId: ctx.request.requestId,
         });
-        const decision = escalate("仲裁流程异常，转人工", startedAt, now);
+        const decision = manual("仲裁流程异常，转人工", channel.model);
         recordEscalation(fingerprint);
         return decision;
       } finally {

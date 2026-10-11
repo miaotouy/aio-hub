@@ -229,11 +229,7 @@ export type BackgroundTaskAttention = "awaiting_input" | "awaiting_approval";
  * 仲裁放行/拦截、人工批准/拒绝、超时与取消。用于任务中心回溯放行凭证。
  */
 export type BackgroundTaskApprovalOrigin =
-  | "rule"
-  | "jev"
-  | "manual"
-  | "timeout"
-  | "cancelled";
+  "rule" | "jev" | "llm" | "manual" | "timeout" | "cancelled";
 
 /**
  * 后台任务内一次工具审批的精简审计记录（随任务快照持久化）。
@@ -257,6 +253,10 @@ export interface BackgroundTaskApprovalRecord {
   origin: BackgroundTaskApprovalOrigin;
   /** JEV 裁决动作（origin = "jev" 时有值）。 */
   jevAction?: "approve" | "deny" | "escalate" | null;
+  /** 模型仲裁证据；旧记录继续读取 jevAction。 */
+  arbiterEngine?: "jev" | "llm";
+  arbiterAction?: "approve" | "deny" | "escalate";
+  riskLevel?: "low" | "medium" | "high";
   /** JEV 风险概率（0~1，无有效值为 null）。 */
   risk?: number | null;
   /** JEV 裁决置信度（0~1，无有效值为 null）。 */
@@ -296,6 +296,10 @@ export interface BackgroundTaskApprovalSettlement {
   decision: "approved" | "rejected";
   origin: BackgroundTaskApprovalOrigin;
   jevAction?: "approve" | "deny" | "escalate" | null;
+  /** 模型仲裁证据；旧记录继续读取 jevAction。 */
+  arbiterEngine?: "jev" | "llm";
+  arbiterAction?: "approve" | "deny" | "escalate";
+  riskLevel?: "low" | "medium" | "high";
   risk?: number | null;
   confidence?: number | null;
   reason?: string | null;

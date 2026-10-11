@@ -319,6 +319,65 @@ export function createOpenAiMockHandler(
       const stream = body.stream === true;
       rawChatRequests.push({ requestId, messages });
 
+      // 普通 LLM 审批：使用与聊天相同的 mock 模型，按审批 JSON 上下文区分请求。
+      let approvalContext: Record<string, unknown> | null = null;
+      try {
+        const payload = JSON.parse(extractMessageText(messages[1]?.content));
+        if (payload?.tool && typeof payload.userIntent === "string")
+          approvalContext = payload;
+      } catch {
+        /* 常规聊天消息继续走原有场景。 */
+      }
+      const approvalMarker = approvalContext
+        ? JEV_MARKER_PATTERN.exec(String(approvalContext.userIntent))?.[1]
+        : null;
+      if (approvalMarker?.startsWith("llm-")) {
+        const action =
+          approvalMarker === "llm-approve" ? "approve" : "escalate";
+        const content = JSON.stringify({
+          action,
+          riskLevel: action === "approve" ? "low" : "medium",
+          matchesUserIntent: action === "approve",
+          explicitlyAuthorized: action === "approve",
+          reason:
+            action === "approve"
+              ? "格式化范围符合用户要求"
+              : "操作范围需要确认",
+        });
+        const summary = {
+          requestId,
+          at: new Date().toISOString(),
+          endpoint: url.pathname,
+          model: typeof body.model === "string" ? body.model : "e2e-chat",
+          stream,
+          messages: summarizeMessages(messages),
+          scenarioId: "e2e:jev:" + approvalMarker + ":approval",
+          scenarioMatch: true,
+          status: 200,
+          durationMs: Number((performance.now() - startedAt).toFixed(3)),
+        };
+        requests.push({
+          type: "llm-approval",
+          marker: approvalMarker,
+          verdict: action,
+          ...summary,
+        });
+        options.writeChatSummary?.(summary);
+        return json({
+          id: "chatcmpl-e2e-approval",
+          object: "chat.completion",
+          model: body.model,
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        });
+      }
+
       // 后台任务审批 E2E：调度方按 bg 标记派发 sub-agent.ask（background）。
       const backgroundMarker = extractBackgroundMarker(messages);
       if (backgroundMarker) {

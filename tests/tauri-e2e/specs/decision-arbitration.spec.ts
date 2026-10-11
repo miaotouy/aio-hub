@@ -17,13 +17,35 @@ async function navigateTo(path: string): Promise<void> {
 
 /** 等待应用外壳挂载，避免首个用例在冷启动期丢失早期导航。 */
 async function waitForAppShell(): Promise<void> {
+  const expected = new URL(
+    process.env.AIO_E2E_FRONTEND_URL || "http://localhost:1420/"
+  );
   await browser.waitUntil(
-    async () =>
-      await browser.execute(() => {
-        const app = document.getElementById("app");
-        return !!app && app.children.length > 0;
-      }),
-    { timeout: 90_000, timeoutMsg: "App shell did not mount" }
+    async () => {
+      for (const handle of await browser.getWindowHandles()) {
+        await browser.switchToWindow(handle);
+        const url = new URL(await browser.getUrl());
+        if (
+          !["localhost", "127.0.0.1"].includes(url.hostname) ||
+          url.port !== expected.port ||
+          !["/", "/llm-chat", "/settings"].includes(url.pathname)
+        )
+          continue;
+        if (
+          await browser.execute(() => {
+            const app = document.getElementById("app");
+            return (
+              !!app &&
+              app.children.length > 0 &&
+              !!document.querySelector(".main-layout-wrapper")
+            );
+          })
+        )
+          return true;
+      }
+      return false;
+    },
+    { timeout: 90_000, timeoutMsg: "Main app window did not mount" }
   );
 }
 
@@ -69,7 +91,6 @@ async function selectAgentAndNewSession(): Promise<void> {
     `[data-testid="chat-agent-item"][data-agent-id="${AGENT_ID}"].selected`
   ).waitForDisplayed({ timeout: 20_000 });
 
-  await $('[data-testid="chat-session-list-button"]').click();
   await $('[data-testid="chat-new-session"]').waitForClickable();
   await $('[data-testid="chat-new-session"]').click();
 }
@@ -247,5 +268,67 @@ describeDeterministic("JEV decision arbitration", () => {
 
     await bar.$('[data-testid="approval-reject"]').click();
     await bar.waitForDisplayed({ reverse: true, timeout: 30_000 });
+  });
+
+  it("selects a normal LLM through settings and automatically approves a tool", async () => {
+    await waitForAppShell();
+    await navigateTo("/settings?section=llm-service");
+    await $('[data-testid="llm-service-settings"]').waitForDisplayed({
+      timeout: 30_000,
+    });
+    const profile = await $('[data-profile-id="e2e-openai-mock"]');
+    await profile.waitForDisplayed();
+    await profile.click();
+    await $('[data-testid="approval-engine-llm"]').waitForClickable();
+    await $('[data-testid="approval-engine-llm"]').click();
+    await $(
+      '[data-testid="decision-channel-selector"] .el-select__wrapper'
+    ).click();
+    const model = await $(
+      '.approval-model-selector-popper [data-testid="llm-model-option"][data-model-combo="e2e-openai-mock:e2e-chat"]'
+    );
+    await model.waitForDisplayed();
+    await model.click();
+    await $('[data-testid="decision-channel-save"]').click();
+    await browser.saveScreenshot(
+      process.env.AIO_E2E_ARTIFACT_DIR + "/llm-approval-settings.png"
+    );
+
+    await selectAgentAndNewSession();
+    await sendMarker("[e2e:jev:llm-approve]");
+    const card = await waitForToolCard(TOOL_NAME);
+    await waitForToolStatus(card, ["success"]);
+    await auditBadge().waitForDisplayed();
+    if ((await auditBadge().getAttribute("data-audit-key")) !== "llm-approve") {
+      throw new Error("LLM auto-approval did not retain its engine source");
+    }
+    const reviews = (await readMockRequests()).filter(
+      (request) =>
+        request.type === "llm-approval" && request.marker === "llm-approve"
+    );
+    if (reviews.length !== 1)
+      throw new Error("Expected one ordinary LLM approval request");
+    if (await approvalBar().isExisting())
+      throw new Error("Auto-approved LLM request opened manual approval");
+  });
+
+  it("shows LLM escalation and resumes only after manual approval", async () => {
+    await selectAgentAndNewSession();
+    await sendMarker("[e2e:jev:llm-escalate]");
+    const card = await waitForToolCard(TOOL_NAME);
+    await approvalBar().waitForDisplayed({ timeout: 60_000 });
+    await $('[data-testid="approval-llm-badge"]').waitForDisplayed();
+    await approvalBar().$(".arbiter-detail-toggle").click();
+    await browser.saveScreenshot(
+      process.env.AIO_E2E_ARTIFACT_DIR + "/llm-approval-escalation.png"
+    );
+    await approvalBar().$('[data-testid="approval-allow"]').click();
+    await approvalBar().waitForDisplayed({ reverse: true, timeout: 30_000 });
+    await waitForToolStatus(card, ["success"]);
+    if ((await auditBadge().getAttribute("data-audit-key")) !== "manual") {
+      throw new Error(
+        "Human approval did not become the final processing source"
+      );
+    }
   });
 });

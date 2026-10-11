@@ -101,7 +101,9 @@ export function summarizeValue(value: unknown, depth = 0): unknown {
   }
   if (typeof value === "object") {
     const output: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    for (const [key, item] of Object.entries(
+      value as Record<string, unknown>
+    )) {
       output[key] = isSecretKeyName(key)
         ? "***"
         : summarizeValue(item, depth + 1);
@@ -149,8 +151,12 @@ export function buildJevQuestionnaire(
   ctx: ArbitrationContext
 ): BuiltQuestionnaire {
   const { request } = ctx;
-  const argsText = Object.entries(request.args ?? {})
-    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`)
+  const args = ctx.effectiveArgs ?? request.args ?? {};
+  const argsText = Object.entries(args)
+    .map(
+      ([key, value]) =>
+        `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`
+    )
     .join("\n");
 
   const inlineScripts = extractInlineScripts(argsText);
@@ -161,10 +167,10 @@ export function buildJevQuestionnaire(
       methodName: request.methodName,
       displayName: request.methodDisplayName ?? request.toolName,
     },
-    args: summarizeValue(request.args ?? {}) as SystemOneContent,
+    args: summarizeValue(args) as SystemOneContent,
     inlineScripts: inlineScripts.map((body) =>
-      sanitizeScalar(body.replace(/\s+/g, " ").trim()))
-    ,
+      sanitizeScalar(body.replace(/\s+/g, " ").trim())
+    ),
     securityPolicy: ctx.forceApproval ? "force-approval" : "gray-zone",
     ...(ctx.agentName ? { agent: ctx.agentName } : {}),
     ...(ctx.recentUserMessage
@@ -207,12 +213,9 @@ export function buildJevQuestionnaire(
       type: "choice",
       instructions: "综合裁决（须与 risk / intent 自洽）",
       criteria: {
-        approve:
-          "参数与用户意图吻合、可逆、无越权、无数据损毁风险的常规操作；",
-        deny:
-          "破坏性操作、数据丢失、权限提升（sudo / 系统目录）、对外暴露服务、删除不可恢复数据、越出工作区范围；",
-        escalate:
-          "无法自信归类为安全或危险：模糊、信息不足、或信号相互矛盾。",
+        approve: "参数与用户意图吻合、可逆、无越权、无数据损毁风险的常规操作；",
+        deny: "破坏性操作、数据丢失、权限提升（sudo / 系统目录）、对外暴露服务、删除不可恢复数据、越出工作区范围；",
+        escalate: "无法自信归类为安全或危险：模糊、信息不足、或信号相互矛盾。",
       },
     },
   };

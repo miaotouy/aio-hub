@@ -19,6 +19,7 @@ import type {
   ParsedToolRequest,
   ToolExecutionResult,
   ToolApprovalResult,
+  ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
 import { parseToolRequests } from "./parser";
@@ -34,7 +35,7 @@ export interface ToolCallEngineOptions {
   delegationDepth?: number;
   onBeforeExecute?: (
     request: ParsedToolRequest,
-    security?: { forceApproval: boolean }
+    security?: ToolApprovalSecurityContext
   ) => Promise<ToolApprovalResult | boolean>;
   onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }

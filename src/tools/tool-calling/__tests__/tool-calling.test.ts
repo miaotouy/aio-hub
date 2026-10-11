@@ -368,12 +368,21 @@ b:「始」5「末」
       protocol
     );
 
+    const onBeforeExecute = vi.fn(async () => "approved" as const);
     const results = await executeToolRequests(requests, {
-      config: defaultConfig,
+      config: { ...defaultConfig, mode: "manual" },
+      onBeforeExecute,
     });
 
     expect(results[0].status).toBe("success");
     expect(results[0].result).toBe("8");
+    expect(onBeforeExecute).toHaveBeenCalledWith(
+      requests[0],
+      expect.objectContaining({
+        effectiveArgs: { a: 3, b: 5 },
+        toolDescription: expect.any(String),
+      })
+    );
   });
 
   it("参数类型自动适配：字符串转布尔", async () => {

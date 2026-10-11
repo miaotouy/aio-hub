@@ -80,4 +80,28 @@ describe("describeArbitration 展示判定契约", () => {
     expect(p?.riskPercent).toBeNull();
     expect(p?.intentPercent).toBeNull();
   });
+  it("LLM 审批保留离散风险与裁决动作，概率值保持空", () => {
+    const record = jevInfo({
+      engine: "llm",
+      risk: null,
+      intent: null,
+      confidence: null,
+      action: "escalate",
+      llm: {
+        action: "escalate",
+        riskLevel: "medium",
+        matchesUserIntent: false,
+        explicitlyAuthorized: false,
+        reason: "范围待确认",
+      },
+    });
+    record.origin = "llm";
+    expect(describeArbitration(record)).toMatchObject({
+      kind: "llm",
+      action: "escalate",
+      riskPercent: null,
+      intentPercent: null,
+      riskLabel: "中风险",
+    });
+  });
 });

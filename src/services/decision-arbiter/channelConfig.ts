@@ -19,6 +19,7 @@
  * Agent 级 enabled 开关跟随 ToolCallConfig（Q2 裁决）。
  */
 
+import { shallowRef } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import {
@@ -39,7 +40,9 @@ const channelManager = createConfigManager<DecisionChannelSettings>({
   }),
 });
 
-const settings = { value: { ...DEFAULT_DECISION_CHANNEL_SETTINGS } };
+const settings = shallowRef<DecisionChannelSettings>({
+  ...DEFAULT_DECISION_CHANNEL_SETTINGS,
+});
 
 /** 读取全局决策渠道设置（内存缓存，未加载时返回默认值）。 */
 export function getDecisionChannelSettings(): DecisionChannelSettings {

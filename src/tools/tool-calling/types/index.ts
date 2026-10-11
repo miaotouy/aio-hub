@@ -50,6 +50,13 @@ export interface ToolCallCycleResult {
 
 export type ToolApprovalResult = "approved" | "rejected";
 
+/** 从安全策略检查到审批入口透传的实际执行上下文。 */
+export interface ToolApprovalSecurityContext {
+  forceApproval: boolean;
+  effectiveArgs?: Record<string, unknown>;
+  toolDescription?: string;
+}
+
 export type ToolCallStatus = "executing" | "completed" | "error";
 
 export type ToolCallConfig = AgentToolCallConfig;

@@ -160,7 +160,7 @@ This starts a new virtual session through the Chat UI, sends its first message,
 and verifies that the session detail and index are persisted and the session
 appears in the history list.
 
-## JEV decision arbitration lane
+## Decision arbitration lane (JEV / ordinary LLM)
 
 `specs/decision-arbitration.spec.ts` drives the gray-zone approval arbiter
 through the real Chat UI. The runner seeds an Agent with
@@ -185,6 +185,12 @@ through the app's Rust LLM proxy (local/IP base URLs always force proxy mode).
 Each marker uses a distinct VCP tool argument (`{"e2e":"<marker>"}`) so the
 in-window arbitration fingerprint dedup (anti-loop red line) does not collapse
 otherwise-identical test requests.
+
+The decision-arbitration lane also selects an ordinary LLM through the real
+settings UI, verifies automatic approval, and resumes an escalated request
+through manual approval. The deterministic mock returns the LLM approval JSON
+contract; no external model service is needed for this lane. Success screenshots
+are saved as `llm-approval-settings.png` and `llm-approval-escalation.png`.
 
 ## Background task approval lane
 

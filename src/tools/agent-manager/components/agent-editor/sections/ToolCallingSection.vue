@@ -27,6 +27,7 @@ import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling"
 import ToolCallingHelpDialog from "@/tools/llm-chat/components/common/ToolCallingHelpDialog.vue";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
+import { getDecisionChannelSettings } from "@/services/decision-arbiter/channelConfig";
 import { DEFAULT_DECISION_ARBITRATION_CONFIG } from "@/services/decision-arbiter/types";
 import { customMessage } from "@/utils/customMessage";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -109,7 +110,11 @@ const ensureConfig = () => {
   }
 };
 
-// JEV 决策仲裁（§3.3）：undefined = 禁用，开关写入显式对象
+const usesJevArbitration = computed(
+  () => getDecisionChannelSettings().engine !== "llm"
+);
+
+// AI 自动审批（§3.3）：undefined = 禁用，开关写入显式对象
 const arbitrationEnabled = computed({
   get: () => !!editForm?.toolCallConfig?.decisionArbitration,
   set: (val: boolean) => {
@@ -135,7 +140,9 @@ type ArbitrationNumericKey =
 const toPercentModel = (key: ArbitrationNumericKey, maxPercent = 100) =>
   computed<number>({
     get: () =>
-      Math.round((editForm.toolCallConfig.decisionArbitration?.[key] ?? 0) * 100),
+      Math.round(
+        (editForm.toolCallConfig.decisionArbitration?.[key] ?? 0) * 100
+      ),
     set: (val: number) => {
       ensureConfig();
       const arb = editForm.toolCallConfig.decisionArbitration;
@@ -148,11 +155,13 @@ const autoRiskPercent = toPercentModel("autoRiskThreshold", 30);
 const denyRiskPercent = toPercentModel("denyRiskThreshold");
 const intentPercent = toPercentModel("intentThreshold");
 const confidencePercent = toPercentModel("confidenceThreshold");
-const forceApprovalRiskPercent = toPercentModel("forceApprovalRiskThreshold", 30);
+const forceApprovalRiskPercent = toPercentModel(
+  "forceApprovalRiskThreshold",
+  30
+);
 
 const arbitrationMode = computed<"gray-zone" | "aggressive">({
-  get: () =>
-    editForm.toolCallConfig.decisionArbitration?.mode ?? "gray-zone",
+  get: () => editForm.toolCallConfig.decisionArbitration?.mode ?? "gray-zone",
   set: (val: "gray-zone" | "aggressive") => {
     ensureConfig();
     const arb = editForm.toolCallConfig.decisionArbitration;
@@ -417,12 +426,14 @@ const pasteAllToolSettings = async () => {
         <div class="arbitration-card">
           <div class="arbitration-card-header">
             <div class="arbitration-card-title">
-              <span>JEV 决策仲裁</span>
+              <span>AI 自动审批</span>
               <el-tooltip
-                content="审批前先由 JEV 决策模型仲裁：低风险自动放行、高风险自动拒绝、不确定时升级人工审批。默认关闭。"
+                content="审批前先由配置的模型审核：低风险自动放行、高风险自动拒绝、不确定时升级人工审批。默认关闭。"
                 placement="top"
               >
-                <el-icon :size="14" style="color: var(--el-text-color-secondary)"
+                <el-icon
+                  :size="14"
+                  style="color: var(--el-text-color-secondary)"
                   ><InfoFilled
                 /></el-icon>
               </el-tooltip>
@@ -431,8 +442,9 @@ const pasteAllToolSettings = async () => {
           </div>
           <template v-if="arbitrationEnabled">
             <div class="form-hint" style="margin-bottom: 8px">
-              决策渠道在「设置中心 → 模型服务」统一配置。此智能体启用后，其工具调用审批将先经
-              JEV 仲裁，仅不确定的请求会弹出人工审批。
+              审批模型在「设置 → AI
+              服务配置」统一配置。此智能体启用后，其工具调用审批将先经
+              模型审核；需要进一步确认时显示人工审批。
             </div>
             <el-form label-position="top" size="small">
               <el-form-item label="仲裁策略模式">
@@ -448,10 +460,14 @@ const pasteAllToolSettings = async () => {
                 type="warning"
                 :closable="false"
                 show-icon
-                title="激进模式允许 JEV 在极低风险下放行强制审批操作（安全沙箱等），存在一定风险。"
+                title="激进模式允许模型放行强制审批操作。普通 LLM 还需确认用户已明确授权，请谨慎启用。"
                 style="margin-bottom: 12px"
               />
-              <div class="tool-config-grid" style="margin-bottom: 0; padding: 0">
+              <div
+                v-if="usesJevArbitration"
+                class="tool-config-grid"
+                style="margin-bottom: 0; padding: 0"
+              >
                 <el-form-item label="自动放行风险上限 (%)">
                   <el-slider
                     v-model="autoRiskPercent"
@@ -501,11 +517,20 @@ const pasteAllToolSettings = async () => {
                   />
                 </el-form-item>
               </div>
+              <div
+                v-if="!usesJevArbitration"
+                class="form-hint"
+                style="margin-bottom: 12px"
+              >
+                普通 LLM
+                按操作风险和用户授权审核：低风险且符合用户意图的请求可自动批准，信息不足时转人工。
+              </div>
               <el-form-item label="外部来源安全防线">
                 <div class="arbitration-external-row">
                   <el-switch v-model="autoApproveExternal" />
                   <span class="form-hint">
-                    允许 VCP / 外部协同工具调用自动放行；关闭时外部来源仅提供 JEV
+                    允许 VCP /
+                    外部协同工具调用自动放行；关闭时外部来源仅提供模型
                     建议，必须人工确认。
                   </span>
                 </div>

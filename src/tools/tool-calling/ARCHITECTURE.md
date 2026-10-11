@@ -324,6 +324,7 @@ flowchart TD
 - **路由规则**: 统一使用 `tool_name` (对应 toolId) 和 `command` (对应 methodName) 分离格式。执行器会自动路由到对应的工具实例和方法。
 - **参数合并策略**: 执行前会按 `Schema 默认值 < Agent 预设 < LLM 实时参数` 的优先级合并参数。
 - **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错；`rejected` 会触发工具的 `onToolCallDiscarded` 回调并返回 `denied` 状态。
+- **AI 自动审批**: 聊天审批入口支持 JEV 与普通 LLM 两种引擎，共用人工接管和取消机制。执行器向审批入口透传实际参数与方法说明，详见[工具自动审批仲裁架构](../../../docs/architecture/tool-approval-arbitration.md)。
 - **自动预览 (Auto-Preview)**: 在进入审批挂起状态前，执行器会尝试调用工具的 `onToolCallPreview` 钩子，允许工具（如 Canvas）将数据写入内存缓冲区以供用户即时预览效果。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
 - **超时与取消**: 本地和分布式执行通过 `AbortController` 传播取消信号，超时必须先中止底层任务再返回错误；完整约束见第 10 节。

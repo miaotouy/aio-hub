@@ -49,6 +49,8 @@ import {
   loadDecisionChannelSettings,
   saveDecisionChannelSettings,
 } from "@/services/decision-arbiter/channelConfig";
+import type { DecisionEngine } from "@/services/decision-arbiter/types";
+import { LLM_APPROVAL_MODEL_CAPABILITIES } from "@/services/decision-arbiter/llmApproval";
 import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
 import { PRESET_ICONS } from "@/config/preset-icons";
 import {
@@ -564,6 +566,25 @@ const networkSettingSummary = computed(() => {
 const decisionChannelSettings = ref({
   ...getDecisionChannelSettings(),
 });
+const decisionEngine = computed<DecisionEngine>({
+  get: () => decisionChannelSettings.value.engine ?? "jev",
+  set: (engine) => {
+    if (engine === decisionEngine.value) return;
+    decisionChannelSettings.value = {
+      ...decisionChannelSettings.value,
+      engine,
+      profileId: null,
+      model: engine === "jev" ? "jev-latest" : "",
+      timeoutMs: engine === "jev" ? 8_000 : 30_000,
+    };
+  },
+});
+const decisionTimeoutSeconds = computed({
+  get: () => decisionChannelSettings.value.timeoutMs / 1_000,
+  set: (seconds: number) => {
+    decisionChannelSettings.value.timeoutMs = seconds * 1_000;
+  },
+});
 const decisionChannelCombo = computed<string>({
   get: () => {
     const { profileId, model } = decisionChannelSettings.value;
@@ -604,7 +625,6 @@ onMounted(() => {
     decisionChannelSettings.value = { ...settings };
   });
 });
-
 </script>
 
 <template>
@@ -834,20 +854,37 @@ onMounted(() => {
               </div>
             </el-form-item>
 
-            <!-- JEV 决策渠道（全局单渠道，§3.5） -->
+            <!-- 自动审批的全局模型配置 -->
+            <el-form-item label="审批模型类型">
+              <el-radio-group
+                v-model="decisionEngine"
+                data-testid="approval-engine-selector"
+              >
+                <el-radio-button value="jev">JEV 决策模型</el-radio-button>
+                <el-radio-button value="llm" data-testid="approval-engine-llm"
+                  >普通 LLM</el-radio-button
+                >
+              </el-radio-group>
+            </el-form-item>
             <el-form-item label="决策渠道">
               <div style="width: 100%; display: flex; gap: 8px">
                 <LlmModelSelector
                   v-model="decisionChannelCombo"
-                  :capabilities="{ decision: true }"
+                  :capabilities="
+                    decisionEngine === 'jev'
+                      ? { decision: true }
+                      : LLM_APPROVAL_MODEL_CAPABILITIES
+                  "
                   :clearable="true"
-                  placeholder="未配置（JEV 决策仲裁将走安全兜底）"
+                  placeholder="请选择用于工具审批的模型"
                   test-id="decision-channel-selector"
+                  popper-class="approval-model-selector-popper"
                 />
                 <el-button
                   type="primary"
                   plain
                   size="small"
+                  data-testid="decision-channel-save"
                   :loading="isDecisionChannelSaving"
                   @click="handleSaveDecisionChannel"
                 >
@@ -855,8 +892,29 @@ onMounted(() => {
                 </el-button>
               </div>
               <div class="form-hint">
-                用于工具调用审批仲裁的 JEV 决策模型（需具备 decision
-                能力标记，如 jev-latest）。全局单渠道，所有智能体共用。
+                所有开启 AI
+                自动审批的智能体共用此模型。模型审核失败时转人工处理。
+              </div>
+            </el-form-item>
+
+            <el-form-item label="审核超时（秒）">
+              <el-input-number
+                v-model="decisionTimeoutSeconds"
+                :min="1"
+                :max="120"
+                :step="1"
+              />
+            </el-form-item>
+            <el-form-item v-if="decisionEngine === 'llm'" label="补充审批规则">
+              <el-input
+                v-model="decisionChannelSettings.llmInstructions"
+                type="textarea"
+                :rows="3"
+                :maxlength="4000"
+                placeholder="例如：允许读取工作目录中的文件；写入已有文件前转人工确认。"
+              />
+              <div class="form-hint">
+                补充具体的操作范围与审批要求，保存后生效。
               </div>
             </el-form-item>
 

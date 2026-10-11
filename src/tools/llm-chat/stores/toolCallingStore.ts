@@ -54,6 +54,8 @@ export interface ToolApprovalOptions {
   agentName?: string;
   /** executor 安全策略已命中强制审批（checkSecurityPolicy → approve）。 */
   forceApproval?: boolean;
+  effectiveArgs?: Record<string, unknown>;
+  toolDescription?: string;
   /** 跳过仲裁直接走人工（批量审批缓存复用等场景）。 */
   skipArbitration?: boolean;
 }
@@ -128,7 +130,11 @@ function buildApprovalSettlement(
   return {
     decision: result,
     origin: audit?.origin ?? (result === "rejected" ? "cancelled" : "manual"),
-    jevAction: arbiter?.action ?? null,
+    jevAction:
+      arbiter && (arbiter.engine ?? "jev") === "jev" ? arbiter.action : null,
+    arbiterEngine: arbiter?.engine ?? (arbiter ? "jev" : undefined),
+    arbiterAction: arbiter?.action,
+    riskLevel: arbiter?.llm?.riskLevel,
     risk: arbiter?.risk ?? null,
     confidence: arbiter?.confidence ?? null,
     reason: arbiter?.reason ?? null,
@@ -231,7 +237,10 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
       // 最终来源取本次审计，仲裁快照从原记录保留，任务历史才能回放升级依据。
       const previous = auditRecords.value.get(requestId);
       const nextAudit: ArbiterAuditInfo =
-        audit.origin !== "jev" && previous?.origin === "jev" && previous.arbiter
+        audit.origin !== "jev" &&
+        audit.origin !== "llm" &&
+        (previous?.origin === "jev" || previous?.origin === "llm") &&
+        previous.arbiter
           ? { ...audit, arbiter: previous.arbiter }
           : audit;
       finalAudit = nextAudit;
@@ -325,7 +334,8 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
 
     // P4：按会话解析活动后台任务；命中后来源标记为 background（本地来源），
     // 并把仲裁中 / 人工等待 / 结算投影到任务快照。
-    const resolvedTask = taskApprovalBridge?.resolveActiveTask(sessionId) ?? null;
+    const resolvedTask =
+      taskApprovalBridge?.resolveActiveTask(sessionId) ?? null;
     const approvalForceApproval = options.forceApproval === true;
     const approvalInfo = resolvedTask
       ? buildApprovalInfo(
@@ -341,6 +351,8 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
       request,
       source: options.source ?? (resolvedTask ? "background" : "orchestrator"),
       forceApproval: approvalForceApproval,
+      effectiveArgs: options.effectiveArgs,
+      toolDescription: options.toolDescription,
       sessionId,
       agentId: options.agentId,
       agentName: options.agentName,
@@ -426,7 +438,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
 
         if (decision?.action === "approve") {
           const audit: ArbiterAuditInfo = {
-            origin: "jev",
+            origin: decision.engine ?? decision.audit?.engine ?? "jev",
             arbiter: decision.audit ?? undefined,
           };
           setArbitrationState(requestId, "auto-approved");
@@ -437,7 +449,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
               buildApprovalSettlement("approved", audit)
             );
           }
-          logger.info("JEV 自动放行", {
+          logger.info("AI 审批自动放行", {
             requestId,
             toolId: request.toolId,
             reason: decision.reason,
@@ -446,7 +458,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
         }
         if (decision?.action === "deny") {
           const audit: ArbiterAuditInfo = {
-            origin: "jev",
+            origin: decision.engine ?? decision.audit?.engine ?? "jev",
             arbiter: decision.audit ?? undefined,
           };
           setArbitrationState(requestId, "auto-denied");
@@ -457,7 +469,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
               buildApprovalSettlement("rejected", audit)
             );
           }
-          logger.info("JEV 风险拦截", {
+          logger.info("AI 审批风险拦截", {
             requestId,
             toolId: request.toolId,
             reason: decision.reason,
@@ -468,7 +480,7 @@ export const useToolCallingStore = defineStore("toolCalling", () => {
         setArbitrationState(requestId, "escalated");
         if (decision) {
           setAuditRecord(requestId, {
-            origin: "jev",
+            origin: decision.engine ?? decision.audit?.engine ?? "jev",
             arbiter: decision.audit ?? undefined,
           });
         }

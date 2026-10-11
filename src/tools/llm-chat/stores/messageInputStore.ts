@@ -56,7 +56,6 @@ export const useMessageInputStore = defineStore(
     const sessionListVisible = ref(false);
     const toolSettingsVisible = ref(false);
     const moreMenuVisible = ref(false);
-    const settingsVisible = ref(false);
     const canvasMenuOpen = ref(false);
     const knowledgeSelectorVisible = ref(false);
     const toolbarCustomizeVisible = ref(false);
@@ -67,7 +66,6 @@ export const useMessageInputStore = defineStore(
         sessionListVisible.value ||
         toolSettingsVisible.value ||
         moreMenuVisible.value ||
-        settingsVisible.value ||
         canvasMenuOpen.value ||
         knowledgeSelectorVisible.value ||
         toolbarCustomizeVisible.value
@@ -772,7 +770,6 @@ export const useMessageInputStore = defineStore(
       sessionListVisible,
       toolSettingsVisible,
       moreMenuVisible,
-      settingsVisible,
       canvasMenuOpen,
       knowledgeSelectorVisible,
       toolbarCustomizeVisible,

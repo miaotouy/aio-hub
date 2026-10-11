@@ -29,7 +29,8 @@ import MiniSessionList from "./MiniSessionList.vue";
 import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
 import QuickActionsBar from "./toolbar/QuickActionsBar.vue";
 import ToolbarMoreMenu from "./toolbar/ToolbarMoreMenu.vue";
-import ToolbarSettingsPopover from "./toolbar/ToolbarSettingsPopover.vue";
+import InputSettingsPanel from "./toolbar/InputSettingsPanel.vue";
+import { useMessageInputPanel } from "../../composables/input/useMessageInputPanel";
 import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
 import KnowledgeReferenceControl from "./KnowledgeReferenceControl.vue";
 import type { ContextPreviewData } from "../../types/context";
@@ -110,12 +111,12 @@ const { isSending, disabled } = context.state;
 const { send, abort, triggerAttachment } = context.actions;
 
 const inputStore = useMessageInputStore();
+const panel = useMessageInputPanel();
 const {
   macroSelectorVisible,
   sessionListVisible,
   toolSettingsVisible,
   moreMenuVisible,
-  settingsVisible,
   canvasMenuOpen,
   knowledgeSelectorVisible,
   toolbarCustomizeVisible,
@@ -257,9 +258,7 @@ const openPanel = computed(() =>
         ? "tool-settings"
         : knowledgeSelectorVisible.value
           ? "knowledge"
-          : settingsVisible.value
-            ? "input-settings"
-            : undefined
+          : panel.activePanel.value?.id
 );
 const sharedPanelVisible = computed({
   get: () =>
@@ -297,7 +296,16 @@ const actions = computed(() =>
     temporaryModelName: inputStore.temporaryModelInfo?.modelName,
     continuationModelName: inputStore.continuationModelInfo?.modelName,
     openPanel: openPanel.value,
-  })
+  }).map((action) =>
+    action.id === "input-settings"
+      ? {
+          ...action,
+          controls: panel.contentId,
+          expanded:
+            panel.activePanel.value?.id === action.id && !panel.collapsed.value,
+        }
+      : action
+  )
 );
 const actionPlacement = computed(() =>
   partitionToolbarActions(actions.value, layout.value.pinnedActionIds)
@@ -328,13 +336,29 @@ function closePanels() {
   sessionListVisible.value = false;
   toolSettingsVisible.value = false;
   knowledgeSelectorVisible.value = false;
-  settingsVisible.value = false;
+  panel.close();
 }
 async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
   const current = actions.value.find((item) => item.id === action.id);
   if (!current || !current.visible || current.disabled) return;
   const wasOpen = openPanel.value === action.id;
   moreMenuRef.value?.close();
+  if (action.id === "input-settings") {
+    macroSelectorVisible.value = false;
+    sessionListVisible.value = false;
+    toolSettingsVisible.value = false;
+    knowledgeSelectorVisible.value = false;
+    panel.toggle(
+      {
+        id: action.id,
+        title: action.label,
+        icon: action.icon,
+        component: InputSettingsPanel,
+      },
+      () => (anchor?.isConnected ? anchor : moreButtonRef.value)
+    );
+    return;
+  }
   closePanels();
   panelAnchor.value = anchor ?? moreButtonRef.value;
   await nextTick();
@@ -352,9 +376,6 @@ async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
         break;
       case "knowledge":
         knowledgeSelectorVisible.value = !wasOpen;
-        break;
-      case "input-settings":
-        settingsVisible.value = !wasOpen;
         break;
       case "streaming":
         emit("toggle-streaming");
@@ -427,15 +448,14 @@ watch(
   },
   { flush: "post" }
 );
-watch(openPanel, async (panel, previous) => {
+watch(openPanel, async (currentPanel, previous) => {
   await nextTick();
-  if (panel) {
+  if (currentPanel === "input-settings") return;
+  if (currentPanel) {
     const selector =
-      panel === "knowledge"
+      currentPanel === "knowledge"
         ? ".knowledge-reference-popover"
-        : panel === "input-settings"
-          ? ".toolbar-settings-popover"
-          : ".input-toolbar-panel";
+        : ".input-toolbar-panel";
     document
       .querySelector<HTMLElement>(selector)
       ?.querySelector<HTMLElement>(
@@ -444,11 +464,16 @@ watch(openPanel, async (panel, previous) => {
       ?.focus({ preventScroll: true });
   } else if (
     previous &&
+    previous !== "input-settings" &&
     !toolbarCustomizeVisible.value &&
     document.activeElement === document.body
   )
     panelAnchor.value?.focus();
 });
+watch(canvasMenuOpen, (visible) => {
+  if (visible) panel.close();
+});
+defineExpose({ openCustomizer });
 onBeforeUnmount(closePanels);
 </script>
 
@@ -635,12 +660,6 @@ onBeforeUnmount(closePanels);
     :virtual-ref="panelAnchor"
     :disabled="disabled"
     :is-detached="props.isDetached"
-  />
-  <ToolbarSettingsPopover
-    headless
-    :virtual-ref="panelAnchor"
-    :is-detached="props.isDetached"
-    @customize="openCustomizer"
   />
   <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
 </template>

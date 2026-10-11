@@ -21,7 +21,10 @@ const emit = defineEmits<{
       :disabled="action.disabled"
       :aria-label="action.label"
       :aria-pressed="action.kind === 'toggle' ? action.active : undefined"
-      :aria-haspopup="action.kind === 'panel' ? 'dialog' : undefined"
+      :aria-haspopup="
+        action.kind === 'panel' && !action.controls ? 'dialog' : undefined
+      "
+      :aria-controls="action.controls"
       :aria-expanded="action.kind === 'panel' ? action.expanded : undefined"
       :data-action-id="action.id"
       :data-testid="action.testId"

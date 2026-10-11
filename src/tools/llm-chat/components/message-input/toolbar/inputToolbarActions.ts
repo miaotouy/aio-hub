@@ -36,6 +36,7 @@ export interface ToolbarAction extends ToolbarActionDefinition {
   disabled: boolean;
   active: boolean;
   expanded?: boolean;
+  controls?: string;
   busy?: boolean;
   badge?: string;
   tooltip?: string;

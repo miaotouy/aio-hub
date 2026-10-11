@@ -16,10 +16,18 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ref, toRef, computed, onMounted, watch } from "vue";
-import { useElementSize } from "@vueuse/core";
+import {
+  ref,
+  toRef,
+  computed,
+  onMounted,
+  watch,
+  nextTick,
+  onBeforeUnmount,
+} from "vue";
+import { useElementSize, useWindowSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -37,6 +45,8 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageInputToolbar from "./MessageInputToolbar.vue";
+import MessageInputPanelHost from "./MessageInputPanelHost.vue";
+import { provideMessageInputPanel } from "../../composables/input/useMessageInputPanel";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "./ChatTextareaEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
@@ -123,12 +133,40 @@ const textareaRef = ref<
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const extraContentRef = ref<HTMLDivElement>();
+const panelHostRef = ref<InstanceType<typeof MessageInputPanelHost>>();
+const toolbarRef = ref<InstanceType<typeof MessageInputToolbar>>();
+const panel = provideMessageInputPanel();
+const { activePanel, collapsed: panelCollapsed } = panel;
+const { height: viewportHeight } = useWindowSize();
+const detachedAvailableHeight = ref(window.screen.availHeight);
+const { height: panelHeight } = useElementSize(
+  computed(() => panelHostRef.value?.$el)
+);
 const { height: extraContentHeight } = useElementSize(extraContentRef);
 const { height: containerHeight } = useElementSize(containerRef);
+const extraHeight = computed(
+  () =>
+    extraContentHeight.value + (activePanel.value ? panelHeight.value + 12 : 0)
+);
+const panelMaxHeight = computed(() =>
+  Math.max(
+    0,
+    Math.min(
+      260,
+      (props.isDetached
+        ? detachedAvailableHeight.value * 0.75
+        : viewportHeight.value * 0.6) -
+        extraContentHeight.value -
+        180
+    )
+  )
+);
 
 // 状态
 const isExpanded = ref(false);
 const isUpdatingSize = ref(false); // 锁，防止并发调整大小导致抖动
+let detachedSizePending = false;
+let inputUnmounted = false;
 
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
@@ -162,7 +200,7 @@ const {
 } = useMessageInputResize({
   isDetached: props.isDetached || false,
   textareaRef,
-  extraHeight: extraContentHeight,
+  extraHeight,
   isExpanded,
   onResizeStart: () => {
     isExpanded.value = false;
@@ -272,8 +310,11 @@ watch(inputManager.focusRequest, () => {
 const updateDetachedWindowSize = async (
   expanding: boolean = inputStore.anyMenuOpen
 ) => {
-  if (!props.isDetached || isUpdatingSize.value || containerHeight.value <= 0)
+  if (!props.isDetached || inputUnmounted || containerHeight.value <= 0) return;
+  if (isUpdatingSize.value) {
+    detachedSizePending = true;
     return;
+  }
   isUpdatingSize.value = true;
   try {
     const scale = window.devicePixelRatio || 1;
@@ -294,6 +335,18 @@ const updateDetachedWindowSize = async (
       targetHeight = currentContentHeight;
     }
 
+    const monitor = await currentMonitor();
+    if (monitor) {
+      const position = await getCurrentWindow().outerPosition();
+      const availableHeight =
+        monitor.workArea.position.y + monitor.workArea.size.height - position.y;
+      // Panel budget follows the screen work area, independent of the window's auto-sized viewport.
+      detachedAvailableHeight.value = Math.max(0, availableHeight / scale);
+      targetHeight = Math.min(
+        targetHeight,
+        Math.max(180 * scale, availableHeight)
+      );
+    }
     // 使用全局尺寸处理方法，指定 anchor 为 top 以实现“向下增长”，避免抖动
     await animateWindowSize({
       height: targetHeight,
@@ -304,8 +357,16 @@ const updateDetachedWindowSize = async (
     logger.warn("动态调整分离窗口大小失败", e);
   } finally {
     isUpdatingSize.value = false;
+    if (detachedSizePending) {
+      detachedSizePending = false;
+      void nextTick(() => updateDetachedWindowSize());
+    }
   }
 };
+onBeforeUnmount(() => {
+  inputUnmounted = true;
+  panel.close();
+});
 // 监听菜单状态变化
 watch(
   () => inputStore.anyMenuOpen,
@@ -536,6 +597,24 @@ const handleDragStart = (e: MouseEvent) => {
 
       <!-- 输入内容区 -->
       <div class="input-content">
+        <MessageInputPanelHost
+          v-if="activePanel"
+          ref="panelHostRef"
+          v-model:collapsed="panelCollapsed"
+          :panel="activePanel"
+          :content-id="panel.contentId"
+          :style="{ '--input-panel-max-height': `${panelMaxHeight}px` }"
+          @close="panel.close(true)"
+        >
+          <component
+            :is="activePanel.component"
+            :key="activePanel.id"
+            v-bind="activePanel.props"
+            @close="panel.close(true)"
+            @focus-editor="textareaRef?.focus()"
+            @customize="toolbarRef?.openCustomizer()"
+          />
+        </MessageInputPanelHost>
         <div
           v-if="
             attachmentManager.hasAttachments.value ||
@@ -590,6 +669,7 @@ const handleDragStart = (e: MouseEvent) => {
             @paste="inputStore.handlePaste"
           />
           <MessageInputToolbar
+            ref="toolbarRef"
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"

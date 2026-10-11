@@ -18,7 +18,8 @@
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ElTooltip, ElPopover } from "element-plus";
 import { AtSign, X, Sparkles, Brush } from "lucide-vue-next";
-import { ref } from "vue";
+import { ref, watch } from "vue";
+import { useMessageInputPanel } from "../../../composables/input/useMessageInputPanel";
 import MiniCanvasControl from "../MiniCanvasControl.vue";
 import type { ContextPreviewData } from "../../../types/context";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
@@ -40,6 +41,10 @@ const emit = defineEmits<{
 
 const { currentAgentId } = useLlmChatUiState();
 const canvasControlVisible = ref(false);
+const panel = useMessageInputPanel();
+watch(panel.activePanel, (active) => {
+  if (active) canvasControlVisible.value = false;
+});
 const agentStore = useAgentStore();
 const inputStore = useMessageInputStore();
 

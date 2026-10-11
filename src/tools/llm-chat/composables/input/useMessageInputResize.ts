@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { ref, computed, onUnmounted, type Ref } from "vue";
+import { useWindowSize } from "@vueuse/core";
 
 interface UseMessageInputResizeOptions {
   isDetached: boolean;
@@ -23,6 +24,7 @@ interface UseMessageInputResizeOptions {
 }
 
 export function useMessageInputResize(options: UseMessageInputResizeOptions) {
+  const { height: viewportHeight } = useWindowSize();
   const isResizing = ref(false);
   const startY = ref(0);
   const startHeight = ref(0);
@@ -40,12 +42,14 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
     const extra = options.extraHeight?.value || 0;
     // 手动拖拽后 customMaxHeight 为数字，优先使用
     if (typeof customMaxHeight.value === "number") {
-      return customMaxHeight.value;
+      const budget =
+        viewportHeight.value * (options.isDetached ? 0.9 : 0.7) - extra - 60;
+      return Math.min(customMaxHeight.value, Math.max(40, budget));
     }
     // 根据展开状态决定最大高度
     const expanded = options.isExpanded?.value ?? false;
     const maxVh = expanded ? 70 : 40;
-    return `calc(${maxVh}vh - ${extra}px)`;
+    return `max(40px, calc(${maxVh}vh - ${extra}px))`;
   });
 
   // 鼠标移动处理

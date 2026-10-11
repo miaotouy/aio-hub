@@ -60,7 +60,7 @@ export async function loadDecisionChannelSettings(): Promise<DecisionChannelSett
   return settings.value;
 }
 
-/** 保存全局决策渠道设置（设置中心调用）。 */
+/** 保存全局审批模型设置（工具审批配置组件调用）。 */
 export async function saveDecisionChannelSettings(
   next: DecisionChannelSettings
 ): Promise<void> {

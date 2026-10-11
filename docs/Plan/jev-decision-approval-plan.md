@@ -223,7 +223,7 @@ questions: {
 ### 2.7. 配置模型
 
 ```ts
-// 全局（设置中心 → LLM 服务）：选择决策渠道。全局单例，不提供 Agent 级独立渠道（Q2）
+// 全局（智能体设置 → 工具调用 → AI 自动审批）：选择决策渠道。全局单例，不提供 Agent 级独立渠道（Q2）
 interface DecisionChannelSettings {
   profileId: string | null;   // 需标记 capabilities.decision 的 profile
   model: string;              // 默认 jev-latest
@@ -349,9 +349,9 @@ interface DecisionArbitrationConfig {
 
 ---
 
-### 3.4. 全局设置中心 (`Settings/llm-service/`)
+### 3.4. 工具审批模型设置 (`tool-calling/components/ApprovalModelSettings.vue`)
 
-全局设置用于指定默认 System One 仲裁服务端点与渠道绑定：
+在智能体的工具调用页配置全局审批模型，智能体管理与 Chat 内设置共用此入口。渠道连接与模型元数据继续由 AI 服务配置管理：
 
 1. **服务提供者选择器**（✅ 已实现）：
    - 复用 [`LlmModelSelector`](../../src/components/common/LlmModelSelector.vue) 现有的 `capabilities?: Partial<ModelCapabilities>` 属性（无需新增属性），传入 `:capabilities="{ decision: true }"` 即可完成能力过滤；
@@ -361,7 +361,7 @@ interface DecisionArbitrationConfig {
    - 点击后在 1 秒内向 System One 发送预设 mock 决策请求（`test-decision`），在按钮下方通过 `Tag` 动态呈现：
      - 成功：`✅ 延迟 124ms · 计费: $0.000002 · 决策状态正常`；
      - 失败：`❌ 渠道无响应 / 401 密钥失效`，附带排查引导。
-   - 当前 `LlmServiceSettings.vue` 仅实现「选择决策模型 + 保存配置」。
+   - 当前 `ApprovalModelSettings.vue` 提供 JEV / 普通 LLM 引擎选择、审批模型、审核超时与补充规则，并独立保存全局配置。
 
 ---
 
@@ -391,7 +391,7 @@ interface DecisionArbitrationConfig {
 - [x] `ToolCallMessage.vue`：新增 `arbitrating` 等待态（「等待 AI 审核」+ 环形加载）+ 放行源徽标（规则放行 / Jev 放行 / 人工放行 / Jev 阻断 / Jev 建议人工确认）（SVG 图标为主，避免 emoji）
 - [x] `ToolCallingApprovalBar.vue`：单项卡片增加 JEV 仲裁徽标、风险/意图微型进度条与折叠面板（仅 escalate 后出现）
 - [x] `ToolCallingSection.vue`：新增「AI 决策自动审批」配置卡片（模式选择、阈值滑块含 confidence 与 forceApproval、VCP 外部来源开关）
-- [~] 设置中心：决策渠道选择（按 `capabilities.decision` 过滤）已完成；**快速连通性测试按钮未实现**
+- [~] 工具审批设置：决策渠道选择（按 `capabilities.decision` 过滤）已完成；**快速连通性测试按钮未实现**
 
 ### P4 — 后台任务与 sub-agent 接入
 - [x] 调查后台任务实际审批路径（2026-10-06）：同步 / 后台 sub-agent 均经聊天编排器间接进入 `requestApproval`，JEV 按子 Agent 配置生效；任务级 `awaiting_approval` 尚未联动。调查结果与后续边界见 §12。
@@ -518,7 +518,7 @@ interface DecisionArbitrationConfig {
 
 ### 11.4 仍未实现（保留为待办）
 
-- 设置中心「测试仲裁连通性」按钮（§3.4 第 2 项）。
+- 工具审批设置「测试仲裁连通性」按钮（§3.4 第 2 项）。
 - `set_agent_field` 篡改链路的专项回归测试。
 - 真实 `jev-latest` 渠道冒烟与死区绕过回归。
 - 本地 Agent 真实装配链路（`llmChatStore → setupApprovalArbiter → createDecisionArbiter → resolveArbitrationConfig`）的**真机**集成测试：已由 `bun run test:tauri:e2e -- --preset decision-arbitration` 覆盖（mock 渠道，真实 app 装配）；单元层仍以 mock arbiter 覆盖收口行为。

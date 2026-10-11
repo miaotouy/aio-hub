@@ -162,7 +162,7 @@ export const DEFAULT_DECISION_ARBITRATION_CONFIG: DecisionArbitrationConfig = {
   autoApproveExternalSources: false,
 };
 
-/** 全局决策渠道设置（设置中心 → LLM 服务，全局单例）。 */
+/** 全局审批模型设置（智能体设置 → 工具调用 → AI 自动审批）。 */
 export interface DecisionChannelSettings {
   engine: DecisionEngine;
   /** 普通 LLM 的补充审批规则。 */

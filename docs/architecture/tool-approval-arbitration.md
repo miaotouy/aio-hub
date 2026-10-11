@@ -6,6 +6,14 @@
 
 全局决策渠道保存审批引擎、渠道、模型、超时与重试配置；智能体保存启用状态、保守灰区或激进策略，以及 JEV 的概率阈值。历史渠道配置经默认值合并后继续使用 JEV。
 
+## 配置入口
+
+审批模型在「智能体设置 → 工具调用 → AI 自动审批」中配置。智能体管理和 Chat 内的智能体设置共用 `ToolCallingSection`，模型配置组件归属 `tool-calling` 模块。工具调用页默认展示「工具配置」页签，审批模型与策略集中在「AI 自动审批」页签；切换页签保留当前编辑状态。
+
+- **全局模型配置**：审批引擎、渠道与模型、审核超时和补充审批规则由所有启用自动审批的智能体共用，点击「保存审批模型配置」后立即生效。
+- **智能体审批策略**：启用状态、仲裁策略、JEV 阈值和外部来源策略随当前智能体保存。
+- **渠道管理**：「AI 服务配置」负责渠道连接和模型元数据；审批模型选择器复用其中已启用的渠道与模型。
+
 ## 两种审批引擎
 
 ### JEV
@@ -55,6 +63,8 @@
 
 ## 实现入口
 
+- `src/tools/tool-calling/components/ApprovalModelSettings.vue`：全局审批模型配置 UI。
+- `src/tools/agent-manager/components/agent-editor/sections/ToolCallingSection.vue`：智能体管理与 Chat 共用的工具审批设置入口。
 - `src/services/decision-arbiter/index.ts`：公共仲裁流程与引擎分流。
 - `src/services/decision-arbiter/llmApproval.ts`：普通 LLM 请求、解析与裁决。
 - `src/tools/llm-chat/composables/chat/setupApprovalArbiter.ts`：宿主装配和会话意图读取。

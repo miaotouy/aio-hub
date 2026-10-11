@@ -270,15 +270,19 @@ describeDeterministic("JEV decision arbitration", () => {
     await bar.waitForDisplayed({ reverse: true, timeout: 30_000 });
   });
 
-  it("selects a normal LLM through settings and automatically approves a tool", async () => {
+  it("selects a normal LLM through Agent tool settings and automatically approves a tool", async () => {
     await waitForAppShell();
-    await navigateTo("/settings?section=llm-service");
-    await $('[data-testid="llm-service-settings"]').waitForDisplayed({
-      timeout: 30_000,
-    });
-    const profile = await $('[data-profile-id="e2e-openai-mock"]');
-    await profile.waitForDisplayed();
-    await profile.click();
+    await navigateTo("/agent-manager");
+    const agent = await $(
+      `[data-testid="agent-manager-card"][data-agent-id="${AGENT_ID}"]`
+    );
+    await agent.waitForDisplayed({ timeout: 30_000 });
+    await agent.$('[data-testid="agent-manager-edit"]').click();
+    await $('[data-testid="agent-editor"]').waitForDisplayed();
+    await $(
+      '[data-testid="agent-editor-tab"][data-tab-id="tool-calling"]'
+    ).click();
+    await $('.tool-settings-tabs [id="tab-approval"]').click();
     await $('[data-testid="approval-engine-llm"]').waitForClickable();
     await $('[data-testid="approval-engine-llm"]').click();
     await $(
@@ -290,10 +294,15 @@ describeDeterministic("JEV decision arbitration", () => {
     await model.waitForDisplayed();
     await model.click();
     await $('[data-testid="decision-channel-save"]').click();
+    await $(
+      '[data-testid="decision-channel-save"]:not(.is-loading)'
+    ).waitForClickable();
     await browser.saveScreenshot(
       process.env.AIO_E2E_ARTIFACT_DIR + "/llm-approval-settings.png"
     );
 
+    await $('[data-testid="agent-editor-cancel"]').click();
+    await $('[data-testid="agent-editor"]').waitForDisplayed({ reverse: true });
     await selectAgentAndNewSession();
     await sendMarker("[e2e:jev:llm-approve]");
     const card = await waitForToolCard(TOOL_NAME);

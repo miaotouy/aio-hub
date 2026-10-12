@@ -544,16 +544,19 @@ onBeforeUnmount(closePanels);
           </svg>
         </button>
       </div>
-    </div>
-    <div
-      v-if="props.isProcessingAttachments || props.isCompressing"
-      class="processing-status"
-      role="status"
-    >
-      <span v-if="props.isProcessingAttachments">正在处理文件…</span
-      ><span v-if="props.isCompressing"
-        ><LoaderCircle :size="12" class="spinner" />正在压缩上下文…</span
+      <div
+        v-if="props.isProcessingAttachments || props.isCompressing"
+        class="processing-status"
+        role="status"
       >
+        <span v-if="props.isProcessingAttachments">
+          <span>正在处理文件…</span>
+        </span>
+        <span v-if="props.isCompressing">
+          <LoaderCircle :size="12" class="spinner" />
+          <span>正在压缩上下文…</span>
+        </span>
+      </div>
     </div>
   </div>
   <QuickActionManagerDialog v-model:visible="quickActionManagerVisible" />
@@ -567,6 +570,7 @@ onBeforeUnmount(closePanels);
   min-width: 0;
 }
 .input-bottom-bar {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -675,18 +679,37 @@ onBeforeUnmount(closePanels);
 .btn-abort:hover {
   opacity: 0.85;
 }
+/* 临时处理提示浮在工具栏上方，避免状态切换改变输入区高度。 */
 .processing-status {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 8px;
+  z-index: 1;
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  padding: 2px 8px;
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg-solid);
   font-size: 12px;
   color: var(--text-color-secondary);
+  pointer-events: none;
 }
 .processing-status > span {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+}
+.processing-status > span > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.processing-status .spinner {
+  flex: none;
 }
 .spinner {
   animation: spin 1s linear infinite;

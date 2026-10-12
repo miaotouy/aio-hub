@@ -45,6 +45,11 @@ import {
 } from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import {
+  keepSessionTab,
+  openSessionTab,
+  type OpenTabOptions,
+} from "../utils/gitTabs";
+import {
   repositories,
   currentRepoPath,
   currentSession,
@@ -316,38 +321,43 @@ export async function loadCommitFileDiff(
 }
 
 /** 打开或激活一个标签页（按唯一键去重） */
-function openTab(ref: DiffTabRef): void {
-  const session = currentSession.value;
-  const key = buildTabKey(ref);
-  const existing = session.openTabs.find((t) => buildTabKey(t) === key);
-  if (!existing) {
-    session.openTabs.push({ ...ref });
-  }
-  session.activeTabPath = key;
+function openTab(ref: DiffTabRef, options?: OpenTabOptions): void {
+  openSessionTab(currentSession.value, ref, options);
+}
+
+/** 将预览标签固定，供双击与右键菜单复用。 */
+export function keepDiffTab(ref: DiffTabRef): void {
+  keepSessionTab(currentSession.value, ref);
 }
 
 /** 打开或激活一个 Diff 标签页 */
 export async function openDiffTab(
   filePath: string,
-  isStaged: boolean
+  isStaged: boolean,
+  options?: OpenTabOptions
 ): Promise<void> {
-  openTab({ path: filePath, isStaged });
+  openTab({ path: filePath, isStaged }, options);
 }
 
 /**
  * 打开或激活一个文件内容标签页（非 diff，直接查看文档现状）。
  * 始终读取工作区当前内容；暂存来源仅用于标签分组展示。
  */
-export function openFileTab(filePath: string, isStaged = false): void {
-  openTab({ path: filePath, isStaged, viewMode: "file" });
+export function openFileTab(
+  filePath: string,
+  isStaged = false,
+  options?: OpenTabOptions
+): void {
+  openTab({ path: filePath, isStaged, viewMode: "file" }, options);
 }
 
 /** 打开或激活某次提交中单个文件的 Diff 标签页 */
 export function openCommitFileDiffTab(
   commitHash: string,
-  filePath: string
+  filePath: string,
+  options?: OpenTabOptions
 ): void {
-  openTab({ path: filePath, isStaged: false, commitHash });
+  openTab({ path: filePath, isStaged: false, commitHash }, options);
 }
 
 /** 打开或激活某次提交的多文件 Diff 总览标签页 */

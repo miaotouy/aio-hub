@@ -125,7 +125,16 @@
                     :key="file.path"
                     class="commit-file"
                     :title="file.path"
-                    @click.stop="openCommitFile(commit.hash, file.path)"
+                    @click.stop="
+                      openCommitFile(
+                        commit.hash,
+                        file.path,
+                        shouldPreviewFile(singleClickOpensPermanentTab, $event)
+                      )
+                    "
+                    @dblclick.stop="
+                      openCommitFile(commit.hash, file.path, false)
+                    "
                     @contextmenu.prevent.stop="
                       showCommitFileMenu(commit, file, $event)
                     "
@@ -187,6 +196,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
 import CommitGraphTrack from "./CommitGraphTrack.vue";
 import { computeTimelineGraph } from "../utils/gitTimelineGraph";
+import { shouldPreviewFile } from "../utils/gitTabs";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/core";
@@ -196,6 +206,7 @@ import FileIcon from "@/components/common/FileIcon.vue";
 import {
   currentRepoPath,
   currentStatus,
+  singleClickOpensPermanentTab,
 } from "../composables/useGitCommitterState";
 import CommitChart from "./CommitChart.vue";
 import CommitDetailPopover from "./CommitDetailPopover.vue";
@@ -431,9 +442,13 @@ const toggleExpand = async (commit: GitCommitSummary) => {
   loadingHashes.value.delete(commit.hash);
 };
 
-const openCommitFile = (hash: string, filePath: string) => {
+const openCommitFile = (
+  hash: string,
+  filePath: string,
+  preview = !singleClickOpensPermanentTab.value
+) => {
   selectedHash.value = hash;
-  openCommitFileDiffTab(hash, filePath);
+  openCommitFileDiffTab(hash, filePath, { preview });
 };
 
 const openCommitChanges = (commit: GitCommitSummary) => {

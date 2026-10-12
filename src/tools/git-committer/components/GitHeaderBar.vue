@@ -335,8 +335,11 @@ onClickOutside(searchContainerRef, () => {
   isDropdownVisible.value = false;
 });
 
-const handleSelectSearchResult = (item: GitSearchResultFileItem) => {
-  openSearchResult(item);
+const handleSelectSearchResult = (
+  item: GitSearchResultFileItem,
+  event: MouseEvent
+) => {
+  openSearchResult(item, event);
   isDropdownVisible.value = false;
 };
 

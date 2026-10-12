@@ -59,7 +59,7 @@
         <div
           class="file-header-row"
           :title="item.path"
-          @click="handleOpenFile(item)"
+          @click="handleOpenFile(item, $event)"
         >
           <!-- 区域标签 -->
           <span
@@ -114,7 +114,7 @@
             :key="`${item.path}-m-${mIdx}`"
             class="match-line-item"
             :title="match.lineContent"
-            @click="handleOpenFile(item)"
+            @click="handleOpenFile(item, $event)"
           >
             <span class="line-number">{{ match.lineNumber }}</span>
             <span class="line-code">
@@ -140,7 +140,7 @@
         <div
           v-else-if="item.hasFileNameMatch"
           class="filename-only-tip"
-          @click="handleOpenFile(item)"
+          @click="handleOpenFile(item, $event)"
         >
           <span class="tip-dot" />
           <span>文件名匹配（内容中无更多匹配项）</span>
@@ -165,7 +165,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "select-file", item: GitSearchResultFileItem): void;
+  (e: "select-file", item: GitSearchResultFileItem, event: MouseEvent): void;
   (e: "close"): void;
 }>();
 
@@ -184,8 +184,8 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleGlobalKeydown, true);
 });
 
-const handleOpenFile = (item: GitSearchResultFileItem) => {
-  emit("select-file", item);
+const handleOpenFile = (item: GitSearchResultFileItem, event: MouseEvent) => {
+  emit("select-file", item, event);
 };
 </script>
 

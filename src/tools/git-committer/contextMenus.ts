@@ -34,6 +34,7 @@ import {
   MessageSquareText,
   Minus,
   Pencil,
+  Pin,
   Palette,
   Plus,
   RefreshCw,
@@ -127,6 +128,10 @@ export function buildTabContextMenuItems(
     },
     { id: "tab:close-all", label: "关闭所有标签页", icon: X },
   ];
+
+  if (tab.isPreview) {
+    closeGroup.unshift({ id: "tab:keep-open", label: "固定标签页", icon: Pin });
+  }
 
   // 提交总览 / 更改总览 / AI 提示词：只有关闭组与（提交总览的）复制哈希
   if (!isFileTab(tab)) {

@@ -35,8 +35,13 @@ import {
   openDiffTab,
   openFileTab,
 } from "./useGitCommitterRunner";
-import { currentStatus, fileSearchKeyword } from "./useGitCommitterState";
+import {
+  currentStatus,
+  fileSearchKeyword,
+  singleClickOpensPermanentTab,
+} from "./useGitCommitterState";
 import type { FileStatus } from "../types";
+import { shouldPreviewFile } from "../utils/gitTabs";
 
 export interface GitSearchResultFileItem {
   path: string;
@@ -228,11 +233,17 @@ export function useGitWorkspaceSearch(repoPathRef: Ref<string>) {
   );
 
   /** 打开目标文件 */
-  const openSearchResult = (item: GitSearchResultFileItem) => {
+  const openSearchResult = (
+    item: GitSearchResultFileItem,
+    event?: Pick<MouseEvent, "altKey">
+  ) => {
+    const options = {
+      preview: shouldPreviewFile(singleClickOpensPermanentTab.value, event),
+    };
     if (item.status === "A" && !item.isStaged) {
-      openFileTab(item.path, item.isStaged);
+      openFileTab(item.path, item.isStaged, options);
     } else {
-      openDiffTab(item.path, item.isStaged);
+      openDiffTab(item.path, item.isStaged, options);
     }
   };
 

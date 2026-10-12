@@ -41,6 +41,8 @@ export interface DiffTabRef {
   commitHash?: string;
   /** 内容形态；缺省为 diff，"file" 表示直接查看文件当前内容 */
   viewMode?: DiffTabViewMode;
+  /** 预览标签：打开其他预览文件时复用此位置；缺省为固定标签 */
+  isPreview?: boolean;
 }
 
 /** 单个仓库的会话记忆 */
@@ -93,6 +95,8 @@ export interface GitCommitterConfig {
   isRepoBarPinned: boolean;
   /** Diff 是否默认折叠未更改区域 */
   hideUnchangedRegions: boolean;
+  /** 单击文件项时直接固定标签页；默认使用预览标签 */
+  singleClickOpensPermanentTab: boolean;
   repoSessions: Record<string, RepoSession>;
   // 设置项
   autoPushAfterCommit: boolean;

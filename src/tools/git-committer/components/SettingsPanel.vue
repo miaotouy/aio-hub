@@ -88,6 +88,25 @@
         </el-form>
       </div>
 
+      <!-- 文件查看 -->
+      <div class="settings-section">
+        <h3 class="section-title">文件查看</h3>
+        <div class="switch-list">
+          <div class="switch-item">
+            <div class="switch-label-group">
+              <span class="switch-label">单击文件时固定标签页</span>
+              <span class="switch-desc"
+                >关闭时，单击使用预览标签页；Alt + 单击可临时预览，双击文件或标签页可固定。</span
+              >
+            </div>
+            <el-switch
+              v-model="singleClickOpensPermanentTab"
+              aria-label="单击文件时固定标签页"
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- 工作流自动化 -->
       <div class="settings-section">
         <h3 class="section-title">工作流自动化</h3>
@@ -214,6 +233,7 @@
 import { Plus, Settings, X } from "lucide-vue-next";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import {
+  singleClickOpensPermanentTab,
   autoPushAfterCommit,
   autoPullOnSwitch,
   aiIncludeUnstaged,

@@ -136,7 +136,15 @@
               :key="file.path"
               class="file-item"
               :class="{ active: isActiveFile(file.path, true) }"
-              @click="openDiffTab(file.path, true)"
+              @click="
+                openDiffTab(file.path, true, {
+                  preview: shouldPreviewFile(
+                    singleClickOpensPermanentTab,
+                    $event
+                  ),
+                })
+              "
+              @dblclick="openDiffTab(file.path, true)"
               @contextmenu.prevent="showFileMenu(file, true, $event)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
@@ -144,7 +152,7 @@
                 getFileName(file.path)
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
-              <span class="file-actions">
+              <span class="file-actions" @dblclick.stop>
                 <el-tooltip
                   v-if="file.status !== 'D'"
                   content="查看文件当前内容"
@@ -226,7 +234,13 @@
               :key="file.path"
               class="file-item"
               :class="{ active: isActiveFile(file.path, false) }"
-              @click="handleOpenFile(file)"
+              @click="
+                handleOpenFile(
+                  file,
+                  shouldPreviewFile(singleClickOpensPermanentTab, $event)
+                )
+              "
+              @dblclick="handleOpenFile(file, false)"
               @contextmenu.prevent="showFileMenu(file, false, $event)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
@@ -234,7 +248,7 @@
                 getFileName(file.path)
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
-              <span class="file-actions">
+              <span class="file-actions" @dblclick.stop>
                 <el-tooltip
                   v-if="file.status !== 'D'"
                   content="查看文件当前内容"
@@ -307,6 +321,7 @@ import {
   currentStatus,
   currentSession,
   defaultModel,
+  singleClickOpensPermanentTab,
 } from "../composables/useGitCommitterState";
 import {
   stageFile,
@@ -328,6 +343,7 @@ import { customMessage } from "@/utils/customMessage";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
 import { useGitFileContextMenu } from "../composables/useGitFileContextMenu";
 import { getFileName, getFileDir, buildTabKey } from "../utils";
+import { shouldPreviewFile } from "../utils/gitTabs";
 
 const activeCollapseNames = ref(["staged", "unstaged"]);
 const commitAction = ref<"commit" | "commit-push">("commit");
@@ -455,11 +471,14 @@ const isActiveFile = (path: string, isStaged: boolean) => {
  * 未暂存文件点击行为：未跟踪的新文件（状态 A）没有基线版本，
  * 直接打开文件内容视图；其余文件打开 diff。
  */
-const handleOpenFile = (file: { path: string; status: string }) => {
+const handleOpenFile = (
+  file: { path: string; status: string },
+  preview = !singleClickOpensPermanentTab.value
+) => {
   if (file.status === "A") {
-    openFileTab(file.path, false);
+    openFileTab(file.path, false, { preview });
   } else {
-    openDiffTab(file.path, false);
+    openDiffTab(file.path, false, { preview });
   }
 };
 

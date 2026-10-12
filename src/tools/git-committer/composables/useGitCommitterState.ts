@@ -119,6 +119,7 @@ const configManager = createConfigManager<GitCommitterConfig>({
     isRightSidebarExpanded: true,
     isRepoBarPinned: false,
     hideUnchangedRegions: true,
+    singleClickOpensPermanentTab: false,
     repoSessions: {},
     autoPushAfterCommit: false,
     autoPullOnSwitch: false,
@@ -140,6 +141,7 @@ export const rightSidebarWidth = ref<number>(280);
 export const isRightSidebarExpanded = ref<boolean>(true);
 export const isRepoBarPinned = ref<boolean>(false);
 export const hideUnchangedRegions = ref<boolean>(true);
+export const singleClickOpensPermanentTab = ref<boolean>(false);
 export const repoSessions = ref<Record<string, RepoSession>>({});
 
 // 设置项（也持久化）
@@ -226,6 +228,8 @@ export async function loadRepositories(): Promise<void> {
   isRightSidebarExpanded.value = config.isRightSidebarExpanded ?? true;
   isRepoBarPinned.value = config.isRepoBarPinned ?? false;
   hideUnchangedRegions.value = config.hideUnchangedRegions ?? true;
+  singleClickOpensPermanentTab.value =
+    config.singleClickOpensPermanentTab ?? false;
   repoSessions.value = config.repoSessions || {};
 
   // 恢复设置项
@@ -272,6 +276,7 @@ function snapshot(): GitCommitterConfig {
     isRightSidebarExpanded: isRightSidebarExpanded.value,
     isRepoBarPinned: isRepoBarPinned.value,
     hideUnchangedRegions: hideUnchangedRegions.value,
+    singleClickOpensPermanentTab: singleClickOpensPermanentTab.value,
     repoSessions: repoSessions.value,
     autoPushAfterCommit: autoPushAfterCommit.value,
     autoPullOnSwitch: autoPullOnSwitch.value,
@@ -300,6 +305,7 @@ watch(
     isRightSidebarExpanded,
     isRepoBarPinned,
     hideUnchangedRegions,
+    singleClickOpensPermanentTab,
     repoSessions,
     autoPushAfterCommit,
     autoPullOnSwitch,
@@ -318,6 +324,14 @@ watch(
 );
 
 // ===== 仓库与 Session 操作 =====
+
+// 改为单击固定时，将各仓库现有预览一并固定。
+watch(singleClickOpensPermanentTab, (permanent) => {
+  if (!permanent) return;
+  for (const session of Object.values(repoSessions.value)) {
+    for (const tab of session.openTabs) delete tab.isPreview;
+  }
+});
 
 function repositoryPathKey(path: string): string {
   const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");

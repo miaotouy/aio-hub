@@ -34,8 +34,11 @@
             class="tab-item"
             :class="{
               active: session.activeTabPath === buildTabKey(tab),
+              preview: tab.isPreview,
             }"
+            :title="tab.isPreview ? `${tab.path}（预览，双击固定）` : undefined"
             @click="session.activeTabPath = buildTabKey(tab)"
+            @dblclick="keepDiffTab(tab)"
             @contextmenu.prevent="showTabMenu(tab, tabIndex, $event)"
           >
             <template v-if="isPromptTab(tab.path)">
@@ -89,7 +92,11 @@
                 {{ tab.isStaged ? "暂存" : "工作区" }}
               </span>
             </template>
-            <span class="tab-close" @click.stop="closeDiffTab(tab)">
+            <span
+              class="tab-close"
+              @click.stop="closeDiffTab(tab)"
+              @dblclick.stop
+            >
               <X :size="12" />
             </span>
           </div>
@@ -292,6 +299,7 @@ import {
 } from "../composables/useGitCommitterState";
 import {
   closeDiffTab,
+  keepDiffTab,
   closeOtherDiffTabs,
   closeDiffTabsToRight,
   closeAllDiffTabs,
@@ -648,6 +656,9 @@ const showTabMenu = (tab: DiffTabRef, tabIndex: number, event: MouseEvent) => {
 
 const handleTabMenuAction = async (itemId: string, tab: DiffTabRef) => {
   switch (itemId) {
+    case "tab:keep-open":
+      keepDiffTab(tab);
+      break;
     case "tab:close":
       closeDiffTab(tab);
       break;
@@ -783,6 +794,10 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   color: var(--el-text-color-regular);
   flex-shrink: 0;
   box-sizing: border-box;
+}
+
+.tab-item.preview .tab-name {
+  font-style: italic;
 }
 
 .tab-item:hover {

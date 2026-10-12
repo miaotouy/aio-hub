@@ -95,7 +95,10 @@ Git Committer 采用基于 **Teleport 单例模式** 的独立右键菜单（`Gi
    - 支持快速切换仓库、在系统文件管理器中打开、手动刷新状态、触发拉取/推送。
    - 提供修改仓库别名、调整仓库个性化图标颜色、编辑专属 AI 提示词、从列表中移除等操作。
 2. **文件差异标签页 (MainArea Tab 栏)**：
-   - 标签管理：关闭、关闭其他、关闭右侧、全部关闭。
+   - 标签管理：关闭、关闭其他、关闭右侧、全部关闭；预览标签提供“固定标签页”操作。
+   - 文件列表（工作区、暂存区、提交历史）及工作区搜索默认使用预览标签；每个仓库会话保留一个预览位，连续打开文件在原位置替换，固定标签再次单击时保持固定。
+   - 预览标签名以斜体显示；双击文件行或标签页可固定。文件行内的操作按钮与右键“打开”操作直接打开固定标签，概览与提示词标签维持固定行为。
+   - “文件查看”设置中的 `singleClickOpensPermanentTab` 默认 `false`；开启后单击直接固定，并将各仓库已有预览固定；Alt + 单击文件行或搜索结果可临时使用预览，保持全局设置。标签的 `isPreview` 随会话保存，历史标签缺省为固定。
    - 路径交互：复制相对仓库路径、复制完整物理路径、在文件管理器中定位。
    - 模式切换：差异模式（Diff View）与单文件原始内容查看（File View）无缝切换；暂存/取消暂存。
 3. **更改列表 (Sidebar 与 ChangesDiffView)**：
@@ -182,6 +185,7 @@ export interface GitCommitterConfig {
   isRightSidebarExpanded: boolean;
   isRepoBarPinned: boolean;
   hideUnchangedRegions: boolean;
+  singleClickOpensPermanentTab: boolean;
   repoSessions: Record<string, RepoSession>;
   autoPushAfterCommit: boolean;
   autoPullOnSwitch: boolean;

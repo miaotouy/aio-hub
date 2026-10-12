@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
+import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
 import { Trash2 } from "lucide-vue-next";
@@ -79,49 +79,6 @@ const clearOpenedTabs = async () => {
     // 用户取消
   }
 };
-
-// 滚动遮罩相关
-const menuWrapperRef = ref<HTMLElement | null>(null);
-const menuContainerRef = ref<HTMLElement | null>(null);
-
-const updateScrollMasks = () => {
-  if (!menuContainerRef.value) return;
-  const el = menuContainerRef.value;
-  const maskHost = menuWrapperRef.value;
-  const { scrollTop, scrollHeight, clientHeight } = el;
-
-  const showTopMask = scrollTop > 5;
-  const showBottomMask = scrollHeight - scrollTop - clientHeight > 5;
-
-  maskHost?.style.setProperty("--top-fade-opacity", showTopMask ? "1" : "0");
-  maskHost?.style.setProperty(
-    "--bottom-fade-opacity",
-    showBottomMask ? "1" : "0"
-  );
-};
-
-const setupScrollListener = () => {
-  if (menuContainerRef.value) {
-    menuContainerRef.value.addEventListener("scroll", updateScrollMasks);
-    nextTick(() => updateScrollMasks());
-  }
-};
-
-const cleanupScrollListener = () => {
-  if (menuContainerRef.value) {
-    menuContainerRef.value.removeEventListener("scroll", updateScrollMasks);
-  }
-};
-
-onMounted(() => {
-  setupScrollListener();
-  window.addEventListener("resize", updateScrollMasks);
-});
-
-onUnmounted(() => {
-  cleanupScrollListener();
-  window.removeEventListener("resize", updateScrollMasks);
-});
 </script>
 
 <template>
@@ -137,17 +94,13 @@ onUnmounted(() => {
       },
     ]"
   >
-    <!-- 上部分：标题和导航 -->
+    <!-- 上部分：导航（标签区的滚动与渐隐由 SidebarMenu 自身处理） -->
     <div class="sidebar-top">
-      <div class="menu-wrapper" ref="menuWrapperRef">
-        <div class="menu-container" ref="menuContainerRef">
-          <SidebarMenu
-            :collapsed="isCollapsed"
-            :tools-visible="toolsVisible"
-            :is-detached="isDetached"
-          />
-        </div>
-      </div>
+      <SidebarMenu
+        :collapsed="isCollapsed"
+        :tools-visible="toolsVisible"
+        :is-detached="isDetached"
+      />
     </div>
 
     <!-- 下部分：收起按钮 -->
@@ -226,54 +179,6 @@ onUnmounted(() => {
 .main-sidebar.is-collapsed .sidebar-bottom {
   padding: 15px 0;
   justify-content: center;
-}
-
-.menu-wrapper {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  --mask-height: 30px;
-  --top-fade-opacity: 0;
-  --bottom-fade-opacity: 0;
-}
-
-.menu-wrapper::before,
-.menu-wrapper::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: var(--mask-height);
-  pointer-events: none;
-  z-index: 1;
-  transition: opacity 0.2s ease;
-}
-
-.menu-wrapper::before {
-  top: 0;
-  background: linear-gradient(to bottom, var(--sidebar-bg), transparent);
-  opacity: var(--top-fade-opacity);
-}
-
-.menu-wrapper::after {
-  bottom: 0;
-  background: linear-gradient(to top, var(--sidebar-bg), transparent);
-  opacity: var(--bottom-fade-opacity);
-}
-
-.menu-container {
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.menu-container::-webkit-scrollbar {
-  display: none;
-}
-
-.menu-container {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }
 
 .sidebar-actions {

@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import type { MediaTask } from "../types";
 
-const { sendRequest, mockProfiles } = vi.hoisted(() => ({
+const { sendRequest, mockProfiles, importAssetFromBytes } = vi.hoisted(() => ({
   sendRequest: vi.fn(),
+  importAssetFromBytes: vi.fn(),
   mockProfiles: { value: [] },
 }));
 
@@ -12,7 +13,7 @@ vi.mock("@/composables/useLlmRequest", () => ({
 }));
 vi.mock("@/composables/useAssetManager", () => ({
   useAssetManager: () => ({
-    importAssetFromBytes: vi.fn(),
+    importAssetFromBytes,
     importAssetFromPath: vi.fn(),
     getAssetBasePath: vi.fn(),
     getAssetBinary: vi.fn(),
@@ -182,5 +183,32 @@ describe("media generation queue", () => {
     await manager.executeGeneration(task);
 
     expect(sendRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("imports encoded image results with their returned MIME-derived extension", async () => {
+    const task = makeTask("webp-result");
+    const taskManager = useMediaTaskManager();
+    taskManager.addTask(task);
+    sendRequest.mockReset();
+    sendRequest.mockResolvedValue({
+      images: [{ b64_json: "AQID", mimeType: "image/webp" }],
+    });
+    importAssetFromBytes.mockReset();
+    importAssetFromBytes.mockResolvedValue({
+      id: "webp-asset",
+      type: "image",
+      mimeType: "image/webp",
+      size: 3,
+    });
+    await useMediaGenerationManager().executeGeneration(task);
+    expect(importAssetFromBytes).toHaveBeenCalledWith(
+      expect.any(ArrayBuffer),
+      "generated-webp-result-0.webp",
+      expect.objectContaining({ sourceModule: "media-generator" })
+    );
+    expect(taskManager.getTask(task.id)).toMatchObject({
+      status: "completed",
+      resultAssetIds: ["webp-asset"],
+    });
   });
 });

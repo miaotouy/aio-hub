@@ -539,3 +539,7 @@ useLlmRequest.sendRequest(options)
 - **文件引用**: 大文件使用 tagged `LocalFileRef`，不要在 Facade 中预读成 Base64；Provider JSON、multipart part 与顶层请求体均已有明确契约
 - **Key 管理**: 多 Key 配置且开启自动熔断后，合理配置 `autoRecoveryTime`，429 熔断后自动恢复；单 Key 或无多渠道容灾时保持默认关闭
 - **代理策略**: 桌面外部请求默认走 Rust 代理，可通过 `networkStrategy: "native"` 直连；涉及 `LocalFileRef` 或兼容期 `local-file://` 时始终走 Rust 原生文件路径，不能把路径或引用对象直接发送给 Provider
+
+### OpenRouter 多媒体协议
+
+`openrouter` 的聊天、向量与语音转写继续复用 OpenAI 兼容实现。图像、视频和语音合成由现有 OpenAI 多媒体入口识别渠道身份或官方域名后，选择共享内核的 `openRouterImageAdapter`、`openRouterVideoTaskAdapter`、`openRouterAudioAdapter`。图像端点为 `/api/v1/images`；视频采用 OR 的整数时长、JSON 参考素材及异步任务响应。专用适配器复用现有 transport、原生文件引用和资产入库机制。具体请求与任务生命周期见 [`media-generator` 架构](../../src/tools/media-generator/ARCHITECTURE.md#10-openrouter-多媒体适配)。

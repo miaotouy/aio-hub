@@ -942,8 +942,8 @@ export function useMediaGenerationManager() {
               : "unknown",
         });
         if (itemType === "image") {
-          mimeType = "image/png";
-          extension = "png";
+          mimeType = mediaItem.mimeType || "image/png";
+          extension = mimeTypeToExtension(mimeType, "png");
           if (mediaItem.b64_json) {
             bytes = decodeBase64ToArrayBuffer(mediaItem.b64_json);
           } else if (mediaItem.url) {
@@ -1207,6 +1207,7 @@ export function useMediaGenerationManager() {
       opus: "audio/opus",
       aac: "audio/aac",
       pcm16: "audio/wav",
+      pcm: "audio/pcm",
     };
     return map[format] || "audio/mpeg";
   }

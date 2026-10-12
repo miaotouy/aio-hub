@@ -17,6 +17,7 @@ export * from "./providers/embeddings";
 export * from "./providers/rerank";
 export * from "./providers/typesafe-system-one";
 export * from "./providers/sync-media";
+export * from "./providers/openrouter-media";
 export * from "./providers/async-media";
 export * from "./providers/transcription";
 export * from "./providers/model-list";

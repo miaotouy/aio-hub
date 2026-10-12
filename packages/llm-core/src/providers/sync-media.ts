@@ -566,6 +566,7 @@ function inferAudioFormat(contentType: string | undefined): string | undefined {
   if (value.includes("audio/ogg")) return "opus";
   if (value.includes("audio/aac")) return "aac";
   if (value.includes("audio/flac")) return "flac";
+  if (value.includes("audio/pcm")) return "pcm";
   return undefined;
 }
 

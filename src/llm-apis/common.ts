@@ -634,6 +634,7 @@ export interface LlmResponse {
     url?: string;
     b64_json?: string | ArrayBuffer;
     revisedPrompt?: string;
+    mimeType?: string;
   }>;
   /** 生成的视频列表 */
   videos?: Array<{

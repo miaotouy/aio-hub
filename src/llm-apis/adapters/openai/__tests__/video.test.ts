@@ -403,4 +403,56 @@ describe("OpenAI Adapter - Video", () => {
     expect(createBody.seconds).toBe("5");
     expect(result.videos?.[0]?.url).toBe("https://example.com/agnes-video.mp4");
   });
+
+  it("keeps OpenRouter Seedance on the video router and returns unsigned results", async () => {
+    const profile: LlmProfile = {
+      id: "or",
+      name: "OpenRouter",
+      type: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKeys: ["test-key"],
+      enabled: true,
+      models: [],
+    };
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "or-job",
+          status: "pending",
+          polling_url: "/api/v1/videos/or-job",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "or-job",
+          status: "completed",
+          unsigned_urls: ["https://cdn.example.com/video.mp4"],
+        }),
+      });
+    const result = await callOpenAiVideoApi(profile, {
+      profileId: "or",
+      modelId: "bytedance/seedance-2.0",
+      prompt: "waves",
+      durationSeconds: 5,
+      aspectRatio: "16:9",
+      resolution: "720p",
+      pollIntervalMs: 0,
+    } as MediaGenerationOptions);
+    const [url, options] = (fetchWithTimeout as any).mock.calls[0];
+    expect(url).toBe("https://openrouter.ai/api/v1/videos");
+    expect(JSON.parse(options.body)).toEqual({
+      model: "bytedance/seedance-2.0",
+      prompt: "waves",
+      duration: 5,
+      aspect_ratio: "16:9",
+      resolution: "720p",
+    });
+    expect(result.videos?.[0]).toMatchObject({
+      id: "or-job",
+      url: "https://cdn.example.com/video.mp4",
+      status: "completed",
+    });
+  });
 });

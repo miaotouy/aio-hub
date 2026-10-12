@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { computed } from "vue";
+import { isOpenRouterProfile } from "@aiohub/llm-core";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useMediaGenParamRules } from "./useMediaGenParamRules";
@@ -387,19 +388,29 @@ export function useMediaGenParameterState() {
     },
   });
 
-  const speechVoiceOptions = [
-    "alloy",
-    "ash",
-    "ballad",
-    "coral",
-    "echo",
-    "fable",
-    "nova",
-    "onyx",
-    "sage",
-    "shimmer",
-  ];
-  const speechFormatOptions = ["mp3", "wav", "opus", "aac"];
+  const isOpenRouterChannel = computed(() => {
+    const profile = selectedModelInfo.value?.profile;
+    return profile ? isOpenRouterProfile(profile) : false;
+  });
+  const speechVoiceOptions = computed(() =>
+    isOpenRouterChannel.value
+      ? []
+      : [
+          "alloy",
+          "ash",
+          "ballad",
+          "coral",
+          "echo",
+          "fable",
+          "nova",
+          "onyx",
+          "sage",
+          "shimmer",
+        ]
+  );
+  const speechFormatOptions = computed(() =>
+    isOpenRouterChannel.value ? ["mp3", "pcm"] : ["mp3", "wav", "opus", "aac"]
+  );
 
   // audio.cpp 渠道的音色由服务端预设/voice_dir 决定，且只输出 WAV，
   // OpenAI 默认的 alloy/mp3 不适用，默认不指定 voice 并以 wav 为默认格式。
@@ -409,7 +420,10 @@ export function useMediaGenParameterState() {
 
   const ensureAudioConfig = () => {
     params.value.audioConfig ||= {
-      voice: "alloy",
+      voice:
+        isAudioCppChannel.value || isOpenRouterChannel.value
+          ? undefined
+          : "alloy",
       responseFormat: "mp3",
       speed: 1,
     };
@@ -426,7 +440,8 @@ export function useMediaGenParameterState() {
 
   const speechVoice = computed({
     get: () =>
-      ensureAudioConfig().voice || (isAudioCppChannel.value ? "" : "alloy"),
+      ensureAudioConfig().voice ||
+      (isAudioCppChannel.value || isOpenRouterChannel.value ? "" : "alloy"),
     set: (val) => {
       ensureAudioConfig().voice = val || undefined;
     },

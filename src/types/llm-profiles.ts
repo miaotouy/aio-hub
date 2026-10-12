@@ -623,6 +623,8 @@ export interface LlmProfile {
     videos?: string;
     /** 视频查询端点 (Video Status)，例如 '/v1/videos/{video_id}' */
     videoStatus?: string;
+    /** 视频内容下载端点，例如 '/v1/videos/{video_id}/content' */
+    videoContent?: string;
   };
 }
 

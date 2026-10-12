@@ -116,4 +116,47 @@ describe("OpenAI Adapter - Image", () => {
       response_format: "b64_json",
     });
   });
+
+  it("routes OpenRouter image generation to JSON images and exposes the real image format", async () => {
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [{ b64_json: "AQID", media_type: "image/webp" }],
+      }),
+    });
+    const result = await callOpenAiImageApi(
+      {
+        ...mockProfile,
+        type: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+      },
+      {
+        profileId: "test-profile",
+        modelId: "google/image-model",
+        prompt: "a tea room",
+        responseFormat: "webp",
+        inputAttachments: [
+          { type: "image", url: "https://cdn.example.com/ref.png" },
+        ],
+      }
+    );
+    const [url, options] = (fetchWithTimeout as any).mock.calls[0];
+    expect(url).toBe("https://openrouter.ai/api/v1/images");
+    expect(JSON.parse(options.body)).toEqual({
+      model: "google/image-model",
+      prompt: "a tea room",
+      output_format: "webp",
+      stream: false,
+      input_references: [
+        {
+          type: "image_url",
+          image_url: { url: "https://cdn.example.com/ref.png" },
+        },
+      ],
+    });
+    expect(result.images?.[0]).toMatchObject({
+      b64_json: "AQID",
+      mimeType: "image/webp",
+    });
+  });
 });

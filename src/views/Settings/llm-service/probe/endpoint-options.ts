@@ -208,9 +208,11 @@ export function resolveProbeTarget(
   return {
     profile: {
       ...profile,
-      type: shouldPreserveAzureAdapter(profile, endpointType)
-        ? profile.type
-        : (definition.providerType ?? profile.type),
+      type:
+        shouldPreserveAzureAdapter(profile, endpointType) ||
+        (profile.type === "openrouter" && endpointType === "image-generation")
+          ? profile.type
+          : (definition.providerType ?? profile.type),
       customEndpoints,
     },
     capability: definition.capability,

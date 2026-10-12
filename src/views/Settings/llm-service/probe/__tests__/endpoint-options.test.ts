@@ -172,4 +172,15 @@ describe("probe endpoint options", () => {
     source.type = "openai";
     expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe("auto");
   });
+
+  it("preserves the OpenRouter image router behind a custom gateway", () => {
+    const source = {
+      ...profile(),
+      type: "openrouter" as const,
+      baseUrl: "https://gateway.example.com/api/v1",
+    };
+    const target = resolveProbeTarget(source, "image-generation");
+    expect(target.profile.type).toBe("openrouter");
+    expect(target.capability).toBe("image");
+  });
 });

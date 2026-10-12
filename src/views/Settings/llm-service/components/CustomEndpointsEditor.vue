@@ -107,6 +107,7 @@ const DEFAULT_PLACEHOLDERS: Record<string, string> = {
   audioTranslations: "/v1/audio/translations",
   videos: "/v1/videos",
   videoStatus: "/v1/videos/{video_id}",
+  videoContent: "/v1/videos/{video_id}/content",
   rerank: "/v1/rerank",
   systemOne: "/v1/systemone",
   moderations: "/v1/moderations",
@@ -270,6 +271,16 @@ const placeholders = computed((): Record<string, string> => {
             <el-input
               v-model="tempEndpoints.videoStatus"
               :placeholder="placeholders.videoStatus"
+              clearable
+            />
+            <div class="field-hint">
+              支持 <code>{video_id}</code> 占位符替换
+            </div>
+          </el-form-item>
+          <el-form-item label="视频内容下载">
+            <el-input
+              v-model="tempEndpoints.videoContent"
+              :placeholder="placeholders.videoContent"
               clearable
             />
             <div class="field-hint">

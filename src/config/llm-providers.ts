@@ -341,6 +341,12 @@ export const providerTypes: ProviderTypeInfo[] = [
     name: "OpenRouter",
     description: "OpenRouter 统一模型网关",
     defaultBaseUrl: "https://openrouter.ai/api/v1",
+    endpointPlaceholders: {
+      imagesGenerations: "images",
+      videos: "videos",
+      videoStatus: "videos/{video_id}",
+      videoContent: "videos/{video_id}/content",
+    },
     supportsModelList: true,
     modelListEndpoint: "models",
     supportedParameters: {

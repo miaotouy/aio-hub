@@ -1,5 +1,6 @@
 import {
   classifyProbeError,
+  isOpenRouterProfile,
   executeRerankRequest,
   rerankAdapter,
   resolveProbePlan,
@@ -486,7 +487,10 @@ async function executePlan(options: ExecutePlanOptions) {
       const response = await adapter.audio(profile, {
         ...baseOptions,
         prompt: plan.media!.prompt,
-        audioConfig: { voice: "alloy", responseFormat: "mp3" },
+        audioConfig: {
+          voice: isOpenRouterProfile(profile) ? undefined : "alloy",
+          responseFormat: "mp3",
+        },
       } as MediaGenerationOptions);
       return {
         response,

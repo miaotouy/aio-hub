@@ -742,11 +742,22 @@ sequenceDiagram
 
 ## 10. 数据持久化 (Data Persistence)
 
-| 数据类型 | 存储位置                                      | 格式 | 读写时机                            |
-| -------- | --------------------------------------------- | ---- | ----------------------------------- |
-| 会话索引 | `AppData/media-generator/sessions-index.json` | JSON | 启动时加载，增删改时更新            |
-| 会话详情 | `AppData/media-generator/sessions/{id}.json`  | JSON | 按需加载（切换会话时），保存时写入  |
-| 全局任务 | `AppData/media-generator/tasks.json`          | JSON | 启动时加载，通过 watch 自动防抖保存 |
-| 用户配置 | `AppData/media-generator/settings.json`       | JSON | 启动时加载，通过 watch 自动防抖保存 |
+| 数据类型 | 存储位置                                         | 格式 | 读写时机                                  |
+| -------- | ------------------------------------------------ | ---- | ----------------------------------------- |
+| 会话索引 | `AppData/media-generator/sessions-index.json`    | JSON | 启动时加载，增删改时更新                  |
+| 会话详情 | `AppData/media-generator/sessions/{id}.json`     | JSON | 按需加载（切换会话时），保存时写入        |
+| 全局任务 | `AppData/media-generator/tasks.json`             | JSON | 启动时加载，通过 watch 自动防抖保存       |
+| 用户配置 | `AppData/media-generator/settings.json`          | JSON | 启动时加载，通过 watch 自动防抖保存       |
 | 输入状态 | 内存 + 会话详情 `inputPrompt`/`inputAttachments` | JSON | 跨窗口同步；随会话持久化，重启/切会话还原 |
-| 附件     | 内存 + 会话详情 `inputAttachments`          | JSON | 已入库资产的元数据快照，随会话防抖保存 |
+| 附件     | 内存 + 会话详情 `inputAttachments`               | JSON | 已入库资产的元数据快照，随会话防抖保存    |
+
+## 10. OpenRouter 多媒体适配
+
+OpenRouter 渠道的多媒体请求在现有媒体生成入口中选择 `packages/llm-core/src/providers/openrouter-media.ts` 的专用协议适配器。渠道身份与官方域名均可触发识别，模型级协议绑定后的官方 OR 地址仍保留多媒体协议。其他 OpenAI 兼容渠道继续使用原有适配器。
+
+- **图像**：通过 `POST /api/v1/images` 获取完整结果。参考图使用 JSON `input_references[].image_url.url`；本地文件保留结构化引用，由原生 transport 转换为 data URL。支持尺寸、比例、分辨率、质量、种子及输出编码。显式像素尺寸优先，比例和分辨率在对应模式下发送；旧品质值 `standard` / `hd` 映射为 `auto` / `high`，随机种子 `-1` 留给上游随机采样。返回的 `media_type` 贯穿响应映射与资产入库，JPEG、WebP、SVG 使用对应扩展名。遮罩请求给出明确错误，提示选择支持图像编辑的渠道。
+- **视频**：通过 `POST /api/v1/videos` 创建任务，时长使用整数 `duration`，已选分辨率或比例时优先发送规范化参数。首尾帧写入 `frame_images`，图片、音频和视频参考素材写入 `input_references`。OR 协议优先于 Seedance 等模型名触发的 Ark 协议识别。轮询遵循同源 `polling_url`，保留自定义 `videoStatus` 的优先级；跨源轮询地址在发送认证信息前报错。`pending`、`in_progress`、`completed`、`failed`、`cancelled`、`expired` 映射至统一任务状态。完成后读取全部 `unsigned_urls`，缺少地址时使用认证的 `/videos/{video_id}/content` 下载。
+- **语音**：通过 `POST /api/v1/audio/speech` 请求音频。默认音色交给上游，允许填写模型支持的音色标识；UI 与 Agent 方法支持 `mp3`、`pcm`。参考音频按来源分别使用 `input_audio.data` 或 `input_audio.url`，参考图片使用 `image_url`。返回字节和实际音频格式沿用统一解析与入库链路。
+- **自定义端点**：图像沿用 `imagesGenerations` 配置键，视频支持 `videos`、`videoStatus`、`videoContent`；查询和下载路径支持 `{video_id}`。
+
+协议依据为 OpenRouter 官方文档仓库 `openrouterteam/docs` 中的 `openapi/openapi.yaml`。相关回归用例覆盖共享协议、桌面入口分发和媒体资产 MIME 入库。

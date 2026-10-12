@@ -283,7 +283,15 @@ async function executeStep(
     case "screenshot":
       return screenshot(page, instance, step.target, step.mask, timeout);
     case "click":
-      return (await unique(page, step.target, timeout)).click({ timeout });
+      return (await unique(page, step.target, timeout)).click({
+        timeout,
+        modifiers: step.modifiers,
+      });
+    case "dblclick":
+      return (await unique(page, step.target, timeout)).dblclick({
+        timeout,
+        modifiers: step.modifiers,
+      });
     case "fill":
       return (await unique(page, step.target, timeout)).fill(step.text, {
         timeout,
@@ -408,6 +416,7 @@ export async function executeRequest(input: unknown) {
     [
       "navigate",
       "click",
+      "dblclick",
       "fill",
       "press",
       "select",

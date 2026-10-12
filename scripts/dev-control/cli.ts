@@ -24,6 +24,7 @@ inspect [--limit 60]               读取精简界面结构
 observe [--no-screenshot]          读取结构并保存 PNG
 screenshot [--mask <CSS>]          保存视口或元素 PNG
 click <定位参数>                  点击控件
+dblclick <定位参数>               双击控件
 fill <定位参数> --text <内容>      输入文本，也可 --text-file <文件>
 press [定位参数] --key Enter       按键
 select <定位参数> --value <值>     选择原生 select 选项
@@ -36,6 +37,7 @@ batch --stdin | --file <JSON>      连续执行 JSON steps，失败即停止
 
 定位：--testid <id> / --role button --name 保存 / --label <标签>
       --placeholder <提示> / --css <selector>；--scope <CSS> 限定区域
+点击：--modifiers Alt；多个修饰键重复传入 --modifiers
 公共：--instance <名称> --window main --timeout 15000
 
 结果以 JSON 输出，截图返回本机绝对路径。仅连接明确开启控制的开发实例。`;
@@ -73,6 +75,7 @@ export async function main(
       limit: { type: "string" },
       "no-screenshot": { type: "boolean" },
       mask: { type: "string", multiple: true },
+      modifiers: { type: "string", multiple: true },
       text: { type: "string" },
       "text-file": { type: "string" },
       key: { type: "string" },
@@ -105,7 +108,8 @@ export async function main(
     inspect: [...targeting, "limit"],
     observe: [...targeting, "limit", "no-screenshot"],
     screenshot: [...targeting, "mask"],
-    click: targeting,
+    click: [...targeting, "modifiers"],
+    dblclick: [...targeting, "modifiers"],
     fill: [...targeting, "text", "text-file"],
     press: [...targeting, "key"],
     select: [...targeting, "value"],
@@ -223,6 +227,7 @@ export async function main(
       "observe",
       "screenshot",
       "click",
+      "dblclick",
       "fill",
       "press",
       "select",
@@ -233,6 +238,7 @@ export async function main(
     target.css = values.scope;
   const step: Record<string, unknown> = { op: command };
   if (Object.keys(target).length) step.target = target;
+  if (values.modifiers) step.modifiers = values.modifiers;
   if (command === "navigate") step.path = argument;
   if (command === "inspect" || command === "observe") {
     if (values.scope && !hasTarget) step.target = { css: values.scope };

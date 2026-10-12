@@ -54,11 +54,17 @@ bun scripts/dev-control/cli.ts click --role button --name "保存" --instance ag
 bun scripts/dev-control/cli.ts fill --label "名称" --text "开发样例" --instance agent-demo
 bun scripts/dev-control/cli.ts fill --placeholder "搜索" --text "主题" --instance agent-demo
 bun scripts/dev-control/cli.ts click --css "button.example" --scope "[role=dialog]" --instance agent-demo
+bun scripts/dev-control/cli.ts dblclick --css ".tab-item.active .tab-name" --instance agent-demo
+bun scripts/dev-control/cli.ts click --css '.file-item .file-path[title="src/example.ts"]' --modifiers Alt --instance agent-demo
 ```
 
 role / label / placeholder 默认精确匹配，`--no-exact` 改为部分匹配。匹配多个元素时返回候选信息；通过 scope 或更明确的定位缩小范围。
 
 摘要中的 `name` 是 DOM 标签与文本摘要。返回的 locator 优先使用现有 `data-testid`，其余使用当前 DOM 的 CSS 路径。页面布局变化后重新 inspect。需要语义定位时，可主动指定 role 和 accessible name。
+
+单击与双击可使用 `--modifiers Alt` 临时按住修饰键；组合按键重复传入该参数。batch 使用 `"modifiers": ["Alt"]`，支持 Alt、Control、Meta、Shift，执行后恢复原按键状态。
+
+双击使用 `dblclick`，沿用单击的定位参数，也可在 batch 中使用 `{ "op": "dblclick", "target": { "css": ".tab-item.active .tab-name" } }`。它通过原生鼠标事件执行，保留两次单击和随后的双击事件顺序，并受同一窗口写入锁保护。
 
 其他操作：
 
@@ -72,7 +78,7 @@ bun scripts/dev-control/cli.ts wait --testid chat-message-editor --instance agen
 bun scripts/dev-control/cli.ts wait --route /settings --instance agent-demo
 ```
 
-`select` 面向原生 select 元素。自定义下拉框通过点击展开，再选择具体项。`fill` 面向标准文本输入和 contenteditable；编辑器外层容器需要定位其真实输入，或按需注册专用开发动作。
+`select` 面向原生 select 元素。自定义下拉框通过点击展开，再选择具体项。样式化开关的原生输入框可能为零尺寸，点击时定位可见外层，例如 `--css '.el-switch:has(input[aria-label="单击文件时固定标签页"])'`。`fill` 面向标准文本输入和 contenteditable；编辑器外层容器需要定位其真实输入，或按需注册专用开发动作。
 
 ## 一次执行连续动作
 

@@ -39,6 +39,8 @@ export interface ControlTarget {
   scope?: string;
 }
 
+export type ControlModifier = "Alt" | "Control" | "Meta" | "Shift";
+
 export type ControlStep =
   | { op: "navigate"; path: string }
   | { op: "inspect"; target?: ControlTarget; limit?: number }
@@ -49,7 +51,8 @@ export type ControlStep =
       screenshot?: boolean;
     }
   | { op: "screenshot"; target?: ControlTarget; mask?: string[] }
-  | { op: "click"; target: ControlTarget }
+  | { op: "click"; target: ControlTarget; modifiers?: ControlModifier[] }
+  | { op: "dblclick"; target: ControlTarget; modifiers?: ControlModifier[] }
   | { op: "fill"; target: ControlTarget; text: string }
   | { op: "press"; target?: ControlTarget; key: string }
   | { op: "select"; target: ControlTarget; value: string | string[] }

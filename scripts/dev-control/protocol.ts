@@ -64,7 +64,8 @@ const allowedFields: Record<ControlStep["op"], string[]> = {
   inspect: ["target", "limit"],
   observe: ["target", "limit", "screenshot"],
   screenshot: ["target", "mask"],
-  click: ["target"],
+  click: ["target", "modifiers"],
+  dblclick: ["target", "modifiers"],
   fill: ["target", "text"],
   press: ["target", "key"],
   select: ["target", "value"],
@@ -106,10 +107,20 @@ export function validateRequest(value: unknown): ControlRequest {
     fields(step, ["op", ...allowedFields[step.op as ControlStep["op"]]]);
     if (step.target !== undefined) validateTarget(step.target);
     if (
-      ["click", "fill", "select"].includes(step.op) &&
+      ["click", "dblclick", "fill", "select"].includes(step.op) &&
       step.target === undefined
     )
       invalid(`${step.op} 需要 target。`);
+    if (
+      step.modifiers !== undefined &&
+      (!Array.isArray(step.modifiers) ||
+        step.modifiers.length > 4 ||
+        step.modifiers.some(
+          (modifier) => !["Alt", "Control", "Meta", "Shift"].includes(modifier)
+        ) ||
+        new Set(step.modifiers).size !== step.modifiers.length)
+    )
+      invalid("modifiers 需要由 Alt、Control、Meta、Shift 组成的无重复数组。");
     if (step.op === "navigate") route(step.path);
     if (step.op === "fill" && typeof step.text !== "string")
       invalid("fill.text 需要字符串。");

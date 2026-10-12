@@ -16,31 +16,54 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createServer } from "node:net";
+import { parseArgs } from "node:util";
+import { INSTANCE_ID_PATTERN } from "./dev-control/protocol";
 import { loadDevSettings, applyDevEnvironment } from "./dev-settings";
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 if (args.includes("--help") || args.includes("-h")) {
-  console.log(`用法: bun run dev [--static] [--watch]
+  console.log(`用法: bun run dev [--static] [--watch] [--agent] [--agent-instance <名称>]
 
 --static 使用生产构建产物，手动刷新前端。
 --watch  配合 --static 自动构建源码变更，保持手动刷新。
+--agent  开启本机页面控制，使用独立数据目录。
+--agent-instance 指定控制实例名称，配合 --agent。
 
 静态模式: bun run dev:static
 监听构建: bun run dev:static:watch
 重新构建: bun run dev:static:build`);
   process.exit(0);
 }
-const staticFrontend = args.includes("--static");
-const watch = args.includes("--watch");
-if (
-  args.some((arg) => arg !== "--static" && arg !== "--watch") ||
-  (watch && !staticFrontend)
-) {
-  console.error("[Dev] 支持 --static，以及配合静态模式使用的 --watch。");
+const { values } = parseArgs({
+  args,
+  strict: true,
+  options: {
+    static: { type: "boolean" },
+    watch: { type: "boolean" },
+    agent: { type: "boolean" },
+    "agent-instance": { type: "string" },
+  },
+});
+const staticFrontend = values.static ?? false;
+const watch = values.watch ?? false;
+const agent = values.agent ?? false;
+if ((watch && !staticFrontend) || (values["agent-instance"] && !agent)) {
+  console.error("[Dev] --watch 配合 --static；--agent-instance 配合 --agent。");
   process.exit(1);
 }
-
-const settings = loadDevSettings();
+if (values["agent-instance"])
+  process.env.AIO_ID_SUFFIX = values["agent-instance"];
+process.env.AIO_DEV_CONTROL = agent ? "1" : "0";
+const settings = loadDevSettings({ agent });
+if (agent && !INSTANCE_ID_PATTERN.test(settings.idSuffix)) {
+  console.error("[Dev] 控制实例名称需要 1–64 位字母、数字、下划线或连字符。");
+  process.exit(1);
+}
+const control = agent
+  ? await (
+      await import("./dev-control/launch")
+    ).prepareDevControl(settings, staticFrontend)
+  : undefined;
 const { idSuffix, dataDir, port, hmrPort, proxyPort, productName } = settings;
 applyDevEnvironment(settings, staticFrontend);
 
@@ -76,7 +99,11 @@ const tauriArgs = ["tauri", "dev"];
 const devConfPath = path.resolve(
   process.cwd(),
   "src-tauri",
-  staticFrontend ? `tauri.conf.dev.static.${port}.json` : "tauri.conf.dev.json"
+  staticFrontend
+    ? `tauri.conf.dev.static.${port}.json`
+    : agent
+      ? `tauri.conf.dev.agent.${port}.json`
+      : "tauri.conf.dev.json"
 );
 const devConf = {
   build: {
@@ -104,7 +131,33 @@ const child = spawn(process.execPath, ["run", ...tauriArgs], {
   env: process.env,
 });
 
+void control
+  ?.waitUntilReady(() => {
+    console.log(
+      `[Dev] 页面控制已就绪: ${idSuffix}，使用 bun scripts/dev-control/cli.ts observe --instance ${idSuffix}`
+    );
+  })
+  .catch((error: unknown) => {
+    control?.fail(error);
+    console.error(
+      "[Dev] 页面控制启动失败:",
+      error instanceof Error ? error.message : error
+    );
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "UNSAFE_LISTENER" &&
+      child.pid
+    ) {
+      spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    }
+  });
+
 child.on("error", (error) => {
+  control?.dispose();
   console.error("[Dev] Tauri 启动失败:", error.message);
   process.exitCode = 1;
 });
@@ -113,6 +166,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
     if (stopping || !child.pid) return;
     stopping = true;
+    control?.dispose();
     if (process.platform === "win32") {
       const cleanup = spawn(
         "taskkill",
@@ -130,5 +184,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 child.on("exit", (code) => {
+  control?.dispose();
   if (!stopping) process.exit(code ?? 1);
 });

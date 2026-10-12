@@ -17,12 +17,12 @@ import path from "node:path";
 import dotenv from "dotenv";
 
 /** 桌面开发入口共用的实例配置，构建命令和运行命令使用相同的端口与代理设置。 */
-export function loadDevSettings() {
+export function loadDevSettings(options: { agent?: boolean } = {}) {
   for (const envPath of [".env.local", ".env"]) {
     if (fs.existsSync(envPath)) dotenv.config({ path: envPath, quiet: true });
   }
 
-  const idSuffix = process.env.AIO_ID_SUFFIX || "";
+  const idSuffix = process.env.AIO_ID_SUFFIX || (options.agent ? "agent" : "");
   let hash = 0;
   for (let i = 0; i < idSuffix.length; i++)
     hash = ((hash << 5) - hash + idSuffix.charCodeAt(i)) | 0;

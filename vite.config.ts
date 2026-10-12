@@ -95,6 +95,10 @@ const viteConfig = defineConfig({
   },
 
   define: {
+    // Explicit launcher flag works in both HMR and production-mode static development.
+    "import.meta.env.VITE_AIO_DEV_CONTROL": JSON.stringify(
+      process.env.AIO_DEV_CONTROL === "1" ? "1" : "0"
+    ),
     // 修复 Prettier 3.x 在 Rolldown 环境下内部依赖 regexp-tree 的 RegExpParser 报错
     "process.env.PRETTIER_DEBUG": "false",
   },
@@ -321,6 +325,7 @@ export default mergeConfig(
         "**/.jj/**",
         "tests/tauri-e2e/**",
         "tests/mobile-android-e2e/**",
+        "scripts/dev-control/**", // local controller uses its standalone Node test config
         ".dev-data/**",
       ],
     },

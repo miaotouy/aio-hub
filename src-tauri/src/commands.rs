@@ -21,6 +21,7 @@ pub mod clipboard;
 pub mod color_picker_batch;
 pub mod config_manager;
 pub mod content_deduplicator;
+pub mod dev_control;
 pub mod dir_search;
 pub mod directory_janitor;
 pub mod directory_tree;
@@ -95,6 +96,7 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        crate::commands::dev_control::dev_control_identity,
         background_runtime_ready,
         background_runtime_heartbeat,
         background_runtime_get_status,

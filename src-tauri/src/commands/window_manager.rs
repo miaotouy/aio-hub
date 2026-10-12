@@ -463,7 +463,9 @@ async fn create_preview_window_internal(
         builder = builder.transparent(true);
     }
 
-    let window = builder.build().map_err(|e| e.to_string())?;
+    let window = crate::commands::dev_control::configure_webview(builder)
+        .build()
+        .map_err(|e| e.to_string())?;
 
     window
         .set_ignore_cursor_events(true)
@@ -763,7 +765,9 @@ pub async fn create_tool_window(app: AppHandle, config: WindowConfig) -> Result<
         builder = builder.transparent(true);
     }
 
-    let _window = builder.build().map_err(|e| e.to_string())?;
+    let _window = crate::commands::dev_control::configure_webview(builder)
+        .build()
+        .map_err(|e| e.to_string())?;
 
     let detachable_config = DetachableConfig {
         id: config.label.clone(),

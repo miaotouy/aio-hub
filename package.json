@@ -105,7 +105,9 @@
     "security:dependencies": "bun scripts/security/scan-dependencies.ts --mode installed",
     "security:dependencies:strict": "bun scripts/security/scan-dependencies.ts --mode installed --fail-on medium",
     "security:audit": "bun audit --audit-level high",
-    "check:security": "bun run security:dependencies"
+    "check:security": "bun run security:dependencies",
+    "check:dev-ui": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --types node,bun --skipLibCheck scripts/dev-control/cli.ts scripts/dev-control/launch.ts",
+    "test:dev-ui": "vitest --run --config scripts/dev-control/vitest.config.ts"
   },
   "dependencies": {
     "@aiohub/llm-core": "workspace:*",
@@ -281,6 +283,7 @@
     "jsdom": "^28.1.0",
     "monaco-editor-nls": "^3.1.0",
     "oxlint": "^1.57.0",
+    "playwright-core": "1.64.0",
     "sass-embedded": "^1.93.3",
     "terser": "^5.31.3",
     "typescript": "~5.6.2",

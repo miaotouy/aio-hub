@@ -356,6 +356,11 @@ const mountApp = async () => {
     // 3. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
+    if (import.meta.env.VITE_AIO_DEV_CONTROL === "1") {
+      void import("./dev/control/bridge")
+        .then(({ startDevControlBridge }) => startDevControlBridge())
+        .catch((error: unknown) => logger.warn("开发控制桥启动失败", error));
+    }
     reportFrontendReady("vue-mounted");
     startFrontendHeartbeat();
 

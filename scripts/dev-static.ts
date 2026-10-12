@@ -100,11 +100,12 @@ async function serveFrontend(
 async function main() {
   const args = process.argv.slice(2).filter((arg) => arg !== "--");
   if (args.includes("--help") || args.includes("-h")) {
-    console.log(`用法: bun scripts/dev-static.ts <build|serve> [--watch]
+    console.log(`用法: bun scripts/dev-static.ts <build|serve> [--watch] [--agent]
 
 build   构建并发布前端，已运行的窗口可手动刷新。
 serve   构建前端并启动本地静态服务，由 dev:static 调用。
 --watch 自动重新构建，窗口保持手动刷新。
+--agent 编译开发控制桥，用于已开启控制的静态开发实例。
 
 日常入口: bun run dev:static
 重新构建: bun run dev:static:build
@@ -115,11 +116,13 @@ serve   构建前端并启动本地静态服务，由 dev:static 调用。
   const watch = args.includes("--watch");
   if (
     (command !== "build" && command !== "serve") ||
-    args.slice(1).some((arg) => arg !== "--watch")
+    args.slice(1).some((arg) => arg !== "--watch" && arg !== "--agent")
   ) {
-    throw new Error("使用 build 或 serve 命令，以及可选的 --watch。");
+    throw new Error("使用 build 或 serve 命令，以及可选的 --watch、--agent。");
   }
-  const settings = loadDevSettings();
+  const agent = args.includes("--agent") || process.env.AIO_DEV_CONTROL === "1";
+  process.env.AIO_DEV_CONTROL = agent ? "1" : "0";
+  const settings = loadDevSettings({ agent });
   applyDevEnvironment(settings, true);
   if (command === "serve") return serveFrontend(settings, watch);
   // 与发布构建保持同一 mode；只改变产物目录和可选监听。

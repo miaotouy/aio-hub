@@ -19,7 +19,7 @@ import type {
 } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
-import GitBranchIcon from "@/components/icons/GitBranchIcon.vue";
+import { GitGraph } from "lucide-vue-next";
 import { coerceAgentBoolean } from "@/utils/agentArgs";
 import {
   analyzeRepository,
@@ -509,7 +509,7 @@ export const toolConfig: ToolConfig = {
   name: "Git 分析器",
   path: "/git-analyzer",
   runMode: "any",
-  icon: markRaw(GitBranchIcon),
+  icon: markRaw(GitGraph),
   component: () => import("./GitAnalyzer.vue"),
   description: "Git提交记录分析和可视化处理工具",
   category: ["开发工具"],

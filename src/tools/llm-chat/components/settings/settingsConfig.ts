@@ -26,11 +26,10 @@ import {
   Languages,
   FileText,
   Network,
-  BookMarked,
   Zap,
-  Library,
   LayoutTemplate,
 } from "lucide-vue-next";
+import { RecallIcon, WorldbookIcon } from "@aiohub/tool-icons";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
@@ -2191,8 +2190,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     ],
   },
   {
-    title: "知识库设置",
-    icon: Library,
+    title: "思绪设置",
+    icon: RecallIcon,
     items: [
       {
         id: "kbEmbeddingModelInfo",
@@ -2200,13 +2199,13 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         component: KbEmbeddingInfo,
         modelPath: "",
         hint: "",
-        keywords: "knowledge base embedding model 知识库 向量 模型",
+        keywords: "recall knowledge base embedding model 思绪 知识库 向量 模型",
       },
     ],
   },
   {
     title: "世界书",
-    icon: BookMarked,
+    icon: WorldbookIcon,
     items: [
       {
         id: "globalWorldbookIds",

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { markRaw } from "vue";
-import { Tv } from "lucide-vue-next";
+import { DanmakuPlayerIcon } from "@aiohub/tool-icons";
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 
@@ -35,7 +35,7 @@ export const danmakuPlayerRegistry = new DanmakuPlayerRegistry();
 export const toolConfig: ToolConfig = {
   name: "弹幕播放器",
   path: "/danmaku-player",
-  icon: markRaw(Tv),
+  icon: markRaw(DanmakuPlayerIcon),
   component: () => import("./DanmakuPlayer.vue"),
   description: "支持 ASS、B 站 JSON/XML 弹幕，丰富的显示调整选项",
   category: ["媒体工具"],

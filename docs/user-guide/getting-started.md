@@ -40,7 +40,7 @@ TODO: 截图-设置页面中的 LLM 服务配置界面
 
 ## 3. 开始对话
 
-1. 回到主页（点左上角 <LIcon name="Home" :size="18" /> 图标），点击 **<LIcon name="MessageSquare" :size="18"/> LLM 聊天** 卡片
+1. 回到主页（点左上角 <LIcon name="Home" :size="18" /> 图标），点击 **<LIcon name="LlmChatIcon" :size="18"/> LLM 聊天** 卡片
 2. 左侧会看到 **智能体列表**——点底部的 **添加智能体**，选个预设或从空白创建，确保选中了你刚配好的服务和模型
 3. 选中智能体后，点右侧列表顶部的 <LIcon name="Plus" :size="18" /> 新建一个对话
 4. 在底部输入框打字，按 `Ctrl + Enter` 发送

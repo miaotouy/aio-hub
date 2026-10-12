@@ -20,7 +20,6 @@ import {
   Mic,
   Video,
   Music,
-  Layers,
   ListOrdered,
   Monitor,
   FileText,
@@ -29,6 +28,7 @@ import {
   Braces,
   ListChecks,
 } from "lucide-vue-next";
+import { EmbeddingIcon } from "@aiohub/tool-icons";
 import type { ModelCapabilities } from "../types/common";
 
 /**
@@ -191,7 +191,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     key: "embedding",
     label: "嵌入能力",
     description: "嵌入能力描述",
-    icon: markRaw(Layers),
+    icon: markRaw(EmbeddingIcon),
     color: "#64748b",
     className: "embedding",
   },

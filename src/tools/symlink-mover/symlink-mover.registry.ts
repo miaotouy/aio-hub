@@ -14,7 +14,7 @@
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import SymlinkMoverIcon from "@/components/icons/SymlinkMoverIcon.vue";
+import { SymlinkMoverIcon } from "@aiohub/tool-icons";
 import { useSymlinkMoverLogic } from "./composables/useSymlinkMover";
 import type { MoveAndLinkOptions, CreateLinksOnlyOptions } from "./types";
 

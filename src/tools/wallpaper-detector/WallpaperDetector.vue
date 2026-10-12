@@ -3,7 +3,7 @@
     <!-- 顶部工具栏 -->
     <div class="toolbar-header">
       <div class="title-section">
-        <el-icon class="title-icon"><Monitor /></el-icon>
+        <el-icon class="title-icon"><Wallpaper /></el-icon>
         <span class="title-text">壁纸探测器</span>
         <span class="subtitle-text"
           >获取系统当前多屏壁纸，支持图片查看、定位和复制</span
@@ -121,8 +121,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from "vue";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { Wallpaper } from "lucide-vue-next";
 import {
-  Monitor,
   RefreshRight,
   Picture,
   FolderOpened,

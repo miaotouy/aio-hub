@@ -18,7 +18,7 @@ import type {
   ServiceMetadata,
 } from "@/services/types";
 import { markRaw } from "vue";
-import { Database } from "lucide-vue-next";
+import { RecallIcon } from "@aiohub/tool-icons";
 import * as agentActions from "./actions/agentActions";
 import { normalizeAgentBooleanFields } from "@/utils/agentArgs";
 
@@ -482,7 +482,7 @@ export default [recallBasic, recallAdmin];
 export const toolConfig: ToolConfig = {
   name: "思绪",
   path: "/recall",
-  icon: markRaw(Database),
+  icon: markRaw(RecallIcon),
   component: () => import("./Recall.vue"),
   description:
     "管理和检索结构化知识和记忆，支持 RAG 向量化、TAG 检索和 Agent 调用",

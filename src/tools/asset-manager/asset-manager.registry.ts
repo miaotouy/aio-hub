@@ -14,7 +14,7 @@
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { FolderOpened } from "@element-plus/icons-vue";
+import { AssetManagerIcon } from "@aiohub/tool-icons";
 import { createModuleLogger } from "@/utils/logger";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 
@@ -66,7 +66,7 @@ export const toolConfig: ToolConfig = {
   name: "资产管理器",
   path: "/asset-manager",
   runMode: "main-only",
-  icon: markRaw(FolderOpened),
+  icon: markRaw(AssetManagerIcon),
   component: () => import("./AssetManager.vue"),
   description: "可视化管理应用内导入的所有资产，支持搜索、筛选和预览",
   category: ["文件管理"],

@@ -27,7 +27,7 @@ export const toolConfig: ToolConfig = { ... }
 ```typescript
 import type { ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { Braces } from "lucide-vue-next"; // 或自定义 SVG 组件
+import { Braces } from "lucide-vue-next"; // 或 @aiohub/tool-icons 中的工具图标
 
 export const toolConfig: ToolConfig = {
   name: "工具显示名称", // 侧边栏和标题栏显示的名称
@@ -39,6 +39,8 @@ export const toolConfig: ToolConfig = {
   version: "1.0.0", // 语义化版本号，会在工具设置页面上显示
 };
 ```
+
+`icon` 优先选用贴切的 Lucide 图标；Lucide 中没有合适造型或与其他工具重复时，使用或新增 [`@aiohub/tool-icons`](../../packages/tool-icons/README.md) 中的工具图标（桌面端与移动端共用）。页面内代表该工具本身的图标（页头、设置分区、Agent 编辑器页签等）与注册图标保持一致。
 
 ---
 

@@ -17,7 +17,8 @@
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ElTooltip } from "element-plus";
-import { AtSign, X, Sparkles, Brush } from "lucide-vue-next";
+import { AtSign, X, Sparkles } from "lucide-vue-next";
+import { WebCanvasIcon } from "@aiohub/tool-icons";
 import { useMessageInputPanel } from "../../../composables/input/useMessageInputPanel";
 import type { ContextPreviewData } from "../../../types/context";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
@@ -124,7 +125,7 @@ const unbindCanvas = () => {
         :aria-controls="panel.contentId"
         @click="emit('open-canvas', $event.currentTarget as HTMLElement)"
       >
-        <Brush :size="14" />
+        <WebCanvasIcon :size="14" />
         <span class="model-name">{{
           props.canvasBindingInfo ? props.canvasBindingInfo.name : "未绑定"
         }}</span>

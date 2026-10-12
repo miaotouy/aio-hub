@@ -19,8 +19,8 @@ LLM Chat 提供了极其深度的定制化能力。通过全局设置，你可�
 | **<LIcon name="Languages" size="16" /> 翻译助手**         | 翻译模型、常用语言列表及提示词策略。                       |
 | **<LIcon name="FileText" size="16" /> 附件转写**          | 图片、音视频及文档的自动化转录、压缩与切图策略。           |
 | **<LIcon name="Regex" size="16" /> 文本处理**             | HTML 自动转 MD、全局正则替换规则与绑定模式。               |
-| **<LIcon name="Library" size="16" /> 知识库设置**         | Embedding 模型信息、向量缓存与检索缓存管理。               |
-| **<LIcon name="BookMarked" size="16" /> 世界书**          | 全局关联世界书、递归扫描深度与条目管理。                   |
+| **<LIcon name="RecallIcon" size="16" /> 思绪设置**        | 思绪默认 Embedding 模型信息与配置入口。                    |
+| **<LIcon name="WorldbookIcon" size="16" /> 世界书**       | 全局关联世界书、递归扫描深度与条目管理。                   |
 | **<LIcon name="Zap" size="16" /> 快捷操作**               | 全局快捷操作组关联与操作库管理。                           |
 | **<LIcon name="Palette" size="16" /> 样式设置**           | 全局消息 Markdown 样式（CSS）自定义。                      |
 | **<LIcon name="Network" size="16" /> 上下文管道**         | 编排用于构建请求上下文的处理器系列。                       |
@@ -49,7 +49,7 @@ LLM Chat 提供了极其深度的定制化能力。通过全局设置，你可�
 - [翻译助手](./translation)
 - [附件转写](./transcription)
 - [文本处理](./text-processing)
-- [知识库设置](./knowledge-base)
+- [思绪设置](./knowledge-base)
 - [世界书](./worldbook)
 - [快捷操作](./quick-actions)
 - [样式设置](./styling)

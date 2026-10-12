@@ -342,7 +342,7 @@ export default withMermaid({
                       link: "/user-guide/tools/llm-chat/settings/text-processing",
                     },
                     {
-                      text: "知识库设置",
+                      text: "思绪设置",
                       link: "/user-guide/tools/llm-chat/settings/knowledge-base",
                     },
                     {

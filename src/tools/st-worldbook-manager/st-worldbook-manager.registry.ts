@@ -14,7 +14,7 @@
 
 import type { ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { BookMarked } from "lucide-vue-next";
+import { WorldbookIcon } from "@aiohub/tool-icons";
 
 /**
  * UI 工具配置
@@ -22,7 +22,7 @@ import { BookMarked } from "lucide-vue-next";
 export const toolConfig: ToolConfig = {
   name: "ST 世界书管理器",
   path: "/st-worldbook-manager",
-  icon: markRaw(BookMarked),
+  icon: markRaw(WorldbookIcon),
   component: () => import("./StWorldbookManager.vue"),
   description: "SillyTavern 格式世界书管理器",
   category: ["AI 工具"],

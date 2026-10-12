@@ -32,7 +32,7 @@ import type {
 } from "@/services/types";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import { markRaw, computed, type Ref } from "vue";
-import { ChatDotRound } from "@element-plus/icons-vue";
+import { LlmChatIcon } from "@aiohub/tool-icons";
 import { useDetachedChatArea } from "./composables/ui/useDetachedChatArea";
 import { useDetachedChatInput } from "./composables/ui/useDetachedChatInput";
 import { useLlmChatStateConsumer } from "./composables/ui/useLlmChatStateConsumer";
@@ -57,7 +57,7 @@ import * as agentManagementService from "@/tools/agent-manager/services/agentMan
 export const toolConfig: ToolConfig = {
   name: "LLM 对话",
   path: "/llm-chat",
-  icon: markRaw(ChatDotRound),
+  icon: markRaw(LlmChatIcon),
   component: () => import("./LlmChat.vue"),
   description:
     "树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析",

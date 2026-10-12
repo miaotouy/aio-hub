@@ -20,11 +20,10 @@ import {
   Wrench,
   Variable,
   Sparkles,
-  Brain,
-  BookOpen,
   SlidersHorizontal,
   FileStack,
 } from "lucide-vue-next";
+import { KnowledgeBaseIcon, RecallIcon } from "@aiohub/tool-icons";
 import type { Component } from "vue";
 import type { LlmParameters } from "@/tools/llm-chat/types";
 import {
@@ -151,7 +150,7 @@ export const agentEditTabs: AgentEditTab[] = [
   {
     id: "recall",
     label: "思绪",
-    icon: Brain,
+    icon: RecallIcon,
     items: [
       {
         id: "recall",
@@ -163,7 +162,7 @@ export const agentEditTabs: AgentEditTab[] = [
   {
     id: "knowledge",
     label: "知识库",
-    icon: BookOpen,
+    icon: KnowledgeBaseIcon,
     items: [
       {
         id: "knowledgeBase",

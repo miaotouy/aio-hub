@@ -25,7 +25,7 @@ import {
 import { calculatorProxy } from "./worker/calculator.proxy";
 import type { AssetMetadata, AssetType } from "@/types/asset-management";
 import { markRaw } from "vue";
-import TokenCalculatorIcon from "@/components/icons/TokenCalculatorIcon.vue";
+import { TokenCalculatorIcon } from "@aiohub/tool-icons";
 import { useTokenizerRegistryStore } from "./stores/tokenizerRegistryStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { computeResizedDimensions } from "@/utils/imageProcessor";

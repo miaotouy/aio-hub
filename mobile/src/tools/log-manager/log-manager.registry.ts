@@ -1,4 +1,4 @@
-import { FileText } from "lucide-vue-next";
+import { Logs } from "lucide-vue-next";
 import { markRaw } from "vue";
 import { registerToolLocales, useI18n } from "@/i18n";
 import zhCN from "./locales/zh-CN.json";
@@ -16,7 +16,7 @@ export default {
     const { tRaw } = useI18n();
     return tRaw("tools.log-manager.common.日志管理");
   },
-  icon: markRaw(FileText),
+  icon: markRaw(Logs),
   get description() {
     const { tRaw } = useI18n();
     return tRaw("tools.log-manager.common.查看与管理运行日志");

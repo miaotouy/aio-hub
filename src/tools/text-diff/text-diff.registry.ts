@@ -18,7 +18,7 @@ import type {
   ToolConfig,
 } from "@/services/types";
 import { markRaw } from "vue";
-import TextDiffIcon from "@/components/icons/TextDiffIcon.vue";
+import { TextDiffIcon } from "@aiohub/tool-icons";
 import { createModuleLogger } from "@/utils/logger";
 import { coerceAgentBoolean } from "@/utils/agentArgs";
 import { loadFile, generatePatch, formatPatchResult } from "./engine";

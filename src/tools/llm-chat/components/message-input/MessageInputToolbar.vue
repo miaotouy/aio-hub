@@ -22,7 +22,8 @@ export type { InputToolbarSettings } from "../../stores/messageInputStore";
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { useResizeObserver } from "@vueuse/core";
-import { MoreHorizontal, LoaderCircle, Brush } from "lucide-vue-next";
+import { MoreHorizontal, LoaderCircle } from "lucide-vue-next";
+import { WebCanvasIcon } from "@aiohub/tool-icons";
 import MacroInputPanel from "./MacroInputPanel.vue";
 import MiniCanvasControl from "./MiniCanvasControl.vue";
 import MiniSessionList from "./MiniSessionList.vue";
@@ -306,7 +307,7 @@ function openCanvasPanel(anchor: HTMLElement) {
     {
       id: "canvas",
       title: "画布管理",
-      icon: Brush,
+      icon: WebCanvasIcon,
       component: MiniCanvasControl,
     },
     () => (anchor.isConnected ? anchor : moreButtonRef.value)

@@ -47,6 +47,8 @@ export default defineConfig(async () => ({
       "@shared": path.resolve(__dirname, "../src"),
       ...popperAliases,
     },
+    // 共享包（如 @aiohub/tool-icons）从根 node_modules 解析 vue，强制与移动端共用同一份
+    dedupe: ["vue"],
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

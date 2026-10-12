@@ -7,6 +7,7 @@
       "dependencies": {
         "@aiohub/llm-core": "workspace:*",
         "@aiohub/model-metadata-core": "workspace:*",
+        "@aiohub/tool-icons": "workspace:*",
         "@codemirror/autocomplete": "^6.20.1",
         "@codemirror/commands": "^6.10.3",
         "@codemirror/lang-cpp": "^6.0.3",
@@ -198,6 +199,7 @@
       "dependencies": {
         "@aiohub/llm-core": "workspace:*",
         "@aiohub/model-metadata-core": "workspace:*",
+        "@aiohub/tool-icons": "workspace:*",
         "@material/material-color-utilities": "^0.3.0",
         "@popperjs/core": "^2.11.8",
         "@tauri-apps/api": "^2",
@@ -248,6 +250,17 @@
       "devDependencies": {
         "typescript": "~5.6.2",
         "vitest": "^4.1.8",
+      },
+    },
+    "packages/tool-icons": {
+      "name": "@aiohub/tool-icons",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "~5.6.2",
+        "vitest": "^4.1.8",
+      },
+      "peerDependencies": {
+        "vue": "^3.5.13",
       },
     },
     "plugins/aiohub-ahk-automator": {
@@ -364,6 +377,8 @@
     "@aiohub/llm-core": ["@aiohub/llm-core@workspace:packages/llm-core"],
 
     "@aiohub/model-metadata-core": ["@aiohub/model-metadata-core@workspace:packages/model-metadata-core"],
+
+    "@aiohub/tool-icons": ["@aiohub/tool-icons@workspace:packages/tool-icons"],
 
     "@algolia/abtesting": ["@algolia/abtesting@1.21.2", "", { "dependencies": { "@algolia/client-common": "5.55.2", "@algolia/requester-browser-xhr": "5.55.2", "@algolia/requester-fetch": "5.55.2", "@algolia/requester-node-http": "5.55.2" } }, "sha512-uXj0rgk30EpsKvOpuS+R+1XFDrnm56hED1Lz56e8uBkZdKCxw99LS2U8eXBqAHYU8kpkbsnV1GC8velBG070Hg=="],
 

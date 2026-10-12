@@ -14,7 +14,7 @@
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { MagicStick } from "@element-plus/icons-vue";
+import { RegexApplierIcon } from "@aiohub/tool-icons";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -281,7 +281,7 @@ export const toolConfig: ToolConfig = {
   name: "正则批量替换",
   path: "/regex-applier",
   runMode: "any",
-  icon: markRaw(MagicStick),
+  icon: markRaw(RegexApplierIcon),
   component: () => import("./RegexApplier.vue"),
   description: "使用正则表达式批量处理文本或文件",
   category: ["文本处理"],

@@ -280,7 +280,7 @@
 | **JSON**     | <LIcon name="Braces" color="#f59e0b" />            | 支持强制输出 JSON 对象格式                   |
 | **FIM**      | <LIcon name="Code2" color="#22c55e" />             | 支持 Fill In the Middle 补全（代码补全场景） |
 | **续写**     | <LIcon name="MessageSquareMore" color="#0891b2" /> | 支持对话前缀续写，可从指定前缀继续生成       |
-| **嵌入**     | <LIcon name="Layers" color="#64748b" />            | 支持生成文本嵌入向量 (Embedding)             |
+| **嵌入**     | <LIcon name="EmbeddingIcon" color="#64748b" />     | 支持生成文本嵌入向量 (Embedding)             |
 | **重排**     | <LIcon name="ListOrdered" color="#14b8a6" />       | 支持对文档或结果进行重排序 (Rerank)          |
 
 #### 图片输入限制

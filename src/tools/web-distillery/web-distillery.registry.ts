@@ -18,7 +18,7 @@ import type {
   ToolContext,
 } from "@/services/types";
 import { coerceAgentBoolean } from "@/utils/agentArgs";
-import { GlassWater } from "lucide-vue-next";
+import { WebDistilleryIcon } from "@aiohub/tool-icons";
 import { markRaw } from "vue";
 
 import { quickFetch, smartExtract, jinaFetch } from "./actions";
@@ -191,7 +191,7 @@ export const toolConfig: ToolConfig = {
   name: "网页蒸馏室",
   path: "/web-distillery",
   runMode: "any",
-  icon: markRaw(GlassWater),
+  icon: markRaw(WebDistilleryIcon),
   component: () => import("./WebDistillery.vue"),
   category: ["AI 工具"],
   description: "网页内容的高纯度提炼工具",

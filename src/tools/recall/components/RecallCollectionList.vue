@@ -23,7 +23,6 @@ import { useKnowledgeBackup } from "../composables/useKnowledgeBackup";
 import KnowledgeBackupDialog from "./KnowledgeBackupDialog.vue";
 import { createModuleLogger } from "@/utils/logger";
 import {
-  Database,
   Pencil,
   Copy,
   Download,
@@ -40,6 +39,7 @@ import {
   Tags,
   Upload,
 } from "lucide-vue-next";
+import { RecallIcon } from "@aiohub/tool-icons";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 
@@ -487,7 +487,7 @@ const formatTokens = (num: number) => {
               class="recall-checkbox"
               pointer-events-none
             />
-            <Database :size="16" class="recall-icon" v-else />
+            <RecallIcon :size="16" class="recall-icon" v-else />
             <div class="name">{{ base.name }}</div>
           </div>
           <div class="description" v-if="base.description">

@@ -187,7 +187,7 @@
         </template>
         <template v-else>
           <div class="player-placeholder">
-            <Tv :size="64" class="placeholder-icon" />
+            <DanmakuPlayerIcon :size="64" class="placeholder-icon" />
             <p class="placeholder-text">拖入视频文件到上方开始播放</p>
             <p class="placeholder-hint">支持 ASS 弹幕与常见外挂字幕</p>
           </div>
@@ -211,8 +211,8 @@ import {
   MessageSquareText,
   Monitor,
   X,
-  Tv,
 } from "lucide-vue-next";
+import { DanmakuPlayerIcon } from "@aiohub/tool-icons";
 import DropZone from "@/components/common/DropZone.vue";
 import DanmakuVideoPlayer from "./components/DanmakuVideoPlayer.vue";
 import ExternalPlayerPanel from "./components/ExternalPlayerPanel.vue";

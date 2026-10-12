@@ -24,9 +24,9 @@ import {
   Code2,
   Globe,
   AlertTriangle,
-  GlassWater,
   MessageSquare,
 } from "lucide-vue-next";
+import { WebDistilleryIcon } from "@aiohub/tool-icons";
 import type { FetchResult } from "../../types";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -217,7 +217,7 @@ function downloadContent() {
 
     <!-- 空态 -->
     <div v-else-if="!result" class="panel-state">
-      <GlassWater :size="48" class="state-icon empty-icon" />
+      <WebDistilleryIcon :size="48" class="state-icon empty-icon" />
       <h3 class="state-title">等待蒸馏</h3>
       <p class="state-text">在上方输入 URL，选择层级，点击蒸馏</p>
     </div>

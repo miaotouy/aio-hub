@@ -25,10 +25,10 @@ import {
   Tags,
   Eraser,
   RefreshCw,
-  Database,
   ChevronRight,
   Coins,
 } from "lucide-vue-next";
+import { RecallIcon } from "@aiohub/tool-icons";
 import { useBreakpoints, breakpointsTailwind } from "@vueuse/core";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { getPureModelId } from "../utils/recallUtils";
@@ -437,7 +437,7 @@ function getBaseProgress(baseId: string): number {
             >
               <div class="recall-info">
                 <div class="recall-name-row">
-                  <Database :size="16" class="recall-icon" />
+                  <RecallIcon :size="16" class="recall-icon" />
                   <span class="recall-name">{{ base.name }}</span>
                 </div>
                 <div class="recall-meta">

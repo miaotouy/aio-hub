@@ -3,13 +3,14 @@ import { h, defineComponent, ref, onMounted, onUnmounted } from "vue";
 import type { Theme } from "vitepress";
 import DefaultTheme from "vitepress/theme";
 import * as LucideIcons from "lucide-vue-next";
+import * as ToolIcons from "@aiohub/tool-icons";
 import { useData } from "vitepress";
 import TurndownService from "turndown";
 // @ts-ignore
 import { gfm } from "turndown-plugin-gfm";
 import "./custom.css";
 
-// 简单的 Lucide 图标包装组件
+// 简单的 Lucide 图标包装组件，name 也可以是 @aiohub/tool-icons 中的工具图标（如 RecallIcon）
 const LucideIcon = defineComponent({
   name: "LucideIcon",
   props: {
@@ -32,7 +33,8 @@ const LucideIcon = defineComponent({
   },
   setup(props) {
     return () => {
-      const IconComponent = (LucideIcons as any)[props.name];
+      const IconComponent =
+        (ToolIcons as any)[props.name] ?? (LucideIcons as any)[props.name];
       if (!IconComponent) {
         console.warn(`[LucideIcon] Icon "${props.name}" not found.`);
         return h("span", { class: "lucide-icon-placeholder" }, props.name);

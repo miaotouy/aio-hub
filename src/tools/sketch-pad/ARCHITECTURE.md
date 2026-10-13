@@ -389,7 +389,7 @@ sequenceDiagram
 
 - `handleSave()`: 同步矢量数据 → 调用 storage.saveProject → 更新索引。
 - `handleIncrementalSave()`: 先保存当前 → 创建副本项目。
-- `handleExport(format)`: 支持 aiosk / png / jpg / webp 四种格式。
+- `handleExport(format)`: 支持 aiosk / png / jpg / webp 文件导出，以及 clipboard-png 图片复制。剪贴板复制沿用 PNG 文件导出的透明背景、完整画布范围和 2x 分辨率，通过系统图片剪贴板写入，成功或失败均显示操作结果。
 - `handleSendToChat()`: 导出 2x PNG → 注册资产 → 添加到 Chat 附件。
 - `handleImportImage()`: 从文件对话框导入图片到当前对象图层。
 - `handleAutoSave()`: 静默保存（不显示提示）。

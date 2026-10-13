@@ -473,6 +473,22 @@ WebView2 侧最大的进程是渲染进程（WS 226MB / Private 293MB）和 brow
 
 这些结果进一步支持 Electron 壳和独立 Node 后台进程的可行性。下一步重点转向真实 Agent 的会话、工具和审批迁移；本轮后台探针用于验证进程与协议边界。严格同数据内存对照、Windows 11 特效和更新后打包仍待实测。
 
+### 5.2. 用户真实长会话回放（2026-10-14）
+
+用用户授权的 64 节点会话继续测试 Electron，正文 144,464 字符，思考字段 15,959 字符，保留分叉和压缩节点。复制 16 个图片原件、16 个缩略图、1 个头像和 19 个正文 Agent 图片到隔离目录，使用离线连接配置回放。
+
+**6 项检查通过**：全文与消息树一致、本地图片解码、当前分支的附件卡片、原图预览、历史滚动与聊天路由刷新恢复。补齐了 PoC 的资产根目录 command 和 Vue history 路由回退；此前聊天路由刷新会按文件路径读取并加载失败。
+
+| 采样阶段 | Electron 工作集 MiB | Electron 私有内存 MiB |
+| --- | ---: | ---: |
+| 主页等待 5 秒 | 538.4 | 503.9 |
+| 长会话加载后等待 5 秒 | 1250.9 | 1234.5 |
+| 首次完整浏览后 | 1374.0 | 1400.4 |
+| 再浏览三轮并等待 5 秒 | 1462.6 | 1469.3 |
+| 路由刷新、重新浏览并等待 5 秒 | 1519.1 | 1519.9 |
+
+采用真实显示窗口、同一前端产物和四进程合计采样。WebView2 尚待使用同一隔离样本补测；本表暂作为 Electron 单侧结果。正文有 1 处表情包引用需核对原 Agent 资产映射，详细方法、边界与证据见[附录 C 第 10 节](./appendix-electron-poc-followup.md#10-真实长会话与附件回放2026-10-14)。
+
 ---
 
 ## 6. 建议的执行策略
@@ -586,7 +602,7 @@ export async function callBackend(cmd: string, args: any) {
 - [ ] 验证 Electron `protocol.handle` 对 Tauri asset 协议的完整替代（2026-10-14：本地文本、图片、音频、Range、CSP 和 scope 已测，视频/UNC/授权流程待测，见附录 C）
 - [ ] 评估移动端代码共享策略（前端代码如何同时服务 Electron 桌面端和 Tauri 移动端）
 - [ ] 调研 Electron Forge vs electron-builder 的选型
-- [ ] 内存基准测试：同等场景下 Electron vs WebView2 的内存占用对比（✅ 初步完成：2026-10-09 空载 Electron 687MB vs WebView2 777MB WS；富文本负载 Electron 1315MB vs WebView2 3322MB WS，见[第 5 节实测数据](#5-包体影响评估)；严格同数据对照待后续补充）
+- [ ] 内存基准测试：同等场景下 Electron vs WebView2 的内存占用对比（2026-10-09 已有非严格同数据的初测；2026-10-14 用户真实会话的 Electron 单侧回放与采样完成，见第 5.2 节；WebView2 同样本对照待补）
 - [ ] 盘点当前 Agent 入口、会话状态、工具调用和定时器，标注所有与 Vue/渲染窗口绑定的代码
 - [ ] 设计 Renderer ↔ Node.js Background JS Runtime 的类型化 IPC 协议（命令、事件、流式数据、错误和取消）
 - [ ] 验证渲染窗口关闭、刷新、崩溃和重连时真实 Agent 会话的存活与恢复（2026-10-14：utility 任务探针已验证进程存活、重连和取消，真实业务待接入，见附录 C）
@@ -637,3 +653,4 @@ export async function callBackend(cmd: string, args: any) {
 | 2026-10-09 | 富文本负载实测：Electron 1315MB vs WebView2 3322MB WS（约 40%），验证 **TAURI_INTERNALS** shim 可行性                                 |
 | 2026-10-09 | 补充安装包实测：Electron NSIS Setup 149.4MB（Tauri 71MB 的 2.1 倍），安装后 425.5MB（约 3.9 倍）      |
 | 2026-10-14 | Electron 续测：utility 生命周期与多窗口、本地资源/网络、系统信息、分词 Native Addon、Tauri 耦合盘点；修复自动测试报错弹窗，新增附录 C |
+| 2026-10-14 | 补充用户真实长会话回放：隔离复制附件与正文图片，验证全文/消息树、图片预览和刷新恢复，记录 Electron 单侧内存采样；修复 PoC 历史路由回退 |

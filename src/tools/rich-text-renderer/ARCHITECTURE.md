@@ -537,7 +537,8 @@ src/tools/rich-text-renderer/
 - **资产解析集成**:
   - 通过 `provide("currentAgent", currentAgent)` 注入当前智能体上下文。
   - 遵循"分层处理"策略：`MessageContent` 仅负责宏替换，将 `agent-asset://` 协议透传给渲染器，由渲染器内部的 `ImageNode` 等组件在渲染时动态解析。
-  - 支持 `【file::assetId】` 占位符解析：`resolveAsset` 钩子会查询消息附件列表，将占位符转换为真实的本地资源 URL。
+  - 支持 `【file::assetId】` 占位符解析：图片、音视频和 HTML 资源地址通过 `resolveAsset` 钩子查询消息附件并解析本地资源 URL。
+  - V1 / V2 AST 模式的裸占位符由 `TextNode` 调用 `renderFilePlaceholder` 钩子，在原位置复用聊天附件卡片，支持图片、音视频与文档预览；缺失附件和未闭合占位符保留原文。代码节点沿用代码展示。原文、译文和推理内容共用此钩子。
 - **性能冻结策略**: `MessageContent.vue` 根据 `messageDepth` 和聊天设置计算 `shouldFreeze`，再传入渲染器冻结 HTML 预览沙箱，以释放内存和 CPU 资源。
 - **样式合并**: 渲染器接收来自 `ChatSettings` 的全局样式，并根据当前智能体（Agent）的配置进行合并覆盖。
 

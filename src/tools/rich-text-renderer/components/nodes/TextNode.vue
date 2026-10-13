@@ -15,11 +15,12 @@
 -->
 
 <template>
-  <span>{{ displayedContent }}</span>
+  <span><InlineContent /></span>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { h, inject, type VNode } from "vue";
+import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { unescapeVcpMarkers } from "../../utils/vcp-utils";
 
 const props = defineProps<{
@@ -27,5 +28,39 @@ const props = defineProps<{
   content: string;
 }>();
 
-const displayedContent = computed(() => unescapeVcpMarkers(props.content));
+const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
+
+// 仅处理文本节点，图片地址、HTML 属性和代码节点沿用各自的解析路径。
+const InlineContent = () => {
+  const content = unescapeVcpMarkers(props.content);
+  if (!context?.renderFilePlaceholder || !content.includes("【file::")) {
+    return content;
+  }
+
+  const children: (string | VNode)[] = [];
+  let cursor = 0;
+  for (const match of content.matchAll(/【file::([^\s】]+)】/g)) {
+    children.push(content.slice(cursor, match.index));
+    const preview = context.renderFilePlaceholder(match[1]);
+    children.push(
+      preview
+        ? h("span", { class: "file-placeholder-preview", key: match.index }, [
+            preview,
+          ])
+        : match[0]
+    );
+    cursor = match.index + match[0].length;
+  }
+  children.push(content.slice(cursor));
+  return children;
+};
 </script>
+
+<style scoped>
+:deep(.file-placeholder-preview) {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 4px 0;
+  vertical-align: middle;
+}
+</style>

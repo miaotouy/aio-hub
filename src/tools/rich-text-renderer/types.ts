@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Ref } from "vue";
+import type { Ref, VNode } from "vue";
 
 /**
  * 富文本渲染引擎 - 核心类型定义
@@ -899,6 +899,8 @@ export interface RichTextContext {
    * 用于将自定义协议（如 agent-asset://）转换为真实 URL
    */
   resolveAsset?: (content: string) => string;
+  /** 裸附件占位符的预览渲染钩子；返回 null 时保留原文。 */
+  renderFilePlaceholder?: (assetId: string) => VNode | null;
   /**
    * 是否冻结 HTML 预览
    * 当消息深度超过阈值时，用于节流性能开销

@@ -43,6 +43,7 @@ import type {
   RichTextRendererStyleOptions,
   MarkdownStyleOption,
   AstNode,
+  RichTextContext,
 } from "./types";
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
@@ -141,6 +142,7 @@ const props = withDefaults(
     allowExternalScripts?: boolean; // 是否允许加载外部资源（如 CDN 脚本、样式）
     regexRules?: ChatRegexRule[]; // 正则表达式规则
     resolveAsset?: (content: string) => string; // 资产路径解析钩子
+    renderFilePlaceholder?: RichTextContext["renderFilePlaceholder"];
     shouldFreeze?: boolean; // 是否冻结 HTML 预览
     allowDangerousHtml?: boolean; // 是否允许渲染危险的 HTML 标签
     showTokenCount?: boolean; // 是否显示 Token 计数
@@ -371,6 +373,8 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   allowExternalScripts: computed(() => props.allowExternalScripts),
   allowDangerousHtml: computed(() => props.allowDangerousHtml),
   resolveAsset: props.resolveAsset,
+  renderFilePlaceholder: (assetId: string) =>
+    props.renderFilePlaceholder?.(assetId) ?? null,
   shouldFreeze: computed(() => props.shouldFreeze),
   isStreaming: computed(() => props.isStreaming || internalIsStreaming.value),
   showTokenCount: computed(() => props.showTokenCount),

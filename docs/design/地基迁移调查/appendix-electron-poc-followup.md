@@ -159,8 +159,82 @@ bun .tmp/electron-poc/inventory.ts
 
 1. 接入一个真实 Agent/子智能体任务，验证 LLM 流式、工具、审批、用户干预、会话持久化与恢复。
 2. 真实工具分离窗口：路由/初始参数、尺寸、置顶、关闭协议和共享状态；当前只覆盖普通 BrowserWindow 及事件。
-3. 同一生成会话、同一加载流程的 Electron/WebView2 内存对照。
+3. 用第 10 节的真实会话样本补测 WebView2，完成同数据、同加载流程的内存对照。
 4. Windows 11 22H2+ 的 Mica/Acrylic 实际效果与冷启动；本机 Windows 10 只能确认平台边界。
 5. 系统信息连续采样与完整字段映射、更多媒体资源和网络 provider 契约。
 6. 本轮 shell 改动后的打包验证。已将 preload 和协议模块补进 electron-builder files；原包体实测继续作为历史数据。
 7. Forge/electron-builder 选型、独立 Node sidecar 对照，以及 CEF/移动端运行态专项验证。
+## 10. 真实长会话与附件回放（2026-10-14）
+
+### 数据与隔离方式
+
+使用用户授权的会话：
+
+```text
+C:\Users\mzk\AppData\Roaming\com.mty.aiohub\llm-chat\sessions\session-1791671941881-wpd5y5xs9.json
+```
+
+- JSON 352,744 bytes；64 个消息节点，正文 144,464 字符，思考字段 15,959 字符。
+- 原有消息树包含 7 个分叉节点、3 个压缩节点。当前分支渲染 48 条消息。
+- 17 处附件引用涉及 16 张独立图片，复制 16 个原件及 16 个缩略图，共 12,163,352 bytes。
+- 另复制 1 个会话头像、19 个正文 `agent-asset://` 图片；正文图片共 1,267,639 bytes。
+- 正文引用 `agent-asset://biaoqingbao1/震惊.png` 按同名文件定位时未找到，需继续核对原 Agent 资产映射。测试样本保留该引用。
+
+原始会话按字节复制，源目录只执行读取。测试数据放在 `.tmp/electron-poc/artifacts/2026-10-14/long-session/data/`。Agent 配置使用离线占位模型，正文图片映射按会话引用重建；原连接配置保持原位。自动转写关闭，测试进程拦截 HTTP/HTTPS 请求，本轮尝试外部请求数为 0。
+
+使用现有 `dist`，沿用本附录的 Windows 10 / Electron 39.8.10 环境。为覆盖实际绘制与 `content-visibility`，测试窗口通过 `showInactive()` 显示，保持用户焦点，结束后自动关闭。普通协议/后台探针继续使用隐藏窗口。
+
+### 行为验证
+
+新增检查保护的契约是：真实会话跨壳回放时保留消息树与内容，历史浏览可以加载本地附件，刷新能够恢复已持久化会话。断言针对完整正文、思考字段、节点关系、活动叶子和图片解码结果。原有协议探针继续承担 Range、scope 和路径越界验证。
+
+最终长会话运行 **6 项通过**，Renderer error 记录为 0，用时约 41 秒：
+
+| 检查 | 实测结果 |
+| --- | --- |
+| 独立目录与主页采样 | 数据路径指向隔离目录；采集主页加载后 5 秒的内存 |
+| 会话回放 | 64 个节点的全文、思考字段、父子关系、压缩标记和附件引用与源样本一致；活动叶子出现在当前投影 |
+| 本地图片协议 | 51 个复制图片文件全部解码成功：16 个原件、16 个缩略图、19 个正文图片 |
+| 历史浏览 | 顶部、四分之一、中部、四分之三和底部可达；当前投影的 15 个附件卡片缩略图加载；37 处正文 Agent 图片显示 |
+| 原图预览 | 点击附件卡片打开实际原图，测得 1928 × 1623 像素，来源为隔离目录 |
+| 反复浏览与刷新 | 刷新前浏览 4 轮；路由刷新后再次校验 64 个节点全文与树状态，活动叶子恢复，再完成一轮浏览 |
+
+首页、会话顶部/底部和原图预览中的 UI 均保留实际工作区。已走查会话顶部、底部和图片预览截图。
+
+### 内存采样
+
+通过 Electron `app.getAppMetrics()` 汇总 Browser、GPU、Utility、Tab 四个进程的 `workingSetSize` 和 `privateBytes`。API 返回 KiB，表中换算为 MiB；下表为离散采样点。
+
+| 采样阶段 | 工作集 MiB | 私有内存 MiB |
+| --- | ---: | ---: |
+| 主页加载后等待 5 秒 | 538.4 | 503.9 |
+| 长会话加载后等待 5 秒 | 1250.9 | 1234.5 |
+| 第一轮完整浏览后 | 1374.0 | 1400.4 |
+| 再浏览三轮并等待 5 秒 | 1462.6 | 1469.3 |
+| 刷新、重新浏览并等待 5 秒 | 1519.1 | 1519.9 |
+
+这份真实数据已经完成 Electron 加载、媒体访问和刷新恢复验证。短时采样显示浏览与刷新后占用继续增加；长期运行、GC 回落和更多会话切换需要独立测量。WebView2 尚未按本次数据与流程采样，因此本表暂作为 Electron 单侧记录，后续对照继续使用同一隔离样本。
+
+### 本轮补齐的 PoC 能力
+
+1. `get_asset_base_path` 返回隔离目录的 `assets` 根路径，附件卡片沿用现有前端服务生成本地 URL。
+2. `app://bundle/llm-chat` 等扩展名为空且落在 bundle scope 内的历史路由，回退至入口 HTML；现有文件读取与 scope 检查保留。此前刷新直接按文件读取路由，导致 Vue 未挂载，真实回放检查捕获了该问题。
+3. 回放工具补齐离线 Agent/模型选择和正文图片映射，关闭自动转写。Vue 状态在跨进程返回前转为可序列化数据，避免测试脚本返回响应式 Proxy 时触发 clone 错误。
+
+会话运行检查覆盖持久化数据回放。LLM 发起、工具执行、审批与后台 Agent 所有权迁移继续按第 9 节推进；PoC 的资产目录查询等 command 仍需完整适配。
+
+### 复现和证据
+
+```powershell
+bun .tmp/electron-poc/prepare-long-session.ts
+bun run --cwd .tmp/electron-poc verify:long-session
+```
+
+准备脚本支持显式指定源会话与输出目录；输出限定在 PoC artifacts 下。运行器目前使用上述固定测试目录。重复制会重置这份隔离样本。
+
+- 脚本：`prepare-long-session.ts`、`verify-long-session.js`、`verify-long-session-launch.ts`。
+- 最终报告：`.tmp/electron-poc/artifacts/2026-10-14/long-session/results.json`。
+- 日志：同目录 `run.log`；早期配置/脚本失败和隐藏窗口试跑保留为独立 results 文件。
+- 截图：`conversation-top.png`、`conversation-bottom.png`、`attachment-preview.png`。
+- 常规 PoC 回归复跑：15 项通过，1 项主动崩溃默认跳过，覆盖此前的范围校验、媒体协议、后台生命周期和多窗口事件。
+- 本轮改动只涉及本地 PoC 与调查文档，前端业务源码保持原样；现有 `dist` 用于真实 Electron 运行，PoC 入口通过 Bun 构建语法验证。

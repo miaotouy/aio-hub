@@ -24,6 +24,7 @@ import {
   nextTick,
   shallowRef,
   inject,
+  h,
 } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -798,6 +799,21 @@ assetManagerEngine.getAssetBasePath().then((path) => {
   assetBasePath.value = path;
 });
 
+// 裸占位符复用附件卡片，保留各类附件的预览、播放与文档打开交互。
+const renderFilePlaceholder = (assetId: string) => {
+  const asset = props.message.attachments?.find((item) => item.id === assetId);
+  if (!asset) return null;
+
+  return h(AttachmentCard, {
+    asset,
+    allAssets: props.message.attachments,
+    removable: false,
+    size: "large",
+    willUseTranscription: getWillUseTranscription(asset),
+    onPreviewDocument: handlePreviewDocument,
+  });
+};
+
 // 资产转换钩子
 const resolveAsset = (content: string) => {
   // 1. 处理 agent-asset:// 和 file://
@@ -1053,6 +1069,7 @@ watch(
         :content="message.metadata.reasoningContent"
         :style-options="frozenStyleOptions"
         :resolve-asset="resolveAsset"
+        :render-file-placeholder="renderFilePlaceholder"
         :default-tool-call-collapsed="
           currentAgent?.defaultToolCallCollapsed ??
           settings.uiPreferences.defaultToolCallCollapsed
@@ -1222,6 +1239,7 @@ watch(
             settings.uiPreferences.defaultToolCallCollapsed
           "
           :resolve-asset="resolveAsset"
+          :render-file-placeholder="renderFilePlaceholder"
           :should-freeze="shouldFreezeHtml"
           :enable-enter-animation="originalRendererEnterAnimation"
         />
@@ -1280,11 +1298,9 @@ watch(
           <RichTextRenderer
             v-bind="rendererSettingsProps"
             :content="
-              resolveAsset(
-                isTranslating || !message.metadata?.translation
-                  ? translationContent
-                  : message.metadata.translation.content
-              )
+              isTranslating || !message.metadata?.translation
+                ? translationContent
+                : message.metadata.translation.content
             "
             :regex-rules="processedRules"
             :llm-think-rules="frozenLlmThinkRules"
@@ -1295,6 +1311,7 @@ watch(
             "
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"
+            :render-file-placeholder="renderFilePlaceholder"
             :should-freeze="shouldFreezeHtml"
           />
           <div

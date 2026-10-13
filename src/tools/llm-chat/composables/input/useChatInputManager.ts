@@ -135,6 +135,15 @@ class ChatInputManager {
   // 防抖保存计时器
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // 浏览器刷新时同步提交最后一次输入，覆盖尚未执行的防抖保存。
+  private flushBeforeUnload = () => {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    this.saveToStorageImmediate();
+  };
+
   // 标记是否正在应用同步状态（避免循环更新）
   private isApplyingSyncState = false;
 
@@ -233,6 +242,10 @@ class ChatInputManager {
 
     // 从 localStorage 恢复状态
     this.restoreFromStorage();
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", this.flushBeforeUnload);
+      window.addEventListener("pagehide", this.flushBeforeUnload);
+    }
 
     // 初始化同步状态（从 attachmentManager 获取当前附件）
     this.syncState.value = {
@@ -994,6 +1007,11 @@ class ChatInputManager {
    * 清理资源
    */
   destroy(): void {
+    this.flushBeforeUnload();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("beforeunload", this.flushBeforeUnload);
+      window.removeEventListener("pagehide", this.flushBeforeUnload);
+    }
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
     }

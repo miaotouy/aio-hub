@@ -55,6 +55,10 @@ vi.mock("@/utils/logger", () => ({
 }));
 
 import { createSessionLifecycleManager } from "../sessionLifecycleManager";
+import {
+  loadNewSessionDraft,
+  saveNewSessionDraft,
+} from "../../../composables/storage/useNewSessionDraftStorage";
 
 function index(id: string): ChatSessionIndex {
   return {
@@ -105,8 +109,21 @@ function fullSession(id: string) {
   return { index: index(id), detail: detail(id) };
 }
 
+function lifecycleFor(
+  state: Parameters<typeof createSessionLifecycleManager>[0]
+) {
+  return createSessionLifecycleManager(state, {
+    runtime: { clearSessionRuntime: vi.fn() } as any,
+    history: { clearHistory: vi.fn(), cleanupSession: vi.fn() } as any,
+    executeOrProxy: async (_action, _params, localFn) => await localFn(),
+    fillMissingTokenMetadata: vi.fn(),
+    getActivePath: vi.fn(() => []),
+  });
+}
+
 describe("sessionLifecycleManager 重启恢复", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await saveNewSessionDraft(null);
     vi.clearAllMocks();
     sessionManager.updateCurrentSessionId.mockResolvedValue(undefined);
     storage.loadSession.mockReset();
@@ -353,7 +370,7 @@ describe("sessionLifecycleManager 重启恢复", () => {
     expect(state.newSessionDraft.value?.index.id).toBe("draft");
     expect(state.currentSessionId.value).toBe("draft");
     expect(sessionManager.persistSession).not.toHaveBeenCalled();
-    expect(sessionManager.updateCurrentSessionId).not.toHaveBeenCalled();
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledWith(null);
 
     await lifecycle.materializeNewSession();
 
@@ -370,7 +387,192 @@ describe("sessionLifecycleManager 重启恢复", () => {
       storage.persistSession.mock.invocationCallOrder[0]
     );
     expect(storage.persistSession.mock.invocationCallOrder[0]).toBeLessThan(
-      sessionManager.updateCurrentSessionId.mock.invocationCallOrder[0]
+      sessionManager.updateCurrentSessionId.mock.invocationCallOrder[1]
+    );
+  });
+  it("从历史进入新会话后，重载恢复同一草稿身份和配置", async () => {
+    let persistedId: string | null = "old";
+    sessionManager.updateCurrentSessionId.mockImplementation(async (id) => {
+      persistedId = id;
+    });
+    const draft = fullSession("draft");
+    draft.index.name = "未发送的会话";
+    draft.index.displayAgentId = "agent-1";
+    draft.detail.parameterOverrides = { temperature: 0.3 };
+    sessionManager.createSession.mockResolvedValue({
+      ...draft,
+      sessionId: "draft",
+    });
+    const state = {
+      sessionIndexMap: ref(new Map([["old", index("old")]])),
+      sessionDetailMap: ref(new Map([["old", detail("old")]])),
+      newSessionDraft: ref<ChatSessionDraft | null>(null),
+      currentSessionId: ref<string | null>("old"),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    await lifecycleFor(state).beginNewSession("agent-1");
+    expect(persistedId).toBeNull();
+
+    sessionManager.loadSessionsIndex.mockResolvedValue({
+      sessions: [index("old")],
+      currentSessionId: persistedId,
+      favoriteFolders: [],
+      recoveryState: { status: "ready" },
+    });
+    const reloaded = {
+      ...state,
+      sessionIndexMap: ref(new Map<string, ChatSessionIndex>()),
+      sessionDetailMap: ref(new Map<string, ChatSessionDetail>()),
+      newSessionDraft: ref<ChatSessionDraft | null>(null),
+      currentSessionId: ref<string | null>(null),
+    };
+    await lifecycleFor(reloaded).loadSessions();
+    expect(reloaded.currentSessionId.value).toBe("draft");
+    expect([...reloaded.sessionIndexMap.value.keys()]).toEqual([
+      "old",
+      "draft",
+    ]);
+    expect(reloaded.newSessionDraft.value?.index).toMatchObject({
+      id: "draft",
+      name: "未发送的会话",
+      displayAgentId: "agent-1",
+    });
+    expect(reloaded.newSessionDraft.value?.detail.parameterOverrides).toEqual({
+      temperature: 0.3,
+    });
+    expect(reloaded.sessionDetailMap.value.size).toBe(1);
+    expect(storage.loadSession).not.toHaveBeenCalled();
+  });
+
+  it("在历史会话中刷新保留待发草稿，首次发送沿用草稿 ID 并清理恢复记录", async () => {
+    const draft = fullSession("pending");
+    await saveNewSessionDraft(draft);
+    sessionManager.loadSessionsIndex.mockResolvedValue({
+      sessions: [index("history")],
+      currentSessionId: "history",
+      favoriteFolders: [],
+      recoveryState: { status: "ready" },
+    });
+    storage.loadSession.mockResolvedValue(fullSession("history"));
+    const state = {
+      sessionIndexMap: ref(new Map<string, ChatSessionIndex>()),
+      sessionDetailMap: ref(new Map<string, ChatSessionDetail>()),
+      newSessionDraft: ref<ChatSessionDraft | null>(null),
+      currentSessionId: ref<string | null>(null),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    const lifecycle = lifecycleFor(state);
+    await lifecycle.loadSessions();
+    expect(state.currentSessionId.value).toBe("history");
+    expect(state.newSessionDraft.value?.index.id).toBe("pending");
+    await lifecycle.switchSession("pending");
+    expect(state.currentSessionId.value).toBe("pending");
+    expect(await lifecycle.materializeNewSession()).toBe("pending");
+    expect(state.newSessionDraft.value).toBeNull();
+    expect(await loadNewSessionDraft()).toBeNull();
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenLastCalledWith(
+      "pending"
+    );
+  });
+
+  it("首次发送已写入正式索引时，重启清理残留草稿记录并加载正式消息", async () => {
+    await saveNewSessionDraft(fullSession("promoted"));
+    sessionManager.loadSessionsIndex.mockResolvedValue({
+      sessions: [index("promoted")],
+      currentSessionId: null,
+      favoriteFolders: [],
+      recoveryState: { status: "ready" },
+    });
+    storage.loadSession.mockResolvedValue(fullSession("promoted"));
+    const state = {
+      sessionIndexMap: ref(new Map<string, ChatSessionIndex>()),
+      sessionDetailMap: ref(new Map<string, ChatSessionDetail>()),
+      newSessionDraft: ref<ChatSessionDraft | null>(null),
+      currentSessionId: ref<string | null>(null),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    await lifecycleFor(state).loadSessions();
+    expect(state.currentSessionId.value).toBe("promoted");
+    expect(state.newSessionDraft.value).toBeNull();
+    expect(
+      state.sessionDetailMap.value.get("promoted")?.nodes["promoted-completed"]
+        .content
+    ).toBe("已有正文");
+    expect(await loadNewSessionDraft()).toBeNull();
+  });
+
+  it("从历史切回已有草稿时持久化空选择，选择历史时持久化历史 ID", async () => {
+    const draft = fullSession("draft");
+    const state = {
+      sessionIndexMap: ref(
+        new Map([
+          ["old", index("old")],
+          ["draft", draft.index],
+        ])
+      ),
+      sessionDetailMap: ref(
+        new Map([
+          ["old", detail("old")],
+          ["draft", draft.detail],
+        ])
+      ),
+      newSessionDraft: ref<ChatSessionDraft | null>(draft),
+      currentSessionId: ref<string | null>("old"),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    const lifecycle = lifecycleFor(state);
+    await lifecycle.switchSession("draft");
+    expect(state.currentSessionId.value).toBe("draft");
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenLastCalledWith(
+      null
+    );
+
+    await lifecycle.switchSession("old");
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenLastCalledWith(
+      "old"
+    );
+    await lifecycle.beginNewSession("");
+    expect(state.currentSessionId.value).toBe("draft");
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenLastCalledWith(
+      null
+    );
+  });
+
+  it("进入新会话后忽略尚未完成的历史会话切换", async () => {
+    let resolveOld!: (value: ReturnType<typeof fullSession>) => void;
+    storage.loadSession.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveOld = resolve;
+        })
+    );
+    sessionManager.createSession.mockResolvedValue({
+      ...fullSession("draft"),
+      sessionId: "draft",
+    });
+    const state = {
+      sessionIndexMap: ref(new Map([["old", index("old")]])),
+      sessionDetailMap: ref(new Map<string, ChatSessionDetail>()),
+      newSessionDraft: ref<ChatSessionDraft | null>(null),
+      currentSessionId: ref<string | null>(null),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+    const lifecycle = lifecycleFor(state);
+    const switching = lifecycle.switchSession("old");
+    await vi.waitFor(() => expect(resolveOld).toBeDefined());
+    await lifecycle.beginNewSession("agent-1");
+    resolveOld(fullSession("old"));
+    await switching;
+
+    expect(state.currentSessionId.value).toBe("draft");
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenCalledTimes(1);
+    expect(sessionManager.updateCurrentSessionId).toHaveBeenLastCalledWith(
+      null
     );
   });
 });

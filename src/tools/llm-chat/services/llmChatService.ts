@@ -471,7 +471,7 @@ export class LlmChatService {
   /**
    * 发送消息
    * 注意：此方法直接通过 store 发送消息，不会修改输入框的内容，以免覆盖用户的正在输入的草稿。
-   * 如果没有当前会话但有可用会话，会自动切换到最近使用的会话。
+   * 当前为空选择时创建新会话草稿；显式指定的会话必须存在。
    * @param content 要发送的内容
    * @param options 发送选项
    */
@@ -494,36 +494,20 @@ export class LlmChatService {
 
         const store = this.chatStore;
 
-        // 如果没有当前会话，尝试自动选择或创建
-        const targetSessionId = options?.sessionId || store.currentSessionId;
+        let targetSessionId = options?.sessionId || store.currentSessionId;
         if (!targetSessionId || !store.sessionIndexMap.has(targetSessionId)) {
-          if (store.sessions.length > 0) {
-            // 情况1：有历史会话但未选中 -> 自动切换到最近使用的会话
-            const sortedSessions = [...store.sessions].sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime()
-            );
-            const targetSession = sortedSessions[0];
-            logger.info("自动切换到最近使用的会话", {
-              sessionId: targetSession.id,
-              sessionName: targetSession.name,
-            });
-            store.switchSession(targetSession.id);
-          } else {
-            // 情况2：完全没有会话 -> 尝试自动创建新会话草稿（发送时自动物化）
-            const { currentAgentId } = useLlmChatUiState();
-
-            if (currentAgentId.value) {
-              logger.info("没有可用会话，自动进入新会话草稿", {
-                agentId: currentAgentId.value,
-              });
-              await store.beginNewSession(currentAgentId.value);
-            } else {
-              // 情况3：连 Agent 都没选 -> 抛出错误让用户去选
-              throw new Error("请先选择一个智能体或创建一个会话");
-            }
+          if (options?.sessionId) {
+            throw new Error("指定的会话不存在，请重新选择会话");
           }
+
+          const { currentAgentId } = useLlmChatUiState();
+          const agentId = options?.agentId || currentAgentId.value;
+          if (!agentId) {
+            throw new Error("请先选择一个智能体或创建一个会话");
+          }
+
+          logger.info("自动进入新会话草稿", { agentId });
+          targetSessionId = await store.beginNewSession(agentId);
         }
 
         // 自动携带输入框中选择的临时模型
@@ -531,6 +515,8 @@ export class LlmChatService {
           options?.temporaryModel ?? this.inputManager.temporaryModel.value;
         const sendOptions = {
           ...options,
+          // 固定发送目标，避免保留的新会话草稿接管历史会话发送。
+          sessionId: targetSessionId,
           temporaryModel,
         };
 

@@ -670,7 +670,7 @@ export function useChatStorageSeparated() {
         new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
     );
     index.currentSessionId =
-      index.currentSessionId &&
+      index.currentSessionId === null ||
       repaired.some((item) => item.id === index.currentSessionId)
         ? index.currentSessionId
         : repaired[0]?.id || null;

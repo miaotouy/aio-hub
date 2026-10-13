@@ -247,9 +247,12 @@ function getAgentModelSelection(
 async function ensureChatEntryReady(): Promise<void> {
   if (bus.windowType !== "main") return;
 
-  let agent = uiCurrentAgentId.value
-    ? agentStore.getAgentById(uiCurrentAgentId.value)
-    : null;
+  const restoredDraft = store.newSessionDraft;
+  const entryAgentId =
+    restoredDraft && store.currentSessionId === restoredDraft.index.id
+      ? restoredDraft.index.displayAgentId || uiCurrentAgentId.value
+      : uiCurrentAgentId.value;
+  let agent = entryAgentId ? agentStore.getAgentById(entryAgentId) : null;
   if (!agent) agent = agentStore.defaultAgent || null;
 
   let modelSelection = getAgentModelSelection(agent);
@@ -288,11 +291,7 @@ async function ensureChatEntryReady(): Promise<void> {
   await selectAgent(agent.id, { sessionId: undefined });
   await agentStore.loadAgentDetails(agent.id);
 
-  if (
-    store.sessions.length === 0 &&
-    store.sessionRecovery.status === "ready" &&
-    !store.currentSessionId
-  ) {
+  if (store.sessionRecovery.status === "ready" && !store.currentSessionId) {
     await store.beginNewSession(agent.id);
     logger.info("已自动进入新会话草稿", {
       agentId: agent.id,

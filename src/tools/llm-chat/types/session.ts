@@ -113,7 +113,7 @@ export interface ChatSessionDetail {
  * 尚未发送首条消息的新会话草稿。
  *
  * 草稿复用正式会话的数据结构以支持开场白、消息预览和跨窗口同步，
- * 但在提升为正式会话前不会进入会话列表或持久化存储。
+ * 稳定身份与配置独立保存，输入草稿按同一 ID 保存；提升前保留在历史列表之外。
  */
 export interface ChatSessionDraft {
   index: ChatSessionIndex;

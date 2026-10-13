@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { Asset } from "@/types/asset-management";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 
@@ -85,6 +85,8 @@ vi.mock("../../features/useAttachmentManager", () => ({
   }),
 }));
 
+import { clearAllInstances, getInstance } from "@/utils/singleton";
+
 const { useChatInputManager } = await import("../useChatInputManager");
 
 function createAsset(id: string): Asset {
@@ -120,6 +122,45 @@ describe("useChatInputManager session drafts", () => {
     const manager = useChatInputManager();
     manager.clearAllDrafts();
     manager.setActiveSessionId(null);
+  });
+
+  it("restores the pending session input and attachments when refreshing before the save debounce", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("pending-session");
+    await nextTick();
+    const asset = createAsset("pending-attachment");
+    manager.setContent("尚未发送的输入");
+    manager.addAsset(asset);
+    manager.setTemporaryModel({ profileId: "profile", modelId: "model" });
+    manager.setKnowledgeReference(createKnowledgeReference("pending-library"));
+
+    window.dispatchEvent(new Event("beforeunload"));
+    expect(
+      JSON.parse(localStorage.getItem("llm-chat-input-drafts")!).drafts[
+        "pending-session"
+      ].text
+    ).toBe("尚未发送的输入");
+    const original = getInstance<{ destroy(): void }>("ChatInputManager");
+    original?.destroy();
+    clearAllInstances();
+    attachments.value = [];
+    const restored = useChatInputManager();
+    // 与 Store 启动绑定顺序一致：先清空选择，再恢复稳定草稿 ID。
+    restored.setActiveSessionId(null);
+    restored.setActiveSessionId("pending-session");
+    expect(restored.inputText.value).toBe("尚未发送的输入");
+    expect(restored.attachments.value).toEqual([asset]);
+    expect(restored.temporaryModel.value).toEqual({
+      profileId: "profile",
+      modelId: "model",
+    });
+    expect(restored.knowledgeReference.value?.libraryIds).toEqual([
+      "pending-library",
+    ]);
+    restored.setActiveSessionId("history-session");
+    expect(restored.inputText.value).toBe("");
+    restored.setActiveSessionId("pending-session");
+    expect(restored.inputText.value).toBe("尚未发送的输入");
   });
 
   it("copies a draft with attachments to another session without clearing source", () => {

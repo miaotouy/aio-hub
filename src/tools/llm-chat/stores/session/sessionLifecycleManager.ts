@@ -38,6 +38,10 @@ import {
   markSessionVolatile,
   useSessionManager,
 } from "../../composables/session/useSessionManager";
+import {
+  loadNewSessionDraft,
+  saveNewSessionDraft,
+} from "../../composables/storage/useNewSessionDraftStorage";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { clearRetrievalCache } from "@/tools/recall/services/api";
 import { createModuleLogger } from "@/utils/logger";
@@ -173,6 +177,9 @@ export function createSessionLifecycleManager(
         if (!newSessionDraft.value) {
           state.currentSessionId.value = latest.currentSessionId;
         }
+        await restoreNewSessionDraft(
+          new Set(latest.sessions.map((session) => session.id))
+        );
       })
       .catch((error) => {
         logger.error("后台恢复会话索引失败", error);
@@ -303,6 +310,7 @@ export function createSessionLifecycleManager(
             draft.detail.nodes,
             state.sessionIndexMap.value
           );
+          await saveNewSessionDraft(draft);
           return;
         }
 
@@ -321,6 +329,7 @@ export function createSessionLifecycleManager(
             draft.detail.nodes,
             state.sessionIndexMap.value
           );
+          await saveNewSessionDraft(draft);
           return;
         }
 
@@ -339,6 +348,7 @@ export function createSessionLifecycleManager(
           draft.detail.nodes,
           state.sessionIndexMap.value
         );
+        await saveNewSessionDraft(draft);
       }
     );
   }
@@ -347,18 +357,21 @@ export function createSessionLifecycleManager(
     agentId: string,
     name?: string
   ): Promise<string> {
+    // 新会话选择同样使较慢的历史会话切换请求失效。
+    ++latestSwitchRequest;
     return managers.executeOrProxy(
       "begin-new-session",
       { agentId, name },
       async () => {
+        const sessionManager = getSessionManager();
         const existingDraft = newSessionDraft.value;
         if (existingDraft) {
           state.currentSessionId.value = existingDraft.index.id;
+          await sessionManager.updateCurrentSessionId(null);
           await updateNewSessionAgent(agentId);
           return existingDraft.index.id;
         }
 
-        const sessionManager = getSessionManager();
         const { index, detail, sessionId } = await sessionManager.createSession(
           agentId,
           name
@@ -370,6 +383,9 @@ export function createSessionLifecycleManager(
         state.sessionDetailMap.value.set(sessionId, detail);
         state.currentSessionId.value = sessionId;
         managers.history.clearHistory(sessionId);
+        // 先保存稳定身份，再提交新会话选择；输入草稿继续绑定同一个 ID。
+        await saveNewSessionDraft(newSessionDraft.value);
+        await sessionManager.updateCurrentSessionId(null);
 
         logger.info("进入虚拟新会话", { sessionId, agentId });
         return sessionId;
@@ -400,6 +416,10 @@ export function createSessionLifecycleManager(
       markSessionPersistent(sessionId);
       newSessionDraft.value = null;
       state.currentSessionId.value = sessionId;
+      // 正式会话已经提交，清理失败由下次加载收敛，保持本次发送可继续。
+      await saveNewSessionDraft(null).catch((error) => {
+        logger.warn("清理已提升会话的草稿恢复记录失败", error);
+      });
 
       logger.info("虚拟新会话已提升为正式会话", { sessionId });
       return sessionId;
@@ -710,6 +730,9 @@ export function createSessionLifecycleManager(
           );
         }
         state.sessionIndexMap.value = nextMap;
+        await restoreNewSessionDraft(
+          new Set(refreshedSessions.map((session) => session.id))
+        );
         state.favoriteFolders.value = refreshedFavoriteFolders;
         if (
           !state.currentSessionId.value ||
@@ -805,7 +828,9 @@ export function createSessionLifecycleManager(
 
         const index = state.sessionIndexMap.value.get(sessionId);
         const detail = state.sessionDetailMap.value.get(sessionId);
-        if (index && detail) {
+        if (index && detail && sessionId === newSessionDraft.value?.index.id) {
+          await saveNewSessionDraft({ index, detail });
+        } else if (index && detail) {
           sessionManager.persistSession(
             index,
             detail,
@@ -814,6 +839,35 @@ export function createSessionLifecycleManager(
         }
       }
     );
+  }
+
+  async function restoreNewSessionDraft(
+    persistentIds: ReadonlySet<string>
+  ): Promise<void> {
+    if (state.sessionRecovery.value.status !== "ready") return;
+    const draft = newSessionDraft.value || (await loadNewSessionDraft());
+    if (!draft) return;
+    if (persistentIds.has(draft.index.id)) {
+      markSessionPersistent(draft.index.id);
+      newSessionDraft.value = null;
+      // 首次发送可能在正式索引写入后、选择提交前退出，沿用同一 ID 恢复输入。
+      if (!state.currentSessionId.value) {
+        await ensureSessionDetail(draft.index.id);
+        state.currentSessionId.value = draft.index.id;
+        await getSessionManager().updateCurrentSessionId(draft.index.id);
+      }
+      await saveNewSessionDraft(null).catch((error) => {
+        logger.warn("清理已提升会话的草稿恢复记录失败", error);
+      });
+      return;
+    }
+
+    markSessionVolatile(draft.index.id);
+    newSessionDraft.value = draft;
+    state.sessionIndexMap.value.set(draft.index.id, draft.index);
+    state.sessionDetailMap.value.set(draft.index.id, draft.detail);
+    if (!state.currentSessionId.value)
+      state.currentSessionId.value = draft.index.id;
   }
 
   async function loadSessions(): Promise<void> {
@@ -864,6 +918,9 @@ export function createSessionLifecycleManager(
       });
     }
 
+    await restoreNewSessionDraft(
+      new Set(indexItems.map((session) => session.id))
+    );
     await managers.fillMissingTokenMetadata();
 
     if (recoveryState.status === "corrupt") {
@@ -919,6 +976,9 @@ export function createSessionLifecycleManager(
             const effectiveUserProfile = userProfileStore.getEffectiveProfile(
               agent.userProfileId
             );
+            if (sessionId === newSessionDraft.value?.index.id) {
+              await updateNewSessionAgent(agent.id);
+            }
             const changed = await refreshLiveGreetingsIfNeeded(
               index,
               detail,
@@ -949,7 +1009,9 @@ export function createSessionLifecycleManager(
         // Await the selection commit. Content saves are intentionally allowed
         // to run independently, but the last selected session must be durable
         // before this operation reports success to the UI.
-        await sessionManager.updateCurrentSessionId(sessionId);
+        await sessionManager.updateCurrentSessionId(
+          sessionId === newSessionDraft.value?.index.id ? null : sessionId
+        );
         logger.info("切换会话", { sessionId, sessionName: index.name });
       }
     );
@@ -1208,6 +1270,7 @@ export function createSessionLifecycleManager(
       state.sessionDetailMap.value.clear();
       newSessionDraft.value = null;
       state.currentSessionId.value = null;
+      await saveNewSessionDraft(null);
       inputManager.clearAllDrafts();
       await storage.saveSessions([], null, state.favoriteFolders.value);
       // saveSessions persists session/index contents only; keep the selection

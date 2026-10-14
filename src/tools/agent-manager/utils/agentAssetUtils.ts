@@ -17,6 +17,7 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { getAppConfigDir } from "@/utils/appPath";
 import type { ChatAgent, AgentAsset } from "../types/agent";
 import { createModuleLogger } from "@/utils/logger";
+import { resolveResourceLabel } from "@/tools/rich-text-renderer/utils/resourceLabel";
 
 const logger = createModuleLogger("agentAssetUtils");
 
@@ -98,42 +99,60 @@ function calculateSimilarity(query: string, target: string): number {
   return 1.0 - distance / maxLen;
 }
 
-/** 缓存缺失贴图的 Data URL */
-let _missingTextureDataUrl: string | null = null;
-
-/**
- * 生成 32x32 的紫黑格子贴图 (Missing Texture)
- */
-function getMissingTextureUrl(): string {
-  if (_missingTextureDataUrl) return _missingTextureDataUrl;
-
-  try {
-    const size = 32;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-
-    if (ctx) {
-      const half = size / 2;
-      // 紫色部分
-      ctx.fillStyle = "#FF00FF";
-      ctx.fillRect(0, 0, half, half);
-      ctx.fillRect(half, half, half, half);
-      // 黑色部分
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(half, 0, half, half);
-      ctx.fillRect(0, half, half, half);
-
-      _missingTextureDataUrl = canvas.toDataURL("image/png");
-      return _missingTextureDataUrl;
+/** 缺失图片使用可读占位，保留资源来源与原图的布局属性。 */
+export function createMissingImagePlaceholder(
+  url: string,
+  image?: HTMLImageElement
+): string {
+  const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, (char) => {
+      const entities: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return entities[char];
+    });
+  // 文件名优先，避免 alt 中的描述掩盖实际请求的资源。
+  const filename = resolveResourceLabel(url, "");
+  const styles = [
+    "min-height: 64px",
+    "border-radius: 4px",
+    image?.getAttribute("style") || "",
+    "display: inline-flex",
+    "flex-direction: column",
+    "align-items: center",
+    "justify-content: center",
+    "gap: 4px",
+    "box-sizing: border-box",
+    "max-width: 100%",
+    "padding: 6px",
+    "overflow: hidden",
+    "vertical-align: middle",
+    "white-space: normal",
+    "background: var(--rich-text-image-placeholder-bg, var(--container-bg))",
+    "border-width: 1px",
+    "border-style: solid",
+    "border-color: var(--rich-text-image-placeholder-border, var(--border-color))",
+    "color: var(--rich-text-image-placeholder-color, var(--text-color-light))",
+  ];
+  // HTML width/height 属性对 span 无效，转换为 CSS；内联 style 仍拥有优先级。
+  for (const dimension of ["width", "height"] as const) {
+    const value = image?.getAttribute(dimension);
+    if (value && /^\d+(?:\.\d+)?%?$/.test(value)) {
+      styles.unshift(
+        `${dimension}: ${value.endsWith("%") ? value : `${value}px`}`
+      );
     }
-  } catch (e) {
-    logger.error("生成缺失贴图失败", e as Error);
   }
-
-  // 回退到 2x2 的简单 Base64
-  return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAZSURBVBhXY/zPw/AfEDMw/AfSDEAMYwYGBgZZSAn78AAAAABJRU5ErkJggg==";
+  if (image?.hasAttribute("height") || image?.style.height) {
+    styles.push("min-height: 0");
+  }
+  const className = escapeHtml(image?.getAttribute("class") || "");
+  const id = image?.getAttribute("id");
+  return `<span class="${className}"${id ? ` id="${escapeHtml(id)}"` : ""} data-agent-asset-missing="" role="img" aria-label="${escapeHtml(`资产缺失: ${filename}`)}" title="${escapeHtml(url)}" style="${escapeHtml(styles.join(";"))}"><span style="font-size: 11px; line-height: 1.3">资产缺失</span><span style="font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; max-width: 100%">${escapeHtml(filename)}</span></span>`;
 }
 
 // ============================================================================
@@ -515,35 +534,40 @@ export function processMessageAssetsSync(
   // 匹配规则：以 agent-asset:// 开头，直到遇到引号、空格、尖括号、或者作为结尾的括号
   const assetPattern = /agent-asset:\/\/[^"'\s<>\)]+?(?=[)\]"'\s<>]|$)/g;
 
-  // 1. 优先处理 Markdown 图片语法: ![alt](agent-asset://...)
-  // 这样如果资产缺失，我们可以将其替换为文本占位符，而不是让它进入 <img> 标签触发 CSP 错误
-  if (hasAgentAsset && agent) {
+  // 一次处理 Markdown 图片、HTML 图片和剩余链接，保留缺失资源的来源。
+  if (hasAgentAsset) {
     const mdImagePattern = /!\[(.*?)\]\((agent-asset:\/\/[^)]+)\)/g;
-    result = result.replace(mdImagePattern, (_match, alt, url) => {
-      const resolved = resolveAgentAssetUrlSync(url, agent);
-      if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
-        // 资产缺失，替换为文本占位符
-        const parsed = parseAssetUrl(url);
-        const filename = parsed
-          ? parsed.group
-            ? `${parsed.group}/${parsed.id}`
-            : parsed.id
-          : url;
-        return `[资产缺失: ${filename}]`;
+    // 单个 URL 交给节点判断缺失状态，保留原始来源。
+    const replaceAssetUrl = (url: string) =>
+      agent ? resolveAgentAssetUrlSync(url, agent) : url;
+    // 一次扫描图片标签与其他链接，避免再次改写占位元素 title 中的原始 URL。
+    const imageOrAssetPattern = new RegExp(
+      `${mdImagePattern.source}|<(?:img|span)\\b(?:[^"'<>]|"[^"]*"|'[^']*')*>|${assetPattern.source}`,
+      "gi"
+    );
+    result = result.replace(imageOrAssetPattern, (match, alt, markdownUrl) => {
+      if (markdownUrl !== undefined) {
+        const resolved = replaceAssetUrl(markdownUrl);
+        return resolved.startsWith(AGENT_ASSET_PROTOCOL)
+          ? createMissingImagePlaceholder(markdownUrl)
+          : `![${alt}](${resolved})`;
       }
-      return `![${alt}](${resolved})`;
-    });
-  }
+      if (!/^<(?:img|span)\b/i.test(match)) return replaceAssetUrl(match);
 
-  // 2. 处理剩下的孤立链接或 HTML src 属性中的链接
-  if (hasAgentAsset && agent) {
-    result = result.replace(assetPattern, (url) => {
-      const resolved = resolveAgentAssetUrlSync(url, agent);
-      // 如果仍然是协议开头，说明没找到，为了防止浏览器报错，返回贴图缺失效果
-      if (resolved.startsWith(AGENT_ASSET_PROTOCOL)) {
-        return getMissingTextureUrl();
+      const template = document.createElement("template");
+      template.innerHTML = match;
+      const image = template.content.firstElementChild as HTMLImageElement;
+      if (image.hasAttribute("data-agent-asset-missing")) return match;
+      if (image.localName !== "img")
+        return match.replace(assetPattern, replaceAssetUrl);
+      const url = image.getAttribute("src") || "";
+      if (
+        url.startsWith(AGENT_ASSET_PROTOCOL) &&
+        replaceAssetUrl(url).startsWith(AGENT_ASSET_PROTOCOL)
+      ) {
+        return createMissingImagePlaceholder(url, image);
       }
-      return resolved;
+      return match.replace(assetPattern, replaceAssetUrl);
     });
   }
 

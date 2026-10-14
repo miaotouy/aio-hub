@@ -271,6 +271,7 @@ const sanitizedContent = computed(() => {
       "cite",
       "loading",
       "decoding",
+      "role",
       "aria-label",
       "aria-pressed",
     ],
@@ -296,21 +297,20 @@ const sanitizedContent = computed(() => {
     FORCE_BODY: true,
   };
 
-  return DOMPurify.sanitize(props.content, config);
+  // 先解析资产，再统一净化最终 HTML，保留缺失占位并过滤原内容中的危险标签与属性。
+  const content = props.content.includes("agent-asset://")
+    ? processMessageAssetsSync(props.content, currentAgent?.value)
+    : props.content;
+  return DOMPurify.sanitize(content, config);
 });
 
-// 处理 agent-asset:// URL 后的最终内容
+// 净化后的 HTML 应用样式隔离
 const processedContent = computed(() => {
   let content = sanitizedContent.value;
 
   // 1. 处理样式隔离
   if (content.includes("<style")) {
     content = processHtmlStyles(content, containerId);
-  }
-
-  // 2. 如果内容中包含 agent-asset:// URL，且有 Agent 上下文，则进行转换
-  if (content.includes("agent-asset://") && currentAgent?.value) {
-    return processMessageAssetsSync(content, currentAgent.value);
   }
 
   return content;

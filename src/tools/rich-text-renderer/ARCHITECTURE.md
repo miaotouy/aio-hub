@@ -212,6 +212,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
   - **预处理阶段**: 仅处理 `file://` 等可能干扰解析或必须全局替换的协议。
   - **节点渲染阶段**: `agent-asset://` 等协议留给具体节点组件（如 `ImageNode`、`VideoNode`、`AudioNode`、`GenericHtmlNode`）处理。这些组件通过注入的 `resolveAsset` 钩子或 `currentAgent` 上下文，在运行时动态解析真实 URL。
   - **优势**: 避免了 Markdown 解析器对转换后的长本地路径（包含 `%` 等字符）进行二次编码，导致 Tauri 无法识别。
+- **缺失图片**: 未解析的单个 `agent-asset://` URL 保留原值，由图片节点展示失败状态；Markdown 图片与 HTML 图片预处理、AST HTML 图片节点共用带文件名的占位。占位保留原始 URL 供悬停查看，HTML 图片沿用尺寸、内联布局样式、class 与 id，并支持重复预处理。
 - **HTML 预览**: 在 `HtmlInteractiveViewer` 的沙箱中，内容在注入前会经过资产解析，确保预览中的所有外部资源引用都能正确加载。
 - **测试页数据来源**: `RichTextRendererTester` 直接通过 `agent-manager` 与 `user-profile-manager` 的 Pinia Store 获取并初始化测试角色数据，并直接调用 `agent-manager` 的资产解析工具；不再经由 `llm-chat` Registry 或兼容重导出读取。侧边栏只接收父测试页传入的响应式列表，保证角色选择与资产解析使用同一份领域状态。
 

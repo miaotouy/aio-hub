@@ -26,6 +26,13 @@
     <slot />
   </component>
 
+  <span
+    v-else-if="missingImageHtml"
+    class="generic-node-wrapper is-transparent"
+    :data-node-id="nodeId"
+    v-html="missingImageHtml"
+  ></span>
+
   <div
     v-else
     class="generic-node-wrapper"
@@ -103,6 +110,7 @@ import {
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { Play, Pause, Square, Volume2 } from "lucide-vue-next";
 import { resolveLocalPath } from "../../utils/path-utils";
+import { createMissingImagePlaceholder } from "@/tools/agent-manager/utils/agentAssetUtils";
 
 const props = defineProps<{
   nodeId: string;
@@ -461,6 +469,24 @@ const filteredAttributes = computed(() => {
   }
 
   return attrs;
+});
+
+// AST 模式按节点解析 src，缺失图片与整段 HTML 预处理共用占位。
+const missingImageHtml = computed(() => {
+  const attrs = filteredAttributes.value;
+  if (
+    props.tagName.toLowerCase() !== "img" ||
+    typeof attrs.src !== "string" ||
+    !attrs.src.startsWith("agent-asset://")
+  ) {
+    return "";
+  }
+  const image = document.createElement("img");
+  for (const [key, value] of Object.entries(attrs)) {
+    image.setAttribute(key, String(value));
+  }
+  image.className = computedClass.value || "";
+  return createMissingImagePlaceholder(attrs.src, image);
 });
 </script>
 

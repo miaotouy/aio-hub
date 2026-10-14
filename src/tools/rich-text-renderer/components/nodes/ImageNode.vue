@@ -121,11 +121,14 @@ let ownedObjectUrl: string | null = null;
 let currentAbortController: AbortController | null = null;
 
 /**
- * 加载失败时展示的资源标识：优先 alt，其次从 src 提取文件名，
+ * 加载失败时展示的资源标识：智能体资产使用请求文件名，其他图片优先 alt，
  * 便于在占位中直接看到尝试请求的资源名。
  */
 const displayResourceName = computed(() =>
-  resolveResourceLabel(props.src, props.alt)
+  resolveResourceLabel(
+    props.src,
+    props.src.startsWith("agent-asset://") ? "" : props.alt
+  )
 );
 
 const releaseOwnedObjectUrl = () => {
@@ -161,6 +164,12 @@ const resolveUrl = async () => {
           `[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${src}`
         );
       }
+    }
+
+    // 资产解析后仍保留协议前缀，说明资源缺失；直接展示资源名，避免无效请求。
+    if (src.startsWith("agent-asset://")) {
+      hasError.value = true;
+      return;
     }
 
     // 2. 针对 VCP 表情包进行 URL 预修复 (防止触发封禁)
@@ -544,6 +553,7 @@ onBeforeUnmount(() => {
 .error-placeholder {
   flex-direction: column;
   gap: 4px;
+  line-height: 1.4;
   text-align: center;
 }
 

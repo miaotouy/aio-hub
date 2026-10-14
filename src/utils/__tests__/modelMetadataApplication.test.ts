@@ -43,7 +43,7 @@ describe("resolveAppliedModelGroup", () => {
     );
     const nextMajorGeminiMetadata = getMatchedModelProperties(
       DEFAULT_METADATA_RULES,
-      "gemini-4.1-flash",
+      "gemini-5.1-flash",
       "openai"
     );
 
@@ -71,6 +71,70 @@ describe("resolveAppliedModelGroup", () => {
 });
 
 describe("current vendor model metadata", () => {
+  it("uses Opus 5.5 adaptive effort and its own release metadata", () => {
+    const metadata = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "claude-opus-5-5",
+      "anthropic"
+    );
+    expect(metadata).toMatchObject({
+      group: "Claude 5",
+      contextLength: 1000000,
+      maxOutputTokens: 128000,
+      releaseDate: "2026-09-22",
+      knowledgeCutoff: "2026-06",
+      pricing: { input: 4, output: 20, cacheHitInput: 0.2, unit: "USD" },
+      capabilities: {
+        thinking: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
+      },
+    });
+    expect(metadata?.notBeforeRetirementDate).toBeUndefined();
+    const previous = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "claude-opus-5-20260609",
+      "anthropic"
+    );
+    expect(previous).toMatchObject({
+      releaseDate: "2026-06-09",
+      notBeforeRetirementDate: "2027-06-09",
+    });
+  });
+  it.each(["google", "openai"])(
+    "applies Gemini 4 Argon limits and thinking levels through %s",
+    (provider) => {
+      const metadata = getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "gemini-4-argon",
+        provider
+      );
+
+      expect(metadata).toMatchObject({
+        group: "Gemini 4",
+        icon: "/model-icons/gemini-color.svg",
+        tokenizer: "gemini",
+        contextLength: 1048576,
+        maxOutputTokens: 65536,
+        pricing: { input: 2, output: 10, cacheHitInput: 0.1, unit: "USD" },
+        capabilities: {
+          vision: true,
+          audio: true,
+          video: true,
+          document: true,
+          toolUse: true,
+          webSearch: true,
+          fileSearch: true,
+          codeExecution: true,
+          computerUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "medium", "high"],
+        },
+      });
+    }
+  );
+
   it("classifies the latest Claude Fable route without requiring a fixed suffix", () => {
     const metadata = getMatchedModelProperties(
       DEFAULT_METADATA_RULES,
@@ -159,20 +223,87 @@ describe("current vendor model metadata", () => {
 });
 
 describe("current OpenAI model metadata", () => {
-  it("classifies GPT-6 Astra as an OpenAI flagship model", () => {
+  it("applies GPT-6.1 Sol limits and supported reasoning efforts", () => {
     const metadata = getMatchedModelProperties(
       DEFAULT_METADATA_RULES,
-      "gpt-6-astra",
+      "gpt-6.1-sol",
       "openai"
     );
 
     expect(metadata).toMatchObject({
       group: "OpenAI",
-      icon: `/model-icons/openai.svg`,
+      tokenizer: "gpt4o",
+      contextLength: 1050000,
+      maxOutputTokens: 128000,
+      pricing: { input: 2, output: 10, cacheHitInput: 0.1, unit: "USD" },
+      releaseDate: "2026-09-29",
+      knowledgeCutoff: "2026-04-30",
       capabilities: {
-        thinking: true,
+        vision: true,
         toolUse: true,
+        computerUse: true,
+        thinkingConfigType: "effort",
+        reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
       },
     });
   });
+
+  it.each([
+    {
+      id: "gpt-6-astra",
+      input: 10,
+      output: 50,
+      cacheHitInput: 1,
+      cutoff: "2026-04-30",
+      release: "2026-09-03",
+      efforts: ["low", "medium", "high", "xhigh", "max"],
+    },
+    {
+      id: "gpt-6-sol",
+      input: 2,
+      output: 10,
+      cacheHitInput: 0.2,
+      cutoff: "2026-04-20",
+      release: "2026-09-22",
+      efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    },
+    {
+      id: "gpt-6-luna",
+      input: 0.1,
+      output: 0.5,
+      cacheHitInput: 0.01,
+      cutoff: "2026-05-18",
+      release: "2026-09-22",
+      efforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    },
+  ])(
+    "applies independently verified specs for $id",
+    ({ id, input, output, cacheHitInput, cutoff, release, efforts }) => {
+      const metadata = getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        id,
+        "openai"
+      );
+
+      expect(metadata).toMatchObject({
+        group: "OpenAI",
+        icon: "/model-icons/openai.svg",
+        tokenizer: "gpt4o",
+        contextLength: 1050000,
+        maxInputTokens: 922000,
+        maxOutputTokens: 128000,
+        pricing: { input, output, cacheHitInput, unit: "USD" },
+        knowledgeCutoff: cutoff,
+        releaseDate: release,
+        capabilities: {
+          vision: true,
+          toolUse: true,
+          computerUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: efforts,
+        },
+      });
+    }
+  );
 });

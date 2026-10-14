@@ -15,7 +15,7 @@
 /**
  * OpenAI 系列模型前缀匹配规则
  *
- * 包括 GPT-4o、GPT-5.6/GPT-5.5/GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
+ * 包括 GPT-6.1/GPT-6、GPT-4o、GPT-5.6/GPT-5.5/GPT-5、GPT-4.1、GPT-4、GPT-3.5、o1/o3/o4 推理系列、ChatGPT 等。
  */
 import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
 import type { ModelMetadataProperties } from "../../types/model-metadata";
@@ -83,6 +83,60 @@ const openaiFlagshipCapabilities = {
   reasoningEffortOptions: ["none", "low", "medium", "high", "xhigh"],
 };
 
+// GPT-6.1 Sol: https://developers.openai.com/api/docs/models/gpt-6.1-sol
+export const gpt61SolCapabilities = {
+  ...openaiFlagshipCapabilities,
+  reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
+};
+
+// 官方模型页与更新日志（2026-10-15 核对）：
+// https://developers.openai.com/api/docs/models/gpt-6-astra
+// https://developers.openai.com/api/docs/models/gpt-6-sol
+// https://developers.openai.com/api/docs/models/gpt-6-luna
+// https://developers.openai.com/api/docs/changelog
+const gpt6OptionalReasoningCapabilities = {
+  ...openaiFlagshipCapabilities,
+  reasoningEffortOptions: ["none", "low", "medium", "high", "xhigh", "max"],
+};
+
+export const gpt6ModelDefinitions = [
+  {
+    id: "gpt-6-astra",
+    name: "GPT-6 Astra",
+    capabilities: gpt61SolCapabilities,
+    pricing: { input: 10, output: 50, cacheHitInput: 1, cacheWriteInput: 12.5 },
+    releaseDate: "2026-09-03",
+    knowledgeCutoff: "2026-04-30",
+    description:
+      "GPT-6 Astra：复杂推理、编码、计算机操作、研究与文档创作旗舰，1.05M 上下文，128K 输出；工具调用使用 Responses API",
+  },
+  {
+    id: "gpt-6-sol",
+    name: "GPT-6 Sol",
+    capabilities: gpt6OptionalReasoningCapabilities,
+    pricing: { input: 2, output: 10, cacheHitInput: 0.2, cacheWriteInput: 2.5 },
+    releaseDate: "2026-09-22",
+    knowledgeCutoff: "2026-04-20",
+    description:
+      "GPT-6 Sol：复杂编码与智能体工作流，1.05M 上下文，128K 输出；Chat Completions 函数调用限推理等级 none，推理与工具联用选择 Responses API",
+  },
+  {
+    id: "gpt-6-luna",
+    name: "GPT-6 Luna",
+    capabilities: gpt6OptionalReasoningCapabilities,
+    pricing: {
+      input: 0.1,
+      output: 0.5,
+      cacheHitInput: 0.01,
+      cacheWriteInput: 0.125,
+    },
+    releaseDate: "2026-09-22",
+    knowledgeCutoff: "2026-05-18",
+    description:
+      "GPT-6 Luna：高吞吐、成本敏感的编码与智能体任务，1.05M 上下文，128K 输出；Chat Completions 函数调用限推理等级 none，推理与工具联用选择 Responses API",
+  },
+];
+
 // ==========================================
 // OpenAI 模型规则定义
 // ==========================================
@@ -108,20 +162,60 @@ export const openaiModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
     {
       id: "model-regex-gpt-6.1",
       matchType: "modelPrefix",
-      matchValue: "^gpt-6\\.1(?:-|$)",
+      matchValue: "^gpt-6\\.1-sol(?:-|$)",
       useRegex: true,
       properties: {
         icon: `/model-icons/openai.svg`,
         group: "OpenAI",
         tokenizer: "gpt4o",
-        capabilities: openaiFlagshipCapabilities,
+        capabilities: gpt61SolCapabilities,
+        contextLength: 1050000,
+        maxInputTokens: 922000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: 2,
+          output: 10,
+          cacheHitInput: 0.1,
+          unit: "USD",
+          note: "每百万 token，标准计费；输入超过 272K 时，输入与缓存价格为 2 倍，输出价格为 1.5 倍；缓存写入 $2.50/百万 token",
+        },
+        releaseDate: "2026-09-29",
+        knowledgeCutoff: "2026-04-30",
         description:
-          "GPT-6.1 Sol 旗舰模型（2026-09-29 发布，1.05M 上下文，128K 输出；支持高级推理、工具调用与多模态工作流）",
+          "GPT-6.1 Sol：面向复杂编码、计算机操作与专业任务，1.05M 上下文，128K 输出；推理等级 low 至 max，工具调用使用 Responses API",
       },
       priority: 31,
       enabled: true,
-      description: "GPT-6.1 系列模型元数据规则",
+      description: "GPT-6.1 Sol 模型元数据规则",
     },
+    ...gpt6ModelDefinitions.map((model) => ({
+      id: `model-prefix-${model.id}`,
+      matchType: "modelPrefix" as const,
+      matchValue: `^${model.id}(?:-|$)`,
+      useRegex: true,
+      properties: {
+        icon: "/model-icons/openai.svg",
+        group: "OpenAI",
+        tokenizer: "gpt4o",
+        capabilities: model.capabilities,
+        contextLength: 1050000,
+        maxInputTokens: 922000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: model.pricing.input,
+          output: model.pricing.output,
+          cacheHitInput: model.pricing.cacheHitInput,
+          unit: "USD",
+          note: `每百万 token，标准计费；输入超过 272K 时，输入与缓存价格为 2 倍，输出价格为 1.5 倍；缓存写入 USD ${model.pricing.cacheWriteInput}/百万 token`,
+        },
+        releaseDate: model.releaseDate,
+        knowledgeCutoff: model.knowledgeCutoff,
+        description: model.description,
+      },
+      priority: 31,
+      enabled: true,
+      description: `模型 ${model.id} 元数据规则`,
+    })),
     {
       id: "model-regex-gpt-6",
       matchType: "modelPrefix",

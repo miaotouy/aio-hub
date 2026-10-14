@@ -17,6 +17,8 @@
  */
 
 import type { LlmPreset } from "../types";
+import { claudeOpus55Capabilities } from "../../model-metadata-presets/models-anthropic";
+import { gemini4ArgonCapabilities } from "../../model-metadata-presets/models-google";
 
 // Google Vertex AI
 export const vertexAiPreset: LlmPreset = {
@@ -34,6 +36,16 @@ export const vertexAiPreset: LlmPreset = {
     },
   ],
   defaultModels: [
+    {
+      id: "gemini-4-argon",
+      name: "Gemini 4 Argon",
+      group: "Gemini 4",
+      provider: "google",
+      tokenLimits: { contextLength: 1048576, output: 65536 },
+      capabilities: gemini4ArgonCapabilities,
+      description:
+        "复杂软件工程、数学与科学推理旗舰，1M 共享上下文，默认同步输出上限 65K（2026-10）",
+    },
     {
       id: "gemini-3.7-flash",
       name: "Gemini 3.7 Flash",
@@ -196,6 +208,16 @@ export const vertexAiPreset: LlmPreset = {
       provider: "google",
       capabilities: { vision: true, toolUse: true },
       description: "Anthropic模型集成（2026-06-09）",
+    },
+    {
+      id: "claude-opus-5-5",
+      name: "Claude Opus 5.5",
+      group: "Claude 5",
+      provider: "google",
+      tokenLimits: { contextLength: 1000000, output: 128000 },
+      capabilities: claudeOpus55Capabilities,
+      description:
+        "长程智能体编码与知识工作，1M 上下文，128K 输出；自适应思考始终开启，默认 effort 为 medium（2026-09-22）",
     },
     {
       id: "claude-opus-5",

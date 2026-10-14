@@ -20,9 +20,57 @@
 import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
 import type { ModelMetadataProperties } from "../../types/model-metadata";
 
+// 官方规格与价格（2026-10-15 核对）：
+// https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
+// https://ai.google.dev/gemini-api/docs/pricing
+export const gemini4ArgonCapabilities = {
+  vision: true,
+  audio: true,
+  video: true,
+  document: true,
+  toolUse: true,
+  jsonOutput: true,
+  webSearch: true,
+  fileSearch: true,
+  codeExecution: true,
+  computerUse: true,
+  thinking: true,
+  thinkingConfigType: "effort" as const,
+  reasoningEffortOptions: ["low", "medium", "high"],
+};
+
 export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
   [
-    // === Gemini 当前具体模型信息（官方模型页/价格页，2026-09） ===
+    // === Gemini 当前具体模型信息（官方模型页/价格页，2026-10） ===
+    {
+      id: "model-gemini-4-argon",
+      matchType: "model",
+      matchValue: "gemini-4-argon",
+      properties: {
+        capabilities: gemini4ArgonCapabilities,
+        contextLength: 1048576,
+        maxOutputTokens: 65536,
+        pricing: {
+          input: 2,
+          output: 10,
+          cacheHitInput: 0.1,
+          unit: "USD",
+          note: "每百万 token，标准计费；优惠价格至 2026-11-30，2026-12-01 起输入 $4、输出 $20、缓存命中 $0.20；输出含 thinking tokens，仅支持隐式缓存",
+        },
+        releaseDate: "2026-10",
+        description:
+          "Gemini 4 Argon：面向复杂软件工程、数学、科学与多步智能体任务；输入、思考与输出共享 1M 上下文，默认同步输出上限 65K，长解码最高 1M（扣除输入）",
+        recommendedFor: [
+          "复杂编码",
+          "数学与科学推理",
+          "多步智能体",
+          "长文档分析",
+        ],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型 gemini-4-argon 元数据规则",
+    },
     {
       id: "model-gemini-3.8-flash",
       matchType: "model",
@@ -522,6 +570,18 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       enabled: true,
       description:
         "版本化 Gemini 模型的兜底分组，覆盖尚未单独登记的未来主版本与子版本",
+    },
+    {
+      id: "model-regex-gemini-4",
+      matchType: "modelPrefix",
+      matchValue: "^gemini-4(?:\\.\\d+)?(?:-|$)",
+      useRegex: true,
+      properties: {
+        group: "Gemini 4",
+      },
+      priority: 22,
+      enabled: true,
+      description: "Gemini 4 系列模型分组",
     },
     {
       id: "model-regex-gemini-3",

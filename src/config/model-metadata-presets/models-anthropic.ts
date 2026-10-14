@@ -53,6 +53,16 @@ const claudeAdaptiveThinkingCapabilities = {
   thinkingConfigType: "budget" as const,
 };
 
+// 官方规格（2026-10-15 核对）：
+// https://platform.claude.com/docs/en/models/opus-5-5/overview
+// https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5
+export const claudeOpus55Capabilities = {
+  ...claudeBaseCapabilities,
+  thinking: true,
+  thinkingConfigType: "effort" as const,
+  reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
+};
+
 export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
   [
     // === Claude 当前具体模型信息（官方模型页/价格页，2026-09） ===
@@ -130,15 +140,15 @@ export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataPropertie
           output: 20.0,
           cacheHitInput: 0.2,
           unit: "USD",
-          note: "每百万 token；Cache Hits & Refreshes 为 $0.20/MTok",
+          note: "每百万 token；缓存命中 $0.20，5 分钟缓存写入 $5，1 小时缓存写入 $8",
         },
-        capabilities: claudeAdaptiveThinkingCapabilities,
+        capabilities: claudeOpus55Capabilities,
         adaptiveThinking: true,
         releaseDate: "2026-09-22",
         knowledgeCutoff: "2026-06",
         trainingDataCutoff: "2026-06",
         description:
-          "Claude Opus 5.5：Opus 5 的增量升级，面向复杂 agentic coding 与企业级工作负载，1M 上下文，128K 输出，支持自适应思考",
+          "Claude Opus 5.5：长程智能体编码与知识工作，1M 上下文，128K 输出；自适应思考始终开启，默认 effort 为 medium，工具选择支持 auto / none",
       },
       priority: 37,
       enabled: true,
@@ -178,7 +188,8 @@ export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataPropertie
     {
       id: "model-claude-opus-5",
       matchType: "modelPrefix",
-      matchValue: "claude-opus-5",
+      matchValue: "^claude-opus-5(?:-\\d{8})?$",
+      useRegex: true,
       properties: {
         icon: `/model-icons/claude-color.svg`,
         group: "Claude 5",

@@ -29,6 +29,55 @@ function createRequest(overrides: Partial<LlmRequest> = {}): LlmRequest {
 }
 
 describe("OpenAI-compatible provider adapter", () => {
+  it.each(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"])(
+    "builds a valid reasoning Chat Completions payload for %s",
+    (model) => {
+      const wire = buildOpenAiCompatibleRequest(profile, {
+        model,
+        messages: [{ role: "user", content: "Solve this." }],
+        maxCompletionTokens: 128,
+        reasoningEffort: "high",
+        temperature: 0.4,
+        topP: 0.8,
+        logprobs: true,
+        topLogprobs: 5,
+      });
+      expect(wire.body).toEqual({
+        kind: "json",
+        value: {
+          model,
+          messages: [{ role: "user", content: "Solve this." }],
+          max_completion_tokens: 128,
+          reasoning_effort: "high",
+        },
+      });
+    }
+  );
+
+  it("preserves sampling when GPT-6 Sol runs with effort none", () => {
+    const wire = buildOpenAiCompatibleRequest(profile, {
+      model: "gpt-6-sol",
+      messages: [{ role: "user", content: "Hello." }],
+      reasoningEffort: "none",
+      temperature: 0.4,
+      topP: 0.8,
+      logprobs: true,
+      topLogprobs: 5,
+    });
+    expect(wire.body).toEqual({
+      kind: "json",
+      value: {
+        model: "gpt-6-sol",
+        messages: [{ role: "user", content: "Hello." }],
+        reasoning_effort: "none",
+        temperature: 0.4,
+        top_p: 0.8,
+        logprobs: true,
+        top_logprobs: 5,
+      },
+    });
+  });
+
   it("builds a canonical wire request with standard and extension parameters", () => {
     const wireRequest = buildOpenAiCompatibleRequest(profile, {
       ...createRequest(),

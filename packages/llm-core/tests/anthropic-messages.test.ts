@@ -16,6 +16,31 @@ const profile: ProviderProfile = {
 };
 
 describe("Anthropic Messages provider adapter", () => {
+  it.each([true, false])(
+    "uses adaptive thinking for Opus 5.5 even with legacy thinkingEnabled=%s",
+    (thinkingEnabled) => {
+      const wire = buildAnthropicMessagesRequest(profile, {
+        model: "claude-opus-5-5",
+        messages: [{ role: "user", content: "Solve this." }],
+        maxTokens: 128000,
+        reasoningEffort: "xhigh",
+        thinkingEnabled,
+        thinkingBudget: 4096,
+      });
+      expect(wire.body).toEqual({
+        kind: "json",
+        value: {
+          model: "claude-opus-5-5",
+          messages: [{ role: "user", content: "Solve this." }],
+          max_tokens: 128000,
+          thinking: { type: "adaptive" },
+          output_config: { effort: "xhigh" },
+        },
+      });
+      expect(wire.headers["anthropic-beta"]).toBe("files-api-2025-04-14");
+    }
+  );
+
   it("supports relative and absolute Messages endpoint overrides", () => {
     expect(
       buildAnthropicMessagesUrl({

@@ -58,6 +58,19 @@ function createOptions(
 }
 
 describe("filterParametersByCapabilities thinking parameters", () => {
+  it.each(["claude", "vertexai"] as const)(
+    "preserves Opus 5.5 effort through %s",
+    (provider) => {
+      const modelId = "claude-opus-5-5";
+      const result = filterParametersByCapabilities(
+        createOptions(modelId, { reasoningEffort: "xhigh" }),
+        createProfile(provider),
+        createThinkingModel(modelId, "effort", "anthropic")
+      );
+      expect(result.reasoningEffort).toBe("xhigh");
+    }
+  );
+
   it("preserves Gemini 3 effort and summaries behind OpenAI-compatible profiles", () => {
     const modelId = "gemini-3.1-pro-preview";
     const result = filterParametersByCapabilities(

@@ -97,6 +97,31 @@ describe("Anthropic Adapter - Chat", () => {
     expect(result.usage?.totalTokens).toBe(25);
   });
 
+  it("forwards Opus 5.5 effort into the adaptive Messages request", async () => {
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "msg-opus",
+          model: "claude-opus-5-5",
+          content: [{ type: "text", text: "Done." }],
+          stop_reason: "end_turn",
+        }),
+    });
+    await callClaudeChatApi(mockProfile, {
+      profileId: mockProfile.id,
+      modelId: "claude-opus-5-5",
+      messages: [{ role: "user", content: "Solve this." }],
+      reasoningEffort: "xhigh",
+    });
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body)).toMatchObject({
+      thinking: { type: "adaptive" },
+      output_config: { effort: "xhigh" },
+    });
+  });
+
   it("should handle multimodal content (images and documents)", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile-claude",

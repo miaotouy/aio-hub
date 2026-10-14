@@ -1,3 +1,4 @@
+import { usesGpt6Reasoning } from "./openai-reasoning-compatibility";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -129,6 +130,13 @@ export function buildOpenAiCompatibleBody(
         ? { budget_tokens: request.thinkingBudget }
         : {}),
     };
+  }
+
+  if (usesGpt6Reasoning(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_logprobs;
+    delete body.logprobs;
   }
 
   Object.assign(body, request.extraBody, request.extensions);

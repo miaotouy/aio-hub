@@ -106,6 +106,7 @@ function buildCoreRequest(options: LlmRequestOptions): CoreLlmRequest {
     metadata: toJsonObject(options.claudeMetadata),
     thinkingEnabled: options.thinkingEnabled,
     thinkingBudget: options.thinkingBudget,
+    reasoningEffort: options.reasoningEffort,
     tools: options.tools?.map((tool) => ({
       type: "function" as const,
       function: {

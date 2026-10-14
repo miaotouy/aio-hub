@@ -47,7 +47,26 @@ describe("OpenAI Adapter - Chat", () => {
     apiKeys: ["test-key"],
     type: "openai",
     enabled: true,
-    models: [],
+    models: [
+      {
+        id: "gemini-3.1-pro-preview",
+        name: "Gemini 3.1 Pro",
+        provider: "google",
+        apiFamily: "gemini",
+      },
+      {
+        id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        provider: "google",
+        apiFamily: "gemini",
+      },
+      {
+        id: "qwen-plus",
+        name: "Qwen Plus",
+        provider: "qwen",
+        apiFamily: "qwen",
+      },
+    ],
   };
 
   beforeEach(() => {
@@ -588,6 +607,39 @@ describe("OpenAI Adapter - Chat", () => {
         revisedPrompt: undefined,
       },
     ]);
+  });
+
+  it("forwards GPT-6 Astra effort from its persisted API family", async () => {
+    const profile: LlmProfile = {
+      ...mockProfile,
+      type: "openai-compatible",
+      models: [
+        {
+          id: "gpt-6-astra",
+          name: "GPT-6 Astra",
+          provider: "gateway",
+          apiFamily: "openai",
+        },
+      ],
+    };
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+      }),
+    });
+    await callOpenAiChatApi(profile, {
+      profileId: profile.id,
+      modelId: "gpt-6-astra",
+      messages: [{ role: "user", content: "Think carefully." }],
+      reasoningEffort: "max",
+    });
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body)).toEqual({
+      model: "gpt-6-astra",
+      messages: [{ role: "user", content: "Think carefully." }],
+      reasoning_effort: "max",
+    });
   });
 
   it("should send reasoning_effort for OpenAI-family models", async () => {

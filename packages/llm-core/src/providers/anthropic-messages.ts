@@ -22,6 +22,13 @@ const DEFAULT_ANTHROPIC_VERSION = "2023-06-01";
 const FILES_API_BETA = "files-api-2025-04-14";
 const THINKING_BETA = "thinking-2025-12-05";
 
+function usesAdaptiveThinking(request: LlmRequest): boolean {
+  return (
+    request.reasoningEffort !== undefined ||
+    /(?:^|[./])claude-opus-5-5(?:[-@]|$)/i.test(request.model)
+  );
+}
+
 export function buildAnthropicMessagesUrl(profile: ProviderProfile): string {
   const customEndpoint = profile.endpoints?.messages;
   if (customEndpoint?.startsWith("http")) return customEndpoint;
@@ -41,7 +48,9 @@ export function buildAnthropicMessagesRequest(
   request: LlmRequest
 ): WireRequest {
   const betas = new Set<string>([FILES_API_BETA]);
-  if (request.thinkingEnabled) betas.add(THINKING_BETA);
+  if (request.thinkingEnabled && !usesAdaptiveThinking(request)) {
+    betas.add(THINKING_BETA);
+  }
   for (const beta of readStringArray(profile.options?.anthropicBetas)) {
     betas.add(beta);
   }
@@ -92,7 +101,13 @@ export function buildAnthropicMessagesBody(
   if (stopSequences?.length) body.stop_sequences = stopSequences;
   if (request.metadata) body.metadata = request.metadata;
 
-  if (request.thinkingEnabled) {
+  if (usesAdaptiveThinking(request)) {
+    body.thinking = { type: "adaptive" };
+    if (request.reasoningEffort !== undefined) {
+      body.output_config = { effort: request.reasoningEffort };
+    }
+    delete body.temperature;
+  } else if (request.thinkingEnabled) {
     body.thinking = {
       type: "enabled",
       budget_tokens: request.thinkingBudget ?? 4096,

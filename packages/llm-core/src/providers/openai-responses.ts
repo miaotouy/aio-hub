@@ -1,3 +1,4 @@
+import { usesGpt6Reasoning } from "./openai-reasoning-compatibility";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -129,6 +130,17 @@ export function buildOpenAiResponsesBody(
   assignDefined(body, "metadata", request.metadata);
   if (request.stop !== undefined) {
     body.truncation = request.stop === "auto" ? "auto" : "disabled";
+  }
+
+  if (usesGpt6Reasoning(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_logprobs;
+    const filteredInclude = [...include].filter(
+      (item) => item !== "message.output_text.logprobs"
+    );
+    if (filteredInclude.length) body.include = filteredInclude;
+    else delete body.include;
   }
 
   Object.assign(body, request.extraBody, request.extensions);

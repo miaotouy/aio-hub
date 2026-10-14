@@ -27,6 +27,45 @@ function createRequest(overrides: Partial<LlmRequest> = {}): LlmRequest {
 }
 
 describe("Google GenerateContent provider adapter", () => {
+  it.each(["gemini", "vertexai"] as const)(
+    "sends Gemini 4 reasoning effort as thinkingLevel through %s",
+    (provider) => {
+      const wire = buildGoogleGenerateContentRequest(
+        {
+          ...developerProfile,
+          provider,
+          options:
+            provider === "vertexai"
+              ? {
+                  projectId: "test-project",
+                  location: "global",
+                  apiStyle: "vertex",
+                }
+              : undefined,
+        },
+        createRequest({
+          model: "gemini-4-argon",
+          thinkingEnabled: true,
+          reasoningEffort: "medium",
+          maxTokens: 65536,
+        })
+      );
+
+      expect(wire.body).toEqual({
+        kind: "json",
+        value: expect.objectContaining({
+          generationConfig: expect.objectContaining({
+            maxOutputTokens: 65536,
+            thinkingConfig: {
+              includeThoughts: true,
+              thinkingLevel: "medium",
+            },
+          }),
+        }),
+      });
+    }
+  );
+
   it("prefers the dedicated endpoint and replaces every model placeholder", () => {
     const request = createRequest({ model: "gemini-custom" });
     expect(

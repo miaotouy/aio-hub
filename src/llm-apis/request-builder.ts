@@ -746,7 +746,7 @@ export function filterParametersByCapabilities(
 
   // ===== 推理等级 =====
   // reasoningEffort 是统一抽象，但只有部分 provider 接受 OpenAI 的
-  // reasoning_effort 字段；Gemini/Vertex 则把它映射为 thinkingLevel。
+  // reasoning_effort 字段；Gemini/Vertex 映射为 thinkingLevel，Claude 映射为 output_config.effort。
   const isOpenAiReasoningEffortProvider =
     profile.type === "openai" ||
     profile.type === "openai-compatible" ||
@@ -761,15 +761,17 @@ export function filterParametersByCapabilities(
   const supportsProviderReasoningEffort =
     supported.reasoningEffort &&
     (!isOpenAiReasoningEffortProvider || isCompatibleReasoningModel);
-  const supportsThinkingLevelAlias =
-    (profile.type === "gemini" || profile.type === "vertexai") &&
+  const supportsThinkingEffortAlias =
+    (profile.type === "gemini" ||
+      profile.type === "vertexai" ||
+      profile.type === "claude") &&
     supported.thinking &&
     capabilities?.thinkingConfigType === "effort";
   // 思考参数由选中模型明确声明的 capabilities 决定，避免同名的
   // 第三方/中转模型在未声明能力时被字符串匹配误判为兼容。
   const hasThinkingCapability = capabilities?.thinking === true;
   const supportsReasoning =
-    (supportsProviderReasoningEffort || supportsThinkingLevelAlias) &&
+    (supportsProviderReasoningEffort || supportsThinkingEffortAlias) &&
     hasThinkingCapability;
 
   if (supportsReasoning && options.reasoningEffort !== undefined) {

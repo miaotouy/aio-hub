@@ -36,7 +36,6 @@ import {
   cleanPayload,
   getModelFamily,
   inferImageMimeType,
-  isOpenAIModel,
 } from "@/llm-apis/request-builder";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import { buildOpenAiHeaders } from "./utils";
@@ -45,6 +44,11 @@ import {
   getDeepSeekReplayReasoningContent,
   isDeepSeekModel,
 } from "../deepseek/reasoning-artifacts";
+
+function getRequestModelFamily(profile: LlmProfile, modelId: string) {
+  const model = profile.models.find((entry) => entry.id === modelId);
+  return getModelFamily(modelId, model?.provider ?? profile.type, model);
+}
 
 function shouldSendOpenAiReasoningEffort(
   profile: LlmProfile,
@@ -55,7 +59,7 @@ function shouldSendOpenAiReasoningEffort(
     (profile.type === "openai" ||
       profile.type === "openai-compatible" ||
       profile.type === "deepseek") &&
-    (isOpenAIModel(modelId) ||
+    (getRequestModelFamily(profile, modelId) === "openai" ||
       id.includes("doubao") ||
       id.includes("seed") ||
       id.includes("glm") ||
@@ -135,7 +139,7 @@ function buildCoreRequest(
     toJsonObject(options.extraBody)
   );
   const isGeminiModel =
-    getModelFamily(options.modelId, profile.type) === "gemini";
+    getRequestModelFamily(profile, options.modelId) === "gemini";
   const geminiExtraBody = isGeminiModel
     ? buildGeminiExtraBody(options, explicitExtraBody)
     : undefined;

@@ -294,7 +294,7 @@ function buildGenerationConfig(request: LlmRequest): JsonObject {
     const level = (
       request.thinkingLevel ?? request.reasoningEffort
     )?.toLowerCase();
-    if (request.model.includes("gemini-3") && level) {
+    if (/gemini-[34](?:\.\d+)?(?:-|$)/i.test(request.model) && level) {
       thinkingConfig.thinkingLevel = normalizeThinkingLevel(level);
     } else if (request.thinkingBudget !== undefined) {
       thinkingConfig.thinkingBudget = request.thinkingBudget;

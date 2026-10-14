@@ -19,6 +19,56 @@ const profile: ProviderProfile = {
 };
 
 describe("OpenAI Responses provider adapter", () => {
+  it.each(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"])(
+    "builds a valid reasoning Responses payload for %s",
+    (model) => {
+      const wire = buildOpenAiResponsesRequest(profile, {
+        model,
+        messages: [{ role: "user", content: "Solve this." }],
+        maxTokens: 128,
+        reasoningEffort: "high",
+        temperature: 0.4,
+        topP: 0.8,
+        include: [
+          "message.output_text.logprobs",
+          "reasoning.encrypted_content",
+        ],
+      });
+      expect(wire.body).toEqual({
+        kind: "json",
+        value: {
+          model,
+          input: "Solve this.",
+          max_output_tokens: 128,
+          reasoning: { effort: "high" },
+          include: ["reasoning.encrypted_content"],
+        },
+      });
+    }
+  );
+
+  it("preserves sampling and log probability includes for GPT-6 Luna effort none", () => {
+    const wire = buildOpenAiResponsesRequest(profile, {
+      model: "gpt-6-luna",
+      messages: [{ role: "user", content: "Hello." }],
+      reasoningEffort: "none",
+      temperature: 0.4,
+      topP: 0.8,
+      include: ["message.output_text.logprobs"],
+    });
+    expect(wire.body).toEqual({
+      kind: "json",
+      value: {
+        model: "gpt-6-luna",
+        input: "Hello.",
+        reasoning: { effort: "none" },
+        temperature: 0.4,
+        top_p: 0.8,
+        include: ["message.output_text.logprobs"],
+      },
+    });
+  });
+
   it("prefers dedicated relative and absolute Responses endpoints", () => {
     expect(
       buildOpenAiResponsesUrl({

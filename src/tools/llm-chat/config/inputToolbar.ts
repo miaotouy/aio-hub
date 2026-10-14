@@ -11,6 +11,7 @@ export const INPUT_TOOLBAR_ACTION_IDS: InputToolbarActionId[] = [
   "macro",
   "streaming",
   "sessions",
+  "new-session",
   "tool-settings",
   "complete",
   "continuation-model",

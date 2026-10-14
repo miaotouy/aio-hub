@@ -6,6 +6,7 @@ export type InputToolbarActionId =
   | "attachment"
   | "knowledge"
   | "sessions"
+  | "new-session"
   | "temporary-model"
   | "tool-settings"
   | "input-settings"

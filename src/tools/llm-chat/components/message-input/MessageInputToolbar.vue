@@ -344,6 +344,9 @@ async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
   }
   try {
     switch (action.id) {
+      case "new-session":
+        if (inputStore.handleNewSession()) panel.close();
+        break;
       case "streaming":
         emit("toggle-streaming");
         break;

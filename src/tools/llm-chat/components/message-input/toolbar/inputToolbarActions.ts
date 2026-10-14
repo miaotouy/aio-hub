@@ -7,6 +7,7 @@ import {
   WandSparkles,
   Type,
   MessageSquare,
+  MessageSquarePlus,
   Wrench,
   Settings,
   Maximize2,
@@ -78,6 +79,13 @@ export const INPUT_TOOLBAR_ACTIONS: ToolbarActionDefinition[] = [
     group: "会话与显示",
     kind: "panel",
     testId: "chat-session-list-button",
+  },
+  {
+    id: "new-session",
+    label: "新建会话",
+    icon: MessageSquarePlus,
+    group: "会话与显示",
+    testId: "chat-toolbar-new-session",
   },
   {
     id: "tool-settings",

@@ -381,8 +381,8 @@ const applyScale = () => {
   if (!mermaidRef.value) return;
   const svg = mermaidRef.value.querySelector("svg");
   if (svg) {
-    svg.style.transform = `scale(${currentScale.value})`;
-    svg.style.transformOrigin = "center center";
+    // zoom 同步改变布局尺寸，让滚动范围覆盖完整图表。
+    svg.style.setProperty("--mermaid-scale", String(currentScale.value));
   }
 };
 
@@ -397,9 +397,9 @@ const downloadSvg = () => {
       return;
     }
 
-    // 克隆 SVG 以移除 transform
+    // 克隆 SVG，导出时保留图表原始尺寸
     const clonedSvg = svg.cloneNode(true) as SVGElement;
-    clonedSvg.style.transform = "";
+    clonedSvg.style.removeProperty("--mermaid-scale");
 
     const svgData = new XMLSerializer().serializeToString(clonedSvg);
     const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
@@ -937,15 +937,13 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* 保持正常文档流，长图的起点和终点都应处于可滚动范围内。 */
 .mermaid-container {
   padding: 16px;
   background-color: var(--code-block-bg, var(--card-bg));
   overflow: auto;
   min-height: 100px;
   max-height: 500px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: max-height 0.3s ease-in-out;
 }
 
@@ -955,16 +953,20 @@ onBeforeUnmount(() => {
 
 .mermaid-svg {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* Mermaid SVG 样式适配 */
 .mermaid-svg :deep(svg) {
-  max-width: 100%;
+  display: block;
+  max-width: calc(100% * var(--mermaid-scale, 1));
   height: auto;
-  transition: transform 0.2s ease;
+  margin: 0 auto;
+  zoom: var(--mermaid-scale, 1);
+}
+
+/* 百分比宽度需补偿 zoom 的包含块缩放，保持放大比例。 */
+.mermaid-svg :deep(svg[width="100%"]) {
+  width: calc(100% * var(--mermaid-scale, 1));
 }
 
 .mermaid-error {

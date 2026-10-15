@@ -189,9 +189,8 @@ const getMessageAreaWidth = (): number => {
   return messagesContainer.value?.clientWidth ?? 0;
 };
 
-// 【修复】在运行时注入消息虚拟渲染样式，避免生产构建 CSS 优化器影响 content-visibility。
-const MESSAGE_VISIBILITY_SELECTOR =
-  ".chat-message, .tool-call-message, .compression-message";
+// 在整行消息上注入虚拟渲染样式，避免绘制隔离按短气泡宽度裁切外置操作栏。
+const MESSAGE_VISIBILITY_SELECTOR = ":scope > .message-slot";
 const MESSAGE_INTRINSIC_SIZE = "auto 500px";
 let messageVisibilityObserver: MutationObserver | null = null;
 let pendingVisibilityFrame: number | null = null;
@@ -1100,16 +1099,16 @@ defineExpose({
 }
 
 /*
- * 性能优化：使用 content-visibility 开启虚拟渲染
+ * 整行消息使用 content-visibility 开启虚拟渲染，绘制边界覆盖外置操作栏。
  * 在 Vite 8 / Lightning CSS 环境下，确保这些现代属性不被误删或优化掉
  */
-.messages-container :deep(.chat-message) {
+.messages-container > .message-slot {
   content-visibility: auto !important;
   contain-intrinsic-size: auto 500px !important;
 }
 
 /* 最后一项消息禁用虚拟渲染，确保底部锚定计算准确，防止滚动回弹 */
-.messages-container > .message-slot:last-child :deep(.chat-message) {
+.messages-container > .message-slot:last-child {
   content-visibility: visible !important;
 }
 

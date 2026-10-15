@@ -62,6 +62,33 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 
 因此，迁移目标不能只定义为“换一个更可控的 WebView”。还需要建立 **Renderer（UI）—Backend JS Runtime（Agent）** 的明确边界：Agent 任务、会话状态和后台能力由独立的 Node.js/JavaScript 后端运行时持有，渲染窗口只负责展示、发起命令和订阅状态。
 
+### 2.7. 外部迁移案例与适用边界
+
+**查阅日期：2026-10-16。** Paseo 与 OpenCode Desktop 的作者均记录了从 Tauri 迁往 Electron 的原因，涉及跨平台渲染一致性、JavaScript 后端部署和桌面能力维护，与本报告的问题存在交集。
+
+#### Paseo：跨平台差异与 Node daemon 的维护成本
+
+来源：Mo Boudra，[《I was wrong about Electron》](https://paseo.sh/blog/i-was-wrong-about-electron)，2026-05-28。
+
+作者记录了 Linux 下 WebKitGTK、Wayland/X11 和布局差异，以及通知点击处理需要自行逐平台实现的问题。Paseo 还需捆绑 Node.js daemon，其跨平台产物、权限、进程启动、路径与升级逐渐形成独立的维护负担。迁往 Electron 后，作者认为统一渲染表现、通知能力与内置 Node 降低了维护成本。
+
+这些经历对应本报告 §2.3–2.5 的兼容性问题，以及 Tauri + CEF + Node sidecar 方案需要单独评估的分发与进程管理成本。
+
+#### OpenCode Desktop：TypeScript 服务端与内置 Node 运行时
+
+来源：Brendonovich，[《Moving OpenCode Desktop to Electron》](https://dev.to/brendonovich/moving-opencode-desktop-to-electron-4hip)。
+
+OpenCode 迁移前已采用 TypeScript 客户端—服务端架构，Agent 循环、模型通信和 SQLite 操作由服务端负责；Tauri 桌面端启动捆绑 CLI，为 Web UI 提供本地服务。作者记录了 macOS/Linux 下 WebKit 的渲染性能和样式差异，以及 CLI 启动耗时与偶发失败。迁移过程中移除服务端的 Bun 专用 API 后，服务代码得以在 Electron 内置 Node 中运行。
+
+该案例对应本报告对渲染一致性、JS 后端运行环境和启动链路的评估。对主要业务逻辑已在 TypeScript 服务端中的产品，Rust 桌面壳能提供的性能收益取决于实际承担的工作。
+
+#### 对本项目的参考价值与证据边界
+
+1. **按整套运行环境评估迁移成本。** 两个案例提供了兼容性修补、后台进程分发、启动升级和桌面能力维护的外部经验。包体、内存与这些维护成本应共同纳入方案比较。
+2. **Windows 内存问题由本项目实测支撑。** 两篇文章的渲染痛点主要集中在 macOS/Linux 的 WebKit；Paseo 作者明确表示 Windows WebView2 整体符合预期。它们可佐证跨平台维护压力，具体内存表现仍以本报告第 5 节为依据。该节 Electron 1315 MB、WebView2 3322 MB 为当次工作集采样，负载同量级但数据不同，应保留这一比较范围。
+3. **Agent 生命周期解耦仍需单独实施。** OpenCode 迁移前已有独立服务端；本项目 §2.6 记录的 Agent 逻辑仍由渲染窗口持有。采用 Electron 后，仍需明确后台进程所有权、命令与事件协议、取消和重连机制，才能实现窗口生命周期与任务生命周期分离。
+4. **以文章记录的阶段为准。** 两篇文章用于补充迁移动机和工程经验。框架能力、插件支持与项目发布进度可能继续变化，落地时应核对所用版本。
+
 ---
 
 ## 3. 当前架构的 Tauri 耦合度分析
@@ -654,3 +681,4 @@ export async function callBackend(cmd: string, args: any) {
 | 2026-10-09 | 补充安装包实测：Electron NSIS Setup 149.4MB（Tauri 71MB 的 2.1 倍），安装后 425.5MB（约 3.9 倍）      |
 | 2026-10-14 | Electron 续测：utility 生命周期与多窗口、本地资源/网络、系统信息、分词 Native Addon、Tauri 耦合盘点；修复自动测试报错弹窗，新增附录 C |
 | 2026-10-14 | 补充用户真实长会话回放：隔离复制附件与正文图片，验证全文/消息树、图片预览和刷新恢复，记录 Electron 单侧内存采样；修复 PoC 历史路由回退 |
+| 2026-10-16 | 新增 §2.7 外部迁移案例：记录 Paseo 与 OpenCode Desktop 的渲染、JS 后端及维护成本问题，区分跨平台经验、本项目 Windows 内存实测与 Agent 生命周期解耦的适用边界 |

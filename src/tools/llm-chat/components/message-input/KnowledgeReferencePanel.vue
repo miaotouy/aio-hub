@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { Search } from "lucide-vue-next";
-import MessageInputPanelLayout from "./MessageInputPanelLayout.vue";
+import InputPanelLayout from "@/components/common/input-panel/InputPanelLayout.vue";
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
@@ -175,7 +175,7 @@ watch(
 </script>
 
 <template>
-  <MessageInputPanelLayout
+  <InputPanelLayout
     class="knowledge-selector"
     data-testid="chat-knowledge-reference-selector"
     aria-label="Knowledge 资料库选择器"
@@ -294,7 +294,7 @@ watch(
         </el-button>
       </el-empty>
     </div>
-  </MessageInputPanelLayout>
+  </InputPanelLayout>
 </template>
 
 <style scoped>

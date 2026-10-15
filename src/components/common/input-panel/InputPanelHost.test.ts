@@ -2,11 +2,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { defineComponent, nextTick, ref, type PropType } from "vue";
-import MessageInputPanelHost from "./MessageInputPanelHost.vue";
+import InputPanelHost from "@/components/common/input-panel/InputPanelHost.vue";
 import {
-  provideMessageInputPanel,
-  type MessageInputPanelRepeatClickAction,
-} from "../../composables/input/useMessageInputPanel";
+  provideInputPanel,
+  type InputPanelRepeatClickAction,
+} from "@/composables/useInputPanel";
 
 // Protects the slot lifecycle and keyboard contract through actual user interactions.
 // Local edits survive folding; replacement and close release the previous panel.
@@ -20,15 +20,15 @@ const LocalEditor = defineComponent({
 });
 
 const Harness = defineComponent({
-  components: { MessageInputPanelHost },
+  components: { InputPanelHost },
   props: {
     repeatClickAction: {
-      type: String as PropType<MessageInputPanelRepeatClickAction>,
+      type: String as PropType<InputPanelRepeatClickAction>,
       default: "collapse",
     },
   },
   setup(props) {
-    const panel = provideMessageInputPanel(() => props.repeatClickAction);
+    const panel = provideInputPanel(() => props.repeatClickAction);
     const triggerA = ref<HTMLButtonElement>();
     const triggerB = ref<HTMLButtonElement>();
     const draft = ref("草稿保留");
@@ -49,11 +49,11 @@ const Harness = defineComponent({
     <div>
       <button ref="triggerA" aria-label="打开 A" @click="toggle('A')">A</button>
       <button ref="triggerB" aria-label="打开 B" @click="toggle('B')">B</button>
-      <MessageInputPanelHost v-if="activePanel"
+      <InputPanelHost v-if="activePanel"
         :panel="activePanel" :content-id="contentId"
         v-model:collapsed="collapsed" @close="panel.close(true)">
         <component :is="activePanel.component" :key="activePanel.id" v-bind="activePanel.props" />
-      </MessageInputPanelHost>
+      </InputPanelHost>
       <textarea v-model="draft" aria-label="输入草稿" />
     </div>`,
 });
@@ -103,7 +103,7 @@ describe("message input panel slot", () => {
     await wrapper.get("input").setValue("即将释放");
     await click("打开 A");
     expect(wrapper.find("input").exists()).toBe(false);
-    expect(wrapper.findComponent(MessageInputPanelHost).exists()).toBe(false);
+    expect(wrapper.findComponent(InputPanelHost).exists()).toBe(false);
     expect(document.activeElement).toBe(button("打开 A").element);
     await click("打开 A");
     expect((wrapper.get("input").element as HTMLInputElement).value).toBe("A");
@@ -163,7 +163,7 @@ describe("message input panel slot", () => {
 
   // Fixed regions share the host's visibility and keyboard/focus contract.
   it("folds all named regions together and handles focus and Escape from the footer", async () => {
-    wrapper = mount(MessageInputPanelHost, {
+    wrapper = mount(InputPanelHost, {
       attachTo: document.body,
       props: {
         panel: { id: "fixed-controls", title: "面板", component: LocalEditor },

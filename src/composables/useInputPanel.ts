@@ -10,9 +10,9 @@ import {
   type InjectionKey,
 } from "vue";
 
-export type MessageInputPanelRepeatClickAction = "collapse" | "close";
+export type InputPanelRepeatClickAction = "collapse" | "close";
 
-export interface MessageInputPanelDefinition {
+export interface InputPanelDefinition {
   id: string;
   title: string;
   icon?: Component;
@@ -23,17 +23,16 @@ export interface MessageInputPanelDefinition {
 }
 
 /** A single window-local slot; replacing a panel releases the previous instance. */
-export function createMessageInputPanelController(
+export function createInputPanelController(
   contentId: string,
-  getRepeatClickAction: () => MessageInputPanelRepeatClickAction = () =>
-    "collapse"
+  getRepeatClickAction: () => InputPanelRepeatClickAction = () => "collapse"
 ) {
-  const activePanel = shallowRef<MessageInputPanelDefinition | null>(null);
+  const activePanel = shallowRef<InputPanelDefinition | null>(null);
   const collapsed = ref(false);
   let returnFocus: (() => HTMLElement | undefined) | undefined;
 
   function open(
-    panel: MessageInputPanelDefinition,
+    panel: InputPanelDefinition,
     trigger?: () => HTMLElement | undefined
   ) {
     activePanel.value = panel;
@@ -42,7 +41,7 @@ export function createMessageInputPanelController(
   }
 
   function toggle(
-    panel: MessageInputPanelDefinition,
+    panel: InputPanelDefinition,
     trigger?: () => HTMLElement | undefined
   ) {
     if (activePanel.value?.id === panel.id) {
@@ -78,23 +77,22 @@ export function createMessageInputPanelController(
   return { contentId, activePanel, collapsed, open, toggle, close };
 }
 
-const panelKey: InjectionKey<
-  ReturnType<typeof createMessageInputPanelController>
-> = Symbol("message-input-panel");
+const panelKey: InjectionKey<ReturnType<typeof createInputPanelController>> =
+  Symbol("input-panel");
 
-export function provideMessageInputPanel(
-  getRepeatClickAction?: () => MessageInputPanelRepeatClickAction
+export function provideInputPanel(
+  getRepeatClickAction?: () => InputPanelRepeatClickAction
 ) {
-  const panel = createMessageInputPanelController(
-    `chat-input-panel-${useId()}`,
+  const panel = createInputPanelController(
+    `input-panel-${useId()}`,
     getRepeatClickAction
   );
   provide(panelKey, panel);
   return panel;
 }
 
-export function useMessageInputPanel() {
+export function useInputPanel() {
   const panel = inject(panelKey);
-  if (!panel) throw new Error("MessageInput panel provider is missing");
+  if (!panel) throw new Error("InputPanel provider is missing");
   return panel;
 }

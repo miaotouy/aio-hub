@@ -19,7 +19,7 @@ import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiS
 import { ElTooltip } from "element-plus";
 import { AtSign, X, Sparkles } from "lucide-vue-next";
 import { WebCanvasIcon } from "@aiohub/tool-icons";
-import { useMessageInputPanel } from "../../../composables/input/useMessageInputPanel";
+import { useInputPanel } from "@/composables/useInputPanel";
 import type { ContextPreviewData } from "../../../types/context";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useMessageInputStore } from "../../../stores/messageInputStore";
@@ -40,7 +40,7 @@ const emit = defineEmits<{
 }>();
 
 const { currentAgentId } = useLlmChatUiState();
-const panel = useMessageInputPanel();
+const panel = useInputPanel();
 const agentStore = useAgentStore();
 const inputStore = useMessageInputStore();
 

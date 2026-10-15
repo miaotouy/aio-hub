@@ -16,10 +16,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import InputPanelLayout from "@/components/common/input-panel/InputPanelLayout.vue";
 import { Plus } from "lucide-vue-next";
 import {
   QUICK_PROMPT_LIBRARY,
-  MEDIA_TYPE_LABELS,
   MEDIA_TYPE_PROMPT_HINTS,
 } from "../prompt-library";
 import type { MediaTaskType } from "../types";
@@ -59,23 +59,21 @@ const handleInsert = (prompt: string) => {
 </script>
 
 <template>
-  <div class="quick-prompt-library">
-    <div class="quick-prompt-header">
-      <div>
-        <div class="quick-prompt-title">
-          {{ MEDIA_TYPE_LABELS[props.activeType] }}快捷提示词
-        </div>
-        <div class="quick-prompt-hint">
-          {{ MEDIA_TYPE_PROMPT_HINTS[props.activeType] }}
-        </div>
+  <InputPanelLayout class="quick-prompt-library">
+    <template #controls>
+      <div class="quick-prompt-hint">
+        {{ MEDIA_TYPE_PROMPT_HINTS[props.activeType] }}
       </div>
-      <span class="quick-prompt-count">{{ categories.length }} 类</span>
-    </div>
-
+      <el-tabs v-model="activeCategoryId" class="quick-prompt-tabs">
+        <el-tab-pane
+          v-for="category in categories"
+          :key="category.id"
+          :label="category.label"
+          :name="category.id"
+        />
+      </el-tabs>
+    </template>
     <div v-if="activeCategory" class="quick-prompt-content">
-      <!-- <div class="quick-prompt-category-description">
-        {{ activeCategory.description }}
-      </div> -->
       <div class="quick-prompt-grid">
         <button
           v-for="prompt in activeCategory.prompts"
@@ -91,91 +89,36 @@ const handleInsert = (prompt: string) => {
         </button>
       </div>
     </div>
-
-    <el-tabs v-model="activeCategoryId" class="quick-prompt-tabs">
-      <el-tab-pane
-        v-for="category in categories"
-        :key="category.id"
-        :label="category.label"
-        :name="category.id"
-      />
-    </el-tabs>
-  </div>
+  </InputPanelLayout>
 </template>
 
 <style scoped>
 .quick-prompt-library {
-  width: min(100%, 640px);
+  width: 100%;
   color: var(--el-text-color-primary);
 }
 
-.quick-prompt-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 8px;
-}
-
-.quick-prompt-title {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.quick-prompt-hint,
-.quick-prompt-category-description {
+.quick-prompt-hint {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.5;
 }
 
-.quick-prompt-hint {
-  margin-top: 4px;
-}
-
-.quick-prompt-count {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-}
-
 .quick-prompt-tabs {
-  margin: 12px -4px 0;
+  margin: 6px 0 0;
 }
 
 .quick-prompt-tabs :deep(.el-tabs__header) {
   margin-bottom: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-}
-
-.quick-prompt-tabs :deep(.el-tabs__nav-wrap),
-.quick-prompt-tabs :deep(.el-tabs__nav-scroll) {
-  min-width: max-content;
-  overflow: visible;
 }
 
 .quick-prompt-tabs :deep(.el-tabs__content) {
   display: none;
 }
 
-.quick-prompt-content {
-  max-height: min(420px, 48vh);
-  overflow-y: auto;
-  padding: 0 2px 2px;
-}
-
-.quick-prompt-category-description {
-  margin-bottom: 10px;
-}
-
 .quick-prompt-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 8px;
 }
 
@@ -218,11 +161,5 @@ const handleInsert = (prompt: string) => {
   flex: none;
   margin-top: 1px;
   color: var(--el-text-color-secondary);
-}
-
-@media (max-width: 560px) {
-  .quick-prompt-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

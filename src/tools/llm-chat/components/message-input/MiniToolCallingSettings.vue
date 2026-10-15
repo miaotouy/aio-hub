@@ -29,7 +29,7 @@ import {
 } from "lucide-vue-next";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import ToolCallingHelpDialog from "../common/ToolCallingHelpDialog.vue";
-import MessageInputPanelLayout from "./MessageInputPanelLayout.vue";
+import InputPanelLayout from "@/components/common/input-panel/InputPanelLayout.vue";
 import { useToolCalling } from "@/tools/tool-calling/composables/useToolCalling";
 import { useToolSearch } from "@/tools/tool-calling/composables/useToolSearch";
 import { useToolsStore } from "@/stores/tools";
@@ -204,7 +204,7 @@ const effectiveIsVcp = computed(() => {
 </script>
 
 <template>
-  <MessageInputPanelLayout class="mini-tool-settings">
+  <InputPanelLayout class="mini-tool-settings">
     <template #controls>
       <div class="settings-toolbar">
         <div class="settings-toggle">
@@ -454,7 +454,7 @@ const effectiveIsVcp = computed(() => {
         </button>
       </div>
     </template>
-  </MessageInputPanelLayout>
+  </InputPanelLayout>
 </template>
 
 <style scoped>

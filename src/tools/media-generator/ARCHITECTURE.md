@@ -368,6 +368,16 @@ graph TD
   - 使用 `VersionGenerator` 防止旧版本覆盖新版本
   - 支持防抖推送（100ms）
 
+##### 输入工作区与功能面板
+
+`MediaGenerationInput.vue` 用于会话和快捷生成两种模式，从上到下依次为功能面板、附件、提示词编辑器、工具栏与发送/停止操作。工具栏保留上下文开关和附件入口，快捷提示词与提示词优化通过单面板槽位打开。
+
+- 与 Chat 复用 `src/components/common/input-panel/InputPanelHost.vue`、`InputPanelLayout.vue` 及 `src/composables/useInputPanel.ts`。标题操作、单面板替换、折叠保留状态、Escape 关闭与返回入口焦点遵循[公共组件契约](../../components/common/README.md#inputpanel)。
+- 快捷词库将分类与提示放入 `controls`，词条在默认内容区滚动；选择词条后按编辑器选区插入，关闭面板并恢复光标。
+- 优化面板将模型、处理模式、语言放入 `controls`，附加要求与优化结果在默认内容区滚动，开始优化、取消、应用放入 `footer`。下拉菜单挂载到页面，跨过面板滚动边界。
+- 优化读取当前草稿，应用结果由输入容器写回并聚焦编辑器；折叠保留优化进度与表单状态，关闭、替换或切换媒体类型/会话会释放面板并中止其进行中的请求。
+- 面板可用高度随视口与附件变化，`useInputResize` 同时扣除面板和附件高度；手动调整的编辑器高度也随可用空间收缩。
+
 #### 3.2.7. `useMediaStorage` (持久化存储)
 
 **文件系统存储层**。所有文件读写操作集中于此。

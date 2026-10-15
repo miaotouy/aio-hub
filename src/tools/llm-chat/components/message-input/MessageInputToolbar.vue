@@ -31,7 +31,7 @@ import MiniToolCallingSettings from "./MiniToolCallingSettings.vue";
 import QuickActionsBar from "./toolbar/QuickActionsBar.vue";
 import ToolbarMoreMenu from "./toolbar/ToolbarMoreMenu.vue";
 import InputSettingsPanel from "./toolbar/InputSettingsPanel.vue";
-import { useMessageInputPanel } from "../../composables/input/useMessageInputPanel";
+import { useInputPanel } from "@/composables/useInputPanel";
 import ToolbarStatusCapsules from "./toolbar/ToolbarStatusCapsules.vue";
 import KnowledgeReferencePanel from "./KnowledgeReferencePanel.vue";
 import type { ContextPreviewData } from "../../types/context";
@@ -109,7 +109,7 @@ const { isSending, disabled } = context.state;
 const { send, abort, triggerAttachment } = context.actions;
 
 const inputStore = useMessageInputStore();
-const panel = useMessageInputPanel();
+const panel = useInputPanel();
 const { moreMenuVisible, toolbarCustomizeVisible } = storeToRefs(inputStore);
 
 const { currentAgentId } = useLlmChatUiState();

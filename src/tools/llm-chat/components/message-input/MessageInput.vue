@@ -46,8 +46,8 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageInputToolbar from "./MessageInputToolbar.vue";
-import MessageInputPanelHost from "./MessageInputPanelHost.vue";
-import { provideMessageInputPanel } from "../../composables/input/useMessageInputPanel";
+import InputPanelHost from "@/components/common/input-panel/InputPanelHost.vue";
+import { provideInputPanel } from "@/composables/useInputPanel";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "./ChatTextareaEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
@@ -134,9 +134,9 @@ const textareaRef = ref<
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const extraContentRef = ref<HTMLDivElement>();
-const panelHostRef = ref<InstanceType<typeof MessageInputPanelHost>>();
+const panelHostRef = ref<InstanceType<typeof InputPanelHost>>();
 const toolbarRef = ref<InstanceType<typeof MessageInputToolbar>>();
-const panel = provideMessageInputPanel(
+const panel = provideInputPanel(
   () => inputStore.settings.panelRepeatClickAction
 );
 const { activePanel, collapsed: panelCollapsed } = panel;
@@ -616,7 +616,7 @@ const handleDragStart = (e: MouseEvent) => {
 
       <!-- 输入内容区 -->
       <div class="input-content">
-        <MessageInputPanelHost
+        <InputPanelHost
           v-if="activePanel"
           ref="panelHostRef"
           v-model:collapsed="panelCollapsed"
@@ -635,7 +635,7 @@ const handleDragStart = (e: MouseEvent) => {
             @open-advanced="toolbarRef?.openAdvanced($event)"
             @customize="toolbarRef?.openCustomizer()"
           />
-        </MessageInputPanelHost>
+        </InputPanelHost>
         <div
           v-if="
             attachmentManager.hasAttachments.value ||

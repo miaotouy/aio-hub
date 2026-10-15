@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { isAudioOutputTaskType } from "../types";
 import {
@@ -28,11 +28,12 @@ import {
   Video,
 } from "lucide-vue-next";
 import type { ContextToggleMode } from "../utils/contextToggleUi";
-import { createModuleLogger } from "@/utils/logger";
+import {
+  useInputPanel,
+  type InputPanelDefinition,
+} from "@/composables/useInputPanel";
 import PromptOptimizePanel from "./PromptOptimizePanel.vue";
 import QuickPromptLibrary from "./QuickPromptLibrary.vue";
-
-const logger = createModuleLogger("media-generator/InputToolbar");
 
 const props = defineProps<{
   disabled?: boolean;
@@ -47,13 +48,38 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:includeContext", value: boolean): void;
   (e: "trigger-attachment"): void;
-  (e: "insert-quick-prompt", prompt: string): void;
 }>();
 
 const store = useMediaGenStore();
 
-const showOptimizePopover = ref(false);
-const showQuickPromptPopover = ref(false);
+const panel = useInputPanel();
+const quickPromptButton = computed<InputPanelDefinition>(() => ({
+  id: "quick-prompt",
+  title: "快捷提示词",
+  icon: Wand2,
+  component: QuickPromptLibrary,
+  scroll: "layout",
+  props: {
+    activeType: computed(() => store.currentConfig.activeType),
+    disabled: computed(() => props.disabled),
+  },
+}));
+const optimizeButton = computed<InputPanelDefinition>(() => ({
+  id: "prompt-optimize",
+  title: "提示词优化",
+  icon: Sparkles,
+  component: PromptOptimizePanel,
+  scroll: "layout",
+  props: {
+    promptText: computed(() => props.promptText),
+    disabled: computed(() => props.disabled),
+  },
+}));
+
+function togglePanel(definition: InputPanelDefinition, event: MouseEvent) {
+  const trigger = event.currentTarget as HTMLButtonElement;
+  panel.toggle(definition, () => trigger);
+}
 
 const attachmentButton = computed(() => {
   const activeType = store.currentConfig.activeType;
@@ -77,24 +103,6 @@ const contextToggleTooltip = computed(
     props.contextToggleTooltip ||
     "Chat / Responses 路由会携带历史消息；普通生成端点仅可把会话中上一轮结果作为参考输入"
 );
-
-const handleApplyOptimized = (value: string) => {
-  logger.info("提示词优化结果已写回输入框", {
-    contentLength: value.length,
-    previousLength: store.inputPrompt?.length || 0,
-  });
-  store.inputPrompt = value;
-  showOptimizePopover.value = false;
-};
-
-const handleCancelOptimize = () => {
-  logger.debug("关闭提示词优化面板");
-  showOptimizePopover.value = false;
-};
-
-const handleInsertQuickPrompt = (prompt: string) => {
-  emit("insert-quick-prompt", prompt);
-};
 </script>
 
 <template>
@@ -103,8 +111,11 @@ const handleInsertQuickPrompt = (prompt: string) => {
       <template v-if="props.showContextToggle !== false">
         <el-tooltip :content="contextToggleTooltip" placement="top">
           <button
+            type="button"
             class="tool-btn"
             :class="{ 'is-active': props.includeContext }"
+            :aria-pressed="props.includeContext"
+            :disabled="props.disabled"
             @click="emit('update:includeContext', !props.includeContext)"
           >
             <el-icon v-if="props.contextToggleMode === 'conversation'">
@@ -114,9 +125,9 @@ const handleInsertQuickPrompt = (prompt: string) => {
             <span>{{ contextToggleLabel }}</span>
           </button>
         </el-tooltip>
-        <div class="v-divider" />
       </template>
       <button
+        type="button"
         class="tool-btn"
         :disabled="props.disabled"
         @click="emit('trigger-attachment')"
@@ -129,58 +140,50 @@ const handleInsertQuickPrompt = (prompt: string) => {
         </el-icon>
         <span>{{ attachmentButton.label }}</span>
       </button>
-      <div class="v-divider" />
-      <el-popover
-        v-model:visible="showQuickPromptPopover"
-        placement="top-start"
-        :width="660"
-        trigger="click"
-        popper-class="quick-prompt-popover"
-      >
-        <template #reference>
-          <button
-            class="tool-btn"
-            :disabled="props.disabled"
-            title="快捷提示词"
-          >
-            <el-icon class="quick-prompt-trigger-icon"><Wand2 /></el-icon>
-            <span>快捷提示词</span>
-          </button>
-        </template>
 
-        <QuickPromptLibrary
-          :active-type="store.currentConfig.activeType"
-          :disabled="props.disabled"
-          @insert="handleInsertQuickPrompt"
-        />
-      </el-popover>
-      <div class="v-divider" />
-      <el-popover
-        v-model:visible="showOptimizePopover"
-        placement="top-start"
-        :width="460"
-        trigger="click"
-        popper-class="optimize-popover"
+      <button
+        type="button"
+        class="tool-btn"
+        :class="{
+          'is-active': panel.activePanel.value?.id === quickPromptButton.id,
+        }"
+        :disabled="props.disabled"
+        :aria-expanded="
+          panel.activePanel.value?.id === quickPromptButton.id &&
+          !panel.collapsed.value
+        "
+        :aria-controls="
+          panel.activePanel.value?.id === quickPromptButton.id
+            ? panel.contentId
+            : undefined
+        "
+        @click="togglePanel(quickPromptButton, $event)"
       >
-        <template #reference>
-          <button
-            class="tool-btn"
-            :disabled="props.disabled"
-            title="提示词优化"
-          >
-            <el-icon class="optimize-trigger-icon">
-              <Sparkles />
-            </el-icon>
-            <span>提示词优化</span>
-          </button>
-        </template>
+        <el-icon><Wand2 /></el-icon>
+        <span>快捷提示词</span>
+      </button>
 
-        <PromptOptimizePanel
-          :prompt-text="props.promptText"
-          @apply="handleApplyOptimized"
-          @cancel="handleCancelOptimize"
-        />
-      </el-popover>
+      <button
+        type="button"
+        class="tool-btn"
+        :class="{
+          'is-active': panel.activePanel.value?.id === optimizeButton.id,
+        }"
+        :disabled="props.disabled"
+        :aria-expanded="
+          panel.activePanel.value?.id === optimizeButton.id &&
+          !panel.collapsed.value
+        "
+        :aria-controls="
+          panel.activePanel.value?.id === optimizeButton.id
+            ? panel.contentId
+            : undefined
+        "
+        @click="togglePanel(optimizeButton, $event)"
+      >
+        <el-icon><Sparkles /></el-icon>
+        <span>提示词优化</span>
+      </button>
     </div>
   </div>
 </template>
@@ -189,13 +192,15 @@ const handleInsertQuickPrompt = (prompt: string) => {
 .input-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  min-width: 0;
   gap: 8px;
   padding: 0 4px;
 }
 
 .toolbar-left {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 6px;
 }
@@ -229,46 +234,19 @@ const handleInsertQuickPrompt = (prompt: string) => {
   align-items: center;
 }
 
+.tool-btn.is-active,
 .tool-btn:hover:not(:disabled) {
   background-color: var(--el-fill-color-light);
   color: var(--el-color-primary);
 }
 
+.tool-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
 .tool-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.v-divider {
-  width: 1px;
-  height: 14px;
-  background-color: var(--border-color);
-  margin: 0 2px;
-  opacity: 0.5;
-}
-</style>
-
-<style>
-/* 全局样式覆盖，用于优化弹窗 */
-.quick-prompt-popover {
-  z-index: var(--z-index-popover) !important;
-  overflow: visible !important;
-  padding: 16px !important;
-  border-radius: 12px !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2) !important;
-  background-color: var(--card-bg) !important;
-  border: 1px solid var(--border-color) !important;
-  backdrop-filter: blur(var(--ui-blur)) !important;
-}
-
-.optimize-popover {
-  z-index: var(--z-index-popover) !important;
-  overflow: visible !important;
-  padding: 16px !important;
-  border-radius: 12px !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2) !important;
-  background-color: var(--card-bg) !important;
-  border: 1px solid var(--border-color) !important;
-  backdrop-filter: blur(var(--ui-blur)) !important;
 }
 </style>

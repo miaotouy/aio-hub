@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onUnmounted } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { MEDIA_GENERATOR_TARGET_LANG_OPTIONS } from "../config";
 import { useLlmRequest } from "@/composables/useLlmRequest";
@@ -24,15 +24,17 @@ import { assetManagerEngine } from "@/composables/useAssetManager";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import InputPanelLayout from "@/components/common/input-panel/InputPanelLayout.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { type MediaTaskType } from "../types";
 import type { LlmMessage, LlmMessageContent } from "@/llm-apis/common";
-import { Sparkles, Info } from "lucide-vue-next";
+import { Info } from "lucide-vue-next";
 
 const logger = createModuleLogger("media-generator/PromptOptimizePanel");
 
 const props = defineProps<{
   promptText: string;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -57,6 +59,8 @@ const activeTypeLabel = computed(
 
 // 提示词优化逻辑
 const isOptimizing = ref(false);
+let requestController: AbortController | undefined;
+onUnmounted(() => requestController?.abort());
 const optimizedResult = ref("");
 const optimizeError = ref("");
 const optimizeModelId = ref("");
@@ -221,6 +225,7 @@ const buildReferenceImageContents = async (): Promise<LlmMessageContent[]> => {
 };
 
 const handleOptimizePrompt = async () => {
+  if (props.disabled || isOptimizing.value) return;
   if (!props.promptText.trim()) {
     logger.warn("提示词优化被中断：输入框内容为空");
     customMessage.warning("请先输入需要处理的提示词");
@@ -245,6 +250,8 @@ const handleOptimizePrompt = async () => {
     return;
   }
 
+  const controller = new AbortController();
+  requestController = controller;
   isOptimizing.value = true;
   optimizedResult.value = "";
   optimizeError.value = "";
@@ -285,10 +292,7 @@ const handleOptimizePrompt = async () => {
       maxTokens: config.maxTokens,
     });
 
-    if (
-      optimizeMode.value !== "translate" &&
-      !config.prompt?.trim()
-    ) {
+    if (optimizeMode.value !== "translate" && !config.prompt?.trim()) {
       logger.warn("提示词优化模板为空，将仅提交用户原文", {
         activeType: store.currentConfig.activeType,
       });
@@ -327,7 +331,9 @@ const handleOptimizePrompt = async () => {
       messages = [{ role: "user", content: finalPrompt }];
     }
 
+    if (controller.signal.aborted) return;
     const response = await sendRequest({
+      signal: controller.signal,
       profileId,
       modelId,
       messages,
@@ -339,6 +345,7 @@ const handleOptimizePrompt = async () => {
       },
     });
 
+    if (controller.signal.aborted) return;
     if (response && response.content) {
       optimizedResult.value = response.content;
       logger.info("提示词优化完成", {
@@ -357,15 +364,18 @@ const handleOptimizePrompt = async () => {
       optimizeError.value = "模型未返回有效内容，请重试或更换优化模型";
     }
   } catch (error) {
+    if (controller.signal.aborted) return;
     logger.error("提示词优化失败", error);
     optimizeError.value = resolveOptimizeErrorText(error);
     customMessage.error("提示词优化失败，请检查网络或模型配置");
   } finally {
+    requestController = undefined;
     isOptimizing.value = false;
   }
 };
 
 const applyOptimizedPrompt = () => {
+  if (props.disabled || isOptimizing.value) return;
   if (optimizedResult.value) {
     logger.info("应用优化结果", {
       contentLength: optimizedResult.value.length,
@@ -397,155 +407,159 @@ defineExpose({
 </script>
 
 <template>
-  <div class="optimize-form">
-    <div class="form-header">
-      <el-icon><Sparkles /></el-icon>
-      <span>{{ activeTypeLabel }}提示词优化助手</span>
-    </div>
+  <InputPanelLayout class="optimize-panel">
+    <template #controls>
+      <div class="optimize-controls">
+        <div class="form-item model-form-item">
+          <label>优化模型</label>
+          <LlmModelSelector
+            v-model="optimizeModelCombo"
+            placeholder="选择优化模型"
+            :capabilities="{ embedding: false, rerank: false }"
+            :teleported="true"
+            popper-class="optimize-model-popper"
+          />
+        </div>
 
-    <div class="form-item model-form-item">
-      <label>优化模型</label>
-      <LlmModelSelector
-        v-model="optimizeModelCombo"
-        placeholder="选择优化模型"
-        :capabilities="{ embedding: false, rerank: false }"
-        :teleported="false"
-        popper-class="optimize-model-popper"
-      />
-    </div>
+        <div class="form-item">
+          <label>处理模式</label>
+          <el-select
+            v-model="optimizeMode"
+            size="small"
+            aria-label="处理模式"
+            :disabled="isOptimizing"
+          >
+            <el-option label="仅优化" value="optimize" />
+            <el-option label="仅翻译" value="translate" />
+            <el-option label="优化并翻译" value="optimize_translate" />
+          </el-select>
+        </div>
 
-    <div
-      v-if="optimizeMode !== 'optimize'"
-      class="form-item language-form-item"
-    >
-      <label>目标语言</label>
-      <el-select
-        v-model="optimizeTargetLang"
-        class="translation-select"
-        size="small"
-        placeholder="选择目标语言"
-        :teleported="false"
-        popper-class="optimize-language-popper"
-      >
-        <el-option
-          v-for="option in targetLangOptions"
-          :key="option.value"
-          :label="option.label"
-          :value="option.value"
-        />
-      </el-select>
-    </div>
-
-    <div class="form-item">
-      <label>附加要求 (可选)</label>
-      <el-input
-        v-model="optimizePrompt"
-        type="textarea"
-        :rows="3"
-        placeholder="输入额外的指令，例如：'增加赛博朋克风格' 或 '强调光影对比'..."
-      />
-    </div>
-
-    <div v-if="optimizedResult" class="optimize-result">
-      <label>优化结果</label>
-      <div class="result-content">
-        {{ optimizedResult }}
-      </div>
-    </div>
-
-    <el-alert
-      v-else-if="optimizeError"
-      class="optimize-error"
-      type="error"
-      title="优化失败"
-      :closable="false"
-      show-icon
-    >
-      {{ optimizeError }}
-    </el-alert>
-
-    <div class="form-item">
-      <label>处理模式</label>
-      <el-radio-group
-        v-model="optimizeMode"
-        size="small"
-        class="mode-radio-group"
-      >
-        <el-radio-button value="optimize">仅优化</el-radio-button>
-        <el-radio-button value="translate">仅翻译</el-radio-button>
-        <el-radio-button value="optimize_translate">优化并翻译</el-radio-button>
-      </el-radio-group>
-    </div>
-
-    <div class="form-tip">
-      <el-icon><Info /></el-icon>
-      <div class="tip-content">
-        <p>优化将基于当前输入框中的内容进行扩展</p>
-        <p v-if="referenceImages.length > 0 && optimizeModelSupportsVision">
-          将同时参考输入框中的 {{ referenceImages.length }} 张参考图
-        </p>
-        <p v-else-if="referenceImages.length > 0">
-          当前优化模型不支持视觉，不会参考附件图片
-        </p>
-      </div>
-    </div>
-
-    <div class="form-actions">
-      <template v-if="!optimizedResult">
-        <el-button size="small" @click="cancelOptimize">取消</el-button>
-        <el-button
-          size="small"
-          type="primary"
-          :loading="isOptimizing"
-          @click="handleOptimizePrompt"
+        <div
+          v-if="optimizeMode !== 'optimize'"
+          class="form-item language-form-item"
         >
-          开始优化
-        </el-button>
-      </template>
-      <template v-else>
-        <el-button size="small" @click="regenerateOptimize">重新生成</el-button>
-        <el-button size="small" type="primary" @click="applyOptimizedPrompt">
-          确认并应用
-        </el-button>
-      </template>
+          <label>目标语言</label>
+          <el-select
+            v-model="optimizeTargetLang"
+            class="translation-select"
+            size="small"
+            placeholder="选择目标语言"
+            :teleported="true"
+            popper-class="optimize-language-popper"
+          >
+            <el-option
+              v-for="option in targetLangOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </div>
+      </div>
+    </template>
+    <div class="optimize-form">
+      <div class="form-item">
+        <label>附加要求 (可选)</label>
+        <el-input
+          v-model="optimizePrompt"
+          type="textarea"
+          :rows="3"
+          placeholder="输入额外的指令，例如：'增加赛博朋克风格' 或 '强调光影对比'..."
+        />
+      </div>
+
+      <div v-if="optimizedResult" class="optimize-result">
+        <label>优化结果</label>
+        <div class="result-content">
+          {{ optimizedResult }}
+        </div>
+      </div>
+
+      <el-alert
+        v-else-if="optimizeError"
+        class="optimize-error"
+        type="error"
+        title="优化失败"
+        :closable="false"
+        show-icon
+      >
+        {{ optimizeError }}
+      </el-alert>
+
+      <div class="form-tip">
+        <el-icon><Info /></el-icon>
+        <div class="tip-content">
+          <p>优化将基于当前输入框中的内容进行扩展</p>
+          <p v-if="referenceImages.length > 0 && optimizeModelSupportsVision">
+            将同时参考输入框中的 {{ referenceImages.length }} 张参考图
+          </p>
+          <p v-else-if="referenceImages.length > 0">
+            当前优化模型不支持视觉，不会参考附件图片
+          </p>
+        </div>
+      </div>
     </div>
-  </div>
+    <template #footer>
+      <div class="form-actions">
+        <template v-if="!optimizedResult">
+          <el-button size="small" @click="cancelOptimize">取消</el-button>
+          <el-button
+            size="small"
+            type="primary"
+            :loading="isOptimizing"
+            :disabled="
+              props.disabled || !optimizeModelCombo || !props.promptText.trim()
+            "
+            @click="handleOptimizePrompt"
+          >
+            开始优化
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button
+            size="small"
+            :disabled="props.disabled"
+            @click="regenerateOptimize"
+            >重新生成</el-button
+          >
+          <el-button
+            size="small"
+            type="primary"
+            :disabled="props.disabled"
+            @click="applyOptimizedPrompt"
+          >
+            确认并应用
+          </el-button>
+        </template>
+      </div>
+    </template>
+  </InputPanelLayout>
 </template>
 
 <style scoped>
+.optimize-panel :deep(.panel-controls) {
+  max-height: max(64px, calc(var(--input-panel-max-height, 260px) - 100px));
+  overflow-y: auto;
+}
+
+.optimize-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px 16px;
+}
+
 .optimize-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  /* 确保内部下拉菜单的 z-index 能够生效，且不被父级容器轻易裁剪 */
-  position: relative;
-  z-index: 10;
-}
-
-.form-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--el-color-primary);
-  margin-bottom: 4px;
+  gap: 12px;
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.model-form-item {
-  position: relative;
-  z-index: 30;
-}
-
-.language-form-item {
-  position: relative;
-  z-index: 20;
 }
 
 .form-item label {
@@ -582,8 +596,6 @@ defineExpose({
   font-size: 14px;
   line-height: 1.6;
   color: var(--el-text-color-primary);
-  max-height: 180px;
-  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -611,15 +623,9 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 4px;
 }
 
-:deep(.el-radio-group) {
-  background-color: transparent !important;
-  backdrop-filter: none !important;
-}
-
-/* 非 teleported 下拉会留在 popover 内部，需要显式压过后续表单内容。 */
+/* 下拉菜单挂载到页面，越过面板滚动边界。 */
 :deep(.el-select__popper),
 :global(.el-popper.optimize-model-popper),
 :global(.el-popper.optimize-language-popper) {

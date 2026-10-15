@@ -29,11 +29,12 @@ export const MEDIA_TYPE_LABELS: Record<MediaTaskType, string> = {
 };
 
 export const MEDIA_TYPE_PROMPT_HINTS: Record<MediaTaskType, string> = {
-  image: "组合画风、场景、构图和光影，快速搭建画面提示词，点击词条可连续组合",
+  image: "组合画风、场景、构图和光影，快速搭建画面提示词，点击词条插入光标位置",
   video:
-    "组合运镜、景别、动作节奏和画面风格，描述连续的视频镜头，点击词条可连续组合",
-  speech: "组合语气、情绪、场景和节奏，让朗读指令更具体，点击词条可连续组合",
-  music: "组合曲风、情绪、编曲和人声，快速描述音乐制作方向，点击词条可连续组合",
+    "组合运镜、景别、动作节奏和画面风格，描述连续的视频镜头，点击词条插入光标位置",
+  speech: "组合语气、情绪、场景和节奏，让朗读指令更具体，点击词条插入光标位置",
+  music:
+    "组合曲风、情绪、编曲和人声，快速描述音乐制作方向，点击词条插入光标位置",
 };
 
 export const QUICK_PROMPT_LIBRARY: Record<

@@ -39,12 +39,12 @@ import type { PendingInputData } from "../types/context";
 import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/services/reference";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 
-import type { MessageInputPanelRepeatClickAction } from "../composables/input/useMessageInputPanel";
+import type { InputPanelRepeatClickAction } from "@/composables/useInputPanel";
 
 export interface InputToolbarSettings {
   enableMacroParsing: boolean;
   extractBase64FromPaste: boolean;
-  panelRepeatClickAction: MessageInputPanelRepeatClickAction;
+  panelRepeatClickAction: InputPanelRepeatClickAction;
 }
 
 const errorHandler = createModuleErrorHandler("messageInputStore");

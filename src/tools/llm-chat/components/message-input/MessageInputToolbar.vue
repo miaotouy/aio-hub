@@ -110,11 +110,7 @@ const { send, abort, triggerAttachment } = context.actions;
 
 const inputStore = useMessageInputStore();
 const panel = useMessageInputPanel();
-const {
-  moreMenuVisible,
-  toolbarCustomizeVisible,
-  settings: inputSettings,
-} = storeToRefs(inputStore);
+const { moreMenuVisible, toolbarCustomizeVisible } = storeToRefs(inputStore);
 
 const { currentAgentId } = useLlmChatUiState();
 const quickActionStore = useQuickActionStore();
@@ -231,6 +227,22 @@ const compactStatistics = computed(() => bottomWidth.value < 650);
 const layout = computed(() =>
   normalizeInputToolbarLayout(chatSettings.value.uiPreferences.inputToolbar)
 );
+const compactTokenStatistics = computed(() => {
+  if (!compactStatistics.value) return undefined;
+  const showContext = layout.value.statusIds.includes("context-tokens");
+  const showInput = layout.value.statusIds.includes("input-tokens");
+  const contextTokens = showContext
+    ? props.contextStats?.totalTokenCount
+    : undefined;
+  const inputTokens = showInput ? inputStore.tokenCount : undefined;
+  if (!(contextTokens || inputTokens)) return undefined;
+  return {
+    contextTokens,
+    inputTokens,
+    contextEstimated: props.contextStats?.isEstimated,
+    inputEstimated: inputStore.tokenEstimated,
+  };
+});
 const openPanel = computed(() => panel.activePanel.value?.id);
 const panelComponents: Partial<Record<ToolbarAction["id"], Component>> = {
   macro: MacroInputPanel,
@@ -428,7 +440,7 @@ onBeforeUnmount(closePanels);
     <QuickActionsBar
       v-if="activeActionSets.length"
       :active-action-sets="activeActionSets"
-      :group-quick-actions-by-set="inputSettings.groupQuickActionsBySet"
+      :group-quick-actions-by-set="layout.groupQuickActionsBySet"
       @execute-quick-action="inputStore.handleQuickAction($event)"
     />
     <div ref="bottomBarRef" class="input-bottom-bar">
@@ -448,19 +460,7 @@ onBeforeUnmount(closePanels);
           :is-detached="props.isDetached"
           :actions="actionPlacement.menu"
           :overflow-actions="overflowActions"
-          :statistics="
-            compactStatistics &&
-            inputSettings.showTokenUsage &&
-            (inputStore.tokenCount > 0 ||
-              (props.contextStats?.totalTokenCount ?? 0) > 0)
-              ? {
-                  contextTokens: props.contextStats?.totalTokenCount,
-                  inputTokens: inputStore.tokenCount,
-                  contextEstimated: props.contextStats?.isEstimated,
-                  inputEstimated: inputStore.tokenEstimated,
-                }
-              : undefined
-          "
+          :statistics="compactTokenStatistics"
           @execute="executeAction"
           @open-input-settings="openInputSettings"
           @open-quick-action-manager="handleOpenQuickActionManager"
@@ -493,6 +493,7 @@ onBeforeUnmount(closePanels);
           <ToolbarStatusCapsules
             :is-detached="props.isDetached"
             :compact="compactStatistics"
+            :status-ids="layout.statusIds"
             :is-canvas-enabled="isCanvasEnabled"
             :canvas-binding-info="canvasBindingInfo"
             :has-canvas-pending-changes="hasCanvasPendingChanges"

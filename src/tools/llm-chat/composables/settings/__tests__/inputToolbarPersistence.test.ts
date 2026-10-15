@@ -45,6 +45,8 @@ describe("input toolbar layout persistence", () => {
         })
     );
     const layout = createLegacyToolbarLayout();
+    layout.statusIds = ["input-tokens", "canvas"];
+    layout.groupQuickActionsBySet = true;
     const pending = chat.saveInputToolbarLayout(layout);
     expect(chat.settings.value.uiPreferences.inputToolbar).toBe(original);
     const fontSize = chat.settings.value.uiPreferences.fontSize;
@@ -63,16 +65,21 @@ describe("input toolbar layout persistence", () => {
     const original = chat.settings.value.uiPreferences.inputToolbar;
     const edited = createCompactToolbarLayout();
     edited.pinnedActionIds = [];
+    edited.statusIds = [];
+    edited.groupQuickActionsBySet = true;
     mocks.save.mockRejectedValueOnce(new Error("disk full"));
     await expect(chat.saveInputToolbarLayout(edited)).rejects.toThrow(
       "disk full"
     );
     expect(chat.settings.value.uiPreferences.inputToolbar).toBe(original);
+    expect(edited.statusIds).toEqual([]);
+    expect(edited.groupQuickActionsBySet).toBe(true);
     expect(edited.pinnedActionIds).toEqual([]);
     mocks.save.mockResolvedValueOnce(undefined);
     await chat.saveInputToolbarLayout(edited);
     expect(
       chat.settings.value.uiPreferences.inputToolbar.pinnedActionIds
     ).toEqual([]);
+    expect(chat.settings.value.uiPreferences.inputToolbar).toEqual(edited);
   });
 });

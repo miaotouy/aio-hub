@@ -28,6 +28,7 @@ import { DEFAULT_TOOL_CALL_CONFIG } from "@/tools/agent-manager/types/agent";
 const props = defineProps<{
   isDetached?: boolean;
   compact?: boolean;
+  statusIds: string[];
   isCanvasEnabled: boolean;
   canvasBindingInfo: { id: string; name: string } | null;
   hasCanvasPendingChanges: boolean;
@@ -60,208 +61,233 @@ const unbindCanvas = () => {
 </script>
 
 <template>
-  <!-- 续写模型 -->
-  <el-tooltip
-    v-if="inputStore.continuationModelInfo"
-    :content="`续写模型: ${inputStore.continuationModelInfo.profileName} - ${inputStore.continuationModelInfo.modelName}`"
-    placement="top"
-    :show-after="500"
-  >
-    <div class="temporary-model-indicator continuation-model">
-      <Sparkles :size="14" />
-      <span class="model-name" :class="{ compact: props.compact }">{{
-        inputStore.continuationModelInfo.modelName
-      }}</span>
-      <button class="clear-btn" @click="inputStore.clearContinuationModel()">
-        <X :size="14" />
-      </button>
-    </div>
-  </el-tooltip>
-
-  <!-- 临时模型 -->
-  <el-tooltip
-    v-if="inputStore.temporaryModelInfo"
-    :content="`临时模型: ${inputStore.temporaryModelInfo.profileName} - ${inputStore.temporaryModelInfo.modelName}`"
-    placement="top"
-    :show-after="500"
-  >
-    <div class="temporary-model-indicator">
-      <AtSign :size="14" />
-      <span class="model-name">{{
-        inputStore.temporaryModelInfo.modelName
-      }}</span>
-      <button class="clear-btn" @click="inputStore.clearTemporaryModel()">
-        <X :size="14" />
-      </button>
-    </div>
-  </el-tooltip>
-
-  <!-- 画布状态胶囊 -->
-  <el-tooltip
-    v-if="props.isCanvasEnabled"
-    :content="
-      props.canvasBindingInfo
-        ? `当前绑定画布: ${props.canvasBindingInfo.name} (点击管理)`
-        : '画布未绑定 (点击管理)'
-    "
-    placement="top"
-    :show-after="500"
-  >
-    <div
-      class="temporary-model-indicator canvas-indicator"
-      :class="{
-        'has-pending': props.hasCanvasPendingChanges,
-        'is-unbound': !props.canvasBindingInfo,
-        'is-active': panel.activePanel.value?.id === 'canvas',
-      }"
+  <template v-for="statusId in props.statusIds" :key="statusId">
+    <!-- 续写模型 -->
+    <el-tooltip
+      v-if="
+        statusId === 'continuation-model' && inputStore.continuationModelInfo
+      "
+      :content="`续写模型: ${inputStore.continuationModelInfo.profileName} - ${inputStore.continuationModelInfo.modelName}`"
+      placement="top"
+      :show-after="500"
     >
-      <button
-        type="button"
-        class="canvas-trigger"
-        aria-label="画布管理"
-        :aria-expanded="
-          panel.activePanel.value?.id === 'canvas' && !panel.collapsed.value
-        "
-        :aria-controls="panel.contentId"
-        @click="emit('open-canvas', $event.currentTarget as HTMLElement)"
-      >
-        <WebCanvasIcon :size="14" />
-        <span class="model-name">{{
-          props.canvasBindingInfo ? props.canvasBindingInfo.name : "未绑定"
+      <div class="temporary-model-indicator continuation-model">
+        <Sparkles :size="14" />
+        <span class="model-name" :class="{ compact: props.compact }">{{
+          inputStore.continuationModelInfo.modelName
         }}</span>
-        <span v-if="props.hasCanvasPendingChanges" class="pending-pulse"></span>
-      </button>
-      <button
-        v-if="props.canvasBindingInfo"
-        type="button"
-        class="clear-btn"
-        aria-label="解绑当前画布"
-        @click.stop="unbindCanvas"
-      >
-        <X :size="14" />
-      </button>
-    </div>
-  </el-tooltip>
+        <button
+          type="button"
+          class="clear-btn"
+          aria-label="清除续写模型"
+          @click="inputStore.clearContinuationModel()"
+        >
+          <X :size="14" />
+        </button>
+      </div>
+    </el-tooltip>
 
-  <!-- 历史上下文统计 -->
-  <el-tooltip
-    v-if="
-      !props.compact &&
-      inputStore.settings.showTokenUsage &&
-      props.contextStats &&
-      props.contextStats.totalTokenCount !== undefined
-    "
-    placement="top"
-    :show-after="500"
-  >
-    <template #content>
-      <div style="text-align: left; line-height: 1.6">
-        <div style="font-weight: 600; margin-bottom: 4px">历史上下文统计</div>
-        <div style="font-size: 12px">
-          <div>
-            总计:
-            {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens
-          </div>
-          <div v-if="props.contextStats.presetMessagesTokenCount">
-            预设消息:
-            {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }}
-            tokens
-          </div>
-          <div v-if="props.contextStats.worldbookTokenCount">
-            世界书:
-            {{ props.contextStats.worldbookTokenCount.toLocaleString() }} tokens
-          </div>
-          <div v-if="props.contextStats.chatHistoryTokenCount">
-            会话历史:
-            {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }}
-            tokens
-          </div>
-          <div v-if="props.contextStats.postProcessingTokenCount">
-            后处理:
-            {{ props.contextStats.postProcessingTokenCount.toLocaleString() }}
-            tokens
-          </div>
-          <div
-            v-if="props.contextStats.truncatedMessageCount"
-            style="color: var(--el-color-warning); margin-top: 2px"
-          >
-            已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
-            <span v-if="props.contextStats.savedTokenCount">
-              (省
-              {{ props.contextStats.savedTokenCount.toLocaleString() }} tokens)
-            </span>
-          </div>
-          <div
-            v-if="props.contextStats.tokenizerName"
-            style="margin-top: 4px; opacity: 0.8"
-          >
-            {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }}
-            - {{ props.contextStats.tokenizerName }}
-          </div>
-        </div>
-      </div> </template
-    ><span class="token-count context-total">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        style="margin-right: 4px"
-      >
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-        <path
-          d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-        ></path>
-      </svg>
-      <span
-        >{{ props.contextStats.totalTokenCount.toLocaleString()
-        }}{{ props.contextStats.isEstimated ? "~" : "" }}</span
-      >
-    </span>
-  </el-tooltip>
+    <!-- 临时模型 -->
+    <el-tooltip
+      v-if="statusId === 'temporary-model' && inputStore.temporaryModelInfo"
+      :content="`临时模型: ${inputStore.temporaryModelInfo.profileName} - ${inputStore.temporaryModelInfo.modelName}`"
+      placement="top"
+      :show-after="500"
+    >
+      <div class="temporary-model-indicator">
+        <AtSign :size="14" />
+        <span class="model-name">{{
+          inputStore.temporaryModelInfo.modelName
+        }}</span>
+        <button
+          type="button"
+          class="clear-btn"
+          aria-label="清除临时模型"
+          @click="inputStore.clearTemporaryModel()"
+        >
+          <X :size="14" />
+        </button>
+      </div>
+    </el-tooltip>
 
-  <!-- 当前输入 Token 计数 -->
-  <el-tooltip
-    v-if="
-      !props.compact &&
-      inputStore.settings.showTokenUsage &&
-      (inputStore.tokenCount > 0 || inputStore.isCalculatingTokens)
-    "
-    :content="
-      inputStore.tokenEstimated
-        ? '当前输入 Token 数量（估算值）'
-        : '当前输入 Token 数量'
-    "
-    placement="top"
-    :show-after="500"
-  >
-    <span class="token-count input-tokens">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        style="margin-right: 4px"
+    <!-- 画布状态胶囊 -->
+    <el-tooltip
+      v-if="statusId === 'canvas' && props.isCanvasEnabled"
+      :content="
+        props.canvasBindingInfo
+          ? `当前绑定画布: ${props.canvasBindingInfo.name} (点击管理)`
+          : '画布未绑定 (点击管理)'
+      "
+      placement="top"
+      :show-after="500"
+    >
+      <div
+        class="temporary-model-indicator canvas-indicator"
+        :class="{
+          'has-pending': props.hasCanvasPendingChanges,
+          'is-unbound': !props.canvasBindingInfo,
+          'is-active': panel.activePanel.value?.id === 'canvas',
+        }"
       >
-        <path d="M12 20h9"></path>
-        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-      </svg>
-      <span
-        >{{ inputStore.tokenCount.toLocaleString()
-        }}{{ inputStore.tokenEstimated ? "~" : "" }}</span
-      >
-    </span>
-  </el-tooltip>
+        <button
+          type="button"
+          class="canvas-trigger"
+          aria-label="画布管理"
+          :aria-expanded="
+            panel.activePanel.value?.id === 'canvas' && !panel.collapsed.value
+          "
+          :aria-controls="panel.contentId"
+          @click="emit('open-canvas', $event.currentTarget as HTMLElement)"
+        >
+          <WebCanvasIcon :size="14" />
+          <span class="model-name">{{
+            props.canvasBindingInfo ? props.canvasBindingInfo.name : "未绑定"
+          }}</span>
+          <span
+            v-if="props.hasCanvasPendingChanges"
+            class="pending-pulse"
+          ></span>
+        </button>
+        <button
+          v-if="props.canvasBindingInfo"
+          type="button"
+          class="clear-btn"
+          aria-label="解绑当前画布"
+          @click.stop="unbindCanvas"
+        >
+          <X :size="14" />
+        </button>
+      </div>
+    </el-tooltip>
+
+    <!-- 历史上下文统计 -->
+    <el-tooltip
+      v-if="
+        !props.compact &&
+        statusId === 'context-tokens' &&
+        props.contextStats &&
+        props.contextStats.totalTokenCount !== undefined
+      "
+      placement="top"
+      :show-after="500"
+    >
+      <template #content>
+        <div style="text-align: left; line-height: 1.6">
+          <div style="font-weight: 600; margin-bottom: 4px">历史上下文统计</div>
+          <div style="font-size: 12px">
+            <div>
+              总计:
+              {{ props.contextStats.totalTokenCount.toLocaleString() }} tokens
+            </div>
+            <div v-if="props.contextStats.presetMessagesTokenCount">
+              预设消息:
+              {{ props.contextStats.presetMessagesTokenCount.toLocaleString() }}
+              tokens
+            </div>
+            <div v-if="props.contextStats.worldbookTokenCount">
+              世界书:
+              {{
+                props.contextStats.worldbookTokenCount.toLocaleString()
+              }}
+              tokens
+            </div>
+            <div v-if="props.contextStats.chatHistoryTokenCount">
+              会话历史:
+              {{ props.contextStats.chatHistoryTokenCount.toLocaleString() }}
+              tokens
+            </div>
+            <div v-if="props.contextStats.postProcessingTokenCount">
+              后处理:
+              {{ props.contextStats.postProcessingTokenCount.toLocaleString() }}
+              tokens
+            </div>
+            <div
+              v-if="props.contextStats.truncatedMessageCount"
+              style="color: var(--el-color-warning); margin-top: 2px"
+            >
+              已截断: {{ props.contextStats.truncatedMessageCount }} 条消息
+              <span v-if="props.contextStats.savedTokenCount">
+                (省
+                {{
+                  props.contextStats.savedTokenCount.toLocaleString()
+                }}
+                tokens)
+              </span>
+            </div>
+            <div
+              v-if="props.contextStats.tokenizerName"
+              style="margin-top: 4px; opacity: 0.8"
+            >
+              {{ props.contextStats.isEstimated ? "字符估算" : "Token 计算" }}
+              - {{ props.contextStats.tokenizerName }}
+            </div>
+          </div>
+        </div> </template
+      ><span class="token-count context-total">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="margin-right: 4px"
+        >
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path
+            d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+          ></path>
+        </svg>
+        <span
+          >{{ props.contextStats.totalTokenCount.toLocaleString()
+          }}{{ props.contextStats.isEstimated ? "~" : "" }}</span
+        >
+      </span>
+    </el-tooltip>
+
+    <!-- 当前输入 Token 计数 -->
+    <el-tooltip
+      v-if="
+        !props.compact &&
+        statusId === 'input-tokens' &&
+        (inputStore.tokenCount > 0 || inputStore.isCalculatingTokens)
+      "
+      :content="
+        inputStore.tokenEstimated
+          ? '当前输入 Token 数量（估算值）'
+          : '当前输入 Token 数量'
+      "
+      placement="top"
+      :show-after="500"
+    >
+      <span class="token-count input-tokens">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="margin-right: 4px"
+        >
+          <path d="M12 20h9"></path>
+          <path
+            d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+          ></path>
+        </svg>
+        <span
+          >{{ inputStore.tokenCount.toLocaleString()
+          }}{{ inputStore.tokenEstimated ? "~" : "" }}</span
+        >
+      </span>
+    </el-tooltip>
+  </template>
 </template>
 
 <style scoped>

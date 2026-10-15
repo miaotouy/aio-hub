@@ -42,10 +42,8 @@ import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/a
 import type { MessageInputPanelRepeatClickAction } from "../composables/input/useMessageInputPanel";
 
 export interface InputToolbarSettings {
-  showTokenUsage: boolean;
   enableMacroParsing: boolean;
   extractBase64FromPaste: boolean;
-  groupQuickActionsBySet: boolean;
   panelRepeatClickAction: MessageInputPanelRepeatClickAction;
 }
 
@@ -66,10 +64,8 @@ export const useMessageInputStore = defineStore(
     const settings = useStorage<InputToolbarSettings>(
       "chat-input-settings",
       {
-        showTokenUsage: true,
         enableMacroParsing: true,
         extractBase64FromPaste: true,
-        groupQuickActionsBySet: false,
         panelRepeatClickAction: "collapse",
       },
       localStorage,

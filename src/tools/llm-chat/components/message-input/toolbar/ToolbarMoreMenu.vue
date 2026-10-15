@@ -31,7 +31,7 @@ const props = defineProps<{
   overflowActions: ToolbarAction[];
   statistics?: {
     contextTokens?: number;
-    inputTokens: number;
+    inputTokens?: number;
     contextEstimated?: boolean;
     inputEstimated?: boolean;
   };
@@ -131,8 +131,8 @@ defineExpose({ close });
         <div v-if="statistics" class="statistics-summary">
           <span v-if="statistics.contextTokens !== undefined"
             >上下文 {{ statistics.contextTokens.toLocaleString()
-            }}{{ statistics.contextEstimated ? "~" : "" }}</span
-          ><span
+            }}{{ statistics.contextEstimated ? "~" : "" }} tokens</span
+          ><span v-if="statistics.inputTokens !== undefined"
             >输入 {{ statistics.inputTokens.toLocaleString()
             }}{{ statistics.inputEstimated ? "~" : "" }} tokens</span
           >

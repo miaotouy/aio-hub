@@ -22,9 +22,19 @@ export type InputToolbarActionId =
   | "paste-draft"
   | "unlock-height";
 
-/** Layout preferences for the system-action toolbar. */
+export type InputToolbarStatusId =
+  | "continuation-model"
+  | "temporary-model"
+  | "canvas"
+  | "context-tokens"
+  | "input-tokens";
+
+/** Layout preferences for input actions, statuses and quick actions. */
 export interface InputToolbarLayout {
   version: 1;
   /** Unknown IDs are retained for forward/backward compatibility. */
   pinnedActionIds: string[];
+  /** Enabled statuses, in display order. Unknown IDs are retained. */
+  statusIds: string[];
+  groupQuickActionsBySet: boolean;
 }

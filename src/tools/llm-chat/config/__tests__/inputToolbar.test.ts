@@ -7,6 +7,7 @@ import {
   normalizeInputToolbarLayout,
   partitionToolbarActions,
   visibleToolbarActionCount,
+  reorderToolbarIds,
 } from "../inputToolbar";
 import {
   resolveInputToolbarActions,
@@ -49,12 +50,92 @@ describe("input toolbar user layout", () => {
     });
     expect(layout.pinnedActionIds).toEqual(["macro", "future-action"]);
     expect(layout).toEqual({
-      version: 1,
+      ...createCompactToolbarLayout(),
       pinnedActionIds: ["macro", "future-action"],
     });
     expect(normalizeInputToolbarLayout(null)).toEqual(
       createCompactToolbarLayout()
     );
+  });
+
+  // Upgrade must preserve the user's visible statistics and grouped shortcuts.
+  it("migrates input display preferences while preserving the saved action order", () => {
+    const layout = mergeInputToolbarLayout(
+      { pinnedActionIds: ["macro", "attachment"] },
+      {
+        showTokenUsage: false,
+        groupQuickActionsBySet: true,
+      }
+    );
+    expect(layout.pinnedActionIds).toEqual(["macro", "attachment"]);
+    expect(layout.statusIds).toEqual([
+      "continuation-model",
+      "temporary-model",
+      "canvas",
+    ]);
+    expect(layout.groupQuickActionsBySet).toBe(true);
+    expect(
+      mergeInputToolbarLayout(undefined, { showTokenUsage: false }).statusIds
+    ).toEqual(layout.statusIds);
+    expect(
+      mergeInputToolbarLayout({ pinnedActionIds: [] }, { showTokenUsage: true })
+        .statusIds
+    ).toContain("input-tokens");
+  });
+
+  it("honors explicit status choices over legacy settings, including an empty status area", () => {
+    const saved = {
+      pinnedActionIds: [],
+      statusIds: [
+        "input-tokens",
+        "canvas",
+        "future-status",
+        "input-tokens",
+        null,
+        "",
+      ],
+      groupQuickActionsBySet: false,
+    };
+    const layout = mergeInputToolbarLayout(saved, {
+      showTokenUsage: false,
+      groupQuickActionsBySet: true,
+    });
+    expect(layout.statusIds).toEqual([
+      "input-tokens",
+      "canvas",
+      "future-status",
+    ]);
+    expect(layout.groupQuickActionsBySet).toBe(false);
+    expect(layout.pinnedActionIds).toEqual([]);
+    expect(
+      mergeInputToolbarLayout(
+        { ...saved, statusIds: [] },
+        { showTokenUsage: true }
+      ).statusIds
+    ).toEqual([]);
+    const second = normalizeInputToolbarLayout(layout);
+    second.statusIds.reverse();
+    expect(layout.statusIds).toEqual([
+      "input-tokens",
+      "canvas",
+      "future-status",
+    ]);
+  });
+
+  it("falls back safely for malformed status preferences without losing valid choices", () => {
+    const fallback = mergeInputToolbarLayout(undefined, {
+      showTokenUsage: false,
+      groupQuickActionsBySet: true,
+    });
+    const layout = normalizeInputToolbarLayout(
+      { statusIds: "canvas", groupQuickActionsBySet: "false" },
+      fallback
+    );
+    expect(layout.statusIds).toEqual(fallback.statusIds);
+    expect(layout.groupQuickActionsBySet).toBe(true);
+    expect(
+      normalizeInputToolbarLayout({ statusIds: ["context-tokens"] }).statusIds
+    ).toEqual(["context-tokens"]);
   });
 
   it("keeps one location per available action, honors custom order and restores temporarily unavailable pins", () => {
@@ -90,6 +171,25 @@ describe("input toolbar user layout", () => {
       "macro",
       "translate",
     ]);
+  });
+
+  // Search and unknown-version IDs must keep their saved positions during visible-only sorting.
+  it("reorders visible actions and statuses without moving filtered or unknown IDs", () => {
+    const ids = ["attachment", "future-action", "macro", "knowledge"];
+    expect(reorderToolbarIds(ids, ["knowledge", "attachment"])).toEqual([
+      "knowledge",
+      "future-action",
+      "macro",
+      "attachment",
+    ]);
+    expect(ids).toEqual(["attachment", "future-action", "macro", "knowledge"]);
+    expect(
+      reorderToolbarIds(
+        ["canvas", "future-status", "input-tokens"],
+        ["input-tokens", "canvas"]
+      )
+    ).toEqual(["input-tokens", "future-status", "canvas"]);
+    expect(reorderToolbarIds(ids, [])).toEqual(ids);
   });
 
   it("reserves access to more actions and restores pins as the window expands", () => {

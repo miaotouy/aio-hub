@@ -57,16 +57,6 @@ function updateSetting(
       </el-select>
     </div>
     <div class="setting-item">
-      <span class="setting-label">显示 Token 统计</span>
-      <el-switch
-        :model-value="inputStore.settings.showTokenUsage"
-        @update:model-value="
-          (v: boolean | string | number) => updateSetting('showTokenUsage', v)
-        "
-        size="small"
-      />
-    </div>
-    <div class="setting-item">
       <span class="setting-label">启用输入宏解析</span>
       <el-switch
         :model-value="inputStore.settings.enableMacroParsing"
@@ -84,17 +74,6 @@ function updateSetting(
         @update:model-value="
           (v: boolean | string | number) =>
             updateSetting('extractBase64FromPaste', v)
-        "
-        size="small"
-      />
-    </div>
-    <div class="setting-item">
-      <span class="setting-label">快捷按钮按组分行</span>
-      <el-switch
-        :model-value="inputStore.settings.groupQuickActionsBySet"
-        @update:model-value="
-          (v: boolean | string | number) =>
-            updateSetting('groupQuickActionsBySet', v)
         "
         size="small"
       />

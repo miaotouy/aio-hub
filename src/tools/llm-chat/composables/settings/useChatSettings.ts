@@ -34,7 +34,31 @@ const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
 
 // 全局设置状态（提升到顶部避免循环依赖导入时出现 TDZ 临时死区）
-const settings = ref<ChatSettings>({ ...DEFAULT_SETTINGS });
+function readLegacyInputSettings(): unknown {
+  try {
+    return JSON.parse(localStorage.getItem("chat-input-settings") ?? "null");
+  } catch {
+    return undefined;
+  }
+}
+
+function createDefaultSettings(): ChatSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    uiPreferences: {
+      ...DEFAULT_SETTINGS.uiPreferences,
+      inputToolbar: mergeInputToolbarLayout(
+        {
+          pinnedActionIds:
+            DEFAULT_SETTINGS.uiPreferences.inputToolbar.pinnedActionIds,
+        },
+        readLegacyInputSettings()
+      ),
+    },
+  };
+}
+
+const settings = ref<ChatSettings>(createDefaultSettings());
 const isLoaded = ref(false);
 
 /**
@@ -44,7 +68,7 @@ const settingsManager = createConfigManager<ChatSettings>({
   moduleName: "llm-chat",
   fileName: "chat-settings.json",
   version: "1.1.0",
-  createDefault: () => ({ ...DEFAULT_SETTINGS }),
+  createDefault: createDefaultSettings,
   mergeConfig: (defaultConfig, loadedConfig) => {
     return {
       ...defaultConfig,
@@ -53,7 +77,8 @@ const settingsManager = createConfigManager<ChatSettings>({
         ...defaultConfig.uiPreferences,
         ...(loadedConfig.uiPreferences || {}),
         inputToolbar: mergeInputToolbarLayout(
-          loadedConfig.uiPreferences?.inputToolbar
+          loadedConfig.uiPreferences?.inputToolbar,
+          readLegacyInputSettings()
         ),
         bubbleLayout: {
           ...defaultConfig.uiPreferences.bubbleLayout,

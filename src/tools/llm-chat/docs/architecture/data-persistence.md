@@ -6,7 +6,7 @@
 
 - **索引文件**: `llm-chat/sessions-index.json`，存储 `currentSessionId`、收藏夹与会话元信息列表（`ChatSessionIndex[]`）。索引额外维护 `sessions-index.json.bak`，保存最近一次有效主索引。
 - **会话文件**: 每个会话的完整数据存储为 `llm-chat/sessions/{sessionId}.json`（直接以 `sessionId` 作为文件名，无 `session-` 前缀）。会话和索引均带有 `_persistence` 元数据（schema、revision、committedAt）；旧文件以 revision 0 兼容读取。
-- **写入模型**: `useChatStorageSeparated()` 仅作为兼容 facade。`SessionPersistenceCoordinator` 对每个会话保持“一个运行中写入 + 一个最新 dirty 标记”，索引使用全局单写者；快照在真正提交前同步 JSON 序列化。内容保存不会修改 `currentSessionId`。
+- **写入模型**: `useChatStorageSeparated()` 仅作为兼容 facade。`SessionPersistenceCoordinator` 对每个会话保持“一个运行中写入 + 一个最新 dirty 标记”，索引使用全局单写者；快照在真正提交前同步 JSON 序列化。内容保存不会修改 `currentSessionId`。`useSessionManager.persistSession()` 在发起保存前按当前消息树同步更新内存索引的 `messageCount`，侧栏在用户消息保存时即可显示当前数量，生成中的助手节点沿用有效消息计数规则。
 - **新会话恢复**: 索引中的 `currentSessionId` 为历史会话 ID 或 `null`（新会话入口）。进入新会话、重新选择已有草稿时立即提交 `null`；草稿身份、名称、智能体和会话参数通过 `new-session-draft.json` 独立保存；刷新后恢复原 ID，并重新生成未固化开场白。切换到历史会话时保留待发草稿，历史列表继续过滤该草稿。首条消息发送时沿用草稿 ID，依次写入会话内容、索引与正式会话 ID，随后清除草稿恢复记录；重启发现同 ID 已在正式索引中时，以正式会话为准并清理残留记录。索引修复保留空选择，Service 发送入口在空选择时创建草稿；显式指定的会话失效时返回错误。
 - **选择槽独立写入与切换竞态**: `currentSessionId` 由独立的串行写入路径提交，批量内容/索引保存不写入该字段，旧快照不会覆盖新选择。`sessionLifecycleManager.switchSession()` 使用单调递增的请求序号（`latestSwitchRequest`）识别过期响应，仅最新请求提交选择；删除或清空全部会话时显式提交空选择。
 - **原子提交**: 前端调用限定用途的 Rust command `llm_chat_atomic_write`。该命令只解析 llm-chat 的逻辑标识，校验 JSON/revision/sessionId，按逻辑路径获取进程内锁和跨进程文件锁，在同目录临时文件 `sync_all()` 后执行原子替换。索引只会在原主文件有效时轮换备份，避免损坏主文件覆盖最后有效备份。

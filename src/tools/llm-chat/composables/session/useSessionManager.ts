@@ -356,6 +356,12 @@ export function useSessionManager() {
     detail: ChatSessionDetail,
     currentSessionId: string | null
   ): void => {
+    // 首条用户消息保存时同步刷新侧栏索引，生成期间也能显示当前消息数。
+    index.messageCount = getEffectiveMessageCount(
+      detail.nodes,
+      detail.rootNodeId
+    );
+
     if (isSessionVolatile(index.id)) {
       saveNewSessionDraft({ index, detail }).catch((error) => {
         errorHandler.handle(error as Error, {

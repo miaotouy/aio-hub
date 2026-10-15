@@ -143,12 +143,7 @@
       </div>
 
       <div class="form-item">
-        <el-checkbox
-          :model-value="store.config.autoConnect"
-          @update:model-value="store.updateConfig({ autoConnect: $event })"
-        >
-          自动连接
-        </el-checkbox>
+        <el-checkbox v-model="store.autoConnect"> 自动连接 </el-checkbox>
       </div>
 
       <div class="form-item">

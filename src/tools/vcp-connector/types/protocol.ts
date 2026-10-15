@@ -134,7 +134,6 @@ export interface VcpConfig {
   wsUrl: string;
   vcpKey: string;
   vcpPath: string;
-  autoConnect: boolean;
   maxHistory: number;
   mode?: VcpConnectionMode;
   /** VCP 聊天 API 鉴权 Key (对应后端 Key) */

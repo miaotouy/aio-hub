@@ -56,7 +56,9 @@ export class VcpConnectorRegistry implements ToolRegistry {
     // 否则 wsUrl/vcpKey 为空，connect() 会静默失败
     await Promise.all([vcpStore.initPromise, distStore.initPromise]);
 
-    // 显式触发连接
+    if (!vcpStore.autoConnect) return;
+
+    // 配置加载期间可能关闭启动项，连接前再次确认当前设置
     vcpStore.connect();
 
     // 启动分布式节点逻辑（包括工具注册和心跳）

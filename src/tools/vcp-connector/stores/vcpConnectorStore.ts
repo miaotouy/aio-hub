@@ -16,6 +16,7 @@ import { defineStore } from "pinia";
 import { ref, computed, shallowRef, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
+import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import {
   VcpMessage,
   VcpMessageType,
@@ -67,7 +68,6 @@ function createDefaultVcpConfig(): VcpConfig {
     wsUrl: "",
     vcpKey: "",
     vcpPath: "",
-    autoConnect: false,
     maxHistory: DEFAULT_MAX_HISTORY,
     mode: "both",
     vcpChatKey: "",
@@ -100,18 +100,23 @@ const configManager = createConfigManager<VcpConfig>({
   moduleName: "vcp-connector",
   fileName: "config.json",
   createDefault: createDefaultVcpConfig,
-  mergeConfig: (defaultConfig, loadedConfig) => ({
-    ...defaultConfig,
-    ...loadedConfig,
-    notificationMode: NOTIFICATION_MODES.includes(
-      loadedConfig.notificationMode as VcpNotificationMode
-    )
-      ? (loadedConfig.notificationMode as VcpNotificationMode)
-      : defaultConfig.notificationMode,
-    notificationModes: normalizeNotificationModes(
-      loadedConfig.notificationModes
-    ),
-  }),
+  mergeConfig: (defaultConfig, loadedConfig) => {
+    // 旧连接配置中的开关由全局启动项统一接管。
+    const { autoConnect: _legacyAutoConnect, ...connectionConfig } =
+      loadedConfig as Partial<VcpConfig> & { autoConnect?: boolean };
+    return {
+      ...defaultConfig,
+      ...connectionConfig,
+      notificationMode: NOTIFICATION_MODES.includes(
+        loadedConfig.notificationMode as VcpNotificationMode
+      )
+        ? (loadedConfig.notificationMode as VcpNotificationMode)
+        : defaultConfig.notificationMode,
+      notificationModes: normalizeNotificationModes(
+        loadedConfig.notificationModes
+      ),
+    };
+  },
 });
 
 // 消息管理器：负责历史消息持久化
@@ -123,6 +128,29 @@ const messagesManager = createConfigManager<{ list: VcpMessage[] }>({
 
 export const useVcpStore = defineStore("vcp-connector", () => {
   const bus = useWindowSyncBus();
+  const appSettingsStore = useAppSettingsStore();
+  const autoConnect = computed({
+    get: () =>
+      appSettingsStore.settings.startupTasks?.["vcp-connector"]?.enabled ??
+      false,
+    set: (enabled: boolean) => {
+      const tasks = appSettingsStore.settings.startupTasks ?? {};
+      const state = tasks["vcp-connector"];
+      appSettingsStore.update({
+        startupTasks: {
+          ...tasks,
+          "vcp-connector": {
+            ...state,
+            enabled,
+            consecutiveFailures: enabled
+              ? 0
+              : (state?.consecutiveFailures ?? 0),
+            autoDisabled: enabled ? false : (state?.autoDisabled ?? false),
+          },
+        },
+      });
+    },
+  });
 
   // 检查是否为分离的消息监控窗口
   // 路径格式通常为 /detached-component/vcp-connector:monitor
@@ -508,7 +536,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         isConnecting.value = false;
         stopPingTimer();
         setConnectionStatus("disconnected");
-        if (!event.wasClean && config.value.autoConnect) {
+        if (!event.wasClean && autoConnect.value) {
           scheduleReconnect();
         }
       };
@@ -519,7 +547,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           "Observer WebSocket connection failed (VCP backend might be offline)"
         );
         setConnectionStatus("error");
-        if (config.value.autoConnect) {
+        if (autoConnect.value) {
           scheduleReconnect();
         }
       };
@@ -546,7 +574,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
       logger.error("Failed to setup observer WebSocket", error);
       isConnecting.value = false;
       setConnectionStatus("error");
-      if (config.value.autoConnect) {
+      if (autoConnect.value) {
         scheduleReconnect();
       }
     }
@@ -628,7 +656,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         logger.info("VCPLog WebSocket closed", event.code);
         // 取消所有通过 VCPLog 发起的待审批请求，防止它们永久挂起
         useToolCallingStore().cancelExternalRequests("VCPLog 连接已断开");
-        if (!event.wasClean && config.value.autoConnect) {
+        if (!event.wasClean && autoConnect.value) {
           // 依赖主 Observer 的重连逻辑，VCPLog 会在 attemptConnect 中一起重连
         }
       };
@@ -739,7 +767,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
           logger.error("Failed to teardown VCP bridge factory", err);
         });
 
-        if (!event.wasClean && config.value.autoConnect) {
+        if (!event.wasClean && autoConnect.value) {
           scheduleReconnect();
         }
       };
@@ -849,7 +877,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
     reconnectTimer.value = setTimeout(() => {
       reconnectTimer.value = null;
-      attemptConnect();
+      if (autoConnect.value) attemptConnect();
     }, delay);
 
     // 指数退避
@@ -1140,6 +1168,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
         "vcp-connector" as any,
         {
           status: connection.value.status,
+          autoConnect: autoConnect.value,
           config: config.value,
         },
         0,
@@ -1154,7 +1183,28 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     // 监听状态同步
     const unlistenSync = bus.onMessage("state-sync", (payload: any) => {
       if (payload.stateType === "vcp-connector") {
-        const { status: mainStatus, config: syncedConfig } = payload.data;
+        const {
+          status: mainStatus,
+          config: syncedConfig,
+          autoConnect: syncedAutoConnect,
+        } = payload.data;
+
+        // 分离监控窗口跟随主窗口设置，只更新内存，持久化由主窗口负责。
+        if (isDetachedMonitor && typeof syncedAutoConnect === "boolean") {
+          const task =
+            appSettingsStore.settings.startupTasks?.["vcp-connector"];
+          appSettingsStore.$patch({
+            settings: {
+              startupTasks: {
+                "vcp-connector": {
+                  ...task,
+                  enabled: syncedAutoConnect,
+                  consecutiveFailures: task?.consecutiveFailures ?? 0,
+                },
+              },
+            },
+          });
+        }
 
         // 同步配置
         if (syncedConfig) {
@@ -1189,7 +1239,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
       // 监听连接状态变化并广播
       watch(
-        () => connection.value.status,
+        () => [connection.value.status, autoConnect.value],
         () => broadcastState()
       );
     } else {
@@ -1229,10 +1279,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
     // 设置同步逻辑
     await setupSync();
 
-    if (config.value.autoConnect) {
-      connect();
-    }
-
+    // 启动连接由 Registry.onStartup 统一处理，遵循全局启动项配置。
     // 标记初始化完成
     _initResolve();
   }
@@ -1241,6 +1288,7 @@ export const useVcpStore = defineStore("vcp-connector", () => {
 
   return {
     config,
+    autoConnect,
     isDetachedMonitor,
     isMonitorDetached,
     connection,

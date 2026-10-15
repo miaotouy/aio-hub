@@ -90,7 +90,7 @@ export function createChannelProbeService(
         capability: request.capability,
         stream: request.stream,
       });
-      if (!plan.supported) {
+      if (!plan.supported || plan.capability === "decision") {
         return failureResult(request, startedAt, {
           category: "unsupported-capability",
           phase: "prepare",
@@ -397,6 +397,7 @@ async function executePlan(
         },
       };
     }
+    case "decision":
     case "video":
     case "music":
       throw new Error("该能力不支持自动检查");
@@ -501,5 +502,7 @@ function cancelledResult(
 }
 
 function capabilityLabel(capability: string): string {
-  return { video: "视频", music: "音乐" }[capability] ?? capability;
+  return (
+    { video: "视频", music: "音乐", decision: "决策" }[capability] ?? capability
+  );
 }

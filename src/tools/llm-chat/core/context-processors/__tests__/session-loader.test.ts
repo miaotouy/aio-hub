@@ -96,4 +96,44 @@ describe("sessionLoader", () => {
       content: "first user",
     });
   });
+  it("replays VCP response segments once and sends upstream tool text as user content", async () => {
+    const nodes = {
+      root: node("root", null, "system", "root", ["u"]),
+      u: node("u", "root", "user", "question", ["a1"]),
+      a1: node("a1", "u", "assistant", "tool request", ["t"]),
+      t: node("t", "a1", "tool", "tool result", ["a2"]),
+      a2: node("a2", "t", "assistant", "answer"),
+    };
+    nodes.t.metadata = { vcpResponse: { requestId: "a1", kind: "tool" } };
+    nodes.a1.metadata = {
+      vcpResponse: { requestId: "a1", kind: "assistant" },
+      reasoningContent: "intermediate thought",
+    };
+    nodes.a2.metadata = {
+      vcpResponse: { requestId: "a1", kind: "assistant" },
+      reasoningContent: "final thought",
+    };
+    const context = createContext({
+      id: "vcp",
+      nodes,
+      rootNodeId: "root",
+      activeLeafId: "a2",
+      history: [],
+      historyIndex: -1,
+    } as unknown as ChatSessionDetail);
+    context.agentConfig!.toolCallConfig = {
+      convertToolRoleToUser: false,
+    } as any;
+    await sessionLoader.execute(context);
+    expect(
+      context.messages.map((message) => [message.role, message.content])
+    ).toEqual([
+      ["user", "question"],
+      ["assistant", "tool request"],
+      ["user", "tool result"],
+      ["assistant", "answer"],
+    ]);
+    expect(context.messages[1].reasoningContent).toBe("intermediate thought");
+    expect(context.messages[3].reasoningContent).toBeUndefined();
+  });
 });

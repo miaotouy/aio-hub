@@ -170,6 +170,7 @@ export function useChatExecutor() {
       abortControllers,
       generatingNodes,
       consumeTextCallsLocally,
+      splitVcpResponses: channelToolHandling.isVcpTextChannel,
       delegationDepth,
     });
   };

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { LlmResponseChunk } from "@aiohub/llm-core";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
@@ -226,6 +227,8 @@ export interface LlmRequestOptions {
   stream?: boolean;
   /** 流式响应回调 */
   onStream?: (chunk: string) => void;
+  /** OpenAI-compatible response chunks, including intermediate upstream boundaries. */
+  onResponseChunk?: (chunk: LlmResponseChunk) => void;
   /** 流式推理内容回调（DeepSeek reasoning 等） */
   onReasoningStream?: (chunk: string) => void;
   /** 流式预览图回调 (OpenAI Responses gpt-image-2 特性) */

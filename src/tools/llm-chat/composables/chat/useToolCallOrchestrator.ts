@@ -53,6 +53,7 @@ export interface OrchestrateParams {
   generatingNodes: Set<string>;
   /** 当前渠道是否允许 AIO 在本地消费文本工具调用。 */
   consumeTextCallsLocally: boolean;
+  splitVcpResponses?: boolean;
   /** 是否为重新解析模式（跳过第一轮 LLM 请求，直接解析现有内容） */
   isReparse?: boolean;
   /** 子智能体派发深度（透传至工具执行 ToolContext.delegationDepth） */
@@ -175,6 +176,12 @@ export function useToolCallOrchestrator() {
             executionAgent,
             effectiveUserProfile,
             abortController,
+            splitVcpResponses: params.splitVcpResponses,
+            onResponseNode: (node) => {
+              generatingNodes.delete(currentAssistantNode.id);
+              currentAssistantNode = node;
+              registerNode(node.id);
+            },
           });
 
           lastStreamEndTime = Date.now();
@@ -463,13 +470,9 @@ export function useToolCallOrchestrator() {
       );
     } finally {
       // 5. 清理状态
-      abortControllers.delete(assistantNode.id);
-      generatingNodes.delete(assistantNode.id);
-      if (currentAssistantNode?.id) {
-        generatingNodes.delete(currentAssistantNode.id);
-        if (currentAssistantNode.id !== assistantNode.id) {
-          abortControllers.delete(currentAssistantNode.id);
-        }
+      for (const nodeId of trackedNodeIds) {
+        abortControllers.delete(nodeId);
+        generatingNodes.delete(nodeId);
       }
     }
   };

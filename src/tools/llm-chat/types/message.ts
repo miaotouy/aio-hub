@@ -227,6 +227,14 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
+    /** A segment of a single upstream-owned VCP agent request. */
+    vcpResponse?: {
+      requestId: string;
+      kind: "assistant" | "tool";
+      responseId?: string;
+      finishReason?: string;
+      toolStatus?: "success" | "error";
+    };
     /** 生成此消息时使用的 Agent ID */
     agentId?: string;
     /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */

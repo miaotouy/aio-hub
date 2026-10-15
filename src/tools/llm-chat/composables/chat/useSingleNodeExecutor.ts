@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
+import type {
+  LlmMessage,
+  LlmReasoningArtifact,
+  LlmRequestOptions,
+} from "@/llm-apis/common";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -28,6 +32,8 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatResponseHandler } from "./useChatResponseHandler";
+import { useNodeManager } from "../session/useNodeManager";
+import { VcpStreamSegmenter } from "../../core/tool-calling/vcp-stream-segmenter";
 import { useContextPipelineStore } from "../../stores/contextPipelineStore";
 import type { PipelineContext } from "../../types/pipeline";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
@@ -65,6 +71,8 @@ export interface SingleNodeExecuteParams {
   /** 到用户消息的完整路径 */
   currentPathToUserNode: ChatMessageNode[];
   isContinuation?: boolean;
+  splitVcpResponses?: boolean;
+  onResponseNode?: (node: ChatMessageNode) => void;
   /** Agent 配置片段 */
   agentConfig: {
     profileId: string;
@@ -90,11 +98,16 @@ export interface SingleNodeExecuteResult {
 
 export function useSingleNodeExecutor() {
   const { currentAgentId } = useLlmChatUiState();
-  const { handleStreamUpdate, validateAndFixUsage, finalizeNode } =
-    useChatResponseHandler();
+  const {
+    handleStreamUpdate,
+    completeStreamSegment,
+    validateAndFixUsage,
+    finalizeNode,
+  } = useChatResponseHandler();
   const { checkAndCompress } = useContextCompressor();
   const { sendRequest } = useLlmRequest();
   const contextPipelineStore = useContextPipelineStore();
+  const nodeManager = useNodeManager();
 
   /**
    * 执行单次 LLM 请求
@@ -268,6 +281,81 @@ export function useSingleNodeExecutor() {
 
     let hasReceivedStreamData = false;
     let response: any = null;
+    const splitVcpResponses =
+      params.splitVcpResponses && settings.value.uiPreferences.isStreaming;
+    const segmenter = splitVcpResponses ? new VcpStreamSegmenter() : undefined;
+    const segmentNodes = new Map<number, ChatMessageNode>();
+    let hasResponseChunks = false;
+    let activeStreamNode = assistantNode;
+
+    const onResponseChunk: NonNullable<LlmRequestOptions["onResponseChunk"]> = (
+      chunk
+    ) => {
+      if (!segmenter) return;
+      hasResponseChunks = true;
+      const update = segmenter.push(chunk);
+      if (!update) return;
+      const { segment, contentDelta, reasoningDelta } = update;
+      let node = segmentNodes.get(segment.index);
+      if (!node) {
+        if (segment.index === 0) {
+          node = assistantNode;
+          node.role = segment.kind;
+        } else {
+          completeStreamSegment(session, activeStreamNode.id);
+          const original = assistantNode.metadata;
+          node = nodeManager.createNode({
+            role: segment.kind,
+            content: "",
+            parentId: activeStreamNode.id,
+            status: "waiting",
+            metadata: {
+              agentId: original?.agentId,
+              profileId: original?.profileId,
+              modelId: original?.modelId,
+              profileName: original?.profileName,
+              modelName: original?.modelName,
+              modelIcon: original?.modelIcon,
+              providerType: original?.providerType,
+              requestParameters: original?.requestParameters,
+            },
+          });
+          nodeManager.addNodeToSession(session, node);
+          nodeManager.updateActiveLeaf(session, node.id);
+        }
+        segmentNodes.set(segment.index, node);
+        activeStreamNode = node;
+        params.onResponseNode?.(node);
+      }
+      node.metadata = {
+        ...node.metadata,
+        vcpResponse: {
+          requestId: assistantNode.id,
+          kind: segment.kind,
+          responseId: segment.responseId,
+          finishReason: segment.finishReason,
+          toolStatus: segment.toolStatus,
+        },
+        ...(segment.usage ? { usage: segment.usage } : {}),
+        ...(segment.finishReason && !node.metadata?.requestEndTime
+          ? { requestEndTime: Date.now() }
+          : {}),
+        ...(segment.toolCalls
+          ? {
+              toolCalls: segment.toolCalls.map((call, index) => ({
+                ...call,
+                requestId: `${assistantNode.id}:vcp:${segment.index}:${index}`,
+                resultMetadata: { source: "vcp-upstream" },
+              })),
+            }
+          : {}),
+      };
+      if (contentDelta || reasoningDelta) hasReceivedStreamData = true;
+      if (contentDelta)
+        handleStreamUpdate(session, node.id, contentDelta, false);
+      if (reasoningDelta)
+        handleStreamUpdate(session, node.id, reasoningDelta, true);
+    };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -282,17 +370,28 @@ export function useSingleNodeExecutor() {
             purpose: "chat",
           },
           ...effectiveParams,
+          ...(splitVcpResponses
+            ? {
+                streamOptions: {
+                  ...effectiveParams.streamOptions,
+                  includeUsage: true,
+                },
+                onResponseChunk,
+              }
+            : {}),
           stream: settings.value.uiPreferences.isStreaming,
           signal: abortController.signal,
           timeout: settings.value.requestSettings.timeout,
           onStream: settings.value.uiPreferences.isStreaming
             ? (chunk: string) => {
+                if (hasResponseChunks) return;
                 hasReceivedStreamData = true;
                 handleStreamUpdate(session, assistantNode.id, chunk, false);
               }
             : undefined,
           onReasoningStream: settings.value.uiPreferences.isStreaming
             ? (chunk: string) => {
+                if (hasResponseChunks) return;
                 hasReceivedStreamData = true;
                 handleStreamUpdate(session, assistantNode.id, chunk, true);
               }
@@ -300,8 +399,9 @@ export function useSingleNodeExecutor() {
           onPartialImage: settings.value.uiPreferences.isStreaming
             ? (base64: string, index: number) => {
                 // 这是流式预览图，我们存入元数据供 UI 渲染，避免污染正文
-                if (!session.nodes || !session.nodes[assistantNode.id]) return;
-                const node = session.nodes[assistantNode.id];
+                if (!session.nodes || !session.nodes[activeStreamNode.id])
+                  return;
+                const node = session.nodes[activeStreamNode.id];
                 if (!node.metadata) node.metadata = {};
                 const previews = [
                   ...(node.metadata.partialImagePreviews || []),
@@ -382,22 +482,70 @@ export function useSingleNodeExecutor() {
             statusCode,
           });
         }
+        for (const node of segmentNodes.values()) {
+          completeStreamSegment(session, node.id);
+        }
         throw error;
       }
     }
 
     if (response) {
-      await validateAndFixUsage(
-        response,
-        agentConfig.modelId,
-        messagesForRequest as any
-      );
-      await finalizeNode(
-        session,
-        assistantNode.id,
-        response,
-        currentAgentId.value || ""
-      );
+      if (segmenter?.segments.length) {
+        const priorMessages = [...messagesForRequest];
+        const lastAssistant = [...segmenter.segments]
+          .reverse()
+          .find((segment) => segment.kind === "assistant");
+        for (const segment of segmenter.segments) {
+          const node = segmentNodes.get(segment.index)!;
+          if (segment.kind === "tool") {
+            completeStreamSegment(session, node.id);
+          } else {
+            const segmentResponse = {
+              ...response,
+              content: segment.content,
+              reasoningContent: segment.reasoningContent,
+              reasoningArtifacts:
+                segment === lastAssistant
+                  ? response.reasoningArtifacts
+                  : undefined,
+              usage: segment.usage,
+              finishReason: segment.finishReason,
+              images: segment === lastAssistant ? response.images : undefined,
+              toolCalls: undefined,
+            };
+            await validateAndFixUsage(
+              segmentResponse,
+              agentConfig.modelId,
+              priorMessages as any
+            );
+            await finalizeNode(
+              session,
+              node.id,
+              segmentResponse,
+              executionAgent.id
+            );
+          }
+          priorMessages.push({
+            role: segment.kind === "tool" ? "user" : "assistant",
+            content: segment.content,
+            reasoningContent: segment.reasoningContent,
+            reasoningArtifacts: undefined,
+            prefix: undefined,
+          });
+        }
+      } else {
+        await validateAndFixUsage(
+          response,
+          agentConfig.modelId,
+          messagesForRequest as any
+        );
+        await finalizeNode(
+          session,
+          assistantNode.id,
+          response,
+          currentAgentId.value || ""
+        );
+      }
 
       try {
         const sessionIndex = chatStore.sessionIndexMap.get(session.id);

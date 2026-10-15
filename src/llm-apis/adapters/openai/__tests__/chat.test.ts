@@ -897,4 +897,40 @@ describe("OpenAI Adapter - Chat", () => {
       "API Error"
     );
   });
+  it("requests streaming usage and forwards intermediate response chunks to the caller", async () => {
+    const onResponseChunk = vi.fn();
+    const wire = [
+      'data: {"id":"r1","choices":[{"delta":{"content":"first"},"finish_reason":"stop"}]}\n\n',
+      'data: {"id":"r1","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}\n\n',
+      'data: {"id":"r2","choices":[{"delta":{"content":"second"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    (fetchWithTimeout as any).mockResolvedValue(
+      new Response(wire.join(""), {
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+    const response = await callOpenAiChatApi(mockProfile, {
+      profileId: "test-profile",
+      modelId: "gpt-4",
+      messages: [],
+      stream: true,
+      streamOptions: { includeUsage: true },
+      onResponseChunk,
+    });
+    const body = JSON.parse((fetchWithTimeout as any).mock.calls[0][1].body);
+    expect(body.stream_options).toEqual({ include_usage: true });
+    expect(
+      onResponseChunk.mock.calls.map(([chunk]) => [
+        chunk.responseId,
+        chunk.finishReason,
+        chunk.usage?.totalTokens,
+      ])
+    ).toEqual([
+      ["r1", "stop", undefined],
+      ["r1", undefined, 5],
+      ["r2", "stop", undefined],
+    ]);
+    expect(response.content).toBe("firstsecond");
+  });
 });

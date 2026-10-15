@@ -635,3 +635,7 @@ graph TD
 - **`ChatRegexRule` / `ChatRegexPreset` / `ChatRegexConfig`**: 正则管道相关类型。
 
 每个类型的完整字段定义、元数据分组与使用场景详见 [`key-types.md`](./docs/architecture/key-types.md)。
+
+### VCP 上游响应分段
+
+VCP 文本渠道的流式回复按模型生成与工具结果阶段实时追加消息节点，逐段保存用量，并共享一次请求的取消与错误生命周期。事件契约、历史回传与协议边界见 [VCP 上游响应分段](docs/architecture/vcp-response-segmentation.md)。

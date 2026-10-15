@@ -361,4 +361,83 @@ describe("OpenAI-compatible provider adapter", () => {
       },
     ]);
   });
+  it("exposes intermediate response chunks only when requested and completes on DONE", () => {
+    const decoder = openAiCompatibleAdapter.createStreamDecoder({
+      request: createRequest({ stream: true, captureResponseChunks: true }),
+      response: { status: 200, statusText: "OK", headers: {} },
+    });
+    const wire = [
+      {
+        id: "round-1",
+        choices: [{ delta: { content: "first" }, finish_reason: "stop" }],
+      },
+      {
+        id: "round-1",
+        choices: [],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+      },
+      {
+        id: "round-2",
+        choices: [
+          {
+            delta: { reasoning_content: "think", content: "second" },
+            finish_reason: "stop",
+          },
+        ],
+      },
+    ]
+      .map((value) => `data: ${JSON.stringify(value)}\n\n`)
+      .join("");
+    const events = decoder.push(new TextEncoder().encode(wire));
+    expect(events.filter((event) => event.type === "response-chunk")).toEqual([
+      {
+        type: "response-chunk",
+        chunk: {
+          responseId: "round-1",
+          content: "first",
+          finishReason: "stop",
+          reasoningContent: undefined,
+          usage: undefined,
+        },
+      },
+      {
+        type: "response-chunk",
+        chunk: {
+          responseId: "round-1",
+          content: undefined,
+          reasoningContent: undefined,
+          finishReason: undefined,
+          usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
+        },
+      },
+      {
+        type: "response-chunk",
+        chunk: {
+          responseId: "round-2",
+          content: "second",
+          reasoningContent: "think",
+          finishReason: "stop",
+          usage: undefined,
+        },
+      },
+    ]);
+    expect(events.filter((event) => event.type === "completed")).toEqual([]);
+    expect(decoder.push(new TextEncoder().encode("data: [DONE]\n\n"))).toEqual([
+      {
+        type: "completed",
+        response: {
+          content: "firstsecond",
+          reasoningContent: "think",
+          finishReason: "stop",
+          usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
+        },
+      },
+    ]);
+    expect(
+      buildOpenAiCompatibleRequest(
+        profile,
+        createRequest({ captureResponseChunks: true })
+      )
+    ).toEqual(buildOpenAiCompatibleRequest(profile, createRequest()));
+  });
 });

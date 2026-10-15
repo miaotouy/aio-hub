@@ -253,7 +253,10 @@ export const sessionLoader: ContextProcessor = {
       }
 
       let role = node.role;
-      if (role === "tool" && convertToolRoleToUser) {
+      if (
+        role === "tool" &&
+        (convertToolRoleToUser || node.metadata?.vcpResponse?.kind === "tool")
+      ) {
         role = "user";
       }
 
@@ -263,7 +266,21 @@ export const sessionLoader: ContextProcessor = {
       //   - 有 toolCallsRequested → 该节点是"思考→工具调用"的中间过程，后续需要继续推理，因此保留 reasoningContent 以便回传
       //   - 无 toolCallsRequested → 该节点是最终回答，回传 reasoningContent 无意义且浪费 token
       let reasoningContent = node.metadata?.reasoningContent;
-      if (role === "assistant" && !node.metadata?.toolCallsRequested?.length) {
+      const hasUpstreamToolResult =
+        node.metadata?.vcpResponse?.kind === "assistant" &&
+        node.childrenIds.some((id) => {
+          const child = context.detail?.nodes?.[id];
+          return (
+            child?.metadata?.vcpResponse?.kind === "tool" &&
+            child.metadata.vcpResponse.requestId ===
+              node.metadata?.vcpResponse?.requestId
+          );
+        });
+      if (
+        role === "assistant" &&
+        !node.metadata?.toolCallsRequested?.length &&
+        !hasUpstreamToolResult
+      ) {
         reasoningContent = undefined;
       }
 

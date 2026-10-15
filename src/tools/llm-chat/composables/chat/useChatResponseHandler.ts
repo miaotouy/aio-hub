@@ -360,6 +360,40 @@ export function useChatResponseHandler() {
     }
   };
 
+  /** Flush and close a streamed segment before advancing the active leaf. */
+  const completeStreamSegment = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    if (!session.nodes) return;
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    const rState = reasoningUpdateBuffer.get(nodeId);
+    if (rState && rState.buffer) {
+      if (!node.metadata) node.metadata = {};
+      node.metadata.reasoningContent =
+        (node.metadata.reasoningContent || "") + rState.buffer;
+      rState.buffer = "";
+    }
+
+    const cState = contentUpdateBuffer.get(nodeId);
+    if (cState && cState.persistBuffer) {
+      if (cState.persistTimer !== null) {
+        clearTimeout(cState.persistTimer);
+        cState.persistTimer = null;
+      }
+      node.content = (node.content || "") + cState.persistBuffer;
+      cState.persistBuffer = "";
+    }
+    node.status = "complete";
+    node.metadata = {
+      ...node.metadata,
+      requestEndTime: node.metadata?.requestEndTime ?? Date.now(),
+    };
+    completeAndDisposeStreamingMessageSource(nodeId);
+  };
+
   /**
    * 完成节点生成（更新最终状态和元数据）
    */
@@ -369,31 +403,7 @@ export function useChatResponseHandler() {
     response: any,
     agentId: string
   ): Promise<void> => {
-    // 强制刷新所有缓冲区以确保最终状态正确
-    const flushAllBuffers = () => {
-      if (!session.nodes) return;
-      const node = session.nodes[nodeId];
-      if (!node) return;
-
-      const rState = reasoningUpdateBuffer.get(nodeId);
-      if (rState && rState.buffer) {
-        if (!node.metadata) node.metadata = {};
-        node.metadata.reasoningContent =
-          (node.metadata.reasoningContent || "") + rState.buffer;
-        rState.buffer = "";
-      }
-
-      const cState = contentUpdateBuffer.get(nodeId);
-      if (cState && cState.persistBuffer) {
-        if (cState.persistTimer !== null) {
-          clearTimeout(cState.persistTimer);
-          cState.persistTimer = null;
-        }
-        node.content = (node.content || "") + cState.persistBuffer;
-        cState.persistBuffer = "";
-      }
-    };
-    flushAllBuffers();
+    completeStreamSegment(session, nodeId);
 
     const finalNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!finalNode) return;
@@ -524,7 +534,7 @@ export function useChatResponseHandler() {
     const contentTokens = response.usage?.completionTokens;
 
     // 计算性能指标
-    const requestEndTime = Date.now();
+    const requestEndTime = finalNode.metadata?.requestEndTime ?? Date.now();
     let tokensPerSecond: number | undefined;
 
     if (contentTokens && finalNode.metadata?.firstTokenTime) {
@@ -697,6 +707,7 @@ export function useChatResponseHandler() {
 
   return {
     handleStreamUpdate,
+    completeStreamSegment,
     validateAndFixUsage,
     finalizeNode,
     handleNodeError,

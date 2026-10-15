@@ -385,7 +385,15 @@ const mainStatus = computed(() => {
     toolCalls.value.some((t) => t.status === "error" || t.status === "denied")
   )
     return "error";
-  if (toolCalls.value.length === 0) return "pending";
+  if (toolCalls.value.length === 0) {
+    const upstream = props.message.metadata?.vcpResponse;
+    if (upstream?.kind === "tool") {
+      if (props.message.status === "error") return "error";
+      if (upstream.toolStatus) return upstream.toolStatus;
+      return props.message.status === "complete" ? "completed" : "executing";
+    }
+    return "pending";
+  }
   return "success";
 });
 
@@ -868,7 +876,10 @@ defineExpose({
           <span v-else-if="toolCalls.length > 1" class="tool-name"
             >调用了 {{ toolCalls.length }} 个工具</span
           >
-          <span v-if="toolCalls.length === 1" class="request-id">
+          <span
+            v-if="toolCalls.length === 1 && !message.metadata?.vcpResponse"
+            class="request-id"
+          >
             <Hash :size="10" />
             {{ toolCalls[0].requestId.slice(0, 8) }}
           </span>
@@ -1232,7 +1243,9 @@ defineExpose({
           <span class="preview-tool-name" v-else-if="toolCalls.length > 1"
             >[{{ toolCalls.length }} 个工具]</span
           >
-          <span class="preview-tool-name" v-else>[未知工具]</span>
+          <span class="preview-tool-name" v-else>{{
+            message.metadata?.vcpResponse ? "[上游工具]" : "[未知工具]"
+          }}</span>
           <span class="preview-text">
             {{ displayContent.trim().slice(0, 120)
             }}{{ displayContent.trim().length > 120 ? "..." : "" }}

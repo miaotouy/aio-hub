@@ -259,6 +259,8 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
   private finishReason: string | null | undefined;
   private completed = false;
 
+  constructor(private readonly captureResponseChunks = false) {}
+
   push(chunk: Uint8Array): LlmStreamEvent[] {
     if (this.completed) return [];
     return this.decodeDataLines(this.decoder.push(chunk));
@@ -303,6 +305,21 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
         "thought",
       ]);
 
+      const usage = parseOpenAiUsage(root?.usage);
+      const finishReason = readString(choice?.finish_reason);
+      if (this.captureResponseChunks) {
+        events.push({
+          type: "response-chunk",
+          chunk: {
+            responseId: readString(root?.id),
+            content: text,
+            reasoningContent: reasoning,
+            finishReason,
+            usage,
+          },
+        });
+      }
+
       if (text) {
         this.content += text;
         events.push({ type: "text-delta", delta: text });
@@ -316,7 +333,6 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
       this.finishReason =
         readString(choice?.finish_reason) ?? this.finishReason;
 
-      const usage = parseOpenAiUsage(root?.usage);
       if (usage) {
         this.usage = usage;
         events.push({ type: "usage", usage });
@@ -384,8 +400,10 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
   id: "openai-compatible",
   buildRequest: buildOpenAiCompatibleRequest,
   parseResponse: parseOpenAiCompatibleResponse,
-  createStreamDecoder(_context: StreamDecoderContext): ProviderStreamDecoder {
-    return new OpenAiCompatibleStreamDecoder();
+  createStreamDecoder(context: StreamDecoderContext): ProviderStreamDecoder {
+    return new OpenAiCompatibleStreamDecoder(
+      context.request.captureResponseChunks
+    );
   },
 };
 

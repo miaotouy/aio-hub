@@ -92,6 +92,8 @@ export interface LlmRequest {
   model: string;
   messages: LlmMessage[];
   stream?: boolean;
+  /** Internal observer switch; never serialized into the provider body. */
+  captureResponseChunks?: boolean;
   maxTokens?: number;
   maxCompletionTokens?: number;
   temperature?: number;

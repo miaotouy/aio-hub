@@ -35,6 +35,7 @@ import type {
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageLayout } from "../../composables/ui/useMessageLayout";
+import { useMessageScrollAnchor } from "../../composables/ui/useMessageScrollAnchor";
 import ChatMessage from "./ChatMessage.vue";
 import CompressionMessage from "./CompressionMessage.vue";
 import ToolCallMessage from "./ToolCallMessage.vue";
@@ -65,20 +66,13 @@ const { settings } = useChatSettings();
 // 会话作用域：有值时读写显式绑定到该会话，不再依赖 currentSessionId
 const scopedSessionId = computed(() => props.scopeSessionId ?? null);
 
-// keep-alive 滚动位置恢复：在 scroll 事件中持续追踪 scrollTop
-// （deactivate 时浏览器会将 DOM 移出文档树导致 scrollTop 被重置为 0）
-const lastKnownScrollTop = ref(0);
-const wasNearBottomBeforeDeactivate = ref(true);
+const wasFollowingBeforeDeactivate = ref(true);
 
 // 会话切换时如果消息还没加载，挂起滚动到底部的操作
 const pendingInitialScroll = ref(false);
 
-// 底部锁定状态：当为 true 时，内容高度变化会自动跟随滚动到底部
-// 与 isNearBottom 不同，这是一个"意图"标志，用于 ResizeObserver 判断是否需要跟随
-const shouldStickToBottom = ref(true);
-
 onDeactivated(() => {
-  wasNearBottomBeforeDeactivate.value = isNearBottom.value;
+  wasFollowingBeforeDeactivate.value = shouldStickToBottom.value;
   disconnectResizeObserver();
   disconnectMessageVisibilityObserver();
 });
@@ -93,13 +87,13 @@ onActivated(() => {
 
   // keep-alive 切换会导致浏览器重置 scrollTop 为 0，需要恢复
   if (container.scrollTop === 0 && lastKnownScrollTop.value > 0) {
-    if (wasNearBottomBeforeDeactivate.value) {
+    if (wasFollowingBeforeDeactivate.value) {
       // 之前在底部附近，启用底部锁定让 ResizeObserver 自动跟随
       shouldStickToBottom.value = true;
       container.scrollTop = container.scrollHeight;
     } else {
       // 之前在中间位置，恢复到记录的位置
-      shouldStickToBottom.value = false;
+      pauseFollowing();
       nextTick(() => {
         if (!messagesContainer.value) return;
         const maxScroll =
@@ -170,6 +164,21 @@ const guardedStore = new Proxy(store, {
 // 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
 const messagesInnerContainer = ref<HTMLElement | null>(null);
+const {
+  shouldStickToBottom,
+  isNearBottom,
+  lastKnownScrollTop,
+  onScroll: updateScrollAnchor,
+  onWheel,
+  onKeydown,
+  onPointerdown,
+  followBottom,
+  pauseFollowing,
+} = useMessageScrollAnchor({
+  container: messagesContainer,
+  autoScroll: () => settings.value.uiPreferences.autoScroll,
+  threshold: () => settings.value.uiPreferences.autoScrollThreshold,
+});
 
 // 暴露滚动容器供外部使用
 const getScrollElement = () => messagesContainer.value;
@@ -248,8 +257,6 @@ const disconnectMessageVisibilityObserver = () => {
   }
 };
 
-// 记录用户是否接近底部
-const isNearBottom = ref(true);
 // 当前可见的消息索引 (1-based)
 const currentVisibleIndex = ref(0);
 
@@ -261,24 +268,8 @@ const switchingOriginalScrollTop = ref<number>(0);
 
 // -------------------- ResizeObserver：内容高度变化时自动跟随底部 --------------------
 let resizeObserver: ResizeObserver | null = null;
-// 上一次观测到的内容高度，用于判断是增长还是缩小
-let lastObservedHeight = 0;
-
 const onContentResize = () => {
-  const container = messagesContainer.value;
-  if (!container) return;
-
-  const currentHeight = container.scrollHeight;
-  const isGrowing = currentHeight > lastObservedHeight;
-  lastObservedHeight = currentHeight;
-
-  // 只在内容增长时跟随（缩小时不动，避免删除消息时跳动）
-  if (!isGrowing) return;
-
-  // 当处于底部锁定状态时，自动跟随滚动
-  if (shouldStickToBottom.value) {
-    container.scrollTop = currentHeight;
-  }
+  followBottom();
 };
 
 const setupResizeObserver = () => {
@@ -288,10 +279,6 @@ const setupResizeObserver = () => {
 
   resizeObserver = new ResizeObserver(onContentResize);
   resizeObserver.observe(inner);
-  // 初始化高度记录
-  if (messagesContainer.value) {
-    lastObservedHeight = messagesContainer.value.scrollHeight;
-  }
 };
 
 const disconnectResizeObserver = () => {
@@ -300,6 +287,15 @@ const disconnectResizeObserver = () => {
     resizeObserver = null;
   }
 };
+
+watch(
+  messagesInnerContainer,
+  () => {
+    setupResizeObserver();
+    setupMessageVisibilityObserver();
+  },
+  { flush: "post" }
+);
 
 onMounted(() => {
   setupResizeObserver();
@@ -319,7 +315,11 @@ onBeforeUnmount(() => {
 // 滚动到底部
 const scrollToBottom = useThrottleFn((forceInstant = false) => {
   nextTick(() => {
-    if (messagesContainer.value) {
+    if (
+      messagesContainer.value &&
+      shouldStickToBottom.value &&
+      settings.value.uiPreferences.autoScroll
+    ) {
       const container = messagesContainer.value;
       const targetTop = container.scrollHeight;
 
@@ -342,6 +342,7 @@ const scrollToBottom = useThrottleFn((forceInstant = false) => {
 
 // 滚动到底部（供 Navigator 使用）
 const scrollToEnd = () => {
+  shouldStickToBottom.value = true;
   if (messagesContainer.value) {
     const maxScroll =
       messagesContainer.value.scrollHeight -
@@ -352,12 +353,14 @@ const scrollToEnd = () => {
 
 // 滚动到顶部
 const scrollToTop = () => {
+  pauseFollowing();
   if (messagesContainer.value) {
     messagesContainer.value.scrollTo({ top: 0, behavior: "smooth" });
   }
 };
 // 滚动到指定消息
 const scrollToMessageId = (id: string) => {
+  pauseFollowing();
   const container = messagesContainer.value;
   if (!container) return;
   const messageEl = container.querySelector(
@@ -376,6 +379,7 @@ const scrollToMessageId = (id: string) => {
 
 // 滚动到下一条消息
 const scrollToNext = () => {
+  pauseFollowing();
   if (!messagesContainer.value) return;
 
   const container = messagesContainer.value;
@@ -403,6 +407,7 @@ const scrollToNext = () => {
 
 // 滚动到上一条消息
 const scrollToPrev = () => {
+  pauseFollowing();
   if (!messagesContainer.value) return;
 
   const container = messagesContainer.value;
@@ -436,40 +441,29 @@ const updateVisibleIndex = () => {
     return;
   }
 
-  const container = messagesContainer.value;
-  const containerRect = container.getBoundingClientRect();
-  const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+  const containerRect = messagesContainer.value.getBoundingClientRect();
+  const slots = messagesInnerContainer.value?.children;
+  if (!slots?.length) return;
   const centerY = containerRect.top + containerRect.height / 2;
 
-  let found = false;
-  for (let i = 0; i < messageEls.length; i++) {
-    const rect = messageEls[i].getBoundingClientRect();
-    if (rect.top <= centerY && rect.bottom >= centerY) {
-      currentVisibleIndex.value = i + 1;
-      found = true;
-      break;
-    }
+  // 外层 slot 与消息一一对应；二分查找避免每次滚动遍历全部富文本消息。
+  let low = 0;
+  let high = slots.length - 1;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (slots[mid].getBoundingClientRect().bottom < centerY) low = mid + 1;
+    else high = mid;
   }
-  if (!found) currentVisibleIndex.value = 1;
+  currentVisibleIndex.value = low + 1;
 };
 
 // 滚动事件处理
 const onScroll = () => {
   if (!messagesContainer.value) return;
   const container = messagesContainer.value;
-  const { scrollTop, scrollHeight, clientHeight } = container;
-
-  // 持续追踪有效的 scrollTop（用于 keep-alive 恢复）
-  lastKnownScrollTop.value = scrollTop;
-
-  // 阻断水平滚动（如果有的话）
+  // 阻断水平滚动，同时保留内容增长前的底部跟随意图。
   if (container.scrollLeft !== 0) container.scrollLeft = 0;
-
-  const threshold = settings.value.uiPreferences.autoScrollThreshold;
-  isNearBottom.value = scrollHeight - clientHeight - scrollTop < threshold;
-
-  // 同步底部锁定状态：用户手动上滚时解除锁定，滚到底部时恢复锁定
-  shouldStickToBottom.value = isNearBottom.value;
+  updateScrollAnchor();
 
   updateVisibleIndex();
 };
@@ -482,9 +476,8 @@ const activateBottomLock = () => {
   shouldStickToBottom.value = true;
   isNearBottom.value = true;
   nextTick(() => {
-    if (messagesContainer.value) {
+    if (messagesContainer.value && shouldStickToBottom.value) {
       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-      lastObservedHeight = messagesContainer.value.scrollHeight;
     }
     updateVisibleIndex();
     // 确保 ResizeObserver 已连接（消息容器可能刚从 v-if 中出现）
@@ -530,7 +523,7 @@ watch(
         return;
       }
 
-      if (isNearBottom.value || newLength === 1) {
+      if (shouldStickToBottom.value || newLength === 1) {
         // 新消息加入时，如果原本就在底部，激活底部锁定
         shouldStickToBottom.value = true;
         scrollToBottom(true);
@@ -548,7 +541,7 @@ watch(
     const container = messagesContainer.value;
     if (!container) return;
 
-    const isAtBottom = isNearBottom.value;
+    const isAtBottom = shouldStickToBottom.value;
 
     // 如果正在追踪切换的消息，优先恢复其位置
     if (switchingMessageId.value) {
@@ -689,7 +682,21 @@ defineExpose({
 
 <template>
   <div class="message-list-container">
-    <div ref="messagesContainer" class="message-list" @scroll="onScroll">
+    <div
+      ref="messagesContainer"
+      class="message-list"
+      :style="{
+        overflowAnchor:
+          (shouldStickToBottom && settings.uiPreferences.autoScroll) ||
+          switchingMessageId
+            ? 'none'
+            : 'auto',
+      }"
+      @scroll="onScroll"
+      @wheel.passive="onWheel"
+      @keydown="onKeydown"
+      @pointerdown="onPointerdown"
+    >
       <div v-if="messages.length === 0" class="empty-state">
         <p>👋 开始新的对话吧！</p>
       </div>
@@ -1076,8 +1083,9 @@ defineExpose({
   flex: 1 1 0%; /* 强制 flex-basis 为 0，防止内容反向撑开 */
   height: 0; /* 配合 flex: 1，确保高度完全受父级支配 */
   overflow-y: auto;
-  /* 禁用浏览器自动滚动锚定，避免与程序化 scrollTo 产生对抗导致布局抖动 */
-  overflow-anchor: none;
+  /* 阅读历史时由浏览器抵消屏外消息从占位高度到真实高度的变化。
+   * 底部跟随与分支定位期间通过内联样式接管滚动。 */
+  overflow-anchor: auto;
   /* 彻底阻断滚动链传播，防止滚动溢出到 App 容器 */
   overscroll-behavior: contain;
   /* 渲染隔离：size 确保内容高度变化不触发父级重排，layout 和 paint 提升渲染性能 */
@@ -1101,7 +1109,7 @@ defineExpose({
 }
 
 /* 最后一项消息禁用虚拟渲染，确保底部锚定计算准确，防止滚动回弹 */
-.messages-container :deep(.chat-message:last-child) {
+.messages-container > .message-slot:last-child :deep(.chat-message) {
   content-visibility: visible !important;
 }
 

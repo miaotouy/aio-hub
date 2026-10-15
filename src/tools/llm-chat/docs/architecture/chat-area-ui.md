@@ -54,12 +54,13 @@
 
 ### 3.1 CSS 原生虚拟渲染 (CSS Native Virtual Rendering)
 
-- 应用位置由 [`MessageList.vue`](../../components/message/MessageList.vue:962) 通过 `:deep(.chat-message)` 选择器统一作用到所有消息根元素，启用 `content-visibility: auto !important` + `contain-intrinsic-size: auto 500px !important`，让浏览器跳过屏外消息的渲染，无需第三方虚拟滚动库即可流畅承载数千条消息。
-- **末尾消息回退方案**: [`.chat-message:last-child`](../../components/message/MessageList.vue:968) 单独覆盖为 `content-visibility: visible !important`，确保底部锚定计算（`scrollHeight`）始终准确，防止流式输出过程中的滚动回弹。
-- **富文本层级独立优化**: rich-text-renderer 内部对块级 AST 节点（段落、标题、代码块、表格、Mermaid、思考块等，详见 `BLOCK_NODE_TYPES` 集合）也独立应用 `content-visibility: auto`，与消息层级形成双层渲染裁剪。
-- **滚动锚定控制**: [`.message-list`](../../components/message/MessageList.vue:939) 设置 `overflow-anchor: none` 禁用浏览器默认滚动锚定，配合 `contain: size layout paint` 渲染隔离，避免程序化 `scrollTo` 与浏览器自动锚定产生对抗导致布局抖动。
-- **滚动位置保持（分支切换）**: 切换分支或编辑创建分支前，通过 [`captureSwitchingMessagePosition`](../../components/message/MessageList.vue:606) 记录目标消息相对视口顶部的偏移量（`messageRect.top - containerRect.top`）；切换后由 [`restoreSwitchingMessagePosition`](../../components/message/MessageList.vue:627) 沿 `nextTick → setTimeout 50ms → setTimeout 150ms` 三次重试恢复，对抗 DOM 异步更新和 `content-visibility` 渐进渲染带来的高度变化。
-- **底部锁定与 ResizeObserver**: 维护 `shouldStickToBottom` 意图标志，由 `ResizeObserver` 监听内容容器，**仅在内容增长时**自动跟随到底部，缩小（如删除消息）时不动以避免跳动。
+- **消息级跳过渲染**: [MessageList.vue](../../components/message/MessageList.vue) 为普通、工具调用和压缩消息注入 `content-visibility: auto` 与 `contain-intrinsic-size: auto 500px`。历史消息首次进入渲染范围时，浏览器将占位高度替换成真实高度，后续复用已测量高度。富文本渲染器内部的块级跳过渲染保持关闭，减少嵌套估高。
+- **末尾消息**: 运行时显式保持最后一条消息可见；CSS 回退选择器限定最后一个 `.message-slot` 中的消息，避免 `.chat-message:last-child` 匹配到每个独立 wrapper 内的末子元素。
+- **阅读锚定**: 阅读历史时使用 `overflow-anchor: auto`，由浏览器补偿视口上方消息的高度修正。底部跟随与分支定位期间设为 `none`，滚动交给相应的定位逻辑。
+- **跟随意图**: [`useMessageScrollAnchor`](../../composables/ui/useMessageScrollAnchor.ts) 分别维护底部距离与跟随状态。向上滚轮、键盘上翻、滚动条操作、触屏浏览及消息导航暂停跟随；向下滚回底部附近或点击到底部恢复。布局变化触发的 `scroll` 仅更新位置，保留跟随意图。自动滚动设置控制输出跟随，进入会话时仍定位到最新消息。
+- **尺寸与生命周期**: `ResizeObserver` 在跟随期间对内容增高、缩短都重新对齐实际底部；阅读期间交由浏览器锚定。空会话进入有消息状态时重新绑定尺寸与可见性观察器；keep-alive 恢复时保留进入后台前的跟随意图。
+- **消息导航**: 当前可见序号按外层 `.message-slot` 二分查找，覆盖各类消息，并减少长会话每次滚动的几何测量。分支切换前记录目标消息的视口偏移，更新后恢复该偏移。
+
 
 ### 3.2 消息导航器 (MessageNavigator)
 

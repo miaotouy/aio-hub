@@ -638,4 +638,4 @@ graph TD
 
 ### VCP 上游响应分段
 
-VCP 文本渠道的流式回复按模型生成与工具结果阶段实时追加消息节点，逐段保存用量，并共享一次请求的取消与错误生命周期。事件契约、历史回传与协议边界见 [VCP 上游响应分段](docs/architecture/vcp-response-segmentation.md)。
+聊天设置中的「VCP 消息拆分」默认关闭；开启后，VCP 文本渠道的流式回复按模型生成与工具结果阶段实时追加消息节点，逐段保存用量，并共享一次请求的取消与错误生命周期。事件契约、历史回传与协议边界见 [VCP 上游响应分段](docs/architecture/vcp-response-segmentation.md)。

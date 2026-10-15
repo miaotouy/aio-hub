@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   uiPreferences: {
     inputToolbar: createCompactToolbarLayout(),
     isStreaming: true, // 默认开启流式输出
+    splitVcpResponses: false,
     showTimestamp: false,
     showTokenCount: true,
     showTokenCountForBlocks: true,

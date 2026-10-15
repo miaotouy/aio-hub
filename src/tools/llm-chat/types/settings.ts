@@ -121,6 +121,8 @@ export interface ChatSettings {
     inputToolbar: import("./input-toolbar").InputToolbarLayout;
     /** 是否启用流式输出 */
     isStreaming: boolean;
+    /** 是否将 VCP 上游流式回复按模型生成与工具结果拆分为消息节点 */
+    splitVcpResponses: boolean;
     /** 是否显示消息时间戳 */
     showTimestamp: boolean;
     /** 是否显示 Token 统计 */

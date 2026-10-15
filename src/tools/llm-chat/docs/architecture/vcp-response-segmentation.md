@@ -8,8 +8,10 @@ VCP 文本渠道的流式 Chat Completions 请求，可以在一次 HTTP 响应�
 
 ## 启用与事件链路
 
-- 沿用 `resolveChannelToolHandling()` 的渠道识别结果，仅对上游消费 `vcp-text` 的流式聊天请求启用。
-- `useSingleNodeExecutor` 注册 `onResponseChunk`，并请求 `stream_options.include_usage`。OpenAI Chat 适配器将该观察回调映射为 llm-core 的 `captureResponseChunks`；这个内部选项留在解码侧。
+- 聊天设置 → 通用设置提供「VCP 消息拆分」开关（`uiPreferences.splitVcpResponses`），默认关闭；旧配置通过默认值合并补齐。
+- 开关开启时，沿用 `resolveChannelToolHandling()` 的渠道识别结果，仅对上游消费 `vcp-text` 的流式聊天请求启用。关闭时沿用单节点回复与原有文本／推理回调。
+- 每次请求开始时读取开关，修改后从下一次请求生效；已有消息节点保留原样。
+- 启用拆分时，`useSingleNodeExecutor` 注册 `onResponseChunk`，并请求 `stream_options.include_usage`。OpenAI Chat 适配器将该观察回调映射为 llm-core 的 `captureResponseChunks`；这个内部选项留在解码侧。
 - llm-core 按需提供 `response-chunk` 事件，包含响应 ID、正文、独立推理、完成原因和用量。普通文本／推理事件与最终 `completed` 契约保持原样。
 - 未提供这些事件的适配器沿用原有单节点处理，包括经过 Responses、Anthropic、Gemini 协议桥的请求。
 

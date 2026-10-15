@@ -282,7 +282,9 @@ export function useSingleNodeExecutor() {
     let hasReceivedStreamData = false;
     let response: any = null;
     const splitVcpResponses =
-      params.splitVcpResponses && settings.value.uiPreferences.isStreaming;
+      params.splitVcpResponses &&
+      settings.value.uiPreferences.splitVcpResponses &&
+      settings.value.uiPreferences.isStreaming;
     const segmenter = splitVcpResponses ? new VcpStreamSegmenter() : undefined;
     const segmentNodes = new Map<number, ChatMessageNode>();
     let hasResponseChunks = false;

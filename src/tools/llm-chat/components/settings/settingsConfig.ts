@@ -108,6 +108,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         defaultValue: "",
       },
       {
+        id: "splitVcpResponses",
+        label: "VCP 消息拆分",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.splitVcpResponses",
+        hint: "将 VCP 流式回复中的模型回复与工具结果拆分为独立消息。修改后从下一次请求生效。",
+        keywords: "vcp stream split segment 消息 拆分 分段 工具 结果",
+      },
+      {
         id: "searchResultLimit",
         label:
           "会话搜索最大结果 ({{ localSettings.uiPreferences.searchResultLimit }}条)",

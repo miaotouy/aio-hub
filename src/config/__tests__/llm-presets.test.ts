@@ -14,16 +14,20 @@ describe("TypeSafe preset", () => {
       type: "typesafe",
       defaultBaseUrl: "https://api.typesafe.ai",
       logoUrl: "/model-icons/typesafe.png",
-      defaultModels: [
+      defaultModels: expect.arrayContaining([
         expect.objectContaining({
           id: "jev-latest",
           provider: "typesafe",
-          capabilities: { decision: true },
+          capabilities: {
+            decision: true,
+            vision: true,
+            maxImageDimension: 1568,
+          },
           routing: {
             supportedEndpointTypes: ["typesafe-system-one"],
           },
         }),
-      ],
+      ]),
     });
     expect(preset?.links).toEqual(
       expect.arrayContaining([
@@ -36,6 +40,30 @@ describe("TypeSafe preset", () => {
 
 // Presets are materialized before persistence; endpoint-specific tool flags must survive.
 describe("current model presets", () => {
+  it.each([
+    { name: "TypeSafe AI", id: "jev-1.14.0", contextLength: 65536 },
+    { name: "OpenRouter", id: "typesafe/jev-1.14", contextLength: 262144 },
+  ])(
+    "materializes Jev 1.14 capabilities and routing on $name",
+    ({ name, id, contextLength }) => {
+      const model = getPresetByName(name)?.defaultModels?.find(
+        (entry) => entry.id === id
+      );
+      if (!model) throw new Error(`Missing Jev preset: ${name}`);
+      const properties = getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        id,
+        model.provider
+      );
+      expect(materializeModelMetadata(model, properties).model).toMatchObject({
+        capabilities: { decision: true, vision: true, maxImageDimension: 1568 },
+        tokenLimits: { contextLength },
+        architecture: { inputModalities: ["text", "image"] },
+        routing: { supportedEndpointTypes: ["typesafe-system-one"] },
+      });
+    }
+  );
+
   it.each(["OpenAI", "OpenAI Responses"])(
     "offers all GPT-6 models with endpoint-specific tools in %s",
     (name) => {

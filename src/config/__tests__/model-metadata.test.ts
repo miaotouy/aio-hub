@@ -21,6 +21,7 @@ import {
 } from "../model-metadata";
 import type { ModelMetadataRule } from "@/types/model-metadata";
 import { chineseModelRules } from "../model-metadata-presets/models-chinese";
+import { materializeModelMetadata } from "@/utils/modelMetadataMaterialization";
 
 function makeRule(
   id: string,
@@ -168,9 +169,9 @@ describe("model-metadata presets", () => {
       DEFAULT_METADATA_RULES,
       "agnes-video-2.5-flash"
     );
-    expect(flash?.mediaGenParams?.aspectRatioMode?.resolutions?.map((r) => r.value)).toEqual([
-      "720p",
-    ]);
+    expect(
+      flash?.mediaGenParams?.aspectRatioMode?.resolutions?.map((r) => r.value)
+    ).toEqual(["720p"]);
     expect(flash?.mediaGenParams?.aspectRatioMode?.defaultResolution).toBe(
       "720p"
     );
@@ -1000,7 +1001,10 @@ describe("decision model metadata coverage", () => {
     for (const id of [
       "jev-latest",
       "jev-1.13.0",
-      "typesafe/jev-router",
+      "jev-1.14.0",
+      "jev-preview",
+      "typesafe/jev-1.14",
+      "typesafe/jev-1.14-20261014",
       "kev-4b",
       "kev-0.6b",
       "laya-decision-1",
@@ -1015,6 +1019,27 @@ describe("decision model metadata coverage", () => {
           ?.decision
       ).toBe(true);
     }
+  });
+
+  it("refreshes a previously misclassified Jev Router as a chat model", () => {
+    const properties = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "typesafe/jev-router",
+      "openrouter"
+    );
+    const previous = {
+      id: "typesafe/jev-router",
+      provider: "openrouter",
+      capabilities: { decision: true },
+      metadataBinding: {
+        mode: "followSource" as const,
+        managedPaths: ["capabilities.decision"],
+      },
+    };
+    expect(materializeModelMetadata(previous, properties).model).toMatchObject({
+      group: "Jev Router",
+      capabilities: { decision: false, vision: true, toolUse: true },
+    });
   });
 
   it("applies verified TypeSafe Jev pricing and context", () => {

@@ -105,5 +105,21 @@ export const openrouterPreset: LlmPreset = {
       },
       description: "通过 OpenRouter 访问 DeepSeek V4 Flash",
     },
+    {
+      id: "typesafe/jev-1.14",
+      name: "TypeSafe: Jev 1.14",
+      group: "Jev",
+      provider: "openrouter",
+      capabilities: { decision: true, vision: true, maxImageDimension: 1568 },
+      tokenLimits: { contextLength: 262144 },
+      architecture: {
+        modality: "text+image->decisions",
+        inputModalities: ["text", "image"],
+        outputModalities: ["decisions"],
+      },
+      routing: { supportedEndpointTypes: ["typesafe-system-one"] },
+      description:
+        "通过 OpenRouter System One API 访问 Jev 1.14，返回结构化决策；图片与 Box 定位为实验能力",
+    },
   ],
 };

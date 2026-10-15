@@ -99,7 +99,7 @@ export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
     {
       id: "model-prefix-jev",
       matchType: "model",
-      matchValue: "(?:^|/)jev(?:[-:.][\\w.-]+)?$",
+      matchValue: "(?:^|/)jev(?!-router(?:$|[-:.]))(?:[-:.][\\w.-]+)?$",
       useRegex: true,
       properties: {
         icon: `/model-icons/typesafe.png`,
@@ -114,7 +114,7 @@ export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
         },
         releaseDate: "2026-09-15",
         description:
-          "Jev 1.13（jev-1.13.0 / jev-latest）：TypeSafe 首个 System One 决策模型，输入状态与类型化问题，返回带概率与置信度的结构化决策（Choice / Score / Noul），不生成自然语言；文本输入，64k 上下文",
+          "TypeSafe Jev System One 决策模型，通过 Choice、Score、Noul 返回带概率与置信度的结构化决策；官方默认每请求 64K、每问题 32K，可通过请求头启用 262K 长上下文",
       },
       priority: 20,
       enabled: true,

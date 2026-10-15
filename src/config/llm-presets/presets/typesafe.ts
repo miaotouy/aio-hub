@@ -30,18 +30,34 @@ export const typeSafePreset: LlmPreset = {
       name: "Jev Latest",
       group: "Jev",
       provider: "typesafe",
-      capabilities: { decision: true },
+      capabilities: { decision: true, vision: true, maxImageDimension: 1568 },
       tokenLimits: { contextLength: 65536 },
       architecture: {
-        modality: "text->structured-decision",
-        inputModalities: ["text"],
+        modality: "text+image->structured-decision",
+        inputModalities: ["text", "image"],
         outputModalities: ["structured-decision"],
       },
       routing: {
         supportedEndpointTypes: ["typesafe-system-one"],
       },
       description:
-        "Jev 稳定别名，通过 Choice、Score 和 Noul 返回概率化结构化决策",
+        "Jev 稳定别名，通过 Choice、Score 和 Noul 返回结构化决策；图片输入为实验能力",
+    },
+    {
+      id: "jev-1.14.0",
+      name: "Jev 1.14",
+      group: "Jev",
+      provider: "typesafe",
+      capabilities: { decision: true, vision: true, maxImageDimension: 1568 },
+      tokenLimits: { contextLength: 65536 },
+      architecture: {
+        modality: "text+image->structured-decision",
+        inputModalities: ["text", "image"],
+        outputModalities: ["structured-decision"],
+      },
+      routing: { supportedEndpointTypes: ["typesafe-system-one"] },
+      description:
+        "Jev 1.14（2026-10-14），支持 Choice、Score、Noul 与实验性图片输入、Box 定位；默认每请求 64K、每问题 32K，可通过请求头启用 262K 长上下文",
     },
   ],
 };

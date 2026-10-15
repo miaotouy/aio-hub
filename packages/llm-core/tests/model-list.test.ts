@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   modelListAdapter,
   parseProviderModels,
+  resolveModelExecution,
   type JsonValue,
   type WireResponse,
 } from "../src";
@@ -37,6 +38,45 @@ describe("model list adapter", () => {
       url: "https://generativelanguage.googleapis.com/v1beta/models",
       headers: { "x-goog-api-key": "gemini-key" },
     });
+  });
+
+  it("routes declared OpenRouter Decisions through System One while keeping routers on chat", () => {
+    const [decision, router] = parseProviderModels(
+      {
+        data: [
+          {
+            id: "typesafe/jev-1.14",
+            architecture: {
+              input_modalities: ["text", "image"],
+              output_modalities: ["decisions"],
+            },
+          },
+          {
+            id: "typesafe/jev-router",
+            architecture: { output_modalities: ["text"] },
+          },
+        ],
+      },
+      "openrouter"
+    );
+    const profile = {
+      type: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+    };
+    const execution = resolveModelExecution({
+      profile,
+      model: {
+        id: decision.id,
+        routing: { supportedEndpointTypes: decision.supportedEndpointTypes },
+      },
+      operation: "decision",
+    });
+    expect(execution.adapterId).toBe("typesafe-system-one");
+    expect(decision.inputModalities).toEqual(["text", "image"]);
+    expect(
+      resolveModelExecution({ profile, model: router, operation: "chat" })
+        .adapterId
+    ).toBe("openai-chat-completions");
   });
 
   it("normalizes OpenRouter, Gemini, Anthropic, Cohere and Ollama fixtures", async () => {
@@ -111,7 +151,8 @@ describe("model list adapter", () => {
       provider: "typesafe",
       group: "Jev",
       description: "The latest stable Jev release",
-      inputModalities: ["text"],
+      // An omitted modality stays unknown so imports can apply the vision preset.
+      inputModalities: undefined,
       supportedEndpointTypes: ["typesafe-system-one"],
     });
 

@@ -46,6 +46,25 @@ describe("ModelFetcher", () => {
     vi.clearAllMocks();
   });
 
+  it("keeps declared Decisions and image capabilities when importing OpenRouter models", () => {
+    expect(
+      toDesktopModelInfo(
+        {
+          id: "typesafe/jev-1.14",
+          name: "TypeSafe: Jev 1.14",
+          provider: "openrouter",
+          inputModalities: ["text", "image"],
+          outputModalities: ["decisions"],
+          supportedEndpointTypes: ["typesafe-system-one"],
+        },
+        "openrouter"
+      )
+    ).toMatchObject({
+      capabilities: { decision: true, vision: true },
+      routing: { supportedEndpointTypes: ["typesafe-system-one"] },
+    });
+  });
+
   it("leaves vision capability unknown when the API omits input modalities", () => {
     const gptModel = toDesktopModelInfo({
       id: "gpt-5.6",

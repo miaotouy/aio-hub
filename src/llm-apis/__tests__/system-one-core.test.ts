@@ -56,6 +56,51 @@ describe("desktop TypeSafe System One facade", () => {
     });
   });
 
+  it("passes images and Box answers through OpenRouter's compatible System One endpoint", async () => {
+    const profile = {
+      ...createProfile(),
+      type: "openrouter" as const,
+      baseUrl: "https://openrouter.ai/api/v1",
+    };
+    const box = { top: 0.25, bottom: 0.82, left: 0.44, right: 0.84 };
+    const send = vi.spyOn(desktopLlmTransport, "send").mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      body: chunks({
+        id: "gen-dec-test",
+        model: "typesafe/jev-1.14",
+        provider: "TypeSafe",
+        answers: { target: { type: "box", box, confidence: 0.92 } },
+        usage: { input_tokens: 290, output_tokens: 21, cost: 0.00001 },
+      }),
+    });
+    const assets = {
+      "photo-ref": { type: "image", format: "png", data_base64: "aW1hZ2U=" },
+    } as const;
+    const result = await callTypeSafeSystemOneApi(profile, {
+      model: "typesafe/jev-1.14",
+      state: { photo: "photo-ref" },
+      assets,
+      longContext: true,
+      questions: { target: { type: "box", instructions: "The mug in photo" } },
+    });
+    expect(send.mock.calls[0][0]).toMatchObject({
+      url: "https://openrouter.ai/api/v1/systemone",
+      headers: {
+        Authorization: "Bearer test-key",
+        "TypeSafe-Danger-Zone-Images": "true",
+        "TypeSafe-Danger-Zone-Long-Context": "true",
+      },
+      body: { kind: "json", value: { model: "typesafe/jev-1.14", assets } },
+    });
+    expect(result.answers.target).toEqual({
+      type: "box",
+      box,
+      confidence: 0.92,
+    });
+  });
+
   it("forces the Rust proxy for local decision endpoints marked native", async () => {
     const profile = createProfile();
     profile.baseUrl = "http://127.0.0.1:13469/v1";

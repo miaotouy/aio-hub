@@ -105,7 +105,9 @@ export function parseProviderModels(
       if (!id) return [];
       const result = baseModel(model, id, id, "typesafe", "Jev");
       result.description = readString(model.description);
-      result.inputModalities = ["text"];
+      result.inputModalities = readStringArray(
+        asRecord(model.architecture).input_modalities
+      );
       result.supportedEndpointTypes = ["typesafe-system-one"];
       return [result];
     });
@@ -160,6 +162,15 @@ function fromOpenAiModel(
   result.supportedEndpointTypes = readStringArray(
     model.supported_endpoint_types
   );
+  // Derive OpenRouter's System One route from its declared Decisions modality.
+  // Explicitly reported endpoints take precedence.
+  if (
+    fallbackProvider === "openrouter" &&
+    result.supportedEndpointTypes === undefined &&
+    result.outputModalities?.includes("decisions")
+  ) {
+    result.supportedEndpointTypes = ["typesafe-system-one"];
+  }
   const pricing = asRecord(model.pricing);
   if (Object.keys(pricing).length > 0) {
     result.pricing = Object.fromEntries(

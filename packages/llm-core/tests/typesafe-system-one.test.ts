@@ -66,6 +66,92 @@ describe("TypeSafe System One provider", () => {
     });
   });
 
+  it.each(["box", "noul"] as const)(
+    "sends image assets and opt-in headers for a %s question",
+    (type) => {
+      const assets = {
+        "photo-ref": { type: "image", format: "png", data_base64: "aW1hZ2U=" },
+      } as const;
+      const wire = buildTypeSafeSystemOneRequest(
+        { provider: "typesafe", baseUrl: "https://api.typesafe.ai" },
+        {
+          model: "jev-1.14.0",
+          state: { photo: "photo-ref" },
+          assets,
+          longContext: true,
+          questions: { target: { type, instructions: "The mug in photo" } },
+        }
+      );
+      expect(wire).toMatchObject({
+        headers: {
+          "TypeSafe-Danger-Zone-Images": "true",
+          "TypeSafe-Danger-Zone-Long-Context": "true",
+        },
+        body: { kind: "json", value: { assets, model: "jev-1.14.0" } },
+      });
+      const plain = buildTypeSafeSystemOneRequest(
+        { provider: "typesafe", baseUrl: "https://api.typesafe.ai" },
+        request
+      );
+      expect(
+        plain.headers["TypeSafe-Danger-Zone-Long-Context"]
+      ).toBeUndefined();
+      expect(plain.headers["TypeSafe-Danger-Zone-Images"]).toBeUndefined();
+    }
+  );
+
+  it("parses mixed Box and Noul answers from Jev 1.14", async () => {
+    const box = { top: 0.25, bottom: 0.82, left: 0.44, right: 0.84 };
+    await expect(
+      parseTypeSafeSystemOneResponse(
+        jsonResponse({
+          model: "jev-1.14.0",
+          answers: {
+            target: { type: "box", box, confidence: 0.92 },
+            present: { type: "noul", noul: 0.99 },
+          },
+          usage: { input_tokens: 290, output_tokens: 21 },
+        }),
+        {
+          model: "jev-1.14.0",
+          state: "photo-ref",
+          questions: {
+            target: { type: "box", instructions: "The mug" },
+            present: { type: "noul", instructions: "Is there a mug?" },
+          },
+        }
+      )
+    ).resolves.toMatchObject({
+      answers: {
+        target: { type: "box", box, confidence: 0.92 },
+        present: { type: "noul", noul: 0.99 },
+      },
+      usage: { inputTokens: 290, outputTokens: 21 },
+    });
+  });
+
+  it.each([
+    { box: { top: -0.1, bottom: 0.8, left: 0.4, right: 0.9 }, confidence: 0.9 },
+    { box: { top: 0.2, bottom: 0.8, left: 0.9, right: 0.4 }, confidence: 0.9 },
+    { box: { top: 0.2, bottom: 0.2, left: 0.4, right: 0.9 }, confidence: 0.9 },
+    { box: { top: 0.2, bottom: 0.8, left: 0.4, right: 0.9 }, confidence: 1.1 },
+  ])("rejects invalid Box geometry or confidence: %j", async (answer) => {
+    await expect(
+      parseTypeSafeSystemOneResponse(
+        jsonResponse({
+          model: "jev-1.14.0",
+          answers: { target: { type: "box", ...answer } },
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+        {
+          model: "jev-1.14.0",
+          state: "photo-ref",
+          questions: { target: { type: "box", instructions: "The mug" } },
+        }
+      )
+    ).rejects.toThrow(/answers\.target\.(?:box|confidence)/);
+  });
+
   it("resolves versioned, relative, and absolute endpoints", () => {
     expect(
       resolveTypeSafeSystemOneEndpoint({

@@ -200,7 +200,10 @@ export function toDesktopModelInfo(
     model.declaredOwner
   );
   const apiCapabilities: LlmModelInfo["capabilities"] = {};
-  if (providerType === "typesafe") {
+  if (
+    providerType === "typesafe" ||
+    model.outputModalities?.includes("decisions")
+  ) {
     apiCapabilities.decision = true;
   }
 

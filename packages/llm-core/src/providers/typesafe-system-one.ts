@@ -4,6 +4,7 @@ import type {
   SystemOneAnswer,
   SystemOneChoiceAnswer,
   SystemOneProviderAdapter,
+  SystemOneQuestion,
   SystemOneRequest,
   SystemOneResponse,
   SystemOneScoreAnswer,
@@ -35,7 +36,15 @@ export function buildTypeSafeSystemOneRequest(
     model: request.model,
     questions: request.questions as unknown as WireJsonValue,
     ...request.extensions,
+    ...(request.assets
+      ? { assets: request.assets as unknown as WireJsonValue }
+      : {}),
   };
+  const hasImages =
+    (body.assets && Object.keys(body.assets).length > 0) ||
+    Object.values(request.questions).some(
+      (question) => question.type === "box"
+    );
 
   return {
     method: "POST",
@@ -44,6 +53,10 @@ export function buildTypeSafeSystemOneRequest(
       "Content-Type": "application/json",
       ...(profile.apiKey ? { Authorization: `Bearer ${profile.apiKey}` } : {}),
       ...(request.requestId ? { "X-Request-ID": request.requestId } : {}),
+      ...(hasImages ? { "TypeSafe-Danger-Zone-Images": "true" } : {}),
+      ...(request.longContext
+        ? { "TypeSafe-Danger-Zone-Long-Context": "true" }
+        : {}),
       ...profile.headers,
     },
     body: { kind: "json", value: body },
@@ -113,7 +126,7 @@ function resolveEndpoint(baseUrl: string, endpoint: string): string {
 function parseAnswer(
   questionId: string,
   value: JsonValue,
-  expectedType: "noul" | "choice" | "score"
+  expectedType: SystemOneQuestion["type"]
 ): SystemOneAnswer {
   const answer = asObject(value, `answers.${questionId}`);
   const type = readString(answer.type, `answers.${questionId}.type`);
@@ -127,6 +140,28 @@ function parseAnswer(
     return {
       type,
       noul: readProbability(answer.noul, `answers.${questionId}.noul`),
+    };
+  }
+
+  if (type === "box") {
+    const path = `answers.${questionId}.box`;
+    const rawBox = asObject(answer.box, path);
+    const box = {
+      top: readProbability(rawBox.top, `${path}.top`),
+      bottom: readProbability(rawBox.bottom, `${path}.bottom`),
+      left: readProbability(rawBox.left, `${path}.left`),
+      right: readProbability(rawBox.right, `${path}.right`),
+    };
+    if (box.left >= box.right || box.top >= box.bottom) {
+      throw new Error(`TypeSafe System One 响应字段 ${path} 的边界顺序无效`);
+    }
+    return {
+      type,
+      box,
+      confidence: readProbability(
+        answer.confidence,
+        `answers.${questionId}.confidence`
+      ),
     };
   }
 

@@ -48,6 +48,8 @@ export async function callTypeSafeSystemOneApi(
       model: options.model,
       state: options.state,
       questions: options.questions,
+      assets: options.assets,
+      longContext: options.longContext,
       requestId,
       extensions: options.extensions,
     },

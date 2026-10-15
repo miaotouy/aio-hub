@@ -1470,13 +1470,13 @@ pub async fn git_get_repo_overview(path: String) -> Result<RepoOverview, String>
         true
     });
 
-    // 6. 统计总 Commit 数与 Top 作者（遍历 HEAD 历史，上限采样 5000 次提交保证毫秒级返回）
+    // 6. 遍历 HEAD 的完整可达历史，统计提交总数与作者贡献。
     let mut total_commits = 0usize;
     let mut author_counts: std::collections::HashMap<(String, String), usize> = std::collections::HashMap::new();
 
     if let Ok(mut revwalk) = repo.revwalk() {
         if revwalk.push_head().is_ok() {
-            for oid in revwalk.take(5000).flatten() {
+            for oid in revwalk.flatten() {
                 total_commits += 1;
                 if let Ok(commit) = repo.find_commit(oid) {
                     let author = commit.author();
@@ -1555,6 +1555,48 @@ mod tests {
             &[],
         )
         .expect("create initial commit")
+    }
+
+    #[test]
+    fn repo_overview_counts_full_head_history_beyond_5000_commits() {
+        let temp = test_tempdir();
+        let repo = Repository::init(temp.path()).expect("init repository");
+        let initial_oid = create_initial_commit(&repo);
+        let initial_commit = repo.find_commit(initial_oid).expect("find initial commit");
+        let tree = initial_commit.tree().expect("read initial tree");
+        let signature = git2::Signature::now("Recent Author", "recent@example.com")
+            .expect("create recent author signature");
+        let mut parent = initial_commit;
+        for i in 0..5000 {
+            let oid = repo
+                .commit(
+                    Some("HEAD"),
+                    &signature,
+                    &signature,
+                    &format!("commit {}", i),
+                    &tree,
+                    &[&parent],
+                )
+                .expect("create history commit");
+            parent = repo.find_commit(oid).expect("find history commit");
+        }
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let overview = runtime
+            .block_on(git_get_repo_overview(
+                temp.path().to_string_lossy().into_owned(),
+            ))
+            .expect("load repository overview");
+
+        assert_eq!(overview.total_commits, 5001);
+        assert_eq!(overview.top_authors.len(), 2);
+        assert_eq!(overview.top_authors[0].email, "recent@example.com");
+        assert_eq!(overview.top_authors[0].commit_count, 5000);
+        assert_eq!(overview.top_authors[1].email, "test@example.com");
+        assert_eq!(overview.top_authors[1].commit_count, 1);
     }
 
     #[test]

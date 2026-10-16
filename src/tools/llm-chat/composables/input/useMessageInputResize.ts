@@ -32,25 +32,25 @@ export function useMessageInputResize(options: UseMessageInputResizeOptions) {
   const customMaxHeight = ref<string | number | null>(null); // null 表示使用自动模式
   const isCustomHeightLocked = computed(() => customMaxHeight.value !== null);
 
-  // 计算最终传给编辑器的实际高度
-  const editorHeight = computed(() => {
-    return customHeight.value;
-  });
-
   // 计算最终传给编辑器的最大高度
   const editorMaxHeight = computed(() => {
     const extra = options.extraHeight?.value || 0;
-    // 手动拖拽后 customMaxHeight 为数字，优先使用
-    if (typeof customMaxHeight.value === "number") {
+    const expanded = options.isExpanded?.value ?? false;
+    // 收起状态下保留手动设置的高度
+    if (!expanded && typeof customMaxHeight.value === "number") {
       const budget =
         viewportHeight.value * (options.isDetached ? 0.9 : 0.7) - extra - 60;
       return Math.min(customMaxHeight.value, Math.max(40, budget));
     }
     // 根据展开状态决定最大高度
-    const expanded = options.isExpanded?.value ?? false;
     const maxVh = expanded ? 70 : 40;
     return `max(40px, calc(${maxVh}vh - ${extra}px))`;
   });
+
+  // 展开时填满当前高度预算，收起后恢复自适应或手动设置的高度。
+  const editorHeight = computed(() =>
+    options.isExpanded?.value ? editorMaxHeight.value : customHeight.value
+  );
 
   // 鼠标移动处理
   const handleMouseMove = (e: MouseEvent) => {

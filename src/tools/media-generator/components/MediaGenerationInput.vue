@@ -70,7 +70,7 @@ const containerRef = ref<HTMLElement>();
 const textareaRef = ref<HTMLTextAreaElement>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
 const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
-const panel = provideInputPanel();
+const panel = provideInputPanel(() => store.settings.panelRepeatClickAction);
 const { activePanel, collapsed: panelCollapsed } = panel;
 const panelHostRef = ref<InstanceType<typeof InputPanelHost>>();
 const { height: panelHeight } = useElementSize(

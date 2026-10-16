@@ -25,7 +25,7 @@ export interface InputPanelDefinition {
 /** A single window-local slot; replacing a panel releases the previous instance. */
 export function createInputPanelController(
   contentId: string,
-  getRepeatClickAction: () => InputPanelRepeatClickAction = () => "collapse"
+  getRepeatClickAction: () => InputPanelRepeatClickAction = () => "close"
 ) {
   const activePanel = shallowRef<InputPanelDefinition | null>(null);
   const collapsed = ref(false);

@@ -24,11 +24,13 @@ const Harness = defineComponent({
   props: {
     repeatClickAction: {
       type: String as PropType<InputPanelRepeatClickAction>,
-      default: "collapse",
+      default: undefined,
     },
   },
   setup(props) {
-    const panel = provideInputPanel(() => props.repeatClickAction);
+    const panel = provideInputPanel(
+      props.repeatClickAction ? () => props.repeatClickAction! : undefined
+    );
     const triggerA = ref<HTMLButtonElement>();
     const triggerB = ref<HTMLButtonElement>();
     const draft = ref("草稿保留");
@@ -74,8 +76,22 @@ async function click(label: string) {
 
 describe("message input panel slot", () => {
   // Protects configurable trigger behavior independently of title controls and panel layout.
-  it("folds on repeated trigger clicks by default and restores the current edits", async () => {
+  it("closes on repeated trigger clicks by default and releases local edits", async () => {
     wrapper = mount(Harness, { attachTo: document.body });
+    await click("打开 A");
+    await wrapper.get("input").setValue("临时搜索");
+    await click("打开 A");
+    expect(wrapper.findComponent(InputPanelHost).exists()).toBe(false);
+    expect(document.activeElement).toBe(button("打开 A").element);
+    await click("打开 A");
+    expect((wrapper.get("input").element as HTMLInputElement).value).toBe("A");
+  });
+
+  it("folds on repeated trigger clicks when configured and restores the current edits", async () => {
+    wrapper = mount(Harness, {
+      attachTo: document.body,
+      props: { repeatClickAction: "collapse" },
+    });
     await click("打开 A");
     await wrapper.get("input").setValue("保留搜索");
     await click("打开 A");
@@ -88,7 +104,10 @@ describe("message input panel slot", () => {
   });
 
   it("applies close mode immediately, reopens folded panels, and releases edits on close", async () => {
-    wrapper = mount(Harness, { attachTo: document.body });
+    wrapper = mount(Harness, {
+      attachTo: document.body,
+      props: { repeatClickAction: "collapse" },
+    });
     await click("打开 A");
     await wrapper.get("input").setValue("临时搜索");
     await wrapper.setProps({ repeatClickAction: "close" });

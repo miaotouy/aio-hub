@@ -66,7 +66,7 @@ export const useMessageInputStore = defineStore(
       {
         enableMacroParsing: true,
         extractBase64FromPaste: true,
-        panelRepeatClickAction: "collapse",
+        panelRepeatClickAction: "close",
       },
       localStorage,
       { mergeDefaults: true }

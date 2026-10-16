@@ -417,7 +417,7 @@ LLM 模型下拉选择器，按服务商分组，支持按能力（如 vision, t
 
 Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状态控制由 `src/composables/useInputPanel.ts` 提供。
 
-- `provideInputPanel(getRepeatClickAction?)` 在当前输入容器创建单面板状态，后代通过 `useInputPanel()` 访问。`toggle` 打开或切换面板，重复点击默认折叠；调用方可提供 `close` 偏好。折叠保留组件实例，替换、关闭释放实例。
+- `provideInputPanel(getRepeatClickAction?)` 在当前输入容器创建单面板状态，后代通过 `useInputPanel()` 访问。`toggle` 打开或切换面板，重复点击已展开面板默认关闭；调用方可提供 `collapse` 偏好，点击已折叠面板始终展开。折叠保留组件实例，替换、关闭释放实例。
 - `InputPanelDefinition` 声明 `id`、`title`、`component`，可选 `icon`、`summary`、`props` 与 `scroll`。响应式业务参数由承载输入区解包后传给动态组件；业务事件由输入区处理。
 - `InputPanelHost` 接收 `panel`、`contentId` 与 `v-model:collapsed`，提供标题、`header-actions`、折叠和关闭按钮、Escape 关闭及焦点管理。`close(true)` 返回入口按钮，插入或应用完成后由输入区聚焦编辑器。
 - `InputPanelLayout` 和 Host 提供统一内容插槽：`controls` 为顶部常驻控件，默认插槽为滚动内容，`footer` 为底部常驻操作。折叠时三者一起隐藏。

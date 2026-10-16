@@ -15,6 +15,7 @@
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { TranslationConfig } from "@/tools/llm-chat/types/settings";
 import type { Asset } from "@/types/asset-management";
+import type { InputPanelRepeatClickAction } from "@/composables/useInputPanel";
 
 /**
  * 媒体生成任务类型
@@ -275,6 +276,8 @@ export interface MediaGeneratorSettings {
   maxConcurrentTasks: number;
   /** 是否启用通知 */
   enableNotifications: boolean;
+  /** 再次点击已展开的输入面板入口时的行为 */
+  panelRepeatClickAction: InputPanelRepeatClickAction;
   /** 提示词优化配置 */
   promptOptimization: PromptOptimizationConfig;
   /** 左侧面板折叠状态 */

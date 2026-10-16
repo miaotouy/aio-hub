@@ -8,6 +8,8 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # 与正式发布保持一致，为 vue-tsc 类型检查提供充足的堆内存。
+  NODE_OPTIONS: "--max-old-space-size=6144"
 
 jobs:
   build-macos:

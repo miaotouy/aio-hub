@@ -19,6 +19,16 @@ import {
 import { ControlError, errorResult, withinTimeout } from "./errors";
 
 type Role = Parameters<Page["getByRole"]>[0];
+function remainingTimeout(deadline: number): number {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0)
+    throw new ControlError(
+      "COMMAND_TIMEOUT",
+      "指令执行超时。",
+      "操作可能已生效，请先 observe 确认当前状态。"
+    );
+  return remaining;
+}
 function locatorFor(page: Page, target: ControlTarget): Locator {
   const root = target.scope ? page.locator(target.scope) : page;
   const exact = target.exact ?? true;
@@ -35,10 +45,25 @@ async function unique(
   target: ControlTarget,
   timeout: number
 ): Promise<Locator> {
+  const deadline = Date.now() + timeout;
   const locator = locatorFor(page, target);
   let count = await locator.count();
   if (count === 0) {
-    await locator.waitFor({ state: "attached", timeout });
+    try {
+      await locator.waitFor({
+        state: "attached",
+        timeout: remainingTimeout(deadline),
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new ControlError(
+          "TARGET_NOT_FOUND",
+          "等待结束后仍未找到目标控件。",
+          "确认当前页面、面板与定位条件；使用 inspect 查看可用控件。"
+        );
+      }
+      throw error;
+    }
     count = await locator.count();
   }
   if (count !== 1) {
@@ -262,6 +287,14 @@ async function executeStep(
   step: ControlStep,
   timeout: number
 ): Promise<unknown> {
+  const deadline = Date.now() + timeout;
+  const timeLeft = () => remainingTimeout(deadline);
+  const targetLocator = async (target: ControlTarget) => {
+    const locator = await unique(page, target, timeLeft());
+    // Locating and acting share one budget; locating must not restart the clock.
+    page.setDefaultTimeout(timeLeft());
+    return locator;
+  };
   page.setDefaultTimeout(timeout);
   switch (step.op) {
     case "navigate":
@@ -283,35 +316,34 @@ async function executeStep(
     case "screenshot":
       return screenshot(page, instance, step.target, step.mask, timeout);
     case "click":
-      return (await unique(page, step.target, timeout)).click({
-        timeout,
+      return (await targetLocator(step.target)).click({
+        timeout: timeLeft(),
         modifiers: step.modifiers,
       });
     case "dblclick":
-      return (await unique(page, step.target, timeout)).dblclick({
-        timeout,
+      return (await targetLocator(step.target)).dblclick({
+        timeout: timeLeft(),
         modifiers: step.modifiers,
       });
     case "fill":
-      return (await unique(page, step.target, timeout)).fill(step.text, {
-        timeout,
+      return (await targetLocator(step.target)).fill(step.text, {
+        timeout: timeLeft(),
       });
     case "press":
       if (step.target)
-        return (await unique(page, step.target, timeout)).press(step.key, {
-          timeout,
+        return (await targetLocator(step.target)).press(step.key, {
+          timeout: timeLeft(),
         });
       return page.keyboard.press(step.key);
     case "select":
-      return (await unique(page, step.target, timeout)).selectOption(
-        step.value,
-        { timeout }
-      );
+      return (await targetLocator(step.target)).selectOption(step.value, {
+        timeout: timeLeft(),
+      });
     case "scroll": {
       let point: { x: number; y: number };
       if (step.target) {
-        const locator = await unique(page, step.target, timeout);
-        await locator.scrollIntoViewIfNeeded({ timeout });
+        const locator = await targetLocator(step.target);
+        await locator.scrollIntoViewIfNeeded({ timeout: timeLeft() });
         const box = await locator.boundingBox();
         if (!box) throw new ControlError("TARGET_HIDDEN", "滚动目标不可见。");
         point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -429,6 +461,7 @@ export async function executeRequest(input: unknown) {
   );
   let release: (() => void) | undefined;
   let connection: DevConnection | undefined;
+  let lastRoute: string | undefined;
   const remaining = () => {
     const time = deadline - Date.now();
     if (time <= 0)
@@ -445,6 +478,7 @@ export async function executeRequest(input: unknown) {
     const page = await connection.window(label, remaining());
     const result = await runBatch(request, async (step) => {
       const description = await connection!.verify(page, label);
+      lastRoute = description.route;
       if (
         ["navigate", "state", "action"].includes(step.op) &&
         !description.bridgeAvailable
@@ -455,17 +489,26 @@ export async function executeRequest(input: unknown) {
           { timeout: remaining() }
         );
       }
+      const stepTimeout = remaining();
+      // Give native actionability errors time to settle before the hard cutoff.
+      const actionTimeout = Math.max(
+        1,
+        stepTimeout - Math.min(100, Math.floor(stepTimeout / 10))
+      );
       return withinTimeout(
-        executeStep(page, instance, step, remaining()),
-        remaining()
+        executeStep(page, instance, step, actionTimeout),
+        stepTimeout
       );
     });
-    const description = await connection.description(page);
+    // On failure, disconnect immediately in finally to cancel outstanding SDK work.
+    const description = result.ok
+      ? await connection.description(page)
+      : undefined;
     return {
       ...result,
       instance: instance.instanceId,
       window: label,
-      route: description?.route,
+      route: description?.route ?? lastRoute,
       startedAt,
       elapsedMs: Date.now() - started,
     };

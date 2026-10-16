@@ -54,6 +54,13 @@ export function errorResult(error: unknown) {
       message: "页面正在刷新。",
       hint: "等待后重新 observe；写操作可能已生效。",
     };
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return {
+      code: "COMMAND_TIMEOUT",
+      message: "指令执行超时。",
+      hint: "操作可能已生效，请先 observe 确认当前状态。",
+    };
+  }
   const known = message.match(
     /(UNKNOWN_ACTION|UNKNOWN_SCOPE|UNKNOWN_ROUTE|APP_NOT_READY|INVALID_ROUTE|NAVIGATION_FAILED):/
   );

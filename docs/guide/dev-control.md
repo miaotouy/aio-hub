@@ -113,7 +113,7 @@ $OutputEncoding = [Text.UTF8Encoding]::new($false)
 Get-Content -Raw -Encoding utf8 .dev-data/dev-control-example.json | bun scripts/dev-control/cli.ts batch --stdin
 ```
 
-整批指令先校验，再连接与执行。失败后立即停止，返回已完成步骤、失败位置和原因；之前的业务副作用保留。超时的写操作可能已经生效，先 observe，再决定后续操作。
+整批指令先校验，再连接与执行。失败后立即停止，返回已完成步骤、失败位置和原因；之前的业务副作用保留。定位等待与动作执行共用当前步骤的剩余预算。找不到目标返回 `TARGET_NOT_FOUND`；遮挡、禁用与隐藏状态优先返回对应错误。失败后立即断开本次 CDP 连接，停止后续步骤并释放窗口锁。超时的写操作可能已经生效，先 observe，再决定后续操作。
 
 同一窗口的写批次使用进程锁串行化。不同窗口可以分别操作。实例名称也使用启动锁，避免多个启动进程争用同一份实例描述。
 

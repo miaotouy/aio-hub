@@ -1,3 +1,4 @@
+import { migrateAggregateProfile } from "@shared/utils/llm-aggregate-profile";
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { appDataDir } from "@tauri-apps/api/path";
@@ -86,10 +87,12 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
     let resolvedProfiles: LlmProfile[] | null = null;
     try {
       const loaded = await configManager.load();
-      const normalized = (loaded.profiles || []).map((profile) => ({
-        ...profile,
-        models: (profile.models || []).map(normalizeStoredModel),
-      }));
+      const normalized = (loaded.profiles || []).map((profile) =>
+        migrateAggregateProfile({
+          ...profile,
+          models: (profile.models || []).map(normalizeStoredModel),
+        })
+      );
       resolvedProfiles = normalized;
 
       // 按配置 revision 读取最后一次完整提交；部分写入时自动回退 previous
@@ -105,11 +108,14 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
 
       if (
         reconciled.changed ||
+        normalized.some(
+          (profile, index) => profile.type !== loaded.profiles?.[index]?.type
+        ) ||
         loadedSecrets.needsRewrite ||
         !loaded.secretRevision
       ) {
         await persistProfiles();
-        logger.info("渠道敏感字段已迁移到独立密钥仓库", {
+        logger.info("LLM 渠道配置已完成兼容迁移", {
           count: reconciled.profiles.length,
         });
       }
@@ -154,7 +160,7 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
       models: (profile.models || []).map(normalizeStoredModel),
       apiKeys: profile.apiKeys || [],
     };
-    profiles.value.push(newProfile);
+    profiles.value.push(migrateAggregateProfile(newProfile));
     if (!selectedProfileId.value) selectedProfileId.value = newProfile.id;
     save();
   }
@@ -169,10 +175,10 @@ export const useLlmProfilesStore = defineStore("llm-profiles", () => {
       if (!updates.customHeaders || typeof updates.customHeaders !== "object") {
         updated.customHeaders = existing.customHeaders;
       }
-      profiles.value[index] = {
+      profiles.value[index] = migrateAggregateProfile({
         ...updated,
         models: (updated.models || []).map(normalizeStoredModel),
-      };
+      });
       save();
     }
   }

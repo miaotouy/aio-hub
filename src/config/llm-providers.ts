@@ -16,10 +16,19 @@
  * LLM 服务提供商类型配置
  */
 
-import { listAdaptersForOperation, type LlmOperation } from "@aiohub/llm-core";
+import {
+  isAggregateChannelType,
+  PROVIDER_EXECUTION_DEFAULTS,
+  listAdaptersForOperation,
+} from "@aiohub/llm-core";
 import type { SettingItem } from "../types/settings-renderer";
 import type { ProviderType, ProviderTypeInfo } from "../types/llm-profiles";
-import { getAdapterLabel, OPERATION_LABELS } from "./llm-routing";
+import {
+  AGGREGATE_ROUTING_OPERATIONS,
+  getAdapterLabel,
+  OPERATION_LABELS,
+} from "./llm-routing";
+import { llmPresets } from "./llm-presets";
 
 /** 聚合渠道的默认品牌/类别图标，供渠道列表、预设和导出视图复用。 */
 const providerTypeIconPaths: Partial<Record<ProviderType, string>> = {
@@ -33,7 +42,10 @@ const providerTypeIconPaths: Partial<Record<ProviderType, string>> = {
 export function getProviderTypeIconPath(
   type: ProviderType
 ): string | undefined {
-  return providerTypeIconPaths[type];
+  return (
+    providerTypeIconPaths[type] ??
+    llmPresets.find((preset) => preset.type === type)?.logoUrl
+  );
 }
 
 /**
@@ -41,8 +53,9 @@ export function getProviderTypeIconPath(
  * 值写入 `profile.options.routingDefaults`，由共享执行解析器读取；
  * 仅对聚合渠道生效，旧渠道忽略。
  */
-function aggregateRoutingConfigFields(): SettingItem[] {
-  const operations: LlmOperation[] = ["chat", "embedding", "rerank", "image"];
+function aggregateRoutingConfigFields(type: ProviderType): SettingItem[] {
+  const operations = AGGREGATE_ROUTING_OPERATIONS;
+  const defaults = PROVIDER_EXECUTION_DEFAULTS[type];
   const groupCollapsible = {
     name: "aggregate-routing-defaults",
     title: "默认协议（高级回退）",
@@ -55,9 +68,16 @@ function aggregateRoutingConfigFields(): SettingItem[] {
     modelPath: `routingDefaults.${operation}`,
     props: {
       clearable: true,
-      placeholder: "跟随模型绑定；未配置时提示选择或探测",
+      placeholder: "跟随模型路由和平台默认协议",
     },
-    hint: "没有模型级绑定时使用的回退协议。留空表示不假设协议：未绑定模型会提示选择或探测，不会静默猜测。",
+    hint: (() => {
+      const adapterId =
+        defaults?.operationAdapters?.[operation] ??
+        (operation === "chat" ? defaults?.defaultAdapterId : undefined);
+      return adapterId
+        ? `模型绑定和发现声明优先，留空使用平台默认：${getAdapterLabel(adapterId)}。`
+        : "模型绑定和发现声明优先，留空跟随平台内置路由；协议未知时选择或探测。";
+    })(),
     keywords: "aggregate routing default protocol 默认协议 回退",
     groupCollapsible,
     options: () =>
@@ -71,7 +91,7 @@ function aggregateRoutingConfigFields(): SettingItem[] {
 /**
  * 支持的 LLM 服务提供商类型列表
  */
-export const providerTypes: ProviderTypeInfo[] = [
+const providerDefinitions: ProviderTypeInfo[] = [
   {
     type: "openai",
     name: "OpenAI",
@@ -615,7 +635,6 @@ export const providerTypes: ProviderTypeInfo[] = [
       thinking: true,
       webSearch: true,
     },
-    configFields: aggregateRoutingConfigFields(),
   },
   {
     type: "sub2api",
@@ -640,7 +659,6 @@ export const providerTypes: ProviderTypeInfo[] = [
       reasoningEffort: true,
       thinking: true,
     },
-    configFields: aggregateRoutingConfigFields(),
   },
   {
     type: "aggregate-compatible",
@@ -663,7 +681,6 @@ export const providerTypes: ProviderTypeInfo[] = [
       toolChoice: true,
       parallelToolCalls: true,
     },
-    configFields: aggregateRoutingConfigFields(),
   },
   {
     type: "opencode-go",
@@ -688,9 +705,43 @@ export const providerTypes: ProviderTypeInfo[] = [
       reasoningEffort: true,
       thinking: true,
     },
-    configFields: aggregateRoutingConfigFields(),
   },
 ];
+
+// 平台信息复用唯一的品牌预设，保持渠道选择、发现与创建入口一致。
+const registeredTypes = new Set(
+  providerDefinitions.map((provider) => provider.type)
+);
+for (const preset of llmPresets) {
+  if (!isAggregateChannelType(preset.type) || registeredTypes.has(preset.type))
+    continue;
+  providerDefinitions.push({
+    type: preset.type,
+    name: preset.name,
+    description: preset.description,
+    defaultBaseUrl: preset.defaultBaseUrl,
+    supportsModelList: true,
+    modelListEndpoint: "models",
+    supportedParameters: {
+      ...providerDefinitions.find((provider) => provider.type === "openai")
+        ?.supportedParameters,
+    },
+  });
+  registeredTypes.add(preset.type);
+}
+
+export const providerTypes: ProviderTypeInfo[] = providerDefinitions.map(
+  (provider) =>
+    isAggregateChannelType(provider.type)
+      ? {
+          ...provider,
+          configFields: [
+            ...(provider.configFields ?? []),
+            ...aggregateRoutingConfigFields(provider.type),
+          ],
+        }
+      : provider
+);
 
 /**
  * 根据类型获取提供商信息

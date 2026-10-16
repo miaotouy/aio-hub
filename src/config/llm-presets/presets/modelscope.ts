@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // 魔搭 ModelScope
 export const modelscopePreset: LlmPreset = {
-  type: "openai",
+  type: "modelscope",
   name: "魔搭 ModelScope",
   description: "魔搭社区 API-Inference 服务（OpenAI兼容）",
   defaultBaseUrl: "https://api-inference.modelscope.cn/v1",

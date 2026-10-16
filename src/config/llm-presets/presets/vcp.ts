@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // VCP (Variable & Command Protocol)
 export const vcpPreset: LlmPreset = {
-  type: "openai",
+  type: "vcp",
   name: "VCP",
   description: "VCP server - VCP 服务 (OpenAI 兼容)",
   defaultBaseUrl: "http://localhost:6505",

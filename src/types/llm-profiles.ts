@@ -34,7 +34,7 @@ export interface ContextPostProcessRule {
 
 /**
  * LLM 服务提供商类型
- * 决定了请求体的格式
+ * 标识厂商、聚合平台或协议；执行协议由模型路由解析
  */
 /**
  * 网络请求策略
@@ -64,7 +64,14 @@ export type ProviderType =
   | "new-api"
   | "sub2api"
   | "aggregate-compatible"
-  | "opencode-go";
+  | "opencode-go"
+  | "together"
+  | "fireworks"
+  | "deepinfra"
+  | "huggingface"
+  | "modelscope"
+  | "lmstudio"
+  | "vcp";
 
 /**
  * 渠道对 AIO 工具调用的处理声明。
@@ -516,6 +523,8 @@ export interface LlmProfile {
    * 服务提供商类型
    */
   type: ProviderType;
+  /** 执行路由生成的原始渠道身份，仅用于运行时兼容视图。 */
+  channelType?: ProviderType;
   /**
    * API 基础地址，例如 'https://api.openai.com' 或 'http://localhost:11434'
    */

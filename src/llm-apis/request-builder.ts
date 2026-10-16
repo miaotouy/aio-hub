@@ -24,6 +24,7 @@
  * - 不强制统一所有差异，尊重各 API 的独特性
  */
 
+import { isAggregateChannelType } from "@aiohub/llm-core";
 import type {
   LlmMessageContent,
   LlmRequestOptions,
@@ -596,7 +597,14 @@ export function filterParametersByCapabilities(
   model?: LlmModelInfo
 ): Partial<LlmRequestOptions | MediaGenerationOptions> {
   const providerInfo = getProviderTypeInfo(profile.type);
-  const supported = providerInfo?.supportedParameters;
+  const channelInfo =
+    profile.type === "openai-compatible" &&
+    profile.channelType &&
+    isAggregateChannelType(profile.channelType)
+      ? getProviderTypeInfo(profile.channelType)
+      : undefined;
+  const supported =
+    channelInfo?.supportedParameters ?? providerInfo?.supportedParameters;
   const capabilities = model?.capabilities;
   const modelFamily = getModelFamily(
     options.modelId,

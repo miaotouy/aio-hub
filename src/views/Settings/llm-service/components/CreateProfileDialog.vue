@@ -16,8 +16,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { getProviderTypeIconPath, providerTypes } from "@/config/llm-providers";
-import { llmPresets } from "@/config/llm-presets";
+import { getProviderTypeIconPath } from "@/config/llm-providers";
+import {
+  llmPresets,
+  llmPresetCategories,
+  getLlmPresetCategory,
+  type LlmPresetCategory,
+} from "@/config/llm-presets";
 import type { LlmPreset } from "@/config/llm-presets";
 import type { ProviderType } from "@/types/llm-profiles";
 import { useModelMetadata } from "@/composables/useModelMetadata";
@@ -67,24 +72,14 @@ const handleConfigImport = (profiles: ParsedLlmProfileDraft[]) => {
   emit("update:visible", false);
 };
 
-// 当前选中的提供商类型
-const selectedProviderType = ref<ProviderType | "all">("all");
-
-// 提供商分类（从实际预设中提取）
-const providerCategories = computed<Array<ProviderType | "all">>(() => {
-  const types = new Set<ProviderType>();
-  llmPresets.forEach((p: LlmPreset) => types.add(p.type));
-  return ["all" as const, ...Array.from(types)];
-});
-
-// 根据分类过滤预设
+// 先按渠道性质筛选，平台身份与执行协议分别维护。
+const selectedProviderType = ref<LlmPresetCategory | "all">("all");
+const providerCategories = llmPresetCategories;
 const filteredPresets = computed(() => {
-  if (selectedProviderType.value === "all") {
-    return llmPresets;
-  }
-  return llmPresets.filter(
-    (p: LlmPreset) => p.type === selectedProviderType.value
-  );
+  const category = selectedProviderType.value;
+  return category === "all"
+    ? llmPresets
+    : llmPresets.filter((preset) => getLlmPresetCategory(preset) === category);
 });
 
 // 从预设创建配置
@@ -104,17 +99,6 @@ const getProviderIconForPreset = (providerType: ProviderType) => {
   const iconPath =
     getProviderTypeIconPath(providerType) ?? getIconPath("", providerType);
   return iconPath ? getDisplayIconPath(iconPath) : null;
-};
-
-// 获取提供商类型信息
-const getProviderInfo = (type: ProviderType) => {
-  return providerTypes.find((p: { type: ProviderType }) => p.type === type);
-};
-
-// 获取分类显示名称
-const getCategoryLabel = (category: ProviderType | "all") => {
-  if (category === "all") return "全部";
-  return getProviderInfo(category)?.name || category;
 };
 </script>
 
@@ -151,12 +135,12 @@ const getCategoryLabel = (category: ProviderType | "all") => {
             <div class="category-tabs">
               <button
                 v-for="category in providerCategories"
-                :key="category"
-                @click="selectedProviderType = category"
-                :class="{ active: selectedProviderType === category }"
+                :key="category.value"
+                @click="selectedProviderType = category.value"
+                :class="{ active: selectedProviderType === category.value }"
                 class="category-tab"
               >
-                {{ getCategoryLabel(category) }}
+                {{ category.label }}
               </button>
             </div>
 

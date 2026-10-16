@@ -1,14 +1,35 @@
 <script setup lang="ts">
+import { computed, ref, watch } from "vue";
 import { Zap, Plus } from "lucide-vue-next";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
-import { llmPresets } from "../config/llm-presets";
+import {
+  llmPresets,
+  llmPresetCategories,
+  getLlmPresetCategory,
+  type LlmPresetCategory,
+} from "../config/llm-presets";
 import { useI18n } from "@/i18n";
 
 const { tRaw } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   show: boolean;
 }>();
+
+const category = ref<LlmPresetCategory | "all">("all");
+const filteredPresets = computed(() =>
+  category.value === "all"
+    ? llmPresets
+    : llmPresets.filter(
+        (preset) => getLlmPresetCategory(preset) === category.value
+      )
+);
+watch(
+  () => props.show,
+  (show) => {
+    if (show) category.value = "all";
+  }
+);
 
 const emit = defineEmits<{
   (e: "update:show", value: boolean): void;
@@ -45,10 +66,22 @@ const handleCreateCustom = () => {
         </var-button>
       </div>
 
+      <div class="preset-categories" role="group" aria-label="渠道分类">
+        <button
+          v-for="item in llmPresetCategories"
+          :key="item.value"
+          type="button"
+          :aria-pressed="category === item.value"
+          @click="category = item.value"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+
       <div class="popup-body">
         <div class="presets-grid">
           <div
-            v-for="preset in llmPresets"
+            v-for="preset in filteredPresets"
             :key="preset.name"
             class="preset-item"
             v-ripple
@@ -80,6 +113,24 @@ const handleCreateCustom = () => {
 </template>
 
 <style scoped>
+.preset-categories {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+}
+.preset-categories button {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--color-surface-container-low);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.preset-categories button[aria-pressed="true"] {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
 .presets-popup-container {
   display: flex;
   flex-direction: column;

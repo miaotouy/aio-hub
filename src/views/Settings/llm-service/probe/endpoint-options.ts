@@ -1,5 +1,9 @@
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
-import type { ProbeCapability } from "@aiohub/llm-core";
+import {
+  isAggregateChannelType,
+  PROVIDER_EXECUTION_DEFAULTS,
+  type ProbeCapability,
+} from "@aiohub/llm-core";
 import type { ProbeEndpointType } from "./types";
 
 type CustomEndpointKey = keyof NonNullable<LlmProfile["customEndpoints"]>;
@@ -121,6 +125,9 @@ const OPENAI_CHAT_PROFILE_TYPES = new Set<ProviderType>([
   "sub2api",
   "aggregate-compatible",
   "opencode-go",
+  ...(Object.keys(PROVIDER_EXECUTION_DEFAULTS).filter((type) =>
+    isAggregateChannelType(type)
+  ) as ProviderType[]),
 ]);
 
 export function getProbeEndpointDefinition(

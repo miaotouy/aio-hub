@@ -178,3 +178,34 @@ function jsonResponse(value: JsonValue): WireResponse {
     })(),
   };
 }
+
+describe("aggregate platform discovery", () => {
+  it.each([
+    "together",
+    "fireworks",
+    "deepinfra",
+    "huggingface",
+    "modelscope",
+    "lmstudio",
+    "vcp",
+  ])("preserves and executes endpoint declarations from %s", (provider) => {
+    const [model] = parseProviderModels(
+      { data: [{ id: "model-a", supported_endpoint_types: ["anthropic"] }] },
+      provider
+    );
+    expect(model.id).toBe("model-a");
+    expect(
+      resolveModelExecution({
+        profile: { type: provider },
+        model: {
+          id: model.id,
+          routing: { supportedEndpointTypes: model.supportedEndpointTypes },
+        },
+        operation: "chat",
+      })
+    ).toMatchObject({
+      adapterId: "anthropic-messages",
+      effectiveProfile: { type: "claude", channelType: provider },
+    });
+  });
+});

@@ -1,3 +1,4 @@
+import { isAggregateChannelType } from "../model-execution-routing";
 import type { JsonValue } from "../types/json";
 import type {
   ModelListProviderAdapter,
@@ -48,7 +49,11 @@ export function parseProviderModels(
   provider: string
 ): ProviderModelInfo[] {
   const root = asRecord(value);
-  if (OPENAI_FAMILY.has(provider) || provider === "vertexai") {
+  if (
+    OPENAI_FAMILY.has(provider) ||
+    isAggregateChannelType(provider) ||
+    provider === "vertexai"
+  ) {
     const entries =
       readArray(root.data).length > 0
         ? readArray(root.data)

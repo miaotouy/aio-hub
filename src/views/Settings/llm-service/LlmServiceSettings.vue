@@ -665,7 +665,7 @@ const networkSettingSummary = computed(() => {
               />
             </el-form-item>
 
-            <el-form-item label="API 格式">
+            <el-form-item label="渠道类型">
               <el-select v-model="editForm.type" style="width: 100%">
                 <el-option
                   v-for="provider in providerTypes"
@@ -675,7 +675,7 @@ const networkSettingSummary = computed(() => {
                 />
               </el-select>
               <div class="form-hint">
-                API 请求格式类型（兼容该格式的所有服务商均可使用）
+                选择厂商、聚合平台或协议类型；聚合渠道可按模型配置协议。
               </div>
             </el-form-item>
 

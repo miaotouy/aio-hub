@@ -25,22 +25,31 @@ resolveModelExecution({ profile, model, operation });
 
 ## 聚合渠道
 
-Phase 4 新增四种聚合渠道类型，渠道身份与线协议解耦：
+聚合平台统一使用聚合类预设，渠道身份与线协议解耦。OpenRouter、SiliconFlow、Groq、Together AI、Fireworks AI、DeepInfra、Hugging Face、魔搭 ModelScope、LM Studio 和 VCP 均保留独立渠道类型；New API、Sub2API、OpenCode Go 与通用聚合渠道沿用相同路由机制。厂商直连及明确的协议格式保留各自预设。
 
-| 渠道类型               | 模型列表     | 默认回退                                         | 说明                                                            |
-| ---------------------- | ------------ | ------------------------------------------------ | --------------------------------------------------------------- |
-| `new-api`              | `/v1/models` | OpenAI Chat Completions + embedding/rerank/image | 理解 `supported_endpoint_types`；模型级绑定与探测优先生效       |
-| `sub2api`              | `/v1/models` | OpenAI Chat Completions + embedding/rerank/image | 按 Key/Group platform 工作，无端点声明时用渠道默认或探测        |
-| `aggregate-compatible` | `/v1/models` | 无（必须手工绑定/探测/渠道默认）                 | 通用手工模式，不假设服务端扩展字段                              |
-| `opencode-go`          | `/v1/models` | 内置官方模型路由表（`modelRoutes`）              | 未收录模型抛出 `UnresolvedModelRouteError`，标记"待选择/待探测" |
+| 渠道类型                                                                             | 模型列表              | 默认回退                                                   | 说明                                                            |
+| ------------------------------------------------------------------------------------ | --------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| `openrouter`                                                                         | `/api/v1/models`      | Chat Completions；embedding / image / Decisions 按操作分派 | 保留 OR 图片、视频和语音专用接口                                |
+| `siliconflow`、`groq`                                                                | `/v1/models`          | Chat Completions                                           | 硅基保留 embedding 与专用绘图请求                               |
+| `together`、`fireworks`、`deepinfra`、`huggingface`、`modelscope`、`lmstudio`、`vcp` | 平台地址下的 `models` | Chat Completions；保留已有 embedding / image 默认          | 模型绑定、发现声明和渠道默认可覆盖协议                          |
+| `new-api`                                                                            | `/v1/models`          | OpenAI Chat Completions + embedding/rerank/image           | 理解 `supported_endpoint_types`；模型级绑定与探测优先生效       |
+| `sub2api`                                                                            | `/v1/models`          | OpenAI Chat Completions + embedding/rerank/image           | 按 Key/Group platform 工作，无端点声明时用渠道默认或探测        |
+| `aggregate-compatible`                                                               | `/v1/models`          | 无（必须手工绑定/探测/渠道默认）                           | 通用手工模式，不假设服务端扩展字段                              |
+| `opencode-go`                                                                        | `/v1/models`          | 内置官方模型路由表（`modelRoutes`）                        | 未收录模型抛出 `UnresolvedModelRouteError`，标记"待选择/待探测" |
 
 聚合渠道在 `PROVIDER_EXECUTION_DEFAULTS` 中标记 `aggregate: true`，并满足：
 
 1. **渠道级默认协议可配置**：`profile.options.routingDefaults`（`Partial<Record<LlmOperation, LlmAdapterId>>`）是用户配置的回退协议，优先级高于内置路由表。清空或未知 adapter 视为未设置，继续回退。
 2. **回退优先级**：模型 binding → 唯一发现端点 → 用户渠道默认（routingDefaults）→ 内置模型路由表（opencode-go）→ 渠道静态默认 → 否则抛出可恢复的 `UnresolvedModelRouteError`（禁止按模型名猜测协议）。
-3. **兼容视图重映射**：聚合渠道的 profile-default 路径会把 `effectiveProfile.type` 重映射为实际协议适配器的旧渠道类型（如 `openai-compatible` / `claude` / `openai-responses`），请求构建、参数过滤和鉴权头因此看到真实协议；旧渠道路径保持返回原 profile 不变。
-4. **桌面注册**：`src/llm-apis/adapters/index.ts` 与 `src/utils/llm-api-url.ts` 为聚合类型提供防御性的 OpenAI 兼容条目（运行时实际经过解析器重映射，不会命中）；`OPENAI_FAMILY` 纳入四类以便 `/v1/models` 解析与 `supported_endpoint_types` 保留；渠道包白名单与 Probe 自动端点集合同步加入。
+3. **兼容视图重映射**：聚合渠道的 profile-default 路径会把 `effectiveProfile.type` 重映射为实际协议适配器的旧渠道类型（如 `openai-compatible` / `claude` / `openai-responses`），并在兼容视图的 `channelType` 保留原渠道身份供专用媒体接口使用；请求构建、参数过滤和鉴权头因此看到真实协议；旧渠道路径保持返回原 profile 不变。
+4. **桌面注册**：`src/llm-apis/adapters/index.ts` 与 `src/utils/llm-api-url.ts` 为聚合类型提供防御性的 OpenAI 兼容条目（运行时实际经过解析器重映射，不会命中）；模型列表解析通过共享聚合注册表识别所有聚合平台，以便 `/v1/models` 解析与 `supported_endpoint_types` 保留；渠道包白名单与 Probe 自动端点集合同步加入。
 5. **UI 提示**：模型列表对聚合渠道中无法解析对话协议的模型显示"待选协议"标签；路由编辑器显示"待选择/待探测"提示并引导选择或探测。Probe 服务对未解析模型返回"该模型尚未选择协议"的配置错误而不是猜测协议。
+
+### 预设入口与旧配置迁移
+
+桌面端和移动端共用“聚合渠道 / 厂商与协议”分类。同一聚合平台只注册一个预设；历史 `NewAPI` 名称与模块路径映射到唯一的 `New API` 预设。聚合平台的默认协议可按对话、向量、重排、绘图和决策操作配置，清空覆盖项后跟随平台默认或内置模型路由。
+
+共享 `src/utils/llm-aggregate-profile.ts` 在两端加载、保存以及桌面渠道包导入时识别旧配置。精确官方域名、已保存的品牌图标或文档链接作为迁移依据；localhost、占位域名和渠道名称单独使用时保持原配置。旧协议固化为渠道默认，已有模型绑定、端点、请求头、密钥、地址和用户选项保持原值；迁移结果可重复加载。
 
 OpenCode Go 内置路由表（2026-08-12 官方模型表）位于 `PROVIDER_EXECUTION_DEFAULTS["opencode-go"].modelRoutes`，覆盖 19 个模型：Chat Completions（Grok/GLM/Kimi/DeepSeek/MiMo/Hy 系）、OpenAI Responses（`gpt-5.6-luna`）、Anthropic Messages（MiniMax/Qwen 系）。
 
@@ -145,7 +154,7 @@ Phase 3 提供以下写入入口，全部只覆盖对应 operation 的 binding�
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `src/composables/useLlmRequest.ts`                              | 依请求能力解析 chat / image / audio / video / music；Embedding 单独按 `embedding` 解析 | 旧 profile 走 `profile-default` 且沿用原 `profile.type`；参数过滤、URL 和 headers 不变 |
 | `src/llm-apis/embedding.ts`                                     | 在公共 Embedding facade 解析 `embedding`                                               | `embedding-shared.test.ts` 覆盖 OpenAI 与 Vertex URL / 请求体                          |
-| `src/llm-apis/system-one-core.ts`                               | 按模型路由分派 Decisions / System One 的独立桌面 facade                       | `system-one-core.test.ts` 覆盖请求构造、桌面 Transport 与结构化答案解析                |
+| `src/llm-apis/system-one-core.ts`                               | 按模型路由分派 Decisions / System One 的独立桌面 facade                                | `system-one-core.test.ts` 覆盖请求构造、桌面 Transport 与结构化答案解析                |
 | `src/tools/recall/utils/vectorCache.ts`                         | 在缓存未命中时解析 `embedding`                                                         | `vectorCache.test.ts` 覆盖缓存命中、provider 调用与不支持错误                          |
 | `src/views/Settings/llm-service/probe/channel-probe-service.ts` | Probe 计划按 capability 解析；显式 endpoint 仍优先作为探测覆盖                         | `channel-probe-service.test.ts` 覆盖四种显式 Chat endpoint 与非流式能力                |
 | `mobile/.../useLlmRequest.ts`                                   | 移动端聊天在 adapter switch 前解析 `chat`                                              | `useLlmRequest.test.ts` 保留默认调用与重试行为                                         |

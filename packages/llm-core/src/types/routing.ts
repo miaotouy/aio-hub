@@ -91,6 +91,8 @@ export function mergeDiscoveredModelRouting(
 /** The minimum profile shape required by the shared execution resolver. */
 export interface LlmExecutionProfile {
   type: string;
+  /** Original channel identity retained by the runtime compatibility view. */
+  channelType?: string;
   customEndpoints?: object;
   /**
    * Aggregate channels: user-configured channel-level fallback routes used

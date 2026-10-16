@@ -273,10 +273,10 @@ export interface LlmAdapter {
 | `mistral`           | `openAiAdapter`                    | —                   | Mistral AI                        |
 | `perplexity`        | `openAiAdapter`                    | —                   | Perplexity                        |
 | `deepseek`          | `openAiAdapter`                    | `deepseek`          | 深度求索                          |
-| `together`          | `openAiAdapter`                    | —                   | Together AI                       |
+| `together`          | `openAiAdapter`                    | `together`          | Together AI                       |
 | `openrouter`        | `openAiAdapter`                    | `openrouter`        | OpenRouter                        |
 | `ollama`            | `openAiAdapter`                    | `ollama`            | Ollama 本地                       |
-| `lmstudio`          | `openAiAdapter`                    | —                   | LM Studio                         |
+| `lmstudio`          | `openAiAdapter`                    | `lmstudio`          | LM Studio                         |
 | `vllm`              | `openAiAdapter`                    | —                   | vLLM                              |
 | `volcengine`        | `openAiAdapter`                    | —                   | 火山引擎                          |
 | `dashscope`         | `openAiAdapter`                    | —                   | 阿里百炼                          |
@@ -291,6 +291,8 @@ export interface LlmAdapter {
 | `suno-newapi`       | `sunoNewApiAdapter`                | `suno-newapi`       | 音乐生成                          |
 | `audiocpp`          | `openAiAdapter` (+ transcribe)     | `audiocpp`          | 本地 audio.cpp 音频推理 (TTS/ASR) |
 | `typesafe`          | `systemOneCore` (独立决策通道)     | `typesafe`          | TypeSafe AI System One 结构化决策 |
+
+聚合平台统一通过模型执行路由选择协议适配器。`openrouter`、`siliconflow`、`groq`、`together`、`fireworks`、`deepinfra`、`huggingface`、`modelscope`、`lmstudio`、`vcp`、`new-api`、`sub2api`、`aggregate-compatible` 与 `opencode-go` 均标记为聚合渠道。上表中的 OpenAI 兼容条目同时用于 URL 预览与防御性分发；正常调用使用解析后的协议类型，运行时 `channelType` 保留原始平台身份。预设与旧配置迁移见 [执行路由架构](./llm-execution-routing.md#预设入口与旧配置迁移)。
 
 > **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets/` 添加预设即可。
 > Azure 渠道使用 deployment 风格的 Chat Completions / Embeddings；`azureOpenAiAdapter` 复用 OpenAI wire format，同时负责 `{resource}` / `{deployment}`、`api-version` 与 `api-key` 鉴权转换。
@@ -556,4 +558,4 @@ useLlmRequest.sendRequest(options)
 
 ### OpenRouter 多媒体协议
 
-`openrouter` 的聊天、向量与语音转写继续复用 OpenAI 兼容实现。图像、视频和语音合成由现有 OpenAI 多媒体入口识别渠道身份或官方域名后，选择共享内核的 `openRouterImageAdapter`、`openRouterVideoTaskAdapter`、`openRouterAudioAdapter`。图像端点为 `/api/v1/images`；视频采用 OR 的整数时长、JSON 参考素材及异步任务响应。专用适配器复用现有 transport、原生文件引用和资产入库机制。具体请求与任务生命周期见 [`media-generator` 架构](../../src/tools/media-generator/ARCHITECTURE.md#10-openrouter-多媒体适配)。
+`openrouter` 的聊天、向量与语音转写继续复用 OpenAI 兼容实现。图像、视频和语音合成由现有 OpenAI 多媒体入口识别渠道身份（含路由兼容视图的 `channelType`）或官方域名后，选择共享内核的 `openRouterImageAdapter`、`openRouterVideoTaskAdapter`、`openRouterAudioAdapter`。图像端点为 `/api/v1/images`；视频采用 OR 的整数时长、JSON 参考素材及异步任务响应。专用适配器复用现有 transport、原生文件引用和资产入库机制。具体请求与任务生命周期见 [`media-generator` 架构](../../src/tools/media-generator/ARCHITECTURE.md#10-openrouter-多媒体适配)。

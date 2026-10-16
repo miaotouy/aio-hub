@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { detachModifiedMetadataPaths } from "@aiohub/model-metadata-core";
-import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
+import {
+  mergeDiscoveredModelRouting,
+  isAggregateChannelType,
+  listAdaptersForOperation,
+  type LlmAdapterId,
+  type LlmOperation,
+} from "@aiohub/llm-core";
+import {
+  AGGREGATE_ROUTING_OPERATIONS,
+  OPERATION_LABELS,
+  getAdapterLabel,
+} from "@shared/config/llm-routing";
 import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { useI18n } from "@/i18n";
@@ -76,6 +87,28 @@ const probeResults = ref<Record<string, ChannelProbeResult>>({});
 const probeStale = ref(false);
 
 const innerProfile = ref<LlmProfile | null>(null);
+const isAggregateProfile = computed(
+  () => innerProfile.value && isAggregateChannelType(innerProfile.value.type)
+);
+const routingDefaultsFields = AGGREGATE_ROUTING_OPERATIONS.map((operation) => ({
+  operation,
+  label: `默认${OPERATION_LABELS[operation]}协议`,
+  options: listAdaptersForOperation(operation).map((adapterId) => ({
+    value: adapterId,
+    label: getAdapterLabel(adapterId),
+  })),
+}));
+function setRoutingDefault(operation: LlmOperation, event: Event) {
+  if (!innerProfile.value) return;
+  const value = (event.target as HTMLSelectElement).value;
+  const routingDefaults = { ...innerProfile.value.options?.routingDefaults };
+  if (value) routingDefaults[operation] = value as LlmAdapterId;
+  else delete routingDefaults[operation];
+  innerProfile.value.options = {
+    ...innerProfile.value.options,
+    routingDefaults,
+  };
+}
 
 function mergeFetchedRouteDeclarations(
   existingModels: LlmModelInfo[],
@@ -458,6 +491,44 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </div>
         </div>
 
+        <details
+          v-if="isAggregateProfile"
+          class="config-card aggregate-routing"
+        >
+          <summary>默认协议（高级回退）</summary>
+          <p class="routing-hint">
+            模型绑定和发现声明优先，留空跟随平台默认或内置模型路由。
+          </p>
+          <div
+            v-for="field in routingDefaultsFields"
+            :key="field.operation"
+            class="native-input-group form-item"
+          >
+            <label
+              :for="`routing-default-${field.operation}`"
+              class="native-input-label"
+              >{{ field.label }}</label
+            >
+            <select
+              :id="`routing-default-${field.operation}`"
+              class="native-select"
+              :value="
+                innerProfile?.options?.routingDefaults?.[field.operation] || ''
+              "
+              @change="setRoutingDefault(field.operation, $event)"
+            >
+              <option value="">跟随平台默认</option>
+              <option
+                v-for="option in field.options"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+        </details>
+
         <!-- 连接配置 -->
         <div class="section-header">
           {{ tRaw("tools.llm-api.ProfileEditor.连接配置") }}
@@ -679,6 +750,20 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 </template>
 
 <style scoped>
+.aggregate-routing summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+.routing-hint {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
 .editor-popup {
   display: flex;
   flex-direction: column;

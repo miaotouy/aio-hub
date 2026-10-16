@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { describe, expect, it } from "vitest";
+import { resolveModelExecution } from "@aiohub/llm-core";
 import type { LlmRequestOptions } from "@/llm-apis/common";
 import { filterParametersByCapabilities } from "@/llm-apis/request-builder";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
@@ -192,5 +193,34 @@ describe("filterParametersByCapabilities Ollama tool parameters", () => {
 
     expect(result.tools).toBeUndefined();
     expect(result.toolChoice).toBeUndefined();
+  });
+});
+
+describe("aggregate protocol parameter capabilities", () => {
+  it("preserves SiliconFlow topK on Chat Completions and uses Claude capabilities after a switch", () => {
+    const profile = createProfile("siliconflow");
+    const model = { id: "custom-model" };
+    const options = createOptions(model.id, { topK: 40, presencePenalty: 0.5 });
+    const defaults = resolveModelExecution({
+      profile,
+      model,
+      operation: "chat",
+    });
+    expect(
+      filterParametersByCapabilities(options, defaults.effectiveProfile).topK
+    ).toBe(40);
+    const switched = resolveModelExecution({
+      profile: {
+        ...profile,
+        options: { routingDefaults: { chat: "anthropic-messages" } },
+      },
+      model,
+      operation: "chat",
+    });
+    expect(switched.effectiveProfile.type).toBe("claude");
+    expect(
+      filterParametersByCapabilities(options, switched.effectiveProfile)
+        .presencePenalty
+    ).toBeUndefined();
   });
 });

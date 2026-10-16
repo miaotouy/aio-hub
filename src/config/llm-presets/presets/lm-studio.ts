@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // LM Studio
 export const lmStudioPreset: LlmPreset = {
-  type: "openai",
+  type: "lmstudio",
   name: "LM Studio",
   description: "LM Studio 本地服务 (OpenAI 兼容 API)",
   defaultBaseUrl: "http://localhost:1234/v1",

@@ -19,9 +19,14 @@ import { openAiVideoTaskAdapter } from "./async-media";
 export function isOpenRouterProfile(profile: {
   provider?: string;
   type?: string;
+  channelType?: string;
   baseUrl: string;
 }): boolean {
-  if (profile.provider === "openrouter" || profile.type === "openrouter")
+  if (
+    profile.provider === "openrouter" ||
+    profile.type === "openrouter" ||
+    profile.channelType === "openrouter"
+  )
     return true;
   try {
     return new URL(profile.baseUrl).hostname === "openrouter.ai";

@@ -3,6 +3,11 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
+import {
+  isAggregateChannelType,
+  PROVIDER_EXECUTION_DEFAULTS,
+} from "@aiohub/llm-core";
+import { migrateAggregateProfile } from "./llm-aggregate-profile";
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
 
 export const LLM_PROFILE_BUNDLE_FORMAT = "aiohub.llm-profiles" as const;
@@ -29,6 +34,9 @@ const SUPPORTED_PROVIDER_TYPES = new Set<ProviderType>([
   "sub2api",
   "aggregate-compatible",
   "opencode-go",
+  ...(Object.keys(PROVIDER_EXECUTION_DEFAULTS).filter((type) =>
+    isAggregateChannelType(type)
+  ) as ProviderType[]),
 ]);
 
 export interface LlmProfileBundle {
@@ -377,7 +385,9 @@ export function parseLlmProfileBundle(
       exportedAt: typeof value.exportedAt === "string" ? value.exportedAt : "",
       containsSecrets: value.containsSecrets === true,
       redactedPaths,
-      profiles: cloneJson(value.profiles) as LlmProfile[],
+      profiles: (cloneJson(value.profiles) as LlmProfile[]).map(
+        migrateAggregateProfile
+      ),
     },
   };
 }

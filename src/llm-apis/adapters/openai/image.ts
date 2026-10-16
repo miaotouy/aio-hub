@@ -16,11 +16,15 @@ import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { buildOpenAiHeaders } from "./utils";
+import { callSiliconFlowImageApi } from "../siliconflow/image";
 
 export async function callOpenAiImageApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
+  if (profile.channelType === "siliconflow") {
+    return callSiliconFlowImageApi(profile, options);
+  }
   const request = await toCoreImageRequest(options);
   const response = await executeSyncMediaRequest({
     adapter: isOpenRouterProfile(profile)

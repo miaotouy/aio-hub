@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MediaGenerationOptions } from "@/llm-apis/common";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { callOpenAiImageApi } from "../image";
+import { resolveModelExecution } from "@aiohub/llm-core";
 
 vi.mock("@/llm-apis/common", async (importOriginal) => {
   const actual = await importOriginal<any>();
@@ -158,5 +159,61 @@ describe("OpenAI Adapter - Image", () => {
       b64_json: "AQID",
       mimeType: "image/webp",
     });
+  });
+  it("keeps SiliconFlow image parameters after aggregate routing", async () => {
+    const execution = resolveModelExecution({
+      profile: {
+        ...mockProfile,
+        type: "siliconflow" as const,
+        baseUrl: "https://silicon-gateway.example/v1",
+      },
+      model: { id: "image-model" },
+      operation: "image",
+    });
+    await callOpenAiImageApi(execution.effectiveProfile, {
+      profileId: mockProfile.id,
+      modelId: "image-model",
+      prompt: "fixture",
+      size: "1024x1024",
+      numInferenceSteps: 20,
+      guidanceScale: 7,
+    });
+    const [url, init] = (fetchWithTimeout as any).mock.calls[0];
+    expect(url).toBe("https://silicon-gateway.example/v1/images/generations");
+    expect(JSON.parse(init.body)).toMatchObject({
+      image_size: "1024x1024",
+      num_inference_steps: 20,
+      guidance_scale: 7,
+    });
+  });
+
+  it("keeps OpenRouter image transport on custom domains after aggregate routing", async () => {
+    (fetchWithTimeout as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [{ b64_json: "AQID", media_type: "image/png" }],
+      }),
+    });
+    const execution = resolveModelExecution({
+      profile: {
+        ...mockProfile,
+        type: "openrouter" as const,
+        baseUrl: "https://or-gateway.example/v1",
+      },
+      model: { id: "image-model" },
+      operation: "image",
+    });
+    const response = await callOpenAiImageApi(execution.effectiveProfile, {
+      profileId: mockProfile.id,
+      modelId: "image-model",
+      prompt: "fixture",
+    });
+    const [url, init] = (fetchWithTimeout as any).mock.calls[0];
+    expect(url).toBe("https://or-gateway.example/v1/images");
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: "image-model",
+      prompt: "fixture",
+    });
+    expect(response.images?.[0].b64_json).toBe("AQID");
   });
 });

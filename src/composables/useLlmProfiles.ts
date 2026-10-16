@@ -25,6 +25,7 @@ import type {
   ProviderType,
 } from "../types/llm-profiles";
 import { DEFAULT_LLM_PROFILE } from "../types/llm-profiles";
+import { migrateAggregateProfile } from "@/utils/llm-aggregate-profile";
 import type { LlmPreset } from "../config/llm-presets";
 import { providerTypes } from "../config/llm-providers";
 import { createConfigManager } from "@utils/configManager";
@@ -116,7 +117,7 @@ export function useLlmProfiles() {
       networkStrategy:
         rest.networkStrategy || DEFAULT_LLM_PROFILE.networkStrategy,
     };
-    return normalized;
+    return migrateAggregateProfile(normalized);
   };
 
   const persistProfiles = async (nextProfiles: LlmProfile[]) => {
@@ -198,13 +199,16 @@ export function useLlmProfiles() {
 
         if (
           reconciled.changed ||
+          normalized.some(
+            (profile, index) => profile.type !== loadedProfiles[index]?.type
+          ) ||
           fromLocalStorage ||
           loadedSecrets.needsRewrite ||
           !config.secretRevision
         ) {
           await persistProfiles(reconciled.profiles);
           if (fromLocalStorage) localStorage.removeItem(STORAGE_KEY);
-          logger.info("渠道敏感字段已迁移到独立密钥仓库", {
+          logger.info("LLM 渠道配置已完成兼容迁移", {
             profileCount: reconciled.profiles.length,
             secretCount: Object.keys(reconciled.secrets).length,
           });
@@ -251,6 +255,7 @@ export function useLlmProfiles() {
    * 添加或更新配置
    */
   const saveProfile = async (profile: LlmProfile) => {
+    profile = migrateAggregateProfile(profile);
     try {
       const index = profiles.value.findIndex((p) => p.id === profile.id);
       if (index !== -1) {

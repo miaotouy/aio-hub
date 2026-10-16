@@ -134,6 +134,11 @@ export const adapters: Record<string, LlmAdapter | undefined> = defineAdapters({
   // protocol first and remaps `effectiveProfile.type`, so these entries are
   // defensive fallbacks for any path that bypasses the resolver.
   "new-api": openAiAdapter,
+  fireworks: openAiAdapter,
+  deepinfra: openAiAdapter,
+  huggingface: openAiAdapter,
+  modelscope: openAiAdapter,
+  vcp: openAiAdapter,
   sub2api: openAiAdapter,
   "aggregate-compatible": openAiAdapter,
   "opencode-go": openAiAdapter,

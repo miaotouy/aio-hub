@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getPresetByName } from "../llm-presets";
+import {
+  getPresetByName,
+  llmPresets,
+  getLlmPresetCategory,
+} from "../llm-presets";
 import {
   DEFAULT_METADATA_RULES,
   getMatchedModelProperties,
@@ -163,4 +167,60 @@ describe("current model presets", () => {
       });
     }
   );
+});
+
+// A selected platform must expose model routing and preserve its protocol defaults.
+describe("aggregate platform presets", () => {
+  it.each([
+    ["OpenRouter", "openrouter"],
+    ["SiliconFlow", "siliconflow"],
+    ["Groq", "groq"],
+    ["Together AI", "together"],
+    ["Fireworks AI", "fireworks"],
+    ["DeepInfra", "deepinfra"],
+    ["Hugging Face", "huggingface"],
+    ["魔搭 ModelScope", "modelscope"],
+    ["LM Studio", "lmstudio"],
+    ["VCP", "vcp"],
+    ["New API", "new-api"],
+    ["Sub2API", "sub2api"],
+    ["OpenCode Go", "opencode-go"],
+  ])(
+    "creates %s with its own aggregate identity and editable fallback",
+    async (name, type) => {
+      const { getProviderTypeInfo } = await import("../llm-providers");
+      const { resolveModelExecution } = await import("@aiohub/llm-core");
+      const preset = getPresetByName(name);
+      expect(preset?.type).toBe(type);
+      expect(getLlmPresetCategory(preset!)).toBe("aggregate");
+      const info = getProviderTypeInfo(preset!.type);
+      const field = info?.configFields?.find(
+        (item) => item.modelPath === "routingDefaults.chat"
+      );
+      const choices =
+        typeof field?.options === "function" ? field.options({}) : [];
+      expect(choices).toContainEqual(
+        expect.objectContaining({ value: "anthropic-messages" })
+      );
+      const execution = resolveModelExecution({
+        profile: {
+          type: preset!.type,
+          options: { routingDefaults: { chat: "anthropic-messages" } },
+        },
+        model: { id: "user-model" },
+        operation: "chat",
+      });
+      expect(execution).toMatchObject({
+        adapterId: "anthropic-messages",
+        effectiveProfile: { type: "claude", channelType: type },
+      });
+    }
+  );
+
+  it("resolves the legacy NewAPI name to the canonical creation entry", () => {
+    expect(getPresetByName("NewAPI")).toEqual(getPresetByName("New API"));
+    expect(
+      llmPresets.filter((preset) => preset.type === "new-api")
+    ).toHaveLength(1);
+  });
 });

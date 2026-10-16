@@ -24,5 +24,10 @@ export const newApiPreset: LlmPreset = {
   name: "New API",
   description: "New API 中转/聚合网关 - 支持端点声明，多协议模型统一接入",
   defaultBaseUrl: "https://your-new-api.example.com",
-  links: [{ label: "GitHub", url: "https://github.com/QuantumNous/new-api" }],
+  logoUrl: "/model-icons/newapi-color.svg",
+  links: [
+    { label: "GitHub", url: "https://github.com/QuantumNous/new-api" },
+    { label: "API 文档", url: "https://docs.newapi.pro/zh/docs" },
+    { label: "One API", url: "https://github.com/songquanpeng/one-api" },
+  ],
 };

@@ -90,9 +90,13 @@ export type SystemOneAnswer =
   | SystemOneBoxAnswer;
 
 export interface SystemOneResponse {
+  id?: string;
+  provider?: string;
   model: string;
   answers: Record<string, SystemOneAnswer>;
   usage: {
+    /** Actual provider-reported request cost, when available. */
+    cost?: number;
     inputTokens: number;
     outputTokens: number;
   };

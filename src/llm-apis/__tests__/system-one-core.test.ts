@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LlmProfile } from "@/types/llm-profiles";
-import { callTypeSafeSystemOneApi } from "../system-one-core";
+import { callDecisionApi, callTypeSafeSystemOneApi } from "../system-one-core";
 import { desktopLlmTransport } from "../transports/desktop";
 
 afterEach(() => vi.restoreAllMocks());
@@ -99,6 +99,99 @@ describe("desktop TypeSafe System One facade", () => {
       box,
       confidence: 0.92,
     });
+  });
+
+  it.each([
+    {
+      binding: undefined,
+      adapterId: undefined,
+      expected: "https://openrouter.ai/api/alpha/decisions",
+    },
+    {
+      binding: "typesafe-system-one" as const,
+      adapterId: undefined,
+      expected: "https://openrouter.ai/api/v1/systemone",
+    },
+    {
+      binding: "typesafe-system-one" as const,
+      adapterId: "openrouter-decisions" as const,
+      expected: "https://openrouter.ai/api/alpha/decisions",
+    },
+  ])(
+    "dispatches persisted decision routes and explicit probe overrides: $expected",
+    async ({ binding, adapterId, expected }) => {
+      const model = "perplexity/pplx-decider-v1.1-27b";
+      const source: LlmProfile = {
+        ...createProfile(),
+        type: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        models: [
+          {
+            id: model,
+            name: model,
+            routing: binding
+              ? {
+                  bindings: {
+                    decision: { adapterId: binding, source: "manual" },
+                  },
+                }
+              : undefined,
+          },
+        ],
+      };
+      const send = vi
+        .spyOn(desktopLlmTransport, "send")
+        .mockResolvedValue({
+          status: 200,
+          statusText: "OK",
+          headers: {},
+          body: chunks({
+            model,
+            answers: { urgent: { type: "noul", noul: 0.8 } },
+            usage: { input_tokens: 3, output_tokens: 1 },
+          }),
+        });
+      await callDecisionApi(source, {
+        model,
+        state: "Checkout failed",
+        questions: { urgent: { type: "noul", instructions: "Urgent?" } },
+        adapterId,
+      });
+      expect(send.mock.calls[0][0]).toMatchObject({
+        url: expected,
+        headers: { Authorization: "Bearer test-key" },
+        body: { kind: "json", value: { model } },
+      });
+    }
+  );
+
+  it("uses the proxy for an absolute local Decisions override on a remote profile", async () => {
+    const source: LlmProfile = {
+      ...createProfile(),
+      type: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      networkStrategy: "native",
+      customEndpoints: { decisions: "http://127.0.0.1:13469/decisions" },
+    };
+    const send = vi
+      .spyOn(desktopLlmTransport, "send")
+      .mockResolvedValue({
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        body: chunks({
+          model: "local-decision",
+          answers: { urgent: { type: "noul", noul: 0.8 } },
+          usage: { input_tokens: 3, output_tokens: 1 },
+        }),
+      });
+    await callDecisionApi(source, {
+      model: "local-decision",
+      state: "Checkout failed",
+      questions: { urgent: { type: "noul", instructions: "Urgent?" } },
+    });
+    expect(send.mock.calls[0][0].url).toBe("http://127.0.0.1:13469/decisions");
+    expect(send.mock.calls[0][1].network?.strategy).toBe("proxy");
   });
 
   it("forces the Rust proxy for local decision endpoints marked native", async () => {

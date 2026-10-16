@@ -77,6 +77,15 @@ export const PROBE_ENDPOINT_DEFINITIONS: ProbeEndpointDefinition[] = [
     supportsStream: false,
   },
   {
+    value: "openrouter-decisions",
+    label: "OpenRouter Decisions",
+    defaultPath: "/api/alpha/decisions",
+    configKey: "decisions",
+    capability: "decision",
+    providerType: "openrouter",
+    supportsStream: false,
+  },
+  {
     value: "typesafe-system-one",
     label: "TypeSafe System One",
     defaultPath: "/v1/systemone",
@@ -136,6 +145,7 @@ export function resolveEffectiveProbeEndpointType(
     case "rerank":
       return "jina-rerank";
     case "decision":
+      if (profile.type === "openrouter") return "openrouter-decisions";
       return profile.type === "typesafe" ? "typesafe-system-one" : "auto";
     case "image":
       return "image-generation";

@@ -16,6 +16,7 @@ export * from "./providers/vertex-anthropic";
 export * from "./providers/embeddings";
 export * from "./providers/rerank";
 export * from "./providers/typesafe-system-one";
+export * from "./providers/openrouter-decisions";
 export * from "./providers/sync-media";
 export * from "./providers/openrouter-media";
 export * from "./providers/async-media";

@@ -30,6 +30,7 @@ export type LlmAdapterId =
   | "openai-embeddings"
   | "jina-rerank"
   | "typesafe-system-one"
+  | "openrouter-decisions"
   | "openai-image-generation"
   | "suno-newapi"
   | "minimax-music";

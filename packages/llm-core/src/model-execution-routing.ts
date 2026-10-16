@@ -119,7 +119,10 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
   openrouter: {
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
-    operationAdapters: { embedding: "openai-embeddings" },
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      decision: "openrouter-decisions",
+    },
   },
   "openai-responses": {
     defaultAdapterId: "openai-responses",
@@ -244,6 +247,7 @@ export const ADAPTER_PROFILE_TYPES: Readonly<Record<LlmAdapterId, string>> = {
   "openai-embeddings": "openai-compatible",
   "jina-rerank": "openai-compatible",
   "typesafe-system-one": "typesafe",
+  "openrouter-decisions": "openrouter",
   "openai-image-generation": "openai-compatible",
   "suno-newapi": "suno-newapi",
   "minimax-music": "minimax-music",
@@ -257,6 +261,7 @@ const ADAPTER_ENDPOINT_KEYS: Readonly<Partial<Record<LlmAdapterId, string>>> = {
   "openai-embeddings": "embeddings",
   "jina-rerank": "rerank",
   "typesafe-system-one": "systemOne",
+  "openrouter-decisions": "decisions",
   "openai-image-generation": "imagesGenerations",
 };
 
@@ -274,6 +279,8 @@ const ENDPOINT_TYPE_ADAPTERS: Readonly<Record<string, LlmAdapterId>> = {
   "openai-embeddings": "openai-embeddings",
   rerank: "jina-rerank",
   "jina-rerank": "jina-rerank",
+  decisions: "openrouter-decisions",
+  "openrouter-decisions": "openrouter-decisions",
   typesafe: "typesafe-system-one",
   "system-one": "typesafe-system-one",
   "typesafe-system-one": "typesafe-system-one",
@@ -294,6 +301,7 @@ const ADAPTER_OPERATIONS: Readonly<
   "openai-embeddings": ["embedding"],
   "jina-rerank": ["rerank"],
   "typesafe-system-one": ["decision"],
+  "openrouter-decisions": ["decision"],
   "openai-image-generation": ["image"],
   "suno-newapi": ["music"],
   "minimax-music": ["music"],

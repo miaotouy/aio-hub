@@ -17,7 +17,10 @@
  * 用于格式化LLM服务的API地址和生成端点预览
  */
 
-import { resolveTypeSafeSystemOneEndpoint } from "@aiohub/llm-core";
+import {
+  resolveTypeSafeSystemOneEndpoint,
+  resolveOpenRouterDecisionsEndpoint,
+} from "@aiohub/llm-core";
 import type { ProviderType, LlmProfile } from "../types/llm-profiles";
 import {
   openAiUrlHandler,
@@ -152,6 +155,14 @@ export function buildLlmApiUrl(
     // 即使禁用了自动补全，如果用户没写具体的 chat/completions 等，
     // 我们在实际请求时（endpoint 有值时）还是应该拼接
     return endpoint ? `${cleanUrl}${endpoint}` : cleanUrl;
+  }
+
+  if (endpoint === "decisions") {
+    return resolveOpenRouterDecisionsEndpoint({
+      provider: providerType,
+      baseUrl,
+      endpoints: profile?.customEndpoints,
+    });
   }
 
   // 优先从适配器获取 URL 处理逻辑

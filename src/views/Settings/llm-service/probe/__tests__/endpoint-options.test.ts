@@ -152,6 +152,30 @@ describe("probe endpoint options", () => {
     expect(resolveEffectiveProbeEndpointType(source, "audio")).toBe("auto");
   });
 
+  it("resolves the Decisions endpoint without altering the source profile", () => {
+    const source = profile();
+    source.type = "openrouter";
+    source.customEndpoints = {
+      decisions: "https://gateway.example.com/decisions",
+    };
+    const target = resolveProbeTarget(source, "openrouter-decisions");
+    expect(target).toMatchObject({
+      capability: "decision",
+      supportsStream: false,
+      profile: {
+        type: "openrouter",
+        customEndpoints: { decisions: source.customEndpoints.decisions },
+      },
+    });
+    expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe(
+      "openrouter-decisions"
+    );
+    expect(getConfiguredProbeEndpoint(source, "openrouter-decisions")).toBe(
+      source.customEndpoints.decisions
+    );
+    expect(target.profile).not.toBe(source);
+  });
+
   it("resolves the TypeSafe System One decision endpoint", () => {
     const source = profile();
     source.type = "typesafe";

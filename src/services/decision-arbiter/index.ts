@@ -22,7 +22,7 @@
 
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import type { LlmProfile } from "@/types/llm-profiles";
-import { callTypeSafeSystemOneApi } from "@/llm-apis/system-one-core";
+import { callDecisionApi } from "@/llm-apis/system-one-core";
 import { createModuleLogger } from "@/utils/logger";
 import { evaluateArbitration } from "./evaluator";
 import { buildJevQuestionnaire } from "./jevQuestionnaire";
@@ -61,7 +61,7 @@ export interface DecisionArbiterDeps {
   /** profile 解析。 */
   getProfileById: (profileId: string) => LlmProfile | undefined;
   /** 渠道调用（测试可注入 mock）。 */
-  callSystemOne?: typeof callTypeSafeSystemOneApi;
+  callSystemOne?: typeof callDecisionApi;
   /** 宿主提供普通聊天调用，保持服务与 Pinia 解耦。 */
   callLlm?: (options: LlmRequestOptions) => Promise<LlmResponse>;
   /** 当前时间（测试可注入）。 */
@@ -124,7 +124,7 @@ function escalate(
 
 export function createDecisionArbiter(deps: DecisionArbiterDeps): Arbiter {
   const now = deps.now ?? (() => Date.now());
-  const callSystemOne = deps.callSystemOne ?? callTypeSafeSystemOneApi;
+  const callSystemOne = deps.callSystemOne ?? callDecisionApi;
 
   function resolveConfig(ctx: ArbitrationContext): DecisionArbitrationConfig {
     return (

@@ -31,6 +31,7 @@ export const ADAPTER_LABELS: Readonly<Record<LlmAdapterId, string>> = {
   "openai-embeddings": "OpenAI Embeddings",
   "jina-rerank": "Jina Rerank",
   "typesafe-system-one": "TypeSafe System One",
+  "openrouter-decisions": "OpenRouter Decisions",
   "openai-image-generation": "OpenAI Image Generation",
   "suno-newapi": "Suno (New API)",
   "minimax-music": "MiniMax Music",

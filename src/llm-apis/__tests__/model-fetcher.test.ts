@@ -55,13 +55,13 @@ describe("ModelFetcher", () => {
           provider: "openrouter",
           inputModalities: ["text", "image"],
           outputModalities: ["decisions"],
-          supportedEndpointTypes: ["typesafe-system-one"],
+          supportedEndpointTypes: ["openrouter-decisions"],
         },
         "openrouter"
       )
     ).toMatchObject({
       capabilities: { decision: true, vision: true },
-      routing: { supportedEndpointTypes: ["typesafe-system-one"] },
+      routing: { supportedEndpointTypes: ["openrouter-decisions"] },
     });
   });
 

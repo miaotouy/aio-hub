@@ -7,6 +7,7 @@ import {
   validateProbeResponse,
   resolveModelExecution,
   UnresolvedModelRouteError,
+  type LlmAdapterId,
   type ProbePlan,
   type TransportObserver,
 } from "@aiohub/llm-core";
@@ -18,7 +19,7 @@ import type {
 } from "@/llm-apis/common";
 import type { EmbeddingResponse } from "@/llm-apis/embedding-types";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
-import { callTypeSafeSystemOneApi } from "@/llm-apis/system-one-core";
+import { callDecisionApi } from "@/llm-apis/system-one-core";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
@@ -40,7 +41,7 @@ const MAX_CONCURRENCY = 8;
 export interface ChannelProbeServiceDependencies {
   adapters?: Record<string, LlmAdapter>;
   fetchModels?: typeof fetchModelsFromApi;
-  callSystemOne?: typeof callTypeSafeSystemOneApi;
+  callSystemOne?: typeof callDecisionApi;
   now?: () => number;
   monotonicNow?: () => number;
 }
@@ -50,7 +51,7 @@ export function createChannelProbeService(
 ) {
   const adapterMap = dependencies.adapters ?? adapters;
   const fetchModels = dependencies.fetchModels ?? fetchModelsFromApi;
-  const callSystemOne = dependencies.callSystemOne ?? callTypeSafeSystemOneApi;
+  const callSystemOne = dependencies.callSystemOne ?? callDecisionApi;
   const now = dependencies.now ?? Date.now;
   const monotonicNow =
     dependencies.monotonicNow ??
@@ -153,6 +154,17 @@ export function createChannelProbeService(
             : model,
         operation: plan.capability,
       });
+      if (
+        plan.capability === "decision" &&
+        (!request.endpointType || request.endpointType === "auto")
+      ) {
+        if (
+          route.adapterId === "openrouter-decisions" ||
+          route.adapterId === "typesafe-system-one"
+        ) {
+          resultEndpointType = route.adapterId;
+        }
+      }
       const adapter =
         plan.capability === "decision"
           ? undefined
@@ -172,6 +184,7 @@ export function createChannelProbeService(
 
       const execution = await executePlan({
         adapter,
+        adapterId: route.adapterId,
         callSystemOne,
         model,
         plan,
@@ -322,7 +335,8 @@ export function createChannelProbeService(
 
 interface ExecutePlanOptions {
   adapter?: LlmAdapter;
-  callSystemOne: typeof callTypeSafeSystemOneApi;
+  adapterId: LlmAdapterId;
+  callSystemOne: typeof callDecisionApi;
   model: LlmModelInfo;
   plan: ProbePlan;
   profile: LlmProfile;
@@ -350,9 +364,10 @@ async function executePlan(options: ExecutePlanOptions) {
     http1Only: profile.http1Only,
   };
 
-  // 专用结构化决策（System One）不走通用聊天适配器注册表，直接经决策端点调用。
+  // 结构化决策按解析后的协议直接调用对应端点。
   if (plan.capability === "decision") {
     const response = await callSystemOne(profile, {
+      adapterId: options.adapterId,
       model: model.id,
       state: plan.decision!.state,
       questions: plan.decision!.questions,

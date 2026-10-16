@@ -294,7 +294,7 @@ export interface LlmAdapter {
 
 > **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets/` 添加预设即可。
 > Azure 渠道使用 deployment 风格的 Chat Completions / Embeddings；`azureOpenAiAdapter` 复用 OpenAI wire format，同时负责 `{resource}` / `{deployment}`、`api-version` 与 `api-key` 鉴权转换。
-> TypeSafe AI 决策渠道使用独立的 `typesafe-system-one` 协议走 `system-one-core`，不通过生成式对话链路。
+> 结构化决策通过 `system-one-core` 的 `callDecisionApi` 调用，按模型路由选择 `openrouter-decisions` 或 `typesafe-system-one`，共用桌面 Transport 与答案校验。
 
 #### Jev 1.14 决策接口（2026-10-16 核实）
 
@@ -303,11 +303,12 @@ export interface LlmAdapter {
 - **图片请求**：`SystemOneRequest.assets` 使用以引用字符串为键的图片资产表，条目包含 `type: "image"`、`format: "png" | "jpg" | "jpeg"`、`data_base64`。将引用字符串放入 `state`、问题说明或条件，适配器随图片资产或 Box 问题发送 `TypeSafe-Danger-Zone-Images: true`。桌面 facade 透传资产；现有审批仲裁继续使用文本问题。
 - **图片限制**：官方将图片和 Box 标为实验能力。1.13 与 1.14 都支持图片，Box 需要 1.14；每边 256–1568 像素，总像素至少 78,400，每张文件至多 16 MiB。调用方负责图片准备，当前资产接口采用 JSON 内联 base64。
 - **上下文**：TypeSafe 默认每请求 65,536 token，每问题（含 state）32K；`longContext: true` 添加 `TypeSafe-Danger-Zone-Long-Context: true`，显式启用每请求与每问题 262K。也可通过渠道自定义请求头配置。OpenRouter 模型目录公布 `typesafe/jev-1.14` 上下文为 262,144，预设按渠道分别记录。
-- **OpenRouter**：复用兼容入口 `POST https://openrouter.ai/api/v1/systemone`，使用 OpenRouter API Key 和模型 ID。模型发现继续请求 `output_modalities=all`；当目录声明输出模态为 `decisions` 且未声明端点类型时，记录 `typesafe-system-one` 路由，并保留 `decision` / `vision` 能力。`jev-router` 输出聊天内容，归入普通聊天模型。
+- **OpenRouter Decisions**：统一入口为 `POST https://openrouter.ai/api/alpha/decisions`，协议 ID 为 `openrouter-decisions`，使用 OpenRouter API Key 和模型 ID，可调用不同厂商的决策模型。默认 URL 将渠道地址末尾 `/v1` 或 `/alpha` 规范为 `/alpha/decisions`；OpenRouter 域名根地址自动补 `/api`。`customEndpoints.decisions` 支持完整 URL 或基于原渠道地址拼接的相对路径；以默认 `/api/v1` 地址为例，覆盖官方端点时填写完整 URL。模型发现继续请求 `output_modalities=all`；目录声明 `decisions` 输出且未声明端点类型时，写入 `openrouter-decisions`，保留 `decision` / `vision` 能力。显式端点声明与已有手动、探测绑定优先。System One 兼容入口及 `callTypeSafeSystemOneApi` 保留，使用 `customEndpoints.systemOne`。`jev-router` 继续归入聊天模型。
+- **调用与返回**：审批仲裁与连通性检查使用通用决策 facade；显式端点检查覆盖本次调用的模型绑定，成功结果可保存为模型路由。两种协议复用 `state`、`questions` 与现有图片资产类型，解析 `noul / choice / score / box`；结果保留可选 `id`、`provider`、`usage.cost`。TypeSafe 实验请求头由 System One 适配器添加；Decisions 可通过自定义请求头传递提供商选项。
 - **计费**：官方与 OpenRouter 均列出输入 $0.042 / 百万 token、输出免费。图片 token 纳入输入用量。
 - **已有模型**：元数据在创建、导入、刷新或显式应用预设时写入模型；更新内置规则后，已有模型通过模型元数据刷新入口应用最新能力。
 
-来源：[TypeSafe 模型与别名](https://docs.typesafe.ai/models)、[图片协议](https://docs.typesafe.ai/images)、[Box](https://docs.typesafe.ai/primitives/box)、[OpenRouter System One 兼容说明](https://openrouter.ai/docs/guides/community/typesafe-sdk)、[OpenRouter 实时模型目录](https://openrouter.ai/api/v1/models?output_modalities=all)。
+来源：[TypeSafe 模型与别名](https://docs.typesafe.ai/models)、[图片协议](https://docs.typesafe.ai/images)、[Box](https://docs.typesafe.ai/primitives/box)、[OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request)、[OpenRouter System One 兼容说明](https://openrouter.ai/docs/guides/community/typesafe-sdk)、[OpenRouter 实时模型目录](https://openrouter.ai/api/v1/models?output_modalities=all)。
 
 ### 3.4 请求构建器 — [`request-builder.ts`](/src/llm-apis/request-builder.ts)
 

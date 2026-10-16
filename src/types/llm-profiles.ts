@@ -244,7 +244,7 @@ export interface ModelCapabilities {
   embedding?: boolean;
   /** 是否支持重排（Rerank） */
   rerank?: boolean;
-  /** 是否支持专用结构化决策（System One） */
+  /** 是否支持专用结构化决策（Decisions / System One） */
   decision?: boolean;
   /** 是否支持计算机使用（Computer Use） */
   computerUse?: boolean;
@@ -605,6 +605,8 @@ export interface LlmProfile {
     rerank?: string;
     /** TypeSafe System One 决策端点，例如 '/v1/systemone' */
     systemOne?: string;
+    /** OpenRouter Decisions 决策端点，支持相对路径或完整 URL */
+    decisions?: string;
     /** 图像生成端点 (Images Generations)，例如 '/v1/images/generations' */
     imagesGenerations?: string;
     /** 图像编辑端点 (Images Edits)，例如 '/v1/images/edits' */

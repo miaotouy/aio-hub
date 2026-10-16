@@ -40,7 +40,7 @@ describe("model list adapter", () => {
     });
   });
 
-  it("routes declared OpenRouter Decisions through System One while keeping routers on chat", () => {
+  it("routes declared OpenRouter Decisions through the unified endpoint while keeping routers on chat", () => {
     const [decision, router] = parseProviderModels(
       {
         data: [
@@ -71,7 +71,7 @@ describe("model list adapter", () => {
       },
       operation: "decision",
     });
-    expect(execution.adapterId).toBe("typesafe-system-one");
+    expect(execution.adapterId).toBe("openrouter-decisions");
     expect(decision.inputModalities).toEqual(["text", "image"]);
     expect(
       resolveModelExecution({ profile, model: router, operation: "chat" })

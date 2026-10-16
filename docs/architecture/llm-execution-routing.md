@@ -63,6 +63,7 @@ type LlmAdapterId =
   | "openai-embeddings"
   | "jina-rerank"
   | "typesafe-system-one"
+  | "openrouter-decisions"
   | "openai-image-generation"
   | "suno-newapi"
   | "minimax-music";
@@ -125,7 +126,7 @@ Phase 3 提供以下写入入口，全部只覆盖对应 operation 的 binding�
 
 共享工具：`listAdaptersForOperation()` 提供各 operation 的可用 adapter；`resolveAdapterIdForEndpointType()` 把服务端端点字符串映射到 adapter，均以 `@aiohub/llm-core` 单一实现为准，桌面与移动端共用。
 
-TypeSafe System One 使用独立的 `decision` operation，协议 ID 为 `typesafe-system-one`，默认端点为 `/v1/systemone`。共享 core 提供专用请求、响应、执行器和线协议适配器；聊天调用链不把该协议映射成生成式对话。
+结构化决策使用独立的 `decision` operation。OpenRouter 默认使用 `openrouter-decisions`，端点为 `/api/alpha/decisions`；TypeSafe 使用 `typesafe-system-one`，端点为 `/v1/systemone`。服务端端点字符串 `decisions` 与 `openrouter-decisions` 均解析为统一 Decisions 协议。两者分别读取 `customEndpoints.decisions` 与 `customEndpoints.systemOne`，共享请求、答案类型、校验与执行器。桌面 `callDecisionApi` 按模型绑定、发现声明和渠道默认顺序分派，已有显式 System One 路由继续生效。
 
 桌面与移动端已注册 `typesafe` 渠道类型和 TypeSafe AI 预设，`GET /v1/models` 返回的 Jev alias 会标记 `decision` 能力与 `typesafe-system-one` 端点声明。专用决策模型在常规聊天模型选择器中隐藏，后续决策工具通过显式 `decision` 能力选择。
 
@@ -144,7 +145,7 @@ TypeSafe System One 使用独立的 `decision` operation，协议 ID 为 `typesa
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `src/composables/useLlmRequest.ts`                              | 依请求能力解析 chat / image / audio / video / music；Embedding 单独按 `embedding` 解析 | 旧 profile 走 `profile-default` 且沿用原 `profile.type`；参数过滤、URL 和 headers 不变 |
 | `src/llm-apis/embedding.ts`                                     | 在公共 Embedding facade 解析 `embedding`                                               | `embedding-shared.test.ts` 覆盖 OpenAI 与 Vertex URL / 请求体                          |
-| `src/llm-apis/system-one-core.ts`                               | 通过独立桌面 facade 执行 `decision`，不进入聊天 adapter registry                       | `system-one-core.test.ts` 覆盖请求构造、桌面 Transport 与结构化答案解析                |
+| `src/llm-apis/system-one-core.ts`                               | 按模型路由分派 Decisions / System One 的独立桌面 facade                       | `system-one-core.test.ts` 覆盖请求构造、桌面 Transport 与结构化答案解析                |
 | `src/tools/recall/utils/vectorCache.ts`                         | 在缓存未命中时解析 `embedding`                                                         | `vectorCache.test.ts` 覆盖缓存命中、provider 调用与不支持错误                          |
 | `src/views/Settings/llm-service/probe/channel-probe-service.ts` | Probe 计划按 capability 解析；显式 endpoint 仍优先作为探测覆盖                         | `channel-probe-service.test.ts` 覆盖四种显式 Chat endpoint 与非流式能力                |
 | `mobile/.../useLlmRequest.ts`                                   | 移动端聊天在 adapter switch 前解析 `chat`                                              | `useLlmRequest.test.ts` 保留默认调用与重试行为                                         |

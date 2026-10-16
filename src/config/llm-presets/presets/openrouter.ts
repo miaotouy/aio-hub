@@ -117,9 +117,9 @@ export const openrouterPreset: LlmPreset = {
         inputModalities: ["text", "image"],
         outputModalities: ["decisions"],
       },
-      routing: { supportedEndpointTypes: ["typesafe-system-one"] },
+      routing: { supportedEndpointTypes: ["openrouter-decisions"] },
       description:
-        "通过 OpenRouter System One API 访问 Jev 1.14，返回结构化决策；图片与 Box 定位为实验能力",
+        "通过 OpenRouter Decisions API 访问 Jev 1.14，返回结构化决策；图片与 Box 定位为实验能力",
     },
   ],
 };

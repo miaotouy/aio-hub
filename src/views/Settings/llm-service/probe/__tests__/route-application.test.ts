@@ -30,6 +30,25 @@ describe("createProbeRouteApplication", () => {
     });
   });
 
+  it("turns a successful Decisions check into a reusable decision binding", () => {
+    expect(
+      createProbeRouteApplication(
+        result({
+          success: true,
+          capability: "decision",
+          endpointType: "openrouter-decisions",
+        })
+      )
+    ).toEqual({
+      operation: "decision",
+      binding: {
+        adapterId: "openrouter-decisions",
+        endpointType: "openrouter-decisions",
+        source: "probe",
+      },
+    });
+  });
+
   it("maps each endpoint type to its protocol adapter by capability", () => {
     expect(
       createProbeRouteApplication(

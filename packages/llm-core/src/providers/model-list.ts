@@ -162,14 +162,14 @@ function fromOpenAiModel(
   result.supportedEndpointTypes = readStringArray(
     model.supported_endpoint_types
   );
-  // Derive OpenRouter's System One route from its declared Decisions modality.
+  // Derive OpenRouter's unified Decisions route from its declared modality.
   // Explicitly reported endpoints take precedence.
   if (
     fallbackProvider === "openrouter" &&
     result.supportedEndpointTypes === undefined &&
     result.outputModalities?.includes("decisions")
   ) {
-    result.supportedEndpointTypes = ["typesafe-system-one"];
+    result.supportedEndpointTypes = ["openrouter-decisions"];
   }
   const pricing = asRecord(model.pricing);
   if (Object.keys(pricing).length > 0) {

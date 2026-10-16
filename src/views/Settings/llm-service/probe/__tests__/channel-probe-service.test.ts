@@ -223,25 +223,72 @@ describe("createChannelProbeService", () => {
     expect(chat).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { endpointType: "auto" as const, expected: "typesafe-system-one" },
+    {
+      endpointType: "openrouter-decisions" as const,
+      expected: "openrouter-decisions",
+    },
+  ])(
+    "resolves decision probes using persisted routes or the explicit $endpointType override",
+    async ({ endpointType, expected }) => {
+      const source = profile(["decision-model"]);
+      source.type = "openrouter";
+      source.models[0].capabilities = { decision: true };
+      source.models[0].routing = {
+        bindings: {
+          decision: { adapterId: "typesafe-system-one", source: "manual" },
+        },
+      };
+      const callSystemOne = vi.fn(
+        async (..._args: unknown[]): Promise<SystemOneResponse> => ({
+          model: "decision-model",
+          answers: {
+            reachable: {
+              type: "choice",
+              choice: "yes",
+              probabilities: { yes: 1 },
+              confidence: 0.9,
+            },
+          },
+          usage: { inputTokens: 3, outputTokens: 2 },
+        })
+      );
+      const service = createChannelProbeService({ callSystemOne });
+      const result = await service.probe({
+        kind: "inference",
+        profile: source,
+        modelId: "decision-model",
+        endpointType,
+      });
+      expect(result).toMatchObject({
+        success: true,
+        capability: "decision",
+        endpointType: expected,
+      });
+      expect(callSystemOne.mock.calls[0][1]).toMatchObject({
+        adapterId: expected,
+      });
+    }
+  );
+
   it("probes decision models through the System One executor", async () => {
     const source = profile(["jev-1.13.0"]);
     source.type = "typesafe";
     source.models[0].capabilities = { decision: true };
     const chat = vi.fn(async () => ({ content: "wrong" }));
-    const callSystemOne = vi.fn(
-      async (): Promise<SystemOneResponse> => ({
-        model: "jev-1.13.0",
-        answers: {
-          reachable: {
-            type: "choice",
-            choice: "yes",
-            probabilities: { yes: 1 },
-            confidence: 0.9,
-          },
+    const callSystemOne = vi.fn(async (): Promise<SystemOneResponse> => ({
+      model: "jev-1.13.0",
+      answers: {
+        reachable: {
+          type: "choice",
+          choice: "yes",
+          probabilities: { yes: 1 },
+          confidence: 0.9,
         },
-        usage: { inputTokens: 3, outputTokens: 2 },
-      })
-    );
+      },
+      usage: { inputTokens: 3, outputTokens: 2 },
+    }));
     const service = createChannelProbeService({
       adapters: { typesafe: { chat } },
       callSystemOne,

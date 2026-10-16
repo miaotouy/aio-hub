@@ -110,6 +110,7 @@ const DEFAULT_PLACEHOLDERS: Record<string, string> = {
   videoContent: "/v1/videos/{video_id}/content",
   rerank: "/v1/rerank",
   systemOne: "/v1/systemone",
+  decisions: "https://openrouter.ai/api/alpha/decisions",
   moderations: "/v1/moderations",
 };
 
@@ -205,7 +206,15 @@ const placeholders = computed((): Record<string, string> => {
             />
           </el-form-item>
 
-          <el-form-item label="结构化决策 (System One)">
+          <el-form-item label="结构化决策 (Decisions)">
+            <el-input
+              v-model="tempEndpoints.decisions"
+              :placeholder="placeholders.decisions"
+              clearable
+            />
+          </el-form-item>
+
+          <el-form-item label="TypeSafe System One">
             <el-input
               v-model="tempEndpoints.systemOne"
               :placeholder="placeholders.systemOne"

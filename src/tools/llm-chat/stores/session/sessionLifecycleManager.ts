@@ -862,6 +862,29 @@ export function createSessionLifecycleManager(
       return;
     }
 
+    // 磁盘草稿仅保存身份和配置，消息树恢复后按当前角色重新生成开场。
+    if (!newSessionDraft.value && draft.index.displayAgentId) {
+      const { useAgentStore } =
+        await import("@/tools/agent-manager/stores/agentStore");
+      const { useUserProfileStore } = await import("../userProfileStore");
+      const agentStore = useAgentStore();
+      const userProfileStore = useUserProfileStore();
+      // 会话、角色和用户档案会并行启动加载，开场宏需要完整的角色与档案。
+      await Promise.all([
+        agentStore.loadAgents(),
+        userProfileStore.loadProfiles(),
+      ]);
+      const agent = await agentStore.loadAgentDetails(draft.index.displayAgentId);
+      if (agent) {
+        await switchAgentGreetings(
+          draft.index,
+          draft.detail,
+          agent,
+          userProfileStore.getEffectiveProfile(agent.userProfileId)
+        );
+      }
+    }
+
     markSessionVolatile(draft.index.id);
     newSessionDraft.value = draft;
     state.sessionIndexMap.value.set(draft.index.id, draft.index);

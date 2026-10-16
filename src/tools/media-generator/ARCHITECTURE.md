@@ -370,7 +370,7 @@ graph TD
 
 ##### 输入工作区与功能面板
 
-`MediaGenerationInput.vue` 用于会话和快捷生成两种模式，从上到下依次为功能面板、附件、提示词编辑器、工具栏与发送/停止操作。工具栏保留上下文开关和附件入口，快捷提示词与提示词优化通过单面板槽位打开。
+`MediaGenerationInput.vue` 用于会话和快捷生成两种模式，从上到下依次为功能面板、附件、提示词编辑器、工具栏与发送/停止操作。工具栏提供输入框展开/收起、上下文开关和附件入口，快捷提示词与提示词优化通过单面板槽位打开。展开时填满当前可用编辑高度，附件与功能面板占用从高度预算中扣除；收起恢复自适应或手动高度，拖拽退出展开，双击顶部手柄恢复自适应。
 
 - 与 Chat 复用 `src/components/common/input-panel/InputPanelHost.vue`、`InputPanelLayout.vue` 及 `src/composables/useInputPanel.ts`。标题操作、单面板替换、折叠保留状态、Escape 关闭与返回入口焦点遵循[公共组件契约](../../components/common/README.md#inputpanel)。
 - 再次点击已展开面板的入口默认关闭；可在媒体设置的“界面与交互”中将 `panelRepeatClickAction` 改为折叠。偏好沿媒体全局设置持久化，会话和快捷生成共用；点击已折叠面板始终展开，标题栏折叠与关闭控件保持独立。

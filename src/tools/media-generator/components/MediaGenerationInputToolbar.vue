@@ -26,6 +26,8 @@ import {
   MessageSquare,
   Target,
   Video,
+  Maximize2,
+  Minimize2,
 } from "lucide-vue-next";
 import type { ContextToggleMode } from "../utils/contextToggleUi";
 import {
@@ -38,6 +40,7 @@ import QuickPromptLibrary from "./QuickPromptLibrary.vue";
 const props = defineProps<{
   disabled?: boolean;
   promptText: string;
+  isExpanded: boolean;
   includeContext: boolean;
   showContextToggle?: boolean;
   contextToggleLabel?: string;
@@ -48,6 +51,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:includeContext", value: boolean): void;
   (e: "trigger-attachment"): void;
+  (e: "toggle-expand"): void;
 }>();
 
 const store = useMediaGenStore();
@@ -108,6 +112,20 @@ const contextToggleTooltip = computed(
 <template>
   <div class="input-toolbar">
     <div class="toolbar-left">
+      <button
+        type="button"
+        class="tool-btn"
+        :class="{ 'is-active': props.isExpanded }"
+        :aria-expanded="props.isExpanded"
+        :aria-label="props.isExpanded ? '收起输入框' : '展开输入框'"
+        :title="props.isExpanded ? '收起输入框' : '展开输入框'"
+        @click="emit('toggle-expand')"
+      >
+        <el-icon>
+          <Minimize2 v-if="props.isExpanded" />
+          <Maximize2 v-else />
+        </el-icon>
+      </button>
       <template v-if="props.showContextToggle !== false">
         <el-tooltip :content="contextToggleTooltip" placement="top">
           <button

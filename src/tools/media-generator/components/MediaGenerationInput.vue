@@ -102,6 +102,7 @@ watch(
 );
 
 const {
+  isExpanded,
   editorHeight,
   editorMaxHeight,
   handleInputResizeStart,
@@ -612,6 +613,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         <MediaGenerationInputToolbar
           :disabled="isDisabled"
           :prompt-text="prompt"
+          :is-expanded="isExpanded"
           :include-context="
             props.mode === 'session'
               ? store.currentConfig.includeContext
@@ -625,6 +627,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           :context-toggle-mode="contextToggleUi.mode"
           @update:include-context="updateIncludeContext"
           @trigger-attachment="handleTriggerAttachment"
+          @toggle-expand="isExpanded = !isExpanded"
         />
 
         <button

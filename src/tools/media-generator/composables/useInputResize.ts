@@ -13,7 +13,15 @@
 // limitations under the License.
 
 import { useWindowSize } from "@vueuse/core";
-import { ref, computed, onMounted, onUnmounted, nextTick, type Ref } from "vue";
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  type Ref,
+} from "vue";
 
 interface UseInputResizeOptions {
   textareaRef: Ref<any>;
@@ -23,6 +31,7 @@ interface UseInputResizeOptions {
 export function useInputResize(options: UseInputResizeOptions) {
   const { height: viewportHeight } = useWindowSize();
   const isResizing = ref(false);
+  const isExpanded = ref(false);
   const startY = ref(0);
   const startHeight = ref(0);
   const customHeight = ref<string | number>("auto");
@@ -36,12 +45,14 @@ export function useInputResize(options: UseInputResizeOptions) {
   );
 
   const editorHeight = computed(() => {
+    if (isExpanded.value) return availableEditorHeight.value;
     if (typeof customHeight.value === "number")
       return Math.min(customHeight.value, availableEditorHeight.value);
     return autoHeight.value ?? "auto";
   });
 
   const editorMaxHeight = computed(() => {
+    if (isExpanded.value) return `${availableEditorHeight.value}px`;
     const extra = options.extraHeight?.value || 0;
     if (typeof customMaxHeight.value === "number") {
       return Math.min(customMaxHeight.value, availableEditorHeight.value);
@@ -75,6 +86,7 @@ export function useInputResize(options: UseInputResizeOptions) {
     e.preventDefault();
     e.stopPropagation();
 
+    isExpanded.value = false;
     isResizing.value = true;
     startY.value = e.clientY;
 
@@ -90,6 +102,7 @@ export function useInputResize(options: UseInputResizeOptions) {
   };
 
   const handleResizeDoubleClick = () => {
+    isExpanded.value = false;
     customHeight.value = "auto";
     customMaxHeight.value = null;
     nextTick(() => {
@@ -98,7 +111,12 @@ export function useInputResize(options: UseInputResizeOptions) {
   };
 
   const adjustHeight = () => {
-    if (customHeight.value !== "auto" || !options.textareaRef.value) return;
+    if (
+      isExpanded.value ||
+      customHeight.value !== "auto" ||
+      !options.textareaRef.value
+    )
+      return;
 
     const el = options.textareaRef.value.$el || options.textareaRef.value;
     if (!el) return;
@@ -107,6 +125,10 @@ export function useInputResize(options: UseInputResizeOptions) {
     autoHeight.value = el.scrollHeight;
     el.style.height = `${autoHeight.value}px`;
   };
+
+  watch(isExpanded, (expanded) => {
+    if (!expanded) void nextTick(adjustHeight);
+  });
 
   onMounted(() => {
     nextTick(() => {
@@ -121,6 +143,7 @@ export function useInputResize(options: UseInputResizeOptions) {
   });
 
   return {
+    isExpanded,
     editorHeight,
     editorMaxHeight,
     handleInputResizeStart,

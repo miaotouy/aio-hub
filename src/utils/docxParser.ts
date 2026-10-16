@@ -16,6 +16,7 @@ import mammoth from "mammoth";
 import DOMPurify from "dompurify";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+import { isWpsAssetLike } from "./wps";
 
 export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -136,6 +137,7 @@ export function isWordDocumentAssetLike(asset: {
   const lowerName = asset.name?.toLowerCase();
   return (
     isDocxAssetLike(asset) ||
+    isWpsAssetLike(asset) ||
     isDocMime(asset.mimeType) ||
     lowerName?.endsWith(".doc") === true
   );

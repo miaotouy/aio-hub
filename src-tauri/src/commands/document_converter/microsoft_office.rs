@@ -103,6 +103,8 @@ try {
   $word = New-Object -ComObject Word.Application
   $word.Visible = $false
   $word.DisplayAlerts = 0
+  $word.AutomationSecurity = 3
+  $word.Options.UpdateLinksAtOpen = $false
   $doc = $word.Documents.Open($sourcePath, $false, $true, $false)
   $doc.SaveAs2($targetPath, 16)
   $doc.Close($false)

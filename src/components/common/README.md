@@ -446,7 +446,11 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
 
   ```vue
   <!-- 基础用法 -->
-  <RichCodeEditor v-model="store.requestBody" language="json" editor-type="monaco" />
+  <RichCodeEditor
+    v-model="store.requestBody"
+    language="json"
+    editor-type="monaco"
+  />
 
   <!-- Diff 模式 (来自 TextDiff.vue) -->
   <RichCodeEditor
@@ -461,11 +465,17 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
 
 ### DocumentViewer
 
-多格式文档查看器，智能识别并渲染 Markdown、HTML、代码或二进制文件占位。
+多格式文档查看器，支持 Markdown、HTML、PDF、DOCX、WPS、OpenDocument 文本文档（ODT、OTT、FODT）和代码。
+
+ODT / OTT 从压缩包读取正文和内嵌图片；FODT 从 XML 读取正文。阅读视图保留标题、段落、常见文字样式、列表、表格和内嵌位图，支持切换到转换后的 HTML 源码。复杂分页与排版以办公软件中的显示为准。加密或损坏文件会显示具体错误，下载按钮保存原始文件。
+
+WPS 按内容识别：OOXML 包直接复用 DOCX 渲染；Word 二进制兼容格式及 RTF 兼容格式通过资产管理器配置的本机转换程序生成 DOCX。转换副本使用匹配实际格式的扩展名，原始文件保持只读。资产库内的已有 WPS 也可在预览时转换；加密或其他格式的 WPS 会提示另存为 DOCX。二进制 WPS 预览需提供 `filePath`，下载仍保留原始文件。
 
 - **Props**:
   - `content` (string | Uint8Array): 文档内容。
-  - `fileName` (string): 文件名（用于推断语言）。
+  - `fileName` (string): 文件名（用于推断格式和语言）。
+  - `filePath` (string): 本地绝对路径或资产库相对路径。
+  - `fileTypeHint` (string): MIME 类型或文件名提示。
   - `editorType`: 默认使用的编辑器引擎。
   - `showEngineSwitch`: 是否显示切换引擎的按钮。
 

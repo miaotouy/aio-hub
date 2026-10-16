@@ -50,6 +50,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { isWordDocumentAssetLike, isDocxAssetLike } from "@/utils/docxParser";
+import { isOpenDocumentTextAssetLike } from "@/utils/openDocumentParser";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
@@ -193,7 +194,10 @@ const isBarLayout = computed(() => !isImage.value);
 
 // 是否为文档类型（可以点击预览）
 const isDocument = computed(
-  () => props.asset.type === "document" || isWordDocumentAssetLike(props.asset)
+  () =>
+    props.asset.type === "document" ||
+    isWordDocumentAssetLike(props.asset) ||
+    isOpenDocumentTextAssetLike(props.asset)
 );
 
 // 获取文件后缀名

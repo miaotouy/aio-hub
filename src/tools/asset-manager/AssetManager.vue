@@ -165,6 +165,7 @@ import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { customMessage } from "@/utils/customMessage";
 import { isWordDocumentAssetLike } from "@/utils/docxParser";
+import { isOpenDocumentTextAssetLike } from "@/utils/openDocumentParser";
 import type {
   Asset,
   AssetType,
@@ -393,7 +394,11 @@ const handleSelectAsset = async (asset: Asset) => {
     const index = audioAssets.findIndex((a) => a.id === asset.id);
     // 预览播放列表
     audioViewer.previewPlaylist(audioAssets, index >= 0 ? index : 0);
-  } else if (asset.type === "document" || isWordDocumentAssetLike(asset)) {
+  } else if (
+    asset.type === "document" ||
+    isWordDocumentAssetLike(asset) ||
+    isOpenDocumentTextAssetLike(asset)
+  ) {
     selectedAssetForPreview.value = asset;
     isPreviewDialogVisible.value = true;
   } else {

@@ -424,6 +424,9 @@ fn determine_asset_type(mime: &str, path: Option<&Path>) -> AssetType {
         AssetType::Video
     } else if mime.starts_with("application/pdf")
         || mime.starts_with("application/msword")
+        || mime == mime::WPS_MIME
+        || mime == "application/rtf"
+        || mime.starts_with("application/vnd.oasis.opendocument.text")
         || mime.starts_with("application/vnd.openxmlformats-officedocument")
         || mime.starts_with("text/")
     {
@@ -1168,7 +1171,32 @@ pub(crate) fn import_backup_asset(
 
 #[cfg(test)]
 mod backup_asset_tests {
-    use super::resolve_backup_asset_mime_type;
+    use super::{determine_asset_type, resolve_backup_asset_mime_type, AssetType};
+    use crate::utils::mime;
+    use std::path::Path;
+
+    #[test]
+    fn open_document_text_imports_and_restores_as_document() {
+        for (name, expected_mime) in [
+            ("report.odt", "application/vnd.oasis.opendocument.text"),
+            (
+                "template.OTT",
+                "application/vnd.oasis.opendocument.text-template",
+            ),
+            (
+                "report.fodt",
+                "application/vnd.oasis.opendocument.text-flat-xml",
+            ),
+        ] {
+            assert_eq!(mime::guess_mime_type(Path::new(name)), expected_mime);
+            let restored_mime = resolve_backup_asset_mime_type(name, "");
+            assert_eq!(restored_mime, expected_mime);
+            assert_eq!(
+                determine_asset_type(&restored_mime, None),
+                AssetType::Document
+            );
+        }
+    }
 
     #[test]
     fn preserves_manifest_mime_type_for_extensionless_assets() {

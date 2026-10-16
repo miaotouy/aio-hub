@@ -305,7 +305,7 @@ function handleSave() {
   >
     <div class="document-conversion-settings">
       <div class="setting-item">
-        <div class="setting-label">自动转换旧版 DOC/PPT/XLS</div>
+        <div class="setting-label">自动转换 DOC / WPS / PPT / XLS</div>
         <el-switch v-model="localSettings.autoConvertLegacyDoc" />
       </div>
 

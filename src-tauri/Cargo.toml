@@ -90,6 +90,7 @@ sha2 = "0.10" # SHA-256 哈希计算
 image = "0.25" # 图片处理
 content_inspector = "0.2" # 文本/二进制内容检测
 infer = "0.16" # 文件类型自动检测（基于魔数）
+cfb = "0.7.3" # 读取 WPS / Word 复合文档结构，复用 infer 已有依赖
 libloading = "0.8" # 动态库加载
 scopeguard = "1.2.0"
 # 窗口特效依赖

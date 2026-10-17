@@ -256,7 +256,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { useThrottleFn } from "@vueuse/core";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
@@ -444,7 +444,6 @@ const headerStyle = computed(() => {
  * 虚拟滚动相关
  */
 const messagesContainer = ref<HTMLElement | null>(null);
-const messageCount = computed(() => filteredMessages.value.length);
 
 // VCP 协议消息没有稳定 ID；为同一对象生成仅供当前列表使用的稳定键，
 // 避免筛选、倒序新增后复用其他消息的测量高度。
@@ -461,14 +460,11 @@ function getMessageKey(message: VcpMessage): number {
 }
 
 // 创建虚拟化器
-const virtualizer = useVirtualizer({
-  get count() {
-    return messageCount.value;
-  },
-  getScrollElement: () => messagesContainer.value as HTMLElement,
-  getItemKey: (index) => getMessageKey(filteredMessages.value[index]),
-  estimateSize: () => 120, // 预估每条消息的高度
-  overscan: 5, //  overscan 数量
+const virtualizer = useMeasuredVirtualizer(filteredMessages, {
+  getItemKey: getMessageKey,
+  getScrollElement: () => messagesContainer.value,
+  estimateSize: () => 120,
+  overscan: 5,
 });
 
 // 虚拟项列表

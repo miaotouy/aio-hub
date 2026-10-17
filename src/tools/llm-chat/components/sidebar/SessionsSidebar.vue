@@ -18,7 +18,7 @@
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import {
   Plus,
   Search,
@@ -142,10 +142,8 @@ const favoriteFolderOptions = computed(() => llmChatStore.favoriteFolders);
 
 // 虚拟滚动列表
 const parentRef = ref<HTMLElement | null>(null);
-const virtualizer = useVirtualizer({
-  get count() {
-    return displaySessions.value.length;
-  },
+const virtualizer = useMeasuredVirtualizer(displaySessions, {
+  getItemKey: (session) => session.id,
   getScrollElement: () => parentRef.value,
   estimateSize: () => 71,
   overscan: 10,

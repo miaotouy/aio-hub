@@ -506,6 +506,7 @@ const handleOpenAsset = async (task: MediaTask) => {
 }
 
 .task-row {
+  height: 370px;
   display: flex;
   gap: 16px;
   padding: 8px 0;

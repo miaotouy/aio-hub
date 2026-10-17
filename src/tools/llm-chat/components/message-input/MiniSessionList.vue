@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
-import { useVirtualList } from "@vueuse/core";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSessionIndex } from "../../types";
@@ -158,25 +158,18 @@ const getSessionMatches = (sessionId: string) => {
     }));
 };
 
-// 获取单项高度逻辑提取
-const getItemHeight = (index: number) => {
-  const session = displaySessions.value[index];
-  if (!session) return 50;
-  const matches = getSessionMatches(session.id);
-  // 如果有搜索匹配详情，增加高度
-  if (matches && matches.length > 0) {
-    return 50 + Math.min(matches.length, 2) * 16 + 4;
-  }
-  return 50;
-};
-
-// 虚拟滚动列表
-const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(
-  displaySessions,
-  {
-    itemHeight: getItemHeight,
-  }
+const listRef = ref<HTMLElement | null>(null);
+const virtualizer = useMeasuredVirtualizer(displaySessions, {
+  getItemKey: (session) => session.id,
+  getScrollElement: () => listRef.value,
+  estimateSize: () => 52,
+});
+const virtualSessions = computed(() =>
+  virtualizer.value
+    .getVirtualItems()
+    .map((item) => ({ ...item, session: displaySessions.value[item.index] }))
 );
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 const { selectAgent } = useLlmChatUiState();
 
@@ -219,33 +212,7 @@ const scrollToCurrentSession = () => {
   );
   if (index === -1) return;
 
-  const container = containerProps.ref.value;
-  if (!container) {
-    // 如果容器还没准备好，回退到基础 scrollTo
-    scrollTo(index);
-    return;
-  }
-
-  const containerHeight = container.clientHeight;
-  if (containerHeight <= 0) {
-    scrollTo(index);
-    return;
-  }
-
-  // 计算到目标项之前的总高度
-  let offset = 0;
-  for (let i = 0; i < index; i++) {
-    offset += getItemHeight(i);
-  }
-
-  const targetHeight = getItemHeight(index);
-
-  // 目标位置：让项的中心点位于容器中心点
-  // scrollToY = (项的顶部位置) - (容器高度 / 2) + (项高度 / 2)
-  const scrollToY = offset - containerHeight / 2 + targetHeight / 2;
-
-  // 执行滚动，确保不小于 0
-  container.scrollTop = Math.max(0, scrollToY);
+  virtualizer.value.scrollToIndex(index, { align: "center" });
 };
 
 let disposed = false;
@@ -266,10 +233,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="mini-session-list">
-    <div
-      class="list-container"
-      v-bind="displaySessions.length > 0 ? containerProps : {}"
-    >
+    <div class="list-container" ref="listRef">
       <div v-if="chatStore.sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
       </div>
@@ -277,78 +241,90 @@ onBeforeUnmount(() => {
         <p>无匹配结果</p>
       </div>
 
-      <div v-else v-bind="wrapperProps">
+      <div
+        v-else
+        class="virtual-list-content"
+        :style="{ height: `${totalSize}px` }"
+      >
         <div
-          v-for="{ data: session } in list"
+          v-for="{ session, index, start } in virtualSessions"
           :key="session.id"
-          :class="[
-            'session-item',
-            {
-              active: session.id === chatStore.currentSessionId,
-              'has-matches': getSessionMatches(session.id)?.length,
-            },
-          ]"
-          data-testid="chat-session-item"
-          :data-session-id="session.id"
-          :data-session-active="session.id === chatStore.currentSessionId"
-          :style="{ height: 'auto', minHeight: '50px' }"
-          role="button"
-          tabindex="0"
-          @keydown.enter.prevent="handleSessionClick(session)"
-          @keydown.space.prevent="handleSessionClick(session)"
-          @click="handleSessionClick(session)"
+          :data-index="index"
+          :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
+          class="virtual-list-row"
+          :style="{ transform: `translateY(${start}px)` }"
         >
-          <div class="session-content">
-            <div class="session-title-row">
-              <Avatar
-                v-if="getSessionDisplayAgent(session)"
-                :src="
-                  resolveAgentAvatarPath(getSessionDisplayAgent(session)) || ''
-                "
-                :alt="getSessionDisplayAgent(session)?.name"
-                :size="16"
-                shape="square"
-                :radius="3"
-                class="agent-avatar"
-              />
-              <span class="session-title">{{ session.name }}</span>
-            </div>
+          <div
+            :class="[
+              'session-item',
+              {
+                active: session.id === chatStore.currentSessionId,
+                'has-matches': getSessionMatches(session.id)?.length,
+              },
+            ]"
+            data-testid="chat-session-item"
+            :data-session-id="session.id"
+            :data-session-active="session.id === chatStore.currentSessionId"
+            :style="{ height: 'auto', minHeight: '50px' }"
+            role="button"
+            tabindex="0"
+            @keydown.enter.prevent="handleSessionClick(session)"
+            @keydown.space.prevent="handleSessionClick(session)"
+            @click="handleSessionClick(session)"
+          >
+            <div class="session-content">
+              <div class="session-title-row">
+                <Avatar
+                  v-if="getSessionDisplayAgent(session)"
+                  :src="
+                    resolveAgentAvatarPath(getSessionDisplayAgent(session)) ||
+                    ''
+                  "
+                  :alt="getSessionDisplayAgent(session)?.name"
+                  :size="16"
+                  shape="square"
+                  :radius="3"
+                  class="agent-avatar"
+                />
+                <span class="session-title">{{ session.name }}</span>
+              </div>
 
-            <!-- 搜索匹配详情 -->
-            <div
-              v-if="getSessionMatches(session.id)?.length"
-              class="match-details"
-            >
+              <!-- 搜索匹配详情 -->
               <div
-                v-for="(match, index) in getSessionMatches(session.id)!.slice(
-                  0,
-                  2
-                )"
-                :key="index"
-                class="match-item"
+                v-if="getSessionMatches(session.id)?.length"
+                class="match-details"
               >
-                <span class="match-field">
-                  {{ getFieldLabel(match.field)
-                  }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
-                </span>
-                <div class="match-context" :title="match.context">
-                  <template v-for="(part, pIdx) in match.parts" :key="pIdx">
-                    <span v-if="part.isMatch" class="highlight">{{
-                      part.text
-                    }}</span>
-                    <span v-else>{{ part.text }}</span>
-                  </template>
+                <div
+                  v-for="(match, index) in getSessionMatches(session.id)!.slice(
+                    0,
+                    2
+                  )"
+                  :key="index"
+                  class="match-item"
+                >
+                  <span class="match-field">
+                    {{ getFieldLabel(match.field)
+                    }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
+                  </span>
+                  <div class="match-context" :title="match.context">
+                    <template v-for="(part, pIdx) in match.parts" :key="pIdx">
+                      <span v-if="part.isMatch" class="highlight">{{
+                        part.text
+                      }}</span>
+                      <span v-else>{{ part.text }}</span>
+                    </template>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="session-meta">
-              <span class="message-count"
-                >{{ getMessageCount(session) }} 条</span
-              >
-              <span class="session-time">{{
-                formatRelativeTime(session.updatedAt)
-              }}</span>
+              <div class="session-meta">
+                <span class="message-count"
+                  >{{ getMessageCount(session) }} 条</span
+                >
+                <span class="session-time">{{
+                  formatRelativeTime(session.updatedAt)
+                }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -599,5 +575,17 @@ onBeforeUnmount(() => {
 .session-item:focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: -2px;
+}
+
+.virtual-list-content {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-list-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 </style>

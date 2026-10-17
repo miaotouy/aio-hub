@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import yaml from "js-yaml";
@@ -181,7 +181,9 @@ const filteredAndSortedAgents = computed(() => {
   let agents = [...agentStore.agents];
 
   // 0. 子智能体可见性过滤：仅作为子智能体使用的专项节点不进入主聊天角色列表
-  agents = agents.filter((agent) => agent.subAgentConfig?.onlySubVisible !== true);
+  agents = agents.filter(
+    (agent) => agent.subAgentConfig?.onlySubVisible !== true
+  );
 
   // 1. 分类过滤
   if (selectedCategory.value !== "all") {
@@ -342,12 +344,10 @@ const { isDraggingOver } = useFileDrop({
   },
 });
 
-const virtualizer = useVirtualizer({
-  get count() {
-    return displayAgents.value.length;
-  },
+const virtualizer = useMeasuredVirtualizer(displayAgents, {
+  getItemKey: (agent) => agent.id,
   getScrollElement: () => parentRef.value,
-  estimateSize: () => 65, // 预估高度（基于未选中状态：padding 24 + content 32 + margin 8）
+  estimateSize: () => 65,
   overscan: 10,
 });
 

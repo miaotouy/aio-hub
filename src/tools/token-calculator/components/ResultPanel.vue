@@ -259,7 +259,7 @@
             <!-- 仅渲染当前可见的若干个 token 分组 -->
             <div
               v-for="virtualItem in virtualItems"
-              :key="virtualItem.index"
+              :key="String(virtualItem.key)"
               :data-index="virtualItem.index"
               :ref="
                 (el) => {
@@ -302,7 +302,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { useElementSize } from "@vueuse/core";
 import {
   Loading,
@@ -527,23 +527,15 @@ const virtualBlocks = computed(() => {
   return blocks;
 });
 
-const blockCount = computed(() => virtualBlocks.value.length);
-
-const virtualizer = useVirtualizer({
-  get count() {
-    return blockCount.value;
-  },
+const virtualizer = useMeasuredVirtualizer(virtualBlocks, {
+  getItemKey: (block) => `${block.start}:${block.end}`,
   getScrollElement: () => tokenBlocksContainer.value,
-  // 使用每个分组的动态估算高度
-  estimateSize: (index) => {
-    const block = virtualBlocks.value[index];
-    return block?.estimatedHeight || 100;
-  },
+  estimateSize: (index) => virtualBlocks.value[index]?.estimatedHeight ?? 100,
   overscan: 4,
 });
 
 // 当容器宽度或 token 数据变化时，重新测量所有虚拟项
-watch([containerWidth, () => props.tokenizedText.length], () => {
+watch(virtualBlocks, () => {
   nextTick(() => {
     virtualizer.value.measure();
   });

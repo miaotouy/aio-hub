@@ -306,9 +306,6 @@ const handleOpenAgentSettings = (tab?: string) => {
 
 // 计算 placeholder 文本
 const placeholderText = computed(() => {
-  // 只有在真正没有会话时才显示“请创建”
-  if (!chatStore.currentSessionId) return "请先创建或选择一个对话";
-
   const sendKey = settings.value.shortcuts.send;
   const sendHint =
     sendKey === "ctrl+enter"

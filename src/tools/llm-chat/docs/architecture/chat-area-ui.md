@@ -18,6 +18,10 @@
   3. 头部 `chat-header` 整体启用 `-webkit-app-region: drag` 让用户可拖动 OS 窗口（[`ChatAreaHeader.vue:283`](../../components/ChatAreaHeader.vue:283)），头部内的可交互子元素（`.detachable-handle` / `.agent-model-info`）再用 `no-drag` 抠出可点击区。
   4. 右下角浮动一个 `.window-resize-indicator` 调整窗口大小手柄，由 [`ChatAreaHeader.vue:258`](../../components/ChatAreaHeader.vue:258) 在 detached 模式下渲染。
 
+### 1.1 聊天入口与首次发送
+
+聊天页加载已有模型、智能体与会话后直接展示工作区。已有可用配置时恢复智能体，并按需进入新会话草稿。缺少模型时保留输入区；用户发送消息后，由 [useChatEntryPreparation](../../composables/ui/useChatEntryPreparation.ts) 请求选择模型，补齐智能体与会话后继续发送原消息。取消选择保留当前输入；有效的临时模型可直接用于本次发送。
+
 ## 2. 头部区域 (Header)
 
 头部是信息展示与交互的混合入口，**实现见 [`ChatAreaHeader.vue`](../../components/ChatAreaHeader.vue)**；与弹窗/实体解析共享的状态由 [`useChatAreaContext.ts`](../../composables/useChatAreaContext.ts) 通过 `provide` / `inject` 提供：

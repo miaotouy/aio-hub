@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useVirtualList } from "@vueuse/core";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { useAgentStore } from "../../stores/agentStore";
 import type { ChatAgent } from "../../types/agent";
 import { Search, Plus } from "@element-plus/icons-vue";
@@ -60,9 +60,18 @@ const filteredAgents = computed(() => {
 });
 
 // 虚拟列表
-const { list, containerProps, wrapperProps } = useVirtualList(filteredAgents, {
-  itemHeight: 50,
+const listRef = ref<HTMLElement | null>(null);
+const virtualizer = useMeasuredVirtualizer(filteredAgents, {
+  getItemKey: (agent) => agent.id,
+  getScrollElement: () => listRef.value,
+  estimateSize: () => 50,
 });
+const virtualAgents = computed(() =>
+  virtualizer.value
+    .getVirtualItems()
+    .map((item) => ({ ...item, agent: filteredAgents.value[item.index] }))
+);
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 const handleAgentClick = (agent: ChatAgent) => {
   emit("switch", agent);
@@ -75,10 +84,7 @@ const handleCreate = () => {
 
 <template>
   <div class="mini-agent-list">
-    <div
-      class="list-container"
-      v-bind="filteredAgents.length > 0 ? containerProps : {}"
-    >
+    <div class="list-container" ref="listRef">
       <div v-if="agentStore.agents.length === 0" class="empty-state">
         <p>暂无智能体</p>
       </div>
@@ -86,32 +92,43 @@ const handleCreate = () => {
         <p>无匹配结果</p>
       </div>
 
-      <div v-else v-bind="wrapperProps">
+      <div
+        v-else
+        class="virtual-list-content"
+        :style="{ height: `${totalSize}px` }"
+      >
         <div
-          v-for="{ data: agent } in list"
+          v-for="{ agent, index, start } in virtualAgents"
           :key="agent.id"
-          :class="['agent-item', { active: agent.id === currentAgentId }]"
-          @click="handleAgentClick(agent)"
+          :data-index="index"
+          :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
+          class="virtual-list-row"
+          :style="{ transform: `translateY(${start}px)` }"
         >
-          <Avatar
-            :src="resolveAgentAvatarPath(agent) || ''"
-            :name="agent.name"
-            :size="24"
-            shape="square"
-            :radius="4"
-          />
-          <div class="agent-info">
-            <div class="agent-name-row">
-              <span class="agent-name">{{
-                agent.displayName || agent.name
-              }}</span>
-            </div>
-            <div
-              v-if="agent.description"
-              class="agent-desc"
-              :title="agent.description"
-            >
-              {{ agent.description }}
+          <div
+            :class="['agent-item', { active: agent.id === currentAgentId }]"
+            @click="handleAgentClick(agent)"
+          >
+            <Avatar
+              :src="resolveAgentAvatarPath(agent) || ''"
+              :name="agent.name"
+              :size="24"
+              shape="square"
+              :radius="4"
+            />
+            <div class="agent-info">
+              <div class="agent-name-row">
+                <span class="agent-name">{{
+                  agent.displayName || agent.name
+                }}</span>
+              </div>
+              <div
+                v-if="agent.description"
+                class="agent-desc"
+                :title="agent.description"
+              >
+                {{ agent.description }}
+              </div>
             </div>
           </div>
         </div>
@@ -238,5 +255,17 @@ const handleCreate = () => {
 
 .list-container::-webkit-scrollbar-thumb:hover {
   background: var(--el-border-color-light);
+}
+
+.virtual-list-content {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-list-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 </style>

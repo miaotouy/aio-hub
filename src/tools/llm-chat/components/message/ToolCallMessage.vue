@@ -38,7 +38,6 @@ import type { Asset } from "@/types/asset-management";
 import {
   Terminal,
   Hash,
-  ChevronDown,
   ChevronRight,
   Clock,
   AlertCircle,
@@ -395,25 +394,6 @@ const mainStatus = computed(() => {
     return "pending";
   }
   return "success";
-});
-
-const statusIcon = computed(() => {
-  switch (mainStatus.value) {
-    case "success":
-      return Play;
-    case "executing":
-      return Loader2;
-    case "error":
-      return AlertCircle;
-    case "cancelled":
-      return XCircle;
-    case "pending":
-      return Clock;
-    case "arbitrating":
-      return Loader2;
-    default:
-      return Terminal;
-  }
 });
 
 const statusClass = computed(() => `status-${mainStatus.value}`);
@@ -846,14 +826,39 @@ defineExpose({
       ></div>
     </div>
 
-    <!-- 装饰性侧边栏 -->
-    <div class="tool-bar" :class="statusClass" @click="toggleCollapse">
-      <div class="bar-line"></div>
-      <div class="bar-icon">
-        <component :is="statusIcon" :size="14" />
-      </div>
-      <div class="bar-line"></div>
-    </div>
+    <!-- 侧边展开 / 收起按钮 -->
+    <button
+      type="button"
+      class="tool-bar"
+      :class="[statusClass, { 'is-collapsed': isCollapsed }]"
+      :aria-expanded="!isCollapsed"
+      :aria-label="isCollapsed ? '展开工具结果' : '收起工具结果'"
+      :title="isCollapsed ? '展开工具结果' : '收起工具结果'"
+      :disabled="isEditing || props.screenshotMode"
+      @click="toggleCollapse"
+    >
+      <span class="bar-line" aria-hidden="true"></span>
+      <span class="bar-icon" aria-hidden="true">
+        <svg
+          v-for="position in ['top', 'bottom']"
+          :key="position"
+          class="bar-triangle"
+          :class="`bar-triangle-${position}`"
+          width="14"
+          height="10"
+          viewBox="0 0 14 10"
+          fill="none"
+        >
+          <path
+            d="M 7 2 L 12 8 L 2 8 Z"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </span>
+      <span class="bar-line" aria-hidden="true"></span>
+    </button>
 
     <div
       class="tool-content-wrapper"
@@ -862,10 +867,6 @@ defineExpose({
       <!-- 头部信息 -->
       <div class="tool-header" @click="toggleCollapse">
         <div class="header-left">
-          <div class="collapse-icon">
-            <ChevronDown v-if="!isCollapsed" :size="14" />
-            <ChevronRight v-else :size="14" />
-          </div>
           <span class="role-badge tool" :class="statusClass">
             <Terminal :size="12" />
             工具
@@ -1386,7 +1387,7 @@ defineExpose({
   backdrop-filter: blur(var(--ui-blur));
 }
 
-/* 装饰性侧边栏 */
+/* 侧边展开 / 收起按钮 */
 .tool-bar {
   position: relative;
   z-index: 3;
@@ -1394,6 +1395,12 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   width: 20px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
   color: var(--text-color-secondary);
   opacity: 0.6;
   /* 确保侧边栏高度撑满父容器 */
@@ -1402,11 +1409,22 @@ defineExpose({
   transition: opacity 0.2s;
 }
 
-.tool-bar:hover {
+.tool-bar:not(:disabled):hover,
+.tool-bar:focus-visible {
   opacity: 1;
 }
 
-.tool-bar.status-success {
+.tool-bar:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
+.tool-bar:disabled {
+  cursor: default;
+}
+
+.tool-bar.status-success,
+.tool-bar.status-completed {
   color: var(--el-color-success);
 }
 .tool-bar.status-error,
@@ -1434,14 +1452,35 @@ defineExpose({
 .bar-icon {
   position: sticky;
   top: 16px; /* 随着消息内容滚动时，图标保持在顶部可见区域 */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 6px 0;
   transition: transform 0.2s;
   background-color: transparent;
   z-index: 4;
 }
 
-.bar-icon .lucide-loader2 {
-  animation: spin 1s linear infinite;
+.bar-triangle {
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.bar-triangle-top,
+.tool-bar.is-collapsed .bar-triangle-bottom {
+  transform: rotate(180deg);
+}
+
+.tool-bar.is-collapsed .bar-triangle-top {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-icon,
+  .bar-triangle {
+    transition: none;
+  }
 }
 
 @keyframes spin {
@@ -1453,7 +1492,7 @@ defineExpose({
   }
 }
 
-.tool-bar:hover .bar-icon {
+.tool-bar:not(:disabled):hover .bar-icon {
   transform: scale(1.2);
 }
 
@@ -1482,13 +1521,6 @@ defineExpose({
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.collapse-icon {
-  display: flex;
-  align-items: center;
-  color: var(--text-color-tertiary);
-  width: 16px;
 }
 
 .role-badge.tool {

@@ -1,5 +1,8 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shallowRef } from "vue";
+import { useNodeManager } from "../../session/useNodeManager";
+import { createSessionRuntimeManager } from "../../../stores/session/sessionRuntimeManager";
 import type { LlmRequestOptions } from "@/llm-apis/common";
 import type {
   ChatAgent,
@@ -50,7 +53,7 @@ vi.mock("@/tools/st-worldbook-manager/stores/worldbookStore", () => ({
   useWorldbookStore: () => ({}),
 }));
 vi.mock("@/utils/logger", () => ({
-  createModuleLogger: () => ({ info: vi.fn(), warn: vi.fn() }),
+  createModuleLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
 }));
 vi.mock("../../../config/parameter-config", () => ({
   buildEffectiveParameters: () => ({}),
@@ -61,18 +64,6 @@ vi.mock("../useChatResponseHandler", () => ({
     finalizeNode: mocks.finalizeNode,
     completeStreamSegment: mocks.completeStreamSegment,
     validateAndFixUsage: vi.fn(),
-  }),
-}));
-vi.mock("../../session/useNodeManager", () => ({
-  useNodeManager: () => ({
-    createNode: (data: Partial<ChatMessageNode>) => ({
-      ...data,
-      id: `node-${data.parentId}`,
-    }),
-    addNodeToSession: (session: ChatSessionDetail, node: ChatMessageNode) => {
-      session.nodes[node.id] = node;
-    },
-    updateActiveLeaf: vi.fn(),
   }),
 }));
 
@@ -86,13 +77,16 @@ const chunks = [
 ];
 const response = { content: "查询中工具结果最终回答" };
 
-async function execute(isVcpChannel = true) {
+function createSession(): ChatSessionDetail {
   const assistantNode = {
+    ...useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+    }),
     id: "assistant",
-    role: "assistant",
-    content: "",
-  } as ChatMessageNode;
-  const session: ChatSessionDetail = {
+  };
+  return {
     id: "session",
     nodes: { assistant: assistantNode },
     updatedAt: new Date().toISOString(),
@@ -101,11 +95,20 @@ async function execute(isVcpChannel = true) {
     history: [],
     historyIndex: -1,
   };
+}
+
+async function execute(
+  isVcpChannel = true,
+  session = createSession(),
+  onResponseNode?: (node: ChatMessageNode) => void
+) {
+  const assistantNode = session.nodes.assistant;
   await useSingleNodeExecutor().execute({
     session,
     assistantNode,
     currentPathToUserNode: [],
     splitVcpResponses: isVcpChannel,
+    onResponseNode,
     agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
     executionAgent: { id: "agent" } as ChatAgent,
     effectiveUserProfile: null,
@@ -179,6 +182,11 @@ describe("VCP message splitting preference", () => {
       "assistant",
     ]);
     expect(
+      useNodeManager()
+        .getNodePath(session, session.activeLeafId)
+        .map((node) => node.role)
+    ).toEqual(["assistant", "tool", "assistant"]);
+    expect(
       mocks.finalizeNode.mock.calls
         .slice(1)
         .map((call) => [session.nodes[call[1]].role, call[2].content])
@@ -195,5 +203,143 @@ describe("VCP message splitting preference", () => {
       ["tool", "工具结果", false],
       ["assistant", "最终回答", false],
     ]);
+  });
+});
+
+// Queue paths must remain blocked by the same HTTP request across every VCP
+// phase, including messages added while an intermediate tool segment streams.
+describe("VCP response splitting with queued messages", () => {
+  it.each(["combined", "chained"] as const)(
+    "keeps the %s queue after all response phases and preserves branch selection",
+    async (mode) => {
+      mocks.settings.value.uiPreferences.splitVcpResponses = true;
+      const manager = useNodeManager();
+      const session = createSession();
+      const generatingNodes = new Set(["assistant"]);
+      const runtime = createSessionRuntimeManager({
+        sessionDetailMap: shallowRef(new Map([[session.id, session]])),
+        currentSessionId: shallowRef(session.id),
+        abortControllers: shallowRef(new Map()),
+        generatingNodes: shallowRef(generatingNodes),
+        queuedSessionIds: shallowRef(new Set([session.id])),
+        queuedSessionAgentIds: shallowRef(new Map()),
+        findSessionIdByNodeId: () => session.id,
+      });
+      const queuedNodes: ChatMessageNode[] = [];
+      const userNodes: ChatMessageNode[] = [];
+      const enqueue = () => {
+        const pair = manager.createMessagePair(
+          session,
+          "继续",
+          session.activeLeafId
+        );
+        userNodes.push(pair.userNode);
+        const queued = mode === "combined" ? pair.userNode : pair.assistantNode;
+        if (mode === "combined")
+          manager.hardDeleteNode(session, pair.assistantNode.id);
+        queued.status = "queued";
+        queued.metadata = { isQueued: true, agentId: "queued-agent" };
+        manager.updateActiveLeaf(session, queued.id);
+        queuedNodes.push(queued);
+      };
+      const unrelated = manager.createNode({
+        role: "assistant",
+        content: "另一分支",
+        parentId: "assistant",
+      });
+      manager.addNodeToSession(session, unrelated);
+      let activeResponseId = "assistant";
+      const phases = [
+        ...chunks,
+        { responseId: "second", finishReason: "stop" },
+        { responseId: "chatcmpl-vcp-2", content: "第二次工具结果" },
+        { responseId: "third", content: "完成" },
+      ];
+      mocks.sendRequest.mockImplementation(
+        async (options: LlmRequestOptions) => {
+          for (const [index, chunk] of phases.entries()) {
+            options.onResponseChunk?.(chunk);
+            if (index === 0 || index === 2) enqueue();
+            for (const queued of queuedNodes) {
+              expect(runtime.isNodePathGenerating(session.id, queued.id)).toBe(
+                true
+              );
+            }
+            expect(session.activeLeafId).toBe(
+              queuedNodes[queuedNodes.length - 1].id
+            );
+            expect(unrelated.parentId).toBe("assistant");
+          }
+          return response;
+        }
+      );
+
+      await execute(true, session, (node) => {
+        generatingNodes.delete(activeResponseId);
+        activeResponseId = node.id;
+        generatingNodes.add(node.id);
+      });
+
+      const responsePath = manager
+        .getNodePath(session, userNodes[0].id)
+        .slice(0, -1);
+      expect(responsePath.map((node) => node.role)).toEqual([
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+      ]);
+      for (let index = 2; index < responsePath.length; index++) {
+        expect(responsePath[index - 1].childrenIds).toEqual([
+          responsePath[index].id,
+        ]);
+        expect(responsePath[index - 1].lastSelectedChildId).toBe(
+          responsePath[index].id
+        );
+      }
+      expect(session.nodes.assistant.childrenIds).toEqual([
+        unrelated.id,
+        responsePath[1].id,
+      ]);
+      expect(session.nodes.assistant.lastSelectedChildId).toBe(
+        responsePath[1].id
+      );
+      expect(userNodes[1].parentId).toBe(queuedNodes[0].id);
+      for (const queued of queuedNodes) {
+        expect(queued.status).toBe("queued");
+        expect(queued.metadata).toEqual({
+          isQueued: true,
+          agentId: "queued-agent",
+        });
+      }
+      generatingNodes.clear();
+      expect(runtime.isNodePathGenerating(session.id, queuedNodes[0].id)).toBe(
+        false
+      );
+    }
+  );
+
+  it("leaves a user-selected branch active while a background response splits", async () => {
+    mocks.settings.value.uiPreferences.splitVcpResponses = true;
+    const manager = useNodeManager();
+    const session = createSession();
+    const unrelated = manager.createNode({
+      role: "user",
+      content: "另一分支",
+      parentId: "assistant",
+    });
+    manager.addNodeToSession(session, unrelated);
+    manager.updateActiveLeaf(session, unrelated.id);
+    mocks.sendRequest.mockImplementation(async (options: LlmRequestOptions) => {
+      for (const chunk of chunks) {
+        options.onResponseChunk?.(chunk);
+        expect(session.activeLeafId).toBe(unrelated.id);
+        expect(session.nodes.assistant.lastSelectedChildId).toBe(unrelated.id);
+      }
+      return response;
+    });
+    await execute(true, session);
+    expect(unrelated.parentId).toBe("assistant");
   });
 });

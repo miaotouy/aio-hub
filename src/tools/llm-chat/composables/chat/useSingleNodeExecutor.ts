@@ -34,6 +34,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useNodeManager } from "../session/useNodeManager";
 import { VcpStreamSegmenter } from "../../core/tool-calling/vcp-stream-segmenter";
+import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 import { useContextPipelineStore } from "../../stores/contextPipelineStore";
 import type { PipelineContext } from "../../types/pipeline";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
@@ -322,8 +323,44 @@ export function useSingleNodeExecutor() {
               requestParameters: original?.requestParameters,
             },
           });
+          // Insert each phase before queued follow-ups so their paths keep
+          // depending on the active request as its generation marker advances.
+          // Chained mode stores the queue marker on the user's assistant child.
+          const queuedChildren = activeStreamNode.childrenIds.filter((id) => {
+            const child = session.nodes[id];
+            if (!child) return false;
+            return (
+              resolveMessageDisplayStatus(child) === "queued" ||
+              (child.role === "user" &&
+                child.childrenIds.some((childId) => {
+                  const reply = session.nodes[childId];
+                  return (
+                    reply && resolveMessageDisplayStatus(reply) === "queued"
+                  );
+                }))
+            );
+          });
+          const selectedChildId = activeStreamNode.lastSelectedChildId;
           nodeManager.addNodeToSession(session, node);
-          nodeManager.updateActiveLeaf(session, node.id);
+          for (const childId of queuedChildren) {
+            nodeManager.reparentSubtree(session, childId, node.id);
+          }
+          if (selectedChildId && queuedChildren.includes(selectedChildId)) {
+            activeStreamNode.lastSelectedChildId = node.id;
+            node.lastSelectedChildId = selectedChildId;
+          }
+
+          const responseNodeId = node.id;
+          if (session.activeLeafId === activeStreamNode.id) {
+            nodeManager.updateActiveLeaf(session, responseNodeId);
+          } else if (
+            nodeManager
+              .getNodePath(session, session.activeLeafId)
+              .some((ancestor) => ancestor.id === responseNodeId)
+          ) {
+            // Keep the queued leaf selected and refresh its reparented path.
+            nodeManager.updateActiveLeaf(session, session.activeLeafId);
+          }
         }
         segmentNodes.set(segment.index, node);
         activeStreamNode = node;

@@ -80,6 +80,7 @@ import {
   resolveMessageEnterAnimationEnabled,
 } from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { useMessageHeightSource } from "../../composables/ui/useMessageHeightSource";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
@@ -953,6 +954,27 @@ const containerClasses = computed(() => ({
   "is-generating": isGenerating.value,
   "smooth-enabled": settings.value.uiPreferences.smoothAutoScroll,
 }));
+
+useMessageHeightSource(
+  () => props.message.id,
+  () => ({
+    text:
+      !isGenerating.value &&
+      !props.isEditing &&
+      !props.isTranslating &&
+      showOriginal.value &&
+      !showTranslation.value &&
+      !hasAttachments.value &&
+      processedRules.value.length === 0
+        ? originalRendererContent.value
+        : undefined,
+    appearance: JSON.stringify([
+      frozenStyleOptions.value,
+      frozenLlmThinkRules.value,
+      processedRules.value,
+    ]),
+  })
+);
 
 // 元数据响应式提取，确保异步更新能被触发
 const messageMetadata = computed(() => props.message.metadata);

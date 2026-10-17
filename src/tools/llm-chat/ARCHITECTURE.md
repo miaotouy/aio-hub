@@ -462,7 +462,7 @@ Token 限制器位于注入组装器之后（priority 600）、消息格式化�
 核心要素：
 
 - **布局**: 采用 **Flex Column** 布局，头部悬浮（`position: absolute`），主内容区与输入框靠 Flex 自然分配空间。
-- **消息列表**: 使用消息级 `content-visibility: auto` 跳过屏外渲染，并通过 `MutationObserver` 注入样式。阅读历史时启用浏览器滚动锚定，补偿首次渲染的高度修正；`useMessageScrollAnchor` 独立维护底部跟随意图，输出增高和占位缩短时均对齐底部，用户上翻后保留阅读位置。消息容器重建与 keep-alive 切换时维护观察器和跟随状态。详见 [聊天区域 UI 架构](./docs/architecture/chat-area-ui.md#31-css-原生虚拟渲染-css-native-virtual-rendering)。
+- **消息列表**: 使用消息级 `content-visibility: auto` 跳过屏外渲染，由 `useMessageHeights` 使用 Pretext 普通段落预估与有界的整行实测缓存管理占位高度；内容、宽度、字体与布局变化时重新计算。阅读历史时启用浏览器滚动锚定，补偿首次渲染的高度修正；`useMessageScrollAnchor` 独立维护底部跟随意图，输出增高和占位缩短时均对齐底部，用户上翻后保留阅读位置。消息容器重建与 keep-alive 切换时维护观察器和跟随状态。详见 [聊天区域 UI 架构](./docs/architecture/chat-area-ui.md#31-css-原生虚拟渲染-css-native-virtual-rendering)。
 - **对话树图**: 基于 Vue Flow + D3.js 实现的可视化工具，支持三种布局模式（树状/物理/静态）与子树拖拽嫁接。性能设计要点：
   - **O(1) 路径判定**: 通过显式字段投影与预计算的 `activePathSet` 和 `nodeDepthMap`，路径判定和深度计算均为 O(1)。
   - **响应式瘦身**: 缓存节点正则扫描结果，移除 `data._node` 死负载，缩小响应式遍历范围。

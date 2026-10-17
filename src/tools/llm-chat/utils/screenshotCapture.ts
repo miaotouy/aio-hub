@@ -34,6 +34,7 @@ import type {
   WallpaperMode,
 } from "../components/screenshot/screenshotTypes";
 import { createModuleLogger } from "@/utils/logger";
+import { createScreenshotLayoutFix } from "@/utils/screenshotLayout";
 
 const logger = createModuleLogger("screenshot-capture");
 
@@ -205,31 +206,6 @@ function applyLayoutGuards(
 
   const styleEl = document.createElement("style");
   styleEl.textContent = `
-    /* 智能排版保护: 防止 flex 布局下的直接子元素在离屏渲染时因为微小的字体/行高偏差而被压缩折行
-     * (与 RichTextRendererTester 截图注入保持一致) */
-    [style*="display: flex"] > *,
-    [style*="display:flex"] > *,
-    .flex-container > * {
-      flex-shrink: 0 !important;
-    }
-
-    /* 强制所有徽章、药丸标签、summary 折叠标题等单行文本容器不折行 */
-    summary,
-    .el-tag,
-    .el-button,
-    .action-button,
-    [style*="border-radius: 100px"],
-    [style*="border-radius: 50px"],
-    [style*="border-radius:100px"],
-    [style*="border-radius:50px"] {
-      white-space: nowrap !important;
-    }
-
-    /* 按钮文本区域追加 1px 宽度余量，吸收离屏渲染的字体度量偏差，防止最后一个字换行 */
-    .action-button .action-label {
-      padding-right: 1px;
-    }
-
     ${
       options.hideScrollbars
         ? `
@@ -313,6 +289,7 @@ export async function captureElementAsCanvas(
     features: {
       removeControlCharacter: true,
     },
+    onCreateForeignObjectSvg: createScreenshotLayoutFix(element),
     onCloneNode: (clonedNode) => {
       if (clonedNode.nodeType !== Node.ELEMENT_NODE) return;
       const el = clonedNode as HTMLElement;

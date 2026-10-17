@@ -86,8 +86,10 @@ src/tools/llm-chat/utils/
   - 浏览器默认的 `content-visibility: auto` 优化会跳过视口外元素的渲染。系统在克隆树中将所有子元素的 `content-visibility` 设为 `visible !important`，强制全量排版，确保视口外的消息节点也被完整渲染。
 - **滚动条与溢出处理**：
   - 注入临时 `<style>` 样式，强制隐藏所有滚动条（`scrollbar-width: none`），并将代码块（`.cm-editor-inner`）、Markdown 表格等容器的 `overflow` 设为 `visible`，确保内容完整展开不被截断。
-- **智能排版保护**：
-  - 与 `RichTextRendererTester.vue` 截图注入保持一致：对 flex 直接子元素强制 `flex-shrink: 0`，对徽章、药丸标签、`summary`、按钮（含 `.action-button`）等单行文本容器强制 `white-space: nowrap`，并对 `.action-button .action-label` 追加 1px 宽度余量。原因是 SVG foreignObject 离屏渲染时字体度量与亚像素取整会和在线布局有微小偏差，导致按钮宽度略小、最后一个字被挤到下一行（该问题此前未定位到根因）。
+- **源布局精度补偿**：
+  - 与 `RichTextRendererTester.vue` 共用 [`createScreenshotLayoutFix`](../../../../utils/screenshotLayout.ts)，在 `onCreateForeignObjectSvg` 阶段处理离屏布局。SVG foreignObject 作为图片解码时使用 1× 排版，小数尺寸在非整数 DPR 下的量化差异可能使贴合内容宽度的胶囊、按钮尾字换行。
+  - 读取源窗口 DPR，并累乘截图根节点之外的祖先 CSS `zoom`；在 foreignObject 内增加同倍率的 CSS zoom 容器，同时放大 SVG `viewBox`。根节点自身的 zoom 由截图库复制；预览的 CSS transform 缩放与输出清晰度 `scale` 独立处理。
+  - 补偿保留逻辑输出尺寸、字号和内容原有的换行约束。富文本测试页的“截图排版对照”预设覆盖紧边界胶囊、Action Button、自然换行的 flex 段落与圆角容器，可用于核对截图与页面的排版。
 
 ### 3.2. 并发截图与拼接算法 (captureMessagesAndStitch)
 

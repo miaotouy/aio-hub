@@ -419,7 +419,7 @@ src/tools/rich-text-renderer/
 - **流式平滑化**: `StreamController` 通过内部缓冲区平滑 Token 发射节奏，避免网络抖动带来的视觉卡顿。支持自动加速和紧急冲刷；VCP 协议标记会绕过平滑同步输出，避免工具块和角色块被拆分后造成临时误解析。
 - **渲染动画**: 新增了节点淡入（fade-in-up）动画效果。对于需要立即显示以填充内容的动态节点（如思考块、代码块、图表、VCP 工具、HTML 块、图片等），动画会被自动禁用。
 - **代码高亮与应用沙箱**: 代码块展示固定使用 **CodeMirror**，支持懒初始化、主题、流式内容更新、折叠、行号、换行和字号调整。对于 `html` 代码块，支持 **Seamless (无边框)** 渲染。通过 `IntersectionObserver` 实现代码块延迟初始化，进入视口前渲染轻量级 `PreCodeNode` 预览。
-- **列表层渲染优化**: 长消息列表当前依赖 `MessageList.vue` 的消息级 `content-visibility: auto`。renderer 内部仅保留块级 class 标记，未默认启用块级 `content-visibility`。
+- **列表层渲染优化**: 长消息列表由 `MessageList.vue` 的消息级 `content-visibility: auto` 跳过屏外布局，`useMessageHeights` 结合 Pretext 普通段落估高与整行实测缓存管理占位。`MessageContent` 提供宏处理后的正文与有效样式，复杂富文本使用实际渲染测量。renderer 内部保留块级 class 标记，块级 `content-visibility` 保持关闭。
 - **动态样式系统**: 提供图形化界面，允许用户实时自定义所有 Markdown 元素的 CSS 样式，支持全局/Agent/User 三级样式合并。
 - **稳定区/待定区策略**: 智能分离已完成和未完成的语法，确保流式输出的稳定性和正确性。
 - **内存管理**: 全套组件卸载清理机制，防止长会话切换或频繁切换对话时的内存泄漏。

@@ -36,6 +36,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import { useMessageScrollAnchor } from "../../composables/ui/useMessageScrollAnchor";
+import { useMessageHeights } from "../../composables/ui/useMessageHeights";
 import ChatMessage from "./ChatMessage.vue";
 import CompressionMessage from "./CompressionMessage.vue";
 import ToolCallMessage from "./ToolCallMessage.vue";
@@ -74,7 +75,6 @@ const pendingInitialScroll = ref(false);
 onDeactivated(() => {
   wasFollowingBeforeDeactivate.value = shouldStickToBottom.value;
   disconnectResizeObserver();
-  disconnectMessageVisibilityObserver();
 });
 
 onActivated(() => {
@@ -83,7 +83,6 @@ onActivated(() => {
 
   // 重新连接 ResizeObserver
   setupResizeObserver();
-  setupMessageVisibilityObserver();
 
   // keep-alive 切换会导致浏览器重置 scrollTop 为 0，需要恢复
   if (container.scrollTop === 0 && lastKnownScrollTop.value > 0) {
@@ -189,72 +188,20 @@ const getMessageAreaWidth = (): number => {
   return messagesContainer.value?.clientWidth ?? 0;
 };
 
-// 在整行消息上注入虚拟渲染样式，避免绘制隔离按短气泡宽度裁切外置操作栏。
-const MESSAGE_VISIBILITY_SELECTOR = ":scope > .message-slot";
-const MESSAGE_INTRINSIC_SIZE = "auto 500px";
-let messageVisibilityObserver: MutationObserver | null = null;
-let pendingVisibilityFrame: number | null = null;
-
-const applyMessageVisibilityOptimization = () => {
-  pendingVisibilityFrame = null;
-
-  const inner = messagesInnerContainer.value;
-  if (!inner) return;
-
-  const messageEls = Array.from(
-    inner.querySelectorAll<HTMLElement>(MESSAGE_VISIBILITY_SELECTOR)
-  );
-
-  for (const el of messageEls) {
-    el.style.setProperty("content-visibility", "auto", "important");
-    el.style.setProperty(
-      "contain-intrinsic-size",
-      MESSAGE_INTRINSIC_SIZE,
-      "important"
-    );
-  }
-
-  const lastMessage = messageEls[messageEls.length - 1];
-  if (lastMessage) {
-    lastMessage.style.setProperty("content-visibility", "visible", "important");
-  }
-};
-
-const scheduleMessageVisibilityOptimization = () => {
-  if (pendingVisibilityFrame !== null) return;
-
-  pendingVisibilityFrame = requestAnimationFrame(
-    applyMessageVisibilityOptimization
-  );
-};
-
-const setupMessageVisibilityObserver = () => {
-  disconnectMessageVisibilityObserver();
-
-  const inner = messagesInnerContainer.value;
-  if (!inner) return;
-
-  messageVisibilityObserver = new MutationObserver(() => {
-    scheduleMessageVisibilityOptimization();
-  });
-  messageVisibilityObserver.observe(inner, {
-    childList: true,
-    subtree: false,
-  });
-  scheduleMessageVisibilityOptimization();
-};
-
-const disconnectMessageVisibilityObserver = () => {
-  if (pendingVisibilityFrame !== null) {
-    cancelAnimationFrame(pendingVisibilityFrame);
-    pendingVisibilityFrame = null;
-  }
-
-  if (messageVisibilityObserver) {
-    messageVisibilityObserver.disconnect();
-    messageVisibilityObserver = null;
-  }
-};
+const { vMessageSize } = useMessageHeights({
+  container: messagesInnerContainer,
+  preferences: () => settings.value.uiPreferences,
+  appearance: () => [
+    settings.value.uiPreferences,
+    settings.value.regexConfig,
+    props.richTextStyleOptions,
+    props.userRichTextStyleOptions,
+    props.llmThinkRules,
+    props.readonly,
+  ],
+  sessionId: () => scopedSessionId.value ?? props.sessionIndex?.id,
+  screenshotMode: () => screenshotMode.value,
+});
 
 // 当前可见的消息索引 (1-based)
 const currentVisibleIndex = ref(0);
@@ -291,14 +238,12 @@ watch(
   messagesInnerContainer,
   () => {
     setupResizeObserver();
-    setupMessageVisibilityObserver();
   },
   { flush: "post" }
 );
 
 onMounted(() => {
   setupResizeObserver();
-  setupMessageVisibilityObserver();
   // 初始加载时如果已有消息，滚动到底部
   if (messagesContainer.value && props.messages.length > 0) {
     shouldStickToBottom.value = true;
@@ -308,7 +253,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disconnectResizeObserver();
-  disconnectMessageVisibilityObserver();
 });
 
 // 滚动到底部
@@ -508,8 +452,6 @@ watch(
 watch(
   () => props.messages.length,
   (newLength, oldLength) => {
-    scheduleMessageVisibilityOptimization();
-
     if (!settings.value.uiPreferences.autoScroll) return;
 
     const isNewMessage = newLength !== oldLength;
@@ -717,6 +659,10 @@ defineExpose({
         <template v-for="(msg, index) in messages" :key="msg.id">
           <div
             class="message-slot"
+            v-message-size="{
+              message: msg,
+              eager: index === messages.length - 1,
+            }"
             :data-role="getMessageLayout(index).role"
             :data-align="getMessageLayout(index).align"
             :data-avatar-placement="avatarPlacement"
@@ -1104,7 +1050,7 @@ defineExpose({
  */
 .messages-container > .message-slot {
   content-visibility: auto !important;
-  contain-intrinsic-size: auto 500px !important;
+  contain-intrinsic-size: none 500px !important;
 }
 
 /* 最后一项消息禁用虚拟渲染，确保底部锚定计算准确，防止滚动回弹 */

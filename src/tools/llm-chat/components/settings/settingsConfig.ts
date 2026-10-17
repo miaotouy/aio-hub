@@ -2327,12 +2327,13 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     items: [
       {
         id: "imageOnlyMessagePlaceholder",
-        label: "纯图片消息补充占位文本",
+        label: "媒体附件消息补充占位文本",
         layout: "inline",
         component: "ElSwitch",
         modelPath: "requestSettings.imageOnlyMessagePlaceholder",
-        hint: "为只有图片、没有正文或转写文本的用户消息补充 [图片]，兼容拒绝空文本消息的 API。仅影响发送内容，不修改聊天记录；默认开启，可按需关闭。",
-        keywords: "request image placeholder 图片 空文本 占位 兼容 400",
+        hint: "仅发送附件且正文和转写文本为空时，按附件类型补充 [图片]、[音频]、[视频] 或 [文档]，支持混合附件。补充内容仅用于发送请求，聊天记录保持原样；默认开启，可按需关闭。",
+        keywords:
+          "request image audio video document media placeholder 附件 图片 音频 视频 文档 空文本 占位 兼容 400",
       },
       {
         id: "timeout",

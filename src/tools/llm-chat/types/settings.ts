@@ -303,7 +303,7 @@ export interface ChatSettings {
   };
   /** 请求设置 */
   requestSettings: {
-    /** 为无有效文本的纯图片用户消息补充占位文本，仅影响请求 */
+    /** 为无有效文本的媒体附件用户消息补充占位文本，仅影响请求；沿用原图片配置键 */
     imageOnlyMessagePlaceholder: boolean;
     /** 请求超时时间（毫秒） */
     timeout: number;

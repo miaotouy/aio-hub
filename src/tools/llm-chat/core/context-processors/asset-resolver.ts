@@ -26,6 +26,13 @@ import type { PipelineAttachment } from "../../types/pipeline-attachment";
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
 
+const mediaPlaceholders = new Map<LlmMessageContent["type"], string>([
+  ["image", "[图片]"],
+  ["audio", "[音频]"],
+  ["video", "[视频]"],
+  ["document", "[文档]"],
+]);
+
 /**
  * 处理图片附件：包括模型安全缩放、用户压缩策略及 Base64 转换
  */
@@ -233,23 +240,27 @@ export const assetResolver: ContextProcessor = {
       msg.content = newContentParts;
     }
 
-    // 在附件解析后判断最终内容，兼容已结构化图片及 PDF 转图片，
-    // 避免为解析失败、已有转写或包含其他媒体的消息补充占位文本。
+    // 在附件解析后按最终媒体类型补充占位文本，兼容已结构化内容及 PDF 转图片。
+    // 沿用原配置键，保留已有用户的开关选择。
     if (context.settings.requestSettings.imageOnlyMessagePlaceholder) {
       for (const msg of context.messages) {
         if (
           msg.role === "user" &&
           Array.isArray(msg.content) &&
-          msg.content.some((part) => part.type === "image") &&
+          msg.content.some((part) => mediaPlaceholders.has(part.type)) &&
           msg.content.every(
             (part) =>
-              part.type === "image" ||
+              mediaPlaceholders.has(part.type) ||
               (part.type === "text" && !part.text.trim())
           )
         ) {
+          const mediaParts = msg.content.filter((part) => part.type !== "text");
+          const placeholders = new Set(
+            mediaParts.map((part) => mediaPlaceholders.get(part.type))
+          );
           msg.content = [
-            { type: "text", text: "[图片]" },
-            ...msg.content.filter((part) => part.type !== "text"),
+            { type: "text", text: [...placeholders].join(" ") },
+            ...mediaParts,
           ];
         }
       }

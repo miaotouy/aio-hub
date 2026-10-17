@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { LlmMessageContent } from "@/llm-apis/common";
 import type { PipelineContext } from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import type { PipelineAttachment } from "../../../types/pipeline-attachment";
@@ -6,6 +7,10 @@ import { DEFAULT_SETTINGS } from "../../../config/defaultSettings";
 import { assetResolver } from "../asset-resolver";
 import { getAttachmentBuffer } from "../../context-utils/attachment-binary";
 
+// 隔离转写设置的 UI 依赖，保留真实请求默认值。
+vi.mock("@/tools/transcription/config", () => ({
+  DEFAULT_TRANSCRIPTION_CONFIG: {},
+}));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({
     debug: vi.fn(),
@@ -39,6 +44,46 @@ const attachment: PipelineAttachment = {
   mimeType: "image/png",
   source: { kind: "inline", base64: "image-data", mimeType: "image/png" },
 };
+const mediaCases = [
+  { type: "image", mimeType: "image/png", label: "[图片]", content: image },
+  {
+    type: "audio",
+    mimeType: "audio/wav",
+    label: "[音频]",
+    content: {
+      type: "audio",
+      source: { type: "base64", media_type: "audio/wav", data: "image-data" },
+    },
+  },
+  {
+    type: "video",
+    mimeType: "video/mp4",
+    label: "[视频]",
+    content: {
+      type: "video",
+      source: { type: "base64", media_type: "video/mp4", data: "image-data" },
+    },
+  },
+  {
+    type: "document",
+    mimeType: "application/msword",
+    label: "[文档]",
+    content: {
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/msword",
+        data: "image-data",
+      },
+    },
+  },
+] satisfies {
+  type: PipelineAttachment["type"];
+  mimeType: string;
+  label: string;
+  content: LlmMessageContent;
+}[];
+
 function context(
   messages: ProcessableMessage[],
   enabled = DEFAULT_SETTINGS.requestSettings.imageOnlyMessagePlaceholder
@@ -82,93 +127,153 @@ function context(
   };
 }
 
-describe("asset resolver image-only request compatibility", () => {
+describe("asset resolver media-only request compatibility", () => {
   beforeEach(() => {
     vi.mocked(getAttachmentBuffer)
       .mockReset()
       .mockResolvedValue(new ArrayBuffer(1));
   });
 
-  it("adds non-empty text by default after resolving image attachments", async () => {
-    const ctx = context([
-      { role: "user", content: "  ", _attachments: [attachment] },
-    ]);
-    await assetResolver.execute(ctx);
-    expect(ctx.messages[0].content).toEqual([
-      { type: "text", text: expect.stringMatching(/\S/) },
-      image,
-    ]);
-  });
+  it.each(mediaCases)(
+    "adds text by default after resolving $type attachments",
+    async ({ type, mimeType, label, content }) => {
+      const ctx = context([
+        {
+          role: "user",
+          content: "  ",
+          _attachments: [{ ...attachment, type, mimeType }],
+        },
+      ]);
+      await assetResolver.execute(ctx);
+      expect(ctx.messages[0].content).toEqual([
+        { type: "text", text: label },
+        content,
+      ]);
+    }
+  );
 
-  it("keeps image-only requests unchanged when disabled", async () => {
-    const ctx = context(
-      [{ role: "user", content: "", _attachments: [attachment] }],
-      false
-    );
-    await assetResolver.execute(ctx);
-    expect(ctx.messages[0].content).toEqual([image]);
-  });
+  it.each(mediaCases)(
+    "keeps $type-only requests unchanged when disabled",
+    async ({ type, mimeType, content }) => {
+      const ctx = context(
+        [
+          {
+            role: "user",
+            content: "",
+            _attachments: [{ ...attachment, type, mimeType }],
+          },
+        ],
+        false
+      );
+      await assetResolver.execute(ctx);
+      expect(ctx.messages[0].content).toEqual([content]);
+    }
+  );
 
-  it("handles structured images without mutating the original content or duplicating text", async () => {
-    const original = [{ type: "text" as const, text: " \n " }, image, image];
+  it("handles structured mixed media without mutating the source or duplicating text and labels", async () => {
+    const media = [...mediaCases.map(({ content }) => content), image];
+    const original = [{ type: "text" as const, text: " \n " }, ...media];
     const ctx = context([{ role: "user", content: original }]);
     await assetResolver.execute(ctx);
     const result = structuredClone(ctx.messages[0].content);
     await assetResolver.execute(ctx);
     expect(ctx.messages[0].content).toEqual(result);
     expect(ctx.messages[0].content).toEqual([
-      { type: "text", text: expect.stringMatching(/\S/) },
-      image,
-      image,
+      { type: "text", text: "[图片] [音频] [视频] [文档]" },
+      ...media,
     ]);
-    expect(original).toEqual([{ type: "text", text: " \n " }, image, image]);
+    expect(original).toEqual([{ type: "text", text: " \n " }, ...media]);
   });
 
-  it("preserves body/transcription text and excludes other roles, empty messages and mixed media", async () => {
+  it("preserves body/transcription text, other roles and empty messages", async () => {
+    const media = mediaCases.map(({ content }) => content);
     const messages: ProcessableMessage[] = [
-      { role: "user", content: [{ type: "text", text: "正文或转写" }, image] },
-      { role: "assistant", content: [image] },
-      { role: "system", content: [image] },
-      { role: "user", content: "" },
       {
         role: "user",
-        content: [
-          image,
-          {
-            type: "audio",
-            source: { type: "base64", media_type: "audio/wav", data: "audio" },
-          },
-        ],
+        content: [{ type: "text", text: "正文或转写" }, ...media],
       },
+      { role: "assistant", content: media },
+      { role: "system", content: media },
+      { role: "user", content: "" },
     ];
     const before = structuredClone(messages);
     await assetResolver.execute(context(messages));
     expect(messages).toEqual(before);
   });
 
-  it("does not fabricate text when all images fail to resolve", async () => {
+  it("does not fabricate text when all attachments fail to resolve", async () => {
     vi.mocked(getAttachmentBuffer).mockRejectedValue(new Error("unavailable"));
     const ctx = context([
-      { role: "user", content: "", _attachments: [attachment] },
+      {
+        role: "user",
+        content: "",
+        _attachments: mediaCases.map(({ type, mimeType }) => ({
+          ...attachment,
+          type,
+          mimeType,
+        })),
+      },
     ]);
     await assetResolver.execute(ctx);
     expect(ctx.messages[0].content).toEqual([]);
   });
 
-  it("also protects a PDF resolved as images for a vision model", async () => {
+  it("uses only successfully resolved media for placeholder labels", async () => {
+    vi.mocked(getAttachmentBuffer).mockRejectedValueOnce(
+      new Error("unavailable")
+    );
+    const audio = mediaCases[1];
     const ctx = context([
       {
         role: "user",
         content: "",
         _attachments: [
-          { ...attachment, type: "document", mimeType: "application/pdf" },
+          attachment,
+          { ...attachment, type: audio.type, mimeType: audio.mimeType },
         ],
       },
     ]);
     await assetResolver.execute(ctx);
     expect(ctx.messages[0].content).toEqual([
-      { type: "text", text: expect.stringMatching(/\S/) },
-      { type: "image", imageBase64: "pdf-page" },
+      { type: "text", text: "[音频]" },
+      audio.content,
     ]);
   });
+
+  it.each([false, true])(
+    "uses the final PDF format when native document support is %s",
+    async (document) => {
+      const ctx = context([
+        {
+          role: "user",
+          content: "",
+          _attachments: [
+            { ...attachment, type: "document", mimeType: "application/pdf" },
+          ],
+        },
+      ]);
+      await assetResolver.execute({
+        ...ctx,
+        capabilities: { vision: true, document },
+      });
+      expect(ctx.messages[0].content).toEqual(
+        document
+          ? [
+              { type: "text", text: "[文档]" },
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: "image-data",
+                },
+              },
+            ]
+          : [
+              { type: "text", text: "[图片]" },
+              { type: "image", imageBase64: "pdf-page" },
+            ]
+      );
+    }
+  );
 });

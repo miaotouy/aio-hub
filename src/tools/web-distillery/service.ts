@@ -8,6 +8,15 @@ import type {
 } from "./types";
 import { getFetchEngine, type FetchEngineId } from "./core/engines/catalog";
 import { fetchHttp, fetchBrowser } from "./core/engines/local";
+import {
+  fetchDeepSeek,
+  searchDeepSeek,
+  createDeepSeekPage,
+} from "./core/engines/deepseek";
+import type {
+  DeepSeekSearchOptions,
+  WebSearchItem,
+} from "@/llm-apis/adapters/deepseek/tools";
 import { fetchJina } from "./core/engines/jina";
 import { BrowserUpgradeRequired, DistilleryError } from "./core/engines/errors";
 
@@ -27,7 +36,10 @@ type EngineExecutor = (
 ) => Promise<FetchResult>;
 let browserQueue: Promise<void> = Promise.resolve();
 function enqueueBrowser(options: FetchPageOptions, context?: ToolContext) {
-  const task = browserQueue.then(() => fetchBrowser(options, context));
+  const task = browserQueue.then(() => {
+    options.signal?.throwIfAborted();
+    return fetchBrowser(options, context);
+  });
   browserQueue = task.then(
     () => undefined,
     () => undefined
@@ -35,6 +47,7 @@ function enqueueBrowser(options: FetchPageOptions, context?: ToolContext) {
   return task;
 }
 const executors = {
+  deepseek: fetchDeepSeek,
   fast: (options, _config, context) => fetchHttp(options, context),
   smart: (options, _config, context) => enqueueBrowser(options, context),
   jina: (options, config, context) =>
@@ -46,6 +59,7 @@ export async function fetchPage(
   request: FetchPageOptions,
   context?: ToolContext
 ): Promise<FetchResult> {
+  request.signal?.throwIfAborted();
   const config = await ensureDistilleryConfig();
   const engineId = request.engine ?? config.defaultMode;
   const engine = getFetchEngine(engineId);
@@ -67,7 +81,11 @@ export async function fetchPage(
       "请使用有效的 HTTP 或 HTTPS 网页地址"
     );
   }
-  const format = request.format ?? config.defaultFormat;
+  const format =
+    request.format ??
+    ((engine.formats as readonly string[]).includes(config.defaultFormat)
+      ? config.defaultFormat
+      : engine.formats[0]);
   if (!(engine.formats as readonly string[]).includes(format)) {
     throw new DistilleryError(
       "UNSUPPORTED_FORMAT",
@@ -95,4 +113,30 @@ export async function fetchPage(
     );
     return executors.smart(options, config, context);
   }
+}
+
+/** 搜索返回来源列表，保持与单篇正文提取的契约分离。 */
+export async function searchWeb(
+  options: DeepSeekSearchOptions,
+  context?: ToolContext
+) {
+  return searchDeepSeek(options, await ensureDistilleryConfig(), context);
+}
+
+/** 已附带正文的来源复用内容，其余来源显式执行一次抓取。 */
+export async function fetchSearchResult(
+  item: WebSearchItem,
+  signal?: AbortSignal
+): Promise<FetchResult> {
+  signal?.throwIfAborted();
+  if (item.content.trim()) {
+    const config = await ensureDistilleryConfig();
+    return createDeepSeekPage(item, config.defaultCleanMode);
+  }
+  return fetchPage({
+    url: item.url,
+    engine: "deepseek",
+    format: "markdown",
+    signal,
+  });
 }

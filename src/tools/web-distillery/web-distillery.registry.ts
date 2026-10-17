@@ -23,7 +23,15 @@ import { markRaw } from "vue";
 
 import type { QuickFetchOptions } from "./types";
 import { quickFetch, smartExtract, jinaFetch } from "./actions";
-import { formatFetchResult } from "./formatters";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  fetchPage as fetchPageService,
+  searchWeb as searchWebService,
+} from "./service";
+import type { FetchEngineId } from "./core/engines/catalog";
+import { formatFetchResult, formatSearchResults } from "./formatters";
+
+const errorHandler = createModuleErrorHandler("web-distillery/registry");
 
 export default class WebDistilleryRegistry implements ToolRegistry {
   public readonly id = "web-distillery";
@@ -88,9 +96,138 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     return formatFetchResult(result);
   }
 
+  /** 统一入口保留具体的连接、限流和参数错误。 */
+  public async fetchPage(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
+    try {
+      const page = await fetchPageService(
+        {
+          url: String(args.url || ""),
+          engine: args.engine as FetchEngineId | undefined,
+          format: args.format as QuickFetchOptions["format"],
+          cleanMode: parseAgentBoolean(args.cleanMode),
+          allowBrowserFallback: parseAgentBoolean(args.allowBrowserFallback),
+        },
+        context
+      );
+      return formatFetchResult(page);
+    } catch (error) {
+      errorHandler.handle(error, { showToUser: false });
+      return `错误: ${error instanceof Error ? error.message : "网页提取失败"}`;
+    }
+  }
+
+  public async searchWeb(
+    args: Record<string, unknown>,
+    context?: ToolContext
+  ): Promise<string> {
+    try {
+      const response = await searchWebService(
+        {
+          query: String(args.query || ""),
+          count: args.count === undefined ? undefined : Number(args.count),
+          needContent: parseAgentBoolean(args.needContent),
+          originalQuestion:
+            args.originalQuestion == null
+              ? undefined
+              : String(args.originalQuestion),
+          localization:
+            args.localization == null ? undefined : String(args.localization),
+        },
+        context
+      );
+      return formatSearchResults(response.results);
+    } catch (error) {
+      errorHandler.handle(error, { showToUser: false });
+      return `错误: ${error instanceof Error ? error.message : "网页搜索失败"}`;
+    }
+  }
+
   public getMetadata(): ServiceMetadata {
     return {
       methods: [
+        {
+          name: "fetchPage",
+          displayName: "提取网页正文",
+          agentCallable: true,
+          description:
+            "统一网页提取入口。可选本地 HTTP、浏览器、Jina 或 DeepSeek；未指定时继承偏好设置。DeepSeek 仅输出 Markdown，云端引擎按服务商规则计费。",
+          parameters: [
+            {
+              name: "url",
+              type: "string",
+              description: "完整的 HTTP/HTTPS 网页地址",
+              required: true,
+            },
+            {
+              name: "engine",
+              type: "'fast' | 'smart' | 'jina' | 'deepseek'",
+              description: "提取引擎，默认使用偏好设置",
+              required: false,
+            },
+            {
+              name: "format",
+              type: "'markdown' | 'text' | 'html' | 'json'",
+              description: "输出格式，默认使用引擎兼容的偏好格式",
+              required: false,
+            },
+            {
+              name: "cleanMode",
+              type: "boolean",
+              description: "去除 Markdown 链接，未提供时继承偏好设置",
+              required: false,
+            },
+            {
+              name: "allowBrowserFallback",
+              type: "boolean",
+              description: "快速模式遇到动态页面时允许本地浏览器回退，默认开启",
+              required: false,
+            },
+          ],
+          returnType: "string",
+        },
+        {
+          name: "searchWeb",
+          displayName: "搜索网页",
+          agentCallable: true,
+          description:
+            "使用 DeepSeek 搜索网页，返回带来源的摘要。支持 site:、-site:、lang:、after:、before: 和精确短语。搜索按调用次数计费。",
+          parameters: [
+            {
+              name: "query",
+              type: "string",
+              description: "搜索词，1～128 个 Unicode 字符",
+              required: true,
+            },
+            {
+              name: "count",
+              type: "number",
+              description: "结果条数，1～50，默认 10",
+              required: false,
+            },
+            {
+              name: "needContent",
+              type: "boolean",
+              description: "附带网页正文，默认关闭",
+              required: false,
+            },
+            {
+              name: "originalQuestion",
+              type: "string",
+              description: "触发搜索的原始问题，最多 128 个字符",
+              required: false,
+            },
+            {
+              name: "localization",
+              type: "string",
+              description: "用于结果本地化的 IP 地址，可选",
+              required: false,
+            },
+          ],
+          returnType: "string",
+        },
         {
           name: "quickFetch",
           displayName: "快速获取网页内容",
@@ -107,9 +244,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
             {
               name: "format",
               type: "'markdown' | 'text' | 'html' | 'json'",
-              description: "输出格式，默认 markdown",
+              description: "输出格式，未提供时继承偏好设置",
               required: false,
-              defaultValue: "markdown",
             },
             {
               name: "cleanMode",
@@ -117,7 +253,6 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               description:
                 "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
               required: false,
-              defaultValue: false,
             },
           ],
           returnType: "string",
@@ -147,7 +282,6 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               description:
                 "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
               required: false,
-              defaultValue: false,
             },
           ],
           returnType: "string",
@@ -168,9 +302,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
             {
               name: "format",
               type: "'markdown' | 'text' | 'html' | 'json'",
-              description: "输出格式，默认 markdown",
+              description: "输出格式，未提供时继承偏好设置",
               required: false,
-              defaultValue: "markdown",
             },
             {
               name: "cleanMode",
@@ -178,7 +311,6 @@ export default class WebDistilleryRegistry implements ToolRegistry {
               description:
                 "纯净模式：过滤掉所有链接，只保留纯文本内容。适用于链接过多影响阅读的场景",
               required: false,
-              defaultValue: false,
             },
           ],
           returnType: "string",

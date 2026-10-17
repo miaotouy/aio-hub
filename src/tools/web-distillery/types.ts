@@ -47,6 +47,9 @@ export interface WebDistilleryConfig {
     removeSelector?: string; // 默认剔除选择器 (X-Remove-Selector)
   };
 
+  /** 复用 LLM 服务渠道，凭据由渠道密钥仓库管理。 */
+  deepseek: { profileId: string };
+
   // 抓取与网络偏好
   network: {
     timeout: number; // 抓取超时时间 (ms，默认 15000)
@@ -75,6 +78,7 @@ export interface JinaFetchOptions {
 }
 
 export interface QuickFetchOptions {
+  signal?: AbortSignal;
   url: string;
   format?: FetchFormat;
   headers?: Record<string, string>;

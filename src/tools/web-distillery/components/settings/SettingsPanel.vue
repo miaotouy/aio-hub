@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -29,6 +29,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-vue-next";
+import { useRouter } from "vue-router";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useWebDistilleryStore } from "../../stores/store";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -37,6 +39,22 @@ import { fetchEngineCatalog } from "../../core/engines/catalog";
 import type { RawFetchPayload } from "../../types";
 
 const store = useWebDistilleryStore();
+const router = useRouter();
+const { profiles } = useLlmProfiles();
+const deepSeekProfiles = computed(() =>
+  profiles.value.filter(
+    (profile) => profile.type === "deepseek" && profile.enabled
+  )
+);
+const selectedDeepSeekProfile = computed({
+  get: () =>
+    deepSeekProfiles.value.some(
+      (profile) => profile.id === store.config.deepseek.profileId
+    )
+      ? store.config.deepseek.profileId
+      : "",
+  set: (profileId: string) => store.updateConfig({ deepseek: { profileId } }),
+});
 const logger = createModuleLogger("web-distillery/settings");
 const errorHandler = createModuleErrorHandler("web-distillery/settings");
 
@@ -145,9 +163,7 @@ const handleTestJinaConnection = async () => {
     <div class="settings-header">
       <div class="header-info">
         <h3 class="header-title">蒸馏偏好设置</h3>
-        <p class="header-desc">
-          配置全局网页提取默认行为、Jina Reader 云端引擎凭据与底层网络沙箱参数
-        </p>
+        <p class="header-desc">配置提取引擎、搜索渠道与网络偏好</p>
       </div>
       <el-button :icon="RotateCcw" @click="handleReset" plain type="danger">
         一键重置
@@ -155,6 +171,53 @@ const handleTestJinaConnection = async () => {
     </div>
 
     <div class="settings-sections">
+      <section class="settings-card">
+        <div class="card-header">
+          <div class="card-title">
+            <el-icon class="icon-accent"><Network /></el-icon
+            ><span>DeepSeek 搜索与抓取</span>
+          </div>
+          <el-button
+            text
+            :icon="ExternalLink"
+            @click="
+              router.push({
+                path: '/settings',
+                query: { section: 'llm-service' },
+              })
+            "
+            >管理 LLM 渠道</el-button
+          >
+        </div>
+        <p class="card-desc">
+          复用 DeepSeek 渠道的 API
+          地址、密钥和网络设置。搜索与抓取按调用次数计费。
+        </p>
+        <div class="form-row">
+          <div class="field-label-group">
+            <span class="field-title">连接渠道</span
+            ><span class="field-hint"
+              >在 LLM 服务中添加并启用 DeepSeek 渠道后选择</span
+            >
+          </div>
+          <div class="field-control-group">
+            <el-select
+              v-model="selectedDeepSeekProfile"
+              class="deepseek-profile-select"
+              aria-label="DeepSeek 渠道"
+              placeholder="选择 DeepSeek 渠道"
+              clearable
+            >
+              <el-option
+                v-for="profile in deepSeekProfiles"
+                :key="profile.id"
+                :label="profile.name"
+                :value="profile.id"
+              />
+            </el-select>
+          </div>
+        </div>
+      </section>
       <!-- 1. Jina Reader 云端引擎卡片 -->
       <section class="settings-card">
         <div class="card-header">
@@ -512,6 +575,11 @@ const handleTestJinaConnection = async () => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.deepseek-profile-select {
+  width: 280px;
+  max-width: 100%;
 }
 
 .key-input-wrapper {

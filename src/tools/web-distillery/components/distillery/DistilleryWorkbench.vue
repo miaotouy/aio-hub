@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, onMounted } from "vue";
+import { ref, computed, onUnmounted } from "vue";
 import { useWebDistilleryStore } from "../../stores/store";
 import { processLocalContent } from "../../actions";
 import { iframeBridge } from "../../core/iframe-bridge";
@@ -43,7 +43,10 @@ const { sendToChat } = useSendToChat();
 const store = useWebDistilleryStore();
 
 // 状态管理
-const currentUrl = ref(store.url);
+const currentUrl = computed({
+  get: () => store.url,
+  set: (url: string) => store.setUrl(url),
+});
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
 
@@ -61,10 +64,6 @@ const qualityStatus = computed(() => {
   if (q >= 0.75) return "success";
   if (q >= 0.45) return "warning";
   return "exception";
-});
-
-onMounted(() => {
-  currentUrl.value = store.url;
 });
 
 onUnmounted(async () => {
@@ -106,14 +105,6 @@ async function handleFetch(mode: FetchEngineId) {
     errorHandler.error(err, "操作失败", { url, mode });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
-
-    // 发生错误时强制清理资源
-    try {
-      if (mode === "smart" || mode === "fast")
-        await iframeBridge.forceCleanup();
-    } catch (cleanupErr) {
-      logger.debug("Force cleanup after error failed", cleanupErr);
-    }
   } finally {
     isLoading.value = false;
     store.setLoading(false);

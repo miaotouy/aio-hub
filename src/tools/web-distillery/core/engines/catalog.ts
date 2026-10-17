@@ -31,6 +31,16 @@ export const fetchEngineCatalog = [
     identity: false,
     formats: ["markdown", "text", "html", "json"],
   },
+  {
+    id: "deepseek",
+    name: "DeepSeek Fetch",
+    description: "DeepSeek 云端网页正文提取",
+    cloud: true,
+    browser: false,
+    selectors: false,
+    identity: false,
+    formats: ["markdown"],
+  },
 ] as const satisfies readonly {
   id: string;
   name: string;

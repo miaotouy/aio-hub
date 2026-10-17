@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 /**
- * Web Distillery 核心操作 Facade
+ * 本地网页获取与 HTML 提取适配器
  */
 
 import { createModuleLogger } from "@/utils/logger";
@@ -74,9 +74,8 @@ async function resolveProfileForUrl(
 }
 
 /**
- /**
-  * 检测 quickFetch 结果是否需要自动升级到 smartExtract
-  */
+ * 检测 quickFetch 结果是否需要自动升级到 smartExtract
+ */
 function detectShouldUpgrade(payload: RawFetchPayload): string | null {
   // 1. 反爬 challenge 页面（后端已检测）
   if (payload.isChallengePage) return "反爬验证页面";
@@ -210,22 +209,6 @@ export async function fetchBrowser(
     matchedRecipe?.cookieProfile
   );
 
-  if (activeProfile) {
-    const cookieStr = activeProfile.cookies
-      .map((c) => `${c.name}=${c.value}`)
-      .join("; ");
-    await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
-    logger.info("Using cookie profile for smartExtract", {
-      profileName: activeProfile.name,
-      domain: activeProfile.domain,
-    });
-  } else {
-    await invoke("distillery_set_proxy_cookies", { cookies: null });
-  }
-
-  // 初始化 bridge（启动代理服务器）
-  await iframeBridge.init();
-
   // 创建临时隐藏容器
   const tempContainer = document.createElement("div");
   tempContainer.style.cssText =
@@ -233,6 +216,22 @@ export async function fetchBrowser(
   document.body.appendChild(tempContainer);
 
   try {
+    if (activeProfile) {
+      const cookieStr = activeProfile.cookies
+        .map((c) => `${c.name}=${c.value}`)
+        .join("; ");
+      await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
+      logger.info("Using cookie profile for smartExtract", {
+        profileName: activeProfile.name,
+        domain: activeProfile.domain,
+      });
+    } else {
+      await invoke("distillery_set_proxy_cookies", { cookies: null });
+    }
+
+    // 初始化 bridge（启动代理服务器）
+    await iframeBridge.init();
+
     // 创建隐藏 Iframe
     context?.reportStatus("正在加载并渲染目标页面...");
     await iframeBridge.create({

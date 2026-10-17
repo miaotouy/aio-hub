@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDefaultWebDistilleryConfig } from "../config";
 import type { FetchResult } from "../types";
-import { fetchPage } from "../service";
+import { fetchPage, fetchSearchResult } from "../service";
 import {
   BrowserUpgradeRequired,
   DistilleryError,
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   http: vi.fn(),
   browser: vi.fn(),
   jina: vi.fn(),
+  deepseek: vi.fn(),
 }));
 vi.mock("../config", async (original) => ({
   ...(await original<object>()),
@@ -20,6 +21,11 @@ vi.mock("../config", async (original) => ({
 vi.mock("../core/engines/local", () => ({
   fetchHttp: mocks.http,
   fetchBrowser: mocks.browser,
+}));
+vi.mock("../core/engines/deepseek", async (original) => ({
+  ...(await original<object>()),
+  fetchDeepSeek: mocks.deepseek,
+  searchDeepSeek: vi.fn(),
 }));
 vi.mock("../core/engines/jina", () => ({ fetchJina: mocks.jina }));
 const result: FetchResult = {
@@ -47,6 +53,49 @@ describe("fetchPage public behavior", () => {
         timeout: options.timeout,
       }),
     }));
+  });
+
+  it("搜索附带正文时复用内容与清洗偏好，摘要来源才调用抓取", async () => {
+    const config = createDefaultWebDistilleryConfig();
+    config.defaultCleanMode = true;
+    mocks.config.mockResolvedValue(config);
+    const source = {
+      title: "Source",
+      url: result.url,
+      content: "# Source\n\n[link](https://example.com)",
+      summary: "Summary",
+      snippet: "",
+      siteName: null,
+      siteIcon: null,
+      date: null,
+      rerankScore: null,
+      authority: -1,
+    };
+    const cached = await fetchSearchResult(source);
+    expect(cached.content).toBe("# Source\n\nlink");
+    expect(cached.mode).toBe("deepseek");
+    expect(mocks.deepseek).not.toHaveBeenCalled();
+    mocks.deepseek.mockResolvedValue({ ...result, mode: "deepseek" });
+    await fetchSearchResult({ ...source, content: "" });
+    expect(mocks.deepseek).toHaveBeenCalledTimes(1);
+  });
+
+  it("引擎受限格式使用兼容默认值，显式不支持的格式给出错误", async () => {
+    const config = createDefaultWebDistilleryConfig();
+    config.defaultFormat = "html";
+    mocks.config.mockResolvedValue(config);
+    mocks.deepseek.mockImplementation(async (options) => ({
+      ...result,
+      format: options.format,
+      mode: "deepseek",
+    }));
+    expect(
+      (await fetchPage({ url: result.url, engine: "deepseek" })).format
+    ).toBe("markdown");
+    await expect(
+      fetchPage({ url: result.url, engine: "deepseek", format: "html" })
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_FORMAT" });
+    expect(mocks.deepseek).toHaveBeenCalledTimes(1);
   });
 
   it("后台调用等待配置就绪，并继承已保存的引擎与默认参数", async () => {

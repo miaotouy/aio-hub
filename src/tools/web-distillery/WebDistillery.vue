@@ -23,6 +23,7 @@ import {
   BookOpen,
   Crosshair,
   Settings,
+  Search,
 } from "lucide-vue-next";
 import { useWebDistilleryStore } from "./stores/store";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -35,6 +36,7 @@ import InteractiveWorkbench from "./components/interactive/InteractiveWorkbench.
 import ApiSniffer from "./components/sniffer/ApiSniffer.vue";
 import CookieLab from "./components/cookie/CookieLab.vue";
 import RecipeManager from "./components/recipe/RecipeManager.vue";
+import SearchWorkbench from "./components/search/SearchWorkbench.vue";
 import SettingsPanel from "./components/settings/SettingsPanel.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery");
@@ -82,6 +84,15 @@ onErrorCaptured((err, instance, info) => {
           </div>
         </template>
         <DistilleryWorkbench />
+      </el-tab-pane>
+
+      <el-tab-pane name="search" lazy>
+        <template #label
+          ><div class="tab-label">
+            <el-icon><Search /></el-icon><span>网页搜索</span>
+          </div></template
+        >
+        <SearchWorkbench />
       </el-tab-pane>
 
       <!-- 交互配方 (Interactive Editor) -->

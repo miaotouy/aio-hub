@@ -77,3 +77,20 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
 
   return lines.join("\n").trim();
 }
+
+/** 搜索来源与给模型阅读的摘要保持对应。 */
+export function formatSearchResults(
+  results: import("@/llm-apis/adapters/deepseek/tools").WebSearchItem[]
+): string {
+  if (!results.length) return "搜索完成，未找到匹配网页。";
+  return results
+    .map((item, index) =>
+      [
+        `## ${index + 1}. ${item.title || item.url}`,
+        `来源：${item.url}`,
+        ...(item.date ? [`发布日期：${item.date}`] : []),
+        item.content || item.summary || item.snippet,
+      ].join("\n\n")
+    )
+    .join("\n\n---\n\n");
+}

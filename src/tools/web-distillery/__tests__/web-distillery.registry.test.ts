@@ -20,11 +20,15 @@ const {
   mockQuickFetch,
   mockSmartExtract,
   mockJinaFetch,
+  mockSearchWeb,
+  mockFetchPage,
   mockFormatFetchResult,
 } = vi.hoisted(() => ({
   mockQuickFetch: vi.fn(),
   mockSmartExtract: vi.fn(),
   mockJinaFetch: vi.fn(),
+  mockSearchWeb: vi.fn(),
+  mockFetchPage: vi.fn(),
   mockFormatFetchResult: vi.fn(
     (result: FetchResult | ExtractResult) => `formatted:${result.title}`
   ),
@@ -36,7 +40,12 @@ vi.mock("../actions", () => ({
   jinaFetch: mockJinaFetch,
 }));
 
-vi.mock("../formatters", () => ({
+vi.mock("../service", () => ({
+  fetchPage: mockFetchPage,
+  searchWeb: mockSearchWeb,
+}));
+vi.mock("../formatters", async (original) => ({
+  ...(await original<object>()),
   formatFetchResult: mockFormatFetchResult,
 }));
 
@@ -56,6 +65,8 @@ describe("web-distillery registry", () => {
     mockQuickFetch.mockReset();
     mockSmartExtract.mockReset();
     mockJinaFetch.mockReset();
+    mockSearchWeb.mockReset();
+    mockFetchPage.mockReset();
     mockFormatFetchResult.mockClear();
   });
 
@@ -163,11 +174,39 @@ describe("web-distillery registry", () => {
     expect(mockFormatFetchResult).not.toHaveBeenCalled();
   });
 
-  it("getMetadata 应声明三个 Agent 可调用方法", () => {
+  it("搜索适配 Agent 参数并为模型返回可追溯的来源与摘要", async () => {
+    mockSearchWeb.mockResolvedValue({
+      results: [
+        {
+          title: "Article",
+          url: "https://example.com/article",
+          summary: "Source summary",
+          snippet: "Short",
+          content: "",
+          date: null,
+        },
+      ],
+    });
+    const output = await new WebDistilleryRegistry().searchWeb({
+      query: "news",
+      count: "5",
+      needContent: "false",
+    });
+    expect(mockSearchWeb).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "news", count: 5, needContent: false }),
+      undefined
+    );
+    expect(output).toContain("https://example.com/article");
+    expect(output).toContain("Source summary");
+  });
+
+  it("getMetadata 保留兼容方法并暴露统一提取与搜索契约", () => {
     const registry = new WebDistilleryRegistry();
     const metadata = registry.getMetadata();
 
     expect(metadata.methods.map((method) => method.name)).toEqual([
+      "fetchPage",
+      "searchWeb",
       "quickFetch",
       "smartExtract",
       "jinaFetch",

@@ -887,6 +887,8 @@ export const fetchWithTimeout = async (
     networkStrategy?: "auto" | "proxy" | "native";
     isStreaming?: boolean;
     proxyBodyKind?: "raw" | "file-ref" | "multipart-manifest";
+    /** 工具 API 复用传输时，独立于模型请求诊断。 */
+    requestKind?: "llm" | "tool";
     /**
      * LLM Inspector 内部监控上下文。由上游 `useLlmRequest` / adapter 透传。
      * 当 `inspectorHookRegistry.shouldCaptureInternal()` 为 true 时，
@@ -918,7 +920,9 @@ export const fetchWithTimeout = async (
   // ============ LLM Inspector 内部监控埋点（B2）============
   // 开关 OFF 时整个 inspector 流程零开销（不生成 requestId、不读取 body、不广播）。
   // 在统一入口生成 requestId，确保流式 chunk 能正确关联。
-  const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
+  const captureInspector =
+    options.requestKind !== "tool" &&
+    inspectorHookRegistry.shouldCaptureInternal();
   let inspectorRequestId: string | null = null;
   let inspectorStartTimestamp = 0;
   // 优先级：options.inspectorContext > contextStore[X-Request-ID]

@@ -15,6 +15,7 @@ export const createDefaultWebDistilleryConfig = (): WebDistilleryConfig => ({
     waitForSelector: "",
     removeSelector: "",
   },
+  deepseek: { profileId: "" },
   network: {
     timeout: 15000,
     maxAutoScrolls: 3,
@@ -37,6 +38,10 @@ export const distilleryConfigManager = createConfigManager<WebDistilleryConfig>(
       jina: {
         ...defaultConfig.jina,
         ...(loadedConfig?.jina || {}),
+      },
+      deepseek: {
+        ...defaultConfig.deepseek,
+        ...(loadedConfig?.deepseek || {}),
       },
       network: {
         ...defaultConfig.network,

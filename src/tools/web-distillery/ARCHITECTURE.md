@@ -6,16 +6,17 @@
 
 网页蒸馏室是一个多模式网页内容提取工具，设计目标是**高纯度地从任意网页中提炼出有价值的内容**。它同时服务于两个场景：
 
-- **Agent 自动化调用**：通过 `ToolRegistry` 暴露 `quickFetch` / `smartExtract` / `jinaFetch` 三个可被 LLM Agent 直接调用的能力。
+- **Agent 自动化调用**：通过 `ToolRegistry` 保留 `quickFetch` / `smartExtract` / `jinaFetch`，并提供统一 `fetchPage` 与 `searchWeb` 入口供 LLM Agent 调用。
 - **人工交互操作**：提供可视化的交互式配方编辑器，让用户通过点选元素来定制提取规则，并保存为站点配方复用。
 
-工具采用**四层蒸馏模式**，按能耗和精度递增：
+工具提供以下提取方式，按页面特点和服务偏好选择：
 
 | 模式          | 触发方式         | 特点                                       |
 | ------------- | ---------------- | ------------------------------------------ |
 | `fast`        | `quickFetch()`   | 纯 HTTP 请求，无浏览器，毫秒级             |
 | `smart`       | `smartExtract()` | 隐藏 Iframe + JS 渲染，支持 SPA            |
 | `jina`        | `jinaFetch()`    | Jina Reader 云端提取引擎，免本地渲染高保真输出，支持全局偏好设置 |
+| `deepseek`    | `fetchPage({ engine: "deepseek" })` | DeepSeek 云端 Markdown 正文提取，复用 LLM 渠道 |
 | `interactive` | 交互配方 Tab     | 可视化浏览器视口，人工拾取规则             |
 
 ### 全局设置体系
@@ -25,7 +26,7 @@
 - **Jina 专有**：`jina.apiKey`（Bearer Token）、`jina.engine`（default / readerlm-v2）、`jina.withGeneratedAlt`、`jina.targetSelector` / `waitForSelector` / `removeSelector`（对应 X-Target-Selector 等请求头）
 - **网络偏好**：`network.timeout`（抓取超时）、`network.maxAutoScrolls` / `network.scrollDelay`（智能模式滚动策略）
 - **默认行为**：`defaultMode`、`defaultFormat`、`defaultCleanMode`（纯净模式）
-- **存取路径**：Store 提供 `updateConfig()`（`saveDebounced` 500ms 防抖落盘）与 `resetConfig()`（一键重置），可视化入口为第 6 个 Tab「偏好设置」（[`SettingsPanel.vue`](src/tools/web-distillery/components/settings/SettingsPanel.vue)）
+- **存取路径**：Store 提供 `updateConfig()`（`saveDebounced` 500ms 防抖落盘）与 `resetConfig()`（一键重置），可视化入口为「偏好设置」Tab（[`SettingsPanel.vue`](src/tools/web-distillery/components/settings/SettingsPanel.vue)）
 
 ---
 
@@ -40,6 +41,17 @@
 - 未提供的参数继承全局偏好，显式 `false` 保持原义。快速 HTTP 在页面需要渲染时只回退到本地浏览器；`allowBrowserFallback: false` 可关闭该行为。云端服务由用户显式选择。
 - `FetchResult.quality` 为可空数值，云端缺少评分依据时使用 `null`，UI 隐去评分。交互式配方编辑继续作为独立工作区。
 
+### DeepSeek Search / Fetch
+
+- API 适配位于 `src/llm-apis/adapters/deepseek/tools.ts`：负责端点、鉴权、Unicode 参数校验、响应映射和可行动错误。独立于 Chat Completions 的消息及流式工具调用协议。
+- `deepseek.profileId` 引用已启用的 DeepSeek LLM 渠道，复用 API 基础地址、自定义请求头、密钥仓库与网络偏好。原配置通过默认合并自动补齐该字段。
+- 工具请求等待 Key 状态加载，遵守启用、轮询及熔断状态。401 可按现有策略标记鉴权失败；账号级 429 与余额不足仅记录状态，保持 Key 可用性。每次用户操作对应一次请求，重试由调用方决定。
+- 共享 `fetchWithTimeout` 使用 `requestKind: "tool"`，保持工具请求与模型诊断独立；`proxyBodyKind: "raw"` 保持查询及目标 URL 的 JSON 语义。
+- DeepSeek Fetch 仅提供 Markdown。未指定输出格式时，优先采用引擎兼容的全局偏好，否则使用引擎首选格式；显式不支持的格式返回参数错误。
+- `searchWeb()` 返回独立的结构化来源列表，保留标题、URL、短/长摘要、可选正文、站点和日期。网页搜索 Tab 支持选择来源、阅读摘要、打开原网页及提取正文。
+- 搜索已附带正文时，工作区直接复用该正文；摘要结果通过 DeepSeek Fetch 获取正文后进入蒸馏工作台。云端抓取结果使用 `quality: null`，HTML 快照仅由本地引擎提供。
+- Search / Fetch 的官方限速均为账号级 5 QPS，分别计算。429 返回明确的稍后重试提示。接口按有效成功请求计费；工具与 UI 提示按次计费。
+
 ### 扩展方式
 
 新抓取引擎需增加能力目录项、独立执行适配器与服务映射，复用统一结果、默认参数和错误模型。搜索能力使用查询输入和多来源结果类型，与单页抓取共享供应商连接配置；结果选中后可以交给抓取入口。
@@ -48,7 +60,7 @@
 
 ```
 src/tools/web-distillery/
-├── WebDistillery.vue           # 根组件，6 Tab 容器
+├── WebDistillery.vue           # 根组件，7 Tab 容器
 ├── web-distillery.registry.ts   # 工具注册 + Agent Facade
 ├── actions.ts                  # 兼容操作 Facade
 ├── service.ts                  # 统一引擎执行、参数与本地回退
@@ -527,15 +539,17 @@ InteractiveWorkbench
 
 ## 12. Agent 集成
 
-[`WebDistilleryRegistry`](src/tools/web-distillery/web-distillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露三个 `agentCallable: true` 的方法：
+[`WebDistilleryRegistry`](src/tools/web-distillery/web-distillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露五个 `agentCallable: true` 的方法：
 
 | 方法           | 适用场景                                     | 关键参数                      |
 | -------------- | -------------------------------------------- | ----------------------------- |
+| `fetchPage`    | 统一选择本地或云端引擎                      | `url`, `engine`, `format`, `cleanMode`, `allowBrowserFallback` |
+| `searchWeb`    | 搜索网页与带来源摘要                        | `query`, `count`, `needContent`, `originalQuestion`, `localization` |
 | `quickFetch`   | 静态页、博客、API 文档                       | `url`, `format`, `cleanMode`  |
 | `smartExtract` | SPA、动态内容、登录后页面                    | `url`, `waitFor`, `cleanMode` |
 | `jinaFetch`    | 公开文档、技术文章、学术资料（免浏览器开销） | `url`, `format`, `cleanMode`  |
 
-三个方法都将结果通过 [`formatFetchResult()`](src/tools/web-distillery/formatters.ts) 格式化为 Markdown 字符串返回给 Agent。
+抓取方法将结果通过 [`formatFetchResult()`](src/tools/web-distillery/formatters.ts) 格式化为 Markdown 字符串返回给 Agent。
 
 `jinaFetch` 的请求通道：在 headers 中构建 Jina Reader 控制头（`X-Respond-With` / `X-Engine` / `X-Wait-For-Selector` 等，API Key 存在时附加 `Authorization: Bearer`），随后复用 Rust 端 `distillery_quick_fetch` 通用 HTTP 客户端向 `https://r.jina.ai/{url}` 发起请求，避开前端 CORS 与 CSP 约束。未配置 Key 时走官方 20 RPM 免费限额。
 

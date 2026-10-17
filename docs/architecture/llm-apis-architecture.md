@@ -25,6 +25,18 @@
 
 ---
 
+## DeepSeek 网页工具 API
+
+`src/llm-apis/adapters/deepseek/tools.ts` 提供 `callDeepSeekSearchApi()` 与 `callDeepSeekFetchApi()`，复用 LLM 渠道连接及桌面传输。网页工具以查询或 URL 为输入，独立于模型路由及 Chat Completions 消息协议，现有聊天解析保持原有行为。
+
+- 连接读取渠道基础地址、API Key、自定义请求头和网络策略；支持根地址、`/v1` 地址及反向代理路径。
+- Key 管理提供 `ensureLoaded()`，合并并发加载，工具请求在选 Key 前等待持久化状态就绪。沿用现有轮询与启用状态，搜索的账号级限流保持 Key 可用性。
+- 共享传输新增可选 `requestKind: "tool"` 分类，工具调用复用超时、取消和代理能力，并独立于 LLM Inspector 的模型诊断记录。默认模型请求行为保持兼容。
+- 适配器按 Unicode 字符数校验搜索词，映射结构化来源及 Markdown 抓取结果；公开错误保留 HTTP 状态、重试语义与用户可行动提示。
+- 网页蒸馏只持久化所选渠道 ID，密钥继续由渠道密钥仓库管理。Agent 和工作区通过蒸馏服务调用同一适配器。
+
+接口依据：DeepSeek 官方网页搜索与抓取指南及 Search / Fetch API Reference（2026-10-17 核对）。
+
 ## 1. 预设层 (Preset Layer)
 
 **文件路径**: [`src/config/llm-presets/`](/src/config/llm-presets/index.ts)

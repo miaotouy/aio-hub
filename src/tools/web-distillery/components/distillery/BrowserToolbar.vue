@@ -71,6 +71,7 @@ const modeOptions = fetchEngineCatalog.map((engine) => ({
   label: engine.name,
   value: engine.id,
   desc: engine.description,
+  identity: engine.identity,
   icon: engine.cloud ? Cloud : engine.browser ? Scan : Zap,
 }));
 
@@ -296,7 +297,7 @@ async function handleIdentitySwitch(profileId: string | null) {
 
     <!-- 身份快捷切换 -->
     <el-dropdown
-      v-if="matchedProfiles.length > 0"
+      v-if="currentModeOption.identity && matchedProfiles.length > 0"
       trigger="click"
       @command="handleIdentitySwitch"
     >

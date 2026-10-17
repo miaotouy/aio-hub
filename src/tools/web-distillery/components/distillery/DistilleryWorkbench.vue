@@ -17,12 +17,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted, onMounted } from "vue";
 import { useWebDistilleryStore } from "../../stores/store";
-import {
-  quickFetch,
-  smartExtract,
-  jinaFetch,
-  processLocalContent,
-} from "../../actions";
+import { processLocalContent } from "../../actions";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -31,7 +26,12 @@ import { createModuleLogger } from "@/utils/logger";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
-import type { DistillMode } from "../../types";
+import { fetchPage } from "../../service";
+import {
+  fetchEngineCatalog,
+  getFetchEngineName,
+  type FetchEngineId,
+} from "../../core/engines/catalog";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
@@ -48,7 +48,9 @@ const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
 
 const activeMode = computed(() => {
-  return store.result ? store.result.mode : store.config.defaultMode || "fast";
+  return store.result?.mode === "interactive"
+    ? "smart"
+    : (store.result?.mode ?? store.config.defaultMode);
 });
 
 const qualityPercent = computed(() =>
@@ -73,7 +75,7 @@ onUnmounted(async () => {
   }
 });
 
-async function handleFetch(mode: DistillMode) {
+async function handleFetch(mode: FetchEngineId) {
   const url = currentUrl.value.trim();
   if (!url) {
     customMessage.warning("请输入目标 URL");
@@ -97,37 +99,8 @@ async function handleFetch(mode: DistillMode) {
       return;
     }
 
-    if (mode === "fast") {
-      logger.info("Executing quickFetch (Fast Mode)");
-      const result = await quickFetch({ url, format: "markdown" });
-      if (!result) {
-        throw new Error("获取内容失败");
-      }
-
-      store.setResult(result);
-    } else if (mode === "smart") {
-      logger.info("Executing smartExtract (Smart Mode)");
-      await iframeBridge.init();
-      logger.debug("Bridge initialized for smartExtract");
-      const result = await smartExtract({
-        url,
-        format: "markdown",
-        waitTimeout: 12000,
-      });
-      if (!result) {
-        throw new Error("智能提取失败");
-      }
-
-      store.setResult(result);
-    } else if (mode === "jina") {
-      logger.info("Executing jinaFetch (Jina Cloud Mode)");
-      const result = await jinaFetch({ url, format: "markdown" });
-      if (!result) {
-        throw new Error("Jina 云端提取失败");
-      }
-
-      store.setResult(result);
-    }
+    const result = await fetchPage({ url, engine: mode });
+    store.setResult(result);
     customMessage.success("蒸馏完成");
   } catch (err: any) {
     errorHandler.error(err, "操作失败", { url, mode });
@@ -136,7 +109,8 @@ async function handleFetch(mode: DistillMode) {
 
     // 发生错误时强制清理资源
     try {
-      await iframeBridge.forceCleanup();
+      if (mode === "smart" || mode === "fast")
+        await iframeBridge.forceCleanup();
     } catch (cleanupErr) {
       logger.debug("Force cleanup after error failed", cleanupErr);
     }
@@ -262,18 +236,19 @@ function handleSendToChat() {
               <div class="quality-header">
                 <span class="quality-label">
                   模式:
-                  <span
-                    v-if="store.result.mode === 'jina'"
-                    class="mode-badge-jina"
-                    >JINA</span
-                  >
-                  <template v-else>{{ store.result.mode }}</template>
+                  {{ getFetchEngineName(store.result.mode) }}
                 </span>
-                <el-tag size="small" :type="qualityStatus"
+                <el-tag
+                  v-if="store.result.quality !== null"
+                  size="small"
+                  :type="
+                    qualityStatus === 'exception' ? 'danger' : qualityStatus
+                  "
                   >{{ qualityPercent }}%</el-tag
                 >
               </div>
               <el-progress
+                v-if="store.result.quality !== null"
                 :percentage="qualityPercent"
                 :status="qualityStatus"
                 :stroke-width="4"
@@ -344,11 +319,9 @@ function handleSendToChat() {
           <div class="empty-hint">
             <p>在上方输入 URL 并选择提取模式：</p>
             <ul>
-              <li><strong>快速模式</strong>: 纯 HTTP 请求，毫秒级响应</li>
-              <li><strong>智能模式</strong>: 隐藏 Iframe 渲染，支持动态内容</li>
-              <li>
-                <strong>Jina 模式</strong>: r.jina.ai 云端解析，高保真
-                Markdown（可在偏好设置中配置 API Key）
+              <li v-for="engine in fetchEngineCatalog" :key="engine.id">
+                <strong>{{ engine.name }}</strong
+                >: {{ engine.description }}
               </li>
             </ul>
           </div>

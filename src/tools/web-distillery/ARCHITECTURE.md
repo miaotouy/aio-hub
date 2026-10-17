@@ -1,12 +1,12 @@
 # 网页蒸馏室 (Web Distillery) — 架构文档
 
-> 最后更新：2026-10-01
+> 最后更新：2026-10-17
 
 ## 1. 概述
 
 网页蒸馏室是一个多模式网页内容提取工具，设计目标是**高纯度地从任意网页中提炼出有价值的内容**。它同时服务于两个场景：
 
-- **Agent 自动化调用**：通过 `ToolRegistry` 暴露 `quickFetch` / `smartExtract` 两个可被 LLM Agent 直接调用的能力。
+- **Agent 自动化调用**：通过 `ToolRegistry` 暴露 `quickFetch` / `smartExtract` / `jinaFetch` 三个可被 LLM Agent 直接调用的能力。
 - **人工交互操作**：提供可视化的交互式配方编辑器，让用户通过点选元素来定制提取规则，并保存为站点配方复用。
 
 工具采用**四层蒸馏模式**，按能耗和精度递增：
@@ -29,19 +29,37 @@
 
 ---
 
+## 引擎接入与执行入口
+
+- `core/engines/catalog.ts` 集中声明引擎名称、输出格式、站点身份、选择器和浏览器能力，工作台与默认引擎设置从目录生成。
+- `service.ts` 的 `fetchPage()` 统一加载配置、解析默认参数、校验目标地址与格式，并调用引擎适配器。
+- `core/engines/local.ts` 承载本地 HTTP、浏览器渲染及本地内容提取，继续复用配方、身份卡片和 HTML 清洗流水线。
+- `core/engines/jina.ts` 适配云端正文，直接生成统一结果；Markdown 响应保存在正文中，`domSnapshot` 专用于真实 HTML。
+- `config.ts` 使用现有配置管理器与路径，通过合并并发加载的共享响应式配置支持后台冷启动。UI 的 Pinia Store 复用该配置。
+- `actions.ts` 保留已有 Agent 兼容入口及明确的可空失败返回值。工作台直接调用统一服务，以保留具体错误。
+- 未提供的参数继承全局偏好，显式 `false` 保持原义。快速 HTTP 在页面需要渲染时只回退到本地浏览器；`allowBrowserFallback: false` 可关闭该行为。云端服务由用户显式选择。
+- `FetchResult.quality` 为可空数值，云端缺少评分依据时使用 `null`，UI 隐去评分。交互式配方编辑继续作为独立工作区。
+
+### 扩展方式
+
+新抓取引擎需增加能力目录项、独立执行适配器与服务映射，复用统一结果、默认参数和错误模型。搜索能力使用查询输入和多来源结果类型，与单页抓取共享供应商连接配置；结果选中后可以交给抓取入口。
+
 ## 2. 目录结构
 
 ```
 src/tools/web-distillery/
 ├── WebDistillery.vue           # 根组件，6 Tab 容器
 ├── web-distillery.registry.ts   # 工具注册 + Agent Facade
-├── actions.ts                  # 顶层操作 Facade（quickFetch / smartExtract / jinaFetch）
+├── actions.ts                  # 兼容操作 Facade
+├── service.ts                  # 统一引擎执行、参数与本地回退
+├── config.ts                   # 页面和后台共享配置
 ├── formatters.ts               # FetchResult → 字符串格式化
 ├── types.ts                    # 全局类型定义
 ├── utils/
 │   └── markdown.ts             # Markdown 轻量处理（链接剥离 / 标题提取）
 │
 ├── core/                       # 核心引擎层
+│   ├── engines/                # 能力目录与引擎适配器
 │   ├── iframe-bridge.ts        # Iframe 生命周期 + 双向通信
 │   ├── transformer.ts          # 蒸馏管道编排器
 │   ├── recipe-store.ts         # 配方持久化 + 匹配

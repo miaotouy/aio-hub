@@ -17,10 +17,11 @@ import type {
   ServiceMetadata,
   ToolContext,
 } from "@/services/types";
-import { coerceAgentBoolean } from "@/utils/agentArgs";
+import { parseAgentBoolean } from "@/utils/agentArgs";
 import { WebDistilleryIcon } from "@aiohub/tool-icons";
 import { markRaw } from "vue";
 
+import type { QuickFetchOptions } from "./types";
 import { quickFetch, smartExtract, jinaFetch } from "./actions";
 import { formatFetchResult } from "./formatters";
 
@@ -41,8 +42,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     const result = await quickFetch(
       {
         url: String(args.url || ""),
-        format: (args.format as any) || "markdown",
-        cleanMode: coerceAgentBoolean(args.cleanMode),
+        format: args.format as QuickFetchOptions["format"],
+        cleanMode: parseAgentBoolean(args.cleanMode),
       },
       context
     );
@@ -57,9 +58,9 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     const result = await smartExtract(
       {
         url: String(args.url || ""),
-        format: (args.format as any) || "markdown",
+        format: args.format as QuickFetchOptions["format"],
         waitFor: args.waitFor ? String(args.waitFor) : undefined,
-        cleanMode: coerceAgentBoolean(args.cleanMode),
+        cleanMode: parseAgentBoolean(args.cleanMode),
       },
       context
     );
@@ -78,8 +79,8 @@ export default class WebDistilleryRegistry implements ToolRegistry {
     const result = await jinaFetch(
       {
         url: String(args.url || ""),
-        format: (args.format as any) || "markdown",
-        cleanMode: coerceAgentBoolean(args.cleanMode),
+        format: args.format as QuickFetchOptions["format"],
+        cleanMode: parseAgentBoolean(args.cleanMode),
       },
       context
     );

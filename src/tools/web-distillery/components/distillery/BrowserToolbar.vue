@@ -29,7 +29,11 @@ import {
   FileUp,
   Cookie,
 } from "lucide-vue-next";
-import type { DistillMode, CookieProfile } from "../../types";
+import {
+  fetchEngineCatalog,
+  type FetchEngineId,
+} from "../../core/engines/catalog";
+import type { CookieProfile } from "../../types";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -40,7 +44,7 @@ const logger = createModuleLogger("web-distillery/toolbar");
 interface Props {
   modelValue: string;
   loading?: boolean;
-  activeMode?: DistillMode;
+  activeMode?: FetchEngineId;
   canGoBack?: boolean;
   canGoForward?: boolean;
 }
@@ -53,7 +57,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<{
   "update:modelValue": [url: string];
-  fetch: [mode: "fast" | "smart" | "jina"];
+  fetch: [mode: FetchEngineId];
   navigate: [direction: "back" | "forward"];
   refresh: [];
   upload: [payload: { content: string; fileName: string }];
@@ -63,28 +67,14 @@ const urlInputRef = ref<HTMLInputElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
-const modeOptions = [
-  {
-    label: "快速模式",
-    value: "fast",
-    icon: Zap,
-    desc: "纯 HTTP 请求，毫秒级响应",
-  },
-  {
-    label: "智能模式",
-    value: "smart",
-    icon: Scan,
-    desc: "隐藏 Iframe 渲染 JS，支持动态内容",
-  },
-  {
-    label: "Jina 模式",
-    value: "jina",
-    icon: Cloud,
-    desc: "由 r.jina.ai 云端解析，高保真输出 Markdown",
-  },
-];
+const modeOptions = fetchEngineCatalog.map((engine) => ({
+  label: engine.name,
+  value: engine.id,
+  desc: engine.description,
+  icon: engine.cloud ? Cloud : engine.browser ? Scan : Zap,
+}));
 
-const selectedMode = ref<DistillMode>(props.activeMode ?? "fast");
+const selectedMode = ref<FetchEngineId>(props.activeMode ?? "fast");
 const currentModeOption = computed(
   () =>
     modeOptions.find((o) => o.value === selectedMode.value) || modeOptions[0]
@@ -92,7 +82,7 @@ const currentModeOption = computed(
 
 watch(
   () => props.activeMode,
-  (newMode: DistillMode | undefined) => {
+  (newMode: FetchEngineId | undefined) => {
     if (newMode !== undefined) {
       selectedMode.value = newMode;
     }
@@ -135,12 +125,12 @@ function triggerFetch() {
   logger.debug("Triggering fetch", { url: finalUrl, mode: selectedMode.value });
   emit("update:modelValue", finalUrl);
 
-  emit("fetch", selectedMode.value as "fast" | "smart" | "jina");
+  emit("fetch", selectedMode.value as FetchEngineId);
 
   urlInputRef.value?.blur();
 }
 
-function handleModeCommand(mode: DistillMode) {
+function handleModeCommand(mode: FetchEngineId) {
   selectedMode.value = mode;
 }
 

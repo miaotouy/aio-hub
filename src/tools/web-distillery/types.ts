@@ -24,7 +24,8 @@ export type FetchFormat = "markdown" | "text" | "html" | "json";
  * - smart: 智能模式 (Iframe 渲染)
  * - interactive: 交互模式 (可视化配方编辑)
  */
-export type DistillMode = "fast" | "smart" | "jina" | "interactive";
+import type { FetchEngineId } from "./core/engines/catalog";
+export type DistillMode = FetchEngineId | "interactive";
 
 /**
  * 网页蒸馏室全局持久化配置
@@ -32,7 +33,7 @@ export type DistillMode = "fast" | "smart" | "jina" | "interactive";
 export interface WebDistilleryConfig {
   // 基础运行状态
   lastUrl: string;
-  defaultMode: "fast" | "smart" | "jina";
+  defaultMode: FetchEngineId;
   defaultFormat: FetchFormat;
   defaultCleanMode: boolean; // 是否默认启用纯净模式（去除所有外链）
 
@@ -97,7 +98,7 @@ export interface FetchResult {
   content: string;
   contentLength: number;
   format: FetchFormat;
-  quality: number;
+  quality: number | null;
   mode: DistillMode;
   fetchedAt: string;
   domSnapshot?: string; // 原始 HTML 快照

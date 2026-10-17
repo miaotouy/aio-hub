@@ -33,6 +33,7 @@ import { useWebDistilleryStore } from "../../stores/store";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { fetchEngineCatalog } from "../../core/engines/catalog";
 import type { RawFetchPayload } from "../../types";
 
 const store = useWebDistilleryStore();
@@ -103,9 +104,6 @@ const handleTestJinaConnection = async () => {
     const testUrl = "https://r.jina.ai/https://example.com";
     logger.info("Testing Jina connection", {
       hasApiKey: Boolean(apiKey),
-      maskedKey: apiKey
-        ? `${apiKey.slice(0, 4)}...${apiKey.slice(-3)}`
-        : "none",
     });
 
     const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
@@ -272,15 +270,13 @@ const handleTestJinaConnection = async () => {
             </div>
             <div class="field-control-group">
               <el-radio-group v-model="store.config.defaultMode">
-                <el-radio-button value="fast"
-                  >⚡ 快速 (本地 HTTP)</el-radio-button
+                <el-radio-button
+                  v-for="engine in fetchEngineCatalog"
+                  :key="engine.id"
+                  :value="engine.id"
                 >
-                <el-radio-button value="smart"
-                  >🧠 智能 (沙箱渲染)</el-radio-button
-                >
-                <el-radio-button value="jina"
-                  >🌐 Jina (云端提炼)</el-radio-button
-                >
+                  {{ engine.name }}
+                </el-radio-button>
               </el-radio-group>
             </div>
           </div>

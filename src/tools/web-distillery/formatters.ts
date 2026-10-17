@@ -28,7 +28,7 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
   lines.push(`- **标题**: ${result.title || "无标题"}`);
   lines.push(`- **提取模式**: ${result.mode}`);
   lines.push(`- **内容长度**: ${result.contentLength ?? 0} 字符`);
-  lines.push(`- **质量评分**: ${result.quality ?? 0}`);
+  if (result.quality !== null) lines.push(`- **质量评分**: ${result.quality}`);
   lines.push(`- **获取时间**: ${result.fetchedAt || getLocalISOString()}`);
 
   if (result.metadata) {

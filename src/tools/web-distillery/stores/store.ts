@@ -1,4 +1,13 @@
-import { createConfigManager } from "@/utils/configManager";
+import {
+  createDefaultWebDistilleryConfig,
+  distilleryConfigManager,
+  distilleryConfig,
+  ensureDistilleryConfig,
+} from "../config";
+export {
+  createDefaultWebDistilleryConfig,
+  distilleryConfigManager,
+} from "../config";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,30 +30,6 @@ import type {
   ActionStep,
   WebDistilleryConfig,
 } from "../types";
-
-export const createDefaultWebDistilleryConfig = (): WebDistilleryConfig => ({
-  lastUrl: "",
-  defaultMode: "fast",
-  defaultFormat: "markdown",
-  defaultCleanMode: false,
-  jina: {
-    apiKey: "",
-    engine: "default",
-    withGeneratedAlt: false,
-    targetSelector: "",
-    waitForSelector: "",
-    removeSelector: "",
-  },
-  network: {
-    timeout: 15000,
-    maxAutoScrolls: 3,
-    scrollDelay: 800,
-  },
-  extractionRules: {
-    include: [],
-    exclude: [],
-  },
-});
 
 interface WebDistilleryState {
   url: string;
@@ -83,30 +68,6 @@ interface WebDistilleryState {
   currentPageTitle: string;
 }
 
-export const distilleryConfigManager = createConfigManager<WebDistilleryConfig>(
-  {
-    moduleName: "web-distillery",
-    fileName: "settings.json",
-    createDefault: createDefaultWebDistilleryConfig,
-    mergeConfig: (defaultConfig, loadedConfig) => ({
-      ...defaultConfig,
-      ...loadedConfig,
-      jina: {
-        ...defaultConfig.jina,
-        ...(loadedConfig?.jina || {}),
-      },
-      network: {
-        ...defaultConfig.network,
-        ...(loadedConfig?.network || {}),
-      },
-      extractionRules: {
-        ...defaultConfig.extractionRules,
-        ...(loadedConfig?.extractionRules || {}),
-      },
-    }),
-  }
-);
-
 export const useWebDistilleryStore = defineStore("web-distillery", {
   state: (): WebDistilleryState => ({
     url: "",
@@ -114,7 +75,7 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
     isLoading: false,
     activeTab: "workbench",
     currentRecipe: null,
-    config: createDefaultWebDistilleryConfig(),
+    config: distilleryConfig,
 
     // 交互模式初始状态
     pickerMode: "idle",
@@ -142,8 +103,8 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
 
   actions: {
     async init() {
-      const config = await distilleryConfigManager.load();
-      this.config = config;
+      const config = await ensureDistilleryConfig();
+      Object.assign(this.config, config);
       this.url = config.lastUrl;
       this.extractionRules = config.extractionRules;
     },
@@ -158,7 +119,7 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
 
     async resetConfig() {
       const defaults = createDefaultWebDistilleryConfig();
-      this.config = defaults;
+      Object.assign(this.config, defaults);
       this.url = defaults.lastUrl;
       this.extractionRules = defaults.extractionRules;
       await distilleryConfigManager.save(this.config);

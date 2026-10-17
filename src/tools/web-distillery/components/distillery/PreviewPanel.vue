@@ -27,6 +27,7 @@ import {
   MessageSquare,
 } from "lucide-vue-next";
 import { WebDistilleryIcon } from "@aiohub/tool-icons";
+import { getFetchEngineName } from "../../core/engines/catalog";
 import type { FetchResult } from "../../types";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -183,10 +184,18 @@ function downloadContent() {
     /[^a-zA-Z0-9\u4e00-\u9fa5]/g,
     "_"
   );
-  const ext = isSource ? "html" : "md";
+  const format = props.result?.format ?? "markdown";
+  const ext = isSource
+    ? "html"
+    : { markdown: "md", text: "txt", html: "html", json: "json" }[format];
   const mimeType = isSource
     ? "text/html;charset=utf-8"
-    : "text/markdown;charset=utf-8";
+    : {
+        markdown: "text/markdown",
+        text: "text/plain",
+        html: "text/html",
+        json: "application/json",
+      }[format] + ";charset=utf-8";
   const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -194,7 +203,7 @@ function downloadContent() {
   a.download = `${title}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
-  customMessage.success(isSource ? "已下载 HTML 源码" : "已下载 Markdown 文件");
+  customMessage.success("文件已下载");
 }
 </script>
 
@@ -231,8 +240,12 @@ function downloadContent() {
             {{ result.title || "(无标题)" }}
           </div>
           <div class="meta-tags">
-            <el-tag size="small">{{ result.mode }}</el-tag>
-            <el-tag :type="qualityType" size="small">
+            <el-tag size="small">{{ getFetchEngineName(result.mode) }}</el-tag>
+            <el-tag
+              v-if="result.quality !== null"
+              :type="qualityType"
+              size="small"
+            >
               {{
                 qualityType === "success"
                   ? "高质量"
@@ -326,7 +339,7 @@ function downloadContent() {
         <RichCodeEditor
           v-else-if="viewMode === 'raw'"
           :model-value="result.content || ''"
-          language="markdown"
+          :language="result.format === 'text' ? 'plaintext' : result.format"
           :read-only="true"
           :line-numbers="false"
           editor-type="codemirror"

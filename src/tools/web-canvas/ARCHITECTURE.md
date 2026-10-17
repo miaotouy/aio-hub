@@ -11,7 +11,7 @@
 每个画布项目是磁盘上的一个独立目录，同时也是**一个独立的 Git 仓库**。
 
 - **标识**: 每个项目通过 `cp_{yyyyMMdd}_{shortId}` 格式的 ID 唯一标识，例如 `cp_20260315_aBcDeF`。
-- **物理存储**: 项目存储在 `{appDataDir}/canvases/projects/{canvasId}/` 下。
+- **物理存储**: 项目存储在 `{appDataRoot}/canvases/projects/{canvasId}/` 下，其中 `{appDataRoot}` 是 `getAppConfigDir()`（`src/utils/appPath.ts`）返回的应用数据根目录（Windows 安装器自定义数据位置时随之变化）。
 - **生命周期**: 创建（从模板初始化）→ 编辑（直接读写物理文件）→ 提交（Git Commit）→ 删除（安全回收站）。
 
 ### 1.2. Physical-First 架构
@@ -36,9 +36,9 @@
 
 - **模板来源**:
   - **builtin**: 内置模板，随应用打包发布，存放在 Tauri 资源目录中。
-  - **user**: 用户自定义模板，存放在 `{appDataDir}/canvases/templates/user/` 下。
+  - **user**: 用户自定义模板，存放在 `{appDataRoot}/canvases/templates/user/` 下。
 - **模板生命周期**:
-  1. **初始化**: 应用启动时，`useTemplateRegistry.initBuiltinTemplates()` 将内置模板从资源目录同步到 `AppData`。
+  1. **初始化**: 应用启动时，`useTemplateRegistry.initBuiltinTemplates()` 将内置模板从资源目录同步到 `{appDataRoot}/canvases/templates/builtin/`。
   2. **版本管理**: 通过 `template.json` 中的 `version` 字段做版本比较，仅在版本更新时覆盖。
   3. **项目创建**: `CanvasService.createCanvas()` 从选中模板的 `files/` 目录递归复制文件到新项目目录。
   4. **Git 初始化**: 复制完成后自动执行 `git init` → `git add` → `git commit`。
@@ -158,8 +158,10 @@ web-canvas 支持将预览窗口分离为独立窗口，通过状态同步引擎
 
 ### 2.1. 物理存储布局
 
+所有持久化数据统一以 `getAppConfigDir()`（`src/utils/appPath.ts`）返回的应用数据根目录 `{appDataRoot}` 为根（后端不可用时回退到 Tauri 默认 `appDataDir()`；Windows 安装器自定义数据位置时随之变化）。相对目录结构如下：
+
 ```
-{appDataDir}/canvases/
+{appDataRoot}/canvases/
 ├── projects.json                    # 项目索引文件
 ├── templates/
 │   ├── builtin/                     # 内置模板（从资源同步）
@@ -193,7 +195,7 @@ web-canvas 支持将预览窗口分离为独立窗口，通过状态同步引擎
 
 ### 2.2. 项目索引 (projects.json)
 
-索引文件位于 `{appDataDir}/canvases/projects.json`，用于快速加载项目列表，避免读取每个项目的元数据文件。
+索引文件位于 `{appDataRoot}/canvases/projects.json`，其中 `{appDataRoot}` 是 `getAppConfigDir()` 返回的应用数据根目录，用于快速加载项目列表，避免读取每个项目的元数据文件。
 
 ```typescript
 interface CanvasIndex {
@@ -565,7 +567,7 @@ web-canvas 的设置系统采用声明式配置，与应用的设置渲染器集
 
 - 用户配置通过 `useLocalStorage<CanvasConfig>("aio-canvas-config", DEFAULT_CANVAS_CONFIG)` 持久化到 `localStorage`。
 - 每个项目的 `template` 和 `entryFile` 等配置存储在项目的 `.canvas.json` 中。
-- 项目索引存储在 `AppData/canvases/projects.json` 中。
+- 项目索引存储在 `{appDataRoot}/canvases/projects.json` 中，其中 `{appDataRoot}` 由 `getAppConfigDir()` 返回。
 
 ## 8. 数据持久化 (Data Persistence)
 
@@ -573,7 +575,7 @@ web-canvas 采用**多级存储策略**，将索引、元数据和项目文件�
 
 | 数据类型   | 存储位置                         | 格式     | 读写时机                       |
 | ---------- | -------------------------------- | -------- | ------------------------------ |
-| 项目索引   | `AppData/canvases/projects.json` | JSON     | 启动时加载列表，增删改时更新   |
+| 项目索引   | `{appDataRoot}/canvases/projects.json` | JSON     | 启动时加载列表，增删改时更新   |
 | 画布元数据 | `projects/{id}/.canvas.json`     | JSON     | 打开画布时读取，修改信息时写入 |
 | 项目文件   | `projects/{id}/`                 | 物理文件 | 编辑操作时直接读写             |
 | Git 仓库   | `projects/{id}/.git/`            | Git      | 通过 isomorphic-git 操作       |

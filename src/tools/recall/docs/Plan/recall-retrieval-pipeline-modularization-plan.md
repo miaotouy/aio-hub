@@ -11,7 +11,7 @@
 
 此前的 Recall 改名/拆分迁移和本次检索管线模块化未形成中间发布版本，迁移仍按一次完整迁移处理。2026-09-16 核对实际采用以下基线：
 
-- 迁移基线使用版本化 fixture（[`../__fixtures__/recall-migration-baseline-v1.json`](../__fixtures__/recall-migration-baseline-v1.json)，由 `src-tauri/src/recall/migration_baseline.rs` 运行），覆盖 `current-file-layout` / `aio-kb-v1` / `legacy-json` / `legacy-yaml` 输入与 success / partial / failure 状态机，以及 Agent binding、宏与旧占位符转换。不再要求每次验收都提供真实发布版本 appData。
+- 迁移基线使用版本化 fixture（[`../../__fixtures__/recall-migration-baseline-v1.json`](../../__fixtures__/recall-migration-baseline-v1.json)，由 `src-tauri/src/recall/migration_baseline.rs` 运行），覆盖 `current-file-layout` / `aio-kb-v1` / `legacy-json` / `legacy-yaml` 输入与 success / partial / failure 状态机，以及 Agent binding、宏与旧占位符转换。不再要求每次验收都提供真实发布版本 appData。
 - 旧目录迁移采用启动只读检测 + 用户确认式导入，源目录迁移后保持只读；主库失败阻止可写态，向量失败降级为待重建。契约见 [`../architecture/storage-migration-contract.md`](../architecture/storage-migration-contract.md)。
 - 真实发布版本 appData 副本、发布二进制 smoke test 与 Recall + Agent + Knowledge 合并报告属于正式版前检查清单，不阻断 Alpha；`recall-pipeline` 等 debug Tauri E2E 只证明切片功能和 IPC 链路。
 

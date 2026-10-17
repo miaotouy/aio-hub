@@ -22,7 +22,7 @@
 3. **删除与禁用的心智割裂**：在 GUI 中，如果一个对象被用户删除后在重启时“幽灵复活”，或者必须区分“删除”与“禁用”，用户体验极其生硬。
 
 ### 1.3. 统一认知：AIO Hub 的“释出型（Materialization Pattern）”哲学
-AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../agent-manager/stores/agentStore.ts:629) 创建默认助手、[`agentAssetService.ensurePresetAssetsImported`](../../agent-manager/services/agentAssetService.ts:38) 将随包预设释放为本地物理资产）验证了一条自洽的原则：
+AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../../agent-manager/stores/agentStore.ts:629) 创建默认助手、[`agentAssetService.ensurePresetAssetsImported`](../../../agent-manager/services/agentAssetService.ts:38) 将随包预设释放为本地物理资产）验证了一条自洽的原则：
 **“系统随包携带高质量只读母版（Preset），但在运行时面向用户的，必须是触手可及、可看可改的本地物理实体（Physical Agent）。”**
 
 基于此，确立五大核心法则：
@@ -77,9 +77,9 @@ AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../age
 
 ### 3.1. 子智能体配置契约扩展 (`SubAgentConfig`)
 
-> 现状：[`SubAgentConfig`](../../agent-manager/types/agent.ts:220) 仅含 `{ enabled: boolean }`，`DEFAULT_SUB_AGENT_CONFIG` 也仅含 `{ enabled: false }`。以下为本次扩展后的**目标契约**，属 Phase 1 待实现项。
+> 现状：[`SubAgentConfig`](../../../agent-manager/types/agent.ts:220) 仅含 `{ enabled: boolean }`，`DEFAULT_SUB_AGENT_CONFIG` 也仅含 `{ enabled: false }`。以下为本次扩展后的**目标契约**，属 Phase 1 待实现项。
 
-在 [`src/tools/agent-manager/types/agent.ts`](../../agent-manager/types/agent.ts) 中扩展 `SubAgentConfig`：
+在 [`src/tools/agent-manager/types/agent.ts`](../../../agent-manager/types/agent.ts) 中扩展 `SubAgentConfig`：
 
 ```typescript
 export interface SubAgentConfig {
@@ -132,9 +132,9 @@ export const DEFAULT_SUB_AGENT_CONFIG: SubAgentConfig = {
 | **`builtin-subagent`** | 子任务助手 |  🤖  | **专用于承接派发子任务的通用子智能体。** 提示词极简中立 | `inherit_caller` | `true` (主聊天侧边栏隐藏)     | 继承完整环境工具权限（auto 模式） |
 
 **命名与分类约定**：
-- `config.json` 的 `name` 是**稳定 ID/宏替换名**（`{{char}}`），用英文 slug（如 `\"builtin-subagent\"`）；UI 显示名单独放在 `displayName`（如 `\"子任务助手\"`）。这与智能体编辑器「ID/名称 → 显示名称」的分工一致（见 [`BasicInfoSection.vue:55-75`](../../agent-manager/components/agent-editor/sections/BasicInfoSection.vue)），UI 处统一按 `displayName || name` 回退（如 [`sub-agent.registry.ts`](../../sub-agent.registry.ts) 的 `list_available_agents`）；
+- `config.json` 的 `name` 是**稳定 ID/宏替换名**（`{{char}}`），用英文 slug（如 `\"builtin-subagent\"`）；UI 显示名单独放在 `displayName`（如 `\"子任务助手\"`）。这与智能体编辑器「ID/名称 → 显示名称」的分工一致（见 [`BasicInfoSection.vue:55-75`](../../../agent-manager/components/agent-editor/sections/BasicInfoSection.vue)），UI 处统一按 `displayName || name` 回退（如 [`sub-agent.registry.ts`](../../sub-agent.registry.ts) 的 `list_available_agents`）；
 - 预设 ID 由索引 `id`（即目录名）注入，`config.json` 内不写 `id`；`name` 的 slug 应与目录名保持一致；
-- `category` 必须取自 [`AgentCategory`](../../agent-manager/types/agent.ts:594) 枚举值（`assistant / character / expert / creative / workflow / other`）。内置子智能体作为系统级执行节点统一使用 `workflow`，**不存在 `system` 这个枚举值**；
+- `category` 必须取自 [`AgentCategory`](../../../agent-manager/types/agent.ts:594) 枚举值（`assistant / character / expert / creative / workflow / other`）。内置子智能体作为系统级执行节点统一使用 `workflow`，**不存在 `system` 这个枚举值**；
 - 预设不携带具体 `profileId / modelId`（模型绑定偏好由 `subAgentConfig.modelBindingMode` 表达）；
 - 图标可直接用 Emoji（表格所示），也可放置 `icon.jpg` 并将 `icon` 指向 `/agent-presets/{id}/icon.jpg`，后者会在释出后由 `ensurePresetAssetsImported` 本地化。
 
@@ -290,7 +290,7 @@ export class SubAgentBaselineService {
 export const subAgentBaselineService = new SubAgentBaselineService();
 ```
 
-> 释出流程与现有"从预设创建智能体"的 UI 路径保持一致：即 [`AgentManager.vue:130`](../../agent-manager/AgentManager.vue) 的 `agentStore.createAgent(...)` + `ensurePresetAssetsImported(agentId)`。无需改造 `agentImportService`（其负责用户文件导入、世界书与重名预检，与本场景正交）。
+> 释出流程与现有"从预设创建智能体"的 UI 路径保持一致：即 [`AgentManager.vue:130`](../../../agent-manager/AgentManager.vue) 的 `agentStore.createAgent(...)` + `ensurePresetAssetsImported(agentId)`。无需改造 `agentImportService`（其负责用户文件导入、世界书与重名预检，与本场景正交）。
 
 ### 4.2. 模型解析与降级算法 (`resolveSubAgentModel`)
 
@@ -472,7 +472,7 @@ if (context?.agent?.id === args.agentId) {
 - [x] 在 `public/agent-presets/` 下建立 `builtin-subagent` 极简通用预设（`name` 用英文 slug、`displayName` 填中文显示名、`category` 用合法枚举 `workflow`；采用极简中立提示词，避免预制复杂指令造成模型降智）；
 - [x] 在 [`src/config/agent-presets/index.ts`](../../../../config/agent-presets/index.ts) 的 `builtinPresets` 中注册 `builtin-subagent` 预设的元数据（`id / name / description / icon / configUrl`）——预设目录不会自动发现，缺此步释出与预设列表均不可用；
 - [x] 扩展 [`src/services/types.ts`](../../../../services/types.ts) 的 `ToolContext`，增加 `delegationDepth?: number` 支持嵌套深度追踪；
-- [x] 扩展 [`src/tools/agent-manager/types/agent.ts`](../../agent-manager/types/agent.ts) 的 `SubAgentConfig`，支持 `modelBindingMode`、`maxDelegationDepth` 与 `onlySubVisible`（另新增 `MAX_DELEGATION_DEPTH_LIMIT = 3` 常量）；
+- [x] 扩展 [`src/tools/agent-manager/types/agent.ts`](../../../agent-manager/types/agent.ts) 的 `SubAgentConfig`，支持 `modelBindingMode`、`maxDelegationDepth` 与 `onlySubVisible`（另新增 `MAX_DELEGATION_DEPTH_LIMIT = 3` 常量）；
 - [x] 改造 `agentStore.createAgent` 支持可选显式 `customId`（ID 已存在时返回空串由调用方跳过），确保释出内置智能体时的 ID 稳定性；
 - [x] 实现 `SubAgentBaselineService`，支持按需释出并在释出后调用 `agentStore.ensurePresetAssetsImported` 完成资源本地物理化（并发调用共享同一释出 Promise，完成后重置以支持"删除即重释"）。
 

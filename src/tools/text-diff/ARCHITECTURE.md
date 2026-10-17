@@ -34,14 +34,20 @@ Text Diff 的设计旨在通过深度集成 Monaco Editor 和智能化的交互�
 
 - **生成引擎**: 使用 `diff` 库的 `createTwoFilesPatch` 方法来确保生成的补丁格式规范。
 - **核心功能**: 支持配置上下文行数 (`context`) 和空白处理选项，并能便捷地将补丁复制到剪贴板或导出为 `.patch` 文件。
+- **返回契约**: 共享 `engine.ts` 的 `generatePatch()`（见 [engine.ts:130](engine.ts:130)）返回 `PatchResult`（`patch` / `success` / `error` 字段），对以下边界情况约定不生成补丁，返回空 `patch`、`success: false` 及明确错误信息：
+  - **两侧内容均为空**: 直接返回失败，错误为「两侧内容均为空」。
+  - **两侧内容相同**（或忽略行尾空白后相同）: 返回失败，错误为「两侧内容相同，无差异」。
+  - **忽略空白后无差异**: 默认 `ignoreWhitespace: true` 时，先对每行做行尾空白裁剪再比较，处理后无差异同样返回「两侧内容相同，无差异」，不会产出空白补丁。
 
 ## 2. 架构概览
 
 采用逻辑与 UI 分离的设计，通过 Vue Composable 组织业务逻辑，使组件代码更专注于视图渲染。
 
 - **View (`TextDiff.vue`)**: 负责 UI 布局和用户交互，包括工具栏、文件拖放区域和文件名显示。
-- **Logic (`useTextDiff.ts`)**: 一个独立的 Composable，封装了所有核心逻辑，包括状态管理、文件加载、差异导航和补丁生成。
-- **Engine (`RichCodeEditor.vue` & `diff` lib)**: 底层的差异计算和渲染引擎。
+- **Logic (`useTextDiff.ts`)**: 一个独立的 Composable，封装了状态管理、文件加载、差异导航和补丁生成，并复用共享 `engine.ts`。
+- **Shared Engine (`engine.ts`)**: 提供 `inferLanguage`、`loadFile`、`generatePatch` 和 `formatPatchResult` 等共享函数，负责文件处理与统一 Diff 补丁生成。
+- **Registry (`text-diff.registry.ts`)**: 对外 Agent 门面，直接调用共享 `engine.ts` 的 `loadFile`、`generatePatch` 和 `formatPatchResult`，将内部结果转换为工具调用协议文本。
+- **Editor Engine (`RichCodeEditor.vue` & `diff` lib)**: 底层的差异计算和渲染引擎。
 
 ## 3. 数据流：拖拽两个文件进行对比
 

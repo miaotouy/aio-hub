@@ -39,7 +39,7 @@ const errorHandler = createModuleErrorHandler("canvas/useTemplateRegistry");
  * 负责模板的发现、加载、初始化和复制
  */
 export function useTemplateRegistry() {
-  /** 获取模板根目录 (AppData/canvases/templates/) */
+  /** 获取模板根目录 (应用数据根目录/canvases/templates/) */
   async function getTemplatesRootDir(): Promise<string> {
     const appData = await getAppConfigDir();
     return await join(appData, "canvases", "templates");
@@ -47,7 +47,7 @@ export function useTemplateRegistry() {
 
   /**
    * 初始化内置模板
-   * 将 public/canvases/templates/builtin/ 同步到 AppData
+   * 将 public/canvases/templates/builtin/ 同步到应用数据根目录下的 canvases/templates/
    * 策略：比较 template.json 中的 version 字段，仅在版本更新时覆盖
    */
   async function initBuiltinTemplates(): Promise<void> {

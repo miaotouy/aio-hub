@@ -235,7 +235,7 @@ Adapter 将 MiniMax 响应统一转换为：
 
 1. **基础设施与注册**：
    - 在 [`src/types/llm-profiles.ts`](../../../../../src/types/llm-profiles.ts) 和 [`src/config/llm-providers.ts`](../../../../../src/config/llm-providers.ts) 中注册了 `minimax-music` 供应商类型。
-   - 在 [`src/config/llm-presets.ts`](../../../../../src/config/llm-presets.ts) 中添加了 MiniMax Music 预设及默认模型（`music-2.6`, `music-cover`, `music-2.6-free`, `music-cover-free`）。
+   - 在 [`src/config/llm-presets/presets/minimax-music.ts`](../../../../../src/config/llm-presets/presets/minimax-music.ts) 中添加了 MiniMax Music 预设及默认模型（`music-2.6`, `music-cover`, `music-2.6-free`, `music-cover-free`）。
    - 在 [`src/utils/llm-api-url.ts`](../../../../../src/utils/llm-api-url.ts) 中注册了 `minimaxMusicUrlHandler`。
    - 在 [`src/llm-apis/adapters/index.ts`](../../../../../src/llm-apis/adapters/index.ts) 中注册了 `minimaxMusicAdapter`。
 

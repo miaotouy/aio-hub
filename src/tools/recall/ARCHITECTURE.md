@@ -1,6 +1,6 @@
 # Recall（思绪）架构说明
 
-> 最后更新：2026-08-01
+> 最后更新：2026-10-18
 
 Recall 是 AIO Hub 的完整语义条目与召回领域。它管理思绪集、原子条目、标签、优先级、向量及检索运行时，不负责文档切片、文件同步或来源回溯；后者属于独立的 Knowledge 文档资料域。
 
@@ -19,7 +19,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 
 ### 1.2 Knowledge 边界
 
-`src/tools/knowledge-base/` 与 `src-tauri/src/knowledge.rs` 当前是 Knowledge 文档资料域空壳，不导入 Recall store、service、action 或 entry 类型，也不注册 Rust command。未来的 document、chunk、source、文件同步、BM25 和出处回源能力在该边界内独立实现。
+`src/tools/knowledge-base/` 与 `src-tauri/src/knowledge.rs` 是与 Recall 并列的独立 Knowledge 文档资料域，已具备完整的 SQLite repository 与 `knowledge_*` commands，覆盖 document、chunk、source、文件同步、FTS/BM25 索引和检索实现。该域不导入 Recall store、service、action 或 entry 类型，两个领域各自独立持久化与检索。
 
 ## 2. 模块结构
 
@@ -50,7 +50,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `utils.rs` 的余弦相似度使用 `f64` 累加，并将空向量、维度不一致、零能量或包含非有限数值的向量稳定降级为 `0`，避免异常向量把 `NaN` 传播到排序与阈值模块。
 - `monitor.rs`：`recall-monitor` 事件和心跳 command。
 
-`src-tauri/src/lib.rs` 管理 `RecallState`，并在 Tauri `setup` 阶段初始化 repository 与内存读模型；`src-tauri/src/commands.rs` 注册 `recall_*` commands。Knowledge 空壳不持有 Recall 状态，也不导出命令。
+`src-tauri/src/lib.rs` 管理 `RecallState`，并在 Tauri `setup` 阶段初始化 repository 与内存读模型；`src-tauri/src/commands.rs` 注册 `recall_*` commands。Knowledge 域持有自己的 repository 与 `knowledge_*` commands，不持有 Recall 状态，也不导出 Recall 命令。
 
 ## 3. 检索管线
 
@@ -159,7 +159,7 @@ appData/knowledge/
     └── vectors.bin
 ```
 
-目录名和 `.aio-kb` v1 格式保持只读兼容，避免破坏用户源数据与已导出的备份。旧目录只能由 Recall legacy importer、备份格式夹具和迁移测试读取；备份恢复自身直接写入 SQLite repository，不能被 Knowledge 空壳作为业务存储使用。
+目录名和 `.aio-kb` v1 格式保持只读兼容，避免破坏用户源数据与已导出的备份。旧目录只能由 Recall legacy importer、备份格式夹具和迁移测试读取；备份恢复自身直接写入 SQLite repository，不能被 Knowledge 域作为业务存储使用。
 
 新导出使用 `.aio-recall` 容器与 `aiohub.recall-collection@1`，manifest 同时声明 `dataSchemaVersion = 1` 和 `configSchemaVersion = 1`，主数据文件为 `collection.json`。多集合 ZIP 使用 `aiohub.recall-collection-backup-collection@1`、相同 schema 版本和 `collections/` 子目录。两种新格式都只保存集合源数据与引用资产，不保存向量、tag pool 或运行时索引；恢复后重建派生数据。导入器按 `format + formatVersion + dataSchemaVersion + configSchemaVersion` 严格分派，并继续读取旧 `aiohub.knowledge-library@1` `.aio-kb`、旧多库 ZIP 及 legacy JSON/YAML。
 
@@ -175,7 +175,7 @@ appData/knowledge/
 - `{{kb}}` / `{{kb_list}}` 与旧 Knowledge processor 已删除；旧 `【kb】` / 历史位置参数 `【knowledge】` 仅生成可定位告警，不触发检索。
 - 新 Agent 工具和 UI 已使用 `recall-basic`、`recall-admin`、`/recall`、`RecallCollection` 与 `RecallEntry`。
 - 兼容配置必须在版本化迁移中统一转换，不能在各组件挂载时继续扩散临时修补。
-- 新代码不得向 Knowledge 空壳导入 Recall 业务类型，也不得新增 `Thought` 作为第三套领域名。
+- 新代码不得向 Knowledge 域导入 Recall 业务类型，也不得新增 `Thought` 作为第三套领域名。
 
 检索管线的实施顺序与阶段完成门槛见
 `docs/Plan/recall-retrieval-pipeline-modularization-plan.md`。

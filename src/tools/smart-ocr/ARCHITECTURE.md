@@ -2,7 +2,7 @@
 
 本文档旨在解析 Smart OCR 工具的内部架构、设计理念、数据流以及插件扩展机制，为后续开发和维护提供清晰的指引。
 
-> 最后更新：2026-7-24
+> 最后更新：2026-10-18
 
 ---
 
@@ -27,8 +27,12 @@ Smart OCR 是一个多引擎、智能化的图片文字识别工具，旨在为�
 - **触发条件**: 当图片的长宽比超过预设阈值（如 `aspectRatioThreshold: 2`）时自动触发。
 - **算法逻辑**:
   1. 将图片绘制到 Canvas 上。
-  2. 逐行扫描像素，计算灰度方差，以识别连续的低方差行（即 **空白横带**）。
-  3. 在识别出的空白横带中间进行切割，生成 `ImageBlock` 数组。
+  2. 逐行扫描像素，按标准灰度公式（`0.299R + 0.587G + 0.114B`）计算每行的灰度方差，方差越小表示该行颜色越单一（越可能是空白行）。
+  3. 用 **Otsu 阈值** 在方差分布中自动定位背景（空白行）与内容（文字行）的分界：将方差离散化到 256 级直方图，遍历候选阈值取使类间方差最大的分界，相比固定比例/中位数阈值，不依赖空白行占比，也不会被页面边框或底噪抬高的背景基准干扰。
+  4. 在满足 `minBlankHeight` 的空白横带中间（按 `cutLineOffset` 偏移）进行切割，生成 `ImageBlock` 数组。
+
+**Otsu 阈值与灵敏度参数 `blankThreshold` 的关系**：Otsu 得到的是「背景/内容」的客观分界，而 `blankThreshold` 作为该阈值的灵敏度系数对判定进行微调——实际空白判定阈值取 `max(Otsu阈值 × blankThreshold, 背景基准 + 内容基准差 × 1%)`。`blankThreshold` 越小判定越严格（更多行被划为内容、切割更少），越大判定越宽松（更多行被划为空白、切割更密）；下限保障背景基准高于 0（如页面边框）时空白行仍可被识别。`cutLineOffset` 取 `-1`（向上）、`0`（居中）到 `1`（向下）决定切割线落在空白带内的位置。
+
 - **核心优势**: 显著提高了长截图和非标准布局图片的 OCR 识别准确率，同时支持用户在界面上微调或手动添加/删除切割线。
 
 ### 1.3. 批量处理与并发控制 (Batch Processing & Concurrency Control)
@@ -119,7 +123,7 @@ Smart OCR 采用"页面工具 + 平台能力层"的混合架构。核心 OCR 能
 
 位于 [`platform/`](src/tools/smart-ocr/platform/) 目录下，是对内对外可复用的核心能力层：
 
-- **引擎调度器** — [`platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts): 无状态的调度器。根据传入的 `OcrEngineConfig` 类型，将图片块分发给对应的具体引擎实现，并统一输出标准化的 `OcrResult` 格式。
+- **引擎调度器** — [`platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts): 引擎实例跨调用复用的调度器。根据传入的 `OcrEngineConfig` 类型，将图片块分发给对应的具体引擎实现，并统一输出标准化的 `OcrResult` 格式。`runOcr()` 首先等待 `ensureReady()` 完成就绪检查，再开始识别分发（见 [2.2 初始化与就绪契约](#22-初始化与就绪契约-initialization--readiness-contract)）。
 - **内置引擎适配** — [`platform/built-in-engines/`](src/tools/smart-ocr/platform/built-in-engines/): 包含：
   - [`tesseract.ts`](src/tools/smart-ocr/platform/built-in-engines/tesseract.ts): 封装 Tesseract.js 的 Worker 创建、语言包加载和识别逻辑。
   - [`native.ts`](src/tools/smart-ocr/platform/built-in-engines/native.ts): 通过 Tauri IPC 调用 Rust 后端的 Windows 原生 OCR 能力。
@@ -128,6 +132,23 @@ Smart OCR 采用"页面工具 + 平台能力层"的混合架构。核心 OCR 能
 - **插件引擎适配** — [`platform/plugin-engine.ts`](src/tools/smart-ocr/platform/plugin-engine.ts): 只按 `pluginId + contributionId` 解析当前贡献点，不持久化方法名。request 模式可由宿主分片；job 模式负责提交确认、事件终态、真实取消、无进度超时和必要的 Sidecar 重启。
 - **扩展发现** — [`platform/extension-registry.ts`](src/tools/smart-ocr/platform/extension-registry.ts): 动态扫描并解析已安装插件的 `ocr-engine` 贡献点（contributions），提取支持的模型、语言等元数据，供 UI 渲染选择。
 - **标准类型与适配器** — [`platform/types.ts`](src/tools/smart-ocr/platform/types.ts) 和 [`platform/adapters/image-input.ts`](src/tools/smart-ocr/platform/adapters/image-input.ts): 定义 `OcrImageInput` 通用标准输入及与 `ImageBlock` 的转换规则，支持 `path`/`dataUrl` 双通道。
+
+### 2.2. 初始化与就绪契约 (Initialization & Readiness Contract)
+
+任何调用方（Smart OCR 页面、实时字幕识别等复用该能力层的工具）在正式识别前都应通过 [`platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts) 的 `ensureReady(config: OcrEngineConfig)` 完成就绪检查。`runOcr()` 内部已首先 `await ensureReady(config)`，识别分发必然发生在就绪之后；也可以单独调用 `ensureReady` 做后台预热，典型用法是工具挂载时预热、正式启动前再次等待。
+
+四种引擎的就绪检查内容与失败行为：
+
+| 引擎类型 | 就绪检查内容 | 失败行为 |
+| --- | --- | --- |
+| **Native (Windows)** | 通过 Tauri 可用性命令（`check_native_ocr_availability`）提前初始化 WinRT OCR 引擎，避免首次识别时冷启动握手阻塞识别队列。 | 检查失败抛出异常，本次识别直接中止，不进入识别分发。 |
+| **Tesseract** | 复用已初始化的 Worker 池，按所选 `language` 和 `concurrency`（默认 4）确保 Worker 就绪与语言包加载。 | 语言包加载失败等异常向上抛出，识别中止。 |
+| **Cloud (云端 OCR)** | 等待云端 Profile 配置加载（`useOcrProfiles`，含去重与缓存），并校验 `activeProfileId` 对应的 Profile 存在且已启用。 | Profile 不存在时抛出"请先在设置中配置云端 OCR 服务"；Profile 未启用时抛出"云端 OCR 服务 \"<名称>\" 未启用"，识别中止。 |
+| **Plugin (插件引擎)** | 解析当前 manifest 的 `ocr-engine` 贡献点，执行插件声明的 `startupMethod`（如 `healthCheck`）完成协议握手和所选模型检查。 | 校验或握手失败抛出异常，识别中止；不按方法名回退。 |
+
+- **VLM 引擎** 无需本地就绪步骤（无状态 HTTP 调用），`ensureReady` 对其直接跳过。
+- 所有引擎的就绪状态随引擎实例跨调用复用：重复调用 `ensureReady` 不会重建 Worker 池或重复握手，因此高频调用方（如实时字幕逐帧识别）只需等待就绪而无需关心初始化成本。
+- 就绪检查抛出的异常由调用方决定后续行为（提示用户配置、降级引擎或放弃本次任务）；就绪失败时不会产生任何部分识别结果。
 
 ---
 
@@ -160,8 +181,9 @@ sequenceDiagram
     end
 
     rect rgb(255, 245, 238)
-        note right of Runner: 步骤 2: 引擎调度与识别
+        note right of Runner: 步骤 2: 引擎就绪检查、调度与识别
         Runner->>Dispatcher: runOcr(allBlocks, engineConfig)
+        Dispatcher->>Dispatcher: ensureReady(engineConfig) (等待引擎就绪，失败则中止)
         loop 识别进度更新
             Dispatcher->>Engine: 识别图片块
             Engine-->>Dispatcher: 返回单块结果

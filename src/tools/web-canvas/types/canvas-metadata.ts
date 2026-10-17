@@ -22,7 +22,7 @@ export interface CanvasMetadata {
   createdAt: number;
   updatedAt: number;
   tags?: string[];
-  // 项目根路径（相对于 appDataDir/canvases）
+  // 项目根路径（相对于 getAppConfigDir() 返回的应用数据根目录下的 canvases/）
   basePath: string;
   // 预览图 URL 或路径
   previewUrl?: string;

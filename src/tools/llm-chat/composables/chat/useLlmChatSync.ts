@@ -248,9 +248,31 @@ export function useLlmChatSync() {
             // 实际上，detached-component 通常不推送 CURRENT_SESSION_DATA，所以风险较小。
             if (isReasoning) {
               if (!node.metadata) node.metadata = {};
+              const now = Date.now();
+              if (node.metadata.reasoningActive !== true) {
+                node.metadata.reasoningActiveSince = now;
+              }
+              node.metadata.reasoningActive = true;
+              node.metadata.reasoningStartTime ??=
+                node.metadata.reasoningActiveSince;
               node.metadata.reasoningContent =
                 (node.metadata.reasoningContent || "") + delta;
             } else {
+              if (!node.metadata) node.metadata = {};
+              const now = Date.now();
+              if (
+                node.metadata.reasoningActive === true &&
+                node.metadata.reasoningActiveSince
+              ) {
+                node.metadata.reasoningDurationMs =
+                  (node.metadata.reasoningDurationMs || 0) +
+                  Math.max(0, now - node.metadata.reasoningActiveSince);
+              }
+              node.metadata.reasoningActive = false;
+              node.metadata.reasoningActiveSince = undefined;
+              if (node.metadata.reasoningStartTime) {
+                node.metadata.reasoningEndTime = now;
+              }
               appendStreamingMessageChunk(nodeId, delta);
             }
           }

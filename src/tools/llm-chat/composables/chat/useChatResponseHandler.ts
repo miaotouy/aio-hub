@@ -17,7 +17,7 @@
  * 负责处理来自 LLM 的响应，并更新节点状态
  */
 
-import type { ChatSessionDetail } from "../../types";
+import type { ChatMessageNode, ChatSessionDetail } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { isAbortError, isTimeoutError } from "@/llm-apis/common";
@@ -55,6 +55,42 @@ export function useChatResponseHandler() {
 
   // 用于控制增量保存的频率
   const lastPersistTimeMap = new Map<string, number>();
+
+  /**
+   * 状态跟随最近一次收到的流字段：reasoning 与正文可以交错到达，
+   * 因此不能用一次性的 reasoningEndTime 锁死后续 reasoning。
+   */
+  const updateReasoningActivity = (
+    node: ChatMessageNode,
+    isReasoning: boolean,
+    timestamp = Date.now()
+  ): void => {
+    if (!node.metadata) node.metadata = {};
+
+    const metadata = node.metadata;
+    const wasActive = metadata.reasoningActive === true;
+
+    if (isReasoning) {
+      if (!wasActive) {
+        metadata.reasoningActiveSince = timestamp;
+      }
+      metadata.reasoningActive = true;
+      metadata.reasoningStartTime ??= timestamp;
+      return;
+    }
+
+    if (wasActive && metadata.reasoningActiveSince) {
+      metadata.reasoningDurationMs =
+        (metadata.reasoningDurationMs || 0) +
+        Math.max(0, timestamp - metadata.reasoningActiveSince);
+    }
+
+    metadata.reasoningActive = false;
+    metadata.reasoningActiveSince = undefined;
+    if (metadata.reasoningStartTime) {
+      metadata.reasoningEndTime = timestamp;
+    }
+  };
 
   /**
    * 触发增量保存
@@ -185,6 +221,8 @@ export function useChatResponseHandler() {
     const node = session.nodes[nodeId];
     if (!node) return;
 
+    updateReasoningActivity(node, isReasoning);
+
     // 记录首字时间：reasoning/thinking 是用户可见输出，也应参与 TTFT 与速度统计。
     if (!node.metadata?.firstTokenTime) {
       node.metadata = {
@@ -200,7 +238,7 @@ export function useChatResponseHandler() {
       if (!node.metadata) node.metadata = {};
       if (!node.metadata.reasoningContent) {
         node.metadata.reasoningContent = "";
-        node.metadata.reasoningStartTime = Date.now();
+        node.metadata.reasoningStartTime ??= Date.now();
         logger.info("🕐 推理开始时间已记录", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
@@ -245,19 +283,14 @@ export function useChatResponseHandler() {
       // 正文内容流式更新：渲染走 StreamSource，节点内容降频写入用于持久化。
       appendStreamingMessageChunk(nodeId, chunk);
 
-      if (
-        node.content === "" &&
-        node.metadata?.reasoningContent &&
-        node.metadata?.reasoningStartTime &&
-        !node.metadata?.reasoningEndTime
-      ) {
+      if (node.metadata?.reasoningStartTime) {
         // 强制刷新一次 reasoning 缓冲区
         const reasoningState = reasoningUpdateBuffer.get(nodeId);
         if (reasoningState && reasoningState.buffer) {
           node.metadata.reasoningContent += reasoningState.buffer;
           reasoningState.buffer = "";
         }
-        node.metadata.reasoningEndTime = Date.now();
+        node.metadata.reasoningEndTime ??= Date.now();
         logger.info("🕐 推理结束时间已记录（正文开始）", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
@@ -368,6 +401,8 @@ export function useChatResponseHandler() {
     if (!session.nodes) return;
     const node = session.nodes[nodeId];
     if (!node) return;
+
+    updateReasoningActivity(node, false);
 
     const rState = reasoningUpdateBuffer.get(nodeId);
     if (rState && rState.buffer) {

@@ -69,6 +69,9 @@ export function useNodeManager() {
     delete clean.reasoningContent;
     delete clean.reasoningStartTime;
     delete clean.reasoningEndTime;
+    delete clean.reasoningActive;
+    delete clean.reasoningActiveSince;
+    delete clean.reasoningDurationMs;
     delete clean.requestStartTime;
     delete clean.requestEndTime;
     delete clean.firstTokenTime;

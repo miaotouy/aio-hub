@@ -106,6 +106,9 @@ interface Props {
     requestEndTime?: number;
     reasoningStartTime?: number;
     reasoningEndTime?: number;
+    reasoningActive?: boolean;
+    reasoningActiveSince?: number;
+    reasoningDurationMs?: number;
     firstTokenTime?: number;
     tokensPerSecond?: number;
     usage?: {
@@ -157,6 +160,14 @@ const thinkingTimeFormatted = computed(() => {
   // 2. 尝试从元数据计算（仅限 reasoning-metadata 节点）
   if (props.ruleId === "reasoning-metadata" && props.generationMeta) {
     const meta = props.generationMeta;
+
+    if (meta.reasoningDurationMs !== undefined) {
+      const activeDuration =
+        props.isThinking && meta.reasoningActiveSince
+          ? Math.max(0, Date.now() - meta.reasoningActiveSince)
+          : 0;
+      return formatDuration(meta.reasoningDurationMs + activeDuration);
+    }
 
     // 方案A: 优先使用思考时间戳
     if (meta.reasoningEndTime && meta.reasoningStartTime) {
@@ -267,14 +278,23 @@ watch(
     () => props.isThinking,
     () => props.generationMeta?.requestStartTime,
     () => props.generationMeta?.reasoningStartTime,
+    () => props.generationMeta?.reasoningActiveSince,
+    () => props.generationMeta?.reasoningDurationMs,
   ],
-  ([thinking, requestStartTime, reasoningStartTime]) => {
+  ([
+    thinking,
+    requestStartTime,
+    reasoningStartTime,
+    reasoningActiveSince,
+    reasoningDurationMs,
+  ]) => {
     // 1. 确定有效的开始时间
     let startTime: number | undefined;
 
     // 只有特定的元数据节点才使用传入的 meta 时间
     if (props.ruleId === "reasoning-metadata") {
-      startTime = reasoningStartTime || requestStartTime;
+      startTime =
+        reasoningActiveSince || reasoningStartTime || requestStartTime;
     }
 
     // 如果正在思考且没有确定开始时间（或者是普通节点），使用本地时间
@@ -297,7 +317,9 @@ watch(
 
       // 只有元数据节点才尝试从 meta 计算最终时长
       if (props.ruleId === "reasoning-metadata") {
-        if (meta?.reasoningEndTime && meta?.reasoningStartTime) {
+        if (meta?.reasoningDurationMs !== undefined) {
+          realtimeDurationMs.value = meta.reasoningDurationMs;
+        } else if (meta?.reasoningEndTime && meta?.reasoningStartTime) {
           // 场景A: 有完整的 reasoning meta 信息，优先使用
           realtimeDurationMs.value =
             meta.reasoningEndTime - meta.reasoningStartTime;
@@ -320,9 +342,15 @@ watch(
 
     // 3. 启动逻辑: 正在思考且有有效开始时间
     if (thinking && startTime && timerId.value === null) {
-      const effectiveStartTime = startTime; // 闭包捕获
+      // 恢复思考时从累计时长继续计时，避免把正文阶段算进 reasoning。
+      realtimeDurationMs.value = null;
+      const effectiveStartTime = startTime;
+      const accumulatedDuration = reasoningDurationMs ?? 0;
+      const activeSegmentStart = reasoningActiveSince;
       timerId.value = window.setInterval(() => {
-        realtimeDurationMs.value = Date.now() - effectiveStartTime;
+        realtimeDurationMs.value =
+          accumulatedDuration +
+          Math.max(0, Date.now() - (activeSegmentStart || effectiveStartTime));
       }, 100);
     }
   },

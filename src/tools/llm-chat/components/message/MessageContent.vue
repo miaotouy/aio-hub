@@ -286,12 +286,14 @@ const documentPreviewVisible = ref(false);
 const previewingAsset = ref<Asset | null>(null);
 // 判断是否正在推理中
 const isReasoning = computed(() => {
+  const metadata = props.message.metadata;
+
   return !!(
     (props.message.status === "generating" ||
       props.message.status === "waiting") &&
-    props.message.metadata?.reasoningContent &&
-    !props.message.metadata?.reasoningEndTime &&
-    !props.message.metadata?.error && // 如果有错误，停止动画
+    metadata?.reasoningContent &&
+    metadata.reasoningActive === true &&
+    !metadata?.error && // 如果有错误，停止动画
     llmChatStore.isNodeGenerating(props.message.id) // 增加 store 校验，确保 executor 还在运行
   );
 });
@@ -372,6 +374,9 @@ const generationMetaForRenderer = computed(() => {
     requestEndTime: metadata.requestEndTime,
     reasoningStartTime: metadata.reasoningStartTime,
     reasoningEndTime: metadata.reasoningEndTime,
+    reasoningActive: metadata.reasoningActive,
+    reasoningActiveSince: metadata.reasoningActiveSince,
+    reasoningDurationMs: metadata.reasoningDurationMs,
     firstTokenTime: metadata.firstTokenTime,
     tokensPerSecond: metadata.tokensPerSecond,
     usage: metadata.usage,

@@ -310,6 +310,12 @@ export interface ChatMessageNode {
     reasoningStartTime?: number;
     /** 推理结束时间戳 */
     reasoningEndTime?: number;
+    /** 最近一次流式片段是否来自 reasoning 字段 */
+    reasoningActive?: boolean;
+    /** 当前 reasoning 片段的开始时间戳 */
+    reasoningActiveSince?: number;
+    /** 已累计的 reasoning 活跃时长（毫秒） */
+    reasoningDurationMs?: number;
     /** 是否为预设消息的显示副本（用于 UI 区分） */
     isPresetDisplay?: boolean;
     /** 是否为开局消息节点 */

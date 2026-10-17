@@ -228,11 +228,13 @@ watch(
 
 // 推理状态计算
 const isReasoning = computed(() => {
+  const metadata = props.message.metadata;
+
   return !!(
     props.message.status === "generating" &&
-    props.message.metadata?.reasoningContent &&
-    !props.message.metadata?.reasoningEndTime &&
-    !props.message.metadata?.error
+    metadata?.reasoningContent &&
+    metadata.reasoningActive === true &&
+    !metadata?.error
   );
 });
 
@@ -245,6 +247,9 @@ const generationMetaForRenderer = computed(() => {
     requestEndTime: metadata.requestEndTime,
     reasoningStartTime: metadata.reasoningStartTime,
     reasoningEndTime: metadata.reasoningEndTime,
+    reasoningActive: metadata.reasoningActive,
+    reasoningActiveSince: metadata.reasoningActiveSince,
+    reasoningDurationMs: metadata.reasoningDurationMs,
     firstTokenTime: metadata.firstTokenTime,
     tokensPerSecond: metadata.tokensPerSecond,
     usage: metadata.usage,

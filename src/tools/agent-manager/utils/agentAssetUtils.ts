@@ -99,6 +99,10 @@ function calculateSimilarity(query: string, target: string): number {
   return 1.0 - distance / maxLen;
 }
 
+/** 紫黑缺失纹理由元素背景绘制，供 HTML 占位与 Markdown 图片节点共用。 */
+export const MISSING_IMAGE_PLACEHOLDER_BACKGROUND =
+  "repeating-conic-gradient(var(--rich-text-image-placeholder-checker-purple, #b000c8) 0% 25%, var(--rich-text-image-placeholder-checker-black, #17111c) 25% 50%) 0 0 / 24px 24px";
+
 /** 缺失图片使用可读占位，保留资源来源与原图的布局属性。 */
 export function createMissingImagePlaceholder(
   url: string,
@@ -132,7 +136,7 @@ export function createMissingImagePlaceholder(
     "overflow: hidden",
     "vertical-align: middle",
     "white-space: normal",
-    "background: var(--rich-text-image-placeholder-bg, var(--container-bg))",
+    `background: ${MISSING_IMAGE_PLACEHOLDER_BACKGROUND}`,
     "border-width: 1px",
     "border-style: solid",
     "border-color: var(--rich-text-image-placeholder-border, var(--border-color))",
@@ -150,9 +154,11 @@ export function createMissingImagePlaceholder(
   if (image?.hasAttribute("height") || image?.style.height) {
     styles.push("min-height: 0");
   }
+  const labelStyle =
+    "padding: 2px 4px; border-radius: 2px; background: var(--rich-text-image-placeholder-bg, var(--container-bg))";
   const className = escapeHtml(image?.getAttribute("class") || "");
   const id = image?.getAttribute("id");
-  return `<span class="${className}"${id ? ` id="${escapeHtml(id)}"` : ""} data-agent-asset-missing="" role="img" aria-label="${escapeHtml(`资产缺失: ${filename}`)}" title="${escapeHtml(url)}" style="${escapeHtml(styles.join(";"))}"><span style="font-size: 11px; line-height: 1.3">资产缺失</span><span style="font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; max-width: 100%">${escapeHtml(filename)}</span></span>`;
+  return `<span class="${className}"${id ? ` id="${escapeHtml(id)}"` : ""} data-agent-asset-missing="" role="img" aria-label="${escapeHtml(`资产缺失: ${filename}`)}" title="${escapeHtml(url)}" style="${escapeHtml(styles.join(";"))}"><span style="${labelStyle}; font-size: 11px; line-height: 1.3">资产缺失</span><span style="${labelStyle}; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; max-width: 100%; box-sizing: border-box">${escapeHtml(filename)}</span></span>`;
 }
 
 // ============================================================================

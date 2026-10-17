@@ -25,7 +25,11 @@
     <div v-if="isLoading" class="loading-placeholder">
       <div class="spinner"></div>
     </div>
-    <div v-else-if="hasError" class="error-placeholder">
+    <div
+      v-else-if="hasError"
+      class="error-placeholder"
+      :style="{ background: MISSING_IMAGE_PLACEHOLDER_BACKGROUND }"
+    >
       <span class="error-placeholder__title">⚠️ 加载失败</span>
       <span
         class="error-placeholder__resource"
@@ -87,7 +91,10 @@ import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { customMessage } from "@/utils/customMessage";
-import { resolveAgentAssetUrlSync } from "@/tools/agent-manager/utils/agentAssetUtils";
+import {
+  MISSING_IMAGE_PLACEHOLDER_BACKGROUND,
+  resolveAgentAssetUrlSync,
+} from "@/tools/agent-manager/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { resolveLocalPath } from "../../utils/path-utils";
 import { resolveResourceLabel } from "../../utils/resourceLabel";
@@ -541,6 +548,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-height: 50px; /* 最小高度，避免加载时闪烁 */
   width: 100%;
+  box-sizing: border-box;
   padding: 16px;
   background-color: var(--rich-text-image-placeholder-bg, var(--container-bg));
   border: 1px dashed
@@ -557,6 +565,13 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
+.error-placeholder__title,
+.error-placeholder__resource {
+  padding: 2px 4px;
+  border-radius: 2px;
+  background: var(--rich-text-image-placeholder-bg, var(--container-bg));
+}
+
 .error-placeholder__resource {
   max-width: 100%;
   overflow: hidden;
@@ -565,7 +580,7 @@ onBeforeUnmount(() => {
     var(--text-color-light)
   );
   font-size: 12px;
-  opacity: 0.85;
+  box-sizing: border-box;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

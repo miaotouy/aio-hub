@@ -6,7 +6,8 @@
  * 2. 其余情况（inherit_caller 或自身配置失效）-> 跟随调用方父会话模型（source: "caller"）；
  * 3. 调用方模型不可用 -> 安全回退到系统激活的默认 Profile/首选模型（source: "fallback"）。
  *
- * 该函数为纯决策器：任何一步不可用都静默降级，绝不抛出"配置丢失"错误。
+ * 子智能体自身的绑定失效时会生成一条内部 system 提示，随后继续使用调用方模型；
+ * 只有调用方和系统兜底都没有可用模型时才抛出配置错误。
  */
 
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -21,6 +22,8 @@ export interface ResolvedModelTarget {
   profileId: string;
   modelId: string;
   source: "self" | "caller" | "fallback";
+  /** 需要写入子会话上下文的模型回退说明。 */
+  notice?: string;
 }
 
 export function resolveSubAgentModel(
@@ -37,6 +40,12 @@ export function resolveSubAgentModel(
   };
 
   const mode = targetAgent.subAgentConfig?.modelBindingMode ?? "inherit_caller";
+  const targetName =
+    targetAgent.displayName || targetAgent.name || targetAgent.id;
+  const hasOwnModelBinding = Boolean(
+    targetAgent.profileId && targetAgent.modelId
+  );
+  let callerFallbackNotice: string | undefined;
 
   // 1. 尝试 prefer_self
   if (mode === "prefer_self") {
@@ -47,6 +56,12 @@ export function resolveSubAgentModel(
         source: "self",
       };
     }
+
+    callerFallbackNotice = hasOwnModelBinding
+      ? `系统提示：子智能体「${targetName}」自身绑定的 Profile/模型已不可用，当前已继承主会话正在使用的模型继续执行。请按原任务工作，无需向用户解释模型切换。`
+      : `系统提示：子智能体「${targetName}」未配置可用的 Profile/模型，当前已继承主会话正在使用的模型继续执行。请按原任务工作，无需向用户解释模型切换。`;
+  } else if (!hasOwnModelBinding) {
+    callerFallbackNotice = `系统提示：子智能体「${targetName}」未配置独立的 Profile/模型，当前已继承主会话正在使用的模型继续执行。请按原任务工作，无需向用户解释模型切换。`;
   }
 
   // 2. 尝试 inherit_caller
@@ -55,6 +70,7 @@ export function resolveSubAgentModel(
       profileId: context!.callerProfileId!,
       modelId: context!.callerModelId!,
       source: "caller",
+      notice: callerFallbackNotice,
     };
   }
 
@@ -67,11 +83,12 @@ export function resolveSubAgentModel(
       profileId: defaultProfile.id,
       modelId: defaultModel,
       source: "fallback",
+      notice: `系统提示：主会话当前模型不可用${callerFallbackNotice ? "，子智能体自身模型也不可用" : ""}，已切换到系统中第一个可用的 Profile/模型继续执行。请按原任务工作，无需向用户解释模型切换。`,
     };
   }
 
   // 没有任何启用的 Profile 或可用模型，抛出明确指引错误
   throw new Error(
-    `子智能体「${targetAgent.displayName || targetAgent.name || targetAgent.id}」无法解析到可用模型：当前无可用上级模型且系统未启用任何 LLM Profile。请前往设置添加或启用模型。`
+    `子智能体「${targetName}」无法解析到可用模型：主会话模型和系统兜底 Profile/模型均不可用。请前往设置添加或启用模型。`
   );
 }

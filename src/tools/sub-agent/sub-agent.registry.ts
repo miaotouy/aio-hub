@@ -21,6 +21,7 @@ import type {
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { llmChatService } from "@/tools/llm-chat/services/llmChatService";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import {
@@ -248,6 +249,38 @@ export default class SubAgentRegistry implements ToolRegistry {
       },
       delegationDepth: context?.delegationDepth ?? 0,
     };
+  }
+
+  /**
+   * 将模型回退原因写入子会话的 system 上下文，让子智能体知道当前使用的
+   * 实际模型来源；同一条提示在续聊时只写入一次。
+   */
+  private async appendModelResolutionNotice(
+    store: ReturnType<typeof useLlmChatStore>,
+    sessionId: string,
+    resolved: Awaited<ReturnType<typeof resolveSubAgentModel>>
+  ): Promise<void> {
+    if (!resolved.notice) return;
+
+    const detail =
+      store.sessionDetailMap.get(sessionId) ??
+      (await store.ensureSessionDetailLoaded?.(sessionId));
+    if (!detail) {
+      logger.warn("无法写入子会话模型回退提示：会话详情不可用", {
+        sessionId,
+      });
+      return;
+    }
+
+    const alreadyAdded = Object.values(detail.nodes).some(
+      (node) => node.role === "system" && node.content === resolved.notice
+    );
+    if (alreadyAdded) return;
+
+    store.appendMessageNode(sessionId, {
+      role: "system",
+      content: resolved.notice,
+    });
   }
 
   private executionLaneKey(childSessionId: string): string {
@@ -650,6 +683,8 @@ export default class SubAgentRegistry implements ToolRegistry {
     if (!message) throw new Error("必须提供要交给子智能体的消息");
 
     await llmChatService.ensureInitialized();
+    // useLlmProfiles 是惰性加载的；先等待配置完成，避免把“尚未加载”误判为“没有 Profile”。
+    await useLlmProfiles().loadProfiles();
     await this.ensureConversationIndexLoaded();
     // 触发按需释出检查（覆盖"首次直接 ask"路径；已全量存在则快速跳过）
     await subAgentBaselineService.ensureBaselineMaterialized();
@@ -682,8 +717,10 @@ export default class SubAgentRegistry implements ToolRegistry {
 
     // Phase 2：background 模式创建任务与子会话后立即返回 handle，父 Agent 继续执行
     if (args.mode === "background") {
-      const { resolveContext: callerResolveContext, delegationDepth: bgCurrentDepth } =
-        this.buildCallerResolveContext(context);
+      const {
+        resolveContext: callerResolveContext,
+        delegationDepth: bgCurrentDepth,
+      } = this.buildCallerResolveContext(context);
       const resolved = resolveSubAgentModel(targetAgent, callerResolveContext);
       const result = await this.askInBackground({
         args,
@@ -691,10 +728,7 @@ export default class SubAgentRegistry implements ToolRegistry {
         targetAgent,
         existingConversation,
         message,
-        resolvedModel: {
-          profileId: resolved.profileId,
-          modelId: resolved.modelId,
-        },
+        resolvedModel: resolved,
         delegationDepth: bgCurrentDepth + 1,
       });
       const handle = JSON.parse(result) as {
@@ -711,12 +745,14 @@ export default class SubAgentRegistry implements ToolRegistry {
 
     const previousSessionId = llmChatService.getCurrentSession()?.id;
     let conversation = existingConversation;
-    this.retainTargetAgent(targetAgent.id);
 
     // 模型晚绑定：解析子智能体最终生效的模型（prefer_self / inherit_caller / fallback）
-    const { resolveContext: callerResolveContext, delegationDepth: currentDepth } =
-      this.buildCallerResolveContext(context);
+    const {
+      resolveContext: callerResolveContext,
+      delegationDepth: currentDepth,
+    } = this.buildCallerResolveContext(context);
     const resolved = resolveSubAgentModel(targetAgent, callerResolveContext);
+    this.retainTargetAgent(targetAgent.id);
 
     // Phase 1 前台 ask 埋点状态：taskId 与取消订阅句柄在 finally 清理
     const store = useLlmChatStore();
@@ -749,6 +785,8 @@ export default class SubAgentRegistry implements ToolRegistry {
         this.conversations.set(conversation.conversationId, conversation);
         this.persistConversationIndex();
       }
+
+      await this.appendModelResolutionNotice(store, sessionId, resolved);
 
       // ==================== 后台任务观察埋点（Phase 1） ====================
       // Phase 1 只创建可观察任务，ask 仍保持前台阻塞行为；
@@ -949,7 +987,7 @@ export default class SubAgentRegistry implements ToolRegistry {
     targetAgent: LoadedSubAgent;
     existingConversation?: SubAgentConversation;
     message: string;
-    resolvedModel: { profileId: string; modelId: string };
+    resolvedModel: Awaited<ReturnType<typeof resolveSubAgentModel>>;
     /** 递增后的派发深度，透传给子会话的执行链 */
     delegationDepth: number;
   }): Promise<string> {
@@ -1015,6 +1053,12 @@ export default class SubAgentRegistry implements ToolRegistry {
       const activeConversation = conversation!;
       const activeSessionId = sessionId;
 
+      await this.appendModelResolutionNotice(
+        store,
+        activeSessionId,
+        resolvedModel
+      );
+
       const executionLaneKey = this.executionLaneKey(activeSessionId);
       const laneBusy = this.isExecutionLaneBusy(executionLaneKey);
       const task = backgroundTaskRegistry.createTask({
@@ -1059,7 +1103,10 @@ export default class SubAgentRegistry implements ToolRegistry {
               await llmChatService.sendMessage(message, {
                 agentId: targetAgent.id,
                 sessionId: activeSessionId,
-                temporaryModel: resolvedModel,
+                temporaryModel: {
+                  profileId: resolvedModel.profileId,
+                  modelId: resolvedModel.modelId,
+                },
                 delegationDepth,
               });
 

@@ -107,10 +107,11 @@ created ──► running ──► completed
 `resolveSubAgentModel()` 在实际派发前检查 `enabledProfiles` 中的 Profile/Model 是否仍有效：
 
 - `prefer_self` 且目标 Agent 自身绑定仍有效时，使用自身模型，来源为 `self`；
-- 其他情况优先使用调用方父会话的有效模型，来源为 `caller`；
-- 调用方模型不可用时回退到第一个启用 Profile 的首选模型，来源为 `fallback`；若系统没有可用 Profile/Model，则抛出明确的配置指引错误。
+- 目标 Agent 未配置模型，或 `prefer_self` 的自身绑定已失效时，继承调用方父会话的有效模型，来源为 `caller`；
+- 调用方模型不可用时回退到第一个启用 Profile 的首选模型，来源为 `fallback`；
+- 每次发生模型回退，都会在子会话中追加一条 system 提示，说明实际使用的模型来源；调用方和系统兜底都没有可用 Profile/Model 时，才抛出明确的配置指引错误。
 
-解析结果通过 `temporaryModel` 注入 `llmChatService.sendMessage()`，不要求预设携带具体 `profileId` / `modelId`。前台 `foreground` 与后台 `background` 两种模式均创建或复用 detached 子会话，并将递增后的 `delegationDepth` 透传到子会话；同一 `executionLaneKey` 内串行执行。自调用分身由深度链控制，最大深度按目标 Agent 配置读取并限制在 1～3。
+解析结果通过 `temporaryModel` 注入 `llmChatService.sendMessage()`，不要求预设携带具体 `profileId` / `modelId`。`sub-agent` 派发前会等待 LLM Profile 完成加载，避免把尚未加载误判为无 Profile。前台 `foreground` 与后台 `background` 两种模式均创建或复用 detached 子会话，并将递增后的 `delegationDepth` 透传到子会话；同一 `executionLaneKey` 内串行执行。自调用分身由深度链控制，最大深度按目标 Agent 配置读取并限制在 1～3。
 
 ---
 

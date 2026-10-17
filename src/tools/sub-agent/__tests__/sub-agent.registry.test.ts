@@ -22,6 +22,7 @@ import { backgroundTaskRegistry } from "@/services/background-tasks";
 import SubAgentRegistry from "../sub-agent.registry";
 
 const mocks = vi.hoisted(() => ({
+  loadLlmProfiles: vi.fn().mockResolvedValue(undefined),
   sendMessage: vi.fn(),
   abortSending: vi.fn(),
   getSessions: vi.fn(),
@@ -31,6 +32,12 @@ const mocks = vi.hoisted(() => ({
   updateMessageMetadata: vi.fn(),
   loadAgentDetails: vi.fn(),
   sessionDetailMap: new Map<string, unknown>(),
+}));
+
+vi.mock("@/composables/useLlmProfiles", () => ({
+  useLlmProfiles: () => ({
+    loadProfiles: mocks.loadLlmProfiles,
+  }),
 }));
 
 vi.mock("@/tools/llm-chat/services/llmChatService", () => ({

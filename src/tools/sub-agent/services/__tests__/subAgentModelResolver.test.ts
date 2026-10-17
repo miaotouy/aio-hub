@@ -63,6 +63,7 @@ describe("resolveSubAgentModel 模型晚绑定决策链", () => {
       profileId: "profile-a",
       modelId: "model-a2",
       source: "caller",
+      notice: expect.stringContaining("继承主会话正在使用的模型"),
     });
   });
 
@@ -101,6 +102,7 @@ describe("resolveSubAgentModel 模型晚绑定决策链", () => {
       profileId: "profile-a",
       modelId: "model-a1",
       source: "caller",
+      notice: expect.stringContaining("自身绑定的 Profile/模型已不可用"),
     });
   });
 
@@ -113,13 +115,14 @@ describe("resolveSubAgentModel 模型晚绑定决策链", () => {
       profileId: "profile-a",
       modelId: "model-a1",
       source: "fallback",
+      notice: expect.stringContaining("主会话当前模型不可用"),
     });
   });
 
   it("无任何可用 Profile 时抛出明确可操作的错误提示", () => {
     mocks.enabledProfiles.value = [];
     expect(() => resolveSubAgentModel(makeAgent(), {})).toThrow(
-      "无法解析到可用模型：当前无可用上级模型且系统未启用任何 LLM Profile"
+      "主会话模型和系统兜底 Profile/模型均不可用"
     );
   });
 });

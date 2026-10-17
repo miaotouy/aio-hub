@@ -37,7 +37,8 @@ AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../../
    - 核心调整：解除过去粗暴的 `context?.agent?.id === args.agentId` 拦截，转由**调用深度链（Depth Limit = 1）**精准防范死循环递归。
 5. **模型跟随偏好与优雅降级（Model Resolution Hierarchy）**：
    - 支持子智能体配置模型偏好：`inherit_caller`（跟随上层会话，默认）与 `prefer_self`（优先自身模型）；
-   - 若自身模型配置为空，或用户把自身配置绑定的 Profile/Model 删除了，自动优雅降级回退到上层会话模型，绝不抛出“配置丢失”而暴毙。
+   - 若自身模型配置为空，或用户把自身配置绑定的 Profile/Model 删除了，自动优雅降级回退到上层会话模型，并在子会话中追加 system 提示说明回退原因；
+   - 若上层会话模型也不可用，则回退到第一个启用 Profile 的首选模型；只有所有候选模型都不可用时才抛出可操作的配置错误。
 
 ---
 
@@ -309,13 +310,15 @@ export interface ResolvedModelTarget {
   profileId: string;
   modelId: string;
   source: "self" | "caller" | "fallback";
+  notice?: string;
 }
 
 /**
  * 决定子智能体最终执行所绑定的模型：
  * 1. 若配置为 prefer_self，且自身 profileId / modelId 依然有效，使用自身；
  * 2. 其余情况（inherit_caller 或自身配置失效），优先跟随调用方父会话模型；
- * 3. 若调用方模型不可用，安全回退到系统激活的默认 Profile/首选模型。
+ * 3. 若调用方模型不可用，安全回退到系统激活的默认 Profile/首选模型；
+ * 4. 发生回退时返回 system 提示，供调度层写入子会话上下文。
  */
 export function resolveSubAgentModel(
   targetAgent: ChatAgent,
@@ -481,7 +484,7 @@ if (context?.agent?.id === args.agentId) {
 - [x] 改造 [`SubAgentRegistry.list_available_agents()`](../../sub-agent.registry.ts) 与 `ask()` 入口，接入 `ensureBaselineMaterialized()`（覆盖"首次打开工具"与"首次直接 ask"两条触发路径）；
 - [x] 重构 `activeTargetAgentIds` 与自调用拦截，改为由 `delegationDepth` 深度链统一控制（自调用分身已放开；`activeTargetAgentIds` 保留仅作运行并发引用计数，不再做单层禁止）；`delegationDepth` 沿 `useChatHandler -> useChatExecutor -> useToolCallOrchestrator -> useToolCalling -> engine -> executor` 全链透传至子会话工具调用 `ToolContext`；
 - [x] 改造 [`SubAgentRegistry.ask()`](../../sub-agent.registry.ts) 与 `askInBackground()`，透传父会话模型上下文并在 `sendMessage` 中通过 `temporaryModel` 生效；
-- [x] 补齐端到端单测：`subAgentModelResolver.test.ts`（prefer_self 失效回退、调用方失效回退默认 Profile、无 Profile 占位不抛错）与 `subAgentBaselineService.test.ts`（稳定 ID、不覆盖已存在、部分补全、并发去重、索引注册校验）。
+- [x] 补齐端到端单测：`subAgentModelResolver.test.ts`（自身模型缺失/失效回退调用方、调用方失效回退默认 Profile、无可用模型时抛出明确错误）与 `subAgentBaselineService.test.ts`（稳定 ID、不覆盖已存在、部分补全、并发去重、索引注册校验）。
 
 ### Phase 3：UI 管理视图与内置补全闭环
 - [x] 改造 [`AgentsSidebar.vue`](../../../llm-chat/components/sidebar/AgentsSidebar.vue)，在常规列表与搜索结果中过滤掉 `onlySubVisible === true` 的智能体；
@@ -506,4 +509,5 @@ if (context?.agent?.id === args.agentId) {
    - 将全部子智能体的 `subAgentConfig.enabled` 置为 `false`，调用 `list_available_agents` 返回空列表，符合预期；
    - 彻底删除 `builtin-subagent`，再次触发 sub-agent 时自动释出内置母版，实现优雅内置重置；
 4. **模型容错验证**：
-   - 切换或删除子智能体原绑定的 Profile，发起任务时能够顺畅继承父会话的模型继续生成，不报 `Profile not found`。
+   - 子智能体未配置模型，或切换/删除其原绑定的 Profile 后，发起任务时继承主会话模型继续生成，并在子会话上下文中出现模型回退提示；
+   - 主会话模型不可用时回退到第一个启用 Profile 的首选模型；系统没有任何可用 Profile/Model 时，显示明确的设置指引错误。

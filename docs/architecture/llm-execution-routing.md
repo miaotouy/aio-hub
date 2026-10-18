@@ -2,7 +2,7 @@
 
 > 状态：Phase 0–4 已实施（Phase 0–2：2026-08-06；Phase 3：2026-08-12；Phase 4：2026-08-12）；2026-09-21 增加 TypeSafe System One 决策协议
 > 范围：`@aiohub/llm-core`、桌面端请求 / Embedding / Recall / Probe、移动端聊天请求、模型路由编辑与探测结果应用、聚合渠道类型
-> 后续：多能力路由高级编辑与跨协议重试（Phase 5）仍按 `docs/Plan/llm-aggregate-channel-routing-investigation.md` 推进。
+> 后续：多能力路由高级编辑按 `docs/Plan/llm-aggregate-channel-routing-investigation.md` 推进；虚拟渠道组合与统一模型回退按 [实施方案](../Plan/llm-virtual-channel-investigation.md) 推进。自动跨协议重试继续遵循既有兼容性边界。
 
 ## 目标与边界
 
@@ -22,6 +22,14 @@ resolveModelExecution({ profile, model, operation });
 - `routeSource`：`manual`、`probe`、`discovered` 或 `profile-default`。
 
 首期不增加可见 `routeId`，一个模型只可按 operation 保存一个默认 binding。
+
+## 虚拟渠道与下游绑定边界（2026-10-19 决策，待实施）
+
+虚拟渠道作为上层组合入口持有用户配置的物理成员、有序候选与逻辑模型映射。渠道管理统一负责候选选择、自动回退和重试预算；每次选择实际物理目标后，再调用本文的 `resolveModelExecution()` 完成适配器解析。
+
+下游应用提交选定的逻辑渠道、模型和 operation。子代理按配置继承调用方绑定或使用自身绑定，绑定失效时返回配置错误。应用中的全局启用渠道兜底、隐式模型替换和重复自动重试随迁移收回渠道管理。
+
+当前执行路由已实施；虚拟组合与下游策略迁移尚待完成，顺序与兼容约束以 [实施方案](../Plan/llm-virtual-channel-investigation.md) 为准。
 
 ## 聚合渠道
 

@@ -1,9 +1,10 @@
 # 释出型内置开箱即用 Subagent 架构方案
 
-> **状态**：Implemented（三阶段已实施，2026-10-04）  
+> **状态**：基础三阶段已实施（2026-10-04）；模型绑定与渠道回退边界待迁移（2026-10-19 决策）  
 > **关联模块**：`src/tools/sub-agent`、`src/tools/agent-manager`、`src/tools/llm-chat`、`src/composables/useLlmProfiles`  
 > **设计演进**：摒弃硬搬纯工程客户端（OpenCode / DSH）的无入口虚拟 Overlay 做法，回归 AIO Hub 本地资产优先（Local-First）与开箱即用的自洽化释出模式（Materialization Pattern）  
-> **最后更新**：2026-10-04  
+> **最后更新**：2026-10-19
+> **后续实施**：[虚拟渠道组合与统一模型回退方案](../../../../../docs/Plan/llm-virtual-channel-investigation.md)，先落地渠道组合，再迁移本文模型绑定契约。  
 
 ---
 
@@ -35,10 +36,10 @@ AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../../
    - 用户可以关闭所有内置 Subagent，仅将自己当前正在对话的 Agent 的「允许作为子智能体调用」打开；
    - 此时可用列表中仅有当前 Agent 自身，调度器完全支持**“自己派发给自己的分身”**（创建独立的 detached session 隔离执行）；
    - 核心调整：解除过去粗暴的 `context?.agent?.id === args.agentId` 拦截，转由**调用深度链（Depth Limit = 1）**精准防范死循环递归。
-5. **模型跟随偏好与优雅降级（Model Resolution Hierarchy）**：
-   - 支持子智能体配置模型偏好：`inherit_caller`（跟随上层会话，默认）与 `prefer_self`（优先自身模型）；
-   - 若自身模型配置为空，或用户把自身配置绑定的 Profile/Model 删除了，自动优雅降级回退到上层会话模型，并在子会话中追加 system 提示说明回退原因；
-   - 若上层会话模型也不可用，则回退到第一个启用 Profile 的首选模型；只有所有候选模型都不可用时才抛出可操作的配置错误。
+5. **模型绑定与渠道回退边界（2026-10-19 修订，待实施）**：
+   - `inherit_caller`（默认）继承父会话本次选择的逻辑渠道与模型，包含虚拟渠道绑定；
+   - `prefer_self` 使用子智能体显式绑定的渠道与模型，界面语义调整为“使用自身模型”；
+   - 对应绑定缺失或失效时返回配置错误；备用候选、主备顺序与自动回退由渠道管理的虚拟组合配置承担。
 
 ---
 
@@ -67,7 +68,7 @@ AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../../
 │ sub-agent 调度执行层 (SubAgentRegistry)                     │
 │ 1. list_available_agents: 读取物理开启 sub 的 Agent          │
 │ 2. ask: 读取调用方父会话 context，执行模型晚绑定继承解析    │
-│ 3. 模型决策：prefer_self(有效) > inherit_caller > 系统默认   │
+│ 3. 目标绑定：按配置使用自身模型或继承调用方逻辑模型        │
 │ 4. 派生独立子会话并执行 (createDetachedSession)             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -78,7 +79,7 @@ AIO Hub 现有的类似场景（如 [`agentStore.createDefaultAgents`](../../../
 
 ### 3.1. 子智能体配置契约扩展 (`SubAgentConfig`)
 
-> 现状：[`SubAgentConfig`](../../../agent-manager/types/agent.ts:220) 仅含 `{ enabled: boolean }`，`DEFAULT_SUB_AGENT_CONFIG` 也仅含 `{ enabled: false }`。以下为本次扩展后的**目标契约**，属 Phase 1 待实现项。
+> 配置字段已于 2026-10-04 实施。2026-10-19 修订模型绑定语义：保留存储枚举值，具体行为随虚拟渠道接入迁移，见第 4.2 节。
 
 在 [`src/tools/agent-manager/types/agent.ts`](../../../agent-manager/types/agent.ts) 中扩展 `SubAgentConfig`：
 
@@ -90,7 +91,7 @@ export interface SubAgentConfig {
   /**
    * 模型绑定偏好策略：
    * - 'inherit_caller' (默认): 动态跟随调度方/父会话的模型配置，上下文成本低且开箱即用；
-   * - 'prefer_self': 优先使用当前 Agent 自身配置的 profileId 与 modelId（用于特定能力的大模型特化）。
+   * - 'prefer_self': 使用当前 Agent 显式配置的逻辑 profileId 与 modelId；失效时报配置错误（待迁移语义）。
    */
   modelBindingMode?: "inherit_caller" | "prefer_self";
 
@@ -293,79 +294,20 @@ export const subAgentBaselineService = new SubAgentBaselineService();
 
 > 释出流程与现有"从预设创建智能体"的 UI 路径保持一致：即 [`AgentManager.vue:130`](../../../agent-manager/AgentManager.vue) 的 `agentStore.createAgent(...)` + `ensurePresetAssetsImported(agentId)`。无需改造 `agentImportService`（其负责用户文件导入、世界书与重名预检，与本场景正交）。
 
-### 4.2. 模型解析与降级算法 (`resolveSubAgentModel`)
+### 4.2. 模型绑定解析（2026-10-19 目标，待实施）
 
-在 `src/tools/sub-agent/services/subAgentModelResolver.ts` 中实现严密的模型决策链：
+`src/tools/sub-agent/services/subAgentModelResolver.ts` 收缩为绑定解析器，返回逻辑 `profileId`、`modelId` 以及来源 `self | caller`。
 
-```typescript
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import type { ChatAgent } from "@/tools/agent-manager/types/agent";
+| 绑定方式 | 逻辑绑定来源 | 配置失效时 |
+| --- | --- | --- |
+| `inherit_caller` | 父会话本次执行所选择的逻辑渠道与模型 | 返回调用方绑定错误，提示检查父会话模型配置 |
+| `prefer_self` | 目标 Agent 显式绑定的渠道与模型 | 返回自身绑定错误，提示检查子智能体模型配置 |
 
-export interface SubAgentResolveContext {
-  callerProfileId?: string;
-  callerModelId?: string;
-}
+父会话选择虚拟渠道时，子会话继承该逻辑绑定。候选映射、物理成员、主备顺序和统一重试预算由渠道管理解析，实际物理目标作为执行结果单独记录。
 
-export interface ResolvedModelTarget {
-  profileId: string;
-  modelId: string;
-  source: "self" | "caller" | "fallback";
-  notice?: string;
-}
+迁移时移除 `source: "fallback"`、全局启用渠道遍历以及自身失效后隐式改用调用方的路径；同时移除由这些替代路径生成的 system 提示。Profile 加载等待、有效性校验和可操作错误继续保留。
 
-/**
- * 决定子智能体最终执行所绑定的模型：
- * 1. 若配置为 prefer_self，且自身 profileId / modelId 依然有效，使用自身；
- * 2. 其余情况（inherit_caller 或自身配置失效），优先跟随调用方父会话模型；
- * 3. 若调用方模型不可用，安全回退到系统激活的默认 Profile/首选模型；
- * 4. 发生回退时返回 system 提示，供调度层写入子会话上下文。
- */
-export function resolveSubAgentModel(
-  targetAgent: ChatAgent,
-  context?: SubAgentResolveContext
-): ResolvedModelTarget {
-  const { enabledProfiles } = useLlmProfiles();
-  const profiles = enabledProfiles.value;
-
-  const isModelAvailable = (pid?: string, mid?: string) => {
-    if (!pid || !mid) return false;
-    const profile = profiles.find((p) => p.id === pid);
-    return profile ? profile.models.some((m) => m.id === mid) : false;
-  };
-
-  const mode = targetAgent.subAgentConfig?.modelBindingMode ?? "inherit_caller";
-
-  // 1. 尝试 prefer_self
-  if (mode === "prefer_self") {
-    if (isModelAvailable(targetAgent.profileId, targetAgent.modelId)) {
-      return {
-        profileId: targetAgent.profileId,
-        modelId: targetAgent.modelId,
-        source: "self",
-      };
-    }
-  }
-
-  // 2. 尝试 inherit_caller
-  if (isModelAvailable(context?.callerProfileId, context?.callerModelId)) {
-    return {
-      profileId: context!.callerProfileId!,
-      modelId: context!.callerModelId!,
-      source: "caller",
-    };
-  }
-
-  // 3. 兜底系统激活的默认 Profile
-  const defaultProfile = profiles[0];
-  const defaultModel = defaultProfile?.models[0]?.id ?? "default";
-
-  return {
-    profileId: defaultProfile?.id ?? "default",
-    modelId: defaultModel,
-    source: "fallback",
-  };
-}
-```
+当前代码仍包含旧的三级兜底链。迁移依赖 [虚拟渠道组合方案](../../../../../docs/Plan/llm-virtual-channel-investigation.md) 的共享执行入口，按该方案先建设渠道能力，再调整下游。
 
 ---
 
@@ -417,21 +359,13 @@ if (context?.agent?.id === args.agentId) {
      return JSON.stringify({ agents }, null, 2);
    }
    ```
-2. **`ask` 与 `askInBackground` 触发按需释出 + 应用模型继承与临时模型生效**：
-   在 `ask` 入口（`agentId` 校验前）调用 `subAgentBaselineService.ensureBaselineMaterialized()`，确保首次直接 `ask` 也能释出内置基线；随后在派生独立会话时，通过父级会话的 Agent 提取模型上下文，并通过 `sendMessage` 的 `temporaryModel` 动态注入生效模型：
+2. **`ask` 与 `askInBackground` 触发按需释出 + 应用逻辑模型绑定与临时模型生效**：
+   在 `ask` 入口（`agentId` 校验前）调用 `subAgentBaselineService.ensureBaselineMaterialized()`，确保首次直接 `ask` 也能释出内置基线；随后在派生独立会话时，从父会话本次请求上下文提取逻辑绑定，并通过 `sendMessage` 的 `temporaryModel` 动态注入生效模型：
    ```typescript
    await subAgentBaselineService.ensureBaselineMaterialized();
 
-   // 提取调用方模型上下文（父会话绑定的 Agent 或当前活跃 Agent）
-   const parentSession = llmChatService.getCurrentSession();
-   const parentAgentId = parentSession?.displayAgentId || context?.agent?.id;
-   const parentAgent = parentAgentId ? agentStore.getAgentById(parentAgentId) : llmChatService.getCurrentAgent();
-
-   const callerContext: SubAgentResolveContext = {
-     callerProfileId: parentAgent?.profileId,
-     callerModelId: parentAgent?.modelId,
-   };
-
+   // 从当前父请求上下文传入逻辑绑定，保留其虚拟渠道选择。
+   // callerContext 由派发层提供；字段缺失时交由绑定校验返回配置错误。
    const resolved = resolveSubAgentModel(targetAgent, callerContext);
 
    // 创建 detached 会话
@@ -484,7 +418,7 @@ if (context?.agent?.id === args.agentId) {
 - [x] 改造 [`SubAgentRegistry.list_available_agents()`](../../sub-agent.registry.ts) 与 `ask()` 入口，接入 `ensureBaselineMaterialized()`（覆盖"首次打开工具"与"首次直接 ask"两条触发路径）；
 - [x] 重构 `activeTargetAgentIds` 与自调用拦截，改为由 `delegationDepth` 深度链统一控制（自调用分身已放开；`activeTargetAgentIds` 保留仅作运行并发引用计数，不再做单层禁止）；`delegationDepth` 沿 `useChatHandler -> useChatExecutor -> useToolCallOrchestrator -> useToolCalling -> engine -> executor` 全链透传至子会话工具调用 `ToolContext`；
 - [x] 改造 [`SubAgentRegistry.ask()`](../../sub-agent.registry.ts) 与 `askInBackground()`，透传父会话模型上下文并在 `sendMessage` 中通过 `temporaryModel` 生效；
-- [x] 补齐端到端单测：`subAgentModelResolver.test.ts`（自身模型缺失/失效回退调用方、调用方失效回退默认 Profile、无可用模型时抛出明确错误）与 `subAgentBaselineService.test.ts`（稳定 ID、不覆盖已存在、部分补全、并发去重、索引注册校验）。
+- [x] 原模型解析及基线释出测试已实施：`subAgentModelResolver.test.ts` 覆盖历史三级兜底契约，`subAgentBaselineService.test.ts` 覆盖稳定 ID、已有实体保留、部分补全和并发去重。模型解析测试随第 8 节迁移更新。
 
 ### Phase 3：UI 管理视图与内置补全闭环
 - [x] 改造 [`AgentsSidebar.vue`](../../../llm-chat/components/sidebar/AgentsSidebar.vue)，在常规列表与搜索结果中过滤掉 `onlySubVisible === true` 的智能体；
@@ -508,6 +442,10 @@ if (context?.agent?.id === args.agentId) {
 3. **禁用与删除行为预期验证**：
    - 将全部子智能体的 `subAgentConfig.enabled` 置为 `false`，调用 `list_available_agents` 返回空列表，符合预期；
    - 彻底删除 `builtin-subagent`，再次触发 sub-agent 时自动释出内置母版，实现优雅内置重置；
-4. **模型容错验证**：
-   - 子智能体未配置模型，或切换/删除其原绑定的 Profile 后，发起任务时继承主会话模型继续生成，并在子会话上下文中出现模型回退提示；
-   - 主会话模型不可用时回退到第一个启用 Profile 的首选模型；系统没有任何可用 Profile/Model 时，显示明确的设置指引错误。
+4. **模型绑定与渠道回退验证（待实施目标）**：
+   - `inherit_caller` 继承父会话本次选择的逻辑模型，包括虚拟渠道；`prefer_self` 使用自身显式绑定；
+   - 对应绑定失效时返回可操作的配置错误；虚拟渠道只在用户配置的候选范围内执行回退，并记录实际物理目标。
+
+## 8. 渠道管理边界迁移（待实施）
+
+按 [统一实施方案](../../../../../docs/Plan/llm-virtual-channel-investigation.md) 先落地虚拟渠道组合与共享主备执行，再迁移本模块第 4.2 节契约及对应 UI、调用上下文和测试。已有明确绑定原样保留，绑定失效的配置提供修复入口；备用关系由用户在渠道管理中明确配置。

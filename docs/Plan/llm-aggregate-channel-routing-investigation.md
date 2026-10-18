@@ -1,6 +1,7 @@
 # LLM 聚合渠道与模型级适配器路由调查
 
 > 状态：Phase 0–4 已实施；Phase 5 待排期
+> 2026-10-19 决策：下一步实施 [虚拟渠道组合与统一模型回退](./llm-virtual-channel-investigation.md)。跨物理渠道的候选选择和重试由渠道管理负责；本文继续维护物理渠道与模型的协议适配。
 > 调查日期：2026-07-30（OpenCode Go 补充核查：2026-08-06；Phase 0–2 实施：2026-08-06；Phase 3 实施：2026-08-12；Phase 4 实施：2026-08-12）
 > 范围：桌面端、移动端（尚未发布）、`@aiohub/llm-core`、渠道导入导出、模型发现与探测  
 > 本地参考仓库：`E:\git\new-api`、`E:\git\sub2api`、`E:\git\cherry-studio`

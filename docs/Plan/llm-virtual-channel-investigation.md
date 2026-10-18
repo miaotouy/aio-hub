@@ -1,590 +1,144 @@
-# LLM 虚拟渠道概念调查
-
-> 状态：调查完成，暂缓实施（候选）
-> 调查日期：2026-08-12
-> 范围：跨渠道容灾、模型聚合、故障转移、负载均衡
-> 前置：Phase 0–4（模型执行路由与聚合渠道）已实施
-
-## 1. 问题背景
-
-当前 Phase 0–3 已实现**模型级路由**（model execution routing），单个渠道内的不同模型可以使用不同的协议适配器。这解决了 New API、Sub2API、OpenCode Go 等"单端点多协议"聚合服务的基础接入问题。
-
-但仍有以下场景未被覆盖：
-
-1. **跨渠道容灾**：主渠道失败时自动切换到备用渠道（如 OpenAI 主渠道限速，自动切到 Azure 或 OpenRouter）。
-2. **模型聚合**：将多个渠道的同名模型视为一个逻辑模型，自动选择可用的实例（如将三个不同渠道的 `gpt-4o` 聚合为一个用户可见的模型）。
-3. **负载均衡**：在多个渠道间分配请求，避免单一渠道配额耗尽。
-4. **成本优化**：按价格、配额剩余、延迟等因素选择最优渠道。
-5. **渠道级优先级**：用户明确指定主备渠道顺序，而非在每个模型上重复配置。
-
-当前的 `model.routing.bindings` 只能为单个模型指定一个渠道的一个适配器，不能表达"这个模型可以从三个渠道中任选一个"的语义。
-
-## 2. 核心概念
-
-### 2.1 虚拟渠道 vs 聚合渠道
-
-**聚合渠道**（Phase 4 已实施）解决的是"单服务端点暴露多种协议"的适配问题：
-
-- 一个 Base URL
-- 一个 API Key
-- 一份模型列表
-- 不同模型使用不同的线协议（OpenAI Chat / Responses / Anthropic Messages / Gemini）
-
-**虚拟渠道**解决的是"多个独立渠道共同对外提供服务"的编排问题：
-
-- 多个物理渠道（每个有独立的 Base URL、API Key、模型列表）
-- 逻辑上视为一个统一服务
-- 具备故障转移、负载均衡、优先级选择等编排能力
-- 用户在模型选择器中看到的是虚拟渠道聚合后的模型列表
-
-### 2.2 虚拟渠道的职责边界
-
-虚拟渠道是**渠道编排层**，不是协议适配层：
-
-```
-┌─────────────────────────────────────────┐
-│  用户选择模型并发起请求                 │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│  虚拟渠道：选择物理渠道实例              │◄─── 新增层级
-│  - 容灾策略（主备顺序、超时重试）         │
-│  - 负载策略（轮询、权重、配额感知）       │
-│  - 健康检查与熔断                       │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│  物理渠道：提供模型与 API 端点           │
-│  - OpenAI 主渠道                        │
-│  - Azure OpenAI 备渠道                  │
-│  - OpenRouter 备渠道                    │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│  模型执行路由与聚合渠道                  │◄─── Phase 0–4 已实施
-│  resolveModelExecution()                │
-└──────────────┬──────────────────────────┘
-               │
-┌──────────────▼──────────────────────────┐
-│  协议适配器：执行实际请求                │
-│  - openai-chat-completions              │
-│  - anthropic-messages                   │
-│  - gemini-generate-content              │
-└─────────────────────────────────────────┘
-```
-
-关键职责划分：
-
-- **虚拟渠道**：选择"用哪个物理渠道"
-- **模型执行路由**：选择"用哪个协议适配器"
-- **协议适配器**：构造请求并解析响应
-
-## 3. 领域模型草案
-
-### 3.1 虚拟渠道类型定义
-
-```ts
-interface VirtualChannelProfile {
-  id: string;
-  name: string;
-  type: "virtual"; // 标识为虚拟渠道，与物理渠道区分
-
-  /** 虚拟渠道的模式 */
-  mode: VirtualChannelMode;
-
-  /** 成员物理渠道配置 */
-  members: VirtualChannelMember[];
-
-  /** 模型聚合策略 */
-  modelAggregation: ModelAggregationConfig;
-
-  /** 请求路由策略 */
-  routingStrategy: RoutingStrategyConfig;
-
-  /** 健康检查与熔断配置 */
-  healthCheck?: HealthCheckConfig;
-}
-
-type VirtualChannelMode =
-  | "failover" // 主备故障转移
-  | "load-balance" // 负载均衡
-  | "cost-optimize" // 成本优化
-  | "manual"; // 手工选择优先级
-
-interface VirtualChannelMember {
-  /** 引用的物理渠道 ID */
-  profileId: string;
-
-  /** 在虚拟渠道中的角色 */
-  role?: "primary" | "secondary" | "fallback";
-
-  /** 优先级（数字越小越优先，主备模式使用） */
-  priority?: number;
-
-  /** 权重（负载均衡模式使用） */
-  weight?: number;
-
-  /** 是否启用 */
-  enabled: boolean;
-
-  /** 成员特定的覆盖配置 */
-  overrides?: {
-    /** 仅使用该成员的特定模型（模型 ID 白名单） */
-    includedModels?: string[];
-    /** 排除该成员的特定模型（模型 ID 黑名单） */
-    excludedModels?: string[];
-  };
-}
-
-interface ModelAggregationConfig {
-  /** 模型合并策略 */
-  strategy: "union" | "intersection" | "primary-only";
-
-  /** 同名模型的去重规则 */
-  deduplication: {
-    /** 去重依据 */
-    by: "model-id" | "model-id-and-provider" | "identity";
-
-    /** 去重后如何选择展示信息 */
-    displayFrom: "primary" | "first" | "merge";
-  };
-
-  /** 是否在模型名称中显示渠道来源 */
-  showChannelSource?: boolean;
-}
-
-interface RoutingStrategyConfig {
-  mode: VirtualChannelMode;
-
-  /** 主备模式配置 */
-  failover?: {
-    /** 主渠道失败后的重试次数 */
-    retries: number;
-    /** 重试超时（毫秒） */
-    timeout: number;
-    /** 是否自动回切到主渠道 */
-    autoRecover: boolean;
-  };
-
-  /** 负载均衡配置 */
-  loadBalance?: {
-    /** 均衡算法 */
-    algorithm: "round-robin" | "weighted" | "least-loaded" | "random";
-    /** 是否感知渠道配额剩余 */
-    quotaAware: boolean;
-  };
-
-  /** 成本优化配置 */
-  costOptimize?: {
-    /** 价格来源 */
-    priceSource: "model-metadata" | "custom";
-    /** 自定义价格表 */
-    customPrices?: Record<string, { input: number; output: number }>;
-    /** 成本阈值（超过后切换渠道） */
-    costThreshold?: number;
-  };
-}
-
-interface HealthCheckConfig {
-  /** 健康检查间隔（秒） */
-  interval: number;
-
-  /** 连续失败多少次后熔断 */
-  failureThreshold: number;
-
-  /** 熔断后多久尝试恢复（秒） */
-  recoveryTimeout: number;
-
-  /** 熔断后是否完全移除成员 */
-  removeOnCircuitBreak: boolean;
-}
-```
-
-### 3.2 运行时解析流程
-
-```ts
-interface ResolveVirtualChannelExecutionOptions {
-  virtualChannel: VirtualChannelProfile;
-  modelId: string;
-  operation: LlmOperation;
-  context?: {
-    /** 上次请求失败的渠道 ID（用于故障转移） */
-    lastFailedProfileId?: string;
-    /** 当前会话已使用的渠道统计（用于负载均衡） */
-    usageStats?: Record<string, number>;
-  };
-}
-
-interface ResolvedVirtualChannelExecution {
-  /** 选中的物理渠道 */
-  selectedProfile: LlmProfile;
-
-  /** 该物理渠道的模型执行路由 */
-  execution: ResolvedModelExecution;
-
-  /** 选择原因（用于日志和 Inspector） */
-  selectionReason: string;
-
-  /** 备选渠道（故障转移时使用） */
-  fallbackProfiles?: LlmProfile[];
-}
-
-function resolveVirtualChannelExecution(
-  options: ResolveVirtualChannelExecutionOptions
-): ResolvedVirtualChannelExecution {
-  // 1. 筛选可用成员渠道
-  // 2. 根据策略排序或加权选择
-  // 3. 检查健康状态和熔断状态
-  // 4. 返回选中的物理渠道 + 备选列表
-}
-```
-
-## 4. 与现有架构的集成点
-
-### 4.1 渠道类型扩展
-
-当前 `ProviderType` 都是物理渠道类型。需要区分：
-
-```ts
-type ChannelCategory = "physical" | "virtual";
-
-interface LlmProfile {
-  // ... existing fields
-  category: ChannelCategory; // 新增字段，区分物理渠道和虚拟渠道
-
-  // 当 category === "physical" 时，type 是现有的 ProviderType
-  // 当 category === "virtual" 时，type 固定为 "virtual"
-  type: ProviderType | "virtual";
-
-  // 当 category === "virtual" 时，必须有 virtualConfig
-  virtualConfig?: VirtualChannelProfile;
-}
-```
-
-### 4.2 请求入口改造
-
-当前 `useLlmRequest.ts` 的核心流程：
-
-```ts
-// 当前实现（Phase 0–3）
-const execution = resolveModelExecution({ profile, model, operation });
-const adapter = adapters[execution.effectiveProfile.type];
-const result = await adapter.request(...)
-```
-
-需要改造为：
-
-```ts
-// 支持虚拟渠道（Phase 6+）
-let selectedProfile = profile;
-let fallbackProfiles: LlmProfile[] = [];
-
-if (profile.category === "virtual") {
-  const resolved = resolveVirtualChannelExecution({
-    virtualChannel: profile.virtualConfig!,
-    modelId: model.id,
-    operation,
-    context: { lastFailedProfileId, usageStats },
-  });
-  selectedProfile = resolved.selectedProfile;
-  fallbackProfiles = resolved.fallbackProfiles ?? [];
-}
-
-const execution = resolveModelExecution({
-  profile: selectedProfile,
-  model,
-  operation,
-});
-
-const adapter = adapters[execution.effectiveProfile.type];
-
-try {
-  const result = await adapter.request(...);
-  // 成功：记录统计
-  recordChannelSuccess(selectedProfile.id);
-  return result;
-} catch (error) {
-  // 失败：尝试 fallback
-  if (fallbackProfiles.length > 0) {
-    return await retryWithFallback(fallbackProfiles, model, operation);
-  }
-  throw error;
-}
-```
-
-### 4.3 模型列表聚合
-
-虚拟渠道的模型列表需要从成员渠道聚合：
-
-```ts
-function aggregateModelsForVirtualChannel(
-  virtualChannel: VirtualChannelProfile,
-  memberProfiles: LlmProfile[]
-): LlmModelInfo[] {
-  const allModels: LlmModelInfo[] = [];
-
-  for (const member of virtualChannel.members) {
-    if (!member.enabled) continue;
-
-    const physicalProfile = memberProfiles.find(
-      (p) => p.id === member.profileId
-    );
-    if (!physicalProfile) continue;
-
-    let models = physicalProfile.models ?? [];
-
-    // 应用成员的包含/排除过滤
-    if (member.overrides?.includedModels) {
-      models = models.filter((m) =>
-        member.overrides!.includedModels!.includes(m.id)
-      );
-    }
-    if (member.overrides?.excludedModels) {
-      models = models.filter(
-        (m) => !member.overrides!.excludedModels!.includes(m.id)
-      );
-    }
-
-    // 为每个模型附加来源信息
-    allModels.push(
-      ...models.map((m) => ({
-        ...m,
-        _virtualChannelSource: {
-          profileId: physicalProfile.id,
-          profileName: physicalProfile.name,
-          priority: member.priority,
-        },
-      }))
-    );
-  }
-
-  // 根据聚合策略去重和合并
-  return deduplicateModels(allModels, virtualChannel.modelAggregation);
-}
-```
-
-## 5. 与外部实现的对比
-
-### 5.1 New API 的"渠道组"
-
-New API 有 Channel Group 概念，但它主要用于：
-
-- 组织和批量管理渠道
-- 共享配额和限流
-- 不涉及请求级的故障转移或负载均衡
-
-AIO Hub 的虚拟渠道是**运行时编排**，不是管理分组。
-
-### 5.2 OpenRouter 的自动路由
-
-OpenRouter 提供了模型级的自动路由：
-
-- 用户请求一个模型
-- OpenRouter 自动选择可用的上游提供商
-- 透明处理故障转移
-
-但这是**服务端能力**，客户端无法配置策略。AIO Hub 的虚拟渠道是**客户端编排**，用户完全控制路由策略。
-
-### 5.3 LangChain 的 Fallback
-
-LangChain 有 `FallbackLLM` 模式：
-
-```python
-primary = ChatOpenAI()
-fallback = ChatAnthropic()
-llm = primary.with_fallbacks([fallback])
-```
-
-这与虚拟渠道的主备模式接近，但：
-
-- LangChain 是代码级配置，AIO Hub 是 UI 可配置
-- LangChain 无健康检查和熔断
-- LangChain 不处理模型列表聚合
-
-## 6. 实施复杂度分析
-
-### 6.1 核心能力依赖
-
-| 能力                  | 前置要求                           | 复杂度 |
-| --------------------- | ---------------------------------- | ------ |
-| 主备故障转移          | 尚未实施；依赖渠道级 fallback 方案 | 中     |
-| 模型列表聚合          | 模型去重与合并逻辑                 | 中     |
-| 健康检查与熔断        | 后台任务调度、状态持久化           | 高     |
-| 负载均衡（轮询/权重） | 请求统计、状态管理                 | 高     |
-| 成本优化              | 模型元数据价格、计费统计           | 高     |
-| 配额感知负载均衡      | 渠道配额 API 集成                  | 极高   |
-
-### 6.2 与现有功能的冲突
-
-1. **模型选择器 UI**：当前假设"一个渠道 = 一份模型列表"，虚拟渠道打破这个假设。
-2. **模型配置**：当前模型配置存储在 `profile.models`，虚拟渠道的模型是动态聚合的，无法直接持久化。
-3. **Inspector 和日志**：需要同时展示"虚拟渠道 ID"和"实际使用的物理渠道 ID"。
-4. **渠道包导入导出**：虚拟渠道依赖成员渠道，导出时需要一并导出依赖关系。
-
-### 6.3 用户体验挑战
-
-1. **配置复杂度**：虚拟渠道的配置项远多于物理渠道，用户容易困惑。
-2. **调试困难**：请求失败时，用户需要知道是哪个物理渠道失败的，以及为什么选择了这个渠道。
-3. **模型重名**：聚合后的模型列表中，用户无法直接看到某个模型来自哪个渠道（除非显式标注）。
+# LLM 虚拟渠道组合与统一模型回退实施方案
 
-## 7. 替代方案
-
-### 7.1 方案 A：不引入虚拟渠道，在现有渠道内增加优先级
-
-在 `LlmProfile` 内增加 `fallbackProfiles: string[]`：
-
-```ts
-interface LlmProfile {
-  // ... existing fields
-  fallbackProfiles?: string[]; // 备用渠道 ID 列表
-}
-```
-
-优点：
+> 状态：方案已确定，待实施；列为下一步渠道管理工作
+> 原调查日期：2026-08-12
+> 决策修订：2026-10-19
+> 范围：渠道管理、虚拟渠道组合、共享请求执行、下游模型绑定迁移
+> 前置：Phase 0–4 模型执行路由与聚合渠道已实施
 
-- 实现简单，不需要新的渠道类型
-- 向后兼容
+## 1. 决策与当前差异
 
-缺点：
+2026-10-19 确定：通过虚拟渠道组合用户指定的物理渠道与模型，统一承担候选选择、失败回退和重试。聊天、子代理、翻译、媒体生成等下游应用提交用户选定的渠道与模型，由渠道管理执行这份配置。
 
-- 无法表达"多个渠道的模型聚合"
-- 优先级配置分散在每个渠道，不利于管理
-- 无法支持负载均衡和成本优化
+本方案取代原调查中“暂缓虚拟渠道，先在物理渠道增加 `fallbackProfiles`”的推进建议。下一步直接建设虚拟渠道组合入口，使用同一份组合配置表达主备关系。
 
-### 7.2 方案 B：只实现最小的主备故障转移
+当前已有聚合渠道解决单个服务端点内的多协议适配。虚拟渠道在其上组织多个物理渠道，每次选定实际成员后继续调用现有 `resolveModelExecution()`。
 
-不引入完整的虚拟渠道概念，只在请求层增加简单的 fallback 逻辑：
+当前实现仍有待迁移的应用级回退：子代理按自身、调用方、系统首个启用 Profile 逐级选模；聊天请求执行器持有部分自动重试逻辑。文档中的新契约随以下实施步骤落地，运行时代码尚未完成迁移。
 
-```ts
-interface RequestOptions {
-  fallbackProfiles?: LlmProfile[]; // 请求级的备用渠道
-}
-```
+## 2. 职责与绑定契约
 
-优点：
+| 层级 | 职责 |
+| --- | --- |
+| 下游应用 | 选择业务绑定，提交 `profileId`、`modelId`、operation、请求参数、取消信号与调用预算；展示结果或可操作错误 |
+| 渠道管理 | 校验绑定，解析虚拟渠道，按显式配置选择候选，管理统一重试预算并记录实际执行目标 |
+| 模型执行路由 | 为实际物理渠道与模型解析 operation 对应的适配器、端点和参数 |
+| 协议适配器 | 构造物理请求，返回流式增量、响应和可分类的错误 |
 
-- 实现成本低
-- 用户无需理解虚拟渠道概念
+所有自动替换执行模型的策略归渠道管理。下游应用通过用户绑定使用物理渠道或虚拟渠道，应用内的启用渠道列表只用于配置选择与展示。
 
-缺点：
+子代理的绑定模式调整为：
 
-- 每次请求都要手工传递 fallback 列表
-- 无法在 UI 中持久化故障转移策略
-- 无法支持健康检查和熔断
+- `inherit_caller`：继承父会话本次执行所选择的逻辑渠道与模型；父会话选择虚拟渠道时，继承该虚拟绑定。
+- `prefer_self`：沿用现有存储值，界面语义改为“使用自身模型”，使用子代理明确绑定的渠道与模型。
+- 对应绑定缺失、删除或禁用时，返回配置错误，并提示修复绑定或配置虚拟渠道。原有“自身失效改用调用方，再寻找全局 Profile”的替代路径在迁移时移除。
 
-### 7.3 方案 C：只实现模型聚合，不实现故障转移
+用户分别配置聊天模型、提示词优化模型、向量模型等业务用途，属于独立绑定。每个绑定内的候选模型与失败回退继续由渠道管理处理。
 
-引入虚拟渠道，但只用于聚合模型列表，不改变请求逻辑：
+## 3. 首期组合方式
 
-```ts
-interface VirtualChannelProfile {
-  type: "virtual";
-  members: { profileId: string }[];
-  modelAggregation: ModelAggregationConfig;
-  // 没有 routingStrategy
-}
-```
+首期实现有序主备组合，形成可在现有模型选择器中选择的虚拟渠道及逻辑模型。
 
-优点：
+例如用户建立“工作助手”虚拟渠道，显式配置逻辑模型“通用对话”：
 
-- 解决了"多渠道同名模型"的 UI 问题
-- 不涉及运行时请求路由，实现简单
+| 顺序 | 物理渠道 | 实际模型 |
+| --- | --- | --- |
+| 1 | 用户的主渠道 | 用户选定的主模型 |
+| 2 | 用户的备用渠道 | 用户选定的备用模型 |
 
-缺点：
+一次调用固定选择“工作助手 / 通用对话”。渠道管理在配置范围内决定实际目标，并向调用方返回执行信息。直接选择物理渠道的调用固定在该渠道，沿用其 Key 管理和重试配置。
 
-- 无法容灾，用户仍需手工切换渠道
-- 价值有限（用户可以手工在多个渠道间切换）
+轮询、权重、价格调度和后台健康探测在主备闭环完成后按需扩展，共用组合模型和执行入口。
 
-## 8. 推荐方向
+### 3.1 配置结构
 
-### 8.1 短期（Phase 5）：不引入虚拟渠道
+下列名称为实施草案，字段应与当前两端类型及持久化方式对齐：
 
-理由：
+| 对象 | 必需信息 |
+| --- | --- |
+| 虚拟渠道 | 稳定 ID、名称、启用状态、成员物理渠道引用、有序主备策略、总尝试次数与总时限 |
+| 逻辑模型 | 稳定 ID、展示信息、operation 对应的有序候选映射 |
+| 候选目标 | 成员渠道 ID、实际模型 ID、顺序及启用状态 |
+| 执行记录 | 请求的逻辑绑定、实际物理绑定、operation、适配器及每次尝试结果 |
 
-1. **Phase 0–4 已完成**，模型执行路由和聚合渠道基础能力先在实际使用中验证稳定性。
-2. **Phase 5 多能力路由**（Embedding / Rerank / Image 等）的需求优先级低于当前发布收口，应按真实需求排期。
-3. **虚拟渠道的价值尚未被用户验证**：目前没有用户明确提出"需要跨渠道容灾"的需求。
-4. **实施复杂度高**：健康检查、熔断、负载均衡都需要后台任务和状态管理，与当前架构耦合深。
+虚拟渠道通过引用复用成员渠道的鉴权、代理、端点与模型配置。首期成员引用物理渠道，保存时检查重复成员、悬空引用和候选映射有效性。
 
-### 8.2 中期（Phase 6）：实现最小主备故障转移
+逻辑模型的候选由用户明确选择；渠道模型名称或 canonical ID 相同只可用于配置建议。导入配置后，缺失的成员以待修复状态展示，保留原始引用供用户重新绑定。
 
-如果用户反馈确实需要容灾，可以先实现**方案 A**（现有渠道内增加 `fallbackProfiles`）：
+### 3.2 能力与协议约束
 
-1. 在 `LlmProfile` 增加可选的 `fallbackProfiles: string[]`。
-2. 在 `useLlmRequest` 捕获失败后，自动尝试 fallback 渠道。
-3. 不引入新的渠道类型，不聚合模型列表。
-4. 在 Inspector 和日志中记录实际使用的渠道。
+渠道管理按请求 operation 和实际使用的能力筛选已配置候选。图像输入、工具调用、结构化输出等能力需要满足本次请求，候选不足时返回配置错误。
 
-**完成标准**：
+首期自动切换要求候选解析到兼容的同一线协议适配器，并满足已有 reasoning replay 与工具处理声明。保留当前跨协议自动重试边界；需要新增协议转换时，先扩展共享执行契约。
 
-- 主渠道限速或网络错误时，自动切换到备用渠道
-- 用户可以在渠道设置中配置备用渠道列表
-- 失败重试有明确的超时和次数限制
-- 不自动跨协议重试（Phase 4.4 的约束仍然成立）
+Embedding 候选还需要兼容的向量空间约束，遵循[模型身份与 Embedding 空间设计](../design/model-identity-and-embedding-space-design.md)。空间兼容性尚未确认时，该组合显示待配置状态，由用户处理。
 
-### 8.3 长期（Phase 7+）：完整的虚拟渠道
+## 4. 共享请求与重试
 
-如果主备故障转移被验证有价值，且用户提出更复杂的需求（负载均衡、成本优化），再考虑引入完整的虚拟渠道：
+### 4.1 执行顺序
 
-1. 新增 `ProviderType = "virtual"`。
-2. 实现模型列表聚合和去重。
-3. 实现多种路由策略（主备、轮询、加权）。
-4. 实现健康检查和熔断。
-5. 提供专门的虚拟渠道配置 UI。
+1. 根据应用提交的逻辑绑定加载对应配置。
+2. 物理渠道生成固定执行目标；虚拟渠道按逻辑模型映射生成有序候选快照。
+3. 校验 operation、能力、成员启用状态和剩余预算。
+4. 对候选调用 `resolveModelExecution()`，交由协议适配器执行。
+5. 根据错误分类、输出状态与剩余预算决定下一次尝试。
+6. 返回响应和实际执行记录，或返回汇总失败原因及修复入口。
 
-**前置条件**：
+候选快照固定本次请求使用的配置。执行中删除或禁用成员时，下一次尝试重新检查其有效性；新增成员从下一次逻辑请求开始参与。
 
-- 至少有 3 个以上用户明确提出跨渠道容灾或负载均衡需求
-- Phase 4 聚合渠道已稳定运行
-- 有足够的开发资源投入（预计 2–3 周）
+### 4.2 自动回退条件
 
-## 9. 决策建议
+可回退错误按渠道配置分类，首期覆盖明确的限流、暂时性网络错误和服务端失败。参数错误、能力不足、用户取消和确定的鉴权配置错误直接返回对应处理原因。
 
-**不建议在当前 Phase 5 引入虚拟渠道概念**。理由：
+流式请求收到可见正文、推理、工具调用或媒体增量后，继续在当前执行目标完成；后续错误保留已接收内容，并提供用户发起重试的操作。下游自动重试代码在迁移时收回共享执行层。
 
-1. **需求不明确**：当前没有用户提出跨渠道容灾的强需求。
-2. **Phase 4 已完成聚合渠道接入**：New API / Sub2API / OpenCode Go 的基础能力已落地，剩余应按 Phase 5 范围排期。
-3. **实施风险高**：虚拟渠道需要改造模型选择器、Inspector、导入导出等多个模块。
-4. **可以渐进**：如果未来确实需要，可以先实现简单的 fallback，再逐步演进到完整虚拟渠道。
+媒体任务获得服务端任务 ID 后，其轮询、取消与结果获取固定使用实际提交渠道。提交结果无法确认时返回明确状态，避免把同一任务提交给另一成员。
 
-**如果用户明确提出容灾需求**，推荐先实现**方案 A**（渠道内 fallback）：
+Key 轮换、同渠道重试与跨成员切换共用总尝试次数和总时限。用户取消立即终止当前尝试和后续候选；取消后的迟到回调遵循已有终态保护。
 
-- 增加 `LlmProfile.fallbackProfiles?: string[]`
-- 在请求失败时自动重试备用渠道
-- 不引入新的渠道类型，不聚合模型列表
-- 实施成本低，风险可控
+## 5. 渠道管理界面与诊断
 
-**Phase 4 已完成聚合渠道类型；后续 Phase 5 专注于多能力路由与高级兼容**：
+在渠道管理中创建和编辑虚拟渠道，配置成员、逻辑模型映射、主备顺序与重试预算。工作区持续展示渠道列表、组合编辑区、模型映射与保存操作；空配置通过内联提示引导补全。
 
-- 已实现 `new-api` / `sub2api` / `aggregate-compatible` / `opencode-go` 渠道类型
-- 已复用现有的 `resolveModelExecution()` 路由解析
-- 已提供 OpenCode Go 预设作为验收样例
+下游模型选择器展示虚拟渠道和逻辑模型，与物理渠道保持统一选择方式。组合的可用状态由渠道管理提供。
 
-## 10. 遗留问题
+普通界面展示当前配置是否可用、执行结果及可行动错误。Inspector 记录逻辑渠道、实际渠道、模型、适配器、尝试原因和耗时；鉴权信息遵循现有脱敏规则。消息和任务保留逻辑绑定及实际执行信息，便于追溯与续聊继承。
 
-1. **是否需要在模型列表中显示渠道来源**？
-   - 如果不显示，用户无法区分同名模型来自哪个渠道
-   - 如果显示，模型名称会变长，UI 体验变差
+## 6. 实施顺序与代码入口
 
-2. **虚拟渠道的模型配置如何持久化**？
-   - 虚拟渠道的模型列表是动态聚合的，无法直接存储在 `profile.models`
-   - 可能需要单独的 `virtualChannelModels` 存储
+### 第一步：落地虚拟渠道组合
 
-3. **是否允许虚拟渠道嵌套**？
-   - 如果允许，一个虚拟渠道的成员可以是另一个虚拟渠道
-   - 这会大幅增加复杂度，首期不建议支持
+- 在 `packages/llm-core` 定义可复用的组合配置、候选解析、错误分类与预算契约；保持现有模型执行路由入口负责物理适配。
+- 在 `src/types/llm-profiles.ts`、`src/composables/useLlmProfiles.ts` 和渠道管理界面接入虚拟渠道配置、成员引用、逻辑模型映射、持久化及导入导出。
+- 在共享请求层落地主备执行闭环，接入聊天调用及 Inspector。UI 的请求参数与模型能力展示使用虚拟模型契约；实际参数构建使用选定成员的解析结果。
+- 同步移动端共享类型、配置读写和已支持的请求入口，使虚拟配置在两端有一致的识别和编辑语义。
 
-4. **如何处理成员渠道的模型列表变化**？
-   - 成员渠道刷新模型列表后，虚拟渠道的聚合列表需要自动更新
-   - 需要订阅机制或定期重新聚合
+### 第二步：统一各 operation 的执行入口
 
-## 11. 参考资料
+- 桌面 `src/composables/useLlmRequest.ts`、`src/llm-apis/` 下的 Embedding、Rerank、Decision 与媒体调用接入渠道管理的统一解析和执行策略。
+- Recall、Knowledge、Probe 等入口按对应 operation 使用同一逻辑绑定。Probe 同时支持查看组合状态和指定成员探测，探测目标在界面中明确展示。
+- 逐项核对现有自动重试位置，将执行预算和候选切换交给共享执行层；应用保留任务级取消、用户主动重试和业务流程编排。
+- 某 operation 尚未具备可验证的兼容候选时，渠道管理返回具体配置原因，供下游展示。
 
-- Phase 0–3 实施记录：`docs/architecture/llm-execution-routing.md`
-- 聚合渠道调查：`docs/Plan/llm-aggregate-channel-routing-investigation.md`
-- LangChain Fallback: https://python.langchain.com/docs/how_to/fallbacks/
-- OpenRouter Auto-routing: https://openrouter.ai/docs/routing
+### 第三步：收回下游模型回退
 
----
+- 修改 `src/tools/sub-agent/services/subAgentModelResolver.ts`，按第 2 节处理自身绑定或调用方继承，移除全局 Profile 兜底、隐式替换和相应 system 提示。
+- 在父会话到子会话的上下文中保留原始逻辑绑定，实际物理执行结果单独记录。
+- 检查聊天、翻译、提示词优化、媒体生成及其他模型消费者的自动选模路径，迁移到渠道配置；用户明确配置的业务绑定原样保留。
+- 旧数据保留原有明确绑定。需要备用模型时，由用户在渠道管理中建立组合并重新绑定；迁移过程保留缺失引用和可操作的修复提示。
+- 将已落地契约同步至执行路由、子代理及相关工具架构文档，更新原有回退测试的目标行为。
 
-**调查结论**：不建议在当前阶段引入虚拟渠道。Phase 4 应专注于聚合渠道类型（New API / Sub2API）。如果未来确实需要容灾，优先实现简单的渠道级 fallback，而非完整的虚拟渠道编排层。
+## 7. 必要验证
+
+验证围绕三个公开行为展开：组合严格使用已配置且兼容的候选；流式输出、取消和任务提交后的行为保持确定；下游绑定失效时提供配置错误，渠道主备按统一预算完成切换。
+
+优先复用共享核心与相关请求测试。渠道编辑、模型选择和真实流式交互在 Tauri 运行态走查；按仓库规范执行对应类型检查与生产构建。
+
+## 8. 相关文档
+
+- [模型执行路由契约](../architecture/llm-execution-routing.md)
+- [LLM APIs 架构](../architecture/llm-apis-architecture.md)
+- [聚合渠道与模型级适配器路由调查](./llm-aggregate-channel-routing-investigation.md)
+- [模型身份与 Embedding 空间设计](../design/model-identity-and-embedding-space-design.md)
+- [子代理架构](../../src/tools/sub-agent/ARCHITECTURE.md)
+- [内置子代理方案](../../src/tools/sub-agent/docs/Plan/builtin-baseline-subagent.md)

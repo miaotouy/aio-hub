@@ -38,6 +38,7 @@
 - Native / Sidecar 插件的构建脚本将当前平台产物部署到稳定相对路径，manifest 统一引用该路径。验证时以运行 manifest 对应平台键指向的文件为准。
 - 涉及 VCP 时，阅读 [`tool-calling` 架构](src/tools/tool-calling/ARCHITECTURE.md)与 [`vcp-connector` 架构](src/tools/vcp-connector/ARCHITECTURE.md)，以文档规范为唯一协议依据。
 - 模型元数据规则在模型创建、导入、刷新或显式应用预设时固化写入模型对象。`media-generator` 运行时直接读取模型自身的 `mediaGenParams`。
+- 模型候选选择、自动替换与回退统一归渠道管理；下游工具按显式绑定或配置的继承关系提交请求。虚拟渠道组合与现有下游回退的迁移顺序见 [实施方案](docs/Plan/llm-virtual-channel-investigation.md)。
 - 移动端特有的文档入口、验证边界和实现约定见 [`mobile/AGENTS.md`](mobile/AGENTS.md)；处理 `mobile/**` 时先读取该局部指引。
 
 ## 5. 前端规范

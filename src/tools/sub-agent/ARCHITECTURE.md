@@ -102,16 +102,20 @@ created ──► running ──► completed
 
 释出后的 Agent 是可在智能体大厅管理的一等本地实体。`SubagentControlPanel` 展示所有带 `subAgentConfig` 的物理实体（包括禁用项），支持切换 `enabled`、`onlySubVisible`，并提供仅补全缺失基线的操作；该面板由 `BackgroundTaskCenter` 的子智能体配置视图挂载。主聊天侧边栏按 `onlySubVisible` 过滤，智能体大厅仍展示完整实体。
 
-### 3.5 模型晚绑定与调度边界
+### 3.5 模型绑定与渠道管理边界
 
-`resolveSubAgentModel()` 在实际派发前检查 `enabledProfiles` 中的 Profile/Model 是否仍有效：
+2026-10-19 确定将自动模型回退统一收回渠道管理，按 [虚拟渠道组合与统一模型回退方案](../../../docs/Plan/llm-virtual-channel-investigation.md) 先落地虚拟组合，再迁移子代理。
 
-- `prefer_self` 且目标 Agent 自身绑定仍有效时，使用自身模型，来源为 `self`；
-- 目标 Agent 未配置模型，或 `prefer_self` 的自身绑定已失效时，继承调用方父会话的有效模型，来源为 `caller`；
-- 调用方模型不可用时回退到第一个启用 Profile 的首选模型，来源为 `fallback`；
-- 每次发生模型回退，都会在子会话中追加一条 system 提示，说明实际使用的模型来源；调用方和系统兜底都没有可用 Profile/Model 时，才抛出明确的配置指引错误。
+目标契约（待实施）：
 
-解析结果通过 `temporaryModel` 注入 `llmChatService.sendMessage()`，不要求预设携带具体 `profileId` / `modelId`。`sub-agent` 派发前会等待 LLM Profile 完成加载，避免把尚未加载误判为无 Profile。前台 `foreground` 与后台 `background` 两种模式均创建或复用 detached 子会话，并将递增后的 `delegationDepth` 透传到子会话；同一 `executionLaneKey` 内串行执行。自调用分身由深度链控制，最大深度按目标 Agent 配置读取并限制在 1～3。
+- `inherit_caller` 继承父会话本次选择的逻辑 Profile/Model；虚拟渠道绑定完整传递给子会话。
+- `prefer_self` 沿用现有存储值，界面语义调整为“使用自身模型”，固定采用目标 Agent 的显式绑定。
+- 对应绑定缺失、删除或禁用时返回配置错误，引导修复绑定或配置虚拟渠道。
+- 候选模型、主备顺序、失败回退与自动重试由渠道管理执行；实际物理目标单独记录供诊断。
+
+当前实现差异：`resolveSubAgentModel()` 仍包含“自身绑定失效后改用调用方、调用方失效后选系统首个启用 Profile”的旧路径，并通过 system 提示记录替换。这些路径及其测试将在虚拟渠道接入后迁移，后续开发以目标契约为准。
+
+派发前等待 LLM Profile 加载的处理继续保留。前台 `foreground` 与后台 `background` 两种模式均创建或复用 detached 子会话，经 `temporaryModel` 传入逻辑绑定；同一 `executionLaneKey` 内串行执行。自调用分身由深度链控制，最大深度按目标 Agent 配置读取并限制在 1～3。
 
 ---
 

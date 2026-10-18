@@ -180,10 +180,7 @@ export function useChatHandler() {
           parameterKeys: Object.keys(agentConfig.parameters),
         });
       } else {
-        logger.warn("无法找到指定的临时模型，将使用智能体默认模型", {
-          modelId: options.temporaryModel.modelId,
-          profileId: options.temporaryModel.profileId,
-        });
+        throw new Error("临时绑定的渠道或模型不可用，请重新选择模型。");
       }
     }
 

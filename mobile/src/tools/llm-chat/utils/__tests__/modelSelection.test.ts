@@ -42,22 +42,20 @@ describe("resolveSelectedModelValue", () => {
     ).toBe("profile-1:model-2");
   });
 
-  it("uses the configured default after an empty or stale selection", () => {
+  it("uses the configured default for an empty selection and preserves stale bindings", () => {
     expect(resolveSelectedModelValue("", "profile-1:model-2", profiles)).toBe(
       "profile-1:model-2"
     );
     expect(
       resolveSelectedModelValue("missing:model", "profile-1:model-2", profiles)
-    ).toBe("profile-1:model-2");
+    ).toBe("missing:model");
   });
 
-  it("falls back to the first available model when the default is stale", () => {
-    expect(resolveSelectedModelValue("", "missing:model", profiles)).toBe(
-      "profile-1:model-1"
-    );
+  it("leaves the selection empty when the default is stale", () => {
+    expect(resolveSelectedModelValue("", "missing:model", profiles)).toBe("");
   });
 
-  it("ignores dedicated decision models when resolving a chat fallback", () => {
+  it("preserves an explicit decision binding for validation and rejects it as a chat default", () => {
     const decisionProfile = {
       id: "typesafe",
       enabled: true,
@@ -69,7 +67,13 @@ describe("resolveSelectedModelValue", () => {
         decisionProfile,
         profiles[1],
       ])
-    ).toBe("profile-1:model-1");
+    ).toBe("typesafe:jev-latest");
+    expect(
+      resolveSelectedModelValue("", "typesafe:jev-latest", [
+        decisionProfile,
+        profiles[1],
+      ])
+    ).toBe("");
   });
 
   it("returns an empty selection when no enabled profile exposes a model", () => {

@@ -342,7 +342,8 @@ export function useToolCallOrchestrator() {
               id: executionAgent.id,
               knowledgeAccess: executionAgent.knowledgeAccess,
             },
-            delegationDepth
+            delegationDepth,
+            { profileId: agentConfig.profileId, modelId: agentConfig.modelId }
           );
 
           if (cycleResult.hasToolRequests) {

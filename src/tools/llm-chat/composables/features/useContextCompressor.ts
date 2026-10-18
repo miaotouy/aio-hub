@@ -31,10 +31,8 @@ import {
 } from "../../types";
 import { useNodeManager } from "../session/useNodeManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useChatSettings } from "../settings/useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { groupCompressionMessages } from "../../utils/contextCompressionCounting";
@@ -154,7 +152,8 @@ export function useContextCompressor() {
     messages: ChatMessageNode[],
     config: ContextCompressionConfig,
     agentId?: string,
-    previousSummary?: string
+    previousSummary?: string,
+    callerBinding?: { profileId: string; modelId: string }
   ): Promise<string> => {
     logger.info("开始生成摘要", {
       messageCount: messages.length,
@@ -224,38 +223,11 @@ export function useContextCompressor() {
         ? agentStore.getAgentById(targetAgentId)
         : null;
 
-      if (agent) {
-        profileId = agent.profileId;
-        modelId = agent.modelId;
-      } else {
-        // 回退到全局默认模型
-        const { settings } = useChatSettings();
-        const defaultModelIdentifier =
-          settings.value.modelPreferences.defaultModel;
-
-        if (defaultModelIdentifier) {
-          const firstColonIndex = defaultModelIdentifier.indexOf(":");
-          profileId = defaultModelIdentifier.substring(0, firstColonIndex);
-          modelId = defaultModelIdentifier.substring(firstColonIndex + 1);
-          logger.info("未找到 Agent 模型，使用全局默认模型进行摘要生成", {
-            profileId,
-            modelId,
-          });
-        } else {
-          // 尝试从 profiles 中找一个可用的
-          const { enabledProfiles } = useLlmProfiles();
-          if (enabledProfiles.value.length > 0) {
-            profileId = enabledProfiles.value[0].id;
-            modelId = enabledProfiles.value[0].models[0]?.id;
-            logger.info(
-              "未配置全局默认模型，回退使用第一个可用模型进行摘要生成",
-              { profileId, modelId }
-            );
-          } else {
-            throw new Error("无法确定摘要生成模型：未找到可用配置");
-          }
-        }
-      }
+      const binding = callerBinding ?? agent;
+      if (!binding?.profileId || !binding.modelId)
+        throw new Error("请配置摘要模型，或为当前会话绑定可用的渠道与模型");
+      profileId = binding.profileId;
+      modelId = binding.modelId;
     }
 
     // 4. 发送请求
@@ -596,11 +568,29 @@ export function useContextCompressor() {
     // 5. 执行压缩
     try {
       // 新增对话只放在 context 中；已有摘要作为 previous_summary 触发连续压缩模板。
+      const latestAssistant = [...path]
+        .reverse()
+        .find(
+          (node) =>
+            node.role === "assistant" &&
+            node.metadata?.profileId &&
+            node.metadata?.modelId
+        );
+      const callerBinding =
+        latestAssistant?.metadata?.channelExecution?.requested ??
+        (latestAssistant?.metadata?.profileId &&
+        latestAssistant.metadata.modelId
+          ? {
+              profileId: latestAssistant.metadata.profileId,
+              modelId: latestAssistant.metadata.modelId,
+            }
+          : undefined);
       const summary = await generateSummary(
         nodesToCompress,
         effectiveConfig,
         undefined,
-        previousCompressionNode?.content
+        previousCompressionNode?.content,
+        callerBinding
       );
 
       // 计算预计节省的 Token

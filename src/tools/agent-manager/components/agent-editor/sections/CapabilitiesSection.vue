@@ -272,7 +272,7 @@ const handleInsertMacro = (macro: MacroDefinition) => {
         <el-form-item label="模型偏好">
           <el-radio-group v-model="subAgentModelBindingMode">
             <el-radio value="inherit_caller">跟随父会话模型</el-radio>
-            <el-radio value="prefer_self">优先自身模型</el-radio>
+            <el-radio value="prefer_self">使用自身模型</el-radio>
           </el-radio-group>
           <div class="setting-hint">
             「跟随父会话」上下文成本最低且开箱即用；「优先自身模型」用于大模型特化节点，自身配置失效时自动回退父会话模型。
@@ -287,7 +287,8 @@ const handleInsertMacro = (macro: MacroDefinition) => {
             :precision="0"
           />
           <div class="setting-hint">
-            允许的子智能体嵌套调用层数（1 ~ 3）。设为 1 时子智能体不可继续派发子任务，防止递归失控。
+            允许的子智能体嵌套调用层数（1 ~ 3）。设为 1
+            时子智能体不可继续派发子任务，防止递归失控。
           </div>
         </el-form-item>
         <el-form-item label="仅子智能体可见">

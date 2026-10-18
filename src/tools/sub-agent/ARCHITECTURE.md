@@ -68,7 +68,7 @@
 定义于 `src/tools/agent-manager/types/agent.ts`：
 
 - `enabled`：是否允许作为子智能体被调度（`DEFAULT_SUB_AGENT_CONFIG` 默认 `false`）；
-- `modelBindingMode`：模型绑定偏好，`inherit_caller`（跟随父会话，默认）或 `prefer_self`（优先自身模型）；
+- `modelBindingMode`：模型绑定偏好，`inherit_caller`（跟随父会话，默认）或 `prefer_self`（使用自身模型）；
 - `maxDelegationDepth`：最大委托深度，默认 1，全局硬上限 `MAX_DELEGATION_DEPTH_LIMIT = 3`；
 - `isBuiltinBaseline`：是否为系统内置基线子智能体（UI 标识）；
 - `onlySubVisible`：仅作为子智能体可见（主聊天侧边栏列表中隐藏，默认 `false`）。
@@ -106,14 +106,14 @@ created ──► running ──► completed
 
 2026-10-19 确定将自动模型回退统一收回渠道管理，按 [虚拟渠道组合与统一模型回退方案](../../../docs/Plan/llm-virtual-channel-investigation.md) 先落地虚拟组合，再迁移子代理。
 
-目标契约（待实施）：
+当前契约：
 
 - `inherit_caller` 继承父会话本次选择的逻辑 Profile/Model；虚拟渠道绑定完整传递给子会话。
 - `prefer_self` 沿用现有存储值，界面语义调整为“使用自身模型”，固定采用目标 Agent 的显式绑定。
 - 对应绑定缺失、删除或禁用时返回配置错误，引导修复绑定或配置虚拟渠道。
 - 候选模型、主备顺序、失败回退与自动重试由渠道管理执行；实际物理目标单独记录供诊断。
 
-当前实现差异：`resolveSubAgentModel()` 仍包含“自身绑定失效后改用调用方、调用方失效后选系统首个启用 Profile”的旧路径，并通过 system 提示记录替换。这些路径及其测试将在虚拟渠道接入后迁移，后续开发以目标契约为准。
+`ToolContext.modelBinding` 沿 `useToolCallOrchestrator → useToolCalling → engine → executor` 传入派发入口。`resolveSubAgentModel()` 只校验对应逻辑绑定；配置缺失、删除或禁用时返回可操作错误，已移除全局渠道兜底与模型切换 system 提示。
 
 派发前等待 LLM Profile 加载的处理继续保留。前台 `foreground` 与后台 `background` 两种模式均创建或复用 detached 子会话，经 `temporaryModel` 传入逻辑绑定；同一 `executionLaneKey` 内串行执行。自调用分身由深度链控制，最大深度按目标 Agent 配置读取并限制在 1～3。
 
@@ -130,6 +130,7 @@ created ──► running ──► completed
 ### 4.2 三重只读断流防线
 
 透视子会话时复用 `llm-chat` 的 `MessageList` 核心组件，但在以下三个层面严格断流：
+
 1. **属性只读**：传递 `readonly: true` 与 `isSessionReadOnly: true`，禁止行内编辑；
 2. **菜单屏蔽**：隐藏重新生成、编辑、分支嫁接、删除等破坏性操作菜单；
 3. **事件拦截**：子会话发送事件不绑定任何执行器，确保只读浏览不干扰子任务状态。
@@ -165,6 +166,7 @@ created ──► running ──► completed
 ## 6. 后台 JS 运行时 (Background JS Runtime Bridge)
 
 位于 `src/background-runtime/`：
+
 - **无头窗口生命周期**：由 Tauri 后台以 `background-js-runtime` 独立窗口启动，脱离前台主视窗的关闭与最小化影响。
 - **IPC 通信协议**：定义 `BACKGROUND_JS_RUNTIME_EVENTS`（`request`, `response`, `ready`），通过心跳机制（`background_runtime_heartbeat`）与健康探测（`runtime.ping`）确保后台服务高可用。
 - **演进目标**：逐步将重型长效任务、爬虫、定时工作流下沉至后台运行时独立执行。

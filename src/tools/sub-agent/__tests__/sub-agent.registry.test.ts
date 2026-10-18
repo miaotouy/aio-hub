@@ -19,6 +19,7 @@ import type {
   ChatSessionDetail,
 } from "@/tools/llm-chat/types";
 import { backgroundTaskRegistry } from "@/services/background-tasks";
+import { resolveSubAgentModel } from "../services/subAgentModelResolver";
 import SubAgentRegistry from "../sub-agent.registry";
 
 const mocks = vi.hoisted(() => ({
@@ -326,8 +327,16 @@ describe("SubAgentRegistry 后台续聊", () => {
     });
     const result = await registry.ask(
       { agentId: "agent-child", message: "first", mode: "background" },
-      { ...callerContext, requestId: "tool-request-1" }
+      {
+        ...callerContext,
+        requestId: "tool-request-1",
+        modelBinding: { profileId: "virtual", modelId: "logical" },
+      }
     );
+    expect(resolveSubAgentModel).toHaveBeenLastCalledWith(expect.anything(), {
+      callerProfileId: "virtual",
+      callerModelId: "logical",
+    });
     expect(typeof result).toBe("object");
     const envelope = result as ToolMethodResult<string>;
     const handle = JSON.parse(envelope.result);

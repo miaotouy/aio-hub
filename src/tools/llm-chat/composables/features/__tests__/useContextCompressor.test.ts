@@ -338,4 +338,21 @@ describe("useContextCompressor", () => {
       countThreshold: 6,
     });
   });
+  it("inherits the current logical request binding for summaries", async () => {
+    const { generateSummary } = useContextCompressor();
+    await generateSummary([], {} as any, undefined, undefined, {
+      profileId: "virtual",
+      modelId: "logical",
+    });
+    expect(mocks.sendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: "virtual", modelId: "logical" })
+    );
+  });
+  it("requires an explicit summary binding when the parent binding is unavailable", async () => {
+    mocks.getAgentById.mockReturnValue(undefined);
+    await expect(
+      useContextCompressor().generateSummary([], {} as any)
+    ).rejects.toThrow("配置摘要模型");
+    expect(mocks.sendRequest).toHaveBeenCalledTimes(0);
+  });
 });

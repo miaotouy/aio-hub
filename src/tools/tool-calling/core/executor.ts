@@ -32,6 +32,7 @@ export interface ExecutorOptions {
   agent?: ToolContext["agent"];
   /** 子智能体派发深度，注入 ToolContext.delegationDepth 供 sub-agent 深度链校验 */
   delegationDepth?: number;
+  modelBinding?: ToolContext["modelBinding"];
   onBeforeExecute?: (
     request: ParsedToolRequest,
     security?: ToolApprovalSecurityContext
@@ -393,6 +394,7 @@ async function executeSingleRequest(
       isAsync: false,
       agent: options.agent,
       delegationDepth: options.delegationDepth,
+      modelBinding: options.modelBinding,
       requestId: request.requestId,
       signal: abortController.signal,
       reportStatus: (message: string) => {

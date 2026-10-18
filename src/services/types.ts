@@ -267,6 +267,8 @@ export type ToolRegistryItem = ToolRegistry | ToolRegistryFactory;
  * 同步工具和异步任务均使用此接口，屏蔽底层执行模式差异
  */
 export interface ToolContext {
+  /** 当前请求的逻辑渠道与模型；渠道切换保留此绑定。 */
+  modelBinding?: { profileId: string; modelId: string };
   /** 当前工具调用所属 Agent 的只读权限快照。外部调用缺少该上下文时保持 undefined。 */
   agent?: {
     id: string;

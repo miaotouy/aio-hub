@@ -24,14 +24,10 @@ import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { llmChatService } from "@/tools/llm-chat/services/llmChatService";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
-import {
-  MAX_DELEGATION_DEPTH_LIMIT,
-} from "@/tools/agent-manager/types/agent";
+import { MAX_DELEGATION_DEPTH_LIMIT } from "@/tools/agent-manager/types/agent";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
-import {
-  subAgentBaselineService,
-} from "@/tools/sub-agent/services/subAgentBaselineService";
+import { subAgentBaselineService } from "@/tools/sub-agent/services/subAgentBaselineService";
 import {
   resolveSubAgentModel,
   type SubAgentResolveContext,
@@ -211,8 +207,7 @@ export default class SubAgentRegistry implements ToolRegistry {
     context?: ToolContext
   ): void {
     const currentDepth = context?.delegationDepth ?? 0;
-    const rawMaxDepth =
-      targetAgent.subAgentConfig?.maxDelegationDepth ?? 1;
+    const rawMaxDepth = targetAgent.subAgentConfig?.maxDelegationDepth ?? 1;
     const maxDepth = Math.max(
       1,
       Math.min(MAX_DELEGATION_DEPTH_LIMIT, Math.floor(rawMaxDepth) || 1)
@@ -228,59 +223,17 @@ export default class SubAgentRegistry implements ToolRegistry {
    * 提取调用方模型上下文：优先取父会话绑定的 Agent，其次当前活跃 Agent。
    * 子会话派发下一级时通过 ToolContext.delegationDepth 透传深度。
    */
-  private buildCallerResolveContext(
-    context?: ToolContext
-  ): {
+  private buildCallerResolveContext(context?: ToolContext): {
     resolveContext: SubAgentResolveContext;
     delegationDepth: number;
   } {
-    const agentStore = useAgentStore();
-    const parentSession = llmChatService.getCurrentSession();
-    const parentAgentId =
-      parentSession?.displayAgentId || context?.agent?.id;
-    const parentAgent = parentAgentId
-      ? agentStore.getAgentById(parentAgentId)
-      : llmChatService.getCurrentAgent();
-
     return {
       resolveContext: {
-        callerProfileId: parentAgent?.profileId,
-        callerModelId: parentAgent?.modelId,
+        callerProfileId: context?.modelBinding?.profileId,
+        callerModelId: context?.modelBinding?.modelId,
       },
       delegationDepth: context?.delegationDepth ?? 0,
     };
-  }
-
-  /**
-   * 将模型回退原因写入子会话的 system 上下文，让子智能体知道当前使用的
-   * 实际模型来源；同一条提示在续聊时只写入一次。
-   */
-  private async appendModelResolutionNotice(
-    store: ReturnType<typeof useLlmChatStore>,
-    sessionId: string,
-    resolved: Awaited<ReturnType<typeof resolveSubAgentModel>>
-  ): Promise<void> {
-    if (!resolved.notice) return;
-
-    const detail =
-      store.sessionDetailMap.get(sessionId) ??
-      (await store.ensureSessionDetailLoaded?.(sessionId));
-    if (!detail) {
-      logger.warn("无法写入子会话模型回退提示：会话详情不可用", {
-        sessionId,
-      });
-      return;
-    }
-
-    const alreadyAdded = Object.values(detail.nodes).some(
-      (node) => node.role === "system" && node.content === resolved.notice
-    );
-    if (alreadyAdded) return;
-
-    store.appendMessageNode(sessionId, {
-      role: "system",
-      content: resolved.notice,
-    });
   }
 
   private executionLaneKey(childSessionId: string): string {
@@ -786,8 +739,6 @@ export default class SubAgentRegistry implements ToolRegistry {
         this.persistConversationIndex();
       }
 
-      await this.appendModelResolutionNotice(store, sessionId, resolved);
-
       // ==================== 后台任务观察埋点（Phase 1） ====================
       // Phase 1 只创建可观察任务，ask 仍保持前台阻塞行为；
       // 任务被 registry.cancelTask 取消时，通过事件订阅中止子会话生成。
@@ -1052,12 +1003,6 @@ export default class SubAgentRegistry implements ToolRegistry {
       }
       const activeConversation = conversation!;
       const activeSessionId = sessionId;
-
-      await this.appendModelResolutionNotice(
-        store,
-        activeSessionId,
-        resolvedModel
-      );
 
       const executionLaneKey = this.executionLaneKey(activeSessionId);
       const laneBusy = this.isExecutionLaneBusy(executionLaneKey);

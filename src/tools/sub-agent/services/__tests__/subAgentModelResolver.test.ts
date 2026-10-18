@@ -63,7 +63,6 @@ describe("resolveSubAgentModel 模型晚绑定决策链", () => {
       profileId: "profile-a",
       modelId: "model-a2",
       source: "caller",
-      notice: expect.stringContaining("继承主会话正在使用的模型"),
     });
   });
 
@@ -86,43 +85,42 @@ describe("resolveSubAgentModel 模型晚绑定决策链", () => {
     });
   });
 
-  it("prefer_self 但自身 Profile 被删除时优雅降级回调用方模型", () => {
-    const resolved = resolveSubAgentModel(
-      makeAgent({
-        subAgentConfig: {
-          enabled: true,
-          modelBindingMode: "prefer_self",
-        },
-        profileId: "profile-deleted",
-        modelId: "model-gone",
-      }),
-      { callerProfileId: "profile-a", callerModelId: "model-a1" }
-    );
-    expect(resolved).toEqual({
-      profileId: "profile-a",
-      modelId: "model-a1",
+  it("自身绑定失效时返回配置错误，即使调用方和其他渠道可用", () => {
+    expect(() =>
+      resolveSubAgentModel(
+        makeAgent({
+          subAgentConfig: { enabled: true, modelBindingMode: "prefer_self" },
+          profileId: "deleted",
+          modelId: "missing",
+        }),
+        { callerProfileId: "profile-a", callerModelId: "model-a1" }
+      )
+    ).toThrow("自身绑定的渠道或模型不可用");
+  });
+  it("继承失效或缺失时返回配置错误", () => {
+    expect(() =>
+      resolveSubAgentModel(makeAgent(), {
+        callerProfileId: "gone",
+        callerModelId: "gone",
+      })
+    ).toThrow("调用方模型");
+    expect(() => resolveSubAgentModel(makeAgent())).toThrow("调用方模型");
+  });
+  it("保留调用方虚拟渠道的逻辑模型绑定", () => {
+    mocks.enabledProfiles.value.push({
+      id: "virtual",
+      type: "virtual",
+      models: [{ id: "logical-model" }],
+    });
+    expect(
+      resolveSubAgentModel(
+        makeAgent({ profileId: "profile-b", modelId: "model-b1" }),
+        { callerProfileId: "virtual", callerModelId: "logical-model" }
+      )
+    ).toEqual({
+      profileId: "virtual",
+      modelId: "logical-model",
       source: "caller",
-      notice: expect.stringContaining("自身绑定的 Profile/模型已不可用"),
     });
-  });
-
-  it("调用方模型不可用时回退系统激活的默认 Profile 首选模型", () => {
-    const resolved = resolveSubAgentModel(makeAgent(), {
-      callerProfileId: "profile-gone",
-      callerModelId: "model-gone",
-    });
-    expect(resolved).toEqual({
-      profileId: "profile-a",
-      modelId: "model-a1",
-      source: "fallback",
-      notice: expect.stringContaining("主会话当前模型不可用"),
-    });
-  });
-
-  it("无任何可用 Profile 时抛出明确可操作的错误提示", () => {
-    mocks.enabledProfiles.value = [];
-    expect(() => resolveSubAgentModel(makeAgent(), {})).toThrow(
-      "主会话模型和系统兜底 Profile/模型均不可用"
-    );
   });
 });

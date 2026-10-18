@@ -267,7 +267,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
-   * 同步并校验当前选中的模型。仅在当前选择失效时使用设置中的默认模型。
+   * 保留当前逻辑绑定；初次选择可继承设置中明确配置的默认模型。
    */
   function syncSelectedModel(defaultModel = "") {
     const profilesStore = useLlmProfilesStore();

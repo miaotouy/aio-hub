@@ -33,6 +33,7 @@ export interface ToolCallEngineOptions {
   agent?: ToolContext["agent"];
   /** 子智能体派发深度，向下透传至 ToolContext.delegationDepth */
   delegationDepth?: number;
+  modelBinding?: ToolContext["modelBinding"];
   onBeforeExecute?: (
     request: ParsedToolRequest,
     security?: ToolApprovalSecurityContext
@@ -72,6 +73,7 @@ export async function processToolCallCycle(
     config: options.config,
     agent: options.agent,
     delegationDepth: options.delegationDepth,
+    modelBinding: options.modelBinding,
     onBeforeExecute: options.onBeforeExecute,
     onStatusChange: options.onStatusChange,
   });

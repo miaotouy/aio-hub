@@ -379,6 +379,7 @@ export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   enabled: false,
   autoTrigger: true,
   triggerMode: "token",
+  countUnit: "message",
   tokenThreshold: 80000,
   countThreshold: 50,
   protectRecentCount: 10,
@@ -391,6 +392,16 @@ export const DEFAULT_CONTEXT_COMPRESSION_CONFIG: ContextCompressionConfig = {
   continueSummaryPrompt: "",
 };
 
+export type ContextCompressionCountUnit = "message" | "user-turn";
+
+/** 一种计数方式下的压缩数量设置。 */
+export interface ContextCompressionCounts {
+  countThreshold: number;
+  protectRecentCount: number;
+  compressCount: number;
+  minHistoryCount: number;
+}
+
 export interface ContextCompressionConfig {
   /** 是否启用上下文压缩 */
   enabled?: boolean;
@@ -400,13 +411,19 @@ export interface ContextCompressionConfig {
   triggerMode?: "token" | "count" | "both";
   /** Token 阈值 */
   tokenThreshold?: number;
-  /** 消息条数阈值 */
+  /** 数量统计与范围选取的单位；旧配置沿用消息条数。 */
+  countUnit?: ContextCompressionCountUnit;
+  /** 切换计数方式时，分别记忆各自的数量设置。 */
+  countsByUnit?: Partial<
+    Record<ContextCompressionCountUnit, ContextCompressionCounts>
+  >;
+  /** 数量阈值，单位由 countUnit 决定。 */
   countThreshold?: number;
-  /** 保护最近 N 条消息不被压缩 */
+  /** 保护最近 N 条消息或 N 个用户回合。 */
   protectRecentCount?: number;
-  /** 每次压缩多少条消息 */
+  /** 每次压缩多少条消息或多少个用户回合。 */
   compressCount?: number;
-  /** 至少多少条历史才触发压缩 */
+  /** 至少积累多少条消息或多少个用户回合才触发压缩。 */
   minHistoryCount?: number;
   /** 摘要节点的角色 */
   summaryRole?: "system" | "assistant" | "user";

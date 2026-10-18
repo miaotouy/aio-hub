@@ -37,6 +37,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { groupCompressionMessages } from "../../utils/contextCompressionCounting";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 const logger = createModuleLogger("llm-chat/context-compressor");
@@ -93,7 +94,8 @@ export function useContextCompressor() {
    * (优先使用 Store 中的 Pipeline 计算结果，不再自己重复计算)
    */
   const calculateContextStats = (
-    path: ChatMessageNode[]
+    path: ChatMessageNode[],
+    config: ContextCompressionConfig
   ): CompressionContext => {
     // 1. 找出所有启用的压缩节点及其隐藏的节点 ID
     const enabledCompressionNodes = path.filter(
@@ -110,10 +112,18 @@ export function useContextCompressor() {
     // 2. 过滤掉被隐藏的节点
     const effectiveNodes = path.filter((node) => !hiddenNodeIds.has(node.id));
 
-    // 3. 基础统计 (Count)
-    // 历史总数指路径上的总节点数
-    const historyCount = effectiveNodes.length;
-    // 这里简单计算有效节点数作为近似
+    // 3. 回合模式统计可见的普通消息分组；消息模式沿用有效路径节点数。
+    const historyCount =
+      config.countUnit === "user-turn"
+        ? groupCompressionMessages(
+            effectiveNodes.filter(
+              (node) =>
+                !node.metadata?.isCompressionNode && node.role !== "system"
+            ),
+            "user-turn"
+          ).length
+        : effectiveNodes.length;
+    // 数量阈值与最小历史数量使用同一单位。
     const messageCount = historyCount;
 
     // 4. Token 统计
@@ -481,7 +491,7 @@ export function useContextCompressor() {
 
     // 2. 获取路径并计算统计
     const path = getNodePath(detail, detail.activeLeafId || "");
-    const contextStats = calculateContextStats(path);
+    const contextStats = calculateContextStats(path, effectiveConfig);
 
     // 3. 判断是否需要压缩
     if (!shouldCompress(contextStats, effectiveConfig)) {
@@ -518,7 +528,7 @@ export function useContextCompressor() {
     effectiveConfig: ContextCompressionConfig
   ): Promise<CompressionResult> => {
     // 4. 确定压缩范围
-    // 策略：保护最近 N 条，压缩之前的 M 条
+    // 策略：保护最近 N 个计数单位，从之前最早的历史中压缩 M 个单位。
     // 过滤出有效节点（未被隐藏的）
     const enabledCompressionNodes = path.filter(
       (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
@@ -541,31 +551,25 @@ export function useContextCompressor() {
 
     const protectCount = effectiveConfig.protectRecentCount || 10;
     const compressCount = effectiveConfig.compressCount || 20;
+    const units = groupCompressionMessages(
+      candidateNodes,
+      effectiveConfig.countUnit
+    );
 
-    // 如果候选节点数量不足以保留保护区，则不压缩
-    if (candidateNodes.length <= protectCount) {
-      logger.info("候选节点数量不足以触发压缩（受保护区限制）", {
-        candidateCount: candidateNodes.length,
+    if (units.length <= protectCount) {
+      logger.info("候选历史不足以触发压缩（受保护区限制）", {
+        candidateCount: units.length,
+        countUnit: effectiveConfig.countUnit,
         protectCount,
       });
       return { success: false, failureReason: "not-needed" };
     }
 
-    // 确定要压缩的节点：从候选列表头部开始，取 compressCount 个
-    // 注意：candidateNodes 是按时间顺序排列的 (path 是从根到叶)
-    // 我们要保留末尾的 protectCount 个
-    // 可压缩的范围是 [0, length - protectCount]
-    const compressibleNodes = candidateNodes.slice(
-      0,
-      candidateNodes.length - protectCount
-    );
-
-    // 从中取最后 compressCount 个？还是最早的？
-    // 通常压缩最早的。
-    // 比如 A, B, C, D, E, F(protect), G(protect)
-    // 压缩 A, B, C。
-    // 如果一次只压 2 个，压 A, B。
-    const nodesToCompress = compressibleNodes.slice(0, compressCount);
+    // 按选中的单位保护末尾历史，再从最早处选取；用户回合保持完整。
+    const nodesToCompress = units
+      .slice(0, units.length - protectCount)
+      .slice(0, compressCount)
+      .flat();
 
     if (nodesToCompress.length === 0) {
       return { success: false, failureReason: "not-needed" };

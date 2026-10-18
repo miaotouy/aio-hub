@@ -132,7 +132,7 @@ export const contextParameterSearchItems = [
     label: parameterGroupLabels[group],
     keywords:
       group === "contextCompression"
-        ? "contextCompression summaryModel summaryPrompt continueSummaryPrompt triggerThreshold 保留消息 摘要模型 提示词 压缩阈值"
+        ? "contextCompression summaryModel summaryPrompt continueSummaryPrompt triggerThreshold countUnit 计数方式 消息条数 用户回合 保留消息 摘要模型 提示词 压缩阈值"
         : group === "contextPostProcessing"
           ? "contextPostProcessing rules 合并角色 system user 角色交替"
           : group === "imageCompression"

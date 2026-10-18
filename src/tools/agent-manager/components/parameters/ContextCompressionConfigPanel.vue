@@ -20,9 +20,11 @@ import { useElementSize } from "@vueuse/core";
 import { Maximize2 } from "lucide-vue-next";
 import {
   type ContextCompressionConfig,
+  type ContextCompressionCountUnit,
   DEFAULT_CONTEXT_COMPRESSION_PROMPT,
   CONTINUE_CONTEXT_COMPRESSION_PROMPT,
 } from "@/tools/llm-chat/types/llm";
+import { switchCompressionCountUnit } from "@/tools/llm-chat/utils/contextCompressionCounting";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -46,6 +48,20 @@ const emit = defineEmits<Emits>();
 
 // 本地状态，避免直接修改 props
 const config = ref<ContextCompressionConfig>({ ...props.modelValue });
+
+const countUnit = computed({
+  get: () => config.value.countUnit ?? "message",
+  set: (unit: ContextCompressionCountUnit) => {
+    config.value = switchCompressionCountUnit(config.value, unit);
+  },
+});
+const countsUserTurns = computed(() => countUnit.value === "user-turn");
+const countLabel = computed(() =>
+  countsUserTurns.value ? "用户回合数" : "消息条数"
+);
+const countDescription = computed(() =>
+  countsUserTurns.value ? "个用户回合" : "条消息"
+);
 
 // 监听 props 变化，同步到本地状态
 watch(
@@ -182,6 +198,23 @@ const handleSavePrompt = () => {
       <template v-if="config.enabled">
         <el-divider />
 
+        <div class="config-group">
+          <el-form-item label="压缩计数方式" class="count-unit-setting">
+            <el-radio-group v-model="countUnit">
+              <el-radio-button value="message">按消息条数</el-radio-button>
+              <el-radio-button value="user-turn">按用户回合</el-radio-button>
+            </el-radio-group>
+            <div class="form-helper">
+              {{
+                countsUserTurns
+                  ? "每条用户消息开启一个回合，包含后续助手回复和工具结果，压缩时保留完整回合。"
+                  : "用户消息、助手回复和工具结果各计一条。"
+              }}
+              两种方式分别保存数量设置。
+            </div>
+          </el-form-item>
+        </div>
+
         <!-- 触发条件 -->
         <div class="config-group">
           <div class="group-title">触发条件</div>
@@ -189,7 +222,7 @@ const handleSavePrompt = () => {
           <el-form-item label="触发模式">
             <el-radio-group v-model="config.triggerMode">
               <el-radio-button value="token">Token 阈值</el-radio-button>
-              <el-radio-button value="count">消息条数</el-radio-button>
+              <el-radio-button value="count">{{ countLabel }}</el-radio-button>
               <el-radio-button value="both">两者结合</el-radio-button>
             </el-radio-group>
           </el-form-item>
@@ -211,28 +244,34 @@ const handleSavePrompt = () => {
 
             <el-form-item
               v-if="['count', 'both'].includes(config.triggerMode || 'token')"
-              label="消息条数阈值"
+              :label="`${countLabel}阈值`"
             >
               <el-input-number
                 v-model="config.countThreshold"
-                :min="10"
-                :step="5"
+                :min="countsUserTurns ? 1 : 10"
+                :step="countsUserTurns ? 1 : 5"
                 style="width: 100%"
                 placeholder="默认: 50"
               />
-              <div class="form-helper">当历史消息条数超过此值时触发</div>
+              <div class="form-helper">
+                当历史{{ countLabel }}超过此值时触发
+              </div>
             </el-form-item>
 
-            <el-form-item label="最小历史条数">
+            <el-form-item
+              :label="countsUserTurns ? '最小历史回合数' : '最小历史条数'"
+            >
               <el-input-number
                 v-model="config.minHistoryCount"
-                :min="5"
+                :min="countsUserTurns ? 1 : 5"
                 :step="1"
                 style="width: 100%"
                 placeholder="默认: 15"
               />
               <div class="form-helper">
-                至少积累多少条历史消息才允许触发压缩
+                至少积累指定数量的{{
+                  countsUserTurns ? "用户回合" : "历史消息"
+                }}才允许触发压缩
               </div>
             </el-form-item>
           </div>
@@ -244,7 +283,9 @@ const handleSavePrompt = () => {
         <div class="config-group">
           <div class="group-title">压缩范围</div>
           <div class="two-col">
-            <el-form-item label="保护最近消息">
+            <el-form-item
+              :label="countsUserTurns ? '保护最近回合' : '保护最近消息'"
+            >
               <el-input-number
                 v-model="config.protectRecentCount"
                 :min="0"
@@ -253,11 +294,13 @@ const handleSavePrompt = () => {
                 placeholder="默认: 10"
               />
               <div class="form-helper">
-                最近的 N 条消息将不会被压缩，以保持短期记忆清晰。
+                保留最近的 N {{ countDescription }}，维持对话连贯。
               </div>
             </el-form-item>
 
-            <el-form-item label="每次压缩条数">
+            <el-form-item
+              :label="countsUserTurns ? '每次压缩回合数' : '每次压缩条数'"
+            >
               <el-input-number
                 v-model="config.compressCount"
                 :min="1"
@@ -266,8 +309,8 @@ const handleSavePrompt = () => {
                 placeholder="默认: 20"
               />
               <div class="form-helper">
-                触发压缩时，将最旧的 N 条消息合并为一个摘要节点。
-                不包括旧的摘要。
+                每次最多将最早的 N
+                {{ countDescription }}合并为摘要，已有摘要随新内容续写。
               </div>
             </el-form-item>
           </div>
@@ -586,6 +629,10 @@ const handleSavePrompt = () => {
   padding: 8px;
   background-color: var(--el-fill-color-lighter);
   border-radius: 4px;
+}
+
+.count-unit-setting .form-helper {
+  width: 100%;
 }
 
 .form-helper {

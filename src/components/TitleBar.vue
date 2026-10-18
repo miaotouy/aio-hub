@@ -86,6 +86,7 @@ import {
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
+  sharedBackground?: boolean;
   title?: string;
   icon?: any; // Vue 组件类型
 }>();
@@ -189,11 +190,8 @@ const logoSrc = computed(() => (isDark.value ? iconWhite : iconBlack));
 // Level 3 全局托底（设计文档 §6.3）：有活动任务时在标题栏显示轻量胶囊，
 // 点击打开任务中心；任务中心组件在本组件内唯一挂载，与 ChatAreaHeader 入口
 // 共享 useBackgroundTaskCenter 的打开状态。
-const {
-  isTaskCenterOpen,
-  focusTaskInCenter,
-  openTaskCenter,
-} = useBackgroundTaskCenter();
+const { isTaskCenterOpen, focusTaskInCenter, openTaskCenter } =
+  useBackgroundTaskCenter();
 const chatStore = useLlmChatStore();
 const { openCompanion } = useCompanionSession();
 
@@ -587,8 +585,11 @@ watch(
     class="title-bar"
     :class="{
       macos: isMacOS,
+      'shared-background': props.sharedBackground,
       'has-glass-effect':
-        appearanceSettings?.enableUiEffects && appearanceSettings?.enableUiBlur,
+        !props.sharedBackground &&
+        appearanceSettings?.enableUiEffects &&
+        appearanceSettings?.enableUiBlur,
     }"
     data-tauri-drag-region
     @mousedown="startTitleBarDrag"
@@ -951,6 +952,11 @@ watch(
   border-bottom: var(--border-width) solid var(--border-color);
   /* 允许拖动窗口 */
   -webkit-app-region: drag;
+}
+
+.title-bar.shared-background {
+  background: transparent;
+  border-bottom: none;
 }
 
 .title-bar.has-glass-effect {

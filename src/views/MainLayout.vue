@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from "vue";
+import { computed, ref, onMounted, watch, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -29,6 +29,7 @@ import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { useGuidedFlowStore } from "@/stores/guidedFlowStore";
+import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import CompanionSessionSheet from "@/tools/sub-agent/components/CompanionSessionSheet.vue";
 
 const logger = createModuleLogger("MainLayout");
@@ -39,7 +40,19 @@ const toolsStore = useToolsStore();
 const appSettingsStore = useAppSettingsStore();
 const guidedFlowStore = useGuidedFlowStore();
 
+const { appearanceSettings } = useThemeAppearance();
 const isCollapsed = ref(appSettingsStore.settings.sidebarCollapsed);
+const hasSidebar = computed(
+  () =>
+    !appSettingsStore.sidebarMode || appSettingsStore.sidebarMode === "sidebar"
+);
+const shellStyle = computed(() => ({
+  "--shell-sidebar-width": hasSidebar.value
+    ? isCollapsed.value
+      ? "64px"
+      : "220px"
+    : "0px",
+}));
 
 // 监听 isCollapsed 变化并保存
 watch(isCollapsed, (newVal) => {
@@ -160,9 +173,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="main-layout-wrapper">
+  <div class="main-layout-wrapper" :style="shellStyle">
+    <!-- 标题栏和侧栏共用背景，主区域通过蒙版露出左上圆角。 -->
+    <div
+      class="shell-background"
+      :class="{
+        'has-glass-effect':
+          appearanceSettings.enableUiEffects && appearanceSettings.enableUiBlur,
+      }"
+      aria-hidden="true"
+    />
     <!-- 自定义标题栏 -->
-    <TitleBar />
+    <TitleBar shared-background />
 
     <!-- Deep Link 确认弹窗 -->
     <LlmDeepLinkConfirmDialog />
@@ -180,16 +202,13 @@ onUnmounted(() => {
     >
       <!-- 侧边栏 -->
       <MainSidebar
-        v-if="
-          !appSettingsStore.sidebarMode ||
-          appSettingsStore.sidebarMode === 'sidebar'
-        "
+        v-if="hasSidebar"
         v-model:collapsed="isCollapsed"
         :tools-visible="appSettingsStore.toolsVisible || {}"
         :is-detached="detachedManager.isDetached"
       />
 
-      <el-container>
+      <el-container class="workspace-container">
         <el-main class="main-content">
           <router-view v-slot="{ Component }">
             <keep-alive :exclude="['Settings']">
@@ -216,6 +235,8 @@ onUnmounted(() => {
 
 <style scoped>
 .main-layout-wrapper {
+  --workspace-corner-radius: 16px;
+  position: relative;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -223,7 +244,39 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+/* 三块蒙版取并集：顶部、左侧，以及主区域左上角圆弧外侧。 */
+.shell-background {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: var(--sidebar-bg);
+  mask-image:
+    linear-gradient(#000, #000), linear-gradient(#000, #000),
+    radial-gradient(
+      circle at bottom right,
+      transparent calc(var(--workspace-corner-radius) - 0.5px),
+      #000 var(--workspace-corner-radius)
+    );
+  mask-size:
+    100% var(--titlebar-height),
+    var(--shell-sidebar-width) 100%,
+    var(--workspace-corner-radius) var(--workspace-corner-radius);
+  mask-position:
+    left top,
+    left top,
+    left var(--shell-sidebar-width) top var(--titlebar-height);
+  mask-repeat: no-repeat;
+  transition:
+    mask-size 0.3s ease,
+    mask-position 0.3s ease;
+}
+
+.shell-background.has-glass-effect {
+  backdrop-filter: blur(var(--ui-blur));
+}
+
 .common-layout {
+  position: relative;
   flex: 1;
   width: 100vw;
   overflow: hidden;
@@ -236,7 +289,17 @@ onUnmounted(() => {
   user-select: none;
 }
 
+.workspace-container {
+  min-width: 0;
+  overflow: hidden;
+  border-top-left-radius: var(--workspace-corner-radius);
+}
+
 .main-content {
+  min-width: 0;
+  border-top: var(--border-width) solid var(--border-color);
+  border-left: var(--border-width) solid var(--border-color);
+  border-top-left-radius: inherit;
   background-color: var(--bg-color);
   /* 改为 hidden，防止成为任何内部 scrollIntoView 的滚动目标 */
   overflow: hidden;

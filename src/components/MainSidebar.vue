@@ -19,7 +19,6 @@ import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { Expand, Fold } from "@element-plus/icons-vue";
 import { Trash2 } from "lucide-vue-next";
-import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { useToolsStore } from "@/stores/tools";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
@@ -39,7 +38,6 @@ const emit = defineEmits<{
   "update:collapsed": [value: boolean];
 }>();
 
-const { appearanceSettings } = useThemeAppearance();
 const toolsStore = useToolsStore();
 const router = useRouter();
 const route = useRoute();
@@ -83,14 +81,11 @@ const clearOpenedTabs = async () => {
 
 <template>
   <el-aside
-    :width="isCollapsed ? '64px' : '220px'"
+    width="var(--shell-sidebar-width)"
     :class="[
       'main-sidebar',
       {
         'is-collapsed': isCollapsed,
-        'has-glass-effect':
-          appearanceSettings?.enableUiEffects &&
-          appearanceSettings?.enableUiBlur,
       },
     ]"
   >
@@ -144,18 +139,12 @@ const clearOpenedTabs = async () => {
 
 <style scoped>
 .main-sidebar {
-  background-color: var(--sidebar-bg);
+  background-color: transparent;
   color: var(--sidebar-text);
-  border-right: var(--border-width) solid var(--border-color);
-  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
   overflow-x: hidden;
-}
-
-.main-sidebar.has-glass-effect {
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 .sidebar-top {

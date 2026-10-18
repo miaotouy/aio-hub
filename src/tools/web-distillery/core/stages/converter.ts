@@ -18,6 +18,7 @@
  */
 import type { FetchFormat } from "../../types";
 import TurndownService from "turndown";
+import DOMPurify from "dompurify";
 
 export class Converter {
   private turndown: TurndownService;
@@ -29,18 +30,22 @@ export class Converter {
       hr: "---",
       bulletListMarker: "-",
       codeBlockStyle: "fenced",
+      blankReplacement: (_content, node) => {
+        const el = node as HTMLElement;
+        if (el.nodeName === "A") return this.anchorTarget(el);
+        return "isBlock" in node && node.isBlock ? "\n\n" : "";
+      },
     });
 
     // 排除无意义的空元素或仅含装饰性内容的元素
     this.turndown.addRule("cleanup-empty", {
-      filter: ["a", "span", "div", "p"],
-      replacement: (content, node) => {
-        const el = node as HTMLElement;
-        const hasText = !!el.textContent?.trim();
-        const hasMedia = !!el.querySelector("img, video, canvas");
-        if (!hasText && !hasMedia) return "";
-        return content;
-      },
+      filter: (node) =>
+        ["A", "SPAN", "DIV", "P"].includes(node.nodeName) &&
+        !node.textContent?.trim() &&
+        !(node as HTMLElement).querySelector(
+          "img, video, canvas, a[id], a[name]"
+        ),
+      replacement: () => "",
     });
 
     // 防止嵌套链接
@@ -51,6 +56,22 @@ export class Converter {
         );
       },
       replacement: (content) => content,
+    });
+
+    // LibreOffice 等文档的脚注使用命名锚点，Markdown 中保留可跳转的目标。
+    this.turndown.addRule("named-anchor", {
+      filter: (node) =>
+        node.nodeName === "A" &&
+        (node.hasAttribute("id") || node.hasAttribute("name")),
+      replacement: (_content, node) => {
+        const el = node as HTMLElement;
+        const link = el.cloneNode(true) as HTMLElement;
+        link.removeAttribute("id");
+        link.removeAttribute("name");
+        const wrapper = el.ownerDocument.createElement("span");
+        wrapper.appendChild(link);
+        return this.anchorTarget(el) + this.turndown.turndown(wrapper);
+      },
     });
 
     // 集成自定义表格转换逻辑
@@ -113,7 +134,17 @@ export class Converter {
   }
 
   private toMarkdown(element: HTMLElement): string {
-    let markdown = this.turndown.turndown(element).trim();
+    const source = element.cloneNode(true) as HTMLElement;
+    if (this.cleanMode) {
+      // 在转换前处理 DOM，使保留为 HTML 的合并单元格表格同样遵守纯净模式。
+      source
+        .querySelectorAll("a")
+        .forEach((link) => link.replaceWith(...link.childNodes));
+      source
+        .querySelectorAll("img")
+        .forEach((image) => image.replaceWith("[图片]"));
+    }
+    let markdown = this.turndown.turndown(source).trim();
 
     // 纯净模式：移除所有 Markdown 链接，只保留链接文本
     if (this.cleanMode) {
@@ -126,10 +157,76 @@ export class Converter {
     return markdown;
   }
 
+  private anchorTarget(element: HTMLElement): string {
+    const id = element.getAttribute("id") || element.getAttribute("name");
+    if (!id) return "";
+    const anchor = element.ownerDocument.createElement("a");
+    anchor.id = id;
+    return anchor.outerHTML;
+  }
+
   /**
    * 将 HTML 表格转换为 Markdown 表格
    */
   private convertTable(table: HTMLElement): string {
+    // 管道表格无法表达跨行、跨列及嵌套表格，保留安全的结构化 HTML。
+    const hasMergedCells = Array.from(table.querySelectorAll("td, th")).some(
+      (cell) =>
+        (cell.hasAttribute("rowspan") &&
+          Number(cell.getAttribute("rowspan")) !== 1) ||
+        (cell.hasAttribute("colspan") &&
+          Number(cell.getAttribute("colspan")) !== 1)
+    );
+    if (hasMergedCells || table.querySelector("table")) {
+      const html = DOMPurify.sanitize(table.outerHTML, {
+        ALLOWED_TAGS: [
+          "table",
+          "caption",
+          "thead",
+          "tbody",
+          "tfoot",
+          "tr",
+          "th",
+          "td",
+          "p",
+          "div",
+          "span",
+          "br",
+          "strong",
+          "b",
+          "em",
+          "i",
+          "u",
+          "s",
+          "sup",
+          "sub",
+          "code",
+          "pre",
+          "a",
+          "img",
+          "ul",
+          "ol",
+          "li",
+        ],
+        ALLOWED_ATTR: [
+          "rowspan",
+          "colspan",
+          "scope",
+          "id",
+          "name",
+          "href",
+          "src",
+          "alt",
+          "title",
+          "start",
+          "value",
+        ],
+        ALLOW_DATA_ATTR: false,
+        ALLOW_ARIA_ATTR: false,
+      });
+      // HTML 块中的空行会让部分 Markdown 渲染器提前结束表格。
+      return `\n\n${html.replace(/\n\s*\n/g, "\n")}\n\n`;
+    }
     const rows: string[][] = [];
     let hasHeader = false;
 
@@ -241,7 +338,11 @@ export class Converter {
   private getCellText(cell: HTMLElement): string {
     // 单元格内部我们也直接用 turndown 来递归转换，这样更统一
     // 注意：单元格内不支持复杂的块级元素，turndown 默认会处理好
-    return this.turndown.turndown(cell).replace(/\n+/g, "<br>").trim();
+    return this.turndown
+      .turndown(cell)
+      .trim()
+      .replace(/\|/g, "\\|")
+      .replace(/\n+/g, "<br>");
   }
 
   /**

@@ -18,6 +18,7 @@
  */
 import type { ScrapedMetadata, SiteRecipe } from "../../types";
 import { Readability } from "@mozilla/readability";
+import Defuddle from "defuddle";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("web-distillery/extractor");
@@ -44,7 +45,14 @@ export class Extractor {
     recipe?: SiteRecipe
   ): ExtractedData {
     let mainElement: HTMLElement | null = null;
-    let title = doc.title;
+    let title = doc.title.trim();
+    const metadata = this.extractMetadata(doc);
+    const isOfficeDocument =
+      /LibreOffice|OpenOffice|Microsoft\s*(?:Office|Word)/i.test(
+        doc.querySelector('meta[name="generator"]')?.getAttribute("content") ||
+          ""
+      );
+    const fallbackTitle = this.inferTitle(doc, isOfficeDocument);
 
     // 0. 优先尝试程序化提取器（evaluatorFn）
     if (recipe?.evaluatorFn) {
@@ -57,15 +65,10 @@ export class Extractor {
             length: result.length,
           });
           const container = doc.createElement("div");
-          // evaluatorFn 返回的是 Markdown 文本，包裹在 <pre> 中保留格式
-          // 后续 Converter 会检测到 pre 标签并保留原始内容
+          // evaluatorFn 返回 Markdown，Converter 按标记直接保留原始内容。
           container.setAttribute("data-distillery-raw-markdown", "true");
           container.textContent = result;
-          return {
-            title: title,
-            mainElement: container,
-            metadata: this.extractMetadata(doc),
-          };
+          mainElement = container;
         }
       } catch (e) {
         logger.warn("Programmatic evaluator failed, falling back", {
@@ -76,7 +79,7 @@ export class Extractor {
     }
 
     // 1. 如果指定了选择器，收集所有匹配元素并合并到一个容器中
-    if (targetSelectors.length > 0) {
+    if (!mainElement && targetSelectors.length > 0) {
       const container = doc.createElement("div");
       let foundAny = false;
 
@@ -110,27 +113,56 @@ export class Extractor {
       }
     }
 
-    // 3. 如果选择器没匹配到任何内容，使用 Mozilla Readability
+    // 3. 通用正文优先使用 Defuddle；Office 导出文档保留排版结构和脚注锚点。
     if (!mainElement) {
-      // Readability 会修改传入的 Document，需要 clone
-      const clonedDoc = doc.cloneNode(true) as Document;
-      const reader = new Readability(clonedDoc);
-      const article = reader.parse();
-      if (article && article.content) {
-        title = article.title || title;
+      try {
+        const article = new Defuddle(doc.cloneNode(true) as Document, {
+          url: doc.baseURI,
+          useAsync: false,
+          standardize: !isOfficeDocument,
+        }).parse();
         const container = doc.createElement("div");
         container.innerHTML = article.content;
-        mainElement = container;
+        if (
+          container.textContent?.trim() ||
+          container.querySelector("img, table")
+        ) {
+          title = article.title?.trim() || title;
+          mainElement = container;
+          metadata.description ||= article.description;
+          metadata.author ||= article.author;
+          metadata.publishDate ||= article.published;
+          metadata.language ||= article.language;
+        }
+      } catch (error) {
+        logger.warn("Defuddle extraction failed, falling back", { error });
       }
     }
 
-    // 3. 兜底：使用 body
+    // 4. Defuddle 无结果或失败时回退到 Readability，再回退到 body。
+    if (!mainElement) {
+      try {
+        const article = new Readability(
+          doc.cloneNode(true) as Document
+        ).parse();
+        if (article?.content) {
+          title = article.title?.trim() || title;
+          const container = doc.createElement("div");
+          container.innerHTML = article.content;
+          mainElement = container;
+        }
+      } catch (error) {
+        logger.warn("Readability extraction failed, using body", { error });
+      }
+    }
+
     if (!mainElement) {
       mainElement = doc.body;
     }
 
-    // 4. 合并元数据
-    const metadata = this.extractMetadata(doc);
+    title ||= fallbackTitle;
+
+    // 5. 合并元数据
 
     // 数据源优先级：ScrapedMetadata (脚本) > Extractor (DOM/Meta)
     if (scrapedMetadata) {
@@ -143,7 +175,10 @@ export class Extractor {
 
       // 正文兜底：如果 DOM 提取的正文为空或过短
       const domContentLen = mainElement.textContent?.trim().length || 0;
-      if (domContentLen < 100) {
+      if (
+        domContentLen < 100 &&
+        !mainElement.hasAttribute("data-distillery-raw-markdown")
+      ) {
         // 1. 优先尝试使用脚本提取的 content
         if (scrapedMetadata.content) {
           const container = doc.createElement("div");
@@ -160,7 +195,9 @@ export class Extractor {
           const cleanDesc = scrapedMetadata.description
             .replace(/<[^>]*>/g, "")
             .trim();
-          container.innerHTML = `<p>${cleanDesc}</p>`;
+          const paragraph = doc.createElement("p");
+          paragraph.textContent = cleanDesc;
+          container.appendChild(paragraph);
           mainElement = container;
         }
       }
@@ -171,6 +208,52 @@ export class Extractor {
       mainElement,
       metadata,
     };
+  }
+
+  private inferTitle(doc: Document, isOfficeDocument: boolean): string {
+    const heading = doc.querySelector("h1")?.textContent?.trim();
+    if (heading) return heading;
+    if (!isOfficeDocument) return "";
+
+    // Office 常将标题拆成多个大字号段落。只检查正文开头、表格外的段落。
+    const paragraphs = Array.from(doc.body.querySelectorAll("p"))
+      .filter((p) => !p.closest("table") && p.textContent?.trim())
+      .slice(0, 12);
+    const fontSize = (element: Element): number => {
+      let largest = 0;
+      for (const node of [
+        element,
+        ...element.querySelectorAll("[style], font[size]"),
+      ]) {
+        const style = node.getAttribute("style") || "";
+        const match = style.match(/font-size\s*:\s*([\d.]+)(pt|px)/i);
+        const legacySize = Number(node.getAttribute("size"));
+        const size = match
+          ? Number(match[1]) * (match[2].toLowerCase() === "px" ? 0.75 : 1)
+          : legacySize >= 5
+            ? [18, 24, 36][Math.min(legacySize - 5, 2)]
+            : 0;
+        largest = Math.max(largest, size);
+      }
+      return largest;
+    };
+    const sizes = paragraphs.map(fontSize);
+    const largest = Math.max(0, ...sizes);
+    if (largest < 16) return "";
+    let paragraph: Element | null = paragraphs[sizes.indexOf(largest)];
+    let title = "";
+    while (paragraph?.tagName === "P") {
+      const text = paragraph.textContent?.replace(/\s+/g, " ").trim() || "";
+      if (text) {
+        if (fontSize(paragraph) !== largest) break;
+        const joiner =
+          /[a-z\d]$/i.test(title) && /^[a-z\d]/i.test(text) ? " " : "";
+        if ((title + joiner + text).length > 300) break;
+        title += joiner + text;
+      }
+      paragraph = paragraph.nextElementSibling;
+    }
+    return title;
   }
 
   /**
@@ -294,15 +377,15 @@ export class Extractor {
     return null;
   }
 
-  private extractMetadata(doc: Document) {
-    const meta: any = {};
+  private extractMetadata(doc: Document): ExtractedData["metadata"] {
+    const meta: ExtractedData["metadata"] = {};
 
     const getMeta = (names: string[]) => {
       for (const name of names) {
         const el = doc.querySelector(
           `meta[name="${name}"], meta[property="${name}"]`
         );
-        if (el) return el.getAttribute("content");
+        if (el) return el.getAttribute("content") || undefined;
       }
       return undefined;
     };

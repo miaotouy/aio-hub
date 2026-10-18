@@ -1,6 +1,6 @@
 # 网页蒸馏室 (Web Distillery) — 架构文档
 
-> 最后更新：2026-10-17
+> 最后更新：2026-10-18
 
 ## 1. 概述
 
@@ -76,7 +76,6 @@ src/tools/web-distillery/
 │   ├── transformer.ts          # 蒸馏管道编排器
 │   ├── recipe-store.ts         # 配方持久化 + 匹配
 │   ├── action-runner.ts        # 动作序列执行器
-│   ├── readability.ts          # Readability 主内容提取
 │   ├── builtin-recipes.ts      # 内置配方库
 │   └── stages/                 # 蒸馏管道各阶段
 │       ├── preprocessor.ts     # 阶段1: HTML 解析
@@ -317,12 +316,13 @@ HTML 输入
    │   遵守 recipe.protectedSelectors 白名单
    │
    ▼ 阶段4: Extractor
-   │   优先使用 recipe.extractSelectors CSS 选择器
-   │   回退：Mozilla Readability 算法自动识别主内容
+   │   程序化配方 → CSS 选择器 → 聚合页链接提取
+   │   通用正文：Defuddle → Readability → body
    │
    ▼ 阶段5: Converter
    │   将 DOM 转换为目标格式：markdown / text / html / json
-   │   cleanMode=true 时过滤所有超链接
+   │   保留段落边界，简单表格输出 Markdown，合并单元格保留 HTML
+   │   cleanMode=true 时过滤 Markdown 及表格 HTML 中的链接、图片
    │
    ▼ 阶段6: Postprocessor
    │   空白清理、质量评分、组装 FetchResult
@@ -334,6 +334,13 @@ HTML 输入
 
 - **RSS/Atom**：检测到 `<?xml` / `<rss` / `<feed` 开头时直接使用原生 `DOMParser` 解析，质量分强制为 `1.0`
 - **文件类型 URL**（`.md`, `.json`, `.js` 等）：跳过 HTML 管道，直接按 MIME 类型包装输出
+
+### 本地正文与文档结构
+
+- 通用提取使用 `defuddle` 的浏览器入口，关闭异步站点抓取，复用已有获取到的 DOM。无有效正文或提取异常时，依次回退到 Readability 和原始 body。站点配方和聚合页规则保持更高优先级。
+- 从 generator 元数据识别 LibreOffice、OpenOffice 和 Microsoft Office/Word 导出文档，对这些文档关闭 Defuddle 的 HTML 标准化，保留脚注锚点。标题为空时使用 `h1`，Office 文档还会从开头的大字号段落拼接分行标题。脚本元数据保留最高优先级。
+- Markdown 转换保留段落与链接规则。含 `rowspan`、`colspan` 或嵌套表格的表格输出经 DOMPurify 白名单清理的 HTML，保留单元格顺序、合并关系和段落；简单表格继续输出 Markdown。命名脚注锚点以 HTML 锚点保留，预览渲染器需启用内联 HTML。
+- 纯净模式在 Markdown 转换前移除 DOM 中的链接与图片，使 HTML 表格同步遵守该选项。
 
 ---
 
@@ -381,7 +388,7 @@ type ActionStep =
 1. `domain` + `pathPattern` 精确匹配
 2. `domain` 域名匹配（忽略 path）
 3. `contentPatterns` 正则内容嗅探（仅用于本地文件）
-4. 无匹配 → 返回 `null`，使用纯 Readability 通用提取
+4. 无匹配 → 返回 `null`，使用 Defuddle 通用提取；无结果或异常时回退到 Readability
 
 ---
 

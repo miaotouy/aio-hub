@@ -187,6 +187,7 @@
     "d3-hierarchy": "^3.1.2",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "defuddle": "^0.19.5",
     "diff": "^8.0.2",
     "diff2html": "^3.4.52",
     "dompurify": "^3.3.0",

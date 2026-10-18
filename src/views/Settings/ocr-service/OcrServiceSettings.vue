@@ -474,9 +474,17 @@ const createDefaultApiRequest = (): OcrApiRequest => {
   min-height: 0;
 }
 
+.settings-layout :deep(.profile-sidebar) {
+  box-sizing: border-box;
+  min-height: 0;
+}
+
 .settings-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
   gap: 20px;
   flex: 1;
 }
@@ -490,6 +498,34 @@ const createDefaultApiRequest = (): OcrApiRequest => {
   justify-content: center;
   color: var(--text-color-secondary);
   flex: 1;
+}
+
+@container settings-content (max-width: 760px) {
+  .settings-layout {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    gap: 12px;
+  }
+
+  .settings-layout :deep(.profile-sidebar) {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: clamp(180px, 28dvh, 280px);
+  }
+
+  .settings-layout :deep(.profile-editor) {
+    flex: 0 0 auto;
+    height: auto;
+  }
+
+  .settings-layout :deep(.editor-body) {
+    overflow: visible;
+  }
+
+  .empty-state {
+    min-height: 200px;
+  }
 }
 
 /* 列表项样式 */

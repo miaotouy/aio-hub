@@ -1137,11 +1137,18 @@ const networkSettingSummary = computed(() => {
   display: flex;
   padding: 0;
   box-sizing: border-box;
+  min-height: 0;
+}
+
+.settings-layout :deep(.profile-sidebar) {
+  box-sizing: border-box;
+  min-height: 0;
 }
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 20px;
   flex: 1;
   min-height: 0;
@@ -1151,12 +1158,8 @@ const networkSettingSummary = computed(() => {
 .editor-container {
   flex: 1;
   min-width: 0;
-  max-height: 80vh;
+  min-height: 0;
   overflow: hidden;
-}
-
-.settings-layout :deep(.profile-sidebar) {
-  max-height: 80vh;
 }
 
 .is-narrow .settings-layout {
@@ -1170,14 +1173,25 @@ const networkSettingSummary = computed(() => {
 
 .is-narrow :deep(.profile-sidebar) {
   height: auto;
-  max-height: 360px;
-  min-height: 200px;
+  flex: 0 0 auto;
+  max-height: clamp(180px, 28dvh, 280px);
+  min-height: 140px;
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
+.is-narrow .editor-container {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
 .is-narrow :deep(.profile-editor) {
+  height: auto;
   border: none;
   background: transparent;
+}
+
+.is-narrow :deep(.editor-body) {
+  overflow: visible;
 }
 
 .is-narrow .empty-state {

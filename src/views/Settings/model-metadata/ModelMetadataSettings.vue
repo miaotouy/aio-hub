@@ -826,8 +826,8 @@ async function confirmImport() {
   display: flex;
   flex-direction: column;
   padding: 0;
-  overflow: hidden;
-  height: 100%;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-header {
@@ -1106,6 +1106,7 @@ async function confirmImport() {
 /* 可滚动区域 */
 .configs-scroll-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 1rem;
@@ -1114,7 +1115,7 @@ async function confirmImport() {
 /* 网格视图 */
 .configs-list.grid-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
   gap: 1.5rem;
   align-items: start;
 }
@@ -1137,6 +1138,18 @@ async function confirmImport() {
   background: var(--container-bg);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
+}
+
+@container settings-content (max-width: 760px) {
+  .configs-container {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .configs-scroll-area {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
 }
 
 .el-button {

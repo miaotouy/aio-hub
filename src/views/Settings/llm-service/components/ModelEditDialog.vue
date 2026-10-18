@@ -831,25 +831,29 @@ const customParametersJsonString = computed({
           </el-form-item>
         </el-form>
       </div>
+
+      <!-- 预设图标选择对话框 -->
+      <BaseDialog
+        v-model="showPresetIconDialog"
+        title="选择预设图标"
+        width="80%"
+      >
+        <template #content>
+          <IconPresetSelector
+            :icons="PRESET_ICONS"
+            :get-icon-path="(path: string) => path"
+            show-search
+            show-categories
+            @select="selectPresetIcon"
+          />
+        </template>
+      </BaseDialog>
     </template>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
       <el-button type="primary" @click="handleSave">确定</el-button>
     </template>
-
-    <!-- 预设图标选择对话框 -->
-    <BaseDialog v-model="showPresetIconDialog" title="选择预设图标" width="80%">
-      <template #content>
-        <IconPresetSelector
-          :icons="PRESET_ICONS"
-          :get-icon-path="(path: string) => path"
-          show-search
-          show-categories
-          @select="selectPresetIcon"
-        />
-      </template>
-    </BaseDialog>
   </BaseDialog>
 </template>
 

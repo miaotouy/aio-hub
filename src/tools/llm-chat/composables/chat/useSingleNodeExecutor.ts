@@ -521,7 +521,12 @@ export function useSingleNodeExecutor() {
             statusCode,
           });
         }
-        for (const node of segmentNodes.values()) {
+        // Flush through the handler that owns the stream buffers before the
+        // orchestrator records the error through its separate handler instance.
+        const interruptedNodes = segmentNodes.size
+          ? segmentNodes.values()
+          : [assistantNode];
+        for (const node of interruptedNodes) {
           completeStreamSegment(session, node.id);
         }
         throw error;

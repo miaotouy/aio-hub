@@ -426,6 +426,16 @@ export function useToolCallOrchestrator() {
               metadata: {
                 agentId: executionAgent.id,
                 ...currentAssistantNode.metadata,
+                // A tool result starts a new response with its own reasoning.
+                reasoningContent: undefined,
+                reasoningArtifacts: undefined,
+                reasoningStateStatus: undefined,
+                reasoningStateWarning: undefined,
+                reasoningStartTime: undefined,
+                reasoningEndTime: undefined,
+                reasoningActive: undefined,
+                reasoningActiveSince: undefined,
+                reasoningDurationMs: undefined,
                 firstTokenTime: undefined,
                 requestStartTime: Date.now(),
                 requestEndTime: undefined,

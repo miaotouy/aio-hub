@@ -19,6 +19,8 @@ import type { SettingItem } from "./settings-renderer";
 import type { MediaGenParamRules } from "./model-metadata";
 import type {
   LlmModelRouting,
+  VirtualChannelConfig,
+  VirtualModelBindings,
   ModelIdentity,
   ModelIdentitySuggestion,
 } from "@aiohub/llm-core";
@@ -42,6 +44,7 @@ export interface ContextPostProcessRule {
 export type NetworkStrategy = "auto" | "proxy" | "native";
 
 export type ProviderType =
+  | "virtual"
   | "openai"
   | "openai-compatible"
   | "azure"
@@ -362,6 +365,7 @@ export interface ModelMetadataBinding {
   fingerprint?: string;
 }
 export interface LlmModelInfo {
+  virtualBindings?: VirtualModelBindings;
   /**
    * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
    */
@@ -511,6 +515,7 @@ export interface LlmLink {
  * 用户创建的单个 LLM 渠道配置
  */
 export interface LlmProfile {
+  virtualChannel?: VirtualChannelConfig;
   /**
    * 配置实例的唯一ID (uuid)
    */

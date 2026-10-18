@@ -1,5 +1,11 @@
 import { ref } from "vue";
-import { resolveModelExecution, decorateLlmError } from "@aiohub/llm-core";
+import {
+  resolveModelExecution,
+  decorateLlmError,
+  executeChannelRequest,
+  resolveChannelReplayTarget,
+  ChannelConfigurationError,
+} from "@aiohub/llm-core";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
 import { useLlmKeyManager } from "./useLlmKeyManager";
 import { callOpenAiCompatibleApi } from "../core/adapters/openai-compatible";
@@ -130,7 +136,10 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
    * @param options 请求选项
    * @param profileId 可选，指定使用的 Profile ID，不传则使用当前选中的
    */
-  async function sendRequest(options: LlmRequestOptions, profileId?: string) {
+  async function sendPhysicalRequest(
+    options: LlmRequestOptions,
+    profileId?: string
+  ) {
     const requestOptions: LlmRequestOptions = { ...options };
     // 默认开启流式，除非显式指定为 false
     if (requestOptions.stream === undefined) {
@@ -142,8 +151,7 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
       requestOptions.timeout = 300000;
     }
 
-    if (!store.isLoaded) await store.init();
-
+    profileId = profileId ?? options.profileId;
     const originalProfile = profileId
       ? store.profiles.find((p) => p.id === profileId)
       : store.selectedProfile;
@@ -181,68 +189,186 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
 
     const maxRetries = normalizeMaxRetries(requestOptions.maxRetries);
     let attempt = 0;
-    isSending.value = true;
 
-    try {
-      while (true) {
-        const pickedKey = keyManager.pickKey(originalProfile);
-        const profile = {
-          ...originalProfile,
-          apiKeys: pickedKey ? [pickedKey] : [],
-        };
-        const adapterOptions: LlmRequestOptions = {
-          ...requestOptions,
-          relaxIdCerts: profile.relaxIdCerts ?? requestOptions.relaxIdCerts,
-          http1Only: profile.http1Only ?? requestOptions.http1Only,
-        };
+    while (true) {
+      const pickedKey = keyManager.pickKey(originalProfile);
+      const profile = {
+        ...originalProfile,
+        apiKeys: pickedKey ? [pickedKey] : [],
+      };
+      const adapterOptions: LlmRequestOptions = {
+        ...requestOptions,
+        relaxIdCerts: profile.relaxIdCerts ?? requestOptions.relaxIdCerts,
+        http1Only: profile.http1Only ?? requestOptions.http1Only,
+      };
 
-        logger.info("开始发送 LLM 请求", {
-          modelId: adapterOptions.modelId,
-          profile: profile.name,
-          attempt: attempt + 1,
-          keyUsed: pickedKey ? `${pickedKey.substring(0, 8)}...` : "none",
-        });
+      logger.info("开始发送 LLM 请求", {
+        modelId: adapterOptions.modelId,
+        profile: profile.name,
+        attempt: attempt + 1,
+        keyUsed: pickedKey ? `${pickedKey.substring(0, 8)}...` : "none",
+      });
 
-        try {
-          const result = await executeAdapter(profile, adapterOptions);
-          if (pickedKey) {
-            keyManager.reportSuccess(originalProfile.id, pickedKey);
-          }
-          logger.debug("LLM 请求完成", {
-            isStream: result.isStream,
-            attempt: attempt + 1,
-          });
-          return result;
-        } catch (err: unknown) {
-          if (pickedKey) {
-            keyManager.reportFailure(originalProfile.id, pickedKey, err);
-          }
-
-          const canRetry =
-            attempt < maxRetries &&
-            !receivedStreamContent &&
-            isRetryableLlmRequestError(err);
-          if (!canRetry) {
-            errorHandler.handle(err, {
-              showToUser: false,
-              context: { modelId: requestOptions.modelId },
-            });
-            throw decorateLlmError(err, errorContext);
-          }
-
-          attempt += 1;
-          const delayMs = Math.min(300 * 2 ** (attempt - 1), 2000);
-          logger.info("LLM 请求失败，将重试", {
-            modelId: requestOptions.modelId,
-            attempt,
-            maxRetries,
-            delayMs,
-          });
-          await waitForRetry(delayMs, requestOptions.signal);
+      try {
+        const result = await executeAdapter(profile, adapterOptions);
+        if (pickedKey) {
+          keyManager.reportSuccess(originalProfile.id, pickedKey);
         }
+        logger.debug("LLM 请求完成", {
+          isStream: result.isStream,
+          attempt: attempt + 1,
+        });
+        return result;
+      } catch (err: unknown) {
+        if (pickedKey) {
+          keyManager.reportFailure(originalProfile.id, pickedKey, err);
+        }
+
+        const canRetry =
+          attempt < maxRetries &&
+          !receivedStreamContent &&
+          isRetryableLlmRequestError(err);
+        if (!canRetry) {
+          errorHandler.handle(err, {
+            showToUser: false,
+            context: { modelId: requestOptions.modelId },
+          });
+          throw decorateLlmError(err, errorContext);
+        }
+
+        attempt += 1;
+        const delayMs = Math.min(300 * 2 ** (attempt - 1), 2000);
+        logger.info("LLM 请求失败，将重试", {
+          modelId: requestOptions.modelId,
+          attempt,
+          maxRetries,
+          delayMs,
+        });
+        await waitForRetry(delayMs, requestOptions.signal);
       }
+    }
+  }
+
+  let activeRequests = 0;
+  async function sendRequest(
+    options: LlmRequestOptions,
+    profileId?: string
+  ): Promise<LlmResponse> {
+    activeRequests++;
+    isSending.value = true;
+    try {
+      if (!store.isLoaded) await store.init();
+      profileId = profileId ?? options.profileId;
+      const profile = profileId
+        ? store.profiles.find((p) => p.id === profileId)
+        : store.selectedProfile;
+      if (profile && !profile.enabled)
+        throw new ChannelConfigurationError("渠道已停用，请重新选择可用渠道");
+      if (
+        profile &&
+        !profile.models.some((model) => model.id === options.modelId)
+      )
+        throw new ChannelConfigurationError("模型绑定已失效，请重新选择模型");
+      if (
+        profile?.models.find((model) => model.id === options.modelId)
+          ?.capabilities?.decision
+      )
+        throw new ChannelConfigurationError(
+          "该模型用于结构化决策，请选择对话模型"
+        );
+      if (profile?.type !== "virtual")
+        return await sendPhysicalRequest(options, profileId);
+      if (options.apiKey)
+        throw new ChannelConfigurationError("请在成员渠道中配置密钥");
+      if (
+        !profile.models.find((m) => m.id === options.modelId)?.virtualBindings
+          ?.chat
+      )
+        throw new ChannelConfigurationError(
+          "当前移动端虚拟渠道支持对话，请选择对话逻辑模型"
+        );
+      const requiredCapabilities = new Set<string>();
+      if (options.tools?.length) requiredCapabilities.add("toolUse");
+      if (options.responseFormat && options.responseFormat.type !== "text")
+        requiredCapabilities.add("jsonOutput");
+      if (options.thinkingEnabled) requiredCapabilities.add("thinking");
+      if (options.webSearchEnabled) requiredCapabilities.add("webSearch");
+      for (const message of options.messages ?? []) {
+        if (Array.isArray(message.content))
+          for (const part of message.content) {
+            if (part.type === "image") requiredCapabilities.add("vision");
+            if (part.type === "audio") requiredCapabilities.add("audio");
+            if (part.type === "video") requiredCapabilities.add("video");
+          }
+      }
+      const result = await executeChannelRequest({
+        pinnedTarget: resolveChannelReplayTarget(
+          (options.messages ?? []).flatMap(
+            (message) => message.reasoningArtifacts ?? []
+          ),
+          profile.models.find((model) => model.id === options.modelId)
+            ?.virtualBindings?.chat?.length ?? 0
+        ),
+        profile,
+        modelId: options.modelId,
+        operation: "chat",
+        getProfiles: () => store.profiles,
+        signal: options.signal,
+        timeoutMs: options.timeout,
+        requiredCapabilities: [...requiredCapabilities],
+        execute: ({ profile: member, model, signal, timeoutMs, markOutput }) =>
+          sendPhysicalRequest(
+            {
+              ...options,
+              profileId: member.id,
+              modelId: model.id,
+              signal,
+              timeout: timeoutMs,
+              maxRetries: 0,
+              transportObserver: {
+                ...options.transportObserver,
+                onResponseChunk: (event) => {
+                  if (!signal.aborted) {
+                    markOutput();
+                    options.transportObserver?.onResponseChunk?.(event);
+                  }
+                },
+              },
+              onStream: (chunk) => {
+                if (!signal.aborted && chunk) {
+                  markOutput();
+                  options.onStream?.(chunk);
+                }
+              },
+              onReasoningStream: (chunk) => {
+                if (!signal.aborted && chunk) {
+                  markOutput();
+                  options.onReasoningStream?.(chunk);
+                }
+              },
+              onPartialImage: (image, index) => {
+                if (!signal.aborted) {
+                  markOutput();
+                  options.onPartialImage?.(image, index);
+                }
+              },
+            },
+            member.id
+          ),
+      });
+      return {
+        ...result.response,
+        reasoningArtifacts: result.response.reasoningArtifacts?.map(
+          (artifact) => ({
+            ...artifact,
+            channelTarget: result.execution.actual,
+          })
+        ),
+        channelExecution: result.execution,
+      };
     } finally {
-      isSending.value = false;
+      activeRequests--;
+      isSending.value = activeRequests > 0;
     }
   }
 

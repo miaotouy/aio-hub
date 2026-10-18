@@ -15,7 +15,7 @@ function createProfile(overrides: Partial<LlmProfile> = {}): LlmProfile {
     baseUrl: "https://api.example.com/v1",
     apiKeys: ["default-key"],
     enabled: true,
-    models: [],
+    models: [{ id: "default-model", name: "Default Model" }],
     ...overrides,
   };
 }
@@ -60,6 +60,7 @@ describe("createLlmRequest", () => {
     const explicitProfile = createProfile({
       id: "profile-agent",
       name: "Agent Profile",
+      models: [{ id: "agent-model", name: "Agent Model" }],
       apiKeys: ["agent-key-a", "agent-key-b"],
       relaxIdCerts: true,
       http1Only: true,
@@ -173,7 +174,7 @@ describe("createLlmRequest", () => {
 
       const request = createLlmRequest(dependencies);
       const resultPromise = request.sendRequest({
-        modelId: "retry-model",
+        modelId: "default-model",
         messages: [{ role: "user", content: "hello" }],
         maxRetries: 1,
       });
@@ -201,7 +202,7 @@ describe("createLlmRequest", () => {
     const request = createLlmRequest(dependencies);
     await expect(
       request.sendRequest({
-        modelId: "streaming-model",
+        modelId: "default-model",
         messages: [{ role: "user", content: "hello" }],
         maxRetries: 2,
         onStream: vi.fn(),
@@ -221,7 +222,7 @@ describe("createLlmRequest", () => {
     const request = createLlmRequest(dependencies);
     await expect(
       request.sendRequest({
-        modelId: "failing-model",
+        modelId: "default-model",
         messages: [{ role: "user", content: "hello" }],
       })
     ).rejects.toBe(failure);
@@ -233,9 +234,67 @@ describe("createLlmRequest", () => {
     );
     expect(dependencies.errorHandler.handle).toHaveBeenCalledWith(failure, {
       showToUser: false,
-      context: { modelId: "failing-model" },
+      context: { modelId: "default-model" },
     });
     expect(dependencies.keyManager.reportSuccess).not.toHaveBeenCalled();
+    expect(request.isSending.value).toBe(false);
+  });
+  it("uses ordered virtual members with their own keys and one shared attempt budget", async () => {
+    const members = ["primary", "backup"].map((id) =>
+      createProfile({ id, models: [{ id: id + "-model", name: id }] })
+    );
+    const profile = createProfile({
+      id: "logical",
+      type: "virtual",
+      baseUrl: "",
+      apiKeys: [],
+      virtualChannel: {
+        mode: "failover",
+        members: members.map((p) => p.id),
+        maxAttempts: 2,
+        totalTimeoutMs: 1000,
+      },
+      models: [
+        {
+          id: "logical-model",
+          name: "chat",
+          virtualBindings: {
+            chat: members.map((p) => ({
+              profileId: p.id,
+              modelId: p.models[0].id,
+            })),
+          },
+        },
+      ],
+    });
+    const { dependencies, executeAdapter } = createDependencies([
+      profile,
+      ...members,
+    ]);
+    executeAdapter
+      .mockRejectedValueOnce(
+        new LlmApiError("unavailable", 503, "Service Unavailable")
+      )
+      .mockResolvedValue({ content: "backup response" });
+    const request = createLlmRequest(dependencies);
+    const result = await request.sendRequest({
+      profileId: profile.id,
+      modelId: "logical-model",
+      messages: [{ role: "user", content: "hi" }],
+      maxRetries: 10,
+    });
+    expect(
+      executeAdapter.mock.calls.map(([p, o]) => [p.id, o.modelId, o.maxRetries])
+    ).toEqual([
+      ["primary", "primary-model", 0],
+      ["backup", "backup-model", 0],
+    ]);
+    expect(result.channelExecution?.requested).toEqual({
+      profileId: "logical",
+      modelId: "logical-model",
+    });
+    expect(result.channelExecution?.actual.profileId).toBe("backup");
+    expect(dependencies.keyManager.pickKey).toHaveBeenCalledTimes(2);
     expect(request.isSending.value).toBe(false);
   });
 });

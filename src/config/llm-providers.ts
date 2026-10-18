@@ -93,6 +93,13 @@ function aggregateRoutingConfigFields(type: ProviderType): SettingItem[] {
  */
 const providerDefinitions: ProviderTypeInfo[] = [
   {
+    type: "virtual",
+    name: "虚拟渠道",
+    description: "组合已有渠道并按主备顺序执行",
+    defaultBaseUrl: "",
+    supportsModelList: false,
+  },
+  {
     type: "openai",
     name: "OpenAI",
     description: "OpenAI 官方服务，支持聊天、绘图、语音和视频生成",
@@ -729,6 +736,17 @@ for (const preset of llmPresets) {
   });
   registeredTypes.add(preset.type);
 }
+
+// Logical models retain request parameters until the selected member filters them.
+providerDefinitions.find(
+  (provider) => provider.type === "virtual"
+)!.supportedParameters = Object.fromEntries(
+  providerDefinitions.flatMap((provider) =>
+    Object.entries(provider.supportedParameters ?? {}).filter(
+      ([, supported]) => supported === true
+    )
+  )
+);
 
 export const providerTypes: ProviderTypeInfo[] = providerDefinitions.map(
   (provider) =>

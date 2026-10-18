@@ -586,6 +586,7 @@ export function useChatResponseHandler() {
     finalNode.metadata = {
       ...finalNode.metadata,
       usage: response.usage,
+      channelExecution: response.channelExecution,
       contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,
       reasoningArtifacts:
@@ -699,6 +700,18 @@ export function useChatResponseHandler() {
   ): void => {
     const errorNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!errorNode) return;
+
+    if (
+      error &&
+      typeof error === "object" &&
+      "attempts" in error &&
+      Array.isArray(error.attempts)
+    ) {
+      errorNode.metadata = {
+        ...errorNode.metadata,
+        channelAttempts: error.attempts,
+      };
+    }
 
     // 兼容 Tauri HTTP 插件的 "Request canceled" 错误
     if (isTimeoutError(error)) {

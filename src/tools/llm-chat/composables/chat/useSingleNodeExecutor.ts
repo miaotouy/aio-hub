@@ -481,6 +481,12 @@ export function useSingleNodeExecutor() {
           isRetryableStatusCodeFromConfig(statusCode, retryStatusConfig);
 
         const shouldRetry =
+          !(
+            error &&
+            typeof error === "object" &&
+            "retryable" in error &&
+            error.retryable === false
+          ) &&
           !isAbort &&
           !isBadRequest &&
           !hasReceivedStreamData &&

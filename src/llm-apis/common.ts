@@ -137,6 +137,7 @@ export type LlmMessageContent =
  * - reasoningArtifacts are opaque API state and must not be rewritten.
  */
 export interface LlmReasoningArtifact {
+  channelTarget?: import("@aiohub/llm-core").ChannelTarget;
   provider: string;
   kind: string;
   replayPolicy: "always" | "with_tool_calls" | "never";
@@ -215,6 +216,8 @@ export function toMediaProgressUpdate(task: {
  * LLM 请求参数
  */
 export interface LlmRequestOptions {
+  /** 渠道执行已确定用途时保留聊天协议。 */
+  _forceChatMode?: boolean;
   profileId: string;
   modelId: string;
   /** 可选：显式指定 API Key，如果不提供则根据 profileId 自动选取 */
@@ -355,6 +358,10 @@ export interface LlmRequestOptions {
    * 确保不会被透传到 API 请求体。
    */
   inspectorContext?: {
+    logicalRequestId?: string;
+    channelAttempt?: number;
+    logicalProfileId?: string;
+    logicalModelId?: string;
     sessionId?: string;
     toolName?: string;
     purpose?: string;
@@ -536,6 +543,7 @@ export type Annotation = UrlCitation | FileCitation;
  * LLM 响应结果
  */
 export interface LlmResponse {
+  channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   content: string;
   usage?: {
     promptTokens: number;

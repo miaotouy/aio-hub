@@ -1,3 +1,4 @@
+import { executeConfiguredChannel } from "./channel-execution";
 import {
   executeSystemOneRequest,
   type SystemOneRequest,
@@ -34,6 +35,27 @@ export async function callDecisionApi(
   profile: LlmProfile,
   options: DecisionCallOptions
 ): Promise<SystemOneResponse> {
+  if (profile.type === "virtual") {
+    if (options.adapterId || options.apiKey)
+      throw new Error("请在成员渠道中进行指定协议或密钥的决策探测");
+    return executeConfiguredChannel({
+      profile,
+      modelId: options.model,
+      operation: "decision",
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+      execute: (member, model, signal, timeoutMs) =>
+        callDecisionApi(member, {
+          ...options,
+          model,
+          signal,
+          timeoutMs,
+          networkStrategy: member.networkStrategy,
+          relaxInvalidCerts: member.relaxIdCerts,
+          http1Only: member.http1Only,
+        }),
+    });
+  }
   const route = options.adapterId
     ? { adapterId: options.adapterId, effectiveProfile: profile }
     : resolveModelExecution({

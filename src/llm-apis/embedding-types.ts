@@ -107,6 +107,7 @@ export interface EmbeddingObject {
  * Embedding 响应
  */
 export interface EmbeddingResponse {
+  channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   /** Embedding 数据列表 */
   data: EmbeddingObject[];
   /** 模型名称 */

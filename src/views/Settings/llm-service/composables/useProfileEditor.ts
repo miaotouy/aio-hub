@@ -135,14 +135,25 @@ export function useProfileEditor() {
   };
 
   // 创建新配置 - 从空白开始
-  const createNewProfile = () => {
+  const createNewProfile = (virtual = false) => {
     console.log("[useProfileEditor] Creating new blank profile");
     const newName = `未命名渠道 ${profiles.value.length + 1}`;
     editForm.value = {
       id: generateId(),
       name: newName,
-      type: "openai",
-      baseUrl: "https://api.openai.com",
+      type: virtual ? "virtual" : "openai",
+      baseUrl: virtual ? "" : "https://api.openai.com",
+      ...(virtual
+        ? {
+            virtualChannel: {
+              mode: "failover" as const,
+              members: [],
+              maxAttempts: 3,
+              totalTimeoutMs: 180000,
+              attemptTimeoutMs: 60000,
+            },
+          }
+        : {}),
       apiKeys: [],
       enabled: true,
       models: [],
@@ -173,7 +184,7 @@ export function useProfileEditor() {
       customMessage.error("请输入渠道名称");
       return false;
     }
-    if (!editForm.value.baseUrl.trim()) {
+    if (editForm.value.type !== "virtual" && !editForm.value.baseUrl.trim()) {
       customMessage.error("请输入 API 地址");
       return false;
     }

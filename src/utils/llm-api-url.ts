@@ -69,6 +69,7 @@ const typeSafeSystemOneUrlHandler: AdapterUrlHandler = {
  * 注册各个适配器的 URL 处理逻辑
  */
 const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
+  virtual: { buildUrl: () => "", getHint: () => "请求由成员渠道执行" },
   openai: openAiUrlHandler,
   "openai-compatible": openAiUrlHandler,
   azure: azureOpenAiUrlHandler,

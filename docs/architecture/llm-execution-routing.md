@@ -23,13 +23,13 @@ resolveModelExecution({ profile, model, operation });
 
 首期不增加可见 `routeId`，一个模型只可按 operation 保存一个默认 binding。
 
-## 虚拟渠道与下游绑定边界（2026-10-19 决策，待实施）
+## 虚拟渠道与下游绑定边界（2026-10-19 首期落地）
 
 虚拟渠道作为上层组合入口持有用户配置的物理成员、有序候选与逻辑模型映射。渠道管理统一负责候选选择、自动回退和重试预算；每次选择实际物理目标后，再调用本文的 `resolveModelExecution()` 完成适配器解析。
 
 下游应用提交选定的逻辑渠道、模型和 operation。子代理按配置继承调用方绑定或使用自身绑定，绑定失效时返回配置错误。应用中的全局启用渠道兜底、隐式模型替换和重复自动重试随迁移收回渠道管理。
 
-当前执行路由已实施；虚拟组合与下游策略迁移尚待完成，顺序与兼容约束以 [实施方案](../Plan/llm-virtual-channel-investigation.md) 为准。
+`packages/llm-core/src/virtual-channel.ts` 提供候选解析、预算、取消和实际执行记录；桌面与移动端对话共用这一入口，桌面独立 Embedding/Decision 同步接入。模型推理状态回放固定实际成员，Inspector 尝试保留逻辑请求来源。专用媒体、Rerank 与组合 Probe 的后续范围见 [实施方案](../Plan/llm-virtual-channel-investigation.md)。
 
 ## 聚合渠道
 

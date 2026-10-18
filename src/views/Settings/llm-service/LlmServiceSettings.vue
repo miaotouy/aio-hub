@@ -28,6 +28,8 @@ import { useElementSize } from "@vueuse/core";
 import ProfileSidebar from "../shared/ProfileSidebar.vue";
 import ProfileEditor from "../shared/ProfileEditor.vue";
 import ModelList from "./components/ModelList.vue";
+import { remapVirtualChannelReferences } from "@/utils/llm-virtual-profile";
+import VirtualChannelEditor from "./components/VirtualChannelEditor.vue";
 import ModelProbeDialog from "./components/ModelProbeDialog.vue";
 import ModelFetcherDialog from "./components/ModelFetcherDialog.vue";
 import ModelEditDialog from "./components/ModelEditDialog.vue";
@@ -403,11 +405,23 @@ const buildImportedProfile = (
 const createProfilesFromImport = async (drafts: ParsedLlmProfileDraft[]) => {
   const usedIds = new Set(profiles.value.map((profile) => profile.id));
   const usedNames = new Set(profiles.value.map((profile) => profile.name));
-  const importedProfiles = drafts.map((draft) =>
+  let importedProfiles = drafts.map((draft) =>
     buildImportedProfile(draft, usedIds, usedNames)
   );
+  importedProfiles = importedProfiles.map((profile, index) => {
+    const documents = drafts[index].sourceDocumentIds.join("|");
+    const importedIds = new Map(
+      drafts.flatMap((draft, position) =>
+        draft.sourceProfile && draft.sourceDocumentIds.join("|") === documents
+          ? [[draft.sourceProfile.id, importedProfiles[position].id] as const]
+          : []
+      )
+    );
+    return remapVirtualChannelReferences(profile, importedIds);
+  });
   const invalidProfile = importedProfiles.find(
-    (profile) => !profile.name || !profile.baseUrl
+    (profile) =>
+      !profile.name || (profile.type !== "virtual" && !profile.baseUrl)
   );
   if (invalidProfile) {
     customMessage.error("候选渠道缺少名称或 API 地址，无法创建");
@@ -574,6 +588,7 @@ const networkSettingSummary = computed(() => {
         @update:profiles="updateProfilesOrder"
       >
         <template #header-actions>
+          <el-button link @click="createNewProfile(true)">组合渠道</el-button>
           <el-tooltip content="导入渠道文件" placement="bottom">
             <el-button
               link
@@ -666,9 +681,15 @@ const networkSettingSummary = computed(() => {
             </el-form-item>
 
             <el-form-item label="渠道类型">
-              <el-select v-model="editForm.type" style="width: 100%">
+              <el-select
+                v-model="editForm.type"
+                :disabled="editForm.type === 'virtual'"
+                style="width: 100%"
+              >
                 <el-option
-                  v-for="provider in providerTypes"
+                  v-for="provider in providerTypes.filter(
+                    (p) => p.type !== 'virtual' || editForm.type === 'virtual'
+                  )"
                   :key="provider.type"
                   :label="provider.name"
                   :value="provider.type"
@@ -692,290 +713,299 @@ const networkSettingSummary = computed(() => {
               </el-input>
             </el-form-item>
 
-            <el-form-item label="API 地址">
-              <el-input
-                v-model="editForm.baseUrl"
-                placeholder="https://api.openai.com"
-              >
-                <template #append>
-                  <el-tooltip content="导入渠道配置" placement="top">
-                    <el-button @click="showConfigImportForEdit = true">
-                      <Terminal :size="14" />
-                    </el-button>
-                  </el-tooltip>
-                  <el-popconfirm
-                    title="确定要重置为默认 API 地址吗？"
-                    confirm-button-text="确定"
-                    cancel-button-text="取消"
-                    @confirm="resetBaseUrl"
-                  >
-                    <template #reference>
-                      <el-button>重置</el-button>
-                    </template>
-                  </el-popconfirm>
-                </template>
-              </el-input>
-
-              <div v-if="apiEndpointPreview" class="api-preview-container">
-                <div class="api-preview-url">{{ apiEndpointPreview }}</div>
-                <div class="api-preview-hint">
-                  {{ endpointHintText }}
-                </div>
-              </div>
-              <div v-else>
-                <div class="form-hint">
-                  <span
-                    >默认:
-                    {{
-                      getProviderTypeInfo(editForm.type)?.defaultBaseUrl
-                    }}</span
-                  >
-                </div>
-              </div>
-
-              <!-- 快捷链接 -->
-              <div
-                v-if="editForm.links && editForm.links.length > 0"
-                class="preset-links-bar"
-              >
-                <span class="links-title">快捷方式:</span>
-                <div class="links-list">
-                  <el-tooltip
-                    v-for="link in editForm.links"
-                    :key="link.url"
-                    :content="link.url"
-                    placement="top"
-                    :show-after="500"
-                  >
-                    <el-link
-                      :href="link.url"
-                      target="_blank"
-                      type="primary"
-                      underline="never"
-                      class="link-item"
-                    >
-                      <ExternalLink :size="12" class="link-icon" />
-                      {{ link.label }}
-                    </el-link>
-                  </el-tooltip>
-                </div>
-              </div>
-            </el-form-item>
-
-            <el-form-item label="工具调用通道">
-              <el-select v-model="toolHandlingPreset" style="width: 100%">
-                <el-option label="自动检测（兼容旧配置）" value="auto" />
-                <el-option label="AIO 本地消费调用" value="aio-local" />
-                <el-option
-                  label="透明代理，AIO 消费原生调用"
-                  value="transparent-native"
-                />
-                <el-option label="VCP 文本协议后端消费" value="vcp-text" />
-                <el-option
-                  label="上游消费原生工具调用"
-                  value="upstream-native"
-                />
-              </el-select>
-              <div class="form-hint">
-                明确调用消费方和上游协议。自动检测仅为旧渠道保留 API 地址与 VCP
-                WebSocket 同主机的兼容期启发式；显式声明会优先覆盖它。
-              </div>
-            </el-form-item>
-
-            <!-- 动态渠道特有配置。聚合渠道的默认协议为低频回退项，初始折叠以优先展示模型配置。 -->
-            <SettingListRenderer
-              v-if="currentConfigFields.length > 0"
-              :items="currentConfigFields"
-              :settings="editForm.options || {}"
-              @update:settings="(val) => (editForm.options = val)"
+            <VirtualChannelEditor
+              v-if="editForm.type === 'virtual'"
+              v-model:profile="editForm"
+              :profiles="profiles"
             />
-
-            <!-- 网络设置折叠区域 -->
-            <el-collapse
-              v-model="networkCollapseActive"
-              class="network-collapse"
-            >
-              <el-collapse-item name="network">
-                <template #title>
-                  <div class="network-collapse-title">
-                    <span class="network-collapse-label">网络设置</span>
-                    <span class="network-collapse-summary">{{
-                      networkSettingSummary
-                    }}</span>
-                  </div>
-                </template>
-
-                <el-form-item label="网络方案">
-                  <el-radio-group v-model="editForm.networkStrategy">
-                    <el-radio-button value="auto">自动选择</el-radio-button>
-                    <el-radio-button value="proxy">后端代理</el-radio-button>
-                    <el-radio-button value="native">原生请求</el-radio-button>
-                  </el-radio-group>
-                  <div class="form-hint">
-                    <span v-if="editForm.networkStrategy === 'auto'">
-                      默认使用后端 Rust 代理。支持底层网络微调，可绕过
-                      CORS，并自动处理本地文件协议。
-                    </span>
-                    <span v-else-if="editForm.networkStrategy === 'proxy'">
-                      强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1
-                      等底层配置，可绕过 CORS。
-                    </span>
-                    <span v-else-if="editForm.networkStrategy === 'native'">
-                      强制使用前端原生请求。但不支持底层网络微调，且受限于浏览器安全策略。
-                    </span>
-                  </div>
-                </el-form-item>
-
-                <el-form-item
-                  label="代理行为"
-                  v-if="editForm.networkStrategy !== 'native'"
-                >
-                  <div style="display: flex; gap: 20px">
-                    <el-checkbox
-                      v-model="editForm.relaxIdCerts"
-                      label="放宽证书校验"
-                    />
-                    <el-checkbox
-                      v-model="editForm.http1Only"
-                      label="强制 HTTP/1.1"
-                    />
-                  </div>
-                  <div class="form-hint">
-                    放宽证书校验允许自签名证书；强制 HTTP/1.1
-                    可提高与某些自建服务的兼容性。
-                  </div>
-                </el-form-item>
-
-                <el-form-item label="自定义请求头">
-                  <el-button
-                    type="primary"
-                    plain
-                    size="small"
-                    style="margin-right: 8px"
-                    @click="showCustomHeadersDialog = true"
-                  >
-                    编辑请求头
-                    <span
-                      v-if="
-                        editForm.customHeaders &&
-                        Object.keys(editForm.customHeaders).length > 0
-                      "
-                    >
-                      ({{ Object.keys(editForm.customHeaders).length }})
-                    </span>
-                  </el-button>
-                  <div class="form-hint">
-                    为该渠道的所有请求附加自定义 HTTP 请求头。
-                  </div>
-                </el-form-item>
-
-                <el-form-item label="高级端点">
-                  <el-button
-                    type="primary"
-                    plain
-                    size="small"
-                    style="margin-right: 8px"
-                    @click="showCustomEndpointsDialog = true"
-                  >
-                    编辑端点
-                    <span
-                      v-if="
-                        editForm.customEndpoints &&
-                        Object.keys(editForm.customEndpoints).length > 0
-                      "
-                    >
-                      ({{ Object.keys(editForm.customEndpoints).length }})
-                    </span>
-                  </el-button>
-                  <div class="form-hint">
-                    自定义特定操作（如聊天、嵌入）的 API 端点路径。
-                  </div>
-                </el-form-item>
-              </el-collapse-item>
-            </el-collapse>
-
-            <el-form-item label="API Key">
-              <div style="display: flex; gap: 8px; width: 100%">
+            <template v-else>
+              <el-form-item label="API 地址">
                 <el-input
-                  v-model="apiKeyInput"
-                  type="password"
-                  placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
-                  show-password
-                  style="flex: 1"
-                  @blur="updateApiKeys"
-                />
-                <el-button
-                  type="primary"
-                  plain
-                  :loading="isTestingConnection"
-                  @click="testConnection"
+                  v-model="editForm.baseUrl"
+                  placeholder="https://api.openai.com"
                 >
-                  检查模型列表
-                </el-button>
-              </div>
-              <div v-if="modelListResult" class="probe-summary">
-                <el-tag
-                  :type="modelListResult.success ? 'success' : 'danger'"
-                  size="small"
+                  <template #append>
+                    <el-tooltip content="导入渠道配置" placement="top">
+                      <el-button @click="showConfigImportForEdit = true">
+                        <Terminal :size="14" />
+                      </el-button>
+                    </el-tooltip>
+                    <el-popconfirm
+                      title="确定要重置为默认 API 地址吗？"
+                      confirm-button-text="确定"
+                      cancel-button-text="取消"
+                      @confirm="resetBaseUrl"
+                    >
+                      <template #reference>
+                        <el-button>重置</el-button>
+                      </template>
+                    </el-popconfirm>
+                  </template>
+                </el-input>
+
+                <div v-if="apiEndpointPreview" class="api-preview-container">
+                  <div class="api-preview-url">{{ apiEndpointPreview }}</div>
+                  <div class="api-preview-hint">
+                    {{ endpointHintText }}
+                  </div>
+                </div>
+                <div v-else>
+                  <div class="form-hint">
+                    <span
+                      >默认:
+                      {{
+                        getProviderTypeInfo(editForm.type)?.defaultBaseUrl
+                      }}</span
+                    >
+                  </div>
+                </div>
+
+                <!-- 快捷链接 -->
+                <div
+                  v-if="editForm.links && editForm.links.length > 0"
+                  class="preset-links-bar"
                 >
-                  {{
-                    modelListResult.success ? "模型列表正常" : "模型列表失败"
-                  }}
-                </el-tag>
-                <span>
-                  {{
-                    modelListResult.responsePreview ||
-                    modelListResult.errorMessage
-                  }}
-                  · {{ Math.round(modelListResult.totalMs) }} ms
-                </span>
-              </div>
-              <div
-                v-if="editForm.apiKeys.length > 0"
-                class="form-hint multi-key-hint"
+                  <span class="links-title">快捷方式:</span>
+                  <div class="links-list">
+                    <el-tooltip
+                      v-for="link in editForm.links"
+                      :key="link.url"
+                      :content="link.url"
+                      placement="top"
+                      :show-after="500"
+                    >
+                      <el-link
+                        :href="link.url"
+                        target="_blank"
+                        type="primary"
+                        underline="never"
+                        class="link-item"
+                      >
+                        <ExternalLink :size="12" class="link-icon" />
+                        {{ link.label }}
+                      </el-link>
+                    </el-tooltip>
+                  </div>
+                </div>
+              </el-form-item>
+
+              <el-form-item label="工具调用通道">
+                <el-select v-model="toolHandlingPreset" style="width: 100%">
+                  <el-option label="自动检测（兼容旧配置）" value="auto" />
+                  <el-option label="AIO 本地消费调用" value="aio-local" />
+                  <el-option
+                    label="透明代理，AIO 消费原生调用"
+                    value="transparent-native"
+                  />
+                  <el-option label="VCP 文本协议后端消费" value="vcp-text" />
+                  <el-option
+                    label="上游消费原生工具调用"
+                    value="upstream-native"
+                  />
+                </el-select>
+                <div class="form-hint">
+                  明确调用消费方和上游协议。自动检测仅为旧渠道保留 API 地址与
+                  VCP WebSocket 同主机的兼容期启发式；显式声明会优先覆盖它。
+                </div>
+              </el-form-item>
+
+              <!-- 动态渠道特有配置。聚合渠道的默认协议为低频回退项，初始折叠以优先展示模型配置。 -->
+              <SettingListRenderer
+                v-if="currentConfigFields.length > 0"
+                :items="currentConfigFields"
+                :settings="editForm.options || {}"
+                @update:settings="(val) => (editForm.options = val)"
+              />
+
+              <!-- 网络设置折叠区域 -->
+              <el-collapse
+                v-model="networkCollapseActive"
+                class="network-collapse"
               >
-                <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
-                <el-button
-                  link
-                  type="primary"
-                  size="small"
-                  @click="openMultiKeyManager"
+                <el-collapse-item name="network">
+                  <template #title>
+                    <div class="network-collapse-title">
+                      <span class="network-collapse-label">网络设置</span>
+                      <span class="network-collapse-summary">{{
+                        networkSettingSummary
+                      }}</span>
+                    </div>
+                  </template>
+
+                  <el-form-item label="网络方案">
+                    <el-radio-group v-model="editForm.networkStrategy">
+                      <el-radio-button value="auto">自动选择</el-radio-button>
+                      <el-radio-button value="proxy">后端代理</el-radio-button>
+                      <el-radio-button value="native">原生请求</el-radio-button>
+                    </el-radio-group>
+                    <div class="form-hint">
+                      <span v-if="editForm.networkStrategy === 'auto'">
+                        默认使用后端 Rust 代理。支持底层网络微调，可绕过
+                        CORS，并自动处理本地文件协议。
+                      </span>
+                      <span v-else-if="editForm.networkStrategy === 'proxy'">
+                        强制通过后端 Rust 代理。支持放宽证书校验、强制 HTTP/1.1
+                        等底层配置，可绕过 CORS。
+                      </span>
+                      <span v-else-if="editForm.networkStrategy === 'native'">
+                        强制使用前端原生请求。但不支持底层网络微调，且受限于浏览器安全策略。
+                      </span>
+                    </div>
+                  </el-form-item>
+
+                  <el-form-item
+                    label="代理行为"
+                    v-if="editForm.networkStrategy !== 'native'"
+                  >
+                    <div style="display: flex; gap: 20px">
+                      <el-checkbox
+                        v-model="editForm.relaxIdCerts"
+                        label="放宽证书校验"
+                      />
+                      <el-checkbox
+                        v-model="editForm.http1Only"
+                        label="强制 HTTP/1.1"
+                      />
+                    </div>
+                    <div class="form-hint">
+                      放宽证书校验允许自签名证书；强制 HTTP/1.1
+                      可提高与某些自建服务的兼容性。
+                    </div>
+                  </el-form-item>
+
+                  <el-form-item label="自定义请求头">
+                    <el-button
+                      type="primary"
+                      plain
+                      size="small"
+                      style="margin-right: 8px"
+                      @click="showCustomHeadersDialog = true"
+                    >
+                      编辑请求头
+                      <span
+                        v-if="
+                          editForm.customHeaders &&
+                          Object.keys(editForm.customHeaders).length > 0
+                        "
+                      >
+                        ({{ Object.keys(editForm.customHeaders).length }})
+                      </span>
+                    </el-button>
+                    <div class="form-hint">
+                      为该渠道的所有请求附加自定义 HTTP 请求头。
+                    </div>
+                  </el-form-item>
+
+                  <el-form-item label="高级端点">
+                    <el-button
+                      type="primary"
+                      plain
+                      size="small"
+                      style="margin-right: 8px"
+                      @click="showCustomEndpointsDialog = true"
+                    >
+                      编辑端点
+                      <span
+                        v-if="
+                          editForm.customEndpoints &&
+                          Object.keys(editForm.customEndpoints).length > 0
+                        "
+                      >
+                        ({{ Object.keys(editForm.customEndpoints).length }})
+                      </span>
+                    </el-button>
+                    <div class="form-hint">
+                      自定义特定操作（如聊天、嵌入）的 API 端点路径。
+                    </div>
+                  </el-form-item>
+                </el-collapse-item>
+              </el-collapse>
+
+              <el-form-item label="API Key">
+                <div style="display: flex; gap: 8px; width: 100%">
+                  <el-input
+                    v-model="apiKeyInput"
+                    type="password"
+                    placeholder="可选,某些服务可能不需要。多个密钥用逗号分隔"
+                    show-password
+                    style="flex: 1"
+                    @blur="updateApiKeys"
+                  />
+                  <el-button
+                    type="primary"
+                    plain
+                    :loading="isTestingConnection"
+                    @click="testConnection"
+                  >
+                    检查模型列表
+                  </el-button>
+                </div>
+                <div v-if="modelListResult" class="probe-summary">
+                  <el-tag
+                    :type="modelListResult.success ? 'success' : 'danger'"
+                    size="small"
+                  >
+                    {{
+                      modelListResult.success ? "模型列表正常" : "模型列表失败"
+                    }}
+                  </el-tag>
+                  <span>
+                    {{
+                      modelListResult.responsePreview ||
+                      modelListResult.errorMessage
+                    }}
+                    · {{ Math.round(modelListResult.totalMs) }} ms
+                  </span>
+                </div>
+                <div
+                  v-if="editForm.apiKeys.length > 0"
+                  class="form-hint multi-key-hint"
                 >
-                  管理密钥状态
-                </el-button>
-              </div>
-            </el-form-item>
+                  <span>已配置 {{ editForm.apiKeys.length }} 个密钥</span>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="openMultiKeyManager"
+                  >
+                    管理密钥状态
+                  </el-button>
+                </div>
+              </el-form-item>
 
-            <el-divider />
+              <el-divider />
 
-            <el-form-item label="模型配置">
-              <div class="model-list-container">
-                <ModelList
-                  :models="editForm.models"
-                  :expand-state="editForm.modelGroupsExpandState || {}"
-                  :loading="isFetchingModels"
-                  :test-loading="modelTestLoading"
-                  :test-results="modelProbeResults"
-                  :batch-testing="isBatchTesting"
-                  :provider-type="editForm.type"
-                  :profiles="profiles"
-                  :current-profile-id="editForm.id"
-                  @add="addModel"
-                  @edit="editModel"
-                  @test="openModelProbeDialog"
-                  @batch-test="openModelProbeDialog()"
-                  @batch-route="showBatchRouteDialog = true"
-                  @delete="deleteModel"
-                  @delete-group="deleteModelGroup"
-                  @clear="clearAllModels"
-                  @fetch="fetchModels"
-                  @batch-apply-presets="(models) => (editForm.models = models)"
-                  @update:expand-state="
-                    (state: any) => (editForm.modelGroupsExpandState = state)
-                  "
-                />
-              </div>
-            </el-form-item>
+              <el-form-item label="模型配置">
+                <div class="model-list-container">
+                  <ModelList
+                    :models="editForm.models"
+                    :expand-state="editForm.modelGroupsExpandState || {}"
+                    :loading="isFetchingModels"
+                    :test-loading="modelTestLoading"
+                    :test-results="modelProbeResults"
+                    :batch-testing="isBatchTesting"
+                    :provider-type="editForm.type"
+                    :profiles="profiles"
+                    :current-profile-id="editForm.id"
+                    @add="addModel"
+                    @edit="editModel"
+                    @test="openModelProbeDialog"
+                    @batch-test="openModelProbeDialog()"
+                    @batch-route="showBatchRouteDialog = true"
+                    @delete="deleteModel"
+                    @delete-group="deleteModelGroup"
+                    @clear="clearAllModels"
+                    @fetch="fetchModels"
+                    @batch-apply-presets="
+                      (models) => (editForm.models = models)
+                    "
+                    @update:expand-state="
+                      (state: any) => (editForm.modelGroupsExpandState = state)
+                    "
+                  />
+                </div>
+              </el-form-item>
+            </template>
           </el-form>
         </ProfileEditor>
 
@@ -992,7 +1022,7 @@ const networkSettingSummary = computed(() => {
       :existing-profiles="profiles"
       :initial-mode="createProfileInitialMode"
       @create-from-preset="createFromPresetTemplate"
-      @create-from-blank="createNewProfile"
+      @create-from-blank="createNewProfile()"
       @create-from-config="createProfilesFromImport"
     />
 

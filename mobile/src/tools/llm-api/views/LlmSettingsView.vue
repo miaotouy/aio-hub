@@ -58,12 +58,23 @@ const applyPreset = async (preset: any) => {
   showEditPopup.value = true;
 };
 
-const createCustomProfile = () => {
+const createCustomProfile = (virtual = false) => {
   const newProfile: LlmProfile = {
     id: generateUuid(),
     name: tRaw("tools.llm-api.ProfileEditor.新渠道"),
-    type: "openai",
-    baseUrl: "https://api.openai.com/v1",
+    type: virtual ? "virtual" : "openai",
+    baseUrl: virtual ? "" : "https://api.openai.com/v1",
+    ...(virtual
+      ? {
+          virtualChannel: {
+            mode: "failover" as const,
+            members: [],
+            maxAttempts: 3,
+            totalTimeoutMs: 180000,
+            attemptTimeoutMs: 60000,
+          },
+        }
+      : {}),
     apiKeys: [""],
     enabled: true,
     models: [],
@@ -129,6 +140,7 @@ const goHome = () => {
         </var-button>
       </template>
       <template #right>
+        <var-button text @click="createCustomProfile(true)">组合</var-button>
         <var-button
           round
           text
@@ -170,7 +182,7 @@ const goHome = () => {
     <PresetSelector
       v-model:show="showPresetsPopup"
       @select="applyPreset"
-      @create-custom="createCustomProfile"
+      @create-custom="createCustomProfile()"
     />
 
     <!-- 编辑/详情 -->

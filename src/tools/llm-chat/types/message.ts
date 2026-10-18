@@ -227,6 +227,8 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
+    channelExecution?: import("@aiohub/llm-core").ChannelExecution;
+    channelAttempts?: import("@aiohub/llm-core").ChannelAttempt[];
     /** A segment of a single upstream-owned VCP agent request. */
     vcpResponse?: {
       requestId: string;

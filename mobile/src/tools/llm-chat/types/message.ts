@@ -26,6 +26,7 @@ export interface ChatMessageReference {
 }
 
 export interface ChatMessageMetadata {
+  channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   /** Allow storage round-trips to preserve fields added by newer clients. */
   [key: string]: unknown;
   /** 用户输入所回复的消息快照。 */

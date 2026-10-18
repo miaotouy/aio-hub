@@ -97,6 +97,8 @@ export function useChatResponseHandler() {
       finalNode.metadata = {};
     }
 
+    finalNode.metadata.channelExecution = response.channelExecution;
+
     // 恢复或设置推理内容
     if (response.reasoningContent) {
       finalNode.metadata.reasoningContent = response.reasoningContent;

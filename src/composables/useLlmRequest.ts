@@ -52,8 +52,10 @@ import type {
 const logger = createModuleLogger("LlmRequest");
 const errorHandler = createModuleErrorHandler("LlmRequest");
 
+import { sendChannelRequest } from "./llmChannelExecution";
+
 export function useLlmRequest() {
-  const { getProfileById } = useLlmProfiles();
+  const { getProfileById, profiles } = useLlmProfiles();
   const { pickKey, reportSuccess, reportFailure } = useLlmKeyManager();
 
   /**
@@ -67,7 +69,7 @@ export function useLlmRequest() {
   /**
    * 发送 LLM 请求
    */
-  const sendRequest = async (
+  const sendPhysicalRequest = async (
     options: LlmRequestOptions | MediaGenerationOptions
   ): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
@@ -370,6 +372,9 @@ export function useLlmRequest() {
       if (options.requestId) {
         filteredOptions.requestId = options.requestId;
       }
+
+      filteredOptions.transportObserver = options.transportObserver;
+      filteredOptions.onPartialImage = options.onPartialImage;
 
       // 透传异步媒体任务进度回调，filterParametersByCapabilities 不会复制函数字段
       if (options.onMediaProgress) {
@@ -690,6 +695,9 @@ export function useLlmRequest() {
       }
     }
   };
+
+  const sendRequest = (options: LlmRequestOptions | MediaGenerationOptions) =>
+    sendChannelRequest(options, () => profiles.value, sendPhysicalRequest);
 
   return {
     sendRequest,

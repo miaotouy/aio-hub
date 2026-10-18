@@ -977,6 +977,7 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   // 核心请求控制参数
   "messages",
   "modelId",
+  "_forceChatMode",
   "profileId", // 在 useLlmRequest 中使用，不应透传
   "requestId", // 内部请求追踪 ID，仅用于请求头/Inspector，不应透传
   "stream",
@@ -1187,6 +1188,7 @@ export function cleanPayload(body: any): any {
     "http1Only",
     "apiKey",
     "allowDisabledProfile",
+    "_forceChatMode",
     "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
   ];
 

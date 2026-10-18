@@ -17,6 +17,7 @@
 - 实现与原文档存在偏差时，完成代码后同步修正文档或标记偏差，保持文档与代码一致。
 - 遇到重大偏差或影响后续步骤的阻塞问题，写回原文档后告知主人；微小偏差可直接静默回写。
 - 工具计划放在 `src/tools/{toolId}/docs/Plan/`，工具架构放在 `src/tools/{toolId}/ARCHITECTURE.md`；跨模块计划、架构和设计分别放在 `docs/Plan/`、`docs/architecture/`、`docs/design/`。
+- 文档站按显式发布清单收录用户手册和精选开发文档；教程截图由 Agent 通过 Dev Control CLI 自行采集，可添加编号、箭头或临时引导叠加层，具体流程见[文档站维护与教程截图](docs/guide/docs-maintenance.md)。
 
 ## 3. 命令与验证
 

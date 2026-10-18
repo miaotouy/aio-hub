@@ -139,6 +139,10 @@ bun scripts/dev-control/cli.ts screenshot --mask ".profile-secret" --instance ag
 
 截图范围是 WebView 页面内容。Windows 文件对话框、原生菜单和系统级拖放按具体需求复用现有 Windows UI Automation 工具。
 
+## 教程截图与引导标注
+
+维护用户教程时，Agent 可以使用本 CLI 自行准备示例场景、完成页面操作并采集真实截图，再添加编号、箭头、文字气泡或局部放大。也可以在开发窗口中临时插入只负责展示的引导叠加层，截图后移除。截图资源位置、标注约定和发布范围见 [文档站维护与教程截图](./docs-maintenance.md)。
+
 ## 应用状态与扩展动作
 
 ```powershell

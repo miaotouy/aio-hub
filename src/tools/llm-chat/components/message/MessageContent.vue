@@ -957,6 +957,17 @@ const containerClasses = computed(() => ({
   "is-translating":
     props.isTranslating || !!props.message.metadata?.translation,
   "is-generating": isGenerating.value,
+  "is-status-only":
+    !props.isEditing &&
+    !displayedContent.value.trim() &&
+    !hasAttachments.value &&
+    !showTranslation.value &&
+    !showStreamingIndicator.value &&
+    !props.message.metadata?.reasoningContent &&
+    !!(
+      props.message.metadata?.error ||
+      props.message.metadata?.emptyResponseDiagnostic
+    ),
   "smooth-enabled": settings.value.uiPreferences.smoothAutoScroll,
 }));
 
@@ -1458,6 +1469,22 @@ watch(
   letter-spacing: v-bind('settings.uiPreferences.letterSpacing + "px"');
 }
 
+/* 仅状态消息紧凑展示，已有正文、附件或翻译时保留完整内容布局。 */
+.message-content.is-status-only {
+  margin: 0;
+}
+
+.is-status-only .message-meta {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.is-status-only .error-info,
+.is-status-only .diagnostic-info {
+  margin-top: 0;
+}
+
 /* 使用深度选择器强制 RichTextRenderer 继承字体设置 */
 .message-content :deep(.rich-text-renderer) {
   font-size: inherit;
@@ -1600,7 +1627,6 @@ watch(
   gap: 8px;
   color: var(--error-color);
   margin-top: 8px;
-  margin-bottom: 42px;
 }
 
 .error-text {
@@ -1618,7 +1644,6 @@ watch(
   gap: 8px;
   color: var(--warning-color, #e6a23c);
   margin-top: 8px;
-  margin-bottom: 42px;
 }
 
 .diagnostic-text {

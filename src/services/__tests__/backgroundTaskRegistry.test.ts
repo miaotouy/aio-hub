@@ -398,6 +398,41 @@ describe("BackgroundTaskRegistry", () => {
   });
 
   describe("持久化恢复", () => {
+    it("分离观察方保留运行状态、应用执行方快照，并且不把本地状态写回持久化", async () => {
+      const fileName = uniquePersistenceFileName();
+      const owner = new BackgroundTaskRegistry({
+        persistenceFileName: fileName,
+      });
+      await owner.loadFromPersistence();
+      const task = owner.createTask(makeInput())!;
+      await vi.advanceTimersByTimeAsync(600);
+      const observer = new BackgroundTaskRegistry({
+        persistenceFileName: fileName,
+        observerOnly: true,
+      });
+      await observer.loadFromPersistence();
+      expect(observer.getSnapshot(task.taskId)?.state).toBe("running");
+      const events: BackgroundTaskChangeEvent[] = [];
+      observer.subscribe((event) => events.push(event));
+      owner.updateTaskState(task.taskId, "completed", {
+        result: { summary: "完成", completedAt: new Date().toISOString() },
+      });
+      observer.applyObservedSnapshots(owner.listTasks());
+      expect(observer.getSnapshot(task.taskId)?.result?.summary).toBe("完成");
+      expect(events).toHaveLength(1);
+      observer.applyObservedSnapshots(owner.listTasks());
+      expect(events).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(600);
+      // 本地观察副本可以接收另一份状态，但共享文件仍由 owner 写入。
+      observer.applyObservedSnapshots([{ ...task, state: "failed", seq: 999 }]);
+      await vi.advanceTimersByTimeAsync(600);
+      const restarted = new BackgroundTaskRegistry({
+        persistenceFileName: fileName,
+      });
+      await restarted.loadFromPersistence();
+      expect(restarted.getSnapshot(task.taskId)?.state).toBe("completed");
+    });
+
     it("初始化加载时把非终态任务转换为 interrupted，终态任务保持不变", async () => {
       const fileName = uniquePersistenceFileName();
 

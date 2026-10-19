@@ -31,7 +31,6 @@ import {
   Send,
 } from "lucide-vue-next";
 import {
-  backgroundTaskRegistry,
   type BackgroundTaskApprovalRecord,
   type BackgroundTaskSnapshot,
 } from "@/services/background-tasks";
@@ -44,6 +43,7 @@ import type { ParsedToolRequest } from "@/tools/tool-calling/types";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { toolRegistryManager } from "@/services/registry";
 import type SubAgentRegistry from "../sub-agent.registry";
+import { cancelBackgroundTask } from "../composables/useBackgroundTaskSync";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import Avatar from "@/components/common/Avatar.vue";
 import { formatDateTime, formatRelativeTime } from "@/utils/time";
@@ -331,7 +331,7 @@ async function handleCancelTask(): Promise<void> {
     return;
   }
 
-  const cancelled = backgroundTaskRegistry.cancelTask(
+  const cancelled = await cancelBackgroundTask(
     task.taskId,
     "用户从任务中心取消"
   );

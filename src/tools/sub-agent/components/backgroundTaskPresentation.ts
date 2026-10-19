@@ -23,6 +23,7 @@
  */
 
 import type {
+  BackgroundTaskResult,
   BackgroundTaskStaleReason,
   BackgroundTaskState,
   MessageOrigin,
@@ -125,13 +126,20 @@ export function getTaskDispatchAnchorId(taskId: string): string {
 }
 /** 列表卡片用的“最后操作摘要”，无摘要时给出中性占位。
  *
- * 只依赖摘要与状态两个字段，便于派遣卡片在 registry 实时快照缺失时
+ * 依据状态与可用摘要展示，便于派遣卡片在 registry 实时快照缺失时
  * 使用工具节点内嵌的关系快照降级渲染（T3.4）。
  */
 export function getTaskSummary(snapshot: {
   lastOperationSummary?: string;
+  result?: BackgroundTaskResult;
   state: BackgroundTaskState;
 }): string {
+  if (!isActiveTaskState(snapshot.state)) {
+    return snapshot.state === "completed"
+      ? snapshot.result?.summary?.trim() ||
+          getTaskStatePresentation(snapshot.state).label
+      : getTaskStatePresentation(snapshot.state).label;
+  }
   const summary = snapshot.lastOperationSummary?.trim();
   if (summary) {
     return summary;

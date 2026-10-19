@@ -566,6 +566,15 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function ensureSessionDetailLoaded(
     sessionId: string
   ): Promise<ChatSessionDetail | null> {
+    if (bus.windowType === "detached-component") {
+      const payload = await bus.requestAction<
+        { sessionId: string },
+        { index: ChatSessionIndex | null; detail: ChatSessionDetail | null }
+      >("llm-chat:get-session-detail", { sessionId });
+      if (payload.index) sessionIndexMap.value.set(sessionId, payload.index);
+      if (payload.detail) sessionDetailMap.value.set(sessionId, payload.detail);
+      return payload.detail;
+    }
     const existing = sessionAccess.getSessionDetail(sessionId);
     if (existing) return existing;
 

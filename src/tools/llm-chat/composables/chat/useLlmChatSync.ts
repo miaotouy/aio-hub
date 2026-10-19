@@ -391,6 +391,13 @@ export function useLlmChatSync() {
       case "update-chat-settings":
         const { updateSettings } = useChatSettings();
         return updateSettings(params.updates);
+      case "get-session-detail":
+        return store
+          .ensureSessionDetailLoaded(params.sessionId)
+          .then((detail) => ({
+            index: store.getSessionIndexById(params.sessionId),
+            detail,
+          }));
       case "switch-session":
         logger.info("主窗口处理 switch-session 请求", {
           sessionId: params.sessionId,

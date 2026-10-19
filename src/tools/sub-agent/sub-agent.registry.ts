@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { watch } from "vue";
 import type {
   ToolRegistry,
   ServiceMetadata,
@@ -147,6 +148,87 @@ export default class SubAgentRegistry implements ToolRegistry {
   /** 首版限制为单层子智能体调用，避免工具链递归扩大。 */
   private activeTargetAgentIds = new Map<string, number>();
 
+  private taskProgressObservers = new Map<
+    string,
+    { stop: () => void; seen: Set<string> }
+  >();
+
+  private observeTaskProgress(
+    taskId: string,
+    sessionId: string,
+    actor: MessageOrigin
+  ): void {
+    this.taskProgressObservers.get(taskId)?.stop();
+    const store = useLlmChatStore();
+    const seen = new Set<string>();
+    const stop = watch(
+      () => {
+        const detail = store.sessionDetailMap.get(sessionId);
+        const node = detail?.nodes[detail.activeLeafId];
+        return [
+          node?.id,
+          node?.status,
+          ...(node?.metadata?.toolCalls ?? []).map((c) => c.status),
+        ];
+      },
+      () => {
+        if (!this.isTaskActive(taskId)) return;
+        const detail = store.sessionDetailMap.get(sessionId);
+        const node = detail?.nodes[detail.activeLeafId];
+        if (!node) return;
+        if (node.role === "assistant" && !seen.has(node.id)) {
+          seen.add(node.id);
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: "llm_progress",
+            actor,
+            summary: "正在生成回复",
+            detailRef: node.id,
+          });
+          backgroundTaskRegistry.setCurrentOperation(taskId, {
+            kind: "llm_generation",
+            startedAt: new Date().toISOString(),
+            summary: "正在生成回复",
+          });
+        }
+        if (node.role !== "tool") return;
+        for (const call of node.metadata?.toolCalls ?? []) {
+          const started = call.status === "executing";
+          const finished =
+            call.status === "success" ||
+            call.status === "error" ||
+            call.status === "denied";
+          const key = node.id + ":" + call.requestId + ":" + call.status;
+          if ((!started && !finished) || seen.has(key)) continue;
+          seen.add(key);
+          const summary = started
+            ? "正在执行工具 " + call.toolName
+            : "工具 " +
+              call.toolName +
+              (call.status === "success" ? " 已完成" : " 执行未完成");
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: started
+              ? "tool_started"
+              : call.status === "success"
+                ? "tool_finished"
+                : "error",
+            actor,
+            summary,
+            detailRef: node.id,
+          });
+          backgroundTaskRegistry.setCurrentOperation(taskId, {
+            kind: started ? "tool_call" : "llm_generation",
+            name: call.toolName,
+            requestId: call.requestId,
+            startedAt: new Date().toISOString(),
+            summary,
+          });
+        }
+      },
+      { flush: "sync" }
+    );
+    this.taskProgressObservers.set(taskId, { stop, seen });
+  }
+
   private async ensureConversationIndexLoaded(): Promise<void> {
     this.conversationHydrationPromise ??= this.conversationPersistence
       .load()
@@ -277,11 +359,14 @@ export default class SubAgentRegistry implements ToolRegistry {
     // lane 执行归属登记到共享 registry，供审批桥接按执行任务确认归属，
     // 避免同会话存在排队任务时把审批误挂到排队任务上。
     backgroundTaskRegistry.markExecutingTask(taskId);
+    this.observeTaskProgress(taskId, childSessionId, targetOrigin);
     return true;
   }
 
   private releaseTaskGeneration(taskId: string | undefined): void {
     if (taskId) {
+      this.taskProgressObservers.get(taskId)?.stop();
+      this.taskProgressObservers.delete(taskId);
       backgroundTaskRegistry.clearExecutingTask(taskId);
     }
   }
@@ -1501,6 +1586,8 @@ export default class SubAgentRegistry implements ToolRegistry {
     leafId: string,
     actor: MessageOrigin
   ): void {
+    // 实时观察已发布本轮活动时，结束阶段直接沿用，避免重复回填。
+    if (this.taskProgressObservers.get(taskId)?.seen.size) return;
     const nodes = this.collectRoundToolNodes(detail, leafId);
     for (const node of nodes) {
       for (const call of this.extractToolCalls(node)) {

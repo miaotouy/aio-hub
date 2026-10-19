@@ -18,8 +18,8 @@
   伴生会话只读视图（设计文档 §6.2 / §12.6 T2）
 
   在不切换主会话选中态的前提下，以只读 MessageList 呈现子会话完整执行流：
-  - 宽屏（> 1100px）且 mode === "sheet"：右侧滑出的伴生栏；
-  - 窄屏或 mode === "pip"：DraggablePanel 承载的画中画。
+  - 宿主空间充足且 mode === "sheet"：右侧伴生栏；
+  - 空间不足或 mode === "pip"：DraggablePanel 承载的画中画。
 
   只读保证：MessageList 传 screenshotMode = true 隐藏全部消息操作栏；
   scopeSessionId 绑定子会话，读写与重解析均作用域化；本组件不提供任何写操作。
@@ -34,7 +34,6 @@ import {
   ref,
   watch,
 } from "vue";
-import { useMediaQuery } from "@vueuse/core";
 import { ExternalLink, PictureInPicture2, X } from "lucide-vue-next";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
 import Avatar from "@/components/common/Avatar.vue";
@@ -45,6 +44,7 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { backgroundTaskRegistry } from "@/services/background-tasks";
 import { customMessage } from "@/utils/customMessage";
+import { useBackgroundTaskSync } from "../composables/useBackgroundTaskSync";
 import { useCompanionSession } from "../composables/useCompanionSession";
 import {
   getOriginDisplayName,
@@ -67,27 +67,28 @@ const {
   refresh,
 } = useCompanionSession();
 
+useBackgroundTaskSync();
+
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();
 
 const DOCK_SOURCE_ID = "companion-session";
 const dockTarget = ref<HTMLElement | null>(null);
-const { openDock, closeDock } = useChatCompanionDock();
+const { openDock, closeDock, canDock } = useChatCompanionDock();
 
-// 宽屏断点与设计文档 §6.2 保持一致（> 1100px 走侧栏）
-const isWide = useMediaQuery("(min-width: 1101px)");
+// 伴生栏按宿主剩余空间停靠，为主聊天列保留可用宽度。
 
 const showSheet = computed(
   () =>
     isOpen.value &&
     mode.value === "sheet" &&
-    isWide.value &&
+    canDock.value &&
     dockTarget.value !== null
 );
 const showPip = computed(
   () =>
     isOpen.value &&
-    (mode.value === "pip" || !isWide.value || dockTarget.value === null)
+    (mode.value === "pip" || !canDock.value || dockTarget.value === null)
 );
 
 function refreshDockTarget(): void {
@@ -109,7 +110,7 @@ watch(
 );
 
 watch(
-  [isOpen, mode, isWide],
+  [isOpen, mode, canDock],
   async () => {
     await nextTick();
     refreshDockTarget();
@@ -303,7 +304,7 @@ onBeforeUnmount(() => {
   >
     <template #header-actions>
       <button
-        v-if="isWide"
+        v-if="canDock"
         type="button"
         class="companion-icon-btn"
         title="停靠到侧栏"
@@ -334,6 +335,7 @@ onBeforeUnmount(() => {
         :messages="messages"
         :is-sending="false"
         :scope-session-id="childSessionId"
+        :readonly="true"
         :screenshot-mode="true"
       />
       <div class="companion-pip-footer">

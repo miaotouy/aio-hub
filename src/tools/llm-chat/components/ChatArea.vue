@@ -20,6 +20,7 @@ import {
   computed,
   toRef,
   onMounted,
+  onBeforeUnmount,
   watch,
   shallowRef,
   defineAsyncComponent,
@@ -55,7 +56,10 @@ import { mergeStyleOptions } from "@/tools/rich-text-renderer/utils/styleUtils";
 import { isEqual } from "lodash-es";
 import { initAgentAssetCache } from "../utils/agentAssetUtils";
 import { provideChatAreaContext } from "../composables/useChatAreaContext";
-import { useChatCompanionDock } from "../composables/ui/useChatCompanionDock";
+import {
+  useChatCompanionDock,
+  useChatCompanionDockResize,
+} from "../composables/ui/useChatCompanionDock";
 
 const QuickActionManagerDialog = defineAsyncComponent(
   () => import("./quick-action/QuickActionManagerDialog.vue")
@@ -104,14 +108,16 @@ const emit = defineEmits<Emits>();
 
 const containerRef = ref<HTMLDivElement>();
 const { width: containerWidth } = useElementSize(containerRef);
+const chatContentRef = ref<HTMLDivElement>();
+const { width: chatContentWidth } = useElementSize(chatContentRef);
 const chatAreaHeaderRef = ref<InstanceType<typeof ChatAreaHeader>>();
 const messageListRef = ref<InstanceType<typeof MessageList>>();
-const {
-  isDockOpen,
-  dockWidth,
-  isResizing: isDockResizing,
-  startResize: handleDockResizeStart,
-} = useChatCompanionDock();
+const { isDockVisible, setHostWidth, dockWidth } = useChatCompanionDock();
+const { isResizing: isDockResizing, startResize: handleDockResizeStart } =
+  useChatCompanionDockResize();
+
+watch(containerWidth, setHostWidth, { immediate: true });
+onBeforeUnmount(() => setHostWidth(0));
 
 // 截图分享弹窗状态
 const screenshotDialogVisible = ref(false);
@@ -521,18 +527,18 @@ onMounted(async () => {
       class="detached-wallpaper"
     ></div>
 
-    <ChatAreaHeader
-      ref="chatAreaHeaderRef"
-      :container-width="containerWidth"
-      :is-detached="props.isDetached"
-      @drag-start="handleDragStart"
-      @detach="handleDetach"
-    />
-
     <!-- 主内容区 -->
     <div class="main-content">
       <!-- 对话内容区 -->
-      <div class="chat-content">
+      <div ref="chatContentRef" class="chat-content">
+        <ChatAreaHeader
+          ref="chatAreaHeaderRef"
+          :container-width="chatContentWidth"
+          :is-detached="props.isDetached"
+          @drag-start="handleDragStart"
+          @detach="handleDetach"
+        />
+
         <!-- 消息列表容器 - 用于弹性布局 -->
         <div class="message-list-wrapper">
           <!-- 根据 viewMode 动态渲染不同的视图 -->
@@ -602,13 +608,13 @@ onMounted(async () => {
       <!-- 平台级伴生分栏：内容由消费方通过 Teleport 注入，不依赖具体功能模块。 -->
       <aside
         class="chat-companion-dock"
-        :class="{ 'is-open': isDockOpen, 'is-resizing': isDockResizing }"
-        :style="{ width: isDockOpen ? `${dockWidth}px` : '0px' }"
+        :class="{ 'is-open': isDockVisible, 'is-resizing': isDockResizing }"
+        :style="{ width: isDockVisible ? `${dockWidth}px` : '0px' }"
         role="complementary"
         aria-label="伴生辅助分栏"
       >
         <div
-          v-if="isDockOpen"
+          v-if="isDockVisible"
           class="dock-resize-handle"
           role="separator"
           aria-orientation="vertical"

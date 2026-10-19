@@ -1,6 +1,6 @@
 # Sub-Agent 与后台任务系统：架构与设计规范
 
-> 状态：Active | 最后更新：2026-10-18
+> 状态：Active | 最后更新：2026-10-19
 > 关联模块：`src/tools/sub-agent`、`src/background-runtime`、`src/services/background-tasks`、`src/tools/llm-chat`、`src/tools/agent-manager`
 > 参考方案：[`chat-companion-dock-slot.md`](./docs/Plan/chat-companion-dock-slot.md)、[`background-agent-observability-and-intervention.md`](./docs/Plan/background-agent-observability-and-intervention.md)、[`builtin-baseline-subagent.md`](./docs/Plan/builtin-baseline-subagent.md)（已实施）
 > 相关架构：[工具自动审批仲裁](../../../docs/architecture/tool-approval-arbitration.md)
@@ -85,7 +85,7 @@ created ──► running ──► completed
 ```
 
 - **终态保护**：一旦进入 `completed` / `failed` / `cancelled` / `interrupted`，任何迟到的流式帧或执行回调均被丢弃，防止状态逆流。
-- **持久化自愈**：应用崩溃或重启恢复时，未完成的任务自动被标记为 `interrupted`，并同步通知调度方。
+- **持久化自愈**：数据宿主崩溃或重启恢复时，未完成的任务自动被标记为 `interrupted`，并同步通知调度方。分离组件窗口只恢复观察快照，保持任务原状态并接收宿主同步，持久化由宿主负责。
 - **审批等待**：子会话工具调用升级人工时任务进入 `awaiting_approval` 并标记 `attention`，全部未决审批结算后恢复 `running`（见第 5 节）。
 
 ### 3.4 内置基线子智能体释出
@@ -125,7 +125,9 @@ created ──► running ──► completed
 
 - **定位**：`src/tools/llm-chat` 在主工作区右侧提供原生的平台级挂载槽位（`#chat-companion-dock-slot`）。
 - **零依赖 Teleport 模式**：`ChatArea.vue` 不引入任何 `sub-agent` 业务代码，仅维护外壳宽度与动画；`CompanionSessionSheet.vue` 自主 Teleport 到该 DOM 靶点。
-- **100% 结构性 Flex 让位**：伴生分栏展开时，主会话消息流自然挤压收缩，彻底告别遮挡式浮层抽屉；支持 360px ~ 720px 手柄拖拽调宽。
+- **空间分配**：按 ChatArea 的实际剩余宽度决定停靠。工作区至少 840px 时，伴生栏在 360px～720px 偏好范围内调宽，同时为主聊天列保留 480px；空间不足时回退画中画，空间恢复后继续使用已保存偏好。聊天工具栏在主消息列内定位，伴生标题与操作区独立。
+- **消息增量**：伴生视图按 childSessionId 从 store 响应式读取活动路径，刷新已加载会话时保留消息列表与历史滚动容器。生成期间根据活动叶及工具状态发布进度活动，结束后避免重复回填。
+- **跨窗口归属**：数据宿主通过 WindowSyncBus / StateSyncEngine 发布任务快照；分离组件只消费快照，按需向宿主请求子会话详情，叫停转交宿主执行。
 
 ### 4.2 三重只读断流防线
 
@@ -134,6 +136,8 @@ created ──► running ──► completed
 1. **属性只读**：传递 `readonly: true` 与 `isSessionReadOnly: true`，禁止行内编辑；
 2. **菜单屏蔽**：隐藏重新生成、编辑、分支嫁接、删除等破坏性操作菜单；
 3. **事件拦截**：子会话发送事件不绑定任何执行器，确保只读浏览不干扰子任务状态。
+
+只读视图保留工具参数与结果的展开 / 收起，便于阅读长输出；截图模式下的消息编辑菜单仍隐藏。
 
 ---
 

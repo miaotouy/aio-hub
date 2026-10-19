@@ -267,7 +267,13 @@ export class BackgroundTaskRegistry {
   /** taskId 生成计数器（模块级顺序号） */
   private taskIdCounter = 0;
 
-  constructor(options?: { persistenceFileName?: string }) {
+  private readonly observerOnly: boolean;
+
+  constructor(options?: {
+    persistenceFileName?: string;
+    observerOnly?: boolean;
+  }) {
+    this.observerOnly = options?.observerOnly ?? false;
     this.persistence = createConfigManager<BackgroundTaskPersistencePayload>({
       moduleName: "background-tasks",
       fileName: options?.persistenceFileName ?? "tasks.json",
@@ -401,6 +407,24 @@ export class BackgroundTaskRegistry {
         { userMessage: "列出后台任务失败", context: { filter } }
       ) ?? []
     );
+  }
+
+  /** 分离组件窗口接收执行方的权威快照，只更新本地观察状态。 */
+  public applyObservedSnapshots(snapshots: BackgroundTaskSnapshot[]): void {
+    if (!this.observerOnly) return;
+    for (const raw of snapshots) {
+      const snapshot = normalizeLoadedSnapshot(raw);
+      if (!snapshot) continue;
+      const previous = this.tasks.get(snapshot.taskId);
+      if (previous && JSON.stringify(previous) === JSON.stringify(snapshot))
+        continue;
+      this.tasks.set(snapshot.taskId, snapshot);
+      this.emit({
+        taskId: snapshot.taskId,
+        seq: snapshot.seq,
+        type: "updated",
+      });
+    }
   }
 
   // ==================== 执行 lane 归属 ====================
@@ -756,7 +780,7 @@ export class BackgroundTaskRegistry {
       };
       let recovered = 0;
       for (const snapshot of restored) {
-        if (isTerminalState(snapshot.state)) {
+        if (this.observerOnly || isTerminalState(snapshot.state)) {
           continue;
         }
         // 应用重启后任务不能声称仍在执行，统一恢复为明确的中断状态
@@ -800,7 +824,7 @@ export class BackgroundTaskRegistry {
 
   /** 触发防抖持久化；恢复完成前不落盘，避免用不完整状态覆盖旧快照 */
   private persistDebounced(): void {
-    if (!this.hydrated) {
+    if (!this.hydrated || this.observerOnly) {
       return;
     }
     this.persistence.saveDebounced(this.buildPersistencePayload());
@@ -893,4 +917,8 @@ export class BackgroundTaskRegistry {
 // ==================== 单例导出 ====================
 
 /** 后台任务 registry 单例 */
-export const backgroundTaskRegistry = new BackgroundTaskRegistry();
+export const backgroundTaskRegistry = new BackgroundTaskRegistry({
+  observerOnly:
+    typeof location !== "undefined" &&
+    location.pathname.startsWith("/detached-component/"),
+});

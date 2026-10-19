@@ -295,12 +295,12 @@ const previewDialogLabel = ref("执行结果");
 
 const toggleCollapse = () => {
   if (isEditing.value) return; // 编辑模式不允许折叠
-  if (props.screenshotMode) return; // 截图模式由 collapseStrategy 控制, 不接受交互
+  if (props.screenshotMode && !isSessionReadOnly.value) return;
   isCollapsed.value = !isCollapsed.value;
 };
 
 const toggleArgsCollapse = (requestId: string) => {
-  if (props.screenshotMode) return;
+  if (props.screenshotMode && !isSessionReadOnly.value) return;
   argsCollapsedMap.value[requestId] = !argsCollapsedMap.value[requestId];
 };
 
@@ -834,7 +834,7 @@ defineExpose({
       :aria-expanded="!isCollapsed"
       :aria-label="isCollapsed ? '展开工具结果' : '收起工具结果'"
       :title="isCollapsed ? '展开工具结果' : '收起工具结果'"
-      :disabled="isEditing || props.screenshotMode"
+      :disabled="isEditing || (props.screenshotMode && !isSessionReadOnly)"
       @click="toggleCollapse"
     >
       <span class="bar-line" aria-hidden="true"></span>

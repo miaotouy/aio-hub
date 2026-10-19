@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { reactive } from "vue";
 import type { ToolContext, ToolMethodResult } from "@/services/types";
 import type {
   ChatMessageNode,
@@ -227,6 +228,60 @@ describe("SubAgentRegistry 后台续聊", () => {
       }
     );
     await backgroundTaskRegistry.loadFromPersistence();
+  });
+
+  it("生成仍在进行时发布工具完成活动，停止后保留终态", async () => {
+    mocks.sessionDetailMap = reactive(new Map<string, unknown>());
+    const registry = new SubAgentRegistry();
+    const generation = deferred();
+    let toolId = "";
+    mocks.sendMessage.mockImplementation(
+      async (content: string, options: { sessionId: string }) => {
+        const detail = mocks.sessionDetailMap.get(
+          options.sessionId
+        ) as ChatSessionDetail;
+        appendNode(detail, "user", content);
+        appendNode(detail, "assistant", "格式化数据");
+        toolId = appendNode(detail, "tool", "结果", {
+          toolCalls: [
+            {
+              requestId: "req-progress",
+              toolName: "json-formatter_formatJson",
+              status: "executing",
+            },
+          ],
+        });
+        await generation.promise;
+        appendNode(detail, "assistant", "完成");
+      }
+    );
+    const task = parseAskResult(
+      await registry.ask(
+        { agentId: "agent-child", message: "progress", mode: "background" },
+        callerContext
+      )
+    );
+    await settle();
+    const detail = mocks.sessionDetailMap.get(
+      task.childSessionId
+    ) as ChatSessionDetail;
+    expect(
+      backgroundTaskRegistry.getSnapshot(task.taskId)?.currentOperation?.kind
+    ).toBe("tool_call");
+    detail.nodes[toolId].metadata!.toolCalls![0].status = "success";
+    const running = backgroundTaskRegistry.getSnapshot(task.taskId)!;
+    expect(running.state).toBe("running");
+    expect(
+      running.recentActivity.some(
+        (a) => a.kind === "tool_finished" && a.detailRef === toolId
+      )
+    ).toBe(true);
+    backgroundTaskRegistry.cancelTask(task.taskId, "停止");
+    generation.resolve();
+    await settle();
+    expect(backgroundTaskRegistry.getSnapshot(task.taskId)?.state).toBe(
+      "cancelled"
+    );
   });
 
   it("重建 registry 后继续同一子会话，未知句柄明确失败", async () => {

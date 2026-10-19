@@ -298,3 +298,33 @@ describe("createLlmRequest", () => {
     expect(request.isSending.value).toBe(false);
   });
 });
+
+it("applies model output and discovered sampling limits before executing the mobile adapter", async () => {
+  const profile = createProfile({
+    models: [
+      {
+        id: "custom-model",
+        name: "Custom",
+        tokenLimits: { output: 128000 },
+        supportedFeatures: { parameters: ["top_p"] },
+      },
+    ],
+  });
+  const { dependencies, executeAdapter } = createDependencies([profile]);
+  executeAdapter.mockResolvedValue({ content: "answer", isStream: false });
+  await createLlmRequest(dependencies).sendRequest({
+    modelId: "custom-model",
+    messages: [{ role: "user", content: "hello" }],
+    maxTokens: 262144,
+    maxCompletionTokens: 262144,
+    temperature: 0.2,
+    topP: 0.8,
+  });
+  const sent = executeAdapter.mock.calls[0][1];
+  expect(sent).toMatchObject({
+    maxTokens: 128000,
+    maxCompletionTokens: 128000,
+    topP: 0.8,
+  });
+  expect(sent.temperature).toBeUndefined();
+});

@@ -251,10 +251,13 @@ function buildMediaPart(source: JsonValue, mediaType?: string): JsonObject {
 }
 
 function buildGenerationConfig(request: LlmRequest): JsonObject {
-  const config: JsonObject = {
-    maxOutputTokens: request.maxCompletionTokens ?? request.maxTokens ?? 8192,
-    temperature: request.temperature ?? 1,
-  };
+  const config: JsonObject = {};
+  assignDefined(
+    config,
+    "maxOutputTokens",
+    request.maxCompletionTokens ?? request.maxTokens
+  );
+  assignDefined(config, "temperature", request.temperature);
   assignDefined(config, "topP", request.topP);
   assignDefined(config, "topK", request.topK);
   assignDefined(config, "presencePenalty", request.presencePenalty);

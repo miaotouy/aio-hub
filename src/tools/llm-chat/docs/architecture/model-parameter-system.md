@@ -113,18 +113,26 @@
 
 ### 3.4 `maxTokensLimit` 动态计算
 
-取 `tokenLimits?.output → contextLengthLimit → 131072` 三级回退，并通过 `overrides` 在 `ParameterItem` 上覆盖 `max` 属性；同时 `watch(contextLengthLimit)` 在上下文限制变小时自动把超限的 `maxTokens` / `contextManagement.maxContextTokens` 调回新上限。
+取 `tokenLimits?.output → contextLengthLimit → OUTPUT_TOKEN_INPUT_MAX` 三级回退。共享编辑范围常量为 1,000,000，用于模型输出限制未知时的控件范围；模型声明更大输出限制时沿用模型值。`maxTokens` 与 `maxCompletionTokens` 共用动态上限，输出限制变化时同步裁剪草稿中的超限值；上下文管理预算单独跟随上下文窗口。
 
-### 3.5 厂商专属配置的条件渲染
+通用聊天、智能体、翻译、OCR 和转写的新建默认输出预算统一为 `DEFAULT_MAX_OUTPUT_TOKENS`（65,536）。已有用户预算继续保留，标题等短任务沿用各自预算。发送前按物理目标模型的 `tokenLimits.output` 裁剪两种输出预算，虚拟渠道的每个成员独立执行此约束。
+
+### 3.5 采样参数与推理模式
+
+新建智能体和通用聊天默认省略温度，协议构建层也将省略值交给服务商默认值。显式配置通过模型发现的 `supportedFeatures.parameters` 与共享兼容规则过滤；编辑器隐藏当前模式下受限的参数，并保留原有配置值供后续模型使用。
+
+共享规则区分 OpenAI o 系列、GPT-5 初代、后续 GPT 推理等级以及 Claude 思考模式。支持采样的非推理模式保留显式温度。兼容过滤覆盖 Chat Completions、Responses 和 Anthropic 原生请求，最终请求体合并后再次处理已知冲突字段。
+
+### 3.6 厂商专属配置的条件渲染
 
 - **Gemini `safetySettings`**: 由 [`showSafetySettings`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 计算属性控制——`supportedParameters.safetySettings === true` 或 `getModelFamily(modelId, providerType) === "gemini"` 任一成立即显示 [`SafetySettingsPanel`](../../../agent-manager/components/parameters/SafetySettingsPanel.vue)。
 - **Claude `stopSequences` / `claudeMetadata`**: 这两个参数**不走单独的厂商面板**，而是在 [`ALL_LLM_PARAMETER_KEYS`](../../config/parameter-config.ts:11) 白名单中作为标准参数与 `temperature` 等并列；UI 显示与否完全由 `enabledParameters` 白名单和参数表的 `supportedKey` 共同决定，没有专门的"Claude 配置区"。
 
-### 3.6 `enabledParameters` 白名单 UI
+### 3.7 `enabledParameters` 白名单 UI
 
 **没有独立的"启用列表编辑器"面板**，而是把启用/停用开关直接内嵌到每个 [`ParameterItem`](../../../agent-manager/components/parameters/ParameterItem.vue) 的右上角 `el-switch`（受 `hideSwitch` 控制，少数固定项如 `maxContextTokens` 隐藏开关默认启用）。状态由 [`isParameterEnabled()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 与 [`toggleParameterEnabled()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 双向管理，开关切换会立刻把 key 加入 / 移出 `enabledParameters` 数组；最终发送给 LLM 时由 [`buildEffectiveParameters()`](../../config/parameter-config.ts:406) 严格按白名单过滤。
 
-### 3.7 `enabledParameters` 智能初始化
+### 3.8 `enabledParameters` 智能初始化
 
 首次加载或外部 `modelValue` 变化时，[`initLocalParams()`](../../../agent-manager/components/parameters/ModelParametersEditor.vue) 会检测 `enabledParameters` 字段——不存在则取所有"已有非 undefined 值且不属于 custom"的 key 自动构造白名单，兼容旧版未带白名单的 Agent 配置，避免在升级后误把已设值的参数置为"未启用"。
 

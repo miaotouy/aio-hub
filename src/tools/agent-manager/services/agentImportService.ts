@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import JSZip from "jszip";
@@ -60,8 +61,7 @@ function sanitizeImportedAgent(agent: any): any {
   const sanitized = {
     ...source,
     parameters: {
-      temperature: 1,
-      maxTokens: 4096,
+      maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       ...(source.parameters || {}),
     },
     presetMessages: source.presetMessages ?? [],

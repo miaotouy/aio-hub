@@ -14,6 +14,7 @@ vi.mock("@/composables/useLlmProfiles", () => ({
     getSupportedParameters: (provider: string) => ({
       temperature: true,
       maxTokens: true,
+      maxCompletionTokens: true,
       topP: true,
       thinkingConfig: provider === "gemini",
       safetySettings: provider === "gemini",
@@ -28,7 +29,9 @@ vi.mock("@/llm-apis/request-builder", () => ({
     id.toLowerCase().includes("gemini") ? "gemini" : "openai",
 }));
 
-vi.mock("@/components/common/RichCodeEditor.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/components/common/RichCodeEditor.vue", () => ({
+  default: { template: "<div />" },
+}));
 
 const ModelParametersEditor = (await import("../ModelParametersEditor.vue"))
   .default;
@@ -46,7 +49,7 @@ const stubs = {
   LlmModelSelector: true,
   ParameterItem: {
     name: "ParameterItem",
-    props: ["config", "modelValue", "enabled"],
+    props: ["config", "modelValue", "enabled", "overrides"],
     emits: ["update:modelValue", "update:enabled"],
     template: `<div><input :data-parameter="config.key" :value="modelValue" @input="$emit('update:modelValue', Number($event.target.value))" /></div>`,
   },
@@ -244,4 +247,59 @@ describe("shared agent parameter editing", () => {
       settings.find('[data-setting-id="parameters.safetySettings"]').exists()
     ).toBe(true);
   });
+});
+
+it("uses model output limits above 64K for both budget controls", async () => {
+  const wrapper = mount(ModelParametersEditor, {
+    props: {
+      modelValue: { maxTokens: 262144, maxCompletionTokens: 262144 },
+      providerType: "openai",
+      modelId: "custom-model",
+      tokenLimits: { output: 524288 },
+      presentation: "settings",
+    },
+    global: { stubs },
+  });
+  wrappers.push(wrapper);
+  const output = wrapper
+    .findAllComponents(ParameterItem)
+    .find((item) => item.props("config").key === "maxTokens")!;
+  expect(output.props("modelValue")).toBe(262144);
+  const completion = wrapper
+    .findAllComponents(ParameterItem)
+    .find((item) => item.props("config").key === "maxCompletionTokens")!;
+  expect(completion.props("modelValue")).toBe(262144);
+  expect(completion.props("overrides")?.max).toBe(524288);
+  expect(output.props("config").suggestions).toContainEqual({
+    label: "512K",
+    value: 524288,
+  });
+  await wrapper.setProps({ tokenLimits: { output: 65536 } });
+  await flushPromises();
+  const updates = wrapper.emitted("update:modelValue") || [];
+  expect(updates[updates.length - 1]?.[0]).toMatchObject({
+    maxTokens: 65536,
+    maxCompletionTokens: 65536,
+  });
+});
+
+it("hides unsupported sampling while retaining the saved value for a later model", async () => {
+  const wrapper = mount(ModelParametersEditor, {
+    props: {
+      modelValue: { temperature: 0.3, maxTokens: 65536 },
+      providerType: "openai",
+      modelId: "custom-model",
+      supportedFeatures: { parameters: ["max_tokens"] },
+      presentation: "settings",
+    },
+    global: { stubs },
+  });
+  wrappers.push(wrapper);
+  expect(wrapper.find("[data-parameter=temperature]").exists()).toBe(false);
+  await wrapper.setProps({
+    supportedFeatures: { parameters: ["temperature", "max_tokens"] },
+  });
+  expect(
+    wrapper.get<HTMLInputElement>("[data-parameter=temperature]").element.value
+  ).toBe("0.3");
 });

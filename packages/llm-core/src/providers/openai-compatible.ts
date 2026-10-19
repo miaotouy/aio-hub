@@ -1,4 +1,8 @@
-import { usesGpt6Reasoning } from "./openai-reasoning-compatibility";
+import {
+  usesOpenAiReasoning,
+  usesAnthropicThinking,
+  usesOpenAiCompletionTokens,
+} from "./sampling-compatibility";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -84,13 +88,18 @@ export function buildOpenAiCompatibleBody(
   const body: OpenAiCompatibleBody = {
     model: request.model,
     messages,
-    temperature: request.temperature ?? 0.5,
   };
+
+  assignDefined(body, "temperature", request.temperature);
 
   if (request.maxCompletionTokens !== undefined) {
     body.max_completion_tokens = request.maxCompletionTokens;
   } else if (request.maxTokens !== undefined) {
-    body.max_tokens = request.maxTokens;
+    body[
+      usesOpenAiCompletionTokens(request.model)
+        ? "max_completion_tokens"
+        : "max_tokens"
+    ] = request.maxTokens;
   }
 
   assignDefined(body, "top_p", request.topP);
@@ -132,14 +141,20 @@ export function buildOpenAiCompatibleBody(
     };
   }
 
-  if (usesGpt6Reasoning(request)) {
+  Object.assign(body, request.extraBody, request.extensions);
+
+  if (usesOpenAiReasoning(request)) {
     delete body.temperature;
     delete body.top_p;
     delete body.top_logprobs;
     delete body.logprobs;
   }
 
-  Object.assign(body, request.extraBody, request.extensions);
+  if (usesAnthropicThinking(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_k;
+  }
   if (request.stream) body.stream = true;
   return body;
 }

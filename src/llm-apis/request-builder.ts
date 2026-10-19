@@ -24,6 +24,11 @@
  * - 不强制统一所有差异，尊重各 API 的独特性
  */
 
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  limitOutputTokens,
+  isSamplingParameterUnsupported,
+} from "@aiohub/llm-core";
 import { isAggregateChannelType } from "@aiohub/llm-core";
 import type {
   LlmMessageContent,
@@ -686,13 +691,15 @@ export function filterParametersByCapabilities(
   if (supported.temperature && options.temperature !== undefined) {
     filtered.temperature = options.temperature;
   }
-  if (supported.maxTokens && options.maxTokens !== undefined) {
-    let val = options.maxTokens;
-    // 兜底裁剪逻辑：如果模型定义了输出限制，且当前值超过了该限制，则裁剪
-    if (model?.tokenLimits?.output && val > model.tokenLimits.output) {
-      val = model.tokenLimits.output;
-    }
-    filtered.maxTokens = val;
+  if (
+    supported.maxTokens &&
+    (options.maxTokens !== undefined ||
+      (modelFamily === "claude" && options.maxCompletionTokens === undefined))
+  ) {
+    filtered.maxTokens = limitOutputTokens(
+      options.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      model?.tokenLimits?.output
+    );
   }
   if (supported.topP && options.topP !== undefined) {
     filtered.topP = options.topP;
@@ -721,7 +728,10 @@ export function filterParametersByCapabilities(
     supported.maxCompletionTokens &&
     options.maxCompletionTokens !== undefined
   ) {
-    filtered.maxCompletionTokens = options.maxCompletionTokens;
+    filtered.maxCompletionTokens = limitOutputTokens(
+      options.maxCompletionTokens,
+      model?.tokenLimits?.output
+    );
   }
   if (supported.logprobs && options.logprobs !== undefined) {
     filtered.logprobs = options.logprobs;
@@ -959,6 +969,23 @@ export function filterParametersByCapabilities(
         (filtered as any)[key] = opts[key];
       }
     }
+  }
+
+  for (const key of [
+    "temperature",
+    "topP",
+    "topK",
+    "logprobs",
+    "topLogprobs",
+  ] as const) {
+    if (
+      isSamplingParameterUnsupported(key, {
+        model: options.modelId,
+        ...filtered,
+        supportedParameters: model?.supportedFeatures?.parameters,
+      })
+    )
+      delete filtered[key];
   }
 
   // 调试日志：过滤后的最终参数

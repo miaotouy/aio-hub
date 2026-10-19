@@ -294,8 +294,6 @@ describe("OpenAI Adapter - Chat", () => {
     expect(JSON.parse(fetchOptions.body)).toEqual({
       model: "gpt-5",
       messages: [{ role: "user", content: "Hello" }],
-      temperature: 0.5,
-      top_p: 0.8,
       frequency_penalty: 0.1,
       presence_penalty: 0.2,
       repetition_penalty: 1.1,

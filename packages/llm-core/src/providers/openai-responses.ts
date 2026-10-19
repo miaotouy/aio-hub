@@ -1,4 +1,7 @@
-import { usesGpt6Reasoning } from "./openai-reasoning-compatibility";
+import {
+  usesOpenAiReasoning,
+  usesAnthropicThinking,
+} from "./sampling-compatibility";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -92,8 +95,8 @@ export function buildOpenAiResponsesBody(
   const body: OpenAiResponsesBody = {
     model: request.model,
     input,
-    temperature: request.temperature ?? 1,
   };
+  assignDefined(body, "temperature", request.temperature);
   if (instructions) body.instructions = instructions;
 
   assignDefined(
@@ -132,18 +135,24 @@ export function buildOpenAiResponsesBody(
     body.truncation = request.stop === "auto" ? "auto" : "disabled";
   }
 
-  if (usesGpt6Reasoning(request)) {
+  Object.assign(body, request.extraBody, request.extensions);
+
+  if (usesOpenAiReasoning(request)) {
     delete body.temperature;
     delete body.top_p;
     delete body.top_logprobs;
-    const filteredInclude = [...include].filter(
-      (item) => item !== "message.output_text.logprobs"
-    );
+    const filteredInclude = (
+      Array.isArray(body.include) ? body.include : []
+    ).filter((item) => item !== "message.output_text.logprobs");
     if (filteredInclude.length) body.include = filteredInclude;
     else delete body.include;
   }
 
-  Object.assign(body, request.extraBody, request.extensions);
+  if (usesAnthropicThinking(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_k;
+  }
   if (request.stream) body.stream = true;
   return body;
 }

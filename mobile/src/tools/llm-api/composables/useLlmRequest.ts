@@ -1,3 +1,8 @@
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  limitOutputTokens,
+  isSamplingParameterUnsupported,
+} from "@aiohub/llm-core";
 import { ref } from "vue";
 import {
   resolveModelExecution,
@@ -166,6 +171,38 @@ export function createLlmRequest(dependencies: LlmRequestDependencies) {
     const contextModel = originalProfile.models.find(
       (item) => item.id === requestOptions.modelId
     );
+    if (
+      requestOptions.maxTokens === undefined &&
+      requestOptions.maxCompletionTokens === undefined &&
+      (originalProfile.type === "claude" ||
+        contextModel?.apiFamily === "claude" ||
+        /(?:^|[./])claude-/i.test(requestOptions.modelId))
+    )
+      requestOptions.maxTokens = DEFAULT_MAX_OUTPUT_TOKENS;
+    requestOptions.maxTokens = limitOutputTokens(
+      requestOptions.maxTokens,
+      contextModel?.tokenLimits?.output
+    );
+    requestOptions.maxCompletionTokens = limitOutputTokens(
+      requestOptions.maxCompletionTokens,
+      contextModel?.tokenLimits?.output
+    );
+    for (const key of [
+      "temperature",
+      "topP",
+      "topK",
+      "logprobs",
+      "topLogprobs",
+    ] as const) {
+      if (
+        isSamplingParameterUnsupported(key, {
+          model: requestOptions.modelId,
+          ...requestOptions,
+          supportedParameters: contextModel?.supportedFeatures?.parameters,
+        })
+      )
+        delete requestOptions[key];
+    }
     const errorContext = {
       profileName: originalProfile.name,
       modelName: contextModel?.name || requestOptions.modelId,

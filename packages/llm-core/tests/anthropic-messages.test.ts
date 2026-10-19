@@ -147,8 +147,6 @@ describe("Anthropic Messages provider adapter", () => {
           ],
           max_tokens: 2048,
           system: "Be concise.",
-          top_k: 20,
-          top_p: 0.8,
           stop_sequences: ["END"],
           metadata: { user_id: "user-1" },
           thinking: { type: "enabled", budget_tokens: 1024 },

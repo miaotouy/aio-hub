@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { isSamplingParameterUnsupported } from "@aiohub/llm-core";
 import type { LlmParameters } from "@/tools/llm-chat/types";
 import type {
   LlmModelInfo,
@@ -45,6 +46,7 @@ export interface ParameterEditorContext {
   providerType?: ProviderType;
   modelId?: string;
   capabilities?: LlmModelInfo["capabilities"];
+  supportedFeatures?: LlmModelInfo["supportedFeatures"];
 }
 
 export const parameterGroupLabels: Record<ModelParameterGroup, string> = {
@@ -72,6 +74,15 @@ export function isEditorParameterVisible(
     modelId,
     providerType,
   } = context;
+  if (
+    modelId &&
+    isSamplingParameterUnsupported(key, {
+      model: modelId,
+      ...parameters,
+      supportedParameters: context.supportedFeatures?.parameters,
+    })
+  )
+    return false;
   if (key === "includeThoughts") {
     return (
       supportedParameters.thinkingConfig === true ||

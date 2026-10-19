@@ -86,6 +86,7 @@ defineExpose({
       :provider-type="currentProviderType"
       :capabilities="currentModel?.capabilities"
       :token-limits="currentModel?.tokenLimits"
+      :supported-features="currentModel?.supportedFeatures"
       :context-length-limit="contextLengthLimit"
     />
   </div>

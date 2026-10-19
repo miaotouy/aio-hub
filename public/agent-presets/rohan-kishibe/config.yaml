@@ -140,7 +140,7 @@ presetMessages:
 
 parameters:
   temperature: 1.0
-  maxTokens: 8192
+  maxTokens: 65536
 
 tags:
   - 动漫

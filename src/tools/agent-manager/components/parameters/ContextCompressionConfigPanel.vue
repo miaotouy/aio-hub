@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { OUTPUT_TOKEN_INPUT_MAX } from "@aiohub/llm-core";
 import { computed, ref, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { Maximize2 } from "lucide-vue-next";
@@ -367,7 +368,7 @@ const handleSavePrompt = () => {
               <el-input-number
                 v-model="config.summaryMaxTokens"
                 :min="100"
-                :max="32000"
+                :max="OUTPUT_TOKEN_INPUT_MAX"
                 :step="100"
                 style="width: 100%"
               />

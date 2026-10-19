@@ -15,6 +15,11 @@
 -->
 
 <script setup lang="ts">
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  OUTPUT_TOKEN_INPUT_MAX,
+} from "@aiohub/llm-core";
+
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Setting } from "@element-plus/icons-vue";
@@ -214,8 +219,8 @@ const engineTemperature = computed({
 const engineMaxTokens = computed({
   get: () =>
     engineConfig.value?.type === "vlm"
-      ? (engineConfig.value.maxTokens ?? 4096)
-      : 4096,
+      ? (engineConfig.value.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS)
+      : DEFAULT_MAX_OUTPUT_TOKENS,
   set: (value) => {
     emit("updateEngineConfig", { maxTokens: value });
   },
@@ -673,7 +678,7 @@ const handleNavigateToSettings = () => {
               <el-input-number
                 v-model="engineMaxTokens"
                 :min="100"
-                :max="32000"
+                :max="OUTPUT_TOKEN_INPUT_MAX"
                 :step="64"
                 style="width: 100%"
               />

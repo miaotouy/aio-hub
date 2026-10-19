@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { OUTPUT_TOKEN_INPUT_MAX } from "@aiohub/llm-core";
+
 import { ref, computed, watch, nextTick } from "vue";
 import type { LlmParameters } from "@/tools/llm-chat/types";
 import type {
@@ -70,6 +72,7 @@ interface Props {
   capabilities?: LlmModelInfo["capabilities"];
   /** 模型的 Token 限制信息 */
   tokenLimits?: LlmModelInfo["tokenLimits"];
+  supportedFeatures?: LlmModelInfo["supportedFeatures"];
   compact?: boolean;
   groups?: readonly ModelParameterGroup[];
   presentation?: ParameterEditorPresentation;
@@ -282,7 +285,11 @@ const processedConfigs = computed(() => {
 
   return parameterConfigs.map((config) => {
     // 动态过滤 maxTokens 的建议值，不显示超过模型输出上限的选项
-    if (config.key === "maxTokens" && outputLimit && config.suggestions) {
+    if (
+      (config.key === "maxTokens" || config.key === "maxCompletionTokens") &&
+      outputLimit &&
+      config.suggestions
+    ) {
       return {
         ...config,
         suggestions: config.suggestions.filter((s) => s.value <= outputLimit),
@@ -312,6 +319,7 @@ const editorContext = computed(() => ({
   providerType: props.providerType,
   modelId: props.modelId,
   capabilities: props.capabilities,
+  supportedFeatures: props.supportedFeatures,
 }));
 const shouldShowParameter = (key: keyof LlmParameters) =>
   isEditorParameterVisible(key, editorContext.value);
@@ -321,29 +329,31 @@ const shouldShowParameter = (key: keyof LlmParameters) =>
 // 计算 maxTokens 滑块的最大值
 const maxTokensLimit = computed(() => {
   // 优先级：模型显式定义的输出限制 > 上下文长度限制 > 默认硬上限
-  return props.tokenLimits?.output || props.contextLengthLimit || 131072;
+  return (
+    props.tokenLimits?.output ||
+    props.contextLengthLimit ||
+    OUTPUT_TOKEN_INPUT_MAX
+  );
 });
 
 // 覆盖配置对象
 const overrides = computed(() => ({
-  maxTokens: {
-    max: maxTokensLimit.value,
-  },
+  maxTokens: { max: maxTokensLimit.value },
+  maxCompletionTokens: { max: maxTokensLimit.value },
+  thinkingBudget: { max: Math.max(1024, maxTokensLimit.value - 1024) },
 }));
 
-// 监听上下文限制变化，自动调整 maxTokens 值
+watch(maxTokensLimit, (limit) => {
+  for (const key of ["maxTokens", "maxCompletionTokens"] as const) {
+    const value = localParams.value[key];
+    if (value !== undefined && value > limit) updateParameter(key, limit);
+  }
+});
+
+// 监听上下文限制变化，调整上下文管理预算
 watch(
   () => props.contextLengthLimit,
   (newLimit) => {
-    if (
-      newLimit &&
-      localParams.value.maxTokens !== undefined &&
-      localParams.value.maxTokens > newLimit
-    ) {
-      // 如果当前值超过了新的限制，自动调整到最大值
-      updateParameter("maxTokens", newLimit);
-    }
-
     // 同时检查上下文管理的 maxContextTokens 是否超限
     if (
       newLimit &&

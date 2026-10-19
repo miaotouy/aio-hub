@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  OUTPUT_TOKEN_INPUT_MAX,
+  isSamplingParameterUnsupported,
+} from "@aiohub/llm-core";
 import type { LlmParameters } from "../types";
 import type {
   LlmParameterSupport,
@@ -132,7 +137,7 @@ export const parameterConfigs: ParameterConfig[] = [
     min: 0,
     // max will be dynamic based on model context limit
     step: 256,
-    defaultValue: 4096,
+    defaultValue: DEFAULT_MAX_OUTPUT_TOKENS,
     suggestions: [
       { label: "4K", value: 4096 },
       { label: "8K", value: 8192 },
@@ -140,6 +145,9 @@ export const parameterConfigs: ParameterConfig[] = [
       { label: "32K", value: 32768 },
       { label: "64K", value: 65536 },
       { label: "128K", value: 131072 },
+      { label: "256K", value: 262144 },
+      { label: "512K", value: 524288 },
+      { label: "1M", value: OUTPUT_TOKEN_INPUT_MAX },
     ],
   },
   {
@@ -231,7 +239,7 @@ export const parameterConfigs: ParameterConfig[] = [
     group: "advanced",
     supportedKey: "maxCompletionTokens",
     min: 1,
-    max: 128000,
+    max: OUTPUT_TOKEN_INPUT_MAX,
     step: 64,
     placeholder: "默认",
     defaultValue: undefined,
@@ -289,7 +297,7 @@ export const parameterConfigs: ParameterConfig[] = [
     group: "special",
     supportedKey: "thinking", // 使用 thinking，由 thinkingConfigType 决定是否显示
     min: 1000,
-    max: 32000,
+    max: OUTPUT_TOKEN_INPUT_MAX,
     step: 1000,
     defaultValue: 8000,
   },
@@ -400,6 +408,12 @@ export function filterParametersForModel(
       continue;
     }
 
+    if (
+      modelId &&
+      isSamplingParameterUnsupported(key, { model: modelId, ...parameters })
+    )
+      continue;
+
     // 检查参数是否被目标模型支持
     if (
       isParameterSupportedByModel(
@@ -418,6 +432,13 @@ export function filterParametersForModel(
   if (filteredParams.enabledParameters) {
     filteredParams.enabledParameters = filteredParams.enabledParameters.filter(
       (paramKey) =>
+        !(
+          modelId &&
+          isSamplingParameterUnsupported(paramKey, {
+            model: modelId,
+            ...parameters,
+          })
+        ) &&
         isParameterSupportedByModel(
           paramKey as keyof LlmParameters,
           supportedParameters,

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "../types/chatRegex";
@@ -113,7 +114,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     prompt:
       "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\nOnly output the translated content without any explanation or additional text:\n\n{text}",
     temperature: 0.3,
-    maxTokens: 2000,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   },
   transcription: {
     ...DEFAULT_TRANSCRIPTION_CONFIG,

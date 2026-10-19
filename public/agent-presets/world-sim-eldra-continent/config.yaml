@@ -207,7 +207,7 @@ presetMessages:
 
 parameters:
   temperature: 0.85
-  maxTokens: 4096
+  maxTokens: 65536
 
 tags:
   - 角色扮演

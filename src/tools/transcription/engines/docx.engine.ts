@@ -303,7 +303,7 @@ export class DocxTranscriptionEngine implements ITranscriptionEngine {
         stream: false,
         temperature: options.temperature,
         // 批量请求给更多 token 空间
-        maxTokens: Math.min(options.maxTokens * images.length, 16384),
+        maxTokens: options.maxTokens * images.length,
         timeout: options.timeout * 1000,
         signal: options.signal,
       });

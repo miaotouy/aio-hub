@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
+
 import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
 import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { invoke } from "@tauri-apps/api/core";
@@ -541,8 +543,7 @@ const handleCreateFromBlank = () => {
         timestamp: new Date().toISOString(),
       },
     ],
-    temperature: 1,
-    maxTokens: 8192,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   };
 
   editDialogVisible.value = true;
@@ -584,7 +585,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     // 但为了保险和统一，这里我们保留 parameters 对象传递，让 Dialog 内部去解构
     parameters: parameters
       ? JSON.parse(JSON.stringify(parameters))
-      : { temperature: 1, maxTokens: 8192 },
+      : { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS },
 
     // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
     presetMessages: (() => {

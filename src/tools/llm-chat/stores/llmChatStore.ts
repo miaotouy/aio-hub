@@ -17,6 +17,7 @@
  * 重构后的版本：专注于状态管理，复杂逻辑委托给 composables 和 services
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import {
@@ -79,8 +80,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     scannedSessionCount: 0,
   });
   const parameters = ref<LlmParameters>({
-    temperature: 1,
-    maxTokens: 4096,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   });
   // 只记录同一会话连续发送产生的队列，避免跨会话生成被误判成全局队列锁
   const queuedSessionIds = ref(new Set<string>());

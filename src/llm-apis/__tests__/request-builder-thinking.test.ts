@@ -224,3 +224,43 @@ describe("aggregate protocol parameter capabilities", () => {
     ).toBeUndefined();
   });
 });
+
+describe("model output and sampling constraints", () => {
+  it("bounds both output aliases and honors discovered sampling capabilities", () => {
+    const model: LlmModelInfo = {
+      id: "custom-model",
+      name: "Custom",
+      tokenLimits: { output: 128000 },
+      supportedFeatures: { parameters: ["top_p"] },
+    };
+    const result = filterParametersByCapabilities(
+      createOptions(model.id, {
+        maxTokens: 262144,
+        maxCompletionTokens: 262144,
+        temperature: 0.2,
+        topP: 0.8,
+      }),
+      createProfile("openai"),
+      model
+    );
+    expect(result).toMatchObject({
+      maxTokens: 128000,
+      maxCompletionTokens: 128000,
+      topP: 0.8,
+    });
+    expect(result.temperature).toBeUndefined();
+  });
+});
+
+it("bounds the required Anthropic default budget for a legacy model", () => {
+  const result = filterParametersByCapabilities(
+    createOptions("claude-legacy", {}),
+    createProfile("claude"),
+    {
+      id: "claude-legacy",
+      name: "Legacy Claude",
+      tokenLimits: { output: 8192 },
+    }
+  );
+  expect(result.maxTokens).toBe(8192);
+});

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -275,16 +276,14 @@ export async function exportAgents(
       const exportableAgent: ExportableAgent = {
         ...exportableAgentBase,
         parameters: exportableAgentBase.parameters || {
-          temperature: 1,
-          maxTokens: 4096,
+          maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         },
       };
       exportableAgent.parameters =
         stripDefaultContextCompressionPromptsFromParameters(
           exportableAgent.parameters
         ) || {
-          temperature: 1,
-          maxTokens: 4096,
+          maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         };
 
       // 清理预设消息中的运行时元数据

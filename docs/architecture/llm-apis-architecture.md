@@ -25,6 +25,14 @@
 
 ---
 
+## 输出预算与采样兼容
+
+共享核心通过 `output-tokens.ts` 提供通用输出默认预算（65,536）、编辑范围常量（1,000,000）与模型输出裁剪函数。桌面和移动端在选定物理模型后，使用模型的 `tokenLimits.output` 裁剪 `maxTokens`、`maxCompletionTokens`；未知输出限制的请求保留显式预算。新默认值仅影响新建与缺省配置。
+
+两端请求入口读取 `supportedFeatures.parameters`，过滤模型未声明支持的采样字段。`sampling-compatibility.ts` 补充已知模型及推理模式约束，协议层在合并额外参数后清理冲突字段。OpenAI 新模型的 Chat Completions 输出预算映射到 `max_completion_tokens`；Responses 使用 `max_output_tokens`。
+
+协议层省略调用方未提供的温度。Gemini 的可选输出预算交给服务端默认值，Anthropic 的必填 `max_tokens` 在缺省时使用共享预算。新建通用聊天与智能体仅设置输出预算，显式温度按目标模型能力生效。
+
 ## DeepSeek 网页工具 API
 
 `src/llm-apis/adapters/deepseek/tools.ts` 提供 `callDeepSeekSearchApi()` 与 `callDeepSeekFetchApi()`，复用 LLM 渠道连接及桌面传输。网页工具以查询或 URL 为输入，独立于模型路由及 Chat Completions 消息协议，现有聊天解析保持原有行为。

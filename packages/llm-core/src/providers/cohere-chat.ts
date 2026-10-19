@@ -55,8 +55,8 @@ export function buildCohereChatBody(request: LlmRequest): CohereChatBody {
   const body: CohereChatBody = {
     model: request.model,
     messages: request.messages.flatMap(buildCohereMessages),
-    temperature: request.temperature ?? 0.5,
   };
+  assignDefined(body, "temperature", request.temperature);
   assignDefined(
     body,
     "max_tokens",

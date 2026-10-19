@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
+
 import { ref, computed } from "vue";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -80,8 +82,7 @@ const modelParameters = computed<LlmParameters>({
   get: () => {
     return (
       currentAgent.value?.parameters ?? {
-        temperature: 1,
-        maxTokens: 4096,
+        maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       }
     );
   },
@@ -311,6 +312,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
           :model-id="currentAgent.modelId"
           :capabilities="currentModel?.capabilities"
           :token-limits="currentModel?.tokenLimits"
+          :supported-features="currentModel?.supportedFeatures"
           :context-length-limit="contextLengthLimit"
           :external-stats="chatStore.contextStats"
         />

@@ -18,6 +18,7 @@
  * 为每种引擎类型分别存储配置，切换引擎时不会丢失其他引擎的配置
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { migratePluginOcrEngineConfig } from "../platform/config-migration";
@@ -60,7 +61,7 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
       modelId: "",
       prompt: "请识别图片中的所有文字内容，直接输出文字，不要添加任何解释。",
       temperature: 0.3,
-      maxTokens: 8192,
+      maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       concurrency: 3,
       delay: 0,
     },

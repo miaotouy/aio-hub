@@ -16,6 +16,7 @@
  * 智能体管理 Store
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { defineStore } from "pinia";
 import { invoke } from "@tauri-apps/api/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -167,8 +168,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
         // 特殊处理 parameters 的默认值和合并逻辑
         parameters: {
           // 默认值
-          temperature: 1,
-          maxTokens: 4096,
+          maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
           // 传入的标准参数会覆盖默认值
           ...(options?.parameters || {}),
           // 单独处理自定义参数容器，确保它不会被上面的展开覆盖掉
@@ -716,8 +716,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       // 分别合并基础参数和自定义参数容器
       // 合并参数时需要更智能地处理 custom 结构
       const baseParams = agent.parameters || {
-        temperature: 1,
-        maxTokens: 4096,
+        maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       };
       const overrideParams = overrides?.parameterOverrides || {};
 

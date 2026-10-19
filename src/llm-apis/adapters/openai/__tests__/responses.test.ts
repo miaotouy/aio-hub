@@ -264,7 +264,6 @@ describe("OpenAI Adapter - Responses", () => {
         input: "Look it up.",
         instructions: "Be concise.",
         max_output_tokens: 512,
-        temperature: 0.2,
         tools: [
           {
             type: "function",

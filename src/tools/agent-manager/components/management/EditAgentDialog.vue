@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
+
 import { reactive, watch, ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type {
@@ -107,7 +109,7 @@ const defaultFormState = {
   greetings: [] as GreetingMessage[],
   defaultGreetingId: "", // 默认选中的开局消息 ID
   displayPresetCount: 0, // 显示的预设消息数量
-  parameters: { temperature: 1, maxTokens: 8192 } as LlmParameters,
+  parameters: { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS } as LlmParameters,
   defaultToolCallCollapsed: false,
   visualGuideline: "",
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置

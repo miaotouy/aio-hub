@@ -169,9 +169,7 @@ describe("OpenAI Responses provider adapter", () => {
             },
           ],
           instructions: "Be concise.",
-          temperature: 0.2,
           max_output_tokens: 2048,
-          top_p: 0.8,
           tools: [
             {
               type: "function",

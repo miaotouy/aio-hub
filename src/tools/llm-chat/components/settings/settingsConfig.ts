@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { OUTPUT_TOKEN_INPUT_MAX } from "@aiohub/llm-core";
 import { defineAsyncComponent } from "vue";
 import {
   Settings2,
@@ -1595,7 +1596,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transImageMaxTokens",
         label: "图片输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.image.maxTokens",
         hint: "图片转写结果的最大 token 数",
         keywords: "transcription image max tokens 图片 转写 上限",
@@ -1689,7 +1690,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transAudioMaxTokens",
         label: "音频输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.audio.maxTokens",
         hint: "音频转写结果的最大 token 数",
         keywords: "transcription audio max tokens 音频 转写 上限",
@@ -1787,7 +1788,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transVideoMaxTokens",
         label: "视频输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.video.maxTokens",
         hint: "视频转写结果的最大 token 数",
         keywords: "transcription video max tokens 视频 转写 上限",
@@ -2125,7 +2126,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transDocumentMaxTokens",
         label: "文档输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.document.maxTokens",
         hint: "文档转写结果的最大 token 数",
         keywords: "transcription document max tokens 文档 转写 上限",

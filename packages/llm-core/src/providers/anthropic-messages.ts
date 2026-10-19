@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../output-tokens";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -90,7 +91,10 @@ export function buildAnthropicMessagesBody(
         (message) => message.role !== "system" && message.role !== "developer"
       )
       .map(buildAnthropicMessage),
-    max_tokens: request.maxCompletionTokens ?? request.maxTokens ?? 4096,
+    max_tokens:
+      request.maxCompletionTokens ??
+      request.maxTokens ??
+      DEFAULT_MAX_OUTPUT_TOKENS,
   };
 
   if (system) body.system = system;
@@ -142,6 +146,11 @@ export function buildAnthropicMessagesBody(
   if (toolChoice) body.tool_choice = toolChoice;
 
   Object.assign(body, request.extraBody, request.extensions);
+  if (usesAdaptiveThinking(request) || request.thinkingEnabled) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_k;
+  }
   if (request.stream) body.stream = true;
   return body;
 }

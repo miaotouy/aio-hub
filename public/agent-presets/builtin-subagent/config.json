@@ -13,8 +13,7 @@
     "onlySubVisible": true
   },
   "parameters": {
-    "temperature": 0.5,
-    "maxTokens": 8192
+    "maxTokens": 65536
   },
   "presetMessages": [
     {

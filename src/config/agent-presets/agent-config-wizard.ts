@@ -22,6 +22,7 @@
  * 4. 理解高级功能（知识库、工具调用、资产系统、正则管道等）
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import type { AgentPreset } from "@/tools/llm-chat/types";
 import { AgentCategory } from "@/tools/llm-chat/types";
 
@@ -392,7 +393,7 @@ const preset: Omit<AgentPreset, "id"> = {
   ],
   displayPresetCount: 1,
   parameters: {
-    maxTokens: 8192,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
     contextPostProcessing: {
       rules: [
         {

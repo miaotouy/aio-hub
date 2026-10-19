@@ -40,19 +40,22 @@ import type { RawFetchPayload } from "../../types";
 
 const store = useWebDistilleryStore();
 const router = useRouter();
-const { profiles } = useLlmProfiles();
+const { profiles, getEnabledProfileByType } = useLlmProfiles();
 const deepSeekProfiles = computed(() =>
   profiles.value.filter(
     (profile) => profile.type === "deepseek" && profile.enabled
   )
 );
+const automaticDeepSeekProfile = computed(() =>
+  getEnabledProfileByType("deepseek")
+);
+const unavailableDeepSeekProfile = computed(
+  () =>
+    Boolean(store.config.deepseek.profileId) &&
+    !getEnabledProfileByType("deepseek", store.config.deepseek.profileId)
+);
 const selectedDeepSeekProfile = computed({
-  get: () =>
-    deepSeekProfiles.value.some(
-      (profile) => profile.id === store.config.deepseek.profileId
-    )
-      ? store.config.deepseek.profileId
-      : "",
+  get: () => store.config.deepseek.profileId,
   set: (profileId: string) => store.updateConfig({ deepseek: { profileId } }),
 });
 const logger = createModuleLogger("web-distillery/settings");
@@ -197,17 +200,31 @@ const handleTestJinaConnection = async () => {
           <div class="field-label-group">
             <span class="field-title">连接渠道</span
             ><span class="field-hint"
-              >在 LLM 服务中添加并启用 DeepSeek 渠道后选择</span
+              >自动使用首个已启用的 DeepSeek 渠道，也可手动指定</span
             >
           </div>
           <div class="field-control-group">
             <el-select
               v-model="selectedDeepSeekProfile"
+              :empty-values="[null, undefined]"
               class="deepseek-profile-select"
               aria-label="DeepSeek 渠道"
-              placeholder="选择 DeepSeek 渠道"
-              clearable
+              placeholder="自动选择 DeepSeek 渠道"
             >
+              <el-option
+                :label="
+                  automaticDeepSeekProfile
+                    ? `自动选择（${automaticDeepSeekProfile.name}）`
+                    : '自动选择（暂无可用渠道）'
+                "
+                value=""
+              />
+              <el-option
+                v-if="unavailableDeepSeekProfile"
+                :value="store.config.deepseek.profileId"
+                label="所选渠道已失效，请重新选择"
+                disabled
+              />
               <el-option
                 v-for="profile in deepSeekProfiles"
                 :key="profile.id"

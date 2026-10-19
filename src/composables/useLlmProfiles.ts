@@ -327,6 +327,19 @@ export function useLlmProfiles() {
     return profiles.value.find((p) => p.id === id);
   };
 
+  /** 按提供商解析启用渠道；空绑定使用列表首项，显式绑定失效时保留待修复状态。 */
+  const getEnabledProfileByType = (
+    type: ProviderType,
+    profileId = ""
+  ): LlmProfile | undefined => {
+    return profiles.value.find(
+      (profile) =>
+        profile.enabled &&
+        profile.type === type &&
+        (!profileId || profile.id === profileId)
+    );
+  };
+
   /**
    * 获取所有启用的配置
    */
@@ -460,6 +473,7 @@ export function useLlmProfiles() {
     saveProfile,
     deleteProfile,
     getProfileById,
+    getEnabledProfileByType,
     enabledProfiles,
     visionProfiles,
     toggleProfileEnabled,

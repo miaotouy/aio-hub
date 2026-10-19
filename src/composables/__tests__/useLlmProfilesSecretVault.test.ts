@@ -160,3 +160,50 @@ describe("useLlmProfiles secret vault bridging", () => {
     });
   });
 });
+
+describe("useLlmProfiles provider selection", () => {
+  it("自动选择按列表顺序匹配已启用的提供商渠道，并响应渠道变更", async () => {
+    const { store } = await bootstrapWithLegacyProfiles([]);
+    const first: LlmProfile = {
+      ...legacyProfile(),
+      id: "deepseek-first",
+      type: "deepseek",
+    };
+    const second = { ...first, id: "deepseek-second" };
+    const disabled = { ...first, id: "deepseek-disabled", enabled: false };
+    store.profiles.value = [legacyProfile(), disabled, first, second];
+
+    expect(store.getEnabledProfileByType("deepseek")?.id).toBe(first.id);
+    store.profiles.value = [legacyProfile(), disabled, second, first];
+    expect(store.getEnabledProfileByType("deepseek", "")?.id).toBe(second.id);
+    store.profiles.value[2].enabled = false;
+    expect(store.getEnabledProfileByType("deepseek")?.id).toBe(first.id);
+    store.profiles.value = [legacyProfile(), disabled];
+    expect(store.getEnabledProfileByType("deepseek")).toBeUndefined();
+  });
+
+  it("显式绑定优先于列表顺序，绑定缺失、停用或提供商不匹配时返回待修复状态", async () => {
+    const { store } = await bootstrapWithLegacyProfiles([]);
+    const first: LlmProfile = {
+      ...legacyProfile(),
+      id: "deepseek-first",
+      type: "deepseek",
+    };
+    const selected = { ...first, id: "deepseek-selected" };
+    store.profiles.value = [legacyProfile(), first, selected];
+
+    expect(store.getEnabledProfileByType("deepseek", selected.id)?.id).toBe(
+      selected.id
+    );
+    store.profiles.value[2].enabled = false;
+    expect(
+      store.getEnabledProfileByType("deepseek", selected.id)
+    ).toBeUndefined();
+    expect(
+      store.getEnabledProfileByType("deepseek", "deleted")
+    ).toBeUndefined();
+    expect(
+      store.getEnabledProfileByType("deepseek", PROFILE_ID)
+    ).toBeUndefined();
+  });
+});

@@ -15,13 +15,18 @@ import { stripMarkdownLinks } from "../../utils/markdown";
 import { DistilleryError } from "./errors";
 
 async function resolveProfile(config: WebDistilleryConfig) {
-  const { loadProfiles, getProfileById } = useLlmProfiles();
+  const { loadProfiles, getEnabledProfileByType } = useLlmProfiles();
   await loadProfiles();
-  const profile = getProfileById(config.deepseek.profileId);
-  if (!profile || !profile.enabled || profile.type !== "deepseek") {
+  const profile = getEnabledProfileByType(
+    "deepseek",
+    config.deepseek.profileId
+  );
+  if (!profile) {
     throw new DistilleryError(
       "MISSING_PROFILE",
-      "请在网页蒸馏的偏好设置中选择已启用的 DeepSeek 渠道"
+      config.deepseek.profileId
+        ? "所选 DeepSeek 渠道已失效，请在网页蒸馏的偏好设置中重新选择渠道"
+        : "请在 LLM 服务中添加并启用 DeepSeek 渠道"
     );
   }
   return profile;

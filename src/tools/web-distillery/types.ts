@@ -47,7 +47,7 @@ export interface WebDistilleryConfig {
     removeSelector?: string; // 默认剔除选择器 (X-Remove-Selector)
   };
 
-  /** 复用 LLM 服务渠道，凭据由渠道密钥仓库管理。 */
+  /** 复用 LLM 服务渠道；profileId 为空时自动选择首个已启用的 DeepSeek 渠道。凭据由渠道密钥仓库管理。 */
   deepseek: { profileId: string };
 
   // 抓取与网络偏好

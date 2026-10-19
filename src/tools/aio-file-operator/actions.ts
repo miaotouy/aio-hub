@@ -17,10 +17,13 @@
  * 封装底层的 Tauri 命令调用、文档解析逻辑和换行符安全替换
  */
 import { invoke } from "@tauri-apps/api/core";
+import { inferMimeTypeFromHint } from "@/utils/fileTypeDetector";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import {
   validatePath,
+  resolvePathForSecurity,
+  checkSecurityPolicy,
   validateFileSize,
   sanitizeParamsForError,
   clampErrorMessage,
@@ -124,11 +127,12 @@ function recordLog(
 ): void {
   if (!currentConfig.enableAuditLog) return;
 
+  const { localMedia: _localMedia, ...auditResult } = result;
   operationLogs.push({
     timestamp: Date.now(),
     method,
     params,
-    result,
+    result: auditResult,
   });
 
   // 只保留最近 100 条日志
@@ -163,7 +167,7 @@ function buildErrorResult(
 
 /**
  * 读取文件内容
- * 支持普通文本、Word (.docx)、PDF (.pdf)
+ * 支持文本、Office、PDF，以及图片、音频、视频的本地引用
  */
 export async function readFile(path: string): Promise<FileOperationResult> {
   try {
@@ -185,6 +189,41 @@ export async function readFile(path: string): Promise<FileOperationResult> {
 
     // 大文件保护
     validateFileSize(metadata.size, currentConfig.maxFileSize);
+
+    const name = path.split(/[\\/]/).pop() || path;
+    const mimeType = inferMimeTypeFromHint(name) || "application/octet-stream";
+    const mediaType = mimeType.split("/")[0];
+    if (
+      mediaType === "image" ||
+      mediaType === "audio" ||
+      mediaType === "video"
+    ) {
+      const resolvedPath = await resolvePathForSecurity(path);
+      await validatePath(resolvedPath, currentConfig);
+      const policy = await checkSecurityPolicy(
+        "read_file",
+        { path: resolvedPath },
+        currentConfig
+      );
+      const result: FileOperationResult = {
+        success: true,
+        message: `已读取本地媒体信息: ${path}`,
+        data: { path, name, mimeType, mediaType, size: metadata.size },
+        localMedia: [
+          {
+            id: crypto.randomUUID(),
+            type: mediaType,
+            name,
+            path: resolvedPath,
+            mimeType,
+            size: metadata.size,
+            ...(policy.status === "approve" ? { approvalGranted: true } : {}),
+          },
+        ],
+      };
+      recordLog("readFile", { path }, result);
+      return result;
+    }
 
     // 根据扩展名选择解析方式
     const ext = path.split(".").pop()?.toLowerCase() || "";
@@ -286,6 +325,37 @@ export async function readFile(path: string): Promise<FileOperationResult> {
   } catch (error: any) {
     return buildErrorResult("readFile", { path }, error, "读取文件失败");
   }
+}
+
+/** 发送管道按需读取本地媒体，每次读取重新应用当前路径规则和大小限制。 */
+export async function readLocalMediaFile(
+  path: string,
+  approvalGranted = false
+): Promise<ArrayBuffer> {
+  await ensureInitialized();
+  const policy = await checkSecurityPolicy(
+    "readLocalMediaFile",
+    { path },
+    currentConfig
+  );
+  if (policy.status === "block")
+    throw new Error(policy.message || "路径访问已被禁止");
+  if (policy.status === "approve" && !approvalGranted) {
+    throw new Error(
+      "本地媒体文件当前需要审批，请重新调用 read_file 并完成审批。"
+    );
+  }
+  const metadata = await invoke<{ size: number; isFile: boolean }>(
+    "get_file_metadata",
+    { path }
+  );
+  if (!metadata.isFile) throw new Error(`路径不是文件: ${path}`);
+  validateFileSize(metadata.size, currentConfig.maxFileSize);
+  const bytes = new Uint8Array(
+    await invoke<number[]>("read_file_binary", { path })
+  );
+  validateFileSize(bytes.byteLength, currentConfig.maxFileSize);
+  return bytes.buffer;
 }
 
 /**

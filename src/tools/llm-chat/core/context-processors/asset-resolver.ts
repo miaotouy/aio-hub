@@ -229,6 +229,14 @@ export const assetResolver: ContextProcessor = {
           processedCount++;
         } catch (error) {
           errorCount++;
+          if (asset.source.kind === "local-file") {
+            const reason =
+              error instanceof Error ? error.message : String(error);
+            newContentParts.push({
+              type: "text",
+              text: `本地媒体 [${asset.name}] 读取失败：${reason.slice(0, 500)}。请检查原文件路径和访问权限。`,
+            });
+          }
           errorHandler.handle(error as Error, {
             userMessage: `附件 [${asset.name}] 解析失败`,
             context: { assetId: asset.id },

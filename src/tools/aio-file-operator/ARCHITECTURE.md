@@ -1,6 +1,6 @@
 # Aio File Operator: 架构与开发者指南
 
-> 更新日期：2026-08-01
+> 更新日期：2026-10-19
 
 本文档描述 `aio-file-operator` 的模块定位、调用链、安全边界和维护要点。该工具面向 Agent 暴露受控的本地文件读写能力，同时提供可视化配置与审计日志。
 
@@ -102,20 +102,20 @@ graph TB
 
 ### 4.1. Agent 方法清单
 
-| 方法               | 用途                               | 关键保护                             |
-| ------------------ | ---------------------------------- | ------------------------------------ |
-| `read_file`        | 读取文本、Office、PDF、CSV 等文件  | 路径沙箱、文件大小上限、文件类型校验 |
-| `write_file`       | 写入文本文件                       | 路径沙箱、覆盖策略、父目录自动创建   |
-| `append_file`      | 追加文本内容                       | 路径沙箱、审计日志                   |
-| `delete_file`      | 删除文件到系统回收站               | 路径沙箱、非粉碎删除                 |
-| `list_directory`   | 列出目录条目与元数据               | 路径沙箱、逐项元数据容错             |
-| `apply_diff`       | 对文本文件应用 Search/Replace 修改 | 路径沙箱、换行符保持、diff 匹配策略  |
-| `create_directory` | 递归创建目录                       | 路径沙箱                             |
-| `path_exists`      | 检查路径是否存在                   | 路径沙箱                             |
-| `copy_file`        | 复制文件/目录（递归）              | 双路径沙箱、覆盖策略                 |
-| `move_file`        | 移动/重命名文件/目录               | 双路径沙箱、覆盖策略、跨盘回退       |
-| `get_file_info`    | 查询文件/目录元数据                | 路径沙箱、不读取内容                 |
-| `search_files`     | 按通配符/子串递归搜索文件名        | 路径沙箱、结果数上限（≤1000）        |
+| 方法               | 用途                                      | 关键保护                             |
+| ------------------ | ----------------------------------------- | ------------------------------------ |
+| `read_file`        | 读取文本、Office、PDF、CSV 及本地媒体引用 | 路径沙箱、文件大小上限、文件类型校验 |
+| `write_file`       | 写入文本文件                              | 路径沙箱、覆盖策略、父目录自动创建   |
+| `append_file`      | 追加文本内容                              | 路径沙箱、审计日志                   |
+| `delete_file`      | 删除文件到系统回收站                      | 路径沙箱、非粉碎删除                 |
+| `list_directory`   | 列出目录条目与元数据                      | 路径沙箱、逐项元数据容错             |
+| `apply_diff`       | 对文本文件应用 Search/Replace 修改        | 路径沙箱、换行符保持、diff 匹配策略  |
+| `create_directory` | 递归创建目录                              | 路径沙箱                             |
+| `path_exists`      | 检查路径是否存在                          | 路径沙箱                             |
+| `copy_file`        | 复制文件/目录（递归）                     | 双路径沙箱、覆盖策略                 |
+| `move_file`        | 移动/重命名文件/目录                      | 双路径沙箱、覆盖策略、跨盘回退       |
+| `get_file_info`    | 查询文件/目录元数据                       | 路径沙箱、不读取内容                 |
+| `search_files`     | 按通配符/子串递归搜索文件名               | 路径沙箱、结果数上限（≤1000）        |
 
 ## 5. 数据流
 
@@ -165,6 +165,7 @@ flowchart TD
     F -->|pptx| I["read_file_binary + parsePptx"]
     F -->|xlsx| J["read_file_binary + parseXlsx"]
     F -->|pdf| K["read_file_binary + pdfjs-dist"]
+    F -->|图片/音频/视频| O["解析真实路径<br/>记录本地媒体引用"]
     F -->|csv/其他| L["read_text_file_force"]
     G --> M["recordLog"]
     H --> M
@@ -172,8 +173,15 @@ flowchart TD
     J --> M
     K --> M
     L --> M
-    M --> N["返回 content + size"]
+    O --> M
+    M --> N["返回文本内容或媒体信息 + localMedia"]
 ```
+
+多媒体读取沿用 `read_file(path)`，通过共享 MIME 扩展名映射识别图片、音频和视频；例如 PNG/JPEG/WebP、MP3/WAV/FLAC、MP4/WebM/MOV。读取工具校验沙箱、文件类型和大小后，返回已解析的本地绝对路径和元数据，顶层 `localMedia` 携带轻量引用。
+
+消息节点在 `localMedia` 中保存引用，用户附件列表和资产库保持原有语义。发送管道将引用转换为 `source.kind = "local-file"` 的临时媒体输入，通过 `readLocalMediaFile()` 重新检查当前路径规则、文件状态和读取前后的大小，再读取原路径的最新字节。模型和服务商需支持相应媒体格式。原调用在审批区获得的单文件授权随引用保留；普通路径后来改为审批区时，需重新调用 `read_file` 完成审批。原文件移动、删除或访问被禁止时，模型上下文会收到明确的读取错误；在其他机器重放会话时需重新指定可访问的本地路径。
+
+审计日志仅记录路径和媒体元数据，媒体字节仅在请求构建期间驻留内存。
 
 ### 5.3. 写入与覆盖策略
 
@@ -273,7 +281,7 @@ flowchart TD
 | ------------------------- | -------------------------------------- |
 | `get_file_metadata`       | 获取大小、文件/目录类型、创建/修改时间 |
 | `read_text_file_force`    | 读取文本文件                           |
-| `read_file_binary`        | 读取二进制文件供文档解析               |
+| `read_file_binary`        | 读取二进制文件供文档解析和本地媒体引用 |
 | `write_text_file_force`   | 写入文本文件                           |
 | `append_file_force`       | 追加字节内容                           |
 | `delete_file_to_trash`    | 移入系统回收站                         |
@@ -298,14 +306,14 @@ flowchart TD
 
 ## 10. 类型系统
 
-| 类型                        | 用途                                                           |
-| --------------------------- | -------------------------------------------------------------- |
-| `FileOperationResult`       | 所有 Agent 方法统一返回结构：`success`、`message`、可选 `data` |
-| `FileEntry`                 | `list_directory` 返回的文件/目录条目                           |
-| `OperationLogEntry`         | 审计日志条目                                                   |
-| `SecurityRule`              | 死区/审批区规则                                                |
-| `AioFileOperatorConfig`     | 工具配置和 UI 状态                                             |
-| `ReadFileParams` 等参数类型 | 记录 Agent 方法的输入契约                                      |
+| 类型                        | 用途                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `FileOperationResult`       | 所有 Agent 方法统一返回结构：`success`、`message`、可选 `data` 和本地媒体 `localMedia` |
+| `FileEntry`                 | `list_directory` 返回的文件/目录条目                                                   |
+| `OperationLogEntry`         | 审计日志条目                                                                           |
+| `SecurityRule`              | 死区/审批区规则                                                                        |
+| `AioFileOperatorConfig`     | 工具配置和 UI 状态                                                                     |
+| `ReadFileParams` 等参数类型 | 记录 Agent 方法的输入契约                                                              |
 
 ## 11. 测试策略
 
@@ -313,6 +321,7 @@ flowchart TD
 
 - 写入覆盖策略与自动重命名
 - 文本读取、元数据校验和大文件保护
+- 图片/音频/视频附件的本地引用、按需安全读取、读取期间大小变化、沙箱拦截、审计元数据与执行器附件分流
 - 删除、追加、目录列表、创建目录、路径存在检查
 - Search/Replace Diff 匹配与换行符保持
 - 复制/移动（`copy_file` / `move_file`）与双路径沙箱拦截

@@ -274,3 +274,79 @@ describe("reasoning across tool-call iterations", () => {
     }
   });
 });
+
+describe("tool result local media", () => {
+  it("stores returned media on the tool node for the next request and history replay", async () => {
+    vi.clearAllMocks();
+    const media = {
+      id: "tool-image",
+      type: "image" as const,
+      name: "photo.png",
+      path: "C:/media/photo.png",
+      mimeType: "image/png",
+      size: 3,
+    };
+    const first = useNodeManager().createNode({
+      role: "assistant",
+      content: "tool request",
+      parentId: null,
+      status: "complete",
+      metadata: { agentId: "agent", profileId: "profile", modelId: "model" },
+    });
+    const session: ChatSessionDetail = {
+      id: "media-session",
+      nodes: { [first.id]: first },
+      rootNodeId: first.id,
+      activeLeafId: first.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    };
+    const request = { requestId: "read", toolName: "read_file", args: {} };
+    mocks.parseToolRequests.mockImplementation((text: string) =>
+      text === "tool request" ? [request] : []
+    );
+    mocks.processCycle
+      .mockResolvedValueOnce({
+        hasToolRequests: true,
+        parsedRequests: [request],
+        executionResults: [
+          {
+            ...request,
+            status: "success",
+            durationMs: 1,
+            localMedia: [media],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ hasToolRequests: false });
+    mocks.sendRequest.mockResolvedValue({ content: "answer" });
+    try {
+      await useToolCallOrchestrator().orchestrate({
+        session,
+        assistantNode: first,
+        pathToUserNode: [],
+        isReparse: true,
+        agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+        executionAgent: {
+          id: "agent",
+          toolCallConfig: { enabled: true, protocol: "vcp", maxIterations: 3 },
+        } as ChatAgent,
+        effectiveUserProfile: null,
+        abortControllers: new Map(),
+        generatingNodes: new Set(),
+        consumeTextCallsLocally: true,
+      });
+      const toolNode = Object.values(session.nodes).find(
+        (node) => node.role === "tool"
+      );
+      expect(toolNode?.localMedia).toEqual([media]);
+      expect(toolNode?.attachments).toBeUndefined();
+      expect(toolNode?.content).toBe("tool result");
+      expect(session.nodes[session.activeLeafId].parentId).toBe(toolNode?.id);
+    } finally {
+      for (const id of Object.keys(session.nodes))
+        disposeStreamingMessageSource(id);
+    }
+  });
+});

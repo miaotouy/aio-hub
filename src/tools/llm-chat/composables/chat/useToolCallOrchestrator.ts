@@ -364,6 +364,9 @@ export function useToolCallOrchestrator() {
               const updatedNode: ChatMessageNode = {
                 ...node,
                 content: toolResultText,
+                localMedia: cycleResult.executionResults.flatMap(
+                  (result) => result.localMedia ?? []
+                ),
                 status: "complete",
                 metadata: {
                   ...node.metadata,

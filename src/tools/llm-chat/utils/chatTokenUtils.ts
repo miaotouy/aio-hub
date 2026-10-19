@@ -29,6 +29,7 @@ import { splitZipDocumentIntoImageAssets } from "../core/context-utils/zip-docum
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import {
   fromAsset,
+  fromLocalMedia,
   type PipelineAttachment,
 } from "../types/pipeline-attachment";
 
@@ -252,6 +253,13 @@ export async function recalculateNodeTokens(
       mediaAttachments = result.mediaAttachments;
     }
 
+    if (node.localMedia?.length) {
+      mediaAttachments = [
+        ...(mediaAttachments ?? []),
+        ...node.localMedia.map(fromLocalMedia),
+      ];
+    }
+
     // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
     const maxImageDimension = await resolveImageMaxDimensionForModel(
       modelId,
@@ -348,6 +356,13 @@ export async function fillMissingTokenMetadata(
               );
               fullContent = result.combinedText;
               mediaAttachments = result.mediaAttachments;
+            }
+
+            if (node.localMedia?.length) {
+              mediaAttachments = [
+                ...(mediaAttachments ?? []),
+                ...node.localMedia.map(fromLocalMedia),
+              ];
             }
 
             // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩）

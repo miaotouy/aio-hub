@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { ToolResultWithLocalMedia } from "@/services/types";
 import type { ToolCallConfig as AgentToolCallConfig } from "@/tools/agent-manager/types/agent";
 
 export interface ParsedToolRequest {
@@ -33,7 +34,7 @@ export interface ParsedToolRequest {
   };
 }
 
-export interface ToolExecutionResult {
+export interface ToolExecutionResult extends ToolResultWithLocalMedia {
   requestId: string;
   toolName: string;
   status: "success" | "error" | "denied";

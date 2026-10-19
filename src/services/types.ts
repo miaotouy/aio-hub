@@ -76,6 +76,7 @@ export interface ServiceMetadata {
 
 import type { Component } from "vue";
 import type { DetachableComponentRegistration } from "@/types/detachable";
+import type { LocalMediaReference } from "@/types/local-media";
 import type { AssetSidecarAction } from "@/types/asset-management";
 import type { SettingItem } from "@/types/settings-renderer";
 import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
@@ -308,8 +309,15 @@ export interface ToolContext {
   isAsync: boolean;
 }
 
+/** 工具结果携带的本地媒体引用，供发送管道按需读取。 */
+export interface ToolResultWithLocalMedia {
+  localMedia?: LocalMediaReference[];
+}
+
 /** 工具需要把结构化审计信息写入消息元数据时使用的标准返回信封。 */
-export interface ToolMethodResult<T = unknown> {
+export interface ToolMethodResult<
+  T = unknown,
+> extends ToolResultWithLocalMedia {
   result: T;
   executionMetadata: Record<string, unknown>;
 }

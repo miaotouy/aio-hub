@@ -210,7 +210,10 @@ export const transcriptionProcessor: ContextProcessor = {
         continue;
       }
 
-      const remainingAttachments: PipelineAttachment[] = [];
+      const remainingAttachments: PipelineAttachment[] =
+        msg._attachments.filter(
+          (attachment) => attachment.source.kind === "local-file"
+        );
       let contentModified = false;
 
       // 用于存储转写结果
@@ -218,10 +221,12 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 预先处理所有附件，获取转写结果
       // 使用预处理阶段获取的最新 Asset，避免重复异步调用
-      let assetsToProcess = msg._attachments.map((asset) => {
-        const updatedAsset = updatedAssetsMap.get(asset.id);
-        return updatedAsset ? fromAsset(updatedAsset) : asset;
-      });
+      let assetsToProcess = msg._attachments
+        .filter((attachment) => attachment.source.kind !== "local-file")
+        .map((asset) => {
+          const updatedAsset = updatedAssetsMap.get(asset.id);
+          return updatedAsset ? fromAsset(updatedAsset) : asset;
+        });
 
       // ─── DOCX 插图拆分：主模型支持视觉时，将内嵌图片直接作为多模态发送 ───
       const hasVision = context.capabilities?.vision === true;

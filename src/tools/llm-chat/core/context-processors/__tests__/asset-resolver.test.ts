@@ -201,6 +201,30 @@ describe("asset resolver media-only request compatibility", () => {
     expect(messages).toEqual(before);
   });
 
+  it("reports a missing local media file in model context", async () => {
+    vi.mocked(getAttachmentBuffer).mockRejectedValueOnce(
+      new Error("文件已移动或删除")
+    );
+    const ctx = context([
+      {
+        role: "user",
+        content: "读取媒体成功",
+        _attachments: [
+          {
+            ...attachment,
+            source: { kind: "local-file", path: "C:/media/photo.png" },
+          },
+        ],
+      },
+    ]);
+    await assetResolver.execute(ctx);
+    expect(ctx.messages[0].content).toContainEqual({
+      type: "text",
+      text: expect.stringContaining("文件已移动或删除"),
+    });
+    expect(ctx.logs[0].level).toBe("warn");
+  });
+
   it("does not fabricate text when all attachments fail to resolve", async () => {
     vi.mocked(getAttachmentBuffer).mockRejectedValue(new Error("unavailable"));
     const ctx = context([

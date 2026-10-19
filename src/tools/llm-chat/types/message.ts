@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { LocalMediaReference } from "@/types/local-media";
 import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
@@ -151,6 +152,9 @@ export interface ChatMessageNode {
    * 附加到此消息的文件资产列表
    */
   attachments?: Asset[];
+
+  /** 工具读取的本地媒体路径引用，原文件由用户管理。 */
+  localMedia?: LocalMediaReference[];
 
   /** 用户显式选择的版本化 Knowledge 引用。 */
   knowledgeReference?: KnowledgeReference;

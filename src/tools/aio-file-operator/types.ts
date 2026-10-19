@@ -16,6 +16,8 @@
  * aio-file-operator 类型定义
  */
 
+import type { ToolResultWithLocalMedia } from "@/services/types";
+
 /** 文件条目信息 */
 export interface FileEntry {
   name: string;
@@ -105,7 +107,7 @@ export interface SearchFilesParams {
 }
 
 /** 文件操作结果 */
-export interface FileOperationResult {
+export interface FileOperationResult extends ToolResultWithLocalMedia {
   success: boolean;
   message: string;
   data?: any;

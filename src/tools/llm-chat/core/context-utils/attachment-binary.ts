@@ -41,6 +41,15 @@ export async function getAttachmentBuffer(
     case "asset-library":
       return assetManagerEngine.getAssetBinary(attachment.source.path);
 
+    case "local-file": {
+      const { readLocalMediaFile } =
+        await import("@/tools/aio-file-operator/actions");
+      return readLocalMediaFile(
+        attachment.source.path,
+        attachment.source.approvalGranted === true
+      );
+    }
+
     case "agent-private": {
       const agentDir = await join(
         await appConfigDir(),

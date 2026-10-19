@@ -21,7 +21,7 @@ import type {
   ChatSessionDetail,
 } from "@/tools/llm-chat/types";
 import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
-import { fromAsset } from "../../types/pipeline-attachment";
+import { fromAsset, fromLocalMedia } from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -255,7 +255,10 @@ export const sessionLoader: ContextProcessor = {
       let role = node.role;
       if (
         role === "tool" &&
-        (convertToolRoleToUser || node.metadata?.vcpResponse?.kind === "tool")
+        (convertToolRoleToUser ||
+          node.attachments?.length ||
+          node.localMedia?.length ||
+          node.metadata?.vcpResponse?.kind === "tool")
       ) {
         role = "user";
       }
@@ -291,7 +294,12 @@ export const sessionLoader: ContextProcessor = {
         reasoningArtifacts: node.metadata?.reasoningArtifacts,
         sourceType: "session_history",
         sourceId: node.id,
-        _attachments: node.attachments?.map(fromAsset),
+        _attachments: node.localMedia?.length
+          ? [
+              ...(node.attachments?.map(fromAsset) ?? []),
+              ...node.localMedia.map(fromLocalMedia),
+            ]
+          : node.attachments?.map(fromAsset),
         metadata: node.metadata,
       };
       messages.push(processableMessage);

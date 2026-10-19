@@ -136,4 +136,46 @@ describe("sessionLoader", () => {
     expect(context.messages[1].reasoningContent).toBe("intermediate thought");
     expect(context.messages[3].reasoningContent).toBeUndefined();
   });
+  it("replays tool local media references as user media even when text tools keep their role", async () => {
+    const nodes = {
+      u: node("u", null, "user", "read photo", ["t"]),
+      t: node("t", "u", "tool", "read succeeded", ["a"]),
+      a: node("a", "t", "assistant", "answer"),
+    };
+    nodes.t.localMedia = [
+      {
+        id: "photo",
+        type: "image",
+        name: "photo.png",
+        mimeType: "image/png",
+        path: "C:/media/photo.png",
+        size: 3,
+      },
+    ];
+    const context = createContext({
+      id: "media",
+      updatedAt: "2026-10-19T00:00:00Z",
+      nodes,
+      rootNodeId: "u",
+      activeLeafId: "a",
+      history: [],
+      historyIndex: -1,
+    } as ChatSessionDetail);
+    context.agentConfig!.toolCallConfig = {
+      convertToolRoleToUser: false,
+    } as any;
+    await sessionLoader.execute(context);
+    expect(
+      context.messages.find((message) => message.sourceId === "t")
+    ).toMatchObject({
+      role: "user",
+      content: "read succeeded",
+      _attachments: [
+        {
+          type: "image",
+          source: { kind: "local-file", path: "C:/media/photo.png" },
+        },
+      ],
+    });
+  });
 });

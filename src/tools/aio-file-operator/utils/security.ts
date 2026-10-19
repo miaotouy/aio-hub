@@ -197,7 +197,7 @@ export function isPathWithinRoot(
   return target.startsWith(`${root.replace(/\/+$/, "")}/`);
 }
 
-async function resolvePathForSecurity(path: string): Promise<string> {
+export async function resolvePathForSecurity(path: string): Promise<string> {
   if (!isAbsolutePath(path)) {
     throw new Error(
       `安全沙箱拦截：路径必须是绝对路径（收到: "${formatPathForError(path)}")）。`

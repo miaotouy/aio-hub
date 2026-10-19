@@ -21,7 +21,11 @@ import type {
   ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
-import type { ToolContext, ToolMethodResult } from "@/services/types";
+import type {
+  ToolContext,
+  ToolMethodResult,
+  ToolResultWithLocalMedia,
+} from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { taskManager } from "./async-task";
 
@@ -425,7 +429,19 @@ async function executeSingleRequest(
       "result" in data
         ? (data as ToolMethodResult)
         : undefined;
-    const resultData = structured?.result ?? data;
+    let resultData = structured?.result ?? data;
+    let localMedia = structured?.localMedia;
+    if (
+      resultData !== null &&
+      typeof resultData === "object" &&
+      "localMedia" in resultData &&
+      Array.isArray(resultData.localMedia)
+    ) {
+      const { localMedia: resultMedia, ...textResult } =
+        resultData as ToolResultWithLocalMedia & Record<string, unknown>;
+      localMedia ??= resultMedia;
+      resultData = textResult;
+    }
     const result =
       typeof resultData === "string"
         ? resultData
@@ -439,6 +455,7 @@ async function executeSingleRequest(
       status: "success",
       result,
       durationMs,
+      ...(localMedia?.length ? { localMedia } : {}),
       metadata: isRuleAutoApprove
         ? { ...(structured?.executionMetadata ?? {}), approvalOrigin: "rule" }
         : structured?.executionMetadata,

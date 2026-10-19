@@ -224,6 +224,100 @@ describe("AioFileOperator Registry", () => {
       expect(result.data.content).toBe("hello world");
     });
 
+    it.each([
+      ["C:\\test\\photo.PNG", "image", "image/png"],
+      ["C:/test/voice.mp3", "audio", "audio/mpeg"],
+      ["C:/test/clip.mp4", "video", "video/mp4"],
+    ])("读取 %s 时返回本地引用，保留原文件", async (path, type, mimeType) => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata")
+          return { size: 3, isFile: true, isDir: false };
+        return null;
+      });
+      const result = await registry.read_file({ path });
+      expect(result).toMatchObject({
+        success: true,
+        data: { path, mimeType, mediaType: type, size: 3 },
+        localMedia: [
+          { type, mimeType, size: 3, path: path.replace(/\\/g, "/") },
+        ],
+      });
+      expect(mockInvoke.mock.calls.map(([command]) => command)).not.toContain(
+        "import_asset_from_bytes"
+      );
+      const logs = await actions.getOperationLogs();
+      expect(logs[logs.length - 1]?.result).toEqual({
+        success: true,
+        message: result.message,
+        data: result.data,
+      });
+    });
+
+    it("发送时从原路径读取当前内容，并重新检查访问规则", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") return { size: 3, isFile: true };
+        if (cmd === "read_file_binary") return [9, 8, 7];
+        return null;
+      });
+      const result = await registry.read_file({ path: "C:/test/photo.png" });
+      const path = result.localMedia![0].path;
+      expect(new Uint8Array(await actions.readLocalMediaFile(path))).toEqual(
+        new Uint8Array([9, 8, 7])
+      );
+      await whitelistDirs(["C:/Other"]);
+      await expect(actions.readLocalMediaFile(path)).rejects.toThrow(
+        "安全沙箱拦截"
+      );
+    });
+
+    it("路径改为审批区后要求重新审批，并读取已批准文件", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") return { size: 3, isFile: true };
+        if (cmd === "read_file_binary") return [1, 2, 3];
+        return null;
+      });
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "approval", path: "C:/test", type: "approve" }],
+      });
+      await expect(
+        actions.readLocalMediaFile("C:/test/photo.png")
+      ).rejects.toThrow("重新调用 read_file");
+      const approved = await registry.read_file({ path: "C:/test/photo.png" });
+      expect(approved.localMedia![0].approvalGranted).toBe(true);
+      expect(
+        new Uint8Array(
+          await actions.readLocalMediaFile(
+            approved.localMedia![0].path,
+            approved.localMedia![0].approvalGranted
+          )
+        )
+      ).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    it("媒体文件在实际读取期间增长超过上限时拒绝发送", async () => {
+      await actions.setConfig({ maxFileSize: 2 });
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") return { size: 1, isFile: true };
+        if (cmd === "read_file_binary") return [1, 2, 3];
+        return null;
+      });
+      await expect(
+        actions.readLocalMediaFile("C:/test/clip.mp4")
+      ).rejects.toThrow("超过限制");
+      await actions.setConfig({ maxFileSize: 10 * 1024 * 1024 });
+    });
+
+    it("媒体路径越过沙箱时在读取前拦截", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.read_file({ path: "C:/Secret/photo.png" });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("安全沙箱拦截");
+      expect(mockInvoke.mock.calls.map(([command]) => command)).not.toContain(
+        "read_file_binary"
+      );
+    });
+
     it("路径不是文件时应失败", async () => {
       mockInvoke.mockImplementation(async (cmd: string) => {
         if (cmd === "get_file_metadata")
@@ -1212,6 +1306,43 @@ describe("AioFileOperator Registry", () => {
 
     beforeEach(async () => {
       resetInvokeMock();
+    });
+
+    it("执行器将本地媒体引用独立回传，文本结果保留文件信息", async () => {
+      await allowAllPaths();
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata")
+          return { size: 3, isFile: true, isDir: false };
+        if (cmd === "read_file_binary") return [1, 2, 3];
+        return null;
+      });
+      const [result] = await executeToolRequests(
+        [
+          {
+            requestId: "media-read",
+            toolId: "aio-file-operator",
+            methodName: "read_file",
+            toolName: "本地文件操作器",
+            rawBlock: "",
+            args: { path: "C:/test/photo.png" },
+          },
+        ],
+        { config: defaultToolConfig }
+      );
+      expect(result.status).toBe("success");
+      expect(result.localMedia).toMatchObject([
+        {
+          path: "C:/test/photo.png",
+          type: "image",
+          mimeType: "image/png",
+          size: 3,
+        },
+      ]);
+      expect(JSON.parse(result.result)).toMatchObject({
+        success: true,
+        data: { mimeType: "image/png", size: 3 },
+      });
+      expect(JSON.parse(result.result).localMedia).toBeUndefined();
     });
 
     it("白名单模式 + 路径不在白名单 → executor 拦截并返回 denied", async () => {

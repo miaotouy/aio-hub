@@ -28,7 +28,7 @@ export const toolConfig: ToolConfig = {
   path: "/aio-file-operator",
   icon: markRaw(FileCog),
   component: () => import("./AioFileOperator.vue"),
-  description: "本地文件安全读写、目录管理与差异修改工具",
+  description: "本地文本、多媒体文件安全读取、文件写入、目录管理与差异修改工具",
   category: ["系统工具", "AI 工具"],
   version: "1.0.0",
 };
@@ -36,7 +36,8 @@ export const toolConfig: ToolConfig = {
 export class AioFileOperatorRegistry implements ToolRegistry {
   public readonly id = "aio-file-operator";
   public readonly name = "本地文件操作器";
-  public readonly description = "本地文件安全读写、目录管理与差异修改工具";
+  public readonly description =
+    "本地文本、多媒体文件安全读取、文件写入、目录管理与差异修改工具";
 
   public readonly settingsSchema: SettingItem[] = [
     {
@@ -102,7 +103,7 @@ export class AioFileOperatorRegistry implements ToolRegistry {
           name: "read_file",
           displayName: "读取文件",
           description:
-            "读取本地文本文件内容。支持普通文本、Word (.docx)、PDF (.pdf) 和 CSV 文件。读取前会自动校验路径安全和大文件限制。",
+            "读取本地文件。文本、Word、PowerPoint、Excel、PDF、CSV 返回提取的文本；图片、音频、视频返回本地路径引用，发送给支持相应输入的模型时按需读取原文件。读取前校验路径安全和文件大小限制。",
           parameters: [
             {
               name: "path",

@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { LocalMediaReference } from "@/types/local-media";
 import type { Asset, AssetMetadata, AssetType } from "@/types/asset-management";
 
 /**
  * 发送管道内部的轻量附件表示。
  *
- * 持久化层和 UI 仍然使用全局 Asset；进入 PipelineContext 后只保留
- * 下游处理器实际需要的字段，并通过 source 描述二进制数据来源。
+ * 用户附件以 Asset 保存，本地工具媒体以 LocalMediaReference 保存。
+ * 进入 PipelineContext 后仅保留下游所需字段，通过 source 描述二进制来源。
  */
 export interface PipelineAttachment {
   id: string;
@@ -33,6 +34,7 @@ export interface PipelineAttachment {
 export type AttachmentSource =
   | { kind: "inline"; base64: string; mimeType: string }
   | { kind: "asset-library"; path: string }
+  | { kind: "local-file"; path: string; approvalGranted?: boolean }
   | { kind: "agent-private"; agentId: string; relativePath: string };
 
 export type AttachmentLike = Asset | PipelineAttachment;
@@ -67,4 +69,19 @@ export function toPipelineAttachment(
   attachment: AttachmentLike
 ): PipelineAttachment {
   return isPipelineAttachment(attachment) ? attachment : fromAsset(attachment);
+}
+
+export function fromLocalMedia(media: LocalMediaReference): PipelineAttachment {
+  return {
+    id: media.id,
+    type: media.type,
+    name: media.name,
+    mimeType: media.mimeType,
+    size: media.size,
+    source: {
+      kind: "local-file",
+      path: media.path,
+      ...(media.approvalGranted ? { approvalGranted: true } : {}),
+    },
+  };
 }

@@ -24,6 +24,8 @@ import {
   Folder,
   FolderAdd,
   Sort,
+  MagicStick,
+  ArrowDown,
 } from "@element-plus/icons-vue";
 
 interface Props {
@@ -31,6 +33,7 @@ interface Props {
   selectedCount: number;
   filteredTotal: number;
   isUploading: boolean;
+  isGenerating: boolean;
   searchQuery: string;
   sortBy: string;
 }
@@ -46,6 +49,8 @@ const emit = defineEmits<{
   (e: "batch-delete"): void;
   (e: "open-assets-dir"): void;
   (e: "upload-click"): void;
+  (e: "generate-descriptions", overwrite: boolean): void;
+  (e: "description-settings"): void;
 }>();
 </script>
 
@@ -67,7 +72,7 @@ const emit = defineEmits<{
         <el-input
           :model-value="searchQuery"
           @update:model-value="emit('update:searchQuery', $event as string)"
-          placeholder="搜索资产 (ID、文件名)..."
+          placeholder="搜索资产 (ID、文件名、描述)..."
           :prefix-icon="Search"
           clearable
           size="small"
@@ -99,6 +104,46 @@ const emit = defineEmits<{
     </div>
 
     <div class="actions">
+      <el-dropdown
+        trigger="click"
+        @command="
+          (command: string) =>
+            command === 'settings'
+              ? emit('description-settings')
+              : emit('generate-descriptions', command === 'overwrite')
+        "
+      >
+        <el-button size="small" :icon="MagicStick">
+          描述生成<el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
+        </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              command="missing"
+              :disabled="
+                isGenerating ||
+                (isSelectionMode ? selectedCount === 0 : filteredTotal === 0)
+              "
+            >
+              {{ isSelectionMode ? "补全所选描述" : "补全当前列表描述" }}
+            </el-dropdown-item>
+            <el-dropdown-item
+              command="overwrite"
+              :disabled="
+                isGenerating ||
+                (isSelectionMode ? selectedCount === 0 : filteredTotal === 0)
+              "
+            >
+              {{
+                isSelectionMode ? "重新生成所选描述" : "重新生成当前列表描述"
+              }}
+            </el-dropdown-item>
+            <el-dropdown-item command="settings" divided
+              >生成设置…</el-dropdown-item
+            >
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
       <template v-if="isSelectionMode">
         <el-button
           size="small"
@@ -161,9 +206,14 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+.dropdown-arrow {
+  margin-left: 6px;
+}
+
 .toolbar {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   padding: 16px;

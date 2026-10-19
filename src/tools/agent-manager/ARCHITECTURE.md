@@ -119,6 +119,15 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 2. **v1 单文件 → v2 目录**：`runMigration()` 将 `agents/` 下遗留的 `{id}.json` 平文件迁为 `{id}/agent.json` 目录结构，头像一并复制，旧文件移入回收站。
 3. **加载期自愈**（`loadAgent` 内）：强制同步 `agent.id` 与目录名；Windows 盘符 / `file://` 绝对路径头像复制进私有目录并改写为相对文件名；`avatarHistory` 缺失时扫描目录图片重建；分类旧字符串按枚举/中文标签/遗留映射归一；最后执行 `migrateAgent()`（[agentMigrationService.ts](./services/agentMigrationService.ts)）补齐 `extensionConfig` 等缺失配置块并升级 Recall 配置到版本 4 结构。
 
+### 5.4 资产短描述
+
+资产管理工具栏提供「描述生成」，可补全当前列表或所选资产的空描述，也可显式重新生成；资产编辑弹窗支持生成、修改后保存。批量结果写入智能体编辑草稿，沿用智能体保存流程。
+
+- **配置**：`agentAssetDescriptionSettings.ts` 使用 `createConfigManager` 在 `agent-manager/asset-description.json` 保存全局描述提示词。设置弹窗展示各类型的模型来源，可直接打开现有转写服务配置。
+- **模型继承**：由转写共享的 `resolveTranscriptionModelIdentifier()` 解析「该类型模型 → 转写默认模型」。每次操作读取配置并固定本批次的绑定和提示词。资产描述使用独立请求及提示词，候选选择与回退由统一渠道执行层负责。
+- **内容输入**：静态图片从原图等比缩放至长边 1024 像素内并遵守模型尺寸限制，使用完整画面；GIF、动态 WebP 和 APNG 保留原始文件、尺寸与动画帧发送，默认交由模型处理，格式或尺寸限制沿用请求错误反馈。音频、视频发送原始媒体内容，音频仅有 ASR 能力时提示配置音频理解模型。文件支持 PDF、DOCX、PPTX、XLSX 与 UTF-8 文本；Office 文件提取正文，纯图文档可能需要转换为 PDF。PDF 优先原生文档输入，否则最多抽样 12 页文本，无可提取文字且模型支持视觉时分析前 4 页预览。长文本使用首尾节选。
+- **资源与输出**：每文件上限 32 MiB，批量并发 2。输出清理思考内容和多余空白，空结果、拒绝结果和超过 120 字的结果作为失败处理；默认提示词要求 60 字内。
+- **写入边界**：生成期间资产被移除、改名或描述被修改时跳过旧结果；取消、关闭资产管理、切换智能体时中止任务并丢弃迟到响应。失败项可查看原因并单独重试，成功项保留。
 ## 6. 模型与上下文配置
 
 智能体编辑器（`EditAgentDialog` / `AgentEditor`）的页签表由 [agentEditConfig.ts](./components/agent-editor/agentEditConfig.ts) 集中定义（提交 `36cd567e2`，2026-10-11）：

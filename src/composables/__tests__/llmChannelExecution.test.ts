@@ -176,6 +176,37 @@ describe("desktop channel boundary", () => {
     ).rejects.toThrow("工具处理方式");
     expect(send).toHaveBeenCalledTimes(0);
   });
+  it("validates PDF document input capabilities before dispatching a virtual binding", async () => {
+    const input = fixture();
+    input.members[0].models[0].capabilities!.document = true;
+    input.members[1].models[0].capabilities!.document = false;
+    const send = vi.fn();
+    await expect(
+      sendChannelRequest(
+        {
+          ...input.options,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "document",
+                  source: {
+                    type: "base64",
+                    media_type: "application/pdf",
+                    data: "pdf",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        input.getProfiles,
+        send
+      )
+    ).rejects.toThrow("能力不足");
+    expect(send).not.toHaveBeenCalled();
+  });
   it("pins opaque reasoning replay to the member that produced it", async () => {
     const input = fixture();
     const payload = { encrypted_content: "opaque-state" };

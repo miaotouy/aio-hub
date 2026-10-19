@@ -58,6 +58,7 @@ export function getRequestCapabilities(
       if (part.type === "image") required.add("vision");
       if (part.type === "audio") required.add("audio");
       if (part.type === "video") required.add("video");
+      if (part.type === "document") required.add("document");
     }
   }
   return [...required];

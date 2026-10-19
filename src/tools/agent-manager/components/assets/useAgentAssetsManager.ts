@@ -632,28 +632,53 @@ export function useAgentAssetsManager(props: Props, emit: any) {
     }
   };
 
-  // 保存编辑
+  // Metadata updates stay in the agent editor draft.
+  const applyGeneratedDescription = (
+    snapshot: AgentAsset,
+    description: string
+  ) => {
+    const index = assets.value.findIndex(
+      (asset) => asset.path === snapshot.path && asset.id === snapshot.id
+    );
+    const current = assets.value[index];
+    if (
+      !current ||
+      (current.description || "") !== (snapshot.description || "")
+    )
+      return false;
+    assets.value = assets.value.map((asset, position) =>
+      position === index ? { ...asset, description } : asset
+    );
+    notifyUpdate();
+    return true;
+  };
+
   const saveEdit = (
     editingAsset: AgentAsset,
     editForm: { id: string; description: string; group: string }
   ) => {
-    const idExists = assets.value.some(
-      (a) => a.id === editForm.id && a !== editingAsset
+    const index = assets.value.findIndex(
+      (asset) => asset.path === editingAsset.path
     );
-    if (idExists) {
+    if (index < 0) {
+      customMessage.warning("资产已被移除，请关闭编辑窗口");
+      return false;
+    }
+    if (
+      assets.value.some(
+        (asset, position) => asset.id === editForm.id && position !== index
+      )
+    ) {
       customMessage.warning("该 ID 已存在，请使用唯一的 ID");
       return false;
     }
-
-    editingAsset.id = editForm.id;
-    editingAsset.description = editForm.description;
-    editingAsset.group = editForm.group;
-
+    assets.value = assets.value.map((asset, position) =>
+      position === index ? { ...asset, ...editForm } : asset
+    );
     notifyUpdate();
     customMessage.success("资产信息已更新");
     return true;
   };
-
   return {
     assets,
     assetGroups,
@@ -687,5 +712,6 @@ export function useAgentAssetsManager(props: Props, emit: any) {
     handleFileObjectsUpload,
     handleDeleteAsset,
     saveEdit,
+    applyGeneratedDescription,
   };
 }

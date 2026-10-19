@@ -64,6 +64,7 @@ const localAssetGroups = computed({
       v-model="localAssets"
       v-model:asset-groups="localAssetGroups"
       :agent-id="agentId"
+      :active="modelValue"
       @physical-change="emit('physical-change')"
     />
   </BaseDialog>

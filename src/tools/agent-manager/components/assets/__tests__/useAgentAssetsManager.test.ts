@@ -103,4 +103,62 @@ describe("useAgentAssetsManager", () => {
     });
     expect(emit).toHaveBeenCalledWith("physical-change");
   });
+  it("applies generated descriptions immutably and protects edited or removed assets", () => {
+    const original = {
+      id: "sample",
+      path: "assets/sample.png",
+      filename: "sample.png",
+      type: "image" as const,
+      description: "",
+    };
+    const emit = vi.fn();
+    const manager = useAgentAssetsManager(
+      { modelValue: [original], agentId: "agent-1" },
+      emit
+    );
+    expect(manager.applyGeneratedDescription({ ...original }, "图片描述")).toBe(
+      true
+    );
+    expect(original.description).toBe("");
+    expect(manager.assets.value[0].description).toBe("图片描述");
+    const snapshot = { ...manager.assets.value[0] };
+    manager.assets.value[0].description = "用户新输入";
+    expect(manager.applyGeneratedDescription(snapshot, "迟到的描述")).toBe(
+      false
+    );
+    manager.assets.value = [];
+    expect(
+      manager.applyGeneratedDescription(snapshot, "已删除的资产描述")
+    ).toBe(false);
+    expect(emit.mock.calls.map(([event]) => event)).toEqual([
+      "update:modelValue",
+    ]);
+  });
+
+  it("saves edits against the current asset after an immutable description update", () => {
+    const original = {
+      id: "sample",
+      path: "assets/sample.png",
+      filename: "sample.png",
+      type: "image" as const,
+    };
+    const manager = useAgentAssetsManager(
+      { modelValue: [original], agentId: "agent-1" },
+      vi.fn()
+    );
+    manager.applyGeneratedDescription(original, "生成描述");
+    expect(
+      manager.saveEdit(original, {
+        id: "renamed",
+        description: "修改后的描述",
+        group: "scenes",
+      })
+    ).toBe(true);
+    expect(manager.assets.value[0]).toMatchObject({
+      id: "renamed",
+      description: "修改后的描述",
+      group: "scenes",
+    });
+    expect(original.id).toBe("sample");
+  });
 });

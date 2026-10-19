@@ -18,6 +18,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { merge } from "lodash-es";
 
 import type { EngineContext } from "../types";
+import { resolveTranscriptionModelIdentifier } from "../utils/modelBinding";
 
 /**
  * 获取任务最终使用的配置（合并覆盖配置）
@@ -44,7 +45,7 @@ export function getModelParams(
   // 4. 模块全局的默认配置 (store.config.modelIdentifier)
 
   // 基础值来自全局配置
-  let modelIdentifier = config.modelIdentifier;
+  let modelIdentifier = resolveTranscriptionModelIdentifier(config, type);
   let prompt = config.customPrompt;
   let temperature = config.temperature;
   let maxTokens = config.maxTokens;
@@ -56,7 +57,6 @@ export function getModelParams(
   // 注意：这里的 config 已经是 store.config 和 task.overrideConfig 合并后的结果
   const specific = config[type];
   if (specific) {
-    modelIdentifier = specific.modelIdentifier || modelIdentifier;
     prompt = specific.customPrompt || prompt;
     temperature = specific.temperature ?? temperature;
     maxTokens = specific.maxTokens ?? maxTokens;

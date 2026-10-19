@@ -268,6 +268,7 @@ const effectiveIsVcp = computed(() => {
           v-for="tool in filteredTools"
           :key="tool.toolId"
           class="tool-group"
+          :class="{ 'is-expanded': expandedToolId === tool.toolId }"
         >
           <div
             class="mini-tool-item"
@@ -516,6 +517,10 @@ const effectiveIsVcp = computed(() => {
   min-width: 0;
 }
 
+.tool-group.is-expanded {
+  grid-column: 1 / -1;
+}
+
 .mini-tool-item {
   display: flex;
   justify-content: space-between;
@@ -686,9 +691,9 @@ const effectiveIsVcp = computed(() => {
 }
 
 .methods-submenu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 4px 12px;
   padding: 4px 4px 4px 20px;
   margin-top: 2px;
   border-left: 2px solid var(--el-border-color-lighter);
@@ -710,6 +715,8 @@ const effectiveIsVcp = computed(() => {
 }
 
 .method-subname {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 11px;
   font-family: var(--el-font-family-mono);
   color: var(--el-text-color-regular);

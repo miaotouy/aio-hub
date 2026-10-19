@@ -1261,6 +1261,23 @@ defineExpose({
         </div>
       </div>
 
+      <!-- 元数据展示 -->
+      <div
+        v-if="message.metadata?.usage || message.metadata?.error"
+        class="message-meta"
+      >
+        <div v-if="message.metadata.usage" class="usage-info">
+          <span>Token: {{ message.metadata.usage.totalTokens }}</span>
+          <span class="usage-detail"
+            >(输入: {{ message.metadata.usage.promptTokens }}, 输出:
+            {{ message.metadata.usage.completionTokens }})</span
+          >
+        </div>
+        <div v-if="message.metadata.error" class="error-info">
+          <AlertCircle :size="14" />
+          <span class="error-text">{{ message.metadata.error }}</span>
+        </div>
+      </div>
       <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑; 截图模式完全不渲染) -->
       <div
         class="menubar-wrapper"
@@ -1291,24 +1308,6 @@ defineExpose({
           @toggle-translation-visible="onToggleTranslationVisible"
           @change-translation-mode="onChangeTranslationMode"
         />
-      </div>
-
-      <!-- 元数据展示 -->
-      <div
-        v-if="message.metadata?.usage || message.metadata?.error"
-        class="message-meta"
-      >
-        <div v-if="message.metadata.usage" class="usage-info">
-          <span>Token: {{ message.metadata.usage.totalTokens }}</span>
-          <span class="usage-detail"
-            >(输入: {{ message.metadata.usage.promptTokens }}, 输出:
-            {{ message.metadata.usage.completionTokens }})</span
-          >
-        </div>
-        <div v-if="message.metadata.error" class="error-info">
-          <AlertCircle :size="14" />
-          <span class="error-text">{{ message.metadata.error }}</span>
-        </div>
       </div>
     </div>
   </div>
@@ -2062,7 +2061,8 @@ defineExpose({
 }
 
 /* 悬停显示操作栏 (对齐 ChatMessage.vue) */
-.tool-call-message:hover .menubar-wrapper {
+.tool-call-message:hover .menubar-wrapper,
+.tool-call-message:focus-within .menubar-wrapper {
   opacity: 1;
 }
 
@@ -2071,8 +2071,8 @@ defineExpose({
   bottom: 8px;
   display: flex;
   justify-content: flex-end;
-  /* 通过负margin覆盖在内容上，消除占位 */
-  margin-top: -46px;
+  align-items: flex-end;
+  height: 0;
   z-index: 10;
   padding-right: 12px;
 
@@ -2085,6 +2085,7 @@ defineExpose({
 
 .menubar-wrapper.is-collapsed {
   position: absolute;
+  height: auto;
   top: 0;
   right: 0;
   bottom: auto;
@@ -2092,6 +2093,13 @@ defineExpose({
 }
 
 .menubar-wrapper > * {
+  pointer-events: none;
+}
+
+.tool-call-message:hover .menubar-wrapper > *,
+.tool-call-message:focus-within .menubar-wrapper > *,
+.tool-call-message:hover .menubar-wrapper::before,
+.tool-call-message:focus-within .menubar-wrapper::before {
   pointer-events: auto;
 }
 

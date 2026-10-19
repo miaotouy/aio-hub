@@ -347,7 +347,7 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 外置操作栏（始终渲染以保留稳定的文档流高度；截图模式完全不渲染） -->
+    <!-- 外置操作栏使用零高度浮层，悬停和聚焦均不改变消息间距。 -->
     <div
       class="menubar-wrapper"
       v-if="!isEditing && !props.screenshotMode && !isSessionReadOnly"
@@ -462,8 +462,8 @@ defineExpose({
   bottom: 8px;
   display: flex;
   justify-content: flex-end;
-  /* 通过负margin覆盖在内容上，消除占位 */
-  margin-top: -46px;
+  align-items: flex-end;
+  height: 0;
   z-index: 10;
   padding-right: 12px;
 
@@ -473,7 +473,14 @@ defineExpose({
 }
 
 .menubar-wrapper > * {
-  pointer-events: auto; /* 恢复按钮点击 */
+  pointer-events: none;
+}
+
+.chat-message:hover .menubar-wrapper > *,
+.chat-message:focus-within .menubar-wrapper > *,
+.chat-message:hover .menubar-wrapper::before,
+.chat-message:focus-within .menubar-wrapper::before {
+  pointer-events: auto;
 }
 
 /* 禁用状态样式 */

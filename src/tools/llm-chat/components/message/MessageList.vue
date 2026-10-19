@@ -1071,10 +1071,9 @@ defineExpose({
   width: 100%;
 }
 
-/* 卡片模式的操作栏仍以负边距覆盖在卡片底部。补回这段重叠高度，
- * 防止虚拟列表将非末项测量得比卡片视觉层矮，进而裁掉底边。 */
-.messages-container.mode-card :deep(.chat-message) {
-  padding-bottom: 12px;
+/* 消息间距统一由列表 gap 管理，工具卡片沿用相同的行间距。 */
+.messages-container :deep(.tool-call-message) {
+  margin-block: 0;
 }
 
 /* 气泡模式：message-slot 作为对齐容器 */
@@ -1082,7 +1081,15 @@ defineExpose({
   gap: 12px;
 }
 
+/* 当前消息的浮动操作栏绘制在相邻行上方，列表尺寸保持稳定。 */
+.messages-container.mode-bubble > .message-slot:hover,
+.messages-container.mode-bubble > .message-slot:focus-within {
+  z-index: 20;
+}
+
 .messages-container.mode-bubble .message-slot {
+  position: relative;
+  overflow-clip-margin: 48px;
   display: flex;
   width: 100%;
   align-items: flex-start;
@@ -1312,8 +1319,8 @@ defineExpose({
 /* ----------------------------------------------------------
  * 气泡模式：底部信息与操作栏
  * - 底部信息 (.message-meta) 对齐到消息同方向（信息跟随气泡）
- * - 操作栏 (.menubar-wrapper) 位于气泡外侧下方，保留稳定的文档流
- *   高度；它在 hover / focus 内显现，并沿用 sticky 方便滚动时访问
+ * - 操作栏 (.menubar-wrapper) 使用气泡下方的零高度 sticky 浮层，
+ *   悬停与聚焦均不改变文档流高度，长消息滚动时仍可访问
  * ---------------------------------------------------------- */
 
 /* —— 底部信息：跟随消息方向对齐 —— */
@@ -1341,20 +1348,35 @@ defineExpose({
   text-align: right;
 }
 
-/* 气泡消息的操作栏：位于气泡外侧下方。它自身是一条与气泡同宽的
- * sticky 行，在文档流中保留稳定高度，避免 hover 时后续消息跳动。
+/* 零高度 sticky 行将操作栏浮在气泡下方，保持短气泡宽度和列表测量稳定。
  * inline-size containment 让较宽的操作按钮不反向撑大短消息气泡。 */
 .messages-container.mode-bubble :deep(.menubar-wrapper:not(.is-collapsed)) {
   position: sticky;
-  bottom: 2px;
+  bottom: 48px;
+  align-items: flex-start;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
   contain: inline-size;
-  margin-top: 6px;
+  margin-top: 0;
   z-index: 10;
   padding: 0;
 }
+.messages-container.mode-bubble
+  :deep(.menubar-wrapper:not(.is-collapsed) .message-menubar) {
+  transform: translateY(6px);
+}
+
+/* 填满气泡与操作栏之间的悬停过渡区。 */
+.messages-container.mode-bubble
+  :deep(.menubar-wrapper:not(.is-collapsed)::before) {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 6px;
+}
+
 .messages-container.mode-bubble :deep(.menubar-wrapper .message-menubar) {
   flex: 0 0 auto;
   width: max-content;

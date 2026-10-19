@@ -228,11 +228,12 @@
 
 ### 8.6 双侧信息错位布局（CSS 实现）
 
-气泡模式下，**底部 Token 信息** (`message-meta`) 跟随消息方向对齐（信息粘附气泡），而**操作栏** (`menubar-wrapper`) 对齐到对面方向。CSS 选择器位于 [`MessageList.vue:1218-1266`](../../components/message/MessageList.vue:1218)：
+气泡模式下，底部 Token 信息 (`message-meta`) 和操作栏 (`menubar-wrapper`) 跟随消息方向对齐。普通消息和展开工具的操作栏使用位于气泡下方的零高度 sticky 浮层，悬停或键盘聚焦时显现，长消息滚动时保持可访问。消息行使用 `overflow-clip-margin` 为浮层扩展绘制边界，当前交互行提高层级。折叠工具保留头部绝对定位操作栏。
 
-- `data-align="left"` 的 `.message-meta` 使用 `flex-direction: column; align-items: flex-start; text-align: left`；同行的 `.menubar-wrapper` 反向 `justify-content: flex-end; padding-right: 12px`（操作栏靠右）。
-- `data-align="right"` 的 `.message-meta` 使用 `align-items: flex-end; text-align: right`；同行的 `.menubar-wrapper` 反向 `justify-content: flex-start; padding-left: 12px`（操作栏靠左）。
-- **典型效果**: 助手气泡（left-align）→ Token 信息靠左、操作栏靠右；用户气泡（right-align）→ Token 信息靠右、操作栏靠左，避免窄气泡下两块信息相互遮挡。
+- 左对齐消息的信息与操作栏靠左，右对齐消息的信息与操作栏靠右。
+- 操作栏高度参与自身排版，外层高度为零；隐藏、显示和按钮数量变化均保持消息间距稳定。
+- 消息行间距统一由列表 `gap` 控制，列表内工具卡片清除自身上下 margin。
+- 气泡操作栏使用 inline-size containment，按钮宽度与短消息的气泡尺寸独立。
 
 ### 8.7 镜像化适配（`row-reverse` 应用范围）
 

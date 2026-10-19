@@ -33,6 +33,7 @@ import {
   Wand2,
   Database,
   StepForward,
+  XCircle,
 } from "lucide-vue-next";
 import {
   ElTooltip,
@@ -76,6 +77,8 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
+const isGenerating = computed(() => store.isNodeGenerating(props.messageId));
+const handleAbort = () => store.abortNodeGeneration(props.messageId);
 
 const isUserOrAssistant = computed(
   () =>
@@ -127,6 +130,7 @@ const handleToggleEnabled = () => emit("toggle-enabled");
 const handleDelete = () => emit("delete");
 const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
 const handleRegenerate = () => {
+  if (isGenerating.value) return;
   // 检查是否有临时模型
   const temporaryModel = getTemporaryModelPayload();
 
@@ -136,7 +140,9 @@ const handleRegenerate = () => {
     emit("regenerate");
   }
 };
-const handleCreateBranch = () => emit("create-branch");
+const handleCreateBranch = () => {
+  if (!isGenerating.value) emit("create-branch");
+};
 
 const { currentAgentId } = useLlmChatUiState();
 const { getTemporaryModelPayload, openModelReselectDialog } =
@@ -145,6 +151,7 @@ const agentStore = useAgentStore();
 
 // 续写消息
 const handleContinue = () => {
+  if (isGenerating.value) return;
   const temporaryModel = getTemporaryModelPayload();
 
   if (temporaryModel) {
@@ -203,6 +210,7 @@ const presetCount = computed(() => currentPresetMessages.value.length);
 
 // 处理选择模型并重新生成
 const handleSelectModelAndRegenerate = async () => {
+  if (isGenerating.value) return;
   // 弹窗打开期间保持 menubar 挂载，防止悬停超时卸载后 emit 丢失
   isModelSelectOpen.value = true;
   try {
@@ -211,7 +219,7 @@ const handleSelectModelAndRegenerate = async () => {
       modelId: props.modelId,
       profileId: props.profileId,
     });
-    if (result) {
+    if (result && !isGenerating.value) {
       emit("regenerate", {
         modelId: result.model.id,
         profileId: result.profile.id,
@@ -246,7 +254,7 @@ const handleSelectModelAndRegenerate = async () => {
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item
-                v-if="isUserOrAssistant"
+                v-if="isUserOrAssistant && !isGenerating"
                 @click="handleContinue"
               >
                 <div class="dropdown-item-content">
@@ -303,38 +311,61 @@ const handleSelectModelAndRegenerate = async () => {
       </button>
     </el-tooltip>
 
+    <el-tooltip
+      v-if="isGenerating"
+      content="停止生成"
+      placement="bottom"
+      :show-after="300"
+    >
+      <button
+        class="menu-btn menu-btn-abort"
+        aria-label="停止生成"
+        @click="handleAbort"
+      >
+        <XCircle :size="16" />
+      </button>
+    </el-tooltip>
+
     <!-- 创建分支 -->
     <el-tooltip
-      v-if="isUserOrAssistant"
+      v-if="isUserOrAssistant && !isGenerating"
       content="创建分支"
       placement="bottom"
       :show-after="300"
     >
-      <button class="menu-btn" @click="handleCreateBranch">
+      <button
+        class="menu-btn"
+        aria-label="创建分支"
+        @click="handleCreateBranch"
+      >
         <GitFork :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 重新生成 -->
     <el-tooltip
-      v-if="isUserOrAssistant"
+      v-if="isUserOrAssistant && !isGenerating"
       :content="role === 'user' ? '重新生成回复' : '重新生成'"
       placement="bottom"
       :show-after="300"
     >
-      <button class="menu-btn" @click="handleRegenerate">
+      <button class="menu-btn" aria-label="重新生成" @click="handleRegenerate">
         <RefreshCw :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 指定模型重新生成 -->
     <el-tooltip
-      v-if="isUserOrAssistant"
+      v-if="isUserOrAssistant && !isGenerating"
       content="指定模型重新生成"
       placement="bottom"
       :show-after="300"
     >
-      <button class="menu-btn" @click="handleSelectModelAndRegenerate">
+      <button
+        class="menu-btn"
+        aria-label="指定模型重新生成"
+        @click="handleSelectModelAndRegenerate"
+      >
         <AtSign :size="16" />
       </button>
     </el-tooltip>
@@ -445,6 +476,18 @@ const handleSelectModelAndRegenerate = async () => {
 
 .menu-btn-highlight:hover {
   opacity: 0.8;
+}
+
+.menu-btn-abort {
+  color: var(--error-color);
+}
+
+.menu-btn-abort:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--error-color) 15%,
+    var(--container-bg)
+  );
 }
 
 .menu-btn-danger:hover {

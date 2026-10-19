@@ -75,6 +75,7 @@
   - `closeOnBackdropClick` (boolean): 点击遮罩层是否关闭。
   - `destroyOnClose` (boolean): 关闭时是否销毁内容。
   - `loading` (boolean): 内容区域显示加载状态。
+- **键盘与焦点**：打开后优先聚焦内容中的 `autofocus` 元素，其余情况聚焦弹窗容器；保留内容主动设置的焦点；Tab 在弹窗内循环，关闭后返回入口。Escape 仅关闭当前聚焦的最上层弹窗，内部控件可先消费该按键。
 - **Slots**: `default`, `header`, `footer`
 
 - **使用示例** (来自 [`CreateUserProfileDialog.vue`](../../tools/user-profile-manager/components/user-profile/CreateUserProfileDialog.vue)):

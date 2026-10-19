@@ -29,7 +29,12 @@
       @click="props.closeOnBackdropClick && handleClose()"
     >
       <div
+        ref="dialogRef"
         class="base-dialog-container"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="props.title || undefined"
+        tabindex="-1"
         :class="[
           props.bare ? 'dialog-bare' : 'dialog-styled',
           props.dialogClass,
@@ -112,6 +117,7 @@ import {
   computed,
   nextTick,
 } from "vue";
+import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { acquireZIndex, releaseZIndex } from "@/composables/useDialogZIndex";
 
@@ -157,6 +163,9 @@ const emit = defineEmits<{
   (e: "close"): void;
   (e: "open"): void;
 }>();
+
+const dialogRef = ref<HTMLElement | null>(null);
+const { isTopmost } = useOverlayFocus(dialogRef, () => props.modelValue);
 
 // 记录是否已经打开过
 const hasOpened = ref(false);
@@ -274,7 +283,17 @@ function handleClose() {
 }
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (props.modelValue && event.key === "Escape" && props.showCloseButton) {
+  if (
+    props.modelValue &&
+    event.key === "Escape" &&
+    !event.defaultPrevented &&
+    props.showCloseButton &&
+    isTopmost() &&
+    event.target instanceof Node &&
+    dialogRef.value?.contains(event.target)
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
     handleClose();
   }
 };

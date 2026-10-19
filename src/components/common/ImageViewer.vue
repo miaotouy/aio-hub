@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import Viewer from "viewerjs";
+import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import "viewerjs/dist/viewer.css";
 
 export interface ImageViewerProps {
@@ -55,6 +56,10 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement>();
 let viewerInstance: Viewer | null = null;
+// Viewer.js 的类型声明省略了实际生成的容器。
+const overlayRef = ref<HTMLElement | null>(null);
+const overlayVisible = ref(false);
+useOverlayFocus(overlayRef, () => overlayVisible.value);
 
 // Viewer.js 默认配置
 const defaultOptions: Viewer.Options = {
@@ -112,6 +117,26 @@ const initViewer = () => {
       },
     };
 
+    const onShow = mergedOptions.show;
+    mergedOptions.show = function (event) {
+      onShow?.call(this, event);
+      if (
+        event.defaultPrevented ||
+        mergedOptions.inline ||
+        mergedOptions.focus === false ||
+        mergedOptions.keyboard === false
+      )
+        return;
+      overlayRef.value =
+        (viewerInstance as (Viewer & { viewer: HTMLElement }) | null)?.viewer ??
+        null;
+      overlayVisible.value = true;
+    };
+    const onHidden = mergedOptions.hidden;
+    mergedOptions.hidden = function (event) {
+      overlayVisible.value = false;
+      onHidden?.call(this, event);
+    };
     viewerInstance = new Viewer(containerRef.value, mergedOptions);
   }
 };
@@ -122,6 +147,7 @@ const initViewer = () => {
 const destroyViewer = () => {
   if (viewerInstance) {
     viewerInstance.destroy();
+    overlayVisible.value = false;
     viewerInstance = null;
   }
 };
@@ -249,10 +275,7 @@ onMounted(() => {
 
   // 组件挂载后如果有初始索引，自动显示
   if (props.images.length > 0 && props.initialIndex >= 0) {
-    // 延迟一下确保 DOM 渲染完成
-    setTimeout(() => {
-      show(props.initialIndex);
-    }, 100);
+    show(props.initialIndex);
   }
 });
 

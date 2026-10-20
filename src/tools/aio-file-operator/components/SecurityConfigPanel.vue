@@ -140,13 +140,16 @@
           >
             <el-icon class="rule-icon" :class="rule.type"><Warning /></el-icon>
             <span class="path-text" :title="rule.path">{{ rule.path }}</span>
-            <el-tag
-              :type="rule.type === 'block' ? 'danger' : 'warning'"
+            <el-select
+              v-model="rule.type"
+              class="rule-type-select"
               size="small"
-              effect="dark"
+              :aria-label="`${rule.path} 的规则类型`"
+              @change="saveConfig"
             >
-              {{ rule.type === "block" ? "死区 (禁止)" : "审批区 (审批)" }}
-            </el-tag>
+              <el-option label="死区 (禁止)" value="block" />
+              <el-option label="审批区 (审批)" value="approve" />
+            </el-select>
             <el-button
               type="danger"
               link
@@ -491,6 +494,11 @@ function removeRule(index: number) {
 .folder-icon {
   font-size: 14px;
   color: var(--el-color-warning);
+}
+
+.rule-type-select {
+  width: 132px;
+  flex-shrink: 0;
 }
 
 .rule-icon {

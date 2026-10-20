@@ -115,6 +115,7 @@ export interface FileOperationResult extends ToolResultWithLocalMedia {
 
 /** 操作日志条目 */
 export interface OperationLogEntry {
+  category?: "security";
   timestamp: number;
   method: string;
   params: Record<string, any>;

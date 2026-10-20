@@ -35,6 +35,7 @@ import type {
   FileOperationResult,
   OperationLogEntry,
   AioFileOperatorConfig,
+  SecurityRule,
   ExternalFileTransferInspection,
   ExternalFileTransferResult,
   ExternalFileTransferSource,
@@ -61,8 +62,111 @@ export const logManager = createConfigManager<{ logs: OperationLogEntry[] }>({
 /** 操作日志列表 */
 const operationLogs: OperationLogEntry[] = [];
 
-/** 当前配置 */
-let currentConfig: AioFileOperatorConfig = { ...DEFAULT_CONFIG };
+/** 隔离嵌套规则，保留保存前的配置快照。 */
+function cloneConfig(config: AioFileOperatorConfig): AioFileOperatorConfig {
+  return {
+    ...config,
+    allowedDirectories: [...config.allowedDirectories],
+    blackListRules: config.blackListRules.map((rule) => ({ ...rule })),
+  };
+}
+
+let currentConfig = cloneConfig(DEFAULT_CONFIG);
+let configSaveQueue: Promise<void> = Promise.resolve();
+const logListeners = new Set<(logs: OperationLogEntry[]) => void>();
+
+/** 订阅日志变化，返回取消订阅函数。 */
+export function subscribeOperationLogs(
+  listener: (logs: OperationLogEntry[]) => void
+) {
+  logListeners.add(listener);
+  return () => {
+    logListeners.delete(listener);
+  };
+}
+
+function notifyLogListeners() {
+  for (const listener of logListeners) {
+    try {
+      listener([...operationLogs]);
+    } catch (error) {
+      errorHandler.handle(error as Error, { showToUser: false });
+    }
+  }
+}
+
+type SecurityChange = Pick<OperationLogEntry, "method" | "params">;
+
+function getSecurityChanges(
+  before: AioFileOperatorConfig,
+  after: AioFileOperatorConfig
+): SecurityChange[] {
+  const changes: SecurityChange[] = [];
+  const ruleLabel = (rule?: SecurityRule) =>
+    rule ? (rule.type === "block" ? "禁止" : "审批") : "无规则";
+  const previousRules = new Map(
+    before.blackListRules.map((rule) => [rule.id, rule])
+  );
+  const nextRules = new Map(
+    after.blackListRules.map((rule) => [rule.id, rule])
+  );
+  for (const rule of after.blackListRules) {
+    const previous = previousRules.get(rule.id);
+    if (
+      !previous ||
+      previous.type !== rule.type ||
+      previous.path !== rule.path
+    ) {
+      changes.push({
+        method: previous ? "更新安全规则" : "新增安全规则",
+        params: {
+          path: rule.path,
+          ...(previous && previous.path !== rule.path
+            ? { previousPath: previous.path }
+            : {}),
+          before: ruleLabel(previous),
+          after: ruleLabel(rule),
+        },
+      });
+    }
+  }
+  for (const rule of before.blackListRules) {
+    if (!nextRules.has(rule.id)) {
+      changes.push({
+        method: "删除安全规则",
+        params: { path: rule.path, before: ruleLabel(rule), after: "无规则" },
+      });
+    }
+  }
+  if (before.sandboxMode !== after.sandboxMode) {
+    const modeLabel = (mode: AioFileOperatorConfig["sandboxMode"]) =>
+      mode === "blacklist" ? "黑名单" : "白名单";
+    changes.push({
+      method: "切换沙箱模式",
+      params: {
+        before: modeLabel(before.sandboxMode),
+        after: modeLabel(after.sandboxMode),
+      },
+    });
+  }
+  for (const path of after.allowedDirectories) {
+    if (!before.allowedDirectories.includes(path)) {
+      changes.push({
+        method: "新增白名单目录",
+        params: { path, before: "未列入", after: "允许访问" },
+      });
+    }
+  }
+  for (const path of before.allowedDirectories) {
+    if (!after.allowedDirectories.includes(path)) {
+      changes.push({
+        method: "删除白名单目录",
+        params: { path, before: "允许访问", after: "未列入" },
+      });
+    }
+  }
+  return changes;
+}
 
 const initPromise = (async () => {
   try {
@@ -87,9 +191,42 @@ export async function ensureInitialized() {
 export async function setConfig(
   config: Partial<AioFileOperatorConfig>
 ): Promise<void> {
-  await ensureInitialized();
-  currentConfig = { ...currentConfig, ...config };
-  await configManager.save(currentConfig);
+  // 在进入保存队列前取快照，隔离调用方的 Vue 响应式对象和后续编辑。
+  const update: Partial<AioFileOperatorConfig> = JSON.parse(
+    JSON.stringify(config)
+  );
+  const save = configSaveQueue.then(async () => {
+    await ensureInitialized();
+    const nextConfig = cloneConfig({ ...currentConfig, ...update });
+    const changes = getSecurityChanges(currentConfig, nextConfig);
+    try {
+      await configManager.save(nextConfig);
+    } catch (error) {
+      for (const change of changes) {
+        recordLog(
+          change.method,
+          change.params,
+          {
+            success: false,
+            message: `规则保存失败：${clampErrorMessage(error instanceof Error ? error.message : String(error), ERROR_MESSAGE_MAX_LENGTH)}`,
+          },
+          "security"
+        );
+      }
+      throw error;
+    }
+    currentConfig = nextConfig;
+    for (const change of changes) {
+      recordLog(
+        change.method,
+        change.params,
+        { success: true, message: "已保存" },
+        "security"
+      );
+    }
+  });
+  configSaveQueue = save.catch(() => {});
+  await save;
 }
 
 /**
@@ -97,7 +234,7 @@ export async function setConfig(
  */
 export async function getConfig(): Promise<AioFileOperatorConfig> {
   await ensureInitialized();
-  return { ...currentConfig };
+  return cloneConfig(currentConfig);
 }
 
 /**
@@ -114,6 +251,7 @@ export async function getOperationLogs(): Promise<OperationLogEntry[]> {
 export async function clearLogs(): Promise<void> {
   await ensureInitialized();
   operationLogs.length = 0;
+  notifyLogListeners();
   await logManager.save({ logs: [] });
 }
 
@@ -123,13 +261,15 @@ export async function clearLogs(): Promise<void> {
 function recordLog(
   method: string,
   params: Record<string, any>,
-  result: FileOperationResult
+  result: FileOperationResult,
+  category?: OperationLogEntry["category"]
 ): void {
   if (!currentConfig.enableAuditLog) return;
 
   const { localMedia: _localMedia, ...auditResult } = result;
   operationLogs.push({
     timestamp: Date.now(),
+    ...(category ? { category } : {}),
     method,
     params,
     result: auditResult,
@@ -142,6 +282,7 @@ function recordLog(
 
   // 异步保存日志（防抖）
   logManager.saveDebounced({ logs: operationLogs });
+  notifyLogListeners();
 }
 
 /**

@@ -794,6 +794,170 @@ describe("AioFileOperator Registry", () => {
       expect(logs).toHaveLength(0);
     });
 
+    // 保护规则审计的公开行为：前后状态准确、保存结果可信、实时通知可解除。
+    it("新增、原地修改和删除规则应推送准确的变更，解除订阅后停止推送", async () => {
+      const listener = vi.fn();
+      const unsubscribe = actions.subscribeOperationLogs(listener);
+      try {
+        await actions.setConfig({
+          blackListRules: [
+            { id: "audit-rule", path: "C:/private", type: "block" },
+          ],
+        });
+        const config = await actions.getConfig();
+        config.blackListRules[0].type = "approve";
+        expect((await actions.getConfig()).blackListRules[0].type).toBe(
+          "block"
+        );
+        await actions.setConfig(config);
+        await actions.setConfig({ blackListRules: [] });
+        const logs = await actions.getOperationLogs();
+        expect(
+          logs.map((log) => ({
+            method: log.method,
+            params: log.params,
+            success: log.result.success,
+          }))
+        ).toEqual([
+          {
+            method: "新增安全规则",
+            params: { path: "C:/private", before: "无规则", after: "禁止" },
+            success: true,
+          },
+          {
+            method: "更新安全规则",
+            params: { path: "C:/private", before: "禁止", after: "审批" },
+            success: true,
+          },
+          {
+            method: "删除安全规则",
+            params: { path: "C:/private", before: "审批", after: "无规则" },
+            success: true,
+          },
+        ]);
+        expect(logs.every((log) => log.category === "security")).toBe(true);
+        expect(listener.mock.calls.map(([entries]) => entries.length)).toEqual([
+          1, 2, 3,
+        ]);
+        await actions.clearLogs();
+        expect(listener).toHaveBeenLastCalledWith([]);
+        unsubscribe();
+        await actions.setConfig(config);
+        expect(listener).toHaveBeenCalledTimes(4);
+      } finally {
+        unsubscribe();
+      }
+    });
+
+    it("保存失败应保留原规则并记录失败，后续重试仍可保存", async () => {
+      await actions.setConfig({
+        blackListRules: [
+          { id: "audit-rule", path: "C:/private", type: "block" },
+        ],
+      });
+      await actions.clearLogs();
+      const config = await actions.getConfig();
+      config.blackListRules[0].type = "approve";
+      const save = vi
+        .spyOn(actions.configManager, "save")
+        .mockRejectedValueOnce(new Error("磁盘已满"));
+      try {
+        await expect(actions.setConfig(config)).rejects.toThrow("磁盘已满");
+        expect((await actions.getConfig()).blackListRules[0].type).toBe(
+          "block"
+        );
+        expect(await actions.getOperationLogs()).toEqual([
+          expect.objectContaining({
+            params: { path: "C:/private", before: "禁止", after: "审批" },
+            result: {
+              success: false,
+              message: expect.stringContaining("磁盘已满"),
+            },
+          }),
+        ]);
+        await actions.setConfig(config);
+        expect((await actions.getConfig()).blackListRules[0].type).toBe(
+          "approve"
+        );
+        expect(
+          (await actions.getOperationLogs()).map((log) => log.result.success)
+        ).toEqual([false, true]);
+      } finally {
+        save.mockRestore();
+      }
+    });
+
+    it("连续编辑应按提交时的快照顺序记录", async () => {
+      const config = await actions.getConfig();
+      config.blackListRules = [
+        { id: "audit-rule", path: "C:/private", type: "block" },
+      ];
+      const firstSave = actions.setConfig(config);
+      config.blackListRules[0].type = "approve";
+      const secondSave = actions.setConfig(config);
+      config.blackListRules[0].type = "block";
+      await Promise.all([firstSave, secondSave]);
+      expect(
+        (await actions.getOperationLogs()).map((log) => log.params)
+      ).toEqual([
+        { path: "C:/private", before: "无规则", after: "禁止" },
+        { path: "C:/private", before: "禁止", after: "审批" },
+      ]);
+      expect((await actions.getConfig()).blackListRules[0].type).toBe(
+        "approve"
+      );
+    });
+
+    it("重复保存和布局变化应保持已有审计记录", async () => {
+      await actions.setConfig({
+        blackListRules: [
+          { id: "audit-rule", path: "C:/private", type: "block" },
+        ],
+      });
+      const logs = await actions.getOperationLogs();
+      await actions.setConfig(await actions.getConfig());
+      await actions.setConfig({ logPanelWidth: 400, isLogCollapsed: true });
+      expect(await actions.getOperationLogs()).toEqual(logs);
+    });
+
+    it("白名单目录和沙箱模式变更应记录，审计关闭时停止记录规则", async () => {
+      const previous = await actions.getConfig();
+      await actions.setConfig({
+        sandboxMode: "whitelist",
+        allowedDirectories: [...previous.allowedDirectories, "C:/audit-work"],
+      });
+      expect(await actions.getOperationLogs()).toEqual([
+        expect.objectContaining({
+          method: "切换沙箱模式",
+          params: { before: "黑名单", after: "白名单" },
+        }),
+        expect.objectContaining({
+          method: "新增白名单目录",
+          params: {
+            path: "C:/audit-work",
+            before: "未列入",
+            after: "允许访问",
+          },
+        }),
+      ]);
+      await actions.setConfig({
+        allowedDirectories: previous.allowedDirectories,
+      });
+      const directoryLogs = await actions.getOperationLogs();
+      expect(directoryLogs[directoryLogs.length - 1]).toMatchObject({
+        method: "删除白名单目录",
+        params: { path: "C:/audit-work", before: "允许访问", after: "未列入" },
+      });
+      await actions.setConfig({ enableAuditLog: false });
+      await actions.clearLogs();
+      await actions.setConfig({
+        blackListRules: [
+          { id: "audit-rule", path: "C:/private", type: "approve" },
+        ],
+      });
+      expect(await actions.getOperationLogs()).toEqual([]);
+    });
+
     it("日志超过 100 条时应移除最旧的", async () => {
       mockInvoke.mockImplementation(async (cmd: string) => {
         if (cmd === "path_exists") return false;

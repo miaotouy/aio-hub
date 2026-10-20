@@ -4,6 +4,8 @@
 
 FFmpeg 多媒体工作台是 AIO Hub 中的核心音视频处理模块。它通过 Tauri 调用 Rust 后端，实现了对 FFmpeg 进程的高效管理、实时进度监听和多任务并行处理。该工具旨在为用户提供从简单预设转换到高级自定义参数配置的全方位多媒体处理方案。
 
+简单模式可选择 CPU 软件编码、NVIDIA NVENC 或 Intel QSV，并与 H.264 / H.265 格式联动；画质参数沿用 `executionPlan` 的 CRF / CQ / global_quality 映射。硬件解码开关独立控制输入侧加速。
+
 ## 2. 目录结构
 
 ```text

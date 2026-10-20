@@ -110,6 +110,8 @@ function sanitizeImportedAgent(agent: any): any {
 }
 
 export interface PreflightContext {
+  /** 更新已有智能体时保留导入名称；新增导入默认自动避让重名。 */
+  mode?: "create" | "update";
   existingAgentNames: string[];
   availableModelIds: string[];
 }
@@ -124,20 +126,22 @@ async function createPreflightResultFromBundle(
   const combinedWorldbooks = bundle.embeddedWorldbooks || {};
 
   const usedDisplayNames = new Set(context.existingAgentNames);
-  combinedAgents.forEach((agent) => {
-    let targetDisplayName = agent.displayName || agent.name;
-    if (usedDisplayNames.has(targetDisplayName)) {
-      let counter = 1;
-      let newDisplayName = `${targetDisplayName} (${counter})`;
-      while (usedDisplayNames.has(newDisplayName)) {
-        counter++;
-        newDisplayName = `${targetDisplayName} (${counter})`;
+  if (context.mode !== "update") {
+    combinedAgents.forEach((agent) => {
+      let targetDisplayName = agent.displayName || agent.name;
+      if (usedDisplayNames.has(targetDisplayName)) {
+        let counter = 1;
+        let newDisplayName = `${targetDisplayName} (${counter})`;
+        while (usedDisplayNames.has(newDisplayName)) {
+          counter++;
+          newDisplayName = `${targetDisplayName} (${counter})`;
+        }
+        agent.displayName = newDisplayName;
+        targetDisplayName = newDisplayName;
       }
-      agent.displayName = newDisplayName;
-      targetDisplayName = newDisplayName;
-    }
-    usedDisplayNames.add(targetDisplayName);
-  });
+      usedDisplayNames.add(targetDisplayName);
+    });
+  }
 
   const { availableModelIds } = context;
   const nameConflicts: AgentImportPreflightResult["nameConflicts"] = [];

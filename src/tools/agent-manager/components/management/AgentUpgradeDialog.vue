@@ -137,7 +137,7 @@ const handleFileUpload = async (file: File | File[]) => {
     }
 
     importText.value = fileList.map((f) => f.name).join(", ");
-    const result = await agentStore.preflightImportAgents(file);
+    const result = await agentStore.preflightImportAgents(file, "update");
 
     if (result.agents.length === 0) {
       throw new Error("未在文件中找到有效的智能体配置");

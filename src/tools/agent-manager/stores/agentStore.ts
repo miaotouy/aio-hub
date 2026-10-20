@@ -777,7 +777,10 @@ export const useAgentStore = defineStore("llmChatAgent", {
      * @param files 导入的文件或文件数组
      * @returns 预检结果
      */
-    async preflightImportAgents(files: File | File[]) {
+    async preflightImportAgents(
+      files: File | File[],
+      mode: "create" | "update" = "create"
+    ) {
       const { enabledProfiles } = useLlmProfiles();
       const availableModelIds = enabledProfiles.value.flatMap((p) =>
         p.models.map((m) => m.id)
@@ -788,6 +791,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       );
 
       return await preflightImportAgents(files, {
+        mode,
         existingAgentNames: existingDisplayNames, // 这里传递的是显示名称列表
         availableModelIds,
       });

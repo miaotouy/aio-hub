@@ -158,3 +158,36 @@ describe("agent import assets", () => {
     ]);
   });
 });
+
+describe("agent import display names", () => {
+  it.each([
+    { mode: undefined, expected: "咕咕 5 (2)" },
+    { mode: "update" as const, expected: "咕咕 5" },
+  ])(
+    "resolves ZIP display names for $mode imports",
+    async ({ mode, expected }) => {
+      const zip = new JSZip();
+      zip.file(
+        "Imported.agent.json",
+        JSON.stringify({
+          type: "AIO_Agent_Export",
+          agents: [{ name: "咕咕", displayName: "咕咕 5", modelId: "model-1" }],
+        })
+      );
+      const archive = new File(
+        [await zip.generateAsync({ type: "uint8array" })],
+        "agent.zip"
+      );
+
+      const result = await preflightImportAgents(archive, {
+        mode,
+        existingAgentNames: ["咕咕 5", "咕咕 5 (1)"],
+        availableModelIds: ["model-1"],
+      });
+
+      expect(result.agents).toHaveLength(1);
+      expect(result.agents[0].displayName).toBe(expected);
+      expect(result.agents[0].name).toBe("咕咕");
+    }
+  );
+});

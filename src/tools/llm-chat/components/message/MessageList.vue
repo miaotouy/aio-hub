@@ -1035,7 +1035,9 @@ defineExpose({
   overscroll-behavior: contain;
   /* 渲染隔离：size 确保内容高度变化不触发父级重排，layout 和 paint 提升渲染性能 */
   contain: size layout paint;
-  padding: 120px 20px 20px 28px;
+  /* 为末条消息下方的浮层操作栏保留完整空间。 */
+  --message-list-bottom-space: 64px;
+  padding: 120px 20px var(--message-list-bottom-space) 28px;
 }
 
 .messages-container {
@@ -1352,7 +1354,8 @@ defineExpose({
  * inline-size containment 让较宽的操作按钮不反向撑大短消息气泡。 */
 .messages-container.mode-bubble :deep(.menubar-wrapper:not(.is-collapsed)) {
   position: sticky;
-  bottom: 48px;
+  /* sticky 的滚动视口扣除了列表 padding，补偿后浮层可进入底部留白。 */
+  bottom: calc(44px - var(--message-list-bottom-space, 0px));
   align-items: flex-start;
   width: 100%;
   min-width: 0;
@@ -1364,7 +1367,7 @@ defineExpose({
 }
 .messages-container.mode-bubble
   :deep(.menubar-wrapper:not(.is-collapsed) .message-menubar) {
-  transform: translateY(6px);
+  transform: translateY(4px);
 }
 
 /* 填满气泡与操作栏之间的悬停过渡区。 */
@@ -1374,7 +1377,7 @@ defineExpose({
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 6px;
+  height: 4px;
 }
 
 .messages-container.mode-bubble :deep(.menubar-wrapper .message-menubar) {

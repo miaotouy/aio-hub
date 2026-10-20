@@ -53,7 +53,7 @@
 
 - **`useSessionManager`**: **会话的生命周期管理者**。负责会话的创建、加载、删除和持久化。
 - **`useLlmChatSync`**: **跨窗口同步引擎**。初始化状态同步引擎，注册操作代理处理器，确保多窗口协同工作。
-- **`useTopicNamer`**: **话题命名器**。负责调用 LLM 为新会话自动生成简洁、有意义的标题。思考模型按 `topicNaming.thinkingTokenReserve`（默认 4096）在 `maxTokens` 之外额外预留推理空间；关闭思考时不追加推理预算，并将 `thinkingEnabled = false` 透传给兼容渠道。
+- **`useTopicNamer`**: **话题命名器**。负责调用 LLM 为新会话自动生成简洁、有意义的标题。自动命名按当前活跃分支中已完成的用户-AI 对话轮数判断 `topicNaming.autoTriggerThreshold`；跳过禁用节点、开场消息（含已固化开场）及预设显示副本，工具调用和连续助手回复归入同一轮，以该轮最后一段助手回复的完成状态为准。手动命名沿用强制触发入口。思考模型按 `topicNaming.thinkingTokenReserve`（默认 4096）在 `maxTokens` 之外额外预留推理空间；关闭思考时不追加推理预算，并将 `thinkingEnabled = false` 透传给兼容渠道。
 - **`useModelSelectDialog`**: **全局模型选择器**。提供弹窗式的模型选择 UI。
 - **`useAnchorRegistry`**: **锚点注册表**。管理上下文注入系统中可用的锚点列表（如 `chat_history`）。
 

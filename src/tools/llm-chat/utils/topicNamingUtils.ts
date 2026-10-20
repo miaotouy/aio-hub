@@ -14,6 +14,39 @@
 
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import type { ModelCapabilities } from "@/types/llm-profiles";
+import type { ChatMessageNode } from "../types";
+
+/** 按用户发言分组，统计已有完整 AI 回复的对话轮次。 */
+export function countCompletedTopicTurns(
+  activePath: ChatMessageNode[]
+): number {
+  let completedTurns = 0;
+  let hasUserMessage = false;
+  let hasCompletedReply = false;
+
+  for (const node of activePath) {
+    if (
+      node.isEnabled === false ||
+      node.metadata?.isGreeting ||
+      node.metadata?.isPresetDisplay
+    ) {
+      continue;
+    }
+
+    if (node.role === "user") {
+      if (hasUserMessage && hasCompletedReply) completedTurns++;
+      hasUserMessage = true;
+      hasCompletedReply = false;
+    } else if (hasUserMessage && node.role === "assistant") {
+      // 工具调用、续写和多段回复归入同一次用户发言，以最后一段的状态为准。
+      hasCompletedReply = node.status === "complete";
+    } else if (node.role === "tool" && node.status !== "complete") {
+      hasCompletedReply = false;
+    }
+  }
+
+  return completedTurns + (hasUserMessage && hasCompletedReply ? 1 : 0);
+}
 
 export const DEFAULT_TOPIC_THINK_TAG_NAMES = ["think", "thinking", "guguthink"];
 

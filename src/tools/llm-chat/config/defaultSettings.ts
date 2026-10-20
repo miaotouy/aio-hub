@@ -160,7 +160,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxTokens: 128,
     thinkingTokenReserve: 4096, // 思考模型在 max_tokens 中额外预留的推理空间
     disableThinking: true,
-    autoTriggerThreshold: 3, // 当会话中有 3 条用户消息时自动触发
+    autoTriggerThreshold: 3, // 当前分支完成 3 轮用户-AI 对话后自动触发，跳过开场预设
     contextMessageCount: 6, // 使用最近 6 条消息作为上下文
   },
   requestSettings: {

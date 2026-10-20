@@ -296,7 +296,7 @@ export interface ChatSettings {
     thinkingTokenReserve: number;
     /** 是否在话题命名时关闭模型思考 */
     disableThinking: boolean;
-    /** 自动触发的消息数量阈值 */
+    /** 自动触发的完整用户-AI 对话轮数阈值（跳过开场预设） */
     autoTriggerThreshold: number;
     /** 命名时携带的上下文消息数量 */
     contextMessageCount: number;

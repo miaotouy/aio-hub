@@ -15,6 +15,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTopicNamingRequestOptions,
+  countCompletedTopicTurns,
   extractTopicTitle,
   getTopicStructuredOutputMode,
   sanitizeTopicContextContent,
@@ -22,7 +23,117 @@ import {
   stripConfiguredThinkingBlocks,
 } from "../topicNamingUtils";
 
+import type { ChatMessageNode } from "../../types";
+
+function message(
+  role: ChatMessageNode["role"],
+  overrides: Partial<ChatMessageNode> = {}
+): ChatMessageNode {
+  return {
+    id: "node",
+    parentId: "root",
+    childrenIds: [],
+    content: "",
+    role,
+    status: "complete",
+    timestamp: "2026-10-20T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 describe("topicNamingUtils", () => {
+  describe("countCompletedTopicTurns", () => {
+    it("counts completed pairs and waits for the threshold reply", () => {
+      const path = [
+        message("user"),
+        message("assistant"),
+        message("user"),
+        message("assistant"),
+        message("user"),
+      ];
+      expect(countCompletedTopicTurns(path)).toBe(2);
+      expect(countCompletedTopicTurns([...path, message("assistant")])).toBe(3);
+    });
+
+    it.each(["waiting", "queued", "generating", "error"] as const)(
+      "keeps a %s reply out of the completed turn count",
+      (status) => {
+        expect(
+          countCompletedTopicTurns([
+            message("user"),
+            message("assistant"),
+            message("user"),
+            message("assistant", { status }),
+          ])
+        ).toBe(1);
+      }
+    );
+
+    it("skips live and solidified greetings, presets, and disabled nodes", () => {
+      const path = [
+        message("user", { metadata: { isGreeting: true, greetingLive: true } }),
+        message("assistant", {
+          metadata: { isGreeting: true, greetingLive: true },
+        }),
+        message("user", {
+          metadata: { isGreeting: true, greetingLive: false },
+        }),
+        message("assistant", {
+          metadata: { isGreeting: true, greetingLive: false },
+        }),
+        message("user", { metadata: { isPresetDisplay: true } }),
+        message("assistant", { metadata: { isPresetDisplay: true } }),
+        message("user", { isEnabled: false }),
+        message("assistant", { isEnabled: false }),
+      ];
+      expect(countCompletedTopicTurns(path)).toBe(0);
+      expect(
+        countCompletedTopicTurns([
+          ...path,
+          message("user"),
+          message("assistant"),
+        ])
+      ).toBe(1);
+    });
+
+    it("groups tool calls and consecutive assistant replies into one turn", () => {
+      const path = [
+        message("user"),
+        message("assistant"),
+        message("tool"),
+        message("assistant"),
+        message("tool"),
+        message("assistant"),
+      ];
+      expect(countCompletedTopicTurns(path)).toBe(1);
+      expect(
+        countCompletedTopicTurns([
+          ...path,
+          message("assistant", { status: "generating" }),
+        ])
+      ).toBe(0);
+      expect(
+        countCompletedTopicTurns([
+          ...path,
+          message("tool", { status: "waiting" }),
+        ])
+      ).toBe(0);
+    });
+
+    it("requires a preceding user message and keeps unanswered users separate", () => {
+      expect(countCompletedTopicTurns([])).toBe(0);
+      expect(countCompletedTopicTurns([message("assistant")])).toBe(0);
+      expect(
+        countCompletedTopicTurns([
+          message("user"),
+          message("user"),
+          message("system"),
+          message("assistant"),
+          message("user"),
+        ])
+      ).toBe(1);
+    });
+  });
   describe("extractTopicTitle", () => {
     it("extracts title from strict JSON content", () => {
       const title = extractTopicTitle({

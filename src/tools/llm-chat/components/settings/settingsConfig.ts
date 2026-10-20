@@ -1014,7 +1014,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         component: "SliderWithInput",
         props: { min: 1, max: 10, step: 1 },
         modelPath: "topicNaming.autoTriggerThreshold",
-        hint: "当会话中用户消息数量达到此值时，自动生成标题",
+        hint: "当前分支中，用户发言与 AI 完整回复达到此轮数时自动生成标题，开场预设消息跳过计数",
         keywords: "topic naming trigger threshold 话题 命名 自动",
         visible: (settings) => settings.topicNaming.enabled,
       },

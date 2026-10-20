@@ -34,6 +34,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
   TOPIC_NAMING_SYSTEM_PROMPT,
   buildTopicNamingRequestOptions,
+  countCompletedTopicTurns,
   extractTopicTitle,
   getTopicStructuredOutputMode,
   isLikelyResponseFormatError,
@@ -396,15 +397,12 @@ export function useTopicNamer() {
       session,
       session.activeLeafId || ""
     );
-    const userMessageCount = activePath.filter(
-      (node: ChatMessageNode) =>
-        node.role === "user" && node.isEnabled !== false
-    ).length;
+    const completedTurnCount = countCompletedTopicTurns(activePath);
 
-    if (userMessageCount < namingConfig.autoTriggerThreshold) {
-      logger.debug("shouldAutoName: 用户消息数量不足", {
+    if (completedTurnCount < namingConfig.autoTriggerThreshold) {
+      logger.debug("shouldAutoName: 完整对话轮数不足", {
         sessionId: session.id,
-        userMessageCount,
+        completedTurnCount,
         threshold: namingConfig.autoTriggerThreshold,
         activeLeafId: session.activeLeafId,
         pathLength: activePath.length,

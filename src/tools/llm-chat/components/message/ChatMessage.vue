@@ -473,6 +473,8 @@ defineExpose({
 }
 
 .menubar-wrapper > * {
+  /* 卡片模式与右侧留白保持一致；气泡模式在 MessageList 中覆写外置偏移。 */
+  transform: translateY(-12px);
   pointer-events: none;
 }
 

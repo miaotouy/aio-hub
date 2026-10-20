@@ -80,6 +80,60 @@ function findToolRequests(nodes: AstNode[]): VcpToolNode[] {
 }
 
 describe("parseVcpRole", () => {
+  it.each([
+    { tag: "think", escaped: false, fuzzy: true },
+    { tag: "guguthink", escaped: false, fuzzy: false },
+    { tag: "guguthink", escaped: true, fuzzy: true },
+  ])(
+    "renders a request directly after </$tag> (escaped: $escaped)",
+    ({ tag, escaped, fuzzy }) => {
+      const marker = escaped ? "TOOL_REQUEST_ESCAPE" : "TOOL_REQUEST";
+      const request = `<<<[${marker}]>>>
+maid:「始」咕咕「末」,
+JEV:「始」请使用 {联网搜索}，搜索 Mercury 3 benchmark。「末」
+<<<[END_${marker}]>>>`;
+      const parser = new CustomParser(new Set([tag]), [], false, fuzzy);
+      const ast = parser.parse(`<${tag}>思考内容</${tag}>${request}`);
+      const requests = findToolRequests(ast);
+
+      expect(ast[0].type).toBe("llm_think");
+      expect(requests).toHaveLength(1);
+      expect(requests[0].props).toMatchObject({
+        tool_name: "JEV",
+        maid: "咕咕",
+        closed: true,
+        raw: request,
+        args: { JEV: "请使用 {联网搜索}，搜索 Mercury 3 benchmark。" },
+      });
+    }
+  );
+
+  it("preserves tool request examples in inline and fenced code after thinking", () => {
+    const marker = "<<<[TOOL_REQUEST]>>>";
+    const request = `${marker}
+JEV:「始」搜索「末」
+<<<[END_TOOL_REQUEST]>>>`;
+    const fence = "```";
+    const ast = parse(`<think>思考</think>\`${marker}\`
+
+${fence}text
+${request}
+${fence}`);
+    const codeBlock = ast.find((node) => node.type === "code_block");
+
+    expect(codeBlock?.props).toMatchObject({ content: request, closed: true });
+    const paragraph = ast.find((node) => node.type === "paragraph");
+    expect(paragraph?.children).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "inline_code",
+          props: { content: marker },
+        }),
+      ])
+    );
+    expect(findToolRequests(ast)).toHaveLength(0);
+  });
+
   it("hides duplicate tool summary when a matching result exists in the same role fence", () => {
     const ast = parse(`
 <<<[ROLE_DIVIDE_USER]>>>

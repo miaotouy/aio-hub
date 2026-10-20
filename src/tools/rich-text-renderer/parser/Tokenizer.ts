@@ -352,8 +352,11 @@ export class Tokenizer {
         }
       }
 
-      // 6. 块级标记（只在行首有效）
-      if (atLineStart) {
+      // 6. 块级标记通常位于行首；VCP 请求也允许紧接思考标签或正文。
+      const atToolRequest =
+        text.startsWith("<<<[TOOL_REQUEST]>>>", i) ||
+        text.startsWith("<<<[TOOL_REQUEST_ESCAPE]>>>", i);
+      if (atLineStart || atToolRequest) {
         const indentMatch = stickyMatch(RE_INDENT, text, i);
         const indent = indentMatch ? indentMatch[1].length : 0;
         const posAfterIndent = i + indent;

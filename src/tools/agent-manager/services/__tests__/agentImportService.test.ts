@@ -20,6 +20,8 @@ import {
 } from "../agentImportService";
 
 const mocks = vi.hoisted(() => ({
+  agents: [] as any[],
+  loadAgentDetails: vi.fn(),
   createAgent: vi.fn(),
   invoke: vi.fn(),
   updateAgent: vi.fn(),
@@ -42,7 +44,8 @@ vi.mock("@/utils/errorHandler", () => ({
 
 vi.mock("../../stores/agentStore", () => ({
   useAgentStore: () => ({
-    agents: [],
+    agents: mocks.agents,
+    loadAgentDetails: mocks.loadAgentDetails,
     createAgent: mocks.createAgent,
     updateAgent: mocks.updateAgent,
   }),
@@ -82,7 +85,11 @@ vi.mock("@/tools/knowledge-base/services/access", () => ({
 describe("agent import assets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.createAgent.mockReturnValue("imported-agent");
+    mocks.agents.splice(0);
+    mocks.loadAgentDetails.mockResolvedValue({ id: "existing-agent" });
+    mocks.createAgent.mockImplementation(
+      (_name, _profile, _model, options) => options.customId
+    );
     mocks.invoke.mockResolvedValue(undefined);
   });
 
@@ -134,19 +141,18 @@ describe("agent import assets", () => {
       resolvedAgents: [resolvedAgent],
     });
 
+    const importedAgent = mocks.createAgent.mock.lastCall![3];
+    const agentId = importedAgent.customId;
     expect(mocks.invoke).toHaveBeenCalledWith("save_uploaded_file", {
       fileData: new Uint8Array([1, 2, 3]),
       filename: "avatar.png",
-      subdirectory: "agent-manager/agents/imported-agent",
+      subdirectory: `agent-manager/agents/${agentId}`,
     });
     expect(mocks.invoke).toHaveBeenCalledWith("save_uploaded_file", {
       fileData: new Uint8Array([4, 5, 6]),
       filename: "sticker.png",
-      subdirectory: "agent-manager/agents/imported-agent/assets",
+      subdirectory: `agent-manager/agents/${agentId}/assets`,
     });
-    const lastUpdateCall = mocks.updateAgent.mock.lastCall;
-    expect(lastUpdateCall).toBeDefined();
-    const [, importedAgent] = lastUpdateCall!;
     expect(importedAgent.icon).toBe("avatar.png");
     expect(importedAgent.assets).toEqual([
       {
@@ -157,6 +163,83 @@ describe("agent import assets", () => {
       },
     ]);
   });
+});
+
+// Save failures must remain observable and must not publish a new broken agent.
+describe("agent import persistence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.agents.splice(0);
+    mocks.loadAgentDetails.mockResolvedValue({ id: "existing-agent" });
+    mocks.invoke.mockResolvedValue(undefined);
+  });
+
+  const imported = () =>
+    ({
+      id: "source-agent",
+      name: "Imported",
+      finalProfileId: "profile-1",
+      finalModelId: "model-1",
+      overwriteExisting: false,
+      icon: "assets/avatar.png",
+      assets: [
+        {
+          id: "image",
+          path: "assets/pictures/image.png",
+          thumbnailPath: "assets/thumbs/image.png",
+          filename: "image.png",
+          type: "image",
+        },
+      ],
+    }) as any;
+  const binaries = () => ({
+    "source-agent": {
+      "assets/avatar.png": new Uint8Array([1]).buffer,
+      "assets/pictures/image.png": new Uint8Array([2]).buffer,
+      "assets/thumbs/image.png": new Uint8Array([3]).buffer,
+    },
+  });
+
+  it("restores overwrite assets without replacing sanitized configuration with raw import data", async () => {
+    mocks.agents.push({ id: "existing-agent", name: "Imported" });
+    const source = imported();
+    source.overwriteExisting = true;
+    await commitImportAgents({ resolvedAgents: [source], assets: binaries() });
+    expect(mocks.loadAgentDetails).toHaveBeenCalledWith("existing-agent");
+    const update = mocks.updateAgent.mock.lastCall![1];
+    expect(update).toMatchObject({
+      icon: "avatar.png",
+      profileId: "profile-1",
+      modelId: "model-1",
+      presetMessages: [],
+    });
+    expect(update.assets[0].thumbnailPath).toBe("assets/thumbs/image.png");
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "save_uploaded_file",
+      expect.objectContaining({
+        subdirectory: "agent-manager/agents/existing-agent/assets/pictures",
+        filename: "image.png",
+      })
+    );
+    expect(source.icon).toBe("assets/avatar.png");
+  });
+
+  it.each([false, true])(
+    "reports asset write failures before publishing configuration (overwrite=%s)",
+    async (overwriteExisting) => {
+      if (overwriteExisting)
+        mocks.agents.push({ id: "existing-agent", name: "Imported" });
+      mocks.invoke.mockRejectedValue(new Error("disk full"));
+      await expect(
+        commitImportAgents({
+          resolvedAgents: [{ ...imported(), overwriteExisting }],
+          assets: binaries(),
+        })
+      ).rejects.toThrow("Imported");
+      expect(mocks.createAgent).not.toHaveBeenCalled();
+      expect(mocks.updateAgent).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe("agent import display names", () => {

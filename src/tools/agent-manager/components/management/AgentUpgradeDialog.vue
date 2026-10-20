@@ -34,11 +34,10 @@ import { normalizeWorldbook } from "@/tools/st-worldbook-manager/services/worldb
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import jsYaml from "js-yaml";
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile, readDir } from "@tauri-apps/plugin-fs";
 import { isEqual } from "lodash-es";
-import { getAgentStorageSubdirectory } from "../../utils/agentAssetUtils";
+import { restoreImportedAgentAssets } from "../../services/agentImportedAssetService";
 
 const logger = createModuleLogger("llm-chat/AgentUpgradeDialog");
 const errorHandler = createModuleErrorHandler("llm-chat/AgentUpgradeDialog");
@@ -76,6 +75,9 @@ const ALLOWED_EXTENSIONS = ["json", "yaml", "yml", "zip", "png", "jpg", "jpeg"];
 
 /** 解析文本配置（JSON/YAML） */
 const parseTextConfig = (text: string) => {
+  parsedAssets.value = {};
+  parsedBundledWorldbooks.value = [];
+  parsedEmbeddedWorldbook.value = null;
   if (!text.trim()) {
     parsedConfig.value = null;
     parseError.value = null;
@@ -146,6 +148,7 @@ const handleFileUpload = async (file: File | File[]) => {
     const firstAgent = result.agents[0];
     const tempId = firstAgent.id || "";
 
+    parseError.value = null;
     parsedConfig.value = firstAgent;
     parsedAssets.value = result.assets[tempId] || {};
     parsedBundledWorldbooks.value = result.bundledWorldbooks?.[tempId] || [];
@@ -379,39 +382,6 @@ const buildOverwriteUpdate = (
   };
 };
 
-// ========== 资产处理 ==========
-
-/** 处理资产更新 */
-const processAssetUpdates = async (agentId: string) => {
-  const assetEntries = Object.entries(parsedAssets.value);
-  if (assetEntries.length === 0) return;
-
-  logger.info("开始更新智能体资产", { count: assetEntries.length });
-
-  for (const [path, buffer] of assetEntries) {
-    const rawRelativePath = path.replace(/^assets[/\\]/, "");
-    const pathParts = rawRelativePath.split(/[/\\]/);
-    const filename = pathParts.pop() || "file";
-    const relativeSubDir = pathParts.join("/");
-
-    const subdirectory = getAgentStorageSubdirectory(agentId, relativeSubDir);
-
-    await invoke("save_uploaded_file", {
-      fileData: new Uint8Array(buffer),
-      subdirectory,
-      filename,
-    });
-
-    // 如果是头像，自动同步 icon 字段
-    if (path.includes("avatar_for_") || parsedConfig.value?.icon === path) {
-      const finalIconPath = relativeSubDir
-        ? `${relativeSubDir}/${filename}`
-        : filename;
-      agentStore.updateAgent(agentId, { icon: finalIconPath });
-    }
-  }
-};
-
 // ========== 核心执行逻辑 ==========
 
 /** 执行升级/覆盖 */
@@ -419,8 +389,17 @@ const handleConfirm = async () => {
   if (!parsedConfig.value) return;
 
   try {
-    const currentAgent = props.agent;
-    const newConfig = parsedConfig.value;
+    const currentAgent = await agentStore.loadAgentDetails(props.agent.id);
+    if (!currentAgent) throw new Error("目标智能体已不存在，请重新选择");
+    const assetSource =
+      upgradeStrategy.value === "merge"
+        ? { ...parsedConfig.value, icon: undefined, avatarHistory: undefined }
+        : parsedConfig.value;
+    const newConfig = await restoreImportedAgentAssets(
+      assetSource,
+      parsedAssets.value,
+      currentAgent.id
+    );
     const agentName =
       newConfig.displayName || newConfig.name || currentAgent.name;
 
@@ -435,9 +414,6 @@ const handleConfirm = async () => {
 
     // 3. 执行更新
     agentStore.updateAgent(currentAgent.id, updatedData);
-
-    // 4. 处理资产
-    await processAssetUpdates(currentAgent.id);
 
     customMessage.success("智能体配置覆盖成功");
     emit("upgraded");
@@ -612,7 +588,7 @@ const previewInfo = computed(() => {
         <div class="strategy-hint">
           {{
             upgradeStrategy === "merge"
-              ? "保留当前的名称、头像和模型配置，仅更新提示词、参数和高级规则。"
+              ? "保留当前名称、头像和模型，更新提示词、参数、规则与资产。"
               : "除了唯一 ID 外，将所有配置替换为导入的内容。"
           }}
         </div>

@@ -35,7 +35,6 @@ import {
 import { parsePngMetadata } from "@/utils/pngMetadataReader";
 import { normalizeWorldbook } from "@/tools/st-worldbook-manager/services/worldbookImportService";
 import { useWorldbookStore } from "@/tools/st-worldbook-manager/stores/worldbookStore";
-import { invoke } from "@tauri-apps/api/core";
 import { useAgentStore } from "../stores/agentStore";
 import {
   convertVcpChatConfigToImportBundle,
@@ -43,7 +42,7 @@ import {
 } from "./vcpChatAgentImportService";
 import { DEFAULT_AGENT_EXTENSION_CONFIG } from "../types/agent";
 import { migrateAgent } from "./agentMigrationService";
-import { getAgentStorageSubdirectory } from "../utils/agentAssetUtils";
+import { restoreImportedAgentAssets } from "./agentImportedAssetService";
 import {
   DEFAULT_AGENT_KNOWLEDGE_ACCESS,
   normalizeAgentKnowledgeAccess,
@@ -726,57 +725,12 @@ export async function commitImportAgents(
   const agentStore = useAgentStore();
   const worldbookStore = useWorldbookStore();
   logger.info("开始提交导入", { agentCount: resolvedAgents.length });
+  const failedAgents: string[] = [];
 
   for (const resolvedAgent of resolvedAgents) {
     try {
       // 获取属于该 Agent 的资产桶 (根本上隔离，无需临时前缀)
       const agentAssets = allAssets[resolvedAgent.id || ""] || {};
-
-      const pendingAssets: Array<{
-        type: "icon" | "asset" | "thumb";
-        binary: ArrayBuffer;
-        originalPath: string;
-        objectRef: any;
-        keyRef: string;
-      }> = [];
-
-      // 递归扫描所有资产引用（支持 assets/ 前缀和无前缀的头像）
-      const scanAssets = (obj: any, parentKey: string = "") => {
-        if (!obj || typeof obj !== "object") return;
-        for (const key in obj) {
-          const value = obj[key];
-          if (typeof value === "string") {
-            // 检查是否为资产路径
-            let assetPath: string | null = null;
-            if (value.startsWith("assets/")) {
-              assetPath = value;
-            } else if (
-              (key === "icon" || parentKey === "avatarHistory") &&
-              agentAssets[`assets/${value}`]
-            ) {
-              // 头像可能没有 assets/ 前缀，尝试添加前缀查找
-              assetPath = `assets/${value}`;
-            }
-
-            if (assetPath && agentAssets[assetPath]) {
-              pendingAssets.push({
-                type:
-                  key === "icon" || parentKey === "avatarHistory"
-                    ? "icon"
-                    : "asset",
-                binary: agentAssets[assetPath],
-                originalPath: assetPath,
-                objectRef: obj,
-                keyRef: key,
-              });
-            }
-          } else if (typeof value === "object") {
-            scanAssets(value, key);
-          }
-        }
-      };
-
-      scanAssets(resolvedAgent);
 
       const agentName = resolvedAgent.newName || resolvedAgent.name;
 
@@ -818,21 +772,6 @@ export async function commitImportAgents(
         category: _category,
         ...restOptions
       } = resolvedAgent;
-
-      // 创建前清除 assets/ 引用
-      const clearAssetRefs = (obj: any) => {
-        if (!obj || typeof obj !== "object") return;
-        for (const key in obj) {
-          if (typeof obj[key] === "string" && obj[key].startsWith("assets/")) {
-            obj[key] = "";
-          } else if (typeof obj[key] === "object") {
-            clearAssetRefs(obj[key]);
-          }
-        }
-      };
-
-      const cleanRestOptions = JSON.parse(JSON.stringify(restOptions));
-      clearAssetRefs(cleanRestOptions);
 
       // 辅助函数：查找内容完全一致的现有世界书
       const findDuplicateWorldbook = async (
@@ -932,9 +871,9 @@ export async function commitImportAgents(
       }
 
       const agentOptions = sanitizeImportedAgent({
-        ...cleanRestOptions,
-        icon: originalIcon?.startsWith("assets/") ? undefined : originalIcon,
-        assets: originalAssets?.filter((a) => !a.path.startsWith("assets/")),
+        ...restOptions,
+        icon: originalIcon,
+        assets: originalAssets,
         category: validCategory,
         worldbookIds:
           importedWorldbookIds.length > 0
@@ -942,124 +881,48 @@ export async function commitImportAgents(
             : resolvedAgent.worldbookIds,
       });
 
-      let finalAgentId: string;
-      if (resolvedAgent.overwriteExisting) {
-        const existingAgent = agentStore.agents.find(
-          (a) => a.name === resolvedAgent.name
+      const existingAgent = resolvedAgent.overwriteExisting
+        ? agentStore.agents.find((agent) => agent.name === resolvedAgent.name)
+        : undefined;
+      if (existingAgent) {
+        // 写入成功后再替换完整配置，避免资产失败时先破坏现有智能体。
+        await agentStore.loadAgentDetails(existingAgent.id);
+        const restoredOptions = await restoreImportedAgentAssets(
+          agentOptions,
+          agentAssets,
+          existingAgent.id
         );
-        if (existingAgent) {
-          finalAgentId = existingAgent.id;
-
-          // 🌟 核心修复：强制加载磁盘上的完整详情，防止用残缺索引覆盖
-          await agentStore.loadAgentDetails(existingAgent.id);
-
-          agentStore.updateAgent(existingAgent.id, {
-            ...agentOptions,
-            profileId: resolvedAgent.finalProfileId,
-            modelId: resolvedAgent.finalModelId,
-          });
-        } else {
-          finalAgentId = agentStore.createAgent(
-            agentName,
-            resolvedAgent.finalProfileId,
-            resolvedAgent.finalModelId,
-            agentOptions
-          );
-        }
+        agentStore.updateAgent(existingAgent.id, {
+          ...restoredOptions,
+          profileId: resolvedAgent.finalProfileId,
+          modelId: resolvedAgent.finalModelId,
+        });
       } else {
-        finalAgentId = agentStore.createAgent(
+        const finalAgentId = `agent-${crypto.randomUUID()}`;
+        const restoredOptions = await restoreImportedAgentAssets(
+          agentOptions,
+          agentAssets,
+          finalAgentId
+        );
+        agentStore.createAgent(
           agentName,
           resolvedAgent.finalProfileId,
           resolvedAgent.finalModelId,
-          agentOptions
+          { ...restoredOptions, customId: finalAgentId }
         );
       }
-
-      // 处理资产持久化
-      if (pendingAssets.length > 0) {
-        try {
-          // 用于存储处理后的资产路径映射
-          const assetPathMapping: Record<string, string> = {};
-
-          for (const assetInfo of pendingAssets) {
-            const normalizedOriginalPath = assetInfo.originalPath
-              .replace(/\\/g, "/")
-              .replace(/^\/+/, "");
-            // 导出包将头像和其他资源都归一到 assets/ 下。头像是智能体
-            // 根目录文件，普通资源则必须保留 assets/ 目录，避免导入后扁平化。
-            const storageRelativePath =
-              assetInfo.type === "icon"
-                ? normalizedOriginalPath.replace(/^assets\//, "")
-                : normalizedOriginalPath;
-            const pathParts = storageRelativePath.split("/");
-            const filename = pathParts.pop() || "file";
-            const relativeSubDir = pathParts.join("/");
-
-            const subdirectory = getAgentStorageSubdirectory(
-              finalAgentId,
-              relativeSubDir
-            );
-            const bytes = new Uint8Array(assetInfo.binary);
-
-            await invoke("save_uploaded_file", {
-              fileData: bytes,
-              subdirectory,
-              filename: filename,
-            });
-
-            const finalRefPath = relativeSubDir
-              ? `${relativeSubDir}/${filename}`
-              : filename;
-            assetPathMapping[assetInfo.originalPath] = finalRefPath;
-
-            if (assetInfo.objectRef && assetInfo.keyRef) {
-              assetInfo.objectRef[assetInfo.keyRef] = finalRefPath;
-            }
-          }
-
-          // 最终更新 Agent 配置，确保包含已处理的资产路径
-          // 排除导入过程中的临时控制字段
-          const excludeKeys = [
-            "finalProfileId",
-            "finalModelId",
-            "overwriteExisting",
-            "newName",
-            "id",
-          ];
-          const finalUpdate: any = {};
-
-          Object.keys(resolvedAgent).forEach((key) => {
-            if (!excludeKeys.includes(key)) {
-              let value = (resolvedAgent as any)[key];
-              // 如果是 icon 字段且以 assets/ 开头，替换为处理后的路径
-              if (
-                key === "icon" &&
-                typeof value === "string" &&
-                value.startsWith("assets/")
-              ) {
-                value = assetPathMapping[value] || value;
-              }
-              finalUpdate[key] = value;
-            }
-          });
-
-          agentStore.updateAgent(finalAgentId, finalUpdate);
-          logger.info("成功导入并存储 Agent 资产", {
-            name: agentName,
-            agentId: finalAgentId,
-            assetCount: pendingAssets.length,
-          });
-        } catch (assetError) {
-          errorHandler.handle(assetError, {
-            userMessage: `为 Agent "${agentName}" 导入资产失败`,
-          });
-        }
-      }
     } catch (error) {
+      failedAgents.push(resolvedAgent.newName || resolvedAgent.name);
       errorHandler.handle(error, {
         userMessage: `持久化 Agent "${resolvedAgent.name}" 失败`,
+        showToUser: false,
       });
     }
+  }
+  if (failedAgents.length > 0) {
+    throw new Error(
+      `以下智能体导入失败，请检查资产文件和存储权限：${failedAgents.join("、")}`
+    );
   }
   logger.info("导入流程全部完成");
 }

@@ -55,19 +55,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="toolbar">
+  <div class="toolbar" :class="{ 'is-selection-mode': isSelectionMode }">
     <div class="left-tools">
-      <template v-if="isSelectionMode">
-        <span class="selection-count">已选 {{ selectedCount }} 项</span>
-        <el-divider direction="vertical" />
-        <el-button size="small" @click="emit('toggle-select-all')">
-          {{
-            selectedCount > 0 && selectedCount === filteredTotal
-              ? "取消全选"
-              : "全选"
-          }}
-        </el-button>
-      </template>
       <div class="search-box">
         <el-input
           :model-value="searchQuery"
@@ -83,17 +72,15 @@ const emit = defineEmits<{
           :model-value="sortBy"
           @update:model-value="emit('update:sortBy', $event as string)"
           size="small"
-          style="width: 120px"
+          style="width: 100%"
           :prefix-icon="Sort"
         >
           <el-option label="默认顺序" value="default" />
           <el-option label="名称 A-Z" value="name-asc" />
           <el-option label="名称 Z-A" value="name-desc" />
           <el-option label="ID A-Z" value="id-asc" />
-          <el-option label="ID Z-A" value="id-desc" /><el-option
-            label="大小 递增"
-            value="size-asc"
-          />
+          <el-option label="ID Z-A" value="id-desc" />
+          <el-option label="大小 递增" value="size-asc" />
           <el-option label="大小 递减" value="size-desc" />
         </el-select>
       </div>
@@ -104,6 +91,17 @@ const emit = defineEmits<{
     </div>
 
     <div class="actions">
+      <template v-if="isSelectionMode">
+        <span class="selection-count">已选 {{ selectedCount }} 项</span>
+        <el-button size="small" @click="emit('toggle-select-all')">
+          {{
+            selectedCount > 0 && selectedCount === filteredTotal
+              ? "取消全选"
+              : "全选"
+          }}
+        </el-button>
+      </template>
+
       <el-dropdown
         trigger="click"
         @command="
@@ -146,14 +144,16 @@ const emit = defineEmits<{
       </el-dropdown>
       <template v-if="isSelectionMode">
         <el-button
+          class="exit-selection"
           size="small"
           :icon="Close"
           @click="emit('toggle-selection-mode')"
           >退出批量</el-button
         >
         <el-divider direction="vertical" />
-        <el-button-group size="small">
+        <div class="batch-actions">
           <el-button
+            size="small"
             :icon="FolderAdd"
             @click="emit('batch-move')"
             :disabled="selectedCount === 0"
@@ -161,6 +161,7 @@ const emit = defineEmits<{
             移动到...
           </el-button>
           <el-button
+            size="small"
             type="danger"
             :icon="Delete"
             @click="emit('batch-delete')"
@@ -168,7 +169,7 @@ const emit = defineEmits<{
           >
             删除
           </el-button>
-        </el-button-group>
+        </div>
       </template>
       <template v-else>
         <el-tooltip content="批量管理资产" :show-after="500" placement="top">
@@ -215,8 +216,8 @@ const emit = defineEmits<{
   justify-content: space-between;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   box-sizing: border-box;
 }
@@ -225,7 +226,8 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  flex: 1 1 360px;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
@@ -238,11 +240,12 @@ const emit = defineEmits<{
 
 .search-box {
   flex: 1;
-  min-width: 120px;
+  min-width: 200px;
   max-width: 260px;
 }
 
 .sort-box {
+  width: 150px;
   flex-shrink: 0;
 }
 
@@ -264,6 +267,35 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.is-selection-mode .left-tools,
+.is-selection-mode .actions {
+  flex-basis: 100%;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.toolbar :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.exit-selection {
+  order: 1;
+}
+
+@media (max-width: 640px) {
+  .search-box {
+    max-width: none;
+  }
+
+  .drag-upload-tip {
+    display: none;
+  }
 }
 </style>

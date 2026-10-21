@@ -172,7 +172,23 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **分层合并策略**: `utils/styleUtils.ts` 支持全局样式与 Agent/User 个性化样式的分层合并。覆盖配置中已启用的分类会优先级最高，未启用的则回退到全局设置。
 - **所见即所得**: `MarkdownStyleEditor` 提供图形化界面，修改会通过 Pinia 实时响应，无需重渲染即可观察效果。
 
-#### 3.3.2 内容样式隔离 (Content Style Isolation)
+#### 3.3.2 生成内容的主题变量别名
+
+`RichTextRenderer.vue` 在 `.rich-text-renderer` 根容器上提供常见 CSS 变量别名，供 AST 与纯 Markdown 模式中的 HTML 内容继承。别名引用应用主题变量，随明暗模式、主题色和背景外观变化；正文可在自己的元素上定义同名变量覆盖默认值。
+
+| 常见别名                                                                                         | 应用主题变量                                                                                   |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `--primary-text`、`--text-primary`、`--text-color-primary`、`--color-text`                       | `--text-color`                                                                                 |
+| `--secondary-text`、`--text-secondary`、`--text-color-secondary`、`--text-muted`、`--muted-text` | `--text-color-light`                                                                           |
+| `--primary-bg`、`--bg-primary`、`--background-color`                                             | `--bg-color`                                                                                   |
+| `--secondary-bg`、`--bg-secondary`、`--surface-color`                                            | `--container-bg`                                                                               |
+| `--tertiary-bg`、`--bg-tertiary`                                                                 | `--card-bg`                                                                                    |
+| `--color-border`                                                                                 | `--border-color`                                                                               |
+| `--border-light`                                                                                 | `--border-color-light`                                                                         |
+| `--accent-color`、`--color-primary`                                                              | `--primary-color`                                                                              |
+| `--color-success`、`--color-warning`、`--color-danger`、`--color-error`、`--color-info`          | 对应的 `--success-color`、`--warning-color`、`--danger-color`、`--error-color`、`--info-color` |
+
+#### 3.3.3 内容样式隔离 (Content Style Isolation)
 
 针对 LLM 在 HTML 块中生成的 `<style>` 标签，引擎实现了自动的作用域隔离机制。
 

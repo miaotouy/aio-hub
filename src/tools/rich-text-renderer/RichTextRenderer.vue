@@ -751,6 +751,36 @@ defineExpose({
 
 <style scoped>
 .rich-text-renderer {
+  /* 生成内容的常见主题别名，限定在渲染器内并随应用主题继承。 */
+  --primary-text: var(--text-color);
+  --text-primary: var(--text-color);
+  --text-color-primary: var(--text-color);
+  --color-text: var(--text-color);
+  --secondary-text: var(--text-color-light);
+  --text-secondary: var(--text-color-light);
+  --text-color-secondary: var(--text-color-light);
+  --text-muted: var(--text-color-light);
+  --muted-text: var(--text-color-light);
+
+  --primary-bg: var(--bg-color);
+  --bg-primary: var(--bg-color);
+  --background-color: var(--bg-color);
+  --secondary-bg: var(--container-bg);
+  --bg-secondary: var(--container-bg);
+  --surface-color: var(--container-bg);
+  --tertiary-bg: var(--card-bg);
+  --bg-tertiary: var(--card-bg);
+
+  --color-border: var(--border-color);
+  --border-light: var(--border-color-light);
+  --accent-color: var(--primary-color);
+  --color-primary: var(--primary-color);
+  --color-success: var(--success-color);
+  --color-warning: var(--warning-color);
+  --color-danger: var(--danger-color);
+  --color-error: var(--error-color);
+  --color-info: var(--info-color);
+
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);

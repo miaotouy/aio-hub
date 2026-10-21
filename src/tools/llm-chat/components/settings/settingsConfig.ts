@@ -207,7 +207,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.showPerformanceMetrics",
-        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
+        hint: "在消息底部显示生成速度、首字延迟和总耗时",
         keywords: "ui performance metrics speed latency 性能 速度 延迟",
       },
       {

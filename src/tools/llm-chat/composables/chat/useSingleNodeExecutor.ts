@@ -290,12 +290,21 @@ export function useSingleNodeExecutor() {
     const segmentNodes = new Map<number, ChatMessageNode>();
     let hasResponseChunks = false;
     let activeStreamNode = assistantNode;
+    let nextAssistantStartTime: number | undefined;
 
     const onResponseChunk: NonNullable<LlmRequestOptions["onResponseChunk"]> = (
       chunk
     ) => {
       if (!segmenter) return;
       hasResponseChunks = true;
+      const receivedAt = Date.now();
+      // Tool-end/separator marks the earliest observable start of the next
+      // model round. Older servers only expose the last tool result chunk.
+      if (
+        /^chatcmpl-(?:vcp-end-|VCP-separator-)/.test(chunk.responseId ?? "")
+      ) {
+        nextAssistantStartTime = receivedAt;
+      }
       const update = segmenter.push(chunk);
       if (!update) return;
       const { segment, contentDelta, reasoningDelta } = update;
@@ -321,6 +330,14 @@ export function useSingleNodeExecutor() {
               modelIcon: original?.modelIcon,
               providerType: original?.providerType,
               requestParameters: original?.requestParameters,
+              ...(segment.kind === "assistant"
+                ? {
+                    requestStartTime:
+                      nextAssistantStartTime ??
+                      activeStreamNode.metadata?.requestEndTime ??
+                      receivedAt,
+                  }
+                : {}),
             },
           });
           // Insert each phase before queued follow-ups so their paths keep
@@ -389,7 +406,16 @@ export function useSingleNodeExecutor() {
             }
           : {}),
       };
-      if (contentDelta || reasoningDelta) hasReceivedStreamData = true;
+      if (contentDelta || reasoningDelta) {
+        hasReceivedStreamData = true;
+        if (segment.kind === "tool") {
+          nextAssistantStartTime = receivedAt;
+        } else {
+          node.metadata.requestStartTime ??= receivedAt;
+          node.metadata.firstTokenTime ??= receivedAt;
+          nextAssistantStartTime = undefined;
+        }
+      }
       if (contentDelta)
         handleStreamUpdate(session, node.id, contentDelta, false);
       if (reasoningDelta)

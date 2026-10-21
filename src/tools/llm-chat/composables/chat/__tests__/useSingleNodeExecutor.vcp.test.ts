@@ -169,6 +169,80 @@ describe("VCP message splitting preference", () => {
     }
   );
 
+  // Each model round owns its latency and usage; tool execution time and the
+  // first round's request start must not leak into the following round.
+  it.each([true, false])(
+    "records each round's timing with boundary=%s",
+    async (withBoundary) => {
+      mocks.settings.value.uiPreferences.splitVcpResponses = true;
+      const session = createSession();
+      session.nodes.assistant.metadata = { requestStartTime: 1000 };
+      let now = 1000;
+      const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+      const firstUsage = {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+      };
+      const secondUsage = {
+        promptTokens: 30,
+        completionTokens: 8,
+        totalTokens: 38,
+      };
+      mocks.sendRequest.mockImplementation(
+        async (options: LlmRequestOptions) => {
+          const emit = (
+            time: number,
+            chunk: Parameters<
+              NonNullable<LlmRequestOptions["onResponseChunk"]>
+            >[0]
+          ) => {
+            now = time;
+            options.onResponseChunk?.(chunk);
+          };
+          emit(1100, { responseId: "first", content: "查询中" });
+          emit(1500, {
+            responseId: "first",
+            finishReason: "stop",
+            usage: firstUsage,
+          });
+          emit(2000, { responseId: "chatcmpl-vcp-1", content: "工具结果" });
+          if (withBoundary) emit(2400, { responseId: "chatcmpl-vcp-end-1" });
+          emit(3000, { responseId: "second", reasoningContent: "思考" });
+          emit(3200, { responseId: "second", content: "最终回答" });
+          emit(4000, {
+            responseId: "second",
+            finishReason: "stop",
+            usage: secondUsage,
+          });
+          return response;
+        }
+      );
+      try {
+        await execute(true, session);
+        const assistants = Object.values(session.nodes).filter(
+          (node) => node.role === "assistant"
+        );
+        expect(assistants.map((node) => node.metadata)).toEqual([
+          expect.objectContaining({
+            requestStartTime: 1000,
+            firstTokenTime: 1100,
+            requestEndTime: 1500,
+            usage: firstUsage,
+          }),
+          expect.objectContaining({
+            requestStartTime: withBoundary ? 2400 : 2000,
+            firstTokenTime: 3000,
+            requestEndTime: 4000,
+            usage: secondUsage,
+          }),
+        ]);
+      } finally {
+        clock.mockRestore();
+      }
+    }
+  );
+
   it("applies the changed preference to the next request and splits VCP phases", async () => {
     await execute();
     mocks.settings.value.uiPreferences.splitVcpResponses = true;

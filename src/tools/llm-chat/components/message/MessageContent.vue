@@ -994,7 +994,59 @@ useMessageHeightSource(
 
 // 元数据响应式提取，确保异步更新能被触发
 const messageMetadata = computed(() => props.message.metadata);
+const performanceStats = computed(() => {
+  const metadata = messageMetadata.value;
+  if (
+    props.message.role !== "assistant" ||
+    props.message.status !== "complete" ||
+    !metadata ||
+    !(
+      props.screenshotMode ||
+      settings.value.uiPreferences.showPerformanceMetrics
+    )
+  )
+    return [];
+  const stats: { label: string; value: string }[] = [];
+  if (
+    metadata.tokensPerSecond !== undefined &&
+    Number.isFinite(metadata.tokensPerSecond)
+  ) {
+    stats.push({
+      label: "生成速度",
+      value: String(metadata.tokensPerSecond) + " t/s",
+    });
+  }
+  if (
+    metadata.requestStartTime !== undefined &&
+    metadata.firstTokenTime !== undefined
+  ) {
+    const latency = Math.max(
+      0,
+      metadata.firstTokenTime - metadata.requestStartTime
+    );
+    stats.push({
+      label: "首字延迟 (TTFT)",
+      value:
+        latency >= 1000 ? (latency / 1000).toFixed(2) + "s" : latency + "ms",
+    });
+  }
+  if (
+    metadata.requestStartTime !== undefined &&
+    metadata.requestEndTime !== undefined
+  ) {
+    stats.push({
+      label: "总耗时",
+      value:
+        (
+          Math.max(0, metadata.requestEndTime - metadata.requestStartTime) /
+          1000
+        ).toFixed(1) + "s",
+    });
+  }
+  return stats;
+});
 const showMeta = computed(() => {
+  if (performanceStats.value.length) return true;
   // 截图模式下始终渲染 meta 区域，由 CSS 控制可见性
   if (props.screenshotMode) {
     const metadata = messageMetadata.value;
@@ -1413,6 +1465,20 @@ watch(
             {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
           >
         </div>
+        <div
+          v-if="performanceStats.length"
+          class="performance-stats"
+          data-meta-type="performance"
+        >
+          <el-tooltip
+            v-for="stat in performanceStats"
+            :key="stat.label"
+            :content="stat.label"
+            placement="top"
+          >
+            <span class="stat-item">{{ stat.value }}</span>
+          </el-tooltip>
+        </div>
       </div>
       <div v-if="errorMessage" class="error-info">
         <el-button
@@ -1610,6 +1676,22 @@ watch(
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 12px;
+}
+
+.performance-stats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-color-light);
+}
+.stat-item {
+  white-space: nowrap;
+}
+.stat-item:not(:last-child)::after {
+  content: "|";
+  margin-left: 6px;
+  opacity: 0.3;
 }
 
 .usage-info {

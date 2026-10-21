@@ -1,5 +1,6 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { computed, reactive } from "vue";
 import type { LlmRequestOptions } from "@/llm-apis/common";
 import type { ChatAgent, ChatSessionDetail } from "../../../types";
 
@@ -184,6 +185,85 @@ describe("interrupted streaming replies", () => {
       expect(node.metadata?.reasoningDurationMs).toBe(1200);
     }
   );
+});
+// Stream consumers must observe reasoning transitions before the throttled body
+// is persisted, including nodes created by VCP response splitting.
+describe("live reasoning activity", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-21T00:00:00Z"));
+    vi.clearAllMocks();
+    mocks.settings.value.uiPreferences.splitVcpResponses = true;
+  });
+
+  afterEach(() => {
+    mocks.settings.value.uiPreferences.splitVcpResponses = false;
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it("stops and resumes visible reasoning timing in each VCP response", async () => {
+    const first = useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+      status: "waiting",
+    });
+    const session = reactive<ChatSessionDetail>({
+      id: "session",
+      nodes: { [first.id]: first },
+      rootNodeId: first.id,
+      activeLeafId: first.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    });
+    mocks.sendRequest.mockImplementation(async (options: LlmRequestOptions) => {
+      for (let round = 0; round < 2; round++) {
+        options.onResponseChunk?.({ reasoningContent: "thinking" });
+        const node = session.nodes[session.activeLeafId];
+        const thinking = computed(
+          () => node.metadata?.reasoningActive === true
+        );
+        const duration = computed(() => node.metadata?.reasoningDurationMs);
+        expect(thinking.value).toBe(true);
+        expect(duration.value).toBeUndefined();
+        await vi.advanceTimersByTimeAsync(1000);
+        options.onResponseChunk?.({ content: "answer" });
+        expect(thinking.value).toBe(false);
+        expect(duration.value).toBe(1000);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(thinking.value).toBe(false);
+        expect(duration.value).toBe(1000);
+        options.onResponseChunk?.({ reasoningContent: "more thinking" });
+        expect(thinking.value).toBe(true);
+        await vi.advanceTimersByTimeAsync(500);
+        options.onResponseChunk?.({ content: "continued answer" });
+        expect(thinking.value).toBe(false);
+        expect(duration.value).toBe(1500);
+        options.onResponseChunk?.({ finishReason: "stop" });
+      }
+      return {
+        content: "answercontinued answeranswercontinued answer",
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      };
+    });
+    try {
+      await useSingleNodeExecutor().execute({
+        session,
+        assistantNode: first,
+        currentPathToUserNode: [],
+        splitVcpResponses: true,
+        agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+        executionAgent: { id: "agent" } as ChatAgent,
+        effectiveUserProfile: null,
+        abortController: new AbortController(),
+      });
+    } finally {
+      for (const id of Object.keys(session.nodes))
+        disposeStreamingMessageSource(id);
+    }
+  });
 });
 // A tool result starts a fresh assistant response. Its visible reasoning and
 // elapsed reasoning time must describe that response alone.

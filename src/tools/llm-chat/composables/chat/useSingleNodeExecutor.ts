@@ -289,7 +289,7 @@ export function useSingleNodeExecutor() {
     const segmenter = splitVcpResponses ? new VcpStreamSegmenter() : undefined;
     const segmentNodes = new Map<number, ChatMessageNode>();
     let hasResponseChunks = false;
-    let activeStreamNode = assistantNode;
+    let activeStreamNode = session.nodes[assistantNode.id] ?? assistantNode;
     let nextAssistantStartTime: number | undefined;
 
     const onResponseChunk: NonNullable<LlmRequestOptions["onResponseChunk"]> = (
@@ -311,7 +311,7 @@ export function useSingleNodeExecutor() {
       let node = segmentNodes.get(segment.index);
       if (!node) {
         if (segment.index === 0) {
-          node = assistantNode;
+          node = session.nodes[assistantNode.id] ?? assistantNode;
           node.role = segment.kind;
         } else {
           completeStreamSegment(session, activeStreamNode.id);
@@ -359,6 +359,8 @@ export function useSingleNodeExecutor() {
           });
           const selectedChildId = activeStreamNode.lastSelectedChildId;
           nodeManager.addNodeToSession(session, node);
+          // Cache the session proxy so metadata replacements notify stream consumers.
+          node = session.nodes[node.id];
           for (const childId of queuedChildren) {
             nodeManager.reparentSubtree(session, childId, node.id);
           }

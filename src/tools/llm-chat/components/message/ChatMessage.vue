@@ -459,7 +459,8 @@ defineExpose({
 
 .menubar-wrapper {
   position: sticky;
-  bottom: 8px;
+  /* 抵消列表底部留白，让吸附位置以可视区底边为准。 */
+  bottom: calc(0px - var(--message-list-bottom-space, 0px));
   display: flex;
   justify-content: flex-end;
   align-items: flex-end;

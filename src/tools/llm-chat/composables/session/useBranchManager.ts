@@ -287,52 +287,6 @@ export function useBranchManager() {
   };
 
   /**
-   * 重新生成最后一条助手消息（向后兼容）
-   * 这个函数返回新的活跃叶节点ID，由调用方负责实际的重新生成
-   */
-  const prepareRegenerateLastMessage = (
-    session: ChatSessionDetail
-  ): {
-    shouldRegenerate: boolean;
-    userContent?: string;
-    newActiveLeafId?: string;
-  } => {
-    if (!session.nodes || !session.activeLeafId)
-      return { shouldRegenerate: false };
-    const currentLeaf = session.nodes[session.activeLeafId];
-    if (!currentLeaf) {
-      logger.warn("重新生成失败：当前叶节点不存在", { sessionId: session.id });
-      return { shouldRegenerate: false };
-    }
-
-    // 如果当前叶节点是助手消息，回退到其父节点（用户消息）
-    if (currentLeaf.role === "assistant") {
-      const parentNode = currentLeaf.parentId
-        ? session.nodes[currentLeaf.parentId]
-        : null;
-      if (!parentNode || parentNode.role !== "user") {
-        logger.warn("重新生成失败：父节点不是用户消息", {
-          sessionId: session.id,
-        });
-        return { shouldRegenerate: false };
-      }
-
-      // 返回信息供调用方使用
-      return {
-        shouldRegenerate: true,
-        userContent: parentNode.content,
-        newActiveLeafId: parentNode.id,
-      };
-    }
-
-    logger.warn("重新生成失败：当前叶节点不是助手消息", {
-      sessionId: session.id,
-      currentRole: currentLeaf.role,
-    });
-    return { shouldRegenerate: false };
-  };
-
-  /**
    * 获取某个节点的兄弟节点（包括自己）
    */
   const getSiblings = (
@@ -420,7 +374,6 @@ export function useBranchManager() {
     editMessage,
     createBranch,
     toggleNodeEnabled,
-    prepareRegenerateLastMessage,
     getSiblings,
     isNodeInActivePath,
     getSiblingIndex,

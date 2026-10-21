@@ -69,7 +69,7 @@ function readErrorStatusCode(error: unknown): number | undefined {
 export interface SingleNodeExecuteParams {
   session: ChatSessionDetail;
   assistantNode: ChatMessageNode;
-  /** 到用户消息的完整路径 */
+  /** 到请求上下文末节点的完整路径 */
   currentPathToUserNode: ChatMessageNode[];
   isContinuation?: boolean;
   splitVcpResponses?: boolean;

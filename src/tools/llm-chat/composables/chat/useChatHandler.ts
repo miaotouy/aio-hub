@@ -675,7 +675,7 @@ export function useChatHandler() {
       return;
     }
 
-    const { assistantNode, userNode } = result;
+    const { assistantNode, userNode: parentNode } = result;
 
     // 立即加入生成集合
     generatingNodes.add(assistantNode.id);
@@ -683,8 +683,8 @@ export function useChatHandler() {
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
-    // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
-    const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
+    // 上下文保留到实际父节点，包含已完成的工具调用与响应。
+    const pathToParentNode = nodeManager.getNodePath(session, parentNode.id);
 
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
@@ -715,7 +715,7 @@ export function useChatHandler() {
       sessionId: session.id,
       targetNodeId: nodeId,
       targetRole: targetNode.role,
-      userNodeId: userNode.id,
+      parentNodeId: parentNode.id,
       newNodeId: assistantNode.id,
       agentId: effectiveAgentId,
       profileId: agentConfig.profileId,
@@ -732,9 +732,9 @@ export function useChatHandler() {
     // 执行 LLM 请求
     await executeRequest({
       session,
-      userNode,
+      userNode: parentNode,
       assistantNode,
-      pathToUserNode,
+      pathToUserNode: pathToParentNode,
       abortControllers,
       generatingNodes,
       agentConfig, // 传递包含正确模型信息的 agentConfig

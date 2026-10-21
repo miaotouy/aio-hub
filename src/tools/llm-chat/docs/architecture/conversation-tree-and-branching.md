@@ -26,6 +26,7 @@ interface ChatMessageNode {
 **关键设计点**：
 
 - 节点之间通过 `parentId` / `childrenIds` 双向链接，形成一棵多叉树。
+- 消息角色可自由编排；分支操作沿用实际父子关系，同角色消息与工具响应均可相邻。
 - `childrenIds` 是有序数组，顺序即为分支的创建顺序。
 - `lastSelectedChildId` 是分支记忆的核心，记录用户上次在此节点选择了哪个子分支。
 
@@ -111,9 +112,9 @@ Root (system)
 
 **代码路径** ([`useNodeManager.createRegenerateBranch()`](../../composables/session/useNodeManager.ts:194))：
 
-1. 定位目标节点的父节点（用户消息）。
-2. 在该用户消息下创建一个新的空助手节点（`status: "waiting"`）。
-3. 新节点自动成为用户消息的另一个子节点（兄弟关系）。
+1. 重试助手消息时，定位其直接父节点；从用户消息生成回复时，使用选中的用户节点。
+2. 在该节点下创建新的空助手节点（`status: "waiting"`）；重试助手消息会形成兄弟分支。
+3. 按实际父子关系构建到新助手节点父节点为止的完整上下文，保留已完成的工具调用与响应。
 4. 更新 `activeLeafId` 指向新节点。
 5. 发起 LLM 请求，流式填充新节点内容。
 

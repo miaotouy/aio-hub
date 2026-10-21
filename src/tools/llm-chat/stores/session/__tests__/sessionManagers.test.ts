@@ -290,6 +290,54 @@ describe("llm-chat session managers", () => {
     ]);
   });
 
+  it("retries the last assistant directly after an empty tool result", async () => {
+    const root = node("chat-root", null, "system");
+    const user = node("user", root.id, "user");
+    const toolCall = node("tool-call", user.id, "assistant");
+    const toolResult = node("tool-result", toolCall.id, "tool", "");
+    const failedAssistant = node(
+      "failed-assistant",
+      toolResult.id,
+      "assistant",
+      ""
+    );
+    failedAssistant.status = "error";
+    root.childrenIds = [user.id];
+    user.childrenIds = [toolCall.id];
+    toolCall.childrenIds = [toolResult.id];
+    toolResult.childrenIds = [failedAssistant.id];
+    const detail = session("chat", failedAssistant.id, {
+      [root.id]: root,
+      [user.id]: user,
+      [toolCall.id]: toolCall,
+      [toolResult.id]: toolResult,
+      [failedAssistant.id]: failedAssistant,
+    });
+    const { generation, detailMap } = createGenerationManagerForTest(
+      new Map([[detail.id, detail]]),
+      detail.id
+    );
+
+    await generation.regenerateLastMessage();
+
+    expect(mocks.regenerateFromNode).toHaveBeenCalledTimes(1);
+    const [targetSession, targetId, activePath] =
+      mocks.regenerateFromNode.mock.calls[0];
+    expect(targetSession.id).toBe(detail.id);
+    expect(targetId).toBe(failedAssistant.id);
+    expect(activePath.map((item: ChatMessageNode) => item.id)).toEqual([
+      user.id,
+      toolCall.id,
+      toolResult.id,
+      failedAssistant.id,
+    ]);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(detailMap.value.get(detail.id)?.activeLeafId).toBe(
+      failedAssistant.id
+    );
+    expect(Object.keys(targetSession.nodes)).toHaveLength(5);
+  });
+
   it("queues only when the target parent is on a generating path", async () => {
     const root = node("root", null, "system");
     const user = node("user", "root", "user");

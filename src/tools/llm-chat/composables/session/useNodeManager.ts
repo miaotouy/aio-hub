@@ -221,8 +221,8 @@ export function useNodeManager() {
   /**
    * 创建新分支（重新生成场景）
    * 支持从用户消息或助手消息重新生成
-   * - 用户消息：创建新的助手回复（作为其子节点的兄弟）
-   * - 助手消息：创建新的助手回复（作为兄弟节点）
+   * - 用户消息：创建新的助手回复作为其子节点
+   * - 助手消息：沿用其直接父节点创建兄弟，保留此前的完整上下文
    */
   const createRegenerateBranch = (
     session: ChatSessionDetail,
@@ -239,12 +239,12 @@ export function useNodeManager() {
       return null;
     }
 
-    let userNode: ChatMessageNode;
+    let contextNode: ChatMessageNode;
     let parentNodeId: string;
 
     if (targetNode.role === "user") {
       // 从用户消息重新生成：用户消息本身就是父节点
-      userNode = targetNode;
+      contextNode = targetNode;
       parentNodeId = targetNode.id;
 
       logger.info("从用户消息创建重新生成分支", {
@@ -252,7 +252,7 @@ export function useNodeManager() {
         userNodeId: targetNode.id,
       });
     } else if (targetNode.role === "assistant") {
-      // 从助手消息重新生成：使用其父节点（用户消息）
+      // 从助手消息重新生成：沿用实际父节点，消息角色可自由编排
       if (!targetNode.parentId) {
         logger.warn("创建重新生成分支失败：助手消息没有父节点", {
           sessionId: session.id,
@@ -270,22 +270,13 @@ export function useNodeManager() {
         return null;
       }
 
-      if (parentNode.role !== "user") {
-        logger.warn("创建重新生成分支失败：父节点不是用户消息", {
-          sessionId: session.id,
-          parentNodeId: targetNode.parentId,
-          role: parentNode.role,
-        });
-        return null;
-      }
-
-      userNode = parentNode;
+      contextNode = parentNode;
       parentNodeId = parentNode.id;
 
       logger.info("从助手消息创建重新生成分支", {
         sessionId: session.id,
         targetNodeId,
-        userNodeId: parentNode.id,
+        parentNodeId: parentNode.id,
       });
     } else {
       logger.warn("创建重新生成分支失败：不支持的消息角色", {
@@ -296,7 +287,7 @@ export function useNodeManager() {
       return null;
     }
 
-    // 创建新的助手消息节点（作为用户消息的子节点）
+    // 创建新的助手消息节点，重试时与原助手节点共享直接父节点
     const newAssistantNode = createNode({
       role: "assistant",
       content: "",
@@ -314,7 +305,7 @@ export function useNodeManager() {
       parentNodeId,
     });
 
-    return { assistantNode: newAssistantNode, userNode };
+    return { assistantNode: newAssistantNode, userNode: contextNode };
   };
 
   /**

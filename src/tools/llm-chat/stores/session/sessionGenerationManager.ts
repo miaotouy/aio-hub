@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import type { Ref } from "vue";
-import { BranchNavigator } from "../../utils/BranchNavigator";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
 import type { ModelIdentifier } from "../../types/llm";
@@ -455,22 +454,10 @@ export function createSessionGenerationManager(
 
   async function regenerateLastMessage(): Promise<void> {
     const { detail } = managers.access.resolveSessionContext();
-    const { useBranchManager } =
-      await import("../../composables/session/useBranchManager");
-    const branchManager = useBranchManager();
-    const result = branchManager.prepareRegenerateLastMessage(detail);
+    const nodeId = detail.activeLeafId;
+    if (!nodeId || detail.nodes?.[nodeId]?.role !== "assistant") return;
 
-    if (
-      !result.shouldRegenerate ||
-      !result.userContent ||
-      !result.newActiveLeafId
-    ) {
-      return;
-    }
-
-    detail.activeLeafId = result.newActiveLeafId;
-    BranchNavigator.updateSelectionMemory(detail, result.newActiveLeafId);
-    await sendMessage(result.userContent, { sessionId: detail.id });
+    await regenerateFromNode(nodeId, { sessionId: detail.id });
   }
 
   return {

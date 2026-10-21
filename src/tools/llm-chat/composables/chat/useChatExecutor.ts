@@ -56,11 +56,11 @@ const errorHandler = createModuleErrorHandler("llm-chat/executor");
 interface ExecuteRequestParams {
   /** 会话对象 */
   session: ChatSessionDetail;
-  /** 用户消息节点 */
+  /** 请求上下文的末节点，可为任意消息角色 */
   userNode: ChatMessageNode;
   /** 助手响应节点 */
   assistantNode: ChatMessageNode;
-  /** 到用户消息的完整路径（包含用户消息） */
+  /** 到请求上下文末节点的完整路径（包含末节点） */
   pathToUserNode: ChatMessageNode[];
   /** 是否为续写模式 */
   isContinuation?: boolean;

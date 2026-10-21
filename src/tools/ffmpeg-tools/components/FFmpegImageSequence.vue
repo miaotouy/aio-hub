@@ -4,25 +4,41 @@
     <section class="sequence-config">
       <InfoCard title="序列帧合成" :icon="Images">
         <div class="config-content">
-          <div class="source-actions">
-            <el-button
-              :icon="FolderOpen"
-              :disabled="busy || scanning"
-              :loading="scanning"
-              @click="chooseSource(true)"
-              >选择渲染目录</el-button
-            >
-            <el-button
-              :icon="Image"
-              :disabled="busy || scanning"
-              @click="chooseSource(false)"
-              >选择其中一帧</el-button
-            >
+          <div
+            ref="sourceElement"
+            class="sequence-source"
+            :class="{ 'is-dragging': isDraggingOver }"
+          >
+            <div class="source-actions">
+              <el-button
+                :icon="FolderOpen"
+                :disabled="busy || scanning"
+                :loading="scanning"
+                @click="chooseSource(true)"
+                >选择渲染目录</el-button
+              >
+              <el-button
+                :icon="Image"
+                :disabled="busy || scanning"
+                @click="chooseSource(false)"
+                >选择其中一帧</el-button
+              >
+              <el-button
+                :icon="RefreshCw"
+                :disabled="!directory || busy || scanning"
+                :loading="scanning"
+                @click="refreshSource"
+                >刷新</el-button
+              >
+            </div>
+            <p class="hint">
+              拖入渲染目录或其中一帧，按文件名中的帧编号识别序列，例如
+              render_0001.png。
+            </p>
+            <p v-if="directory" class="source-path" :title="directory">
+              {{ directory }}
+            </p>
           </div>
-          <p class="hint">按文件名中的帧编号识别序列，例如 render_0001.png。</p>
-          <p v-if="directory" class="source-path" :title="directory">
-            {{ directory }}
-          </p>
           <el-form label-position="top" :disabled="busy || scanning">
             <el-form-item label="图像序列">
               <el-select
@@ -234,11 +250,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   Images,
   Image,
   FolderOpen,
+  RefreshCw,
   Music,
   Film,
   Play,
@@ -254,6 +271,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { ElMessageBox } from "element-plus";
 import InfoCard from "@/components/common/InfoCard.vue";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
+import { useFileDrop } from "@/composables/useFileDrop";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import FFmpegConsole from "./FFmpegConsole.vue";
@@ -277,6 +295,8 @@ import {
   normalizeOutputPathKey,
 } from "../utils/lifecycle";
 import { sanitizeOutputName } from "../utils/naming";
+
+const sourceElement = ref<HTMLElement>();
 
 const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
 
@@ -399,6 +419,87 @@ const planState = computed(() => {
   }
 });
 
+const { isDraggingOver } = useFileDrop({
+  element: sourceElement,
+  multiple: false,
+  disabled: computed(() => busy.value || scanning.value),
+  onDrop: async (paths) => {
+    if (!paths.length || busy.value || scanning.value) return;
+    scanning.value = true;
+    try {
+      await errorHandler.wrapAsync(
+        async () => {
+          const source = paths[0];
+          const isDirectory = await invoke<boolean>("is_directory", {
+            path: source,
+          });
+          await scanSource(
+            isDirectory ? source : await dirname(source),
+            isDirectory ? undefined : await basename(source)
+          );
+        },
+        { userMessage: "读取序列帧失败" }
+      );
+    } finally {
+      scanning.value = false;
+    }
+  },
+});
+
+async function scanSource(path: string, fileName?: string, refresh = false) {
+  const entries = await readDir(path);
+  const found = discoverImageSequences(
+    entries.filter((entry) => entry.isFile).map((entry) => entry.name)
+  );
+  if (!found.length) {
+    if (refresh) {
+      sequences.value = [];
+      selectedPattern.value = "";
+    }
+    customMessage.warning("目录中未找到带帧编号的图像序列");
+    return;
+  }
+  const selectedSequence = fileName
+    ? found.find((item) => item.frames.some((frame) => frame.name === fileName))
+    : (refresh &&
+        found.find((item) => item.pattern === selectedPattern.value)) ||
+      found[0];
+  if (!selectedSequence) {
+    customMessage.warning(
+      "所选图像的文件名需要包含帧编号，例如 render_0001.png"
+    );
+    return;
+  }
+  const previous = sequence.value;
+  const previousStart = startFrame.value;
+  const previousEnd = endFrame.value;
+  directory.value = path;
+  sequences.value = found;
+  selectedPattern.value = selectedSequence.pattern;
+  // Let the sequence watcher update defaults, then retain a user-selected range.
+  if (refresh && previous?.pattern === selectedSequence.pattern) {
+    await nextTick();
+    if (previousStart !== previous.frames[0].number)
+      startFrame.value = previousStart;
+    if (previousEnd !== previous.frames[previous.frames.length - 1].number)
+      endFrame.value = previousEnd;
+  }
+  if (!refresh) lastTaskId.value = "";
+}
+
+async function refreshSource() {
+  if (!directory.value || busy.value || scanning.value) return;
+  scanning.value = true;
+  try {
+    await errorHandler.wrapAsync(
+      () => scanSource(directory.value, undefined, true),
+      { userMessage: "刷新序列帧失败" }
+    );
+  } finally {
+    scanning.value = false;
+  }
+}
+
 async function chooseSource(folder: boolean) {
   if (busy.value || scanning.value) return;
   scanning.value = true;
@@ -419,30 +520,7 @@ async function chooseSource(folder: boolean) {
         });
         if (typeof selected !== "string") return;
         const path = folder ? selected : await dirname(selected);
-        const entries = await readDir(path);
-        const found = discoverImageSequences(
-          entries.filter((entry) => entry.isFile).map((entry) => entry.name)
-        );
-        if (!found.length) {
-          customMessage.warning("目录中未找到带帧编号的图像序列");
-          return;
-        }
-        const fileName = folder ? "" : await basename(selected);
-        const selectedSequence = folder
-          ? found[0]
-          : found.find((item) =>
-              item.frames.some((frame) => frame.name === fileName)
-            );
-        if (!selectedSequence) {
-          customMessage.warning(
-            "所选图像的文件名需要包含帧编号，例如 render_0001.png"
-          );
-          return;
-        }
-        directory.value = path;
-        sequences.value = found;
-        selectedPattern.value = selectedSequence.pattern;
-        lastTaskId.value = "";
+        await scanSource(path, folder ? undefined : await basename(selected));
       },
       { userMessage: "读取序列帧失败" }
     );
@@ -680,6 +758,19 @@ async function revealOutput() {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.sequence-source {
+  padding: 12px;
+  margin-bottom: 12px;
+  border: var(--border-width) dashed var(--border-color);
+  border-radius: 8px;
+}
+.sequence-source.is-dragging {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+.source-actions {
+  flex-wrap: wrap;
 }
 .source-actions,
 .audio-input,

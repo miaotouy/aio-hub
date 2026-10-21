@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   discoverImageSequences,
   getImageSequenceRange,
+  joinSequencePath,
 } from "../utils/imageSequence";
 import {
   buildExecutionPlan,
@@ -178,5 +179,20 @@ describe("image sequence execution plan", () => {
         { imageSequence: input }
       )
     ).toThrow("视频编码器");
+  });
+});
+
+// Output paths and image2 input patterns retain source separators, including UNC.
+describe("image sequence paths", () => {
+  it.each([
+    ["E:\\渲染\\frames", "E:\\渲染\\frames\\合成.mp4"],
+    ["E:\\渲染\\frames/", "E:\\渲染\\frames\\合成.mp4"],
+    ["E:/渲染/frames/", "E:/渲染/frames/合成.mp4"],
+    ["E:\\", "E:\\合成.mp4"],
+    ["\\\\server\\share\\frames\\", "\\\\server\\share\\frames\\合成.mp4"],
+    ["/tmp/frames/", "/tmp/frames/合成.mp4"],
+    ["/", "/合成.mp4"],
+  ])("joins %s using consistent separators", (directory, expected) => {
+    expect(joinSequencePath(directory, "合成.mp4")).toBe(expected);
   });
 });

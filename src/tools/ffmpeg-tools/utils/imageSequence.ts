@@ -129,5 +129,9 @@ export function getImageSequenceRange(
 }
 
 export function joinSequencePath(directory: string, name: string): string {
-  return `${directory.replace(/[\\/]+$/, "")}/${name}`;
+  const separator = directory.includes("\\") ? "\\" : "/";
+  const normalized = directory
+    .replace(/[\\/]/g, separator)
+    .replace(/[\\/]+$/, "");
+  return `${normalized}${separator}${name}`;
 }

@@ -98,11 +98,6 @@ export function useSessionsSidebarLogic({
   const filterTime = ref<TimeFilter>("all");
   const filterFavorite = ref<FavoriteFilter>("all");
 
-  // 重命名相关状态
-  const renameDialogVisible = ref(false);
-  const renamingSession = ref<ChatSessionIndex | null>(null);
-  const newSessionName = ref("");
-
   const handleQuickNewSession = () => {
     const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
     if (!agentId) {
@@ -252,19 +247,6 @@ export function useSessionsSidebarLogic({
     filterFavorite.value = "all";
   };
 
-  const confirmDelete = (session: ChatSessionIndex) => {
-    ElMessageBox.confirm(`确定要删除对话"${session.name}"吗？`, "删除会话", {
-      confirmButtonText: "删除",
-      cancelButtonText: "取消",
-      type: "warning",
-      lockScroll: false,
-    })
-      .then(() => {
-        emit("delete", session.id);
-      })
-      .catch(() => {});
-  };
-
   const confirmClearEmptySessions = () => {
     if (emptySessionsCount.value === 0) {
       customMessage.info("没有可清理的空会话");
@@ -289,27 +271,6 @@ export function useSessionsSidebarLogic({
       .catch(() => {});
   };
 
-  const openRenameDialog = (session: ChatSessionIndex) => {
-    renamingSession.value = session;
-    newSessionName.value = session.name;
-    renameDialogVisible.value = true;
-  };
-
-  const handleGenerateName = async (session: ChatSessionIndex) => {
-    const originalName = session.name;
-    const llmChatStore = (
-      await import("../../stores/llmChatStore")
-    ).useLlmChatStore();
-    // 手动触发使用 force 模式，跳过 shouldAutoName 检查
-    await llmChatStore.generateSessionTopic(session.id, true);
-    const result = llmChatStore.sessionIndexMap.get(session.id)?.name;
-    if (result && result !== originalName) {
-      customMessage.success(`标题已生成：${result}`);
-      emit("session-updated");
-    } else if (result === originalName) {
-      customMessage.warning("标题生成失败或未产生有效标题");
-    }
-  };
   return {
     searchQuery,
     isSearching,
@@ -322,9 +283,6 @@ export function useSessionsSidebarLogic({
     filterAgent,
     filterTime,
     filterFavorite,
-    renameDialogVisible,
-    renamingSession,
-    newSessionName,
     availableAgents,
     hasActiveFilters,
     emptySessionsCount,
@@ -333,10 +291,7 @@ export function useSessionsSidebarLogic({
     search,
     handleQuickNewSession,
     resetFilters,
-    confirmDelete,
     confirmClearEmptySessions,
-    openRenameDialog,
-    handleGenerateName,
     getFieldLabel,
     getRoleLabel,
     settings,

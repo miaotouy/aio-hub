@@ -14,8 +14,15 @@
   limitations under the License.
 -->
 
+<script lang="ts">
+import type { DropdownInstance } from "element-plus";
+
+// Shared by all session rows, including the sidebar and the input panel.
+let activeSessionMenu: DropdownInstance | undefined;
+</script>
+
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef } from "vue";
 import {
   Delete,
   MoreFilled,
@@ -38,6 +45,7 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 interface Props {
   session: ChatSessionIndex;
   active: boolean;
+  compact?: boolean;
   isGenerating: boolean;
   matches?: MatchDetail[];
   getFieldLabel: (field: any) => string;
@@ -50,6 +58,41 @@ const emit = defineEmits<{
   (e: "command", command: string, session: ChatSessionIndex): void;
   (e: "toggle-favorite", session: ChatSessionIndex): void;
 }>();
+
+const menuRef = ref<DropdownInstance>();
+const menuReference = shallowRef<{ getBoundingClientRect: () => DOMRect }>();
+const menuVisible = ref(false);
+
+const handleMenuVisibleChange = (visible: boolean) => {
+  menuVisible.value = visible;
+  if (visible) {
+    const previousMenu = activeSessionMenu;
+    activeSessionMenu = menuRef.value;
+    if (previousMenu !== activeSessionMenu) {
+      previousMenu?.handleClose();
+    }
+  } else if (activeSessionMenu === menuRef.value) {
+    activeSessionMenu = undefined;
+  }
+};
+
+onBeforeUnmount(() => {
+  if (activeSessionMenu === menuRef.value) {
+    activeSessionMenu = undefined;
+  }
+});
+
+const handleContextMenu = async (event: MouseEvent | KeyboardEvent) => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const x = event instanceof MouseEvent ? event.clientX : rect.right;
+  const y = event instanceof MouseEvent ? event.clientY : rect.bottom;
+  menuRef.value?.handleClose();
+  menuReference.value = {
+    getBoundingClientRect: () => new DOMRect(x, y, 0, 0),
+  };
+  await nextTick();
+  menuRef.value?.handleOpen();
+};
 
 const agentStore = useAgentStore();
 const { formatMatchContext } = useLlmSearch();
@@ -67,10 +110,10 @@ const filteredMatches = computed(() => {
   if (!props.matches) return [];
   return props.matches
     .filter((m) => m.field !== "name")
-    .slice(0, 3)
+    .slice(0, props.compact ? 2 : 3)
     .map((m) => ({
       ...m,
-      parts: formatMatchContext(m, 35),
+      parts: formatMatchContext(m, props.compact ? 30 : 35),
     }));
 });
 
@@ -85,11 +128,18 @@ const handleToggleFavorite = () => {
 
 <template>
   <div
-    :class="['session-item', { active }]"
+    :class="['session-item', { active, compact, 'menu-open': menuVisible }]"
     data-testid="chat-session-item"
     :data-session-id="session.id"
     :data-session-active="active"
+    role="button"
+    tabindex="0"
     @click="emit('click', session)"
+    @keydown.enter.self.prevent="emit('click', session)"
+    @keydown.space.self.prevent="emit('click', session)"
+    @keydown.shift.f10.prevent.stop="handleContextMenu"
+    @keydown.context-menu.prevent.stop="handleContextMenu"
+    @contextmenu.prevent.stop="handleContextMenu"
   >
     <div class="session-content">
       <div class="session-title">
@@ -102,9 +152,9 @@ const handleToggleFavorite = () => {
             <Avatar
               :src="resolveAgentAvatarPath(displayAgent) || ''"
               :alt="displayAgent.displayName || displayAgent.name"
-              :size="20"
+              :size="compact ? 16 : 20"
               shape="square"
-              :radius="4"
+              :radius="compact ? 3 : 4"
             />
           </el-tooltip>
         </template>
@@ -149,17 +199,27 @@ const handleToggleFavorite = () => {
           formatRelativeTime(session.updatedAt)
         }}</span>
         <el-dropdown
+          ref="menuRef"
+          :virtual-ref="menuReference"
+          :show-arrow="false"
+          @visible-change="handleMenuVisibleChange"
           @command="handleCommand"
           trigger="click"
           class="menu-dropdown"
         >
-          <div @click.stop>
+          <div
+            @click.stop
+            @keydown.stop
+            @pointerdown="menuReference = undefined"
+            @keydown.capture="menuReference = undefined"
+          >
             <el-tooltip content="更多操作" placement="top" :show-after="500">
               <el-button
                 :icon="MoreFilled"
                 size="small"
                 text
                 class="btn-menu"
+                aria-label="更多操作"
               />
             </el-tooltip>
           </div>
@@ -190,7 +250,7 @@ const handleToggleFavorite = () => {
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <div @click.stop>
+        <div @click.stop @keydown.stop>
           <el-tooltip
             :content="session.isFavorite ? '取消收藏' : '收藏会话'"
             placement="top"
@@ -200,6 +260,7 @@ const handleToggleFavorite = () => {
               text
               size="small"
               :class="['favorite-star', { 'is-favorite': session.isFavorite }]"
+              :aria-label="session.isFavorite ? '取消收藏' : '收藏会话'"
               @click="handleToggleFavorite"
             >
               <el-icon>
@@ -279,6 +340,7 @@ const handleToggleFavorite = () => {
 }
 
 .session-item:hover .favorite-star,
+.session-item:focus-within .favorite-star,
 .favorite-star.is-favorite {
   opacity: 0.72;
 }
@@ -402,7 +464,51 @@ const handleToggleFavorite = () => {
   transition: all 0.2s;
 }
 
-.session-item:hover .btn-menu {
+.session-item:hover .btn-menu,
+.session-item:focus-within .btn-menu,
+.session-item.menu-open .btn-menu {
+  opacity: 1;
+}
+
+.session-time {
+  white-space: nowrap;
+}
+
+.session-item.compact {
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  min-height: 50px;
+}
+
+.compact .session-title {
+  font-size: 13px;
+}
+
+.compact .session-info {
+  gap: 6px;
+  font-size: 11px;
+}
+
+.compact .session-time {
+  margin-left: auto;
+}
+
+.compact .menu-dropdown {
+  margin-left: 0;
+}
+
+.compact .message-count {
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+.compact .btn-menu {
+  opacity: 0.7;
+}
+
+.compact:hover .btn-menu,
+.compact:focus-within .btn-menu,
+.compact.menu-open .btn-menu {
   opacity: 1;
 }
 </style>

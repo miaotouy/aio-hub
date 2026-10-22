@@ -59,6 +59,8 @@ const handleCancel = () => {
     @update:model-value="emit('update:modelValue', $event)"
     title="重命名会话"
     width="400px"
+    :lock-scroll="false"
+    append-to-body
     @close="handleCancel"
   >
     <el-input

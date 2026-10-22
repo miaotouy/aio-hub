@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 import { CustomParser } from "../../../core/CustomParser";
+import { VcpToolCallingProtocol } from "@/tools/tool-calling/core/protocols/vcp-protocol";
 import type { AstNode, VcpRoleNode, VcpToolNode } from "../../../types";
 
 function parse(content: string, vcpFuzzyModeEnabled = true): AstNode[] {
@@ -178,6 +179,133 @@ DailyNote 调用成功。
     ]);
   });
 
+  describe("malformed request display recovery", () => {
+    const fields = "maid:「始」咕咕「末」,\nJEV:「始」搜索证书事件「末」";
+    const validRequest = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+message:「始」valid-after-bad「末」
+<<<[END_TOOL_REQUEST]>>>`;
+
+    it.each([
+      "",
+      "<<<[END_TOOL_REQUEST]",
+      "<<<[END_",
+      "<<<[END_TOOL_REQUEST]>>",
+    ])(
+      "recovers following thinking and a later request after a broken end %j",
+      (ending) => {
+        const broken = `<<<[TOOL_REQUEST]>>>\n${fields}\n${ending}`;
+        const thinking = "<guguthink>继续**分析**</guguthink>";
+        const ast = new CustomParser(new Set(["guguthink"])).parse(
+          `${broken}${thinking}\n\n${validRequest}`
+        );
+        const requests = findToolRequests(ast);
+        expect(requests).toHaveLength(2);
+        expect(requests[0].props).toMatchObject({
+          tool_name: "JEV",
+          args: { JEV: "搜索证书事件" },
+          raw: broken,
+          closed: true,
+        });
+        expect(requests[0].props.fenceError).toBeTruthy();
+        const thoughts = ast.filter((node) => node.type === "llm_think");
+        expect(thoughts).toHaveLength(1);
+        expect(thoughts[0].props.rawContent).toBe("继续**分析**");
+        expect(thoughts[0].props.isThinking).toBe(false);
+        expect(requests[1].props.args.message).toBe("valid-after-bad");
+      }
+    );
+
+    it("keeps display recovery separate from executable requests", () => {
+      const body = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」example「末」`;
+      const protocol = new VcpToolCallingProtocol();
+      expect(
+        protocol.parseToolRequests(`${body}\n<<<[END_TOOL_REQUEST]>>>`)
+      ).toHaveLength(1);
+      const malformed = `${body}\n<<<[END_TOOL_REQUEST]<think>后续思考</think>`;
+      expect(
+        findToolRequests(parse(malformed))[0].props.fenceError
+      ).toBeTruthy();
+      expect(protocol.parseToolRequests(malformed)).toHaveLength(0);
+    });
+    it("releases Markdown after a truncated end marker", () => {
+      const broken = `<<<[TOOL_REQUEST]>>>\n${fields}\n<<<[END_TOOL_REQUEST]`;
+      const ast = parse(`${broken}\n\n后续**正文**`);
+      const requests = findToolRequests(ast);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].props.raw).toBe(broken);
+      expect(ast[1].type).toBe("paragraph");
+      expect(ast[1].children?.some((node) => node.type === "strong")).toBe(
+        true
+      );
+    });
+
+    it("isolates a complete request interrupted by a new request marker", () => {
+      const broken = `<<<[TOOL_REQUEST]>>>\n${fields}\n\n`;
+      const requests = findToolRequests(parse(broken + validRequest));
+      expect(requests).toHaveLength(2);
+      expect(requests[0].props.raw).toBe(broken);
+      expect(requests[0].props.fenceError).toBeTruthy();
+      expect(requests[1].props.args.message).toBe("valid-after-bad");
+    });
+
+    it.each(["", "ESCAPE", "exp"])(
+      "preserves thinking tags and broken-marker examples in %j parameter values",
+      (variant) => {
+        const value =
+          "示例 <think>参数里的思考</think>\n<<<[END_TOOL_REQUEST]\n仍在参数内";
+        const content = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+message:「始${variant}」${value}「末${variant}」
+<<<[END_TOOL_REQUEST]>>>`;
+        const ast = parse(content);
+        const requests = findToolRequests(ast);
+        expect(ast).toHaveLength(1);
+        expect(requests[0].props.args.message).toBe(value);
+        expect(requests[0].props.raw).toBe(content);
+        expect(requests[0].props.fenceError).toBeUndefined();
+      }
+    );
+
+    it("recovers an ESCAPE request while retaining nested protocol examples", () => {
+      const nested = `<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST]>>>`;
+      const broken = `<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始」mock-sync「末」,
+message:「始ESCAPE」${nested}「末ESCAPE」
+<<<[END_TOOL_REQUEST_ESCAPE]`;
+      const ast = parse(`${broken}<think>后续思考</think>`);
+      const requests = findToolRequests(ast);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].props.args.message).toBe(nested);
+      expect(requests[0].props.raw).toBe(broken);
+      expect(requests[0].props.fenceError).toBeTruthy();
+      expect(ast[1].type).toBe("llm_think");
+    });
+    it("waits for incomplete streamed end markers before deciding recovery", () => {
+      const body = `<<<[TOOL_REQUEST]>>>\n${fields}\n`;
+      const ending = "<<<[END_TOOL_REQUEST]>>>";
+      for (let length = 0; length <= ending.length; length++) {
+        const content = body + ending.slice(0, length);
+        const [request] = findToolRequests(parse(content));
+        expect(request.props.raw).toBe(content);
+        expect(request.props.closed).toBe(length === ending.length);
+        expect(request.props.fenceError).toBeUndefined();
+      }
+    });
+
+    it("keeps strict display behavior when fuzzy mode is disabled", () => {
+      const content = `<<<[TOOL_REQUEST]>>>\n${fields}\n<<<[END_TOOL_REQUEST]<think>后续思考</think>`;
+      const ast = parse(content, false);
+      const [request] = findToolRequests(ast);
+      expect(ast).toHaveLength(1);
+      expect(request.props.raw).toBe(content);
+      expect(request.props.closed).toBe(false);
+      expect(request.props.fenceError).toBeUndefined();
+    });
+  });
   it("does not merge a malformed request block with the following valid request", () => {
     const ast = parse(`
 <<<[TOOL_REQUEST]>>>

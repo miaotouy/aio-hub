@@ -636,6 +636,13 @@ export class Tokenizer {
                 "recovery" in boundary ? boundary.recovery.message : undefined;
               currentPos = boundary.endIndex + endMarker.length;
               closed = true;
+            } else if (boundary.status === "recovered") {
+              vcpContent = text.slice(currentPos, boundary.endIndex);
+              vcpContentForParsing = vcpContent;
+              currentPos = boundary.nextIndex;
+              fenceError = boundary.message;
+              // 显示范围已确定；原始协议是否闭合仍由执行侧严格判断。
+              closed = true;
             } else {
               vcpContent = text.slice(currentPos);
               vcpContentForParsing = vcpContent;
@@ -751,7 +758,7 @@ export class Tokenizer {
 
             tokens.push({
               type: "vcp_tool",
-              raw: startMarker + vcpContent + (closed ? endMarker : ""),
+              raw: text.slice(posAfterIndent, currentPos),
               closed,
               tool_name,
               command,

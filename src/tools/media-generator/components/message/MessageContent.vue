@@ -23,6 +23,7 @@ import {
   GitBranch,
   Copy,
   Check,
+  ImagePlus,
 } from "lucide-vue-next";
 import type { MediaMessage } from "../../types";
 import { isAudioOutputTaskType } from "../../types";
@@ -31,6 +32,7 @@ import { useMediaGenStore } from "../../stores/mediaGenStore";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useAttachmentManager } from "../../composables/useAttachmentManager";
+import { useMediaGenReferenceInput } from "../../composables/useMediaGenReferenceInput";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
 import { createModuleLogger } from "@/utils/logger";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
@@ -60,6 +62,7 @@ const store = useMediaGenStore();
 const { getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
 const attachmentManager = useAttachmentManager();
+const { addImage: addReferenceImage } = useMediaGenReferenceInput();
 const logger = createModuleLogger("media-generator/message-content");
 
 // 编辑区域引用
@@ -179,16 +182,22 @@ const effectiveAssets = computed(() => {
 });
 
 // 资产 URL 处理
-const resultUrls = ref<string[]>([]);
+const resultItems = ref<{ asset: Asset; url: string }[]>([]);
+const resultUrls = computed(() => resultItems.value.map((item) => item.url));
 
 const updateResultUrls = async () => {
   const assets = effectiveAssets.value;
   if (assets.length > 0) {
     try {
-      const urls = await Promise.all(
-        assets.map((asset: Asset) => getAssetUrl(asset))
+      const items = await Promise.all(
+        assets.map(async (asset: Asset) => ({
+          asset,
+          url: await getAssetUrl(asset),
+        }))
       );
-      resultUrls.value = urls.filter(Boolean) as string[];
+      resultItems.value = items.filter(
+        (item): item is { asset: Asset; url: string } => Boolean(item.url)
+      );
       logger.debug("Result URLs updated", {
         taskId: task.value?.id,
         count: resultUrls.value.length,
@@ -197,16 +206,29 @@ const updateResultUrls = async () => {
       logger.error("Failed to get asset URLs", error, {
         taskId: task.value?.id,
       });
-      resultUrls.value = [];
+      resultItems.value = [];
     }
   } else {
-    resultUrls.value = [];
+    resultItems.value = [];
   }
 };
 
 const handleImageClick = (url: string) => {
   if (url) {
     imageViewer.show(url);
+  }
+};
+
+const handleAddResultAsReference = (asset: Asset) => {
+  const result = addReferenceImage(asset);
+  if (result === "added") {
+    customMessage.success("已添加到参考图输入");
+  } else if (result === "duplicate") {
+    customMessage.info("这张图片已在参考图输入中");
+  } else {
+    customMessage.warning(
+      `参考图最多添加 ${store.maxAttachmentCount} 张，请先移除后再添加`
+    );
   }
 };
 
@@ -426,13 +448,27 @@ const generationMetaForRenderer = computed(() => {
         <!-- 图像 -->
         <template v-if="task.type === 'image'">
           <div v-if="resultUrls.length > 0" class="image-grid">
-            <div v-for="url in resultUrls" :key="url" class="media-item">
+            <div
+              v-for="(item, index) in resultItems"
+              :key="item.asset.id"
+              class="media-item"
+            >
               <img
-                :src="url"
+                :src="item.url"
                 :alt="task.input.prompt"
                 class="media-preview clickable"
-                @click="handleImageClick(url)"
+                @click="handleImageClick(item.url)"
               />
+              <el-tooltip content="添加到参考图" placement="top">
+                <button
+                  type="button"
+                  class="image-reference-btn"
+                  :aria-label="`将第 ${index + 1} 张结果添加到参考图`"
+                  @click.stop="handleAddResultAsReference(item.asset)"
+                >
+                  <ImagePlus :size="16" />
+                </button>
+              </el-tooltip>
             </div>
           </div>
           <div v-else-if="task.previewUrls?.length" class="image-grid">
@@ -706,6 +742,29 @@ const generationMetaForRenderer = computed(() => {
   position: relative;
   width: 100%;
   box-sizing: border-box;
+}
+
+.image-reference-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.image-reference-btn:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
 }
 
 .video-list,

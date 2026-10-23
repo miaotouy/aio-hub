@@ -33,6 +33,7 @@ import {
   XCircle,
   RefreshCcw,
   Download,
+  ImagePlus,
   Trash2 as TrashIcon,
   ChevronLeft,
   ChevronRight,
@@ -40,6 +41,7 @@ import {
   FolderOpen,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
+import type { Asset } from "@/types/asset-management";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useMediaGenStore } from "../stores/mediaGenStore";
@@ -57,6 +59,7 @@ const emit = defineEmits<{
   (e: "download", task: MediaTask): void;
   (e: "copyPrompt", prompt: string): void;
   (e: "copyResult", task: MediaTask): void;
+  (e: "add-reference", asset: Asset): void;
   (e: "open", task: MediaTask): void;
 }>();
 
@@ -71,7 +74,10 @@ const imageViewer = useImageViewer();
 const store = useMediaGenStore();
 
 // 结果多图支持
-const resultAssetUrls = ref<string[]>([]);
+const resultItems = ref<{ asset: Asset; url: string }[]>([]);
+const resultAssetUrls = computed(() =>
+  resultItems.value.map((item) => item.url)
+);
 const activeResultIndex = ref(0);
 const referenceAssetUrls = ref<string[]>([]);
 const videoPosterUrl = ref<string>("");
@@ -143,17 +149,21 @@ const getResultAssets = () =>
       ? [props.task.resultAsset]
       : [];
 
+const activeResultAsset = computed(
+  () => resultItems.value[activeResultIndex.value]?.asset
+);
+
 const loadResultUrls = async () => {
   const assets = getResultAssets();
   if (assets.length === 0) {
-    resultAssetUrls.value = [];
+    resultItems.value = [];
     videoPosterUrl.value = "";
     return;
   }
-  const urls: string[] = [];
+  const items: { asset: Asset; url: string }[] = [];
   for (const asset of assets) {
     const url = await getAssetUrl(asset);
-    if (url) urls.push(url);
+    if (url) items.push({ asset, url });
 
     if (asset.type === "video") {
       let currentAsset = asset;
@@ -172,9 +182,9 @@ const loadResultUrls = async () => {
       }
     }
   }
-  resultAssetUrls.value = urls;
+  resultItems.value = items;
   // 重置索引
-  if (activeResultIndex.value >= urls.length) {
+  if (activeResultIndex.value >= items.length) {
     activeResultIndex.value = 0;
   }
 };
@@ -210,6 +220,13 @@ const prevResult = () => {
 const nextResult = () => {
   if (activeResultIndex.value < resultAssetUrls.value.length - 1)
     activeResultIndex.value++;
+};
+
+const addActiveResultAsReference = (event: MouseEvent) => {
+  event.stopPropagation();
+  if (activeResultAsset.value) {
+    emit("add-reference", activeResultAsset.value);
+  }
 };
 
 /** 音频波形数据（从 resultAsset 的 metadata 中提取） */
@@ -578,6 +595,20 @@ const openFileDirectory = async () => {
               <div class="overlay">
                 <el-icon><ExternalLink /></el-icon>
               </div>
+              <el-tooltip
+                v-if="task.type === 'image' && activeResultAsset"
+                content="添加到参考图"
+                placement="top"
+              >
+                <button
+                  type="button"
+                  class="add-reference-btn"
+                  aria-label="添加当前结果到参考图"
+                  @click="addActiveResultAsReference"
+                >
+                  <ImagePlus :size="16" />
+                </button>
+              </el-tooltip>
               <div v-if="getTaskResolution(task)" class="media-info-tag">
                 {{ getTaskResolution(task) }}
               </div>
@@ -1075,11 +1106,14 @@ const openFileDirectory = async () => {
 
 .reference-list {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
+  overflow-x: hidden;
   max-height: calc(64px * 3 + 4px * 2);
   border-radius: 6px;
   scrollbar-width: thin;
@@ -1247,6 +1281,28 @@ const openFileDirectory = async () => {
 
 .media-preview:hover .overlay {
   opacity: 1;
+}
+
+.add-reference-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.68);
+  color: white;
+  cursor: pointer;
+}
+
+.add-reference-btn:hover {
+  background: var(--el-color-primary);
 }
 
 /* 多图切换导航 */

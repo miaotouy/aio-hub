@@ -458,7 +458,7 @@ defineExpose({
         </div>
       </div>
     </template>
-    <div class="optimize-form">
+    <div class="optimize-form" :class="{ 'has-result': optimizedResult }">
       <div class="form-item">
         <label>附加要求 (可选)</label>
         <el-input
@@ -543,6 +543,10 @@ defineExpose({
   overflow-y: auto;
 }
 
+.optimize-panel {
+  container: optimize-panel / inline-size;
+}
+
 .optimize-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -554,6 +558,9 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .form-item {
@@ -571,6 +578,7 @@ defineExpose({
 .optimize-result {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   gap: 8px;
   background-color: var(--el-fill-color-lighter);
   padding: 12px;
@@ -593,11 +601,43 @@ defineExpose({
 }
 
 .result-content {
+  min-height: 0;
   font-size: 14px;
   line-height: 1.6;
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+@container optimize-panel (min-width: 680px) {
+  .optimize-form.has-result {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  .optimize-form.has-result > .form-item {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .optimize-form.has-result > .optimize-result {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    overflow: hidden;
+  }
+
+  .optimize-form.has-result > .form-tip {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .optimize-form.has-result .result-content {
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
 }
 
 .form-tip {

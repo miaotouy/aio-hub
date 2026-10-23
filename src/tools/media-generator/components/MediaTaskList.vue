@@ -19,6 +19,7 @@ import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
+import { useMediaGenReferenceInput } from "../composables/useMediaGenReferenceInput";
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
@@ -27,6 +28,7 @@ import { copyFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { Search, Trash2 as TrashIcon, Grid, List } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
+import type { Asset } from "@/types/asset-management";
 import { isAudioOutputTaskType, normalizeMediaTaskType } from "../types";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
@@ -37,6 +39,7 @@ import MediaTaskCard from "./MediaTaskCard.vue";
 const store = useMediaGenStore();
 const taskManager = useMediaTaskManager();
 const { abortTask } = useMediaGenerationManager();
+const { addImage: addReferenceImage } = useMediaGenReferenceInput();
 const logger = createModuleLogger("media-generator/task-list");
 const { getAssetBasePath, getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -160,6 +163,19 @@ const handleRemoveTask = (taskId: string) => {
 const handleCancelTask = (taskId: string) => {
   abortTask(taskId);
   logger.info("任务已取消", { taskId });
+};
+
+const handleAddResultAsReference = (asset: Asset) => {
+  const result = addReferenceImage(asset);
+  if (result === "added") {
+    customMessage.success("已添加到参考图输入");
+  } else if (result === "duplicate") {
+    customMessage.info("这张图片已在参考图输入中");
+  } else {
+    customMessage.warning(
+      `参考图最多添加 ${store.maxAttachmentCount} 张，请先移除后再添加`
+    );
+  }
 };
 
 const clearFinishedTasks = () => {
@@ -412,6 +428,7 @@ const handleOpenAsset = async (task: MediaTask) => {
             @download="handleDownloadTask"
             @copy-prompt="handleCopyPrompt"
             @copy-result="handleCopyResult"
+            @add-reference="handleAddResultAsReference"
             @open="handleOpenAsset"
           />
         </div>
@@ -430,6 +447,7 @@ const handleOpenAsset = async (task: MediaTask) => {
               @download="handleDownloadTask"
               @copy-prompt="handleCopyPrompt"
               @copy-result="handleCopyResult"
+              @add-reference="handleAddResultAsReference"
               @open="handleOpenAsset"
             />
           </div>

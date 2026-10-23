@@ -227,9 +227,21 @@ const handleInsertQuickPrompt = (insertion: string) => {
 
 const handleApplyOptimized = (value: string) => {
   if (props.disabled) return;
-  prompt.value = value;
+  const textarea = textareaRef.value;
+  if (textarea) {
+    textarea.focus();
+    textarea.setSelectionRange(0, textarea.value.length);
+    if (!document.execCommand("insertText", false, value)) {
+      prompt.value = value;
+    }
+  } else {
+    prompt.value = value;
+  }
   panel.close();
-  void nextTick(() => textareaRef.value?.focus());
+  void nextTick(() => {
+    textareaRef.value?.focus();
+    adjustHeight();
+  });
 };
 
 // 生成中的状态只影响会话模式的发送/停止按钮；输入区始终允许继续编辑草稿。
@@ -388,6 +400,7 @@ const { isDraggingOver } = useFileInteraction({
   element: containerRef,
   sourceModule: "media-generator",
   pasteMode: "asset",
+  multiple: true,
   onPaths: async (paths) => {
     logger.info("文件拖拽触发", { paths });
     let successCount = 0;

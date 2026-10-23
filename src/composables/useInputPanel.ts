@@ -20,6 +20,8 @@ export interface InputPanelDefinition {
   component: Component;
   props?: Record<string, unknown>;
   scroll?: "host" | "content" | "layout";
+  /** Preferred content height limit in CSS pixels, capped by the input workspace budget. */
+  maxHeight?: number;
 }
 
 /** A single window-local slot; replacing a panel releases the previous instance. */

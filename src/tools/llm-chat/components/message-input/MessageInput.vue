@@ -167,7 +167,7 @@ const panelMaxHeight = computed(() =>
   Math.max(
     0,
     Math.min(
-      260,
+      activePanel.value?.maxHeight ?? 260,
       (props.isDetached
         ? detachedAvailableHeight.value * 0.75
         : viewportHeight.value * 0.6) -

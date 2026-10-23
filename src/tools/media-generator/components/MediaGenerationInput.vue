@@ -80,7 +80,10 @@ const { height: viewportHeight } = useWindowSize();
 const panelMaxHeight = computed(() =>
   Math.max(
     0,
-    Math.min(260, viewportHeight.value * 0.6 - attachmentsHeight.value - 180)
+    Math.min(
+      activePanel.value?.maxHeight ?? 260,
+      viewportHeight.value * 0.6 - attachmentsHeight.value - 180
+    )
   )
 );
 const extraHeight = computed(

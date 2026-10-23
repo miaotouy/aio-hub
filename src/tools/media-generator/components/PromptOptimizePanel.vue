@@ -407,7 +407,10 @@ defineExpose({
 </script>
 
 <template>
-  <InputPanelLayout class="optimize-panel">
+  <InputPanelLayout
+    class="optimize-panel"
+    :class="{ 'has-result': optimizedResult }"
+  >
     <template #controls>
       <div class="optimize-controls">
         <div class="form-item model-form-item">
@@ -425,7 +428,6 @@ defineExpose({
           <label>处理模式</label>
           <el-select
             v-model="optimizeMode"
-            size="small"
             aria-label="处理模式"
             :disabled="isOptimizing"
           >
@@ -443,7 +445,6 @@ defineExpose({
           <el-select
             v-model="optimizeTargetLang"
             class="translation-select"
-            size="small"
             placeholder="选择目标语言"
             :teleported="true"
             popper-class="optimize-language-popper"
@@ -486,52 +487,55 @@ defineExpose({
       >
         {{ optimizeError }}
       </el-alert>
-
-      <div class="form-tip">
-        <el-icon><Info /></el-icon>
-        <div class="tip-content">
-          <p>优化将基于当前输入框中的内容进行扩展</p>
-          <p v-if="referenceImages.length > 0 && optimizeModelSupportsVision">
-            将同时参考输入框中的 {{ referenceImages.length }} 张参考图
-          </p>
-          <p v-else-if="referenceImages.length > 0">
-            当前优化模型不支持视觉，不会参考附件图片
-          </p>
-        </div>
-      </div>
     </div>
     <template #footer>
-      <div class="form-actions">
-        <template v-if="!optimizedResult">
-          <el-button size="small" @click="cancelOptimize">取消</el-button>
-          <el-button
-            size="small"
-            type="primary"
-            :loading="isOptimizing"
-            :disabled="
-              props.disabled || !optimizeModelCombo || !props.promptText.trim()
-            "
-            @click="handleOptimizePrompt"
-          >
-            开始优化
-          </el-button>
-        </template>
-        <template v-else>
-          <el-button
-            size="small"
-            :disabled="props.disabled"
-            @click="regenerateOptimize"
-            >重新生成</el-button
-          >
-          <el-button
-            size="small"
-            type="primary"
-            :disabled="props.disabled"
-            @click="applyOptimizedPrompt"
-          >
-            确认并应用
-          </el-button>
-        </template>
+      <div class="optimize-footer">
+        <div class="form-tip">
+          <el-icon><Info /></el-icon>
+          <div class="tip-content">
+            <p>优化将基于当前输入框中的内容进行扩展</p>
+            <p v-if="referenceImages.length > 0 && optimizeModelSupportsVision">
+              将同时参考输入框中的 {{ referenceImages.length }} 张参考图
+            </p>
+            <p v-else-if="referenceImages.length > 0">
+              当前优化模型不支持视觉，不会参考附件图片
+            </p>
+          </div>
+        </div>
+        <div class="form-actions">
+          <template v-if="!optimizedResult">
+            <el-button size="small" @click="cancelOptimize">取消</el-button>
+            <el-button
+              size="small"
+              type="primary"
+              :loading="isOptimizing"
+              :disabled="
+                props.disabled ||
+                !optimizeModelCombo ||
+                !props.promptText.trim()
+              "
+              @click="handleOptimizePrompt"
+            >
+              开始优化
+            </el-button>
+          </template>
+          <template v-else>
+            <el-button
+              size="small"
+              :disabled="props.disabled"
+              @click="regenerateOptimize"
+              >重新生成</el-button
+            >
+            <el-button
+              size="small"
+              type="primary"
+              :disabled="props.disabled"
+              @click="applyOptimizedPrompt"
+            >
+              确认并应用
+            </el-button>
+          </template>
+        </div>
       </div>
     </template>
   </InputPanelLayout>
@@ -557,10 +561,8 @@ defineExpose({
 .optimize-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  gap: 16px;
+  min-height: 0;
 }
 
 .form-item {
@@ -580,16 +582,12 @@ defineExpose({
   flex-direction: column;
   min-height: 0;
   gap: 8px;
-  background-color: var(--el-fill-color-lighter);
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
 }
 
 .optimize-result label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--el-color-success);
+  color: var(--el-text-color-regular);
 }
 
 .optimize-error {
@@ -602,6 +600,11 @@ defineExpose({
 
 .result-content {
   min-height: 0;
+  padding: 5px 11px;
+  box-sizing: border-box;
+  background-color: var(--el-fill-color-blank);
+  border-radius: var(--el-input-border-radius, var(--el-border-radius-base));
+  box-shadow: 0 0 0 1px var(--el-border-color) inset;
   font-size: 14px;
   line-height: 1.6;
   color: var(--el-text-color-primary);
@@ -610,10 +613,32 @@ defineExpose({
 }
 
 @container optimize-panel (min-width: 680px) {
-  .optimize-form.has-result {
+  .optimize-controls > .form-item {
     display: grid;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .optimize-controls > .form-item > label {
+    line-height: 32px;
+    white-space: nowrap;
+  }
+
+  .optimize-controls > .form-item > :not(label) {
+    min-width: 0;
+  }
+
+  .has-result :deep(.panel-body) {
+    display: flex;
+    overflow: hidden;
+  }
+
+  .optimize-form.has-result {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
     overflow: hidden;
   }
 
@@ -625,26 +650,41 @@ defineExpose({
 
   .optimize-form.has-result > .optimize-result {
     grid-column: 2;
-    grid-row: 1 / span 2;
+    grid-row: 1;
     overflow: hidden;
   }
 
-  .optimize-form.has-result > .form-tip {
-    grid-column: 1;
-    grid-row: 2;
+  .optimize-form.has-result > .form-item :deep(.el-textarea) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+
+  .optimize-form.has-result > .form-item :deep(.el-textarea__inner) {
+    height: 100%;
+    min-height: 0 !important;
+    resize: none;
   }
 
   .optimize-form.has-result .result-content {
+    flex: 1;
     overflow-y: auto;
     overflow-wrap: anywhere;
   }
 }
 
+.optimize-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
 .form-tip {
   display: flex;
+  flex: 1 1 260px;
+  min-width: 0;
   gap: 8px;
-  padding: 4px;
-  border-radius: 8px;
   color: var(--el-text-color-secondary);
 }
 
@@ -655,12 +695,14 @@ defineExpose({
 
 .tip-content p {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
 .form-actions {
   display: flex;
+  flex-shrink: 0;
+  margin-left: auto;
   justify-content: flex-end;
   gap: 12px;
 }

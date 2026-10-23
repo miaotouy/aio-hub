@@ -74,6 +74,7 @@ const optimizeButton = computed<InputPanelDefinition>(() => ({
   icon: Sparkles,
   component: PromptOptimizePanel,
   scroll: "layout",
+  maxHeight: 320,
   props: {
     promptText: computed(() => props.promptText),
     disabled: computed(() => props.disabled),

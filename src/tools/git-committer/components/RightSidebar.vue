@@ -188,10 +188,17 @@
         <CommitChart :commits="chartCommits" />
       </div>
     </div>
+    <CreateTagDialog
+      v-if="showCreateTagDialog"
+      v-model="showCreateTagDialog"
+      :repo-path="currentRepoPath"
+      :target-hash="tagTargetHash"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import CreateTagDialog from "./CreateTagDialog.vue";
 import { computed, nextTick, ref, watch } from "vue";
 import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
 import CommitGraphTrack from "./CommitGraphTrack.vue";
@@ -221,7 +228,6 @@ import {
 } from "../composables/useGitCommitterRunner";
 import {
   createBranch,
-  createTag,
 } from "../composables/useGitOverview";
 import { useGitContextMenu } from "../composables/useGitContextMenu";
 import { getRemoteInfo } from "../composables/useGitRemoteInfo";
@@ -237,6 +243,9 @@ import {
 } from "../utils";
 import { customMessage } from "@/utils/customMessage";
 import type { CommitFileChange, GitCommitSummary } from "../types";
+
+const showCreateTagDialog = ref(false);
+const tagTargetHash = ref("");
 
 const commits = ref<GitCommitSummary[]>([]);
 const chartCommits = ref<GitCommitSummary[]>([]);
@@ -530,24 +539,8 @@ const handleCommitMenuAction = async (
       break;
     }
     case "commit:create-tag": {
-      ElMessageBox.prompt(
-        `在此提交 (${commit.hash.substring(0, 7)}) 上创建标签：`,
-        "新建标签",
-        {
-          confirmButtonText: "创建标签",
-          cancelButtonText: "取消",
-          inputPlaceholder: "输入标签名称，例如 v1.0.0",
-          inputPattern: /\S+/,
-          inputErrorMessage: "标签名不能为空",
-          lockScroll: false,
-        }
-      )
-        .then(async ({ value }) => {
-          if (value && currentRepoPath.value) {
-            await createTag(currentRepoPath.value, value.trim(), commit.hash);
-          }
-        })
-        .catch(() => {});
+      tagTargetHash.value = commit.hash;
+      showCreateTagDialog.value = true;
       break;
     }
   }

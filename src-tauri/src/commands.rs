@@ -230,6 +230,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_merge_branch,
         git_get_tags,
         git_create_tag,
+        git_push_tag,
         git_delete_tag,
         git_stash_list,
         git_stash_save,

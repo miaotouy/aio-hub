@@ -16,10 +16,7 @@ import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
 import { errorHandler } from "./useGitCommitterErrorHandler";
-import type {
-  RepoOverview,
-  MergeResult,
-} from "../types";
+import type { RepoOverview, MergeResult } from "../types";
 import { refreshStatus } from "./useGitCommitterRunner";
 
 /** 当前激活仓库的全景概览数据 */
@@ -28,7 +25,9 @@ export const repoOverview = ref<RepoOverview | null>(null);
 export const isLoadingOverview = ref<boolean>(false);
 
 /** 异步加载仓库概览信息 */
-export async function loadRepoOverview(repoPath: string): Promise<RepoOverview | null> {
+export async function loadRepoOverview(
+  repoPath: string
+): Promise<RepoOverview | null> {
   if (!repoPath || repoPath === "__panorama__") {
     repoOverview.value = null;
     return null;
@@ -148,7 +147,8 @@ export async function createTag(
   repoPath: string,
   tagName: string,
   targetHash?: string,
-  message?: string
+  message?: string,
+  annotated?: boolean
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
@@ -157,6 +157,7 @@ export async function createTag(
         tagName,
         targetHash: targetHash || null,
         message: message || null,
+        annotated: annotated ?? null,
       }),
     { userMessage: `创建标签 ${tagName} 失败`, showToUser: true }
   );
@@ -166,6 +167,24 @@ export async function createTag(
     return true;
   }
   return false;
+}
+
+/** 仅推送指定标签，保留本地创建结果供失败重试。 */
+export async function pushTag(
+  repoPath: string,
+  tagName: string,
+  remoteName: string
+): Promise<boolean> {
+  const result = await errorHandler.wrapAsync(
+    () => invoke<void>("git_push_tag", { path: repoPath, tagName, remoteName }),
+    {
+      userMessage: `本地标签 ${tagName} 已创建，推送到 ${remoteName} 失败，可重试推送`,
+      showToUser: true,
+    }
+  );
+  if (result === null) return false;
+  customMessage.success(`已将标签 ${tagName} 推送到 ${remoteName}`);
+  return true;
 }
 
 /** 删除标签 */

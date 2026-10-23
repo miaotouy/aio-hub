@@ -233,10 +233,16 @@
         </el-button>
       </el-tooltip>
     </div>
+    <CreateTagDialog
+      v-if="showCreateTagDialog"
+      v-model="showCreateTagDialog"
+      :repo-path="currentRepoPath"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import CreateTagDialog from "./CreateTagDialog.vue";
 import { ref, watch, computed } from "vue";
 import {
   GitBranch,
@@ -278,7 +284,6 @@ import {
   loadRepoOverview,
   checkoutBranch,
   createBranch,
-  createTag,
   saveStash,
   popStash,
   undoLastCommit,
@@ -292,6 +297,8 @@ import {
 import GitSearchDropdown from "./GitSearchDropdown.vue";
 
 // 复用统一的工作流 Composable（拉取/推送运行态按仓库隔离）
+const showCreateTagDialog = ref(false);
+
 const {
   isPulling,
   isPushing,
@@ -426,20 +433,7 @@ const handleMoreCommand = async (command: string) => {
       break;
     }
     case "new-tag": {
-      ElMessageBox.prompt("请输入新标签的名称：", "新建标签 (Tag)", {
-        confirmButtonText: "创建标签",
-        cancelButtonText: "取消",
-        inputPlaceholder: "例如 v1.0.0",
-        inputPattern: /\S+/,
-        inputErrorMessage: "标签名不能为空",
-        lockScroll: false,
-      })
-        .then(async ({ value }) => {
-          if (value?.trim()) {
-            await createTag(repoPath, value.trim());
-          }
-        })
-        .catch(() => {});
+      showCreateTagDialog.value = true;
       break;
     }
     case "stash-save": {

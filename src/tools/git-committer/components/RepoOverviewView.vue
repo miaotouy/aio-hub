@@ -425,35 +425,11 @@
         </template>
       </el-dialog>
 
-      <!-- 新建标签对话框 -->
-      <el-dialog
+      <CreateTagDialog
+        v-if="showCreateTagDialog"
         v-model="showCreateTagDialog"
-        title="新建 Git 标签"
-        width="400px"
-        :lock-scroll="false"
-      >
-        <el-form label-position="top">
-          <el-form-item label="标签名称 (Tag)" required>
-            <el-input
-              v-model="newTagName"
-              placeholder="如 v1.0.0"
-              @keyup.enter="handleCreateTag"
-            />
-          </el-form-item>
-          <el-form-item label="附注消息 (可选)">
-            <el-input
-              v-model="newTagMessage"
-              placeholder="发布版本 1.0.0"
-            />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="showCreateTagDialog = false">取消</el-button>
-          <el-button type="primary" :loading="isSubmitting" @click="handleCreateTag">
-            创建标签
-          </el-button>
-        </template>
-      </el-dialog>
+        :repo-path="currentRepoPath"
+      />
 
       <!-- 存入 Stash 对话框 -->
       <el-dialog
@@ -488,6 +464,7 @@
 </template>
 
 <script setup lang="ts">
+import CreateTagDialog from "./CreateTagDialog.vue";
 import { ref, onMounted, watch, computed } from "vue";
 import {
   FolderGit2,
@@ -515,7 +492,6 @@ import {
   createBranch,
   deleteBranch,
   mergeBranch,
-  createTag,
   deleteTag,
   saveStash,
   popStash,
@@ -563,8 +539,6 @@ const newBranchName = ref("");
 const newBranchStartPoint = ref("");
 
 const showCreateTagDialog = ref(false);
-const newTagName = ref("");
-const newTagMessage = ref("");
 
 const showSaveStashDialog = ref(false);
 const stashMessage = ref("");
@@ -668,29 +642,6 @@ const handleCreateBranch = async () => {
       showCreateBranchDialog.value = false;
       newBranchName.value = "";
       newBranchStartPoint.value = "";
-    }
-  } finally {
-    isSubmitting.value = false;
-  }
-};
-
-const handleCreateTag = async () => {
-  if (!newTagName.value.trim()) {
-    customMessage.warning("请输入有效的标签名称");
-    return;
-  }
-  isSubmitting.value = true;
-  try {
-    const ok = await createTag(
-      currentRepoPath.value,
-      newTagName.value.trim(),
-      undefined,
-      newTagMessage.value.trim()
-    );
-    if (ok) {
-      showCreateTagDialog.value = false;
-      newTagName.value = "";
-      newTagMessage.value = "";
     }
   } finally {
     isSubmitting.value = false;

@@ -1223,7 +1223,7 @@ pub async fn git_get_tags(path: String) -> Result<Vec<GitTagItem>, String> {
     Ok(read_git_tags(&repo))
 }
 
-/// 创建标签。
+/// 创建标签。显式类型优先，兼容旧调用按消息推断类型。
 #[tauri::command]
 pub async fn git_create_tag(
     app: AppHandle,
@@ -1231,22 +1231,57 @@ pub async fn git_create_tag(
     tag_name: String,
     target_hash: Option<String>,
     message: Option<String>,
+    annotated: Option<bool>,
 ) -> Result<(), String> {
-    let mut args = vec!["tag"];
-    let msg = message.unwrap_or_default();
-    if !msg.is_empty() {
-        args.push("-a");
-        args.push(&tag_name);
-        args.push("-m");
-        args.push(&msg);
-    } else {
-        args.push(&tag_name);
+    if !git2::Reference::is_valid_name(&format!("refs/tags/{tag_name}")) {
+        return Err("标签名称无效，请检查空格和特殊字符".to_string());
     }
+    let msg = message.unwrap_or_default();
+    let annotated = annotated.unwrap_or(!msg.is_empty());
+    let annotation = if msg.trim().is_empty() {
+        &tag_name
+    } else {
+        &msg
+    };
+    let mut args = vec!["tag", "--no-sign"];
+    if annotated {
+        args.extend(["-a", "-m", annotation]);
+    }
+    args.extend(["--", &tag_name]);
     let target = target_hash.unwrap_or_default();
     if !target.is_empty() {
         args.push(&target);
     }
     let _ = run_git_with_guard(&app, &path, args).await?;
+    Ok(())
+}
+
+/// 只推送选中的标签，不附带分支或其他标签。
+#[tauri::command]
+pub async fn git_push_tag(
+    app: AppHandle,
+    path: String,
+    tag_name: String,
+    remote_name: String,
+) -> Result<(), String> {
+    let reference = format!("refs/tags/{tag_name}");
+    if !git2::Reference::is_valid_name(&reference) {
+        return Err("标签名称无效".to_string());
+    }
+    {
+        let repo = open_repo(&path)?;
+        repo.find_remote(&remote_name)
+            .map_err(|e| format!("远程仓库无效: {e}"))?;
+        repo.find_reference(&reference)
+            .map_err(|e| format!("本地标签不存在: {e}"))?;
+    }
+    let refspec = format!("{reference}:{reference}");
+    let _ = run_git_with_guard(
+        &app,
+        &path,
+        ["push", "--no-follow-tags", "--", &remote_name, &refspec],
+    )
+    .await?;
     Ok(())
 }
 

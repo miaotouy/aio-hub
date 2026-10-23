@@ -19,10 +19,10 @@
 
 <div align="center">
 
-[![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#-许可证)
-[![Tauri](https://img.shields.io/badge/Tauri-2.10-blue.svg)](https://tauri.app/)
+[![License](https://img.shields.io/badge/license-Apache%202.0%20%2F%20Proprietary-blue.svg)](#许可证)
+[![Tauri](https://img.shields.io/badge/Tauri-2.11-blue.svg)](https://tauri.app/)
 [![Vue](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
-[![Vite](https://img.shields.io/badge/Vite-8.0-purple.svg)](https://vite.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.1-purple.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
 
 [![Stars](https://img.shields.io/github/stars/miaotouy/aio-hub?style=social)](https://github.com/miaotouy/aio-hub/stargazers)
@@ -38,6 +38,7 @@
 [产品定位](#-产品定位) •
 [LLM 工作空间](#-旗舰功能-llm-智能对话工作空间) •
 [人类工作台](#-人类工作台与共享能力) •
+[特色工具](#-效率与创作工具链) •
 [Agent 与 VCP](#-agent-运行时与-vcp-协作) •
 [下载安装](#-下载安装) •
 [开发指南](#-开发指南)
@@ -49,7 +50,7 @@
 AIO Hub 从桌面工具枢纽发展为同时服务于**人类用户、Agent、插件和外部执行体**的本地工作站。Chat 是旗舰工作区；工具页、内部服务、Agent 方法和外部协议各自保留适合的入口。
 
 - **人类工作台**：正则预设、Git、网页蒸馏、窗口自动化、OCR、媒体创作、资产管理和弹幕播放器等工具，拥有独立的界面、状态、任务和结果回流链路。
-- **Agent 运行时**：模型只看到经过显式注册和筛选的可调用方法；调用经过参数校验、审批策略、任务管理和结果回注，不等于所有 UI 工具都会自动暴露给 Agent。
+- **Agent 运行时**：Agent 可调用已注册并启用的方法。系统负责校验参数、按策略请求审批、管理执行任务，并将结果返回对话。
 - **共享能力层**：文件、资产、Token 计算、OCR、会话、Recall 和媒体任务等本地能力可以被多个工作台复用，人在界面中操作，Agent 在合适的边界内调用。
 - **外部协作层**：通过 VCP 连接器，AIO Hub 既可以作为节点被远端 VCP 服务驱动，也可以把远端工具桥接到本地注册表供自身工作流使用。
 
@@ -106,10 +107,10 @@ AIO Hub 的聊天功能是一个专为复杂任务和深度探索而设计的、
 - **Git 与正则工作台**: 多仓库状态、Diff、暂存、提交和 AI 提交草稿集中管理；正则规则可组成可导入、可排序、可堆叠的预设流程。
 - **对话分享稿工作台**: 从消息选区开始，在独立编排和实时预览中生成分享稿，并保留每次生成的结果历史。
 
-### 跨工作台的本地事实源
+### 跨工作台共享的数据与服务
 
 - **媒体与中央资产库**: 图像、音频、视频等生成任务拥有独立会话、分支与全局任务队列；结果进入带 SHA-256 去重、来源追踪与跨工具复用的资产库。
-- **Recall 思绪集**: 以 SQLite 为事实源，通过检索管线和严格占位符将即时召回接入上下文；它是对世界书之外的上下文召回工作流补充。
+- **Recall（思绪）**: 管理结构化知识与记忆，支持标签和向量检索，将相关条目召回到对话上下文，也可供 Agent 主动查询。
 - **统一 Token 与 LLM 观测**: 多 Tokenizer、多模态预算服务被聊天、翻译和检查器等工具复用；请求检查器可同时观察应用内请求和经本地代理进入的外部请求，并脱敏展示关键字段。
 
 ## 🤖 Agent 运行时与 VCP 协作
@@ -171,11 +172,34 @@ AIO Hub 支持导入并继续编辑 SillyTavern V2/V3 JSON/PNG 角色卡、上�
 
 ## 🚀 效率与创作工具链
 
+常用工具可固定到主页的快捷栏。完整教程见[工具总览](docs/user-guide/tools/index.md)。
+
+### 🔎 按用途找工具
+
+| 想完成的事情                       | 工具                                                                                                                                                                              |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 批量替换文本、清洗文件内容         | [正则表达式应用器](docs/user-guide/tools/regex-applier.md)                                                                                                                        |
+| 搜索目录中的文本并批量替换         | **目录搜索**，支持正则与 `.gitignore`                                                                                                                                             |
+| 转换配置文件格式                   | **配置转换器**，支持 JSON、YAML、TOML、INI、XML、`.env` 互转                                                                                                                      |
+| 查找重复文本文件                   | **内容查重**，支持精确匹配与文本规范化后匹配                                                                                                                                      |
+| 清理目录、搬迁大文件               | [目录清理](docs/user-guide/tools/directory-janitor.md)；[符号链接搬迁](docs/user-guide/tools/symlink-mover.md)可在搬迁后保留原路径访问                                            |
+| 识别长图、提取视频字幕             | [智能 OCR](docs/user-guide/tools/smart-ocr/index.md)识别图片文字；[实时字幕 OCR](docs/user-guide/tools/realtime-subtitle-ocr/index.md)识别屏幕和本地视频字幕，支持编辑与 SRT 导出 |
+| 压缩视频、转格式、序列帧合成       | [FFmpeg 工具](docs/user-guide/tools/ffmpeg-tools.md)                                                                                                                              |
+| 给本地视频播放弹幕                 | [弹幕播放器](docs/user-guide/tools/danmaku-player.md)，支持内置播放与 Windows 外部播放器弹幕覆盖层                                                                                |
+| 提取网页正文、整理网页资料         | [网页蒸馏室](docs/user-guide/tools/web-distillery.md)，支持网页搜索、正文提取、站点适配与登录态管理                                                                               |
+| 提取配色、按颜色整理图片           | [图片色彩分析](docs/user-guide/tools/color-picker.md)                                                                                                                             |
+| 解析 AI 图片参数、工作流与角色卡   | [AI 信息解析](docs/user-guide/tools/media-info-reader.md)                                                                                                                         |
+| 管理 Git 提交、查看差异和分支      | **Git 提交助手**管理暂存、提交和 AI 提交信息草稿；[Git 仓库分析器](docs/user-guide/tools/git-analyzer.md)分析分支历史与仓库活动                                                   |
+| 筛选 JSON / YAML、过滤或抽样文本行 | [数据筛选工具](docs/user-guide/tools/data-filter.md)                                                                                                                              |
+| 对比文本、格式化代码、统计 Token   | [文本差异对比](docs/user-guide/tools/text-diff.md)、[代码格式化](docs/user-guide/tools/code-formatter.md)、[Token 计算器](docs/user-guide/tools/token-calculator.md)              |
+| 编排窗口点击、输入、截图和 OCR     | **窗口自动化语言**，支持可复用流程及前台、后台操作                                                                                                                                |
+| 测试 HTTP / SSE、检查 LLM 请求     | [API 测试器](docs/user-guide/tools/api-tester.md)调试接口与流式响应；[LLM 请求检查器](docs/user-guide/tools/llm-inspector.md)分析应用内请求及本地代理流量                         |
+
 ### 🎬 多媒体创作中心 (Media Workstation)
 
 - **媒体生成器 (Media Generator)**: 全功能生成工作站，支持图像/音频/视频任务流，具备独立的分支管理与任务队列。内置快速生成模式（无需创建会话即可使用）、参考图上传（自动适配视觉模型）及 16:9 / 9:16 等常用比例预设。
 - **音视频转写中心 (Transcription)**: 基于多模型驱动的转写引擎，支持超长 PDF 分批视觉解析、视频内容描述及音频语音转文字。
-- **FFmpeg 高性能助手**: 基于 Rust 后端的高性能媒体处理工具，支持视频压缩、格式转换及批量处理。
+- **FFmpeg 助手**: 支持视频压缩、格式转换、裁剪、序列帧合成与批量处理。
 
 ### 📊 开发者生产力
 
@@ -189,7 +213,7 @@ AIO Hub 支持导入并继续编辑 SillyTavern V2/V3 JSON/PNG 角色卡、上�
 - **资产管理器**: 应用级资源中心，基于 SHA-256 自动去重，集中管理所有工具产生的图片、文档及转写内容。
 - **目录清理工具**: 高性能 Rust 驱动，支持灵活的过滤规则与安全清理机制。
 - **符号链接搬迁**: 文件“搬家”利器，支持符号链接与硬链接模式。
-- **数据筛选工具**: 针对 JSON/YAML 列表数据进行条件筛选，支持简单匹配与自定义脚本，高效剔除无关配置。
+- **数据筛选工具**: 支持 JSON / YAML 条件筛选与自定义脚本，以及纯文本关键词筛选和随机抽样。
 
 ### 🎨 正则表达式应用器 (Regex Applier)
 
@@ -236,11 +260,13 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 - **LLM 请求检查器**: 本地中间人代理服务器，用于拦截、分析发往远程 LLM API 的请求。
 - **JSON 格式化**: 可控展开层级的 JSON/YAML 格式化与校验工具。
 - **Token 计算器**: 精确计算多厂商模型 Token，支持图片 Token 分析与可视化。
-- **颜色提取器**: 智能图片颜色分析工具，支持屏幕取色与历史记录。
+- **图片色彩分析**: 提取图片主色调、调色板和平均色，支持屏幕取色、批量分析与按颜色分类归档。
 - **文本差异对比**: 深度集成 Monaco Diff Editor，支持文件拖拽分配与补丁导出。
 - **目录树生成**: 高性能 Rust 后端驱动，原生支持 `.gitignore`。
 - **代码格式化器**: 基于 Prettier 引擎的多语言格式化方案。
-- **媒体信息读取**: 专为 AI 绘图设计的元数据提取器，支持 A1111/ComfyUI/ST 角色卡等。
+- **AI 信息解析**: 解析 A1111 绘图参数、ComfyUI 工作流、SillyTavern 角色卡与 AIO 角色包。
+- **画板**: 支持自由绘画、形状绘制和 PNG 导出，可将作品复制到剪贴板。
+- **壁纸探测器**: 查看多屏当前壁纸，预览图片并定位壁纸文件。
 
 ---
 
@@ -253,29 +279,51 @@ _专为 LLM 流式输出打造的高性能渲染方案_
 [![下载正式版本](https://img.shields.io/github/v/release/miaotouy/aio-hub?style=for-the-badge&logo=github&label=下载正式版本)](https://github.com/miaotouy/aio-hub/releases/latest)
 [![下载预览版](https://img.shields.io/github/v/release/miaotouy/aio-hub?include_prereleases&style=for-the-badge&logo=github&label=下载预览版&color=yellow)](https://github.com/miaotouy/aio-hub/releases)
 
-> 🚀 **提示**：正式版更新较慢，推荐下载 **预览版** (Pre-release) 以体验最新的功能特性与 Bug 修复！
+> 正式版更新较慢，建议优先下载 **预览版（Pre-release）**，获取近期功能和修复。下载时请确认平台与处理器架构。
 
-| 平台        | 格式        | 说明                                |
-| :---------- | :---------- | :---------------------------------- |
-| **Windows** | `.exe`      | NSIS 安装包                         |
-| **macOS**   | `.dmg`      | 支持 Apple Silicon (M系列) 和 Intel |
-| **Linux**   | `.AppImage` | 通用格式，需赋予执行权限            |
-|             | `.flatpak`  | 推荐，沙盒化运行，支持跨发行版      |
+| 平台            | 格式            | 说明                                           |
+| :-------------- | :-------------- | :--------------------------------------------- |
+| **Windows x64** | `.exe`          | NSIS 安装包，安装时可选择数据目录              |
+| **Windows x64** | `-Portable.exe` | 便携版，数据保存在程序同级的 `data` 目录       |
+| **macOS**       | `.dmg`          | Apple Silicon 选择 `aarch64`，Intel 选择 `x64` |
+| **Linux x64**   | `.deb`          | Debian / Ubuntu 安装包                         |
+| **Linux x64**   | `.AppImage`     | 运行前添加执行权限：`chmod +x 文件名.AppImage` |
+| **Linux x64**   | `.flatpak`      | 沙盒化安装包                                   |
+
+macOS 首次运行遇到安全提示时，可参考 [macOS 安装与运行说明](docs/guide/macos-gatekeeper-fix.md)。
 
 ### 开发者：源码构建
 
-**环境要求**: Node.js 20+, Rust 1.70+, Bun (推荐)
+包管理与脚本运行统一使用 **Bun**。
+
+**环境准备**：
+
+- **Bun**：当前 `package.json` 指定 `bun@1.3.11`，建议使用相同版本。
+- **Node.js**：建议 22.12+。
+- **Rust**：使用最新 stable 工具链。
+- **Git**：用于获取源码。
+- **Windows**：Visual Studio Build Tools（C++ 桌面开发与 Windows SDK）、WebView2，以及原生依赖编译所需的 NASM 和 LLVM / Clang。
+- **macOS**：Xcode Command Line Tools。
+- **Linux**：WebKitGTK 4.1、GTK、OpenSSL、AppIndicator、NASM、Clang 等开发依赖；Ubuntu 安装清单见[构建配置](.github/workflows/build.yml)。
 
 ```bash
+# 获取源码
+git clone https://github.com/miaotouy/aio-hub.git
+cd aio-hub
+
 # 安装依赖
 bun install
 
-# 启动开发环境（支持端口、数据目录和多实例隔离）
+# 启动桌面开发环境
 bun run dev
 
-# 构建生产版本
+# 构建桌面应用与当前平台安装包
 bun run tauri:build
 ```
+
+构建流程会下载所需的前端运行资源，首次构建请保持网络可用。Windows 便携版可使用 `bun run build:portable` 构建。
+
+开发环境、常用命令与调试方式详见[开发环境搭建](docs/guide/getting-started.md)。
 
 ## 📚 文档与支持
 
@@ -322,12 +370,11 @@ bun run tauri:build
 ### 🖥️ 桌面端 (Desktop)
 
 遵循 **[Apache License 2.0](LICENSE)** 开源协议。
-这意味着你可以自由地：商业使用、修改源代码、分发副本、私人使用。唯一要求是保留原始版权声明和免责声明。
+允许商业使用、修改源代码、分发副本和私人使用，具体条件见许可证全文。
 
 ### 📱 移动端 (Mobile)
 
-遵循 **[Proprietary License](mobile/LICENSE)** (私有许可证)。
-**仅供个人学习与研究使用**。严禁任何形式的商用、未经授权的二次分发或套壳行为。
+`mobile/` 目录代码适用独立的[私有许可证](mobile/LICENSE)，允许个人学习、编译和私人使用，禁止商业使用；二次分发须取得著作权人的明确书面许可。
 
 <div align="center">
 

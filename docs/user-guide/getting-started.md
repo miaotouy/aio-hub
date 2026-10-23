@@ -28,8 +28,8 @@
 要和 AI 对话，你需要先告诉 AIO Hub 用哪家的服务。
 
 1. 启动 AIO Hub，点击右上角的 <LIcon name="Settings" :size="18" /> **设置**
-2. 找到 **LLM AI 服务配置**
-3. 点击 **添加服务**，选一个预设（比如 DeepSeek、OpenAI）
+2. 进入 **AI 渠道** 页面
+3. 在 **LLM 服务** 列表顶部点击 **添加**，在“添加渠道”弹窗中选择渠道预设（比如 DeepSeek、OpenAI）
 4. 在右侧表单里粘贴你的 **API Key**，配置会自动保存
 
 TODO: 截图-设置页面中的 LLM 服务配置界面
@@ -40,16 +40,16 @@ TODO: 截图-设置页面中的 LLM 服务配置界面
 
 ## 3. 开始对话
 
-1. 回到主页（点左上角 <LIcon name="Home" :size="18" /> 图标），点击 **<LIcon name="LlmChatIcon" :size="18"/> LLM 聊天** 卡片
+1. 回到主页（点左上角 <LIcon name="Home" :size="18" /> 图标），点击 **<LIcon name="LlmChatIcon" :size="18"/> LLM 对话** 卡片
 2. 左侧会看到 **智能体列表**——点底部的 **添加智能体**，选个预设或从空白创建，确保选中了你刚配好的服务和模型
 3. 选中智能体后，点右侧列表顶部的 <LIcon name="Plus" :size="18" /> 新建一个对话
-4. 在底部输入框打字，按 `Ctrl + Enter` 发送
+4. 在底部输入框打字，默认按 `Ctrl + Enter` 发送（macOS 使用 `Cmd + Enter`）
 
 TODO: 截图-聊天界面
 
 试试发一句："你好，介绍一下你自己"——看到回复就说明一切正常了 🎉
 
-> 💡 **输入习惯**：`Enter` 是换行，`Ctrl + Enter` 才是发送。不会误触。
+> 💡 **输入快捷键**：默认 `Enter` 换行，`Ctrl + Enter`（macOS 为 `Cmd + Enter`）发送。可在聊天设置的 **快捷键 → 发送消息** 中改为 `Enter` 发送，此时使用 `Shift + Enter` 换行。
 
 ---
 

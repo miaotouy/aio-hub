@@ -117,18 +117,54 @@ const {
   overscan: 10, // 增加预加载行数以减少快速滚动时的抖动
 });
 
+// 使用滚动区的内容宽度，让分离窗口、侧栏和缩放都采用同一套布局。
+const listWidth = ref(0);
+const listLayout = computed(() =>
+  listWidth.value >= 1040
+    ? "wide"
+    : listWidth.value >= 560
+      ? "wrapped"
+      : "stacked"
+);
+const listItemHeight = computed(() =>
+  listLayout.value === "wide" ? 96 : listLayout.value === "wrapped" ? 152 : 248
+);
+
 const {
   list: virtualTasks,
   containerProps: listContainerProps,
   wrapperProps: listWrapperProps,
 } = useVirtualList(filteredTasks, {
-  itemHeight: 96,
+  itemHeight: () => listItemHeight.value,
   overscan: 10,
 });
 
 // 监听容器大小变化 - 使用 watch 而非 onMounted，因为容器在 v-else 条件渲染下
 // 冷启动时 store 异步加载数据，onMounted 时容器 DOM 可能还不存在
 let resizeObserver: ResizeObserver | null = null;
+let listResizeObserver: ResizeObserver | null = null;
+
+watch(
+  () => listContainerProps.ref.value,
+  (container) => {
+    listResizeObserver?.disconnect();
+    if (!container) return;
+    listResizeObserver = new ResizeObserver(([entry]) => {
+      listWidth.value = entry.contentRect.width;
+    });
+    listResizeObserver.observe(container);
+  },
+  { immediate: true }
+);
+
+watch(listItemHeight, (height, previousHeight) => {
+  // 按新行高保留当前浏览位置，并同步重算可见范围。
+  const container = listContainerProps.ref.value;
+  if (container) {
+    container.scrollTop = (container.scrollTop / previousHeight) * height;
+    listContainerProps.onScroll();
+  }
+});
 
 watch(
   () => containerProps.ref.value,
@@ -153,6 +189,7 @@ watch(
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  listResizeObserver?.disconnect();
 });
 
 const handleRemoveTask = (taskId: string) => {
@@ -411,6 +448,7 @@ const handleOpenAsset = async (task: MediaTask) => {
     <div
       v-else-if="viewMode === 'list'"
       class="task-list-container"
+      :style="{ '--task-list-item-height': `${listItemHeight}px` }"
       v-bind="listContainerProps"
     >
       <div class="task-list-virtual" v-bind="listWrapperProps">
@@ -422,6 +460,7 @@ const handleOpenAsset = async (task: MediaTask) => {
           <MediaTaskCard
             :task="item.data"
             layout="list"
+            :list-layout="listLayout"
             @remove="handleRemoveTask"
             @cancel="handleCancelTask"
             @retry="handleRetryTask"
@@ -459,6 +498,7 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 <style scoped>
 .media-task-list {
+  container-type: inline-size;
   box-sizing: border-box;
   height: 100%;
   padding: 16px 16px 0 16px;
@@ -470,6 +510,8 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 .task-list-container {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: 80px; /* 底部余量 */
   padding-top: 12px;
@@ -547,7 +589,9 @@ const handleOpenAsset = async (task: MediaTask) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  flex: 1 1 420px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .toolbar-right {
@@ -570,10 +614,12 @@ const handleOpenAsset = async (task: MediaTask) => {
 }
 
 .search-input {
+  flex: 1 1 180px;
   max-width: 240px;
 }
 
 .filter-select {
+  flex: 0 0 120px;
   width: 120px;
 }
 
@@ -598,7 +644,7 @@ const handleOpenAsset = async (task: MediaTask) => {
 .task-list-item {
   display: flex;
   align-items: center;
-  height: 96px;
+  height: var(--task-list-item-height);
   padding: 4px 0;
   box-sizing: border-box;
 }
@@ -615,5 +661,35 @@ const handleOpenAsset = async (task: MediaTask) => {
   flex: 1;
   min-width: 240px;
   max-width: 480px;
+}
+@container (max-width: 559px) {
+  .stats-overview {
+    gap: 6px;
+  }
+
+  .stat-item {
+    min-width: 0;
+    padding: 8px 4px;
+  }
+
+  .stat-item .label {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .toolbar-left {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .search-input {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+
+  .filter-select {
+    width: 100%;
+  }
 }
 </style>

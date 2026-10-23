@@ -41,6 +41,7 @@ import {
   FolderOpen,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
+import { isAudioOutputTaskType } from "../types";
 import type { Asset } from "@/types/asset-management";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -50,6 +51,7 @@ import AudioWaveform from "@/components/common/AudioWaveform.vue";
 const props = defineProps<{
   task: MediaTask;
   layout?: "grid" | "list";
+  listLayout?: "wide" | "wrapped" | "stacked";
 }>();
 
 const emit = defineEmits<{
@@ -85,7 +87,7 @@ const videoPosterUrl = ref<string>("");
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
 const listReferencePreviewUrls = computed(() =>
-  referenceAssetUrls.value.slice(0, 2)
+  referenceAssetUrls.value.slice(0, 3)
 );
 
 const showFullError = () => {
@@ -431,7 +433,11 @@ const openFileDirectory = async () => {
 <template>
   <div
     class="task-card"
-    :class="[task.status, { 'task-card-list': layout === 'list' }]"
+    :class="[
+      task.status,
+      { 'task-card-list': layout === 'list' },
+      layout === 'list' && `task-card-list-${listLayout ?? 'wide'}`,
+    ]"
   >
     <!-- 卡片头部 -->
     <div class="task-header">
@@ -506,25 +512,24 @@ const openFileDirectory = async () => {
             参考图 ({{ referenceAssetUrls.length }})
           </div>
           <div class="reference-list">
-            <div
+            <button
               v-for="(url, idx) in listReferencePreviewUrls"
               :key="idx"
+              type="button"
               class="reference-thumb"
+              :aria-label="`查看第 ${idx + 1} 张参考图${idx === 2 && referenceAssetUrls.length > 3 ? `，还有 ${referenceAssetUrls.length - 3} 张` : ''}`"
               @click="openReferencePreview(idx)"
             >
               <img :src="url" alt="参考图" loading="lazy" />
-              <div class="reference-overlay">
+              <span
+                v-if="idx === 2 && referenceAssetUrls.length > 3"
+                class="reference-more"
+              >
+                +{{ referenceAssetUrls.length - 3 }}
+              </span>
+              <span v-else class="reference-overlay">
                 <el-icon><ExternalLink /></el-icon>
-              </div>
-            </div>
-            <button
-              v-if="referenceAssetUrls.length > listReferencePreviewUrls.length"
-              type="button"
-              class="reference-thumb reference-more"
-              :aria-label="`查看其余 ${referenceAssetUrls.length - listReferencePreviewUrls.length} 张参考图`"
-              @click="openReferencePreview(listReferencePreviewUrls.length)"
-            >
-              +{{ referenceAssetUrls.length - listReferencePreviewUrls.length }}
+              </span>
             </button>
           </div>
         </div>
@@ -548,7 +553,10 @@ const openFileDirectory = async () => {
         </div>
 
         <!-- 结果区域 -->
-        <div class="result-area">
+        <div
+          class="result-area"
+          :class="{ 'is-audio-result': isAudioOutputTaskType(task.type) }"
+        >
           <!-- 完成状态：显示缩略图/视频 -->
           <template v-if="task.status === 'completed'">
             <div class="media-preview" @click="emit('open', task)">
@@ -803,10 +811,11 @@ const openFileDirectory = async () => {
   display: grid;
   grid-template-columns:
     minmax(145px, 180px) minmax(280px, 1fr) minmax(208px, 228px)
-    minmax(208px, 232px);
+    232px;
   align-items: center;
   width: 100%;
-  height: 88px;
+  box-sizing: border-box;
+  height: 100%;
   border-radius: 8px;
   transition:
     border-color 0.2s,
@@ -818,6 +827,7 @@ const openFileDirectory = async () => {
 }
 
 .task-card-list .task-header {
+  box-sizing: border-box;
   grid-column: 1;
   min-width: 0;
   height: 100%;
@@ -844,6 +854,7 @@ const openFileDirectory = async () => {
 }
 
 .task-card-list .prompt-wrapper {
+  box-sizing: border-box;
   grid-column: 2;
   align-items: center;
   height: 100%;
@@ -853,6 +864,7 @@ const openFileDirectory = async () => {
 }
 
 .task-card-list .prompt-preview {
+  min-width: 0;
   min-height: 0;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -878,6 +890,7 @@ const openFileDirectory = async () => {
 }
 
 .task-card-list .result-row {
+  box-sizing: border-box;
   grid-column: 3;
   align-items: center;
   width: auto;
@@ -917,23 +930,22 @@ const openFileDirectory = async () => {
   width: 28px;
   height: 28px;
   box-sizing: border-box;
+  padding: 0;
   border-radius: 4px;
 }
 
 .task-card-list .reference-more {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  color: var(--el-text-color-secondary);
+  color: var(--el-color-white);
   font-family: inherit;
   font-size: 10px;
-  background-color: var(--el-fill-color);
-}
-
-.task-card-list .reference-more:hover {
-  color: var(--el-color-primary);
-  border-color: var(--el-color-primary-light-5);
+  font-weight: 600;
+  background-color: var(--el-overlay-color);
+  pointer-events: none;
 }
 
 .task-card-list .result-area {
@@ -972,6 +984,7 @@ const openFileDirectory = async () => {
 }
 
 .task-card-list .task-footer {
+  box-sizing: border-box;
   grid-column: 4;
   min-width: 0;
   height: 100%;
@@ -1480,39 +1493,100 @@ const openFileDirectory = async () => {
   margin-left: 4px;
 }
 
-@media (max-width: 1100px) {
-  .task-card-list {
-    grid-template-columns: minmax(120px, 150px) minmax(0, 1fr) 208px;
-  }
-
-  .task-card-list .prompt-wrapper {
-    grid-column: 2;
-    border-right: 0;
-  }
-
-  .task-card-list .result-row {
-    display: none;
-  }
-
-  .task-card-list .task-footer {
-    grid-column: 3;
-    padding-inline: 8px;
-    gap: 6px;
-  }
-
-  .task-card-list .reference-count-trigger {
-    display: inline-flex;
-    width: auto !important;
-    min-width: 26px;
-    gap: 3px;
-    padding-inline: 4px !important;
-  }
+/* 由列表容器的实际内容宽度选择布局，并与虚拟行高同步。 */
+.task-card-list-wrapped {
+  grid-template-columns: minmax(124px, 180px) minmax(0, 1fr) 232px;
+  grid-template-rows: 64px minmax(0, 1fr);
 }
 
-@media (max-width: 760px) {
-  .task-card-list {
-    grid-template-columns: minmax(104px, 124px) minmax(0, 1fr) 192px;
-  }
+.task-card-list-wrapped .prompt-wrapper {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  border-right: 0;
+}
+
+.task-card-list-wrapped .result-row {
+  grid-column: 1 / 3;
+  grid-row: 2;
+  border-top: var(--border-width) solid var(--border-color);
+  border-right: 0;
+}
+
+.task-card-list.task-card-list-wrapped .result-row .result-area {
+  flex: 0 1 128px;
+}
+
+.task-card-list-wrapped .task-footer {
+  grid-column: 3;
+  grid-row: 2;
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 36px 60px minmax(0, 1fr) 44px;
+}
+
+.task-card-list-stacked .task-header {
+  grid-column: 1;
+  grid-row: 1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-right: 0;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list-stacked .task-type {
+  flex: 1;
+}
+
+.task-card-list-stacked .model-name {
+  max-width: none;
+  min-width: 0;
+}
+
+.task-card-list-stacked .task-time {
+  flex-shrink: 0;
+}
+
+.task-card-list-stacked .prompt-wrapper {
+  grid-column: 1;
+  grid-row: 2;
+  border-right: 0;
+}
+
+.task-card-list-stacked .result-row {
+  grid-column: 1;
+  grid-row: 3;
+  border-right: 0;
+}
+
+.task-card-list.task-card-list-stacked .result-row .result-area {
+  flex: 0 1 128px;
+}
+
+.task-card-list-stacked .task-footer {
+  grid-column: 1;
+  grid-row: 4;
+  border-left: 0;
+  border-top: var(--border-width) solid var(--border-color);
+}
+/* 音频波形沿折行后的结果区域伸展，图片和视频保留紧凑预览。 */
+.task-card-list:is(.task-card-list-wrapped, .task-card-list-stacked)
+  .result-row
+  .result-area.is-audio-result {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.task-card-list .audio-preview {
+  padding: 8px;
+}
+
+.task-card-list .audio-preview :deep(.audio-waveform) {
+  height: 100% !important;
 }
 </style>
 

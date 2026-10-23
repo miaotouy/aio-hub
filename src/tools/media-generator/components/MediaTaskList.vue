@@ -25,7 +25,7 @@ import { customMessage } from "@/utils/customMessage";
 import { save } from "@tauri-apps/plugin-dialog";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { Search, Trash2 as TrashIcon } from "lucide-vue-next";
+import { Search, Trash2 as TrashIcon, Grid, List } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
 import { isAudioOutputTaskType, normalizeMediaTaskType } from "../types";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -50,6 +50,7 @@ const assetUrls = ref<Record<string, string>>({});
 const searchQuery = ref("");
 const filterType = ref<MediaTaskType | "all">("all");
 const filterStatus = ref<MediaTaskStatus | "all">("all");
+const viewMode = ref<"grid" | "list">("grid");
 
 // 统计信息直接使用管理器的
 const stats = taskManager.stats;
@@ -111,6 +112,15 @@ const {
 } = useVirtualList(taskRows, {
   itemHeight: 370, // 行高度 (卡片高度 + 间距)
   overscan: 10, // 增加预加载行数以减少快速滚动时的抖动
+});
+
+const {
+  list: virtualTasks,
+  containerProps: listContainerProps,
+  wrapperProps: listWrapperProps,
+} = useVirtualList(filteredTasks, {
+  itemHeight: 96,
+  overscan: 10,
 });
 
 // 监听容器大小变化 - 使用 watch 而非 onMounted，因为容器在 v-else 条件渲染下
@@ -356,6 +366,18 @@ const handleOpenAsset = async (task: MediaTask) => {
         </el-select>
       </div>
       <div class="toolbar-right">
+        <el-radio-group v-model="viewMode" size="small" aria-label="任务视图">
+          <el-tooltip content="网格视图" placement="bottom">
+            <el-radio-button value="grid" aria-label="网格视图">
+              <el-icon><Grid /></el-icon>
+            </el-radio-button>
+          </el-tooltip>
+          <el-tooltip content="列表视图" placement="bottom">
+            <el-radio-button value="list" aria-label="列表视图">
+              <el-icon><List /></el-icon>
+            </el-radio-button>
+          </el-tooltip>
+        </el-radio-group>
         <el-button :icon="TrashIcon" link @click="clearFinishedTasks">
           清空已结束任务
         </el-button>
@@ -368,6 +390,32 @@ const handleOpenAsset = async (task: MediaTask) => {
 
     <div v-else-if="filteredTasks.length === 0" class="empty-state">
       <el-empty description="没有找到匹配的任务" />
+    </div>
+
+    <div
+      v-else-if="viewMode === 'list'"
+      class="task-list-container"
+      v-bind="listContainerProps"
+    >
+      <div class="task-list-virtual" v-bind="listWrapperProps">
+        <div
+          v-for="item in virtualTasks"
+          :key="item.data.id"
+          class="task-list-item"
+        >
+          <MediaTaskCard
+            :task="item.data"
+            layout="list"
+            @remove="handleRemoveTask"
+            @cancel="handleCancelTask"
+            @retry="handleRetryTask"
+            @download="handleDownloadTask"
+            @copy-prompt="handleCopyPrompt"
+            @copy-result="handleCopyResult"
+            @open="handleOpenAsset"
+          />
+        </div>
+      </div>
     </div>
 
     <div v-else class="task-list-container" v-bind="containerProps">
@@ -484,6 +532,25 @@ const handleOpenAsset = async (task: MediaTask) => {
   flex: 1;
 }
 
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-right :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+}
+
+.toolbar-right :deep(.el-radio-button__inner .el-icon) {
+  font-size: 15px;
+}
+
 .search-input {
   max-width: 240px;
 }
@@ -502,6 +569,19 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 .task-grid-virtual {
   width: 100%;
+  box-sizing: border-box;
+}
+
+.task-list-virtual {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.task-list-item {
+  display: flex;
+  align-items: center;
+  height: 96px;
+  padding: 4px 0;
   box-sizing: border-box;
 }
 

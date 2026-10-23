@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import {
   Search,
   Info,
@@ -35,6 +35,10 @@ import type { AssetType } from "@/types/asset-management";
 import { useInfiniteScroll } from "@vueuse/core";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("media-generator/gallery");
 
 const {
   assets,
@@ -61,6 +65,8 @@ const galleryContainer = ref<HTMLElement | null>(null);
 const assetUrls = ref<Record<string, string>>({});
 const videoPosterUrls = ref<Record<string, string>>({});
 const generationInfoCache = ref<Record<string, any>>({});
+let unlistenAssetImport: UnlistenFn | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 const getInlineGenerationInfo = (asset: Asset) => {
   const metadata = asset.metadata as any;
@@ -199,9 +205,31 @@ const loadData = async (append = false) => {
   await hydrateVisibleAssets();
 };
 
-// 初始加载
-onMounted(() => {
-  loadData();
+const scheduleRefreshAfterImport = () => {
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = undefined;
+    void loadData();
+  }, 200);
+};
+
+// 初始加载并同步其他组件导入的资产
+onMounted(async () => {
+  try {
+    unlistenAssetImport = await listen<Asset>(
+      "asset-imported",
+      scheduleRefreshAfterImport
+    );
+  } catch (error) {
+    logger.warn("订阅资产导入事件失败", error);
+  }
+
+  await loadData();
+});
+
+onUnmounted(() => {
+  unlistenAssetImport?.();
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer);
 });
 
 // 监听搜索和筛选

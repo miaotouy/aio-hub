@@ -36,6 +36,7 @@ import {
   Trash2 as TrashIcon,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
   FolderOpen,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
@@ -46,6 +47,7 @@ import AudioWaveform from "@/components/common/AudioWaveform.vue";
 
 const props = defineProps<{
   task: MediaTask;
+  layout?: "grid" | "list";
 }>();
 
 const emit = defineEmits<{
@@ -76,6 +78,9 @@ const videoPosterUrl = ref<string>("");
 
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
+const listReferencePreviewUrls = computed(() =>
+  referenceAssetUrls.value.slice(0, 2)
+);
 
 const showFullError = () => {
   ElMessageBox.alert(props.task.error || "生成失败", "错误详情", {
@@ -100,6 +105,35 @@ const showFullError = () => {
       props.task.error || "生成失败"
     ),
   });
+};
+
+const showFullPrompt = () => {
+  ElMessageBox.alert(
+    h(
+      "pre",
+      {
+        style: {
+          margin: 0,
+          maxHeight: "60vh",
+          overflow: "auto",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+          lineHeight: 1.6,
+          fontFamily: "inherit",
+        },
+      },
+      props.task.input.prompt
+    ),
+    "完整提示词",
+    {
+      confirmButtonText: "关闭",
+      lockScroll: false,
+      customStyle: {
+        width: "720px",
+        maxWidth: "calc(100vw - 48px)",
+      },
+    }
+  );
 };
 
 const getResultAssets = () =>
@@ -378,7 +412,10 @@ const openFileDirectory = async () => {
 </script>
 
 <template>
-  <div class="task-card" :class="task.status">
+  <div
+    class="task-card"
+    :class="[task.status, { 'task-card-list': layout === 'list' }]"
+  >
     <!-- 卡片头部 -->
     <div class="task-header">
       <div class="task-type">
@@ -394,23 +431,87 @@ const openFileDirectory = async () => {
     <!-- 任务内容预览 -->
     <div class="task-content">
       <div class="prompt-wrapper">
-        <div class="prompt-preview" :title="task.input.prompt">
+        <div
+          class="prompt-preview"
+          :title="layout === 'list' ? undefined : task.input.prompt"
+        >
           {{ task.input.prompt }}
         </div>
-        <el-tooltip content="复制提示词" placement="top">
-          <el-button
-            :icon="Copy"
-            link
-            class="copy-prompt-btn"
-            @click="emit('copyPrompt', task.input.prompt)"
-          />
-        </el-tooltip>
+        <div class="prompt-actions">
+          <el-tooltip
+            v-if="layout === 'list'"
+            content="查看完整提示词"
+            placement="top"
+          >
+            <el-button
+              :icon="Maximize2"
+              link
+              class="expand-prompt-btn"
+              aria-label="查看完整提示词"
+              @click="showFullPrompt"
+            />
+          </el-tooltip>
+          <el-tooltip content="复制提示词" placement="top">
+            <el-button
+              :icon="Copy"
+              link
+              class="copy-prompt-btn"
+              aria-label="复制提示词"
+              @click="emit('copyPrompt', task.input.prompt)"
+            />
+          </el-tooltip>
+          <el-tooltip
+            v-if="layout === 'list' && hasReferenceImages"
+            :content="`查看 ${referenceAssetUrls.length} 张参考图`"
+            placement="top"
+          >
+            <el-button
+              :icon="ImageIcon"
+              link
+              class="reference-count-trigger"
+              :aria-label="`查看 ${referenceAssetUrls.length} 张参考图`"
+              @click="openReferencePreview(0)"
+            >
+              {{ referenceAssetUrls.length }}
+            </el-button>
+          </el-tooltip>
+        </div>
       </div>
 
       <!-- 结果展示区域 -->
       <div class="result-row" :class="{ 'has-reference': hasReferenceImages }">
-        <!-- 参考图区域：竖向排列，超出可用高度时独立滚动 -->
-        <div v-if="hasReferenceImages" class="reference-panel">
+        <!-- 列表模式压缩显示参考图；网格模式保留完整参考图列表。 -->
+        <div
+          v-if="layout === 'list' && hasReferenceImages"
+          class="reference-panel"
+        >
+          <div class="reference-label">
+            参考图 ({{ referenceAssetUrls.length }})
+          </div>
+          <div class="reference-list">
+            <div
+              v-for="(url, idx) in listReferencePreviewUrls"
+              :key="idx"
+              class="reference-thumb"
+              @click="openReferencePreview(idx)"
+            >
+              <img :src="url" alt="参考图" loading="lazy" />
+              <div class="reference-overlay">
+                <el-icon><ExternalLink /></el-icon>
+              </div>
+            </div>
+            <button
+              v-if="referenceAssetUrls.length > listReferencePreviewUrls.length"
+              type="button"
+              class="reference-thumb reference-more"
+              :aria-label="`查看其余 ${referenceAssetUrls.length - listReferencePreviewUrls.length} 张参考图`"
+              @click="openReferencePreview(listReferencePreviewUrls.length)"
+            >
+              +{{ referenceAssetUrls.length - listReferencePreviewUrls.length }}
+            </button>
+          </div>
+        </div>
+        <div v-else-if="hasReferenceImages" class="reference-panel">
           <div class="reference-label">
             参考图 ({{ referenceAssetUrls.length }})
           </div>
@@ -656,6 +757,204 @@ const openFileDirectory = async () => {
   transform: translateY(-2px);
   border-color: var(--el-color-primary-light-5);
   box-shadow: var(--el-box-shadow-light);
+}
+
+.task-card-list {
+  display: grid;
+  grid-template-columns:
+    minmax(145px, 180px) minmax(280px, 1fr) minmax(208px, 228px)
+    minmax(208px, 232px);
+  align-items: center;
+  width: 100%;
+  height: 88px;
+  border-radius: 8px;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.task-card-list:hover {
+  transform: none;
+}
+
+.task-card-list .task-header {
+  grid-column: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  border-right: var(--border-width) solid var(--border-color);
+  border-bottom: 0;
+}
+
+.task-card-list .task-type {
+  width: 100%;
+  min-width: 0;
+}
+
+.task-card-list .task-time {
+  font-size: 10px;
+}
+
+.task-card-list .task-content {
+  display: contents;
+}
+
+.task-card-list .prompt-wrapper {
+  grid-column: 2;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  border-right: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list .prompt-preview {
+  min-height: 0;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.task-card-list .prompt-actions .el-button {
+  width: 26px;
+  height: 26px;
+  margin-left: 0;
+  padding: 4px;
+}
+
+.task-card-list .copy-prompt-btn,
+.task-card-list .expand-prompt-btn {
+  opacity: 0.7;
+}
+
+.task-card-list .result-row {
+  grid-column: 3;
+  align-items: center;
+  width: auto;
+  height: 100%;
+  flex: none;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border-right: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list .result-row.has-reference .reference-panel {
+  flex: 0 0 100px;
+  height: 100%;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.task-card-list .reference-label {
+  font-size: 9px;
+  line-height: 12px;
+  text-align: center;
+}
+
+.task-card-list .reference-list {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  max-height: none;
+  overflow: hidden;
+}
+
+.task-card-list .reference-thumb {
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border-radius: 4px;
+}
+
+.task-card-list .reference-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--el-text-color-secondary);
+  font-family: inherit;
+  font-size: 10px;
+  background-color: var(--el-fill-color);
+}
+
+.task-card-list .reference-more:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+}
+
+.task-card-list .result-area {
+  flex: 1;
+  width: auto;
+  min-width: 84px;
+  height: 100%;
+  aspect-ratio: unset;
+}
+
+.task-card-list .status-container {
+  gap: 5px;
+  padding: 6px;
+  font-size: 11px;
+}
+
+.task-card-list .status-container .is-loading {
+  font-size: 18px;
+}
+
+.task-card-list .progress-info {
+  gap: 4px;
+}
+
+.task-card-list .status-text {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-list .error-msg {
+  font-size: 10px;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.task-card-list .task-footer {
+  grid-column: 4;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 10px;
+  gap: 8px;
+  border-top: 0;
+  border-left: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list .actions {
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.task-card-list .actions :deep(.el-button) {
+  width: 26px;
+  height: 26px;
+  margin-left: 0;
+  padding: 4px;
+}
+
+.task-card-list .reference-count-trigger {
+  display: none;
 }
 
 .task-header {
@@ -1102,6 +1401,41 @@ const openFileDirectory = async () => {
 
 .el-button {
   margin-left: 4px;
+}
+
+@media (max-width: 1100px) {
+  .task-card-list {
+    grid-template-columns: minmax(120px, 150px) minmax(0, 1fr) 208px;
+  }
+
+  .task-card-list .prompt-wrapper {
+    grid-column: 2;
+    border-right: 0;
+  }
+
+  .task-card-list .result-row {
+    display: none;
+  }
+
+  .task-card-list .task-footer {
+    grid-column: 3;
+    padding-inline: 8px;
+    gap: 6px;
+  }
+
+  .task-card-list .reference-count-trigger {
+    display: inline-flex;
+    width: auto !important;
+    min-width: 26px;
+    gap: 3px;
+    padding-inline: 4px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-card-list {
+    grid-template-columns: minmax(104px, 124px) minmax(0, 1fr) 192px;
+  }
 }
 </style>
 

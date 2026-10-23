@@ -22,6 +22,9 @@ export interface GitAnalyzerConfig {
   version: string;
   // 基本设置
   repoPath: string;
+  githubRepo?: string;
+  insightModelCombo?: string;
+  repositorySource?: "local" | "github";
   selectedBranch: string;
   limitCount: number;
   batchSize: number;
@@ -74,6 +77,9 @@ function createDefaultConfig(): GitAnalyzerConfig {
     version: "1.0.0",
     // 基本设置
     repoPath: "",
+    githubRepo: "",
+    insightModelCombo: "",
+    repositorySource: "local",
     selectedBranch: "main",
     limitCount: 100,
     batchSize: 20,

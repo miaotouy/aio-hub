@@ -40,6 +40,7 @@
                 selectedCommit.full_message || selectedCommit.message
               }}</el-text>
               <el-button
+                v-if="!readonly"
                 link
                 type="primary"
                 :icon="Edit"
@@ -111,6 +112,14 @@
             </el-space>
           </el-descriptions-item>
         </el-descriptions>
+
+        <el-alert
+          v-if="selectedCommit?.filesComplete === false"
+          type="info"
+          :closable="false"
+          show-icon
+          title="该提交的文件变更超过单次读取范围，当前展示部分文件明细。"
+        />
 
         <!-- 文件更改区域 -->
         <div
@@ -259,6 +268,7 @@ import type { GitCommit } from "../types";
 interface Props {
   selectedCommit: GitCommit | null;
   loading?: boolean;
+  readonly?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -347,13 +357,20 @@ watch(
   }
 );
 
+watch(
+  () => props.readonly,
+  (readonly) => {
+    if (readonly) isEditing.value = false;
+  }
+);
+
 // 搜索或过滤变化时重置页码
 watch([fileSearch, fileTypeFilter], () => {
   currentPage.value = 1;
 });
 
 function startEdit() {
-  if (props.selectedCommit) {
+  if (props.selectedCommit && !props.readonly) {
     editMessage.value =
       props.selectedCommit.full_message || props.selectedCommit.message;
     isEditing.value = true;

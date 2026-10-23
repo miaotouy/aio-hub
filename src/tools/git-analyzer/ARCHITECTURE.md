@@ -1,6 +1,6 @@
 # Git Analyzer: 架构与开发者指南
 
-本文档旨在解析 Git Analyzer 工具的内部架构、设计理念和数据流，为后续开发提供清晰的指引。
+本文档介绍 Git Analyzer 的内部架构、数据流和当前数据源边界。工具支持本地 Git 历史分析与 GitHub 公开仓库匿名读取；GitHub 账户授权和私有仓库访问列入远期计划。
 
 ## 1. 核心概念
 
@@ -19,7 +19,7 @@ Git Analyzer 是一个高性能的 Git 仓库分析工具，其核心能力由 R
 
 ### 1.2. 后端驱动与流式加载 (Backend-Driven & Streaming)
 
-所有繁重的 Git 数据处理都在 Rust 后端完成，并通过流式事件将数据分批发送到前端。
+本地 Git 历史处理由 Rust 后端完成，并通过流式事件将数据分批发送到前端。GitHub 公开仓库通过前端 REST client 按页读取提交摘要。
 
 - **核心原则**:
   - **后端计算**: 前端只负责发送请求和渲染数据，避免在浏览器中处理大规模数据集。
@@ -32,7 +32,8 @@ Git Analyzer 是一个高性能的 Git 仓库分析工具，其核心能力由 R
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  View 层 (UI 展现)                                       │
-│  GitAnalyzer.vue + 子组件 (ControlPanel, ListView, ...)   │
+│  GitAnalyzer.vue + 子组件 (ControlPanel, List, Charts,     │
+│  EngineeringMetrics, AiInsights, Export)                    │
 │ ├─────────────────────────────────────────────────────────┤
 │ │  Action 层 (Agent 接口)                                  │
 │ │  actions.ts (为 LLM 提供原子化查询能力)                   │
@@ -129,17 +130,17 @@ sequenceDiagram
 
     Rust-->>Loader: emit("git-progress", End)
     Loader-->>Runner: onProgress(End)
-    Runner->>Runner: 后台加载文件变更信息
+    Note over UI,Runner: 工程指标或导出需要时，按需补齐行数与文件明细
 ```
 
 ### 3.2. 文件变更信息加载策略
 
-文件变更信息的获取有两条路径，由 `includeFiles` 状态控制：
+本地文件路径由 `includeFilePaths` 控制，行数统计由 `includeLineStats` 控制：
 
-1. **流式携带（`includeFiles = true`）**: 在流式加载时，后端直接为每个 commit 解析文件变更信息（`parse_commit_optimized` 的 `include_files` 参数）。数据随 `git-progress` 事件一并到达前端，Runner 在 `data` 事件中直接存入 `commitCache`。加载完成后无需额外请求。
-2. **后台补充（`includeFiles = false`，默认）**: 流式加载不携带文件信息以保证速度。加载完成后，Runner 自动调用 `loadCommitsWithFiles()` 通过 `git_load_commits_with_files` 命令一次性获取所有提交的文件变更，存入 `commitCache`。
+1. **文件路径**：当前默认开启，在流式加载时由后端为提交解析文件路径并缓存。关闭后提交列表不携带路径。
+2. **行数统计**：当前默认关闭，以避免所有提交都执行 diff 统计。工程指标页可通过 `git_enrich_commits_stream` 按需补齐统计和文件明细。
 
-导出模块（`ExportModule`）通过 `commitCache` 读取文件数据，并监听 `loadingFiles` 状态来自动刷新预览。
+导出模块（`ExportModule`）通过 `commitCache` 读取补充的文件数据，并监听 `loadingFiles` 状态来自动刷新预览。
 
 ### 3.3. 增量加载判断
 
@@ -148,6 +149,14 @@ Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
 - **条件**: 同一仓库 + 同一分支 + 新 limit > 已加载数量（或新 limit 为 0 表示全部加载）
 - **行为**: 使用 `streamIncrementalLoad` 从已加载位置（skip）开始继续加载，新数据追加到现有列表
 - **否则**: 执行全量加载，清空现有数据重新开始
+
+### 3.4. GitHub 公开仓库与 LLM 洞察
+
+- **本地来源**：沿用 `useGitAnalyzerRunner`、Tauri IPC 和 Rust `git2`，提交详情、行数统计均由本地仓库计算。
+- **GitHub 来源**：`data-sources/github.ts` 使用 `@tauri-apps/plugin-http` 请求 GitHub REST API，不附带账户令牌。接受 `owner/repo` 或 `github.com` 仓库 URL；仓库元数据用于默认分支，提交列表按 100 条分页，单次最多读取最近 1000 条。公开列表只加载提交摘要；打开提交后才获取该提交的统计和最多 100 条文件明细，并根据分页响应标记文件列表完整性。
+- **工程指标覆盖**：`calculateEngineeringMetrics` 分别累计已有 `stats` 和 `files`。指标页显示统计覆盖数；未加载的提交不会被计为零行。远端提交摘要没有行数与文件路径，打开详情后只增加对应提交的数据。
+- **AI 洞察**：`AiInsightsView` 使用 `LlmModelSelector` 选模型，通过 `useLlmRequest` 发送当前筛选提交的摘要；每次请求最多包含 200 条记录，使用 `AbortSignal` 支持取消。提交内容按不可信数据处理。
+- **远期边界**：GitHub 登录、私有仓库、令牌交换/刷新和凭据持久化未实现；它们需独立验证 GitHub App PKCE 回调和跨平台凭据存储。
 
 ## 4. 核心逻辑
 

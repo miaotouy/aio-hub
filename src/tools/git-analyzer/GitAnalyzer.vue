@@ -49,6 +49,8 @@
         <!-- 控制面板 -->
         <ControlPanel
           v-model:repo-path="repoPath"
+          v-model:github-repo="githubRepo"
+          v-model:repository-source="repositorySource"
           v-model:selected-branch="selectedBranch"
           v-model:limit-count="limitCount"
           v-model:batch-size="batchSize"
@@ -62,11 +64,13 @@
           :has-active-filters="hasActiveFilters"
           :filter-summary="filterSummary"
           :loading="loading"
+          :enriching="enriching"
           :branches="branches"
           :commits="commits"
           :progress="progress"
           :statistics="statistics"
           :controls-collapsed="filterControlsCollapsed"
+          :remote-repository-info="githubRepositoryInfo"
           @select-directory="selectDirectory"
           @load-branches="loadBranches"
           @load-repository="loadRepository"
@@ -102,6 +106,24 @@
               />
             </el-tab-pane>
 
+            <el-tab-pane label="工程指标" name="engineering">
+              <EngineeringMetricsView
+                v-if="activeTab === 'engineering'"
+                :commits="filteredCommits"
+                :repository-source="repositorySource"
+                :loading="loading"
+                :enriching="enriching"
+                @enrich-data="enrichEngineeringData"
+              />
+            </el-tab-pane>
+
+            <el-tab-pane label="AI 洞察" name="insights">
+              <AiInsightsView
+                v-model:model-combo="insightModelCombo"
+                :commits="filteredCommits"
+              />
+            </el-tab-pane>
+
             <!-- 导出报告视图 -->
             <el-tab-pane
               label="导出报告"
@@ -113,11 +135,12 @@
                 :commits="commits"
                 :filtered-commits="filteredCommits"
                 :statistics="statistics"
-                :repo-path="repoPath"
+                :repo-path="activeRepositoryPath"
+                :repository-source="repositorySource"
                 :branch="selectedBranch"
                 :reverse-order="reverseOrder"
                 :initial-config="config?.exportConfig"
-                @enrich-commits="enrichCommits"
+                @enrich-commits="handleExportEnrich"
                 @cancel-enrich="cancelEnrich"
                 @update:exportConfig="handleExportConfigUpdate"
               />
@@ -132,6 +155,7 @@
       v-model:visible="showDetail"
       :selected-commit="selectedCommit"
       :loading="loading"
+      :readonly="repositorySource === 'github'"
       @copy-hash="copyCommitHash"
       @update-message="updateCommitMessage"
     />
@@ -145,7 +169,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, computed } from "vue";
+import { ref, watch, nextTick, onMounted, onUnmounted, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   Expand,
@@ -159,6 +183,8 @@ import ExportModule from "./components/ExportModule.vue";
 import ControlPanel from "./components/ControlPanel.vue";
 import CommitListView from "./components/CommitListView.vue";
 import ChartsView from "./components/ChartsView.vue";
+import EngineeringMetricsView from "./components/EngineeringMetricsView.vue";
+import AiInsightsView from "./components/AiInsightsView.vue";
 import CommitDetailDialog from "./components/CommitDetailDialog.vue";
 import LoadConfigDialog from "./components/LoadConfigDialog.vue";
 import {
@@ -172,17 +198,29 @@ import { useCharts } from "./composables/useCharts";
 import { useCommitDetail } from "./composables/useCommitDetail";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { CommitFrequencyGranularity } from "./types";
+import {
+  loadGitHubRepository,
+  type GitHubRepositoryInfo,
+} from "./data-sources/github";
 
 // 创建模块日志记录器
 const errorHandler = createModuleErrorHandler("GitAnalyzer");
 
 // 配置状态
 const config = ref<GitAnalyzerConfig | null>(null);
+const repositorySource = ref<"local" | "github">("local");
+const githubRepo = ref("");
+const lastLocalBranch = ref("main");
+const insightModelCombo = ref("");
+const githubRepositoryInfo = ref<GitHubRepositoryInfo | null>(null);
+const remoteAbortController = ref<AbortController | null>(null);
 
 // 使用状态管理 composable
 const {
   loading,
   repoPath,
+  lastLoadedRepo,
+  lastLoadedLimit,
   selectedBranch,
   branches,
   commits,
@@ -203,24 +241,26 @@ const {
   repoLastPreset,
   loadConfig: gitLoadConfig,
   progress,
+  enriching,
   statistics,
   paginatedCommits,
   hasActiveFilters,
   filterSummary,
   updateLoadConfig,
   loadPresetsForRepo,
+  resetCommits,
 } = useGitAnalyzerState();
 
 // 使用运行器（业务编排层）
 const {
   selectDirectory,
   loadBranches,
-  loadRepository,
-  refreshRepository,
+  loadRepository: loadLocalRepository,
+  refreshRepository: refreshLocalRepository,
   onBranchChange,
   filterCommits,
   clearFilters,
-  cancelLoading,
+  cancelLoading: cancelLocalLoading,
   enrichCommits,
   cancelEnrich,
   updateCommitMessage,
@@ -235,6 +275,9 @@ const showLoadConfig = ref(false);
 const filterControlsCollapsed = ref(false);
 const frequencyGranularity = ref<CommitFrequencyGranularity>("day");
 const exportModuleRef = ref<InstanceType<typeof ExportModule>>();
+const activeRepositoryPath = computed(() =>
+  repositorySource.value === "github" ? githubRepo.value : repoPath.value
+);
 
 // 计算图表视图是否可见
 const isChartTabActive = computed(() => activeTab.value === "chart");
@@ -255,13 +298,135 @@ const { updateCharts, setupResizeObserver } = useCharts(
 );
 
 const { selectedCommit, showDetail, selectCommit, copyCommitHash, clearCache } =
-  useCommitDetail(() => repoPath.value);
+  useCommitDetail(
+    () =>
+      repositorySource.value === "github" ? githubRepo.value : repoPath.value,
+    () => repositorySource.value,
+    (commit) => {
+      if (repositorySource.value !== "github") return;
+      const index = commits.value.findIndex(
+        (item) => item.hash === commit.hash
+      );
+      if (index >= 0) {
+        commits.value[index] = commit;
+        filterCommits();
+      }
+    }
+  );
 
-// 处理分支切换，并在成功后清空缓存
+async function loadRemoteRepository() {
+  if (loading.value || enriching.value) return false;
+  if (!githubRepo.value.trim()) {
+    customMessage.warning("请输入 GitHub 公开仓库地址");
+    return false;
+  }
+
+  remoteAbortController.value?.abort();
+  const controller = new AbortController();
+  remoteAbortController.value = controller;
+  resetCommits();
+  branches.value = [];
+  githubRepositoryInfo.value = null;
+  lastLoadedRepo.value = "";
+  lastLoadedLimit.value = 0;
+  loading.value = true;
+  progress.value = {
+    loading: true,
+    loaded: 0,
+    total: Math.min(limitCount.value || 1000, 1000),
+  };
+
+  try {
+    const result = await loadGitHubRepository(githubRepo.value, {
+      branch: selectedBranch.value,
+      limit: limitCount.value,
+      signal: controller.signal,
+      onProgress: ({ loaded, total }) => {
+        progress.value.loaded = loaded;
+        progress.value.total = total;
+      },
+    });
+    if (controller.signal.aborted) return false;
+
+    githubRepositoryInfo.value = result.repository;
+    selectedBranch.value = result.branch;
+    branches.value = [
+      { name: result.repository.defaultBranch, current: true, remote: true },
+    ];
+    commits.value = result.commits;
+    commitRange.value = [1, Math.max(1, result.commits.length)];
+    filterCommits();
+    progress.value.loaded = result.commits.length;
+    progress.value.total = result.commits.length;
+    if (result.truncated) {
+      customMessage.info(
+        `已加载最近 ${result.commits.length} 条公开仓库提交，仓库还有更早的记录`
+      );
+    } else {
+      customMessage.success(`已加载 ${result.commits.length} 条公开仓库提交`);
+    }
+    return true;
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      errorHandler.error(error as Error, "加载 GitHub 公开仓库失败");
+    }
+    return false;
+  } finally {
+    if (remoteAbortController.value === controller) {
+      remoteAbortController.value = null;
+      loading.value = false;
+      progress.value.loading = false;
+    }
+  }
+}
+
+function loadRepository() {
+  if (loading.value || enriching.value) return Promise.resolve(false);
+  return repositorySource.value === "github"
+    ? loadRemoteRepository()
+    : loadLocalRepository();
+}
+
+function refreshRepository() {
+  if (loading.value || enriching.value) return Promise.resolve(false);
+  return repositorySource.value === "github"
+    ? loadRemoteRepository()
+    : refreshLocalRepository();
+}
+
+function cancelLoading() {
+  if (repositorySource.value === "github") {
+    remoteAbortController.value?.abort();
+    return;
+  }
+  return cancelLocalLoading();
+}
+
+function enrichEngineeringData() {
+  if (repositorySource.value === "local") {
+    return enrichCommits({
+      hashes: filteredCommits.value
+        .filter((commit) => !commit.stats || !commit.files)
+        .map((commit) => commit.hash),
+      includeStats: true,
+      includeFiles: true,
+    });
+  }
+  return Promise.resolve(false);
+}
+
+function handleExportEnrich(options: Parameters<typeof enrichCommits>[0]) {
+  if (repositorySource.value === "local") return enrichCommits(options);
+  return Promise.resolve(false);
+}
+
 async function handleBranchChange(branch: string) {
-  const success = await onBranchChange(branch);
+  const success =
+    repositorySource.value === "github"
+      ? await loadRemoteRepository()
+      : await onBranchChange(branch);
   if (success) {
-    clearCache(); // 切换分支时清空缓存
+    clearCache();
   }
 }
 
@@ -312,7 +477,13 @@ async function loadConfig() {
 
     // 恢复配置到各个状态
     repoPath.value = loadedConfig.repoPath;
+    githubRepo.value = loadedConfig.githubRepo ?? "";
+    insightModelCombo.value = loadedConfig.insightModelCombo ?? "";
+    repositorySource.value = loadedConfig.repositorySource ?? "local";
     selectedBranch.value = loadedConfig.selectedBranch;
+    if (repositorySource.value === "local" && selectedBranch.value) {
+      lastLocalBranch.value = selectedBranch.value;
+    }
     limitCount.value = loadedConfig.limitCount;
     batchSize.value = loadedConfig.batchSize;
     activeTab.value = loadedConfig.activeTab;
@@ -381,6 +552,9 @@ function saveCurrentConfig() {
   const updatedConfig: GitAnalyzerConfig = {
     version: config.value.version || "1.0.0",
     repoPath: repoPath.value,
+    githubRepo: githubRepo.value,
+    insightModelCombo: insightModelCombo.value,
+    repositorySource: repositorySource.value,
     selectedBranch: selectedBranch.value,
     limitCount: limitCount.value,
     batchSize: batchSize.value,
@@ -409,8 +583,38 @@ function saveCurrentConfig() {
 // 监听仓库路径变化，清空缓存并加载预设
 watch(repoPath, (newPath) => {
   clearCache(); // 切换仓库时清空缓存
-  if (newPath) {
+  if (newPath && repositorySource.value === "local") {
     loadPresetsForRepo(newPath);
+  }
+});
+
+watch(githubRepo, () => {
+  clearCache();
+  showDetail.value = false;
+  if (repositorySource.value === "github") {
+    resetCommits();
+    githubRepositoryInfo.value = null;
+    if (!isConfigLoading.value) selectedBranch.value = "";
+  }
+});
+watch(selectedBranch, (branch) => {
+  if (repositorySource.value === "local" && branch) {
+    lastLocalBranch.value = branch;
+  }
+});
+
+watch(repositorySource, (source) => {
+  showDetail.value = false;
+  remoteAbortController.value?.abort();
+  resetCommits();
+  branches.value = [];
+  githubRepositoryInfo.value = null;
+  lastLoadedRepo.value = "";
+  lastLoadedLimit.value = 0;
+  clearCache();
+
+  if (!isConfigLoading.value) {
+    selectedBranch.value = source === "github" ? "" : lastLocalBranch.value;
   }
 });
 
@@ -418,6 +622,9 @@ watch(repoPath, (newPath) => {
 watch(
   [
     repoPath,
+    githubRepo,
+    insightModelCombo,
+    repositorySource,
     selectedBranch,
     limitCount,
     batchSize,
@@ -465,13 +672,18 @@ onMounted(async () => {
   await loadConfig();
 
   // 加载预设
-  if (repoPath.value) {
+  if (repoPath.value && repositorySource.value === "local") {
     loadPresetsForRepo(repoPath.value);
   }
 
   // 设置图表 ResizeObserver
   const mainContent = document.querySelector(".main-content");
   setupResizeObserver(mainContent);
+});
+
+onUnmounted(() => {
+  clearCache();
+  remoteAbortController.value?.abort();
 });
 </script>
 

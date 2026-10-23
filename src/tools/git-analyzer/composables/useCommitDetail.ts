@@ -19,14 +19,21 @@ import { invoke } from "@tauri-apps/api/core";
 import type { GitCommit } from "../types";
 import { createModuleLogger } from "@utils/logger";
 import { commitCache } from "./useCommitCache";
+import { getGitHubCommitDetail } from "../data-sources/github";
 
 const logger = createModuleLogger("git-analyzer:useCommitDetail");
 const errorHandler = createModuleErrorHandler("git-analyzer:useCommitDetail");
 
-export function useCommitDetail(repoPath: () => string) {
+export function useCommitDetail(
+  repoPath: () => string,
+  repositorySource: () => "local" | "github" = () => "local",
+  onDetailLoaded?: (commit: GitCommit) => void
+) {
   // 状态
   const selectedCommit = ref<GitCommit | null>(null);
   const showDetail = ref(false);
+  let requestVersion = 0;
+  let detailController: AbortController | null = null;
 
   /**
    * 检查缓存的 commit 数据是否包含完整的行统计信息
@@ -46,6 +53,8 @@ export function useCommitDetail(repoPath: () => string) {
    * 选择提交并显示详情
    */
   function selectCommit(commit: GitCommit) {
+    requestVersion += 1;
+    detailController?.abort();
     selectedCommit.value = commit;
     showDetail.value = true;
 
@@ -56,6 +65,7 @@ export function useCommitDetail(repoPath: () => string) {
         sha: commit.hash.substring(0, 8),
       });
       selectedCommit.value = cached;
+      onDetailLoaded?.(cached);
     } else {
       // 缓存未命中或数据不完整（缺少行统计），从后端加载
       if (cached) {
@@ -71,12 +81,27 @@ export function useCommitDetail(repoPath: () => string) {
    * 加载提交详情
    */
   async function loadCommitDetail(hash: string) {
+    const version = ++requestVersion;
+    const path = repoPath();
+    const source = repositorySource();
+    detailController?.abort();
+    const controller = new AbortController();
+    detailController = controller;
     try {
-      const detail = await invoke<GitCommit>("git_get_commit_detail", {
-        path: repoPath() || ".",
-        hash,
-      });
-      logger.debug("从后端成功获取 commit 详细信息", {
+      const detail =
+        source === "github"
+          ? await getGitHubCommitDetail(path, hash, controller.signal)
+          : await invoke<GitCommit>("git_get_commit_detail", {
+              path: path || ".",
+              hash,
+            });
+      if (
+        version !== requestVersion ||
+        path !== repoPath() ||
+        source !== repositorySource()
+      )
+        return;
+      logger.debug("成功获取 commit 详细信息", {
         sha: hash.substring(0, 8),
         fullSha: hash,
         author: detail.author,
@@ -87,7 +112,9 @@ export function useCommitDetail(repoPath: () => string) {
       // 更新统一缓存
       commitCache.setCommitDetail(hash, detail);
       selectedCommit.value = detail;
+      onDetailLoaded?.(detail);
     } catch (error) {
+      if (version !== requestVersion || controller.signal.aborted) return;
       errorHandler.error(error, "加载提交详情失败");
     }
   }
@@ -120,6 +147,8 @@ export function useCommitDetail(repoPath: () => string) {
    * 清空缓存（在切换仓库或分支时调用）
    */
   function clearCache() {
+    requestVersion += 1;
+    detailController?.abort();
     commitCache.clearDetailCache();
   }
 

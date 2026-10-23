@@ -34,9 +34,15 @@
           <div class="enrich-content">
             <span class="enrich-title">⚠️ 需要补充数据</span>
             <span class="enrich-desc">
-              将为 {{ requiredEnrichHashes.length }} 个提交补充
-              {{ enrichmentRequirementText }}（预计约
-              {{ estimatedSeconds }} 秒）。
+              <template v-if="repositorySource === 'local'">
+                将为 {{ requiredEnrichHashes.length }} 个提交补充
+                {{ enrichmentRequirementText }}（预计约
+                {{ estimatedSeconds }} 秒）。
+              </template>
+              <template v-else>
+                {{ requiredEnrichHashes.length }} 个提交缺少所选导出数据；
+                打开对应提交详情读取数据，或关闭相关导出选项。
+              </template>
             </span>
             <el-progress
               v-if="enriching"
@@ -63,6 +69,7 @@
           </div>
           <div class="enrich-actions">
             <el-button
+              v-if="repositorySource === 'local'"
               type="warning"
               size="small"
               :loading="enriching"
@@ -71,7 +78,7 @@
               {{ enriching ? "正在补充..." : "开始补充" }}
             </el-button>
             <el-button
-              v-if="enriching"
+              v-if="repositorySource === 'local' && enriching"
               size="small"
               @click="$emit('cancel-enrich')"
               >取消</el-button
@@ -126,6 +133,7 @@ const props = defineProps<{
   statistics: RepoStatistics;
   repoPath: string;
   branch: string;
+  repositorySource: "local" | "github";
   initialConfig?: Partial<ExportConfig>;
   reverseOrder?: boolean;
 }>();
@@ -209,6 +217,13 @@ const requiredEnrichHashes = computed(() => {
 
   return getCommitsToExport()
     .filter((commit) => {
+      if (props.repositorySource === "github") {
+        return (
+          (exportConfig.value.includeStats && !commit.stats) ||
+          (exportConfig.value.includeFiles &&
+            (!commit.files || commit.filesComplete === false))
+        );
+      }
       // 已经补充过的提交不再需要重复补充
       if (enrichedHashes.value.has(commit.hash)) {
         return false;
@@ -397,6 +412,7 @@ async function handleExport() {
 }
 
 function startEnrich() {
+  if (props.repositorySource !== "local") return;
   emit("enrich-commits", {
     hashes: requiredEnrichHashes.value,
     includeStats: exportConfig.value.includeStats,

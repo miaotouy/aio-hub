@@ -53,27 +53,54 @@
     <!-- 工具栏 -->
     <div v-if="!controlsCollapsed" class="toolbar">
       <div class="toolbar-row">
-        <DropZone
-          variant="input"
-          :directory-only="true"
-          :multiple="false"
-          hide-content
-          @drop="handlePathDrop"
-          class="flex-1"
-        >
-          <div class="path-input-group">
-            <el-input
-              v-model="repoPath"
-              placeholder="请输入或选择 Git 仓库路径（支持拖拽）"
-              clearable
-              @keyup.enter="$emit('load-repository')"
-            />
-            <el-button @click="$emit('select-directory')" :icon="FolderOpened"
-              >选择</el-button
-            >
-          </div>
-        </DropZone>
+        <div class="repository-input-group">
+          <el-select
+            v-model="repositorySource"
+            :disabled="loading || enriching"
+            aria-label="仓库来源"
+            class="source-select"
+          >
+            <el-option label="本地" value="local" />
+            <el-option label="GitHub" value="github" />
+          </el-select>
+          <DropZone
+            v-if="repositorySource === 'local'"
+            bare
+            :directory-only="true"
+            :multiple="false"
+            :disabled="loading || enriching"
+            hide-content
+            @drop="handlePathDrop"
+            class="local-repo-input"
+          >
+            <div class="path-input-group">
+              <el-input
+                v-model="repoPath"
+                :disabled="loading || enriching"
+                placeholder="请输入或选择 Git 仓库路径（支持拖拽）"
+                clearable
+                @keyup.enter="$emit('load-repository')"
+              />
+              <el-button
+                :disabled="loading || enriching"
+                @click="$emit('select-directory')"
+                :icon="FolderOpened"
+                >选择</el-button
+              >
+            </div>
+          </DropZone>
+          <el-input
+            v-else
+            v-model="githubRepo"
+            :disabled="loading || enriching"
+            placeholder="公开仓库：owner/repo 或仓库 URL"
+            clearable
+            class="github-repo-input"
+            @keyup.enter="$emit('load-repository')"
+          />
+        </div>
         <el-select
+          v-if="repositorySource === 'local'"
           v-model="selectedBranch"
           placeholder="选择分支"
           @change="$emit('branch-change', $event)"
@@ -87,14 +114,26 @@
             :value="branch.name"
           />
         </el-select>
+        <el-input
+          v-if="repositorySource === 'github'"
+          v-model="selectedBranch"
+          :disabled="loading || enriching"
+          placeholder="分支（留空使用默认分支）"
+          clearable
+          class="branch-input"
+        />
         <el-tooltip
-          content="设置要加载的提交记录数量。设置为 0 则加载全部记录"
+          :content="
+            repositorySource === 'github'
+              ? '匿名读取最多加载最近 1000 条提交，设为 0 也受此上限约束'
+              : '设置要加载的提交记录数量。设置为 0 则加载全部记录'
+          "
           placement="top"
         >
           <el-input-number
             v-model="limitCount"
             :min="0"
-            :max="50000"
+            :max="repositorySource === 'github' ? 1000 : 50000"
             :step="100"
             placeholder="显示条数"
             class="limit-input"
@@ -105,6 +144,7 @@
           </el-input-number>
         </el-tooltip>
         <el-tooltip
+          v-if="repositorySource === 'local'"
           content="设置流式加载时的批次大小。设置为 0 则使用非流式加载（一次性加载所有记录）"
           placement="top"
         >
@@ -137,6 +177,20 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+      </div>
+      <div
+        v-if="repositorySource === 'github' && remoteRepositoryInfo"
+        class="remote-repository-info"
+      >
+        <strong>{{ remoteRepositoryInfo.fullName }}</strong>
+        <span>
+          默认分支 {{ remoteRepositoryInfo.defaultBranch }} ·
+          {{ remoteRepositoryInfo.stars.toLocaleString() }} stars ·
+          {{ remoteRepositoryInfo.forks.toLocaleString() }} forks
+        </span>
+        <span v-if="remoteRepositoryInfo.description">
+          {{ remoteRepositoryInfo.description }}
+        </span>
       </div>
     </div>
 
@@ -353,6 +407,7 @@ import {
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { GitCommit, GitBranch } from "../types";
+import type { GitHubRepositoryInfo } from "../data-sources/github";
 
 interface Props {
   hasActiveFilters: boolean;
@@ -377,6 +432,8 @@ interface Props {
     total: number;
   };
   controlsCollapsed?: boolean;
+  enriching?: boolean;
+  remoteRepositoryInfo?: GitHubRepositoryInfo | null;
   statistics: {
     totalCommits: number;
     contributors: number;
@@ -389,6 +446,8 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   "update:repoPath": [value: string];
+  "update:githubRepo": [value: string];
+  "update:repositorySource": [value: "local" | "github"];
   "update:selectedBranch": [value: string];
   "update:limitCount": [value: number];
   "update:batchSize": [value: number];
@@ -410,6 +469,10 @@ const emit = defineEmits<{
 
 // 由于使用了 v-model，需要定义对应的计算属性
 const repoPath = defineModel<string>("repoPath", { required: true });
+const githubRepo = defineModel<string>("githubRepo", { required: true });
+const repositorySource = defineModel<"local" | "github">("repositorySource", {
+  required: true,
+});
 const selectedBranch = defineModel<string>("selectedBranch", {
   required: true,
 });
@@ -646,11 +709,68 @@ function locateTagInterval() {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.repository-input-group {
+  display: flex;
+  flex: 1 1 280px;
+  min-width: 280px;
+  align-items: center;
+}
+
+.source-select {
+  width: 94px;
+  flex: 0 0 94px;
+}
+
+.source-select :deep(.el-select__wrapper) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.local-repo-input,
+.github-repo-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .path-input-group {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.path-input-group > .el-input {
+  min-width: 0;
+}
+
+.path-input-group > .el-button {
+  margin-left: 8px;
+}
+
+.path-input-group :deep(.el-input__wrapper),
+.github-repo-input :deep(.el-input__wrapper) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.remote-repository-info {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 8px 4px 0;
+  color: var(--text-color-light);
+  font-size: 12px;
+}
+
+.remote-repository-info strong {
+  color: var(--text-color);
+}
+
+.branch-input {
+  width: 200px;
 }
 
 .branch-select {

@@ -593,22 +593,31 @@ const openFileDirectory = async () => {
                 </div>
               </div>
               <div class="overlay">
-                <el-icon><ExternalLink /></el-icon>
-              </div>
-              <el-tooltip
-                v-if="task.type === 'image' && activeResultAsset"
-                content="添加到参考图"
-                placement="top"
-              >
-                <button
-                  type="button"
-                  class="add-reference-btn"
-                  aria-label="添加当前结果到参考图"
-                  @click="addActiveResultAsReference"
+                <el-tooltip content="预览" placement="top">
+                  <button
+                    type="button"
+                    class="preview-action-btn"
+                    aria-label="预览当前结果"
+                    @click.stop="emit('open', task)"
+                  >
+                    <ExternalLink :size="22" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip
+                  v-if="task.type === 'image' && activeResultAsset"
+                  content="添加到参考图"
+                  placement="top"
                 >
-                  <ImagePlus :size="16" />
-                </button>
-              </el-tooltip>
+                  <button
+                    type="button"
+                    class="preview-action-btn add-reference-btn"
+                    aria-label="添加当前结果到参考图"
+                    @click="addActiveResultAsReference"
+                  >
+                    <ImagePlus :size="22" />
+                  </button>
+                </el-tooltip>
+              </div>
               <div v-if="getTaskResolution(task)" class="media-info-tag">
                 {{ getTaskResolution(task) }}
               </div>
@@ -1265,44 +1274,56 @@ const openFileDirectory = async () => {
 
 .media-preview .overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s;
-  color: white;
-  font-size: 24px;
-}
-
-.media-preview:hover .overlay {
-  opacity: 1;
-}
-
-.add-reference-btn {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
+  inset: 0;
   z-index: 2;
+  background-color: var(--el-overlay-color-lighter);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.68);
-  color: white;
-  cursor: pointer;
+  gap: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
 }
 
-.add-reference-btn:hover {
+.media-preview:hover .overlay,
+.media-preview:focus-within .overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.preview-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background: var(--el-bg-color-overlay);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+.preview-action-btn:hover {
   background: var(--el-color-primary);
+  color: var(--el-color-white);
+}
+
+.preview-action-btn:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .media-preview .overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* 多图切换导航 */

@@ -386,6 +386,8 @@ export function useLlmChatSync() {
             useMessageInputStore().toolbarCustomizeVisible = true;
           }
         );
+      case "update-message-toolbar-layout":
+        return useChatSettings().saveMessageToolbarLayout(params.layout);
       case "update-input-toolbar-layout":
         return useChatSettings().saveInputToolbarLayout(params.layout);
       case "update-chat-settings":

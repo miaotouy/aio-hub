@@ -119,6 +119,8 @@ export interface ChatSettings {
   uiPreferences: {
     /** 输入区操作位置、顺序与快捷操作展示 */
     inputToolbar: import("./input-toolbar").InputToolbarLayout;
+    /** 消息悬停工具栏的常驻操作与展开状态 */
+    messageToolbar: import("./message-toolbar").MessageToolbarLayout;
     /** 是否启用流式输出 */
     isStreaming: boolean;
     /** 是否将 VCP 上游流式回复按模型生成与工具结果拆分为消息节点 */

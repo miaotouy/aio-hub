@@ -1051,6 +1051,8 @@ defineExpose({
  * 在 Vite 8 / Lightning CSS 环境下，确保这些现代属性不被误删或优化掉
  */
 .messages-container > .message-slot {
+  /* 浮层按实际高度扩展绘制边界，换行时保留全部操作和按钮阴影。 */
+  overflow-clip-margin: var(--message-toolbar-clip-margin, 48px);
   content-visibility: auto !important;
   contain-intrinsic-size: none 500px !important;
 }
@@ -1085,13 +1087,14 @@ defineExpose({
 
 /* 当前消息的浮动操作栏绘制在相邻行上方，列表尺寸保持稳定。 */
 .messages-container.mode-bubble > .message-slot:hover,
-.messages-container.mode-bubble > .message-slot:focus-within {
+.messages-container.mode-bubble > .message-slot:focus-within,
+.messages-container.mode-bubble
+  > .message-slot:has(.message-menubar.has-open-popover) {
   z-index: 20;
 }
 
 .messages-container.mode-bubble .message-slot {
   position: relative;
-  overflow-clip-margin: 48px;
   display: flex;
   width: 100%;
   align-items: flex-start;

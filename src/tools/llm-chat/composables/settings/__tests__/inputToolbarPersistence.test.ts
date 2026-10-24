@@ -23,6 +23,7 @@ vi.mock("../../../config/defaultSettings", async () => {
   };
 });
 import { useChatSettings } from "../useChatSettings";
+import { createDefaultMessageToolbarLayout } from "../../../config/messageToolbar";
 import {
   createCompactToolbarLayout,
   createLegacyToolbarLayout,
@@ -81,5 +82,62 @@ describe("input toolbar layout persistence", () => {
       chat.settings.value.uiPreferences.inputToolbar.pinnedActionIds
     ).toEqual([]);
     expect(chat.settings.value.uiPreferences.inputToolbar).toEqual(edited);
+  });
+});
+
+// 与输入区共用设置文件；失败的磁盘写入不能发布消息工具栏偏好。
+describe("message toolbar layout persistence", () => {
+  beforeEach(() => {
+    mocks.save.mockReset();
+    mocks.error.mockClear();
+  });
+  it("publishes the message layout only after persistence and preserves input preferences", async () => {
+    const chat = useChatSettings();
+    const original = chat.settings.value.uiPreferences.messageToolbar;
+    const input = chat.settings.value.uiPreferences.inputToolbar;
+    let finish!: () => void;
+    mocks.save.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const layout = {
+      ...createDefaultMessageToolbarLayout(),
+      pinnedActionIds: ["delete", "copy"],
+      expanded: true,
+    };
+    const pending = chat.saveMessageToolbarLayout(layout);
+    expect(chat.settings.value.uiPreferences.messageToolbar).toBe(original);
+    finish();
+    await pending;
+    expect(chat.settings.value.uiPreferences.messageToolbar).toEqual(layout);
+    expect(chat.settings.value.uiPreferences.inputToolbar).toEqual(input);
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uiPreferences: expect.objectContaining({
+          messageToolbar: layout,
+          inputToolbar: input,
+        }),
+      })
+    );
+  });
+  it("preserves the active layout after a save failure and can retry an empty layout", async () => {
+    const chat = useChatSettings();
+    const original = chat.settings.value.uiPreferences.messageToolbar;
+    const layout = {
+      ...createDefaultMessageToolbarLayout(),
+      pinnedActionIds: [],
+    };
+    mocks.save.mockRejectedValueOnce(new Error("disk full"));
+    await expect(chat.saveMessageToolbarLayout(layout)).rejects.toThrow(
+      "disk full"
+    );
+    expect(chat.settings.value.uiPreferences.messageToolbar).toBe(original);
+    mocks.save.mockResolvedValueOnce(undefined);
+    await chat.saveMessageToolbarLayout(layout);
+    expect(
+      chat.settings.value.uiPreferences.messageToolbar.pinnedActionIds
+    ).toEqual([]);
   });
 });

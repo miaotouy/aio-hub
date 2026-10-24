@@ -18,6 +18,7 @@ import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "../types/chatRegex";
 import { DEFAULT_RETRY_STATUS_CODES } from "../utils/retryStatusCodes";
 import { createCompactToolbarLayout } from "./inputToolbar";
+import { createDefaultMessageToolbarLayout } from "./messageToolbar";
 import type { ChatSettings } from "../types/settings";
 
 /**
@@ -26,6 +27,7 @@ import type { ChatSettings } from "../types/settings";
 export const DEFAULT_SETTINGS: ChatSettings = {
   uiPreferences: {
     inputToolbar: createCompactToolbarLayout(),
+    messageToolbar: createDefaultMessageToolbarLayout(),
     isStreaming: true, // 默认开启流式输出
     splitVcpResponses: false,
     showTimestamp: false,

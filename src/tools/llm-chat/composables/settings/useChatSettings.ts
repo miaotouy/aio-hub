@@ -30,6 +30,9 @@ import {
 } from "../../config/inputToolbar";
 import type { InputToolbarLayout } from "../../types/input-toolbar";
 
+import { normalizeMessageToolbarLayout } from "../../config/messageToolbar";
+import type { MessageToolbarLayout } from "../../types/message-toolbar";
+
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
 
@@ -47,6 +50,9 @@ function createDefaultSettings(): ChatSettings {
     ...DEFAULT_SETTINGS,
     uiPreferences: {
       ...DEFAULT_SETTINGS.uiPreferences,
+      messageToolbar: normalizeMessageToolbarLayout(
+        DEFAULT_SETTINGS.uiPreferences.messageToolbar
+      ),
       inputToolbar: mergeInputToolbarLayout(
         {
           pinnedActionIds:
@@ -79,6 +85,9 @@ const settingsManager = createConfigManager<ChatSettings>({
         inputToolbar: mergeInputToolbarLayout(
           loadedConfig.uiPreferences?.inputToolbar,
           readLegacyInputSettings()
+        ),
+        messageToolbar: normalizeMessageToolbarLayout(
+          loadedConfig.uiPreferences?.messageToolbar
         ),
         bubbleLayout: {
           ...defaultConfig.uiPreferences.bubbleLayout,
@@ -353,6 +362,35 @@ async function saveInputToolbarLayout(
 /**
  * 使用聊天设置
  */
+/** 写入成功后再发布布局，保存失败时保留当前工作区。 */
+async function saveMessageToolbarLayout(
+  layout: MessageToolbarLayout
+): Promise<void> {
+  const normalized = normalizeMessageToolbarLayout(layout);
+  try {
+    await settingsManager.save({
+      ...settings.value,
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        messageToolbar: normalized,
+      },
+    });
+    settings.value = {
+      ...settings.value,
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        messageToolbar: normalized,
+      },
+    };
+  } catch (error) {
+    moduleErrorHandler.error(error, "消息工具栏布局保存失败", {
+      action: "saveMessageToolbarLayout",
+    });
+    throw error;
+  }
+}
+
+/** 使用聊天设置 */
 export function useChatSettings() {
   return {
     settings,
@@ -362,5 +400,6 @@ export function useChatSettings() {
     resetSettings,
     updateSettings,
     saveInputToolbarLayout,
+    saveMessageToolbarLayout,
   };
 }

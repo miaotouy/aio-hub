@@ -16,41 +16,25 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ref, computed } from "vue";
 import {
-  ElMessageBox,
-  ElTooltip,
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElPopover,
-} from "element-plus";
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  defineAsyncComponent,
+} from "vue";
+import { useResizeObserver } from "@vueuse/core";
+import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { ElMessageBox, ElTooltip, ElPopover } from "element-plus";
 import BranchSelector from "./BranchSelector.vue";
 import {
-  Copy,
-  Edit,
-  GitFork,
-  Trash2,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  Check,
   ChevronLeft,
   ChevronRight,
   XCircle,
-  BarChart3,
-  Menu,
-  Download,
-  AtSign,
-  Languages,
-  BookOpen,
-  Columns,
-  Database,
-  StepForward,
-  Hash,
-  Variable,
-  Wand2,
-  Camera,
+  MoreHorizontal,
+  SlidersHorizontal,
+  ChevronsLeftRight,
+  ChevronsRightLeft,
 } from "lucide-vue-next";
 import type {
   ChatMessageNode,
@@ -67,7 +51,21 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 import MessageDataEditor from "./MessageDataEditor.vue";
-import MessageVariableSnapshot from "./MessageVariableSnapshot.vue";
+import MessageToolbarAction from "./MessageToolbarAction.vue";
+import {
+  resolveMessageToolbarActions,
+  type MessageToolbarAction as ToolbarAction,
+} from "./messageToolbarActions";
+import { normalizeMessageToolbarLayout } from "../../config/messageToolbar";
+import { partitionToolbarActions } from "../../config/inputToolbar";
+import type {
+  MessageToolbarLayout,
+  MessageToolbarActionId,
+} from "../../types/message-toolbar";
+
+const MessageToolbarCustomizeDialog = defineAsyncComponent(
+  () => import("./MessageToolbarCustomizeDialog.vue")
+);
 
 interface Props {
   message: ChatMessageNode;
@@ -104,7 +102,8 @@ interface Emits {
 const agentStore = useAgentStore();
 const { getTemporaryModelPayload, openModelReselectDialog } =
   useModelReselection();
-const { settings } = useChatSettings();
+const { settings, saveMessageToolbarLayout } = useChatSettings();
+const bus = useWindowSyncBus();
 
 const props = withDefaults(defineProps<Props>(), {
   buttonVisibility: () => ({
@@ -151,9 +150,6 @@ const showDataEditor = ref(false);
 
 // 计算属性
 const isDisabled = computed(() => props.message.isEnabled === false);
-const isUserMessage = computed(() => props.message.role === "user");
-const isAssistantMessage = computed(() => props.message.role === "assistant");
-const isToolMessage = computed(() => props.message.role === "tool");
 const isGenerating = computed(() => store.isNodeGenerating(props.message.id));
 const isPresetDisplay = computed(
   () => props.message.metadata?.isPresetDisplay === true
@@ -277,11 +273,6 @@ const hasTranslation = computed(() => {
   return !!props.message.metadata?.translation?.content;
 });
 
-// 当前翻译显示模式
-const currentTranslationMode = computed(() => {
-  return props.message.metadata?.translation?.displayMode || "both";
-});
-
 const handleTranslationCommand = (command: string) => {
   if (command === "toggle-visible") {
     // 如果没有翻译内容，触发翻译；否则切换显示状态
@@ -369,15 +360,136 @@ const handleTranslateClick = (e: MouseEvent) => {
   }
   // 普通点击，允许冒泡给 Dropdown
 };
+
+const toolbarElement = ref<HTMLElement>();
+const widthScope = ref<HTMLElement>();
+const messageSlot = ref<HTMLElement>();
+const availableWidth = ref<number>();
+onMounted(() => {
+  messageSlot.value =
+    toolbarElement.value?.closest<HTMLElement>(".message-slot") ?? undefined;
+  widthScope.value =
+    messageSlot.value ?? toolbarElement.value?.parentElement ?? undefined;
+});
+useResizeObserver(widthScope, ([entry]) => {
+  availableWidth.value = Math.max(0, entry.contentRect.width - 12);
+});
+
+// content-visibility 的绘制隔离需要覆盖换行后的完整工具栏，保持消息布局高度不变。
+useResizeObserver(toolbarElement, ([entry]) => {
+  const height =
+    entry.borderBoxSize[0]?.blockSize ??
+    entry.target.getBoundingClientRect().height;
+  messageSlot.value?.style.setProperty(
+    "--message-toolbar-clip-margin",
+    Math.max(48, Math.ceil(height) + 12) + "px"
+  );
+});
+onBeforeUnmount(() => {
+  messageSlot.value?.style.removeProperty("--message-toolbar-clip-margin");
+});
+
+const layout = computed(() =>
+  normalizeMessageToolbarLayout(settings.value.uiPreferences.messageToolbar)
+);
+const availableActions = computed(() =>
+  resolveMessageToolbarActions({
+    role: props.message.role,
+    generating: isGenerating.value,
+    preset: isPresetDisplay.value,
+    disabled: isDisabled.value,
+    copied: copied.value,
+    translationEnabled: settings.value.translation.enabled,
+    translationVisible: isTranslationVisible.value,
+    hasVariables: hasVariables.value,
+    variablesChanged: !!sessionVariableSnapshot.value?.changes?.length,
+    buttons: props.buttonVisibility,
+  })
+);
+const partition = computed(() =>
+  partitionToolbarActions(availableActions.value, layout.value.pinnedActionIds)
+);
+const directActions = computed(() =>
+  layout.value.expanded
+    ? [...partition.value.pinned, ...partition.value.menu]
+    : partition.value.pinned
+);
+const menuActions = computed(() =>
+  layout.value.expanded ? [] : partition.value.menu
+);
+const showMore = ref(false);
+const actionPopupOpen = ref(false);
+const showCustomizer = ref(false);
+const savingLayout = ref(false);
+const persistLayout = async (next: MessageToolbarLayout) => {
+  if (bus.windowType === "main") await saveMessageToolbarLayout(next);
+  else
+    await bus.requestAction("llm-chat:update-message-toolbar-layout", {
+      layout: next,
+    });
+};
+const toggleExpanded = async () => {
+  if (savingLayout.value) return;
+  savingLayout.value = true;
+  try {
+    await persistLayout({ ...layout.value, expanded: !layout.value.expanded });
+  } catch {
+    customMessage.error("工具栏布局保存失败，请重试");
+  } finally {
+    savingLayout.value = false;
+  }
+};
+const customize = () => {
+  showMore.value = false;
+  showCustomizer.value = true;
+};
+const handlers: Partial<Record<MessageToolbarActionId, () => void>> = {
+  copy: copyMessage,
+  edit: handleEdit,
+  "create-branch": handleCreateBranch,
+  delete: handleDelete,
+  regenerate: handleRegenerate,
+  "regenerate-model": handleRegenerateWithModel,
+  "toggle-enabled": handleToggleEnabled,
+  continue: handleContinue,
+  "continue-model": handleContinueWithModel,
+  "analyze-context": handleAnalyzeContext,
+  export: () => {
+    showExportDialog.value = true;
+  },
+  screenshot: () => emit("screenshot"),
+  "recalculate-tokens": handleRecalculateTokens,
+  "reparse-tools": handleReparseTools,
+  "edit-data": () => {
+    showDataEditor.value = true;
+  },
+};
+const invoke = (action: ToolbarAction) => {
+  if (action.disabled) return;
+  showMore.value = false;
+  handlers[action.id]?.();
+};
 </script>
 
 <template>
-  <div class="message-menubar">
+  <div
+    ref="toolbarElement"
+    class="message-menubar"
+    :class="{
+      'has-open-popover': showMore || showBranchPopover || actionPopupOpen,
+    }"
+    :style="availableWidth ? { maxWidth: availableWidth + 'px' } : undefined"
+    role="group"
+    aria-label="消息操作"
+    data-testid="message-toolbar"
+  >
     <!-- Branch control (if applicable) -->
     <div v-if="siblings.length > 1" class="branch-control">
       <el-tooltip content="上一个版本" placement="top" :show-after="500">
         <button
+          type="button"
           class="menu-btn"
+          aria-label="上一个版本"
           :disabled="currentSiblingIndex === 0"
           @click="emit('switch', 'prev')"
         >
@@ -400,12 +512,14 @@ const handleTranslateClick = (e: MouseEvent) => {
               placement="top"
               :show-after="500"
             >
-              <div
+              <button
+                type="button"
+                aria-label="查看分支列表"
                 class="branch-indicator clickable"
                 :class="{ 'popover-active': showBranchPopover }"
               >
                 {{ currentSiblingIndex + 1 }} / {{ siblings.length }}
-              </div>
+              </button>
             </el-tooltip>
           </div>
         </template>
@@ -418,7 +532,9 @@ const handleTranslateClick = (e: MouseEvent) => {
       </el-popover>
       <el-tooltip content="下一个版本" placement="top" :show-after="500">
         <button
+          type="button"
           class="menu-btn"
+          aria-label="下一个版本"
           :disabled="currentSiblingIndex === siblings.length - 1"
           @click="emit('switch', 'next')"
         >
@@ -426,401 +542,108 @@ const handleTranslateClick = (e: MouseEvent) => {
         </button>
       </el-tooltip>
     </div>
-    <div v-if="siblings.length > 1" class="separator"></div>
 
-    <!-- 变量快照查看器 -->
-    <el-popover
-      v-if="hasVariables"
-      placement="top"
-      :width="320"
-      trigger="click"
-      popper-class="variable-snapshot-popover"
-    >
-      <template #reference>
-        <div>
-          <el-tooltip
-            content="查看会话变量状态"
-            placement="top"
-            :show-after="500"
-          >
-            <button
-              class="menu-btn"
-              :class="{
-                'menu-btn-active': !!sessionVariableSnapshot?.changes?.length,
-              }"
-            >
-              <Variable :size="16" />
-            </button>
-          </el-tooltip>
-        </div>
-      </template>
-      <MessageVariableSnapshot :snapshot="sessionVariableSnapshot!" />
-    </el-popover>
-
-    <!-- 更多菜单 -->
-    <el-tooltip
-      v-if="props.buttonVisibility.moreMenu"
-      content="更多"
-      placement="top"
-      :show-after="500"
-    >
-      <el-dropdown trigger="click" placement="top">
-        <button class="menu-btn">
-          <Menu :size="16" />
-        </button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item
-              v-if="
-                (isUserMessage || isAssistantMessage || isToolMessage) &&
-                !isGenerating
-              "
-              @click="handleContinue"
-            >
-              <div class="dropdown-item-content">
-                <StepForward :size="16" />
-                <span>续写消息</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="
-                (isUserMessage || isAssistantMessage || isToolMessage) &&
-                !isGenerating
-              "
-              @click="handleContinueWithModel"
-            >
-              <div class="dropdown-item-content">
-                <AtSign :size="16" />
-                <span>选择模型续写</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="props.buttonVisibility.analyzeContext"
-              @click="handleAnalyzeContext"
-            >
-              <div class="dropdown-item-content">
-                <BarChart3 :size="16" />
-                <span>上下文分析</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="props.buttonVisibility.exportBranch"
-              @click="showExportDialog = true"
-            >
-              <div class="dropdown-item-content">
-                <Download :size="16" />
-                <span>导出分支</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item @click="emit('screenshot')">
-              <div class="dropdown-item-content">
-                <Camera :size="16" />
-                <span>创建消息截图</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="
-                (isUserMessage || isAssistantMessage || isToolMessage) &&
-                !isGenerating
-              "
-              @click="handleRecalculateTokens"
-            >
-              <div class="dropdown-item-content">
-                <Hash :size="16" />
-                <span>重新计算 Token</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="isAssistantMessage && !isGenerating"
-              @click="handleReparseTools"
-            >
-              <div class="dropdown-item-content">
-                <Wand2 :size="16" />
-                <span>重新解析工具</span>
-              </div>
-            </el-dropdown-item>
-            <el-dropdown-item
-              v-if="
-                (isUserMessage || isAssistantMessage || isToolMessage) &&
-                !isPresetDisplay &&
-                !isGenerating
-              "
-              @click="showDataEditor = true"
-            >
-              <div class="dropdown-item-content">
-                <Database :size="16" />
-                <span>数据编辑 (高级)</span>
-              </div>
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-    </el-tooltip>
-    <!-- 翻译 -->
-    <el-tooltip
-      v-if="
-        !isGenerating &&
-        !isPresetDisplay &&
-        settings.translation.enabled &&
-        props.buttonVisibility.translate
-      "
-      :content="`翻译 (按住 Shift 点击可快速翻译为 ${settings.translation.messageTargetLang})`"
-      placement="top"
-      :show-after="500"
-    >
-      <el-dropdown
-        trigger="click"
-        placement="top"
-        @command="handleTranslationCommand"
-      >
-        <div class="dropdown-trigger-wrapper">
-          <button
-            class="menu-btn"
-            :class="{ 'menu-btn-active': isTranslationVisible }"
-            @click="handleTranslateClick"
-          >
-            <Languages :size="16" />
-          </button>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <!-- 语言选择列表 -->
-            <el-dropdown-item disabled>
-              <span style="font-size: 12px; opacity: 0.7">目标语言</span>
-            </el-dropdown-item>
-
-            <el-dropdown-item
-              v-for="lang in settings.translation.targetLangList"
-              :key="lang"
-              :command="'lang-' + lang"
-            >
-              <div class="dropdown-item-content">
-                <span>{{ lang }}</span>
-                <Check
-                  v-if="message.metadata?.translation?.targetLang === lang"
-                  :size="14"
-                  class="mode-active-icon"
-                />
-              </div>
-            </el-dropdown-item>
-
-            <!-- 分隔线 -->
-            <el-dropdown-item divided disabled>
-              <span style="font-size: 12px; opacity: 0.7">操作</span>
-            </el-dropdown-item>
-
-            <!-- 模式切换：切换/同时 -->
-            <div class="translation-mode-switch">
-              <div
-                class="mode-switch-btn"
-                :class="{ active: currentTranslationMode === 'translation' }"
-                @click.stop="emit('change-translation-mode', 'translation')"
-              >
-                <BookOpen :size="14" />
-                <span>切换</span>
-              </div>
-              <div
-                class="mode-switch-btn"
-                :class="{ active: currentTranslationMode === 'both' }"
-                @click.stop="emit('change-translation-mode', 'both')"
-              >
-                <Columns :size="14" />
-                <span>同时</span>
-              </div>
-            </div>
-
-            <!-- 翻译开关与重试 -->
-            <div class="translation-actions">
-              <div
-                class="action-btn translate-btn"
-                :class="{ active: isTranslationVisible }"
-                @click.stop="handleTranslationCommand('toggle-visible')"
-              >
-                <Languages :size="14" />
-                <span>{{
-                  hasTranslation
-                    ? isTranslationVisible
-                      ? "隐藏"
-                      : "显示"
-                    : "翻译"
-                }}</span>
-              </div>
-
-              <div
-                class="action-btn retry-btn"
-                @click.stop="handleTranslationCommand('retry')"
-                title="重新翻译"
-              >
-                <RefreshCw :size="14" />
-              </div>
-            </div>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-    </el-tooltip>
-    <!-- 复制 -->
-    <el-tooltip
-      v-if="props.buttonVisibility.copy"
-      content="复制"
-      placement="top"
-      :show-after="500"
-    >
-      <button
-        class="menu-btn"
-        :class="{ 'menu-btn-active': copied }"
-        @click="copyMessage"
-      >
-        <Check v-if="copied" :size="16" />
-        <Copy v-else :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 终止生成（仅在生成中显示） -->
-    <el-tooltip
+    <MessageToolbarAction
+      v-for="action in directActions"
+      :key="action.id"
+      :action="action"
+      :message="message"
+      @invoke="invoke(action)"
+      @translation-command="handleTranslationCommand"
+      @translate-click="handleTranslateClick"
+      @popup-change="actionPopupOpen = $event"
+    />
+    <ElTooltip
       v-if="isGenerating && props.buttonVisibility.abort"
       content="终止生成"
       placement="top"
       :show-after="500"
     >
-      <button class="menu-btn menu-btn-abort" @click="handleAbort">
+      <button
+        type="button"
+        class="menu-btn menu-btn-abort"
+        aria-label="终止生成"
+        @click="handleAbort"
+      >
         <XCircle :size="16" />
       </button>
-    </el-tooltip>
-
-    <!-- 编辑（用户、助手和工具消息都可以，生成中不可编辑） -->
-    <el-tooltip
-      v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) &&
-        !isGenerating &&
-        props.buttonVisibility.edit
-      "
-      content="编辑"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn" @click="handleEdit">
-        <Edit :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 创建分支（用户、助手和工具消息都可以，生成中不可创建，预设消息不可创建分支） -->
-    <el-tooltip
-      v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) &&
-        !isGenerating &&
-        !isPresetDisplay &&
-        props.buttonVisibility.createBranch
-      "
-      content="创建分支"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn" @click="handleCreateBranch">
-        <GitFork :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 预设消息的提示（需要等预设系统树化后才能支持分支） -->
-    <el-tooltip
-      v-if="
-        (isUserMessage || isAssistantMessage) &&
-        !isGenerating &&
-        isPresetDisplay
-      "
-      content="预设消息暂不支持创建分支，需等预设系统树化后才能对接"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn menu-btn-disabled" disabled>
-        <GitFork :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 重新生成（用户、助手和工具消息都可以，不禁用以支持并行生成，预设消息不可重新生成） -->
-    <el-tooltip
-      v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) &&
-        !isPresetDisplay &&
-        props.buttonVisibility.regenerate
-      "
-      :content="isUserMessage ? '重新生成回复' : '重新生成'"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn" @click="handleRegenerate">
-        <RefreshCw :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 切换模型重新生成（用户、助手和工具消息都可以，预设消息不可） -->
-    <el-tooltip
-      v-if="
-        (isUserMessage || isAssistantMessage || isToolMessage) &&
-        !isPresetDisplay &&
-        props.buttonVisibility.regenerate
-      "
-      content="切换模型重新生成"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn" @click="handleRegenerateWithModel">
-        <AtSign :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 预设消息的提示（预设内容不参与重试） -->
-    <el-tooltip
-      v-if="(isUserMessage || isAssistantMessage) && isPresetDisplay"
-      content="预设消息不参与重试"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn menu-btn-disabled" disabled>
-        <RefreshCw :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 启用/禁用（生成中不可切换） -->
-    <el-tooltip
-      v-if="!isGenerating && props.buttonVisibility.toggleEnabled"
-      :content="isDisabled ? '启用此消息' : '禁用此消息'"
+    </ElTooltip>
+    <ElTooltip
+      :content="layout.expanded ? '收起操作' : '展开全部操作'"
       placement="top"
       :show-after="500"
     >
       <button
+        type="button"
         class="menu-btn"
-        :class="{ 'menu-btn-highlight': isDisabled }"
-        @click="handleToggleEnabled"
+        :aria-label="layout.expanded ? '收起操作' : '展开全部操作'"
+        :aria-expanded="layout.expanded"
+        :disabled="savingLayout"
+        data-testid="message-toolbar-toggle"
+        @click="toggleExpanded"
       >
-        <Eye v-if="isDisabled" :size="16" />
-        <EyeOff v-else :size="16" />
+        <ChevronsRightLeft
+          v-if="layout.expanded"
+          :size="16"
+        /><ChevronsLeftRight v-else :size="16" />
       </button>
-    </el-tooltip>
-
-    <!-- 删除（生成中不可删除，预设消息也不可删除） -->
-    <el-tooltip
-      v-if="!isGenerating && !isPresetDisplay && props.buttonVisibility.delete"
-      content="删除"
-      placement="top"
-      :show-after="500"
+    </ElTooltip>
+    <ElPopover
+      v-model:visible="showMore"
+      trigger="click"
+      placement="top-end"
+      :width="248"
+      :show-arrow="false"
+      popper-class="llm-chat-message-toolbar-popover"
     >
-      <button class="menu-btn menu-btn-danger" @click="handleDelete">
-        <Trash2 :size="16" />
-      </button>
-    </el-tooltip>
-
-    <!-- 预设消息的提示（需要到预设编辑中删除） -->
-    <el-tooltip
-      v-if="!isGenerating && isPresetDisplay"
-      content="预设消息需要在智能体设置中编辑或删除"
-      placement="top"
-      :show-after="500"
-    >
-      <button class="menu-btn menu-btn-disabled" disabled>
-        <Trash2 :size="16" />
-      </button>
-    </el-tooltip>
-
+      <template #reference>
+        <button
+          type="button"
+          class="menu-btn"
+          :class="{ 'is-active': showMore }"
+          aria-label="更多消息操作"
+          :aria-expanded="showMore"
+          data-testid="message-toolbar-more"
+        >
+          <MoreHorizontal :size="16" />
+        </button>
+      </template>
+      <div
+        class="overflow-menu"
+        role="group"
+        aria-label="更多消息操作"
+        @keydown.esc.stop="showMore = false"
+      >
+        <div v-if="menuActions.length" class="overflow-actions">
+          <MessageToolbarAction
+            v-for="action in menuActions"
+            :key="action.id"
+            :action="action"
+            :message="message"
+            in-menu
+            @invoke="invoke(action)"
+            @translation-command="handleTranslationCommand"
+            @translate-click="handleTranslateClick"
+            @popup-change="actionPopupOpen = $event"
+          />
+        </div>
+        <button
+          type="button"
+          class="customize-action"
+          :class="{ 'has-divider': menuActions.length }"
+          data-testid="message-toolbar-customize"
+          @click="customize"
+        >
+          <SlidersHorizontal :size="16" /><span>自定义工具栏…</span>
+        </button>
+      </div>
+    </ElPopover>
+    <MessageToolbarCustomizeDialog
+      v-if="showCustomizer"
+      v-model="showCustomizer"
+      :layout="layout"
+      :save-layout="persistLayout"
+    />
     <!-- 导出对话框 -->
     <ExportBranchDialog
       v-model:visible="showExportDialog"
@@ -845,208 +668,126 @@ const handleTranslateClick = (e: MouseEvent) => {
 .message-menubar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 4px;
   border-radius: 8px;
-  background-color: var(--card-bg);
+  background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--el-box-shadow-lighter);
 }
-
 .branch-control {
   display: flex;
   align-items: center;
+  flex: none;
   gap: 2px;
+  padding-right: 4px;
+  border-right: 1px solid var(--border-color);
 }
-
-/* 翻译菜单自定义样式 */
-.translation-mode-switch {
-  display: flex;
-  padding: 4px 8px;
-  gap: 4px;
-}
-
-.mode-switch-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text-color-light);
-  background-color: var(--bg-color);
-  border: 1px solid transparent;
-  transition: all 0.2s;
-}
-
-.mode-switch-btn:hover {
-  background-color: var(--hover-bg);
-  color: var(--text-color);
-}
-
-.mode-switch-btn.active {
-  background-color: var(
-    --primary-color-alpha,
-    rgba(var(--primary-color-rgb), 0.1)
-  );
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-}
-
-.translation-actions {
-  display: flex;
-  padding: 4px 8px 8px;
-  gap: 4px;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: var(--bg-color);
-  border: var(--border-width) solid var(--border-color);
-  transition: all 0.2s;
-}
-
-.action-btn:hover {
-  background-color: var(--hover-bg);
-  border-color: var(--primary-color);
-}
-
-.translate-btn {
-  flex: 1;
-}
-
-.translate-btn.active {
-  background-color: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
-
-.retry-btn {
-  width: 32px;
-  color: var(--text-color-light);
-}
-
-.retry-btn:hover {
-  color: var(--primary-color);
-}
-
 .branch-indicator {
+  font: inherit;
   font-size: 12px;
   padding: 0 4px;
+  border: 0;
+  background: transparent;
   color: var(--text-color-light);
   min-width: 40px;
   text-align: center;
   white-space: nowrap;
+  border-radius: 4px;
+  cursor: pointer;
 }
-
-.separator {
-  width: 1px;
-  height: 16px;
-  background-color: var(--border-color);
-  margin: 0 4px;
+.branch-indicator:hover,
+.branch-indicator.popover-active {
+  background: var(--hover-bg);
+  color: var(--text-color);
 }
-
 .menu-btn {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   padding: 0;
-  border: none;
+  border: 0;
   border-radius: 6px;
-  background-color: transparent;
+  background: transparent;
   color: var(--text-color-light);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
-
-.menu-btn:hover:not(:disabled) {
-  background-color: var(--hover-bg);
-  border-color: var(--primary-color);
+.menu-btn:hover:enabled,
+.menu-btn.is-active {
+  background: var(--hover-bg);
   color: var(--text-color);
 }
-
 .menu-btn:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
+  cursor: default;
 }
-
-.menu-btn-active {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-}
-
-.menu-btn-highlight {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-}
-
-.menu-btn-highlight:hover:not(:disabled) {
-  opacity: 0.8;
-}
-
-.menu-btn-danger:hover:not(:disabled) {
-  background-color: var(--error-color);
-  border-color: var(--error-color);
-  color: white;
-}
-
 .menu-btn-abort {
-  background-color: var(--error-color);
-  color: white;
+  background: var(--error-color);
+  color: var(--el-color-white);
 }
-
-.menu-btn-abort:hover {
+.menu-btn-abort:hover:enabled {
+  background: var(--error-color);
+  color: var(--el-color-white);
   opacity: 0.8;
 }
-
-.continue-model-icon {
-  transform: scale(0.85);
-  opacity: 0.8;
+.menu-btn:focus-visible,
+.branch-indicator:focus-visible,
+.customize-action:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
-
-.dropdown-item-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.mode-active-icon {
-  margin-left: auto;
-  color: var(--primary-color);
-}
-
-.branch-indicator.clickable {
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 4px;
-  user-select: none;
-}
-
-.branch-indicator.clickable:hover,
-.branch-indicator.popover-active {
-  background-color: var(--hover-bg);
+.overflow-menu {
   color: var(--text-color);
 }
-
-.dropdown-trigger-wrapper {
+.overflow-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(420px, 55vh);
+  overflow-y: auto;
+  padding: 2px;
+}
+.overflow-actions > :deep(.el-dropdown) {
+  width: 100%;
+}
+.customize-action {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color-light);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.customize-action.has-divider {
+  margin-top: 6px;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 6px 6px;
+  padding-top: 12px;
+}
+.customize-action:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-btn {
+    transition: none;
+  }
 }
 </style>

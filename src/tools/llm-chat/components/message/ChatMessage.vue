@@ -453,7 +453,8 @@ defineExpose({
 
 /* 悬停时显示操作栏 */
 .chat-message:hover .menubar-wrapper,
-.chat-message:focus-within .menubar-wrapper {
+.chat-message:focus-within .menubar-wrapper,
+.chat-message:has(.message-menubar.has-open-popover) .menubar-wrapper {
   opacity: 1;
 }
 
@@ -481,6 +482,7 @@ defineExpose({
 
 .chat-message:hover .menubar-wrapper > *,
 .chat-message:focus-within .menubar-wrapper > *,
+.chat-message:has(.message-menubar.has-open-popover) .menubar-wrapper > *,
 .chat-message:hover .menubar-wrapper::before,
 .chat-message:focus-within .menubar-wrapper::before {
   pointer-events: auto;

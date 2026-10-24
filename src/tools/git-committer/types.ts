@@ -95,6 +95,8 @@ export interface GitCommitterConfig {
   isRepoBarPinned: boolean;
   /** Diff 是否默认折叠未更改区域 */
   hideUnchangedRegions: boolean;
+  /** Diff 是否按编辑器可视宽度自动换行 */
+  diffWordWrap: boolean;
   /** 单击文件项时直接固定标签页；默认使用预览标签 */
   singleClickOpensPermanentTab: boolean;
   repoSessions: Record<string, RepoSession>;

@@ -116,7 +116,10 @@ import { zhCN } from "date-fns/locale";
 import FileIcon from "@/components/common/FileIcon.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
-import { hideUnchangedRegions } from "../composables/useGitCommitterState";
+import {
+  hideUnchangedRegions,
+  diffWordWrap,
+} from "../composables/useGitCommitterState";
 import { loadCommitDetail } from "../composables/useCommitDetails";
 import { loadCommitFileDiff } from "../composables/useGitCommitterRunner";
 import { getFileName, getFileDir, getFileLanguage } from "../utils";
@@ -163,6 +166,7 @@ const editorOptions = computed(() => ({
   renderSideBySide: containerWidth.value >= 900,
   readOnly: true,
   minimap: { enabled: false },
+  wordWrap: (diffWordWrap.value ? "on" : "off") as "on" | "off",
   hideUnchangedRegions: {
     enabled: hideUnchangedRegions.value,
     revealLineCount: 3,

@@ -185,6 +185,7 @@ export interface GitCommitterConfig {
   isRightSidebarExpanded: boolean;
   isRepoBarPinned: boolean;
   hideUnchangedRegions: boolean;
+  diffWordWrap: boolean;
   singleClickOpensPermanentTab: boolean;
   repoSessions: Record<string, RepoSession>;
   autoPushAfterCommit: boolean;

@@ -119,6 +119,7 @@ const configManager = createConfigManager<GitCommitterConfig>({
     isRightSidebarExpanded: true,
     isRepoBarPinned: false,
     hideUnchangedRegions: true,
+    diffWordWrap: false,
     singleClickOpensPermanentTab: false,
     repoSessions: {},
     autoPushAfterCommit: false,
@@ -141,6 +142,7 @@ export const rightSidebarWidth = ref<number>(280);
 export const isRightSidebarExpanded = ref<boolean>(true);
 export const isRepoBarPinned = ref<boolean>(false);
 export const hideUnchangedRegions = ref<boolean>(true);
+export const diffWordWrap = ref<boolean>(false);
 export const singleClickOpensPermanentTab = ref<boolean>(false);
 export const repoSessions = ref<Record<string, RepoSession>>({});
 
@@ -228,6 +230,7 @@ export async function loadRepositories(): Promise<void> {
   isRightSidebarExpanded.value = config.isRightSidebarExpanded ?? true;
   isRepoBarPinned.value = config.isRepoBarPinned ?? false;
   hideUnchangedRegions.value = config.hideUnchangedRegions ?? true;
+  diffWordWrap.value = config.diffWordWrap ?? false;
   singleClickOpensPermanentTab.value =
     config.singleClickOpensPermanentTab ?? false;
   repoSessions.value = config.repoSessions || {};
@@ -276,6 +279,7 @@ function snapshot(): GitCommitterConfig {
     isRightSidebarExpanded: isRightSidebarExpanded.value,
     isRepoBarPinned: isRepoBarPinned.value,
     hideUnchangedRegions: hideUnchangedRegions.value,
+    diffWordWrap: diffWordWrap.value,
     singleClickOpensPermanentTab: singleClickOpensPermanentTab.value,
     repoSessions: repoSessions.value,
     autoPushAfterCommit: autoPushAfterCommit.value,
@@ -305,6 +309,7 @@ watch(
     isRightSidebarExpanded,
     isRepoBarPinned,
     hideUnchangedRegions,
+    diffWordWrap,
     singleClickOpensPermanentTab,
     repoSessions,
     autoPushAfterCommit,

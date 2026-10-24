@@ -222,6 +222,16 @@
                 <FoldVertical v-if="hideUnchangedRegions" :size="15" />
                 <UnfoldVertical v-else :size="15" />
               </button>
+              <button
+                class="diff-toolbar-button"
+                :class="{ active: diffWordWrap }"
+                :aria-pressed="diffWordWrap"
+                :title="diffWordWrap ? '关闭自动换行' : '开启自动换行'"
+                :aria-label="diffWordWrap ? '关闭自动换行' : '开启自动换行'"
+                @click="toggleDiffWordWrap"
+              >
+                <WrapText :size="15" />
+              </button>
             </div>
             <RichCodeEditor
               ref="editorRef"
@@ -281,6 +291,7 @@ import {
   ArrowDown,
   FoldVertical,
   UnfoldVertical,
+  WrapText,
   Gauge,
 } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
@@ -296,6 +307,7 @@ import {
   currentSession as session,
   currentStatus,
   hideUnchangedRegions,
+  diffWordWrap,
 } from "../composables/useGitCommitterState";
 import {
   closeDiffTab,
@@ -422,6 +434,7 @@ const editorOptions = computed(() => {
     renderSideBySide,
     readOnly: true,
     minimap: { enabled: false },
+    wordWrap: (diffWordWrap.value ? "on" : "off") as "on" | "off",
     hideUnchangedRegions: {
       enabled: hideUnchangedRegions.value,
       revealLineCount: 3,
@@ -545,6 +558,13 @@ const toggleHideUnchangedRegions = () => {
       minimumLineCount: 3,
       contextLineCount: 3,
     },
+  });
+};
+
+const toggleDiffWordWrap = () => {
+  diffWordWrap.value = !diffWordWrap.value;
+  diffEditorInstance.value?.updateOptions({
+    wordWrap: diffWordWrap.value ? "on" : "off",
   });
 };
 

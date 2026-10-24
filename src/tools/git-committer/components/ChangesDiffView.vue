@@ -104,6 +104,7 @@ import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
 import {
   currentStatus,
   hideUnchangedRegions,
+  diffWordWrap,
 } from "../composables/useGitCommitterState";
 import { useGitFileContextMenu } from "../composables/useGitFileContextMenu";
 import {
@@ -156,6 +157,7 @@ const editorOptions = computed(() => ({
   renderSideBySide: containerWidth.value >= 900,
   readOnly: true,
   minimap: { enabled: false },
+  wordWrap: (diffWordWrap.value ? "on" : "off") as "on" | "off",
   hideUnchangedRegions: {
     enabled: hideUnchangedRegions.value,
     revealLineCount: 3,

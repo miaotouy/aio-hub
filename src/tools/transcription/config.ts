@@ -11,10 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {
-  DEFAULT_MAX_OUTPUT_TOKENS,
-  OUTPUT_TOKEN_INPUT_MAX,
-} from "@aiohub/llm-core";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import {
   Settings2,
   Zap,
@@ -29,6 +26,8 @@ import type { OcrExtension } from "@/tools/smart-ocr/platform";
 import { useOcrExtensions } from "@/tools/smart-ocr/platform";
 
 import type { TranscriptionConfig } from "./types";
+
+const TRANSCRIPTION_MAX_OUTPUT_TOKENS = 65_536;
 
 const getOcrExtensions = (): OcrExtension[] => {
   const { ocrExtensions } = useOcrExtensions();
@@ -598,7 +597,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "imageMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: OUTPUT_TOKEN_INPUT_MAX, step: 256 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 256 },
           modelPath: "image.maxTokens",
           hint: "图片转写结果的最大 token 数",
           keywords: "image max tokens 图片",
@@ -678,7 +677,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "audioMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: OUTPUT_TOKEN_INPUT_MAX, step: 256 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 256 },
           modelPath: "audio.maxTokens",
           hint: "音频转写结果的最大 token 数",
           keywords: "audio max tokens 音频",
@@ -766,7 +765,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "videoMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: OUTPUT_TOKEN_INPUT_MAX, step: 256 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 256 },
           modelPath: "video.maxTokens",
           hint: "视频转写结果的最大 token 数",
           keywords: "video max tokens 视频",
@@ -1043,7 +1042,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "documentMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 1024 },
           modelPath: "document.maxTokens",
           hint: "文档转写结果的最大 token 数",
           keywords: "document max tokens 文档",

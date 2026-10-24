@@ -7,30 +7,40 @@ import PromptOptimizePanel from "./PromptOptimizePanel.vue";
 const mocks = vi.hoisted(() => ({
   sendRequest: vi.fn(),
   error: vi.fn(),
+  getAssetBase64: vi.fn(),
+  supportsVision: false,
+  store: {
+    currentConfig: { activeType: "image" },
+    attachments: [] as { id: string; type: string; path: string }[],
+    settings: {
+      promptOptimization: {
+        includeReferenceImages: true,
+        modelCombo: "profile:model",
+        prompt: "优化：{text}",
+        translationPrompt: "翻译：{text}",
+        targetLangList: ["English"],
+      },
+    },
+  },
 }));
 vi.mock("@/composables/useLlmRequest", () => ({
   useLlmRequest: () => ({ sendRequest: mocks.sendRequest }),
 }));
-vi.mock("../stores/mediaGenStore", () => ({
-  useMediaGenStore: () => ({
-    currentConfig: { activeType: "image" },
-    attachments: [],
-    settings: {
-      promptOptimization: {
-        modelCombo: "profile:model",
-        prompt: "优化：{text}",
-        targetLangList: ["English"],
-      },
-    },
-  }),
-}));
+vi.mock("../stores/mediaGenStore", async () => {
+  const { reactive } = await import("vue");
+  return { useMediaGenStore: () => reactive(mocks.store) };
+});
 vi.mock("@/composables/useLlmProfiles", () => ({
   useLlmProfiles: () => ({
     enabledProfiles: { value: [{ id: "profile", models: [{ id: "model" }] }] },
-    getProfileById: () => ({ models: [{ id: "model", capabilities: {} }] }),
+    getProfileById: () => ({
+      models: [{ id: "model", capabilities: { vision: mocks.supportsVision } }],
+    }),
   }),
 }));
-vi.mock("@/composables/useAssetManager", () => ({ assetManagerEngine: {} }));
+vi.mock("@/composables/useAssetManager", () => ({
+  assetManagerEngine: { getAssetBase64: mocks.getAssetBase64 },
+}));
 vi.mock("../config", () => ({
   MEDIA_GENERATOR_TARGET_LANG_OPTIONS: [{ label: "英语", value: "English" }],
 }));
@@ -50,7 +60,12 @@ vi.mock("@/utils/logger", () => ({
 }));
 
 let wrapper: VueWrapper | undefined;
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.supportsVision = false;
+  mocks.store.attachments = [];
+  mocks.store.settings.promptOptimization.includeReferenceImages = true;
+});
 afterEach(() => {
   wrapper?.unmount();
   wrapper = undefined;
@@ -106,5 +121,72 @@ describe("prompt optimization panel lifecycle", () => {
     expect(panel.emitted("apply")).toBeUndefined();
     await button("确认并应用").trigger("click");
     expect(panel.emitted("apply")).toEqual([["优化后的画面"]]);
+  });
+});
+
+// Protect the public request contract: the opt-in and mode/capability limits
+// control both asset reads and outgoing image content, regardless of internals.
+describe("prompt optimization reference images", () => {
+  it.each([
+    { enabled: true, vision: true, translate: false, sendsImages: true },
+    { enabled: false, vision: true, translate: false, sendsImages: false },
+    { enabled: true, vision: false, translate: false, sendsImages: false },
+    { enabled: true, vision: true, translate: true, sendsImages: false },
+  ])(
+    "enabled=$enabled vision=$vision translate=$translate sendsImages=$sendsImages",
+    async ({ enabled, vision, translate, sendsImages }) => {
+      mocks.supportsVision = vision;
+      mocks.store.attachments = [
+        { id: "reference", type: "image", path: "reference.png" },
+      ];
+      mocks.getAssetBase64.mockResolvedValue("data:image/png;base64,reference");
+      mocks.sendRequest.mockResolvedValue({ content: "完成" });
+      const panel = openPanel();
+      if (!enabled) {
+        await panel.get('input[aria-label="参考附件图片"]').setValue(false);
+      }
+      if (translate) {
+        await panel
+          .findComponent({ name: "ElSelect" })
+          .vm.$emit("update:modelValue", "translate");
+      }
+      const referenceSwitch = panel.get('input[aria-label="参考附件图片"]')
+        .element as HTMLInputElement;
+      expect(referenceSwitch.disabled).toBe(!vision || translate);
+      expect(referenceSwitch.checked).toBe(enabled && vision && !translate);
+      expect(
+        mocks.store.settings.promptOptimization.includeReferenceImages
+      ).toBe(enabled);
+      await button("开始优化").trigger("click");
+      await flushPromises();
+      expect(mocks.getAssetBase64).toHaveBeenCalledTimes(sendsImages ? 1 : 0);
+      const content = mocks.sendRequest.mock.calls[0][0].messages[0].content;
+      if (sendsImages) {
+        expect(content).toEqual(
+          expect.arrayContaining([
+            { type: "image", imageBase64: "data:image/png;base64,reference" },
+          ])
+        );
+      } else {
+        expect(content).toBe(translate ? "翻译：初始草稿" : "优化：初始草稿");
+      }
+    }
+  );
+
+  it("retains the reference-image preference when reopening the panel", async () => {
+    mocks.supportsVision = true;
+    const panel = openPanel();
+    await panel.get('input[aria-label="参考附件图片"]').setValue(false);
+    expect(mocks.store.settings.promptOptimization.includeReferenceImages).toBe(
+      false
+    );
+    panel.unmount();
+    const reopened = openPanel();
+    expect(
+      (
+        reopened.get('input[aria-label="参考附件图片"]')
+          .element as HTMLInputElement
+      ).checked
+    ).toBe(false);
   });
 });

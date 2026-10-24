@@ -127,6 +127,40 @@ const optimizeModelSupportsVision = computed(() => {
   return model?.capabilities?.vision === true;
 });
 
+const canReferenceImages = computed(
+  () => optimizeMode.value !== "translate" && optimizeModelSupportsVision.value
+);
+
+// 保留用户偏好，开关展示当前模型和处理模式下的实际可用状态。
+const includeReferenceImages = computed({
+  get: () =>
+    canReferenceImages.value &&
+    (store.settings.promptOptimization.includeReferenceImages ?? true),
+  set: (value: boolean) => {
+    store.settings.promptOptimization.includeReferenceImages = value;
+  },
+});
+
+const shouldIncludeReferenceImages = computed(
+  () => includeReferenceImages.value && referenceImages.value.length > 0
+);
+
+const referenceImageHint = computed(() => {
+  if (optimizeMode.value === "translate") return "仅翻译当前提示词";
+  if (!optimizeModelCombo.value) return "请选择优化模型";
+  if (!optimizeModelSupportsVision.value) return "当前模型仅处理文本";
+  if (!includeReferenceImages.value) return "仅使用当前提示词和附加要求";
+  if (!referenceImages.value.length) return "添加图片后可作为优化参考";
+  return `将参考 ${referenceImages.value.length} 张附件图片`;
+});
+
+const referenceImageUnavailable = computed(
+  () =>
+    optimizeMode.value !== "translate" &&
+    !!optimizeModelCombo.value &&
+    !optimizeModelSupportsVision.value
+);
+
 const targetLangOptions = computed(() => {
   const configuredList = currentOptimizationConfig.value.targetLangList?.length
     ? currentOptimizationConfig.value.targetLangList
@@ -287,6 +321,7 @@ const handleOptimizePrompt = async () => {
       promptTemplateLength: config.prompt?.length || 0,
       templateHasPlaceholder: config.prompt?.includes("{text}") ?? false,
       supportsVision: optimizeModelSupportsVision.value,
+      includeReferenceImages: shouldIncludeReferenceImages.value,
       referenceImageCount: referenceImages.value.length,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
@@ -303,9 +338,9 @@ const handleOptimizePrompt = async () => {
       finalPrompt,
     });
 
-    // 视觉模型：把输入框中的参考图一并提供，辅助优化
+    // 按用户偏好与模型能力提供参考图；纯翻译仅处理文本。
     let messages: LlmMessage[];
-    if (optimizeModelSupportsVision.value) {
+    if (shouldIncludeReferenceImages.value) {
       const imageContents = await buildReferenceImageContents();
       logger.info("视觉优化模式：参考图内容构建完成", {
         requested: referenceImages.value.length,
@@ -491,16 +526,38 @@ defineExpose({
     <template #footer>
       <div class="optimize-footer">
         <div class="form-tip">
-          <el-icon><Info /></el-icon>
-          <div class="tip-content">
-            <p>优化将基于当前输入框中的内容进行扩展</p>
-            <p v-if="referenceImages.length > 0 && optimizeModelSupportsVision">
-              将同时参考输入框中的 {{ referenceImages.length }} 张参考图
-            </p>
-            <p v-else-if="referenceImages.length > 0">
-              当前优化模型不支持视觉，不会参考附件图片
-            </p>
-          </div>
+          <el-switch
+            v-model="includeReferenceImages"
+            aria-label="参考附件图片"
+            active-text="参考附件图片"
+            size="small"
+            :disabled="props.disabled || isOptimizing || !canReferenceImages"
+          />
+          <span
+            class="reference-status"
+            :class="{ 'is-warning': referenceImageUnavailable }"
+            role="status"
+            aria-live="polite"
+          >
+            {{ referenceImageHint }}
+          </span>
+          <el-tooltip
+            :content="
+              referenceImageUnavailable
+                ? '选择支持视觉的优化模型后，可结合附件图片优化提示词'
+                : referenceImageHint
+            "
+            placement="top"
+            :trigger="['hover', 'focus']"
+          >
+            <button
+              type="button"
+              class="reference-help"
+              aria-label="参考附件图片说明"
+            >
+              <el-icon><Info /></el-icon>
+            </button>
+          </el-tooltip>
         </div>
         <div class="form-actions">
           <template v-if="!optimizedResult">
@@ -682,21 +739,54 @@ defineExpose({
 
 .form-tip {
   display: flex;
-  flex: 1 1 260px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  align-items: center;
   min-width: 0;
   gap: 8px;
   color: var(--el-text-color-secondary);
 }
 
-.form-tip .el-icon {
-  font-size: 16px;
-  margin-top: 2px;
+.form-tip :deep(.el-switch) {
+  flex-shrink: 0;
 }
 
-.tip-content p {
-  margin: 0;
+.reference-status {
   font-size: 13px;
   line-height: 1.5;
+}
+
+.reference-status.is-warning {
+  color: var(--el-color-warning);
+}
+
+.reference-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--el-border-radius-small);
+  background: transparent;
+  color: inherit;
+  cursor: help;
+}
+
+.reference-help:hover {
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-light);
+}
+
+.reference-help:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.reference-help .el-icon {
+  font-size: 16px;
 }
 
 .form-actions {

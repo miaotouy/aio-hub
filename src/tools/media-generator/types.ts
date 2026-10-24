@@ -218,6 +218,8 @@ export interface LlmTaskConfig {
  * 提示词优化配置
  */
 export interface PromptOptimizationConfig extends LlmTaskConfig {
+  /** 优化时参考输入框中的图片附件 */
+  includeReferenceImages: boolean;
   /** 按媒体类型区分的优化提示词模板 */
   promptsByType: Record<MediaTaskType, string>;
   /** 纯翻译模式的提示词模板 */

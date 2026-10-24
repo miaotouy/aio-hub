@@ -126,6 +126,7 @@ export function normalizeMediaAssetDownloadTimeout(value: unknown): number {
 
 function createDefaultPromptOptimization(): PromptOptimizationConfig {
   return {
+    includeReferenceImages: true,
     modelCombo: "",
     prompt: PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE.image,
     promptsByType: { ...PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE },

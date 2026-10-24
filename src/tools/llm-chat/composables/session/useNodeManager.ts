@@ -220,8 +220,8 @@ export function useNodeManager() {
 
   /**
    * 创建新分支（重新生成场景）
-   * 支持从用户消息或助手消息重新生成
-   * - 用户消息：创建新的助手回复作为其子节点
+   * 支持从用户、工具消息生成回复，或重试助手消息
+   * - 用户、工具消息：创建新的助手回复作为其子节点
    * - 助手消息：沿用其直接父节点创建兄弟，保留此前的完整上下文
    */
   const createRegenerateBranch = (
@@ -242,14 +242,15 @@ export function useNodeManager() {
     let contextNode: ChatMessageNode;
     let parentNodeId: string;
 
-    if (targetNode.role === "user") {
-      // 从用户消息重新生成：用户消息本身就是父节点
+    if (targetNode.role === "user" || targetNode.role === "tool") {
+      // 以选中的用户或工具消息作为上下文末节点，生成新的助手回复。
       contextNode = targetNode;
       parentNodeId = targetNode.id;
 
-      logger.info("从用户消息创建重新生成分支", {
+      logger.info("从上下文节点创建重新生成分支", {
         sessionId: session.id,
-        userNodeId: targetNode.id,
+        targetNodeId: targetNode.id,
+        role: targetNode.role,
       });
     } else if (targetNode.role === "assistant") {
       // 从助手消息重新生成：沿用实际父节点，消息角色可自由编排

@@ -586,7 +586,7 @@ export function useChatHandler() {
 
   /**
    * 从指定节点重新生成
-   * 支持从用户消息或助手消息重新生成
+   * 支持从用户、工具消息生成回复，或重试助手消息
    */
   const regenerateFromNode = async (
     session: ChatSessionDetail,

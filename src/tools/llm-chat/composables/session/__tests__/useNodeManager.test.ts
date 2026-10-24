@@ -83,26 +83,71 @@ describe("useNodeManager", () => {
     }
   );
 
-  it("creates a reply below a selected user node", () => {
-    const manager = useNodeManager();
-    const user = manager.createNode({
-      role: "user",
-      content: "try again",
-      parentId: null,
-    });
-    const session = {
-      id: "session-1",
-      rootNodeId: user.id,
-      activeLeafId: user.id,
-      nodes: { [user.id]: user },
-    } as ChatSessionDetail;
+  it.each(["user", "tool"] as const)(
+    "creates a reply below the selected %s node and reuses its context",
+    (role) => {
+      const manager = useNodeManager();
+      const root = manager.createNode({
+        role: "system",
+        content: "system prompt",
+        parentId: null,
+      });
+      const user = manager.createNode({
+        role: "user",
+        content: "look it up",
+        parentId: root.id,
+      });
+      const toolCall = manager.createNode({
+        role: "assistant",
+        content: "calling the tool",
+        parentId: user.id,
+      });
+      const target = manager.createNode({
+        role,
+        content: "result to reuse",
+        parentId: toolCall.id,
+      });
+      const oldReply = manager.createNode({
+        role: "assistant",
+        content: "partial response",
+        parentId: target.id,
+        status: "error",
+      });
+      const session = {
+        id: "session-1",
+        rootNodeId: root.id,
+        activeLeafId: target.id,
+        nodes: {},
+      } as ChatSessionDetail;
+      for (const node of [root, user, toolCall, target, oldReply]) {
+        manager.addNodeToSession(session, node);
+      }
+      const originalReply = structuredClone(oldReply);
 
-    const result = manager.createRegenerateBranch(session, user.id);
+      const result = manager.createRegenerateBranch(session, target.id);
 
-    expect(result?.userNode).toBe(user);
-    expect(result?.assistantNode.parentId).toBe(user.id);
-    expect(user.childrenIds).toEqual([result!.assistantNode.id]);
-  });
+      expect(result).not.toBeNull();
+      expect(result!.userNode).toBe(target);
+      expect(result!.assistantNode).toMatchObject({
+        role: "assistant",
+        content: "",
+        parentId: target.id,
+        status: "waiting",
+      });
+      expect(target.childrenIds).toEqual([
+        oldReply.id,
+        result!.assistantNode.id,
+      ]);
+      expect(manager.getNodePath(session, result!.userNode.id)).toEqual([
+        root,
+        user,
+        toolCall,
+        target,
+      ]);
+      expect(oldReply).toEqual(originalReply);
+      expect(Object.keys(session.nodes)).toHaveLength(6);
+    }
+  );
 
   it("does not copy queue markers when creating a continuation branch", () => {
     const manager = useNodeManager();

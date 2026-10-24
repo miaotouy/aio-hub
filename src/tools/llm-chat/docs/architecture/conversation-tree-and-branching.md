@@ -112,7 +112,7 @@ Root (system)
 
 **代码路径** ([`useNodeManager.createRegenerateBranch()`](../../composables/session/useNodeManager.ts:194))：
 
-1. 重试助手消息时，定位其直接父节点；从用户消息生成回复时，使用选中的用户节点。
+1. 重试助手消息时，定位其直接父节点；从用户或工具消息生成回复时，使用选中的消息节点。
 2. 在该节点下创建新的空助手节点（`status: "waiting"`）；重试助手消息会形成兄弟分支。
 3. 按实际父子关系构建到新助手节点父节点为止的完整上下文，保留已完成的工具调用与响应。
 4. 更新 `activeLeafId` 指向新节点。

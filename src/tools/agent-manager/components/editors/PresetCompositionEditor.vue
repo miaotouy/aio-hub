@@ -16,6 +16,7 @@ import {
 } from "lucide-vue-next";
 import {
   compilePresetComposition,
+  createPresetPart,
   undoPresetStructureEdit,
   type PresetStructureEdit,
   clonePresetComposition,
@@ -50,8 +51,6 @@ const selectedPartId = ref(
 const editedOptions = ref<Record<string, string>>({});
 const history = ref<PresetStructureEdit[]>([]);
 const showPreview = ref(false);
-const partKind = (item: PresetPart) =>
-  item.kind === "text" ? "正文" : "单选组";
 const editor = ref<InstanceType<typeof RichCodeEditor>>();
 const part = computed(
   () =>
@@ -111,15 +110,11 @@ function update(change: (draft: PresetComposition) => void, remember = true) {
   emit("update:modelValue", draft);
 }
 const content = computed({
-  get: () =>
-    part.value?.kind === "text"
-      ? part.value.content
-      : (option.value?.content ?? ""),
+  get: () => option.value?.content ?? "",
   set: (value: string) =>
     update((draft) => {
       const target = draft.parts.find((item) => item.id === part.value?.id);
-      if (target?.kind === "text") target.content = value;
-      else if (target?.kind === "choice") {
+      if (target) {
         const entry = target.options.find(
           (item) => item.id === option.value?.id
         );
@@ -152,23 +147,13 @@ function setSeparator(value: string | number | boolean | undefined) {
     draft.separator = String(value ?? "");
   });
 }
-function add(kind: "text" | "choice") {
-  const id = crypto.randomUUID();
-  const optionId = crypto.randomUUID();
+function add() {
+  const next = createPresetPart();
   update((draft) => {
     const index = draft.parts.findIndex((item) => item.id === part.value?.id);
-    const next: PresetPart =
-      kind === "text"
-        ? { id, kind, content: "" }
-        : {
-            id,
-            kind: "choice",
-            selectedOptionId: optionId,
-            options: [{ id: optionId, content: "" }],
-          };
     draft.parts.splice(index + 1, 0, next);
   });
-  selectedPartId.value = id;
+  selectedPartId.value = next.id;
 }
 function shiftPart(delta: number) {
   update((draft) => {
@@ -261,20 +246,6 @@ function moveOption(delta: number) {
       ];
   });
 }
-function upgrade() {
-  patchPart((target) => {
-    if (target.kind !== "text") return;
-    const id = crypto.randomUUID();
-    const choice: PresetChoicePart = {
-      ...target,
-      kind: "choice",
-      selectedOptionId: id,
-      options: [{ id, content: target.content }],
-    };
-    Object.assign(target, choice);
-    delete (target as Partial<{ content: string }>).content;
-  });
-}
 function undo() {
   const previous = history.value.pop();
   if (previous)
@@ -311,6 +282,9 @@ function undo() {
           class="part-list"
           handle=".part-grip"
           :animation="150"
+          :force-fallback="true"
+          :fallback-on-body="true"
+          :fallback-tolerance="4"
         >
           <div
             v-for="(item, index) in modelValue.parts"
@@ -345,18 +319,20 @@ function undo() {
                 :aria-current="part?.id === item.id ? 'true' : undefined"
                 :aria-label="`片段 ${index + 1}：${partPreview(item)}`"
               >
-                {{ index + 1
-                }}<span class="part-kind">{{ partKind(item) }}</span>
+                <span>{{ index + 1 }}</span>
+                <span class="part-name" :title="item.name">{{
+                  item.name || `片段 ${index + 1}`
+                }}</span>
               </button>
               <div
-                v-if="item.kind === 'choice'"
+                v-if="item.options.length > 1"
                 class="part-stepper"
                 @click.stop
               >
                 <button
                   type="button"
                   :disabled="item.enabled === false || currentIndex(item) <= 0"
-                  :aria-label="`片段 ${index + 1}：上一个备选`"
+                  :aria-label="`片段 ${index + 1}：上一个版本`"
                   @click="step(item, -1)"
                 >
                   <ChevronLeft :size="14" />
@@ -373,24 +349,23 @@ function undo() {
                     !item.options.length ||
                     currentIndex(item) >= item.options.length - 1
                   "
-                  :aria-label="`片段 ${index + 1}：下一个备选`"
+                  :aria-label="`片段 ${index + 1}：下一个版本`"
                   @click="step(item, 1)"
                 >
                   <ChevronRight :size="14" />
                 </button>
               </div>
             </div>
-            <strong v-if="item.name" class="part-name">{{ item.name }}</strong>
             <p class="part-preview" :title="partPreview(item)">
               {{ partPreview(item) }}
             </p>
           </div>
         </VueDraggableNext>
         <div class="part-add">
-          <el-button size="small" @click="add('text')"
-            ><Plus :size="14" /><span class="btn-label">正文</span></el-button
-          ><el-button size="small" @click="add('choice')"
-            ><Plus :size="14" /><span class="btn-label">单选组</span></el-button
+          <el-button size="small" @click="add"
+            ><Plus :size="14" /><span class="btn-label"
+              >添加片段</span
+            ></el-button
           >
         </div>
       </aside>
@@ -399,12 +374,6 @@ function undo() {
           <div class="edit-heading">
             <span class="edit-title">片段 {{ partIndex + 1 }}</span>
             <el-tag
-              size="small"
-              :type="part.kind === 'choice' ? 'warning' : 'info'"
-              effect="plain"
-              >{{ partKind(part) }}</el-tag
-            >
-            <el-tag
               v-if="part.enabled === false"
               size="small"
               type="info"
@@ -412,13 +381,6 @@ function undo() {
               >已停用</el-tag
             >
             <div class="edit-actions">
-              <el-button
-                v-if="part.kind === 'text'"
-                size="small"
-                plain
-                @click="upgrade()"
-                >转为单选组</el-button
-              >
               <span class="action-divider" />
               <el-tooltip content="上移片段" placement="top" :show-after="500">
                 <el-button
@@ -490,7 +452,7 @@ function undo() {
             />
           </div>
           <div v-if="part.kind === 'choice'" class="option-bar">
-            <div class="option-tabs" role="tablist" aria-label="编辑备选">
+            <div class="option-tabs" role="tablist" aria-label="编辑版本">
               <button
                 v-for="(entry, index) in part.options"
                 :key="entry.id"
@@ -510,11 +472,11 @@ function undo() {
               >
                 {{ entry.name || index + 1 }}
               </button>
-              <el-tooltip content="新增备选" placement="top" :show-after="500">
+              <el-tooltip content="新增版本" placement="top" :show-after="500">
                 <button
                   type="button"
                   class="option-add"
-                  aria-label="新增备选"
+                  aria-label="新增版本"
                   @click="addOption()"
                 >
                   <Plus :size="14" />
@@ -523,45 +485,45 @@ function undo() {
             </div>
             <template v-if="option">
               <span class="action-divider" />
-              <el-tooltip content="左移备选" placement="top" :show-after="500">
+              <el-tooltip content="左移版本" placement="top" :show-after="500">
                 <el-button
                   link
                   size="small"
                   class="icon-action"
                   :disabled="optionIndex <= 0"
-                  aria-label="左移备选"
+                  aria-label="左移版本"
                   @click="moveOption(-1)"
                   ><ArrowLeft :size="15"
                 /></el-button>
               </el-tooltip>
-              <el-tooltip content="右移备选" placement="top" :show-after="500">
+              <el-tooltip content="右移版本" placement="top" :show-after="500">
                 <el-button
                   link
                   size="small"
                   class="icon-action"
                   :disabled="optionIndex >= part.options.length - 1"
-                  aria-label="右移备选"
+                  aria-label="右移版本"
                   @click="moveOption(1)"
                   ><ArrowRight :size="15"
                 /></el-button>
               </el-tooltip>
-              <el-tooltip content="复制备选" placement="top" :show-after="500">
+              <el-tooltip content="复制版本" placement="top" :show-after="500">
                 <el-button
                   link
                   size="small"
                   class="icon-action"
-                  aria-label="复制备选"
+                  aria-label="复制版本"
                   @click="addOption(true)"
                   ><Copy :size="15"
                 /></el-button>
               </el-tooltip>
-              <el-tooltip content="删除备选" placement="top" :show-after="500">
+              <el-tooltip content="删除版本" placement="top" :show-after="500">
                 <span>
                   <el-popconfirm
                     :title="
                       isPresetOptionSelected(part, option.id)
-                        ? '删除此备选，并从当前组合中移除？'
-                        : '删除此备选？'
+                        ? '删除此版本，并从当前组合中移除？'
+                        : '删除此版本？'
                     "
                     width="220"
                     @confirm="removeOption"
@@ -572,7 +534,7 @@ function undo() {
                         size="small"
                         type="danger"
                         class="icon-action"
-                        aria-label="删除备选"
+                        aria-label="删除版本"
                         ><Trash2 :size="15"
                       /></el-button>
                     </template>
@@ -585,7 +547,7 @@ function undo() {
                 >当前使用：{{
                   currentIndex(part) < 0
                     ? "留空"
-                    : `备选 ${currentIndex(part) + 1}`
+                    : `版本 ${currentIndex(part) + 1}`
                 }}</span
               >
               <el-button
@@ -610,8 +572,8 @@ function undo() {
             :model-value="option.name ?? ''"
             size="small"
             class="option-name"
-            placeholder="备选名称（可选）"
-            aria-label="备选名称"
+            placeholder="版本名称（可选）"
+            aria-label="版本名称"
             @update:model-value="
               (name: string) =>
                 patchPart((target) => {
@@ -625,8 +587,8 @@ function undo() {
             "
           />
           <div
-            v-if="part.kind === 'text' || option"
-            :key="`${part.id}:${option?.id ?? 'text'}`"
+            v-if="option"
+            :key="`${part.id}:${option?.id ?? ''}`"
             class="body-editor"
           >
             <PresetBodyToolbar
@@ -636,7 +598,7 @@ function undo() {
               :allow-recall="allowRecall"
             />
             <RichCodeEditor
-              :key="`${part.id}:${option?.id ?? 'text'}`"
+              :key="`${part.id}:${option?.id ?? ''}`"
               ref="editor"
               v-model="content"
               language="markdown"
@@ -649,19 +611,19 @@ function undo() {
             />
           </div>
           <div v-else class="editor-empty">
-            <span>此选择组还没有备选</span>
+            <span>此选择组还没有版本</span>
             <el-button size="small" @click="addOption()"
               ><Plus :size="14" /><span class="btn-label"
-                >添加第一个备选</span
+                >添加第一个版本</span
               ></el-button
             >
           </div>
         </template>
         <div v-else class="editor-empty">
           <span>暂无片段</span>
-          <el-button size="small" @click="add('text')"
+          <el-button size="small" @click="add"
             ><Plus :size="14" /><span class="btn-label"
-              >添加正文片段</span
+              >添加片段</span
             ></el-button
           >
         </div>
@@ -723,14 +685,11 @@ function undo() {
   min-width: 0;
 }
 .part-name {
-  display: block;
-  padding-top: 4px;
-  padding-left: 18px;
-  font-size: 12px;
-  color: var(--el-text-color-primary);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 .option-name {
   flex-shrink: 0;
@@ -834,13 +793,12 @@ function undo() {
   color: var(--el-text-color-placeholder);
 }
 .part-meta,
-.part-name,
 .part-preview {
   grid-column: 2;
 }
 .part-checkbox {
   grid-column: 1;
-  grid-row: 1 / 4;
+  grid-row: 1 / 3;
   align-self: start;
   width: 16px;
   height: 16px;
@@ -849,12 +807,16 @@ function undo() {
   cursor: pointer;
 }
 .part-meta {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
   min-height: 24px;
 }
 .part-grip {
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
   display: flex;
   color: var(--el-text-color-placeholder);
   cursor: grab;
@@ -883,10 +845,6 @@ function undo() {
   outline: 1px solid var(--el-color-primary);
   outline-offset: 2px;
   border-radius: 2px;
-}
-.part-kind {
-  font-weight: 400;
-  color: var(--el-text-color-secondary);
 }
 .part-stepper {
   display: flex;

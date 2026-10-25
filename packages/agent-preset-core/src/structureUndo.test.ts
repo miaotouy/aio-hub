@@ -9,7 +9,13 @@ const fixture = (): PresetComposition => ({
   version: 1,
   separator: "",
   parts: [
-    { id: "body", kind: "text", name: "Body", content: "original" },
+    {
+      id: "body",
+      name: "Body",
+      kind: "choice",
+      selectedOptionId: "body-version",
+      options: [{ id: "body-version", content: "original" }],
+    },
     {
       id: "group",
       kind: "choice",
@@ -41,13 +47,17 @@ describe("structural undo", () => {
       option.content = "New " + option.id;
     });
     current.parts[1].name = "";
-    if (current.parts[1].kind === "text") current.parts[1].content = "";
+    current.parts[1].options[0].content = "";
     const savedInputs = copy({ before, after, current });
     const result = undoPresetStructureEdit(current, { before, after });
     expect(result).toEqual({
       ...before,
       parts: [
-        { ...before.parts[0], name: "", content: "" },
+        {
+          ...before.parts[0],
+          name: "",
+          options: [{ id: "body-version", content: "" }],
+        },
         {
           ...before.parts[1],
           name: "Renamed group",
@@ -89,25 +99,18 @@ describe("structural undo", () => {
     );
   });
 
-  it("keeps edits to the original body when undoing text-to-choice conversion", () => {
+  it("keeps edits to a single version when undoing an added version", () => {
     const before = fixture();
     const after = copy(before);
-    after.parts[0] = {
-      id: "body",
-      kind: "choice",
-      selectedOptionId: "original-option",
-      options: [{ id: "original-option", content: "original" }],
-    };
+    after.parts[0].options.push({ id: "added", content: "new version" });
     const current = copy(after);
-    const group = current.parts[0] as PresetChoicePart;
-    group.name = "Renamed body";
-    group.options[0].content = "edited after conversion";
+    current.parts[0].name = "Renamed body";
+    current.parts[0].options[0].content = "edited after adding version";
     const result = undoPresetStructureEdit(current, { before, after });
     expect(result.parts[0]).toEqual({
-      id: "body",
-      kind: "text",
+      ...before.parts[0],
       name: "Renamed body",
-      content: "edited after conversion",
+      options: [{ id: "body-version", content: "edited after adding version" }],
     });
   });
 });

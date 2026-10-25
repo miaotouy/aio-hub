@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyPresetCompositionOperation,
+  createPresetPart,
   clonePresetComposition,
   compilePresetComposition,
   extractPresetChoice,
@@ -22,7 +23,12 @@ const template = (): PresetComposition => ({
   version: 1,
   separator: "",
   parts: [
-    { id: "prefix", kind: "text", content: "前文\n" },
+    {
+      id: "prefix",
+      kind: "choice",
+      selectedOptionId: "prefix-version",
+      options: [{ id: "prefix-version", content: "前文\n" }],
+    },
     {
       id: "choice",
       kind: "choice",
@@ -32,7 +38,12 @@ const template = (): PresetComposition => ({
         { id: "b", content: "{{AIOgugu2}}" },
       ],
     },
-    { id: "suffix", kind: "text", content: "\n后文 " },
+    {
+      id: "suffix",
+      kind: "choice",
+      selectedOptionId: "suffix-version",
+      options: [{ id: "suffix-version", content: "\n后文 " }],
+    },
   ],
 });
 describe("structured preset contract", () => {
@@ -87,9 +98,25 @@ describe("structured preset contract", () => {
       version: 1,
       separator: "\n",
       parts: [
-        { id: "a", kind: "text", content: "" },
-        { id: "b", kind: "text", content: " " },
-        { id: "off", kind: "text", content: "{{tools}}", enabled: false },
+        {
+          id: "a",
+          kind: "choice",
+          selectedOptionId: "a-version",
+          options: [{ id: "a-version", content: "" }],
+        },
+        {
+          id: "b",
+          kind: "choice",
+          selectedOptionId: "b-version",
+          options: [{ id: "b-version", content: " " }],
+        },
+        {
+          id: "off",
+          enabled: false,
+          kind: "choice",
+          selectedOptionId: "off-version",
+          options: [{ id: "off-version", content: "{{tools}}" }],
+        },
         {
           id: "none",
           kind: "choice",
@@ -100,7 +127,10 @@ describe("structured preset contract", () => {
     };
     expect(compilePresetComposition(input)).toEqual({
       content: "\n ",
-      contributingParts: [{ partId: "a" }, { partId: "b" }],
+      contributingParts: [
+        { partId: "a", optionId: "a-version" },
+        { partId: "b", optionId: "b-version" },
+      ],
     });
   });
   it("skips disabled hosts and preserves list positions while rejecting multiple active radio members", () => {
@@ -179,7 +209,7 @@ describe("structured preset contract", () => {
     ]) {
       const result = suggestPresetComposition(originals);
       const choice = result.parts.find(
-        (part): part is PresetChoicePart => part.kind === "choice"
+        (part) => part.options.length === originals.length
       )!;
       choice.options.forEach((option, index) => {
         choice.selectedOptionId = option.id;
@@ -189,7 +219,7 @@ describe("structured preset contract", () => {
     const choice = suggestPresetComposition([
       "前文{{AIOgugu}}后文",
       "前文{{AIOgugu2}}后文",
-    ]).parts.find((part): part is PresetChoicePart => part.kind === "choice")!;
+    ]).parts.find((part) => part.options.length === 2)!;
     expect(choice.options.map((option) => option.content)).toEqual([
       "{{AIOgugu}}",
       "{{AIOgugu2}}",
@@ -229,7 +259,12 @@ const dimensions = (): PresetComposition => ({
   version: 1,
   separator: "\n",
   parts: [
-    { id: "intro", kind: "text", content: "规则" },
+    {
+      id: "intro",
+      kind: "choice",
+      selectedOptionId: "intro-version",
+      options: [{ id: "intro-version", content: "规则" }],
+    },
     {
       id: "identity",
       name: "身份",
@@ -240,9 +275,26 @@ const dimensions = (): PresetComposition => ({
         { id: "engineer", content: "工程师" },
       ],
     },
-    { id: "brief", name: "风格", kind: "text", content: "简洁" },
-    { id: "examples", kind: "text", content: "示例" },
-    { id: "inactive", kind: "text", enabled: false, content: "未选内容" },
+    {
+      id: "brief",
+      name: "风格",
+      kind: "choice",
+      selectedOptionId: "brief-version",
+      options: [{ id: "brief-version", content: "简洁" }],
+    },
+    {
+      id: "examples",
+      kind: "choice",
+      selectedOptionId: "examples-version",
+      options: [{ id: "examples-version", content: "示例" }],
+    },
+    {
+      id: "inactive",
+      enabled: false,
+      kind: "choice",
+      selectedOptionId: "inactive-version",
+      options: [{ id: "inactive-version", content: "未选内容" }],
+    },
     {
       id: "format",
       kind: "choice",
@@ -260,10 +312,10 @@ describe("message-local composition dimensions", () => {
     expect(compilePresetComposition(input)).toEqual({
       content: "规则\n写作者\n简洁\n示例\nMarkdown",
       contributingParts: [
-        { partId: "intro" },
+        { partId: "intro", optionId: "intro-version" },
         { partId: "identity", optionId: "writer" },
-        { partId: "brief" },
-        { partId: "examples" },
+        { partId: "brief", optionId: "brief-version" },
+        { partId: "examples", optionId: "examples-version" },
         { partId: "format", optionId: "markdown" },
       ],
     });
@@ -349,7 +401,7 @@ describe("message-local composition dimensions", () => {
     ).toBe(false);
     expect(clone.parts[4]).toMatchObject({
       enabled: false,
-      content: "未选内容",
+      options: [{ content: "未选内容" }],
     });
     const choice = clone.parts[1] as PresetChoicePart;
     expect(
@@ -394,4 +446,49 @@ describe("message-local composition dimensions", () => {
       })
     ).toThrow(/未找到备选/);
   });
+});
+
+it("extends a single-version fragment without converting its type or changing its active body", () => {
+  const part = createPresetPart(" original\n");
+  const initial: PresetComposition = {
+    version: 1,
+    separator: "",
+    parts: [part],
+  };
+  const expanded = applyPresetCompositionOperation(initial, {
+    type: "addOption",
+    partId: part.id,
+    content: "alternate",
+  });
+  expect(expanded.parts[0].id).toBe(part.id);
+  expect(expanded.parts[0].options).toHaveLength(2);
+  expect(compilePresetComposition(expanded).content).toBe(" original\n");
+  const extraId = expanded.parts[0].options[1].id;
+  const selected = applyPresetCompositionOperation(expanded, {
+    type: "selectOption",
+    partId: part.id,
+    optionId: extraId,
+  });
+  const restored = importPresetMessage(
+    JSON.parse(
+      JSON.stringify({
+        id: "host",
+        content: "",
+        presetComposition: selected,
+      })
+    )
+  );
+  expect(compilePresetComposition(restored.presetComposition).content).toBe(
+    "alternate"
+  );
+  const reduced = applyPresetCompositionOperation(restored.presetComposition, {
+    type: "removeOption",
+    partId: part.id,
+    optionId: part.options[0].id,
+  });
+  expect(reduced.parts[0].options).toEqual([
+    { id: extraId, content: "alternate" },
+  ]);
+  expect(compilePresetComposition(reduced).content).toBe("alternate");
+  expect(compilePresetComposition(initial).content).toBe(" original\n");
 });

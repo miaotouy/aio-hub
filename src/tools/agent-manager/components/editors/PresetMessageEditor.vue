@@ -255,6 +255,7 @@
 import { ref, watch, computed, onMounted, provide } from "vue";
 import { cloneDeep } from "lodash-es";
 import {
+  createPresetPart,
   assertPresetComposition,
   extractPresetChoice,
   compilePresetComposition,
@@ -671,31 +672,14 @@ function handleBodyModeChange(mode: string | number | boolean | undefined) {
     return;
   }
   if (mode !== "composition" || form.value.presetComposition) return;
-  const partId = crypto.randomUUID();
-  const optionId = crypto.randomUUID();
+  const initialPart = createPresetPart(form.value.content);
   form.value.presetComposition = {
     version: 1,
     separator: "",
-    parts: [
-      ...(form.value.content
-        ? [
-            {
-              id: crypto.randomUUID(),
-              kind: "text" as const,
-              content: form.value.content,
-            },
-          ]
-        : []),
-      {
-        id: partId,
-        kind: "choice",
-        selectedOptionId: optionId,
-        options: [{ id: optionId, content: "" }],
-      },
-    ],
+    parts: [initialPart],
   };
   form.value.content = "";
-  compositionPartId.value = partId;
+  compositionPartId.value = initialPart.id;
   protectDraft.value = true;
   viewMode.value = "edit";
 }
@@ -713,7 +697,7 @@ async function extractChoice() {
   const proposed = extractPresetChoice(form.value.content, start, end);
   const selected = proposed.parts[1];
   const original = form.value.content.slice(start, end);
-  if (selected.kind === "choice" && selected.options[0].content !== original) {
+  if (selected.options[0].content !== original) {
     const { ElMessageBox } = await import("element-plus");
     try {
       await ElMessageBox.confirm(
@@ -730,9 +714,7 @@ async function extractChoice() {
     }
   }
   protectDraft.value = true;
-  compositionPartId.value = proposed.parts.find(
-    (part) => part.kind === "choice"
-  )?.id;
+  compositionPartId.value = selected.id;
   form.value.presetComposition = proposed;
   form.value.content = "";
 }

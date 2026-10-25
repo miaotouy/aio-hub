@@ -145,7 +145,7 @@ function moveGroup(event: Event): void {
               : t("空内容"))
           }}</span>
         </div>
-        <div v-if="part.kind === 'choice'" class="branch-control">
+        <div v-if="part.options.length > 1" class="branch-control">
           <button
             type="button"
             :disabled="

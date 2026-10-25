@@ -22,7 +22,12 @@ const message = (): ChatMessageNode =>
       version: 1,
       separator: "|",
       parts: [
-        { id: "text", kind: "text", content: "规则" },
+        {
+          id: "text",
+          kind: "choice",
+          selectedOptionId: "text-version",
+          options: [{ id: "text-version", content: "规则" }],
+        },
         {
           id: "choice",
           kind: "choice",
@@ -83,7 +88,7 @@ it("saves entry participation separately from editing and retains single-choice 
   });
   expect(
     wrapper
-      .get('button[aria-label="片段 2：上一个备选"]')
+      .get('button[aria-label="片段 2：上一个版本"]')
       .attributes("disabled")
   ).toBeDefined();
   await wrapper.get('input[aria-label="选入片段 2"]').setValue(true);

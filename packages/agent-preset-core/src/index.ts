@@ -5,20 +5,30 @@ export interface PresetPartBase {
   name?: string;
   enabled?: boolean;
 }
-export interface PresetTextPart extends PresetPartBase {
-  kind: "text";
-  content: string;
-}
 export interface PresetChoicePart extends PresetPartBase {
   kind: "choice";
   selectedOptionId: string | null;
   options: Array<{ id: string; name?: string; content: string }>;
 }
-export type PresetPart = PresetTextPart | PresetChoicePart;
+export type PresetPart = PresetChoicePart;
 export interface PresetComposition {
   version: 1;
   separator: string;
   parts: PresetPart[];
+}
+/** Create a fragment with one active version; authors can add versions at any time. */
+export function createPresetPart(
+  content = "",
+  newId: () => string = () => crypto.randomUUID()
+): PresetPart {
+  const id = newId();
+  const optionId = newId();
+  return {
+    id,
+    kind: "choice",
+    selectedOptionId: optionId,
+    options: [{ id: optionId, content }],
+  };
 }
 export interface PresetContribution {
   partId: string;
@@ -63,9 +73,7 @@ export function validatePresetComposition(value: unknown): PresetDiagnostic[] {
       fail(path, "名称需要文本");
     if (part.enabled !== undefined && typeof part.enabled !== "boolean")
       fail(path, "启停状态无效");
-    if (part.kind === "text") {
-      if (typeof part.content !== "string") fail(path, "正文需要文本");
-    } else if (part.kind === "choice") {
+    if (part.kind === "choice") {
       if (!Array.isArray(part.options)) {
         fail(path, "需要备选列表");
         return;
@@ -130,9 +138,7 @@ export function clearPresetSelection(part: PresetChoicePart): void {
   part.selectedOptionId = null;
 }
 export function presetPartContent(part: PresetPart): string {
-  return part.kind === "text"
-    ? part.content
-    : (selectedPresetOptions(part)[0]?.content ?? "");
+  return selectedPresetOptions(part)[0]?.content ?? "";
 }
 export function requiredPresetFeatures(
   messages: readonly { presetComposition?: PresetComposition }[]
@@ -155,17 +161,12 @@ export function compilePresetComposition(composition: PresetComposition): {
   const contributingParts: PresetContribution[] = [];
   for (const part of composition.parts) {
     if (part.enabled === false) continue;
-    if (part.kind === "text") {
-      texts.push(part.content);
-      contributingParts.push({ partId: part.id });
-    } else {
-      const selected = selectedPresetOptions(part);
-      if (!selected.length) continue;
-      texts.push(presetPartContent(part));
-      contributingParts.push(
-        ...selected.map((option) => ({ partId: part.id, optionId: option.id }))
-      );
-    }
+    const selected = selectedPresetOptions(part);
+    if (!selected.length) continue;
+    texts.push(presetPartContent(part));
+    contributingParts.push(
+      ...selected.map((option) => ({ partId: part.id, optionId: option.id }))
+    );
   }
   return { content: texts.join(composition.separator), contributingParts };
 }
@@ -225,20 +226,16 @@ export function mapPresetCompositionText(
   assertPresetComposition(composition);
   return {
     ...composition,
-    parts: composition.parts.map((part) =>
-      part.kind === "text"
-        ? { ...part, content: map(part.content, { partId: part.id }) }
-        : {
-            ...part,
-            options: part.options.map((option) => ({
-              ...option,
-              content: map(option.content, {
-                partId: part.id,
-                optionId: option.id,
-              }),
-            })),
-          }
-    ),
+    parts: composition.parts.map((part) => ({
+      ...part,
+      options: part.options.map((option) => ({
+        ...option,
+        content: map(option.content, {
+          partId: part.id,
+          optionId: option.id,
+        }),
+      })),
+    })),
   };
 }
 export function clonePresetComposition(
@@ -249,7 +246,6 @@ export function clonePresetComposition(
   return {
     ...composition,
     parts: composition.parts.map((part) => {
-      if (part.kind === "text") return { ...part, id: newId() };
       const ids = new Map(part.options.map((option) => [option.id, newId()]));
       return {
         ...part,
@@ -324,12 +320,7 @@ export function suggestPresetComposition(
   }));
   const parts: PresetPart[] = [];
   if (prefix)
-    parts.push({
-      id: newId(),
-
-      kind: "text",
-      content: tokens[0].slice(0, prefix).join(""),
-    });
+    parts.push(createPresetPart(tokens[0].slice(0, prefix).join(""), newId));
   parts.push({
     id: newId(),
 
@@ -339,12 +330,12 @@ export function suggestPresetComposition(
     options,
   });
   if (suffix)
-    parts.push({
-      id: newId(),
-
-      kind: "text",
-      content: tokens[0].slice(tokens[0].length - suffix).join(""),
-    });
+    parts.push(
+      createPresetPart(
+        tokens[0].slice(tokens[0].length - suffix).join(""),
+        newId
+      )
+    );
   return { version: 1, separator: "", parts };
 }
 export function extractPresetChoice(
@@ -370,12 +361,7 @@ export function extractPresetChoice(
     version: 1,
     separator: "",
     parts: [
-      {
-        id: newId(),
-        kind: "text",
-
-        content: content.slice(0, start),
-      },
+      createPresetPart(content.slice(0, start), newId),
       {
         id: newId(),
         kind: "choice",
@@ -383,12 +369,7 @@ export function extractPresetChoice(
         selectedOptionId: optionId,
         options: [{ id: optionId, content: content.slice(start, end) }],
       },
-      {
-        id: newId(),
-        kind: "text",
-
-        content: content.slice(end),
-      },
+      createPresetPart(content.slice(end), newId),
     ],
   };
 }
@@ -488,10 +469,7 @@ export function applyPresetCompositionOperation(
         0,
         part
       );
-    } else if (operation.type === "setContent" && part.kind === "text")
-      part.content = operation.content;
-    else {
-      if (part.kind !== "choice") throw new Error("该操作需要选择组");
+    } else {
       if (operation.type === "selectOption") {
         if (
           operation.selected !== undefined &&
@@ -516,7 +494,10 @@ export function applyPresetCompositionOperation(
         if (wasEmpty) setPresetOptionSelected(part, option.id);
       } else {
         const optionIndex = part.options.findIndex(
-          (option) => option.id === operation.optionId
+          (option) =>
+            option.id ===
+            (operation.optionId ??
+              (operation.type === "setContent" ? part.selectedOptionId : null))
         );
         const option = part.options[optionIndex];
         if (!option) throw new Error("未找到备选");
@@ -539,4 +520,7 @@ export function applyPresetCompositionOperation(
   return draft;
 }
 
-export { undoPresetStructureEdit, type PresetStructureEdit } from "./structureUndo";
+export {
+  undoPresetStructureEdit,
+  type PresetStructureEdit,
+} from "./structureUndo";

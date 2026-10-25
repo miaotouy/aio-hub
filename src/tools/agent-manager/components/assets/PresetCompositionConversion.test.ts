@@ -31,7 +31,12 @@ const nested = (id: string) =>
       version: 1,
       separator: "",
       parts: [
-        { id: "text", kind: "text", content: "共同规则" },
+        {
+          id: "text",
+          kind: "choice",
+          selectedOptionId: "text-version",
+          options: [{ id: "text-version", content: "共同规则" }],
+        },
         {
           id: "choice",
           kind: "choice",

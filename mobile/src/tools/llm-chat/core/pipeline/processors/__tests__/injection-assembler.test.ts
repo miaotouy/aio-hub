@@ -264,7 +264,12 @@ it("injects a structured host with original source index and only its current al
     version: 1,
     separator: "",
     parts: [
-      { id: "prefix", kind: "text", content: "common " },
+      {
+        id: "prefix",
+        kind: "choice",
+        selectedOptionId: "prefix-version",
+        options: [{ id: "prefix-version", content: "common " }],
+      },
       {
         id: "choice",
         kind: "choice",
@@ -305,9 +310,25 @@ it("combines independent selection dimensions without merging adjacent role mess
         selectedOptionId: "a",
         options: [{ id: "a", content: "identity" }],
       },
-      { id: "brief", kind: "text", content: "brief" },
-      { id: "examples", kind: "text", content: "examples" },
-      { id: "off", kind: "text", enabled: false, content: "unused" },
+      {
+        id: "brief",
+        kind: "choice",
+        selectedOptionId: "brief-version",
+        options: [{ id: "brief-version", content: "brief" }],
+      },
+      {
+        id: "examples",
+        kind: "choice",
+        selectedOptionId: "examples-version",
+        options: [{ id: "examples-version", content: "examples" }],
+      },
+      {
+        id: "off",
+        enabled: false,
+        kind: "choice",
+        selectedOptionId: "off-version",
+        options: [{ id: "off-version", content: "unused" }],
+      },
       {
         id: "format",
         kind: "choice",

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
+  createPresetPart,
   importPresetMessage,
   normalizePresetGroupState,
   clonePresetComposition,
@@ -91,13 +92,7 @@ function openNewComposition(): void {
     presetComposition: {
       version: 1,
       separator: "",
-      parts: [
-        {
-          id: crypto.randomUUID(),
-          kind: "text",
-          content: "",
-        },
-      ],
+      parts: [createPresetPart("")],
     },
   };
   editorOpen.value = true;

@@ -29,8 +29,14 @@ const original = (): ChatMessageNode[] =>
         parts: [
           {
             id: "text",
-            kind: "text",
-            content: "<scenario>Literal</scenario> {{WORLD}}",
+            kind: "choice",
+            selectedOptionId: "text-version",
+            options: [
+              {
+                id: "text-version",
+                content: "<scenario>Literal</scenario> {{WORLD}}",
+              },
+            ],
           },
           {
             id: "choice",

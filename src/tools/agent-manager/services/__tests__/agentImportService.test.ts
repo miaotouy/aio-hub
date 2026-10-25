@@ -313,7 +313,12 @@ describe("agent import preset text", () => {
           version: 1,
           separator: "\r\n",
           parts: [
-            { id: "shared", kind: "text", content },
+            {
+              id: "shared",
+              kind: "choice",
+              selectedOptionId: "shared-version",
+              options: [{ id: "shared-version", content }],
+            },
             {
               id: "choice",
               kind: "choice",

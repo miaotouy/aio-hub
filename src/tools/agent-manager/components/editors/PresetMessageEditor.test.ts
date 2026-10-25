@@ -19,7 +19,7 @@ vi.mock("./PresetCompositionEditor.vue", () => ({
   default: {
     props: ["modelValue", "initialPartId"],
     emits: ["update:modelValue"],
-    template: `<textarea :value="modelValue.parts[0].content" @input="$emit('update:modelValue', { ...modelValue, parts: [{ ...modelValue.parts[0], content: $event.target.value }] })" />`,
+    template: `<textarea :value="modelValue.parts[0].options[0].content" @input="$emit('update:modelValue', { ...modelValue, parts: [{ ...modelValue.parts[0], options: [{ ...modelValue.parts[0].options[0], content: $event.target.value }] }] })" />`,
   },
 }));
 vi.mock("../assets/PresetInlineLeaveGuard.vue", () => ({
@@ -77,7 +77,14 @@ it.each(["s", "Enter"])(
           presetComposition: {
             version: 1,
             separator: "",
-            parts: [{ id: "text", kind: "text", content: "submitted" }],
+            parts: [
+              {
+                id: "text",
+                kind: "choice",
+                selectedOptionId: "text-version",
+                options: [{ id: "text-version", content: "submitted" }],
+              },
+            ],
           },
         },
         saveMessage,
@@ -103,7 +110,7 @@ it.each(["s", "Enter"])(
     finish();
     await flushPromises();
     expect(
-      saveMessage.mock.calls[0][0].presetComposition.parts[0].content
+      saveMessage.mock.calls[0][0].presetComposition.parts[0].options[0].content
     ).toBe("submitted");
     expect(wrapper.emitted("update:visible")).toBeUndefined();
     const beforeClose = wrapper
@@ -115,13 +122,13 @@ it.each(["s", "Enter"])(
     await input.trigger("keydown", { key: "Enter", ctrlKey: true });
     await flushPromises();
     expect(
-      saveMessage.mock.calls[1][0].presetComposition.parts[0].content
+      saveMessage.mock.calls[1][0].presetComposition.parts[0].options[0].content
     ).toBe("typed during save");
     expect(wrapper.emitted("update:visible")).toEqual([[false]]);
   }
 );
 
-// Entry contract: blank messages can start with a choice; existing bodies survive the same switch.
+// Entry contract: composition starts with one selected version and preserves the original body.
 it.each(["", "  <description>原文</description> {{CHAR}}\n"])(
   "starts composition editing directly and preserves the original body %j",
   async (content) => {
@@ -164,7 +171,8 @@ it.each(["", "  <description>原文</description> {{CHAR}}\n"])(
       JSON.stringify(editor.props("modelValue"))
     );
     expect(compilePresetComposition(draft).content).toBe(content);
-    const choice = draft.parts.find((part) => part.kind === "choice")!;
+    expect(draft.parts).toHaveLength(1);
+    const choice = draft.parts[0];
     expect(editor.props("initialPartId")).toBe(choice.id);
     expect(choice.selectedOptionId).toBe(choice.options[0].id);
     const beforeClose = wrapper
@@ -190,7 +198,7 @@ it.each(["", "  <description>原文</description> {{CHAR}}\n"])(
     expect(
       compilePresetComposition(saveMessage.mock.calls[0][0].presetComposition)
         .content
-    ).toBe(content + "new alternative");
+    ).toBe("new alternative");
     expect(wrapper.emitted("update:visible")).toBeUndefined();
   }
 );

@@ -22,8 +22,18 @@ it("keeps later body edits when undoing participation and order changes", async 
     version: 1,
     separator: "",
     parts: [
-      { id: "body", kind: "text", content: "original" },
-      { id: "tail", kind: "text", content: "tail" },
+      {
+        id: "body",
+        kind: "choice",
+        selectedOptionId: "body-version",
+        options: [{ id: "body-version", content: "original" }],
+      },
+      {
+        id: "tail",
+        kind: "choice",
+        selectedOptionId: "tail-version",
+        options: [{ id: "tail-version", content: "tail" }],
+      },
     ],
   };
   const wrapper = shallowMount(PresetCompositionEditor, {
@@ -63,12 +73,23 @@ it("keeps later body edits when undoing participation and order changes", async 
       .vm.$emit("update:modelValue", "latest body");
     await wrapper.get('[aria-label="撤销结构调整"]').trigger("click");
     expect(wrapper.props("modelValue").parts).toEqual([
-      { id: "body", kind: "text", content: "latest body", enabled: false },
+      {
+        id: "body",
+        enabled: false,
+        kind: "choice",
+        selectedOptionId: "body-version",
+        options: [{ id: "body-version", content: "latest body" }],
+      },
       initial.parts[1],
     ]);
     await wrapper.get('[aria-label="撤销结构调整"]').trigger("click");
     expect(wrapper.props("modelValue").parts).toEqual([
-      { id: "body", kind: "text", content: "latest body" },
+      {
+        id: "body",
+        kind: "choice",
+        selectedOptionId: "body-version",
+        options: [{ id: "body-version", content: "latest body" }],
+      },
       initial.parts[1],
     ]);
   } finally {

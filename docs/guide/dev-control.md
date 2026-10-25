@@ -184,6 +184,26 @@ bun run dev:static:build -- --agent
 
 随后通过托盘“重启前端”或刷新对应窗口加载新快照。控制程序在每次调用重新发现页面身份，正常处理页面刷新和新增分离窗口。Rust 修改触发 Tauri 重新编译时，启动器重新核验新进程；编译期间返回实例启动中，窗口就绪后继续操作。
 
+## Tauri 内部拖拽排序
+
+Windows WebView2 的原生文件拖放会与 HTML5 Drag and Drop 路径冲突。应用内部排序使用 `VueDraggableNext` / SortableJS 的 fallback 路径，沿用 `AgentPresetEditor.vue`、`ProfileSidebar.vue` 等组件的配置：
+
+```vue
+<VueDraggableNext
+  v-model="items"
+  handle=".item-grip"
+  :force-fallback="true"
+  :fallback-on-body="true"
+  :animation="150"
+>
+  <!-- 带稳定 key 的条目；操作按钮与拖拽柄分开 -->
+</VueDraggableNext>
+```
+
+拖拽柄设置 `cursor: grab`、`touch-action: none` 与 `user-select: none`。`fallback-on-body` 适合列表位于滚动面板或弹窗的场景，避免拖动影像被容器裁切。保持窗口原生文件拖放配置，让文件导入继续走既有通道。
+
+验证时在真实 Tauri 窗口从手柄拖动，检查数据顺序、当前编辑对象和保存后顺序。浏览器中的 HTML5 拖拽结果和模拟 `dragstart` 事件覆盖不到 WebView2 的原生拖放行为。
+
 ## 本地权限与验证入口
 
 控制通道显式开启，限定 loopback 并校验实际监听地址；应用握手只在明确开启控制的 debug 进程中返回身份。普通发布前端构建会裁剪开发桥，Rust release 分支返回关闭状态。

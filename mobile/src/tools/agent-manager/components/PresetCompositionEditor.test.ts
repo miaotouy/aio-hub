@@ -11,7 +11,14 @@ it("keeps body and name edits when undoing a participation change", async () => 
   const initial: PresetComposition = {
     version: 1,
     separator: "",
-    parts: [{ id: "body", kind: "text", content: "original" }],
+    parts: [
+      {
+        id: "body",
+        kind: "choice",
+        selectedOptionId: "body-version",
+        options: [{ id: "body-version", content: "original" }],
+      },
+    ],
   };
   const wrapper = shallowMount(PresetCompositionEditor, {
     props: {
@@ -28,7 +35,13 @@ it("keeps body and name edits when undoing a participation change", async () => 
     await wrapper.get(".back-button").trigger("click");
     await wrapper.get(".card-heading .ghost-icon").trigger("click");
     expect(wrapper.props("modelValue").parts).toEqual([
-      { id: "body", kind: "text", name: "latest name", content: "latest body" },
+      {
+        id: "body",
+        name: "latest name",
+        kind: "choice",
+        selectedOptionId: "body-version",
+        options: [{ id: "body-version", content: "latest body" }],
+      },
     ]);
   } finally {
     wrapper.unmount();

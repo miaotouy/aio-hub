@@ -374,6 +374,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, toRaw, nextTick } from "vue";
 import {
+  createPresetPart,
   clonePresetComposition,
   assertPresetComposition,
   presetMessageRevision,
@@ -562,7 +563,7 @@ function handleAddComposition() {
   editForm.value.presetComposition = {
     version: 1,
     separator: "",
-    parts: [{ id: crypto.randomUUID(), kind: "text", content: "" }],
+    parts: [createPresetPart("")],
   };
 }
 async function saveCompositionMessage(

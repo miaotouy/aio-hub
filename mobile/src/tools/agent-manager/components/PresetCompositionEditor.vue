@@ -16,6 +16,7 @@ import {
 } from "lucide-vue-next";
 import {
   compilePresetComposition,
+  createPresetPart,
   undoPresetStructureEdit,
   type PresetStructureEdit,
   clonePresetComposition,
@@ -32,8 +33,6 @@ const t = (key: string, params?: Record<string, unknown>) =>
   params
     ? tRaw(`tools.agent-manager.PresetEditor.${key}`, params)
     : tRaw(`tools.agent-manager.PresetEditor.${key}`);
-const partKind = (item: PresetPart) =>
-  item.kind === "text" ? t("正文") : t("单选组");
 const props = defineProps<{ modelValue: PresetComposition }>();
 const emit = defineEmits<{ "update:modelValue": [value: PresetComposition] }>();
 const selectedId = ref<string | null>(null);
@@ -66,11 +65,10 @@ const optionIndex = computed(() =>
     : -1
 );
 function choiceLabel(value: PresetPart): string {
-  if (value.kind !== "choice") return t("正文");
   const index = value.options.findIndex(
     (entry) => entry.id === value.selectedOptionId
   );
-  return `${t("单选")} · ${index < 0 ? "—" : index + 1}/${value.options.length}`;
+  return `${index < 0 ? "—" : index + 1}/${value.options.length}`;
 }
 const preview = computed(() => {
   try {
@@ -106,41 +104,21 @@ function patch(change: (target: PresetPart) => void, remember = true) {
   }, remember);
 }
 const content = computed({
-  get: () =>
-    part.value?.kind === "text"
-      ? part.value.content
-      : (option.value?.content ?? ""),
+  get: () => option.value?.content ?? "",
   set: (text: string) =>
     patch((target) => {
-      if (target.kind === "text") target.content = text;
-      else {
-        const entry = target.options.find(
-          (item) => item.id === option.value?.id
-        );
-        if (entry) entry.content = text;
-      }
+      const entry = target.options.find((item) => item.id === option.value?.id);
+      if (entry) entry.content = text;
     }, false),
 });
 function open(item: PresetPart) {
   selectedId.value = item.id;
   editedId.value = null;
 }
-function add(kind: "text" | "choice") {
-  const id = crypto.randomUUID();
-  const entryId = crypto.randomUUID();
-  update((draft) =>
-    draft.parts.push(
-      kind === "text"
-        ? { id, kind, content: "" }
-        : {
-            id,
-            kind: "choice",
-            selectedOptionId: entryId,
-            options: [{ id: entryId, content: "" }],
-          }
-    )
-  );
-  selectedId.value = id;
+function add() {
+  const next = createPresetPart();
+  update((draft) => draft.parts.push(next));
+  selectedId.value = next.id;
   editedId.value = null;
 }
 function move(delta: number) {
@@ -218,21 +196,6 @@ function duplicatePart() {
   selectedId.value = cloned.id;
   editedId.value = null;
 }
-function upgrade() {
-  patch((target) => {
-    if (target.kind !== "text") return;
-    const id = crypto.randomUUID();
-    const content = target.content;
-    const choice = {
-      ...target,
-      kind: "choice" as const,
-      selectedOptionId: id,
-      options: [{ id, content }],
-    };
-    Object.assign(target, choice);
-    delete (target as Partial<{ content: string }>).content;
-  });
-}
 function undo() {
   const previous = history.value.pop();
   if (previous) {
@@ -291,8 +254,12 @@ function undo() {
             >
               <span class="part-index">{{ index + 1 }}</span>
               <span class="part-body">
-                <strong v-if="item.name">{{ item.name }}</strong>
-                <span class="part-meta"
+                <strong>{{
+                  item.name || t("片段编号", { index: index + 1 })
+                }}</strong>
+                <span
+                  v-if="item.options.length > 1 || item.enabled === false"
+                  class="part-meta"
                   >{{ choiceLabel(item)
                   }}<template v-if="item.enabled === false">
                     · {{ t("已停用") }}</template
@@ -305,11 +272,8 @@ function undo() {
           </li>
         </ul>
         <div class="add-row">
-          <button type="button" class="dashed-button" @click="add('text')">
-            <Plus :size="16" />{{ t("正文片段") }}
-          </button>
-          <button type="button" class="dashed-button" @click="add('choice')">
-            <Plus :size="16" />{{ t("单选组") }}
+          <button type="button" class="dashed-button" @click="add">
+            <Plus :size="16" />{{ t("添加片段") }}
           </button>
         </div>
       </template>
@@ -320,7 +284,7 @@ function undo() {
             <ChevronLeft :size="18" />{{ t("片段列表") }}
           </button>
           <span class="detail-title">{{
-            t("片段标题", { index: partIndex + 1, kind: partKind(part) })
+            part.name || t("片段编号", { index: partIndex + 1 })
           }}</span>
           <label class="part-check-target" :aria-label="t('选入此片段')">
             <input
@@ -346,11 +310,6 @@ function undo() {
                 }, false)
               "
           /></label>
-          <div v-if="part.kind === 'text'" class="selection-row">
-            <button type="button" class="text-button" @click="upgrade">
-              {{ t("转为单选组") }}
-            </button>
-          </div>
           <div class="action-row">
             <span class="action-label">{{ t("片段") }}</span>
             <button
@@ -506,7 +465,7 @@ function undo() {
               "
           /></label>
           <textarea
-            v-if="part.kind === 'text' || option"
+            v-if="option"
             v-model="content"
             rows="12"
             :aria-label="t('片段正文')"

@@ -78,7 +78,14 @@ const messages = (): ChatMessageNode[] =>
       presetComposition: {
         version: 1,
         separator: "",
-        parts: [{ id: "text", kind: "text", content: "before" }],
+        parts: [
+          {
+            id: "text",
+            kind: "choice",
+            selectedOptionId: "text-version",
+            options: [{ id: "text-version", content: "before" }],
+          },
+        ],
       },
     },
     {
@@ -132,8 +139,9 @@ it("adopts the authoritative selection returned through modelValue during a pend
   const next = copy(previous);
   next.presetComposition!.parts[0] = {
     id: "text",
-    kind: "text",
-    content: "saved",
+    kind: "choice",
+    selectedOptionId: "text-version",
+    options: [{ id: "text-version", content: "saved" }],
   };
   const saving = card.props("saveMessage")(next, previous);
   const other = wrapper.getComponent(PresetMessageCard);
@@ -175,8 +183,14 @@ it("preserves native composition text in single-message clipboard paste", async 
       parts: [
         {
           id: "raw",
-          kind: "text",
-          content: "<description>Literal</description> {{CHAR}}",
+          kind: "choice",
+          selectedOptionId: "raw-version",
+          options: [
+            {
+              id: "raw-version",
+              content: "<description>Literal</description> {{CHAR}}",
+            },
+          ],
         },
       ],
     },

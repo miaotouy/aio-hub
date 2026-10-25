@@ -193,9 +193,9 @@ async function saveOperation(operation: PresetCompositionOperation) {
             {{ partPreview(part) }}
           </button>
           <div
-            v-if="part.kind === 'choice'"
+            v-if="part.options.length > 1"
             class="branch-control"
-            :aria-label="`片段 ${partIndex + 1} 备选切换`"
+            :aria-label="`片段 ${partIndex + 1} 版本切换`"
           >
             <el-button
               link
@@ -203,7 +203,7 @@ async function saveOperation(operation: PresetCompositionOperation) {
               :disabled="
                 disabled || busy || part.enabled === false || index(part) <= 0
               "
-              :aria-label="`片段 ${partIndex + 1}：上一个备选`"
+              :aria-label="`片段 ${partIndex + 1}：上一个版本`"
               @click="step(part.id, -1)"
             >
               <ChevronLeft :size="16" />
@@ -222,7 +222,7 @@ async function saveOperation(operation: PresetCompositionOperation) {
                 !part.options.length ||
                 index(part) >= part.options.length - 1
               "
-              :aria-label="`片段 ${partIndex + 1}：下一个备选`"
+              :aria-label="`片段 ${partIndex + 1}：下一个版本`"
               @click="step(part.id, 1)"
             >
               <ChevronRight :size="16" />

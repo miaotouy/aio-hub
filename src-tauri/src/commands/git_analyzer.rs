@@ -1507,7 +1507,7 @@ fn filter_most_relevant_branches(all_branches: Vec<(String, bool)>) -> Vec<Strin
         // 3. 如果没有本地功能分支，选择远程功能分支
         // 优先选择最长的分支名（通常更具体，如 feature/login > feature）
         let mut sorted_features = feature_branches.clone();
-        sorted_features.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        sorted_features.sort_by_key(|entry| std::cmp::Reverse(entry.0.len()));
 
         // 最多返回2个最相关的功能分支
         return sorted_features

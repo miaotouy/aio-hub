@@ -3208,8 +3208,10 @@ fn decode_vector(blob: &[u8], dimension: usize) -> Vec<f32> {
     if blob.len() != dimension.saturating_mul(4) {
         return Vec::new();
     }
-    blob.chunks_exact(4)
-        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap_or_default()))
+    blob.as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_le_bytes(*bytes))
         .collect()
 }
 

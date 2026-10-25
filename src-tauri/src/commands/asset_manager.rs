@@ -2072,7 +2072,7 @@ pub async fn find_duplicate_files(app: AppHandle) -> Result<DuplicateFilesResult
     }
 
     // 按重复文件数量降序排序
-    duplicates.sort_by(|a, b| b.count.cmp(&a.count));
+    duplicates.sort_by_key(|entry| std::cmp::Reverse(entry.count));
 
     Ok(DuplicateFilesResult {
         total_groups: duplicates.len(),

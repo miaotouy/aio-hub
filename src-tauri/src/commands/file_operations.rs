@@ -2578,7 +2578,7 @@ pub async fn search_files(
 
     let do_recursive = recursive.unwrap_or(true);
     // 结果上限：默认 100，硬上限 1000，防止巨型目录拖垮 IPC
-    let limit = max_results.unwrap_or(100).min(1000).max(1);
+    let limit = max_results.unwrap_or(100).clamp(1, 1000);
 
     let mut hits: Vec<FileSearchHit> = Vec::new();
     let mut stack: Vec<PathBuf> = vec![root.clone()];

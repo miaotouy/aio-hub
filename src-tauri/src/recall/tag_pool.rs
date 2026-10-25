@@ -82,8 +82,10 @@ impl ModelTagPool {
             let bytes = fs::read(vectors_path).map_err(|e| e.to_string())?;
             // 假设是 f32 的原始字节
             vectors = bytes
-                .chunks_exact(4)
-                .map(|chunk| f32::from_le_bytes(chunk.try_into().unwrap()))
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|chunk| f32::from_le_bytes(*chunk))
                 .collect();
 
             if !registry.is_empty() {

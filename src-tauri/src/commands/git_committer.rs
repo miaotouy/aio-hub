@@ -521,7 +521,7 @@ fn scan_repository_paths(paths: Vec<String>) -> RepositoryScanResult {
         }
     }
 
-    repositories.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    repositories.sort_by_key(|repository| repository.path.to_lowercase());
     invalid_paths.sort();
 
     RepositoryScanResult {

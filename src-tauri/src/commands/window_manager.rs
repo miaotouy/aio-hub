@@ -236,7 +236,7 @@ pub async fn start_drag_session(app: AppHandle, config: DetachableConfig) -> Res
     }
 
     // 创建预览窗口，使用固定标签以支持窗口状态记忆
-    let preview_label = format!("detached-{}", &config.id);
+    let preview_label = format!("detached-{}", config.id);
     create_preview_window_internal(&app, &preview_label, &config, true).await?;
 
     // 前端传入的是逻辑坐标，需要转换为物理坐标以匹配 rdev 的坐标系统
@@ -437,7 +437,7 @@ async fn create_preview_window_internal(
         let config_encoded = urlencoding::encode(&config_json);
         format!(
             "/detached-component/{}?config={}",
-            &config.id, config_encoded
+            config.id, config_encoded
         )
     };
 
@@ -520,7 +520,7 @@ pub async fn begin_detach_session(
     config: DetachableConfig,
 ) -> Result<String, String> {
     // 使用固定标签以支持窗口状态记忆
-    let preview_label = format!("detached-{}", &config.id);
+    let preview_label = format!("detached-{}", config.id);
     let session_id = preview_label.clone();
 
     log::info!(

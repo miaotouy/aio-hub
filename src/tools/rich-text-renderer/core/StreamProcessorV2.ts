@@ -657,8 +657,7 @@ export class StreamProcessorV2 {
 
       if (this.isDestroyed) return;
 
-      // 分配 ID 并标记状态
-      this.assignIds(finalAst);
+      // ID 在 diff 确认复用或新增节点时处理。
       this.markNodesStatus(finalAst, "stable");
 
       // 强制结束所有思考节点的思考状态
@@ -791,24 +790,18 @@ export class StreamProcessorV2 {
         // 5. 合并新的完整状态树（新状态）
         const newFullAst = [...newStableAst, ...newPendingAst];
 
-        // 6. 关键：在 diff 之前完成所有 ID 分配
-        if (newStableAst !== this.stableAst) {
-          this.assignIds(newStableAst);
-        }
-        this.assignIds(newPendingAst);
-
-        // 7. 标记节点状态
+        // 6. 标记节点状态，ID 由 diff 按需复用或分配。
         this.markNodesStatus(newStableAst, "stable");
         this.markNodesStatus(newPendingAst, "pending");
 
-        // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
+        // 7. 对整个树进行一次性 diff
         const patches = this.diffAst(currentFullAst, newFullAst, true);
 
-        // 9. 更新状态
+        // 8. 更新状态
         this.stableAst = newStableAst;
         this.pendingAst = newPendingAst;
 
-        // 10. 发送变更
+        // 9. 发送变更
         if (patches.length > 0) {
           this.onPatch(patches);
         }
@@ -877,8 +870,7 @@ export class StreamProcessorV2 {
       // 保留现有节点的 ID
       const currentFullAst = [...this.stableAst, ...this.pendingAst];
 
-      // 分配 ID（diff 内部会处理 ID 保留）
-      this.assignIds(finalAst);
+      // ID 在 diff 确认复用或新增节点时处理。
       this.markNodesStatus(finalAst, "stable");
 
       // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
@@ -979,31 +971,9 @@ export class StreamProcessorV2 {
   ): Patch[] {
     const patches: Patch[] = [];
 
-    // 如果旧节点为空且新节点不为空
-    if (oldNodes.length === 0 && newNodes.length > 0) {
-      if (isRoot) {
-        return [{ op: "replace-root", newRoot: [...newNodes] }];
-      } else {
-        // 非根节点（子节点列表）从无到有，由父节点的 replace-node 处理，或者在此处生成 insert 操作
-        // 理论上 diffSingleNode 会处理 contentChanged，但为了保险，这里返回全量 insert
-        let currentAnchor: string | undefined = undefined;
-        for (const newNode of newNodes) {
-          if (!currentAnchor) {
-            // 第一个子节点没有锚点，这种情况通常由父节点的 replace-node 覆盖
-            // 但如果父节点尝试复用并递归到这里，我们需要一种方式处理
-            // 目前 diffSingleNode 在内容变化时会优先使用 replace-node，所以这里通常不会被触发
-          } else {
-            patches.push({ op: "insert-after", id: currentAnchor, newNode });
-            currentAnchor = newNode.id;
-          }
-        }
-        return patches;
-      }
-    }
-
-    // 如果新旧节点都为空，无需任何操作
-    if (oldNodes.length === 0 && newNodes.length === 0) {
-      return [];
+    if (oldNodes.length === 0 && newNodes.length > 0 && isRoot) {
+      this.assignIds(newNodes);
+      return [{ op: "replace-root", newRoot: [...newNodes] }];
     }
 
     const minLen = Math.min(oldNodes.length, newNodes.length);
@@ -1013,7 +983,7 @@ export class StreamProcessorV2 {
       patches.push(...this.diffSingleNode(oldNodes[i], newNodes[i]));
     }
 
-    // 新增节点（这些节点已经有了独立的 ID）
+    // 新增节点在进入补丁前分配 ID，供后续同批插入用作锚点。
     if (newNodes.length > oldNodes.length) {
       // 使用共同部分的最后一个节点作为锚点
       // 因为这个节点的 ID 已经在 diffSingleNode 中被同步到 newNode
@@ -1021,11 +991,13 @@ export class StreamProcessorV2 {
 
       if (!insertAnchorId) {
         // 理论上不应该走到这里，但为了安全起见还是处理一下
+        this.assignIds(newNodes);
         return [{ op: "replace-root", newRoot: [...newNodes] }];
       }
 
       let currentAnchor = insertAnchorId;
       for (let i = minLen; i < newNodes.length; i++) {
+        this.assignNodeIds(newNodes[i]);
         patches.push({
           op: "insert-after",
           id: currentAnchor,
@@ -1084,10 +1056,7 @@ export class StreamProcessorV2 {
       // 但为了安全起见，保留 llm_think 特殊处理作为兜底（props 深度比较理论上已覆盖）
       if (statusChanged || propsChanged || contentChanged) {
         // 内容、属性或状态变化，但可以复用 ID，发送 replace-node
-        if (oldNode.children && newNode.children) {
-          // 递归处理子节点的 ID 保留
-          this.syncChildrenIds(oldNode.children, newNode.children);
-        }
+        this.syncChildrenIds(oldNode.children || [], newNode.children || []);
         return [{ op: "replace-node", id: oldNode.id, newNode }];
       }
 
@@ -1099,6 +1068,7 @@ export class StreamProcessorV2 {
         oldNode.props.isThinking !== newNode.props.isThinking;
 
       if (thinkStatusChanged) {
+        this.syncChildrenIds(oldNode.children || [], newNode.children || []);
         return [{ op: "replace-node", id: oldNode.id, newNode }];
       }
 
@@ -1110,16 +1080,11 @@ export class StreamProcessorV2 {
         // 如果子节点从无到有或从有到无，直接 replace-node
         // 因为 diffAst 在非根级别无法正确处理 "旧列表为空" 的情况（缺少插入锚点）
         if ((oldLen === 0) !== (newLen === 0)) {
-          if (oldNode.children && newNode.children) {
-            this.syncChildrenIds(oldNode.children, newNode.children);
-          }
+          this.syncChildrenIds(oldNode.children || [], newNode.children || []);
           return [{ op: "replace-node", id: oldNode.id, newNode }];
         }
 
-        // 同步子节点 ID 后再进行 diff
-        if (oldNode.children && newNode.children) {
-          this.syncChildrenIds(oldNode.children, newNode.children);
-        }
+        // 递归 diff 自行处理子节点身份，避免提前重复遍历后代。
         return this.diffAst(
           oldNode.children || [],
           newNode.children || [],
@@ -1129,8 +1094,8 @@ export class StreamProcessorV2 {
 
       return [];
     } else {
-      // 不能复用，newNode 保持其原有的独立 ID
-      // 发送 replace-node（用新节点替换旧节点）
+      // 类型或代码语言切换时，整棵新子树获得独立身份。
+      this.assignNodeIds(newNode);
       return [{ op: "replace-node", id: oldNode.id, newNode }];
     }
   }
@@ -1159,35 +1124,34 @@ export class StreamProcessorV2 {
   }
 
   /**
-   * 同步子节点的 ID（从旧节点树复制到新节点树）
+   * 为整棵替换子树保留可复用的后代 ID，并补齐新增后代的 ID
    */
   private syncChildrenIds(
     oldChildren: AstNode[],
     newChildren: AstNode[]
   ): void {
-    const minLen = Math.min(oldChildren.length, newChildren.length);
-    for (let i = 0; i < minLen; i++) {
-      if (this.canReuseNode(oldChildren[i], newChildren[i])) {
-        newChildren[i].id = oldChildren[i].id;
-        if (oldChildren[i].children && newChildren[i].children) {
-          this.syncChildrenIds(
-            oldChildren[i].children!,
-            newChildren[i].children!
-          );
+    for (let i = 0; i < newChildren.length; i++) {
+      const oldChild = oldChildren[i];
+      const newChild = newChildren[i];
+      if (oldChild === newChild) continue;
+      if (oldChild && this.canReuseNode(oldChild, newChild)) {
+        newChild.id = oldChild.id;
+        if (newChild.children) {
+          this.syncChildrenIds(oldChild.children || [], newChild.children);
         }
+      } else {
+        this.assignNodeIds(newChild);
       }
     }
   }
 
   private assignIds(nodes: AstNode[]): void {
-    for (const node of nodes) {
-      if (!node.id) {
-        node.id = this.generateNodeId();
-      }
-      if (node.children) {
-        this.assignIds(node.children);
-      }
-    }
+    for (const node of nodes) this.assignNodeIds(node);
+  }
+
+  private assignNodeIds(node: AstNode): void {
+    if (!node.id) node.id = this.generateNodeId();
+    if (node.children) this.assignIds(node.children);
   }
 
   private markNodesStatus(

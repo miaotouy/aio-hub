@@ -104,6 +104,112 @@ describe("streamed Markdown context", () => {
     }
   });
 
+  // IDs are the public patch addressing contract: keep compatible identities,
+  // give new subtrees unique IDs, and resolve later edits after a parent replacement.
+  describe.each(["stream", "static"] as const)(
+    "%s patch identities",
+    (mode) => {
+      const cases: {
+        label: string;
+        steps: { input: string; retained?: string[]; renewed?: string[] }[];
+      }[] = [
+        {
+          label: "root recovery and consecutive insertion anchors",
+          steps: [
+            { input: "" },
+            { input: "# anchor" },
+            {
+              input: "# anchor\n\n## second\n\n### third",
+              retained: ["heading"],
+            },
+            { input: "# anchor\n\n## changed", retained: ["heading"] },
+            { input: "" },
+            { input: "# fresh\n\n## next" },
+          ],
+        },
+        {
+          label: "descendant edits after inline and parent replacements",
+          steps: [
+            { input: "> **same**" },
+            {
+              input: "> *same*",
+              retained: ["blockquote", "paragraph"],
+              renewed: ["text"],
+            },
+            {
+              input: "> *same* [label](/first)",
+              retained: ["blockquote", "paragraph", "em", "text"],
+            },
+            {
+              input: "> *same* [label](/other)",
+              retained: ["blockquote", "paragraph", "em", "link"],
+            },
+          ],
+        },
+        {
+          label: "code language changes and subsequent compatible edits",
+          steps: [
+            { input: "~~~js\nfirst\n~~~" },
+            { input: "~~~ts\nfirst\n~~~", renewed: ["code_block"] },
+            { input: "~~~ts\nsecond\n~~~", retained: ["code_block"] },
+          ],
+        },
+      ];
+      it.each(cases)("preserves $label", async ({ steps }) => {
+        const state = useMarkdownAst({ throttleEnabled: false });
+        const processor = new StreamProcessorV2({
+          onPatch: (patches) => state.enqueuePatch(patches),
+          safetyGuardEnabled: false,
+        });
+        const nodeIds = (nodes: AstNode[]): string[] =>
+          nodes.flatMap((node) => [node.id, ...nodeIds(node.children || [])]);
+        try {
+          for (const { input, retained = [], renewed = [] } of steps) {
+            const previous = state.ast.value;
+            if (mode === "static") await processor.setStaticContent(input);
+            else await processor.setContent(input);
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame(() => resolve())
+            );
+            const actual = state.ast.value;
+            expect(normalizeAst(actual), input).toEqual(
+              normalizeAst(new CustomParser().parse(input))
+            );
+            const ids = nodeIds(actual);
+            expect(
+              ids.every((id) => id.length > 0),
+              input
+            ).toBe(true);
+            expect(new Set(ids).size, input).toBe(ids.length);
+            for (const type of retained) {
+              expect(findNode(previous, type)?.id, type).toBeTruthy();
+              expect(findNode(actual, type)?.id, type).toBe(
+                findNode(previous, type)?.id
+              );
+            }
+            for (const type of renewed) {
+              const oldId = findNode(previous, type)?.id;
+              expect(oldId, type).toBeTruthy();
+              expect(findNode(actual, type)?.id, type).not.toBe(oldId);
+            }
+          }
+          await processor.finalize();
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => resolve())
+          );
+          expect(normalizeAst(state.ast.value)).toEqual(
+            normalizeAst(
+              new CustomParser().parse(steps[steps.length - 1].input)
+            )
+          );
+        } finally {
+          processor.destroy();
+          state.dispose();
+        }
+      });
+    }
+  );
+
   // Completion must leave the same processor ready for full edits and appended chunks.
   // Compare applied public patches with a fresh parse, independent of cache layout.
   it.each([

@@ -44,10 +44,17 @@
       <!-- 检测到的宏列表 -->
       <div v-if="uniqueDetectedMacros.length > 0" class="detected-macros">
         <InfoCard title="检测到的宏">
-          <el-table :data="uniqueDetectedMacros" stripe size="small">
+          <el-table
+            :data="uniqueDetectedMacros"
+            table-layout="fixed"
+            stripe
+            size="small"
+          >
             <el-table-column prop="name" label="宏名称" width="140">
               <template #default="{ row }">
-                <el-tag effect="plain">{{ row.name }}</el-tag>
+                <el-tag effect="plain" class="macro-name-tag">
+                  <span class="macro-name">{{ row.name }}</span>
+                </el-tag>
               </template>
             </el-table-column>
 
@@ -55,14 +62,19 @@
               <template #default="{ row }">
                 <div v-if="row.args && row.args.length > 0" class="args-list">
                   <el-tag
-                    v-for="(arg, index) in row.args"
+                    v-for="(arg, index) in row.args.slice(0, 2)"
                     :key="index"
                     size="small"
                     type="info"
                     effect="light"
                   >
-                    {{ arg }}
+                    <span class="arg-value">{{
+                      formatMacroPreview(arg, 40)
+                    }}</span>
                   </el-tag>
+                  <span v-if="row.args.length > 2" class="args-more">
+                    +{{ row.args.length - 2 }}
+                  </span>
                 </div>
                 <span v-else class="no-args">-</span>
               </template>
@@ -74,7 +86,7 @@
                   v-if="macroPreviews[row.fullMatch] !== undefined"
                   class="preview-value"
                 >
-                  {{ macroPreviews[row.fullMatch] }}
+                  {{ formatMacroPreview(macroPreviews[row.fullMatch]) }}
                 </span>
                 <span v-else class="preview-loading">
                   <el-icon class="is-loading"><Loading /></el-icon>
@@ -89,13 +101,23 @@
               :align="'center'"
             />
 
-            <el-table-column
-              label="完整表达式"
-              min-width="160"
-              show-overflow-tooltip
-            >
+            <el-table-column label="完整表达式" min-width="160">
               <template #default="{ row }">
-                <code class="macro-code">{{ row.fullMatch }}</code>
+                <code class="macro-code cell-preview">{{
+                  formatMacroPreview(row.fullMatch)
+                }}</code>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" align="center">
+              <template #default="{ row }">
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  @click="showMacroDetail(row)"
+                >
+                  展开查看
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -237,12 +259,53 @@
         </InfoCard>
       </div>
     </div>
+
+    <BaseDialog
+      v-model="macroDetailVisible"
+      title="宏详情"
+      width="800px"
+      destroy-on-close
+    >
+      <template #content>
+        <div v-if="selectedMacro" class="macro-detail">
+          <section class="macro-detail-section">
+            <h4>宏名称</h4>
+            <pre class="macro-detail-text">{{ selectedMacro.name }}</pre>
+          </section>
+          <section class="macro-detail-section">
+            <h4>参数</h4>
+            <ol v-if="selectedMacro.args.length" class="macro-detail-args">
+              <li v-for="(arg, index) in selectedMacro.args" :key="index">
+                <pre class="macro-detail-text">{{ arg }}</pre>
+              </li>
+            </ol>
+            <span v-else class="no-args">无参数</span>
+          </section>
+          <section class="macro-detail-section">
+            <h4>预览值</h4>
+            <pre
+              v-if="macroPreviews[selectedMacro.fullMatch] !== undefined"
+              class="macro-detail-text"
+              >{{ macroPreviews[selectedMacro.fullMatch] }}</pre>
+            <span v-else class="preview-loading">正在计算预览值...</span>
+          </section>
+          <section class="macro-detail-section">
+            <h4>完整表达式</h4>
+            <pre class="macro-detail-text">{{ selectedMacro.fullMatch }}</pre>
+          </section>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="macroDetailVisible = false">关闭</el-button>
+      </template>
+    </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, reactive } from "vue";
 import InfoCard from "@/components/common/InfoCard.vue";
+import BaseDialog from "@/components/common/BaseDialog.vue";
 import { Loading, MoreFilled } from "@element-plus/icons-vue";
 import { MacroProcessor, MacroRegistry } from "../../macro-engine";
 import {
@@ -334,6 +397,21 @@ const uniqueDetectedMacros = computed(() => {
 
   return Array.from(map.values());
 });
+
+type DetectedMacro = (typeof uniqueDetectedMacros.value)[number];
+
+const macroDetailVisible = ref(false);
+const selectedMacro = ref<DetectedMacro | null>(null);
+
+function formatMacroPreview(value: string, maxLength = 120): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+}
+
+function showMacroDetail(macro: DetectedMacro) {
+  selectedMacro.value = macro;
+  macroDetailVisible.value = true;
+}
 
 const hasMacros = computed(() => detectedMacros.value.length > 0);
 
@@ -535,6 +613,8 @@ const updateAllContextState = () => {
 watch(
   () => props.contextData,
   async (newData) => {
+    macroDetailVisible.value = false;
+    selectedMacro.value = null;
     if (!newData || !hasMacros.value) {
       macroResult.value = null;
       messageResults.value = [];
@@ -716,8 +796,77 @@ watch(
 
 .args-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
+}
+
+.args-list :deep(.el-tag),
+.macro-name-tag {
+  max-width: 100%;
+}
+
+.args-list :deep(.el-tag__content),
+.macro-name-tag :deep(.el-tag__content) {
+  min-width: 0;
+}
+
+.arg-value,
+.macro-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.args-more {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.cell-preview,
+.preview-value {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.macro-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.macro-detail-section h4 {
+  margin: 0 0 8px;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+}
+
+.macro-detail-args {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.macro-detail-args li + li {
+  margin-top: 8px;
+}
+
+.macro-detail-text {
+  margin: 0;
+  padding: 12px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .macro-code {

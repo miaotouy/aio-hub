@@ -253,3 +253,86 @@ describe("injectionAssembler", () => {
     expect(context.messages).toEqual(history);
   });
 });
+
+// Structured templates must be compiled before the empty-content filter.
+it("injects a structured host with original source index and only its current alternative", async () => {
+  const agent = createAgent();
+  agent.presetMessages![0].isEnabled = false;
+  const host = agent.presetMessages![2];
+  host.content = "";
+  host.presetComposition = {
+    version: 1,
+    separator: "",
+    parts: [
+      { id: "prefix", kind: "text", content: "common " },
+      {
+        id: "choice",
+        kind: "choice",
+        selectedOptionId: "b",
+        options: [
+          { id: "a", content: "{{first}}" },
+          { id: "b", content: "{{second}}" },
+        ],
+      },
+    ],
+  };
+  const context = createContext(agent);
+  await injectionAssembler.execute(context);
+  expect(
+    context.messages.find((message) => message.sourceId === host.id)
+  ).toMatchObject({ content: "common {{second}}", sourceIndex: 2 });
+  expect(host.content).toBe("");
+  host.isEnabled = false;
+  const disabled = createContext(agent);
+  await injectionAssembler.execute(disabled);
+  expect(
+    disabled.messages.some((message) => message.sourceId === host.id)
+  ).toBe(false);
+});
+
+// Protects the message-local boundary: selection changes only the host body.
+it("combines independent selection dimensions without merging adjacent role messages", async () => {
+  const agent = createAgent();
+  const host = agent.presetMessages![0];
+  host.content = "";
+  host.presetComposition = {
+    version: 1,
+    separator: "|",
+    parts: [
+      {
+        id: "identity",
+        kind: "choice",
+        selectedOptionId: "a",
+        options: [{ id: "a", content: "identity" }],
+      },
+      { id: "brief", kind: "text", content: "brief" },
+      { id: "examples", kind: "text", content: "examples" },
+      { id: "off", kind: "text", enabled: false, content: "unused" },
+      {
+        id: "format",
+        kind: "choice",
+        selectedOptionId: "a",
+        options: [{ id: "a", content: "format" }],
+      },
+    ],
+  };
+  const original = JSON.stringify(agent.presetMessages);
+  const context = createContext(agent);
+  await injectionAssembler.execute(context);
+  expect(
+    context.messages.filter((item) => item.sourceId === host.id)
+  ).toHaveLength(1);
+  expect(
+    context.messages.find((item) => item.sourceId === host.id)
+  ).toMatchObject({
+    content: "identity|brief|examples|format",
+    sourceIndex: 0,
+  });
+  expect(
+    context.messages.find((item) => item.sourceId === "after")?.content
+  ).toBe("after");
+  expect(
+    context.messages.find((item) => item.sourceId === "history-user")?.content
+  ).toBe("history user");
+  expect(JSON.stringify(agent.presetMessages)).toBe(original);
+});

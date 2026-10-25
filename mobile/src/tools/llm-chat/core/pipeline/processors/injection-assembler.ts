@@ -1,3 +1,7 @@
+import {
+  materializePresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 import type {
   ChatAgent,
   PresetMessage,
@@ -106,6 +110,7 @@ function toProcessableMessage(
     content: message.content,
     sourceType,
     sourceId: message.id,
+    presetContributingParts: message.presetContributingParts,
     sourceIndex,
     _timestamp: message.timestamp
       ? new Date(message.timestamp).getTime()
@@ -221,20 +226,30 @@ export const injectionAssembler: ContextProcessor = {
 
     const model = context.sharedData.get("model") as LlmModelInfo | undefined;
     const profile = context.sharedData.get("profile") as LlmProfile | undefined;
-    const presetMessages = (agent.presetMessages ?? []).filter(
-      (message) =>
-        isEnabled(message, agent, model, profile) &&
-        (Boolean(message.content.trim()) ||
-          message.type === CHAT_HISTORY_ANCHOR)
+    const allPresets = normalizePresetGroupState(
+      agent.presetMessages ?? [],
+      agent.presetGroups
     );
-    if (!presetMessages.length) {
+    const presetMessages = allPresets.map((message) =>
+      isEnabled(message, agent, model, profile)
+        ? materializePresetMessage(message)
+        : { ...message, isEnabled: false }
+    );
+    // Keep full positions and empty anchors; filter only the list used for classification.
+    const activePresets = presetMessages.filter(
+      (message) =>
+        message.isEnabled !== false &&
+        (Boolean(message.content.trim()) ||
+          (message.type && message.type !== "message"))
+    );
+    if (!activePresets.length) {
       return processorResult.skipped(
         "智能体无已启用预设消息，已保留会话历史。"
       );
     }
 
     const { skeleton, depthInjections, anchorInjections } =
-      classifyPresetMessages(presetMessages);
+      classifyPresetMessages(activePresets);
     const historyWithDepth = applyDepthInjections(
       context.messages,
       depthInjections,

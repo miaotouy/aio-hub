@@ -1,3 +1,7 @@
+import {
+  importPresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 import { v4 as uuidv4 } from "uuid";
 import {
   AgentCategory,
@@ -44,22 +48,28 @@ function createMessage(
 
 function normalizePresetMessages(value: unknown): PresetMessage[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).map((message) => ({
-    ...message,
-    id: readString(message, "id") || crypto.randomUUID(),
-    parentId: typeof message.parentId === "string" ? message.parentId : null,
-    childrenIds: Array.isArray(message.childrenIds) ? message.childrenIds : [],
-    role: ["system", "user", "assistant"].includes(readString(message, "role"))
-      ? (readString(message, "role") as PresetMessage["role"])
-      : "system",
-    status: ["generating", "complete", "error"].includes(
-      readString(message, "status")
-    )
-      ? (readString(message, "status") as PresetMessage["status"])
-      : "complete",
-    content: readString(message, "content"),
-    timestamp: readString(message, "timestamp") || new Date().toISOString(),
-  })) as PresetMessage[];
+  return value.filter(isRecord).map((message) =>
+    importPresetMessage({
+      ...message,
+      id: readString(message, "id") || crypto.randomUUID(),
+      parentId: typeof message.parentId === "string" ? message.parentId : null,
+      childrenIds: Array.isArray(message.childrenIds)
+        ? message.childrenIds
+        : [],
+      role: ["system", "user", "assistant"].includes(
+        readString(message, "role")
+      )
+        ? (readString(message, "role") as PresetMessage["role"])
+        : "system",
+      status: ["generating", "complete", "error"].includes(
+        readString(message, "status")
+      )
+        ? (readString(message, "status") as PresetMessage["status"])
+        : "complete",
+      content: readString(message, "content"),
+      timestamp: readString(message, "timestamp") || new Date().toISOString(),
+    } as PresetMessage)
+  ) as PresetMessage[];
 }
 
 function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
@@ -73,6 +83,10 @@ function normalizeAioAgent(value: unknown): ImportedAgentDraft | null {
     presetMessages: normalizePresetMessages(value.presetMessages),
     presetGroups: Array.isArray(value.presetGroups) ? value.presetGroups : [],
   } as ImportedAgentDraft;
+  normalized.presetMessages = normalizePresetGroupState(
+    normalized.presetMessages ?? [],
+    normalized.presetGroups
+  );
   delete normalized.id;
   delete normalized.createdAt;
   delete normalized.lastUsedAt;

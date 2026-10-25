@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
+  importPresetMessage,
+  normalizePresetGroupState,
+  clonePresetComposition,
+  setPresetOptionSelected,
+  requiredPresetFeatures,
+} from "@aiohub/agent-preset-core";
+import {
   Boxes,
   ChevronLeft,
   ChevronRight,
@@ -71,6 +78,62 @@ function openNewMessage(): void {
   editorOpen.value = true;
 }
 
+function openNewComposition(): void {
+  editMessage.value = {
+    id: crypto.randomUUID(),
+    parentId: null,
+    childrenIds: [],
+    role: "system",
+    status: "complete",
+    isEnabled: true,
+    content: "",
+    name: t("组合消息"),
+    presetComposition: {
+      version: 1,
+      separator: "",
+      parts: [
+        {
+          id: crypto.randomUUID(),
+          kind: "text",
+          content: "",
+        },
+      ],
+    },
+  };
+  editorOpen.value = true;
+}
+function selectOption(
+  message: PresetMessage,
+  partId: string,
+  optionId: string,
+  selected = true
+) {
+  const next: PresetMessage = JSON.parse(JSON.stringify(message));
+  const part = next.presetComposition?.parts.find((item) => item.id === partId);
+  if (part?.kind === "choice") {
+    setPresetOptionSelected(part, optionId, selected);
+    const index = messages.value.findIndex((item) => item.id === message.id);
+    if (index >= 0) messages.value.splice(index, 1, next);
+  }
+}
+function setPartEnabled(
+  message: PresetMessage,
+  partId: string,
+  enabled: boolean
+) {
+  if (
+    message.isEnabled === false ||
+    groups.value.find((group) => group.id === message.groupId)?.enabled ===
+      false
+  )
+    return;
+  const next: PresetMessage = JSON.parse(JSON.stringify(message));
+  const part = next.presetComposition?.parts.find((item) => item.id === partId);
+  if (!part) return;
+  part.enabled = enabled;
+  const index = messages.value.findIndex((item) => item.id === message.id);
+  if (index >= 0) messages.value.splice(index, 1, next);
+}
 function openMessage(message: PresetMessage): void {
   editMessage.value = message;
   editorOpen.value = true;
@@ -78,13 +141,17 @@ function openMessage(message: PresetMessage): void {
 
 function cloneMessage(message: PresetMessage): void {
   editMessage.value = {
-    ...structuredClone(message),
+    ...JSON.parse(JSON.stringify(message)),
     id: crypto.randomUUID(),
     parentId: null,
     childrenIds: [],
     name: `${message.name || t("未命名预设")} ${t("副本")}`,
     timestamp: new Date().toISOString(),
   };
+  if (editMessage.value?.presetComposition)
+    editMessage.value.presetComposition = clonePresetComposition(
+      editMessage.value.presetComposition
+    );
   editorOpen.value = true;
 }
 
@@ -290,7 +357,7 @@ function normalizeImportedMessage(value: unknown): PresetMessage | null {
   const role = ["system", "user", "assistant"].includes(String(source.role))
     ? (source.role as PresetMessage["role"])
     : "system";
-  return {
+  return importPresetMessage({
     ...source,
     id: typeof source.id === "string" ? source.id : crypto.randomUUID(),
     parentId: typeof source.parentId === "string" ? source.parentId : null,
@@ -305,7 +372,7 @@ function normalizeImportedMessage(value: unknown): PresetMessage | null {
       typeof source.timestamp === "string"
         ? source.timestamp
         : new Date().toISOString(),
-  } as PresetMessage;
+  } as PresetMessage);
 }
 
 function parsePresetPayload(value: unknown): {
@@ -337,8 +404,12 @@ function parsePresetPayload(value: unknown): {
         );
       })
     : [];
+  const normalized = normalizePresetGroupState(
+    importedMessages,
+    importedGroups
+  );
   return {
-    messages: importedMessages,
+    messages: normalized,
     groups: structuredClone(importedGroups),
   };
 }
@@ -381,7 +452,10 @@ function exportPreset(): void {
   }
   const content = JSON.stringify(
     {
-      version: 2,
+      version: messages.value.some((message) => message.presetComposition)
+        ? 3
+        : 2,
+      requiredFeatures: requiredPresetFeatures(messages.value),
       groups: structuredClone(groups.value),
       messages: structuredClone(messages.value),
     },
@@ -403,7 +477,14 @@ async function copyPreset(): Promise<void> {
   try {
     await navigator.clipboard.writeText(
       JSON.stringify(
-        { version: 2, groups: groups.value, messages: messages.value },
+        {
+          version: messages.value.some((message) => message.presetComposition)
+            ? 3
+            : 2,
+          requiredFeatures: requiredPresetFeatures(messages.value),
+          groups: groups.value,
+          messages: messages.value,
+        },
         null,
         2
       )
@@ -452,6 +533,9 @@ onBeforeUnmount(stopDrag);
     </header>
 
     <div class="utility-bar">
+      <button type="button" @click="openNewComposition">
+        <Plus :size="18" />{{ t("组合消息") }}
+      </button>
       <button type="button" :title="t('新建消息组')" @click="openNewGroup">
         <Boxes :size="18" />{{ t("消息组") }}
       </button>
@@ -541,6 +625,12 @@ onBeforeUnmount(stopDrag);
         :can-move-down="canMove(message, 'down')"
         :dragging="draggingId === message.id"
         @edit="openMessage(message)"
+        @select-option="
+          (partId, optionId) => selectOption(message, partId, optionId)
+        "
+        @set-part-enabled="
+          (partId, enabled) => setPartEnabled(message, partId, enabled)
+        "
         @toggle="toggleMessage(message)"
         @move="moveMessage(message, $event)"
         @move-group="moveMessageToGroup(message, $event)"

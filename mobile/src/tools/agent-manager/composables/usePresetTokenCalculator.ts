@@ -1,3 +1,4 @@
+import { materializePresetMessage } from "@aiohub/agent-preset-core";
 import {
   getCurrentScope,
   onScopeDispose,
@@ -34,7 +35,16 @@ export function usePresetTokenCalculator(
           !message.groupId || groupMap.get(message.groupId)?.enabled !== false
         );
       })
-      .map((message) => ({ id: message.id, content: message.content }));
+      .map((message) => {
+        try {
+          return {
+            id: message.id,
+            content: materializePresetMessage(message).content,
+          };
+        } catch {
+          return { id: message.id, content: "" };
+        }
+      });
   }
 
   async function calculate(

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { assertPresetComposition } from "@aiohub/agent-preset-core";
+import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import { ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
-import { customMessage } from "@/utils/feedback";
+import { customDialog, customMessage } from "@/utils/feedback";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 
 const props = defineProps<{
@@ -18,6 +20,7 @@ const form = ref<PresetMessage>(createEmptyMessage());
 const advancedOpen = ref(false);
 const modelOpen = ref(false);
 const isNew = computed(() => !props.message);
+const baseline = ref("");
 
 function createEmptyMessage(): PresetMessage {
   return {
@@ -36,7 +39,8 @@ watch(
   () => [props.open, props.message] as const,
   ([open, message]) => {
     if (!open) return;
-    form.value = structuredClone(message || createEmptyMessage());
+    form.value = JSON.parse(JSON.stringify(message || createEmptyMessage()));
+    baseline.value = JSON.stringify(form.value);
     advancedOpen.value = false;
     modelOpen.value = false;
   },
@@ -97,12 +101,27 @@ function updatePatterns(
     .filter(Boolean);
 }
 
+async function requestClose() {
+  if (form.value.presetComposition && JSON.stringify(form.value) !== baseline.value) {
+    const discard = await customDialog({ title: '尚有未保存的修改', message: '返回将放弃本次修改。也可以继续编辑，使用顶部保存按钮保留修改。', confirmButtonText: '放弃更改', cancelButtonText: '继续编辑' });
+    if (!discard) return;
+  }
+  emit('close');
+}
 function save(): void {
-  if (!form.value.content.trim()) {
+  if (form.value.presetComposition) {
+    try {
+      assertPresetComposition(form.value.presetComposition);
+      form.value.content = "";
+    } catch (error) {
+      customMessage((error as Error).message, "error");
+      return;
+    }
+  } else if (!form.value.content.trim()) {
     customMessage(t("消息内容不能为空"), "warning");
     return;
   }
-  emit("save", structuredClone(form.value));
+  emit("save", JSON.parse(JSON.stringify(form.value)));
 }
 </script>
 
@@ -114,7 +133,7 @@ function save(): void {
           type="button"
           class="icon-button"
           :aria-label="t('返回')"
-          @click="emit('close')"
+          @click="requestClose"
         >
           <ChevronLeft :size="24" />
         </button>
@@ -153,7 +172,11 @@ function save(): void {
             </option>
           </select>
         </label>
-        <label class="field content-field">
+        <PresetCompositionEditor
+          v-if="form.presetComposition"
+          v-model="form.presetComposition"
+        />
+        <label v-else class="field content-field">
           <span>{{ t("内容") }}</span>
           <textarea
             v-model="form.content"

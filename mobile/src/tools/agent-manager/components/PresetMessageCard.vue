@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import {
+  materializePresetMessage,
+  presetPartContent,
+  type PresetChoicePart,
+} from "@aiohub/agent-preset-core";
+import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   GripVertical,
   MoreHorizontal,
   Pencil,
@@ -23,6 +30,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   edit: [];
+  selectOption: [partId: string, optionId: string];
+  setPartEnabled: [partId: string, enabled: boolean];
   toggle: [];
   move: ["up" | "down"];
   clone: [];
@@ -32,19 +41,39 @@ const emit = defineEmits<{
   "update:expanded": [value: boolean];
 }>();
 const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const t = (key: string, params?: Record<string, unknown>) =>
+  params
+    ? tRaw(`tools.agent-manager.PresetEditor.${key}`, params)
+    : tRaw(`tools.agent-manager.PresetEditor.${key}`);
 const roleLabel = computed(
   () =>
     ({ system: "System", user: "User", assistant: "Assistant" })[
       props.message.role
     ]
 );
-const preview = computed(
-  () => props.message.content.replace(/\s+/g, " ").trim() || t("空消息")
-);
+const preview = computed(() => {
+  try {
+    return (
+      materializePresetMessage(props.message)
+        .content.replace(/\s+/g, " ")
+        .trim() || t("空消息")
+    );
+  } catch (error) {
+    return (error as Error).message;
+  }
+});
 const disabled = computed(
   () => props.message.isEnabled === false || props.group?.enabled === false
 );
+
+const parts = computed(() => props.message.presetComposition?.parts ?? []);
+const selectedIndex = (part: PresetChoicePart) =>
+  part.options.findIndex((option) => option.id === part.selectedOptionId);
+function step(part: PresetChoicePart, delta: number) {
+  const option = part.options[selectedIndex(part) + delta];
+  if (option && !disabled.value && part.enabled !== false)
+    emit("selectOption", part.id, option.id);
+}
 
 function moveGroup(event: Event): void {
   const groupId = (event.target as HTMLSelectElement).value;
@@ -70,6 +99,7 @@ function moveGroup(event: Event): void {
     <button
       class="card-main"
       type="button"
+      :aria-expanded="!!expanded"
       @click="emit('update:expanded', !expanded)"
     >
       <div class="card-heading">
@@ -84,6 +114,68 @@ function moveGroup(event: Event): void {
         <span v-if="message.modelMatch?.enabled"> · {{ t("模型限定") }}</span>
       </small>
     </button>
+    <div v-if="parts.length && expanded" class="composition-choices">
+      <div
+        v-for="(part, partIndex) in parts"
+        :key="part.id"
+        :class="{ muted: part.enabled === false }"
+      >
+        <label class="part-check-target">
+          <input
+            type="checkbox"
+            :checked="part.enabled !== false"
+            :disabled="disabled"
+            :aria-label="t('选入片段', { index: partIndex + 1 })"
+            @click.stop
+            @change="
+              emit(
+                'setPartEnabled',
+                part.id,
+                ($event.target as HTMLInputElement).checked
+              )
+            "
+          />
+        </label>
+        <div class="part-body">
+          <strong v-if="part.name">{{ part.name }}</strong>
+          <span class="choice-preview" :title="presetPartContent(part)">{{
+            presetPartContent(part).replace(/\s+/g, " ").trim() ||
+            (part.kind === "choice" && part.selectedOptionId === null
+              ? t("留空")
+              : t("空内容"))
+          }}</span>
+        </div>
+        <div v-if="part.kind === 'choice'" class="branch-control">
+          <button
+            type="button"
+            :disabled="
+              disabled || part.enabled === false || selectedIndex(part) <= 0
+            "
+            :aria-label="t('上一个备选', { index: partIndex + 1 })"
+            @click="step(part, -1)"
+          >
+            <ChevronLeft :size="18" />
+          </button>
+          <span
+            >{{ selectedIndex(part) < 0 ? "—" : selectedIndex(part) + 1 }} /
+            {{ part.options.length }}</span
+          >
+          <button
+            type="button"
+            :disabled="
+              disabled ||
+              part.enabled === false ||
+              !part.options.length ||
+              selectedIndex(part) >= part.options.length - 1
+            "
+            :aria-label="t('下一个备选', { index: partIndex + 1 })"
+            @click="step(part, 1)"
+          >
+            <ChevronRight :size="18" />
+          </button>
+        </div>
+      </div>
+    </div>
     <div class="card-actions">
       <label class="switch" @click.stop>
         <input
@@ -143,6 +235,77 @@ function moveGroup(event: Event): void {
 </template>
 
 <style scoped>
+.composition-choices .part-body strong {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.part-check-target {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+.part-check-target input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+.composition-choices .muted .choice-preview,
+.composition-choices .muted .part-body strong {
+  opacity: 0.5;
+}
+.composition-choices {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 8px;
+}
+.composition-choices > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.composition-choices .part-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.composition-choices .branch-control {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+}
+.composition-choices .choice-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composition-choices button {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-color);
+  border: 0;
+  min-width: 40px;
+  min-height: 40px;
+}
+.composition-choices button:disabled {
+  opacity: 0.35;
+}
+
 .message-card {
   padding: 12px 10px;
   display: grid;
@@ -156,6 +319,10 @@ function moveGroup(event: Event): void {
   transition:
     opacity 0.16s,
     transform 0.16s;
+}
+.card-actions {
+  grid-column: 3;
+  grid-row: 1;
 }
 .message-card.role-user {
   border-left-color: #4c8bf5;

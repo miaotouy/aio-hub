@@ -1,3 +1,4 @@
+import type { PresetContribution } from "@aiohub/agent-preset-core";
 import type { LlmMessageContent } from "@/tools/llm-api/types";
 import type { ManagedAssetRef } from "../../asset-manager/types";
 
@@ -15,6 +16,7 @@ export const ANCHOR_IDS = {
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
+  presetContributingParts?: PresetContribution[];
   role: "system" | "user" | "assistant";
   content: string | LlmMessageContent[];
   /** 消息来源类型 */

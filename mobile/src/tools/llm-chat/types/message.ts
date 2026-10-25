@@ -1,3 +1,7 @@
+import type {
+  PresetComposition,
+  PresetContribution,
+} from "@aiohub/agent-preset-core";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { ManagedAssetRef } from "../../asset-manager/types";
 
@@ -88,6 +92,9 @@ export interface ChatMessageAttachment extends ManagedAssetRef {
  * 消息节点（树形结构基础版）
  */
 export interface ChatMessageNode {
+  presetComposition?: PresetComposition;
+  /** Runtime-only mapping to structured preset bodies. */
+  presetContributingParts?: PresetContribution[];
   /**
    * 消息的唯一标识符
    */

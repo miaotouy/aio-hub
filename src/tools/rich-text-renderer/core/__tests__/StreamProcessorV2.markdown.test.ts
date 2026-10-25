@@ -28,6 +28,14 @@ function normalizeAst(nodes: AstNode[]): unknown {
   }));
 }
 
+function findNode(nodes: AstNode[], type: string): AstNode | undefined {
+  for (const node of nodes) {
+    if (node.type === type) return node;
+    const child = findNode(node.children ?? [], type);
+    if (child) return child;
+  }
+}
+
 // Use the actual tokenizer while replacing only browser Worker transport in jsdom.
 vi.mock("../../parser/tokenizerService", () => ({
   tokenizerService: {
@@ -95,6 +103,128 @@ describe("streamed Markdown context", () => {
       state.dispose();
     }
   });
+
+  // Visible props can change while node text and its weak fingerprint stay equal.
+  it.each([
+    {
+      label: "link destination",
+      before: "[same](/one)",
+      after: "[same](/two)",
+      type: "link",
+      props: { href: "/two" },
+    },
+    {
+      label: "nested HTML attributes",
+      before: '<div data-mode="cat">same</div>',
+      after: '<div data-mode="cot">same</div>',
+      type: "generic_html",
+      props: { attributes: { "data-mode": "cot" } },
+    },
+    {
+      label: "table alignment array",
+      before: "| a | b |\n| :--- | ---: |\n| x | y |",
+      after: "| a | b |\n| ---: | :--- |\n| x | y |",
+      type: "table",
+      props: { align: ["right", "left"] },
+    },
+  ])(
+    "updates $label with unchanged visible text",
+    async ({ before, after, type, props }) => {
+      const state = useMarkdownAst({ throttleEnabled: false });
+      const processor = new StreamProcessorV2({
+        onPatch: (patches) => state.enqueuePatch(patches),
+        safetyGuardEnabled: false,
+      });
+      const flush = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      try {
+        await processor.setContent(before);
+        await flush();
+        const node = findNode(state.ast.value, type);
+        expect(node).toBeDefined();
+        await processor.setContent(after);
+        await flush();
+        expect(findNode(state.ast.value, type)).toMatchObject({
+          id: node!.id,
+          props,
+        });
+        expect(normalizeAst(state.ast.value)).toEqual(
+          normalizeAst(new CustomParser().parse(after))
+        );
+      } finally {
+        processor.destroy();
+        state.dispose();
+      }
+    }
+  );
+
+  // Finalization changes animation flags without adding text; later edits must be fresh.
+  it.each([
+    {
+      label: "thinking",
+      type: "llm_think",
+      flag: "isThinking",
+      open: "<think>cat",
+      close: "</think>",
+    },
+    {
+      label: "tool execution",
+      type: "vcp_tool",
+      flag: "isPending",
+      open: "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\ncommand:「始」read「末」\npath:「始」cat「末」\n",
+      close: "<<<[END_TOOL_REQUEST]>>>",
+    },
+  ])(
+    "refreshes $label state through edits, completion, reset and closing",
+    async ({ type, flag, open, close }) => {
+      const state = useMarkdownAst({ throttleEnabled: false });
+      const processor = new StreamProcessorV2({
+        onPatch: (patches) => state.enqueuePatch(patches),
+        llmThinkTagNames: new Set(["think"]),
+        safetyGuardEnabled: false,
+      });
+      const flush = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      try {
+        await processor.setContent(open);
+        await flush();
+        expect(findNode(state.ast.value, type)).toMatchObject({
+          props: { [flag]: true },
+        });
+        const edited = open.replace("cat", "cot");
+        await processor.setContent(edited);
+        await flush();
+        const editedNode = findNode(state.ast.value, type);
+        expect(editedNode).toMatchObject({ props: { [flag]: true } });
+        if (type === "vcp_tool") {
+          expect(editedNode).toMatchObject({
+            props: { args: { path: "cot" } },
+          });
+        } else {
+          expect(editedNode).toMatchObject({ props: { rawContent: "cot" } });
+        }
+        await processor.finalize();
+        await flush();
+        expect(findNode(state.ast.value, type)).toMatchObject({
+          props: { [flag]: false },
+        });
+        processor.reset();
+        await processor.setContent(open);
+        await flush();
+        expect(findNode(state.ast.value, type)).toMatchObject({
+          props: { [flag]: true },
+        });
+        await processor.setContent(open + close);
+        await flush();
+        expect(findNode(state.ast.value, type)).toMatchObject({
+          props: { [flag]: false },
+        });
+      } finally {
+        processor.destroy();
+        state.dispose();
+      }
+    }
+  );
 
   it.each([
     [

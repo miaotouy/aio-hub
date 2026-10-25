@@ -908,6 +908,45 @@ export class StreamProcessorV2 {
     }
   }
 
+  private propsEqual(
+    oldProps: Record<string, unknown>,
+    newProps: Record<string, unknown>
+  ): boolean {
+    const oldKeys = Object.keys(oldProps);
+    const newKeys = Object.keys(newProps);
+    if (oldKeys.length === newKeys.length) {
+      let equal = true;
+      let flat = true;
+      for (let i = 0; i < oldKeys.length; i++) {
+        const key = oldKeys[i];
+        const oldValue = oldProps[key];
+        const newValue = newProps[key];
+        // Keep serialized key order and fall back for nested/JSON-special values.
+        if (
+          key !== newKeys[i] ||
+          !this.isFlatProp(oldValue) ||
+          !this.isFlatProp(newValue)
+        ) {
+          flat = false;
+          break;
+        }
+        if (oldValue !== newValue) equal = false;
+      }
+      if (flat) return equal;
+    }
+    return JSON.stringify(oldProps) === JSON.stringify(newProps);
+  }
+
+  private isFlatProp(value: unknown): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      typeof value === "string" ||
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    );
+  }
+
   private getNodeTextContent(node: AstNode): string {
     if (node.type === "text") {
       return node.props.content;
@@ -1029,28 +1068,19 @@ export class StreamProcessorV2 {
       const statusChanged =
         needsStatusWatch && oldNode.meta.status !== newNode.meta.status;
 
-      // ---- 属性变化检测 ----
-      // 使用 JSON.stringify 深度比较 props，确保 vcp_tool 的 isPending 变化、
-      // llm_think 的 isThinking 变化等能被精准捕获
-      // props 对象通常很小且浅，JSON.stringify 开销极小且能百分百检测到任何 props 变化
-      const propsChanged =
-        JSON.stringify(oldNode.props) !== JSON.stringify(newNode.props);
+      // Primitive props avoid serialization; nested args/attributes retain deep comparison.
+      const propsChanged = !this.propsEqual(oldNode.props, newNode.props);
 
-      // ---- 内容变化检测 ----
-      // 性能优化：使用指纹快速判断内容是否变化
-      // 如果两个节点都有指纹，先比较指纹，指纹一致则直接判定内容未变
+      // Once replacement is certain, aggregate text cannot change the chosen patch.
       let contentChanged = false;
-      if (oldNode._fp && newNode._fp) {
-        // 指纹不一致才需要进一步检查
-        contentChanged = oldNode._fp !== newNode._fp;
-        // 如果指纹一致但节点有子节点，仍需递归检查子节点
-        if (!contentChanged && (oldNode.children || newNode.children)) {
-          contentChanged = false; // 指纹一致，认为内容相同
+      if (!statusChanged && !propsChanged) {
+        if (oldNode._fp && newNode._fp) {
+          contentChanged = oldNode._fp !== newNode._fp;
+        } else {
+          contentChanged =
+            this.getNodeTextContent(oldNode) !==
+            this.getNodeTextContent(newNode);
         }
-      } else {
-        // 没有指纹，回退到旧的比较方式
-        contentChanged =
-          this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
       }
 
       // ---- 汇总判断 ----

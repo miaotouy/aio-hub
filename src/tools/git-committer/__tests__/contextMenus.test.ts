@@ -34,6 +34,8 @@ describe("buildRepoContextMenuItems", () => {
   it("contains the full repository action set", () => {
     expect(ids(buildRepoContextMenuItems(repo, { isCurrent: false }))).toEqual([
       "repo:open",
+      "repo:overview",
+      "repo:terminal",
       "repo:reveal",
       "repo:refresh",
       "repo:pull",
@@ -222,6 +224,8 @@ describe("buildCommitContextMenuItems", () => {
     expect(list).toEqual([
       "commit:open-changes",
       "commit:toggle-expand",
+      "commit:create-branch",
+      "commit:create-tag",
       "commit:copy-hash",
       "commit:copy-message",
       "commit:open-remote",

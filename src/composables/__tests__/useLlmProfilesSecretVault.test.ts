@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { LlmProfile } from "@/types/llm-profiles";
 
 const PROFILE_ID = "llm-profile-legacy";
@@ -71,7 +71,10 @@ async function bootstrapWithLegacyProfiles(profiles: LlmProfile[]) {
   return { profilesManager, vault, store };
 }
 
-// 首次动态 import 需要编译 useLlmProfiles 的整条依赖链，放宽单测超时
+// 将首次依赖编译放入套件准备阶段，避免并行转换耗尽业务断言的超时。
+beforeAll(async () => {
+  await import("@/composables/useLlmProfiles");
+}, 60000);
 vi.setConfig({ testTimeout: 20000 });
 
 describe("useLlmProfiles secret vault bridging", () => {

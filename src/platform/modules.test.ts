@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   showOpenDialog,
   showOpenFile,
@@ -56,8 +56,18 @@ describe("Platform Modules (Node / Test Fallback)", () => {
     await expect(writeClipboardText("hello")).resolves.toBeUndefined();
   });
 
-  it("openExternalUrl 在 node 环境下优雅降级", async () => {
-    await expect(openExternalUrl("https://example.com")).resolves.toBeUndefined();
+  it("openExternalUrl 在浏览器降级时隔离新窗口的 opener", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    try {
+      await expect(openExternalUrl("https://example.com")).resolves.toBeUndefined();
+      expect(open).toHaveBeenCalledWith(
+        "https://example.com",
+        "_blank",
+        "noopener,noreferrer"
+      );
+    } finally {
+      open.mockRestore();
+    }
   });
 
   it("revealInFileManager 与 openPathWithDefaultApp 在非 Tauri 环境下无操作", async () => {

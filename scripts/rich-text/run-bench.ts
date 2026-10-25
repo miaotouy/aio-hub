@@ -14,7 +14,7 @@
 
 import { cpus, type, release } from "node:os";
 import { execFileSync } from "node:child_process";
-import { mkdir, writeFile, access } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -28,6 +28,7 @@ import {
   type Engine,
 } from "./bench-shared";
 import { renderBenchReport } from "./bench-report";
+import { archiveRenderer } from "./bench-source";
 
 export class BenchWorker {
   private worker?: Worker;
@@ -188,31 +189,7 @@ async function main() {
       "--verify",
       values["baseline-ref"] + "^{commit}"
     );
-    const source = resolve(
-      root,
-      ".tmp/rich-text-bench/sources",
-      baselineRevision
-    );
-    const marker = join(source, ".archive-ready");
-    try {
-      await access(marker);
-    } catch {
-      await mkdir(source, { recursive: true });
-      const archive = join(source, "renderer.tar");
-      execFileSync(
-        "git",
-        [
-          "archive",
-          "--format=tar",
-          "--output=" + archive,
-          baselineRevision,
-          "src/tools/rich-text-renderer",
-        ],
-        { cwd: root }
-      );
-      execFileSync("tar", ["-xf", archive, "-C", source], { cwd: root });
-      await writeFile(marker, baselineRevision);
-    }
+    const source = await archiveRenderer(root, baselineRevision);
     engines.push({ id: "baseline", root: source });
   }
   const report: BenchReport = {
@@ -270,16 +247,14 @@ async function main() {
             continue;
           for (const chunkSize of mode === "static" ? [0] : chunkSizes) {
             for (const engine of shuffled(engines, seed + round + tasks++)) {
-              const result = await workers
-                .get(engine.id)!
-                .run({
-                  engine,
-                  corpus: input,
-                  mode,
-                  round,
-                  settings,
-                  chunkSize,
-                });
+              const result = await workers.get(engine.id)!.run({
+                engine,
+                corpus: input,
+                mode,
+                round,
+                settings,
+                chunkSize,
+              });
               report.results.push(result);
               if (result.status !== "ok")
                 console.error(

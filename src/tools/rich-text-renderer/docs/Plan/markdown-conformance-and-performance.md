@@ -2,7 +2,7 @@
 
 > 创建日期：2026-10-25
 >
-> 状态：规范报告、首轮修复与解析/流式计算基准完成；真实界面性能采样待办
+> 状态：规范报告、首轮修复、计算基准与首轮性能优化完成；真实界面性能采样待办
 
 ## 目标与现状
 
@@ -317,6 +317,65 @@ bun run test:run -- src/tools/rich-text-renderer scripts/rich-text/commonmark.te
 本轮保持生产实现，所有新改动集中在基准脚本和开发记录。累计计算耗时与实际输入等待、Worker 往返、Vue/DOM 绘制分开解读；当前数据支持安排优化调查，界面体感继续由真实 WebView 定时回放验证。
 
 完整结果位于 `.tmp/rich-text-bench/report.md`、`report.json`，长消息结果位于 `.tmp/rich-text-bench/large-stream/report.md`、`report.json`，两组均保存 `corpus.json` 供复现。
+
+## 首轮优化调查与实施（2026-10-25）
+
+### 采样入口与范围
+
+增加 `bun run rich-text:profile`，复用计时基准的输入和执行函数，将计算管线放在 Bun 主线程上采集 CPU profile：
+
+```powershell
+bun run rich-text:profile -- --case references:100KiB --repeat 3
+bun run rich-text:profile -- --case code:100KiB --repeat 3
+bun run rich-text:profile -- --case entities:100KiB --mode static --repeat 5
+```
+
+支持 `--case`、`--mode static|stream`、`--chunk-size`、`--repeat`。采样文件写入 `.tmp/rich-text-profile/`，包含 `.cpuprofile` 与可检索的 Markdown。CPU profile 覆盖进程启动、语料构造、预热、校验及测量；分析时按函数位置定位热点，准确的计时前后对照仍使用 `rich-text:bench`。
+
+引用密集流的优化前采样显示，索引构建自耗时约占整体采样 29%，查找后续空白行的正则约占 8.2%，AST diff 也占有明显比例。多代码块流中，`isInsideCodeBlock` 与围栏开头检测占据显著时间，完整 buffer 的重复边界判断值得继续处理。实体密集静态输入则出现 `decodeMarkdownEntities` / `unescapeAll` 的解码热点。
+
+### 已实施的两个优化
+
+1. **按补丁范围维护 AST 索引。** `replace-node` 只清理旧子树并登记新子树；`text-append` / `set-prop` 更新目标和祖先的索引引用。插入、删除、范围替换与根替换继续完整重建，及时刷新发生偏移的路径。省去批末重复重建。
+2. **引用定义的单行标题快路径。** 原实现对每条定义先向后搜索全文中的下一处空白行，连续定义区容易产生平方级扫描。现在优先在标题起始行调用标题解析器，需要跨行续写时才进入原有空白行限制路径。
+
+批内索引需要逐步可用：后续 patch 可以引用刚插入或替换得到的 ID。旧调查中的“统一延迟到批末重建”建议已同步修正。
+
+### 前后对照
+
+环境与前一轮相同，优化前固定为 `0b5ddcfd6`，优化后为当前工作区。六类约 100 KiB 输入，256 UTF-16 代码单元分块，三轮交错测量：
+
+| 输入         | 流式优化前 ms | 流式优化后 ms | 观察                     |
+| ------------ | ------------: | ------------: | ------------------------ |
+| 引用密集     |       6111.12 |       3762.83 | 累计计算减少约 38.4%     |
+| 实体密集     |       6179.91 |       5774.22 | 累计计算减少约 6.6%      |
+| 普通混排     |       3574.61 |       3423.65 | 改善较小，轮间范围有重叠 |
+| 多个代码围栏 |       1446.88 |       1340.73 | 改善较小，边界扫描仍明显 |
+| 跨空行列表   |       3487.42 |       3587.60 | 当前未观察到明确收益     |
+| 未闭合代码块 |        258.42 |        237.15 | 轮间范围有重叠           |
+
+引用密集输入的静态中位数由 **12.37 → 4.82 ms**，流式更新 P95 由 **29.29 → 16.46 ms**；累计 patch 应用中位数由 **2142.01 → 672.86 ms**，累计解析由 **1999.26 → 1422.99 ms**。10 KiB 引用输入按 64 单元分块时，累计计算由 **169.57 → 135.10 ms**。
+
+跨空行列表通常替换整棵大列表子树，局部索引处理仍覆盖大部分节点，本轮收益有限。小消息另测基础、长文本、emoji 和动作按钮预设。动作按钮的 256 单元组合首组出现数毫秒级回退；单独追加七轮后，中位数为 18.09 → 16.02 ms，轮间范围仍明显重叠。该组合尚未观察到稳定的回退或收益，两组原始记录均保留。各样本的节点数、patch 数和累计重解析量保持相同。
+
+复现命令：
+
+```powershell
+bun run rich-text:bench -- --baseline-ref 0b5ddcfd6 --mode all --sizes 100 --stream-all --filter '^(prose|references|loose-list|code|entities|unclosed-code):100KiB$' --chunk-sizes 256 --rounds 3 --timeout-ms 60000 --out-dir .tmp/rich-text-bench/optimization
+bun run rich-text:bench -- --baseline-ref 0b5ddcfd6 --mode all --sizes 10 --filter '^(preset:(basic|long|emoji|action-button-test)|references:10KiB)$' --chunk-sizes 64,256 --rounds 3 --out-dir .tmp/rich-text-bench/optimization-small
+```
+
+两组共 243 个任务，动作按钮追加复测 21 个任务，合计 **264 个任务全部成功**，已测流式完成态与同版完整解析相同；这 11 份语料的优化前后静态归一化 AST 相同。CommonMark 全量 652 例逐例对照，比较状态和实际归一化输出均保持相同。相关 9 个测试文件共 **84 项通过**，新增用例保护批内连续寻址、不可变快照与索引引用，以及单行/跨行标题和空白行边界。 脚本类型检查、全量前端类型检查与 Vite 生产构建通过；改动文件的 Oxlint 和差异空白检查通过。
+
+报告分别位于 `.tmp/rich-text-bench/optimization/` 与 `.tmp/rich-text-bench/optimization-small/`，追加复测位于 `.tmp/rich-text-bench/optimization-action-recheck/`；均保存 Markdown、JSON 和语料。以上为连续计算结果，真实界面中的输入节奏、Worker 传输和 Vue/DOM 绘制继续单独采样。
+
+### 下一步优先级
+
+1. **稳定前缀复用与 AST diff。** 普通混排累计重解析约为原文 161 倍；稳定区文本每次扩展都会重解析整个稳定区。先研究复用稳定的顶层节点和边界状态，并在相同对象引用处跳过重复 diff。编辑或回退输入需要重新建立稳定锚点。现有指纹仅含文本长度与首尾字符，无法据其相等直接跳过整棵子树比较。
+2. **引用标签的依赖更新。** 引用样本仍累计重解析约 202 倍原文；后出现的定义能够改变先前段落，增量化需要维护标签依赖与受影响范围。
+3. **减少围栏和上下文的重复扫描。** `getSafeCutPoint` 与稳定边界验证均会判断围栏上下文，先复用同轮扫描信息，再评估跨轮维护扫描状态。代码、HTML、think 和 VCP 的跨块恢复需要保留当前语义。
+4. **扩展局部索引覆盖。** 插入和移除后只重登记发生偏移的兄弟范围，尤其关注尾部追加；大型根子树替换可采用整图清空后单次构建，避免递归删除旧图的成本。
+5. **实体解码与真实界面。** 实体 token 已完成匹配，解码函数仍再次匹配整个实体，可继续压缩重复工作；真实 WebView 回放补齐 Worker 传输、组件更新及重型节点生命周期的数据。
 
 ## 关联入口
 

@@ -67,10 +67,18 @@ export function readReferenceDefinition(
     pos++;
     while (pos < text.length && /[ \t]/.test(text[pos])) pos++;
   }
-  const blank = /\n[ \t]*\n/g;
-  blank.lastIndex = destination.pos;
-  const max = blank.exec(text)?.index ?? text.length;
-  const title = pos > destination.pos ? parseLinkTitle(text, pos, max) : null;
+  // Most titles close on their opening line. Scan later lines only for continuation;
+  // otherwise each definition would search the entire remaining document for a blank line.
+  const titleLineEndAt = text.indexOf("\n", pos);
+  const titleLineEnd = titleLineEndAt < 0 ? text.length : titleLineEndAt;
+  let title =
+    pos > destination.pos ? parseLinkTitle(text, pos, titleLineEnd) : null;
+  if (title?.can_continue && titleLineEnd < text.length) {
+    const blank = /\n[ \t]*\n/g;
+    blank.lastIndex = destination.pos;
+    const max = blank.exec(text)?.index ?? text.length;
+    title = parseLinkTitle(text, pos, max);
+  }
   if (title?.ok) {
     let end = title.pos;
     while (end < text.length && /[ \t]/.test(text[end])) end++;

@@ -72,10 +72,33 @@ export function useMarkdownAst(
     for (let index = 0; index < nodes.length; index++) {
       const node = nodes[index];
       const nodePath = [...path, index];
-      nodeMap.set(node.id, { node, parentId, path: nodePath });
-      if (node.children) {
-        buildNodeMap(node.children, node.id, nodePath);
-      }
+      indexSubtree(node, parentId, nodePath);
+    }
+  }
+
+  function indexSubtree(
+    node: AstNode,
+    parentId: string | undefined,
+    path: number[]
+  ) {
+    nodeMap.set(node.id, { node, parentId, path });
+    if (node.children) buildNodeMap(node.children, node.id, path);
+  }
+
+  function removeSubtreeIndex(node: AstNode) {
+    nodeMap.delete(node.id);
+    node.children?.forEach(removeSubtreeIndex);
+  }
+
+  // Immutable updates clone ancestors too; keep their indexed node references current.
+  function refreshPath(nodes: AstNode[], path: number[]) {
+    let parentId: string | undefined;
+    for (let depth = 0; depth < path.length; depth++) {
+      const node = nodes[path[depth]];
+      if (!node) return;
+      nodeMap.set(node.id, { node, parentId, path: path.slice(0, depth + 1) });
+      parentId = node.id;
+      nodes = node.children ?? [];
     }
   }
 
@@ -282,31 +305,36 @@ export function useMarkdownAst(
     // 1. 合并连续的 text-append
     const coalesced = coalesceTextAppends(patches);
 
-    // 2. 执行不可变更新
+    // 2. 执行不可变更新，并在下一条补丁寻址前同步索引。
     let newRoot = ast.value;
     for (const patch of coalesced) {
+      const localUpdate =
+        patch.op === "text-append" ||
+        patch.op === "set-prop" ||
+        patch.op === "replace-node";
+      const index = localUpdate ? nodeMap.get(patch.id) : undefined;
+      const oldRoot = newRoot;
       newRoot = applySinglePatch(newRoot, patch);
-      if (
-        patch.op === "replace-root" ||
-        patch.op === "replace-node" ||
-        patch.op === "insert-after" ||
-        patch.op === "insert-before" ||
-        patch.op === "remove-node" ||
-        patch.op === "replace-children-range"
-      ) {
+      if (newRoot === oldRoot) continue;
+
+      if (index) {
+        // A replacement stays at the same path, so sibling indexes remain valid.
+        if (patch.op === "replace-node") {
+          removeSubtreeIndex(index.node);
+          indexSubtree(patch.newNode, index.parentId, index.path);
+        }
+        refreshPath(newRoot, index.path);
+      } else {
+        // Insertions, removals and range/root replacements can shift sibling paths.
         nodeMap.clear();
         buildNodeMap(newRoot);
       }
     }
 
-    // 3. 替换引用以触发更新
+    // 3. 索引已同步，替换引用以触发更新。
     ast.value = newRoot;
 
-    // 4. 重建 nodeMap
-    nodeMap.clear();
-    buildNodeMap(newRoot);
-
-    // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
+    // 4. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
     // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
     if (isSafetyGuardEnabled() && nodeMap.size > MAX_TOTAL_NODES) {
       if (isVerboseLogging()) {

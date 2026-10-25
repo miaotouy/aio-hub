@@ -152,6 +152,26 @@ describe("Markdown reference links", () => {
     });
   });
 
+  it.each([
+    ['[id]: /url "single"', "single"],
+    ["[id]: /url\n  'next line'", "next line"],
+    ['[id]: /url "first\nsecond"', "first\nsecond"],
+    ["[id]: /url (first\nsecond)", "first\nsecond"],
+    ['[id]: /url "first\n \nsecond"', null],
+    ['[id]: /url\n\n"separate paragraph"', ""],
+  ])("preserves title boundaries in %j", (definition, title) => {
+    const ast = parse("[id]\n\n" + definition);
+    const link = flatten(ast).find((node) => node.type === "link");
+    if (title === null) {
+      expect(link).toBeUndefined();
+      expect(text(ast)).toContain("[id]");
+      expect(text(ast)).toContain("second");
+    } else {
+      expect(link?.props).toEqual({ href: "/url", title });
+      if (title === "") expect(text(ast)).toContain("separate paragraph");
+    }
+  });
+
   it("keeps first definitions, isolates parse calls, and leaves unresolved text literal", () => {
     const parser = new CustomParser();
     const ast = parser.parse("[id]: /first\n[id]: /second\n\n[id]");

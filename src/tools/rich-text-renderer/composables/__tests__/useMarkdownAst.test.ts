@@ -85,6 +85,76 @@ describe("useMarkdownAst", () => {
     expect(markdownAst.nodeMap.get("b")?.path).toEqual([0, 0]);
   });
 
+  it("keeps indexed nodes and immutable snapshots current across subtree edits", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    const state = useMarkdownAst({ throttleEnabled: false });
+    state.enqueuePatch({
+      op: "replace-root",
+      newRoot: [
+        paragraph("p", [text("a", "A")]),
+        paragraph("q", [text("z", "Z")]),
+      ],
+    });
+    frames.shift()?.(performance.now());
+    const snapshot = state.ast.value;
+    state.enqueuePatch([
+      { op: "text-append", id: "a", text: "!" },
+      { op: "set-prop", id: "p", key: "title", value: "edited" },
+    ]);
+    frames.shift()?.(performance.now());
+    expect(snapshot[0]).toEqual(paragraph("p", [text("a", "A")]));
+    expect(state.nodeMap.get("p")?.node).toBe(state.ast.value[0]);
+    expect(state.nodeMap.get("a")?.node).toBe(state.ast.value[0].children?.[0]);
+    expect(state.nodeMap.get("a")?.node.props).toMatchObject({ content: "A!" });
+    expect(state.ast.value[1]).toBe(snapshot[1]);
+
+    state.enqueuePatch([
+      {
+        op: "replace-node",
+        id: "p",
+        newNode: paragraph("p2", [text("b", "B")]),
+      },
+      { op: "text-append", id: "b", text: "!" },
+      { op: "insert-before", id: "z", newNode: text("y", "Y") },
+      {
+        op: "replace-children-range",
+        parentId: "q",
+        start: 0,
+        deleteCount: 1,
+        newChildren: [text("c", "C")],
+      },
+      { op: "text-append", id: "c", text: "!" },
+    ]);
+    frames.shift()?.(performance.now());
+    expect(state.ast.value).toEqual([
+      paragraph("p2", [text("b", "B!")]),
+      paragraph("q", [text("c", "C!"), text("z", "Z")]),
+    ]);
+    expect([...state.nodeMap.keys()].sort()).toEqual([
+      "b",
+      "c",
+      "p2",
+      "q",
+      "z",
+    ]);
+    for (const [i, parent] of state.ast.value.entries()) {
+      expect(state.nodeMap.get(parent.id)?.node).toBe(parent);
+      parent.children?.forEach((node, j) => {
+        expect(state.nodeMap.get(node.id)).toEqual({
+          node,
+          parentId: parent.id,
+          path: [i, j],
+        });
+        expect(state.nodeMap.get(node.id)?.node).toBe(node);
+      });
+    }
+    state.dispose();
+  });
+
   it("uses the latest throttle setting instead of an initialization snapshot", () => {
     const animationFrames: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {

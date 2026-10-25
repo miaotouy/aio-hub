@@ -5,6 +5,7 @@
     "": {
       "name": "aiohub",
       "dependencies": {
+        "@aiohub/agent-preset-core": "workspace:*",
         "@aiohub/llm-core": "workspace:*",
         "@aiohub/model-metadata-core": "workspace:*",
         "@aiohub/tool-icons": "workspace:*",
@@ -200,6 +201,7 @@
       "name": "aiohub-mobile",
       "version": "0.1.1-m-beta.2",
       "dependencies": {
+        "@aiohub/agent-preset-core": "workspace:*",
         "@aiohub/llm-core": "workspace:*",
         "@aiohub/model-metadata-core": "workspace:*",
         "@aiohub/tool-icons": "workspace:*",
@@ -237,6 +239,14 @@
         "vite": "^8.0.16",
         "vitest": "^4.1.8",
         "vue-tsc": "^2.1.10",
+      },
+    },
+    "packages/agent-preset-core": {
+      "name": "@aiohub/agent-preset-core",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "~5.6.2",
+        "vitest": "^4.1.8",
       },
     },
     "packages/llm-core": {
@@ -376,6 +386,8 @@
   },
   "packages": {
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
+
+    "@aiohub/agent-preset-core": ["@aiohub/agent-preset-core@workspace:packages/agent-preset-core"],
 
     "@aiohub/llm-core": ["@aiohub/llm-core@workspace:packages/llm-core"],
 

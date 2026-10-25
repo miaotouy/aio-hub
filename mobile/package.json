@@ -24,6 +24,7 @@
     "format:rust:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
+    "@aiohub/agent-preset-core": "workspace:*",
     "@aiohub/llm-core": "workspace:*",
     "@aiohub/model-metadata-core": "workspace:*",
     "@aiohub/tool-icons": "workspace:*",

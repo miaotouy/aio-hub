@@ -106,26 +106,18 @@ class MarkdownBoundaryDetector {
    * 注意：需要排除被转义的 \$$ 和行内公式 $...$
    */
   private hasUnclosedKatexBlock(text: string): boolean {
-    // 移除转义的 \$
+    if (!text.includes("$")) return false;
+
+    // Preserve escaped-dollar removal, including pairs formed across a removed escape.
     const cleanText = text.replace(/\\\$/g, "");
-
-    // 统计 $$ 的出现次数
     let count = 0;
-    let i = 0;
-    while (i < cleanText.length) {
-      if (
-        cleanText[i] === "$" &&
-        i + 1 < cleanText.length &&
-        cleanText[i + 1] === "$"
-      ) {
-        count++;
-        i += 2; // 跳过这两个 $
-      } else {
-        i++;
-      }
+    for (
+      let index = cleanText.indexOf("$$");
+      index !== -1;
+      index = cleanText.indexOf("$$", index + 2)
+    ) {
+      count++;
     }
-
-    // 如果 $$ 出现次数为奇数，说明有未闭合的块级公式
     return count % 2 !== 0;
   }
 
@@ -898,6 +890,10 @@ export class StreamProcessorV2 {
       // 更新状态
       this.stableAst = finalAst;
       this.pendingAst = [];
+      // The cache key must describe the whole finalized tree before streaming resumes.
+      this.lastStableText = this.buffer;
+      this.lastStableLength = this.buffer.length;
+      this.stallCount = 0;
 
       // 发送变更
       if (patches.length > 0) {

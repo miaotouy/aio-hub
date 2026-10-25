@@ -104,6 +104,65 @@ describe("streamed Markdown context", () => {
     }
   });
 
+  // Completion must leave the same processor ready for full edits and appended chunks.
+  // Compare applied public patches with a fresh parse, independent of cache layout.
+  it.each([
+    {
+      label: "an edited thinking block",
+      before: "<think>cat",
+      after: "<think>cot",
+    },
+    {
+      label: "an edited tool request",
+      before:
+        "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\npath:「始」cat「末」\n",
+      after:
+        "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\npath:「始」cot「末」\n",
+    },
+    {
+      label: "an unchanged stable heading with an edited tail",
+      before: "# title\n\ncat",
+      after: "# title\n\ncot",
+    },
+    { label: "cleared content", before: "cat", after: "" },
+    { label: "unchanged content", before: "cat", after: "cat" },
+    {
+      label: "appended content",
+      before: "cat",
+      after: "cat tail",
+      chunk: " tail",
+    },
+  ])(
+    "resumes after finalization with $label",
+    async ({ before, after, chunk }) => {
+      const state = useMarkdownAst({ throttleEnabled: false });
+      const processor = new StreamProcessorV2({
+        onPatch: (patches) => state.enqueuePatch(patches),
+        llmThinkTagNames: new Set(["think"]),
+        safetyGuardEnabled: false,
+      });
+      const flush = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      try {
+        await processor.setContent(before);
+        await processor.finalize();
+        await flush();
+        if (chunk === undefined) await processor.setContent(after);
+        else await processor.process(chunk);
+        await flush();
+        const expected = new CustomParser().parse(after);
+        // The complete parser leaves tool execution state to the streaming layer.
+        const expectedTool = findNode(expected, "vcp_tool");
+        if (expectedTool?.type === "vcp_tool")
+          expectedTool.props.isPending = true;
+        expect(normalizeAst(state.ast.value)).toEqual(normalizeAst(expected));
+      } finally {
+        processor.destroy();
+        state.dispose();
+      }
+    }
+  );
+
   // Visible props can change while node text and its weak fingerprint stay equal.
   it.each([
     {
@@ -225,6 +284,36 @@ describe("streamed Markdown context", () => {
       }
     }
   );
+
+  // Formula delimiters split across chunks or escaped in prose must preserve the result.
+  it.each([
+    ["closed display math", ["# before\n\n$$\nx", " + y\n$$\n\nafter"]],
+    ["split dollar pairs", ["# before\n\n$", "$x$", "$\n\nafter"]],
+    ["escaped dollars", ["# before\n\n\\$", "$ literal\n# after"]],
+    ["adjacent dollar pairs", ["# before\n\n$$", "$$\n\nafter"]],
+  ])("preserves %s through incremental updates", async (_label, chunks) => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    let input = "";
+    try {
+      for (const chunk of chunks) {
+        input += chunk;
+        await processor.process(chunk);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+        expect(normalizeAst(state.ast.value)).toEqual(
+          normalizeAst(new CustomParser().parse(input))
+        );
+      }
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
 
   it.each([
     [

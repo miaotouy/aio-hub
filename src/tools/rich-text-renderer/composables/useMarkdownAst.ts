@@ -67,9 +67,10 @@ export function useMarkdownAst(
   function buildNodeMap(
     nodes: AstNode[],
     parentId?: string,
-    path: number[] = []
+    path: number[] = [],
+    startIndex = 0
   ) {
-    for (let index = 0; index < nodes.length; index++) {
+    for (let index = startIndex; index < nodes.length; index++) {
       const node = nodes[index];
       const nodePath = [...path, index];
       indexSubtree(node, parentId, nodePath);
@@ -100,6 +101,44 @@ export function useMarkdownAst(
       parentId = node.id;
       nodes = node.children ?? [];
     }
+  }
+
+  function childrenAtPath(nodes: AstNode[], path: number[]): AstNode[] {
+    for (const index of path) nodes = nodes[index].children ?? [];
+    return nodes;
+  }
+
+  // Only removed subtrees and the shifted sibling suffix need new indexes.
+  function reindexSplice(
+    oldRoot: AstNode[],
+    newRoot: AstNode[],
+    parentPath: number[],
+    start: number,
+    deleteCount: number
+  ) {
+    const oldChildren = childrenAtPath(oldRoot, parentPath);
+    // Match Array.splice's clamping, including negative range offsets.
+    const offset = Math.trunc(start) || 0;
+    const from =
+      offset < 0
+        ? Math.max(oldChildren.length + offset, 0)
+        : Math.min(offset, oldChildren.length);
+    const count = Math.max(0, Math.trunc(deleteCount) || 0);
+    for (let i = from; i < Math.min(from + count, oldChildren.length); i++) {
+      removeSubtreeIndex(oldChildren[i]);
+    }
+    refreshPath(newRoot, parentPath);
+    const parentId = parentPath.length
+      ? childrenAtPath(newRoot, parentPath.slice(0, -1))[
+          parentPath[parentPath.length - 1]
+        ].id
+      : undefined;
+    buildNodeMap(
+      childrenAtPath(newRoot, parentPath),
+      parentId,
+      parentPath,
+      from
+    );
   }
 
   /**
@@ -308,26 +347,54 @@ export function useMarkdownAst(
     // 2. 执行不可变更新，并在下一条补丁寻址前同步索引。
     let newRoot = ast.value;
     for (const patch of coalesced) {
-      const localUpdate =
-        patch.op === "text-append" ||
-        patch.op === "set-prop" ||
-        patch.op === "replace-node";
-      const index = localUpdate ? nodeMap.get(patch.id) : undefined;
+      const index =
+        patch.op === "replace-root"
+          ? undefined
+          : nodeMap.get(
+              patch.op === "replace-children-range" ? patch.parentId : patch.id
+            );
       const oldRoot = newRoot;
       newRoot = applySinglePatch(newRoot, patch);
       if (newRoot === oldRoot) continue;
 
-      if (index) {
+      if (
+        !index ||
+        (patch.op === "replace-node" &&
+          index.path.length === 1 &&
+          oldRoot.length === 1)
+      ) {
+        nodeMap.clear();
+        buildNodeMap(newRoot);
+      } else if (patch.op === "replace-children-range") {
+        reindexSplice(
+          oldRoot,
+          newRoot,
+          index.path,
+          patch.start,
+          patch.deleteCount
+        );
+      } else if (
+        patch.op === "insert-before" ||
+        patch.op === "insert-after" ||
+        patch.op === "remove-node"
+      ) {
+        const start =
+          index.path[index.path.length - 1] +
+          (patch.op === "insert-after" ? 1 : 0);
+        reindexSplice(
+          oldRoot,
+          newRoot,
+          index.path.slice(0, -1),
+          start,
+          patch.op === "remove-node" ? 1 : 0
+        );
+      } else {
         // A replacement stays at the same path, so sibling indexes remain valid.
         if (patch.op === "replace-node") {
           removeSubtreeIndex(index.node);
           indexSubtree(patch.newNode, index.parentId, index.path);
         }
         refreshPath(newRoot, index.path);
-      } else {
-        // Insertions, removals and range/root replacements can shift sibling paths.
-        nodeMap.clear();
-        buildNodeMap(newRoot);
       }
     }
 

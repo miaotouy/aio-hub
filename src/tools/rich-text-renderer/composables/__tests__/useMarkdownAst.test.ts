@@ -155,6 +155,115 @@ describe("useMarkdownAst", () => {
     state.dispose();
   });
 
+  // Structural batches must keep new/shifted descendants addressable and old snapshots intact.
+  it("addresses descendants after root and nested sibling splices in one batch", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const original = [
+      paragraph("before", [text("keep", "K")]),
+      paragraph("group", [
+        paragraph("a", [text("a-text", "A")]),
+        paragraph("b", [text("b-text", "B")]),
+      ]),
+      paragraph("after", [text("last", "Z")]),
+    ];
+    state.enqueuePatch({ op: "replace-root", newRoot: original });
+    frames.shift()?.(performance.now());
+    state.enqueuePatch([
+      {
+        op: "insert-before",
+        id: "group",
+        newNode: paragraph("middle", [text("m", "M")]),
+      },
+      {
+        op: "insert-before",
+        id: "b",
+        newNode: paragraph("c", [text("c-text", "C")]),
+      },
+      { op: "text-append", id: "c-text", text: "!" },
+      { op: "remove-node", id: "a" },
+      { op: "text-append", id: "b-text", text: "!" },
+      {
+        op: "replace-children-range",
+        parentId: "group",
+        start: -1,
+        deleteCount: 99,
+        newChildren: [paragraph("d", [text("d-text", "D")])],
+      },
+      { op: "text-append", id: "d-text", text: "!" },
+      {
+        op: "insert-after",
+        id: "d",
+        newNode: paragraph("e", [text("e-text", "E")]),
+      },
+      { op: "remove-node", id: "middle" },
+      { op: "text-append", id: "last", text: "!" },
+    ]);
+    frames.shift()?.(performance.now());
+    expect(state.ast.value).toEqual([
+      original[0],
+      paragraph("group", [
+        paragraph("c", [text("c-text", "C!")]),
+        paragraph("d", [text("d-text", "D!")]),
+        paragraph("e", [text("e-text", "E")]),
+      ]),
+      paragraph("after", [text("last", "Z!")]),
+    ]);
+    expect(original[1]).toEqual(
+      paragraph("group", [
+        paragraph("a", [text("a-text", "A")]),
+        paragraph("b", [text("b-text", "B")]),
+      ])
+    );
+    expect(original[2]).toEqual(paragraph("after", [text("last", "Z")]));
+    const ids: string[] = [];
+    const checkIndexes = (
+      nodes: AstNode[],
+      parentId?: string,
+      path: number[] = []
+    ) => {
+      nodes.forEach((node, i) => {
+        ids.push(node.id);
+        expect(state.nodeMap.get(node.id)).toEqual({
+          node,
+          parentId,
+          path: [...path, i],
+        });
+        expect(state.nodeMap.get(node.id)?.node).toBe(node);
+        if (node.children) checkIndexes(node.children, node.id, [...path, i]);
+      });
+    };
+    checkIndexes(state.ast.value);
+    expect([...state.nodeMap.keys()].sort()).toEqual(ids.sort());
+    state.dispose();
+  });
+
+  it("replaces the sole root subtree before addressing its new descendants", () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    state.enqueuePatch([
+      {
+        op: "replace-root",
+        newRoot: [paragraph("old", [text("old-child", "old")])],
+      },
+      {
+        op: "replace-node",
+        id: "old",
+        newNode: paragraph("new", [text("new-child", "new")]),
+      },
+      { op: "text-append", id: "new-child", text: "!" },
+      { op: "remove-node", id: "old-child" },
+    ]);
+    expect(state.ast.value).toEqual([
+      paragraph("new", [text("new-child", "new!")]),
+    ]);
+    expect([...state.nodeMap.keys()].sort()).toEqual(["new", "new-child"]);
+    state.dispose();
+  });
+
   it("uses the latest throttle setting instead of an initialization snapshot", () => {
     const animationFrames: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {

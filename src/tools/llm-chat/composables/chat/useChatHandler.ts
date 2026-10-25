@@ -172,7 +172,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
         logger.info("使用临时指定的模型（参数已过滤）", {
           modelId: agentConfig.modelId,
@@ -652,7 +653,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
 
         logger.info("使用指定的模型进行重试（参数已过滤）", {
@@ -860,7 +862,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
 
         logger.info("续写使用指定的模型（参数已过滤）", {
@@ -1117,7 +1120,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
 
         logger.info("重新解析使用临时指定的模型", {

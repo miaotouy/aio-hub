@@ -20,6 +20,7 @@ import {
 import type { LlmParameters } from "../types";
 import type {
   LlmParameterSupport,
+  LlmModelInfo,
   ModelCapabilities,
 } from "@/types/llm-profiles";
 import { getModelFamily } from "@/llm-apis/request-builder";
@@ -332,7 +333,8 @@ export function isParameterSupportedByModel(
   supportedParameters: LlmParameterSupport,
   capabilities?: ModelCapabilities,
   modelId?: string,
-  provider?: string
+  provider?: string,
+  model?: LlmModelInfo
 ): boolean {
   const config = parameterConfigs.find((c) => c.key === key);
   if (!config) {
@@ -359,7 +361,7 @@ export function isParameterSupportedByModel(
   if (key === "includeThoughts") {
     if (modelId) {
       return (
-        getModelFamily(modelId, provider) === "gemini" &&
+        getModelFamily(modelId, provider, model) === "gemini" &&
         (supportedParameters.thinkingConfig === true ||
           capabilities?.thinking === true)
       );
@@ -382,6 +384,7 @@ export function isParameterSupportedByModel(
  * @param capabilities 目标模型的能力
  * @param modelId 目标模型 ID
  * @param provider 目标模型或 Profile 的 Provider 标识
+ * @param model 目标模型的持久化元数据，用于识别兼容渠道中的模型家族
  * @returns 过滤后的参数
  */
 export function filterParametersForModel(
@@ -389,7 +392,8 @@ export function filterParametersForModel(
   supportedParameters: LlmParameterSupport,
   capabilities?: ModelCapabilities,
   modelId?: string,
-  provider?: string
+  provider?: string,
+  model?: LlmModelInfo
 ): LlmParameters {
   const filteredParams: LlmParameters & Record<string, any> = {};
 
@@ -421,7 +425,8 @@ export function filterParametersForModel(
         supportedParameters,
         capabilities,
         modelId,
-        provider
+        provider,
+        model
       )
     ) {
       filteredParams[key] = value;
@@ -444,7 +449,8 @@ export function filterParametersForModel(
           supportedParameters,
           capabilities,
           modelId,
-          provider
+          provider,
+          model
         )
     );
   }

@@ -168,17 +168,28 @@ describe("parameter-config", () => {
       expect(resultWithout.includeThoughts).toBeUndefined();
     });
 
-    it("should preserve includeThoughts for Gemini behind OpenAI-compatible profiles", () => {
-      const result = filterParametersForModel(
-        mockParameters,
-        { thinking: true },
-        { thinking: true, thinkingConfigType: "effort" },
-        "gemini-3.1-pro-preview",
-        "openai-compatible"
-      );
+    it.each([
+      ["gemini-3.1-pro-preview", "gemini", true],
+      ["gateway-alias", "gemini", true],
+      ["gemini-named-proxy", "openai", false],
+    ] as const)(
+      "filters includeThoughts for %s using persisted %s metadata",
+      (modelId, apiFamily, supported) => {
+        const result = filterParametersForModel(
+          { ...mockParameters, enabledParameters: ["includeThoughts"] },
+          { thinking: true },
+          { thinking: true, thinkingConfigType: "effort" },
+          modelId,
+          "openai-compatible",
+          { id: modelId, name: modelId, apiFamily }
+        );
 
-      expect(result.includeThoughts).toBe(true);
-    });
+        expect(result.includeThoughts).toBe(supported ? true : undefined);
+        expect(result.enabledParameters).toEqual(
+          supported ? ["includeThoughts"] : []
+        );
+      }
+    );
 
     it("should remove includeThoughts for non-Gemini thinking models", () => {
       const result = filterParametersForModel(

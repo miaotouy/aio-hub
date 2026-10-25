@@ -52,7 +52,9 @@ export default withMermaid({
       }),
     ],
     ssr: {
-      noExternal: ["mermaid", "dayjs", "lucide-vue-next"],
+      // Mermaid 在浏览器挂载后渲染，SSR 沿用其原生模块依赖。
+      external: ["mermaid"],
+      noExternal: ["dayjs", "lucide-vue-next"],
     },
     optimizeDeps: {
       include: ["mermaid", "dayjs", "lucide-vue-next"],

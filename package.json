@@ -67,6 +67,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest --run",
+    "rich-text:commonmark": "bun scripts/rich-text/run-commonmark.ts",
+    "rich-text:check": "vue-tsc --noEmit --project scripts/rich-text/tsconfig.json",
     "test:tauri:e2e": "bun scripts/e2e.ts tauri",
     "test:mobile:e2e": "bun scripts/e2e.ts mobile",
     "test:backend": "cargo test --manifest-path src-tauri/Cargo.toml",

@@ -73,6 +73,7 @@
   - `bare` (boolean): 是否为无样式模式（透明背景，无边框）。
   - `showCloseButton` (boolean): 是否显示关闭按钮。
   - `closeOnBackdropClick` (boolean): 点击遮罩层是否关闭。
+  - `beforeClose` (() => boolean | Promise<boolean>): 关闭前确认；返回 `false` 时保留弹窗与当前内容。适用于未保存草稿保护。
   - `destroyOnClose` (boolean): 关闭时是否销毁内容。
   - `loading` (boolean): 内容区域显示加载状态。
 - **键盘与焦点**：打开后优先聚焦内容中的 `autofocus` 元素，其余情况聚焦弹窗容器；保留内容主动设置的焦点；Tab 在弹窗内循环，关闭后返回入口。Escape 仅关闭当前聚焦的最上层弹窗，内部控件可先消费该按键。

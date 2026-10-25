@@ -132,6 +132,7 @@ const props = withDefaults(
     top?: string;
     showCloseButton?: boolean;
     closeOnBackdropClick?: boolean;
+    beforeClose?: () => boolean | Promise<boolean>;
     bare?: boolean;
     dialogClass?: string;
     contentClass?: string;
@@ -272,7 +273,15 @@ watch(
   { immediate: true }
 );
 
-function handleClose() {
+let checkingClose = false;
+async function handleClose() {
+  if (checkingClose) return;
+  checkingClose = true;
+  try {
+    if (props.beforeClose && !(await props.beforeClose())) return;
+  } finally {
+    checkingClose = false;
+  }
   showContentTransition.value = false;
   // 等待退场动画完成，如果禁用了动画则立即关闭
   const delay = props.enableTransition ? 300 : 0;

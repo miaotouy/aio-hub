@@ -37,6 +37,65 @@ vi.mock("../../parser/tokenizerService", () => ({
 }));
 
 describe("streamed Markdown context", () => {
+  // Protect full-content edits/reset, which append-only fence fixtures do not cover.
+  it("re-evaluates fence context after full-content edits and reset", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    const flush = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    try {
+      for (const input of [
+        "~~~js\nbody\n\n",
+        "~~~js\nbody\n\n~~~\n\nafter",
+        "~~~~js\nbody\n\n~~~\n\nstill code",
+        "~~~js\nreplacement\n~~~\n\nafter",
+      ]) {
+        await processor.setContent(input);
+        await flush();
+        expect(normalizeAst(state.ast.value)).toEqual(
+          normalizeAst(new CustomParser().parse(input))
+        );
+      }
+      processor.reset();
+      await processor.process("fresh");
+      await flush();
+      expect(normalizeAst(state.ast.value)).toEqual(
+        normalizeAst(new CustomParser().parse("fresh"))
+      );
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
+  // Equal text length and endpoints must still allow interior edits to become visible.
+  it("updates interior text while retaining an unchanged stable heading", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    const flush = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    try {
+      await processor.setContent("# title\n\ncat");
+      await flush();
+      const stableId = state.ast.value[0].id;
+      await processor.setContent("# title\n\ncot");
+      await flush();
+      expect(state.ast.value[0].id).toBe(stableId);
+      expect(normalizeAst(state.ast.value)).toEqual(
+        normalizeAst(new CustomParser().parse("# title\n\ncot"))
+      );
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
   it.each([
     [
       "long code fence",

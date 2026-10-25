@@ -50,10 +50,8 @@ class MarkdownBoundaryDetector {
     this.llmThinkTagNames = llmThinkTagNames;
   }
 
-  isSafeParsePoint(text: string): boolean {
-    const lines = text.split("\n");
-    if (this.isInsideCodeBlock(lines)) return false;
-    if (this.isIncompleteTable(lines.slice(-3))) return false;
+  isSafeParsePoint(text: string, lastLines: string[]): boolean {
+    if (this.isIncompleteTable(lastLines)) return false;
     if (this.hasUnclosedKatexBlock(text)) return false;
 
     // 内联链接/图片检查
@@ -131,17 +129,18 @@ class MarkdownBoundaryDetector {
     return count % 2 !== 0;
   }
 
-  private isInsideCodeBlock(lines: string[]): boolean {
+  // Compute each line's fence state once for all candidate boundaries in this call.
+  private scanCodeFenceStates(lines: string[]): boolean[] {
     let fence: CodeFence | null = null;
-    for (const line of lines) {
+    return lines.map((line) => {
       const content = line.replace(/^ {0,3}/, "");
       if (fence) {
         if (isCodeFenceClosing(content, fence)) fence = null;
       } else {
         fence = readCodeFenceOpening(content);
       }
-    }
-    return fence !== null;
+      return fence !== null;
+    });
   }
 
   private isIncompleteTable(lastLines: string[]): boolean {
@@ -382,9 +381,9 @@ class MarkdownBoundaryDetector {
    * 获取安全的可解析切分点
    * 如果末尾存在不完整的 HTML 标签或属性，返回其起始位置以隐藏残缺部分
    */
-  private getSafeCutPoint(text: string): number {
+  private getSafeCutPoint(text: string, insideCodeBlock: boolean): number {
     // 如果在代码块内部，不执行 HTML 截断逻辑，防止代码中的 < 导致闪烁
-    if (this.isInsideCodeBlock(text.split("\n"))) {
+    if (insideCodeBlock) {
       return text.length;
     }
 
@@ -476,7 +475,12 @@ class MarkdownBoundaryDetector {
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
-    const safeLen = this.getSafeCutPoint(text);
+    const fullLines = text.split("\n");
+    const fenceStates = this.scanCodeFenceStates(fullLines);
+    const safeLen = this.getSafeCutPoint(
+      text,
+      fenceStates[fenceStates.length - 1]
+    );
     const safeText = text.slice(0, safeLen);
 
     // References can resolve across paragraphs; loose-list continuation belongs to the same tree.
@@ -487,15 +491,17 @@ class MarkdownBoundaryDetector {
       /\n[ \t]*\n/.test(safeText);
     if (hasReferences || hasLooseList) return { stable: "", pending: safeText };
 
-    const lines = safeText.split("\n");
+    const lines = safeLen === text.length ? fullLines : safeText.split("\n");
     let stableEndLineIndex = -1;
 
     // 从后往前找最后一个空行作为稳定边界
     for (let i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].trim() === "") {
+      if (lines[i].trim() === "" && !(fenceStates[i - 1] ?? false)) {
         // 找到空行后，还需要确认空行之前的部分是安全的
         const testText = lines.slice(0, i).join("\n");
-        if (this.isSafeParsePoint(testText)) {
+        if (
+          this.isSafeParsePoint(testText, lines.slice(Math.max(0, i - 3), i))
+        ) {
           stableEndLineIndex = i;
           break;
         }
@@ -1005,6 +1011,9 @@ export class StreamProcessorV2 {
   }
 
   private diffSingleNode(oldNode: AstNode, newNode: AstNode): Patch[] {
+    // Stable trees can retain their exact objects; their descendants and IDs already agree.
+    if (oldNode === newNode) return [];
+
     // 检查节点是否可以复用（类型相同且内容相似）
     const canReuse = this.canReuseNode(oldNode, newNode);
 

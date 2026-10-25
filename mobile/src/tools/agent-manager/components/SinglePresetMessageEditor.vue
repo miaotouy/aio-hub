@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { assertPresetComposition } from "@aiohub/agent-preset-core";
+import {
+  assertPresetComposition,
+  createPresetPart,
+  flattenPresetMessage,
+} from "@aiohub/agent-preset-core";
 import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import { ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
@@ -101,12 +105,51 @@ function updatePatterns(
     .filter(Boolean);
 }
 
+const converting = ref(false);
+
+async function changeBodyMode(mode: "plain" | "composition") {
+  if (
+    converting.value ||
+    (mode === "composition") === !!form.value.presetComposition
+  )
+    return;
+  if (mode === "composition") {
+    form.value.presetComposition = {
+      version: 1,
+      separator: "",
+      parts: [createPresetPart(form.value.content)],
+    };
+    form.value.content = "";
+    delete form.value.presetContributingParts;
+    return;
+  }
+  converting.value = true;
+  try {
+    const confirmed = await customDialog({
+      title: t("转为普通消息"),
+      message: t("转为普通消息提示"),
+      confirmButtonText: t("转换"),
+      cancelButtonText: t("取消"),
+    });
+    if (confirmed) form.value = flattenPresetMessage(form.value);
+  } catch (error) {
+    customMessage((error as Error).message, "error");
+  } finally {
+    converting.value = false;
+  }
+}
+
 async function requestClose() {
-  if (form.value.presetComposition && JSON.stringify(form.value) !== baseline.value) {
-    const discard = await customDialog({ title: '尚有未保存的修改', message: '返回将放弃本次修改。也可以继续编辑，使用顶部保存按钮保留修改。', confirmButtonText: '放弃更改', cancelButtonText: '继续编辑' });
+  if (JSON.stringify(form.value) !== baseline.value) {
+    const discard = await customDialog({
+      title: "尚有未保存的修改",
+      message: "返回将放弃本次修改。也可以继续编辑，使用顶部保存按钮保留修改。",
+      confirmButtonText: "放弃更改",
+      cancelButtonText: "继续编辑",
+    });
     if (!discard) return;
   }
-  emit('close');
+  emit("close");
 }
 function save(): void {
   if (form.value.presetComposition) {
@@ -172,6 +215,29 @@ function save(): void {
             </option>
           </select>
         </label>
+        <div class="field">
+          <span>{{ t("内容形式") }}</span>
+          <div class="role-tabs" role="group" :aria-label="t('内容形式')">
+            <button
+              type="button"
+              :class="{ active: !form.presetComposition }"
+              :aria-pressed="!form.presetComposition"
+              :disabled="converting"
+              @click="changeBodyMode('plain')"
+            >
+              {{ t("普通正文") }}
+            </button>
+            <button
+              type="button"
+              :class="{ active: !!form.presetComposition }"
+              :aria-pressed="!!form.presetComposition"
+              :disabled="converting"
+              @click="changeBodyMode('composition')"
+            >
+              {{ t("组合编排") }}
+            </button>
+          </div>
+        </div>
         <PresetCompositionEditor
           v-if="form.presetComposition"
           v-model="form.presetComposition"
@@ -373,6 +439,9 @@ textarea {
   color: var(--text-color);
   background: transparent;
   text-transform: capitalize;
+}
+.role-tabs button:disabled {
+  opacity: 0.6;
 }
 .role-tabs .active {
   border-color: var(--color-primary);

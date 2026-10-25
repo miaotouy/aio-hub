@@ -155,7 +155,7 @@ function apply() {
               <el-option
                 v-for="(message, index) in members"
                 :key="message.id"
-                :label="`备选 ${index + 1} · ${message.name || message.role}`"
+                :label="`版本 ${index + 1} · ${message.name || message.role}`"
                 :value="message.id"
               />
             </el-select>
@@ -169,7 +169,7 @@ function apply() {
             :class="{ source: message.id === sourceId }"
           >
             <div class="member-title">
-              <span class="member-index">备选 {{ index + 1 }}</span>
+              <span class="member-index">版本 {{ index + 1 }}</span>
               <span class="member-name">{{
                 message.name || message.role
               }}</span>
@@ -189,7 +189,7 @@ function apply() {
               成员之间穿插了其他消息。组合消息将放在第一个成员的位置，其余消息保持原顺序。
             </p>
             <p v-if="hasNested">
-              成员中包含组合消息。转换后只保留其当前选中的正文，内部其他备选与停用片段不再保留。
+              成员中包含组合消息。转换后只保留其当前选中的正文，内部其他版本与停用片段不再保留。
             </p>
             <el-checkbox v-model="accepted" size="small"
               >已确认上述转换影响</el-checkbox

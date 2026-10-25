@@ -422,7 +422,7 @@ const agentManagement: ToolRegistry = {
           name: "edit_preset_composition",
           displayName: "编辑组合消息",
           description:
-            "修改组合消息的片段或备选。operation 为 JSON：type 支持 addPart/removePart/movePart/setContent/selectOption/addOption/removeOption/moveOption/setPartEnabled/setPartName/setSeparator；按操作提供 partId、optionId、content、part、enabled、name、separator 或 index（从 0 开始）。正文与单选组通过 setPartEnabled 独立选入或移除，单选组 selectOption 指定一个备选，optionId 为 null 清空选择。setSeparator 统一设置条目间连接。",
+            "修改组合消息的片段或版本。operation 为 JSON：type 支持 addPart/removePart/movePart/setContent/selectOption/addOption/removeOption/moveOption/setPartEnabled/setPartName/setOptionName/setSeparator；按操作提供 partId、optionId、content、part、enabled、name、separator 或 index（从 0 开始）。setPartEnabled 控制片段参与，selectOption 指定使用版本，optionId 为 null 清空选择。setPartName 修改片段名称，setOptionName 通过 partId 和 optionId 修改版本名称。setSeparator 统一设置片段间连接。",
           parameters: [
             {
               name: "agentId",

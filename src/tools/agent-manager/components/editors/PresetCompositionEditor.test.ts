@@ -96,3 +96,60 @@ it("keeps later body edits when undoing participation and order changes", async 
     wrapper.unmount();
   }
 });
+
+// Deleting the current part keeps editing nearby, for both middle and last positions.
+it.each([
+  [1, "part-2"],
+  [2, "part-1"],
+])(
+  "selects an adjacent part after deleting index %i",
+  async (index, expectedId) => {
+    const parts = [0, 1, 2].map((i) => ({
+      id: `part-${i}`,
+      kind: "choice" as const,
+      selectedOptionId: `version-${i}`,
+      options: [{ id: `version-${i}`, content: `body-${i}` }],
+    }));
+    const wrapper = shallowMount(PresetCompositionEditor, {
+      props: {
+        modelValue: { version: 1 as const, separator: "", parts },
+        initialPartId: parts[index].id,
+        "onUpdate:modelValue": (value: PresetComposition) =>
+          wrapper.setProps({ modelValue: value }),
+      },
+      global: {
+        renderStubDefaultSlot: true,
+        stubs: {
+          PresetBodyToolbar: {
+            props: ["editor", "modelValue", "variableConfig", "allowRecall"],
+            template: "<div />",
+          },
+          ElTooltip: true,
+          ElTag: true,
+          ElInput: true,
+          ElRadioButton: true,
+          ElRadioGroup: true,
+          ElPopconfirm: true,
+          ElButton: { template: "<button><slot /></button>" },
+        },
+      },
+    });
+    try {
+      wrapper
+        .findAllComponents({ name: "ElPopconfirm" })[0]
+        .vm.$emit("confirm");
+      await wrapper.vm.$nextTick();
+      expect(
+        wrapper.get(".part-item.active .part-index").attributes("aria-current")
+      ).toBe("true");
+      expect(wrapper.findComponent(RichCodeEditor).props("modelValue")).toBe(
+        `body-${expectedId.slice(-1)}`
+      );
+      expect(wrapper.props("modelValue").parts.map((part) => part.id)).toEqual(
+        parts.filter((_, i) => i !== index).map((part) => part.id)
+      );
+    } finally {
+      wrapper.unmount();
+    }
+  }
+);

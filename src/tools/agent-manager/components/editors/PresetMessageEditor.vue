@@ -723,7 +723,7 @@ async function convertToPlain() {
   const { ElMessageBox } = await import("element-plus");
   try {
     await ElMessageBox.confirm(
-      "将当前使用项拼接为普通正文，其他备选将在保存后移除。继续？",
+      "将当前使用项拼接为普通正文，其他版本将在保存后移除。继续？",
       "转为普通消息",
       {
         lockScroll: false,

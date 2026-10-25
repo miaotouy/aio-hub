@@ -163,7 +163,7 @@ describe("structured preset contract", () => {
         content: "",
         presetComposition: input,
       })
-    ).toThrow(/备选已失效/);
+    ).toThrow(/版本已失效/);
     const duplicate = template();
     duplicate.parts[2].id = duplicate.parts[0].id;
     expect(validatePresetComposition(duplicate).length).toBeGreaterThan(0);
@@ -444,7 +444,7 @@ describe("message-local composition dimensions", () => {
         partId: "identity",
         optionId: "missing",
       })
-    ).toThrow(/未找到备选/);
+    ).toThrow(/未找到版本/);
   });
 });
 
@@ -491,4 +491,44 @@ it("extends a single-version fragment without converting its type or changing it
   ]);
   expect(compilePresetComposition(reduced).content).toBe("alternate");
   expect(compilePresetComposition(initial).content).toBe(" original\n");
+});
+
+// Version naming must preserve selection and compiled text, including inactive versions.
+it("renames a version without changing its identity, selection or body", () => {
+  const initial = template();
+  const before = JSON.stringify(initial);
+  const next = applyPresetCompositionOperation(initial, {
+    type: "setOptionName",
+    partId: "choice",
+    optionId: "b",
+    name: "详细版本",
+  });
+  expect(next.parts[1].options[1]).toEqual({
+    id: "b",
+    content: "{{AIOgugu2}}",
+    name: "详细版本",
+  });
+  expect(next.parts[1].selectedOptionId).toBe("a");
+  expect(compilePresetComposition(next)).toEqual(
+    compilePresetComposition(initial)
+  );
+  expect(JSON.stringify(initial)).toBe(before);
+  const restored = importPresetMessage(
+    JSON.parse(
+      JSON.stringify({
+        id: "host",
+        content: "",
+        presetComposition: next,
+      })
+    )
+  );
+  expect(restored.presetComposition).toEqual(next);
+  expect(() =>
+    applyPresetCompositionOperation(initial, {
+      type: "setOptionName",
+      partId: "choice",
+      optionId: "missing",
+      name: "无效",
+    })
+  ).toThrow(/未找到版本/);
 });

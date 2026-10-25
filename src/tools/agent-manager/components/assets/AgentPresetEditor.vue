@@ -228,6 +228,7 @@
             ghost-class="ghost-message"
             drag-class="drag-message"
             :force-fallback="true"
+            :fallback-on-body="true"
             :fallback-tolerance="3"
             :animation="200"
           >

@@ -184,11 +184,14 @@ function duplicatePart() {
 }
 function removePart() {
   const id = part.value?.id;
+  if (!id) return;
   update((draft) => {
-    draft.parts = draft.parts.filter((item) => item.id !== id);
+    const index = draft.parts.findIndex((item) => item.id === id);
+    if (index < 0) return;
+    draft.parts.splice(index, 1);
+    selectedPartId.value =
+      draft.parts[Math.min(index, draft.parts.length - 1)]?.id ?? "";
   });
-  selectedPartId.value =
-    props.modelValue.parts.find((item) => item.id !== id)?.id ?? "";
 }
 function step(item: PresetChoicePart, delta: number) {
   const index = currentIndex(item) + delta;

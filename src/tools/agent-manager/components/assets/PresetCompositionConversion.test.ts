@@ -82,7 +82,7 @@ const confirmBox = (wrapper: ReturnType<typeof mountConversion>) =>
 
 it("requires confirmation before flattening a composition member", async () => {
   const wrapper = mountConversion([plain("a", "第一条"), nested("b")]);
-  expect(wrapper.text()).toContain("内部其他备选与停用片段不再保留");
+  expect(wrapper.text()).toContain("内部其他版本与停用片段不再保留");
   expect(applyButton(wrapper).attributes("disabled")).toBeDefined();
   await confirmBox(wrapper).setValue(true);
   expect(applyButton(wrapper).attributes("disabled")).toBeUndefined();

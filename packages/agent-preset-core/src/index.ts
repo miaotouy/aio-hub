@@ -75,14 +75,14 @@ export function validatePresetComposition(value: unknown): PresetDiagnostic[] {
       fail(path, "启停状态无效");
     if (part.kind === "choice") {
       if (!Array.isArray(part.options)) {
-        fail(path, "需要备选列表");
+        fail(path, "需要版本列表");
         return;
       }
       const optionIds = new Set<string>();
       part.options.forEach((option, optionIndex) => {
-        const optionPath = `${path} / 备选 ${optionIndex + 1}`;
+        const optionPath = `${path} / 版本 ${optionIndex + 1}`;
         if (!record(option)) {
-          fail(optionPath, "备选无效");
+          fail(optionPath, "版本无效");
           return;
         }
         if (
@@ -90,7 +90,7 @@ export function validatePresetComposition(value: unknown): PresetDiagnostic[] {
           !option.id ||
           optionIds.has(option.id)
         )
-          fail(optionPath, "备选标识为空或重复");
+          fail(optionPath, "版本标识为空或重复");
         else optionIds.add(option.id);
         if (option.name !== undefined && typeof option.name !== "string")
           fail(optionPath, "名称需要文本");
@@ -102,7 +102,7 @@ export function validatePresetComposition(value: unknown): PresetDiagnostic[] {
         (typeof part.selectedOptionId !== "string" ||
           !optionIds.has(part.selectedOptionId))
       )
-        fail(path, "当前备选已失效，请重新选择");
+        fail(path, "当前版本已失效，请重新选择");
     } else fail(path, "未知片段类型");
   });
   return issues;
@@ -130,7 +130,7 @@ export function setPresetOptionSelected(
   selected = true
 ): void {
   if (!part.options.some((option) => option.id === id))
-    throw new Error("未找到备选");
+    throw new Error("未找到版本");
   if (selected) part.selectedOptionId = id;
   else if (part.selectedOptionId === id) part.selectedOptionId = null;
 }
@@ -429,6 +429,7 @@ export type PresetCompositionOperation =
     }
   | { type: "setPartEnabled"; partId: string; enabled: boolean }
   | { type: "setPartName"; partId: string; name: string }
+  | { type: "setOptionName"; partId: string; optionId: string; name: string }
   | { type: "setSeparator"; separator: string }
   | { type: "addOption"; partId: string; content: string; index?: number }
   | { type: "removeOption"; partId: string; optionId: string }
@@ -500,8 +501,10 @@ export function applyPresetCompositionOperation(
               (operation.type === "setContent" ? part.selectedOptionId : null))
         );
         const option = part.options[optionIndex];
-        if (!option) throw new Error("未找到备选");
+        if (!option) throw new Error("未找到版本");
         if (operation.type === "setContent") option.content = operation.content;
+        else if (operation.type === "setOptionName")
+          option.name = operation.name;
         else if (operation.type === "removeOption") {
           part.options.splice(optionIndex, 1);
           if (part.selectedOptionId === option.id) part.selectedOptionId = null;

@@ -179,7 +179,7 @@
                   class="content-text"
                   :class="{ 'is-placeholder': isAnchorType(row.type) }"
                 >
-                  {{ truncateText(row.content || row.name || "(无内容)", 60) }}
+                  {{ truncateText(messagePreview(row), 60) }}
                 </span>
               </div>
             </template>
@@ -209,6 +209,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { materializePresetMessage } from "@aiohub/agent-preset-core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { Top, Bottom, Sort, Delete } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
@@ -295,6 +296,16 @@ function getRoleTagType(role: MessageRole) {
     assistant: "success",
   };
   return map[role] || "info";
+}
+
+function messagePreview(message: ChatMessageNode): string {
+  try {
+    return (
+      materializePresetMessage(message).content || message.name || "(无内容)"
+    );
+  } catch {
+    return "组合内容无效，请编辑修正";
+  }
 }
 
 function truncateText(text: string, len: number) {

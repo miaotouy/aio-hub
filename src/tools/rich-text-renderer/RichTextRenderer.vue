@@ -29,7 +29,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
+import {
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  ref,
+  shallowRef,
+  computed,
+  provide,
+} from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
@@ -422,8 +430,10 @@ const createProcessor = (version: RendererVersion) => {
   }
 };
 
-// 当前使用的流式处理器（仅 AST 模式）
-const streamProcessor = ref<any>(null);
+// 仅实例替换参与响应式；解析器内部 AST、索引和缓存保持原始对象。
+const streamProcessor = shallowRef<ReturnType<typeof createProcessor> | null>(
+  null
+);
 
 // 流式控制器实例（用于平滑化）
 let streamController: StreamController | null = null;
@@ -728,7 +738,10 @@ onBeforeUnmount(() => {
   streamController = null;
   // 销毁处理器，防止卸载后的异步操作继续更新 AST
   if (streamProcessor.value) {
-    if (typeof streamProcessor.value.destroy === "function") {
+    if (
+      "destroy" in streamProcessor.value &&
+      typeof streamProcessor.value.destroy === "function"
+    ) {
       streamProcessor.value.destroy();
     } else {
       streamProcessor.value.reset?.();

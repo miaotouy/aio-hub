@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseArgs } from "node:util";
-import { resolve } from "node:path";
+import { resolve, basename } from "node:path";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { DevConnection } from "../dev-control/connection";
 import { getInstance } from "../dev-control/discovery";
@@ -10,6 +10,7 @@ import { CustomParser } from "../../src/tools/rich-text-renderer/core/CustomPars
 import { createCorpus, splitChunks } from "./bench-corpus";
 import { astValue, signature } from "./bench-shared";
 import { installTauriMemoryPage } from "./tauri-memory-page";
+import { takeHeapSnapshot } from "./tauri-memory-heap";
 import { tokenizerHeaps } from "./tauri-memory-cdp";
 
 const { values } = parseArgs({
@@ -17,6 +18,9 @@ const { values } = parseArgs({
   strict: true,
   options: {
     instance: { type: "string" },
+    scroll: { type: "boolean", default: false },
+    "input-file": { type: "string" },
+    "heap-snapshots": { type: "boolean", default: false },
     "allow-hmr": { type: "boolean", default: false },
     cycles: { type: "string", default: "3" },
     size: { type: "string", default: "100" },
@@ -34,9 +38,20 @@ const cycles = Number(values.cycles),
 for (const n of [cycles, size, chunkSize])
   if (!Number.isInteger(n) || n < 1)
     throw new Error("Expected positive integer options");
-const cases = createCorpus([size]).filter(
-  (x) => x.group === "generated" && new RegExp(values.filter!).test(x.id)
-);
+const cases = values["input-file"]
+  ? [
+      {
+        id: "file:" + basename(values["input-file"]),
+        group: "generated" as const,
+        profile: "commonmark" as const,
+        markdown: await readFile(resolve(values["input-file"]), "utf8"),
+        bytes: await Bun.file(values["input-file"]).size,
+        stream: true,
+      },
+    ]
+  : createCorpus([size]).filter(
+      (x) => x.group === "generated" && new RegExp(values.filter!).test(x.id)
+    );
 if (!cases.length) throw new Error("No matching cases");
 const instance = getInstance(values.instance);
 if (instance.frontendMode !== "static" && !values["allow-hmr"])
@@ -201,15 +216,27 @@ async function waitMatch(text: string) {
     "Final renderer AST differs from full parse or has not settled within 30 s"
   );
 }
+const snapshots: { label: string; path: string; bytes: number }[] = [];
+async function snapshotHeap(label: string) {
+  if (!values["heap-snapshots"]) return;
+  const path = resolve(outDir, label + ".heapsnapshot");
+  const bytes = await takeHeapSnapshot(cdp, path);
+  snapshots.push({ label, path, bytes });
+  console.log(JSON.stringify({ snapshot: label, bytes }));
+}
 const results: unknown[] = [];
 const report: Record<string, unknown> = {
   createdAt: new Date().toISOString(),
   revision: (await Bun.$`git rev-parse HEAD`.text()).trim(),
+  worktreeDirty: !!(await Bun.$`git status --porcelain`.text()).trim(),
   instance: { ...instance, dataDir: undefined },
   runtime: await cdp.send("Browser.getVersion"),
   snapshot,
   componentUrl,
   settings: {
+    scroll: values.scroll,
+    inputFile: values["input-file"] ? resolve(values["input-file"]) : undefined,
+    heapSnapshots: values["heap-snapshots"],
     cycles,
     size,
     chunkSize,
@@ -225,6 +252,7 @@ const report: Record<string, unknown> = {
     characters: markdown.length,
   })),
   results,
+  snapshots,
   errors,
 };
 try {
@@ -232,6 +260,8 @@ try {
   await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.mount("props"));
   let small = "## Memory lifecycle\n\nA **bold** line.\nNext line\n";
   await page.evaluate((text) => window.__RICH_TEXT_MEMORY__!.push(text), small);
+  await waitMatch(small);
+  report.progressVerified = true;
   await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.finish());
   await waitMatch(small);
   const resumed = "\n\nResumed **after finalize**.\n";
@@ -271,6 +301,7 @@ try {
     await Bun.sleep(1000);
     await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.dispose());
     const baseline = await point(true);
+    await snapshotHeap(item.id.replace(/:/g, "-") + "-baseline");
     for (let cycle = 1; cycle <= cycles; cycle++) {
       const startedAt = Date.now();
       await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.mount("source"));
@@ -290,6 +321,100 @@ try {
         await page.screenshot({
           path: resolve(outDir, item.id.replace(/:/g, "-") + ".png"),
         });
+      let scroll;
+      if (values.scroll) {
+        const checkpoints = [];
+        let milestone = 0.25;
+        let steps = 0;
+        const scrollStartedAt = Date.now();
+        const scrollDeadline = scrollStartedAt + 180000;
+        while (true) {
+          const position = await page.evaluate(() =>
+            window.__RICH_TEXT_MEMORY__!.scrollStep()
+          );
+          steps++;
+          if (position.top >= position.max * milestone && milestone < 1) {
+            checkpoints.push({
+              fraction: milestone,
+              position,
+              measurement: await point(),
+              dom: await page.evaluate(() =>
+                window.__RICH_TEXT_MEMORY__!.dom()
+              ),
+            });
+            console.log(
+              JSON.stringify({
+                caseId: item.id,
+                cycle,
+                scrollFraction: milestone,
+                position,
+                elapsedMs: Date.now() - scrollStartedAt,
+              })
+            );
+            milestone += 0.25;
+          }
+          if (position.atEnd) break;
+          if (Date.now() > scrollDeadline || steps > 10000) {
+            report.scrollFailure = {
+              caseId: item.id,
+              cycle,
+              steps,
+              position,
+              checkpoints,
+              dom: await page.evaluate(() =>
+                window.__RICH_TEXT_MEMORY__!.dom()
+              ),
+              elapsedMs: Date.now() - scrollStartedAt,
+            };
+            throw new Error("Document scroll exceeded its diagnostic limit");
+          }
+        }
+        const inner = await page.evaluate(() =>
+          window.__RICH_TEXT_MEMORY__!.scrollEditors()
+        );
+        await Bun.sleep(500);
+        const bottom = await point(true);
+        const bottomDom = await page.evaluate(() =>
+          window.__RICH_TEXT_MEMORY__!.dom()
+        );
+        if (bottomDom.editors !== bottomDom.viewers)
+          throw new Error(
+            "Full scroll did not initialize every code viewer: " +
+              JSON.stringify(bottomDom)
+          );
+        await waitMatch(item.markdown);
+        if (cycle === 1)
+          await page.screenshot({
+            path: resolve(outDir, item.id.replace(/:/g, "-") + "-scrolled.png"),
+          });
+        await page.evaluate(() =>
+          window.__RICH_TEXT_MEMORY__!.scrollStep(true)
+        );
+        await Bun.sleep(500);
+        const returned = await point(true);
+        const returnedDom = await page.evaluate(() =>
+          window.__RICH_TEXT_MEMORY__!.dom()
+        );
+        scroll = {
+          steps,
+          checkpoints,
+          inner,
+          bottom,
+          bottomDom,
+          returned,
+          returnedDom,
+        };
+        console.log(
+          JSON.stringify({
+            caseId: item.id,
+            cycle,
+            scrollSteps: steps,
+            topEditors: dom.editors,
+            bottomEditors: bottomDom.editors,
+            bottomMiB: bottom.heap.usedSize / 1048576,
+          })
+        );
+      }
       await page.evaluate(() => window.__RICH_TEXT_MEMORY__!.dispose());
       await Bun.sleep(1000);
       const idle = await point();
@@ -297,6 +422,7 @@ try {
       const weak = await page.evaluate(() =>
         window.__RICH_TEXT_MEMORY__!.released()
       );
+      await snapshotHeap(item.id.replace(/:/g, "-") + "-released-" + cycle);
       const row = {
         caseId: item.id,
         cycle,
@@ -306,6 +432,7 @@ try {
         held,
         dom,
         outputSignature,
+        scroll,
         idle,
         released,
         weak,

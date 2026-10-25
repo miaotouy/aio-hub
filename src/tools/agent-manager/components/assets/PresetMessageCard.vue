@@ -80,73 +80,89 @@
     :class="{
       disabled: element.isEnabled === false,
       'template-anchor-card-compact': isTemplateAnchor,
+      'has-details': !!$slots.details,
     }"
     @click="$emit('edit', element)"
   >
-    <div class="drag-handle">
-      <el-icon><Rank /></el-icon>
+    <div class="message-card-compact-main">
+      <div class="drag-handle">
+        <el-icon><Rank /></el-icon>
+      </div>
+      <div class="role-icon">
+        <el-icon :color="roleColor"><component :is="roleIcon" /></el-icon>
+      </div>
+      <span
+        v-if="isTemplateAnchor"
+        class="injection-badge-compact"
+        :title="anchorDef?.name"
+        >⚓</span
+      >
+      <span
+        v-if="injectionBadge"
+        class="injection-badge-compact"
+        :title="injectionBadge.title"
+      >
+        {{ injectionBadge.emoji }}{{ injectionBadge.label }}
+      </span>
+      <span
+        v-if="element.modelMatch?.enabled"
+        class="model-match-badge-compact"
+        title="仅特定模型生效"
+        >🎯</span
+      >
+      <span
+        v-if="element.presetAttachments?.length"
+        class="attachment-badge-compact"
+        :title="`${element.presetAttachments.length} 个附件`"
+        >📎{{ element.presetAttachments.length }}</span
+      >
+      <div class="message-text-compact">
+        {{
+          element.name
+            ? truncateText(element.name, 60)
+            : truncateText(displayContent ?? element.content, 60)
+        }}
+      </div>
+      <div v-if="tokenCount !== undefined" class="token-compact">
+        {{ tokenCount }}
+      </div>
+      <div class="message-actions-compact" @click.stop>
+        <slot name="header-actions" />
+        <el-tooltip content="编辑消息" placement="top" :show-after="500">
+          <el-button
+            link
+            size="small"
+            :disabled="busy"
+            @click="$emit('edit', element)"
+          >
+            <el-icon><Edit /></el-icon>
+          </el-button>
+        </el-tooltip>
+        <el-radio
+          v-if="getMessageGroup(element.groupId)?.selectionMode === 'radio'"
+          :value="true"
+          :model-value="element.isEnabled"
+          size="small"
+          :disabled="
+            busy || getMessageGroup(element.groupId)?.enabled === false
+          "
+          @change="props.onRadioChange ? props.onRadioChange(element) : null"
+        />
+        <el-switch
+          v-else
+          v-model="element.isEnabled"
+          :active-value="true"
+          :inactive-value="false"
+          size="small"
+          :disabled="
+            busy || getMessageGroup(element.groupId)?.enabled === false
+          "
+          @change="$emit('toggle-enabled')"
+        />
+      </div>
     </div>
-    <div class="role-icon">
-      <el-icon :color="roleColor"><component :is="roleIcon" /></el-icon>
-    </div>
-    <span
-      v-if="isTemplateAnchor"
-      class="injection-badge-compact"
-      :title="anchorDef?.name"
-      >⚓</span
-    >
-    <span
-      v-if="injectionBadge"
-      class="injection-badge-compact"
-      :title="injectionBadge.title"
-    >
-      {{ injectionBadge.emoji }}{{ injectionBadge.label }}
-    </span>
-    <span
-      v-if="element.modelMatch?.enabled"
-      class="model-match-badge-compact"
-      title="仅特定模型生效"
-      >🎯</span
-    >
-    <span
-      v-if="element.presetAttachments?.length"
-      class="attachment-badge-compact"
-      :title="`${element.presetAttachments.length} 个附件`"
-      >📎{{ element.presetAttachments.length }}</span
-    >
-    <div class="message-text-compact">
-      {{
-        element.name
-          ? truncateText(element.name, 60)
-          : truncateText(element.content, 60)
-      }}
-    </div>
-    <div v-if="tokenCount !== undefined" class="token-compact">
-      {{ tokenCount }}
-    </div>
-    <div class="message-actions-compact" @click.stop>
-      <el-tooltip content="编辑消息" placement="top" :show-after="500">
-        <el-button link size="small" @click="$emit('edit', element)">
-          <el-icon><Edit /></el-icon>
-        </el-button>
-      </el-tooltip>
-      <el-radio
-        v-if="getMessageGroup(element.groupId)?.selectionMode === 'radio'"
-        :value="true"
-        :model-value="element.isEnabled"
-        size="small"
-        :disabled="getMessageGroup(element.groupId)?.enabled === false"
-        @change="props.onRadioChange ? props.onRadioChange(element) : null"
-      />
-      <el-switch
-        v-else
-        v-model="element.isEnabled"
-        :active-value="true"
-        :inactive-value="false"
-        size="small"
-        :disabled="getMessageGroup(element.groupId)?.enabled === false"
-        @change="$emit('toggle-enabled')"
-      />
+    <div v-if="$slots.details" class="message-card-details" @click.stop>
+      <slot name="details" />
     </div>
   </div>
 
@@ -293,13 +309,24 @@
           </el-dropdown>
         </div>
         <div class="message-actions">
+          <slot name="header-actions" />
           <el-tooltip content="编辑消息" placement="top" :show-after="500">
-            <el-button link size="small" @click="$emit('edit', element)">
+            <el-button
+              link
+              size="small"
+              :disabled="busy"
+              @click="$emit('edit', element)"
+            >
               <el-icon><Edit /></el-icon>
             </el-button>
           </el-tooltip>
           <el-tooltip content="复制消息配置" placement="top" :show-after="500">
-            <el-button link size="small" @click="$emit('copy', element)">
+            <el-button
+              link
+              size="small"
+              :disabled="busy"
+              @click="$emit('copy', element)"
+            >
               <el-icon><CopyDocument /></el-icon>
             </el-button>
           </el-tooltip>
@@ -309,7 +336,12 @@
             placement="top"
             :show-after="500"
           >
-            <el-button link size="small" @click="$emit('duplicate', element)">
+            <el-button
+              link
+              size="small"
+              :disabled="busy"
+              @click="$emit('duplicate', element)"
+            >
               <el-icon><DocumentAdd /></el-icon>
             </el-button>
           </el-tooltip>
@@ -353,7 +385,9 @@
             :value="true"
             :model-value="element.isEnabled"
             size="small"
-            :disabled="getMessageGroup(element.groupId)?.enabled === false"
+            :disabled="
+              busy || getMessageGroup(element.groupId)?.enabled === false
+            "
             @change="props.onRadioChange ? props.onRadioChange(element) : null"
           />
           <el-switch
@@ -362,13 +396,19 @@
             :active-value="true"
             :inactive-value="false"
             size="small"
-            :disabled="getMessageGroup(element.groupId)?.enabled === false"
+            :disabled="
+              busy || getMessageGroup(element.groupId)?.enabled === false
+            "
             @change="$emit('toggle-enabled')"
           />
         </div>
       </div>
       <div v-if="element.name" class="message-name">{{ element.name }}</div>
-      <div class="message-text">{{ truncateText(element.content, 120) }}</div>
+      <slot name="details">
+        <div class="message-text">
+          {{ truncateText(displayContent ?? element.content, 120) }}
+        </div>
+      </slot>
     </div>
   </div>
 </template>
@@ -397,6 +437,8 @@ import {
 interface Props {
   element: ChatMessageNode;
   compact: boolean;
+  displayContent?: string;
+  busy?: boolean;
   modelId?: string;
   tokenCount?: number;
   presetGroups?: PresetMessageGroup[];
@@ -669,6 +711,25 @@ function truncateText(text: string, maxLength: number): string {
   transition: all 0.2s;
   cursor: pointer;
   min-height: 36px;
+}
+
+.message-card-compact.has-details {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.message-card-compact-main {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 36px;
+}
+
+.message-card-details {
+  min-width: 0;
+  cursor: default;
 }
 
 .message-card-compact:hover {

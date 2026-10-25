@@ -1,6 +1,6 @@
 # Agent Manager（智能体大厅）：架构与数据契约
 
-> 状态：Active | 最后更新：2026-10-18
+> 状态：Active | 最后更新：2026-10-24
 > 关联模块：`src/tools/llm-chat`（编排与参数类型）、`src/tools/st-worldbook-manager`（世界书导入）、`src/tools/sub-agent`（子智能体配置与内置释出）、`src/tools/knowledge-base`（Knowledge 访问权限）
 > 相关架构：[模型参数系统](../llm-chat/docs/architecture/model-parameter-system.md) | [工具审批仲裁](../../../docs/architecture/tool-approval-arbitration.md)
 > 组件明细：[components/README.md](./components/README.md)
@@ -61,6 +61,10 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 - **删除**：`delete_directory_in_app_data` 将整个智能体目录移入回收站，再更新索引。
 - **复制**：`duplicateAgent` 先通过 `copy_directory_in_app_data` 物理复制整个智能体目录（含头像与资产），失败则中断流程，不产生半成品。
 
+普通单体保存、`savePresetMessage` 与删除按 Agent ID 共用当前窗口内的写入队列。预设保存核对内存和磁盘的消息版本，写盘成功后按字段合并等待期间发生的本地修改；预设列表按消息 ID 合并，异步 Token 元数据更新同样保留。保存失败继续保留原正文，后续写入可继续执行。
+
+预设组选择由 `utils/presetGroupSelection.ts` 维护：复制保留原选择，新增或移入的启用成员成为当前选择；切换为单选时保留首个启用成员。关闭组时记录并约束恢复选择，重新启用后恢复至多一项。编辑界面和 Store 单体保存共用这份规则。
+
 ### 3.3 全量加载
 
 `loadAgents()`（经 `loadAgentsState`）读取索引后并行加载所有 `agent.json`，返回 `agents` 与 `indexedCount`。当索引为空且目录无数据时创建默认智能体；详情暂时不可读时保留磁盘索引而不是清空，读取异常时保留内存状态——避免把临时故障误判为纯净安装。
@@ -69,16 +73,16 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 
 ### 4.1 导出（agentExportService）
 
-导出文件契约：`{ version: 1, type: "AIO_Agent_Export", agents: ExportableAgent[] }`，格式 JSON 或 YAML。`ExportableAgent` 通过黑名单剥离 `id` / `profileId` / `createdAt` / `lastUsedAt` 等本地专属字段（批量 file 模式还剥离 `userProfileId` 之外的运行时字段），并清理预设消息的运行时元数据（`lastCalcHash`、`contentTokens`）。
+导出文件契约：`{ version: 1 | 2, type: "AIO_Agent_Export", agents: ExportableAgent[], requiredFeatures?: string[] }`（含组合正文时使用文件版本 2，正文自身使用结构版本 1），格式 JSON 或 YAML。`ExportableAgent` 通过黑名单剥离 `id` / `profileId` / `createdAt` / `lastUsedAt` 等本地专属字段（批量 file 模式还剥离 `userProfileId` 之外的运行时字段），并清理预设消息的运行时元数据（`lastCalcHash`、`contentTokens`）。
 
 四种 `exportType`：
 
-| 类型 | 行为 |
-| --- | --- |
-| `zip`（默认） | 打包为 `{baseName}.agent.zip`；含资产时写入 `assets/`，头像在智能体根目录 |
-| `folder` | 用户选择目录后按同名结构落盘 |
-| `file` | 单文件导出；批量时自动退化为逐个分离导出（支持 `separateFolders`） |
-| `png` | zip 转 Base64 后以 `{ version: 1, type: "AIO_Agent_Bundle", compressed: true, data }` 经 `embedDataIntoPng` 以 `aiob` 键内嵌到预览图 PNG 元数据 |
+| 类型          | 行为                                                                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `zip`（默认） | 打包为 `{baseName}.agent.zip`；含资产时写入 `assets/`，头像在智能体根目录                                                                       |
+| `folder`      | 用户选择目录后按同名结构落盘                                                                                                                    |
+| `file`        | 单文件导出；批量时自动退化为逐个分离导出（支持 `separateFolders`）                                                                              |
+| `png`         | zip 转 Base64 后以 `{ version: 1, type: "AIO_Agent_Bundle", compressed: true, data }` 经 `embedDataIntoPng` 以 `aiob` 键内嵌到预览图 PNG 元数据 |
 
 - **资产重定位**：`processAssetsRecursively` 遍历配置中的字符串字段，私有相对路径资产读出二进制并改写为包内相对路径（`icon` / `avatarHistory` 置于根目录，其余入 `assets/`）；`appdata://`、绝对路径、网络地址视为非私有资产，原样保留。
 - **世界书捆绑**：`includeWorldbooks` 时按 `worldbookIds` 从 `st-worldbook-manager` 读取内容，`embedWorldbooks` 决定内嵌到 `bundledWorldbooks[].content` 还是写为 `worldbooks/{name}.{format}` 文件并记录 `fileName`。
@@ -95,6 +99,8 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 - **AIO 包**：`.agent.zip` / `.agent.json` / `.agent.yaml` / 内嵌 `aiob` 数据的 `.agent.png`（`parsePngMetadata` 读取后解压）；
 - **SillyTavern 角色卡**：`isCharacterCard` / `parseCharacterCard`（含卡内嵌世界书）；
 - **VCP Chat 配置**：[vcpChatAgentImportService.ts](./services/vcpChatAgentImportService.ts) 扫描 VCP 智能体目录，转换系统提示词（original/preset/modular 三模式）、参数、stripRegexes，并按 VCP 主机同源优先给出模型推荐（`vcp-host` / `exact-model` / `fallback`）。
+
+原生导入通过 `importPresetMessage` 校验和迁移正文结构，保留普通正文、公共片段和全部备选中的原始文本。酒馆宏转换在酒馆角色卡与预设解析入口执行。
 
 另有文本导入通道：`agentManagementService.import_agent_from_text` 接受 YAML/JSON 文本（自动识别 `AIO_Agent_Export` 包裹）。
 
@@ -130,6 +136,7 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 - **内容输入**：静态图片从原图等比缩放至长边 1024 像素内并遵守模型尺寸限制，使用完整画面；GIF、动态 WebP 和 APNG 保留原始文件、尺寸与动画帧发送，默认交由模型处理，格式或尺寸限制沿用请求错误反馈。音频、视频发送原始媒体内容，音频仅有 ASR 能力时提示配置音频理解模型。文件支持 PDF、DOCX、PPTX、XLSX 与 UTF-8 文本；Office 文件提取正文，纯图文档可能需要转换为 PDF。PDF 优先原生文档输入，否则最多抽样 12 页文本，无可提取文字且模型支持视觉时分析前 4 页预览。长文本使用首尾节选。
 - **资源与输出**：每文件上限 32 MiB，批量并发 2。输出清理思考内容和多余空白，空结果、拒绝结果和超过 120 字的结果作为失败处理；默认提示词要求 60 字内。
 - **写入边界**：生成期间资产被移除、改名或描述被修改时跳过旧结果；取消、关闭资产管理、切换智能体时中止任务并丢弃迟到响应。失败项可查看原因并单独重试，成功项保留。
+
 ## 6. 模型与上下文配置
 
 智能体编辑器（`EditAgentDialog` / `AgentEditor`）的页签表由 [agentEditConfig.ts](./components/agent-editor/agentEditConfig.ts) 集中定义（提交 `36cd567e2`，2026-10-11）：
@@ -148,14 +155,14 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 
 [agentManagementService.ts](./services/agentManagementService.ts) 提供路径式（field path）配置操作方法，供 LLM 经工具调用管理智能体（读取/导出面向 Agent 输出 YAML，底层存储保持 JSON）：
 
-| 方法 | 能力 |
-| --- | --- |
-| `list_agents` / `search_agents` | 摘要列表与关键词搜索（支持 `category:` / `tag:` 过滤） |
-| `read_agent_config` / `export_agent_as_text` | 按 section 或全量读取，剥离系统字段与默认压缩提示词 |
-| `set_agent_field` | 路径式写入，支持 `array[0]` 与 `array[id=xxx]` 定位、值类型自动推断、缺失中间节点创建 |
-| `find_replace_in_presets` | 预设消息内容查找替换（支持正则） |
-| `add_preset_message` / `delete_preset_message` / `move_preset_message` | 预设消息增删与按 `before:/after:` 语法移动（保护 `chat_history` 锚点） |
-| `import_agent_from_text` | YAML/JSON 文本创建智能体 |
+| 方法                                                                   | 能力                                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `list_agents` / `search_agents`                                        | 摘要列表与关键词搜索（支持 `category:` / `tag:` 过滤）                                |
+| `read_agent_config` / `export_agent_as_text`                           | 按 section 或全量读取，剥离系统字段与默认压缩提示词                                   |
+| `set_agent_field`                                                      | 路径式写入，支持 `array[0]` 与 `array[id=xxx]` 定位、值类型自动推断、缺失中间节点创建 |
+| `find_replace_in_presets`                                              | 预设消息内容查找替换（支持正则）                                                      |
+| `add_preset_message` / `delete_preset_message` / `move_preset_message` | 预设消息增删与按 `before:/after:` 语法移动（保护 `chat_history` 锚点）                |
+| `import_agent_from_text`                                               | YAML/JSON 文本创建智能体                                                              |
 
 安全边界：
 
@@ -166,5 +173,18 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 
 - [components/README.md](./components/README.md)：组件目录结构与入口说明
 - [模型参数适配规则草案](./docs/Plan/agent-model-parameter-rules-draft.md)：未实施的按模型家族参数规则构想
+- [预设消息合并组草案](./docs/Plan/preset-message-composition-draft.md)：公共正文复用、局部单选与两端上下文接入调研
 - [模型参数系统](../llm-chat/docs/architecture/model-parameter-system.md)：llm-chat 侧参数体系与请求前过滤
 - [Sub-Agent 架构](../sub-agent/ARCHITECTURE.md)：`subAgentConfig` 的消费方与内置基线释出（复用本模块的 `ensurePresetAssetsImported`）
+
+组合消息卡片复用 `PresetMessageCard`；内部片段以正文预览识别，正文编辑进入既有消息弹窗。普通正文与片段正文复用 `PresetBodyToolbar`，提供宏、Agent 变量、检索占位符及剪贴板操作；片段工具栏绑定当前片段或备选的 Monaco 实例，剪贴板使用 Tauri 平台接口。
+
+### 消息内部组合
+
+两端组合编辑器的结构撤销由 `@aiohub/agent-preset-core` 统一处理：恢复参与状态、顺序、备选选择及连接符，按稳定 ID 保留仍在的片段与备选的最新正文、名称。撤销删除时恢复删除前的内容；正文转单选组后再撤销转换，将原备选的最新正文带回正文片段。新增片段或备选随对应创建操作的撤销一起移除，正文输入沿用编辑器自身的撤销。
+
+共享包 `@aiohub/agent-preset-core` 在单条宿主消息内按顺序编排正文条目和多个独立单选组。列表左侧勾选框通过 `enabled` 控制条目是否参与，取消勾选保留正文及单选状态；单选组使用 `selectedOptionId` 指向一个备选。内容条目和备选支持名称，统一使用组合层的 `separator` 连接。正文结构固定为 v1，导出 requiredFeatures 标明 `preset-composition-v1`。先拼装宿主正文再执行宏处理，其他消息保持原有边界。两端编辑器支持条目勾选、组内单选、名称、排序和完整正文预览。桌面组合卡片默认折叠，展开后可勾选条目或切换单选备选；保存失败保留原状态并支持重试。移动端沿用卡片展开状态，展开后展示全部条目。折叠仅影响展示。
+
+桌面消息编辑器常驻普通正文与组合编排切换；组合编排直接创建并选中单选组，已有正文保留为独立片段，空正文可直接填写备选。普通正文选区提取作为快捷入口保留，切回普通正文需确认拼接与备选移除。
+
+桌面编辑器以提交时的深拷贝快照推进保存基线，异步保存期间的后续编辑保留草稿状态。侧栏组合卡片通过持久化回调写入后，由 modelValue 同步最新消息及单选状态。本地编辑草稿继续通过更新事件同步。原生预设文件与消息配置剪贴板保留正文原文，酒馆宏转换集中在对应格式解析入口。

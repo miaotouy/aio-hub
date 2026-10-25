@@ -1,3 +1,9 @@
+import {
+  importPresetMessage,
+  requiredPresetFeatures,
+  flattenPresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +31,6 @@ import type { PresetMessageGroup } from "../../types/agent";
 import {
   isPromptFile,
   parsePromptFile,
-  convertMacros,
   type ParsedPromptFile,
 } from "@/tools/llm-chat/services/sillyTavernParser";
 import { cleanupPresetMessageGroupRefs } from "./presetGroupState";
@@ -61,11 +66,16 @@ export function usePresetImportExport(options: {
     return !!type && type !== "message" && anchorRegistry.hasAnchor(type);
   }
 
-  function cleanMessagesForExport(messages: ChatMessageNode[]): object {
+  function cleanMessagesForExport(
+    messages: ChatMessageNode[],
+    compatible = false
+  ): object {
     const cleanedMessages = messages
       .filter((m) => !isAnchorType(m.type))
       .map((m) => {
-        const cloned = JSON.parse(JSON.stringify(toRaw(m)));
+        const cloned = JSON.parse(
+          JSON.stringify(toRaw(compatible ? flattenPresetMessage(m) : m))
+        );
         if (cloned.metadata) {
           delete cloned.metadata.lastCalcHash;
           delete cloned.metadata.contentTokens;
@@ -75,7 +85,16 @@ export function usePresetImportExport(options: {
       });
 
     return {
-      version: 2,
+      version: cleanedMessages.some((message) => message.presetComposition)
+        ? 3
+        : 2,
+      ...(cleanedMessages.some((message) => message.presetComposition)
+        ? {
+            requiredFeatures: requiredPresetFeatures(
+              compatible ? [] : localMessages.value
+            ),
+          }
+        : {}),
       groups: toRaw(presetGroups.value),
       messages: cleanedMessages,
     };
@@ -120,12 +139,19 @@ export function usePresetImportExport(options: {
       "messages" in importedData
     ) {
       // v2+ 格式：含 messages 字段的对象
+      if (
+        !Array.isArray(importedData.messages) ||
+        (importedData.groups !== undefined &&
+          !Array.isArray(importedData.groups))
+      )
+        throw new Error("预设格式无效");
+      const processed = normalizePresetGroupState<ChatMessageNode>(
+        importedData.messages.map((message: ChatMessageNode) =>
+          importPresetMessage(message)
+        ),
+        importedData.groups || []
+      );
       presetGroups.value = importedData.groups || [];
-      const processed = (importedData.messages || []).map((m: any) => ({
-        ...m,
-        content:
-          typeof m.content === "string" ? convertMacros(m.content) : m.content,
-      }));
       localMessages.value = [
         ...localMessages.value.filter((m) => isAnchorType(m.type)),
         ...processed,
@@ -144,11 +170,9 @@ export function usePresetImportExport(options: {
       }
     } else if (Array.isArray(importedData)) {
       // v1 格式（纯数组）
-      const processed = importedData.map((m: any) => ({
-        ...m,
-        content:
-          typeof m.content === "string" ? convertMacros(m.content) : m.content,
-      }));
+      const processed = importedData.map((message: ChatMessageNode) =>
+        importPresetMessage(message)
+      );
       localMessages.value = [
         ...localMessages.value.filter((m) => isAnchorType(m.type)),
         ...processed,
@@ -171,11 +195,13 @@ export function usePresetImportExport(options: {
     }
   }
 
-  async function handleExport(format: "json" | "yaml" = "json") {
+  async function handleExport(command: string = "json") {
+    const compatible = command.startsWith("current-");
+    const format = command.endsWith("yaml") ? "yaml" : "json";
     if (localMessages.value.length === 0)
       return customMessage.warning("没有可导出的预设消息");
 
-    const data = cleanMessagesForExport(localMessages.value);
+    const data = cleanMessagesForExport(localMessages.value, compatible);
     const dataStr =
       format === "yaml" ? yaml.dump(data) : JSON.stringify(data, null, 2);
     const prefix = agentName.value ? `${agentName.value}-` : "";
@@ -241,7 +267,8 @@ export function usePresetImportExport(options: {
 
       applyImportedData(imported);
     } catch (error: any) {
-      if (error.message !== "User cancelled") customMessage.error("粘贴失败");
+      if (error.message !== "User cancelled")
+        customMessage.error(error.message || "粘贴失败");
     }
   }
 
@@ -267,8 +294,8 @@ export function usePresetImportExport(options: {
       } else {
         applyImportedData(parsed);
       }
-    } catch {
-      customMessage.error("导入失败");
+    } catch (error) {
+      customMessage.error(error instanceof Error ? error.message : "导入失败");
     } finally {
       (event.target as HTMLInputElement).value = "";
     }

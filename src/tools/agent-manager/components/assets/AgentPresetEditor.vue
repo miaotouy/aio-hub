@@ -28,6 +28,7 @@
         @update:local-messages="localMessages = $event"
         @sync="syncToParent"
         @edit-message="handleEditMessage"
+        @convert-group="conversionGroup = $event"
       />
       <div
         ref="headerRef"
@@ -55,6 +56,15 @@
           </div>
         </div>
         <div class="header-actions">
+          <el-button
+            v-if="conversionUndo"
+            size="small"
+            type="warning"
+            plain
+            @click="undoConversion"
+          >
+            <el-icon><RefreshLeft /></el-icon>撤销转换
+          </el-button>
           <el-dropdown trigger="click" @command="handleExport">
             <div>
               <el-tooltip
@@ -73,6 +83,12 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="json">JSON 格式</el-dropdown-item>
                 <el-dropdown-item command="yaml">YAML 格式</el-dropdown-item>
+                <el-dropdown-item divided command="current-json"
+                  >当前选择为普通消息（JSON）</el-dropdown-item
+                >
+                <el-dropdown-item command="current-yaml"
+                  >当前选择为普通消息（YAML）</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -126,6 +142,15 @@
               <el-icon><Operation /></el-icon>批量管理
             </el-button> </el-tooltip
           ><el-tooltip
+            content="添加一条由多个片段拼接的组合消息"
+            placement="top"
+            :show-after="300"
+          >
+            <el-button size="small" @click="handleAddComposition">
+              <el-icon><Plus /></el-icon>组合消息
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
             content="添加一条新的预设消息"
             placement="top"
             :show-after="300"
@@ -212,6 +237,7 @@
               v-memo="[
                 element.isEnabled,
                 element.content,
+                element.presetComposition,
                 element.role,
                 element.name,
                 element.injectionStrategy,
@@ -223,7 +249,27 @@
               ]"
               class="message-card-wrapper"
             >
+              <PresetCompositionCard
+                v-if="element.presetComposition"
+                :message="element"
+                :compact="props.compact"
+                :token-count="messageTokens.get(element.id)"
+                :preset-groups="presetGroups"
+                :model-id="props.modelId"
+                :save-message="saveCompositionMessage"
+                @edit="(partId) => handleEditMessage(element, partId)"
+                @duplicate="handleDuplicateMessage(element)"
+                @copy="handleCopyMessage(element)"
+                @remove="handleDeleteMessage(element)"
+                @radio="handleRadioChange(element)"
+                @toggle="handleToggleEnabled"
+                @paste="handlePasteMessage(element)"
+                @group-command="
+                  (command) => handleGroupCommand(element, command)
+                "
+              />
               <PresetMessageCard
+                v-else
                 :element="element"
                 :compact="props.compact"
                 :model-id="props.modelId"
@@ -280,9 +326,17 @@
       :llm-think-rules="props.agent?.llmThinkRules"
       :rich-text-style-options="props.agent?.richTextStyleOptions"
       :preset-groups="presetGroups"
-      @save="handleSaveMessage"
+      :save-message="handleSaveMessage"
+      :initial-part-id="editingPartId"
     />
 
+    <PresetCompositionConversion
+      v-if="conversionGroup"
+      :group="conversionGroup"
+      :messages="localMessages"
+      @close="conversionGroup = null"
+      @apply="applyConversion"
+    />
     <input
       ref="importFileInput"
       type="file"
@@ -318,7 +372,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, toRaw } from "vue";
+import { ref, computed, watch, toRaw, nextTick } from "vue";
+import {
+  clonePresetComposition,
+  assertPresetComposition,
+  presetMessageRevision,
+  type PresetComposition,
+} from "@aiohub/agent-preset-core";
+import PresetCompositionCard from "./PresetCompositionCard.vue";
+import PresetCompositionConversion from "./PresetCompositionConversion.vue";
 import { useElementSize } from "@vueuse/core";
 import { VueDraggableNext } from "vue-draggable-next";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -342,9 +404,11 @@ import {
   Plus,
   ArrowDown,
   Operation,
+  RefreshLeft,
 } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import PresetGroupPanel from "./PresetGroupPanel.vue";
+import { reconcilePresetGroupSelection } from "../../utils/presetGroupSelection";
 import PresetGroupEditDialog from "./PresetGroupEditDialog.vue";
 import PresetMessageEditor from "../editors/PresetMessageEditor.vue";
 import EditUserProfileDialog from "@/tools/user-profile-manager/components/user-profile/EditUserProfileDialog.vue";
@@ -367,6 +431,10 @@ interface Props {
   modelValue?: ChatMessageNode[];
   height?: string;
   compact?: boolean;
+  savePresetMessage?: (
+    message: ChatMessageNode,
+    previous: ChatMessageNode
+  ) => Promise<void>;
   modelId?: string;
   agentName?: string;
   agent?: {
@@ -447,7 +515,16 @@ const currentPageMessages = computed({
 const editDialogVisible = ref(false);
 const isEditMode = ref(false);
 const editingId = ref<string | null>(null);
+const editingPartId = ref<string>();
+const editingOriginal = ref<ChatMessageNode>();
+const conversionGroup = ref<PresetMessageGroup | null>(null);
+const conversionUndo = ref<{
+  messages: ChatMessageNode[];
+  groups: PresetMessageGroup[];
+  after: string;
+}>();
 const editForm = ref<{
+  presetComposition?: PresetComposition;
   role: MessageRole;
   content: string;
   name?: string;
@@ -471,11 +548,105 @@ const showBatchManager = ref(false);
 
 function syncToParent() {
   cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
+  reconcilePresetGroupSelection(localMessages.value, presetGroups.value);
   emit("update:modelValue", toRaw(localMessages.value));
 }
 
 function createPresetMessageId(): string {
   return `preset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function handleAddComposition() {
+  handleAddMessage();
+  editForm.value.name = "组合消息";
+  editForm.value.presetComposition = {
+    version: 1,
+    separator: "",
+    parts: [{ id: crypto.randomUUID(), kind: "text", content: "" }],
+  };
+}
+async function saveCompositionMessage(
+  next: ChatMessageNode,
+  previous: ChatMessageNode
+): Promise<void> {
+  const index = localMessages.value.findIndex(
+    (message) => message.id === previous.id
+  );
+  if (
+    index < 0 ||
+    presetMessageRevision(localMessages.value[index]) !==
+      presetMessageRevision(previous)
+  )
+    throw new Error("消息已在其他位置更新，草稿已保留。请重新打开后合并修改。");
+  if (next.presetComposition) {
+    assertPresetComposition(next.presetComposition);
+    next.content = "";
+  }
+  if (props.savePresetMessage) {
+    await props.savePresetMessage(next, previous);
+    // Let the model watcher adopt the persisted state, including concurrent choices.
+    await nextTick();
+    return;
+  }
+  const currentIndex = localMessages.value.findIndex(
+    (message) => message.id === next.id
+  );
+  if (currentIndex >= 0) localMessages.value.splice(currentIndex, 1, next);
+  reconcilePresetGroupSelection(
+    localMessages.value,
+    presetGroups.value,
+    next.id
+  );
+  syncToParent();
+}
+function applyConversion(payload: {
+  message: ChatMessageNode;
+  memberIds: string[];
+  groupId: string;
+}) {
+  const before = {
+    messages: JSON.parse(JSON.stringify(localMessages.value)),
+    groups: JSON.parse(JSON.stringify(presetGroups.value)),
+  };
+  const memberIds = new Set(payload.memberIds);
+  const first = localMessages.value.findIndex((message) =>
+    memberIds.has(message.id)
+  );
+  const messages = localMessages.value.filter(
+    (message) => !memberIds.has(message.id)
+  );
+  messages.splice(first, 0, payload.message);
+  localMessages.value = messages;
+  presetGroups.value = presetGroups.value.filter(
+    (group) => group.id !== payload.groupId
+  );
+  syncToParent();
+  conversionUndo.value = {
+    ...before,
+    after: JSON.stringify([
+      localMessages.value.map(presetMessageRevision),
+      presetGroups.value,
+    ]),
+  };
+  conversionGroup.value = null;
+  handleEditMessage(payload.message);
+}
+function undoConversion() {
+  const undo = conversionUndo.value;
+  if (!undo) return;
+  if (
+    JSON.stringify([
+      localMessages.value.map(presetMessageRevision),
+      presetGroups.value,
+    ]) !== undo.after
+  ) {
+    customMessage.warning("转换后已有其他修改，请先保存当前内容");
+    return;
+  }
+  localMessages.value = undo.messages;
+  presetGroups.value = undo.groups;
+  conversionUndo.value = undefined;
+  syncToParent();
 }
 
 // Token 计算
@@ -559,6 +730,7 @@ function onDragEnd() {
 
 // 消息操作
 function handleAddMessage() {
+  editingPartId.value = undefined;
   isEditMode.value = false;
   editForm.value = {
     role: "system",
@@ -572,12 +744,17 @@ function handleAddMessage() {
   editDialogVisible.value = true;
 }
 
-function handleEditMessage(message: ChatMessageNode) {
+function handleEditMessage(message: ChatMessageNode, partId?: string) {
+  editingPartId.value = partId;
+  editingOriginal.value = JSON.parse(JSON.stringify(toRaw(message)));
   isEditMode.value = true;
   editingId.value = message.id;
   editForm.value = {
     role: message.role,
     content: message.content,
+    presetComposition: message.presetComposition
+      ? JSON.parse(JSON.stringify(message.presetComposition))
+      : undefined,
     name: message.name,
     groupId: resolvePresetMessageGroupId(message.groupId, presetGroups.value),
     injectionStrategy: message.injectionStrategy,
@@ -589,7 +766,7 @@ function handleEditMessage(message: ChatMessageNode) {
   editDialogVisible.value = true;
 }
 
-function handleSaveMessage(form: typeof editForm.value) {
+async function handleSaveMessage(form: typeof editForm.value) {
   const normalizedForm = {
     ...form,
     groupId: resolvePresetMessageGroupId(form.groupId, presetGroups.value),
@@ -597,7 +774,16 @@ function handleSaveMessage(form: typeof editForm.value) {
 
   if (isEditMode.value && editingId.value) {
     const msg = localMessages.value.find((m) => m.id === editingId.value);
-    if (msg) Object.assign(msg, normalizedForm);
+    if (!msg || !editingOriginal.value)
+      throw new Error("原消息已被删除，请保留草稿后重新打开");
+    await saveCompositionMessage(
+      { ...msg, ...normalizedForm },
+      editingOriginal.value
+    );
+    editingOriginal.value = JSON.parse(
+      JSON.stringify(localMessages.value.find((item) => item.id === msg.id))
+    );
+    return;
   } else {
     const newMsg: ChatMessageNode = {
       id: createPresetMessageId(),
@@ -609,6 +795,8 @@ function handleSaveMessage(form: typeof editForm.value) {
       isEnabled: true,
       timestamp: new Date().toISOString(),
     };
+    editingId.value = newMsg.id;
+    isEditMode.value = true;
     const historyIndex = localMessages.value.findIndex(
       (m) => m.type === "chat_history"
     );
@@ -617,8 +805,13 @@ function handleSaveMessage(form: typeof editForm.value) {
     } else {
       localMessages.value.push(newMsg);
     }
+    reconcilePresetGroupSelection(
+      localMessages.value,
+      presetGroups.value,
+      newMsg.id
+    );
+    editingOriginal.value = JSON.parse(JSON.stringify(newMsg));
   }
-  editDialogVisible.value = false;
   syncToParent();
 }
 
@@ -632,6 +825,8 @@ async function handleCopyMessage(message: ChatMessageNode) {
           name: message.name,
           injectionStrategy: message.injectionStrategy,
           modelMatch: message.modelMatch,
+          presetComposition: message.presetComposition,
+          presetAttachments: message.presetAttachments,
         },
         null,
         2
@@ -666,6 +861,10 @@ function handleDuplicateMessage(message: ChatMessageNode) {
     updatedAt: now,
   };
 
+  if (duplicate.presetComposition)
+    duplicate.presetComposition = clonePresetComposition(
+      duplicate.presetComposition
+    );
   localMessages.value.splice(index + 1, 0, duplicate);
   syncToParent();
   customMessage.success("已复制到下方");
@@ -683,9 +882,22 @@ async function handlePasteMessage(message: ChatMessageNode) {
       data = text;
     }
 
+    if (message.presetComposition && !data?.presetComposition) {
+      customMessage.warning("请在组合消息编辑器中粘贴到对应片段");
+      return;
+    }
+    if (data?.presetComposition) {
+      assertPresetComposition(data.presetComposition);
+      message.presetComposition = data.presetComposition;
+      message.content = "";
+    }
     if (typeof data === "object" && data !== null) {
       message.role = data.role || message.role;
-      message.content = convertMacros(data.content ?? message.content);
+      message.content = message.presetComposition
+        ? ""
+        : typeof data.content === "string"
+          ? data.content
+          : message.content;
       message.name = data.name || message.name;
       message.injectionStrategy =
         data.injectionStrategy || message.injectionStrategy;
@@ -732,6 +944,7 @@ function handlePresetGroupToggle(group: PresetMessageGroup) {
 function handlePresetGroupsUpdate(groups: PresetMessageGroup[]) {
   presetGroups.value = groups;
   cleanupPresetMessageGroupRefs(localMessages.value, presetGroups.value);
+  syncToParent();
 }
 
 function handleRadioChange(targetMsg: ChatMessageNode) {
@@ -767,11 +980,12 @@ function handleGroupCommand(msg: ChatMessageNode, cmd: string) {
       if (!msg.metadata) msg.metadata = {} as any;
       msg.metadata!.lastEnabledState = true;
     }
-    if (targetGroup?.selectionMode === "radio") {
-      handleRadioChange(msg);
-    } else {
-      syncToParent();
-    }
+    reconcilePresetGroupSelection(
+      localMessages.value,
+      presetGroups.value,
+      msg.id
+    );
+    syncToParent();
   } else if (cmd === "new") {
     pendingGroupJoinMsg.value = msg;
     createGroupDialogVisible.value = true;

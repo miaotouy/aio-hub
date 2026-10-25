@@ -1,3 +1,7 @@
+import type {
+  PresetComposition,
+  PresetContribution,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -111,6 +115,9 @@ export interface InjectionStrategy {
 export type TranslationDisplayMode = "original" | "translation" | "both";
 
 export interface ChatMessageNode {
+  presetComposition?: PresetComposition;
+  /** Runtime-only mapping to structured preset bodies. */
+  presetContributingParts?: PresetContribution[];
   /**
    * 消息的唯一标识符
    */

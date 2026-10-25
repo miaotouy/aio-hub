@@ -59,11 +59,6 @@ vi.mock("@/tools/st-worldbook-manager/stores/worldbookStore", () => ({
   }),
 }));
 
-vi.mock("@/tools/llm-chat/services/sillyTavernParser", () => ({
-  isCharacterCard: () => false,
-  parseCharacterCard: vi.fn(),
-}));
-
 vi.mock("@/utils/pngMetadataReader", () => ({ parsePngMetadata: vi.fn() }));
 
 vi.mock("@/tools/st-worldbook-manager/services/worldbookImportService", () => ({
@@ -273,4 +268,145 @@ describe("agent import display names", () => {
       expect(result.agents[0].name).toBe("咕咕");
     }
   );
+});
+
+describe("agent import preset text", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.agents.splice(0);
+    mocks.createAgent.mockImplementation(
+      (_name, _profile, _model, options) => options.customId
+    );
+    mocks.invoke.mockResolvedValue(undefined);
+  });
+
+  async function importJson(value: unknown) {
+    const preflight = await preflightImportAgents(
+      new File([JSON.stringify(value)], "agent.json"),
+      {
+        existingAgentNames: [],
+        availableModelIds: ["model-1"],
+      }
+    );
+    await commitImportAgents({
+      assets: preflight.assets,
+      resolvedAgents: preflight.agents.map((entry) => ({
+        ...entry,
+        finalModelId: "model-1",
+        finalProfileId: "profile-1",
+        overwriteExisting: false,
+      })),
+    });
+    return mocks.createAgent.mock.lastCall![3];
+  }
+
+  it("preserves native ordinary, shared and inactive alternative bodies through the file import path", async () => {
+    const content = "  <description>内容</description>\r\n{{CHAR}} <user> ";
+    const messages = [
+      { id: "ordinary", role: "system", content, status: "complete" },
+      {
+        id: "composed",
+        role: "system",
+        content: "",
+        status: "complete",
+        presetComposition: {
+          version: 1,
+          separator: "\r\n",
+          parts: [
+            { id: "shared", kind: "text", content },
+            {
+              id: "choice",
+              kind: "choice",
+              selectedOptionId: "a",
+              options: [
+                { id: "a", content },
+                { id: "b", content: "<char>未选中</char>" },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+    const imported = await importJson({
+      version: 2,
+      type: "AIO_Agent_Export",
+      agents: [
+        { name: "Native", modelId: "model-1", presetMessages: messages },
+      ],
+    });
+    expect(imported.presetMessages).toEqual(messages);
+  });
+
+  it("disables members of a disabled preset group on import", async () => {
+    const imported = await importJson({
+      version: 2,
+      type: "AIO_Agent_Export",
+      agents: [
+        {
+          name: "Grouped",
+          modelId: "model-1",
+          presetGroups: [
+            {
+              id: "g",
+              name: "工作模式",
+              selectionMode: "radio",
+              enabled: false,
+            },
+          ],
+          presetMessages: [
+            {
+              id: "first",
+              role: "system",
+              content: "a",
+              status: "complete",
+              isEnabled: true,
+              groupId: "g",
+            },
+            {
+              id: "second",
+              role: "system",
+              content: "b",
+              status: "complete",
+              isEnabled: false,
+              groupId: "g",
+            },
+          ],
+        },
+      ],
+    });
+    expect(
+      imported.presetMessages.map(
+        (message: { id: string; isEnabled?: boolean }) => [
+          message.id,
+          message.isEnabled,
+        ]
+      )
+    ).toEqual([
+      ["first", false],
+      ["second", false],
+    ]);
+  });
+
+  it("still converts Tavern macros at the character card parser boundary", async () => {
+    const imported = await importJson({
+      spec: "chara_card_v2",
+      spec_version: "2.0",
+      data: {
+        name: "Tavern",
+        description: "角色",
+        first_mes: "hello",
+        system_prompt: "{{CHAR}} <user>",
+        personality: "",
+        scenario: "",
+        mes_example: "",
+        creator_notes: "",
+        post_history_instructions: "",
+      },
+    });
+    expect(
+      imported.presetMessages.some(
+        (entry: { content: string }) => entry.content === "{{char}} {{user}}"
+      )
+    ).toBe(true);
+  });
 });

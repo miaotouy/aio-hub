@@ -1,3 +1,7 @@
+import {
+  materializePresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,11 +128,26 @@ export function usePresetTokenCalculator(options: {
     const visionTokenCost = undefined;
     const agentAssets: AgentAsset[] = agent.value?.assets || [];
 
-    const tasks = localMessages.value.map((message) => async () => {
-      if (isPurePlaceholderAnchorType(message.type) || !message.isEnabled)
+    let normalized: ChatMessageNode[];
+    try {
+      normalized = normalizePresetGroupState(
+        localMessages.value,
+        agent.value?.presetGroups
+      );
+    } catch (error) {
+      logger.warn("预设配置需要调整后计算", { error: String(error) });
+      isCalculatingTokens.value = false;
+      messageTokens.value = new Map();
+      return;
+    }
+    const tasks = normalized.map((message) => async () => {
+      if (
+        isPurePlaceholderAnchorType(message.type) ||
+        message.isEnabled === false
+      )
         return;
       try {
-        let template = message.content;
+        let template = materializePresetMessage(message).content;
         if (isTemplateAnchorType(message.type) && !template) {
           template = getAnchorDef(message.type)?.defaultTemplate || "";
         }

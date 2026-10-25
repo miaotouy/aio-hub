@@ -1,3 +1,8 @@
+import {
+  assertPresetComposition,
+  presetMessageRevision,
+} from "@aiohub/agent-preset-core";
+import type { ChatMessageNode } from "@/tools/llm-chat/types";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +28,7 @@ import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createDefaultAgentTemplate } from "../config/defaultAgentTemplate";
 import { useAgentStorage } from "../composables/storage/useAgentStorage";
 import type { ChatAgent } from "../types/agent";
+import { reconcilePresetGroupSelection } from "../utils/presetGroupSelection";
 import type { LlmParameters } from "@/tools/llm-chat/types/llm";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 import {
@@ -48,6 +54,83 @@ import type {
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
 let loadAgentsPromise: Promise<void> | null = null;
+const agentWriteQueue = new Map<string, Promise<void>>();
+
+function enqueueAgentWrite(
+  agentId: string,
+  write: () => Promise<void>
+): Promise<void> {
+  const pending = (agentWriteQueue.get(agentId) ?? Promise.resolve())
+    .catch(() => {})
+    .then(write);
+  agentWriteQueue.set(agentId, pending);
+  const cleanup = () => {
+    if (agentWriteQueue.get(agentId) === pending)
+      agentWriteQueue.delete(agentId);
+  };
+  void pending.then(cleanup, cleanup);
+  return pending;
+}
+
+const copyAgent = (agent: ChatAgent): ChatAgent =>
+  JSON.parse(JSON.stringify(agent));
+const sameValue = (left: unknown, right: unknown) =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+/** Rebase independently changed fields while retaining the completed write. */
+function mergeSnapshotFields<T extends object>(
+  saved: T,
+  before: T,
+  current: T
+): T {
+  const merged = { ...saved };
+  for (const key of new Set([
+    ...Object.keys(before),
+    ...Object.keys(current),
+  ])) {
+    if (sameValue(Reflect.get(before, key), Reflect.get(current, key)))
+      continue;
+    if (Object.prototype.hasOwnProperty.call(current, key))
+      Reflect.set(merged, key, Reflect.get(current, key));
+    else Reflect.deleteProperty(merged, key);
+  }
+  return merged;
+}
+
+function mergeAgentSnapshot(
+  saved: ChatAgent,
+  before: ChatAgent,
+  current: ChatAgent
+): ChatAgent {
+  const merged = mergeSnapshotFields(saved, before, current);
+  if (!sameValue(before.presetMessages, current.presetMessages)) {
+    const originals = new Map(
+      before.presetMessages?.map((message) => [message.id, message])
+    );
+    const latest = new Map(
+      current.presetMessages?.map((message) => [message.id, message])
+    );
+    const persisted = new Map(
+      saved.presetMessages?.map((message) => [message.id, message])
+    );
+    const ids = (agent: ChatAgent) =>
+      agent.presetMessages?.map((message) => message.id);
+    const order = sameValue(ids(before), ids(current))
+      ? saved.presetMessages
+      : current.presetMessages;
+    merged.presetMessages = (order ?? [])
+      .filter((message) => !originals.has(message.id) || latest.has(message.id))
+      .map((message) => {
+        const local = latest.get(message.id);
+        const original = originals.get(message.id);
+        const savedMessage = persisted.get(message.id) ?? message;
+        return local && original
+          ? mergeSnapshotFields(savedMessage, original, local)
+          : (local ?? savedMessage);
+      });
+  }
+  return copyAgent(merged);
+}
 
 // 重新导出类型，保持向后兼容
 export type {
@@ -122,12 +205,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
       options?: Partial<
         Omit<
           ChatAgent,
-          | "id"
-          | "name"
-          | "profileId"
-          | "modelId"
-          | "createdAt"
-          | "lastUsedAt"
+          "id" | "name" | "profileId" | "modelId" | "createdAt" | "lastUsedAt"
         >
       > & { customId?: string }
     ): string {
@@ -139,7 +217,9 @@ export const useAgentStore = defineStore("llmChatAgent", {
         });
         return "";
       }
-      const agentId = customId || `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      const agentId =
+        customId ||
+        `agent-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       const now = getLocalISOString();
       const {
         customId: _customId,
@@ -384,12 +464,14 @@ export const useAgentStore = defineStore("llmChatAgent", {
 
       const agent = this.agents[index];
 
-      // 调用存储层删除（会移入回收站）
       const { deleteAgent } = useAgentStorage();
-      await deleteAgent(agentId);
-
-      // 从内存中移除
-      this.agents.splice(index, 1);
+      await enqueueAgentWrite(agentId, async () => {
+        await deleteAgent(agentId);
+        const currentIndex = this.agents.findIndex(
+          (item) => item.id === agentId
+        );
+        if (currentIndex !== -1) this.agents.splice(currentIndex, 1);
+      });
 
       logger.info("智能体已删除", { agentId, name: agent.name });
     },
@@ -454,6 +536,72 @@ export const useAgentStore = defineStore("llmChatAgent", {
     /**
      * 更新智能体的预设消息内容
      */
+    async savePresetMessage(
+      agentId: string,
+      next: ChatMessageNode,
+      previous: ChatMessageNode
+    ): Promise<void> {
+      await enqueueAgentWrite(agentId, async () => {
+        const getCurrentAgent = () => {
+          const agent = this.agents.find((item) => item.id === agentId);
+          const message = agent?.presetMessages?.find(
+            (item) => item.id === previous.id
+          );
+          if (
+            !agent ||
+            !message ||
+            presetMessageRevision(message) !== presetMessageRevision(previous)
+          )
+            throw new Error("消息已更新，请保留草稿并重新打开");
+          return agent;
+        };
+        const beforeLoad = copyAgent(getCurrentAgent());
+        if (next.presetComposition)
+          assertPresetComposition(next.presetComposition);
+        const storage = useAgentStorage();
+        const disk = await storage.loadAgent(agentId);
+        const diskMessage = disk?.presetMessages?.find(
+          (item) => item.id === previous.id
+        );
+        if (
+          !disk ||
+          !diskMessage ||
+          presetMessageRevision(diskMessage) !== presetMessageRevision(previous)
+        )
+          throw new Error("文件中的消息已更新，请刷新智能体后合并草稿");
+
+        const beforeWrite = copyAgent(getCurrentAgent());
+        const snapshot = mergeAgentSnapshot(disk, beforeLoad, beforeWrite);
+        snapshot.presetMessages = snapshot.presetMessages!.map((item) =>
+          item.id === previous.id ? next : item
+        );
+        reconcilePresetGroupSelection(
+          snapshot.presetMessages,
+          snapshot.presetGroups,
+          next.id
+        );
+        await storage.persistAgent(copyAgent(snapshot));
+
+        const current = this.agents.find((item) => item.id === agentId);
+        if (!current) return;
+        const merged = mergeAgentSnapshot(snapshot, beforeWrite, current);
+        const latestSelection = current.presetMessages?.find(
+          (message) =>
+            message.isEnabled !== false &&
+            beforeWrite.presetMessages?.some(
+              (original) =>
+                original.id === message.id && original.isEnabled === false
+            )
+        );
+        reconcilePresetGroupSelection(
+          merged.presetMessages ?? [],
+          merged.presetGroups,
+          latestSelection?.id
+        );
+        Object.assign(current, merged);
+      });
+    },
+
     updatePresetMessage(
       agentId: string,
       presetNodeId: string,
@@ -480,6 +628,13 @@ export const useAgentStore = defineStore("llmChatAgent", {
         return false;
       }
 
+      if (presetMessage.presetComposition) {
+        logger.warn("请通过消息合并编辑器修改片段正文", {
+          agentId,
+          presetNodeId,
+        });
+        return false;
+      }
       // 更新内容
       presetMessage.content = newContent;
 
@@ -542,7 +697,20 @@ export const useAgentStore = defineStore("llmChatAgent", {
      */
     persistAgent(agent: ChatAgent): void {
       const { persistAgent: persistAgentToStorage } = useAgentStorage();
-      persistAgentToStorage(agent).catch((error) =>
+      reconcilePresetGroupSelection(
+        agent.presetMessages ?? [],
+        agent.presetGroups
+      );
+      enqueueAgentWrite(agent.id, async () => {
+        const current = this.agents.find((item) => item.id === agent.id);
+        if (current) {
+          reconcilePresetGroupSelection(
+            current.presetMessages ?? [],
+            current.presetGroups
+          );
+          await persistAgentToStorage(copyAgent(current));
+        }
+      }).catch((error) =>
         errorHandler.handle(error as Error, {
           userMessage: "持久化智能体失败",
           showToUser: false,

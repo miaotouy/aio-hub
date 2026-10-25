@@ -1,3 +1,4 @@
+import type { PresetContribution } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,6 +53,7 @@ export const ANCHOR_IDS = {
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
+  presetContributingParts?: PresetContribution[];
   role: "system" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
   /** 思考/推理内容（用于 DeepSeek 等模型的多轮对话回传） */
@@ -172,6 +174,7 @@ export interface ContextPreviewData {
     charCount: number;
     tokenCount?: number;
     source: "agent_preset";
+    presetContributingParts?: PresetContribution[];
     index: number;
     /** 节点所使用的用户名称（快照） */
     userName?: string;

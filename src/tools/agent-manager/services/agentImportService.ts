@@ -1,3 +1,7 @@
+import {
+  importPresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,6 +61,14 @@ const errorHandler = createModuleErrorHandler("llm-chat/agentImportService");
 function sanitizeImportedAgent(agent: any): any {
   const source = { ...agent };
   migrateAgent(source);
+  source.presetMessages = (source.presetMessages ?? []).map(
+    (message: import("@/tools/llm-chat/types").ChatMessageNode) =>
+      importPresetMessage(message)
+  );
+  source.presetMessages = normalizePresetGroupState(
+    source.presetMessages,
+    source.presetGroups
+  );
   const sanitized = {
     ...source,
     parameters: {

@@ -17,6 +17,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { X } from "lucide-vue-next";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
+import PresetCompositionSourceEditor from "@/tools/agent-manager/components/editors/PresetCompositionSourceEditor.vue";
 import { useDraggable } from "@vueuse/core";
 import type {
   ChatMessageNode,
@@ -51,6 +54,20 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
+const agentStore = useAgentStore();
+const { currentAgentId } = useLlmChatUiState();
+const sourceEditorOpen = ref(false);
+const sourceAgentId = computed(
+  () =>
+    (props.message?.metadata?.agentId as string) || currentAgentId.value || ""
+);
+const structuredSource = computed(
+  () =>
+    agentStore
+      .getAgentById(sourceAgentId.value)
+      ?.presetMessages?.find((item) => item.id === props.message?.id)
+      ?.presetComposition
+);
 
 const handleClose = () => {
   emit("close");
@@ -198,7 +215,7 @@ const chatMessageProps = computed(() => {
     // 在节点详情弹窗中，只显示部分功能
     buttonVisibility: {
       copy: true,
-      edit: true,
+      edit: !structuredSource.value,
       createBranch: false,
       delete: false,
       regenerate: true,
@@ -232,6 +249,12 @@ const chatMessageProps = computed(() => {
         </button>
       </div>
       <div class="detail-popup-content">
+        <el-button
+          v-if="structuredSource"
+          size="small"
+          @click="sourceEditorOpen = true"
+          >编辑组合消息来源</el-button
+        >
         <template v-if="message?.metadata?.isCompressionNode">
           <CompressionMessage
             :session-index="sessionIndex"
@@ -253,6 +276,12 @@ const chatMessageProps = computed(() => {
           />
         </template>
       </div>
+      <PresetCompositionSourceEditor
+        v-if="message && structuredSource"
+        v-model:visible="sourceEditorOpen"
+        :agent-id="sourceAgentId"
+        :message-id="message.id"
+      />
       <div class="resize-handle" @mousedown="initResize"></div>
     </div>
   </div>

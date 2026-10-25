@@ -254,6 +254,7 @@ export async function buildPreviewDataFromContext(
         userName: msg._userName,
         userIcon: msg._userIcon,
         name: msg._name,
+        presetContributingParts: msg.presetContributingParts,
         attachments: presetAttachmentsData,
       });
       presetMessagesCharCount += charCount;

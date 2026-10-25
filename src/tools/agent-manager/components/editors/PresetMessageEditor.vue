@@ -19,20 +19,29 @@
     :modelValue="visible"
     @update:modelValue="$emit('update:visible', $event)"
     :title="
-      isGreetingMode
+      form.presetComposition
         ? isEditMode
-          ? '编辑开局消息'
-          : '添加开局消息'
-        : isEditMode
-          ? '编辑消息'
-          : '添加消息'
+          ? '编辑组合消息'
+          : '新建组合消息'
+        : isGreetingMode
+          ? isEditMode
+            ? '编辑开局消息'
+            : '添加开局消息'
+          : isEditMode
+            ? '编辑消息'
+            : '添加消息'
     "
     width="70vw"
     height="85vh"
     :closeOnBackdropClick="false"
+    :before-close="beforeClose"
   >
     <template #content>
-      <div class="preset-message-editor">
+      <div
+        class="preset-message-editor"
+        :class="{ structured: form.presetComposition }"
+        @keydown.capture="handleEditorKey"
+      >
         <!-- 第一行：角色选择 -->
         <div class="editor-row header-row">
           <span class="field-label">角色</span>
@@ -81,229 +90,180 @@
           </div>
         </div>
 
-        <!-- 所属预设组（非 greeting 模式且有可用组时显示） -->
-        <div v-if="!isGreetingMode && presetGroups?.length" class="editor-row">
-          <span class="field-label">所属组</span>
-          <el-select
-            v-model="form.groupId"
-            placeholder="独立消息（不归属任何组）"
-            clearable
-            size="small"
-            style="width: 240px"
+        <div class="message-settings">
+          <!-- 所属预设组（非 greeting 模式且有可用组时显示） -->
+          <div
+            v-if="!isGreetingMode && presetGroups?.length"
+            class="editor-row"
           >
-            <el-option
-              v-for="g in presetGroups"
-              :key="g.id"
-              :label="g.name"
-              :value="g.id"
-            />
-          </el-select>
-        </div>
-
-        <!-- 模型匹配配置行 (greeting 模式隐藏) -->
-        <ModelMatchConfig v-if="!isGreetingMode" v-model="modelMatchValue" />
-        <!-- 注入策略配置行 (greeting 模式隐藏) -->
-        <InjectionConfig
-          v-if="!isGreetingMode"
-          v-model="injectionStrategyValue"
-        />
-
-        <!-- 附件区域（非 greeting 模式且 Agent 有资产时显示） -->
-        <PresetAttachmentPicker
-          v-if="!isGreetingMode && availableAssets.length > 0"
-          ref="attachmentPickerRef"
-          v-model="form.presetAttachments"
-          :available-assets="availableAssets"
-          :agent-id="currentAgent?.id"
-        />
-
-        <!-- 第二行：内容标签 + 工具栏 -->
-        <div class="editor-row toolbar-row">
-          <span class="field-label">内容</span>
-
-          <div class="editor-toolbar" v-if="viewMode === 'edit'">
-            <el-popover
-              v-model:visible="macroSelectorVisible"
-              placement="bottom-start"
-              :width="400"
-              trigger="click"
-              popper-class="preset-editor-macro-popover"
+            <span class="field-label">所属组</span>
+            <el-select
+              v-model="form.groupId"
+              placeholder="独立消息（不归属任何组）"
+              clearable
+              size="small"
+              style="width: 240px"
             >
-              <template #reference>
-                <el-button
-                  size="small"
-                  :type="macroSelectorVisible ? 'primary' : 'default'"
-                  plain
-                >
-                  <el-icon style="margin-right: 4px"><MagicStick /></el-icon>
-                  插入宏
-                </el-button>
-              </template>
-              <MacroSelector @insert="handleInsertMacro" />
-            </el-popover>
-
-            <el-popover
-              v-if="
-                agent?.variableConfig?.enabled &&
-                agent?.variableConfig?.definitions?.length > 0
-              "
-              v-model:visible="variableSelectorVisible"
-              placement="bottom-start"
-              :width="400"
-              trigger="click"
-              popper-class="preset-editor-variable-popover"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  :type="variableSelectorVisible ? 'primary' : 'default'"
-                  plain
-                >
-                  <el-icon style="margin-right: 4px"
-                    ><Variable :size="16"
-                  /></el-icon>
-                  插入变量
-                </el-button>
-              </template>
-              <VariableSelector
-                :variables="agent?.variableConfig?.definitions || []"
-                @insert="handleInsertVariable"
+              <el-option
+                v-for="g in presetGroups"
+                :key="g.id"
+                :label="g.name"
+                :value="g.id"
               />
-            </el-popover>
+            </el-select>
+          </div>
 
-            <template v-if="!isGreetingMode">
+          <!-- 模型匹配配置行 (greeting 模式隐藏) -->
+          <ModelMatchConfig v-if="!isGreetingMode" v-model="modelMatchValue" />
+          <!-- 注入策略配置行 (greeting 模式隐藏) -->
+          <InjectionConfig
+            v-if="!isGreetingMode"
+            v-model="injectionStrategyValue"
+          />
+
+          <!-- 附件区域（非 greeting 模式且 Agent 有资产时显示） -->
+          <PresetAttachmentPicker
+            v-if="!isGreetingMode && availableAssets.length > 0"
+            ref="attachmentPickerRef"
+            v-model="form.presetAttachments"
+            :available-assets="availableAssets"
+            :agent-id="currentAgent?.id"
+          />
+        </div>
+        <div v-if="!isGreetingMode" class="editor-row">
+          <span class="field-label">正文</span>
+          <el-radio-group
+            :model-value="form.presetComposition ? 'composition' : 'plain'"
+            size="small"
+            aria-label="内容形式"
+            @change="handleBodyModeChange"
+          >
+            <el-radio-button value="plain">普通正文</el-radio-button>
+            <el-radio-button value="composition">组合编排</el-radio-button>
+          </el-radio-group>
+        </div>
+        <!-- 组合消息：结构化编辑区；预览模式下保留实例以维持选中片段与撤销记录 -->
+        <PresetCompositionEditor
+          v-if="form.presetComposition"
+          v-show="viewMode === 'edit'"
+          v-model="form.presetComposition"
+          :initial-part-id="compositionPartId"
+          :variable-config="agent?.variableConfig"
+          :allow-recall="!isGreetingMode"
+        />
+        <template v-if="!form.presetComposition || viewMode !== 'edit'">
+          <!-- 第二行：内容标签 + 工具栏 -->
+          <div class="editor-row toolbar-row">
+            <span class="field-label">内容</span>
+
+            <PresetBodyToolbar
+              v-if="viewMode === 'edit'"
+              v-model="form.content"
+              class="editor-toolbar"
+              :editor="richEditorRef"
+              :variable-config="agent?.variableConfig"
+              :allow-recall="!isGreetingMode"
+            >
+              <el-button
+                v-if="!isGreetingMode"
+                size="small"
+                plain
+                class="extract-choice"
+                @click="extractChoice"
+                ><Split :size="16" />提取为单选组</el-button
+              >
+            </PresetBodyToolbar>
+            <div v-else-if="viewMode === 'text'" class="preview-hint">
               <el-button
                 size="small"
-                :type="kbEditorVisible ? 'primary' : 'default'"
+                @click="handleCopy"
                 plain
-                @click="
-                  handleKBButtonClick();
-                  kbEditorVisible = true;
-                "
+                style="margin-left: 12px"
               >
-                <el-icon style="margin-right: 4px"><Book /></el-icon>
-                插入检索
+                <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
+                复制预览
               </el-button>
-
-              <BaseDialog
-                :modelValue="kbEditorVisible"
-                @update:modelValue="kbEditorVisible = $event"
-                title="插入 Recall 检索占位符"
-                width="480px"
-                height="auto"
-                :closeOnBackdropClick="true"
-              >
-                <template #content>
-                  <RecallPlaceholderEditor
-                    :value="currentKBSelection"
-                    @insert="handleInsertKBPlaceholder"
-                    @cancel="kbEditorVisible = false"
-                  />
-                </template>
-              </BaseDialog>
-            </template>
-
-            <el-button size="small" @click="handleCopy" plain title="复制内容">
-              <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
-              复制
-            </el-button>
-
-            <el-button
-              size="small"
-              @click="handlePaste"
-              plain
-              title="粘贴到光标处"
-            >
-              <el-icon style="margin-right: 4px"><DocumentAdd /></el-icon>
-              粘贴
-            </el-button>
-
-            <el-popconfirm
-              title="确定要用剪贴板内容覆盖当前内容吗？"
-              @confirm="handleOverwrite"
-              width="220"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  plain
-                  title="用剪贴板内容覆盖"
-                  type="warning"
-                >
-                  <el-icon style="margin-right: 4px"><Document /></el-icon>
-                  覆盖
-                </el-button>
-              </template>
-            </el-popconfirm>
-          </div>
-          <div v-else-if="viewMode === 'text'" class="preview-hint">
-            <el-button
-              size="small"
-              @click="handleCopy"
-              plain
-              style="margin-left: 12px"
-            >
-              <el-icon style="margin-right: 4px"><CopyDocument /></el-icon>
-              复制预览
-            </el-button>
-            <span class="hint-text">宏处理后的纯文本</span>
-          </div>
-          <div v-else class="preview-hint">
-            <span class="hint-text">Markdown 渲染预览</span>
-          </div>
-        </div>
-
-        <!-- 第三行：编辑器/预览区域 (自适应高度) -->
-        <div class="editor-content-area">
-          <!-- 编辑器 -->
-          <div v-show="viewMode === 'edit'" class="editor-wrapper">
-            <RichCodeEditor
-              ref="richEditorRef"
-              v-model="form.content"
-              language="markdown"
-              :line-numbers="true"
-              editor-type="monaco"
-              :options="presetEditorOptions"
-            />
-          </div>
-
-          <!-- 文本预览 -->
-          <div
-            v-if="viewMode === 'text'"
-            class="preview-wrapper text-preview-wrapper"
-          >
-            <pre class="text-preview-content">{{
-              previewContent || form.content || "(空)"
-            }}</pre>
-          </div>
-
-          <!-- 渲染预览 -->
-          <div v-if="viewMode === 'preview'" class="preview-wrapper">
-            <div class="preview-content">
-              <RichTextRenderer
-                :content="previewContent || form.content || '(空)'"
-                :version="settings.uiPreferences.rendererVersion"
-                :default-render-html="settings.uiPreferences.defaultRenderHtml"
-                :llm-think-rules="llmThinkRules"
-                :style-options="richTextStyleOptions"
-                :resolve-asset="resolveAsset"
-              />
+              <span class="hint-text">宏处理后的纯文本</span>
+            </div>
+            <div v-else class="preview-hint">
+              <span class="hint-text">Markdown 渲染预览</span>
             </div>
           </div>
-        </div>
+
+          <!-- 第三行：编辑器/预览区域 (自适应高度) -->
+          <div class="editor-content-area">
+            <!-- 编辑器 -->
+            <div
+              v-if="!form.presetComposition"
+              v-show="viewMode === 'edit'"
+              class="editor-wrapper"
+            >
+              <RichCodeEditor
+                ref="richEditorRef"
+                v-model="form.content"
+                language="markdown"
+                :line-numbers="true"
+                editor-type="monaco"
+                :options="presetEditorOptions"
+              />
+            </div>
+
+            <!-- 文本预览 -->
+            <div
+              v-if="viewMode === 'text'"
+              class="preview-wrapper text-preview-wrapper"
+            >
+              <pre class="text-preview-content">{{
+                previewContent || previewSource || "(空)"
+              }}</pre>
+            </div>
+
+            <!-- 渲染预览 -->
+            <div v-if="viewMode === 'preview'" class="preview-wrapper">
+              <div class="preview-content">
+                <RichTextRenderer
+                  :content="previewContent || previewSource || '(空)'"
+                  :version="settings.uiPreferences.rendererVersion"
+                  :default-render-html="
+                    settings.uiPreferences.defaultRenderHtml
+                  "
+                  :llm-think-rules="llmThinkRules"
+                  :style-options="richTextStyleOptions"
+                  :resolve-asset="resolveAsset"
+                />
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
+      <PresetInlineLeaveGuard ref="leaveGuard" />
     </template>
     <template #footer>
-      <el-button @click="$emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="handleSave">
-        {{ isEditMode ? "保存" : "添加" }}
-      </el-button>
+      <div class="editor-footer" @keydown.capture="handleEditorKey">
+        <el-button @click="requestClose">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave()">
+          {{
+            form.presetComposition ? "保存并返回" : isEditMode ? "保存" : "添加"
+          }}
+        </el-button>
+      </div>
     </template>
   </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, provide } from "vue";
+import { cloneDeep } from "lodash-es";
+import {
+  assertPresetComposition,
+  extractPresetChoice,
+  compilePresetComposition,
+  type PresetComposition,
+} from "@aiohub/agent-preset-core";
+import PresetCompositionEditor from "./PresetCompositionEditor.vue";
+import PresetBodyToolbar from "./PresetBodyToolbar.vue";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import PresetInlineLeaveGuard from "../assets/PresetInlineLeaveGuard.vue";
 import type {
   MessageRole,
   UserProfile,
@@ -311,20 +271,10 @@ import type {
   PresetAttachmentRef,
 } from "@/tools/llm-chat/types";
 import type { PresetMessageGroup, AgentAsset } from "../../types/agent";
-import {
-  ChatDotRound,
-  User,
-  MagicStick,
-  CopyDocument,
-  DocumentAdd,
-  Document,
-} from "@element-plus/icons-vue";
-import { Bot, Book, Variable } from "lucide-vue-next";
+import { ChatDotRound, User, CopyDocument } from "@element-plus/icons-vue";
+import { Bot, Split } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import MacroSelector from "../selectors/MacroSelector.vue";
-import VariableSelector from "../selectors/VariableSelector.vue";
-import RecallPlaceholderEditor from "./RecallPlaceholderEditor.vue";
 import ModelMatchConfig from "./ModelMatchConfig.vue";
 import InjectionConfig from "./InjectionConfig.vue";
 import PresetAttachmentPicker from "./PresetAttachmentPicker.vue";
@@ -343,7 +293,6 @@ import {
   createMacroContext,
   MacroRegistry,
   initializeMacroEngine,
-  type MacroDefinition,
   type MacroContext,
   extractContextFromSession,
 } from "@/tools/llm-chat/macro-engine";
@@ -353,6 +302,7 @@ import {
 } from "../../utils/agentAssetUtils";
 
 interface MessageForm {
+  presetComposition?: PresetComposition;
   role: MessageRole;
   name?: string;
   content: string;
@@ -376,6 +326,7 @@ interface Props {
   visible: boolean;
   isEditMode: boolean;
   initialForm?: MessageForm;
+  initialPartId?: string;
   agentName?: string;
   userProfile?: UserProfile | null;
   agent?: any;
@@ -388,6 +339,7 @@ interface Props {
    */
   editorMode?: PresetEditorMode;
   presetGroups?: PresetMessageGroup[];
+  saveMessage?: (form: MessageForm) => Promise<void>;
 }
 
 interface Emits {
@@ -440,6 +392,7 @@ const injectionStrategyValue = ref<InjectionStrategy | undefined>(undefined);
 
 // 视图模式：编辑/文本预览/渲染预览
 const viewMode = ref<"edit" | "text" | "preview">("edit");
+const compositionPartId = ref<string>();
 
 const presetEditorOptions =
   computed<monaco.editor.IStandaloneEditorConstructionOptions>(() => ({
@@ -455,11 +408,6 @@ const presetEditorOptions =
 // 预览内容
 const previewContent = ref("");
 
-// 宏选择器和变量选择器
-const macroSelectorVisible = ref(false);
-const variableSelectorVisible = ref(false);
-const kbEditorVisible = ref(false);
-const currentKBSelection = ref("");
 const richEditorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 
 // 模拟当前 Agent 对象，用于资产解析
@@ -506,9 +454,19 @@ onMounted(() => {
   }
 });
 
+// 预览源文本：组合消息使用当前选择拼接后的正文
+const previewSource = computed(() => {
+  if (!form.value.presetComposition) return form.value.content;
+  try {
+    return compilePresetComposition(form.value.presetComposition).content;
+  } catch {
+    return "";
+  }
+});
+
 // 处理宏预览
 const processPreviewMacros = async () => {
-  if (!form.value.content) {
+  if (!previewSource.value) {
     previewContent.value = "";
     return;
   }
@@ -572,7 +530,7 @@ const processPreviewMacros = async () => {
   try {
     const processor = new MacroProcessor();
     // 仅处理不需要复杂上下文的宏
-    const result = await processor.process(form.value.content, context);
+    const result = await processor.process(previewSource.value, context);
 
     // 处理资产预览，确保传入有效的 agent 对象以避免路径中出现 undefined
     // 优先级：props.agent.id > props.agent.agentId > props.agentName (作为 fallback ID)
@@ -590,7 +548,7 @@ const processPreviewMacros = async () => {
     previewContent.value = result.output;
   } catch (error) {
     // 如果处理失败，降级显示原始内容
-    previewContent.value = form.value.content;
+    previewContent.value = previewSource.value;
   }
 };
 
@@ -601,13 +559,18 @@ watch(viewMode, (newMode) => {
   }
 });
 
+const saving = ref(false);
+const leaveGuard = ref<InstanceType<typeof PresetInlineLeaveGuard>>();
+const savedBaseline = ref("");
+const protectDraft = ref(false);
+
 // 监听 initialForm 的变化，更新本地表单
 watch(
   () => props.initialForm,
   (newForm) => {
-    if (newForm) {
+    if (newForm && !props.visible) {
       form.value = {
-        ...newForm,
+        ...JSON.parse(JSON.stringify(newForm)),
         presetAttachments: newForm.presetAttachments
           ? [...newForm.presetAttachments]
           : [],
@@ -625,11 +588,12 @@ watch(
   (newVisible) => {
     if (newVisible) {
       viewMode.value = "edit"; // 默认进入编辑模式
+      compositionPartId.value = props.initialPartId;
       previewContent.value = ""; // 重置预览缓存，避免显示上次的旧内容
       attachmentPickerRef.value?.resetSearch(); // 重置附件搜索
       if (props.initialForm) {
         form.value = {
-          ...props.initialForm,
+          ...JSON.parse(JSON.stringify(props.initialForm)),
           presetAttachments: props.initialForm.presetAttachments
             ? [...props.initialForm.presetAttachments]
             : [],
@@ -637,117 +601,12 @@ watch(
         injectionStrategyValue.value = props.initialForm.injectionStrategy;
         modelMatchValue.value = props.initialForm.modelMatch;
       }
+      protectDraft.value = !!form.value.presetComposition;
+      savedBaseline.value = formSnapshot();
     }
-  }
+  },
+  { immediate: true }
 );
-
-/**
- * 插入文本到编辑器光标处
- */
-const insertTextToEditor = (text: string) => {
-  if (!richEditorRef.value) return;
-
-  const editorView = richEditorRef.value.editorView;
-  const monacoInstance = richEditorRef.value.monacoEditorInstance;
-
-  if (editorView) {
-    // CodeMirror 处理
-    const state = editorView.state;
-    const transaction = state.update({
-      changes: { from: state.selection.main.head, insert: text },
-      selection: { anchor: state.selection.main.head + text.length },
-    });
-    editorView.dispatch(transaction);
-    editorView.focus();
-  } else if (monacoInstance) {
-    // Monaco 处理
-    const selection = monacoInstance.getSelection();
-    const position = monacoInstance.getPosition();
-    const range =
-      selection ||
-      (position
-        ? new monaco.Range(
-            position.lineNumber,
-            position.column,
-            position.lineNumber,
-            position.column
-          )
-        : null);
-
-    if (range) {
-      monacoInstance.executeEdits("", [
-        {
-          range,
-          text: text,
-          forceMoveMarkers: true,
-        },
-      ]);
-      form.value.content = monacoInstance.getValue();
-      monacoInstance.focus();
-    }
-  } else {
-    // 降级处理：直接追加
-    form.value.content += text;
-  }
-};
-
-/**
- * 插入知识库占位符
- */
-function handleInsertKBPlaceholder(placeholder: string) {
-  insertTextToEditor(placeholder);
-  kbEditorVisible.value = false;
-}
-
-/**
- * 点击知识库按钮处理逻辑
- */
-function handleKBButtonClick() {
-  if (!richEditorRef.value) return;
-
-  const editorView = richEditorRef.value.editorView;
-  const monacoInstance = richEditorRef.value.monacoEditorInstance;
-  let selectedText = "";
-
-  if (editorView) {
-    const { from, to } = editorView.state.selection.main;
-    selectedText = editorView.state.sliceDoc(from, to);
-  } else if (monacoInstance) {
-    const selection = monacoInstance.getSelection();
-    selectedText = selection
-      ? monacoInstance.getModel()?.getValueInRange(selection) || ""
-      : "";
-  }
-
-  const retrievalPlaceholder = /【recall(?:::[^【】]*)?】/;
-  if (selectedText && retrievalPlaceholder.test(selectedText)) {
-    currentKBSelection.value = selectedText;
-  } else {
-    currentKBSelection.value = "";
-  }
-}
-
-/**
- * 插入宏到光标位置
- */
-function handleInsertMacro(macro: MacroDefinition) {
-  // 要插入的文本
-  const insertText = macro.example || `{{${macro.name}}}`;
-
-  insertTextToEditor(insertText);
-
-  // 关闭弹窗
-  macroSelectorVisible.value = false;
-}
-
-/**
- * 插入变量到光标位置
- */
-function handleInsertVariable(variablePath: string) {
-  insertTextToEditor(variablePath);
-  // 关闭弹窗
-  variableSelectorVisible.value = false;
-}
 
 /**
  * 复制内容
@@ -756,11 +615,11 @@ async function handleCopy() {
   const contentToCopy =
     viewMode.value === "edit"
       ? form.value.content
-      : previewContent.value || form.value.content || "";
+      : previewContent.value || previewSource.value || "";
 
   const result = await errorHandler.wrapAsync(
     async () => {
-      await navigator.clipboard.writeText(contentToCopy);
+      await writeText(contentToCopy);
       return true;
     },
     { userMessage: "复制失败" }
@@ -774,60 +633,179 @@ async function handleCopy() {
 }
 
 /**
- * 粘贴内容
- */
-async function handlePaste() {
-  const text = await errorHandler.wrapAsync(
-    async () => {
-      return await navigator.clipboard.readText();
-    },
-    { userMessage: "粘贴失败，请检查剪贴板权限" }
-  );
-
-  if (!text) return;
-
-  insertTextToEditor(text);
-  customMessage.success("已粘贴");
-}
-
-/**
- * 覆盖内容
- */
-async function handleOverwrite() {
-  const text = await errorHandler.wrapAsync(
-    async () => {
-      return await navigator.clipboard.readText();
-    },
-    { userMessage: "覆盖失败，请检查剪贴板权限" }
-  );
-
-  if (!text) return;
-
-  form.value.content = text;
-  customMessage.success("已覆盖内容");
-}
-/**
  * 保存消息
  */
-function handleSave() {
-  if (!form.value.content.trim()) {
-    customMessage.warning("消息内容不能为空");
-    return;
-  }
-
-  const attachments = form.value.presetAttachments?.length
-    ? form.value.presetAttachments
-    : undefined;
-  emit("save", {
+function formSnapshot() {
+  return JSON.stringify({
     ...form.value,
-    presetAttachments: attachments,
     injectionStrategy: injectionStrategyValue.value,
     modelMatch: modelMatchValue.value,
   });
 }
+async function beforeClose(): Promise<boolean> {
+  if (saving.value) return false;
+  if (!protectDraft.value || savedBaseline.value === formSnapshot())
+    return true;
+  const decision = await leaveGuard.value!.ask();
+  if (decision === "continue") return false;
+  if (decision === "save") return await handleSave();
+  return true;
+}
+async function requestClose() {
+  if (await beforeClose()) emit("update:visible", false);
+}
+function handleEditorKey(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey)) return;
+  if (event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    void handleSave(false);
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    void handleSave();
+  }
+}
+function handleBodyModeChange(mode: string | number | boolean | undefined) {
+  if (mode === "plain") {
+    void convertToPlain();
+    return;
+  }
+  if (mode !== "composition" || form.value.presetComposition) return;
+  const partId = crypto.randomUUID();
+  const optionId = crypto.randomUUID();
+  form.value.presetComposition = {
+    version: 1,
+    separator: "",
+    parts: [
+      ...(form.value.content
+        ? [
+            {
+              id: crypto.randomUUID(),
+              kind: "text" as const,
+              content: form.value.content,
+            },
+          ]
+        : []),
+      {
+        id: partId,
+        kind: "choice",
+        selectedOptionId: optionId,
+        options: [{ id: optionId, content: "" }],
+      },
+    ],
+  };
+  form.value.content = "";
+  compositionPartId.value = partId;
+  protectDraft.value = true;
+  viewMode.value = "edit";
+}
+
+async function extractChoice() {
+  const instance = richEditorRef.value?.monacoEditorInstance;
+  const selection = instance?.getSelection();
+  const model = instance?.getModel();
+  if (!selection || !model || selection.isEmpty()) {
+    customMessage.info("请先选中需要变化的正文");
+    return;
+  }
+  const start = model.getOffsetAt(selection.getStartPosition());
+  const end = model.getOffsetAt(selection.getEndPosition());
+  const proposed = extractPresetChoice(form.value.content, start, end);
+  const selected = proposed.parts[1];
+  const original = form.value.content.slice(start, end);
+  if (selected.kind === "choice" && selected.options[0].content !== original) {
+    const { ElMessageBox } = await import("element-plus");
+    try {
+      await ElMessageBox.confirm(
+        `选区将扩展到完整宏：${selected.options[0].content}`,
+        "提取选择组",
+        {
+          lockScroll: false,
+          confirmButtonText: "提取",
+          cancelButtonText: "取消",
+        }
+      );
+    } catch {
+      return;
+    }
+  }
+  protectDraft.value = true;
+  compositionPartId.value = proposed.parts.find(
+    (part) => part.kind === "choice"
+  )?.id;
+  form.value.presetComposition = proposed;
+  form.value.content = "";
+}
+async function convertToPlain() {
+  if (!form.value.presetComposition) return;
+  const { ElMessageBox } = await import("element-plus");
+  try {
+    await ElMessageBox.confirm(
+      "将当前使用项拼接为普通正文，其他备选将在保存后移除。继续？",
+      "转为普通消息",
+      {
+        lockScroll: false,
+        confirmButtonText: "转换",
+        cancelButtonText: "取消",
+        type: "warning",
+      }
+    );
+  } catch {
+    return;
+  }
+  form.value.content = compilePresetComposition(
+    form.value.presetComposition
+  ).content;
+  form.value.presetComposition = undefined;
+  compositionPartId.value = undefined;
+  viewMode.value = "edit";
+}
+async function handleSave(close = true): Promise<boolean> {
+  if (saving.value) return false;
+  try {
+    if (form.value.presetComposition)
+      assertPresetComposition(form.value.presetComposition);
+    else if (!form.value.content.trim()) {
+      customMessage.warning("消息内容不能为空");
+      return false;
+    }
+    saving.value = true;
+    const submittedSnapshot = formSnapshot();
+    const result = cloneDeep({
+      ...form.value,
+      content: form.value.presetComposition ? "" : form.value.content,
+      presetAttachments: form.value.presetAttachments?.length
+        ? form.value.presetAttachments
+        : undefined,
+      injectionStrategy: injectionStrategyValue.value,
+      modelMatch: modelMatchValue.value,
+    });
+    if (props.saveMessage) await props.saveMessage(result);
+    else emit("save", result);
+    savedBaseline.value = submittedSnapshot;
+    const unchanged = formSnapshot() === submittedSnapshot;
+    if (!unchanged) protectDraft.value = true;
+    if (close && unchanged) emit("update:visible", false);
+    return !close || unchanged;
+  } catch (error) {
+    customMessage.error(
+      error instanceof Error ? error.message : "保存失败，请重试"
+    );
+    return false;
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 
 <style scoped>
+.editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
 .preset-message-editor {
   display: flex;
   flex-direction: column;
@@ -836,6 +814,25 @@ function handleSave() {
   gap: 16px;
 }
 
+.preset-message-editor.structured {
+  min-height: 560px;
+}
+.structured :deep(.composition-workspace) {
+  flex: 1;
+  min-height: 400px;
+}
+.structured .editor-content-area {
+  min-height: 400px;
+}
+.message-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.extract-choice {
+  margin-left: auto;
+}
 .editor-row {
   display: flex;
   align-items: center;
@@ -942,35 +939,5 @@ function handleSave() {
   color: var(--el-text-color-primary);
   white-space: pre-wrap;
   word-break: break-word;
-}
-</style>
-
-<!-- 全局样式：预设消息编辑器专用 popover，独立于 MessageInputToolbar 的同名样式 -->
-<style>
-.preset-editor-macro-popover,
-.preset-editor-variable-popover {
-  max-height: min(600px, 60vh) !important;
-  overflow: hidden !important;
-}
-
-.preset-editor-macro-popover .el-popover__body,
-.preset-editor-variable-popover .el-popover__body {
-  padding: 12px;
-  max-height: calc(min(600px, 60vh) - 24px);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.preset-editor-macro-popover .macro-selector,
-.preset-editor-variable-popover .variable-selector {
-  max-height: 100%;
-  overflow: hidden;
-}
-
-.preset-editor-macro-popover .macro-selector-body,
-.preset-editor-variable-popover .variable-selector-body {
-  max-height: calc(min(600px, 60vh) - 100px);
-  overflow-y: auto;
 }
 </style>

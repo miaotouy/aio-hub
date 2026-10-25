@@ -65,6 +65,21 @@
                 size="small"
                 @change="handleToggleEnabled(group)"
               />
+              <el-tooltip
+                v-if="group.selectionMode === 'radio'"
+                content="合并为一条消息"
+                placement="top"
+                :show-after="500"
+              >
+                <el-button
+                  link
+                  size="small"
+                  aria-label="合并为一条消息"
+                  @click="$emit('convert-group', group)"
+                >
+                  <el-icon><Merge :size="14" /></el-icon>
+                </el-button>
+              </el-tooltip>
               <el-button link size="small" @click="handleEditGroup(group)">
                 <el-icon><Edit /></el-icon>
               </el-button>
@@ -191,6 +206,7 @@ import {
   Close,
   Check,
 } from "@element-plus/icons-vue";
+import { Merge } from "lucide-vue-next";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import type { PresetMessageGroup } from "../../types/agent";
 import { customMessage } from "@/utils/customMessage";
@@ -207,6 +223,7 @@ interface Emits {
   (e: "update:localMessages", messages: ChatMessageNode[]): void;
   (e: "sync"): void;
   (e: "edit-message", msg: ChatMessageNode): void;
+  (e: "convert-group", group: PresetMessageGroup): void;
 }
 
 const props = defineProps<Props>();

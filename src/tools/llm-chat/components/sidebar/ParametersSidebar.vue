@@ -110,6 +110,14 @@ const presetMessages = computed<ChatMessageNode[]>({
   },
 });
 
+async function savePresetMessage(
+  next: ChatMessageNode,
+  previous: ChatMessageNode
+) {
+  if (!currentAgentId.value) throw new Error("请先选择智能体");
+  await agentStore.savePresetMessage(currentAgentId.value, next, previous);
+}
+
 // 编辑智能体弹窗
 const showEditDialog = ref(false);
 const isRefreshingAgent = ref(false);
@@ -299,6 +307,7 @@ const handleSaveModelEdit = async (updatedModel: LlmModelInfo) => {
             <AgentPresetEditor
               v-model="presetMessages"
               :compact="true"
+              :save-preset-message="savePresetMessage"
               :agent="currentAgent"
               height="400px"
             />

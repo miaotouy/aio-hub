@@ -80,6 +80,7 @@ export interface ExportableAgent {
  * 导出文件格式
  */
 export interface AgentExportFile {
+  requiredFeatures?: string[];
   version: number;
   type: "AIO_Agent_Export";
   agents: ExportableAgent[];

@@ -259,7 +259,14 @@ export function useGraphActions(
     if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
       if (!currentAgentId.value) return;
-      agentStore.updatePresetMessage(currentAgentId.value, nodeId, newContent);
+      if (
+        !agentStore.updatePresetMessage(
+          currentAgentId.value,
+          nodeId,
+          newContent
+        )
+      )
+        throw new Error("请通过组合消息的结构编辑器修改正文");
       return;
     }
 

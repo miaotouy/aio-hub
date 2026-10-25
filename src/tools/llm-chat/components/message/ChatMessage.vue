@@ -15,7 +15,11 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, inject } from "vue";
+import { ref, computed, inject, defineAsyncComponent } from "vue";
+const PresetCompositionSourceEditor = defineAsyncComponent(
+  () =>
+    import("@/tools/agent-manager/components/editors/PresetCompositionSourceEditor.vue")
+);
 import { useResizeObserver } from "@vueuse/core";
 import type {
   ChatMessageNode,
@@ -95,6 +99,7 @@ const translationContent = ref("");
 
 // 编辑状态
 const isEditing = ref(false);
+const sourceEditorOpen = ref(false);
 
 // 计算属性
 const parentSessionReadOnly = inject(
@@ -141,6 +146,10 @@ const backgroundBlocks = computed(() => {
 // 开始编辑
 const startEdit = () => {
   if (isSessionReadOnly.value) return;
+  if (props.message.presetComposition && props.message.metadata?.agentId) {
+    sourceEditorOpen.value = true;
+    return;
+  }
   isEditing.value = true;
 };
 
@@ -379,6 +388,12 @@ defineExpose({
       />
     </div>
   </div>
+  <PresetCompositionSourceEditor
+    v-if="sourceEditorOpen && message.metadata?.agentId"
+    v-model:visible="sourceEditorOpen"
+    :agent-id="String(message.metadata.agentId)"
+    :message-id="message.id"
+  />
 </template>
 
 <style scoped>

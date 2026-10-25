@@ -1,3 +1,4 @@
+import { materializePresetMessage } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -248,6 +249,7 @@ export function useExportManager() {
     presetMessages: ChatMessageNode[] = [],
     options: ExportOptions = {}
   ): Promise<string> => {
+    presetMessages = presetMessages.map(materializePresetMessage);
     // 设置默认值
     const {
       mergePresetIntoMessages = true,
@@ -635,6 +637,7 @@ export function useExportManager() {
     presetMessages: ChatMessageNode[] = [],
     options: ExportOptions = {}
   ): Promise<any> => {
+    presetMessages = presetMessages.map(materializePresetMessage);
     // 设置默认值
     const {
       mergePresetIntoMessages = true,

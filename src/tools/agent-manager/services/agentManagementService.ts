@@ -1,3 +1,11 @@
+import {
+  importPresetMessage,
+  normalizePresetGroupState,
+  mapPresetCompositionText,
+  applyPresetCompositionOperation,
+  type PresetContribution,
+  type PresetCompositionOperation,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -541,7 +549,10 @@ export async function set_agent_field(
     }
 
     // 确保智能体数据已完整加载
-    const agent = await agentStore.loadAgentDetails(params.agentId);
+    const storedAgent = await agentStore.loadAgentDetails(params.agentId);
+    const agent = storedAgent
+      ? (JSON.parse(JSON.stringify(storedAgent)) as ChatAgent)
+      : null;
     if (!agent) {
       return `错误: 未找到智能体 (id: ${params.agentId})`;
     }
@@ -588,6 +599,15 @@ export async function set_agent_field(
       current[pathParts[pathParts.length - 1]] = newValue;
     }
 
+    for (const message of agent.presetMessages ?? []) {
+      if (message.presetComposition !== undefined && message.content)
+        throw new Error("组合消息的正文请写入 presetComposition 对应片段");
+      importPresetMessage(message);
+    }
+    agent.presetMessages = normalizePresetGroupState(
+      agent.presetMessages ?? [],
+      agent.presetGroups
+    );
     // 持久化
     agentStore.updateAgent(params.agentId, { ...agent });
 
@@ -651,43 +671,50 @@ export async function find_replace_in_presets(params: {
     let replacedCount = 0;
     const affectedMessages: string[] = [];
 
+    const messages: typeof agent.presetMessages = JSON.parse(
+      JSON.stringify(agent.presetMessages)
+    );
     const messagesToProcess = params.messageId
-      ? agent.presetMessages.filter((msg) => msg.id === params.messageId)
-      : agent.presetMessages;
+      ? messages.filter((msg) => msg.id === params.messageId)
+      : messages;
 
     if (params.messageId && messagesToProcess.length === 0) {
       return JSON.stringify({ error: `未找到消息 (id: ${params.messageId})` });
     }
 
+    const affectedParts: Array<{
+      messageId: string;
+      partId?: string;
+      optionId?: string;
+    }> = [];
+    if (!params.search) return JSON.stringify({ error: "查找文本不能为空" });
     for (const msg of messagesToProcess) {
-      if (!msg.content) continue;
-
-      let newContent: string;
-      let count: number;
-
-      if (useRegex) {
-        const matches = msg.content.match(searchPattern as RegExp);
-        count = matches ? matches.length : 0;
-        newContent = msg.content.replace(
-          searchPattern as RegExp,
-          params.replace
-        );
-      } else {
-        // 全局字符串替换
-        const parts = msg.content.split(params.search);
-        count = parts.length - 1;
-        newContent = parts.join(params.replace);
-      }
-
-      if (count > 0) {
-        msg.content = newContent;
+      const replace = (
+        content: string,
+        source?: PresetContribution
+      ): string => {
+        const count = useRegex
+          ? (content.match(searchPattern as RegExp)?.length ?? 0)
+          : content.split(params.search).length - 1;
+        if (!count) return content;
         replacedCount += count;
-        affectedMessages.push(msg.id);
-      }
+        if (!affectedMessages.includes(msg.id)) affectedMessages.push(msg.id);
+        affectedParts.push({ messageId: msg.id, ...source });
+        return useRegex
+          ? content.replace(searchPattern as RegExp, params.replace)
+          : content.split(params.search).join(params.replace);
+      };
+      if (msg.presetComposition)
+        msg.presetComposition = mapPresetCompositionText(
+          msg.presetComposition,
+          replace
+        );
+      else msg.content = replace(msg.content);
     }
 
     if (replacedCount > 0) {
-      // 持久化
+      // 所有结构校验完成后一次性提交，避免部分替换。
+      agent.presetMessages = messages;
       agentStore.persistAgent(agent);
 
       logger.info("find_replace_in_presets 成功", {
@@ -697,7 +724,7 @@ export async function find_replace_in_presets(params: {
       });
     }
 
-    return JSON.stringify({ replacedCount, affectedMessages });
+    return JSON.stringify({ replacedCount, affectedMessages, affectedParts });
   } catch (error) {
     errorHandler.error(error, "查找替换失败");
     return JSON.stringify({
@@ -1025,6 +1052,13 @@ export async function import_agent_from_text(params: {
     }
 
     migrateAgent(parsed as ChatAgent);
+    parsed.presetMessages = (parsed.presetMessages ?? []).map(
+      (message: ChatMessageNode) => importPresetMessage(message)
+    );
+    parsed.presetMessages = normalizePresetGroupState(
+      parsed.presetMessages,
+      parsed.presetGroups
+    );
 
     // 验证必要字段
     if (!parsed.name) {
@@ -1070,5 +1104,42 @@ export async function import_agent_from_text(params: {
   } catch (error) {
     errorHandler.error(error, "从文本导入智能体失败");
     return `错误: ${String(error instanceof Error ? error.message : error)}`;
+  }
+}
+
+/** Edit one structured preset without replacing unrelated message settings. */
+export async function edit_preset_composition(params: {
+  agentId: string;
+  messageId: string;
+  operation: string;
+}): Promise<string> {
+  try {
+    const store = useAgentStore();
+    const agent = await store.loadAgentDetails(params.agentId);
+    const message = agent?.presetMessages?.find(
+      (item) => item.id === params.messageId
+    );
+    if (!message?.presetComposition)
+      return JSON.stringify({ error: "未找到组合消息" });
+    const operation = JSON.parse(
+      params.operation
+    ) as PresetCompositionOperation;
+    const composition = applyPresetCompositionOperation(
+      message.presetComposition,
+      operation
+    );
+    await store.savePresetMessage(
+      params.agentId,
+      { ...message, content: "", presetComposition: composition },
+      JSON.parse(JSON.stringify(message))
+    );
+    return JSON.stringify({
+      messageId: message.id,
+      presetComposition: composition,
+    });
+  } catch (error) {
+    return JSON.stringify({
+      error: error instanceof Error ? error.message : "修改组合消息失败",
+    });
   }
 }

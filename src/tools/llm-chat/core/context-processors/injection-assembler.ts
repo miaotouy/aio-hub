@@ -1,3 +1,7 @@
+import {
+  materializePresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -261,6 +265,7 @@ const applyDepthInjections = <T extends { role: string; content: any }>(
         content: processedContents.get(inj.message.id) ?? inj.message.content,
         sourceType: "depth_injection",
         sourceId: inj.message.id,
+        presetContributingParts: inj.message.presetContributingParts,
         sourceIndex: presetMessages.indexOf(inj.message),
         _attachments: resolved.length > 0 ? resolved : undefined,
         _originalContent: processedContents.has(inj.message.id)
@@ -337,7 +342,10 @@ export const injectionAssembler: ContextProcessor = {
   priority: 400,
   execute: async (context: PipelineContext) => {
     const { messages: history, agentConfig, userProfile, timestamp } = context;
-    const allPresetMessages = agentConfig.presetMessages || [];
+    const allPresetMessages = normalizePresetGroupState(
+      agentConfig.presetMessages || [],
+      agentConfig.presetGroups || []
+    );
     const modelId = agentConfig.modelId;
 
     // 准备模型和渠道信息
@@ -367,8 +375,8 @@ export const injectionAssembler: ContextProcessor = {
         }
       }
 
-      // 默认返回原始消息
-      return msg;
+      // Compile before tool-macro detection, macro expansion and attachment resolution.
+      return materializePresetMessage(msg);
     });
     // 过滤出有效的消息用于后续处理，但保留完整列表用于查找 sourceIndex
     const activePresetMessages = presetMessages.filter(
@@ -510,6 +518,7 @@ export const injectionAssembler: ContextProcessor = {
           content: processedContents.get(inj.message.id) ?? inj.message.content,
           sourceType: "anchor_injection",
           sourceId: inj.message.id,
+          presetContributingParts: inj.message.presetContributingParts,
           sourceIndex: presetMessages.indexOf(inj.message),
           _attachments: resolved.length > 0 ? resolved : undefined,
           _originalContent: processedContents.has(inj.message.id)
@@ -548,6 +557,7 @@ export const injectionAssembler: ContextProcessor = {
         content: processedContents.get(msg.id) ?? msg.content,
         sourceType: "agent_preset",
         sourceId: msg.id,
+        presetContributingParts: msg.presetContributingParts,
         sourceIndex: presetMessages.indexOf(msg),
         _attachments: resolved.length > 0 ? resolved : undefined,
         _originalContent: processedContents.has(msg.id)

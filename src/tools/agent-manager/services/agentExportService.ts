@@ -1,3 +1,4 @@
+import { requiredPresetFeatures } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -163,7 +164,20 @@ export async function exportAgents(
           );
 
         const exportData: AgentExportFile = {
-          version: 1,
+          version: exportableAgent.presetMessages?.some(
+            (message) => message.presetComposition
+          )
+            ? 2
+            : 1,
+          ...(exportableAgent.presetMessages?.some(
+            (message) => message.presetComposition
+          )
+            ? {
+                requiredFeatures: requiredPresetFeatures(
+                  exportableAgent.presetMessages ?? []
+                ),
+              }
+            : {}),
           type: "AIO_Agent_Export",
           agents: [exportableAgent as ExportableAgent],
         };
@@ -467,7 +481,20 @@ export async function exportAgents(
       }
 
       const exportData: AgentExportFile = {
-        version: 1,
+        version: exportableAgent.presetMessages?.some(
+          (message) => message.presetComposition
+        )
+          ? 2
+          : 1,
+        ...(exportableAgent.presetMessages?.some(
+          (message) => message.presetComposition
+        )
+          ? {
+              requiredFeatures: requiredPresetFeatures(
+                exportableAgent.presetMessages ?? []
+              ),
+            }
+          : {}),
         type: "AIO_Agent_Export",
         agents: [exportableAgent],
       };

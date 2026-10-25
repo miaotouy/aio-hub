@@ -381,7 +381,8 @@ const agentManagement: ToolRegistry = {
         {
           name: "find_replace_in_presets",
           displayName: "查找替换",
-          description: "在智能体预设消息的 content 中执行查找替换",
+          description:
+            "在预设正文、组合消息的全部片段和备选中查找替换，返回受影响位置",
           parameters: [
             {
               name: "agentId",
@@ -412,6 +413,34 @@ const agentManagement: ToolRegistry = {
               type: "string",
               required: false,
               description: "限定在指定消息 ID 中操作",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "edit_preset_composition",
+          displayName: "编辑组合消息",
+          description:
+            "修改组合消息的片段或备选。operation 为 JSON：type 支持 addPart/removePart/movePart/setContent/selectOption/addOption/removeOption/moveOption/setPartEnabled/setPartName/setSeparator；按操作提供 partId、optionId、content、part、enabled、name、separator 或 index（从 0 开始）。正文与单选组通过 setPartEnabled 独立选入或移除，单选组 selectOption 指定一个备选，optionId 为 null 清空选择。setSeparator 统一设置条目间连接。",
+          parameters: [
+            {
+              name: "agentId",
+              type: "string",
+              required: true,
+              description: "智能体 ID",
+            },
+            {
+              name: "messageId",
+              type: "string",
+              required: true,
+              description: "组合消息 ID",
+            },
+            {
+              name: "operation",
+              type: "string",
+              required: true,
+              description: "结构操作 JSON 对象",
             },
           ],
           returnType: "Promise<string>",
@@ -580,6 +609,14 @@ const agentManagement: ToolRegistry = {
     messageId?: string;
   }): Promise<string> {
     return await agentManagementService.find_replace_in_presets(args);
+  },
+
+  async edit_preset_composition(args: {
+    agentId: string;
+    messageId: string;
+    operation: string;
+  }) {
+    return await agentManagementService.edit_preset_composition(args);
   },
 
   async add_preset_message(args: {

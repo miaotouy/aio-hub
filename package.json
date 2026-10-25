@@ -68,6 +68,8 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest --run",
     "rich-text:commonmark": "bun scripts/rich-text/run-commonmark.ts",
+    "rich-text:bench": "bun scripts/rich-text/run-bench.ts",
+    "rich-text:profile": "bun --cpu-prof --cpu-prof-md --cpu-prof-dir=.tmp/rich-text-profile scripts/rich-text/profile-bench.ts",
     "rich-text:check": "vue-tsc --noEmit --project scripts/rich-text/tsconfig.json",
     "test:tauri:e2e": "bun scripts/e2e.ts tauri",
     "test:mobile:e2e": "bun scripts/e2e.ts mobile",

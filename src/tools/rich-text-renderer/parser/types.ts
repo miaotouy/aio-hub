@@ -17,8 +17,8 @@ import type { AstNode, LlmThinkRule } from "../types";
 // ============ 令牌定义 ============
 
 export type Token =
-  | { type: "text"; content: string }
-  | { type: "newline"; count: number }
+  | { type: "text"; content: string; raw?: string; entityDecoded?: boolean }
+  | { type: "newline"; count: number; nextIndent?: number }
   | {
       type: "html_open";
       tagName: string;
@@ -43,9 +43,16 @@ export type Token =
   | { type: "link_url_close"; raw: string }
   | { type: "heading_marker"; level: number; raw: string }
   | { type: "blockquote_marker"; raw: string }
-  | { type: "list_marker"; ordered: boolean; raw: string; indent: number }
+  | {
+      type: "list_marker";
+      ordered: boolean;
+      raw: string;
+      indent: number;
+      start?: number;
+    }
   | { type: "hr_marker"; raw: string }
   | { type: "code_fence"; language: string; raw: string; closed?: boolean }
+  | { type: "reference_definition"; label: string; href: string; title: string }
   | { type: "katex_block"; content: string }
   | { type: "katex_inline"; content: string }
   | { type: "autolink"; url: string; raw: string }
@@ -95,4 +102,5 @@ export interface ParserContext {
   parseBlocks(tokens: Token[]): AstNode[];
   parseInlines(tokens: Token[]): AstNode[];
   getOptions(): ParserOptions;
+  getReference?(label: string): { href: string; title: string } | undefined;
 }

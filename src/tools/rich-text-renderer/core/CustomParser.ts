@@ -45,6 +45,7 @@ import { parseParagraph } from "../parser/block/parseParagraph";
 import { parseVcpRole } from "../parser/block/parseVcpRole";
 import { parseVcpDailyNote } from "../parser/block/parseVcpDailyNote";
 import { parseInlines } from "../parser/inline/parseInlines";
+import { normalizeReference } from "../parser/utils/markdown-reference";
 
 // ============ 解析器 ============
 
@@ -53,6 +54,7 @@ export class CustomParser implements ParserContext {
   private llmThinkRules: LlmThinkRule[];
   private defaultToolCallCollapsed: boolean;
   private vcpFuzzyModeEnabled: boolean;
+  private references = new Map<string, { href: string; title: string }>();
 
   constructor(
     llmThinkTagNames: Set<string> = new Set(["think"]),
@@ -78,6 +80,7 @@ export class CustomParser implements ParserContext {
    * 解析完整的 Markdown 文本 (同步版本)
    */
   public parse(text: string): AstNode[] {
+    this.references.clear();
     if (!text) return [];
 
     const tokenizer = new Tokenizer({
@@ -85,6 +88,7 @@ export class CustomParser implements ParserContext {
     });
     const tokens = tokenizer.tokenize(text);
 
+    this.collectReferences(tokens);
     const blocks = this.parseBlocks(tokens);
 
     // 优化徽章之间的换行
@@ -95,16 +99,36 @@ export class CustomParser implements ParserContext {
    * 解析完整的 Markdown 文本 (异步版本，使用 Worker 分词)
    */
   public async parseAsync(text: string): Promise<AstNode[]> {
+    this.references.clear();
     if (!text) return [];
 
     const tokens = await tokenizerService.tokenize(text, {
       vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled,
     });
 
+    this.collectReferences(tokens);
     const blocks = this.parseBlocks(tokens);
 
     // 优化徽章之间的换行
     return optimizeBadgeLineBreaks(blocks);
+  }
+
+  private collectReferences(tokens: Token[]): void {
+    for (const token of tokens) {
+      if (
+        token.type === "reference_definition" &&
+        !this.references.has(token.label)
+      ) {
+        this.references.set(token.label, {
+          href: token.href,
+          title: token.title,
+        });
+      }
+    }
+  }
+
+  public getReference(label: string) {
+    return this.references.get(normalizeReference(label));
   }
 
   /**
@@ -118,7 +142,7 @@ export class CustomParser implements ParserContext {
       const token = tokens[i];
 
       // 跳过换行
-      if (token.type === "newline") {
+      if (token.type === "newline" || token.type === "reference_definition") {
         i++;
         continue;
       }
@@ -280,7 +304,7 @@ export class CustomParser implements ParserContext {
   }
 
   public reset(): void {
-    // 不再需要重置计数器
+    this.references.clear();
   }
 }
 

@@ -131,7 +131,7 @@ export function tokensToRawText(tokens: Token[]): string {
   for (const token of tokens) {
     switch (token.type) {
       case "text":
-        text += token.content;
+        text += token.raw ?? token.content;
         break;
       case "newline":
         text += "\n".repeat(token.count);
@@ -140,6 +140,11 @@ export function tokensToRawText(tokens: Token[]): string {
       case "html_close":
       case "strong_delimiter":
       case "em_delimiter":
+      case "triple_delimiter":
+      case "subscript_delimiter":
+      case "superscript_delimiter":
+      case "html_comment":
+      case "autolink":
       case "strikethrough_delimiter":
       case "quote_delimiter":
       case "image_marker":

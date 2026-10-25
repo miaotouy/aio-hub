@@ -20,7 +20,39 @@ import {
   VideoNode,
   AudioNode,
 } from "../../types";
-import { createTextNode, computeFingerprint } from "../utils/text-utils";
+import {
+  createTextNode,
+  computeFingerprint,
+  tokensToRawText,
+} from "../utils/text-utils";
+
+function resolveReference(
+  ctx: ParserContext,
+  tokens: Token[],
+  afterLabel: number,
+  fallbackLabel: string
+) {
+  let label = fallbackLabel;
+  let end = afterLabel;
+  if (tokens[end]?.type === "link_text_open") {
+    const start = ++end;
+    while (end < tokens.length && tokens[end].type !== "link_text_close") {
+      if (
+        tokens[end].type === "link_text_open" ||
+        tokens[end].type === "newline"
+      )
+        return null;
+      end++;
+    }
+    if (tokens[end]?.type !== "link_text_close") return null;
+    label =
+      end === start ? fallbackLabel : tokensToRawText(tokens.slice(start, end));
+    end++;
+  }
+  if (label.length > 999) return null;
+  const reference = ctx.getReference?.(label);
+  return reference ? { ...reference, end } : null;
+}
 
 // 媒体文件后缀定义
 const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogg", "mov", "m4v"]);
@@ -78,8 +110,13 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
 
   const flushText = () => {
     if (accumulatedText) {
-      // 去除纯空白文本
-      if (accumulatedText.trim().length > 0) {
+      // Preserve same-line separators without turning line indentation into visible content.
+      const isInlineSeparator =
+        nodes.length > 0 &&
+        nodes[nodes.length - 1].type !== "hard_break" &&
+        i < tokens.length &&
+        tokens[i].type !== "newline";
+      if (accumulatedText.trim().length > 0 || isInlineSeparator) {
         nodes.push(createTextNode(accumulatedText));
       }
       accumulatedText = "";
@@ -689,6 +726,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           i++;
         }
 
+        const afterLabel = i;
         // 收集 URL
         let src = "";
         let title = "";
@@ -735,6 +773,16 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
           }
         }
 
+        if (!hasUrl || !isClosed) {
+          const reference = resolveReference(ctx, tokens, afterLabel, alt);
+          if (reference) {
+            src = reference.href;
+            title = reference.title;
+            i = reference.end;
+            hasUrl = true;
+            isClosed = true;
+          }
+        }
         if (hasUrl && isClosed) {
           // 自动升级为视频或音频
           // 判定逻辑：后缀匹配 OR alt 文本明确标识
@@ -806,6 +854,7 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         i++;
       }
 
+      const afterLabel = i;
       // 收集 URL
       let href = "";
       let title = "";
@@ -860,6 +909,21 @@ export function parseInlines(ctx: ParserContext, tokens: Token[]): AstNode[] {
         }
       }
 
+      if ((!hasUrl || !isClosed) && bracketDepth === 0) {
+        const reference = resolveReference(
+          ctx,
+          tokens,
+          afterLabel,
+          tokensToRawText(linkTextTokens)
+        );
+        if (reference) {
+          href = reference.href;
+          title = reference.title;
+          i = reference.end;
+          hasUrl = true;
+          isClosed = true;
+        }
+      }
       if (hasUrl && isClosed) {
         nodes.push({
           id: "",

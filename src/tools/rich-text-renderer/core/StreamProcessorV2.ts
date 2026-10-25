@@ -29,6 +29,11 @@ import type {
 } from "../types";
 import { CustomParser } from "./CustomParser";
 import { isFuzzyMatchCloseTag } from "../parser/utils/text-utils";
+import {
+  readCodeFenceOpening,
+  isCodeFenceClosing,
+  type CodeFence,
+} from "../parser/utils/code-fence";
 
 /**
  * Markdown 语义边界检测器（增强版）
@@ -127,13 +132,16 @@ class MarkdownBoundaryDetector {
   }
 
   private isInsideCodeBlock(lines: string[]): boolean {
-    let fenceCount = 0;
+    let fence: CodeFence | null = null;
     for (const line of lines) {
-      if (/^```/.test(line.trim())) {
-        fenceCount++;
+      const content = line.replace(/^ {0,3}/, "");
+      if (fence) {
+        if (isCodeFenceClosing(content, fence)) fence = null;
+      } else {
+        fence = readCodeFenceOpening(content);
       }
     }
-    return fenceCount % 2 !== 0;
+    return fence !== null;
   }
 
   private isIncompleteTable(lastLines: string[]): boolean {
@@ -470,6 +478,14 @@ class MarkdownBoundaryDetector {
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
     const safeLen = this.getSafeCutPoint(text);
     const safeText = text.slice(0, safeLen);
+
+    // References can resolve across paragraphs; loose-list continuation belongs to the same tree.
+    // Keep document context for these inputs while retaining the usual stable/pending fast path elsewhere.
+    const hasReferences = /^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:/m.test(safeText);
+    const hasLooseList =
+      /^[ \t]*(?:[*+-]|\d+\.)[ \t]/m.test(safeText) &&
+      /\n[ \t]*\n/.test(safeText);
+    if (hasReferences || hasLooseList) return { stable: "", pending: safeText };
 
     const lines = safeText.split("\n");
     let stableEndLineIndex = -1;

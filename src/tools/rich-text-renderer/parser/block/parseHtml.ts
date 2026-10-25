@@ -22,6 +22,16 @@ import { tokensToRawText } from "../utils/text-utils";
 // 需要保留空白符的标签
 const PRE_FORMATTED_TAGS = new Set(["pre", "textarea", "code"]);
 
+function decodeHtmlTextToken(token: Extract<Token, { type: "text" }>): Token {
+  return {
+    ...token,
+    content: token.entityDecoded
+      ? token.content
+      : decodeHtmlEntities(token.content),
+    entityDecoded: true,
+  };
+}
+
 /**
  * 处理 HTML 内容的 tokens，移除多余的换行符并进行反转义
  * 用于在调用 parseInlines 之前预处理 tokens
@@ -32,7 +42,7 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
   // 预格式化标签特殊处理：仅移除首尾换行，保留中间内容原样
   if (isPreFormatted) {
     const result = tokens.map((t) =>
-      t.type === "text" ? { ...t, content: decodeHtmlEntities(t.content) } : t
+      t.type === "text" ? decodeHtmlTextToken(t) : t
     );
 
     // 移除开头的换行 (通常 HTML 会忽略 <pre> 后紧跟的第一个换行)
@@ -54,6 +64,34 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
 
+    // Ignore pretty-print indentation between elements while keeping explicit same-line spaces.
+    const previous = tokens[i - 1];
+    const startsWhitespaceRun =
+      previous?.type !== "newline" &&
+      (previous?.type !== "text" || !!previous.content.trim());
+    if (
+      startsWhitespaceRun &&
+      (token.type === "newline" ||
+        (token.type === "text" && !token.content.trim()))
+    ) {
+      let end = i;
+      let hasNewline = false;
+      while (end < tokens.length) {
+        const next = tokens[end];
+        if (next.type === "newline") hasNewline = true;
+        else if (next.type !== "text" || next.content.trim()) break;
+        end++;
+      }
+      if (
+        hasNewline &&
+        tokens[i - 1]?.type !== "text" &&
+        tokens[end]?.type !== "text"
+      ) {
+        i = end - 1;
+        continue;
+      }
+    }
+
     // 将 newline token 转换为空格文本 token
     // 在 HTML 块上下文中，换行符通常应视为空格，而不是硬换行 <br>
     if (token.type === "newline") {
@@ -70,10 +108,7 @@ function normalizeHtmlTokens(tokens: Token[], tagName: string): Token[] {
     } else {
       // 对普通文本进行反转义处理
       if (token.type === "text") {
-        result.push({
-          ...token,
-          content: decodeHtmlEntities(token.content),
-        });
+        result.push(decodeHtmlTextToken(token));
       } else {
         result.push(token);
       }
@@ -113,7 +148,9 @@ function parsePreFormattedContent(tokens: Token[]): AstNode[] {
     }
 
     if (token.type === "text") {
-      accumulatedText += decodeHtmlEntities(token.content);
+      accumulatedText += token.entityDecoded
+        ? token.content
+        : decodeHtmlEntities(token.content);
       i++;
       continue;
     }
@@ -282,7 +319,7 @@ export function parseHtmlContent(
 ): AstNode[] {
   // 预处理所有文本 token 进行反转义
   const processedTokens = tokens.map((t) =>
-    t.type === "text" ? { ...t, content: decodeHtmlEntities(t.content) } : t
+    t.type === "text" ? decodeHtmlTextToken(t) : t
   );
 
   // 检查是否在 SVG 上下文中 (简单启发式：首个标签是 svg)
@@ -439,9 +476,7 @@ export function parseHtmlContent(
       } else {
         // 如果没有块级结构，为了防止布局偏移（避免 parseInlines 将 newline 渲染为 <br>）
         // 我们在此将 newline token 统一转换为空格文本 token
-        const sanitizedInlineTokens = inlineTokens.map((t) =>
-          t.type === "newline" ? { type: "text" as const, content: " " } : t
-        );
+        const sanitizedInlineTokens = normalizeHtmlTokens(inlineTokens, "div");
         const inlineNodes = ctx.parseInlines(sanitizedInlineTokens);
         nodes.push(...inlineNodes);
       }

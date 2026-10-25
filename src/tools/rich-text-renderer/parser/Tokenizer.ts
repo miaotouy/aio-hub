@@ -13,6 +13,11 @@
 // limitations under the License.
 
 import { Token, type TokenizerOptions } from "./types";
+import { readCodeFenceOpening, isCodeFenceClosing } from "./utils/code-fence";
+import {
+  decodeMarkdownEntities,
+  readReferenceDefinition,
+} from "./utils/markdown-reference";
 import {
   findRenderableVcpBlockBoundary,
   repairVcpContentForRendering,
@@ -42,14 +47,15 @@ const RE_AUTOLINK = /<((?:https?|ftps?|mailto):[^\s>]+)>/y;
 const RE_URL = /(https?:\/\/[^\s<"“'”]+)/y;
 const RE_HTML_COMMENT = /<!--[\s\S]*?-->/y;
 const RE_INDENT = /( *)/y;
-const RE_CODE_FENCE_OPEN = /```(\w*)/y;
 const RE_HEADING = /(#{1,6})\s/y;
 const RE_HR = /(---+|\*\*\*+|___+)(\s*)(?=\n|$)/y;
 const RE_LIST = /([*+-]|\d+\.)\s/y;
 const RE_BLOCKQUOTE = />[ \t]?/y;
 const RE_KATEX_INLINE = /\$([^\n$]+?)\$/y;
 const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
-const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
+const RE_ENTITY =
+  /&(?:#[xX][0-9a-fA-F]{1,6}|#[0-9]{1,7}|[a-zA-Z][a-zA-Z0-9]{1,31});/y;
+const RE_SPECIAL_CHARS = /[&<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 // 变体优先级: ESCAPE > exp > 标准，ESCAPE/exp 内容中可包含标准 VCP 协议字符（如 「始」/「末」）
 // 冒号后允许可选空格（VCPToolBox _scanFields 会跳过冒号后空白）
@@ -178,9 +184,28 @@ export class Tokenizer {
         while (i + count < len && text.charCodeAt(i + count) === 10) {
           count++;
         }
-        tokens.push({ type: "newline", count });
+        let nextPos = i + count;
+        let nextIndent = 0;
+        while (text[nextPos] === " " || text[nextPos] === "\t") {
+          nextIndent += text[nextPos] === "\t" ? 4 - (nextIndent % 4) : 1;
+          nextPos++;
+        }
+        tokens.push({ type: "newline", count, nextIndent });
         i += count;
         atLineStart = true;
+        continue;
+      }
+
+      if (char === 38) {
+        const entity = stickyMatch(RE_ENTITY, text, i);
+        tokens.push({
+          type: "text",
+          content: entity ? decodeMarkdownEntities(entity[0]) : "&",
+          raw: entity?.[0],
+          entityDecoded: true,
+        });
+        i += entity ? entity[0].length : 1;
+        atLineStart = false;
         continue;
       }
 
@@ -419,60 +444,73 @@ export class Tokenizer {
             // 如果没找到闭合或被判定为金额，则回退，让后续逻辑处理（可能会被识别为 text 或内联公式）
           }
 
-          // 代码围栏 ```
+          // Match complete fence lines; shorter inner fences remain code content.
           if (
             indent < 20 &&
-            charAfterIndent === 96 &&
-            text.startsWith("```", posAfterIndent)
+            (charAfterIndent === 96 || charAfterIndent === 126)
           ) {
-            const openMatch = stickyMatch(
-              RE_CODE_FENCE_OPEN,
-              text,
-              posAfterIndent
+            const openingEndAt = text.indexOf("\n", posAfterIndent);
+            const openingEnd = openingEndAt < 0 ? len : openingEndAt;
+            const fence = readCodeFenceOpening(
+              text.slice(posAfterIndent, openingEnd)
             );
-            if (openMatch) {
-              const language = openMatch[1] || "";
-              let currentPos = posAfterIndent + openMatch[0].length;
-
-              if (currentPos < len && text[currentPos] === "\n") {
-                currentPos++;
-              }
-
-              const contentStart = currentPos;
+            if (fence) {
+              const contentStart = openingEnd < len ? openingEnd + 1 : len;
+              let currentPos = contentStart;
               let contentEnd = len;
               let closed = false;
-
               while (currentPos < len) {
-                if (text[currentPos] === "\n") {
-                  let k = currentPos + 1;
-                  let spaceCount = 0;
-                  while (k < len && text[k] === " " && spaceCount < 20) {
-                    k++;
-                    spaceCount++;
-                  }
-                  if (text.startsWith("```", k)) {
-                    contentEnd = currentPos;
-                    currentPos = k + 3;
-                    closed = true;
-                    break;
-                  }
+                const endAt = text.indexOf("\n", currentPos);
+                const lineEnd = endAt < 0 ? len : endAt;
+                const line = text.slice(currentPos, lineEnd);
+                const spaces = /^ */.exec(line)![0].length;
+                if (
+                  spaces <= indent + 3 &&
+                  isCodeFenceClosing(line.slice(spaces), fence)
+                ) {
+                  contentEnd = currentPos;
+                  // Preserve the existing code-content contract for a closing-line LF.
+                  if (
+                    contentEnd > contentStart &&
+                    text[contentEnd - 1] === "\n"
+                  )
+                    contentEnd--;
+                  currentPos = lineEnd;
+                  closed = true;
+                  break;
                 }
-                currentPos++;
+                currentPos = lineEnd < len ? lineEnd + 1 : len;
               }
-
               let codeContent = text.slice(contentStart, contentEnd);
-              if (indent > 0) {
-                const dedentRegex = new RegExp(`^ {0,${indent}}`, "gm");
-                codeContent = codeContent.replace(dedentRegex, "");
-              }
-
+              if (indent > 0)
+                codeContent = codeContent.replace(
+                  new RegExp("^ {0," + indent + "}", "gm"),
+                  ""
+                );
               tokens.push({
                 type: "code_fence",
-                language,
+                language: decodeMarkdownEntities(fence.language),
                 raw: codeContent,
                 closed,
               });
               i = currentPos;
+              atLineStart = true;
+              continue;
+            }
+          }
+
+          const previous = tokens[tokens.length - 1];
+          const definitionBoundary =
+            !previous ||
+            previous.type === "reference_definition" ||
+            (previous.type === "newline" &&
+              (previous.count >= 2 ||
+                tokens[tokens.length - 2]?.type === "reference_definition"));
+          if (indent < 4 && charAfterIndent === 91 && definitionBoundary) {
+            const definition = readReferenceDefinition(text, posAfterIndent);
+            if (definition) {
+              tokens.push(definition.token);
+              i = definition.end;
               atLineStart = true;
               continue;
             }
@@ -515,6 +553,9 @@ export class Tokenizer {
             tokens.push({
               type: "list_marker",
               ordered: /\d+\./.test(listMatch[1]),
+              ...(/^\d/.test(listMatch[1])
+                ? { start: parseInt(listMatch[1], 10) }
+                : {}),
               raw: listMatch[0],
               indent: indent,
             });

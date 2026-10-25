@@ -146,16 +146,39 @@ watch(
   { deep: true }
 );
 
-// 更新参数的通用方法
+const THINKING_OUTPUT_BUFFER = 4096;
+
+// 在同一次编辑中完成预算联动，再向父组件提交，避免双向 watcher 覆盖输入。
 const updateParameter = <K extends keyof LlmParameters>(
   key: K,
   value: LlmParameters[K]
 ) => {
-  localParams.value = {
-    ...localParams.value,
-    [key]: value,
-  };
-  emit("update:modelValue", localParams.value);
+  const nextParams = { ...localParams.value, [key]: value };
+  if (
+    nextParams.thinkingEnabled &&
+    props.capabilities?.thinkingConfigType === "budget"
+  ) {
+    if (key === "thinkingBudget" || key === "thinkingEnabled") {
+      const budget =
+        nextParams.thinkingBudget || (key === "thinkingEnabled" ? 4096 : 0);
+      const requiredMaxTokens = budget + THINKING_OUTPUT_BUFFER;
+      if (budget && (nextParams.maxTokens || 0) < requiredMaxTokens) {
+        nextParams.maxTokens = Math.min(
+          requiredMaxTokens,
+          maxTokensLimit.value
+        );
+      }
+    } else if (
+      key === "maxTokens" &&
+      nextParams.maxTokens &&
+      nextParams.thinkingBudget &&
+      nextParams.maxTokens < nextParams.thinkingBudget + 1024
+    ) {
+      nextParams.thinkingBudget = Math.max(1024, nextParams.maxTokens - 1024);
+    }
+  }
+  localParams.value = nextParams;
+  emit("update:modelValue", nextParams);
 };
 
 // 检查参数是否启用
@@ -364,88 +387,6 @@ watch(
         ...localParams.value.contextManagement,
         maxContextTokens: newLimit,
       });
-    }
-  }
-);
-
-// --- Thinking Budget 与 Max Tokens 联动逻辑 ---
-// 确保 maxTokens 始终大于 thinkingBudget (通常需要留出一定的余量用于输出)
-const THINKING_OUTPUT_BUFFER = 4096; // 为思考后的回答预留的 token 数
-
-watch(
-  () => localParams.value.thinkingBudget,
-  (newBudget) => {
-    // 仅当启用了思考模式且是 budget 类型时才处理
-    if (
-      !localParams.value.thinkingEnabled ||
-      props.capabilities?.thinkingConfigType !== "budget" ||
-      !newBudget
-    ) {
-      return;
-    }
-
-    const currentMaxTokens = localParams.value.maxTokens || 0;
-    const requiredMaxTokens = newBudget + THINKING_OUTPUT_BUFFER;
-
-    // 如果当前 maxTokens 不足以容纳 budget + buffer，则自动增加 maxTokens
-    if (currentMaxTokens < requiredMaxTokens) {
-      // 限制不超过上下文上限
-      const limit = maxTokensLimit.value;
-      const targetMaxTokens = Math.min(requiredMaxTokens, limit);
-
-      if (targetMaxTokens > currentMaxTokens) {
-        updateParameter("maxTokens", targetMaxTokens);
-        // 可选：显示轻量提示，但这可能会在拖动滑块时频繁触发，所以暂时不加
-      }
-    }
-  }
-);
-
-watch(
-  () => localParams.value.maxTokens,
-  (newMaxTokens) => {
-    // 仅当启用了思考模式且是 budget 类型时才处理
-    if (
-      !localParams.value.thinkingEnabled ||
-      props.capabilities?.thinkingConfigType !== "budget" ||
-      !localParams.value.thinkingBudget ||
-      !newMaxTokens
-    ) {
-      return;
-    }
-
-    const currentBudget = localParams.value.thinkingBudget;
-    // 如果 maxTokens 减小导致空间不足，自动减小 thinkingBudget
-    // 允许 budget 稍微挤占 buffer，但不能超过 maxTokens 本身（实际上 Claude 要求 max_tokens > budget_tokens）
-    // 这里我们维持一个最小 buffer，比如 1024，或者如果空间实在不够，就让 budget = maxTokens - 1024
-    const minBuffer = 1024;
-
-    if (newMaxTokens < currentBudget + minBuffer) {
-      const targetBudget = Math.max(1024, newMaxTokens - minBuffer); // 保证 budget 至少有 1024
-
-      if (targetBudget < currentBudget) {
-        updateParameter("thinkingBudget", targetBudget);
-      }
-    }
-  }
-);
-
-// 监听 thinkingEnabled 开启时，进行一次初始检查
-watch(
-  () => localParams.value.thinkingEnabled,
-  (enabled) => {
-    if (enabled && props.capabilities?.thinkingConfigType === "budget") {
-      const currentBudget = localParams.value.thinkingBudget || 4096; // 默认值
-      const currentMaxTokens = localParams.value.maxTokens || 0;
-      const requiredMaxTokens = currentBudget + THINKING_OUTPUT_BUFFER;
-
-      if (currentMaxTokens < requiredMaxTokens) {
-        const limit = maxTokensLimit.value;
-        const targetMaxTokens = Math.min(requiredMaxTokens, limit);
-        if (targetMaxTokens > currentMaxTokens) {
-          updateParameter("maxTokens", targetMaxTokens);
-        }
-      }
     }
   }
 );

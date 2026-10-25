@@ -29,6 +29,10 @@ vi.mock("@/llm-apis/request-builder", () => ({
     id.toLowerCase().includes("gemini") ? "gemini" : "openai",
 }));
 
+vi.mock("../ContextStatsCard.vue", () => ({
+  default: { template: "<div />" },
+}));
+
 vi.mock("@/components/common/RichCodeEditor.vue", () => ({
   default: { template: "<div />" },
 }));
@@ -64,6 +68,7 @@ const stubs = {
   CustomParamsPanel: true,
   ContextStatsCard: true,
   "el-form-item": { template: "<div><slot /></div>" },
+  "el-tag": { template: "<span><slot /></span>" },
   "el-switch": true,
   "el-slider": true,
   "el-select": true,
@@ -200,6 +205,21 @@ describe("shared agent parameter editing", () => {
     expect(controls).toContain("reasoningEffort");
     expect(controls).not.toContain("thinkingBudget");
     expect(draft.parameters.thinkingBudget).toBe(8192);
+  });
+
+  it("keeps a reduced output limit while shrinking the thinking budget", async () => {
+    const draft = form({
+      maxTokens: 12288,
+      thinkingEnabled: true,
+      thinkingBudget: 8192,
+    });
+    const wrapper = section(draft);
+
+    await wrapper.get("[data-parameter=maxTokens]").setValue("8192");
+    await flushPromises();
+
+    expect(draft.parameters.maxTokens).toBe(8192);
+    expect(draft.parameters.thinkingBudget).toBe(7168);
   });
 
   it("keeps settings expansion independent and reveals a collapsed parameter group", async () => {

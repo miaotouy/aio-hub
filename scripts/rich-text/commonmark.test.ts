@@ -17,6 +17,7 @@ import { CustomParser } from "../../src/tools/rich-text-renderer/core/CustomPars
 import type { AstNode } from "../../src/tools/rich-text-renderer/types";
 import fixture from "./fixtures/commonmark-0.31.2/spec.json";
 import { firstDifference, normalizeAst, normalizeHtml } from "./semantics";
+import { createReference } from "./reference";
 import {
   countResults,
   createReport,
@@ -170,6 +171,7 @@ describe("CommonMark report", () => {
     expect(report.sections[0]).toEqual({
       section: example.section,
       ...report.summary,
+      classifications: report.classifications,
     });
     expect(renderMarkdown(report)).toContain("20.00%");
   });
@@ -186,4 +188,94 @@ describe("CommonMark report", () => {
       expect(outcome.status).toBe("match");
     }
   );
+});
+
+// Protect public classification boundaries: a known option must never hide content loss.
+describe("CommonMark configured reference", () => {
+  const fragment = (input: string) => {
+    const template = document.createElement("template");
+    template.innerHTML = input;
+    return template.content;
+  };
+  const reference = createReference(fragment);
+  it.each([
+    { markdown: "hello", classification: "match" },
+    { markdown: "first\nsecond", classification: "product-convention" },
+    { markdown: "hello\n", classification: "pending-contract" },
+  ])(
+    "classifies $classification without changing the strict comparison",
+    ({ markdown, classification }) => {
+      const outputs = reference.compare(markdown);
+      const result = evaluateExample(
+        { ...example, markdown },
+        outputs.commonmark.semantics,
+        { status: "parsed", ast: new CustomParser().parse(markdown) },
+        outputs
+      );
+      expect(result.classification).toBe(classification);
+      expect(result.status).toBe(
+        classification === "match" ? "match" : "mismatch"
+      );
+      expect(result.rawAst).toBeDefined();
+      expect(result.reference).toEqual(outputs);
+      if (classification === "pending-contract")
+        expect(result.projectDifference).toBeDefined();
+    }
+  );
+
+  it("retains mixed content differences and never excuses earlier paragraph breaks as terminal whitespace", () => {
+    const markdown = "first\nsecond\n";
+    const outputs = reference.compare(markdown);
+    const changed = new CustomParser().parse("changed\nsecond\n");
+    const mixed = evaluateExample(
+      { ...example, markdown },
+      outputs.commonmark.semantics,
+      { status: "parsed", ast: changed },
+      outputs
+    );
+    expect(mixed.classification).toBe("parser-difference");
+    expect(mixed.productConfigurationDifference).toBeDefined();
+    expect(mixed.projectDifference?.path).toBe("$[0].children[0].value");
+    const paragraphs = "first\n\nlast\n";
+    const other = reference.compare(paragraphs);
+    const ast = [
+      paragraph([
+        text("first"),
+        { id: "br", type: "hard_break" as const, props: {}, meta },
+      ]),
+      ...new CustomParser().parse("last\n"),
+    ];
+    expect(
+      evaluateExample(
+        { ...example, markdown: paragraphs },
+        other.commonmark.semantics,
+        { status: "parsed", ast },
+        other
+      ).classification
+    ).toBe("parser-difference");
+  });
+
+  it("keeps reference-library disagreement separate and preserves the project comparison", () => {
+    const outputs = reference.compare("hello");
+    const result = evaluateExample(
+      example,
+      html("<p>official</p>"),
+      { status: "parsed", ast: [paragraph([text("hello")])] },
+      outputs
+    );
+    expect(result.classification).toBe("reference-difference");
+    expect(result.officialDefaultDifference?.path).toBe(
+      "$[0].children[0].value"
+    );
+    expect(result.projectDifference).toBeUndefined();
+    const report = createReport([result], {
+      bun: "test",
+      timeoutMs: 2000,
+      markdownIt: "test",
+    });
+    expect(report.comparisonSummary).toMatchObject({
+      officialDefaultDifferences: 1,
+      projectMatches: 1,
+    });
+  });
 });

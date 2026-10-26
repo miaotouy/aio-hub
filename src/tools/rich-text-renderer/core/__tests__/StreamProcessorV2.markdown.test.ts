@@ -98,6 +98,14 @@ function createSeededChunks(input: string, seed: number): string[] {
 
 const streamMarkdownFixtures = [
   {
+    label: "table empty cells and escaped pipe split across chunks",
+    chunks: [
+      "| A | B | C |\n| --- | :---",
+      ": | ---: |\n| | middle | |\n| left\\",
+      "|right | last | value",
+    ],
+  },
+  {
     label: "emphasis markers split across chunks",
     chunks: ["before *", "*bold", " text*", "* after\n\nnext"],
   },

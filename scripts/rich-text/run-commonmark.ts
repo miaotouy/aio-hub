@@ -17,6 +17,8 @@ import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { normalizeHtml } from "./semantics";
+import { createReference } from "./reference";
+import { evaluateExtensions, renderExtensions } from "./extensions";
 import {
   createReport,
   evaluateExample,
@@ -153,21 +155,37 @@ async function main() {
     throw new Error("Invalid local CommonMark 0.31.2 fixture");
   }
   const examples = fixture as SpecExample[];
+  const reference = createReference(JSDOM.fragment);
   const parser = new IsolatedParser(timeoutMs);
   const results = [];
+  let extensions;
   try {
     for (const example of examples) {
       const expected = normalizeHtml(JSDOM.fragment(example.html));
       results.push(
-        evaluateExample(example, expected, await parser.parse(example.markdown))
+        evaluateExample(
+          example,
+          expected,
+          await parser.parse(example.markdown),
+          reference.compare(example.markdown)
+        )
       );
       if (results.length % 100 === 0)
         console.log("CommonMark: " + results.length + "/" + examples.length);
     }
+    extensions = await evaluateExtensions(
+      (input) => parser.parse(input),
+      JSDOM.fragment
+    );
   } finally {
     parser.dispose();
   }
-  const report = createReport(results, { bun: Bun.version, timeoutMs });
+  const report = createReport(results, {
+    bun: Bun.version,
+    timeoutMs,
+    markdownIt: createRequire(import.meta.url)("markdown-it/package.json")
+      .version,
+  });
   await mkdir(outDir, { recursive: true });
   await writeFile(
     join(outDir, "report.json"),
@@ -175,7 +193,27 @@ async function main() {
     "utf8"
   );
   await writeFile(join(outDir, "report.md"), renderMarkdown(report), "utf8");
-  console.log(JSON.stringify(report.summary, null, 2));
+  await writeFile(
+    join(outDir, "extensions.json"),
+    JSON.stringify(extensions, null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    join(outDir, "extensions.md"),
+    renderExtensions(extensions),
+    "utf8"
+  );
+  console.log(
+    JSON.stringify(
+      {
+        official: report.summary,
+        classifications: report.classifications,
+        extensions: extensions.summary,
+      },
+      null,
+      2
+    )
+  );
   console.log("Report: " + join(outDir, "report.md"));
   // Compatibility differences are report data. Infrastructure/adapter bugs fail the command.
 }

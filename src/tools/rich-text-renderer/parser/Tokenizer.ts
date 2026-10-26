@@ -285,7 +285,11 @@ export class Tokenizer {
             tokens.push({ type: "text", content: "\\" });
             i += 1;
           } else {
-            tokens.push({ type: "text", content: text[i + 1] });
+            tokens.push({
+              type: "text",
+              content: text[i + 1],
+              ...(text[i + 1] === "|" ? { raw: "\\|" } : {}),
+            });
             i += 2;
           }
         } else {

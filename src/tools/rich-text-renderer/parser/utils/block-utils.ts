@@ -13,6 +13,11 @@
 // limitations under the License.
 
 import { Token } from "../types";
+import {
+  readTableLine,
+  splitTableCells,
+  tableDelimiterAlignments,
+} from "./table-utils";
 
 export const BLOCK_LEVEL_TAGS = new Set([
   "div",
@@ -170,63 +175,18 @@ export function isBlockStart(token: Token): boolean {
  * 检查是否是表格开始
  */
 export function isTableStart(tokens: Token[], index: number): boolean {
-  // 简单检测：查找包含 | 的行，后跟分隔行
   let i = index;
-
-  // 如果起始是换行，跳过它（表格通常在换行后开始）
-  while (i < tokens.length && tokens[i].type === "newline") {
-    i++;
-  }
-
-  let hasContent = false;
-  let hasPipe = false;
-
-  // 检查第一行是否包含 |
-  while (i < tokens.length) {
-    const t = tokens[i];
-
-    if (t.type === "newline") {
-      break;
-    }
-
-    if (t.type === "text") {
-      hasContent = true;
-      if (t.content.includes("|")) {
-        hasPipe = true;
-      }
-    } else {
-      // 其他内联 token (如加粗、链接) 也算作内容
-      hasContent = true;
-    }
-
-    i++;
-  }
-
-  if (!hasPipe || !hasContent) {
+  while (tokens[i]?.type === "newline") i++;
+  const header = readTableLine(tokens, i);
+  const newline = tokens[header.end];
+  if (newline?.type !== "newline" || newline.count !== 1) return false;
+  const separator = readTableLine(tokens, header.nextIndex);
+  if (
+    ![...header.tokens, ...separator.tokens].some(
+      (t) => t.type === "text" && t.raw === undefined && t.content.includes("|")
+    )
+  )
     return false;
-  }
-
-  // 跳过换行
-  if (i < tokens.length && tokens[i].type === "newline") {
-    i++;
-  }
-
-  // 检查下一行是否是分隔符行
-  let separatorLine = "";
-  while (i < tokens.length) {
-    const t = tokens[i];
-
-    if (t.type === "newline") {
-      break;
-    }
-
-    if (t.type === "text") {
-      separatorLine += t.content;
-    }
-
-    i++;
-  }
-
-  // 分隔符行应该匹配 |---:|:---|:---:| 等模式
-  return /^\|?[\s:-]+\|/.test(separatorLine.trim());
+  const aligns = tableDelimiterAlignments(separator.tokens);
+  return !!aligns && splitTableCells(header.tokens).length === aligns.length;
 }

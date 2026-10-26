@@ -38,6 +38,17 @@ function element(
   children: SemanticNode[] = [],
   attrs: Record<string, string> = {}
 ): SemanticNode {
+  attrs = { ...attrs };
+  if (type === "th" || type === "td") {
+    const alignment = /^text-align:\s*(left|center|right);?$/.exec(
+      attrs.style ?? ""
+    );
+    if (alignment) {
+      attrs.align = alignment[1];
+      delete attrs.style;
+    }
+    if (attrs.align === "left") delete attrs.align;
+  }
   const normalizedAttrs = Object.fromEntries(
     Object.entries(attrs)
       .filter(
@@ -71,7 +82,16 @@ function normalizeChildren(
   container: string
 ): SemanticNode[] {
   const structural =
-    ["#root", "blockquote", "ul", "ol"].includes(container) ||
+    [
+      "#root",
+      "blockquote",
+      "ul",
+      "ol",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+    ].includes(container) ||
     (container === "li" &&
       nodes.some((node) =>
         /^(p|ul|ol|blockquote|pre|h[1-6]|hr)$/.test(node.type)
@@ -88,14 +108,21 @@ function normalizeChildren(
   );
 }
 
-export function normalizeAst(nodes: AstNode[]): SemanticNode[] {
-  return normalizeChildren(normalizeAstNodes(nodes), "#root");
+export function normalizeAst(
+  nodes: AstNode[],
+  projectNodes = false
+): SemanticNode[] {
+  return normalizeChildren(normalizeAstNodes(nodes, projectNodes), "#root");
 }
 
-function normalizeAstNodes(nodes: AstNode[]): SemanticNode[] {
+function normalizeAstNodes(
+  nodes: AstNode[],
+  projectNodes: boolean
+): SemanticNode[] {
   return mergeText(
     nodes.flatMap((node): SemanticNode[] => {
-      const children = () => normalizeAstNodes(node.children ?? []);
+      const children = () =>
+        normalizeAstNodes(node.children ?? [], projectNodes);
       switch (node.type) {
         case "text":
           return [text(node.props.content)];
@@ -157,15 +184,68 @@ function normalizeAstNodes(nodes: AstNode[]): SemanticNode[] {
             element("img", [], {
               src: node.props.src,
               alt: node.props.alt ?? "",
-              ...(node.props.title !== undefined
-                ? { title: node.props.title }
-                : {}),
+              ...(node.props.title ? { title: node.props.title } : {}),
             }),
           ];
         case "hr":
           return [element("hr")];
         case "hard_break":
           return [element("br")];
+        case "table": {
+          const rows = node.children;
+          const headers = rows.filter(
+            (row) => row.type === "table_row" && row.props.isHeader
+          );
+          const body = rows.filter(
+            (row) => row.type !== "table_row" || !row.props.isHeader
+          );
+          return [
+            element("table", [
+              ...(headers.length
+                ? [element("thead", normalizeAstNodes(headers, projectNodes))]
+                : []),
+              ...(body.length
+                ? [element("tbody", normalizeAstNodes(body, projectNodes))]
+                : []),
+            ]),
+          ];
+        }
+        case "table_row":
+          return [element("tr", children())];
+        case "table_cell":
+          return [
+            element(
+              node.props.isHeader ? "th" : "td",
+              children(),
+              node.props.align ? { align: node.props.align } : {}
+            ),
+          ];
+        case "katex_inline":
+        case "katex_block":
+          if (!projectNodes) throw new UnsupportedAstNodeError(node.type);
+          return [element(node.type, [text(node.props.content)])];
+        case "llm_think":
+          if (!projectNodes) throw new UnsupportedAstNodeError(node.type);
+          return [
+            element("llm_think", children(), {
+              tag: node.props.rawTagName,
+              raw: node.props.rawContent ?? "",
+              thinking: String(!!node.props.isThinking),
+            }),
+          ];
+        case "vcp_tool":
+          if (!projectNodes) throw new UnsupportedAstNodeError(node.type);
+          return [
+            element("vcp_tool", [], {
+              raw: node.props.raw,
+              closed: String(node.props.closed),
+              tool: node.props.tool_name,
+              command: node.props.command,
+              args: JSON.stringify(
+                Object.fromEntries(Object.entries(node.props.args).sort())
+              ),
+            }),
+          ];
         case "generic_html":
           return [
             element(

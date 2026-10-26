@@ -173,9 +173,11 @@
             :placement="isNarrowLayout ? 'left' : 'bottom'"
           >
             <el-button
+              ref="historyBtnRef"
               :icon="Timer"
-              :type="historyPanelState.visible ? 'primary' : 'default'"
-              @click="toggleHistoryPanel"
+              aria-label="操作历史"
+              :aria-expanded="historyPanelVisible"
+              :type="historyPanelVisible ? 'primary' : 'default'"
             />
           </el-tooltip>
 
@@ -481,23 +483,24 @@
       </div>
     </el-popover>
 
-    <!-- 历史记录悬浮窗 -->
-    <div
-      v-if="historyPanelState.visible"
-      class="history-panel-container"
-      :style="{
-        position: 'fixed',
-        top: `${historyPanelState.y}px`,
-        left: `${historyPanelState.x}px`,
-      }"
+    <!-- 历史记录锚定按钮，交由浮层处理边界避让和关闭。 -->
+    <el-popover
+      v-model:visible="historyPanelVisible"
+      :virtual-ref="historyBtnRef"
+      virtual-triggering
+      trigger="click"
+      :placement="isNarrowLayout ? 'left-start' : 'bottom-end'"
+      width="min(380px, calc(100vw - 24px))"
+      :popper-style="{ padding: '0', overflow: 'hidden' }"
     >
       <HistoryPanel
+        v-if="historyPanelVisible"
         :history-stack="historyStack"
         :current-index="currentHistoryIndex"
         @jump-to="handleJumpToHistory"
         @close="closeHistoryPanel"
       />
-    </div>
+    </el-popover>
   </div>
 </template>
 
@@ -619,12 +622,8 @@ watch(
   { deep: true }
 );
 
-// 上下文菜单状态
-const historyPanelState = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-});
+const historyBtnRef = ref();
+const historyPanelVisible = ref(false);
 
 // 上下文菜单状态
 const contextMenu = ref({
@@ -715,26 +714,7 @@ const currentHistoryIndex = computed(() => props.session?.historyIndex ?? 0);
 
 // 关闭历史记录面板
 const closeHistoryPanel = () => {
-  historyPanelState.value.visible = false;
-};
-
-// 切换历史记录面板的显示/隐藏
-const toggleHistoryPanel = (event: MouseEvent) => {
-  if (historyPanelState.value.visible) {
-    closeHistoryPanel();
-  } else {
-    const buttonGroupEl = (event.currentTarget as HTMLElement).closest(
-      ".el-button-group"
-    );
-    if (!buttonGroupEl) return;
-
-    const rect = buttonGroupEl.getBoundingClientRect();
-    // 380 是面板宽度, 将面板的右边缘与按钮组的右边缘对齐
-    historyPanelState.value.x = rect.right - 380;
-    // 将面板放置在按钮组下方，并留出 8px 间距
-    historyPanelState.value.y = rect.bottom + 8;
-    historyPanelState.value.visible = true;
-  }
+  historyPanelVisible.value = false;
 };
 
 // 处理历史跳转
@@ -1460,17 +1440,6 @@ const debugLinkPaths = computed(() => {
 
 .hud-value.low-fps {
   color: var(--el-color-danger);
-}
-
-.history-panel-container {
-  width: 380px;
-  z-index: 2000;
-  border-radius: 8px;
-  box-shadow: var(--el-box-shadow-light);
-  border: var(--border-width) solid var(--border-color);
-  overflow: hidden;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 调试叠加层 */

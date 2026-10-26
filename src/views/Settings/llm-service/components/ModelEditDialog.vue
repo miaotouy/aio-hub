@@ -78,6 +78,14 @@ const jsonError = ref<string | null>(null);
 const metadataManagedBaseline = ref<LlmModelInfo | null>(null);
 const modelIdentityCanonicalId = ref("");
 const modelIdentityRevision = ref("");
+const expandedAdvancedSections = ref<string[]>([]);
+
+watch(
+  () => props.visible,
+  () => {
+    expandedAdvancedSections.value = [];
+  }
+);
 
 const identityOptions = Array.from(
   new Set(
@@ -99,12 +107,12 @@ const identitySourceLabel = computed(() => {
     (current.revision ?? "") === modelIdentityRevision.value.trim()
   ) {
     return {
-      builtin: "内置识别",
-      provider: "渠道声明",
-      user: "用户配置",
+      builtin: "自动识别",
+      provider: "服务商提供",
+      user: "手动设置",
     }[current.source];
   }
-  return "用户配置";
+  return "手动设置";
 });
 
 const normalizeIdentityInput = () => {
@@ -116,6 +124,7 @@ const normalizeIdentityInput = () => {
 watch(
   () => props.model,
   (newModel) => {
+    expandedAdvancedSections.value = [];
     if (newModel) {
       // 处理 defaultPostProcessingRules 的兼容性
       let defaultRules: ContextPostProcessRule[] = [];
@@ -199,7 +208,7 @@ const handleSave = () => {
     const canonicalId = normalizeCanonicalModelId(identityInput);
     if (!canonicalId) {
       customMessage.error(
-        "模型身份格式应为 developer/model，且只能包含字母、数字、点、下划线和连字符"
+        "统一标识请按“开发商/模型名”填写，例如 google/gemini-embedding-2；支持字母、数字、点、下划线和连字符"
       );
       return;
     }
@@ -598,61 +607,79 @@ const customParametersJsonString = computed({
             </div>
           </div>
 
-          <template v-if="isEmbeddingModel">
-            <el-divider content-position="left">嵌入模型身份</el-divider>
+          <el-collapse
+            v-model="expandedAdvancedSections"
+            class="model-advanced-collapse"
+          >
+            <el-collapse-item v-if="isEmbeddingModel" name="identity">
+              <template #title>
+                <div class="advanced-section-heading">
+                  <span class="advanced-section-title">模型身份</span>
+                  <span class="advanced-section-hint"
+                    >识别不同渠道中的同一模型</span
+                  >
+                </div>
+              </template>
+              <p class="advanced-section-description">
+                统一标识说明是哪款模型，固定版本说明是它的哪一版。知识库会参考这两项，判断已有向量能否继续使用。通常保留自动识别的结果即可。
+              </p>
+              <el-form-item label="统一标识">
+                <div class="identity-editor">
+                  <el-select
+                    v-model="modelIdentityCanonicalId"
+                    filterable
+                    allow-create
+                    clearable
+                    default-first-option
+                    placeholder="选择或填写，例如 google/gemini-embedding-2"
+                    @blur="normalizeIdentityInput"
+                  >
+                    <el-option
+                      v-for="identity in identityOptions"
+                      :key="identity"
+                      :label="identity"
+                      :value="identity"
+                    />
+                  </el-select>
+                  <span class="identity-source">{{ identitySourceLabel }}</span>
+                </div>
+                <div class="form-hint">
+                  按“开发商/模型名”填写。同一款模型在不同渠道中应使用相同标识，例如
+                  google/gemini-embedding-2。
+                </div>
+              </el-form-item>
 
-            <el-form-item label="模型身份">
-              <div class="identity-editor">
-                <el-select
-                  v-model="modelIdentityCanonicalId"
-                  filterable
-                  allow-create
+              <el-form-item label="固定版本">
+                <el-input
+                  v-model="modelIdentityRevision"
                   clearable
-                  default-first-option
-                  placeholder="未识别"
-                  @blur="normalizeIdentityInput"
-                >
-                  <el-option
-                    v-for="identity in identityOptions"
-                    :key="identity"
-                    :label="identity"
-                    :value="identity"
-                  />
-                </el-select>
-                <span class="identity-source">{{ identitySourceLabel }}</span>
-              </div>
-              <div class="form-hint">
-                用于识别跨渠道的同一嵌入模型，作为 Embedding
-                向量复用与空间判断的依据。格式为 developer/model。
-              </div>
-            </el-form-item>
+                  placeholder="可选，填写服务商明确提供的版本号"
+                />
+                <div class="form-hint">
+                  用于区分同一模型的不同版本。服务商提供了固定版本号时照填，其余情况留空。
+                </div>
+              </el-form-item>
+            </el-collapse-item>
 
-            <el-form-item label="模型修订">
-              <el-input
-                v-model="modelIdentityRevision"
-                clearable
-                placeholder="可选，仅填写服务明确提供的固定版本"
-              />
-              <div class="form-hint">
-                未提供固定修订版本时请留空，避免将不同版本的向量错误视为可复用。
-              </div>
-            </el-form-item>
-          </template>
-
-          <!-- 请求协议 / 适配器 -->
-          <el-divider content-position="left">请求协议 / 适配器</el-divider>
-
-          <el-form-item label="模型级路由">
-            <ModelRoutingEditor
-              v-model="modelEditForm.routing"
-              :operations="routingOperations"
-              :provider-type="providerType"
-            />
-            <div class="form-hint">
-              仅按模型能力显示可编辑的操作。留空表示该操作跟随渠道默认协议；
-              设置后将覆盖渠道类型为该模型的请求选择，不改变模型列表解析。
-            </div>
-          </el-form-item>
+            <el-collapse-item name="routing">
+              <template #title>
+                <div class="advanced-section-heading">
+                  <span class="advanced-section-title">模型路由</span>
+                  <span class="advanced-section-hint">请求协议与接口地址</span>
+                </div>
+              </template>
+              <p class="advanced-section-description">
+                通常使用渠道默认设置。服务商要求此模型使用其他协议或接口地址时，在这里单独设置。
+              </p>
+              <el-form-item label="请求协议">
+                <ModelRoutingEditor
+                  v-model="modelEditForm.routing"
+                  :operations="routingOperations"
+                  :provider-type="providerType"
+                />
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
 
           <!-- 图片输入限制 -->
           <el-divider content-position="left">图片输入限制</el-divider>
@@ -883,6 +910,46 @@ const customParametersJsonString = computed({
   color: var(--text-color-secondary);
   font-size: 12px;
   text-align: right;
+}
+
+.model-advanced-collapse {
+  margin: 24px 0;
+  --el-collapse-border-color: var(--border-color);
+  --el-collapse-header-height: 48px;
+  --el-collapse-header-bg-color: transparent;
+  --el-collapse-content-bg-color: transparent;
+  --el-collapse-header-text-color: var(--text-color);
+  --el-collapse-content-text-color: var(--text-color);
+}
+
+.advanced-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 10px 0;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.advanced-section-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.advanced-section-hint,
+.advanced-section-description {
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.advanced-section-description {
+  margin: 0 0 16px;
+  line-height: 1.7;
+}
+
+.model-advanced-collapse :deep(.el-collapse-item__content) {
+  padding: 8px 0 0;
 }
 
 /* Token 输入组合 */

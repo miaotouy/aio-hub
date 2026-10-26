@@ -46,9 +46,9 @@ const supportedEndpointTypes = computed(
 );
 
 const SOURCE_LABELS: Readonly<Record<ModelRouteSource, string>> = {
-  manual: "手动绑定",
-  probe: "探测确认",
-  discovered: "服务端声明",
+  manual: "手动设置",
+  probe: "检查结果",
+  discovered: "服务商提供",
   "profile-default": "渠道默认",
 };
 
@@ -127,7 +127,7 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
 <template>
   <div class="routing-editor">
     <div v-if="supportedEndpointTypes.length > 0" class="supported-endpoints">
-      <span class="supported-label">服务端声明端点</span>
+      <span class="supported-label">服务商提供的接口类型</span>
       <el-tag
         v-for="endpointType in supportedEndpointTypes"
         :key="endpointType"
@@ -138,7 +138,7 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
         {{ endpointType }}
       </el-tag>
       <span class="supported-hint">
-        仅声明可用集合，不会自动改变实际请求协议
+        供选择协议时参考，实际使用的协议见下方“当前使用”。
       </span>
     </div>
 
@@ -179,7 +179,8 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
           v-if="bindingFor(operation)"
           :model-value="bindingFor(operation)?.endpoint ?? ''"
           class="route-endpoint-input"
-          placeholder="可选：绑定专用端点路径"
+          :aria-label="`${OPERATION_LABELS[operation]}接口路径`"
+          placeholder="可选：接口路径，如 /v1/messages"
           clearable
           @update:model-value="
             (value: string) => onEndpointChange(operation, value)
@@ -191,23 +192,23 @@ function isRouteUnresolved(operation: LlmOperation): boolean {
           link
           type="danger"
           :icon="Delete"
-          title="清除该操作的绑定"
+          title="恢复渠道默认设置"
           @click="clearBinding(operation)"
         >
-          重置
+          恢复默认
         </el-button>
       </div>
 
       <div class="route-hint">
         <template v-if="isRouteUnresolved(operation)">
           <span class="route-unresolved">
-            待选择/待探测：该模型没有可用的{{
+            请在上方选择{{
               OPERATION_LABELS[operation]
-            }}协议路由，请在下方选择协议或先运行模型检查
+            }}协议，或运行模型检查来自动识别。
           </span>
         </template>
         <template v-else>
-          当前生效：
+          当前使用：
           {{
             effectiveExecution(operation)
               ? `${getAdapterLabel(effectiveExecution(operation)!.adapterId)}（${

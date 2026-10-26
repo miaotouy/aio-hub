@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ModelEditDialog from "../ModelEditDialog.vue";
+import type { LlmModelInfo } from "@/types/llm-profiles";
 
 vi.mock("@/composables/useThemeAppearance", () => ({
   useThemeAppearance: () => ({ appearanceSettings: ref({}) }),
@@ -30,12 +31,14 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function mountDialog() {
+function mountDialog(
+  model: LlmModelInfo = { id: "test-model", name: "Test Model" }
+) {
   const wrapper = shallowMount(ModelEditDialog, {
     props: {
       visible: true,
       isEditing: true,
-      model: { id: "test-model", name: "Test Model" },
+      model,
     },
     global: {
       plugins: [ElementPlus],
@@ -44,6 +47,8 @@ function mountDialog() {
         BaseDialog: false,
         ElInput: false,
         ElButton: false,
+        ElCollapse: false,
+        ElCollapseItem: false,
         IconPresetSelector: false,
         teleport: true,
       },
@@ -91,5 +96,67 @@ describe("ModelEditDialog icon presets", () => {
 
     await wrapper.setProps({ visible: false });
     expect(wrapper.find(".icon-preset-selector").exists()).toBe(false);
+  });
+});
+
+// Protect progressive disclosure and the save contract for hidden, pre-existing settings.
+describe("ModelEditDialog advanced settings", () => {
+  const model: LlmModelInfo = {
+    id: "gemini-embedding-2",
+    name: "Gemini Embedding 2",
+    capabilities: { embedding: true },
+    modelIdentity: {
+      canonicalId: "google/gemini-embedding-2",
+      revision: "2026-01",
+      source: "provider",
+    },
+    routing: {
+      supportedEndpointTypes: ["openai", "gemini"],
+      bindings: {
+        embedding: {
+          adapterId: "openai-embeddings",
+          endpoint: "/v1/embeddings",
+          source: "manual",
+        },
+      },
+    },
+  };
+
+  it("starts collapsed and resets expanded sections when reopened or switching models", async () => {
+    const wrapper = mountDialog(model);
+    const headers = () =>
+      wrapper.findAll(".model-advanced-collapse [role=button][aria-expanded]");
+    expect(headers()).toHaveLength(2);
+    expect(
+      headers().map((header) => header.attributes("aria-expanded"))
+    ).toEqual(["false", "false"]);
+
+    await headers()[0].trigger("keydown", { key: "Enter" });
+    expect(headers()[0].attributes("aria-expanded")).toBe("true");
+    await headers()[1].trigger("click");
+    expect(headers()[1].attributes("aria-expanded")).toBe("true");
+
+    await wrapper.setProps({ visible: false });
+    await wrapper.setProps({ visible: true });
+    expect(
+      headers().map((header) => header.attributes("aria-expanded"))
+    ).toEqual(["false", "false"]);
+
+    await headers()[1].trigger("click");
+    await wrapper.setProps({
+      model: { id: "other-model", name: "Other Model" },
+    });
+    expect(headers()).toHaveLength(1);
+    expect(headers()[0].attributes("aria-expanded")).toBe("false");
+  });
+
+  it("preserves identity, version, and route settings when saving with sections collapsed", async () => {
+    const wrapper = mountDialog(model);
+    await buttonWithText(wrapper, "确定").trigger("click");
+    expect(wrapper.emitted("save")?.[0]?.[0]).toMatchObject({
+      id: model.id,
+      modelIdentity: model.modelIdentity,
+      routing: model.routing,
+    });
   });
 });

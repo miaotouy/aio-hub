@@ -85,13 +85,17 @@ const getOtherIdentityRoutes = (model: LlmModelInfo) => {
 
 const getIdentityAuditText = (model: LlmModelInfo) => {
   const routes = getOtherIdentityRoutes(model);
-  if (routes.length === 0) return model.modelIdentity?.canonicalId ?? "";
+  if (routes.length === 0) {
+    return model.modelIdentity
+      ? `统一标识：${model.modelIdentity.canonicalId}`
+      : "";
+  }
   const details = routes
     .map(
       ({ profile, model: routeModel }) => `${profile.name}: ${routeModel.id}`
     )
     .join("\n");
-  return `${model.modelIdentity?.canonicalId}\n同身份的其他路由：\n${details}`;
+  return `统一标识：${model.modelIdentity?.canonicalId}\n其他渠道中的同一模型：\n${details}`;
 };
 
 interface Emits {
@@ -229,7 +233,7 @@ const MODEL_ROUTE_SOURCE_LABELS: Record<string, string> = {
   "profile-default": "渠道默认",
 };
 
-// 路由指示：优先显示 Chat binding，其次服务端声明集合
+// 悬停详情保留各操作的协议与服务商提供的接口类型。
 const getModelRouteBindings = (
   model: LlmModelInfo
 ): Array<{ operation: LlmOperation; binding: ModelRouteBinding }> => {
@@ -252,7 +256,7 @@ const getModelRouteTitle = (model: LlmModelInfo): string => {
   );
   const supported = model.routing?.supportedEndpointTypes;
   if (supported?.length) {
-    lines.push(`服务端声明: ${supported.join(", ")}`);
+    lines.push(`服务商提供的接口类型：${supported.join(", ")}`);
   }
   return lines.join("\n");
 };
@@ -423,60 +427,19 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
                 <!-- 模型信息 -->
                 <div class="model-info">
                   <div class="model-name">{{ item.model.name }}</div>
-                  <div class="model-id">{{ item.model.id }}</div>
                   <div
-                    v-if="item.model.modelIdentity"
-                    class="model-identity"
-                    :title="getIdentityAuditText(item.model)"
-                  >
-                    {{ item.model.modelIdentity.canonicalId }}
-                    <span v-if="getOtherIdentityRoutes(item.model).length > 0">
-                      ·
-                      {{ getOtherIdentityRoutes(item.model).length }} 个其他路由
-                    </span>
-                  </div>
-                  <div
-                    v-if="
-                      item.model.routing?.bindings?.chat ||
-                      item.model.routing?.bindings?.decision ||
-                      item.model.routing?.supportedEndpointTypes?.length
+                    class="model-id"
+                    :title="
+                      [
+                        item.model.id,
+                        getIdentityAuditText(item.model),
+                        getModelRouteTitle(item.model),
+                      ]
+                        .filter(Boolean)
+                        .join('\n')
                     "
-                    class="model-route"
-                    :title="getModelRouteTitle(item.model)"
                   >
-                    <el-tag
-                      v-if="item.model.routing?.bindings?.chat"
-                      size="small"
-                      type="primary"
-                      effect="plain"
-                    >
-                      {{
-                        getAdapterLabel(
-                          item.model.routing.bindings.chat.adapterId
-                        )
-                      }}
-                    </el-tag>
-                    <el-tag
-                      v-if="item.model.routing?.bindings?.decision"
-                      size="small"
-                      type="warning"
-                      effect="plain"
-                    >
-                      决策 ·
-                      {{
-                        getAdapterLabel(
-                          item.model.routing.bindings.decision.adapterId
-                        )
-                      }}
-                    </el-tag>
-                    <span
-                      v-if="item.model.routing?.supportedEndpointTypes?.length"
-                      class="route-endpoints"
-                    >
-                      {{
-                        item.model.routing.supportedEndpointTypes.join(" / ")
-                      }}
-                    </span>
+                    {{ item.model.id }}
                   </div>
                   <div
                     v-if="isChatRouteUnresolved(item.model)"
@@ -817,16 +780,6 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
   line-height: 1.4;
 }
 
-.model-identity {
-  color: var(--el-color-success);
-  font-family: monospace;
-  font-size: 11px;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .model-route {
   font-size: 11px;
   line-height: 1.4;
@@ -835,16 +788,6 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
   gap: 6px;
   margin-top: 3px;
   overflow: hidden;
-}
-
-.route-endpoints {
-  line-height: 1.4;
-  font-size: 11px;
-  color: var(--text-color-light);
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .model-right-panel {

@@ -1235,7 +1235,8 @@ defineExpose({
 }
 
 /* message-body 内的气泡：按内容收缩，并由 message-body 的 max-width 负责换行上限 */
-.messages-container.mode-bubble .message-body > .chat-message {
+/* ChatMessage 含编辑器弹层等多个根节点，跨组件限宽使用深度选择器。 */
+.messages-container.mode-bubble :deep(.message-body > .chat-message) {
   max-width: 100%;
   width: fit-content;
 }

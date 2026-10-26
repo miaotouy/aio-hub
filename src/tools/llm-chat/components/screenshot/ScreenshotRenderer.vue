@@ -786,7 +786,8 @@ defineExpose({
   align-items: flex-end;
 }
 
-.messages-container.mode-bubble .message-body > .chat-message {
+/* ChatMessage 含编辑器弹层等多个根节点，跨组件限宽使用深度选择器。 */
+.messages-container.mode-bubble :deep(.message-body > .chat-message) {
   max-width: 100%;
   width: fit-content;
 }

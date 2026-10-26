@@ -36,6 +36,115 @@ function findNode(nodes: AstNode[], type: string): AstNode | undefined {
   }
 }
 
+function describeFirstDifference(
+  expected: unknown,
+  actual: unknown,
+  path = "$"
+): string | undefined {
+  if (Object.is(expected, actual)) return undefined;
+
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    for (
+      let index = 0;
+      index < Math.min(expected.length, actual.length);
+      index++
+    ) {
+      const difference = describeFirstDifference(
+        expected[index],
+        actual[index],
+        `${path}[${index}]`
+      );
+      if (difference) return difference;
+    }
+    return expected.length === actual.length
+      ? undefined
+      : `${path}.length: expected ${expected.length}, received ${actual.length}`;
+  }
+
+  if (
+    expected !== null &&
+    actual !== null &&
+    typeof expected === "object" &&
+    typeof actual === "object"
+  ) {
+    const left = expected as Record<string, unknown>;
+    const right = actual as Record<string, unknown>;
+    for (const key of [
+      ...new Set([...Object.keys(left), ...Object.keys(right)]),
+    ].sort()) {
+      const difference = describeFirstDifference(
+        left[key],
+        right[key],
+        `${path}.${key}`
+      );
+      if (difference) return difference;
+    }
+    return undefined;
+  }
+
+  return `${path}: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`;
+}
+function createSeededChunks(input: string, seed: number): string[] {
+  let state = seed >>> 0;
+  const chunks: string[] = [];
+  for (let offset = 0; offset < input.length;) {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    const size = 1 + (state % 13);
+    chunks.push(input.slice(offset, offset + size));
+    offset += size;
+  }
+  return chunks;
+}
+
+const streamMarkdownFixtures = [
+  {
+    label: "emphasis markers split across chunks",
+    chunks: ["before *", "*bold", " text*", "* after\n\nnext"],
+  },
+  {
+    label: "inline link destination split across chunks",
+    chunks: ["[read this](https://exam", "ple.com/path", ' "title") and more'],
+  },
+  {
+    label: "nested list and continuation split across chunks",
+    chunks: [
+      "1. parent\n   - child **bo",
+      "ld**\n   - [link](https://example.com)\n",
+      "   continuation\n2. sibling",
+    ],
+  },
+  {
+    label: "blockquote markers and nested content split across chunks",
+    chunks: ["> quoted **te", "xt**\n> continuation\n>\n", "> - nested item"],
+  },
+  {
+    label: "unclosed code fence recovers when its closing fence arrives",
+    chunks: [
+      "before\n\n```ts\nconst value = 1\n",
+      "still code\n",
+      "```\n\nafter",
+    ],
+  },
+  {
+    label: "unfinished emphasis and link recover as input continues",
+    chunks: ["**unfinished [label](https://exam", "ple.com", ")** after"],
+  },
+];
+
+const streamMarkdownCases = streamMarkdownFixtures.flatMap(
+  ({ label, chunks }, index) => {
+    const input = chunks.join("");
+    const seed = 0x5eed + index;
+    return [
+      { label: `fixed boundaries: ${label}`, chunks },
+      {
+        label: `seeded boundaries (seed ${seed}): ${label}`,
+        chunks: createSeededChunks(input, seed),
+      },
+    ];
+  }
+);
+
 // Use the actual tokenizer while replacing only browser Worker transport in jsdom.
 vi.mock("../../parser/tokenizerService", () => ({
   tokenizerService: {
@@ -460,4 +569,49 @@ describe("streamed Markdown context", () => {
       state.dispose();
     }
   });
+
+  it.each(streamMarkdownCases)(
+    "finalizes $label to complete parsing",
+    async ({ label, chunks }) => {
+      const state = useMarkdownAst({ throttleEnabled: false });
+      const processor = new StreamProcessorV2({
+        onPatch: (patches) => state.enqueuePatch(patches),
+        safetyGuardEnabled: false,
+      });
+      const flush = () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      let input = "";
+      let offset = 0;
+      try {
+        for (const chunk of chunks) {
+          input += chunk;
+          offset += chunk.length;
+          await processor.process(chunk);
+          await flush();
+        }
+
+        const expected = normalizeAst(new CustomParser().parse(input));
+        const beforeFinalizeDifference = describeFirstDifference(
+          expected,
+          normalizeAst(state.ast.value)
+        );
+
+        await processor.finalize();
+        await flush();
+        const actual = normalizeAst(state.ast.value);
+        const finalDifference = describeFirstDifference(expected, actual);
+        const diagnostic = [
+          `${label}, after ${chunks.length} chunks, UTF-16 offset ${offset}`,
+          `final difference: ${finalDifference ? JSON.stringify(finalDifference) : "none"}`,
+          `before finalize: ${beforeFinalizeDifference ? JSON.stringify(beforeFinalizeDifference) : "none"}`,
+          `recent input: ${JSON.stringify(input.slice(-240))}`,
+          `chunk sizes: ${chunks.map((item) => item.length).join(",")}`,
+        ].join("\n");
+        expect(actual, diagnostic).toEqual(expected);
+      } finally {
+        processor.destroy();
+        state.dispose();
+      }
+    }
+  );
 });

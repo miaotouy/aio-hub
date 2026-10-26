@@ -1041,7 +1041,11 @@ export class StreamProcessorV2 {
 
       // Once replacement is certain, aggregate text cannot change the chosen patch.
       let contentChanged = false;
-      if (!statusChanged && !propsChanged) {
+      // Lists carry content in their descendants. Diff those children so an
+      // appended item or edited tail preserves all untouched item objects/IDs.
+      const diffListChildren =
+        oldNode.type === "list" || oldNode.type === "list_item";
+      if (!statusChanged && !propsChanged && !diffListChildren) {
         if (oldNode._fp && newNode._fp) {
           contentChanged = oldNode._fp !== newNode._fp;
         } else {

@@ -2,7 +2,7 @@
 
 > 创建日期：2026-10-25
 >
-> 状态：规范差异、同输入对照、扩展契约、流式最终一致性、计算基准、六轮局部优化、Tauri 内存及真实界面性能采样完成；块级增量解析和按实测排序的组件优化待办
+> 状态：规范差异、同输入对照、扩展契约、流式最终一致性、计算基准、六轮局部优化、Tauri 内存及真实界面性能采样完成；大列表局部补丁与子树渲染复用已实施，代码块外围及块级增量解析待办
 
 ## 目标与现状
 
@@ -976,6 +976,58 @@ bun run rich-text:performance:tauri -- --instance rich-text-timing --cycles 3 --
 每次运行输出 `report.json`、`summary.md` 和逐轮截图；原始时间戳、组件计数、DOM 分类、最终一致性与 CDP 指标随报告保存。正式产物为上方两个目录，汇总位于 `.tmp/rich-text-performance/final-summary.json`；早期 `probe*`、`tauri-baseline` 与 `heavy-presets` 仅供排查采样口径。
 
 验证：`rich-text:check`、`check:frontend` 通过；启动静态实例时完成生产 Vite 构建并走查真实截图。相关 3 个测试文件共 9 项通过；其中新增 3 项保护后续提交关联、合并更新、校验与绘制时间边界、长任务归属和静态计时口径。共享连接入口另经 1 KiB 普通混排的单周期真实内存探针验证，产物位于 `.tmp/rich-text-performance/memory-regression/`。
+
+## 大列表局部更新与子树渲染复用（2026-10-26）
+
+沿用上一节的固定语料和真实 Tauri 采样入口，先处理已测出的列表更新放大。
+
+### 实现
+
+- `StreamProcessorV2.diffSingleNode()` 对 `list` / `list_item` 逐层比较子节点。尾部文字变化或新增列表项时保留未变条目，列表自身属性变化和子节点空 / 非空切换仍沿用替换分支。
+- `AstNodeRenderer` 使用 Vue 的 `withMemo` 复用未变节点的 VNode 与插槽，依赖包含 AST 节点引用、生成元数据、入场动画、父容器和同层样式节点状态。缓存局限在当前递归组件，随节点数组收缩裁剪。
+- 复用依托 `useMarkdownAst` 的不可变路径更新：节点变化时替换当前节点及祖先引用；后代组件自己的响应式依赖继续正常更新。
+
+### 同实例前后对照
+
+改前为 `404c65bff` 的生产静态前端；重建同一独立实例后测改后产物。Windows 10 / Ryzen 9 5900X / WebView2 155、1280 × 768 CSS 像素、DPR 1.5。100 KiB 普通混排和跨空行列表各三周期，静态与流式共计前后 24 个样本；保持每 20 ms 发送 256 UTF-16 单元、关闭平滑与入场动画、保留默认 AST 节流。下表为逐周期指标的三轮中位数，最大帧间隔取三轮最大值。
+
+| 输入 / 指标 | 改前 | 改后 |
+| --- | ---: | ---: |
+| 列表：静态首屏 ms | 405.0 | 396.9 |
+| 列表：流式首屏 ms | 24.7 | 25.0 |
+| 列表：更新等待 P95 ms | 294.0 | 95.4 |
+| 列表：流式帧间隔 P95 ms | 111.6 | 15.6 |
+| 列表：最大流式帧间隔 ms | 193.2 | 58.6 |
+| 列表：流式长任务数（各周期） | 55 / 52 / 52 | 0 / 0 / 0 |
+| 列表：流式长任务累计 ms | 4,709 | 0 |
+| 列表：发送迟延 P95 ms | 171.8 | 10.8 |
+| 列表：完成上界 ms | 339.1 | 101.4 |
+| 普通混排：静态首屏 ms | 273.1 | 241.6 |
+| 普通混排：更新等待 P95 ms | 93.4 | 94.2 |
+| 普通混排：流式帧间隔 P95 ms | 15.5 | 12.5 |
+
+列表流式期间，`AstNodeRenderer` / `ListItemNode` / `ParagraphNode` 的更新次数中位数从 **285,628 / 71,385 / 142,753** 降为 **394 / 95 / 92**；普通混排的 `ParagraphNode` 从 **28,826** 降为 **65**。列表静态首屏仍需约 0.4 秒，首次完整挂载和文档规模继续单独评估。普通混排的更新等待接近默认调度区间，本轮收益主要落在重复组件工作与帧间隔。
+
+完成上界沿用上一节定义，包含最终一致性校验、重试等待和绘制机会。三轮中列表从发送起点到完成上界的总时长中位数为 8,415.9 → 8,118.3 ms；固定输入节奏约占 8 秒，体验改善主要来自发送期间的卡顿下降。以上为两项改动合并后的收益。
+
+### 验证与产物
+
+- 前后 24 个正式样本及改后的长代码 / Mermaid / KaTeX 单周期静态、流式共 6 个补充样本，最终 AST 对照均通过，页面与控制台错误为 0，组件挂载与卸载计数对应。重型预设用于行为复核，单周期时序作为诊断数据。
+- 100 KiB 列表另跑两周期真实内存探针：卸载 GC 后主线程堆为 48.73 / 48.74 MiB，组件与根元素弱引用均释放，订阅数为 0，DOM 与监听器计数回到相同起点。
+- 新增 3 项渲染行为测试保护后代编辑、重排、清空再用、渲染上下文变更及附件预览响应式更新；扩展已有流式 / 静态 ID 契约用例，覆盖列表增长、嵌套删改、空项恢复及有序列表起始编号。相关测试命令共 25 个文件、246 项通过。`check:frontend`、`rich-text:check` 和生产 Vite 构建通过，真实截图已走查。
+
+```powershell
+bun run dev:static -- --agent --agent-instance rich-text-list
+bun run rich-text:performance:tauri -- --instance rich-text-list --cycles 3 --sizes 100 --filter '^(loose-list|prose):' --out-dir .tmp/rich-text-list/before
+# 修改后，在另一终端为同一实例重建；采样入口会刷新页面加载新产物。
+$env:AIO_ID_SUFFIX = "rich-text-list"
+bun run dev:static:build -- --agent
+bun run rich-text:performance:tauri -- --instance rich-text-list --cycles 3 --sizes 100 --filter '^(loose-list|prose):' --out-dir .tmp/rich-text-list/after
+bun run rich-text:performance:tauri -- --instance rich-text-list --cycles 1 --filter '^preset:(long-code|katex-formulas|mermaid-diagrams)$' --out-dir .tmp/rich-text-list/heavy
+bun run rich-text:memory:tauri -- --instance rich-text-list --cycles 2 --size 100 --filter '^loose-list:' --out-dir .tmp/rich-text-list/memory
+```
+
+前后报告、逐轮截图、重型预设及内存报告分别位于上方四个目录，聚合结果为 `.tmp/rich-text-list/comparison.json`。下一轮优先缩减短代码块的标题区、按钮与外围挂载成本；块级增量解析继续保留在后续路线中。
 
 ## 关联入口
 

@@ -263,6 +263,27 @@ describe("streamed Markdown context", () => {
             },
           ],
         },
+        // List child diffing must preserve addressable IDs through append,
+        // nested edits/removal, empty items and ordered-list prop changes.
+        {
+          label: "list growth and nested edits",
+          steps: [
+            { input: "- first\n\n  continued\n\n- tail" },
+            {
+              input: "- first\n\n  continued\n\n- tail extended\n\n- third",
+              retained: ["list", "list_item", "paragraph", "text"],
+            },
+            {
+              input: "- first\n\n  continued\n\n- tail\n  - nested **bold**",
+              retained: ["list", "list_item", "paragraph", "text"],
+            },
+            { input: "- first", retained: ["list", "list_item"] },
+            { input: "- ", retained: ["list", "list_item"] },
+            { input: "- restored", retained: ["list", "list_item"] },
+            { input: "3. ordered\n4. next" },
+            { input: "5. changed\n6. next extended", retained: ["list"] },
+          ],
+        },
         {
           label: "code language changes and subsequent compatible edits",
           steps: [

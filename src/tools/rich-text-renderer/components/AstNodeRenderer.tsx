@@ -7,7 +7,7 @@
  * 3. 传递节点属性和子节点给渲染组件
  */
 
-import { defineComponent, h, type PropType, type VNode } from "vue";
+import { defineComponent, h, withMemo, type PropType, type VNode } from "vue";
 import type { AstNode } from "../types";
 
 // 导入节点组件
@@ -169,6 +169,9 @@ const AstNodeRenderer = defineComponent({
     },
   },
   setup(props) {
+    // AST patches retain untouched objects. Mirror v-memo here so an unchanged
+    // subtree keeps its VNodes and slots instead of propagating an update.
+    const renderCache: VNode[] = [];
     return (): VNode[] => {
       // 性能优化：在循环外预先判断当前层级是否包含 StyleNode
       // 避免在 map 内部对 props.nodes 进行重复的 O(n) 扫描
@@ -176,7 +179,7 @@ const AstNodeRenderer = defineComponent({
         (n) => n.type === "generic_html" && n.props?.tagName === "style"
       );
 
-      return props.nodes.map((node: AstNode): VNode => {
+      const renderNode = (node: AstNode): VNode => {
         let NodeComponent = componentMap[node.type] || FallbackNode;
 
         // 特殊处理：如果是一个 generic_html 且标签名为 style，则使用专门的 StyleNode
@@ -295,7 +298,24 @@ const AstNodeRenderer = defineComponent({
           componentProps,
           children ? () => children : undefined
         );
-      });
+      };
+
+      // Drop removed entries so a cleared document releases its cached subtree.
+      renderCache.length = props.nodes.length;
+      return props.nodes.map((node, index) =>
+        withMemo(
+          [
+            node,
+            props.generationMeta,
+            props.enableEnterAnimation,
+            props.parentContainerId,
+            hasStyleNode,
+          ],
+          () => renderNode(node),
+          renderCache,
+          index
+        )
+      );
     };
   },
 });

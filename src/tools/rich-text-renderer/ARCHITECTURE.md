@@ -96,7 +96,7 @@ graph TD
     - **职责**: 将 AST 渲染为 Vue 组件树，并应用动态样式。
     - **核心组件**:
       - `RichTextRenderer`: 统一入口组件，接收文本流和配置，支持 4 种渲染器版本切换，代码块展示固定使用 CodeMirror。
-      - `AstNodeRenderer`: 基于 JSX 的递归渲染组件，根据节点类型分发到具体的 Vue 组件，并注入动态样式。当前会给块级节点标记 `rich-text-block` class，但 renderer 内部的块级 `content-visibility` CSS 仍处于关闭状态，避免和消息列表层滚动估高互相影响。
+      - `AstNodeRenderer`: 基于 JSX 的递归渲染组件，根据节点类型分发到具体的 Vue 组件，并注入动态样式。按节点引用及渲染上下文复用子树 VNode，沿用 `useMarkdownAst` 的不可变更新契约；修改节点或后代时需替换当前节点及祖先引用，删除的缓存项随渲染列表收缩释放。当前会给块级节点标记 `rich-text-block` class，但 renderer 内部的块级 `content-visibility` CSS 仍处于关闭状态，避免和消息列表层滚动估高互相影响。
       - **节点组件**: 位于 `components/nodes/`，负责各自节点的渲染。详见第 4 节。
       - **交互查看器**:
         - `HtmlInteractiveViewer`: 完整的 HTML 沙箱查看器，支持工具栏、CSP 安全策略、主题注入、自适应高度、CDN 本地化、iframe 消息代理和日志捕获。

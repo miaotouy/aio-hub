@@ -15,7 +15,16 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  nextTick,
+} from "vue";
 import { customMessage } from "@/utils/customMessage";
 import {
   Upload,
@@ -279,6 +288,20 @@ const handleDrop = (e: DragEvent) => {
 
 // 粘贴处理
 const handlePaste = async (e: ClipboardEvent) => {
+  if (e.defaultPrevented) return;
+
+  // 输入控件和富文本编辑器保留各自的粘贴行为。
+  const isEditing = e
+    .composedPath()
+    .some(
+      (target) =>
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.matches(
+            'input, textarea, [contenteditable]:not([contenteditable="false"]), [role="textbox"]'
+          ))
+    );
+  if (isEditing) return;
   const items = e.clipboardData?.items;
   if (!items) return;
 
@@ -470,15 +493,18 @@ defineExpose({
   handleBatchOcr,
 });
 
-// 生命周期
-onMounted(() => {
-  // 监听全局粘贴事件
+// 页面被 KeepAlive 缓存时同步暂停粘贴监听，返回页面后恢复。
+const setupPasteListener = () => {
   document.addEventListener("paste", handlePaste);
-});
-
-onUnmounted(() => {
+};
+const cleanupPasteListener = () => {
   document.removeEventListener("paste", handlePaste);
-});
+};
+
+onMounted(setupPasteListener);
+onActivated(setupPasteListener);
+onDeactivated(cleanupPasteListener);
+onUnmounted(cleanupPasteListener);
 </script>
 
 <template>

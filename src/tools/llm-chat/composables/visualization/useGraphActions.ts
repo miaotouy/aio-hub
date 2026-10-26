@@ -688,15 +688,22 @@ export function useGraphActions(
     sourceNodeId: string,
     newContent: string,
     attachments?: Asset[],
-    sessionId?: string | null
+    sessionId?: string | null,
+    nodeData?: Partial<ChatMessageNode>
   ): Promise<void> {
     const session = resolveSession(sourceNodeId, sessionId);
-    if (!session) return;
+    if (!session) {
+      if (nodeData) throw new Error("会话已被删除，请重新打开编辑器");
+      return;
+    }
 
     const nodeManager = useNodeManager();
 
     const sourceNode = session.nodes?.[sourceNodeId];
-    if (!sourceNode) return;
+    if (!sourceNode) throw new Error("消息节点已被删除，请重新打开编辑器");
+    if (nodeData && !sourceNode.parentId) {
+      throw new Error("根节点请使用直接保存");
+    }
 
     const solidifyDeltas = solidifyLiveGreetingsForMutation(session);
     const parentBeforeCreate = captureParentChildren(
@@ -709,7 +716,8 @@ export function useGraphActions(
       session,
       sourceNodeId,
       newContent,
-      attachments
+      attachments,
+      nodeData
     );
 
     if (!newNode) {

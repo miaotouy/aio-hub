@@ -1088,7 +1088,8 @@ export function useNodeManager() {
     session: ChatSessionDetail,
     sourceNodeId: string,
     newContent: string,
-    attachments?: Asset[]
+    attachments?: Asset[],
+    nodeData?: Partial<ChatMessageNode>
   ): ChatMessageNode | null => {
     if (!session.nodes) return null;
     const sourceNode = session.nodes[sourceNodeId];
@@ -1112,6 +1113,26 @@ export function useNodeManager() {
       attachments,
       metadata: cleanedMetadata,
     });
+
+    if (nodeData) {
+      // 高级编辑保留完整数据，树结构和新节点身份由节点管理器维护。
+      const {
+        id: _,
+        parentId: __,
+        childrenIds: ___,
+        updatedAt: ____,
+        ...safeData
+      } = JSON.parse(JSON.stringify(nodeData)) as Partial<ChatMessageNode>;
+      Object.assign(newNode, safeData);
+      // 新分支没有关联的生成任务，避免继承运行态调度标记。
+      if (["generating", "waiting", "queued"].includes(newNode.status)) {
+        newNode.status = "complete";
+      }
+      if (newNode.metadata) {
+        delete newNode.metadata.isQueued;
+        newNode.metadata.reasoningActive = false;
+      }
+    }
 
     // 添加到会话
     addNodeToSession(session, newNode);

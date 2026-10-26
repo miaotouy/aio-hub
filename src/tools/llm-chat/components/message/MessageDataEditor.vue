@@ -51,7 +51,14 @@
     <template #footer>
       <div class="footer-actions">
         <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
+        <el-button
+          :disabled="isSaving || !canSaveToBranch"
+          @click="handleSave(true)"
+          >保存到分支</el-button
+        >
+        <el-button type="primary" :loading="isSaving" @click="handleSave(false)"
+          >保存</el-button
+        >
       </div>
     </template>
   </BaseDialog>
@@ -92,6 +99,8 @@ const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 const jsonData = ref("");
 const originalNodeData = ref<Partial<ChatMessageNode> | null>(null);
 const parseError = ref<string | null>(null);
+const isSaving = ref(false);
+const canSaveToBranch = computed(() => !!originalNodeData.value?.parentId);
 
 const showDialog = computed({
   get: () => props.modelValue,
@@ -128,12 +137,21 @@ watch(
   { immediate: true }
 );
 
-const handleSave = async () => {
+const handleSave = async (saveToBranch = false) => {
+  if (isSaving.value) return;
   parseError.value = null;
   let parsedData: Partial<ChatMessageNode>;
 
   try {
     parsedData = JSON.parse(jsonData.value);
+    if (
+      !parsedData ||
+      Array.isArray(parsedData) ||
+      typeof parsedData !== "object" ||
+      typeof parsedData.content !== "string"
+    ) {
+      throw new Error("消息数据需为包含 content 文本字段的 JSON 对象");
+    }
   } catch (error) {
     parseError.value = (error as Error).message;
     errorHandler.error(error, "JSON 格式错误，请检查后再保存。");
@@ -165,16 +183,31 @@ const handleSave = async () => {
     return;
   }
 
+  isSaving.value = true;
   try {
-    await store.updateNodeData(
-      props.messageId,
-      parsedData,
-      scopedSession.value?.id ?? null
+    if (saveToBranch) {
+      await store.createBranchFromEdit(
+        props.messageId,
+        parsedData.content!,
+        parsedData.attachments,
+        scopedSession.value?.id ?? null,
+        parsedData
+      );
+    } else {
+      await store.updateNodeData(
+        props.messageId,
+        parsedData,
+        scopedSession.value?.id ?? null
+      );
+    }
+    customMessage.success(
+      saveToBranch ? "已保存到新分支。" : "消息数据已更新。"
     );
-    customMessage.success("消息数据已更新。");
     handleClose();
   } catch (error) {
     errorHandler.error(error, "保存失败");
+  } finally {
+    isSaving.value = false;
   }
 };
 

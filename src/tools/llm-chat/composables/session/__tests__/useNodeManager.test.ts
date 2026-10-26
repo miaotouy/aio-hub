@@ -4,6 +4,78 @@ import type { ChatSessionDetail } from "../../../types/session";
 import { useNodeManager } from "../useNodeManager";
 
 describe("useNodeManager", () => {
+  // 高级编辑保存完整数据时保留原分支，并保护新节点的身份和树关系。
+  it("saves edited node data to a sibling without changing the source or copying tree links", () => {
+    const manager = useNodeManager();
+    const root = manager.createNode({
+      role: "system",
+      content: "root",
+      parentId: null,
+    });
+    const source = manager.createNode({
+      role: "assistant",
+      content: "original",
+      parentId: root.id,
+      metadata: { modelId: "old" },
+    });
+    const child = manager.createNode({
+      role: "user",
+      content: "follow up",
+      parentId: source.id,
+    });
+    const session = {
+      id: "session",
+      rootNodeId: root.id,
+      activeLeafId: child.id,
+      nodes: {},
+    } as ChatSessionDetail;
+    [root, source, child].forEach((node) =>
+      manager.addNodeToSession(session, node)
+    );
+    const before = structuredClone([source, child]);
+    const edited = {
+      ...structuredClone(source),
+      id: "injected",
+      parentId: child.id,
+      childrenIds: [root.id],
+      content: "edited",
+      name: "new name",
+      status: "generating" as const,
+      metadata: {
+        modelId: "edited-model",
+        reasoningContent: "kept reasoning",
+        isQueued: true,
+        reasoningActive: true,
+      },
+    };
+    const branch = manager.createBranchFromEdit(
+      session,
+      source.id,
+      edited.content,
+      undefined,
+      edited
+    )!;
+    expect(branch.id).not.toBe(source.id);
+    expect(branch.id).not.toBe("injected");
+    expect(branch).toMatchObject({
+      parentId: root.id,
+      childrenIds: [],
+      content: "edited",
+      name: "new name",
+      status: "complete",
+      metadata: {
+        modelId: "edited-model",
+        reasoningContent: "kept reasoning",
+        reasoningActive: false,
+      },
+    });
+    expect(branch.metadata?.isQueued).toBeUndefined();
+    expect(root.childrenIds).toEqual([source.id, branch.id]);
+    expect([source, child]).toEqual(before);
+    edited.metadata.modelId = "later edit";
+    expect(branch.metadata?.modelId).toBe("edited-model");
+  });
+
   it.each<MessageRole>(["user", "tool", "assistant", "system"])(
     "regenerates an assistant under its actual %s parent and preserves the old branch",
     (parentRole) => {

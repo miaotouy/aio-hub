@@ -32,6 +32,7 @@ const { agentStore, userProfileStore, inputManager, sessionManager, storage } =
     },
     storage: {
       loadSession: vi.fn(),
+      saveSessionIndex: vi.fn(),
       saveSession: vi.fn(),
       persistSession: vi.fn(),
       reconcileIndexIncrementally: vi.fn(),
@@ -127,10 +128,14 @@ function fullSession(id: string) {
 }
 
 function lifecycleFor(
-  state: Parameters<typeof createSessionLifecycleManager>[0]
+  state: Parameters<typeof createSessionLifecycleManager>[0],
+  generating = false
 ) {
   return createSessionLifecycleManager(state, {
-    runtime: { clearSessionRuntime: vi.fn() } as any,
+    runtime: {
+      clearSessionRuntime: vi.fn(),
+      isSessionGenerating: () => generating,
+    } as any,
     history: { clearHistory: vi.fn(), cleanupSession: vi.fn() } as any,
     executeOrProxy: async (_action, _params, localFn) => await localFn(),
     fillMissingTokenMetadata: vi.fn(),
@@ -161,6 +166,94 @@ describe("sessionLifecycleManager 重启恢复", () => {
         if (item) item.messageCount = Object.keys(nodes).length;
       }
     );
+  });
+
+  // 重载须读取目标文件，保留选择与收藏，并在失败或并发编辑时保护当前数据。
+  function reloadState() {
+    return {
+      sessionIndexMap: ref(
+        new Map([
+          [
+            "target",
+            {
+              ...index("target"),
+              isFavorite: true,
+              favoriteFolderId: "folder",
+            },
+          ],
+        ])
+      ),
+      sessionDetailMap: ref(new Map([["target", detail("target")]])),
+      currentSessionId: ref<string | null>("other"),
+      favoriteFolders: ref([]),
+      sessionRecovery: ref({ status: "ready" } as any),
+    };
+  }
+
+  it("从文件替换缓存会话并保留选择与收藏，正文保持只读", async () => {
+    const state = reloadState();
+    const loaded = fullSession("target");
+    loaded.index.name = "external title";
+    loaded.detail.nodes["target-completed"].content = "external content";
+    storage.loadSession.mockResolvedValue(loaded);
+    await lifecycleFor(state).reloadSession("target");
+    expect(storage.loadSession).toHaveBeenCalledExactlyOnceWith("target", true);
+    expect(
+      state.sessionDetailMap.value.get("target")?.nodes["target-completed"]
+        .content
+    ).toBe("external content");
+    expect(state.sessionIndexMap.value.get("target")).toMatchObject({
+      name: "external title",
+      isFavorite: true,
+      favoriteFolderId: "folder",
+    });
+    expect(state.currentSessionId.value).toBe("other");
+    expect(storage.saveSessionIndex).toHaveBeenCalledOnce();
+    expect(sessionManager.persistSession).not.toHaveBeenCalled();
+  });
+
+  it("读取失败时保留原会话", async () => {
+    const state = reloadState();
+    const before = JSON.stringify(state.sessionDetailMap.value.get("target"));
+    storage.loadSession.mockResolvedValue(null);
+    await expect(lifecycleFor(state).reloadSession("target")).rejects.toThrow(
+      "读取会话文件失败"
+    );
+    expect(JSON.stringify(state.sessionDetailMap.value.get("target"))).toBe(
+      before
+    );
+    expect(storage.saveSessionIndex).not.toHaveBeenCalled();
+  });
+
+  it("生成期间拒绝重载", async () => {
+    const state = reloadState();
+    await expect(
+      lifecycleFor(state, true).reloadSession("target")
+    ).rejects.toThrow("请先停止");
+    expect(storage.loadSession).not.toHaveBeenCalled();
+  });
+
+  it("读取期间发生本地编辑时保留新编辑", async () => {
+    const state = reloadState();
+    let finish!: (value: ReturnType<typeof fullSession>) => void;
+    storage.loadSession.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    const promise = lifecycleFor(state).reloadSession("target");
+    const rejected = expect(promise).rejects.toThrow("会话发生了变化");
+    await vi.waitFor(() => expect(storage.loadSession).toHaveBeenCalled());
+    state.sessionDetailMap.value.get("target")!.nodes[
+      "target-completed"
+    ].content = "local edit";
+    finish(fullSession("target"));
+    await rejected;
+    expect(
+      state.sessionDetailMap.value.get("target")?.nodes["target-completed"]
+        .content
+    ).toBe("local edit");
+    expect(storage.saveSessionIndex).not.toHaveBeenCalled();
   });
 
   it("启动加载当前会话时修复并持久化残留 generating 节点", async () => {
@@ -433,7 +526,11 @@ describe("sessionLifecycleManager 重启恢复", () => {
       defaultGreetingId: "greeting-2",
       greetings: [
         { id: "greeting-1", role: "assistant", content: "你好" },
-        { id: "greeting-2", role: "assistant", content: "{{user}}，我是{{char}}" },
+        {
+          id: "greeting-2",
+          role: "assistant",
+          content: "{{user}}，我是{{char}}",
+        },
       ],
     };
     agentStore.loadAgentDetails.mockImplementationOnce(async () =>

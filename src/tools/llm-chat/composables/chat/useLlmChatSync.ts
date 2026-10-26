@@ -418,6 +418,8 @@ export function useLlmChatSync() {
         return (store as any).importSessions(params.sessions, params.strategy);
       case "clear-empty-sessions":
         return (store as any).clearEmptySessions(params.options);
+      case "reload-session":
+        return store.reloadSession(params.sessionId);
       case "refresh-sessions-index":
         return (store as any).refreshSessionsIndex();
       case "update-session":

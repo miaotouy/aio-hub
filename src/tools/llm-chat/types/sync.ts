@@ -93,6 +93,7 @@ export type LlmChatAction =
   | "create-branch"
   | "abort-node"
   | "switch-session"
+  | "reload-session"
   | "create-session"
   | "begin-new-session"
   | "materialize-new-session"
@@ -126,6 +127,7 @@ export const CHAT_ACTIONS = {
   CREATE_BRANCH: "create-branch" as const,
   ABORT_NODE: "abort-node" as const,
   SWITCH_SESSION: "switch-session" as const,
+  RELOAD_SESSION: "reload-session" as const,
   CREATE_SESSION: "create-session" as const,
   BEGIN_NEW_SESSION: "begin-new-session" as const,
   MATERIALIZE_NEW_SESSION: "materialize-new-session" as const,

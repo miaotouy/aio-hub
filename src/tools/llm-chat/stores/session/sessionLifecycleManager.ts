@@ -965,6 +965,81 @@ export function createSessionLifecycleManager(
       .catch((error) => logger.warn("增量核对会话索引失败", error));
   }
 
+  const reloadingSessionIds = new Set<string>();
+
+  async function reloadSession(sessionId: string): Promise<void> {
+    return managers.executeOrProxy(
+      "reload-session",
+      { sessionId },
+      async () => {
+        if (reloadingSessionIds.has(sessionId)) {
+          throw new Error("会话正在重新加载，请稍候");
+        }
+        const previousIndex = state.sessionIndexMap.value.get(sessionId);
+        if (!previousIndex) throw new Error("会话已被删除");
+        if (
+          newSessionDraft.value?.index.id === sessionId ||
+          isSessionVolatile(sessionId)
+        ) {
+          throw new Error("新会话尚未保存到文件");
+        }
+        const assertIdle = () => {
+          const detail = state.sessionDetailMap.value.get(sessionId);
+          if (
+            managers.runtime.isSessionGenerating(sessionId) ||
+            Object.values(detail?.nodes ?? {}).some(
+              (node) =>
+                node.status === "queued" || node.metadata?.isQueued === true
+            )
+          ) {
+            throw new Error("请先停止该会话的生成和排队任务，再重新加载");
+          }
+        };
+        assertIdle();
+        const before = JSON.stringify(
+          state.sessionDetailMap.value.get(sessionId)
+        );
+        reloadingSessionIds.add(sessionId);
+        try {
+          const storage = await getStorage();
+          const loaded = await storage.loadSession(sessionId, true);
+          if (!loaded)
+            throw new Error("读取会话文件失败，请检查文件是否存在且格式正确");
+          const detail = normalizeLoadedDetail(sessionId, loaded);
+          if (!detail) throw new Error("会话文件缺少有效的消息树");
+          assertIdle();
+          if (
+            !state.sessionIndexMap.value.has(sessionId) ||
+            before !==
+              JSON.stringify(state.sessionDetailMap.value.get(sessionId))
+          ) {
+            throw new Error("读取期间会话发生了变化，请重试");
+          }
+          const currentIndex = state.sessionIndexMap.value.get(sessionId)!;
+          const index = {
+            ...loaded.index,
+            isFavorite: currentIndex.isFavorite,
+            favoriteFolderId: currentIndex.favoriteFolderId,
+          };
+          repairInterruptedGeneratingNodes(detail);
+          detail.history = [];
+          detail.historyIndex = -1;
+          managers.runtime.clearSessionRuntime(sessionId);
+          managers.history.cleanupSession(sessionId);
+          state.sessionIndexMap.value.set(sessionId, index);
+          state.sessionDetailMap.value.set(sessionId, detail);
+          managers.history.clearHistory(sessionId);
+          await clearRetrievalCache();
+          // 只更新列表索引，文件正文保持外部修改后的内容。
+          await storage.saveSessionIndex(index);
+          logger.info("已从文件重新加载会话", { sessionId });
+        } finally {
+          reloadingSessionIds.delete(sessionId);
+        }
+      }
+    );
+  }
+
   async function switchSession(sessionId: string): Promise<void> {
     const switchRequest = ++latestSwitchRequest;
     return managers.executeOrProxy(
@@ -1320,6 +1395,7 @@ export function createSessionLifecycleManager(
     updateSession,
     loadSessions,
     switchSession,
+    reloadSession,
     persistSessions,
     toggleFavorite,
     createFavoriteFolder,

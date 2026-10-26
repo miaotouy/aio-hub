@@ -30,6 +30,7 @@ import {
   MagicStick,
   FolderAdd,
   FolderOpened,
+  Refresh,
   Operation,
   Star,
   StarFilled,
@@ -240,6 +241,13 @@ const handleToggleFavorite = () => {
               </el-dropdown-item>
               <el-dropdown-item command="export" :icon="Operation">
                 导出会话
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="reload"
+                :icon="Refresh"
+                :disabled="isGenerating"
+              >
+                从文件重新加载
               </el-dropdown-item>
               <el-dropdown-item command="open-directory" :icon="FolderOpened">
                 打开目录

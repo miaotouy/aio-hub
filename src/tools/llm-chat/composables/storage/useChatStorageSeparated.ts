@@ -293,8 +293,12 @@ export function useChatStorageSeparated() {
   }
 
   async function loadSession(
-    sessionId: string
+    sessionId: string,
+    reload = false
   ): Promise<{ index: ChatSessionIndex; detail: ChatSessionDetail } | null> {
+    if (reload && coordinator.isSessionBusy(sessionId)) {
+      throw new Error("会话正在保存，请稍后重新加载");
+    }
     try {
       const sessionPath = await repository.getSessionPath(sessionId);
       if (!(await exists(sessionPath))) return null;
@@ -303,7 +307,11 @@ export function useChatStorageSeparated() {
         throw new Error("会话文件结构无效");
       }
       const fullData = parsed;
-      coordinator.primeSessionRevision(sessionId, readRevision(fullData));
+      if (reload) {
+        coordinator.resetSessionRevision(sessionId, readRevision(fullData));
+      } else {
+        coordinator.primeSessionRevision(sessionId, readRevision(fullData));
+      }
       return {
         index: {
           id: fullData.id,
@@ -374,6 +382,16 @@ export function useChatStorageSeparated() {
         ...item,
       };
     coordinator.markIndexDirty(captureIndex, "index-mutation");
+  }
+
+  async function saveSessionIndex(item: ChatSessionIndex): Promise<void> {
+    const index = await ensureIndex();
+    const position = index.sessions.findIndex(
+      (session) => session.id === item.id
+    );
+    if (position === -1) index.sessions.push({ ...item });
+    else index.sessions[position] = { ...item };
+    await commitIndex("index-mutation");
   }
 
   async function saveIndex(index: SessionsIndex): Promise<void> {
@@ -706,6 +724,7 @@ export function useChatStorageSeparated() {
     updateCurrentSessionId,
     createDebouncedSave,
     loadSession,
+    saveSessionIndex,
     saveSession,
     getSessionsDir,
     getCorruptSessionsDir,

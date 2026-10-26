@@ -176,6 +176,38 @@ const removeMovingFavorite = async () => {
   customMessage.success("已取消收藏");
 };
 
+const reloadingSessionIds = new Set<string>();
+const handleReloadSession = async (session: ChatSessionIndex) => {
+  if (reloadingSessionIds.has(session.id)) return;
+  reloadingSessionIds.add(session.id);
+  try {
+    try {
+      await ElMessageBox.confirm(
+        "将以文件中的内容替换当前已加载内容，并重置该会话的撤销记录。继续吗？",
+        "从文件重新加载",
+        {
+          confirmButtonText: "重新加载",
+          cancelButtonText: "取消",
+          type: "warning",
+          lockScroll: false,
+        }
+      );
+    } catch {
+      return;
+    }
+    await llmChatStore.reloadSession(session.id);
+    customMessage.success("会话已从文件重新加载");
+    emit("session-updated");
+  } catch (error) {
+    errorHandler.handle(error, {
+      userMessage: error instanceof Error ? error.message : "重新加载会话失败",
+      showToUser: true,
+    });
+  } finally {
+    reloadingSessionIds.delete(session.id);
+  }
+};
+
 // 处理菜单命令
 const handleMenuCommand = (command: string, session: ChatSessionIndex) => {
   switch (command) {
@@ -193,6 +225,9 @@ const handleMenuCommand = (command: string, session: ChatSessionIndex) => {
       break;
     case "move-to-folder":
       openMoveFavoriteDialog(session);
+      break;
+    case "reload":
+      void handleReloadSession(session);
       break;
     case "open-directory":
       handleOpenDirectory(session);

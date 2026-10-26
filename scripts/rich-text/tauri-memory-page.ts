@@ -7,6 +7,15 @@ import type {
   StreamSource,
 } from "../../src/tools/rich-text-renderer/types";
 
+export interface RendererActivity {
+  components: Record<
+    string,
+    { mounted: number; updated: number; unmounted: number }
+  >;
+  commitFrames: number[];
+  commits: { committedAt: number; frameAt: number }[];
+}
+
 export interface TauriMemoryPage {
   mount(mode: "source" | "props" | "static", text?: string): Promise<void>;
   push(text: string): Promise<void>;
@@ -39,6 +48,7 @@ export interface TauriMemoryPage {
     elementAlive: boolean;
     subscriptions: number;
   };
+  activity(): RendererActivity;
   cleanup(): void;
 }
 
@@ -50,7 +60,13 @@ declare global {
 
 // Serialized by Playwright into the verified Tauri page; all runtime dependencies
 // are resolved there, using the application's own Vue instance and compiled renderer module.
-export async function installTauriMemoryPage(componentUrl: string) {
+export async function installTauriMemoryPage(
+  input: string | { componentUrl: string; measureActivity: boolean }
+) {
+  const { componentUrl, measureActivity } =
+    typeof input === "string"
+      ? { componentUrl: input, measureActivity: false }
+      : input;
   const vue = (window as unknown as { Vue: typeof import("vue") }).Vue;
   if (!vue) throw new Error("Application Vue runtime is unavailable");
   const hook = (
@@ -97,6 +113,12 @@ export async function installTauriMemoryPage(componentUrl: string) {
   let mode: "source" | "props" | "static" = "source";
   let componentWeak: WeakRef<object> | null = null;
   let elementWeak: WeakRef<Element> | null = null;
+  let activity: RendererActivity = {
+    components: {},
+    commitFrames: [],
+    commits: [],
+  };
+  let activityGeneration = 0;
   const frame = () =>
     new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   const tick = async () => {
@@ -119,6 +141,8 @@ export async function installTauriMemoryPage(componentUrl: string) {
     async mount(nextMode, text = "") {
       if (app) throw new Error("Dispose the previous renderer first");
       mode = nextMode;
+      activity = { components: {}, commitFrames: [], commits: [] };
+      const generation = ++activityGeneration;
       content = vue.ref(text);
       streaming = vue.ref(mode !== "static");
       target = vue.shallowRef(null);
@@ -150,6 +174,51 @@ export async function installTauriMemoryPage(componentUrl: string) {
             defaultCodeBlockExpanded: true,
           }),
       });
+      if (measureActivity) {
+        let commitQueued = false;
+        const record = (
+          component: { $options: { name?: string; __name?: string } },
+          phase: "mounted" | "updated" | "unmounted"
+        ) => {
+          const name =
+            component.$options.name ?? component.$options.__name ?? "anonymous";
+          const entry = (activity.components[name] ??= {
+            mounted: 0,
+            updated: 0,
+            unmounted: 0,
+          });
+          entry[phase]++;
+          // One marker per Vue flush covers updates localized below the Vue component.
+          if (phase === "unmounted" || commitQueued) return;
+          commitQueued = true;
+          queueMicrotask(() => {
+            commitQueued = false;
+            if (generation !== activityGeneration || !target?.value?.ast.length)
+              return;
+            const committedAt = performance.now();
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                if (generation === activityGeneration && target) {
+                  const frameAt = performance.now();
+                  activity.commitFrames.push(frameAt);
+                  activity.commits.push({ committedAt, frameAt });
+                }
+              })
+            );
+          });
+        };
+        app.mixin({
+          mounted() {
+            record(this, "mounted");
+          },
+          updated() {
+            record(this, "updated");
+          },
+          unmounted() {
+            record(this, "unmounted");
+          },
+        });
+      }
       host.scrollTop = 0;
       app.mount(host);
       badge.textContent =
@@ -189,6 +258,7 @@ export async function installTauriMemoryPage(componentUrl: string) {
       await tick();
     },
     async signature() {
+      await vue.nextTick();
       const bytes = new TextEncoder().encode(
         JSON.stringify(astValue(target?.value?.ast ?? []))
       );
@@ -267,6 +337,9 @@ export async function installTauriMemoryPage(componentUrl: string) {
         elementAlive: !!elementWeak?.deref(),
         subscriptions: Number(!!onChunk) + Number(!!onComplete),
       };
+    },
+    activity() {
+      return activity;
     },
     cleanup() {
       app?.unmount();

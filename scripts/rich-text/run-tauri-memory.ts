@@ -3,9 +3,8 @@
 
 import { parseArgs } from "node:util";
 import { resolve, basename } from "node:path";
-import { mkdir, readFile, readdir } from "node:fs/promises";
-import { DevConnection } from "../dev-control/connection";
-import { getInstance } from "../dev-control/discovery";
+import { mkdir, readFile } from "node:fs/promises";
+import { openTauriRendererSession } from "./tauri-renderer-session";
 import { CustomParser } from "../../src/tools/rich-text-renderer/core/CustomParser";
 import { createCorpus, splitChunks } from "./bench-corpus";
 import { astValue, signature } from "./bench-shared";
@@ -53,49 +52,10 @@ const cases = values["input-file"]
       (x) => x.group === "generated" && new RegExp(values.filter!).test(x.id)
     );
 if (!cases.length) throw new Error("No matching cases");
-const instance = getInstance(values.instance);
-if (instance.frontendMode !== "static" && !values["allow-hmr"])
-  throw new Error(
-    "Use bun run dev:static -- --agent --agent-instance <name>; --allow-hmr is for probe diagnostics"
-  );
-let componentUrl = "/src/tools/rich-text-renderer/RichTextRenderer.vue";
-let snapshot: string | undefined;
-if (instance.frontendMode === "static") {
-  const staticRoot = resolve(
-    ".dev-data/static-frontend",
-    new URL(instance.frontendUrl).port
-  );
-  const published = JSON.parse(
-    await readFile(resolve(staticRoot, "current.json"), "utf8")
-  ) as { current: string };
-  if (!/^build-[a-f0-9-]+$/.test(published.current))
-    throw new Error("Invalid static build snapshot");
-  snapshot = resolve(staticRoot, published.current);
-  const assets = (await readdir(resolve(snapshot, "assets"))).filter((name) =>
-    /^RichTextRenderer-[\w-]+\.js$/.test(name)
-  );
-  if (assets.length !== 1)
-    throw new Error(
-      "Expected one compiled RichTextRenderer module in static snapshot"
-    );
-  componentUrl = "/assets/" + assets[0];
-}
-const connection = await DevConnection.attach(instance, 20000);
 const outDir = resolve(values["out-dir"]!);
 await mkdir(outDir, { recursive: true });
-const page = await connection.window("main", 20000);
-await connection.verify(page, "main");
-await page.reload();
-await page.waitForFunction(() => !!window.__AIO_DEV_CONTROL__);
-await connection.verify(page, "main");
-await page.evaluate(() =>
-  window.__AIO_DEV_CONTROL__!.navigate("/rich-text-renderer-tester", 20000)
-);
-await page.waitForFunction(
-  () => !!(window as unknown as { Vue?: unknown }).Vue
-);
-if (await page.locator(".rich-text-renderer").count())
-  throw new Error("Use a fresh isolated tester page with empty output");
+const { instance, connection, page, snapshot, componentUrl } =
+  await openTauriRendererSession(values.instance, values["allow-hmr"]);
 const cdp = await page.context().newCDPSession(page);
 await cdp.send("Performance.enable");
 const browserCdp = await page.context().browser()!.newBrowserCDPSession();

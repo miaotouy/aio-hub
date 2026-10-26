@@ -19,6 +19,8 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import {
   ExternalLink,
+  Plus,
+  ChevronDown,
   FileDown,
   FileUp,
   Info,
@@ -318,6 +320,14 @@ const handleAddClick = () => {
   showCreateProfileDialog.value = true;
 };
 
+const handleAddCommand = (command: string) => {
+  if (command === "virtual") {
+    createNewProfile(true);
+  } else if (command === "standard") {
+    handleAddClick();
+  }
+};
+
 const handleImportClick = () => {
   createProfileInitialMode.value = "import";
   showCreateProfileDialog.value = true;
@@ -587,8 +597,22 @@ const networkSettingSummary = computed(() => {
         @toggle="handleToggle"
         @update:profiles="updateProfilesOrder"
       >
+        <template #add-button>
+          <el-dropdown trigger="click" @command="handleAddCommand">
+            <el-button type="primary" size="small" aria-label="添加渠道">
+              <Plus :size="14" />
+              添加
+              <ChevronDown :size="14" />
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="standard">普通渠道</el-dropdown-item>
+                <el-dropdown-item command="virtual">组合渠道</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </template>
         <template #header-actions>
-          <el-button link @click="createNewProfile(true)">组合渠道</el-button>
           <el-tooltip content="导入渠道文件" placement="bottom">
             <el-button
               link

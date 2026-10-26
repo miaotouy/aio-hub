@@ -96,14 +96,16 @@ const draggableProfiles = computed({
       <h3>{{ title }}</h3>
       <div class="header-actions">
         <slot name="header-actions"></slot>
-        <el-button
-          type="primary"
-          :icon="Plus"
-          size="small"
-          @click="emit('add')"
-        >
-          添加
-        </el-button>
+        <slot name="add-button">
+          <el-button
+            type="primary"
+            :icon="Plus"
+            size="small"
+            @click="emit('add')"
+          >
+            添加
+          </el-button>
+        </slot>
       </div>
     </div>
 

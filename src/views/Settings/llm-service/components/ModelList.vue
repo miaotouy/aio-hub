@@ -828,6 +828,8 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
 }
 
 .model-route {
+  font-size: 11px;
+  line-height: 1.4;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -836,6 +838,7 @@ const isChatRouteUnresolved = (model: LlmModelInfo): boolean => {
 }
 
 .route-endpoints {
+  line-height: 1.4;
   font-size: 11px;
   color: var(--text-color-light);
   font-family: monospace;

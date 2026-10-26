@@ -66,7 +66,8 @@ export const imageInputLimitRules: LegacyModelMetadataRule<ModelMetadataProperti
     {
       id: "max-image-dim-gemini",
       matchType: "modelPrefix",
-      matchValue: "gemini-",
+      matchValue: "gemini-(?!embedding(?:-|$))",
+      useRegex: true,
       properties: {
         capabilities: {
           maxImageDimension: 8192,

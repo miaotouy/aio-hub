@@ -996,6 +996,61 @@ describe("audited model-list metadata coverage", () => {
   });
 });
 
+describe("Gemini embedding metadata", () => {
+  it.each([
+    {
+      modelId: "gemini-embedding-001",
+      capabilities: { embedding: true },
+    },
+    {
+      modelId: "gemini-embedding-exp-03-07",
+      capabilities: { embedding: true },
+    },
+    {
+      modelId: "gemini-embedding-2",
+      capabilities: {
+        embedding: true,
+        vision: true,
+        audio: true,
+        video: true,
+        document: true,
+      },
+    },
+  ])(
+    "uses embedding-specific capabilities for $modelId",
+    ({ modelId, capabilities }) => {
+      const properties = getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        modelId,
+        "google"
+      );
+
+      expect(properties).toMatchObject({
+        group: "Gemini Embedding",
+        tokenizer: "gemini",
+      });
+      expect(properties?.capabilities).toEqual(capabilities);
+    }
+  );
+
+  it("preserves Gemini chat input, tool and output capabilities", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemini-2.5-flash")
+    ).toMatchObject({
+      capabilities: {
+        vision: true,
+        audio: true,
+        video: true,
+        document: true,
+        toolUse: true,
+        jsonOutput: true,
+        prefixCompletion: true,
+        maxImageDimension: 8192,
+      },
+    });
+  });
+});
+
 describe("decision model metadata coverage", () => {
   it("marks System One / decision model ids with the decision capability", () => {
     for (const id of [

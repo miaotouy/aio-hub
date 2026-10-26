@@ -776,7 +776,8 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
     {
       id: "model-prefix-gemini",
       matchType: "modelPrefix",
-      matchValue: "gemini-",
+      matchValue: "gemini-(?!embedding(?:-|$))",
+      useRegex: true,
       properties: {
         icon: `/model-icons/gemini-color.svg`,
         group: "Gemini",

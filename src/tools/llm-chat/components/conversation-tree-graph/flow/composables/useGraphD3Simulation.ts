@@ -123,6 +123,7 @@ export function useGraphD3Simulation(
   const pendingNodeIds = ref(new Set<string>());
   // 布局超时定时器
   let layoutTimeoutId: any = null;
+  let resetPositionsOnLayout = false;
   let lastVueNodesArray: any[] | null = null;
   let vueNodeById = new Map<string, any>();
 
@@ -137,7 +138,7 @@ export function useGraphD3Simulation(
   /**
    * 初始化 D3 力导向模拟
    */
-  function initD3Simulation(): void {
+  function initD3Simulation(resetPositions = false): void {
     const session = sessionRef();
     if (!session || nodes.value.length === 0) return;
 
@@ -148,7 +149,9 @@ export function useGraphD3Simulation(
 
     // 准备 D3 数据
     d3Nodes.value = nodes.value.map((n) => {
-      const existingD3Node = existingD3NodeMap.get(n.id);
+      const existingD3Node = resetPositions
+        ? undefined
+        : existingD3NodeMap.get(n.id);
       const measured = measuredDimensions.get(n.id);
 
       const baseHeight = 140;
@@ -159,16 +162,26 @@ export function useGraphD3Simulation(
       const finalHeight =
         measured?.height || existingD3Node?.height || estimatedHeight;
 
+      const dx = (finalWidth - (existingD3Node?.width ?? finalWidth)) / 2;
+      const dy = (finalHeight - (existingD3Node?.height ?? finalHeight)) / 2;
       return {
+        ...existingD3Node,
         id: n.id,
         depth: n.data._nodeDepth || 0, // 假设在 updateChart 中计算并注入了深度
         width: finalWidth,
         height: finalHeight,
         isActiveLeaf: n.data.isActiveLeaf,
         isEnabled: n.data.isEnabled,
-        x: n.position.x + finalWidth / 2,
-        y: n.position.y + finalHeight / 2,
-        ...(!n.position.x &&
+        x: existingD3Node
+          ? (existingD3Node.x ?? 0) + dx
+          : n.position.x + finalWidth / 2,
+        y: existingD3Node
+          ? (existingD3Node.y ?? 0) + dy
+          : n.position.y + finalHeight / 2,
+        fx: existingD3Node?.fx != null ? existingD3Node.fx + dx : null,
+        fy: existingD3Node?.fy != null ? existingD3Node.fy + dy : null,
+        ...(!existingD3Node &&
+          !n.position.x &&
           !n.position.y && { y: (n.data._nodeDepth || 0) * levelGap }),
       };
     });
@@ -349,8 +362,8 @@ export function useGraphD3Simulation(
         ? calculatedPositions.get(session.rootNodeId)
         : null;
       if (rootNode && rootPos) {
-        rootNode.fx = rootPos.x;
-        rootNode.fy = rootPos.y;
+        rootNode.fx = rootNode.x ?? rootPos.x;
+        rootNode.fy = rootNode.y ?? rootPos.y;
       }
     }
 
@@ -395,7 +408,7 @@ export function useGraphD3Simulation(
           clearTimeout(layoutTimeoutId);
           layoutTimeoutId = null;
         }
-        initD3Simulation();
+        initD3Simulation(resetPositionsOnLayout);
       }
       return;
     }
@@ -406,6 +419,13 @@ export function useGraphD3Simulation(
     simulation.value.nodes().forEach((d3Node) => {
       const dim = dimensions.get(d3Node.id);
       if (dim && (d3Node.width !== dim.width || d3Node.height !== dim.height)) {
+        // D3 保存中心坐标，尺寸变化时同步中心，保持画布上的左上角位置。
+        const dx = (dim.width - d3Node.width) / 2;
+        const dy = (dim.height - d3Node.height) / 2;
+        d3Node.x = (d3Node.x ?? 0) + dx;
+        d3Node.y = (d3Node.y ?? 0) + dy;
+        if (d3Node.fx != null) d3Node.fx += dx;
+        if (d3Node.fy != null) d3Node.fy += dy;
         d3Node.width = dim.width;
         d3Node.height = dim.height;
         needsRestart = true;
@@ -417,12 +437,19 @@ export function useGraphD3Simulation(
         // 静态模式下，尺寸变化只需重新应用静态布局逻辑，无需启动物理仿真
         initD3Simulation();
       } else {
-        simulation.value.alpha(0.3).restart();
+        // 刷新碰撞半径缓存；物理模式沿用当前温度，内容更新只同步尺寸。
+        const collide =
+          simulation.value.force<d3Force.ForceCollide<D3Node>>("collide");
+        if (collide) collide.radius(collide.radius());
+        if (layoutMode.value === "tree") {
+          simulation.value.alpha(0.3).restart();
+        }
       }
     }
   }
 
-  function startWaitingForDimensions(flowNodes: any[]) {
+  function startWaitingForDimensions(flowNodes: any[], resetPositions = false) {
+    resetPositionsOnLayout = resetPositions;
     if (layoutTimeoutId) {
       clearTimeout(layoutTimeoutId);
       layoutTimeoutId = null;
@@ -435,7 +462,7 @@ export function useGraphD3Simulation(
     if (pendingIds.length === 0) {
       isWaitingForDimensions.value = false;
       pendingNodeIds.value.clear();
-      initD3Simulation();
+      initD3Simulation(resetPositionsOnLayout);
       return;
     }
 
@@ -447,7 +474,7 @@ export function useGraphD3Simulation(
         logger.warn("等待节点尺寸超时，强制开始布局");
         isWaitingForDimensions.value = false;
         pendingNodeIds.value.clear();
-        initD3Simulation();
+        initD3Simulation(resetPositionsOnLayout);
       }
     }, 300);
   }

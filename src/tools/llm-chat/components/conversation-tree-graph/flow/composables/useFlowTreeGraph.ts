@@ -603,7 +603,7 @@ export function useFlowTreeGraph(
     nodes.value = flowNodes;
     edges.value = flowEdges;
 
-    startWaitingForDimensions(flowNodes);
+    startWaitingForDimensions(flowNodes, forceResetPosition);
   }
 
   /**

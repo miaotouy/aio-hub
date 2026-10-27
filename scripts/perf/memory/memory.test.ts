@@ -8,6 +8,7 @@ import path from "node:path";
 import {
   anonymizeSession,
   createRedactor,
+  createReadableEntityReplacer,
   inspectSession,
   selectCandidates,
   type MemoryCorpus,
@@ -17,6 +18,7 @@ import { writeMemoryFixture, EMPTY_SESSION_ID, imagePng } from "./fixture";
 import { memoryMarkdown, summarizeMemory } from "./report";
 import { isValidSessionPayload } from "../../../src/tools/llm-chat/services/sessionPersistenceRepository";
 import type { ResourceSample } from "../resources";
+import { CustomParser } from "../../../src/tools/rich-text-renderer/core/CustomParser";
 
 function session() {
   return {
@@ -92,6 +94,154 @@ function session() {
 }
 
 describe("memory workload contracts", () => {
+  // Protects readable real-content replay and its UTF-8 persistence, independently of layout.
+  it("retains Chinese prose, numeric tables and code identifiers through UTF-8 fixture roundtrips", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aio-memory-readable-"));
+    try {
+      const body =
+        "中文编码检查：复杂会话包含表格、代码与推理。\n| 项目 | 数量 |\n| --- | --- |\n| 测试 | 273 |\n\n```ts\nconst totalCount = 42;\n```\n\n<<<[TOOL_REQUEST]>>>\ntool_name:「始」mock-sync「末」,\nmessage:「始」中文测试「末」\n<<<[END_TOOL_REQUEST]>>>";
+      const original = session();
+      original.nodes.assistant.content = body;
+      const detail = anonymizeSession(
+        original,
+        "readable",
+        createRedactor(Buffer.alloc(32, 9), "readable")
+      );
+      const stats = inspectSession(detail);
+      writeMemoryFixture(
+        root,
+        {
+          version: 1,
+          textMode: "readable",
+          createdAt: "fixed",
+          libraryCount: 2,
+          inventory: { indexed: 2, readable: 2, skipped: 0, quantiles: {} },
+          limitations: [],
+          sessions: [
+            {
+              id: "readable",
+              profile: "tools",
+              detail,
+              source: stats,
+              replay: stats,
+            },
+          ],
+        },
+        appearanceMatrix("quick")[0]
+      );
+      const bytes = fs.readFileSync(
+        path.join(root, "llm-chat/sessions/readable.json")
+      );
+      const copy = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+      );
+      const assistant = Object.values(copy.nodes).find(
+        (n: any) => n.content === body
+      ) as any;
+      expect(assistant.content).toBe(body);
+      expect(
+        new CustomParser()
+          .parse(assistant.content)
+          .some((node) => node.type === "vcp_tool")
+      ).toBe(true);
+      expect(assistant.metadata.toolCallsRequested[0].args.token).toBe(
+        "[凭据已脱敏]"
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Readable mode is local-only: redact recognizable sensitive values while retaining surrounding semantics.
+  it("scrubs labeled credentials and contacts without scrambling ordinary readable text", () => {
+    const redact = createRedactor(Buffer.alloc(32, 4), "readable");
+    const result = redact(
+      '中文说明\napi_key="demoPrivateValue"\n{"access_token":"demoAccessValue"}\nBearer abcdef.1234\n邮箱：test.person@example.com\n电话：13812345678\n路径：C:\\Users\\private\\note.txt\nconst totalCount = 42;'
+    );
+    expect(result).toContain("中文说明");
+    expect(result).toContain("const totalCount = 42;");
+    expect(result).toContain("[凭据已脱敏]");
+    expect(result).toContain("[邮箱已脱敏]");
+    expect(result).toContain("[手机号已脱敏]");
+    expect(result).not.toMatch(
+      /demoPrivateValue|demoAccessValue|abcdef\.1234|test\.person|13812345678|private/
+    );
+  });
+
+  // A reviewed alias list must handle literal/overlapping names without replacement cascades.
+  it("replaces reviewed entities literally, longest-first and in a single pass", () => {
+    const replace = createReadableEntityReplacer({
+      松岚: "青禾",
+      松岚同学: "青禾同学",
+      "user.a+": "$&alias",
+      甲: "乙",
+      乙: "丙",
+    });
+    expect(replace("松岚同学和松岚、user.a+、userXa；甲 乙；松岚")).toBe(
+      "青禾同学和青禾、$&alias、userXa；乙 丙；青禾"
+    );
+    expect(createReadableEntityReplacer({})("中文与 TOOL_REQUEST")).toBe(
+      "中文与 TOOL_REQUEST"
+    );
+    for (const invalid of [
+      null,
+      [],
+      { "": "alias" },
+      { name: " " },
+      { name: 42 },
+    ])
+      expect(() => createReadableEntityReplacer(invalid)).toThrow();
+  });
+
+  // Names must agree across prose, reasoning, translation and tool arguments, while parser syntax survives.
+  it("uses the same readable aliases across replayed message surfaces and preserves VCP parsing", () => {
+    const original = session();
+    original.nodes.assistant.content =
+      "松岚（pine7）在云桥议会发言。\n\n<<<[TOOL_REQUEST]>>>\ntool_name:「始」mock-sync「末」,\nmessage:「始」松岚查看云桥议会「末」\n<<<[END_TOOL_REQUEST]>>>";
+    original.nodes.assistant.metadata.reasoningContent = "松岚说的云桥议会";
+    Object.assign(original.nodes.assistant.metadata, {
+      translation: {
+        content: "pine7：云桥议会",
+        visible: true,
+        displayMode: "both",
+      },
+    });
+    Object.assign(
+      original.nodes.assistant.metadata.toolCallsRequested[0].args,
+      {
+        message: "pine7 和松岚查看云桥议会",
+      }
+    );
+    const replay = anonymizeSession(
+      original,
+      "aliases",
+      createRedactor(Buffer.alloc(32, 8), "readable", {
+        松岚: "青禾",
+        pine7: "reed8",
+        云桥议会: "星海盟约",
+      })
+    );
+    const node = replay.nodes["aliases-n2"];
+    expect(node.content).toContain("青禾（reed8）在星海盟约发言。");
+    expect(node.metadata.reasoningContent).toBe("青禾说的星海盟约");
+    expect(node.metadata.translation.content).toBe("reed8：星海盟约");
+    expect(node.metadata.toolCallsRequested[0].args.message).toBe(
+      "reed8 和青禾查看星海盟约"
+    );
+    expect(
+      new CustomParser().parse(node.content).map((block) => block.type)
+    ).toEqual(
+      new CustomParser()
+        .parse(original.nodes.assistant.content)
+        .map((block) => block.type)
+    );
+    expect(
+      new CustomParser()
+        .parse(node.content)
+        .some((block) => block.type === "vcp_tool")
+    ).toBe(true);
+  });
+
   // Protects replay fidelity + private-data boundary; stable across implementation refactors.
   it("replays a real-shaped branched tool session with linked identities and scrubbed private payloads", () => {
     const original = session();

@@ -121,10 +121,19 @@ export interface MemoryCaseResult {
 function mib(value: number | null | undefined) {
   return value == null ? "—" : (value / 1048576).toFixed(1);
 }
-export function memoryMarkdown(results: MemoryCaseResult[]): string {
+export function memoryMarkdown(
+  results: MemoryCaseResult[],
+  textMode?: "readable" | "masked"
+): string {
   const lines = [
     "# 应用内存用量",
     "",
+    ...(textMode
+      ? [
+          `语料模式：${textMode}。不同模式分开比较；可读语料仅限本机使用，分享前审阅。`,
+          "",
+        ]
+      : []),
     "单位：MiB。Private 为整个应用进程树的私有提交量；WS 为进程工作集之和，含共享页重复计数。GPU 专用/共享用量单列；GPU 计数不可用显示 —。",
     "",
     "尾值为阶段最后 5 秒样本中位数；峰值为采样观测下界。返回首页后的保留量可能包含会话缓存，需结合多轮趋势与末轮 GC 诊断。",

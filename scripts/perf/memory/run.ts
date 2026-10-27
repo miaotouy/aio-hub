@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { appearanceMatrix, type AppearanceCase } from "./matrix";
 import type { MemoryCorpus } from "./corpus";
+import { collectDomCensus } from "./dom";
 import { writeMemoryFixture, EMPTY_SESSION_ID } from "./fixture";
 import { startResourceCollector, type ResourceCollector } from "../resources";
 import {
@@ -45,6 +46,8 @@ const { values } = parseArgs({
     "library-count": { type: "string" },
     out: { type: "string" },
     list: { type: "boolean" },
+    "empty-switch-probe": { type: "boolean", default: false },
+    "dom-census": { type: "boolean", default: false },
     screenshots: { type: "boolean", default: false },
     "keep-data": { type: "boolean", default: false },
     help: { type: "boolean" },
@@ -60,6 +63,8 @@ if (values.help) {
   --rounds 1 --cycles 3          独立进程重复轮次 / 每轮往返次数
   --settle-ms 8000 --measure-ms 12000 --scroll-ms 12000 --cooldown-ms 15000
   --library-count N             单独控制会话索引规模，默认沿用原始索引数量
+  --empty-switch-probe         末轮 GC 后切空会话并复测，区分缓存页面与共享运行时
+  --dom-census                 测量检查点后另存 DOM 结构归因（只记录数量）
   --screenshots --keep-data     保存视口 / 保留隔离数据（默认测后清理）
   --out .tmp/app-memory/<name>   新目录；已有结果逐案例保存，中断后仍可查看
   --cdp-port 9433               必须空闲；仅控制本次新建的 WebView2 profile
@@ -84,6 +89,10 @@ const corpus = JSON.parse(
 ) as MemoryCorpus;
 if (corpus.version !== 1 || !Array.isArray(corpus.sessions))
   throw new Error("Unsupported corpus");
+if (!values.list && corpus.textMode !== "readable")
+  console.warn(
+    "当前为 masked 结构语料：正文已逐词替换。可读语料请通过 --corpus 显式选择，结果按模式分开比较。"
+  );
 const availablePages = [
   "home",
   "empty",
@@ -339,11 +348,14 @@ save("manifest.json", {
     scrollMs,
     cooldownMs,
     libraryCount,
+    domCensus: values["dom-census"],
+    emptySwitchProbe: values["empty-switch-probe"],
     suite: values.suite,
   },
   corpusSha256: createHash("sha256")
     .update(fs.readFileSync(values.corpus!))
     .digest("hex"),
+  corpusTextMode: corpus.textMode ?? "masked",
   corpusInventory: corpus.inventory,
   samples: corpus.sessions.map(({ profile, source, replay }) => ({
     profile,
@@ -383,6 +395,7 @@ for (const [index, item] of cases.entries()) {
     since: number;
     until: number;
   }[] = [];
+  const domCensus: unknown[] = [];
   async function sample(
     phase: string,
     cycle: number,
@@ -397,6 +410,27 @@ for (const [index, item] of cases.entries()) {
     phases.push({ phase, cycle, since, until: c.at });
     result.checkpoints.push(c);
     save(`${id}.json`, { ...result, runtime, materialized, phases });
+    if (
+      values["dom-census"] &&
+      [
+        "home",
+        "idle",
+        "scroll-rest",
+        "return-home",
+        "after-gc",
+        "empty-idle",
+        "empty-after-gc",
+      ].includes(phase)
+    ) {
+      const census = await bounded(
+        probe!.evaluate<ReturnType<typeof collectDomCensus>>(
+          `(${collectDomCensus.toString()})()`
+        ),
+        "DOM structural census"
+      );
+      domCensus.push({ phase, cycle, ...census });
+      save(`${id}-dom.json`, domCensus);
+    }
   }
   console.log(
     `[${index + 1}/${cases.length}] ${page} / ${appearance.id} / ${round}`
@@ -495,6 +529,17 @@ for (const [index, item] of cases.entries()) {
       "terminal page GC"
     );
     await sample("after-gc", page === "home" ? 0 : cycles, measureMs);
+    if (values["empty-switch-probe"] && page !== "home" && page !== "empty") {
+      await route(probe, "/llm-chat");
+      await selectSession(probe, EMPTY_SESSION_ID, true);
+      await sleep(settleMs);
+      await sample("empty-idle", cycles, measureMs);
+      await bounded(
+        probe.command("HeapProfiler.collectGarbage"),
+        "empty-session page GC"
+      );
+      await sample("empty-after-gc", cycles, measureMs);
+    }
   } catch {
     const failedOperation = lastOperation;
     if (probe) {
@@ -537,7 +582,7 @@ for (const [index, item] of cases.entries()) {
     results.push(result);
     fs.writeFileSync(
       path.join(out, "report.md"),
-      memoryMarkdown(results),
+      memoryMarkdown(results, corpus.textMode ?? "masked"),
       "utf8"
     );
     if (!values["keep-data"] && fs.existsSync(dataDir)) {

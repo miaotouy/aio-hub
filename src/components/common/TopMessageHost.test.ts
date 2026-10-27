@@ -71,6 +71,58 @@ describe("TopMessageHost", () => {
     expect(wrapper.find(".top-message").exists()).toBe(false);
   });
 
+  // Grouping restarts the public notification lifetime even while an earlier tick is pending.
+  it("restarts a grouped notification countdown and closes after its renewed duration", async () => {
+    const wrapper = mountHost();
+    const notify = () =>
+      customMessage.info({
+        message: "分组倒计时",
+        duration: 1000,
+        grouping: true,
+      });
+    notify();
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(700);
+    notify();
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(wrapper.findAll(".top-message")).toHaveLength(1);
+    expect(wrapper.get(".top-message__repeat-count").text()).toBe("2");
+    await vi.advanceTimersByTimeAsync(550);
+    expect(wrapper.find(".top-message").exists()).toBe(false);
+  });
+
+  // A persistent notification must react to overlays without a new message or countdown tick.
+  it("tracks a dialog appearing, changing level and hiding under the same persistent notification", async () => {
+    const wrapper = mountHost();
+    customMessage.info({ message: "持续通知", duration: 0 });
+    await nextTick();
+    const zIndex = () =>
+      Number(
+        (wrapper.get(".top-message-host").element as HTMLElement).style.zIndex
+      );
+    const initial = zIndex();
+    const parent = document.createElement("div");
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.style.zIndex = "4200";
+    parent.append(dialog);
+    document.body.append(parent);
+    try {
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBeGreaterThan(4200);
+      dialog.style.zIndex = "6200";
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBeGreaterThan(6200);
+      dialog.style.display = "none";
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBe(initial);
+      expect(wrapper.findAll(".top-message")).toHaveLength(1);
+    } finally {
+      parent.remove();
+    }
+  });
+
   it("renders rich HTML messages when explicitly enabled", async () => {
     const wrapper = mountHost();
     customMessage.error({

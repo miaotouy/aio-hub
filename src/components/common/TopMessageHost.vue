@@ -48,7 +48,7 @@ const TIMER_INTERVAL = 16;
 
 const copiedMessageId = ref<string | null>(null);
 const copyFailedMessageId = ref<string | null>(null);
-const timers = new Map<string, number>();
+const timers = new Map<string, { handle: number; version: number }>();
 let copiedStateTimer: number | undefined;
 
 const MessageBody = defineComponent({
@@ -112,8 +112,18 @@ function startObserver() {
   ) {
     return;
   }
-  observer = new MutationObserver(() => {
-    scheduleUpdateHostZIndex();
+  observer = new MutationObserver((records) => {
+    // Countdown and copy feedback only change the host itself, which is excluded from overlay discovery.
+    if (
+      records.some((record) => {
+        const target =
+          record.target instanceof Element
+            ? record.target
+            : record.target.parentElement;
+        return !target?.closest(".top-message-host");
+      })
+    )
+      scheduleUpdateHostZIndex();
   });
   observer.observe(document.body, {
     childList: true,
@@ -172,7 +182,7 @@ function canCopy(message: FloatingMessage) {
 function clearTimer(id: string) {
   const timer = timers.get(id);
   if (timer !== undefined) {
-    window.clearTimeout(timer);
+    window.clearTimeout(timer.handle);
     timers.delete(id);
   }
 }
@@ -206,7 +216,6 @@ function startTimer(message: FloatingMessage) {
   const version = message.timerVersion;
 
   const tick = () => {
-    timers.delete(message.id);
     if (
       !isMessageActive(message) ||
       message.paused ||
@@ -215,22 +224,32 @@ function startTimer(message: FloatingMessage) {
       return;
     }
 
+    timers.delete(message.id);
     updateRemaining(message);
     if (message.remainingMs <= 0) {
       closeFloatingMessage(message.id);
       return;
     }
 
-    timers.set(message.id, window.setTimeout(tick, TIMER_INTERVAL));
+    timers.set(message.id, {
+      handle: window.setTimeout(tick, TIMER_INTERVAL),
+      version,
+    });
   };
 
-  timers.set(message.id, window.setTimeout(tick, TIMER_INTERVAL));
+  timers.set(message.id, {
+    handle: window.setTimeout(tick, TIMER_INTERVAL),
+    version,
+  });
 }
 
 function synchronizeTimers() {
-  const activeIds = new Set(floatingMessages.map((message) => message.id));
-  for (const id of timers.keys()) {
-    if (!activeIds.has(id)) clearTimer(id);
+  const activeMessages = new Map(
+    floatingMessages.map((message) => [message.id, message])
+  );
+  for (const [id, timer] of timers) {
+    const message = activeMessages.get(id);
+    if (!message || message.timerVersion !== timer.version) clearTimer(id);
   }
 
   floatingMessages.forEach((message) => {
@@ -317,18 +336,29 @@ function getMessageClass(message: FloatingMessage) {
     message.customClass,
   ];
 }
+// Timer progress is rendered reactively; only lifecycle inputs need timer synchronization.
 watch(
-  floatingMessages,
+  () =>
+    floatingMessages.map((message) => [
+      message.id,
+      message.duration,
+      message.paused,
+      message.timerVersion,
+    ]),
+  synchronizeTimers,
+  { flush: "post" }
+);
+watch(
+  () => floatingMessages.map((message) => [message.id, message.zIndex]),
   () => {
-    synchronizeTimers();
-    updateHostZIndex();
     if (floatingMessages.length > 0) {
+      updateHostZIndex();
       startObserver();
     } else {
       stopObserver();
     }
   },
-  { deep: true, flush: "post" }
+  { flush: "post" }
 );
 
 onMounted(() => {
@@ -340,7 +370,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  timers.forEach((timer) => window.clearTimeout(timer));
+  timers.forEach((timer) => window.clearTimeout(timer.handle));
   timers.clear();
   stopObserver();
   if (copiedStateTimer !== undefined) window.clearTimeout(copiedStateTimer);

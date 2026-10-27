@@ -553,6 +553,12 @@ src/tools/rich-text-renderer/
 3.  在 `components/style-editor/MarkdownStyleEditor.vue` 中添加对应的 `StyleItemEditor` 编辑器实例。
 4.  确保新的节点组件通过 CSS 变量引用样式（如 `color: var(--md-xxx-color)`）。
 
+### 7.4 代码查看器生命周期
+
+`CodeMirrorSourceViewer` 在代码块进入视口外扩 600px 区域时创建只读编辑器。完成态代码离开该区域 2 秒后销毁编辑器，回退到源码展示并保留高度；焦点和活动文本选区保护当前交互，流式代码继续更新。KeepAlive 停用时释放编辑器，恢复时重新创建。
+
+回退期间只保存折叠区间、选区和内部滚动等标量状态；字体、换行、展开状态继续由上层 props 提供。正文变化后丢弃旧位置快照，延迟语言加载核对发起视图身份。编辑器展示期间卸载 `PreCodeNode`，避免隐藏的全文 / 行号副本常驻。HTML 预览的冻结策略独立维护。
+
 ## 8. 附录：集成与调用场景 (Integration & Usage)
 
 渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。

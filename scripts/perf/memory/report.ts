@@ -101,6 +101,12 @@ export interface MemoryCheckpoint {
     reasoningPanels: number;
     diagramErrors: number;
     imageErrors: number;
+    codeBlocks?: number;
+    pageEditors?: number;
+    codeEditors?: number;
+    codeFallbacks?: number;
+    messageScrollTop?: number;
+    messageScrollHeight?: number;
   };
 }
 export interface MemoryCaseResult {
@@ -122,14 +128,15 @@ export function memoryMarkdown(results: MemoryCaseResult[]): string {
     "单位：MiB。Private 为整个应用进程树的私有提交量；WS 为进程工作集之和，含共享页重复计数。GPU 专用/共享用量单列；GPU 计数不可用显示 —。",
     "",
     "尾值为阶段最后 5 秒样本中位数；峰值为采样观测下界。返回首页后的保留量可能包含会话缓存，需结合多轮趋势与末轮 GC 诊断。",
+    "页面编辑器统计当前文档中的全部 CodeMirror，包含聊天输入区；源码查看器专用计数 codeEditors 在 JSON 中另列。离开聊天后，文档计数无法反映 KeepAlive 的脱离文档子树，需结合全局 DOM 与堆诊断。",
     "",
-    "| 页面 | 配置 | 轮次 | 阶段 | Private 尾值 | Private 峰值 | WS 尾值 | GPU 专用峰值 | GPU 共享峰值 | 页面 JS Heap | DOM 节点 | 采样 |",
-    "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|",
+    "| 页面 | 配置 | 轮次 | 阶段 | Private 尾值 | Private 峰值 | WS 尾值 | GPU 专用峰值 | GPU 共享峰值 | 页面 JS Heap | DOM 节点 | 代码块 / 页面编辑器 / 源码预览 | 采样 |",
+    "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
   ];
   for (const result of results) {
     for (const c of result.checkpoints)
       lines.push(
-        `| ${result.page} | ${result.appearance.id} | ${result.round} | ${c.phase}:${c.cycle} | ${mib(c.resources.privateTailBytes)} | ${mib(c.resources.privatePeakBytes)} | ${mib(c.resources.workingSetTailBytes)} | ${mib(c.resources.gpuDedicatedPeakBytes)} | ${mib(c.resources.gpuSharedPeakBytes)} | ${mib(c.heap.usedSize)} | ${c.dom.nodes} | ${c.resources.valid ? "有效" : "稀疏/不可用"} |`
+        `| ${result.page} | ${result.appearance.id} | ${result.round} | ${c.phase}:${c.cycle} | ${mib(c.resources.privateTailBytes)} | ${mib(c.resources.privatePeakBytes)} | ${mib(c.resources.workingSetTailBytes)} | ${mib(c.resources.gpuDedicatedPeakBytes)} | ${mib(c.resources.gpuSharedPeakBytes)} | ${mib(c.heap.usedSize)} | ${c.dom.nodes} | ${c.page.codeBlocks ?? "—"} / ${c.page.pageEditors ?? "—"} / ${c.page.codeFallbacks ?? "—"} | ${c.resources.valid ? "有效" : "稀疏/不可用"} |`
       );
     if (result.status === "failed")
       lines.push(

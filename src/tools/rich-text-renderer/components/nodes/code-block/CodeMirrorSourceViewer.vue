@@ -22,10 +22,15 @@
       'is-streaming': !closed,
     }"
     ref="containerRef"
+    :style="
+      !displayInitialized && retainedHeight !== null
+        ? { height: `${retainedHeight}px` }
+        : undefined
+    "
   >
     <!-- 初始状态显示轻量级的 PreCodeNode，尽量模拟 CodeMirror 的字号、行高、行号和内边距 -->
     <PreCodeNode
-      v-show="!displayInitialized"
+      v-if="!displayInitialized"
       :content="content"
       :line-numbers="true"
       :style="preFallbackStyle"
@@ -44,18 +49,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import {
+  ref,
+  onActivated,
+  onDeactivated,
+  onUnmounted,
+  watch,
+  shallowRef,
+  computed,
+} from "vue";
 import { storeToRefs } from "pinia";
 import { useRichTextRendererStore } from "../../../stores/store";
 import { useIntersectionObserver } from "@vueuse/core";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, EditorSelection, Compartment } from "@codemirror/state";
 import {
   EditorView,
   lineNumbers,
   highlightActiveLineGutter,
   keymap,
 } from "@codemirror/view";
-import { foldGutter, foldKeymap } from "@codemirror/language";
+import {
+  foldGutter,
+  foldKeymap,
+  foldedRanges,
+  foldEffect,
+} from "@codemirror/language";
 import { defaultKeymap } from "@codemirror/commands";
 import { useTheme } from "@composables/useTheme";
 import { getCodeMirrorLanguage } from "@/utils/codeLanguages";
@@ -89,18 +107,100 @@ const displayInitialized = computed(() => {
   return isInitialized.value;
 });
 let isDestroyed = false;
+let active = true;
+let nearViewport = false;
+let reportedReady = false;
+let releaseTimer: ReturnType<typeof setTimeout> | undefined;
+const retainedHeight = ref<number | null>(null);
+// Only scalar UI state survives suspension; retaining EditorState keeps its syntax tree alive.
+let retained:
+  | {
+      content: string;
+      selection: ReturnType<EditorSelection["toJSON"]>;
+      folds: { from: number; to: number }[];
+      top: number;
+      left: number;
+    }
+  | undefined;
 
-// 性能优化：使用 IntersectionObserver 延迟初始化编辑器
-// 只有当代码块进入视口（或接近视口）时才创建重型的 CodeMirror 实例
+function cancelRelease() {
+  clearTimeout(releaseTimer);
+  releaseTimer = undefined;
+}
+
+function releaseEditor() {
+  cancelRelease();
+  const view = editorView.value;
+  if (!view) return;
+  const folds: { from: number; to: number }[] = [];
+  foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
+    folds.push({ from, to });
+  });
+  retained = {
+    content: props.content,
+    selection: view.state.selection.toJSON(),
+    folds,
+    top: view.scrollDOM.scrollTop,
+    left: view.scrollDOM.scrollLeft,
+  };
+  // content-visibility may already have skipped layout when the observer fires.
+  const height = containerRef.value?.getBoundingClientRect().height ?? 0;
+  if (height > 0) retainedHeight.value = height;
+  editorView.value = null;
+  isInitialized.value = false;
+  view.destroy();
+}
+
+function scheduleRelease() {
+  cancelRelease();
+  if (nearViewport || !active || props.closed === false || !editorView.value)
+    return;
+  releaseTimer = setTimeout(() => {
+    releaseTimer = undefined;
+    const view = editorView.value;
+    const selection = window.getSelection();
+    // A focused editor or a selection spanning it remains usable for keyboard/copy.
+    if (!view) return;
+    if (
+      view.hasFocus ||
+      (selection &&
+        !selection.isCollapsed &&
+        selection.containsNode(view.dom, true))
+    ) {
+      scheduleRelease();
+      return;
+    }
+    if (!nearViewport && active && props.closed !== false) releaseEditor();
+  }, 2000);
+}
+
 useIntersectionObserver(
   containerRef,
   ([entry]) => {
-    if (entry.isIntersecting && !isInitialized.value) {
-      initEditor();
+    if (!entry) return;
+    nearViewport = entry.isIntersecting;
+    if (isInitialized.value && entry.boundingClientRect.height > 0) {
+      retainedHeight.value = entry.boundingClientRect.height;
+    }
+    if (nearViewport) {
+      cancelRelease();
+      if (active) void initEditor();
+    } else {
+      scheduleRelease();
     }
   },
-  { rootMargin: "600px" } // 提前 600px 开始初始化，确保用户滚动到时已完成
+  { rootMargin: "600px" }
 );
+
+onDeactivated(() => {
+  active = false;
+  releaseEditor();
+});
+onActivated(() => {
+  active = true;
+  if (nearViewport) void initEditor();
+});
+watch(() => props.closed, scheduleRelease);
 
 const languageCompartment = new Compartment();
 const themeCompartment = new Compartment();
@@ -192,24 +292,36 @@ const initEditor = async () => {
     parent: editorRef.value,
   });
 
-  emit("ready", props.codeFontSize);
+  const view = editorView.value;
+  if (retained?.content === props.content) {
+    view.dispatch({
+      selection: EditorSelection.fromJSON(retained.selection),
+      effects: retained.folds.map((range) => foldEffect.of(range)),
+    });
+    const { top, left } = retained;
+    view.requestMeasure({
+      read: () => undefined,
+      write: () => {
+        if (editorView.value !== view) return;
+        view.scrollDOM.scrollTop = top;
+        view.scrollDOM.scrollLeft = left;
+      },
+    });
+  }
+  retained = undefined;
+  retainedHeight.value = null;
+  // Rehydration must preserve the user's chosen font baseline and size.
+  if (!reportedReady) {
+    reportedReady = true;
+    emit("ready", props.codeFontSize);
+  }
   // 加载语言
   if (props.language) {
     const langExt = await getCodeMirrorLanguage(props.language);
 
-    // 如果在异步加载期间组件已卸载，则清理并退出
-    if (isDestroyed) {
-      if (editorView.value) {
-        editorView.value.destroy();
-        editorView.value = null;
-      }
-      return;
-    }
-
-    if (langExt && editorView.value) {
-      editorView.value.dispatch({
-        effects: languageCompartment.reconfigure(langExt),
-      });
+    // A pending language load belongs only to the view that requested it.
+    if (!isDestroyed && editorView.value === view && langExt) {
+      view.dispatch({ effects: languageCompartment.reconfigure(langExt) });
     }
   }
 };
@@ -217,6 +329,8 @@ const initEditor = async () => {
 watch(
   () => props.content,
   (newContent) => {
+    retained = undefined;
+    retainedHeight.value = null;
     if (
       editorView.value &&
       newContent !== editorView.value.state.doc.toString()
@@ -268,17 +382,12 @@ watch(
   }
 );
 
-onMounted(() => {
-  // 移除立即初始化，改由 IntersectionObserver 触发
-  // initEditor();
-});
-
 onUnmounted(() => {
   isDestroyed = true;
-  if (editorView.value) {
-    editorView.value.destroy();
-    editorView.value = null;
-  }
+  cancelRelease();
+  editorView.value?.destroy();
+  editorView.value = null;
+  retained = undefined;
 });
 </script>
 

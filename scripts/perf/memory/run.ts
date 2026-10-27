@@ -275,7 +275,13 @@ async function checkpoint(
       toolMessages: document.querySelectorAll('[data-testid="chat-tool-call"]').length,
       reasoningPanels: document.querySelectorAll('.llm-think-node').length,
       diagramErrors: document.querySelectorAll('.mermaid-error').length,
-      imageErrors: document.querySelectorAll('.rich-text-renderer .error-placeholder').length };
+      imageErrors: document.querySelectorAll('.rich-text-renderer .error-placeholder').length,
+      codeBlocks: document.querySelectorAll('.markdown-code-block').length,
+      pageEditors: document.querySelectorAll('.cm-editor').length,
+      codeEditors: document.querySelectorAll('.cm-viewer-container .cm-editor').length,
+      codeFallbacks: document.querySelectorAll('.pre-code-node').length,
+      messageScrollTop: document.querySelector('.message-list')?.scrollTop ?? 0,
+      messageScrollHeight: document.querySelector('.message-list')?.scrollHeight ?? 0 };
   })()`),
     "page state"
   );
@@ -345,6 +351,12 @@ save("manifest.json", {
     replay,
   })),
   limitations: corpus.limitations,
+  pageMetricSelectors: {
+    codeBlocks: ".markdown-code-block",
+    pageEditors: ".cm-editor",
+    codeEditors: ".cm-viewer-container .cm-editor",
+    codeFallbacks: ".pre-code-node",
+  },
   cases,
 });
 for (const [index, item] of cases.entries()) {
@@ -464,6 +476,7 @@ for (const [index, item] of cases.entries()) {
             });
             await bounded(wheel.done, "scroll", scrollMs + 15000);
           });
+        if (scrollable) await sample("scroll-rest", cycle, measureMs);
         if (values.screenshots && cycle === 1)
           fs.writeFileSync(
             path.join(out, `${id}.png`),

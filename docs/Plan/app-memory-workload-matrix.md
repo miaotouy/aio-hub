@@ -189,3 +189,11 @@ bun run perf:memory -- --corpus .tmp/app-memory/corpus.json --suite full --pages
 bun run perf:memory:check
 bun run test:run -- scripts/perf/memory/memory.test.ts scripts/perf/resources.test.ts scripts/perf/resources-raw.test.ts
 ```
+
+## 7. 与富文本优化的下一轮衔接（2026-10-27）
+
+优先级已合并到 [富文本性能调查](../../src/tools/rich-text-renderer/docs/Plan/performance-optimization-investigation.md)：先治理离屏 CodeMirror 与隐藏源码副本，再做短代码块外围轻量化、长消息分块挂载；流式增量解析继续保留独立路线。
+
+当前对照复用 `branches` 和两种外观配置，每个进程往返 2 次。检查点增加代码块 / 页面编辑器 / 源码预览数量、消息滚动位置和滚动高度；页面编辑器包含聊天输入区，源码查看器专用计数另列于 JSON。滚动后增加 `scroll-rest` 自然静置阶段。原有样本和阶段含义保持一致，新阶段单列。结果见富文本调查中的本轮记录。
+
+本轮前后共 4 个真实窗口案例、52 个有效检查点已经完成。两组滚动静置后的页面编辑器数量都从 17 / 19 降到 2；末轮 GC 页面堆仍约 223 MiB，DOM 约 10.9 万。后续优先分解长消息与历史内容的常驻来源，完整数字及强玻璃首次 Private 升高的记录见富文本调查。源码与显示内容保持原样，本轮只调整渲染资源生命周期。

@@ -1,4 +1,5 @@
 import { defineConfig } from "vitepress";
+import { installDiagramFormatting } from "../../scripts/docs/markdown-diagrams";
 import { withMermaid } from "vitepress-plugin-mermaid";
 import Sitemap from "vite-plugin-sitemap";
 import { getExcludedPages, resolveRepositoryLink } from "./publication";
@@ -10,6 +11,7 @@ export default withMermaid({
   srcExclude: getExcludedPages(),
   markdown: {
     config(md) {
+      installDiagramFormatting(md);
       const renderLink = md.renderer.rules.link_open;
       md.renderer.rules.link_open = (tokens, index, options, env, self) => {
         const token = tokens[index];

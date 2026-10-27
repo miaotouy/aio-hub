@@ -12,9 +12,9 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Presentation / View 层                                                  │
+│  Presentation / View 层                                                 │
 │  src/components/common/GuidedFlow/                                      │
-│  ├── GuidedFlowHost.vue (全局浮动引导宿主)                               │
+│  ├── GuidedFlowHost.vue (全局浮动引导宿主)                              │
 │  ├── GuidedFlowShell.vue (弹窗外壳与布局边界)                           │
 │  ├── GuidedFlowProgress.vue (点式进度指示器 Dot Stepper)                │
 │  ├── GuidedFlowStepper.vue (步骤条控制)                                 │
@@ -35,7 +35,7 @@
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Core Service (引导流引擎)                                              │
 │  src/services/guided-flow/                                              │
-│  ├── guidedFlowManager.ts (状态机、当前步骤推进、事务持久化)             │
+│  ├── guidedFlowManager.ts (状态机、当前步骤推进、事务持久化)            │
 │  ├── guidedFlowRegistry.ts (流定义注册中心)                             │
 │  └── stepControls.ts (步骤级验证与跳转拦截控制器)                       │
 └─────────────────────────────────────────────────────────────────────────┘

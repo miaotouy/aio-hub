@@ -25,6 +25,31 @@
 
 功能发生变化时，同步更新相关教程、工具总览和必要的入口介绍。涉及布局、操作入口或多步交互时，结合真实截图说明；已有操作说明可以直接由 Agent 补图，沿用项目开发实例与数据隔离规则。
 
+## 字符画排版
+
+仓库提供字符画整理脚本，扫描项目中的 Markdown 文档，支持中文混排、ASCII 框线和 Unicode 矩形框线。文档站在解析代码块时运行相同算法，开发预览、构建页面和代码复制使用整理后的文本，源文件保持原样。
+
+```powershell
+# 预览项目中待整理的文档
+bun run docs:format
+
+# 将可识别的字符画写回文档
+bun run docs:format -- --write
+
+# 只整理指定文件或目录
+bun run docs:format -- --write src/tools/weather/docs/Plan/weather-feature-plan.md
+bun run docs:format -- --write docs/architecture
+
+# 只检查；有待整理内容时返回退出码 1
+bun run docs:format -- --check
+```
+
+`bun run format` 会在常规格式化之后自动整理项目文档中的字符画。扫描范围遵循 Git 工作区及忽略规则，涵盖 `docs/`、工具文档、移动端文档和项目其他 Markdown；独立插件仓库由各插件维护。
+
+字符画放入空语言标记或 `text`、`txt`、`plain`、`plaintext`、`ascii`、`ascii-art`、`diagram` 代码块。脚本保留文字、符号、行序、换行格式和 Markdown 容器缩进，根据完整横框确定边界，再调整空格和框宽。边界缺失、连接线复杂或对应关系有歧义的代码块保留原样；批量脚本会提示文件及代码块位置，便于人工查看。实现入口位于 `scripts/docs/`。
+
+显示宽度采用英文一格、汉字通常两格的字符列规则。查看结果时使用支持中英混排的等宽字体；遇到 `★`、Emoji 等字体回退字符时，实际字形宽度可能偏离字符格，可按文档语义选用字体覆盖的符号。
+
 ## 文档图标
 
 页面使用 `<LIcon name="..." />` 引用 Lucide 图标或项目工具图标。图标名称以对应图标库的实际导出为准；新增名称时，在 `docs/.vitepress/theme/icons.ts` 中添加具名导入与注册项，供文档正文和顶部操作菜单共同使用。显式注册可让打包器移除其余图标，减少每次打开文档时加载的资源。

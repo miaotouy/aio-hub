@@ -22,9 +22,9 @@ Git Committer 是面向开发者多仓库并发开发场景设计的轻量级 Gi
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │  View 层 (UI 展现)                                                     │
-│  GitCommitter.vue (主容器 + DropZone 仓库拖拽导入)                      │
+│  GitCommitter.vue (主容器 + DropZone 仓库拖拽导入)                     │
 │  ├── RepoBar.vue (垂直仓库栏) + RepoCard.vue + PanoramaDashboard.vue   │
-│  ├── GitHeaderBar.vue (顶部状态栏 + 分支信息 + 搜索栏入口)               │
+│  ├── GitHeaderBar.vue (顶部状态栏 + 分支信息 + 搜索栏入口)             │
 │  ├── Sidebar.vue (变更区: 暂存/工作区列表 + AI 提交面板)               │
 │  ├── MainArea.vue (Monaco Diff / 文件内容 / 多媒体差异标签页)          │
 │  ├── RightSidebar.vue (提交历史 + CommitGraphTrack 泳道 + 提交详情)    │
@@ -33,17 +33,17 @@ Git Committer 是面向开发者多仓库并发开发场景设计的轻量级 Gi
 │  Interaction & Visuals (交互与可视化增强)                              │
 │  ├── GitContextMenu.vue (Teleport 单例右键菜单)                        │
 │  ├── GitSearchDropdown.vue (工作区搜索下拉浮层)                        │
-│  ├── GitMediaDiffPreview.vue (图像/音频/视频差异预览)                   │
+│  ├── GitMediaDiffPreview.vue (图像/音频/视频差异预览)                  │
 │  └── CommitGraphTrack.vue (分支图谱 Canvas / SVG 紧凑泳道渲染)         │
 ├────────────────────────────────────────────────────────────────────────┤
-│  Logic & Composables 层 (业务逻辑编排)                                  │
+│  Logic & Composables 层 (业务逻辑编排)                                 │
 │  ├── useGitCommitterState.ts (全局与多仓库状态管理、持久化配置)        │
-│  ├── useGitCommitterRunner.ts (状态刷新、暂存/放弃修改、提交与推送)     │
+│  ├── useGitCommitterRunner.ts (状态刷新、暂存/放弃修改、提交与推送)    │
 │  ├── useGitRepoWorkflow.ts (AI 提交流程、Unified Diff 组装、Prompt)    │
 │  ├── useGitWorkspaceSearch.ts (工作区全文/文件名并发检索与高亮)        │
 │  ├── useGitContextMenu.ts + contextMenus.ts (右键菜单状态与项构建)     │
 │  ├── useGitRepositoryManagement.ts (仓库增删、改名、选色、拖拽排序)    │
-│  └── useCommitDetails.ts / useGitRemoteInfo.ts (提交详情与远端联动)   │
+│  └── useCommitDetails.ts / useGitRemoteInfo.ts (提交详情与远端联动)    │
 ├────────────────────────────────────────────────────────────────────────┤
 │  Utils 层 (算法与辅助函数)                                             │
 │  ├── gitTimelineGraph.ts (分支图谱拓扑排序与活跃泳道计算)              │
@@ -51,7 +51,7 @@ Git Committer 是面向开发者多仓库并发开发场景设计的轻量级 Gi
 ├────────────────────────────────────────────────────────────────────────┤
 │  Tauri IPC 接口 (Rust 后端 git_committer.rs / git_analyzer.rs)         │
 │  git_get_status, git_diff, git_stage_file, git_unstage_file,           │
-│  git_discard_changes, git_commit, git_push, git_pull, git_remote_info   │
+│  git_discard_changes, git_commit, git_push, git_pull, git_remote_info  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 

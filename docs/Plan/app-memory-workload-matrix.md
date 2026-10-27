@@ -265,3 +265,8 @@ bun run test:run -- scripts/perf/memory/memory.test.ts scripts/perf/resources.te
 固定可读 branches 保留 67 个代码块与 402 个按钮，提示层改为鼠标 / 键盘交互时创建并复用。独立进程同口径单轮活动页 GC 页面堆 190.13 → 176.61 MiB，全局监听器 13,621 → 11,142，document 节点 90,511 → 89,037；停用首页 GC 页面堆基本持平。底部返回双 rAF 729.8 → 682.3ms，此轮采样前有额外活动页 GC，与第 13 节时序分开比较。结构与页面堆的收益已确认，整应用 Private 用量继续单列诊断。实现、交互与原始数据见[专项记录第 12 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md)。
 
 沿用上一轮参数追加 4 次往返、24 个检查点均有效。返回首页 Private 尾值为 1,241.9 / 999.2 / 1,022.3 / 1,010.8 MiB；末轮页面 GC 后 Private 614.6 MiB（修改前 632.8 MiB），页面堆 111.25 MiB，全局 DOM / 监听器回到 17,803 / 6,744。每版各 1 个独立进程，进程级差异作为方向线索；自然堆与外观配置收益继续按各自口径观察。
+
+
+## 15. 文本节点显示层压平（2026-10-28）
+
+相同可读 branches、特效关闭独立进程对照，移除每段文本内部的额外函数组件后，活动页 GC 页面堆 176.64 → 170.23 MiB，减少约 6.41 MiB；最终首页 111.00 → 110.92 MiB。56 份渲染器共 87,812 个字符逐项相同，DOM、监听器与滚动位置保持原水平。底部返回双 rAF 652.4 → 654.1ms，时延暂未显示改善。本轮未追加整应用内存矩阵。后续聚焦活动页历史富文本显示树的挂载范围，详见[专项记录第 13 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md)。

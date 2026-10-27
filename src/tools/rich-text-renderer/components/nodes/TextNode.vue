@@ -14,46 +14,48 @@
   limitations under the License.
 -->
 
-<template>
-  <span><InlineContent /></span>
-</template>
-
-<script setup lang="ts">
-import { h, inject, type VNode } from "vue";
+<script lang="ts">
+import { defineComponent, h, inject, type VNode } from "vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { unescapeVcpMarkers } from "../../utils/vcp-utils";
 
-const props = defineProps<{
-  nodeId: string;
-  content: string;
-}>();
+export default defineComponent({
+  name: "TextNode",
+  props: {
+    nodeId: { type: String, required: true },
+    content: { type: String, required: true },
+  },
+  setup(props) {
+    const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
 
-const context = inject<RichTextContext | null>(RICH_TEXT_CONTEXT_KEY, null);
+    // 文本与附件预览在同一次渲染中生成，避免为每个文本片段额外挂载组件。
+    return () => {
+      const content = unescapeVcpMarkers(props.content);
+      if (!context?.renderFilePlaceholder || !content.includes("【file::")) {
+        return h("span", content);
+      }
 
-// 仅处理文本节点，图片地址、HTML 属性和代码节点沿用各自的解析路径。
-const InlineContent = () => {
-  const content = unescapeVcpMarkers(props.content);
-  if (!context?.renderFilePlaceholder || !content.includes("【file::")) {
-    return content;
-  }
-
-  const children: (string | VNode)[] = [];
-  let cursor = 0;
-  for (const match of content.matchAll(/【file::([^\s】]+)】/g)) {
-    children.push(content.slice(cursor, match.index));
-    const preview = context.renderFilePlaceholder(match[1]);
-    children.push(
-      preview
-        ? h("span", { class: "file-placeholder-preview", key: match.index }, [
-            preview,
-          ])
-        : match[0]
-    );
-    cursor = match.index + match[0].length;
-  }
-  children.push(content.slice(cursor));
-  return children;
-};
+      const children: (string | VNode)[] = [];
+      let cursor = 0;
+      for (const match of content.matchAll(/【file::([^\s】]+)】/g)) {
+        children.push(content.slice(cursor, match.index));
+        const preview = context.renderFilePlaceholder(match[1]);
+        children.push(
+          preview
+            ? h(
+                "span",
+                { class: "file-placeholder-preview", key: match.index },
+                [preview]
+              )
+            : match[0]
+        );
+        cursor = match.index + match[0].length;
+      }
+      children.push(content.slice(cursor));
+      return h("span", children);
+    };
+  },
+});
 </script>
 
 <style scoped>

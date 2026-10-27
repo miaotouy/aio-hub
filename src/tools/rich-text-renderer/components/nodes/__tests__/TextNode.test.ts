@@ -150,3 +150,27 @@ describe("bare attachment placeholders", () => {
     wrapper.unmount();
   });
 });
+
+// Protects literal text, VCP unescaping and root interaction across streaming edits.
+it("preserves literal markup and root attributes while updating ordinary text", async () => {
+  const clicked = vi.fn();
+  const wrapper = mount(TextNode, {
+    props: { nodeId: "literal", content: "<b>literal</b> & 「始exp」" },
+    attrs: {
+      class: "selected-text",
+      "data-node-status": "pending",
+      onClick: clicked,
+    },
+  });
+  expect(wrapper.element.textContent).toBe("<b>literal</b> & 「始」");
+  expect(wrapper.find("b").exists()).toBe(false);
+  await wrapper.trigger("click");
+  expect(clicked).toHaveBeenCalledTimes(1);
+  await wrapper.setProps({ content: "next\n<<<[TOOL_REQUEST_EXP]>>>" });
+  expect(wrapper.element.textContent).toBe("next\n<<<[TOOL_REQUEST]>>>");
+  expect(wrapper.classes()).toContain("selected-text");
+  expect(wrapper.attributes("data-node-status")).toBe("pending");
+  await wrapper.trigger("click");
+  expect(clicked).toHaveBeenCalledTimes(2);
+  wrapper.unmount();
+});

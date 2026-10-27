@@ -16,7 +16,9 @@ import { describe, expect, it } from "vitest";
 import { shallowRef } from "vue";
 import { useMessageScrollAnchor } from "../useMessageScrollAnchor";
 
-function createScroller() {
+function createScroller(
+  resolveMessageOffset?: (id: string) => number | undefined
+) {
   const element = document.createElement("div");
   let height = 2000;
   let top = 1500;
@@ -36,6 +38,7 @@ function createScroller() {
     container: shallowRef(element),
     autoScroll: () => enabled,
     threshold: () => 100,
+    resolveMessageOffset,
   });
   anchor.onScroll();
   return {
@@ -181,4 +184,58 @@ it("停用后继续生成，返回时延续底部跟随意图", () => {
   resize(4500);
   anchor.followBottom();
   expect(element.scrollTop).toBe(4000);
+});
+
+// Protect the reading message when restored history above it changes height.
+it("按消息偏移补偿重建高度，恢复期间保持原锚点，用户滚动后交还控制", () => {
+  let messageTop = 650;
+  const { element, anchor, resize } = createScroller((id) =>
+    id === "reading" ? messageTop - element.scrollTop : undefined
+  );
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -30 }));
+  element.scrollTop = 700;
+  anchor.onScroll();
+  anchor.rememberReadingAnchor({ id: "reading", offset: -50 });
+  anchor.suspend();
+  messageTop = 1100;
+  element.scrollTop = 0;
+  anchor.resume();
+  expect(element.scrollTop).toBe(1150);
+  // 布局夹紧引发的 scroll / 可见索引更新不能覆盖待恢复的阅读锚点。
+  anchor.onScroll();
+  anchor.rememberReadingAnchor({ id: "different", offset: 200 });
+  messageTop = 1350;
+  resize(3000);
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(1400);
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -50 }));
+  element.scrollTop = 1350;
+  anchor.onScroll();
+  messageTop = 1500;
+  resize(3500);
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(1350);
+});
+
+it("恢复目标尚未出现时沿用滚动距离，目标挂载后校准消息偏移", () => {
+  let messageTop: number | undefined = 1050;
+  const { element, anchor, resize } = createScroller((id) =>
+    id === "reading" && messageTop !== undefined
+      ? messageTop - element.scrollTop
+      : undefined
+  );
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -30 }));
+  element.scrollTop = 1100;
+  anchor.onScroll();
+  anchor.rememberReadingAnchor({ id: "reading", offset: -50 });
+  anchor.suspend();
+  messageTop = undefined;
+  resize(700);
+  element.scrollTop = 0;
+  anchor.resume();
+  expect(element.scrollTop).toBe(200);
+  messageTop = 1200;
+  resize(2500);
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(1250);
 });

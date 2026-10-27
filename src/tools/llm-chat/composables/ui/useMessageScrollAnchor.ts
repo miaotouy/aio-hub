@@ -14,10 +14,17 @@
 
 import { ref, type Ref } from "vue";
 
+interface ReadingAnchor {
+  id: string;
+  offset: number;
+}
+
 interface MessageScrollAnchorOptions {
   container: Ref<HTMLElement | null>;
   autoScroll: () => boolean;
   threshold: () => number;
+  /** 当前消息行相对滚动视口的偏移；目标尚未挂载时返回 undefined。 */
+  resolveMessageOffset?: (id: string) => number | undefined;
 }
 
 /** 阅读位置与底部跟随分别由浏览器锚定和显式滚动意图维护。 */
@@ -28,8 +35,16 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
   let canResumeOnScroll = false;
   let active = true;
   let resumeTop: number | null = null;
+  let readingAnchor: ReadingAnchor | null = null;
+  let resumeAnchor: ReadingAnchor | null = null;
+  const rememberReadingAnchor = (anchor: ReadingAnchor | null) => {
+    if (active && resumeTop === null) readingAnchor = anchor;
+  };
   const cancelResume = () => {
+    if (resumeTop !== null && options.container.value)
+      lastKnownScrollTop.value = options.container.value.scrollTop;
     resumeTop = null;
+    resumeAnchor = null;
   };
 
   const pauseFollowing = () => {
@@ -119,9 +134,16 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     const container = options.container.value;
     if (!container || !active) return;
     if (resumeTop !== null) {
+      const offset = resumeAnchor
+        ? options.resolveMessageOffset?.(resumeAnchor.id)
+        : undefined;
+      const target =
+        offset !== undefined && Number.isFinite(offset)
+          ? container.scrollTop + offset - resumeAnchor!.offset
+          : resumeTop;
       container.scrollTop = Math.max(
         0,
-        Math.min(resumeTop, container.scrollHeight - container.clientHeight)
+        Math.min(target, container.scrollHeight - container.clientHeight)
       );
       return;
     }
@@ -139,6 +161,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
       shouldStickToBottom.value && options.autoScroll()
         ? null
         : lastKnownScrollTop.value;
+    resumeAnchor = resumeTop === null ? null : readingAnchor;
     followBottom();
   };
 
@@ -146,6 +169,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     suspend,
     resume,
     cancelResume,
+    rememberReadingAnchor,
     shouldStickToBottom,
     isNearBottom,
     lastKnownScrollTop,

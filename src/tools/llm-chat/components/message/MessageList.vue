@@ -152,6 +152,7 @@ const {
   suspend: suspendScrollAnchor,
   resume: resumeScrollAnchor,
   cancelResume,
+  rememberReadingAnchor,
   shouldStickToBottom,
   isNearBottom,
   onScroll: updateScrollAnchor,
@@ -164,6 +165,15 @@ const {
   container: messagesContainer,
   autoScroll: () => settings.value.uiPreferences.autoScroll,
   threshold: () => settings.value.uiPreferences.autoScrollThreshold,
+  resolveMessageOffset: (id) => {
+    const index = props.messages.findIndex((message) => message.id === id);
+    const slot = messagesInnerContainer.value?.children[index];
+    const container = messagesContainer.value;
+    if (!slot || !container) return;
+    return (
+      slot.getBoundingClientRect().top - container.getBoundingClientRect().top
+    );
+  },
 });
 
 // 暴露滚动容器供外部使用
@@ -203,11 +213,13 @@ const switchingOriginalScrollTop = ref<number>(0);
 let resizeObserver: ResizeObserver | null = null;
 const onContentResize = () => {
   followBottom();
+  // content-visibility 展开可能只改变消息坐标，scrollTop 保持原值。
+  updateVisibleIndex();
 };
 
 const setupResizeObserver = () => {
   disconnectResizeObserver();
-  if (!listActive) return;
+  if (!listActive.value) return;
   const inner = messagesInnerContainer.value;
   if (!inner) return;
 
@@ -366,10 +378,16 @@ const scrollToPrev = () => {
 const updateVisibleIndex = () => {
   if (!messagesContainer.value || props.messages.length === 0) {
     currentVisibleIndex.value = 0;
+    rememberReadingAnchor(null);
     return;
   }
-  if (isNearBottom.value) {
+  if (
+    isNearBottom.value &&
+    shouldStickToBottom.value &&
+    settings.value.uiPreferences.autoScroll
+  ) {
     currentVisibleIndex.value = props.messages.length;
+    rememberReadingAnchor(null);
     return;
   }
 
@@ -386,7 +404,16 @@ const updateVisibleIndex = () => {
     if (slots[mid].getBoundingClientRect().bottom < centerY) low = mid + 1;
     else high = mid;
   }
-  currentVisibleIndex.value = low + 1;
+  currentVisibleIndex.value = isNearBottom.value
+    ? props.messages.length
+    : low + 1;
+  const message = props.messages[low];
+  if (message) {
+    rememberReadingAnchor({
+      id: message.id,
+      offset: slots[low].getBoundingClientRect().top - containerRect.top,
+    });
+  }
 };
 
 // 滚动事件处理

@@ -58,14 +58,28 @@
       :class="{ 'has-max-height': !!maxHeightStyle }"
       :style="maxHeightStyle ? { maxHeight: maxHeightStyle } : undefined"
     >
-      <AstNodeRenderer v-if="bodyNodes.length > 0" :nodes="bodyNodes" />
+      <AstNodeRenderer
+        v-if="bodyInitialized && bodyNodes.length > 0"
+        :nodes="bodyNodes"
+      />
     </div>
   </details>
 </template>
 
 <script setup lang="ts">
-import { useRendererNodeState } from "../../composables/useRendererViewState";
-import { computed, ref } from "vue";
+import {
+  useRendererNodeState,
+  rendererDetailsCopyKey,
+} from "../../composables/useRendererViewState";
+import {
+  computed,
+  inject,
+  nextTick,
+  onBeforeUnmount,
+  provide,
+  ref,
+  watch,
+} from "vue";
 import { ChevronRight, Copy, Check } from "lucide-vue-next";
 import type { AstNode } from "../../types";
 import AstNodeRenderer from "../AstNodeRenderer";
@@ -220,6 +234,19 @@ const bodyNodes = computed<AstNode[]>(() => {
  */
 const viewState = useRendererNodeState(() => props.nodeId, "details");
 const isOpen = viewState.ref("isOpen", parseBooleanAttr(props.attributes.open));
+// Keep visited bodies alive when collapsed so forms, editors and nested choices survive.
+const bodyInitialized = viewState.ref("bodyInitialized", false);
+const copiedBody = viewState.ref("copiedBody", false);
+const inheritedCopy = inject(rendererDetailsCopyKey, undefined);
+const copyBody = computed(() => copiedBody.value || !!inheritedCopy?.value);
+provide(rendererDetailsCopyKey, copyBody);
+watch(
+  [isOpen, copyBody],
+  ([open, copying]) => {
+    if (open || copying) bodyInitialized.value = true;
+  },
+  { immediate: true, flush: "sync" }
+);
 
 function handleToggle(event: Event) {
   const target = event.target as HTMLDetailsElement | null;
@@ -240,14 +267,43 @@ const copied = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function handleCopy() {
+  // Read the same rendered text as before, including unopened nested details.
+  copiedBody.value = true;
+  await nextTick();
   const el = contentRef.value;
   if (!el) {
     logger.warn("复制失败：内容容器引用为空");
     return;
   }
 
-  // v1：复制 innerText（保留可视化文本，丢弃格式）
-  const text = el.innerText?.trim() ?? "";
+  // Native details and content-visibility can make an unopened body return empty innerText.
+  // Materialize layout only for this synchronous read, then restore before the next paint.
+  const disclosures = [el.closest("details"), ...el.querySelectorAll("details")]
+    .filter(
+      (node): node is HTMLDetailsElement => node instanceof HTMLDetailsElement
+    )
+    .map((node) => ({ node, open: node.open }));
+  const visibility = [
+    el,
+    ...el.querySelectorAll<HTMLElement>(".details-content"),
+  ].map((node) => ({
+    node,
+    value: node.style.getPropertyValue("content-visibility"),
+    priority: node.style.getPropertyPriority("content-visibility"),
+  }));
+  let text: string;
+  try {
+    for (const { node } of disclosures) node.open = true;
+    for (const { node } of visibility)
+      node.style.setProperty("content-visibility", "visible", "important");
+    text = el.innerText?.trim() ?? "";
+  } finally {
+    for (const { node, open } of disclosures) node.open = open;
+    for (const { node, value, priority } of visibility) {
+      if (value) node.style.setProperty("content-visibility", value, priority);
+      else node.style.removeProperty("content-visibility");
+    }
+  }
   if (!text) {
     customMessage.warning("内容为空");
     return;
@@ -271,6 +327,9 @@ async function handleCopy() {
     copyTimer = null;
   }, 1500);
 }
+onBeforeUnmount(() => {
+  if (copyTimer) clearTimeout(copyTimer);
+});
 </script>
 
 <style scoped>

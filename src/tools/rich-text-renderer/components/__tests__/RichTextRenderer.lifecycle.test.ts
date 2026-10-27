@@ -476,3 +476,88 @@ it("keeps native form state mounted while a completed message is offscreen", asy
   expect(root.querySelector("input")).toBe(input);
   expect(input.value).toBe("unsaved edit");
 });
+
+// Protect deferred initialization and visited reading state, independently of AST caching.
+it("initializes nested details on first open and keeps visited reading state", async () => {
+  const state = host(
+    "<details><summary>Outer</summary><details><summary>Inner</summary><p>nested reading body</p></details></details>"
+  );
+  await settle();
+  expect(state.renderer().findAll("details")).toHaveLength(1);
+  expect(state.renderer().find("p").exists()).toBe(false);
+  const outer = state.renderer().get("details");
+  (outer.element as HTMLDetailsElement).open = true;
+  await outer.trigger("toggle");
+  const inner = state.renderer().findAll("details")[1];
+  expect(state.renderer().find("p").exists()).toBe(false);
+  (inner.element as HTMLDetailsElement).open = true;
+  await inner.trigger("toggle");
+  const body = inner.get(".details-content").element as HTMLElement;
+  body.scrollTop = 80;
+  (outer.element as HTMLDetailsElement).open = false;
+  await outer.trigger("toggle");
+  (outer.element as HTMLDetailsElement).open = true;
+  await outer.trigger("toggle");
+  expect(state.renderer().findAll(".details-content")[1].element).toBe(body);
+  expect(body.scrollTop).toBe(80);
+  expect((inner.element as HTMLDetailsElement).open).toBe(true);
+});
+
+it("opens default details immediately and reveals the latest deferred source", async () => {
+  const state = host(
+    "<details open><summary>Ready</summary><p>default body</p></details>"
+  );
+  await settle();
+  expect(state.renderer().get("p").text()).toBe("default body");
+  state.text.value =
+    "<details><summary>Later</summary><p>old deferred body</p></details>";
+  await settle();
+  state.text.value =
+    "<details><summary>Later</summary><p>latest deferred body</p></details>";
+  await settle();
+  const details = state.renderer().get("details");
+  (details.element as HTMLDetailsElement).open = true;
+  await details.trigger("toggle");
+  expect(state.renderer().get("p").text()).toBe("latest deferred body");
+});
+
+it("copies unopened nested bodies without expanding them and retains visited state across host recycling", async () => {
+  const writeText = vi.fn(async (_text: string) => {});
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  const state = host(
+    "<details><summary>Outer</summary><p>outer body</p><details><summary>Inner</summary><p>nested body</p></details></details>"
+  );
+  await settle();
+  const content = state.renderer().get(".details-content").element;
+  // jsdom has no rendered innerText; native verification covers that layout-dependent contract.
+  Object.defineProperty(content, "innerText", {
+    get: () => content.textContent,
+  });
+  await state.renderer().get(".details-action-btn").trigger("click");
+  await flushPromises();
+  expect(writeText).toHaveBeenCalledTimes(1);
+  expect(writeText.mock.calls[0][0]).toContain("outer body");
+  expect(writeText.mock.calls[0][0]).toContain("nested body");
+  expect(
+    state
+      .renderer()
+      .findAll("details")
+      .every((d) => !(d.element as HTMLDetailsElement).open)
+  ).toBe(true);
+  state.active.value = false;
+  await settle();
+  state.active.value = true;
+  await settle();
+  expect(
+    state
+      .renderer()
+      .findAll("p")
+      .map((p) => p.text())
+  ).toEqual(["outer body", "nested body"]);
+  expect(
+    state
+      .renderer()
+      .findAll("details")
+      .every((d) => !(d.element as HTMLDetailsElement).open)
+  ).toBe(true);
+});

@@ -22,6 +22,10 @@ export const rendererViewportKey: InjectionKey<
   Readonly<Ref<HTMLElement | null>>
 > = Symbol("renderer-viewport");
 
+/** Explicit detail copy materializes nested bodies without changing their open state. */
+export const rendererDetailsCopyKey: InjectionKey<Readonly<Ref<boolean>>> =
+  Symbol("renderer-details-copy");
+
 interface RendererViewState {
   active: Readonly<Ref<boolean>>;
   nodes: Map<string, Map<string, unknown>>;

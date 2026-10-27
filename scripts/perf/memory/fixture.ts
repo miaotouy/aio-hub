@@ -189,7 +189,9 @@ export function writeMemoryFixture(
   const settings = files["app-settings/settings.json"];
   settings.theme = appearance.theme;
   settings.appearance = appearanceSettings(appearance);
-  // Offline replay agent has no usable channel binding; generation is never driven.
+  // Display replay never sends messages or explicitly starts transcription. Keep the
+  // default transcription settings so passive-preview regressions remain observable.
+  // The synthetic agent binding alone does not prevent attachment preprocessing.
   const agent = files[`agent-manager/agents/${PERF_AGENT_ID}/agent.json`];
   agent.profileId = "perf-glass-profile";
   agent.modelId = "perf-glass-model";

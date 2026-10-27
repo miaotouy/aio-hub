@@ -42,7 +42,6 @@ import { buildPreviewDataFromContext } from "../../core/context-utils/preview-bu
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
-import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
 import { resolveChannelToolHandling } from "@/tools/llm-chat/core/tool-calling/channel-tool-handling";
 import { useToolCallOrchestrator } from "./useToolCallOrchestrator";
@@ -424,53 +423,7 @@ export function useChatExecutor() {
     );
     pipelineContext.sharedData.set("isPreviewMode", true);
 
-    const transcriptionManager = useTranscriptionManager();
-    const allAttachments = pathToUserNode.flatMap(
-      (node) => node.attachments || []
-    );
-
-    if (allAttachments.length > 0) {
-      try {
-        const forceAssetIds = new Set<string>();
-        const config = settings.value.transcription;
-        if (
-          config.enabled &&
-          config.strategy === "smart" &&
-          config.forceTranscriptionAfter > 0
-        ) {
-          for (let i = 0; i < pathToUserNode.length; i++) {
-            const node = pathToUserNode[i];
-            const nodeDepth = pathToUserNode.length - 1 - i;
-            if (
-              nodeDepth >= config.forceTranscriptionAfter &&
-              node.attachments
-            ) {
-              for (const asset of node.attachments) {
-                if (
-                  asset.type === "image" ||
-                  asset.type === "audio" ||
-                  asset.type === "video"
-                ) {
-                  forceAssetIds.add(asset.id);
-                }
-              }
-            }
-          }
-        }
-        const updatedAssetsMap =
-          await transcriptionManager.ensureTranscriptions(
-            allAttachments,
-            effectiveModelId,
-            effectiveProfileId,
-            forceAssetIds.size > 0 ? forceAssetIds : undefined
-          );
-        pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
-      } catch (error) {
-        const fallbackMap = new Map<string, Asset>();
-        for (const asset of allAttachments) fallbackMap.set(asset.id, asset);
-        pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
-      }
-    }
+    // 预览沿用管线读取已有转写；任务创建和等待留给发送及显式转写操作。
 
     const contextPipelineStore = useContextPipelineStore();
     await contextPipelineStore.executePipeline(pipelineContext);

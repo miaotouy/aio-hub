@@ -270,3 +270,8 @@ bun run test:run -- scripts/perf/memory/memory.test.ts scripts/perf/resources.te
 ## 15. 文本节点显示层压平（2026-10-28）
 
 相同可读 branches、特效关闭独立进程对照，移除每段文本内部的额外函数组件后，活动页 GC 页面堆 176.64 → 170.23 MiB，减少约 6.41 MiB；最终首页 111.00 → 110.92 MiB。56 份渲染器共 87,812 个字符逐项相同，DOM、监听器与滚动位置保持原水平。底部返回双 rAF 652.4 → 654.1ms，时延暂未显示改善。本轮未追加整应用内存矩阵。后续聚焦活动页历史富文本显示树的挂载范围，详见[专项记录第 13 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md)。
+
+
+## 16. 活动页回收范围与行高保持（2026-10-28）
+
+原生可读 branches 初始 56 份 renderer 中仅 12 份有有效尺寸；按动态滚动总高度完整遍历后，51 份有尺寸，底部屏外已测显示树含 65,956 个节点。显示树重建触发的行高缓存清除已修复：完整浏览后往返首页，总高度从修改前 141,758 → 25,047px，变为修改后保持 141,758px；51 个行壳占位高度均保持。该轮验证几何契约，内存收益待实际显示树回收后测量。独立部分跳读仍出现 154px 阅读偏移，下一轮优先处理消息相对锚点。口径与产物见[专项记录第 14 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md)。

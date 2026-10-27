@@ -451,7 +451,8 @@ export function useMessageHeights(options: Options) {
         if (slot && !isLive(slot)) touched.add(slot);
       }
       for (const slot of touched) {
-        cache.invalidate(keyFor(slot).id);
+        // DOM 回收、恢复及异步节点更新沿用上次实测高度，待有效的 ResizeObserver 校准。
+        // 内容、外观和宽度变化由 keyFor 区分；仅子树变化时退回通用占位会破坏历史定位。
         schedule(slot);
         if (!slot.skipped || isEager(slot)) observe(slot);
       }

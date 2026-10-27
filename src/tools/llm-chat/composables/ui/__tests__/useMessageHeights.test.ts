@@ -32,7 +32,7 @@ vi.mock("@/utils/logger", () => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe("消息占位与实际高度切换", () => {
-  it("保留可见时的实测值，忽略屏外占位回调，尺寸变化后重新测量，生成期间保持实时布局", async () => {
+  it("显示子树重建时保留实测行高，正文和尺寸变化后重新测量，生成期间保持实时布局", async () => {
     const frames = new Map<number, FrameRequestCallback>();
     let frameId = 0;
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
@@ -87,6 +87,7 @@ describe("消息占位与实际高度切换", () => {
       status: "complete",
       content: "**复杂富文本**",
     });
+    const displayMounted = ref(true);
     const host = document.createElement("div");
     document.body.append(host);
     const app = createApp(
@@ -123,7 +124,11 @@ describe("消息占位与实际高度切换", () => {
           return () =>
             h("div", { ref: container }, [
               withDirectives(
-                h("div", { class: "message-slot" }, message.value.content),
+                h("div", { class: "message-slot" }, [
+                  displayMounted.value
+                    ? h("article", message.value.content)
+                    : null,
+                ]),
                 [[vMessageSize, { message: message.value, eager: false }]]
               ),
             ]);
@@ -158,6 +163,24 @@ describe("消息占位与实际高度切换", () => {
       deliver(slot, 600, 500);
       await flush();
       expect(height()).toBe(499.625);
+
+      // 回收 / 重建显示子树期间，保留上一份实测行高；等待有效的新测量校准。
+      displayMounted.value = false;
+      await nextTick();
+      await flush();
+      expect(height()).toBe(499.625);
+      displayMounted.value = true;
+      await nextTick();
+      await flush();
+      expect(height()).toBe(499.625);
+      visibility(false);
+      deliver(slot, 600, 720.25);
+      await flush();
+      expect(height()).toBe(720.25);
+
+      message.value.content += "\n\n新段落";
+      await flush();
+      expect(height()).toBe(500);
 
       deliver(container, 320, 500);
       await flush();

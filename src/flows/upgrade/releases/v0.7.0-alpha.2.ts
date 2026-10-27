@@ -19,17 +19,16 @@ export const releaseNoteV070Alpha2: ReleaseNoteManifest = {
   version: "0.7.0-alpha.2",
   revision: 1,
   channel: "prerelease",
-  title: "LLM 执行路由与消息状态细化",
+  title: "模型协议配置与聊天等待状态",
   summary:
-    "模型执行路由支持手工分配并应用探测结果，消息新增等待中阶段，聚合渠道与默认协议路由落地。",
+    "模型执行协议可以手动指定或应用探测结果，聚合渠道支持默认协议设置。聊天新增「等待中」状态，并修复自定义 CSS 启动时未生效的问题。",
   publishedAt: "2026-08-15",
   body,
   highlights: [
-    "模型执行路由手工分配与探测结果应用",
-    "聚合渠道类型与渠道级默认协议路由",
-    "聊天消息新增等待中阶段",
-    "appVersion 宏补充应用版本信息",
-    "DeepSeek V4 思考控制与话题命名对齐",
+    "模型执行协议可以手动指定",
+    "聚合渠道可以设置默认协议",
+    "消息排队与等待状态更容易分辨",
+    "提示词可用 appVersion 宏引用应用版本",
   ],
   unknownBaselinePolicy: "show-current",
 };

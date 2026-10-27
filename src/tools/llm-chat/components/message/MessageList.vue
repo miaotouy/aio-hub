@@ -38,7 +38,10 @@ import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import { useMessageScrollAnchor } from "../../composables/ui/useMessageScrollAnchor";
 import { useMessageHeights } from "../../composables/ui/useMessageHeights";
 import ChatMessage from "./ChatMessage.vue";
-import { rendererHostActiveKey } from "@/tools/rich-text-renderer/composables/useRendererViewState";
+import {
+  rendererHostActiveKey,
+  rendererViewportKey,
+} from "@/tools/rich-text-renderer/composables/useRendererViewState";
 import CompressionMessage from "./CompressionMessage.vue";
 import ToolCallMessage from "./ToolCallMessage.vue";
 import MessageExternalAvatar from "./MessageExternalAvatar.vue";
@@ -143,6 +146,7 @@ const guardedStore = new Proxy(store, {
 
 // 容器引用
 const messagesContainer = ref<HTMLElement | null>(null);
+provide(rendererViewportKey, messagesContainer);
 const messagesInnerContainer = ref<HTMLElement | null>(null);
 const {
   suspend: suspendScrollAnchor,

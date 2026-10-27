@@ -116,6 +116,7 @@
       class="mermaid-container"
       :class="{ expanded: isExpanded }"
       ref="containerRef"
+      :style="restorePlaceholderStyle"
     >
       <!-- 错误状态：只有在稳定状态下的错误才显示 -->
       <div v-if="error && nodeStatus === 'stable'" class="mermaid-error">
@@ -163,7 +164,10 @@
 </template>
 
 <script setup lang="ts">
-import { useRendererNodeState } from "../../composables/useRendererViewState";
+import {
+  useRendererNodeState,
+  rendererViewportKey,
+} from "../../composables/useRendererViewState";
 import {
   ref,
   computed,
@@ -173,6 +177,7 @@ import {
   nextTick,
   useAttrs,
   inject,
+  type Ref,
 } from "vue";
 
 // 禁用属性继承以避免警告
@@ -333,6 +338,98 @@ const isRendering = ref(false);
 const hasRendered = ref(false); // 是否至少成功渲染过一次
 const lastRenderId = ref(0); // 用于并发控制
 
+// 已显示过的静态图表按原高度占位，返回时仅在接近视口后重建 SVG。
+// 首次显示、流式内容和截图渲染沿用立即渲染。
+const RESTORE_MARGIN = 600;
+const retainedHeight = viewState.ref<number | null>("height", null);
+const waitingForViewport = ref(
+  viewState.restored && retainedHeight.value !== null
+);
+const screenshotMode = inject<Readonly<Ref<boolean>>>(
+  "screenshotMode",
+  ref(false)
+);
+const deferRestore = computed(
+  () =>
+    waitingForViewport.value &&
+    nodeStatus.value === "stable" &&
+    !context?.isStreaming?.value &&
+    !screenshotMode.value
+);
+const restorePlaceholderStyle = computed(() =>
+  !hasRendered.value && !error.value && retainedHeight.value !== null
+    ? {
+        height: retainedHeight.value + "px",
+        maxHeight: "none",
+        boxSizing: "border-box" as const,
+      }
+    : undefined
+);
+// content-visibility 跳过的后代可能收不到 ResizeObserver 通知；
+// 成功显示后主动记一次 border-box，后续尺寸变化由观察器更新。
+function rememberHeight() {
+  if (
+    !hasRendered.value ||
+    error.value ||
+    nodeStatus.value !== "stable" ||
+    !containerRef.value?.isConnected
+  )
+    return;
+  const height = containerRef.value.getBoundingClientRect().height;
+  if (height > 0) retainedHeight.value = height;
+}
+
+let visibilityObserver: IntersectionObserver | undefined;
+let sizeObserver: ResizeObserver | undefined;
+let restoreFrame: number | undefined;
+const viewport = inject(rendererViewportKey, undefined);
+
+// Observer delivery may wait for the next interactive frame in a background WebView.
+// Check after layout and scroll/resize changes so reading diagrams are ready without input.
+function checkRestoredViewport() {
+  restoreFrame = undefined;
+  if (isUnmounted || !waitingForViewport.value || !containerRef.value) return;
+  const root = viewport?.value;
+  const area = root?.getBoundingClientRect() ?? {
+    top: 0,
+    bottom: innerHeight,
+    left: 0,
+    right: innerWidth,
+  };
+  const box = containerRef.value.getBoundingClientRect();
+  if (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.bottom > area.top - RESTORE_MARGIN &&
+    box.top < area.bottom + RESTORE_MARGIN &&
+    box.right > area.left &&
+    box.left < area.right
+  ) {
+    void resumeDiagram();
+  }
+}
+
+function scheduleViewportCheck() {
+  if (!isUnmounted && waitingForViewport.value && restoreFrame === undefined) {
+    restoreFrame = requestAnimationFrame(checkRestoredViewport);
+  }
+}
+
+function stopViewportTracking() {
+  if (restoreFrame !== undefined) cancelAnimationFrame(restoreFrame);
+  restoreFrame = undefined;
+  visibilityObserver?.disconnect();
+  visibilityObserver = undefined;
+  window.removeEventListener("scroll", scheduleViewportCheck, true);
+  window.removeEventListener("resize", scheduleViewportCheck);
+}
+
+function resumeDiagram() {
+  waitingForViewport.value = false;
+  stopViewportTracking();
+  return renderDiagram();
+}
+
 // 缩放控制
 const scaleMin = 0.5;
 const scaleMax = 2.0;
@@ -386,6 +483,7 @@ const applyScale = () => {
   if (svg) {
     // zoom 同步改变布局尺寸，让滚动范围覆盖完整图表。
     svg.style.setProperty("--mermaid-scale", String(currentScale.value));
+    rememberHeight();
   }
 };
 
@@ -426,6 +524,7 @@ const downloadSvg = () => {
 const toggleExpand = async () => {
   isExpanded.value = !isExpanded.value;
   await nextTick();
+  rememberHeight();
 };
 
 // 打开交互式查看器
@@ -481,6 +580,9 @@ const renderDiagramWithContent = async (
       // 标记渲染成功
       hasRendered.value = true;
       error.value = ""; // 只有成功了才清空错误
+      await nextTick();
+      if (!isCurrent()) return { success: false };
+      rememberHeight();
     }
 
     return { success: true };
@@ -491,7 +593,7 @@ const renderDiagramWithContent = async (
 
 // 渲染图表（带自动修复机制）
 const renderDiagram = async () => {
-  if (isUnmounted || !rendererReady) return;
+  if (isUnmounted || !rendererReady || deferRestore.value) return;
 
   // 记录当前的渲染 ID，用于并发控制
   const currentRenderId = ++lastRenderId.value;
@@ -648,6 +750,11 @@ const renderDiagram = async () => {
 watch(isDark, async () => {
   if (rendererReady) await renderDiagram();
 });
+watch([screenshotMode, () => context?.isStreaming?.value], () => {
+  if (rendererReady && waitingForViewport.value && !deferRestore.value) {
+    void resumeDiagram();
+  }
+});
 
 // 监听内容和状态变化
 watch(
@@ -663,23 +770,62 @@ watch(
 
     // 只要内容变化就尝试渲染，不再限制状态
     if (newContent !== oldContent || newStatus !== oldStatus) {
-      await renderDiagram();
+      await resumeDiagram();
     }
   }
 );
 
 onMounted(() => {
   rendererReady = true;
-  void renderDiagram();
-  // 消除 containerRef 未使用的警告
-  if (containerRef.value) {
-    // no-op
+  if (containerRef.value && typeof ResizeObserver !== "undefined") {
+    sizeObserver = new ResizeObserver(([entry]) => {
+      if (
+        !entry ||
+        !hasRendered.value ||
+        error.value ||
+        nodeStatus.value !== "stable" ||
+        !entry.target.isConnected
+      )
+        return;
+      const height =
+        entry.borderBoxSize?.[0]?.blockSize ??
+        entry.target.getBoundingClientRect().height;
+      if (height > 0) retainedHeight.value = height;
+    });
+    sizeObserver.observe(containerRef.value, { box: "border-box" });
+  }
+  if (
+    deferRestore.value &&
+    containerRef.value &&
+    typeof IntersectionObserver !== "undefined"
+  ) {
+    visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && !isUnmounted) void resumeDiagram();
+      },
+      // scrollMargin 扩大消息滚动容器的预热区；旧运行时仍可在进入视口时恢复。
+      {
+        rootMargin: `${RESTORE_MARGIN}px`,
+        scrollMargin: `${RESTORE_MARGIN}px`,
+      } as IntersectionObserverInit
+    );
+    visibilityObserver.observe(containerRef.value);
+    window.addEventListener("scroll", scheduleViewportCheck, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", scheduleViewportCheck, { passive: true });
+    scheduleViewportCheck();
+  } else {
+    void resumeDiagram();
   }
 });
 
 onBeforeUnmount(() => {
   isUnmounted = true;
   lastRenderId.value++;
+  stopViewportTracking();
+  sizeObserver?.disconnect();
 
   if (hoverTimer) {
     clearTimeout(hoverTimer);

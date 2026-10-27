@@ -14,6 +14,11 @@ import {
 export const rendererHostActiveKey: InjectionKey<Readonly<Ref<boolean>>> =
   Symbol("renderer-host-active");
 
+/** Scroll viewport used to warm restored blocks before they enter the reading area. */
+export const rendererViewportKey: InjectionKey<
+  Readonly<Ref<HTMLElement | null>>
+> = Symbol("renderer-viewport");
+
 interface RendererViewState {
   active: Readonly<Ref<boolean>>;
   nodes: Map<string, Map<string, unknown>>;

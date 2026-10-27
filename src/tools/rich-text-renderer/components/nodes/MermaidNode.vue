@@ -196,6 +196,7 @@ import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fixMermaidCode } from "@/utils/mermaidFixer";
+import { renderMermaid } from "../../utils/mermaidRuntime";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
@@ -307,7 +308,7 @@ const activeContent = computed(() => {
 const toggleOriginal = async () => {
   showOriginal.value = !showOriginal.value;
   // 切换后重新渲染
-  if (mermaid) {
+  if (rendererReady) {
     await renderDiagram();
   }
 };
@@ -339,7 +340,7 @@ const scaleStep = 0.1;
 const defaultScale = 1.0;
 const currentScale = viewState.ref("currentScale", 1.0);
 
-let mermaid: any = null;
+let rendererReady = false;
 let renderCleanup: (() => void) | null = null;
 
 // 复制代码
@@ -439,17 +440,21 @@ const openViewer = () => {
 const renderDiagramWithContent = async (
   content: string
 ): Promise<{ success: boolean; error?: any }> => {
-  if (isUnmounted || !mermaid || !mermaidRef.value) return { success: false };
+  if (isUnmounted || !rendererReady || !mermaidRef.value)
+    return { success: false };
 
   const currentRenderId = lastRenderId.value;
-  const id = `mermaid-${props.nodeId}-${currentRenderId}`;
+  const isCurrent = () =>
+    !isUnmounted && currentRenderId === lastRenderId.value;
 
   try {
-    const { svg } = await mermaid.render(id, content);
-
-    // 检查并发
-    if (isUnmounted || currentRenderId !== lastRenderId.value)
-      return { success: false };
+    const result = await renderMermaid({
+      content,
+      dark: isDark.value,
+      isCurrent,
+    });
+    if (!result || !isCurrent()) return { success: false };
+    const { svg } = result;
 
     // 渲染成功，清理之前的状态
     if (renderCleanup) {
@@ -463,6 +468,7 @@ const renderDiagramWithContent = async (
 
       // 应用当前缩放
       await nextTick();
+      if (!isCurrent()) return { success: false };
       applyScale();
 
       // 保存清理函数
@@ -485,11 +491,10 @@ const renderDiagramWithContent = async (
 
 // 渲染图表（带自动修复机制）
 const renderDiagram = async () => {
-  if (isUnmounted || !mermaid) return;
+  if (isUnmounted || !rendererReady) return;
 
   // 记录当前的渲染 ID，用于并发控制
-  const currentRenderId = Date.now();
-  lastRenderId.value = currentRenderId;
+  const currentRenderId = ++lastRenderId.value;
 
   try {
     isRendering.value = true;
@@ -515,6 +520,7 @@ const renderDiagram = async () => {
     if (showOriginal.value) {
       const { success, error: renderError } =
         await renderDiagramWithContent(contentToRender);
+      if (isUnmounted || currentRenderId !== lastRenderId.value) return;
       if (!success && nodeStatus.value === "stable") {
         error.value =
           renderError instanceof Error
@@ -638,67 +644,16 @@ const renderDiagram = async () => {
   }
 };
 
-// 初始化 Mermaid
-const initMermaid = async () => {
-  try {
-    // 动态导入 Mermaid
-    const mermaidModule = await import("mermaid");
-    if (isUnmounted) return;
-    mermaid = mermaidModule.default;
-
-    // 初始化配置
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: isDark.value ? "dark" : "default",
-      securityLevel: "loose",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      themeVariables: {
-        fontSize: "14px",
-      },
-    });
-
-    // 渲染图表
-    await renderDiagram();
-  } catch (err) {
-    errorHandler.handle(err, {
-      userMessage: "Mermaid 初始化失败",
-      showToUser: false,
-    });
-    error.value = "Mermaid 库加载失败";
-  }
-};
-
-// 监听主题变化
-watch(isDark, async (dark) => {
-  if (!mermaid) return;
-
-  try {
-    // 更新主题配置
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: dark ? "dark" : "default",
-      securityLevel: "loose",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      themeVariables: {
-        fontSize: "14px",
-      },
-    });
-
-    // 重新渲染
-    await renderDiagram();
-  } catch (err) {
-    errorHandler.handle(err, {
-      userMessage: "主题切换失败",
-      showToUser: false,
-    });
-  }
+// 主题配置与对应的渲染任务由共享运行时串行处理。
+watch(isDark, async () => {
+  if (rendererReady) await renderDiagram();
 });
 
 // 监听内容和状态变化
 watch(
   [() => props.content, () => attrs["data-node-status"]],
   async ([newContent, newStatus], [oldContent, oldStatus]) => {
-    if (!mermaid) return;
+    if (!rendererReady) return;
 
     // 内容变化时，重置修复状态和显示原始状态
     if (newContent !== oldContent) {
@@ -714,7 +669,8 @@ watch(
 );
 
 onMounted(() => {
-  initMermaid();
+  rendererReady = true;
+  void renderDiagram();
   // 消除 containerRef 未使用的警告
   if (containerRef.value) {
     // no-op
@@ -723,7 +679,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   isUnmounted = true;
-  lastRenderId.value = Date.now();
+  lastRenderId.value++;
 
   if (hoverTimer) {
     clearTimeout(hoverTimer);
@@ -740,7 +696,7 @@ onBeforeUnmount(() => {
   if (mermaidRef.value) {
     mermaidRef.value.innerHTML = "";
   }
-  mermaid = null;
+  rendererReady = false;
 });
 </script>
 

@@ -14,6 +14,7 @@ import {
 } from "vue";
 import {
   rendererReadingScopeKey,
+  rendererRowGeometryKey,
   rendererLayoutRevisionKey,
   provideRendererReadingInteraction,
 } from "../../composables/useRendererDisplay";
@@ -64,6 +65,7 @@ function host(
     version?: RendererVersion;
     nearby?: Ref<boolean>;
     layoutRevision?: Ref<string>;
+    rowGeometry?: boolean;
   } = {
     suspendOnDeactivate: true,
   }
@@ -86,6 +88,7 @@ function host(
   wrapper = mount(
     defineComponent({
       setup() {
+        if (options.rowGeometry) provide(rendererRowGeometryKey, true);
         if (options.nearby) {
           provide(rendererReadingScopeKey, options.nearby);
           provideRendererReadingInteraction(active);
@@ -560,4 +563,31 @@ it("copies unopened nested bodies without expanding them and retains visited sta
       .findAll("details")
       .every((d) => !(d.element as HTMLDetailsElement).open)
   ).toBe(true);
+});
+
+// Unknown row geometry stays with the outer list; display initialization follows actual reading intent.
+it("defers unmeasured history under a reserved row shell and reveals current source on demand", async () => {
+  const nearby = ref(false);
+  const state = host("- unseen", {
+    suspendOnDeactivate: true,
+    nearby,
+    rowGeometry: true,
+  });
+  await settle();
+  expect(state.renderer().find("li").exists()).toBe(false);
+  state.text.value = "- updated while unseen";
+  await settle();
+  expect(state.renderer().find("li").exists()).toBe(false);
+  nearby.value = true;
+  await settle();
+  expect(state.renderer().get("li").text()).toBe("updated while unseen");
+  state.active.value = false;
+  nearby.value = false;
+  await settle();
+  state.active.value = true;
+  await settle();
+  expect(state.renderer().find("li").exists()).toBe(false);
+  nearby.value = true;
+  await settle();
+  expect(state.renderer().get("li").text()).toBe("updated while unseen");
 });

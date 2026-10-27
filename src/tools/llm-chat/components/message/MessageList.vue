@@ -80,7 +80,7 @@ const scopedSessionId = computed(() => props.scopeSessionId ?? null);
 const pendingInitialScroll = ref(false);
 const listActive = ref(true);
 provide(rendererHostActiveKey, listActive);
-provideRendererReadingInteraction(listActive);
+const readingInteraction = provideRendererReadingInteraction(listActive);
 onDeactivated(() => {
   listActive.value = false;
   suspendScrollAnchor();
@@ -159,12 +159,15 @@ const readingArea = provideMessageReadingArea({
   viewport: messagesContainer,
   rows: messagesInnerContainer,
   active: listActive,
+  all: () => !!props.screenshotMode || readingInteraction.selection.value,
+  focus: readingInteraction.focus,
 });
 const {
   suspend: suspendScrollAnchor,
   resume: resumeScrollAnchor,
   cancelResume,
   rememberReadingAnchor,
+  navigateToMessage,
   shouldStickToBottom,
   isNearBottom,
   onScroll: updateScrollAnchor,
@@ -198,6 +201,7 @@ const getMessageAreaWidth = (): number => {
 };
 
 const { vMessageSize, layoutRevision } = useMessageHeights({
+  readingArea,
   container: messagesInnerContainer,
   preferences: () => settings.value.uiPreferences,
   appearance: () => [
@@ -316,22 +320,20 @@ const scrollToTop = () => {
     messagesContainer.value.scrollTo({ top: 0, behavior: "smooth" });
   }
 };
+// Row shells keep navigable geometry while their content is outside the reading range.
+const getMessageSlot = (id: string) => {
+  const index = props.messages.findIndex((message) => message.id === id);
+  return messagesInnerContainer.value?.children[index] as
+    HTMLElement | undefined;
+};
+
+const MESSAGE_NAVIGATION_OFFSET = 120;
+
 // 滚动到指定消息
 const scrollToMessageId = (id: string) => {
-  pauseFollowing();
-  const container = messagesContainer.value;
-  if (!container) return;
-  const messageEl = container.querySelector(
-    `[data-message-id="${id}"]`
-  ) as HTMLElement;
-  if (messageEl) {
-    const containerRect = container.getBoundingClientRect();
-    const messageRect = messageEl.getBoundingClientRect();
-    const targetScrollTop =
-      container.scrollTop + (messageRect.top - containerRect.top) - 120; // 120是padding-top
-    const maxScroll = container.scrollHeight - container.clientHeight;
-    const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
-    container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
+  if (getMessageSlot(id)) {
+    navigateToMessage({ id, offset: MESSAGE_NAVIGATION_OFFSET });
+    readingArea.refresh();
   }
 };
 
@@ -341,25 +343,22 @@ const scrollToNext = () => {
   if (!messagesContainer.value) return;
 
   const container = messagesContainer.value;
-  const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+  const messageEls = Array.from(
+    messagesInnerContainer.value?.children ?? []
+  ).filter((row) => !!row.querySelector(".chat-message"));
   const containerRect = container.getBoundingClientRect();
 
   const nextMsg = messageEls.find((el) => {
     const rect = el.getBoundingClientRect();
-    // 寻找第一个顶部在视口中心下方的消息，或者底部在视口下方的消息
-    return (
-      rect.top > containerRect.top + containerRect.height / 2 ||
-      rect.bottom > containerRect.bottom + 10
-    );
+    // 长消息底部可能仍在屏外；下一条从阅读对齐线之后的行开始。
+    return rect.top > containerRect.top + MESSAGE_NAVIGATION_OFFSET + 1;
   }) as HTMLElement;
 
   if (nextMsg) {
-    const rect = nextMsg.getBoundingClientRect();
-    const targetScrollTop =
-      container.scrollTop + (rect.top - containerRect.top) - 120;
-    const maxScroll = container.scrollHeight - container.clientHeight;
-    const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
-    container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
+    const id = nextMsg
+      .querySelector(".chat-message")
+      ?.getAttribute("data-message-id");
+    if (id) scrollToMessageId(id);
   }
 };
 
@@ -369,7 +368,9 @@ const scrollToPrev = () => {
   if (!messagesContainer.value) return;
 
   const container = messagesContainer.value;
-  const messageEls = Array.from(container.querySelectorAll(".chat-message"));
+  const messageEls = Array.from(
+    messagesInnerContainer.value?.children ?? []
+  ).filter((row) => !!row.querySelector(".chat-message"));
   const containerRect = container.getBoundingClientRect();
 
   const prevMsg = [...messageEls].reverse().find((el) => {
@@ -379,12 +380,10 @@ const scrollToPrev = () => {
   }) as HTMLElement;
 
   if (prevMsg) {
-    const rect = prevMsg.getBoundingClientRect();
-    const targetScrollTop =
-      container.scrollTop + (rect.top - containerRect.top) - 120;
-    const maxScroll = container.scrollHeight - container.clientHeight;
-    const clampedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScroll));
-    container.scrollTo({ top: clampedScrollTop, behavior: "smooth" });
+    const id = prevMsg
+      .querySelector(".chat-message")
+      ?.getAttribute("data-message-id");
+    if (id) scrollToMessageId(id);
   }
 };
 
@@ -585,9 +584,7 @@ const captureSwitchingMessagePosition = (messageId: string) => {
   const container = messagesContainer.value;
   if (!container) return;
 
-  const messageEl = container.querySelector(
-    `[data-message-id="${messageId}"]`
-  ) as HTMLElement;
+  const messageEl = getMessageSlot(messageId);
   if (!messageEl) return;
 
   const containerRect = container.getBoundingClientRect();
@@ -608,9 +605,7 @@ const restoreSwitchingMessagePosition = () => {
   const container = messagesContainer.value;
   if (!container) return;
 
-  const messageEl = container.querySelector(
-    `[data-message-id="${switchingMessageId.value}"]`
-  ) as HTMLElement;
+  const messageEl = getMessageSlot(switchingMessageId.value);
 
   if (!messageEl) return;
 

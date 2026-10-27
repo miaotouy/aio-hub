@@ -10,7 +10,10 @@ import {
   watch,
   type Ref,
 } from "vue";
-import { rendererReadingAreaKey } from "@/tools/rich-text-renderer/composables/useRendererDisplay";
+import {
+  rendererReadingAreaKey,
+  type RendererReadingArea,
+} from "@/tools/rich-text-renderer/composables/useRendererDisplay";
 
 const READING_MARGIN = 600;
 
@@ -19,6 +22,8 @@ export function provideMessageReadingArea(options: {
   viewport: Ref<HTMLElement | null>;
   rows: Ref<HTMLElement | null>;
   active: Readonly<Ref<boolean>>;
+  all?: () => boolean;
+  focus?: Readonly<Ref<Element | null>>;
 }) {
   const entries = new Map<
     HTMLElement,
@@ -45,18 +50,22 @@ export function provideMessageReadingArea(options: {
       if (rows[mid].getBoundingClientRect().bottom < startY) low = mid + 1;
       else high = mid;
     }
-    const visible = new Set<Element>();
+    const visible = new Set<Element>([rows[rows.length - 1]]);
     for (let index = low; index < rows.length; index++) {
       const row = rows[index];
       if (row.getBoundingClientRect().top > endY) break;
       visible.add(row);
     }
     for (const entry of entries.values())
-      entry.nearby.value = visible.has(entry.row);
+      entry.nearby.value =
+        !!options.all?.() ||
+        visible.has(entry.row) ||
+        (!!options.focus?.value && entry.row.contains(options.focus.value));
   }
-  provide(rendererReadingAreaKey, {
+  const area: RendererReadingArea = {
+    reservesRowGeometry: true,
     register(element) {
-      const nearby = ref(true);
+      const nearby = ref(!!options.all?.());
       const stop = watch(
         element,
         (value, old) => {
@@ -76,15 +85,26 @@ export function provideMessageReadingArea(options: {
       });
       return nearby;
     },
-  });
-  watch([options.viewport, options.rows, options.active], refresh, {
-    flush: "post",
-  });
+  };
+  provide(rendererReadingAreaKey, area);
+  watch(
+    [
+      options.viewport,
+      options.rows,
+      options.active,
+      () => options.all?.(),
+      () => options.focus?.value,
+    ],
+    refresh,
+    {
+      flush: "post",
+    }
+  );
   onMounted(() => window.addEventListener("resize", refresh));
   onBeforeUnmount(() => {
     window.removeEventListener("resize", refresh);
     if (frame !== undefined) cancelAnimationFrame(frame);
     entries.clear();
   });
-  return { refresh };
+  return { ...area, refresh };
 }

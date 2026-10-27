@@ -84,6 +84,7 @@ import { useMessageHeightSource } from "../../composables/ui/useMessageHeightSou
 import {
   rendererReadingAreaKey,
   rendererReadingScopeKey,
+  rendererRowGeometryKey,
 } from "@/tools/rich-text-renderer/composables/useRendererDisplay";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
@@ -902,6 +903,7 @@ const messageBoundStyleOptions = computed(() => {
 // ----- 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM -----
 const readingArea = inject(rendererReadingAreaKey, undefined);
 const isInViewport = readingArea?.register(containerRef) ?? ref(true);
+provide(rendererRowGeometryKey, !!readingArea?.reservesRowGeometry);
 if (!readingArea) {
   useIntersectionObserver(
     containerRef,

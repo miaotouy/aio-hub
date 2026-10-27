@@ -42,11 +42,14 @@ import {
   type MessageHeightSource,
 } from "./useMessageHeightSource";
 
+import type { RendererReadingArea } from "@/tools/rich-text-renderer/composables/useRendererDisplay";
+
 interface SlotBinding {
   message: ChatMessageNode;
   eager: boolean;
 }
 interface Options {
+  readingArea?: RendererReadingArea;
   container: Ref<HTMLElement | null>;
   preferences: () => Pick<
     ChatSettings["uiPreferences"],
@@ -62,6 +65,7 @@ interface Slot {
   scope: ReturnType<typeof effectScope>;
   revision: string;
   skipped: boolean | undefined;
+  nearby?: Ref<boolean>;
   placeholder: number;
   onVisibility: EventListener;
 }
@@ -241,7 +245,7 @@ export function useMessageHeights(options: Options) {
     const eager = isEager(slot);
     slot.element.style.setProperty(
       "content-visibility",
-      eager ? "visible" : "auto",
+      eager ? "visible" : slot.nearby?.value === false ? "hidden" : "auto",
       "important"
     );
     let height = eager ? undefined : cache.read(keyFor(slot));
@@ -333,8 +337,19 @@ export function useMessageHeights(options: Options) {
       "contentvisibilityautostatechange",
       slot.onVisibility
     );
-    scope.run(() =>
-      watch(
+    scope.run(() => {
+      if (options.readingArea) {
+        slot.nearby = options.readingArea.register(shallowRef(element));
+        watch(
+          slot.nearby,
+          () => {
+            schedule(slot);
+            if (active) observe(slot);
+          },
+          { immediate: true, flush: "post" }
+        );
+      }
+      return watch(
         () => {
           const message = slot.binding.value.message;
           // 生成期间不监听 token 内容，也不准备文本或写实测缓存。
@@ -369,8 +384,8 @@ export function useMessageHeights(options: Options) {
           if (active) observe(slot);
         },
         { deep: true, immediate: true, flush: "post" }
-      )
-    );
+      );
+    });
     if (active) observe(slot);
   }
 

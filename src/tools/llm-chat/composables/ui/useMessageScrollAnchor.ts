@@ -152,6 +152,17 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     container.scrollTop = container.scrollHeight;
   };
 
+  /** Explicit navigation keeps its target stable while previously skipped rows resolve. */
+  const navigateToMessage = (anchor: ReadingAnchor) => {
+    const container = options.container.value;
+    if (!container || !active) return;
+    pauseFollowing();
+    readingAnchor = anchor;
+    resumeAnchor = anchor;
+    resumeTop = container.scrollTop;
+    followBottom();
+  };
+
   const suspend = () => {
     active = false;
   };
@@ -170,6 +181,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     resume,
     cancelResume,
     rememberReadingAnchor,
+    navigateToMessage,
     shouldStickToBottom,
     isNearBottom,
     lastKnownScrollTop,

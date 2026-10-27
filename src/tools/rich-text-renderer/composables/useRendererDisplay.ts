@@ -15,6 +15,7 @@ import {
 } from "vue";
 
 export interface RendererReadingArea {
+  reservesRowGeometry?: boolean;
   register(element: Ref<HTMLElement | null>): Ref<boolean>;
 }
 export const rendererReadingAreaKey: InjectionKey<RendererReadingArea> = Symbol(
@@ -24,6 +25,10 @@ export const rendererReadingScopeKey: InjectionKey<Readonly<Ref<boolean>>> =
   Symbol("renderer-reading-scope");
 export const rendererLayoutRevisionKey: InjectionKey<Readonly<Ref<string>>> =
   Symbol("renderer-layout-revision");
+/** The row shell owns occupied geometry, including content that has never been displayed. */
+export const rendererRowGeometryKey: InjectionKey<boolean> = Symbol(
+  "renderer-row-geometry"
+);
 interface ReadingInteraction {
   selection: Ref<boolean>;
   focus: Ref<Element | null>;
@@ -70,13 +75,14 @@ export function provideRendererReadingInteraction(
     },
     { immediate: true, flush: "sync" }
   );
+  return state;
 }
 
 const EMBEDDED_STATE =
   'iframe, video, audio, .video-node-container, .audio-node-container, input, textarea, select, [contenteditable="true"]:not(.cm-content), details:not(.details-node), canvas, object, embed';
 const RECYCLE_DELAY = 300;
 
-/** Keep source/parser ownership; dispose only measured, quiet display trees outside the reading area. */
+/** Keep source/parser ownership; defer quiet display trees when measured or protected by row geometry. */
 export function useRendererDisplay(options: {
   root: Ref<HTMLElement | null>;
   hostActive: Readonly<Ref<boolean>>;
@@ -88,7 +94,8 @@ export function useRendererDisplay(options: {
   const nearby = inject(rendererReadingScopeKey, undefined);
   const layoutRevision = inject(rendererLayoutRevisionKey, undefined);
   const interaction = inject(interactionKey, undefined);
-  const suspended = ref(false);
+  const rowGeometry = inject(rendererRowGeometryKey, false);
+  const suspended = ref(rowGeometry);
   const measured = ref(false);
   const height = ref(0);
   const keepEmbedded = ref(false);
@@ -110,7 +117,7 @@ export function useRendererDisplay(options: {
       keepEmbedded.value ||
       (options.hostActive.value &&
         (!suspended.value ||
-          !measured.value ||
+          (!measured.value && !rowGeometry) ||
           !!nearby?.value ||
           protectedReading.value))
   );
@@ -119,7 +126,7 @@ export function useRendererDisplay(options: {
       options.enabled() &&
       !!nearby &&
       !nearby.value &&
-      measured.value &&
+      (measured.value || rowGeometry) &&
       options.hostActive.value &&
       !options.live() &&
       !options.held.value &&
@@ -135,7 +142,7 @@ export function useRendererDisplay(options: {
     if (!eligible.value) {
       if (
         !options.enabled() ||
-        !measured.value ||
+        (!measured.value && !rowGeometry) ||
         !nearby ||
         nearby.value ||
         options.live() ||
@@ -180,7 +187,7 @@ export function useRendererDisplay(options: {
   });
   function invalidate() {
     measured.value = false;
-    suspended.value = false;
+    suspended.value = rowGeometry && !!nearby && !nearby.value && !embedded();
     cancelTimer();
     if (!options.enabled() || options.live()) return;
     void nextTick(() => {
@@ -215,6 +222,8 @@ export function useRendererDisplay(options: {
     (enabled) => {
       if (!options.enabled()) return;
       keepEmbedded.value = !enabled && embedded();
+      if (!enabled && rowGeometry && nearby && !nearby.value)
+        suspended.value = true;
       schedule();
     },
     { flush: "sync" }

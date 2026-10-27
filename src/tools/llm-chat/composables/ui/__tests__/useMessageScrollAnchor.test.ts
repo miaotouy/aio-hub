@@ -239,3 +239,26 @@ it("恢复目标尚未出现时沿用滚动距离，目标挂载后校准消息�
   anchor.followBottom();
   expect(element.scrollTop).toBe(1250);
 });
+
+// Search/navigation must resolve the selected row as estimated rows acquire their real heights.
+it("显式消息跳转随异步行高校准目标，滚动输入立即交还控制", () => {
+  let messageTop = 650;
+  const { element, anchor, resize } = createScroller((id) =>
+    id === "search-result" ? messageTop - element.scrollTop : undefined
+  );
+  anchor.navigateToMessage({ id: "search-result", offset: 120 });
+  expect(element.scrollTop).toBe(530);
+  expect(anchor.shouldStickToBottom.value).toBe(false);
+  resize(4000);
+  messageTop = 2250;
+  anchor.onScroll();
+  anchor.rememberReadingAnchor({ id: "passing-row", offset: 10 });
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(2130);
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -100 }));
+  element.scrollTop = 2030;
+  anchor.onScroll();
+  messageTop = 2400;
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(2030);
+});

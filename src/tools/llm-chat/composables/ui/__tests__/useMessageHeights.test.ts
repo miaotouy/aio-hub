@@ -88,6 +88,8 @@ describe("消息占位与实际高度切换", () => {
       content: "**复杂富文本**",
     });
     const displayMounted = ref(true);
+    const nearby = ref(true);
+    const screenshotMode = ref(false);
     const host = document.createElement("div");
     document.body.append(host);
     const app = createApp(
@@ -95,6 +97,7 @@ describe("消息占位与实际高度切换", () => {
         setup() {
           const container = shallowRef<HTMLElement | null>(null);
           const { vMessageSize } = useMessageHeights({
+            readingArea: { register: () => nearby },
             container,
             preferences: () => ({
               fontSize: 14,
@@ -119,7 +122,7 @@ describe("消息占位与实际高度切换", () => {
             }),
             appearance: () => "default",
             sessionId: () => "session",
-            screenshotMode: () => false,
+            screenshotMode: () => screenshotMode.value,
           });
           return () =>
             h("div", { ref: container }, [
@@ -158,6 +161,18 @@ describe("消息占位与实际高度切换", () => {
       deliver(slot, 600, 499.625);
       await flush();
       expect(height()).toBe(499.625);
+
+      nearby.value = false;
+      await flush();
+      expect(slot.style.getPropertyValue("content-visibility")).toBe("hidden");
+      expect(height()).toBe(499.625);
+      screenshotMode.value = true;
+      await flush();
+      expect(slot.style.getPropertyValue("content-visibility")).toBe("visible");
+      screenshotMode.value = false;
+      nearby.value = true;
+      await flush();
+      expect(slot.style.getPropertyValue("content-visibility")).toBe("auto");
 
       visibility(true);
       deliver(slot, 600, 500);

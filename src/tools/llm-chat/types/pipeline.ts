@@ -30,6 +30,9 @@ export interface PipelineContext {
    */
   messages: ProcessableMessage[];
 
+  /** 被动统计延后媒体二进制物化，完整分析和发送沿默认路径执行。 */
+  readonly previewPurpose?: "statistics";
+
   // --- 只读元数据 ---
   readonly index: ChatSessionIndex;
   readonly detail: ChatSessionDetail;

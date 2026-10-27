@@ -1031,6 +1031,7 @@ export function useChatHandler() {
       historicalAgentId,
       parameterOverrides,
       {
+        purpose: options?.purpose,
         pendingInput: processedPendingInput,
       }
     );

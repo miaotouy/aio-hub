@@ -134,6 +134,55 @@ describe("asset resolver media-only request compatibility", () => {
       .mockResolvedValue(new ArrayBuffer(1));
   });
 
+  // Summary tokens include the same media-only text labels as complete requests.
+  // Binary reads belong to analysis/send; references stay available for metadata costs.
+  it("preserves media-only labels and metadata while deferring summary binaries", async () => {
+    const attachments = mediaCases.map(({ type, mimeType }) => ({
+      ...attachment,
+      id: type,
+      type,
+      mimeType,
+      metadata: { width: 1200, height: 800, duration: 12 },
+    }));
+    const complete = context([
+      { role: "user", content: "  ", _attachments: attachments },
+    ]);
+    await assetResolver.execute(complete);
+    expect(getAttachmentBuffer).toHaveBeenCalledTimes(attachments.length);
+    const completeText = (
+      complete.messages[0].content as LlmMessageContent[]
+    ).filter((part) => part.type === "text");
+
+    vi.mocked(getAttachmentBuffer).mockClear();
+    const summary = context([
+      { role: "user", content: "  ", _attachments: attachments },
+    ]);
+    Object.assign(summary, { previewPurpose: "statistics" });
+    await assetResolver.execute(summary);
+    expect(summary.messages[0].content).toEqual(completeText);
+    expect(summary.messages[0]._attachments).toEqual(attachments);
+    expect(getAttachmentBuffer).not.toHaveBeenCalled();
+  });
+
+  it("keeps summary text and the media-only placeholder setting", async () => {
+    for (const [enabled, text] of [
+      [false, ""],
+      [true, "question"],
+    ] as const) {
+      const summary = context(
+        [{ role: "user", content: text, _attachments: [attachment] }],
+        enabled
+      );
+      Object.assign(summary, { previewPurpose: "statistics" });
+      await assetResolver.execute(summary);
+      expect(summary.messages[0].content).toEqual(
+        text ? [{ type: "text", text }] : []
+      );
+      expect(summary.messages[0]._attachments).toEqual([attachment]);
+    }
+    expect(getAttachmentBuffer).not.toHaveBeenCalled();
+  });
+
   it.each(mediaCases)(
     "adds text by default after resolving $type attachments",
     async ({ type, mimeType, label, content }) => {
@@ -298,6 +347,21 @@ describe("asset resolver media-only request compatibility", () => {
               { type: "image", imageBase64: "pdf-page" },
             ]
       );
+      const summary: PipelineContext = {
+        ...context([
+          {
+            role: "user",
+            content: "",
+            _attachments: ctx.messages[0]._attachments,
+          },
+        ]),
+        previewPurpose: "statistics",
+        capabilities: { vision: true, document },
+      };
+      await assetResolver.execute(summary);
+      expect(summary.messages[0].content).toEqual([
+        { type: "text", text: document ? "[文档]" : "[图片]" },
+      ]);
     }
   );
 });

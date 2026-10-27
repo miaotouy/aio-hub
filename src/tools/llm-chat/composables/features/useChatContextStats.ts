@@ -70,6 +70,7 @@ export function useChatContextStats(
         detail.activeLeafId,
         currentAgentId.value ?? undefined,
         {
+          purpose: "statistics",
           pendingInput: temporaryModel
             ? {
                 text: "", // 不传递实际文本，仅用于传递模型信息

@@ -156,6 +156,8 @@ export interface PendingInputData {
  * 获取上下文预览的选项
  */
 export interface GetContextPreviewOptions {
+  /** 统计摘要只保留媒体元数据；默认构建分析器所需的完整媒体。 */
+  purpose?: "statistics";
   /** 待发送的输入内容 */
   pendingInput?: PendingInputData;
   /** 参数覆盖（用于参数编辑器预览） */

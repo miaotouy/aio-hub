@@ -300,7 +300,7 @@ export function useChatExecutor() {
     targetNodeId: string,
     agentId?: string,
     parameterOverrides?: LlmParameters,
-    options?: { pendingInput?: any }
+    options?: { pendingInput?: any; purpose?: "statistics" }
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -364,6 +364,7 @@ export function useChatExecutor() {
     if (!sessionIndex) return null;
 
     const pipelineContext: PipelineContext = {
+      previewPurpose: options?.purpose,
       messages: [],
       index: sessionIndex,
       detail: session,
@@ -473,6 +474,9 @@ export function useChatExecutor() {
       ),
       statistics: {
         ...basePreviewData.statistics,
+        isEstimated:
+          basePreviewData.statistics.isEstimated ||
+          pipelineContext.sharedData.get("hasDeferredMedia") === true,
         totalTokenCount: finalTotalTokenCount,
         postProcessingTokenCount: postProcessingTokenDelta,
         postProcessingCharCount: postProcessingCharDelta,

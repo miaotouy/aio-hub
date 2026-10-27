@@ -183,6 +183,10 @@ export const assetResolver: ContextProcessor = {
   execute: async (context: PipelineContext) => {
     let processedCount = 0;
     let errorCount = 0;
+    const deferredMedia = new Map<
+      PipelineContext["messages"][number],
+      LlmMessageContent["type"][]
+    >();
 
     for (const msg of context.messages) {
       if (!msg._attachments || msg._attachments.length === 0) continue;
@@ -200,11 +204,33 @@ export const assetResolver: ContextProcessor = {
       // 2. 处理附件
       for (const asset of msg._attachments) {
         try {
-          if (!["image", "document", "audio", "video"].includes(asset.type)) {
+          if (
+            asset.type !== "image" &&
+            asset.type !== "document" &&
+            asset.type !== "audio" &&
+            asset.type !== "video"
+          ) {
             logger.warn("跳过不支持的附件类型", {
               assetType: asset.type,
               assetName: asset.name,
             });
+            continue;
+          }
+
+          if (context.previewPurpose === "statistics") {
+            // 统计按元数据估算媒体 Token，保留附件供计算器使用。
+            // PDF 在视觉模型下会转为图片，空消息占位文字沿用最终媒体类型。
+            const type =
+              asset.type === "document" &&
+              asset.mimeType === "application/pdf" &&
+              !context.capabilities?.document &&
+              context.capabilities?.vision
+                ? "image"
+                : asset.type;
+            const types = deferredMedia.get(msg) || [];
+            types.push(type);
+            deferredMedia.set(msg, types);
+            context.sharedData.set("hasDeferredMedia", true);
             continue;
           }
 
@@ -255,7 +281,8 @@ export const assetResolver: ContextProcessor = {
         if (
           msg.role === "user" &&
           Array.isArray(msg.content) &&
-          msg.content.some((part) => mediaPlaceholders.has(part.type)) &&
+          (msg.content.some((part) => mediaPlaceholders.has(part.type)) ||
+            deferredMedia.has(msg)) &&
           msg.content.every(
             (part) =>
               mediaPlaceholders.has(part.type) ||
@@ -264,7 +291,10 @@ export const assetResolver: ContextProcessor = {
         ) {
           const mediaParts = msg.content.filter((part) => part.type !== "text");
           const placeholders = new Set(
-            mediaParts.map((part) => mediaPlaceholders.get(part.type))
+            [
+              ...mediaParts.map((part) => part.type),
+              ...(deferredMedia.get(msg) || []),
+            ].map((type) => mediaPlaceholders.get(type))
           );
           msg.content = [
             { type: "text", text: [...placeholders].join(" ") },

@@ -37,6 +37,11 @@ import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import { useMessageScrollAnchor } from "../../composables/ui/useMessageScrollAnchor";
 import { useMessageHeights } from "../../composables/ui/useMessageHeights";
+import { provideMessageReadingArea } from "../../composables/ui/useMessageReadingArea";
+import {
+  provideRendererReadingInteraction,
+  rendererLayoutRevisionKey,
+} from "@/tools/rich-text-renderer/composables/useRendererDisplay";
 import ChatMessage from "./ChatMessage.vue";
 import {
   rendererHostActiveKey,
@@ -75,6 +80,7 @@ const scopedSessionId = computed(() => props.scopeSessionId ?? null);
 const pendingInitialScroll = ref(false);
 const listActive = ref(true);
 provide(rendererHostActiveKey, listActive);
+provideRendererReadingInteraction(listActive);
 onDeactivated(() => {
   listActive.value = false;
   suspendScrollAnchor();
@@ -87,6 +93,7 @@ onActivated(() => {
   nextTick(() => {
     if (!listActive.value) return;
     if (resuming) resumeScrollAnchor();
+    readingArea.refresh();
     setupResizeObserver();
   });
 });
@@ -148,6 +155,11 @@ const guardedStore = new Proxy(store, {
 const messagesContainer = ref<HTMLElement | null>(null);
 provide(rendererViewportKey, messagesContainer);
 const messagesInnerContainer = ref<HTMLElement | null>(null);
+const readingArea = provideMessageReadingArea({
+  viewport: messagesContainer,
+  rows: messagesInnerContainer,
+  active: listActive,
+});
 const {
   suspend: suspendScrollAnchor,
   resume: resumeScrollAnchor,
@@ -185,7 +197,7 @@ const getMessageAreaWidth = (): number => {
   return messagesContainer.value?.clientWidth ?? 0;
 };
 
-const { vMessageSize } = useMessageHeights({
+const { vMessageSize, layoutRevision } = useMessageHeights({
   container: messagesInnerContainer,
   preferences: () => settings.value.uiPreferences,
   appearance: () => [
@@ -199,6 +211,7 @@ const { vMessageSize } = useMessageHeights({
   sessionId: () => scopedSessionId.value ?? props.sessionIndex?.id,
   screenshotMode: () => screenshotMode.value,
 });
+provide(rendererLayoutRevisionKey, layoutRevision);
 
 // 当前可见的消息索引 (1-based)
 const currentVisibleIndex = ref(0);
@@ -215,6 +228,7 @@ const onContentResize = () => {
   followBottom();
   // content-visibility 展开可能只改变消息坐标，scrollTop 保持原值。
   updateVisibleIndex();
+  readingArea.refresh();
 };
 
 const setupResizeObserver = () => {
@@ -425,6 +439,7 @@ const onScroll = () => {
   updateScrollAnchor();
 
   updateVisibleIndex();
+  readingArea.refresh();
 };
 
 /**

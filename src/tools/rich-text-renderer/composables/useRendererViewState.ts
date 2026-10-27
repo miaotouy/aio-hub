@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  computed,
   inject,
   onUnmounted,
   provide,
   shallowRef,
+  ref,
+  watch,
   type InjectionKey,
   type Ref,
 } from "vue";
@@ -62,4 +65,36 @@ export function useRendererNodeState(
       return value;
     },
   };
+}
+
+interface DisplayHolds {
+  set(owner: object, held: boolean): void;
+}
+const displayHoldKey: InjectionKey<DisplayHolds> = Symbol(
+  "renderer-display-holds"
+);
+
+/** Open teleported viewers keep their renderer alive until they close. */
+export function provideRendererDisplayHolds() {
+  const owners = new Set<object>();
+  const count = ref(0);
+  provide(displayHoldKey, {
+    set(owner, held) {
+      if (held) owners.add(owner);
+      else owners.delete(owner);
+      count.value = owners.size;
+    },
+  });
+  return computed(() => count.value > 0);
+}
+
+export function useRendererDisplayHold(held: Readonly<Ref<boolean>>) {
+  const display = inject(displayHoldKey, undefined);
+  if (!display) return;
+  const owner = {};
+  watch(held, (value) => display.set(owner, value), {
+    immediate: true,
+    flush: "sync",
+  });
+  onUnmounted(() => display.set(owner, false));
 }

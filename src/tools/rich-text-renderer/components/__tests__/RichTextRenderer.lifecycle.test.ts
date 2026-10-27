@@ -3,7 +3,20 @@
 
 import { afterEach, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { defineComponent, h, KeepAlive, nextTick, ref, provide } from "vue";
+import {
+  defineComponent,
+  h,
+  KeepAlive,
+  nextTick,
+  ref,
+  provide,
+  type Ref,
+} from "vue";
+import {
+  rendererReadingScopeKey,
+  rendererLayoutRevisionKey,
+  provideRendererReadingInteraction,
+} from "../../composables/useRendererDisplay";
 import CodeBlockNode from "../nodes/CodeBlockNode.vue";
 import VcpToolNode from "../nodes/VcpToolNode.vue";
 import { RICH_TEXT_CONTEXT_KEY } from "../../types";
@@ -33,7 +46,11 @@ vi.mock("@/tools/token-calculator/worker/calculator.proxy", () => ({
   calculatorProxy: { calculate: vi.fn() },
 }));
 let wrapper: ReturnType<typeof mount>;
-afterEach(() => wrapper?.unmount());
+afterEach(() => {
+  wrapper?.unmount();
+  document.getSelection()?.removeAllRanges();
+  vi.unstubAllGlobals();
+});
 async function settle() {
   await flushPromises();
   await new Promise((resolve) => setTimeout(resolve, 80));
@@ -45,6 +62,8 @@ function host(
     suspendOnDeactivate?: boolean;
     isStreaming?: boolean;
     version?: RendererVersion;
+    nearby?: Ref<boolean>;
+    layoutRevision?: Ref<string>;
   } = {
     suspendOnDeactivate: true,
   }
@@ -66,10 +85,18 @@ function host(
   });
   wrapper = mount(
     defineComponent({
-      setup: () => () =>
-        h(KeepAlive, null, {
-          default: () => (active.value ? h(Page) : h("div", "home")),
-        }),
+      setup() {
+        if (options.nearby) {
+          provide(rendererReadingScopeKey, options.nearby);
+          provideRendererReadingInteraction(active);
+        }
+        if (options.layoutRevision)
+          provide(rendererLayoutRevisionKey, options.layoutRevision);
+        return () =>
+          h(KeepAlive, null, {
+            default: () => (active.value ? h(Page) : h("div", "home")),
+          });
+      },
     }),
     { attachTo: document.body }
   );
@@ -300,4 +327,152 @@ it("restored code and tool views honor defaults changed while away", async () =>
   expect(
     code().findComponent({ name: "CodeBlockHeader" }).props("wordWrapEnabled")
   ).toBe(true);
+});
+
+function rendererMeasurements() {
+  const callbacks = new Map<Element, ResizeObserverCallback>();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        callbacks.set(element, this.callback);
+      }
+      unobserve(element: Element) {
+        callbacks.delete(element);
+      }
+      disconnect() {
+        for (const [element, callback] of callbacks)
+          if (callback === this.callback) callbacks.delete(element);
+      }
+    }
+  );
+  return (element: Element, width: number, height: number) => {
+    const callback = callbacks.get(element);
+    if (!callback) throw new Error("Renderer measurement target missing");
+    callback(
+      [
+        {
+          target: element,
+          contentRect: { width, height },
+        } as ResizeObserverEntry,
+      ],
+      {} as ResizeObserver
+    );
+  };
+}
+async function quietDisplay() {
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await nextTick();
+}
+
+// Protect first display, occupied geometry and disclosure state during active-page recycling.
+it("recycles measured offscreen prose and restores its disclosure state", async () => {
+  const measure = rendererMeasurements();
+  const nearby = ref(false);
+  const state = host(
+    "<details><summary>More</summary>kept detail</details>\n\n- kept item",
+    { suspendOnDeactivate: true, nearby }
+  );
+  await settle();
+  const root = state.renderer().element;
+  const details = state.renderer().get("details");
+  (details.element as HTMLDetailsElement).open = true;
+  await details.trigger("toggle");
+  await quietDisplay();
+  expect(root.querySelector("li")?.textContent).toContain("kept item");
+  measure(root, 800, 1200.375);
+  await quietDisplay();
+  expect(root.querySelector("li")).toBeNull();
+  expect(parseFloat((root as HTMLElement).style.height)).toBeCloseTo(1200.375);
+  nearby.value = true;
+  await settle();
+  expect(root.querySelector("li")?.textContent).toContain("kept item");
+  expect((root.querySelector("details") as HTMLDetailsElement).open).toBe(true);
+});
+
+it("revalidates resized placeholders and changed source or font layout before recycling", async () => {
+  const measure = rendererMeasurements();
+  const nearby = ref(false),
+    layoutRevision = ref("wide");
+  const state = host("- before", {
+    suspendOnDeactivate: true,
+    nearby,
+    layoutRevision,
+  });
+  await settle();
+  const root = state.renderer().element;
+  measure(root, 800, 1200);
+  await quietDisplay();
+  expect(root.querySelector("li")).toBeNull();
+  measure(root, 320, 1200); // Old placeholder at a new width is not a measurement of its content.
+  await settle();
+  await quietDisplay();
+  expect(root.querySelector("li")?.textContent).toBe("before");
+  measure(root, 320, 220);
+  await quietDisplay();
+  expect((root as HTMLElement).style.height).toBe("220px");
+  state.text.value = "- after";
+  await settle();
+  expect(root.querySelector("li")?.textContent).toBe("after");
+  measure(root, 320, 240);
+  await quietDisplay();
+  layoutRevision.value = "new font";
+  await settle();
+  expect(root.querySelector("li")?.textContent).toBe("after");
+});
+
+it("preserves focused controls and materializes copied content across suspended messages", async () => {
+  const measure = rendererMeasurements();
+  const nearby = ref(true);
+  const state = host(
+    '<button type="button">kept button</button><p>copied history</p>',
+    {
+      suspendOnDeactivate: true,
+      nearby,
+      version: RendererVersion.PURE_MARKDOWN_IT,
+    }
+  );
+  await settle();
+  const root = state.renderer().element;
+  const button = root.querySelector("button")!;
+  button.focus();
+  measure(root, 800, 600);
+  nearby.value = false;
+  await quietDisplay();
+  expect(root.querySelector("button")).toBe(button);
+  button.blur();
+  await quietDisplay();
+  expect(root.querySelector("button")).toBeNull();
+  const selection = document.getSelection()!;
+  const range = document.createRange();
+  range.selectNodeContents(document.body);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.dispatchEvent(new Event("selectionchange"));
+  await settle();
+  expect(root.querySelector("button")).not.toBeNull();
+  expect(selection.toString()).toContain("copied history");
+  selection.removeAllRanges();
+  document.dispatchEvent(new Event("selectionchange"));
+  await quietDisplay();
+  expect(root.querySelector("button")).toBeNull();
+});
+
+it("keeps native form state mounted while a completed message is offscreen", async () => {
+  const measure = rendererMeasurements();
+  const nearby = ref(false);
+  const state = host('<input value="initial">', {
+    suspendOnDeactivate: true,
+    nearby,
+    version: RendererVersion.PURE_MARKDOWN_IT,
+  });
+  await settle();
+  const root = state.renderer().element;
+  const input = root.querySelector("input")!;
+  input.value = "unsaved edit";
+  measure(root, 800, 600);
+  await quietDisplay();
+  expect(root.querySelector("input")).toBe(input);
+  expect(input.value).toBe("unsaved edit");
 });

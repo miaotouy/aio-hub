@@ -112,7 +112,10 @@
 </template>
 
 <script setup lang="ts">
-import { useRendererNodeState } from "../../composables/useRendererViewState";
+import {
+  useRendererNodeState,
+  useRendererDisplayHold,
+} from "../../composables/useRendererViewState";
 import { ref, computed, watch, onMounted, onBeforeUnmount, inject } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
@@ -208,6 +211,7 @@ watch(seamless, (isSeamless) => {
 const viewState = useRendererNodeState(() => props.nodeId, "code");
 const viewMode = viewState.ref<"code" | "preview">("viewMode", "code");
 const showDialog = ref(false);
+useRendererDisplayHold(showDialog);
 
 // 判断是否为 HTML
 const isHtml = computed(() => {

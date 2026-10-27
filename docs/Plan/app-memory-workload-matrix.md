@@ -280,3 +280,10 @@ bun run test:run -- scripts/perf/memory/memory.test.ts scripts/perf/resources.te
 ## 17. 部分跳读的消息相对恢复（2026-10-28）
 
 固定可读 branches 中段跳读，返回后总高度仍从 74,138px 变为 43,965px。按消息 ID 与行壳视口偏移恢复后，scrollTop 自动从 9,340px 补偿到 9,186px，原有 154px 阅读偏移归零；继续真实上翻再往返误差约 0.33px，下滚触底后往返间距为 0。尺寸变化与 scroll 分开记录，避免漏掉 scrollTop 未变化的内容展开。相关 21 个用例、类型检查、Vite 和最终 release 构建通过。下一轮进入活动页富文本显示树回收，测量口径与产物见[专项记录第 15 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md)。
+
+
+## 18. 阅读区外历史显示树回收（2026-10-28）
+
+固定可读 branches、特效关闭、每版各一个独立进程，动态完整浏览后富文本显示树节点 67,598 → 4,869，document 节点 89,077 → 25,709，CDP 全局 DOM 93,465 → 61,281，GC 页面 JS 堆 172.11 → 147.58 MiB。根容器保留实际高度，回顶部与往返首页均保持总高度 141,758px。页面堆下降约 24.53 MiB，进程 Private / WS 和壁纸、半透明配置的收益继续按矩阵复核。
+
+另行初始底部跳读的活动页 GC 堆约 170.27 → 170.54 MiB，返回双 rAF 690.2 → 743.4ms，尚未看到返回速度改善。下一轮将尚未测量历史的挂载成本与单条长消息的块级范围分开调查。实现契约、相关 23 个用例和原生产物见[专项记录第 16 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md#16-阅读区外历史显示树回收2026-10-28)。

@@ -166,6 +166,7 @@
 <script setup lang="ts">
 import {
   useRendererNodeState,
+  useRendererDisplayHold,
   rendererViewportKey,
 } from "../../composables/useRendererViewState";
 import {
@@ -334,6 +335,7 @@ const copied = ref(false);
 const error = ref<string>("");
 const isExpanded = viewState.ref("isExpanded", false);
 const showViewer = ref(false);
+useRendererDisplayHold(showViewer);
 const isRendering = ref(false);
 const hasRendered = ref(false); // 是否至少成功渲染过一次
 const lastRenderId = ref(0); // 用于并发控制

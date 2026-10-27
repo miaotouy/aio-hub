@@ -81,6 +81,10 @@ import {
 } from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { useMessageHeightSource } from "../../composables/ui/useMessageHeightSource";
+import {
+  rendererReadingAreaKey,
+  rendererReadingScopeKey,
+} from "@/tools/rich-text-renderer/composables/useRendererDisplay";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
@@ -896,14 +900,25 @@ const messageBoundStyleOptions = computed(() => {
 });
 
 // ----- 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM -----
-const isInViewport = ref(true); // 默认可见，避免首次渲染时闪烁
-
-useIntersectionObserver(
-  containerRef,
-  ([{ isIntersecting }]) => {
-    isInViewport.value = isIntersecting;
-  },
-  { rootMargin: "400px" } // 提前解冻范围，避免滚动时看到过时内容
+const readingArea = inject(rendererReadingAreaKey, undefined);
+const isInViewport = readingArea?.register(containerRef) ?? ref(true);
+if (!readingArea) {
+  useIntersectionObserver(
+    containerRef,
+    ([{ isIntersecting }]) => {
+      isInViewport.value = isIntersecting;
+    },
+    { rootMargin: "400px" }
+  );
+}
+provide(
+  rendererReadingScopeKey,
+  computed(
+    () =>
+      props.screenshotMode ||
+      isInViewport.value ||
+      imageViewer.state.value.visible
+  )
 );
 
 // 冻结的渲染配置：基于消息绑定的配置，只有消息在视口中（或附近）时才同步

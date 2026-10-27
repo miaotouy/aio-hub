@@ -18,6 +18,7 @@
   <div
     ref="rootElement"
     class="rich-text-renderer"
+    :class="{ 'rich-text-recyclable': suspendOnDeactivate }"
     :style="[cssVariables, suspendedStyle]"
   >
     <template v-if="displayActive">
@@ -47,9 +48,11 @@ import {
   provide,
   inject,
 } from "vue";
-import { useThrottleFn, useResizeObserver } from "@vueuse/core";
+import { useThrottleFn } from "@vueuse/core";
+import { useRendererDisplay } from "./composables/useRendererDisplay";
 import {
   provideRendererViewState,
+  provideRendererDisplayHolds,
   rendererHostActiveKey,
 } from "./composables/useRendererViewState";
 import MarkdownIt from "markdown-it";
@@ -383,55 +386,37 @@ const inheritedHostActive = inject(rendererHostActiveKey, undefined);
 const hostActive = computed(
   () => localHostActive.value && (inheritedHostActive?.value ?? true)
 );
-const keepInteractiveDisplay = ref(false);
-const hasResumed = ref(false);
-const retainedHeight = ref(0);
-const displayActive = computed(
-  () =>
-    !props.suspendOnDeactivate ||
-    hostActive.value ||
-    keepInteractiveDisplay.value ||
-    props.isStreaming ||
-    internalIsStreaming.value
-);
-const suspendedStyle = computed(() =>
-  displayActive.value ? undefined : { height: retainedHeight.value + "px" }
-);
-const viewState = provideRendererViewState(displayActive);
-useResizeObserver(rootElement, ([entry]) => {
-  if (displayActive.value && hostActive.value && entry?.contentRect.height > 0)
-    retainedHeight.value = entry.contentRect.height;
+const held = provideRendererDisplayHolds();
+const {
+  active: displayActive,
+  style: suspendedStyle,
+  hasResumed,
+} = useRendererDisplay({
+  root: rootElement,
+  hostActive,
+  enabled: () => !!props.suspendOnDeactivate,
+  live: () => !!props.isStreaming || internalIsStreaming.value,
+  held,
+  revision: () => [
+    props.content,
+    props.version,
+    props.styleOptions,
+    props.llmThinkRules,
+    props.regexRules,
+    props.defaultRenderHtml,
+    props.defaultCodeBlockExpanded,
+    props.defaultToolCallCollapsed,
+    props.seamlessMode,
+    props.shouldFreeze,
+  ],
 });
-function retainInteractiveDisplay() {
-  if (!props.suspendOnDeactivate) return;
-  // Embedded programs, media and native form controls own state beyond our AST view contract.
-  // Keep those renderers intact until a dedicated snapshot contract exists for them.
-  keepInteractiveDisplay.value = !!rootElement.value?.querySelector(
-    'iframe, video, audio, .video-node-container, .audio-node-container, input, textarea, select, [contenteditable="true"]:not(.cm-content), details:not(.details-node), canvas, object, embed'
-  );
-}
+const viewState = provideRendererViewState(displayActive);
 onDeactivated(() => {
   localHostActive.value = false;
 });
 onActivated(() => {
   localHostActive.value = true;
 });
-watch(
-  hostActive,
-  (active) => {
-    if (!props.suspendOnDeactivate) return;
-    if (active) hasResumed.value = true;
-    else retainInteractiveDisplay();
-  },
-  { flush: "sync" }
-);
-watch(
-  [() => props.isStreaming, internalIsStreaming],
-  () => {
-    if (!hostActive.value) retainInteractiveDisplay();
-  },
-  { flush: "sync" }
-);
 watch(
   displayActive,
   (active) => {
@@ -879,6 +864,11 @@ defineExpose({
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
+}
+
+/* Keep descendant margins inside the measured box across display-tree disposal. */
+.rich-text-recyclable {
+  display: flow-root;
 }
 
 /* 图片基础样式：仅设置不影响尺寸的属性，避免覆盖自带样式 */

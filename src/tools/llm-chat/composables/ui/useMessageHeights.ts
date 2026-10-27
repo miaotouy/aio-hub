@@ -70,6 +70,7 @@ interface Slot {
 export function useMessageHeights(options: Options) {
   const logger = createModuleLogger("message-heights");
   const cache = new MessageHeightCache();
+  const layoutRevision = shallowRef("");
   const sources = new Map<
     string,
     { value: MessageHeightSource; owner: object }
@@ -292,6 +293,7 @@ export function useMessageHeights(options: Options) {
         fontRevision,
         devicePixelRatio,
       ]);
+      layoutRevision.value = JSON.stringify([appearance, width]);
       environmentDirty = false;
       for (const slot of slots.values()) {
         if (isEager(slot) || slot.skipped === false) observe(slot);
@@ -523,5 +525,5 @@ export function useMessageHeights(options: Options) {
     sources.clear();
   });
 
-  return { vMessageSize };
+  return { vMessageSize, layoutRevision };
 }

@@ -424,3 +424,9 @@ Android UI 自动化优先使用稳定 `data-testid`、可访问名称、系统 
 不得把固定坐标、截图识别或本地化文案作为主要控制方式。成功运行保留结构化结果与
 脱敏请求摘要，截图、UI hierarchy、DOM 摘要和 logcat 仅作为失败证据。任何产物都不得
 记录 API Key、Authorization header、完整附件 base64、用户正文或完整本机路径。
+
+## 10. 桌面应用内存用量
+
+首页、空会话、真实复杂会话与外观配置的内存采样使用 `bun run perf:memory`。先通过 `bun run perf:memory:corpus` 在本机处理真实会话，再用 `--list` 预览页面和配置矩阵；正式采样使用 `bun run build:perf` 生成的性能构建与隔离数据目录。
+
+场景选择、样本处理边界、指标口径和运行示例见[桌面应用内存用量测试](../Plan/app-memory-workload-matrix.md)。

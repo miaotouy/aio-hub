@@ -35,7 +35,16 @@ import type { Readable } from "node:stream";
 export const RESOURCE_SAMPLE_INTERVAL_MS = 400;
 export const MIN_RESOURCE_SAMPLES = 10;
 
+export interface ResourceProcess {
+  pid: number;
+  kind: "native" | "renderer" | "gpu" | "browser" | "utility";
+  workingSetBytes: number;
+  privateBytes: number;
+}
+
 export interface ResourceSample {
+  processes?: ResourceProcess[];
+  gpuCountersAvailable?: boolean;
   at: number;
   cpuSeconds: number;
   workingSetBytes: number;
@@ -167,12 +176,27 @@ function Write-ResourceSample {
   $workingSet = 0L
   $private = 0L
   $processCount = 0
+  $processRows = @()
+  $processInfo = @{}
+  foreach ($info in $procs) { $processInfo[[int]$info.ProcessId] = $info }
   foreach ($p in (Get-Process)) {
     if (-not $treeIds.Contains($p.Id)) { continue }
     $processCount += 1
     try { $cpu += $p.TotalProcessorTime.TotalSeconds } catch {}
     try { $workingSet += $p.WorkingSet64 } catch {}
     try { $private += $p.PrivateMemorySize64 } catch {}
+    $kind = 'utility'
+    $info = $processInfo[[int]$p.Id]
+    if ($p.Id -eq ${rootPid}) { $kind = 'native' }
+    elseif ($info.CommandLine -match '--type=renderer') { $kind = 'renderer' }
+    elseif ($info.CommandLine -match '--type=gpu-process') { $kind = 'gpu' }
+    elseif ($info.Name -like 'msedgewebview2*' -and $info.CommandLine -notmatch '--type=') { $kind = 'browser' }
+    $processRows += [pscustomobject]@{
+      pid = $p.Id
+      kind = $kind
+      workingSetBytes = [long]$p.WorkingSet64
+      privateBytes = [long]$p.PrivateMemorySize64
+    }
   }
 
   $hasWebView2 = $false
@@ -210,6 +234,8 @@ function Write-ResourceSample {
 
   [pscustomobject]@{
     alive = $true
+    processes = @($processRows)
+    gpuCountersAvailable = ($null -ne $procMem)
     cpuSeconds = [math]::Round($cpu, 4)
     workingSetBytes = [long]$workingSet
     privateBytes = [long]$private
@@ -239,6 +265,8 @@ export interface ResourceCollector {
 }
 
 interface ParsedResourceSample {
+  processes?: ResourceProcess[];
+  gpuCountersAvailable?: boolean;
   alive?: boolean;
   cpuSeconds?: number;
   workingSetBytes?: number;
@@ -258,6 +286,8 @@ function parseResourceSample(line: string, samples: ResourceSample[]): void {
     if (!parsed.alive) return;
     samples.push({
       at: Date.now(),
+      processes: parsed.processes,
+      gpuCountersAvailable: parsed.gpuCountersAvailable,
       cpuSeconds: parsed.cpuSeconds ?? 0,
       workingSetBytes: parsed.workingSetBytes ?? 0,
       privateBytes: parsed.privateBytes ?? 0,
@@ -341,7 +371,11 @@ export function startResourceCollector(
   let stopped = false;
 
   return {
-    getSamples: () => samples.map((sample) => ({ ...sample })),
+    getSamples: () =>
+      samples.map((sample) => ({
+        ...sample,
+        processes: sample.processes?.map((p) => ({ ...p })),
+      })),
     resetSamples() {
       if (stopped) throw new Error("Cannot reset a stopped resource collector");
       samples.length = 0;

@@ -565,13 +565,19 @@ const prepareStreamBufferForRender = (rawText: string): string => {
 };
 
 /**
- * 静态内容模式：监听处理后的 content 变化
+ * 静态内容模式：首次进入阅读区后初始化，已解析的内容继续跟随源码更新。
  */
+let staticContentInitialized = false;
 watch(
-  processedContent,
+  () =>
+    displayActive.value || staticContentInitialized
+      ? processedContent.value
+      : null,
   (newContent) => {
+    if (newContent === null) return;
     if (!displayActive.value) viewState.clear();
     if (props.streamSource) return;
+    staticContentInitialized = true;
 
     if (typeof newContent !== "string" || !newContent) {
       // 清空
@@ -624,6 +630,7 @@ watch(
   ([newVersion]) => {
     if (useAstRenderer.value) pureMarkdown = null;
     if (!displayActive.value) viewState.clear();
+    if (!staticContentInitialized && !displayActive.value) return;
     // 流式模式或无静态内容时，交给流式逻辑处理
     if (!props.content || props.streamSource) {
       if (!useAstRenderer.value) {

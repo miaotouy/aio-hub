@@ -27,6 +27,7 @@ import RichTextRenderer from "../../RichTextRenderer.vue";
 import { rendererHostActiveKey } from "../../composables/useRendererViewState";
 import { RendererVersion } from "../../types";
 import { Tokenizer } from "../../parser/Tokenizer";
+import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
 import type { TokenizerOptions } from "../../parser/types";
 
 // Use the production tokenizer in process; jsdom has no Worker transport.
@@ -73,10 +74,12 @@ function host(
   const active = ref(true);
   const text = ref(content);
   const streaming = ref(options.isStreaming ?? false);
+  const rules = ref<ChatRegexRule[]>([]);
   const Page = defineComponent({
     setup: () => () =>
       h(RichTextRenderer, {
         content: text.value,
+        regexRules: rules.value,
         version: options.version ?? RendererVersion.V2_CUSTOM_PARSER,
         suspendOnDeactivate: options.suspendOnDeactivate,
         isStreaming: streaming.value,
@@ -107,6 +110,7 @@ function host(
     active,
     text,
     streaming,
+    rules,
     renderer: () => wrapper.findComponent(RichTextRenderer),
   };
 }
@@ -566,21 +570,36 @@ it("copies unopened nested bodies without expanding them and retains visited sta
 });
 
 // Unknown row geometry stays with the outer list; display initialization follows actual reading intent.
-it("defers unmeasured history under a reserved row shell and reveals current source on demand", async () => {
+it.each([
+  RendererVersion.V1_MARKDOWN_IT,
+  RendererVersion.V2_CUSTOM_PARSER,
+  RendererVersion.PURE_MARKDOWN_IT,
+])("reveals current deferred history on demand with %s", async (version) => {
   const nearby = ref(false);
   const state = host("- unseen", {
     suspendOnDeactivate: true,
     nearby,
     rowGeometry: true,
+    version,
   });
   await settle();
   expect(state.renderer().find("li").exists()).toBe(false);
   state.text.value = "- updated while unseen";
   await settle();
   expect(state.renderer().find("li").exists()).toBe(false);
+  state.rules.value = [
+    {
+      id: "deferred-render-rule",
+      enabled: true,
+      regex: "updated while unseen",
+      replacement: "latest visible",
+      applyTo: { render: true, request: false },
+      targetRoles: ["assistant"],
+    },
+  ];
   nearby.value = true;
   await settle();
-  expect(state.renderer().get("li").text()).toBe("updated while unseen");
+  expect(state.renderer().get("li").text()).toBe("latest visible");
   state.active.value = false;
   nearby.value = false;
   await settle();
@@ -589,7 +608,7 @@ it("defers unmeasured history under a reserved row shell and reveals current sou
   expect(state.renderer().find("li").exists()).toBe(false);
   nearby.value = true;
   await settle();
-  expect(state.renderer().get("li").text()).toBe("updated while unseen");
+  expect(state.renderer().get("li").text()).toBe("latest visible");
 });
 
 // Pure rendering remains usable after the component has parsed with another backend.
@@ -652,4 +671,30 @@ it("renders and completes a pure-mode chunk stream with normalized line endings"
   expect(wrapper.get("strong").text()).toBe("stream complete");
   expect(wrapper.findAll("br")).toHaveLength(1);
   expect(wrapper.get("a").attributes("href")).toBe("https://example.org");
+});
+
+// Reading-area deferral must yield immediately to a live message, even in an inactive host.
+it("initializes a live message from an unseen row and restores its completed output", async () => {
+  const nearby = ref(false);
+  const state = host("- dormant", {
+    suspendOnDeactivate: true,
+    nearby,
+    rowGeometry: true,
+  });
+  await settle();
+  state.streaming.value = true;
+  state.text.value = "- growing";
+  await settle();
+  expect(state.renderer().get("li").text()).toBe("growing");
+  const root = state.renderer().element;
+  state.active.value = false;
+  state.text.value = "- completed";
+  await settle();
+  expect(root.querySelector("li")?.textContent).toBe("completed");
+  state.streaming.value = false;
+  await settle();
+  state.active.value = true;
+  nearby.value = true;
+  await settle();
+  expect(state.renderer().get("li").text()).toBe("completed");
 });

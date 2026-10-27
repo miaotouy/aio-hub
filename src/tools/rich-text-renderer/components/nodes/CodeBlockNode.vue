@@ -59,6 +59,7 @@
     <template v-if="viewMode === 'code'">
       <div class="code-preview-block">
         <CodeMirrorSourceViewer
+          :node-id="nodeId"
           :content="content"
           :language="language"
           :is-expanded="isExpanded"
@@ -111,6 +112,7 @@
 </template>
 
 <script setup lang="ts">
+import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { ref, computed, watch, onMounted, onBeforeUnmount, inject } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
@@ -203,7 +205,8 @@ watch(seamless, (isSeamless) => {
 });
 
 // 视图模式
-const viewMode = ref<"code" | "preview">("code");
+const viewState = useRendererNodeState(() => props.nodeId, "code");
+const viewMode = viewState.ref<"code" | "preview">("viewMode", "code");
 const showDialog = ref(false);
 
 // 判断是否为 HTML
@@ -226,10 +229,22 @@ const isAutoPreviewable = computed(() => {
   return isHtml.value && (isFullHtmlPage.value || lang === "svg");
 });
 
+const lastAutoPreviewDefault = viewState.ref(
+  "autoPreviewDefault",
+  !!defaultRenderHtml?.value
+);
+let restoringAutoPreview =
+  viewState.restored &&
+  !(defaultRenderHtml?.value && !lastAutoPreviewDefault.value);
 // 监听内容变化，实现流式输出过程中的自动预览切换
 watch(
   [isAutoPreviewable, () => defaultRenderHtml?.value],
   ([canPreview, shouldAutoRender]) => {
+    lastAutoPreviewDefault.value = !!shouldAutoRender;
+    if (restoringAutoPreview) {
+      restoringAutoPreview = false;
+      return;
+    }
     // 仅当开启了自动预览开关，且当前还是代码模式时，才尝试自动切换。
     // 将全局开关纳入依赖，确保设置变更能作用于已挂载的代码块。
     if (canPreview && shouldAutoRender && viewMode.value === "code") {
@@ -275,14 +290,14 @@ const openDialogPreview = () => {
 const copied = ref(false);
 
 // 换行状态
-const wordWrapEnabled = ref(false);
+const wordWrapEnabled = viewState.ref("wordWrapEnabled", false);
 
 // 字体大小控制
 const codeFontMin = 10;
 const codeFontMax = 36;
 const codeFontStep = 1;
-const defaultCodeFontSize = ref<number>(14);
-const codeFontSize = ref<number>(14);
+const defaultCodeFontSize = viewState.ref<number>("defaultCodeFontSize", 14);
+const codeFontSize = viewState.ref<number>("codeFontSize", 14);
 const fontBaselineReady = computed(() => {
   return codeFontSize.value > 0 && defaultCodeFontSize.value > 0;
 });
@@ -292,9 +307,17 @@ const defaultExpanded = computed(
   () =>
     props.defaultExpanded ?? context?.defaultCodeBlockExpanded?.value ?? false
 );
-const isExpanded = ref(defaultExpanded.value);
+const previousExpandedDefault = viewState.ref(
+  "expandedDefault",
+  defaultExpanded.value
+);
+const isExpanded = viewState.ref("isExpanded", defaultExpanded.value);
+if (previousExpandedDefault.value !== defaultExpanded.value)
+  isExpanded.value = defaultExpanded.value;
+previousExpandedDefault.value = defaultExpanded.value;
 
 watch(defaultExpanded, (expanded) => {
+  previousExpandedDefault.value = expanded;
   isExpanded.value = expanded;
 });
 
@@ -358,8 +381,8 @@ const copyCode = async () => {
 };
 
 const handleEditorReady = (fontSize: number) => {
-  defaultCodeFontSize.value = fontSize;
-  codeFontSize.value = fontSize;
+  if (!viewState.restored) defaultCodeFontSize.value = fontSize;
+  if (!viewState.restored) codeFontSize.value = fontSize;
 };
 
 // 字体大小调整

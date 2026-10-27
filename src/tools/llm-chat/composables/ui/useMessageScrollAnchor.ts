@@ -26,20 +26,26 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
   const isNearBottom = ref(true);
   const lastKnownScrollTop = ref(0);
   let canResumeOnScroll = false;
+  let active = true;
+  let resumeTop: number | null = null;
+  const cancelResume = () => {
+    resumeTop = null;
+  };
 
   const pauseFollowing = () => {
+    cancelResume();
     shouldStickToBottom.value = false;
     canResumeOnScroll = false;
   };
 
   const onScroll = () => {
     const container = options.container.value;
-    if (!container) return;
+    if (!container || !active) return;
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const previousTop = lastKnownScrollTop.value;
     const distance = Math.max(0, scrollHeight - clientHeight - scrollTop);
-    lastKnownScrollTop.value = scrollTop;
+    if (resumeTop === null) lastKnownScrollTop.value = scrollTop;
     isNearBottom.value = distance < options.threshold();
 
     // 布局变化也会触发 scroll，解除跟随只由输入事件和显式导航负责。
@@ -55,6 +61,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
 
   // 在原生滚动和 ResizeObserver 之前响应上翻意图，避免同帧被拉回。
   const onWheel = (event: WheelEvent) => {
+    cancelResume();
     if (event.deltaY < 0) pauseFollowing();
     else if (event.deltaY > 0) {
       canResumeOnScroll = true;
@@ -65,6 +72,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
   const onPointerdown = (event: PointerEvent) => {
     const container = options.container.value;
     if (!container || event.button !== 0) return;
+    cancelResume();
     const left = container.getBoundingClientRect().left + container.clientLeft;
     // 滚动条拖拽和触屏浏览同样交还阅读位置控制权。
     if (
@@ -86,6 +94,18 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     )
       return;
     if (
+      [
+        "ArrowUp",
+        "PageUp",
+        "Home",
+        "ArrowDown",
+        "PageDown",
+        "End",
+        " ",
+      ].includes(event.key)
+    )
+      cancelResume();
+    if (
       ["ArrowUp", "PageUp", "Home"].includes(event.key) ||
       (event.key === " " && event.shiftKey)
     ) {
@@ -97,13 +117,35 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
 
   const followBottom = () => {
     const container = options.container.value;
-    if (!container || !shouldStickToBottom.value || !options.autoScroll())
+    if (!container || !active) return;
+    if (resumeTop !== null) {
+      container.scrollTop = Math.max(
+        0,
+        Math.min(resumeTop, container.scrollHeight - container.clientHeight)
+      );
       return;
+    }
+    if (!shouldStickToBottom.value || !options.autoScroll()) return;
     // 渐进渲染既会增高也会缩短列表，锁定期间始终对齐实际底部。
     container.scrollTop = container.scrollHeight;
   };
 
+  const suspend = () => {
+    active = false;
+  };
+  const resume = () => {
+    active = true;
+    resumeTop =
+      shouldStickToBottom.value && options.autoScroll()
+        ? null
+        : lastKnownScrollTop.value;
+    followBottom();
+  };
+
   return {
+    suspend,
+    resume,
+    cancelResume,
     shouldStickToBottom,
     isNearBottom,
     lastKnownScrollTop,

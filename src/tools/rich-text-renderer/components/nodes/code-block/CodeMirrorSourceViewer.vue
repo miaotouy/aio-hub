@@ -54,10 +54,12 @@ import {
   onActivated,
   onDeactivated,
   onUnmounted,
+  onBeforeUnmount,
   watch,
   shallowRef,
   computed,
 } from "vue";
+import { useRendererNodeState } from "../../../composables/useRendererViewState";
 import { storeToRefs } from "pinia";
 import { useRichTextRendererStore } from "../../../stores/store";
 import { useIntersectionObserver } from "@vueuse/core";
@@ -84,6 +86,7 @@ const store = useRichTextRendererStore();
 const { debugPreFallback } = storeToRefs(store);
 
 const props = defineProps<{
+  nodeId?: string;
   content: string;
   language?: string;
   isExpanded: boolean;
@@ -113,7 +116,8 @@ let reportedReady = false;
 let releaseTimer: ReturnType<typeof setTimeout> | undefined;
 const retainedHeight = ref<number | null>(null);
 // Only scalar UI state survives suspension; retaining EditorState keeps its syntax tree alive.
-let retained:
+const viewState = useRendererNodeState(() => props.nodeId, "code-viewer");
+const retained = viewState.ref<
   | {
       content: string;
       selection: ReturnType<EditorSelection["toJSON"]>;
@@ -121,7 +125,8 @@ let retained:
       top: number;
       left: number;
     }
-  | undefined;
+  | undefined
+>("retained", undefined);
 
 function cancelRelease() {
   clearTimeout(releaseTimer);
@@ -136,7 +141,7 @@ function releaseEditor() {
   foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
     folds.push({ from, to });
   });
-  retained = {
+  retained.value = {
     content: props.content,
     selection: view.state.selection.toJSON(),
     folds,
@@ -257,7 +262,6 @@ const initEditor = async () => {
     // 基础样式
     EditorView.theme({
       "&": {
-        fontSize: `${props.codeFontSize}px`,
         backgroundColor: "transparent !important",
       },
       ".cm-scroller": {
@@ -293,12 +297,12 @@ const initEditor = async () => {
   });
 
   const view = editorView.value;
-  if (retained?.content === props.content) {
+  if (retained.value?.content === props.content) {
     view.dispatch({
-      selection: EditorSelection.fromJSON(retained.selection),
-      effects: retained.folds.map((range) => foldEffect.of(range)),
+      selection: EditorSelection.fromJSON(retained.value.selection),
+      effects: retained.value.folds.map((range) => foldEffect.of(range)),
     });
-    const { top, left } = retained;
+    const { top, left } = retained.value;
     view.requestMeasure({
       read: () => undefined,
       write: () => {
@@ -308,7 +312,7 @@ const initEditor = async () => {
       },
     });
   }
-  retained = undefined;
+  retained.value = undefined;
   retainedHeight.value = null;
   // Rehydration must preserve the user's chosen font baseline and size.
   if (!reportedReady) {
@@ -329,7 +333,7 @@ const initEditor = async () => {
 watch(
   () => props.content,
   (newContent) => {
-    retained = undefined;
+    retained.value = undefined;
     retainedHeight.value = null;
     if (
       editorView.value &&
@@ -382,12 +386,12 @@ watch(
   }
 );
 
+onBeforeUnmount(releaseEditor);
 onUnmounted(() => {
   isDestroyed = true;
   cancelRelease();
   editorView.value?.destroy();
   editorView.value = null;
-  retained = undefined;
 });
 </script>
 

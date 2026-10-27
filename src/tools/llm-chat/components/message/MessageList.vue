@@ -38,6 +38,7 @@ import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import { useMessageScrollAnchor } from "../../composables/ui/useMessageScrollAnchor";
 import { useMessageHeights } from "../../composables/ui/useMessageHeights";
 import ChatMessage from "./ChatMessage.vue";
+import { rendererHostActiveKey } from "@/tools/rich-text-renderer/composables/useRendererViewState";
 import CompressionMessage from "./CompressionMessage.vue";
 import ToolCallMessage from "./ToolCallMessage.vue";
 import MessageExternalAvatar from "./MessageExternalAvatar.vue";
@@ -67,44 +68,24 @@ const { settings } = useChatSettings();
 // 会话作用域：有值时读写显式绑定到该会话，不再依赖 currentSessionId
 const scopedSessionId = computed(() => props.scopeSessionId ?? null);
 
-const wasFollowingBeforeDeactivate = ref(true);
-
 // 会话切换时如果消息还没加载，挂起滚动到底部的操作
 const pendingInitialScroll = ref(false);
-
+const listActive = ref(true);
+provide(rendererHostActiveKey, listActive);
 onDeactivated(() => {
-  wasFollowingBeforeDeactivate.value = shouldStickToBottom.value;
+  listActive.value = false;
+  suspendScrollAnchor();
   disconnectResizeObserver();
 });
-
 onActivated(() => {
-  const container = messagesContainer.value;
-  if (!container) return;
-
-  // 重新连接 ResizeObserver
-  setupResizeObserver();
-
-  // keep-alive 切换会导致浏览器重置 scrollTop 为 0，需要恢复
-  if (container.scrollTop === 0 && lastKnownScrollTop.value > 0) {
-    if (wasFollowingBeforeDeactivate.value) {
-      // 之前在底部附近，启用底部锁定让 ResizeObserver 自动跟随
-      shouldStickToBottom.value = true;
-      container.scrollTop = container.scrollHeight;
-    } else {
-      // 之前在中间位置，恢复到记录的位置
-      pauseFollowing();
-      nextTick(() => {
-        if (!messagesContainer.value) return;
-        const maxScroll =
-          messagesContainer.value.scrollHeight -
-          messagesContainer.value.clientHeight;
-        messagesContainer.value.scrollTop = Math.min(
-          lastKnownScrollTop.value,
-          maxScroll
-        );
-      });
-    }
-  }
+  const resuming = !listActive.value;
+  listActive.value = true;
+  // Display children remount in the same flush. Restore again on async height changes.
+  nextTick(() => {
+    if (!listActive.value) return;
+    if (resuming) resumeScrollAnchor();
+    setupResizeObserver();
+  });
 });
 
 // 布局编排：压缩节点、兄弟信息、角色 / 对齐、CSS 变量
@@ -164,9 +145,11 @@ const guardedStore = new Proxy(store, {
 const messagesContainer = ref<HTMLElement | null>(null);
 const messagesInnerContainer = ref<HTMLElement | null>(null);
 const {
+  suspend: suspendScrollAnchor,
+  resume: resumeScrollAnchor,
+  cancelResume,
   shouldStickToBottom,
   isNearBottom,
-  lastKnownScrollTop,
   onScroll: updateScrollAnchor,
   onWheel,
   onKeydown,
@@ -220,6 +203,7 @@ const onContentResize = () => {
 
 const setupResizeObserver = () => {
   disconnectResizeObserver();
+  if (!listActive) return;
   const inner = messagesInnerContainer.value;
   if (!inner) return;
 
@@ -285,6 +269,7 @@ const scrollToBottom = useThrottleFn((forceInstant = false) => {
 
 // 滚动到底部（供 Navigator 使用）
 const scrollToEnd = () => {
+  cancelResume();
   shouldStickToBottom.value = true;
   if (messagesContainer.value) {
     const maxScroll =
@@ -416,6 +401,7 @@ const onScroll = () => {
  * ResizeObserver 会在后续内容高度变化（content-visibility 渐进渲染）时自动跟随。
  */
 const activateBottomLock = () => {
+  cancelResume();
   shouldStickToBottom.value = true;
   isNearBottom.value = true;
   nextTick(() => {

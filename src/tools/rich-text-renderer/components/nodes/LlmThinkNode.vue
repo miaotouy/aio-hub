@@ -88,6 +88,7 @@
 </template>
 
 <script setup lang="ts">
+import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { Copy, Check, Code2, ChevronRight } from "lucide-vue-next";
@@ -95,6 +96,7 @@ import { customMessage } from "@/utils/customMessage";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 interface Props {
+  nodeId?: string;
   rawTagName: string;
   ruleId: string;
   displayName: string;
@@ -124,16 +126,20 @@ const props = withDefaults(defineProps<Props>(), {
   isThinking: false,
 });
 
-const isCollapsed = ref(props.collapsedByDefault);
-const showRaw = ref(false);
+const viewState = useRendererNodeState(() => props.nodeId, "think");
+const isCollapsed = viewState.ref("isCollapsed", props.collapsedByDefault);
+const showRaw = viewState.ref("showRaw", false);
 const copied = ref(false);
 const isThinking = computed(() => props.isThinking);
 
 // 实时计时状态（用于流式传输期间的实时显示和持久化）
-const realtimeDurationMs = ref<number | null>(null);
+const realtimeDurationMs = viewState.ref<number | null>(
+  "realtimeDurationMs",
+  null
+);
 const timerId = ref<number | null>(null);
 // 本地记录的开始时间（用于正文捕获等没有 meta 信息的场景）
-const localStartTime = ref<number | null>(null);
+const localStartTime = viewState.ref<number | null>("localStartTime", null);
 // 估算时长（用于历史记录回显）
 const estimatedDurationMs = ref<number | null>(null);
 
@@ -272,6 +278,7 @@ const copyContent = async () => {
   }
 };
 
+let restoringDuration = viewState.restored;
 // 监听思考状态和开始时间，启动/停止实时计时器
 watch(
   [
@@ -288,6 +295,8 @@ watch(
     reasoningActiveSince,
     reasoningDurationMs,
   ]) => {
+    const preserveDuration = restoringDuration;
+    restoringDuration = false;
     // 1. 确定有效的开始时间
     let startTime: number | undefined;
 
@@ -312,6 +321,7 @@ watch(
         timerId.value = null;
       }
 
+      if (preserveDuration && realtimeDurationMs.value !== null) return;
       // 思考结束时，计算最终时长
       const meta = props.generationMeta;
 
@@ -358,7 +368,7 @@ watch(
 );
 
 onMounted(() => {
-  isCollapsed.value = props.collapsedByDefault;
+  if (!viewState.restored) isCollapsed.value = props.collapsedByDefault;
   // 组件挂载时，如果不是思考状态且没有实时时间，尝试估算
   if (!props.isThinking && realtimeDurationMs.value === null) {
     calculateEstimatedTime();

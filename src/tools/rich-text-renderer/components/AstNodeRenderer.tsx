@@ -7,8 +7,20 @@
  * 3. 传递节点属性和子节点给渲染组件
  */
 
-import { defineComponent, h, withMemo, type PropType, type VNode } from "vue";
-import type { AstNode } from "../types";
+import {
+  computed,
+  inject,
+  defineComponent,
+  h,
+  withMemo,
+  type PropType,
+  type VNode,
+} from "vue";
+import {
+  RICH_TEXT_CONTEXT_KEY,
+  type AstNode,
+  type RichTextContext,
+} from "../types";
 
 // 导入节点组件
 // 内联节点
@@ -169,6 +181,15 @@ const AstNodeRenderer = defineComponent({
     },
   },
   setup(props) {
+    const context = inject<RichTextContext | undefined>(
+      RICH_TEXT_CONTEXT_KEY,
+      undefined
+    );
+    const enableAnimation = computed(
+      () =>
+        props.enableEnterAnimation &&
+        context?.enableEnterAnimation?.value !== false
+    );
     // AST patches retain untouched objects. Mirror v-memo here so an unchanged
     // subtree keeps its VNodes and slots instead of propagating an update.
     const renderCache: VNode[] = [];
@@ -222,14 +243,14 @@ const AstNodeRenderer = defineComponent({
             ? h(AstNodeRenderer, {
                 nodes: node.children,
                 generationMeta: props.generationMeta,
-                enableEnterAnimation: props.enableEnterAnimation,
+                enableEnterAnimation: enableAnimation.value,
                 parentContainerId: containerId || props.parentContainerId,
               })
             : undefined;
 
         // 根据节点类型决定是否应用动画
         const shouldAnimate =
-          props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
+          enableAnimation.value && !NO_ANIMATION_NODE_TYPES.has(node.type);
 
         // 识别块级节点以应用性能优化
         const isBlock = BLOCK_NODE_TYPES.has(node.type);
@@ -307,7 +328,7 @@ const AstNodeRenderer = defineComponent({
           [
             node,
             props.generationMeta,
-            props.enableEnterAnimation,
+            enableAnimation.value,
             props.parentContainerId,
             hasStyleNode,
           ],

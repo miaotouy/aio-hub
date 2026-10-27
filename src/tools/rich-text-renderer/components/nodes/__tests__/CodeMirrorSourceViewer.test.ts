@@ -12,6 +12,7 @@ import {
   language,
 } from "@codemirror/language";
 import CodeMirrorSourceViewer from "../code-block/CodeMirrorSourceViewer.vue";
+import { provideRendererViewState } from "../../../composables/useRendererViewState";
 
 const loadLanguage = vi.hoisted(() =>
   vi.fn<
@@ -224,4 +225,57 @@ it("keeps focused or selected code available until the interaction ends", async 
   selection.removeAllRanges();
   await vi.advanceTimersByTimeAsync(2100);
   expect(wrapper.find(".cm-editor").exists()).toBe(false);
+});
+
+// Full display eviction must preserve the same read-only selection/folds as editor-only eviction.
+it("restores code selection and folds when the owning display tree remounts", async () => {
+  const visible = ref(true);
+  wrapper = mount(
+    defineComponent({
+      setup() {
+        provideRendererViewState(visible);
+        return () =>
+          visible.value
+            ? h(CodeMirrorSourceViewer, { ...props, nodeId: "source-1" })
+            : h("div");
+      },
+    })
+  );
+  await intersect(true);
+  const first = currentView();
+  first.dispatch({
+    selection: { anchor: 2, head: 5 },
+    effects: foldEffect.of({ from: 10, to: 22 }),
+  });
+  visible.value = false;
+  await nextTick();
+  expect(wrapper.find(".cm-editor").exists()).toBe(false);
+  visible.value = true;
+  await nextTick();
+  await intersect(true);
+  const restored = currentView();
+  expect(restored).not.toBe(first);
+  expect(restored.state.selection.main.from).toBe(2);
+  expect(restored.state.selection.main.to).toBe(5);
+  const folds: number[][] = [];
+  foldedRanges(restored.state).between(
+    0,
+    restored.state.doc.length,
+    (from, to) => {
+      folds.push([from, to]);
+    }
+  );
+  expect(folds).toEqual([[10, 22]]);
+});
+
+// A chosen font must take effect immediately, with identical CSS before and after remount.
+it("uses a single font theme so live size changes match recreated code", async () => {
+  wrapper = mount(CodeMirrorSourceViewer, { props, attachTo: document.body });
+  await intersect(true);
+  await wrapper.setProps({ codeFontSize: 19 });
+  expect(getComputedStyle(currentView().dom).fontSize).toBe("19px");
+  await intersect(false);
+  await vi.advanceTimersByTimeAsync(2100);
+  await intersect(true);
+  expect(getComputedStyle(currentView().dom).fontSize).toBe("19px");
 });

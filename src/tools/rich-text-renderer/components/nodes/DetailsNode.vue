@@ -64,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { computed, ref } from "vue";
 import { ChevronRight, Copy, Check } from "lucide-vue-next";
 import type { AstNode } from "../../types";
@@ -217,7 +218,8 @@ const bodyNodes = computed<AstNode[]>(() => {
  * - HTML 原生 `open` 属性存在 → 展开
  * - 否则 → 折叠（与 HTML 标准一致）
  */
-const isOpen = ref(parseBooleanAttr(props.attributes.open));
+const viewState = useRendererNodeState(() => props.nodeId, "details");
+const isOpen = viewState.ref("isOpen", parseBooleanAttr(props.attributes.open));
 
 function handleToggle(event: Event) {
   const target = event.target as HTMLDetailsElement | null;

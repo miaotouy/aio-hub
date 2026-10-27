@@ -409,6 +409,7 @@ defineExpose({
         />
         <template v-else>
           <RichTextRenderer
+            suspend-on-deactivate
             v-bind="rendererSettingsProps"
             :content="message.content"
             :regex-rules="processedRules"

@@ -144,3 +144,41 @@ describe("消息阅读位置与底部跟随", () => {
     expect(element.scrollTop).toBe(1500);
   });
 });
+
+// Recovery must survive a temporary height clamp and stop as soon as the reader scrolls.
+it("停用期间忽略滚动重置，返回后随异步高度恢复历史位置", () => {
+  const { element, anchor, resize } = createScroller();
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -800 }));
+  element.scrollTop = 1100;
+  anchor.onScroll();
+  anchor.suspend();
+  resize(700);
+  element.scrollTop = 0;
+  anchor.onScroll();
+  expect(anchor.lastKnownScrollTop.value).toBe(1100);
+  anchor.resume();
+  expect(element.scrollTop).toBe(200);
+  anchor.onScroll();
+  resize(2500);
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(1100);
+  anchor.onWheel(new WheelEvent("wheel", { deltaY: -50 }));
+  element.scrollTop = 1050;
+  anchor.onScroll();
+  resize(3000);
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(1050);
+});
+
+it("停用后继续生成，返回时延续底部跟随意图", () => {
+  const { element, anchor, resize } = createScroller();
+  anchor.suspend();
+  resize(4000);
+  element.scrollTop = 0;
+  anchor.onScroll();
+  anchor.resume();
+  expect(element.scrollTop).toBe(3500);
+  resize(4500);
+  anchor.followBottom();
+  expect(element.scrollTop).toBe(4000);
+});

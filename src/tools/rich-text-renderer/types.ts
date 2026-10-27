@@ -910,4 +910,6 @@ export interface RichTextContext {
   isStreaming?: Ref<boolean>;
   /** 是否显示 Token 计数 */
   showTokenCount?: Ref<boolean>;
+  /** Propagates to recursively rendered containers such as details. */
+  enableEnterAnimation?: Readonly<Ref<boolean>>;
 }

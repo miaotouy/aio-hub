@@ -15,30 +15,43 @@
 -->
 
 <template>
-  <div class="rich-text-renderer" :style="cssVariables">
-    <!-- AST 渲染模式（V1/V2 等） -->
-    <AstNodeRenderer
-      v-if="useAstRenderer"
-      :nodes="ast"
-      :generation-meta="generationMeta"
-      :enable-enter-animation="renderEnableAnimation"
-    />
-    <!-- 纯 markdown-it 渲染模式 -->
-    <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
+  <div
+    ref="rootElement"
+    class="rich-text-renderer"
+    :style="[cssVariables, suspendedStyle]"
+  >
+    <template v-if="displayActive">
+      <!-- AST 渲染模式（V1/V2 等） -->
+      <AstNodeRenderer
+        v-if="useAstRenderer"
+        :nodes="ast"
+        :generation-meta="generationMeta"
+        :enable-enter-animation="renderEnableAnimation"
+      />
+      <!-- 纯 markdown-it 渲染模式 -->
+      <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import {
   onMounted,
+  onActivated,
+  onDeactivated,
   onBeforeUnmount,
   watch,
   ref,
   shallowRef,
   computed,
   provide,
+  inject,
 } from "vue";
-import { useThrottleFn } from "@vueuse/core";
+import { useThrottleFn, useResizeObserver } from "@vueuse/core";
+import {
+  provideRendererViewState,
+  rendererHostActiveKey,
+} from "./composables/useRendererViewState";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
 import { StreamProcessor } from "./core/StreamProcessor";
@@ -133,6 +146,8 @@ function hideTrailingIncompleteHtmlTag(text: string): string {
 
 const props = withDefaults(
   defineProps<{
+    /** Release display nodes while the KeepAlive host is inactive. Parser and source remain owned here. */
+    suspendOnDeactivate?: boolean;
     content?: string;
     streamSource?: StreamSource;
     version?: RendererVersion; // 渲染器版本
@@ -362,17 +377,81 @@ const internalIsStreaming = ref(false);
  */
 const animationDisabledAfterStreaming = ref(false);
 
+const rootElement = ref<HTMLElement | null>(null);
+const localHostActive = ref(true);
+const inheritedHostActive = inject(rendererHostActiveKey, undefined);
+const hostActive = computed(
+  () => localHostActive.value && (inheritedHostActive?.value ?? true)
+);
+const keepInteractiveDisplay = ref(false);
+const hasResumed = ref(false);
+const retainedHeight = ref(0);
+const displayActive = computed(
+  () =>
+    !props.suspendOnDeactivate ||
+    hostActive.value ||
+    keepInteractiveDisplay.value ||
+    props.isStreaming ||
+    internalIsStreaming.value
+);
+const suspendedStyle = computed(() =>
+  displayActive.value ? undefined : { height: retainedHeight.value + "px" }
+);
+const viewState = provideRendererViewState(displayActive);
+useResizeObserver(rootElement, ([entry]) => {
+  if (displayActive.value && hostActive.value && entry?.contentRect.height > 0)
+    retainedHeight.value = entry.contentRect.height;
+});
+function retainInteractiveDisplay() {
+  if (!props.suspendOnDeactivate) return;
+  // Embedded programs, media and native form controls own state beyond our AST view contract.
+  // Keep those renderers intact until a dedicated snapshot contract exists for them.
+  keepInteractiveDisplay.value = !!rootElement.value?.querySelector(
+    'iframe, video, audio, .video-node-container, .audio-node-container, input, textarea, select, [contenteditable="true"]:not(.cm-content), details:not(.details-node), canvas, object, embed'
+  );
+}
+onDeactivated(() => {
+  localHostActive.value = false;
+});
+onActivated(() => {
+  localHostActive.value = true;
+});
+watch(
+  hostActive,
+  (active) => {
+    if (!props.suspendOnDeactivate) return;
+    if (active) hasResumed.value = true;
+    else retainInteractiveDisplay();
+  },
+  { flush: "sync" }
+);
+watch(
+  [() => props.isStreaming, internalIsStreaming],
+  () => {
+    if (!hostActive.value) retainInteractiveDisplay();
+  },
+  { flush: "sync" }
+);
+watch(
+  displayActive,
+  (active) => {
+    if (active) viewState.clear();
+  },
+  { flush: "post" }
+);
+
 /**
  * 实际生效的动画启用状态
  */
 const renderEnableAnimation = computed(() => {
-  if (animationDisabledAfterStreaming.value) return false;
+  if (animationDisabledAfterStreaming.value || hasResumed.value) return false;
   return props.enableEnterAnimation;
 });
 
 // 提供上下文给子组件
 provide(RICH_TEXT_CONTEXT_KEY, {
   images: imageList,
+  enableEnterAnimation: renderEnableAnimation,
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
   seamlessMode: computed(() => props.seamlessMode),
   defaultCodeBlockExpanded: computed(() => props.defaultCodeBlockExpanded),
@@ -502,6 +581,7 @@ const prepareStreamBufferForRender = (rawText: string): string => {
 watch(
   processedContent,
   (newContent) => {
+    if (!displayActive.value) viewState.clear();
     if (props.streamSource) return;
 
     if (typeof newContent !== "string" || !newContent) {
@@ -553,6 +633,7 @@ watch(
       props.vcpFuzzyModeEnabled,
     ] as const,
   ([newVersion]) => {
+    if (!displayActive.value) viewState.clear();
     // 流式模式或无静态内容时，交给流式逻辑处理
     if (!props.content || props.streamSource) {
       if (!useAstRenderer.value) {
@@ -596,6 +677,7 @@ watch(
   () => props.isStreaming,
   (newIsStreaming) => {
     if (newIsStreaming) {
+      hasResumed.value = false;
       // 重新开始流式传输，启用动画
       animationDisabledAfterStreaming.value = false;
     } else if (useAstRenderer.value && streamProcessor.value) {

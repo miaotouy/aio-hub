@@ -163,6 +163,7 @@
 </template>
 
 <script setup lang="ts">
+import { useRendererNodeState } from "../../composables/useRendererViewState";
 import {
   ref,
   computed,
@@ -243,7 +244,8 @@ const handleMouseLeave = () => {
 };
 
 // 修复后的代码（只有在渲染失败后才会被设置）
-const fixedContent = ref<string | null>(null);
+const viewState = useRendererNodeState(() => props.nodeId, "mermaid");
+const fixedContent = viewState.ref<string | null>("fixedContent", null);
 
 // 判断当前渲染是否使用了修复后的代码
 const wasFixed = computed(
@@ -251,7 +253,7 @@ const wasFixed = computed(
 );
 
 // 是否强制显示原始内容（用户手动切换）
-const showOriginal = ref(false);
+const showOriginal = viewState.ref("showOriginal", false);
 
 /**
  * 削掉最后一行（用于流式渲染时避免不完整的行导致渲染失败）
@@ -324,7 +326,7 @@ const containerRef = ref<HTMLElement | null>(null);
 const mermaidRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
 const error = ref<string>("");
-const isExpanded = ref(false);
+const isExpanded = viewState.ref("isExpanded", false);
 const showViewer = ref(false);
 const isRendering = ref(false);
 const hasRendered = ref(false); // 是否至少成功渲染过一次
@@ -335,7 +337,7 @@ const scaleMin = 0.5;
 const scaleMax = 2.0;
 const scaleStep = 0.1;
 const defaultScale = 1.0;
-const currentScale = ref(1.0);
+const currentScale = viewState.ref("currentScale", 1.0);
 
 let mermaid: any = null;
 let renderCleanup: (() => void) | null = null;

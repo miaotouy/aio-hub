@@ -1155,6 +1155,7 @@ watch(
       :generation-meta="generationMetaForRenderer"
     >
       <RichTextRenderer
+        suspend-on-deactivate
         v-bind="rendererSettingsProps"
         :content="message.metadata.reasoningContent"
         :style-options="frozenStyleOptions"
@@ -1314,6 +1315,7 @@ watch(
           <span class="translation-title">原文</span>
         </div>
         <RichTextRenderer
+          suspend-on-deactivate
           v-if="displayedContent || isGenerating"
           :key="originalRendererKey"
           v-bind="rendererSettingsProps"
@@ -1386,6 +1388,7 @@ watch(
         </div>
         <div class="translation-content">
           <RichTextRenderer
+            suspend-on-deactivate
             v-bind="rendererSettingsProps"
             :content="
               isTranslating || !message.metadata?.translation

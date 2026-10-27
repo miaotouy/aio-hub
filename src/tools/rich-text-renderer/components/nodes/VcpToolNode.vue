@@ -161,6 +161,7 @@
 </template>
 
 <script setup lang="ts">
+import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { ref, computed, inject, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import {
@@ -177,6 +178,7 @@ import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { calculatorProxy } from "@/tools/token-calculator/worker/calculator.proxy";
 
 const props = defineProps<{
+  nodeId?: string;
   tool_name: string;
   command: string;
   maid?: string;
@@ -197,7 +199,8 @@ const props = defineProps<{
 
 const context = inject<RichTextContext>(RICH_TEXT_CONTEXT_KEY);
 
-const isCollapsed = ref(false);
+const viewState = useRendererNodeState(() => props.nodeId, "vcp-tool");
+const isCollapsed = viewState.ref("isCollapsed", false);
 const copied = ref(false);
 const tokenCount = ref<number>(0);
 
@@ -325,9 +328,20 @@ const defaultCollapsed = computed(() => {
   );
 });
 
+const previousCollapsedDefault = viewState.ref(
+  "collapsedDefault",
+  defaultCollapsed.value
+);
 watch(
   defaultCollapsed,
-  (collapsed) => {
+  (collapsed, previous) => {
+    if (
+      previous === undefined &&
+      viewState.restored &&
+      previousCollapsedDefault.value === collapsed
+    )
+      return;
+    previousCollapsedDefault.value = collapsed;
     isCollapsed.value = collapsed;
   },
   { immediate: true }

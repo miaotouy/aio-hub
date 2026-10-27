@@ -43,3 +43,26 @@ it("counts nested list subtrees without double-counting and follows a weakly ret
       .__aioMemoryDomRoot
   ).toBeInstanceOf(WeakRef);
 });
+
+// Portal subtrees must be attributed independently; a nested dropdown is outside its toolbar's DOM.
+it("attributes unopened teleported message menus without merging their distinct subtrees", () => {
+  document.body.innerHTML =
+    '<div class="message-menubar"></div><div class="el-popper llm-chat-message-toolbar-popover" style="display:none"><div>action</div></div><div class="el-popper" style="display:none"><div class="translation-mode-switch">mode</div></div><div class="el-popper llm-chat-branch-selector-popover" style="display:none"></div>';
+  const groups = collectDomCensus().document.groups;
+  expect(groups.messageMorePoppers).toMatchObject({
+    roots: 1,
+    nodes: 3,
+    inlineHiddenRoots: 1,
+  });
+  expect(groups.messageTranslationPoppers).toMatchObject({
+    roots: 1,
+    nodes: 3,
+    inlineHiddenRoots: 1,
+  });
+  expect(groups.messageBranchPoppers).toMatchObject({
+    roots: 1,
+    nodes: 1,
+    inlineHiddenRoots: 1,
+  });
+  expect(groups.poppers.nodes).toBe(7);
+});

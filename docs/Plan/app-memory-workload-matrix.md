@@ -223,3 +223,9 @@ bun run test:run -- scripts/perf/memory/memory.test.ts scripts/perf/resources.te
 新增 `--dom-census`，在测量检查点后另存结构数量，使用弱引用观察 KeepAlive 脱离 document 的消息区；分组子树按类别去重，不保存正文、ID 或标题。`--empty-switch-probe` 在原有末轮 GC 后追加切空会话、静置及 GC 的终端诊断。结构扫描自身影响后续回收，正式时序测量可关闭。
 
 本轮可读三类样本共 23 个有效检查点，切空会话另有 10 个，均完成。下一轮重点为消息菜单按需挂载、停用页渲染树回收和历史消息挂载边界。细节见 [聊天 DOM 驻留归因](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md)。相关 5 个测试文件共 16 个用例通过。
+
+## 9. 翻译菜单按需挂载探索（2026-10-27）
+
+使用定向替换后的固定可读语料，确认 48 个未打开的翻译菜单仍挂载 11,040 个弹层节点。原型对消息翻译 Dropdown 单独启用按需内容，保留更多菜单中的变量详情生命周期。结构探针增加消息更多 / 翻译 / 分支 / 变量弹层分类，覆盖传送子树脱离工具栏的情形。
+
+前后各一个真实进程，GC 后 document 节点 33,702 → 22,710，全局 DOM 109,097 → 98,136，页面堆约 228.4 → 213.9 MiB。该轮为未滚动、未开菜单的结构诊断，随后验证 Enter / Escape / 重开与停用回收；与第 3 节完整时序分开比较。数量、状态边界和本地结果位置见 [专项记录](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md#7-消息翻译菜单按需挂载探索2026-10-27)。

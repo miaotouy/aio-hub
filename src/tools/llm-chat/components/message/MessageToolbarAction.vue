@@ -73,6 +73,7 @@ const tooltip = computed(() =>
   >
     <el-dropdown
       v-if="action.id === 'translate'"
+      :persistent="false"
       trigger="click"
       placement="top"
       @command="emit('translation-command', $event)"

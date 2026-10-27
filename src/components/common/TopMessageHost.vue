@@ -348,87 +348,93 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="top-message-host" :style="containerStyle">
-    <TransitionGroup
-      name="top-message-transition"
-      tag="div"
-      class="top-message-list"
-    >
-      <div
-        v-for="message in floatingMessages"
-        :key="message.id"
-        class="top-message"
-        :class="getMessageClass(message)"
-        :role="canCopy(message) ? 'button' : 'alert'"
-        :tabindex="canCopy(message) ? 0 : -1"
-        :aria-label="canCopy(message) ? '点击复制消息内容' : '通知'"
-        @mouseenter="pauseTimer(message)"
-        @mouseleave="resumeTimer(message)"
-        @click="copyMessage(message)"
-        @keydown.enter.prevent="copyMessage(message)"
-        @keydown.space.prevent="copyMessage(message)"
+  <!-- 与全局弹窗共享 body 层级，避免受应用根节点的层叠上下文限制。 -->
+  <Teleport to="body">
+    <div class="top-message-host" :style="containerStyle">
+      <TransitionGroup
+        name="top-message-transition"
+        tag="div"
+        class="top-message-list"
       >
-        <div class="top-message__main">
-          <div class="top-message__icon" aria-hidden="true">
-            <component
-              :is="message.icon || getTypeIcon(message.type)"
-              :size="18"
+        <div
+          v-for="message in floatingMessages"
+          :key="message.id"
+          class="top-message"
+          :class="getMessageClass(message)"
+          :role="canCopy(message) ? 'button' : 'alert'"
+          :tabindex="canCopy(message) ? 0 : -1"
+          :aria-label="canCopy(message) ? '点击复制消息内容' : '通知'"
+          @mouseenter="pauseTimer(message)"
+          @mouseleave="resumeTimer(message)"
+          @click="copyMessage(message)"
+          @keydown.enter.prevent="copyMessage(message)"
+          @keydown.space.prevent="copyMessage(message)"
+        >
+          <div class="top-message__main">
+            <div class="top-message__icon" aria-hidden="true">
+              <component
+                :is="message.icon || getTypeIcon(message.type)"
+                :size="18"
+              />
+            </div>
+            <MessageBody :message="message" />
+            <span
+              v-if="message.repeatNum > 1"
+              class="top-message__repeat-count"
+            >
+              {{ message.repeatNum }}
+            </span>
+            <button
+              v-if="canCopy(message)"
+              class="top-message__copy"
+              type="button"
+              :aria-label="
+                copiedMessageId === message.id
+                  ? '消息内容已复制'
+                  : copyFailedMessageId === message.id
+                    ? '复制消息内容失败'
+                    : '复制消息内容'
+              "
+              :title="
+                copiedMessageId === message.id
+                  ? '已复制'
+                  : copyFailedMessageId === message.id
+                    ? '复制失败'
+                    : '点击复制'
+              "
+              @click.stop="copyMessage(message)"
+            >
+              <Check v-if="copiedMessageId === message.id" :size="16" />
+              <X v-else-if="copyFailedMessageId === message.id" :size="16" />
+              <Copy v-else :size="16" />
+            </button>
+            <button
+              v-if="message.showClose"
+              class="top-message__close"
+              type="button"
+              aria-label="关闭消息"
+              title="关闭"
+              @click.stop="closeFloatingMessage(message.id)"
+            >
+              <X :size="16" />
+            </button>
+          </div>
+
+          <div
+            v-if="message.duration > 0"
+            class="top-message__progress"
+            :class="{ 'is-paused': message.paused }"
+            aria-hidden="true"
+          >
+            <span
+              class="top-message__progress-fill"
+              :style="{ transform: `scaleX(${message.progress})` }"
             />
           </div>
-          <MessageBody :message="message" />
-          <span v-if="message.repeatNum > 1" class="top-message__repeat-count">
-            {{ message.repeatNum }}
-          </span>
-          <button
-            v-if="canCopy(message)"
-            class="top-message__copy"
-            type="button"
-            :aria-label="
-              copiedMessageId === message.id
-                ? '消息内容已复制'
-                : copyFailedMessageId === message.id
-                  ? '复制消息内容失败'
-                  : '复制消息内容'
-            "
-            :title="
-              copiedMessageId === message.id
-                ? '已复制'
-                : copyFailedMessageId === message.id
-                  ? '复制失败'
-                  : '点击复制'
-            "
-            @click.stop="copyMessage(message)"
-          >
-            <Check v-if="copiedMessageId === message.id" :size="16" />
-            <X v-else-if="copyFailedMessageId === message.id" :size="16" />
-            <Copy v-else :size="16" />
-          </button>
-          <button
-            v-if="message.showClose"
-            class="top-message__close"
-            type="button"
-            aria-label="关闭消息"
-            title="关闭"
-            @click.stop="closeFloatingMessage(message.id)"
-          >
-            <X :size="16" />
-          </button>
         </div>
-
-        <div
-          v-if="message.duration > 0"
-          class="top-message__progress"
-          :class="{ 'is-paused': message.paused }"
-          aria-hidden="true"
-        >
-          <span
-            class="top-message__progress-fill"
-            :style="{ transform: `scaleX(${message.progress})` }"
-          />
-        </div>
-      </div>
-    </TransitionGroup>
-  </div>
+      </TransitionGroup>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

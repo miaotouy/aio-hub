@@ -19,10 +19,22 @@ import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import { flushPromises, mount } from "@vue/test-utils";
+import {
+  DOMWrapper,
+  enableAutoUnmount,
+  flushPromises,
+  mount,
+} from "@vue/test-utils";
 import { nextTick } from "vue";
 
 import TopMessageHost from "./TopMessageHost.vue";
+
+enableAutoUnmount(afterEach);
+
+function mountHost() {
+  mount(TopMessageHost);
+  return new DOMWrapper(document.body);
+}
 
 describe("TopMessageHost", () => {
   beforeEach(() => {
@@ -38,7 +50,7 @@ describe("TopMessageHost", () => {
   });
 
   it("pauses the countdown on hover and resumes from the paused point", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.info({ message: "可暂停的通知", duration: 1000 });
     await nextTick();
 
@@ -60,7 +72,7 @@ describe("TopMessageHost", () => {
   });
 
   it("renders rich HTML messages when explicitly enabled", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.error({
       message:
         '<section class="message-detail"><strong>请求失败</strong><br><code>&lt;tag&gt;</code></section>',
@@ -77,7 +89,7 @@ describe("TopMessageHost", () => {
   });
 
   it("keeps HTML escaped unless explicitly enabled", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.error({
       message: "<strong>请求失败</strong>",
       duration: 0,
@@ -91,7 +103,7 @@ describe("TopMessageHost", () => {
   });
 
   it("renders internal error details as VNodes and groups repeated errors", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     const showError = () =>
       errorHandler.handle(
         new Error("Cannot read properties of null (reading 'insertBefore')"),
@@ -124,7 +136,7 @@ describe("TopMessageHost", () => {
       value: { writeText },
     });
 
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.success({ message: "需要复制的内容", duration: 0 });
     await nextTick();
 
@@ -138,8 +150,37 @@ describe("TopMessageHost", () => {
     expect(wrapper.find("button[aria-label='关闭消息']").exists()).toBe(true);
   });
 
+  it("keeps messages outside the app stacking context alongside body-level dialogs", async () => {
+    const appRoot = document.createElement("div");
+    appRoot.style.cssText = "position: relative; z-index: 0";
+    const dialog = document.createElement("div");
+    dialog.className = "base-dialog-backdrop";
+    dialog.style.cssText = "position: fixed; z-index: 3001";
+    document.body.append(appRoot, dialog);
+    const wrapper = mount(TopMessageHost, { attachTo: appRoot });
+
+    try {
+      customMessage.success({ message: "弹窗内操作成功", duration: 0 });
+      await nextTick();
+
+      const host = document.querySelector<HTMLElement>(".top-message-host")!;
+      expect(host.parentElement).toBe(document.body);
+      expect(Number(host.style.zIndex)).toBeGreaterThan(
+        Number(dialog.style.zIndex)
+      );
+
+      await new DOMWrapper(host)
+        .get('button[aria-label="关闭消息"]')
+        .trigger("click");
+      expect(host.querySelector(".top-message")).toBeNull();
+    } finally {
+      wrapper.unmount();
+      appRoot.remove();
+      dialog.remove();
+    }
+  });
   it("dynamically elevates z-index above active dialogs", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.info({ message: "普通消息", duration: 0 });
     await nextTick();
 
@@ -169,7 +210,7 @@ describe("TopMessageHost", () => {
   });
 
   it("respects custom message z-index up to safety maximum", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.warning({ message: "高层级消息", zIndex: 5000, duration: 0 });
     await nextTick();
 

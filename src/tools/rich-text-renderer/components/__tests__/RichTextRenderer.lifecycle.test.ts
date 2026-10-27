@@ -591,3 +591,65 @@ it("defers unmeasured history under a reserved row shell and reveals current sou
   await settle();
   expect(state.renderer().get("li").text()).toBe("updated while unseen");
 });
+
+// Pure rendering remains usable after the component has parsed with another backend.
+it("preserves pure Markdown formatting through AST version switches", async () => {
+  wrapper = mount(RichTextRenderer, {
+    props: {
+      version: RendererVersion.PURE_MARKDOWN_IT,
+      content: "**first**\r\nhttps://example.org",
+      enableEnterAnimation: false,
+      throttleEnabled: false,
+    },
+  });
+  await settle();
+  expect(wrapper.get("strong").text()).toBe("first");
+  expect(wrapper.findAll("br")).toHaveLength(1);
+  expect(wrapper.get("a").attributes("href")).toBe("https://example.org");
+
+  await wrapper.setProps({
+    version: RendererVersion.V2_CUSTOM_PARSER,
+    content: "**second**",
+  });
+  await settle();
+  expect(wrapper.get("strong").text()).toBe("second");
+  await wrapper.setProps({
+    version: RendererVersion.PURE_MARKDOWN_IT,
+    content: "**latest**\r\nhttps://example.net",
+  });
+  await settle();
+  expect(wrapper.get("strong").text()).toBe("latest");
+  expect(wrapper.findAll("br")).toHaveLength(1);
+  expect(wrapper.get("a").attributes("href")).toBe("https://example.net");
+});
+
+it("renders and completes a pure-mode chunk stream with normalized line endings", async () => {
+  let push: (chunk: string) => void = () => {};
+  let finish: () => void = () => {};
+  wrapper = mount(RichTextRenderer, {
+    props: {
+      version: RendererVersion.PURE_MARKDOWN_IT,
+      streamSource: {
+        subscribe(callback: (chunk: string) => void) {
+          push = callback;
+          return () => {};
+        },
+        onComplete(callback: () => void) {
+          finish = callback;
+          return () => {};
+        },
+      },
+      smoothingEnabled: false,
+      enableEnterAnimation: false,
+    },
+  });
+  push("**stream");
+  await settle();
+  expect(wrapper.find("strong").exists()).toBe(false);
+  push(" complete**\r\nhttps://example.org");
+  finish();
+  await settle();
+  expect(wrapper.get("strong").text()).toBe("stream complete");
+  expect(wrapper.findAll("br")).toHaveLength(1);
+  expect(wrapper.get("a").attributes("href")).toBe("https://example.org");
+});

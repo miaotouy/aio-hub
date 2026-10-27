@@ -797,3 +797,34 @@ long-thread 的单次返回 CPU 采样中，querySelectorAll 自耗时约 1,222m
 ### 回到富文本驻留待办
 
 源码初查发现 RichTextRenderer 在所有版本下都创建纯渲染用 MarkdownIt 实例，实际 md.render 仅位于非 AST 分支；默认 V2 仍会持有它。先在 Bun / JSC 中用相同选项独立留存未调用的实例做成本诊断：预热 GC 堆约 1.30 MB，100 份为 13.00 MB，200 份为 24.59 MB，清空后回到 1.50 MB，约每份 116 KB。该结果只用于选择下一项，未当作 WebView2 收益。下一轮优先验证按需创建纯渲染器及版本切换生命周期，再继续 source / parser / AST 所有权。诊断保存在 unused-markdown-jsc.json。
+
+
+## 22. 纯渲染 MarkdownIt 按需创建（2026-10-28）
+
+### 实现与验证边界
+
+RichTextRenderer 的纯渲染入口改为组件私有的按需实例，首次实际渲染时创建；切回 AST 模式及卸载时释放。静态内容、版本／配置切换、平滑流与直接流共用同一入口，原有 MarkdownIt 选项保持一致。默认 V2 继续使用 CustomParser；V1 自身处理器所需的 MarkdownIt 保留。
+
+补充的两项行为用例保护 PURE → V2 → PURE 后的最新内容、格式、自动链接和 CRLF，以及固定纯模式下的分段流完成。断言面向渲染结果，重构实现仍可复用。66 个相关用例、类型检查、Vite 和 release 性能构建通过。原生组件探针也复核上述版本往返和流完成；流中途切换解析后端继续单独保留调查。
+
+### WebView2 对照
+
+基线为 4f9e7660e 的正式性能包。固定可读 branches、56 个富文本组件，两版在特效关闭与壁纸强玻璃（light-w1-o0.3-b40）下各启动一个隔离进程，共四个案例。首次进入等 7 秒、回顶部等 3 秒、首页等 1.8 秒、返回聊天等 3 秒，各阶段先 GC 再取页面 JS 堆。样本只支持本轮局部归因。
+
+| 阶段 | 特效关闭：旧 → 新 | 壁纸强玻璃：旧 → 新 |
+| --- | ---: | ---: |
+| 冷首页 GC 堆 | 37.53 → 37.54 MiB | 37.56 → 37.55 MiB |
+| 首次聊天 GC 堆 | 115.34 → 109.05 MiB | 115.34 → 109.01 MiB |
+| 回顶部 GC 堆 | 116.30 → 109.99 MiB | 116.31 → 109.97 MiB |
+| 返回首页 GC 堆 | 103.05 → 96.74 MiB | 103.05 → 96.72 MiB |
+| 再回聊天 GC 堆 | 115.86 → 109.55 MiB | 115.86 → 109.52 MiB |
+
+两个配置的聊天及缓存阶段均减少约 6.3 MiB。各对应阶段的富文本正文、document 元素数、全局 DOM 数和滚动几何一致；首次聊天高度 22,619px、回顶部 24,333px、返回聊天 24,008px，均为相同阶段的前后对照。动态历史仍会随着阅读继续测量，三个阶段之间的高度差沿用原行为。
+
+全部常规采样结束后，特效关闭组各取一次活动页堆快照。按 renderer / core / block / inline / linkify / options 的对象自有属性组合识别 MarkdownIt，实例数 56 → 0；V2 处理器保持 56 份。页面堆差值与实例消除相互印证；对象 shallow size 只用于识别，未当作整份 retained size。当前数据属于页面 JS 堆，整进程 Private / WS、GPU 合成和返回时延仍沿各自口径评估。
+
+原生产物在 .tmp/app-memory/pure-vue-{before,after}-{light,glass}-20261028/，含 metrics.json；特效关闭组含 active.heapsnapshot 及对象识别摘要。旧包 light 的独立纯渲染探针曾因资源列表中缺少模块 URL 退出，之前完成的五阶段采样和堆快照有效；探针随后通过实际 Vue 组件身份取到组件，旧包 glass 与新包两组的 contracts.json 均通过。pure-renderer-build-fixed.log 保存完整构建，pure-renderer-tests-fixed.log 保存相关用例。
+
+### 下一轮：source / parser / AST 所有权
+
+同一活动页快照中，56 个 V2 处理器的 buffer 与 lastStableText 均指向相同字符串对象；处理器的 13,435 个 AST 节点也全部与显示索引中的 node 引用共享，pending 根为空。该静态样本未显示源码缓存或显示索引在深拷贝整树。继续观察流式期间的重解析量和 transient AST，再决定是否调整所有权与增量边界。保留全局引用定义、尾块回看、编辑及流完成后的语义契约。

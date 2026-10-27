@@ -310,3 +310,8 @@ long-thread 回放确认上下文统计曾经通过预览补建历史图像转�
 ### 自动统计与完整分析分组（2026-10-28）
 
 自动统计采用媒体元数据路径，显式分析器继续构建完整请求。固定 long-thread 的两版等路径长度原生对照中，自动统计图片读取 4 次 / 3.39 MiB → 0，菜单上下文统计保持 19,594 tokens；显式分析器均读取 4 张图，完整请求消息及媒体规模一致。GC 页面堆持平，本轮结果用于冷统计归因。文本、已有转写和 Office 资源处理继续沿现有管线；具体行为及原生产物见[专项第 21 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md#21-自动统计的媒体元数据路径2026-10-28)。
+
+
+## 21. 备用 Markdown 解析器驻留（2026-10-28）
+
+默认 AST 渲染路径延后创建纯渲染 MarkdownIt。可读 branches 的特效关闭与壁纸强玻璃配置，两版各一个隔离进程：首次聊天 GC 页面堆 115.34 → 109.05、115.34 → 109.01 MiB；返回首页、再次聊天也约减少 6.3 MiB，冷首页持平。同阶段正文、元素数、全局 DOM 和滚动几何一致。活动页快照的 MarkdownIt 实例由 56 降到 0，V2 处理器数量保持 56；收益归于页面 JS 驻留。各配置仍需沿原矩阵单独评估进程内存、GPU 与交互时延。详见[专项第 22 节](../../src/tools/rich-text-renderer/docs/Plan/chat-dom-retention-investigation.md#22-纯渲染-markdownit-按需创建2026-10-28)。

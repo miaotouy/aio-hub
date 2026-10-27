@@ -458,13 +458,17 @@ const htmlContent = ref("");
 // 流式累积的原始文本缓冲
 const buffer = ref("");
 
-// markdown-it 实例（纯渲染模式）
-const md = new MarkdownIt({
-  html: true,
-  breaks: true,
-  linkify: true,
-  typographer: true,
-});
+// 纯模式首次渲染时创建；默认 AST 模式仅持有自身处理器。
+let pureMarkdown: MarkdownIt | null = null;
+const renderPureMarkdown = (text: string): string => {
+  pureMarkdown ??= new MarkdownIt({
+    html: true,
+    breaks: true,
+    linkify: true,
+    typographer: true,
+  });
+  return pureMarkdown.render(text);
+};
 
 /**
  * 根据版本创建对应的处理器（仅 AST 模式下使用）
@@ -599,7 +603,7 @@ watch(
       }
     } else {
       // 纯 markdown-it：直接全量渲染
-      htmlContent.value = md.render(newContent);
+      htmlContent.value = renderPureMarkdown(newContent);
     }
   },
   { immediate: true }
@@ -618,6 +622,7 @@ watch(
       props.vcpFuzzyModeEnabled,
     ] as const,
   ([newVersion]) => {
+    if (useAstRenderer.value) pureMarkdown = null;
     if (!displayActive.value) viewState.clear();
     // 流式模式或无静态内容时，交给流式逻辑处理
     if (!props.content || props.streamSource) {
@@ -647,7 +652,7 @@ watch(
     } else {
       // 纯渲染模式
       streamProcessor.value = null;
-      htmlContent.value = md.render(content);
+      htmlContent.value = renderPureMarkdown(content);
     }
   },
   { deep: true }
@@ -733,7 +738,7 @@ onMounted(() => {
           }
           streamProcessor.value?.setContent(bufferToProcess);
         } else {
-          htmlContent.value = md.render(bufferToProcess);
+          htmlContent.value = renderPureMarkdown(bufferToProcess);
         }
       },
       smoothingEnabled: true,
@@ -769,7 +774,7 @@ onMounted(() => {
         streamProcessor.value?.setContent(bufferToProcess);
       } else {
         // 纯 markdown-it：每次全量重渲染
-        htmlContent.value = md.render(bufferToProcess);
+        htmlContent.value = renderPureMarkdown(bufferToProcess);
       }
     });
   }
@@ -818,6 +823,7 @@ onBeforeUnmount(() => {
 
   // 主动释放大对象引用，降低长会话切换/卸载后的 WebView2 常驻内存压力
   disposeMarkdownAst();
+  pureMarkdown = null;
   imageList.value = [];
   buffer.value = "";
   htmlContent.value = "";

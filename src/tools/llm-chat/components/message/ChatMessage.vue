@@ -466,9 +466,9 @@ defineExpose({
   border-style: dashed;
 }
 
-/* 悬停时显示操作栏 */
+/* 悬停或键盘聚焦时显示操作栏；弹层归还的鼠标焦点保留在入口。 */
 .chat-message:hover .menubar-wrapper,
-.chat-message:focus-within .menubar-wrapper,
+.chat-message:has(:focus-visible) .menubar-wrapper,
 .chat-message:has(.message-menubar.has-open-popover) .menubar-wrapper {
   opacity: 1;
 }
@@ -496,10 +496,10 @@ defineExpose({
 }
 
 .chat-message:hover .menubar-wrapper > *,
-.chat-message:focus-within .menubar-wrapper > *,
+.chat-message:has(:focus-visible) .menubar-wrapper > *,
 .chat-message:has(.message-menubar.has-open-popover) .menubar-wrapper > *,
 .chat-message:hover .menubar-wrapper::before,
-.chat-message:focus-within .menubar-wrapper::before {
+.chat-message:has(:focus-visible) .menubar-wrapper::before {
   pointer-events: auto;
 }
 

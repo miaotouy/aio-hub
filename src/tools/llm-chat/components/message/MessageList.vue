@@ -1087,7 +1087,7 @@ defineExpose({
 
 /* 当前消息的浮动操作栏绘制在相邻行上方，列表尺寸保持稳定。 */
 .messages-container.mode-bubble > .message-slot:hover,
-.messages-container.mode-bubble > .message-slot:focus-within,
+.messages-container.mode-bubble > .message-slot:has(:focus-visible),
 .messages-container.mode-bubble
   > .message-slot:has(.message-menubar.has-open-popover) {
   z-index: 20;

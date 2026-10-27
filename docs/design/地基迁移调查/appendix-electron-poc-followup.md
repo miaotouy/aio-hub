@@ -1,4 +1,6 @@
-# Electron PoC 续测记录（2026-10-14）
+# Electron PoC 续测记录（2026-10-14 / 2026-10-27）
+
+> 当前本地 PoC：Electron **45.0.0**。第 1–10 节记录 Electron 39.8.10 的历史验证；第 11 节记录新版富文本复测与剩余验证范围。
 
 ## 1. 环境与执行范围
 
@@ -101,7 +103,7 @@ TLS 证书仅在测试内存中生成。`selfsigned` 5.5.0 在本次 Electron �
 
 **结论**：该输入规模下，热态性能满足实时分词的初步预期。词典冷初始化适合后台预热；发布需要明确 Electron ABI 重建、Native Addon 和词典的打包方式。分词质量与现有 jieba-rs 的索引兼容性，需用真实语料对照。
 
-复现本轮编译：
+以下命令复现 Electron 39.8.10 的历史编译；当前 PoC 已升至 45.0.0，Native Addon 的新版 ABI 重建与加载待验证（见第 11 节）：
 
 ```powershell
 Set-Location .tmp/electron-poc/node_modules/nodejieba
@@ -164,6 +166,8 @@ bun .tmp/electron-poc/inventory.ts
 5. 系统信息连续采样与完整字段映射、更多媒体资源和网络 provider 契约。
 6. 本轮 shell 改动后的打包验证。已将 preload 和协议模块补进 electron-builder files；原包体实测继续作为历史数据。
 7. Forge/electron-builder 选型、独立 Node sidecar 对照，以及 CEF/移动端运行态专项验证。
+8. 2026-10-27 升级 Electron 45 后，按目标 ABI 重建并加载 Native Addon，补跑后台 / 协议 / 网络、真实会话和打包专项；本次富文本复测范围见第 11 节。
+
 ## 10. 真实长会话与附件回放（2026-10-14）
 
 ### 数据与隔离方式
@@ -238,3 +242,30 @@ bun run --cwd .tmp/electron-poc verify:long-session
 - 截图：`conversation-top.png`、`conversation-bottom.png`、`attachment-preview.png`。
 - 常规 PoC 回归复跑：15 项通过，1 项主动崩溃默认跳过，覆盖此前的范围校验、媒体协议、后台生命周期和多窗口事件。
 - 本轮改动只涉及本地 PoC 与调查文档，前端业务源码保持原样；现有 `dist` 用于真实 Electron 运行，PoC 入口通过 Bun 构建语法验证。
+
+## 11. Electron 45 升级与富文本对照（2026-10-27）
+
+### 当前版本与证据范围
+
+`.tmp/electron-poc/package.json` 与 `bun.lock` 已固定 **Electron 45.0.0**，实际安装运行时同为 45.0.0。真实窗口报告为 **Chromium 156.0.8078.48 / V8 15.6.75.19**。本轮复用 2026-10-27 早先 Tauri / Electron 39 的同一生产前端产物，使用独立数据目录，业务源码保持原样。
+
+测量配置为 1440 × 900 CSS 视口、关闭平滑 / 入场动画、代码块展开、256 单元分块、每 20 ms 发送一块、开启组件生命周期探针。四类约 100 KiB 语料各三周期静态 / 流式，另补长代码、Mermaid、KaTeX 与回收诊断，共 **35 个新版样本**。所有最终 AST 均匹配完整解析，挂载 / 卸载计数平衡，采样期间页面异常和 console error 为 0。
+
+### 对迁移判断的补充
+
+- 四类静态首屏相对 Electron 39 缩短 **18.5%–26.4%**；相对早先 Tauri 155 的同产物读数缩短 **3.8%–12.3%**。三组按顺序采样、每组三周期，保留运行波动与内核版本差异的解释边界。
+- 十二个正式流式样本均无长任务；多代码围栏帧间隔 P95 从 **25.2 降至 18.9 ms**，静态首屏仍约 **1.03 秒**。
+- Mermaid 静态 / 流式均生成 **14/14 个 SVG**，KaTeX 均有 **149 个公式节点**；真实截图已走查。Mermaid 流式单周期长任务累计 **203 → 226 ms**，跨空行列表完成上界 **134.4 → 175.9 ms**，后续继续优化。
+- 普通混排与多代码围栏各两周期完整流式，卸载后组件 / 根 DOM 弱引用均释放、流订阅归零。主线程堆与旧版接近，多代码围栏略高，整进程内存收益待同样本专项确认。
+- 旧版单长代码静态引用保留在新版两次独立进程采样中均已释放，卸载并 GC 后主线程堆为 **45.60 / 45.61 MiB**；该结果记录为跨版本回收差异，长期累计增长继续观察。
+
+完整静态首屏、流式、重型节点和堆内存表统一维护在[富文本性能计划](../../../src/tools/rich-text-renderer/docs/Plan/markdown-conformance-and-performance.md#electron-45-升级复测2026-10-27)，调查报告摘要见[第 5.3 节](./webview2-migration-investigation.md#53-electron-45-同产物富文本复测2026-10-27)。
+
+第 1–10 节的协议、网络、`utilityProcess` 生命周期、系统信息、`nodejieba` 与真实长会话数据保留为 Electron 39.8.10 记录。当前升级后的验证范围为富文本组件，下一轮继续补目标 ABI 的原生模块加载、后台 / 协议 / 网络、真实会话与发布打包。
+
+### 复现与产物
+
+- 正式时序：`.tmp/rich-text-electron-20261027/electron45/timing/`。
+- 重型内容与回收：同目录 `heavy/`、`memory/`、`release-followup/`。
+- 三方聚合：`.tmp/rich-text-electron-20261027/electron45/comparison.json`，包含同快照、组件、语料、视口与采样配置核对结果。
+- 升级和测量命令见[富文本性能计划的产物与复现](../../../src/tools/rich-text-renderer/docs/Plan/markdown-conformance-and-performance.md#产物与复现)。旧版结果与截图继续存放在原目录。

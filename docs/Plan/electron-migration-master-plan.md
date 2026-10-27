@@ -2,6 +2,7 @@
 
 > 状态：规划评审中 (RFC)  
 > 提出日期：2026-10-02  
+> 更新日期：2026-10-27\
 > 编制人：咕咕（架构师）  
 > 关联调查文档：[`docs/design/地基迁移调查/webview2-migration-investigation.md`](../design/地基迁移调查/webview2-migration-investigation.md)  
 > 关联复盘文档：[`docs/Plan/cordis-runtime-postmortem-and-lessons.md`](./cordis-runtime-postmortem-and-lessons.md)
@@ -14,19 +15,28 @@
 
 AIO Hub 经过长期发展，已成长为包含 40+ 垂类效率工具、复杂长程 Agent、富文本高密度渲染（Markdown/KaTeX/Mermaid/CodeMirror）、多模态媒体处理的桌面级复合工作台。
 
-在当前应用尺度下，原有的 **Tauri + WebView2** 架构暴露了不可调和的结构性物理缺陷：
+当前迁移主要处理以下运行时、网络与跨平台问题；渲染性能和内存收益以同产物实测为依据：
 
 1. **缺失独立的后台 JS 运行时**：Agent 编排和长任务不得不绑定在渲染窗口的 Vue 上下文中，窗口关闭或刷新即中断；用隐藏无头 WebView 只是徒增套娃。
-2. **WebView2 的 GC 与内存失控**：长会话和复杂富文本场景内存动辄飙升突破 2GB，且 GC 策略为系统黑盒，开发者无法干预。
+2. **复杂富文本内存与回收**：早期长会话曾出现超过 2GB 的进程组占用；后续 WebView2 堆快照定位并修复了前端代理缓存保留。运行时升级、渲染器实现与整会话负载需分别测量，最新范围见下方实测更新。
 3. **沉重的 Rust 代理 Workaround**：为了绕过 WebView2 的 CORS、证书、大 Payload IPC 传输等限制，被迫在 Rust 侧手写了几千行的 Axum 代理（`llm_proxy.rs` 等）。
 4. **跨平台渲染地狱**：Windows (WebView2) / Linux (WebKitGTK) / macOS (WebKit) 行为分裂，渲染和 IME 偶发崩溃难以排查。
 
-**迁移到 Electron** 将彻底解开上述枷锁：
+**迁移到 Electron** 的目标能力：
 
 - 获得**统一、可预测、自带 Chromium 内核**的绝对控制权；
 - 获得**原生常驻的 Node.js 主进程/工具进程**，为 Cordis 插件体系、长程 Agent、任务队列提供天然生存土壤；
 - **前端 Vue 业务层 95% 资产无损平移**，GUI 工具箱与【发送到 Chat】的直觉交互体验 100% 保持；
 - 核心高性能 Rust 算法（ripgrep、HNSW、BLAKE3、WinRT OCR）通过 `napi-rs` 原生桥接，性能不降反升。
+
+### 1.2 当前 PoC 与实测更新（2026-10-27）
+
+- 本地 PoC 已固定 **Electron 45.0.0 / Chromium 156.0.8078.48**。正式工程脚手架仍按阶段计划实施；本地 PoC 升级与富文本采样分别记录。
+- 同一生产前端产物的四类约 100 KiB 语料、各三周期测量中，静态首屏较 Electron 39 缩短 **18.5%–26.4%**，较本日早先 Tauri 155 读数缩短 **3.8%–12.3%**；顺序采样与内核差异继续保留为解释边界。
+- 新版共 35 个富文本时序 / 重型内容 / 回收样本，AST 校验全部通过。主线程堆与旧版接近；整进程与真实长会话内存收益待同样本对照。多个代码围栏首屏仍约 1.03 秒，Mermaid 与列表尾部等待继续优化。
+- 旧版单长代码静态引用保留在新版两次独立进程采样中均已释放。Electron 39 的后台、网络、Native Addon、真实会话与包体数据保留原版本，新版专项与 ABI 重建继续推进。
+
+调查摘要见[迁移调查第 5.3 节](../design/地基迁移调查/webview2-migration-investigation.md#53-electron-45-同产物富文本复测2026-10-27)，证据与范围见[PoC 附录第 11 节](../design/地基迁移调查/appendix-electron-poc-followup.md#11-electron-45-升级与富文本对照2026-10-27)，完整表格见[富文本性能计划](../../src/tools/rich-text-renderer/docs/Plan/markdown-conformance-and-performance.md#electron-45-升级复测2026-10-27)。
 
 ---
 

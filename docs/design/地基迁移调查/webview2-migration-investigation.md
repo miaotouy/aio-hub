@@ -2,6 +2,7 @@
 
 **状态**: RFC (Request for Comments)  
 **创建日期**: 2025-05-20  
+**更新日期**: 2026-10-27\
 **作者**: 咕咕
 
 ---
@@ -14,11 +15,11 @@ WebView2 的不可控性已成为功能设计和开发的主要瓶颈之一。�
 
 ## 2. 已确认的痛点
 
-### 2.1. 内存管理不可控
+### 2.1. 复杂富文本内存与回收
 
-- 复杂富文本场景（消息列表 + 流式渲染 + 代码块 + Mermaid）下内存占用轻松突破 2GB
-- WebView2 的 GC 策略完全黑盒，无法干预或调优
-- 即使已实现 `content-visibility: auto`、Patch 系统、组件卸载清理等优化，内存仍不可控
+- 早期真实长会话曾出现超过 2GB 的进程组占用，历史采样与数据边界见第 5 节。
+- 2026-10-25 至 27 日的真实 WebView2 采样通过 CDP 触发诊断 GC、采集堆快照，并定位和修复了前端响应式代理缓存保留；渲染器与对象生命周期同样影响内存。
+- 2026-10-27 的 Electron 45 同产物复测显示静态首屏改善，主线程堆与 Electron 39 接近；整会话、Worker 和原生进程组仍需独立对照。详见[富文本性能计划](../../../src/tools/rich-text-renderer/docs/Plan/markdown-conformance-and-performance.md)及第 5.3 节。
 
 ### 2.2. Rust 代理是 WebView2 限制的 workaround
 
@@ -434,7 +435,7 @@ Electron 的 Chromium 增量约 80-100MB，但如果删除大量 Rust 依赖（g
 
 #### Electron PoC 实测数据（2026-10-09，本地 PoC，不入库）
 
-最小 Electron 壳（Electron 39.8.10 + `protocol.handle('app')` 加载现有 `dist/` 产物）在 `.tmp/electron-poc/` 完成，未做任何资源裁剪：
+最小 Electron 壳（Electron 39.8.10 + `protocol.handle('app')` 加载现有 `dist/` 产物）在 `.tmp/electron-poc/` 完成，未做任何资源裁剪。以下为旧版历史数据；2026-10-27 PoC 已升级至 45.0.0，新版渲染采样见第 5.3 节，包体及整进程内存待重测：
 
 | 项目                          | 实测值                  | 说明                                                                                           |
 | ----------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
@@ -465,7 +466,7 @@ WebView2 侧最大的进程是渲染进程（WS 226MB / Private 293MB）和 brow
 
 **关键发现**：
 
-1. **同量级富文本负载下 Electron 内存约为 WebView2 的 40%**（1315MB vs 3322MB WS）。WebView2 侧进程树中渲染进程（1.5GB）与 browser 进程（0.9GB）双高，而 Electron 渲染进程 1GB 且无 browser 进程膨胀。需要说明：WebView2 侧当时加载的是用户的真实 82K token 会话（内容量级相当，但非严格同数据），数据量差异可能贡献部分差距，结论方向可信但数值精度有限。
+1. **历史异负载采样为 Electron 1315MB、WebView2 3322MB WS**。两端分别加载组装预设与真实 82K token 会话，内容、运行时和采样流程均有差异；这两个读数用于记录当时观察，迁移后的内存收益需由同数据、同流程的进程组采样确认。
 2. Electron PoC 通过 preload 注入 `__TAURI_INTERNALS__` shim（invoke→IPC→Node fs、transformCallback、metadata、`__TAURI_OS_PLUGIN_INTERNALS__`）+ 独立数据目录，即可让现有前端完整跑通会话加载、富文本渲染、主题壁纸全链路；未知 Tauri command 返回 null 即可糊弄（详见 `.tmp/electron-poc/main.js` 的 command 清单）。
 3. 前端与 Tauri 的实际耦合面比预期小：会话加载/持久化只需要 `get_app_config_dir`、`path_exists`、`read_text_file_force`、`create_dir_force`、`llm_chat_atomic_write`、`llm_chat_delete_session`、`plugin:fs|*`、`plugin:path|*` 十余个入口。
 4. shim 验证同时确认：`@tauri-apps/plugin-os` 的 `platform()` 走 `window.__TAURI_OS_PLUGIN_INTERNALS__`（同步读取），TitleBar 等组件依赖它，Electron 侧需在 preload 补齐。
@@ -515,6 +516,30 @@ WebView2 侧最大的进程是渲染进程（WS 226MB / Private 293MB）和 brow
 | 路由刷新、重新浏览并等待 5 秒 | 1519.1 | 1519.9 |
 
 采用真实显示窗口、同一前端产物和四进程合计采样。WebView2 尚待使用同一隔离样本补测；本表暂作为 Electron 单侧结果。正文有 1 处表情包引用需核对原 Agent 资产映射，详细方法、边界与证据见[附录 C 第 10 节](./appendix-electron-poc-followup.md#10-真实长会话与附件回放2026-10-14)。
+
+### 5.3. Electron 45 同产物富文本复测（2026-10-27）
+
+本地 PoC 的依赖声明和锁文件已固定为 **Electron 45.0.0**，实际窗口为 **Chromium 156.0.8078.48 / V8 15.6.75.19**。复用本日早先 Tauri（WebView2 155.0.4283.62）与 Electron 39.8.10 的同一生产静态快照、语料和页面探针。四类约 100 KiB 输入各三周期静态 / 流式，新版正式时序 24 个样本；另补重型内容 6 个、完整流式内存 4 个与单长代码静态回收 1 个，共 **35 个新版样本**，最终 AST 校验全部通过，挂载 / 卸载计数平衡，采样期间页面异常为 0。
+
+静态首屏为非空组件提交后的双 rAF 绘制机会，单位 ms，三周期中位数：
+
+| 输入 | Tauri 155 | Electron 39 | Electron 45 | 45 相对 39 |
+| --- | ---: | ---: | ---: | --- |
+| 普通混排 | 246.4 | 284.9 | 216.2 | 缩短 24.1% |
+| 多个代码围栏 | 1069.7 | 1399.1 | 1029.3 | 缩短 26.4% |
+| 引用密集 | 187.4 | 215.1 | 175.4 | 缩短 18.5% |
+| 跨空行列表 | 396.2 | 469.1 | 367.3 | 缩短 21.7% |
+
+本轮 Electron 45 静态首屏相对 39 缩短 **18.5%–26.4%**，较早先 Tauri 读数缩短 **3.8%–12.3%**；流式更新等待 P95 约 90–95 ms，十二个正式流式样本均无长任务，多代码围栏帧间隔 P95 为 **25.2 → 18.9 ms**。三组顺序采样且内核仍差一个主版本，这组结果用于当前产物的局部对照。
+
+内存与剩余热点分别记录：
+
+- 主线程 GC 堆与 Electron 39 接近，多代码围栏略高；完整流式卸载后约 45–47 MiB，组件 / 根 DOM 弱引用均释放。Worker、原生进程组和真实整会话仍按各自口径补测。
+- Electron 39 的单长代码静态卸载引用保留，在 Electron 45 的重型样本与独立复查中均已释放；保留旧版记录，后续观察长期累计增长。
+- 多代码围栏静态首屏仍约 1.03 秒；Mermaid 流式仍有长任务（单周期累计 203 → 226 ms），跨空行列表完成上界为 134.4 → 175.9 ms。迁移实施继续处理渲染器热点与尾部调度。
+- 本轮验证范围为富文本组件。第 5.1 节的网络、后台生命周期、系统信息与 Native Addon，第 5.2 节的真实会话回放，以及旧版打包数据继续标注原测试版本；Electron 45 的相关专项待续测，`nodejieba` 需按目标 ABI 重建并验证加载。
+
+详细采样、回收数据与复现入口见[富文本性能计划](../../../src/tools/rich-text-renderer/docs/Plan/markdown-conformance-and-performance.md#electron-45-升级复测2026-10-27)及[附录 C 第 11 节](./appendix-electron-poc-followup.md#11-electron-45-升级与富文本对照2026-10-27)。
 
 ---
 
@@ -625,7 +650,9 @@ export async function callBackend(cmd: string, args: any) {
 - [x] 统计 `@tauri-apps/api/*` 与 plugin 的直接导入情况（2026-10-14：按文件和入口保存清单，见附录 C）
 - [ ] 评估 Electron 的窗口特效方案（vibrancy/mica）在 Windows 11 上的效果
 - [x] 调研并实测 `systeminformation` 的替代范围（2026-10-14：基础信息与 NVIDIA 部分指标可取，完整契约尚需补齐，见附录 C）
-- [x] 初步评估 `nodejieba` 实时分词性能（2026-10-14：Electron Native Addon 编译和本机热/冷态测量完成，真实语料与打包待测，见附录 C）
+- [x] 初步评估 `nodejieba` 实时分词性能（2026-10-14：Electron 39 ABI 编译和本机热/冷态测量完成，真实语料与打包待测，见附录 C）
+- [x] 将本地 PoC 升至 Electron 45.0.0，完成同产物富文本时序与组件回收对照（2026-10-27，35 个新版样本，见第 5.3 节）
+- [ ] 补 Electron 45 的 Native Addon ABI 重建、后台 / 协议 / 网络专项与发布打包复测；沿用旧版报告时保留运行时版本
 - [ ] 验证 Electron `protocol.handle` 对 Tauri asset 协议的完整替代（2026-10-14：本地文本、图片、音频、Range、CSP 和 scope 已测，视频/UNC/授权流程待测，见附录 C）
 - [ ] 评估移动端代码共享策略（前端代码如何同时服务 Electron 桌面端和 Tauri 移动端）
 - [ ] 调研 Electron Forge vs electron-builder 的选型
@@ -663,7 +690,7 @@ export async function callBackend(cmd: string, args: any) {
 
 ---
 
-附录 C：[Electron PoC 续测记录（2026-10-14）](./appendix-electron-poc-followup.md)，涵盖后台生命周期、多窗口、文件协议、网络、系统信息、分词、静态耦合清单与自动测试弹窗修复。
+附录 C：[Electron PoC 续测记录](./appendix-electron-poc-followup.md)，涵盖 2026-10-14 的后台生命周期、多窗口、文件协议、网络、系统信息、分词与真实会话回放，以及 2026-10-27 的 Electron 45 升级、富文本同产物对照和组件回收复查。
 
 ## 10. 变更日志
 
@@ -677,8 +704,9 @@ export async function callBackend(cmd: string, args: any) {
 | 2026-09-22 | 延伸方案 F：规划后台任务观察、调度 Agent 摘要、用户干预和消息来源标记                                 |
 | 2026-10-09 | 新增第 5 节 Electron PoC 实测数据：Portable 125MB（+21%）、空载内存 687MB WS、前端可直接渲染          |
 | 2026-10-09 | 补充 WebView2 空载对照：777MB WS / 723MB 私有，空载下两者同一水平，Electron 并不更高                  |
-| 2026-10-09 | 富文本负载实测：Electron 1315MB vs WebView2 3322MB WS（约 40%），验证 **TAURI_INTERNALS** shim 可行性                                 |
+| 2026-10-09 | 记录历史异负载采样：Electron 1315MB / WebView2 3322MB WS，整会话内存收益待同样本对照；验证 **TAURI_INTERNALS** shim 可行性                                 |
 | 2026-10-09 | 补充安装包实测：Electron NSIS Setup 149.4MB（Tauri 71MB 的 2.1 倍），安装后 425.5MB（约 3.9 倍）      |
 | 2026-10-14 | Electron 续测：utility 生命周期与多窗口、本地资源/网络、系统信息、分词 Native Addon、Tauri 耦合盘点；修复自动测试报错弹窗，新增附录 C |
 | 2026-10-14 | 补充用户真实长会话回放：隔离复制附件与正文图片，验证全文/消息树、图片预览和刷新恢复，记录 Electron 单侧内存采样；修复 PoC 历史路由回退 |
 | 2026-10-16 | 新增 §2.7 外部迁移案例：记录 Paseo 与 OpenCode Desktop 的渲染、JS 后端及维护成本问题，区分跨平台经验、本项目 Windows 内存实测与 Agent 生命周期解耦的适用边界 |
+| 2026-10-27 | PoC 固定升级 Electron 45.0.0；新增第 5.3 节同产物富文本三方对照与回收复查，区分主线程堆、进程组及旧版专项范围，更新后续验证项 |

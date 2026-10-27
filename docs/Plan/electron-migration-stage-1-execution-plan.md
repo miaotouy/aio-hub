@@ -1,7 +1,8 @@
 # AIO Hub 迁移 Electron 阶段一：工程脚手架与基础骨架施工待办方案
 
 > 状态：施工待办 (Ready for Implementation)  
-> 版本：v1.0.0  
+> 版本：v1.0.1\
+> 更新日期：2026-10-27\
 > 提出日期：2026-10-02  
 > 编制人：咕咕（架构师）  
 > 上级规划：[`docs/Plan/electron-migration-master-plan.md`](./electron-migration-master-plan.md)  
@@ -24,7 +25,9 @@
 
 - [x] 主规划总纲 [`docs/Plan/electron-migration-master-plan.md`](./electron-migration-master-plan.md:1) 架构评审通过；
 - [x] 当前工作区 `bun run check:frontend` 与 `bun run dev` 运行稳定，无阻断性构建错误；
-- [x] 确定运行时技术选型：Node.js >= 20.x，Electron 33+ (基于 Chromium 130+，具备原生 Wayland/Windows 11 Mica 材质支持)，前端包管理器沿用 Bun。
+- [x] 确定当前运行时基准：Electron **45.0.0**（本地 PoC 实测 Chromium 156.0.8078.48），前端包管理器沿用 Bun。Electron 包声明的安装工具 Node 要求为 >= 22.12.0，与应用内嵌 Node 运行时分开管理。
+
+> 本地 PoC 已完成 Electron 45 的富文本复测；本计划中的正式 `electron/` 工程、桥接和窗口能力仍按任务进度推进。实测摘要与验证范围见[总纲第 1.2 节](./electron-migration-master-plan.md#12-当前-poc-与实测更新2026-10-27)及[调查附录第 11 节](../design/地基迁移调查/appendix-electron-poc-followup.md#11-electron-45-升级与富文本对照2026-10-27)。
 
 ### 1.3 准出验收准则 (Exit Criteria)
 
@@ -65,7 +68,7 @@ graph TD
     end
 
     subgraph Runtime [Electron 运行时]
-        ElectronBin[Electron 33 Executable]
+        ElectronBin[Electron 45.0.0 Executable]
         DistMain -.->|Node.js 执行| ElectronBin
         ElectronBin -->|载入| DistPreload
         ElectronBin -->|BrowserWindow.loadURL| ViteDev
@@ -324,9 +327,9 @@ export const appWindow: AppWindowFacade = {
 ### 阶段 1.1：依赖与环境初始化
 
 - [ ] **Task 1.1.1：安装 Electron 核心依赖**
-  - 运行 `bun add -d electron@^33.2.0 @types/node`；
-  - 检查并在 [`package.json`](../../package.json:1) 的 `devDependencies` 中锁定版本；
-  - 确保安装后 `bunx electron --version` 正确输出版本号。
+  - 运行 `bun add -d --exact electron@45.0.0`，并通过 `bun add -d @types/node@24` 对齐内嵌 Node 的类型主版本；
+  - 检查并在 [`package.json`](../../package.json:1) 的 `devDependencies` 与锁文件中固定版本；Bun 安装后检查运行时已下载，需要时执行 `bun node_modules/electron/install.js`；
+  - 确保安装后 `bunx electron --version` 输出 `45.0.0`；原生模块按此目标版本重建，并在实际主进程 / utility process 验证加载。
 - [ ] **Task 1.1.2：创建主进程专属 TS 配置**
   - 新建 [`electron/tsconfig.json`](electron/tsconfig.json)，配置 `target: "ES2022"`、`module: "ESNext"`、`moduleResolution: "bundler"`、`lib: ["ES2023"]`；
   - 在根目录 [`tsconfig.json`](../../tsconfig.json:39) 中追加 `"references": [{ "path": "./electron/tsconfig.json" }]`。

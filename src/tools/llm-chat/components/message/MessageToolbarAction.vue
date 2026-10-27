@@ -1,6 +1,6 @@
 <!-- Copyright 2025-2026 miaotouy(Github@miaotouy) -->
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, onDeactivated } from "vue";
 import {
   ElTooltip,
   ElDropdown,
@@ -18,22 +18,47 @@ import {
 } from "lucide-vue-next";
 import type { ChatMessageNode } from "../../types";
 import type { MessageToolbarAction } from "./messageToolbarActions";
+import type { DropdownInstance } from "element-plus";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import MessageVariableSnapshot from "./MessageVariableSnapshot.vue";
+import type { VariableSnapshotViewState } from "./useVariableSnapshotView";
 
 const props = defineProps<{
   action: MessageToolbarAction;
   message: ChatMessageNode;
   inMenu?: boolean;
+  variableViewState?: VariableSnapshotViewState;
 }>();
 const emit = defineEmits<{
   invoke: [];
+  "open-variable-details": [];
   "translation-command": [command: string];
   "translate-click": [event: MouseEvent];
   "popup-change": [visible: boolean];
 }>();
 const { settings } = useChatSettings();
 const popupVisible = ref(false);
+const variablePopupVisible = ref(false);
+const actionTrigger = ref<HTMLElement>();
+const translationDropdown = ref<DropdownInstance>();
+// Keep nested popup clicks inside the owning menu without clipping to its scroll region.
+const menuPopoverContainer = computed(() =>
+  props.inMenu
+    ? (actionTrigger.value?.closest<HTMLElement>(
+        ".llm-chat-message-toolbar-popover"
+      ) ?? undefined)
+    : undefined
+);
+onDeactivated(() => {
+  variablePopupVisible.value = false;
+  translationDropdown.value?.handleClose();
+  setPopupVisible(false);
+});
+function openVariableDetails() {
+  variablePopupVisible.value = false;
+  setPopupVisible(false);
+  emit("open-variable-details");
+}
 function setPopupVisible(visible: boolean) {
   popupVisible.value = visible;
   emit("popup-change", visible);
@@ -73,13 +98,15 @@ const tooltip = computed(() =>
   >
     <el-dropdown
       v-if="action.id === 'translate'"
+      ref="translationDropdown"
+      :append-to="menuPopoverContainer"
       :persistent="false"
       trigger="click"
       placement="top"
       @command="emit('translation-command', $event)"
       @visible-change="setPopupVisible"
     >
-      <div class="dropdown-trigger-wrapper">
+      <div ref="actionTrigger" class="dropdown-trigger-wrapper">
         <button
           :class="buttonClasses"
           type="button"
@@ -169,6 +196,9 @@ const tooltip = computed(() =>
 
     <el-popover
       v-else-if="action.id === 'variables'"
+      v-model:visible="variablePopupVisible"
+      :append-to="menuPopoverContainer"
+      :persistent="false"
       placement="top"
       :width="320"
       trigger="click"
@@ -178,6 +208,7 @@ const tooltip = computed(() =>
     >
       <template #reference>
         <button
+          ref="actionTrigger"
           type="button"
           :class="buttonClasses"
           :aria-label="action.label"
@@ -189,6 +220,8 @@ const tooltip = computed(() =>
       <MessageVariableSnapshot
         v-if="message.metadata?.sessionVariableSnapshot"
         :snapshot="message.metadata.sessionVariableSnapshot"
+        :view-state="variableViewState"
+        @open-details="openVariableDetails"
       />
     </el-popover>
     <button

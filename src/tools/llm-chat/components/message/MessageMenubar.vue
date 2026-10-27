@@ -18,6 +18,9 @@
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
+  reactive,
+  watch,
+  onDeactivated,
   computed,
   onMounted,
   onBeforeUnmount,
@@ -52,6 +55,8 @@ import { customMessage } from "@/utils/customMessage";
 import ExportBranchDialog from "../export/ExportBranchDialog.vue";
 import MessageDataEditor from "./MessageDataEditor.vue";
 import MessageToolbarAction from "./MessageToolbarAction.vue";
+import MessageVariableSnapshotDialog from "./MessageVariableSnapshotDialog.vue";
+import { createVariableSnapshotViewState } from "./useVariableSnapshotView";
 import {
   resolveMessageToolbarActions,
   type MessageToolbarAction as ToolbarAction,
@@ -419,6 +424,38 @@ const menuActions = computed(() =>
 );
 const showMore = ref(false);
 const actionPopupOpen = ref(false);
+const variableViewState = reactive(createVariableSnapshotViewState());
+const showVariableDetails = ref(false);
+function closeMoreMenu() {
+  toolbarElement.value
+    ?.querySelector<HTMLButtonElement>('[data-testid="message-toolbar-more"]')
+    ?.focus({ preventScroll: true });
+  showMore.value = false;
+  actionPopupOpen.value = false;
+}
+function openVariableDetails() {
+  // Capture a stable return target before the menu containing the original control is disposed.
+  const trigger =
+    toolbarElement.value?.querySelector<HTMLButtonElement>(
+      '[data-action-id="variables"]'
+    ) ??
+    toolbarElement.value?.querySelector<HTMLButtonElement>(
+      '[data-testid="message-toolbar-more"]'
+    );
+  trigger?.focus({ preventScroll: true });
+  showMore.value = false;
+  actionPopupOpen.value = false;
+  showVariableDetails.value = true;
+}
+watch(showMore, (open) => {
+  if (!open) actionPopupOpen.value = false;
+});
+onDeactivated(() => {
+  showVariableDetails.value = false;
+  showMore.value = false;
+  showBranchPopover.value = false;
+  actionPopupOpen.value = false;
+});
 const showCustomizer = ref(false);
 const savingLayout = ref(false);
 const persistLayout = async (next: MessageToolbarLayout) => {
@@ -440,7 +477,7 @@ const toggleExpanded = async () => {
   }
 };
 const customize = () => {
-  showMore.value = false;
+  closeMoreMenu();
   showCustomizer.value = true;
 };
 const handlers: Partial<Record<MessageToolbarActionId, () => void>> = {
@@ -466,7 +503,8 @@ const handlers: Partial<Record<MessageToolbarActionId, () => void>> = {
 };
 const invoke = (action: ToolbarAction) => {
   if (action.disabled) return;
-  showMore.value = false;
+  // Dialog actions must capture a return target that survives menu disposal.
+  if (showMore.value) closeMoreMenu();
   handlers[action.id]?.();
 };
 </script>
@@ -548,6 +586,8 @@ const invoke = (action: ToolbarAction) => {
       :key="action.id"
       :action="action"
       :message="message"
+      :variable-view-state="variableViewState"
+      @open-variable-details="openVariableDetails"
       @invoke="invoke(action)"
       @translation-command="handleTranslationCommand"
       @translate-click="handleTranslateClick"
@@ -590,6 +630,7 @@ const invoke = (action: ToolbarAction) => {
     </ElTooltip>
     <ElPopover
       v-model:visible="showMore"
+      :persistent="false"
       trigger="click"
       placement="top-end"
       :width="248"
@@ -612,7 +653,7 @@ const invoke = (action: ToolbarAction) => {
         class="overflow-menu"
         role="group"
         aria-label="更多消息操作"
-        @keydown.esc.stop="showMore = false"
+        @keydown.esc.stop="closeMoreMenu"
       >
         <div v-if="menuActions.length" class="overflow-actions">
           <MessageToolbarAction
@@ -620,6 +661,8 @@ const invoke = (action: ToolbarAction) => {
             :key="action.id"
             :action="action"
             :message="message"
+            :variable-view-state="variableViewState"
+            @open-variable-details="openVariableDetails"
             in-menu
             @invoke="invoke(action)"
             @translation-command="handleTranslationCommand"
@@ -638,6 +681,12 @@ const invoke = (action: ToolbarAction) => {
         </button>
       </div>
     </ElPopover>
+    <MessageVariableSnapshotDialog
+      v-if="showVariableDetails && sessionVariableSnapshot"
+      v-model="showVariableDetails"
+      :snapshot="sessionVariableSnapshot"
+      :view-state="variableViewState"
+    />
     <MessageToolbarCustomizeDialog
       v-if="showCustomizer"
       v-model="showCustomizer"

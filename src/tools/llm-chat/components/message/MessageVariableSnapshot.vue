@@ -15,7 +15,6 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import {
   Search,
   Info,
@@ -24,83 +23,30 @@ import {
   Maximize2,
   Filter,
 } from "lucide-vue-next";
-import type {
-  SessionVariableSnapshot,
-  VariableChange,
-} from "../../types/sessionVariable";
-import { customMessage } from "@/utils/customMessage";
-import { useClipboard } from "@vueuse/core";
-import BaseDialog from "@/components/common/BaseDialog.vue";
-
-interface Props {
-  snapshot: SessionVariableSnapshot;
-}
-
-const props = defineProps<Props>();
-
-const searchQuery = ref("");
-const showOnlyChanges = ref(false);
-const isDialogOpen = ref(false);
-const { copy } = useClipboard();
-
-const copyPath = async (path: string) => {
-  await copy(path);
-  customMessage.success("路径已复制");
-};
-
-// 处理变量列表
-const variableItems = computed(() => {
-  const { values, changes = [] } = props.snapshot;
-  if (!values) return [];
-
-  const changeMap = new Map<string, VariableChange>();
-  changes.forEach((c) => changeMap.set(c.path, c));
-
-  const items = Object.entries(values).map(([path, value]) => {
-    const change = changeMap.get(path);
-    return {
-      path,
-      value,
-      isChanged: !!change,
-      changeInfo: change,
-      type: typeof value,
-    };
-  });
-
-  // 过滤和排序
-  return items
-    .filter((item) => {
-      // 搜索过滤
-      const matchesSearch =
-        !searchQuery.value ||
-        item.path.toLowerCase().includes(searchQuery.value.toLowerCase());
-
-      // 变更过滤
-      const matchesChangeFilter = !showOnlyChanges.value || item.isChanged;
-
-      return matchesSearch && matchesChangeFilter;
-    })
-    .sort((a, b) => {
-      // 排序：发生变更的排在前面，然后按路径字母排序
-      if (a.isChanged && !b.isChanged) return -1;
-      if (!a.isChanged && b.isChanged) return 1;
-      return a.path.localeCompare(b.path);
-    });
-});
-
-const hasChanges = computed(() => (props.snapshot.changes?.length || 0) > 0);
-
-// 格式化数值展示
-const formatValue = (val: any) => {
-  if (val === null) return "null";
-  if (val === undefined) return "undefined";
-  if (typeof val === "object") return JSON.stringify(val);
-  return String(val);
-};
+import type { SessionVariableSnapshot } from "../../types/sessionVariable";
+import {
+  createVariableSnapshotViewState,
+  useVariableSnapshotView,
+  formatVariableValue as formatValue,
+  type VariableSnapshotViewState,
+} from "./useVariableSnapshotView";
+import { reactive } from "vue";
+const props = withDefaults(
+  defineProps<{
+    snapshot: SessionVariableSnapshot;
+    viewState?: VariableSnapshotViewState;
+  }>(),
+  { viewState: () => reactive(createVariableSnapshotViewState()) }
+);
+const emit = defineEmits<{ "open-details": [] }>();
+const { variableItems, hasChanges, copyPath } = useVariableSnapshotView(
+  () => props.snapshot,
+  () => props.viewState
+);
 </script>
 
 <template>
-  <div class="message-variable-snapshot" :class="{ 'in-dialog': isDialogOpen }">
+  <div class="message-variable-snapshot">
     <div class="snapshot-header">
       <div class="header-left">
         <div class="title">
@@ -112,15 +58,20 @@ const formatValue = (val: any) => {
         </el-tag>
       </div>
       <div class="header-actions">
-        <el-tooltip content="详情查看" placement="top" v-if="!isDialogOpen">
-          <el-button link :icon="Maximize2" @click="isDialogOpen = true" />
+        <el-tooltip content="详情查看" placement="top">
+          <el-button
+            link
+            :icon="Maximize2"
+            aria-label="查看变量详情"
+            @click="emit('open-details')"
+          />
         </el-tooltip>
       </div>
     </div>
 
     <div class="snapshot-toolbar">
       <el-input
-        v-model="searchQuery"
+        v-model="viewState.searchQuery"
         placeholder="搜索变量路径..."
         size="small"
         :prefix-icon="Search"
@@ -128,14 +79,14 @@ const formatValue = (val: any) => {
         class="search-input"
       />
       <el-tooltip
-        :content="showOnlyChanges ? '显示全部' : '仅看变更'"
+        :content="viewState.showOnlyChanges ? '显示全部' : '仅看变更'"
         placement="top"
       >
         <el-button
           size="small"
-          :type="showOnlyChanges ? 'success' : 'default'"
-          :plain="!showOnlyChanges"
-          @click="showOnlyChanges = !showOnlyChanges"
+          :type="viewState.showOnlyChanges ? 'success' : 'default'"
+          :plain="!viewState.showOnlyChanges"
+          @click="viewState.showOnlyChanges = !viewState.showOnlyChanges"
         >
           <Filter :size="14" />
         </el-button>
@@ -147,7 +98,9 @@ const formatValue = (val: any) => {
         <el-empty
           :image-size="40"
           :description="
-            searchQuery || showOnlyChanges ? '未发现匹配的变量' : '暂无变量数据'
+            viewState.searchQuery || viewState.showOnlyChanges
+              ? '未发现匹配的变量'
+              : '暂无变量数据'
           "
         />
       </div>
@@ -190,74 +143,6 @@ const formatValue = (val: any) => {
         {{ new Date(snapshot.timestamp || Date.now()).toLocaleString() }}</span
       >
     </div>
-
-    <!-- 详情对话框 -->
-    <BaseDialog
-      v-model="isDialogOpen"
-      title="会话变量状态详情"
-      width="900px"
-      height="70vh"
-    >
-      <div class="dialog-variable-view">
-        <div class="dialog-toolbar">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索变量路径..."
-            :prefix-icon="Search"
-            clearable
-            style="width: 300px"
-          />
-          <el-checkbox v-model="showOnlyChanges"
-            >仅显示发生变更的变量</el-checkbox
-          >
-        </div>
-
-        <el-table
-          :data="variableItems"
-          stripe
-          border
-          height="100%"
-          class="variable-table"
-        >
-          <el-table-column prop="path" label="路径" min-width="200">
-            <template #default="{ row }">
-              <code class="table-code" @click="copyPath(row.path)">{{
-                row.path
-              }}</code>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="100" align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.isChanged" type="success" size="small"
-                >已变更</el-tag
-              >
-              <el-tag v-else type="info" size="small">未变</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="数值变更 (旧值 → 新值)" min-width="300">
-            <template #default="{ row }">
-              <div class="table-value-cell">
-                <template v-if="row.isChanged && row.changeInfo">
-                  <span class="old-value">{{
-                    formatValue(row.changeInfo.oldValue)
-                  }}</span>
-                  <ArrowRight :size="12" class="change-arrow" />
-                  <span class="new-value">{{ formatValue(row.value) }}</span>
-                  <span class="op-badge" v-if="row.changeInfo.op"
-                    >{{ row.changeInfo.op }}{{ row.changeInfo.opValue }}</span
-                  >
-                </template>
-                <template v-else>
-                  <span class="current-value">{{
-                    formatValue(row.value)
-                  }}</span>
-                </template>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </BaseDialog>
   </div>
 </template>
 
@@ -415,54 +300,6 @@ const formatValue = (val: any) => {
 
 .empty-state {
   padding: 20px 0;
-}
-
-.dialog-variable-view {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  height: 100%;
-  padding: 8px;
-}
-
-.dialog-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.variable-table {
-  flex: 1;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.table-code {
-  font-family: var(--el-font-family-mono);
-  background: var(--el-fill-color-darker);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--el-color-primary);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.table-value-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--el-font-family-mono);
-  font-size: 13px;
-  flex-wrap: wrap;
-}
-
-.op-badge {
-  font-size: 10px;
-  background: var(--el-color-success);
-  color: white;
-  padding: 1px 4px;
-  border-radius: 4px;
-  font-weight: bold;
 }
 
 /* 滚动条美化 */

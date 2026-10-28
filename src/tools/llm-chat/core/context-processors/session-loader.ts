@@ -25,6 +25,46 @@ import { fromAsset, fromLocalMedia } from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("primary:session-loader");
 
+// Cache only pure conversion output; per-message metadata and attachments remain fresh.
+const htmlConversionCache = new Map<
+  string,
+  { content: string; chars: number }
+>();
+let cachedHtmlChars = 0;
+const MAX_HTML_CACHE_CHARS = 8 * 1024 * 1024;
+
+function rememberConvertedHtml(key: string, content: string): void {
+  const chars = key.length + content.length;
+  if (chars > MAX_HTML_CACHE_CHARS) return;
+  while (
+    htmlConversionCache.size >= 256 ||
+    cachedHtmlChars + chars > MAX_HTML_CACHE_CHARS
+  ) {
+    const oldest = htmlConversionCache.entries().next().value;
+    if (!oldest) break;
+    htmlConversionCache.delete(oldest[0]);
+    cachedHtmlChars -= oldest[1].chars;
+  }
+  htmlConversionCache.set(key, { content, chars });
+  cachedHtmlChars += chars;
+}
+
+function createContextTurndownService(): TurndownService {
+  const turndownService = new TurndownService({
+    headingStyle: "atx",
+    codeBlockStyle: "fenced",
+    emDelimiter: "*",
+  });
+  // 保持某些可能对模型理解有帮助的标签
+  turndownService.keep(["del", "ins", "sub", "sup"]);
+
+  // 完全禁用 Markdown 转义：这些内容是给 AI 消费的上下文，不需要防止 Markdown 误解析
+  // turndown 默认会把 * _ [ ] 等字符都加反斜杠（如 **text** → \*\*text\*\*），
+  // 这在 AI 场景下纯粹浪费 token，直接返回原字符串即可
+  turndownService.escape = (str: string) => str;
+  return turndownService;
+}
+
 /** 默认需要保护的思考块标签名（当 agent 未配置时使用） */
 const DEFAULT_THINK_TAG_NAMES = ["think", "guguthink"];
 
@@ -194,21 +234,9 @@ export const sessionLoader: ContextProcessor = {
       if (thinkTagNames.length === 0) {
         thinkTagNames = [...DEFAULT_THINK_TAG_NAMES];
       }
-
-      turndownService = new TurndownService({
-        headingStyle: "atx",
-        codeBlockStyle: "fenced",
-        emDelimiter: "*",
-      });
-      // 保持某些可能对模型理解有帮助的标签
-      turndownService.keep(["del", "ins", "sub", "sup"]);
-
-      // 完全禁用 Markdown 转义：这些内容是给 AI 消费的上下文，不需要防止 Markdown 误解析
-      // turndown 默认会把 * _ [ ] 等字符都加反斜杠（如 **text** → \*\*text\*\*），
-      // 这在 AI 场景下纯粹浪费 token，直接返回原字符串即可
-      turndownService.escape = (str: string) => str;
     }
 
+    const thinkTagKey = JSON.stringify(thinkTagNames);
     const messages: ProcessableMessage[] = [];
     const historyCount = historyNodes.length;
 
@@ -226,26 +254,32 @@ export const sessionLoader: ContextProcessor = {
 
       let finalContent = node.content;
 
-      // 检查是否需要进行 HTML 到 Markdown 的转换
-      // 规则：开启了转换，且当前消息在倒数 N 条之外（即较旧的消息）
-      if (turndownService && historyCount - i > htmlToMdLastMessages) {
-        // 启发式判断是否包含 HTML 标签，且避开可能是简单数学符号的情况
-        if (/<[a-z][\s\S]*>/i.test(finalContent)) {
+      // Conversion settings decide eligibility on every build, even when output is cached.
+      if (
+        convertHtmlToMd &&
+        historyCount - i > htmlToMdLastMessages &&
+        /<[a-z][\s\S]*>/i.test(finalContent)
+      ) {
+        const cacheKey = thinkTagKey + "\0" + finalContent;
+        const cached = htmlConversionCache.get(cacheKey);
+        if (cached) {
+          htmlConversionCache.delete(cacheKey);
+          htmlConversionCache.set(cacheKey, cached);
+          finalContent = cached.content;
+        } else {
           try {
-            // 保护思考块：提取并替换为占位符，防止 turndown 破坏
+            turndownService ??= createContextTurndownService();
             const { text: safeContent, restore } = protectThinkBlocks(
               finalContent,
               thinkTagNames
             );
-            // 转换 HTML 为 Markdown
-            let converted = turndownService.turndown(safeContent);
-            // 后处理：清理 turndown 输出中的结构问题
-            converted = postProcessMarkdown(converted);
-            // 还原思考块
-            finalContent = restore(converted);
-            // 追加标记：告知模型此消息经过格式转换，避免模型误判不该使用 HTML
-            finalContent +=
+            const converted = postProcessMarkdown(
+              turndownService.turndown(safeContent)
+            );
+            finalContent =
+              restore(converted) +
               "\n[note: this message was converted from HTML to Markdown for context compression]";
+            rememberConvertedHtml(cacheKey, finalContent);
           } catch (e) {
             logger.warn("HTML 转 Markdown 失败", { error: e, nodeId: node.id });
           }

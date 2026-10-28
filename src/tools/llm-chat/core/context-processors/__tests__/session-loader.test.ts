@@ -66,6 +66,97 @@ const createContext = (
   }) as unknown as PipelineContext;
 
 describe("sessionLoader", () => {
+  it.each([
+    "<think>**raw <x>value</x> &amp;**</think>",
+    "<guguthink>open <x>value</x>",
+  ])("repeated HTML conversion preserves think blocks: %s", async (block) => {
+    const source = "<p>body</p>" + block;
+    const nodes = {
+      root: node("root", null, "system", "root"),
+      old: node("old", "root", "assistant", source),
+      latest: node("latest", "old", "user", "<b>recent</b>"),
+    };
+    const session = {
+      id: "html",
+      nodes,
+      rootNodeId: "root",
+      activeLeafId: "latest",
+      updatedAt: "2026-10-28",
+      history: [],
+      historyIndex: -1,
+    } satisfies ChatSessionDetail;
+    const build = async () => {
+      const ctx = createContext(session);
+      ctx.settings.contextOptimization = {
+        convertHtmlToMd: true,
+        htmlToMdLastMessages: 1,
+      };
+      await sessionLoader.execute(ctx);
+      return ctx;
+    };
+    const first = await build();
+    const repeated = await build();
+    expect(first.messages[0].content).toContain(block);
+    expect(repeated.messages[0].content).toBe(first.messages[0].content);
+    expect(repeated.messages[1].content).toBe("<b>recent</b>");
+    nodes.old.content = "<p>changed</p>";
+    const changed = await build();
+    expect(changed.messages[0].content).toBe(
+      "changed\n[note: this message was converted from HTML to Markdown for context compression]"
+    );
+  });
+
+  it("HTML reuse respects think configuration, conversion eligibility and current metadata", async () => {
+    const source = "<analysis>keep <b>raw</b></analysis><p>body</p>";
+    const nodes = {
+      root: node("root", null, "system", "root"),
+      old: node("old", "root", "assistant", source),
+      latest: node("latest", "old", "user", "latest"),
+    };
+    const session = {
+      id: "html-config",
+      nodes,
+      rootNodeId: "root",
+      activeLeafId: "latest",
+      updatedAt: "2026-10-28",
+      history: [],
+      historyIndex: -1,
+    } satisfies ChatSessionDetail;
+    const build = async (custom: boolean, enabled = true, recent = 1) => {
+      const ctx = createContext(session);
+      ctx.settings.contextOptimization = {
+        convertHtmlToMd: enabled,
+        htmlToMdLastMessages: recent,
+      };
+      ctx.agentConfig.llmThinkRules = custom
+        ? [
+            {
+              id: "custom",
+              kind: "xml_tag",
+              tagName: "analysis",
+              displayName: "Analysis",
+            },
+          ]
+        : [];
+      await sessionLoader.execute(ctx);
+      return ctx;
+    };
+    const plain = await build(false);
+    expect(plain.messages[0].content).toContain("**raw**");
+    const protectedResult = await build(true);
+    expect(protectedResult.messages[0].content).toContain(
+      "<analysis>keep <b>raw</b></analysis>"
+    );
+    nodes.old.metadata = { modelId: "updated" };
+    const repeated = await build(true);
+    expect(repeated.messages[0].metadata).toEqual({ modelId: "updated" });
+    expect(repeated.messages[0].content).toBe(
+      protectedResult.messages[0].content
+    );
+    expect((await build(true, false)).messages[0].content).toBe(source);
+    expect((await build(true, true, 2)).messages[0].content).toBe(source);
+  });
+
   it("keeps branch order and applies compression only after its summary is reached", async () => {
     const nodes = {
       root: node("root", null, "system", "root"),

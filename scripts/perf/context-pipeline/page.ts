@@ -197,6 +197,7 @@ export async function runContextProbe(options: ContextProbeOptions) {
   const originalProxy = calculatorProxy.calculateTokens;
 
   const rows = [];
+  const initialReplays = [];
   // Discard first complete replay; model loading and initial Worker setup are outside warm samples.
   for (let round = -1; round < options.samples; round++) {
     const context = fixture();
@@ -383,6 +384,7 @@ export async function runContextProbe(options: ContextProbeOptions) {
         processorErrors,
       };
       if (round >= 0) rows.push(row);
+      else initialReplays.push(row);
     } finally {
       clearInterval(timer);
       calculatorProxy.calculateTokens = originalProxy;
@@ -393,6 +395,7 @@ export async function runContextProbe(options: ContextProbeOptions) {
     userAgent: navigator.userAgent,
     tokenizerWarmupMs,
     warmupTokenizer: warmupToken.tokenizerName,
+    initialReplay: initialReplays[0],
     rows,
   };
 }

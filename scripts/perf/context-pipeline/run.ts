@@ -148,4 +148,3 @@ try {
   await connection.close();
 }
 console.log(`Report: ${resolve(out, "report.json")}`);
-

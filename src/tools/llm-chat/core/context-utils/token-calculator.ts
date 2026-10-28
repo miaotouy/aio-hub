@@ -3,17 +3,15 @@
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import type { PipelineContext } from "../../types/pipeline";
 
-const scopes = new WeakMap<
-  PipelineContext,
-  ReturnType<typeof tokenCalculatorService.createScope>
->();
+type TokenScope = ReturnType<typeof tokenCalculatorService.createScope>;
+const SCOPE_KEY = "contextTextTokenCalculationScope";
 
-/** One calculation scope follows the context through processors and preview assembly. */
-export function getContextTokenCalculator(context: PipelineContext) {
-  let scope = scopes.get(context);
+/** The context owns reuse, including across development-time module replacements. */
+export function getContextTokenCalculator(context: PipelineContext): TokenScope {
+  let scope = context.sharedData.get(SCOPE_KEY) as TokenScope | undefined;
   if (!scope) {
     scope = tokenCalculatorService.createScope();
-    scopes.set(context, scope);
+    context.sharedData.set(SCOPE_KEY, scope);
   }
   return scope;
 }

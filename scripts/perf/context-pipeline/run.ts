@@ -94,6 +94,8 @@ const connection = await DevConnection.attach(instance, 20000);
 try {
   const page = await connection.window("main", 20000);
   await connection.verify(page, "main");
+  // Drop prior HMR module generations so direct probe imports share the application scope.
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(
     () =>
       !!(window as unknown as { Vue?: unknown }).Vue &&
@@ -146,3 +148,4 @@ try {
   await connection.close();
 }
 console.log(`Report: ${resolve(out, "report.json")}`);
+

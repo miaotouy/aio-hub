@@ -1723,3 +1723,9 @@ Pending 顶层列表在原有精确 token 公共前缀与完整解析上下文�
 新增的相关用例保护 LF / CRLF 完成边界、真实内容刷新和片段尾部空白；旧实现会在等价完成用例中失败。真实 WebView2 HMR 诊断先在表单输入“保留的输入 🌿”并增加计数，再触发闭合：修正前 load 增加 1 次、输入恢复初值且计数为 0；修正后 1,200ms 内 load 为 0、输入保持且计数为 1。随后实际修改文档，load 增加 1 次，新文档内容生效。
 
 前后产物分别为 `.tmp/app-memory/followup-navigation-native-20261028/report.json` 与 `.tmp/app-memory/followup-navigation-native-fixed-20261028/report.json`。这些是直接真实查看器的行为证据，完整聊天默认平滑和手动停止等过程场景继续按实施清单推进。
+
+## 49. 全屏 fixed 预览的视口保留（2026-10-28）
+
+扩展原生布局场景后确认，第 47 节的内容边界算法会把只有 fixed 后代的页面压到 1px：body 没有流内高度，fixed 内容也不参与文档溢出。现于流内高度为零时检查可见 fixed 后代，沿用当前 iframe 视口；带有普通正文的页面继续按内容收缩，空白文档沿用最小高度。
+
+`rich-text:embedded:tauri` 增加嵌套容器中的全屏 fixed 场景。修正前为 1px，修正后保留 40px 初始视口；Canvas / 图片增长收缩、正文内 fixed 叠层、显式百分比高度及等价完成的已有场景全部保持。前后产物为 `.tmp/app-memory/fixed-only-{before,after}-20261028/report.json`。该修正只处理自动高度的视口边界，沿用页面自身 fixed 和百分比布局规则。

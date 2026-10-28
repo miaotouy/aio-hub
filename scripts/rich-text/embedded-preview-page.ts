@@ -175,6 +175,11 @@ export async function runEmbeddedPreviewPage(input: {
       Math.abs(percentage.iframe - 240) <= 2 && Math.abs(half - 120) <= 2,
       { ...percentage, half }
     );
+    await mount(
+      '<!doctype html><html><head></head><body><div><aside id="fullscreen" style="position:fixed;inset:0">fullscreen canvas</aside></div></body></html>'
+    );
+    const fixedOnly = geometry();
+    record("fixed-only-keeps-viewport", fixedOnly.iframe >= 40, fixedOnly);
     await mount(html("html-form"), true);
     const formFrame = frame();
     const formDocument = formFrame.contentDocument!;

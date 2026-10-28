@@ -29,6 +29,19 @@ export function observeIframeContentHeight() {
     if (root.scrollHeight > window.innerHeight) {
       bottom = Math.max(bottom, root.scrollHeight);
     }
+    // Fullscreen fixed content has no flow height. Preserve its existing
+    // viewport rather than collapsing the preview to an invisible pixel.
+    if (bottom <= 0) {
+      for (const element of body.querySelectorAll("*")) {
+        if (
+          getComputedStyle(element).position === "fixed" &&
+          element.getBoundingClientRect().height > 0
+        ) {
+          bottom = window.innerHeight;
+          break;
+        }
+      }
+    }
     const height = Math.max(1, Math.ceil(bottom));
     if (Math.abs(height - lastHeight) > 1 || lastHeight === 0) {
       lastHeight = height;

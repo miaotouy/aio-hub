@@ -120,6 +120,135 @@ describe("消息阅读位置与底部跟随", () => {
     expect(anchor.shouldStickToBottom.value).toBe(false);
   });
 
+  // 保护嵌套滚轮与新增消息的公开阅读契约；通过真实事件路径模拟归属。
+  it.each([-80, 80])(
+    "内部查看器滚轮 %s 保留外层暂停状态，后续布局补偿也不会恢复跟随",
+    (deltaY) => {
+      const { element, anchor, resize } = createScroller();
+      anchor.pauseFollowing();
+      element.scrollTop = 1440;
+      anchor.onScroll();
+      const viewer = document.createElement("div");
+      viewer.style.overflowY = "auto";
+      Object.defineProperties(viewer, {
+        clientHeight: { value: 300 },
+        scrollHeight: { value: 1500 },
+        scrollTop: { value: 100, writable: true },
+      });
+      const content = document.createElement("span");
+      viewer.append(content);
+      element.append(viewer);
+      element.addEventListener("wheel", anchor.onWheel);
+      content.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true }));
+      expect(anchor.shouldStickToBottom.value).toBe(false);
+      // 内部滚轮后，浏览器向下补偿外层位置仍属于布局变化。
+      element.scrollTop = 1450;
+      anchor.onScroll();
+      resize(3000);
+      anchor.followBottom();
+      expect(element.scrollTop).toBe(1450);
+      expect(anchor.shouldStickToBottom.value).toBe(false);
+    }
+  );
+
+  it("查看器取消滚轮默认行为后，后续布局变化保持暂停", () => {
+    const { element, anchor, resize } = createScroller();
+    anchor.pauseFollowing();
+    element.scrollTop = 1440;
+    anchor.onScroll();
+    anchor.onWheel(new WheelEvent("wheel", { deltaY: 20 }));
+    const viewer = document.createElement("div");
+    viewer.addEventListener("wheel", (event) => event.preventDefault());
+    element.append(viewer);
+    element.addEventListener("wheel", anchor.onWheel);
+    viewer.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: 80, bubbles: true, cancelable: true })
+    );
+    element.scrollTop = 1450;
+    anchor.onScroll();
+    resize(3000);
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(1450);
+  });
+
+  it("内部查看器上翻保留外层已有的底部跟随", () => {
+    const { element, anchor, resize } = createScroller();
+    const viewer = document.createElement("div");
+    viewer.style.overflowY = "auto";
+    Object.defineProperties(viewer, {
+      clientHeight: { value: 300 },
+      scrollHeight: { value: 1500 },
+      scrollTop: { value: 100 },
+    });
+    element.append(viewer);
+    element.addEventListener("wheel", anchor.onWheel);
+    viewer.dispatchEvent(
+      new WheelEvent("wheel", { deltaY: -80, bubbles: true })
+    );
+    resize(3000);
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(2500);
+  });
+
+  it("近底部的外层向下滚轮等待实际滚动，再恢复跟随", () => {
+    const { element, anchor, resize } = createScroller();
+    anchor.pauseFollowing();
+    element.scrollTop = 1440;
+    anchor.onScroll();
+    anchor.onWheel(new WheelEvent("wheel", { deltaY: 20 }));
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(1440);
+    expect(anchor.shouldStickToBottom.value).toBe(false);
+    element.scrollTop = 1460;
+    anchor.onScroll();
+    resize(3000);
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(2500);
+  });
+
+  it.each([
+    ["auto", 1500],
+    ["contain", 1500],
+    ["none", 1500],
+    ["contain", 300],
+  ] as const)(
+    "内部查看器触底时遵循 %s 滚动链（内容高 %s）",
+    (overscroll, height) => {
+      const { element, anchor, resize } = createScroller();
+      anchor.pauseFollowing();
+      element.scrollTop = 1440;
+      anchor.onScroll();
+      const viewer = document.createElement("div");
+      viewer.style.overflowY = "auto";
+      viewer.style.overscrollBehaviorY = overscroll;
+      Object.defineProperties(viewer, {
+        clientHeight: { value: 300 },
+        scrollHeight: { value: height },
+        scrollTop: { value: height - 300 },
+      });
+      element.append(viewer);
+      element.addEventListener("wheel", anchor.onWheel);
+      viewer.dispatchEvent(
+        new WheelEvent("wheel", { deltaY: 20, bubbles: true })
+      );
+      expect(anchor.shouldStickToBottom.value).toBe(false);
+      element.scrollTop = 1460;
+      anchor.onScroll();
+      resize(3000);
+      anchor.followBottom();
+      expect(element.scrollTop).toBe(overscroll === "auto" ? 2500 : 1460);
+    }
+  );
+
+  it("外层已经触底且暂停时，继续下滚可恢复后续跟随", () => {
+    const { element, anchor, resize } = createScroller();
+    anchor.pauseFollowing();
+    anchor.onWheel(new WheelEvent("wheel", { deltaY: 20 }));
+    resize(3000);
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(2500);
+  });
+
   it("键盘上翻与滚动条操作暂停跟随", () => {
     for (const key of ["ArrowUp", "PageUp", "Home"]) {
       const { element, anchor, resize } = createScroller();

@@ -25,7 +25,7 @@
  */
 
 import type { AstNode, LlmThinkRule } from "../types";
-import { isEqual } from "lodash-es";
+import { tokenEquals } from "../parser/tokenEquality";
 import { Tokenizer } from "../parser/Tokenizer";
 import { tokenizerService } from "../parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "../parser/types";
@@ -188,7 +188,10 @@ export class CustomParser implements ParserContext {
         : null;
     if (cache) {
       const length = Math.min(cache.tokens.length, tokens.length);
-      while (common < length && isEqual(cache.tokens[common], tokens[common]))
+      while (
+        common < length &&
+        tokenEquals(cache.tokens[common], tokens[common])
+      )
         common++;
     }
     const reused: PendingBlock[] = [];

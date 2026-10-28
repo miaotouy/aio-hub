@@ -311,3 +311,38 @@ it("keeps pending list membership and references correct through continued input
     parser.reset();
   }
 });
+
+// Prefix reuse must observe lexical metadata as well as the visible text.
+it("keeps optional metadata and nested token maps current across repeated prefixes", async () => {
+  const owner = {};
+  const sequences = [
+    ["&copy;\n\nend", "©\n\nend", "&#169;\n\nend"],
+    ["first\n  next", "first\n    next", "first\nnext"],
+    ["```js\nvalue\n", "```js\nvalue\n```\n", "```ts\nvalue\n```\n"],
+    [
+      '<div title="first" data-id="1">x</div>',
+      '<div title="next" data-id="1">x</div>',
+      '<div data-id="1">x</div>',
+    ],
+    [
+      "[key]: /one 'title'\n\n[key]",
+      "[key]: /two 'title'\n\n[key]",
+      "[key]: /two 'other'\n\n[key]",
+    ],
+    [
+      "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\ncommand:「始」run「末」\nvalue:「始」first「末」\n<<<[END_TOOL_REQUEST]>>>",
+      "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\ncommand:「始」run「末」\nvalue:「始」next「末」\n<<<[END_TOOL_REQUEST]>>>",
+    ],
+  ];
+  for (const sequence of sequences) {
+    for (const text of sequence) {
+      expect(await tokenizerService.tokenize(text, {}, owner)).toEqual(
+        new Tokenizer().tokenize(text)
+      );
+      expect(await tokenizerService.tokenize(text, {}, owner)).toEqual(
+        new Tokenizer().tokenize(text)
+      );
+    }
+    tokenizerService.release(owner);
+  }
+});

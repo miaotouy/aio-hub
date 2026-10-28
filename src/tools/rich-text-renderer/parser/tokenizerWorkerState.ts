@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isEqual } from "lodash-es";
+import { tokenEquals } from "./tokenEquality";
 import { encodeTokenUpdates } from "./tokenizerTokenDelta";
 import { Tokenizer } from "./Tokenizer";
 import type { Token, TokenizerOptions } from "./types";
@@ -50,7 +51,7 @@ export class TokenizerWorkerState {
         const length = Math.min(previous.tokens.length, tokens.length);
         while (
           prefix < length &&
-          isEqual(previous.tokens[prefix], tokens[prefix])
+          tokenEquals(previous.tokens[prefix], tokens[prefix])
         )
           prefix++;
       }

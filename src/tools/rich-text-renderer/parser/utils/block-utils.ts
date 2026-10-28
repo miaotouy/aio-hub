@@ -174,13 +174,19 @@ export function isBlockStart(token: Token): boolean {
 /**
  * 检查是否是表格开始
  */
-export function isTableStart(tokens: Token[], index: number): boolean {
+export function isTableStart(
+  tokens: Token[],
+  index: number,
+  onLookahead?: (end: number) => void
+): boolean {
   let i = index;
   while (tokens[i]?.type === "newline") i++;
   const header = readTableLine(tokens, i);
   const newline = tokens[header.end];
+  onLookahead?.(header.end + 1);
   if (newline?.type !== "newline" || newline.count !== 1) return false;
   const separator = readTableLine(tokens, header.nextIndex);
+  onLookahead?.(separator.end + 1);
   if (
     ![...header.tokens, ...separator.tokens].some(
       (t) => t.type === "text" && t.raw === undefined && t.content.includes("|")

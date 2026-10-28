@@ -201,6 +201,68 @@ describe("streamed Markdown context", () => {
     }
   });
 
+  // Earlier links must follow document-wide definitions across edits/removal during streaming.
+  it("refreshes earlier links when a later reference definition changes", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    const prefix = "- item\n\n[visible][ref]\n\n";
+    try {
+      for (const definition of [
+        "[ref]: /first",
+        "[ref]: /other",
+        "",
+        "[ref]: /restored",
+      ]) {
+        const input = prefix + definition + "\n\n# tail\n\ncontinued";
+        await processor.setContent(input);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+        expect(normalizeAst(state.ast.value)).toEqual(
+          normalizeAst(new CustomParser().parse(input))
+        );
+      }
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
+  // Table detection reads beyond an HTML interruption of the earlier paragraph.
+  it("reinterprets mixed HTML/table content when a following separator changes", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    const prefix = "- item\n\nleft | right <div>inside</div>\n";
+    try {
+      for (const tail of [
+        "# tail\n\nend",
+        "--- | ---\nrow | cell",
+        "# restored\n\nend",
+      ]) {
+        const input = prefix + tail;
+        await processor.setContent(input);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+        expect(normalizeAst(state.ast.value)).toEqual(
+          normalizeAst(new CustomParser().parse(input))
+        );
+        expect(state.ast.value.some((node) => node.type === "table")).toBe(
+          tail.startsWith("---")
+        );
+      }
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
   // Equal text length and endpoints must still allow interior edits to become visible.
   it("updates interior text while retaining an unchanged stable heading", async () => {
     const state = useMarkdownAst({ throttleEnabled: false });
@@ -579,6 +641,10 @@ describe("streamed Markdown context", () => {
     ],
     ["reference defined earlier", ['[id]: /url "title"\n\n', "[visible][id]"]],
     ["list continuation", ["3. first\n\n", "   continuation\n\n", "4. second"]],
+    [
+      "table continuation",
+      ["- item\n\nleft | right\n", "--- | ---\n", "row | cell\n", "\n# after"],
+    ],
   ])("matches complete parsing during %s updates", async (_label, chunks) => {
     const state = useMarkdownAst({ throttleEnabled: false });
     const processor = new StreamProcessorV2({
@@ -586,8 +652,18 @@ describe("streamed Markdown context", () => {
       safetyGuardEnabled: false,
     });
     try {
-      for (const chunk of chunks) await processor.process(chunk);
-      const expected = normalizeAst(new CustomParser().parse(chunks.join("")));
+      let input = "";
+      for (const chunk of chunks) {
+        input += chunk;
+        await processor.process(chunk);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+        expect(normalizeAst(state.ast.value)).toEqual(
+          normalizeAst(new CustomParser().parse(input))
+        );
+      }
+      const expected = normalizeAst(new CustomParser().parse(input));
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve())
       );

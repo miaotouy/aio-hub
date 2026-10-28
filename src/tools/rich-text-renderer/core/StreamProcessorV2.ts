@@ -778,7 +778,7 @@ export class StreamProcessorV2 {
 
         // 2. 解析稳定区（带超时保护）
         let newStableAst: AstNode[];
-        if (stableText === this.lastStableText && this.stableAst.length > 0) {
+        if (stableText === this.lastStableText) {
           // 稳定区文本没有变化，复用已有的 stableAst 引用
           newStableAst = this.stableAst;
         } else {
@@ -804,8 +804,7 @@ export class StreamProcessorV2 {
 
         // 3. 解析待定区（带超时保护）
         const pendingParseStart = performance.now();
-        this.parser.reset();
-        const newPendingAst = await this.parser.parseAsync(pendingText);
+        const newPendingAst = await this.parser.parsePendingAsync(pendingText);
         if (this.isDestroyed) break;
 
         // 安全护栏：单次解析超时检查

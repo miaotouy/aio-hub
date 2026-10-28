@@ -207,17 +207,26 @@ async function streamRun(job: BenchJob): Promise<StreamMeasurement> {
   let parsedCharacters = 0;
   let parseCalls = 0;
   let parseMs = 0;
-  const original = ParserClass.prototype.parseAsync;
-  ParserClass.prototype.parseAsync = async function (text: string) {
-    parsedCharacters += text.length;
-    parseCalls++;
-    const start = performance.now();
-    try {
-      return await original.call(this, text);
-    } finally {
-      parseMs += performance.now() - start;
-    }
-  };
+  const originalParsers = new Map<
+    "parseAsync" | "parsePendingAsync",
+    Parser["parseAsync"]
+  >();
+  for (const method of ["parseAsync", "parsePendingAsync"] as const) {
+    const original = ParserClass.prototype[method];
+    // Historical source archives expose only the full parser entry point.
+    if (typeof original !== "function") continue;
+    originalParsers.set(method, original);
+    ParserClass.prototype[method] = async function (text: string) {
+      parsedCharacters += text.length;
+      parseCalls++;
+      const start = performance.now();
+      try {
+        return await original.call(this, text);
+      } finally {
+        parseMs += performance.now() - start;
+      }
+    };
+  }
   const processor = new StreamClass({
     onPatch(patches) {
       patchCount += patches.length;
@@ -265,7 +274,9 @@ async function streamRun(job: BenchJob): Promise<StreamMeasurement> {
         : {}),
     };
   } finally {
-    ParserClass.prototype.parseAsync = original;
+    for (const [method, original] of originalParsers) {
+      ParserClass.prototype[method] = original;
+    }
     processor.destroy();
     state.dispose();
     frames.clear();

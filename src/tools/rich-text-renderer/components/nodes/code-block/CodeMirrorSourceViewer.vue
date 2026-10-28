@@ -34,7 +34,7 @@
       :content="content"
       :line-numbers="true"
       :style="preFallbackStyle"
-      :gutter-width="gutterWidth"
+      :word-wrap-enabled="wordWrapEnabled"
       theme="codemirror"
       class="pre-fallback"
     />
@@ -81,7 +81,11 @@ import { useTheme } from "@composables/useTheme";
 import { getCodeMirrorLanguage } from "@/utils/codeLanguages";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import PreCodeNode from "./PreCodeNode.vue";
-import { codeViewerTheme } from "./codeViewerTheme";
+import {
+  codeViewerTheme,
+  codeViewerFontFamily,
+  codeViewerLineHeight,
+} from "./codeViewerTheme";
 
 const store = useRichTextRendererStore();
 const { debugPreFallback } = storeToRefs(store);
@@ -220,32 +224,9 @@ const preFallbackStyle = computed(() => {
   const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
   return {
     "--pre-font-size": `${fontSize}px`,
-    "--pre-line-height": `${fontSize * 1.5}px`,
+    "--pre-line-height": `${codeViewerLineHeight}`,
+    "--pre-font-family": codeViewerFontFamily,
   };
-});
-
-// 计算行号区域宽度，尝试匹配 CodeMirror 的逻辑
-const gutterWidth = computed(() => {
-  const lineCount = props.content.split("\n").length || 1;
-  const digits = Math.max(1, lineCount.toString().length);
-  const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
-
-  // CodeMirror 的行号渲染逻辑：
-  // 1. 行号列 (.cm-lineNumbers):
-  //    注意：行号字体通常是代码字体的 0.9 倍 (见 PreCodeNode.vue)
-  const gutterFontSize = fontSize * 0.9;
-  const charWidth = gutterFontSize * 0.65; // 稍微增加一点系数以防万一
-  const lineNumberPadding = 12 + 8; // 左 12px, 右 8px
-
-  // CodeMirror 的 .cm-gutterElement 设置了 min-width: 40px
-  const lineNumberWidth = Math.max(40, charWidth * digits + lineNumberPadding);
-
-  // 2. 折叠列 (.cm-foldGutter):
-  //    .cm-foldGutter .cm-gutterElement { padding: 0 4px; }
-  //    图标宽度大约 12px，总计约 16px-18px
-  const foldGutterWidth = 16;
-
-  return lineNumberWidth + foldGutterWidth;
 });
 
 const initEditor = async () => {

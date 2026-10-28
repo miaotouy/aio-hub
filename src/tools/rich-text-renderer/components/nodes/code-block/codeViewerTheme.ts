@@ -3,14 +3,18 @@
 
 import { EditorView } from "@codemirror/view";
 
+export const codeViewerFontFamily =
+  'Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace';
+export const codeViewerLineHeight = 1.4;
+
 // style-mod retains mounted rules for the document lifetime, so all viewers share this theme.
 export const codeViewerTheme = EditorView.theme({
   "&": {
     backgroundColor: "transparent !important",
   },
   ".cm-scroller": {
-    fontFamily:
-      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    fontFamily: codeViewerFontFamily,
+    lineHeight: codeViewerLineHeight,
   },
   ".cm-content": {
     padding: "12px 0",

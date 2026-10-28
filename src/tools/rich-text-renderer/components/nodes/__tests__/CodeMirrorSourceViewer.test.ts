@@ -371,3 +371,17 @@ it("keeps font settings independent between simultaneously mounted viewers", asy
     second.unmount();
   }
 });
+
+// Fallback wrapping must preserve copyable source, including Unicode, tabs and final blank lines.
+it("preserves source text when toggling fallback wrapping and creating the editor", async () => {
+  const content = "第一行 α😀\n\t第二行\n\n";
+  wrapper = mount(CodeMirrorSourceViewer, { props: { ...props, content } });
+  const source = () => wrapper.get(".pre-code-node code").element.textContent;
+  expect(source()).toBe(content);
+  await wrapper.setProps({ wordWrapEnabled: true });
+  expect(source()).toBe(content);
+  await wrapper.setProps({ wordWrapEnabled: false });
+  expect(source()).toBe(content);
+  await intersect(true);
+  expect(currentView().state.doc.toString()).toBe(content);
+});

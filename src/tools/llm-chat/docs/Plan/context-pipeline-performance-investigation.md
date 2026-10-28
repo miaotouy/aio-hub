@@ -1,0 +1,214 @@
+# 上下文组织管线性能调查
+
+> 日期：2026-10-28  
+> 状态：调查与诊断脚手架完成，业务实现保持当前版本。  
+> 调查基线：`56b3c2aa1`；范围：桌面端上下文组装、自动统计、Token Worker 及刷新调度。
+
+## 1. 结论与处理顺序
+
+本轮定位到五组相互独立的问题：
+
+| 优先级 | 问题 | 已获得的证据 |
+| --- | --- | --- |
+| P1 | 同一轮统计重复计算文本 Token | 1000 条纯文本产生 5000 次 Worker 请求；实际 `gpt4o` 分词器预热后约 4.14 秒，构建内去重对照约 761ms |
+| P1 | 分词器冷启动缺少实例化中的 Promise 复用 | 64 个并发调用，在同一个引擎内生成 64 个真实 tokenizer 实例，缓存最终只留下 1 个 |
+| P1 | 统计任务可重叠，旧任务可回写新会话 | 确定性调度复现发送结束后的双刷新；A/B 会话逆序完成后，B 显示 A 的计数 |
+| P2，深扫描配置下优先 | 世界书重复拼接扫描文本和大小写归一化 | 500 条目、每条 4 个未命中关键词，深度 2 / 200 的处理阶段约 5.4 / 651.7ms；深度 200 出现约 659ms 的定时器延迟 |
+| P2 | 长历史数组反查与同步文本处理 | 32000 条 CPU 对照中，加载器约 112ms、限制器约 119ms；20 条正则处理 1000 条历史约 33ms；200 条 HTML 转换约 21ms |
+
+建议先处理 Token 计算复用、冷加载单飞和统计调度，再处理世界书扫描缓存及数组算法。统计优化应保留最终请求内容、后处理差异和附件计数的现有语义。
+
+## 2. 最近提交与调查边界
+
+- `3fd413c1b`：上下文预览读取已有转写，任务补建与等待交给发送和显式操作。
+- `4f9e7660e`：自动统计通过 `previewPurpose: "statistics"` 延后媒体二进制读取。
+- `7e7e8b0f6`、`aac82597a`、`031a08395` 等：流增量同步、工具结果展示和长文本回放优化。
+
+前两项优化已缩小媒体路径成本。本轮重点观察仍在执行的文本计算、分析器明细构造和调度工作。后几项覆盖的显示、同步路径沿用[消息处理与显示调查](./message-pipeline-performance-investigation.md)的结论。
+
+本轮测量边界从已构造的 `PipelineContext` 开始：
+
+```text
+统计：处理器链 → buildPreviewDataFromContext → 最终请求 Token 重算
+发送：处理器链
+```
+
+发送样本覆盖 `isPreviewMode=false` 的真实处理器链；统计样本调用真实处理器、真实预览构建器和真实 Token Worker，最后计数循环沿用 `useChatExecutor.getContextForPreview` 的纯文本分支。模型/身份解析、世界书文件加载、`getNodePath`、网络请求、模型推理和 UI 渲染在计时边界之外。
+
+主要样本为合成的单分支会话，历史对象使用 Vue reactive，消息交替为 user / assistant。预设、工具、知识检索及变量配置保持关闭；世界书和正则由专项样本显式开启。附件读写继续由已有专项回归覆盖。本轮数据适合定位文本路径和调度瓶颈，完整复杂 Agent 的端到端耗时仍需按实际配置测量。
+
+## 3. 环境与方法
+
+- Windows 10、Ryzen 9 5900X、64GiB 内存。
+- 独立 Tauri HMR 实例 `context-perf`，使用独立应用数据和 WebView2 profile。
+- WebView UA 标识 `Chrome/122.0.0.0`；应用 `0.7.1-alpha.1`，Bun `1.4.2`。
+- 每个场景先单请求预热 tokenizer，再丢弃一次完整回放，保留 5 次采样；表格列出中位数。
+- 逐处理器计时，并记录 Worker 文本请求数、字符量、重复请求、峰值在途数与 10ms 定时器的最大额外延迟。
+- 定时器延迟用于观察主线程响应性；它与总墙钟耗时、Worker CPU 耗时分别解释。
+- 报告保留每次原始采样、输出摘要、消息顺序检查和处理器错误。对照同时检查消息数量、字符数、消息摘要、Token 总数和后处理差异。
+- 基准含诊断计数开销。关闭 Token 请求计数后，1000 条 estimator 样本约 191.5ms，对应带计数约 202.2ms；实际分词器约 4113.2 / 4135.3ms。主要结论在关闭计数后保持一致。
+- HMR 初始化附近曾出现小样本约 63ms 的结果；就绪后补测 `text-100` 为 28.4ms。脚手架现会等待开发桥与 Vue 就绪。原始报告保留该波动，避免用启动期样本解释稳定态。
+
+### 3.1. 统计与发送
+
+消息长度为 1024 个 JavaScript 字符，包含中文、英文和代码片段。这里的“1KB”仅用于描述规模，报告中的 `chars` 按字符计数。
+
+| 场景 | 文本分词方式 | 中位耗时 | 每轮文本 Worker 请求 |
+| --- | --- | ---: | ---: |
+| 统计，100 条 | estimator | 28.4ms | 500 |
+| 统计，1000 条 | estimator | 202.2ms | 5000 |
+| 统计，5000 条 | estimator | 1002.8ms | 25000 |
+| 发送组装，1000 条 | estimator | 17.7ms | 1000 |
+| 发送组装，5000 条 | estimator | 88.3ms | 5000 |
+| 统计，1000 条 | 实际 `gpt4o` | 4135.3ms | 5000 |
+| 发送组装，1000 条 | 实际 `gpt4o` | 743.4ms | 1000 |
+| 统计，1000 条，仅本轮文本缓存对照 | 实际 `gpt4o` | 761.2ms | 1000 |
+| 统计，1000 条，跳过 formatter 差异计算对照 | 实际 `gpt4o` | 2418.3ms | 3000 |
+
+实际分词器样本返回 `isEstimated=false`、`tokenizerName=gpt4o`，1000 条总计 329100 tokens；基线、缓存和差异关闭对照的消息摘要与总数一致。样本预算足够大，便于观察完整历史重复工作；紧预算另设样本。
+
+两个对照都只存在于脚手架中：文本缓存作用域限定在一次构建；差异关闭对照使用当前交替角色且无格式变化的样本。它们用于估计收益，后处理配置发生实际合并或替换时仍需正确计算差异。
+
+### 3.2. 截断和文本特征
+
+| 场景 | 条件 | 主要观测 |
+| --- | --- | --- |
+| 紧预算 | 1000 条 × 1024 字符，4096 token 预算，estimator | 保留 10 条，总耗时约 21.1ms，仍计算全部 1000 条历史，共 1040 次文本 Worker 请求 |
+| HTML | 200 条 × 4096 字符，旧消息转 Markdown | 加载器约 21ms；转换在每轮构建重新发生 |
+| 正则 | 1000 条 × 1024 字符，20 条串联替换规则 | 正则阶段约 33ms；每个消息与规则组合重新解析、编译正则 |
+| 世界书浅扫描 | 500 条目 × 4 个未命中关键词，扫描最近 2 条 | 世界书阶段约 5.4ms |
+| 世界书深扫描 | 同上，扫描最近 200 条 | 世界书阶段约 651.7ms，总计约 853.2ms，最大定时器额外延迟约 659.1ms |
+
+世界书样本关闭递归，关键词全部未命中，因此这组成本产生在扫描阶段，未叠加激活条目注入与额外 Token 计算。默认浅扫描和大深度配置应分别评估。
+
+### 3.3. 数组算法 CPU 对照
+
+CPU 对照运行真实加载器和限制器，将 `calculateMessageTokens` 替换为固定的字符计数，剥离 Worker 与分词开销。每条消息为 64 字符。
+
+| 历史条数 | 加载器中位数 | 限制器中位数 | 总耗时中位数 |
+| ---: | ---: | ---: | ---: |
+| 1000 | 3.3ms | 0.7ms | 4.5ms |
+| 4000 | 9.7ms | 3.2ms | 13.4ms |
+| 16000 | 45.2ms | 31.2ms | 81.7ms |
+| 32000 | 112.0ms | 118.6ms | 237.8ms |
+
+限制器从 16000 到 32000 条增长约 3.8 倍，与代码中反复 `indexOf` 的二次复杂度一致。加载器耗时同时包含响应式节点访问、压缩节点收集和前插数组操作；本轮未将这些部分拆开归因。
+
+## 4. 代码路径与处理方向
+
+### 4.1. 重复 Token 计算与串行往返
+
+相关文件：
+
+- `core/context-processors/token-limiter.ts`
+- `core/context-processors/message-format-processors.ts`
+- `core/context-utils/preview-builder.ts`
+- `composables/chat/useChatExecutor.ts`
+- `src/tools/token-calculator/worker/calculator.proxy.ts`
+
+在未截断、未改变文本的 1000 条样本中：
+
+| 阶段 | 文本请求 | 实际分词器阶段中位数 |
+| --- | ---: | ---: |
+| token-limiter | 1000，并发提交 | 743.8ms |
+| message-formatter 输入/输出差异 | 2000，逐条串行 | 1733.8ms |
+| preview-builder | 1000，逐条串行 | 864.6ms |
+| 最终请求计数 | 1000，并发提交 | 732.3ms |
+
+后四轮共 4000 次重复文本请求。即使 tokenizer 实例已缓存，文本编码结果仍重新计算。自动统计还构造了分析器使用的逐条消息、附件和来源明细，调用方最终只消费 `statistics`。
+
+处理方向：
+
+1. 将文本 Token 计算服务按单次上下文构建注入，并复用同一文本的 Promise / 结果。生产实现使用显式依赖或 context 所有的服务，诊断脚手架中的全局代理替换仅用于隔离实验。
+2. 缓存键覆盖文本、模型、显式 tokenizer 和注册表/校准版本。媒体尺寸与压缩配置仍参与媒体部分计算；本轮原型只缓存纯文本请求。
+3. 后处理只对改变的消息重算；合并消息的分词边界与分隔符会影响 Token，需对合并后的内容重新编码。
+4. 将统计摘要与分析器明细构造拆开，按调用用途构建数据，复用最终请求统计。
+5. 如进一步引入 Worker 批处理，保持每条消息的独立分词边界。并发提交当前会令 1000 / 5000 条历史同时保有同量的在途请求，批量协议或有界队列可缩小该峰值。
+
+### 4.2. 冷启动实例化放大
+
+`TokenCalculatorEngine.loadTokenizerForProfile` 在调用 `profileDataFetcher` 之前检查已完成实例缓存，异步返回后直接解析 JSON 并创建 tokenizer，期间缺少加载中的 Promise 表。
+
+Worker 的 `pendingProfileFetches` 已合并了资产请求：同一 profile 只向主线程发送一次 `needProfileData`。资产回来后，多个等待者仍各自执行 JSON 解析与 `TokenizerLoader.fromPreTrained`。
+
+`perf:context:cold` 使用微型、真实 WordLevel tokenizer：
+
+| 并发调用 | 引擎数据读取回调次数 | 返回的独立实例数 | 最终缓存条目 |
+| ---: | ---: | ---: | ---: |
+| 1 | 1 | 1 | 1 |
+| 8 | 8 | 8 | 1 |
+| 64 | 64 | 64 | 1 |
+
+这组结果验证初始化次数放大，耗时与内存规模需结合实际词表测量。实际模型的 1000 并发冷启动回放曾长时间等待，随后主动重载隔离窗口终止；该次未完成采样，未纳入耗时表。后续稳定态场景均先进行单请求预热，实际 `gpt4o` 的一次实例冷预热约 493ms。
+
+处理方向：在引擎层按 profile 和注册表代际实现加载单飞；失败后允许重试；注册表切换后，旧加载结果应退出旧代际，避免重新填入新缓存。单飞需要覆盖实例化，单独合并资产下载仍会留下当前问题。
+
+### 4.3. 统计刷新调度与旧结果回写
+
+`useChatContextStats.ts` 的防抖只合并尚未执行的调用。函数本身可以并发执行，完成时直接写 `contextStats`，并直接将 `isLoadingContextStats` 设为 false。
+
+一次性诊断使用真实 composable、Vue watcher 与可控的预览 Promise，复现：
+
+1. 生成中的叶节点变化安排 500ms 防抖；100ms 后发送结束触发立即刷新。防抖到期再启动同一会话的第二次刷新，两个任务同时挂起。
+2. A 会话刷新尚未完成时切到 B；B 先返回 222，A 后返回 111。当前会话仍为 B，最终统计变成 111。
+3. B 完成时将 loading 置为 false，A 的旧任务仍在运行。
+
+原始结果位于 `.tmp/context-pipeline/race/`；三个诊断探针验证的是当前现象，后续修复应改为面向正确行为的回归用例。
+
+处理方向：立即刷新时撤销待执行防抖；任务采用单飞并合并为最新快照；通过会话、叶节点、配置和请求代际限制结果提交；loading 由当前有效任务拥有。仅添加回写检查仍会保留旧任务消耗的分词成本，调度合并需同时处理。
+
+### 4.4. 世界书扫描复用
+
+`WorldbookBuffer.getScanText` 为每个候选条目重新执行 `slice + join`；`matchKeys` 对每个大小写不敏感关键词重新执行全文 `toLowerCase`。500 条目、4 个关键词、深度 200 的样本会重复遍历大量相同扫描文本。
+
+处理方向：按扫描配置复用原始文本和归一化文本，预编译关键词；递归缓冲区变化时切换缓存版本。缓存需有界，并覆盖深度、persona/character/scenario 等扫描开关和递归状态，保持 sticky、cooldown、概率及组竞争语义。
+
+### 4.5. 长历史和同步转换
+
+- 限制器多处用 `messagesWithTokens.indexOf(msg)` 回到原消息，其中丢弃记录阶段会扫描全部历史。计算 Token 时保存原消息或索引，后续直接使用即可消除该反查成本。
+- 加载器先收集隐藏压缩节点，再从叶到根遍历并 `unshift`；上游 `getNodePath` 也有一次独立前插遍历。可分别改为 push/reverse，并考虑复用受相同过滤规则约束的路径。压缩隐藏节点和分支目标必须保持一致。
+- 正则可在每轮管线按规则预编译，使用前重置有状态正则，保留角色、深度和规则顺序。
+- HTML 转换可按消息内容、转换选项、思考标签规则作有界缓存。避免无上限缓存历史全文。
+
+## 5. 脚手架与复现
+
+长期脚手架位于 `scripts/perf/context-pipeline/`，入口注册在根 `package.json`。运行产物写入 `.tmp/context-pipeline/`。
+
+```powershell
+# 独立原生窗口
+bun run dev -- --agent --agent-instance context-perf
+
+# 默认矩阵：estimator、发送、截断、HTML、正则、世界书、诊断对照与 CPU 扩展
+bun run perf:context:tauri -- --instance context-perf --samples 5 --out-dir .tmp/context-pipeline/baseline
+
+# 实际分词器；各命令顺序执行，避免互相争用 CPU
+bun run perf:context:tauri -- --instance context-perf --case text-1000 --model gpt-4o --out-dir .tmp/context-pipeline/exact
+bun run perf:context:tauri -- --instance context-perf --case cache-1000 --model gpt-4o --out-dir .tmp/context-pipeline/exact-cache
+bun run perf:context:tauri -- --instance context-perf --case no-delta-1000 --model gpt-4o --out-dir .tmp/context-pipeline/exact-no-delta
+bun run perf:context:tauri -- --instance context-perf --case plain-1000 --model gpt-4o --out-dir .tmp/context-pipeline/exact-plain
+bun run perf:context:tauri -- --instance context-perf --case send-1000 --model gpt-4o --out-dir .tmp/context-pipeline/exact-send
+
+# 微型真实 tokenizer 的冷启动并发次数诊断
+bun run perf:context:cold
+
+# 脚手架类型检查
+bun run perf:context:check
+```
+
+可用 `--case` 选择单个场景。默认矩阵会比较 `text-1000` 与三个诊断对照的输出摘要，报告中保留 `comparisons`。单场景运行保留原始输出，跨报告比较由调查者完成。CPU 和发送场景没有执行最终预览计数，字段为 `null`；关闭请求计数的场景应按未采集解释其请求计数字段。
+
+本轮产物：
+
+- `.tmp/context-pipeline/baseline/report.json`：17 个场景 × 5 次采样，三个对照摘要一致。
+- `.tmp/context-pipeline/small-ready/report.json`：就绪后的 100 条历史复测。
+- `.tmp/context-pipeline/exact*/report.json`：实际分词器与三个对照、发送组装。
+- `.tmp/context-pipeline/cold-tokenizer/report.json`：真实微型分词器的独立实例计数。
+- `.tmp/context-pipeline/race/`：一次性调度探针、配置及现象记录。
+
+## 6. 验证记录
+
+- 原生诊断：默认矩阵各场景消息顺序和处理器错误检查通过；三个对照输出摘要一致。
+- 实际分词器：预热统计、文本缓存对照、差异关闭对照、关闭计数对照、发送组装均完成。
+- 冷启动：1 / 8 / 64 并发的 tokenizer 编码结果正确，独立实例数放大现象复现。
+- 调度：三个确定性诊断探针通过，分别记录逆序回写、冷实例化放大和发送结束双刷新。
+- `bun run perf:context:check`、`bun run build:tsc`、`bun run build:vite` 均通过。Vite 构建输出包含依赖浏览器外部化、大 chunk 和动态导入未分包等提示，退出码为 0。

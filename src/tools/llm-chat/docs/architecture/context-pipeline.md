@@ -382,3 +382,7 @@ export interface ProcessorConfigField {
   options?: { label: string; value: any }[];
 }
 ```
+
+## 性能调查
+
+处理器、自动统计、Token Worker 与刷新调度的测量结果、诊断脚手架和处理顺序见[上下文组织管线性能调查](../Plan/context-pipeline-performance-investigation.md)（2026-10-28）。该调查保留媒体延后物化和预览沿用已有转写的边界，分别记录统计、发送组装和 CPU 对照。

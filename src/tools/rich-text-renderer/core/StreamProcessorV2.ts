@@ -553,6 +553,7 @@ class MarkdownBoundaryDetector {
 
 export class StreamProcessorV2 {
   private parser: CustomParser;
+  private stableParser: CustomParser;
   private onPatch: (patches: Patch[]) => void;
   private boundaryDetector: MarkdownBoundaryDetector;
   private llmThinkRules: LlmThinkRule[];
@@ -582,6 +583,12 @@ export class StreamProcessorV2 {
 
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
     this.parser = new CustomParser(
+      llmThinkTagNames,
+      this.llmThinkRules,
+      options.defaultToolCallCollapsed,
+      options.vcpFuzzyModeEnabled
+    );
+    this.stableParser = new CustomParser(
       llmThinkTagNames,
       this.llmThinkRules,
       options.defaultToolCallCollapsed,
@@ -691,6 +698,7 @@ export class StreamProcessorV2 {
       // 将整个内容作为最终内容解析
       this.boundaryDetector.reset();
       this.parser.reset();
+      this.stableParser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
 
       if (this.isDestroyed) return;
@@ -786,8 +794,8 @@ export class StreamProcessorV2 {
         } else {
           // 稳定区文本发生变化，重新解析
           const stableParseStart = performance.now();
-          this.parser.reset();
-          newStableAst = await this.parser.parseAsync(stableText);
+          // Keep stable and pending snapshots independent; each parser validates full token dependencies.
+          newStableAst = await this.stableParser.parsePendingAsync(stableText);
           if (this.isDestroyed) break;
           this.lastStableText = stableText;
 
@@ -900,6 +908,7 @@ export class StreamProcessorV2 {
       this.isProcessing = true;
       // 将整个 buffer 作为最终内容重新解析
       this.boundaryDetector.reset();
+      this.stableParser.reset();
       const finalAst = await this.parser.parseCompleteAsync(this.buffer);
 
       if (this.isDestroyed) return;
@@ -1248,6 +1257,7 @@ export class StreamProcessorV2 {
     this.isDegraded = false;
     this.boundaryDetector.reset();
     this.parser.reset();
+    this.stableParser.reset();
   }
 
   /**
@@ -1261,5 +1271,6 @@ export class StreamProcessorV2 {
     this.pendingAst = [];
     this.boundaryDetector.reset();
     this.parser.reset();
+    this.stableParser.reset();
   }
 }

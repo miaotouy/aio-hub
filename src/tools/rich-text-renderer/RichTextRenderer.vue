@@ -26,6 +26,7 @@
       <AstNodeRenderer
         v-if="useAstRenderer"
         :nodes="ast"
+        :viewport-blocks="suspendOnDeactivate"
         :generation-meta="generationMeta"
         :enable-enter-animation="renderEnableAnimation"
       />
@@ -50,6 +51,7 @@ import {
 } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { createAstImageIndex } from "./utils/astImageIndex";
+import { provideRendererBlockMounting } from "./composables/useRendererBlockMounting";
 import { useRendererDisplay } from "./composables/useRendererDisplay";
 import {
   provideRendererViewState,
@@ -389,6 +391,22 @@ const {
   ],
 });
 const viewState = provideRendererViewState(displayActive);
+provideRendererBlockMounting({
+  root: rootElement,
+  nodes: ast,
+  enabled: () => !!props.suspendOnDeactivate,
+  hostActive,
+  live: () => !!props.isStreaming || internalIsStreaming.value,
+  held,
+  layout: () => [
+    props.styleOptions,
+    props.defaultCodeBlockExpanded,
+    props.seamlessMode,
+    props.defaultRenderHtml,
+    props.shouldFreeze,
+  ],
+  state: viewState,
+});
 onDeactivated(() => {
   localHostActive.value = false;
 });
@@ -398,7 +416,7 @@ onActivated(() => {
 watch(
   displayActive,
   (active) => {
-    if (active) viewState.clear();
+    if (active) viewState.prune(ast.value);
   },
   { flush: "post" }
 );

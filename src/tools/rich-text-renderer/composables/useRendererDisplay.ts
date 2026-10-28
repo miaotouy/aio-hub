@@ -78,6 +78,10 @@ export function provideRendererReadingInteraction(
   return state;
 }
 
+export function useRendererReadingInteraction() {
+  return inject(interactionKey, undefined);
+}
+
 const EMBEDDED_STATE =
   'iframe, video, audio, .video-node-container, .audio-node-container, input, textarea, select, [contenteditable="true"]:not(.cm-content), details:not(.details-node), canvas, object, embed';
 const RECYCLE_DELAY = 300;

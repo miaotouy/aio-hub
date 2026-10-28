@@ -568,6 +568,14 @@ src/tools/rich-text-renderer/
 
 回退期间只保存折叠区间、选区和内部滚动等标量状态；字体、换行、展开状态继续由上层 props 提供。正文变化后丢弃旧位置快照，延迟语言加载核对发起视图身份。编辑器展示期间卸载 `PreCodeNode`，避免隐藏的全文 / 行号副本常驻。HTML 预览的冻结策略独立维护。
 
+### 7.5 长消息块级展示生命周期
+
+聊天通过 `suspendOnDeactivate` 复用整消息和块级展示回收。完成态消息至少有 40 个顶层 AST 块时，`useRendererBlockMounting` 为现有原生根元素登记共享观察器，视口外扩 700px，离开 300ms 后以同标签、作用域和实测高度占位。末块保留，宽度及布局修订先恢复正文重测。短消息与流式消息沿用常规展示。
+
+`AstNodeRenderer` 只在顶层启用块回收，以每块修订参与现有 VNode memo。AST 和解析器始终属于原渲染器。`useRendererViewState` 按暂停子树保存节点标量状态，整消息恢复时裁剪过期快照，离屏块在恢复时消费自身快照。
+
+文本选择、正文焦点、查看器和截图保护完整展示；根 Range 边界随 fragment 重建重新锚定。可操作占位支持键盘恢复并转交焦点。iframe、媒体、Canvas 和原生表单等有内部状态的子树持续挂载。对照口径见 `docs/Plan/chat-dom-retention-investigation.md` 第 55 节。
+
 ## 8. 附录：集成与调用场景 (Integration & Usage)
 
 渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。

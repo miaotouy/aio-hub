@@ -45,6 +45,17 @@ import {
  */
 class MarkdownBoundaryDetector {
   private llmThinkTagNames: Set<string>;
+  private fenceCache: {
+    text: string;
+    completeLength: number;
+    completeLineCount: number;
+    fenceBeforeSuffix: CodeFence | null;
+    states: boolean[];
+  } | null = null;
+
+  reset(): void {
+    this.fenceCache = null;
+  }
 
   constructor(llmThinkTagNames: Set<string> = new Set()) {
     this.llmThinkTagNames = llmThinkTagNames;
@@ -121,18 +132,42 @@ class MarkdownBoundaryDetector {
     return count % 2 !== 0;
   }
 
-  // Compute each line's fence state once for all candidate boundaries in this call.
-  private scanCodeFenceStates(lines: string[]): boolean[] {
-    let fence: CodeFence | null = null;
-    return lines.map((line) => {
-      const content = line.replace(/^ {0,3}/, "");
+  // Recheck the last two lines: full-content streaming may add a temporary final newline.
+  private scanCodeFenceStates(text: string, lines: string[]): boolean[] {
+    const cache = this.fenceCache;
+    const completeLineCount = Math.max(0, lines.length - 2);
+    // Bounded equality avoids the long-prefix startsWith cost measured in WebView2.
+    const reusesPrefix =
+      cache !== null &&
+      cache.completeLineCount <= completeLineCount &&
+      text.slice(0, cache.completeLength) ===
+        cache.text.slice(0, cache.completeLength);
+    const states = reusesPrefix ? cache.states : [];
+    const start = reusesPrefix ? cache.completeLineCount : 0;
+    states.length = start;
+    let fence = reusesPrefix ? cache.fenceBeforeSuffix : null;
+    let fenceBeforeSuffix = fence;
+
+    for (let index = start; index < lines.length; index++) {
+      if (index === completeLineCount) fenceBeforeSuffix = fence;
+      const content = lines[index].replace(/^ {0,3}/, "");
       if (fence) {
         if (isCodeFenceClosing(content, fence)) fence = null;
       } else {
         fence = readCodeFenceOpening(content);
       }
-      return fence !== null;
-    });
+      states.push(fence !== null);
+    }
+    const lastNewline = text.lastIndexOf("\n");
+    this.fenceCache = {
+      text,
+      completeLength:
+        lastNewline > 0 ? text.lastIndexOf("\n", lastNewline - 1) + 1 : 0,
+      completeLineCount,
+      fenceBeforeSuffix,
+      states,
+    };
+    return states;
   }
 
   private isIncompleteTable(lastLines: string[]): boolean {
@@ -468,7 +503,7 @@ class MarkdownBoundaryDetector {
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
     const fullLines = text.split("\n");
-    const fenceStates = this.scanCodeFenceStates(fullLines);
+    const fenceStates = this.scanCodeFenceStates(text, fullLines);
     const safeLen = this.getSafeCutPoint(
       text,
       fenceStates[fenceStates.length - 1]
@@ -652,6 +687,7 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       // 将整个内容作为最终内容解析
+      this.boundaryDetector.reset();
       this.parser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
 
@@ -862,6 +898,7 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       // 将整个 buffer 作为最终内容重新解析
+      this.boundaryDetector.reset();
       this.parser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
 
@@ -1209,6 +1246,7 @@ export class StreamProcessorV2 {
     this.lastStableLength = 0;
     this.stallCount = 0;
     this.isDegraded = false;
+    this.boundaryDetector.reset();
     this.parser.reset();
   }
 
@@ -1221,6 +1259,7 @@ export class StreamProcessorV2 {
     this.pendingBuffer = null;
     this.stableAst = [];
     this.pendingAst = [];
+    this.boundaryDetector.reset();
     this.parser.reset();
   }
 }

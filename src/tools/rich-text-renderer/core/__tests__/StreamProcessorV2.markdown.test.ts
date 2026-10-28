@@ -162,7 +162,7 @@ vi.mock("../../parser/tokenizerService", () => ({
 }));
 
 describe("streamed Markdown context", () => {
-  // Protect full-content edits/reset, which append-only fence fixtures do not cover.
+  // Protect full-content edits/reset and rewritten newline-terminated fence tails.
   it("re-evaluates fence context after full-content edits and reset", async () => {
     const state = useMarkdownAst({ throttleEnabled: false });
     const processor = new StreamProcessorV2({
@@ -173,6 +173,11 @@ describe("streamed Markdown context", () => {
       new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     try {
       for (const input of [
+        "# title\n\n~~~\n",
+        "# title\n\n~~~~md\n",
+        "# title\n\n~~~~md\n<di\n",
+        "# title\n\n~~~~md\n<div>\n~~~\n",
+        "# title\n\n~~~~md\n<div>\n~~~~\n",
         "~~~js\nbody\n\n",
         "~~~js\nbody\n\n~~~\n\nafter",
         "~~~~js\nbody\n\n~~~\n\nstill code",

@@ -1012,3 +1012,34 @@ RichTextRenderer 的纯渲染入口改为组件私有的按需实例，首次实
 34 个相关用例、类型检查、Vite 与原生 release 性能构建通过。新增用例保护预览换行开关及正式初始化后的 Unicode / Tab / 空行源码契约，几何由原生测量覆盖。此轮结果用于排版稳定性，整页内存收益继续按原矩阵测量。
 
 产物：`.tmp/app-memory/code-geometry-final-{light,dark,stream,chat}-20261028/`，正文差异摘要为 `code-geometry-final-comparison.json`；构建与测试日志为 `code-geometry-final-build.log`、`code-geometry-final-tests.log`。下一轮回到全文 pending 的松散列表保护边界及显示更新归因，短代码工具栏沿原待办保留。
+
+## 30. 流式围栏边界的前缀状态复用（2026-10-28）
+
+### 定位与取舍
+
+第 23 节的整文 pending 样本确有正文列表：branches 最长回答含 23 个围栏外列表标记，long-answer 最长回答含 70 个，仅排除代码中的标记帮助有限。直接分阶段计时进一步显示，重复围栏扫描是边界检测中的可独立减少项。本轮保留松散列表和引用的整树语义，先复用已经确认的行状态。
+
+检测器保留上次正文、前缀行状态及进入尾部前的围栏状态，逐次验证前缀一致后重扫尾部。实际 Renderer 每次会给未完成正文补一个换行，因此缓存边界回看最后两行；仅回看最后一行会反复失效。前文编辑、截短或围栏变化时自动重建；静态赋值、流完成、reset 和 destroy 清理缓存。
+
+最初的长前缀 startsWith 校验在 Bun 有收益，但 WebView2/V8 的 31 万字符样本边界耗时从约 48.7ms 增至 76.9ms，已放弃该写法。改用指定长度切片的精确相等比较后，在相同 V8 隔离路径确认收益。
+
+### WebView2/V8 计算对照
+
+同一个隔离 Tauri 窗口装载修改前后处理器，解析器及直接分词依赖共享，使用实际可读消息，规范化 CRLF 并逐段补末尾换行。每例预热两版，再交错执行三组，取各版中位数；包含分词、AST 构造、diff 和补丁应用，界面挂载与 Worker 通信另行测量。
+
+| 样本 / 规范化字符数 | 边界检测累计：改前 → 改后 | 纯处理累计：改前 → 改后 |
+| --- | ---: | ---: |
+| branches / 29,921 | 14.4 → 8.2ms | 48.4 → 41.5ms |
+| branches / 11,322 | 2.9 → 2.5ms | 35.3 → 31.8ms |
+| long-answer / 310,006 | 49.8 → 36.7ms | 239.9 → 221.4ms |
+| rich-text / 2,840 | 约 0.2 → 0.1ms | 约 1.6 → 1.6ms |
+
+所有完成态 AST 一致。另以三类真实消息各取两条，逐段更新、流完成后续写、前文替换、截短、部分围栏与静态切换，共 402 个步骤逐项对照修改前后的 AST、ID 和状态，全部一致。既有围栏编辑 / reset 用例扩展了补换行的尾部重写，214 个相关用例通过。
+
+V8 数据位于 `.tmp/app-memory/fence-cache-native-cpu-equality-20261028/`；原 startsWith 试验单列在 `fence-cache-native-cpu-20261028/`。`fence-cache-differential-20261028.json` 保存 402 步摘要，`stream-cpu-stages-paired-20261028.json` 保存 Bun 的交错分阶段结果。边界计算收益与整页帧率、进程内存继续分别记录。
+
+### 正式包复核与后续
+
+最终 release 性能包分别回放 branches 的 29,920 字符 / 117 段，以及 long-answer 的 316,539 字符 / 78 段。改前后分词请求分别保持 118 / 79 次，总输入保持 1,797,165 / 12,684,278 字符，全部仍为当时全文。两样本最终 AST 均与静态一致，元素数分别保持 6,711 / 749；两版采样均无流式长任务。类型检查、Vite 和正式原生构建通过。产物为 `fence-cache-{before,equality}-{branches,longanswer}-20261028/`，摘要 `fence-cache-equality-native-comparison.json`，日志 `fence-cache-equality-build.log`、`fence-cache-equality-tests.log`。
+
+下一轮初探统计了相邻完整 pending 解析的历史前缀：逐根比较 type / props / children，排除末根及新增长尾。branches 两条回答的重复历史前缀节点占累计构造节点约 98.1% / 94.6%，long-answer 两条约 97.3% / 80.9%，rich-text 两条约 82.3% / 81.5%。这是解析后的重复量，复用仍需明确块源范围、容器延续、引用依赖及徽章邻接优化。优先在解析器内部提供边界，再验证稳定块复用与尾部重算；松散列表、前后定义的引用和完成后继续输入沿原契约保护。数据见 `full-pending-prefix-repetition-20261028.json`。短代码工具栏继续保留在原待办中。

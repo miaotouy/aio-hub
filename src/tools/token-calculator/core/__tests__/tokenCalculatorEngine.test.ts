@@ -167,6 +167,68 @@ describe("TokenCalculatorEngine", () => {
     expect(engine.getCacheSize()).toBe(1);
   });
 
+  it("并发冷加载共享实例，失败后可以重试", async () => {
+    const engine = new TokenCalculatorEngine();
+    engine.setRegistry({ profiles: [createProfile()], rules: [] });
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("temporary"))
+      .mockResolvedValue({ tokenizerJSON: "{}" });
+    engine.setProfileDataFetcher(fetcher);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        await Promise.all(
+          Array.from({ length: 8 }, () =>
+            engine.getTokenizerByName("test-profile")
+          )
+        )
+      ).toEqual(Array(8).fill(null));
+      fromPreTrainedMock.mockImplementation(() => ({ encode: () => [1] }));
+      const loaded = await Promise.all(
+        Array.from({ length: 64 }, () =>
+          engine.getTokenizerByName("test-profile")
+        )
+      );
+      expect(loaded[0]).toBeTruthy();
+      expect(new Set(loaded).size).toBe(1);
+      expect(await engine.getTokenizerByName("test-profile")).toBe(loaded[0]);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(fromPreTrainedMock).toHaveBeenCalledTimes(1);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it.each(["registry", "cache", "fetcher"])(
+    "%s 变化后在途加载不能回填旧实例",
+    async (change) => {
+      const engine = new TokenCalculatorEngine();
+      const snapshot = { profiles: [createProfile()], rules: [] };
+      engine.setRegistry(snapshot);
+      let release!: (data: { tokenizerJSON: string }) => void;
+      const oldData = new Promise<{ tokenizerJSON: string }>((r) => {
+        release = r;
+      });
+      const fetcher = vi
+        .fn()
+        .mockReturnValueOnce(oldData)
+        .mockResolvedValue({ tokenizerJSON: "{}" });
+      engine.setProfileDataFetcher(fetcher);
+      const old = engine.getTokenizerByName("test-profile");
+      if (change === "registry") engine.setRegistry(snapshot);
+      if (change === "cache") engine.clearCache();
+      if (change === "fetcher") engine.setProfileDataFetcher(fetcher);
+      fromPreTrainedMock.mockImplementation(() => ({ encode: () => [2] }));
+      const current = await engine.getTokenizerByName("test-profile");
+      release({ tokenizerJSON: "{}" });
+      expect(await old).toBeNull();
+      expect(await engine.getTokenizerByName("test-profile")).toBe(current);
+      expect(current).toBeTruthy();
+      expect(fromPreTrainedMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
   it("应计算多模态 token 成本", () => {
     const engine = new TokenCalculatorEngine();
 

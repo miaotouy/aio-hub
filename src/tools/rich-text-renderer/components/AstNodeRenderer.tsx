@@ -317,6 +317,10 @@ const AstNodeRenderer = defineComponent({
             : props.parentContainerId,
         };
 
+        if (node.type === "katex_block" || node.type === "katex_inline") {
+          componentProps.nodeStatus = node.meta.status;
+        }
+
         // 根据节点类型设置 displayMode
         if (node.type === "katex_block") {
           componentProps.displayMode = true;

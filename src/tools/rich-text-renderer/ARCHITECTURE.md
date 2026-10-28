@@ -576,6 +576,10 @@ src/tools/rich-text-renderer/
 
 文本选择、正文焦点、查看器和截图保护完整展示；根 Range 边界随 fragment 重建重新锚定。可操作占位支持键盘恢复并转交焦点。iframe、媒体、Canvas 和原生表单等有内部状态的子树持续挂载。对照口径见 `docs/Plan/chat-dom-retention-investigation.md` 第 55 节。
 
+### 7.6 公式更新调度
+
+`KatexRenderer` 按节点 pending 状态合并 32ms 内的流式更新，节点稳定或父流结束时立即刷新。正文与展示模式相同则复用现有公式 DOM。KeepAlive 停用、卸载会清理待执行任务，恢复时显示最新内容；渲染选项和 MathML 输出沿用 KaTeX 原有行为。对照与实测见 `docs/Plan/markstream-vue-reference-study.md`。
+
 ## 8. 附录：集成与调用场景 (Integration & Usage)
 
 渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。

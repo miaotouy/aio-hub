@@ -269,3 +269,45 @@ it("rebuilds complete parser output while reset and a new pending document overt
   );
   expect(await parser.parseCompleteAsync("")).toEqual([]);
 });
+
+// List-item retention must follow token lookahead and whole-document reference changes.
+it("keeps pending list membership and references correct through continued input and revisions", async () => {
+  const parser = new CustomParser();
+  const initial =
+    "- first [target][id]\n\n  continued **inside**\n\n- second\n\n  - nested tail\n";
+  const texts = [
+    initial,
+    initial + "    continuation\n",
+    initial + "\n- third\n",
+    initial.replace("- second", "1. second"),
+    initial.replace("  - nested tail", "- new root"),
+    initial.replace("  continued", "continued"),
+    initial + "\n[id]: /one\n",
+    initial + '\n[id]: /two "title"\n',
+    initial.slice(0, 45),
+    "- [one](/a)  \n  [two](/b)  \n  ![badge](/img)\n\n- tail\n",
+    "- [one](/a) •  \n  [two](/b)\n\n- tail\n",
+    "- [one](/a) •  \n  [two](/b)\n\n- tail\n\n- appended\n",
+    "- [one](/a) •  \n  [two](/changed)\n\n- tail\n",
+    "- [one](/a) long separator  \n  [two](/b)\n\n- tail\n",
+    "- A\n\n  | key | value |\n  | --- | --- |\n  | a | b |\n\n- B\n",
+    "- A\n\n  <div>late\n\n- B\n",
+    "- A\n\n  <div>late\n\n- B\n\n  </div>\n",
+    initial,
+  ];
+  try {
+    for (const source of texts)
+      expect(await parser.parsePendingAsync(source)).toEqual(
+        new CustomParser().parse(source)
+      );
+    expect(await parser.parseCompleteAsync(initial)).toEqual(
+      new CustomParser().parse(initial)
+    );
+    parser.reset();
+    expect(await parser.parsePendingAsync("- fresh\n\n- tail\n")).toEqual(
+      new CustomParser().parse("- fresh\n\n- tail\n")
+    );
+  } finally {
+    parser.reset();
+  }
+});

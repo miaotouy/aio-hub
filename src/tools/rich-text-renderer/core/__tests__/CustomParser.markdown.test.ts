@@ -247,3 +247,20 @@ describe("project preset compatibility", () => {
     ).toEqual(["/sup", "/sub", "/triple"]);
   });
 });
+
+// Badge normalization must preserve ordinary hard breaks inside retained list subtrees.
+it("joins adjacent list badges while preserving separators and ordinary hard breaks", () => {
+  const ast = parse(
+    "- [one](/a)  \n  [two](/b) •  \n  ![badge](/img)\n\n" +
+      "- [one](/a) longer  \n  [two](/b)\n\n  ordinary  \n  text"
+  );
+  const paragraphs = flatten(ast).filter((node) => node.type === "paragraph");
+  expect(
+    paragraphs.map((node) => node.children?.map((child) => child.type))
+  ).toEqual([
+    ["link", "link", "text", "image"],
+    ["link", "text", "hard_break", "link"],
+    ["text", "hard_break", "text"],
+  ]);
+  expect(text(ast)).toBe("onetwo •  one longer  twoordinary  text");
+});

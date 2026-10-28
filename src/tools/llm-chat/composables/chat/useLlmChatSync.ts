@@ -17,7 +17,15 @@
  *
  * 封装了 LlmChat.vue 与分离窗口之间的所有状态同步和操作代理逻辑
  */
-import { toRef, type Ref, watch, computed, onUnmounted } from "vue";
+import {
+  toRef,
+  type Ref,
+  watch,
+  computed,
+  onUnmounted,
+  effectScope,
+  type EffectScope,
+} from "vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -48,6 +56,7 @@ export function useLlmChatSync() {
 
   // 状态同步引擎实例化（延迟初始化）
   let isInitialized = false;
+  let syncScope: EffectScope | null = null;
   // 收集所有状态同步引擎实例，用于批量操作
   const stateEngines: ReturnType<typeof useStateSyncEngine>[] = [];
 
@@ -57,23 +66,21 @@ export function useLlmChatSync() {
 
   // 在组件卸载时手动清理所有异步创建的引擎
   // 必须在 setup 期间注册，而不是在 initialize (可能异步) 中注册
-  onUnmounted(() => {
-    if (stateEngines.length > 0) {
-      logger.info("组件卸载，清理所有同步引擎", { count: stateEngines.length });
-      stateEngines.forEach((engine) => engine.cleanup());
-      stateEngines.length = 0;
-    }
-  });
+  onUnmounted(cleanupEngines);
 
   /**
    * 清理所有同步引擎
    */
   function cleanupEngines() {
+    syncScope?.stop();
+    syncScope = null;
     if (stateEngines.length > 0) {
       logger.info("清理所有同步引擎", { count: stateEngines.length });
       stateEngines.forEach((engine) => engine.cleanup());
       stateEngines.length = 0;
     }
+    sessionDataEngine = null;
+    sessionIdEngine = null;
     isInitialized = false;
   }
 
@@ -90,6 +97,11 @@ export function useLlmChatSync() {
     // 清理旧引擎，以防万一
     cleanupEngines();
 
+    syncScope = effectScope();
+    syncScope.run(initializeEngines);
+  }
+
+  function initializeEngines() {
     // 1. 状态定义 - 同步完整的 Store 状态，而不是衍生状态
     const allAgents = toRef(agentStore, "agents");
 
@@ -189,19 +201,23 @@ export function useLlmChatSync() {
 
     // 步骤 3：同步引擎降频
     // 监听发送状态，动态调整同步频率
-    watch(isSending, (sending) => {
-      if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-        if (sending && sessionDataEngine) {
-          logger.info("检测到正在发送消息，调低全量同步频率 (2000ms)");
-          sessionDataEngine.setDebounce(2000);
-        } else if (sessionDataEngine) {
-          logger.info("发送结束，恢复全量同步频率 (100ms) 并执行全量广播");
-          sessionDataEngine.setDebounce(100);
-          // 强制执行一次全量同步作为生成结束后的兜底
-          sessionDataEngine.manualPush(true);
+    watch(
+      isSending,
+      (sending, wasSending) => {
+        if (bus.windowType === "main" || bus.windowType === "detached-tool") {
+          if (sending && sessionDataEngine) {
+            logger.info("检测到正在发送消息，调低全量同步频率 (2000ms)");
+            sessionDataEngine.setDebounce(2000);
+          } else if (sessionDataEngine) {
+            logger.info("发送结束，恢复全量同步频率 (100ms) 并执行全量广播");
+            sessionDataEngine.setDebounce(100);
+            // 强制执行一次全量同步作为生成结束后的兜底
+            if (wasSending === true) sessionDataEngine.manualPush(true);
+          }
         }
-      }
-    });
+      },
+      { immediate: true }
+    );
 
     // 同步当前激活的会话ID
     sessionIdEngine = createStateEngine(

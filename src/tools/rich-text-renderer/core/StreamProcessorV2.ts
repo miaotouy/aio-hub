@@ -49,6 +49,7 @@ class MarkdownBoundaryDetector {
     text: string;
     completeLength: number;
     completeLineCount: number;
+    lines: string[];
     fenceBeforeSuffix: CodeFence | null;
     states: boolean[];
   } | null = null;
@@ -133,15 +134,17 @@ class MarkdownBoundaryDetector {
   }
 
   // Recheck the last two lines: full-content streaming may add a temporary final newline.
-  private scanCodeFenceStates(text: string, lines: string[]): boolean[] {
+  private scanCodeFenceStates(
+    text: string,
+    lines: string[],
+    prefixMatches: boolean
+  ): boolean[] {
     const cache = this.fenceCache;
     const completeLineCount = Math.max(0, lines.length - 2);
-    // Bounded equality avoids the long-prefix startsWith cost measured in WebView2.
     const reusesPrefix =
       cache !== null &&
-      cache.completeLineCount <= completeLineCount &&
-      text.slice(0, cache.completeLength) ===
-        cache.text.slice(0, cache.completeLength);
+      prefixMatches &&
+      cache.completeLineCount <= completeLineCount;
     const states = reusesPrefix ? cache.states : [];
     const start = reusesPrefix ? cache.completeLineCount : 0;
     states.length = start;
@@ -164,6 +167,7 @@ class MarkdownBoundaryDetector {
       completeLength:
         lastNewline > 0 ? text.lastIndexOf("\n", lastNewline - 1) + 1 : 0,
       completeLineCount,
+      lines,
       fenceBeforeSuffix,
       states,
     };
@@ -502,8 +506,31 @@ class MarkdownBoundaryDetector {
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
-    const fullLines = text.split("\n");
-    const fenceStates = this.scanCodeFenceStates(text, fullLines);
+    const cache = this.fenceCache;
+    // Keep the last two lines live: callers can replace a temporary trailing newline.
+    const prefixMatches =
+      cache !== null &&
+      text.slice(0, cache.completeLength) ===
+        cache.text.slice(0, cache.completeLength);
+    let fullLines: string[];
+    if (
+      prefixMatches &&
+      cache.completeLineCount > 0 &&
+      text.length >= 8 * 1024
+    ) {
+      // Detach the small tail before retaining its lines; a sliced line could pin an old full buffer.
+      const tail = text.slice(cache.completeLength).split("").join("");
+      fullLines = cache.lines
+        .slice(0, cache.completeLineCount)
+        .concat(tail.split("\n"));
+    } else {
+      fullLines = text.split("\n");
+    }
+    const fenceStates = this.scanCodeFenceStates(
+      text,
+      fullLines,
+      prefixMatches
+    );
     const safeLen = this.getSafeCutPoint(
       text,
       fenceStates[fenceStates.length - 1]

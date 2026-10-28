@@ -145,11 +145,11 @@ function getBranchHistory(
 
     // 根节点（通常是 system prompt）不应包含在历史记录中
     if (node.parentId) {
-      history.unshift(node);
+      history.push(node);
     }
     currentId = node.parentId;
   }
-  return history;
+  return history.reverse();
 }
 
 export const sessionLoader: ContextProcessor = {

@@ -115,6 +115,10 @@ export const tokenLimiter: ContextProcessor = {
       })
     );
 
+    const originalMessages = new Map(
+      messagesWithTokens.map((msg, index) => [msg, messages[index]])
+    );
+
     // 2. 区分历史消息和预设消息
     // sourceType === 'session_history' 为历史消息，其他均为预设/注入消息
     const historyMessages: typeof messagesWithTokens = [];
@@ -175,9 +179,8 @@ export const tokenLimiter: ContextProcessor = {
         currentHistoryTokens += msg.tokenCount;
         currentHistoryChars += msg.charCount;
         keepCount++;
-        const msgIndex = messagesWithTokens.indexOf(msg);
-        finalHistoryMessages.unshift({
-          original: messages[msgIndex],
+        finalHistoryMessages.push({
+          original: originalMessages.get(msg)!,
           final: msg,
         });
       } else {
@@ -232,9 +235,8 @@ export const tokenLimiter: ContextProcessor = {
             currentHistoryTokens += truncatedTokens;
             currentHistoryChars += truncatedMsg.charCount;
             keepCount++;
-            const msgIndex = messagesWithTokens.indexOf(msg);
-            finalHistoryMessages.unshift({
-              original: messages[msgIndex],
+            finalHistoryMessages.push({
+              original: originalMessages.get(msg)!,
               final: truncatedMsg,
             });
           }
@@ -270,10 +272,7 @@ export const tokenLimiter: ContextProcessor = {
 
     // 预设消息直接映射
     presetMessages.forEach((msg) => {
-      const msgIndex = messagesWithTokens.indexOf(msg);
-      if (msgIndex !== -1) {
-        finalMsgMap.set(messages[msgIndex], msg);
-      }
+      finalMsgMap.set(originalMessages.get(msg)!, msg);
     });
 
     // 历史消息使用我们计算好的结果
@@ -290,10 +289,7 @@ export const tokenLimiter: ContextProcessor = {
     recordDroppedReasoningArtifacts(
       context,
       historyMessages
-        .map((msg) => {
-          const msgIndex = messagesWithTokens.indexOf(msg);
-          return msgIndex >= 0 ? messages[msgIndex] : msg;
-        })
+        .map((msg) => originalMessages.get(msg)!)
         .filter((msg) => !finalMsgMap.has(msg)),
       "历史消息超出 Token 预算被删除"
     );

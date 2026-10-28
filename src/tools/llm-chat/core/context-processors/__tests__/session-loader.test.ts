@@ -66,6 +66,42 @@ const createContext = (
   }) as unknown as PipelineContext;
 
 describe("sessionLoader", () => {
+  it("keeps branch order and applies compression only after its summary is reached", async () => {
+    const nodes = {
+      root: node("root", null, "system", "root"),
+      u: node("u", "root", "user", "question"),
+      a: node("a", "u", "assistant", "answer"),
+      summary: node("summary", "a", "assistant", "compressed"),
+      next: node("next", "summary", "user", "next"),
+      sibling: node("sibling", "a", "user", "other branch"),
+    };
+    nodes.summary.metadata = {
+      isCompressionNode: true,
+      compressedNodeIds: ["u", "a"],
+    };
+    const session = {
+      id: "compressed",
+      nodes,
+      rootNodeId: "root",
+      activeLeafId: "next",
+      updatedAt: "2026-10-28",
+      history: [],
+      historyIndex: -1,
+    } satisfies ChatSessionDetail;
+    const current = createContext(session);
+    await sessionLoader.execute(current);
+    expect(current.messages.map((m) => m.sourceId)).toEqual([
+      "summary",
+      "next",
+    ]);
+    const before = createContext(
+      session,
+      new Map([["contextPreviewTargetNodeId", "a"]])
+    );
+    await sessionLoader.execute(before);
+    expect(before.messages.map((m) => m.sourceId)).toEqual(["u", "a"]);
+  });
+
   it("loads preview history only up to the requested target node", async () => {
     const nodes = {
       root: node("root", null, "system", "root", ["u1"]),

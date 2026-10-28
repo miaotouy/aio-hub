@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { isEqual } from "lodash-es";
 import { decodeTokenUpdates } from "./tokenizerTokenDelta";
 import { createModuleLogger } from "@/utils/logger";
 import type { Token, TokenizerOptions } from "./types";
@@ -23,6 +24,7 @@ interface TokenizerSession {
   id: number;
   text: string;
   tokens: Token[];
+  options: TokenizerOptions;
   sentRevision: number;
   receivedRevision: number;
 }
@@ -127,6 +129,7 @@ class TokenizerService {
         id: this.nextSessionId++,
         text: "",
         tokens: [],
+        options: {},
         sentRevision: 0,
         receivedRevision: 0,
       };
@@ -163,6 +166,7 @@ class TokenizerService {
         this.worker!.postMessage(request);
         if (session) {
           session.text = text;
+          session.options = { ...options };
           session.sentRevision = request.session!.revision;
         }
       } catch (error) {
@@ -170,6 +174,28 @@ class TokenizerService {
         reject(error);
       }
     });
+  }
+
+  /** Finish a stream against its last revision, then detach it before a new stream can start. */
+  public complete(
+    text: string,
+    options: TokenizerOptions,
+    owner: object
+  ): Promise<Token[]> {
+    const session = this.sessions.get(owner);
+    if (!session) return this.tokenize(text, options);
+    if (
+      session.sentRevision === session.receivedRevision &&
+      session.text === text &&
+      isEqual(session.options, options)
+    ) {
+      this.release(owner);
+      return Promise.resolve(session.tokens);
+    }
+    // Queued responses still own this session object; a following stream gets a fresh identity.
+    const result = this.tokenize(text, options, owner);
+    this.release(owner);
+    return result;
   }
 
   /** Release the streaming snapshot without starting a Worker for static-only parsers. */

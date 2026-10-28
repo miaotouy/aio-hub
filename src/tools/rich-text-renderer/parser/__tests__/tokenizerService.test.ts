@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { CustomParser } from "../../core/CustomParser";
 import { Tokenizer } from "../Tokenizer";
 import { TokenizerWorkerState } from "../tokenizerWorkerState";
 import { tokenizerService } from "../tokenizerService";
@@ -206,4 +207,65 @@ it("recovers from a rejected text patch without reusing its incomplete revision"
   expect(await tokenizerService.tokenize(recovered, {}, owner)).toEqual(
     new Tokenizer().tokenize(recovered)
   );
+});
+
+// Completion consumes an acknowledged snapshot and releases its owner for the next document.
+it("completes an acknowledged document without another Worker response and honors changed options", async () => {
+  const owner = {};
+  const text = "- [read][id]\n\n[id]: /target\n";
+  const expected = new Tokenizer().tokenize(text);
+  await tokenizerService.tokenize(text, {}, owner);
+  const replies = LoopbackWorker.responseSizes.length;
+  expect(await tokenizerService.complete(text, {}, owner)).toEqual(expected);
+  expect(LoopbackWorker.responseSizes).toHaveLength(replies);
+  const next = "new document";
+  expect(await tokenizerService.tokenize(next, {}, owner)).toEqual(
+    new Tokenizer().tokenize(next)
+  );
+  tokenizerService.release(owner);
+
+  const options = { vcpFuzzyModeEnabled: false };
+  const malformed =
+    "<<<[TOOL_REQUEST]>>>\ntool_name:「始」DailyNote「末」,\nContent:「始ESCAPE」正文「末」\n<<<[END_TOOL_REQUEST]>>>\n\nafter";
+  await tokenizerService.tokenize(malformed, options, owner);
+  options.vcpFuzzyModeEnabled = true;
+  expect(await tokenizerService.complete(malformed, options, owner)).toEqual(
+    new Tokenizer(options).tokenize(malformed)
+  );
+});
+
+// Completing before queued replies arrive must not mix its base with a replacement stream.
+it("finishes queued revisions independently of a following stream from the same owner", async () => {
+  const owner = {};
+  const text = "~~~txt\n" + "原文😀\n".repeat(2200);
+  const first = tokenizerService.tokenize(text, {}, owner);
+  const second = tokenizerService.tokenize(text + "tail", {}, owner);
+  const completed = tokenizerService.complete(text + "tail", {}, owner);
+  const replacement = "[next][id]\n\n[id]: /replacement";
+  const following = tokenizerService.tokenize(replacement, {}, owner);
+  const results = await Promise.all([first, second, completed, following]);
+  [text, text + "tail", text + "tail", replacement].forEach((source, index) =>
+    expect(results[index]).toEqual(new Tokenizer().tokenize(source))
+  );
+  expect(await tokenizerService.complete(replacement, {}, owner)).toEqual(
+    new Tokenizer().tokenize(replacement)
+  );
+});
+
+// Complete parsing must rebuild whole-document references and keep reset/new-document ownership isolated.
+it("rebuilds complete parser output while reset and a new pending document overtake old completion", async () => {
+  const parser = new CustomParser();
+  const source = '# Stable\n\n<div title="unfinished';
+  const pending = parser.parsePendingAsync(source);
+  const completed = parser.parseCompleteAsync(source);
+  parser.reset();
+  const next = "- [next][id]\n\n[id]: /target\n";
+  const following = parser.parsePendingAsync(next);
+  await pending;
+  expect(await completed).toEqual(new CustomParser().parse(source));
+  await following;
+  expect(await parser.parseCompleteAsync(next)).toEqual(
+    new CustomParser().parse(next)
+  );
+  expect(await parser.parseCompleteAsync("")).toEqual([]);
 });

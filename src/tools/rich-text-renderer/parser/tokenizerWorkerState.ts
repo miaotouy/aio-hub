@@ -4,14 +4,19 @@
 import { isEqual } from "lodash-es";
 import { encodeTokenUpdates } from "./tokenizerTokenDelta";
 import { Tokenizer } from "./Tokenizer";
-import type { Token } from "./types";
+import type { Token, TokenizerOptions } from "./types";
 import type { TokenizerRequest, TokenizerResponse } from "./tokenizerProtocol";
 
 /** Only streaming owners retain a previous token snapshot; static requests stay stateless. */
 export class TokenizerWorkerState {
   private sessions = new Map<
     number,
-    { text: string; tokens: Token[]; revision: number }
+    {
+      text: string;
+      tokens: Token[];
+      revision: number;
+      options?: TokenizerOptions;
+    }
   >();
 
   handle(request: TokenizerRequest): TokenizerResponse | undefined {
@@ -34,9 +39,14 @@ export class TokenizerWorkerState {
       const text = session
         ? (previous?.text.slice(0, session.from) ?? "") + request.text
         : request.text;
-      const tokens = new Tokenizer(options).tokenize(text);
+      const tokens =
+        previous && previous.text === text && isEqual(previous.options, options)
+          ? previous.tokens
+          : new Tokenizer(options).tokenize(text);
       let prefix = 0;
-      if (previous) {
+      if (previous?.tokens === tokens) {
+        prefix = tokens.length;
+      } else if (previous) {
         const length = Math.min(previous.tokens.length, tokens.length);
         while (
           prefix < length &&
@@ -49,6 +59,7 @@ export class TokenizerWorkerState {
           text,
           tokens,
           revision: session.revision,
+          options: options ? { ...options } : undefined,
         });
       }
       return {

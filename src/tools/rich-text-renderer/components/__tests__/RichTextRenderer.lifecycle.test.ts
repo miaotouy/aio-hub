@@ -34,6 +34,8 @@ import type { TokenizerOptions } from "../../parser/types";
 vi.mock("../../parser/tokenizerService", () => ({
   tokenizerService: {
     release() {},
+    complete: async (text: string, options: TokenizerOptions) =>
+      new Tokenizer(options).tokenize(text),
     tokenize: async (text: string, options: TokenizerOptions) =>
       new Tokenizer(options).tokenize(text),
   },

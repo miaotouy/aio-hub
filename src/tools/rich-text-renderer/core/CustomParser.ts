@@ -133,6 +133,25 @@ export class CustomParser implements ParserContext {
     return optimizeBadgeLineBreaks(blocks);
   }
 
+  /** Rebuild the complete document while consuming the pending transport's last snapshot. */
+  public async parseCompleteAsync(text: string): Promise<AstNode[]> {
+    this.parseEpoch++;
+    this.pendingCache = null;
+    this.references.clear();
+    if (!text) {
+      tokenizerService.release(this);
+      return [];
+    }
+    const tokens = await tokenizerService.complete(
+      text,
+      { vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled },
+      this
+    );
+    this.references.clear();
+    this.collectReferences(tokens);
+    return optimizeBadgeLineBreaks(this.parseBlocks(tokens));
+  }
+
   /** Complete pending AST, reusing only blocks whose full token dependencies still match. */
   public async parsePendingAsync(text: string): Promise<AstNode[]> {
     const epoch = ++this.parseEpoch;

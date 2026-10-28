@@ -898,8 +898,7 @@ export class StreamProcessorV2 {
       this.isProcessing = true;
       // 将整个 buffer 作为最终内容重新解析
       this.boundaryDetector.reset();
-      this.parser.reset();
-      const finalAst = await this.parser.parseAsync(this.buffer);
+      const finalAst = await this.parser.parseCompleteAsync(this.buffer);
 
       if (this.isDestroyed) return;
 

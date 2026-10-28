@@ -84,6 +84,18 @@ describe("Markdown content preservation", () => {
     ).toBe("inline_code");
   });
 
+  // Closing lines must preserve indentation, CR characters and Unicode line separators.
+  it("preserves fenced source while rejecting inline and over-indented closing candidates", () => {
+    const source =
+      "  ~~~~txt\n  first\n     ~~~~suffix\n      ~~~~\n  ~~~~\rjunk\n  ~~~~\u2028\n     ~~~~~\t\r\nafter";
+    const [code, following] = parse(source);
+    expect(code.props).toMatchObject({
+      content: "first\n   ~~~~suffix\n    ~~~~\n~~~~\rjunk\n~~~~\u2028",
+      closed: true,
+    });
+    expect(text([following])).toBe("after");
+  });
+
   it("keeps multiple paragraphs and nested lists within their parent list item", () => {
     const ast = parse(
       "- first\n\n  continuation\n\n  - child\n\n- second\n\noutside"

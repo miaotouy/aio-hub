@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { Token, type TokenizerOptions } from "./types";
-import { readCodeFenceOpening, isCodeFenceClosing } from "./utils/code-fence";
+import { readCodeFenceOpening } from "./utils/code-fence";
 import {
   decodeMarkdownEntities,
   readReferenceDefinition,
@@ -460,31 +460,30 @@ export class Tokenizer {
             );
             if (fence) {
               const contentStart = openingEnd < len ? openingEnd + 1 : len;
-              let currentPos = contentStart;
-              let contentEnd = len;
-              let closed = false;
-              while (currentPos < len) {
-                const endAt = text.indexOf("\n", currentPos);
-                const lineEnd = endAt < 0 ? len : endAt;
-                const line = text.slice(currentPos, lineEnd);
-                const spaces = /^ */.exec(line)![0].length;
-                if (
-                  spaces <= indent + 3 &&
-                  isCodeFenceClosing(line.slice(spaces), fence)
-                ) {
-                  contentEnd = currentPos;
-                  // Preserve the existing code-content contract for a closing-line LF.
-                  if (
-                    contentEnd > contentStart &&
-                    text[contentEnd - 1] === "\n"
-                  )
-                    contentEnd--;
-                  currentPos = lineEnd;
-                  closed = true;
-                  break;
-                }
-                currentPos = lineEnd < len ? lineEnd + 1 : len;
-              }
+              // Search LF-delimited closing lines without allocating each intervening line.
+              const closing = new RegExp(
+                "(?:^|\\n) {0," +
+                  (indent + 3) +
+                  "}" +
+                  fence.marker +
+                  "{" +
+                  fence.length +
+                  ",}[ \\t\\r]*(?=\\n|$)",
+                "g"
+              );
+              closing.lastIndex = Math.max(0, contentStart - 1);
+              const match = closing.exec(text);
+              const closed = !!match;
+              let contentEnd = match
+                ? match.index + (text[match.index] === "\n" ? 1 : 0)
+                : len;
+              const currentPos = match ? match.index + match[0].length : len;
+              if (
+                closed &&
+                contentEnd > contentStart &&
+                text[contentEnd - 1] === "\n"
+              )
+                contentEnd--;
               let codeContent = text.slice(contentStart, contentEnd);
               if (indent > 0)
                 codeContent = codeContent.replace(

@@ -66,13 +66,39 @@ const VCP_STANDARD_ARG_PATTERN =
   /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」(?=\s*(?:,\s*(?:[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$)|[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$))/;
 const RE_VCP_ARG = new RegExp(VCP_STANDARD_ARG_PATTERN.source, "g");
 const RE_VCP_ARG_SINGLE = new RegExp(VCP_STANDARD_ARG_PATTERN.source);
-const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/y;
+const RE_VCP_PENDING_MARKER = /:\s*「始(?:ESCAPE|exp)?」/g;
 const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 const RE_VCP_ROLE_OPEN = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/y;
 const RE_VCP_DAILY_NOTE_OPEN = /<<<DailyNoteStart>>>/y;
 const VCP_TOOL_SUMMARY_START = "[本轮工具调用摘要:]";
 const VCP_TOOL_SUMMARY_END = "[本轮工具调用摘要结束]";
+
+/** Find a delimiter first so long non-matching key runs are scanned only once. */
+function findVcpPendingField(source: string): RegExpExecArray | null {
+  RE_VCP_PENDING_MARKER.lastIndex = 0;
+  let marker: RegExpExecArray | null;
+  while ((marker = RE_VCP_PENDING_MARKER.exec(source)) !== null) {
+    let keyStart = marker.index;
+    while (keyStart > 0) {
+      const char = source.charCodeAt(keyStart - 1);
+      if (
+        (char >= 48 && char <= 57) ||
+        (char >= 65 && char <= 90) ||
+        (char >= 97 && char <= 122) ||
+        char === 95 ||
+        char === 45
+      )
+        keyStart--;
+      else break;
+    }
+    if (keyStart === marker.index) continue;
+    RE_VCP_PENDING.lastIndex = keyStart;
+    return RE_VCP_PENDING.exec(source);
+  }
+  return null;
+}
 
 export class Tokenizer {
   private readonly vcpFuzzyModeEnabled: boolean;
@@ -791,9 +817,7 @@ export class Tokenizer {
             }
 
             const remainingVcp = maskedContent.slice(lastMatchEnd).trim();
-            const pendingMatch = remainingVcp.includes("「始")
-              ? remainingVcp.match(RE_VCP_PENDING)
-              : null;
+            const pendingMatch = findVcpPendingField(remainingVcp);
             if (pendingMatch) {
               const key = pendingMatch[1];
               // pending 情形取原始内容中对应的值
@@ -802,9 +826,9 @@ export class Tokenizer {
               );
               const rawPendingMatch =
                 pendingStart >= 0
-                  ? vcpContentForParsing
-                      .slice(pendingStart)
-                      .match(RE_VCP_PENDING)
+                  ? findVcpPendingField(
+                      vcpContentForParsing.slice(pendingStart)
+                    )
                   : null;
               const value = rawPendingMatch
                 ? rawPendingMatch[2]

@@ -315,7 +315,7 @@ const toggleOriginal = async () => {
   showOriginal.value = !showOriginal.value;
   // 切换后重新渲染
   if (rendererReady) {
-    await renderDiagram();
+    requestDiagramRender(true);
   }
 };
 
@@ -596,6 +596,7 @@ const renderDiagramWithContent = async (
 // 渲染图表（带自动修复机制）
 const renderDiagram = async () => {
   if (isUnmounted || !rendererReady || deferRestore.value) return;
+  if (nodeStatus.value === "pending") lastStreamRenderAt = performance.now();
 
   // 记录当前的渲染 ID，用于并发控制
   const currentRenderId = ++lastRenderId.value;
@@ -748,12 +749,42 @@ const renderDiagram = async () => {
   }
 };
 
+// Coalesce streaming diagrams while preserving the last successful SVG.
+const STREAM_RENDER_INTERVAL = 300;
+let streamRenderTimer: ReturnType<typeof setTimeout> | undefined;
+let lastStreamRenderAt = -Infinity;
+function cancelStreamRender() {
+  if (streamRenderTimer !== undefined) clearTimeout(streamRenderTimer);
+  streamRenderTimer = undefined;
+}
+function requestDiagramRender(immediate = false) {
+  cancelStreamRender();
+  // In-flight SVG belongs to the preceding input even while the newest input waits.
+  lastRenderId.value++;
+  const render = () => {
+    streamRenderTimer = undefined;
+    if (isUnmounted || !rendererReady) return;
+    lastStreamRenderAt = performance.now();
+    void resumeDiagram();
+  };
+  const delay = lastStreamRenderAt + STREAM_RENDER_INTERVAL - performance.now();
+  if (
+    immediate ||
+    nodeStatus.value === "stable" ||
+    screenshotMode.value ||
+    delay <= 0
+  )
+    render();
+  else streamRenderTimer = setTimeout(render, delay);
+}
+
 // 主题配置与对应的渲染任务由共享运行时串行处理。
-watch(isDark, async () => {
-  if (rendererReady) await renderDiagram();
+watch(isDark, () => {
+  if (rendererReady && !deferRestore.value) requestDiagramRender(true);
 });
 watch([screenshotMode, () => context?.isStreaming?.value], () => {
-  if (rendererReady && waitingForViewport.value && !deferRestore.value) {
+  if (rendererReady && screenshotMode.value) requestDiagramRender(true);
+  else if (rendererReady && waitingForViewport.value && !deferRestore.value) {
     void resumeDiagram();
   }
 });
@@ -761,7 +792,7 @@ watch([screenshotMode, () => context?.isStreaming?.value], () => {
 // 监听内容和状态变化
 watch(
   [() => props.content, () => attrs["data-node-status"]],
-  async ([newContent, newStatus], [oldContent, oldStatus]) => {
+  ([newContent, newStatus], [oldContent, oldStatus]) => {
     if (!rendererReady) return;
 
     // 内容变化时，重置修复状态和显示原始状态
@@ -770,9 +801,15 @@ watch(
       showOriginal.value = false;
     }
 
-    // 只要内容变化就尝试渲染，不再限制状态
+    // Partial last-line edits have the same renderable diagram.
+    if (
+      newStatus === "pending" &&
+      oldStatus === "pending" &&
+      trimLastLine(String(newContent)) === trimLastLine(String(oldContent))
+    )
+      return;
     if (newContent !== oldContent || newStatus !== oldStatus) {
-      await resumeDiagram();
+      requestDiagramRender();
     }
   }
 );
@@ -826,6 +863,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   isUnmounted = true;
   lastRenderId.value++;
+  cancelStreamRender();
   stopViewportTracking();
   sizeObserver?.disconnect();
 

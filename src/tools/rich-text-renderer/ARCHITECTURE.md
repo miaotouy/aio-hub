@@ -251,6 +251,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **消息级 `content-visibility: auto`**: 长消息列表的主要跳过渲染逻辑目前位于 `llm-chat/components/message/MessageList.vue`，对整条消息应用 `content-visibility: auto` 并保持最后一条消息可见，以稳定底部滚动。renderer 内部的块级 `content-visibility` 曾经试验过，但当前 CSS 被注释关闭，避免单条消息内部高度估算导致滚动跳动。
 - **节点进入动画**: 新增节点支持淡入（fade-in-up）动画效果。
   - **立即显示策略**: 在 `AstNodeRenderer.tsx` 中定义了 `NO_ANIMATION_NODE_TYPES` 集合。对于思考块、代码块、Mermaid、VCP 工具、HTML 块和图片，动画会被自动禁用。这是因为这些节点通常具有动态填充内容或复杂的初始化逻辑，立即显示能提供更好的实时反馈。
+- **Mermaid 流式排版**: pending 正文按 300ms 窗口提交最新值，仅末尾未完成行变化时跳过排版；等待期间保留最后成功 SVG。稳定态、手动切换、截图和已激活图表的主题变化立即提交，卸载取消排队任务。离屏静态图表恢复继续保留高度，接近视口时使用当前主题重建。
 - **图片列表提取节流**: `RichTextRenderer` 通过 WeakMap 子树索引提取 AST 图片链接（`utils/astImageIndex.ts`），未变分支按不可变节点引用复用；保留图片顺序、重复项与十万节点访问上限，部分遍历结果跳过缓存写入。流式阶段使用 1000ms 节流更新 `imageList`，卸载清理索引。该列表通过上下文共享给所有 `ImageNode`，使其能支持全局图片预览（Viewer）的幻灯片切换。
 - **代码块延迟初始化 (Lazy Code Block Init)**: 代码块展示固定使用 CodeMirror，并通过 `IntersectionObserver` 延迟初始化，仅在代码块进入视口时才创建编辑器实例。在编辑器初始化前渲染轻量级 **PreCodeNode** 预览组件（`components/nodes/code-block/PreCodeNode.vue`）。通过 `debugPreFallback` 调试开关可强制保持预览状态。
 - **HTML 流式预览刷新**: `HtmlInteractiveViewer` 首轮立即尝试更新，持续输入按一秒间隔刷新，并在输入暂停后提交窗口内的最新值。稳定性判断保留原规则；`immediate` 同步提交并取消排队刷新，组件卸载清除定时器与待处理内容。源码确有变化时继续导航 iframe。

@@ -134,6 +134,8 @@ const dynamicGutterStyle = computed(() => {
 
 /* ========== CodeMirror 主题样式 ========== */
 .pre-code-node.theme-codemirror {
+  font-weight: normal;
+  font-style: normal;
   padding: 0;
   background-color: transparent;
 }

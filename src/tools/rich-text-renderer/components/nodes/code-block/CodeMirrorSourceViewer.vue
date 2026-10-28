@@ -79,10 +79,11 @@ import {
 import { defaultKeymap } from "@codemirror/commands";
 import { useTheme } from "@composables/useTheme";
 import { getCodeMirrorLanguage } from "@/utils/codeLanguages";
-import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import PreCodeNode from "./PreCodeNode.vue";
 import {
   codeViewerTheme,
+  codeViewerLightTheme,
+  codeViewerDarkTheme,
   codeViewerFontFamily,
   codeViewerLineHeight,
 } from "./codeViewerTheme";
@@ -218,7 +219,9 @@ const fontSizeCompartment = new Compartment();
 const wordWrapCompartment = new Compartment();
 
 const { isDark } = useTheme();
-const cmTheme = computed(() => (isDark.value ? vscodeDark : vscodeLight));
+const cmTheme = computed(() =>
+  isDark.value ? codeViewerDarkTheme : codeViewerLightTheme
+);
 
 const preFallbackStyle = computed(() => {
   const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;

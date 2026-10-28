@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import { EditorView } from "@codemirror/view";
+import { markdown } from "@codemirror/lang-markdown";
 import {
   foldEffect,
   foldedRanges,
@@ -21,6 +22,7 @@ const loadLanguage = vi.hoisted(() =>
     ) => Promise<import("@codemirror/state").Extension | null>
   >(async () => null)
 );
+const theme = vi.hoisted(() => ({ dark: false }));
 const observer = vi.hoisted(() => ({
   notify: undefined as undefined | IntersectionObserverCallback,
 }));
@@ -37,7 +39,7 @@ vi.mock("../../../stores/store", () => ({
 }));
 vi.mock("pinia", () => ({ storeToRefs: (store: unknown) => store }));
 vi.mock("@composables/useTheme", () => ({
-  useTheme: () => ({ isDark: ref(false) }),
+  useTheme: () => ({ isDark: ref(theme.dark) }),
 }));
 vi.mock("@/utils/codeLanguages", () => ({
   getCodeMirrorLanguage: loadLanguage,
@@ -69,6 +71,7 @@ function currentView() {
   )!;
 }
 beforeEach(() => {
+  theme.dark = false;
   vi.useFakeTimers();
   loadLanguage.mockReset().mockResolvedValue(null);
 });
@@ -385,3 +388,43 @@ it("preserves source text when toggling fallback wrapping and creating the edito
   await intersect(true);
   expect(currentView().state.doc.toString()).toBe(content);
 });
+
+// Highlighting arrives asynchronously; emphasis must preserve source glyph metrics.
+it.each([false, true])(
+  "keeps source font shape stable when Markdown highlighting loads (dark=%s)",
+  async (dark) => {
+    theme.dark = dark;
+    let complete!: (extension: import("@codemirror/state").Extension) => void;
+    loadLanguage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        })
+    );
+    const content = "# Heading 标题\n**Strong** and *emphasis*";
+    wrapper = mount(CodeMirrorSourceViewer, {
+      props: { ...props, content, language: "markdown" },
+      attachTo: document.body,
+    });
+    await intersect(true);
+    const view = currentView();
+    const before = getComputedStyle(view.contentDOM);
+    const font = { weight: before.fontWeight, style: before.fontStyle };
+    complete(markdown());
+    await nextTick();
+    const tokens = [...view.contentDOM.querySelectorAll("span[class]")];
+    expect(tokens.length).toBeGreaterThan(0);
+    expect(
+      tokens.some(
+        (token) =>
+          getComputedStyle(token).color !==
+          getComputedStyle(view.contentDOM).color
+      )
+    ).toBe(true);
+    for (const token of tokens) {
+      expect(getComputedStyle(token).fontWeight).toBe(font.weight);
+      expect(getComputedStyle(token).fontStyle).toBe(font.style);
+    }
+    expect(view.state.doc.toString()).toBe(content);
+  }
+);

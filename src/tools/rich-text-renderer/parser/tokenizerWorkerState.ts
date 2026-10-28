@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { isEqual } from "lodash-es";
+import { encodeTokenUpdates } from "./tokenizerTokenDelta";
 import { Tokenizer } from "./Tokenizer";
 import type { Token } from "./types";
 import type { TokenizerRequest, TokenizerResponse } from "./tokenizerProtocol";
@@ -53,7 +54,9 @@ export class TokenizerWorkerState {
       return {
         id,
         status: "success",
-        tokens: prefix ? tokens.slice(prefix) : tokens,
+        ...(previous
+          ? encodeTokenUpdates(previous.tokens, tokens, prefix)
+          : { tokens }),
         prefix,
         ...(session ? { revision: session.revision } : {}),
       };

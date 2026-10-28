@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { decodeTokenUpdates } from "./tokenizerTokenDelta";
 import { createModuleLogger } from "@/utils/logger";
 import type { Token, TokenizerOptions } from "./types";
 import type { TokenizeRequest, TokenizerResponse } from "./tokenizerProtocol";
@@ -64,28 +65,38 @@ class TokenizerService {
         return;
       }
       const session = callback.session;
-      if (!session) {
-        callback.resolve(response.tokens);
-        return;
-      }
-      if (
-        response.revision === undefined ||
-        response.revision !== callback.revision ||
-        session.receivedRevision !== callback.baseRevision ||
-        response.prefix < 0 ||
-        response.prefix > session.tokens.length
-      ) {
+      try {
+        if (!session) {
+          callback.resolve(
+            response.textPatches
+              ? decodeTokenUpdates([], response.prefix, response.tokens)
+              : response.tokens
+          );
+          return;
+        }
+        if (
+          response.revision === undefined ||
+          response.revision !== callback.revision ||
+          session.receivedRevision !== callback.baseRevision ||
+          !Number.isInteger(response.prefix) ||
+          response.prefix < 0 ||
+          response.prefix > session.tokens.length
+        ) {
+          throw new Error("Tokenizer stream response mismatch");
+        }
+        // Reuse unchanged objects; patched strings belong to this revision's new tokens.
+        const tokens = response.textPatches
+          ? decodeTokenUpdates(session.tokens, response.prefix, response.tokens)
+          : session.tokens.slice(0, response.prefix).concat(response.tokens);
+        session.tokens = tokens;
+        session.receivedRevision = response.revision;
+        callback.resolve(tokens);
+      } catch (error) {
         this.releaseCallbackSession(callback);
-        callback.reject(new Error("Tokenizer stream response mismatch"));
-        return;
+        callback.reject(
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
-      // Reuse unchanged token objects on the main thread as well as their payload.
-      const tokens = session.tokens
-        .slice(0, response.prefix)
-        .concat(response.tokens);
-      session.tokens = tokens;
-      session.receivedRevision = response.revision;
-      callback.resolve(tokens);
     };
     worker.onerror = (event) => {
       if (this.worker !== worker) return;

@@ -6,11 +6,13 @@ import { Tokenizer } from "../Tokenizer";
 import { TokenizerWorkerState } from "../tokenizerWorkerState";
 import { tokenizerService } from "../tokenizerService";
 import type { TokenizerOptions } from "../types";
-import type { TokenizerRequest } from "../tokenizerProtocol";
+import type { TokenizerRequest, TokenizerResponse } from "../tokenizerProtocol";
 
 // Exercise real tokenization and wire cloning, replacing only browser scheduling.
 class LoopbackWorker {
   static instances: LoopbackWorker[] = [];
+  static responseSizes: number[] = [];
+  transformResponse?: (response: TokenizerResponse) => TokenizerResponse;
   onmessage?: (event: MessageEvent) => void;
   onerror?: (event: ErrorEvent) => void;
   private state = new TokenizerWorkerState();
@@ -21,8 +23,11 @@ class LoopbackWorker {
     const request = structuredClone(value);
     queueMicrotask(() => {
       const response = this.state.handle(request);
-      if (response)
-        this.onmessage?.({ data: structuredClone(response) } as MessageEvent);
+      if (response) {
+        const delivered = this.transformResponse?.(response) ?? response;
+        LoopbackWorker.responseSizes.push(JSON.stringify(delivered).length);
+        this.onmessage?.({ data: structuredClone(delivered) } as MessageEvent);
+      }
     });
   }
   terminate() {}
@@ -30,6 +35,7 @@ class LoopbackWorker {
 
 beforeEach(() => {
   LoopbackWorker.instances = [];
+  LoopbackWorker.responseSizes = [];
   vi.stubGlobal("Worker", LoopbackWorker);
 });
 afterEach(() => {
@@ -119,6 +125,84 @@ it("recovers tokenization after termination or a Worker failure", async () => {
   } as ErrorEvent);
   await failed;
   const recovered = "恢复中文 😀\n";
+  expect(await tokenizerService.tokenize(recovered, {}, owner)).toEqual(
+    new Tokenizer().tokenize(recovered)
+  );
+});
+
+// Full token results stay immutable while the wire carries substantially less growing source.
+it("preserves large queued token revisions while reducing repeated string payloads", async () => {
+  const body = "const 文本 = '😀';\n".repeat(1600);
+  const frames = [
+    { open: "# Header\n\n~~~js\n", close: "\n~~~\n" },
+    {
+      open: "<<<[ROLE_DIVIDE_ASSISTANT]>>>\n",
+      close: "\n<<<[END_ROLE_DIVIDE_ASSISTANT]>>>",
+    },
+  ];
+  let growthPayloadSize = 0;
+  let completeGrowthSize = 0;
+  for (const frame of frames) {
+    const owner = {};
+    const original = frame.open + body;
+    const appended = original + "尾部 😀\n";
+    const edited =
+      appended.slice(0, 9000) + "修改字符000000" + appended.slice(9010);
+    const shortened = edited.slice(0, -1000);
+    const texts = [
+      original,
+      appended,
+      edited,
+      shortened,
+      shortened + frame.close,
+    ];
+    const responseOffset = LoopbackWorker.responseSizes.length;
+    const results = await Promise.all(
+      texts.map((text) => tokenizerService.tokenize(text, {}, owner))
+    );
+    // Compare after all responses have arrived, so later reconstruction cannot mutate old results.
+    results.forEach((tokens, index) => {
+      const expected = new Tokenizer().tokenize(texts[index]);
+      expect(tokens).toEqual(expected);
+      if (index === 1) completeGrowthSize += JSON.stringify(expected).length;
+    });
+    growthPayloadSize += LoopbackWorker.responseSizes[responseOffset + 1];
+    tokenizerService.release(owner);
+  }
+  expect(growthPayloadSize).toBeLessThan(completeGrowthSize * 0.25);
+});
+
+// A malformed patch must reject queued jobs cleanly and allow a fresh stream to recover.
+it("recovers from a rejected text patch without reusing its incomplete revision", async () => {
+  const owner = {};
+  const text = "~~~txt\n" + "原文😀\n".repeat(2000);
+  await tokenizerService.tokenize(text, {}, owner);
+  const worker = LoopbackWorker.instances[0];
+  worker.transformResponse = (response) => {
+    worker.transformResponse = undefined;
+    return response.status === "success"
+      ? {
+          ...response,
+          prefix: 0,
+          textPatches: true,
+          tokens: [
+            {
+              type: "code_fence",
+              language: "txt",
+              raw: { from: 0, to: text.length * 2, insert: "" },
+            },
+          ],
+        }
+      : response;
+  };
+  const corrupted = expect(
+    tokenizerService.tokenize(text + "tail", {}, owner)
+  ).rejects.toThrow("patch mismatch");
+  const queued = expect(
+    tokenizerService.tokenize(text + "tail\nmore", {}, owner)
+  ).rejects.toThrow("response mismatch");
+  await Promise.all([corrupted, queued]);
+  const recovered = text + "恢复\n~~~";
   expect(await tokenizerService.tokenize(recovered, {}, owner)).toEqual(
     new Tokenizer().tokenize(recovered)
   );

@@ -375,8 +375,11 @@ export class StreamController {
       return;
     }
 
-    // 检测是否包含 VCP 协议特征，若有则直接绕过平滑
-    if (this.shouldBypassSmoothing(chunk)) {
+    // Replay beyond the smoothing window and protocol markers bypass semantic queue allocation.
+    if (
+      chunk.length > this.emergencyFlushThreshold ||
+      this.shouldBypassSmoothing(chunk)
+    ) {
       this.skipSmoothingAndEmit(chunk);
       return;
     }
@@ -384,7 +387,7 @@ export class StreamController {
     // 更新上游投喂节奏估算，并将 chunk 拆分为语义块后入队
     this.updateChunkTiming();
     const chunks = this.splitIntoSemanticChunks(chunk);
-    this.semanticQueue.push(...chunks);
+    for (const part of chunks) this.semanticQueue.push(part);
   }
 
   /**
@@ -403,7 +406,7 @@ export class StreamController {
   private skipSmoothingAndEmit(chunk: string): void {
     if (this.verboseLogging) {
       console.debug(
-        `[StreamController] Bypassing smoothing for VCP chunk: "${chunk.replace(/\n/g, "\\n")}"`
+        `[StreamController] Bypassing smoothing for chunk: "${chunk.replace(/\n/g, "\\n")}"`
       );
     }
 
@@ -436,9 +439,17 @@ export class StreamController {
       this.preBufferQueue = [];
 
       if (this.smoothingEnabled) {
+        // Replay above the smoothing window directly, before allocating semantic chunks.
+        if (
+          allContent.length > this.emergencyFlushThreshold ||
+          this.shouldBypassSmoothing(allContent)
+        ) {
+          this.skipSmoothingAndEmit(allContent);
+          return;
+        }
         // 拆分为语义块后入队
         const chunks = this.splitIntoSemanticChunks(allContent);
-        this.semanticQueue.push(...chunks);
+        for (const part of chunks) this.semanticQueue.push(part);
 
         // 如果预缓冲非常多，先同步输出一批，避免首屏空白
         const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);

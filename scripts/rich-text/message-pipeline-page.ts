@@ -11,6 +11,12 @@ export async function runMessagePipelinePage() {
       import("/src/" + "tools/rich-text-renderer/RichTextRenderer.vue"),
       import("/src/" + "tools/llm-chat/components/message/ToolCallMessage.vue"),
     ]);
+  const [{ StreamController }, streams] = await Promise.all([
+    import("/src/" + "tools/rich-text-renderer/core/StreamController.ts"),
+    import(
+      "/src/" + "tools/llm-chat/composables/chat/useStreamingMessageSources.ts"
+    ),
+  ]);
   const root = document.createElement("section");
   root.style.cssText =
     "position:fixed;inset:80px 40px;z-index:9999;overflow:auto;background:var(--bg-color)";
@@ -62,7 +68,32 @@ export async function runMessagePipelinePage() {
   const click = () =>
     root.querySelector<HTMLElement>(".llm-think-header")!.click();
   const body = () => root.querySelector(".llm-think-content");
+  const sourceId = "native-message-replay-" + Date.now();
   try {
+    const replay = "中文".repeat(250000);
+    for (const preMount of [false, true]) {
+      const emitted: string[] = [];
+      const controller = new StreamController({
+        onContent: (chunk: string) => emitted.push(chunk),
+        smoothingEnabled: true,
+      });
+      const started = performance.now();
+      if (!preMount) controller.markMounted();
+      controller.push("prefix ");
+      controller.push(replay);
+      controller.markMounted();
+      controller.push(" suffix");
+      controller.flushAndStop();
+      record(
+        "large-replay-" + (preMount ? "pre-mount" : "mounted"),
+        emitted.join("") === "prefix " + replay + " suffix",
+        {
+          chars: replay.length,
+          elapsedMs: performance.now() - started,
+          queued: controller.getStatus().semanticQueueLength,
+        }
+      );
+    }
     app.mount(root);
     text.value = "Latest **reasoning**.";
     await vue.nextTick();
@@ -191,7 +222,58 @@ export async function runMessagePipelinePage() {
           ?.getBoundingClientRect().height,
       }
     );
+    app.unmount();
+    const initial = "中文".repeat(150000);
+    const source = streams.getOrCreateStreamingMessageSource(sourceId, initial);
+    const events: string[] = [];
+    const offData = source.subscribe((chunk: string) => events.push(chunk));
+    const offComplete = source.onComplete(() => events.push("complete"));
+    const rendererApp = () =>
+      vue.createApp({
+        render: () =>
+          vue.h(Renderer, {
+            streamSource: source,
+            isStreaming: true,
+            smoothingEnabled: true,
+            version: "v2-custom-parser",
+            enableEnterAnimation: false,
+            throttleEnabled: false,
+          }),
+      });
+    app = rendererApp();
+    // Each mount subscribes to history; new data and completion arrive before its replay microtask.
+    let expected = initial;
+    for (let cycle = 1; cycle <= 2; cycle++) {
+      app.mount(root);
+      const suffix = "尾段" + cycle;
+      expected += suffix;
+      streams.appendStreamingMessageChunk(sourceId, suffix);
+      streams.completeStreamingMessageSource(sourceId);
+      await wait(
+        () =>
+          root.querySelector(".rich-text-renderer")?.textContent?.trim() ===
+          expected
+      );
+      record(
+        "renderer-replay-cycle-" + cycle,
+        events.slice(0, -1).join("") === expected &&
+          events.slice(-1)[0] === "complete",
+        {
+          chars: expected.length,
+          completionAfterData: events.slice(-1)[0] === "complete",
+        }
+      );
+      app.unmount();
+      // Vue applications cannot be remounted; a fresh renderer exercises source re-subscription.
+      if (cycle === 1) {
+        app = rendererApp();
+        events.pop();
+      }
+    }
+    offData();
+    offComplete();
   } finally {
+    streams.disposeStreamingMessageSource(sourceId);
     app.unmount();
     root.remove();
   }

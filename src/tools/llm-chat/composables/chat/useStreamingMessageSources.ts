@@ -20,6 +20,8 @@ type CompleteCallback = () => void;
 class ReplayableMessageStreamSource implements StreamSource {
   private buffer = "";
   private completed = false;
+  private pendingReplays = 0;
+  private completionVersion = 0;
   private subscribers = new Set<StreamCallback>();
   private completeSubscribers = new Set<CompleteCallback>();
 
@@ -28,27 +30,46 @@ class ReplayableMessageStreamSource implements StreamSource {
   }
 
   subscribe(callback: StreamCallback): () => void {
-    this.subscribers.add(callback);
-
-    if (this.buffer) {
+    const replay = this.buffer;
+    let ready = !replay;
+    const pending: string[] = [];
+    const subscriber = (chunk: string) => {
+      if (ready) callback(chunk);
+      else pending.push(chunk);
+    };
+    this.subscribers.add(subscriber);
+    if (replay) {
+      this.pendingReplays++;
       queueMicrotask(() => {
-        if (this.subscribers.has(callback)) {
-          callback(this.buffer);
+        try {
+          if (!this.subscribers.has(subscriber)) return;
+          callback(replay);
+          // Appends before or during replay follow its captured boundary exactly once.
+          for (const chunk of pending) {
+            if (!this.subscribers.has(subscriber)) break;
+            callback(chunk);
+          }
+          pending.length = 0;
+          ready = true;
+        } finally {
+          this.pendingReplays--;
         }
       });
     }
-
-    return () => {
-      this.subscribers.delete(callback);
-    };
+    return () => this.subscribers.delete(subscriber);
   }
 
   onComplete(callback: CompleteCallback): () => void {
     this.completeSubscribers.add(callback);
 
     if (this.completed) {
+      const version = this.completionVersion;
       queueMicrotask(() => {
-        if (this.completeSubscribers.has(callback)) {
+        if (
+          this.completed &&
+          version === this.completionVersion &&
+          this.completeSubscribers.has(callback)
+        ) {
           callback();
         }
       });
@@ -75,9 +96,16 @@ class ReplayableMessageStreamSource implements StreamSource {
     if (this.completed) return;
 
     this.completed = true;
-    for (const callback of this.completeSubscribers) {
-      callback();
-    }
+    const version = ++this.completionVersion;
+    const callbacks = [...this.completeSubscribers];
+    const notify = () => {
+      if (!this.completed || version !== this.completionVersion) return;
+      for (const callback of callbacks) {
+        if (this.completeSubscribers.has(callback)) callback();
+      }
+    };
+    if (this.pendingReplays) queueMicrotask(notify);
+    else notify();
   }
 
   dispose(): void {

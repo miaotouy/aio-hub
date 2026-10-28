@@ -1171,18 +1171,21 @@ watch(
       :raw-content="message.metadata.reasoningContent"
       :generation-meta="generationMetaForRenderer"
     >
-      <RichTextRenderer
-        suspend-on-deactivate
-        v-bind="rendererSettingsProps"
-        :content="message.metadata.reasoningContent"
-        :style-options="frozenStyleOptions"
-        :resolve-asset="resolveAsset"
-        :render-file-placeholder="renderFilePlaceholder"
-        :default-tool-call-collapsed="
-          currentAgent?.defaultToolCallCollapsed ??
-          settings.uiPreferences.defaultToolCallCollapsed
-        "
-      />
+      <template #default="{ content, expanded }">
+        <RichTextRenderer
+          suspend-on-deactivate
+          v-bind="rendererSettingsProps"
+          :content="content"
+          :is-streaming="isReasoning && expanded"
+          :style-options="frozenStyleOptions"
+          :resolve-asset="resolveAsset"
+          :render-file-placeholder="renderFilePlaceholder"
+          :default-tool-call-collapsed="
+            currentAgent?.defaultToolCallCollapsed ??
+            settings.uiPreferences.defaultToolCallCollapsed
+          "
+        />
+      </template>
     </LlmThinkNode>
 
     <!-- 编辑模式 (截图模式强制关闭) -->

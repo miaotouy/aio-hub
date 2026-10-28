@@ -214,6 +214,8 @@ describe("streamed Markdown context", () => {
     const prefix = "- item\n\n[visible][ref]\n\n";
     try {
       for (const definition of [
+        "[ref]",
+        "[ref]:",
         "[ref]: /first",
         "[ref]: /other",
         "",

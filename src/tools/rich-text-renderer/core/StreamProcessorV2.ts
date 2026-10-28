@@ -512,7 +512,9 @@ class MarkdownBoundaryDetector {
 
     // References can resolve across paragraphs; loose-list continuation belongs to the same tree.
     // Keep document context for these inputs while retaining the usual stable/pending fast path elsewhere.
-    const hasReferences = /^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:/m.test(safeText);
+    const hasReferences =
+      safeText.includes("]:") &&
+      /^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:/m.test(safeText);
     const hasLooseList =
       /^[ \t]*(?:[*+-]|\d+\.)[ \t]/m.test(safeText) &&
       /\n[ \t]*\n/.test(safeText);

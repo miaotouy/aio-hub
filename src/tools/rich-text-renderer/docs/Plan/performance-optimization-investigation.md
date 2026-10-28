@@ -326,3 +326,11 @@ Pending 字段改为先定位冒号、原有空白和完整开标记，再回溯
 主人新提供的 5 万字符回答包含完整 Canvas 水族箱，已原生复现截图时画布 / HUD 覆盖消息顶部、原预览位置留白。根因为截图库将同源 iframe 展开成克隆 HTML 后，内部 fixed 元素丢失原视口边界。已在单消息截图克隆树中补 layout / paint containment，源 iframe 保持原样。
 
 新增 `rich-text:screenshot:tauri`，用最终 PNG 像素保护两份 frame 和嵌套 frame 的 fixed 定位；旧路径失败，修正后 100% / 60% 预览缩放共 10 个锚点通过。真实水族箱两组导出均为 497 × 2,284px，画面回到正文内的原预览位置。完整复现与范围见[专项第 45 节](chat-dom-retention-investigation.md#45-内嵌-iframe-截图的视口定位修正2026-10-28)。
+
+## 35. 流式 HTML 预览在暂停后追赶最新值（2026-10-28）
+
+沿第 44 节确认的 leading-only 节流滞留，`HtmlInteractiveViewer` 改用一秒间隔、首轮立即尝试和尾沿追赶的可取消调度。刷新窗口内仅保留最新值；`immediate` 与卸载清除待执行任务；原有稳定性判断保留。
+
+真实 WebView2 中，120ms 突发输入后暂停 1,200ms，旧版仍显示 INITIAL，新版显示 LATEST。完整聊天保留默认平滑、动画和自动滚动，两份独立表单回放在缓冲排空后保持最终内容；完成后 1,550ms 的 load 次数、输入与计数保持。围栏闭合会删去一个末尾换行并导航，已与完成信号分开归因。相关 45 个用例、类型检查与 Vite 通过。
+
+下一轮先检查 Canvas / 图片的高度收缩，再评估闭合围栏时的等价源码导航；手动停止、冻结 / 弹窗、复杂 Canvas 长时资源和 Mermaid / SVG 过程观察继续保留。口径及产物见[专项第 46 节](chat-dom-retention-investigation.md#46-流式-html-预览的尾沿追赶与取消2026-10-28)。

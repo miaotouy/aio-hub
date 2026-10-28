@@ -253,6 +253,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
   - **立即显示策略**: 在 `AstNodeRenderer.tsx` 中定义了 `NO_ANIMATION_NODE_TYPES` 集合。对于思考块、代码块、Mermaid、VCP 工具、HTML 块和图片，动画会被自动禁用。这是因为这些节点通常具有动态填充内容或复杂的初始化逻辑，立即显示能提供更好的实时反馈。
 - **图片列表提取节流**: `RichTextRenderer` 会递归提取 AST 中的所有图片链接（`extractImages`），并使用 1000ms 的节流函数更新 `imageList`。该列表通过上下文共享给所有 `ImageNode`，使其能支持全局图片预览（Viewer）的幻灯片切换。
 - **代码块延迟初始化 (Lazy Code Block Init)**: 代码块展示固定使用 CodeMirror，并通过 `IntersectionObserver` 延迟初始化，仅在代码块进入视口时才创建编辑器实例。在编辑器初始化前渲染轻量级 **PreCodeNode** 预览组件（`components/nodes/code-block/PreCodeNode.vue`）。通过 `debugPreFallback` 调试开关可强制保持预览状态。
+- **HTML 流式预览刷新**: `HtmlInteractiveViewer` 首轮立即尝试更新，持续输入按一秒间隔刷新，并在输入暂停后提交窗口内的最新值。稳定性判断保留原规则；`immediate` 同步提交并取消排队刷新，组件卸载清除定时器与待处理内容。源码确有变化时继续导航 iframe。
 - **HTML 预览冻结**: `RichTextRenderer` 通过 `shouldFreeze` prop 将冻结策略传给 HTML 预览节点；消息深度阈值由调用方（如 `MessageContent.vue`）根据聊天设置计算。弹窗打开时会冻结内嵌预览，避免同一 HTML 同时运行两份。
 - **流式平滑化 (Stream Smoothing)**: `core/StreamController.ts` 通过内部缓冲区平滑 Token 的发射节奏，避免因网络包大小不一导致的视觉卡顿。支持自动加速（当积压过多时）和紧急冲刷（超过 1000 字符阈值时立即显示）。包含 VCP 结构标记的 chunk 会绕过平滑直接同步输出。通过 `smoothingEnabled` 控制。
 - **内存管理 (Memory Management)**: 引擎实现了全套组件卸载清理机制。`useMarkdownAst` 提供 `dispose` 方法主动释放 AST 和节点索引；`StreamProcessorV2` 在销毁时停止异步解析；各节点组件（ImageNode、HtmlInteractiveViewer、MermaidNode、CodeBlockNode 等）在卸载时取消进行中的异步请求、移除事件监听和释放 blob URL，有效防止长会话切换时的内存泄漏。

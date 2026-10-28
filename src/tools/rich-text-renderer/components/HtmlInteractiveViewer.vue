@@ -204,7 +204,6 @@ import {
   AlertCircle,
   Copy,
 } from "lucide-vue-next";
-import { useThrottleFn } from "@vueuse/core";
 import { localizeCdnLinks } from "../utils/cdnLocalizer";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
@@ -234,7 +233,7 @@ const props = withDefaults(
     bordered?: boolean;
     seamless?: boolean;
     /**
-     * 是否立即渲染，跳过防抖和稳定性检查。
+     * 是否立即渲染，跳过节流和稳定性检查。
      */
     immediate?: boolean;
     /**
@@ -298,13 +297,54 @@ const isContentStable = (html: string): boolean => {
   return true;
 };
 
-const throttledUpdateContent = useThrottleFn((newContent: string) => {
+const CONTENT_UPDATE_INTERVAL = 1000;
+let pendingContent: string | null = null;
+let lastContentUpdate = -Infinity;
+let contentUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearScheduledContentUpdate = () => {
+  if (contentUpdateTimer !== null) {
+    clearTimeout(contentUpdateTimer);
+    contentUpdateTimer = null;
+  }
+  pendingContent = null;
+  lastContentUpdate = -Infinity;
+};
+
+const commitContent = (newContent: string) => {
+  if (renderContent.value === newContent) return;
   if (isContentStable(newContent)) {
     renderContent.value = newContent;
   } else if (!renderContent.value && newContent.length > 100) {
     renderContent.value = newContent;
   }
-}, 1000);
+};
+
+/**
+ * Stream with a leading update and a trailing catch-up. The trailing update is
+ * needed when input pauses before the next one-second refresh window; without
+ * it, the preview can remain on an old snapshot indefinitely.
+ */
+const flushContentUpdate = () => {
+  contentUpdateTimer = null;
+  const latestContent = pendingContent;
+  pendingContent = null;
+  lastContentUpdate = performance.now();
+  if (latestContent !== null) commitContent(latestContent);
+};
+
+const scheduleContentUpdate = (newContent: string) => {
+  pendingContent = newContent;
+  if (contentUpdateTimer !== null) return;
+
+  const remaining =
+    CONTENT_UPDATE_INTERVAL - (performance.now() - lastContentUpdate);
+  if (remaining <= 0) {
+    flushContentUpdate();
+  } else {
+    contentUpdateTimer = setTimeout(flushContentUpdate, remaining);
+  }
+};
 
 const { themedContent } = useIframeTheme(() => renderContent.value);
 
@@ -587,6 +627,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  clearScheduledContentUpdate();
   window.removeEventListener("message", handleIframeMessage);
   if (openInBrowserRevokeTimer) {
     clearTimeout(openInBrowserRevokeTimer);
@@ -653,9 +694,10 @@ watch(
   ([newContent, isImmediate]) => {
     if (!renderContent.value) loading.value = true;
     if (isImmediate) {
+      clearScheduledContentUpdate();
       renderContent.value = newContent;
     } else {
-      throttledUpdateContent(newContent);
+      scheduleContentUpdate(newContent);
     }
   },
   { immediate: true }

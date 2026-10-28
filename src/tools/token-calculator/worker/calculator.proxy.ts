@@ -75,6 +75,11 @@ class TokenCalculatorProxy {
     { resolve: (v: any) => void; reject: (e: any) => void }
   >();
   private nextId = 0;
+  private registryRevision = 0;
+
+  getRegistryRevision(): number {
+    return this.registryRevision;
+  }
 
   /** Worker 在启动期/重启期接到的业务请求 */
   private startupQueue: Array<{
@@ -103,6 +108,7 @@ class TokenCalculatorProxy {
   // =================================================================
 
   setSnapshotProvider(provider: SnapshotProvider): void {
+    this.registryRevision++;
     this.snapshotProvider = provider;
     // 如果 worker 在等 init（snapshot 之前还拿不到），现在补一次
     if (this.worker && !this.workerReady) {
@@ -118,6 +124,7 @@ class TokenCalculatorProxy {
    * 注册表数据变化（profile / rules 改动），重启 Worker
    */
   async restartWorker(): Promise<void> {
+    this.registryRevision++;
     // 把 in-flight 请求标记为失败前，先尝试给一个友好提示
     this.pendingRequests.forEach(({ reject }) => {
       reject(new Error("Worker is restarting due to registry change"));

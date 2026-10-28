@@ -35,6 +35,9 @@ export async function runContextProbe(options: ContextProbeOptions) {
     import("/src/" + "tools/token-calculator/worker/calculator.proxy.ts"),
     import(base + "config/defaultSettings.ts"),
   ]);
+  const { getContextTokenCalculator } = await import(
+    base + "core/context-utils/token-calculator.ts"
+  );
   const vue = (window as unknown as { Vue: typeof import("vue") }).Vue;
   const allProcessors = getInitialProcessors()
     .filter((p: { defaultEnabled?: boolean }) => p.defaultEnabled !== false)
@@ -192,7 +195,7 @@ export async function runContextProbe(options: ContextProbeOptions) {
       );
   const tokenizerWarmupMs = performance.now() - warmupStart;
   const originalProxy = calculatorProxy.calculateTokens;
-  const originalMessageTokens = tokenCalculatorService.calculateMessageTokens;
+
   const rows = [];
   // Discard first complete replay; model loading and initial Worker setup are outside warm samples.
   for (let round = -1; round < options.samples; round++) {
@@ -254,7 +257,9 @@ export async function runContextProbe(options: ContextProbeOptions) {
     };
     if (options.cpuOnly) {
       // Explicit synthetic control: removes Worker/tokenization so array algorithm scaling is visible.
-      tokenCalculatorService.calculateMessageTokens = async (text: string) => ({
+      getContextTokenCalculator(context).calculateMessageTokens = async (
+        text: string
+      ) => ({
         count: text.length,
         isEstimated: true,
         tokenizerName: "cpu-control",
@@ -320,12 +325,13 @@ export async function runContextProbe(options: ContextProbeOptions) {
         const counts = (await timed("final-token-count", () =>
           Promise.all(
             context.messages.map(async (msg) => {
-              const result =
-                await tokenCalculatorService.calculateMessageTokens(
-                  textOf(msg.content),
-                  options.model,
-                  msg._attachments || []
-                );
+              const result = await getContextTokenCalculator(
+                context
+              ).calculateMessageTokens(
+                textOf(msg.content),
+                options.model,
+                msg._attachments || []
+              );
               return result.count;
             })
           )
@@ -380,7 +386,6 @@ export async function runContextProbe(options: ContextProbeOptions) {
     } finally {
       clearInterval(timer);
       calculatorProxy.calculateTokens = originalProxy;
-      tokenCalculatorService.calculateMessageTokens = originalMessageTokens;
     }
   }
   return {

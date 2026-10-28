@@ -39,6 +39,7 @@ import { useNodeManager } from "../session/useNodeManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ContextPreviewData } from "../../types/context";
 import { buildPreviewDataFromContext } from "../../core/context-utils/preview-builder";
+import { getContextTokenCalculator } from "../../core/context-utils/token-calculator";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
@@ -437,6 +438,7 @@ export function useChatExecutor() {
       pipelineContext.agentConfig?.parameters?.imageCompression
     );
 
+    const contextTokenCalculator = getContextTokenCalculator(pipelineContext);
     const finalTokenPromises = pipelineContext.messages.map(async (msg) => {
       let contentText = "";
       if (typeof msg.content === "string") {
@@ -447,7 +449,7 @@ export function useChatExecutor() {
           .filter(Boolean)
           .join("\n");
       }
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+      const tokenResult = await contextTokenCalculator.calculateMessageTokens(
         contentText,
         effectiveModelId,
         msg._attachments || [],

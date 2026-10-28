@@ -14,7 +14,7 @@
 
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+import { getContextTokenCalculator } from "../context-utils/token-calculator";
 import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 
 const logger = createModuleLogger("primary:token-limiter");
@@ -60,6 +60,7 @@ export const tokenLimiter: ContextProcessor = {
   description: "根据预算截断历史消息。",
   priority: 600, // 调整到注入组装器 (400) 之后，消息格式化 (800) 之前
   execute: async (context: PipelineContext) => {
+    const tokenCalculatorService = getContextTokenCalculator(context);
     const { messages, agentConfig } = context;
     const { parameters, modelId } = agentConfig;
     const contextManagement = parameters?.contextManagement;

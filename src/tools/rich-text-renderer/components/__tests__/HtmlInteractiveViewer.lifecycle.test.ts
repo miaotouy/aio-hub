@@ -101,3 +101,32 @@ it("clears scheduled work on unmount and starts a new viewer with current conten
   await vi.advanceTimersByTimeAsync(1500);
   expect(preview()).toContain("<p>new viewer</p>");
 });
+
+it.each(["\n", "\r\n"])(
+  "preserves an already-rendered complete document when closing only removes its fence newline (%j)",
+  async (newline) => {
+    const html = page("form");
+    const viewer = start(html + newline);
+    const original = preview();
+    await viewer.setProps({ content: html, immediate: true });
+    expect(preview()).toBe(original);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(preview()).toBe(original);
+    await viewer.setProps({ content: page("changed") });
+    expect(preview()).toContain("<p>changed</p>");
+  }
+);
+
+it("flushes the final document when completion changes content beyond its final newline", async () => {
+  const viewer = start(page("initial") + "\n");
+  await viewer.setProps({ content: page("final"), immediate: true });
+  expect(preview()).toContain("<p>final</p>");
+});
+
+it("retains meaningful trailing whitespace for incomplete and fragment documents", async () => {
+  const html = '<pre style="white-space:pre">text</pre>\n';
+  const viewer = start(html);
+  const original = preview();
+  await viewer.setProps({ content: html.slice(0, -1), immediate: true });
+  expect(preview()).not.toBe(original);
+});

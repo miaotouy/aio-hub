@@ -663,11 +663,19 @@ const openInBrowser = () => {
 
 watch(
   [() => props.content, () => props.immediate],
-  ([newContent, isImmediate]) => {
+  ([newContent, isImmediate], [, wasImmediate]) => {
     if (!renderContent.value) loading.value = true;
     if (isImmediate) {
       clearScheduledContentUpdate();
-      renderContent.value = newContent;
+      // A closing fence consumes one source newline. Keep the live document
+      // (including form/canvas state) when that is the only completion change.
+      const closesWithFenceNewline =
+        wasImmediate === false &&
+        /^\s*(?:<!doctype\s+html[^>]*>\s*)?<html(?:\s|>)/i.test(newContent) &&
+        /<\/html>[ \t]*$/i.test(newContent) &&
+        (renderContent.value === newContent + "\n" ||
+          renderContent.value === newContent + "\r\n");
+      if (!closesWithFenceNewline) renderContent.value = newContent;
     } else {
       scheduleContentUpdate(newContent);
     }

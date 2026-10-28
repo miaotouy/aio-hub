@@ -175,6 +175,41 @@ export async function runEmbeddedPreviewPage(input: {
       Math.abs(percentage.iframe - 240) <= 2 && Math.abs(half - 120) <= 2,
       { ...percentage, half }
     );
+    await mount(html("html-form"), true);
+    const formFrame = frame();
+    const formDocument = formFrame.contentDocument!;
+    (formDocument.querySelector("#note") as HTMLInputElement).value =
+      "保留的输入 🌿";
+    (formDocument.querySelector("#increment") as HTMLElement).click();
+    let loads = 0;
+    formFrame.addEventListener("load", () => loads++);
+    content.value = content.value.slice(0, -1);
+    immediate.value = true;
+    await vue.nextTick();
+    await sleep(1200);
+    const note = (
+      frame().contentDocument!.querySelector("#note") as HTMLInputElement
+    )?.value;
+    const count = frame().contentDocument!.querySelector("#count")?.textContent;
+    record(
+      "fence-newline-retains-form",
+      frame().contentDocument === formDocument &&
+        loads === 0 &&
+        note === "保留的输入 🌿" &&
+        count === "1",
+      { loads, note, count }
+    );
+    content.value = content.value.replace("FINAL_FORM", "CHANGED_FORM");
+    await vue.nextTick();
+    await sleep(250);
+    record(
+      "changed-document-still-navigates",
+      loads === 1 &&
+        frame().contentDocument !== formDocument &&
+        frame().contentDocument?.body.textContent?.includes("CHANGED_FORM") ===
+          true,
+      { loads }
+    );
     return results;
   } finally {
     app?.unmount();

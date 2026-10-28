@@ -1715,3 +1715,11 @@ Pending 顶层列表在原有精确 token 公共前缀与完整解析上下文�
 初测产物：`.tmp/app-memory/followup-height-native-20261028/report.json`。旧原生包的 Canvas 对照为 287 → 647 → 647px，见 `.tmp/app-memory/followup-height-before-20261028/direct-diagnosis.json`。旧包同时仍含暂停预览滞留，正式前后性能比较应使用相同构建口径。
 
 后续按 [当前实施清单](current-worklist.md) 推进等价源码导航和完整聊天过程场景。
+
+## 48. 围栏闭合时保留等价的 HTML 文档（2026-10-28）
+
+完成边界增加窄范围的预览等价判断：从流式切为 immediate 时，输入必须是从 html / doctype 开始且以 html 结束标签结尾的完整页面，已显示源码仅比当前输入多一个 LF 或 CRLF，才沿用当前 iframe 文档。pending 调度仍立即取消；正文变化、脚本变化、片段与其他空白差异沿用正常更新。代码原文、复制与 AST 的内容契约保持。
+
+新增的相关用例保护 LF / CRLF 完成边界、真实内容刷新和片段尾部空白；旧实现会在等价完成用例中失败。真实 WebView2 HMR 诊断先在表单输入“保留的输入 🌿”并增加计数，再触发闭合：修正前 load 增加 1 次、输入恢复初值且计数为 0；修正后 1,200ms 内 load 为 0、输入保持且计数为 1。随后实际修改文档，load 增加 1 次，新文档内容生效。
+
+前后产物分别为 `.tmp/app-memory/followup-navigation-native-20261028/report.json` 与 `.tmp/app-memory/followup-navigation-native-fixed-20261028/report.json`。这些是直接真实查看器的行为证据，完整聊天默认平滑和手动停止等过程场景继续按实施清单推进。

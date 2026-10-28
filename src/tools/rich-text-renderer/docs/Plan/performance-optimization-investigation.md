@@ -340,3 +340,7 @@ Pending 字段改为先定位冒号、原有空白和完整开标记，再回溯
 已把 iframe 高度回报从单独的根 scrollHeight 改为内容边界测量，并补齐 DOM 就绪后的观察器挂载、同帧合并和 pagehide 清理。真实 WebView2 的 HMR 诊断确认 Canvas 展开 / 收起为 288 → 648 → 288px，异步图片加载 / 移除为 200 → 490 → 200px；fixed 叠层与显式容器内的百分比高度保持。正式复现入口为 `rich-text:embedded:tauri`，口径见[专项第 47 节](chat-dom-retention-investigation.md#47-内嵌预览的内容高度测量2026-10-28)。
 
 当前六个方向的执行状态集中维护于[当前实施清单](current-worklist.md)，后续历史章节保留当时结论。
+
+## 37. 围栏闭合的等价 HTML 预览（2026-10-28）
+
+已对流式切换到完成态时的完整 HTML 页面添加单尾换行等价判断：只有已显示文档比最终输入多一个 LF / CRLF 时保留文档，真实内容变化照常导航。原生 HMR 表单观察中，闭合后的 load 增量由 1 变为 0，输入与计数保持；随后修改正文仍导航到新文档。范围及前后产物见[专项第 48 节](chat-dom-retention-investigation.md#48-围栏闭合时保留等价的-html-文档2026-10-28)。

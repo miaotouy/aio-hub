@@ -1705,3 +1705,13 @@ Pending 顶层列表在原有精确 token 公共前缀与完整解析上下文�
 后续顺序：先处理第 44 节的高度收缩盲点，复核 Canvas 展开 / 收起、异步图片、fixed 与百分比高度；再评估围栏闭合的末尾换行导航是否值得消除。手动停止的真实生成链路、弹窗 / 冻结、复杂 Canvas 长时资源，以及 Mermaid / SVG 的过程矩阵继续沿第 43 节推进。第 42.4 节的非换行行号 DOM 候选保留。
 
 产物：`.tmp/preview-scheduler-20261028/` 下的 `native-{before,after}.json`、`runtime.json`、`chat-replays-final.json`、`tests-{before,after,final}.log`、`tsc.log` 和 `vite.log`。原生一次性探针保存在同目录，数据写入专用 `preview-scheduler` 开发实例的隔离目录。
+
+## 47. 内嵌预览的内容高度测量（2026-10-28）
+
+自适应高度改为从 body 的实际布局边界测量，只有发生真实溢出时才补入 body / 根节点的滚动高度，避免旧 iframe 视口成为收缩下限。观察器在 DOM 就绪后挂载，覆盖 body 与根尺寸、文本 / 子树变化、图片加载、字体就绪和窗口变化；同帧事件合并，pagehide 时释放观察器和待执行帧。源码结构与 fixed / 百分比定位保持原路径。
+
+新增一个高度行为单测，保护内容增长、旧视口内收缩和离开文档后的清理。正式入口 `bun run rich-text:embedded:tauri -- --instance <name>` 复用隔离开发窗口，输出公开语料的真实 iframe 几何和资源结果；`--allow-hmr` 用于诊断。原生 HMR 初测中 Canvas 高度为 288 → 648 → 288px；异步图片为 200 → 490 → 移除后 200px；fixed 叠层的内容高度为 180px，240px 容器中的 50% 子元素保持 120px；卸载并等待 250ms 后，后续 500ms Canvas 消息为 0。该组结果用于行为诊断，未采集生产性能收益。
+
+初测产物：`.tmp/app-memory/followup-height-native-20261028/report.json`。旧原生包的 Canvas 对照为 287 → 647 → 647px，见 `.tmp/app-memory/followup-height-before-20261028/direct-diagnosis.json`。旧包同时仍含暂停预览滞留，正式前后性能比较应使用相同构建口径。
+
+后续按 [当前实施清单](current-worklist.md) 推进等价源码导航和完整聊天过程场景。

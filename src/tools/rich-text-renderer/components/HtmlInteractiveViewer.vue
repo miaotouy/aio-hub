@@ -196,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import { observeIframeContentHeight } from "../utils/iframeAutoHeight";
 import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
 import {
   RotateCw,
@@ -448,41 +449,8 @@ const logCaptureScript = `
       window.parent.postMessage({ type: 'iframe-mouseleave' }, '*');
     });
 
-    // 高度自适应监测
     if (__AUTO_HEIGHT__) {
-      let lastHeight = 0;
-      const notifyHeight = () => {
-        const height = document.documentElement.scrollHeight;
-        if (Math.abs(height - lastHeight) > 1) { // 忽略 1px 以内的微小波动
-          lastHeight = height;
-          window.parent.postMessage({
-            type: 'iframe-height',
-            height: height
-          }, '*');
-        }
-      };
-
-      // 1. 监听尺寸变化 (涵盖 3D 容器、图片加载等)
-      if (window.ResizeObserver) {
-        const ro = new ResizeObserver(() => {
-          requestAnimationFrame(notifyHeight);
-        });
-        ro.observe(document.documentElement);
-      }
-
-      // 2. 监听 DOM 变化 (涵盖动态增删节点)
-      const mo = new MutationObserver(() => {
-        requestAnimationFrame(notifyHeight);
-      });
-      mo.observe(document.body || document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true
-      });
-
-      // 3. 初始加载与资源加载
-      window.addEventListener('load', notifyHeight);
-      setTimeout(notifyHeight, 100); // 保险起见，100ms 后再触发一次
+      (${observeIframeContentHeight.toString()})();
     }
 
   })();
@@ -572,7 +540,11 @@ const handleIframeMessage = (event: MessageEvent) => {
 
   if (event.data.type === "iframe-height" && props.autoHeight) {
     const newHeight = event.data.height;
-    if (newHeight > 0) {
+    if (
+      typeof newHeight === "number" &&
+      Number.isFinite(newHeight) &&
+      newHeight > 0
+    ) {
       contentHeight.value = newHeight;
     }
     return;

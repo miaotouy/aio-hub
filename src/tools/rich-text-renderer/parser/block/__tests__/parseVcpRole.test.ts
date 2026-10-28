@@ -362,6 +362,31 @@ message: 「始ESCAPE」含「始」「末」的内容「末ESCAPE」
     expect(requests[0].props.args.message).toBe("含「始」「末」的内容");
   });
 
+  // Delimiter prechecks must preserve pending values and the transition to complete fields.
+  it.each(["", "ESCAPE", "exp"])(
+    "keeps streamed %s field values through partial closing delimiters and revisions",
+    (variant) => {
+      const opening = `「始${variant}」`;
+      const ending = `「末${variant}」`;
+      const prefix = `<<<[TOOL_REQUEST]>>>\ntool_name:「始」mock-sync「末」,\nmessage: ${opening}`;
+      for (const value of ["可读文本😀", "修改后的值"]) {
+        for (let length = 0; length < ending.length; length++) {
+          const partial = ending.slice(0, length);
+          const requests = findToolRequests(parse(prefix + value + partial));
+          expect(requests).toHaveLength(1);
+          expect(requests[0].props.args.message).toBe(value + partial);
+          expect(requests[0].props.closed).toBe(false);
+        }
+        const requests = findToolRequests(
+          parse(prefix + value + ending + "\n<<<[END_TOOL_REQUEST]>>>")
+        );
+        expect(requests).toHaveLength(1);
+        expect(requests[0].props.args.message).toBe(value);
+        expect(requests[0].props.closed).toBe(true);
+      }
+    }
+  );
+
   it("does not split a block when nested request markers sit inside an ESCAPE fence", () => {
     const ast = parse(`
 <<<[TOOL_REQUEST]>>>

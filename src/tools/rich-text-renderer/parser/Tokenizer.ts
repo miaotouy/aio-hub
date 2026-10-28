@@ -703,7 +703,17 @@ export class Tokenizer {
             const matchedRanges: Array<[number, number]> = [];
             const matchedValueRanges: Array<[number, number]> = [];
 
-            const parseEscapeVariant = (regex: RegExp) => {
+            const parseEscapeVariant = (
+              regex: RegExp,
+              opening: string,
+              closing: string
+            ) => {
+              // Missing delimiters make these unanchored field scans fail across the whole body.
+              if (
+                !vcpContentForParsing.includes(opening) ||
+                !vcpContentForParsing.includes(closing)
+              )
+                return;
               let match;
               regex.lastIndex = 0;
               while ((match = regex.exec(vcpContentForParsing)) !== null) {
@@ -722,8 +732,12 @@ export class Tokenizer {
               }
             };
 
-            parseEscapeVariant(RE_VCP_ARG_ESCAPE);
-            parseEscapeVariant(RE_VCP_ARG_EXP);
+            parseEscapeVariant(
+              RE_VCP_ARG_ESCAPE,
+              "「始ESCAPE」",
+              "「末ESCAPE」"
+            );
+            parseEscapeVariant(RE_VCP_ARG_EXP, "「始exp」", "「末exp」");
 
             // 第二步：构建去除已匹配范围的内容，再用标准正则扫描
             matchedRanges.sort((a, b) => a[0] - b[0]);
@@ -756,23 +770,30 @@ export class Tokenizer {
             let match;
             RE_VCP_ARG.lastIndex = 0;
             let lastMatchEnd = 0;
-            while ((match = RE_VCP_ARG.exec(scanContent)) !== null) {
-              const key = match[1];
-              const value = match[2];
-              // 使用原始 vcpContent 中对应位置的真实值
-              const realValue = vcpContentForParsing
-                .slice(match.index)
-                .match(RE_VCP_ARG_SINGLE);
-              const actualValue = realValue ? realValue[2] : value;
-              if (key === "tool_name") tool_name = tool_name || actualValue;
-              else if (key === "command") command = command || actualValue;
-              else if (key === "maid") maid = maid || actualValue;
-              else if (!args[key]) args[key] = actualValue;
-              lastMatchEnd = RE_VCP_ARG.lastIndex;
+            if (
+              scanContent.includes("「始」") &&
+              scanContent.includes("「末」")
+            ) {
+              while ((match = RE_VCP_ARG.exec(scanContent)) !== null) {
+                const key = match[1];
+                const value = match[2];
+                // 使用原始 vcpContent 中对应位置的真实值
+                const realValue = vcpContentForParsing
+                  .slice(match.index)
+                  .match(RE_VCP_ARG_SINGLE);
+                const actualValue = realValue ? realValue[2] : value;
+                if (key === "tool_name") tool_name = tool_name || actualValue;
+                else if (key === "command") command = command || actualValue;
+                else if (key === "maid") maid = maid || actualValue;
+                else if (!args[key]) args[key] = actualValue;
+                lastMatchEnd = RE_VCP_ARG.lastIndex;
+              }
             }
 
             const remainingVcp = maskedContent.slice(lastMatchEnd).trim();
-            const pendingMatch = remainingVcp.match(RE_VCP_PENDING);
+            const pendingMatch = remainingVcp.includes("「始")
+              ? remainingVcp.match(RE_VCP_PENDING)
+              : null;
             if (pendingMatch) {
               const key = pendingMatch[1];
               // pending 情形取原始内容中对应的值

@@ -279,3 +279,48 @@ it("uses a single font theme so live size changes match recreated code", async (
   await intersect(true);
   expect(getComputedStyle(currentView().dom).fontSize).toBe("19px");
 });
+
+// Controlled code updates preserve reading state outside the changed text, including UTF-16 offsets.
+it.each([
+  {
+    label: "streamed suffix",
+    content: props.content + "\nnext line",
+    folds: [[10, 22]],
+  },
+  {
+    label: "CRLF stream",
+    content: props.content.replace(/\n/g, "\r\n") + "\r\nnext line",
+    folds: [[10, 22]],
+  },
+  {
+    label: "edited tail",
+    content: props.content.replace("third line", "third entry"),
+    folds: [[10, 22]],
+  },
+  {
+    label: "insertion before a folded region",
+    content: props.content.replace("first", "first😀"),
+    folds: [[12, 24]],
+  },
+])(
+  "preserves selection and maps existing folds through $label",
+  async ({ content, folds }) => {
+    wrapper = mount(CodeMirrorSourceViewer, {
+      props: { ...props, closed: false },
+    });
+    await intersect(true);
+    const view = currentView();
+    view.dispatch({
+      selection: { anchor: 2, head: 4 },
+      effects: foldEffect.of({ from: 10, to: 22 }),
+    });
+    await wrapper.setProps({ content });
+    expect(view.state.doc.toString()).toBe(content.replace(/\r\n/g, "\n"));
+    expect(view.state.selection.main).toMatchObject({ anchor: 2, head: 4 });
+    const actual: number[][] = [];
+    foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
+      actual.push([from, to]);
+    });
+    expect(actual).toEqual(folds);
+  }
+);

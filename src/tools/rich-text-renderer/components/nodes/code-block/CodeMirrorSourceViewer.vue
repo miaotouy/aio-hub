@@ -335,18 +335,36 @@ watch(
   (newContent) => {
     retained.value = undefined;
     retainedHeight.value = null;
-    if (
-      editorView.value &&
-      newContent !== editorView.value.state.doc.toString()
+    const view = editorView.value;
+    if (!view) return;
+    // Compare the same LF-normalized text that the viewer displays.
+    const next = newContent.includes("\r")
+      ? view.state.toText(newContent).toString()
+      : newContent;
+    const previous = view.state.doc.toString();
+    if (next === previous) return;
+
+    let from = 0;
+    const sharedLength = Math.min(previous.length, next.length);
+    while (
+      from < sharedLength &&
+      previous.charCodeAt(from) === next.charCodeAt(from)
+    )
+      from++;
+    let oldEnd = previous.length;
+    let newEnd = next.length;
+    while (
+      oldEnd > from &&
+      newEnd > from &&
+      previous.charCodeAt(oldEnd - 1) === next.charCodeAt(newEnd - 1)
     ) {
-      editorView.value.dispatch({
-        changes: {
-          from: 0,
-          to: editorView.value.state.doc.length,
-          insert: newContent,
-        },
-      });
+      oldEnd--;
+      newEnd--;
     }
+    // Preserve unchanged syntax, folds and selection when a stream extends the tail.
+    view.dispatch({
+      changes: { from, to: oldEnd, insert: next.slice(from, newEnd) },
+    });
   }
 );
 

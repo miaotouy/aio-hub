@@ -76,6 +76,7 @@
     "rich-text:memory": "bun scripts/rich-text/run-memory.ts",
     "rich-text:performance:tauri": "bun scripts/rich-text/run-tauri-performance.ts",
     "rich-text:memory:tauri": "bun scripts/rich-text/run-tauri-memory.ts",
+    "rich-text:screenshot:tauri": "bun scripts/rich-text/run-iframe-screenshot.ts",
     "rich-text:heap:compare": "bun scripts/rich-text/compare-heap.ts",
     "rich-text:profile": "bun --cpu-prof --cpu-prof-md --cpu-prof-dir=.tmp/rich-text-profile scripts/rich-text/profile-bench.ts",
     "rich-text:check": "vue-tsc --noEmit --project scripts/rich-text/tsconfig.json",

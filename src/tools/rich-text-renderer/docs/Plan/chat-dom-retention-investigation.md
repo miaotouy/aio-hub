@@ -1567,3 +1567,89 @@ Pending 顶层列表在原有精确 token 公共前缀与完整解析上下文�
 另一次同输入 DOM 分解显示：6,711 个元素中有 59 个代码块，57 份轻量预览，均处于非换行模式。行号共 1,224 行，每行由行容器、数字、折叠占位三元素构成，合计 3,672 个元素，约占总数 54.7%。此外代码工具栏有 354 个 SVG、885 个 SVG 后代。下一轮优先试非换行源码行号的紧凑表示；换行模式继续逐行对齐，沿用现有字体、行高和代码预览 / 正式查看器几何约定，并回到完整聊天阅读区复核收益。
 
 产物：.tmp/app-memory/boundary-ref-paired-native{1,2}-20261028/、boundary-ref-paired-summary{1,2}.json、boundary-ref-revisions.json、boundary-ref-display-{before,after}-long-20261028/、boundary-ref-display-trace-branches-20261028/、boundary-ref-resident-{before,after}-long-20261028/、boundary-ref-abort-after-long-20261028/、first-mount-dom-branches-20261028/。时间线字段从本地 Playwright 的 CDP 类型核对；原始 profile 和 timeline 保留于对应目录。
+
+## 43. 下一轮重点：完整聊天流式与内嵌预览（2026-10-28，待实测）
+
+主人要求先保留第 42.4 节的行号 DOM 候选，将实际流式体验提到下一轮重点；内嵌 HTML 预览与其他动态富文本同步检查。
+
+### 43.1 现有覆盖边界
+
+第 42 节正式 Renderer 回放使用真实会话正文和真实 Worker，固定 60ms 投递，普通正文 256 码元、超长正文 4,096 码元；关闭平滑输出和入场动画，挂载于局部宿主。已有终态 AST、耗时和释放结果继续有效，默认聊天阅读区、小片段及突发网络节奏、过程中的预览刷新与滚动几何另行补充。
+
+源码检查确认：`CodeBlockNode.vue` 根据 HTML 页面声明或 SVG 类型与自动预览设置决定切换预览，向 `HtmlInteractiveViewer.vue` 传入 `closed` 作为 `immediate`。预览流中使用 1 秒节流，稳定性判断检查 script 开闭标记数量，并有初次内容较长时的回退；结束时直接写入当前内容。iframe 通过 ResizeObserver、MutationObserver 与加载事件回报自适应高度；冻结和弹窗切换会改变内嵌查看器的挂载状态。现有 `RichTextRenderer.lifecycle.test.ts` 的相关用例替身化 HtmlInteractiveViewer，保护视图选择恢复，无法据此判断 iframe 内的执行、布局与流式刷新。
+
+### 43.2 回放内容与操作
+
+优先从已脱敏的真实会话中抽取含 HTML / CSS / JavaScript、SVG、交互图表、canvas 或表单的内容；先盘点实际命中，再用针对性变体补齐缺口，避免仅靠简单静态页面。保留原有结构、脚本与样式复杂度，继续抽查人名、网名及具体事物指代。预览素材中的外部请求先清点并使用可控本地资源，原始凭证和私人地址留在测试范围外。
+
+- 在真实聊天页以默认平滑、动画和自动滚动配置回放，小片段、突发输入和停顿后继续各选代表样本。切点覆盖围栏、语言名、doctype、标签属性、style / script 结束标记与多字节文本。明确记录输入发生在已解码正文层还是传输层，传输解码另用对应链路验证。
+- 对照自动预览开关、源码 / 内嵌预览切换、无边框模式；覆盖代码围栏闭合时消息仍在生成、正常完成与手动停止。已有展示状态保留策略作为行为依据，过程中的空白、旧内容回退和交互重置单独记录。
+- 在节流窗口内完成或中止，继续观察至少一个刷新周期，检查排队的旧更新是否覆盖最新内容。长于 100 字符且 script 尚未闭合的初次输入也单独观察实际脚本执行与预览状态；当前源码提示风险，尚未形成故障结论。
+- 预览中打开／关闭弹窗，冻结／恢复，切页或切会话再返回；流式中卸载与完成后卸载均观察 iframe、消息监听、定时器及资源释放。区分有意保留的交互状态和游离执行。
+- 与代码块一起检查 Mermaid、图片和 SVG：未闭合阶段、资源延迟到达、解析失败后继续输入及最终内容恢复。按真实样本选择相关路径，优先复用现有生命周期测试。
+
+### 43.3 观察与后续落点
+
+逐帧记录预览容器高度、可见内容、滚动锚点和源码／正式查看器切换；记录 iframe 导航／load、脚本重复执行与状态重置，区分内容增长引起的刷新和无输入时的持续重载。正常输入期与暂停／完成后分开观察高度回报、布局次数、CPU 和内存；图表或动画自身运行成本单列。
+
+主题先选默认实底、壁纸加半透明的代表组合，结合浅／深色检查预览主题同步及高度反馈，遇到差异再扩展配置组合。功能和资源生命周期在真实 Tauri / WebView2 验证；局部组件诊断与完整聊天结果分别记录。
+
+新增自动化前先确定其保护的公开行为：优先覆盖流尾最终内容保持、刷新后交互可用、停止／卸载后的生命周期等可稳定复现的回归；复用现有用例，几何与视觉过程走原生回放。当前一节记录源码检查与待办，执行结果后续追加。
+## 44. 内嵌样本盘点与原生初探（2026-10-28）
+
+### 44.1 真实抽样与补充语料
+
+重新用 Markdown token 盘点 `.tmp/app-memory/corpus-readable-entities-20261027.json` 的 8 份脱敏会话：共有 1 个 HTML 围栏，正文 423 字符，属于片段；完整 HTML 页面、SVG 围栏、内联 script、Canvas 和表单样本均缺少。branches 包含 26 个 Mermaid 围栏。前文按消息关键词统计得到的 HTML 命中数，仅适合发现候选；本轮按实际围栏正文确认内嵌类型。
+
+复用仓库已有 `html-script-test`、`html-game-snake` 两份预设，并在 `scripts/rich-text/embedded-preview-corpus.ts` 补入六份独立样例：
+
+| 样例 | 主要观察 |
+| --- | --- |
+| html-form | 表单、计数交互、中文 / emoji、流尾与内容导航后的状态 |
+| html-canvas-resize | Canvas 动画、定时器、展开 / 收起、卸载后的运行 |
+| html-async-image | 延迟生成的本地 PNG、高度反馈、主题 |
+| html-script-boundary | 长初始正文、script 开闭切点、实际执行时机 |
+| svg-inline | 属性分片、viewBox、多字节文本、预览尺寸 |
+| mermaid-image-mixed | 未闭合图表、恢复、Markdown 内联图片和混合高度 |
+
+这些样例的资源均在本地生成或内嵌，SVG 的 xmlns 为命名空间声明。真实抽样、已有预设与合成样例分别标记来源。主人随后提供的复杂 Canvas 水族箱会话另作为私有复现样本；其原文与截图仅放在已忽略目录。
+
+### 44.2 已确认与待继续观察
+
+原生壳采用已有 2026-10-28 构建，探针通过 CDP 在真实 WebView2 执行；运行时版本从 `Browser.getVersion` 核对为 Edge 155.0.4283.62。页面自身 userAgent 带有兼容伪装，运行时版本以 CDP 为准。以下为诊断结果，单项观察窗覆盖的交互按各自范围解释：
+
+- **纠正第 43 节的节流推断。** 当前 `@vueuse/core@13.9.0` 实际解析到同版 shared；`useThrottleFn` 的默认 trailing 为 false。直接组件中先投递 INITIAL、100ms 后 MIDDLE、再过 100ms 以 immediate 投递 FINAL，200ms 与 1,250ms 后均为 FINAL。当前版本未复现排队旧内容覆盖流尾。
+- **暂停期间的最新预览会滞留。** 同一组件以流式状态投递 INITIAL，120ms 后改为 MIDDLE，此后停止输入；1,250ms 后 iframe 仍为 INITIAL，切 immediate 后才更新为 MIDDLE。后续优先评估可取消 / 可冲刷的最新值调度，并沿用流尾及卸载保护。
+- **自适应高度存在收缩盲点。** 合成 Canvas 页初始 iframe 为 287px；展开到 647px，再收起时 body 已回到约 287.54px，iframe 和 documentElement.scrollHeight 仍为 647px。当前以文档 scrollHeight 回报高度，受 iframe 自身最小视口约束；下一轮区分内容测量根与视口尺寸，保留 fixed / 百分比高度页面的布局约定。
+- **未闭合 script 初探。** 超过 100 字符的初始回退可创建预览文档，本样例中未闭合 script 的执行消息为 0；闭合后为 1。语法更复杂的脚本及 srcdoc 注入位置继续按具体样例检查。
+- **卸载初探。** Canvas 页挂载观察窗收到 4 次计时消息；卸载并留 250ms 退场时间后，后续 400ms 收到 0 次。这里只覆盖该合成页的定时器观察窗，长期驻留另行测量。
+
+完整聊天页的一份独立 html-form 回放保留默认 smoothing 与入场动画，启用 HTML 自动预览，使用已解码正文层的 32 码元分片和短突发 / 停顿。Renderer 与 iframe 元素在流尾保持同一实例，但文档仍会随 srcdoc 更新导航，完成后表单恢复初值；这与“组件未重建”的观察分开记录。当前 final 内容仍在平滑缓冲中推进，尚不能将该状态恢复单独归因为完成信号。过程与后续稳定期的表单状态继续拆开验证。HTML 自动预览的应用默认值为关闭，此处显式开启以覆盖预览路径。
+
+早期多样例连续回放复用同一消息，暴露了探针对消息流源复用与显示状态的干扰；其 load 次数和阶段数据留作诊断，汇总结论取上述独立回放与直接组件观察。完整开关矩阵、弹窗 / 冻结、手动停止和长时间资源观察继续保留第 43 节待办。
+
+产物：`.tmp/app-memory/embedded-stream-native-20261028/inventory.json`、`embedded-stream-form-verified-20261028/`。一次性探针为 `.tmp/app-memory/research-embedded-stream-native.ts`；可复用语料已进入 `scripts/rich-text/embedded-preview-corpus.ts`。
+
+## 45. 内嵌 iframe 截图的视口定位修正（2026-10-28）
+
+### 45.1 新鲜真实样本与根因
+
+主人指定的新会话最长回答为 50,209 字符，包含一份 48,089 字符的完整 HTML 水族箱，具有 Canvas、持续 requestAnimationFrame、fixed 画布、顶部 HUD 和底部控制坞，未发现外链 src / href。按指定文件只读提取，随后在隔离数据目录复现，原会话保持原样。
+
+通过当前 `captureElementAsCanvas` 截取真实消息，复现水族箱覆盖消息顶部、原预览区域留白。核对本地 `modern-screenshot@4.7.0`：同源 iframe 由 `cloneIframe` 展开为其 documentElement 的克隆，之后再复制 iframe 外框样式；内部 Canvas 走库自身快照路径。fixed 元素离开原文档视口后，参与外层 foreignObject 排版，故障发生在消息内部定位，早于最终多消息 Canvas 拼接。
+
+### 45.2 实现与范围
+
+`src/utils/screenshotLayout.ts` 增加 `isolateScreenshotIframeDocuments`。单消息截图在布局保护完成后，为克隆树中的内嵌 HTML 根设置 `contain: layout paint` 与 `overflow: hidden`：layout containment 提供内部 fixed 元素的包含块，paint containment 将绘制限制在原 frame 盒内。保留截图库已经复制的布局尺寸，沿用既有 DPR / 祖先 zoom 修正。
+
+改动只作用于 detached 截图克隆树。源 iframe 的 DOM、样式、运行状态以及消息拼接坐标保持原路径；同源 frame 与其嵌套 frame 分别保留视口边界。跨域 frame 的访问与截图库现有回退沿用原边界。
+
+### 45.3 行为回归与原生复核
+
+新增可复用入口 `bun run rich-text:screenshot:tauri`，位于 `scripts/rich-text/run-iframe-screenshot.ts`。它在独立原生壳和隔离数据目录内加载当前截图工具源码，以两份带边框 iframe、内部嵌套 iframe 和消息上下文构造固定色块，再按预期消息坐标读取最终 PNG 像素。100% 与 60% 祖先预览缩放各核对五个 fixed 锚点和两个 frame 外裁剪点，同时确认源文档和 frame 样式保持。
+
+此回归保护“iframe 内容仍在自身消息位置，内部 fixed 锚点与嵌套视口保持”的公开导出行为，验证最终像素，对克隆内部实现方式无依赖。移除修正时原生回归失败，接入后两组 10 个锚点与 4 个裁剪点全部通过。两组导出均为 360 × 570px，预览缩放保持输出自然尺寸。主人样本另以 100% / 60% 祖先缩放复核，两组均输出 497 × 2,284px，水族箱回到正文与使用说明之间，顶部文本和底部控制坞各在所属区域。
+
+该入口注入的是当前截图工具源码，可复用已有支持 CDP 的原生构建；它验证单消息截图处理链，整套分享弹窗与最终打包更新另按正常开发流程走查。`bun run rich-text:check`、`bun run build:tsc` 与 `bun run build:vite` 均通过；Vite 继续提示既有大 chunk、eval 与动态 / 静态导入混用警告。最终原生像素结果保存于 `regression-final/`。
+
+产物：`.tmp/iframe-screenshot-20261028/before/`、`after-final/`、`regression-before/`、`regression/`。真实样本与原始截图保留在本机忽略目录；仓库中仅包含独立合成样例与复现入口。

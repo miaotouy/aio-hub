@@ -202,6 +202,73 @@ describe("live reasoning activity", () => {
     vi.useRealTimers();
   });
 
+  // Tool cards read node.content directly, so received results must be visible
+  // before the persistence timer or the next assistant response advances.
+  it("shows long upstream tool results immediately and appends each delta once", async () => {
+    const first = useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+      status: "waiting",
+    });
+    const session = reactive<ChatSessionDetail>({
+      id: "session",
+      nodes: { [first.id]: first },
+      rootNodeId: first.id,
+      activeLeafId: first.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    });
+    const result = "Search result\n".repeat(10_000);
+    const summary =
+      "[本轮工具调用摘要:]Search 调用成功。[本轮工具调用摘要结束]";
+    let toolNodeId = "";
+    mocks.sendRequest.mockImplementation(async (options: LlmRequestOptions) => {
+      options.onResponseChunk?.({ content: "Searching" });
+      options.onResponseChunk?.({
+        responseId: "chatcmpl-vcp-1",
+        content: result,
+      });
+      toolNodeId = session.activeLeafId;
+      const tool = session.nodes[toolNodeId];
+      const visibleContent = computed(() => tool.content);
+      expect(tool.role).toBe("tool");
+      expect(visibleContent.value).toBe(result);
+
+      options.onResponseChunk?.({
+        responseId: "chatcmpl-vcp-summary-2",
+        content: summary,
+      });
+      expect(visibleContent.value).toBe(result + summary);
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(visibleContent.value).toBe(result + summary);
+      options.onResponseChunk?.({ content: "Answer" });
+      expect(tool.status).toBe("complete");
+      expect(visibleContent.value).toBe(result + summary);
+      return {
+        content: "Searching" + result + summary + "Answer",
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      };
+    });
+    try {
+      await useSingleNodeExecutor().execute({
+        session,
+        assistantNode: first,
+        currentPathToUserNode: [],
+        splitVcpResponses: true,
+        agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+        executionAgent: { id: "agent" } as ChatAgent,
+        effectiveUserProfile: null,
+        abortController: new AbortController(),
+      });
+      expect(session.nodes[toolNodeId].content).toBe(result + summary);
+    } finally {
+      for (const id of Object.keys(session.nodes))
+        disposeStreamingMessageSource(id);
+    }
+  });
+
   it("stops and resumes visible reasoning timing in each VCP response", async () => {
     const first = useNodeManager().createNode({
       role: "assistant",

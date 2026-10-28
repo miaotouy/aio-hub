@@ -280,7 +280,7 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      // 正文内容流式更新：渲染走 StreamSource，节点内容降频写入用于持久化。
+      // 助手正文通过 StreamSource 渲染；工具卡片直接读取节点正文。
       appendStreamingMessageChunk(nodeId, chunk);
 
       if (node.metadata?.reasoningStartTime) {
@@ -304,7 +304,12 @@ export function useChatResponseHandler() {
       contentState.persistBuffer += chunk;
       contentState.syncBuffer += chunk;
       scheduleStreamSync(session, nodeId);
-      scheduleContentFlush(session, nodeId);
+      if (node.role === "tool") {
+        // 工具结果随接收同步显示，避免等待持久化定时器期间出现空卡片。
+        flushContentToNode(session, nodeId);
+      } else {
+        scheduleContentFlush(session, nodeId);
+      }
     }
   };
 

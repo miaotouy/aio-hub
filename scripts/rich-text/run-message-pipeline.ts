@@ -6,12 +6,14 @@ import { resolve } from "node:path";
 import { DevConnection } from "../dev-control/connection";
 import { getInstance } from "../dev-control/discovery";
 import { runMessagePipelinePage } from "./message-pipeline-page";
+import { runChatSyncNative } from "./chat-sync-native";
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2).filter((arg) => arg !== "--"),
   strict: true,
   options: {
     instance: { type: "string" },
+    sync: { type: "boolean", default: false },
     "out-dir": { type: "string", default: `.tmp/chat-pipeline/${Date.now()}` },
   },
 });
@@ -27,7 +29,9 @@ const connection = await DevConnection.attach(instance, 20000);
 try {
   const page = await connection.window("main", 20000);
   await connection.verify(page, "main");
-  const rows = await page.evaluate(runMessagePipelinePage);
+  const rows = values.sync
+    ? await runChatSyncNative(connection, page)
+    : await page.evaluate(runMessagePipelinePage);
   await writeFile(
     resolve(out, "report.json"),
     JSON.stringify(

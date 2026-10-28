@@ -39,3 +39,44 @@ it("cancels queued transmission and rejects pushes after scope disposal", async 
   await engine.manualPush();
   expect(bus.syncState).not.toHaveBeenCalled();
 });
+
+// Suspending a stream source must remove historical fields from reactive tracking.
+it("skips historical traversal during streaming and captures final edits on resume", async () => {
+  vi.useFakeTimers();
+  let historicalReads = 0;
+  const enabled = ref(true);
+  const state = ref({
+    history: {
+      get content() {
+        historicalReads++;
+        return "history";
+      },
+    },
+    active: { text: "" },
+  });
+  const scope = effectScope();
+  scope.run(() =>
+    useStateSyncEngine(state, {
+      stateKey: "chat-current-session-data",
+      autoPush: true,
+      enableDelta: false,
+      autoPushEnabled: () => enabled.value,
+    })
+  );
+  enabled.value = false;
+  await nextTick();
+  historicalReads = 0;
+  for (let i = 0; i < 3; i++) {
+    state.value.active.text += "chunk";
+    await nextTick();
+  }
+  await vi.advanceTimersByTimeAsync(200);
+  expect(historicalReads).toBe(0);
+  expect(bus.syncState).not.toHaveBeenCalled();
+  enabled.value = true;
+  await nextTick();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(bus.syncState).toHaveBeenCalledTimes(1);
+  expect(bus.syncState.mock.calls[0][1].active.text).toBe("chunkchunkchunk");
+  scope.stop();
+});

@@ -25,6 +25,7 @@ import {
   onUnmounted,
   effectScope,
   type EffectScope,
+  onScopeDispose,
 } from "vue";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
@@ -37,7 +38,6 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { createModuleLogger } from "@/utils/logger";
-import { appendStreamingMessageChunk } from "./useStreamingMessageSources";
 import type { LlmChatStateKey } from "../../types/sync";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
 import type { ChatSessionIndex } from "../../types";
@@ -167,10 +167,12 @@ export function useLlmChatSync() {
       stateKey: LlmChatStateKey
     ) => {
       // 创建引擎并收集到数组中
-      const engine = useStateSyncEngine(
-        stateSource,
-        createChatSyncConfig(stateKey)
-      );
+      const engine = useStateSyncEngine(stateSource, {
+        ...createChatSyncConfig(stateKey),
+        ...(stateKey === CHAT_STATE_KEYS.CURRENT_SESSION_DATA
+          ? { autoPushEnabled: () => !store.isSending }
+          : {}),
+      });
       stateEngines.push(engine);
       return engine;
     };
@@ -199,24 +201,33 @@ export function useLlmChatSync() {
       CHAT_STATE_KEYS.CURRENT_SESSION_DATA
     );
 
-    // 步骤 3：同步引擎降频
-    // 监听发送状态，动态调整同步频率
+    // Streaming owns the hot fields; checkpoints bound recovery latency without deep traversal.
+    let checkpoint: ReturnType<typeof setInterval> | undefined;
+    const stopCheckpoint = () => {
+      clearInterval(checkpoint);
+      checkpoint = undefined;
+    };
+    onScopeDispose(stopCheckpoint);
     watch(
       isSending,
       (sending, wasSending) => {
-        if (bus.windowType === "main" || bus.windowType === "detached-tool") {
-          if (sending && sessionDataEngine) {
-            logger.info("检测到正在发送消息，调低全量同步频率 (2000ms)");
-            sessionDataEngine.setDebounce(2000);
-          } else if (sessionDataEngine) {
-            logger.info("发送结束，恢复全量同步频率 (100ms) 并执行全量广播");
-            sessionDataEngine.setDebounce(100);
-            // 强制执行一次全量同步作为生成结束后的兜底
-            if (wasSending === true) sessionDataEngine.manualPush(true);
-          }
+        stopCheckpoint();
+        if (sending) {
+          checkpoint = setInterval(
+            () => sessionDataEngine?.manualPush(true),
+            2000
+          );
         }
+        sessionDataEngine?.setDebounce(sending ? 2000 : 100);
+        if (wasSending !== undefined) sessionDataEngine?.manualPush(true);
       },
       { immediate: true }
+    );
+    watch(
+      () => [store.currentSessionId, store.currentSessionDetail?.activeLeafId],
+      () => {
+        if (store.isSending) sessionDataEngine?.manualPush(true);
+      }
     );
 
     // 同步当前激活的会话ID
@@ -245,58 +256,6 @@ export function useLlmChatSync() {
 
     // 同步世界书索引
     worldbookStore.initializeSync();
-
-    // 步骤 2：流式增量通道接收端
-    // 只有非 Data Owner 窗口需要监听并应用增量
-    if (bus.windowType === "detached-component") {
-      const unlistenDelta = bus.onMessage<any>("state-sync", (payload) => {
-        if (payload.stateType === "chat:streaming-delta") {
-          const { sessionId, nodeId, delta, isReasoning } = payload.data;
-
-          // 定位本地 Store 中的节点并更新
-          const detail = store.sessionDetailMap.get(sessionId);
-          if (detail && detail.nodes && detail.nodes[nodeId]) {
-            const node = detail.nodes[nodeId];
-
-            // 使用 useStateSyncEngine 的标志位避免触发反向同步
-            // 注意：这里需要从引擎中获取标志位或者直接操作，但由于我们是直接修改 store，
-            // 而 store 上的 watch 是由引擎管理的。
-            // 实际上，detached-component 通常不推送 CURRENT_SESSION_DATA，所以风险较小。
-            if (isReasoning) {
-              if (!node.metadata) node.metadata = {};
-              const now = Date.now();
-              if (node.metadata.reasoningActive !== true) {
-                node.metadata.reasoningActiveSince = now;
-              }
-              node.metadata.reasoningActive = true;
-              node.metadata.reasoningStartTime ??=
-                node.metadata.reasoningActiveSince;
-              node.metadata.reasoningContent =
-                (node.metadata.reasoningContent || "") + delta;
-            } else {
-              if (!node.metadata) node.metadata = {};
-              const now = Date.now();
-              if (
-                node.metadata.reasoningActive === true &&
-                node.metadata.reasoningActiveSince
-              ) {
-                node.metadata.reasoningDurationMs =
-                  (node.metadata.reasoningDurationMs || 0) +
-                  Math.max(0, now - node.metadata.reasoningActiveSince);
-              }
-              node.metadata.reasoningActive = false;
-              node.metadata.reasoningActiveSince = undefined;
-              if (node.metadata.reasoningStartTime) {
-                node.metadata.reasoningEndTime = now;
-              }
-              appendStreamingMessageChunk(nodeId, delta);
-            }
-          }
-        }
-      });
-      // 注册清理
-      onUnmounted(() => unlistenDelta());
-    }
 
     // 【重要】在非主窗口中，监听同步过来的 settings 变化
     if (bus.windowType !== "main") {

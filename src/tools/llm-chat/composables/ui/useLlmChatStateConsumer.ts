@@ -25,7 +25,7 @@
  * - 只接收状态，不推送状态（autoPush: false）
  * - 不处理业务逻辑，所有操作都代理回上游窗口
  */
-import { ref, watch } from "vue";
+import { ref, watch, onScopeDispose } from "vue";
 import { useStateSyncEngine } from "@/composables/useStateSyncEngine";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useLlmChatStore } from "../../stores/llmChatStore";
@@ -42,6 +42,16 @@ import type {
   UserProfile,
 } from "../../types";
 import { CHAT_STATE_KEYS, createChatSyncConfig } from "../../types/sync";
+import {
+  ChatStreamReceiver,
+  type ChatStreamingDelta,
+} from "../../services/chatStreamReceiver";
+import {
+  getOrCreateStreamingMessageSource,
+  appendStreamingMessageChunk,
+  completeAndDisposeStreamingMessageSource,
+} from "../chat/useStreamingMessageSources";
+import type { StateSyncPayload } from "@/types/window-sync";
 
 const logger = createModuleLogger("LlmChatStateConsumer");
 
@@ -126,6 +136,34 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
     { deep: true }
   );
 
+  let lastRecoveryRequest = 0;
+  const streamReceiver = new ChatStreamReceiver({
+    sessions: store.sessionDetailMap,
+    onContent: (id, initial, delta) => {
+      getOrCreateStreamingMessageSource(id, initial);
+      appendStreamingMessageChunk(id, delta);
+    },
+    onComplete: completeAndDisposeStreamingMessageSource,
+    requestSnapshot: () => {
+      const now = Date.now();
+      if (now - lastRecoveryRequest < 1000) return;
+      lastRecoveryRequest = now;
+      bus.requestInitialState();
+    },
+  });
+  const unlistenStream = bus.onMessage<StateSyncPayload>(
+    "state-sync",
+    (payload) => {
+      if (payload.stateType === "chat:streaming-delta") {
+        streamReceiver.receive(payload.data as ChatStreamingDelta);
+      }
+    }
+  );
+  onScopeDispose(() => {
+    unlistenStream();
+    streamReceiver.clear();
+  });
+
   // 3. 一次性请求所有初始状态
   bus.requestInitialState();
 
@@ -181,7 +219,7 @@ export function useLlmChatStateConsumer(options: ConsumerOptions = {}) {
       });
 
       // 写入详情 Map（索引由 syncedSessions 独立同步）
-      store.sessionDetailMap.set(newSessionData.id, newSessionData as any);
+      streamReceiver.snapshot(newSessionData);
 
       // 如果当前 ID 还没设置，顺便设置一下，确保 UI 能够响应
       if (!store.currentSessionId) {

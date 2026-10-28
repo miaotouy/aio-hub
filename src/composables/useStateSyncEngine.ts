@@ -372,8 +372,12 @@ export function useStateSyncEngine<T, K extends StateKey = StateKey>(
     (bus.windowType === "main" || bus.windowType === "detached-tool")
   ) {
     stopWatching = watch(
-      state,
+      () => (config.autoPushEnabled?.() === false ? null : state.value),
       (newVal) => {
+        if (config.autoPushEnabled?.() === false) {
+          debouncedPushState.cancel();
+          return;
+        }
         if (isApplyingExternalState) return;
 
         // 针对会话相关的关键 Key 添加诊断日志

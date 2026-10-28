@@ -6,6 +6,7 @@ import type { ChatAgent, ChatSessionDetail } from "../../../types";
 
 const mocks = vi.hoisted(() => ({
   sendRequest: vi.fn(),
+  syncState: vi.fn(),
   parseToolRequests: vi.fn(),
   processCycle: vi.fn(),
   settings: {
@@ -78,7 +79,7 @@ vi.mock("../../session/useSessionManager", () => ({
   useSessionManager: () => ({ persistSession: vi.fn() }),
 }));
 vi.mock("@/composables/useWindowSyncBus", () => ({
-  useWindowSyncBus: () => ({ syncState: vi.fn() }),
+  useWindowSyncBus: () => ({ syncState: mocks.syncState }),
 }));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
@@ -496,4 +497,73 @@ describe("tool result local media", () => {
         disposeStreamingMessageSource(id);
     }
   });
+});
+
+// Stream events must use the bus data envelope and absolute ranges across buffered persistence.
+it("sends replay-safe body and reasoning ranges through the state envelope", async () => {
+  vi.useFakeTimers();
+  vi.clearAllMocks();
+  const n = {
+    ...useNodeManager().createNode({
+      role: "assistant",
+      content: "prefix",
+      parentId: null,
+      status: "generating",
+    }),
+    id: "sync-ranges",
+    metadata: { requestStartTime: 10 },
+  };
+  const session: ChatSessionDetail = {
+    id: "range-session",
+    nodes: { [n.id]: n },
+    rootNodeId: n.id,
+    activeLeafId: n.id,
+    updatedAt: "",
+    history: [],
+    historyIndex: -1,
+  };
+  try {
+    const handler = useChatResponseHandler();
+    handler.handleStreamUpdate(session, n.id, "one");
+    await vi.advanceTimersByTimeAsync(20);
+    handler.handleStreamUpdate(session, n.id, "two");
+    await vi.advanceTimersByTimeAsync(20);
+    handler.handleStreamUpdate(session, n.id, "think", true);
+    // A body transition before the reasoning frame must still transmit that reasoning.
+    handler.handleStreamUpdate(session, n.id, "tail");
+    await vi.advanceTimersByTimeAsync(20);
+    expect(
+      mocks.syncState.mock.calls.map(([key, data, version, isFull]) => ({
+        key,
+        data,
+        version,
+        isFull,
+      }))
+    ).toMatchObject([
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "one", offset: 6, requestStartTime: 10 },
+        isFull: true,
+      },
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "two", offset: 9, requestStartTime: 10 },
+        isFull: true,
+      },
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "think", offset: 0, isReasoning: true },
+        isFull: true,
+      },
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "tail", offset: 12 },
+        isFull: true,
+      },
+    ]);
+  } finally {
+    disposeStreamingMessageSource(n.id);
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  }
 });

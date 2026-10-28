@@ -98,6 +98,7 @@ it("keeps one completion broadcast across reopen and cancels watchers after clos
       .slice(-1)[0];
     mock.store.isSending = true;
     await nextTick();
+    engine.manualPush.mockClear();
     mock.store.isSending = false;
     await nextTick();
     expect(engine.manualPush).toHaveBeenCalledTimes(1);

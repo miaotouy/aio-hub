@@ -160,6 +160,7 @@
   - **请求格式**: [`requestAction<TParams, TResult>(action, params)`](../../../../composables/useWindowSyncBus.ts:592) 自动生成 `requestId`（`${windowLabel}-${timestamp}-${random}`）唯一标识；`ActionRequestPayload = { action, requestId, params }` 包装后通过 `tauriEmit("window-sync-message", ...)` 广播。
   - **超时处理**: 调用方收到 `Promise`，**硬编码 10 秒超时**（[`useWindowSyncBus.ts:610-611`](../../../../composables/useWindowSyncBus.ts:610)）；主窗口收到请求后调用对应 `actionHandler(params)` 处理，结果通过 `action-response` 携带 `requestId` 回传；调用方根据 `requestId` 匹配 Promise 并 `resolve(result)`，超时则 `reject(new Error("操作请求超时: ${action}"))`。
   - **典型上行操作**: `llm-chat:send-message` / `llm-chat:create-branch` / `llm-chat:update-agent` / `llm-chat:open-agent-settings` / `llm-chat:open-quick-action-manager` 等。
+- **流式同步**：生成期间会话详情暂停深度监听，由正文 / reasoning 绝对偏移增量与 2 秒完整检查点驱动；活跃叶变化和生成结束补完整快照。分离组件的 `useLlmChatStateConsumer` 持有流增量接收器，协调重叠范围、落后快照及尚未收到节点的增量；最终完成态以主窗口快照为准。接收器的展示副本与同步引擎的原始快照分离，工具正文及时写入消费窗口节点。
 - **窗口关闭时的资源清理**:
   - **业务层清理**: [`useLlmChatSync`](../../composables/chat/useLlmChatSync.ts) 通过 `onUnmounted` 钩子清理所有注册的同步引擎（`stateEngines.forEach(e => e.cleanup())`）；额外提供 `hasDownstreamWindows` computed，当下游窗口数量归零时自动调用 `cleanup()` 释放未使用的引擎，避免常驻无意义订阅。每轮初始化拥有独立 effect scope，发送状态及窗口数量监听随该轮一起停止；生成中打开分离窗口立即采用流式同步间隔。同步引擎清理会取消防抖任务并关闭后续推送。
   - **总线层清理**: `WindowSyncBus.cleanup()` 停止心跳定时器（`clearInterval(heartbeatInterval)`）、清空所有 `messageHandlers` / `actionHandlers` / `connectionHandlers` / `initialStateRequestHandlers`、调用 `eventUnlisteners.forEach(fn => fn())` 注销所有 Tauri 事件监听器；连接状态映射 `connectedWindows` 重置为空。

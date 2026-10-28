@@ -175,9 +175,14 @@ export function useChatResponseHandler() {
           nodeId,
           delta,
           isReasoning: false,
+          offset:
+            (session.nodes[nodeId]?.content.length ?? 0) +
+            state.persistBuffer.length -
+            delta.length,
+          requestStartTime: session.nodes[nodeId]?.metadata?.requestStartTime,
         },
         0,
-        false
+        true
       );
     });
   };
@@ -205,6 +210,33 @@ export function useChatResponseHandler() {
         interval: config.incrementalSaveInterval,
       });
     }
+  };
+
+  const flushReasoningToNode = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    const state = reasoningUpdateBuffer.get(nodeId);
+    const node = session.nodes?.[nodeId];
+    if (!state?.buffer || !node) return;
+    const metadata = (node.metadata ??= {});
+    const offset = metadata.reasoningContent?.length ?? 0;
+    const delta = state.buffer;
+    state.buffer = "";
+    metadata.reasoningContent = (metadata.reasoningContent ?? "") + delta;
+    bus.syncState(
+      "chat:streaming-delta",
+      {
+        sessionId: session.id,
+        nodeId,
+        delta,
+        isReasoning: true,
+        offset,
+        requestStartTime: metadata.requestStartTime,
+      },
+      0,
+      true
+    );
   };
 
   /**
@@ -254,25 +286,7 @@ export function useChatResponseHandler() {
       if (!state.isScheduled) {
         state.isScheduled = true;
         requestAnimationFrame(() => {
-          if (!session.nodes) return;
-          const nodeToUpdate = session.nodes[nodeId];
-          if (nodeToUpdate && nodeToUpdate.metadata) {
-            nodeToUpdate.metadata.reasoningContent += state.buffer;
-
-            // 跨窗口同步增量
-            bus.syncState(
-              "chat:streaming-delta" as any,
-              {
-                sessionId: session.id,
-                nodeId,
-                delta: state.buffer,
-                isReasoning: true,
-              },
-              0,
-              false
-            );
-          }
-          state.buffer = "";
+          flushReasoningToNode(session, nodeId);
           state.isScheduled = false;
 
           // 尝试增量保存
@@ -285,11 +299,7 @@ export function useChatResponseHandler() {
 
       if (node.metadata?.reasoningStartTime) {
         // 强制刷新一次 reasoning 缓冲区
-        const reasoningState = reasoningUpdateBuffer.get(nodeId);
-        if (reasoningState && reasoningState.buffer) {
-          node.metadata.reasoningContent += reasoningState.buffer;
-          reasoningState.buffer = "";
-        }
+        flushReasoningToNode(session, nodeId);
         node.metadata.reasoningEndTime ??= Date.now();
         logger.info("🕐 推理结束时间已记录（正文开始）", {
           nodeId,

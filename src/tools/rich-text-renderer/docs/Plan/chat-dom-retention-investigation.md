@@ -1505,3 +1505,20 @@ Pending 顶层列表在原有精确 token 公共前缀与完整解析上下文�
 下一轮优先检查边界判断中引用定义匹配的重复扫描，并继续归因真实消息首次静态挂载。标准字段失败扫描、词法续扫和上游代码增量仍沿已有待办保留。
 
 产物：.tmp/app-memory/list-items-paired-final3-20261028/、list-items-paired-summary.json、list-items-revisions.json、list-items-resident-{before,after}-{branches,loose}-20261028/、list-items-abort-after-loose-20261028/、list-items-display-{before,after}-loose-20261028/、list-items-font-{light,dark2}-20261028/。前期归因见 list-stages-current-20261028/、list-stages-diagnostic-20261028/、display-profile-{branches,long-answer}-20261028/ 和 list-display-current-summary.json。
+
+
+## 41. 下一轮候选：引用定义的必要标记预检（2026-10-28）
+
+第 40 节提交后，沿真实 profile 的引用定义匹配热点继续探索。splitByBlockBoundary 每次在 safeText 上运行行首引用定义表达式；其匹配必须含有连续的 ]:。临时原型先用 includes 检查该必要片段，再沿原表达式判断，当前生产代码保持第 40 节版本。
+
+原生 WebView2 内独立对照该表达式：六条真实消息共 276 个输入前缀，再加缩进、转义标签、半闭合、CR / LF 和正文位置组合，共 756 次比较，判断结果一致。每样本预热后交错采 12 组，每组八次完整前缀序列，表中为一次序列的中位数：
+
+| 样本 | 前缀数 | 含必要片段的前缀 | 实际引用定义匹配 | 原表达式 ms | 预检后 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| branches 最长 | 117 | 0 | 0 | 2.094 | 0.250 |
+| branches 次长 | 45 | 0 | 0 | 0.212 | 0.038 |
+| long-answer 最长 | 76 | 10 | 0 | 19.112 | 6.525 |
+
+其他三条短消息的绝对变化低于 0.03ms。最长回答有十个后期前缀含该片段，仍会执行原匹配；这一部分有进一步归因空间。此次计时只覆盖引用定义判断，分段和安全截断、Worker、AST、DOM 及固定等待另有成本。下一轮先将必要片段预检接入边界判断，再用现有流式修订与显示回放复核完整处理链。
+
+产物：.tmp/app-memory/profile-boundary-ref-explore.ts、boundary-ref-explore-20261028/measurements.json。

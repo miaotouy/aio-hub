@@ -918,6 +918,8 @@ RichTextRenderer 的纯渲染入口改为组件私有的按需实例，首次实
 
 ## 26. CodeMirror 更新与流式能力复核（2026-10-28）
 
+> 本节保留升级前的版本快照，升级结果见第 28 节。
+
 从实际安装包读取版本，并查询 npm registry 的 latest / 发布时间，再对照官方当前仓库 CHANGELOG。根 package.json 声明的下限与实际解析版本不同，例如 view 声明 ^6.38.1，当前安装为 6.43.6；升级判断使用实际版本。
 
 | 包 | 当前安装 | npm latest | latest 发布时间 |
@@ -970,3 +972,15 @@ RichTextRenderer 的纯渲染入口改为组件私有的按需实例，首次实
 33 个相关用例、类型检查、Vite 生产构建和原生 release 性能构建通过。新增资源稳定性断言已在旧版失败，多实例字号隔离和原有重建契约一起复核。对照保存在 `.tmp/app-memory/cm-style-before-20261028/`、`cm-style-after-light-20261028/`、`cm-style-after-dark-20261028/`；日志为 `cm-style-tests-before.log`、`cm-style-tests-related.log` 与 `cm-style-build.log`。
 
 后续优先独立升级第 26 节核对的 CodeMirror 核心包，复用真实代码流和滚动恢复样例，区分上游修复与当前应用侧改动。富文本全文 pending 保护、短代码工具栏及消息阅读锚点继续沿原待办推进。
+
+## 28. CodeMirror 核心包独立升级（2026-10-28）
+
+按第 26 节的官方版本复核结果，将 view / state / language / commands 分别升级到 6.43.15 / 6.7.6 / 6.13.1 / 6.11.1，新增 language 所需的 streamparser 6.0.0。锁文件仅涉及这四个核心包和新增分词包，其他语言包及主题版本保持原有解析结果；未改业务更新策略。
+
+升级前后各以浅色特效关闭、深色壁纸玻璃（opacity 0.75 / blur 15）运行真实 branches，全篇浏览、顶部与首页往返，另复核实际聊天输入区的中文 / emoji / 多行草稿、返回恢复和清空。四个隔离进程中，每组 56 条正文逐项一致，全篇及末次往返高度均为 141,758px，输入与恢复选区均正确。返回首页 / 返回聊天的 GC 页面堆差值分别约 +0.03 / +0.03 MiB（浅色）、-0.02 / -0.03 MiB（深色），按本轮测量视为持平。
+
+6,488 字符真实 JSON 流仍为 33 次文档事务、累计移除 1 字符 / 插入 5,464 字符，最终内容、视图、选区、折叠保持。样式规则因库本身调整由 6,755 变为 6,757，但重建 10 次和字号调整 6 次均保持稳定；字号、行高、字符宽度与原包对应一致。升级后实际 Shell 语言加载及 StreamLanguage 解析通过，复核了分词接口拆包后的既有入口。
+
+33 个相关用例、前端类型检查、Vite 与原生 release 性能构建通过。此轮完成上游修复接入和兼容复核，性能提升继续以具体场景测量判断。用户随后指出轻量预览切到正式编辑器时的字形密度 / 高度变化，另行复现：升级本身保持原差异，下一轮调整两种显示的几何契约。
+
+数据位于 `.tmp/app-memory/cm-upgrade-chat-{before,after}-{light,dark}-20261028/`、`cm-upgrade-code-after-20261028/`，比较摘要 `cm-upgrade-comparison.json`；日志为 `cm-upgrade-install.log`、`cm-upgrade-tests.log`、`cm-upgrade-build.log` 与 `cm-upgrade-legacy-language.log`。升级后的轻量 / 正式几何差异单列在 `code-geometry-upgrade-only-20261028/`。

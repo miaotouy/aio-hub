@@ -81,6 +81,7 @@ import { useTheme } from "@composables/useTheme";
 import { getCodeMirrorLanguage } from "@/utils/codeLanguages";
 import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import PreCodeNode from "./PreCodeNode.vue";
+import { codeViewerTheme } from "./codeViewerTheme";
 
 const store = useRichTextRendererStore();
 const { debugPreFallback } = storeToRefs(store);
@@ -259,25 +260,10 @@ const initEditor = async () => {
     highlightActiveLineGutter(),
     foldGutter(),
     keymap.of([...defaultKeymap, ...foldKeymap]),
-    // 基础样式
-    EditorView.theme({
-      "&": {
-        backgroundColor: "transparent !important",
-      },
-      ".cm-scroller": {
-        fontFamily:
-          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-      },
-      ".cm-content": {
-        padding: "12px 0",
-      },
-      ".cm-line": {
-        padding: "0 12px 0 4px",
-      },
-    }),
+    codeViewerTheme,
     fontSizeCompartment.of(
-      EditorView.theme({
-        "&": { fontSize: `${props.codeFontSize}px` },
+      EditorView.editorAttributes.of({
+        style: `font-size: ${props.codeFontSize}px`,
       })
     ),
     wordWrapCompartment.of(
@@ -382,8 +368,8 @@ watch(
     if (editorView.value) {
       editorView.value.dispatch({
         effects: fontSizeCompartment.reconfigure(
-          EditorView.theme({
-            "&": { fontSize: `${size}px` },
+          EditorView.editorAttributes.of({
+            style: `font-size: ${size}px`,
           })
         ),
       });

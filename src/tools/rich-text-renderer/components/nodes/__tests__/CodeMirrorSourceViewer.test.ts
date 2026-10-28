@@ -269,7 +269,7 @@ it("restores code selection and folds when the owning display tree remounts", as
 });
 
 // A chosen font must take effect immediately, with identical CSS before and after remount.
-it("uses a single font theme so live size changes match recreated code", async () => {
+it("keeps live font size changes consistent after viewer recreation", async () => {
   wrapper = mount(CodeMirrorSourceViewer, { props, attachTo: document.body });
   await intersect(true);
   await wrapper.setProps({ codeFontSize: 19 });
@@ -324,3 +324,50 @@ it.each([
     expect(actual).toEqual(folds);
   }
 );
+
+// Repeated reading and font changes must keep document-level styling bounded after warmup.
+it("keeps stylesheet rules stable through font changes and viewer recreation", async () => {
+  wrapper = mount(CodeMirrorSourceViewer, { props, attachTo: document.body });
+  await intersect(true);
+  const ruleCount = () =>
+    Array.from(document.styleSheets).reduce(
+      (sum, sheet) => sum + sheet.cssRules.length,
+      0
+    );
+  const warmedRules = ruleCount();
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await wrapper.setProps({ codeFontSize: 19 });
+    expect(getComputedStyle(currentView().dom).fontSize).toBe("19px");
+    await wrapper.setProps({ codeFontSize: 16 });
+    await intersect(false);
+    await vi.advanceTimersByTimeAsync(2100);
+    await intersect(true);
+    expect(currentView().state.doc.toString()).toBe(props.content);
+    expect(getComputedStyle(currentView().dom).fontSize).toBe("16px");
+  }
+  expect(ruleCount()).toBe(warmedRules);
+});
+
+// Sharing static styles must preserve each code block's own font setting.
+it("keeps font settings independent between simultaneously mounted viewers", async () => {
+  wrapper = mount(CodeMirrorSourceViewer, { props, attachTo: document.body });
+  await intersect(true);
+  const second = mount(CodeMirrorSourceViewer, {
+    props: { ...props, codeFontSize: 13 },
+    attachTo: document.body,
+  });
+  try {
+    await intersect(true);
+    const secondView = EditorView.findFromDOM(
+      second.get(".cm-editor").element as HTMLElement
+    )!;
+    await wrapper.setProps({ codeFontSize: 19 });
+    expect(getComputedStyle(currentView().dom).fontSize).toBe("19px");
+    expect(getComputedStyle(secondView.dom).fontSize).toBe("13px");
+    await second.setProps({ codeFontSize: 17 });
+    expect(getComputedStyle(currentView().dom).fontSize).toBe("19px");
+    expect(getComputedStyle(secondView.dom).fontSize).toBe("17px");
+  } finally {
+    second.unmount();
+  }
+});

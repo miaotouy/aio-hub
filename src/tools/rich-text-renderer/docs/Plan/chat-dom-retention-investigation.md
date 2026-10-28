@@ -915,3 +915,58 @@ RichTextRenderer 的纯渲染入口改为组件私有的按需实例，首次实
 ### 后续：重建后的样式规则累计
 
 同一原生探针中，代码查看器反复卸载 / 重建时，CSS 规则从 6,756 依次增至 6,761、6,766、6,771；每次多留 5 条。初始化中的基础 theme 含 4 条规则，字号 theme 含 1 条；调字号也会新建 theme。style-mod 的模块说明要求复用样式模块，其挂载集合按 document 保留已使用规则。下一项将静态主题提升为共享模块，字号使用编辑器实例的 DOM 属性，并复核多实例字号隔离、重建和资源稳定性。
+
+## 26. CodeMirror 更新与流式能力复核（2026-10-28）
+
+从实际安装包读取版本，并查询 npm registry 的 latest / 发布时间，再对照官方当前仓库 CHANGELOG。根 package.json 声明的下限与实际解析版本不同，例如 view 声明 ^6.38.1，当前安装为 6.43.6；升级判断使用实际版本。
+
+| 包 | 当前安装 | npm latest | latest 发布时间 |
+| --- | --- | --- | --- |
+| @codemirror/view | 6.43.6 | 6.43.15 | 2026-10-19 |
+| @codemirror/state | 6.7.1 | 6.7.6 | 2026-09-22 |
+| @codemirror/language | 6.12.4 | 6.13.1 | 2026-10-07 |
+| @codemirror/commands | 6.10.4 | 6.11.1 | 2026-09-15 |
+| @codemirror/merge | 尚未安装 | 6.12.3 | 2026-10-19 |
+
+### 与本项目相关的更新
+
+- view 6.43.7 修复 widget 长度变化导致内容更新出错；6.43.9 修复底部文档变矮时的滚动；6.43.10 修复缩放时的滚动稳定；6.43.14 修复只读编辑器上的选区输入；6.43.15 修复父容器 hidden / clipped overflow、顶部 padding 和高度缩放中的滚动问题。代码块处在裁剪容器内且可能重建，这些修复值得独立升级复核。
+- state 6.7.2～6.7.5 修复 range 映射排序、重叠和比较引发的额外重绘，和选区、折叠、装饰随文本变更映射的路径相关。
+- language 6.13.0 将部分类型拆到新包 @codemirror/streamparser 并继续重导出，6.13.1 补齐该依赖。此次新增包侧重分词接口拆分。大量折叠批量恢复的线性复杂度优化在 6.12.4，当前安装已具备。
+- commands 6.11 新增选区撤销 / 重做可用性查询，并调整选区及双向文本命令；对只读代码流的直接收益较小。
+
+### 流式输入怎么接
+
+1. 现有 API 已支持在同一 EditorView 上通过 `dispatch({ changes: { from: doc.length, insert: chunk } })` 追加文本，也可提交替换、删除或多个变更区间。ChangeSet 负责把选区、fold ranges 等状态映射到更新后的文档；调用方需要给出真实发生变化的区间。每次覆盖全文会把整篇都标记成变更。
+2. 增量语法解析复用未变化的树片段，并结合可见区和时间预算推进；`syntaxTree` 可能暂时不完整。`ensureSyntaxTree` / `forceParsing` 会消耗同步解析预算，逐 token 强制整篇解析容易扩大主线程工作量。
+3. StreamLanguage / StreamParser 中的 stream 表示按字符流分词的语言接口。项目 Shell 等 legacy mode 已通过 StreamLanguage 使用；JSON 等语言使用各自的语言包。官方本轮更新和参考文档中，聊天 SSE / token 的消费仍通过常规文档更新接口接入。
+4. 当前 renderer 向查看器传完整 content，因此第 25 节在边界计算单个连续差异区，随后交给 CodeMirror 自带的事务、状态映射和增量解析。若未来上游能稳定传递代码块增量，可继续减少比较全文的工作；这需要处理围栏、换行规范化、语言切换和正文修订的对应关系。
+5. 官方 @codemirror/merge 另外导出通用 `diff` / `presentableDiff`，适合需要多个分散变更区间的场景。当前追加式代码流只需单个差异区；是否引入通用 diff 应由真实编辑模式和计算开销决定。
+
+### 后续取舍
+
+共享样式模块的资源累计已在第 27 节处理；核心包升级独立安排，重点观察 view 的滚动修复和 state 的范围映射。复用本轮真实 JSON 流及原有阅读恢复用例，检查最终内容、选区、折叠、字号与裁剪容器内的滚动。升级收益按更新前后实际结果判断。
+
+来源：
+
+- [官方参考手册](https://codemirror.net/docs/ref/)与[系统指南](https://codemirror.net/docs/guide/)，本轮直接获取正文，并通过 Context7 交叉查询。
+- [view 更新](https://code.haverbeke.berlin/codemirror/view/raw/branch/main/CHANGELOG.md)、[state 更新](https://code.haverbeke.berlin/codemirror/state/raw/branch/main/CHANGELOG.md)、[language 更新](https://code.haverbeke.berlin/codemirror/language/raw/branch/main/CHANGELOG.md)、[commands 更新](https://code.haverbeke.berlin/codemirror/commands/raw/branch/main/CHANGELOG.md)。npm 元数据的 repository 已指向 code.haverbeke.berlin；本轮获取的 GitHub 旧地址内容落后，采用当前仓库记录。
+- npm registry 各包元数据中的 dist-tags.latest、time 和 repository；原始文档留在 `.tmp/app-memory/codemirror-*-changelog-current.md` 与 `codemirror-official-*.txt`。
+
+## 27. 代码查看器共享样式与独立字号（2026-10-28）
+
+原生旧包复测 10 次卸载 / 重建，规则数 6,756 → 6,806，每次多留 5 条；随后 6 次调字号从 6,811 增至 6,817。单测对重复阅读 / 调字号的资源稳定性作断言，旧实现从 188 增至 209，稳定复现回归。
+
+基础主题改为模块级共享，动态字号通过现有 compartment 配置 EditorView.editorAttributes，直接作用于当前编辑器外层元素。字号变更继续由 CodeMirror 的配置和测量生命周期处理，避免生成一次性的 CSS 主题。多个查看器的字号各自独立。
+
+| 场景 | 旧实现 | 共享主题 / 实例字号 |
+| --- | --- | --- |
+| 浅色特效关闭，重建 10 次 | 6,756 → 6,806 条规则 | 6,755 → 6,755 |
+| 随后逐次调字号 6 次 | 6,811 → 6,817 | 6,755 → 6,755 |
+| 深色壁纸、0.75 透明度 / 15px 模糊，重建及字号往返 | — | 始终 6,755 |
+
+三组均使用第 25 节的真实 JSON 分段流，最终内容一致、同一视图、选区与折叠保持。字号实际按 14 → 15 → 16 → 17 → 16 → 15 → 14px 生效；新旧包的对应行高完全一致（约 19.59 / 21 / 22.40 / 23.79px），字符宽度对应一致。两个改后外观均在 10 次重建和 6 次字号调整后规则数持平。本轮证据针对样式规则累计，整页和进程内存收益继续按原矩阵评估。
+
+33 个相关用例、类型检查、Vite 生产构建和原生 release 性能构建通过。新增资源稳定性断言已在旧版失败，多实例字号隔离和原有重建契约一起复核。对照保存在 `.tmp/app-memory/cm-style-before-20261028/`、`cm-style-after-light-20261028/`、`cm-style-after-dark-20261028/`；日志为 `cm-style-tests-before.log`、`cm-style-tests-related.log` 与 `cm-style-build.log`。
+
+后续优先独立升级第 26 节核对的 CodeMirror 核心包，复用真实代码流和滚动恢复样例，区分上游修复与当前应用侧改动。富文本全文 pending 保护、短代码工具栏及消息阅读锚点继续沿原待办推进。

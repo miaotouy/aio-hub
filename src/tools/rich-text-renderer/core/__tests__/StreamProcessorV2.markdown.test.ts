@@ -156,6 +156,7 @@ const streamMarkdownCases = streamMarkdownFixtures.flatMap(
 // Use the actual tokenizer while replacing only browser Worker transport in jsdom.
 vi.mock("../../parser/tokenizerService", () => ({
   tokenizerService: {
+    release() {},
     tokenize: async (text: string, options: TokenizerOptions) =>
       new Tokenizer(options).tokenize(text),
   },

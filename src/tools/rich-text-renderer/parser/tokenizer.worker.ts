@@ -12,23 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Tokenizer } from "./Tokenizer";
-import type { TokenizerOptions } from "./types";
+import { TokenizerWorkerState } from "./tokenizerWorkerState";
+import type { TokenizerRequest } from "./tokenizerProtocol";
 
-/**
- * Tokenizer Worker
- * 用于在后台线程执行分词逻辑，避免阻塞主线程。
- */
-
-self.onmessage = (
-  e: MessageEvent<{ text: string; id: number; options?: TokenizerOptions }>
-) => {
-  const { text, id, options } = e.data;
-  try {
-    const tokenizer = new Tokenizer(options);
-    const tokens = tokenizer.tokenize(text);
-    self.postMessage({ id, status: "success", tokens });
-  } catch (error) {
-    self.postMessage({ id, status: "error", error: String(error) });
-  }
+const state = new TokenizerWorkerState();
+self.onmessage = (event: MessageEvent<TokenizerRequest>) => {
+  const response = state.handle(event.data);
+  if (response) self.postMessage(response);
 };

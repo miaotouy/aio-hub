@@ -84,7 +84,7 @@ async function initialize(job: BenchJob) {
         (args) => ({
           loader: "ts",
           contents: `import { Tokenizer } from ${JSON.stringify(join(dirname(args.path), "Tokenizer.ts"))};
-export const tokenizerService = { tokenize: async (text, options) => new Tokenizer(options).tokenize(text), terminate() {} };`,
+export const tokenizerService = { tokenize: async (text, options) => new Tokenizer(options).tokenize(text), terminate() {}, release() {} };`,
         })
       );
     },

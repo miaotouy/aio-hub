@@ -138,13 +138,16 @@ export class CustomParser implements ParserContext {
     const epoch = ++this.parseEpoch;
     const previous = this.pendingCache;
     if (!text) {
+      tokenizerService.release(this);
       this.pendingCache = null;
       this.references.clear();
       return [];
     }
-    const tokens = await tokenizerService.tokenize(text, {
-      vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled,
-    });
+    const tokens = await tokenizerService.tokenize(
+      text,
+      { vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled },
+      this
+    );
     this.references.clear();
     this.collectReferences(tokens);
     const context = JSON.stringify([
@@ -337,6 +340,7 @@ export class CustomParser implements ParserContext {
   }
 
   public reset(): void {
+    tokenizerService.release(this);
     this.parseEpoch++;
     this.pendingCache = null;
     this.references.clear();

@@ -138,6 +138,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 
 - **多线程词法分析 (Off-main-thread Lexing)**:
   - `Tokenizer` 被封装在 Web Worker (`parser/tokenizer.worker.ts`) 中运行。通过 `TokenizerService` (`parser/tokenizerService.ts`) 进行单例 Worker 复用和调度，避免了大规模文本解析对主线程 UI 渲染的干扰。
+  - **流式传输**: 待定解析按调用方隔离传输会话，以修订号串联文本尾部替换；Worker 重建完整文本并全文分词，按 token 精确公共前缀返回变化尾部，主线程恢复完整 token 数组并复用未变化对象。普通静态解析保持无状态。完成、重设、静态切换及销毁会释放两端会话快照；已排队结果仍各自完成，后续复用调用方建立新会话。
   - **性能优化**: 词法分析器广泛使用 `sticky (y)` 标志的正则表达式，直接在原始字符串上进行位置偏移匹配，彻底消除了频繁创建字符串切片（substring/slice）带来的内存和 CPU 开销。
 
 - **原始模式 (Raw Mode)**:

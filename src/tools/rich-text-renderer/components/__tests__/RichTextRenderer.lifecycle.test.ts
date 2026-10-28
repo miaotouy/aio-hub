@@ -33,6 +33,7 @@ import type { TokenizerOptions } from "../../parser/types";
 // Use the production tokenizer in process; jsdom has no Worker transport.
 vi.mock("../../parser/tokenizerService", () => ({
   tokenizerService: {
+    release() {},
     tokenize: async (text: string, options: TokenizerOptions) =>
       new Tokenizer(options).tokenize(text),
   },

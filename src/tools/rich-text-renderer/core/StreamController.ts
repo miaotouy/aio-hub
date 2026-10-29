@@ -22,6 +22,8 @@
  * 4. 语义感知切分：按中文词/英文单词/标点为最小输出单元，避免单字蹦出
  */
 
+import { StreamTextBoundary } from "./StreamTextBoundary";
+
 /**
  * StreamController 配置选项
  */
@@ -60,9 +62,8 @@ export class StreamController {
   // 状态标志
   private isRunning = false;
   private rafHandle: number | null = null;
-  private isInsideCodeBlock = false;
-  // 用于增量检测代码块状态的上下文
-  private fenceBacklog = "";
+  private readonly textBoundary = new StreamTextBoundary();
+  private timerHandle: ReturnType<typeof setTimeout> | null = null;
 
   // ========= 节奏感知相关 =========
   /** 上游 chunk 到达时间戳记录（滑动窗口） */
@@ -91,24 +92,6 @@ export class StreamController {
     this.emergencyFlushThreshold = options.emergencyFlushThreshold ?? 1000;
     this.smoothingEnabled = options.smoothingEnabled ?? true;
     this.verboseLogging = options.verboseLogging ?? false;
-  }
-
-  /**
-   * 增量更新代码块状态
-   * 监听 ``` 标记的出现
-   */
-  private updateCodeBlockState(char: string): void {
-    // 维护一个小的缓冲区来检测 ```
-    this.fenceBacklog += char;
-    if (this.fenceBacklog.length > 3) {
-      this.fenceBacklog = this.fenceBacklog.slice(-3);
-    }
-
-    if (this.fenceBacklog === "```") {
-      this.isInsideCodeBlock = !this.isInsideCodeBlock;
-      // 匹配到后清空，防止连续检测
-      this.fenceBacklog = "";
-    }
   }
 
   /**
@@ -181,77 +164,41 @@ export class StreamController {
     this.blocksPerEmit = 2;
   }
 
-  /**
-   * 智能语义分块
-   * 将文本拆分为：连续中文字符组（2-3个一组）、英文单词、标点、空白
-   * 这些块是最小输出单位，保证每次吐出的都是有意义的片段
-   */
-  private splitIntoSemanticChunks(text: string): string[] {
-    // 先按基础语义切分
-    const regex = /[\u4e00-\u9fa5]+|[a-zA-Z0-9]+|\s+|./gu;
-    const rawChunks = text.match(regex) || [];
-
-    const result: string[] = [];
-    for (const chunk of rawChunks) {
-      // 对连续中文进一步拆分为 2-3 字一组（模拟词组输出节奏）
-      if (/^[\u4e00-\u9fa5]+$/.test(chunk) && chunk.length > 3) {
-        for (let i = 0; i < chunk.length; i += 2) {
-          result.push(chunk.slice(i, Math.min(i + 2, chunk.length)));
-        }
-      } else {
-        result.push(chunk);
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * 从 semanticQueue 消费内容到 displayBuffer
-   * 按 blocksPerEmit 个语义块消费，不再按字符数配额
-   */
+  /** Units already respect graphemes and complete fence headers. */
   private consumeChars(): number {
-    if (this.semanticQueue.length === 0) return 0;
-
     let consumed = 0;
-    let blocksConsumed = 0;
-
-    while (
-      this.semanticQueue.length > 0 &&
-      blocksConsumed < this.blocksPerEmit
-    ) {
-      const chunk = this.semanticQueue[0];
-
-      if (!this.isInsideCodeBlock) {
-        this.semanticQueue.shift();
-        this.displayBuffer += chunk;
-        consumed += chunk.length;
-        blocksConsumed++;
-
-        for (const char of chunk) {
-          this.updateCodeBlockState(char);
-        }
-      } else {
-        // 代码块内：拆回单字符，保持结构稳定
-        if (chunk.length > 1) {
-          const char = chunk[0];
-          this.semanticQueue[0] = chunk.slice(1);
-          this.displayBuffer += char;
-          this.updateCodeBlockState(char);
-          consumed++;
-          blocksConsumed++;
-        } else {
-          this.semanticQueue.shift();
-          this.displayBuffer += chunk;
-          this.updateCodeBlockState(chunk);
-          consumed++;
-          blocksConsumed++;
-        }
-      }
+    let blocks = 0;
+    while (this.semanticQueue.length && blocks < this.blocksPerEmit) {
+      const unit = this.semanticQueue.shift()!;
+      this.displayBuffer += unit;
+      consumed += unit.length;
+      blocks++;
     }
-
     return consumed;
   }
+
+  private scheduleTick(): void {
+    if (!this.isRunning) return;
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
+      this.timerHandle = setTimeout(() => {
+        this.timerHandle = null;
+        this.tick();
+      }, 200);
+    } else {
+      this.rafHandle = requestAnimationFrame(this.tick);
+    }
+  }
+
+  private visibilityChanged = (): void => {
+    if (this.rafHandle !== null) cancelAnimationFrame(this.rafHandle);
+    if (this.timerHandle !== null) clearTimeout(this.timerHandle);
+    this.rafHandle = null;
+    this.timerHandle = null;
+    this.scheduleTick();
+  };
 
   /**
    * rAF 驱动的消费循环
@@ -269,7 +216,7 @@ export class StreamController {
     );
     if (totalBacklog > this.emergencyFlushThreshold) {
       this.flushAll();
-      this.rafHandle = requestAnimationFrame(this.tick);
+      this.scheduleTick();
       return;
     }
 
@@ -305,7 +252,7 @@ export class StreamController {
     }
 
     // 继续循环
-    this.rafHandle = requestAnimationFrame(this.tick);
+    this.scheduleTick();
   };
 
   /**
@@ -328,7 +275,9 @@ export class StreamController {
     if (this.isRunning) return;
     if (!this.smoothingEnabled) return; // 非平滑模式下 push() 直接回调，无需启动循环
     this.isRunning = true;
-    this.rafHandle = requestAnimationFrame(this.tick);
+    if (typeof document !== "undefined")
+      document.addEventListener("visibilitychange", this.visibilityChanged);
+    this.scheduleTick();
   }
 
   /**
@@ -336,6 +285,10 @@ export class StreamController {
    */
   stop(): void {
     this.isRunning = false;
+    if (typeof document !== "undefined")
+      document.removeEventListener("visibilitychange", this.visibilityChanged);
+    if (this.timerHandle !== null) clearTimeout(this.timerHandle);
+    this.timerHandle = null;
     if (this.rafHandle !== null) {
       cancelAnimationFrame(this.rafHandle);
       this.rafHandle = null;
@@ -346,6 +299,7 @@ export class StreamController {
    * 冲刷剩余数据并停止
    */
   flushAndStop(): void {
+    this.semanticQueue.push(...this.textBoundary.finish());
     this.flushAll();
     this.stop();
   }
@@ -386,7 +340,7 @@ export class StreamController {
 
     // 更新上游投喂节奏估算，并将 chunk 拆分为语义块后入队
     this.updateChunkTiming();
-    const chunks = this.splitIntoSemanticChunks(chunk);
+    const chunks = this.textBoundary.push(chunk);
     for (const part of chunks) this.semanticQueue.push(part);
   }
 
@@ -413,13 +367,9 @@ export class StreamController {
     // 1. 先冲刷当前所有积压，保证顺序
     this.flushAll();
 
-    // 2. 更新代码块状态（防止 chunk 中包含 ``` 影响后续的平滑）
-    for (const char of chunk) {
-      this.updateCodeBlockState(char);
-    }
-
-    // 3. 直接输出
-    this.onContent(chunk);
+    // Preserve unfinished text boundaries even when a large replay bypasses pacing.
+    const ready = this.textBoundary.push(chunk, true).join("");
+    if (ready) this.onContent(ready);
 
     // 4. 重置上游投喂节奏估算，因为这次是一次性输出，会打乱原本的节奏
     this.lastEmitTime = performance.now();
@@ -448,7 +398,7 @@ export class StreamController {
           return;
         }
         // 拆分为语义块后入队
-        const chunks = this.splitIntoSemanticChunks(allContent);
+        const chunks = this.textBoundary.push(allContent);
         for (const part of chunks) this.semanticQueue.push(part);
 
         // 如果预缓冲非常多，先同步输出一批，避免首屏空白
@@ -461,9 +411,6 @@ export class StreamController {
             initialContent.length < targetInitial
           ) {
             initialContent += this.semanticQueue.shift()!;
-          }
-          for (const char of initialContent) {
-            this.updateCodeBlockState(char);
           }
           this.onContent(initialContent);
         }
@@ -507,9 +454,8 @@ export class StreamController {
     this.semanticQueue = [];
     this.displayBuffer = "";
     this.preBufferQueue = [];
-    this.isInsideCodeBlock = false;
+    this.textBoundary.reset();
     this.isMounted = false;
-    this.fenceBacklog = "";
     this.chunkArrivalTimes = [];
     this.estimatedChunkInterval = 100;
     this.targetEmitIntervalMs = 40;

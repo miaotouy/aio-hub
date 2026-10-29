@@ -109,15 +109,18 @@ fn metadata(path: &Path) -> Result<fs::Metadata, String> {
         .map_err(|error| format!("无法读取路径 {}: {}", path.display(), error))
 }
 
-fn path_key(path: &Path) -> String {
-    let value = path.to_string_lossy().replace('/', "\\");
+fn path_key(path: &Path) -> PathBuf {
     #[cfg(windows)]
     {
-        value.to_ascii_lowercase()
+        PathBuf::from(
+            path.to_string_lossy()
+                .replace('/', "\\")
+                .to_ascii_lowercase(),
+        )
     }
     #[cfg(not(windows))]
     {
-        value
+        path.to_path_buf()
     }
 }
 
@@ -281,13 +284,7 @@ fn target_for_source(
 }
 
 fn is_same_or_descendant(path: &Path, ancestor: &Path) -> bool {
-    let path = path_key(path);
-    let ancestor = path_key(ancestor);
-    if path == ancestor {
-        return true;
-    }
-    let ancestor = ancestor.trim_end_matches('\\');
-    ancestor.is_empty() || path.starts_with(&format!("{}\\", ancestor))
+    path_key(path).starts_with(path_key(ancestor))
 }
 
 fn build_plan(
@@ -944,6 +941,35 @@ pub async fn create_links_only(
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    // Unix 合法的反斜杠文件名须按普通字符处理，预检仍需阻断真实的嵌套源。
+    #[cfg(unix)]
+    #[test]
+    fn preflight_accepts_backslash_named_siblings() {
+        let root = tempdir().unwrap();
+        let parent = root.path().join("parent");
+        let sibling = root.path().join(r"parent\child");
+        let target = root.path().join("target");
+        for dir in [&parent, &sibling, &target] {
+            fs::create_dir_all(dir).unwrap();
+        }
+        fs::write(parent.join("file.txt"), b"parent").unwrap();
+        fs::write(sibling.join("file.txt"), b"sibling").unwrap();
+        let (report, _) = build_plan(
+            &[
+                parent.to_string_lossy().to_string(),
+                sibling.to_string_lossy().to_string(),
+            ],
+            &target.to_string_lossy(),
+            "symlink",
+            "move",
+            None,
+        )
+        .unwrap();
+        assert!(report.can_execute, "{:?}", report.blocking_issues);
+        assert_eq!(fs::read(parent.join("file.txt")).unwrap(), b"parent");
+        assert_eq!(fs::read(sibling.join("file.txt")).unwrap(), b"sibling");
+    }
 
     #[test]
     fn preflight_blocks_existing_target_before_mutation() {

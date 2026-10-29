@@ -15,6 +15,7 @@
 import { ref, onMounted, onUnmounted, isRef, type Ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { parsePathsFromDataTransfer } from "@/utils/fileDropPaths";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -61,54 +62,6 @@ export interface FileDropState {
   isProcessing: Ref<boolean>;
   lastDroppedPaths: Ref<string[]>;
 }
-
-/**
- * 从 DataTransfer 中解析路径（兜底方案，适用于 VSCode 等拖拽）
- */
-const parsePathsFromDataTransfer = (dt: DataTransfer): string[] => {
-  const paths: string[] = [];
-
-  // 1. 尝试从 text/uri-list 获取
-  const uriList = dt.getData("text/uri-list");
-  if (uriList) {
-    const uris = uriList.split(/[\r\n]+/).filter(Boolean);
-    for (const uri of uris) {
-      if (uri.startsWith("file://")) {
-        try {
-          let p = decodeURIComponent(uri.substring(7));
-          if (p.startsWith("/")) {
-            if (p.charAt(2) === ":" || p.charAt(2) === "|") {
-              p = p.substring(1);
-            }
-          }
-          p = p.replace(/\|/, ":");
-          p = p.replace(/\//g, "\\");
-          paths.push(p);
-        } catch (err) {
-          console.error("解析 URI 失败:", err);
-        }
-      }
-    }
-  }
-
-  // 2. 如果 uri-list 没拿到，尝试从 text/plain 获取
-  if (paths.length === 0) {
-    const plainText = dt.getData("text/plain");
-    if (plainText) {
-      const lines = plainText.split(/[\r\n]+/).filter(Boolean);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(trimmed);
-        const isUnixPath = trimmed.startsWith("/");
-        if (isWindowsPath || isUnixPath) {
-          paths.push(trimmed);
-        }
-      }
-    }
-  }
-
-  return paths;
-};
 
 /**
  * 文件拖放组合式函数

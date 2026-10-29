@@ -285,3 +285,7 @@ bun run test:dev-ui
 ```
 
 设计与实施范围见 [开发控制工具链](../design/agent-dev-control-toolchain.md)。
+
+### 文件 URI 的平台回归
+
+H5 `text/uri-list` 拖放和聊天输入的文件 URI 转附件共用 `src/utils/fileDropPaths.ts`。Linux 的 `/home/...` 保留正斜杠，Windows 盘符和 UNC 按对应路径形态转换，百分号编码仅解码一次。Dev Control 可用带 `DataTransfer` 的 DOM drop 验证 URI 解析和应用导入链路；系统文件管理器的物理拖动、原生拦截器与落点坐标需另行实机验证。

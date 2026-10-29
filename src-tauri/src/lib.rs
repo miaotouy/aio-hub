@@ -232,9 +232,20 @@ pub fn run() {
         .manage(commands::system_pulse::PulseState::default())
         .manage(SidecarPluginManager::default())
         .manage(frontend_monitor::FrontendMonitorState::default())
-        .on_page_load(frontend_monitor::record_page_load);
+        .on_page_load(|webview, payload| {
+            #[cfg(target_os = "linux")]
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                if let Some(state) = webview.try_state::<commands::media_stream::MediaStreamState>() {
+                    state.release_window(webview.label());
+                }
+            }
+            frontend_monitor::record_page_load(webview, payload);
+        });
 
     // 注册命令处理器
+    #[cfg(target_os = "linux")]
+    let builder = builder.manage(commands::media_stream::MediaStreamState::default());
+
     let builder = commands::register_commands(builder);
 
     let run_result = builder

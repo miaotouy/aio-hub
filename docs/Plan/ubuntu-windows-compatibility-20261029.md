@@ -16,7 +16,7 @@
 | 弹幕外部播放器             | Linux 页面的扫描和状态轮询使用仅在 Windows 注册的 command                 | 工作区平台提示、禁用连接入口、跳过扫描及轮询；保留内置播放入口                |
 | 文件拖放与聊天转附件       | 文件 URI 无条件转反斜杠；聊天未识别独立行首 POSIX 路径                    | 共用 URI 解析器，正确解码路径；补齐 POSIX 行首路径识别，复用相同附件导入链路  |
 
-## 本地媒体预览：已修复授权，播放链路待处理
+## 本地媒体预览：首轮调查
 
 实机截图发现 FFmpeg 序列帧合成完成后，视频预览显示“无法播放视频”，进一步拆成两个故障：
 
@@ -27,10 +27,10 @@
 
 - 同一 H.264 文件在 GStreamer `filesrc ! qtdemux ! h264parse ! avdec_h264 ! fakesink` 中正常解码，进程退出码 0。
 - 本机已有 `libav`、`good`、`ugly`，缺 `h264parse`。从 Ubuntu 官方包 `gstreamer1.0-plugins-bad` 提取 `libgstvideoparsersbad.so` 到用户缓存，测试实例通过 `GST_PLUGIN_PATH_1_0` 加载，CLI 解码通过；WebView 播放仍失败，说明补解析插件只覆盖依赖层。
-- 同一资源直接作为 video src、设置 crossorigin、转为内存 Blob 均得到 error 4；Blob fetch 返回 200，仍需继续定位 WebKit 自定义来源下的媒体装载。
+- 首轮同一资源直接作为 video src、设置 crossorigin、转为内存 Blob 均得到 error 4；Blob fetch 返回 200。后续查明 Blob 还受到页面 CSP 拦截，修复结果见下节。
 - 源码依据为 WebKit `webkitgtk-2.52.3` 的 `GStreamerCommon.cpp`（协议允许列表）、`WebKitWebSourceGStreamer.cpp`（http/https/blob handler）和 `MediaPlayerPrivateGStreamer.cpp`（load / GStreamer 错误处理），下载副本位于临时取证目录。
 
-下一步应评估可流式读取且受文件授权约束的媒体地址；需覆盖 Range、拖动进度、文件切换与资源释放。避免直接在页面中全量读取大视频作为默认处理方式。
+后续实现采用按文件授权的 HTTP 流式读取，覆盖 Range、拖动进度、文件切换与资源释放，详见下节。
 
 ## 回归覆盖理由
 
@@ -55,7 +55,46 @@
 ## 继续跟踪
 
 - Windows 原生窗口操作、屏幕 OCR 与外部弹幕覆盖的执行依赖对应平台能力；本轮在 Linux 验证能力反馈和调用边界，Windows 原生执行需要在 Windows 复测。
-- 本地媒体预览当前仍受 WebKitGTK 媒体读取协议影响，详见上节。
+- 已接入流式入口的播放器通过本地媒体实机验证；系统解码组件和安装包部署需分别验证，详见补查记录。
 - Wayland 下全局鼠标监听与跨窗拖出涉及系统输入能力；原有启动日志中的 `KeyboardError` 仍待专项物理交互验证。
 - 原生文件选择器、外部模型服务、插件不同平台产物与系统文件管理器物理拖放另需各自样例。
 - 颜色提取代表色质量与多图片长消息首次挂载耗时沿用前轮调查记录。
+
+## 本地媒体补查与修复（2026-10-29）
+
+### 新证据
+
+页面 `index.html` 另有 CSP。原来的 `media-src` 缺少 `blob:` 和显式动态端口 `http://127.0.0.1:*`。首轮 Blob 失败受到这层策略影响。
+
+独立 `ubuntu-media` 实例对照：
+
+- 修复前，HTTP / Blob 立即 error 4，HTTP 测试服务没有收到请求；诊断记录出现 `media-src`。
+- 修复 CSP 后，同一资源经 HTTP / Blob 均读到 4 秒视频及 160×90 画面。
+- `asset://` 仍受 WebKit/GStreamer 的 URI handler 限制；默认本地媒体通过按文件授权的 HTTP 入口读取。
+
+### 实现
+
+原生服务仅绑定回环地址，IPC 注册文件后返回随机资源标识，检查 asset scope、Host 和 Origin，固定已授权文件句柄，提供 GET / HEAD / OPTIONS 与单字节范围读取。源切换、组件卸载、缩略图结束、窗口销毁和页面刷新分别释放对应授权。资源变化和异步申请期间的刷新均有处理。
+
+接入通用音视频播放器、视频缩略图、媒体生成视频卡片、预设音频试听和本地视频 OCR 监视器。Windows/macOS 和网络/Blob 地址沿用原入口。接口、范围语义与依赖见[本地音视频播放架构](../architecture/local-media-playback.md)。
+
+Debian 配置补齐 GStreamer base / good / bad / libav 依赖，AppImage 开启媒体框架打包。配置已进入原生构建；本轮采用 `--no-bundle`，安装包生成与安装验证仍单列。
+
+### 验证与边界
+
+- Ubuntu 与 Windows 宿主各 5 条相关前端测试通过；Ubuntu Rust 媒体读取 6 条通过。
+- Ubuntu 类型检查、Vite 构建和生产资源 Debug Tauri 构建通过。
+- 真实工作区验证 FFmpeg 视频/音频预览、内置弹幕播放、本地视频 OCR 监视器；H.264 / WAV 均能播放及跳转到 2.2 秒，视频可 Canvas 截帧。关闭 OCR 视频后旧地址返回 404。
+- 音频组件按“下一曲”切换到新租约并自动续播，旧地址返回 404；卸载组件后新地址也返回 404。
+- 样例路径含中文、空格、单引号、美元符号、百分号与 Unix 字面反斜杠；范围请求回读字节一致，切换文件后旧地址返回 404。
+- 未授权标识返回 404，外部 Origin / 错误 Host 返回 403，越界 Range 返回 416，HEAD 返回 200 和空体。
+- 页面刷新清理所属窗口租约；缩略图生成前后的已打开文件句柄数量相同。
+- 首轮使用用户缓存解析插件；最终 `ubuntu-media` 实例清除该环境注入后，同一批视频与音频实机项目仍通过，说明本机已有解码组合足以处理这些 MP4 / WAV。GStreamer 仍记录缺少 h264parse 的编码器注册警告，新增系统依赖用于覆盖后续格式与部署环境；未执行 sudo 安装。
+- VM 检查需把 `$HOME/.local/bin` 放入 PATH。本机 Node 位于该处；缺失 Node 时 Bun 回退执行 vue-tsc 曾出现多个 Vue 命名类型导出的误报，使用已配置的 Node 22 后类型检查通过。
+- 关闭工具标签后，MainLayout 的 KeepAlive 仍保留工具组件及其媒体资源；该问题在原有缓存策略中存在。后续需统一处理关闭标签时的组件回收，当前源切换、真正卸载与文档刷新路径已覆盖。
+
+本轮临时实验、截图和日志位于 `.tmp/ubuntu-modules/media-*`。
+
+最终构建曾遇到磁盘不足；停止本轮实例后，仅清理已确认未运行的本项目旧 Rust 可执行文件、测试二进制和失败的归档产物，恢复约 7.7 GiB 可用空间后构建通过。源码与测试数据保留。
+
+重启保留复杂样本的 `ubuntu-matrix` 后，上一轮 9 项原生兼容性脚本全部通过，原先失败的序列帧结果预览已返回 206、96×64 画面并完成播放；浅/深色平台提示检查继续通过。

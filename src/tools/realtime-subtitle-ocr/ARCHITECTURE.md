@@ -8,7 +8,7 @@
 
 ## 平台能力
 
-屏幕截取依赖 Windows 的原生命令。工作区通过 `getNativeDesktopCapabilities()` 显示支持范围，Linux/macOS 禁用监控框与采集操作，并跳过屏幕工作区的 OCR 预热；打开监控框和启动采集也在业务入口校验能力。本地视频工作区继续可访问，识别使用所配置引擎的能力。
+屏幕截取依赖 Windows 的原生命令。工作区通过 `getNativeDesktopCapabilities()` 显示支持范围，Linux/macOS 禁用监控框与采集操作，并跳过屏幕工作区的 OCR 预热；打开监控框和启动采集也在业务入口校验能力。本地视频工作区继续可访问，识别使用所配置引擎的能力。视频监视器通过 `useMediaSource` 在 Linux 使用按文件授权的 HTTP 流，支持进度跳转与 ROI 截帧；源切换和卸载时释放媒体授权，见[本地音视频播放架构](../../../docs/architecture/local-media-playback.md)。
 
 ## 1. 核心概念与定位
 

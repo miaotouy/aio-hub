@@ -44,7 +44,7 @@
           crossorigin="anonymous"
           playsinline
           preload="auto"
-          :src="src"
+          :src="playbackSrc"
           :poster="poster"
           :loop="isLoop"
           :muted="isMuted"
@@ -364,6 +364,7 @@ import {
   Expand,
   Shrink,
 } from "lucide-vue-next";
+import { useMediaSource } from "@/composables/useMediaSource";
 import { customMessage } from "@/utils/customMessage";
 
 const emit = defineEmits<{
@@ -389,6 +390,10 @@ const props = withDefaults(
     muted: false,
     globalHotkey: false,
   }
+);
+
+const { src: playbackSrc, error: sourceError } = useMediaSource(
+  () => props.src
 );
 
 // 引用
@@ -585,6 +590,17 @@ function handleEnded() {
   isPlaying.value = false;
   isControlsVisible.value = true;
 }
+
+watch(playbackSrc, () => {
+  error.value = false;
+  isLoading.value = Boolean(props.src);
+  currentTime.value = 0;
+  duration.value = 0;
+  bufferedPercentage.value = 0;
+});
+watch(sourceError, (cause) => {
+  if (cause) handleError();
+});
 
 function handleError() {
   isLoading.value = false;
@@ -938,6 +954,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  videoRef.value?.pause();
+  videoRef.value?.removeAttribute("src");
+  videoRef.value?.load();
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
   if (props.globalHotkey) {
     document.removeEventListener("keydown", handleKeydown);

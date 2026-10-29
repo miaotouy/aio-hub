@@ -113,6 +113,15 @@ try {
 
 ## 本地媒体专项补查
 
-2026-10-29 的 Windows 内容兼容性专项发现，Linux 的点目录资源授权和 WebKitGTK 媒体装载需分开验证。点目录 `asset://` 的 403 已通过显式点目录匹配策略修复；FFmpeg 转码与序列帧合成通过，内置视频预览仍需继续处理媒体协议链路。详见 [专项记录](../Plan/ubuntu-windows-compatibility-20261029.md)。
+2026-10-29 的 Windows 内容兼容性专项发现，Linux 的点目录资源授权和 WebKitGTK 媒体装载需分开验证。点目录 `asset://` 的 403 已通过显式点目录匹配策略修复；FFmpeg 转码与序列帧合成通过，后续已补齐页面媒体 CSP，并接入按文件授权的 HTTP 流式读取。通用视频/音频播放、跳转与截图的实机结果见专项补查记录。详见 [专项记录](../Plan/ubuntu-windows-compatibility-20261029.md)。
 
 本机缺少 `h264parse` 所在的 `gstreamer1.0-plugins-bad`。本轮从 Ubuntu 官方包提取解析插件到用户缓存，通过测试实例的 `GST_PLUGIN_PATH_1_0` 完成 CLI 解码对照。后续部署可通过系统包管理器安装该组件；WebView 的播放验收还需覆盖实际资源协议和读取行为。
+
+
+本地播放的入口、授权生命周期、范围读取及 Linux 打包依赖见[本地音视频播放架构](../architecture/local-media-playback.md)。首轮使用用户缓存内的解析插件，最终样例在撤销该环境注入后仍可播放；Debian 系统依赖与 AppImage 媒体框架配置已补齐，安装包部署验证另行进行。
+
+本机 Node 22 安装于 `$HOME/.local/bin`，运行检查和构建时统一使用：
+
+```bash
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+```

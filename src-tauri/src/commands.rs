@@ -38,6 +38,8 @@ pub mod llm_inspector;
 pub mod llm_proxy;
 pub mod llmchat_search;
 pub mod media_generator_search;
+#[cfg(target_os = "linux")]
+pub mod media_stream;
 pub mod native_plugin;
 pub mod ocr;
 pub mod sidecar_plugin;
@@ -96,6 +98,10 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        #[cfg(target_os = "linux")]
+        crate::commands::media_stream::acquire_media_stream,
+        #[cfg(target_os = "linux")]
+        crate::commands::media_stream::release_media_stream,
         crate::commands::dev_control::dev_control_identity,
         background_runtime_ready,
         background_runtime_heartbeat,

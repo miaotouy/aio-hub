@@ -166,6 +166,7 @@
 </template>
 
 <script setup lang="ts">
+import { resolveMediaSource, type MediaSourceLease } from "@/utils/mediaSource";
 import { ref, computed, onBeforeUnmount } from "vue";
 import type { PresetAttachmentRef } from "@/tools/llm-chat/types";
 import type { AgentAsset } from "../../types/agent";
@@ -340,33 +341,47 @@ function handlePreviewVideo(assetId: string) {
 // 音频预览状态
 const playingAudioId = ref<string | null>(null);
 let currentAudioEl: HTMLAudioElement | null = null;
+let currentAudioLease: MediaSourceLease | undefined;
+let audioRequest = 0;
 
 /** 点击音频试听按钮 */
-function handlePreviewAudio(assetId: string) {
-  // 如果正在播放同一个，停止
+async function handlePreviewAudio(assetId: string) {
   if (playingAudioId.value === assetId) {
     stopAudio();
     return;
   }
-  // 停止之前的
   stopAudio();
-
   const url = getAssetResolvedUrl(assetId);
   if (!url) return;
-
-  currentAudioEl = new Audio(url);
-  currentAudioEl.volume = 0.5;
-  currentAudioEl.addEventListener("ended", stopAudio);
-  currentAudioEl.addEventListener("error", stopAudio);
-  currentAudioEl.play();
+  const request = audioRequest;
   playingAudioId.value = assetId;
+  try {
+    const lease = await resolveMediaSource(url);
+    if (request !== audioRequest) {
+      await lease.release();
+      return;
+    }
+    currentAudioLease = lease;
+    currentAudioEl = new Audio(lease.url);
+    currentAudioEl.volume = 0.5;
+    currentAudioEl.addEventListener("ended", stopAudio);
+    currentAudioEl.addEventListener("error", stopAudio);
+    await currentAudioEl.play();
+  } catch {
+    if (request === audioRequest) stopAudio();
+  }
 }
 
 function stopAudio() {
+  audioRequest++;
+  void currentAudioLease?.release();
+  currentAudioLease = undefined;
   if (currentAudioEl) {
     currentAudioEl.pause();
     currentAudioEl.removeEventListener("ended", stopAudio);
     currentAudioEl.removeEventListener("error", stopAudio);
+    currentAudioEl.removeAttribute("src");
+    currentAudioEl.load();
     currentAudioEl = null;
   }
   playingAudioId.value = null;

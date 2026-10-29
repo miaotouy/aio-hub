@@ -17,7 +17,7 @@
 
 [`DanmakuPlayer.vue`](DanmakuPlayer.vue) 负责模式切换、文件拖放和解析：
 
-- 视频文件通过 `convertFileSrc()` 转为 Tauri 可访问 URL，仅用于内置播放器。
+- 视频文件通过 `convertFileSrc()` 转为 Tauri 可访问 URL，仅用于内置播放器；通用播放器通过 `useMediaSource` 为 Linux 本地资源申请 HTTP 流式读取地址，生命周期与协议见[本地音视频播放架构](../../../docs/architecture/local-media-playback.md)。
 - 弹幕文件通过 `readFile()` 读取二进制，再用 `smartDecode()` 解码后交给 [`parseDanmaku`](core/danmakuParser.ts)。
 - 字幕文件同样走 `smartDecode()`，图形字幕先在入口拦截，文本字幕交给 [`parseSubtitle`](core/subtitleParser.ts)。
 - 弹幕显示配置由 [`useDanmakuConfig`](composables/useDanmakuConfig.ts) 统一管理，并在内置模式和外部覆盖模式复用。

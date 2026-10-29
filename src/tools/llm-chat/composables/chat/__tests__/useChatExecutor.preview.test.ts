@@ -78,6 +78,9 @@ vi.mock("@/tools/st-worldbook-manager/stores/worldbookStore", () => ({
 vi.mock("@/tools/token-calculator/token-calculator.registry", () => ({
   tokenCalculatorService: {
     calculateMessageTokens: async () => ({ count: 17 }),
+    createScope: () => ({
+      calculateMessageTokens: async () => ({ count: 17 }),
+    }),
   },
 }));
 vi.mock("../../../core/context-utils/preview-builder", () => ({

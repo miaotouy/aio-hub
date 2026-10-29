@@ -91,6 +91,18 @@ src/tools/llm-chat/utils/
   - 读取源窗口 DPR，并累乘截图根节点之外的祖先 CSS `zoom`；在 foreignObject 内增加同倍率的 CSS zoom 容器，同时放大 SVG `viewBox`。根节点自身的 zoom 由截图库复制；预览的 CSS transform 缩放与输出清晰度 `scale` 独立处理。
   - 补偿保留逻辑输出尺寸、字号和内容原有的换行约束。富文本测试页的“截图排版对照”预设覆盖紧边界胶囊、Action Button、自然换行的 flex 段落与圆角容器，可用于核对截图与页面的排版。
 
+### 内嵌 iframe 的视口边界
+
+`modern-screenshot` 会把同源 iframe 的文档展开成克隆 HTML。消息截图在克隆布局保护完成后调用 `isolateScreenshotIframeDocuments`，为每个内嵌文档补充 `contain: layout paint` 与 `overflow: hidden`，使 Canvas 快照、fixed 工具栏与底部控制区保留各自 frame 的坐标和裁剪范围。修正作用于离屏克隆树，运行中的 iframe 保持原样；嵌套 frame 分别建立边界。
+
+原生回归入口：
+
+```powershell
+bun run rich-text:screenshot:tauri -- --binary src-tauri/target/release/aiohub.exe
+```
+
+该入口使用独立数据目录，通过 CDP 在真实 WebView2 内加载当前截图工具，读取最终 PNG 中的 fixed 锚点像素，覆盖多个 frame、嵌套 frame、边框以及 100% / 60% 祖先预览缩放。运行需要支持 CDP 的 debug 或 `perf-instrumentation` 原生构建，结果保存在 `.tmp/rich-text-iframe-screenshot/`。
+
 ### 3.2. 并发截图与拼接算法 (captureMessagesAndStitch)
 
 1. **宽度解析与对齐**：

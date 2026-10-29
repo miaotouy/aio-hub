@@ -75,13 +75,13 @@
         </el-tooltip>
       </div>
     </div>
-    <div v-show="!isCollapsed" class="llm-think-content">
+    <div v-if="bodyInitialized" v-show="!isCollapsed" class="llm-think-content">
       <!-- 原始文本视图 -->
       <pre v-if="showRaw" class="raw-content">{{ props.rawContent }}</pre>
       <!-- 渲染内容视图 -->
       <div v-else class="rendered-content">
         <!-- 使用默认插槽渲染内部 AST，由 AstNodeRenderer 递归提供 -->
-        <slot />
+        <slot :content="bodyContent" :expanded="!isCollapsed" />
       </div>
     </div>
   </div>
@@ -129,6 +129,18 @@ const props = withDefaults(defineProps<Props>(), {
 const viewState = useRendererNodeState(() => props.nodeId, "think");
 const isCollapsed = viewState.ref("isCollapsed", props.collapsedByDefault);
 const showRaw = viewState.ref("showRaw", false);
+// Keep an opened subtree for local viewer state; hidden reasoning stays at its last read snapshot.
+const bodyInitialized = ref(false);
+const bodyContent = ref("");
+watch(
+  [() => props.rawContent, isCollapsed],
+  ([content, collapsed]) => {
+    if (collapsed) return;
+    bodyInitialized.value = true;
+    bodyContent.value = content ?? "";
+  },
+  { immediate: true, flush: "sync" }
+);
 const copied = ref(false);
 const isThinking = computed(() => props.isThinking);
 

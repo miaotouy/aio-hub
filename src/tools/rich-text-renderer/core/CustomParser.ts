@@ -25,7 +25,7 @@
  */
 
 import type { AstNode, LlmThinkRule } from "../types";
-import { isEqual } from "lodash-es";
+import { tokenEquals } from "../parser/tokenEquality";
 import { Tokenizer } from "../parser/Tokenizer";
 import { tokenizerService } from "../parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "../parser/types";
@@ -39,7 +39,11 @@ import { isTableStart, BLOCK_LEVEL_TAGS } from "../parser/utils/block-utils";
 import { parseCodeBlock } from "../parser/block/parseCodeBlock";
 import { parseHeading } from "../parser/block/parseHeading";
 import { parseBlockquote } from "../parser/block/parseBlockquote";
-import { parseList } from "../parser/block/parseList";
+import {
+  parseList,
+  type ListItemCache,
+  type ListItemSnapshot,
+} from "../parser/block/parseList";
 import { parseTable } from "../parser/block/parseTable";
 import { parseHtmlBlock, parseLlmThinkBlock } from "../parser/block/parseHtml";
 import { parseParagraph } from "../parser/block/parseParagraph";
@@ -58,6 +62,7 @@ interface PendingBlock {
   to: number;
   readTo: number;
   node: AstNode;
+  listItems?: ListItemSnapshot[];
 }
 
 // ============ 解析器 ============
@@ -183,7 +188,10 @@ export class CustomParser implements ParserContext {
         : null;
     if (cache) {
       const length = Math.min(cache.tokens.length, tokens.length);
-      while (common < length && isEqual(cache.tokens[common], tokens[common]))
+      while (
+        common < length &&
+        tokenEquals(cache.tokens[common], tokens[common])
+      )
         common++;
     }
     const reused: PendingBlock[] = [];
@@ -197,10 +205,17 @@ export class CustomParser implements ParserContext {
     const from = reused.length ? reused[reused.length - 1].to : 0;
     const tailBlocks: PendingBlock[] = [];
     const tail = optimizeBadgeLineBreaks(
-      this.parseBlockRange(tokens, from, tailBlocks)
+      this.parseBlockRange(tokens, from, tailBlocks, cache?.blocks, common)
     );
-    for (let index = 0; index < tail.length; index++)
-      tailBlocks[index].node = tail[index];
+    for (let index = 0; index < tail.length; index++) {
+      const block = tailBlocks[index];
+      block.node = tail[index];
+      // Retain the final badge-normalized subtree, without mutating older snapshots.
+      block.listItems?.forEach((item, itemIndex, items) => {
+        const node = block.node.children![itemIndex];
+        if (item.node !== node) items[itemIndex] = { ...item, node };
+      });
+    }
     const blocks = [...reused, ...tailBlocks];
     // Reset/destroy or a newer parse owns the cache after an asynchronous tokenization.
     if (epoch === this.parseEpoch)
@@ -236,11 +251,24 @@ export class CustomParser implements ParserContext {
   private parseBlockRange(
     tokens: Token[],
     from: number,
-    spans?: PendingBlock[]
+    spans?: PendingBlock[],
+    previous?: PendingBlock[],
+    common = 0
   ): AstNode[] {
     const blocks: AstNode[] = [];
+    const previousLists = previous
+      ? new Map(
+          previous
+            .filter((block) => block.listItems)
+            .map((block) => [block.from, block.listItems])
+        )
+      : undefined;
     let index = from;
     while (index < tokens.length) {
+      const listCache: ListItemCache | undefined =
+        spans && tokens[index].type === "list_marker"
+          ? { previous: previousLists?.get(index), common, current: [] }
+          : undefined;
       let readTo = 0;
       const { node, nextIndex } = this.parseBlock(
         tokens,
@@ -249,7 +277,8 @@ export class CustomParser implements ParserContext {
           ? (end) => {
               readTo = Math.max(readTo, end);
             }
-          : undefined
+          : undefined,
+        listCache
       );
       if (node) {
         blocks.push(node);
@@ -258,6 +287,7 @@ export class CustomParser implements ParserContext {
           to: nextIndex,
           readTo: Math.max(nextIndex + 1, readTo),
           node,
+          ...(listCache ? { listItems: listCache.current } : {}),
         });
       }
       index = nextIndex;
@@ -268,7 +298,8 @@ export class CustomParser implements ParserContext {
   private parseBlock(
     tokens: Token[],
     start: number,
-    onLookahead?: (end: number) => void
+    onLookahead?: (end: number) => void,
+    listCache?: ListItemCache
   ): ParsedBlock {
     const token = tokens[start];
     if (
@@ -295,7 +326,8 @@ export class CustomParser implements ParserContext {
       return parseHeading(this, tokens, start);
     if (token.type === "blockquote_marker")
       return parseBlockquote(this, tokens, start);
-    if (token.type === "list_marker") return parseList(this, tokens, start);
+    if (token.type === "list_marker")
+      return parseList(this, tokens, start, listCache);
     if (isTableStart(tokens, start, onLookahead))
       return parseTable(this, tokens, start);
     if (

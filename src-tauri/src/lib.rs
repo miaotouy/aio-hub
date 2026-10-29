@@ -261,6 +261,10 @@ pub fn run() {
                 use tauri_plugin_fs::FsExt;
                 let _ = app.fs_scope().allow_directory(&app_data_dir, true);
                 log::info!("[SCOPE] 已允许访问数据目录 (fs): {:?}", app_data_dir);
+                // Asset requests have a separate scope; isolated data roots may contain dot directories.
+                app.asset_protocol_scope()
+                    .allow_directory(&app_data_dir, true)?;
+                log::info!("[SCOPE] 已允许访问数据目录 (asset): {:?}", app_data_dir);
             }
 
             // Recall repository 和内存读模型属于应用后端生命周期，不依赖任何前端页面挂载。
@@ -368,7 +372,7 @@ pub fn run() {
                 win_builder = win_builder.decorations(false).transparent(true);
             }
 
-            let main_window = win_builder.build()?;
+            let main_window = commands::dev_control::configure_webview(win_builder).build()?;
 
             #[cfg(desktop)]
             if let Err(error) = commands::background_runtime::create_background_runtime_window(app.app_handle()) {

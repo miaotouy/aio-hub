@@ -44,6 +44,11 @@ pub fn dev_control_identity(window: tauri::WebviewWindow) -> Option<DevControlId
 pub fn configure_webview<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
     builder: tauri::WebviewWindowBuilder<'a, R, M>,
 ) -> tauri::WebviewWindowBuilder<'a, R, M> {
+    #[cfg(debug_assertions)]
+    let builder = if std::env::var("AIO_DEV_CONTROL").as_deref() == Ok("1") {
+        builder.initialization_script(include_str!("dev_control_init.js"))
+    } else { builder };
+
     #[cfg(all(debug_assertions, target_os = "windows"))]
     {
         if std::env::var("AIO_DEV_CONTROL").as_deref() == Ok("1") {

@@ -6,6 +6,7 @@ import type { ChatAgent, ChatSessionDetail } from "../../../types";
 
 const mocks = vi.hoisted(() => ({
   sendRequest: vi.fn(),
+  syncState: vi.fn(),
   parseToolRequests: vi.fn(),
   processCycle: vi.fn(),
   settings: {
@@ -78,7 +79,7 @@ vi.mock("../../session/useSessionManager", () => ({
   useSessionManager: () => ({ persistSession: vi.fn() }),
 }));
 vi.mock("@/composables/useWindowSyncBus", () => ({
-  useWindowSyncBus: () => ({ syncState: vi.fn() }),
+  useWindowSyncBus: () => ({ syncState: mocks.syncState }),
 }));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
@@ -200,6 +201,73 @@ describe("live reasoning activity", () => {
     mocks.settings.value.uiPreferences.splitVcpResponses = false;
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+
+  // Tool cards read node.content directly, so received results must be visible
+  // before the persistence timer or the next assistant response advances.
+  it("shows long upstream tool results immediately and appends each delta once", async () => {
+    const first = useNodeManager().createNode({
+      role: "assistant",
+      content: "",
+      parentId: null,
+      status: "waiting",
+    });
+    const session = reactive<ChatSessionDetail>({
+      id: "session",
+      nodes: { [first.id]: first },
+      rootNodeId: first.id,
+      activeLeafId: first.id,
+      updatedAt: new Date().toISOString(),
+      history: [],
+      historyIndex: -1,
+    });
+    const result = "Search result\n".repeat(10_000);
+    const summary =
+      "[本轮工具调用摘要:]Search 调用成功。[本轮工具调用摘要结束]";
+    let toolNodeId = "";
+    mocks.sendRequest.mockImplementation(async (options: LlmRequestOptions) => {
+      options.onResponseChunk?.({ content: "Searching" });
+      options.onResponseChunk?.({
+        responseId: "chatcmpl-vcp-1",
+        content: result,
+      });
+      toolNodeId = session.activeLeafId;
+      const tool = session.nodes[toolNodeId];
+      const visibleContent = computed(() => tool.content);
+      expect(tool.role).toBe("tool");
+      expect(visibleContent.value).toBe(result);
+
+      options.onResponseChunk?.({
+        responseId: "chatcmpl-vcp-summary-2",
+        content: summary,
+      });
+      expect(visibleContent.value).toBe(result + summary);
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(visibleContent.value).toBe(result + summary);
+      options.onResponseChunk?.({ content: "Answer" });
+      expect(tool.status).toBe("complete");
+      expect(visibleContent.value).toBe(result + summary);
+      return {
+        content: "Searching" + result + summary + "Answer",
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      };
+    });
+    try {
+      await useSingleNodeExecutor().execute({
+        session,
+        assistantNode: first,
+        currentPathToUserNode: [],
+        splitVcpResponses: true,
+        agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+        executionAgent: { id: "agent" } as ChatAgent,
+        effectiveUserProfile: null,
+        abortController: new AbortController(),
+      });
+      expect(session.nodes[toolNodeId].content).toBe(result + summary);
+    } finally {
+      for (const id of Object.keys(session.nodes))
+        disposeStreamingMessageSource(id);
+    }
   });
 
   it("stops and resumes visible reasoning timing in each VCP response", async () => {
@@ -429,4 +497,73 @@ describe("tool result local media", () => {
         disposeStreamingMessageSource(id);
     }
   });
+});
+
+// Stream events must use the bus data envelope and absolute ranges across buffered persistence.
+it("sends replay-safe body and reasoning ranges through the state envelope", async () => {
+  vi.useFakeTimers();
+  vi.clearAllMocks();
+  const n = {
+    ...useNodeManager().createNode({
+      role: "assistant",
+      content: "prefix",
+      parentId: null,
+      status: "generating",
+    }),
+    id: "sync-ranges",
+    metadata: { requestStartTime: 10 },
+  };
+  const session: ChatSessionDetail = {
+    id: "range-session",
+    nodes: { [n.id]: n },
+    rootNodeId: n.id,
+    activeLeafId: n.id,
+    updatedAt: "",
+    history: [],
+    historyIndex: -1,
+  };
+  try {
+    const handler = useChatResponseHandler();
+    handler.handleStreamUpdate(session, n.id, "one");
+    await vi.advanceTimersByTimeAsync(20);
+    handler.handleStreamUpdate(session, n.id, "two");
+    await vi.advanceTimersByTimeAsync(20);
+    handler.handleStreamUpdate(session, n.id, "think", true);
+    // A body transition before the reasoning frame must still transmit that reasoning.
+    handler.handleStreamUpdate(session, n.id, "tail");
+    await vi.advanceTimersByTimeAsync(20);
+    expect(
+      mocks.syncState.mock.calls.map(([key, data, version, isFull]) => ({
+        key,
+        data,
+        version,
+        isFull,
+      }))
+    ).toMatchObject([
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "one", offset: 6, requestStartTime: 10 },
+        isFull: true,
+      },
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "two", offset: 9, requestStartTime: 10 },
+        isFull: true,
+      },
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "think", offset: 0, isReasoning: true },
+        isFull: true,
+      },
+      {
+        key: "chat:streaming-delta",
+        data: { delta: "tail", offset: 12 },
+        isFull: true,
+      },
+    ]);
+  } finally {
+    disposeStreamingMessageSource(n.id);
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  }
 });

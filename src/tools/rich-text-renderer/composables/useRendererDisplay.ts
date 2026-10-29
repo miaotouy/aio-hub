@@ -78,6 +78,10 @@ export function provideRendererReadingInteraction(
   return state;
 }
 
+export function useRendererReadingInteraction() {
+  return inject(interactionKey, undefined);
+}
+
 const EMBEDDED_STATE =
   'iframe, video, audio, .video-node-container, .audio-node-container, input, textarea, select, [contenteditable="true"]:not(.cm-content), details:not(.details-node), canvas, object, embed';
 const RECYCLE_DELAY = 300;
@@ -90,6 +94,7 @@ export function useRendererDisplay(options: {
   live: () => boolean;
   revision: () => unknown;
   held: Readonly<Ref<boolean>>;
+  pending?: Readonly<Ref<boolean>>;
 }) {
   const nearby = inject(rendererReadingScopeKey, undefined);
   const layoutRevision = inject(rendererLayoutRevisionKey, undefined);
@@ -130,6 +135,7 @@ export function useRendererDisplay(options: {
       options.hostActive.value &&
       !options.live() &&
       !options.held.value &&
+      !options.pending?.value &&
       !protectedReading.value
   );
   const embedded = () => !!options.root.value?.querySelector(EMBEDDED_STATE);
@@ -175,6 +181,7 @@ export function useRendererDisplay(options: {
     }
     if (
       active.value &&
+      !options.pending?.value &&
       options.hostActive.value &&
       entry.contentRect.height > 0 &&
       entry.contentRect.width > 0
@@ -215,6 +222,17 @@ export function useRendererDisplay(options: {
     ],
     invalidate,
     { deep: true }
+  );
+  watch(
+    () => options.pending?.value,
+    (pending) => {
+      const element = options.root.value;
+      if (!pending && element && options.hostActive.value) {
+        observer.unobserve(element);
+        observer.observe(element);
+      }
+    },
+    { flush: "post" }
   );
   watch(eligible, schedule, { immediate: true, flush: "post" });
   watch(

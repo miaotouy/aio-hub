@@ -1,6 +1,8 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 // SPDX-License-Identifier: Apache-2.0
 
+import type { AstNode } from "../types";
+
 import {
   computed,
   inject,
@@ -29,6 +31,7 @@ export const rendererDetailsCopyKey: InjectionKey<Readonly<Ref<boolean>>> =
 interface RendererViewState {
   active: Readonly<Ref<boolean>>;
   nodes: Map<string, Map<string, unknown>>;
+  suspended: Set<string>;
 }
 const viewStateKey: InjectionKey<RendererViewState> = Symbol(
   "renderer-view-state"
@@ -37,8 +40,37 @@ const viewStateKey: InjectionKey<RendererViewState> = Symbol(
 /** The renderer owns small view snapshots, never component instances, DOM or EditorState. */
 export function provideRendererViewState(active: Readonly<Ref<boolean>>) {
   const nodes: RendererViewState["nodes"] = new Map();
-  provide(viewStateKey, { active, nodes });
-  return { clear: () => nodes.clear() };
+  const suspended = new Set<string>();
+  provide(viewStateKey, { active, nodes, suspended });
+  const ids = (node: AstNode, result: Set<string> = new Set()): Set<string> => {
+    result.add(node.id);
+    node.children?.forEach((child) => ids(child, result));
+    return result;
+  };
+  return {
+    clear: () => {
+      nodes.clear();
+      suspended.clear();
+    },
+    setSubtreeSuspended(node: AstNode, value: boolean) {
+      for (const id of ids(node)) {
+        if (value) suspended.add(id);
+        else suspended.delete(id);
+      }
+    },
+    forgetSubtree(node: AstNode) {
+      const removed = ids(node);
+      for (const key of nodes.keys())
+        if (removed.has(key.split("\0")[0])) nodes.delete(key);
+    },
+    prune(root: AstNode[]) {
+      const current = new Set<string>();
+      root.forEach((node) => ids(node, current));
+      for (const key of nodes.keys())
+        if (!current.has(key.split("\0")[0])) nodes.delete(key);
+      for (const id of suspended) if (!current.has(id)) suspended.delete(id);
+    },
+  };
 }
 
 /** AST ids stay stable while the owning renderer retains its parser. Consume snapshots on remount. */
@@ -53,7 +85,8 @@ export function useRendererNodeState(
   if (key) owner?.nodes.delete(key);
   const fields = new Map<string, Ref<unknown>>();
   onUnmounted(() => {
-    if (!owner || owner.active.value || !key) return;
+    if (!owner || !key || (owner.active.value && !owner.suspended.has(id!)))
+      return;
     owner.nodes.set(
       key,
       new Map([...fields].map(([name, value]) => [name, value.value]))

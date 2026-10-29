@@ -162,7 +162,10 @@ export function createChatSyncConfig<K extends LlmChatStateKey>(stateKey: K) {
     autoPush: true,
     autoReceive: true,
     // 聊天偏好使用完整快照，保证新窗口初始同步后，布局数组的增删与排序一致。
-    enableDelta: !isLargeArray && stateKey !== CHAT_STATE_KEYS.SETTINGS,
+    enableDelta:
+      !isLargeArray &&
+      stateKey !== CHAT_STATE_KEYS.SETTINGS &&
+      stateKey !== CHAT_STATE_KEYS.CURRENT_SESSION_DATA,
     deltaThreshold: 0.5,
     debounce: 100,
     requestOnMount: true, // 分离窗口启动时自动请求初始状态

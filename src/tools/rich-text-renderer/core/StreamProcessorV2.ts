@@ -49,6 +49,7 @@ class MarkdownBoundaryDetector {
     text: string;
     completeLength: number;
     completeLineCount: number;
+    lines: string[];
     fenceBeforeSuffix: CodeFence | null;
     states: boolean[];
   } | null = null;
@@ -133,15 +134,17 @@ class MarkdownBoundaryDetector {
   }
 
   // Recheck the last two lines: full-content streaming may add a temporary final newline.
-  private scanCodeFenceStates(text: string, lines: string[]): boolean[] {
+  private scanCodeFenceStates(
+    text: string,
+    lines: string[],
+    prefixMatches: boolean
+  ): boolean[] {
     const cache = this.fenceCache;
     const completeLineCount = Math.max(0, lines.length - 2);
-    // Bounded equality avoids the long-prefix startsWith cost measured in WebView2.
     const reusesPrefix =
       cache !== null &&
-      cache.completeLineCount <= completeLineCount &&
-      text.slice(0, cache.completeLength) ===
-        cache.text.slice(0, cache.completeLength);
+      prefixMatches &&
+      cache.completeLineCount <= completeLineCount;
     const states = reusesPrefix ? cache.states : [];
     const start = reusesPrefix ? cache.completeLineCount : 0;
     states.length = start;
@@ -164,6 +167,7 @@ class MarkdownBoundaryDetector {
       completeLength:
         lastNewline > 0 ? text.lastIndexOf("\n", lastNewline - 1) + 1 : 0,
       completeLineCount,
+      lines,
       fenceBeforeSuffix,
       states,
     };
@@ -502,8 +506,31 @@ class MarkdownBoundaryDetector {
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
-    const fullLines = text.split("\n");
-    const fenceStates = this.scanCodeFenceStates(text, fullLines);
+    const cache = this.fenceCache;
+    // Keep the last two lines live: callers can replace a temporary trailing newline.
+    const prefixMatches =
+      cache !== null &&
+      text.slice(0, cache.completeLength) ===
+        cache.text.slice(0, cache.completeLength);
+    let fullLines: string[];
+    if (
+      prefixMatches &&
+      cache.completeLineCount > 0 &&
+      text.length >= 8 * 1024
+    ) {
+      // Detach the small tail before retaining its lines; a sliced line could pin an old full buffer.
+      const tail = text.slice(cache.completeLength).split("").join("");
+      fullLines = cache.lines
+        .slice(0, cache.completeLineCount)
+        .concat(tail.split("\n"));
+    } else {
+      fullLines = text.split("\n");
+    }
+    const fenceStates = this.scanCodeFenceStates(
+      text,
+      fullLines,
+      prefixMatches
+    );
     const safeLen = this.getSafeCutPoint(
       text,
       fenceStates[fenceStates.length - 1]
@@ -512,7 +539,9 @@ class MarkdownBoundaryDetector {
 
     // References can resolve across paragraphs; loose-list continuation belongs to the same tree.
     // Keep document context for these inputs while retaining the usual stable/pending fast path elsewhere.
-    const hasReferences = /^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:/m.test(safeText);
+    const hasReferences =
+      safeText.includes("]:") &&
+      /^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:/m.test(safeText);
     const hasLooseList =
       /^[ \t]*(?:[*+-]|\d+\.)[ \t]/m.test(safeText) &&
       /\n[ \t]*\n/.test(safeText);
@@ -551,6 +580,7 @@ class MarkdownBoundaryDetector {
 
 export class StreamProcessorV2 {
   private parser: CustomParser;
+  private stableParser: CustomParser;
   private onPatch: (patches: Patch[]) => void;
   private boundaryDetector: MarkdownBoundaryDetector;
   private llmThinkRules: LlmThinkRule[];
@@ -580,6 +610,12 @@ export class StreamProcessorV2 {
 
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
     this.parser = new CustomParser(
+      llmThinkTagNames,
+      this.llmThinkRules,
+      options.defaultToolCallCollapsed,
+      options.vcpFuzzyModeEnabled
+    );
+    this.stableParser = new CustomParser(
       llmThinkTagNames,
       this.llmThinkRules,
       options.defaultToolCallCollapsed,
@@ -689,6 +725,7 @@ export class StreamProcessorV2 {
       // 将整个内容作为最终内容解析
       this.boundaryDetector.reset();
       this.parser.reset();
+      this.stableParser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
 
       if (this.isDestroyed) return;
@@ -784,8 +821,8 @@ export class StreamProcessorV2 {
         } else {
           // 稳定区文本发生变化，重新解析
           const stableParseStart = performance.now();
-          this.parser.reset();
-          newStableAst = await this.parser.parseAsync(stableText);
+          // Keep stable and pending snapshots independent; each parser validates full token dependencies.
+          newStableAst = await this.stableParser.parsePendingAsync(stableText);
           if (this.isDestroyed) break;
           this.lastStableText = stableText;
 
@@ -898,6 +935,7 @@ export class StreamProcessorV2 {
       this.isProcessing = true;
       // 将整个 buffer 作为最终内容重新解析
       this.boundaryDetector.reset();
+      this.stableParser.reset();
       const finalAst = await this.parser.parseCompleteAsync(this.buffer);
 
       if (this.isDestroyed) return;
@@ -1246,6 +1284,7 @@ export class StreamProcessorV2 {
     this.isDegraded = false;
     this.boundaryDetector.reset();
     this.parser.reset();
+    this.stableParser.reset();
   }
 
   /**
@@ -1259,5 +1298,6 @@ export class StreamProcessorV2 {
     this.pendingAst = [];
     this.boundaryDetector.reset();
     this.parser.reset();
+    this.stableParser.reset();
   }
 }

@@ -214,6 +214,8 @@ describe("streamed Markdown context", () => {
     const prefix = "- item\n\n[visible][ref]\n\n";
     try {
       for (const definition of [
+        "[ref]",
+        "[ref]:",
         "[ref]: /first",
         "[ref]: /other",
         "",
@@ -727,4 +729,59 @@ describe("streamed Markdown context", () => {
       }
     }
   );
+});
+
+// A reused processor must render the same live document as a fresh one after edits,
+// including callers that add and later replace a temporary trailing newline.
+it("keeps live rendering current across trailing-newline replacement, truncation and earlier edits", async () => {
+  const state = useMarkdownAst({ throttleEnabled: false });
+  const reused = new StreamProcessorV2({
+    onPatch: (patches) => state.enqueuePatch(patches),
+    safetyGuardEnabled: false,
+  });
+  const head = Array.from(
+    { length: 24 },
+    (_, index) => `stable ${index} ${"text ".repeat(70)}\n\n`
+  ).join("");
+  const snapshots = [
+    "# first\n\nintro\n\n~~~js\nvalue\n",
+    "# first\n\nintro\n\n~~~js\nvalue continued\n",
+    "# first\n\nintro\n\n~~~js\nvalue continued\n~~~\n\nlast\n",
+    "# first\n\nintro\n\n~~~js\nvalue continued\n~~~\n\nlast line\n",
+    "# first\n",
+    "# edited\n\nintro\n\nlast\n",
+    "# edited\n\nintro\n\nlast\n\n[key]: /url 'title'\n\n[key]\n",
+    "",
+    "new\n\nleft | right\n--- | ---\nrow | cell\n\nend\n",
+  ].map((input) => (input ? head + input : input));
+  const flush = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  try {
+    for (const input of snapshots) {
+      const freshState = useMarkdownAst({ throttleEnabled: false });
+      const fresh = new StreamProcessorV2({
+        onPatch: (patches) => freshState.enqueuePatch(patches),
+        safetyGuardEnabled: false,
+      });
+      try {
+        await reused.setContent(input);
+        await fresh.setContent(input);
+        await flush();
+        expect(normalizeAst(state.ast.value), JSON.stringify(input)).toEqual(
+          normalizeAst(freshState.ast.value)
+        );
+      } finally {
+        fresh.destroy();
+        freshState.dispose();
+      }
+    }
+    await reused.finalize();
+    await flush();
+    expect(normalizeAst(state.ast.value)).toEqual(
+      normalizeAst(new CustomParser().parse(snapshots[snapshots.length - 1]))
+    );
+  } finally {
+    reused.destroy();
+    state.dispose();
+  }
 });

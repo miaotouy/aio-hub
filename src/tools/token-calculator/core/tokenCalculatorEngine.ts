@@ -92,6 +92,12 @@ export class TokenCalculatorEngine {
   /** profileId → 已实例化的 tokenizer */
   private tokenizerCache = new Map<string, PreTrainedTokenizer>();
 
+  private loadingTokenizers = new Map<
+    string,
+    Promise<PreTrainedTokenizer | null>
+  >();
+  private cacheGeneration = 0;
+
   /** profileId → profile */
   private profiles = new Map<string, TokenizerProfile>();
 
@@ -116,7 +122,7 @@ export class TokenCalculatorEngine {
   }): void {
     this.profiles = new Map(snapshot.profiles.map((p) => [p.id, p]));
     this.rules = snapshot.rules.slice();
-    this.tokenizerCache.clear();
+    this.clearCache();
   }
 
   /**
@@ -124,6 +130,7 @@ export class TokenCalculatorEngine {
    */
   setProfileDataFetcher(fetcher: ProfileDataFetcher | null): void {
     this.profileDataFetcher = fetcher;
+    this.clearCache();
   }
 
   /**
@@ -209,37 +216,47 @@ export class TokenCalculatorEngine {
     const cached = this.tokenizerCache.get(profile.id);
     if (cached) return cached;
 
-    try {
-      let tokenizer: PreTrainedTokenizer | null = null;
-
-      if (!this.profileDataFetcher) {
-        console.warn(
-          `[TokenCalculator] profile "${profile.id}" 来源为 ${profile.source.type}，但未注入 profileDataFetcher`
+    const loading = this.loadingTokenizers.get(profile.id);
+    if (loading) return loading;
+    const generation = this.cacheGeneration;
+    const fetcher = this.profileDataFetcher;
+    const pending = (async () => {
+      try {
+        if (!fetcher) {
+          console.warn(
+            `[TokenCalculator] profile "${profile.id}" 来源为 ${profile.source.type}，但未注入 profileDataFetcher`
+          );
+          return null;
+        }
+        const { tokenizerJSON, tokenizerConfigJSON } = await fetcher(
+          profile.id
+        );
+        if (generation !== this.cacheGeneration) return null;
+        const { TokenizerLoader } = await import("@lenml/tokenizers");
+        if (generation !== this.cacheGeneration) return null;
+        const tokenizer = TokenizerLoader.fromPreTrained({
+          tokenizerJSON: JSON.parse(tokenizerJSON),
+          tokenizerConfig: tokenizerConfigJSON
+            ? JSON.parse(tokenizerConfigJSON)
+            : undefined,
+        });
+        if (tokenizer) this.tokenizerCache.set(profile.id, tokenizer);
+        return tokenizer;
+      } catch (error) {
+        console.error(
+          `[TokenCalculator] Failed to load tokenizer for profile "${profile.id}":`,
+          error
         );
         return null;
       }
-      const { tokenizerJSON, tokenizerConfigJSON } =
-        await this.profileDataFetcher(profile.id);
-
-      // 执行引擎保持为单一轻量模块，模型数据由资产服务按需提供。
-      const { TokenizerLoader } = await import("@lenml/tokenizers");
-      tokenizer = TokenizerLoader.fromPreTrained({
-        tokenizerJSON: JSON.parse(tokenizerJSON),
-        tokenizerConfig: tokenizerConfigJSON
-          ? JSON.parse(tokenizerConfigJSON)
-          : undefined,
-      });
-
-      if (tokenizer) {
-        this.tokenizerCache.set(profile.id, tokenizer);
+    })();
+    this.loadingTokenizers.set(profile.id, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.loadingTokenizers.get(profile.id) === pending) {
+        this.loadingTokenizers.delete(profile.id);
       }
-      return tokenizer;
-    } catch (error) {
-      console.error(
-        `[TokenCalculator] Failed to load tokenizer for profile "${profile.id}":`,
-        error
-      );
-      return null;
     }
   }
 
@@ -439,6 +456,8 @@ export class TokenCalculatorEngine {
   }
 
   clearCache(): void {
+    this.cacheGeneration++;
+    this.loadingTokenizers.clear();
     this.tokenizerCache.clear();
   }
 

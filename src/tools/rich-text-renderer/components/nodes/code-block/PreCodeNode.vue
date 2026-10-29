@@ -29,14 +29,20 @@
       aria-hidden="true"
       :style="dynamicGutterStyle"
     >
-      <div v-for="n in lineCount" :key="n" class="line-number">
-        <span class="num">{{ n }}</span>
-        <span
-          v-if="theme === 'monaco' || theme === 'codemirror'"
-          class="fold-placeholder"
-          >{{ theme === "codemirror" ? "›" : "" }}</span
-        >
+      <div v-if="compactGutter" class="line-number line-numbers-compact">
+        <span class="num">{{ compactLineNumbers }}</span>
+        <span class="fold-placeholder">›</span>
       </div>
+      <template v-else>
+        <div v-for="n in lineCount" :key="n" class="line-number">
+          <span class="num">{{ n }}</span>
+          <span
+            v-if="theme === 'monaco' || theme === 'codemirror'"
+            class="fold-placeholder"
+            >{{ theme === "codemirror" ? "›" : "" }}</span
+          >
+        </div>
+      </template>
     </div>
     <pre
       class="code-content"
@@ -57,6 +63,12 @@ const props = defineProps<{
 
 const lines = computed(() => props.content.replace(/\r\n?/g, "\n").split("\n"));
 const lineCount = computed(() => lines.value.length);
+const compactGutter = computed(
+  () => props.theme === "codemirror" && !props.wordWrapEnabled
+);
+const compactLineNumbers = computed(() =>
+  Array.from({ length: lineCount.value }, (_, i) => String(i + 1)).join("\n")
+);
 
 const dynamicGutterStyle = computed(() => {
   if (!props.gutterWidth) return {};
@@ -172,6 +184,13 @@ const dynamicGutterStyle = computed(() => {
 .pre-code-node.theme-codemirror .code-content {
   padding: 12px 12px 12px 4px; /* 匹配 .cm-content (12px 0) + .cm-line (0 12px 0 4px) */
   color: var(--text-color);
+}
+
+/* A single multiline text run shares the same row geometry without per-line elements. */
+.pre-code-node.theme-codemirror .line-numbers-compact {
+  height: auto;
+  align-items: flex-start;
+  white-space: pre;
 }
 
 /* ========== Monaco 主题样式 ========== */

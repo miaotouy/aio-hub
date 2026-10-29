@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { RenderResult } from "mermaid";
+import { sanitizeMermaidSvg } from "./sanitizeMermaidSvg";
 
 type Mermaid = (typeof import("mermaid"))["default"];
 interface RenderRequest {
@@ -45,7 +46,12 @@ export function renderMermaid(
       });
       configuredTheme = request.dark;
     }
-    return mermaid.render("aio-mermaid-" + ++sequence, request.content);
+    const rendered = await mermaid.render(
+      "aio-mermaid-" + ++sequence,
+      request.content
+    );
+    if (!request.isCurrent()) return;
+    return { ...rendered, svg: sanitizeMermaidSvg(rendered.svg) };
   });
   // An invalid diagram must not prevent the next owner's job from running.
   tail = job.then(

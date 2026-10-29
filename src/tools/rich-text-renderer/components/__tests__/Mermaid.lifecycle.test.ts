@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { defineComponent, h, provide, ref, type Ref } from "vue";
+import { defineComponent, h, nextTick, provide, ref, type Ref } from "vue";
 import {
   provideRendererViewState,
   rendererViewportKey,
@@ -277,4 +277,67 @@ it("follows delayed restored scrolling while visibility observers stay silent", 
   await vi.waitFor(() =>
     expect(view.wrapper.find(".mermaid-svg > svg").exists()).toBe(true)
   );
+});
+
+// Burst updates keep a readable successful diagram; closure must publish the full final source immediately.
+it("coalesces pending updates and commits closure without a queued older diagram", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+  state.render.mockImplementation(async (_id, content) => ({
+    svg: "<svg><text>" + content + "</text></svg>",
+  }));
+  const content = ref("graph TD\nA-->Initial\npartial");
+  const status = ref("pending");
+  const wrapper = mount(
+    defineComponent({
+      setup: () => () =>
+        h(MermaidNode, {
+          nodeId: "streaming-diagram",
+          content: content.value,
+          "data-node-status": status.value,
+        }),
+    })
+  );
+  const setInput = async (update: {
+    content?: string;
+    "data-node-status"?: string;
+  }) => {
+    if (update.content !== undefined) content.value = update.content;
+    if (update["data-node-status"] !== undefined)
+      status.value = update["data-node-status"];
+    await nextTick();
+  };
+  wrappers.push(wrapper);
+  try {
+    await flushPromises();
+    const initialCalls = state.render.mock.calls.length;
+    await setInput({ content: "graph TD\nA-->Initial\npartial tail" });
+    await flushPromises();
+    expect(state.render.mock.calls.length).toBe(initialCalls);
+    await setInput({ content: "graph TD\nA-->New\npartial" });
+    await setInput({ content: "graph TD\nA-->Latest\npartial" });
+    await flushPromises();
+    expect(wrapper.get("svg text").text()).toContain("Initial");
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+    expect(wrapper.get("svg text").text()).toContain("Latest");
+    await setInput({ content: "graph TD\nA-->Final\nFinal-->Done" });
+    await setInput({ "data-node-status": "stable" });
+    await flushPromises();
+    expect(wrapper.get("svg text").text()).toContain("Final-->Done");
+    const closedCalls = state.render.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
+    expect(state.render.mock.calls.length).toBe(closedCalls);
+    await setInput({
+      "data-node-status": "pending",
+      content: "graph TD\nA-->Queued\ntail",
+    });
+    wrapper.unmount();
+    const unmountedCalls = state.render.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushPromises();
+    expect(state.render.mock.calls.length).toBe(unmountedCalls);
+  } finally {
+    vi.useRealTimers();
+  }
 });

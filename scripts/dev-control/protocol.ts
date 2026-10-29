@@ -74,6 +74,8 @@ const allowedFields: Record<ControlStep["op"], string[]> = {
   state: ["scope"],
   action: ["name", "args"],
   eval: ["expression"],
+  resize: ["width", "height"],
+  diagnostics: ["since", "limit", "documentId"],
 };
 
 export function validateRequest(value: unknown): ControlRequest {
@@ -121,6 +123,21 @@ export function validateRequest(value: unknown): ControlRequest {
         new Set(step.modifiers).size !== step.modifiers.length)
     )
       invalid("modifiers 需要由 Alt、Control、Meta、Shift 组成的无重复数组。");
+    if (
+      step.op === "resize" &&
+      [step.width, step.height].some(
+        (v) => !Number.isInteger(v) || Number(v) < 100 || Number(v) > 16384
+      )
+    )
+      invalid("resize 需要 100–16384 范围内的整数 width / height。");
+    if (
+      step.op === "diagnostics" &&
+      step.since !== undefined &&
+      (!Number.isSafeInteger(step.since) || Number(step.since) < 0)
+    )
+      invalid("diagnostics.since 需要非负安全整数。");
+    if (step.op === "diagnostics" && step.documentId !== undefined)
+      text(step.documentId, "diagnostics.documentId");
     if (step.op === "navigate") route(step.path);
     if (step.op === "fill" && typeof step.text !== "string")
       invalid("fill.text 需要字符串。");

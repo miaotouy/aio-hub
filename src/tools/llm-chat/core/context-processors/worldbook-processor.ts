@@ -28,7 +28,38 @@ const logger = createModuleLogger("WorldbookProcessor");
 /**
  * 模拟 SillyTavern 的扫描缓冲区
  */
+interface ScanText {
+  text: string;
+  lower?: string;
+}
+
 class WorldbookBuffer {
+  private scanCache = new Map<string, ScanText>();
+  private cachedChars = 0;
+
+  private reuseScan(key: string, build: () => string): ScanText {
+    const cached = this.scanCache.get(key);
+    if (cached) {
+      this.scanCache.delete(key);
+      this.scanCache.set(key, cached);
+      return cached;
+    }
+    const value = { text: build() };
+    // Reserve space for both original and lazily normalized text.
+    const cost = value.text.length * 2;
+    const maxChars = 8 * 1024 * 1024;
+    if (cost > maxChars) return value;
+    while (this.scanCache.size >= 64 || this.cachedChars + cost > maxChars) {
+      const oldest = this.scanCache.entries().next().value;
+      if (!oldest) break;
+      this.scanCache.delete(oldest[0]);
+      this.cachedChars -= oldest[1].text.length * 2;
+    }
+    this.scanCache.set(key, value);
+    this.cachedChars += cost;
+    return value;
+  }
+
   private depthBuffer: string[] = [];
   private fullHistory: string[] = []; // 完整的历史记录，用于 Sticky/Cooldown
   private recurseBuffer: string[] = [];
@@ -56,10 +87,28 @@ class WorldbookBuffer {
 
   addRecurse(text: string) {
     this.recurseBuffer.push(text);
+    this.scanCache.clear();
+    this.cachedChars = 0;
   }
 
-  getScanText(entry: STWorldbookEntry, defaultDepth: number): string {
-    let depth = entry.scanDepth ?? defaultDepth;
+  getScanText(entry: STWorldbookEntry, defaultDepth: number): ScanText {
+    const depth = entry.scanDepth ?? defaultDepth;
+    const fields = [
+      entry.matchPersonaDescription,
+      entry.matchCharacterDescription,
+      entry.matchCharacterPersonality,
+      entry.matchCharacterDepthPrompt,
+      entry.matchScenario,
+      entry.matchCreatorNotes,
+    ]
+      .map((value) => Number(!!value))
+      .join(",");
+    return this.reuseScan(`scan:${depth}:${fields}`, () =>
+      this.buildScanText(entry, depth)
+    );
+  }
+
+  private buildScanText(entry: STWorldbookEntry, depth: number): string {
     const MATCHER = "\x01";
     const JOINER = "\n" + MATCHER;
 
@@ -105,7 +154,7 @@ class WorldbookBuffer {
   }
 
   matchKeys(
-    haystack: string,
+    haystack: ScanText,
     needle: string,
     entry: STWorldbookEntry
   ): boolean {
@@ -117,14 +166,16 @@ class WorldbookBuffer {
         if (pattern.match(/(^|[^\\])\//)) return false;
         pattern = pattern.replace("\\/", "/");
         const re = new RegExp(pattern, flags);
-        return re.test(haystack);
+        return re.test(haystack.text);
       } catch (e) {
         return false;
       }
     }
 
     const caseSensitive = entry.caseSensitive ?? false;
-    const h = caseSensitive ? haystack : haystack.toLowerCase();
+    const h = caseSensitive
+      ? haystack.text
+      : (haystack.lower ??= haystack.text.toLowerCase());
     const n = caseSensitive ? needle : needle.toLowerCase();
 
     if (entry.matchWholeWords) {
@@ -154,12 +205,15 @@ class WorldbookBuffer {
   ): boolean {
     if (depth <= 0) return false;
     // 获取最近的 N 条消息进行扫描
-    const historyToScan = this.fullHistory.slice(0, depth);
-    return historyToScan.some((text) => {
-      const MATCHER = "\x01";
-      const haystack = MATCHER + text;
-      return keys.some((k) => this.matchKeys(haystack, k, entry));
-    });
+    const count = Math.min(this.fullHistory.length, Math.trunc(depth));
+    for (let i = 0; i < count; i++) {
+      const haystack = this.reuseScan(
+        `history:${i}`,
+        () => "\x01" + this.fullHistory[i]
+      );
+      if (keys.some((k) => this.matchKeys(haystack, k, entry))) return true;
+    }
+    return false;
   }
 }
 

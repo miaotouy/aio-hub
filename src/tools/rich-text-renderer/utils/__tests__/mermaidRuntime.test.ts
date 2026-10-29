@@ -12,6 +12,11 @@ beforeEach(async () => {
   ({ renderMermaid } = await import("../mermaidRuntime"));
 });
 const current = () => true;
+const svg = (text: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg"><text>${text}</text></svg>`;
+const text = (source: string) =>
+  new DOMParser().parseFromString(source, "image/svg+xml").documentElement
+    .textContent ?? "";
 
 // Protects stable themed output with many owners, while sharing one site configuration.
 it("reuses a theme across concurrent owners and reconfigures when the theme changes", async () => {
@@ -20,7 +25,7 @@ it("reuses a theme across concurrent owners and reconfigures when the theme chan
     theme = config.theme;
   });
   api.render.mockImplementation(async (id, content) => ({
-    svg: id + ":" + theme + ":" + content,
+    svg: svg(id + ":" + theme + ":" + content),
   }));
   const first = await Promise.all(
     ["first", "second", "third"].map((content) =>
@@ -28,11 +33,11 @@ it("reuses a theme across concurrent owners and reconfigures when the theme chan
     )
   );
   expect(
-    first.map((result) => result?.svg.split(":").slice(1).join(":"))
+    first.map((result) => text(result!.svg).split(":").slice(1).join(":"))
   ).toEqual(["default:first", "default:second", "default:third"]);
-  expect(new Set(first.map((result) => result?.svg.split(":")[0])).size).toBe(
-    3
-  );
+  expect(
+    new Set(first.map((result) => text(result!.svg).split(":")[0])).size
+  ).toBe(3);
   expect(api.initialize).toHaveBeenCalledTimes(1);
   expect(
     (await renderMermaid({ content: "dark", dark: true, isCurrent: current }))
@@ -62,9 +67,9 @@ it("keeps theme configuration attached to its render and skips superseded queued
       await new Promise<void>((resolve) => {
         finish = resolve;
       });
-      return { svg: theme };
+      return { svg: svg(theme) };
     })
-    .mockImplementation(async () => ({ svg: theme }));
+    .mockImplementation(async () => ({ svg: svg(theme) }));
   const first = renderMermaid({
     content: "light",
     dark: false,
@@ -85,9 +90,9 @@ it("keeps theme configuration attached to its render and skips superseded queued
   stale = true;
   expect(theme).toBe("default");
   finish();
-  expect((await first)?.svg).toBe("default");
+  expect(text((await first)!.svg)).toBe("default");
   expect(await old).toBeUndefined();
-  expect((await next)?.svg).toBe("dark");
+  expect(text((await next)!.svg)).toBe("dark");
   expect(api.render.mock.calls.map((call) => call[1])).toEqual([
     "light",
     "dark",
@@ -97,12 +102,12 @@ it("keeps theme configuration attached to its render and skips superseded queued
 it("lets later owners render after a malformed diagram fails", async () => {
   api.render
     .mockRejectedValueOnce(new Error("syntax failure"))
-    .mockResolvedValue({ svg: "recovered" });
+    .mockResolvedValue({ svg: svg("recovered") });
   await expect(
     renderMermaid({ content: "invalid", dark: false, isCurrent: current })
   ).rejects.toThrow("syntax failure");
   expect(
     (await renderMermaid({ content: "valid", dark: false, isCurrent: current }))
       ?.svg
-  ).toBe("recovered");
+  ).toContain("recovered");
 });

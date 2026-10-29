@@ -1,6 +1,6 @@
 # Agent 开发界面控制
 
-AIO Hub 提供本机开发控制 CLI，用于操作真实 Tauri WebView2、读取界面结构与保存 PNG。入口位于项目中，各类 agent 和开发者终端都可以调用。当前支持 Windows 桌面端。
+AIO Hub 提供本机开发控制 CLI，用于操作真实 Tauri WebView、读取界面结构与保存 PNG。入口位于项目中，各类 agent 和开发者终端都可以调用。支持 Windows / WebView2 和 Linux / WebKitGTK；两端复用命令协议，输入能力按传输实现区分。
 
 ## 启动
 
@@ -16,11 +16,64 @@ bun run dev:static -- --agent --agent-instance agent-demo
 
 省略 `--agent-instance` 时，沿用 `AIO_ID_SUFFIX`；后缀为空时使用 `agent`。多个实例使用不同名称，前端和代理端口沿用项目现有的后缀分配规则。端口冲突时调整 `AIO_PORT` 或选择其他实例名称。
 
-控制模式每次启动创建独立应用数据目录和 WebView2 profile，位置为 `.dev-data/dev-control/data/<实例>/<启动身份>/`。此模式下 `AIO_DATA_DIR` 的既有配置由本次隔离目录替换。需要复现已有数据时，在确认来源后将需要的开发样例放入隔离实例；日常实例保持原有目录。
+控制模式每次启动创建独立应用数据目录，Windows 同时隔离 WebView2 profile，位置为 `.dev-data/dev-control/data/<实例>/<启动身份>/`。此模式下 `AIO_DATA_DIR` 的既有配置由本次隔离目录替换。需要复现已有数据时，在确认来源后将需要的开发样例放入隔离实例；日常实例保持原有目录。
 
 启动终端提示控制就绪后，即可调用 CLI。结束开发时在启动终端按 Ctrl+C。截图和隔离数据保留供检查。
 
 Vite 文件监听跳过 `.dev-data/` 和 Rust 的 `target/` 目录，保留应用与插件源码的热更新。运行数据和编译产物会随开发累积；将它们加入监听会增加句柄、内存与启动耗时。修改监听配置后，完整关闭并重新启动开发实例，使旧监听资源释放。
+
+## Ubuntu 独立运行与宿主机控制
+
+在 Ubuntu 原生检出中构建生产前端资源 Debug 程序。构建与运行均开启开发控制，Release 继续使用原有发布流程。
+
+```bash
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+export AIO_DEV_CONTROL=1
+bun run generate:shims
+bun run build:tsc
+bun run build:vite
+mkdir -p .tmp/dev-control
+printf '%s' '{"build":{"beforeBuildCommand":""}}' > .tmp/dev-control/tauri.build.json
+bun run tauri build --debug --no-bundle --config "$(pwd)/.tmp/dev-control/tauri.build.json"
+bun run dev:control -- start --instance ubuntu-probe
+bun run dev:control -- status --instance ubuntu-probe
+bun run dev:control -- stop --instance ubuntu-probe
+```
+
+独立运行入口接收可选的 `--binary <绝对路径>`，要求产物保留开发桥。每次启动创建独立数据目录，日志写入 `.dev-data/dev-control/launchers/`。停止操作核对启动进程身份，并由 launcher 终止自己创建的应用进程组。
+
+Windows 工作区可直接调用 SSH 包装：
+
+```powershell
+bun run dev:vm -- doctor
+bun run dev:vm -- start --instance ubuntu-probe
+bun run dev:vm -- control windows --instance ubuntu-probe
+bun run dev:vm -- control observe --instance ubuntu-probe --limit 20
+bun run dev:vm -- control navigate /settings --instance ubuntu-probe
+bun run dev:vm -- control click --css ".settings-btn" --instance ubuntu-probe
+bun run dev:vm -- stop --instance ubuntu-probe
+```
+
+默认 SSH 别名为 `ubuntu-vm`；原生与共享检出路径沿用本机工作流，可通过 `AIO_VM_SSH_HOST`、`AIO_VM_REPO`、`AIO_VM_SHARED_REPO` 覆盖。截图会自动复制到宿主工作区，结果返回可预览的本地绝对路径。`batch --stdin` 可接收宿主机管道中的 JSON；`--file`、`--text-file` 等文件参数在 guest 中解析。
+
+`dev:vm sync` 只将当前宿主分支的已提交内容快进到干净的同名 guest 分支，保留本地改动时会停止同步。VM 需要启动时使用 `bun run dev:vm -- vm-start --vmx "D:\Virtual Machines\Ubuntu 64-bit\Ubuntu 64-bit.vmx"`，启动器处理本机遇到的 CPU 亲和性问题；已运行的 VM 保持原状。细节见 [Ubuntu 虚拟机兼容性验证](./ubuntu-vm-compatibility.md)。
+
+Linux 的 `dev --agent` 与 `dev:static --agent` 也选择嵌入式连接。独立程序通过 `bundled-debug` 模式保留真实本地资源来源，适合 CSP 与打包行为走查。
+
+富文本内嵌预览的交互回归也可复用独立实例：
+
+```bash
+bun run rich-text:embedded:tauri -- --instance ubuntu-probe --out-dir .tmp/embedded-preview
+```
+
+该入口在 WebView2 与 WebKitGTK 中运行同一组页面契约，报告包含运行引擎、逐项结果和诊断错误。WebKitGTK 使用生产资源 Debug 实例。
+
+### Linux 输入与截图能力
+
+- 已提供 inspect / observe / screenshot、显式 eval、开发桥 navigate / state / action，以及 CSS、testid、placeholder 定位。
+- click / fill / select / scroll 使用 DOM 输入，结果标记 `inputBackend: "dom"`。写入前检查唯一性、可见性、禁用态、稳定性和遮挡；输入框还检查只读状态。写操作超时后先 observe 核对结果。
+- role / label 定位、双击、修饰键和 press 暂时返回 `UNSUPPORTED_CAPABILITY`。通过 `state capabilities` 查看当前能力；需要系统指针、原生对话框或用户激活语义时另选原生验证路径。
+- 原生 WebKit 截图先在内存中遮罩密码框、`[data-dev-sensitive]` 和显式 mask，再裁切并写盘；敏感区域或视口在截图期间变化时中止保存。
 
 ## 场景准备与首次使用
 
@@ -40,6 +93,8 @@ bun scripts/dev-control/cli.ts windows --instance agent-demo
 `ready` 表示页面应用初始化状态。原生身份核验与前端初始化相互独立：前端初始化失败时，已核验的窗口依然支持 `inspect`、`screenshot` 和显式 `eval`，便于检查白屏或加载页面。路由、领域状态和应用动作等待页面开发桥连接。
 
 ## 操作与观察
+
+下列 role、修饰键和双击示例用于 Windows / CDP；Linux 按前述能力列表选择定位与动作。
 
 ```powershell
 bun scripts/dev-control/cli.ts navigate /settings --instance agent-demo
@@ -139,6 +194,18 @@ bun scripts/dev-control/cli.ts screenshot --mask ".profile-secret" --instance ag
 
 截图范围是 WebView 页面内容。Windows 文件对话框、原生菜单和系统级拖放按具体需求复用现有 Windows UI Automation 工具。
 
+## 窗口尺寸与错误摘要
+
+```powershell
+bun scripts/dev-control/cli.ts resize --width 960 --height 720 --instance agent-demo --timeout 3000
+bun scripts/dev-control/cli.ts diagnostics --instance agent-demo --limit 20
+bun scripts/dev-control/cli.ts diagnostics --since 5 --document-id <上一结果的文档身份> --instance agent-demo
+```
+
+resize 等待实际视口达到目标，并返回窗口尺寸、视口、缩放和状态。返回 `WINDOW_RESIZE_UNCONFIRMED` 时按错误中的实际视口记录结果；本机 Wayland 下 960 × 720 请求尚未生效。
+
+diagnostics 读取启动期的前端异常、未处理拒绝和 CSP 摘要，每个文档最多保留 200 条。返回 `cursor`、`documentId`、截断与丢弃状态；后续请求同时带回游标和文档身份，页面重载时会从新文档重新读取。摘要裁剪常见凭证字段和 URL 查询参数；完整业务日志仍通过本次实例的日志目录显式查看。
+
 ## 教程截图与引导标注
 
 维护用户教程时，Agent 可以使用本 CLI 自行准备示例场景、完成页面操作并采集真实截图，再添加编号、箭头、文字气泡或局部放大。也可以在开发窗口中临时插入只负责展示的引导叠加层，截图后移除。截图资源位置、标注约定和发布范围见 [文档站维护与教程截图](./docs-maintenance.md)。
@@ -208,7 +275,7 @@ Windows WebView2 的原生文件拖放会与 HTML5 Drag and Drop 路径冲突。
 
 控制通道显式开启，限定 loopback 并校验实际监听地址；应用握手只在明确开启控制的 debug 进程中返回身份。普通发布前端构建会裁剪开发桥，Rust release 分支返回关闭状态。
 
-原始 CDP 属于高权限本机调试端点，同用户进程可直接连接。使用独立开发数据，结束后关闭开发实例。
+原始 CDP 与嵌入式 WebDriver 属于高权限本机调试端点，同用户进程可直接连接。使用独立开发数据，结束后关闭开发实例。
 
 相关验证入口：
 

@@ -269,3 +269,80 @@ it("rebuilds complete parser output while reset and a new pending document overt
   );
   expect(await parser.parseCompleteAsync("")).toEqual([]);
 });
+
+// List-item retention must follow token lookahead and whole-document reference changes.
+it("keeps pending list membership and references correct through continued input and revisions", async () => {
+  const parser = new CustomParser();
+  const initial =
+    "- first [target][id]\n\n  continued **inside**\n\n- second\n\n  - nested tail\n";
+  const texts = [
+    initial,
+    initial + "    continuation\n",
+    initial + "\n- third\n",
+    initial.replace("- second", "1. second"),
+    initial.replace("  - nested tail", "- new root"),
+    initial.replace("  continued", "continued"),
+    initial + "\n[id]: /one\n",
+    initial + '\n[id]: /two "title"\n',
+    initial.slice(0, 45),
+    "- [one](/a)  \n  [two](/b)  \n  ![badge](/img)\n\n- tail\n",
+    "- [one](/a) •  \n  [two](/b)\n\n- tail\n",
+    "- [one](/a) •  \n  [two](/b)\n\n- tail\n\n- appended\n",
+    "- [one](/a) •  \n  [two](/changed)\n\n- tail\n",
+    "- [one](/a) long separator  \n  [two](/b)\n\n- tail\n",
+    "- A\n\n  | key | value |\n  | --- | --- |\n  | a | b |\n\n- B\n",
+    "- A\n\n  <div>late\n\n- B\n",
+    "- A\n\n  <div>late\n\n- B\n\n  </div>\n",
+    initial,
+  ];
+  try {
+    for (const source of texts)
+      expect(await parser.parsePendingAsync(source)).toEqual(
+        new CustomParser().parse(source)
+      );
+    expect(await parser.parseCompleteAsync(initial)).toEqual(
+      new CustomParser().parse(initial)
+    );
+    parser.reset();
+    expect(await parser.parsePendingAsync("- fresh\n\n- tail\n")).toEqual(
+      new CustomParser().parse("- fresh\n\n- tail\n")
+    );
+  } finally {
+    parser.reset();
+  }
+});
+
+// Prefix reuse must observe lexical metadata as well as the visible text.
+it("keeps optional metadata and nested token maps current across repeated prefixes", async () => {
+  const owner = {};
+  const sequences = [
+    ["&copy;\n\nend", "©\n\nend", "&#169;\n\nend"],
+    ["first\n  next", "first\n    next", "first\nnext"],
+    ["```js\nvalue\n", "```js\nvalue\n```\n", "```ts\nvalue\n```\n"],
+    [
+      '<div title="first" data-id="1">x</div>',
+      '<div title="next" data-id="1">x</div>',
+      '<div data-id="1">x</div>',
+    ],
+    [
+      "[key]: /one 'title'\n\n[key]",
+      "[key]: /two 'title'\n\n[key]",
+      "[key]: /two 'other'\n\n[key]",
+    ],
+    [
+      "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\ncommand:「始」run「末」\nvalue:「始」first「末」\n<<<[END_TOOL_REQUEST]>>>",
+      "<<<[TOOL_REQUEST]>>>\ntool_name:「始」Example「末」\ncommand:「始」run「末」\nvalue:「始」next「末」\n<<<[END_TOOL_REQUEST]>>>",
+    ],
+  ];
+  for (const sequence of sequences) {
+    for (const text of sequence) {
+      expect(await tokenizerService.tokenize(text, {}, owner)).toEqual(
+        new Tokenizer().tokenize(text)
+      );
+      expect(await tokenizerService.tokenize(text, {}, owner)).toEqual(
+        new Tokenizer().tokenize(text)
+      );
+    }
+    tokenizerService.release(owner);
+  }
+});

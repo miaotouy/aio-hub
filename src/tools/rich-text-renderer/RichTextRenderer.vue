@@ -20,12 +20,14 @@
     class="rich-text-renderer"
     :class="{ 'rich-text-recyclable': suspendOnDeactivate }"
     :style="[cssVariables, suspendedStyle]"
+    :data-render-pending="layoutState.pending.value ? '' : undefined"
   >
     <template v-if="displayActive">
       <!-- AST 渲染模式（V1/V2 等） -->
       <AstNodeRenderer
         v-if="useAstRenderer"
         :nodes="ast"
+        :viewport-blocks="suspendOnDeactivate"
         :generation-meta="generationMeta"
         :enable-enter-animation="renderEnableAnimation"
       />
@@ -49,6 +51,9 @@ import {
   inject,
 } from "vue";
 import { useThrottleFn } from "@vueuse/core";
+import { createAstImageIndex } from "./utils/astImageIndex";
+import { provideRendererBlockMounting } from "./composables/useRendererBlockMounting";
+import { provideRendererLayoutState } from "./composables/useRendererLayoutState";
 import { useRendererDisplay } from "./composables/useRendererDisplay";
 import {
   provideRendererViewState,
@@ -288,37 +293,14 @@ const {
 // 图片列表状态
 const imageList = ref<string[]>([]);
 
-/**
- * 递归提取 AST 中的所有图片链接
- * 性能优化：添加节点数量限制，避免在大型 AST 中卡顿
- */
+const imageIndex = createAstImageIndex();
 const extractImages = (nodes: AstNode[]): string[] => {
-  const images: string[] = [];
-  const MAX_NODES_TO_TRAVERSE = 100000; // 最多遍历的节点数
-  let nodeCount = 0;
-
-  const traverse = (nodeList: AstNode[]): boolean => {
-    for (const nodeListElement of nodeList) {
-      if (++nodeCount > MAX_NODES_TO_TRAVERSE) {
-        console.warn(
-          `[RichTextRenderer] Image extraction stopped: node count exceeded ${MAX_NODES_TO_TRAVERSE}`
-        );
-        return false; // 停止遍历
-      }
-
-      if (nodeListElement.type === "image" && "src" in nodeListElement.props) {
-        images.push((nodeListElement.props as { src: string }).src);
-      }
-      if (nodeListElement.children && nodeListElement.children.length > 0) {
-        if (!traverse(nodeListElement.children)) {
-          return false; // 传播停止信号
-        }
-      }
-    }
-    return true;
-  };
-
-  traverse(nodes);
+  const { images, truncated } = imageIndex.collect(nodes);
+  if (truncated) {
+    console.warn(
+      "[RichTextRenderer] Image extraction stopped: node count exceeded 100000"
+    );
+  }
   return images;
 };
 
@@ -387,6 +369,7 @@ const hostActive = computed(
   () => localHostActive.value && (inheritedHostActive?.value ?? true)
 );
 const held = provideRendererDisplayHolds();
+const layoutState = provideRendererLayoutState();
 const {
   active: displayActive,
   style: suspendedStyle,
@@ -397,6 +380,7 @@ const {
   enabled: () => !!props.suspendOnDeactivate,
   live: () => !!props.isStreaming || internalIsStreaming.value,
   held,
+  pending: layoutState.pending,
   revision: () => [
     props.content,
     props.version,
@@ -411,6 +395,23 @@ const {
   ],
 });
 const viewState = provideRendererViewState(displayActive);
+provideRendererBlockMounting({
+  root: rootElement,
+  nodes: ast,
+  enabled: () => !!props.suspendOnDeactivate,
+  hostActive,
+  live: () => !!props.isStreaming || internalIsStreaming.value,
+  held,
+  layout: () => [
+    props.styleOptions,
+    props.defaultCodeBlockExpanded,
+    props.seamlessMode,
+    props.defaultRenderHtml,
+    props.shouldFreeze,
+  ],
+  state: viewState,
+  layoutState,
+});
 onDeactivated(() => {
   localHostActive.value = false;
 });
@@ -420,7 +421,7 @@ onActivated(() => {
 watch(
   displayActive,
   (active) => {
-    if (active) viewState.clear();
+    if (active) viewState.prune(ast.value);
   },
   { flush: "post" }
 );
@@ -830,6 +831,7 @@ onBeforeUnmount(() => {
 
   // 主动释放大对象引用，降低长会话切换/卸载后的 WebView2 常驻内存压力
   disposeMarkdownAst();
+  imageIndex.clear();
   pureMarkdown = null;
   imageList.value = [];
   buffer.value = "";

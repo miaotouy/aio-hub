@@ -387,6 +387,22 @@ message: 「始ESCAPE」含「始」「末」的内容「末ESCAPE」
     }
   );
 
+  // Pending headers accept ASCII key suffixes and whitespace, and keep the first field's whole value.
+  it.each(["", "ESCAPE", "exp"])(
+    "selects the first valid pending %s header after orphan markers",
+    (variant) => {
+      for (const whitespace of ["", " ", "\n\t", "\u00a0\u2028"]) {
+        const value = `first😀\nnext:「始${variant}」second`;
+        const source = `<<<[TOOL_REQUEST]>>>\n:「始exp」orphan\n名_key-2:${whitespace}「始${variant}」${value}`;
+        const requests = findToolRequests(parse(source));
+        expect(requests).toHaveLength(1);
+        expect(requests[0].props.args).toEqual({ "_key-2": value });
+        expect(requests[0].props.closed).toBe(false);
+        expect(requests[0].props.raw).toBe(source);
+      }
+    }
+  );
+
   it("does not split a block when nested request markers sit inside an ESCAPE fence", () => {
     const ast = parse(`
 <<<[TOOL_REQUEST]>>>

@@ -129,6 +129,8 @@ export const regexProcessor: ContextProcessor = {
       return;
     }
 
+    const compiledRules = new Map<ChatRegexRule, RegExp | null>();
+    const rulesByRole = new Map<MessageRole, ChatRegexRule[]>();
     let replacementsCount = 0;
     const totalMessages = messages.length;
 
@@ -138,10 +140,12 @@ export const regexProcessor: ContextProcessor = {
       const depth = totalMessages - 1 - i; // 0 = 最新消息
 
       // 3. 根据角色和深度过滤规则
-      const roleFilteredRules = filterRulesByRole(
-        rawRules,
-        message.role as MessageRole
-      );
+      const role = message.role as MessageRole;
+      let roleFilteredRules = rulesByRole.get(role);
+      if (!roleFilteredRules) {
+        roleFilteredRules = filterRulesByRole(rawRules, role);
+        rulesByRole.set(role, roleFilteredRules);
+      }
       const finalRules = filterRulesByDepth(roleFilteredRules, depth);
 
       if (finalRules.length === 0) {
@@ -165,10 +169,15 @@ export const regexProcessor: ContextProcessor = {
       let newContent = originalContent;
       for (const rule of finalRules) {
         try {
-          // 使用与 UI 测试一致的解析逻辑
-          const parsed = parseRegexString(rule.regex);
-          const flags = rule.flags || parsed.flags || "gm";
-          const regex = new RegExp(parsed.pattern, flags);
+          if (!compiledRules.has(rule)) {
+            const parsed = parseRegexString(rule.regex);
+            const flags = rule.flags || parsed.flags || "gm";
+            compiledRules.set(rule, new RegExp(parsed.pattern, flags));
+          }
+          const regex = compiledRules.get(rule);
+          if (!regex) continue;
+          // Sticky/global expressions must behave like a fresh instance for each message.
+          regex.lastIndex = 0;
 
           const tempContent = newContent.replace(regex, rule.replacement);
 
@@ -177,6 +186,7 @@ export const regexProcessor: ContextProcessor = {
             newContent = tempContent;
           }
         } catch (e) {
+          compiledRules.set(rule, null);
           logger.error("应用正则表达式时出错", { error: e, rule });
           context.logs.push({
             processorId: "primary:regex-processor",

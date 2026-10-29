@@ -4,6 +4,49 @@ import type { ChatSessionDetail } from "../../../types/session";
 import { useNodeManager } from "../useNodeManager";
 
 describe("useNodeManager", () => {
+  it("returns the target branch in root order while skipping disabled ancestors", () => {
+    const manager = useNodeManager();
+    const root = manager.createNode({
+      role: "system",
+      content: "root",
+      parentId: null,
+    });
+    const a = manager.createNode({
+      role: "user",
+      content: "a",
+      parentId: root.id,
+    });
+    const disabled = manager.createNode({
+      role: "assistant",
+      content: "disabled",
+      parentId: a.id,
+    });
+    disabled.isEnabled = false;
+    const target = manager.createNode({
+      role: "user",
+      content: "target",
+      parentId: disabled.id,
+    });
+    const other = manager.createNode({
+      role: "user",
+      content: "other",
+      parentId: a.id,
+    });
+    const session = {
+      id: "path",
+      rootNodeId: root.id,
+      activeLeafId: other.id,
+      nodes: Object.fromEntries(
+        [root, a, disabled, target, other].map((n) => [n.id, n])
+      ),
+    } as ChatSessionDetail;
+    expect(manager.getNodePath(session, target.id).map((n) => n.id)).toEqual([
+      root.id,
+      a.id,
+      target.id,
+    ]);
+  });
+
   // 高级编辑保存完整数据时保留原分支，并保护新节点的身份和树关系。
   it("saves edited node data to a sibling without changing the source or copying tree links", () => {
     const manager = useNodeManager();

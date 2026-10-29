@@ -76,11 +76,39 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
 
   // 在原生滚动和 ResizeObserver 之前响应上翻意图，避免同帧被拉回。
   const onWheel = (event: WheelEvent) => {
+    const container = options.container.value;
+    if (!container || !active || !event.deltaY) return;
+    if (event.defaultPrevented || event.ctrlKey) {
+      canResumeOnScroll = false;
+      return;
+    }
+
+    // 内部查看器消费滚轮时保留外层阅读状态；到边界后按原生滚动链交接。
+    for (const target of event.composedPath()) {
+      if (target === container) break;
+      if (!(target instanceof HTMLElement) || target.clientHeight <= 0)
+        continue;
+      const maxTop = target.scrollHeight - target.clientHeight;
+      const style = getComputedStyle(target);
+      if (!/^(auto|scroll|overlay)$/.test(style.overflowY)) continue;
+      const consumes =
+        event.deltaY < 0 ? target.scrollTop > 0 : target.scrollTop < maxTop - 1;
+      if (consumes || ["contain", "none"].includes(style.overscrollBehaviorY)) {
+        canResumeOnScroll = false;
+        return;
+      }
+    }
+
     cancelResume();
     if (event.deltaY < 0) pauseFollowing();
     else if (event.deltaY > 0) {
       canResumeOnScroll = true;
-      if (isNearBottom.value) shouldStickToBottom.value = true;
+      // 已触底时可能没有新的 scroll；其余情况等外层实际下滚再恢复。
+      if (
+        container.scrollHeight - container.clientHeight - container.scrollTop <=
+        1
+      )
+        shouldStickToBottom.value = true;
     }
   };
 

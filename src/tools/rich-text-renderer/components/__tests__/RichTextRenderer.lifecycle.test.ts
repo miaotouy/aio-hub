@@ -701,3 +701,58 @@ it("initializes a live message from an unseen row and restores its completed out
   await settle();
   expect(state.renderer().get("li").text()).toBe("completed");
 });
+
+// Reading a disclosure should initialize the latest body once and preserve its subtree.
+it("defers collapsed reasoning and catches up on reopen while preserving the viewer", async () => {
+  const text = ref("Initial reasoning.");
+  const thinking = ref(true);
+  wrapper = mount(
+    defineComponent({
+      setup: () => () =>
+        h(
+          LlmThinkNode,
+          {
+            rawTagName: "reasoning",
+            ruleId: "reasoning-metadata",
+            displayName: "Thinking",
+            collapsedByDefault: true,
+            rawContent: text.value,
+            isThinking: thinking.value,
+          },
+          {
+            default: ({
+              content,
+              expanded,
+            }: {
+              content: string;
+              expanded: boolean;
+            }) =>
+              h(RichTextRenderer, {
+                content,
+                isStreaming: thinking.value && expanded,
+                version: RendererVersion.V2_CUSTOM_PARSER,
+                throttleEnabled: false,
+              }),
+          }
+        ),
+    }),
+    { attachTo: document.body }
+  );
+  text.value = "Latest **reasoning**.";
+  await settle();
+  expect(wrapper.findComponent(RichTextRenderer).exists()).toBe(false);
+  await wrapper.get(".llm-think-header").trigger("click");
+  await settle();
+  expect(wrapper.get(".llm-think-content").text()).toBe("Latest reasoning.");
+  const renderer = wrapper.findComponent(RichTextRenderer).element;
+  await wrapper.get(".llm-think-header").trigger("click");
+  text.value = "Finished **answer**.";
+  thinking.value = false;
+  await settle();
+  expect(wrapper.findComponent(RichTextRenderer).element).toBe(renderer);
+  expect(wrapper.get(".llm-think-content").text()).toBe("Latest reasoning.");
+  await wrapper.get(".llm-think-header").trigger("click");
+  await settle();
+  expect(wrapper.get(".llm-think-content").text()).toBe("Finished answer.");
+  expect(wrapper.findComponent(RichTextRenderer).element).toBe(renderer);
+});

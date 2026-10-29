@@ -64,7 +64,7 @@
 - **调度与生命周期**: 历史文本准备按约 5ms 的帧预算分批执行；最后一条及生成中的消息实时排版，生成期间跳过逐 token 估高。列表停用时断开尺寸和正文观察器，恢复后重连；卸载时清理观察器、监听、待执行帧与列表缓存。
 - **末尾消息**: 运行时显式保持最后一条消息可见；CSS 回退选择器限定最后一个 `.message-slot` 中的消息，避免 `.chat-message:last-child` 匹配到每个独立 wrapper 内的末子元素。
 - **阅读锚定**: 阅读历史时使用 `overflow-anchor: auto`，由浏览器补偿视口上方消息的高度修正。底部跟随与分支定位期间设为 `none`，滚动交给相应的定位逻辑。
-- **跟随意图**: [`useMessageScrollAnchor`](../../composables/ui/useMessageScrollAnchor.ts) 分别维护底部距离与跟随状态。向上滚轮、键盘上翻、滚动条操作、触屏浏览及消息导航暂停跟随；向下滚回底部附近或点击到底部恢复。布局变化触发的 `scroll` 仅更新位置，保留跟随意图。自动滚动设置控制输出跟随，进入会话时仍定位到最新消息。
+- **跟随意图**: [`useMessageScrollAnchor`](../../composables/ui/useMessageScrollAnchor.ts) 分别维护底部距离与跟随状态。向上滚轮、键盘上翻、滚动条操作、触屏浏览及消息导航暂停跟随；内部查看器消费或取消默认行为的滚轮保留外层跟随状态；滚动链触达列表后，外层实际下滚回到底部附近再恢复，已触底时继续下滚或点击到底部可直接恢复。布局变化触发的 `scroll` 仅更新位置，保留跟随意图。自动滚动设置控制输出跟随，进入会话时仍定位到最新消息。
 - **尺寸与生命周期**: `ResizeObserver` 在跟随期间对内容增高、缩短都重新对齐实际底部；阅读期间交由浏览器锚定。空会话进入有消息状态时重新绑定尺寸与可见性观察器；keep-alive 恢复时保留进入后台前的跟随意图。
 - **消息导航**: 当前可见序号按外层 `.message-slot` 二分查找，覆盖各类消息，并减少长会话每次滚动的几何测量。分支切换前记录目标消息的视口偏移，更新后恢复该偏移。
 
@@ -160,8 +160,9 @@
   - **请求格式**: [`requestAction<TParams, TResult>(action, params)`](../../../../composables/useWindowSyncBus.ts:592) 自动生成 `requestId`（`${windowLabel}-${timestamp}-${random}`）唯一标识；`ActionRequestPayload = { action, requestId, params }` 包装后通过 `tauriEmit("window-sync-message", ...)` 广播。
   - **超时处理**: 调用方收到 `Promise`，**硬编码 10 秒超时**（[`useWindowSyncBus.ts:610-611`](../../../../composables/useWindowSyncBus.ts:610)）；主窗口收到请求后调用对应 `actionHandler(params)` 处理，结果通过 `action-response` 携带 `requestId` 回传；调用方根据 `requestId` 匹配 Promise 并 `resolve(result)`，超时则 `reject(new Error("操作请求超时: ${action}"))`。
   - **典型上行操作**: `llm-chat:send-message` / `llm-chat:create-branch` / `llm-chat:update-agent` / `llm-chat:open-agent-settings` / `llm-chat:open-quick-action-manager` 等。
+- **流式同步**：生成期间会话详情暂停深度监听，由正文 / reasoning 绝对偏移增量与 2 秒完整检查点驱动；活跃叶变化和生成结束补完整快照。分离组件的 `useLlmChatStateConsumer` 持有流增量接收器，协调重叠范围、落后快照及尚未收到节点的增量；最终完成态以主窗口快照为准。接收器的展示副本与同步引擎的原始快照分离，工具正文及时写入消费窗口节点。
 - **窗口关闭时的资源清理**:
-  - **业务层清理**: [`useLlmChatSync`](../../composables/chat/useLlmChatSync.ts) 通过 `onUnmounted` 钩子清理所有注册的同步引擎（`stateEngines.forEach(e => e.cleanup())`）；额外提供 `hasDownstreamWindows` computed，当下游窗口数量归零时自动调用 `cleanup()` 释放未使用的引擎，避免常驻无意义订阅。
+  - **业务层清理**: [`useLlmChatSync`](../../composables/chat/useLlmChatSync.ts) 通过 `onUnmounted` 钩子清理所有注册的同步引擎（`stateEngines.forEach(e => e.cleanup())`）；额外提供 `hasDownstreamWindows` computed，当下游窗口数量归零时自动调用 `cleanup()` 释放未使用的引擎，避免常驻无意义订阅。每轮初始化拥有独立 effect scope，发送状态及窗口数量监听随该轮一起停止；生成中打开分离窗口立即采用流式同步间隔。同步引擎清理会取消防抖任务并关闭后续推送。
   - **总线层清理**: `WindowSyncBus.cleanup()` 停止心跳定时器（`clearInterval(heartbeatInterval)`）、清空所有 `messageHandlers` / `actionHandlers` / `connectionHandlers` / `initialStateRequestHandlers`、调用 `eventUnlisteners.forEach(fn => fn())` 注销所有 Tauri 事件监听器；连接状态映射 `connectedWindows` 重置为空。
   - **会话状态回收**: 由于状态仅在主窗口持久化，分离窗口关闭不会丢失任何对话数据；分离窗口本地仅缓存广播来的 Store 快照，关闭即销毁。
 - **UI 适配**: 分离模式下，`ChatArea` 会自动调整样式（如圆角、阴影、壁纸背景），并显示窗口调整手柄（详见第 1 节分离层样式描述）。

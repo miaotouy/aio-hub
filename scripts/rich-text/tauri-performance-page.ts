@@ -21,6 +21,7 @@ export interface TauriPerformanceSample {
   commits: RendererActivity["commits"];
   frames: number[];
   longTasks: { startTime: number; duration: number }[];
+  longTaskSupported?: boolean;
   components: RendererActivity["components"];
   dom: ReturnType<NonNullable<Window["__RICH_TEXT_MEMORY__"]>["dom"]>;
   finalMatches: boolean;
@@ -33,11 +34,15 @@ export async function runTauriPerformancePage(options: {
   chunks: string[];
   intervalMs: number;
   expectedSignature: string;
+  allowMissingLongTasks?: boolean;
 }): Promise<TauriPerformanceSample> {
   if (document.hidden)
     throw new Error("Keep the measured Tauri window visible");
-  if (!PerformanceObserver.supportedEntryTypes.includes("longtask"))
-    throw new Error("WebView2 long-task observation is unavailable");
+  const longTaskSupported =
+    typeof PerformanceObserver !== "undefined" &&
+    PerformanceObserver.supportedEntryTypes.includes("longtask");
+  if (!longTaskSupported && !options.allowMissingLongTasks)
+    throw new Error("Long-task observation is unavailable");
   const harness = window.__RICH_TEXT_MEMORY__!;
   const sleep = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -49,10 +54,10 @@ export async function runTauriPerformancePage(options: {
     for (const entry of entries)
       longTasks.push({ startTime: entry.startTime, duration: entry.duration });
   };
-  const observer = new PerformanceObserver((list) =>
-    appendTasks(list.getEntries())
-  );
-  observer.observe({ type: "longtask" });
+  const observer = longTaskSupported
+    ? new PerformanceObserver((list) => appendTasks(list.getEntries()))
+    : undefined;
+  observer?.observe({ type: "longtask" });
   let frameId = 0;
   const sampleFrame = () => {
     frames.push(performance.now());
@@ -129,7 +134,7 @@ export async function runTauriPerformancePage(options: {
     await frame();
     const finalContentFrameAt = performance.now();
     await sleep(0);
-    appendTasks(observer.takeRecords());
+    if (observer) appendTasks(observer.takeRecords());
     const activity = harness.activity();
     if (!activity.commitFrames.length)
       throw new Error("No Vue component frame was observed");
@@ -147,12 +152,13 @@ export async function runTauriPerformancePage(options: {
       commits: [...activity.commits],
       frames,
       longTasks,
+      longTaskSupported,
       components: activity.components,
       dom: harness.dom(),
       finalMatches,
     };
   } finally {
     cancelAnimationFrame(frameId);
-    observer.disconnect();
+    observer?.disconnect();
   }
 }

@@ -20,6 +20,7 @@
     class="rich-text-renderer"
     :class="{ 'rich-text-recyclable': suspendOnDeactivate }"
     :style="[cssVariables, suspendedStyle]"
+    :data-render-pending="layoutState.pending.value ? '' : undefined"
   >
     <template v-if="displayActive">
       <!-- AST 渲染模式（V1/V2 等） -->
@@ -52,6 +53,7 @@ import {
 import { useThrottleFn } from "@vueuse/core";
 import { createAstImageIndex } from "./utils/astImageIndex";
 import { provideRendererBlockMounting } from "./composables/useRendererBlockMounting";
+import { provideRendererLayoutState } from "./composables/useRendererLayoutState";
 import { useRendererDisplay } from "./composables/useRendererDisplay";
 import {
   provideRendererViewState,
@@ -367,6 +369,7 @@ const hostActive = computed(
   () => localHostActive.value && (inheritedHostActive?.value ?? true)
 );
 const held = provideRendererDisplayHolds();
+const layoutState = provideRendererLayoutState();
 const {
   active: displayActive,
   style: suspendedStyle,
@@ -377,6 +380,7 @@ const {
   enabled: () => !!props.suspendOnDeactivate,
   live: () => !!props.isStreaming || internalIsStreaming.value,
   held,
+  pending: layoutState.pending,
   revision: () => [
     props.content,
     props.version,
@@ -406,6 +410,7 @@ provideRendererBlockMounting({
     props.shouldFreeze,
   ],
   state: viewState,
+  layoutState,
 });
 onDeactivated(() => {
   localHostActive.value = false;

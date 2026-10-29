@@ -202,6 +202,7 @@ import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fixMermaidCode } from "@/utils/mermaidFixer";
+import { useRendererLayoutTask } from "../../composables/useRendererLayoutState";
 import { renderMermaid } from "../../utils/mermaidRuntime";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
@@ -338,6 +339,7 @@ const showViewer = ref(false);
 useRendererDisplayHold(showViewer);
 const isRendering = ref(false);
 const hasRendered = ref(false); // 是否至少成功渲染过一次
+const layoutTask = useRendererLayoutTask(() => props.nodeId);
 const lastRenderId = ref(0); // 用于并发控制
 
 // 已显示过的静态图表按原高度占位，返回时仅在接近视口后重建 SVG。
@@ -600,6 +602,7 @@ const renderDiagram = async () => {
 
   // 记录当前的渲染 ID，用于并发控制
   const currentRenderId = ++lastRenderId.value;
+  const settleLayout = layoutTask.begin();
 
   try {
     isRendering.value = true;
@@ -743,6 +746,7 @@ const renderDiagram = async () => {
       error.value = err?.message || "未知错误";
     }
   } finally {
+    settleLayout();
     if (currentRenderId === lastRenderId.value) {
       isRendering.value = false;
     }

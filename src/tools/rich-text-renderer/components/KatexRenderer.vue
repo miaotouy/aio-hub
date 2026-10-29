@@ -34,6 +34,7 @@ import {
   watch,
 } from "vue";
 import katex from "katex";
+import { useRendererLayoutTask } from "../composables/useRendererLayoutState";
 import "katex/dist/katex.min.css";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
@@ -48,6 +49,7 @@ const errorHandler = createModuleErrorHandler(
 const props = withDefaults(
   defineProps<{
     content: string;
+    nodeId?: string;
     displayMode?: boolean;
     nodeStatus?: NodeMeta["status"];
   }>(),
@@ -65,6 +67,7 @@ const streaming = computed(
       ? !!context?.isStreaming?.value
       : props.nodeStatus === "pending")
 );
+const layoutTask = useRendererLayoutTask(() => props.nodeId);
 let active = true;
 let mounted = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -72,6 +75,7 @@ let rendered: { content: string; displayMode: boolean } | undefined;
 function cancel() {
   if (timer !== undefined) clearTimeout(timer);
   timer = undefined;
+  layoutTask.cancel();
 }
 function renderKatex() {
   cancel();
@@ -101,7 +105,10 @@ function renderKatex() {
 function schedule() {
   if (!mounted || !active) return;
   if (!streaming.value) renderKatex();
-  else if (timer === undefined) timer = setTimeout(renderKatex, 32);
+  else if (timer === undefined) {
+    layoutTask.begin();
+    timer = setTimeout(renderKatex, 32);
+  }
 }
 onMounted(() => {
   mounted = true;

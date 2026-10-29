@@ -580,6 +580,10 @@ src/tools/rich-text-renderer/
 
 `KatexRenderer` 按节点 pending 状态合并 32ms 内的流式更新，节点稳定或父流结束时立即刷新。正文与展示模式相同则复用现有公式 DOM。KeepAlive 停用、卸载会清理待执行任务，恢复时显示最新内容；渲染选项和 MathML 输出沿用 KaTeX 原有行为。对照与实测见 `docs/Plan/markstream-vue-reference-study.md`。
 
+### 7.7 异步布局协作
+
+`provideRendererLayoutState` 在渲染器作用域内登记公式刷新与 Mermaid 排版任务。任务按所有者和节点关联，新请求替换旧请求，卸载释放登记。块回收跳过仍有任务的子树；整消息和聊天行高缓存保留有效实测值，待任务完成后重新测量。根元素内部属性 `data-render-pending` 用于外层观察，保持布局状态与流结束状态独立。
+
 ## 8. 附录：集成与调用场景 (Integration & Usage)
 
 渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。

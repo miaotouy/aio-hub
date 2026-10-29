@@ -16,6 +16,7 @@ import {
   type VNode,
 } from "vue";
 import type { AstNode } from "../types";
+import type { RendererLayoutState } from "./useRendererLayoutState";
 import {
   rendererLayoutRevisionKey,
   useRendererReadingInteraction,
@@ -86,6 +87,7 @@ export function provideRendererBlockMounting(options: {
   held: Readonly<Ref<boolean>>;
   layout: () => unknown;
   state: ReturnType<typeof provideRendererViewState>;
+  layoutState?: RendererLayoutState;
 }) {
   const revision = shallowRef(0);
   const entries = new Map<string, Entry>();
@@ -268,7 +270,8 @@ export function provideRendererBlockMounting(options: {
           entry.nearby ||
           entry.suspended ||
           entry.node === options.nodes.value[options.nodes.value.length - 1] ||
-          entry.node.meta.status !== "stable"
+          entry.node.meta.status !== "stable" ||
+          options.layoutState?.hasPending(entry.node)
         )
           continue;
         const saved = snapshot(entry, scale);
@@ -423,6 +426,7 @@ export function provideRendererBlockMounting(options: {
     { flush: "sync", immediate: true }
   );
   watch(options.nodes, (nodes) => blocks.sync(nodes), { flush: "sync" });
+  watch(() => options.layoutState?.pending.value, scheduleViewport);
   watch(
     [options.layout, () => layoutRevision?.value],
     () => {

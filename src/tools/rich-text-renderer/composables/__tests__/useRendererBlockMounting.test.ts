@@ -81,6 +81,7 @@ async function settle() {
   await nextTick();
 }
 function host(input = false) {
+  const layoutPending = ref(false);
   const enabled = ref(false),
     live = ref(false),
     held = ref(false),
@@ -141,6 +142,10 @@ function host(input = false) {
         held,
         layout: () => "same",
         state,
+        layoutState: {
+          pending: layoutPending,
+          hasPending: (node) => layoutPending.value && node.id === "block-0",
+        },
       });
       return () => {
         void blocks.revision.value;
@@ -171,6 +176,7 @@ function host(input = false) {
   );
   return {
     enabled,
+    layoutPending,
     live,
     held,
     screenshot,
@@ -292,4 +298,17 @@ it("leaves ordinary rendering available when viewport observers are unavailable"
   state.enabled.value = true;
   await settle();
   expect(state.root().findAll("button")).toHaveLength(90);
+});
+
+// A settled AST block may still contain an in-flight diagram or formula layout.
+it("keeps the pending subtree until its layout settles", async () => {
+  const state = host();
+  state.layoutPending.value = true;
+  state.enabled.value = true;
+  await settle();
+  expect(state.block(0).find("button").exists()).toBe(true);
+  expect(state.block(1).attributes("data-render-placeholder")).toBe("");
+  state.layoutPending.value = false;
+  await settle();
+  expect(state.block(0).attributes("data-render-placeholder")).toBe("");
 });

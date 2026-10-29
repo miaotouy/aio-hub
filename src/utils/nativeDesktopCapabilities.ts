@@ -22,5 +22,9 @@ export function getNativeDesktopCapabilities() {
   } catch {
     /* 浏览器缺少原生平台信息。 */
   }
-  return { windowAutomation: windows, screenCapture: windows };
+  return {
+    windowAutomation: windows,
+    screenCapture: windows,
+    externalPlayerOverlay: windows,
+  };
 }

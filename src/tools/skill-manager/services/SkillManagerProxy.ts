@@ -28,6 +28,8 @@ import { createModuleLogger } from "@/utils/logger";
 import { SkillService } from "./SkillService";
 import { getEnvVarsForExecution } from "./envFileManager";
 
+import { resolveTerminalEnvironment } from "../utils/hostEnvironment";
+
 const logger = createModuleLogger("skill-manager/system-proxy");
 
 export class SkillManagerProxy implements ToolRegistry {
@@ -288,7 +290,9 @@ export class SkillManagerProxy implements ToolRegistry {
       );
       const pyCmd = this.getCommandBasename(
         rt.python.command,
-        "python (自动检测)"
+        osPlatform === "windows"
+          ? "python / python3 (自动检测)"
+          : "python3 / python (自动检测)"
       );
       const shellCmd = this.getCommandBasename(
         rt.shell.command,
@@ -296,31 +300,15 @@ export class SkillManagerProxy implements ToolRegistry {
       );
       const psCmd = this.getCommandBasename(
         rt.powershell.command,
-        "powershell"
+        osPlatform === "windows"
+          ? "powershell / pwsh (自动检测)"
+          : "pwsh / powershell (自动检测)"
       );
 
-      let shellDesc = "PowerShell";
-      let chainStyle = "使用 `;` 串联命令（PowerShell 语义）";
-      let pathStyle = "`\\`（反斜杠）";
-
-      if (prefs.defaultShell === "cmd") {
-        shellDesc = "cmd.exe";
-        chainStyle = "使用 `&&` 串联命令";
-      } else if (prefs.defaultShell === "bash") {
-        shellDesc = "bash";
-        chainStyle = "使用 `&&` 串联命令";
-        pathStyle = "`/`（正斜杠）";
-      } else if (prefs.defaultShell === "zsh") {
-        shellDesc = "zsh";
-        chainStyle = "使用 `&&` 串联命令";
-        pathStyle = "`/`（正斜杠）";
-      }
-
-      if (prefs.commandChainStyle === "semicolon") {
-        chainStyle = "使用 `;` 串联命令";
-      } else if (prefs.commandChainStyle === "ampersand") {
-        chainStyle = "使用 `&&` 串联命令";
-      }
+      const { shellDesc, chainStyle, pathStyle } = resolveTerminalEnvironment(
+        osPlatform,
+        prefs
+      );
 
       return [
         `- 操作系统: ${osType} ${osVersion} (${osPlatform})`,
@@ -328,7 +316,7 @@ export class SkillManagerProxy implements ToolRegistry {
         `- 默认 Shell: ${shellDesc}`,
         `- 命令链接: ${chainStyle}`,
         `- 路径风格: ${pathStyle}`,
-        `- 可用运行时: ${jsCmd}, ${pyCmd}, ${shellCmd}, ${psCmd}`,
+        `- 运行时命令: ${jsCmd}, ${pyCmd}, ${shellCmd}, ${psCmd}`,
         `- 执行说明:`,
         `  - 调用脚本请使用 skill:system.skill_run_script`,
         `  - 原生 Shell 命令（mkdir, ls 等）请使用工具集提供的对应能力`,

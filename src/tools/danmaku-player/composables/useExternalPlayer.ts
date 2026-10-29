@@ -21,6 +21,7 @@ import {
   onMounted,
 } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { TauriExternalPlayerStatusProvider } from "../core/externalPlayerApi";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -63,6 +64,7 @@ const configManager = createConfigManager<ExternalPlayerConfig>({
 });
 
 export function useExternalPlayer() {
+  const isSupported = getNativeDesktopCapabilities().externalPlayerOverlay;
   const playerWindows = ref<PlayerWindowInfo[]>([]);
   const playerConfig = reactive<ExternalPlayerConfig>({
     ...DEFAULT_PLAYER_CONFIG,
@@ -99,6 +101,7 @@ export function useExternalPlayer() {
   async function scanPlayerWindows(
     classNames?: string[]
   ): Promise<PlayerWindowInfo[]> {
+    if (!isSupported) return [];
     scanning.value = true;
 
     try {
@@ -134,6 +137,7 @@ export function useExternalPlayer() {
   }
 
   async function testConnection(): Promise<boolean> {
+    if (!isSupported) return false;
     try {
       const provider = getOrCreateStatusProvider();
       const connected = await provider.testConnection(overlayState.targetHwnd);
@@ -184,6 +188,7 @@ export function useExternalPlayer() {
   }
 
   function startStatusPreview(): void {
+    if (!isSupported) return;
     if (statusPreviewTimer !== null) {
       return;
     }
@@ -248,6 +253,7 @@ export function useExternalPlayer() {
 
   return {
     // 状态
+    isSupported,
     playerWindows,
     playerConfig,
     overlayState,

@@ -151,3 +151,6 @@ ASS/SSA 作为“字幕”加载时优先交给 JASSUB，而不是转成弹幕�
 - 图形字幕 IDX/SUP 暂不支持。
 - Tauri 前端不直接请求播放器本地接口，统一通过 Rust 代理规避 CSP / scope 限制。
 
+### 外部模式的平台能力反馈
+
+`getNativeDesktopCapabilities().externalPlayerOverlay` 与 Rust Windows command 的注册边界一致。Linux/macOS 的外部播放器页保留配置工作区并引导使用内置播放器；连接操作禁用，扫描、连接测试和状态预览在进入 IPC 前返回，覆盖窗口创建也按能力守卫。

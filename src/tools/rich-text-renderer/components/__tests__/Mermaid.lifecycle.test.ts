@@ -82,8 +82,10 @@ it.each(["node", "viewer"] as const)(
     await flushPromises();
     finish({ svg: "<svg><text>obsolete</text></svg>" });
     await flushPromises();
-    expect(wrapper.find("svg text").text()).toContain(
-      "dark:graph TD; A-->Latest"
+    await vi.waitFor(() =>
+      expect(wrapper.find("svg text").text()).toContain(
+        "dark:graph TD; A-->Latest"
+      )
     );
     expect(wrapper.text()).not.toContain("obsolete");
     wrapper.unmount();
@@ -189,6 +191,8 @@ function restoredDiagram() {
     streaming,
     screenshot,
     async restore() {
+      await flushPromises();
+      await new Promise(requestAnimationFrame);
       await flushPromises();
       expect(wrapper.get("svg text").text()).toContain("Initial");
       active.value = false;

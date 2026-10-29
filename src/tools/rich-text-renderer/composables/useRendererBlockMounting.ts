@@ -303,7 +303,7 @@ export function provideRendererBlockMounting(options: {
     schedule();
   }
   function scheduleViewport() {
-    if (!scrollFrame && enabled.value)
+    if (!scrollFrame && enabled.value && options.hostActive.value)
       scrollFrame = requestAnimationFrame(checkViewport);
   }
   function keydown(event: KeyboardEvent) {
@@ -447,7 +447,11 @@ export function provideRendererBlockMounting(options: {
   );
   watch(options.hostActive, (active) => {
     if (active) scheduleViewport();
-    else cancel();
+    else {
+      cancel();
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+      scrollFrame = 0;
+    }
   });
   function startTracking() {
     if (

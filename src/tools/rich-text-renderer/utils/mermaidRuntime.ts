@@ -15,6 +15,9 @@ let runtime: Promise<Mermaid> | undefined;
 let configuredTheme: boolean | undefined;
 let tail: Promise<unknown> = Promise.resolve();
 let sequence = 0;
+let queued = 0;
+let batchStarted = 0;
+const RENDER_BUDGET_MS = 8;
 
 async function loadRuntime() {
   runtime ??= import("mermaid")
@@ -32,8 +35,16 @@ async function loadRuntime() {
 export function renderMermaid(
   request: RenderRequest
 ): Promise<RenderResult | undefined> {
+  if (queued++ === 0) batchStarted = performance.now();
   const job = tail.then(async () => {
     if (!request.isCurrent()) return;
+    // A restored message can enqueue dozens of diagrams. Give input and paint a
+    // task boundary between expensive serial jobs, while keeping config ownership.
+    if (performance.now() - batchStarted >= RENDER_BUDGET_MS) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      batchStarted = performance.now();
+      if (!request.isCurrent()) return;
+    }
     const mermaid = await loadRuntime();
     if (!request.isCurrent()) return;
     if (configuredTheme !== request.dark) {
@@ -54,9 +65,9 @@ export function renderMermaid(
     return { ...rendered, svg: sanitizeMermaidSvg(rendered.svg) };
   });
   // An invalid diagram must not prevent the next owner's job from running.
-  tail = job.then(
-    () => undefined,
-    () => undefined
-  );
+  const settled = () => {
+    queued--;
+  };
+  tail = job.then(settled, settled);
   return job;
 }

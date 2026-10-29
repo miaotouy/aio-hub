@@ -139,3 +139,7 @@ bun run rich-text:performance:tauri -- --instance ubuntu-matrix --cycles 1 --siz
 ```
 
 后续优先调查多媒体与多分支的首次激活和高度恢复路径，沿用本轮语料及窄范围滚动探针。
+
+## 后续滚动专项
+
+已继续定位图表批量恢复的主线程连续占用，调整共享队列让出、图表补充测量与休眠块调度。三轮诊断结果和多图片首次挂载的剩余问题见 [Ubuntu 历史消息滚动性能调查](./ubuntu-scroll-performance-20261029.md)。

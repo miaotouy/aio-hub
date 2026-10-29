@@ -399,7 +399,7 @@ provideRendererBlockMounting({
   root: rootElement,
   nodes: ast,
   enabled: () => !!props.suspendOnDeactivate,
-  hostActive,
+  hostActive: displayActive,
   live: () => !!props.isStreaming || internalIsStreaming.value,
   held,
   layout: () => [

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/public/assets/产品概念图-1.jpg" alt="AIO Hub Banner" width="100%">
+  <img src="docs/public/assets/aiohub-readme-hero.webp" alt="AIO Hub 新版界面与立体图标" width="100%">
 </div>
 
 <br/>

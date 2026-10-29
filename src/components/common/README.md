@@ -444,6 +444,8 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
   - `original` / `modified` (string): Diff 模式下的原始内容和修改后内容。
   - `readOnly` (boolean): 只读模式。
 
+- **Diff 双向绑定**：`v-model:original` / `v-model:modified` 接收 Monaco 两侧编辑后的内容。父级替换文本继续通过对应 props 更新；切换编辑器实例和卸载时清理内容监听。复制、保存和补丁生成应使用这两个绑定值。
+
 - **使用示例** (来自 [`RequestPanel.vue`](../../tools/api-tester/components/RequestPanel.vue)):
 
   ```vue
@@ -458,8 +460,8 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
   <RichCodeEditor
     ref="richCodeEditorRef"
     :diff="true"
-    :original="leftContent"
-    :modified="rightContent"
+    v-model:original="leftContent"
+    v-model:modified="rightContent"
     editor-type="monaco"
     language="plaintext"
   />

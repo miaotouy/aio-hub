@@ -48,7 +48,8 @@ const emit = defineEmits<{
 
 const logger = createModuleLogger("window-automator/WindowSelector");
 const store = useWindowAutomatorStore();
-const { windows, isLoading, refresh, isValid } = useWindowBinding();
+const { windows, isLoading, refresh, isValid, isSupported, lastError } =
+  useWindowBinding();
 
 const showDialog = computed({
   get: () => (props.mode === "dialog" ? props.modelValue : false),
@@ -130,10 +131,15 @@ watch(
   <!-- inline 模式：内嵌到工具栏 -->
   <div v-if="mode === 'inline'" class="window-selector inline">
     <el-select
+      :disabled="!isSupported"
       :model-value="selectedHwnd"
       :loading="isLoading"
       :placeholder="
-        store.boundWindow ? store.boundWindow.title : '点击选择目标窗口'
+        !isSupported
+          ? '窗口绑定需要 Windows'
+          : store.boundWindow
+            ? store.boundWindow.title
+            : '点击选择目标窗口'
       "
       filterable
       clearable
@@ -163,7 +169,12 @@ watch(
       </el-option>
     </el-select>
     <el-tooltip content="刷新窗口列表" placement="top">
-      <el-button :icon="RefreshCw" :loading="isLoading" @click="reload" />
+      <el-button
+        :icon="RefreshCw"
+        :loading="isLoading"
+        :disabled="!isSupported"
+        @click="reload"
+      />
     </el-tooltip>
     <el-tooltip v-if="store.boundWindow" content="解绑当前窗口" placement="top">
       <el-button :icon="X" @click="unbind" />
@@ -187,7 +198,11 @@ watch(
           clearable
           size="default"
         />
-        <el-button :icon="RefreshCw" :loading="isLoading" @click="reload"
+        <el-button
+          :icon="RefreshCw"
+          :loading="isLoading"
+          :disabled="!isSupported"
+          @click="reload"
           >刷新</el-button
         >
       </div>
@@ -207,7 +222,7 @@ watch(
           </div>
         </div>
         <div v-if="filteredWindows.length === 0" class="empty">
-          暂无可绑定窗口
+          {{ lastError || "暂无可绑定窗口" }}
         </div>
       </div>
       <div v-if="store.boundWindow" class="current-bound">

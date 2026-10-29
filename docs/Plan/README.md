@@ -121,7 +121,7 @@
 | `wallpaper-detector`                    | 待收口 | 执行 D-P3-01                                                                                                                                                     |
 | `embedding-playground`                  | 待收口 | 主体代码已实施，执行 D-P2-09 的核心交互与结果验收                                                                                                                |
 | `transcription`                         | 待收口 | OCR 配置、UI 和引擎分流已实施，执行 D-P3-03                                                                                                                      |
-| `weather`                               | 候选   | [天气工具接入调查与方案](../../src/tools/weather/docs/Plan/weather-feature-plan.md)：首期 UAPI、轻量适配、Store 统一状态及可选 Key；多源差异保留为参考 |
+| `weather`                               | 候选   | [天气工具接入调查与方案](../../src/tools/weather/docs/Plan/weather-feature-plan.md)：首期 UAPI、轻量适配、Store 统一状态及可选 Key；多源差异保留为参考           |
 
 ## 6. 回写顺序
 

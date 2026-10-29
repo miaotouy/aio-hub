@@ -148,10 +148,83 @@ fn manifest_binary_path<'a>(
     }
 }
 
+fn validate_plugin_id(plugin_id: &str) -> Result<(), String> {
+    if plugin_id.is_empty()
+        || plugin_id.trim() != plugin_id
+        || plugin_id.ends_with('.')
+        || plugin_id.chars().any(char::is_control)
+        || plugin_id.contains('/')
+        || plugin_id.contains('\\')
+        || plugin_id.contains(':')
+        || plugin_id.contains("..")
+    {
+        return Err(format!("非法的插件 ID: {plugin_id}"));
+    }
+    Ok(())
+}
+
+fn plugin_archive_path(name: &str) -> Result<PathBuf, String> {
+    let normalized = name.replace('\\', "/");
+    if normalized.starts_with('/')
+        || normalized.as_bytes().get(1) == Some(&b':')
+        || normalized
+            .split('/')
+            .any(|part| part.ends_with('.') || part.ends_with(' ') || part.contains(':'))
+    {
+        return Err(format!("ZIP 文件包含非法路径: {name}"));
+    }
+    let path = PathBuf::from(normalized);
+    if path.as_os_str().is_empty() || !path.components().all(|c| matches!(c, Component::Normal(_)))
+    {
+        return Err(format!("ZIP 文件包含非法路径: {name}"));
+    }
+    Ok(path)
+}
+
+fn write_plugin_archive_file<R: Read>(
+    entry: &mut R,
+    target: &Path,
+    archived_mode: Option<u32>,
+    declared_sidecar: bool,
+) -> Result<(), String> {
+    let mut file = fs::File::create(target).map_err(|e| format!("创建文件失败: {e}"))?;
+    std::io::copy(entry, &mut file).map_err(|e| format!("解压文件失败: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // Keep executable intent, with safe installed defaults. Never restore
+        // setuid/setgid/sticky or group/world-write bits from an archive.
+        let executable = declared_sidecar || archived_mode.unwrap_or(0) & 0o111 != 0;
+        file.set_permissions(fs::Permissions::from_mode(if executable {
+            0o755
+        } else {
+            0o644
+        }))
+        .map_err(|e| format!("设置插件文件权限失败: {e}"))?;
+    }
+    #[cfg(not(unix))]
+    let _ = (archived_mode, declared_sidecar);
+    Ok(())
+}
+
 fn validate_plugin_archive_platform<R: Read + Seek>(
     archive: &mut ZipArchive<R>,
     manifest: &PluginManifest,
 ) -> Result<(), String> {
+    // Validate every member before creating the installation directory. Symlink
+    // entries are unsupported, preventing later members escaping through them.
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|e| format!("读取 ZIP 条目失败: {e}"))?;
+        plugin_archive_path(entry.name())?;
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err(format!("插件 ZIP 不支持符号链接条目: {}", entry.name()));
+        }
+    }
     let platform_key = current_plugin_platform_key()?;
     let Some(binary_path) = manifest_binary_path(manifest, platform_key)? else {
         return Ok(());
@@ -227,6 +300,71 @@ mod plugin_platform_tests {
             .unwrap();
         writer.write_all(b"binary").unwrap();
         ZipArchive::new(writer.finish().unwrap()).unwrap()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn installed_sidecars_execute_and_data_has_safe_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        for (name, mode, declared) in [("unix", Some(0o107777), false), ("windows-zip", None, true)]
+        {
+            let path = dir.path().join(name);
+            let mut script = Cursor::new(b"#!/bin/sh\nprintf installed-ok");
+            write_plugin_archive_file(&mut script, &path, mode, declared).unwrap();
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o7777,
+                0o755
+            );
+            let output = std::process::Command::new(&path).output().unwrap();
+            assert!(output.status.success());
+            assert_eq!(output.stdout, b"installed-ok");
+        }
+        let path = dir.path().join("data.json");
+        write_plugin_archive_file(&mut Cursor::new(b"{}"), &path, Some(0o106666), false).unwrap();
+        assert_eq!(
+            fs::metadata(path).unwrap().permissions().mode() & 0o7777,
+            0o644
+        );
+    }
+
+    #[test]
+    fn plugin_id_cannot_resolve_to_the_plugins_root_or_another_path() {
+        for id in [
+            "", " ", ".", "..", ". ", "id.", "id ", "../other", "a/b", "a\\b", "C:",
+        ] {
+            assert!(validate_plugin_id(id).is_err(), "{id}");
+        }
+        assert!(validate_plugin_id("valid-plugin_1").is_ok());
+    }
+
+    #[test]
+    fn rejects_archive_escape_and_symlink_members() {
+        for path in [
+            "../escape",
+            "/escape",
+            "C:/escape",
+            "bin/../../escape",
+            "bin\\..\\escape",
+            "bin/.. /escape",
+            "bin/config:payload",
+        ] {
+            assert!(plugin_archive_path(path).is_err(), "{path}");
+        }
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        writer
+            .start_file("bin/test-sidecar", SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(b"binary").unwrap();
+        writer
+            .add_symlink("link", "../../outside", SimpleFileOptions::default())
+            .unwrap();
+        let mut archive = ZipArchive::new(writer.finish().unwrap()).unwrap();
+        assert!(validate_plugin_archive_platform(
+            &mut archive,
+            &sidecar_manifest("bin/test-sidecar")
+        )
+        .is_err());
     }
 
     #[test]
@@ -1585,9 +1723,7 @@ pub async fn copy_file_to_app_data(
 #[tauri::command]
 pub async fn uninstall_plugin(app: AppHandle, plugin_id: String) -> Result<String, String> {
     // 安全性验证：plugin_id 不应包含路径分隔符
-    if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
-        return Err(format!("非法的插件 ID: {}", plugin_id));
-    }
+    validate_plugin_id(&plugin_id)?;
 
     // 获取应用数据目录
     let app_data_dir = crate::get_app_data_dir(app.config());
@@ -1713,9 +1849,7 @@ pub async fn install_plugin_from_zip(
         .to_string();
 
     // 安全性验证：plugin_id 不应包含路径分隔符
-    if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
-        return Err(format!("非法的插件 ID: {}", plugin_id));
-    }
+    validate_plugin_id(&plugin_id)?;
 
     let typed_manifest: PluginManifest = serde_json::from_value(manifest.clone())
         .map_err(|error| format!("转换 manifest 类型失败: {error}"))?;
@@ -1735,12 +1869,6 @@ pub async fn install_plugin_from_zip(
     // 创建插件目录
     fs::create_dir_all(&install_dir).map_err(|e| format!("创建插件目录失败: {}", e))?;
 
-    // 重新打开 ZIP 文件进行解压
-    let file =
-        fs::File::open(&zip_file_path).map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
-
-    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
-
     // 统计总文件数和总字节数（用于进度计算）
     let mut total_files = 0usize;
     let mut total_bytes = 0u64;
@@ -1758,12 +1886,6 @@ pub async fn install_plugin_from_zip(
         total_files += 1;
         total_bytes += file.size();
     }
-
-    // 重新打开 ZIP 进行实际解压
-    let file =
-        fs::File::open(&zip_file_path).map_err(|e| format!("无法重新打开 ZIP 文件: {}", e))?;
-
-    let mut archive = ZipArchive::new(file).map_err(|e| format!("无法重新读取 ZIP 文件: {}", e))?;
 
     // 解压所有文件并发送进度
     let mut processed_files = 0usize;
@@ -1784,7 +1906,7 @@ pub async fn install_plugin_from_zip(
         let file_size = file.size();
 
         // 构建目标文件路径
-        let target_path = install_dir.join(&file_path);
+        let target_path = install_dir.join(plugin_archive_path(&file_path)?);
 
         // 安全性检查：确保解压路径在安装目录下
         if !target_path.starts_with(&install_dir) {
@@ -1796,17 +1918,11 @@ pub async fn install_plugin_from_zip(
             fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {}", e))?;
         }
 
-        // 解压文件
-        let mut target_file =
-            fs::File::create(&target_path).map_err(|e| format!("创建文件失败: {}", e))?;
-
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .map_err(|e| format!("读取文件内容失败: {}", e))?;
-
-        target_file
-            .write_all(&buffer)
-            .map_err(|e| format!("写入文件失败: {}", e))?;
+        let archived_mode = file.unix_mode();
+        let declared_sidecar = typed_manifest.plugin_type == "sidecar"
+            && manifest_binary_path(&typed_manifest, current_plugin_platform_key()?)?
+                .is_some_and(|binary| binary.replace('\\', "/") == file_path.replace('\\', "/"));
+        write_plugin_archive_file(&mut file, &target_path, archived_mode, declared_sidecar)?;
 
         // 更新进度
         processed_files += 1;
@@ -1918,9 +2034,7 @@ pub async fn preflight_plugin_zip(zip_path: String) -> Result<PluginManifest, St
 
     // 安全性验证：plugin_id 不应包含路径分隔符
     let plugin_id = manifest_value.get("id").unwrap().as_str().unwrap();
-    if plugin_id.contains('/') || plugin_id.contains('\\') || plugin_id.contains("..") {
-        return Err(format!("非法的插件 ID: {}", plugin_id));
-    }
+    validate_plugin_id(&plugin_id)?;
 
     // 将 serde_json::Value 转换为 PluginManifest 类型
     let plugin_manifest: PluginManifest = serde_json::from_value(manifest_value)

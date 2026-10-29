@@ -53,12 +53,16 @@
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-meta-recursive",
-    {
-      "identifier": "fs:scope",
-      "allow": [{ "path": "**/canvases/projects/**" }]
-    },
     "fs:allow-watch",
     "fs:allow-unwatch",
+    {
+      "identifier": "fs:allow-stat",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-lstat",
+      "allow": [{ "path": "**" }]
+    },
     {
       "identifier": "fs:allow-read-file",
       "allow": [{ "path": "**" }]

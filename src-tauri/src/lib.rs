@@ -17,6 +17,8 @@ mod backend_logging;
 mod commands;
 mod events;
 mod frontend_monitor;
+#[cfg(desktop)]
+mod filesystem_scope;
 mod knowledge;
 mod recall;
 mod tray;
@@ -270,7 +272,8 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 use tauri_plugin_fs::FsExt;
-                let _ = app.fs_scope().allow_directory(&app_data_dir, true);
+                app.fs_scope().allow_directory(&app_data_dir, true)?;
+                filesystem_scope::authorize_app_data(app.handle(), &app_data_dir)?;
                 log::info!("[SCOPE] 已允许访问数据目录 (fs): {:?}", app_data_dir);
                 // Asset requests have a separate scope; isolated data roots may contain dot directories.
                 app.asset_protocol_scope()

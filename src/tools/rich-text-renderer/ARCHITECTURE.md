@@ -588,6 +588,10 @@ src/tools/rich-text-renderer/
 
 `StreamTextBoundary` 位于显示节奏控制器内，在解析前保持 grapheme 和完整围栏行的原子性；末尾待确认字符随下个 chunk 或结束冲刷输出。围栏识别复用解析器的开闭契约，逐次扫描新增字符。大段回放保留直接输出路径；隐藏窗口采用定时器推进，恢复可见后回到 rAF，停止时清理全部调度。
 
+### 7.9 Mermaid SVG 输出边界
+
+`mermaidRuntime` 串行完成主题配置与排版后，在共享出口调用 `sanitizeMermaidSvg`，过期任务提前退出。清理器使用独立 DOMPurify 实例，保留安全 foreignObject 富文本、图形、本地资源引用与主题 CSS；额外解析样式以清理外部 CSS 资源和资源加载规则，并为新窗口链接设置安全 rel。两处展示入口共用清理后的 SVG，缺少有效 SVG 根时沿用组件错误路径。原生浅色与深色图表兼容性记录见 `docs/Plan/markstream-vue-reference-study.md`。
+
 ## 8. 附录：集成与调用场景 (Integration & Usage)
 
 渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。

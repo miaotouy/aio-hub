@@ -33,6 +33,7 @@ import {
 import { useFileDrop } from "@/composables/useFileDrop";
 import {
   Plus,
+  Refresh,
   Search,
   Download,
   Upload,
@@ -137,6 +138,7 @@ const handleMatchModeChange = (mode: SearchMatchMode) => {
 // 搜索和筛选状态
 const searchQuery = ref("");
 const selectedCategory = ref("all");
+const isRefreshingAgents = ref(false);
 
 // 搜索结果 ID 到匹配详情的映射
 const searchMatchesMap = computed(() => {
@@ -176,6 +178,34 @@ const allCategories = computed(() => {
       label: AgentCategoryLabels[cat as AgentCategory] || cat, // 如果不是标准枚举，回退到原始值
     }));
 });
+
+const handleRefreshAgents = async () => {
+  if (isRefreshingAgents.value) return;
+
+  isRefreshingAgents.value = true;
+  try {
+    const loaded = await agentStore.loadAgents();
+
+    if (
+      selectedCategory.value !== "all" &&
+      !allCategories.value.some(
+        (category) => category.value === selectedCategory.value
+      )
+    ) {
+      selectedCategory.value = "all";
+    }
+    if (isInSearchMode.value) {
+      search(searchQuery.value.trim());
+    }
+    if (!loaded) {
+      customMessage.error("刷新未完成，请检查智能体配置文件后重试");
+    }
+  } catch (error) {
+    errorHandler.error(error, "刷新智能体列表失败");
+  } finally {
+    isRefreshingAgents.value = false;
+  }
+};
 
 // 过滤和排序后的智能体列表（非搜索模式）
 const filteredAndSortedAgents = computed(() => {
@@ -875,7 +905,7 @@ const handleImportFromTavernCard = async () => {
           v-model="selectedCategory"
           size="small"
           placeholder="全部分类"
-          style="flex: 1"
+          style="flex: 1; min-width: 0"
         >
           <el-option label="全部分类" value="all" />
           <el-option
@@ -888,12 +918,34 @@ const handleImportFromTavernCard = async () => {
         <el-select
           v-model="agentSortBy"
           size="small"
-          :style="{ width: allCategories.length > 0 ? '110px' : '100%' }"
+          :style="{
+            flex: allCategories.length > 0 ? '0 0 110px' : '1',
+            minWidth: 0,
+          }"
         >
           <el-option label="最近使用" value="lastUsed" />
           <el-option label="按名称" value="name" />
           <el-option label="创建时间" value="createdAt" />
         </el-select>
+        <el-tooltip
+          :content="
+            isRefreshingAgents ? '正在刷新智能体列表' : '刷新智能体列表'
+          "
+          placement="bottom"
+          :show-after="400"
+        >
+          <el-button
+            data-testid="chat-agent-refresh"
+            style="flex-shrink: 0"
+            aria-label="刷新智能体列表"
+            :icon="Refresh"
+            circle
+            size="small"
+            :loading="isRefreshingAgents"
+            :disabled="isRefreshingAgents"
+            @click="handleRefreshAgents"
+          />
+        </el-tooltip>
       </div>
     </div>
 

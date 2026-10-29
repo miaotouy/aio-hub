@@ -53,7 +53,7 @@ import type {
 
 const logger = createModuleLogger("llm-chat/agentStore");
 const errorHandler = createModuleErrorHandler("llm-chat/agentStore");
-let loadAgentsPromise: Promise<void> | null = null;
+let loadAgentsPromise: Promise<boolean> | null = null;
 const agentWriteQueue = new Map<string, Promise<void>>();
 
 function enqueueAgentWrite(
@@ -736,7 +736,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
     /**
      * 从文件加载智能体（全量加载，杜绝没详情的索引导致数据损坏）
      */
-    async loadAgents(): Promise<void> {
+    async loadAgents(): Promise<boolean> {
       if (loadAgentsPromise) return loadAgentsPromise;
 
       loadAgentsPromise = (async () => {
@@ -749,12 +749,15 @@ export const useAgentStore = defineStore("llmChatAgent", {
             logger.info("全量加载智能体成功", {
               agentCount: this.agents.length,
             });
+            return agents.length === indexedCount;
           } else if (indexedCount === 0) {
             await this.createDefaultAgents();
+            return true;
           } else {
             logger.warn("智能体详情暂时不可读，保留磁盘索引", {
               indexedCount,
             });
+            return false;
           }
         } catch (error) {
           errorHandler.handle(error as Error, {
@@ -762,6 +765,7 @@ export const useAgentStore = defineStore("llmChatAgent", {
             showToUser: false,
           });
           // 保留当前内存状态，避免读取失败被误判为纯净安装。
+          return false;
         } finally {
           loadAgentsPromise = null;
         }

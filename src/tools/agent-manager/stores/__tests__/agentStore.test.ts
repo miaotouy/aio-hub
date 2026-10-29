@@ -68,9 +68,40 @@ describe("agentStore migration loading", () => {
   it("coalesces concurrent full loads", async () => {
     const store = useAgentStore();
 
-    await Promise.all([store.loadAgents(), store.loadAgents()]);
+    const results = await Promise.all([store.loadAgents(), store.loadAgents()]);
+
+    expect(results).toEqual([true, true]);
 
     expect(storageMocks.loadAgentsState).toHaveBeenCalledTimes(1);
+    expect(store.agents).toEqual([agent]);
+  });
+
+  it("refreshes added, edited and removed Agents from disk", async () => {
+    const store = useAgentStore();
+    store.agents = [agent, { ...agent, id: "removed-agent" }];
+    const diskAgents = [
+      { ...agent, name: "Edited Agent" },
+      { ...agent, id: "added-agent", name: "Added Agent" },
+    ];
+    storageMocks.loadAgentsState.mockResolvedValue({
+      agents: diskAgents,
+      indexedCount: 2,
+    });
+
+    await expect(store.loadAgents()).resolves.toBe(true);
+
+    expect(store.agents).toEqual(diskAgents);
+  });
+
+  it("reports an incomplete refresh when some indexed configs are unreadable", async () => {
+    storageMocks.loadAgentsState.mockResolvedValue({
+      agents: [agent],
+      indexedCount: 2,
+    });
+    const store = useAgentStore();
+
+    await expect(store.loadAgents()).resolves.toBe(false);
+
     expect(store.agents).toEqual([agent]);
   });
 
@@ -84,7 +115,7 @@ describe("agentStore migration loading", () => {
       .spyOn(store, "createDefaultAgents")
       .mockResolvedValue();
 
-    await store.loadAgents();
+    await expect(store.loadAgents()).resolves.toBe(false);
 
     expect(createDefaults).not.toHaveBeenCalled();
   });
@@ -99,7 +130,7 @@ describe("agentStore migration loading", () => {
       .spyOn(store, "createDefaultAgents")
       .mockResolvedValue();
 
-    await store.loadAgents();
+    await expect(store.loadAgents()).resolves.toBe(true);
 
     expect(createDefaults).toHaveBeenCalledTimes(1);
   });
@@ -111,7 +142,7 @@ describe("agentStore migration loading", () => {
     const store = useAgentStore();
     store.agents = [agent];
 
-    await store.loadAgents();
+    await expect(store.loadAgents()).resolves.toBe(false);
 
     expect(store.agents).toEqual([agent]);
   });

@@ -110,3 +110,9 @@ try {
 复杂会话、完整主题矩阵和 HTML 预览交互的后续走查见 [Ubuntu 复杂样本与主题矩阵走查](../Plan/ubuntu-ui-matrix-20261029.md)。本轮同时补充了独立数据目录的 asset protocol 授权。
 
 上游业务变更同步后的预览交互、附件路径修复与滚动诊断见 [Ubuntu 上游同步与回归复测](../Plan/ubuntu-upstream-retest-20261029.md)。
+
+## 本地媒体专项补查
+
+2026-10-29 的 Windows 内容兼容性专项发现，Linux 的点目录资源授权和 WebKitGTK 媒体装载需分开验证。点目录 `asset://` 的 403 已通过显式点目录匹配策略修复；FFmpeg 转码与序列帧合成通过，内置视频预览仍需继续处理媒体协议链路。详见 [专项记录](../Plan/ubuntu-windows-compatibility-20261029.md)。
+
+本机缺少 `h264parse` 所在的 `gstreamer1.0-plugins-bad`。本轮从 Ubuntu 官方包提取解析插件到用户缓存，通过测试实例的 `GST_PLUGIN_PATH_1_0` 完成 CLI 解码对照。后续部署可通过系统包管理器安装该组件；WebView 的播放验收还需覆盖实际资源协议和读取行为。

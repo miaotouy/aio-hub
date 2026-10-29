@@ -17,7 +17,8 @@
         "enable": true,
         "scope": {
           "allow": ["**", "$APPLOCALDATA/**", "$APPDATA/**"],
-          "deny": []
+          "deny": [],
+          "requireLiteralLeadingDot": false
         }
       }
     }

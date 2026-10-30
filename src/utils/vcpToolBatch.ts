@@ -1,6 +1,8 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 // SPDX-License-Identifier: Apache-2.0
 
+import { findVcpBlockBoundary } from "./vcpBlockBoundary";
+
 const START_PREFIX = "<<<[VCP_TOOL_BATCH_START:";
 const END_PREFIX = "<<<[VCP_TOOL_BATCH_END:";
 const TIMESTAMP = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}(?:Z|[+-]\d{2}:\d{2})`;
@@ -18,15 +20,49 @@ export function findVcpToolBatch(
   text: string,
   from = 0
 ): VcpToolBatch | undefined {
+  if (text.indexOf(START_PREFIX, from) < 0) return;
+  // Request arguments and single-line code spans own their delimiters.
+  // Standalone batches retain precedence over Markdown fences, even when
+  // their payload contains a closing fence.
   const scanner = new RegExp(
-    String.raw`<<<\[VCP_TOOL_BATCH_START:(${TIMESTAMP})\]>>>`,
+    String.raw`(\`+)|(<<<\[TOOL_REQUEST(_ESCAPE)?\]>>>)|<<<\[VCP_TOOL_BATCH_START:(${TIMESTAMP})\]>>>`,
     "g"
   );
   scanner.lastIndex = from;
-  const match = scanner.exec(text);
+  let match: RegExpExecArray | null;
+  while ((match = scanner.exec(text))) {
+    if (match[1]) {
+      const ticks = /`+/g;
+      ticks.lastIndex = scanner.lastIndex;
+      const newline = text.indexOf("\n", scanner.lastIndex);
+      let close: RegExpExecArray | null;
+      while ((close = ticks.exec(text))) {
+        if (newline >= 0 && close.index >= newline) break;
+        if (close[0].length === match[1].length) {
+          scanner.lastIndex = ticks.lastIndex;
+          break;
+        }
+      }
+    } else if (match[2]) {
+      const endMarker = `<<<[END_TOOL_REQUEST${match[3] ?? ""}]>>>`;
+      const boundary = findVcpBlockBoundary(text, scanner.lastIndex, {
+        endMarker,
+        recoveryStartMarkers: match[3]
+          ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
+          : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+      });
+      if (boundary.status === "unclosed") return;
+      scanner.lastIndex =
+        boundary.status === "complete"
+          ? boundary.endIndex + endMarker.length
+          : boundary.nextStartIndex;
+    } else {
+      break;
+    }
+  }
   if (!match) return;
   const contentStart = match.index + match[0].length;
-  const endMarker = `${END_PREFIX}${match[1]}]>>>`;
+  const endMarker = `${END_PREFIX}${match[4]}]>>>`;
   const endIndex = text.indexOf(endMarker, contentStart);
   let contentEnd = endIndex < 0 ? text.length : endIndex;
   if (endIndex < 0) {

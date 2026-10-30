@@ -697,6 +697,42 @@ describe("streamed Markdown context", () => {
     }
   });
 
+  it("keeps a quoted batch start inside a streaming tool argument", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    let input = "";
+    const content =
+      "Note\n\nBatch example: `<<<[VCP_TOOL_BATCH_START:2026-10-30T11:16:59.391+08:00]>>>`\n\nRemaining note.";
+    try {
+      for (const chunk of [
+        "<<<[TOOL_REQUEST]>>>\ntool_name:「始」DailyNote「末」,\nContent:「始」Note\n\nBatch example: `<<<[VCP_TOOL_",
+        "BATCH_START:2026-10-30T11:16:",
+        "59.391+08:00]>>>`\n\nRemaining note.",
+        "「末」\n<<<[END_TOOL_REQUEST]>>>",
+      ]) {
+        input += chunk;
+        await processor.setContent(input);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+        expect(findNode(state.ast.value, "vcp_role")).toBeUndefined();
+      }
+      await processor.finalize();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+      expect(findNode(state.ast.value, "vcp_tool")).toMatchObject({
+        props: { closed: true, args: { Content: content }, raw: input },
+      });
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
   it("keeps a live truncated batch pending across internal blank lines and protocol markers", async () => {
     const state = useMarkdownAst({ throttleEnabled: false });
     const processor = new StreamProcessorV2({

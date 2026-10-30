@@ -73,6 +73,52 @@ describe("VCP tool-result batch isolation", () => {
     expect(calls.map((call) => call.toolId)).toEqual(["before", "after"]);
   });
 
+  it.each(["", "ESCAPE"])(
+    "preserves a request whose %s parameter quotes a batch delimiter",
+    (escape) => {
+      const content = `Batch example: \`${start()}\` needs support.\nRemaining note.`;
+      const text = `<<<[TOOL_REQUEST]>>>\ntool_name:「始」DailyNote「末」,\nContent:「始${escape}」${content}「末${escape}」\n<<<[END_TOOL_REQUEST]>>>`;
+      const nodes = new CustomParser().parse(text);
+      const tool = nodes.find((node) => node.type === "vcp_tool");
+      expect(tool).toMatchObject({
+        props: {
+          tool_name: "DailyNote",
+          closed: true,
+          args: { Content: content },
+        },
+      });
+      expect(batches(nodes)).toEqual([]);
+      const calls = new VcpToolCallingProtocol().parseToolRequests(text);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].args.Content).toBe(content);
+      expect(findVcpToolBatch(text)).toBeUndefined();
+    }
+  );
+
+  it.each(["`", "``"])(
+    "keeps a %s inline code example separate from the following real batch",
+    (open) => {
+      const example = `${open}${start()} quoted ${end()}${open}`;
+      const text = `${example}\n${start()}real${end()}`;
+      const nodes = new CustomParser().parse(text);
+      expect(batches(nodes).map((node) => node.props.batchContent)).toEqual([
+        "real",
+      ]);
+      expect(findVcpToolBatch(text)?.start).toBe(example.length + 1);
+    }
+  );
+
+  it("resumes batch isolation after a request containing a literal delimiter", () => {
+    const note = `<<<[TOOL_REQUEST]>>>\ntool_name:「始」DailyNote「末」\nContent:「始」${start()}\nplain example「末」\n<<<[END_TOOL_REQUEST]>>>`;
+    const text = `${note}\n${start()}${request("quoted")}${end()}\n${request("after")}`;
+    expect(
+      new VcpToolCallingProtocol()
+        .parseToolRequests(text)
+        .map((call) => call.toolId)
+    ).toEqual(["DailyNote", "after"]);
+    expect(batches(new CustomParser().parse(text))[0]?.props.closed).toBe(true);
+  });
+
   it("recognizes framing before an unclosed Markdown fence", () => {
     const nodes = new CustomParser().parse(
       `\`\`\`text\nexample\n${start()}\nresult\n${end()}`
@@ -82,6 +128,15 @@ describe("VCP tool-result batch isolation", () => {
       closed: true,
     });
   });
+  it("isolates a server batch containing the close of an earlier Markdown fence", () => {
+    const body = `\nresult\n\`\`\`\n${request("quoted")}\n`;
+    const text = `\`\`\`text\nunfinished example\n${start()}${body}${end()}`;
+    expect(batches(new CustomParser().parse(text))[0]?.props.batchContent).toBe(
+      body
+    );
+    expect(new VcpToolCallingProtocol().parseToolRequests(text)).toEqual([]);
+  });
+
   it("keeps consecutive and summary-only batches separate", () => {
     const next = "2026-10-30T11:17:00.000+08:00";
     const summary = "[本轮工具调用摘要:]Read 调用成功。[本轮工具调用摘要结束]";

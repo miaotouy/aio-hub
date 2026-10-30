@@ -282,7 +282,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 
 ### 带时间戳的 VCP 工具返回批次
 
-`RichTextRenderer` 的换行规范化、展示正则、裸 HTML 包裹与资产替换仅处理批次外文本，批次原文保持逐字一致。Tokenizer 在 Markdown/HTML 解析前识别 `VCP_TOOL_BATCH_START/END`，通过共享工具 `src/utils/vcpToolBatch.ts` 按原始时间戳精确匹配边界，兼容 `Z` 及正负时区偏移。批次整体转换为 `vcp_role` 的 `tool_batch` 变体，正文作为 `batchContent` 文本插值显示，保留换行；内部角色、请求、旧结果和其他时间戳标记均保持字面量。外层角色闭合扫描跳过完整批次，缺少对应结束时持续隔离并显示未完成状态。
+`RichTextRenderer` 的换行规范化、展示正则、裸 HTML 包裹与资产替换仅处理批次外文本，批次原文保持逐字一致。Tokenizer 在 Markdown/HTML 解析前识别 `VCP_TOOL_BATCH_START/END`，通过共享工具 `src/utils/vcpToolBatch.ts` 按原始时间戳精确匹配边界，兼容 `Z` 及正负时区偏移。扫描时跳过工具请求块及已闭合的单行行内代码，正文引用的批次标记保留在所属内容中；独立批次保持高于 Markdown 代码围栏的识别优先级。批次整体转换为 `vcp_role` 的 `tool_batch` 变体，正文作为 `batchContent` 文本插值显示，保留换行；内部角色、请求、旧结果和其他时间戳标记均保持字面量。外层角色闭合扫描跳过完整批次，缺少对应结束时持续隔离并显示未完成状态。
 
 含批次的流式文档保持整体待定解析，避免正文内的空行、代码围栏和残缺 HTML 影响稳定区切分。完整闭合后恢复外层解析；旧历史沿用已有结果气泡与摘要展示。协议来源及执行侧隔离见 [工具返回批次](../tool-calling/ARCHITECTURE.md#426-服务端工具返回批次)。
 

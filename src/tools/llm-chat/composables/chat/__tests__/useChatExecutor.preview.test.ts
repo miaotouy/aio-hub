@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { formatVirtualAttachments } from "../../../utils/virtualAttachments";
 import type { ChatSessionDetail } from "../../../types";
 import type { PipelineContext } from "../../../types/pipeline";
 
 const mocks = vi.hoisted(() => ({
+  calculateMessageTokens: vi.fn(async () => ({ count: 1234 })),
   addTask: vi.fn(),
   executePipeline: vi.fn(async (context: PipelineContext) => {
     context.messages = [{ role: "user", content: "preview content" }];
@@ -42,7 +44,10 @@ vi.mock("../../settings/useChatSettings", () => ({
   useChatSettings: () => ({ settings: { value: mocks.settings } }),
 }));
 vi.mock("@/composables/useLlmProfiles", () => ({
-  useLlmProfiles: () => ({ getProfileById: () => undefined }),
+  useLlmProfiles: () => ({
+    profiles: { value: [] },
+    getProfileById: () => undefined,
+  }),
 }));
 vi.mock("../../../stores/llmChatStore", () => ({
   useLlmChatStore: () => ({
@@ -77,7 +82,7 @@ vi.mock("@/tools/st-worldbook-manager/stores/worldbookStore", () => ({
 }));
 vi.mock("@/tools/token-calculator/token-calculator.registry", () => ({
   tokenCalculatorService: {
-    calculateMessageTokens: async () => ({ count: 17 }),
+    calculateMessageTokens: mocks.calculateMessageTokens,
     createScope: () => ({
       calculateMessageTokens: async () => ({ count: 17 }),
     }),
@@ -129,4 +134,45 @@ describe("context preview task boundary", () => {
     expect(mocks.addTask).not.toHaveBeenCalled();
     expect(mocks.executePipeline).toHaveBeenCalledTimes(2);
   });
+});
+
+// Protect send-time message statistics, including attachment-only user messages.
+describe("user message text-attachment token accounting", () => {
+  it.each(["问题", ""])(
+    "counts attached text and its request wrapper with content %j",
+    async (content) => {
+      mocks.calculateMessageTokens.mockClear();
+      const node = {
+        id: "user",
+        role: "user",
+        content,
+        virtualAttachments: [
+          {
+            id: "text",
+            kind: "text",
+            title: "材料",
+            text: "正文".repeat(2000),
+          },
+        ],
+      };
+      const session = {
+        id: "session",
+        nodes: { user: node },
+      } as unknown as ChatSessionDetail;
+      await useChatExecutor().calculateUserMessageTokens(
+        session.nodes.user,
+        session,
+        content,
+        "model"
+      );
+      expect(mocks.calculateMessageTokens).toHaveBeenCalledWith(
+        content +
+          formatVirtualAttachments(session.nodes.user.virtualAttachments),
+        "model",
+        [],
+        undefined
+      );
+      expect(session.nodes.user.metadata?.contentTokens).toBe(1234);
+    }
+  );
 });

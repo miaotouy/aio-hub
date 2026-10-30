@@ -41,6 +41,7 @@ import type { ContextPreviewData } from "../../types/context";
 import { buildPreviewDataFromContext } from "../../core/context-utils/preview-builder";
 import { getContextTokenCalculator } from "../../core/context-utils/token-calculator";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
+import { formatVirtualAttachments } from "../../utils/virtualAttachments";
 import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
@@ -250,6 +251,8 @@ export function useChatExecutor() {
           }
         }
       }
+
+      combinedText += formatVirtualAttachments(userNode.virtualAttachments);
 
       // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
       const maxImageDimension = resolveEffectiveImageMaxDimension(

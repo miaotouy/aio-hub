@@ -697,6 +697,54 @@ describe("streamed Markdown context", () => {
     }
   });
 
+  it("streams escape aliases as text and restores only the real request argument", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    let input = "";
+    try {
+      await processor.setContent("<<<[TOOL_REQUEST_ESCAPE]>>>\n\nexample\n\n");
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+      expect(findNode(state.ast.value, "vcp_tool")).toBeUndefined();
+      input = "<<<[TOOL_REQUEST_ESCAPE]>>>\n\nexample\n\n";
+      const request =
+        "<<<[TOOL_REQUEST]>>>\ntool_name:「始」FileOperator「末」,\ncontent:「始ESCAPE」<<<[TOOL_REQUEST_ESCAPE]>>>literal<<<[END_TOOL_REQUEST_ESCAPE]>>>「末ESCAPE」,\nTag:「始」after-field「末」\n<<<[END_TOOL_REQUEST]>>>";
+      for (const chunk of [
+        request.slice(0, 110),
+        request.slice(110, -10),
+        request.slice(-10),
+      ]) {
+        input += chunk;
+        await processor.setContent(input);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+      }
+      await processor.finalize();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+      expect(findNode(state.ast.value, "vcp_tool")).toMatchObject({
+        props: {
+          tool_name: "FileOperator",
+          closed: true,
+          raw: request,
+          args: {
+            content: "<<<[TOOL_REQUEST]>>>literal<<<[END_TOOL_REQUEST]>>>",
+            Tag: "after-field",
+          },
+        },
+      });
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
   it("keeps a quoted batch start inside a streaming tool argument", async () => {
     const state = useMarkdownAst({ throttleEnabled: false });
     const processor = new StreamProcessorV2({

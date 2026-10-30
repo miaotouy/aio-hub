@@ -309,10 +309,8 @@ class MarkdownBoundaryDetector {
    *
    * VCP 协议定义了以下块类型：
    * 1. 标准工具请求块: <<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>
-   * 2. 块级转义工具请求块: <<<[TOOL_REQUEST_ESCAPE]>>> ... <<<[END_TOOL_REQUEST_ESCAPE]>>>
-   *    （用于嵌套工具调用，内容中可包含标准 TOOL_REQUEST 块）
-   * 3. 调用结果块: [[VCP调用结果信息汇总: ... VCP调用结果结束]]
-   * 4. 工具调用摘要块: [本轮工具调用摘要:] ... [本轮工具调用摘要结束]
+   * 2. 调用结果块: [[VCP调用结果信息汇总: ... VCP调用结果结束]]
+   * 3. 工具调用摘要块: [本轮工具调用摘要:] ... [本轮工具调用摘要结束]
    */
   private hasUnclosedVcpBlock(text: string): boolean {
     // 检查标准工具请求块
@@ -321,16 +319,6 @@ class MarkdownBoundaryDetector {
     const requestCloseCount = (text.match(/<<<\[END_TOOL_REQUEST\]>>>/g) || [])
       .length;
     if (requestOpenCount !== requestCloseCount) {
-      return true;
-    }
-
-    // 检查块级转义工具请求块（TOOL_REQUEST_ESCAPE）
-    const escapeOpenCount = (text.match(/<<<\[TOOL_REQUEST_ESCAPE\]>>>/g) || [])
-      .length;
-    const escapeCloseCount = (
-      text.match(/<<<\[END_TOOL_REQUEST_ESCAPE\]>>>/g) || []
-    ).length;
-    if (escapeOpenCount !== escapeCloseCount) {
       return true;
     }
 

@@ -18,6 +18,7 @@ import {
   findVcpRoleEnd,
   hideIncompleteVcpBatchStart,
 } from "@/utils/vcpToolBatch";
+import { restoreVcpEscapedLiterals } from "@/utils/vcpEscapedLiterals";
 import { readCodeFenceOpening } from "./utils/code-fence";
 import {
   decodeMarkdownEntities,
@@ -463,9 +464,7 @@ export class Tokenizer {
       }
 
       // 6. 块级标记通常位于行首；VCP 请求也允许紧接思考标签或正文。
-      const atToolRequest =
-        text.startsWith("<<<[TOOL_REQUEST]>>>", i) ||
-        text.startsWith("<<<[TOOL_REQUEST_ESCAPE]>>>", i);
+      const atToolRequest = text.startsWith("<<<[TOOL_REQUEST]>>>", i);
       if (atLineStart || atToolRequest) {
         const indentMatch = stickyMatch(RE_INDENT, text, i);
         const indent = indentMatch ? indentMatch[1].length : 0;
@@ -703,22 +702,10 @@ export class Tokenizer {
             }
           }
 
-          // VCP 工具请求块 <<<[TOOL_REQUEST]>>> / <<<[TOOL_REQUEST_ESCAPE]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
-          // TOOL_REQUEST_ESCAPE 用于嵌套工具调用，其内容中的 <<<[TOOL_REQUEST]>>> 不会被再次解析
-          const isEscapeBlock = text.startsWith(
-            "<<<[TOOL_REQUEST_ESCAPE]>>>",
-            posAfterIndent
-          );
-          if (
-            isEscapeBlock ||
-            text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)
-          ) {
-            const startMarker = isEscapeBlock
-              ? "<<<[TOOL_REQUEST_ESCAPE]>>>"
-              : "<<<[TOOL_REQUEST]>>>";
-            const endMarker = isEscapeBlock
-              ? "<<<[END_TOOL_REQUEST_ESCAPE]>>>"
-              : "<<<[END_TOOL_REQUEST]>>>";
+          // TOOL_REQUEST_ESCAPE 是字面量；仅标准请求创建工具节点。
+          if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
+            const startMarker = "<<<[TOOL_REQUEST]>>>";
+            const endMarker = "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
             const boundary = findRenderableVcpBlockBoundary(
@@ -726,9 +713,7 @@ export class Tokenizer {
               currentPos,
               {
                 endMarker,
-                recoveryStartMarkers: isEscapeBlock
-                  ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
-                  : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+                recoveryStartMarkers: ["<<<[TOOL_REQUEST]>>>"],
               },
               this.vcpFuzzyModeEnabled
             );
@@ -799,12 +784,15 @@ export class Tokenizer {
               regex.lastIndex = 0;
               while ((match = regex.exec(vcpContentForParsing)) !== null) {
                 const key = match[1];
-                const value = match[2];
+                const value =
+                  opening === "「始ESCAPE」"
+                    ? restoreVcpEscapedLiterals(match[2])
+                    : match[2];
                 matchedRanges.push([match.index, regex.lastIndex]);
                 const valueStart = match.index + match[0].indexOf("」") + 1;
                 matchedValueRanges.push([
                   valueStart,
-                  valueStart + value.length,
+                  valueStart + match[2].length,
                 ]);
                 if (key === "tool_name") tool_name = value;
                 else if (key === "command") command = value;

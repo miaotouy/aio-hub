@@ -119,6 +119,14 @@ describe("VCP tool-result batch isolation", () => {
     expect(batches(new CustomParser().parse(text))[0]?.props.closed).toBe(true);
   });
 
+  it("keeps a real batch visible after literal escape aliases", () => {
+    const text = `<<<[TOOL_REQUEST_ESCAPE]>>>\nexample\n${start()}result${end()}`;
+    expect(batches(new CustomParser().parse(text))[0]?.props).toMatchObject({
+      batchContent: "result",
+      closed: true,
+    });
+  });
+
   it("recognizes framing before an unclosed Markdown fence", () => {
     const nodes = new CustomParser().parse(
       `\`\`\`text\nexample\n${start()}\nresult\n${end()}`

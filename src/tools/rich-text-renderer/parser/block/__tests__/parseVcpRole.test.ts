@@ -82,13 +82,13 @@ function findToolRequests(nodes: AstNode[]): VcpToolNode[] {
 
 describe("parseVcpRole", () => {
   it.each([
-    { tag: "think", escaped: false, fuzzy: true },
-    { tag: "guguthink", escaped: false, fuzzy: false },
-    { tag: "guguthink", escaped: true, fuzzy: true },
+    { tag: "think", fuzzy: true },
+    { tag: "guguthink", fuzzy: false },
+    { tag: "guguthink", fuzzy: true },
   ])(
-    "renders a request directly after </$tag> (escaped: $escaped)",
-    ({ tag, escaped, fuzzy }) => {
-      const marker = escaped ? "TOOL_REQUEST_ESCAPE" : "TOOL_REQUEST";
+    "renders a standard request directly after </$tag> (fuzzy: $fuzzy)",
+    ({ tag, fuzzy }) => {
+      const marker = "TOOL_REQUEST";
       const request = `<<<[${marker}]>>>
 maid:「始」咕咕「末」,
 JEV:「始」请使用 {联网搜索}，搜索 Mercury 3 benchmark。「末」
@@ -270,16 +270,19 @@ message:「始${variant}」${value}「末${variant}」
       }
     );
 
-    it("recovers an ESCAPE request while retaining nested protocol examples", () => {
-      const nested = `<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST]>>>`;
-      const broken = `<<<[TOOL_REQUEST_ESCAPE]>>>
+    it("recovers a standard request while restoring its escaped protocol example", () => {
+      const nested =
+        "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST_ESCAPE]>>>";
+      const broken = `<<<[TOOL_REQUEST]>>>
 tool_name:「始」mock-sync「末」,
 message:「始ESCAPE」${nested}「末ESCAPE」
-<<<[END_TOOL_REQUEST_ESCAPE]`;
+<<<[END_TOOL_REQUEST]`;
       const ast = parse(`${broken}<think>后续思考</think>`);
       const requests = findToolRequests(ast);
       expect(requests).toHaveLength(1);
-      expect(requests[0].props.args.message).toBe(nested);
+      expect(requests[0].props.args.message).toBe(
+        nested.replace(/TOOL_REQUEST_ESCAPE/g, "TOOL_REQUEST")
+      );
       expect(requests[0].props.raw).toBe(broken);
       expect(requests[0].props.fenceError).toBeTruthy();
       expect(ast[1].type).toBe("llm_think");
@@ -326,24 +329,26 @@ message:「始」valid-after-bad「末」
     expect(requests[0].props.raw).not.toContain("broken block has no end");
   });
 
-  it("keeps standard request markers nested in a complete escape block", () => {
-    const ast = parse(`
-<<<[TOOL_REQUEST_ESCAPE]>>>
-tool_name:「始」mock-sync「末」,
-command:「始」echo「末」,
-message:「始ESCAPE」示例：
+  it.each(["<<<[END_TOOL_REQUEST_ESCAPE]>>>", ""])(
+    "keeps standalone escape aliases literal and parses the following standard request (%s)",
+    (ending) => {
+      const ast = parse(`<<<[TOOL_REQUEST_ESCAPE]>>>
+tool_name:「始」literal「末」,
+message:「始」example「末」
+${ending}
 <<<[TOOL_REQUEST]>>>
-tool_name:「始」nested「末」
-<<<[END_TOOL_REQUEST]>>>
-「末ESCAPE」
-<<<[END_TOOL_REQUEST_ESCAPE]>>>
-`);
-
-    const requests = findToolRequests(ast);
-
-    expect(requests).toHaveLength(1);
-    expect(requests[0].props.args.message).toContain("<<<[TOOL_REQUEST]>>>");
-  });
+tool_name:「始」mock-sync「末」,
+message:「始」after「末」
+<<<[END_TOOL_REQUEST]>>>`);
+      const requests = findToolRequests(ast);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].props).toMatchObject({
+        tool_name: "mock-sync",
+        closed: true,
+        args: { message: "after" },
+      });
+    }
+  );
 
   it("parses ESCAPE args with optional whitespace after the colon", () => {
     const ast = parse(`
@@ -419,11 +424,12 @@ path:「始ESCAPE」<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END
     expect(requests[0].props.args.path).toContain("<<<[END_TOOL_REQUEST]>>>");
   });
 
-  it("does not split a block when nested escape markers sit inside an ESCAPE fence", () => {
+  it("restores escaped request literals after extracting a complete parameter", () => {
     const ast = parse(`
 <<<[TOOL_REQUEST]>>>
 tool_name:「始」FileOperator「末」,
-content:「始ESCAPE」{"desc": "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST_ESCAPE]>>>"}「末ESCAPE」
+content:「始ESCAPE」{"desc": "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST_ESCAPE]>>>"}「末ESCAPE」,
+Tag:「始」after-field「末」
 <<<[END_TOOL_REQUEST]>>>
 `);
 
@@ -431,12 +437,11 @@ content:「始ESCAPE」{"desc": "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」i
 
     expect(requests).toHaveLength(1);
     expect(requests[0].props.tool_name).toBe("FileOperator");
-    expect(requests[0].props.args.content).toContain(
-      "<<<[TOOL_REQUEST_ESCAPE]>>>"
+    expect(requests[0].props.args.content).toBe(
+      '{"desc": "<<<[TOOL_REQUEST]>>>tool_name:「始」inner「末」<<<[END_TOOL_REQUEST]>>>"}'
     );
-    expect(requests[0].props.args.content).toContain(
-      "<<<[END_TOOL_REQUEST_ESCAPE]>>>"
-    );
+    expect(requests[0].props.args.Tag).toBe("after-field");
+    expect(requests[0].props.raw).toContain("<<<[TOOL_REQUEST_ESCAPE]>>>");
   });
 
   it("repairs an ESCAPE field closed by a standard end marker for rendering only", () => {

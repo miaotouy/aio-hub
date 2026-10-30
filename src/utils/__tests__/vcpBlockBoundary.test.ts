@@ -8,7 +8,7 @@ const endMarker = "<<<[END_TOOL_REQUEST]>>>";
 const nextStart = "<<<[TOOL_REQUEST]>>>";
 const options = {
   endMarker,
-  recoveryStartMarkers: [nextStart, "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+  recoveryStartMarkers: [nextStart],
 };
 const escaped = (text: string) => `「始ESCAPE」${text}「末ESCAPE」`;
 

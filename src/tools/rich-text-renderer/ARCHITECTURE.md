@@ -160,7 +160,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **HTML 深度支持**: 将 HTML 标签视为一等公民，支持任意深度的 HTML 与 Markdown 混合嵌套，包括 `<details>`, `<article>` 等复杂的语义化标签。通过 `GenericHtmlNode` 实现结构化 HTML 标签的 AST 表示。`<video>` / `<audio>` / `<details>` 标签会自动拦截并分发至专门的 `VideoNode` / `AudioNode` / `DetailsNode` 组件。
 - **LLM 思考块**: 原生支持 `<think>`、`<guguthink>` 等自定义标签，将其解析为结构化的 `LlmThinkNode`。
 - **GitHub Alert 块**: 支持 `> [!NOTE]`、`> [!TIP]`、`> [!IMPORTANT]`、`> [!WARNING]`、`> [!CAUTION]` 语法，解析为 `AlertNode`。
-- **VCP 协议深度支持与容错**: 支持 `<<<[TOOL_REQUEST]>>>` / `<<<[TOOL_REQUEST_ESCAPE]>>>` 工具调用格式、VCP 角色分割 (`vcp_role`)、本轮工具调用摘要 (`vcp_role` + `variant: "tool_summary"`) 和日记容器 (`vcp_daily_note`) 解析。
+- **VCP 协议深度支持与容错**: 支持标准 `<<<[TOOL_REQUEST]>>>` 工具调用格式、VCP 角色分割 (`vcp_role`)、本轮工具调用摘要 (`vcp_role` + `variant: "tool_summary"`) 和日记容器 (`vcp_daily_note`) 解析。
   - **坏块恢复与防吞噬 (KI-007)**: 引入 `vcpBlockBoundary.ts` 与 `vcpFenceRecovery.ts` 边界判定算法。当检测到未闭合或损坏的 VCP 请求块时，遇到下一个起始标记会自动丢弃并恢复，防止残损块误吞噬后续合法调用块或导致同类标记错误合并。
   - **JEV 自然语言工具调用识别**: 针对不含 `tool_name` 但以 `JEV` 前缀键携带自然语言指令的工具调用模式，解析器在词法层自动识别 `JEV` 作为工具名展示，并将自然语言指令原样保存在参数对象中，不执行破坏性二次解析。
   - **图片加载失败占位与资源名提示**: `ImageNode` 增强了对外部或智能体协议图片加载失败的防御。提供独立的错误占位卡片，展示失败提示并截断安全显示原始资源名称/链接，避免破坏排版流。Markdown 图片节点与 HTML 智能体资产占位共用 CSS 紫黑棋盘格背景，文字使用主题色衬底保持可读性。
@@ -437,8 +437,8 @@ src/tools/rich-text-renderer/
 
 - **CDN 资源本地化**: 自动将 HTML 预览中的 CDN 链接替换为本地资源，支持 d3、mermaid、echarts、three.js、chart.js 等 8 种常见库。
 - **外部工具调用 (VCP Support)**:
-  - 兼容支持外部 VCP 工具调用格式 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>`，以及用于嵌套工具调用的 `TOOL_REQUEST_ESCAPE` 块。
-  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析（冒号后允许可选空格），以及嵌套工具调用与参数值转义（`「始ESCAPE」...「末ESCAPE」` / `「始exp」...「末exp」`，围栏内协议字符按转义内容处理，不触发块边界恢复）。
+  - 标准 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>` 创建工具节点；独立 `TOOL_REQUEST_ESCAPE` 标记作为普通文本展示。
+  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析（冒号后允许可选空格），以及参数值保护（`「始ESCAPE」...「末ESCAPE」` / `「始exp」...「末exp」`，围栏内协议字符保留在参数内，不触发块边界恢复）。ESCAPE 参数在完整提取后还原其中的转义字面量，`exp` 参数保留原值；原始请求文本保持一致。
   - 提供专用的 `VcpToolNode` 渲染，支持折叠交互、实时状态反馈和原始报文查看。
   - **执行结果集成**: 支持解析和展示工具调用的返回结果（`isResult`），包括执行状态（SUCCESS/ERROR）和结果报文的结构化预览。
   - **工具摘要渲染**: 支持 `[本轮工具调用摘要:] ... [本轮工具调用摘要结束]`，解析为 `vcp_role` 的 `tool_summary` 变体，并在 `VcpRoleNode` 中渲染为状态 chip。若同一工具与状态已在执行结果详情中出现，摘要项会被过滤，避免重复展示。

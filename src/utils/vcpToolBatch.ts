@@ -25,7 +25,7 @@ export function findVcpToolBatch(
   // Standalone batches retain precedence over Markdown fences, even when
   // their payload contains a closing fence.
   const scanner = new RegExp(
-    String.raw`(\`+)|(<<<\[TOOL_REQUEST(_ESCAPE)?\]>>>)|<<<\[VCP_TOOL_BATCH_START:(${TIMESTAMP})\]>>>`,
+    String.raw`(\`+)|(<<<\[TOOL_REQUEST\]>>>)|<<<\[VCP_TOOL_BATCH_START:(${TIMESTAMP})\]>>>`,
     "g"
   );
   scanner.lastIndex = from;
@@ -44,12 +44,10 @@ export function findVcpToolBatch(
         }
       }
     } else if (match[2]) {
-      const endMarker = `<<<[END_TOOL_REQUEST${match[3] ?? ""}]>>>`;
+      const endMarker = "<<<[END_TOOL_REQUEST]>>>";
       const boundary = findVcpBlockBoundary(text, scanner.lastIndex, {
         endMarker,
-        recoveryStartMarkers: match[3]
-          ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
-          : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+        recoveryStartMarkers: ["<<<[TOOL_REQUEST]>>>"],
       });
       if (boundary.status === "unclosed") return;
       scanner.lastIndex =
@@ -62,7 +60,7 @@ export function findVcpToolBatch(
   }
   if (!match) return;
   const contentStart = match.index + match[0].length;
-  const endMarker = `${END_PREFIX}${match[4]}]>>>`;
+  const endMarker = `${END_PREFIX}${match[3]}]>>>`;
   const endIndex = text.indexOf(endMarker, contentStart);
   let contentEnd = endIndex < 0 ? text.length : endIndex;
   if (endIndex < 0) {

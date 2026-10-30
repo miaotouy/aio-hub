@@ -15,6 +15,7 @@
 import { createModuleLogger } from "@/utils/logger";
 import { findVcpBlockBoundary } from "@/utils/vcpBlockBoundary";
 import { maskVcpToolBatches } from "@/utils/vcpToolBatch";
+import { restoreVcpEscapedLiterals } from "@/utils/vcpEscapedLiterals";
 import type { MethodMetadata, MethodParameter } from "@/services/types";
 import type { ParsedToolRequest, ToolExecutionResult } from "../../types";
 import type { ToolCallingProtocol, ToolDefinitionInput } from "./base";
@@ -23,8 +24,6 @@ const logger = createModuleLogger("tool-calling/vcp-protocol");
 
 const TOOL_REQUEST_START = "<<<[TOOL_REQUEST]>>>";
 const TOOL_REQUEST_END = "<<<[END_TOOL_REQUEST]>>>";
-const TOOL_REQUEST_ESCAPE_START = "<<<[TOOL_REQUEST_ESCAPE]>>>";
-const TOOL_REQUEST_ESCAPE_END = "<<<[END_TOOL_REQUEST_ESCAPE]>>>";
 export const TOOL_DEFINITION_START = "<<<[TOOL_DEFINITION]>>>";
 export const TOOL_DEFINITION_END = "<<<[END_TOOL_DEFINITION]>>>";
 
@@ -121,12 +120,14 @@ function parseSingleToolRequest(
   const matchedRanges: Array<[number, number]> = [];
   const matchedValueRanges: Array<[number, number]> = [];
 
-  const parseEscapeVariant = (regex: RegExp) => {
+  const parseEscapeVariant = (regex: RegExp, escaped = false) => {
     let match: RegExpExecArray | null;
     regex.lastIndex = 0;
     while ((match = regex.exec(content)) !== null) {
       const key = match[1];
-      const value = sanitizeValue(match[2]);
+      const value = sanitizeValue(
+        escaped ? restoreVcpEscapedLiterals(match[2]) : match[2]
+      );
       matchedRanges.push([match.index, regex.lastIndex]);
       const valueStart = match.index + match[0].indexOf("」") + 1;
       matchedValueRanges.push([valueStart, valueStart + match[2].length]);
@@ -134,7 +135,7 @@ function parseSingleToolRequest(
     }
   };
 
-  parseEscapeVariant(RE_VCP_ARG_ESCAPE);
+  parseEscapeVariant(RE_VCP_ARG_ESCAPE, true);
   parseEscapeVariant(RE_VCP_ARG_EXP);
 
   // 第二步：屏蔽已匹配区域，解析标准参数
@@ -350,7 +351,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       "3. **指令名**：如果工具包含多个方法，必须通过 command 参数指定。批量调用时使用 command1, command2...",
       "4. **内容保护 (重要)**：",
       "   - 如果参数值本身包含 VCP 协议字符（如「始」、「末」），**必须**使用转义围栏：`参数:「始ESCAPE」内容「末ESCAPE」`。",
-      "   - 如果需要在一个工具调用中嵌套另一个完整的 VCP 块，**必须**使用块级转义围栏：`<<<[TOOL_REQUEST_ESCAPE]>>> ... <<<[END_TOOL_REQUEST_ESCAPE]>>>`。",
+      "   - 参数值中引用完整 VCP 请求时，使用 `参数:「始ESCAPE」<<<[TOOL_REQUEST_ESCAPE]>>> ... <<<[END_TOOL_REQUEST_ESCAPE]>>>「末ESCAPE」`，提取参数后还原为标准请求字面量。",
     ].join("\n");
   }
 
@@ -364,30 +365,23 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
     let requestIndex = 0;
 
     // 使用复合正则：匹配代码块、行内代码，或者捕获工具请求标记
-    // 捕获组 1: 标准请求, 捕获组 2: 转义请求
+    // 仅标准请求具备执行语义；TOOL_REQUEST_ESCAPE 是参数中的转义字面量。
     const scanner =
-      /(?:^|\n) {0,3}```[\s\S]*?(?:\n {0,3}```|$)|`[^`\n\r]+`|(<<<\[TOOL_REQUEST\]>>>)|(<<<\[TOOL_REQUEST_ESCAPE\]>>>)/g;
+      /(?:^|\n) {0,3}```[\s\S]*?(?:\n {0,3}```|$)|`[^`\n\r]+`|(<<<\[TOOL_REQUEST\]>>>)/g;
 
     let match: RegExpExecArray | null;
     while ((match = scanner.exec(text)) !== null) {
-      const isEscape = !!match[2];
-      const foundMarker = match[1] || match[2];
+      const foundMarker = match[1];
 
       if (foundMarker) {
-        const startMarker = isEscape
-          ? TOOL_REQUEST_ESCAPE_START
-          : TOOL_REQUEST_START;
-        const endMarker = isEscape ? TOOL_REQUEST_ESCAPE_END : TOOL_REQUEST_END;
+        const startMarker = TOOL_REQUEST_START;
+        const endMarker = TOOL_REQUEST_END;
 
         const blockStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
         const contentStart = blockStart + startMarker.length;
         const boundary = findVcpBlockBoundary(text, contentStart, {
           endMarker,
-          // 标准请求块不能嵌套任何请求块；块级转义块允许嵌套标准请求，
-          // 但新的转义块表示当前转义块已损坏，可以作为恢复点。
-          recoveryStartMarkers: isEscape
-            ? [TOOL_REQUEST_ESCAPE_START]
-            : [TOOL_REQUEST_START, TOOL_REQUEST_ESCAPE_START],
+          recoveryStartMarkers: [TOOL_REQUEST_START],
         });
 
         if (boundary.status === "interrupted") {

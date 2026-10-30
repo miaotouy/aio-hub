@@ -108,6 +108,9 @@ export const useMessageInputStore = defineStore(
           (item) => item.id === latestTextPaste.value?.id
         )
     );
+    const restorableTextPasteId = computed(() =>
+      canRestoreTextPaste.value ? latestTextPaste.value?.id : undefined
+    );
     const restoreTextPaste = () => {
       const paste = latestTextPaste.value;
       if (!paste || paste.sessionId !== inputManager.activeSessionId.value)
@@ -934,6 +937,7 @@ export const useMessageInputStore = defineStore(
       virtualAttachments,
       isEditingTextAttachment,
       canRestoreTextPaste,
+      restorableTextPasteId,
       restoreTextPaste,
       isProcessingAttachments,
       hasAttachments,

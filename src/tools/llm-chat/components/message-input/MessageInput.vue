@@ -696,6 +696,8 @@ const handleDragStart = (e: MouseEvent) => {
           </div>
           <VirtualTextAttachments
             ref="textAttachmentsRef"
+            :restore-paste-id="inputStore.restorableTextPasteId"
+            @restore-paste="inputStore.restoreTextPaste"
             :attachments="inputManager.virtualAttachments.value"
             draft
             :busy="disabled"
@@ -704,16 +706,6 @@ const handleDragStart = (e: MouseEvent) => {
             @remove="inputManager.removeVirtualAttachment($event.id)"
             @insert="insertTextAttachment"
           />
-          <div
-            v-if="inputStore.canRestoreTextPaste"
-            class="text-paste-notice"
-            role="status"
-          >
-            已添加文本附件
-            <button type="button" @click="inputStore.restoreTextPaste">
-              直接粘贴文本
-            </button>
-          </div>
           <div
             v-if="inputManager.saveStatus.value === 'error'"
             class="draft-save-error"
@@ -789,13 +781,11 @@ const handleDragStart = (e: MouseEvent) => {
 </template>
 
 <style scoped>
-.text-paste-notice,
 .draft-save-error {
   color: var(--text-secondary);
   font-size: 12px;
   margin: 4px 0;
 }
-.text-paste-notice button,
 .draft-save-error button {
   padding: 0 4px;
   border: 0;

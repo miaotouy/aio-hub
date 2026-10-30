@@ -27,6 +27,7 @@ const props = withDefaults(
   defineProps<{
     attachments: VirtualTextAttachment[];
     draft?: boolean;
+    restorePasteId?: string;
     editable?: boolean;
     busy?: boolean;
     allowBranch?: boolean;
@@ -40,6 +41,7 @@ const props = withDefaults(
   { editable: true }
 );
 const emit = defineEmits<{
+  "restore-paste": [];
   remove: [attachment: VirtualTextAttachment];
   insert: [attachment: VirtualTextAttachment];
   "editing-change": [editing: boolean];
@@ -176,16 +178,28 @@ defineExpose({ openNew: () => open() });
             <span class="text-attachment-preview">{{ item.preview }}</span>
           </span>
         </button>
-        <button
-          v-if="draft && editable"
-          type="button"
-          class="text-remove"
-          :disabled="busy"
-          :aria-label="`移除文本附件 ${item.attachment.title}`"
-          @click="emit('remove', item.attachment)"
-        >
-          <X :size="14" />
-        </button>
+        <div v-if="draft && editable" class="text-card-actions">
+          <button
+            v-if="item.attachment.id === restorePasteId"
+            type="button"
+            class="text-restore"
+            :disabled="busy"
+            title="直接粘贴文本"
+            aria-label="直接粘贴文本"
+            @click="emit('restore-paste')"
+          >
+            <CornerDownLeft :size="14" />
+          </button>
+          <button
+            type="button"
+            class="text-remove"
+            :disabled="busy"
+            :aria-label="`移除文本附件 ${item.attachment.title}`"
+            @click="emit('remove', item.attachment)"
+          >
+            <X :size="14" />
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -292,6 +306,23 @@ defineExpose({ openNew: () => open() });
   align-items: center;
   gap: 8px;
 }
+.text-card-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.text-restore {
+  display: grid;
+  place-items: center;
+  margin: 5px 0;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.text-restore:disabled,
 .text-remove:disabled {
   opacity: 0.5;
   cursor: default;

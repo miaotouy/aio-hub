@@ -5,18 +5,24 @@ import { once } from "node:events";
 import { createServer, loadConfigFromFile } from "vite";
 import { expect, it } from "vitest";
 
-it("keeps source watching active without tracking accumulated runtime and Rust artifacts", async () => {
+it("keeps source watching active without tracking accumulated runtime, diagnostic and Rust artifacts", async () => {
   const loaded = await loadConfigFromFile(
     { command: "serve", mode: "development" },
     path.resolve("vite.config.ts")
   );
   if (!loaded) throw new Error("Unable to load the development configuration");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "aiohub-dev-watch-"));
-  const sources = ["src/app.ts", "plugins/example/src/index.ts"];
+  const sources = [
+    "src/app.ts",
+    "packages/example/src/index.ts",
+    "plugins/example/src/index.ts",
+  ];
   const artifacts = [
     ".dev-data/dev-control/data/example/startup/webview2-profile/cache.bin",
     ".dev-data/static-frontend/1420/build/assets/app.js",
     "plugins/example/target/debug/plugin.dll",
+    ".tmp/app-memory/webview2-profile/cache.bin",
+    ".jj/repo/store/data",
   ];
   let server: Awaited<ReturnType<typeof createServer>> | undefined;
   try {
@@ -62,6 +68,8 @@ it("keeps source watching active without tracking accumulated runtime and Rust a
     }
     for (const artifact of [
       ".dev-data",
+      ".tmp",
+      ".jj",
       "plugins/example/target",
       ...artifacts,
     ])

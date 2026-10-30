@@ -286,8 +286,14 @@ const viteConfig = defineConfig({
           port: HMR_PORT,
         },
     watch: {
-      // 跳过开发运行数据和 Rust 编译产物，避免 profile 随重启累积拖慢文件监听。
-      ignored: ["**/src-tauri/**", "**/.dev-data/**", "**/target/**"],
+      // 跳过运行数据、排查产物和版本元数据，避免目录累积拖慢文件监听。
+      ignored: [
+        "**/src-tauri/**",
+        "**/.dev-data/**",
+        "**/.tmp/**",
+        "**/.jj/**",
+        "**/target/**",
+      ],
     },
   },
 });

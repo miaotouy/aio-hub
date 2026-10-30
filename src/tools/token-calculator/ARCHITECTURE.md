@@ -21,6 +21,8 @@ Profile 由 [`tokenizerRegistryStore`](./stores/tokenizerRegistryStore.ts) 集�
 - **用户 Profile**：本地导入或远端下载，持久化在 AppData `tokenizer-registry/profiles.json`。
 - **匹配规则**：用户在「匹配规则」Tab 添加的显式覆盖，存于 `tokenizer-registry/rules.json`。
 
+开发模式下，`scripts/vite/tokenizerAssetPlugin.ts` 的虚拟模块只生成资产 URL 清单；首次 HTTP 请求对应资产时才异步读取并 gzip 压缩。同一服务内的并发请求和后续请求共享缓存，生成失败后允许重试。生产构建仍在构建期输出上述 gzip 静态资源。
+
 ### 1.2. 主线程权威态 + Worker 无状态镜像
 
 `tokenizerRegistryStore` 是注册表的唯一**权威态**（Single Source of Truth）。Worker 内部只持有一份由主线程通过 `init` 消息推送的**镜像**：

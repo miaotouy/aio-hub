@@ -30,7 +30,6 @@
         </el-icon>
       </div>
       <div
-        ref="historyContentRef"
         class="section-content history-content"
         @scroll="handleHistoryScroll"
       >
@@ -199,7 +198,14 @@
 
 <script setup lang="ts">
 import CreateTagDialog from "./CreateTagDialog.vue";
-import { computed, nextTick, ref, watch } from "vue";
+import {
+  computed,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  ref,
+  watch,
+} from "vue";
 import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
 import CommitGraphTrack from "./CommitGraphTrack.vue";
 import { computeTimelineGraph } from "../utils/gitTimelineGraph";
@@ -226,9 +232,7 @@ import {
   openCommitChangesTab,
   openCommitFileDiffTab,
 } from "../composables/useGitCommitterRunner";
-import {
-  createBranch,
-} from "../composables/useGitOverview";
+import { createBranch } from "../composables/useGitOverview";
 import { useGitContextMenu } from "../composables/useGitContextMenu";
 import { getRemoteInfo } from "../composables/useGitRemoteInfo";
 import {
@@ -254,9 +258,11 @@ const isLoadingHistory = ref(false);
 const isLoadingMoreHistory = ref(false);
 const hasMoreHistory = ref(true);
 const historySkip = ref(0);
-const historyContentRef = ref<HTMLElement | null>(null);
 const HISTORY_PAGE_SIZE = 30;
 let historyRequestId = 0;
+let isActive = true;
+let needsHistoryReload = false;
+let isLoadingChart = false;
 // 记录上次加载历史的仓库与分支，用于区分「同仓库 HEAD 更新」与「仓库/分支切换」
 let lastHistoryRepo = "";
 let lastHistoryBranch = "";
@@ -275,7 +281,7 @@ const loadHistoryPage = async (
   requestId = historyRequestId,
   keepExisting = false
 ) => {
-  if (requestId !== historyRequestId) return;
+  if (!isActive || requestId !== historyRequestId) return;
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
     commits.value = [];
     return;
@@ -334,7 +340,7 @@ const loadChartHistory = async (requestId = historyRequestId) => {
   let skip = 0;
   const limit = 200;
   const cutoff = chartCutoff();
-  while (true) {
+  while (isActive && requestId === historyRequestId) {
     const list = await errorHandler.wrapAsync(
       () =>
         invoke<GitCommitSummary[]>("git_get_incremental_commits", {
@@ -353,7 +359,7 @@ const loadChartHistory = async (requestId = historyRequestId) => {
     if (oldest && new Date(oldest.date).getTime() < cutoff) break;
     skip += page.length;
   }
-  chartCommits.value = result;
+  if (isActive && requestId === historyRequestId) chartCommits.value = result;
 };
 
 const resetInteractionState = (keepExisting = false) => {
@@ -382,7 +388,13 @@ const resetInteractionState = (keepExisting = false) => {
 };
 
 const loadHistory = async () => {
+  if (!isActive) {
+    needsHistoryReload = true;
+    return;
+  }
+  needsHistoryReload = false;
   const requestId = ++historyRequestId;
+  isLoadingChart = false;
   isLoadingHistory.value = false;
   isLoadingMoreHistory.value = false;
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
@@ -401,30 +413,45 @@ const loadHistory = async () => {
   lastHistoryRepo = repoPath;
   lastHistoryBranch = branch;
   resetInteractionState(keepExisting);
-  await Promise.all([
-    loadHistoryPage(true, requestId, keepExisting),
-    loadChartHistory(requestId),
-  ]);
-  await nextTick();
-  await fillHistoryViewport(requestId);
-};
-
-const fillHistoryViewport = async (requestId: number) => {
-  while (
-    requestId === historyRequestId &&
-    hasMoreHistory.value &&
-    historyContentRef.value &&
-    historyContentRef.value.scrollHeight <= historyContentRef.value.clientHeight
-  ) {
-    await loadHistoryPage(false, requestId);
-    await nextTick();
+  isLoadingChart = true;
+  try {
+    await Promise.all([
+      loadHistoryPage(true, requestId, keepExisting),
+      loadChartHistory(requestId),
+    ]);
+  } finally {
+    if (requestId === historyRequestId) isLoadingChart = false;
   }
 };
 
+const suspendHistory = () => {
+  isActive = false;
+  needsHistoryReload ||=
+    isLoadingHistory.value || isLoadingMoreHistory.value || isLoadingChart;
+  // 已发出的 IPC 无法撤回，用请求代次丢弃迟到结果并停止后续分页。
+  historyRequestId++;
+  isLoadingHistory.value = false;
+  isLoadingMoreHistory.value = false;
+  isLoadingChart = false;
+};
+
+onDeactivated(suspendHistory);
+onBeforeUnmount(suspendHistory);
+onActivated(() => {
+  if (isActive) return;
+  isActive = true;
+  if (needsHistoryReload) void loadHistory();
+});
+
 const handleHistoryScroll = (event: Event) => {
   const element = event.target as HTMLElement;
-  if (element.scrollHeight - element.scrollTop - element.clientHeight < 80) {
-    loadHistoryPage();
+  if (
+    isActive &&
+    element.clientHeight > 0 &&
+    element.scrollTop > 0 &&
+    element.scrollHeight - element.scrollTop - element.clientHeight < 80
+  ) {
+    void loadHistoryPage();
   }
 };
 
@@ -532,7 +559,11 @@ const handleCommitMenuAction = async (
       )
         .then(async ({ value }) => {
           if (value && currentRepoPath.value) {
-            await createBranch(currentRepoPath.value, value.trim(), commit.hash);
+            await createBranch(
+              currentRepoPath.value,
+              value.trim(),
+              commit.hash
+            );
           }
         })
         .catch(() => {});

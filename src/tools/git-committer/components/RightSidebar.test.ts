@@ -14,7 +14,7 @@
 
 import { flushPromises, mount } from "@vue/test-utils";
 import { invoke } from "@tauri-apps/api/core";
-import { nextTick } from "vue";
+import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -68,6 +68,7 @@ describe("RightSidebar", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     currentRepoPath.value = "";
     repoStatuses.value = {};
   });
@@ -149,5 +150,145 @@ describe("RightSidebar", () => {
     // 新数据到达后无感替换为新列表
     expect(wrapper.findAll(".commit-node")).toHaveLength(newCommits.length);
     wrapper.unmount();
+  });
+  // 首屏只取一页；零尺寸和大视口都不能驱动后台连续读完整个仓库。
+  it.each([0, 3000])(
+    "loads only the first history page without scrolling (height %i)",
+    async (height) => {
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(
+        height
+      );
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+        height
+      );
+      const page = Array.from({ length: 30 }, (_, i) =>
+        makeCommit(`commit-${i}`)
+      );
+      invokeMock.mockImplementation(async (_command, args) => {
+        const { limit, skip } = args as { limit: number; skip: number };
+        return limit === 30 && skip === 0 ? page : [];
+      });
+      const wrapper = mount(RightSidebar, { global: { stubs } });
+      try {
+        await flushPromises();
+        // 布局或恢复滚动位置触发的顶部 scroll 同样不追加。
+        await wrapper.find(".history-content").trigger("scroll");
+        await flushPromises();
+        const pages = invokeMock.mock.calls.filter(
+          ([, args]) => (args as { limit: number }).limit === 30
+        );
+        expect(pages).toHaveLength(1);
+        expect(wrapper.findAll(".commit-node")).toHaveLength(30);
+      } finally {
+        wrapper.unmount();
+      }
+    }
+  );
+
+  it("loads the next page on scrolling, ignores its late result while cached, and refreshes on return", async () => {
+    const visible = ref(true);
+    const Host = defineComponent({
+      setup: () => () =>
+        h(KeepAlive, null, {
+          default: () => (visible.value ? h(RightSidebar) : null),
+        }),
+    });
+    const page = Array.from({ length: 30 }, (_, i) =>
+      makeCommit(`commit-${i}`)
+    );
+    let resolvePage!: (value: GitCommitSummary[]) => void;
+    invokeMock.mockImplementation(async (_command, args) => {
+      const { limit, skip } = args as { limit: number; skip: number };
+      if (limit !== 30) return [];
+      if (skip === 0) return page;
+      return new Promise<GitCommitSummary[]>((resolve) => {
+        resolvePage = resolve;
+      });
+    });
+    const wrapper = mount(Host, { global: { stubs } });
+    try {
+      await flushPromises();
+      const sidebar = wrapper.findComponent(RightSidebar);
+      const history = wrapper.find(".history-content");
+      Object.defineProperties(history.element, {
+        clientHeight: { configurable: true, value: 300 },
+        scrollHeight: { configurable: true, value: 1800 },
+        scrollTop: { configurable: true, value: 1500 },
+      });
+      await history.trigger("scroll");
+      await history.trigger("scroll");
+      expect(
+        invokeMock.mock.calls.filter(
+          ([, args]) => (args as { skip: number }).skip === 30
+        )
+      ).toHaveLength(1);
+      visible.value = false;
+      await nextTick();
+      const count = invokeMock.mock.calls.length;
+      resolvePage([makeCommit("late-page")]);
+      await flushPromises();
+      expect(sidebar.findAll(".commit-node")).toHaveLength(30);
+      setRepoStatus(repoPath, { ...repoStatus, headCommitHash: "new-head" });
+      await flushPromises();
+      expect(invokeMock).toHaveBeenCalledTimes(count);
+      invokeMock.mockImplementation(async (_command, args) =>
+        (args as { limit: number }).limit === 30
+          ? [makeCommit("fresh-head")]
+          : []
+      );
+      visible.value = true;
+      await flushPromises();
+      expect(wrapper.findAll(".commit-node")).toHaveLength(1);
+      expect(wrapper.text()).toContain("commit fres");
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it("preserves loaded history on return and stops an in-flight statistics scan when cached", async () => {
+    const visible = ref(true);
+    const Host = defineComponent({
+      setup: () => () =>
+        h(KeepAlive, null, {
+          default: () => (visible.value ? h(RightSidebar) : null),
+        }),
+    });
+    let resolveChart!: (value: GitCommitSummary[]) => void;
+    let deferChart = false;
+    invokeMock.mockImplementation(async (_command, args) => {
+      if ((args as { limit: number }).limit === 30)
+        return [makeCommit("original")];
+      if (!deferChart) return [];
+      return new Promise<GitCommitSummary[]>((resolve) => {
+        resolveChart = resolve;
+      });
+    });
+    const wrapper = mount(Host, { global: { stubs } });
+    try {
+      await flushPromises();
+      const initialCount = invokeMock.mock.calls.length;
+      visible.value = false;
+      await nextTick();
+      visible.value = true;
+      await flushPromises();
+      expect(invokeMock).toHaveBeenCalledTimes(initialCount);
+      expect(wrapper.text()).toContain("commit orig");
+      deferChart = true;
+      setRepoStatus(repoPath, { ...repoStatus, headCommitHash: "new-head" });
+      await flushPromises();
+      visible.value = false;
+      await nextTick();
+      const count = invokeMock.mock.calls.length;
+      resolveChart(
+        Array.from({ length: 200 }, (_, i) => ({
+          ...makeCommit(`stat-${i}`),
+          date: new Date().toISOString(),
+        }))
+      );
+      await flushPromises();
+      expect(invokeMock).toHaveBeenCalledTimes(count);
+    } finally {
+      wrapper.unmount();
+    }
   });
 });

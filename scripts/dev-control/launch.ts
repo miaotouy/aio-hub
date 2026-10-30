@@ -2,29 +2,30 @@ import fs from "node:fs";
 import path from "node:path";
 import { createServer } from "node:net";
 import { randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { loadDevSettings } from "../dev-settings";
 import {
   CONTROL_ROOT,
   acquireInstanceLock,
   listInstances,
   processAlive,
+  linuxProcessStartTicks,
   publishInstance,
   removeInstance,
   type DevInstance,
 } from "./discovery";
-import { DevConnection } from "./connection";
+import { connectSession, type ControlSession } from "./session";
+import { verifyLocalListener } from "./listener";
 import { ControlError } from "./errors";
 
 export async function prepareDevControl(
   settings: ReturnType<typeof loadDevSettings>,
-  staticFrontend: boolean
+  staticFrontend: boolean,
+  bundledDebug = false
 ) {
-  if (process.platform !== "win32")
+  if (!["win32", "linux"].includes(process.platform))
     throw new ControlError(
       "UNSUPPORTED_PLATFORM",
-      "首期开发控制支持 Windows / WebView2。"
+      "开发控制支持 Windows / WebView2 与 Linux / WebKitGTK。"
     );
   if (
     listInstances().some(
@@ -63,18 +64,33 @@ export async function prepareDevControl(
     AIO_DEV_CONTROL: "1",
     AIO_DEV_CONTROL_INSTANCE: settings.idSuffix,
     AIO_DEV_CONTROL_STARTUP: startupId,
-    AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS: browserArgs,
-    WEBVIEW2_USER_DATA_FOLDER: path.join(settings.dataDir, "webview2-profile"),
+    ...(process.platform === "win32"
+      ? {
+          AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS: browserArgs,
+          WEBVIEW2_USER_DATA_FOLDER: path.join(
+            settings.dataDir,
+            "webview2-profile"
+          ),
+        }
+      : { TAURI_WEBDRIVER_PORT: String(port) }),
   });
   const instance: DevInstance = {
     protocolVersion: 1,
     instanceId: settings.idSuffix,
     startupId,
     launcherPid: process.pid,
+    launcherStartTicks: linuxProcessStartTicks(process.pid),
     startedAt: new Date().toISOString(),
     endpoint: `http://127.0.0.1:${port}`,
-    frontendUrl: `http://${staticFrontend ? "127.0.0.1" : "localhost"}:${settings.port}`,
-    frontendMode: staticFrontend ? "static" : "hmr",
+    transport: process.platform === "linux" ? "embedded-webdriver" : "cdp",
+    frontendUrl: bundledDebug
+      ? "tauri://localhost"
+      : `http://${staticFrontend ? "127.0.0.1" : "localhost"}:${settings.port}`,
+    frontendMode: bundledDebug
+      ? "bundled-debug"
+      : staticFrontend
+        ? "static"
+        : "hmr",
     dataDir: settings.dataDir,
     status: "starting",
   };
@@ -93,40 +109,22 @@ export async function prepareDevControl(
       // Cargo's first build can take several minutes. The descriptor remains visible as starting.
       let deadline = Date.now() + 15 * 60_000;
       while (!disposed && Date.now() < deadline) {
-        let connection: DevConnection | undefined;
+        let connection: ControlSession | undefined;
         try {
-          const response = await fetch(`${instance.endpoint}/json/version`, {
-            signal: AbortSignal.timeout(1000),
-          });
-          if (!response.ok) throw new Error("WebView2 尚未启动。");
-          const { stdout } = await promisify(execFile)(
-            "powershell.exe",
-            [
-              "-NoProfile",
-              "-NonInteractive",
-              "-Command",
-              `Get-NetTCPConnection -State Listen -LocalPort ${port} -ErrorAction Stop | Select-Object -ExpandProperty LocalAddress | ConvertTo-Json -Compress`,
-            ],
-            { windowsHide: true, timeout: 10000 }
+          const response = await fetch(
+            instance.endpoint +
+              (instance.transport === "embedded-webdriver"
+                ? "/status"
+                : "/json/version"),
+            { signal: AbortSignal.timeout(1000), redirect: "error" }
           );
-          const addresses: string | string[] = JSON.parse(stdout.trim());
-          if (
-            ![addresses].flat().length ||
-            [addresses]
-              .flat()
-              .some((address) => address !== "127.0.0.1" && address !== "::1")
-          )
-            throw new ControlError(
-              "UNSAFE_LISTENER",
-              "WebView2 调试端口出现对外监听地址，请停止该实例。"
-            );
-          connection = await DevConnection.attach(instance, 3000);
+          if (!response.ok) throw new Error("调试端点尚未就绪。");
+          await verifyLocalListener(port);
+          connection = await connectSession(instance, 3000);
           const windows = await connection.windows();
-          const main = windows.find(
-            (window) => window.description.windowLabel === "main"
-          );
+          const main = windows.find((window) => window.windowLabel === "main");
           if (main) {
-            instance.appPid = main.description.pid;
+            instance.appPid = main.pid;
             instance.status = "ready";
             if (!disposed) {
               publishInstance(instance);

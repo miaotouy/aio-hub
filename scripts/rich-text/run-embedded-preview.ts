@@ -4,7 +4,7 @@
 import { parseArgs } from "node:util";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { openTauriRendererSession } from "./tauri-renderer-session";
+import { openTauriPerformanceSession } from "./tauri-performance-session";
 import { embeddedPreviewCases } from "./embedded-preview-corpus";
 import { runEmbeddedPreviewPage } from "./embedded-preview-page";
 
@@ -22,15 +22,20 @@ const { values } = parseArgs({
 });
 const out = resolve(values["out-dir"]!);
 await mkdir(out, { recursive: true });
-const session = await openTauriRendererSession(
+const session = await openTauriPerformanceSession(
   values.instance,
   values["allow-hmr"]
 );
+let rows: Awaited<ReturnType<typeof runEmbeddedPreviewPage>> = [];
 try {
-  const rows = await session.page.evaluate(runEmbeddedPreviewPage, {
+  rows = await session.evaluate(runEmbeddedPreviewPage, {
     componentUrl: session.componentUrl,
     cases: embeddedPreviewCases,
   });
+  console.log(JSON.stringify(rows, null, 2));
+  if (rows.some((row) => !row.passed)) process.exitCode = 1;
+} finally {
+  await session.close();
   await writeFile(
     resolve(out, "report.json"),
     JSON.stringify(
@@ -38,15 +43,13 @@ try {
         createdAt: new Date().toISOString(),
         frontendMode: session.instance.frontendMode,
         snapshot: session.snapshot,
+        runtime: session.runtime,
         rows,
+        errors: session.errors,
       },
       null,
       2
     ),
     "utf8"
   );
-  console.log(JSON.stringify(rows, null, 2));
-  if (rows.some((row) => !row.passed)) process.exitCode = 1;
-} finally {
-  await session.connection.close();
 }

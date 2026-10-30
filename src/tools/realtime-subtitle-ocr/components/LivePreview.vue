@@ -60,7 +60,7 @@
           v-if="!isMonitorBoxDetached"
           type="primary"
           size="small"
-          :disabled="isRunning"
+          :disabled="!isSupported || isRunning"
           @click="$emit('open-monitor-box')"
         >
           <SquareDashedIcon :size="14" /> 打开监控框
@@ -76,7 +76,7 @@
         </el-button>
         <el-button
           size="small"
-          :disabled="!isMonitorBoxDetached"
+          :disabled="!isSupported || !isMonitorBoxDetached"
           @click="$emit('focus-monitor-box')"
         >
           <CrosshairIcon :size="14" /> 聚焦监控框
@@ -84,7 +84,9 @@
         <el-button
           :type="isRunning ? 'danger' : 'success'"
           size="small"
-          :disabled="isOcrPreparing || (!hasMonitorRect && !isRunning)"
+          :disabled="
+            !isSupported || isOcrPreparing || (!hasMonitorRect && !isRunning)
+          "
           @click="$emit('toggle-monitor')"
         >
           <component
@@ -130,16 +132,20 @@ import {
   X as XIcon,
 } from "lucide-vue-next";
 
-defineProps<{
-  lastFrameUrl: string | null;
-  lastRawFrameUrl: string | null;
-  latency: number;
-  filterLatency: number;
-  isRunning: boolean;
-  isOcrPreparing: boolean;
-  isMonitorBoxDetached: boolean;
-  hasMonitorRect: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    isSupported?: boolean;
+    lastFrameUrl: string | null;
+    lastRawFrameUrl: string | null;
+    latency: number;
+    filterLatency: number;
+    isRunning: boolean;
+    isOcrPreparing: boolean;
+    isMonitorBoxDetached: boolean;
+    hasMonitorRect: boolean;
+  }>(),
+  { isSupported: true }
+);
 
 defineEmits<{
   (e: "open-monitor-box"): void;

@@ -343,6 +343,53 @@ describe("useChatInputManager session drafts", () => {
     );
   });
 
+  it("converts Linux paths and encoded file URIs without changing path separators", async () => {
+    const manager = useChatInputManager();
+    addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+      attachments.value.push({
+        ...createAsset(`asset-${attachments.value.length}`),
+        path,
+        name: path.split("/").pop()!,
+      });
+    });
+    manager.setContent(
+      "/home/mty/测试 file.txt\nfile:///tmp/hello%20world.txt"
+    );
+    const result = await manager.convertPathsToAttachments();
+    expect(result).toEqual({ successCount: 2, failedCount: 0, totalCount: 2 });
+    expect(addAttachmentsMock).toHaveBeenNthCalledWith(
+      1,
+      ["/home/mty/测试 file.txt"],
+      { notify: false }
+    );
+    expect(addAttachmentsMock).toHaveBeenNthCalledWith(
+      2,
+      ["/tmp/hello world.txt"],
+      { notify: false }
+    );
+    expect(manager.inputText.value).toBe(
+      "【file::asset-0】\n【file::asset-1】"
+    );
+  });
+
+  it("keeps a Windows file URI as a single encoded path", async () => {
+    const manager = useChatInputManager();
+    addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+      attachments.value.push({ ...createAsset("windows-uri"), path });
+    });
+    manager.setContent("file:///C:/my%20file.txt");
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 1,
+      failedCount: 0,
+      totalCount: 1,
+    });
+    expect(addAttachmentsMock).toHaveBeenCalledWith(
+      [String.raw`C:\my file.txt`],
+      { notify: false }
+    );
+    expect(manager.inputText.value).toBe("【file::windows-uri】");
+  });
+
   it("keeps Knowledge references isolated per session and clears them after send", () => {
     const manager = useChatInputManager();
     const reference = createKnowledgeReference("library-a");

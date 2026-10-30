@@ -24,12 +24,13 @@
     <!-- 音频元素 (隐藏) -->
     <audio
       ref="audioRef"
-      :src="currentAudio.src"
+      :src="playbackSrc"
       :loop="isLoop"
       :muted="isMuted"
       :autoplay="autoplay"
       @timeupdate="handleTimeUpdate"
       @loadedmetadata="handleLoadedMetadata"
+      @canplay="handleCanPlay"
       @ended="handleEnded"
       @play="onPlay"
       @pause="onPause"
@@ -322,7 +323,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick,
+} from "vue";
+import { useMediaSource } from "@/composables/useMediaSource";
 import ColorThief from "color-thief-ts";
 import * as mm from "music-metadata-browser";
 import {
@@ -474,6 +483,10 @@ const effectivePlaylist = computed(() => {
   ];
 });
 
+const { src: playbackSrc, error: sourceError } = useMediaSource(
+  () => currentAudio.value.src
+);
+
 const audioName = computed(() => {
   // 优先级：元数据标题 > 外部传入标题 > 文件名
   if (metaTitle.value) return metaTitle.value;
@@ -616,18 +629,32 @@ function selectTrack(index: number) {
   showPlaylist.value = false;
 }
 
+const playWhenReady = ref(false);
+
 function playAfterChange() {
   isLoading.value = true;
   error.value = false;
-  // 给一丢丢延迟让 src 切换生效
-  setTimeout(() => {
-    audioRef.value?.play().catch((e) => {
-      logger.error("切歌播放失败", e);
-    });
-  }, 50);
+  // 流式地址可能异步就绪，在新音轨加载完成后续播。
+  playWhenReady.value = true;
+  void nextTick(() => {
+    if (audioRef.value && audioRef.value.readyState >= 3) handleCanPlay();
+  });
+}
+
+watch(sourceError, (cause) => {
+  if (cause) handleError(cause);
+});
+
+function handleCanPlay() {
+  if (!playWhenReady.value) return;
+  playWhenReady.value = false;
+  void audioRef.value
+    ?.play()
+    .catch((cause) => logger.warn("切歌播放失败", cause));
 }
 
 function handleError(e: any) {
+  playWhenReady.value = false;
   isLoading.value = false;
   error.value = true;
   emit("error", e);
@@ -1060,6 +1087,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  audioRef.value?.pause();
+  audioRef.value?.removeAttribute("src");
+  audioRef.value?.load();
   document.removeEventListener("mousemove", handleDrag);
   document.removeEventListener("mouseup", stopDragging);
 

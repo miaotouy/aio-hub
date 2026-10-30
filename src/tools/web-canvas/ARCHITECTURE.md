@@ -419,6 +419,8 @@ sequenceDiagram
     Store ->> UI: 路由到编辑器视图
 ```
 
+Git 文件系统适配层把 Tauri IPC 的字符串拒绝值转换成可写的标准 `Error`，保留原始原因及 `ENOENT` 语义，供 isomorphic-git 添加调用上下文。`lstat` 使用文件自身的信息。桌面 capability 为 `**/canvases/projects/**` 提供文件系统 scope，覆盖便携/独立数据目录中的项目元数据和隐藏 `.git`；沿用现有 deny 规则。
+
 ### 4.3. 预览刷新流
 
 ```mermaid

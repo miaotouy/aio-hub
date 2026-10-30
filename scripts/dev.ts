@@ -19,6 +19,7 @@ import { createServer } from "node:net";
 import { parseArgs } from "node:util";
 import { INSTANCE_ID_PATTERN } from "./dev-control/protocol";
 import { loadDevSettings, applyDevEnvironment } from "./dev-settings";
+import { prepareLinuxDesktop } from "./dev-control/linux-environment";
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 if (args.includes("--help") || args.includes("-h")) {
@@ -54,6 +55,7 @@ if ((watch && !staticFrontend) || (values["agent-instance"] && !agent)) {
 if (values["agent-instance"])
   process.env.AIO_ID_SUFFIX = values["agent-instance"];
 process.env.AIO_DEV_CONTROL = agent ? "1" : "0";
+if (agent) prepareLinuxDesktop();
 const settings = loadDevSettings({ agent });
 if (agent && !INSTANCE_ID_PATTERN.test(settings.idSuffix)) {
   console.error("[Dev] 控制实例名称需要 1–64 位字母、数字、下划线或连字符。");
@@ -128,6 +130,7 @@ tauriArgs.push("-c", devConfPath);
 console.log(`[Dev] 正在启动 Tauri...`);
 const child = spawn(process.execPath, ["run", ...tauriArgs], {
   stdio: "inherit",
+  detached: process.platform !== "win32",
   env: process.env,
 });
 
@@ -149,10 +152,18 @@ void control
       error.code === "UNSAFE_LISTENER" &&
       child.pid
     ) {
-      spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-        stdio: "ignore",
-        windowsHide: true,
-      });
+      if (process.platform === "win32") {
+        spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+      } else {
+        try {
+          process.kill(-child.pid, "SIGTERM");
+        } catch {
+          /* Already exited. */
+        }
+      }
     }
   });
 
@@ -179,7 +190,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       cleanup.once("exit", () => process.exit(0));
       cleanup.once("error", () => process.exit(1));
     } else {
-      child.kill("SIGTERM");
+      try {
+        process.kill(-child.pid, "SIGTERM");
+      } catch {
+        /* Already exited. */
+      }
     }
   });
 }

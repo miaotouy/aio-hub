@@ -369,9 +369,17 @@ const restorePlaceholderStyle = computed(() =>
       }
     : undefined
 );
-// content-visibility 跳过的后代可能收不到 ResizeObserver 通知；
-// 成功显示后主动记一次 border-box，后续尺寸变化由观察器更新。
+// content-visibility 跳过的后代可能收不到 ResizeObserver 通知。
+// SVG 写入、缩放和展开共用下一帧的补充测量，避免在异步渲染微任务内强制布局。
+let measureFrame: number | undefined;
 function rememberHeight() {
+  if (measureFrame !== undefined || isUnmounted) return;
+  measureFrame = requestAnimationFrame(() => {
+    measureFrame = undefined;
+    measureHeight();
+  });
+}
+function measureHeight() {
   if (
     !hasRendered.value ||
     error.value ||
@@ -866,6 +874,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   isUnmounted = true;
+  if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
+  measureFrame = undefined;
   lastRenderId.value++;
   cancelStreamRender();
   stopViewportTracking();

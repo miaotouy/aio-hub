@@ -10,7 +10,7 @@ Color Picker 是一个智能图片颜色分析工具，旨在为设计师和开�
 
 为了提供多维度的颜色洞察，工具集成了三种业界主流的颜色提取算法，并并行执行以提升性能。
 
-- **Quantize (Color Thief)**: 提取图片中数量最多的主色调和调色板，适合获取最具代表性的颜色。
+- **Quantize (Color Thief)**: 提取图片中数量最多的主色调和调色板。显式请求 RGB 数组，过滤少色图像中越界的空量化桶，通过统一 RGB 转换输出六位 HEX；有效黑色保留，输出按主色优先去重。
 - **Vibrant (Node Vibrant)**: 提取适合 UI 设计的协调配色方案（如 `Vibrant`, `Muted`, `DarkVibrant` 等），强调颜色的和谐与美感。
 - **Average (Fast Average Color)**: 计算整张图片的平均颜色，适合快速获取整体色调或生成背景色。
 

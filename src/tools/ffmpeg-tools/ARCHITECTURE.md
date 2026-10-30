@@ -151,3 +151,7 @@ graph TD
 - `buildExecutionPlan(params, { imageSequence })` 生成 image2 输入参数（帧率、起始编号、编号模板）和多输入 argv，复用 `buildOutputArgs` 的画质与编码器规则。实际输出保留源尺寸，奇数宽高向上补齐到偶数；输出为 yuv420p 的 MP4 / MOV / MKV。
 - `inputPath` 指向所选范围真实起始图像，argv 的图像输入使用转义后的编号模板。输出以选定帧数和时长共同限定，进度分母为帧数 / 帧率。
 - 预览、PowerShell 复制与执行共享计划；任务复用 Store 的输出路径预留、日志、取消和终态处理，统一出现在任务监控中。输出覆盖须确认，并检查输入同路径和其他任务占用。
+
+## 平台命令与路径
+
+工作台和序列帧共用 `useFFmpegCommand`：Windows 预览/复制 PowerShell 命令，Linux/macOS 预览/复制 POSIX Shell 命令。参数按对应 Shell 的单引号规则转义；原生执行始终使用执行计划中的原始 argv。输出预留和输入覆盖比较按绝对路径形态区分：盘符/UNC 沿用 Windows 大小写规则，POSIX 保留大小写、字面反斜杠及文件名尾部空格。

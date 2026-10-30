@@ -16,6 +16,13 @@
 
 <template>
   <div class="external-player-panel">
+    <el-alert
+      v-if="!isSupported"
+      title="外部播放器弹幕覆盖需要 Windows。当前系统可使用内置播放器加载视频与弹幕。"
+      type="info"
+      :closable="false"
+      show-icon
+    />
     <div class="panel-layout">
       <div class="panel-main">
         <section class="external-card">
@@ -35,7 +42,11 @@
             </span>
           </header>
 
-          <el-form class="connection-form" label-position="top">
+          <el-form
+            class="connection-form"
+            label-position="top"
+            :disabled="!isSupported"
+          >
             <div class="form-grid">
               <el-form-item label="播放器类型">
                 <el-select
@@ -101,7 +112,7 @@
                   扫描播放器
                 </el-button>
                 <el-dropdown trigger="click" @command="handleScanCommand">
-                  <el-button size="small" :disabled="scanning">
+                  <el-button size="small" :disabled="scanning || !isSupported">
                     <el-icon><ArrowDown /></el-icon>
                   </el-button>
                   <template #dropdown>
@@ -325,6 +336,7 @@ const errorHandler = createModuleErrorHandler(
 );
 
 const {
+  isSupported,
   playerWindows,
   playerConfig,
   overlayState,
@@ -346,6 +358,7 @@ const {
   startPositionSync,
 } = useDanmakuOverlay();
 
+let disposed = false;
 const testingConnection = ref(false);
 const startingOverlay = ref(false);
 const closingOverlay = ref(false);
@@ -404,6 +417,7 @@ const connectionHint = computed(() => {
 
 const canStartOverlay = computed(() => {
   return (
+    isSupported &&
     props.danmakus.length > 0 &&
     overlayState.targetHwnd !== null &&
     overlayState.connected &&
@@ -522,7 +536,9 @@ function handleWindowChange(
 }
 
 async function handleStartOverlay(): Promise<void> {
-  if (overlayState.targetHwnd === null) {
+  if (disposed) return;
+  const targetHwnd = overlayState.targetHwnd;
+  if (targetHwnd === null) {
     customMessage.warning("请先选择播放器窗口");
     return;
   }
@@ -535,7 +551,8 @@ async function handleStartOverlay(): Promise<void> {
   startingOverlay.value = true;
 
   try {
-    const label = await createOverlay(overlayState.targetHwnd);
+    const label = await createOverlay(targetHwnd);
+    if (disposed) return;
 
     if (!label) {
       customMessage.error("弹幕覆盖窗口创建失败");
@@ -547,9 +564,10 @@ async function handleStartOverlay(): Promise<void> {
       props.scriptInfo,
       props.config,
       playerConfig,
-      overlayState.targetHwnd
+      targetHwnd
     );
-    startPositionSync(overlayState.targetHwnd, playerConfig);
+    if (disposed || !overlayActive.value) return;
+    startPositionSync(targetHwnd, playerConfig);
     overlayState.overlayCreated = true;
     customMessage.success("弹幕覆盖已启动");
   } catch (error) {
@@ -635,17 +653,16 @@ watch(
 );
 
 onMounted(() => {
+  if (!isSupported) return;
   startStatusPreview();
   // 挂载时自动扫描一次默认播放器窗口，提升用户体验
   void handleScanPlayerWindows(true);
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   stopStatusPreview();
-
-  if (overlayActive.value) {
-    void handleCloseOverlay();
-  }
+  // 覆盖窗口由 useDanmakuOverlay 统一回收，包括仍在创建中的请求。
 });
 </script>
 

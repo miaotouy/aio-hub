@@ -578,6 +578,8 @@ src/tools/rich-text-renderer/
 
 聊天通过 `suspendOnDeactivate` 复用整消息和块级展示回收。完成态消息至少有 40 个顶层 AST 块时，`useRendererBlockMounting` 为现有原生根元素登记共享观察器，视口外扩 700px，离开 300ms 后以同标签、作用域和实测高度占位。末块保留，宽度及布局修订先恢复正文重测。短消息与流式消息沿用常规展示。
 
+块级视口任务跟随实际展示状态 `displayActive`；整消息休眠后取消待执行的帧和回收任务，滚动事件等到正文重新激活后再恢复几何检查。
+
 `AstNodeRenderer` 只在顶层启用块回收，以每块修订参与现有 VNode memo。AST 和解析器始终属于原渲染器。`useRendererViewState` 按暂停子树保存节点标量状态，整消息恢复时裁剪过期快照，离屏块在恢复时消费自身快照。
 
 文本选择、正文焦点、查看器和截图保护完整展示；根 Range 边界随 fragment 重建重新锚定。可操作占位支持键盘恢复并转交焦点。iframe、媒体、Canvas 和原生表单等有内部状态的子树持续挂载。对照口径见 `docs/Plan/chat-dom-retention-investigation.md` 第 55 节。
@@ -593,6 +595,8 @@ src/tools/rich-text-renderer/
 ### 7.8 流式字符与围栏边界
 
 `StreamTextBoundary` 位于显示节奏控制器内，在解析前保持 grapheme 和完整围栏行的原子性；末尾待确认字符随下个 chunk 或结束冲刷输出。围栏识别复用解析器的开闭契约，逐次扫描新增字符。大段回放保留直接输出路径；隐藏窗口采用定时器推进，恢复可见后回到 rAF，停止时清理全部调度。
+
+Mermaid 的共享串行队列使用 8ms 批次预算；累计工作超出预算后，通过定时任务交还主线程，再检查请求是否仍有效。单张图表的同步排版仍由 Mermaid 完成，预算只切分连续任务。SVG 写入、缩放及展开后的补充高度测量合并到下一帧，后续由 ResizeObserver 校准，卸载时取消待执行测量。
 
 ### 7.9 Mermaid SVG 输出边界
 

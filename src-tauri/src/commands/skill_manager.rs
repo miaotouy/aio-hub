@@ -476,25 +476,52 @@ fn resolve_runtime(
             Ok((cmd, vec![script_path_str]))
         }
         "py" => {
-            let cmd = pick_runtime(&settings.python.command, "python");
+            let cmd = pick_runtime(
+                &settings.python.command,
+                if cfg!(windows) {
+                    &["python", "python3"]
+                } else {
+                    &["python3", "python"]
+                },
+            );
             Ok((cmd, vec![script_path_str]))
         }
         "sh" | "bash" => {
-            let cmd = pick_runtime(&settings.shell.command, "bash");
+            let cmd = pick_runtime(&settings.shell.command, &["bash", "sh"]);
             Ok((cmd, vec![script_path_str]))
         }
         "ps1" => {
-            let cmd = pick_runtime(&settings.powershell.command, "powershell");
+            let cmd = pick_runtime(
+                &settings.powershell.command,
+                if cfg!(windows) {
+                    &["powershell", "pwsh"]
+                } else {
+                    &["pwsh", "powershell"]
+                },
+            );
             Ok((cmd, vec!["-File".to_string(), script_path_str]))
         }
         _ => Err(format!("不支持的脚本类型: .{}", ext)),
     }
 }
 
-fn pick_runtime(configured: &str, fallback: &str) -> String {
+fn pick_runtime(configured: &str, candidates: &[&str]) -> String {
+    select_runtime(configured, candidates, check_command_exists)
+}
+
+fn select_runtime(
+    configured: &str,
+    candidates: &[&str],
+    available: impl Fn(&str) -> bool,
+) -> String {
     let trimmed = configured.trim();
     if trimmed.is_empty() {
-        fallback.to_string()
+        candidates
+            .iter()
+            .copied()
+            .find(|cmd| available(cmd))
+            .unwrap_or(candidates[0])
+            .to_string()
     } else {
         trimmed.to_string()
     }
@@ -1936,4 +1963,23 @@ pub async fn clean_temp_dir(app: AppHandle, temp_path: String) -> Result<(), Str
         let _ = fs::remove_dir_all(p);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod runtime_tests {
+    use super::*;
+
+    #[test]
+    fn runtime_selection_respects_explicit_command_and_available_candidates() {
+        let candidates = ["python3", "python"];
+        assert_eq!(
+            select_runtime(" /custom/python ", &candidates, |_| false),
+            "/custom/python"
+        );
+        assert_eq!(
+            select_runtime("", &candidates, |cmd| cmd == "python"),
+            "python"
+        );
+        assert_eq!(select_runtime("", &candidates, |_| true), "python3");
+    }
 }

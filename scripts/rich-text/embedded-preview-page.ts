@@ -73,12 +73,9 @@ export async function runEmbeddedPreviewPage(input: {
           enableEnterAnimation: false,
         }),
     });
-    app.mount(host);
+    const rootProxy = app.mount(host);
     await wait(() => !!frame()?.contentDocument?.querySelector("#note"));
-    const Viewer = walk(
-      app._instance?.subTree ?? null,
-      "HtmlInteractiveViewer"
-    )!.type;
+    const Viewer = walk(rootProxy.$.subTree, "HtmlInteractiveViewer")!.type;
     app.unmount();
     const mount = async (html: string, streaming = false) => {
       app?.unmount();

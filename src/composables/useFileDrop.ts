@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import { ref, onMounted, onUnmounted, isRef, type Ref, watch } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { listen, type EventCallback } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { parsePathsFromDataTransfer } from "@/utils/fileDropPaths";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
@@ -62,53 +63,10 @@ export interface FileDropState {
   lastDroppedPaths: Ref<string[]>;
 }
 
-/**
- * 从 DataTransfer 中解析路径（兜底方案，适用于 VSCode 等拖拽）
- */
-const parsePathsFromDataTransfer = (dt: DataTransfer): string[] => {
-  const paths: string[] = [];
-
-  // 1. 尝试从 text/uri-list 获取
-  const uriList = dt.getData("text/uri-list");
-  if (uriList) {
-    const uris = uriList.split(/[\r\n]+/).filter(Boolean);
-    for (const uri of uris) {
-      if (uri.startsWith("file://")) {
-        try {
-          let p = decodeURIComponent(uri.substring(7));
-          if (p.startsWith("/")) {
-            if (p.charAt(2) === ":" || p.charAt(2) === "|") {
-              p = p.substring(1);
-            }
-          }
-          p = p.replace(/\|/, ":");
-          p = p.replace(/\//g, "\\");
-          paths.push(p);
-        } catch (err) {
-          console.error("解析 URI 失败:", err);
-        }
-      }
-    }
-  }
-
-  // 2. 如果 uri-list 没拿到，尝试从 text/plain 获取
-  if (paths.length === 0) {
-    const plainText = dt.getData("text/plain");
-    if (plainText) {
-      const lines = plainText.split(/[\r\n]+/).filter(Boolean);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        const isWindowsPath = /^[a-zA-Z]:[\\/]/.test(trimmed);
-        const isUnixPath = trimmed.startsWith("/");
-        if (isWindowsPath || isUnixPath) {
-          paths.push(trimmed);
-        }
-      }
-    }
-  }
-
-  return paths;
-};
+interface ListenerBatch {
+  active: boolean;
+  cleanups: (() => void)[];
+}
 
 /**
  * 文件拖放组合式函数
@@ -159,14 +117,21 @@ export function useFileDrop(options: FileDropOptions = {}) {
   const isProcessing = ref(false);
   const lastDroppedPaths = ref<string[]>([]);
 
-  // Tauri 事件监听器（custom-drag-* 系列）
-  let unlistenDrop: (() => void) | null = null;
-  let unlistenDragEnter: (() => void) | null = null;
-  let unlistenDragOver: (() => void) | null = null;
-  let unlistenDragLeave: (() => void) | null = null;
+  let disposed = false;
+  let listenerBatch: ListenerBatch | null = null;
 
-  // Tauri webview.onDragDropEvent 监听器
-  let unlistenWebviewDragDrop: (() => void) | null = null;
+  // 迟到的注销句柄仍归原批次所有，清理后立即释放。
+  const trackListener = (batch: ListenerBatch, unlisten: () => void) => {
+    if (batch.active) batch.cleanups.push(unlisten);
+    else unlisten();
+  };
+  const listenInBatch = async (
+    batch: ListenerBatch,
+    event: string,
+    callback: EventCallback<unknown>
+  ) => {
+    trackListener(batch, await listen(event, callback));
+  };
 
   // H5 原生事件监听器
   const nativeListenerCleanups: (() => void)[] = [];
@@ -479,7 +444,13 @@ export function useFileDrop(options: FileDropOptions = {}) {
   };
 
   // ==================== H5 原生事件处理器 ====================
+  const cleanupNativeListeners = () => {
+    nativeListenerCleanups.splice(0).forEach((cleanup) => cleanup());
+  };
+
   const setupNativeListeners = () => {
+    cleanupNativeListeners();
+    if (disposed) return;
     const element = getTargetElement();
     if (!element) return;
 
@@ -615,10 +586,11 @@ export function useFileDrop(options: FileDropOptions = {}) {
   };
 
   // ==================== Tauri 事件监听器 ====================
-  const setupTauriCustomListeners = async () => {
+  const setupTauriCustomListeners = async (batch: ListenerBatch) => {
     // 监听拖动进入事件
-    unlistenDragEnter = await listen("custom-drag-enter", (event: any) => {
-      if (isDisabled()) return;
+    if (!batch.active) return;
+    await listenInBatch(batch, "custom-drag-enter", (event: any) => {
+      if (!batch.active || isDisabled()) return;
 
       const element = getTargetElement();
       if (!element) return;
@@ -633,8 +605,9 @@ export function useFileDrop(options: FileDropOptions = {}) {
     });
 
     // 监听拖动移动事件
-    unlistenDragOver = await listen("custom-drag-over", (event: any) => {
-      if (isDisabled()) return;
+    if (!batch.active) return;
+    await listenInBatch(batch, "custom-drag-over", (event: any) => {
+      if (!batch.active || isDisabled()) return;
 
       const element = getTargetElement();
       if (!element) return;
@@ -652,16 +625,18 @@ export function useFileDrop(options: FileDropOptions = {}) {
     });
 
     // 监听拖动离开事件
-    unlistenDragLeave = await listen("custom-drag-leave", () => {
-      if (isDisabled()) return;
+    if (!batch.active) return;
+    await listenInBatch(batch, "custom-drag-leave", () => {
+      if (!batch.active || isDisabled()) return;
 
       isDraggingOver.value = false;
       options.onDragLeave?.();
     });
 
     // 监听文件放下事件
-    unlistenDrop = await listen("custom-file-drop", async (event: any) => {
-      if (isDisabled()) return;
+    if (!batch.active) return;
+    await listenInBatch(batch, "custom-file-drop", async (event: any) => {
+      if (!batch.active || isDisabled()) return;
 
       const element = getTargetElement();
       if (!element) return;
@@ -683,15 +658,17 @@ export function useFileDrop(options: FileDropOptions = {}) {
   };
 
   // ==================== Tauri webview.onDragDropEvent 监听器 ====================
-  const setupWebviewDragDropListener = async () => {
+  const setupWebviewDragDropListener = async (batch: ListenerBatch) => {
     try {
       const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      if (!batch.active) return;
       const webview = getCurrentWebview();
       console.log(
         "[useFileDrop] 成功获取当前 Webview 实例，开始注册 onDragDropEvent"
       );
 
-      unlistenWebviewDragDrop = await webview.onDragDropEvent((event: any) => {
+      const unlisten = await webview.onDragDropEvent((event: any) => {
+        if (!batch.active) return;
         const { type, position, paths } = event.payload || {};
         console.log(
           `[useFileDrop] Webview 拖放事件触发: type=${type}, paths=`,
@@ -775,7 +752,9 @@ export function useFileDrop(options: FileDropOptions = {}) {
           }
         }
       });
+      trackListener(batch, unlisten);
     } catch (err) {
+      if (!batch.active) return;
       // webview.onDragDropEvent 不可用时静默降级
       console.warn(
         "[useFileDrop] webview.onDragDropEvent 注册失败，降级为纯 H5/自定义事件模式:",
@@ -786,42 +765,42 @@ export function useFileDrop(options: FileDropOptions = {}) {
 
   // ==================== 组合设置 ====================
   const setupFileDropListener = async () => {
-    // 1. 设置 H5 原生监听器（提供精准的 DOM 级拖拽反馈）
+    if (disposed) return;
+    cleanup();
+    const batch: ListenerBatch = { active: true, cleanups: [] };
+    listenerBatch = batch;
     setupNativeListeners();
 
-    // 2. 设置 Tauri custom-drag-* 事件监听器（Tauri 拖拽拦截器启用时的兜底）
-    await setupTauriCustomListeners();
-
-    // 3. 设置 Tauri webview.onDragDropEvent（最底层，提供绝对路径）
-    await setupWebviewDragDropListener();
+    try {
+      await setupTauriCustomListeners(batch);
+      if (batch.active) await setupWebviewDragDropListener(batch);
+    } catch (error) {
+      if (!batch.active) return;
+      cleanup();
+      // Tauri 注册失败时保留 DOM 拖放，继续支持 File/URI 输入。
+      setupNativeListeners();
+      errorHandler.error(error, "注册文件拖放监听失败");
+    }
   };
 
-  // 清理监听器
+  // 清理当前批次并使所有在途注册失效；显式重新初始化会创建独立的新批次。
   const cleanup = () => {
-    // 清理 H5 原生监听器
-    nativeListenerCleanups.forEach((cleanup) => cleanup());
-    nativeListenerCleanups.length = 0;
-
-    // 清理 Tauri 事件监听器
-    unlistenDrop?.();
-    unlistenDragEnter?.();
-    unlistenDragOver?.();
-    unlistenDragLeave?.();
-
-    // 清理 webview 事件监听器
-    unlistenWebviewDragDrop?.();
-
-    // 清除挂起的 drop
+    cleanupNativeListeners();
+    if (listenerBatch) {
+      listenerBatch.active = false;
+      listenerBatch.cleanups.splice(0).forEach((unlisten) => unlisten());
+      listenerBatch = null;
+    }
     clearDragState();
   };
 
   // 监听 element 变化，动态重新绑定
   if (options.element && typeof options.element !== "string") {
-    watch(options.element, async (newVal, oldVal) => {
+    watch(options.element, (newVal, oldVal) => {
       if (newVal !== oldVal) {
-        console.log("[useFileDrop] 检测到目标元素发生变化，重新初始化监听器");
-        cleanup();
-        await setupFileDropListener();
+        // 窗口级监听在回调中读取当前元素，ref 更新只需重绑 DOM 事件。
+        clearDragState();
+        setupNativeListeners();
       }
     });
   }
@@ -838,6 +817,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
   });
 
   onUnmounted(() => {
+    disposed = true;
     cleanup();
   });
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type { FFmpegParams, ProcessingMode } from "../types";
-import { quotePowerShellArg } from "./args";
+import { quotePosixArg, quotePowerShellArg } from "./args";
 import {
   getImageSequenceRange,
   joinSequencePath,
@@ -479,4 +479,13 @@ export function formatPlanCommand(plan: FFmpegExecutionPlan): string {
 export function formatPowerShellCommand(plan: FFmpegExecutionPlan): string {
   const tokens = [plan.executable, ...plan.args].map(quotePowerShellArg);
   return `& ${tokens.join(" ")}`;
+}
+
+/** 终端复制与预览共用；执行仍直接传递原始 argv。 */
+export function formatShellCommand(
+  plan: FFmpegExecutionPlan,
+  shell: "powershell" | "posix"
+): string {
+  if (shell === "powershell") return formatPowerShellCommand(plan);
+  return [plan.executable, ...plan.args].map(quotePosixArg).join(" ");
 }

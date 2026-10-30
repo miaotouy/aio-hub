@@ -26,8 +26,6 @@
       :theme="monacoTheme"
       class="monaco-editor-container"
       @mount="handleMonacoDiffMount"
-      @update:original="(value: string) => emit('update:original', value)"
-      @update:modified="(value: string) => emit('update:modified', value)"
     />
     <!-- CodeMirror 编辑器 -->
     <div
@@ -272,8 +270,29 @@ const handleMonacoMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
   emit("mount", editor);
 };
 
+let diffContentListeners: monaco.IDisposable[] = [];
+const disposeDiffContentListeners = () => {
+  for (const listener of diffContentListeners) listener.dispose();
+  diffContentListeners = [];
+};
+
 const handleMonacoDiffMount = (editor: monaco.editor.IStandaloneDiffEditor) => {
+  disposeDiffContentListeners();
   monacoDiffEditorInstance.value = editor;
+  // The wrapper exposes initial props but does not emit edits from diff models.
+  // Subscribe to Monaco so copy/save/swap consumers receive the displayed text.
+  const original = editor.getOriginalEditor();
+  const modified = editor.getModifiedEditor();
+  diffContentListeners = [
+    original.onDidChangeModelContent(() => {
+      const value = original.getValue();
+      if (value !== props.original) emit("update:original", value);
+    }),
+    modified.onDidChangeModelContent(() => {
+      const value = modified.getValue();
+      if (value !== props.modified) emit("update:modified", value);
+    }),
+  ];
   emit("mount", editor);
 };
 
@@ -539,6 +558,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   isDestroyed = true;
+  disposeDiffContentListeners();
   destroyCodeMirror();
   // 修复 @guolao/vue-monaco-editor 的销毁顺序缺陷：
   // 组件库在其 onUnmounted 中先 dispose original/modified 两个 TextModel，

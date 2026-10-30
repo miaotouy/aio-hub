@@ -21,6 +21,7 @@ import {
   mkdir,
   remove,
   stat,
+  lstat,
   readDir,
   exists,
 } from "@tauri-apps/plugin-fs";
@@ -38,28 +39,31 @@ export class GitInternalService {
   constructor(private basePath: string) {
     // isomorphic-git 需要一个符合 fs 接口的对象
     // 这里我们需要适配 Tauri 的 fs 插件
-    const wrapENOENT = async <T>(fn: () => Promise<T>): Promise<T> => {
+    // Tauri IPC 可以拒绝为字符串；Git 会向错误对象写入 caller。
+    // 在文件系统边界统一为可写 Error，保留权限等原始错误信息。
+    const wrapFsError = async <T>(fn: () => Promise<T>): Promise<T> => {
       try {
         return await fn();
-      } catch (err: any) {
-        const errorMsg = String(err);
-        if (
-          errorMsg.includes("os error 2") ||
-          errorMsg.includes("os error 3") ||
-          errorMsg.includes("系统找不到指定的路径")
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        const error = Object.assign(new Error(message), { cause });
+        const code = (cause as { code?: string } | null)?.code;
+        if (code) Object.assign(error, { code });
+        else if (
+          message.includes("os error 2") ||
+          message.includes("os error 3") ||
+          message.includes("系统找不到指定的路径")
         ) {
-          const error = new Error(errorMsg);
-          (error as any).code = "ENOENT";
-          throw error;
+          Object.assign(error, { code: "ENOENT" });
         }
-        throw err;
+        throw error;
       }
     };
 
     this.fs = {
       promises: {
         readFile: async (path: string, options?: any) => {
-          const data = await wrapENOENT(() => readFile(path));
+          const data = await wrapFsError(() => readFile(path));
           // isomorphic-git 可能会要求 utf8 编码的字符串
           if (options === "utf8" || options?.encoding === "utf8") {
             return new TextDecoder().decode(data);
@@ -69,21 +73,21 @@ export class GitInternalService {
         writeFile: async (path: string, data: Uint8Array | string) => {
           const uint8 =
             typeof data === "string" ? new TextEncoder().encode(data) : data;
-          return await writeFile(path, uint8);
+          return await wrapFsError(() => writeFile(path, uint8));
         },
         mkdir: async (path: string) => {
-          if (!(await exists(path))) {
-            return await mkdir(path, { recursive: true });
+          if (!(await wrapFsError(() => exists(path)))) {
+            return await wrapFsError(() => mkdir(path, { recursive: true }));
           }
         },
         rmdir: async (path: string) => {
-          return await remove(path, { recursive: true });
+          return await wrapFsError(() => remove(path, { recursive: true }));
         },
         unlink: async (path: string) => {
-          return await remove(path);
+          return await wrapFsError(() => remove(path));
         },
         stat: async (path: string) => {
-          const s = await wrapENOENT(() => stat(path));
+          const s = await wrapFsError(() => stat(path));
           const now = new Date();
           const mtime = s.mtime || now;
           const ctime = (s as any).ctime || mtime; // Tauri 可能不提供 ctime，回退到 mtime
@@ -104,7 +108,7 @@ export class GitInternalService {
           };
         },
         lstat: async (path: string) => {
-          const s = await wrapENOENT(() => stat(path));
+          const s = await wrapFsError(() => lstat(path));
           const now = new Date();
           const mtime = s.mtime || now;
           const ctime = (s as any).ctime || mtime;
@@ -125,7 +129,7 @@ export class GitInternalService {
           };
         },
         readdir: async (path: string) => {
-          const entries = await readDir(path);
+          const entries = await wrapFsError(() => readDir(path));
           return entries.map((e) => e.name);
         },
         readlink: async (path: string) => {

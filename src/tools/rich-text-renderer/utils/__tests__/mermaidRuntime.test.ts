@@ -111,3 +111,41 @@ it("lets later owners render after a malformed diagram fails", async () => {
       ?.svg
   ).toContain("recovered");
 });
+
+// Restoring many diagrams must leave a task boundary for input between costly jobs.
+it("serves pending input between costly queued diagrams and drops work cancelled during the yield", async () => {
+  let now = 0;
+  const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+  const events: string[] = [];
+  let obsolete = false;
+  api.render.mockImplementation(async (_id, content) => {
+    events.push(content);
+    now += 20;
+    if (content === "first")
+      setTimeout(() => {
+        events.push("input");
+        obsolete = true;
+      }, 0);
+    return { svg: svg(content) };
+  });
+  try {
+    const results = await Promise.all([
+      renderMermaid({ content: "first", dark: false, isCurrent: current }),
+      renderMermaid({
+        content: "cancelled",
+        dark: true,
+        isCurrent: () => !obsolete,
+      }),
+      renderMermaid({ content: "latest", dark: true, isCurrent: current }),
+    ]);
+    expect(events).toEqual(["first", "input", "latest"]);
+    expect(results[1]).toBeUndefined();
+    expect(text(results[2]!.svg)).toBe("latest");
+    expect(api.initialize.mock.calls.map(([config]) => config.theme)).toEqual([
+      "default",
+      "dark",
+    ]);
+  } finally {
+    clock.mockRestore();
+  }
+});

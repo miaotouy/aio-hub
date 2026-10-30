@@ -67,7 +67,9 @@
             />
             <div v-else class="no-preview">
               <el-icon class="no-preview-icon"><Picture /></el-icon>
-              <span>此格式暂不支持预览</span>
+              <span>{{
+                item.previewError || "预览加载失败，请检查文件或访问权限"
+              }}</span>
             </div>
             <div
               v-if="item.previewUrl && !item.previewFailed"
@@ -129,6 +131,7 @@ import {
   CopyDocument,
   ZoomIn,
 } from "@element-plus/icons-vue";
+import { exists } from "@tauri-apps/plugin-fs";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -144,6 +147,7 @@ interface WallpaperInfo {
   path: string;
   previewUrl?: string;
   previewFailed?: boolean;
+  previewError?: string;
 }
 
 const { show: showImageViewer } = useImageViewer();
@@ -193,9 +197,17 @@ const fetchWallpapers = async () => {
   }
 };
 
-const handlePreviewError = (item: WallpaperInfo) => {
+const handlePreviewError = async (item: WallpaperInfo) => {
   item.previewFailed = true;
-  logger.warn("壁纸格式无法在 WebView 中预览", { path: item.path });
+  item.previewError = "预览加载失败，可定位文件检查格式与访问权限";
+  try {
+    if (!(await exists(item.path))) {
+      item.previewError = "壁纸文件已不存在，请在系统设置中重新选择壁纸";
+    }
+  } catch {
+    // 文件检查失败时保留通用提示，路径操作仍可用。
+  }
+  logger.warn("壁纸预览加载失败", { path: item.path });
 };
 
 const viewWallpaper = (item: WallpaperInfo) => {

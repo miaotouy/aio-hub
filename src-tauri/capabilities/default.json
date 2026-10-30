@@ -56,6 +56,14 @@
     "fs:allow-watch",
     "fs:allow-unwatch",
     {
+      "identifier": "fs:allow-stat",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-lstat",
+      "allow": [{ "path": "**" }]
+    },
+    {
       "identifier": "fs:allow-read-file",
       "allow": [{ "path": "**" }]
     },

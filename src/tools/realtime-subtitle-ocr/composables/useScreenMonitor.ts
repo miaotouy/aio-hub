@@ -27,6 +27,7 @@
  * 主界面监听后写入 monitorRect；截图时自动向内收缩避开监控框边框与控制栏。
  */
 
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { computed, ref, shallowRef, onBeforeUnmount } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -673,6 +674,12 @@ export function useScreenMonitor() {
 
   /** 开始监控 */
   async function start() {
+    if (!getNativeDesktopCapabilities().screenCapture) {
+      errorHandler.handle(new Error("屏幕监控需要 Windows"), {
+        userMessage: "屏幕监控需要 Windows，可使用本地视频工作区",
+      });
+      return;
+    }
     if (status.value === "running") return;
     if (!monitorRect.value) {
       errorHandler.handle(new Error("未设置监控框区域"), {

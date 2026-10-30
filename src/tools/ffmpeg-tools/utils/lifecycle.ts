@@ -62,9 +62,14 @@ export function isCancellationError(error: unknown): boolean {
 }
 
 export function normalizeOutputPathKey(path: string): string {
-  const trimmed = path.trim();
-  if (!trimmed) return "";
-  return trimmed.replace(/\\/g, "/").replace(/\/+/g, "/").toLowerCase();
+  if (!path.trim()) return "";
+  // 文件选择器返回绝对路径。盘符与 UNC 使用 Windows 规则；POSIX 保留大小写、
+  // 字面反斜杠和文件名尾部空格，避免把不同文件误判为输入覆盖或同一预留输出。
+  const windowsPath = path.trim();
+  if (/^(?:[a-z]:[\\/]|\\\\)/i.test(windowsPath)) {
+    return windowsPath.replace(/\\/g, "/").replace(/\/+/g, "/").toLowerCase();
+  }
+  return path.replace(/\/+/g, "/");
 }
 
 export function isPathReserved(

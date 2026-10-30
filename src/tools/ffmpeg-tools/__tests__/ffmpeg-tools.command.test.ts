@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
 import type { FFmpegParams } from "../types";
 import {
   buildExecutionPlan,
   buildQuickCommandArgs,
   formatPowerShellCommand,
+  formatShellCommand,
 } from "../utils/executionPlan";
 import { parseCommandLine, serializeCommandLine } from "../utils/args";
 
@@ -378,5 +380,45 @@ describe("buildQuickCommandArgs", () => {
       "-movflags",
       "+faststart",
     ]);
+  });
+});
+
+// 防护公开的“复制命令可直接运行”契约：执行后得到同一 argv，特殊字符保持字面值。
+describe("终端命令的跨平台执行", () => {
+  it.skipIf(process.platform === "win32")(
+    "POSIX Shell 保留完整 argv 与特殊字符",
+    () => {
+      const values = [
+        "",
+        "my video's.mp4",
+        "$HOME $(printf expanded)",
+        "`printf expanded`",
+        "a\\b",
+        "* ? # ; & | < >",
+        "line\nnext",
+      ];
+      const plan = buildExecutionPlan(baseParams());
+      plan.executable = process.execPath;
+      plan.args = [
+        "-e",
+        "process.stdout.write(JSON.stringify(process.argv.slice(1)))",
+        ...values,
+      ];
+      const result = spawnSync(
+        "sh",
+        ["-c", formatShellCommand(plan, "posix")],
+        { encoding: "utf8" }
+      );
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual(values);
+    }
+  );
+
+  it("Windows 继续使用 PowerShell 引用", () => {
+    const plan = buildExecutionPlan(baseParams());
+    expect(formatShellCommand(plan, "powershell")).toBe(
+      formatPowerShellCommand(plan)
+    );
   });
 });

@@ -72,6 +72,23 @@ describe("ffmpeg-tools task lifecycle", () => {
     expect(normalizeOutputPathKey("   ")).toBe("");
   });
 
+  it("POSIX 输出预留区分大小写、反斜杠和尾部空格文件名", () => {
+    const reservations: Record<string, string> = {};
+    for (const [index, path] of [
+      "/tmp/Video.mp4",
+      "/tmp/video.mp4",
+      String.raw`/tmp/a\b.mp4`,
+      "/tmp/a/b.mp4",
+      "/tmp/video.mp4 ",
+    ].entries()) {
+      expect(reservePath(reservations, `task-${index}`, path)).toBe(true);
+      expect(isPathReserved(reservations, path, "another-task")).toBe(true);
+    }
+    expect(
+      isPathReserved(reservations, "/tmp//Video.mp4", "another-task")
+    ).toBe(true);
+  });
+
   it("reservePath / isPathReserved 避免同一输出路径被重复占用", () => {
     const reservations: Record<string, string> = {};
 

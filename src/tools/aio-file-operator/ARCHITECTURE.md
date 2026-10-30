@@ -1,6 +1,6 @@
 # Aio File Operator: 架构与开发者指南
 
-> 更新日期：2026-10-19
+> 更新日期：2026-10-30
 
 本文档描述 `aio-file-operator` 的模块定位、调用链、安全边界和维护要点。该工具面向 Agent 暴露受控的本地文件读写能力，同时提供可视化配置与审计日志。
 
@@ -37,7 +37,7 @@ src/tools/aio-file-operator/
     └── aio-file-operator.test.ts        # Agent 方法、策略和 diff 行为单测
 ```
 
-**Rust 后端**：复用 `src-tauri/src/commands/file_operations.rs` 与 `src-tauri/src/commands/document_converter.rs` 中的通用命令，无专属 Rust 模块。
+**Rust 后端**：复用 `src-tauri/src/commands/file_operations.rs` 与 `src-tauri/src/commands/document_converter.rs` 中的通用命令。`file_operations/agent_security.rs` 负责文件操作器的目录递归安全预检与目录枚举过滤。
 
 ## 3. 架构概览
 
@@ -220,7 +220,7 @@ flowchart TD
 | `whitelist` | 仅允许访问 `allowedDirectories` 下的路径，其他路径直接 `block` |
 | `blacklist` | 默认允许访问，但继续应用 `blackListRules`                      |
 
-路径判断采用两层解析：前端先统一分隔符并处理 `.` / `..`，Rust 命令 `resolve_path_for_security` 再 canonicalize 目标路径或其最深已存在祖先，以解析符号链接。白名单与黑名单都按完整目录边界比较，不能用裸 `startsWith(root)`；例如 `C:/Safe-copy` 不属于 `C:/Safe`。相对路径会直接拒绝。
+路径先由 Rust 命令 `resolve_path_for_security` 逐段解析，现有路径段先 canonicalize，再处理后续的 `..`；新建目标保留最深已存在祖先后的路径段。不存在的目录后接 `..` 时拒绝解析。前端仅对返回的真实路径作比较归一化：Windows 路径统一分隔符并忽略大小写，Unix 路径保留大小写与文件名中的字面反斜杠。白名单与黑名单均按完整目录边界比较，例如 `C:/Safe-copy` 位于 `C:/Safe` 范围外。相对路径直接拒绝。
 
 出厂默认使用黑名单模式，已有配置保留用户选择。工具调用仍经过原有审批流程；敏感目录可配置禁止访问或强制审批规则。
 
@@ -235,7 +235,16 @@ flowchart TD
 
 `validatePath()` 只在动作层将 `block` 视为异常。`approve` 的前置拦截依赖 `AioFileOperatorRegistry.checkSecurityPolicy()` 被工具调用执行器调用；因此后续如果新增 Agent 方法，必须确保方法参数中的路径字段能被该策略识别。
 
-`checkSecurityPolicy()` 会检查 `args` 中的 `path`、`sourcePath`、`targetPath`、`directoryPath`、`filePath` 全部路径字段，任一路径被拦截即整体拒绝，防止通过源/目标双路径跨沙箱跳板逃逸。
+`checkSecurityPolicy()` 会检查 `args` 中的 `path`、`sourcePath`、`targetPath`、`directoryPath`、`filePath` 全部路径字段，任一路径被拦截即整体拒绝。先汇总全部路径的判定，死区优先于审批区；安全规则路径解析失败也阻断操作。
+
+目录操作进一步应用以下规则：
+
+- 复制、移动、删除通过 `inspect_file_operation` 预检整棵源目录树。复制/移动同时检查每个映射目标，以及已存在目标目录的内容。子目录出现死区则拒绝整个操作，出现审批区则由执行器要求确认。
+- 实际复制、移动、回收命令接收配置快照，在创建目录、删除覆盖目标和执行流转前再次检查。复制/移动遇到符号链接时返回可定位的错误，要求单独处理链接；避免递归读取链接指向的外部内容或形成循环。
+- 目录列表和搜索在 Rust 枚举过程中跳过死区、白名单外路径及尚未审批的子目录。直接请求审批目录时，确认后可枚举该范围；嵌套死区继续受保护。
+- 自动重命名写入会重新校验最终路径。文件流转按真实路径识别同源别名、自身后代和包含源路径的覆盖目标。
+
+这些约束面向受信任前端中的 Agent 工具执行链。底层通用 IPC 的其他调用方沿用原有契约；该配置也未提供 OS 级沙箱。外部进程同时替换文件或符号链接时，逐次路径检查与实际文件操作之间仍有竞态窗口。
 
 ### 6.2.1. 错误回显截断
 
@@ -329,14 +338,14 @@ flowchart TD
 - 文本读取、元数据校验和大文件保护
 - 图片/音频/视频附件的本地引用、按需安全读取、读取期间大小变化、沙箱拦截、审计元数据与执行器附件分流
 - 删除、追加、目录列表、创建目录、路径存在检查
-- Search/Replace Diff 匹配与换行符保持
+- Search/Replace Diff 匹配、换行符保持，以及精确替换后邻接行与行内前后缀的完整性
 - 复制/移动（`copy_file` / `move_file`）与双路径沙箱拦截
 - 元数据查询（`get_file_info`）与递归搜索（`search_files`）
 - 超长恶意路径（10KB 正文塞入 path）的错误回显截断
 - 白名单、死区、审批区、目录前缀碰撞和符号链接逃逸等安全策略
 - `getMetadata()` 暴露的 Agent 方法清单
 
-涉及真实 Tauri 文件系统行为时，应优先补 Rust 命令或集成测试；前端单测只验证工具层契约。
+Rust 的 `security_path_tests` 与 `agent_security::tests` 覆盖符号链接后接父路径、递归规则和操作前的磁盘边界。Ubuntu 真实 Agent 执行器与磁盘验证见[文件操作器专项记录](../../../docs/Plan/ubuntu-file-operator-investigation-20261030.md)。前端单测验证工具层契约。
 
 ## 12. 扩展指南
 

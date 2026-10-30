@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
+import { useMediaSource } from "@/composables/useMediaSource";
 import { format } from "date-fns";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
@@ -81,6 +82,11 @@ const resultAssetUrls = computed(() =>
   resultItems.value.map((item) => item.url)
 );
 const activeResultIndex = ref(0);
+const { src: videoPlaybackSrc } = useMediaSource(() =>
+  props.task.type === "video"
+    ? resultAssetUrls.value[activeResultIndex.value]
+    : undefined
+);
 const referenceAssetUrls = ref<string[]>([]);
 const videoPosterUrl = ref<string>("");
 
@@ -571,7 +577,8 @@ const openFileDirectory = async () => {
                 class="video-preview-wrapper"
               >
                 <video
-                  :src="resultAssetUrls[activeResultIndex] || ''"
+                  :src="videoPlaybackSrc"
+                  crossorigin="anonymous"
                   :poster="videoPosterUrl"
                   muted
                   loop

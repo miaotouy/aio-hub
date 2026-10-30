@@ -12,22 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "../../types/virtual-attachment";
+import {
+  cloneVirtualAttachments,
+  normalizeVirtualAttachments,
+} from "../../utils/virtualAttachments";
+import {
+  loadChatInputDrafts,
+  saveChatInputDrafts,
+} from "../storage/useChatInputDraftStorage";
 /**
  * 全局聊天输入管理器
  *
  * 功能：
  * - 管理输入框文本内容（全局单例）
  * - 管理附件列表（复用 useAttachmentManager）
- * - 支持 localStorage 持久化
+ * - 支持聊天专用文件持久化
  * - 支持跨窗口同步
  *
  * 设计理念：
  * - 单例模式：确保主窗口和分离窗口共享同一份状态
- * - 自动持久化：文本内容变化自动保存到 localStorage
+ * - 自动持久化：文本内容变化自动保存到聊天草稿文件
  * - 自动同步：内容变化自动同步到其他窗口
  */
 
-import { ref, watch, nextTick, type Ref } from "vue";
+import { ref, watch, nextTick, computed, type Ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { getOrCreateInstance } from "@/utils/singleton";
 import {
@@ -71,7 +80,8 @@ const FALLBACK_DRAFT_SESSION_ID = "__legacy_active__";
 /**
  * 持久化的状态结构
  */
-interface ChatInputDraft {
+export interface ChatInputDraft {
+  virtualAttachments?: VirtualTextAttachment[];
   text: string;
   attachments: Asset[];
   knowledgeReference?: KnowledgeReference | null;
@@ -80,7 +90,7 @@ interface ChatInputDraft {
   timestamp: number;
 }
 
-interface ChatInputDraftStorage {
+export interface ChatInputDraftStorage {
   version: 3;
   activeSessionId: string | null;
   drafts: Record<string, ChatInputDraft>;
@@ -96,6 +106,11 @@ interface ChatInputSyncState extends ChatInputDraft {
  * 聊天输入管理器类（单例）
  */
 class ChatInputManager {
+  public virtualAttachments: Ref<VirtualTextAttachment[]> = ref([]);
+  public saveStatus = ref<"saved" | "saving" | "error">("saved");
+  public ready: Promise<void> = Promise.resolve();
+  private storageReady = false;
+  private dirtyDraftKeys = new Set<string>();
   // 输入框文本
   public inputText: Ref<string> = ref("");
   // 最后已知的光标位置
@@ -213,6 +228,7 @@ class ChatInputManager {
   private unlistenStateSync: (() => void) | null = null;
   private unlistenAssetImport: (() => void) | null = null;
   private unregisterSyncSource: (() => void) | null = null;
+  private unlistenInputActions: (() => void) | null = null;
 
   constructor() {
     // 创建附件管理器
@@ -252,6 +268,9 @@ class ChatInputManager {
       sessionId: this.activeSessionId.value,
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
+      virtualAttachments: cloneVirtualAttachments(
+        this.virtualAttachments.value
+      ),
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
       knowledgeReference: this.knowledgeReference.value,
@@ -262,6 +281,9 @@ class ChatInputManager {
       sessionId: this.activeSessionId.value,
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
+      virtualAttachments: cloneVirtualAttachments(
+        this.virtualAttachments.value
+      ),
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
       knowledgeReference: this.knowledgeReference.value,
@@ -364,6 +386,21 @@ class ChatInputManager {
       { deep: true }
     );
 
+    watch(this.virtualAttachments, () => {
+      if (this.isApplyingSyncState || this.isSwitchingDraft) return;
+      this.markLocalChange();
+      this.saveCurrentDraftSnapshot();
+      this.syncState.value = {
+        ...this.syncState.value,
+        virtualAttachments: cloneVirtualAttachments(
+          this.virtualAttachments.value
+        ),
+        timestamp: Date.now(),
+      };
+      this.debouncedPushState();
+      this.debouncedSaveToStorage();
+    });
+
     // 监听临时模型变化
     watch(this.temporaryModel, (newModel) => {
       if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
@@ -427,6 +464,9 @@ class ChatInputManager {
           this.draftMap.set(stateKey, {
             text: newState.text || "",
             attachments: [...(newState.attachments || [])],
+            virtualAttachments: normalizeVirtualAttachments(
+              newState.virtualAttachments
+            ),
             temporaryModel: newState.temporaryModel || null,
             continuationModel: newState.continuationModel || null,
             knowledgeReference: normalizeKnowledgeReference(
@@ -443,6 +483,10 @@ class ChatInputManager {
         if (
           !this.isApplyingSyncState &&
           newState.text === this.inputText.value &&
+          deepEqual(
+            newState.virtualAttachments ?? [],
+            this.virtualAttachments.value
+          ) &&
           JSON.stringify(
             normalizeKnowledgeReference(newState.knowledgeReference)
           ) === JSON.stringify(this.knowledgeReference.value)
@@ -471,6 +515,10 @@ class ChatInputManager {
             });
           }
         }
+
+        this.virtualAttachments.value = normalizeVirtualAttachments(
+          newState.virtualAttachments
+        );
 
         // 同步附件（使用智能合并，保留正在导入的资产引用）
         this.attachmentManager.syncAttachments(newState.attachments);
@@ -606,11 +654,42 @@ class ChatInputManager {
       });
     }
 
+    this.ready = this.initializeDraftStorage();
+    if (this.bus.windowType === "main") {
+      this.unlistenInputActions =
+        this.bus.onActionRequest?.(
+          "llm-chat-input",
+          async (
+            action,
+            params: {
+              sessionId: string | null;
+              original: VirtualTextAttachment | null;
+              updated: VirtualTextAttachment;
+            }
+          ) => {
+            await this.ready;
+            if (action === "flush-drafts") {
+              await this.flushDrafts();
+              return;
+            }
+            if (action !== "commit-text") throw new Error("未知的输入操作");
+            await this.commitVirtualAttachment(
+              params.original,
+              params.updated,
+              params.sessionId
+            );
+            return cloneVirtualAttachments(
+              this.getDraftSnapshot(params.sessionId).virtualAttachments
+            );
+          }
+        ) ?? null;
+    }
     logger.info("ChatInputManager 初始化完成，包含跨窗口同步");
   }
 
   private markLocalChange(): void {
     this.lastLocalChangeAt = Date.now();
+    this.dirtyDraftKeys.add(this.getActiveDraftKey());
   }
 
   private getActiveDraftKey(): string {
@@ -632,6 +711,7 @@ class ChatInputManager {
     return {
       text: draft.text || "",
       attachments: [...(draft.attachments || [])],
+      virtualAttachments: cloneVirtualAttachments(draft.virtualAttachments),
       temporaryModel: draft.temporaryModel || null,
       continuationModel: draft.continuationModel || null,
       knowledgeReference: normalizeKnowledgeReference(draft.knowledgeReference),
@@ -658,6 +738,7 @@ class ChatInputManager {
     return (
       !draft.text &&
       (!draft.attachments || draft.attachments.length === 0) &&
+      !draft.virtualAttachments?.length &&
       !draft.temporaryModel &&
       !draft.continuationModel &&
       !draft.knowledgeReference
@@ -669,6 +750,9 @@ class ChatInputManager {
     this.draftMap.set(key, {
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
+      virtualAttachments: cloneVirtualAttachments(
+        this.virtualAttachments.value
+      ),
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
       knowledgeReference: normalizeKnowledgeReference(
@@ -683,6 +767,8 @@ class ChatInputManager {
     updater: (draft: ChatInputDraft) => ChatInputDraft | void
   ): void {
     const key = this.getDraftKey(sessionId);
+    this.lastLocalChangeAt = Date.now();
+    this.dirtyDraftKeys.add(key);
     const draft = this.cloneDraft(this.getDraft(key));
     const result = updater(draft);
     const nextDraft = result ? this.cloneDraft(result) : draft;
@@ -691,6 +777,8 @@ class ChatInputManager {
 
     if (key === this.getActiveDraftKey()) {
       this.applyDraftToActiveRefs(nextDraft);
+      this.debouncedSaveToStorage();
+      this.debouncedPushState();
     } else {
       this.debouncedSaveToStorage();
       this.pushDraftState(key, nextDraft);
@@ -702,6 +790,9 @@ class ChatInputManager {
     this.isApplyingSyncState = true;
     try {
       this.inputText.value = draft.text || "";
+      this.virtualAttachments.value = cloneVirtualAttachments(
+        draft.virtualAttachments
+      );
       this.attachmentManager.syncAttachments([...(draft.attachments || [])]);
       this.temporaryModel.value = draft.temporaryModel || null;
       this.continuationModel.value = draft.continuationModel || null;
@@ -712,6 +803,9 @@ class ChatInputManager {
         sessionId: this.activeSessionId.value,
         text: this.inputText.value,
         attachments: [...this.attachmentManager.attachments.value],
+        virtualAttachments: cloneVirtualAttachments(
+          this.virtualAttachments.value
+        ),
         temporaryModel: this.temporaryModel.value,
         continuationModel: this.continuationModel.value,
         knowledgeReference: this.knowledgeReference.value,
@@ -753,7 +847,6 @@ class ChatInputManager {
     ) {
       this.draftMap.set(sessionId, this.cloneDraft(legacyDraft));
       this.draftMap.delete(FALLBACK_DRAFT_SESSION_ID);
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
       logger.info("已将旧输入草稿迁移到当前会话", { sessionId });
     }
 
@@ -785,6 +878,10 @@ class ChatInputManager {
     const fromDraft = this.cloneDraft(this.getDraft(fromSessionId));
     this.draftMap.set(toSessionId, {
       ...fromDraft,
+      virtualAttachments: cloneVirtualAttachments(
+        fromDraft.virtualAttachments,
+        mode === "copy"
+      ),
       timestamp: Date.now(),
     });
 
@@ -806,6 +903,7 @@ class ChatInputManager {
   }
 
   public clearDraft(sessionId: string): void {
+    this.dirtyDraftKeys.add(sessionId);
     this.draftMap.delete(sessionId);
     if (sessionId === this.getActiveDraftKey()) {
       this.applyDraftToActiveRefs(this.createEmptyDraft());
@@ -814,6 +912,7 @@ class ChatInputManager {
   }
 
   public clearAllDrafts(): void {
+    for (const key of this.draftMap.keys()) this.dirtyDraftKeys.add(key);
     this.draftMap.clear();
     this.applyDraftToActiveRefs(this.createEmptyDraft());
     this.saveToStorageImmediate();
@@ -857,10 +956,24 @@ class ChatInputManager {
       return;
     }
 
+    try {
+      incomingState.virtualAttachments = normalizeVirtualAttachments(
+        incomingState.virtualAttachments
+      );
+    } catch (error) {
+      errorHandler.handle(error, {
+        userMessage: "同步文本附件失败",
+        showToUser: false,
+      });
+      return;
+    }
     const incomingSessionKey = this.getDraftKey(incomingState.sessionId);
     const incomingDraft: ChatInputDraft = {
       text: incomingState.text || "",
       attachments: [...(incomingState.attachments || [])],
+      virtualAttachments: normalizeVirtualAttachments(
+        incomingState.virtualAttachments
+      ),
       temporaryModel: incomingState.temporaryModel || null,
       continuationModel: incomingState.continuationModel || null,
       knowledgeReference: normalizeKnowledgeReference(
@@ -869,6 +982,7 @@ class ChatInputManager {
       timestamp: incomingState.timestamp || Date.now(),
     };
 
+    this.dirtyDraftKeys.add(incomingSessionKey);
     this.draftMap.set(incomingSessionKey, incomingDraft);
     if (incomingSessionKey !== this.getActiveDraftKey()) {
       this.stateVersion = payload.version;
@@ -912,6 +1026,8 @@ class ChatInputManager {
       });
       this.stateVersion = payload.version;
       this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
+      // Remote attachment-only changes may leave inputText unchanged; persist them explicitly.
+      this.debouncedSaveToStorage();
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "应用输入状态更新失败",
@@ -1033,6 +1149,7 @@ class ChatInputManager {
     if (this.unregisterSyncSource) {
       this.unregisterSyncSource();
     }
+    this.unlistenInputActions?.();
     this.idUpdateLog.clear();
     logger.info("ChatInputManager 已清理");
   }
@@ -1099,34 +1216,201 @@ class ChatInputManager {
   /**
    * 立即保存状态到 localStorage
    */
-  private saveToStorageImmediate(): void {
-    try {
-      this.saveCurrentDraftSnapshot();
-      const drafts: Record<string, ChatInputDraft> = {};
-      for (const [sessionId, draft] of this.draftMap.entries()) {
-        if (!this.isEmptyDraft(draft)) {
-          drafts[sessionId] = this.cloneDraft(draft);
-        }
-      }
+  private buildDraftStorage(): ChatInputDraftStorage {
+    this.saveCurrentDraftSnapshot();
+    const drafts: Record<string, ChatInputDraft> = {};
+    for (const [sessionId, draft] of this.draftMap) {
+      if (!this.isEmptyDraft(draft)) drafts[sessionId] = this.cloneDraft(draft);
+    }
+    return {
+      version: 3,
+      activeSessionId: this.activeSessionId.value,
+      drafts,
+      draftClipboard: this.draftClipboard.value,
+    };
+  }
 
-      const storage: ChatInputDraftStorage = {
-        version: 3,
-        activeSessionId: this.activeSessionId.value,
-        drafts,
-        draftClipboard: this.draftClipboard.value,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
-      logger.debug("保存会话级输入草稿到 localStorage", {
-        draftCount: Object.keys(drafts).length,
-        activeSessionId: this.activeSessionId.value,
-        hasClipboard: !!this.draftClipboard.value,
-      });
+  private async initializeDraftStorage(): Promise<void> {
+    if (this.bus.windowType !== "main") {
+      this.storageReady = true;
+      return;
+    }
+    try {
+      const stored = await loadChatInputDrafts();
+      if (stored) {
+        const currentKey = this.getActiveDraftKey();
+        this.saveCurrentDraftSnapshot();
+        for (const [key, draft] of Object.entries(stored.drafts)) {
+          if (!this.dirtyDraftKeys.has(key)) {
+            this.draftMap.set(key, {
+              ...this.cloneDraft(draft),
+              virtualAttachments: normalizeVirtualAttachments(
+                draft.virtualAttachments
+              ),
+            });
+          }
+        }
+        // Binding selected by the live session store takes precedence over saved UI state.
+        if (!this.draftClipboard.value)
+          this.draftClipboard.value = stored.draftClipboard ?? null;
+        const legacy = this.draftMap.get(FALLBACK_DRAFT_SESSION_ID);
+        if (
+          currentKey !== FALLBACK_DRAFT_SESSION_ID &&
+          legacy &&
+          !this.draftMap.get(currentKey)?.text &&
+          this.isEmptyDraft(this.draftMap.get(currentKey)) &&
+          !this.dirtyDraftKeys.has(currentKey)
+        ) {
+          this.draftMap.set(currentKey, this.cloneDraft(legacy));
+          this.draftMap.delete(FALLBACK_DRAFT_SESSION_ID);
+        }
+        if (!this.dirtyDraftKeys.has(currentKey))
+          this.applyDraftToActiveRefs(this.getDraft(currentKey));
+      }
+      this.storageReady = true;
+      if (this.bus.windowType === "main") {
+        await saveChatInputDrafts(this.buildDraftStorage());
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+      this.pushState(true, undefined, true);
     } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "保存输入状态失败",
+      this.storageReady = false;
+      this.saveStatus.value = "error";
+      errorHandler.handle(error, {
+        userMessage: "恢复输入草稿失败，请重试保存",
         showToUser: false,
       });
     }
+  }
+
+  public async flushDrafts(): Promise<void> {
+    await this.ready;
+    if (this.bus.windowType !== "main") {
+      this.saveStatus.value = "saving";
+      this.pushState(true, undefined, true);
+      try {
+        await this.bus.requestAction("llm-chat-input:flush-drafts", {});
+        this.saveStatus.value = "saved";
+      } catch (error) {
+        this.saveStatus.value = "error";
+        throw error;
+      }
+      return;
+    }
+    if (!this.storageReady) await this.initializeDraftStorage();
+    if (!this.storageReady) {
+      throw new Error("草稿存储尚未就绪，请重新打开应用后重试");
+    }
+    this.saveStatus.value = "saving";
+    try {
+      await saveChatInputDrafts(this.buildDraftStorage());
+      this.saveStatus.value = "saved";
+    } catch (error) {
+      this.saveStatus.value = "error";
+      throw error;
+    }
+  }
+
+  private saveToStorageImmediate(): void {
+    void this.flushDrafts().catch((error) => {
+      errorHandler.handle(error, {
+        userMessage: "草稿保存失败",
+        showToUser: false,
+      });
+    });
+  }
+
+  public async commitVirtualAttachment(
+    original: VirtualTextAttachment | null,
+    updated: VirtualTextAttachment,
+    sessionId?: string | null
+  ): Promise<void> {
+    if (this.bus.windowType !== "main") {
+      const attachments = await this.bus.requestAction<
+        unknown,
+        VirtualTextAttachment[]
+      >("llm-chat-input:commit-text", {
+        sessionId: sessionId ?? this.activeSessionId.value,
+        original,
+        updated,
+      });
+      this.updateDraft(sessionId, (draft) => {
+        draft.virtualAttachments = normalizeVirtualAttachments(attachments);
+      });
+      return;
+    }
+    if (original)
+      await this.updateVirtualAttachment(original, updated, sessionId);
+    else this.addVirtualAttachment(updated, sessionId);
+    await this.flushDrafts();
+  }
+
+  public addVirtualAttachment(
+    attachment: VirtualTextAttachment,
+    sessionId?: string | null
+  ): void {
+    this.updateDraft(sessionId, (draft) => {
+      const existing = draft.virtualAttachments?.find(
+        (item) => item.id === attachment.id
+      );
+      if (existing && deepEqual(existing, attachment)) return;
+      draft.virtualAttachments = normalizeVirtualAttachments([
+        ...(draft.virtualAttachments ?? []),
+        attachment,
+      ]);
+    });
+    this.saveToStorageImmediate();
+  }
+
+  public async updateVirtualAttachment(
+    original: VirtualTextAttachment,
+    updated: VirtualTextAttachment,
+    sessionId?: string | null
+  ): Promise<void> {
+    this.updateDraft(sessionId, (draft) => {
+      const current = draft.virtualAttachments?.find(
+        (item) => item.id === original.id
+      );
+      if (current && deepEqual(current, updated)) return;
+      if (
+        !current ||
+        current.text !== original.text ||
+        current.title !== original.title
+      ) {
+        throw new Error("这份材料已在其他窗口修改，请复制当前内容后重新打开");
+      }
+      draft.virtualAttachments = normalizeVirtualAttachments(
+        draft.virtualAttachments?.map((item) =>
+          item.id === original.id ? updated : item
+        )
+      );
+    });
+    this.saveToStorageImmediate();
+  }
+
+  public removeVirtualAttachment(id: string, sessionId?: string | null): void {
+    this.updateDraft(sessionId, (draft) => {
+      draft.virtualAttachments = (draft.virtualAttachments ?? []).filter(
+        (item) => item.id !== id
+      );
+    });
+    this.saveToStorageImmediate();
+  }
+
+  public clearSubmittedDraft(
+    sessionId: string,
+    submitted: ChatInputDraft
+  ): void {
+    const current = this.getDraftSnapshot(sessionId);
+    if (
+      current.text !== submitted.text ||
+      !deepEqual(current.attachments, submitted.attachments) ||
+      !deepEqual(current.virtualAttachments, submitted.virtualAttachments) ||
+      !deepEqual(current.knowledgeReference, submitted.knowledgeReference)
+    )
+      return;
+    this.clear(sessionId);
   }
 
   /**
@@ -1221,6 +1505,7 @@ class ChatInputManager {
       this.updateDraft(sessionId, (draft) => {
         draft.text = "";
         draft.attachments = [];
+        draft.virtualAttachments = [];
         draft.knowledgeReference = null;
       });
       logger.info("清空非当前会话输入草稿和附件", { sessionId: targetKey });
@@ -1228,6 +1513,7 @@ class ChatInputManager {
     }
 
     this.inputText.value = "";
+    this.virtualAttachments.value = [];
     this.attachmentManager.clearAttachments();
     this.knowledgeReference.value = null;
     this.saveCurrentDraftSnapshot();
@@ -1840,6 +2126,10 @@ class ChatInputManager {
     this.updateDraft(targetSessionId, (draft) => {
       draft.text = clipboard.text;
       draft.attachments = [...clipboard.attachments];
+      draft.virtualAttachments = cloneVirtualAttachments(
+        clipboard.virtualAttachments,
+        true
+      );
       draft.temporaryModel = clipboard.temporaryModel;
       draft.continuationModel = clipboard.continuationModel;
       draft.knowledgeReference = normalizeKnowledgeReference(
@@ -1879,6 +2169,15 @@ export function useChatInputManager() {
     // ========== 输入框文本 ==========
     /** 输入框文本内容（响应式） */
     inputText: manager.inputText,
+    virtualAttachments: manager.virtualAttachments,
+    saveStatus: manager.saveStatus,
+    ready: manager.ready,
+    flushDrafts: manager.flushDrafts.bind(manager),
+    commitVirtualAttachment: manager.commitVirtualAttachment.bind(manager),
+    addVirtualAttachment: manager.addVirtualAttachment.bind(manager),
+    updateVirtualAttachment: manager.updateVirtualAttachment.bind(manager),
+    removeVirtualAttachment: manager.removeVirtualAttachment.bind(manager),
+    clearSubmittedDraft: manager.clearSubmittedDraft.bind(manager),
     /** 临时指定的模型 */
     temporaryModel: manager.temporaryModel,
     /** 续写指定的模型 */
@@ -1904,7 +2203,11 @@ export function useChatInputManager() {
     /** 是否正在处理附件 */
     isProcessingAttachments: manager.attachmentManager.isProcessing,
     /** 是否有附件 */
-    hasAttachments: manager.attachmentManager.hasAttachments,
+    hasAttachments: computed(
+      () =>
+        manager.attachmentManager.hasAttachments.value ||
+        manager.virtualAttachments.value.length > 0
+    ),
     /** 附件数量 */
     attachmentCount: manager.attachmentManager.count,
     /** 附件是否已满 */

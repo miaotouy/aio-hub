@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { formatVirtualAttachments } from "./virtualAttachments";
+import type { VirtualTextAttachment } from "../types/virtual-attachment";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -108,7 +110,8 @@ export async function resolveImageMaxDimensionForModel(
 export async function prepareMessageForTokenCalc(
   content: string,
   attachments: Asset[],
-  modelId: string
+  modelId: string,
+  virtualAttachments?: readonly VirtualTextAttachment[]
 ): Promise<{
   combinedText: string;
   mediaAttachments: PipelineAttachment[];
@@ -184,6 +187,7 @@ export async function prepareMessageForTokenCalc(
     }
   }
 
+  combinedText += formatVirtualAttachments(virtualAttachments);
   return { combinedText, mediaAttachments };
 }
 
@@ -197,7 +201,7 @@ export async function recalculateNodeTokens(
 ): Promise<void> {
   if (!detail.nodes) return;
   const node = detail.nodes[nodeId];
-  if (!node || !node.content) return;
+  if (!node || (!node.content && !node.virtualAttachments?.length)) return;
   if (node.role !== "user" && node.role !== "assistant") return;
 
   let modelId: string | undefined;
@@ -239,14 +243,14 @@ export async function recalculateNodeTokens(
 
     if (
       node.role === "user" &&
-      node.attachments &&
-      node.attachments.length > 0
+      (node.attachments?.length || node.virtualAttachments?.length)
     ) {
       // 准备用于 Token 计算的消息内容
       const result = await prepareMessageForTokenCalc(
         node.content,
-        node.attachments,
-        modelId
+        node.attachments ?? [],
+        modelId,
+        node.virtualAttachments
       );
 
       fullContent = result.combinedText;
@@ -308,7 +312,11 @@ export async function fillMissingTokenMetadata(
   for (const { index: sessionIndex, detail: session } of sessions) {
     if (!session.nodes) continue;
     for (const [nodeId, node] of Object.entries(session.nodes)) {
-      if (!node.content || node.metadata?.contentTokens !== undefined) continue;
+      if (
+        (!node.content && !node.virtualAttachments?.length) ||
+        node.metadata?.contentTokens !== undefined
+      )
+        continue;
 
       let modelId: string | undefined;
       if (node.role === "assistant" && node.metadata?.modelId) {
@@ -346,13 +354,13 @@ export async function fillMissingTokenMetadata(
 
             if (
               node.role === "user" &&
-              node.attachments &&
-              node.attachments.length > 0
+              (node.attachments?.length || node.virtualAttachments?.length)
             ) {
               const result = await prepareMessageForTokenCalc(
                 node.content,
-                node.attachments,
-                currentModelId
+                node.attachments ?? [],
+                currentModelId,
+                node.virtualAttachments
               );
               fullContent = result.combinedText;
               mediaAttachments = result.mediaAttachments;

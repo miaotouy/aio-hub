@@ -94,6 +94,50 @@ describe("useContextCompressor", () => {
     });
   });
 
+  it.each([undefined, "previous summary"])(
+    "includes full text materials in summary requests with previous summary=%s",
+    async (previousSummary) => {
+      const material = "  {{literal}}\r\n```ts\nconst value = 42;\n```\n😀  ";
+      const { generateSummary } = useContextCompressor();
+      await generateSummary(
+        [
+          {
+            id: "material-message",
+            role: "user",
+            content: "问题正文",
+            virtualAttachments: [
+              {
+                id: "material",
+                kind: "text",
+                title: "代码材料",
+                text: material,
+              },
+              {
+                id: "extra",
+                kind: "text",
+                title: "补充",
+                text: "补充材料全文",
+              },
+            ],
+          },
+        ] as any,
+        {
+          summaryModel: { profileId: "profile-1", modelId: "model-1" },
+          summaryPrompt: "SUMMARY\n{context}",
+          continueSummaryPrompt: "PREVIOUS={previous_summary}\n{context}",
+        } as any,
+        undefined,
+        previousSummary
+      );
+      const prompt = mocks.sendRequest.mock.calls[0][0].messages[0].content;
+      expect(prompt).toContain("问题正文");
+      expect(prompt).toContain(material);
+      expect(prompt.split(material)).toHaveLength(2);
+      expect(prompt).toContain("补充材料全文");
+      if (previousSummary) expect(prompt).toContain(previousSummary);
+    }
+  );
+
   it.each(["message", "user-turn"] as const)(
     "uses the continuation prompt and replaces the prior summary in %s mode",
     async (countUnit) => {

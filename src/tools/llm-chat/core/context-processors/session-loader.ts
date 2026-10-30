@@ -21,7 +21,11 @@ import type {
   ChatSessionDetail,
 } from "@/tools/llm-chat/types";
 import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
-import { fromAsset, fromLocalMedia } from "../../types/pipeline-attachment";
+import {
+  fromAsset,
+  fromLocalMedia,
+  fromVirtualTextAttachment,
+} from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("primary:session-loader");
 
@@ -245,7 +249,9 @@ export const sessionLoader: ContextProcessor = {
       // 忽略空消息且没有附件的消息
       const hasContent = !!node.content.trim();
       const hasAttachments = !!(
-        node.attachments && node.attachments.length > 0
+        node.attachments?.length ||
+        node.virtualAttachments?.length ||
+        node.localMedia?.length
       );
 
       if (!hasContent && !hasAttachments) {
@@ -329,12 +335,11 @@ export const sessionLoader: ContextProcessor = {
         reasoningArtifacts: node.metadata?.reasoningArtifacts,
         sourceType: "session_history",
         sourceId: node.id,
-        _attachments: node.localMedia?.length
-          ? [
-              ...(node.attachments?.map(fromAsset) ?? []),
-              ...node.localMedia.map(fromLocalMedia),
-            ]
-          : node.attachments?.map(fromAsset),
+        _attachments: [
+          ...(node.attachments?.map(fromAsset) ?? []),
+          ...(node.localMedia?.map(fromLocalMedia) ?? []),
+          ...(node.virtualAttachments?.map(fromVirtualTextAttachment) ?? []),
+        ],
         metadata: node.metadata,
       };
       messages.push(processableMessage);
@@ -349,7 +354,11 @@ export const sessionLoader: ContextProcessor = {
         content: pendingInput.text,
         sourceType: "session_history",
         sourceId: `${VIRTUAL_NODE_PREFIX}${Date.now()}`,
-        _attachments: pendingInput.attachments?.map(fromAsset),
+        _attachments: [
+          ...(pendingInput.attachments?.map(fromAsset) ?? []),
+          ...(pendingInput.virtualAttachments?.map(fromVirtualTextAttachment) ??
+            []),
+        ],
         _originalContent: pendingInput.originalText, // 用于预览 diff
       });
     }

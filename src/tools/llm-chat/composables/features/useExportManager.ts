@@ -1,4 +1,3 @@
-import { materializePresetMessage } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,11 @@ import { materializePresetMessage } from "@aiohub/agent-preset-core";
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  cloneVirtualAttachments,
+  formatVirtualAttachments,
+} from "../../utils/virtualAttachments";
+import { materializePresetMessage } from "@aiohub/agent-preset-core";
 /**
  * 导出管理 Composable
  * 负责会话和分支的导出功能
@@ -135,7 +139,8 @@ export function useExportManager() {
       lines.push(`## ${role}${nameStr} (${time})`);
       lines.push("");
 
-      let messageContent = node.content;
+      let messageContent =
+        node.content + formatVirtualAttachments(node.virtualAttachments);
       // 解析附件并替换占位符/追加内容
       if (node.attachments && node.attachments.length > 0) {
         try {
@@ -395,13 +400,17 @@ export function useExportManager() {
           if (node.role === "system") {
             lines.push(`### 系统提示${nameStr}`);
             lines.push("");
-            lines.push(node.content);
+            lines.push(
+              node.content + formatVirtualAttachments(node.virtualAttachments)
+            );
             lines.push("");
           } else {
             const role = node.role === "user" ? "用户" : "助手";
             lines.push(`### ${role}${nameStr}`);
             lines.push("");
-            lines.push(node.content);
+            lines.push(
+              node.content + formatVirtualAttachments(node.virtualAttachments)
+            );
             lines.push("");
           }
         });
@@ -515,7 +524,8 @@ export function useExportManager() {
       }
 
       // 消息内容
-      let messageContent = node.content;
+      let messageContent =
+        node.content + formatVirtualAttachments(node.virtualAttachments);
       // 解析附件并替换占位符/追加内容
       if (
         includeAttachments &&
@@ -718,6 +728,7 @@ export function useExportManager() {
       agent?: { name: string; icon?: string };
       model?: { name: string; id?: string; provider?: string };
       attachments?: { name: string; type: string; id: string }[];
+      virtualAttachments?: import("../../types/virtual-attachment").VirtualTextAttachment[];
       tokenUsage?: { total: number; prompt: number; completion: number };
       error?: string;
     }
@@ -824,6 +835,11 @@ export function useExportManager() {
           }
         }
       }
+
+      if (node.virtualAttachments?.length)
+        msg.virtualAttachments = cloneVirtualAttachments(
+          node.virtualAttachments
+        );
 
       // 附件信息
       if (
@@ -1035,7 +1051,9 @@ export function useExportManager() {
       }
 
       // 添加消息内容（需要适当缩进和换行处理）
-      const contentLines = node.content.split("\n");
+      const contentLines = (
+        node.content + formatVirtualAttachments(node.virtualAttachments)
+      ).split("\n");
       contentLines.forEach((line, index) => {
         if (index === 0 && line.trim()) {
           lines.push(`${metaIndent}${line}`);

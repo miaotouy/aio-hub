@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { formatVirtualTextAttachment } from "../../utils/virtualAttachments";
 import { useTranscriptionManager } from "../../composables/features/useTranscriptionManager";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
@@ -100,8 +101,20 @@ export async function resolveAttachmentContent<
   profileId: string,
   options: { force?: boolean; silent?: boolean; messageDepth?: number } = {}
 ): Promise<ResolvedAttachment<TAttachment>> {
-  const transcriptionManager = useTranscriptionManager();
   const attachment = toPipelineAttachment(asset);
+  if (attachment.source.kind === "message-text") {
+    return {
+      type: "text",
+      rawText: attachment.source.text,
+      content: formatVirtualTextAttachment({
+        title: attachment.name,
+        text: attachment.source.text,
+      }),
+      asset,
+      source: "file",
+    };
+  }
+  const transcriptionManager = useTranscriptionManager();
   const transcriptionAsset = await getTranscriptionAsset(asset);
 
   try {
@@ -285,7 +298,6 @@ export async function resolveAttachmentsBatch<
 
   for (const asset of assets) {
     const attachment = toPipelineAttachment(asset);
-    const transcriptionAsset = await getTranscriptionAsset(asset);
     // 调用单个解析函数时开启静默，由批量函数统一处理警告
     const result = await resolveAttachmentContent(asset, modelId, profileId, {
       ...options,
@@ -297,6 +309,7 @@ export async function resolveAttachmentsBatch<
     // 这通过检查 resolveAttachmentContent 的内部逻辑：
     // 如果 shouldTranscribe 为 true 且返回的是 media 类型，说明没找到转写
     if (result.type === "media") {
+      const transcriptionAsset = await getTranscriptionAsset(asset);
       const transcriptionManager = useTranscriptionManager();
       const shouldTranscribe =
         options.force ||

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { deepEqual } from "@/utils/sync-helpers";
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 import type { Ref } from "vue";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
@@ -27,6 +29,7 @@ const logger = createModuleLogger("llm-chat/session-generation");
 
 export interface SendMessageOptions {
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
   temporaryModel?: ModelIdentifier | null;
   knowledgeReference?: KnowledgeReference | null;
   parentId?: string;
@@ -305,27 +308,33 @@ export function createSessionGenerationManager(
           const handlerOptions = skipGeneration
             ? { ...options, skipGeneration: true }
             : options;
+          const { useChatInputManager } =
+            await import("../../composables/input/useChatInputManager");
+          const inputManager = useChatInputManager();
+          await inputManager.ready;
+          const submittedDraft = inputManager.getDraftSnapshot(sessionId);
+          const matchesInput =
+            submittedDraft.text.trim() === content.trim() &&
+            deepEqual(submittedDraft.attachments, options?.attachments ?? []) &&
+            deepEqual(
+              submittedDraft.virtualAttachments ?? [],
+              options?.virtualAttachments ?? []
+            );
           const sendPromise = chatHandler.sendMessage(
             detail,
             content,
             managers.access.getActivePath(sessionId),
             state.abortControllers.value,
             state.generatingNodes.value,
-            handlerOptions,
+            {
+              ...handlerOptions,
+              onUserMessageSaved: () => {
+                if (matchesInput)
+                  inputManager.clearSubmittedDraft(sessionId, submittedDraft);
+              },
+            },
             state.currentSessionId.value
           );
-
-          try {
-            const { useChatInputManager } =
-              await import("../../composables/input/useChatInputManager");
-            const inputManager = useChatInputManager();
-            inputManager.clear(sessionId);
-            logger.info("消息已进入发送流程，已清空目标会话输入框", {
-              sessionId,
-            });
-          } catch (error) {
-            logger.warn("反向驱动清空输入框失败", error);
-          }
 
           await sendPromise;
           if (!skipGeneration && !hasQueuedMessageNodes(detail)) {

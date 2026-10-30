@@ -135,12 +135,12 @@ graph TD
 
 ### 1.5. 附件系统与管道附件抽象层 (Attachments & PipelineAttachment)
 
-附件系统允许用户在消息中添加文件，实现多模态对话。基于统一的 Asset 管理系统进行文件存储和去重，支持图片、视频、音频、文本、文档等多种类型。
+附件系统允许用户在消息中添加文件，实现多模态对话。真实文件基于统一的 Asset 管理系统进行存储和去重，支持图片、视频、音频、文本和文档。消息内文本附件通过 `virtualAttachments` 保存可编辑的标题与全文，草稿和会话消息分别持有独立快照。
 
 为保持管道内部逻辑的清晰与独立，系统使用**管道附件抽象层**：
 
 - **`PipelineAttachment` 类型**: 管道内部使用轻量级 `PipelineAttachment` 类型表示附件，独立于全局 `Asset` 类型，管道逻辑不直接依赖资产管理系统。
-- **统一二进制读取**: [`getAttachmentBuffer()`](./core/context-utils/attachment-binary.ts) 工具函数统一处理 `inline`（Base64 内嵌）、`asset-library`（资产库引用）和 `agent-private`（由 `agent-manager` 管理的智能体私有资产）三种数据源的二进制读取。
+- **统一二进制读取**: [`getAttachmentBuffer()`](./core/context-utils/attachment-binary.ts) 工具函数统一处理 `inline`（Base64 内嵌）、`asset-library`（资产库引用）和 `agent-private`（由 `agent-manager` 管理的智能体私有资产）等数据源的二进制读取；`message-text` 直接从消息内字符串读取全文。
 - **多源转换**: 提供 `fromAsset` / `toPipelineAttachment` 转换函数，实现 Asset 与 PipelineAttachment 之间的双向转换。
 
 详见 [`attachment-system.md`](./docs/architecture/attachment-system.md)

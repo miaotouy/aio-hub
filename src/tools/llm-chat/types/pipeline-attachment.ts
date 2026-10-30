@@ -32,6 +32,7 @@ export interface PipelineAttachment {
 }
 
 export type AttachmentSource =
+  | { kind: "message-text"; text: string }
   | { kind: "inline"; base64: string; mimeType: string }
   | { kind: "asset-library"; path: string }
   | { kind: "local-file"; path: string; approvalGranted?: boolean }
@@ -43,6 +44,18 @@ export function isPipelineAttachment(
   value: AttachmentLike
 ): value is PipelineAttachment {
   return "source" in value;
+}
+
+export function fromVirtualTextAttachment(
+  attachment: import("./virtual-attachment").VirtualTextAttachment
+): PipelineAttachment {
+  return {
+    id: attachment.id,
+    type: "document",
+    name: attachment.title,
+    mimeType: "text/plain",
+    source: { kind: "message-text", text: attachment.text },
+  };
 }
 
 export function fromAsset(asset: Asset): PipelineAttachment {

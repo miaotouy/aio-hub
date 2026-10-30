@@ -308,6 +308,7 @@ export function useLlmChatSync() {
       case "send-message": {
         const options = params.options ?? {
           attachments: params.attachments,
+          virtualAttachments: params.virtualAttachments,
           temporaryModel: params.temporaryModel,
           parentId: params.parentId,
           disableMacroParsing: params.disableMacroParsing,

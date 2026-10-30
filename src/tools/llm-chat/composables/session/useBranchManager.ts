@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { cloneVirtualAttachments } from "../../utils/virtualAttachments";
 /**
  * 分支管理 Composable
  * 负责所有与用户交互的树结构操作：编辑、删除、切换分支等
@@ -196,6 +197,11 @@ export function useBranchManager() {
       isEnabled: true,
       status: "complete",
     });
+
+    newNode.virtualAttachments = cloneVirtualAttachments(
+      sourceNode.virtualAttachments,
+      true
+    );
 
     // 如果是助手消息，复制元数据
     if (sourceNode.role === "assistant" && sourceNode.metadata) {

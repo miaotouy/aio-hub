@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { cloneVirtualAttachments } from "../../utils/virtualAttachments";
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 /**
  * 聊天处理 Composable
  * 负责协调核心聊天逻辑：发送消息、重新生成、流式响应处理
@@ -95,7 +97,9 @@ export function useChatHandler() {
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
     options?: {
+      onUserMessageSaved?: () => void;
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: ModelIdentifier | null;
       knowledgeReference?: KnowledgeReference | null;
       parentId?: string;
@@ -107,6 +111,11 @@ export function useChatHandler() {
     },
     currentSessionId?: string | null
   ): Promise<void> => {
+    if (options?.virtualAttachments)
+      options = {
+        ...options,
+        virtualAttachments: cloneVirtualAttachments(options.virtualAttachments),
+      };
     const chatStore = useLlmChatStore();
     const sessionIndex = chatStore.sessionIndexMap.get(session.id);
     if (!sessionIndex) throw new Error("Session index not found");
@@ -221,6 +230,10 @@ export function useChatHandler() {
       session,
       processedContent,
       parentId
+    );
+
+    userNode.virtualAttachments = cloneVirtualAttachments(
+      options?.virtualAttachments
     );
 
     let explicitKnowledgeToolNode: ChatMessageNode | null = null;
@@ -433,6 +446,23 @@ export function useChatHandler() {
         session,
         currentSessionId ?? null
       );
+      const { useChatStorageSeparated } =
+        await import("../storage/useChatStorageSeparated");
+      try {
+        await useChatStorageSeparated().saveSession({
+          ...sessionIndex,
+          ...session,
+        });
+      } catch (error) {
+        generatingNodes.delete(assistantNode.id);
+        assistantNode.status = "error";
+        assistantNode.metadata = {
+          ...assistantNode.metadata,
+          error: "消息保存失败，请保留草稿并重试",
+        };
+        throw error;
+      }
+      options?.onUserMessageSaved?.();
     }
     logger.debug("用户消息已即时保存（转写前）", {
       sessionId: session.id,

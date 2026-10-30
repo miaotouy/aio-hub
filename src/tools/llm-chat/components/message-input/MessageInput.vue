@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import VirtualTextAttachments from "../VirtualTextAttachments.vue";
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
@@ -108,6 +110,7 @@ interface Emits {
     payload: {
       content: string;
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: ModelIdentifier | null;
       knowledgeReference?: KnowledgeReference | null;
       disableMacroParsing?: boolean;
@@ -186,6 +189,43 @@ let inputUnmounted = false;
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
 const inputText = inputManager.inputText;
+let textEditorSessionId: string | null = null;
+async function retryDraftSave() {
+  try {
+    await inputManager.flushDrafts();
+  } catch (error) {
+    customMessage.error(
+      error instanceof Error ? error.message : "草稿保存失败，请复制内容后重试"
+    );
+  }
+}
+function onTextEditing(editing: boolean) {
+  inputStore.isEditingTextAttachment = editing;
+  if (editing) textEditorSessionId = inputManager.activeSessionId.value;
+}
+async function saveTextAttachment(
+  original: VirtualTextAttachment | null,
+  updated: VirtualTextAttachment
+) {
+  await inputManager.commitVirtualAttachment(
+    original,
+    updated,
+    textEditorSessionId
+  );
+}
+function insertTextAttachment(attachment: VirtualTextAttachment) {
+  if (textEditorSessionId !== inputManager.activeSessionId.value) {
+    inputManager.addContent(attachment.text, "append", textEditorSessionId);
+  } else {
+    const editor = textareaRef.value;
+    const selection = editor?.getSelectionRange();
+    if (editor && selection)
+      editor.insertText(attachment.text, selection.start, selection.end);
+    else inputManager.addContent(attachment.text);
+  }
+  inputManager.removeVirtualAttachment(attachment.id, textEditorSessionId);
+  void nextTick(() => textareaRef.value?.focus());
+}
 
 // 附件管理
 const attachmentManager = {
@@ -633,16 +673,9 @@ const handleDragStart = (e: MouseEvent) => {
             @customize="toolbarRef?.openCustomizer()"
           />
         </InputPanelHost>
-        <div
-          v-if="
-            attachmentManager.hasAttachments.value ||
-            inputManager.knowledgeReference.value
-          "
-          ref="extraContentRef"
-          class="input-extra-content"
-        >
+        <div ref="extraContentRef" class="input-extra-content">
           <KnowledgeReferenceChips />
-          <div v-if="attachmentManager.hasAttachments.value">
+          <div v-if="attachmentManager.attachments.value.length">
             <MessageInputAttachments
               :attachments="attachmentManager.attachments.value"
               :count="attachmentManager.count.value"
@@ -657,6 +690,33 @@ const handleDragStart = (e: MouseEvent) => {
               @force-transcribe-all="inputStore.handleForceTranscribeAll"
               @stop-all="inputStore.handleStopAllTranscriptions"
             />
+          </div>
+          <VirtualTextAttachments
+            :attachments="inputManager.virtualAttachments.value"
+            draft
+            :busy="disabled"
+            :commit="saveTextAttachment"
+            @editing-change="onTextEditing"
+            @remove="inputManager.removeVirtualAttachment($event.id)"
+            @insert="insertTextAttachment"
+          />
+          <div
+            v-if="inputStore.canRestoreTextPaste"
+            class="text-paste-notice"
+            role="status"
+          >
+            已添加文本附件
+            <button type="button" @click="inputStore.restoreTextPaste">
+              直接粘贴文本
+            </button>
+          </div>
+          <div
+            v-if="inputManager.saveStatus.value === 'error'"
+            class="draft-save-error"
+            role="alert"
+          >
+            草稿保存失败，内容仍保留。
+            <button type="button" @click="retryDraftSave">重试保存</button>
           </div>
         </div>
         <div class="input-wrapper">
@@ -724,6 +784,24 @@ const handleDragStart = (e: MouseEvent) => {
 </template>
 
 <style scoped>
+.text-paste-notice,
+.draft-save-error {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 4px 0;
+}
+.text-paste-notice button,
+.draft-save-error button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+}
+.draft-save-error {
+  color: var(--el-color-danger);
+}
+
 .message-input-container {
   position: relative; /* For resize handle */
   display: flex;

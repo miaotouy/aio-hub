@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 /**
  * LLM Chat 状态管理（树形历史结构）
  * 重构后的版本：专注于状态管理，复杂逻辑委托给 composables 和 services
@@ -665,6 +666,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     content: string,
     options?: {
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: ModelIdentifier | null;
       knowledgeReference?: KnowledgeReference | null;
       parentId?: string;

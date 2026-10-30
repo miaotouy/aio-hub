@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { cloneVirtualAttachments } from "../../utils/virtualAttachments";
 /**
  * 节点管理 Composable
  * 负责树形对话历史的节点操作逻辑
@@ -1133,6 +1134,11 @@ export function useNodeManager() {
         newNode.metadata.reasoningActive = false;
       }
     }
+
+    newNode.virtualAttachments = cloneVirtualAttachments(
+      nodeData?.virtualAttachments ?? sourceNode.virtualAttachments,
+      true
+    );
 
     // 添加到会话
     addNodeToSession(session, newNode);

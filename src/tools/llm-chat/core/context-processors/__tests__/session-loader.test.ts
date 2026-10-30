@@ -306,3 +306,36 @@ describe("sessionLoader", () => {
     });
   });
 });
+
+it("loads attachment-only user messages and pending text materials without changing their text", async () => {
+  const user = node("user", "root", "user", "");
+  user.virtualAttachments = [
+    { id: "text", kind: "text", title: "材料", text: "  {{literal}}\r\n😀 " },
+  ];
+  const session = {
+    id: "text-only",
+    nodes: { root: node("root", null, "system", ""), user },
+    rootNodeId: "root",
+    activeLeafId: "user",
+    updatedAt: "2026-10-30",
+    history: [],
+    historyIndex: -1,
+  } satisfies ChatSessionDetail;
+  const context = createContext(
+    session,
+    new Map([
+      [
+        "pendingInput",
+        { text: "", virtualAttachments: user.virtualAttachments },
+      ],
+    ])
+  );
+  await sessionLoader.execute(context);
+  expect(context.messages).toHaveLength(2);
+  for (const message of context.messages) {
+    expect(message._attachments?.[0].source).toEqual({
+      kind: "message-text",
+      text: user.virtualAttachments[0].text,
+    });
+  }
+});

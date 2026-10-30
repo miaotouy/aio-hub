@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "../../types/virtual-attachment";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, watch, computed, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
@@ -37,6 +38,7 @@ const errorHandler = createModuleErrorHandler("ChatInputTokenPreview");
 export interface TokenPreviewOptions {
   inputText: Ref<string>;
   attachments: Ref<Asset[]>;
+  virtualAttachments?: Ref<VirtualTextAttachment[]>;
   temporaryModel: Ref<ModelIdentifier | null>;
   debounceMs?: number;
 }
@@ -167,7 +169,11 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     const attachmentValue = attachments.value;
 
     // 如果没有文本且没有附件，重置 token 计数
-    if (!textValue && attachmentValue.length === 0) {
+    if (
+      !textValue &&
+      attachmentValue.length === 0 &&
+      !options.virtualAttachments?.value.length
+    ) {
       tokenCount.value = 0;
       tokenEstimated.value = false;
       return;
@@ -209,7 +215,8 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         await prepareMessageForTokenCalc(
           processedText,
           latestAttachments,
-          modelId
+          modelId,
+          options.virtualAttachments?.value
         );
 
       // 4. 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
@@ -247,7 +254,12 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   // 监听所有可能影响 Token 计算的状态
   // 注意：attachments 监听引用变化即可，内部元数据变化通过转写任务监听器处理
   watch(
-    [inputText, () => attachments.value, temporaryModel],
+    [
+      inputText,
+      () => attachments.value,
+      () => options.virtualAttachments?.value,
+      temporaryModel,
+    ],
     () => {
       triggerCalculation();
     },

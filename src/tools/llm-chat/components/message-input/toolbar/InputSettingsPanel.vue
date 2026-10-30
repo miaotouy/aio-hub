@@ -79,6 +79,27 @@ function updateSetting(
       />
     </div>
     <div class="setting-item">
+      <span class="setting-label">长文本粘贴为附件</span>
+      <el-switch
+        v-model="inputStore.settings.longTextAsAttachment"
+        size="small"
+        aria-label="长文本粘贴为附件"
+      />
+    </div>
+    <div v-if="inputStore.settings.longTextAsAttachment" class="setting-item">
+      <span class="setting-label">转换阈值（字符）</span>
+      <el-input-number
+        v-model="inputStore.settings.textAttachmentThreshold"
+        :min="500"
+        :max="100000"
+        :step="500"
+        size="small"
+        controls-position="right"
+        aria-label="文本附件转换阈值"
+        style="width: 112px"
+      />
+    </div>
+    <div class="setting-item">
       <span class="setting-label">导入时自动转写</span>
       <el-switch
         :model-value="chatSettings.transcription.autoStartOnImport"

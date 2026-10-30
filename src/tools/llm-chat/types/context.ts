@@ -1,4 +1,3 @@
-import type { PresetContribution } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,8 @@ import type { PresetContribution } from "@aiohub/agent-preset-core";
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "./virtual-attachment";
+import type { PresetContribution } from "@aiohub/agent-preset-core";
 import type {
   LlmMessageContent,
   LlmReasoningArtifact,
@@ -158,6 +159,7 @@ export interface PendingInputData {
   originalText?: string;
   /** 附件列表 */
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
   /** 临时指定的模型 */
   temporaryModel?: ModelIdentifier | null;
   /** 是否启用宏解析 */

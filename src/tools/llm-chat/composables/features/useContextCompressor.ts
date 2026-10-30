@@ -36,6 +36,7 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { groupCompressionMessages } from "../../utils/contextCompressionCounting";
+import { formatVirtualAttachments } from "../../utils/virtualAttachments";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 
 const logger = createModuleLogger("llm-chat/context-compressor");
@@ -183,7 +184,9 @@ export function useContextCompressor() {
       .map((msg, index) => {
         const roleLabel = getRoleLabel(msg);
         const separator = "─".repeat(40);
-        return `${separator}\n【${index + 1}】${roleLabel}\n${separator}\n${msg.content}`;
+        const content =
+          msg.content + formatVirtualAttachments(msg.virtualAttachments);
+        return `${separator}\n【${index + 1}】${roleLabel}\n${separator}\n${content}`;
       })
       .join("\n\n");
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { normalizeVirtualAttachments } from "../../utils/virtualAttachments";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { toRaw, type Ref } from "vue";
 import type {
@@ -202,6 +203,11 @@ export function useGraphActions(
     // 禁止更新的字段：id, parentId, childrenIds
     const { id: _, parentId: __, childrenIds: ___, ...safeUpdates } = updates;
 
+    if ("virtualAttachments" in safeUpdates) {
+      safeUpdates.virtualAttachments = normalizeVirtualAttachments(
+        safeUpdates.virtualAttachments
+      );
+    }
     Object.assign(node, safeUpdates);
 
     // 确保有 updatedAt
@@ -712,6 +718,13 @@ export function useGraphActions(
     );
 
     // 使用 nodeManager 创建新分支节点（保留源节点角色，附件已包含在内）
+    if (nodeData && "virtualAttachments" in nodeData)
+      nodeData = {
+        ...nodeData,
+        virtualAttachments: normalizeVirtualAttachments(
+          nodeData.virtualAttachments
+        ),
+      };
     const newNode = nodeManager.createBranchFromEdit(
       session,
       sourceNodeId,

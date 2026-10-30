@@ -15,6 +15,12 @@
 -->
 
 <script setup lang="ts">
+import VirtualTextAttachments from "../VirtualTextAttachments.vue";
+import type { VirtualTextAttachment } from "../../types/virtual-attachment";
+import {
+  cloneVirtualAttachments,
+  textCharacterCount,
+} from "../../utils/virtualAttachments";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
@@ -154,6 +160,47 @@ const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
+async function saveTextAttachment(
+  original: VirtualTextAttachment | null,
+  updated: VirtualTextAttachment,
+  branch: boolean
+) {
+  if (isSessionReadOnly.value || !original || !props.sessionDetail)
+    throw new Error("当前消息只可预览");
+  const session = props.sessionDetail;
+  if (llmChatStore.isSessionGenerating(session.id))
+    throw new Error("请完成或停止生成后再修改材料");
+  const node = session.nodes[props.message.id];
+  if (!node) throw new Error("消息已被删除，请复制内容后关闭编辑器");
+  const current = node.virtualAttachments?.find(
+    (item) => item.id === original.id
+  );
+  if (
+    !current ||
+    current.text !== original.text ||
+    current.title !== original.title
+  ) {
+    throw new Error("材料已被修改，请复制当前内容后重新打开");
+  }
+  const attachments = cloneVirtualAttachments(node.virtualAttachments).map(
+    (item) => (item.id === original.id ? updated : item)
+  );
+  if (branch) {
+    await llmChatStore.createBranchFromEdit(
+      node.id,
+      node.content,
+      node.attachments,
+      session.id,
+      { virtualAttachments: attachments }
+    );
+  } else {
+    await llmChatStore.updateNodeData(
+      node.id,
+      { virtualAttachments: attachments },
+      session.id
+    );
+  }
+}
 
 /**
  * 根据绑定模式获取 agentId 和 userProfileId
@@ -1108,10 +1155,16 @@ watch(
   [
     () => props.message.content,
     () => props.message.attachments,
+    () => props.message.virtualAttachments,
     resolvedModelAndProfile,
   ],
-  async ([content, attachments, { modelId, profileId }]) => {
-    let totalChar = (content || "").length;
+  async ([content, attachments, textAttachments, { modelId, profileId }]) => {
+    let totalChar =
+      textCharacterCount(content || "") +
+      (textAttachments ?? []).reduce(
+        (sum, item) => sum + textCharacterCount(item.text),
+        0
+      );
     if (attachments && attachments.length > 0) {
       if (modelId && profileId) {
         try {
@@ -1159,6 +1212,19 @@ watch(
         />
       </div>
     </div>
+
+    <VirtualTextAttachments
+      v-if="message.virtualAttachments?.length"
+      :attachments="message.virtualAttachments"
+      :editable="!isSessionReadOnly && !isEditing && !screenshotMode"
+      :busy="
+        !!sessionDetail && llmChatStore.isSessionGenerating(sessionDetail.id)
+      "
+      :allow-branch="!!message.parentId"
+      :has-replies="!!message.childrenIds.length"
+      :commit="saveTextAttachment"
+      class="attachments-section"
+    />
 
     <!-- 推理内容（DeepSeek reasoning）- 始终显示在顶部 -->
     <LlmThinkNode

@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 import {
   ref,
   computed,
@@ -83,6 +84,7 @@ interface Emits {
     payload: {
       content: string;
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: any; // 保持与 LlmChat.vue 一致
       knowledgeReference?: KnowledgeReference | null;
       disableMacroParsing?: boolean;
@@ -331,6 +333,7 @@ watch(userRichTextStyleOptions, (newOptions) => {
 const handleSendMessage = (payload: {
   content: string;
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
   temporaryModel?: any;
   knowledgeReference?: KnowledgeReference | null;
   disableMacroParsing?: boolean;

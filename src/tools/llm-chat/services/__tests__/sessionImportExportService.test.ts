@@ -53,6 +53,14 @@ const session: ExportableChatSession = {
         parentId: "root",
         childrenIds: [],
         content: "你好",
+        virtualAttachments: [
+          {
+            id: "text-a",
+            kind: "text",
+            title: "原始材料",
+            text: "  {{literal}}\r\n```js\n😀\n```\n",
+          },
+        ],
         role: "user",
         status: "complete",
       },

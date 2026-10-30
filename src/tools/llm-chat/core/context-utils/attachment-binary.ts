@@ -35,6 +35,8 @@ export async function getAttachmentBuffer(
   attachment: PipelineAttachment
 ): Promise<ArrayBuffer> {
   switch (attachment.source.kind) {
+    case "message-text":
+      return new TextEncoder().encode(attachment.source.text).buffer;
     case "inline":
       return base64ToArrayBuffer(attachment.source.base64);
 

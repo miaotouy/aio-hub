@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { formatVirtualTextAttachment } from "../../utils/virtualAttachments";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
@@ -185,7 +186,38 @@ export const transcriptionProcessor: ContextProcessor = {
 
     // 总开关关闭时保留原始附件，不读取、拆分或注入既有转写文本。
     // 这样关闭设置后，历史资产也不会在发送过程中意外走转写链路。
+    const textByMessage = new Map<
+      PipelineContext["messages"][number],
+      string
+    >();
+    for (const msg of context.messages) {
+      const textAttachments =
+        msg._attachments?.filter((a) => a.source.kind === "message-text") ?? [];
+      if (!textAttachments.length) continue;
+      textByMessage.set(
+        msg,
+        textAttachments
+          .map((a) =>
+            formatVirtualTextAttachment({
+              title: a.name,
+              text: a.source.kind === "message-text" ? a.source.text : "",
+            })
+          )
+          .join("")
+      );
+      msg._attachments = msg._attachments?.filter(
+        (a) => a.source.kind !== "message-text"
+      );
+    }
+    const appendTextAttachments = () => {
+      for (const [msg, text] of textByMessage) {
+        if (Array.isArray(msg.content))
+          msg.content = [...msg.content, { type: "text", text }];
+        else msg.content = (msg.content ?? "") + text;
+      }
+    };
     if (transcriptionConfig && !transcriptionConfig.enabled) {
+      appendTextAttachments();
       return;
     }
 
@@ -485,6 +517,8 @@ export const transcriptionProcessor: ContextProcessor = {
     if (errorCount > 0) {
       logMessages.push(`处理失败 ${errorCount} 个`);
     }
+
+    appendTextAttachments();
 
     if (logMessages.length > 0) {
       const message = logMessages.join("，") + "。";

@@ -77,6 +77,8 @@ interface HistoryEntry {
   value: string;
   cursorStart: number;
   cursorEnd: number;
+  undoExternal?: () => void;
+  redoExternal?: () => void;
 }
 
 const MAX_HISTORY_SIZE = 100;
@@ -96,7 +98,8 @@ function pushToUndoStack(entry: HistoryEntry) {
   // 值未变化不入栈
   if (
     undoStack.length > 0 &&
-    undoStack[undoStack.length - 1].value === entry.value
+    undoStack[undoStack.length - 1].value === entry.value &&
+    !entry.undoExternal
   )
     return;
   undoStack.push(entry);
@@ -152,6 +155,7 @@ function handleUndo() {
   isUndoRedoing = true;
   const current = undoStack.pop()!;
   redoStack.push(current);
+  current.undoExternal?.();
 
   const previous = undoStack[undoStack.length - 1];
   localValue.value = previous.value;
@@ -172,6 +176,7 @@ function handleRedo() {
   isUndoRedoing = true;
   const next = redoStack.pop()!;
   undoStack.push(next);
+  next.redoExternal?.();
 
   localValue.value = next.value;
 
@@ -371,6 +376,7 @@ const handleInput = () => {
 
 const handleKeydown = (e: KeyboardEvent) => {
   emit("keydown", e);
+  if (e.defaultPrevented) return;
 
   if (e.isComposing) return;
 
@@ -449,6 +455,18 @@ onBeforeUnmount(() => {
 
 // 暴露接口与 ChatCodeMirrorEditor 对齐
 defineExpose({
+  recordExternalChange: (undo: () => void, redo: () => void) => {
+    flushDebouncedCommit();
+    commitCurrentState();
+    const { start, end } = getCursorPos();
+    pushToUndoStack({
+      value: localValue.value,
+      cursorStart: start,
+      cursorEnd: end,
+      undoExternal: undo,
+      redoExternal: redo,
+    });
+  },
   focus: () => textareaEl.value?.focus(),
   setSelectionRange: (start: number, end: number) => {
     textareaEl.value?.setSelectionRange(start, end);

@@ -245,6 +245,7 @@ const agentCustomStyles = computed(() => {
 const handleSendMessage = async (payload: {
   content: string;
   attachments?: any[];
+  virtualAttachments?: import("./types/virtual-attachment").VirtualTextAttachment[];
   temporaryModel?: ModelIdentifier | null;
   knowledgeReference?:
     import("@/tools/knowledge-base/types").KnowledgeReference | null;
@@ -264,6 +265,7 @@ const handleSendMessage = async (payload: {
   await store.sendMessage(payload.content, {
     sessionId: store.currentSessionId || undefined,
     attachments: payload.attachments,
+    virtualAttachments: payload.virtualAttachments,
     temporaryModel: payload.temporaryModel,
     knowledgeReference: payload.knowledgeReference,
     disableMacroParsing: payload.disableMacroParsing,

@@ -17,6 +17,22 @@ import { computed, nextTick, ref } from "vue";
 import type { Asset } from "@/types/asset-management";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
 
+const draftDisk = vi.hoisted(() => ({
+  value: null as unknown,
+  fail: false,
+  loadFail: false,
+}));
+vi.mock("../../storage/useChatInputDraftStorage", () => ({
+  loadChatInputDrafts: vi.fn(async () => {
+    if (draftDisk.loadFail) throw new Error("draft read failed");
+    return draftDisk.value ? JSON.parse(JSON.stringify(draftDisk.value)) : null;
+  }),
+  saveChatInputDrafts: vi.fn(async (state: unknown) => {
+    if (draftDisk.fail) throw new Error("disk full");
+    draftDisk.value = JSON.parse(JSON.stringify(state));
+  }),
+}));
+
 const attachments = ref<Asset[]>([]);
 const syncStateMock = vi.fn();
 const addAttachmentsMock = vi.fn();
@@ -114,17 +130,49 @@ function createKnowledgeReference(id: string): KnowledgeReference {
 }
 
 describe("useChatInputManager session drafts", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    draftDisk.fail = false;
+    draftDisk.loadFail = false;
     attachments.value = [];
     syncStateMock.mockReset();
     addAttachmentsMock.mockReset();
     localStorage.clear();
     const manager = useChatInputManager();
+    await manager.ready;
     manager.clearAllDrafts();
     manager.setActiveSessionId(null);
+    await manager.flushDrafts();
   });
 
-  it("restores the pending session input and attachments when refreshing before the save debounce", async () => {
+  it("preserves saved and legacy drafts after a failed restore and recovers on retry", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("restore-session");
+    await nextTick();
+    manager.setContent("已保存的材料");
+    await manager.flushDrafts();
+    getInstance<{ destroy(): void }>("ChatInputManager")?.destroy();
+    clearAllInstances();
+    // Finish the previous instance's final write before simulating the next startup.
+    await manager.flushDrafts();
+    const saved = JSON.parse(JSON.stringify(draftDisk.value));
+    localStorage.setItem("llm-chat-input-drafts", JSON.stringify(saved));
+    draftDisk.loadFail = true;
+    const restored = useChatInputManager();
+    await restored.ready;
+    expect(restored.saveStatus.value).toBe("error");
+    await expect(restored.flushDrafts()).rejects.toThrow();
+    expect(draftDisk.value).toEqual(saved);
+    expect(localStorage.getItem("llm-chat-input-drafts")).not.toBeNull();
+
+    draftDisk.loadFail = false;
+    await restored.flushDrafts();
+    restored.setActiveSessionId("restore-session");
+    expect(restored.inputText.value).toBe("已保存的材料");
+    expect(restored.saveStatus.value).toBe("saved");
+    expect(localStorage.getItem("llm-chat-input-drafts")).toBeNull();
+  });
+
+  it("restores the pending session input and attachments from draft storage after recreation", async () => {
     const manager = useChatInputManager();
     manager.setActiveSessionId("pending-session");
     await nextTick();
@@ -135,11 +183,7 @@ describe("useChatInputManager session drafts", () => {
     manager.setKnowledgeReference(createKnowledgeReference("pending-library"));
 
     window.dispatchEvent(new Event("beforeunload"));
-    expect(
-      JSON.parse(localStorage.getItem("llm-chat-input-drafts")!).drafts[
-        "pending-session"
-      ].text
-    ).toBe("尚未发送的输入");
+    await manager.flushDrafts();
     const original = getInstance<{ destroy(): void }>("ChatInputManager");
     original?.destroy();
     clearAllInstances();
@@ -148,6 +192,7 @@ describe("useChatInputManager session drafts", () => {
     // 与 Store 启动绑定顺序一致：先清空选择，再恢复稳定草稿 ID。
     restored.setActiveSessionId(null);
     restored.setActiveSessionId("pending-session");
+    await restored.ready;
     expect(restored.inputText.value).toBe("尚未发送的输入");
     expect(restored.attachments.value).toEqual([asset]);
     expect(restored.temporaryModel.value).toEqual({
@@ -316,5 +361,67 @@ describe("useChatInputManager session drafts", () => {
     manager.clear("session-a");
     expect(manager.knowledgeReference.value).toBeNull();
     expect(manager.getDraftSnapshot("session-a").knowledgeReference).toBeNull();
+  });
+  it("keeps copied text materials independent across sessions and restores their full text", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("text-source");
+    await nextTick();
+    const material = {
+      id: "material",
+      kind: "text" as const,
+      title: "代码",
+      text: "  首行\r\n\t{{literal}} 😀  ",
+    };
+    manager.addVirtualAttachment(material);
+    expect(manager.hasAttachments.value).toBe(true);
+    manager.moveDraftToSession("text-source", "text-copy", "copy");
+    const copied = manager.getDraftSnapshot("text-copy").virtualAttachments![0];
+    expect(copied.id).not.toBe(material.id);
+    await manager.updateVirtualAttachment(
+      copied,
+      { ...copied, text: "修改后的副本" },
+      "text-copy"
+    );
+    expect(
+      manager.getDraftSnapshot("text-source").virtualAttachments![0].text
+    ).toBe(material.text);
+    await manager.flushDrafts();
+    getInstance<{ destroy(): void }>("ChatInputManager")?.destroy();
+    clearAllInstances();
+    const restored = useChatInputManager();
+    restored.setActiveSessionId("text-source");
+    await restored.ready;
+    expect(restored.virtualAttachments.value[0]).toEqual(material);
+    restored.setActiveSessionId("text-copy");
+    expect(restored.virtualAttachments.value[0].text).toBe("修改后的副本");
+  });
+
+  it("retains unsaved material on disk errors and preserves edits made after submission", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("text-send");
+    await nextTick();
+    const material = {
+      id: "material",
+      kind: "text" as const,
+      title: "材料",
+      text: "正文",
+    };
+    manager.addVirtualAttachment(material);
+    const submitted = manager.getDraftSnapshot("text-send");
+    draftDisk.fail = true;
+    await expect(manager.flushDrafts()).rejects.toThrow("disk full");
+    expect(manager.virtualAttachments.value).toEqual([material]);
+    manager.setContent("下一条问题");
+    manager.clearSubmittedDraft("text-send", submitted);
+    expect(manager.inputText.value).toBe("下一条问题");
+    expect(manager.virtualAttachments.value).toEqual([material]);
+    draftDisk.fail = false;
+    await manager.flushDrafts();
+    manager.clearSubmittedDraft(
+      "text-send",
+      manager.getDraftSnapshot("text-send")
+    );
+    expect(manager.virtualAttachments.value).toEqual([]);
+    expect(manager.inputText.value).toBe("");
   });
 });

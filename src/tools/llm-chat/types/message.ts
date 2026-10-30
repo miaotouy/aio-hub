@@ -1,7 +1,3 @@
-import type {
-  PresetComposition,
-  PresetContribution,
-} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +12,11 @@ import type {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "./virtual-attachment";
+import type {
+  PresetComposition,
+  PresetContribution,
+} from "@aiohub/agent-preset-core";
 import type { LocalMediaReference } from "@/types/local-media";
 import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
@@ -159,6 +160,7 @@ export interface ChatMessageNode {
    * 附加到此消息的文件资产列表
    */
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
 
   /** 工具读取的本地媒体路径引用，原文件由用户管理。 */
   localMedia?: LocalMediaReference[];

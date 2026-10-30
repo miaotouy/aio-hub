@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   continueGeneration: vi.fn(),
   regenerateFromNode: vi.fn(),
+  draftSnapshot: vi.fn(),
+  clearSubmittedDraft: vi.fn(),
 }));
 
 vi.mock("../../../composables/chat/useChatHandler", () => ({
@@ -56,12 +58,18 @@ vi.mock("../../../composables/session/useSessionManager", () => ({
 
 vi.mock("../../../composables/input/useChatInputManager", () => ({
   useChatInputManager: () => ({
+    ready: Promise.resolve(),
+    getDraftSnapshot: mocks.draftSnapshot,
+    clearSubmittedDraft: mocks.clearSubmittedDraft,
     clear: vi.fn(),
     addContent: vi.fn(),
   }),
 }));
 vi.mock("@/tools/llm-chat/composables/input/useChatInputManager", () => ({
   useChatInputManager: () => ({
+    ready: Promise.resolve(),
+    getDraftSnapshot: mocks.draftSnapshot,
+    clearSubmittedDraft: mocks.clearSubmittedDraft,
     clear: vi.fn(),
     addContent: vi.fn(),
   }),
@@ -180,12 +188,49 @@ function createGenerationManagerForTest(
 
 describe("llm-chat session managers", () => {
   beforeEach(() => {
+    mocks.draftSnapshot
+      .mockReset()
+      .mockReturnValue({ text: "", attachments: [], virtualAttachments: [] });
+    mocks.clearSubmittedDraft.mockReset();
     mocks.sendMessage.mockReset();
     mocks.continueGeneration.mockReset();
     mocks.regenerateFromNode.mockReset();
     mocks.sendMessage.mockResolvedValue(undefined);
     mocks.continueGeneration.mockResolvedValue(undefined);
     mocks.regenerateFromNode.mockResolvedValue(undefined);
+  });
+
+  it("keeps the submitted draft until its user message is saved and retains it on failure", async () => {
+    const root = node("ack-root", null, "system");
+    const detail = session("ack", root.id, { [root.id]: root });
+    const { generation } = createGenerationManagerForTest(
+      new Map([["ack", detail]]),
+      "ack"
+    );
+    const material = {
+      id: "material",
+      kind: "text" as const,
+      title: "材料",
+      text: "原文",
+    };
+    const submitted = {
+      text: "问题",
+      attachments: [],
+      virtualAttachments: [material],
+    };
+    mocks.draftSnapshot.mockReturnValue(submitted);
+    mocks.sendMessage.mockImplementationOnce(async (...args: any[]) => {
+      expect(mocks.clearSubmittedDraft).not.toHaveBeenCalled();
+      args[5].onUserMessageSaved();
+    });
+    await generation.sendMessage("问题", { virtualAttachments: [material] });
+    expect(mocks.clearSubmittedDraft).toHaveBeenCalledWith("ack", submitted);
+    mocks.clearSubmittedDraft.mockClear();
+    mocks.sendMessage.mockRejectedValueOnce(new Error("save failed"));
+    await expect(
+      generation.sendMessage("问题", { virtualAttachments: [material] })
+    ).rejects.toThrow("save failed");
+    expect(mocks.clearSubmittedDraft).not.toHaveBeenCalled();
   });
 
   it("sends to a non-current session with that session's active path", async () => {
@@ -369,7 +414,7 @@ describe("llm-chat session managers", () => {
 
     detail.activeLeafId = "parallel-assistant";
     await generation.sendMessage("other branch");
-    expect(mocks.sendMessage.mock.calls[1][5]).toBeUndefined();
+    expect(mocks.sendMessage.mock.calls[1][5]?.skipGeneration).not.toBe(true);
   });
 
   it("reuses an empty queued assistant placeholder instead of creating a sibling", async () => {

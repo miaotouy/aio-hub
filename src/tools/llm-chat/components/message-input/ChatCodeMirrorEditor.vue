@@ -29,7 +29,7 @@ import {
   tooltips,
   placeholder as cmPlaceholder,
 } from "@codemirror/view";
-import { EditorState, Compartment, Prec } from "@codemirror/state";
+import { EditorState, Compartment, Prec, StateEffect } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { markdown } from "@codemirror/lang-markdown";
@@ -44,6 +44,8 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
+  invertedEffects,
+  isolateHistory,
   insertNewline,
 } from "@codemirror/commands";
 import {
@@ -68,6 +70,12 @@ import type {
 import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
+
+const externalChange = StateEffect.define<{
+  undo: () => void;
+  redo: () => void;
+  direction: "record" | "undo" | "redo";
+}>();
 
 const logger = createModuleLogger("ChatCodeMirrorEditor");
 
@@ -412,6 +420,16 @@ onMounted(() => {
         ])
       ),
       history(),
+      invertedEffects.of((transaction) =>
+        transaction.effects
+          .filter((effect) => effect.is(externalChange))
+          .map((effect) =>
+            externalChange.of({
+              ...effect.value,
+              direction: effect.value.direction === "undo" ? "redo" : "undo",
+            })
+          )
+      ),
       editableConf.of(EditorView.editable.of(!props.disabled)),
       themeConf.of(isDark.value ? vscodeDark : vscodeLight),
       highlightSelectionMatches(),
@@ -429,6 +447,14 @@ onMounted(() => {
       baseTheme,
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
+        for (const transaction of update.transactions) {
+          for (const effect of transaction.effects) {
+            if (effect.is(externalChange)) {
+              if (effect.value.direction === "undo") effect.value.undo();
+              if (effect.value.direction === "redo") effect.value.redo();
+            }
+          }
+        }
         // 监听文档变化
         if (update.docChanged) {
           if (isSyncingFromProps || isComposing) {
@@ -506,7 +532,7 @@ onMounted(() => {
         },
         paste: (event) => {
           emit("paste", event);
-          return false;
+          return event.defaultPrevented;
         },
       }),
     ],
@@ -580,6 +606,12 @@ watch(
 
 // 暴露方法给父组件
 defineExpose({
+  recordExternalChange: (undo: () => void, redo: () => void) => {
+    view.value?.dispatch({
+      effects: externalChange.of({ undo, redo, direction: "record" }),
+      annotations: isolateHistory.of("full"),
+    });
+  },
   focus: () => view.value?.focus(),
   // 模拟 textarea 的 setSelectionRange
   setSelectionRange: (start: number, end: number) => {

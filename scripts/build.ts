@@ -17,6 +17,9 @@ import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { resolveTauriVersion } from "./app-version";
+import { captureBuildLog } from "./build-log";
+
+await captureBuildLog("desktop");
 
 console.log("⚙️ [Build] 正在加载环境变量...");
 
@@ -206,9 +209,17 @@ const cleanup = () => {
   }
 };
 
-child.on("exit", (code) => {
+child.on("error", (error) => {
+  console.error("[Build] 启动 Tauri Build 失败:", error);
   cleanup();
-  process.exit(code || 0);
+  process.exit(1);
+});
+
+child.on("close", (code, signal) => {
+  cleanup();
+  process.exit(
+    code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1)
+  );
 });
 
 // 捕获异常退出以确保清理

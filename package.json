@@ -38,7 +38,7 @@
     "vite": "vite",
     "download:libs": "bun scripts/download-libs.ts",
     "build": "bun run generate:shims && bun run download:libs && bun run check:release-notes && bun run build:tsc && bun run build:vite",
-    "build:tsc": "vue-tsc --noEmit",
+    "build:tsc": "vue-tsc --noEmit --incremental --tsBuildInfoFile .tmp/typecheck/vue-tsc.tsbuildinfo",
     "build:vite": "vite build",
     "build:mobile": "bun run --cwd mobile build",
     "preview": "vite preview",

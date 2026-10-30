@@ -42,6 +42,18 @@ bun run dev:static:watch
 
 这个模式适合前端生产构建行为排查。本地 HTTP origin 与打包版的应用资源协议仍有区别，Rust debug/release 条件编译行为也有区别；发布行为验证继续使用 `bun run test:build-app`。
 
+### 本地构建提速
+
+`bun run build:tsc` 使用增量类型检查，缓存保存到已忽略的 `.tmp/typecheck/vue-tsc.tsbuildinfo`。`bun run build` 及桌面构建会复用这份缓存，检查范围保持原样。首次运行会生成缓存，后续根据源码和配置变化更新检查结果；需要重新生成缓存时可删除该文件。
+
+`bun run build:portable` 和 `bun run build:portable:local` 内部使用 `--no-bundle`，构建 release EXE 后导出便携版及 `portable.flag`。需要安装包时继续使用 `bun run tauri:build` 或 `bun run tauri:build:local`。
+
+### 构建日志
+
+桌面构建（`bun run tauri:build:local`、`build.bat`、`build.sh`）、便携版构建和 Android 构建会在终端实时输出，并将完整标准输出与错误输出保存到仓库的 `.tmp/build-logs/`。该目录已被 Git 忽略。
+
+每次构建生成带构建类型、UTC 时间戳和进程号的独立 `.log` 文件；终端启动时会显示日志的绝对路径，日志末尾记录结束时间和退出码。便携版及其内部桌面构建共用同一份日志。排查失败时可直接查看对应日志，旧日志按需手动清理。
+
 ## 2. 代码规范
 
 ### TypeScript / JavaScript

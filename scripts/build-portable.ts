@@ -15,6 +15,9 @@
 import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import { captureBuildLog } from "./build-log";
+
+await captureBuildLog("portable");
 
 // 1. 获取版本号与参数
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf-8"));
@@ -42,11 +45,11 @@ if (isLocal) {
 console.log(`🚀 开始构建 ${productName} v${version} 便携版...`);
 
 try {
-  // 2. 运行 Tauri 构建
+  // 2. 构建便携版所需的 release EXE，跳过安装包生成
   console.log("📦 正在执行 Tauri Build...");
   const buildCmd = isLocal
-    ? "bun run tauri:build --local"
-    : "bun run tauri:build";
+    ? "bun run tauri:build --no-bundle --local"
+    : "bun run tauri:build --no-bundle";
   execSync(buildCmd, { stdio: "inherit" });
 
   // 3. 定位生成的 exe

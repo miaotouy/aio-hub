@@ -17,6 +17,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { resolveTauriVersion } from "./app-version";
+import { captureBuildLog } from "./build-log";
 
 export type AndroidArtifactKind = "apk" | "aab";
 export type AndroidBuildProfile = "debug" | "release";
@@ -356,6 +357,7 @@ function run(): void {
 }
 
 if (import.meta.main) {
+  await captureBuildLog("android");
   try {
     run();
   } catch (error) {

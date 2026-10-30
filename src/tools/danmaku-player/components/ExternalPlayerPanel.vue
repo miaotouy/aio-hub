@@ -358,6 +358,7 @@ const {
   startPositionSync,
 } = useDanmakuOverlay();
 
+let disposed = false;
 const testingConnection = ref(false);
 const startingOverlay = ref(false);
 const closingOverlay = ref(false);
@@ -535,7 +536,9 @@ function handleWindowChange(
 }
 
 async function handleStartOverlay(): Promise<void> {
-  if (overlayState.targetHwnd === null) {
+  if (disposed) return;
+  const targetHwnd = overlayState.targetHwnd;
+  if (targetHwnd === null) {
     customMessage.warning("请先选择播放器窗口");
     return;
   }
@@ -548,7 +551,8 @@ async function handleStartOverlay(): Promise<void> {
   startingOverlay.value = true;
 
   try {
-    const label = await createOverlay(overlayState.targetHwnd);
+    const label = await createOverlay(targetHwnd);
+    if (disposed) return;
 
     if (!label) {
       customMessage.error("弹幕覆盖窗口创建失败");
@@ -560,9 +564,10 @@ async function handleStartOverlay(): Promise<void> {
       props.scriptInfo,
       props.config,
       playerConfig,
-      overlayState.targetHwnd
+      targetHwnd
     );
-    startPositionSync(overlayState.targetHwnd, playerConfig);
+    if (disposed || !overlayActive.value) return;
+    startPositionSync(targetHwnd, playerConfig);
     overlayState.overlayCreated = true;
     customMessage.success("弹幕覆盖已启动");
   } catch (error) {
@@ -655,11 +660,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   stopStatusPreview();
-
-  if (overlayActive.value) {
-    void handleCloseOverlay();
-  }
+  // 覆盖窗口由 useDanmakuOverlay 统一回收，包括仍在创建中的请求。
 });
 </script>
 

@@ -38,6 +38,20 @@ const POSITION_CHANGE_THRESHOLD = 0.5;
 const MIN_OVERLAY_SIZE = 1;
 const FALLBACK_OVERLAY_LABEL = "danmaku-overlay";
 
+// 原生覆盖窗口使用固定标签；跨工作区串行处理创建和关闭，避免旧清理误关新窗口。
+let overlayWindowOperation: Promise<void> = Promise.resolve();
+let overlayOwner: symbol | null = null;
+function queueOverlayWindowOperation<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  const result = overlayWindowOperation.then(operation);
+  overlayWindowOperation = result.then(
+    () => {},
+    () => {}
+  );
+  return result;
+}
+
 interface LogicalOverlayRect {
   x: number;
   y: number;
@@ -49,10 +63,14 @@ export function useDanmakuOverlay() {
   const isSupported = getNativeDesktopCapabilities().externalPlayerOverlay;
   const overlayLabel = ref<string | null>(null);
   const overlayActive = ref(false);
+  const owner = Symbol("danmaku-overlay-owner");
+  let disposed = false;
+  let operationVersion = 0;
 
   let positionSyncTimer: ReturnType<typeof setTimeout> | null = null;
   let positionSyncRunning = false;
   let positionSyncBusy = false;
+  let positionSyncGeneration = 0;
   let targetHwndForSync: number | null = null;
   let playerConfigForSync: ExternalPlayerConfig | null = null;
   let lastPhysicalRect: WindowRect | null = null;
@@ -129,8 +147,12 @@ export function useDanmakuOverlay() {
     }
   }
 
-  async function applyOverlayRect(rect: LogicalOverlayRect): Promise<void> {
+  async function applyOverlayRect(
+    rect: LogicalOverlayRect,
+    isCurrent: () => boolean
+  ): Promise<void> {
     const overlay = await getOverlayWindow();
+    if (!isCurrent()) return;
 
     if (!overlay) {
       logger.warn("弹幕覆盖窗口实例不存在，跳过位置同步", {
@@ -140,31 +162,52 @@ export function useDanmakuOverlay() {
     }
 
     await overlay.setPosition(new LogicalPosition(rect.x, rect.y));
+    if (!isCurrent()) return;
     await overlay.setSize(new LogicalSize(rect.width, rect.height));
   }
 
   async function createOverlay(targetHwnd: number): Promise<string | null> {
-    if (!isSupported) return null;
-    try {
-      const label = await invoke<string>("create_danmaku_overlay_window", {
-        targetHwnd,
-      });
-      overlayLabel.value = label;
-      overlayActive.value = true;
-
-      logger.info("弹幕覆盖窗口创建成功", { targetHwnd, label });
-      return label;
-    } catch (error) {
-      overlayLabel.value = null;
-      overlayActive.value = false;
-      errorHandler.error(error, "创建弹幕覆盖窗口失败", { targetHwnd });
-      return null;
-    }
+    if (!isSupported || disposed) return null;
+    const version = ++operationVersion;
+    stopPositionSync();
+    return queueOverlayWindowOperation(async () => {
+      if (disposed || version !== operationVersion) return null;
+      try {
+        const label = await invoke<string>("create_danmaku_overlay_window", {
+          targetHwnd,
+        });
+        overlayOwner = owner;
+        if (disposed || version !== operationVersion) {
+          await closeOwnedOverlay();
+          return null;
+        }
+        overlayLabel.value = label;
+        overlayActive.value = true;
+        logger.info("弹幕覆盖窗口创建成功", { targetHwnd, label });
+        return label;
+      } catch (error) {
+        if (!disposed && version === operationVersion) {
+          overlayLabel.value = null;
+          overlayActive.value = false;
+          errorHandler.error(error, "创建弹幕覆盖窗口失败", { targetHwnd });
+        }
+        return null;
+      }
+    });
   }
 
-  async function closeOverlay(): Promise<void> {
-    stopPositionSync();
+  function resetOverlayState(): void {
+    overlayLabel.value = null;
+    overlayActive.value = false;
+    lastPhysicalRect = null;
+    activeUntil = 0;
+  }
 
+  async function closeOwnedOverlay(): Promise<void> {
+    if (overlayOwner !== owner) {
+      resetOverlayState();
+      return;
+    }
     try {
       await tauriEmit("danmaku-overlay:stop");
     } catch (error) {
@@ -179,15 +222,22 @@ export function useDanmakuOverlay() {
       await invoke("close_danmaku_overlay_window");
       logger.info("弹幕覆盖窗口已关闭", { label: overlayLabel.value });
     } catch (error) {
-      errorHandler.error(error, "关闭弹幕覆盖窗口失败", {
-        label: overlayLabel.value,
+      errorHandler.handle(error, {
+        userMessage: "关闭弹幕覆盖窗口失败",
+        showToUser: !disposed,
+        context: { label: overlayLabel.value },
       });
     } finally {
-      overlayLabel.value = null;
-      overlayActive.value = false;
-      lastPhysicalRect = null;
-      activeUntil = 0;
+      overlayOwner = null;
+      resetOverlayState();
     }
+  }
+
+  function closeOverlay(): Promise<void> {
+    operationVersion++;
+    overlayActive.value = false;
+    stopPositionSync();
+    return queueOverlayWindowOperation(closeOwnedOverlay);
   }
 
   async function initOverlay(
@@ -197,6 +247,7 @@ export function useDanmakuOverlay() {
     playerConfig: ExternalPlayerConfig,
     targetHwnd: number | null
   ): Promise<void> {
+    if (disposed || !overlayActive.value || overlayOwner !== owner) return;
     try {
       await tauriEmit("danmaku-overlay:init", {
         danmakus,
@@ -222,6 +273,7 @@ export function useDanmakuOverlay() {
   }
 
   async function syncConfig(config: DanmakuConfig): Promise<void> {
+    if (disposed || !overlayActive.value || overlayOwner !== owner) return;
     try {
       await tauriEmit("danmaku-overlay:config-update", config);
     } catch (error) {
@@ -233,6 +285,7 @@ export function useDanmakuOverlay() {
     danmakus: ParsedDanmaku[],
     scriptInfo: AssScriptInfo
   ): Promise<void> {
+    if (disposed || !overlayActive.value || overlayOwner !== owner) return;
     try {
       await tauriEmit("danmaku-overlay:danmaku-update", {
         danmakus,
@@ -264,6 +317,10 @@ export function useDanmakuOverlay() {
   }
 
   async function runPositionSyncOnce(): Promise<void> {
+    if (disposed || overlayOwner !== owner) {
+      stopPositionSync();
+      return;
+    }
     if (
       !positionSyncRunning ||
       positionSyncBusy ||
@@ -277,11 +334,20 @@ export function useDanmakuOverlay() {
     }
 
     positionSyncBusy = true;
+    const generation = positionSyncGeneration;
+    const targetHwnd = targetHwndForSync;
+    const config = playerConfigForSync;
+    const isCurrent = () =>
+      !disposed &&
+      overlayOwner === owner &&
+      positionSyncRunning &&
+      generation === positionSyncGeneration;
 
     try {
       const valid = await invoke<boolean>("is_window_valid", {
-        hwnd: targetHwndForSync,
+        hwnd: targetHwnd,
       });
+      if (!isCurrent()) return;
       if (!valid) {
         logger.warn("目标播放器窗口已失效，自动关闭弹幕覆盖窗口", {
           hwnd: targetHwndForSync,
@@ -291,31 +357,32 @@ export function useDanmakuOverlay() {
       }
 
       const physicalRect = await invoke<WindowRect>("get_player_window_rect", {
-        hwnd: targetHwndForSync,
+        hwnd: targetHwnd,
       });
+      if (!isCurrent()) return;
       const changed = hasRectChanged(physicalRect, lastPhysicalRect);
 
       if (changed) {
         activeUntil = Date.now() + ACTIVE_SYNC_DURATION;
-        const logicalRect = toLogicalOverlayRect(
-          physicalRect,
-          playerConfigForSync
-        );
-        await applyOverlayRect(logicalRect);
+        const logicalRect = toLogicalOverlayRect(physicalRect, config);
+        await applyOverlayRect(logicalRect, isCurrent);
+        if (!isCurrent()) return;
         lastPhysicalRect = physicalRect;
       }
 
       // 无论位置是否变化，都刷新 Z-order，确保播放器被激活时弹幕层能及时跟进
       await refreshZOrder(
         physicalRect.isFullscreen,
-        playerConfigForSync.enableFullscreenBoost,
-        targetHwndForSync
+        config.enableFullscreenBoost,
+        targetHwnd
       );
+      if (!isCurrent()) return;
 
       const nextDelay =
         Date.now() < activeUntil ? ACTIVE_SYNC_INTERVAL : DEFAULT_SYNC_INTERVAL;
       scheduleNextPositionSync(nextDelay);
     } catch (error) {
+      if (!isCurrent()) return;
       errorHandler.handle(error, {
         userMessage: "弹幕覆盖窗口位置同步失败",
         showToUser: false,
@@ -323,7 +390,7 @@ export function useDanmakuOverlay() {
       });
       scheduleNextPositionSync(DEFAULT_SYNC_INTERVAL);
     } finally {
-      positionSyncBusy = false;
+      if (generation === positionSyncGeneration) positionSyncBusy = false;
     }
   }
 
@@ -331,6 +398,7 @@ export function useDanmakuOverlay() {
     targetHwnd: number,
     playerConfig: ExternalPlayerConfig
   ): void {
+    if (disposed || !overlayActive.value || overlayOwner !== owner) return;
     stopPositionSync();
 
     targetHwndForSync = targetHwnd;
@@ -350,6 +418,7 @@ export function useDanmakuOverlay() {
   }
 
   function stopPositionSync(): void {
+    positionSyncGeneration++;
     positionSyncRunning = false;
     positionSyncBusy = false;
     targetHwndForSync = null;
@@ -364,6 +433,8 @@ export function useDanmakuOverlay() {
   }
 
   onBeforeUnmount(() => {
+    disposed = true;
+    operationVersion++;
     stopPositionSync();
 
     if (overlayActive.value) {

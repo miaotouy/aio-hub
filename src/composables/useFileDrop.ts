@@ -432,7 +432,12 @@ export function useFileDrop(options: FileDropOptions = {}) {
   };
 
   // ==================== H5 原生事件处理器 ====================
+  const cleanupNativeListeners = () => {
+    nativeListenerCleanups.splice(0).forEach((cleanup) => cleanup());
+  };
+
   const setupNativeListeners = () => {
+    cleanupNativeListeners();
     const element = getTargetElement();
     if (!element) return;
 
@@ -752,8 +757,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
   // 清理监听器
   const cleanup = () => {
     // 清理 H5 原生监听器
-    nativeListenerCleanups.forEach((cleanup) => cleanup());
-    nativeListenerCleanups.length = 0;
+    cleanupNativeListeners();
 
     // 清理 Tauri 事件监听器
     unlistenDrop?.();
@@ -770,11 +774,11 @@ export function useFileDrop(options: FileDropOptions = {}) {
 
   // 监听 element 变化，动态重新绑定
   if (options.element && typeof options.element !== "string") {
-    watch(options.element, async (newVal, oldVal) => {
+    watch(options.element, (newVal, oldVal) => {
       if (newVal !== oldVal) {
-        console.log("[useFileDrop] 检测到目标元素发生变化，重新初始化监听器");
-        cleanup();
-        await setupFileDropListener();
+        // 窗口级监听在回调中读取当前元素，ref 更新只需重绑 DOM 事件。
+        clearDragState();
+        setupNativeListeners();
       }
     });
   }

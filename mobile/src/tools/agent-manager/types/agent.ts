@@ -108,6 +108,7 @@ export interface PresetMessage extends ChatMessageNode {
     type?: "default" | "depth" | "advanced_depth" | "anchor";
     depth?: number;
     depthConfig?: string;
+    /** 占位锚点或 last_user / last_assistant / last_message 动态历史目标。 */
     anchorTarget?: string;
     anchorPosition?: "before" | "after";
     order?: number;

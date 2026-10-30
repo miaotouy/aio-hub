@@ -225,6 +225,12 @@
     "组合内容无效": "Invalid composition. Edit to correct it.",
     "组合消息": "Composition",
     "添加片段": "Add fragment",
-    "片段编号": "Fragment {index}"
+    "片段编号": "Fragment {index}",
+    "最后一条用户消息": "Last user message",
+    "最后一条 AI 消息": "Last AI message",
+    "最后一条消息": "Last message",
+    "动态锚点说明": "Dynamic targets use effective history. Missing targets are skipped; tool calls and results stay together. Role formatting can change the final position.",
+    "会话历史": "Chat history",
+    "用户档案": "User profile"
   }
 }

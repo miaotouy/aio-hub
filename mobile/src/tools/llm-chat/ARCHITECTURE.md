@@ -548,3 +548,9 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 6. **错误处理**: 使用 `createModuleErrorHandler(moduleName)` 和 `createModuleLogger(moduleName)`
 7. **附件引用**: 消费者只持久化 `assetId + 轻量快照`；不得把全局资产路径写入聊天数据
 8. **Agent 附件边界**: 智能体预设附件属于 Agent 私有资源，不转换成全局资产 ID
+
+### 动态消息注入锚点（2026-10-29）
+
+移动预设编辑器提供 `last_user`、`last_assistant`、`last_message` 及前后位置选择；与桌面共用 `@aiohub/agent-preset-core` 的历史边界计算。动态定位只查找有效 `session_history`，深度与动态注入按同边界权重和预设原序排列，目标缺失时跳过并记录诊断。历史加载保留 `_historyRole`；工具调用与连续结果按完整区段落位。动态锚点仅作为定位目标，预设列表继续使用 `chat_history` 等占位卡。宏处理仍在移动端现有后续阶段运行，附件能力保持现有实现。角色格式化可能调整最终物理位置。
+
+本轮通过移动组装器相关测试及 `bun run --cwd mobile build`；Android/iOS 原生界面尚未走查。

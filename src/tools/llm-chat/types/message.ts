@@ -55,7 +55,7 @@ export interface InjectionStrategy {
   /**
    * 深度注入：相对于会话历史末尾的位置
    * - 0: 紧跟在最新消息之后（默认行为）
-   * - N: 插入到倒数第 N 条消息之后 (如果历史不足 N 条，则插入到最前面)
+   * - N: 插入到倒数第 N 条消息之前 (如果历史不足 N 条，则插入到最前面)
    *
    * 适用场景：作者备注、角色提醒等需要"靠近当前对话"的内容
    */
@@ -88,7 +88,7 @@ export interface InjectionStrategy {
 
   /**
    * 锚点注入：目标锚点的 ID
-   * 如 'chat_history', 'user_profile'
+   * 占位目标：chat_history、user_profile；动态历史目标：last_user、last_assistant、last_message。
    *
    * 注意：锚点由系统内置或插件注册，用户只能选择已存在的锚点
    */

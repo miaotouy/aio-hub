@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import {
+  DYNAMIC_MESSAGE_ANCHORS,
   assertPresetComposition,
   createPresetPart,
   flattenPresetMessage,
@@ -284,7 +285,30 @@ function save(): void {
             <template v-if="strategyType === 'anchor'">
               <label>
                 {{ t("锚点") }}
-                <input v-model="form.injectionStrategy!.anchorTarget" />
+                <select v-model="form.injectionStrategy!.anchorTarget">
+                  <option value="chat_history">{{ t("会话历史") }}</option>
+                  <option value="user_profile">{{ t("用户档案") }}</option>
+                  <option
+                    v-for="anchor in DYNAMIC_MESSAGE_ANCHORS"
+                    :key="anchor.id"
+                    :value="anchor.id"
+                  >
+                    {{ t(anchor.name) }}
+                  </option>
+                  <option
+                    v-if="
+                      form.injectionStrategy!.anchorTarget &&
+                      ![
+                        'chat_history',
+                        'user_profile',
+                        ...DYNAMIC_MESSAGE_ANCHORS.map((a) => a.id),
+                      ].includes(form.injectionStrategy!.anchorTarget)
+                    "
+                    :value="form.injectionStrategy!.anchorTarget"
+                  >
+                    {{ form.injectionStrategy!.anchorTarget }}
+                  </option>
+                </select>
               </label>
               <label>
                 {{ t("锚点位置") }}
@@ -294,6 +318,7 @@ function save(): void {
                 </select>
               </label>
             </template>
+            <p v-if="strategyType === 'anchor'">{{ t("动态锚点说明") }}</p>
             <label v-if="strategyType !== 'default'">
               {{ t("排序权重") }}
               <input

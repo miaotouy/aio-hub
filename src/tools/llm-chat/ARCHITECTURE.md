@@ -439,7 +439,7 @@ graph TD
 为了提供类似 SillyTavern 的高级角色扮演体验，注入组装器实现了一套声明式的消息注入机制。
 
 - **深度注入 (Depth)**: 将消息插入到距离对话历史末尾 N 层的位置。
-- **锚点注入 (Anchor)**: 将消息精准地插入到系统锚点（如 `chat_history`, `user_profile`）的前面或后面。
+- **锚点注入 (Anchor)**: 支持预设占位锚点（`chat_history`、`user_profile`）和动态历史目标（`last_user`、`last_assistant`、`last_message`）的前后注入。动态目标与深度共用原始历史边界、排序及工具区段保护，见[组装器规则](docs/architecture/context-processors/injection-assembler.md)。
 - **顺序控制 (Order)**: 通过优先级数字，决定在同一点注入多条消息时的最终顺序。
 
 ### 2.6. 上下文截断与管理

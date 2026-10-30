@@ -473,7 +473,7 @@ const isPurePlaceholder = computed(() => {
   const t = props.element.type;
   if (!t || t === "message") return false;
   const anchor = anchorRegistry.getAnchorById(t);
-  return !!anchor && !anchor.hasTemplate;
+  return !!anchor && anchor.kind !== "dynamic_message" && !anchor.hasTemplate;
 });
 
 const isTemplateAnchor = computed(() => {

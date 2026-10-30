@@ -70,6 +70,7 @@ export const sessionLoader: ContextProcessor = {
 
       const processableMessage: ProcessableMessage = {
         role: node.role as any,
+        _historyRole: node.role,
         content: formatReplyReferenceContent(
           isChatMessageReference(node.metadata?.replyTo)
             ? node.metadata.replyTo

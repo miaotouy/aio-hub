@@ -527,3 +527,11 @@ export {
   undoPresetStructureEdit,
   type PresetStructureEdit,
 } from "./structureUndo";
+
+export {
+  DYNAMIC_MESSAGE_ANCHORS,
+  isDynamicMessageAnchor,
+  assembleHistoryInjections,
+  type HistoryInjectionStrategy,
+  type HistoryInjectionDiagnostic,
+} from "./injection-anchors";

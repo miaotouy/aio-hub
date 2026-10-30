@@ -683,7 +683,12 @@ const {
 
 // 锚点辅助
 function isAnchorType(type?: string): boolean {
-  return !!type && type !== "message" && anchorRegistry.hasAnchor(type);
+  return (
+    !!type &&
+    type !== "message" &&
+    anchorRegistry.hasAnchor(type) &&
+    anchorRegistry.getAnchorById(type)?.kind !== "dynamic_message"
+  );
 }
 
 // modelValue 同步
@@ -693,7 +698,9 @@ watch(
     let msgs = [...(newValue || [])];
     let needsSync = false;
 
-    for (const anchor of anchorRegistry.getSystemAnchors()) {
+    for (const anchor of anchorRegistry
+      .getSystemAnchors()
+      .filter((anchor) => anchor.kind !== "dynamic_message")) {
       if (!msgs.some((m) => m.type === anchor.id)) {
         const placeholder: ChatMessageNode = {
           id: `${anchor.id}-placeholder`,

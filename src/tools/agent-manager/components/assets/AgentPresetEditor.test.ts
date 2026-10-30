@@ -9,9 +9,12 @@ import { readText } from "@tauri-apps/plugin-clipboard-manager";
 vi.mock("@/tools/llm-chat/stores/userProfileStore", () => ({
   useUserProfileStore: () => ({ getEffectiveProfile: () => null }),
 }));
+const anchorState = vi.hoisted(() => ({
+  definitions: [] as { id: string; kind?: string }[],
+}));
 vi.mock("@/tools/llm-chat/composables/ui/useAnchorRegistry", () => ({
   useAnchorRegistry: () => ({
-    getSystemAnchors: () => [],
+    getSystemAnchors: () => anchorState.definitions,
     hasAnchor: () => false,
   }),
 }));
@@ -64,6 +67,7 @@ vi.mock("@/utils/customMessage", () => ({
 const wrappers: ReturnType<typeof shallowMount>[] = [];
 afterEach(() => {
   wrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  anchorState.definitions = [];
   vi.clearAllMocks();
 });
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -203,4 +207,19 @@ it("preserves native composition text in single-message clipboard paste", async 
     wrapper.getComponent(PresetCompositionCard).props("message")
       .presetComposition
   ).toEqual(pasted.presetComposition);
+});
+
+// Protect persisted preset structure when new targeting-only anchors are registered.
+it("automatically persists placeholder cards while keeping dynamic targets out of the preset list", () => {
+  anchorState.definitions = [
+    { id: "chat_history", kind: "placeholder" },
+    { id: "last_user", kind: "dynamic_message" },
+    { id: "last_assistant", kind: "dynamic_message" },
+    { id: "last_message", kind: "dynamic_message" },
+  ];
+  const wrapper = mountEditor([]);
+  const emitted = wrapper.emitted("update:modelValue")!;
+  expect((emitted[emitted.length - 1][0] as ChatMessageNode[]).map((m) => m.type)).toEqual([
+    "chat_history",
+  ]);
 });

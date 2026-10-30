@@ -1,4 +1,6 @@
 import {
+  assembleHistoryInjections,
+  isDynamicMessageAnchor,
   materializePresetMessage,
   normalizePresetGroupState,
 } from "@aiohub/agent-preset-core";
@@ -119,79 +121,6 @@ function toProcessableMessage(
   };
 }
 
-function parseAdvancedDepths(config: string, historyLength: number): number[] {
-  const depths: number[] = [];
-  for (const segment of config.split(",").map((value) => value.trim())) {
-    if (!segment) continue;
-
-    const loop = segment.match(/^(\d+)[~:](\d+)$/);
-    if (loop) {
-      const start = Number.parseInt(loop[1], 10);
-      const interval = Number.parseInt(loop[2], 10);
-      if (interval > 0) {
-        for (let depth = start; depth <= historyLength; depth += interval) {
-          if (!depths.includes(depth)) depths.push(depth);
-        }
-      } else if (start <= historyLength && !depths.includes(start)) {
-        depths.push(start);
-      }
-      continue;
-    }
-
-    const depth = Number.parseInt(segment, 10);
-    if (
-      !Number.isNaN(depth) &&
-      depth <= historyLength &&
-      !depths.includes(depth)
-    ) {
-      depths.push(depth);
-    }
-  }
-  return depths;
-}
-
-function applyDepthInjections(
-  history: ProcessableMessage[],
-  injections: InjectionMessage[],
-  presetMessages: PresetMessage[]
-): ProcessableMessage[] {
-  if (!injections.length) return history;
-
-  const groups = new Map<number, InjectionMessage[]>();
-  for (const injection of injections) {
-    const strategy = injection.strategy;
-    const useAdvanced = strategy.type
-      ? strategy.type === "advanced_depth"
-      : !!strategy.depthConfig;
-    const depths =
-      useAdvanced && strategy.depthConfig
-        ? parseAdvancedDepths(strategy.depthConfig, history.length)
-        : strategy.depth !== undefined
-          ? [strategy.depth]
-          : [];
-
-    for (const depth of depths) {
-      const group = groups.get(depth) ?? [];
-      group.push(injection);
-      groups.set(depth, group);
-    }
-  }
-
-  const result = [...history];
-  for (const depth of [...groups.keys()].sort((left, right) => right - left)) {
-    const group = sortByOrder(groups.get(depth) ?? []);
-    const messages = group.map((injection) =>
-      toProcessableMessage(
-        injection.message,
-        "depth_injection",
-        presetMessages.indexOf(injection.message)
-      )
-    );
-    result.splice(Math.max(0, result.length - depth), 0, ...messages);
-  }
-  return result;
-}
-
 function buildAnchorGroups(
   injections: InjectionMessage[]
 ): Map<string, { before: InjectionMessage[]; after: InjectionMessage[] }> {
@@ -250,12 +179,48 @@ export const injectionAssembler: ContextProcessor = {
 
     const { skeleton, depthInjections, anchorInjections } =
       classifyPresetMessages(activePresets);
-    const historyWithDepth = applyDepthInjections(
+    const diagnostics: import("@aiohub/agent-preset-core").HistoryInjectionDiagnostic[] =
+      [];
+    const historyWithDepth = assembleHistoryInjections(
       context.messages,
-      depthInjections,
-      presetMessages
+      [
+        ...depthInjections,
+        ...anchorInjections.filter((injection) =>
+          isDynamicMessageAnchor(injection.strategy.anchorTarget)
+        ),
+      ].sort(
+        (a, b) =>
+          presetMessages.indexOf(a.message) - presetMessages.indexOf(b.message)
+      ),
+      (injection) =>
+        toProcessableMessage(
+          injection.message,
+          depthInjections.includes(injection)
+            ? "depth_injection"
+            : "anchor_injection",
+          presetMessages.indexOf(injection.message)
+        ),
+      (diagnostic) => {
+        diagnostics.push(diagnostic);
+        const reason =
+          diagnostic.reason === "target_missing"
+            ? "有效历史中尚无目标消息，已跳过"
+            : diagnostic.reason === "tool_results_pending"
+              ? "工具结果尚未加入历史，已跳过"
+              : "已调整到完整工具调用区段的边界";
+        context.logs.push({
+          processorId: "primary:injection-assembler",
+          level: "info",
+          message: `预设「${diagnostic.sourceId}」：${reason}（${diagnostic.target ?? "depth"}）。`,
+        });
+      }
     );
-    const anchorGroups = buildAnchorGroups(anchorInjections);
+    context.sharedData.set("historyInjectionDiagnostics", diagnostics);
+    const anchorGroups = buildAnchorGroups(
+      anchorInjections.filter(
+        (injection) => !isDynamicMessageAnchor(injection.strategy.anchorTarget)
+      )
+    );
     const buildAnchors = (
       target: string,
       position: "before" | "after"

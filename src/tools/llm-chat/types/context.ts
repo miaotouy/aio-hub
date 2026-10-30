@@ -47,12 +47,17 @@ export const ANCHOR_IDS = {
   CHAT_HISTORY: "chat_history",
   /** 用户档案占位符/锚点 */
   USER_PROFILE: "user_profile",
+  LAST_USER: "last_user",
+  LAST_ASSISTANT: "last_assistant",
+  LAST_MESSAGE: "last_message",
 } as const;
 
 /**
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
+  /** 有效历史的原始角色，工具结果转为 User 后仍保留。 */
+  _historyRole?: "system" | "user" | "assistant" | "tool";
   presetContributingParts?: PresetContribution[];
   role: "system" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];

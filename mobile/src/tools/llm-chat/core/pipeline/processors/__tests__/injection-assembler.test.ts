@@ -357,3 +357,60 @@ it("combines independent selection dimensions without merging adjacent role mess
   ).toBe("history user");
   expect(JSON.stringify(agent.presetMessages)).toBe(original);
 });
+
+it("places dynamic and depth injections against the same effective history and reports missing targets", async () => {
+  const agent = createAgent();
+  agent.presetMessages = [
+    {
+      ...agent.presetMessages![0],
+      id: "after-ai",
+      content: "after-ai",
+      injectionStrategy: {
+        type: "anchor",
+        anchorTarget: "last_assistant",
+        anchorPosition: "after",
+        order: 200,
+      },
+    },
+    {
+      ...agent.presetMessages![0],
+      id: "depth",
+      content: "depth",
+      injectionStrategy: { type: "depth", depth: 0, order: 10 },
+    },
+    {
+      ...agent.presetMessages![0],
+      id: "before-user",
+      content: "before-user",
+      injectionStrategy: {
+        type: "anchor",
+        anchorTarget: "last_user",
+        anchorPosition: "before",
+      },
+    },
+  ];
+  const context = createContext(agent);
+  await injectionAssembler.execute(context);
+  expect(context.messages.map((m) => m.sourceId)).toEqual([
+    "before-user",
+    "history-user",
+    "history-assistant",
+    "depth",
+    "after-ai",
+  ]);
+  const first = createContext(agent);
+  first.messages = [history[0]];
+  await injectionAssembler.execute(first);
+  expect(first.sharedData.get("historyInjectionDiagnostics")).toEqual([
+    {
+      sourceId: "after-ai",
+      target: "last_assistant",
+      reason: "target_missing",
+    },
+  ]);
+  expect(first.messages.map((m) => m.sourceId)).toEqual([
+    "before-user",
+    "history-user",
+    "depth",
+  ]);
+});

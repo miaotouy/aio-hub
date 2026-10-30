@@ -1,4 +1,6 @@
 import {
+  assembleHistoryInjections,
+  isDynamicMessageAnchor,
   materializePresetMessage,
   normalizePresetGroupState,
 } from "@aiohub/agent-preset-core";
@@ -120,180 +122,43 @@ const sortByOrder = (injections: InjectionMessage[]): InjectionMessage[] => {
   );
 };
 
-/**
- * 将深度注入消息插入到会话历史中
- */
-const applyDepthInjections = <T extends { role: string; content: any }>(
-  history: T[],
-  depthInjections: InjectionMessage[],
+const materializeInjection = (
+  injection: InjectionMessage,
+  sourceType: "depth_injection" | "anchor_injection",
   processedContents: Map<string, string>,
   presetMessages: ChatMessageNode[],
   agentId: string,
   agentAssets:
     import("@/tools/agent-manager/types/agent").AgentAsset[] | undefined
-): (
-  | T
-  | {
-      role: string;
-      content: string;
-      sourceType: string;
-      sourceId: string;
-      sourceIndex: number;
-    }
-)[] => {
-  if (depthInjections.length === 0) {
-    return history;
-  }
-
-  const depthGroups = new Map<number, InjectionMessage[]>();
-  const historyLength = history.length;
-
-  for (const injection of depthInjections) {
-    const strategy = injection.strategy;
-
-    // 判断是否应该使用高级深度配置
-    // 如果有 type，必须是 advanced_depth；如果没有 type，则看 depthConfig 是否存在
-    const useAdvanced = strategy.type
-      ? strategy.type === "advanced_depth"
-      : !!strategy.depthConfig;
-
-    // 1. 处理高级深度配置 (depthConfig)
-    if (useAdvanced && strategy.depthConfig) {
-      // 解析 depthConfig，支持混合语法：
-      // - 单点: "5"
-      // - 多点: "3, 10, 15"
-      // - 循环: "10~5" 或 "10:5"
-      // - 混合: "3, 10~5"
-      const segments = strategy.depthConfig.split(",").map((s) => s.trim());
-      const depths: number[] = [];
-
-      for (const segment of segments) {
-        if (!segment) continue;
-
-        // 检查是否为循环语法 (S~I 或 S:I)
-        const loopMatch = segment.match(/^(\d+)[~:](\d+)$/);
-        if (loopMatch) {
-          const start = parseInt(loopMatch[1], 10);
-          const interval = parseInt(loopMatch[2], 10);
-
-          if (!isNaN(start) && !isNaN(interval) && interval > 0) {
-            let currentDepth = start;
-            while (currentDepth <= historyLength) {
-              if (!depths.includes(currentDepth)) {
-                depths.push(currentDepth);
-              }
-              currentDepth += interval;
-            }
-          } else if (!isNaN(start)) {
-            // 如果间隔无效但起始有效，则视为单点
-            if (start <= historyLength && !depths.includes(start)) {
-              depths.push(start);
-            }
-          }
-        } else {
-          // 单点语法
-          const singleDepth = parseInt(segment, 10);
-          if (
-            !isNaN(singleDepth) &&
-            singleDepth <= historyLength &&
-            !depths.includes(singleDepth)
-          ) {
-            depths.push(singleDepth);
-          }
-        }
-      }
-
-      // 将解析出的所有深度点添加到 depthGroups
-      for (const depth of depths) {
-        if (!depthGroups.has(depth)) {
-          depthGroups.set(depth, []);
-        }
-        depthGroups.get(depth)!.push(injection);
-      }
-
-      if (depths.length === 0) {
-        logger.debug(
-          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`
-        );
-      }
-    }
-    // 2. 处理基础深度注入 (Legacy depth)
-    // 如果有 type，必须是 depth；如果没有 type，则看 depth 是否存在
-    else if (
-      (!strategy.type || strategy.type === "depth") &&
-      strategy.depth !== undefined
-    ) {
-      const depth = strategy.depth;
-      // 旧逻辑：深度不足会插入到最前面 (由后续的 Math.max(0, length - depth) 保证)
-      if (!depthGroups.has(depth)) {
-        depthGroups.set(depth, []);
-      }
-      depthGroups.get(depth)!.push(injection);
-    }
-  }
-
-  for (const [depth, group] of depthGroups) {
-    depthGroups.set(depth, sortByOrder(group));
-  }
-
-  const result: (
-    | T
-    | {
-        role: string;
-        content: string;
-        sourceType: string;
-        sourceId: string;
-        sourceIndex: number;
-      }
-  )[] = [...history];
-
-  const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => b - a);
-
-  for (const depth of sortedDepths) {
-    const group = depthGroups.get(depth)!;
-    const insertIndex = Math.max(0, result.length - depth);
-
-    const injectedMessages = group.map((inj) => {
-      // 解析预设附件引用
-      const resolved = resolvePresetAttachments(
-        inj.message.presetAttachments,
-        agentId,
-        agentAssets
-      );
-      return {
-        role: inj.message.role,
-        content: processedContents.get(inj.message.id) ?? inj.message.content,
-        sourceType: "depth_injection",
-        sourceId: inj.message.id,
-        presetContributingParts: inj.message.presetContributingParts,
-        sourceIndex: presetMessages.indexOf(inj.message),
-        _attachments: resolved.length > 0 ? resolved : undefined,
-        _originalContent: processedContents.has(inj.message.id)
-          ? inj.message.content
-          : undefined,
-        _timestamp: inj.message.timestamp
-          ? new Date(inj.message.timestamp).getTime()
-          : undefined,
-        _userName: inj.message.metadata?.userProfileName,
-        _userDisplayName:
-          inj.message.metadata?.userProfileDisplayName ||
-          inj.message.metadata?.userProfileName,
-        _userIcon: inj.message.metadata?.userProfileIcon,
-        _name: inj.message.name,
-      };
-    });
-
-    result.splice(insertIndex, 0, ...injectedMessages);
-  }
-
-  logger.debug("📍 深度注入完成", {
-    originalHistoryLength: history.length,
-    injectedCount: depthInjections.length,
-    resultLength: result.length,
-    depths: Array.from(depthGroups.keys()),
-  });
-
-  return result;
+): ProcessableMessage => {
+  // 解析预设附件引用
+  const resolved = resolvePresetAttachments(
+    injection.message.presetAttachments,
+    agentId,
+    agentAssets
+  );
+  return {
+    role: injection.message.role,
+    content:
+      processedContents.get(injection.message.id) ?? injection.message.content,
+    sourceType,
+    sourceId: injection.message.id,
+    presetContributingParts: injection.message.presetContributingParts,
+    sourceIndex: presetMessages.indexOf(injection.message),
+    _attachments: resolved.length > 0 ? resolved : undefined,
+    _originalContent: processedContents.has(injection.message.id)
+      ? injection.message.content
+      : undefined,
+    _timestamp: injection.message.timestamp
+      ? new Date(injection.message.timestamp).getTime()
+      : undefined,
+    _userName: injection.message.metadata?.userProfileName,
+    _userDisplayName:
+      injection.message.metadata?.userProfileDisplayName ||
+      injection.message.metadata?.userProfileName,
+    _userIcon: injection.message.metadata?.userProfileIcon,
+    _name: injection.message.name,
+  };
 };
 
 /**
@@ -466,15 +331,6 @@ export const injectionAssembler: ContextProcessor = {
     const agentId = agentConfig.id;
     const agentAssets = agentConfig.assets;
 
-    const historyWithDepthInjections = applyDepthInjections(
-      history,
-      activeDepthInjections,
-      processedContents,
-      presetMessages, // 传入完整列表以正确查找 sourceIndex
-      agentId,
-      agentAssets
-    ) as ProcessableMessage[];
-
     // 4. 组装最终消息列表
     const finalMessages: ProcessableMessage[] = [];
     const historyAnchorIndex = skeleton.findIndex(
@@ -485,8 +341,54 @@ export const injectionAssembler: ContextProcessor = {
     const activeAnchorInjections = anchorInjections.filter(
       (inj) => inj.message.isEnabled !== false
     );
+    const historyInjections = [
+      ...activeDepthInjections,
+      ...activeAnchorInjections.filter((injection) =>
+        isDynamicMessageAnchor(injection.strategy.anchorTarget)
+      ),
+    ].sort(
+      (a, b) =>
+        presetMessages.indexOf(a.message) - presetMessages.indexOf(b.message)
+    );
+    const diagnostics: import("@aiohub/agent-preset-core").HistoryInjectionDiagnostic[] =
+      [];
+    const historyWithDepthInjections = assembleHistoryInjections(
+      history,
+      historyInjections,
+      (injection) =>
+        materializeInjection(
+          injection,
+          activeDepthInjections.includes(injection)
+            ? "depth_injection"
+            : "anchor_injection",
+          processedContents,
+          presetMessages,
+          agentId,
+          agentAssets
+        ),
+      (diagnostic) => {
+        diagnostics.push(diagnostic);
+        const name =
+          presetMessages.find((message) => message.id === diagnostic.sourceId)
+            ?.name || diagnostic.sourceId;
+        const reason =
+          diagnostic.reason === "target_missing"
+            ? "有效历史中尚无目标消息，已跳过"
+            : diagnostic.reason === "tool_results_pending"
+              ? "工具结果尚未加入历史，已跳过"
+              : "已调整到完整工具调用区段的边界";
+        context.logs.push({
+          processorId: "primary:injection-assembler",
+          level: "info",
+          message: `预设「${name}」：${reason}（${diagnostic.target ?? "depth"}）。`,
+        });
+      }
+    );
+    context.sharedData.set("historyInjectionDiagnostics", diagnostics);
     const sortedAnchorInjections = getSortedAnchorInjections(
-      activeAnchorInjections
+      activeAnchorInjections.filter(
+        (injection) => !isDynamicMessageAnchor(injection.strategy.anchorTarget)
+      )
     );
     const anchorGroups = getAnchorInjectionGroups(sortedAnchorInjections);
 
@@ -506,35 +408,16 @@ export const injectionAssembler: ContextProcessor = {
         injections = group.after;
       }
 
-      return injections.map((inj) => {
-        // 解析预设附件引用
-        const resolved = resolvePresetAttachments(
-          inj.message.presetAttachments,
+      return injections.map((injection) =>
+        materializeInjection(
+          injection,
+          "anchor_injection",
+          processedContents,
+          presetMessages,
           agentId,
           agentAssets
-        );
-        return {
-          role: inj.message.role,
-          content: processedContents.get(inj.message.id) ?? inj.message.content,
-          sourceType: "anchor_injection",
-          sourceId: inj.message.id,
-          presetContributingParts: inj.message.presetContributingParts,
-          sourceIndex: presetMessages.indexOf(inj.message),
-          _attachments: resolved.length > 0 ? resolved : undefined,
-          _originalContent: processedContents.has(inj.message.id)
-            ? inj.message.content
-            : undefined,
-          _timestamp: inj.message.timestamp
-            ? new Date(inj.message.timestamp).getTime()
-            : undefined,
-          _userName: inj.message.metadata?.userProfileName,
-          _userDisplayName:
-            inj.message.metadata?.userProfileDisplayName ||
-            inj.message.metadata?.userProfileName,
-          _userIcon: inj.message.metadata?.userProfileIcon,
-          _name: inj.message.name,
-        };
-      });
+        )
+      );
     };
 
     const skeletonBefore =

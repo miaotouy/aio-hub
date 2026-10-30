@@ -323,6 +323,7 @@ export const sessionLoader: ContextProcessor = {
 
       const processableMessage: ProcessableMessage = {
         role: role as any,
+        _historyRole: node.role,
         content: finalContent,
         reasoningContent,
         reasoningArtifacts: node.metadata?.reasoningArtifacts,

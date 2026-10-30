@@ -63,7 +63,12 @@ export function usePresetImportExport(options: {
   });
 
   function isAnchorType(type?: string): boolean {
-    return !!type && type !== "message" && anchorRegistry.hasAnchor(type);
+    return (
+      !!type &&
+      type !== "message" &&
+      anchorRegistry.hasAnchor(type) &&
+      anchorRegistry.getAnchorById(type)?.kind !== "dynamic_message"
+    );
   }
 
   function cleanMessagesForExport(

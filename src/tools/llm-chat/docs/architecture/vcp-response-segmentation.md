@@ -20,7 +20,7 @@ VCP 文本渠道的流式 Chat Completions 请求，可以在一次 HTTP 响应�
 `core/tool-calling/vcp-stream-segmenter.ts` 消费已解码的完整 SSE 数据：
 
 1. 上游 `finish_reason` 标记一次模型生成结束；紧随其后的 usage 归到该 assistant 段。
-2. VCP 服务端生成的 `chatcmpl-vcp-*` 结果／摘要 chunk 进入 tool 段；角色围栏与 separator 控制阶段切换。上游未提供完成原因时，工具 chunk 也能建立阶段边界。
+2. VCP 服务端生成的 `chatcmpl-vcp-batch-*` 整批结果，以及历史 `chatcmpl-vcp-<数字>`／`chatcmpl-vcp-summary-*` chunk 进入 tool 段；角色围栏与 separator 控制阶段切换。上游未提供完成原因时，工具 chunk 也能建立阶段边界。
 3. 工具区后的模型正文／独立推理创建新的 assistant 段。重复使用响应 ID 的上游也按阶段拆分。
 4. `chatcmpl-VCP-final-*` 是请求的最终完成信息，最终 `[DONE]` 仍由通用 decoder 处理。
 5. 模型正文中的标记示例保留在原段；角色围栏只根据服务端 chunk 来源识别。VCP 注入的 reasoning 闭合标签保留在前一个 assistant 段。
@@ -40,3 +40,9 @@ VCP 文本渠道的流式 Chat Completions 请求，可以在一次 HTTP 响应�
 ## 可见结果边界
 
 关闭 VCP 详细结果展示时，tool 节点保存服务端发来的摘要；详细结果块出现时一并保存。现有协议的摘要与展示文本可能省略工具返回字段，节点内容以实际收到的数据为准。
+
+### 带时间戳的返回批次
+
+`chatcmpl-vcp-batch-*` 正文按原样逐段累积，保留 `VCP_TOOL_BATCH_START/END` 和外层角色围栏。工具返回中引用的角色标记同样保留，流式正文可以在任意标记位置拆包。富文本渲染侧统一完成精确时间戳边界匹配和正文隔离，整个批次展示为工具返回容器，截断批次显示未完成状态。
+
+旧摘要 chunk 沿用工具状态提取；新批次内的旧结果框与摘要标记遵循不透明正文契约，工具状态以收到的正文为准。协议细节见 [工具返回批次](../../../tool-calling/ARCHITECTURE.md#426-服务端工具返回批次)。

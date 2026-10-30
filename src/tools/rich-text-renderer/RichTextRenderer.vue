@@ -75,6 +75,7 @@ import type {
   RichTextContext,
 } from "./types";
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
+import { transformVcpTextOutsideBatches } from "@/utils/vcpToolBatch";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
 import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
 
@@ -514,56 +515,31 @@ let unsubscribeComplete: (() => void) | null = null;
  * 经过正则处理后的内容
  * 这是所有渲染逻辑的统一入口点
  */
-const processedContent = computed(() => {
-  let text = props.content || "";
+const prepareContentForRender = (
+  rawText: string,
+  isStreaming: boolean | undefined,
+  hideTrailingHtml = false
+): string =>
+  transformVcpTextOutsideBatches(rawText, (outside) => {
+    let text = outside.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (props.regexRules && props.regexRules.length > 0) {
+      text = applyRegexRules(text, props.regexRules, isStreaming);
+    }
+    if (hideTrailingHtml) text = hideTrailingIncompleteHtmlTag(text);
+    text = wrapBareHtmlPage(text);
+    if (props.resolveAsset && !useAstRenderer.value) {
+      text = props.resolveAsset(text);
+    }
+    if (text && !text.endsWith("\n")) text += "\n";
+    return text;
+  });
 
-  // 0. 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
-  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+const processedContent = computed(() =>
+  prepareContentForRender(props.content || "", props.isStreaming)
+);
 
-  // 1. 应用正则规则
-  if (props.regexRules && props.regexRules.length > 0) {
-    text = applyRegexRules(text, props.regexRules, props.isStreaming);
-  }
-
-  // 2. 自动包裹裸 HTML 页面 (在正则之后，资产解析之前)
-  text = wrapBareHtmlPage(text);
-
-  // 3. 解析资产路径
-  // 注意：在 AST 模式下，我们不再全局替换智能体资产链接 (agent-asset://)，而是交给具体的节点组件（如 ImageNode）处理
-  // 这样可以避免 Markdown 解析器对转换后的本地 URL 进行二次编码导致 Tauri 无法识别路径。
-  // 对于纯渲染模式 (markdown-it)，我们依然允许 resolveAsset 进行全量替换。
-  if (props.resolveAsset && !useAstRenderer.value) {
-    text = props.resolveAsset(text);
-  }
-
-  // 3. 补全末尾换行：确保处于末尾的块（如思考块、工具调用）能被正确闭合检测
-  if (text && !text.endsWith("\n")) {
-    text += "\n";
-  }
-
-  return text;
-});
-
-const prepareStreamBufferForRender = (rawText: string): string => {
-  let text = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  if (props.regexRules && props.regexRules.length > 0) {
-    text = applyRegexRules(text, props.regexRules, true);
-  }
-
-  text = hideTrailingIncompleteHtmlTag(text);
-  text = wrapBareHtmlPage(text);
-
-  if (props.resolveAsset && !useAstRenderer.value) {
-    text = props.resolveAsset(text);
-  }
-
-  if (text && !text.endsWith("\n")) {
-    text += "\n";
-  }
-
-  return text;
-};
+const prepareStreamBufferForRender = (rawText: string): string =>
+  prepareContentForRender(rawText, true, true);
 
 /**
  * 静态内容模式：首次进入阅读区后初始化，已解析的内容继续跟随源码更新。

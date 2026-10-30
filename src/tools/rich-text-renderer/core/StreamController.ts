@@ -350,7 +350,7 @@ export class StreamController {
   private shouldBypassSmoothing(chunk: string): boolean {
     // 匹配 VCP 协议相关的特征标记（角色围栏、工具请求、调用结果汇总等）
     const RE_BYPASS_SMOOTHING =
-      /(<<<\[?ROLE_DIVIDE_|<<<\[?END_ROLE_DIVIDE_|<<<\[?TOOL_REQUEST|<<<\[?END_TOOL_REQUEST|\[\[VCP调用结果信息汇总:|VCP调用结果结束\]\]|\[本轮工具调用摘要:|\[本轮工具调用摘要结束\])/;
+      /(<<<\[?ROLE_DIVIDE_|<<<\[?END_ROLE_DIVIDE_|<<<\[?TOOL_REQUEST|<<<\[?END_TOOL_REQUEST|<<<\[VCP_TOOL_BATCH_(?:START|END):|\[\[VCP调用结果信息汇总:|VCP调用结果结束\]\]|\[本轮工具调用摘要:|\[本轮工具调用摘要结束\])/;
     return RE_BYPASS_SMOOTHING.test(chunk);
   }
 

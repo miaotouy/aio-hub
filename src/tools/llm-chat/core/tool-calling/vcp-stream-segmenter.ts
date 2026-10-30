@@ -49,12 +49,16 @@ export class VcpStreamSegmenter {
       return;
     }
 
+    const isBatch = /^chatcmpl-vcp-batch-/.test(id);
     const isTool =
-      /^chatcmpl-vcp-(?:summary-|\d)/.test(id) || (!id && this.toolPhase);
+      isBatch ||
+      /^chatcmpl-vcp-(?:summary-|\d)/.test(id) ||
+      (!id && this.toolPhase);
     const reasoningClose = /^chatcmpl-VCP-reasoning-/.test(id);
     let content = chunk.content ?? "";
     const reasoning = chunk.reasoningContent ?? "";
-    if (isTool) {
+    // Batch chunks retain their raw framing, including literal role markers in results.
+    if (isTool && !isBatch) {
       content = content.replace(/<<<\[(?:END_)?ROLE_DIVIDE_USER\]>>>/g, "");
     }
 
@@ -65,7 +69,8 @@ export class VcpStreamSegmenter {
         !this.current ||
         this.current.kind !== kind ||
         (kind === "assistant" && this.nextAssistant && !reasoningClose);
-      if (needsSegment && !content.trim() && !reasoning.trim()) return;
+      if (needsSegment && !content.trim() && !reasoning.trim() && !isBatch)
+        return;
       if (needsSegment) {
         segment = {
           index: this.segments.length,

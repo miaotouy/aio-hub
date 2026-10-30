@@ -756,3 +756,28 @@ it("defers collapsed reasoning and catches up on reopen while preserving the vie
   expect(wrapper.get(".llm-think-content").text()).toBe("Finished answer.");
   expect(wrapper.findComponent(RichTextRenderer).element).toBe(renderer);
 });
+
+// Batch payload must survive display regexes, HTML wrapping and CRLF normalization verbatim.
+it("renders opaque batch bytes while applying presentation rules to surrounding prose", async () => {
+  const body =
+    "\r\n<!DOCTYPE html><html><body>raw</body></html>\r\n<<<[TOOL_REQUEST]>>>\r\n";
+  const state = host(
+    `raw\n\n<<<[VCP_TOOL_BATCH_START:2026-10-30T11:16:59.391+08:00]>>>${body}<<<[VCP_TOOL_BATCH_END:2026-10-30T11:16:59.391+08:00]>>>\n\n## after`
+  );
+  state.rules.value = [
+    {
+      id: "batch-display",
+      enabled: true,
+      regex: "raw",
+      replacement: "changed",
+      applyTo: { render: true, request: false },
+      targetRoles: ["assistant"],
+    },
+  ];
+  await settle();
+  expect(state.renderer().get(".tool-batch-content").element.textContent).toBe(
+    body
+  );
+  expect(state.renderer().get("h2").text()).toBe("after");
+  expect(state.renderer().text()).toContain("changed");
+});

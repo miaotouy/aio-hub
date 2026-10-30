@@ -40,6 +40,9 @@
         </div>
       </div>
     </div>
+    <div v-else-if="isToolBatch" class="vcp-role-content">
+      <pre class="tool-batch-content">{{ batchContent }}</pre>
+    </div>
     <div v-else class="vcp-role-content">
       <slot />
     </div>
@@ -59,7 +62,8 @@ import {
 const props = defineProps<{
   nodeId: string;
   role: "user" | "assistant" | "system";
-  variant?: "tool_summary";
+  variant?: "tool_summary" | "tool_batch";
+  batchContent?: string;
   summaryItems?: Array<{
     label: string;
     toolName: string;
@@ -70,8 +74,10 @@ const props = defineProps<{
 }>();
 
 const isToolSummary = computed(() => props.variant === "tool_summary");
+const isToolBatch = computed(() => props.variant === "tool_batch");
 
 const roleLabel = computed(() => {
+  if (isToolBatch.value) return props.closed ? "工具返回" : "工具返回 · 未完成";
   if (isToolSummary.value) return "本轮工具调用摘要";
 
   switch (props.role) {
@@ -87,7 +93,9 @@ const roleLabel = computed(() => {
 });
 
 const badgeLabel = computed(() =>
-  isToolSummary.value ? roleLabel.value : `VCP ${roleLabel.value}`
+  isToolSummary.value || isToolBatch.value
+    ? roleLabel.value
+    : `VCP ${roleLabel.value}`
 );
 
 const roleClass = computed(() =>
@@ -95,7 +103,7 @@ const roleClass = computed(() =>
 );
 
 const roleIcon = computed(() => {
-  if (isToolSummary.value) return ClipboardList;
+  if (isToolSummary.value || isToolBatch.value) return ClipboardList;
 
   switch (props.role) {
     case "user":
@@ -171,6 +179,15 @@ const roleIcon = computed(() => {
   max-height: 1200px;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.tool-batch-content {
+  margin: 0;
+  padding: 8px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  color: var(--el-text-color-primary);
 }
 
 /* 优化嵌套在 RoleNode 中的 ToolNode 间距 */

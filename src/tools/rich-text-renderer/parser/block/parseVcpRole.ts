@@ -110,6 +110,22 @@ export function parseVcpRole(
 
   const { role, variant, content, closed } = token;
 
+  if (variant === "tool_batch") {
+    return {
+      node: {
+        id: "",
+        type: "vcp_role",
+        props: { role, variant, batchContent: content, closed },
+        children: [],
+        meta: {
+          range: { start: 0, end: 0 },
+          status: closed ? "stable" : "pending",
+        },
+      },
+      nextIndex: start + 1,
+    };
+  }
+
   // 对内容进行二次分词
   const tokenizer = new Tokenizer({
     vcpFuzzyModeEnabled: ctx.getOptions().vcpFuzzyModeEnabled,

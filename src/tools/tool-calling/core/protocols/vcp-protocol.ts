@@ -14,6 +14,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import { findVcpBlockBoundary } from "@/utils/vcpBlockBoundary";
+import { maskVcpToolBatches } from "@/utils/vcpToolBatch";
 import type { MethodMetadata, MethodParameter } from "@/services/types";
 import type { ParsedToolRequest, ToolExecutionResult } from "../../types";
 import type { ToolCallingProtocol, ToolDefinitionInput } from "./base";
@@ -358,7 +359,7 @@ export class VcpToolCallingProtocol implements ToolCallingProtocol {
       return [];
     }
 
-    const text = normalizeLineBreaks(finalText);
+    const text = maskVcpToolBatches(normalizeLineBreaks(finalText));
     const requests: ParsedToolRequest[] = [];
     let requestIndex = 0;
 

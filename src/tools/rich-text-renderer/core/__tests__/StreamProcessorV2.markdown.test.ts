@@ -18,7 +18,7 @@ import type { TokenizerOptions } from "../../parser/types";
 import { StreamProcessorV2 } from "../StreamProcessorV2";
 import { CustomParser } from "../CustomParser";
 import { useMarkdownAst } from "../../composables/useMarkdownAst";
-import type { AstNode } from "../../types";
+import type { AstNode, VcpRoleNode } from "../../types";
 
 function normalizeAst(nodes: AstNode[]): unknown {
   return nodes.map((node) => ({
@@ -97,6 +97,18 @@ function createSeededChunks(input: string, seed: number): string[] {
 }
 
 const streamMarkdownFixtures = [
+  {
+    label:
+      "opaque VCP batch with nested protocol and an unfinished HTML/fence payload",
+    chunks: [
+      "before\n\n<<<[ROLE_DIVIDE_USER]>>>\n<<<[VCP_TOOL_BATCH_START:2026-10-30T11:16:",
+      "59.391+08:00]>>>\nresult\n\n<<<[END_ROLE_DIVIDE_USER]>>>\n<script>\n\`\`\`html\n",
+      "<<<[TOOL_REQUEST]>>>\ntool_name:「始」quoted「末」\n\n",
+      "<<<[VCP_TOOL_BATCH_END:2026-10-30T03:16:59.391Z]>>>\n",
+      "<<<[VCP_TOOL_BATCH_END:2026-10-30T11:16:59.391+08:00]>>>\n<<<[END_ROLE_DIVIDE_USER]>>>\n\n",
+      "## after\n\nnext",
+    ],
+  },
   {
     label: "table empty cells and escaped pipe split across chunks",
     chunks: [
@@ -679,6 +691,53 @@ describe("streamed Markdown context", () => {
         requestAnimationFrame(() => resolve())
       );
       expect(normalizeAst(state.ast.value)).toEqual(expected);
+    } finally {
+      processor.destroy();
+      state.dispose();
+    }
+  });
+
+  it("keeps a live truncated batch pending across internal blank lines and protocol markers", async () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const processor = new StreamProcessorV2({
+      onPatch: (patches) => state.enqueuePatch(patches),
+      safetyGuardEnabled: false,
+    });
+    const start = "<<<[VCP_TOOL_BATCH_START:2026-10-30T11:16:59.391+08:00]>>>";
+    const end = "<<<[VCP_TOOL_BATCH_END:2026-10-30T11:16:59.391+08:00]>>>";
+    let input = "# before\n\n";
+    try {
+      await processor.setContent(input);
+      for (const chunk of [
+        start + "\nresult\n\n",
+        "<<<[ROLE_DIVIDE_USER]>>>\n<<<[TOOL_REQUEST]>>>\n\n",
+        "<<<[VCP_TOOL_BATCH_END:2026-10-30T03:16:59.391Z]>>>\n\n",
+      ]) {
+        input += chunk;
+        await processor.setContent(input);
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve())
+        );
+        const batch = state.ast.value.find(
+          (node): node is VcpRoleNode =>
+            node.type === "vcp_role" && node.props.variant === "tool_batch"
+        );
+        expect(batch?.props.closed).toBe(false);
+        expect(batch?.children).toEqual([]);
+        expect(findNode(state.ast.value, "vcp_tool")).toBeUndefined();
+      }
+      await processor.setContent(input + end + "\n\n## after");
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+      const batch = state.ast.value.find(
+        (node): node is VcpRoleNode =>
+          node.type === "vcp_role" && node.props.variant === "tool_batch"
+      );
+      expect(batch?.props.closed).toBe(true);
+      expect(
+        state.ast.value.filter((node) => node.type === "heading")
+      ).toHaveLength(2);
     } finally {
       processor.destroy();
       state.dispose();

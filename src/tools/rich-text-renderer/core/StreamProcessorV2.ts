@@ -21,6 +21,10 @@
  * 3. CustomParser 只负责解析完整文本，本类负责流式管理
  */
 
+import {
+  findVcpToolBatch,
+  hideIncompleteVcpBatchStart,
+} from "@/utils/vcpToolBatch";
 import type {
   AstNode,
   Patch,
@@ -505,6 +509,10 @@ class MarkdownBoundaryDetector {
   }
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
+    if (findVcpToolBatch(text)) {
+      return { stable: "", pending: text };
+    }
+    text = hideIncompleteVcpBatchStart(text);
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
     const cache = this.fenceCache;
     // Keep the last two lines live: callers can replace a temporary trailing newline.

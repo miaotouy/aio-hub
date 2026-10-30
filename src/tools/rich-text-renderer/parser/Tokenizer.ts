@@ -13,6 +13,11 @@
 // limitations under the License.
 
 import { Token, type TokenizerOptions } from "./types";
+import {
+  findVcpToolBatch,
+  findVcpRoleEnd,
+  hideIncompleteVcpBatchStart,
+} from "@/utils/vcpToolBatch";
 import { readCodeFenceOpening } from "./utils/code-fence";
 import {
   decodeMarkdownEntities,
@@ -131,6 +136,56 @@ export class Tokenizer {
    * 将完整文本转换为令牌序列
    */
   public tokenize(text: string): Token[] {
+    const tokens: Token[] = [];
+    let cursor = 0;
+    let batch = findVcpToolBatch(text);
+    // Frame batches before Markdown/HTML can consume or reinterpret the payload.
+    while (batch) {
+      const roles = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/g;
+      roles.lastIndex = cursor;
+      let role: RegExpExecArray | null;
+      let wrapped = false;
+      while ((role = roles.exec(text)) && role.index < batch.start) {
+        const endMarker = `<<<[END_ROLE_DIVIDE_${role[1]}]>>>`;
+        const end = findVcpRoleEnd(text, endMarker, roles.lastIndex);
+        if (end >= 0 && end < batch.start) {
+          roles.lastIndex = end + endMarker.length;
+          continue;
+        }
+        tokens.push(...this.tokenizeText(text.slice(cursor, role.index)));
+        const next = end < 0 ? text.length : end + endMarker.length;
+        tokens.push({
+          type: "vcp_role",
+          role: role[1].toLowerCase() as "user" | "assistant" | "system",
+          content: text.slice(roles.lastIndex, end < 0 ? text.length : end),
+          closed: end >= 0,
+          raw: text.slice(role.index, next),
+        });
+        cursor = next;
+        wrapped = true;
+        break;
+      }
+      if (!wrapped) {
+        tokens.push(...this.tokenizeText(text.slice(cursor, batch.start)));
+        tokens.push({
+          type: "vcp_role",
+          role: "user",
+          variant: "tool_batch",
+          content: text.slice(batch.contentStart, batch.contentEnd),
+          closed: batch.closed,
+          raw: text.slice(batch.start, batch.end),
+        });
+        cursor = batch.end;
+      }
+      batch = findVcpToolBatch(text, cursor);
+    }
+    tokens.push(
+      ...this.tokenizeText(hideIncompleteVcpBatchStart(text.slice(cursor)))
+    );
+    return tokens;
+  }
+
+  private tokenizeText(text: string): Token[] {
     const tokens: Token[] = [];
     const len = text.length;
     let i = 0;

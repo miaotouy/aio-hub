@@ -74,7 +74,7 @@ export type Token =
       type: "vcp_role";
       raw: string;
       role: "user" | "assistant" | "system";
-      variant?: "tool_summary";
+      variant?: "tool_summary" | "tool_batch";
       content: string;
       closed: boolean;
     }

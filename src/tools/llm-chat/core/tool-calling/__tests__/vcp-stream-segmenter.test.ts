@@ -16,6 +16,23 @@ const delta = (responseId: string, content: string): LlmResponseChunk => ({
 });
 
 describe("VCP response segmentation", () => {
+  it("preserves new batch framing and literal role markers across split content deltas", () => {
+    const raw =
+      "\n<<<[ROLE_DIVIDE_USER]>>>\n<<<[VCP_TOOL_BATCH_START:2026-10-30T11:16:59.391+08:00]>>>\nquoted <<<[END_ROLE_DIVIDE_USER]>>>\n<<<[VCP_TOOL_BATCH_END:2026-10-30T11:16:59.391+08:00]>>>\n<<<[END_ROLE_DIVIDE_USER]>>>\n";
+    const segmenter = new VcpStreamSegmenter();
+    segmenter.push(delta("first", "调用请求"));
+    for (const content of raw)
+      segmenter.push(delta("chatcmpl-vcp-batch-1", content));
+    segmenter.push(delta("chatcmpl-VCP-separator-2", "\n"));
+    segmenter.push(delta("second", "最终回答"));
+    expect(
+      segmenter.segments.map(({ kind, content }) => [kind, content])
+    ).toEqual([
+      ["assistant", "调用请求"],
+      ["tool", raw],
+      ["assistant", "最终回答"],
+    ]);
+  });
   it("preserves turn order and per-turn usage through a byte-split SSE agent response", () => {
     const upstream = (
       id: string,

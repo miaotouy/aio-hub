@@ -3,7 +3,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { effectScope, ref } from "vue";
 import { useToolResultDisplay } from "../useToolResultDisplay";
-import { formatToolResult } from "../../../utils/toolResultContent";
+import {
+  formatToolResult,
+  previewToolResult,
+} from "../../../utils/toolResultContent";
 afterEach(() => vi.useRealTimers());
 // Protect timely first output, bounded trailing refresh and authoritative completion after cancellation.
 it("shows first text immediately, coalesces live updates and flushes completion", async () => {
@@ -57,4 +60,14 @@ it("keeps nested JSON values, escaped keys and surrounding tool text intact", ()
   expect(result.startsWith("Before\n")).toBe(true);
   expect(result.endsWith("\nAfter")).toBe(true);
   expect(formatToolResult('{"partial":')).toBe('{"partial":');
+});
+
+// Collapsed VCP results show useful result text, while the saved batch remains intact.
+it("previews framed VCP results without protocol wrappers", () => {
+  const stamp = "2026-10-30T11:16:59.391+08:00";
+  const raw = `<<<[ROLE_DIVIDE_USER]>>>\n<<<[VCP_TOOL_BATCH_START:${stamp}]>>>\n[[VCP调用结果信息汇总:\n- 工具名称: DailyNote\n- 执行状态: SUCCESS\n- 返回内容: done\nVCP调用结果结束]]\n<<<[VCP_TOOL_BATCH_END:${stamp}]>>>\n<<<[END_ROLE_DIVIDE_USER]>>>`;
+  expect(previewToolResult(raw)).toBe(
+    "- 工具名称: DailyNote\n- 执行状态: SUCCESS\n- 返回内容: done"
+  );
+  expect(formatToolResult(raw)).toBe(raw);
 });

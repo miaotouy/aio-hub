@@ -35,6 +35,28 @@ describe("VCP tool-result batch isolation", () => {
     }
   );
 
+  it("presents a completed batch with a single role boundary and preserves its payload", () => {
+    const body = "\n\nresult\n\n";
+    const text = `<<<[ROLE_DIVIDE_USER]>>>\n${start()}${body}${end()}\n<<<[END_ROLE_DIVIDE_USER]>>>`;
+    const nodes = new CustomParser().parse(text);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]).toMatchObject({
+      type: "vcp_role",
+      props: { variant: "tool_batch", batchContent: body, closed: true },
+      children: [],
+    });
+
+    const mixed = new CustomParser().parse(
+      text.replace("\n" + start(), "\nintro\n" + start())
+    );
+    expect(mixed[0]).toMatchObject({
+      type: "vcp_role",
+      props: { role: "user" },
+    });
+    expect(mixed[0].children).toHaveLength(2);
+    expect(batches(mixed)[0].props.batchContent).toBe(body);
+  });
+
   it("keeps nested protocol, Markdown and HTML literal until the exact end", () => {
     const body = `\n<<<[END_ROLE_DIVIDE_USER]>>>\n${request("quoted")}\n<script>unsafe</script>\n\`\`\`html\n${start("2026-10-30T00:00:00.000Z")}\n${end("2026-10-30T03:16:59.391Z")}\n[[VCP调用结果信息汇总:残缺结果\n`;
     const text = `<<<[ROLE_DIVIDE_USER]>>>\n${start()}${body}${end()}\n<<<[END_ROLE_DIVIDE_USER]>>>\n\n## 后续回复`;

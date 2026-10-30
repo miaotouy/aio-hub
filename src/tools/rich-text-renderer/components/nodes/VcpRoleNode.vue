@@ -24,12 +24,27 @@
       </div>
     </div>
     <div
-      v-if="isToolSummary && summaryItems?.length"
-      class="vcp-role-content tool-summary-content"
+      v-if="(isToolSummary && visibleSummaryItems.length) || batchDisplay"
+      class="vcp-role-content"
+      :class="{ 'tool-summary-content': isToolSummary }"
     >
-      <div class="summary-chip-list" aria-label="本轮工具调用摘要">
+      <VcpToolNode
+        v-for="(result, index) in batchDisplay?.results"
+        :key="index"
+        :node-id="`${nodeId}:result:${index}`"
+        v-bind="result"
+        command=""
+        :args="{}"
+        :closed="true"
+        :is-result="true"
+      />
+      <div
+        v-if="visibleSummaryItems.length"
+        class="summary-chip-list"
+        aria-label="本轮工具调用摘要"
+      >
         <div
-          v-for="(item, index) in summaryItems"
+          v-for="(item, index) in visibleSummaryItems"
           :key="`${item.label}-${index}`"
           class="summary-chip"
           :class="`summary-chip-${item.status}`"
@@ -41,7 +56,7 @@
       </div>
     </div>
     <div v-else-if="isToolBatch" class="vcp-role-content">
-      <pre class="tool-batch-content">{{ batchContent }}</pre>
+      <div class="tool-batch-content">{{ batchContent?.trim() }}</div>
     </div>
     <div v-else class="vcp-role-content">
       <slot />
@@ -51,6 +66,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import VcpToolNode from "./VcpToolNode.vue";
+import { parseVcpToolBatchDisplay } from "../../utils/vcpToolBatchDisplay";
 import {
   User,
   Bot,
@@ -75,6 +92,16 @@ const props = defineProps<{
 
 const isToolSummary = computed(() => props.variant === "tool_summary");
 const isToolBatch = computed(() => props.variant === "tool_batch");
+const batchDisplay = computed(() =>
+  isToolBatch.value && props.closed
+    ? parseVcpToolBatchDisplay(props.batchContent ?? "")
+    : undefined
+);
+const visibleSummaryItems = computed(() =>
+  isToolBatch.value
+    ? (batchDisplay.value?.summaryItems ?? [])
+    : (props.summaryItems ?? [])
+);
 
 const roleLabel = computed(() => {
   if (isToolBatch.value) return props.closed ? "工具返回" : "工具返回 · 未完成";

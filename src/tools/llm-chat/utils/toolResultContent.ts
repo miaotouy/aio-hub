@@ -1,5 +1,7 @@
 // Copyright 2026 miaotouy(Github@miaotouy)
 // SPDX-License-Identifier: Apache-2.0
+import { findVcpToolBatch } from "@/utils/vcpToolBatch";
+
 /** Cheap normalization shared by live output, summaries and completed formatting. */
 export function normalizeToolResult(content: string): string {
   return content
@@ -9,7 +11,18 @@ export function normalizeToolResult(content: string): string {
     .trim();
 }
 export function previewToolResult(content: string): string {
-  const prefix = normalizeToolResult(content.slice(0, 512));
+  const source = content.slice(0, 512);
+  const batch = findVcpToolBatch(source);
+  const text = batch
+    ? source.slice(batch.contentStart, batch.contentEnd)
+    : source;
+  const prefix = normalizeToolResult(text)
+    .replace(/^<<<\[ROLE_DIVIDE_USER\]>>>\s*/, "")
+    .replace(/^\[\[VCP调用结果信息汇总:\s*/, "")
+    .replace(/VCP调用结果结束\]\]/g, "")
+    .replace(/\[本轮工具调用摘要(?::|结束)\]/g, "")
+    .replace(/\s*<<<\[END_ROLE_DIVIDE_USER\]>>>\s*$/, "")
+    .trim();
   return (
     prefix.slice(0, 120) +
     (prefix.length > 120 || content.length > 512 ? "..." : "")

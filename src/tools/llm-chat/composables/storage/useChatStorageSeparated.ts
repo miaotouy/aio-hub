@@ -49,6 +49,8 @@ import type {
 
 export type { FavoriteFolder } from "../../types/persistence";
 
+import { restoreVcpToolRoles } from "../../utils/vcpMessageRole";
+
 const logger = createModuleLogger("llm-chat/storage-separated");
 const errorHandler = createModuleErrorHandler("llm-chat/storage-separated");
 const INDEX_VERSION = "1.1.2";
@@ -309,6 +311,7 @@ export function useChatStorageSeparated() {
         throw new Error("会话文件结构无效");
       }
       const fullData = parsed;
+      restoreVcpToolRoles(fullData.nodes);
       if (reload) {
         coordinator.resetSessionRevision(sessionId, readRevision(fullData));
       } else {

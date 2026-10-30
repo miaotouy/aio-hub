@@ -135,6 +135,20 @@ export function parseVcpRole(
   // 递归解析内部块
   const children = removeCoveredToolSummaries(ctx.parseBlocks(innerTokens));
 
+  // A completed server batch already carries its user-role presentation.
+  // Collapse only a redundant wrapper; mixed role content keeps its boundary.
+  const onlyChild = children.length === 1 ? children[0] : undefined;
+  if (
+    role === "user" &&
+    !variant &&
+    closed &&
+    onlyChild?.type === "vcp_role" &&
+    onlyChild.props.variant === "tool_batch" &&
+    onlyChild.props.closed
+  ) {
+    return { node: onlyChild, nextIndex: start + 1 };
+  }
+
   return {
     node: {
       id: "",

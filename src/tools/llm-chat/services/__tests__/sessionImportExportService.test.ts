@@ -74,6 +74,39 @@ const session: ExportableChatSession = {
 };
 
 describe("sessionImportExportService", () => {
+  it("restores persisted VCP tool identity while keeping assistant marker examples unchanged", async () => {
+    const legacy = structuredClone(session);
+    const nodes = legacy.detail.nodes;
+    nodes.tool = {
+      id: "tool",
+      parentId: "user-a",
+      childrenIds: [],
+      role: "assistant",
+      status: "complete",
+      content: "工具结果",
+      metadata: { vcpResponse: { requestId: "request", kind: "tool" } },
+    };
+    nodes.example = {
+      id: "example",
+      parentId: "user-a",
+      childrenIds: [],
+      role: "assistant",
+      status: "complete",
+      content: "<<<[ROLE_DIVIDE_USER]>>>示例<<<[END_ROLE_DIVIDE_USER]>>>",
+      metadata: { vcpResponse: { requestId: "request", kind: "assistant" } },
+    };
+    nodes["user-a"].childrenIds = ["tool", "example"];
+    legacy.detail.activeLeafId = "tool";
+    const parsed = await parseImportFile(
+      encoder.encode(JSON.stringify(legacy))
+    );
+    const restored = parsed.sessions[0].detail;
+    expect(restored.nodes.tool).toEqual({ ...nodes.tool, role: "tool" });
+    expect(restored.nodes.example).toEqual(nodes.example);
+    expect(restored.nodes["user-a"]).toEqual(nodes["user-a"]);
+    expect(restored.activeLeafId).toBe("tool");
+  });
+
   it("round-trips a versioned single-session backup with the complete tree", async () => {
     const content = exportSessionAsBackupJson(session, { exportedBy: "test" });
     const backup = JSON.parse(content);

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { normalizeVirtualAttachments } from "../utils/virtualAttachments";
+import { restoreVcpToolRoles } from "../utils/vcpMessageRole";
 /**
  * LLM Chat 会话批量导入导出服务
  */
@@ -122,6 +123,7 @@ function normalizeSessionFile(
   const updatedAt =
     typedFlat.updatedAt || metadataIndex?.updatedAt || createdAt || now;
   const normalizedNodes = nodes as ChatSessionDetail["nodes"];
+  restoreVcpToolRoles(normalizedNodes);
   for (const node of Object.values(normalizedNodes)) {
     if (node.virtualAttachments !== undefined)
       node.virtualAttachments = normalizeVirtualAttachments(

@@ -70,6 +70,8 @@ import type {
 } from "@/tools/rich-text-renderer/types";
 import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
 import { useToolResultDisplay } from "../../composables/ui/useToolResultDisplay";
+import { previewToolResult } from "../../utils/toolResultContent";
+import { parseVcpToolMessageDisplay } from "@/tools/rich-text-renderer/utils/vcpToolBatchDisplay";
 import CodeMirrorSourceViewer from "@/tools/rich-text-renderer/components/nodes/code-block/CodeMirrorSourceViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -339,6 +341,16 @@ const backgroundBlocks = computed(() => {
 });
 
 // ----- 工具状态与元数据 -----
+const vcpDisplay = computed(() =>
+  props.message.metadata?.vcpResponse?.kind === "tool"
+    ? parseVcpToolMessageDisplay(
+        props.message.content,
+        props.message.status !== "waiting" &&
+          props.message.status !== "generating"
+      )
+    : undefined
+);
+
 const toolCalls = computed(() => {
   if (
     props.message.metadata?.toolCalls &&
@@ -370,6 +382,15 @@ const toolCalls = computed(() => {
   return [];
 });
 
+const displayToolNames = computed(() =>
+  toolCalls.value.length
+    ? toolCalls.value.map((call) => call.toolName)
+    : [
+        ...(vcpDisplay.value?.results.map((result) => result.tool_name) ?? []),
+        ...(vcpDisplay.value?.summaryItems.map((item) => item.toolName) ?? []),
+      ]
+);
+
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
   // JEV 仲裁等待态优先（§2.4 两段式：仅 arbitrating 阶段展示「等待 AI 审核」）
@@ -391,6 +412,15 @@ const mainStatus = computed(() => {
     if (upstream?.kind === "tool") {
       if (props.message.status === "error") return "error";
       if (upstream.toolStatus) return upstream.toolStatus;
+      if (vcpDisplay.value?.closed) {
+        const statuses = [
+          ...vcpDisplay.value.results.map((result) => result.statusKind),
+          ...vcpDisplay.value.summaryItems.map((item) => item.status),
+        ];
+        if (statuses.includes("error")) return "error";
+        if (statuses.length && statuses.every((status) => status === "success"))
+          return "success";
+      }
       return props.message.status === "complete" ? "completed" : "executing";
     }
     return "pending";
@@ -399,6 +429,22 @@ const mainStatus = computed(() => {
 });
 
 const statusClass = computed(() => `status-${mainStatus.value}`);
+const vcpStatusLabel = computed(() => {
+  if (mainStatus.value === "completed" && !vcpDisplay.value?.closed)
+    return "未完成";
+  switch (mainStatus.value) {
+    case "success":
+      return "成功";
+    case "error":
+      return "失败";
+    case "executing":
+      return "进行中";
+    case "cancelled":
+      return "已取消";
+    default:
+      return "已返回";
+  }
+});
 
 // ----- 放行源徽标（§3.2，旁路审计映射 + executor rule 旁路） -----
 // action 语义统一由 describeArbitration 判定，禁止在此把 escalate 当作
@@ -494,12 +540,21 @@ const resultIsStreaming = computed(
 );
 const {
   content: displayContent,
-  preview: resultPreview,
+  preview: rawResultPreview,
   current: getDisplayContent,
 } = useToolResultDisplay({
   source: () => props.message.content,
   expanded: () => !isCollapsed.value && !isEditing.value,
   streaming: () => resultIsStreaming.value,
+});
+const resultPreview = computed(() => {
+  const display = vcpDisplay.value;
+  if (!display) return rawResultPreview.value;
+  const values = [
+    ...display.results.map((result) => result.resultContent ?? ""),
+    ...display.summaryItems.map((item) => item.label),
+  ];
+  return previewToolResult(values.length ? values.join("；") : display.content);
 });
 
 const activeRules = computed(() => {
@@ -759,7 +814,9 @@ defineExpose({
     :data-message-status="message.status"
     data-testid="chat-tool-call"
     :data-tool-status="mainStatus"
-    :data-tool-name="toolCalls.length === 1 ? toolCalls[0].toolName : undefined"
+    :data-tool-name="
+      displayToolNames.length === 1 ? displayToolNames[0] : undefined
+    "
   >
     <!-- 背景层 -->
     <div class="message-background-container">
@@ -820,11 +877,17 @@ defineExpose({
             <Terminal :size="12" />
             工具
           </span>
-          <span v-if="toolCalls.length === 1" class="tool-name">{{
-            toolCalls[0].toolName
+          <span v-if="displayToolNames.length === 1" class="tool-name">{{
+            displayToolNames[0]
           }}</span>
-          <span v-else-if="toolCalls.length > 1" class="tool-name"
-            >调用了 {{ toolCalls.length }} 个工具</span
+          <span v-else-if="displayToolNames.length > 1" class="tool-name"
+            >调用了 {{ displayToolNames.length }} 个工具</span
+          >
+          <span
+            v-if="vcpDisplay"
+            class="status-indicator"
+            :class="statusClass"
+            >{{ vcpStatusLabel }}</span
           >
           <span
             v-if="toolCalls.length === 1 && !message.metadata?.vcpResponse"
@@ -909,7 +972,10 @@ defineExpose({
           :class="{ 'is-wide-layout': isWideLayout }"
         >
           <!-- 多工具列表 -->
-          <div v-if="toolCalls.length > 1" class="tool-calls-list">
+          <div
+            v-if="!vcpDisplay && toolCalls.length > 1"
+            class="tool-calls-list"
+          >
             <div
               v-for="tc in toolCalls"
               :key="tc.requestId"
@@ -979,7 +1045,9 @@ defineExpose({
 
           <!-- 单工具参数预览 (始终在顶部) -->
           <div
-            v-else-if="toolCalls.length === 1 && toolCalls[0].rawArgs"
+            v-else-if="
+              !vcpDisplay && toolCalls.length === 1 && toolCalls[0].rawArgs
+            "
             class="tool-args-preview"
             :class="{ 'is-collapsed': isArgsCollapsed(toolCalls[0].requestId) }"
           >
@@ -1117,7 +1185,7 @@ defineExpose({
                   <div class="result-label">执行结果</div>
                   <div class="result-header-actions">
                     <div
-                      v-if="toolCalls.length === 1"
+                      v-if="toolCalls.length === 1 && !vcpDisplay"
                       class="status-indicator"
                       :class="`status-${toolCalls[0].status}`"
                     >
@@ -1136,8 +1204,67 @@ defineExpose({
                     </button>
                   </div>
                 </div>
+                <div v-if="vcpDisplay" class="vcp-result-list">
+                  <div
+                    v-for="(result, index) in vcpDisplay.results"
+                    :key="index"
+                    class="vcp-result-entry"
+                  >
+                    <div v-if="displayToolNames.length > 1" class="item-header">
+                      <span class="item-name">{{ result.tool_name }}</span>
+                      <span
+                        class="status-indicator"
+                        :class="`status-${result.statusKind}`"
+                        >{{ result.statusLabel }}</span
+                      >
+                    </div>
+                    <CodeMirrorSourceViewer
+                      v-if="(result.resultContent?.length ?? 0) > 100000"
+                      class="tool-result-source"
+                      :content="result.resultContent ?? ''"
+                      :is-expanded="false"
+                      :code-font-size="12"
+                      :word-wrap-enabled="true"
+                      :closed="vcpDisplay.closed"
+                    />
+                    <pre v-else class="tool-result-text">{{
+                      result.resultContent
+                    }}</pre>
+                  </div>
+                  <div
+                    v-for="(item, index) in vcpDisplay.summaryItems"
+                    :key="`summary:${index}`"
+                    class="item-header"
+                  >
+                    <span class="item-name">{{ item.toolName }}</span>
+                    <span
+                      class="status-indicator"
+                      :class="`status-${item.status}`"
+                      >{{ item.statusLabel }}</span
+                    >
+                  </div>
+                  <template
+                    v-if="
+                      !vcpDisplay.results.length &&
+                      !vcpDisplay.summaryItems.length
+                    "
+                  >
+                    <CodeMirrorSourceViewer
+                      v-if="vcpDisplay.content.length > 100000"
+                      class="tool-result-source"
+                      :content="vcpDisplay.content"
+                      :is-expanded="false"
+                      :code-font-size="12"
+                      :word-wrap-enabled="true"
+                      :closed="vcpDisplay.closed"
+                    />
+                    <pre v-else class="tool-result-text">{{
+                      vcpDisplay.content
+                    }}</pre>
+                  </template>
+                </div>
                 <CodeMirrorSourceViewer
-                  v-if="displayContent.length > 100000"
+                  v-else-if="displayContent.length > 100000"
                   class="tool-result-source"
                   :content="displayContent"
                   :is-expanded="false"
@@ -1198,11 +1325,13 @@ defineExpose({
         @click="toggleCollapse"
       >
         <div class="preview-content">
-          <span class="preview-tool-name" v-if="toolCalls.length === 1"
-            >[{{ toolCalls[0].toolName }}]</span
+          <span class="preview-tool-name" v-if="displayToolNames.length === 1"
+            >[{{ displayToolNames[0] }}]</span
           >
-          <span class="preview-tool-name" v-else-if="toolCalls.length > 1"
-            >[{{ toolCalls.length }} 个工具]</span
+          <span
+            class="preview-tool-name"
+            v-else-if="displayToolNames.length > 1"
+            >[{{ displayToolNames.length }} 个工具]</span
           >
           <span class="preview-tool-name" v-else>{{
             message.metadata?.vcpResponse ? "[上游工具]" : "[未知工具]"
@@ -1212,7 +1341,7 @@ defineExpose({
           </span>
         </div>
         <div
-          v-if="toolCalls.length > 0"
+          v-if="toolCalls.length > 0 && !vcpDisplay"
           class="preview-status-tag"
           :class="statusClass"
         >
@@ -1944,6 +2073,13 @@ defineExpose({
 .status-indicator.status-error {
   background: color-mix(in srgb, var(--el-color-danger) 15%, transparent);
   color: var(--el-color-danger);
+}
+
+.vcp-result-list,
+.vcp-result-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* 纯文本结果展示 */

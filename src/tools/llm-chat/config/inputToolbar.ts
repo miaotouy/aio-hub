@@ -7,6 +7,7 @@ import type {
 
 export const INPUT_TOOLBAR_ACTION_IDS: InputToolbarActionId[] = [
   "attachment",
+  "text-attachment",
   "temporary-model",
   "knowledge",
   "macro",

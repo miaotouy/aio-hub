@@ -98,6 +98,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
+  (e: "new-text-attachment"): void;
   (e: "toggle-streaming"): void;
   (e: "toggle-expand"): void;
   (e: "unlock-input-height"): void;
@@ -364,6 +365,9 @@ async function executeAction(action: ToolbarAction, anchor?: HTMLElement) {
         break;
       case "expand":
         emit("toggle-expand");
+        break;
+      case "text-attachment":
+        emit("new-text-attachment");
         break;
       case "attachment":
         await triggerAttachment?.();

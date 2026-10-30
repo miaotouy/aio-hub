@@ -4,6 +4,7 @@ export type InputToolbarActionId =
   | "streaming"
   | "macro"
   | "attachment"
+  | "text-attachment"
   | "knowledge"
   | "sessions"
   | "new-session"

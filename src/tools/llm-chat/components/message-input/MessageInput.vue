@@ -189,6 +189,9 @@ let inputUnmounted = false;
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
 const inputText = inputManager.inputText;
+const textAttachmentsRef = ref<InstanceType<
+  typeof VirtualTextAttachments
+> | null>(null);
 let textEditorSessionId: string | null = null;
 async function retryDraftSave() {
   try {
@@ -692,6 +695,7 @@ const handleDragStart = (e: MouseEvent) => {
             />
           </div>
           <VirtualTextAttachments
+            ref="textAttachmentsRef"
             :attachments="inputManager.virtualAttachments.value"
             draft
             :busy="disabled"
@@ -758,6 +762,7 @@ const handleDragStart = (e: MouseEvent) => {
             :translation-enabled="settings.translation.enabled"
             :is-compressing="inputStore.isCompressing"
             :is-input-height-locked="isCustomHeightLocked"
+            @new-text-attachment="textAttachmentsRef?.openNew()"
             @toggle-streaming="toggleStreaming"
             @toggle-expand="toggleExpand"
             @unlock-input-height="resetCustomHeight"

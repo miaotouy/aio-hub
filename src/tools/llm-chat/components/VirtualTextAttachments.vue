@@ -4,7 +4,6 @@ import { ElButton, ElInput, ElMessageBox } from "element-plus";
 import {
   FileText,
   X,
-  Plus,
   Copy,
   Download,
   Pencil,
@@ -154,23 +153,10 @@ defineExpose({ openNew: () => open() });
 
 <template>
   <section
-    v-if="attachments.length || draft"
+    v-if="attachments.length"
     class="text-attachments"
     aria-label="文本附件"
   >
-    <div v-if="draft" class="text-attachments-heading">
-      <button
-        type="button"
-        class="text-action"
-        :disabled="busy"
-        @click="open()"
-      >
-        <Plus :size="13" />新建文本附件
-      </button>
-      <span v-if="attachments.length" class="text-muted"
-        >{{ attachments.length }} 份材料</span
-      >
-    </div>
     <div class="text-attachment-list">
       <div
         v-for="item in summaries"
@@ -299,7 +285,6 @@ defineExpose({ openNew: () => open() });
 .text-attachments {
   min-width: 0;
 }
-.text-attachments-heading,
 .text-editor-actions,
 .text-editor-tools,
 .text-editor-footer {
@@ -307,25 +292,6 @@ defineExpose({ openNew: () => open() });
   align-items: center;
   gap: 8px;
 }
-.text-attachments-heading {
-  justify-content: space-between;
-  padding: 2px 0 6px;
-}
-.text-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 3px 0;
-}
-.text-action:hover {
-  color: var(--el-color-primary);
-}
-.text-action:disabled,
 .text-remove:disabled {
   opacity: 0.5;
   cursor: default;

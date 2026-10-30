@@ -2,6 +2,7 @@
 import type { Component } from "vue";
 import {
   Paperclip,
+  FilePlus2,
   AtSign,
   BookOpenCheck,
   WandSparkles,
@@ -44,6 +45,12 @@ export interface ToolbarAction extends ToolbarActionDefinition {
 }
 export const INPUT_TOOLBAR_ACTIONS: ToolbarActionDefinition[] = [
   { id: "attachment", label: "添加附件", icon: Paperclip, group: "聊天与资料" },
+  {
+    id: "text-attachment",
+    label: "新建文本附件",
+    icon: FilePlus2,
+    group: "聊天与资料",
+  },
   {
     id: "temporary-model",
     label: "临时指定模型",
@@ -187,6 +194,9 @@ export function resolveInputToolbarActions(
           : undefined,
     };
     switch (action.id) {
+      case "text-attachment":
+        action.disabled = state.disabled;
+        break;
       case "knowledge":
         action.disabled = state.disabled || !state.hasAgent;
         action.active ||= state.knowledgeCount > 0;

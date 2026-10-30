@@ -1342,7 +1342,7 @@ class ChatInputManager {
     // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
     // 1. 识别所有可能的路径起始位置 (file:// 协议或 Windows 盘符)
     const anchors: { index: number; prefix: string }[] = [];
-    const anchorRegex = /file:\/\/\/?|[a-zA-Z]:[\\\/]/g;
+    const anchorRegex = /file:\/\/\/?(?:[a-zA-Z]:[\\\/])?|[a-zA-Z]:[\\\/]/gi;
     let anchorMatch;
     while ((anchorMatch = anchorRegex.exec(text)) !== null) {
       anchors.push({ index: anchorMatch.index, prefix: anchorMatch[0] });
@@ -1363,6 +1363,12 @@ class ChatInputManager {
       // 关键：绝对不跨行匹配，截断到第一个换行符
       const lineEnd = subText.search(/\r?\n/);
       if (lineEnd !== -1) subText = subText.substring(0, lineEnd);
+
+      // 单引号可用于包裹 HTML 属性，也可合法出现在路径名中。
+      if (text[start - 1] === "'") {
+        const quoteEnd = subText.indexOf("'");
+        if (quoteEnd !== -1) subText = subText.substring(0, quoteEnd);
+      }
 
       // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
       // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
@@ -1388,8 +1394,8 @@ class ChatInputManager {
       try {
         logger.info("[convertPaths] 处理路径", { rawPath });
         let cleanPath = rawPath;
-        if (cleanPath.startsWith("file://")) {
-          cleanPath = cleanPath.replace(/^file:\/\/\/?/, "");
+        if (/^file:\/\//i.test(cleanPath)) {
+          cleanPath = cleanPath.replace(/^file:\/\/\/?/i, "");
           if (cleanPath.startsWith("/") && cleanPath.charAt(2) === ":") {
             cleanPath = cleanPath.substring(1);
           }

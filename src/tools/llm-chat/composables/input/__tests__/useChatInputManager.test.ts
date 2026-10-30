@@ -199,6 +199,67 @@ describe("useChatInputManager session drafts", () => {
     ).toEqual(["asset-move"]);
   });
 
+  // 保护完整 file URL 的替换边界与失败重试行为；只断言输入、附件与转换结果。
+  it.each([
+    [
+      "file://G:\\work\\Tencent Files\\image.png",
+      '"',
+      "G:\\work\\Tencent Files\\image.png",
+    ],
+    [
+      "file:///G:/work/Tencent Files/image.png",
+      "'",
+      "G:\\work\\Tencent Files\\image.png",
+    ],
+    [
+      "FILE://G:\\work\\Tencent Files\\image.png",
+      '"',
+      "G:\\work\\Tencent Files\\image.png",
+    ],
+    [
+      "file://G:\\work\\O'Brien\\image.png",
+      '"',
+      "G:\\work\\O'Brien\\image.png",
+    ],
+  ])("converts the complete QQ image URL %s", async (url, quote, path) => {
+    const manager = useChatInputManager();
+    const asset = {
+      ...createAsset("qq-image"),
+      name: "image.png",
+      path,
+    };
+    addAttachmentsMock.mockImplementation(async () => {
+      attachments.value.push(asset);
+    });
+    manager.setContent(`QQ 消息\n<img src=${quote}${url}${quote} />\n后续消息`);
+
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 1,
+      failedCount: 0,
+      totalCount: 1,
+    });
+    expect(addAttachmentsMock).toHaveBeenCalledExactlyOnceWith([asset.path], {
+      notify: false,
+    });
+    expect(manager.inputText.value).toBe(
+      `QQ 消息\n<img src=${quote}【file::qq-image】${quote} />\n后续消息`
+    );
+  });
+
+  it("retains the complete file URL when an attachment import fails", async () => {
+    const manager = useChatInputManager();
+    const text = '<img src="file://G:\\work\\missing.png" />';
+    manager.setContent(text);
+    addAttachmentsMock.mockResolvedValue(undefined);
+
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 0,
+      failedCount: 1,
+      totalCount: 1,
+    });
+    expect(manager.inputText.value).toBe(text);
+  });
+
   it("converts paths without per-file attachment notifications", async () => {
     const manager = useChatInputManager();
     addAttachmentsMock.mockImplementation(async ([path]: string[]) => {

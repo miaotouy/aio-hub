@@ -9,25 +9,30 @@ const bus = vi.hoisted(() => ({
     symbol,
     { event: string; callback: (event: any) => void }
   >(),
+  deferredEvent: null as string | null,
+  pending: [] as { resolve: () => void; reject: (error: Error) => void }[],
+  async subscribe(event: string, callback: (event: any) => void) {
+    if (this.deferredEvent === event) {
+      this.deferredEvent = null;
+      await new Promise<void>((resolve, reject) => {
+        this.pending.push({ resolve, reject });
+      });
+    }
+    const id = Symbol(event);
+    this.subscriptions.set(id, { event, callback });
+    return () => {
+      this.subscriptions.delete(id);
+    };
+  },
 }));
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(async (event: string, callback: (event: any) => void) => {
-    const id = Symbol(event);
-    bus.subscriptions.set(id, { event, callback });
-    return () => {
-      bus.subscriptions.delete(id);
-    };
-  }),
+  listen: (event: string, callback: (event: any) => void) =>
+    bus.subscribe(event, callback),
 }));
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
-    onDragDropEvent: async (callback: (event: any) => void) => {
-      const id = Symbol("webview");
-      bus.subscriptions.set(id, { event: "webview", callback });
-      return () => {
-        bus.subscriptions.delete(id);
-      };
-    },
+    onDragDropEvent: (callback: (event: any) => void) =>
+      bus.subscribe("webview", callback),
   }),
 }));
 vi.mock("@/utils/customMessage", () => ({
@@ -42,11 +47,27 @@ const wrappers: VueWrapper[] = [];
 afterEach(() => {
   for (const wrapper of wrappers.splice(0)) wrapper.unmount();
   bus.subscriptions.clear();
+  bus.deferredEvent = null;
+  bus.pending.length = 0;
 });
 function emit(event: string) {
   for (const subscription of bus.subscriptions.values()) {
     if (subscription.event === event) subscription.callback({ payload: {} });
   }
+}
+function selectorDrop(onDragLeave = vi.fn()) {
+  let drop!: ReturnType<typeof useFileDrop>;
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        drop = useFileDrop({ element: "#drop", onDragLeave });
+        return () => h("div", { id: "drop" });
+      },
+    }),
+    { attachTo: document.body }
+  );
+  wrappers.push(wrapper);
+  return { wrapper, drop, onDragLeave };
 }
 
 describe("useFileDrop listener lifecycle", () => {
@@ -91,6 +112,56 @@ describe("useFileDrop listener lifecycle", () => {
     expect(onDragEnter).not.toHaveBeenCalled();
     await wrapper.trigger("dragenter");
     expect(onDragEnter).toHaveBeenCalledOnce();
+    emit("custom-drag-leave");
+    expect(onDragLeave).toHaveBeenCalledOnce();
+    wrapper.unmount();
+    expect(bus.subscriptions.size).toBe(0);
+  });
+
+  // 覆盖首个自定义订阅和最后的 WebView 订阅这两类异步入口。
+  it.each(["custom-drag-enter", "webview"])(
+    "releases a late %s registration after unmount",
+    async (event) => {
+      bus.deferredEvent = event;
+      const { wrapper, drop } = selectorDrop();
+      await flushPromises();
+      expect(bus.pending).toHaveLength(1);
+      wrapper.unmount();
+      bus.pending.shift()!.resolve();
+      await flushPromises();
+      expect(bus.subscriptions.size).toBe(0);
+      await drop.reinitialize();
+      expect(bus.subscriptions.size).toBe(0);
+    }
+  );
+
+  it("keeps the new batch live when an older initialization completes late", async () => {
+    bus.deferredEvent = "custom-drag-enter";
+    const { wrapper, drop, onDragLeave } = selectorDrop();
+    await flushPromises();
+    expect(bus.pending).toHaveLength(1);
+    await drop.reinitialize();
+    bus.pending.shift()!.resolve();
+    await flushPromises();
+    emit("custom-drag-leave");
+    expect(onDragLeave).toHaveBeenCalledOnce();
+    wrapper.unmount();
+    expect(bus.subscriptions.size).toBe(0);
+  });
+
+  it("releases a partially registered batch on failure and can initialize again", async () => {
+    bus.deferredEvent = "custom-drag-over";
+    const { wrapper, drop, onDragLeave } = selectorDrop();
+    await flushPromises();
+    expect(bus.pending).toHaveLength(1);
+    expect(bus.subscriptions.size).toBeGreaterThan(0);
+    bus.pending.shift()!.reject(new Error("subscription failed"));
+    await flushPromises();
+    expect(bus.subscriptions.size).toBe(0);
+    await wrapper.trigger("dragenter");
+    expect(drop.isDraggingOver.value).toBe(true);
+    await drop.reinitialize();
+    onDragLeave.mockClear();
     emit("custom-drag-leave");
     expect(onDragLeave).toHaveBeenCalledOnce();
     wrapper.unmount();

@@ -394,7 +394,12 @@ const handleCancel = () => {
                 label="资源清单"
                 :span="3"
               >
-                <div class="asset-list">
+                <div
+                  class="asset-list"
+                  tabindex="0"
+                  role="region"
+                  aria-label="资源清单"
+                >
                   <ElTag
                     v-for="assetPath in getAssetPaths(agent)"
                     :key="assetPath"
@@ -639,10 +644,15 @@ const handleCancel = () => {
 .asset-list {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 6px;
+  max-height: min(200px, 25vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .asset-list :deep(.el-tag) {
+  flex-shrink: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;

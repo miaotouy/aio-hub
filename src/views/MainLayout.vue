@@ -24,6 +24,7 @@ import { Loading } from "@element-plus/icons-vue";
 import { createModuleLogger } from "@/utils/logger";
 import TitleBar from "@/components/TitleBar.vue";
 import MainSidebar from "@/components/MainSidebar.vue";
+import WorkspaceRouteCache from "@/components/WorkspaceRouteCache.vue";
 import LlmDeepLinkConfirmDialog from "./Settings/llm-service/components/LlmDeepLinkConfirmDialog.vue";
 import { useDetachedManager } from "@/composables/useDetachedManager";
 import { useToolsStore } from "@/stores/tools";
@@ -210,22 +211,21 @@ onUnmounted(() => {
 
       <el-container class="workspace-container">
         <el-main class="main-content">
-          <router-view v-slot="{ Component }">
-            <keep-alive :exclude="['Settings']">
-              <Suspense>
-                <template #default>
-                  <component :is="Component" />
-                </template>
-                <template #fallback>
-                  <div class="loading-container">
-                    <el-icon class="is-loading" :size="32">
-                      <Loading />
-                    </el-icon>
-                    <p>加载中...</p>
-                  </div>
-                </template>
-              </Suspense>
-            </keep-alive>
+          <router-view v-slot="{ Component, route: pageRoute }">
+            <WorkspaceRouteCache
+              :component="Component"
+              :cache-key="pageRoute.path"
+              :cached-keys="['/', '/extensions', ...toolsStore.openedToolPaths]"
+            >
+              <template #fallback>
+                <div class="loading-container">
+                  <el-icon class="is-loading" :size="32">
+                    <Loading />
+                  </el-icon>
+                  <p>加载中...</p>
+                </div>
+              </template>
+            </WorkspaceRouteCache>
           </router-view>
         </el-main>
       </el-container>

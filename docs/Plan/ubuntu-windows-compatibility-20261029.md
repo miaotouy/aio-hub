@@ -91,7 +91,7 @@ Debian 配置补齐 GStreamer base / good / bad / libav 依赖，AppImage 开启
 - 页面刷新清理所属窗口租约；缩略图生成前后的已打开文件句柄数量相同。
 - 首轮使用用户缓存解析插件；最终 `ubuntu-media` 实例清除该环境注入后，同一批视频与音频实机项目仍通过，说明本机已有解码组合足以处理这些 MP4 / WAV。GStreamer 仍记录缺少 h264parse 的编码器注册警告，新增系统依赖用于覆盖后续格式与部署环境；未执行 sudo 安装。
 - VM 检查需把 `$HOME/.local/bin` 放入 PATH。本机 Node 位于该处；缺失 Node 时 Bun 回退执行 vue-tsc 曾出现多个 Vue 命名类型导出的误报，使用已配置的 Node 22 后类型检查通过。
-- 关闭工具标签后，MainLayout 的 KeepAlive 仍保留工具组件及其媒体资源；该问题在原有缓存策略中存在。后续需统一处理关闭标签时的组件回收，当前源切换、真正卸载与文档刷新路径已覆盖。
+- 关闭工具标签的缓存回收问题已于 2026-10-30 接入按路径管理的独立缓存边界，普通切换保留工作区、关闭后卸载。前后对照与验证见[工作区生命周期补查](./ubuntu-workspace-lifecycle-20261030.md)。
 
 本轮临时实验、截图和日志位于 `.tmp/ubuntu-modules/media-*`。
 

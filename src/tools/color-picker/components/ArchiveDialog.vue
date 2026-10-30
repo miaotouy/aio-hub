@@ -109,7 +109,7 @@
               {{
                 archiveMode === "copy"
                   ? "复制：在目标目录下按选定的分类结构创建文件夹，并将原图复制过去（占用额外磁盘空间）。"
-                  : "链接：在目标目录下创建指向原图的符号链接（不占用额外空间，但需要管理员权限）。"
+                  : "链接：在目标目录下创建指向原图的符号链接，节省磁盘空间。目标目录需可写，文件系统需支持符号链接；Windows 可在系统设置中启用开发者模式。"
               }}
             </div>
           </div>
@@ -157,14 +157,14 @@
             <div v-else class="preflight-message" :class="preflightStatus">
               <el-icon><Key /></el-icon>
               <span class="preflight-text">
-                系统权限：<strong>{{
+                目标目录链接能力：<strong>{{
                   preflight.symlinkAllowed ? "正常" : "受限"
                 }}</strong>
                 <span class="status-text"
                   >({{
                     preflight.symlinkAllowed
                       ? "允许创建符号链接"
-                      : "需要管理员权限运行应用"
+                      : "请检查目标目录写入权限和文件系统支持；Windows 可在系统设置中启用开发者模式"
                   }})</span
                 >
               </span>

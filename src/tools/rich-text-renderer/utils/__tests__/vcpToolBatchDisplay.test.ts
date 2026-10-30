@@ -104,6 +104,36 @@ describe("split VCP tool message projection", () => {
     }
   );
 
+  // A complete tool payload must become inspectable before the next assistant starts.
+  it.each(["legacy", "summary", "batch"])(
+    "projects closed %s payloads while transport is streaming",
+    (kind) => {
+      const body =
+        kind === "summary"
+          ? summary("Read 调用成功。")
+          : result("Read", "SUCCESS", "done");
+      const stamp = "2026-10-30T11:16:59.391+08:00";
+      const raw =
+        kind === "batch"
+          ? `<<<[VCP_TOOL_BATCH_START:${stamp}]>>>\n${body}\n<<<[VCP_TOOL_BATCH_END:${stamp}]>>>`
+          : body;
+      const display = parseVcpToolMessageDisplay(raw, false);
+      expect(display.closed).toBe(true);
+      if (kind === "summary")
+        expect(display.summaryItems).toMatchObject([
+          { toolName: "Read", status: "success" },
+        ]);
+      else
+        expect(display.results).toMatchObject([
+          { tool_name: "Read", statusKind: "success", resultContent: "done" },
+        ]);
+      const partial = parseVcpToolMessageDisplay(raw.slice(0, -1), false);
+      expect(partial.closed).toBe(false);
+      expect(partial.results).toEqual([]);
+      expect(partial.summaryItems).toEqual([]);
+    }
+  );
+
   it("keeps partial and arbitrary batches literal, including quoted protocol and HTML", () => {
     const stamp = "2026-10-30T11:16:59.391+08:00";
     const body = "<script>quoted()</script>\n<<<[TOOL_REQUEST]>>>\ntext";
@@ -118,7 +148,10 @@ describe("split VCP tool message projection", () => {
       parseVcpToolMessageDisplay(`${start}\n${body}\n${end}`)
     ).toMatchObject({ results: [], content: body, closed: true });
     expect(
-      parseVcpToolMessageDisplay(result("Read", "SUCCESS", "done"), false)
+      parseVcpToolMessageDisplay(
+        `${start}\n${result("Read", "SUCCESS", "done")}`,
+        false
+      )
     ).toMatchObject({ results: [], closed: false });
   });
 });

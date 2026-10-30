@@ -69,23 +69,35 @@ export function parseVcpToolBatchDisplay(content: string):
 export function parseVcpToolMessageDisplay(content: string, complete = true) {
   let body = content.trim();
   let closed = complete;
+  let roleClosed = true;
   const open = "<<<[ROLE_DIVIDE_USER]>>>";
   const end = "<<<[END_ROLE_DIVIDE_USER]>>>";
   if (body.startsWith(open)) {
     const endIndex = findVcpRoleEnd(body, end, open.length);
     if (endIndex >= 0 && endIndex === body.length - end.length) {
       body = body.slice(open.length, endIndex).trim();
+      closed = true;
     } else if (endIndex < 0) {
       body = body.slice(open.length).trim();
+      roleClosed = false;
       closed = false;
     }
   }
-  const batch = findVcpToolBatch(body);
-  if (batch?.start === 0 && batch.end === body.length) {
-    closed &&= batch.closed;
+  const candidate = findVcpToolBatch(body);
+  const batch =
+    candidate?.start === 0 && candidate.end === body.length
+      ? candidate
+      : undefined;
+  if (batch) {
+    closed = roleClosed && batch.closed;
     body = body.slice(batch.contentStart, batch.contentEnd).trim();
   }
-  const display = closed ? parseVcpToolBatchDisplay(body) : undefined;
+  const display =
+    roleClosed && (!batch || batch.closed)
+      ? parseVcpToolBatchDisplay(body)
+      : undefined;
+  // Legacy result/summary terminators close their payload before the next role arrives.
+  if (!batch && display) closed = true;
   return {
     results: (display?.results ?? []).map((result) => {
       const statusKind = normalizeToolStatus(result.status ?? "");

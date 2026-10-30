@@ -169,15 +169,16 @@ fn main() {
                             "\x1b[1;33m[WebKit 警告]\x1b[0m 运行 --diagnose 获取详细诊断信息"
                         );
                         // 保守设置环境变量
-                        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-                        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+                        linux::apply_compatibility_defaults(&[
+                            "WEBKIT_DISABLE_DMABUF_RENDERER",
+                            "WEBKIT_DISABLE_COMPOSITING_MODE",
+                        ]);
                     }
                     linux::WebKitError::VersionQueryFailed(_) => {
-                        // 无法确定版本，保守处理
+                        // 版本未知时保留 WebKit 的能力探测，避免误禁用新渲染路径
                         eprintln!(
-                            "\x1b[1;33m[WebKit 警告]\x1b[0m 无法确定 WebKitGTK 版本，使用保守配置"
+                            "\x1b[1;33m[WebKit 警告]\x1b[0m 无法确定 WebKitGTK 版本，使用 WebKit 默认渲染配置"
                         );
-                        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
                     }
                 }
             }

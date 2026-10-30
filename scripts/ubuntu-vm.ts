@@ -57,7 +57,7 @@ async function main() {
   const [command, ...args] = process.argv.slice(2).filter((v) => v !== "--");
   if (!command || command === "--help")
     return {
-      help: "bun run dev:vm -- <doctor|sync|start|status|stop|control|vm-start> [...args]；start/status/stop 接受 --instance；control 接 Dev Control 操作。",
+      help: "bun run dev:vm -- <doctor|sync|start|status|stop|control|input|vm-start> [...args]；start/status/stop 接受 --instance；control 接 Dev Control 操作。",
     };
   if (!/^[a-zA-Z0-9_.-]+$/.test(host) || host.startsWith("-"))
     throw new ControlError("INVALID_REQUEST", "SSH 别名无效。");
@@ -113,6 +113,32 @@ async function main() {
       'printf "Repository: "; pwd; git status --short --branch; for tool in bun node cargo rustc; do command -v "$tool" >/dev/null && "$tool" --version || true; done; pkg-config --modversion gtk+-3.0 webkit2gtk-4.1 2>/dev/null || true; test -d /run/user/$(id -u) && echo "Desktop runtime directory present"';
     await run(["ssh", "-o", "BatchMode=yes", host, script], false);
     return { ok: true };
+  }
+  if (command === "input") {
+    if (args.length !== 1 || args[0] !== "--stdin")
+      throw new ControlError(
+        "INVALID_REQUEST",
+        "input 使用 --stdin 接收客体桌面输入批次。"
+      );
+    const input = await Bun.stdin.text();
+    if (Buffer.byteLength(input) > 65_536)
+      throw new ControlError(
+        "INVALID_REQUEST",
+        "客体桌面输入 JSON 超过 64 KiB。"
+      );
+    return JSON.parse(
+      await run(
+        [
+          "ssh",
+          "-o",
+          "BatchMode=yes",
+          host,
+          prefix + "python3 scripts/dev-control/mutter-input.py --stdin",
+        ],
+        true,
+        input
+      )
+    );
   }
   if (!["start", "status", "stop", "control"].includes(command))
     throw new ControlError("INVALID_REQUEST", "未知虚拟机命令。");

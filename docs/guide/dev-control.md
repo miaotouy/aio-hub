@@ -75,6 +75,10 @@ bun run rich-text:embedded:tauri -- --instance ubuntu-probe --out-dir .tmp/embed
 - role / label 定位、双击、修饰键和 press 暂时返回 `UNSUPPORTED_CAPABILITY`。通过 `state capabilities` 查看当前能力；需要系统指针、原生对话框或用户激活语义时另选原生验证路径。
 - 原生 WebKit 截图先在内存中遮罩密码框、`[data-dev-sensitive]` 和显式 mask，再裁切并写盘；敏感区域或视口在截图期间变化时中止保存。
 
+### GNOME 客体原生输入
+
+Ubuntu GNOME 的右键菜单、真实鼠标事件、拖动和播放器手势，可通过 `bun run dev:vm -- input --stdin` 直接调用客体 Mutter。该入口经 SSH 连接当前用户的桌面会话，支持客体截图，宿主机鼠标保持自由。常规定位与读取状态继续使用 Dev Control；操作方法与坐标边界见 [客体鼠标与键盘](./ubuntu-vm-compatibility.md#客体鼠标与键盘)。
+
 ## 场景准备与首次使用
 
 隔离实例使用独立数据，模型渠道、智能体和会话都需按场景准备。聊天页在打开时直接展示工作区；发送消息缺少可用模型时才打开模型选择器。验证搜索、排序、滚动等布局行为时，通过应用现有 store、service 或开发适配器载入样例，再在实际页面操作。

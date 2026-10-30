@@ -125,3 +125,68 @@ try {
 ```bash
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
 ```
+
+## 客体鼠标与键盘
+
+GNOME/Wayland 下，通过 SSH 调用当前用户的 Mutter RemoteDesktop 与 ScreenCast 接口，可向虚拟机桌面发送真实鼠标、键盘事件。输入位于客体合成器，宿主机鼠标保持自由。实现为 `scripts/dev-control/mutter-input.py`，正式入口：
+
+```powershell
+# 查询当前客体显示器及坐标范围
+'{"actions":[]}' | bun run dev:vm -- input --stdin
+
+# 在客体显示器坐标 (176, 228) 右键，随后按 Escape
+'{"actions":[{"op":"click","x":176,"y":228,"button":"right"},{"op":"key","key":"Escape"}]}' |
+  bun run dev:vm -- input --stdin
+```
+
+默认选择主显示器；多显示器可传 `"monitor":"Virtual-1"`，名称与尺寸以返回信息为准。坐标相对所选显示器，先观察客体截图再操作。窗口缩放、移动后重新观察；Wayland 的窗口位置 API 可能返回 `(0,0)`，本机已遇到该情况。Dev Control 返回的 DOM 坐标需结合实际窗口在客体屏幕中的位置换算。
+
+支持的操作：
+
+| 操作 | JSON 字段 |
+| --- | --- |
+| 移动 | `{"op":"move","x":100,"y":200}` |
+| 单击/右键/中键 | `{"op":"click","x":100,"y":200,"button":"left"}`，button 可用 `left/right/middle` |
+| 左键拖动 | `{"op":"drag","x":100,"y":200,"toX":300,"toY":250}` |
+| 滚轮 | `{"op":"scroll","dx":0,"dy":200}`，在当前客体指针位置滚动 |
+| 按键 | `{"op":"key","key":"Escape"}`，可用 Escape、Return、Tab、space、四方向键 |
+
+批次最多 64 步，输入 JSON 上限 64 KiB。所有动作先完成参数与显示器边界检查，之后才发送输入；同一桌面上的批次串行执行。异常时释放已按下的按钮/按键并停止临时会话。失败输出的 `error.details.completed` 记录已经完成的动作数，重试前核对客体状态。
+
+### 客体桌面截图
+
+向批次添加 `screenshot`，会在操作后通过 PipeWire/GStreamer 保存整个所选显示器的 PNG：
+
+```powershell
+'{"actions":[],"screenshot":"/home/mty/aio-hub-Ubuntu/.tmp/ubuntu-crash/guest-desktop.png"}' |
+  bun run dev:vm -- input --stdin
+scp ubuntu-vm:/home/mty/aio-hub-Ubuntu/.tmp/ubuntu-crash/guest-desktop.png .tmp/ubuntu-crash/guest-desktop.png
+```
+
+目标为客体绝对路径，父目录需存在，每次使用新文件名。桌面截图包含所选显示器的其他窗口，保存在本机，使用测试桌面并检查内容后再对外分享。需要应用局部截图或脱敏时，沿用 Dev Control `observe/screenshot`。
+
+### 环境边界
+
+- SSH 用户需已登录 GNOME 桌面。本机 Ubuntu 24.04 的 Mutter 46 已通过实际输入验证；其他合成器和版本以运行结果为准。
+- Python 使用客体已有的 PyGObject/Gio；桌面截图另外使用 Gst、PipeWire source 和 PNG encoder。本轮验证使用已安装组件。
+- 接口连接当前用户的会话 D-Bus，批次结束即释放远程桌面/录屏会话。权限或能力失败时检查错误，保留现有系统权限与会话策略。
+- `xdotool` 面向 X11；本机测试包含原生 Wayland WebView，因此选用 Mutter 的客体输入。VMware VNC/RDP、`/dev/uinput` 和宿主机鼠标注入留作其他环境的独立方案。
+- 该命令控制整个客体桌面；与 Dev Control 的窗口定位分层使用。选择目标、聚焦目标窗口和观察结果由调用方负责。批次锁覆盖同一辅助器进程间的冲突，客体上的人工操作仍可能改变焦点。
+
+辅助器的参数契约测试在客体执行：
+
+```bash
+python3 scripts/dev-control/mutter-input.test.py
+```
+
+## WebKitGTK 2.52 渲染策略修复
+
+2026-10-30 在 WebKitGTK 2.52.6 上确认：应用先前自动设置 `WEBKIT_DISABLE_DMABUF_RENDERER=1`，会在含视频的右键菜单与页面切换场景触发加速合成空指针，主进程段错误。修复后，2.52 及以上使用 WebKit 自动渲染策略，较老版本保留原有兼容默认值；显式传入的渲染环境变量保持原值。
+
+如果启动脚本还传入旧渲染参数，先清除后作对照：
+
+```bash
+env -u WEBKIT_DISABLE_DMABUF_RENDERER -u WEBKIT_DISABLE_COMPOSITING_MODE ./aiohub
+```
+
+崩溃堆栈、客体原生输入前后对照、实际播放画面与验证范围见[崩溃专项](../Plan/ubuntu-webkit-crash-investigation-20261030.md)。

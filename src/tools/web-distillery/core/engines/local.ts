@@ -353,7 +353,7 @@ export async function extractLocalContent(
     contentLength: content.length,
   });
 
-  const url = `file://${fileName}`;
+  const url = `file:///${fileName.replace(/\\/g, "/")}`;
   const matchedRecipe = await recipeStore.findBestMatch(url, content);
   const result = await transformer.transform(
     content,

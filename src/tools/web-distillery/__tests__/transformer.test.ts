@@ -3,6 +3,8 @@ import Defuddle from "defuddle";
 import { Readability } from "@mozilla/readability";
 import MarkdownIt from "markdown-it";
 import { Transformer } from "../core/transformer";
+import { extractLocalContent } from "../core/engines/local";
+import { recipeStore } from "../core/recipe-store";
 import { Extractor } from "../core/stages/extractor";
 import { Converter } from "../core/stages/converter";
 import type { SiteRecipe } from "../types";
@@ -31,6 +33,27 @@ const recipe: SiteRecipe = {
 afterEach(() => vi.restoreAllMocks());
 
 describe("local document extraction", () => {
+  // 本地输入应以文件扩展名分流，Markdown/纯文本中的标记与换行须完整保留。
+  it.each([
+    [
+      "clipboard.md",
+      "# 标题\n\n含有 <示例>、**强调** 和 [链接](https://example.com)",
+      "markdown",
+    ],
+    ["clipboard.txt", "第一行\n第二行 <保留文本>\n第三行", "text"],
+  ])(
+    "preserves pasted local content from %s",
+    async (fileName, content, format) => {
+      vi.spyOn(recipeStore, "findBestMatch").mockResolvedValue(null);
+      const result = await extractLocalContent(content, fileName, {
+        format: format as "markdown" | "text",
+      });
+      expect(new URL(result.url).pathname).toBe(`/${fileName}`);
+      expect(result.content).toBe(content);
+      expect(result.format).toBe(format);
+    }
+  );
+
   it("preserves Office document sections, merged cells, footnotes and split title through Markdown rendering", async () => {
     const sections = ["一、人工智能", "二、生物医药", "三、光伏"];
     const html = `<html><head><title></title><meta name="generator" content="LibreOffice 7.6"></head><body>

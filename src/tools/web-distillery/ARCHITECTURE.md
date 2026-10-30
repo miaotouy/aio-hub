@@ -41,6 +41,12 @@
 - 未提供的参数继承全局偏好，显式 `false` 保持原义。快速 HTTP 在页面需要渲染时只回退到本地浏览器；`allowBrowserFallback: false` 可关闭该行为。云端服务由用户显式选择。
 - `FetchResult.quality` 为可空数值，云端缺少评分依据时使用 `null`，UI 隐去评分。交互式配方编辑继续作为独立工作区。
 
+### 本地内容与剪贴板文本
+
+蒸馏工作台工具栏提供「粘贴文本」，展开输入面板后可粘贴 HTML、Markdown 或纯文本，选择输入格式并执行处理。自动识别将 HTML 标签内容交给网页清洗流水线，其余内容按 Markdown 保留结构。文本处理与文件导入共享 `extractLocalContent()`，继承全局输出格式与清洗偏好，结果可预览、复制、导出和发送到聊天。当前工作台保留最近一次本地输入，以支持刷新重处理。
+
+本地来源使用 `file:///文件名`，保证文件名处于 URL 路径中，供转换器按扩展名识别 HTML、Markdown 与纯文本。
+
 ### DeepSeek Search / Fetch
 
 - API 适配位于 `src/llm-apis/adapters/deepseek/tools.ts`：负责端点、鉴权、Unicode 参数校验、响应映射和可行动错误。独立于 Chat Completions 的消息及流式工具调用协议。

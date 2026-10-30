@@ -27,6 +27,7 @@ import {
   Cloud,
   Trash2,
   FileUp,
+  ClipboardPaste,
   Cookie,
 } from "lucide-vue-next";
 import {
@@ -60,6 +61,7 @@ const emit = defineEmits<{
   fetch: [mode: FetchEngineId];
   navigate: [direction: "back" | "forward"];
   refresh: [];
+  pasteText: [];
   upload: [payload: { content: string; fileName: string }];
 }>();
 
@@ -279,6 +281,11 @@ async function handleIdentitySwitch(profileId: string | null) {
         <FileUp :size="15" />
       </button>
     </div>
+
+    <button class="toolbar-btn" :disabled="loading" @click="emit('pasteText')">
+      <ClipboardPaste :size="15" />
+      粘贴文本
+    </button>
 
     <!-- 地址栏 -->
     <div class="url-bar" :class="{ 'is-focused': isEditing }">

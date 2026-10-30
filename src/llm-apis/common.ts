@@ -149,6 +149,8 @@ export interface LlmReasoningArtifact {
  * LLM 消息结构
  */
 export interface LlmMessage {
+  /** Diagnostic references, never serialised into provider payloads. */
+  sourceKeys?: string[];
   role: "system" | "developer" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
   /** Optional participant name used by providers that support named messages. */
@@ -250,6 +252,17 @@ export interface LlmRequestOptions {
   allowDisabledProfile?: boolean;
   /** 共享 Transport 观察器，用于探测等基础设施采集 TTFB */
   transportObserver?: import("@aiohub/llm-core").TransportObserver;
+  /** Independent diagnostics lifecycle; callbacks must never alter request execution. */
+  requestCapture?: (route: {
+    actualProfileId: string;
+    actualModelId: string;
+    providerType: string;
+    adapterId?: string;
+  }) => {
+    observer: import("@aiohub/llm-core").TransportObserver;
+    complete(response: LlmResponse): void;
+    error(error: unknown): void;
+  };
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */
@@ -545,23 +558,10 @@ export type Annotation = UrlCitation | FileCitation;
 export interface LlmResponse {
   channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   content: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    /** 提示token详细信息 */
-    promptTokensDetails?: {
-      cachedTokens?: number;
-      audioTokens?: number;
-    };
-    /** 完成token详细信息 */
-    completionTokensDetails?: {
-      reasoningTokens?: number;
-      audioTokens?: number;
-      acceptedPredictionTokens?: number;
-      rejectedPredictionTokens?: number;
-    };
-  };
+  usage?: import("@aiohub/llm-core").TokenUsage;
+  providerUsage?: import("@aiohub/llm-core").TokenUsage;
+  estimatedUsage?: import("@aiohub/llm-core").TokenUsage;
+
   /** 是否为流式响应 */
   isStream?: boolean;
   /** 模型的拒绝消息（如果模型拒绝响应） */

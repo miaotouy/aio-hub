@@ -238,6 +238,8 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
+    providerUsage?: import("@aiohub/llm-core").TokenUsage;
+    estimatedUsage?: import("@aiohub/llm-core").TokenUsage;
     channelExecution?: import("@aiohub/llm-core").ChannelExecution;
     channelAttempts?: import("@aiohub/llm-core").ChannelAttempt[];
     /** A segment of a single upstream-owned VCP agent request. */
@@ -289,16 +291,7 @@ export interface ChatMessageNode {
     /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
     summarizedFrom?: string[];
     /** Token 使用情况（API 返回的完整请求统计） */
-    usage?: {
-      promptTokens: number;
-      completionTokens: number;
-      totalTokens: number;
-      /** 提示 token 详细信息（含缓存量） */
-      promptTokensDetails?: {
-        cachedTokens?: number;
-        audioTokens?: number;
-      };
-    };
+    usage?: import("@aiohub/llm-core").TokenUsage;
     /**
      * 单条消息内容的 Token 数量（本地计算）
      * - 对于用户消息：本地计算的文本 + 附件 token 总数

@@ -211,7 +211,13 @@ describe("Cohere Adapter - Chat", () => {
         content: "Done.",
         reasoningContent: "Think.",
         finishReason: "stop",
-        usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+        usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: { input_tokens: 5, output_tokens: 3 },
+          promptTokens: 5,
+          completionTokens: 3,
+          totalTokens: 8,
+        },
         isStream: true,
       })
     );

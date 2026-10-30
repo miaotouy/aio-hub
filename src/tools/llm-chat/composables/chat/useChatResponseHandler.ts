@@ -335,6 +335,11 @@ export function useChatResponseHandler() {
       content: string | LlmMessageContent[];
     }>
   ): Promise<void> => {
+    // Freeze upstream values before the display fallback mutates usage.
+    if (!response.usage?.isLocalEstimated)
+      response.providerUsage = response.usage
+        ? structuredClone(response.usage)
+        : undefined;
     // 检查 usage 是否可靠
     const completionText = [response.reasoningContent, response.content]
       .filter((part) => typeof part === "string" && part.trim() !== "")
@@ -389,8 +394,10 @@ export function useChatResponseHandler() {
           promptTokens: promptResult.count,
           completionTokens: completionResult.count,
           totalTokens: promptResult.count + completionResult.count,
+          isLocalEstimated: true,
         };
 
+        response.estimatedUsage = { ...response.usage };
         logger.info("✅ 本地 token 计算完成", {
           calculatedUsage: response.usage,
           promptIsEstimated: promptResult.isEstimated,
@@ -601,6 +608,8 @@ export function useChatResponseHandler() {
     finalNode.metadata = {
       ...finalNode.metadata,
       usage: response.usage,
+      providerUsage: response.providerUsage,
+      estimatedUsage: response.estimatedUsage,
       channelExecution: response.channelExecution,
       contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,

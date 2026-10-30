@@ -230,7 +230,13 @@ describe("Cohere Chat provider adapter", () => {
       content: "Done.",
       reasoningContent: "Analyze.",
       finishReason: "tool_calls",
-      usage: { promptTokens: 11, completionTokens: 7, totalTokens: 18 },
+      usage: {
+        providerUsageStatus: "reported",
+        reportedUsageFields: { input_tokens: 11, output_tokens: 7 },
+        promptTokens: 11,
+        completionTokens: 7,
+        totalTokens: 18,
+      },
       toolCalls: [
         {
           id: "tool_1",
@@ -294,7 +300,13 @@ describe("Cohere Chat provider adapter", () => {
       },
       {
         type: "usage",
-        usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+        usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: { input_tokens: 5, output_tokens: 3 },
+          promptTokens: 5,
+          completionTokens: 3,
+          totalTokens: 8,
+        },
       },
       {
         type: "completed",
@@ -302,7 +314,13 @@ describe("Cohere Chat provider adapter", () => {
           content: "结果",
           reasoningContent: "分析",
           finishReason: "tool_calls",
-          usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+          usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: { input_tokens: 5, output_tokens: 3 },
+            promptTokens: 5,
+            completionTokens: 3,
+            totalTokens: 8,
+          },
           toolCalls: [
             {
               id: "tool_1",

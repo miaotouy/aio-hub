@@ -121,6 +121,7 @@ function buildCoreRequest(options: LlmRequestOptions): CoreLlmRequest {
 function toCoreMessage(message: LlmMessage): CoreLlmMessage {
   return {
     role: message.role,
+    ...(message.sourceKeys ? { sourceKeys: message.sourceKeys } : {}),
     content:
       typeof message.content === "string"
         ? message.content

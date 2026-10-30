@@ -338,7 +338,17 @@ describe("OpenAI Adapter - Responses", () => {
         reasoningContent: "Think.",
         finishReason: "stop",
         isStream: true,
-        usage: { promptTokens: 3, completionTokens: 2, totalTokens: 5 },
+        usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            input_tokens: 3,
+            output_tokens: 2,
+            total_tokens: 5,
+          },
+          promptTokens: 3,
+          completionTokens: 2,
+          totalTokens: 5,
+        },
       })
     );
     expect(result.reasoningArtifacts).toHaveLength(1);

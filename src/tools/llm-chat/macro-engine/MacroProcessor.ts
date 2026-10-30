@@ -63,6 +63,12 @@ export interface MacroProcessResult {
 /**
  * 宏处理器类
  */
+export interface MacroExecution {
+  name: string;
+  args: string[];
+  output: string;
+}
+
 export class MacroProcessor {
   private registry: MacroRegistry;
 
@@ -87,6 +93,7 @@ export class MacroProcessor {
     options?: {
       /** 是否启用调试模式（保存各阶段输出） */
       debug?: boolean;
+      onExecution?: (execution: MacroExecution) => void;
       /** 值转换器（用于对宏替换结果进行后处理，例如正则转义） */
       valueTransformer?: (value: string) => string;
       /** 是否静默模式（不输出日志，用于批量处理） */
@@ -124,7 +131,8 @@ export class MacroProcessor {
       context,
       MacroPhase.PRE_PROCESS,
       options?.valueTransformer,
-      silent
+      silent,
+      options?.onExecution
     );
     current = afterPreProcess.output;
     macroCount += afterPreProcess.count;
@@ -138,7 +146,8 @@ export class MacroProcessor {
       context,
       MacroPhase.SUBSTITUTE,
       options?.valueTransformer,
-      silent
+      silent,
+      options?.onExecution
     );
     current = afterSubstitute.output;
     macroCount += afterSubstitute.count;
@@ -152,7 +161,8 @@ export class MacroProcessor {
       context,
       MacroPhase.POST_PROCESS,
       options?.valueTransformer,
-      silent
+      silent,
+      options?.onExecution
     );
     current = afterPostProcess.output;
     macroCount += afterPostProcess.count;
@@ -284,7 +294,8 @@ export class MacroProcessor {
     context: MacroContext,
     phase: MacroPhase,
     valueTransformer?: (value: string) => string,
-    silent?: boolean
+    silent?: boolean,
+    onExecution?: (execution: MacroExecution) => void
   ): Promise<{ output: string; count: number }> {
     let output = text;
     let count = 0;
@@ -383,6 +394,19 @@ export class MacroProcessor {
       output = output.replace(regex, result);
     }
 
+    if (onExecution) {
+      for (const match of matches) {
+        const replacement = replacements.get(match[0]);
+        if (replacement !== undefined) {
+          const { name, args } = this.parseMacro(match[1]);
+          try {
+            onExecution({ name, args: args ?? [], output: replacement });
+          } catch {
+            /* Diagnostics must not affect expansion. */
+          }
+        }
+      }
+    }
     return { output, count };
   }
 

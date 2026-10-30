@@ -307,13 +307,27 @@ export const injectionAssembler: ContextProcessor = {
       providerType: profileInfo?.type || modelInfo?.provider,
     });
     const processedContents = new Map<string, string>();
+    const macroExecutions = new Map<
+      string,
+      import("../../macro-engine/MacroProcessor").MacroExecution[]
+    >();
+    context.sharedData.set("snapshotMacroExecutions", macroExecutions);
     for (const msg of activePresetMessages) {
       if (msg.content.includes("{{")) {
         const processed = await processMacros(
           macroProcessor,
           msg.content,
           macroContext,
-          { silent: true }
+          {
+            silent: true,
+            onExecution: context.traceProcessor
+              ? (execution) => {
+                  const entries = macroExecutions.get(msg.id) ?? [];
+                  entries.push(execution);
+                  macroExecutions.set(msg.id, entries);
+                }
+              : undefined,
+          }
         );
         processedContents.set(msg.id, processed);
       }

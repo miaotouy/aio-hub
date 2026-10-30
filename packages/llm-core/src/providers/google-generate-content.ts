@@ -1,3 +1,4 @@
+import { usageReport, mergeTokenUsage } from "../usage";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -490,9 +491,16 @@ export function parseGoogleUsage(value: unknown): TokenUsage | undefined {
   const usage = asObject(value);
   if (!usage) return undefined;
   return {
+    ...usageReport(usage, "promptTokenCount", "candidatesTokenCount", [
+      "totalTokenCount",
+      "cachedContentTokenCount",
+      "thoughtsTokenCount",
+    ]),
     promptTokens: readNumber(usage.promptTokenCount) ?? 0,
     completionTokens: readNumber(usage.candidatesTokenCount) ?? 0,
-    totalTokens: readNumber(usage.totalTokenCount) ?? 0,
+    totalTokens:
+      (readNumber(usage.promptTokenCount) ?? 0) +
+      (readNumber(usage.candidatesTokenCount) ?? 0),
     ...(readNumber(usage.cachedContentTokenCount) === undefined
       ? {}
       : {
@@ -547,8 +555,8 @@ export class GoogleGenerateContentStreamDecoder implements ProviderStreamDecoder
     const events: LlmStreamEvent[] = [];
     const usage = parseGoogleUsage(root.usageMetadata);
     if (usage) {
-      this.usage = usage;
-      events.push({ type: "usage", usage });
+      this.usage = mergeTokenUsage(this.usage, usage);
+      events.push({ type: "usage", usage: this.usage! });
     }
     const candidate = asObject(readArray(root.candidates)?.[0]);
     if (!candidate) return events;

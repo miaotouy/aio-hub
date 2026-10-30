@@ -206,9 +206,15 @@ describe("Anthropic Messages provider adapter", () => {
       finishReason: "tool_use",
       stopSequence: "END",
       usage: {
-        promptTokens: 11,
+        providerUsageStatus: "reported",
+        reportedUsageFields: {
+          input_tokens: 11,
+          output_tokens: 7,
+          cache_read_input_tokens: 3,
+        },
+        promptTokens: 14,
         completionTokens: 7,
-        totalTokens: 18,
+        totalTokens: 21,
         promptTokensDetails: { cachedTokens: 3 },
       },
       toolCalls: [
@@ -295,9 +301,15 @@ describe("Anthropic Messages provider adapter", () => {
       {
         type: "usage",
         usage: {
-          promptTokens: 5,
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            input_tokens: 5,
+            output_tokens: 3,
+            cache_read_input_tokens: 2,
+          },
+          promptTokens: 7,
           completionTokens: 3,
-          totalTokens: 8,
+          totalTokens: 10,
           promptTokensDetails: { cachedTokens: 2 },
         },
       },
@@ -309,9 +321,15 @@ describe("Anthropic Messages provider adapter", () => {
           finishReason: "tool_use",
           stopSequence: null,
           usage: {
-            promptTokens: 5,
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              input_tokens: 5,
+              output_tokens: 3,
+              cache_read_input_tokens: 2,
+            },
+            promptTokens: 7,
             completionTokens: 3,
-            totalTokens: 8,
+            totalTokens: 10,
             promptTokensDetails: { cachedTokens: 2 },
           },
           toolCalls: [

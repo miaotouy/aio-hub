@@ -277,6 +277,7 @@ function toCoreMessage(message: LlmMessage, modelId: string): CoreLlmMessage {
     : undefined;
   return {
     role: message.role,
+    ...(message.sourceKeys ? { sourceKeys: message.sourceKeys } : {}),
     content:
       typeof message.content === "string"
         ? message.content

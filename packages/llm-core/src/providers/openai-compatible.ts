@@ -1,3 +1,4 @@
+import { usageReport, mergeTokenUsage } from "../usage";
 import {
   usesOpenAiReasoning,
   usesAnthropicThinking,
@@ -234,9 +235,20 @@ export function parseOpenAiUsage(value: unknown): TokenUsage | undefined {
   const completionDetails = asObject(usage.completion_tokens_details);
 
   return {
+    ...usageReport(usage, "prompt_tokens", "completion_tokens", [
+      "total_tokens",
+      "prompt_tokens_details.cached_tokens",
+      "prompt_tokens_details.audio_tokens",
+      "completion_tokens_details.reasoning_tokens",
+      "completion_tokens_details.audio_tokens",
+      "completion_tokens_details.accepted_prediction_tokens",
+      "completion_tokens_details.rejected_prediction_tokens",
+    ]),
     promptTokens: readNumber(usage.prompt_tokens) ?? 0,
     completionTokens: readNumber(usage.completion_tokens) ?? 0,
-    totalTokens: readNumber(usage.total_tokens) ?? 0,
+    totalTokens:
+      (readNumber(usage.prompt_tokens) ?? 0) +
+      (readNumber(usage.completion_tokens) ?? 0),
     ...(promptDetails
       ? {
           promptTokensDetails: {
@@ -349,8 +361,8 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
         readString(choice?.finish_reason) ?? this.finishReason;
 
       if (usage) {
-        this.usage = usage;
-        events.push({ type: "usage", usage });
+        this.usage = mergeTokenUsage(this.usage, usage);
+        events.push({ type: "usage", usage: this.usage! });
       }
     }
 

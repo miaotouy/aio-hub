@@ -1,3 +1,4 @@
+import { usageReport } from "../usage";
 import {
   usesOpenAiReasoning,
   usesAnthropicThinking,
@@ -287,9 +288,16 @@ export function parseResponsesUsage(value: unknown): TokenUsage | undefined {
   const inputDetails = asObject(usage.input_tokens_details);
   const outputDetails = asObject(usage.output_tokens_details);
   return {
+    ...usageReport(usage, "input_tokens", "output_tokens", [
+      "total_tokens",
+      "input_tokens_details.cached_tokens",
+      "output_tokens_details.reasoning_tokens",
+    ]),
     promptTokens: readNumber(usage.input_tokens) ?? 0,
     completionTokens: readNumber(usage.output_tokens) ?? 0,
-    totalTokens: readNumber(usage.total_tokens) ?? 0,
+    totalTokens:
+      (readNumber(usage.input_tokens) ?? 0) +
+      (readNumber(usage.output_tokens) ?? 0),
     ...(inputDetails
       ? {
           promptTokensDetails: {

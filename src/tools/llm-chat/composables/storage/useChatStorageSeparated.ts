@@ -127,6 +127,8 @@ const writer: SessionPersistenceWriter = {
 };
 
 async function deleteSessionFromNative(sessionId: string): Promise<void> {
+  const { requestSnapshots } = await import("../../services/requestSnapshots");
+  requestSnapshots.invalidateDeleted(sessionId);
   if (isDetachedComponentWindow()) {
     throw new Error(
       "Detached llm-chat windows must proxy persistence to the main window"

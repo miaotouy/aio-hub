@@ -609,6 +609,10 @@ export class WorldbookProcessor implements ContextProcessor {
             ? "depth_injection"
             : "anchor_injection",
         sourceId: entry.uid,
+        _snapshotIdentity: {
+          type: "worldbook",
+          id: `${item.worldbookName}:${entry.uid}`,
+        },
       };
 
       const firstHistoryIndex = context.messages.findIndex(

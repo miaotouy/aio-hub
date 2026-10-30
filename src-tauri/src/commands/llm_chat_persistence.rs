@@ -55,6 +55,7 @@ pub enum LlmChatFileKind {
     Session,
     Index,
     CorruptionManifest,
+    RequestSnapshots,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,6 +104,11 @@ fn validate_session_id(session_id: &str) -> Result<(), String> {
 fn resolve_target(app: &AppHandle, request: &LlmChatAtomicWriteRequest) -> Result<PathBuf, String> {
     let module_dir = get_app_data_dir(app.config()).join(MODULE_NAME);
     match request.kind {
+        LlmChatFileKind::RequestSnapshots => {
+            let id = request.session_id.as_deref().ok_or("sessionId is required for request snapshots")?;
+            validate_session_id(id)?;
+            Ok(module_dir.join("request-snapshots").join(format!("{id}.json")))
+        }
         LlmChatFileKind::Session => {
             let session_id = request
                 .session_id
@@ -170,6 +176,15 @@ fn parse_and_validate_content(request: &LlmChatAtomicWriteRequest) -> Result<Val
     if content_revision(&value) != request.revision {
         return Err("_persistence.revision must match the requested revision".to_string());
     }
+    if matches!(request.kind, LlmChatFileKind::RequestSnapshots) {
+        if request.content.len() > 4 * 1024 * 1024
+            || value.get("schemaVersion").and_then(Value::as_u64) != Some(1)
+            || value.get("sessionId").and_then(Value::as_str) != request.session_id.as_deref()
+            || !value.get("attempts").is_some_and(Value::is_array)
+        {
+            return Err("invalid or oversized request snapshot file".to_string());
+        }
+    }
     if matches!(request.kind, LlmChatFileKind::Session) {
         let session_id = request
             .session_id
@@ -205,6 +220,10 @@ fn is_stale_revision(
 }
 
 fn acquire_process_lock(lock_path: &Path) -> Result<File, String> {
+    if let Some(parent) = lock_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("create persistence lock directory failed: {error}"))?;
+    }
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -328,6 +347,8 @@ pub fn llm_chat_atomic_write(
 ) -> Result<LlmChatAtomicWriteResult, String> {
     let target = resolve_target(&app, &request)?;
     let _content = parse_and_validate_content(&request)?;
+    let parent = target.parent().ok_or("persistence target has no parent")?;
+    fs::create_dir_all(parent).map_err(|error| format!("create persistence directory failed: {error}"))?;
     let in_process_lock = path_lock(&target);
     let _guard = in_process_lock
         .lock()
@@ -337,7 +358,7 @@ pub fn llm_chat_atomic_write(
 
     let current_revision = read_valid_revision(&target).unwrap_or(0);
     let tombstone_revision = match request.kind {
-        LlmChatFileKind::Session => tombstone_revision(
+        LlmChatFileKind::Session | LlmChatFileKind::RequestSnapshots => tombstone_revision(
             &app,
             request
                 .session_id
@@ -411,6 +432,22 @@ pub fn llm_chat_delete_session(
     .map_err(|error| format!("serialize session tombstone failed: {error}"))?;
     replace_with_synced_content(&tombstone, &tombstone_content)?;
 
+    // The tombstone is already durable. Wait for any snapshot writer that passed
+    // its tombstone check before removing the last file.
+    let snapshot = get_app_data_dir(app.config()).join(MODULE_NAME)
+        .join("request-snapshots").join(format!("{}.json", request.session_id));
+    let snapshot_mutex = path_lock(&snapshot);
+    let _snapshot_guard = snapshot_mutex.lock().unwrap_or_else(|error| error.into_inner());
+    let snapshot_parent = snapshot.parent().ok_or("snapshot target has no parent")?;
+    fs::create_dir_all(snapshot_parent).map_err(|error| format!("create snapshot directory failed: {error}"))?;
+    let snapshot_process_lock = acquire_process_lock(&snapshot.with_extension("json.lock"))?;
+    match fs::remove_file(&snapshot) {
+        Ok(()) => {},
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
+        Err(error) => return Err(format!("remove request snapshots failed: {error}")),
+    }
+    let _ = snapshot_process_lock.unlock();
+
     let moved_to_trash = if target.exists() {
         let trash = session_trash_path(&app, &request.session_id)?;
         let parent = trash
@@ -436,6 +473,21 @@ mod tests {
 
     fn content(revision: u64) -> Vec<u8> {
         format!(r#"{{"_persistence":{{"revision":{revision}}}}}"#).into_bytes()
+    }
+
+    #[test]
+    fn snapshot_content_must_match_session_and_schema() {
+        let mut request = LlmChatAtomicWriteRequest {
+            kind: LlmChatFileKind::RequestSnapshots, session_id: Some("session".into()),
+            content: r#"{"schemaVersion":1,"sessionId":"session","attempts":[],"_persistence":{"revision":1}}"#.into(),
+            revision: 1, expected_min_revision: None, keep_last_valid_backup: false,
+        };
+        assert!(parse_and_validate_content(&request).is_ok());
+        request.session_id = Some("other".into());
+        assert!(parse_and_validate_content(&request).is_err());
+        request.session_id = Some("session".into());
+        request.content = r#"{"schemaVersion":2,"sessionId":"session","attempts":[],"_persistence":{"revision":1}}"#.into();
+        assert!(parse_and_validate_content(&request).is_err());
     }
 
     #[test]

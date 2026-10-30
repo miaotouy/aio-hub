@@ -111,6 +111,9 @@ export const processMacros = async (
   options?: {
     valueTransformer?: (value: string) => string;
     silent?: boolean;
+    onExecution?: (
+      execution: import("../../macro-engine/MacroProcessor").MacroExecution
+    ) => void;
   }
 ): Promise<string> => {
   if (!text.includes("{{")) {
@@ -131,6 +134,7 @@ export const processMacros = async (
     const result = await processor.process(text, context, {
       valueTransformer: options?.valueTransformer,
       silent: options?.silent,
+      onExecution: options?.onExecution,
     });
 
     if (result.hasMacros && !options?.silent) {
@@ -167,6 +171,9 @@ export const processMacrosBatch = async (
   options?: {
     valueTransformer?: (value: string) => string;
     silent?: boolean;
+    onExecution?: (
+      execution: import("../../macro-engine/MacroProcessor").MacroExecution
+    ) => void;
   }
 ): Promise<string[]> => {
   const hasAnyMacros = texts.some((t) => t.includes("{{"));

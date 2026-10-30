@@ -42,6 +42,12 @@ export interface PipelineContext {
   readonly capabilities?: ModelCapabilities;
   readonly timestamp: number;
 
+  /** Optional, isolated diagnostic trace around each processor. */
+  traceProcessor?: (
+    name: string,
+    messages: ProcessableMessage[]
+  ) => (messages: ProcessableMessage[]) => void;
+
   // --- 共享黑板 (Shared Blackboard) ---
   /**
    * 用于处理器之间传递临时数据。

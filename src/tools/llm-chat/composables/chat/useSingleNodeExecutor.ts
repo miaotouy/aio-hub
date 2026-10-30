@@ -48,6 +48,18 @@ import {
   isRetryableStatusCodeFromConfig,
 } from "../../utils/retryStatusCodes";
 
+import {
+  loadSnapshotSettings,
+  snapshotSettings,
+  requestSnapshots,
+  reportSnapshotError,
+} from "../../services/requestSnapshots";
+import {
+  freezeSnapshotSources,
+  createSnapshotPipelineTrace,
+} from "../../services/requestSnapshotProjection";
+import { createRequestSnapshotRecorder } from "../../services/requestSnapshotRecorder";
+
 const logger = createModuleLogger("llm-chat/single-node-executor");
 
 /** 从错误对象中提取数字 HTTP 状态码，非数字枚举值（如 INVALID_ARGUMENT）返回 undefined */
@@ -130,6 +142,19 @@ export function useSingleNodeExecutor() {
     const { settings } = useChatSettings();
     const chatStore = useLlmChatStore();
 
+    await loadSnapshotSettings();
+    let snapshotEpoch: number | undefined;
+    if (snapshotSettings.enabled) {
+      try {
+        snapshotEpoch = await requestSnapshots.prepare(session.id);
+      } catch (error) {
+        reportSnapshotError(error);
+      }
+    }
+    const snapshotPreview = snapshotSettings.saveTextPreview;
+    const snapshotTrace =
+      snapshotEpoch !== undefined ? createSnapshotPipelineTrace() : undefined;
+
     // 1. 准备参数
     const effectiveParams = buildEffectiveParameters(agentConfig.parameters);
 
@@ -165,6 +190,7 @@ export function useSingleNodeExecutor() {
       timestamp: Date.now(),
       sharedData: new Map<string, any>(),
       logs: [],
+      traceProcessor: snapshotTrace?.trace,
     };
 
     // 将额外信息放入 sharedData
@@ -264,11 +290,23 @@ export function useSingleNodeExecutor() {
     await contextPipelineStore.executePipeline(pipelineContext);
     const messages = pipelineContext.messages;
 
+    const snapshotSources =
+      snapshotEpoch !== undefined
+        ? freezeSnapshotSources(
+            messages,
+            pipelineContext.sharedData.get("snapshotMacroExecutions"),
+            snapshotPreview
+          )
+        : undefined;
+
     // 4. 发送请求
     const messagesForRequest = messages.map((msg, index, filteredMessages) => {
       const isLast = index === filteredMessages.length - 1;
       return {
         role: msg.role as any,
+        ...(snapshotSources
+          ? { sourceKeys: snapshotSources.messageKeys[index] }
+          : {}),
         content: msg.content,
         reasoningContent: msg.reasoningContent,
         reasoningArtifacts: msg.reasoningArtifacts,
@@ -424,6 +462,28 @@ export function useSingleNodeExecutor() {
         handleStreamUpdate(session, node.id, reasoningDelta, true);
     };
 
+    const snapshotRecorder =
+      snapshotSources && snapshotEpoch !== undefined
+        ? createRequestSnapshotRecorder({
+            sessionId: session.id,
+            requestId: assistantNode.id,
+            triggerNodeId:
+              currentPathToUserNode[currentPathToUserNode.length - 1]?.id,
+            logicalProfileId: agentConfig.profileId,
+            logicalModelId: agentConfig.modelId,
+            sources: snapshotSources.sources,
+            transformations: snapshotTrace?.finish(),
+            epoch: snapshotEpoch,
+            saveTextPreview: snapshotPreview,
+            assistantNodeIds: () => [
+              ...new Set([
+                assistantNode.id,
+                ...[...segmentNodes.values()].map((node) => node.id),
+              ]),
+            ],
+          })
+        : undefined;
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         response = await sendRequest({
@@ -437,6 +497,7 @@ export function useSingleNodeExecutor() {
             purpose: "chat",
           },
           ...effectiveParams,
+          requestCapture: snapshotRecorder?.capture,
           ...(splitVcpResponses
             ? {
                 streamOptions: {
@@ -624,6 +685,8 @@ export function useSingleNodeExecutor() {
           currentAgentId.value || ""
         );
       }
+
+      snapshotRecorder?.supplement(response);
 
       try {
         const sessionIndex = chatStore.sessionIndexMap.get(session.id);

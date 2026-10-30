@@ -248,11 +248,19 @@ export class RecallProcessor implements ContextProcessor {
       };
       const response = await resolvePlaceholderRetrieval(request);
       const message = context.messages[placeholder.messageIndex];
-      if (message && typeof message.content === "string")
+      if (message && typeof message.content === "string") {
+        if (response.activated && context.traceProcessor) {
+          (message._snapshotFragments ??= []).push({
+            sourceType: "recall",
+            sourceId: placeholder.collection,
+            content: response.content,
+          });
+        }
         message.content = message.content.replace(
           placeholder.raw,
           response.activated ? response.content : ""
         );
+      }
     }
   }
 }

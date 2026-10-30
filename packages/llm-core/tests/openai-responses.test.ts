@@ -253,6 +253,14 @@ describe("OpenAI Responses provider adapter", () => {
       refusal: null,
       finishReason: "tool_calls",
       usage: {
+        providerUsageStatus: "reported",
+        reportedUsageFields: {
+          input_tokens: 11,
+          output_tokens: 7,
+          total_tokens: 18,
+          "input_tokens_details.cached_tokens": 3,
+          "output_tokens_details.reasoning_tokens": 4,
+        },
         promptTokens: 11,
         completionTokens: 7,
         totalTokens: 18,
@@ -332,7 +340,17 @@ describe("OpenAI Responses provider adapter", () => {
       },
       {
         type: "usage",
-        usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
+        usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            input_tokens: 2,
+            output_tokens: 3,
+            total_tokens: 5,
+          },
+          promptTokens: 2,
+          completionTokens: 3,
+          totalTokens: 5,
+        },
       },
       {
         type: "completed",

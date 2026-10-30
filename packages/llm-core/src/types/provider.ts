@@ -36,6 +36,7 @@ export type LlmStreamEvent =
   | { type: "completed"; response: LlmResponse };
 
 export interface StreamDecoderContext {
+  onUsage?: (usage: TokenUsage) => void;
   request: LlmRequest;
   response: Pick<WireResponse, "status" | "statusText" | "headers">;
 }

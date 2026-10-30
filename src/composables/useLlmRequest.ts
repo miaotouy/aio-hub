@@ -73,6 +73,8 @@ export function useLlmRequest() {
     options: LlmRequestOptions | MediaGenerationOptions
   ): Promise<LlmResponse> => {
     let selectedApiKey: string | undefined;
+    let capture:
+      ReturnType<NonNullable<LlmRequestOptions["requestCapture"]>> | undefined;
 
     // 自动包装 prompt 为 messages（仅对非媒体生成请求）
     // 如果是媒体生成请求（带有 prompt 且目标模型有生成能力），我们保持 prompt 独立以便适配器处理
@@ -373,7 +375,49 @@ export function useLlmRequest() {
         filteredOptions.requestId = options.requestId;
       }
 
-      filteredOptions.transportObserver = options.transportObserver;
+      try {
+        capture = options.requestCapture?.({
+          actualProfileId: options.profileId,
+          actualModelId: options.modelId,
+          providerType: effectiveProfile.type,
+          adapterId: execution.adapterId,
+        });
+      } catch (error) {
+        logger.warn("请求诊断初始化失败", error);
+      }
+      const notifyCapture = (callback: (() => void) | undefined) => {
+        try {
+          callback?.();
+        } catch (error) {
+          logger.warn("请求诊断回调失败", error);
+        }
+      };
+      const combinedObserver:
+        import("@aiohub/llm-core").TransportObserver | undefined = capture
+        ? {
+            onUsage: (event) => {
+              options.transportObserver?.onUsage?.(event);
+              notifyCapture(() => capture?.observer.onUsage?.(event));
+            },
+            onRequest: (event) => {
+              options.transportObserver?.onRequest?.(event);
+              notifyCapture(() => capture?.observer.onRequest?.(event));
+            },
+            onResponseStart: (event) => {
+              options.transportObserver?.onResponseStart?.(event);
+              notifyCapture(() => capture?.observer.onResponseStart?.(event));
+            },
+            onResponseChunk: (event) => {
+              options.transportObserver?.onResponseChunk?.(event);
+              notifyCapture(() => capture?.observer.onResponseChunk?.(event));
+            },
+            onError: (event) => {
+              options.transportObserver?.onError?.(event);
+              notifyCapture(() => capture?.observer.onError?.(event));
+            },
+          }
+        : options.transportObserver;
+      filteredOptions.transportObserver = combinedObserver;
       filteredOptions.onPartialImage = options.onPartialImage;
 
       // 透传异步媒体任务进度回调，filterParametersByCapabilities 不会复制函数字段
@@ -531,8 +575,18 @@ export function useLlmRequest() {
         reportSuccess(options.profileId, selectedApiKey);
       }
 
+      try {
+        capture?.complete(response);
+      } catch (error) {
+        logger.warn("请求诊断收尾失败", error);
+      }
       return response;
     } catch (error) {
+      try {
+        capture?.error(error);
+      } catch (captureError) {
+        logger.warn("请求诊断收尾失败", captureError);
+      }
       const suppressErrorLog = options.suppressErrorLog === true;
 
       // 所有非静默失败先统一分类。与 Key 无关的错误只记录最近状态，

@@ -326,6 +326,12 @@ describe("OpenAI-compatible provider adapter", () => {
       {
         type: "usage",
         usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            prompt_tokens: 11,
+            completion_tokens: 7,
+            total_tokens: 18,
+          },
           promptTokens: 11,
           completionTokens: 7,
           totalTokens: 18,
@@ -346,6 +352,12 @@ describe("OpenAI-compatible provider adapter", () => {
           reasoningContent: "先分析",
           finishReason: "tool_calls",
           usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              prompt_tokens: 11,
+              completion_tokens: 7,
+              total_tokens: 18,
+            },
             promptTokens: 11,
             completionTokens: 7,
             totalTokens: 18,
@@ -407,7 +419,17 @@ describe("OpenAI-compatible provider adapter", () => {
           content: undefined,
           reasoningContent: undefined,
           finishReason: undefined,
-          usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
+          usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+            },
+            promptTokens: 2,
+            completionTokens: 3,
+            totalTokens: 5,
+          },
         },
       },
       {
@@ -429,7 +451,17 @@ describe("OpenAI-compatible provider adapter", () => {
           content: "firstsecond",
           reasoningContent: "think",
           finishReason: "stop",
-          usage: { promptTokens: 2, completionTokens: 3, totalTokens: 5 },
+          usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+            },
+            promptTokens: 2,
+            completionTokens: 3,
+            totalTokens: 5,
+          },
         },
       },
     ]);

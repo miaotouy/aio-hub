@@ -44,6 +44,12 @@ export class PipelineEngine {
     });
 
     for (const processor of processors) {
+      let trace: ((messages: PipelineContext["messages"]) => void) | undefined;
+      try {
+        trace = context.traceProcessor?.(processor.name, context.messages);
+      } catch {
+        /* diagnostic only */
+      }
       let configurationError: unknown;
       await errorHandler.wrapAsync(
         async () => {
@@ -61,6 +67,11 @@ export class PipelineEngine {
           context: { processorId: processor.id },
         }
       );
+      try {
+        trace?.(context.messages);
+      } catch {
+        /* diagnostic only */
+      }
       if (configurationError) throw configurationError;
     }
 

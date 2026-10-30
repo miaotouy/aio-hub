@@ -387,6 +387,14 @@ describe("Google GenerateContent provider adapter", () => {
         reasoningContent: "Analyze.",
         finishReason: "stop",
         usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            promptTokenCount: 11,
+            candidatesTokenCount: 7,
+            totalTokenCount: 18,
+            cachedContentTokenCount: 3,
+            thoughtsTokenCount: 4,
+          },
           promptTokens: 11,
           completionTokens: 7,
           totalTokens: 18,
@@ -475,6 +483,12 @@ describe("Google GenerateContent provider adapter", () => {
       {
         type: "usage",
         usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            promptTokenCount: 5,
+            candidatesTokenCount: 3,
+            totalTokenCount: 8,
+          },
           promptTokens: 5,
           completionTokens: 3,
           totalTokens: 8,
@@ -496,6 +510,12 @@ describe("Google GenerateContent provider adapter", () => {
           reasoningContent: "分析",
           finishReason: "stop",
           usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              promptTokenCount: 5,
+              candidatesTokenCount: 3,
+              totalTokenCount: 8,
+            },
             promptTokens: 5,
             completionTokens: 3,
             totalTokens: 8,

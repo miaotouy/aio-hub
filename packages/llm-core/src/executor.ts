@@ -1,3 +1,4 @@
+import { attachRequestSources } from "./request-sources";
 import type {
   LlmStreamEvent,
   ProviderAdapter,
@@ -35,6 +36,17 @@ export async function executeProviderRequest(
     options.request
   );
 
+  try {
+    await attachRequestSources(
+      options.adapter,
+      options.profile,
+      options.request,
+      wireRequest
+    );
+  } catch {
+    /* Incomplete diagnostics must never prevent a request. */
+  }
+
   return executeProviderWireRequest({
     adapter: options.adapter,
     request: options.request,
@@ -53,18 +65,34 @@ export async function executeProviderWireRequest(
     options.transportOptions
   );
 
+  const notifyUsage = (usage: LlmResponse["usage"]) => {
+    if (usage) {
+      try {
+        options.transportOptions.observer?.onUsage?.({
+          requestId: options.transportOptions.requestId,
+          usage,
+        });
+      } catch {
+        /* diagnostic only */
+      }
+    }
+  };
   if (!options.wireRequest.streaming) {
-    return options.adapter.parseResponse(response);
+    const parsed = await options.adapter.parseResponse(response);
+    notifyUsage(parsed.usage);
+    return parsed;
   }
 
   const decoder = options.adapter.createStreamDecoder({
     request: options.request,
     response,
+    onUsage: notifyUsage,
   });
   let completedResponse: LlmResponse | undefined;
 
   const emit = (events: LlmStreamEvent[]) => {
     for (const event of events) {
+      if (event.type === "usage") notifyUsage(event.usage);
       options.onEvent?.(event);
       if (event.type === "completed") completedResponse = event.response;
     }

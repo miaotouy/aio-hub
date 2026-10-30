@@ -81,6 +81,13 @@ export interface ProcessableMessage {
   sourceIndex?: number;
   /** 用于存储被合并的原始消息 */
   _mergedSources?: ProcessableMessage[];
+  /** Retrieval fragments retained through role merges for diagnostics. */
+  _snapshotIdentity?: { type: string; id?: string | number };
+  _snapshotFragments?: Array<{
+    sourceType: string;
+    sourceId?: string;
+    content: string;
+  }>;
   /**
    * [中间格式] 暂存的附件列表
    * 在 asset-resolver 阶段会被处理并合并入 content

@@ -63,6 +63,8 @@ export type LlmMessageContent =
   | LlmToolResultContent;
 
 export interface LlmMessage {
+  /** Diagnostic references, never serialised into provider payloads. */
+  sourceKeys?: string[];
   role: LlmMessageRole;
   content: string | LlmMessageContent[];
   name?: string;

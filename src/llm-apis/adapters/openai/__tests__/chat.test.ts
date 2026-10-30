@@ -855,6 +855,12 @@ describe("OpenAI Adapter - Chat", () => {
         reasoningContent: "think",
         finishReason: "tool_calls",
         usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            prompt_tokens: 5,
+            completion_tokens: 3,
+            total_tokens: 8,
+          },
           promptTokens: 5,
           completionTokens: 3,
           totalTokens: 8,

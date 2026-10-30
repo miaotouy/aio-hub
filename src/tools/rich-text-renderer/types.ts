@@ -799,6 +799,8 @@ export interface TesterConfig {
   enableCdnLocalizer?: boolean;
   /** 是否启用节点进入动画 */
   enableEnterAnimation?: boolean;
+  /** 流式新增文字的装饰特效 */
+  streamEffect?: import("./utils/streamStardust").StreamEffect;
   /** 是否启用仅显示侧的 VCP 围栏模糊恢复 */
   vcpFuzzyModeEnabled?: boolean;
   /** 是否模拟元数据 */
@@ -886,6 +888,9 @@ export const RICH_TEXT_CONTEXT_KEY = Symbol("rich-text-context");
  * 富文本上下文接口
  */
 export interface RichTextContext {
+  /** Shared decoration settings for standalone HTML preview documents. */
+  streamEffect?: Readonly<Ref<import("./utils/streamStardust").StreamEffect>>;
+  streamEffectActive?: Readonly<Ref<boolean>>;
   images: Ref<string[]>;
   defaultRenderHtml?: Ref<boolean>;
   seamlessMode?: Ref<boolean>;

@@ -196,6 +196,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHtmlStreamStardust } from "../composables/useHtmlStreamStardust";
 import { observeIframeContentHeight } from "../utils/iframeAutoHeight";
 import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
 import {
@@ -275,6 +276,12 @@ const isBorderVisible = computed(() => props.bordered && !props.seamless);
 const loading = ref(true);
 const contentHeight = ref(40);
 const iframeRef = ref<HTMLIFrameElement | null>(null);
+const htmlStreamEffects = useHtmlStreamStardust(
+  iframeRef,
+  () => context?.streamEffect?.value ?? "none",
+  () => context?.streamEffectActive?.value ?? false,
+  () => !!context?.isStreaming?.value && !props.immediate
+);
 const iframeKey = ref(0);
 const renderContent = ref("");
 
@@ -615,11 +622,15 @@ onUnmounted(() => {
   iframeErrors.value = [];
 });
 
+watch(srcDoc, () => htmlStreamEffects.beforeNavigate(), { flush: "sync" });
+
 const onLoad = () => {
   loading.value = false;
+  htmlStreamEffects.onLoad();
 };
 
 const refresh = () => {
+  htmlStreamEffects.beforeNavigate();
   loading.value = true;
   iframeKey.value++;
   iframeErrors.value = [];

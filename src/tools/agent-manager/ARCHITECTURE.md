@@ -151,6 +151,10 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 
 > 参数按模型家族适配的「规则列表」方案目前仍是构想记录，未排期实施，见[模型参数适配规则草案](./docs/Plan/agent-model-parameter-rules-draft.md)；现行实现仍是单一 `parameters` 对象 + 请求前能力过滤。
 
+### 流式文字特效
+
+编辑页「输出与显示」中的 `streamEffect` 随 Agent 配置保存，支持六种动效、`none`（关闭）和 `inherit`（跟随聊天全局）。旧 Agent 缺少该字段时默认继承；编辑表单加载时也回落为跟随全局，切换编辑对象时重置。消息渲染使用消息绑定 Agent 的配置，截图模式统一关闭；全局节点进入动画开关与系统减少动态效果偏好继续生效。
+
 ## 7. Agent 工具调用接口
 
 [agentManagementService.ts](./services/agentManagementService.ts) 提供路径式（field path）配置操作方法，供 LLM 经工具调用管理智能体（读取/导出面向 Agent 输出 YAML，底层存储保持 JSON）：

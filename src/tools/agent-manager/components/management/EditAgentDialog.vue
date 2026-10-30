@@ -110,6 +110,7 @@ const defaultFormState = {
   defaultGreetingId: "", // 默认选中的开局消息 ID
   displayPresetCount: 0, // 显示的预设消息数量
   parameters: { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS } as LlmParameters,
+  streamEffect: "inherit" as NonNullable<ChatAgent["streamEffect"]>,
   defaultToolCallCollapsed: false,
   visualGuideline: "",
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
@@ -360,6 +361,7 @@ const handleSave = (
       defaultGreetingId: editForm.defaultGreetingId,
       displayPresetCount: editForm.displayPresetCount,
       parameters: JSON.parse(JSON.stringify(editForm.parameters)),
+      streamEffect: editForm.streamEffect,
       defaultToolCallCollapsed: editForm.defaultToolCallCollapsed,
       visualGuideline: editForm.visualGuideline || undefined,
       llmThinkRules: editForm.llmThinkRules,

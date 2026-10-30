@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { STREAM_EFFECT_OPTIONS } from "@/tools/rich-text-renderer/utils/streamEffectStyles";
 import { OUTPUT_TOKEN_INPUT_MAX } from "@aiohub/llm-core";
 import { defineAsyncComponent } from "vue";
 import {
@@ -707,8 +708,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.enableEnterAnimation",
-        hint: "为基础消息节点（如文本、段落）启用淡入动画。",
+        hint: "为基础消息节点启用入场动画，同时控制流式文字特效。",
         keywords: "ui animation effect 动画 特效",
+      },
+      {
+        id: "streamEffect",
+        label: "流式文字特效",
+        component: "ElSelect",
+        options: STREAM_EFFECT_OPTIONS.map(({ label, value }) => ({
+          label,
+          value,
+        })),
+        modelPath: "uiPreferences.streamEffect",
+        hint: "为新增文字选择图形、粒子或晕染效果，跟随系统的减少动态效果偏好。",
+        visible: (s) => s.uiPreferences.enableEnterAnimation,
+        keywords: "ui streaming animation particles 流式 动画 粒子 星屑 字幕",
       },
       {
         id: "defaultRenderHtml",

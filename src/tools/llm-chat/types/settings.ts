@@ -189,6 +189,8 @@ export interface ChatSettings {
     throttleEnabled: boolean;
     /** 是否启用节点进入动画 */
     enableEnterAnimation: boolean;
+    /** 流式文字装饰特效 */
+    streamEffect: import("@/tools/rich-text-renderer/utils/streamStardust").StreamEffect;
     /** 分离模式下是否显示壁纸 */
     showWallpaperInDetachedMode: boolean;
     /** 是否允许组件分离（显示分离手柄） */

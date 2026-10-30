@@ -91,6 +91,7 @@ const SECTION_FIELDS: Record<string, string[]> = {
     "extensionConfig",
     "llmThinkRules",
     "richTextStyleOptions",
+    "streamEffect",
     "visualGuideline",
     "worldbookIds",
     "worldbookSettings",

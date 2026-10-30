@@ -41,7 +41,10 @@ import { styleIsolationTestPreset } from "../presets/style-isolation-test";
 import { detailsPreset } from "../presets/details";
 import { screenshotLayoutTestPreset } from "../presets/screenshot-layout-test";
 
+import { stardustShowcasePreset } from "../presets/stardust-showcase";
+
 export const presets: RenderPreset[] = [
+  stardustShowcasePreset,
   basicPreset,
   codePreset,
   longCodePreset,

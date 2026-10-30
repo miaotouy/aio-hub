@@ -51,6 +51,8 @@ import {
   inject,
 } from "vue";
 import { useThrottleFn } from "@vueuse/core";
+import { useStreamStardust } from "./composables/useStreamStardust";
+import type { StreamEffect } from "./utils/streamStardust";
 import { createAstImageIndex } from "./utils/astImageIndex";
 import { provideRendererBlockMounting } from "./composables/useRendererBlockMounting";
 import { provideRendererLayoutState } from "./composables/useRendererLayoutState";
@@ -171,6 +173,7 @@ const props = withDefaults(
     enableCdnLocalizer?: boolean; // 是否启用 CDN 资源本地化
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
+    streamEffect?: StreamEffect; // 流式新增文字的装饰特效
     allowExternalScripts?: boolean; // 是否允许加载外部资源（如 CDN 脚本、样式）
     regexRules?: ChatRegexRule[]; // 正则表达式规则
     resolveAsset?: (content: string) => string; // 资产路径解析钩子
@@ -194,6 +197,7 @@ const props = withDefaults(
     enableCdnLocalizer: true,
     allowExternalScripts: false,
     enableEnterAnimation: true,
+    streamEffect: "none",
     shouldFreeze: false,
     allowDangerousHtml: false,
     showTokenCount: false,
@@ -435,8 +439,19 @@ const renderEnableAnimation = computed(() => {
   return props.enableEnterAnimation;
 });
 
+const getStreamEffectStats = useStreamStardust(
+  rootElement,
+  () => props.streamEffect,
+  () => displayActive.value && props.enableEnterAnimation,
+  () => props.isStreaming || internalIsStreaming.value
+);
+
 // 提供上下文给子组件
 provide(RICH_TEXT_CONTEXT_KEY, {
+  streamEffect: computed(() => props.streamEffect),
+  streamEffectActive: computed(
+    () => displayActive.value && props.enableEnterAnimation
+  ),
   images: imageList,
   enableEnterAnimation: renderEnableAnimation,
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
@@ -817,6 +832,7 @@ onBeforeUnmount(() => {
 // 暴露 AST 给父组件（用于测试和调试）
 defineExpose({
   ast,
+  ...(import.meta.env.DEV ? { getStreamEffectStats } : {}),
 });
 </script>
 

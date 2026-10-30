@@ -211,6 +211,11 @@ export const agentEditTabs: AgentEditTab[] = [
         keywords: "tool call collapse 工具调用 折叠",
       },
       {
+        id: "streamEffect",
+        label: "流式文字特效",
+        keywords: "streaming animation particles 流式 动画 粒子 星屑 字幕",
+      },
+      {
         id: "defaultMediaVolume",
         label: "媒体音量",
         keywords: "volume media audio 音量 媒体 音频",

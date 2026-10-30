@@ -426,6 +426,11 @@ export interface AgentBaseConfig {
    */
   richTextStyleOptions?: RichTextRendererStyleOptions;
 
+  /** 流式文字特效；省略或 inherit 时跟随聊天全局设置。 */
+  streamEffect?:
+    | import("@/tools/rich-text-renderer/utils/streamEffectStyles").StreamEffect
+    | "inherit";
+
   /**
    * 工具调用默认折叠
    */

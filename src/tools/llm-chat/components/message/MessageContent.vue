@@ -105,7 +105,10 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
 const rendererSettingsProps = computed(() =>
-  buildRichTextRendererSettings(settings.value.uiPreferences)
+  buildRichTextRendererSettings(settings.value.uiPreferences, {
+    streamEffect: currentAgent.value?.streamEffect,
+    screenshotMode: props.screenshotMode,
+  })
 );
 const transcriptionManager = useTranscriptionManager();
 const { computeWillUseTranscription } = transcriptionManager;

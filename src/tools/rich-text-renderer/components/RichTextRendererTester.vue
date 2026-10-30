@@ -210,6 +210,7 @@
                 :allow-dangerous-html="allowDangerousHtml"
                 :enable-cdn-localizer="enableCdnLocalizer"
                 :enable-enter-animation="enableEnterAnimation"
+                :stream-effect="streamEffect"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :regex-rules="activeRegexRules"
@@ -301,6 +302,7 @@
                   :allow-dangerous-html="allowDangerousHtml"
                   :enable-cdn-localizer="enableCdnLocalizer"
                   :enable-enter-animation="enableEnterAnimation"
+                  :stream-effect="streamEffect"
                   :llm-think-rules="llmThinkRules"
                   :style-options="richTextStyleOptions"
                   :regex-rules="activeRegexRules"
@@ -523,6 +525,7 @@ const {
   allowDangerousHtml,
   enableCdnLocalizer,
   enableEnterAnimation,
+  streamEffect,
   simulateMeta,
   selectedTokenizer,
   llmThinkRules,

@@ -62,6 +62,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     smoothingEnabled: true, // 流式平滑化
     throttleEnabled: true, // AST 节流开关
     enableEnterAnimation: true, // 默认开启
+    streamEffect: "none",
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
     enableDetachableHandle: true, // 默认允许组件分离
     virtualListOverscan: 20, // 预渲染可视区域外的消息数量

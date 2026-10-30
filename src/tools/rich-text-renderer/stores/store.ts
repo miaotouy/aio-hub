@@ -141,6 +141,7 @@ function createDefaultState() {
     seamlessMode: false,
     enableCdnLocalizer: true,
     enableEnterAnimation: true,
+    streamEffect: "none" as import("../utils/streamStardust").StreamEffect,
     simulateMeta: false,
     selectedTokenizer: "gpt4o",
     profileType: "agent" as "agent" | "user",

@@ -156,6 +156,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         validate_files_for_link,
         path_exists,
         resolve_path_for_security,
+        inspect_file_operation,
         inspect_file_for_external_transfer,
         read_file_for_external_transfer,
         preview_skill_manifest,

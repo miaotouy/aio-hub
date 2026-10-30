@@ -881,52 +881,47 @@ fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
     }
 }
 
-fn normalize_absolute_path(path: &Path) -> Result<PathBuf, String> {
+fn resolve_path_for_security_impl(path: &Path) -> Result<PathBuf, String> {
     if !path.is_absolute() {
         return Err(format!("安全路径解析要求绝对路径: {}", path.display()));
     }
-
-    let mut normalized = PathBuf::new();
+    // 逐段解析现有祖先，先跟随符号链接再处理后续的 ..。
+    // 提前做词法折叠会把 link/../file 与实际 OS 访问的路径混为一处。
+    let mut resolved = PathBuf::new();
+    let mut missing = false;
     for component in path.components() {
         match component {
-            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
-            Component::RootDir => normalized.push(component.as_os_str()),
+            Component::Prefix(prefix) => resolved.push(prefix.as_os_str()),
+            Component::RootDir => {
+                resolved.push(component.as_os_str());
+                resolved = fs::canonicalize(&resolved)
+                    .map_err(|error| format!("解析根目录失败 {}: {error}", resolved.display()))?;
+            }
             Component::CurDir => {}
             Component::ParentDir => {
-                let _ = normalized.pop();
+                if missing {
+                    return Err(format!("无法解析不存在目录后的父路径: {}", path.display()));
+                }
+                resolved.pop();
             }
-            Component::Normal(part) => normalized.push(part),
-        }
-    }
-    Ok(normalized)
-}
-
-fn resolve_path_for_security_impl(path: &Path) -> Result<PathBuf, String> {
-    let mut probe = normalize_absolute_path(path)?;
-    let mut missing_components = Vec::new();
-
-    loop {
-        match fs::symlink_metadata(&probe) {
-            Ok(_) => break,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                let name = probe
-                    .file_name()
-                    .ok_or_else(|| format!("无法找到路径的已存在祖先: {}", path.display()))?;
-                missing_components.push(name.to_os_string());
-                if !probe.pop() {
-                    return Err(format!("无法解析路径: {}", path.display()));
+            Component::Normal(part) => {
+                resolved.push(part);
+                match fs::symlink_metadata(&resolved) {
+                    Ok(_) => {
+                        resolved = fs::canonicalize(&resolved).map_err(|error| {
+                            format!("解析真实路径失败 {}: {error}", resolved.display())
+                        })?;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => missing = true,
+                    Err(error) => {
+                        return Err(format!(
+                            "读取路径元数据失败 {}: {error}",
+                            resolved.display()
+                        ))
+                    }
                 }
             }
-            Err(error) => {
-                return Err(format!("读取路径元数据失败 {}: {error}", probe.display()));
-            }
         }
-    }
-
-    let mut resolved = fs::canonicalize(&probe)
-        .map_err(|error| format!("解析真实路径失败 {}: {error}", probe.display()))?;
-    for component in missing_components.iter().rev() {
-        resolved.push(component);
     }
     Ok(resolved)
 }
@@ -963,6 +958,21 @@ mod security_path_tests {
     }
 
     #[test]
+    fn resolves_root_and_new_children_with_the_same_canonical_prefix() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().ancestors().last().unwrap();
+        let canonical_root = fs::canonicalize(root).unwrap();
+        assert_eq!(
+            resolve_path_for_security_impl(root).unwrap(),
+            canonical_root
+        );
+        let missing = root.join(format!("aio-security-{}", uuid::Uuid::new_v4()));
+        assert!(resolve_path_for_security_impl(&missing)
+            .unwrap()
+            .starts_with(canonical_root));
+    }
+
+    #[test]
     fn rejects_relative_paths() {
         assert!(resolve_path_for_security_impl(Path::new("relative/file.txt")).is_err());
     }
@@ -990,6 +1000,33 @@ mod security_path_tests {
             resolved,
             fs::canonicalize(&outside).unwrap().join("file.txt")
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolves_symlinks_before_parent_components_for_existing_and_new_files() {
+        let temp = tempdir().unwrap();
+        let safe = temp.path().join("safe");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&safe).unwrap();
+        fs::create_dir_all(outside.join("sub")).unwrap();
+        fs::write(outside.join("secret.txt"), "fixture").unwrap();
+        std::os::unix::fs::symlink(outside.join("sub"), safe.join("jump")).unwrap();
+        let outside = fs::canonicalize(&outside).unwrap();
+        assert_eq!(
+            resolve_path_for_security_impl(&safe.join("jump/../secret.txt")).unwrap(),
+            outside.join("secret.txt")
+        );
+        assert_eq!(
+            resolve_path_for_security_impl(&safe.join("jump/../new/file.txt")).unwrap(),
+            outside.join("new/file.txt")
+        );
+        assert!(prepare_transfer_paths(
+            safe.to_str().unwrap(),
+            safe.join("jump/../../safe/child").to_str().unwrap(),
+            true
+        )
+        .is_err());
     }
 
     fn external_rule(path: &Path, rule_type: &str) -> ExternalTransferSecurityRule {
@@ -1062,6 +1099,28 @@ mod security_path_tests {
             1024,
         )
         .is_err());
+    }
+
+    #[test]
+    fn external_transfer_keeps_dead_zone_priority_over_deeper_approval() {
+        let temp = tempdir().unwrap();
+        let parent = temp.path().join("blocked");
+        let child = parent.join("review");
+        fs::create_dir_all(&child).unwrap();
+        let file = child.join("fixture.txt");
+        fs::write(&file, "protected").unwrap();
+        for rules in [
+            vec![
+                external_rule(&parent, "block"),
+                external_rule(&child, "approve"),
+            ],
+            vec![
+                external_rule(&child, "approve"),
+                external_rule(&parent, "block"),
+            ],
+        ] {
+            assert!(inspect_external_transfer_impl(&file, &[], &rules, "blacklist", 1024).is_err());
+        }
     }
 
     #[cfg(windows)]
@@ -1179,26 +1238,17 @@ fn inspect_external_transfer_impl(
     }
 
     let mut policy = "allow";
-    let mut matched_depth = 0usize;
     for rule in black_list_rules {
         if rule.rule_type != "block" && rule.rule_type != "approve" {
             return Err("安全沙箱配置无效：规则类型必须是 block 或 approve".to_string());
         }
         let rule_path = resolve_path_for_security_impl(Path::new(&rule.path))?;
         if path_is_within(&resolved, &rule_path) {
-            let depth = rule_path.components().count();
-            if depth >= matched_depth {
-                matched_depth = depth;
-                policy = if rule.rule_type == "block" {
-                    "block"
-                } else {
-                    "approve"
-                };
+            if rule.rule_type == "block" {
+                return Err(format!("安全规则禁止外部传输文件: {}", resolved.display()));
             }
+            policy = "approve";
         }
-    }
-    if policy == "block" {
-        return Err(format!("安全规则禁止外部传输文件: {}", resolved.display()));
     }
 
     Ok(ExternalTransferInspection {
@@ -1514,7 +1564,13 @@ pub async fn save_uploaded_file(
 
 // Tauri 命令：删除文件到回收站
 #[tauri::command]
-pub async fn delete_file_to_trash(file_path: String) -> Result<String, String> {
+pub async fn delete_file_to_trash(
+    file_path: String,
+    security: Option<AgentFileSecurity>,
+) -> Result<String, String> {
+    if let Some(ref scope) = security {
+        scope.ensure_operation("delete_file", Some(Path::new(&file_path)), None, None)?;
+    }
     let path = PathBuf::from(&file_path);
 
     // 检查文件是否存在
@@ -2525,7 +2581,13 @@ pub fn open_path_force(path: String) -> Result<(), String> {
 
 // Tauri 命令：列出目录下的文件（仅限文件名，不包含完整路径）
 #[tauri::command]
-pub async fn list_directory(path: String) -> Result<Vec<String>, String> {
+pub async fn list_directory(
+    path: String,
+    security: Option<AgentFileSecurity>,
+) -> Result<Vec<String>, String> {
+    if let Some(ref scope) = security {
+        scope.ensure_path(Path::new(&path))?;
+    }
     let dir_path = PathBuf::from(&path);
     if !dir_path.exists() {
         return Err(format!("目录不存在: {}", path));
@@ -2538,6 +2600,12 @@ pub async fn list_directory(path: String) -> Result<Vec<String>, String> {
     let mut files = Vec::new();
 
     for entry in entries.flatten() {
+        if security
+            .as_ref()
+            .is_some_and(|scope| !scope.allows_child(&entry.path()))
+        {
+            continue;
+        }
         if let Some(name) = entry.file_name().to_str() {
             files.push(name.to_string());
         }
@@ -2558,6 +2626,9 @@ pub async fn create_dir_force(path: String) -> Result<(), String> {
     Ok(())
 }
 
+mod agent_security;
+pub use agent_security::*;
+
 // ==================== aio-file-operator 文件流转与搜索 ====================
 
 /// 递归复制目录内容
@@ -2567,6 +2638,16 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
         let entry = entry.map_err(|e| format!("遍历目录项失败: {}", e))?;
         let entry_path = entry.path();
         let target_path = dst.join(entry.file_name());
+        if entry
+            .file_type()
+            .map_err(|error| format!("读取目录项失败: {error}"))?
+            .is_symlink()
+        {
+            return Err(format!(
+                "目录复制包含符号链接，请单独处理该链接: {}",
+                entry_path.display()
+            ));
+        }
         if entry_path.is_dir() {
             copy_dir_recursive(&entry_path, &target_path)?;
         } else {
@@ -2590,11 +2671,17 @@ fn prepare_transfer_paths(
     if !source.exists() {
         return Err(format!("源路径不存在: {}", source_path));
     }
-    if source == target {
+    let resolved_source = resolve_path_for_security_impl(&source)?;
+    let resolved_target = resolve_path_for_security_impl(&target)?;
+    if resolved_source == resolved_target {
         return Err("源路径与目标路径相同，拒绝操作".to_string());
     }
-    if source.is_dir() && target.starts_with(&source) {
+    if source.is_dir() && path_is_within(&resolved_target, &resolved_source) {
         return Err("不能将目录移动/复制到其自身内部".to_string());
+    }
+
+    if target.is_dir() && path_is_within(&resolved_source, &resolved_target) {
+        return Err("目标目录包含源路径，拒绝覆盖该目录".into());
     }
 
     let mut remove_existing = false;
@@ -2678,7 +2765,11 @@ pub async fn search_files(
     pattern: String,
     recursive: Option<bool>,
     max_results: Option<usize>,
+    security: Option<AgentFileSecurity>,
 ) -> Result<Vec<FileSearchHit>, String> {
+    if let Some(ref scope) = security {
+        scope.ensure_path(Path::new(&directory_path))?;
+    }
     let root = PathBuf::from(&directory_path);
     if !root.exists() {
         return Err(format!("目录不存在: {}", directory_path));
@@ -2700,11 +2791,20 @@ pub async fn search_files(
     while let Some(current) = stack.pop() {
         let entries = match fs::read_dir(&current) {
             Ok(entries) => entries,
+            Err(error) if current == root => {
+                return Err(format!("读取搜索目录失败 {}: {error}", root.display()))
+            }
             Err(_) => continue,
         };
 
         for entry in entries.flatten() {
             let entry_path = entry.path();
+            if security
+                .as_ref()
+                .is_some_and(|scope| !scope.allows_child(&entry_path))
+            {
+                continue;
+            }
             let name = entry.file_name().to_string_lossy().to_string();
 
             let is_dir = entry_path.is_dir();
@@ -2714,7 +2814,9 @@ pub async fn search_files(
                     .strip_prefix(&root)
                     .unwrap_or(&entry_path)
                     .to_string_lossy()
-                    .replace('\\', "/");
+                    .to_string();
+                #[cfg(windows)]
+                let relative = relative.replace('\\', "/");
                 let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
                 hits.push(FileSearchHit {
                     name,
@@ -2746,7 +2848,16 @@ pub async fn copy_path_force(
     source_path: String,
     target_path: String,
     overwrite: Option<bool>,
+    security: Option<AgentFileSecurity>,
 ) -> Result<(), String> {
+    if let Some(ref scope) = security {
+        scope.ensure_operation(
+            "copy_file",
+            None,
+            Some(Path::new(&source_path)),
+            Some(Path::new(&target_path)),
+        )?;
+    }
     let (source, target, remove_existing) =
         prepare_transfer_paths(&source_path, &target_path, overwrite.unwrap_or(false))?;
 
@@ -2770,7 +2881,16 @@ pub async fn move_path_force(
     source_path: String,
     target_path: String,
     overwrite: Option<bool>,
+    security: Option<AgentFileSecurity>,
 ) -> Result<(), String> {
+    if let Some(ref scope) = security {
+        scope.ensure_operation(
+            "move_file",
+            None,
+            Some(Path::new(&source_path)),
+            Some(Path::new(&target_path)),
+        )?;
+    }
     let (source, target, remove_existing) =
         prepare_transfer_paths(&source_path, &target_path, overwrite.unwrap_or(false))?;
 

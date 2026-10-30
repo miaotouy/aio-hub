@@ -116,18 +116,21 @@ export function applySearchReplaceDiff(
 
   // 1. 尝试简单精确匹配
   const exactIndices: number[] = [];
+  const exactOffsets: number[] = [];
   let lastExactIndex = originalContent.indexOf(searchStr);
   while (lastExactIndex !== -1) {
     const lineIndex =
       originalContent.substring(0, lastExactIndex).split(/\r?\n/).length - 1;
     exactIndices.push(lineIndex);
+    exactOffsets.push(lastExactIndex);
     lastExactIndex = originalContent.indexOf(searchStr, lastExactIndex + 1);
   }
 
   if (exactIndices.length > 0) {
     const matchedIndex = findBestMatchIndex(exactIndices, options.startLine);
-    const before = resultLines.slice(0, matchedIndex);
-    const after = resultLines.slice(matchedIndex + searchLines.length);
+    const offset = exactOffsets[exactIndices.indexOf(matchedIndex)];
+    const before = originalContent.slice(0, offset);
+    const after = originalContent.slice(offset + searchStr.length);
     const warnings: string[] = [];
 
     if (exactIndices.length > 1) {
@@ -143,7 +146,7 @@ export function applySearchReplaceDiff(
     }
 
     return {
-      content: [...before, ...replaceLines, ...after].join("\n"),
+      content: before + replaceStr + after,
       strategy: "exact",
       confidence: 1.0,
       matchRange: [matchedIndex + 1, matchedIndex + searchLines.length],

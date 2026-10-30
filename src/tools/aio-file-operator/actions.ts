@@ -296,7 +296,7 @@ function buildErrorResult(
   defaultMessage: string
 ): FileOperationResult {
   const message = clampErrorMessage(
-    error?.message || defaultMessage,
+    (typeof error === "string" ? error : error?.message) || defaultMessage,
     ERROR_MESSAGE_MAX_LENGTH
   );
   const sanitizedParams = sanitizeParamsForError(params);
@@ -535,6 +535,25 @@ export async function writeFile(
       }
     }
 
+    // 自动重命名后的路径同样受到安全规则约束。
+    await validatePath(finalPath, currentConfig);
+    const originalPolicy = await checkSecurityPolicy(
+      "write_file",
+      { path },
+      currentConfig
+    );
+    const finalPolicy = await checkSecurityPolicy(
+      "write_file",
+      { path: finalPath },
+      currentConfig
+    );
+    if (
+      finalPolicy.status === "approve" &&
+      originalPolicy.status !== "approve"
+    ) {
+      throw new Error("自动重命名后的路径需要审批，请使用该路径重新发起写入。");
+    }
+
     // 确保父目录存在
     const parentDir = finalPath.substring(0, finalPath.lastIndexOf("/"));
     if (parentDir) {
@@ -606,7 +625,10 @@ export async function deleteFile(path: string): Promise<FileOperationResult> {
     await ensureInitialized();
     await validatePath(path, currentConfig);
 
-    await invoke("delete_file_to_trash", { filePath: path });
+    await invoke("delete_file_to_trash", {
+      filePath: path,
+      security: { ...currentConfig, approvalGranted: true },
+    });
 
     const result: FileOperationResult = {
       success: true,
@@ -630,7 +652,18 @@ export async function listDirectory(
     await ensureInitialized();
     await validatePath(path, currentConfig);
 
-    const fileNames = await invoke<string[]>("list_directory", { path });
+    const policy = await checkSecurityPolicy(
+      "list_directory",
+      { path },
+      currentConfig
+    );
+    const fileNames = await invoke<string[]>("list_directory", {
+      path,
+      security: {
+        ...currentConfig,
+        approvalGranted: policy.status === "approve",
+      },
+    });
 
     // 获取每个文件的详细信息
     const entries: FileEntry[] = [];
@@ -824,6 +857,7 @@ export async function copyFile(
       sourcePath,
       targetPath,
       overwrite: allowOverwrite === true,
+      security: { ...currentConfig, approvalGranted: true },
     });
 
     const result: FileOperationResult = {
@@ -863,6 +897,7 @@ export async function moveFile(
       sourcePath,
       targetPath,
       overwrite: allowOverwrite === true,
+      security: { ...currentConfig, approvalGranted: true },
     });
 
     const result: FileOperationResult = {
@@ -929,6 +964,11 @@ export async function searchFiles(
       throw new Error("搜索模式不能为空");
     }
 
+    const policy = await checkSecurityPolicy(
+      "search_files",
+      { directoryPath },
+      currentConfig
+    );
     const hits = await invoke<
       Array<{
         name: string;
@@ -942,6 +982,10 @@ export async function searchFiles(
       pattern: pattern.trim(),
       recursive: recursive !== false,
       maxResults,
+      security: {
+        ...currentConfig,
+        approvalGranted: policy.status === "approve",
+      },
     });
 
     const result: FileOperationResult = {

@@ -120,6 +120,29 @@ describe("AioFileOperator Registry", () => {
       expect(result.message).toContain("已覆盖写入");
     });
 
+    it("自动重命名目标解析到白名单外时保留原文件并拒绝写入", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (command === "resolve_path_for_security")
+          return args.path === "C:/Safe/report(1).txt"
+            ? "C:/Outside/new.txt"
+            : args.path;
+        if (command === "path_exists")
+          return args.path === "C:/Safe/report.txt";
+        return null;
+      });
+      const result = await registry.write_file({
+        path: "C:/Safe/report.txt",
+        content: "fixture",
+      });
+      expect(result.success).toBe(false);
+      expect(
+        mockInvoke.mock.calls.some(
+          ([command]) => command === "write_text_file_force"
+        )
+      ).toBe(false);
+    });
+
     it("文件已存在且 allowOverwrite=false 时应自动累加序号", async () => {
       mockInvoke.mockImplementation(async (cmd: string, args: any) => {
         if (cmd === "path_exists") {
@@ -1009,6 +1032,52 @@ describe("AioFileOperator Registry", () => {
       expect(writtenContent).toContain("\r\n");
     });
 
+    it.each([
+      [
+        "alpha\r\nbeta\r\ngamma\r\n",
+        "beta\n",
+        "BETA\n",
+        "alpha\r\nBETA\r\ngamma\r\n",
+      ],
+      [
+        "prefix beta suffix\nnext\n",
+        "beta",
+        "BETA",
+        "prefix BETA suffix\nnext\n",
+      ],
+    ])(
+      "精确 Diff 保留匹配范围外的内容",
+      async (original, search, replace, expected) => {
+        let written = "";
+        mockInvoke.mockImplementation(async (command: string, args: any) => {
+          if (command === "read_text_file_force") return original;
+          if (command === "write_text_file_force") written = args.content;
+          return null;
+        });
+        const result = await registry.apply_diff({
+          path: "C:/test/diff.txt",
+          search,
+          replace,
+        });
+        expect(result.success).toBe(true);
+        expect(written).toBe(expected);
+      }
+    );
+
+    it("Rust 返回的权限错误保留在操作结果中", async () => {
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === "append_file_force")
+          throw "打开文件失败: Permission denied (os error 13)";
+        return null;
+      });
+      const result = await registry.append_file({
+        path: "C:/test/readonly.txt",
+        content: "fixture",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Permission denied");
+    });
+
     it("LF 文件应用 Diff 后应保持 LF", async () => {
       const lfContent = "line1\nline2\nline3\n";
       let writtenContent = "";
@@ -1128,6 +1197,109 @@ describe("AioFileOperator Registry", () => {
       });
       expect(result.status).toBe("block");
       expect(result.message).toContain("配置无效");
+    });
+
+    it("双路径操作的死区优先于另一侧审批区", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [
+          { id: "approval", path: "C:/Review", type: "approve" },
+          { id: "blocked", path: "C:/Secret", type: "block" },
+        ],
+      });
+      for (const method of ["copy_file", "move_file"]) {
+        expect(
+          (
+            await registry.checkSecurityPolicy(method, {
+              sourcePath: "C:/Review/file.txt",
+              targetPath: "C:/Secret/file.txt",
+            })
+          ).status
+        ).toBe("block");
+      }
+    });
+
+    it("Unix 反斜杠属于文件名，不能将不同目录视为同一白名单", async () => {
+      mockInvoke.mockImplementation(async (command: string, args: any) =>
+        command === "resolve_path_for_security" ? args.path : null
+      );
+      await whitelistDirs(["/tmp/alias\\safe"]);
+      expect(
+        (
+          await registry.checkSecurityPolicy("read_file", {
+            path: "/tmp/alias/safe/secret.txt",
+          })
+        ).status
+      ).toBe("block");
+      expect(
+        (
+          await registry.checkSecurityPolicy("read_file", {
+            path: "/tmp/alias\\safe/own.txt",
+          })
+        ).status
+      ).toBe("allow");
+    });
+
+    it("安全规则目录无法解析时阻断访问", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "deny", path: "C:/Secret", type: "block" }],
+      });
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (
+          command === "resolve_path_for_security" &&
+          args.path === "C:/Secret"
+        )
+          throw new Error("permission denied");
+        return args?.path ?? null;
+      });
+      expect(
+        (
+          await registry.checkSecurityPolicy("read_file", {
+            path: "C:/Other/file.txt",
+          })
+        ).status
+      ).toBe("block");
+    });
+
+    it("目录内的审批规则通过执行器要求确认，拒绝后不会复制", async () => {
+      await allowAllPaths();
+      mockInvoke.mockImplementation(async (command: string) =>
+        command === "inspect_file_operation" ? { status: "approve" } : null
+      );
+      const onBeforeExecute = vi.fn(async () => "rejected" as const);
+      const [result] = await executeToolRequests(
+        [
+          {
+            requestId: "nested-approval",
+            toolId: registry.id,
+            methodName: "copy_file",
+            toolName: registry.name,
+            rawBlock: "",
+            args: { sourcePath: "C:/Source", targetPath: "C:/Target" },
+          },
+        ],
+        {
+          config: {
+            enabled: true,
+            mode: "auto",
+            toolToggles: {},
+            autoApproveTools: {},
+            defaultToolEnabled: true,
+            defaultAutoApprove: true,
+            maxIterations: 5,
+            timeout: 30000,
+            parallelExecution: false,
+            protocol: "vcp",
+          },
+          onBeforeExecute,
+        }
+      );
+      expect(result.status).toBe("denied");
+      expect(onBeforeExecute).toHaveBeenCalledOnce();
+      expect(
+        mockInvoke.mock.calls.some(([command]) => command === "copy_path_force")
+      ).toBe(false);
     });
 
     it("无 path 参数时应返回 allow", async () => {
@@ -1260,7 +1432,7 @@ describe("AioFileOperator Registry", () => {
       });
       expect(result.success).toBe(true);
       expect(result.message).toContain("成功复制");
-      expect(invokedArgs).toEqual({
+      expect(invokedArgs).toMatchObject({
         sourcePath: "C:/src/a.txt",
         targetPath: "C:/dst/a.txt",
         overwrite: true,

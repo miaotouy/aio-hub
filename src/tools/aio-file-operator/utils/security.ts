@@ -140,7 +140,10 @@ function isAbsolutePath(path: string): boolean {
  * 真实文件系统边界由 Rust 侧 `resolve_path_for_security` 继续解析符号链接。
  */
 function normalizePath(path: string): string {
-  let normalized = stripWindowsExtendedPrefix(path).replace(/\\/g, "/");
+  const windowsPath = /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+  const normalized = windowsPath
+    ? stripWindowsExtendedPrefix(path).replace(/\\/g, "/")
+    : path;
   let root = "";
   let remainder = normalized;
 
@@ -262,13 +265,37 @@ export async function checkSecurityPolicy(
     return { status: "allow" };
   }
 
+  let policy: SecurityPolicyResult = { status: "allow" };
   for (const targetPath of pathArgs) {
     const result = await evaluatePolicyForPath(targetPath, config);
-    if (result.status !== "allow") {
-      return result;
+    if (result.status === "block") return result;
+    if (result.status === "approve") policy = result;
+  }
+  if (["copy_file", "move_file", "delete_file"].includes(_methodName)) {
+    try {
+      const inspection = await invoke<SecurityPolicyResult>(
+        "inspect_file_operation",
+        {
+          methodName: _methodName,
+          path: args.path ?? null,
+          sourcePath: args.sourcePath ?? null,
+          targetPath: args.targetPath ?? null,
+          security: config,
+        }
+      );
+      if (
+        !inspection ||
+        !["allow", "approve", "block"].includes(inspection.status)
+      ) {
+        return { status: "block", message: "无法完成目录安全检查，请重试。" };
+      }
+      if (inspection.status === "block") return inspection;
+      if (inspection.status === "approve") policy = inspection;
+    } catch (error) {
+      return { status: "block", message: clampErrorMessage(error) };
     }
   }
-  return { status: "allow" };
+  return policy;
 }
 
 /** 需要参与沙箱校验的路径参数键 */
@@ -377,7 +404,11 @@ async function evaluatePolicyForPath(
         }
       }
     } catch (error) {
-      logger.warn("忽略无法解析的黑名单规则", { rule, error });
+      logger.warn("安全规则路径解析失败", { rule, error });
+      return {
+        status: "block",
+        message: `无法解析安全规则路径：${formatPathForError(rule.path)}，请检查目录权限和规则配置。`,
+      };
     }
   }
 

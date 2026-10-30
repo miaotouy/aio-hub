@@ -12,19 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/**
- * Tesseract 语言包动态加载工具
- *
- * 使用 Vite 的 import.meta.glob 特性在构建时扫描
- * /public/tesseract-lang/ 目录下的所有 .traineddata.gz 文件，
- * 从而动态生成语言选项，彻底移除硬编码。
- */
+/** 语言代码由 Vite 扫描 public/tesseract-lang 生成，语言包沿用公共资源路径。 */
+import availableLangCodes from "virtual:aiohub-tesseract-languages";
 
-// 1. 使用 import.meta.glob 扫描所有语言包文件
-//    移除 eager 加载，只获取文件路径列表，不导入文件内容
-const langFiles = import.meta.glob("/public/tesseract-lang/*.traineddata.gz");
-
-// 2. 维护一个从语言代码到显示名称的映射表
+// 语言代码对应的显示名称
 const langCodeToName: Record<string, string> = {
   chi_sim: "简体中文",
   chi_tra: "繁体中文",
@@ -34,15 +25,7 @@ const langCodeToName: Record<string, string> = {
   rus: "俄语",
 };
 
-// 3. 从文件路径中提取语言代码
-const availableLangCodes = Object.keys(langFiles).map((path) => {
-  // 路径格式: /public/tesseract-lang/chi_sim.traineddata.gz
-  const filename = path.split("/").pop() || "";
-  // 文件名格式: chi_sim.traineddata.gz
-  return filename.split(".")[0];
-});
-
-// 4. 生成完整的语言选项列表，包括单语言和组合语言
+// 生成单语言和组合语言选项
 const generateLanguageOptions = () => {
   const options: Array<{ id: string; name: string }> = [];
   const addedCodes = new Set<string>();

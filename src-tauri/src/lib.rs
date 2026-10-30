@@ -143,12 +143,21 @@ fn load_startup_config(config: &tauri::Config) -> StartupConfig {
     }
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[cfg(mobile)]
+#[tauri::mobile_entry_point]
 pub fn run() {
+    run_with_context(tauri::generate_context!());
+}
+
+// 配置与权限上下文随后端库缓存；前端资源依赖仅由 EXE 入口持有。
+#[cfg(desktop)]
+pub fn run_with_assets(assets: tauri::utils::assets::EmbeddedAssets) {
+    run_with_context(tauri::generate_context!(assets = assets));
+}
+
+pub fn run_with_context(context: tauri::Context<tauri::Wry>) {
     // 注意：Linux WebKitGTK 环境变量已在 main.rs 中通过智能检测设置
     // 不再在此处重复设置 WEBKIT_DISABLE_DMABUF_RENDERER
-
-    let context = tauri::generate_context!();
 
     // 读取配置以获取时区、窗口特效和窗口位置
     let startup_config = load_startup_config(context.config());

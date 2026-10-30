@@ -193,5 +193,8 @@ fn main() {
         std::process::exit(0);
     }
 
-    aio_hub_lib::run()
+    #[cfg(dev)]
+    aiohub_desktop_entry::run!(true);
+    #[cfg(not(dev))]
+    aiohub_desktop_entry::run!(false);
 }

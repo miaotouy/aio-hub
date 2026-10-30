@@ -75,6 +75,7 @@ name = "aiohub"
 version = "0.0.0"
 dependencies = [
  "aes-gcm",
+ "aiohub-desktop-entry",
  "anyhow",
  "async-stream",
  "axum 0.7.9",
@@ -160,6 +161,17 @@ dependencies = [
  "wreq",
  "wreq-util",
  "zip 2.4.2",
+]
+
+[[package]]
+name = "aiohub-desktop-entry"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "tauri-codegen",
+ "tauri-utils",
 ]
 
 [[package]]

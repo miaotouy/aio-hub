@@ -12,6 +12,7 @@ import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
 import { fileURLToPath, URL } from "node:url";
 import { tokenizerAssetsPlugin } from "./scripts/vite/tokenizerAssetPlugin";
+import { tesseractLanguagesPlugin } from "./scripts/vite/tesseractLanguagesPlugin";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -110,6 +111,7 @@ const viteConfig = defineConfig({
 
   plugins: [
     tokenizerAssetsPlugin(),
+    tesseractLanguagesPlugin(),
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== "production" && VueDevTools(),
     vue(),

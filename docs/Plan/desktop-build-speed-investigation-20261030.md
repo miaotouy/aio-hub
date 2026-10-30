@@ -131,6 +131,174 @@
 
 类型检查与 Vite 打包保持串行；Rust profile、链接配置和编译优化等级保持原样。便携版安装包阶段的节省量留待真实 Tauri 全链路计时。
 
+## 8. Rust release 编译时间调查
+
+### 基线与分段
+
+以提交 `3a720b905` 为代码基点，执行 `bun run tauri:build:local --no-bundle -- --timings`。本轮保留前端生产构建，跳过安装包生成，Cargo 使用 release 默认优化设置。总耗时 340.37 秒，其中 Vite 内部打包 24.14 秒，Cargo 报告 274.7 秒；该单轮结果用于定位阶段成本，与此前 239 秒的 Rust 样本存在运行波动。
+
+| Cargo 单元 | 耗时 |
+| --- | ---: |
+| 应用库 `aio_hub_lib` | 266.4 秒 |
+| `aiohub` 二进制 | 6.0 秒 |
+| 应用 build script 执行 | 0.2 秒 |
+
+1037 个单元命中缓存，3 个单元重建。应用库约占 Cargo 时间的 97%，依赖已得到复用。末尾进程采样覆盖 DLL 与 EXE 的两次 `link.exe` 调用，各约 3～5 秒；主要成本集中在应用库编译。Cargo 的最大单元并发为 2，`jobs=24`；本轮待重建单元很少，该数字与 rustc 内部代码生成线程数应分开理解。
+
+原始基线的应用库同时输出 `staticlib`、`cdylib`、`rlib`，且 `tauri::generate_context!()` 位于同一应用库中。依赖信息包含 `dist/index.html` 等前端产物，前端资源变化会参与 Rust 应用库的失效判断。后续优先评估应用库的增量复用；仅从产物体积推断删除库类型的收益仍需专项对照。
+
+原始 Cargo 报告和进程采样保存于 `.tmp/rust-build-investigation/baseline-cargo-timing.html`、`baseline-units.json`、`baseline-rust-processes.json`。链接时间来自约 1 秒间隔的末尾采样，按近似值使用。
+
+### 应用包增量编译对照
+
+对照通过临时 Cargo 参数设置 `profile.release.package.aiohub.incremental=true`，同时显式保留 `profile.release.package.aiohub.codegen-units=16` 与 `opt-level=3`。构建启用与基线一致的 `tauri/custom-protocol` 特性，并沿用当前 Cargo fingerprint 中记录的 `TAURI_CONFIG`，保持本地版本与资源配置一致。正式 `Cargo.toml`、构建脚本和优化等级保持原样。
+
+| 场景 | Cargo 耗时 | 应用库耗时 | 缓存情况 |
+| --- | ---: | ---: | --- |
+| 普通 release，应用重编译基线 | 274.7 秒 | 266.4 秒 | 1037 个单元复用，3 个重建 |
+| 增量模式，首次建立缓存 | 258.2 秒 | 250.27 秒 | 首轮另有少量插件单元重建 |
+| 缓存建立后，给 `dist/index.html` 加入 HTML 注释 | 145.5 秒 | 140.31 秒 | 1038 个单元复用，2 个重建 |
+| 恢复原始 HTML 字节，再次编译 | 143.3 秒 | 138.02 秒 | 1038 个单元复用，2 个重建 |
+| 相同输入，再次执行 Cargo | 1.90 秒 | 无编译 | 1040 个单元全部复用 |
+
+前四行使用 Cargo timings；最后一行使用 Cargo CLI 报告耗时，该行用于确认相同输入能稳定复用产物。HTML 修改与还原两轮的进程级总计时分别为 145.98 秒、144.17 秒，均退出 0。首次建缓存与普通基线的少量差异按运行波动处理；缓存建立后的资源小改样本，比本轮普通应用重编译基线降低约 47%。收益范围为该类资源小改，Rust 源码重构与依赖升级需另取样本。
+
+Cargo fingerprint 日志明确指出恢复后的 `dist/index.html` 时间变化使应用库失效。`tauri-codegen` 的 `EmbeddedAssets::to_tokens` 同时以 `include_bytes!` 跟踪原始资源与缓存压缩资源，因此前端产物更新会进入应用库的依赖检查。首次生成压缩资源后，也可能因其时间晚于编译起点而使下一轮失效。本轮已完成还原构建，确认原始 HTML 字节恢复，并验证随后一次构建全部命中缓存。
+
+本轮有效应用库增量缓存目录约 2.7 GiB，包含保留的编译会话。实验的 Cargo 报告、编译器参数、进程计时与 fingerprint 日志保存在 `.tmp/rust-build-investigation/`；`comparison.json` 汇总各轮构建单元数据。首次缺少 `tauri/custom-protocol` 的试运行已中止，排除在上述对照之外。
+
+### 后续实施建议
+
+1. 前端产物变化优先通过资源嵌入拆分缩小重建范围，实测见下一节。应用包级增量参数保留为 Rust 源码修改场景的候选方案，正式配置暂时沿用原有 release 设置。
+2. 将 Rust 源码小改作为下一种性能样本，核对缓存收益和磁盘增长；本轮已覆盖内嵌资源改动与还原。
+3. 保留 `staticlib`、`cdylib`、`rlib` 的正式配置，待单独量化桌面所需输出类型后再决策。链接采样只有数秒，链接器替换优先级较低。
+
+设置含义参考 Cargo 官方 [Profiles](https://doc.rust-lang.org/cargo/reference/profiles.html) 与 [Build timings](https://doc.rust-lang.org/cargo/reference/timings.html)；Tauri 内嵌资源行为依据本机锁定的 `tauri-codegen 2.6.3` 源码核对。
+
+## 9. 前端资源嵌入移至 EXE 入口
+
+将桌面端 `tauri::generate_context!()` 从 `src-tauri/src/lib.rs` 移至 `src-tauri/src/main.rs`，应用库通过 `run_with_context(context)` 接收上下文。移动平台的无参数 `run()` 入口在 `cfg(mobile)` 下保留，内部委托同一初始化函数；独立的 `mobile/src-tauri` 包保持原样。
+
+### 对照方式与结果
+
+沿用此前记录的 `TAURI_CONFIG`，从 `src-tauri` 运行 `cargo build --release --bin aiohub --features tauri/custom-protocol --timings`。本轮移除实验性增量参数，使用普通 release 设置，保留三种库输出、优化等级与依赖缓存。先构建新结构，再只给生成的 `dist/index.html` 追加 HTML 注释，随后按原始字节恢复并重建，最后验证相同输入缓存。
+
+| 场景 | Cargo 耗时 | 应用库耗时 | EXE 耗时 | 缓存情况 |
+| --- | ---: | ---: | ---: | --- |
+| 原结构普通 release 基线 | 274.7 秒 | 266.4 秒 | 6.0 秒 | 1037 个复用，3 个重建 |
+| 新结构首次构建 | 253.4 秒 | 191.99 秒 | 57.59 秒 | 1037 个复用，3 个重建 |
+| 仅改生成 HTML | 59.4 秒 | 命中缓存 | 57.69 秒 | 1039 个复用，1 个重建 |
+| 恢复原始 HTML | 60.6 秒 | 命中缓存 | 58.9 秒 | 1039 个复用，1 个重建 |
+| 相同输入再次构建 | CLI 1.83 秒 | 命中缓存 | 命中缓存 | 1040 个全部复用 |
+
+所有构建退出码均为 0。进程采样与 Cargo timings 均确认两轮前端资源变化只有二进制目标重建。给 HTML 加注释与恢复两轮的进程级耗时为 59.91 秒、61.18 秒；无变更探测的进程级耗时为 2.95 秒。HTML 已恢复原始字节。
+
+相较此前普通应用重编译基线，这类前端资源小改的 Rust 阶段耗时降低约 78%；相较应用包增量实验的 145.5 秒，降低约 59%。这些结果对应本机已有依赖缓存和该轮输入，首轮构建仍需要编译应用库。资源嵌入及其代码生成成本转移到了 EXE，二进制目标的编译时间增加到约 58 秒；前端资源依然随 EXE 分发。
+
+### 正式构建入口与运行验证
+
+再执行 `bun run tauri:build:local --no-bundle -- --timings`，包含正常类型检查、完整 Vite 资源重建与 Rust release 编译，退出码为 0，总耗时 **125.16 秒**。Vite 内部打包 **23.44 秒**，Cargo **65.7 秒**，其中 EXE 编译 **64.08 秒**；1039 个单元命中缓存，只有二进制目标重建。应用库在实际前端生产构建流程中继续命中缓存。该轮跳过安装包生成。
+
+使用生成的 release EXE 和 `.tmp/rust-build-investigation/runtime/` 内独立数据、WebView profile 启动真实应用，约 2.12 秒后收到 `main` 窗口 `phase=vue-mounted` 的前端 ready 回报，确认内嵌资源加载、Vue 挂载与前后端 IPC 可用。验证后关闭本轮创建的实例，保留原有应用实例。
+
+两份修改文件的 `rustfmt --check` 发现 `lib.rs` 中两处已有格式差异（模块排序与相邻 Linux 分支换行）；本轮保持无关代码原样。
+
+### 适用边界与本机证据
+
+Rust 源码、依赖、构建特性、版本、`TAURI_CONFIG` 或共享 build script 输入变化，仍可能触发应用库重建。上述数字仅统计 Cargo 阶段，完整构建另含类型检查、Vite、资源处理及可选的安装包生成。本轮保持 release 配置与安装包机制。
+
+原始报告位于 `.tmp/rust-build-investigation/context-*-cargo-timing.html`，进程与 fingerprint 日志使用相同前缀；`context-comparison.json` 汇总构建单元数据。生成 HTML 的备份保存在 `context-original-index.html`。正式入口日志为 `.tmp/build-logs/desktop-2026-10-30T14-45-43-476Z-23008.log`，总计时为 `context-official-build.json`，运行验证结果为 `runtime/result.json`。
+
+## 10. 资源嵌入成本与 EXE 编译分段
+
+上一节的约一分钟统计整个二进制目标编译。进一步用 rustc `-Ztime-passes` 拆分阶段，并用相同 EXE 源码、编译参数、已构建依赖与 `TAURI_CONFIG` 做独立输出目录对照。本轮使用锁定版本 `tauri 2.11.5`、`tauri-codegen 2.6.3` 与 `rustc 1.98.1`。诊断选项仅用于临时探测，正式构建配置保持原样。
+
+### 普通 release 的阶段分布
+
+完整资源的 rustc 本体耗时 **56.539 秒**：
+
+| 阶段 | 耗时 |
+| --- | ---: |
+| 宏展开（含资源扫描、内容处理、压缩缓存检查及索引生成） | 8.447 秒 |
+| 单态化及 LLVM IR 代码生成 | 5.859 秒 |
+| 等待 LLVM 优化与代码生成完成 | 36.913 秒 |
+| 其中：本地 ThinLTO 阶段 | 32.457 秒 |
+| 链接阶段 | 3.099 秒 |
+
+各阶段存在嵌套及并行，表内 ThinLTO 是 LLVM 阶段的子项。当前没有显式启用全程序 LTO，报告中的 ThinLTO 对应编译器在本 crate 多代码生成单元之间执行的本地优化。`embed-bitcode=no` 下仍可出现这类本地优化。
+
+### 控制变量对照
+
+临时源文件都放在 `.tmp/rust-build-investigation/embed-*/`，直接复用已捕获的 rustc 命令和必要编译环境，输出到各自目录，保留正式 EXE 与仓库源码。
+
+| 变体 | rustc 耗时 | 说明 |
+| --- | ---: | --- |
+| 原始完整资源与完整上下文 | 56.539 秒 | 普通 release 设置 |
+| 将资源替换为空，保留上下文生成 | 49.144 秒 | `generate_context!(assets = 空 EmbeddedAssets)` |
+| 空资源上下文，另嵌入单个 ZIP 字节块 | 48.514 秒 | 用 `black_box(include_bytes!(ZIP))` 保留约 65.9 MiB 资源包 |
+| 保留全部资源，仅对 EXE 临时加 `-C lto=off` | 36.398 秒 | 保持 `opt-level=3`，后端库沿用已有产物 |
+
+全部有效变体编译成功。空资源和单 ZIP 两轮相差约 0.6 秒，按运行波动理解，未测得单个大字节块带来显著额外成本。ZIP 对照仅验证字节嵌入成本，未实现 ZIP 资源提供器，生成的对照 EXE 不用于功能运行。
+
+完整资源与空资源对照相差约 **7.4 秒**；保留上下文生成时，即使去掉所有前端资源仍需约 **49 秒**。宏展开从约 8.4 秒降至不足 0.4 秒，LLVM 本地 ThinLTO 仍需约 33 秒。因此当前主要优化方向是减少前端变化时重复编译的上下文初始化代码。只把散文件换成一个 ZIP，同时保留 EXE 中的完整 `generate_context!()`，仍会承担约 49 秒的编译成本。
+
+`lto=off` 单轮降低约 36% 的 EXE 编译耗时，但会改变代码优化方式。该参数未接入正式入口，运行性能与产物体积尚需单独评估。
+
+### ZIP 打包与重复资产
+
+当前 `dist/` 共 **2,982 个文件，100.64 MiB**。同一批文件用 Python 标准库打包：ZIP store 耗时 **1.117 秒**、约 101.04 MiB；ZIP deflate level 1 耗时 **2.918 秒**、约 65.87 MiB。此结果衡量归档本身，与 Tauri 当前 Brotli 压缩及运行期资源读取机制分开理解。
+
+发现可去重内容约 **12.73 MiB**，主要是 OCR 语言包同时出现在 `assets/*traineddata*.gz` 与 `tesseract-lang/`。`src/tools/smart-ocr/config/language-packs.ts` 用 `import.meta.glob` 获取语言选项，但这些动态导入仍让 Vite 输出资产副本；实际 OCR Worker 使用 `/tesseract-lang` 公共路径。修正时应保留语言发现和 Worker 资源路径契约。
+
+### 后续方向与证据
+
+优先评估让配置、权限等上下文生成留在后端库缓存中，由 EXE 仅提供资源数据。Tauri 的 `generate_context!(assets = ...)` 和 `Assets` 接口提供了拆分入口；资源生成或资源包提供器仍需独立设计。进一步采用链接后的 EXE 资源注入或外置资源包，需配套读取实现与打包、签名流程调整。
+
+原始阶段日志为 `embed-native-profile-stderr.log`，摘要为 `embed-profile-summary.json`，变体汇总为 `embed-variant-results.json`，资产与 ZIP 测量为 `embed-asset-stats.json`，均位于 `.tmp/rust-build-investigation/`。初次诊断设置引发依赖失效及 Windows 命令行长度问题，相关未完成试运行排除；最终诊断 Cargo 总耗时包含依赖恢复，未用作资源成本对照。所有有效对照仅引用各 rustc 本体阶段。
+
+最后恢复常规命令复核：全部 1040 个 Cargo 单元复用，CLI 耗时 2.04 秒。正式 release EXE 保留完整资源，临时对照源码和产物均留在忽略目录。
+
+## 11. 上下文与资源独立编译的实施结果
+
+### 实现
+
+新增桌面专用 proc-macro crate `src-tauri/crates/desktop-entry`。EXE 根据 Tauri 的 `cfg(dev)` 调用 `run!(true/false)`，读取同一配置与 `TAURI_CONFIG`，通过官方 `tauri-codegen::embedded_assets::EmbeddedAssets` 只生成资源表达式，再调用 `aio_hub_lib::run_with_assets`。配置、权限和上下文初始化在后端库中用 `generate_context!(assets = assets)` 生成并缓存。
+
+压缩格式、缓存、原始输入依赖跟踪和运行期读取沿用 Tauri。有效 CSP 或 isolation 配置自动委托 EXE 中的官方完整上下文宏，保留 HTML nonce、哈希及相关安全处理；这类配置仍承担完整上下文编译成本。开发服务、静态资源构建及目录/文件清单/远程 URL 的配置分支保持对应的 Tauri 行为。移动端包保持原样。
+
+OCR 语言发现改为 Vite 虚拟清单插件 `tesseractLanguagesPlugin`，扫描 `public/tesseract-lang` 中的文件名，不再向模块图导入语言包二进制。开发模式新增、删除语言文件会刷新选项；Worker 沿用 `/tesseract-lang` 公共路径。
+
+### 构建对照
+
+| 场景 | Cargo 耗时 | 应用库 | EXE 编译 |
+| --- | ---: | --- | ---: |
+| 上一轮完整前端重建（上下文在 EXE） | 65.7 秒 | 复用 | 64.08 秒 |
+| 本轮完整前端重建 | **17.1 秒** | 复用 | 15.30 秒 |
+| 本轮仅修改生成 HTML | **14.8 秒** | 复用 | 13.03 秒 |
+| 本轮恢复原始 HTML | **14.7 秒** | 复用 | 13.03 秒 |
+
+新结构首次建立缓存的 Cargo 耗时为 214.4 秒，其中应用库 197.51 秒、EXE 14.42 秒、proc-macro crate 0.85 秒。后续三轮均为 1040 个单元复用、1 个二进制单元重建。相较上一轮约 59～61 秒的前端资源小改样本，本轮约 14.7～14.8 秒，降低约 75%；相较最初约 274.7 秒的普通应用重编译样本，降低约 95%。这些对照对应已有依赖缓存和同一机器上的各轮输入。
+
+正式入口 `bun run tauri:build:local --no-bundle -- --timings` 退出 0，包含类型检查与 Vite 生产打包，总耗时 **72.78 秒**；Vite 内部打包 **21.23 秒**，Cargo **17.09 秒**。相较上一轮同入口的 125.16 秒，本轮减少约 42%。该入口跳过安装包生成。
+
+Cargo 依赖信息复核：`aio_hub_lib.d` 已不跟踪 `dist/index.html`，`aiohub.d` 继续跟踪；前端资源变更仍会进入 EXE 的失效判断。
+
+### LTO 决策
+
+本轮临时阶段采样：完整资源 rustc 本体 **13.790 秒**，宏展开 **8.192 秒**，代码生成 **0.177 秒**，本地 ThinLTO **0.840 秒**，链接 **2.740 秒**。上下文生成移回后端缓存后，原本约 32.5 秒的本地 ThinLTO 已缩短到不足 1 秒。
+
+仅对临时 EXE 关闭 LTO 的对照耗时 **11.260 秒**，其中宏展开 7.283 秒、链接 2.516 秒。单轮总差约 2.5 秒，包含资源处理及链接的运行波动。此次保留正式 release 优化配置，未启用 `lto=off` 或包级增量编译。
+
+### 产物与验证
+
+生产前端产物从 **100.64 MiB / 2982 文件** 降为 **88.61 MiB / 2970 文件**，减少 **12.03 MiB**。六份 OCR 语言包各保留一份，位于 `tesseract-lang/`，字节保持原样。这里统计 `dist/`；Tauri 本身存在按内容复用的压缩缓存，EXE 体积收益需单独看待。
+
+新增两项 Vite 集成测试，覆盖生产输出中的语言包路径、字节与单份分发，以及开发模式语言增删、组合选项和 HTTP 资源读取；与相邻 tokenizer 插件集成测试一起运行，共 5 项通过。前端类型检查、相关脚本严格类型检查、正式 Vite 构建通过；`cargo check --bin aiohub` 的 dev 模式检查通过（25.43 秒）。
+
+使用正式 release EXE、新建独立数据与 WebView profile 启动真实应用，约 2.12 秒后收到 `main` 窗口 `phase=vue-mounted` 回报，确认资源加载和前后端通信可用。测试实例已关闭，原有实例保持运行，生成 HTML 的测试注释已还原。最后执行常规 release 命令，1041 个单元全部命中缓存，CLI 耗时 1.94 秒。
+
+汇总与原始文件保存在 `.tmp/rust-build-investigation/`：`split-comparison.json`、`split-official-build.json`、`split-asset-stats.json`、`split-lto-comparison.json`、`split-profile-stderr.log`、`split-dev-check.log` 与 `split-runtime/result.json`。正式入口日志为 `.tmp/build-logs/desktop-2026-10-30T15-17-35-753Z-83940.log`。
+
 ## 优化顺序
 
 1. **已完成：dev 监听排除项**。源码变更监听保持有效，历史排查数据保留。
@@ -138,7 +306,8 @@
 3. **已完成：类型检查增量缓存**：正式构建复用 `.tmp/typecheck/vue-tsc.tsbuildinfo`。
 4. **已完成：便携版跳过安装包生成**：内部 Tauri 构建增加 `--no-bundle`，保留 release EXE 导出和便携模式标识。
 5. **图标模块请求与首屏静态依赖收敛**：需分项计时，保持插件和分离窗口行为。
-6. **Rust 开发实例配置与输出种类优化**：单独核对跨平台需求。
+6. **已完成：Rust 上下文与资源独立编译**：前端资源小改可复用后端库和上下文初始化代码，Cargo 阶段实测约 14.7～14.8 秒，完整前端重建后的 Cargo 为 17.1 秒。
+7. **已完成：OCR 语言包单份分发**：语言发现使用虚拟清单，生产前端产物减少约 12.03 MiB。
 
 ## 本机证据
 

@@ -1,0 +1,16 @@
+[package]
+name = "aiohub-desktop-entry"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = "2"
+tauri-codegen = { version = "2.6.3", features = ["compression"] }
+tauri-utils = "2.9.3"

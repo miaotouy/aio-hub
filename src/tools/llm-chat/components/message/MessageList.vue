@@ -167,6 +167,7 @@ const {
   resume: resumeScrollAnchor,
   cancelResume,
   rememberReadingAnchor,
+  preserveReadingPosition,
   navigateToMessage,
   shouldStickToBottom,
   isNearBottom,
@@ -214,6 +215,7 @@ const { vMessageSize, layoutRevision } = useMessageHeights({
   ],
   sessionId: () => scopedSessionId.value ?? props.sessionIndex?.id,
   screenshotMode: () => screenshotMode.value,
+  onWidthChange: preserveReadingPosition,
 });
 provide(rendererLayoutRevisionKey, layoutRevision);
 

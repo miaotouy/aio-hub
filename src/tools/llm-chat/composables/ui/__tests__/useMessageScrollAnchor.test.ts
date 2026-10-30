@@ -54,6 +54,30 @@ function createScroller(
 }
 
 describe("消息阅读位置与底部跟随", () => {
+  it("宽度重排期间保持所读消息的相对位置，上翻时立即交还滚动控制", () => {
+    let rowTop = 800;
+    const { element, anchor } = createScroller(
+      () => rowTop - element.scrollTop
+    );
+    anchor.pauseFollowing();
+    element.scrollTop = 700;
+    anchor.onScroll();
+    anchor.rememberReadingAnchor({ id: "row", offset: 100 });
+    rowTop = 1100;
+    anchor.preserveReadingPosition();
+    expect(element.scrollTop).toBe(1000);
+    // Delayed text layout changes again while the window settles.
+    rowTop = 1300;
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(1200);
+    anchor.onWheel(new WheelEvent("wheel", { deltaY: -100 }));
+    element.scrollTop = 1100;
+    anchor.onScroll();
+    rowTop = 1400;
+    anchor.followBottom();
+    expect(element.scrollTop).toBe(1100);
+  });
+
   it("流式内容突然增高并先触发 scroll 时仍跟随到底", () => {
     const { element, anchor, resize } = createScroller();
     resize(3200);

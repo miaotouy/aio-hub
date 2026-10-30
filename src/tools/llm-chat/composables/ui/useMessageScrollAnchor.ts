@@ -191,6 +191,20 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     followBottom();
   };
 
+  const preserveReadingPosition = () => {
+    const container = options.container.value;
+    if (
+      !container ||
+      !active ||
+      !readingAnchor ||
+      (shouldStickToBottom.value && options.autoScroll())
+    )
+      return;
+    resumeAnchor = readingAnchor;
+    resumeTop = container.scrollTop;
+    followBottom();
+  };
+
   const suspend = () => {
     active = false;
   };
@@ -209,6 +223,7 @@ export function useMessageScrollAnchor(options: MessageScrollAnchorOptions) {
     resume,
     cancelResume,
     rememberReadingAnchor,
+    preserveReadingPosition,
     navigateToMessage,
     shouldStickToBottom,
     isNearBottom,

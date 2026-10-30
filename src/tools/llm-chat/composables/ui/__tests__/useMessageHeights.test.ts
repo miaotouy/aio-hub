@@ -214,6 +214,19 @@ describe("消息占位与实际高度切换", () => {
       await flush();
       expect(height()).toBe(720.25);
 
+      // Resizing skipped rich text retains its last measured shell until fresh layout arrives.
+      nearby.value = false;
+      visibility(true);
+      deliver(container, 420, 500);
+      await flush();
+      expect(height()).toBe(720.25);
+      nearby.value = true;
+      visibility(false);
+      await flush();
+      deliver(slot, 420, 940.5);
+      await flush();
+      expect(height()).toBe(940.5);
+
       message.value.content += "\n\n新段落";
       await flush();
       expect(height()).toBe(500);

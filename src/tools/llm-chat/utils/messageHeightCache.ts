@@ -81,6 +81,12 @@ export class MessageHeightCache {
     return entry.height;
   }
 
+  readPreviousWidth(key: MessageHeightKey): number | undefined {
+    const entry = this.measured.get(key.id);
+    if (entry && matches({ ...entry.key, width: key.width }, key))
+      return entry.height;
+  }
+
   remember(key: MessageHeightKey, height: number): void {
     if (!Number.isFinite(height) || height <= 0 || key.width <= 0) return;
     this.measured.delete(key.id);

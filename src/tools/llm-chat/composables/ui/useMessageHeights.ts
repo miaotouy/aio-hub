@@ -58,6 +58,7 @@ interface Options {
   appearance: () => unknown;
   sessionId: () => string | null | undefined;
   screenshotMode: () => boolean;
+  onWidthChange?: () => void;
 }
 interface Slot {
   element: HTMLElement;
@@ -201,6 +202,7 @@ export function useMessageHeights(options: Options) {
       message.metadata?.partialImagePreviews?.length ||
       message.metadata?.error ||
       message.attachments?.length ||
+      message.virtualAttachments?.length ||
       message.presetAttachments?.length ||
       message.knowledgeReference
     )
@@ -264,7 +266,8 @@ export function useMessageHeights(options: Options) {
         }
       }
     }
-    slot.placeholder = height ?? DEFAULT_MESSAGE_HEIGHT;
+    slot.placeholder =
+      height ?? cache.readPreviousWidth(keyFor(slot)) ?? DEFAULT_MESSAGE_HEIGHT;
     // 显式维护实测高度，避免浏览器 auto 记忆在宽度 / 内容变化后继续使用旧尺寸。
     slot.element.style.setProperty(
       "contain-intrinsic-size",
@@ -427,6 +430,7 @@ export function useMessageHeights(options: Options) {
         if (entry.target === options.container.value) {
           const nextWidth = entry.contentRect.width;
           if (nextWidth > 0 && nextWidth !== width) {
+            if (width > 0) options.onWidthChange?.();
             width = nextWidth;
             refreshAll();
           }

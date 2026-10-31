@@ -899,6 +899,11 @@ const handleDragStart = (e: MouseEvent) => {
   gap: 8px;
 }
 
+/* 空附件区退出布局，避免在编辑器上方保留额外间距。 */
+.input-extra-content:empty {
+  display: none;
+}
+
 .input-wrapper {
   flex: 1;
   display: flex;

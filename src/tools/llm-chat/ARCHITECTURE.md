@@ -468,7 +468,7 @@ Token 限制器位于注入组装器之后（priority 600）、消息格式化�
   - **响应式瘦身**: 缓存节点正则扫描结果，移除 `data._node` 死负载，缩小响应式遍历范围。
   - **按需挂载与图级反缩放**: Menubar 和重对话框（`ExportBranchDialog`、`MessageDataEditor`）采用 `v-if` 条件渲染，仅在悬停或打开时挂载；反缩放计算由 `FlowTreeGraph` 图容器统一维护 CSS 变量 `--graph-menubar-scale`，各节点无需独立更新 inline style。
   - **节点生成操作**: 节点操作栏读取统一运行时 `isNodeGenerating(messageId)`，生成中提供停止入口，并收起续写、创建分支与重生成操作；停止复用 `abortNodeGeneration(messageId)`，与消息列表保持相同的请求和工具调用收尾路径。
-  - **D3 热路径**: Tick 回调及热路径使用 `Map` 索引，子树拖拽使用 `Set` 判定；HUD 隐藏时暂停 FPS 统计 RAF 循环；主题调色板变更前做等值比较，防止无效触发。
+  - **D3 热路径**: Tick 回调及热路径使用 `Map` 索引，子树拖拽使用 `Set` 判定；HUD 关闭或页面停用时暂停 FPS 统计 RAF 循环；页面停用同时停止 D3 模拟与尺寸等待，返回时按待处理布局和剩余模拟热度恢复，已冷却布局保持稳定；主题调色板变更前做等值比较，防止无效触发。
 - **输入编辑**: 支持 **CodeMirror 6** 与**原生 textarea** 双引擎驱动。原生 `ChatTextareaEditor` 组件绕过 Chromium 149+ 在 contenteditable 元素上首次 IME 合成事件被静默抑制的问题，与 CodeMirror 接口完全对齐，用户可在设置中自由切换。详见 [`chromium-149-ime-bug.md`](../../../docs/architecture/chromium-149-ime-bug.md)。
 - **输入草稿与拖放增强**: 支持跨会话的草稿剪切与粘贴（全局草稿剪贴板同步），以及 H5 原生文件拖放（`useFileDrop` 双信号融合去重，支持直接导入 File 对象）。
 - **面板尺寸调整**: 采用通用的 `useResizable` 组合函数，支持四个方向的尺寸调整，自动管理鼠标事件、光标样式与面板宽度配置的持久化，统一各工具面板的拖拽行为。

@@ -11,7 +11,7 @@ vi.mock("@/utils/logger", () => ({
 const cleanups: Array<() => void> = [];
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
 
-function createGraph() {
+function createGraph(active = ref(true)) {
   const session = {
     id: "session",
     rootNodeId: "root",
@@ -33,7 +33,8 @@ function createGraph() {
     ref("physics"),
     ref(false),
     nodes,
-    ref([{ source: "root", target: "reply" }])
+    ref([{ source: "root", target: "reply" }]),
+    active
   );
   graph.updateNodeDimensions(
     new Map([
@@ -131,4 +132,24 @@ describe("physics layout content updates", () => {
     sim.stop();
     expect(sim.alpha()).toBe(1);
   });
+});
+
+// 防护隐藏页面反复启动布局，恢复时继续原来的位置与温度。
+it("pauses D3 while hidden, defers rebuilds and preserves settled layouts on return", () => {
+  const active = ref(true);
+  const { graph, sim, nodes } = createGraph(active);
+  sim.alpha(0);
+  const restart = vi.spyOn(sim, "restart");
+  active.value = false;
+  graph.updateNodeDimensions(new Map([["root", { width: 0, height: 0 }]]));
+  expect(sim.nodes()[0].width).toBe(220);
+  active.value = true;
+  expect(restart).not.toHaveBeenCalled();
+  active.value = false;
+  graph.startWaitingForDimensions(nodes.value, true);
+  expect(graph.simulation.value).toBe(sim);
+  expect(sim.alpha()).toBe(0);
+  active.value = true;
+  graph.simulation.value?.stop();
+  expect(graph.simulation.value?.alpha()).toBe(1);
 });

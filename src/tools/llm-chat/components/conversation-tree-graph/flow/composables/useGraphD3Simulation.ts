@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, reactive, type Ref } from "vue";
+import { ref, reactive, watch, type Ref } from "vue";
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
@@ -106,7 +106,8 @@ export function useGraphD3Simulation(
   layoutMode: Ref<LayoutMode>,
   debugMode: Ref<boolean>,
   nodes: Ref<any[]>,
-  edges: Ref<any[]>
+  edges: Ref<any[]>,
+  isActive: Readonly<Ref<boolean>> = ref(true)
 ) {
   // D3 力模拟实例
   const simulation = ref<d3Force.Simulation<D3Node, D3Link> | null>(null);
@@ -124,6 +125,7 @@ export function useGraphD3Simulation(
   // 布局超时定时器
   let layoutTimeoutId: any = null;
   let resetPositionsOnLayout = false;
+  let pendingLayout = false;
   let lastVueNodesArray: any[] | null = null;
   let vueNodeById = new Map<string, any>();
 
@@ -139,6 +141,12 @@ export function useGraphD3Simulation(
    * 初始化 D3 力导向模拟
    */
   function initD3Simulation(resetPositions = false): void {
+    if (!isActive.value) {
+      pendingLayout = true;
+      resetPositionsOnLayout ||= resetPositions;
+      return;
+    }
+    pendingLayout = false;
     const session = sessionRef();
     if (!session || nodes.value.length === 0) return;
 
@@ -368,6 +376,7 @@ export function useGraphD3Simulation(
     }
 
     sim.on("tick", () => {
+      if (!isActive.value) return;
       if (debugMode.value) {
         d3Nodes.value = [...sim.nodes()];
       }
@@ -392,6 +401,7 @@ export function useGraphD3Simulation(
   function updateNodeDimensions(
     dimensions: Map<string, { width: number; height: number }>
   ) {
+    if (!isActive.value) return;
     for (const [id, dim] of dimensions) {
       measuredDimensions.set(id, dim);
     }
@@ -449,6 +459,11 @@ export function useGraphD3Simulation(
   }
 
   function startWaitingForDimensions(flowNodes: any[], resetPositions = false) {
+    if (!isActive.value) {
+      pendingLayout = true;
+      resetPositionsOnLayout ||= resetPositions;
+      return;
+    }
     resetPositionsOnLayout = resetPositions;
     if (layoutTimeoutId) {
       clearTimeout(layoutTimeoutId);
@@ -478,6 +493,29 @@ export function useGraphD3Simulation(
       }
     }, 300);
   }
+
+  watch(
+    isActive,
+    (active) => {
+      if (!active) {
+        simulation.value?.stop();
+        if (layoutTimeoutId) clearTimeout(layoutTimeoutId);
+        layoutTimeoutId = null;
+        pendingLayout ||= isWaitingForDimensions.value;
+        isWaitingForDimensions.value = false;
+        pendingNodeIds.value.clear();
+      } else if (pendingLayout) {
+        initD3Simulation(resetPositionsOnLayout);
+      } else if (
+        layoutMode.value !== "static" &&
+        simulation.value &&
+        simulation.value.alpha() > simulation.value.alphaMin()
+      ) {
+        simulation.value.restart();
+      }
+    },
+    { flush: "sync" }
+  );
 
   return {
     simulation,

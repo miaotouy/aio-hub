@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { ref, watch, onUnmounted, type Ref } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { useChatSettings } from "../../../../composables/settings/useChatSettings";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
 import { useLlmChatStore } from "../../../../stores/llmChatStore";
@@ -152,6 +153,7 @@ export function useFlowTreeGraph(
   const expandedCompressionIds = ref(new Set<string>());
   const derivedContentCache = new Map<string, DerivedContentCacheEntry>();
   let lastStructureFingerprint = "";
+  const isPageActive = usePageActivity();
 
   // 2. 初始化子模块
   const { palette, paletteVersion } = useGraphThemePalette();
@@ -165,7 +167,14 @@ export function useFlowTreeGraph(
     initD3Simulation,
     updateNodeDimensions,
     startWaitingForDimensions,
-  } = useGraphD3Simulation(sessionRef, layoutMode, debugMode, nodes, edges);
+  } = useGraphD3Simulation(
+    sessionRef,
+    layoutMode,
+    debugMode,
+    nodes,
+    edges,
+    isPageActive
+  );
 
   const { handleNodeDragStart, handleNodeDrag, handleNodeDragStop } =
     useGraphSubtreeDrag(sessionRef, settings, simulation, layoutMode, nodes);
@@ -360,6 +369,7 @@ export function useFlowTreeGraph(
    * 初始化或更新图表数据
    */
   function updateChart(forceResetPosition: boolean = false): void {
+    if (!isPageActive.value) return;
     const session = sessionRef();
     if (!session) {
       nodes.value = [];
@@ -642,6 +652,10 @@ export function useFlowTreeGraph(
     }
     logger.info("Vue Flow 树图已销毁");
   }
+
+  watch(isPageActive, (active) => {
+    if (active) updateChart();
+  });
 
   // 监听主题变化，刷新节点颜色和边样式
   watch(paletteVersion, () => {

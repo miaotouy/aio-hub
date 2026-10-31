@@ -512,7 +512,6 @@ import {
   onMounted,
   onUnmounted,
   computed,
-  reactive,
   type CSSProperties,
 } from "vue";
 import { useResizeObserver } from "@vueuse/core";
@@ -540,6 +539,7 @@ import {
 import customMessage from "@/utils/customMessage";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "./composables/useFlowTreeGraph";
+import { useGraphStats } from "./composables/useGraphStats";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
@@ -1055,74 +1055,8 @@ const locateActiveNode = () => {
   });
 };
 
-// 状态监控 (FPS & Zoom)
-const graphStats = reactive({
-  fps: 60,
-  zoom: 1,
-});
-
-let frameCount = 0;
-let lastTime = performance.now();
-let animationFrameId: number | null = null;
-
-const updateStats = () => {
-  if (!viewSettings.value.showHud) {
-    animationFrameId = null;
-    return;
-  }
-
-  const now = performance.now();
-  frameCount++;
-
-  if (now - lastTime >= 1000) {
-    graphStats.fps = Math.round((frameCount * 1000) / (now - lastTime));
-    frameCount = 0;
-    lastTime = now;
-  }
-
-  // 实时更新 Zoom (虽然有 onViewportChange，但在 RAF 中读取可以减少响应式开销)
-  const vp = getViewport();
-  if (Math.abs(graphStats.zoom - vp.zoom) > 0.01) {
-    graphStats.zoom = vp.zoom;
-  }
-
-  animationFrameId = requestAnimationFrame(updateStats);
-};
-
-const startStatsLoop = () => {
-  if (animationFrameId !== null) return;
-  frameCount = 0;
-  lastTime = performance.now();
-  updateStats();
-};
-
-const stopStatsLoop = () => {
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-};
-
-watch(
-  () => viewSettings.value.showHud,
-  (showHud) => {
-    if (showHud) {
-      startStatsLoop();
-    } else {
-      stopStatsLoop();
-    }
-  }
-);
-
-onMounted(() => {
-  if (viewSettings.value.showHud) {
-    startStatsLoop();
-  }
-});
-
-onUnmounted(() => {
-  stopStatsLoop();
-});
+// 统计刷新随缓存页面暂停，返回后重新采样。
+const graphStats = useGraphStats(() => viewSettings.value.showHud, getViewport);
 
 // 监听节点尺寸变化并同步到 D3
 const dimensionsWatchStop = watch(

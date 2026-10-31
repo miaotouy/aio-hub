@@ -78,7 +78,7 @@
       </el-aside>
 
       <!-- 主视图区 -->
-      <el-main ref="mainViewContainerRef" class="main-view-container">
+      <el-main class="main-view-container" @scroll.passive="handleAssetScroll">
         <!-- 加载状态 -->
         <div v-if="isLoading" class="loading-container">
           <el-icon class="is-loading"><Loading /></el-icon>
@@ -174,7 +174,8 @@ import type {
   AssetGroupBy,
   AssetSortBy,
 } from "@/types/asset-management";
-import { useInfiniteScroll, useDebounceFn } from "@vueuse/core";
+import { useDebounceFn } from "@vueuse/core";
+import { useScrollPagination } from "@/composables/useScrollPagination";
 import {
   assetManagerConfigManager,
   debouncedSaveConfig,
@@ -339,17 +340,14 @@ const handleUpdateDocumentConversionSettings = (
 };
 
 // --- 无限滚动 ---
-const mainViewContainerRef = ref<HTMLElement | null>(null);
-useInfiniteScroll(
-  mainViewContainerRef,
-  async () => {
-    if (hasMore.value && !isLoading.value && !isAppending.value) {
-      listPayload.page = currentPage.value + 1;
-      await fetchData(true);
-    }
+const handleAssetScroll = useScrollPagination({
+  canLoadMore: () => hasMore.value && !isLoading.value && !isAppending.value,
+  loadMore: async () => {
+    listPayload.page = currentPage.value + 1;
+    await fetchData(true);
   },
-  { distance: 200 }
-);
+  distance: 200,
+});
 
 // --- 计算属性 ---
 

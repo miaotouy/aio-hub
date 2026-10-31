@@ -32,7 +32,7 @@ import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer";
 import type { AssetType } from "@/types/asset-management";
-import { useInfiniteScroll } from "@vueuse/core";
+import { useScrollPagination } from "@/composables/useScrollPagination";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -58,8 +58,6 @@ const searchQuery = ref("");
 const filterType = ref<AssetType | "all">("all");
 const currentPage = ref(1);
 const pageSize = ref(20);
-
-const galleryContainer = ref<HTMLElement | null>(null);
 
 // 资产 URL 缓存
 const assetUrls = ref<Record<string, string>>({});
@@ -238,16 +236,14 @@ watch([searchQuery, filterType], () => {
 });
 
 // 无限滚动
-useInfiniteScroll(
-  galleryContainer,
-  () => {
-    if (hasMore.value && !isLoading.value) {
-      currentPage.value++;
-      loadData(true);
-    }
+const handleGalleryScroll = useScrollPagination({
+  canLoadMore: () => hasMore.value && !isLoading.value,
+  loadMore: async () => {
+    currentPage.value++;
+    await loadData(true);
   },
-  { distance: 10 }
-);
+  distance: 10,
+});
 
 const handlePreview = (asset: Asset) => {
   const url = assetUrls.value[asset.id];
@@ -330,7 +326,11 @@ const handleRefresh = () => {
     </div>
 
     <!-- 瀑布流/网格内容 -->
-    <div v-if="assets.length > 0" ref="galleryContainer" class="gallery-grid">
+    <div
+      v-if="assets.length > 0"
+      class="gallery-grid"
+      @scroll.passive="handleGalleryScroll"
+    >
       <div
         v-for="asset in assets"
         :key="asset.id"

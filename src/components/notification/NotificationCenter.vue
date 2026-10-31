@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { useScrollPagination } from "@/composables/useScrollPagination";
 import { useNotificationStore } from "@/stores/notification";
 import { useRouter } from "vue-router";
 import {
@@ -93,33 +94,18 @@ const loadMore = () => {
   });
 };
 
-const handleContentScroll = (event: Event) => {
-  const target = event.currentTarget as HTMLElement;
-  const distanceToBottom =
-    target.scrollHeight - target.scrollTop - target.clientHeight;
-  if (distanceToBottom <= LOAD_MORE_THRESHOLD) {
+const handleContentScroll = useScrollPagination({
+  canLoadMore: () => visible.value && hasMore.value && !isLoadingMore.value,
+  loadMore: async () => {
     loadMore();
-  }
-};
-
-const ensureContentCanScroll = async () => {
-  await nextTick();
-  const content = contentRef.value;
-  if (!content || !hasMore.value) return;
-
-  // 首屏内容不足以产生滚动条时，继续补页，避免用户无法触发触底事件。
-  if (content.scrollHeight <= content.clientHeight + 1) {
-    loadMore();
-  }
-};
+    await nextTick();
+  },
+  distance: LOAD_MORE_THRESHOLD,
+});
 
 watch(searchQuery, () => {
   currentPage.value = 1;
-  void ensureContentCanScroll();
-});
-
-watch([displayedNotifications, visible], () => {
-  void ensureContentCanScroll();
+  if (contentRef.value) contentRef.value.scrollTop = 0;
 });
 
 // 详情弹窗

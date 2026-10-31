@@ -31,7 +31,7 @@ import { useToolsStore } from "@/stores/tools";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { useGuidedFlowStore } from "@/stores/guidedFlowStore";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
-import CompanionSessionSheet from "@/tools/sub-agent/components/CompanionSessionSheet.vue";
+import CompanionSessionHost from "@/tools/sub-agent/components/CompanionSessionHost.vue";
 
 const logger = createModuleLogger("MainLayout");
 const route = useRoute();
@@ -190,7 +190,7 @@ onUnmounted(() => {
     <!-- Deep Link 确认弹窗 -->
     <LlmDeepLinkConfirmDialog />
 
-    <CompanionSessionSheet />
+    <CompanionSessionHost />
 
     <!-- 主布局容器 -->
     <el-container

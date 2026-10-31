@@ -64,10 +64,9 @@ import {
   useResolvedProfileAvatar,
   resolveProfileAvatarPath,
 } from "@/tools/user-profile-manager/utils/profileAssetUtils";
-import UserProfileManagerDialog from "@/tools/user-profile-manager/components/UserProfileManagerDialog.vue";
+import LazyPanelHost from "@/components/common/LazyPanelHost.vue";
 import { useBackgroundTaskCenter } from "@/tools/sub-agent/composables/useBackgroundTaskCenter";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
-import BackgroundTaskCenter from "@/tools/sub-agent/components/BackgroundTaskCenter.vue";
 import BackgroundTaskAgentAvatar from "@/tools/sub-agent/components/BackgroundTaskAgentAvatar.vue";
 import { useCompanionSession } from "@/tools/sub-agent/composables/useCompanionSession";
 import {
@@ -83,6 +82,11 @@ import {
   isActiveTaskState,
   type BackgroundTaskTone,
 } from "@/tools/sub-agent/components/backgroundTaskPresentation";
+
+const loadProfileManager = () =>
+  import("@/tools/user-profile-manager/components/UserProfileManagerDialog.vue");
+const loadTaskCenter = () =>
+  import("@/tools/sub-agent/components/BackgroundTaskCenter.vue");
 
 // 接收可选的标题和图标 prop（用于分离窗口）
 const props = defineProps<{
@@ -551,10 +555,22 @@ watch(
 <template>
   <Teleport to="body">
     <!-- 用户档案管理弹窗 -->
-    <UserProfileManagerDialog v-model:visible="showProfileManagerDialog" />
+    <LazyPanelHost
+      :open="showProfileManagerDialog"
+      :loader="loadProfileManager"
+      title="管理用户档案"
+      v-model:visible="showProfileManagerDialog"
+      @close="showProfileManagerDialog = false"
+    />
 
     <!-- 后台任务与子智能体中心：全应用唯一挂载点，由标题栏胶囊 / 聊天区入口共同打开 -->
-    <BackgroundTaskCenter v-model="isTaskCenterOpen" />
+    <LazyPanelHost
+      :open="isTaskCenterOpen"
+      :loader="loadTaskCenter"
+      title="任务与子智能体中心"
+      v-model="isTaskCenterOpen"
+      @close="isTaskCenterOpen = false"
+    />
 
     <!-- 侧边栏抽屉 -->
     <el-drawer

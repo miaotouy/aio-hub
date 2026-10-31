@@ -9,6 +9,7 @@
   - [基础 UI](#基础-ui)
     - [Avatar](#avatar)
     - [BaseDialog](#basedialog)
+    - [LazyPanelHost](#lazypanelhost)
     - [DraggablePanel](#draggablepanel)
     - [InfoCard](#infocard)
     - [DropZone](#dropzone)
@@ -96,6 +97,34 @@
     </template>
   </BaseDialog>
   ```
+
+### LazyPanelHost
+
+首次打开时加载面板，成功后保留组件实例，让关闭重开延续页签和局部状态。
+
+- `open: boolean`：触发首次加载，也控制加载占位弹窗。
+- `title: string`：加载/失败弹窗标题。
+- `loader: () => Promise<{ default: Component }>`：稳定的动态导入函数；并发请求复用，失败可重新加载或关闭后重开。
+- `close`：加载/失败占位弹窗的关闭事件，调用方负责收起共享状态。
+- 其余 props、`v-model` 和事件通过 attrs 原样交给实际面板。实际面板的显隐仍由自己的 model 控制。
+
+```vue
+<script setup lang="ts">
+const loadPanel = () => import("./MyPanel.vue");
+</script>
+
+<template>
+  <LazyPanelHost
+    :open="visible"
+    :loader="loadPanel"
+    title="面板"
+    v-model="visible"
+    @close="visible = false"
+  />
+</template>
+```
+
+恢复、跨窗口同步等常驻服务应由外层宿主同步初始化；首次打开前这些职责仍需可用。
 
 ### DraggablePanel
 

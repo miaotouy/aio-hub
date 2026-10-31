@@ -44,7 +44,6 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { backgroundTaskRegistry } from "@/services/background-tasks";
 import { customMessage } from "@/utils/customMessage";
-import { useBackgroundTaskSync } from "../composables/useBackgroundTaskSync";
 import { useCompanionSession } from "../composables/useCompanionSession";
 import {
   getOriginDisplayName,
@@ -66,8 +65,6 @@ const {
   toggleMode,
   refresh,
 } = useCompanionSession();
-
-useBackgroundTaskSync();
 
 const chatStore = useLlmChatStore();
 const agentStore = useAgentStore();

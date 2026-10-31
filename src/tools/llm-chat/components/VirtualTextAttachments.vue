@@ -27,6 +27,7 @@ const props = withDefaults(
   defineProps<{
     attachments: VirtualTextAttachment[];
     draft?: boolean;
+    inline?: boolean;
     restorePasteId?: string;
     editable?: boolean;
     busy?: boolean;
@@ -157,6 +158,7 @@ defineExpose({ openNew: () => open() });
   <section
     v-if="attachments.length"
     class="text-attachments"
+    :class="{ 'is-inline': inline, 'is-draft': draft }"
     aria-label="文本附件"
   >
     <div class="text-attachment-list">
@@ -168,14 +170,18 @@ defineExpose({ openNew: () => open() });
         <button
           type="button"
           class="text-attachment-open"
-          :title="item.attachment.title"
+          :title="`${item.attachment.title} · ${item.count} 字符\n${item.preview}`"
           @click="open(item.attachment)"
         >
           <FileText :size="25" class="text-file-icon" />
           <span class="text-attachment-info">
             <strong>{{ item.attachment.title }}</strong>
-            <span class="text-muted">文本 · {{ item.count }} 字符</span>
-            <span class="text-attachment-preview">{{ item.preview }}</span>
+            <span class="text-muted"
+              >{{ draft ? "" : "文本 · " }}{{ item.count }} 字符</span
+            >
+            <span v-if="!draft" class="text-attachment-preview">{{
+              item.preview
+            }}</span>
           </span>
         </button>
         <div v-if="draft && editable" class="text-card-actions">
@@ -298,6 +304,47 @@ defineExpose({ openNew: () => open() });
 <style scoped>
 .text-attachments {
   min-width: 0;
+}
+.text-attachments.is-inline,
+.text-attachments.is-inline .text-attachment-list {
+  display: contents;
+}
+.text-attachments.is-draft .text-attachment-card {
+  box-sizing: border-box;
+  width: 160px;
+  height: 54px;
+  flex-shrink: 0;
+  background: var(--card-bg);
+}
+.text-attachments.is-draft .text-attachment-open {
+  align-self: stretch;
+  gap: 8px;
+  padding: 6px 8px;
+}
+.text-attachments.is-draft .text-attachment-info {
+  flex: 1;
+  gap: 2px;
+}
+.text-attachments.is-draft .text-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.text-attachments.is-draft .text-card-actions {
+  align-self: stretch;
+  flex-direction: column;
+  justify-content: center;
+  padding-right: 4px;
+}
+.text-attachments.is-draft .text-card-actions button {
+  margin: 0;
+  padding: 2px;
+}
+.text-attachment-open:focus-visible,
+.text-card-actions button:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 .text-editor-actions,
 .text-editor-tools,

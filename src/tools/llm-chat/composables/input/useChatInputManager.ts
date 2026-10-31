@@ -1398,6 +1398,10 @@ class ChatInputManager {
   }
 
   public removeVirtualAttachment(id: string, sessionId?: string | null): void {
+    // Capture same-turn editor/file changes before replacing the active draft.
+    if (this.getDraftKey(sessionId) === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
     this.updateDraft(sessionId, (draft) => {
       draft.virtualAttachments = (draft.virtualAttachments ?? []).filter(
         (item) => item.id !== id

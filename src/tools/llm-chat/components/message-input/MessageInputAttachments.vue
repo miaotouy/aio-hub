@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { Trash2, Wand2, FileAudio, Square } from "lucide-vue-next";
+import { Trash2, Wand2, FileAudio, Square, ChevronDown } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import AttachmentCard from "../AttachmentCard.vue";
 import type { Asset } from "@/types/asset-management";
@@ -24,6 +24,7 @@ interface Props {
   attachments: Asset[];
   count: number;
   maxCount: number;
+  textCount: number;
   getWillUseTranscription: (asset: Asset) => boolean;
 }
 
@@ -54,7 +55,7 @@ const handleClear = async () => {
 </script>
 
 <template>
-  <div class="attachments-area">
+  <div v-show="count + textCount > 0" class="attachments-area">
     <div class="attachments-list">
       <AttachmentCard
         v-for="asset in attachments"
@@ -66,6 +67,7 @@ const handleClear = async () => {
         :will-use-transcription="getWillUseTranscription(asset)"
         @remove="emit('remove', asset)"
       />
+      <slot />
     </div>
     <!-- 附件数量浮动显示 -->
     <div class="attachments-info-container">
@@ -74,48 +76,52 @@ const handleClear = async () => {
         placement="top-end"
         class="attachments-dropdown"
       >
-        <div class="attachments-info clickable" title="批量附件操作">
-          <span class="attachment-count"> {{ count }} / {{ maxCount }} </span>
-        </div>
+        <button
+          type="button"
+          class="attachments-info clickable"
+          :title="`批量附件操作 · 文件 ${count} / ${maxCount}，文本 ${textCount}`"
+        >
+          <span class="attachment-count"
+            >{{ count + textCount
+            }}<span class="attachment-count-label"> 个附件</span></span
+          >
+          <ChevronDown :size="12" aria-hidden="true" />
+        </button>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item @click="emit('transcribe-all')">
+            <el-dropdown-item v-if="count" @click="emit('transcribe-all')">
               <template #icon><FileAudio :size="14" /></template>
               一键转写未转写
             </el-dropdown-item>
-            <el-dropdown-item @click="emit('smart-transcribe-all')">
+            <el-dropdown-item
+              v-if="count"
+              @click="emit('smart-transcribe-all')"
+            >
               <template #icon><Wand2 :size="14" /></template>
               智能转写未转写
             </el-dropdown-item>
-            <el-dropdown-item @click="emit('force-transcribe-all')">
+            <el-dropdown-item
+              v-if="count"
+              @click="emit('force-transcribe-all')"
+            >
               <template #icon><FileAudio :size="14" /></template>
               强制重新转写所有
             </el-dropdown-item>
-            <el-dropdown-item @click="emit('stop-all')">
+            <el-dropdown-item v-if="count" @click="emit('stop-all')">
               <template #icon><Square :size="14" /></template>
               停止所有任务
             </el-dropdown-item>
-            <el-dropdown-item divided @click="handleClear" class="danger-item">
+            <el-dropdown-item
+              :divided="count > 0"
+              @click="handleClear"
+              class="danger-item"
+            >
               <template #icon><Trash2 :size="14" /></template>
               清空所有附件
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
-
-      <div class="divider"></div>
-
-      <el-button
-        type="danger"
-        link
-        class="clear-btn"
-        title="清空所有附件"
-        @click="handleClear"
-      >
-        <template #icon>
-          <Trash2 :size="12" />
-        </template>
-      </el-button>
     </div>
   </div>
 </template>
@@ -123,8 +129,10 @@ const handleClear = async () => {
 <style scoped>
 .attachments-area {
   position: relative;
+  container-type: inline-size;
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   padding: 10px;
   border-radius: 12px;
   background: var(--input-bg, var(--container-bg));
@@ -146,36 +154,50 @@ const handleClear = async () => {
 
 .attachments-list {
   display: flex;
+  flex: 1;
+  min-width: 0;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 8px;
 }
 
 .attachments-info-container {
   position: sticky;
   top: 0;
-  align-self: flex-end;
+  flex-shrink: 0;
+  align-self: flex-start;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 2px 4px 2px 8px;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(4px);
+  background: var(--container-bg);
+  backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
   z-index: 1;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .attachments-info {
   display: flex;
   align-items: center;
+  gap: 3px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
   height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
 }
 
 .attachments-info.clickable {
   cursor: pointer;
   transition: opacity 0.2s;
+}
+
+.attachments-info:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .attachments-info.clickable:hover {
@@ -187,35 +209,15 @@ const handleClear = async () => {
   font-variant-numeric: tabular-nums;
 }
 
-.divider {
-  width: 1px;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  margin: 0 2px;
-}
-
 .danger-item {
   color: var(--el-color-danger);
 }
-
-.clear-btn {
-  padding: 2px;
-  height: auto;
-  margin-left: -2px;
-  color: rgba(255, 255, 255, 0.6);
-  transition: all 0.2s ease;
-}
-
-.clear-btn:hover {
-  color: var(--el-color-danger);
-  background: rgba(var(--el-color-danger-rgb), 0.1);
-}
-
-.clear-btn:active {
-  transform: scale(0.9);
-}
-
-.clear-btn :deep(.el-icon) {
-  font-size: 12px;
+@container (max-width: 280px) {
+  .attachment-count-label {
+    display: none;
+  }
+  .attachments-info-container {
+    padding-inline: 4px;
+  }
 }
 </style>

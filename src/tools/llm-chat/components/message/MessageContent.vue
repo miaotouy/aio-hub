@@ -1201,10 +1201,15 @@ watch(
 <template>
   <div class="message-content" ref="containerRef" :class="containerClasses">
     <!-- 附件展示区域 - 非编辑模式 (始终显示在顶部) -->
-    <div v-if="!isEditing && hasAttachments" class="attachments-section">
+    <div
+      v-if="
+        (!isEditing && hasAttachments) || message.virtualAttachments?.length
+      "
+      class="attachments-section"
+    >
       <div class="attachments-list">
         <AttachmentCard
-          v-for="attachment in message.attachments"
+          v-for="attachment in isEditing ? [] : message.attachments"
           :key="attachment.id"
           :asset="attachment"
           :all-assets="message.attachments"
@@ -1213,21 +1218,21 @@ watch(
           :will-use-transcription="getWillUseTranscription(attachment)"
           @preview-document="handlePreviewDocument"
         />
+        <VirtualTextAttachments
+          v-if="message.virtualAttachments?.length"
+          :attachments="message.virtualAttachments"
+          inline
+          :editable="!isSessionReadOnly && !isEditing && !screenshotMode"
+          :busy="
+            !!sessionDetail &&
+            llmChatStore.isSessionGenerating(sessionDetail.id)
+          "
+          :allow-branch="!!message.parentId"
+          :has-replies="!!message.childrenIds.length"
+          :commit="saveTextAttachment"
+        />
       </div>
     </div>
-
-    <VirtualTextAttachments
-      v-if="message.virtualAttachments?.length"
-      :attachments="message.virtualAttachments"
-      :editable="!isSessionReadOnly && !isEditing && !screenshotMode"
-      :busy="
-        !!sessionDetail && llmChatStore.isSessionGenerating(sessionDetail.id)
-      "
-      :allow-branch="!!message.parentId"
-      :has-replies="!!message.childrenIds.length"
-      :commit="saveTextAttachment"
-      class="attachments-section"
-    />
 
     <!-- 推理内容（DeepSeek reasoning）- 始终显示在顶部 -->
     <LlmThinkNode

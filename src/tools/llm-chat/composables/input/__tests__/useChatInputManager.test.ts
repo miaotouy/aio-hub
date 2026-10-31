@@ -438,6 +438,38 @@ describe("useChatInputManager session drafts", () => {
     expect(manager.inputText.value).toBe("原有问题");
   });
 
+  it.each([false, true])(
+    "preserves same-turn body and file changes when removing text material (clear files: %s)",
+    async (clearFiles) => {
+      const manager = useChatInputManager();
+      manager.setActiveSessionId("remove-material");
+      manager.setContent("原有问题");
+      const asset = createAsset("image");
+      manager.addAsset(asset);
+      const material = {
+        id: "pasted-material",
+        kind: "text" as const,
+        title: "粘贴材料",
+        text: "恢复到正文的材料",
+      };
+      manager.addVirtualAttachment(material);
+      await nextTick();
+
+      // Restoring a card and clearing a mixed list both change refs before Vue's watchers run.
+      manager.inputText.value = "原有问题\n恢复到正文的材料";
+      if (clearFiles) manager.clearAttachments();
+      manager.removeVirtualAttachment(material.id);
+      await manager.flushDrafts();
+
+      const draft = manager.getDraftSnapshot("remove-material");
+      expect(draft.text).toBe("原有问题\n恢复到正文的材料");
+      expect(draft.attachments).toEqual(clearFiles ? [] : [asset]);
+      expect(draft.virtualAttachments).toEqual([]);
+      expect(manager.inputText.value).toBe(draft.text);
+      expect(manager.attachments.value).toEqual(draft.attachments);
+    }
+  );
+
   it("keeps copied text materials independent across sessions and restores their full text", async () => {
     const manager = useChatInputManager();
     manager.setActiveSessionId("text-source");

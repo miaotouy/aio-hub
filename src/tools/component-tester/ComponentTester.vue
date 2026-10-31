@@ -57,7 +57,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="GPU 渲染探针" name="gpu-rendering">
-          <GpuRenderingTester />
+          <GpuRenderingTester :active="activeTab === 'gpu-rendering'" />
         </el-tab-pane>
 
         <el-tab-pane label="下载测试" name="download-test">

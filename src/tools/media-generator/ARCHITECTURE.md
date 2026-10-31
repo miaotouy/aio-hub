@@ -772,3 +772,7 @@ OpenRouter 渠道的多媒体请求在现有媒体生成入口中选择 `package
 - **自定义端点**：图像沿用 `imagesGenerations` 配置键，视频支持 `videos`、`videoStatus`、`videoContent`；查询和下载路径支持 `{video_id}`。
 
 协议依据为 OpenRouter 官方文档仓库 `openrouterteam/docs` 中的 `openapi/openapi.yaml`。相关回归用例覆盖共享协议、桌面入口分发和媒体资产 MIME 入库。
+
+## 展示层后台负载
+
+媒体画廊通过共享 `useScrollPagination` 在页面激活且用户向下滚动接近底部时追加一页，并等待实际加载完成；首屏加载一页。生成流的空白示例提示词仅在页面激活且空白区展示时轮换。生成任务、进度同步和持久化沿用独立的后台生命周期。

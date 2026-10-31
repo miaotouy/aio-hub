@@ -151,10 +151,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 
+const props = withDefaults(defineProps<{ active?: boolean }>(), {
+  active: true,
+});
+const isPageActive = usePageActivity();
 const logger = createModuleLogger("GpuRenderingTester");
 const errorHandler = createModuleErrorHandler("GpuRenderingTester");
 
@@ -440,6 +445,7 @@ async function start(): Promise<void> {
     lastError.value = null;
     statusMessage.value = "正在初始化 WebGL 上下文…";
     await nextTick();
+    if (!isPageActive.value || !props.active) return;
     initializeRenderer();
 
     renderedFrames.value = 0;
@@ -484,6 +490,13 @@ function handleContextLost(event: Event): void {
   logger.warn("GPU 渲染探针的 WebGL 上下文已丢失");
 }
 
+watch(
+  () => isPageActive.value && props.active,
+  (active) => {
+    if (!active) stop();
+  },
+  { flush: "sync" }
+);
 onBeforeUnmount(() => stop());
 </script>
 

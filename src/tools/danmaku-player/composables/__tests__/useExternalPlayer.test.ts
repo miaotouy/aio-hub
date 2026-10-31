@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { createApp } from "vue";
+import { createApp, defineComponent, h, KeepAlive, nextTick, ref } from "vue";
+import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { useExternalPlayer } from "../useExternalPlayer";
@@ -69,4 +70,75 @@ describe("外部播放器的平台能力", () => {
       }
     }
   );
+});
+
+it("pauses only status preview while cached and ignores a late status response", async () => {
+  os.name = "windows";
+  vi.useFakeTimers();
+  const visible = ref(true);
+  let player!: ReturnType<typeof useExternalPlayer>;
+  let resolveStatus!: (value: unknown) => void;
+  vi.mocked(invoke).mockReset();
+  vi.mocked(invoke).mockImplementation(async (command) =>
+    command === "get_external_player_status"
+      ? new Promise((resolve) => {
+          resolveStatus = resolve;
+        })
+      : null
+  );
+  const Probe = defineComponent({
+    setup() {
+      player = useExternalPlayer();
+      player.startStatusPreview();
+      return () => h("div");
+    },
+  });
+  const wrapper = mount(
+    defineComponent({
+      setup: () => () =>
+        h(KeepAlive, null, {
+          default: () => (visible.value ? h(Probe) : null),
+        }),
+    })
+  );
+  try {
+    await flushPromises();
+    visible.value = false;
+    await nextTick();
+    resolveStatus({
+      state: "Playing",
+      file: "late.mp4",
+      position: 10,
+      duration: 100,
+    });
+    await flushPromises();
+    const paused = vi.mocked(invoke).mock.calls.length;
+    expect(player.overlayState.connected).toBe(false);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(invoke).toHaveBeenCalledTimes(paused);
+    vi.mocked(invoke).mockResolvedValue({
+      state: "Playing",
+      file: "current.mp4",
+      position: 20,
+      duration: 100,
+    });
+    visible.value = true;
+    await nextTick();
+    await flushPromises();
+    expect(player.overlayState.currentFile).toBe("current.mp4");
+    const resumed = vi.mocked(invoke).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(invoke).toHaveBeenCalledTimes(resumed + 1);
+    player.stopStatusPreview();
+    visible.value = false;
+    await nextTick();
+    visible.value = true;
+    await nextTick();
+    const stopped = vi.mocked(invoke).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(invoke).toHaveBeenCalledTimes(stopped);
+  } finally {
+    wrapper.unmount();
+    vi.useRealTimers();
+  }
 });

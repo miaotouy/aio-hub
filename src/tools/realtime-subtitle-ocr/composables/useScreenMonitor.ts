@@ -188,8 +188,18 @@ let previewTimer: ReturnType<typeof setInterval> | null = null;
 let previewInFlight = false;
 let previewCanvas: HTMLCanvasElement | null = null;
 let previewToken = 0;
+const previewConsumers = new Set<symbol>();
 
 export function useScreenMonitor() {
+  const previewConsumer = Symbol("screen-preview");
+  /** 只有可见的屏幕工作台订阅自动预览，正式监控保持独立。 */
+  function setPreviewActive(active: boolean) {
+    if (active) previewConsumers.add(previewConsumer);
+    else previewConsumers.delete(previewConsumer);
+    if (previewConsumers.size > 0 && status.value === "idle")
+      startPreviewLoop();
+    else if (previewConsumers.size === 0) stopPreviewLoop();
+  }
   function setMonitorRect(rect: MonitorRect | null) {
     monitorRect.value = rect;
     if (!rect) {
@@ -414,7 +424,13 @@ export function useScreenMonitor() {
   }
 
   async function refreshPreview() {
-    if (previewInFlight || isRunning.value || !monitorRect.value) return;
+    if (
+      previewConsumers.size === 0 ||
+      previewInFlight ||
+      isRunning.value ||
+      !monitorRect.value
+    )
+      return;
     previewInFlight = true;
     const token = ++previewToken;
     let rawBlob: Blob | null = null;
@@ -469,7 +485,13 @@ export function useScreenMonitor() {
   }
 
   function startPreviewLoop() {
-    if (isRunning.value || !monitorRect.value || previewTimer) return;
+    if (
+      previewConsumers.size === 0 ||
+      isRunning.value ||
+      !monitorRect.value ||
+      previewTimer
+    )
+      return;
     void refreshPreview();
     previewTimer = setInterval(() => {
       void refreshPreview();
@@ -825,6 +847,7 @@ export function useScreenMonitor() {
 
   // 在 Composable 销毁时减少引用计数，并在无活跃实例时注销监听器，防止内存泄漏
   onBeforeUnmount(() => {
+    setPreviewActive(false);
     activeInstances -= 1;
     if (activeInstances <= 0) {
       activeInstances = 0;
@@ -843,6 +866,7 @@ export function useScreenMonitor() {
   });
 
   return {
+    setPreviewActive,
     // state
     subtitles: timeline.subtitles,
     timeline,

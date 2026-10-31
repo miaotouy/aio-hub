@@ -57,7 +57,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from "vue";
+import { computed, ref, watch } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { formatBytesPerSec, usageColor } from "../utils/formatters";
 import type { SystemSnapshot } from "../types/snapshot";
 
@@ -79,15 +80,19 @@ const totalDown = computed(() =>
 const timeStr = ref(new Date().toLocaleTimeString());
 let timer: ReturnType<typeof setInterval> | null = null;
 
-onMounted(() => {
-  timer = setInterval(() => {
+watch(
+  usePageActivity(),
+  (active) => {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (!active) return;
     timeStr.value = new Date().toLocaleTimeString();
-  }, 1000);
-});
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
+    timer = setInterval(() => {
+      timeStr.value = new Date().toLocaleTimeString();
+    }, 1000);
+  },
+  { immediate: true, flush: "sync" }
+);
 </script>
 
 <style scoped>

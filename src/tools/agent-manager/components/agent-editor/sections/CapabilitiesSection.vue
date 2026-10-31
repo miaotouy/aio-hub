@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { inject, ref, computed, watch, onUnmounted } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { MagicStick, Folder, Collection } from "@element-plus/icons-vue";
 import MacroSelector from "../../selectors/MacroSelector.vue";
 import type { MacroDefinition } from "@/tools/llm-chat/macro-engine";
@@ -86,6 +87,8 @@ const activeTab = inject<any>("active-tab");
 const macroPreviewInput = ref("{{time}} | {{datetime_cn}} | {{shichen}}");
 const macroPreviewResult = ref("");
 let previewTimer: ReturnType<typeof setInterval> | null = null;
+const isPageActive = usePageActivity();
+let previewVersion = 0;
 
 const parseMacroPreview = async (input: string): Promise<string> => {
   if (!input.trim()) return "";
@@ -133,7 +136,10 @@ const parseMacroPreview = async (input: string): Promise<string> => {
 };
 
 const updateMacroPreview = async () => {
-  macroPreviewResult.value = await parseMacroPreview(macroPreviewInput.value);
+  const version = previewVersion;
+  const result = await parseMacroPreview(macroPreviewInput.value);
+  if (version === previewVersion && isPageActive.value)
+    macroPreviewResult.value = result;
 };
 
 const startPreviewTimer = () => {
@@ -143,6 +149,7 @@ const startPreviewTimer = () => {
 };
 
 const stopPreviewTimer = () => {
+  previewVersion++;
   if (previewTimer) {
     clearInterval(previewTimer);
     previewTimer = null;
@@ -150,7 +157,10 @@ const stopPreviewTimer = () => {
 };
 
 const shouldTimerBeRunning = computed(
-  () => virtualTimeEnabled.value && activeTab.value === "capabilities"
+  () =>
+    isPageActive.value &&
+    virtualTimeEnabled.value &&
+    activeTab.value === "capabilities"
 );
 
 watch(
@@ -165,7 +175,7 @@ watch(
     if (isRunning) startPreviewTimer();
     else stopPreviewTimer();
   },
-  { deep: true, immediate: true }
+  { deep: true, immediate: true, flush: "sync" }
 );
 
 onUnmounted(stopPreviewTimer);

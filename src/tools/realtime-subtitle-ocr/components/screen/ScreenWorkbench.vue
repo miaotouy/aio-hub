@@ -86,7 +86,8 @@
 
 <script setup lang="ts">
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import { Settings as SettingsIcon } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";
 import { useResizable } from "@/composables/useResizable";
@@ -132,11 +133,14 @@ const {
   filterLatency,
   isOcrPreparing,
   ensureOcrReady,
+  setPreviewActive,
   start,
   stop,
   removeSubtitle,
   updateSubtitleText,
 } = useScreenMonitor();
+
+watch(usePageActivity(), setPreviewActive, { immediate: true, flush: "sync" });
 
 const {
   isMonitorBoxDetached,

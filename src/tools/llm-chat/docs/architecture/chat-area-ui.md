@@ -70,12 +70,12 @@
 
 ### 3.2 消息导航器 (MessageNavigator)
 
-实现位于 [`MessageNavigator.vue`](../../components/message/MessageNavigator.vue)：
+实现位于 [MessageNavigator.vue](../../components/message/MessageNavigator.vue)，目标由 [messagePresentation.ts](../../utils/messagePresentation.ts) 提供：
 
-- 悬浮于列表左侧的悬浮控件，鼠标进入或靠近时展开，离开后自动半透明收起。
-- 通过 `@vueuse/core` 的 [`useScroll`](../../components/message/MessageNavigator.vue:38) 监听 `arrivedState`（top/bottom 偏移 50px 视为已到达），驱动「跳顶部 / 上一条 / 下一条 / 跳底部」四个按钮的可用状态。
-- 显示 `currentIndex / messageCount` 的当前可见消息计数，索引由父组件 [`MessageList`](../../components/message/MessageList.vue:435) 基于"视口中心命中"算法计算并向下传入。
-- **新消息提示判定**: **不是基于滚动距离阈值**，而是由父组件传入的 `hasNewMessages` prop（由业务层根据新消息到达事件决定）+ `arrivedState.bottom === true` 自动清除两条线协作。当 `hasNewMessages && canScrollDown` 时，在「下一条」与「跳底部」按钮上叠加 `new-message-dot` 红点徽章；用户滚动触底（50px 阈值）后自动 emit `seen-new-messages` 让父组件清除标记。
+- 常规布局保留消息导航；连续紧凑布局使用真实用户提问点，连续合并的用户节点共用一个点。一次提问后的 AI / 工具过程属于该点的导航范围。
+- 紧凑导航固定在列表右侧，短线显示当前位置；悬停或键盘聚焦显示提问摘要，点击定位原用户节点。一个长提问同样保留导航与到底入口。
+- 计数与上下条操作统一使用 `navigationPoints`。阅读高亮使用与跳转相同的 120px 对齐线；实际触底时高亮最后提问。`currentVisibleIndex` 与阅读锚点继续以原节点行测量，搜索 / 分支等通过 `scrollToMessageId` 精确跳转。
+- `useScroll` 提供顶部 / 底部按钮状态。新内容标记由 ChatArea 按源消息追加检测，独立于导航点数量；同一提问下继续追加工具 / AI 消息仍可提示，触底清除。
 
 ### 3.3 富文本渲染系统 (Rich Text Rendering System)
 
@@ -192,14 +192,19 @@
 
 - **统一拖拽行为**: 采用通用的 `useResizable` 组合函数，支持左、右、上、下四个方向的尺寸调整，自动管理鼠标事件、光标样式与面板宽度配置的持久化，移除了各工具本地冗余的拖拽处理代码。
 
-## 8. 气泡布局模式 (Bubble Layout Mode)
+## 8. 消息布局 (Message Layout)
 
-为了同时满足"知识型工作流"和"沉浸式聊天"等多种使用场景，消息列表支持在 **卡片模式 (Card)** 和 **气泡模式 (Bubble)** 之间无缝切换。该能力由 `BubbleLayoutConfig` 配置驱动，并通过 CSS 变量 + `data-*` 属性实现，**完全不影响**默认卡片模式的渲染路径，确保零回归。
+布局预设由 `BubbleLayoutConfig.mode` 配置，消息行由 [MessageRow.vue](../../components/message/MessageRow.vue) 统一渲染，气泡样式集中在 [messageRowLayout.css](../../components/message/messageRowLayout.css)。主列表与截图共用该入口，每个源节点维持独立行壳。
 
-### 8.1 双布局模式
+### 8.1 三种布局预设
 
-- **卡片模式 (Card)**: 默认行为，所有消息（含工具调用、压缩节点）保持全宽展示，适合代码审阅、长文档分析等专业场景。
-- **气泡模式 (Bubble)**: 经典 IM 风格，按角色对齐并限制宽度，适合角色扮演、自然对话场景。
+- **卡片 (card)**：独立全宽消息。
+- **气泡 (bubble)**：按角色对齐、限制宽度，并支持内外头像与头栏。
+- **连续紧凑 (compact)**：连续 AI / 工具成员共享身份头，正文保留原顺序，中间操作栏收为复制 / 编辑与更多菜单，统计集中到组尾；导航按用户提问定位。
+
+共享身份依据角色作者、模型渠道、来源和相邻父链；工具还需匹配请求归属。分组表达展示连续性，执行与持久化继续以原消息节点工作。状态来自活动成员，身份来自组首。`MessageContent` 的错误与空回复诊断、工具审批继续保留在原消息处。
+
+`MessageStatistics` 提供普通统计展示；组尾汇总原有字数结果，展开显示逐段 Token / 性能明细。跨请求用量累计需要额外的请求归属与覆盖率证据。组首尾、活动状态与组尾显示统计参与高度缓存失效，正文实例在布局切换时保持稳定。完整设计及首版取舍见[消息列表 UI 架构方案](../Plan/message-list-ui-architecture-proposal.md)。
 
 ### 8.2 多维度对齐策略
 
@@ -225,7 +230,7 @@
 - **`inside`**: 名字、模型信息、时间戳在气泡内部（默认）。
 - **`outside`**: IM 经典布局，头部信息抽离到气泡上方，气泡内只剩纯净的消息内容，通过 `headerGap` 控制垂直间距。
 - 仅对 user / assistant 普通消息生效，工具调用与压缩节点保留各自装饰条。
-- 外置头部容器按内容收缩并承担气泡宽度上限，内部消息限制在容器宽度内。跨越 `ChatMessage` 组件边界的限宽使用深度选择器，适配其多根节点结构；消息列表与截图渲染器保持一致。
+- 外置头部容器按内容收缩并承担气泡宽度上限，内部消息限制在容器宽度内。所有消息类型都位于稳定的 message-body 内，限宽和对齐由共享布局样式负责。
 
 ### 8.6 双侧信息错位布局（CSS 实现）
 
@@ -251,7 +256,7 @@
 
 ### 8.8 样式驱动架构（`bubbleLayoutVars` 字段映射表）
 
-[`MessageList.vue:206-217`](../../components/message/MessageList.vue:206) 的 `bubbleLayoutVars` computed 把 `BubbleLayoutConfig` 的 7 个字段一一映射为 CSS 自定义属性：
+[useMessageLayout.ts](../../composables/ui/useMessageLayout.ts) 的 `bubbleLayoutVars` computed 把 `BubbleLayoutConfig` 的 7 个字段一一映射为 CSS 自定义属性：
 
 | CSS 变量                     | 来自配置字段            | 默认值  | 作用域                                     |
 | ---------------------------- | ----------------------- | ------- | ------------------------------------------ |

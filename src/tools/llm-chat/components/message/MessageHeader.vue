@@ -40,6 +40,8 @@ import { getMessageStatusPresentation } from "../../utils/messageStatus";
 
 interface Props {
   message: ChatMessageNode;
+  /** 连续组共享身份时，状态可来自仍在活动的成员。 */
+  statusMessage?: ChatMessageNode;
   /** 是否隐藏头像 (用于气泡模式的外置头像场景) */
   hideAvatar?: boolean;
   /** 截图模式: 隐藏性能指标 / 时间戳 / token 统计等运行时信息 */
@@ -64,7 +66,7 @@ const { getModelIcon, getIconPath, getDisplayIconPath } = useModelMetadata();
 const { settings } = useChatSettings();
 
 const messageStatusPresentation = computed(() =>
-  getMessageStatusPresentation(props.message)
+  getMessageStatusPresentation(props.statusMessage ?? props.message)
 );
 
 const messageStatusIcon = computed(() => {

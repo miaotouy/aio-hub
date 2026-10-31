@@ -65,8 +65,9 @@ export interface BubbleLayoutConfig {
    * 布局模式
    * - card  : 卡片模式（默认，全宽左对齐，保持现有行为）
    * - bubble: 气泡模式（IM 风格，按角色对齐并限制宽度）
+   * - compact: 连续紧凑（共享身份头、组尾统计、提问导航）
    */
-  mode: "card" | "bubble";
+  mode: "card" | "bubble" | "compact";
   /** 用户消息对齐方向 (仅 bubble 模式) */
   userAlign: "left" | "right";
   /** 助手消息对齐方向 (仅 bubble 模式) */

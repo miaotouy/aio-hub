@@ -39,6 +39,9 @@ import { customMessage } from "@/utils/customMessage";
 import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 
 interface Props {
+  hideStatistics?: boolean;
+  headerStatusMessage?: ChatMessageNode;
+  compactActions?: boolean;
   sessionIndex: ChatSessionIndex | null;
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
@@ -327,6 +330,7 @@ defineExpose({
           v-if="!hideHeader"
           :message="message"
           :hide-avatar="hideHeaderAvatar"
+          :status-message="headerStatusMessage"
           :inline-status="props.inlineStatus"
           :screenshot-mode="props.screenshotMode"
           :readonly="isSessionReadOnly"
@@ -347,6 +351,7 @@ defineExpose({
           :llm-think-rules="llmThinkRules"
           :rich-text-style-options="richTextStyleOptions"
           :message-depth="messageDepth"
+          :hide-statistics="hideStatistics"
           :screenshot-mode="props.screenshotMode"
           :readonly="isSessionReadOnly"
           @save-edit="saveEdit"
@@ -362,6 +367,7 @@ defineExpose({
       v-if="!isEditing && !props.screenshotMode && !isSessionReadOnly"
     >
       <MessageMenubar
+        :compact="compactActions"
         :message="message"
         :is-sending="isSending"
         :siblings="props.siblings"

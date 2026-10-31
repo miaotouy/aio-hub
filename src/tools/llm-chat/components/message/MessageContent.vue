@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import MessageStatistics from "./MessageStatistics.vue";
+import { reportMessageCharacterCount } from "../../composables/ui/useMessagePresentation";
 import VirtualTextAttachments from "../VirtualTextAttachments.vue";
 import type { VirtualTextAttachment } from "../../types/virtual-attachment";
 import {
@@ -116,6 +118,7 @@ const imageViewer = useImageViewer();
 const macroProcessor = new MacroProcessor();
 
 interface Props {
+  hideStatistics?: boolean;
   sessionIndex: ChatSessionIndex | null;
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
@@ -1061,76 +1064,22 @@ useMessageHeightSource(
 
 // 元数据响应式提取，确保异步更新能被触发
 const messageMetadata = computed(() => props.message.metadata);
-const performanceStats = computed(() => {
-  const metadata = messageMetadata.value;
-  if (
-    props.message.role !== "assistant" ||
-    props.message.status !== "complete" ||
-    !metadata ||
-    !(
-      props.screenshotMode ||
-      settings.value.uiPreferences.showPerformanceMetrics
-    )
-  )
-    return [];
-  const stats: { label: string; value: string }[] = [];
-  if (
-    metadata.tokensPerSecond !== undefined &&
-    Number.isFinite(metadata.tokensPerSecond)
-  ) {
-    stats.push({
-      label: "生成速度",
-      value: String(metadata.tokensPerSecond) + " t/s",
-    });
-  }
-  if (
-    metadata.requestStartTime !== undefined &&
-    metadata.firstTokenTime !== undefined
-  ) {
-    const latency = Math.max(
-      0,
-      metadata.firstTokenTime - metadata.requestStartTime
-    );
-    stats.push({
-      label: "首字延迟 (TTFT)",
-      value:
-        latency >= 1000 ? (latency / 1000).toFixed(2) + "s" : latency + "ms",
-    });
-  }
-  if (
-    metadata.requestStartTime !== undefined &&
-    metadata.requestEndTime !== undefined
-  ) {
-    stats.push({
-      label: "总耗时",
-      value:
-        (
-          Math.max(0, metadata.requestEndTime - metadata.requestStartTime) /
-          1000
-        ).toFixed(1) + "s",
-    });
-  }
-  return stats;
-});
 const showMeta = computed(() => {
-  if (performanceStats.value.length) return true;
-  // 截图模式下始终渲染 meta 区域，由 CSS 控制可见性
-  if (props.screenshotMode) {
-    const metadata = messageMetadata.value;
-    if (
-      settings.value.uiPreferences.showCharCount &&
-      props.message.content.length > 0
-    )
-      return true;
-    if (!metadata) return false;
+  if (props.hideStatistics)
     return (
-      !!metadata.usage ||
-      metadata.contentTokens !== undefined ||
-      !!metadata.error ||
-      !!metadata.emptyResponseDiagnostic
+      !!messageMetadata.value?.error ||
+      !!messageMetadata.value?.emptyResponseDiagnostic
     );
-  }
-
+  const performance =
+    props.message.role === "assistant" &&
+    props.message.status === "complete" &&
+    (props.screenshotMode ||
+      settings.value.uiPreferences.showPerformanceMetrics) &&
+    (messageMetadata.value?.tokensPerSecond !== undefined ||
+      (messageMetadata.value?.requestStartTime !== undefined &&
+        (messageMetadata.value?.firstTokenTime !== undefined ||
+          messageMetadata.value?.requestEndTime !== undefined)));
+  if (performance) return true;
   const metadata = messageMetadata.value;
   const showToken = settings.value.uiPreferences.showTokenCount;
   const showChar = settings.value.uiPreferences.showCharCount;
@@ -1145,14 +1094,13 @@ const showMeta = computed(() => {
     !!metadata.emptyResponseDiagnostic
   );
 });
-const usageInfo = computed(() => messageMetadata.value?.usage);
-const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
 const errorMessage = computed(() => messageMetadata.value?.error);
 const emptyResponseDiagnostic = computed(
   () => messageMetadata.value?.emptyResponseDiagnostic
 );
 
 const charCount = ref(0);
+reportMessageCharacterCount(() => props.message.id, charCount);
 
 watch(
   [
@@ -1515,68 +1463,12 @@ watch(
 
     <!-- 元数据 -->
     <div v-if="showMeta" class="message-meta">
-      <div class="message-meta-summary">
-        <!-- 字数统计 -->
-        <div
-          v-if="settings.uiPreferences.showCharCount && charCount > 0"
-          class="usage-info"
-          data-meta-type="char"
-        >
-          <span>字数: {{ charCount.toLocaleString("zh-CN") }}</span>
-        </div>
-        <!-- API 返回的完整 Usage 信息（助手消息） -->
-        <div
-          v-if="settings.uiPreferences.showTokenCount && usageInfo"
-          class="usage-info"
-          data-meta-type="token"
-        >
-          <span
-            >Token:
-            {{
-              contentTokensValue !== undefined
-                ? usageInfo.promptTokens + contentTokensValue
-                : usageInfo.totalTokens
-            }}</span
-          >
-          <span class="usage-detail">
-            (输入: {{ usageInfo.promptTokens }}, 输出:
-            {{ contentTokensValue ?? usageInfo.completionTokens
-            }}{{
-              usageInfo.promptTokensDetails?.cachedTokens
-                ? `, 缓存: ${usageInfo.promptTokensDetails.cachedTokens}`
-                : ""
-            }})
-          </span>
-        </div>
-        <!-- 本地计算的单条消息 Token（用户消息） -->
-        <div
-          v-else-if="
-            settings.uiPreferences.showTokenCount &&
-            contentTokensValue !== undefined
-          "
-          class="usage-info"
-          data-meta-type="token"
-        >
-          <span
-            >本条消息:
-            {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
-          >
-        </div>
-        <div
-          v-if="performanceStats.length"
-          class="performance-stats"
-          data-meta-type="performance"
-        >
-          <el-tooltip
-            v-for="stat in performanceStats"
-            :key="stat.label"
-            :content="stat.label"
-            placement="top"
-          >
-            <span class="stat-item">{{ stat.value }}</span>
-          </el-tooltip>
-        </div>
-      </div>
+      <MessageStatistics
+        v-if="!hideStatistics"
+        :message="message"
+        :char-count="charCount"
+        :screenshot-mode="screenshotMode"
+      />
       <div v-if="errorMessage" class="error-info">
         <el-button
           @click="copyError"
@@ -1766,38 +1658,6 @@ watch(
   padding-top: 8px;
   border-top: var(--border-width) solid var(--border-color);
   font-size: 12px;
-}
-
-.message-meta-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-}
-
-.performance-stats {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-color-light);
-}
-.stat-item {
-  white-space: nowrap;
-}
-.stat-item:not(:last-child)::after {
-  content: "|";
-  margin-left: 6px;
-  opacity: 0.3;
-}
-
-.usage-info {
-  color: var(--text-color-light);
-}
-
-.usage-detail {
-  margin-left: 8px;
-  opacity: 0.7;
 }
 
 .error-info {

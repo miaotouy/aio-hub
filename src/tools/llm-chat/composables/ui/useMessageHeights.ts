@@ -47,6 +47,7 @@ import type { RendererReadingArea } from "@/tools/rich-text-renderer/composables
 interface SlotBinding {
   message: ChatMessageNode;
   eager: boolean;
+  presentation?: string;
 }
 interface Options {
   readingArea?: RendererReadingArea;
@@ -147,6 +148,7 @@ export function useMessageHeights(options: Options) {
       meta?.userProfileId,
       !!(meta?.usage || meta?.contentTokens !== undefined),
       sourceFor(slot)?.appearance,
+      slot.binding.value.presentation,
     ]);
   }
 
@@ -367,6 +369,7 @@ export function useMessageHeights(options: Options) {
           return [
             message.content,
             {
+              presentation: slot.binding.value.presentation,
               id: message.id,
               name: message.name,
               role: message.role,
@@ -412,7 +415,8 @@ export function useMessageHeights(options: Options) {
       if (
         slot &&
         (slot.binding.value.message !== binding.value.message ||
-          slot.binding.value.eager !== binding.value.eager)
+          slot.binding.value.eager !== binding.value.eager ||
+          slot.binding.value.presentation !== binding.value.presentation)
       ) {
         slot.binding.value = binding.value;
         schedule(slot);

@@ -42,15 +42,15 @@ import {
   provideRendererReadingInteraction,
   rendererLayoutRevisionKey,
 } from "@/tools/rich-text-renderer/composables/useRendererDisplay";
-import ChatMessage from "./ChatMessage.vue";
+
 import {
   rendererHostActiveKey,
   rendererViewportKey,
 } from "@/tools/rich-text-renderer/composables/useRendererViewState";
-import CompressionMessage from "./CompressionMessage.vue";
-import ToolCallMessage from "./ToolCallMessage.vue";
-import MessageExternalAvatar from "./MessageExternalAvatar.vue";
-import MessageHeader from "./MessageHeader.vue";
+
+import MessageRow from "./MessageRow.vue";
+import { useMessagePresentation } from "../../composables/ui/useMessagePresentation";
+import type { Asset } from "@/types/asset-management";
 
 interface Props {
   sessionIndex: ChatSessionIndex | null;
@@ -128,6 +128,14 @@ const {
       : store.isNodeInActivePath(id);
   },
 });
+
+const isCompactMode = computed(() => bubbleLayout.value.mode === "compact");
+const { presentation, characterCounts, rowLayoutKeys } = useMessagePresentation(
+  computed(() => props.messages),
+  isCompactMode
+);
+const navigationPoints = computed(() => presentation.value.navigationPoints);
+const navigationIndex = ref(0);
 
 // 截图模式：通过 prop 控制,默认 false
 const screenshotMode = computed(() => props.screenshotMode ?? false);
@@ -339,60 +347,41 @@ const scrollToMessageId = (id: string) => {
   }
 };
 
-// 滚动到下一条消息
-const scrollToNext = () => {
+// 导航点与物理消息行分开，紧凑模式下覆盖整段提问与回复。
+function scrollToNavigation(direction: "next" | "prev") {
   pauseFollowing();
-  if (!messagesContainer.value) return;
-
   const container = messagesContainer.value;
-  const messageEls = Array.from(
-    messagesInnerContainer.value?.children ?? []
-  ).filter((row) => !!row.querySelector(".chat-message"));
-  const containerRect = container.getBoundingClientRect();
-
-  const nextMsg = messageEls.find((el) => {
-    const rect = el.getBoundingClientRect();
-    // 长消息底部可能仍在屏外；下一条从阅读对齐线之后的行开始。
-    return rect.top > containerRect.top + MESSAGE_NAVIGATION_OFFSET + 1;
-  }) as HTMLElement;
-
-  if (nextMsg) {
-    const id = nextMsg
-      .querySelector(".chat-message")
-      ?.getAttribute("data-message-id");
-    if (id) scrollToMessageId(id);
+  if (!container) return;
+  if (isCompactMode.value) {
+    const index =
+      Math.max(0, navigationIndex.value - 1) + (direction === "next" ? 1 : -1);
+    const point = navigationPoints.value[Math.max(0, index)];
+    if (point) scrollToMessageId(point.anchorNodeId);
+    else if (direction === "next") scrollToEnd();
+    return;
   }
-};
-
-// 滚动到上一条消息
-const scrollToPrev = () => {
-  pauseFollowing();
-  if (!messagesContainer.value) return;
-
-  const container = messagesContainer.value;
-  const messageEls = Array.from(
-    messagesInnerContainer.value?.children ?? []
-  ).filter((row) => !!row.querySelector(".chat-message"));
-  const containerRect = container.getBoundingClientRect();
-
-  const prevMsg = [...messageEls].reverse().find((el) => {
-    const rect = el.getBoundingClientRect();
-    // 寻找上一个顶部在视口上方的消息
-    return rect.top < containerRect.top - 10;
-  }) as HTMLElement;
-
-  if (prevMsg) {
-    const id = prevMsg
-      .querySelector(".chat-message")
-      ?.getAttribute("data-message-id");
-    if (id) scrollToMessageId(id);
-  }
-};
+  const line =
+    container.getBoundingClientRect().top + MESSAGE_NAVIGATION_OFFSET;
+  const points =
+    direction === "prev"
+      ? [...navigationPoints.value].reverse()
+      : navigationPoints.value;
+  const point = points.find((point) => {
+    const slot = getMessageSlot(point.anchorNodeId);
+    if (!slot) return false;
+    const top = slot.getBoundingClientRect().top;
+    return direction === "next" ? top > line + 2 : top < line - 2;
+  });
+  if (point) scrollToMessageId(point.anchorNodeId);
+}
+const scrollToNext = () => scrollToNavigation("next");
+const scrollToPrev = () => scrollToNavigation("prev");
 
 // 更新当前可见索引
 const updateVisibleIndex = () => {
   if (!messagesContainer.value || props.messages.length === 0) {
     currentVisibleIndex.value = 0;
+    navigationIndex.value = 0;
     rememberReadingAnchor(null);
     return;
   }
@@ -402,6 +391,7 @@ const updateVisibleIndex = () => {
     settings.value.uiPreferences.autoScroll
   ) {
     currentVisibleIndex.value = props.messages.length;
+    navigationIndex.value = navigationPoints.value.length;
     rememberReadingAnchor(null);
     return;
   }
@@ -422,6 +412,25 @@ const updateVisibleIndex = () => {
   currentVisibleIndex.value = isNearBottom.value
     ? props.messages.length
     : low + 1;
+  // Active question follows the same alignment line as clicking a navigation point.
+  const referenceY = containerRect.top + MESSAGE_NAVIGATION_OFFSET + 2;
+  let navigationLow = 0;
+  let navigationHigh = navigationPoints.value.length - 1;
+  while (navigationLow < navigationHigh) {
+    const mid = Math.ceil((navigationLow + navigationHigh) / 2);
+    const slot = getMessageSlot(navigationPoints.value[mid].anchorNodeId);
+    if (slot && slot.getBoundingClientRect().top <= referenceY)
+      navigationLow = mid;
+    else navigationHigh = mid - 1;
+  }
+  navigationIndex.value = navigationPoints.value.length
+    ? messagesContainer.value.scrollHeight -
+        messagesContainer.value.clientHeight -
+        messagesContainer.value.scrollTop <=
+      2
+      ? navigationPoints.value.length
+      : navigationLow + 1
+    : 0;
   const message = props.messages[low];
   if (message) {
     rememberReadingAnchor({
@@ -430,6 +439,15 @@ const updateVisibleIndex = () => {
     });
   }
 };
+
+watch(
+  () => [isCompactMode.value, navigationPoints.value.length],
+  () => {
+    preserveReadingPosition();
+    nextTick(updateVisibleIndex);
+  },
+  { flush: "pre" }
+);
 
 // 滚动事件处理
 const onScroll = () => {
@@ -637,6 +655,75 @@ interface ListEmits {
 }
 const emit = defineEmits<ListEmits>();
 
+function messageActions(msg: ChatMessageNode) {
+  type RequestOptions = Parameters<typeof store.regenerateFromNode>[1];
+  const capture = () => captureSwitchingMessagePosition(msg.id);
+  return {
+    delete: () => guardedStore.deleteMessage(msg.id, scopedSessionId.value),
+    regenerate: (options: RequestOptions) =>
+      guardedStore.regenerateFromNode(msg.id, withScopedSession(options)),
+    "switch-sibling": (direction: "prev" | "next") => {
+      capture();
+      guardedStore.switchToSiblingBranch(
+        msg.id,
+        direction,
+        scopedSessionId.value
+      );
+    },
+    "switch-branch": (id: string) => {
+      capture();
+      guardedStore.switchBranch(id, scopedSessionId.value);
+    },
+    "toggle-enabled": () =>
+      guardedStore.toggleNodeEnabled(msg.id, scopedSessionId.value),
+    edit: (content: string, attachments?: Asset[]) =>
+      guardedStore.editMessage(
+        msg.id,
+        content,
+        attachments,
+        scopedSessionId.value
+      ),
+    "save-to-branch": (content: string, attachments?: Asset[]) =>
+      guardedStore.createBranchFromEdit(
+        msg.id,
+        content,
+        attachments,
+        scopedSessionId.value
+      ),
+    abort: () => guardedStore.abortNodeGeneration(msg.id),
+    continue: (options: RequestOptions) =>
+      guardedStore.continueGeneration(msg.id, withScopedSession(options)),
+    "create-branch": () => {
+      capture();
+      guardedStore.createBranch(msg.id, scopedSessionId.value);
+    },
+    "analyze-context": () => {
+      guardedStore.contextAnalyzerNodeId = msg.id;
+      guardedStore.contextAnalyzerVisible = true;
+    },
+    "reparse-tools": (options: Parameters<typeof handleReparseTools>[1]) =>
+      handleReparseTools(msg.id, options),
+    screenshot: () => emit("screenshot", msg.id),
+    "update-translation": (
+      translation: NonNullable<ChatMessageNode["metadata"]>["translation"]
+    ) =>
+      guardedStore.updateMessageTranslation(
+        msg.id,
+        translation,
+        scopedSessionId.value
+      ),
+    "update-content": (content: string) =>
+      guardedStore.editMessage(
+        msg.id,
+        content,
+        undefined,
+        scopedSessionId.value
+      ),
+    "update-role": (role: ChatMessageNode["role"]) =>
+      guardedStore.updateNodeData(msg.id, { role }, scopedSessionId.value),
+  };
+}
+
 defineExpose({
   scrollToBottom,
   scrollToEnd,
@@ -646,12 +733,15 @@ defineExpose({
   scrollToMessageId,
   getScrollElement,
   currentVisibleIndex,
+  navigationPoints,
+  navigationIndex,
+  isCompactMode,
   getMessageAreaWidth,
 });
 </script>
 
 <template>
-  <div class="message-list-container">
+  <div class="message-list-container" :class="{ 'is-compact': isCompactMode }">
     <div
       ref="messagesContainer"
       class="message-list"
@@ -674,7 +764,7 @@ defineExpose({
       <div
         v-else
         ref="messagesInnerContainer"
-        class="messages-container"
+        class="messages-container chat-message-rows"
         :class="[
           `mode-${bubbleLayout.mode}`,
           {
@@ -685,366 +775,51 @@ defineExpose({
         ]"
         :style="bubbleLayoutVars"
       >
-        <template v-for="(msg, index) in messages" :key="msg.id">
-          <div
-            class="message-slot"
-            v-message-size="{
-              message: msg,
-              eager: index === messages.length - 1,
-            }"
-            :data-role="getMessageLayout(index).role"
-            :data-align="getMessageLayout(index).align"
-            :data-avatar-placement="avatarPlacement"
-            :data-header-outside="
-              shouldUseOutsideHeader(msg, getMessageLayout(index))
-                ? 'true'
-                : 'false'
-            "
-          >
-            <!-- 外置头像：仅 bubble + outside + 显示头像 + 非居中 时渲染 -->
-            <MessageExternalAvatar
-              v-if="
-                isBubbleMode &&
-                showAvatar &&
-                avatarPlacement === 'outside' &&
-                getMessageLayout(index).align !== 'center'
-              "
-              :message="msg"
-              :size="bubbleLayout.avatarSize"
-            />
-
-            <!-- 外置 header + 气泡 的组合容器（仅 user/assistant 普通消息） -->
-            <div
-              v-if="shouldUseOutsideHeader(msg, getMessageLayout(index))"
-              class="message-body"
-            >
-              <MessageHeader
-                class="external-header"
-                :message="msg"
-                :hide-avatar="shouldHideHeaderAvatar"
-                :inline-status="isBubbleMode"
-                :screenshot-mode="screenshotMode"
-                :readonly="isSessionReadOnly"
-              />
-              <ChatMessage
-                :session-index="props.sessionIndex"
-                :session-detail="props.sessionDetail"
-                :message="msg"
-                :is-compressed="compressedNodeIds.has(msg.id)"
-                :message-depth="messages.length - 1 - index"
-                :is-sending="isSending"
-                :screenshot-mode="screenshotMode"
-                :readonly="isSessionReadOnly"
-                :siblings="getMessageSiblings(msg.id).siblings"
-                :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-                :llm-think-rules="llmThinkRules"
-                :hide-header="true"
-                :inline-status="isBubbleMode"
-                :rich-text-style-options="
-                  msg.role === 'user'
-                    ? userRichTextStyleOptions || richTextStyleOptions
-                    : richTextStyleOptions
-                "
-                @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
-                @regenerate="
-                  guardedStore.regenerateFromNode(
-                    msg.id,
-                    withScopedSession($event)
-                  )
-                "
-                @switch-sibling="
-                  (dir: any) => {
-                    captureSwitchingMessagePosition(msg.id);
-                    guardedStore.switchToSiblingBranch(
-                      msg.id,
-                      dir,
-                      scopedSessionId
-                    );
-                  }
-                "
-                @switch-branch="
-                  (nodeId: any) => {
-                    captureSwitchingMessagePosition(msg.id);
-                    guardedStore.switchBranch(nodeId, scopedSessionId);
-                  }
-                "
-                @toggle-enabled="
-                  guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
-                "
-                @edit="
-                  (newContent: any, attachments: any) =>
-                    guardedStore.editMessage(
-                      msg.id,
-                      newContent,
-                      attachments,
-                      scopedSessionId
-                    )
-                "
-                @save-to-branch="
-                  (newContent: any, attachments: any) =>
-                    guardedStore.createBranchFromEdit(
-                      msg.id,
-                      newContent,
-                      attachments,
-                      scopedSessionId
-                    )
-                "
-                @copy="() => {}"
-                @abort="guardedStore.abortNodeGeneration(msg.id)"
-                @continue="
-                  guardedStore.continueGeneration(
-                    msg.id,
-                    withScopedSession($event)
-                  )
-                "
-                @create-branch="
-                  () => {
-                    captureSwitchingMessagePosition(msg.id);
-                    guardedStore.createBranch(msg.id, scopedSessionId);
-                  }
-                "
-                @analyze-context="
-                  () => {
-                    guardedStore.contextAnalyzerNodeId = msg.id;
-                    guardedStore.contextAnalyzerVisible = true;
-                  }
-                "
-                @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
-                @screenshot="emit('screenshot', msg.id)"
-                @update-translation="
-                  (translation: any) =>
-                    guardedStore.updateMessageTranslation(
-                      msg.id,
-                      translation,
-                      scopedSessionId
-                    )
-                "
-              />
-            </div>
-
-            <!-- 压缩节点渲染 -->
-            <CompressionMessage
-              v-else-if="msg.metadata?.isCompressionNode"
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :message-depth="messages.length - 1 - index"
-              :screenshot-mode="screenshotMode"
-              :readonly="isSessionReadOnly"
-              :llm-think-rules="llmThinkRules"
-              :rich-text-style-options="richTextStyleOptions"
-              @toggle-enabled="
-                guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
-              "
-              @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
-              @update-content="
-                (content: string) =>
-                  guardedStore.editMessage(
-                    msg.id,
-                    content,
-                    undefined,
-                    scopedSessionId
-                  )
-              "
-              @update-role="
-                (role: any) =>
-                  guardedStore.updateNodeData(msg.id, { role }, scopedSessionId)
-              "
-            />
-
-            <!-- 工具调用结果渲染 -->
-            <ToolCallMessage
-              v-else-if="msg.role === 'tool'"
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :message-depth="messages.length - 1 - index"
-              :is-sending="isSending"
-              :screenshot-mode="screenshotMode"
-              :readonly="isSessionReadOnly"
-              :llm-think-rules="llmThinkRules"
-              :rich-text-style-options="richTextStyleOptions"
-              :siblings="getMessageSiblings(msg.id).siblings"
-              :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-              @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
-              @regenerate="
-                guardedStore.regenerateFromNode(
-                  msg.id,
-                  withScopedSession($event)
-                )
-              "
-              @switch-sibling="
-                (dir: any) => {
-                  captureSwitchingMessagePosition(msg.id);
-                  guardedStore.switchToSiblingBranch(
-                    msg.id,
-                    dir,
-                    scopedSessionId
-                  );
-                }
-              "
-              @switch-branch="
-                (nodeId: any) => {
-                  captureSwitchingMessagePosition(msg.id);
-                  guardedStore.switchBranch(nodeId, scopedSessionId);
-                }
-              "
-              @toggle-enabled="
-                guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
-              "
-              @edit="
-                (newContent: any, attachments: any) =>
-                  guardedStore.editMessage(
-                    msg.id,
-                    newContent,
-                    attachments,
-                    scopedSessionId
-                  )
-              "
-              @copy="() => {}"
-              @abort="guardedStore.abortNodeGeneration(msg.id)"
-              @continue="
-                guardedStore.continueGeneration(
-                  msg.id,
-                  withScopedSession($event)
-                )
-              "
-              @create-branch="
-                () => {
-                  captureSwitchingMessagePosition(msg.id);
-                  guardedStore.createBranch(msg.id, scopedSessionId);
-                }
-              "
-              @analyze-context="
-                () => {
-                  guardedStore.contextAnalyzerNodeId = msg.id;
-                  guardedStore.contextAnalyzerVisible = true;
-                }
-              "
-              @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
-              @screenshot="emit('screenshot', msg.id)"
-              @save-to-branch="
-                (newContent: any, attachments: any) =>
-                  guardedStore.createBranchFromEdit(
-                    msg.id,
-                    newContent,
-                    attachments,
-                    scopedSessionId
-                  )
-              "
-              @update-translation="
-                (translation: any) =>
-                  guardedStore.updateMessageTranslation(
-                    msg.id,
-                    translation,
-                    scopedSessionId
-                  )
-              "
-            />
-
-            <!-- 普通消息渲染 -->
-            <ChatMessage
-              v-else
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :is-compressed="compressedNodeIds.has(msg.id)"
-              :message-depth="messages.length - 1 - index"
-              :is-sending="isSending"
-              :screenshot-mode="screenshotMode"
-              :readonly="isSessionReadOnly"
-              :siblings="getMessageSiblings(msg.id).siblings"
-              :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-              :llm-think-rules="llmThinkRules"
-              :hide-header-avatar="shouldHideHeaderAvatar"
-              :rich-text-style-options="
-                msg.role === 'user'
-                  ? userRichTextStyleOptions || richTextStyleOptions
-                  : richTextStyleOptions
-              "
-              @delete="guardedStore.deleteMessage(msg.id, scopedSessionId)"
-              @regenerate="
-                guardedStore.regenerateFromNode(
-                  msg.id,
-                  withScopedSession($event)
-                )
-              "
-              @switch-sibling="
-                (dir: any) => {
-                  captureSwitchingMessagePosition(msg.id);
-                  guardedStore.switchToSiblingBranch(
-                    msg.id,
-                    dir,
-                    scopedSessionId
-                  );
-                }
-              "
-              @switch-branch="
-                (nodeId: any) => {
-                  captureSwitchingMessagePosition(msg.id);
-                  guardedStore.switchBranch(nodeId, scopedSessionId);
-                }
-              "
-              @toggle-enabled="
-                guardedStore.toggleNodeEnabled(msg.id, scopedSessionId)
-              "
-              @edit="
-                (newContent: any, attachments: any) =>
-                  guardedStore.editMessage(
-                    msg.id,
-                    newContent,
-                    attachments,
-                    scopedSessionId
-                  )
-              "
-              @save-to-branch="
-                (newContent: any, attachments: any) =>
-                  guardedStore.createBranchFromEdit(
-                    msg.id,
-                    newContent,
-                    attachments,
-                    scopedSessionId
-                  )
-              "
-              @copy="() => {}"
-              @abort="guardedStore.abortNodeGeneration(msg.id)"
-              @continue="
-                guardedStore.continueGeneration(
-                  msg.id,
-                  withScopedSession($event)
-                )
-              "
-              @create-branch="
-                () => {
-                  captureSwitchingMessagePosition(msg.id);
-                  guardedStore.createBranch(msg.id, scopedSessionId);
-                }
-              "
-              @analyze-context="
-                () => {
-                  guardedStore.contextAnalyzerNodeId = msg.id;
-                  guardedStore.contextAnalyzerVisible = true;
-                }
-              "
-              @reparse-tools="(opts: any) => handleReparseTools(msg.id, opts)"
-              @screenshot="emit('screenshot', msg.id)"
-              @update-translation="
-                (translation: any) =>
-                  guardedStore.updateMessageTranslation(
-                    msg.id,
-                    translation,
-                    scopedSessionId
-                  )
-              "
-            />
-          </div>
-        </template>
+        <MessageRow
+          v-for="(msg, index) in messages"
+          :key="msg.id"
+          v-message-size="{
+            message: msg,
+            eager: index === messages.length - 1,
+            presentation: rowLayoutKeys.get(msg.id),
+          }"
+          :session-index="sessionIndex"
+          :session-detail="sessionDetail"
+          :message="msg"
+          :message-depth="messages.length - 1 - index"
+          :is-sending="isSending"
+          :screenshot-mode="screenshotMode"
+          :readonly="isSessionReadOnly"
+          :llm-think-rules="llmThinkRules"
+          :rich-text-style-options="
+            msg.role === 'user'
+              ? userRichTextStyleOptions || richTextStyleOptions
+              : richTextStyleOptions
+          "
+          :bubble-layout="bubbleLayout"
+          :layout="getMessageLayout(index)"
+          :sibling-info="getMessageSiblings(msg.id)"
+          :compressed="compressedNodeIds.has(msg.id)"
+          :show-avatar="showAvatar"
+          :hide-header-avatar="shouldHideHeaderAvatar"
+          :outside-header="shouldUseOutsideHeader(msg, getMessageLayout(index))"
+          :presentation="presentation.rows.get(msg.id)!"
+          :group="
+            presentation.groupById.get(presentation.rows.get(msg.id)!.groupId)!
+          "
+          :character-counts="characterCounts"
+          :actions="messageActions(msg)"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.message-list-container.is-compact .message-list {
+  padding-right: 56px;
+}
+
 .message-list-container {
   position: relative;
   flex: 1;
@@ -1089,345 +864,6 @@ defineExpose({
 /* 最后一项消息禁用虚拟渲染，确保底部锚定计算准确，防止滚动回弹 */
 .messages-container > .message-slot:last-child {
   content-visibility: visible !important;
-}
-
-/* -------------------------------------------------------====
- * Bubble Layout — 气泡布局
- * 通过 .message-slot 外层 wrapper + data-* 属性 + CSS 变量驱动
- * mode-card: 保持原有行为（message-slot 透明，子元素全宽）
- * mode-bubble: 按 data-align 对齐，限宽，工具粘附融合
- * -------------------------------------------------------==== */
-
-/* 卡片模式：message-slot 仅作为透明 wrapper（不改变现有视觉） */
-.messages-container.mode-card .message-slot {
-  display: block;
-  width: 100%;
-}
-
-/* 消息间距统一由列表 gap 管理，工具卡片沿用相同的行间距。 */
-.messages-container :deep(.tool-call-message) {
-  margin-block: 0;
-}
-
-/* 气泡模式：message-slot 作为对齐容器 */
-.messages-container.mode-bubble {
-  gap: 12px;
-}
-
-/* 当前消息的浮动操作栏绘制在相邻行上方，列表尺寸保持稳定。 */
-.messages-container.mode-bubble > .message-slot:hover,
-.messages-container.mode-bubble > .message-slot:has(:focus-visible),
-.messages-container.mode-bubble
-  > .message-slot:has(.message-menubar.has-open-popover) {
-  z-index: 20;
-}
-
-.messages-container.mode-bubble .message-slot {
-  position: relative;
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  /* min-width: 0 防止 flex item 内容溢出造成横向滚动 */
-  min-width: 0;
-}
-
-/* 对齐方向 */
-.messages-container.mode-bubble .message-slot[data-align="left"] {
-  justify-content: flex-start;
-}
-.messages-container.mode-bubble .message-slot[data-align="right"] {
-  justify-content: flex-end;
-}
-.messages-container.mode-bubble .message-slot[data-align="center"] {
-  justify-content: center;
-}
-
-/* 气泡子元素的宽度限制 */
-.messages-container.mode-bubble .message-slot > .chat-message,
-.messages-container.mode-bubble .message-slot > .tool-call-message,
-.messages-container.mode-bubble .message-slot > .compression-message,
-.messages-container.mode-bubble .message-slot > .message-body,
-.messages-container.mode-bubble :deep(.message-slot > .chat-message),
-.messages-container.mode-bubble :deep(.message-slot > .tool-call-message),
-.messages-container.mode-bubble :deep(.message-slot > .compression-message) {
-  max-width: min(
-    var(--bubble-max-width-percent, 75%),
-    var(--bubble-max-width-px, 720px)
-  );
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-/* 外置头像会额外占据一列，气泡最大宽度需要扣掉头像列，避免右侧气泡压到头像横坐标 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .chat-message,
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .tool-call-message,
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .compression-message,
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .message-body,
-.messages-container.mode-bubble.avatar-outside
-  :deep(
-    .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-      > .chat-message
-  ),
-.messages-container.mode-bubble.avatar-outside
-  :deep(
-    .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-      > .tool-call-message
-  ),
-.messages-container.mode-bubble.avatar-outside
-  :deep(
-    .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-      > .compression-message
-  ) {
-  max-width: min(
-    max(
-      0px,
-      calc(
-        var(--bubble-max-width-percent, 75%) -
-          var(--avatar-outside-size, 36px) - var(--avatar-outside-gap, 8px)
-      )
-    ),
-    var(--bubble-max-width-px, 720px)
-  );
-}
-
-/* System / Compression 消息使用独立的居中宽度 */
-.messages-container.mode-bubble .message-slot[data-role="system"] > * {
-  max-width: var(--system-max-width-percent, 60%);
-}
-
-/* 圆角同步：覆写消息组件内部的 8px 圆角为可配置值 */
-.messages-container.mode-bubble :deep(.message-surface),
-.messages-container.mode-bubble :deep(.tool-call-message),
-.messages-container.mode-bubble :deep(.compression-message) {
-  border-radius: var(--bubble-radius, 12px);
-}
-.messages-container.mode-bubble :deep(.message-background-container) {
-  border-radius: var(--bubble-radius, 12px);
-}
-.messages-container.mode-bubble :deep(.message-surface::after),
-.messages-container.mode-bubble :deep(.tool-call-message::after),
-.messages-container.mode-bubble :deep(.compression-message::after) {
-  border-radius: var(--bubble-radius, 12px);
-}
-
-/* ---------- 外置头像 (avatar outside) ---------- */
-/* 头像与气泡顶部对齐，符合多数 IM 习惯 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"] {
-  align-items: flex-start;
-  gap: var(--avatar-outside-gap, 8px);
-}
-
-/* 右对齐：flex-direction: row-reverse，头像在气泡右侧 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"][data-align="right"] {
-  flex-direction: row-reverse;
-  /* 在 row-reverse 下，flex-start 才是右对齐，覆盖默认的 flex-end */
-  justify-content: flex-start;
-}
-
-/* 外置头像的透明占位（tool/system 行）保持气泡缩进对齐，但鼠标不响应 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]
-  > .message-external-avatar {
-  pointer-events: none;
-}
-
-/* ---------- 外置 Header (headerPlacement: outside) ---------- */
-/*
- * message-body 是 [header + 气泡] 的列容器，让 header 紧贴气泡上方
- * 气泡本身的宽度限制由 message-body 继承（max-width 已在前面统一设置）。
- * 容器按内容收缩，避免短消息被外置 header 撑成整段 max-width。
- */
-.messages-container.mode-bubble .message-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--header-outside-gap, 4px);
-  min-width: 0;
-  width: fit-content;
-}
-
-/* 右对齐时让 header 和气泡都贴住同一条右边界 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  .message-body {
-  align-items: flex-end;
-}
-
-/* message-body 内的气泡：按内容收缩，并由 message-body 的 max-width 负责换行上限 */
-/* ChatMessage 含编辑器弹层等多个根节点，跨组件限宽使用深度选择器。 */
-.messages-container.mode-bubble :deep(.message-body > .chat-message) {
-  max-width: 100%;
-  width: fit-content;
-}
-
-/* 外置 header：解除内置 margin-bottom，避免 gap 重复；缩小尺寸感 */
-.messages-container.mode-bubble .message-body > .external-header {
-  margin-bottom: 0;
-  max-width: 100%;
-  /* 让 header 自身右对齐时，header-right 不要被 margin-left:auto 推远 */
-  padding: 0 4px;
-}
-
-/* 左对齐时 header 内容靠左 */
-.messages-container.mode-bubble
-  .message-slot[data-align="left"]
-  .external-header {
-  justify-content: flex-start;
-}
-
-/* 右对齐时 header 内容靠右（依赖后面的通用镜像规则把 header 内部 row-reverse） */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  .external-header {
-  justify-content: flex-end;
-}
-
-/* ---------- 右对齐通用镜像（同时覆盖 inside / outside 两种头像放置） ---------- */
-/* 右对齐时，气泡内部 header 整体镜像：
- *  - inside  模式让头像贴向气泡右侧
- *  - outside 模式让名字/时间右对齐与外置头像呼应
- *
- * 注意：外置 header (.external-header) 使用 column 布局（名字在上、
- * header-right 在下），不应用 row-reverse，否则会被翻转为 column-reverse。
- */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header:not(.external-header)) {
-  flex-direction: row-reverse;
-}
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header .header-left) {
-  flex-direction: row-reverse;
-}
-/* header-right 在原样式里有 margin-left: auto，会和 row-reverse 冲突，需要反向 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header:not(.external-header) .header-right) {
-  margin-left: 0;
-  margin-right: auto;
-}
-/* 名称行 / 副标题在镜像后改为右对齐，避免悬空 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header .message-info) {
-  align-items: flex-end;
-  text-align: right;
-}
-/* 外置 header + 右对齐：header-right 跟随名字行右对齐 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header.external-header .header-right) {
-  align-self: flex-end;
-  margin-left: 0;
-  margin-right: 0;
-}
-
-/* ---------- 工具消息气泡镜像 ---------- */
-/* 右对齐时整体 row-reverse，让装饰条 .tool-bar 贴到气泡右侧 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.tool-call-message) {
-  flex-direction: row-reverse;
-}
-/* 工具头部的 collapse-icon + role-badge + tool-name 链路同步镜像 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.tool-call-message .tool-header) {
-  flex-direction: row-reverse;
-}
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.tool-call-message .tool-header .header-left) {
-  flex-direction: row-reverse;
-}
-/* ----------------------------------------------------------
- * 气泡模式：底部信息与操作栏
- * - 底部信息 (.message-meta) 对齐到消息同方向（信息跟随气泡）
- * - 操作栏 (.menubar-wrapper) 使用气泡下方的零高度 sticky 浮层，
- *   悬停与聚焦均不改变文档流高度，长消息滚动时仍可访问
- * ---------------------------------------------------------- */
-
-/* —— 底部信息：跟随消息方向对齐 —— */
-.messages-container.mode-bubble
-  .message-slot[data-align="left"]
-  :deep(.message-meta) {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-}
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-meta) {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-}
-/* 右对齐时 error-info 内部是 flex 行布局，让按钮与文本镜像 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-meta .error-info) {
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
-/* 零高度 sticky 行将操作栏浮在气泡下方，保持短气泡宽度和列表测量稳定。
- * inline-size containment 让较宽的操作按钮不反向撑大短消息气泡。 */
-.messages-container.mode-bubble :deep(.menubar-wrapper:not(.is-collapsed)) {
-  position: sticky;
-  /* sticky 的滚动视口扣除了列表 padding，补偿后浮层可进入底部留白。 */
-  bottom: calc(44px - var(--message-list-bottom-space, 0px));
-  align-items: flex-start;
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  contain: inline-size;
-  margin-top: 0;
-  z-index: 10;
-  padding: 0;
-}
-.messages-container.mode-bubble
-  :deep(.menubar-wrapper:not(.is-collapsed) .message-menubar) {
-  transform: translateY(4px);
-}
-
-/* 填满气泡与操作栏之间的悬停过渡区。 */
-.messages-container.mode-bubble
-  :deep(.menubar-wrapper:not(.is-collapsed)::before) {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 4px;
-}
-
-.messages-container.mode-bubble :deep(.menubar-wrapper .message-menubar) {
-  flex: 0 0 auto;
-  width: max-content;
-}
-/* 左对齐消息（助手）→ 操作栏与气泡左边缘对齐 */
-.messages-container.mode-bubble
-  .message-slot[data-align="left"]
-  :deep(.menubar-wrapper) {
-  justify-content: flex-start;
-}
-/* 右对齐消息（用户）→ 操作栏与气泡右边缘对齐 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.menubar-wrapper) {
-  justify-content: flex-end;
 }
 
 .empty-state {

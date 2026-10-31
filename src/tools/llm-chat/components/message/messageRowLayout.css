@@ -1,0 +1,312 @@
+/* -------------------------------------------------------====
+ * Bubble Layout — 气泡布局
+ * 通过 .message-slot 外层 wrapper + data-* 属性 + CSS 变量驱动
+ * mode-card: 保持原有行为（message-slot 透明，子元素全宽）
+ * mode-bubble: 按 data-align 对齐，限宽，工具粘附融合
+ * -------------------------------------------------------==== */
+
+/* 卡片模式：message-slot 仅作为透明 wrapper（不改变现有视觉） */
+.chat-message-rows.mode-card .message-slot {
+  display: block;
+  width: 100%;
+}
+
+/* 消息间距统一由列表 gap 管理，工具卡片沿用相同的行间距。 */
+.chat-message-rows .tool-call-message {
+  margin-block: 0;
+}
+
+/* 气泡模式：message-slot 作为对齐容器 */
+.chat-message-rows.mode-bubble {
+  gap: 12px;
+}
+
+/* 当前消息的浮动操作栏绘制在相邻行上方，列表尺寸保持稳定。 */
+.chat-message-rows.mode-bubble > .message-slot:hover,
+.chat-message-rows.mode-bubble > .message-slot:has(:focus-visible),
+.chat-message-rows.mode-bubble
+  > .message-slot:has(.message-menubar.has-open-popover) {
+  z-index: 20;
+}
+
+.chat-message-rows.mode-bubble .message-slot {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  /* min-width: 0 防止 flex item 内容溢出造成横向滚动 */
+  min-width: 0;
+}
+
+/* 对齐方向 */
+.chat-message-rows.mode-bubble .message-slot[data-align="left"] {
+  justify-content: flex-start;
+}
+.chat-message-rows.mode-bubble .message-slot[data-align="right"] {
+  justify-content: flex-end;
+}
+.chat-message-rows.mode-bubble .message-slot[data-align="center"] {
+  justify-content: center;
+}
+
+/* 所有消息类型共用稳定的 body 容器，宽度跟随同一组布局变量。 */
+.chat-message-rows.mode-bubble .message-slot > .message-body {
+  max-width: min(
+    var(--bubble-max-width-percent, 75%),
+    var(--bubble-max-width-px, 720px)
+  );
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.chat-message-rows.mode-bubble.avatar-outside
+  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
+  > .message-body {
+  max-width: min(
+    max(
+      0px,
+      calc(
+        var(--bubble-max-width-percent, 75%) -
+          var(--avatar-outside-size, 36px) - var(--avatar-outside-gap, 8px)
+      )
+    ),
+    var(--bubble-max-width-px, 720px)
+  );
+}
+.chat-message-rows.mode-bubble
+  .message-slot[data-role="system"]
+  > .message-body {
+  max-width: var(--system-max-width-percent, 60%);
+}
+
+/* 圆角同步：覆写消息组件内部的 8px 圆角为可配置值 */
+.chat-message-rows.mode-bubble .message-surface,
+.chat-message-rows.mode-bubble .tool-call-message,
+.chat-message-rows.mode-bubble .compression-message {
+  border-radius: var(--bubble-radius, 12px);
+}
+.chat-message-rows.mode-bubble .message-background-container {
+  border-radius: var(--bubble-radius, 12px);
+}
+.chat-message-rows.mode-bubble .message-surface::after,
+.chat-message-rows.mode-bubble .tool-call-message::after,
+.chat-message-rows.mode-bubble .compression-message::after {
+  border-radius: var(--bubble-radius, 12px);
+}
+
+/* ---------- 外置头像 (avatar outside) ---------- */
+/* 头像与气泡顶部对齐，符合多数 IM 习惯 */
+.chat-message-rows.mode-bubble.avatar-outside
+  .message-slot[data-avatar-placement="outside"] {
+  align-items: flex-start;
+  gap: var(--avatar-outside-gap, 8px);
+}
+
+/* 右对齐：flex-direction: row-reverse，头像在气泡右侧 */
+.chat-message-rows.mode-bubble.avatar-outside
+  .message-slot[data-avatar-placement="outside"][data-align="right"] {
+  flex-direction: row-reverse;
+  /* 在 row-reverse 下，flex-start 才是右对齐，覆盖默认的 flex-end */
+  justify-content: flex-start;
+}
+
+/* 外置头像的透明占位（tool/system 行）保持气泡缩进对齐，但鼠标不响应 */
+.chat-message-rows.mode-bubble.avatar-outside
+  .message-slot[data-avatar-placement="outside"]
+  > .message-external-avatar {
+  pointer-events: none;
+}
+
+/* ---------- 外置 Header (headerPlacement: outside) ---------- */
+/*
+ * message-body 是 [header + 气泡] 的列容器，让 header 紧贴气泡上方
+ * 气泡本身的宽度限制由 message-body 继承（max-width 已在前面统一设置）。
+ * 容器按内容收缩，避免短消息被外置 header 撑成整段 max-width。
+ */
+.chat-message-rows.mode-bubble .message-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--header-outside-gap, 4px);
+  min-width: 0;
+  width: fit-content;
+}
+
+/* 右对齐时让 header 和气泡都贴住同一条右边界 */
+.chat-message-rows.mode-bubble .message-slot[data-align="right"] .message-body {
+  align-items: flex-end;
+}
+
+/* message-body 内的气泡：按内容收缩，并由 message-body 的 max-width 负责换行上限 */
+/* ChatMessage 含编辑器弹层等多个根节点，跨组件限宽使用深度选择器。 */
+.chat-message-rows.mode-bubble .message-body > .chat-message {
+  max-width: 100%;
+  width: fit-content;
+}
+
+/* 外置 header：解除内置 margin-bottom，避免 gap 重复；缩小尺寸感 */
+.chat-message-rows.mode-bubble .message-body > .external-header {
+  margin-bottom: 0;
+  max-width: 100%;
+  /* 让 header 自身右对齐时，header-right 不要被 margin-left:auto 推远 */
+  padding: 0 4px;
+}
+
+/* 左对齐时 header 内容靠左 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="left"]
+  .external-header {
+  justify-content: flex-start;
+}
+
+/* 右对齐时 header 内容靠右（依赖后面的通用镜像规则把 header 内部 row-reverse） */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .external-header {
+  justify-content: flex-end;
+}
+
+/* ---------- 右对齐通用镜像（同时覆盖 inside / outside 两种头像放置） ---------- */
+/* 右对齐时，气泡内部 header 整体镜像：
+ *  - inside  模式让头像贴向气泡右侧
+ *  - outside 模式让名字/时间右对齐与外置头像呼应
+ *
+ * 注意：外置 header (.external-header) 使用 column 布局（名字在上、
+ * header-right 在下），不应用 row-reverse，否则会被翻转为 column-reverse。
+ */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .message-header:not(.external-header) {
+  flex-direction: row-reverse;
+}
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .message-header
+  .header-left {
+  flex-direction: row-reverse;
+}
+/* header-right 在原样式里有 margin-left: auto，会和 row-reverse 冲突，需要反向 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .message-header:not(.external-header)
+  .header-right {
+  margin-left: 0;
+  margin-right: auto;
+}
+/* 名称行 / 副标题在镜像后改为右对齐，避免悬空 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .message-header
+  .message-info {
+  align-items: flex-end;
+  text-align: right;
+}
+/* 外置 header + 右对齐：header-right 跟随名字行右对齐 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .message-header.external-header
+  .header-right {
+  align-self: flex-end;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ---------- 工具消息气泡镜像 ---------- */
+/* 右对齐时整体 row-reverse，让装饰条 .tool-bar 贴到气泡右侧 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .tool-call-message {
+  flex-direction: row-reverse;
+}
+/* 工具头部的 collapse-icon + role-badge + tool-name 链路同步镜像 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .tool-call-message
+  .tool-header {
+  flex-direction: row-reverse;
+}
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .tool-call-message
+  .tool-header
+  .header-left {
+  flex-direction: row-reverse;
+}
+/* ----------------------------------------------------------
+ * 气泡模式：底部信息与操作栏
+ * - 底部信息 (.message-meta) 对齐到消息同方向（信息跟随气泡）
+ * - 操作栏 (.menubar-wrapper) 使用气泡下方的零高度 sticky 浮层，
+ *   悬停与聚焦均不改变文档流高度，长消息滚动时仍可访问
+ * ---------------------------------------------------------- */
+
+/* —— 底部信息：跟随消息方向对齐 —— */
+.chat-message-rows.mode-bubble .message-slot[data-align="left"] .message-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+.chat-message-rows.mode-bubble .message-slot[data-align="right"] .message-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+/* 右对齐时 error-info 内部是 flex 行布局，让按钮与文本镜像 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .message-meta
+  .error-info {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* 零高度 sticky 行将操作栏浮在气泡下方，保持短气泡宽度和列表测量稳定。
+ * inline-size containment 让较宽的操作按钮不反向撑大短消息气泡。 */
+.chat-message-rows.mode-bubble .menubar-wrapper:not(.is-collapsed) {
+  position: sticky;
+  /* sticky 的滚动视口扣除了列表 padding，补偿后浮层可进入底部留白。 */
+  bottom: calc(44px - var(--message-list-bottom-space, 0px));
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  contain: inline-size;
+  margin-top: 0;
+  z-index: 10;
+  padding: 0;
+}
+.chat-message-rows.mode-bubble
+  .menubar-wrapper:not(.is-collapsed)
+  .message-menubar {
+  transform: translateY(4px);
+}
+
+/* 填满气泡与操作栏之间的悬停过渡区。 */
+.chat-message-rows.mode-bubble .menubar-wrapper:not(.is-collapsed)::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 4px;
+}
+
+.chat-message-rows.mode-bubble .menubar-wrapper .message-menubar {
+  flex: 0 0 auto;
+  width: max-content;
+}
+/* 左对齐消息（助手）→ 操作栏与气泡左边缘对齐 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="left"]
+  .menubar-wrapper {
+  justify-content: flex-start;
+}
+/* 右对齐消息（用户）→ 操作栏与气泡右边缘对齐 */
+.chat-message-rows.mode-bubble
+  .message-slot[data-align="right"]
+  .menubar-wrapper {
+  justify-content: flex-end;
+}
+
+.chat-message-rows.mode-compact {
+  gap: 0;
+}

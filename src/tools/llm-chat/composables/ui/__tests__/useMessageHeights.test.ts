@@ -87,6 +87,7 @@ describe("消息占位与实际高度切换", () => {
       status: "complete",
       content: "**复杂富文本**",
     });
+    const presentation = ref("group-tail");
     const displayMounted = ref(true);
     const layoutPending = ref(false);
     const nearby = ref(true);
@@ -141,7 +142,16 @@ describe("消息占位与实际高度切换", () => {
                       )
                     : null,
                 ]),
-                [[vMessageSize, { message: message.value, eager: false }]]
+                [
+                  [
+                    vMessageSize,
+                    {
+                      message: message.value,
+                      eager: false,
+                      presentation: presentation.value,
+                    },
+                  ],
+                ]
               ),
             ]);
         },
@@ -238,6 +248,12 @@ describe("消息占位与实际高度切换", () => {
       deliver(slot, 320, 89.25);
       await flush();
       expect(height()).toBe(89.25);
+      presentation.value = "group-middle";
+      await flush();
+      expect(height()).toBe(500);
+      deliver(slot, 320, 60);
+      await flush();
+      expect(height()).toBe(60);
 
       message.value.status = "generating";
       await flush();

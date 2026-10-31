@@ -403,9 +403,11 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         options: [
           { label: "卡片模式 (默认)", value: "card" },
           { label: "气泡模式 (IM 风格)", value: "bubble" },
+          { label: "连续紧凑", value: "compact" },
         ],
-        hint: "卡片模式：所有消息占满宽度（保持现有行为）<br/>气泡模式：按角色对齐并限制宽度",
-        keywords: "bubble layout mode card 气泡 布局 模式 卡片",
+        hint: "卡片：全宽独立消息；气泡：按角色对齐；连续紧凑：连续回复共享身份头，按用户提问导航",
+        keywords:
+          "bubble layout mode card compact 气泡 布局 模式 卡片 连续 紧凑 合并",
       },
       {
         id: "bubbleUserAlign",

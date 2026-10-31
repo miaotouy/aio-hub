@@ -83,7 +83,7 @@ function message(): ChatMessageNode {
     },
   };
 }
-function mountMenubar(pinned = false) {
+function mountMenubar(pinned = false, compact = false) {
   const { settings } = useChatSettings();
   settings.value.uiPreferences.messageToolbar.pinnedActionIds = pinned
     ? ["copy", "variables"]
@@ -97,6 +97,7 @@ function mountMenubar(pinned = false) {
             active.value
               ? h(MessageMenubar, {
                   message: currentMessage.value,
+                  compact,
                   isSending: false,
                   siblings: [],
                   currentSiblingIndex: 0,
@@ -298,3 +299,23 @@ it.each(["variables", "translate"] as const)(
     await waitPresent(popup);
   }
 );
+
+it("紧凑呈现保留固定操作偏好，并把其他动作放进更多菜单", async () => {
+  const { bar } = mountMenubar(true, true);
+  const { settings } = useChatSettings();
+  const original = JSON.stringify(settings.value.uiPreferences.messageToolbar);
+  expect(
+    bar
+      .findAll("[data-action-id]")
+      .map((button) => button.attributes("data-action-id"))
+  ).toEqual(["copy", "edit"]);
+  await click('[data-testid="message-toolbar-more"]');
+  await waitPresent(".llm-chat-message-toolbar-popover");
+  expect(document.querySelector('[data-action-id="variables"]')).not.toBeNull();
+  expect(
+    document.querySelector('[data-action-id="regenerate"]')
+  ).not.toBeNull();
+  expect(JSON.stringify(settings.value.uiPreferences.messageToolbar)).toBe(
+    original
+  );
+});

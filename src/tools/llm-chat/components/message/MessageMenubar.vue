@@ -73,6 +73,8 @@ const MessageToolbarCustomizeDialog = defineAsyncComponent(
 );
 
 interface Props {
+  /** 临时紧凑呈现，保持用户固定操作偏好。 */
+  compact?: boolean;
   message: ChatMessageNode;
   isSending: boolean;
   siblings: ChatMessageNode[];
@@ -414,13 +416,24 @@ const availableActions = computed(() =>
 const partition = computed(() =>
   partitionToolbarActions(availableActions.value, layout.value.pinnedActionIds)
 );
+const compactActionIds = computed(() => new Set(["copy", "edit"]));
 const directActions = computed(() =>
-  layout.value.expanded
-    ? [...partition.value.pinned, ...partition.value.menu]
-    : partition.value.pinned
+  props.compact
+    ? availableActions.value.filter((action) =>
+        compactActionIds.value.has(action.id)
+      )
+    : layout.value.expanded
+      ? [...partition.value.pinned, ...partition.value.menu]
+      : partition.value.pinned
 );
 const menuActions = computed(() =>
-  layout.value.expanded ? [] : partition.value.menu
+  props.compact
+    ? availableActions.value.filter(
+        (action) => !compactActionIds.value.has(action.id)
+      )
+    : layout.value.expanded
+      ? []
+      : partition.value.menu
 );
 const showMore = ref(false);
 const actionPopupOpen = ref(false);
@@ -609,6 +622,7 @@ const invoke = (action: ToolbarAction) => {
       </button>
     </ElTooltip>
     <ElTooltip
+      v-if="!compact"
       :content="layout.expanded ? '收起操作' : '展开全部操作'"
       placement="top"
       :show-after="500"

@@ -57,11 +57,12 @@ export function migrateLegacyRule<TProperties extends MetadataProperties>(
 export function createCatalogSnapshot<TProperties extends MetadataProperties>(
   rules: ModelMetadataRule<TProperties>[],
   revision: string,
-  generatedAt: string
+  generatedAt: string,
+  sourceId = "aiohub-builtin"
 ): MetadataCatalogSnapshot<TProperties> {
   const snapshot = {
     schemaVersion: "3.0.0" as const,
-    sourceId: "aiohub-builtin" as const,
+    sourceId,
     revision,
     generatedAt,
     rules: deepClone(rules),

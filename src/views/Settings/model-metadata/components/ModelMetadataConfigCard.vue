@@ -87,12 +87,12 @@
         </el-icon>
       </el-button>
       <el-button
-        v-if="ruleSource === 'builtinOverride'"
+        v-if="sourceInfo?.overridden && sourceInfo.kind !== 'custom'"
         text
         circle
         type="warning"
         @click="$emit('restore', config.id)"
-        title="恢复内置规则"
+        title="恢复目录规则"
       >
         <el-icon><RefreshLeft /></el-icon>
       </el-button>
@@ -119,6 +119,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useModelMetadata } from "@composables/useModelMetadata";
+import { getMetadataSourceLabel } from "@/config/model-metadata-sources";
 import { formatDateTime } from "@/utils/time";
 import type {
   ModelMetadataRule,
@@ -145,19 +146,17 @@ defineEmits<{
   (e: "restore", id: string): void;
 }>();
 
-const { getDisplayIconPath, getRuleSource } = useModelMetadata();
-const ruleSource = computed(() => getRuleSource(props.config.id));
-const sourceLabel = computed(
-  () =>
-    ({
-      builtin: "内置",
-      builtinOverride: "内置已修改",
-      custom: "自定义",
-    })[ruleSource.value ?? "custom"]
-);
+const { getDisplayIconPath, getRuleSourceInfo } = useModelMetadata();
+const sourceInfo = computed(() => getRuleSourceInfo(props.config.id));
+const sourceLabel = computed(() => {
+  const info = sourceInfo.value;
+  if (!info) return "自定义";
+  const label = getMetadataSourceLabel(info.sourceId);
+  return info.overridden ? `${label}已修改` : label;
+});
 const sourceTagType = computed<"" | "info" | "warning">(() => {
-  if (ruleSource.value === "builtinOverride") return "warning";
-  return ruleSource.value === "custom" ? "info" : "";
+  if (sourceInfo.value?.overridden) return "warning";
+  return sourceInfo.value?.kind === "custom" ? "info" : "";
 });
 
 // 获取匹配类型标签

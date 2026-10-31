@@ -71,13 +71,14 @@ export function validateCatalog<TProperties extends MetadataProperties>(
   const diagnostics: ModelMetadataDiagnostic[] = [];
   if (
     catalog.schemaVersion !== "3.0.0" ||
-    catalog.sourceId !== "aiohub-builtin" ||
+    typeof catalog.sourceId !== "string" ||
+    !catalog.sourceId.trim() ||
     !catalog.revision ||
     !catalog.fingerprint
   ) {
     diagnostics.push({
       code: "invalid-schema",
-      message: "内置目录结构无效",
+      message: "元数据目录结构无效",
       blocking: true,
     });
   }
@@ -86,7 +87,7 @@ export function validateCatalog<TProperties extends MetadataProperties>(
     if (ids.has(rule.id))
       diagnostics.push({
         code: "duplicate-rule-id",
-        message: "内置目录存在重复规则 ID",
+        message: "元数据目录存在重复规则 ID",
         ruleId: rule.id,
         blocking: true,
       });
@@ -108,6 +109,36 @@ export function validateStore<TProperties extends MetadataProperties>(
       },
     ];
   const diagnostics = validateCatalog(store.sourceSnapshot);
+  const catalogIds = new Set(store.sourceSnapshot.rules.map((rule) => rule.id));
+  for (const [sourceId, catalog] of Object.entries(
+    store.externalCatalogs ?? {}
+  )) {
+    if (catalog.sourceId !== sourceId) {
+      diagnostics.push({
+        code: "invalid-schema",
+        message: "外部源目录键与 sourceId 不一致",
+        blocking: true,
+      });
+    }
+    if (sourceId === "aiohub-builtin") {
+      diagnostics.push({
+        code: "invalid-schema",
+        message: "内置目录不能作为外部源",
+        blocking: true,
+      });
+    }
+    diagnostics.push(...validateCatalog(catalog));
+    for (const rule of catalog.rules) {
+      if (catalogIds.has(rule.id))
+        diagnostics.push({
+          code: "duplicate-rule-id",
+          message: "外部源规则 ID 与已有目录冲突",
+          ruleId: rule.id,
+          blocking: true,
+        });
+      catalogIds.add(rule.id);
+    }
+  }
   const customIds = new Set<string>();
   for (const rule of store.customRules) {
     if (customIds.has(rule.id))

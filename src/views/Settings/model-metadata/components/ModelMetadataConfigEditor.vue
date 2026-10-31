@@ -49,7 +49,7 @@
             <el-form-item label="优先级">
               <el-input-number
                 v-model="localConfig.priority"
-                :min="0"
+                :min="-1000"
                 :max="1000"
                 controls-position="right"
                 style="width: 100%"

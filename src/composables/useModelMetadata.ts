@@ -115,6 +115,13 @@ export function useModelMetadata() {
   }
 
   /**
+   * 导出完整 v3 配置（含外部源目录）
+   */
+  function exportStore(): string {
+    return JSON.stringify(store.metadataStore, null, 2);
+  }
+
+  /**
    * 导出规则配置
    */
   function exportRules(): string {
@@ -162,6 +169,7 @@ export function useModelMetadata() {
   return {
     // 状态
     rules: computed(() => store.rules),
+    ruleSourceIndex: computed(() => store.ruleSourceIndex),
     isLoaded: computed(() => store.isLoaded),
     presetIcons: computed(() => store.presetIcons),
     enabledCount: computed(() => store.enabledCount),
@@ -176,9 +184,11 @@ export function useModelMetadata() {
     deleteRule: store.deleteRule,
     restoreBuiltinRule: store.restoreBuiltinRule,
     getRuleSource: store.getRuleSource,
+    getRuleSourceInfo: store.getRuleSourceInfo,
     toggleRule: store.toggleRule,
     resetToDefaults: store.resetToDefaults,
     exportRules,
+    exportStore,
     importRules,
     sortByPriority,
     getRulesByType: (matchType: ModelMetadataRule["matchType"]) =>
@@ -186,6 +196,14 @@ export function useModelMetadata() {
 
     // 匹配与查询
     getMatchedRule: store.getMatchedRule,
+    getExternalCatalog: store.getExternalCatalog,
+    getExternalSourceState: store.getExternalSourceState,
+    isExternalSourceEnabled: store.isExternalSourceEnabled,
+    applyExternalCatalog: store.applyExternalCatalog,
+    setExternalSourceEnabled: store.setExternalSourceEnabled,
+    setExternalSourceAutoUpdate: store.setExternalSourceAutoUpdate,
+    recordExternalSourceError: store.recordExternalSourceError,
+    removeExternalCatalog: store.removeExternalCatalog,
     materializeModel,
     getModelProperty,
     getModelGroup,

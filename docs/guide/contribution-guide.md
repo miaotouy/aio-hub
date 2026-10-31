@@ -48,6 +48,16 @@ bun run dev:static:watch
 
 `bun run build:portable` 和 `bun run build:portable:local` 内部使用 `--no-bundle`，构建 release EXE 后导出便携版及 `portable.flag`。需要安装包时继续使用 `bun run tauri:build` 或 `bun run tauri:build:local`。
 
+### Monaco 依赖升级
+
+统一入口为 `src/utils/monaco.ts`。升级 `monaco-editor` 后，同步运行：
+
+```powershell
+bun run monaco:nls
+```
+
+脚本从已安装版本的官方简中消息表生成 `src/utils/monaco-i18n/nls.js`，保留上游版权与版本标记。消息索引与引擎版本绑定，依赖和生成文件应一同更新。统一入口先初始化消息表，再加载引擎；Worker 使用当前包 exports 提供的公开子路径。升级后在真实 Tauri 中检查普通/Diff 编辑器、语言 Worker、中文菜单与快速销毁行为。
+
 ### 构建日志
 
 桌面构建（`bun run tauri:build:local`、`build.bat`、`build.sh`）、便携版构建和 Android 构建会在终端实时输出，并将完整标准输出与错误输出保存到仓库的 `.tmp/build-logs/`。该目录已被 Git 忽略。

@@ -63,27 +63,6 @@ const viteConfig = defineConfig({
       "aiohub-ui": fileURLToPath(
         new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)
       ),
-      // Monaco 汉化劫持 - 拦截所有 NLS 相关请求
-      "monaco-editor/esm/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "monaco-editor/esm/vs/nls": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "monaco-editor/dev/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "monaco-editor/dev/vs/nls": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      // 针对绝对路径请求的额外劫持
-      "/node_modules/monaco-editor/esm/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "/node_modules/monaco-editor/esm/vs/editor/editor.main.nls.js":
-        fileURLToPath(
-          new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-        ),
     },
   },
 
@@ -115,52 +94,6 @@ const viteConfig = defineConfig({
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== "production" && VueDevTools(),
     vue(),
-    // 拦截 Monaco NLS 请求的中间件
-    {
-      name: "monaco-nls-middleware",
-      configureServer(server: import("vite").ViteDevServer) {
-        server.middlewares.use(
-          async (
-            req: import("node:http").IncomingMessage,
-            res: import("node:http").ServerResponse,
-            next: () => void
-          ) => {
-            // 拦截所有对 nls.js 的请求
-            if (
-              req.url &&
-              req.url.includes("nls.js") &&
-              (req.url.includes("monaco-editor") ||
-                req.url.includes("monaco-i18n"))
-            ) {
-              const fs = await import("node:fs");
-              let nlsContent = fs.readFileSync(
-                fileURLToPath(
-                  new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-                ),
-                "utf-8"
-              );
-
-              // 默认文件是不含 export 的纯脚本 (AMD 友好)
-              // 如果是 Vite 的 ESM 导入请求 (?import)，我们需要动态补上 export 语句
-              if (
-                req.url.includes("import") ||
-                req.headers["sec-fetch-mode"] === "cors"
-              ) {
-                nlsContent += `\nexport { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };\nexport default { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };`;
-                // console.log(`[Monaco NLS] Serving ESM-compatible NLS: ${req.url}`);
-              } else {
-                // console.log(`[Monaco NLS] Serving AMD-compatible NLS: ${req.url}`);
-              }
-
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(nlsContent);
-              return;
-            }
-            next();
-          }
-        );
-      },
-    },
     Components({
       resolvers: [
         IconsResolver({

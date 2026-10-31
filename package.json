@@ -130,7 +130,8 @@
     "check:dev-ui": "tsc --noEmit --strict --module esnext --moduleResolution bundler --target es2022 --types node,bun --skipLibCheck scripts/dev-control/cli.ts scripts/dev-control/launch.ts scripts/dev-control/runtime.ts scripts/ubuntu-vm.ts",
     "test:dev-ui": "vitest --run --config scripts/dev-control/vitest.config.ts",
     "dev:control": "bun scripts/dev-control/runtime.ts",
-    "dev:vm": "bun scripts/ubuntu-vm.ts"
+    "dev:vm": "bun scripts/ubuntu-vm.ts",
+    "monaco:nls": "bun scripts/sync-monaco-nls.ts"
   },
   "dependencies": {
     "@aiohub/agent-preset-core": "workspace:*",
@@ -240,7 +241,7 @@
     "mermaid": "^11.14.0",
     "minimatch": "^10.2.4",
     "modern-screenshot": "^4.7.0",
-    "monaco-editor": "^0.55.1",
+    "monaco-editor": "^0.57.0",
     "music-metadata-browser": "^2.5.11",
     "nanoid": "^5.1.7",
     "node-vibrant": "^4.0.3",

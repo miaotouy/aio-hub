@@ -1,0 +1,15 @@
+[package]
+name = "aiohub-code-formatter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+license = "Apache-2.0"
+
+[dependencies]
+mago-allocator = "=1.59.0"
+mago-formatter = { version = "=1.59.0", features = ["serde"] }
+mago-php-version = "=1.59.0"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+tokio = { version = "1", features = ["process", "io-util", "time", "macros", "rt"] }

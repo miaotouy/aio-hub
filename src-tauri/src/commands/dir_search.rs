@@ -873,7 +873,7 @@ pub async fn dir_search(
 
                     // 通过 CAS 预留文件预算，保证并行 worker 不会超出全局上限。
                     if files_scanned_atomic
-                        .fetch_update(Ordering::SeqCst, Ordering::Relaxed, |current| {
+                        .try_update(Ordering::SeqCst, Ordering::Relaxed, |current| {
                             (current < max_files_scanned).then_some(current + 1)
                         })
                         .is_err()
@@ -895,7 +895,7 @@ pub async fn dir_search(
 
                     let reserved_bytes = metadata.len() as usize;
                     if bytes_reserved_atomic
-                        .fetch_update(Ordering::SeqCst, Ordering::Relaxed, |current| {
+                        .try_update(Ordering::SeqCst, Ordering::Relaxed, |current| {
                             current
                                 .checked_add(reserved_bytes)
                                 .filter(|next| *next <= max_bytes_read)

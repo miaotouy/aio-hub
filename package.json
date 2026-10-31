@@ -175,7 +175,6 @@
     "@lenml/tokenizer-qwen3": "^3.7.2",
     "@lenml/tokenizers": "^3.7.2",
     "@mozilla/readability": "^0.6.0",
-    "@prettier/plugin-php": "^0.24.0",
     "@prettier/plugin-xml": "^3.4.2",
     "@replit/codemirror-lang-csharp": "^6.2.0",
     "@replit/codemirror-lang-svelte": "^6.0.0",

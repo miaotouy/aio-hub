@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "AIO Hub - 综合枢纽应用"
 authors = ["miaotouy"]
 edition = "2021"
+rust-version = "1.99"
 license = "Apache-2.0"
 repository = "https://github.com/miaotouy/aio-hub"
 homepage = "https://github.com/miaotouy/aio-hub"
@@ -27,6 +28,7 @@ tauri-build = { version = "2", features = [] }
 serde_json = "1"
 
 [dependencies]
+aiohub-code-formatter = { path = "crates/code-formatter" }
 aiohub-desktop-entry = { path = "crates/desktop-entry" }
 tauri = { version = "2", features = [ "protocol-asset", "wry", "tray-icon", "image-png", "devtools"] }
 tauri-plugin-opener = "2"

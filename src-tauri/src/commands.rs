@@ -19,6 +19,7 @@ pub mod background_runtime;
 pub mod canvas_window;
 pub mod clipboard;
 pub mod color_picker_batch;
+pub mod code_formatter;
 pub mod config_manager;
 pub mod content_deduplicator;
 pub mod dev_control;
@@ -98,6 +99,8 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        crate::commands::code_formatter::format_code,
+        crate::commands::code_formatter::code_formatter_status,
         #[cfg(target_os = "linux")]
         crate::commands::media_stream::acquire_media_stream,
         #[cfg(target_os = "linux")]

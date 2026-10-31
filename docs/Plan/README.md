@@ -71,7 +71,7 @@
 - [ ] **D-P2-05 Web Distillery 身份卡增强**：先确认域名自动推荐与现代码差异；文件级整体加密仅作可选增强。详见 [身份卡片规划](../../src/tools/web-distillery/docs/Plan/identity-card-feature-plan.md)。
 - [ ] **D-P2-06 AI 小说工作台垂直切片**：在 Knowledge/Recall 主线稳定后，验证项目、正文、事实状态、证据追踪和可回退修改的最小闭环。详见 [AI 小说模块调查](./ai-novel-studio-investigation.md)。
 - [ ] **D-P2-07 MiniMax Music 工作流验收**：补 provider/模型能力测试、两步翻唱 workflow 单测和真实音频入库验收。详见 [Media Generator 计划索引](../../src/tools/media-generator/docs/Plan/README.md)。
-- [ ] **D-P2-08 前端构建边界收口**：2026-10-31 首批 Monaco 按需加载、撤除编辑器粗分组与聊天工厂注入已实施，入口静态 JS 减少约 36.7%；真实 Tauri 功能走查完成，启动耗时待观测。详见 [前端 Chunk 治理计划](./frontend-chunk-size-investigation.md)。
+- [ ] **D-P2-08 前端构建边界收口**：2026-10-31 首批 Monaco 按需加载、撤除编辑器粗分组与聊天工厂注入已实施，最终输出复算入口静态 JS 减少约 37.2%；第二批薄宿主/面板按需加载与 Monaco 0.57.0 已实施，入口较首批再减少约 15.1%，单/双窗口验证完成。详见 [前端 Chunk 治理计划](./frontend-chunk-size-investigation.md)。
 - [ ] **D-P2-09 Embedding Playground 交互与结果验收**：多模型竞技场、阈值校准和重构主体已经实施；补极简 A/B、多模型结果一致性、错误态和核心交互的真实验收。详见 [Embedding 测试场重构计划](../../src/tools/embedding-playground/docs/Plan/refactoring-plan.md)。
 
 ### P3：平台验证与观察项
@@ -93,7 +93,7 @@
 
 | 文档                                                                             | 状态   | 下一动作                                                                                                                                     |
 | -------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                        | 按需   | D-P2-08，编辑器按需加载与工厂注入已实施；继续按观测处理窗口/壳层边界与 Monaco 上游取消异常                                                   |
+| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                        | 按需   | D-P2-08，编辑器按需加载与工厂注入已实施；薄宿主/面板按需加载再减入口约 15.1%；Monaco 0.57 升级、中文表同步及单/双窗口验证完成                |
 | [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)       | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                                                                                |
 | [模型元数据系统优化](./model-metadata-system-optimization-plan.md)               | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收                                                  |
 | [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)    | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二                                                                    |

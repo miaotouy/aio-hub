@@ -1,7 +1,7 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 // SPDX-License-Identifier: Apache-2.0
 import { afterEach, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import RichCodeEditor from "../RichCodeEditor.vue";
 
 const state = vi.hoisted(() => ({ editor: null as unknown }));
@@ -84,6 +84,7 @@ it("publishes edits from both diff sides and accepts parent replacements without
     props: { diff: true, original: "left", modified: "right" },
   });
   wrappers.push(wrapper);
+  await flushPromises();
   editor.getOriginalEditor().setValue("edited left");
   editor.getModifiedEditor().setValue("edited right");
   expect(wrapper.emitted("update:original")).toEqual([["edited left"]]);
@@ -104,6 +105,7 @@ it("disconnects retired diff editors before replacement and unmount", async () =
     props: { diff: true, "onUpdate:original": onOriginal },
   });
   wrappers.push(wrapper);
+  await flushPromises();
   const second = createEditor();
   // A replacement mount must not allow the previous editor to update current text.
   const stub = wrapper.findComponent({ name: "MonacoDiffStub" });

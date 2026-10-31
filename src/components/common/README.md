@@ -446,6 +446,8 @@ Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状
   - `original` / `modified` (string): Diff 模式下的原始内容和修改后内容。
   - `readOnly` (boolean): 只读模式。
 
+- **按需加载**：默认 CodeMirror 即时可用；选择 Monaco 或开启 Diff 后加载本地 ESM 引擎。加载失败提供重试入口，父级在加载期间更新的文本会在挂载时应用。需要访问 Monaco 实例或聚焦时，等待组件的 `mount` 事件。
+
 - **Diff 双向绑定**：`v-model:original` / `v-model:modified` 接收 Monaco 两侧编辑后的内容。父级替换文本继续通过对应 props 更新；切换编辑器实例和卸载时清理内容监听。复制、保存和补丁生成应使用这两个绑定值。
 
 - **使用示例** (来自 [`RequestPanel.vue`](../../tools/api-tester/components/RequestPanel.vue)):

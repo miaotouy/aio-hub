@@ -254,15 +254,7 @@ const viteConfig = defineConfig({
             if (id.includes("element-plus")) {
               return "vendor-element";
             }
-            if (
-              id.includes("codemirror") ||
-              id.includes("@guolao/vue-monaco-editor")
-            ) {
-              return "vendor-editor";
-            }
-            // if (id.includes('prettier')) {
-            //   return 'vendor-prettier';
-            // }
+            // Keep editor engines and language parsers at their dynamic import boundaries.
           }
         },
       },

@@ -77,11 +77,22 @@ describe("static frontend serving", () => {
         "assets/app-v1.js": "export {}",
       })
     );
-    const route = await fetch(`${url}/detached-component/chat-area`, {
-      headers: { Accept: "text/html" },
-    });
-    expect(await route.text()).toBe("main-v1");
-    expect(route.headers.get("cache-control")).toBe("no-store");
+    // 真实组件 ID 的原始和编码地址都应刷新到当前 SPA，不能落入文件读取。
+    for (const componentId of [
+      "chat-area",
+      "llm-chat:chat-area",
+      "llm-chat%3Achat-area",
+    ]) {
+      const route = await fetch(
+        `${url}/detached-component/${componentId}?config=test`,
+        {
+          headers: { Accept: "text/html" },
+        }
+      );
+      expect(route.status).toBe(200);
+      expect(await route.text()).toBe("main-v1");
+      expect(route.headers.get("cache-control")).toBe("no-store");
+    }
     expect(await (await fetch(`${url}/background-js.html`)).text()).toBe(
       "background-v1"
     );
@@ -133,8 +144,17 @@ describe("static frontend serving", () => {
       "/%2e%2e%5csecret",
       "/assets/%2f..%2f..%2fsecret",
       "/C%3a/secret",
+      "/assets/app.js:secret",
+      "/assets/app.js%3A%24DATA",
+      "/detached-component/llm-chat:chat-area/secret",
     ]) {
-      expect((await fetch(`${url}${requestPath}`)).status).toBe(403);
+      expect(
+        (
+          await fetch(`${url}${requestPath}`, {
+            headers: { Accept: "text/html" },
+          })
+        ).status
+      ).toBe(403);
     }
     expect((await fetch(`${url}/%ZZ`)).status).toBe(400);
     const foreignHostStatus = await new Promise<number | undefined>(

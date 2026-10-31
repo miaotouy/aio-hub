@@ -38,7 +38,7 @@ bun run dev:static:watch
 
 两种开发模式共用 `AIO_ID_SUFFIX`、`AIO_PORT`、`AIO_PROXY_PORT`、`AIO_DATA_DIR` 和 `AIO_PRODUCT_NAME`。同时运行多个实例时，为每个实例设置独立端口与数据目录；手动构建终端应使用与目标实例相同的环境变量。静态模式按最终前端端口隔离产物，保存在 `.dev-data/static-frontend/<port>/`，发布构建仍使用 `dist`。
 
-完整产物发布后才切换服务入口，同时保留当前版和上一版资源，便于旧页面继续请求延迟加载的 chunk。静态资源响应禁用缓存，路由刷新支持 SPA 回退，多页面 HTML 入口分别提供。
+完整产物发布后才切换服务入口，同时保留当前版和上一版资源，便于旧页面继续请求延迟加载的 chunk。静态资源响应禁用缓存，路由刷新支持 SPA 回退，多页面 HTML 入口分别提供。分离组件 ID 可包含冒号（如 `llm-chat:chat-area`），对应 HTML 导航直接返回当前 SPA 入口；含冒号的资源路径继续拒绝，以保护 Windows 文件访问边界。
 
 这个模式适合前端生产构建行为排查。本地 HTTP origin 与打包版的应用资源协议仍有区别，Rust debug/release 条件编译行为也有区别；发布行为验证继续使用 `bun run test:build-app`。
 

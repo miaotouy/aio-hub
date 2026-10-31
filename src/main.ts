@@ -14,10 +14,6 @@
 
 import * as Vue from "vue";
 import { createApp } from "vue";
-import App from "./App.vue";
-import DetachedWindowContainer from "./views/DetachedWindowContainer.vue";
-import DetachedComponentContainer from "./views/DetachedComponentContainer.vue";
-import CanvasWindowContainer from "./tools/web-canvas/components/window/CanvasWindowContainer.vue";
 import * as ElementPlus from "element-plus";
 import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 import * as PluginSDK from "@/services/plugin-sdk";
@@ -234,56 +230,20 @@ if (needsTransparentBackground) {
   logger.info(`透明窗口 (${window.location.pathname})：已添加透明背景类`);
 }
 
-// 根据窗口类型选择根组件
-const rootComponent = (() => {
-  if (isDetachedWindow()) return DetachedWindowContainer;
-  if (isDetachedComponentLoader()) return DetachedComponentContainer;
-  if (isCanvasWindow()) return CanvasWindowContainer;
-  return App;
-})();
-
-logger.info("选择根组件", {
-  component: rootComponent.name || "Unknown",
-  pathname: window.location.pathname,
-});
-
-const app = createApp(rootComponent);
-
-// 注册插件 UI 组件为全局组件
-Object.entries(PluginUI.components).forEach(([name, component]) => {
-  app.component(name, component);
-});
-
-const pinia = createPinia(); // 创建 Pinia 实例
-
-app.use(ElementPlus, { locale: zhCn });
-app.use(pinia); // 注册 Pinia（必须在所有依赖它的模块之前）
-
-// 全局错误处理
-app.config.errorHandler = (err, instance, info) => {
-  reportFrontendError("vue.error", err, {
-    component: instance?.$options?.name,
-    info,
-  });
-
-  errorHandler.handle(err, {
-    module: "Vue",
-    level: ErrorLevel.ERROR,
-    userMessage: "应用遇到错误，请查看控制台了解详情",
-    context: {
-      component: instance?.$options?.name,
-      info,
-    },
-  });
-};
-
-// 全局警告处理
-app.config.warnHandler = (msg, instance, trace) => {
-  logger.warn("Vue 警告", {
-    message: msg,
-    componentName: instance?.$options?.name || "Unknown",
-    trace,
-  });
+// 在创建应用前等待实际窗口根组件，保持挂载与 ready 事件的时序。
+const loadRootComponent = async () => {
+  if (isDetachedWindow()) {
+    return (await import("./views/DetachedWindowContainer.vue")).default;
+  }
+  if (isDetachedComponentLoader()) {
+    return (await import("./views/DetachedComponentContainer.vue")).default;
+  }
+  if (isCanvasWindow()) {
+    return (
+      await import("./tools/web-canvas/components/window/CanvasWindowContainer.vue")
+    ).default;
+  }
+  return (await import("./App.vue")).default;
 };
 
 // 未捕获的 Promise 错误
@@ -343,6 +303,51 @@ window.addEventListener("error", (event) => {
 // 异步挂载应用
 const mountApp = async () => {
   try {
+    const rootComponent = await loadRootComponent();
+    logger.info("选择根组件", {
+      component: rootComponent.name || "Unknown",
+      pathname: window.location.pathname,
+    });
+
+    const app = createApp(rootComponent);
+
+    // 注册插件 UI 组件为全局组件
+    Object.entries(PluginUI.components).forEach(([name, component]) => {
+      app.component(name, component);
+    });
+
+    const pinia = createPinia(); // 创建 Pinia 实例
+
+    app.use(ElementPlus, { locale: zhCn });
+    app.use(pinia); // 注册 Pinia（必须在所有依赖它的模块之前）
+
+    // 全局错误处理
+    app.config.errorHandler = (err, instance, info) => {
+      reportFrontendError("vue.error", err, {
+        component: instance?.$options?.name,
+        info,
+      });
+
+      errorHandler.handle(err, {
+        module: "Vue",
+        level: ErrorLevel.ERROR,
+        userMessage: "应用遇到错误，请查看控制台了解详情",
+        context: {
+          component: instance?.$options?.name,
+          info,
+        },
+      });
+    };
+
+    // 全局警告处理
+    app.config.warnHandler = (msg, instance, trace) => {
+      logger.warn("Vue 警告", {
+        message: msg,
+        componentName: instance?.$options?.name || "Unknown",
+        trace,
+      });
+    };
+
     // 1. 初始化动态路由（必须在 Pinia 注册后）
     // 注意：此时 autoRegisterServices 尚未运行，但 initDynamicRoutes 会设置一个 watch
     // 监听 toolsStore.tools 的变化，从而在后续工具注册时自动添加路由。
@@ -410,8 +415,8 @@ inspectorHookRegistry.initGlobalSync().catch((err) => {
 
 mountApp();
 
-// 在 Vue 应用挂载后执行
-window.addEventListener("DOMContentLoaded", () => {
+// 异步根组件加载可能跨过 DOMContentLoaded；文档已就绪时立即注册。
+const registerFileDropListener = () => {
   // 监听文件拖拽事件
   listen("tauri-file-drop", async (event: { payload: string[] }) => {
     const paths = event.payload;
@@ -468,4 +473,11 @@ window.addEventListener("DOMContentLoaded", () => {
       });
     }
   });
-});
+};
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", registerFileDropListener, {
+    once: true,
+  });
+} else {
+  registerFileDropListener();
+}

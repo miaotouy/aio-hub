@@ -206,11 +206,22 @@ export function createStaticServer(root: string) {
       const requestPath = decodeURIComponent(
         new URL(request.url || "/", "http://localhost").pathname
       );
-      if (/[\\\0:]/.test(requestPath) || requestPath.split("/").includes(".."))
+      // 组件 ID 含冒号，仅作为 SPA 路由消费，避免交给 Windows 文件系统解析 ADS。
+      const componentRoute =
+        /^\/detached-component\/[^/]+$/.test(requestPath) &&
+        request.headers.accept?.includes("text/html");
+      if (
+        /[\\\0]/.test(requestPath) ||
+        requestPath.split("/").includes("..") ||
+        (requestPath.includes(":") && !componentRoute)
+      )
         return finish(403, "Forbidden");
       const published = readPublishedBuild(root);
       if (!published) return finish(503, "前端产物尚未就绪。");
-      const target = requestPath === "/" ? "/index.html" : requestPath;
+      const target =
+        requestPath === "/" || (componentRoute && requestPath.includes(":"))
+          ? "/index.html"
+          : requestPath;
       let file = findFile(root, published.current, target);
       if (!file && published.previous && path.extname(target) !== ".html") {
         file = findFile(root, published.previous, target);

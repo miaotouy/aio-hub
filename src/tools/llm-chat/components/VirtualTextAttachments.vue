@@ -59,6 +59,9 @@ const count = computed(() => textCharacterCount(working.value.text));
 const dirty = computed(() => JSON.stringify(working.value) !== baseline.value);
 const canSave = computed(
   () =>
+    editing.value &&
+    props.editable &&
+    dirty.value &&
     !!working.value.text.trim() &&
     !!working.value.title.trim() &&
     !props.busy &&
@@ -79,7 +82,7 @@ function open(attachment?: VirtualTextAttachment) {
     : createVirtualTextAttachment("", props.attachments);
   baseline.value = JSON.stringify(working.value);
   error.value = "";
-  editing.value = props.draft || !attachment;
+  editing.value = props.editable;
   visible.value = true;
   emit("editing-change", true);
 }
@@ -106,7 +109,7 @@ async function close() {
   if (await beforeClose()) closed();
 }
 async function commit(branch = false) {
-  if (!canSave.value) return;
+  if (!canSave.value || (branch && !props.allowBranch)) return;
   saving.value = true;
   error.value = "";
   try {
@@ -229,7 +232,7 @@ defineExpose({ openNew: () => open() });
         aria-label="文本附件标题"
         placeholder="材料标题"
         :maxlength="200"
-        :readonly="!editing"
+        :readonly="!editing || !editable || busy || saving"
       />
       <div class="text-editor-actions">
         <span class="text-muted">{{ count.toLocaleString() }} 字符</span>
@@ -266,7 +269,7 @@ defineExpose({ openNew: () => open() });
         v-model="working.text"
         language="plaintext"
         editor-type="codemirror"
-        :read-only="!editing"
+        :read-only="!editing || !editable || busy || saving"
         class="text-source-editor"
       />
       <p
@@ -280,7 +283,7 @@ defineExpose({ openNew: () => open() });
     <template #footer>
       <div class="text-editor-footer">
         <ElButton @click="close">{{ editing ? "取消" : "关闭" }}</ElButton>
-        <template v-if="editing">
+        <template v-if="editing && editable">
           <ElButton
             v-if="allowBranch"
             :disabled="!canSave"

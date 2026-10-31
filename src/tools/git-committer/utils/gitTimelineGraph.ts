@@ -60,7 +60,7 @@ export function getLaneColor(lane: number): string {
 /**
  * 计算线性提交列表的 Git 时间线拓扑与分支泳道布局
  *
- * @param commits 按时间倒序（最新在上，最旧在下）的提交摘要数组
+ * @param commits 按拓扑顺序排列（子提交在父提交之前），并以时间倒序辅助排序的提交摘要数组
  * @returns 包含每个 commit 的图谱元数据及最大泳道数的映射对象
  */
 export function computeTimelineGraph(

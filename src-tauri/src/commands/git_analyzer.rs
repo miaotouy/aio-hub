@@ -410,7 +410,7 @@ pub async fn git_load_repository_stream(
                     }
                 };
                 let _ = rw.push(start_oid);
-                let _ = rw.set_sorting(git2::Sort::TIME);
+                let _ = rw.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME);
                 rw
             }
             Err(e) => {
@@ -611,7 +611,7 @@ pub async fn git_load_incremental_stream(
                     );
                     return;
                 }
-                let _ = rw.set_sorting(git2::Sort::TIME);
+                let _ = rw.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME);
                 rw
             }
             Err(e) => {
@@ -1232,9 +1232,9 @@ fn get_commits_with_skip(
         .push(start_oid)
         .map_err(|e| format!("Failed to push starting commit: {}", e))?;
 
-    // 设置排序方式（按时间倒序）
+    // 子提交始终先于父提交；同秒提交与时钟偏差也保持拓扑顺序，分页沿用同一顺序。
     revwalk
-        .set_sorting(git2::Sort::TIME)
+        .set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
         .map_err(|e| format!("Failed to set sorting: {}", e))?;
 
     // 性能优化：预先获取所有 Tags 和 Branch Tips
@@ -1784,8 +1784,79 @@ fn get_total_commits(repo_path: &str, branch: Option<&str>) -> Result<usize, Str
 
 #[cfg(test)]
 mod tests {
-    use super::{commit_file_diff, resolve_start_oid};
-    use git2::{Repository, Signature};
+    use super::{commit_file_diff, get_commits_with_skip, resolve_start_oid};
+    use git2::{Oid, Repository, Signature, Time};
+
+    fn commit_at(repo: &Repository, message: &str, seconds: i64, parents: &[Oid]) -> Oid {
+        let signature = Signature::new("tester", "tester@example.com", &Time::new(seconds, 0))
+            .expect("signature");
+        let tree_oid = repo.index().expect("index").write_tree().expect("tree oid");
+        let tree = repo.find_tree(tree_oid).expect("tree");
+        let parents: Vec<_> = parents
+            .iter()
+            .map(|oid| repo.find_commit(*oid).expect("parent commit"))
+            .collect();
+        let parent_refs: Vec<_> = parents.iter().collect();
+        repo.commit(None, &signature, &signature, message, &tree, &parent_refs)
+            .expect("commit")
+    }
+
+    #[test]
+    fn history_keeps_children_before_parents_across_pages() {
+        // 同秒提交复现截图中的乱序；时间倒退覆盖时钟偏差导致的同类问题。
+        for times in [[100, 100, 100, 101], [100, 300, 200, 400]] {
+            let temp_dir = tempfile::tempdir().expect("create temp dir");
+            let repo = Repository::init(temp_dir.path()).expect("init repository");
+            let mut oldest_first = Vec::new();
+            for (index, seconds) in times.into_iter().enumerate() {
+                let parents: Vec<_> = oldest_first.last().copied().into_iter().collect();
+                oldest_first.push(commit_at(&repo, &format!("commit {index}"), seconds, &parents));
+            }
+            repo.reference("refs/heads/history", *oldest_first.last().unwrap(), true, "test")
+                .expect("history branch");
+            let path = temp_dir.path().to_str().unwrap();
+            let expected: Vec<_> = oldest_first.iter().rev().map(ToString::to_string).collect();
+            let full = get_commits_with_skip(path, Some("history"), 0, 0, false)
+                .expect("full history");
+            let full_hashes: Vec<_> = full.into_iter().map(|commit| commit.hash).collect();
+            assert_eq!(full_hashes, expected, "commit times: {times:?}");
+
+            let mut paged_hashes = Vec::new();
+            for skip in [0, 2, 4] {
+                let page = get_commits_with_skip(path, Some("history"), skip, 2, false)
+                    .expect("history page");
+                paged_hashes.extend(page.into_iter().map(|commit| commit.hash));
+            }
+            assert_eq!(paged_hashes, expected, "paged commit times: {times:?}");
+        }
+    }
+
+    #[test]
+    fn history_preserves_both_sides_of_a_merge() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let repo = Repository::init(temp_dir.path()).expect("init repository");
+        let root = commit_at(&repo, "root", 100, &[]);
+        let main = commit_at(&repo, "main", 300, &[root]);
+        let feature = commit_at(&repo, "feature", 200, &[root]);
+        let merge = commit_at(&repo, "merge", 400, &[main, feature]);
+        repo.reference("refs/heads/history", merge, true, "test")
+            .expect("history branch");
+
+        let commits = get_commits_with_skip(
+            temp_dir.path().to_str().unwrap(), Some("history"), 0, 0, false,
+        ).expect("merged history");
+        assert_eq!(commits.len(), 4);
+        assert_eq!(commits[0].hash, merge.to_string());
+        assert_eq!(commits[0].parents, vec![main.to_string(), feature.to_string()]);
+        assert_eq!(commits[3].hash, root.to_string());
+        for (index, commit) in commits.iter().enumerate() {
+            for parent in &commit.parents {
+                let parent_index = commits.iter().position(|item| &item.hash == parent)
+                    .expect("parent included in history");
+                assert!(index < parent_index, "{} must precede {parent}", commit.hash);
+            }
+        }
+    }
 
     #[test]
     fn resolves_selected_branch_instead_of_head() {

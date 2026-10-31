@@ -19,6 +19,14 @@
  * 从 llm-chat.registry.ts 中抽离，以便于维护和复用。
  */
 
+import { useChatInputSettings } from "../composables/input/useChatInputSettings";
+import {
+  createVirtualTextAttachment,
+  textCharacterCount,
+  MAX_TEXT_ATTACHMENT_BYTES,
+  MAX_TEXT_ATTACHMENTS,
+} from "../utils/virtualAttachments";
+import { customMessage } from "@/utils/customMessage";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
@@ -116,7 +124,7 @@ export class LlmChatService {
   public addContentToInput(
     content: string,
     options: AddContentOptions = {}
-  ): InputOperationResult {
+  ): InputOperationResult | null {
     return errorHandler.wrapSync(
       () => {
         const { position = "append" } = options;
@@ -126,7 +134,34 @@ export class LlmChatService {
           position,
         });
 
-        this.inputManager.addContent(content, position);
+        const settings = useChatInputSettings().value;
+        const manager = this.inputManager;
+        const shouldAttach =
+          settings.longTextAsAttachment &&
+          content.trim() &&
+          textCharacterCount(content) >=
+            Math.max(1, settings.textAttachmentThreshold);
+        if (shouldAttach) {
+          if (
+            new TextEncoder().encode(content).byteLength >
+              MAX_TEXT_ATTACHMENT_BYTES ||
+            manager.virtualAttachments.value.length >= MAX_TEXT_ATTACHMENTS
+          ) {
+            customMessage.warning("文本附件已达大小或数量上限，内容已放入正文");
+            manager.addContent(content, position);
+          } else {
+            manager.addVirtualAttachment(
+              createVirtualTextAttachment(
+                content,
+                manager.virtualAttachments.value
+              ),
+              undefined,
+              position
+            );
+          }
+        } else {
+          manager.addContent(content, position);
+        }
 
         return {
           success: true,
@@ -137,9 +172,9 @@ export class LlmChatService {
       {
         level: ErrorLevel.ERROR,
         userMessage: "添加内容到输入框失败",
-        context: { content, options },
+        context: { contentLength: content.length, options },
       }
-    )!;
+    );
   }
 
   /**

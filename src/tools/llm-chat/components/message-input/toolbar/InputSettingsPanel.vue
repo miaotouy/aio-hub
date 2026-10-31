@@ -79,11 +79,12 @@ function updateSetting(
       />
     </div>
     <div class="setting-item">
-      <span class="setting-label">长文本粘贴为附件</span>
+      <span class="setting-label">长文本自动转为附件</span>
       <el-switch
         v-model="inputStore.settings.longTextAsAttachment"
         size="small"
-        aria-label="长文本粘贴为附件"
+        aria-label="长文本自动转为附件"
+        title="适用于粘贴和其他工具发送到聊天的内容"
       />
     </div>
     <div v-if="inputStore.settings.longTextAsAttachment" class="setting-item">

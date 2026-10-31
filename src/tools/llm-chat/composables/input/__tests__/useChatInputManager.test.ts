@@ -409,6 +409,35 @@ describe("useChatInputManager session drafts", () => {
     expect(manager.knowledgeReference.value).toBeNull();
     expect(manager.getDraftSnapshot("session-a").knowledgeReference).toBeNull();
   });
+  // 保护跨工具前置/追加材料的顺序，连同正文和草稿持久化一起验证。
+  it("preserves prepended and appended text material order after restoring a draft", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("ordered-materials");
+    manager.setContent("原有问题");
+    const material = {
+      id: "middle",
+      kind: "text" as const,
+      title: "中间材料",
+      text: "中间内容",
+    };
+    manager.addVirtualAttachment(material);
+    manager.addVirtualAttachment(
+      { ...material, id: "first" },
+      undefined,
+      "prepend"
+    );
+    manager.addVirtualAttachment({ ...material, id: "last" });
+    await manager.flushDrafts();
+    manager.setActiveSessionId("other-session");
+    manager.setActiveSessionId("ordered-materials");
+    expect(manager.virtualAttachments.value.map((item) => item.id)).toEqual([
+      "first",
+      "middle",
+      "last",
+    ]);
+    expect(manager.inputText.value).toBe("原有问题");
+  });
+
   it("keeps copied text materials independent across sessions and restores their full text", async () => {
     const manager = useChatInputManager();
     manager.setActiveSessionId("text-source");

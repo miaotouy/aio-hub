@@ -17,13 +17,11 @@ import {
   createVirtualTextAttachment,
   cloneVirtualAttachments,
   textCharacterCount,
-  DEFAULT_TEXT_ATTACHMENT_THRESHOLD,
   LARGE_TEXT_ATTACHMENT_BYTES,
   MAX_TEXT_ATTACHMENT_BYTES,
 } from "../utils/virtualAttachments";
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { useStorage } from "@vueuse/core";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useChatInputTokenPreview } from "../composables/input/useChatInputTokenPreview";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -48,15 +46,8 @@ import type { PendingInputData } from "../types/context";
 import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/services/reference";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 
-import type { InputPanelRepeatClickAction } from "@/composables/useInputPanel";
-
-export interface InputToolbarSettings {
-  enableMacroParsing: boolean;
-  extractBase64FromPaste: boolean;
-  longTextAsAttachment: boolean;
-  textAttachmentThreshold: number;
-  panelRepeatClickAction: InputPanelRepeatClickAction;
-}
+import { useChatInputSettings } from "../composables/input/useChatInputSettings";
+export type { InputToolbarSettings } from "../composables/input/useChatInputSettings";
 
 const errorHandler = createModuleErrorHandler("messageInputStore");
 
@@ -72,18 +63,7 @@ export const useMessageInputStore = defineStore(
     );
 
     // === 2. 持久化设置 ===
-    const settings = useStorage<InputToolbarSettings>(
-      "chat-input-settings",
-      {
-        enableMacroParsing: true,
-        extractBase64FromPaste: true,
-        longTextAsAttachment: true,
-        textAttachmentThreshold: DEFAULT_TEXT_ATTACHMENT_THRESHOLD,
-        panelRepeatClickAction: "close",
-      },
-      localStorage,
-      { mergeDefaults: true }
-    );
+    const settings = useChatInputSettings();
 
     // === 3. 输入状态代理 ===
     const inputManager = useChatInputManager();

@@ -119,7 +119,7 @@ class LlmChatRegistry implements ToolRegistry {
   public addContentToInput(
     content: string,
     options: AddContentOptions = {}
-  ): InputOperationResult {
+  ): InputOperationResult | null {
     return llmChatService.addContentToInput(content, options);
   }
 

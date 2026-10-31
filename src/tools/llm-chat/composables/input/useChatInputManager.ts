@@ -1349,17 +1349,24 @@ class ChatInputManager {
 
   public addVirtualAttachment(
     attachment: VirtualTextAttachment,
-    sessionId?: string | null
+    sessionId?: string | null,
+    position: "append" | "prepend" = "append"
   ): void {
+    // 正文的 watch 在下一轮更新快照，附件操作先捕获本轮输入，避免旧草稿覆盖正文。
+    if (this.getDraftKey(sessionId) === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
     this.updateDraft(sessionId, (draft) => {
       const existing = draft.virtualAttachments?.find(
         (item) => item.id === attachment.id
       );
       if (existing && deepEqual(existing, attachment)) return;
-      draft.virtualAttachments = normalizeVirtualAttachments([
-        ...(draft.virtualAttachments ?? []),
-        attachment,
-      ]);
+      const attachments = draft.virtualAttachments ?? [];
+      draft.virtualAttachments = normalizeVirtualAttachments(
+        position === "prepend"
+          ? [attachment, ...attachments]
+          : [...attachments, attachment]
+      );
     });
     this.saveToStorageImmediate();
   }

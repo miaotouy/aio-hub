@@ -135,7 +135,10 @@ export function useSendToChat() {
       // 发送到聊天输入框
       const { position = "append" } = options;
       const llmChatRegistry = getLlmChatRegistry();
-      llmChatRegistry.addContentToInput(formattedContent, { position });
+      const result = llmChatRegistry.addContentToInput(formattedContent, {
+        position,
+      });
+      if (!result?.success) return false;
 
       // 显示成功提示
       const successMsg = options.successMessage || "已发送到聊天输入框";

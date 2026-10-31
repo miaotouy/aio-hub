@@ -80,7 +80,7 @@ interface GenerationManagers {
     params: unknown,
     localFn: () => T | Promise<T>
   ) => Promise<T>;
-  createChatHandler?: () => {
+  createChatHandler: () => {
     sendMessage: (...args: any[]) => Promise<void>;
     continueGeneration: (...args: any[]) => Promise<void>;
     regenerateFromNode: (...args: any[]) => Promise<void>;
@@ -102,12 +102,8 @@ export function createSessionGenerationManager(
   const processingQueuedNodeIds = new Set<string>();
 
   async function getChatHandler() {
-    if (managers.createChatHandler) return managers.createChatHandler();
-    // Keep this deferred: useChatHandler imports useLlmChatStore, which constructs
-    // this manager. A static import would create an initialization cycle.
-    const { useChatHandler } =
-      await import("../../composables/chat/useChatHandler");
-    return useChatHandler();
+    // Defer handler construction until an operation runs, after Store initialization.
+    return managers.createChatHandler();
   }
 
   async function getSessionManager() {

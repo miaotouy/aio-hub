@@ -459,6 +459,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       runtime: sessionRuntime,
       history: sessionHistory,
       executeOrProxy,
+      createChatHandler: () => useChatHandler(),
     }
   );
   const sessionLifecycle = createSessionLifecycleManager(

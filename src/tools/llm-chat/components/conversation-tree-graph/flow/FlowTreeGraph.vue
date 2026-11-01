@@ -577,12 +577,24 @@ const {
   viewport,
   updateNodeData,
   findNode,
+  findEdge,
   onNodesChange,
 } = useVueFlow();
 
 const updateGraphNodeData = (nodeId: string, data: any): boolean => {
   if (!findNode(nodeId)) return false;
   updateNodeData(nodeId, data, { replace: true });
+  return true;
+};
+
+const updateGraphEdge = (
+  edgeId: string,
+  update: { animated: boolean; style: any }
+): boolean => {
+  const edge = findEdge(edgeId);
+  if (!edge) return false;
+  edge.animated = update.animated;
+  edge.style = update.style;
   return true;
 };
 
@@ -685,7 +697,8 @@ const {
   () => props.session,
   contextMenu,
   wrapperRef,
-  updateGraphNodeData
+  updateGraphNodeData,
+  updateGraphEdge
 );
 
 // 从 store 中获取历史记录相关的功能和状态

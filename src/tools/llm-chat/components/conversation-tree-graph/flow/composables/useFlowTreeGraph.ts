@@ -61,6 +61,8 @@ interface GraphRenderContext {
 }
 
 type NodeDataUpdater = (id: string, data: any) => boolean;
+type EdgeUpdate = Pick<any, "animated" | "style">;
+type EdgeUpdater = (id: string, update: EdgeUpdate) => boolean;
 
 const EMPTY_ATTACHMENTS = Object.freeze([]) as readonly any[];
 
@@ -189,6 +191,25 @@ function isEdgeEqual(a: any, b: any): boolean {
   );
 }
 
+function createEdgePresentation(
+  palette: any,
+  activePathSet: Set<string>,
+  sourceId: string,
+  targetId: string
+): EdgeUpdate {
+  const isOnActivePath =
+    activePathSet.has(sourceId) && activePathSet.has(targetId);
+  return {
+    animated: isOnActivePath,
+    style: {
+      stroke: isOnActivePath
+        ? (palette as any).edge.active
+        : (palette as any).edge.inactive,
+      strokeWidth: isOnActivePath ? 2 : 1,
+    },
+  };
+}
+
 /**
  * Vue Flow 树图主 Composable
  * 整合所有子模块，管理核心节点/边状态及转换逻辑
@@ -197,7 +218,8 @@ export function useFlowTreeGraph(
   sessionRef: () => ChatSessionDetail | null,
   contextMenuState: Ref<any>,
   target: Ref<HTMLElement | null>,
-  nodeDataUpdater?: NodeDataUpdater
+  nodeDataUpdater?: NodeDataUpdater,
+  edgeUpdater?: EdgeUpdater
 ) {
   const { settings } = useChatSettings();
   const store = useLlmChatStore();
@@ -217,6 +239,7 @@ export function useFlowTreeGraph(
   const dirtyNodeIds = new Set<string>();
   let dirtyFlushScheduled = false;
   let flowNodeById = new Map<string, any>();
+  let flowEdgeById = new Map<string, any>();
   let renderContext: GraphRenderContext = {
     activePathSet: new Set(),
     nodeDepthMap: new Map(),
@@ -604,6 +627,88 @@ export function useFlowTreeGraph(
     }
   }
 
+  function areSetsEqual(a: Set<string>, b: Set<string>): boolean {
+    if (a.size !== b.size) return false;
+    for (const id of a) {
+      if (!b.has(id)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * 活动分支变化时，只刷新路径成员、叶标记和相邻边。
+   */
+  function updateActivePath(): void {
+    if (!isPageActive.value || nodes.value.length === 0) return;
+
+    const session = sessionRef();
+    if (!session?.nodes) return;
+
+    const nextActivePathSet = buildActivePathSet(session);
+    if (areSetsEqual(renderContext.activePathSet, nextActivePathSet)) return;
+
+    const changedNodeIds = new Set<string>();
+    for (const id of renderContext.activePathSet) {
+      if (!nextActivePathSet.has(id)) changedNodeIds.add(id);
+    }
+    for (const id of nextActivePathSet) {
+      if (!renderContext.activePathSet.has(id)) changedNodeIds.add(id);
+    }
+
+    const nextContext = {
+      ...renderContext,
+      activePathSet: nextActivePathSet,
+    };
+
+    for (const nodeId of changedNodeIds) {
+      const node = session.nodes[nodeId];
+      const flowNode = flowNodeById.get(nodeId);
+      if (!node || !flowNode) {
+        updateChart();
+        return;
+      }
+
+      const nextData = createNodeData(session, node, nextContext);
+      if (isNodeDataEqual(flowNode.data, nextData)) continue;
+      if (nodeDataUpdater && !nodeDataUpdater(nodeId, nextData)) {
+        updateChart();
+        return;
+      }
+      flowNode.data = nextData;
+    }
+
+    for (const edge of flowEdgeById.values()) {
+      if (
+        !changedNodeIds.has(edge.source) &&
+        !changedNodeIds.has(edge.target)
+      ) {
+        continue;
+      }
+
+      const nextPresentation = createEdgePresentation(
+        palette,
+        nextActivePathSet,
+        edge.source,
+        edge.target
+      );
+      if (
+        edge.animated === nextPresentation.animated &&
+        isEdgeStyleEqual(edge.style, nextPresentation.style)
+      ) {
+        continue;
+      }
+
+      if (edgeUpdater && !edgeUpdater(edge.id, nextPresentation)) {
+        updateChart();
+        return;
+      }
+      edge.animated = nextPresentation.animated;
+      edge.style = nextPresentation.style;
+    }
+
+    renderContext = nextContext;
+  }
+
   /**
    * 初始化或更新图表数据
    */
@@ -614,6 +719,7 @@ export function useFlowTreeGraph(
       syncNodeContentWatchers(null);
       dirtyNodeIds.clear();
       flowNodeById = new Map();
+      flowEdgeById = new Map();
       renderContext = {
         activePathSet: new Set(),
         nodeDepthMap: new Map(),
@@ -774,21 +880,17 @@ export function useFlowTreeGraph(
       if (rawParentId) {
         const sourceId = getVisibleParentId(rawParentId);
         if (sourceId && flowNodeIds.has(sourceId)) {
-          const isOnActivePath =
-            activePathSet.has(sourceId) && activePathSet.has(targetNode.id);
-
-          const edgeStyle = {
-            stroke: isOnActivePath
-              ? (palette as any).edge.active
-              : (palette as any).edge.inactive,
-            strokeWidth: isOnActivePath ? 2 : 1,
-          };
+          const presentation = createEdgePresentation(
+            palette,
+            activePathSet,
+            sourceId,
+            targetNode.id
+          );
           const nextEdge = {
             id: `${sourceId}-${targetNode.id}`,
             source: sourceId,
             target: targetNode.id,
-            animated: isOnActivePath,
-            style: edgeStyle,
+            ...presentation,
           };
           const previousEdge = previousEdgesMap.get(nextEdge.id);
           flowEdges.push(
@@ -821,7 +923,10 @@ export function useFlowTreeGraph(
       }
 
       if (dataUpdatesSucceeded) {
-        if (edgesChanged) edges.value = flowEdges;
+        if (edgesChanged) {
+          edges.value = flowEdges;
+          flowEdgeById = new Map(flowEdges.map((edge) => [edge.id, edge]));
+        }
         syncNodeContentWatchers(session);
         return;
       }
@@ -829,6 +934,7 @@ export function useFlowTreeGraph(
       nodes.value = flowNodes;
       edges.value = flowEdges;
       flowNodeById = new Map(flowNodes.map((node) => [node.id, node]));
+      flowEdgeById = new Map(flowEdges.map((edge) => [edge.id, edge]));
       syncNodeContentWatchers(session);
       return;
     }
@@ -837,6 +943,7 @@ export function useFlowTreeGraph(
     nodes.value = flowNodes;
     edges.value = flowEdges;
     flowNodeById = new Map(flowNodes.map((node) => [node.id, node]));
+    flowEdgeById = new Map(flowEdges.map((edge) => [edge.id, edge]));
 
     startWaitingForDimensions(flowNodes, forceResetPosition);
     syncNodeContentWatchers(session);
@@ -852,7 +959,6 @@ export function useFlowTreeGraph(
     const parts: unknown[] = [
       session.id,
       session.rootNodeId,
-      session.activeLeafId,
       nodeEntries.length,
     ];
 
@@ -872,6 +978,11 @@ export function useFlowTreeGraph(
   watch(getGraphStructureWatchSource, () => {
     updateChart();
   });
+
+  watch(
+    () => sessionRef()?.activeLeafId,
+    () => updateActivePath()
+  );
 
   /**
    * 切换布局模式

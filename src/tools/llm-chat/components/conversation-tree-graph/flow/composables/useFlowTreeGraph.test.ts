@@ -121,7 +121,7 @@ function createSession(): ChatSessionDetail {
       root: {
         id: "root",
         parentId: null,
-        childrenIds: ["reply"],
+        childrenIds: ["reply", "branch"],
         role: "user",
         status: "complete",
         content: "Question",
@@ -141,12 +141,23 @@ function createSession(): ChatSessionDetail {
             "A reasoning preview longer than sixty characters remains stable while the stream continues.",
         },
       },
+      branch: {
+        id: "branch",
+        parentId: "root",
+        childrenIds: [],
+        role: "assistant",
+        status: "complete",
+        content: "Alternative answer",
+        timestamp: "2026-11-01T00:00:02.000Z",
+        metadata: {},
+      },
     },
   }) as unknown as ChatSessionDetail;
 }
 
 function mountGraph(session: ChatSessionDetail) {
   const updateNodeData = vi.fn(() => true);
+  const updateEdge = vi.fn(() => true);
   let graph!: ReturnType<typeof useFlowTreeGraph>;
 
   const wrapper = mount(
@@ -156,7 +167,8 @@ function mountGraph(session: ChatSessionDetail) {
           () => session,
           ref({}),
           ref(null),
-          updateNodeData
+          updateNodeData,
+          updateEdge
         );
         return () => h("div");
       },
@@ -166,7 +178,7 @@ function mountGraph(session: ChatSessionDetail) {
   graph.updateChart();
   wrappers.push(wrapper);
 
-  return { graph, updateNodeData };
+  return { graph, updateNodeData, updateEdge };
 }
 
 // 防护单节点流式更新重新派生并替换整张图的节点、边和展示数据。
@@ -224,5 +236,51 @@ describe("incremental node display updates", () => {
     await flushNodeUpdate();
 
     expect(updateNodeData).not.toHaveBeenCalled();
+  });
+
+  it("updates only branch-path nodes and edges when the active leaf changes", async () => {
+    const session = createSession();
+    const { graph, updateNodeData, updateEdge } = mountGraph(session);
+    const nodesBefore = graph.nodes.value;
+    const edgesBefore = graph.edges.value;
+    const rootDataBefore = graph.nodes.value.find(
+      (node) => node.id === "root"
+    )!.data;
+    const replyEdge = graph.edges.value.find(
+      (edge) => edge.id === "root-reply"
+    )!;
+    const branchEdge = graph.edges.value.find(
+      (edge) => edge.id === "root-branch"
+    )!;
+
+    session.activeLeafId = "branch";
+    await flushNodeUpdate();
+
+    expect(updateNodeData).toHaveBeenCalledTimes(2);
+    expect(updateNodeData).toHaveBeenCalledWith(
+      "reply",
+      expect.objectContaining({ isActiveLeaf: false })
+    );
+    expect(updateNodeData).toHaveBeenCalledWith(
+      "branch",
+      expect.objectContaining({ isActiveLeaf: true })
+    );
+    expect(updateNodeData).not.toHaveBeenCalledWith("root", expect.anything());
+    expect(updateEdge).toHaveBeenCalledTimes(2);
+    expect(updateEdge).toHaveBeenCalledWith(
+      "root-reply",
+      expect.objectContaining({ animated: false })
+    );
+    expect(updateEdge).toHaveBeenCalledWith(
+      "root-branch",
+      expect.objectContaining({ animated: true })
+    );
+    expect(graph.nodes.value).toBe(nodesBefore);
+    expect(graph.edges.value).toBe(edgesBefore);
+    expect(graph.nodes.value.find((node) => node.id === "root")!.data).toBe(
+      rootDataBefore
+    );
+    expect(replyEdge.animated).toBe(false);
+    expect(branchEdge.animated).toBe(true);
   });
 });

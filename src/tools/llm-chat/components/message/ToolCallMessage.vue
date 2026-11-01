@@ -2176,9 +2176,10 @@ defineExpose({
   border-right: 1px dashed var(--border-color);
 }
 
-/* 悬停显示操作栏 (对齐 ChatMessage.vue) */
+/* 悬停或键盘聚焦时显示操作栏；弹层打开期间保持可见。 */
 .tool-call-message:hover .menubar-wrapper,
-.tool-call-message:focus-within .menubar-wrapper {
+.tool-call-message:has(:focus-visible) .menubar-wrapper,
+.tool-call-message:has(.message-menubar.has-open-popover) .menubar-wrapper {
   opacity: 1;
 }
 
@@ -2214,9 +2215,10 @@ defineExpose({
 }
 
 .tool-call-message:hover .menubar-wrapper > *,
-.tool-call-message:focus-within .menubar-wrapper > *,
+.tool-call-message:has(:focus-visible) .menubar-wrapper > *,
+.tool-call-message:has(.message-menubar.has-open-popover) .menubar-wrapper > *,
 .tool-call-message:hover .menubar-wrapper::before,
-.tool-call-message:focus-within .menubar-wrapper::before {
+.tool-call-message:has(:focus-visible) .menubar-wrapper::before {
   pointer-events: auto;
 }
 

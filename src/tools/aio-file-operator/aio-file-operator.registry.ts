@@ -103,7 +103,7 @@ export class AioFileOperatorRegistry implements ToolRegistry {
           name: "read_file",
           displayName: "读取文件",
           description:
-            "读取本地文件。文本、Word、PowerPoint、Excel、PDF、CSV 返回提取的文本；图片、音频、视频返回本地路径引用，发送给支持相应输入的模型时按需读取原文件。读取前校验路径安全和文件大小限制。",
+            "读取本地文件。文本、Word、PowerPoint、Excel、PDF、CSV 返回提取的文本；图片、音频、视频供支持相应输入的模型直接读取：本地聊天按路径引用读取原文件；VCP 分布式调用在本次工具结果中返回媒体内容。读取前校验路径安全和文件大小限制。",
           parameters: [
             {
               name: "path",

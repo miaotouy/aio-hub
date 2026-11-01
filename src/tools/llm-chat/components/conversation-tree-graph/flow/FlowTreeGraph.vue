@@ -987,7 +987,10 @@ const locateActiveNode = () => {
 const graphStats = useGraphStats(() => viewSettings.value.showHud, getViewport);
 
 // Vue Flow 会批量上报尺寸变更，只把实际变化的节点交给 D3。
-const dimensionChangeHook = onNodesChange((changes) => {
+const dimensionChangeHook = onNodesChange((changeOrChanges) => {
+  const changes = Array.isArray(changeOrChanges)
+    ? changeOrChanges
+    : [changeOrChanges];
   const dimensionsMap = new Map<string, { width: number; height: number }>();
 
   for (const change of changes) {

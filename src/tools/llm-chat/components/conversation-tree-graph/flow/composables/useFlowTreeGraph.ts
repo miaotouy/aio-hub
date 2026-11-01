@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, watch, onUnmounted, type Ref } from "vue";
+import {
+  ref,
+  shallowRef,
+  watch,
+  onUnmounted,
+  type Ref,
+  type WatchStopHandle,
+} from "vue";
 import { usePageActivity } from "@/composables/usePageActivity";
 import { useChatSettings } from "../../../../composables/settings/useChatSettings";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
@@ -46,7 +53,16 @@ interface DerivedContentCacheEntry {
   thinkingPreview: string | null;
 }
 
-const EMPTY_ATTACHMENTS: readonly any[] = [];
+interface GraphRenderContext {
+  activePathSet: Set<string>;
+  nodeDepthMap: Map<string, number>;
+  compressedNodeIds: Set<string>;
+  logicalParentMap: Map<string, string>;
+}
+
+type NodeDataUpdater = (id: string, data: any) => boolean;
+
+const EMPTY_ATTACHMENTS = Object.freeze([]) as readonly any[];
 
 function isTokenInfoEqual(a: any, b: any): boolean {
   if (a === b) return true;
@@ -111,6 +127,50 @@ function getReusableNodeData(previousNode: any, nextData: any): any {
     : nextData;
 }
 
+function getAttachmentWatchSignature(attachments?: any[]): string {
+  if (!attachments?.length) return "";
+
+  return attachments
+    .map((asset) => {
+      const derived = asset.metadata?.derived
+        ? Object.entries(asset.metadata.derived)
+            .map(([key, value]: [string, any]) =>
+              [
+                key,
+                value?.path,
+                value?.updatedAt,
+                value?.provider,
+                value?.error,
+                value?.warning,
+              ].join(":")
+            )
+            .join(",")
+        : "";
+
+      return [
+        asset.id,
+        asset.uploadingId,
+        asset.type,
+        asset.mimeType,
+        asset.name,
+        asset.path,
+        asset.thumbnailPath,
+        asset.size,
+        asset.importStatus,
+        asset.importError,
+        asset.importPhase,
+        asset.importPhaseDetail,
+        asset.metadata?.width,
+        asset.metadata?.height,
+        asset.metadata?.duration,
+        asset.metadata?.sha256,
+        asset.metadata?.originalSha256,
+        derived,
+      ].join(":");
+    })
+    .join("|");
+}
+
 function isEdgeStyleEqual(a: any, b: any): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -136,7 +196,8 @@ function isEdgeEqual(a: any, b: any): boolean {
 export function useFlowTreeGraph(
   sessionRef: () => ChatSessionDetail | null,
   contextMenuState: Ref<any>,
-  target: Ref<HTMLElement | null>
+  target: Ref<HTMLElement | null>,
+  nodeDataUpdater?: NodeDataUpdater
 ) {
   const { settings } = useChatSettings();
   const store = useLlmChatStore();
@@ -146,12 +207,22 @@ export function useFlowTreeGraph(
   const { getModelIcon, getDisplayIconPath } = useModelMetadata();
 
   // 1. 基础状态
-  const nodes = ref<any[]>([]);
-  const edges = ref<any[]>([]);
+  const nodes = shallowRef<any[]>([]);
+  const edges = shallowRef<any[]>([]);
   const layoutMode = ref<LayoutMode>("tree");
   const debugMode = ref(false);
-  const expandedCompressionIds = ref(new Set<string>());
+  const expandedCompressionIds = shallowRef(new Set<string>());
   const derivedContentCache = new Map<string, DerivedContentCacheEntry>();
+  const nodeWatchStops = new Map<string, WatchStopHandle>();
+  const dirtyNodeIds = new Set<string>();
+  let dirtyFlushScheduled = false;
+  let flowNodeById = new Map<string, any>();
+  let renderContext: GraphRenderContext = {
+    activePathSet: new Set(),
+    nodeDepthMap: new Map(),
+    compressedNodeIds: new Set(),
+    logicalParentMap: new Map(),
+  };
   let lastStructureFingerprint = "";
   const isPageActive = usePageActivity();
 
@@ -216,11 +287,12 @@ export function useFlowTreeGraph(
    * 计算会话的拓扑结构指纹
    */
   function getStructureFingerprint(session: ChatSessionDetail): string {
-    if (!session.nodes) return "not-loaded";
-    return Object.values(session.nodes)
+    if (!session.nodes) return `${session.id}:${session.rootNodeId}:not-loaded`;
+    const topology = Object.values(session.nodes)
       .map((n) => `${n.id}:${n.parentId || ""}`)
       .sort()
       .join("|");
+    return `${session.id}:${session.rootNodeId}:${topology}`;
   }
 
   function buildActivePathSet(session: ChatSessionDetail): Set<string> {
@@ -365,6 +437,173 @@ export function useFlowTreeGraph(
     return { background, border };
   }
 
+  function createNodeData(
+    session: ChatSessionDetail,
+    node: ChatMessageNode,
+    context: GraphRenderContext
+  ): any {
+    const isCompressed = context.compressedNodeIds.has(node.id);
+    const isActiveLeaf = node.id === session.activeLeafId;
+    const isEnabled = node.isEnabled !== false && !isCompressed;
+    const colors = getNodeColor(
+      session,
+      node,
+      context.activePathSet,
+      isCompressed
+    );
+    const roleDisplay = contentUtils.getRoleDisplay(
+      node,
+      userProfileStore,
+      agentStore
+    );
+    const derivedContent = getDerivedContent(node);
+    const subtitleInfo = contentUtils.getSubtitleInfo(
+      node,
+      agentStore,
+      getProfileById,
+      getModelIcon,
+      getDisplayIconPath
+    );
+    const attachments = node.attachments || EMPTY_ATTACHMENTS;
+    const isCompressionNode = !!node.metadata?.isCompressionNode;
+    const isExpanded = expandedCompressionIds.value.has(node.id);
+
+    let tokens = null;
+    if (node.metadata?.usage) {
+      tokens = {
+        total: node.metadata.usage.totalTokens,
+        prompt: node.metadata.usage.promptTokens,
+        completion: node.metadata.usage.completionTokens,
+      };
+    } else if (node.metadata?.contentTokens) {
+      tokens = { total: node.metadata.contentTokens };
+    }
+
+    const agent = node.metadata?.agentId
+      ? agentStore.getAgentById(node.metadata.agentId)
+      : null;
+
+    return {
+      name: roleDisplay.name,
+      avatar: roleDisplay.icon,
+      contentPreview: derivedContent.contentPreview,
+      isActiveLeaf,
+      isEnabled,
+      timestamp: node.timestamp || "",
+      role: node.role,
+      status: node.status,
+      errorMessage: node.metadata?.error,
+      subtitleInfo,
+      colors,
+      tokens,
+      attachments,
+      _nodeDepth: context.nodeDepthMap.get(node.id) || 0,
+      hasThinking: derivedContent.hasThinking,
+      thinkingPreview: derivedContent.thinkingPreview,
+      isCompressionNode,
+      isExpanded,
+      originalMessageCount: node.metadata?.originalMessageCount,
+      originalTokenCount: node.metadata?.originalTokenCount,
+      modelId: node.metadata?.modelId || agent?.modelId,
+      profileId: node.metadata?.profileId || agent?.profileId,
+    };
+  }
+
+  function getNodeContentWatchSources(nodeId: string): Array<() => unknown> {
+    const getNode = () => sessionRef()?.nodes?.[nodeId];
+
+    return [
+      () => getNode()?.content,
+      () => getNode()?.metadata?.reasoningContent,
+      () => getNode()?.role,
+      () => getNode()?.status,
+      () => getNode()?.isEnabled,
+      () => getNode()?.timestamp,
+      () => getAttachmentWatchSignature(getNode()?.attachments),
+      () => getNode()?.metadata?.error,
+      () => getNode()?.metadata?.agentId,
+      () => getNode()?.metadata?.agentName,
+      () => getNode()?.metadata?.agentIcon,
+      () => getNode()?.metadata?.profileId,
+      () => getNode()?.metadata?.modelId,
+      () => getNode()?.metadata?.modelName,
+      () => getNode()?.metadata?.modelIcon,
+      () => getNode()?.metadata?.userProfileId,
+      () => getNode()?.metadata?.userProfileName,
+      () => getNode()?.metadata?.userProfileIcon,
+      () => getNode()?.metadata?.contentTokens,
+      () => getNode()?.metadata?.usage?.totalTokens,
+      () => getNode()?.metadata?.usage?.promptTokens,
+      () => getNode()?.metadata?.usage?.completionTokens,
+      () => getNode()?.metadata?.originalMessageCount,
+      () => getNode()?.metadata?.originalTokenCount,
+      () => getNode()?.metadata?.toolCalls?.[0]?.toolName,
+      () => getNode()?.metadata?.toolCall?.toolName,
+    ];
+  }
+
+  function syncNodeContentWatchers(session: ChatSessionDetail | null): void {
+    const nodeIds = new Set(session?.nodes ? Object.keys(session.nodes) : []);
+
+    for (const [nodeId, stop] of nodeWatchStops) {
+      if (nodeIds.has(nodeId)) continue;
+      stop();
+      nodeWatchStops.delete(nodeId);
+    }
+
+    for (const nodeId of nodeIds) {
+      if (nodeWatchStops.has(nodeId)) continue;
+
+      const stop = watch(getNodeContentWatchSources(nodeId), () => {
+        scheduleNodeDataFlush(nodeId);
+      });
+      nodeWatchStops.set(nodeId, stop);
+    }
+  }
+
+  function scheduleNodeDataFlush(nodeId: string): void {
+    if (!isPageActive.value) return;
+
+    dirtyNodeIds.add(nodeId);
+    if (dirtyFlushScheduled) return;
+
+    dirtyFlushScheduled = true;
+    queueMicrotask(() => {
+      dirtyFlushScheduled = false;
+      flushDirtyNodeData();
+    });
+  }
+
+  function flushDirtyNodeData(): void {
+    if (dirtyNodeIds.size === 0 || !isPageActive.value) return;
+
+    const session = sessionRef();
+    if (!session?.nodes) {
+      dirtyNodeIds.clear();
+      return;
+    }
+
+    const pendingIds = Array.from(dirtyNodeIds);
+    dirtyNodeIds.clear();
+
+    for (const nodeId of pendingIds) {
+      const node = session.nodes[nodeId];
+      const flowNode = flowNodeById.get(nodeId);
+      if (!node || !flowNode) continue;
+
+      const nextData = createNodeData(session, node, renderContext);
+      if (isNodeDataEqual(flowNode.data, nextData)) continue;
+
+      if (nodeDataUpdater && !nodeDataUpdater(nodeId, nextData)) {
+        dirtyNodeIds.add(nodeId);
+        updateChart();
+        return;
+      }
+
+      flowNode.data = nextData;
+    }
+  }
+
   /**
    * 初始化或更新图表数据
    */
@@ -372,6 +611,15 @@ export function useFlowTreeGraph(
     if (!isPageActive.value) return;
     const session = sessionRef();
     if (!session) {
+      syncNodeContentWatchers(null);
+      dirtyNodeIds.clear();
+      flowNodeById = new Map();
+      renderContext = {
+        activePathSet: new Set(),
+        nodeDepthMap: new Map(),
+        compressedNodeIds: new Set(),
+        logicalParentMap: new Map(),
+      };
       nodes.value = [];
       edges.value = [];
       lastStructureFingerprint = "";
@@ -426,6 +674,13 @@ export function useFlowTreeGraph(
       });
     }
 
+    renderContext = {
+      activePathSet,
+      nodeDepthMap,
+      compressedNodeIds,
+      logicalParentMap,
+    };
+
     const getVisibleParentId = (originalParentId: string): string | null => {
       let effectiveParentId = originalParentId;
       // 这里简化处理，目前不考虑多层嵌套压缩
@@ -438,39 +693,8 @@ export function useFlowTreeGraph(
     const flowNodes: any[] = [];
     if (session.nodes) {
       Object.values(session.nodes).forEach((node) => {
-        const isCompressed = compressedNodeIds.has(node.id);
-        const isActiveLeaf = node.id === session.activeLeafId;
-        const isEnabled = node.isEnabled !== false && !isCompressed;
-        const colors = getNodeColor(session, node, activePathSet, isCompressed);
-        const roleDisplay = contentUtils.getRoleDisplay(
-          node,
-          userProfileStore,
-          agentStore
-        );
-
-        const derivedContent = getDerivedContent(node);
-
-        const subtitleInfo = contentUtils.getSubtitleInfo(
-          node,
-          agentStore,
-          getProfileById,
-          getModelIcon,
-          getDisplayIconPath
-        );
-        const attachments = node.attachments || EMPTY_ATTACHMENTS;
         const isCompressionNode = !!node.metadata?.isCompressionNode;
         const isExpanded = expandedCompressionIds.value.has(node.id);
-
-        let tokens = null;
-        if (node.metadata?.usage) {
-          tokens = {
-            total: node.metadata.usage.totalTokens,
-            prompt: node.metadata.usage.promptTokens,
-            completion: node.metadata.usage.completionTokens,
-          };
-        } else if (node.metadata?.contentTokens) {
-          tokens = { total: node.metadata.contentTokens };
-        }
 
         let positioningParentId = node.parentId;
         if (isCompressionNode && !isExpanded && logicalParentMap.has(node.id)) {
@@ -500,36 +724,7 @@ export function useFlowTreeGraph(
           initialPosition = { x: 0, y: 0 };
         }
 
-        const agent = node.metadata?.agentId
-          ? agentStore.getAgentById(node.metadata.agentId)
-          : null;
-        const modelId = node.metadata?.modelId || agent?.modelId;
-        const profileId = node.metadata?.profileId || agent?.profileId;
-
-        const nextData = {
-          name: roleDisplay.name,
-          avatar: roleDisplay.icon,
-          contentPreview: derivedContent.contentPreview,
-          isActiveLeaf,
-          isEnabled,
-          timestamp: node.timestamp || "",
-          role: node.role,
-          status: node.status,
-          errorMessage: node.metadata?.error,
-          subtitleInfo,
-          colors,
-          tokens,
-          attachments,
-          _nodeDepth: nodeDepthMap.get(node.id) || 0,
-          hasThinking: derivedContent.hasThinking,
-          thinkingPreview: derivedContent.thinkingPreview,
-          isCompressionNode,
-          isExpanded,
-          originalMessageCount: node.metadata?.originalMessageCount,
-          originalTokenCount: node.metadata?.originalTokenCount,
-          modelId,
-          profileId,
-        };
+        const nextData = createNodeData(session, node, renderContext);
         const data = getReusableNodeData(previousNode, nextData);
         const nextFlowNode = {
           id: node.id,
@@ -603,18 +798,80 @@ export function useFlowTreeGraph(
       }
     });
 
+    const edgesChanged =
+      flowEdges.length !== edges.value.length ||
+      flowEdges.some((edge, index) => edge !== edges.value[index]);
+
     if (!isStructureChanged && nodes.value.length > 0) {
+      let dataUpdatesSucceeded = true;
+
+      for (const nextNode of flowNodes) {
+        const currentNode = flowNodeById.get(nextNode.id);
+        if (!currentNode) {
+          dataUpdatesSucceeded = false;
+          break;
+        }
+
+        if (currentNode.data === nextNode.data) continue;
+        if (nodeDataUpdater && !nodeDataUpdater(nextNode.id, nextNode.data)) {
+          dataUpdatesSucceeded = false;
+          break;
+        }
+        currentNode.data = nextNode.data;
+      }
+
+      if (dataUpdatesSucceeded) {
+        if (edgesChanged) edges.value = flowEdges;
+        syncNodeContentWatchers(session);
+        return;
+      }
+
       nodes.value = flowNodes;
       edges.value = flowEdges;
+      flowNodeById = new Map(flowNodes.map((node) => [node.id, node]));
+      syncNodeContentWatchers(session);
       return;
     }
 
     lastStructureFingerprint = currentFingerprint;
     nodes.value = flowNodes;
     edges.value = flowEdges;
+    flowNodeById = new Map(flowNodes.map((node) => [node.id, node]));
 
     startWaitingForDimensions(flowNodes, forceResetPosition);
+    syncNodeContentWatchers(session);
   }
+
+  function getGraphStructureWatchSource(): unknown[] {
+    const session = sessionRef();
+    if (!session) return [null];
+
+    const nodeEntries = session.nodes
+      ? Object.values(session.nodes).sort((a, b) => a.id.localeCompare(b.id))
+      : [];
+    const parts: unknown[] = [
+      session.id,
+      session.rootNodeId,
+      session.activeLeafId,
+      nodeEntries.length,
+    ];
+
+    for (const node of nodeEntries) {
+      parts.push(
+        node.id,
+        node.parentId,
+        node.metadata?.isCompressionNode,
+        node.metadata?.isCompressionNode ? node.isEnabled : undefined,
+        node.metadata?.compressedNodeIds?.join(",")
+      );
+    }
+
+    return parts;
+  }
+
+  watch(getGraphStructureWatchSource, () => {
+    updateChart();
+  });
 
   /**
    * 切换布局模式
@@ -646,6 +903,11 @@ export function useFlowTreeGraph(
    * 清理资源
    */
   function destroy(): void {
+    for (const stop of nodeWatchStops.values()) stop();
+    nodeWatchStops.clear();
+    dirtyNodeIds.clear();
+    dirtyFlushScheduled = false;
+
     if (simulation.value) {
       simulation.value.stop();
       simulation.value = null;

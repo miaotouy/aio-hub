@@ -571,6 +571,21 @@ const emit = defineEmits<{
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const viewSettingsBtnRef = ref();
 
+const {
+  getViewport,
+  fitView,
+  viewport,
+  updateNodeData,
+  findNode,
+  onNodesChange,
+} = useVueFlow();
+
+const updateGraphNodeData = (nodeId: string, data: any): boolean => {
+  if (!findNode(nodeId)) return false;
+  updateNodeData(nodeId, data, { replace: true });
+  return true;
+};
+
 const isNarrowLayout = ref(false);
 
 useResizeObserver(wrapperRef, (entries) => {
@@ -666,7 +681,12 @@ const {
   toggleDebugMode,
   resetLayout,
   toggleCompressionExpanded,
-} = useFlowTreeGraph(() => props.session, contextMenu, wrapperRef);
+} = useFlowTreeGraph(
+  () => props.session,
+  contextMenu,
+  wrapperRef,
+  updateGraphNodeData
+);
 
 // 从 store 中获取历史记录相关的功能和状态
 // 使用 storeToRefs 来保持 canUndo 和 canRedo 的响应性
@@ -889,109 +909,6 @@ const copyDebugInfo = () => {
   }
 };
 
-const getAttachmentWatchSignature = (
-  attachments: any[] | undefined
-): string => {
-  if (!attachments?.length) return "";
-
-  return attachments
-    .map((asset) => {
-      const derived = asset.metadata?.derived
-        ? Object.entries(asset.metadata.derived)
-            .map(([key, value]: [string, any]) =>
-              [
-                key,
-                value?.path,
-                value?.updatedAt,
-                value?.provider,
-                value?.error,
-                value?.warning,
-              ].join(":")
-            )
-            .join(",")
-        : "";
-
-      return [
-        asset.id,
-        asset.uploadingId,
-        asset.type,
-        asset.mimeType,
-        asset.name,
-        asset.path,
-        asset.thumbnailPath,
-        asset.size,
-        asset.importStatus,
-        asset.importError,
-        asset.importPhase,
-        asset.importPhaseDetail,
-        asset.metadata?.width,
-        asset.metadata?.height,
-        asset.metadata?.duration,
-        asset.metadata?.sha256,
-        asset.metadata?.originalSha256,
-        derived,
-      ].join(":");
-    })
-    .join("|");
-};
-
-const getGraphSessionWatchSource = () => {
-  const session = props.session;
-  if (!session) return [null];
-
-  const parts: unknown[] = [
-    session.id,
-    session.rootNodeId,
-    session.activeLeafId,
-  ];
-
-  const nodeEntries = session.nodes
-    ? Object.values(session.nodes).sort((a, b) => a.id.localeCompare(b.id))
-    : [];
-
-  parts.push(nodeEntries.length);
-
-  for (const node of nodeEntries) {
-    const metadata = node.metadata;
-    parts.push(
-      node.id,
-      node.parentId,
-      node.role,
-      node.status,
-      node.isEnabled,
-      node.timestamp,
-      node.content,
-      getAttachmentWatchSignature(node.attachments),
-      metadata?.reasoningContent,
-      metadata?.error,
-      metadata?.agentId,
-      metadata?.agentName,
-      metadata?.agentIcon,
-      metadata?.profileId,
-      metadata?.modelId,
-      metadata?.modelName,
-      metadata?.userProfileId,
-      metadata?.userProfileName,
-      metadata?.userProfileIcon,
-      metadata?.contentTokens,
-      metadata?.usage?.totalTokens,
-      metadata?.usage?.promptTokens,
-      metadata?.usage?.completionTokens,
-      metadata?.isCompressionNode,
-      metadata?.originalMessageCount,
-      metadata?.originalTokenCount,
-      metadata?.compressedNodeIds?.join(",")
-    );
-  }
-
-  return parts;
-};
-
-// 监听 session 变化
-watch(getGraphSessionWatchSource, () => {
-  updateChart();
-});
-
 // 监听会话 ID 变化（切换会话时自动聚焦到当前对话末端）
 watch(
   () => props.session?.id,
@@ -1022,8 +939,6 @@ onMounted(() => {
   }, 300);
 });
 
-// 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
-const { getNodes, getViewport, fitView, viewport } = useVueFlow();
 const menubarScale = computed(() => {
   const inverseScale = 1 / viewport.value.zoom;
   return Math.max(0.5, Math.min(2, inverseScale));
@@ -1058,36 +973,22 @@ const locateActiveNode = () => {
 // 统计刷新随缓存页面暂停，返回后重新采样。
 const graphStats = useGraphStats(() => viewSettings.value.showHud, getViewport);
 
-// 监听节点尺寸变化并同步到 D3
-const dimensionsWatchStop = watch(
-  () =>
-    getNodes.value.map((node) => ({
-      id: node.id,
-      width: node.dimensions?.width ?? 0,
-      height: node.dimensions?.height ?? 0,
-    })),
-  (vueFlowNodes) => {
-    const dimensionsMap = new Map<string, { width: number; height: number }>();
+// Vue Flow 会批量上报尺寸变更，只把实际变化的节点交给 D3。
+const dimensionChangeHook = onNodesChange((changes) => {
+  const dimensionsMap = new Map<string, { width: number; height: number }>();
 
-    vueFlowNodes.forEach((node) => {
-      // Vue Flow 的 node.dimensions 包含渲染后的实际尺寸
-      if (node.width && node.height) {
-        dimensionsMap.set(node.id, {
-          width: node.width,
-          height: node.height,
-        });
-      }
-    });
+  for (const change of changes) {
+    if (change.type !== "dimensions" || !change.dimensions) continue;
+    dimensionsMap.set(change.id, change.dimensions);
+  }
 
-    if (dimensionsMap.size > 0) {
-      updateNodeDimensions(dimensionsMap);
-    }
-  },
-  { flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
-);
+  if (dimensionsMap.size > 0) {
+    updateNodeDimensions(dimensionsMap);
+  }
+});
 
 onUnmounted(() => {
-  dimensionsWatchStop();
+  dimensionChangeHook.off();
 });
 
 // SVG 调试层相关

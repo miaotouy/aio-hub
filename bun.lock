@@ -379,6 +379,9 @@
     "vue-demi",
     "@parcel/watcher",
   ],
+  "patchedDependencies": {
+    "@vue-flow/core@1.48.2": "patches/@vue-flow%2Fcore@1.48.2.patch"
+  },
   "overrides": {
     "@lezer/common": "^1.2.3",
     "@lezer/highlight": "^1.2.1",

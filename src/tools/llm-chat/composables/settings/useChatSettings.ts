@@ -146,6 +146,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       requestSettings: {
         ...defaultConfig.requestSettings,
         ...(loadedConfig.requestSettings || {}),
+        longImageSlicing: {
+          ...defaultConfig.requestSettings.longImageSlicing,
+          ...loadedConfig.requestSettings?.longImageSlicing,
+        },
       },
       developer: {
         ...defaultConfig.developer,

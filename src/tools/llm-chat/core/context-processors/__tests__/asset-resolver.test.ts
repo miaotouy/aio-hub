@@ -5,6 +5,13 @@ import type { ProcessableMessage } from "../../../types/context";
 import type { PipelineAttachment } from "../../../types/pipeline-attachment";
 import { DEFAULT_SETTINGS } from "../../../config/defaultSettings";
 import { assetResolver } from "../asset-resolver";
+import {
+  getImageDimensions,
+  loadImageFromBuffer,
+  resizeImage,
+} from "@/utils/imageProcessor";
+import { convertArrayBufferToBase64 } from "@/utils/base64";
+import { planImageSlices } from "@/tools/smart-ocr/utils/imageSlicing";
 import { getAttachmentBuffer } from "../../context-utils/attachment-binary";
 
 // 隔离转写设置的 UI 依赖，保留真实请求默认值。
@@ -34,6 +41,12 @@ vi.mock("@/utils/pdfUtils", () => ({
 vi.mock("@/utils/imageProcessor", () => ({
   getImageDimensions: vi.fn(async () => ({ width: 10, height: 10 })),
   resizeImage: vi.fn(),
+  loadImageFromBuffer: vi.fn(),
+}));
+
+vi.mock("@/tools/smart-ocr/utils/imageSlicing", async (original) => ({
+  ...(await original<typeof import("@/tools/smart-ocr/utils/imageSlicing")>()),
+  planImageSlices: vi.fn(),
 }));
 
 const image = { type: "image" as const, imageBase64: "image-data" };
@@ -364,4 +377,83 @@ describe("asset resolver media-only request compatibility", () => {
       ]);
     }
   );
+});
+
+// Protect the public request order: split full-resolution images before both resize layers.
+it("sends ordered slices through model safety resizing and Agent compression, preserving original references", async () => {
+  const original = new ArrayBuffer(4);
+  const slices = [new ArrayBuffer(2), new ArrayBuffer(3)];
+  const ctx = context([
+    { role: "user", content: "read", _attachments: [attachment] },
+  ]);
+  ctx.settings.requestSettings.longImageSlicing = {
+    enabled: true,
+    aspectRatioThreshold: 3,
+    minCutHeight: 680,
+  };
+  Object.assign(ctx.capabilities!, { maxImageDimension: 2048 });
+  ctx.agentConfig.parameters = {
+    imageCompression: {
+      enabled: true,
+      maxDimension: 1024,
+      format: "jpeg",
+      quality: 0.8,
+    },
+  };
+  vi.mocked(getAttachmentBuffer).mockResolvedValue(original);
+  vi.mocked(loadImageFromBuffer).mockResolvedValue({
+    img: { naturalWidth: 1000, naturalHeight: 6000 } as HTMLImageElement,
+    cleanup: vi.fn(),
+  });
+  vi.mocked(planImageSlices).mockReturnValue({
+    width: 1000,
+    height: 6000,
+    lines: [],
+    regions: [
+      { startY: 0, endY: 3000 },
+      { startY: 3000, endY: 6000 },
+    ],
+  });
+  vi.mocked(getImageDimensions).mockResolvedValue({
+    width: 1000,
+    height: 3000,
+    byteLength: 1,
+  });
+  vi.mocked(resizeImage)
+    .mockClear()
+    .mockImplementation(async (buffer) => buffer);
+  let index = 0;
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({ drawImage: vi.fn() }),
+    toBlob: (cb: (blob: Blob) => void) =>
+      cb({ arrayBuffer: async () => slices[index++] } as Blob),
+  };
+  const spy = vi
+    .spyOn(document, "createElement")
+    .mockReturnValue(canvas as never);
+  vi.mocked(convertArrayBufferToBase64).mockImplementation(
+    async (buffer) => `slice-${buffer.byteLength}`
+  );
+  try {
+    await assetResolver.execute(ctx);
+    expect(ctx.messages[0].content).toEqual([
+      { type: "text", text: "read" },
+      { type: "image", imageBase64: "slice-2" },
+      { type: "image", imageBase64: "slice-3" },
+    ]);
+    expect(vi.mocked(resizeImage).mock.calls).toEqual(
+      slices.flatMap((buffer) => [
+        [buffer, { maxWidth: 2048, maxHeight: 2048 }],
+        [
+          buffer,
+          { maxWidth: 1024, maxHeight: 1024, format: "jpeg", quality: 0.8 },
+        ],
+      ])
+    );
+    expect(ctx.messages[0]._attachments).toEqual([attachment]);
+  } finally {
+    spy.mockRestore();
+  }
 });

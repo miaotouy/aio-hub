@@ -32,6 +32,12 @@ import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
 
+import {
+  calculateTokensWithImageSlicing,
+  imageSlicePlanRevision,
+} from "../../core/context-utils/image-slicing";
+import { useChatSettings } from "../settings/useChatSettings";
+
 const logger = createModuleLogger("ChatInputTokenPreview");
 const errorHandler = createModuleErrorHandler("ChatInputTokenPreview");
 
@@ -53,6 +59,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   const chatStore = useLlmChatStore();
   const agentStore = useAgentStore();
   const transcriptionManager = useTranscriptionManager();
+  const { settings } = useChatSettings();
 
   const tokenCount = ref<number>(0);
   const isCalculatingTokens = ref(false);
@@ -226,11 +233,14 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
       );
 
       // 5. 调用底层服务计算
-      const result = await tokenCalculatorService.calculateMessageTokens(
+      const result = await calculateTokensWithImageSlicing(
+        tokenCalculatorService,
         combinedText,
         modelId,
         mediaAttachments.length > 0 ? mediaAttachments : undefined,
-        maxImageDimension !== undefined ? { maxImageDimension } : undefined
+        settings.value.requestSettings.longImageSlicing,
+        maxImageDimension !== undefined ? { maxImageDimension } : undefined,
+        { cacheOnly: true }
       );
 
       tokenCount.value = result.count;
@@ -297,6 +307,16 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         triggerCalculation();
       }
     }
+  );
+
+  watch(
+    () => [
+      settings.value.requestSettings.longImageSlicing?.enabled,
+      settings.value.requestSettings.longImageSlicing?.aspectRatioThreshold,
+      settings.value.requestSettings.longImageSlicing?.minCutHeight,
+      imageSlicePlanRevision.value,
+    ],
+    triggerCalculation
   );
 
   // 监听转写任务状态变化

@@ -19,6 +19,7 @@
  */
 
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
+import { DEFAULT_SLICER_CONFIG } from "../utils/imageSlicing";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { migratePluginOcrEngineConfig } from "../platform/config-migration";
@@ -74,14 +75,7 @@ export const defaultSmartOcrConfig: SmartOcrConfig = {
       contributionId: "",
     },
   },
-  slicerConfig: {
-    enabled: true,
-    aspectRatioThreshold: 3,
-    blankThreshold: 0.3,
-    minBlankHeight: 20,
-    minCutHeight: 680,
-    cutLineOffset: 0.2,
-  },
+  slicerConfig: { ...DEFAULT_SLICER_CONFIG },
   version: "2.0.0",
 };
 

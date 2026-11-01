@@ -384,6 +384,8 @@ graph TD
 
 图片压缩是发送图片附件给 LLM 之前的**用户侧可选优化层**，由 `LlmParameters.imageCompression` 配置驱动，在上下文管道末端的 `asset-resolver` 内执行。
 
+Chat 请求设置还提供默认关闭的长图自动切分。原图空白横带切点与 Smart OCR 共享，配置独立；切片逐张进入模型安全缩放与 Agent 压缩，预算和完整预览按切片尺寸计数，聊天记录保留原附件。
+
 详见 [`image-compression.md`](./docs/architecture/image-compression.md)。
 
 ---

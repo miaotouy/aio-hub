@@ -28,6 +28,16 @@ UI 入口位于 Agent 参数编辑器 [`ModelParametersEditor.vue`](../../../age
 1. **模型安全约束缩放**：先读取 `context.capabilities.maxImageDimension`，若图片任一边超出该阈值则用 [`resizeImage`](../../../../utils/imageProcessor.ts) 等比缩放到模型可接受范围。此步骤始终生效，不受用户开关控制。
 2. **用户压缩策略**：仅当 `agentConfig.parameters.imageCompression.enabled === true` 时执行（见 [`asset-resolver.ts:48-68`](../../core/context-processors/asset-resolver.ts:48)），构造 `ResizeOptions` 后再次调用 `resizeImage` 完成缩放与格式转换。
 
+### 2.1. 可选长图切分
+
+Chat「请求设置 → 发送长图时自动切分」由 `requestSettings.longImageSlicing` 控制，默认关闭。开启后，最终图片附件先在原始尺寸下沿空白横带规划切点，再按从上到下的顺序裁成切片；每片独立执行上述模型安全缩放和 Agent 压缩。
+
+默认长宽比阈值为 `height / width > 3`，最小切片高度为 680px。没有有效切点时沿用原图；切片裁图或编码失败时整组回退原图。聊天记录和资产库保留原附件。
+
+切点算法与 Smart OCR 共享，配置独立于图片转写。Token 预算和完整预览按每张切片缩放后的尺寸累计；被动统计优先复用缓存，未准备的长图显示估算。切图可能增加图片数量和 Token 用量。
+
+实现入口：[`image-slicing.ts`](../../core/context-utils/image-slicing.ts)。设计及实施记录见[长图附件切分方案](../Plan/long-image-attachment-slicing-research.md)。
+
 ## 3. 各字段真实行为 (Field Semantics)
 
 - **`enabled`**：总开关。关闭时整个用户压缩分支被短路，图片仅保留模型安全约束缩放的结果。

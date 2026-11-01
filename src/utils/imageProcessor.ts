@@ -71,7 +71,7 @@ export function computeResizedDimensions(
 /**
  * 从 ArrayBuffer 加载 HTMLImageElement
  */
-function loadImageFromBuffer(
+export function loadImageFromBuffer(
   buffer: ArrayBuffer
 ): Promise<{ img: HTMLImageElement; cleanup: () => void }> {
   const bytes = new Uint8Array(buffer);

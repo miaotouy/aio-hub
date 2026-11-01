@@ -35,6 +35,9 @@ import {
   type PipelineAttachment,
 } from "../types/pipeline-attachment";
 
+import { calculateTokensWithImageSlicing } from "../core/context-utils/image-slicing";
+import { useChatSettings } from "../composables/settings/useChatSettings";
+
 const logger = createModuleLogger("llm-chat/token-utils");
 
 /**
@@ -270,11 +273,14 @@ export async function recalculateNodeTokens(
       index?.displayAgentId
     );
 
-    const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+    const tokenResult = await calculateTokensWithImageSlicing(
+      tokenCalculatorService,
       fullContent,
       modelId,
       mediaAttachments,
-      maxImageDimension !== undefined ? { maxImageDimension } : undefined
+      useChatSettings().settings.value.requestSettings.longImageSlicing,
+      maxImageDimension !== undefined ? { maxImageDimension } : undefined,
+      { cacheOnly: true }
     );
 
     if (!node.metadata) node.metadata = {};
@@ -379,15 +385,17 @@ export async function fillMissingTokenMetadata(
               sessionIndex?.displayAgentId
             );
 
-            const tokenResult =
-              await tokenCalculatorService.calculateMessageTokens(
-                fullContent,
-                currentModelId,
-                mediaAttachments,
-                maxImageDimension !== undefined
-                  ? { maxImageDimension }
-                  : undefined
-              );
+            const tokenResult = await calculateTokensWithImageSlicing(
+              tokenCalculatorService,
+              fullContent,
+              currentModelId,
+              mediaAttachments,
+              useChatSettings().settings.value.requestSettings.longImageSlicing,
+              maxImageDimension !== undefined
+                ? { maxImageDimension }
+                : undefined,
+              { cacheOnly: true }
+            );
 
             if (!node.metadata) node.metadata = {};
             node.metadata.contentTokens = tokenResult.count;

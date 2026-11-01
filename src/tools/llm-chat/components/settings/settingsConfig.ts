@@ -2343,6 +2343,38 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     icon: Globe,
     items: [
       {
+        id: "longImageSlicing",
+        label: "发送长图时自动切分",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "requestSettings.longImageSlicing.enabled",
+        hint: "发送前沿图片空白区域切分长图，再分别应用图片压缩。可保留更多文字细节，也可能增加图片数量和 Token 用量。",
+        keywords: "request image slice split 长图 切图 切分 附件 压缩",
+      },
+      {
+        id: "longImageAspectRatio",
+        label:
+          "长宽比阈值（{{ localSettings.requestSettings.longImageSlicing.aspectRatioThreshold }}:1）",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 0.5 },
+        modelPath: "requestSettings.longImageSlicing.aspectRatioThreshold",
+        hint: "图片高度与宽度之比超过此值时尝试切分；缺少合适空白时保留整图。",
+        visible: (settings) =>
+          !!settings.requestSettings.longImageSlicing?.enabled,
+        keywords: "request image slice ratio 长图 长宽比",
+      },
+      {
+        id: "longImageMinCutHeight",
+        label: "最小切片高度",
+        component: "SliderWithInput",
+        props: { min: 100, max: 2000, step: 20 },
+        modelPath: "requestSettings.longImageSlicing.minCutHeight",
+        hint: "单位为像素。较大的值可以减少碎片，保留段落上下文。",
+        visible: (settings) =>
+          !!settings.requestSettings.longImageSlicing?.enabled,
+        keywords: "request image slice height 长图 切片 高度",
+      },
+      {
         id: "imageOnlyMessagePlaceholder",
         label: "媒体附件消息补充占位文本",
         layout: "inline",

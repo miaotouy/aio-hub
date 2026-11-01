@@ -308,6 +308,12 @@ export interface ChatSettings {
   };
   /** 请求设置 */
   requestSettings: {
+    /** 发送长图时沿空白横带切分，切片逐张应用图片压缩。 */
+    longImageSlicing: {
+      enabled: boolean;
+      aspectRatioThreshold: number;
+      minCutHeight: number;
+    };
     /** 为无有效文本的媒体附件用户消息补充占位文本，仅影响请求；沿用原图片配置键 */
     imageOnlyMessagePlaceholder: boolean;
     /** 请求超时时间（毫秒） */

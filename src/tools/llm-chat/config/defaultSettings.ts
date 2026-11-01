@@ -167,6 +167,11 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     contextMessageCount: 6, // 使用最近 6 条消息作为上下文
   },
   requestSettings: {
+    longImageSlicing: {
+      enabled: false,
+      aspectRatioThreshold: 3,
+      minCutHeight: 680,
+    },
     imageOnlyMessagePlaceholder: true,
     timeout: 60000, // 默认 60 秒
     maxRetries: 2, // 默认重试 2 次

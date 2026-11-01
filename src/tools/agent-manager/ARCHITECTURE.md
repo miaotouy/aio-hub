@@ -142,7 +142,7 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 智能体编辑器（`EditAgentDialog` / `AgentEditor`）的页签表由 [agentEditConfig.ts](./components/agent-editor/agentEditConfig.ts) 集中定义（提交 `36cd567e2`，2026-10-11）：
 
 - **「模型参数」页签**（`id: "model"`）：模型选择（`ModelConfigSection`，聊天侧边栏与设置页复用同一控件）+ `modelParameterSearchItems`，分组为基础/高级/Gemini 安全设置/特殊功能/自定义参数；
-- **「上下文」页签**（`id: "context"`）：`contextParameterSearchItems`，覆盖上下文管理（`maxContextTokens`、截断保留字符数）、上下文压缩、上下文后处理、图片压缩四组。
+- **「上下文」页签**（`id: "context"`）：`contextParameterSearchItems`，覆盖上下文管理（`maxContextTokens`、截断保留字符数）、上下文压缩、上下文后处理、上下文缓存优化、图片压缩五组。
 
 两页共用 `ModelParametersEditor` 与同一份深拷贝 `parameters` 草稿，跨页保留启用列表与嵌套配置；搜索按模型能力过滤并展开定位分组。
 

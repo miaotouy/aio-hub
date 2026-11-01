@@ -30,11 +30,12 @@ import type { MacroDefinition } from "../MacroRegistry";
 /**
  * 计算有效时间（考虑虚拟时间配置）
  */
-function calculateEffectiveTime(context: MacroContext): Date {
+export function calculateEffectiveTime(context: MacroContext): Date {
+  if (context.datetimeDisplayTimestamp !== undefined) {
+    return new Date(context.datetimeDisplayTimestamp);
+  }
   // 1. 获取当前现实时间（优先使用 context.timestamp，否则取当前系统时间）
-  const currentRealTime = context.timestamp
-    ? new Date(context.timestamp)
-    : new Date();
+  const currentRealTime = new Date(context.timestamp ?? Date.now());
 
   // 2. 检查是否有虚拟时间配置
   const config = context.agent?.virtualTimeConfig;
@@ -59,6 +60,24 @@ function calculateEffectiveTime(context: MacroContext): Date {
     console.error("Error calculating virtual time:", e);
     return currentRealTime;
   }
+}
+
+/** Freeze preset-only date/time output after applying virtual time. */
+export function freezeDatetimeDisplay(
+  context: MacroContext,
+  windowMinutes: number | undefined
+): void {
+  if (
+    windowMinutes !== 5 &&
+    windowMinutes !== 10 &&
+    windowMinutes !== 30 &&
+    windowMinutes !== 60
+  )
+    return;
+  const effectiveTime = calculateEffectiveTime(context).getTime();
+  const windowMs = windowMinutes * 60_000;
+  context.datetimeDisplayTimestamp =
+    Math.floor(effectiveTime / windowMs) * windowMs;
 }
 
 /**

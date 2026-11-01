@@ -241,6 +241,7 @@ const {
 
 // 图片压缩配置的折叠状态（本地，不持久化）
 const imageCompressionExpanded = ref(props.presentation === "settings");
+const cacheOptimizationExpanded = ref(true);
 const editorRef = ref<HTMLElement | null>(null);
 const expandedGroups = {
   basic: basicParamsExpanded,
@@ -248,6 +249,7 @@ const expandedGroups = {
   contextManagement: contextManagementExpanded,
   contextCompression: contextCompressionExpanded,
   contextPostProcessing: postProcessingExpanded,
+  contextCacheOptimization: cacheOptimizationExpanded,
   imageCompression: imageCompressionExpanded,
   safetySettings: safetySettingsExpanded,
   special: specialFeaturesExpanded,
@@ -595,6 +597,65 @@ const hasActivePostProcessingRules = computed(() => {
         :model-value="localParams.contextCompression || {}"
         @update:model-value="updateParameter('contextCompression', $event)"
       />
+    </ConfigSection>
+
+    <ConfigSection
+      v-if="showGroup('contextCacheOptimization')"
+      data-setting-id="parameters.contextCacheOptimization"
+      title="上下文缓存优化"
+      :icon="Connection"
+      v-model:expanded="cacheOptimizationExpanded"
+    >
+      <div class="param-group">
+        <label class="param-label">
+          <span>自动上下文动静分离</span>
+          <el-switch
+            aria-label="自动上下文动静分离"
+            :model-value="
+              localParams.contextCacheOptimization?.enabled ?? false
+            "
+            @update:model-value="
+              updateParameter('contextCacheOptimization', {
+                ...localParams.contextCacheOptimization,
+                enabled: !!$event,
+              })
+            "
+          />
+        </label>
+        <div class="param-desc">
+          将自动 Recall
+          召回与工具运行环境放到本轮输入附近，静态工具说明保留在前部。
+          动态内容使用 User
+          参考数据块，指令层级随之调整。实际缓存读写可在上下文分析器中查看。
+        </div>
+      </div>
+      <div class="param-group">
+        <label class="param-label" for="context-cache-time-window"
+          >预设时间宏窗口</label
+        >
+        <el-select
+          id="context-cache-time-window"
+          aria-label="预设时间宏窗口"
+          :model-value="
+            localParams.contextCacheOptimization?.timeWindowMinutes ?? 0
+          "
+          @update:model-value="
+            updateParameter('contextCacheOptimization', {
+              ...localParams.contextCacheOptimization,
+              timeWindowMinutes: $event,
+            })
+          "
+        >
+          <el-option label="实时" :value="0" />
+          <el-option label="5 分钟" :value="5" />
+          <el-option label="10 分钟" :value="10" />
+          <el-option label="30 分钟" :value="30" />
+          <el-option label="1 小时" :value="60" />
+        </el-select>
+        <div class="param-desc">
+          独立生效，覆盖预设中的日期和时间宏；虚拟时间先换算再对齐窗口。用户输入与历史消息保留原文。
+        </div>
+      </div>
     </ConfigSection>
 
     <!-- 上下文后处理管道分组 -->

@@ -221,6 +221,12 @@ export interface LlmParameters {
     retainedCharacters: number | undefined;
   };
 
+  /** 请求组装优化；时间窗口独立于动态块开关，默认实时。 */
+  contextCacheOptimization?: {
+    enabled?: boolean;
+    timeWindowMinutes?: 0 | 5 | 10 | 30 | 60;
+  };
+
   // ===== 上下文后处理管道 =====
   /**
    * 上下文后处理管道配置

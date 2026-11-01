@@ -148,6 +148,7 @@ export function useChatContextStats(
         // 仅监听影响上下文计算的核心配置
         return JSON.stringify({
           modelId: agent?.modelId,
+          contextCacheOptimization: agent?.parameters?.contextCacheOptimization,
           contextManagement: agent?.parameters?.contextManagement,
           contextPostProcessing: agent?.parameters?.contextPostProcessing,
           presets: agent?.presetMessages,

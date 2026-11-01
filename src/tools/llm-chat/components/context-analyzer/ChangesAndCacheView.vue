@@ -1289,6 +1289,7 @@ const sourceLabel = (type?: string) =>
     depth_injection: "深度注入",
     anchor_injection: "锚点注入",
     recall: "Recall",
+    recall_placeholder: "Recall 占位符",
     worldbook: "世界书",
     merged: "合并消息",
   })[type ?? ""] ?? "来源待确认";

@@ -220,7 +220,9 @@ describe("request projections and comparison", () => {
               _snapshotFragments: [
                 {
                   sourceType: "recall",
-                  sourceId: "collection",
+                  sourceId: "recall:auto",
+                  collection: "collection",
+                  placeholder: "【recall::collection=collection】",
                   content: "retrieved",
                 },
               ],
@@ -243,6 +245,18 @@ describe("request projections and comparison", () => {
     expect(sources[0].parentSourceKeys).toHaveLength(2);
     expect(
       sources.find((source) => source.sourceType === "recall")?.contentHash
+    ).toHaveLength(64);
+    const recallSource = sources.find(
+      (source) => source.sourceId === "recall:auto"
+    )!;
+    expect(
+      recallSource.parentSourceKeys?.map(
+        (key) => sources.find((source) => source.sourceKey === key)?.sourceType
+      )
+    ).toEqual(["recall", "recall_placeholder"]);
+    expect(
+      sources.find((source) => source.sourceType === "recall_placeholder")
+        ?.contentHash
     ).toHaveLength(64);
     expect(sources[1].executedMacros?.map((macro) => macro.occurrence)).toEqual(
       [0, 1]

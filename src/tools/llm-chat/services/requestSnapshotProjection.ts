@@ -402,6 +402,34 @@ export function freezeSnapshotSources(
         sourceType: "unknown",
         sourceId: fragment.sourceId,
         _snapshotIdentity: { type: fragment.sourceType, id: fragment.sourceId },
+        _mergedSources: [
+          ...(fragment.collection && fragment.collection !== fragment.sourceId
+            ? [
+                {
+                  role: message.role,
+                  content: fragment.content,
+                  sourceType: "unknown" as const,
+                  _snapshotIdentity: {
+                    type: "recall",
+                    id: fragment.collection,
+                  },
+                },
+              ]
+            : []),
+          ...(fragment.placeholder
+            ? [
+                {
+                  role: message.role,
+                  content: fragment.placeholder,
+                  sourceType: "unknown" as const,
+                  _snapshotIdentity: {
+                    type: "recall_placeholder",
+                    id: fragment.collection,
+                  },
+                },
+              ]
+            : []),
+        ],
       });
     if (children.length) source.parentSourceKeys = children.map(visit);
     return sourceKey;

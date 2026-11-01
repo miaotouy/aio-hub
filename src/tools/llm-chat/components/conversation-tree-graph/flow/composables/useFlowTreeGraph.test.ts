@@ -155,6 +155,73 @@ function createSession(): ChatSessionDetail {
   }) as unknown as ChatSessionDetail;
 }
 
+function createCompressionSession(): ChatSessionDetail {
+  return reactive({
+    id: "compression-session",
+    updatedAt: "2026-11-01T00:00:00.000Z",
+    rootNodeId: "root",
+    activeLeafId: "tail",
+    history: [],
+    historyIndex: 0,
+    nodes: {
+      root: {
+        id: "root",
+        parentId: null,
+        childrenIds: ["compressed-1"],
+        role: "user",
+        status: "complete",
+        content: "Question",
+        timestamp: "2026-11-01T00:00:00.000Z",
+        metadata: {},
+      },
+      "compressed-1": {
+        id: "compressed-1",
+        parentId: "root",
+        childrenIds: ["compressed-2"],
+        role: "assistant",
+        status: "complete",
+        content: "First answer",
+        timestamp: "2026-11-01T00:00:01.000Z",
+        metadata: {},
+      },
+      "compressed-2": {
+        id: "compressed-2",
+        parentId: "compressed-1",
+        childrenIds: ["summary"],
+        role: "user",
+        status: "complete",
+        content: "Follow-up",
+        timestamp: "2026-11-01T00:00:02.000Z",
+        metadata: {},
+      },
+      summary: {
+        id: "summary",
+        parentId: "compressed-2",
+        childrenIds: ["tail"],
+        role: "system",
+        status: "complete",
+        content: "Compressed summary",
+        timestamp: "2026-11-01T00:00:03.000Z",
+        metadata: {
+          isCompressionNode: true,
+          compressedNodeIds: ["compressed-1", "compressed-2"],
+          originalMessageCount: 2,
+        },
+      },
+      tail: {
+        id: "tail",
+        parentId: "summary",
+        childrenIds: [],
+        role: "assistant",
+        status: "complete",
+        content: "Latest answer",
+        timestamp: "2026-11-01T00:00:04.000Z",
+        metadata: {},
+      },
+    },
+  }) as unknown as ChatSessionDetail;
+}
+
 function mountGraph(session: ChatSessionDetail) {
   const updateNodeData = vi.fn(() => true);
   const updateEdge = vi.fn(() => true);
@@ -282,5 +349,64 @@ describe("incremental node display updates", () => {
     );
     expect(replyEdge.animated).toBe(false);
     expect(branchEdge.animated).toBe(true);
+  });
+
+  it("updates a compression toggle without replacing the node array", () => {
+    const session = createCompressionSession();
+    const { graph, updateNodeData } = mountGraph(session);
+    const nodesBefore = graph.nodes.value;
+    const edgesBefore = graph.edges.value;
+    const compressedDataBefore = graph.nodes.value.find(
+      (node) => node.id === "compressed-2"
+    )!.data;
+    const tailEdgeBefore = graph.edges.value.find(
+      (edge) => edge.id === "summary-tail"
+    )!;
+
+    expect(edgesBefore.map((edge) => edge.id)).toEqual([
+      "root-compressed-1",
+      "summary-compressed-2",
+      "root-summary",
+      "summary-tail",
+    ]);
+
+    graph.toggleCompressionExpanded("summary");
+
+    expect(updateNodeData).toHaveBeenCalledTimes(1);
+    expect(updateNodeData).toHaveBeenCalledWith(
+      "summary",
+      expect.objectContaining({ isExpanded: true })
+    );
+    expect(graph.nodes.value).toBe(nodesBefore);
+    expect(graph.nodes.value.find((node) => node.id === "summary")!.data).toEqual(
+      expect.objectContaining({ isExpanded: true })
+    );
+    expect(
+      graph.nodes.value.find((node) => node.id === "compressed-2")!.data
+    ).toBe(compressedDataBefore);
+    expect(graph.edges.value.map((edge) => edge.id)).toEqual([
+      "root-compressed-1",
+      "compressed-1-compressed-2",
+      "compressed-2-summary",
+      "summary-tail",
+    ]);
+    expect(
+      graph.edges.value.find((edge) => edge.id === "summary-tail")
+    ).toBe(tailEdgeBefore);
+
+    graph.toggleCompressionExpanded("summary");
+
+    expect(updateNodeData).toHaveBeenCalledTimes(2);
+    expect(updateNodeData).toHaveBeenLastCalledWith(
+      "summary",
+      expect.objectContaining({ isExpanded: false })
+    );
+    expect(graph.nodes.value).toBe(nodesBefore);
+    expect(graph.edges.value.map((edge) => edge.id)).toEqual([
+      "root-compressed-1",
+      "summary-compressed-2",
+      "root-summary",
+      "summary-tail",
+    ]);
   });
 });

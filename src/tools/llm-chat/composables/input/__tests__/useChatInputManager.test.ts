@@ -390,6 +390,118 @@ describe("useChatInputManager session drafts", () => {
     expect(manager.inputText.value).toBe("【file::windows-uri】");
   });
 
+  // Protect the reported regression: a draft containing only pasted material must convert and persist links.
+  it.each(["import callback", "repair scan"])(
+    "converts links inside text-only attachments and repairs imported IDs through %s",
+    async (repair) => {
+      const manager = useChatInputManager();
+      manager.setActiveSessionId("pasted-links");
+      const material = {
+        id: "pasted-record",
+        kind: "text" as const,
+        title: "粘贴文本 1",
+        text: '聊天记录\n<img src="file:///C:/chat/image.png" />\n后续消息',
+      };
+      manager.addVirtualAttachment(material);
+      await nextTick();
+      addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+        attachments.value.push({
+          ...createAsset("pending-image"),
+          path,
+          uploadingId: "image-upload",
+          importStatus: "pending",
+        });
+      });
+
+      expect(await manager.convertPathsToAttachments()).toEqual({
+        successCount: 1,
+        failedCount: 0,
+        totalCount: 1,
+      });
+      expect(addAttachmentsMock).toHaveBeenCalledExactlyOnceWith(
+        ["C:\\chat\\image.png"],
+        { notify: false }
+      );
+      expect(manager.inputText.value).toBe("");
+      expect(manager.virtualAttachments.value[0]).toEqual({
+        ...material,
+        text: material.text.replace(
+          "file:///C:/chat/image.png",
+          "【file::uploading:image-upload】"
+        ),
+      });
+      attachments.value[0].id = "imported-image";
+      attachments.value[0].importStatus = "complete";
+      if (repair === "import callback") {
+        manager.updatePlaceholderId("image-upload", "imported-image");
+      } else {
+        // Set completion and scan in the same turn, before the attachment watcher runs.
+        manager.scanAndFixPlaceholders();
+      }
+      const converted = {
+        ...material,
+        text: material.text.replace(
+          "file:///C:/chat/image.png",
+          "【file::imported-image】"
+        ),
+      };
+      expect(manager.virtualAttachments.value).toEqual([converted]);
+      expect(material.text).toContain("file:///C:/chat/image.png");
+      await nextTick();
+      await manager.flushDrafts();
+      manager.setActiveSessionId("other-draft");
+      manager.setActiveSessionId("pasted-links");
+      expect(manager.virtualAttachments.value).toEqual([converted]);
+      getInstance<{ destroy(): void }>("ChatInputManager")?.destroy();
+      clearAllInstances();
+      const restored = useChatInputManager();
+      restored.setActiveSessionId("pasted-links");
+      await restored.ready;
+      expect(restored.inputText.value).toBe("");
+      expect(restored.virtualAttachments.value).toEqual([converted]);
+      expect(restored.attachments.value[0].id).toBe("imported-image");
+    }
+  );
+
+  it("deduplicates paths across the body and materials while retaining failed links", async () => {
+    const manager = useChatInputManager();
+    const path = "C:\\chat\\shared.png";
+    const missing = "file:///C:/chat/missing.png";
+    const first = {
+      id: "first-record",
+      kind: "text" as const,
+      title: "第一段",
+      text: '<img src="' + path + '" />\n<img src="' + missing + '" />',
+    };
+    const second = {
+      ...first,
+      id: "second-record",
+      title: "第二段",
+      text: path,
+    };
+    manager.setContent(path);
+    manager.addVirtualAttachment(first);
+    manager.addVirtualAttachment(second);
+    await nextTick();
+    addAttachmentsMock.mockImplementation(async ([candidate]: string[]) => {
+      if (candidate === path)
+        attachments.value.push({ ...createAsset("shared-image"), path });
+    });
+
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 1,
+      failedCount: 1,
+      totalCount: 2,
+    });
+    expect(addAttachmentsMock).toHaveBeenCalledTimes(2);
+    expect(manager.inputText.value).toBe("【file::shared-image】");
+    expect(manager.virtualAttachments.value).toEqual([
+      { ...first, text: first.text.replace(path, "【file::shared-image】") },
+      { ...second, text: "【file::shared-image】" },
+    ]);
+    expect(manager.virtualAttachments.value[0].text).toContain(missing);
+  });
+
   it("keeps Knowledge references isolated per session and clears them after send", () => {
     const manager = useChatInputManager();
     const reference = createKnowledgeReference("library-a");

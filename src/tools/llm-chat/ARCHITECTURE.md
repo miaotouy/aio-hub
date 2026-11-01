@@ -363,7 +363,7 @@ graph TD
 
 为了方便用户处理包含本地资源的外部内容（如从 QQ、微信等聊天软件粘贴的消息记录），系统提供了一套智能的路径转换与渲染映射机制。
 
-- **一键转换**: 输入框工具栏提供"路径转附件"功能，自动识别 `file://` 协议或本地绝对路径，并替换为 `【file::assetId】` 占位符。
+- **一键转换**: 输入框工具栏提供"路径转附件"功能，同时扫描正文和文本附件，自动识别 `file://` 协议或本地绝对路径，并在原位置替换为 `【file::assetId】` 占位符。
 - **渲染映射**: 消息渲染阶段自动将 `file://` 链接转换为安全资源 URL，绕过浏览器沙箱限制。
 
 详见 [`qq-record-workflow.md`](./docs/architecture/qq-record-workflow.md) 与 [`llm-chat-placeholder-feature.md`](./docs/architecture/llm-chat-placeholder-feature.md)。

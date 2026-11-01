@@ -258,6 +258,7 @@ const actions = computed(() =>
     hasAgent: Boolean(currentAgentId.value),
     hasText: Boolean(props.inputText.trim()),
     hasAttachments: props.hasAttachments,
+    hasTextAttachments: inputStore.virtualAttachments.length > 0,
     isSending: isSending.value,
     isCompleting: props.isCompleting,
     isTranslating: inputStore.isTranslating,

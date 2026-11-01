@@ -204,6 +204,7 @@ const state: ToolbarActionState = {
   disabled: false,
   hasAgent: true,
   hasText: true,
+  hasTextAttachments: false,
   hasAttachments: false,
   isSending: false,
   isCompleting: false,
@@ -247,6 +248,18 @@ describe("input toolbar operation availability", () => {
       false
     );
     expect(action("convert-paths", { disabled: true }).disabled).toBe(true);
+    expect(action("convert-paths", { hasText: false }).disabled).toBe(true);
+    expect(
+      action("convert-paths", { hasText: false, hasTextAttachments: true })
+        .disabled
+    ).toBe(false);
+    expect(
+      action("convert-paths", {
+        hasText: false,
+        hasTextAttachments: true,
+        disabled: true,
+      }).disabled
+    ).toBe(true);
   });
   it("distinguishes enabled feature state from an opened selector and respects feature/window scope", () => {
     expect(action("tool-settings").active).toBe(true);

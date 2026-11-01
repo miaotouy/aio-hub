@@ -6,8 +6,9 @@ import type { loadDevSettings } from "../dev-settings";
 import {
   CONTROL_ROOT,
   acquireInstanceLock,
-  listInstances,
+  findInstance,
   processAlive,
+  processStartedAtMs,
   linuxProcessStartTicks,
   publishInstance,
   removeInstance,
@@ -27,17 +28,13 @@ export async function prepareDevControl(
       "UNSUPPORTED_PLATFORM",
       "开发控制支持 Windows / WebView2 与 Linux / WebKitGTK。"
     );
-  if (
-    listInstances().some(
-      (instance) => instance.instanceId === settings.idSuffix
-    )
-  )
+  if (await findInstance(settings.idSuffix))
     throw new ControlError(
       "INSTANCE_RUNNING",
       `开发实例 ${settings.idSuffix} 已运行。`,
       "使用 --agent-instance 指定另一个名称。"
     );
-  const releaseInstance = acquireInstanceLock(settings.idSuffix);
+  const releaseInstance = await acquireInstanceLock(settings.idSuffix);
   process.once("exit", releaseInstance);
   const port = await new Promise<number>((resolve, reject) => {
     const server = createServer();
@@ -80,6 +77,7 @@ export async function prepareDevControl(
     startupId,
     launcherPid: process.pid,
     launcherStartTicks: linuxProcessStartTicks(process.pid),
+    launcherStartedAtMs: await processStartedAtMs(process.pid),
     startedAt: new Date().toISOString(),
     endpoint: `http://127.0.0.1:${port}`,
     transport: process.platform === "linux" ? "embedded-webdriver" : "cdp",

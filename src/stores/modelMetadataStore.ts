@@ -6,6 +6,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import {
+  buildRuleSourceIndex,
   compileActiveRules,
   createCatalogSnapshot,
   migrateV2Store,
@@ -13,6 +14,9 @@ import {
   getMatchedRuleChain,
   validateRule,
   validateStore,
+  type ExternalMetadataSourceState,
+  type MetadataCatalogSnapshot,
+  type MetadataRuleSourceInfo,
   type ModelMetadataDiagnostic,
   type LegacyModelMetadataStore,
 } from "@aiohub/model-metadata-core";
@@ -51,6 +55,8 @@ function createDefaultStore(): ModelMetadataStore {
   return {
     version: CONFIG_VERSION,
     sourceSnapshot: createBuiltinCatalog(),
+    externalCatalogs: {},
+    externalSourceStates: {},
     builtinOverrides: {},
     suppressedBuiltinRuleIds: [],
     customRules: [],
@@ -95,6 +101,9 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   const isLoaded = ref(false);
 
   const rules = computed(() => compileActiveRules(metadataStore.value));
+  const ruleSourceIndex = computed(() =>
+    buildRuleSourceIndex(metadataStore.value)
+  );
   const presetIcons = computed<PresetIconInfo[]>(() => PRESET_ICONS);
   const enabledCount = computed(
     () => rules.value.filter((rule) => rule.enabled !== false).length
@@ -206,10 +215,8 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   }
 
   function isBuiltinDerived(id: string): boolean {
-    return (
-      metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id) ||
-      Boolean(metadataStore.value.builtinOverrides[id])
-    );
+    const info = ruleSourceIndex.value.get(id);
+    return Boolean(info && info.kind !== "custom");
   }
 
   async function addRule(
@@ -271,9 +278,8 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   }
 
   async function deleteRule(id: string): Promise<boolean> {
-    if (
-      metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
-    ) {
+    const info = ruleSourceIndex.value.get(id);
+    if (info && info.kind !== "custom") {
       const suppressed = new Set(metadataStore.value.suppressedBuiltinRuleIds);
       suppressed.add(id);
       const overrides = { ...metadataStore.value.builtinOverrides };
@@ -325,17 +331,129 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
 
   function getRuleSource(
     id: string
-  ): "builtin" | "builtinOverride" | "custom" | undefined {
-    if (metadataStore.value.customRules.some((rule) => rule.id === id)) {
-      return "custom";
-    }
-    if (metadataStore.value.builtinOverrides[id]) return "builtinOverride";
-    if (
-      metadataStore.value.sourceSnapshot.rules.some((rule) => rule.id === id)
-    ) {
-      return "builtin";
-    }
-    return undefined;
+  ):
+    | "builtin"
+    | "builtinOverride"
+    | "external"
+    | "externalOverride"
+    | "custom"
+    | undefined {
+    const info = ruleSourceIndex.value.get(id);
+    if (!info) return undefined;
+    if (info.kind === "custom") return "custom";
+    if (info.kind === "external")
+      return info.overridden ? "externalOverride" : "external";
+    return info.overridden ? "builtinOverride" : "builtin";
+  }
+
+  function getRuleSourceInfo(id: string): MetadataRuleSourceInfo | undefined {
+    return ruleSourceIndex.value.get(id);
+  }
+
+  function getExternalCatalog(
+    sourceId: string
+  ): MetadataCatalogSnapshot<ModelMetadataProperties> | undefined {
+    return metadataStore.value.externalCatalogs?.[sourceId];
+  }
+
+  function getExternalSourceState(
+    sourceId: string
+  ): ExternalMetadataSourceState | undefined {
+    return metadataStore.value.externalSourceStates?.[sourceId];
+  }
+
+  function isExternalSourceEnabled(sourceId: string): boolean {
+    return (
+      metadataStore.value.externalSourceStates?.[sourceId]?.enabled === true
+    );
+  }
+
+  function updateExternalSourceState(
+    sourceId: string,
+    patch: Partial<ExternalMetadataSourceState>
+  ): ExternalMetadataSourceState {
+    return {
+      enabled: false,
+      ...metadataStore.value.externalSourceStates?.[sourceId],
+      ...patch,
+    };
+  }
+
+  async function applyExternalCatalog(
+    catalog: MetadataCatalogSnapshot<ModelMetadataProperties>,
+    state: Partial<ExternalMetadataSourceState> = {}
+  ): Promise<boolean> {
+    return persist({
+      ...metadataStore.value,
+      externalCatalogs: {
+        ...(metadataStore.value.externalCatalogs ?? {}),
+        [catalog.sourceId]: catalog,
+      },
+      externalSourceStates: {
+        ...(metadataStore.value.externalSourceStates ?? {}),
+        [catalog.sourceId]: updateExternalSourceState(catalog.sourceId, {
+          enabled: true,
+          lastFetchedAt: catalog.generatedAt,
+          lastRevision: catalog.revision,
+          ruleCount: catalog.rules.length,
+          lastError: undefined,
+          ...state,
+        }),
+      },
+    });
+  }
+
+  async function setExternalSourceEnabled(
+    sourceId: string,
+    enabled: boolean
+  ): Promise<boolean> {
+    return persist({
+      ...metadataStore.value,
+      externalSourceStates: {
+        ...(metadataStore.value.externalSourceStates ?? {}),
+        [sourceId]: updateExternalSourceState(sourceId, { enabled }),
+      },
+    });
+  }
+
+  async function setExternalSourceAutoUpdate(
+    sourceId: string,
+    autoUpdate: boolean
+  ): Promise<boolean> {
+    return persist({
+      ...metadataStore.value,
+      externalSourceStates: {
+        ...(metadataStore.value.externalSourceStates ?? {}),
+        [sourceId]: updateExternalSourceState(sourceId, { autoUpdate }),
+      },
+    });
+  }
+
+  async function recordExternalSourceError(
+    sourceId: string,
+    message: string
+  ): Promise<boolean> {
+    return persist({
+      ...metadataStore.value,
+      externalSourceStates: {
+        ...(metadataStore.value.externalSourceStates ?? {}),
+        [sourceId]: updateExternalSourceState(sourceId, {
+          lastError: message,
+        }),
+      },
+    });
+  }
+
+  async function removeExternalCatalog(sourceId: string): Promise<boolean> {
+    const catalogs = { ...(metadataStore.value.externalCatalogs ?? {}) };
+    const states = { ...(metadataStore.value.externalSourceStates ?? {}) };
+    delete catalogs[sourceId];
+    delete states[sourceId];
+    return persist({
+      ...metadataStore.value,
+      externalCatalogs: catalogs,
+      externalSourceStates: states,
+    });
   }
 
   function getMatchedRule(
@@ -354,6 +472,7 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
   return {
     metadataStore,
     rules,
+    ruleSourceIndex,
     isLoaded,
     presetIcons,
     enabledCount,
@@ -366,6 +485,15 @@ export const useModelMetadataStore = defineStore("modelMetadata", () => {
     deleteRule,
     restoreBuiltinRule,
     getRuleSource,
+    getRuleSourceInfo,
+    getExternalCatalog,
+    getExternalSourceState,
+    isExternalSourceEnabled,
+    applyExternalCatalog,
+    setExternalSourceEnabled,
+    setExternalSourceAutoUpdate,
+    recordExternalSourceError,
+    removeExternalCatalog,
     toggleRule,
     resetToDefaults,
     getMatchedRule,

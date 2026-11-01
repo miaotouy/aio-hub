@@ -48,6 +48,8 @@ import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
 import { resolveChannelToolHandling } from "@/tools/llm-chat/core/tool-calling/channel-tool-handling";
 import { useToolCallOrchestrator } from "./useToolCallOrchestrator";
 
+import { calculateTokensWithImageSlicing } from "../../core/context-utils/image-slicing";
+
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
 
@@ -260,10 +262,12 @@ export function useChatExecutor() {
         imageCompression
       );
 
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+      const tokenResult = await calculateTokensWithImageSlicing(
+        tokenCalculatorService,
         combinedText,
         modelId,
         mediaAttachments,
+        useChatSettings().settings.value.requestSettings.longImageSlicing,
         maxImageDimension !== undefined ? { maxImageDimension } : undefined
       );
       const node = session.nodes ? session.nodes[userNode.id] : undefined;

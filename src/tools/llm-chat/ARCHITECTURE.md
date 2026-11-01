@@ -363,7 +363,7 @@ graph TD
 
 为了方便用户处理包含本地资源的外部内容（如从 QQ、微信等聊天软件粘贴的消息记录），系统提供了一套智能的路径转换与渲染映射机制。
 
-- **一键转换**: 输入框工具栏提供"路径转附件"功能，自动识别 `file://` 协议或本地绝对路径，并替换为 `【file::assetId】` 占位符。
+- **一键转换**: 输入框工具栏提供"路径转附件"功能，同时扫描正文和文本附件，自动识别 `file://` 协议或本地绝对路径，并在原位置替换为 `【file::assetId】` 占位符。
 - **渲染映射**: 消息渲染阶段自动将 `file://` 链接转换为安全资源 URL，绕过浏览器沙箱限制。
 
 详见 [`qq-record-workflow.md`](./docs/architecture/qq-record-workflow.md) 与 [`llm-chat-placeholder-feature.md`](./docs/architecture/llm-chat-placeholder-feature.md)。
@@ -383,6 +383,8 @@ graph TD
 ### 1.29. 图片压缩 (Image Compression)
 
 图片压缩是发送图片附件给 LLM 之前的**用户侧可选优化层**，由 `LlmParameters.imageCompression` 配置驱动，在上下文管道末端的 `asset-resolver` 内执行。
+
+Chat 请求设置还提供默认关闭的长图自动切分。原图空白横带切点与 Smart OCR 共享，配置独立；切片逐张进入模型安全缩放与 Agent 压缩，预算和完整预览按切片尺寸计数，聊天记录保留原附件。
 
 详见 [`image-compression.md`](./docs/architecture/image-compression.md)。
 

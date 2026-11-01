@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { tokenLimiter } from "../token-limiter";
 import type { PipelineContext } from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
+import { getAttachmentBuffer } from "../../context-utils/attachment-binary";
+import { loadImageFromBuffer } from "@/utils/imageProcessor";
+import { planImageSlices } from "@/tools/smart-ocr/utils/imageSlicing";
+import type { PipelineAttachment } from "../../../types/pipeline-attachment";
 import type { LlmReasoningArtifact } from "@/llm-apis/common";
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ debug() {}, info() {}, warn() {} }),
@@ -11,10 +15,28 @@ vi.mock("@/utils/logger", () => ({
 vi.mock("@/tools/token-calculator/token-calculator.registry", () => ({
   tokenCalculatorService: {
     createScope: () => ({
-      calculateMessageTokens: async (text: string) => ({ count: text.length }),
+      calculateMessageTokens: async (
+        text: string,
+        _model: string,
+        attachments: PipelineAttachment[] = []
+      ) => ({
+        count: text.length + attachments.length * 100,
+      }),
     }),
   },
 }));
+vi.mock("../../context-utils/attachment-binary", () => ({
+  getAttachmentBuffer: vi.fn(),
+}));
+vi.mock("@/utils/imageProcessor", async (original) => ({
+  ...(await original<typeof import("@/utils/imageProcessor")>()),
+  loadImageFromBuffer: vi.fn(),
+}));
+vi.mock("@/tools/smart-ocr/utils/imageSlicing", async (original) => ({
+  ...(await original<typeof import("@/tools/smart-ocr/utils/imageSlicing")>()),
+  planImageSlices: vi.fn(),
+}));
+
 const artifact: LlmReasoningArtifact = {
   provider: "openai",
   kind: "response.output_item",
@@ -132,4 +154,52 @@ describe("token limiter selection", () => {
       expect.objectContaining({ sourceId: "old", artifactCount: 1 }),
     ]);
   });
+});
+
+// Two slices incur two media costs; counting the original as one would retain an over-budget message.
+it("uses all long-image slices when selecting history under the token budget", async () => {
+  const latest = history("latest", "new");
+  latest._attachments = [
+    {
+      id: "budget-image",
+      type: "image",
+      name: "long.png",
+      mimeType: "image/png",
+      metadata: { width: 100, height: 1000 },
+      source: { kind: "inline", base64: "", mimeType: "image/png" },
+    },
+  ];
+  vi.mocked(getAttachmentBuffer).mockResolvedValue(new ArrayBuffer(1));
+  vi.mocked(loadImageFromBuffer).mockResolvedValue({
+    img: { naturalWidth: 100, naturalHeight: 1000 } as HTMLImageElement,
+    cleanup: vi.fn(),
+  });
+  vi.mocked(planImageSlices).mockReturnValue({
+    width: 100,
+    height: 1000,
+    lines: [],
+    regions: [
+      { startY: 0, endY: 500 },
+      { startY: 500, endY: 1000 },
+    ],
+  });
+  const ctx = context([history("old", "12345"), latest], 205);
+  Object.assign(ctx, {
+    settings: {
+      requestSettings: {
+        longImageSlicing: {
+          enabled: true,
+          aspectRatioThreshold: 3,
+          minCutHeight: 200,
+        },
+      },
+    },
+  });
+  await tokenLimiter.execute(ctx);
+  expect(ctx.messages.map((message) => message.sourceId)).toEqual(["latest"]);
+  expect(ctx.sharedData.get("tokenLimiterStats")).toMatchObject({
+    historyTokens: 203,
+    savedTokens: 5,
+  });
+  expect(latest._attachments).toHaveLength(1);
 });

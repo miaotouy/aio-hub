@@ -41,7 +41,7 @@ export interface MessageLayoutInfo {
  * - borderRadius === undefined / null 时沿用系统设置
  */
 export interface BubbleLayoutOverride {
-  mode?: "follow" | "card" | "bubble";
+  mode?: "follow" | "card" | "bubble" | "compact";
   borderRadius?: number | null;
 }
 

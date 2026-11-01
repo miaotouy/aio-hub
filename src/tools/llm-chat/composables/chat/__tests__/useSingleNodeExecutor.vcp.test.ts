@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     },
   },
   sendRequest: vi.fn(),
+  checkAndCompress: vi.fn(),
   handleStreamUpdate: vi.fn(),
   finalizeNode: vi.fn(),
   completeStreamSegment: vi.fn(),
@@ -35,13 +36,13 @@ vi.mock("@/composables/useLlmProfiles", () => ({
   useLlmProfiles: () => ({ getProfileById: () => undefined }),
 }));
 vi.mock("../../../stores/llmChatStore", () => ({
-  useLlmChatStore: () => ({ sessionIndexMap: new Map() }),
+  useLlmChatStore: () => ({ sessionIndexMap: new Map([["session", {}]]) }),
 }));
 vi.mock("../../../stores/contextPipelineStore", () => ({
   useContextPipelineStore: () => ({ executePipeline: vi.fn() }),
 }));
 vi.mock("../../features/useContextCompressor", () => ({
-  useContextCompressor: () => ({ checkAndCompress: vi.fn() }),
+  useContextCompressor: () => ({ checkAndCompress: mocks.checkAndCompress }),
 }));
 vi.mock("../../features/useTranscriptionManager", () => ({
   useTranscriptionManager: () => ({}),
@@ -122,6 +123,7 @@ async function execute(
 describe("VCP message splitting preference", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.checkAndCompress.mockResolvedValue({ success: false });
     mocks.settings.value.uiPreferences = {
       isStreaming: true,
       splitVcpResponses: false,
@@ -133,6 +135,19 @@ describe("VCP message splitting preference", () => {
       }
       return response;
     });
+  });
+
+  it("finishes the reply lifecycle while automatic compression continues independently", async () => {
+    let finish!: (result: { success: boolean }) => void;
+    const compression = new Promise<{ success: boolean }>((resolve) => {
+      finish = resolve;
+    });
+    mocks.checkAndCompress.mockReturnValueOnce(compression);
+    await execute(false);
+    expect(mocks.finalizeNode).toHaveBeenCalled();
+    expect(mocks.checkAndCompress).toHaveBeenCalledOnce();
+    finish({ success: true });
+    await compression;
   });
 
   it.each([

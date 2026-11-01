@@ -6,3 +6,4 @@ export * from "./merge";
 export * from "./compiler";
 export * from "./migration";
 export * from "./materialization";
+export * from "./sources";

@@ -141,6 +141,192 @@ describe("model-metadata presets", () => {
       capabilities: { videoGeneration: true, vision: true },
     });
   });
+  it("provides explicit metadata for the current Doubao Seed models", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "doubao-seed-evolving")
+    ).toMatchObject({
+      icon: "/model-icons/doubao-color.svg",
+      group: "ByteDance",
+      contextLength: 1048576,
+      maxOutputTokens: 262144,
+      pricing: { input: 6, output: 30, cacheHitInput: 1.2, unit: "CNY" },
+      capabilities: {
+        vision: true,
+        video: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+        computerUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "volcengine/doubao-seed-2.1-pro-260915"
+      )
+    ).toMatchObject({
+      group: "ByteDance",
+      contextLength: 1048576,
+      maxOutputTokens: 262144,
+      pricing: { input: 6, output: 30, cacheHitInput: 1.2, unit: "CNY" },
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        jsonOutput: true,
+        computerUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-1-pro-260628"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      maxOutputTokens: 262144,
+      releaseDate: "2026-06-28",
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2.1-lite-260915"
+      )
+    ).toMatchObject({
+      contextLength: 1048576,
+      pricing: { input: 0.8, output: 2.7, cacheHitInput: 0.16, unit: "CNY" },
+      capabilities: {
+        audio: true,
+        vision: true,
+        toolUse: true,
+        thinking: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-1-turbo-260628"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      pricing: { input: 3, output: 15, cacheHitInput: 0.6, unit: "CNY" },
+    });
+  });
+
+  it("covers Doubao Seed 2.0, character, translation and embedding models", () => {
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-0-lite-260428"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      maxOutputTokens: 131072,
+      pricing: { input: 0.6, output: 3.6, cacheHitInput: 0.12, unit: "CNY" },
+      capabilities: { audio: true, toolUse: true, thinking: true },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-0-mini-260428"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      pricing: { input: 0.2, output: 2, cacheHitInput: 0.04, unit: "CNY" },
+      capabilities: { audio: true, computerUse: true },
+    });
+
+    const code = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "doubao-seed-2-0-code-preview-260215"
+    );
+    expect(code).toMatchObject({
+      contextLength: 262144,
+      capabilities: { toolUse: true, thinking: true, jsonOutput: true },
+    });
+    expect(code?.capabilities?.vision).toBeUndefined();
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-character-260628"
+      )
+    ).toMatchObject({
+      contextLength: 131072,
+      maxOutputTokens: 32768,
+      capabilities: { thinking: true, jsonOutput: true, toolUse: true },
+    });
+
+    const legacyCharacter = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "doubao-seed-character-251128"
+    );
+    expect(legacyCharacter).toMatchObject({ contextLength: 131072 });
+    expect(legacyCharacter?.capabilities?.thinking).toBeUndefined();
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-translation-250915"
+      )
+    ).toMatchObject({
+      contextLength: 4096,
+      maxOutputTokens: 3072,
+      pricing: { input: 1.2, output: 3.6, unit: "CNY" },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-embedding-vision-251215"
+      )
+    ).toMatchObject({
+      contextLength: 128000,
+      capabilities: { embedding: true, vision: true, video: true },
+    });
+  });
+
+  it("marks Doubao Seedream and Seedance models with their generation capabilities", () => {
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seedream-5-0-pro-260628"
+      )
+    ).toMatchObject({
+      group: "ByteDance",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+        iterativeRefinement: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seedance-2-5-260628"
+      )
+    ).toMatchObject({
+      group: "ByteDance",
+      capabilities: { videoGeneration: true, vision: true },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seedance-2-0-fast"
+      )
+    ).toMatchObject({
+      capabilities: { videoGeneration: true, vision: true },
+    });
+  });
+
   it("provides Agnes Video mediaGenParams resolution tiers and ratios", () => {
     const standard = getMatchedModelProperties(
       DEFAULT_METADATA_RULES,

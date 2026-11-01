@@ -25,6 +25,7 @@ import type {
   ChatSessionDetail,
 } from "../../types";
 import {
+  ChevronRight,
   Database,
   Edit2,
   Check,
@@ -98,6 +99,7 @@ provide("messageId", props.message.id);
 provide("chatSettings", settings);
 
 // 编辑状态
+const isExpanded = ref(false);
 const isEditing = ref(false);
 const editedContent = ref(props.message.content);
 
@@ -113,7 +115,7 @@ useResizeObserver(messageRef, (entries) => {
 });
 
 // 监听编辑状态变化，通知父组件重新测量高度
-watch(isEditing, () => {
+watch([isEditing, isExpanded], () => {
   nextTick(() => {
     emit("resize", messageRef.value);
   });
@@ -220,6 +222,7 @@ const formattedTime = computed(() => {
 
 const startEdit = () => {
   if (isSessionReadOnly.value) return;
+  isExpanded.value = true;
   editedContent.value = props.message.content;
   isEditing.value = true;
 };
@@ -290,8 +293,10 @@ defineExpose({
     </div>
 
     <!-- 装饰性侧边栏 -->
-    <div
+    <button
+      type="button"
       class="compression-bar"
+      :disabled="isSessionReadOnly || props.screenshotMode"
       :title="isEnabled ? '禁用压缩 (恢复上下文)' : '启用压缩'"
       @click="!isSessionReadOnly && emit('toggle-enabled')"
     >
@@ -300,7 +305,7 @@ defineExpose({
         <Database :size="14" :class="{ 'text-primary': isEnabled }" />
       </div>
       <div class="bar-line"></div>
-    </div>
+    </button>
 
     <div class="compression-content-wrapper">
       <!-- 头部信息 -->
@@ -336,7 +341,17 @@ defineExpose({
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <span class="badge">上下文压缩</span>
+          <button
+            type="button"
+            class="summary-toggle"
+            :aria-expanded="isExpanded"
+            :aria-controls="`compression-summary-${message.id}`"
+            @click="isExpanded = !isExpanded"
+          >
+            <ChevronRight :size="14" :class="{ expanded: isExpanded }" />
+            <span class="badge">上下文压缩</span>
+            <span class="stat-item">{{ stats.msgCount }} 条消息</span>
+          </button>
           <span class="time">{{ formattedTime }}</span>
         </div>
         <div class="header-right">
@@ -398,7 +413,11 @@ defineExpose({
       </div>
 
       <!-- 摘要内容 -->
-      <div class="compression-summary">
+      <div
+        v-if="isExpanded || props.screenshotMode"
+        :id="`compression-summary-${message.id}`"
+        class="compression-summary"
+      >
         <el-input
           v-if="isEditing"
           v-model="editedContent"
@@ -417,13 +436,6 @@ defineExpose({
             :style-options="richTextStyleOptions"
           />
         </template>
-      </div>
-
-      <!-- 底部统计 -->
-      <div class="compression-footer">
-        <span class="stat-item" title="原始消息数量">
-          包含 {{ stats.msgCount }} 条消息
-        </span>
       </div>
     </div>
   </div>
@@ -491,6 +503,10 @@ defineExpose({
 
 /* 左侧装饰条 */
 .compression-bar {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  flex-shrink: 0;
   position: relative;
   z-index: 3;
   display: flex;
@@ -501,7 +517,11 @@ defineExpose({
   color: var(--text-color-light);
 }
 
-.compression-bar:hover {
+.compression-bar:disabled {
+  cursor: default;
+}
+
+.compression-bar:not(:disabled):hover {
   color: var(--primary-color);
 }
 
@@ -536,8 +556,25 @@ defineExpose({
 
 .header-left {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 8px;
+}
+
+.summary-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+}
+
+.summary-toggle .expanded {
+  transform: rotate(90deg);
 }
 
 .role-badge {
@@ -659,7 +696,7 @@ defineExpose({
   box-shadow: 0 0 0 1px var(--primary-color-light-opacity);
 }
 
-.compression-footer {
+.stat-item {
   display: flex;
   align-items: center;
   gap: 6px;

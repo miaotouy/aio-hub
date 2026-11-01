@@ -173,7 +173,7 @@ child.on("error", (error) => {
   process.exitCode = 1;
 });
 let stopping = false;
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
   process.once(signal, () => {
     if (stopping || !child.pid) return;
     stopping = true;

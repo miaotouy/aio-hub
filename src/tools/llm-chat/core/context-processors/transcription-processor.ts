@@ -188,7 +188,7 @@ export const transcriptionProcessor: ContextProcessor = {
     // 这样关闭设置后，历史资产也不会在发送过程中意外走转写链路。
     const textByMessage = new Map<
       PipelineContext["messages"][number],
-      string
+      { title: string; text: string }[]
     >();
     for (const msg of context.messages) {
       const textAttachments =
@@ -196,21 +196,18 @@ export const transcriptionProcessor: ContextProcessor = {
       if (!textAttachments.length) continue;
       textByMessage.set(
         msg,
-        textAttachments
-          .map((a) =>
-            formatVirtualTextAttachment({
-              title: a.name,
-              text: a.source.kind === "message-text" ? a.source.text : "",
-            })
-          )
-          .join("")
+        textAttachments.map((a) => ({
+          title: a.name,
+          text: a.source.kind === "message-text" ? a.source.text : "",
+        }))
       );
       msg._attachments = msg._attachments?.filter(
         (a) => a.source.kind !== "message-text"
       );
     }
     const appendTextAttachments = () => {
-      for (const [msg, text] of textByMessage) {
+      for (const [msg, materials] of textByMessage) {
+        const text = materials.map(formatVirtualTextAttachment).join("");
         if (Array.isArray(msg.content))
           msg.content = [...msg.content, { type: "text", text }];
         else msg.content = (msg.content ?? "") + text;
@@ -385,6 +382,27 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 累积所有被占位符认领的 assetId（从 replacePlaceholders 返回值中收集）
       const allClaimedAssetIds = new Set<string>();
+
+      // 先解析材料中的文件引用，再包装全文，保证文件内容中的代码围栏完整。
+      const materials = textByMessage.get(msg);
+      if (materials) {
+        textByMessage.set(
+          msg,
+          materials.map((material) => {
+            const result = replacePlaceholders(
+              material.text,
+              currentAttachments,
+              transcriptionResults
+            );
+            if (result.claimedAssets.size > 0) {
+              placeholderReplacedCount += result.claimedAssets.size;
+              contentModified = true;
+              for (const id of result.claimedAssets) allClaimedAssetIds.add(id);
+            }
+            return { ...material, text: result.content };
+          })
+        );
+      }
 
       // 处理字符串类型的内容
       if (typeof msg.content === "string" && msg.content) {

@@ -156,6 +156,7 @@ export interface ToolbarActionState {
   disabled: boolean;
   hasAgent: boolean;
   hasText: boolean;
+  hasTextAttachments: boolean;
   hasAttachments: boolean;
   isSending: boolean;
   isCompleting: boolean;
@@ -244,6 +245,9 @@ export function resolveInputToolbarActions(
         action.busy = state.isCompressing;
         break;
       case "convert-paths":
+        action.disabled =
+          state.disabled || (!state.hasText && !state.hasTextAttachments);
+        break;
       case "cleanup-placeholders":
         action.disabled = needsText;
         break;

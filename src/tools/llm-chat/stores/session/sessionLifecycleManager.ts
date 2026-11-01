@@ -996,6 +996,7 @@ export function createSessionLifecycleManager(
           }
         };
         assertIdle();
+        managers.runtime.clearSessionRuntime(sessionId);
         const before = JSON.stringify(
           state.sessionDetailMap.value.get(sessionId)
         );

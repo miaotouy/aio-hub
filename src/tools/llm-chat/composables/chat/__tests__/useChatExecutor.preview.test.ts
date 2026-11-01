@@ -14,6 +14,13 @@ const mocks = vi.hoisted(() => ({
   }),
   settings: {
     modelPreferences: { defaultModel: "" },
+    requestSettings: {
+      longImageSlicing: {
+        enabled: false,
+        aspectRatioThreshold: 3,
+        minCutHeight: 680,
+      },
+    },
     transcription: {
       enabled: true,
       strategy: "smart",

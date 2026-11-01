@@ -953,6 +953,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     isNodeGenerating,
     getSessionGeneratingNodeIds,
     isSessionGenerating,
+    getContextCompressionTask: sessionRuntime.getContextCompressionTask,
+    isSessionCompressing: sessionRuntime.isSessionCompressing,
+    cancelContextCompression: sessionRuntime.cancelContextCompression,
+    runContextCompression: sessionRuntime.runContextCompression,
+    waitForContextCompression: sessionRuntime.waitForContextCompression,
     currentMessageCount,
 
     // 按会话 id 的只读访问（不改变 currentSessionId）

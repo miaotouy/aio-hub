@@ -1398,6 +1398,10 @@ class ChatInputManager {
   }
 
   public removeVirtualAttachment(id: string, sessionId?: string | null): void {
+    // Capture same-turn editor/file changes before replacing the active draft.
+    if (this.getDraftKey(sessionId) === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
     this.updateDraft(sessionId, (draft) => {
       draft.virtualAttachments = (draft.virtualAttachments ?? []).filter(
         (item) => item.id !== id
@@ -1622,64 +1626,88 @@ class ChatInputManager {
     return this.attachmentManager.addAssets(assets);
   }
 
+  /** Replace text immutably so draft persistence and window sync observe the edit. */
+  private replaceVirtualAttachmentTexts(
+    transform: (text: string) => string
+  ): boolean {
+    let changed = false;
+    const attachments = this.virtualAttachments.value.map((attachment) => {
+      const text = transform(attachment.text);
+      if (text === attachment.text) return attachment;
+      changed = true;
+      return { ...attachment, text };
+    });
+    if (changed) {
+      // Capture same-turn body/file edits before updating the draft and its sync snapshot.
+      this.saveCurrentDraftSnapshot();
+      this.updateDraft(this.activeSessionId.value, (draft) => {
+        draft.virtualAttachments = attachments;
+      });
+    }
+    return changed;
+  }
+
   /**
-   * 扫描输入框中的本地路径并转换为附件占位符
+   * 扫描正文和文本附件中的本地路径并转换为附件占位符
    */
   async convertPathsToAttachments(): Promise<{
     successCount: number;
     failedCount: number;
     totalCount: number;
   }> {
-    const text = this.inputText.value;
-    if (!text) return { successCount: 0, failedCount: 0, totalCount: 0 };
-
-    // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
-    // 1. 识别文件 URI、Windows 盘符和独立行首的 POSIX 绝对路径。
-    const anchors: { index: number; prefix: string }[] = [];
-    const anchorRegex =
-      /file:\/\/\/?(?:[a-zA-Z]:[\\/])?|[a-zA-Z]:[\\/]|^[ \t]*\/(?=[^/\s])/gmi;
-    let anchorMatch;
-    while ((anchorMatch = anchorRegex.exec(text)) !== null) {
-      const prefix = anchorMatch[0].trimStart();
-      anchors.push({
-        index: anchorMatch.index + anchorMatch[0].length - prefix.length,
-        prefix,
-      });
-    }
-
-    if (anchors.length === 0)
-      return { successCount: 0, failedCount: 0, totalCount: 0 };
-
-    // 2. 从每个锚点向后提取候选路径
-    const candidates: string[] = [];
-    for (let i = 0; i < anchors.length; i++) {
-      const start = anchors[i].index;
-      // 截取到下一个锚点开始之前，或者文本结束
-      const nextAnchorStart =
-        i < anchors.length - 1 ? anchors[i + 1].index : text.length;
-      let subText = text.substring(start, nextAnchorStart);
-
-      // 关键：绝对不跨行匹配，截断到第一个换行符
-      const lineEnd = subText.search(/\r?\n/);
-      if (lineEnd !== -1) subText = subText.substring(0, lineEnd);
-
-      // 单引号可用于包裹 HTML 属性，也可合法出现在路径名中。
-      if (text[start - 1] === "'") {
-        const quoteEnd = subText.indexOf("'");
-        if (quoteEnd !== -1) subText = subText.substring(0, quoteEnd);
+    const texts = [
+      this.inputText.value,
+      ...this.virtualAttachments.value.map((attachment) => attachment.text),
+    ];
+    const candidates = texts.flatMap((text) => {
+      // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
+      // 1. 识别文件 URI、Windows 盘符和独立行首的 POSIX 绝对路径。
+      const anchors: { index: number; prefix: string }[] = [];
+      const anchorRegex =
+        /file:\/\/\/?(?:[a-zA-Z]:[\\/])?|[a-zA-Z]:[\\/]|^[ \t]*\/(?=[^/\s])/gim;
+      let anchorMatch;
+      while ((anchorMatch = anchorRegex.exec(text)) !== null) {
+        const prefix = anchorMatch[0].trimStart();
+        anchors.push({
+          index: anchorMatch.index + anchorMatch[0].length - prefix.length,
+          prefix,
+        });
       }
 
-      // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
-      // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
-      const pathPartMatch = subText.match(
-        /^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/
-      );
-      if (pathPartMatch) {
-        const candidate = pathPartMatch[0].trim();
-        if (candidate) candidates.push(candidate);
-      }
-    }
+      if (anchors.length === 0) return [];
 
+      // 2. 从每个锚点向后提取候选路径
+      const candidates: string[] = [];
+      for (let i = 0; i < anchors.length; i++) {
+        const start = anchors[i].index;
+        // 截取到下一个锚点开始之前，或者文本结束
+        const nextAnchorStart =
+          i < anchors.length - 1 ? anchors[i + 1].index : text.length;
+        let subText = text.substring(start, nextAnchorStart);
+
+        // 关键：绝对不跨行匹配，截断到第一个换行符
+        const lineEnd = subText.search(/\r?\n/);
+        if (lineEnd !== -1) subText = subText.substring(0, lineEnd);
+
+        // 单引号可用于包裹 HTML 属性，也可合法出现在路径名中。
+        if (text[start - 1] === "'") {
+          const quoteEnd = subText.indexOf("'");
+          if (quoteEnd !== -1) subText = subText.substring(0, quoteEnd);
+        }
+
+        // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
+        // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
+        const pathPartMatch = subText.match(
+          /^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/
+        );
+        if (pathPartMatch) {
+          const candidate = pathPartMatch[0].trim();
+          if (candidate) candidates.push(candidate);
+        }
+      }
+
+      return candidates;
+    });
     if (candidates.length === 0)
       return { successCount: 0, failedCount: 0, totalCount: 0 };
 
@@ -1727,11 +1755,10 @@ class ChatInputManager {
           });
 
           const placeholder = this.getPlaceholder(targetAsset);
-          const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          this.inputText.value = this.inputText.value.replace(
-            new RegExp(escapedPath, "g"),
-            placeholder
-          );
+          const replacePath = (text: string) =>
+            text.split(rawPath).join(placeholder);
+          this.inputText.value = replacePath(this.inputText.value);
+          this.replaceVirtualAttachmentTexts(replacePath);
           successCount++;
         } else {
           failedCount++;
@@ -1806,59 +1833,36 @@ class ChatInputManager {
    * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
    */
   scanAndFixPlaceholders(): void {
-    const text = this.inputText.value;
-    if (!text.includes("file::uploading:")) return;
-
-    // 匹配 【file::uploading:ID】
-    const uploadingRegex = /【file::uploading:([a-zA-Z0-9_-]+)】/g;
-    const matches = Array.from(text.matchAll(uploadingRegex));
-    if (matches.length === 0) return;
-
-    let newText = text;
-    let fixedCount = 0;
-
-    // 获取当前附件列表
     const currentAttachments = this.attachmentManager.attachments.value;
-
-    // 策略：基于资产对象的 uploadingId 契约进行替换
-    // 只要资产已经完成导入 (importStatus === 'complete')，我们就执行替换检查
-    for (const asset of currentAttachments) {
-      if (asset.uploadingId && asset.importStatus === "complete") {
-        const uploadingPlaceholder = generateUploadingPlaceholder(
-          asset.uploadingId
-        );
-        const realPlaceholder = generateAssetPlaceholder(asset.id);
-
-        if (newText.includes(uploadingPlaceholder)) {
-          newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
-          fixedCount++;
-        }
-      }
-    }
-
-    // 兜底策略：使用历史日志 (idUpdateLog) 处理那些可能已经被从 attachments 中移除但文本中仍残留的占位符
-    if (newText.includes("file::uploading:")) {
-      for (const [oldId, newId] of this.idUpdateLog.entries()) {
+    let fixedCount = 0;
+    const fixText = (text: string): string => {
+      if (!text.includes("file::uploading:")) return text;
+      let updated = text;
+      const replaceId = (oldId: string, newId: string) => {
         const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
-        if (newText.includes(uploadingPlaceholder)) {
-          const realPlaceholder = generateAssetPlaceholder(newId);
-          newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
+        if (updated.includes(uploadingPlaceholder)) {
+          updated = updated
+            .split(uploadingPlaceholder)
+            .join(generateAssetPlaceholder(newId));
           fixedCount++;
         }
+      };
+      for (const asset of currentAttachments) {
+        if (asset.uploadingId && asset.importStatus === "complete")
+          replaceId(asset.uploadingId, asset.id);
       }
-    }
+      for (const [oldId, newId] of this.idUpdateLog.entries())
+        replaceId(oldId, newId);
+      return updated;
+    };
 
+    this.inputText.value = fixText(this.inputText.value);
+    this.replaceVirtualAttachmentTexts(fixText);
     if (fixedCount > 0) {
-      this.inputText.value = newText;
       logger.info("[scanAndFixPlaceholders] 二次扫描修复了残留占位符", {
         fixedCount,
         totalAttachments: currentAttachments.length,
         logEntries: this.idUpdateLog.size,
-      });
-    } else {
-      logger.debug("[scanAndFixPlaceholders] 扫描完成，无需修复", {
-        hasUploadingTag: text.includes("file::uploading:"),
-        totalAttachments: currentAttachments.length,
       });
     }
   }
@@ -1957,6 +1961,13 @@ class ChatInputManager {
         `【file::${oldId}】`,
       ];
 
+      const replacedInMaterials = this.replaceVirtualAttachmentTexts((text) =>
+        possibleTags.reduce(
+          (updated, tag) => updated.split(tag).join(newPlaceholder),
+          text
+        )
+      );
+
       // 策略：如果编辑器存在，优先使用编辑器的静默替换能力（不移动光标），避免打断用户输入
       const useReplaceRange =
         this.editorRef && typeof this.editorRef.replaceRange === "function";
@@ -2017,8 +2028,8 @@ class ChatInputManager {
         }
       }
 
-      if (replaced) {
-        this.inputText.value = newText;
+      if (replaced || replacedInMaterials) {
+        if (replaced) this.inputText.value = newText;
         logger.info(
           `[updatePlaceholderId] 成功更新占位符 ID (兜底方案${isRetry ? " 重试成功" : ""})`,
           {
@@ -2028,7 +2039,7 @@ class ChatInputManager {
         );
         this.pushState(false, undefined, true);
       }
-      return replaced;
+      return replaced || replacedInMaterials;
     };
 
     // 立即尝试替换

@@ -38,9 +38,9 @@
       <RichCodeEditor
         ref="editorRef"
         v-model="jsonData"
+        class="data-source-editor"
         language="json"
-        editor-type="monaco"
-        :options="{ lineNumbers: 'on', folding: true }"
+        editor-type="codemirror"
       />
       <div v-if="parseError" class="error-message">
         <p>JSON 解析失败:</p>
@@ -229,8 +229,15 @@ const handleClose = () => {
 .data-editor-container {
   display: flex;
   flex-direction: column;
-  height: 100%; /* 让编辑器撑满内容区 */
+  height: 100%;
+  min-height: 0;
   gap: 8px;
+}
+
+.data-source-editor {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 .header-actions {

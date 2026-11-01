@@ -243,7 +243,15 @@ const attachmentManager = {
     inputManager.removeAttachment(asset.id);
     transcriptionManager.cancelTranscription(asset.id);
   },
-  clearAttachments: inputManager.clearAttachments,
+  clearAttachments: () => {
+    for (const asset of inputManager.attachments.value) {
+      transcriptionManager.cancelTranscription(asset.id);
+    }
+    inputManager.clearAttachments();
+    for (const attachment of inputManager.virtualAttachments.value) {
+      inputManager.removeVirtualAttachment(attachment.id);
+    }
+  },
   maxAttachmentCount: inputManager.maxAttachmentCount,
 };
 
@@ -678,34 +686,35 @@ const handleDragStart = (e: MouseEvent) => {
         </InputPanelHost>
         <div ref="extraContentRef" class="input-extra-content">
           <KnowledgeReferenceChips />
-          <div v-if="attachmentManager.attachments.value.length">
-            <MessageInputAttachments
-              :attachments="attachmentManager.attachments.value"
-              :count="attachmentManager.count.value"
-              :max-count="attachmentManager.maxAttachmentCount"
-              :get-will-use-transcription="getWillUseTranscription"
-              @remove="attachmentManager.removeAttachment"
-              @clear="attachmentManager.clearAttachments"
-              @transcribe-all="inputStore.handleTranscribeAll"
-              @smart-transcribe-all="
-                inputStore.handleSmartTranscribeAll(getWillUseTranscription)
-              "
-              @force-transcribe-all="inputStore.handleForceTranscribeAll"
-              @stop-all="inputStore.handleStopAllTranscriptions"
+          <MessageInputAttachments
+            :attachments="attachmentManager.attachments.value"
+            :count="attachmentManager.count.value"
+            :max-count="attachmentManager.maxAttachmentCount"
+            :text-count="inputManager.virtualAttachments.value.length"
+            :get-will-use-transcription="getWillUseTranscription"
+            @remove="attachmentManager.removeAttachment"
+            @clear="attachmentManager.clearAttachments"
+            @transcribe-all="inputStore.handleTranscribeAll"
+            @smart-transcribe-all="
+              inputStore.handleSmartTranscribeAll(getWillUseTranscription)
+            "
+            @force-transcribe-all="inputStore.handleForceTranscribeAll"
+            @stop-all="inputStore.handleStopAllTranscriptions"
+          >
+            <VirtualTextAttachments
+              ref="textAttachmentsRef"
+              :restore-paste-id="inputStore.restorableTextPasteId"
+              @restore-paste="inputStore.restoreTextPaste"
+              :attachments="inputManager.virtualAttachments.value"
+              draft
+              inline
+              :busy="disabled"
+              :commit="saveTextAttachment"
+              @editing-change="onTextEditing"
+              @remove="inputManager.removeVirtualAttachment($event.id)"
+              @insert="insertTextAttachment"
             />
-          </div>
-          <VirtualTextAttachments
-            ref="textAttachmentsRef"
-            :restore-paste-id="inputStore.restorableTextPasteId"
-            @restore-paste="inputStore.restoreTextPaste"
-            :attachments="inputManager.virtualAttachments.value"
-            draft
-            :busy="disabled"
-            :commit="saveTextAttachment"
-            @editing-change="onTextEditing"
-            @remove="inputManager.removeVirtualAttachment($event.id)"
-            @insert="insertTextAttachment"
-          />
+          </MessageInputAttachments>
           <div
             v-if="inputManager.saveStatus.value === 'error'"
             class="draft-save-error"

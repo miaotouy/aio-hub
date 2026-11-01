@@ -23,6 +23,8 @@ import type { ResizeOptions } from "@/utils/imageProcessor";
 import { getAttachmentBuffer } from "../context-utils/attachment-binary";
 import type { PipelineAttachment } from "../../types/pipeline-attachment";
 
+import { processImageSlices } from "../context-utils/image-slicing";
+
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
 
@@ -53,7 +55,6 @@ async function processImageAsset(
   const maxDim = context.capabilities?.maxImageDimension;
   if (maxDim && maxDim > 0) {
     try {
-      const dims = await getImageDimensions(imageBuffer);
       if (dims.width > maxDim || dims.height > maxDim) {
         imageBuffer = await resizeImage(imageBuffer, {
           maxWidth: maxDim,
@@ -240,7 +241,12 @@ export const assetResolver: ContextProcessor = {
 
           switch (asset.type) {
             case "image":
-              parts = await processImageAsset(asset, buffer, context);
+              parts = await processImageSlices(
+                asset,
+                buffer,
+                context,
+                (slice) => processImageAsset(asset, slice, context)
+              );
               break;
             case "document":
               parts = await processDocumentAsset(asset, buffer, context);

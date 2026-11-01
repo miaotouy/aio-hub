@@ -49,8 +49,7 @@ export async function executeRequest(input: unknown) {
   const startedAt = new Date().toISOString(),
     started = Date.now();
   const deadline = started + (request.timeoutMs ?? 15000);
-  const instance = getInstance(request.instance),
-    label = request.window ?? "main";
+  const label = request.window ?? "main";
   const mutating = request.steps.some(
     (step) => !["inspect", "state", "wait", "diagnostics"].includes(step.op)
   );
@@ -68,7 +67,11 @@ export async function executeRequest(input: unknown) {
     return time;
   };
   try {
-    if (mutating) release = await acquireWindowLock(instance, label);
+    const instance = await withinTimeout(
+      getInstance(request.instance, deadline),
+      remaining()
+    );
+    if (mutating) release = await acquireWindowLock(instance, label, deadline);
     connection = await connectSession(instance, remaining());
     await connection.select(label, remaining());
     const result = await runBatch(request, async (step) => {

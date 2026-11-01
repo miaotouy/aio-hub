@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { executeRequest } from "./commands";
 import { connectSession } from "./session";
-import { getInstance, listInstances } from "./discovery";
+import { getInstance, liveInstances } from "./discovery";
 import { ControlError, errorResult } from "./errors";
 import {
   validateRequest,
@@ -162,10 +162,11 @@ export async function main(
       "此操作使用命名参数，请查看 --help。"
     );
   if (extra.length) throw new ControlError("INVALID_REQUEST", "位置参数过多。");
+  const deadline = Date.now() + Number(values.timeout ?? 15000);
   if (command === "instances")
     return {
       ok: true,
-      instances: listInstances().map(
+      instances: (await liveInstances(deadline)).map(
         ({ instanceId, status, frontendMode, startedAt, error }) => ({
           instanceId,
           status,
@@ -176,10 +177,10 @@ export async function main(
       ),
     };
   if (command === "windows") {
-    const instance = getInstance(values.instance);
+    const instance = await getInstance(values.instance, deadline);
     const connection = await connectSession(
       instance,
-      Number(values.timeout ?? 15000)
+      Math.max(1, deadline - Date.now())
     );
     try {
       return {

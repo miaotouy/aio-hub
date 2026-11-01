@@ -24,7 +24,7 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 2. **执行 (Execute)**: 将解析出的请求路由到对应的工具方法并执行。
 3. **格式化 (Format)**: 将执行结果格式化为协议规定的文本，回注到对话上下文中供 LLM 继续推理。
 
-同步工具的对象结果可通过 `ToolResultWithLocalMedia.localMedia` 返回本地媒体路径引用；`ToolMethodResult` 信封也支持该字段。执行器将引用提取到 `ToolExecutionResult.localMedia`，并在 JSON 文本中保留其余返回字段。聊天编排器把引用保存到工具消息节点的 `localMedia`；发送时由统一媒体解析管道按需安全读取原文件。带媒体引用的工具消息在上下文中使用 `user` 角色，以兼容模型媒体输入。
+同步工具的对象结果可通过 `ToolResultWithLocalMedia.localMedia` 返回本地媒体路径引用；`ToolMethodResult` 信封也支持该字段。执行器将引用提取到 `ToolExecutionResult.localMedia`，并在 JSON 文本中保留其余返回字段。聊天编排器把引用保存到工具消息节点的 `localMedia`；发送时由统一媒体解析管道按需安全读取原文件。带媒体引用的工具消息在上下文中使用 `user` 角色，以兼容模型媒体输入。 VCP 分布式调用通过节点协议层安全读取引用，在同次 `tool_result.result.content` 中返回 data URL 媒体块，详见 [分布式媒体结果](../vcp-connector/ARCHITECTURE.md#242-分布式媒体结果)。
 
 ### 2.2. 协议 (Protocol)
 

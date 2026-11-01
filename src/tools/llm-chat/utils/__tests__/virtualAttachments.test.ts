@@ -71,4 +71,43 @@ describe("message-owned text materials", () => {
       expect(resolveAttachmentsBatch).not.toHaveBeenCalled();
     }
   );
+  // A converted file link inside a material must resolve in place and claim its transcription once.
+  it("resolves file references inside materials without appending duplicate file text", async () => {
+    const file = {
+      id: "linked-file",
+      type: "document" as const,
+      name: "notes.txt",
+      mimeType: "text/plain",
+      source: { kind: "asset-library" as const, path: "texts/notes.txt" },
+    };
+    const material = { ...attachment, text: "引用：【file::linked-file】" };
+    const fileText = "\n[文件: notes.txt]\n```\n文件全文\n```\n";
+    vi.mocked(resolveAttachmentsBatch).mockResolvedValueOnce([
+      { type: "text", content: fileText, asset: file },
+    ]);
+    const context = {
+      messages: [
+        {
+          role: "user",
+          content: "问题",
+          _attachments: [fromVirtualTextAttachment(material), file],
+        },
+      ],
+      agentConfig: { modelId: "model", profileId: "profile" },
+      sharedData: new Map([["transcriptionConfig", { enabled: true }]]),
+      logs: [],
+    } as unknown as PipelineContext;
+    await transcriptionProcessor.execute(context);
+    expect(context.messages[0].content).toBe(
+      "问题" +
+        formatVirtualTextAttachment({ ...material, text: "引用：" + fileText })
+    );
+    expect(context.messages[0]._attachments).toEqual([]);
+    await transcriptionProcessor.execute(context);
+    expect(context.messages[0].content).toBe(
+      "问题" +
+        formatVirtualTextAttachment({ ...material, text: "引用：" + fileText })
+    );
+    vi.mocked(resolveAttachmentsBatch).mockClear();
+  });
 });

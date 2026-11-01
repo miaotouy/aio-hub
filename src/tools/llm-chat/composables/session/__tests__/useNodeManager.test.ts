@@ -61,6 +61,14 @@ describe("useNodeManager", () => {
       parentId: root.id,
       metadata: { modelId: "old" },
     });
+    source.virtualAttachments = [
+      {
+        id: "source-material",
+        kind: "text",
+        title: "source title",
+        text: "original material",
+      },
+    ];
     const child = manager.createNode({
       role: "user",
       content: "follow up",
@@ -83,6 +91,13 @@ describe("useNodeManager", () => {
       childrenIds: [root.id],
       content: "edited",
       name: "new name",
+      virtualAttachments: [
+        {
+          ...source.virtualAttachments[0],
+          title: "edited title",
+          text: "edited material",
+        },
+      ],
       status: "generating" as const,
       metadata: {
         modelId: "edited-model",
@@ -112,6 +127,13 @@ describe("useNodeManager", () => {
         reasoningActive: false,
       },
     });
+    expect(branch.virtualAttachments?.[0]).toMatchObject({
+      title: "edited title",
+      text: "edited material",
+    });
+    expect(branch.virtualAttachments?.[0].id).not.toBe("source-material");
+    edited.virtualAttachments[0].text = "later edit";
+    expect(branch.virtualAttachments?.[0].text).toBe("edited material");
     expect(branch.metadata?.isQueued).toBeUndefined();
     expect(root.childrenIds).toEqual([source.id, branch.id]);
     expect([source, child]).toEqual(before);

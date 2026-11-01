@@ -167,6 +167,20 @@ export function useToolCallOrchestrator() {
 
           lastRequestStartTime = Date.now();
 
+          const waitedForCompression =
+            await llmChatStore.waitForContextCompression(
+              session.id,
+              abortController.signal
+            );
+          if (waitedForCompression) {
+            const pathEnd =
+              currentPathToUserNode[currentPathToUserNode.length - 1]?.id;
+            currentPathToUserNode = nodeManager.getNodePath(
+              session,
+              pathEnd || currentAssistantNode.parentId || ""
+            );
+          }
+
           const { response } = await executeSingleNode({
             session,
             assistantNode: currentAssistantNode,

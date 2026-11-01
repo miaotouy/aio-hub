@@ -19,7 +19,7 @@ function nativeTimeout(diagnostic = "locator.waitFor: Timeout exceeded") {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
-  vi.mocked(getInstance).mockReturnValue({
+  vi.mocked(getInstance).mockResolvedValue({
     instanceId: "deadline-test",
   } as DevInstance);
 });
@@ -44,6 +44,23 @@ function connect(locator: object, close = vi.fn(async () => {})) {
 }
 
 describe("development control action deadlines", () => {
+  it("bounds stalled instance discovery before connecting or acquiring a write lock", async () => {
+    vi.mocked(getInstance).mockImplementationOnce(() => new Promise(() => {}));
+    const started = Date.now();
+    const pending = executeRequest({
+      timeoutMs: 100,
+      steps: [{ op: "click", target: { css: "button" } }],
+    });
+    const rejected = expect(pending).rejects.toMatchObject({
+      code: "COMMAND_TIMEOUT",
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    expect(Date.now() - started).toBe(100);
+    expect(acquireWindowLock).not.toHaveBeenCalled();
+    expect(DevConnection.attach).not.toHaveBeenCalled();
+  });
+
   it("reports an absent target within the request budget without performing the write", async () => {
     const click = vi.fn();
     const { release, close } = connect({

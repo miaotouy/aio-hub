@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
+import { createSessionRuntimeManager } from "../../../stores/session/sessionRuntimeManager";
+let runtime: ReturnType<typeof createSessionRuntimeManager>;
 
 const mocks = vi.hoisted(() => ({
   addNodeToSession: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
 
 vi.mock("@/tools/llm-chat/stores/llmChatStore", () => ({
   useLlmChatStore: () => ({
+    ...runtime,
     contextStats: undefined,
     persistSessions: mocks.persistSessions,
     refreshContextStats: mocks.refreshContextStats,
@@ -74,9 +77,32 @@ vi.mock("@/tools/token-calculator/token-calculator.registry", () => ({
 import { useContextCompressor } from "../useContextCompressor";
 import { switchCompressionCountUnit } from "../../../utils/contextCompressionCounting";
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("useContextCompressor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    runtime = createSessionRuntimeManager({
+      sessionDetailMap: ref(new Map()),
+      currentSessionId: ref(null),
+      abortControllers: ref(new Map()),
+      generatingNodes: ref(new Set()),
+      queuedSessionIds: ref(new Set()),
+      queuedSessionAgentIds: ref(new Map()),
+      findSessionIdByNodeId: () => null,
+    });
+    mocks.addNodeToSession.mockImplementation((session, summaryNode) => {
+      session.nodes[summaryNode.id] = summaryNode;
+      session.nodes[summaryNode.parentId].childrenIds.push(summaryNode.id);
+    });
     mocks.sendRequest.mockResolvedValue({ content: "updated summary" });
     mocks.calculateTokens.mockResolvedValue({ count: 10 });
     mocks.getAgentById.mockReturnValue({
@@ -218,7 +244,7 @@ describe("useContextCompressor", () => {
     }
   );
 
-  it("reports a request failure instead of treating it as insufficient history", async () => {
+  it("preserves the tree across repeated request failures", async () => {
     const first: any = {
       id: "first",
       content: "first message",
@@ -247,13 +273,18 @@ describe("useContextCompressor", () => {
     mocks.getNodePath.mockReturnValue([first, recent]);
     mocks.sendRequest.mockRejectedValue(new Error("API request failed"));
 
+    const before = JSON.stringify(detail);
     const { manualCompress } = useContextCompressor();
-    await expect(manualCompress({} as any, detail as any)).resolves.toEqual(
-      expect.objectContaining({
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(
+        manualCompress({} as any, detail as any)
+      ).resolves.toMatchObject({
         success: false,
         failureReason: "request-failed",
-      })
-    );
+      });
+    }
+    expect(JSON.stringify(detail)).toBe(before);
+    expect(mocks.persistSessions).not.toHaveBeenCalled();
   });
 
   // 第一回合为原生工具链，第二回合为 VCP 拆分链，第三回合受保护。
@@ -295,6 +326,114 @@ describe("useContextCompressor", () => {
     });
     return detail;
   };
+
+  // 保护提交契约：请求与 Token 统计完成前保持原树；取消和失败只更新运行态。
+  it("shares the task and commits a single completed summary before releasing waiters", async () => {
+    const detail = { ...prepareToolHistory(), id: "pending-session" };
+    const before = JSON.stringify(detail);
+    const response = deferred<{ content: string }>();
+    mocks.sendRequest.mockReturnValueOnce(response.promise);
+    const first = useContextCompressor().manualCompress(
+      {} as any,
+      detail as any
+    );
+    await vi.waitFor(() => expect(mocks.sendRequest).toHaveBeenCalledOnce());
+    expect(JSON.stringify(detail)).toBe(before);
+    expect(mocks.persistSessions).not.toHaveBeenCalled();
+    expect(runtime.getContextCompressionTask(detail.id)).toMatchObject({
+      status: "running",
+      messageCount: 2,
+    });
+    const second = useContextCompressor().manualCompress(
+      {} as any,
+      detail as any
+    );
+    const resumed = vi.fn(() => {
+      expect((detail.nodes as any)["new-summary"]).toMatchObject({
+        content: "summary",
+        status: "complete",
+      });
+    });
+    const waiting = runtime.waitForContextCompression(detail.id).then(resumed);
+    await Promise.resolve();
+    expect(resumed).not.toHaveBeenCalled();
+    expect(mocks.sendRequest).toHaveBeenCalledOnce();
+    response.resolve({ content: "summary" });
+    expect(await first).toMatchObject({ success: true });
+    expect(await second).toMatchObject({ success: true });
+    await waiting;
+    expect(resumed).toHaveBeenCalledOnce();
+    expect(runtime.getContextCompressionTask(detail.id)).toBeNull();
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "preserves the tree on cancellation and ignores a late provider %s",
+    async (outcome) => {
+      const detail = { ...prepareToolHistory(), id: `cancel-${outcome}` };
+      const before = JSON.stringify(detail);
+      const response = deferred<{ content: string }>();
+      mocks.sendRequest.mockReturnValueOnce(response.promise);
+      const result = useContextCompressor().manualCompress(
+        {} as any,
+        detail as any
+      );
+      await vi.waitFor(() => expect(mocks.sendRequest).toHaveBeenCalledOnce());
+      const signal = mocks.sendRequest.mock.calls[0][0].signal as AbortSignal;
+      const waiting = runtime.waitForContextCompression(detail.id);
+      runtime.cancelContextCompression(detail.id);
+      expect(signal.aborted).toBe(true);
+      await expect(result).resolves.toMatchObject({
+        success: false,
+        failureReason: "cancelled",
+      });
+      await waiting;
+      expect(runtime.getContextCompressionTask(detail.id)?.status).toBe(
+        "cancelled"
+      );
+      if (outcome === "resolve") response.resolve({ content: "late summary" });
+      else response.reject(new Error("late failure"));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(JSON.stringify(detail)).toBe(before);
+      expect(mocks.persistSessions).not.toHaveBeenCalled();
+    }
+  );
+
+  it("clears an in-flight task on session reload without committing its late summary", async () => {
+    const detail = { ...prepareToolHistory(), id: "reload-session" };
+    const before = JSON.stringify(detail);
+    const response = deferred<{ content: string }>();
+    mocks.sendRequest.mockReturnValueOnce(response.promise);
+    const result = useContextCompressor().manualCompress(
+      {} as any,
+      detail as any
+    );
+    await vi.waitFor(() => expect(mocks.sendRequest).toHaveBeenCalledOnce());
+    runtime.clearSessionRuntime(detail.id);
+    await expect(result).resolves.toMatchObject({ failureReason: "cancelled" });
+    response.resolve({ content: "stale summary" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.getContextCompressionTask(detail.id)).toBeNull();
+    expect(JSON.stringify(detail)).toBe(before);
+    expect(mocks.persistSessions).not.toHaveBeenCalled();
+  });
+
+  it("uses the configured summary model for both generation and token counting", async () => {
+    const detail = { ...prepareToolHistory(), id: "summary-model-session" };
+    mocks.getAgentById().parameters.contextCompression.summaryModel = {
+      profileId: "summary-profile",
+      modelId: "summary-model",
+    };
+    await useContextCompressor().manualCompress({} as any, detail as any);
+    expect(mocks.sendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: "summary-model" })
+    );
+    expect(mocks.calculateTokens).toHaveBeenCalledWith(
+      "updated summary",
+      "summary-model"
+    );
+  });
 
   it.each([
     { unit: undefined, count: 1, expected: ["u1"] },

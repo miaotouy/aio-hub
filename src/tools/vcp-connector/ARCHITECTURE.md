@@ -1,6 +1,6 @@
 # VCP Connector: 架构与开发者指南
 
-> 最后更新：2026-10-15
+> 最后更新：2026-11-01
 
 本文档描述 `vcp-connector` 模块的内部架构、设计理念与数据流，为后续开发和维护提供清晰指引。
 
@@ -97,6 +97,17 @@ AIO 暴露给 VCP 主服务器的分布式工具 manifest 会在 `communication.
 分布式工具注册能力声明 `cancelTool`，协议消息类型支持 `cancel_tool`，服务端可按 `requestId` 取消在途执行。`VcpNodeProtocol` 为每个请求维护 `AbortController`，分布式超时会先 abort 再返回错误；WebSocket 断开时批量终止该节点的所有在途调用，并在 finally 中清理映射。
 
 远程工具若需要真正释放文件扫描、网络请求或其他长任务资源，必须消费传入的 `ToolContext.signal`；仅依赖 VCP 返回错误不能保证本地任务停止。
+
+#### 2.4.2. 分布式媒体结果
+
+工具的普通对象结果与 `ToolMethodResult` 信封均可携带 `localMedia`。本地聊天通过发送管道消费该引用；分布式节点在 `execute_tool` 的同一次执行内完成安全读取，再返回 `result.content`，使 VCP 服务端下一轮请求直接包含媒体。
+
+- 文本使用 `{ type: "text", text }`，媒体使用 `{ type: "image_url", image_url: { url: "data:<mime>;base64,..." } }`。VCP 的工具结果格式化器读取顶层 `content`；媒体处理管道通过 data URL 的 MIME 识别图片、音频和视频。模型输入支持与 VCP 媒体转换设置继续适用。
+- 混合批量调用按执行顺序把文本和媒体平铺到顶层 `content`；纯文本批次沿用原有数组返回。原始媒体引用从传输结果中移除。
+- 媒体读取与 `internal_request_file` 共用安全外传入口，应用 `externalFileTransferEnabled`、限流、沙箱、当前路径规则、审批、大小限制和来源审计。引用中的本地审批标记与外传授权独立，审批区仍需确认外传。
+- 安全读取与结果转换计入分布式执行超时，取消后停止后续读取；文件不可访问、权限拒绝或传输关闭时回传明确错误。
+
+协议依据：VCPToolBox 的 `modules/vcpLoop/toolExecutor.js`（`_formatResult`）、`modules/handlers/streamHandler.js` 与 `nonStreamHandler.js` 的工具媒体管道，以及 `Plugin/UrlFetch/UrlFetch.js` 的本地图片返回格式。
 
 ### 2.5. 工具调用审批系统
 

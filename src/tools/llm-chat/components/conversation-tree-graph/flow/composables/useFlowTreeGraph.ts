@@ -15,6 +15,7 @@
 import {
   ref,
   shallowRef,
+  nextTick,
   watch,
   onUnmounted,
   type Ref,
@@ -55,6 +56,7 @@ interface DerivedContentCacheEntry {
 
 interface GraphRenderContext {
   activePathSet: Set<string>;
+  activeLeafId: string | null;
   nodeDepthMap: Map<string, number>;
   compressedNodeIds: Set<string>;
   nodeRepresentativeMap: Map<string, string>;
@@ -64,6 +66,8 @@ interface GraphRenderContext {
 type NodeDataUpdater = (id: string, data: any) => boolean;
 type EdgeUpdate = Pick<any, "animated" | "style">;
 type EdgeUpdater = (id: string, update: EdgeUpdate) => boolean;
+type NodeAdder = (nodes: any[]) => void;
+type EdgeAdder = (edges: any[]) => void;
 
 const EMPTY_ATTACHMENTS = Object.freeze([]) as readonly any[];
 
@@ -220,7 +224,9 @@ export function useFlowTreeGraph(
   contextMenuState: Ref<any>,
   target: Ref<HTMLElement | null>,
   nodeDataUpdater?: NodeDataUpdater,
-  edgeUpdater?: EdgeUpdater
+  edgeUpdater?: EdgeUpdater,
+  nodeAdder?: NodeAdder,
+  edgeAdder?: EdgeAdder
 ) {
   const { settings } = useChatSettings();
   const store = useLlmChatStore();
@@ -243,13 +249,31 @@ export function useFlowTreeGraph(
   let flowEdgeById = new Map<string, any>();
   let renderContext: GraphRenderContext = {
     activePathSet: new Set(),
+    activeLeafId: null,
     nodeDepthMap: new Map(),
     compressedNodeIds: new Set(),
     nodeRepresentativeMap: new Map(),
     logicalParentMap: new Map(),
   };
   let lastStructureFingerprint = "";
+  let renderedSessionId: string | null = null;
+  let renderedRootNodeId: string | null = null;
+  let layoutRequestVersion = 0;
+  const renderedParentById = new Map<string, string | null>();
+  const renderedCompressionSignatureById = new Map<string, string>();
   const isPageActive = usePageActivity();
+
+  // Vue Flow 会把直接新增的元素同步回输入数组，缓存随实际数组更新引用。
+  watch(nodes, (nextNodes) => {
+    for (const node of nextNodes) {
+      if (flowNodeById.has(node.id)) flowNodeById.set(node.id, node);
+    }
+  });
+  watch(edges, (nextEdges) => {
+    for (const edge of nextEdges) {
+      if (flowEdgeById.has(edge.id)) flowEdgeById.set(edge.id, edge);
+    }
+  });
 
   // 2. 初始化子模块
   const { palette, paletteVersion } = useGraphThemePalette();
@@ -311,12 +335,27 @@ export function useFlowTreeGraph(
     }
     if (!isPageActive.value) return;
 
+    if (!applyCompressionRenderState(session, new Set([nodeId]))) {
+      updateChart();
+      return;
+    }
+    lastStructureFingerprint = getStructureFingerprint(session);
+  }
+
+  function applyCompressionRenderState(
+    session: ChatSessionDetail,
+    changedSummaryIds: Set<string>
+  ): boolean {
+    if (!session.nodes) return false;
     const nextContext = {
       ...renderContext,
       ...buildCompressionRenderState(session),
     };
     const changedParentIds = new Set<string>();
-    for (const id of renderContext.nodeRepresentativeMap.keys()) {
+    for (const id of new Set([
+      ...renderContext.nodeRepresentativeMap.keys(),
+      ...nextContext.nodeRepresentativeMap.keys(),
+    ])) {
       if (
         renderContext.nodeRepresentativeMap.get(id) !==
         nextContext.nodeRepresentativeMap.get(id)
@@ -324,34 +363,32 @@ export function useFlowTreeGraph(
         changedParentIds.add(id);
       }
     }
-    for (const id of nextContext.nodeRepresentativeMap.keys()) {
+
+    const changedNodeIds = new Set(changedSummaryIds);
+    for (const id of new Set([
+      ...renderContext.compressedNodeIds,
+      ...nextContext.compressedNodeIds,
+    ])) {
       if (
-        nextContext.nodeRepresentativeMap.get(id) !==
-        renderContext.nodeRepresentativeMap.get(id)
+        renderContext.compressedNodeIds.has(id) !==
+        nextContext.compressedNodeIds.has(id)
       ) {
-        changedParentIds.add(id);
+        changedNodeIds.add(id);
       }
     }
-
-    const affectedTargetIds = new Set<string>([nodeId]);
-    for (const targetNode of Object.values(session.nodes)) {
-      if (targetNode.parentId && changedParentIds.has(targetNode.parentId)) {
-        affectedTargetIds.add(targetNode.id);
-      }
+    const affectedTargetIds = new Set(changedSummaryIds);
+    for (const node of Object.values(session.nodes)) {
+      if (node.parentId && changedParentIds.has(node.parentId))
+        affectedTargetIds.add(node.id);
     }
 
-    const flowNode = flowNodeById.get(nodeId);
-    if (!flowNode) {
-      updateChart();
-      return;
-    }
-
-    const nextData = createNodeData(session, node, nextContext);
-    if (!isNodeDataEqual(flowNode.data, nextData)) {
-      if (nodeDataUpdater && !nodeDataUpdater(nodeId, nextData)) {
-        updateChart();
-        return;
-      }
+    for (const id of changedNodeIds) {
+      const node = session.nodes[id];
+      const flowNode = flowNodeById.get(id);
+      if (!node || !flowNode) return false;
+      const nextData = createNodeData(session, node, nextContext);
+      if (isNodeDataEqual(flowNode.data, nextData)) continue;
+      if (nodeDataUpdater && !nodeDataUpdater(id, nextData)) return false;
       flowNode.data = nextData;
     }
 
@@ -361,8 +398,8 @@ export function useFlowTreeGraph(
       nextContext
     );
     renderContext = nextContext;
-    lastStructureFingerprint = getStructureFingerprint(session);
     if (edgesChanged) initD3Simulation();
+    return true;
   }
 
   /**
@@ -371,7 +408,10 @@ export function useFlowTreeGraph(
   function getStructureFingerprint(session: ChatSessionDetail): string {
     if (!session.nodes) return `${session.id}:${session.rootNodeId}:not-loaded`;
     const topology = Object.values(session.nodes)
-      .map((n) => `${n.id}:${n.parentId || ""}`)
+      .map(
+        (n) =>
+          `${n.id}:${n.parentId || ""}:${getCompressionStructureSignature(n)}`
+      )
       .sort()
       .join("|");
     const expanded = Array.from(expandedCompressionIds.value).sort().join(",");
@@ -449,7 +489,9 @@ export function useFlowTreeGraph(
     return depthMap;
   }
 
-  function buildCompressionRenderState(session: ChatSessionDetail): Pick<
+  function buildCompressionRenderState(
+    session: ChatSessionDetail
+  ): Pick<
     GraphRenderContext,
     "compressedNodeIds" | "nodeRepresentativeMap" | "logicalParentMap"
   > {
@@ -720,6 +762,271 @@ export function useFlowTreeGraph(
     }
   }
 
+  function getCompressionStructureSignature(node: ChatMessageNode): string {
+    const metadata = node.metadata;
+    return [
+      metadata?.isCompressionNode ? "1" : "0",
+      metadata?.isCompressionNode ? (node.isEnabled !== false ? "1" : "0") : "",
+      metadata?.compressedNodeIds?.join(",") ?? "",
+    ].join("|");
+  }
+
+  function rememberRenderedStructure(session: ChatSessionDetail): void {
+    renderedSessionId = session.id;
+    renderedRootNodeId = session.rootNodeId;
+    renderedParentById.clear();
+    renderedCompressionSignatureById.clear();
+    if (!session.nodes) return;
+
+    for (const node of Object.values(session.nodes)) {
+      renderedParentById.set(node.id, node.parentId);
+      renderedCompressionSignatureById.set(
+        node.id,
+        getCompressionStructureSignature(node)
+      );
+    }
+  }
+
+  /**
+   * 纯追加节点只提交新增元素。删除、改父级或压缩成员变化仍交给全图对账。
+   */
+  function tryAppendNodes(
+    session: ChatSessionDetail,
+    currentFingerprint: string
+  ): boolean {
+    if (
+      !session.nodes ||
+      !nodeAdder ||
+      !edgeAdder ||
+      renderedSessionId !== session.id ||
+      renderedRootNodeId !== session.rootNodeId ||
+      nodes.value.length === 0
+    ) {
+      return false;
+    }
+
+    const currentNodeIds = new Set(Object.keys(session.nodes));
+    const previousNodeIds = new Set(flowNodeById.keys());
+    if (currentNodeIds.size <= previousNodeIds.size) return false;
+
+    for (const nodeId of previousNodeIds) {
+      if (!currentNodeIds.has(nodeId)) return false;
+    }
+
+    const addedNodeIds = new Set<string>();
+    for (const nodeId of currentNodeIds) {
+      if (!previousNodeIds.has(nodeId)) addedNodeIds.add(nodeId);
+    }
+
+    for (const nodeId of previousNodeIds) {
+      const node = session.nodes[nodeId];
+      if (!node) return false;
+      if (node.parentId !== renderedParentById.get(nodeId)) return false;
+      // 补回历史中缺失的父节点会影响已有节点的深度和连边。
+      if (node.parentId && addedNodeIds.has(node.parentId)) return false;
+      if (
+        getCompressionStructureSignature(node) !==
+        renderedCompressionSignatureById.get(nodeId)
+      ) {
+        return false;
+      }
+    }
+
+    for (const nodeId of addedNodeIds) {
+      if (session.nodes[nodeId]?.metadata?.isCompressionNode) return false;
+      if (renderContext.compressedNodeIds.has(nodeId)) return false;
+    }
+
+    const activePathSet = buildActivePathSet(session);
+    const nodeDepthMap = new Map(renderContext.nodeDepthMap);
+    const resolvingDepths = new Set<string>();
+    const resolveDepth = (nodeId: string): number => {
+      if (nodeDepthMap.has(nodeId)) return nodeDepthMap.get(nodeId)!;
+      if (resolvingDepths.has(nodeId)) return 0;
+      resolvingDepths.add(nodeId);
+
+      const parentId = session.nodes?.[nodeId]?.parentId;
+      const depth = parentId ? resolveDepth(parentId) + 1 : 0;
+      nodeDepthMap.set(nodeId, depth);
+      resolvingDepths.delete(nodeId);
+      return depth;
+    };
+
+    for (const nodeId of addedNodeIds) resolveDepth(nodeId);
+
+    const nextContext: GraphRenderContext = {
+      ...renderContext,
+      activePathSet,
+      activeLeafId: session.activeLeafId,
+      nodeDepthMap,
+    };
+
+    const changedNodeIds = new Set<string>();
+    if (renderContext.activeLeafId !== nextContext.activeLeafId) {
+      if (renderContext.activeLeafId) {
+        changedNodeIds.add(renderContext.activeLeafId);
+      }
+      if (
+        nextContext.activeLeafId &&
+        previousNodeIds.has(nextContext.activeLeafId)
+      ) {
+        changedNodeIds.add(nextContext.activeLeafId);
+      }
+    }
+    for (const nodeId of previousNodeIds) {
+      const wasActive = renderContext.activePathSet.has(nodeId);
+      const isActive = nextContext.activePathSet.has(nodeId);
+      if (wasActive !== isActive) changedNodeIds.add(nodeId);
+    }
+
+    for (const nodeId of changedNodeIds) {
+      const node = session.nodes[nodeId];
+      const flowNode = flowNodeById.get(nodeId);
+      if (!node || !flowNode) return false;
+
+      const nextData = createNodeData(session, node, nextContext);
+      if (isNodeDataEqual(flowNode.data, nextData)) continue;
+      if (!nodeDataUpdater || !nodeDataUpdater(nodeId, nextData)) return false;
+      flowNode.data = nextData;
+    }
+
+    for (const edge of flowEdgeById.values()) {
+      if (
+        !changedNodeIds.has(edge.source) &&
+        !changedNodeIds.has(edge.target)
+      ) {
+        continue;
+      }
+
+      const nextPresentation = createEdgePresentation(
+        palette,
+        nextContext.activePathSet,
+        edge.source,
+        edge.target
+      );
+      if (
+        edge.animated === nextPresentation.animated &&
+        isEdgeStyleEqual(edge.style, nextPresentation.style)
+      ) {
+        continue;
+      }
+
+      if (!edgeUpdater || !edgeUpdater(edge.id, nextPresentation)) return false;
+      edge.animated = nextPresentation.animated;
+      edge.style = nextPresentation.style;
+    }
+
+    const nextNodeById = new Map(flowNodeById);
+    const addedFlowNodes: any[] = [];
+    const orderedAddedNodeIds = Array.from(addedNodeIds).sort(
+      (a, b) => (nodeDepthMap.get(a) ?? 0) - (nodeDepthMap.get(b) ?? 0)
+    );
+    for (const nodeId of orderedAddedNodeIds) {
+      const node = session.nodes[nodeId];
+      if (!node) continue;
+
+      let positioningParentId = node.parentId;
+      if (positioningParentId) {
+        positioningParentId =
+          nextContext.nodeRepresentativeMap.get(positioningParentId) ??
+          positioningParentId;
+      }
+      const parentNode = positioningParentId
+        ? nextNodeById.get(positioningParentId)
+        : null;
+      const position = parentNode
+        ? {
+            x: parentNode.position.x,
+            y: parentNode.position.y + 240,
+          }
+        : { x: 0, y: 0 };
+      const nextNode = {
+        id: node.id,
+        type: "custom",
+        position,
+        data: createNodeData(session, node, nextContext),
+      };
+      addedFlowNodes.push(nextNode);
+      nextNodeById.set(node.id, nextNode);
+    }
+
+    nodeAdder(addedFlowNodes);
+    for (const node of addedFlowNodes) {
+      flowNodeById.set(node.id, node);
+      const sessionNode = session.nodes[node.id];
+      renderedParentById.set(node.id, sessionNode.parentId);
+      renderedCompressionSignatureById.set(
+        node.id,
+        getCompressionStructureSignature(sessionNode)
+      );
+    }
+
+    const visibleNodeIds = new Set(nextNodeById.keys());
+    const addedEdges: any[] = [];
+    for (const targetId of addedNodeIds) {
+      const nextEdge = createFlowEdgeForTarget(
+        session,
+        targetId,
+        nextContext,
+        visibleNodeIds
+      );
+      if (!nextEdge || flowEdgeById.has(nextEdge.id)) continue;
+      addedEdges.push(nextEdge);
+    }
+    if (addedEdges.length > 0) {
+      edgeAdder(addedEdges);
+      for (const edge of addedEdges) flowEdgeById.set(edge.id, edge);
+    }
+
+    renderContext = nextContext;
+    lastStructureFingerprint = currentFingerprint;
+    syncNodeContentWatchers(session);
+    // 等 Vue Flow 把新增节点回写后再布局；重做时尺寸缓存可能直接命中。
+    const requestVersion = ++layoutRequestVersion;
+    void nextTick(() => {
+      if (
+        requestVersion !== layoutRequestVersion ||
+        renderedSessionId !== session.id
+      )
+        return;
+      startWaitingForDimensions(nodes.value);
+    });
+    return true;
+  }
+
+  function tryUpdateCompressionStructure(
+    session: ChatSessionDetail,
+    currentFingerprint: string
+  ): boolean {
+    if (
+      !session.nodes ||
+      renderedSessionId !== session.id ||
+      renderedRootNodeId !== session.rootNodeId ||
+      Object.keys(session.nodes).length !== renderedParentById.size
+    )
+      return false;
+
+    const changedSummaryIds = new Set<string>();
+    for (const node of Object.values(session.nodes)) {
+      if (
+        !renderedParentById.has(node.id) ||
+        node.parentId !== renderedParentById.get(node.id)
+      )
+        return false;
+      if (
+        getCompressionStructureSignature(node) !==
+        renderedCompressionSignatureById.get(node.id)
+      ) {
+        changedSummaryIds.add(node.id);
+      }
+    }
+    if (changedSummaryIds.size === 0) return false;
+    if (!applyCompressionRenderState(session, changedSummaryIds)) return false;
+    lastStructureFingerprint = currentFingerprint;
+    rememberRenderedStructure(session);
+    return true;
+  }
+
   function areSetsEqual(a: Set<string>, b: Set<string>): boolean {
     if (a.size !== b.size) return false;
     for (const id of a) {
@@ -741,6 +1048,12 @@ export function useFlowTreeGraph(
     if (areSetsEqual(renderContext.activePathSet, nextActivePathSet)) return;
 
     const changedNodeIds = new Set<string>();
+    if (renderContext.activeLeafId !== session.activeLeafId) {
+      if (renderContext.activeLeafId) {
+        changedNodeIds.add(renderContext.activeLeafId);
+      }
+      if (session.activeLeafId) changedNodeIds.add(session.activeLeafId);
+    }
     for (const id of renderContext.activePathSet) {
       if (!nextActivePathSet.has(id)) changedNodeIds.add(id);
     }
@@ -751,6 +1064,7 @@ export function useFlowTreeGraph(
     const nextContext = {
       ...renderContext,
       activePathSet: nextActivePathSet,
+      activeLeafId: session.activeLeafId,
     };
 
     for (const nodeId of changedNodeIds) {
@@ -901,6 +1215,7 @@ export function useFlowTreeGraph(
       flowEdgeById = new Map();
       renderContext = {
         activePathSet: new Set(),
+        activeLeafId: null,
         nodeDepthMap: new Map(),
         compressedNodeIds: new Set(),
         nodeRepresentativeMap: new Map(),
@@ -909,12 +1224,21 @@ export function useFlowTreeGraph(
       nodes.value = [];
       edges.value = [];
       lastStructureFingerprint = "";
+      renderedSessionId = null;
+      renderedRootNodeId = null;
+      renderedParentById.clear();
+      renderedCompressionSignatureById.clear();
       return;
     }
 
     const currentFingerprint = getStructureFingerprint(session);
     const isStructureChanged =
       forceResetPosition || currentFingerprint !== lastStructureFingerprint;
+
+    if (!forceResetPosition && isStructureChanged) {
+      if (tryAppendNodes(session, currentFingerprint)) return;
+      if (tryUpdateCompressionStructure(session, currentFingerprint)) return;
+    }
 
     const previousNodesMap = new Map<string, any>();
     const previousEdgesMap = new Map<string, any>();
@@ -934,6 +1258,7 @@ export function useFlowTreeGraph(
 
     renderContext = {
       activePathSet,
+      activeLeafId: session.activeLeafId,
       nodeDepthMap,
       ...compressionState,
     };
@@ -1076,7 +1401,9 @@ export function useFlowTreeGraph(
     edges.value = flowEdges;
     flowNodeById = new Map(flowNodes.map((node) => [node.id, node]));
     flowEdgeById = new Map(flowEdges.map((edge) => [edge.id, edge]));
+    rememberRenderedStructure(session);
 
+    layoutRequestVersion++;
     startWaitingForDimensions(flowNodes, forceResetPosition);
     syncNodeContentWatchers(session);
   }
@@ -1150,6 +1477,10 @@ export function useFlowTreeGraph(
     nodeWatchStops.clear();
     dirtyNodeIds.clear();
     dirtyFlushScheduled = false;
+    layoutRequestVersion++;
+    renderedSessionId = null;
+    renderedParentById.clear();
+    renderedCompressionSignatureById.clear();
 
     if (simulation.value) {
       simulation.value.stop();

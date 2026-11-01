@@ -22,8 +22,8 @@
     tabindex="0"
   >
     <VueFlow
-      :nodes="nodes"
-      :edges="edges"
+      v-model:nodes="nodes"
+      v-model:edges="edges"
       :default-viewport="{ zoom: 1, x: 0, y: 0 }"
       :min-zoom="0.2"
       :max-zoom="4"
@@ -578,6 +578,8 @@ const {
   updateNodeData,
   findNode,
   findEdge,
+  addNodes,
+  addEdges,
   onNodesChange,
 } = useVueFlow();
 
@@ -596,6 +598,14 @@ const updateGraphEdge = (
   edge.animated = update.animated;
   edge.style = update.style;
   return true;
+};
+
+const addGraphNodes = (newNodes: any[]): void => {
+  addNodes(newNodes);
+};
+
+const addGraphEdges = (newEdges: any[]): void => {
+  addEdges(newEdges);
 };
 
 const isNarrowLayout = ref(false);
@@ -698,7 +708,9 @@ const {
   contextMenu,
   wrapperRef,
   updateGraphNodeData,
-  updateGraphEdge
+  updateGraphEdge,
+  addGraphNodes,
+  addGraphEdges
 );
 
 // 从 store 中获取历史记录相关的功能和状态

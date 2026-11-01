@@ -24,7 +24,7 @@ const { values } = parseArgs({
   },
 });
 if (!values.instance) throw new Error("Specify an isolated --instance");
-const instance = getInstance(values.instance);
+const instance = await getInstance(values.instance);
 if (instance.frontendMode !== "hmr")
   throw new Error(
     "Chat fixture setup currently requires an isolated HMR instance"

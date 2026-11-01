@@ -26,7 +26,7 @@ if (!values.instance) throw new Error("Specify an isolated --instance");
 const samples = Number(values.samples);
 if (!Number.isInteger(samples) || samples < 1 || samples > 30)
   throw new Error("--samples must be 1..30");
-const instance = getInstance(values.instance);
+const instance = await getInstance(values.instance);
 if (instance.frontendMode !== "hmr")
   throw new Error("Use an isolated HMR instance");
 const out = resolve(values["out-dir"]!);

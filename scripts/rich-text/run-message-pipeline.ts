@@ -18,7 +18,7 @@ const { values } = parseArgs({
   },
 });
 if (!values.instance) throw new Error("Specify an isolated --instance");
-const instance = getInstance(values.instance);
+const instance = await getInstance(values.instance);
 if (instance.frontendMode !== "hmr")
   throw new Error(
     "This diagnostic mounts source components; use an isolated HMR instance"

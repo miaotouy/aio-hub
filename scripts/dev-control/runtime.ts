@@ -8,7 +8,7 @@ import { prepareDevControl } from "./launch";
 import { prepareLinuxDesktop } from "./linux-environment";
 import {
   CONTROL_ROOT,
-  listInstances,
+  findInstance,
   linuxProcessStartTicks,
   processAlive,
 } from "./discovery";
@@ -38,11 +38,11 @@ async function main() {
     );
   if (!INSTANCE_ID_PATTERN.test(values.instance!))
     throw new ControlError("INVALID_INSTANCE", "实例名称无效。");
-  const existing = () =>
-    listInstances().find((i) => i.instanceId === values.instance);
-  if (command === "status") return { ok: true, instance: existing() ?? null };
+  const existing = () => findInstance(values.instance!);
+  if (command === "status")
+    return { ok: true, instance: (await existing()) ?? null };
   if (command === "stop") {
-    const instance = existing();
+    const instance = await existing();
     if (!instance) return { ok: true, stopped: false };
     if (
       !instance.launcherStartTicks ||
@@ -62,7 +62,7 @@ async function main() {
         instance.launcherStartTicks
     )
       await Bun.sleep(100);
-    if (existing())
+    if (await existing())
       throw new ControlError("STOP_TIMEOUT", "实例尚未退出，请查看启动日志。");
     return { ok: true, stopped: true };
   }
@@ -71,7 +71,7 @@ async function main() {
       "INVALID_REQUEST",
       "请使用 start、serve、status 或 stop。"
     );
-  if (existing())
+  if (await existing())
     throw new ControlError(
       "INSTANCE_RUNNING",
       "该实例已运行，请先查看 status。"
@@ -109,7 +109,7 @@ async function main() {
     child.unref();
     const until = Date.now() + 45000;
     while (Date.now() < until) {
-      const instance = existing();
+      const instance = await existing();
       if (instance?.status === "ready") return { ok: true, instance, log };
       if (
         instance?.status === "failed" ||

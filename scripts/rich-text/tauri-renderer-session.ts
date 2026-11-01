@@ -11,7 +11,7 @@ export async function openTauriRendererSession(
   instanceName?: string,
   allowHmr = false
 ) {
-  const instance = getInstance(instanceName);
+  const instance = await getInstance(instanceName);
   if (instance.frontendMode !== "static" && !allowHmr)
     throw new Error(
       "Use bun run dev:static -- --agent --agent-instance <name>; --allow-hmr is for probe diagnostics"

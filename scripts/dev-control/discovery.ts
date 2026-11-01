@@ -1,5 +1,8 @@
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
 import { ControlError } from "./errors";
@@ -16,7 +19,9 @@ export interface DevInstance {
   instanceId: string;
   startupId: string;
   launcherPid: number;
+  /** Linux /proc start ticks. Windows uses launcherStartedAtMs instead. */
   launcherStartTicks?: string;
+  launcherStartedAtMs?: number;
   appPid?: number;
   startedAt: string;
   endpoint: string;
@@ -45,6 +50,115 @@ export function processAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+const WINDOWS_START_CACHE_MS = 3000;
+const execFileAsync = promisify(execFile);
+let windowsStartTimes: { at: number; times: Map<number, number> } | undefined;
+
+function budget(deadline: number | undefined, maximum: number): number {
+  const remaining = deadline === undefined ? maximum : deadline - Date.now();
+  if (remaining <= 0)
+    throw new ControlError(
+      "COMMAND_TIMEOUT",
+      "指令执行超时。",
+      "先 observe 确认当前状态。"
+    );
+  return Math.min(remaining, maximum);
+}
+
+/** Cache completed snapshots; each query can be cancelled by its caller's deadline. */
+async function readWindowsStartTimes(
+  deadline?: number
+): Promise<Map<number, number>> {
+  budget(deadline, 10000);
+  if (
+    windowsStartTimes &&
+    Date.now() - windowsStartTimes.at < WINDOWS_START_CACHE_MS
+  )
+    return windowsStartTimes.times;
+  const times = new Map<number, number>();
+  const signal = AbortSignal.timeout(budget(deadline, 10000));
+  try {
+    const { stdout } = await execFileAsync(
+      "powershell.exe",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        'Get-Process -ErrorAction SilentlyContinue | ForEach-Object { try { "$($_.Id) $($_.StartTime.ToFileTimeUtc())" } catch { } }',
+      ],
+      { encoding: "utf8", windowsHide: true, signal }
+    );
+    for (const line of stdout.split(/\r?\n/)) {
+      const [id, fileTime] = line.trim().split(/\s+/);
+      const pid = Number(id),
+        ticks = Number(fileTime);
+      if (
+        Number.isInteger(pid) &&
+        pid > 0 &&
+        Number.isFinite(ticks) &&
+        ticks > 0
+      )
+        times.set(pid, Math.round(ticks / 10000 - 11644473600000));
+    }
+  } catch {
+    budget(deadline, 10000);
+    // An unavailable process snapshot must not authorize stealing a live lease.
+    return times;
+  }
+  budget(deadline, 10000);
+  windowsStartTimes = { at: Date.now(), times };
+  return times;
+}
+
+/** Process start epoch milliseconds, available on Windows only. */
+export async function processStartedAtMs(
+  pid: number,
+  deadline?: number
+): Promise<number | undefined> {
+  if (process.platform !== "win32") return undefined;
+  return (await readWindowsStartTimes(deadline)).get(pid);
+}
+
+/** A descriptor is only credible while the recorded launcher process is the same one. */
+export async function launcherIsCurrent(
+  instance: DevInstance,
+  deadline?: number
+): Promise<boolean> {
+  if (!processAlive(instance.launcherPid)) return false;
+  if (instance.launcherStartTicks) {
+    const current = linuxProcessStartTicks(instance.launcherPid);
+    if (current !== undefined) return current === instance.launcherStartTicks;
+  }
+  const startedAtMs = await processStartedAtMs(instance.launcherPid, deadline);
+  if (startedAtMs === undefined) return true;
+  if (instance.launcherStartedAtMs !== undefined)
+    return startedAtMs === instance.launcherStartedAtMs;
+  const publishedAt = Date.parse(instance.startedAt);
+  return !Number.isFinite(publishedAt) || startedAtMs <= publishedAt + 2;
+}
+
+/** The application endpoint can temporarily disappear during a Rust rebuild. */
+export function probeEndpoint(
+  instance: DevInstance,
+  timeoutMs = 1500
+): Promise<boolean> {
+  const url = new URL(instance.endpoint);
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: url.hostname, port: Number(url.port) });
+    let settled = false;
+    const finish = (alive: boolean) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(alive);
+    };
+    socket.setTimeout(timeoutMs, () => finish(false));
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+  });
 }
 function instanceFile(id: string) {
   if (!INSTANCE_ID_PATTERN.test(id))
@@ -96,30 +210,73 @@ export function validateInstance(value: unknown): DevInstance {
     throw new ControlError("INVALID_INSTANCE", "未知前端运行模式。");
   return data as DevInstance;
 }
-export function listInstances(): DevInstance[] {
+function readInstances(id?: string): DevInstance[] {
   const dir = path.join(CONTROL_ROOT, "instances");
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((name) => name.endsWith(".json"))
+    .filter(
+      (name) =>
+        name.endsWith(".json") && (id === undefined || name === id + ".json")
+    )
     .flatMap((name) => {
       try {
-        const item = validateInstance(
-          JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"))
-        );
-        return processAlive(item.launcherPid) &&
-          (!item.launcherStartTicks ||
-            item.launcherStartTicks ===
-              linuxProcessStartTicks(item.launcherPid))
-          ? [item]
-          : [];
+        return [
+          validateInstance(
+            JSON.parse(fs.readFileSync(path.join(dir, name), "utf8"))
+          ),
+        ];
       } catch {
         return [];
       }
     });
 }
-export function getInstance(id?: string): DevInstance {
-  const instances = listInstances();
+/** Live descriptor lookup without throwing, used when reserving an instance name. */
+export async function findInstance(
+  id: string,
+  deadline?: number
+): Promise<DevInstance | undefined> {
+  return (await reclaimInstances(deadline, id))[0];
+}
+
+/** Only a finished launcher releases ownership; a rebuilding app retains its descriptor. */
+async function reclaimInstances(
+  deadline?: number,
+  id?: string
+): Promise<DevInstance[]> {
+  budget(deadline, 1500);
+  const candidates = readInstances(id);
+  // Warm one snapshot before parallel checks to avoid spawning a query per instance.
+  if (candidates.length) await processStartedAtMs(process.pid, deadline);
+  const checked = await Promise.all(
+    candidates.map(async (item) => {
+      if (!(await launcherIsCurrent(item, deadline))) {
+        pruneInstance(item);
+        return undefined;
+      }
+      const reachable =
+        item.status !== "ready" ||
+        (await probeEndpoint(item, budget(deadline, 1500)));
+      budget(deadline, 1500);
+      // The launcher may have published a new state while the endpoint was being probed.
+      const latest = readInstances(item.instanceId)[0];
+      if (!latest || latest.startupId !== item.startupId) return undefined;
+      return !reachable && latest.status === "ready"
+        ? { ...latest, status: "starting" as const }
+        : latest;
+    })
+  );
+  return checked.filter((item): item is DevInstance => item !== undefined);
+}
+
+export async function liveInstances(deadline?: number): Promise<DevInstance[]> {
+  return reclaimInstances(deadline);
+}
+export async function getInstance(
+  id?: string,
+  deadline?: number
+): Promise<DevInstance> {
+  const instances = await reclaimInstances(deadline, id);
   const matches = id
     ? instances.filter((item) => item.instanceId === id)
     : instances;
@@ -167,10 +324,72 @@ export function removeInstance(instance: DevInstance): void {
   }
 }
 
+function removeOwnedLock(file: string, launcherPid: number): void {
+  try {
+    const owner = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      pid?: number;
+    };
+    if (owner.pid === launcherPid) fs.rmSync(file, { force: true });
+  } catch {
+    /* Already removed. */
+  }
+}
+
+/** Reclaim the descriptor and coordination locks left by a dead launcher. */
+export function pruneInstance(instance: DevInstance): void {
+  removeInstance(instance);
+  const locks = path.join(CONTROL_ROOT, "locks");
+  removeOwnedLock(
+    path.join(locks, "instance-" + instance.instanceId + ".json"),
+    instance.launcherPid
+  );
+  try {
+    for (const name of fs.readdirSync(locks)) {
+      if (!name.startsWith(instance.startupId)) continue;
+      removeOwnedLock(path.join(locks, name), instance.launcherPid);
+    }
+  } catch {
+    /* No locks directory. */
+  }
+}
+
+/** A recycled PID must not inherit a finished owner's lease. */
+async function leaseOwnerAlive(
+  owner: { pid?: number; startedAtMs?: number; startTicks?: string },
+  file: string,
+  deadline?: number
+): Promise<boolean> {
+  if (!Number.isInteger(owner.pid) || (owner.pid ?? 0) <= 0) return false;
+  if (!processAlive(owner.pid!)) return false;
+  if (owner.startTicks) {
+    const current = linuxProcessStartTicks(owner.pid!);
+    if (current !== undefined) return current === owner.startTicks;
+  }
+  const current = await processStartedAtMs(owner.pid!, deadline);
+  if (current === undefined) return true;
+  if (owner.startedAtMs !== undefined) return current === owner.startedAtMs;
+  // The owner must already have existed when the lease was claimed; a later
+  // start time means the recorded PID was recycled.
+  try {
+    return current <= fs.statSync(file).mtimeMs + 2;
+  } catch {
+    return true;
+  }
+}
+
 /** Serialize stale-lock reclamation too, so two reclaimers cannot remove a new owner's lease. */
-function acquireLease(file: string): () => void {
+async function acquireLease(
+  file: string,
+  deadline?: number
+): Promise<() => void> {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const owner = { pid: process.pid, token: randomUUID() };
+  const owner = {
+    pid: process.pid,
+    token: randomUUID(),
+    startTicks: linuxProcessStartTicks(process.pid),
+    startedAtMs: await processStartedAtMs(process.pid, deadline),
+  };
+  budget(deadline, 10000);
   const release = (target: string) => {
     try {
       const current = JSON.parse(
@@ -201,18 +420,20 @@ function acquireLease(file: string): () => void {
     });
     guarded = true;
     // Re-read under the reclaim guard; a prior reclaimer may have installed a live lease.
-    const existing = JSON.parse(fs.readFileSync(file, "utf8")) as typeof owner;
-    if (
-      !Number.isInteger(existing.pid) ||
-      existing.pid <= 0 ||
-      processAlive(existing.pid)
-    ) {
+    const existing = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      pid?: number;
+      startedAtMs?: number;
+      startTicks?: string;
+      token?: string;
+    };
+    if (await leaseOwnerAlive(existing, file, deadline)) {
       throw new ControlError(
         "WINDOW_BUSY",
         "此窗口正在执行另一批操作。",
         "等待该批操作结束后再次调用。"
       );
     }
+    budget(deadline, 10000);
     fs.unlinkSync(file);
     claim();
     return () => release(file);
@@ -230,7 +451,8 @@ function acquireLease(file: string): () => void {
 
 export async function acquireWindowLock(
   instance: DevInstance,
-  label: string
+  label: string,
+  deadline?: number
 ): Promise<() => void> {
   const labelKey = createHash("sha256")
     .update(label)
@@ -241,14 +463,15 @@ export async function acquireWindowLock(
       CONTROL_ROOT,
       "locks",
       instance.startupId + "-" + labelKey + ".json"
-    )
+    ),
+    deadline
   );
 }
-export function acquireInstanceLock(id: string): () => void {
+export async function acquireInstanceLock(id: string): Promise<() => void> {
   if (!INSTANCE_ID_PATTERN.test(id))
     throw new ControlError("INVALID_INSTANCE", "实例名称无效。");
   try {
-    return acquireLease(
+    return await acquireLease(
       path.join(CONTROL_ROOT, "locks", "instance-" + id + ".json")
     );
   } catch (error) {

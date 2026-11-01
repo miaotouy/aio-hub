@@ -9,7 +9,7 @@ export async function openTauriPerformanceSession(
   instanceName?: string,
   allowHmr = false
 ) {
-  const instance = getInstance(instanceName);
+  const instance = await getInstance(instanceName);
   const errors: string[] = [];
   if (instance.transport !== "embedded-webdriver") {
     const session = await openTauriRendererSession(instanceName, allowHmr);

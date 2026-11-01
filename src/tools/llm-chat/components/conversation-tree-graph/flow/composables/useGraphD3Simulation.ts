@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, reactive, watch, type Ref } from "vue";
+import { ref, reactive, shallowRef, watch, type Ref } from "vue";
 import * as d3Force from "d3-force";
 import { stratify, tree, type HierarchyNode } from "d3-hierarchy";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../../types";
@@ -110,9 +110,11 @@ export function useGraphD3Simulation(
   isActive: Readonly<Ref<boolean>> = ref(true)
 ) {
   // D3 力模拟实例
-  const simulation = ref<d3Force.Simulation<D3Node, D3Link> | null>(null);
-  const d3Nodes = ref<D3Node[]>([]);
-  const d3Links = ref<D3Link[]>([]);
+  const simulation = shallowRef<d3Force.Simulation<D3Node, D3Link> | null>(
+    null
+  );
+  const d3Nodes = shallowRef<D3Node[]>([]);
+  const d3Links = shallowRef<D3Link[]>([]);
 
   // 节点真实尺寸缓存
   const measuredDimensions = reactive(
@@ -128,6 +130,7 @@ export function useGraphD3Simulation(
   let pendingLayout = false;
   let lastVueNodesArray: any[] | null = null;
   let vueNodeById = new Map<string, any>();
+  let d3NodeById = new Map<string, D3Node>();
 
   function getVueNodeById(): Map<string, any> {
     if (lastVueNodesArray !== nodes.value) {
@@ -250,6 +253,7 @@ export function useGraphD3Simulation(
     }
     const sim = simulation.value;
     sim.nodes(d3Nodes.value);
+    d3NodeById = new Map(sim.nodes().map((node) => [node.id, node]));
 
     // --- 4. 配置力 ---
     sim.force(
@@ -426,21 +430,22 @@ export function useGraphD3Simulation(
     if (!simulation.value) return;
 
     let needsRestart = false;
-    simulation.value.nodes().forEach((d3Node) => {
-      const dim = dimensions.get(d3Node.id);
-      if (dim && (d3Node.width !== dim.width || d3Node.height !== dim.height)) {
-        // D3 保存中心坐标，尺寸变化时同步中心，保持画布上的左上角位置。
-        const dx = (dim.width - d3Node.width) / 2;
-        const dy = (dim.height - d3Node.height) / 2;
-        d3Node.x = (d3Node.x ?? 0) + dx;
-        d3Node.y = (d3Node.y ?? 0) + dy;
-        if (d3Node.fx != null) d3Node.fx += dx;
-        if (d3Node.fy != null) d3Node.fy += dy;
-        d3Node.width = dim.width;
-        d3Node.height = dim.height;
-        needsRestart = true;
-      }
-    });
+    for (const [id, dim] of dimensions) {
+      const d3Node = d3NodeById.get(id);
+      if (!d3Node) continue;
+      if (d3Node.width === dim.width && d3Node.height === dim.height) continue;
+
+      // D3 保存中心坐标，尺寸变化时同步中心，保持画布上的左上角位置。
+      const dx = (dim.width - d3Node.width) / 2;
+      const dy = (dim.height - d3Node.height) / 2;
+      d3Node.x = (d3Node.x ?? 0) + dx;
+      d3Node.y = (d3Node.y ?? 0) + dy;
+      if (d3Node.fx != null) d3Node.fx += dx;
+      if (d3Node.fy != null) d3Node.fy += dy;
+      d3Node.width = dim.width;
+      d3Node.height = dim.height;
+      needsRestart = true;
+    }
 
     if (needsRestart) {
       if (layoutMode.value === "static") {

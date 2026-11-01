@@ -9,6 +9,7 @@ vi.mock("../../composables/input/useChatInputManager", () => ({
     const attachments = ref<Asset[]>([]);
     const virtualAttachments = ref<VirtualTextAttachment[]>([]);
     return {
+      scanAndFixPlaceholders: vi.fn(),
       inputText: ref(""),
       attachments,
       virtualAttachments,
@@ -44,7 +45,12 @@ vi.mock("../../composables/chat/useTranslation", () => ({
 vi.mock("../../composables/features/useContextCompressor", () => ({
   useContextCompressor: () => ({}),
 }));
-vi.mock("../llmChatStore", () => ({ useLlmChatStore: () => ({}) }));
+vi.mock("../llmChatStore", () => ({
+  useLlmChatStore: () => ({
+    currentSessionId: "session",
+    isSessionCompressing: () => true,
+  }),
+}));
 vi.mock("@/utils/customMessage", () => ({
   customMessage: { success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
@@ -83,6 +89,7 @@ vi.mock("@/tools/knowledge-base/services/access", () => ({
 }));
 
 import { processInlineData } from "@/composables/useAttachmentProcessor";
+import { customMessage } from "@/utils/customMessage";
 import { useMessageInputStore } from "../messageInputStore";
 
 function pasteEvent(text: string): ClipboardEvent {
@@ -93,11 +100,28 @@ function pasteEvent(text: string): ClipboardEvent {
   return event as ClipboardEvent;
 }
 
-describe("message input paste routing", () => {
+describe("message input", () => {
   beforeEach(() => {
     localStorage.clear();
     setActivePinia(createPinia());
     vi.clearAllMocks();
+  });
+
+  // 压缩期间允许提交消息，等待由聊天请求编排层负责。
+  it("dispatches messages while the current session is compressing", async () => {
+    const store = useMessageInputStore();
+    store.inputText = "message sent during compression";
+    const send = vi.fn();
+    store.registerSendCallback(send);
+    expect(store.isCompressing).toBe(true);
+    await store.handleSend();
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: "message sent during compression",
+        sessionId: "session",
+      })
+    );
+    expect(customMessage.warning).not.toHaveBeenCalled();
   });
 
   it("extracts inline images before long text conversion", async () => {

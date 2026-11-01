@@ -503,6 +503,15 @@ onBeforeUnmount(closePanels);
         <span v-if="props.isCompressing" title="正在压缩上下文…">
           <LoaderCircle :size="12" class="spinner" aria-hidden="true" />
           <span>压缩上下文…</span>
+          <button
+            class="compression-cancel"
+            type="button"
+            title="取消压缩"
+            aria-label="取消压缩"
+            @click="inputStore.handleCancelCompression()"
+          >
+            取消
+          </button>
         </span>
       </div>
       <div class="input-actions">
@@ -546,7 +555,9 @@ onBeforeUnmount(closePanels);
         <button
           @click="send?.()"
           :disabled="
-            disabled || (!props.inputText.trim() && !props.hasAttachments)
+            disabled ||
+            props.isProcessingAttachments ||
+            (!props.inputText.trim() && !props.hasAttachments)
           "
           class="btn-send"
           data-testid="chat-send-message"
@@ -713,6 +724,21 @@ onBeforeUnmount(closePanels);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.compression-cancel {
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color-secondary);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.compression-cancel:hover {
+  background: var(--hover-bg);
+  color: var(--text-color-primary);
 }
 .processing-status .spinner {
   flex: none;

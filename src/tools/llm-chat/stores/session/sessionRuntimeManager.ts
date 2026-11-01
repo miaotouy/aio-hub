@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Ref } from "vue";
+import { reactive, shallowReactive, type Ref } from "vue";
+import type {
+  CompressionResult,
+  ContextCompressionTaskView,
+} from "../../types/contextCompression";
+import { awaitWithSignal } from "../../utils/awaitWithSignal";
 import type { ChatSessionDetail } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
 import { completeAndDisposeStreamingMessageSource } from "../../composables/chat/useStreamingMessageSources";
@@ -56,6 +61,96 @@ interface RuntimeState {
 }
 
 export function createSessionRuntimeManager(state: RuntimeState) {
+  const compressionTasks = shallowReactive(
+    new Map<
+      string,
+      {
+        controller: AbortController;
+        promise: Promise<CompressionResult>;
+        view: ContextCompressionTaskView;
+      }
+    >()
+  );
+
+  function getContextCompressionTask(
+    sessionId: string
+  ): ContextCompressionTaskView | null {
+    const view = compressionTasks.get(sessionId)?.view;
+    return view?.visible ? view : null;
+  }
+
+  function isSessionCompressing(sessionId: string): boolean {
+    const view = compressionTasks.get(sessionId)?.view;
+    return view?.visible === true && view.status === "running";
+  }
+
+  function cancelContextCompression(sessionId: string): void {
+    compressionTasks.get(sessionId)?.controller.abort();
+  }
+
+  function runContextCompression(
+    sessionId: string,
+    operation: (
+      signal: AbortSignal,
+      showProgress: (messageCount: number) => void
+    ) => Promise<CompressionResult>
+  ): Promise<CompressionResult> {
+    const existing = compressionTasks.get(sessionId);
+    if (existing?.view.status === "running") return existing.promise;
+    const controller = new AbortController();
+    const view = reactive<ContextCompressionTaskView>({
+      status: "running",
+      messageCount: 0,
+      visible: false,
+    });
+    const promise = Promise.resolve()
+      .then(() => {
+        controller.signal.throwIfAborted();
+        return operation(controller.signal, (messageCount) => {
+          view.messageCount = messageCount;
+          view.visible = true;
+        });
+      })
+      .catch((error): CompressionResult => {
+        if (!controller.signal.aborted)
+          logger.warn("上下文压缩任务失败", error);
+        return {
+          success: false,
+          failureReason: controller.signal.aborted
+            ? "cancelled"
+            : "request-failed",
+        };
+      })
+      .then((result) => {
+        if (compressionTasks.get(sessionId)?.promise !== promise) return result;
+        if (
+          result.success ||
+          result.failureReason === "not-needed" ||
+          !view.visible
+        ) {
+          compressionTasks.delete(sessionId);
+        } else {
+          view.status =
+            result.failureReason === "cancelled" ? "cancelled" : "failed";
+        }
+        return result;
+      });
+    compressionTasks.set(sessionId, { controller, promise, view });
+    return promise;
+  }
+
+  async function waitForContextCompression(
+    sessionId: string,
+    signal?: AbortSignal
+  ): Promise<boolean> {
+    signal?.throwIfAborted();
+    const task = compressionTasks.get(sessionId);
+    if (!task || task.view.status !== "running") return false;
+    await awaitWithSignal(task.promise, signal);
+    signal?.throwIfAborted();
+    return true;
+  }
+
   function isNodeGenerating(nodeId: string): boolean {
     return state.generatingNodes.value.has(nodeId);
   }
@@ -186,6 +281,8 @@ export function createSessionRuntimeManager(state: RuntimeState) {
   }
 
   function clearSessionRuntime(sessionId: string): void {
+    cancelContextCompression(sessionId);
+    compressionTasks.delete(sessionId);
     const detail = state.sessionDetailMap.value.get(sessionId);
     if (detail?.nodes) {
       Object.keys(detail.nodes).forEach((nodeId) => {
@@ -201,6 +298,11 @@ export function createSessionRuntimeManager(state: RuntimeState) {
   }
 
   return {
+    getContextCompressionTask,
+    isSessionCompressing,
+    cancelContextCompression,
+    runContextCompression,
+    waitForContextCompression,
     isNodeGenerating,
     getSessionGeneratingNodeIds,
     isSessionGenerating,

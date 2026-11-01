@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { awaitWithSignal } from "../../utils/awaitWithSignal";
 import { cloneVirtualAttachments } from "../../utils/virtualAttachments";
 import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 /**
@@ -125,15 +126,6 @@ export function useChatHandler() {
     const nodeManager = useNodeManager();
     const sessionManager = useSessionManager();
 
-    // 尝试执行自动上下文压缩
-    // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
-    // 我们在创建新消息之前执行压缩，以确保新消息基于最新的上下文状态
-    try {
-      await checkAndCompress(sessionIndex, session);
-    } catch (error) {
-      // 压缩失败仅记录日志，不阻断发送流程
-      logger.error("自动上下文压缩执行出错", error);
-    }
     const { currentAgentId } = useLlmChatUiState();
     const effectiveAgentId = options?.agentId || currentAgentId.value;
 
@@ -384,7 +376,7 @@ export function useChatHandler() {
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
     // 重新获取包含新用户消息的完整路径
-    const pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
+    let pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
 
     // 获取路径中的用户节点引用
     const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
@@ -469,61 +461,60 @@ export function useChatHandler() {
       userNodeId: userNode.id,
     });
 
-    // 附件转写等待逻辑（在消息上屏并保存后执行）
-    if (
-      !options?.skipGeneration &&
-      options?.attachments &&
-      options.attachments.length > 0 &&
-      settings.value.transcription.enabled
-    ) {
-      const transcriptionManager = useTranscriptionManager();
-      const transcriptionController = new AbortController();
-
-      // 两种模式都需要中止控制器，因为等待都可能被用户取消
-      abortControllers.set(assistantNode.id, transcriptionController);
-
+    // 预处理等待沿用同一控制器：消息先上屏，压缩和转写完成后才发起模型请求。
+    if (!options?.skipGeneration) {
+      const preparationController = new AbortController();
+      const { signal } = preparationController;
+      abortControllers.set(assistantNode.id, preparationController);
+      assistantNode.status = "waiting";
       try {
-        logger.info(`⏳ 开始等待附件转写...`, {
-          nodeId: assistantNode.id,
-        });
-
-        await Promise.race([
-          transcriptionManager.ensureTranscriptions(
-            options.attachments,
-            agentConfig.modelId,
-            agentConfig.profileId
-            // 当前消息的附件深度为0，不需要强制转写，传 undefined 即可
-          ),
-          new Promise((_, reject) => {
-            transcriptionController.signal.addEventListener("abort", () => {
-              reject(new Error("User aborted"));
-            });
-          }),
-        ]);
-
-        logger.info(`✅ 转写等待结束，继续发送流程`);
-      } catch (error: any) {
-        if (error.message === "User aborted") {
-          logger.info("🛑 用户取消了转写等待，保留用户消息，不发送请求");
-          abortControllers.delete(assistantNode.id);
-          generatingNodes.delete(assistantNode.id);
-          // 用户取消的是「等待转写」，而非「发送消息」
-          // 用户消息应当保留（用户已经明确发送了这条消息）
-          // 只需要清理助手节点，让用户之后可以选择重新生成
-          nodeManager.hardDeleteNode(session, assistantNode.id);
-          // 更新活跃叶节点为用户消息
-          nodeManager.updateActiveLeaf(session, userNode.id);
-          if (sessionIndex) {
-            sessionManager.persistSession(
-              sessionIndex,
-              session,
-              currentSessionId ?? null
+        // 压缩范围截至发送前的父节点，新问题与助手占位继续保留。
+        await awaitWithSignal(
+          checkAndCompress(sessionIndex, session, undefined, parentId),
+          signal
+        );
+        signal.throwIfAborted();
+        if (
+          options?.attachments?.length &&
+          settings.value.transcription.enabled
+        ) {
+          try {
+            await awaitWithSignal(
+              useTranscriptionManager().ensureTranscriptions(
+                options.attachments,
+                agentConfig.modelId,
+                agentConfig.profileId
+              ),
+              signal
             );
+          } catch (error) {
+            signal.throwIfAborted();
+            logger.warn("转写等待失败，将使用原始附件发送", error);
           }
+        }
+        pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
+      } catch (error) {
+        if (signal.aborted) {
+          if (chatStore.sessionDetailMap.get(session.id) !== session) return;
+          generatingNodes.delete(assistantNode.id);
+          // 后续排队消息可能已经挂在助手节点下，保留其子树。
+          if (assistantNode.childrenIds.length === 0) {
+            nodeManager.hardDeleteNode(session, assistantNode.id);
+          } else {
+            assistantNode.status = "error";
+            assistantNode.metadata = {
+              ...assistantNode.metadata,
+              error: "用户手动停止",
+            };
+          }
+          sessionManager.persistSession(
+            sessionIndex,
+            session,
+            currentSessionId ?? null
+          );
           return;
         }
-        // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
-        logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
+        logger.warn("上下文压缩等待失败，使用原始上下文继续", error);
       } finally {
         abortControllers.delete(assistantNode.id);
       }

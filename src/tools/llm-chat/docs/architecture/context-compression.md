@@ -21,7 +21,7 @@
   - **`count`**：仅当当前路径的有效消息条数超过 `countThreshold`（默认 50）时判定为需要压缩。
   - **`both`**：Token 或消息条数任一超阈值即判定为需要压缩（**OR 关系**，见 [`shouldCompress()`](../../composables/features/useContextCompressor.ts:66)）。
   - **公共门槛**：所有模式都还要先满足 `minHistoryCount`（默认 15）这一最小历史条数门槛，否则直接早退（见 [`useContextCompressor.ts:52`](../../composables/features/useContextCompressor.ts:52)）。
-- **自动触发开关 ([`autoTrigger`](../../types/llm.ts:380))**：默认 `true`，决定"满足触发条件后是否自动执行"。设为 `false` 时即便阈值满足也不会自动压缩，仅保留手动入口。`useChatResponseHandler` 在每次助手消息完成后会异步调用 [`checkAndCompress()`](../../composables/features/useContextCompressor.ts:421)，由该函数同时检查 `enabled` 与 `autoTrigger`。
+- **自动触发开关 ([`autoTrigger`](../../types/llm.ts:380))**：默认 `true`，决定"满足触发条件后是否自动执行"。设为 `false` 时即便阈值满足也不会自动压缩，仅保留手动入口。`useSingleNodeExecutor` 在每次助手消息完成后会异步调用 [`checkAndCompress()`](../../composables/features/useContextCompressor.ts:421)，由该函数同时检查 `enabled` 与 `autoTrigger`。
 - **手动触发**: 用户可通过 [`manualCompress()`](../../composables/features/useContextCompressor.ts:450)（工具栏按钮）调用，**忽略 `autoTrigger` 与 `triggerMode` 的阈值判断**，但仍受 `enabled` 与保护区数量限制约束。
 
 ### 2.1.1 配置位置与动态开关
@@ -47,12 +47,22 @@
 - **切换记忆**：两种方式通过 `countsByUnit` 分别保存保护数量、单次压缩数量、最小历史数量和数量阈值。首次选择某种方式时使用默认数量，后续切回恢复该方式的设置；当前方式的数量继续存储在原有平铺字段中。
 - **可逆性**：虽然压缩节点在构建 LLM 上下文时会替代原始消息，但原始消息节点并未被删除，用户可以随时展开查看或回滚。
 
-### 2.4. 失败原因与用户反馈
+### 2.4. 会话任务与取消
+
+- `sessionRuntimeManager` 管理会话级压缩任务、取消控制器和进度投影，手动与自动触发共用一个运行中的任务。
+- 压缩开始即在消息区展示默认折叠的进度卡片；卡片仅属于会话运行态。摘要生成与 Token 统计完成后，压缩器一次性插入完整摘要并调整父子关系，然后保存会话。摘要请求和 Token 统计使用同一摘要模型绑定。
+- 发送期间消息先上屏并持久化，助手展示等待状态。压缩与附件转写共用预处理等待控制器，准备完成后才提交模型请求。自动压缩范围截至发送前的父节点，保留新提交的问题。
+- 「停止生成」取消当前消息的等待并保留用户消息；「取消压缩」中止摘要任务，等待中的消息随后使用原始上下文继续执行。其他会话可独立发送。
+- 重新生成、继续生成和工具循环在编排层等待当前会话的压缩，并在发生等待后刷新路径；单次请求执行器使用调用方传入的路径。
+- 回复完成后触发的自动压缩独立运行，流式回复可正常收尾。失败或取消仅更新当前会话的进度卡片，原始树及消息计数保持原状。删除、清理与文件重载统一通过 `clearSessionRuntime` 取消任务，迟到的响应无法提交旧数据。
+
+### 2.5. 失败原因与用户反馈
 
 `checkAndCompress()` 的返回值通过 `failureReason` 区分「无需压缩」与「压缩请求失败」：
 
 - `not-needed`：未启用、未达阈值、没有可压缩节点等，属于预期情况，自动触发时静默跳过；手动触发时提示"没有可压缩的消息，或历史记录不足"。
-- `request-failed`：调用 LLM 生成摘要失败，错误已由执行器记录并展示，调用方据此使用独立文案。
+- `request-failed`：摘要请求或提交失败，执行器记录错误，手动入口展示重试提示。
+- `cancelled`：用户取消压缩，保留原始上下文。
 
 ## 3. 技术实现
 
@@ -68,7 +78,7 @@
 
 - **消息列表**：[`MessageList.vue`](src/tools/llm-chat/components/message/MessageList.vue) 会计算当前路径上所有被隐藏的节点 ID。
 - **遮罩效果**：[`ChatMessage.vue`](src/tools/llm-chat/components/message/ChatMessage.vue) 接收 `isCompressed` 属性，被压缩的消息会呈现半透明状态（`opacity: 0.5`）。
-- **摘要渲染**：使用专门的 [`CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue) 组件展示摘要内容及压缩统计。
+- **摘要渲染**：使用专门的 [`CompressionMessage.vue`](src/tools/llm-chat/components/message/CompressionMessage.vue) 组件展示摘要内容及压缩统计，默认折叠，按需展开或编辑。
 
 ## 4. 配置管理
 

@@ -48,6 +48,7 @@ import {
   rendererViewportKey,
 } from "@/tools/rich-text-renderer/composables/useRendererViewState";
 
+import ContextCompressionTask from "./ContextCompressionTask.vue";
 import MessageRow from "./MessageRow.vue";
 import { useMessagePresentation } from "../../composables/ui/useMessagePresentation";
 import type { Asset } from "@/types/asset-management";
@@ -75,6 +76,18 @@ const { settings } = useChatSettings();
 
 // 会话作用域：有值时读写显式绑定到该会话，不再依赖 currentSessionId
 const scopedSessionId = computed(() => props.scopeSessionId ?? null);
+const viewSessionId = computed(
+  () =>
+    scopedSessionId.value ??
+    props.sessionDetail?.id ??
+    props.sessionIndex?.id ??
+    store.currentSessionId ??
+    ""
+);
+const compressionTask = computed(() =>
+  store.getContextCompressionTask(viewSessionId.value)
+);
+const compressionTaskContainer = ref<HTMLElement | null>(null);
 
 // 会话切换时如果消息还没加载，挂起滚动到底部的操作
 const pendingInitialScroll = ref(false);
@@ -249,10 +262,12 @@ const setupResizeObserver = () => {
   disconnectResizeObserver();
   if (!listActive.value) return;
   const inner = messagesInnerContainer.value;
-  if (!inner) return;
+  if (!inner && !compressionTaskContainer.value) return;
 
   resizeObserver = new ResizeObserver(onContentResize);
-  resizeObserver.observe(inner);
+  if (inner) resizeObserver.observe(inner);
+  if (compressionTaskContainer.value)
+    resizeObserver.observe(compressionTaskContainer.value);
 };
 
 const disconnectResizeObserver = () => {
@@ -263,7 +278,7 @@ const disconnectResizeObserver = () => {
 };
 
 watch(
-  messagesInnerContainer,
+  [messagesInnerContainer, compressionTaskContainer],
   () => {
     setupResizeObserver();
   },
@@ -809,6 +824,16 @@ defineExpose({
           "
           :character-counts="characterCounts"
           :actions="messageActions(msg)"
+        />
+      </div>
+      <div
+        v-if="compressionTask && !screenshotMode"
+        ref="compressionTaskContainer"
+      >
+        <ContextCompressionTask
+          :task="compressionTask"
+          :readonly="isSessionReadOnly"
+          @cancel="guardedStore.cancelContextCompression(viewSessionId)"
         />
       </div>
     </div>

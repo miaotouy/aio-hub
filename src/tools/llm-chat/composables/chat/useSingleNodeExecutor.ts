@@ -691,7 +691,10 @@ export function useSingleNodeExecutor() {
       try {
         const sessionIndex = chatStore.sessionIndexMap.get(session.id);
         if (sessionIndex) {
-          await checkAndCompress(sessionIndex, session);
+          // 摘要任务独立于本次流式回复收尾；下一次请求在编排层等待。
+          void checkAndCompress(sessionIndex, session).catch((error) => {
+            logger.warn("自动上下文压缩执行失败", error);
+          });
         }
       } catch (error) {
         logger.warn("自动上下文压缩执行失败", error);

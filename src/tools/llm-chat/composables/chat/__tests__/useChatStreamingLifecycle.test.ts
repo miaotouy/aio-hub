@@ -33,6 +33,7 @@ vi.mock("../../../stores/llmChatStore", () => ({
   useLlmChatStore: () => ({
     sessionIndexMap: new Map(),
     generateSessionTopic: vi.fn(),
+    waitForContextCompression: async () => false,
   }),
 }));
 vi.mock("../../../stores/contextPipelineStore", () => ({

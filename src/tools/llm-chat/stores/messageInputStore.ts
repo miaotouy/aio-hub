@@ -184,7 +184,13 @@ export const useMessageInputStore = defineStore(
     const { manualCompress } = useContextCompressor();
 
     const isTranslating = ref(false);
-    const isCompressing = ref(false);
+    const isCompressing = computed(() =>
+      chatStore.isSessionCompressing(chatStore.currentSessionId || "")
+    );
+    const handleCancelCompression = () => {
+      if (chatStore.currentSessionId)
+        chatStore.cancelContextCompression(chatStore.currentSessionId);
+    };
     const isDetached = ref(false);
 
     // === 6b. 跨窗口同步与模型选择 ===
@@ -845,7 +851,6 @@ export const useMessageInputStore = defineStore(
       const fullSession = chatStore.currentFullSession;
       if (!fullSession?.index || !fullSession?.detail) return;
 
-      isCompressing.value = true;
       try {
         const result = await manualCompress(
           fullSession.index,
@@ -858,11 +863,11 @@ export const useMessageInputStore = defineStore(
           triggerCalculation();
         } else if (result.failureReason === "not-needed") {
           customMessage.info("没有可压缩的消息，或历史记录不足");
+        } else if (result.failureReason === "request-failed") {
+          customMessage.error("上下文压缩失败，请重试");
         }
       } catch (error) {
         errorHandler.error(error, "手动压缩失败");
-      } finally {
-        isCompressing.value = false;
       }
     };
 
@@ -965,6 +970,7 @@ export const useMessageInputStore = defineStore(
       handleStopAllTranscriptions,
       handleTranslateInput,
       handleCompressContext,
+      handleCancelCompression,
       handleConvertPaths,
       handleCleanupPlaceholders,
     };

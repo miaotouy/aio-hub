@@ -87,6 +87,8 @@ export interface ProcessableMessage {
   _snapshotFragments?: Array<{
     sourceType: string;
     sourceId?: string;
+    collection?: string;
+    placeholder?: string;
     content: string;
   }>;
   /**

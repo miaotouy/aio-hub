@@ -34,6 +34,7 @@ describe("parameter-config", () => {
       reasoningEffort: "medium",
       includeThoughts: true,
       custom: { enabled: true, params: { key: "value" } },
+      contextCacheOptimization: { enabled: true, timeWindowMinutes: 30 },
       contextManagement: {
         enabled: true,
         maxContextTokens: 4096,
@@ -140,6 +141,10 @@ describe("parameter-config", () => {
       expect(result.custom).toEqual({
         enabled: true,
         params: { key: "value" },
+      });
+      expect(result.contextCacheOptimization).toEqual({
+        enabled: true,
+        timeWindowMinutes: 30,
       });
       expect(result.contextManagement).toEqual({
         enabled: true,

@@ -1,5 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { reactive, ref } from "vue";
+import { reactive, ref, type ComponentPublicInstance } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LlmParameters } from "@/tools/llm-chat/types";
 
@@ -322,4 +322,32 @@ it("hides unsupported sampling while retaining the saved value for a later model
   expect(
     wrapper.get<HTMLInputElement>("[data-parameter=temperature]").element.value
   ).toBe("0.3");
+});
+
+// Protect the shared Agent/session parameter contract, including independent time-window selection.
+describe("cache optimization settings", () => {
+  it("persists independent time windows and the opt-in flag across parameter pages", async () => {
+    const draft = form({ temperature: 0.4 });
+    const wrapper = section(draft, "context");
+    const window = wrapper.getComponent<ComponentPublicInstance>(
+      '[aria-label="预设时间宏窗口"]'
+    );
+    window.vm.$emit("update:modelValue", 30);
+    await flushPromises();
+    expect(draft.parameters.contextCacheOptimization).toEqual({
+      timeWindowMinutes: 30,
+    });
+    const toggle = wrapper.getComponent<ComponentPublicInstance>(
+      '[aria-label="自动上下文动静分离"]'
+    );
+    toggle.vm.$emit("update:modelValue", true);
+    await flushPromises();
+    await wrapper.setProps({ page: "model" });
+    await wrapper.setProps({ page: "context" });
+    expect(draft.parameters.contextCacheOptimization).toEqual({
+      enabled: true,
+      timeWindowMinutes: 30,
+    });
+    expect(draft.parameters.temperature).toBe(0.4);
+  });
 });

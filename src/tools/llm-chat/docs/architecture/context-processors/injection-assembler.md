@@ -52,6 +52,8 @@
    - 锚点注入 `anchorInjections`
 5. 通过共享预设核心 `assembleHistoryInjections()`，在同一份原始历史上计算深度与动态消息锚点边界，统一排序后插入。
 6. 再围绕 `chat_history` 和其他占位锚点组装骨架、锚点前后注入和历史。
+7. 启用 `parameters.contextCacheOptimization.enabled` 时，自动工具说明保持 System，自动运行环境使用本轮输入附近的 User 参考数据块；Recall 处理器复用相同安全落点。目标缺失或工具结果待完成时沿用原保底路径。
+8. `timeWindowMinutes` 独立控制预设时间宏窗口；先换算虚拟时间，再冻结展示时间，原始 `timestamp` 保留真实值。
 
 ## 深度注入语法
 
@@ -71,16 +73,15 @@
 - `sourceIndex` 基于完整预设列表计算，不能只用活动列表，否则预览和定位会错位。
 - 宏处理只针对活动预设消息执行，但分类要使用完整预设列表，才能保留禁用消息对锚点位置的影响。
 
-
 ## 动态消息锚点与边界
 
 桌面与移动共用 `packages/agent-preset-core/src/injection-anchors.ts`：
 
-| 目标 | 匹配 |
-| --- | --- |
-| `last_user` | 最后一条原始 User 历史消息 |
+| 目标             | 匹配                            |
+| ---------------- | ------------------------------- |
+| `last_user`      | 最后一条原始 User 历史消息      |
 | `last_assistant` | 最后一条原始 Assistant 历史消息 |
-| `last_message` | 最后一条有效历史消息，包含 Tool |
+| `last_message`   | 最后一条有效历史消息，包含 Tool |
 
 - 仅 `sourceType: session_history` 参与目标查找；待发送预览输入以该来源加入，因此与发送后的节点使用同一规则。
 - `session-loader` 保留 `_historyRole`。转为 User 展示的工具结果仍按 Tool 定位，其他注入同角色消息保持独立。

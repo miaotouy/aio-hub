@@ -31,6 +31,14 @@ import type { InjectionMessage } from "../../types/context";
 import { type AnchorDefinition } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import { resolvePresetAttachments } from "../context-utils/preset-attachment-resolver";
 
+import { freezeDatetimeDisplay } from "../../macro-engine/macros/datetime";
+import {
+  getRuntimePlacement,
+  ensureRuntimeInstructions,
+  insertRuntimeContext,
+  wrapRuntimeContext,
+} from "../context-utils/runtime-context";
+
 const logger = createModuleLogger("primary:injection-assembler");
 
 /**
@@ -212,6 +220,8 @@ export const injectionAssembler: ContextProcessor = {
       agentConfig.presetGroups || []
     );
     const modelId = agentConfig.modelId;
+    const runtimePlacement = getRuntimePlacement(context);
+    let autoToolContext = false;
 
     // 准备模型和渠道信息
     const modelInfo = context.sharedData.get("model") as
@@ -259,9 +269,11 @@ export const injectionAssembler: ContextProcessor = {
       if (!hasToolMacros) {
         // 创建保底宏消息，包含定义、用法说明和运行时上下文
         const autoMacroMsg: any = {
-          id: "auto-tool-macro",
+          id: runtimePlacement ? "auto-tool-static" : "auto-tool-macro",
           role: "system",
-          content: "{{tools}}\n{{tool_usage}}\n{{tool_context}}",
+          content: runtimePlacement
+            ? "{{tools}}\n{{tool_usage}}"
+            : "{{tools}}\n{{tool_usage}}\n{{tool_context}}",
           isEnabled: true,
           injectionStrategy: {
             type: "anchor",
@@ -272,6 +284,7 @@ export const injectionAssembler: ContextProcessor = {
         };
 
         // 必须加入到 presetMessages 中，因为后续的 classifyPresetMessages 是基于它的
+        autoToolContext = !!runtimePlacement;
         presetMessages.push(autoMacroMsg);
         // 同时也加入到 activePresetMessages 中，以便进行宏处理
         activePresetMessages.push(autoMacroMsg);
@@ -283,6 +296,7 @@ export const injectionAssembler: ContextProcessor = {
     }
 
     if (activePresetMessages.length === 0) {
+      ensureRuntimeInstructions(context);
       context.logs.push({
         processorId: "primary:injection-assembler",
         level: "info",
@@ -306,6 +320,9 @@ export const injectionAssembler: ContextProcessor = {
       profileName: profileInfo?.name, // 使用配置名称
       providerType: profileInfo?.type || modelInfo?.provider,
     });
+    const timeWindow =
+      agentConfig.parameters?.contextCacheOptimization?.timeWindowMinutes;
+    freezeDatetimeDisplay(macroContext, timeWindow);
     const processedContents = new Map<string, string>();
     const macroExecutions = new Map<
       string,
@@ -330,6 +347,35 @@ export const injectionAssembler: ContextProcessor = {
           }
         );
         processedContents.set(msg.id, processed);
+      }
+    }
+
+    let runtimeToolMessage: ProcessableMessage | undefined;
+    if (autoToolContext) {
+      const toolContext = await processMacros(
+        macroProcessor,
+        "{{tool_context}}",
+        macroContext,
+        {
+          silent: true,
+          onExecution: context.traceProcessor
+            ? (execution) => {
+                const entries = macroExecutions.get("auto-tool-context") ?? [];
+                entries.push(execution);
+                macroExecutions.set("auto-tool-context", entries);
+              }
+            : undefined,
+        }
+      );
+      if (toolContext.trim()) {
+        runtimeToolMessage = {
+          role: "user",
+          content: wrapRuntimeContext(toolContext),
+          sourceType: "anchor_injection",
+          sourceId: "auto-tool-context",
+          _name: "工具运行环境",
+          _originalContent: "{{tool_context}}",
+        };
       }
     }
 
@@ -581,6 +627,8 @@ export const injectionAssembler: ContextProcessor = {
     }
 
     context.messages = finalMessages;
+    ensureRuntimeInstructions(context);
+    if (runtimeToolMessage) insertRuntimeContext(context, runtimeToolMessage);
     const message = `注入组装完成，最终消息数: ${finalMessages.length}。`;
     logger.info(message, {
       skeleton: skeleton.length,

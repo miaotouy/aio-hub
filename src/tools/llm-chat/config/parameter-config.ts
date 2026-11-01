@@ -406,6 +406,7 @@ export function filterParametersForModel(
       key === "custom" ||
       key === "enabledParameters" ||
       key === "contextManagement" ||
+      key === "contextCacheOptimization" ||
       key === "contextPostProcessing"
     ) {
       filteredParams[key] = value;

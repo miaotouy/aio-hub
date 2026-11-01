@@ -33,6 +33,7 @@ export const CONTEXT_PARAMETER_GROUPS = [
   "contextManagement",
   "contextCompression",
   "contextPostProcessing",
+  "contextCacheOptimization",
   "imageCompression",
 ] as const;
 export type ModelParameterGroup =
@@ -58,6 +59,7 @@ export const parameterGroupLabels: Record<ModelParameterGroup, string> = {
   contextManagement: "上下文管理",
   contextCompression: "上下文压缩",
   contextPostProcessing: "上下文后处理",
+  contextCacheOptimization: "上下文缓存优化",
   imageCompression: "图片压缩",
 };
 
@@ -146,9 +148,11 @@ export const contextParameterSearchItems = [
         ? "contextCompression summaryModel summaryPrompt continueSummaryPrompt triggerThreshold countUnit 计数方式 消息条数 用户回合 保留消息 摘要模型 提示词 压缩阈值"
         : group === "contextPostProcessing"
           ? "contextPostProcessing rules 合并角色 system user 角色交替"
-          : group === "imageCompression"
-            ? "imageCompression maxWidth maxHeight format quality 图片 尺寸 格式 质量"
-            : "contextManagement 历史 截断 限制",
+          : group === "contextCacheOptimization"
+            ? "contextCacheOptimization enabled timeWindowMinutes 缓存 自动注入 Recall 工具环境 时间窗口"
+            : group === "imageCompression"
+              ? "imageCompression maxWidth maxHeight format quality 图片 尺寸 格式 质量"
+              : "contextManagement 历史 截断 限制",
   })),
   {
     id: "parameters.contextManagement.maxContextTokens",

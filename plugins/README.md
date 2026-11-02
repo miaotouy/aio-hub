@@ -34,6 +34,31 @@ plugins/
 2. 添加 `manifest.json` 和 `index.ts`
 3. 插件会自动加载并支持热重载
 
+## 依赖安装
+
+主仓库的 Bun workspace 包含 `packages/*` 和 `mobile`；`plugins/` 下的插件按独立项目管理依赖。
+
+- 在主仓库根目录运行 `bun install`，安装桌面端、移动端与共享包依赖。
+- 开发某个插件时，进入该插件目录运行 `bun install`，由插件自己的 `package.json`、`bun.lock` 和 `node_modules` 管理依赖。
+- 插件构建、测试所需的依赖应完整声明在插件的 `package.json` 中，插件锁文件随插件仓库提交。
+
+```powershell
+# 主仓库依赖
+bun install
+
+# 指定插件的依赖
+cd plugins/my-plugin
+bun install
+```
+
+各工作区可以按需克隆不同插件，主仓库锁文件只记录宿主及共享包的依赖。
+
+### 共用宿主开发服务
+
+插件源码仍由主仓库的 Vite 开发服务加载：开发加载器扫描 `plugins/*/manifest.json`、`plugins/*/index.ts` 和 `plugins/*/*.vue`，Vue 组件及其相对导入继续参与宿主 HMR。日常联调只需启动宿主 `bun run dev`，插件无需单独启动 Vite。
+
+独立依赖安装只改变包管理边界。宿主 Vite 通过 `resolve.dedupe` 让插件与宿主共用 Vue 运行时；插件发布时再运行自身的构建脚本。
+
 ## AGENTS.md 模板
 
 新建独立插件仓库时，建议将 [`AGENTS.template.md`](./AGENTS.template.md) 复制为插件仓库根目录的 `AGENTS.md`，再按插件类型（JavaScript / Native / Sidecar）补充本插件的构建、测试、发布和高风险约束。

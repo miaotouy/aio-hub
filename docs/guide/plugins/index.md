@@ -10,6 +10,18 @@ AIO Hub 的插件系统基于现有的服务架构，支持三种类型的插件
 - **原生插件 (Native Plugin)**: 高性能的后端插件，通过动态链接库 (DLL/SO/Dylib) 加载到主进程，实现与应用生命周期绑定的长期运行服务。
 - **Sidecar 插件**: 独立的后端进程插件，语言无关，适用于计算密集型、需要隔离环境或使用 AIO Hub 未内置语言的场景。
 
+## 插件依赖管理
+
+插件拥有独立的 Git 仓库和 Bun 依赖边界。主仓库 workspace 管理 `packages/*` 与 `mobile`，放在 `plugins/` 下的插件各自维护 `package.json`、`bun.lock` 和 `node_modules`。
+
+在主仓库根目录运行 `bun install` 安装宿主依赖；开发插件时，进入对应插件目录再运行 `bun install`，并在插件仓库提交锁文件。构建和测试需要的依赖应完整声明在插件的 `package.json` 中，方便单独克隆和开发。
+
+### 共用宿主开发服务
+
+插件源码仍由主仓库的 Vite 开发服务加载：开发加载器扫描 `plugins/*/manifest.json`、`plugins/*/index.ts` 和 `plugins/*/*.vue`，Vue 组件及其相对导入继续参与宿主 HMR。日常联调只需启动宿主 `bun run dev`，插件无需单独启动 Vite。
+
+独立依赖安装只改变包管理边界。宿主 Vite 通过 `resolve.dedupe` 让插件与宿主共用 Vue 运行时；插件发布时再运行自身的构建脚本。
+
 ## 文档导航
 
 | 文档                                             | 内容                                                              |

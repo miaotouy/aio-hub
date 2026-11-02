@@ -24,6 +24,8 @@
 - 包管理器优先使用 Bun；不要擅自切换到 npm、yarn 或 pnpm。
 - 运行检查、测试、构建前，先读取当前仓库的 `package.json`、`Cargo.toml` 或相关构建配置。
 - TypeScript / JavaScript 脚本默认用 Bun 运行。
+- 在本插件根目录运行 `bun install`，独立维护 `package.json`、`bun.lock` 和 `node_modules`；锁文件随本插件仓库提交。
+- 插件构建、测试依赖须在本插件中完整声明；主仓库 workspace 仅管理 `packages/*` 和 `mobile`。
 - 不要临时新增全局依赖；需要依赖时写入当前插件仓库的配置文件。
 
 ## 4. Manifest 规范

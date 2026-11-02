@@ -74,6 +74,8 @@ export interface MacroDefinition {
    * 标记为 true 的宏可以在没有完整 MacroContext 的情况下执行
    */
   contextFree?: boolean;
+  /** 依赖本轮时间、会话或可变状态，供上下文诊断使用。 */
+  dynamic?: boolean;
   /** 执行函数 */
   execute: (context: MacroContext, args?: string[]) => string | Promise<string>;
 }

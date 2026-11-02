@@ -667,6 +667,20 @@
                 >
                   {{ getSourceLabel(msg) }}
                 </el-tag>
+                <el-tooltip
+                  v-if="msg.dynamicMacros.length"
+                  :content="
+                    msg.dynamicMacros.map((name) => `{{${name}}}`).join('、')
+                  "
+                  placement="top"
+                >
+                  <el-tag size="small" type="warning" effect="plain">
+                    动态宏 · {{ msg.dynamicMacros.slice(0, 2).join("、") }}
+                    <span v-if="msg.dynamicMacros.length > 2">
+                      +{{ msg.dynamicMacros.length - 2 }}
+                    </span>
+                  </el-tag>
+                </el-tooltip>
               </div>
               <div class="header-tags">
                 <el-tag
@@ -756,6 +770,7 @@
 </template>
 
 <script setup lang="ts">
+import { getContextDynamicMacros } from "../../utils/contextDynamicMacros";
 import {
   describeContextMessageSource,
   type ContextMessageSource,
@@ -976,6 +991,7 @@ interface UnifiedMessage {
   tokenCount?: number;
   source: ContextMessageSource["source"];
   sourceLabel: string;
+  dynamicMacros: string[];
   // 用户信息（user 角色）
   userName?: string;
   userIcon?: string;
@@ -1029,6 +1045,7 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
       charCount: 0, // 稍后计算
       nonTextCount: 0,
       ...describeContextMessageSource(finalMsg),
+      dynamicMacros: getContextDynamicMacros(finalMsg),
       // 真实反映管道处理后的附件状态
       attachments: finalMsg._attachments as any,
     };

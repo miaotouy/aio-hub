@@ -71,6 +71,7 @@ export function registerToolMacros(registry: MacroRegistry): void {
     },
     {
       name: "tool_context",
+      dynamic: true,
       type: MacroType.VALUE,
       phase: MacroPhase.SUBSTITUTE,
       description:

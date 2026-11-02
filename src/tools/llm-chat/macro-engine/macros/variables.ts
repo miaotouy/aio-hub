@@ -230,5 +230,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
     },
   ];
 
-  registry.registerMany(variableMacros);
+  registry.registerMany(
+    variableMacros.map((macro) => ({ ...macro, dynamic: true }))
+  );
 }

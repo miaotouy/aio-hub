@@ -278,6 +278,8 @@ export interface ContextPreviewData {
       | "merged";
     /** 用于存储被合并的原始消息 */
     _mergedSources?: ProcessableMessage[];
+    /** 宏展开前的模板，用于消息级动态宏标记。 */
+    _originalContent?: string;
     /** 运行时注入来源与展示名称。 */
     _snapshotIdentity?: ProcessableMessage["_snapshotIdentity"];
     _name?: string;

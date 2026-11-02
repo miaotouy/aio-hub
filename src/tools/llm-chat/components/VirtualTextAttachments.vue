@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeUnmount } from "vue";
-import { ElButton, ElInput, ElMessageBox } from "element-plus";
+import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
+import {
+  ElButton,
+  ElInput,
+  ElMessageBox,
+  ElRadioGroup,
+  ElRadioButton,
+} from "element-plus";
 import {
   FileText,
   X,
@@ -14,6 +20,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
+import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import type { VirtualTextAttachment } from "../types/virtual-attachment";
@@ -50,6 +57,8 @@ const emit = defineEmits<{
 const errorHandler = createModuleErrorHandler("llm-chat/text-attachments");
 const visible = ref(false);
 const editing = ref(false);
+const viewMode = ref<"source" | "preview">("source");
+const editorRef = ref<InstanceType<typeof RichCodeEditor> | null>(null);
 const saving = ref(false);
 const original = ref<VirtualTextAttachment | null>(null);
 const working = ref<VirtualTextAttachment>(createVirtualTextAttachment(""));
@@ -75,6 +84,27 @@ const summaries = computed(() =>
   }))
 );
 
+// 等待弹窗和编辑器挂载完成，再将输入焦点交给正文。
+watch([visible, viewMode], async ([isVisible, mode]) => {
+  if (!isVisible || mode !== "source") return;
+  await nextTick();
+  if (visible.value && viewMode.value === "source") {
+    editorRef.value?.focusEditor();
+  }
+});
+
+function focusSourceBackground(event: MouseEvent) {
+  if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
+  // 保留正文选区、行号折叠、搜索栏及补全菜单自身的交互。
+  if (
+    event.target.matches(
+      ".rich-code-editor-wrapper, .editor-container, .cm-editor, .cm-scroller"
+    )
+  ) {
+    editorRef.value?.focusEditor();
+  }
+}
+
 function open(attachment?: VirtualTextAttachment) {
   original.value = attachment ? { ...attachment } : null;
   working.value = attachment
@@ -83,6 +113,7 @@ function open(attachment?: VirtualTextAttachment) {
   baseline.value = JSON.stringify(working.value);
   error.value = "";
   editing.value = props.editable;
+  viewMode.value = props.editable ? "source" : "preview";
   visible.value = true;
   emit("editing-change", true);
 }
@@ -235,7 +266,17 @@ defineExpose({ openNew: () => open() });
         :readonly="!editing || !editable || busy || saving"
       />
       <div class="text-editor-actions">
-        <span class="text-muted">{{ count.toLocaleString() }} 字符</span>
+        <div class="text-editor-view-controls">
+          <ElRadioGroup
+            v-model="viewMode"
+            size="small"
+            aria-label="文本附件显示模式"
+          >
+            <ElRadioButton value="source">源码</ElRadioButton>
+            <ElRadioButton value="preview">预览</ElRadioButton>
+          </ElRadioGroup>
+          <span class="text-muted">{{ count.toLocaleString() }} 字符</span>
+        </div>
         <div class="text-editor-tools">
           <ElButton size="small" :icon="Copy" @click="copyText"
             >复制全文</ElButton
@@ -259,19 +300,38 @@ defineExpose({ openNew: () => open() });
             size="small"
             :icon="Pencil"
             :disabled="busy"
-            @click="editing = true"
+            @click="
+              editing = true;
+              viewMode = 'source';
+            "
             >编辑</ElButton
           >
         </div>
       </div>
       <RichCodeEditor
+        ref="editorRef"
+        v-show="viewMode === 'source'"
         v-if="visible"
         v-model="working.text"
         language="plaintext"
         editor-type="codemirror"
         :read-only="!editing || !editable || busy || saving"
         class="text-source-editor"
+        @mousedown="focusSourceBackground"
       />
+      <div
+        v-if="visible && viewMode === 'preview'"
+        class="text-attachment-rendered-preview"
+        role="region"
+        aria-label="文本附件预览"
+        tabindex="0"
+      >
+        <RichTextRenderer
+          :content="working.text"
+          :enable-enter-animation="false"
+          :llm-think-rules="[]"
+        />
+      </div>
       <p
         v-if="editing && !draft && hasReplies"
         class="text-muted text-edit-hint"
@@ -464,6 +524,12 @@ defineExpose({ openNew: () => open() });
   justify-content: space-between;
   flex-wrap: wrap;
 }
+.text-editor-view-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 .text-editor-tools {
   flex-wrap: wrap;
   gap: 6px;
@@ -477,6 +543,20 @@ defineExpose({ openNew: () => open() });
   overflow: hidden;
   border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
+}
+.text-source-editor :deep(.cm-content) {
+  min-height: 100%;
+}
+.text-attachment-rendered-preview {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 .text-edit-hint,
 .text-edit-error {

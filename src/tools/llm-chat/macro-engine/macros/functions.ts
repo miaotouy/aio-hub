@@ -42,6 +42,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
     // 随机选择
     {
       name: "random",
+      dynamic: true,
       type: MacroType.FUNCTION,
       phase: MacroPhase.POST_PROCESS,
       description: "从提供的选项中随机选择一个",
@@ -62,6 +63,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
     // 稳定选择（基于会话内容的哈希）
     {
       name: "pick",
+      dynamic: true,
       type: MacroType.FUNCTION,
       phase: MacroPhase.POST_PROCESS,
       description:
@@ -86,6 +88,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
     // 掷骰子
     {
       name: "roll",
+      dynamic: true,
       type: MacroType.FUNCTION,
       phase: MacroPhase.PRE_PROCESS,
       description: "掷骰子（格式：NdM，如 1d20 表示掷1个20面骰子）",
@@ -173,6 +176,7 @@ export function registerFunctionMacros(registry: MacroRegistry): void {
     // 随机数
     {
       name: "randomInt",
+      dynamic: true,
       type: MacroType.FUNCTION,
       phase: MacroPhase.POST_PROCESS,
       description: "生成指定范围内的随机整数",

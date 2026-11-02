@@ -98,6 +98,16 @@ function createSeededChunks(input: string, seed: number): string[] {
 
 const streamMarkdownFixtures = [
   {
+    label: "HTML prices retain emphasis across dollar and tag chunk boundaries",
+    chunks: [
+      "<table><tbody><tr><td>缓存最低 <strong>$",
+      "0.0039/M</stro",
+      "ng>，未命中输入最低 <strong>",
+      "$0.038/M</strong></td><td>$x < y",
+      "$</td></tr></tbody></table>",
+    ],
+  },
+  {
     label:
       "opaque VCP batch with nested protocol and an unfinished HTML/fence payload",
     chunks: [

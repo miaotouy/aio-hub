@@ -2,13 +2,21 @@ import { mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import ImageViewer from "./ImageViewer.vue";
+import {
+  acquireZIndex,
+  releaseZIndex,
+  resetDialogZIndexCounter,
+} from "@/composables/useDialogZIndex";
 
 vi.mock("viewerjs", () => ({
   default: class {
     viewer = document.createElement("div");
     constructor(
       _element: HTMLElement,
-      private options: { show?: (event: CustomEvent) => void }
+      private options: {
+        show?: (event: CustomEvent) => void;
+        hidden?: (event: CustomEvent) => void;
+      }
     ) {
       this.viewer.tabIndex = -1;
       this.viewer.className = "viewer-container";
@@ -16,8 +24,13 @@ vi.mock("viewerjs", () => ({
       document.body.append(this.viewer);
     }
     view() {
-      this.options.show?.(new CustomEvent("show", { cancelable: true }));
-      this.viewer.hidden = false;
+      const event = new CustomEvent("show", { cancelable: true });
+      this.options.show?.(event);
+      if (!event.defaultPrevented) this.viewer.hidden = false;
+    }
+    hide() {
+      this.viewer.hidden = true;
+      this.options.hidden?.(new CustomEvent("hidden"));
     }
     destroy() {
       this.viewer.remove();
@@ -30,6 +43,7 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = undefined;
   document.body.replaceChildren();
+  resetDialogZIndexCounter();
 });
 
 describe("ImageViewer keyboard focus", () => {
@@ -63,4 +77,23 @@ describe("ImageViewer keyboard focus", () => {
     await nextTick();
     expect(document.activeElement).toBe(trigger);
   });
+});
+
+// 图片预览在高层级弹窗内打开、隐藏后重新打开时仍应覆盖来源弹窗。
+it("raises the image viewer on every show even when focus is disabled", async () => {
+  const parentZ = acquireZIndex(4300);
+  wrapper = mount(ImageViewer, {
+    attachTo: document.body,
+    props: { images: ["image.png"], options: { focus: false } },
+  });
+  await nextTick();
+  const viewer = document.querySelector<HTMLElement>(".viewer-container")!;
+  expect(Number(viewer.style.zIndex)).toBeGreaterThan(parentZ);
+  (wrapper.vm as unknown as { hide(): void }).hide();
+  const nextDialogZ = acquireZIndex();
+  (wrapper.vm as unknown as { show(): void }).show();
+  await nextTick();
+  expect(Number(viewer.style.zIndex)).toBeGreaterThan(nextDialogZ);
+  releaseZIndex(nextDialogZ);
+  releaseZIndex(parentZ);
 });

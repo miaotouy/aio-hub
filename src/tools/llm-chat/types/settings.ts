@@ -287,7 +287,7 @@ export interface ChatSettings {
   };
   /** 话题命名设置 */
   topicNaming: {
-    /** 是否启用话题命名 */
+    /** 是否自动生成话题标题；手动生成始终可用 */
     enabled: boolean;
     /** 使用的模型标识符（格式: profileId:modelId） */
     modelIdentifier: string;

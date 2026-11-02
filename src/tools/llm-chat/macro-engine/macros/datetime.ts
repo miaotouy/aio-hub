@@ -1169,5 +1169,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
     },
   ];
 
-  registry.registerMany(dateTimeMacros);
+  registry.registerMany(
+    dateTimeMacros.map((macro) => ({ ...macro, dynamic: true }))
+  );
 }

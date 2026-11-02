@@ -155,3 +155,43 @@ describe("split VCP tool message projection", () => {
     ).toMatchObject({ results: [], closed: false });
   });
 });
+
+// The final server summary covers every invocation, including hidden calls.
+describe("VCP invocation accounting", () => {
+  it("refines a uniquely matched result status with the final upstream business outcome", () => {
+    const display = parseVcpToolMessageDisplay(
+      result("Search", "SUCCESS", "错误：搜索接口不可用") +
+        "\n" +
+        summary("Search 调用失败；JEV 调用成功。")
+    );
+    expect(display.results[0]).toMatchObject({
+      status: "SUCCESS",
+      statusKind: "error",
+      statusLabel: "失败",
+    });
+    expect(display.summaryItems.map((item) => item.toolName)).toEqual(["JEV"]);
+  });
+  it("counts repeated and hidden calls once and uses summary status over result-envelope status", () => {
+    const body =
+      result("Search", "SUCCESS", "错误：搜索接口不可用") +
+      "\n" +
+      summary("Search 调用失败；Search 调用成功；JEV 调用成功。");
+    const display = parseVcpToolMessageDisplay(body);
+    expect(
+      display.calls.map(({ toolName, status }) => ({ toolName, status }))
+    ).toEqual([
+      { toolName: "Search", status: "error" },
+      { toolName: "Search", status: "success" },
+      { toolName: "JEV", status: "success" },
+    ]);
+  });
+  it("keeps quoted summaries literal and falls back to explicit result status for legacy history", () => {
+    const display = parseVcpToolMessageDisplay(
+      result("Read", "ERROR", summary("Fake 调用成功。"))
+    );
+    expect(
+      display.calls.map(({ toolName, status }) => ({ toolName, status }))
+    ).toEqual([{ toolName: "Read", status: "error" }]);
+    expect(display.results[0].resultContent).toBe(summary("Fake 调用成功。"));
+  });
+});

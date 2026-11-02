@@ -92,12 +92,6 @@ export function useTopicNamer() {
 
       const namingConfig = settings.value.topicNaming;
 
-      // 检查是否启用
-      if (!namingConfig.enabled) {
-        logger.warn("话题命名功能未启用", { sessionId: session.id });
-        return null;
-      }
-
       // 确定使用的模型标识符
       const modelIdentifier =
         namingConfig.modelIdentifier ||

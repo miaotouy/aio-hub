@@ -115,6 +115,12 @@ describe("TopMessageHost", () => {
       dialog.style.zIndex = "6200";
       await vi.advanceTimersByTimeAsync(40);
       expect(zIndex()).toBeGreaterThan(6200);
+      parent.hidden = true;
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBe(initial);
+      parent.hidden = false;
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBeGreaterThan(6200);
       dialog.style.display = "none";
       await vi.advanceTimersByTimeAsync(40);
       expect(zIndex()).toBe(initial);

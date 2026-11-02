@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { nextTick, ref, watch } from "vue";
 import type {
   GuidedFlowRuntime,
@@ -37,6 +38,7 @@ const emit = defineEmits<{
   updateContext: [updates: Record<string, unknown>];
 }>();
 
+const { zIndex } = useOverlayZIndex(() => !!props.runtime);
 const surfaceRef = ref<HTMLElement | null>(null);
 
 watch(
@@ -56,6 +58,7 @@ watch(
       v-if="runtime"
       ref="surfaceRef"
       class="guided-flow-surface"
+      :style="{ zIndex }"
       data-testid="guided-flow-surface"
       role="dialog"
       aria-modal="true"
@@ -83,7 +86,6 @@ watch(
 <style scoped>
 .guided-flow-surface {
   position: fixed;
-  z-index: calc(var(--z-index-title-bar) - 1);
   inset: var(--titlebar-height, 0px) 0 0;
   box-sizing: border-box;
   display: grid;

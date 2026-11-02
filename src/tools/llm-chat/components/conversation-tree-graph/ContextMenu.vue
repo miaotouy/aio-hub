@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { ref, computed, onMounted, onUnmounted } from "vue";
 
 /**
@@ -42,6 +43,7 @@ const emit = defineEmits<{
   "update:visible": [value: boolean];
 }>();
 
+const { zIndex } = useOverlayZIndex(() => props.visible);
 const menuRef = ref<HTMLElement | null>(null);
 
 // 调整菜单位置，确保不超出屏幕
@@ -66,6 +68,7 @@ const menuStyle = computed(() => {
   }
 
   return {
+    zIndex: zIndex.value,
     left: `${left}px`,
     top: `${top}px`,
   };
@@ -100,6 +103,7 @@ onUnmounted(() => {
       v-if="visible"
       ref="menuRef"
       class="context-menu"
+      data-overlay-layer
       :style="menuStyle"
       @contextmenu.prevent
     >
@@ -123,7 +127,6 @@ onUnmounted(() => {
 <style scoped>
 .context-menu {
   position: fixed;
-  z-index: 9999;
   min-width: 160px;
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);

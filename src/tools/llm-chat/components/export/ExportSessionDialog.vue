@@ -56,6 +56,7 @@
 
         <ExportOptionsPanel
           v-model:format="exportFormat"
+          v-model:roles="exportRoles"
           v-model:include-user-profile="includeUserProfile"
           v-model:include-agent-info="includeAgentInfo"
           v-model:include-model-info="includeModelInfo"
@@ -84,12 +85,19 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import {
+  EXPORT_MESSAGE_ROLES,
+  filterSessionExportRoles,
+} from "../../utils/exportRoles";
 import { ElButton } from "element-plus";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ExportOptionsPanel from "./ExportOptionsPanel.vue";
 import ExportPreviewSection from "./ExportPreviewSection.vue";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types";
-import { useExportManager } from "../../composables/features/useExportManager";
+import {
+  useExportManager,
+  type ExportOptions,
+} from "../../composables/features/useExportManager";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
 import { sanitizeFilename } from "@/utils/fileUtils";
@@ -121,6 +129,8 @@ const localVisible = computed({
 
 // 导出格式
 const exportFormat = ref<"markdown" | "json" | "backup" | "raw">("markdown");
+
+const exportRoles = ref([...EXPORT_MESSAGE_ROLES]);
 
 // 细粒度的导出选项
 const includeUserProfile = ref(true);
@@ -174,6 +184,7 @@ watch(
     () => props.sessionIndex,
     () => props.sessionDetail,
     exportFormat,
+    exportRoles,
     includeUserProfile,
     includeAgentInfo,
     includeModelInfo,
@@ -192,7 +203,8 @@ watch(
       return;
     }
 
-    const options: any = {
+    const options: ExportOptions = {
+      roles: exportRoles.value,
       includeUserProfile: includeUserProfile.value,
       includeAgentInfo: includeAgentInfo.value,
       includeModelInfo: includeModelInfo.value,
@@ -200,6 +212,11 @@ watch(
       includeAttachments: includeAttachments.value,
       includeErrors: includeErrors.value,
     };
+
+    const exportDetail = filterSessionExportRoles(
+      props.sessionDetail,
+      exportRoles.value
+    );
 
     try {
       if (exportFormat.value === "backup") {
@@ -211,7 +228,7 @@ watch(
         previewContent.value = JSON.stringify(
           {
             index: props.sessionIndex,
-            detail: props.sessionDetail,
+            detail: exportDetail,
           },
           null,
           2
@@ -226,9 +243,17 @@ watch(
             updatedAt: props.sessionIndex.updatedAt,
           },
           exportTime: new Date().toISOString(),
-          totalNodes: totalMessageCount.value,
-          branchCount: branchCount.value,
-          nodes: props.sessionDetail.nodes || {},
+          totalNodes: getEffectiveMessageCount(
+            exportDetail.nodes,
+            props.sessionDetail.rootNodeId
+          ),
+          branchCount: Object.values(exportDetail.nodes).reduce(
+            (count, node) =>
+              count +
+              (node.childrenIds.length > 1 ? node.childrenIds.length : 0),
+            0
+          ),
+          nodes: exportDetail.nodes,
         };
         previewContent.value = JSON.stringify(jsonData, null, 2);
       } else {

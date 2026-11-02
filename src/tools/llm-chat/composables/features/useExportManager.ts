@@ -26,6 +26,7 @@ import type {
   ChatSessionDetail,
   ChatSessionIndex,
   ChatMessageNode,
+  MessageRole,
 } from "../../types";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useUserProfileStore } from "../../stores/userProfileStore";
@@ -35,12 +36,18 @@ import { formatDateTime } from "@/utils/time";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
 
+import {
+  filterExportMessages,
+  filterSessionExportRoles,
+} from "../../utils/exportRoles";
+
 const logger = createModuleLogger("llm-chat/export-manager");
 
 /**
  * 导出选项接口
  */
 export interface ExportOptions {
+  roles?: MessageRole[];
   format?: "markdown" | "json" | "raw";
   includePreset?: boolean;
   mergePresetIntoMessages?: boolean;
@@ -254,7 +261,10 @@ export function useExportManager() {
     presetMessages: ChatMessageNode[] = [],
     options: ExportOptions = {}
   ): Promise<string> => {
-    presetMessages = presetMessages.map(materializePresetMessage);
+    presetMessages = filterExportMessages(
+      presetMessages.map(materializePresetMessage),
+      options.roles
+    );
     // 设置默认值
     const {
       mergePresetIntoMessages = true,
@@ -265,11 +275,16 @@ export function useExportManager() {
       includeAttachments = true,
       includeErrors = true,
       useContextPipeline = false,
-      processedMessages = [],
+      processedMessages: unfilteredProcessedMessages = [],
     } = options;
 
-    // 如果使用管道处理后的消息
-    if (useContextPipeline && processedMessages.length > 0) {
+    const processedMessages = filterExportMessages(
+      unfilteredProcessedMessages,
+      options.roles
+    );
+
+    // 管道结果为空或被筛空时仍导出管道结果。
+    if (useContextPipeline) {
       const lines: string[] = [
         `# 对话记录 (真实 Payload): ${index.name}`,
         "",
@@ -337,6 +352,7 @@ export function useExportManager() {
       const [start, end] = options.range;
       messagePath = messagePath.slice(start - 1, end);
     }
+    messagePath = filterExportMessages(messagePath, options.roles);
 
     const lines: string[] = [
       `# 对话记录: ${index.name}`,
@@ -405,7 +421,12 @@ export function useExportManager() {
             );
             lines.push("");
           } else {
-            const role = node.role === "user" ? "用户" : "助手";
+            const role =
+              node.role === "user"
+                ? "用户"
+                : node.role === "tool"
+                  ? "工具"
+                  : "助手";
             lines.push(`### ${role}${nameStr}`);
             lines.push("");
             lines.push(
@@ -517,6 +538,9 @@ export function useExportManager() {
             lines.push("");
           }
         }
+      } else if (node.role === "tool") {
+        lines.push(`## 🛠️ 工具 (${time})${enabledStatus}`);
+        lines.push("");
       } else {
         // 系统消息
         lines.push(`## ⚙️ 系统 (${time})${enabledStatus}`);
@@ -647,7 +671,10 @@ export function useExportManager() {
     presetMessages: ChatMessageNode[] = [],
     options: ExportOptions = {}
   ): Promise<any> => {
-    presetMessages = presetMessages.map(materializePresetMessage);
+    presetMessages = filterExportMessages(
+      presetMessages.map(materializePresetMessage),
+      options.roles
+    );
     // 设置默认值
     const {
       mergePresetIntoMessages = true,
@@ -658,11 +685,16 @@ export function useExportManager() {
       includeAttachments = true,
       includeErrors = true,
       useContextPipeline = false,
-      processedMessages = [],
+      processedMessages: unfilteredProcessedMessages = [],
     } = options;
 
-    // 如果使用管道处理后的消息
-    if (useContextPipeline && processedMessages.length > 0) {
+    const processedMessages = filterExportMessages(
+      unfilteredProcessedMessages,
+      options.roles
+    );
+
+    // 管道结果为空或被筛空时仍导出管道结果。
+    if (useContextPipeline) {
       return {
         session: {
           name: index.name,
@@ -717,6 +749,7 @@ export function useExportManager() {
       const [start, end] = options.range;
       messagePath = messagePath.slice(start - 1, end);
     }
+    messagePath = filterExportMessages(messagePath, options.roles);
 
     interface ExportMessage {
       role: string;
@@ -916,7 +949,11 @@ export function useExportManager() {
 
     // 统计有效消息数量（排除根节点和未固化开场白）
     const totalNodes = getEffectiveMessageCount(
-      detail.nodes,
+      Object.fromEntries(
+        filterExportMessages(Object.values(detail.nodes), options.roles).map(
+          (node) => [node.id, node]
+        )
+      ),
       detail.rootNodeId
     );
     lines.push(`**总消息数**: ${totalNodes} 条`);
@@ -959,7 +996,7 @@ export function useExportManager() {
       }
 
       // 如果节点被隐藏，我们不渲染它，但需要继续遍历它的子节点
-      if (isHidden) {
+      if (isHidden || (options.roles && !options.roles.includes(node.role))) {
         if (node.childrenIds && node.childrenIds.length > 0) {
           node.childrenIds.forEach((childId) => {
             traverseNode(childId, depth);
@@ -1014,6 +1051,9 @@ export function useExportManager() {
             : "";
         roleIcon = agentIcon;
         roleName = agentName;
+      } else if (node.role === "tool") {
+        roleIcon = "🛠️";
+        roleName = "工具";
       } else {
         roleIcon = "⚙️";
         roleName = "系统";
@@ -1170,10 +1210,11 @@ export function useExportManager() {
 
     const rawBranchData = {
       index,
-      detail: {
-        ...detail,
-        nodes: finalNodes,
-      },
+      detail: filterSessionExportRoles(
+        detail,
+        options.roles,
+        new Set(Object.keys(finalNodes))
+      ),
     };
 
     return JSON.stringify(rawBranchData, null, 2);

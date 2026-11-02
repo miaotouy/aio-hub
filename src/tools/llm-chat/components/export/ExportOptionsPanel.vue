@@ -79,6 +79,32 @@
       </div>
     </div>
 
+    <div class="options-section roles-section">
+      <div class="section-title">消息角色</div>
+      <span v-if="format === 'backup'" class="option-hint"
+        >备份将保留全部角色</span
+      >
+      <div v-else class="role-toggles" role="group" aria-label="导出消息角色">
+        <el-tooltip
+          v-for="item in roleOptions"
+          :key="item.role"
+          :content="item.label"
+          placement="top"
+        >
+          <button
+            type="button"
+            class="role-toggle"
+            :class="{ 'is-active': roles.includes(item.role) }"
+            :aria-label="item.label"
+            :aria-pressed="roles.includes(item.role)"
+            @click="toggleRole(item.role)"
+          >
+            <component :is="item.icon" :size="18" aria-hidden="true" />
+          </button>
+        </el-tooltip>
+      </div>
+    </div>
+
     <div class="options-section">
       <div class="section-title">包含内容</div>
       <div class="options-grid">
@@ -151,12 +177,33 @@
 
 <script setup lang="ts">
 import {
+  ElTooltip,
   ElCheckbox,
   ElRadioGroup,
   ElRadioButton,
   ElSlider,
   ElInputNumber,
 } from "element-plus";
+
+import { UserRound, Bot, Settings2, Wrench } from "lucide-vue-next";
+import type { MessageRole } from "../../types";
+import { EXPORT_MESSAGE_ROLES } from "../../utils/exportRoles";
+
+const roles = defineModel<MessageRole[]>("roles", {
+  default: () => [...EXPORT_MESSAGE_ROLES],
+});
+const roleOptions = [
+  { role: "user", label: "用户", icon: UserRound },
+  { role: "assistant", label: "助手", icon: Bot },
+  { role: "system", label: "系统", icon: Settings2 },
+  { role: "tool", label: "工具", icon: Wrench },
+] as const;
+
+const toggleRole = (role: MessageRole) => {
+  roles.value = roles.value.includes(role)
+    ? roles.value.filter((selected) => selected !== role)
+    : [...roles.value, role];
+};
 
 interface Props {
   isSession?: boolean;
@@ -230,6 +277,57 @@ const range = defineModel<[number, number]>("range", { default: () => [1, 1] });
   font-weight: 500;
   color: var(--text-color);
   margin-bottom: 8px;
+}
+
+.roles-section {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+.roles-section .section-title {
+  margin-bottom: 0;
+}
+.role-toggles {
+  display: flex;
+  gap: 6px;
+}
+.role-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color-light);
+  opacity: 0.5;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background-color 0.15s,
+    opacity 0.15s;
+}
+.role-toggle:hover {
+  opacity: 0.85;
+  background: color-mix(in srgb, var(--text-color) 6%, transparent);
+}
+
+.role-toggle.is-active {
+  opacity: 1;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+.role-toggle.is-active {
+  border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+}
+.role-toggle:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .format-group {

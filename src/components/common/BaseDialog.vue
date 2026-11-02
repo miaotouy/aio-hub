@@ -119,7 +119,7 @@ import {
 } from "vue";
 import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
-import { acquireZIndex, releaseZIndex } from "@/composables/useDialogZIndex";
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 
 const props = withDefaults(
   defineProps<{
@@ -183,7 +183,10 @@ const isGlassEffectActive = computed(
 );
 
 const showContentTransition = ref(false);
-const dynamicZIndex = ref(props.zIndex);
+const { zIndex: dynamicZIndex } = useOverlayZIndex(
+  () => props.modelValue,
+  () => props.zIndex
+);
 
 const backdropStyles = computed(() => {
   const styles: Record<string, any> = {
@@ -253,7 +256,6 @@ watch(
     if (newValue) {
       hasOpened.value = true;
       emit("open");
-      dynamicZIndex.value = acquireZIndex(props.zIndex);
 
       // DOM 更新后启动入场动画
       // 使用双重 requestAnimationFrame 确保在浏览器重绘后应用类名
@@ -267,7 +269,6 @@ watch(
       });
     } else {
       showContentTransition.value = false;
-      releaseZIndex(dynamicZIndex.value);
     }
   },
   { immediate: true }
@@ -313,7 +314,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", handleKeyDown);
-  if (props.modelValue) releaseZIndex(dynamicZIndex.value);
 });
 </script>
 

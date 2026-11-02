@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import { useZIndex } from "element-plus";
+import { onBeforeUnmount, ref, watch } from "vue";
 
 const BASE_DIALOG_INITIAL_Z_INDEX = 2000;
 const MIN_NOTIFICATION_Z_INDEX = 2030;
@@ -41,6 +42,8 @@ export function getDomMaxOverlayZIndex(): number {
   const selectors = [
     ".base-dialog-backdrop",
     ".el-overlay",
+    ".el-popper",
+    "[data-overlay-layer]",
     ".el-message-box__wrapper",
     ".el-dialog__wrapper",
     ".viewer-container",
@@ -55,6 +58,20 @@ export function getDomMaxOverlayZIndex(): number {
     for (let i = 0; i < elements.length; i++) {
       const el = elements[i] as HTMLElement;
       if (el.closest(".top-message-host")) continue;
+      // 保留挂载的弹层也可能藏在 v-show / hidden 祖先内。
+      let hidden = false;
+      for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+        const style = window.getComputedStyle(node);
+        if (
+          node.hidden ||
+          style.display === "none" ||
+          style.visibility === "hidden"
+        ) {
+          hidden = true;
+          break;
+        }
+      }
+      if (hidden) continue;
 
       const style = window.getComputedStyle(el);
       if (
@@ -80,13 +97,20 @@ export function getDomMaxOverlayZIndex(): number {
 /**
  * 分配弹窗 z-index，协同 Element Plus 与活跃弹窗高水位。
  */
-export function acquireZIndex(preferredZIndex = 0): number {
+export function acquireZIndex(
+  preferredZIndex = 0,
+  allocator = useZIndex()
+): number {
   const currentMax = Math.max(
     _counter,
-    getElementPlusMaxZIndex(),
-    preferredZIndex
+    allocator.currentZIndex.value,
+    getDomMaxOverlayZIndex(),
+    Number.isFinite(preferredZIndex) ? preferredZIndex : 0
   );
-  const nextZ = currentMax + 1;
+  // 通过 Element Plus 的分配器推进共享计数，让之后打开的 Select、
+  // Popover、Tooltip、MessageBox 都能高于当前弹层。
+  let nextZ = allocator.nextZIndex();
+  while (nextZ <= currentMax) nextZ = allocator.nextZIndex();
   _counter = nextZ;
   activeDialogZIndexes.add(nextZ);
   return nextZ;
@@ -104,7 +128,7 @@ export function releaseZIndex(z: number): void {
 }
 
 /**
- * 获取当前已注册的 BaseDialog 活跃层级最大值。
+ * 获取当前已注册的应用浮层活跃层级最大值。
  */
 export function getMaxDialogZIndex(): number {
   let max = 0;
@@ -150,4 +174,32 @@ export function getTopMessageZIndex(requestedZIndex?: number): number {
 export function resetDialogZIndexCounter(): void {
   activeDialogZIndexes.clear();
   _counter = BASE_DIALOG_INITIAL_Z_INDEX;
+}
+
+/** 自定义浮层按打开顺序分配层级；关闭或卸载时释放。 */
+export function useOverlayZIndex(
+  visible: () => boolean,
+  preferredZIndex: () => number = () => 0
+) {
+  const allocator = useZIndex();
+  const zIndex = ref(0);
+  let allocated: number | undefined;
+  const release = () => {
+    if (allocated === undefined) return;
+    releaseZIndex(allocated);
+    allocated = undefined;
+  };
+  const bringToFront = () => {
+    if (!visible()) return;
+    const previous = allocated;
+    allocated = acquireZIndex(preferredZIndex(), allocator);
+    zIndex.value = allocated;
+    if (previous !== undefined) releaseZIndex(previous);
+  };
+  watch(visible, (open) => (open ? bringToFront() : release()), {
+    immediate: true,
+    flush: "sync",
+  });
+  onBeforeUnmount(release);
+  return { zIndex, bringToFront };
 }

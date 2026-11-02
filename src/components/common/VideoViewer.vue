@@ -15,44 +15,48 @@
 -->
 
 <template>
-  <transition name="fade">
-    <div
-      v-if="visible"
-      class="video-viewer-overlay"
-      @click.self="handleClose"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="displayTitle"
-      tabindex="-1"
-      ref="overlayRef"
-    >
-      <div class="video-viewer-container">
-        <!-- 顶部栏 -->
-        <div class="viewer-header">
-          <span class="viewer-title">{{ displayTitle }}</span>
-          <button class="close-btn" @click="handleClose">
-            <X />
-          </button>
-        </div>
+  <Teleport to="body">
+    <transition name="fade">
+      <div
+        v-if="visible"
+        class="video-viewer-overlay"
+        :style="{ zIndex }"
+        @click.self="handleClose"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="displayTitle"
+        tabindex="-1"
+        ref="overlayRef"
+      >
+        <div class="video-viewer-container">
+          <!-- 顶部栏 -->
+          <div class="viewer-header">
+            <span class="viewer-title">{{ displayTitle }}</span>
+            <button class="close-btn" @click="handleClose">
+              <X />
+            </button>
+          </div>
 
-        <!-- 播放器区域 -->
-        <div class="player-wrapper">
-          <VideoPlayer
-            v-if="visible"
-            :src="src"
-            :title="displayTitle"
-            :autoplay="true"
-            :poster="poster"
-            :global-hotkey="true"
-          />
+          <!-- 播放器区域 -->
+          <div class="player-wrapper">
+            <VideoPlayer
+              v-if="visible"
+              :src="src"
+              :title="displayTitle"
+              :autoplay="true"
+              :poster="poster"
+              :global-hotkey="true"
+            />
+          </div>
         </div>
       </div>
-    </div>
-  </transition>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { X } from "lucide-vue-next";
 import VideoPlayer from "./VideoPlayer.vue";
@@ -69,6 +73,7 @@ const emit = defineEmits<{
   (e: "close"): void;
 }>();
 
+const { zIndex } = useOverlayZIndex(() => props.visible);
 const overlayRef = ref<HTMLElement | null>(null);
 const { isTopmost } = useOverlayFocus(overlayRef, () => props.visible);
 
@@ -118,13 +123,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .video-viewer-overlay {
   position: fixed;
-  top: 0;
+  top: var(--titlebar-height, 36px);
   left: 0;
   width: 100vw;
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-height, 36px));
   background-color: rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(var(--ui-blur));
-  z-index: 2000; /* 确保高于大多数元素 */
   display: flex;
   justify-content: center;
   align-items: center;

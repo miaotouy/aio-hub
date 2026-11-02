@@ -1025,10 +1025,3 @@ const getTaskDuration = (task: TranscriptionTask) => {
   border-color: rgba(var(--el-color-primary-rgb), 0.7);
 }
 </style>
-
-<style>
-/* 全局样式，用于提升被 teleport 到 body 的下拉框层级 */
-.el-popper.retry-confirm-popper {
-  z-index: 6000 !important;
-}
-</style>

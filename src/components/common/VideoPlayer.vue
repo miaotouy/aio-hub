@@ -23,6 +23,8 @@
       <div
         ref="playerContainer"
         class="video-player"
+        :data-overlay-layer="isWebFullscreen ? '' : undefined"
+        :style="isWebFullscreen ? { zIndex: webFullscreenZIndex } : undefined"
         :class="{
           'is-fullscreen': isFullscreen,
           'is-web-fullscreen': isWebFullscreen,
@@ -331,6 +333,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import {
   ref,
   computed,
@@ -425,6 +428,9 @@ const isLoop = ref(props.loop);
 const bufferedPercentage = ref(0);
 const isFullscreen = ref(false);
 const isWebFullscreen = ref(false);
+const { zIndex: webFullscreenZIndex } = useOverlayZIndex(
+  () => isWebFullscreen.value
+);
 const isControlsVisible = ref(true);
 const showVolumeSlider = ref(false);
 const showPlaybackRateMenu = ref(false);
@@ -1355,7 +1361,6 @@ defineExpose({
   left: 0;
   width: 100vw !important;
   height: 100vh !important;
-  z-index: 9999;
   background: #000;
 }
 

@@ -758,10 +758,3 @@ const handleImagePreview = () => {
   border-color: var(--error-hover-color);
 }
 </style>
-
-<style>
-/* 全局样式，用于提升被 teleport 到 body 的下拉框层级 */
-.el-popper.transcription-regenerate-popper {
-  z-index: 6000 !important;
-}
-</style>

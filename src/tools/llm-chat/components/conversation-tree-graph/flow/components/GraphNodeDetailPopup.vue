@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { computed, ref, watch, nextTick } from "vue";
 import { X } from "lucide-vue-next";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
@@ -51,6 +52,7 @@ interface Emits {
 }
 
 const props = defineProps<Props>();
+const { zIndex } = useOverlayZIndex(() => props.visible);
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
@@ -233,8 +235,10 @@ const chatMessageProps = computed(() => {
   <div
     ref="popupRef"
     class="graph-node-detail-popup-wrapper"
+    data-overlay-layer
     v-show="visible"
     :style="{
+      zIndex,
       top: `${y}px`,
       left: `${x}px`,
       width: `${width}px`,
@@ -290,7 +294,6 @@ const chatMessageProps = computed(() => {
 <style scoped>
 .graph-node-detail-popup-wrapper {
   position: fixed;
-  z-index: 3500; /* Higher than el-popover's default z-index */
   max-height: 80vh;
   display: flex; /* Make wrapper a flex container */
   flex-direction: column;

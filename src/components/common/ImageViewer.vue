@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import Viewer from "viewerjs";
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import "viewerjs/dist/viewer.css";
 
@@ -59,6 +60,11 @@ let viewerInstance: Viewer | null = null;
 // Viewer.js 的类型声明省略了实际生成的容器。
 const overlayRef = ref<HTMLElement | null>(null);
 const overlayVisible = ref(false);
+const layerVisible = ref(false);
+const { zIndex, bringToFront } = useOverlayZIndex(
+  () => layerVisible.value,
+  () => props.options?.zIndex ?? 0
+);
 useOverlayFocus(overlayRef, () => overlayVisible.value);
 
 // Viewer.js 默认配置
@@ -120,21 +126,22 @@ const initViewer = () => {
     const onShow = mergedOptions.show;
     mergedOptions.show = function (event) {
       onShow?.call(this, event);
-      if (
-        event.defaultPrevented ||
-        mergedOptions.inline ||
-        mergedOptions.focus === false ||
-        mergedOptions.keyboard === false
-      )
-        return;
+      if (event.defaultPrevented || mergedOptions.inline) return;
       overlayRef.value =
         (viewerInstance as (Viewer & { viewer: HTMLElement }) | null)?.viewer ??
         null;
-      overlayVisible.value = true;
+      if (layerVisible.value) bringToFront();
+      else layerVisible.value = true;
+      if (overlayRef.value)
+        overlayRef.value.style.zIndex = String(zIndex.value);
+      if (mergedOptions.focus !== false && mergedOptions.keyboard !== false) {
+        overlayVisible.value = true;
+      }
     };
     const onHidden = mergedOptions.hidden;
     mergedOptions.hidden = function (event) {
       overlayVisible.value = false;
+      layerVisible.value = false;
       onHidden?.call(this, event);
     };
     viewerInstance = new Viewer(containerRef.value, mergedOptions);
@@ -148,6 +155,7 @@ const destroyViewer = () => {
   if (viewerInstance) {
     viewerInstance.destroy();
     overlayVisible.value = false;
+    layerVisible.value = false;
     viewerInstance = null;
   }
 };

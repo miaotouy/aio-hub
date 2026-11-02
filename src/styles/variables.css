@@ -9,7 +9,7 @@
   --z-index-popover: 2010; /* 弹出框 */
   --z-index-tooltip: 2020; /* 工具提示 */
   --z-index-notification: 2030; /* 通知 */
-  --z-index-dropdown: 1990; /* 下拉菜单（低于对话框） */
+  --z-index-dropdown: 2010; /* 静态回退值；全局浮层通过 useOverlayZIndex / Element Plus 分配 */
 
   --bg-color: #efefef;
   --bg-color-rgb: 239, 239, 239;

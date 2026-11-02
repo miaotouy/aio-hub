@@ -48,6 +48,130 @@ describe("async media task adapters", () => {
     });
   });
 
+  it("builds strict Agnes video bodies and polls via agnesapi with video_id", async () => {
+    const requests: WireRequest[] = [];
+    const task = await executeAsyncMediaTask({
+      adapter: openAiVideoTaskAdapter,
+      profile: {
+        provider: "openai",
+        baseUrl: "https://apihub.agnes-ai.com/v1",
+        apiKey: "secret",
+      },
+      request: {
+        kind: "video",
+        model: "agnes-video-2.5-flash",
+        prompt: "a cat",
+        parameters: {
+          apiStyle: "agnes",
+          resolution: "720p",
+          aspectRatio: "16:9",
+          durationSeconds: 5,
+        },
+      },
+      transport: queueTransport(
+        [
+          jsonResponse({
+            id: "task-1",
+            task_id: "task-1",
+            video_id: "video-9",
+            status: "queued",
+          }),
+          jsonResponse({
+            id: "task-1",
+            status: "completed",
+            url: "https://cdn.example.com/video.mp4",
+          }),
+        ],
+        requests
+      ),
+      transportOptions: { requestId: "agnes-video" },
+      pollIntervalMs: 0,
+    });
+
+    const createBody = (
+      requests[0].body as { kind: "json"; value: Record<string, unknown> }
+    ).value;
+    expect(requests[0].url).toBe("https://apihub.agnes-ai.com/v1/videos");
+    expect(createBody).toEqual({
+      model: "agnes-video-2.5-flash",
+      prompt: "a cat",
+      mode: "text",
+      seconds: "5",
+      size: "720P",
+      aspect_ratio: "16:9",
+    });
+
+    expect(requests[1].url).toBe(
+      "https://apihub.agnes-ai.com/agnesapi?video_id=video-9&model_name=agnes-video-2.5-flash"
+    );
+    expect(task.assets).toEqual([
+      {
+        kind: "remote-url",
+        url: "https://cdn.example.com/video.mp4",
+        contentType: "video/mp4",
+      },
+    ]);
+  });
+  it("builds Agnes reference mode bodies when image inputs exist", async () => {
+    const requests: WireRequest[] = [];
+    await executeAsyncMediaTask({
+      adapter: openAiVideoTaskAdapter,
+      profile: {
+        provider: "openai",
+        baseUrl: "https://apihub.agnes-ai.com/v1",
+        apiKey: "secret",
+      },
+      request: {
+        kind: "video",
+        model: "agnes-video-2.5",
+        prompt: "use <Picture 1>",
+        inputs: [
+          {
+            type: "image",
+            source: {
+              kind: "remote-url",
+              url: "https://example.com/cat.png",
+            },
+          },
+        ],
+        parameters: {
+          apiStyle: "agnes",
+          resolution: "1080P",
+          aspectRatio: "9:16",
+          durationSeconds: 9,
+          seed: 42,
+        },
+      },
+      transport: queueTransport(
+        [
+          jsonResponse({
+            id: "t",
+            video_id: "v",
+            status: "completed",
+            url: "https://cdn/v.mp4",
+          }),
+        ],
+        requests
+      ),
+      transportOptions: { requestId: "agnes-ref" },
+      pollIntervalMs: 0,
+    });
+
+    const createBody = (
+      requests[0].body as { kind: "json"; value: Record<string, unknown> }
+    ).value;
+    expect(createBody).toEqual({
+      model: "agnes-video-2.5",
+      prompt: "use <Picture 1>",
+      mode: "reference",
+      seconds: "9",
+      size: "1080P",
+      aspect_ratio: "9:16",
+      seed: 42,
+      images: ["https://example.com/cat.png"],
+    });
+  });
+
   it("normalizes Gemini long-running operations", async () => {
     const task = await executeAsyncMediaTask({
       adapter: geminiVideoTaskAdapter,

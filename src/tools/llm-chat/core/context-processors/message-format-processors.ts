@@ -24,7 +24,7 @@ import { createModuleLogger } from "@/utils/logger";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import type { LlmModelInfo } from "@/types/llm-profiles";
 import type { ContextPostProcessRule } from "../../types/llm";
-import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+import { getContextTokenCalculator } from "../context-utils/token-calculator";
 
 const logger = createModuleLogger("llm-chat/message-format-processors");
 
@@ -286,6 +286,7 @@ export const messageFormatter: ContextProcessor = {
   priority: 800,
   defaultEnabled: true,
   execute: async (context: PipelineContext) => {
+    const tokenCalculatorService = getContextTokenCalculator(context);
     // 计算 Token 和字符数辅助函数
     const calculateTotals = async (
       msgs: ProcessableMessage[],

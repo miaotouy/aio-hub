@@ -15,7 +15,10 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, onBeforeUnmount } from "vue";
+import { MagicStick } from "@element-plus/icons-vue";
+import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import type { AgentAsset, AssetGroup } from "../../types/agent";
 
@@ -23,20 +26,35 @@ interface Props {
   modelValue: boolean;
   asset: AgentAsset | null;
   sortedGroups: AssetGroup[];
+  generateDescription: (
+    asset: AgentAsset,
+    signal: AbortSignal
+  ) => Promise<string>;
+  generationDisabled?: boolean;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "save", form: { id: string; description: string; group: string }): void;
+  (e: "description-settings"): void;
 }>();
 
 const form = ref({ id: "", description: "", group: "default" });
 
+const errorHandler = createModuleErrorHandler("AgentAssetDescriptionEdit");
+const generating = ref(false);
+let controller: AbortController | undefined;
+const cancelGeneration = () => {
+  controller?.abort();
+  controller = undefined;
+  generating.value = false;
+};
 watch(
-  () => props.asset,
-  (asset) => {
-    if (asset) {
+  () => [props.modelValue, props.asset] as const,
+  ([visible, asset]) => {
+    cancelGeneration();
+    if (visible && asset) {
       form.value = {
         id: asset.id,
         description: asset.description || "",
@@ -46,7 +64,34 @@ watch(
   },
   { immediate: true }
 );
+onBeforeUnmount(cancelGeneration);
 
+const generate = async () => {
+  if (!props.asset || generating.value || props.generationDisabled) return;
+  const asset = { ...props.asset, group: form.value.group };
+  const originalDescription = form.value.description;
+  const current = new AbortController();
+  controller = current;
+  generating.value = true;
+  try {
+    const description = await props.generateDescription(asset, current.signal);
+    if (current.signal.aborted || controller !== current || !props.modelValue)
+      return;
+    if (form.value.description !== originalDescription) {
+      customMessage.info("描述已被编辑，已保留当前输入；可再次生成");
+      return;
+    }
+    form.value.description = description;
+  } catch (error) {
+    if (!current.signal.aborted && controller === current)
+      errorHandler.error(error, "生成资产描述失败");
+  } finally {
+    if (controller === current) {
+      controller = undefined;
+      generating.value = false;
+    }
+  }
+};
 const getFileExtension = (filename: string): string => {
   const lastDot = filename.lastIndexOf(".");
   if (lastDot === -1 || lastDot === filename.length - 1) return "";
@@ -63,7 +108,7 @@ const handleSave = () => {
     :model-value="modelValue"
     @update:model-value="emit('update:modelValue', $event)"
     title="编辑资产信息"
-    width="400px"
+    width="460px"
   >
     <el-form :model="form" label-width="60px" @submit.prevent="handleSave">
       <el-form-item label="ID" required>
@@ -87,6 +132,27 @@ const handleSave = () => {
           :rows="2"
           placeholder="资产描述（可选）"
         />
+        <div class="description-actions">
+          <el-button
+            size="small"
+            :icon="MagicStick"
+            :loading="generating"
+            :disabled="generationDisabled"
+            @click="generate"
+          >
+            {{ form.description.trim() ? "重新生成" : "生成描述" }}
+          </el-button>
+          <el-button v-if="generating" size="small" @click="cancelGeneration"
+            >取消生成</el-button
+          >
+          <el-button
+            v-else
+            link
+            type="primary"
+            @click="emit('description-settings')"
+            >生成设置</el-button
+          >
+        </div>
       </el-form-item>
       <el-form-item label="分组">
         <el-select
@@ -114,6 +180,13 @@ const handleSave = () => {
 </template>
 
 <style scoped>
+.description-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
 .form-tip {
   font-size: 12px;
   color: var(--el-text-color-secondary);

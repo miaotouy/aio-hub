@@ -85,6 +85,185 @@ describe("useMarkdownAst", () => {
     expect(markdownAst.nodeMap.get("b")?.path).toEqual([0, 0]);
   });
 
+  it("keeps indexed nodes and immutable snapshots current across subtree edits", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    const state = useMarkdownAst({ throttleEnabled: false });
+    state.enqueuePatch({
+      op: "replace-root",
+      newRoot: [
+        paragraph("p", [text("a", "A")]),
+        paragraph("q", [text("z", "Z")]),
+      ],
+    });
+    frames.shift()?.(performance.now());
+    const snapshot = state.ast.value;
+    state.enqueuePatch([
+      { op: "text-append", id: "a", text: "!" },
+      { op: "set-prop", id: "p", key: "title", value: "edited" },
+    ]);
+    frames.shift()?.(performance.now());
+    expect(snapshot[0]).toEqual(paragraph("p", [text("a", "A")]));
+    expect(state.nodeMap.get("p")?.node).toBe(state.ast.value[0]);
+    expect(state.nodeMap.get("a")?.node).toBe(state.ast.value[0].children?.[0]);
+    expect(state.nodeMap.get("a")?.node.props).toMatchObject({ content: "A!" });
+    expect(state.ast.value[1]).toBe(snapshot[1]);
+
+    state.enqueuePatch([
+      {
+        op: "replace-node",
+        id: "p",
+        newNode: paragraph("p2", [text("b", "B")]),
+      },
+      { op: "text-append", id: "b", text: "!" },
+      { op: "insert-before", id: "z", newNode: text("y", "Y") },
+      {
+        op: "replace-children-range",
+        parentId: "q",
+        start: 0,
+        deleteCount: 1,
+        newChildren: [text("c", "C")],
+      },
+      { op: "text-append", id: "c", text: "!" },
+    ]);
+    frames.shift()?.(performance.now());
+    expect(state.ast.value).toEqual([
+      paragraph("p2", [text("b", "B!")]),
+      paragraph("q", [text("c", "C!"), text("z", "Z")]),
+    ]);
+    expect([...state.nodeMap.keys()].sort()).toEqual([
+      "b",
+      "c",
+      "p2",
+      "q",
+      "z",
+    ]);
+    for (const [i, parent] of state.ast.value.entries()) {
+      expect(state.nodeMap.get(parent.id)?.node).toBe(parent);
+      parent.children?.forEach((node, j) => {
+        expect(state.nodeMap.get(node.id)).toEqual({
+          node,
+          parentId: parent.id,
+          path: [i, j],
+        });
+        expect(state.nodeMap.get(node.id)?.node).toBe(node);
+      });
+    }
+    state.dispose();
+  });
+
+  // Structural batches must keep new/shifted descendants addressable and old snapshots intact.
+  it("addresses descendants after root and nested sibling splices in one batch", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    const state = useMarkdownAst({ throttleEnabled: false });
+    const original = [
+      paragraph("before", [text("keep", "K")]),
+      paragraph("group", [
+        paragraph("a", [text("a-text", "A")]),
+        paragraph("b", [text("b-text", "B")]),
+      ]),
+      paragraph("after", [text("last", "Z")]),
+    ];
+    state.enqueuePatch({ op: "replace-root", newRoot: original });
+    frames.shift()?.(performance.now());
+    state.enqueuePatch([
+      {
+        op: "insert-before",
+        id: "group",
+        newNode: paragraph("middle", [text("m", "M")]),
+      },
+      {
+        op: "insert-before",
+        id: "b",
+        newNode: paragraph("c", [text("c-text", "C")]),
+      },
+      { op: "text-append", id: "c-text", text: "!" },
+      { op: "remove-node", id: "a" },
+      { op: "text-append", id: "b-text", text: "!" },
+      {
+        op: "replace-children-range",
+        parentId: "group",
+        start: -1,
+        deleteCount: 99,
+        newChildren: [paragraph("d", [text("d-text", "D")])],
+      },
+      { op: "text-append", id: "d-text", text: "!" },
+      {
+        op: "insert-after",
+        id: "d",
+        newNode: paragraph("e", [text("e-text", "E")]),
+      },
+      { op: "remove-node", id: "middle" },
+      { op: "text-append", id: "last", text: "!" },
+    ]);
+    frames.shift()?.(performance.now());
+    expect(state.ast.value).toEqual([
+      original[0],
+      paragraph("group", [
+        paragraph("c", [text("c-text", "C!")]),
+        paragraph("d", [text("d-text", "D!")]),
+        paragraph("e", [text("e-text", "E")]),
+      ]),
+      paragraph("after", [text("last", "Z!")]),
+    ]);
+    expect(original[1]).toEqual(
+      paragraph("group", [
+        paragraph("a", [text("a-text", "A")]),
+        paragraph("b", [text("b-text", "B")]),
+      ])
+    );
+    expect(original[2]).toEqual(paragraph("after", [text("last", "Z")]));
+    const ids: string[] = [];
+    const checkIndexes = (
+      nodes: AstNode[],
+      parentId?: string,
+      path: number[] = []
+    ) => {
+      nodes.forEach((node, i) => {
+        ids.push(node.id);
+        expect(state.nodeMap.get(node.id)).toEqual({
+          node,
+          parentId,
+          path: [...path, i],
+        });
+        expect(state.nodeMap.get(node.id)?.node).toBe(node);
+        if (node.children) checkIndexes(node.children, node.id, [...path, i]);
+      });
+    };
+    checkIndexes(state.ast.value);
+    expect([...state.nodeMap.keys()].sort()).toEqual(ids.sort());
+    state.dispose();
+  });
+
+  it("replaces the sole root subtree before addressing its new descendants", () => {
+    const state = useMarkdownAst({ throttleEnabled: false });
+    state.enqueuePatch([
+      {
+        op: "replace-root",
+        newRoot: [paragraph("old", [text("old-child", "old")])],
+      },
+      {
+        op: "replace-node",
+        id: "old",
+        newNode: paragraph("new", [text("new-child", "new")]),
+      },
+      { op: "text-append", id: "new-child", text: "!" },
+      { op: "remove-node", id: "old-child" },
+    ]);
+    expect(state.ast.value).toEqual([
+      paragraph("new", [text("new-child", "new!")]),
+    ]);
+    expect([...state.nodeMap.keys()].sort()).toEqual(["new", "new-child"]);
+    state.dispose();
+  });
+
   it("uses the latest throttle setting instead of an initialization snapshot", () => {
     const animationFrames: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {

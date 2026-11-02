@@ -11,27 +11,41 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
 import WebDistilleryRegistry from "../web-distillery.registry";
 import type { FetchResult, ExtractResult } from "../types";
 
-const { mockQuickFetch, mockSmartExtract, mockFormatFetchResult } = vi.hoisted(
-  () => ({
-    mockQuickFetch: vi.fn(),
-    mockSmartExtract: vi.fn(),
-    mockFormatFetchResult: vi.fn(
-      (result: FetchResult | ExtractResult) => `formatted:${result.title}`
-    ),
-  })
-);
+const {
+  mockQuickFetch,
+  mockSmartExtract,
+  mockJinaFetch,
+  mockSearchWeb,
+  mockFetchPage,
+  mockFormatFetchResult,
+} = vi.hoisted(() => ({
+  mockQuickFetch: vi.fn(),
+  mockSmartExtract: vi.fn(),
+  mockJinaFetch: vi.fn(),
+  mockSearchWeb: vi.fn(),
+  mockFetchPage: vi.fn(),
+  mockFormatFetchResult: vi.fn(
+    (result: FetchResult | ExtractResult) => `formatted:${result.title}`
+  ),
+}));
 
 vi.mock("../actions", () => ({
   quickFetch: mockQuickFetch,
   smartExtract: mockSmartExtract,
+  jinaFetch: mockJinaFetch,
 }));
 
-vi.mock("../formatters", () => ({
+vi.mock("../service", () => ({
+  fetchPage: mockFetchPage,
+  searchWeb: mockSearchWeb,
+}));
+vi.mock("../formatters", async (original) => ({
+  ...(await original<object>()),
   formatFetchResult: mockFormatFetchResult,
 }));
 
@@ -50,6 +64,9 @@ describe("web-distillery registry", () => {
   beforeEach(() => {
     mockQuickFetch.mockReset();
     mockSmartExtract.mockReset();
+    mockJinaFetch.mockReset();
+    mockSearchWeb.mockReset();
+    mockFetchPage.mockReset();
     mockFormatFetchResult.mockClear();
   });
 
@@ -107,9 +124,41 @@ describe("web-distillery registry", () => {
     expect(output).toBe("formatted:Rendered Post");
   });
 
+  it("jinaFetch 应适配 Agent 参数并格式化提炼结果", async () => {
+    const context = { reportStatus: vi.fn() };
+    const jinaResult: FetchResult = {
+      ...fetchResult,
+      title: "Jina Post",
+      mode: "jina",
+    };
+    mockJinaFetch.mockResolvedValue(jinaResult);
+
+    const registry = new WebDistilleryRegistry();
+    const output = await registry.jinaFetch(
+      {
+        url: "https://example.com/jina",
+        format: "markdown",
+        cleanMode: "true",
+      },
+      context as any
+    );
+
+    expect(mockJinaFetch).toHaveBeenCalledWith(
+      {
+        url: "https://example.com/jina",
+        format: "markdown",
+        cleanMode: true,
+      },
+      context
+    );
+    expect(mockFormatFetchResult).toHaveBeenCalledWith(jinaResult);
+    expect(output).toBe("formatted:Jina Post");
+  });
+
   it("动作返回 null 时应返回明确错误文本且不调用格式化器", async () => {
     mockQuickFetch.mockResolvedValue(null);
     mockSmartExtract.mockResolvedValue(null);
+    mockJinaFetch.mockResolvedValue(null);
 
     const registry = new WebDistilleryRegistry();
 
@@ -119,16 +168,48 @@ describe("web-distillery registry", () => {
     await expect(
       registry.smartExtract({ url: "https://bad.test" })
     ).resolves.toContain("错误: 智能提取失败");
+    await expect(registry.jinaFetch({ url: "https://bad.test" })).resolves.toBe(
+      "错误: Jina Reader 提炼失败。"
+    );
     expect(mockFormatFetchResult).not.toHaveBeenCalled();
   });
 
-  it("getMetadata 应声明两个 Agent 可调用方法", () => {
+  it("搜索适配 Agent 参数并为模型返回可追溯的来源与摘要", async () => {
+    mockSearchWeb.mockResolvedValue({
+      results: [
+        {
+          title: "Article",
+          url: "https://example.com/article",
+          summary: "Source summary",
+          snippet: "Short",
+          content: "",
+          date: null,
+        },
+      ],
+    });
+    const output = await new WebDistilleryRegistry().searchWeb({
+      query: "news",
+      count: "5",
+      needContent: "false",
+    });
+    expect(mockSearchWeb).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "news", count: 5, needContent: false }),
+      undefined
+    );
+    expect(output).toContain("https://example.com/article");
+    expect(output).toContain("Source summary");
+  });
+
+  it("getMetadata 保留兼容方法并暴露统一提取与搜索契约", () => {
     const registry = new WebDistilleryRegistry();
     const metadata = registry.getMetadata();
 
     expect(metadata.methods.map((method) => method.name)).toEqual([
+      "fetchPage",
+      "searchWeb",
       "quickFetch",
       "smartExtract",
+      "jinaFetch",
     ]);
     expect(metadata.methods.every((method) => method.agentCallable)).toBe(true);
   });

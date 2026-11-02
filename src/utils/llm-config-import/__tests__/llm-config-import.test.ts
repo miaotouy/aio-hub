@@ -58,6 +58,33 @@ describe("normalizeLlmBaseUrl", () => {
 });
 
 describe("parseLlmChannelConfig", () => {
+  it("reports only the recognized syntax for cURL while retaining errors from separate TOML documents", () => {
+    const curl = document(
+      `curl https://api.example.com/v1/chat/completions -H 'Authorization: Bearer test-key' -d '{"model":"test","messages":[{"role":"user","content":"hello"}]}'`,
+      "request.sh"
+    );
+    const result = parseLlmChannelConfig([curl]);
+    expect(result.detectedFormat).toBe("curl");
+    expect(result.profiles).toHaveLength(1);
+    expect(result.diagnostics).toEqual([]);
+
+    const invalidToml = document(
+      '[model_providers.test]\nbase_url = "unterminated',
+      "config.toml"
+    );
+    const combined = parseLlmChannelConfig([curl, invalidToml]);
+    expect(combined.profiles).toHaveLength(1);
+    expect(combined.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "toml-invalid",
+        documentId: "config.toml",
+      })
+    );
+    expect(parseLlmChannelConfig([curl], "toml").diagnostics).toContainEqual(
+      expect.objectContaining({ code: "toml-invalid" })
+    );
+  });
+
   it("parses connection info copied from a New API key", () => {
     const result = parseLlmChannelConfig([
       document(

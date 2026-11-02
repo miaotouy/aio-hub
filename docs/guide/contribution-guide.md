@@ -8,6 +8,62 @@
 - 修改前阅读目标代码、相邻实现和相关架构文档，不要只根据目录名推断调用关系。
 - 桌面端、移动端和 `packages/` workspace 可能有不同脚本；优先运行各自 `package.json` 中已有的命令。
 
+### 桌面开发运行模式
+
+日常修改使用 `bun run dev`，前端通过 Vite HMR 更新。
+
+需要用生产前端产物进行长时间运行或构建行为排查时，使用：
+
+```powershell
+bun run dev:static
+```
+
+启动时准备前端资源并进行生产构建，随后由仅绑定 `127.0.0.1` 的本地静态服务提供产物。构建进程结束后释放构建内存，应用保留 Rust debug 运行态。
+
+修改前端后，在另一终端使用相同的实例环境变量重新构建：
+
+```powershell
+bun run dev:static:build
+```
+
+等待构建成功，再点击应用托盘菜单的“重启前端”。这会刷新主窗口，Rust 进程继续运行；分离窗口、弹幕窗口和后台页面需要各自重新加载。尚未持久化的页面状态会随刷新重置。
+
+希望保存源码后自动重新构建时，可以启动监听模式：
+
+```powershell
+bun run dev:static:watch
+```
+
+监听模式保持手动刷新，构建失败时继续提供上一版产物。修改 Vite 配置或构建环境变量后重新启动该模式。监听期间由该进程负责构建，额外的手动构建命令会提示等待或停止监听。
+
+两种开发模式共用 `AIO_ID_SUFFIX`、`AIO_PORT`、`AIO_PROXY_PORT`、`AIO_DATA_DIR` 和 `AIO_PRODUCT_NAME`。同时运行多个实例时，为每个实例设置独立端口与数据目录；手动构建终端应使用与目标实例相同的环境变量。静态模式按最终前端端口隔离产物，保存在 `.dev-data/static-frontend/<port>/`，发布构建仍使用 `dist`。
+
+完整产物发布后才切换服务入口，同时保留当前版和上一版资源，便于旧页面继续请求延迟加载的 chunk。静态资源响应禁用缓存，路由刷新支持 SPA 回退，多页面 HTML 入口分别提供。分离组件 ID 可包含冒号（如 `llm-chat:chat-area`），对应 HTML 导航直接返回当前 SPA 入口；含冒号的资源路径继续拒绝，以保护 Windows 文件访问边界。
+
+这个模式适合前端生产构建行为排查。本地 HTTP origin 与打包版的应用资源协议仍有区别，Rust debug/release 条件编译行为也有区别；发布行为验证继续使用 `bun run test:build-app`。
+
+### 本地构建提速
+
+`bun run build:tsc` 使用增量类型检查，缓存保存到已忽略的 `.tmp/typecheck/vue-tsc.tsbuildinfo`。`bun run build` 及桌面构建会复用这份缓存，检查范围保持原样。首次运行会生成缓存，后续根据源码和配置变化更新检查结果；需要重新生成缓存时可删除该文件。
+
+`bun run build:portable` 和 `bun run build:portable:local` 内部使用 `--no-bundle`，构建 release EXE 后导出便携版及 `portable.flag`。需要安装包时继续使用 `bun run tauri:build` 或 `bun run tauri:build:local`。
+
+### Monaco 依赖升级
+
+统一入口为 `src/utils/monaco.ts`。升级 `monaco-editor` 后，同步运行：
+
+```powershell
+bun run monaco:nls
+```
+
+脚本从已安装版本的官方简中消息表生成 `src/utils/monaco-i18n/nls.js`，保留上游版权与版本标记。消息索引与引擎版本绑定，依赖和生成文件应一同更新。统一入口先初始化消息表，再加载引擎；Worker 使用当前包 exports 提供的公开子路径。升级后在真实 Tauri 中检查普通/Diff 编辑器、语言 Worker、中文菜单与快速销毁行为。
+
+### 构建日志
+
+桌面构建（`bun run tauri:build:local`、`build.bat`、`build.sh`）、便携版构建和 Android 构建会在终端实时输出，并将完整标准输出与错误输出保存到仓库的 `.tmp/build-logs/`。该目录已被 Git 忽略。
+
+每次构建生成带构建类型、UTC 时间戳和进程号的独立 `.log` 文件；终端启动时会显示日志的绝对路径，日志末尾记录结束时间和退出码。便携版及其内部桌面构建共用同一份日志。排查失败时可直接查看对应日志，旧日志按需手动清理。
+
 ## 2. 代码规范
 
 ### TypeScript / JavaScript
@@ -58,3 +114,7 @@
 ## 5. Git 工作流
 
 仓库采用常规分支与 Pull Request 工作流。创建分支、推送、提交或发起 PR 前，先确认任务授权和目标分支；不要假定所有改动都需要立即提交。
+
+## 5. 文档维护
+
+文档站按发布清单收录用户手册和精选开发文档，维护方式见 [文档站维护与教程截图](./docs-maintenance.md)。教程截图可由 Agent 通过项目开发控制 CLI 自行准备和采集，并按需要添加引导标注。

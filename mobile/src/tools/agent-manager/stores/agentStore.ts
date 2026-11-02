@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { v4 as uuidv4 } from "uuid";
@@ -67,7 +68,7 @@ export const useAgentStore = defineStore("agent-manager", () => {
       profileId: profile.id,
       modelId: profile.models[0].id,
       presetMessages: [],
-      parameters: { temperature: 1, maxTokens: 4096 },
+      parameters: { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS },
       createdAt: now,
       ...overrides,
     };

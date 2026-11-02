@@ -25,7 +25,20 @@
     <div v-if="isLoading" class="loading-placeholder">
       <div class="spinner"></div>
     </div>
-    <div v-else-if="hasError" class="error-placeholder">⚠️ 加载失败</div>
+    <div
+      v-else-if="hasError"
+      class="error-placeholder"
+      :style="{ background: MISSING_IMAGE_PLACEHOLDER_BACKGROUND }"
+    >
+      <span class="error-placeholder__title">⚠️ 加载失败</span>
+      <span
+        class="error-placeholder__resource"
+        :title="src"
+        data-testid="image-error-resource"
+      >
+        {{ displayResourceName }}
+      </span>
+    </div>
     <template v-else>
       <img
         :src="resolvedSrc"
@@ -65,15 +78,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, inject, onBeforeUnmount, type ComputedRef } from "vue";
+import {
+  ref,
+  watch,
+  computed,
+  inject,
+  onBeforeUnmount,
+  type ComputedRef,
+} from "vue";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { ZoomIn, Copy, Download, Check } from "lucide-vue-next";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
 import { customMessage } from "@/utils/customMessage";
-import { resolveAgentAssetUrlSync } from "@/tools/agent-manager/utils/agentAssetUtils";
+import {
+  MISSING_IMAGE_PLACEHOLDER_BACKGROUND,
+  resolveAgentAssetUrlSync,
+} from "@/tools/agent-manager/utils/agentAssetUtils";
 import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import { resolveLocalPath } from "../../utils/path-utils";
+import { resolveResourceLabel } from "../../utils/resourceLabel";
 import { fixVcpEmoticonUrl } from "@/tools/vcp-connector/utils/emoticonFixer";
 
 const props = defineProps<{
@@ -102,6 +126,17 @@ const vcpFixAttempted = ref(false);
 let basePath: string | null = null;
 let ownedObjectUrl: string | null = null;
 let currentAbortController: AbortController | null = null;
+
+/**
+ * 加载失败时展示的资源标识：智能体资产使用请求文件名，其他图片优先 alt，
+ * 便于在占位中直接看到尝试请求的资源名。
+ */
+const displayResourceName = computed(() =>
+  resolveResourceLabel(
+    props.src,
+    props.src.startsWith("agent-asset://") ? "" : props.alt
+  )
+);
 
 const releaseOwnedObjectUrl = () => {
   if (ownedObjectUrl) {
@@ -136,6 +171,12 @@ const resolveUrl = async () => {
           `[ImageNode] No agent context or resolveAsset hook for agent-asset:// URL: ${src}`
         );
       }
+    }
+
+    // 资产解析后仍保留协议前缀，说明资源缺失；直接展示资源名，避免无效请求。
+    if (src.startsWith("agent-asset://")) {
+      hasError.value = true;
+      return;
     }
 
     // 2. 针对 VCP 表情包进行 URL 预修复 (防止触发封禁)
@@ -507,12 +548,41 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-height: 50px; /* 最小高度，避免加载时闪烁 */
   width: 100%;
+  box-sizing: border-box;
   padding: 16px;
-  background-color: var(--container-bg);
-  border: 1px dashed var(--border-color);
+  background-color: var(--rich-text-image-placeholder-bg, var(--container-bg));
+  border: 1px dashed
+    var(--rich-text-image-placeholder-border, var(--border-color));
   border-radius: 4px;
-  color: var(--text-color-light);
+  color: var(--rich-text-image-placeholder-color, var(--text-color-light));
   font-size: 14px;
+}
+
+.error-placeholder {
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.error-placeholder__title,
+.error-placeholder__resource {
+  padding: 2px 4px;
+  border-radius: 2px;
+  background: var(--rich-text-image-placeholder-bg, var(--container-bg));
+}
+
+.error-placeholder__resource {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(
+    --rich-text-image-placeholder-resource-color,
+    var(--text-color-light)
+  );
+  font-size: 12px;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spinner {

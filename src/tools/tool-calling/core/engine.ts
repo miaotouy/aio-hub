@@ -19,6 +19,7 @@ import type {
   ParsedToolRequest,
   ToolExecutionResult,
   ToolApprovalResult,
+  ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
 import { parseToolRequests } from "./parser";
@@ -30,8 +31,12 @@ export interface ToolCallEngineOptions {
   protocol: ToolCallingProtocol;
   config: ToolCallConfig;
   agent?: ToolContext["agent"];
+  /** 子智能体派发深度，向下透传至 ToolContext.delegationDepth */
+  delegationDepth?: number;
+  modelBinding?: ToolContext["modelBinding"];
   onBeforeExecute?: (
-    request: ParsedToolRequest
+    request: ParsedToolRequest,
+    security?: ToolApprovalSecurityContext
   ) => Promise<ToolApprovalResult | boolean>;
   onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }
@@ -67,6 +72,8 @@ export async function processToolCallCycle(
   const executionResults = await executeToolRequests(parsedRequests, {
     config: options.config,
     agent: options.agent,
+    delegationDepth: options.delegationDepth,
+    modelBinding: options.modelBinding,
     onBeforeExecute: options.onBeforeExecute,
     onStatusChange: options.onStatusChange,
   });

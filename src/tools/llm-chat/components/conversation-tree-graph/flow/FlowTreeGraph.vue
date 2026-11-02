@@ -22,8 +22,8 @@
     tabindex="0"
   >
     <VueFlow
-      :nodes="nodes"
-      :edges="edges"
+      v-model:nodes="nodes"
+      v-model:edges="edges"
       :default-viewport="{ zoom: 1, x: 0, y: 0 }"
       :min-zoom="0.2"
       :max-zoom="4"
@@ -173,9 +173,11 @@
             :placement="isNarrowLayout ? 'left' : 'bottom'"
           >
             <el-button
+              ref="historyBtnRef"
               :icon="Timer"
-              :type="historyPanelState.visible ? 'primary' : 'default'"
-              @click="toggleHistoryPanel"
+              aria-label="操作历史"
+              :aria-expanded="historyPanelVisible"
+              :type="historyPanelVisible ? 'primary' : 'default'"
             />
           </el-tooltip>
 
@@ -481,23 +483,24 @@
       </div>
     </el-popover>
 
-    <!-- 历史记录悬浮窗 -->
-    <div
-      v-if="historyPanelState.visible"
-      class="history-panel-container"
-      :style="{
-        position: 'fixed',
-        top: `${historyPanelState.y}px`,
-        left: `${historyPanelState.x}px`,
-      }"
+    <!-- 历史记录锚定按钮，交由浮层处理边界避让和关闭。 -->
+    <el-popover
+      v-model:visible="historyPanelVisible"
+      :virtual-ref="historyBtnRef"
+      virtual-triggering
+      trigger="click"
+      :placement="isNarrowLayout ? 'left-start' : 'bottom-end'"
+      width="min(380px, calc(100vw - 24px))"
+      :popper-style="{ padding: '0', overflow: 'hidden' }"
     >
       <HistoryPanel
+        v-if="historyPanelVisible"
         :history-stack="historyStack"
         :current-index="currentHistoryIndex"
         @jump-to="handleJumpToHistory"
         @close="closeHistoryPanel"
       />
-    </div>
+    </el-popover>
   </div>
 </template>
 
@@ -509,7 +512,6 @@ import {
   onMounted,
   onUnmounted,
   computed,
-  reactive,
   type CSSProperties,
 } from "vue";
 import { useResizeObserver } from "@vueuse/core";
@@ -537,6 +539,7 @@ import {
 import customMessage from "@/utils/customMessage";
 import type { ChatSessionDetail, ChatMessageNode } from "../../../types";
 import { useFlowTreeGraph } from "./composables/useFlowTreeGraph";
+import { useGraphStats } from "./composables/useGraphStats";
 import { useLlmChatStore } from "../../../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatSettings } from "../../../composables/settings/useChatSettings";
@@ -567,6 +570,43 @@ const emit = defineEmits<{
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
 const viewSettingsBtnRef = ref();
+
+const {
+  getViewport,
+  fitView,
+  viewport,
+  updateNodeData,
+  findNode,
+  findEdge,
+  addNodes,
+  addEdges,
+  onNodesChange,
+} = useVueFlow();
+
+const updateGraphNodeData = (nodeId: string, data: any): boolean => {
+  if (!findNode(nodeId)) return false;
+  updateNodeData(nodeId, data, { replace: true });
+  return true;
+};
+
+const updateGraphEdge = (
+  edgeId: string,
+  update: { animated: boolean; style: any }
+): boolean => {
+  const edge = findEdge(edgeId);
+  if (!edge) return false;
+  edge.animated = update.animated;
+  edge.style = update.style;
+  return true;
+};
+
+const addGraphNodes = (newNodes: any[]): void => {
+  addNodes(newNodes);
+};
+
+const addGraphEdges = (newEdges: any[]): void => {
+  addEdges(newEdges);
+};
 
 const isNarrowLayout = ref(false);
 
@@ -619,12 +659,8 @@ watch(
   { deep: true }
 );
 
-// 上下文菜单状态
-const historyPanelState = ref({
-  visible: false,
-  x: 0,
-  y: 0,
-});
+const historyBtnRef = ref();
+const historyPanelVisible = ref(false);
 
 // 上下文菜单状态
 const contextMenu = ref({
@@ -667,7 +703,15 @@ const {
   toggleDebugMode,
   resetLayout,
   toggleCompressionExpanded,
-} = useFlowTreeGraph(() => props.session, contextMenu, wrapperRef);
+} = useFlowTreeGraph(
+  () => props.session,
+  contextMenu,
+  wrapperRef,
+  updateGraphNodeData,
+  updateGraphEdge,
+  addGraphNodes,
+  addGraphEdges
+);
 
 // 从 store 中获取历史记录相关的功能和状态
 // 使用 storeToRefs 来保持 canUndo 和 canRedo 的响应性
@@ -715,26 +759,7 @@ const currentHistoryIndex = computed(() => props.session?.historyIndex ?? 0);
 
 // 关闭历史记录面板
 const closeHistoryPanel = () => {
-  historyPanelState.value.visible = false;
-};
-
-// 切换历史记录面板的显示/隐藏
-const toggleHistoryPanel = (event: MouseEvent) => {
-  if (historyPanelState.value.visible) {
-    closeHistoryPanel();
-  } else {
-    const buttonGroupEl = (event.currentTarget as HTMLElement).closest(
-      ".el-button-group"
-    );
-    if (!buttonGroupEl) return;
-
-    const rect = buttonGroupEl.getBoundingClientRect();
-    // 380 是面板宽度, 将面板的右边缘与按钮组的右边缘对齐
-    historyPanelState.value.x = rect.right - 380;
-    // 将面板放置在按钮组下方，并留出 8px 间距
-    historyPanelState.value.y = rect.bottom + 8;
-    historyPanelState.value.visible = true;
-  }
+  historyPanelVisible.value = false;
 };
 
 // 处理历史跳转
@@ -909,109 +934,6 @@ const copyDebugInfo = () => {
   }
 };
 
-const getAttachmentWatchSignature = (
-  attachments: any[] | undefined
-): string => {
-  if (!attachments?.length) return "";
-
-  return attachments
-    .map((asset) => {
-      const derived = asset.metadata?.derived
-        ? Object.entries(asset.metadata.derived)
-            .map(([key, value]: [string, any]) =>
-              [
-                key,
-                value?.path,
-                value?.updatedAt,
-                value?.provider,
-                value?.error,
-                value?.warning,
-              ].join(":")
-            )
-            .join(",")
-        : "";
-
-      return [
-        asset.id,
-        asset.uploadingId,
-        asset.type,
-        asset.mimeType,
-        asset.name,
-        asset.path,
-        asset.thumbnailPath,
-        asset.size,
-        asset.importStatus,
-        asset.importError,
-        asset.importPhase,
-        asset.importPhaseDetail,
-        asset.metadata?.width,
-        asset.metadata?.height,
-        asset.metadata?.duration,
-        asset.metadata?.sha256,
-        asset.metadata?.originalSha256,
-        derived,
-      ].join(":");
-    })
-    .join("|");
-};
-
-const getGraphSessionWatchSource = () => {
-  const session = props.session;
-  if (!session) return [null];
-
-  const parts: unknown[] = [
-    session.id,
-    session.rootNodeId,
-    session.activeLeafId,
-  ];
-
-  const nodeEntries = session.nodes
-    ? Object.values(session.nodes).sort((a, b) => a.id.localeCompare(b.id))
-    : [];
-
-  parts.push(nodeEntries.length);
-
-  for (const node of nodeEntries) {
-    const metadata = node.metadata;
-    parts.push(
-      node.id,
-      node.parentId,
-      node.role,
-      node.status,
-      node.isEnabled,
-      node.timestamp,
-      node.content,
-      getAttachmentWatchSignature(node.attachments),
-      metadata?.reasoningContent,
-      metadata?.error,
-      metadata?.agentId,
-      metadata?.agentName,
-      metadata?.agentIcon,
-      metadata?.profileId,
-      metadata?.modelId,
-      metadata?.modelName,
-      metadata?.userProfileId,
-      metadata?.userProfileName,
-      metadata?.userProfileIcon,
-      metadata?.contentTokens,
-      metadata?.usage?.totalTokens,
-      metadata?.usage?.promptTokens,
-      metadata?.usage?.completionTokens,
-      metadata?.isCompressionNode,
-      metadata?.originalMessageCount,
-      metadata?.originalTokenCount,
-      metadata?.compressedNodeIds?.join(",")
-    );
-  }
-
-  return parts;
-};
-
-// 监听 session 变化
-watch(getGraphSessionWatchSource, () => {
-  updateChart();
-});
-
 // 监听会话 ID 变化（切换会话时自动聚焦到当前对话末端）
 watch(
   () => props.session?.id,
@@ -1042,8 +964,6 @@ onMounted(() => {
   }, 300);
 });
 
-// 获取 Vue Flow 内部节点状态，用于读取渲染后的节点尺寸和视口信息
-const { getNodes, getViewport, fitView, viewport } = useVueFlow();
 const menubarScale = computed(() => {
   const inverseScale = 1 / viewport.value.zoom;
   return Math.max(0.5, Math.min(2, inverseScale));
@@ -1075,105 +995,28 @@ const locateActiveNode = () => {
   });
 };
 
-// 状态监控 (FPS & Zoom)
-const graphStats = reactive({
-  fps: 60,
-  zoom: 1,
-});
+// 统计刷新随缓存页面暂停，返回后重新采样。
+const graphStats = useGraphStats(() => viewSettings.value.showHud, getViewport);
 
-let frameCount = 0;
-let lastTime = performance.now();
-let animationFrameId: number | null = null;
+// Vue Flow 会批量上报尺寸变更，只把实际变化的节点交给 D3。
+const dimensionChangeHook = onNodesChange((changeOrChanges) => {
+  const changes = Array.isArray(changeOrChanges)
+    ? changeOrChanges
+    : [changeOrChanges];
+  const dimensionsMap = new Map<string, { width: number; height: number }>();
 
-const updateStats = () => {
-  if (!viewSettings.value.showHud) {
-    animationFrameId = null;
-    return;
+  for (const change of changes) {
+    if (change.type !== "dimensions" || !change.dimensions) continue;
+    dimensionsMap.set(change.id, change.dimensions);
   }
 
-  const now = performance.now();
-  frameCount++;
-
-  if (now - lastTime >= 1000) {
-    graphStats.fps = Math.round((frameCount * 1000) / (now - lastTime));
-    frameCount = 0;
-    lastTime = now;
-  }
-
-  // 实时更新 Zoom (虽然有 onViewportChange，但在 RAF 中读取可以减少响应式开销)
-  const vp = getViewport();
-  if (Math.abs(graphStats.zoom - vp.zoom) > 0.01) {
-    graphStats.zoom = vp.zoom;
-  }
-
-  animationFrameId = requestAnimationFrame(updateStats);
-};
-
-const startStatsLoop = () => {
-  if (animationFrameId !== null) return;
-  frameCount = 0;
-  lastTime = performance.now();
-  updateStats();
-};
-
-const stopStatsLoop = () => {
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-};
-
-watch(
-  () => viewSettings.value.showHud,
-  (showHud) => {
-    if (showHud) {
-      startStatsLoop();
-    } else {
-      stopStatsLoop();
-    }
-  }
-);
-
-onMounted(() => {
-  if (viewSettings.value.showHud) {
-    startStatsLoop();
+  if (dimensionsMap.size > 0) {
+    updateNodeDimensions(dimensionsMap);
   }
 });
 
 onUnmounted(() => {
-  stopStatsLoop();
-});
-
-// 监听节点尺寸变化并同步到 D3
-const dimensionsWatchStop = watch(
-  () =>
-    getNodes.value.map((node) => ({
-      id: node.id,
-      width: node.dimensions?.width ?? 0,
-      height: node.dimensions?.height ?? 0,
-    })),
-  (vueFlowNodes) => {
-    const dimensionsMap = new Map<string, { width: number; height: number }>();
-
-    vueFlowNodes.forEach((node) => {
-      // Vue Flow 的 node.dimensions 包含渲染后的实际尺寸
-      if (node.width && node.height) {
-        dimensionsMap.set(node.id, {
-          width: node.width,
-          height: node.height,
-        });
-      }
-    });
-
-    if (dimensionsMap.size > 0) {
-      updateNodeDimensions(dimensionsMap);
-    }
-  },
-  { flush: "post" } // flush: 'post' 确保在 DOM 更新后执行
-);
-
-onUnmounted(() => {
-  dimensionsWatchStop();
+  dimensionChangeHook.off();
 });
 
 // SVG 调试层相关
@@ -1460,17 +1303,6 @@ const debugLinkPaths = computed(() => {
 
 .hud-value.low-fps {
   color: var(--el-color-danger);
-}
-
-.history-panel-container {
-  width: 380px;
-  z-index: 2000;
-  border-radius: 8px;
-  box-shadow: var(--el-box-shadow-light);
-  border: var(--border-width) solid var(--border-color);
-  overflow: hidden;
-  background-color: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
 }
 
 /* 调试叠加层 */

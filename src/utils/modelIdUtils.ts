@@ -132,3 +132,17 @@ export function compareModelGroup(left: string, right: string): number {
     sensitivity: "base",
   });
 }
+
+/**
+ * 将模型 ID 转换为可读的显示名称。
+ *
+ * 规则：取最后一个斜杠之后的部分，连字符转空格，`gpt` 归一为大写，首字母大写。
+ * 该函数用于在未提供显式名称时生成占位名称，不改变模型 ID 本身。
+ */
+export function formatModelDisplayName(modelId: string): string {
+  const lastSlashIndex = modelId.lastIndexOf("/");
+  let name =
+    lastSlashIndex !== -1 ? modelId.substring(lastSlashIndex + 1) : modelId;
+  name = name.replace(/-/g, " ").replace(/\bgpt\b/gi, "GPT");
+  return name.length > 0 ? name.charAt(0).toUpperCase() + name.slice(1) : name;
+}

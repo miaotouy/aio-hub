@@ -15,7 +15,8 @@
 -->
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
@@ -23,6 +24,9 @@ import { useAudioViewer } from "@/composables/useAudioViewer";
 import { History, RefreshCw } from "lucide-vue-next";
 import type { Asset, AssetType } from "@/types/asset-management";
 import AssetIcon from "../../asset-manager/components/AssetIcon.vue";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("media-generator/asset-gallery");
 
 const { assets, isLoading, loadAssetsPaginated, getAssetUrl } =
   useAssetManager();
@@ -32,6 +36,8 @@ const { previewAudio } = useAudioViewer();
 
 const filterType = ref<string>("all");
 const assetUrls = ref<Map<string, string>>(new Map());
+let unlistenAssetImport: UnlistenFn | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 /**
  * 批量加载资产 URL
@@ -78,8 +84,30 @@ const handlePreview = async (asset: Asset) => {
   }
 };
 
-onMounted(() => {
-  loadGallery();
+const scheduleRefreshAfterImport = () => {
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = undefined;
+    void loadGallery();
+  }, 200);
+};
+
+onMounted(async () => {
+  try {
+    unlistenAssetImport = await listen<Asset>(
+      "asset-imported",
+      scheduleRefreshAfterImport
+    );
+  } catch (error) {
+    logger.warn("订阅资产导入事件失败", error);
+  }
+
+  await loadGallery();
+});
+
+onUnmounted(() => {
+  unlistenAssetImport?.();
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer);
 });
 </script>
 

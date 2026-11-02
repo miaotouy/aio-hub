@@ -183,16 +183,26 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button
-                  type="primary"
-                  size="small"
-                  plain
-                  @click="createCoverageRule(row)"
-                >
-                  新建规则
-                </el-button>
+                <div class="coverage-actions">
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    @click="openRuleDetail(row)"
+                  >
+                    最终规则详情
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    plain
+                    @click="createCoverageRule(row)"
+                  >
+                    新建规则
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -211,6 +221,84 @@
       </div>
     </template>
   </BaseDialog>
+
+  <BaseDialog
+    :model-value="detailVisible"
+    @update:model-value="detailVisible = $event"
+    title="最终规则详情"
+    width="760px"
+    height="75vh"
+    content-class="rule-detail-content"
+    show-close-button
+  >
+    <template #content>
+      <div v-if="detailItem" class="rule-detail">
+        <div class="rule-detail__model">
+          <div>
+            <span class="rule-detail__label">渠道</span>
+            {{ detailItem.profileName }}（{{ detailItem.profileType }}）
+          </div>
+          <div>
+            <span class="rule-detail__label">模型</span>
+            {{ detailItem.modelName }}
+            <code>{{ detailItem.modelId }}</code>
+          </div>
+        </div>
+
+        <div v-if="!detailItem.isMatched" class="rule-detail__empty">
+          该模型未匹配任何规则
+        </div>
+
+        <template v-else>
+          <div class="rule-detail__section-title">
+            规则合并链（{{ detailItem.ruleChain.length }} 条）
+          </div>
+          <div class="rule-detail__chain">
+            <div
+              v-for="(contribution, index) in detailItem.ruleChain"
+              :key="contribution.rule.id"
+              class="rule-detail__chain-item"
+            >
+              <div class="rule-detail__chain-head">
+                <span class="rule-detail__index">{{ index + 1 }}</span>
+                <el-tag size="small" effect="light">
+                  {{ getMatchTypeLabel(contribution.rule.matchType) }}
+                </el-tag>
+                <code>{{ contribution.rule.matchValue }}</code>
+                <span class="rule-detail__priority">
+                  优先级 {{ contribution.rule.priority || 0 }}
+                </span>
+                <span
+                  v-if="contribution.rule.exclusive"
+                  class="rule-detail__exclusive"
+                  >独占</span
+                >
+              </div>
+              <div class="rule-detail__fields">
+                <span v-if="contribution.effectiveFields.length">
+                  ✓ 生效：{{ contribution.effectiveFields.join("、") }}
+                </span>
+                <span
+                  v-if="contribution.overriddenFields.length"
+                  class="rule-detail__overridden"
+                >
+                  ✗ 被覆盖：{{ contribution.overriddenFields.join("、") }}
+                </span>
+              </div>
+              <pre class="rule-detail__props">{{
+                formatProperties(contribution.rule.properties)
+              }}</pre>
+            </div>
+          </div>
+
+          <div class="rule-detail__section-title">最终解析结果</div>
+          <pre class="rule-detail__props rule-detail__props--final">{{
+            formatProperties(detailItem.finalProperties)
+          }}</pre>
+        </template>
+      </div>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
@@ -220,6 +308,7 @@ import { merge } from "lodash-es";
 import { customMessage } from "@/utils/customMessage";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type {
+  MetadataMatchType,
   ModelMetadataRule,
   ModelMetadataProperties,
 } from "@/types/model-metadata";
@@ -492,6 +581,29 @@ const paginatedCoverageItems = computed(() => {
   return filteredCoverageItems.value.slice(start, end);
 });
 
+const detailVisible = ref(false);
+const detailItem = ref<CoverageItem | null>(null);
+
+function openRuleDetail(row: CoverageItem) {
+  detailItem.value = row;
+  detailVisible.value = true;
+}
+
+function getMatchTypeLabel(type: MetadataMatchType): string {
+  const labels: Record<MetadataMatchType, string> = {
+    provider: "Provider",
+    modelExact: "Model exact",
+    modelPrefix: "Model prefix",
+    modelContains: "Model contains",
+    modelRegex: "Model RegEx",
+  };
+  return labels[type] || type;
+}
+
+function formatProperties(properties?: ModelMetadataProperties): string {
+  return JSON.stringify(properties ?? {}, null, 2);
+}
+
 function createCoverageRule(row: CoverageItem) {
   const recommendedGroup = recommendGroupForProfile(
     coverageItems.value,
@@ -749,6 +861,147 @@ function getCoverageRowKey(row: CoverageItem) {
 .no-icon {
   color: var(--text-color-light);
   font-style: italic;
+}
+
+.coverage-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+:deep(.rule-detail-content) {
+  overflow: hidden;
+}
+
+.rule-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rule-detail__model {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background-color: var(--container-bg);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.rule-detail__model code {
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: var(--input-bg);
+  border-radius: 4px;
+  font-family: var(--el-font-family-mono);
+  font-size: 12px;
+}
+
+.rule-detail__label {
+  display: inline-block;
+  width: 40px;
+  color: var(--text-color-light);
+}
+
+.rule-detail__empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-color-light);
+}
+
+.rule-detail__section-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-color);
+}
+
+.rule-detail__chain {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rule-detail__chain-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--card-bg);
+}
+
+.rule-detail__chain-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rule-detail__index {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rule-detail__chain-head code {
+  padding: 1px 6px;
+  background: var(--input-bg);
+  border-radius: 4px;
+  font-family: var(--el-font-family-mono);
+  font-size: 12px;
+}
+
+.rule-detail__priority {
+  color: var(--text-color-light);
+  font-size: 12px;
+}
+
+.rule-detail__exclusive {
+  color: var(--el-color-danger);
+  font-size: 12px;
+}
+
+.rule-detail__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.rule-detail__overridden {
+  color: var(--el-color-info);
+}
+
+.rule-detail__props {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--input-bg);
+  border: var(--border-width) solid var(--border-color);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rule-detail__props--final {
+  max-height: 320px;
 }
 
 @media (max-width: 900px) {

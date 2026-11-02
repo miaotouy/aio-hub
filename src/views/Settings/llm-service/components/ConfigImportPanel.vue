@@ -114,6 +114,8 @@ const duplicateProfiles = (profile: ParsedLlmProfileDraft) =>
   props.existingProfiles.filter(
     (existing) =>
       existing.type === profile.providerType &&
+      (profile.providerType !== "virtual" ||
+        existing.id === profile.sourceProfile?.id) &&
       normalizeComparableBaseUrl(existing.baseUrl) ===
         normalizeComparableBaseUrl(profile.baseUrl)
   );
@@ -121,7 +123,7 @@ const duplicateProfiles = (profile: ParsedLlmProfileDraft) =>
 function isImportable(profile: ParsedLlmProfileDraft) {
   return (
     !!profile.suggestedName.trim() &&
-    !!profile.baseUrl &&
+    (profile.providerType === "virtual" || !!profile.baseUrl) &&
     !profile.warnings.some(
       (warning) => warning.blocking || warning.severity === "error"
     )
@@ -361,7 +363,11 @@ const confirmImport = () => {
                 }}</span>
               </div>
               <div class="candidate-url mono">
-                {{ profile.baseUrl || "缺少 Base URL" }}
+                {{
+                  profile.providerType === "virtual"
+                    ? "虚拟渠道组合"
+                    : profile.baseUrl || "缺少 Base URL"
+                }}
               </div>
               <div class="candidate-summary">
                 <span class="summary-item">

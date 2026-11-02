@@ -20,8 +20,10 @@
       v-if="visible"
       class="video-viewer-overlay"
       @click.self="handleClose"
-      @keydown.esc="handleClose"
-      tabindex="0"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="displayTitle"
+      tabindex="-1"
       ref="overlayRef"
     >
       <div class="video-viewer-container">
@@ -50,14 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  watch,
-  computed,
-  nextTick,
-  onMounted,
-  onBeforeUnmount,
-} from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { X } from "lucide-vue-next";
 import VideoPlayer from "./VideoPlayer.vue";
 
@@ -74,6 +70,7 @@ const emit = defineEmits<{
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
+const { isTopmost } = useOverlayFocus(overlayRef, () => props.visible);
 
 const displayTitle = computed(() => {
   if (props.title) return props.title;
@@ -93,20 +90,18 @@ function handleClose() {
   emit("close");
 }
 
-// 自动聚焦以便接收键盘事件
-watch(
-  () => props.visible,
-  async (val) => {
-    if (val) {
-      await nextTick();
-      overlayRef.value?.focus();
-    }
-  }
-);
-
-// 全局 ESC 监听作为备份，防止 focus 丢失
+// 播放器先处理全屏退出，剩余 Escape 再关闭当前预览。
 function handleGlobalKeydown(e: KeyboardEvent) {
-  if (props.visible && e.key === "Escape") {
+  if (
+    props.visible &&
+    e.key === "Escape" &&
+    !e.defaultPrevented &&
+    isTopmost() &&
+    e.target instanceof Node &&
+    overlayRef.value?.contains(e.target)
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
     handleClose();
   }
 }

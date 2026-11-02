@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import type {
   TranslationChannel,
@@ -66,7 +67,8 @@ export function useTranslatorCore() {
         purpose: "translate",
       },
       temperature: options.temperature ?? channel.temperature ?? 0.3,
-      maxTokens: options.maxTokens ?? channel.maxTokens ?? 8192,
+      maxTokens:
+        options.maxTokens ?? channel.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
       thinkingEnabled: options.thinking?.thinkingEnabled,
       thinkingBudget: options.thinking?.thinkingBudget,
       reasoningEffort: options.thinking?.reasoningEffort,

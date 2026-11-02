@@ -22,6 +22,8 @@ import {
   Network,
   BookOpen,
   Crosshair,
+  Settings,
+  Search,
 } from "lucide-vue-next";
 import { useWebDistilleryStore } from "./stores/store";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -34,6 +36,8 @@ import InteractiveWorkbench from "./components/interactive/InteractiveWorkbench.
 import ApiSniffer from "./components/sniffer/ApiSniffer.vue";
 import CookieLab from "./components/cookie/CookieLab.vue";
 import RecipeManager from "./components/recipe/RecipeManager.vue";
+import SearchWorkbench from "./components/search/SearchWorkbench.vue";
+import SettingsPanel from "./components/settings/SettingsPanel.vue";
 
 const errorHandler = createModuleErrorHandler("web-distillery");
 const logger = createModuleLogger("web-distillery");
@@ -82,8 +86,17 @@ onErrorCaptured((err, instance, info) => {
         <DistilleryWorkbench />
       </el-tab-pane>
 
+      <el-tab-pane name="search" lazy>
+        <template #label
+          ><div class="tab-label">
+            <el-icon><Search /></el-icon><span>网页搜索</span>
+          </div></template
+        >
+        <SearchWorkbench />
+      </el-tab-pane>
+
       <!-- 交互配方 (Interactive Editor) -->
-      <el-tab-pane name="interactive">
+      <el-tab-pane name="interactive" lazy>
         <template #label>
           <div class="tab-label">
             <el-icon><Crosshair /></el-icon>
@@ -94,7 +107,7 @@ onErrorCaptured((err, instance, info) => {
       </el-tab-pane>
 
       <!-- 站点配方 -->
-      <el-tab-pane name="recipes">
+      <el-tab-pane name="recipes" lazy>
         <template #label>
           <div class="tab-label">
             <el-icon><BookOpen /></el-icon>
@@ -105,7 +118,7 @@ onErrorCaptured((err, instance, info) => {
       </el-tab-pane>
 
       <!-- Cookie 实验室 -->
-      <el-tab-pane name="cookies">
+      <el-tab-pane name="cookies" lazy>
         <template #label>
           <div class="tab-label">
             <el-icon><Cookie /></el-icon>
@@ -118,7 +131,7 @@ onErrorCaptured((err, instance, info) => {
       </el-tab-pane>
 
       <!-- API 嗅探 -->
-      <el-tab-pane name="sniffer">
+      <el-tab-pane name="sniffer" lazy>
         <template #label>
           <div class="tab-label">
             <el-icon><Network /></el-icon>
@@ -127,6 +140,19 @@ onErrorCaptured((err, instance, info) => {
         </template>
         <div class="tab-content-padded">
           <ApiSniffer />
+        </div>
+      </el-tab-pane>
+
+      <!-- 偏好设置 -->
+      <el-tab-pane name="settings" lazy>
+        <template #label>
+          <div class="tab-label">
+            <el-icon><Settings /></el-icon>
+            <span>偏好设置</span>
+          </div>
+        </template>
+        <div class="tab-content-padded">
+          <SettingsPanel />
         </div>
       </el-tab-pane>
     </el-tabs>

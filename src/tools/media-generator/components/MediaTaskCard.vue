@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
+import { useMediaSource } from "@/composables/useMediaSource";
 import { format } from "date-fns";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
@@ -33,12 +34,16 @@ import {
   XCircle,
   RefreshCcw,
   Download,
+  ImagePlus,
   Trash2 as TrashIcon,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
   FolderOpen,
 } from "lucide-vue-next";
 import type { MediaTask } from "../types";
+import { isAudioOutputTaskType } from "../types";
+import type { Asset } from "@/types/asset-management";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useMediaGenStore } from "../stores/mediaGenStore";
@@ -46,6 +51,8 @@ import AudioWaveform from "@/components/common/AudioWaveform.vue";
 
 const props = defineProps<{
   task: MediaTask;
+  layout?: "grid" | "list";
+  listLayout?: "wide" | "wrapped" | "stacked";
 }>();
 
 const emit = defineEmits<{
@@ -55,6 +62,7 @@ const emit = defineEmits<{
   (e: "download", task: MediaTask): void;
   (e: "copyPrompt", prompt: string): void;
   (e: "copyResult", task: MediaTask): void;
+  (e: "add-reference", asset: Asset): void;
   (e: "open", task: MediaTask): void;
 }>();
 
@@ -69,13 +77,24 @@ const imageViewer = useImageViewer();
 const store = useMediaGenStore();
 
 // 结果多图支持
-const resultAssetUrls = ref<string[]>([]);
+const resultItems = ref<{ asset: Asset; url: string }[]>([]);
+const resultAssetUrls = computed(() =>
+  resultItems.value.map((item) => item.url)
+);
 const activeResultIndex = ref(0);
+const { src: videoPlaybackSrc } = useMediaSource(() =>
+  props.task.type === "video"
+    ? resultAssetUrls.value[activeResultIndex.value]
+    : undefined
+);
 const referenceAssetUrls = ref<string[]>([]);
 const videoPosterUrl = ref<string>("");
 
 const hasReferenceImages = computed(() => referenceAssetUrls.value.length > 0);
 const hasMultipleResults = computed(() => resultAssetUrls.value.length > 1);
+const listReferencePreviewUrls = computed(() =>
+  referenceAssetUrls.value.slice(0, 3)
+);
 
 const showFullError = () => {
   ElMessageBox.alert(props.task.error || "生成失败", "错误详情", {
@@ -102,6 +121,35 @@ const showFullError = () => {
   });
 };
 
+const showFullPrompt = () => {
+  ElMessageBox.alert(
+    h(
+      "pre",
+      {
+        style: {
+          margin: 0,
+          maxHeight: "60vh",
+          overflow: "auto",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+          lineHeight: 1.6,
+          fontFamily: "inherit",
+        },
+      },
+      props.task.input.prompt
+    ),
+    "完整提示词",
+    {
+      confirmButtonText: "关闭",
+      lockScroll: false,
+      customStyle: {
+        width: "720px",
+        maxWidth: "calc(100vw - 48px)",
+      },
+    }
+  );
+};
+
 const getResultAssets = () =>
   props.task.resultAssets?.length
     ? props.task.resultAssets
@@ -109,17 +157,21 @@ const getResultAssets = () =>
       ? [props.task.resultAsset]
       : [];
 
+const activeResultAsset = computed(
+  () => resultItems.value[activeResultIndex.value]?.asset
+);
+
 const loadResultUrls = async () => {
   const assets = getResultAssets();
   if (assets.length === 0) {
-    resultAssetUrls.value = [];
+    resultItems.value = [];
     videoPosterUrl.value = "";
     return;
   }
-  const urls: string[] = [];
+  const items: { asset: Asset; url: string }[] = [];
   for (const asset of assets) {
     const url = await getAssetUrl(asset);
-    if (url) urls.push(url);
+    if (url) items.push({ asset, url });
 
     if (asset.type === "video") {
       let currentAsset = asset;
@@ -138,9 +190,9 @@ const loadResultUrls = async () => {
       }
     }
   }
-  resultAssetUrls.value = urls;
+  resultItems.value = items;
   // 重置索引
-  if (activeResultIndex.value >= urls.length) {
+  if (activeResultIndex.value >= items.length) {
     activeResultIndex.value = 0;
   }
 };
@@ -176,6 +228,13 @@ const prevResult = () => {
 const nextResult = () => {
   if (activeResultIndex.value < resultAssetUrls.value.length - 1)
     activeResultIndex.value++;
+};
+
+const addActiveResultAsReference = (event: MouseEvent) => {
+  event.stopPropagation();
+  if (activeResultAsset.value) {
+    emit("add-reference", activeResultAsset.value);
+  }
 };
 
 /** 音频波形数据（从 resultAsset 的 metadata 中提取） */
@@ -378,7 +437,14 @@ const openFileDirectory = async () => {
 </script>
 
 <template>
-  <div class="task-card" :class="task.status">
+  <div
+    class="task-card"
+    :class="[
+      task.status,
+      { 'task-card-list': layout === 'list' },
+      layout === 'list' && `task-card-list-${listLayout ?? 'wide'}`,
+    ]"
+  >
     <!-- 卡片头部 -->
     <div class="task-header">
       <div class="task-type">
@@ -394,23 +460,86 @@ const openFileDirectory = async () => {
     <!-- 任务内容预览 -->
     <div class="task-content">
       <div class="prompt-wrapper">
-        <div class="prompt-preview" :title="task.input.prompt">
+        <div
+          class="prompt-preview"
+          :title="layout === 'list' ? undefined : task.input.prompt"
+        >
           {{ task.input.prompt }}
         </div>
-        <el-tooltip content="复制提示词" placement="top">
-          <el-button
-            :icon="Copy"
-            link
-            class="copy-prompt-btn"
-            @click="emit('copyPrompt', task.input.prompt)"
-          />
-        </el-tooltip>
+        <div class="prompt-actions">
+          <el-tooltip
+            v-if="layout === 'list'"
+            content="查看完整提示词"
+            placement="top"
+          >
+            <el-button
+              :icon="Maximize2"
+              link
+              class="expand-prompt-btn"
+              aria-label="查看完整提示词"
+              @click="showFullPrompt"
+            />
+          </el-tooltip>
+          <el-tooltip content="复制提示词" placement="top">
+            <el-button
+              :icon="Copy"
+              link
+              class="copy-prompt-btn"
+              aria-label="复制提示词"
+              @click="emit('copyPrompt', task.input.prompt)"
+            />
+          </el-tooltip>
+          <el-tooltip
+            v-if="layout === 'list' && hasReferenceImages"
+            :content="`查看 ${referenceAssetUrls.length} 张参考图`"
+            placement="top"
+          >
+            <el-button
+              :icon="ImageIcon"
+              link
+              class="reference-count-trigger"
+              :aria-label="`查看 ${referenceAssetUrls.length} 张参考图`"
+              @click="openReferencePreview(0)"
+            >
+              {{ referenceAssetUrls.length }}
+            </el-button>
+          </el-tooltip>
+        </div>
       </div>
 
       <!-- 结果展示区域 -->
       <div class="result-row" :class="{ 'has-reference': hasReferenceImages }">
-        <!-- 参考图区域：竖向排列，超过3个可滚动 -->
-        <div v-if="hasReferenceImages" class="reference-panel">
+        <!-- 列表模式压缩显示参考图；网格模式保留完整参考图列表。 -->
+        <div
+          v-if="layout === 'list' && hasReferenceImages"
+          class="reference-panel"
+        >
+          <div class="reference-label">
+            参考图 ({{ referenceAssetUrls.length }})
+          </div>
+          <div class="reference-list">
+            <button
+              v-for="(url, idx) in listReferencePreviewUrls"
+              :key="idx"
+              type="button"
+              class="reference-thumb"
+              :aria-label="`查看第 ${idx + 1} 张参考图${idx === 2 && referenceAssetUrls.length > 3 ? `，还有 ${referenceAssetUrls.length - 3} 张` : ''}`"
+              @click="openReferencePreview(idx)"
+            >
+              <img :src="url" alt="参考图" loading="lazy" />
+              <span
+                v-if="idx === 2 && referenceAssetUrls.length > 3"
+                class="reference-more"
+              >
+                +{{ referenceAssetUrls.length - 3 }}
+              </span>
+              <span v-else class="reference-overlay">
+                <el-icon><ExternalLink /></el-icon>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div v-else-if="hasReferenceImages" class="reference-panel">
           <div class="reference-label">
             参考图 ({{ referenceAssetUrls.length }})
           </div>
@@ -430,7 +559,10 @@ const openFileDirectory = async () => {
         </div>
 
         <!-- 结果区域 -->
-        <div class="result-area">
+        <div
+          class="result-area"
+          :class="{ 'is-audio-result': isAudioOutputTaskType(task.type) }"
+        >
           <!-- 完成状态：显示缩略图/视频 -->
           <template v-if="task.status === 'completed'">
             <div class="media-preview" @click="emit('open', task)">
@@ -445,7 +577,8 @@ const openFileDirectory = async () => {
                 class="video-preview-wrapper"
               >
                 <video
-                  :src="resultAssetUrls[activeResultIndex] || ''"
+                  :src="videoPlaybackSrc"
+                  crossorigin="anonymous"
                   :poster="videoPosterUrl"
                   muted
                   loop
@@ -475,7 +608,30 @@ const openFileDirectory = async () => {
                 </div>
               </div>
               <div class="overlay">
-                <el-icon><ExternalLink /></el-icon>
+                <el-tooltip content="预览" placement="top">
+                  <button
+                    type="button"
+                    class="preview-action-btn"
+                    aria-label="预览当前结果"
+                    @click.stop="emit('open', task)"
+                  >
+                    <ExternalLink :size="22" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip
+                  v-if="task.type === 'image' && activeResultAsset"
+                  content="添加到参考图"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    class="preview-action-btn add-reference-btn"
+                    aria-label="添加当前结果到参考图"
+                    @click="addActiveResultAsReference"
+                  >
+                    <ImagePlus :size="22" />
+                  </button>
+                </el-tooltip>
               </div>
               <div v-if="getTaskResolution(task)" class="media-info-tag">
                 {{ getTaskResolution(task) }}
@@ -658,7 +814,211 @@ const openFileDirectory = async () => {
   box-shadow: var(--el-box-shadow-light);
 }
 
+.task-card-list {
+  display: grid;
+  grid-template-columns:
+    minmax(145px, 180px) minmax(280px, 1fr) minmax(208px, 228px)
+    232px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+  border-radius: 8px;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.task-card-list:hover {
+  transform: none;
+}
+
+.task-card-list .task-header {
+  box-sizing: border-box;
+  grid-column: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  border-right: var(--border-width) solid var(--border-color);
+  border-bottom: 0;
+}
+
+.task-card-list .task-type {
+  width: 100%;
+  min-width: 0;
+}
+
+.task-card-list .task-time {
+  font-size: 10px;
+}
+
+.task-card-list .task-content {
+  display: contents;
+}
+
+.task-card-list .prompt-wrapper {
+  box-sizing: border-box;
+  grid-column: 2;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  border-right: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list .prompt-preview {
+  min-width: 0;
+  min-height: 0;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.task-card-list .prompt-actions .el-button {
+  width: 26px;
+  height: 26px;
+  margin-left: 0;
+  padding: 4px;
+}
+
+.task-card-list .copy-prompt-btn,
+.task-card-list .expand-prompt-btn {
+  opacity: 0.7;
+}
+
+.task-card-list .result-row {
+  box-sizing: border-box;
+  grid-column: 3;
+  align-items: center;
+  width: auto;
+  height: 100%;
+  flex: none;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border-right: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list .result-row.has-reference .reference-panel {
+  flex: 0 0 100px;
+  height: 100%;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.task-card-list .reference-label {
+  font-size: 9px;
+  line-height: 12px;
+  text-align: center;
+}
+
+.task-card-list .reference-list {
+  display: flex;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  max-height: none;
+  overflow: hidden;
+}
+
+.task-card-list .reference-thumb {
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.task-card-list .reference-more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-color-white);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  background-color: var(--el-overlay-color);
+  pointer-events: none;
+}
+
+.task-card-list .result-area {
+  flex: 1;
+  width: auto;
+  min-width: 84px;
+  height: 100%;
+  aspect-ratio: unset;
+}
+
+.task-card-list .status-container {
+  gap: 5px;
+  padding: 6px;
+  font-size: 11px;
+}
+
+.task-card-list .status-container .is-loading {
+  font-size: 18px;
+}
+
+.task-card-list .progress-info {
+  gap: 4px;
+}
+
+.task-card-list .status-text {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-list .error-msg {
+  font-size: 10px;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.task-card-list .task-footer {
+  box-sizing: border-box;
+  grid-column: 4;
+  min-width: 0;
+  height: 100%;
+  padding: 8px 10px;
+  gap: 8px;
+  border-top: 0;
+  border-left: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list .actions {
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.task-card-list .actions :deep(.el-button) {
+  width: 26px;
+  height: 26px;
+  margin-left: 0;
+  padding: 4px;
+}
+
+.task-card-list .reference-count-trigger {
+  display: none;
+}
+
 .task-header {
+  flex-shrink: 0;
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;
@@ -694,6 +1054,8 @@ const openFileDirectory = async () => {
 }
 
 .task-content {
+  min-height: 0;
+  overflow: hidden;
   padding: 12px;
   flex: 1;
   display: flex;
@@ -702,6 +1064,7 @@ const openFileDirectory = async () => {
 }
 
 .prompt-wrapper {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   gap: 4px;
@@ -751,6 +1114,7 @@ const openFileDirectory = async () => {
 .result-row.has-reference .reference-panel {
   flex: 0 0 72px;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -771,10 +1135,14 @@ const openFileDirectory = async () => {
 
 .reference-list {
   flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
+  overflow-x: hidden;
   max-height: calc(64px * 3 + 4px * 2);
   border-radius: 6px;
   scrollbar-width: thin;
@@ -831,6 +1199,7 @@ const openFileDirectory = async () => {
 }
 
 .result-area {
+  min-height: 0;
   aspect-ratio: 16 / 9;
   background-color: var(--el-fill-color-lighter);
   border-radius: 8px;
@@ -925,22 +1294,56 @@ const openFileDirectory = async () => {
 
 .media-preview .overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
+  inset: 0;
+  z-index: 2;
+  background-color: var(--el-overlay-color-lighter);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.2s;
-  color: white;
-  font-size: 24px;
 }
 
-.media-preview:hover .overlay {
+.media-preview:hover .overlay,
+.media-preview:focus-within .overlay {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.preview-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+  background: var(--el-bg-color-overlay);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+.preview-action-btn:hover {
+  background: var(--el-color-primary);
+  color: var(--el-color-white);
+}
+
+.preview-action-btn:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .media-preview .overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* 多图切换导航 */
@@ -1066,6 +1469,7 @@ const openFileDirectory = async () => {
 }
 
 .task-footer {
+  flex-shrink: 0;
   padding: 10px 12px;
   display: flex;
   justify-content: space-between;
@@ -1094,6 +1498,102 @@ const openFileDirectory = async () => {
 
 .el-button {
   margin-left: 4px;
+}
+
+/* 由列表容器的实际内容宽度选择布局，并与虚拟行高同步。 */
+.task-card-list-wrapped {
+  grid-template-columns: minmax(124px, 180px) minmax(0, 1fr) 232px;
+  grid-template-rows: 64px minmax(0, 1fr);
+}
+
+.task-card-list-wrapped .prompt-wrapper {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  border-right: 0;
+}
+
+.task-card-list-wrapped .result-row {
+  grid-column: 1 / 3;
+  grid-row: 2;
+  border-top: var(--border-width) solid var(--border-color);
+  border-right: 0;
+}
+
+.task-card-list.task-card-list-wrapped .result-row .result-area {
+  flex: 0 1 128px;
+}
+
+.task-card-list-wrapped .task-footer {
+  grid-column: 3;
+  grid-row: 2;
+  border-top: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list-stacked {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 36px 60px minmax(0, 1fr) 44px;
+}
+
+.task-card-list-stacked .task-header {
+  grid-column: 1;
+  grid-row: 1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-right: 0;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.task-card-list-stacked .task-type {
+  flex: 1;
+}
+
+.task-card-list-stacked .model-name {
+  max-width: none;
+  min-width: 0;
+}
+
+.task-card-list-stacked .task-time {
+  flex-shrink: 0;
+}
+
+.task-card-list-stacked .prompt-wrapper {
+  grid-column: 1;
+  grid-row: 2;
+  border-right: 0;
+}
+
+.task-card-list-stacked .result-row {
+  grid-column: 1;
+  grid-row: 3;
+  border-right: 0;
+}
+
+.task-card-list.task-card-list-stacked .result-row .result-area {
+  flex: 0 1 128px;
+}
+
+.task-card-list-stacked .task-footer {
+  grid-column: 1;
+  grid-row: 4;
+  border-left: 0;
+  border-top: var(--border-width) solid var(--border-color);
+}
+/* 音频波形沿折行后的结果区域伸展，图片和视频保留紧凑预览。 */
+.task-card-list:is(.task-card-list-wrapped, .task-card-list-stacked)
+  .result-row
+  .result-area.is-audio-result {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.task-card-list .audio-preview {
+  padding: 8px;
+}
+
+.task-card-list .audio-preview :deep(.audio-waveform) {
+  height: 100% !important;
 }
 </style>
 

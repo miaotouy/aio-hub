@@ -30,6 +30,7 @@ export interface FavoriteFolder {
 
 export interface SessionsIndex {
   version: string;
+  /** 历史会话 ID；null 表示新会话入口，草稿 ID 仅保存在内存中。 */
   currentSessionId: string | null;
   sessions: ChatSessionIndex[];
   favoriteFolders?: FavoriteFolder[];

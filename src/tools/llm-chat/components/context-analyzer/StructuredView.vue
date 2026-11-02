@@ -73,6 +73,26 @@
       </div>
     </InfoCard>
 
+    <InfoCard v-if="compositionSources.length">
+      <template #header>合并消息来源</template>
+      <div
+        v-for="message in compositionSources"
+        :key="message.id"
+        class="composition-source-row"
+      >
+        <span>{{ message.name || "合并消息" }}</span
+        ><el-button link type="primary" @click="editingSourceId = message.id"
+          >编辑来源</el-button
+        >
+      </div>
+    </InfoCard>
+    <PresetCompositionSourceEditor
+      v-if="editingSourceId"
+      :visible="true"
+      :agent-id="contextData.agentInfo.id!"
+      :message-id="editingSourceId"
+      @update:visible="editingSourceId = null"
+    />
     <!-- 统计信息 -->
     <InfoCard class="stats-card">
       <template #header>
@@ -736,6 +756,8 @@
 </template>
 
 <script setup lang="ts">
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import PresetCompositionSourceEditor from "@/tools/agent-manager/components/editors/PresetCompositionSourceEditor.vue";
 import { computed, ref, watch, nextTick } from "vue";
 import {
   Setting,
@@ -806,6 +828,18 @@ function toggleAllEntries() {
 const { getModelIcon, getModelProperty, getIconPath, getDisplayIconPath } =
   useModelMetadata();
 const { computeWillUseTranscription } = useTranscriptionManager();
+
+const editingSourceId = ref<string | null>(null);
+const sourceStore = useAgentStore();
+const compositionSources = computed(() => {
+  const agent = sourceStore.getAgentById(props.contextData.agentInfo.id || "");
+  const indices = new Set(
+    props.contextData.presetMessages.map((message) => message.index)
+  );
+  return (agent?.presetMessages ?? []).filter(
+    (message, index) => message.presetComposition && indices.has(index)
+  );
+});
 
 const agentProfile = computed(() => {
   if (!props.contextData.agentInfo.profileId) return undefined;
@@ -1501,6 +1535,13 @@ function getPositionLabel(
 </script>
 
 <style scoped>
+.composition-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
 .structured-view {
   padding: 20px;
   display: flex;

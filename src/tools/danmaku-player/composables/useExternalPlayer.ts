@@ -21,6 +21,8 @@ import {
   onMounted,
 } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { usePageActivity } from "@/composables/usePageActivity";
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { TauriExternalPlayerStatusProvider } from "../core/externalPlayerApi";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -63,6 +65,7 @@ const configManager = createConfigManager<ExternalPlayerConfig>({
 });
 
 export function useExternalPlayer() {
+  const isSupported = getNativeDesktopCapabilities().externalPlayerOverlay;
   const playerWindows = ref<PlayerWindowInfo[]>([]);
   const playerConfig = reactive<ExternalPlayerConfig>({
     ...DEFAULT_PLAYER_CONFIG,
@@ -75,6 +78,9 @@ export function useExternalPlayer() {
 
   let statusPreviewTimer: ReturnType<typeof setInterval> | null = null;
   let statusPreviewPolling = false;
+  let previewVersion = 0;
+  let previewRequested = false;
+  const isPageActive = usePageActivity();
 
   onMounted(async () => {
     const saved = await configManager.load();
@@ -99,6 +105,7 @@ export function useExternalPlayer() {
   async function scanPlayerWindows(
     classNames?: string[]
   ): Promise<PlayerWindowInfo[]> {
+    if (!isSupported) return [];
     scanning.value = true;
 
     try {
@@ -134,6 +141,7 @@ export function useExternalPlayer() {
   }
 
   async function testConnection(): Promise<boolean> {
+    if (!isSupported) return false;
     try {
       const provider = getOrCreateStatusProvider();
       const connected = await provider.testConnection(overlayState.targetHwnd);
@@ -184,10 +192,13 @@ export function useExternalPlayer() {
   }
 
   function startStatusPreview(): void {
+    previewRequested = true;
+    if (!isSupported || !isPageActive.value) return;
     if (statusPreviewTimer !== null) {
       return;
     }
 
+    const version = ++previewVersion;
     const pollStatus = async () => {
       if (statusPreviewPolling) {
         return;
@@ -198,8 +209,10 @@ export function useExternalPlayer() {
       try {
         const provider = getOrCreateStatusProvider();
         const status = await provider.getStatus(overlayState.targetHwnd);
+        if (version !== previewVersion || !isPageActive.value) return;
         updateStatusPreview(status);
       } catch (error) {
+        if (version !== previewVersion || !isPageActive.value) return;
         overlayState.connected = false;
         overlayState.playbackState = "Disconnected";
         errorHandler.handle(error, {
@@ -212,7 +225,7 @@ export function useExternalPlayer() {
           },
         });
       } finally {
-        statusPreviewPolling = false;
+        if (version === previewVersion) statusPreviewPolling = false;
       }
     };
 
@@ -225,6 +238,13 @@ export function useExternalPlayer() {
   }
 
   function stopStatusPreview(): void {
+    previewRequested = false;
+    pauseStatusPreview();
+  }
+
+  function pauseStatusPreview(): void {
+    previewVersion++;
+    statusPreviewPolling = false;
     if (statusPreviewTimer === null) {
       return;
     }
@@ -234,6 +254,15 @@ export function useExternalPlayer() {
     statusPreviewPolling = false;
     logger.info("已停止外部播放器状态预览轮询");
   }
+
+  watch(
+    isPageActive,
+    (active) => {
+      if (!active) pauseStatusPreview();
+      else if (previewRequested) startStatusPreview();
+    },
+    { flush: "sync" }
+  );
 
   function cleanup(): void {
     stopStatusPreview();
@@ -248,6 +277,7 @@ export function useExternalPlayer() {
 
   return {
     // 状态
+    isSupported,
     playerWindows,
     playerConfig,
     overlayState,

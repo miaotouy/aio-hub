@@ -1,6 +1,6 @@
 # VCP Connector: 架构与开发者指南
 
-> 最后更新：2026-08-01
+> 最后更新：2026-11-01
 
 本文档描述 `vcp-connector` 模块的内部架构、设计理念与数据流，为后续开发和维护提供清晰指引。
 
@@ -98,6 +98,17 @@ AIO 暴露给 VCP 主服务器的分布式工具 manifest 会在 `communication.
 
 远程工具若需要真正释放文件扫描、网络请求或其他长任务资源，必须消费传入的 `ToolContext.signal`；仅依赖 VCP 返回错误不能保证本地任务停止。
 
+#### 2.4.2. 分布式媒体结果
+
+工具的普通对象结果与 `ToolMethodResult` 信封均可携带 `localMedia`。本地聊天通过发送管道消费该引用；分布式节点在 `execute_tool` 的同一次执行内完成安全读取，再返回 `result.content`，使 VCP 服务端下一轮请求直接包含媒体。
+
+- 文本使用 `{ type: "text", text }`，媒体使用 `{ type: "image_url", image_url: { url: "data:<mime>;base64,..." } }`。VCP 的工具结果格式化器读取顶层 `content`；媒体处理管道通过 data URL 的 MIME 识别图片、音频和视频。模型输入支持与 VCP 媒体转换设置继续适用。
+- 混合批量调用按执行顺序把文本和媒体平铺到顶层 `content`；纯文本批次沿用原有数组返回。原始媒体引用从传输结果中移除。
+- 媒体读取与 `internal_request_file` 共用安全外传入口，应用 `externalFileTransferEnabled`、限流、沙箱、当前路径规则、审批、大小限制和来源审计。引用中的本地审批标记与外传授权独立，审批区仍需确认外传。
+- 安全读取与结果转换计入分布式执行超时，取消后停止后续读取；文件不可访问、权限拒绝或传输关闭时回传明确错误。
+
+协议依据：VCPToolBox 的 `modules/vcpLoop/toolExecutor.js`（`_formatResult`）、`modules/handlers/streamHandler.js` 与 `nonStreamHandler.js` 的工具媒体管道，以及 `Plugin/UrlFetch/UrlFetch.js` 的本地图片返回格式。
+
 ### 2.5. 工具调用审批系统
 
 为分布式调用提供人工干预能力：
@@ -107,11 +118,21 @@ AIO 暴露给 VCP 主服务器的分布式工具 manifest 会在 `communication.
 
 ### 2.6. 配置持久化
 
-模块使用两个 `configManager` 实例分别管理：
+模块使用 `configManager` 分别管理：
 
-- `config.json`: 连接配置（WS 地址、VCP Key、自动连接、消息上限等）
+- `config.json`: 连接配置（WS 地址、VCP Key、消息上限等）
 - `distributed-config.json`: 分布式配置（节点名称、暴露工具列表、自动注册开关）
 - `messages.json`: 历史消息持久化（带防抖保存）
+
+---
+
+### 2.7. 启动连接
+
+自动连接统一存储在应用全局配置 `startupTasks["vcp-connector"].enabled`。VCP 页面中的「自动连接」直接读写该设置，与全局启动项「VCP 自动连接」双向联动；旧 `config.json` 中的 `autoConnect` 字段在加载时移除。页面手动开启时沿用全局启动项的恢复规则，重置连续失败计数与自动禁用状态。
+
+应用启动时，由全局启动项管理器调用 `VcpConnectorRegistry.onStartup()`。回调等待连接配置和分布式配置加载完成后再次确认全局开关，再建立连接并启动分布式节点逻辑。
+
+Store 初始化负责加载配置、历史消息和窗口同步。其他模块读取 Store 时保持连接状态；首次启动连接统一由启动项回调发起。手动连接保持独立，异常断线重连沿用现有退避策略，并读取同一个全局开关；关闭后，已排队的重连也会跳过。分离监控窗口沿用主窗口连接状态同步机制。
 
 ---
 

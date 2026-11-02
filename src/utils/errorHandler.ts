@@ -48,6 +48,8 @@ export interface ErrorHandlerOptions {
   showToUser?: boolean;
   /** 自定义用户消息 */
   userMessage?: string;
+  /** 仅格式化提示详情；复制、日志和错误队列保留完整原始消息。 */
+  formatDisplayMessage?: (message: string) => string;
   /** 错误上下文数据 */
   context?: Record<string, any>;
   /** 模块名称 */
@@ -235,7 +237,11 @@ class GlobalErrorHandler {
       (options.showToUser !== false && !alreadyHandled);
 
     if (shouldShow) {
-      this.showToUser(standardError, options.userMessage);
+      this.showToUser(
+        standardError,
+        options.userMessage,
+        options.formatDisplayMessage
+      );
     }
 
     return standardError;
@@ -286,14 +292,20 @@ class GlobalErrorHandler {
     if (message.length <= maxLength) {
       return message;
     }
-    return message.slice(0, maxLength) + "... (详情见日志)";
+    return message.slice(0, maxLength) + "...（点击复制完整错误）";
   }
 
   /**
    * 显示错误给用户
    */
-  private showToUser(error: StandardError, userMessage?: string): void {
-    const friendlyMessage = this.getUserFriendlyMessage(error);
+  private showToUser(
+    error: StandardError,
+    userMessage?: string,
+    formatDisplayMessage?: (message: string) => string
+  ): void {
+    const friendlyMessage = formatDisplayMessage
+      ? formatDisplayMessage(error.message)
+      : this.getUserFriendlyMessage(error);
     const truncatedMessage = this.truncateMessage(
       friendlyMessage,
       this.maxUserMessageLength
@@ -302,7 +314,7 @@ class GlobalErrorHandler {
     const copyText = [
       hasModule ? `[${error.module}]` : "",
       userMessage || "",
-      truncatedMessage,
+      error.message,
     ]
       .filter(Boolean)
       .join("\n");

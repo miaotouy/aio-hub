@@ -14,7 +14,8 @@
 
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import { createModuleLogger } from "@/utils/logger";
-import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+import { getContextTokenCalculator } from "../context-utils/token-calculator";
+import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 
 const logger = createModuleLogger("primary:token-limiter");
 
@@ -59,6 +60,7 @@ export const tokenLimiter: ContextProcessor = {
   description: "根据预算截断历史消息。",
   priority: 600, // 调整到注入组装器 (400) 之后，消息格式化 (800) 之前
   execute: async (context: PipelineContext) => {
+    const tokenCalculatorService = getContextTokenCalculator(context);
     const { messages, agentConfig } = context;
     const { parameters, modelId } = agentConfig;
     const contextManagement = parameters?.contextManagement;
@@ -78,6 +80,14 @@ export const tokenLimiter: ContextProcessor = {
     }
 
     // 1. 计算所有消息的 Token (包含文本和附件)
+    // 图片 Token 与 asset-resolver 的缩放结果对齐（模型安全约束 + 用户压缩）
+    const maxImageDimension = resolveEffectiveImageMaxDimension(
+      context.capabilities,
+      parameters?.imageCompression
+    );
+    const tokenCalcOptions =
+      maxImageDimension !== undefined ? { maxImageDimension } : undefined;
+
     const messagesWithTokens = await Promise.all(
       messages.map(async (msg) => {
         let contentText = "";
@@ -98,10 +108,15 @@ export const tokenLimiter: ContextProcessor = {
         const { count } = await tokenCalculatorService.calculateMessageTokens(
           contentText,
           modelId,
-          msg._attachments // 传入附件列表
+          msg._attachments, // 传入附件列表
+          tokenCalcOptions
         );
         return { ...msg, tokenCount: count, charCount: contentText.length };
       })
+    );
+
+    const originalMessages = new Map(
+      messagesWithTokens.map((msg, index) => [msg, messages[index]])
     );
 
     // 2. 区分历史消息和预设消息
@@ -164,9 +179,8 @@ export const tokenLimiter: ContextProcessor = {
         currentHistoryTokens += msg.tokenCount;
         currentHistoryChars += msg.charCount;
         keepCount++;
-        const msgIndex = messagesWithTokens.indexOf(msg);
-        finalHistoryMessages.unshift({
-          original: messages[msgIndex],
+        finalHistoryMessages.push({
+          original: originalMessages.get(msg)!,
           final: msg,
         });
       } else {
@@ -182,7 +196,8 @@ export const tokenLimiter: ContextProcessor = {
             await tokenCalculatorService.calculateMessageTokens(
               truncatedContent,
               modelId,
-              msg._attachments
+              msg._attachments,
+              tokenCalcOptions
             );
 
           // 如果截断后能放得下
@@ -220,9 +235,8 @@ export const tokenLimiter: ContextProcessor = {
             currentHistoryTokens += truncatedTokens;
             currentHistoryChars += truncatedMsg.charCount;
             keepCount++;
-            const msgIndex = messagesWithTokens.indexOf(msg);
-            finalHistoryMessages.unshift({
-              original: messages[msgIndex],
+            finalHistoryMessages.push({
+              original: originalMessages.get(msg)!,
               final: truncatedMsg,
             });
           }
@@ -258,10 +272,7 @@ export const tokenLimiter: ContextProcessor = {
 
     // 预设消息直接映射
     presetMessages.forEach((msg) => {
-      const msgIndex = messagesWithTokens.indexOf(msg);
-      if (msgIndex !== -1) {
-        finalMsgMap.set(messages[msgIndex], msg);
-      }
+      finalMsgMap.set(originalMessages.get(msg)!, msg);
     });
 
     // 历史消息使用我们计算好的结果
@@ -278,10 +289,7 @@ export const tokenLimiter: ContextProcessor = {
     recordDroppedReasoningArtifacts(
       context,
       historyMessages
-        .map((msg) => {
-          const msgIndex = messagesWithTokens.indexOf(msg);
-          return msgIndex >= 0 ? messages[msgIndex] : msg;
-        })
+        .map((msg) => originalMessages.get(msg)!)
         .filter((msg) => !finalMsgMap.has(msg)),
       "历史消息超出 Token 预算被删除"
     );

@@ -142,12 +142,15 @@ fn parse_provider(value: &str) -> DocumentConverterProvider {
 }
 
 fn converter_not_configured_warning(file_name: &str, original_path: &str) -> ImportWarning {
+    let is_wps = crate::utils::mime::is_wps_document(Path::new(file_name));
+    let label = if is_wps { "WPS" } else { "DOC" };
+    let extension = if is_wps { "wps" } else { "doc" };
     ImportWarning {
-        code: "legacyDocConverterNotConfigured".to_string(),
-        title: "旧版 DOC 未自动转换".to_string(),
+        code: if is_wps { "wpsConverterNotConfigured" } else { "legacyDocConverterNotConfigured" }.to_string(),
+        title: format!("{} 文档待转换", label),
         message: format!(
-            "检测到旧版 Word DOC 文件「{}」，但资产管理器没有启用可用的文档转换依赖。文件已按原始 .doc 入库，预览、全文解析或后续处理可能受限。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice、Microsoft Word、AbiWord 或 macOS textutil；保存后重新导入该文件即可转换为 DOCX。",
-            file_name
+            "检测到 {} 文档「{}」，文件已按原始 .{} 格式入库。预览与全文解析需要本机文档转换程序。请在资产管理器右上角「文件操作」→「文档转换设置」中启用自动转换，并配置 LibreOffice、Microsoft Word、AbiWord 或 macOS textutil；保存后重新导入该文件即可转换为 DOCX。",
+            label, file_name, extension
         ),
         source_path: Some(original_path.to_string()),
     }
@@ -438,6 +441,46 @@ async fn convert_legacy_doc_to_docx(
     }
 }
 
+fn stage_wps_source(
+    source_path: &Path,
+    output_dir: &Path,
+    mime: &str,
+) -> Result<Option<(tempfile::TempDir, PathBuf)>, String> {
+    if !crate::utils::mime::is_wps_document(source_path) {
+        return Ok(None);
+    }
+    fs::create_dir_all(output_dir).map_err(|e| format!("创建文档转换目录失败: {}", e))?;
+    let directory = tempfile::Builder::new()
+        .prefix("wps-source-")
+        .tempdir_in(output_dir)
+        .map_err(|e| format!("创建 WPS 转换工作目录失败: {}", e))?;
+    let extension = if mime == "application/rtf" {
+        "rtf"
+    } else {
+        "doc"
+    };
+    // set_extension 保留原文件名主体，输入文件只读，转换副本随本次调用清理。
+    let mut staged_path = PathBuf::from(source_path.file_name().unwrap_or_default());
+    staged_path.set_extension(extension);
+    let staged_path = directory.path().join(staged_path);
+    fs::copy(source_path, &staged_path).map_err(|e| format!("暂存 WPS 文档失败: {}", e))?;
+    Ok(Some((directory, staged_path)))
+}
+
+fn ensure_document_converted<'a>(
+    source: &Path,
+    prepared: &'a PreparedImportSource,
+) -> Result<&'a Path, String> {
+    if prepared.path == source {
+        return Err(prepared
+            .warnings
+            .first()
+            .map(|warning| warning.message.clone())
+            .unwrap_or_else(|| "文档转换未完成，请检查资产管理器的文档转换设置。".to_string()));
+    }
+    Ok(&prepared.path)
+}
+
 pub async fn prepare_import_source(
     app: &AppHandle,
     original_path: &Path,
@@ -461,6 +504,8 @@ pub async fn prepare_import_source(
         "PPT"
     } else if is_xls {
         "XLS"
+    } else if crate::utils::mime::is_wps_document(original_path) {
+        "WPS"
     } else {
         "DOC"
     };
@@ -611,6 +656,12 @@ pub async fn prepare_import_source(
         None,
     );
 
+    let staged_source = stage_wps_source(original_path, &output_dir, &mime_type)?;
+    let conversion_source = staged_source
+        .as_ref()
+        .map(|(_, path)| path.as_path())
+        .unwrap_or(original_path);
+
     let converted_path = if is_ppt {
         match resolved.provider {
             DocumentConverterProvider::LibreOffice => {
@@ -652,7 +703,7 @@ pub async fn prepare_import_source(
             _ => return Err("当前转换器不支持 XLS 转换".to_string()),
         }
     } else {
-        convert_legacy_doc_to_docx(original_path, &output_dir, &resolved).await?
+        convert_legacy_doc_to_docx(conversion_source, &output_dir, &resolved).await?
     };
     Ok(PreparedImportSource {
         path: converted_path,
@@ -667,37 +718,101 @@ pub async fn convert_legacy_document(
     app: AppHandle,
     path: String,
 ) -> Result<Option<String>, String> {
-    let original_path = Path::new(&path);
+    let requested_path = PathBuf::from(&path);
+    let source_path = if requested_path.is_absolute() {
+        requested_path
+    } else {
+        let base = PathBuf::from(super::asset_manager::get_asset_base_path(app.clone())?);
+        let base = base
+            .canonicalize()
+            .map_err(|e| format!("读取资产目录失败: {}", e))?;
+        let source = base
+            .join(requested_path)
+            .canonicalize()
+            .map_err(|e| format!("读取文档路径失败: {}", e))?;
+        if !source.starts_with(&base) {
+            return Err("文档路径超出资产目录。".to_string());
+        }
+        source
+    };
+    if !source_path.is_file() {
+        return Err("文档文件不存在。".to_string());
+    }
+    let original_path = source_path.as_path();
     let mime_type = crate::utils::mime::guess_mime_type(original_path);
+    let is_wps = crate::utils::mime::is_wps_document(original_path);
+    let modern_wps = is_wps && mime_type == crate::utils::mime::DOCX_MIME;
     let is_doc = is_legacy_word_document(original_path, &mime_type);
     let is_ppt = is_legacy_ppt_document(original_path, &mime_type);
     let is_xls = is_legacy_excel_document(original_path, &mime_type);
 
-    if !is_doc && !is_ppt && !is_xls {
+    if is_wps && !modern_wps && !is_doc {
+        return Err(
+            "此 WPS 文件使用其他格式或加密结构，请用 WPS 将文件另存为 DOCX 后打开。".to_string(),
+        );
+    }
+    if !is_doc && !is_ppt && !is_xls && !modern_wps {
         return Ok(None);
     }
 
-    // 转换后的临时目录，放在 app_data_dir 下的 temp_conversions 目录中
-    let app_data_dir = crate::get_app_data_dir(app.config());
-    let base_dir = app_data_dir.join("temp_conversions");
-
-    // 确保临时目录存在
+    let base_dir = crate::get_app_data_dir(app.config()).join("temp_conversions");
     fs::create_dir_all(&base_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
 
-    let prepared = prepare_import_source(&app, original_path, &path, &base_dir).await?;
-
-    // 如果转换成功，将文件复制到 base_dir 下的一个持久路径
-    let file_name = prepared
-        .path
-        .file_name()
-        .ok_or_else(|| "无法获取转换后的文件名".to_string())?;
-    let target_path = base_dir.join(file_name);
-
-    // 如果目标路径已存在，先删除
-    if target_path.exists() {
-        let _ = fs::remove_file(&target_path);
-    }
-    fs::copy(&prepared.path, &target_path).map_err(|e| format!("复制转换后的文件失败: {}", e))?;
-
+    // 每次输出使用独立目录，避免同名文档相互覆盖或覆盖正在读取的源文件。
+    let output = tempfile::Builder::new()
+        .prefix("document-")
+        .tempdir_in(&base_dir)
+        .map_err(|e| format!("创建文档预览目录失败: {}", e))?;
+    let target_path = if modern_wps {
+        let mut name = PathBuf::from(original_path.file_name().unwrap_or_default());
+        name.set_extension("docx");
+        let target = output.path().join(name);
+        fs::copy(original_path, &target).map_err(|e| format!("准备 DOCX 文档失败: {}", e))?;
+        target
+    } else {
+        let prepared = prepare_import_source(&app, original_path, &path, &base_dir).await?;
+        let converted = ensure_document_converted(original_path, &prepared)?;
+        let name = converted
+            .file_name()
+            .ok_or_else(|| "无法获取转换后的文件名".to_string())?;
+        let target = output.path().join(name);
+        fs::copy(converted, &target).map_err(|e| format!("复制转换后的文件失败: {}", e))?;
+        target
+    };
+    let _ = output.keep();
     Ok(Some(target_path.to_string_lossy().to_string()))
+}
+
+#[cfg(test)]
+mod wps_tests {
+    use super::*;
+
+    #[test]
+    fn wps_stages_a_format_matched_copy_and_preserves_the_source() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("中文文档.wps");
+        let output = directory.path().join("conversion");
+        let original = b"original document bytes";
+        fs::write(&source, original).unwrap();
+        let (staged_dir, staged) = stage_wps_source(&source, &output, crate::utils::mime::DOC_MIME)
+            .unwrap()
+            .unwrap();
+        assert_eq!(staged.file_name().unwrap(), "中文文档.doc");
+        assert_eq!(fs::read(&staged).unwrap(), original);
+        fs::write(&staged, b"modified temporary file").unwrap();
+        drop(staged_dir);
+        assert_eq!(fs::read(&source).unwrap(), original);
+    }
+
+    #[test]
+    fn wps_unconverted_sources_return_an_actionable_error() {
+        let source = Path::new("report.wps");
+        let prepared = PreparedImportSource {
+            path: source.to_path_buf(),
+            cleanup_dir: None,
+            warnings: vec![converter_not_configured_warning("report.wps", "report.wps")],
+        };
+        let error = ensure_document_converted(source, &prepared).unwrap_err();
+        assert!(error.contains("文档转换设置"));
+    }
 }

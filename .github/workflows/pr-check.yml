@@ -37,6 +37,9 @@ jobs:
       - name: 安装前端依赖
         run: bun install
 
+      - name: Tauri 命令一致性检查
+        run: bun run check:tauri-commands
+
       - name: 类型检查 (桌面端)
         run: bun run check:frontend
 

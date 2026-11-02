@@ -17,6 +17,7 @@
  */
 
 import type { LlmPreset } from "../types";
+import { claudeOpus55Capabilities } from "../../model-metadata-presets/models-anthropic";
 
 // Anthropic Claude
 export const anthropicPreset: LlmPreset = {
@@ -55,9 +56,21 @@ export const anthropicPreset: LlmPreset = {
       capabilities: {
         vision: true,
         toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
       },
       description:
         "速度与智能的最佳结合，1M 上下文，128K 输出，自适应思考（2026-06-09）",
+    },
+    {
+      id: "claude-opus-5-5",
+      name: "Claude Opus 5.5",
+      group: "Claude 5",
+      provider: "anthropic",
+      tokenLimits: { contextLength: 1000000, output: 128000 },
+      capabilities: claudeOpus55Capabilities,
+      description:
+        "长程智能体编码与知识工作，1M 上下文，128K 输出；自适应思考始终开启，默认 effort 为 medium（2026-09-22）",
     },
     {
       id: "claude-opus-5",
@@ -67,6 +80,8 @@ export const anthropicPreset: LlmPreset = {
       capabilities: {
         vision: true,
         toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
       },
       description:
         "复杂 agentic coding 与企业级工作，1M 上下文，128K 输出，自适应思考（2026-06-09）",
@@ -79,6 +94,8 @@ export const anthropicPreset: LlmPreset = {
       capabilities: {
         vision: true,
         toolUse: true,
+        thinking: true,
+        thinkingConfigType: "budget",
       },
       description:
         "Anthropic 最强模型，长程 agent 下一代智能，1M 上下文，128K 输出（2026-06-09）",

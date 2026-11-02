@@ -16,8 +16,8 @@
 
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { computed, ref, watch } from "vue";
-import { useVirtualList } from "@vueuse/core";
+import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ChatSessionIndex } from "../../types";
@@ -26,17 +26,22 @@ import {
   type SearchMatchMode,
 } from "../../composables/chat/useLlmSearch";
 import { Plus, Search, Loading } from "@element-plus/icons-vue";
-import Avatar from "@/components/common/Avatar.vue";
-import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
-import { formatRelativeTime } from "@/utils/time";
+import SessionItem from "../sidebar/SessionItem.vue";
+import SessionActionDialogs from "../sidebar/SessionActionDialogs.vue";
+import { useTopicNamer } from "../../composables/chat/useTopicNamer";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
 import { useMessageInputStore } from "../../stores/messageInputStore";
 
 const inputStore = useMessageInputStore();
+const emit = defineEmits<{ complete: [] }>();
 const agentStore = useAgentStore();
 const chatStore = useLlmChatStore();
 const searchQuery = ref("");
 const { settings } = useChatSettings();
+const { isGenerating } = useTopicNamer();
+const sessionActionsRef = ref<InstanceType<typeof SessionActionDialogs> | null>(
+  null
+);
 
 // 后端搜索功能
 const {
@@ -48,7 +53,6 @@ const {
   clearSearch,
   getFieldLabel,
   getRoleLabel,
-  formatMatchContext,
 } = useLlmSearch({ debounceMs: 300, scope: "session" });
 
 // 搜索模式配置
@@ -143,47 +147,20 @@ const searchMatchesMap = computed(() => {
   }
   return map;
 });
-// 获取 session 的匹配详情
-const getSessionMatches = (sessionId: string) => {
-  if (!isInSearchMode.value) return undefined;
-  const matches = searchMatchesMap.value.get(sessionId);
-  if (!matches) return undefined;
-  // 过滤掉名称匹配，因为名称已经显示在标题中了
-  return matches
-    .filter((m) => m.field !== "name")
-    .map((m) => ({
-      ...m,
-      parts: formatMatchContext(m, 30),
-    }));
-};
-
-// 获取单项高度逻辑提取
-const getItemHeight = (index: number) => {
-  const session = displaySessions.value[index];
-  if (!session) return 50;
-  const matches = getSessionMatches(session.id);
-  // 如果有搜索匹配详情，增加高度
-  if (matches && matches.length > 0) {
-    return 50 + Math.min(matches.length, 2) * 16 + 4;
-  }
-  return 50;
-};
-
-// 虚拟滚动列表
-const { list, containerProps, wrapperProps, scrollTo } = useVirtualList(
-  displaySessions,
-  {
-    itemHeight: getItemHeight,
-  }
+const listRef = ref<HTMLElement | null>(null);
+const virtualizer = useMeasuredVirtualizer(displaySessions, {
+  getItemKey: (session) => session.id,
+  getScrollElement: () => listRef.value,
+  estimateSize: () => 52,
+});
+const virtualSessions = computed(() =>
+  virtualizer.value
+    .getVirtualItems()
+    .map((item) => ({ ...item, session: displaySessions.value[item.index] }))
 );
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 const { selectAgent } = useLlmChatUiState();
-
-// 获取会话当前显示的智能体信息
-const getSessionDisplayAgent = (session: ChatSessionIndex) => {
-  if (!session.displayAgentId) return null;
-  return agentStore.getAgentById(session.displayAgentId);
-};
 
 // 处理会话点击
 const handleSessionClick = (session: ChatSessionIndex) => {
@@ -199,15 +176,11 @@ const handleSessionClick = (session: ChatSessionIndex) => {
     }
   }
   inputStore.handleSwitchSession(session.id);
+  emit("complete");
 };
 
 const handleNewSession = () => {
-  inputStore.handleNewSession();
-};
-
-// 获取消息数量（排除系统根节点）
-const getMessageCount = (session: ChatSessionIndex) => {
-  return session.messageCount ?? 0;
+  if (inputStore.handleNewSession()) emit("complete");
 };
 
 // 自动定位到当前会话
@@ -217,57 +190,28 @@ const scrollToCurrentSession = () => {
   );
   if (index === -1) return;
 
-  const container = containerProps.ref.value;
-  if (!container) {
-    // 如果容器还没准备好，回退到基础 scrollTo
-    scrollTo(index);
-    return;
-  }
-
-  const containerHeight = container.clientHeight;
-  if (containerHeight <= 0) {
-    scrollTo(index);
-    return;
-  }
-
-  // 计算到目标项之前的总高度
-  let offset = 0;
-  for (let i = 0; i < index; i++) {
-    offset += getItemHeight(i);
-  }
-
-  const targetHeight = getItemHeight(index);
-
-  // 目标位置：让项的中心点位于容器中心点
-  // scrollToY = (项的顶部位置) - (容器高度 / 2) + (项高度 / 2)
-  const scrollToY = offset - containerHeight / 2 + targetHeight / 2;
-
-  // 执行滚动，确保不小于 0
-  container.scrollTop = Math.max(0, scrollToY);
+  virtualizer.value.scrollToIndex(index, { align: "center" });
 };
 
+let disposed = false;
 watch(
-  () => displaySessions.value,
-  (newSessions) => {
-    if (newSessions.length > 0) {
-      // 延迟一下确保 DOM 已更新
-      setTimeout(scrollToCurrentSession, 0);
-    }
+  displaySessions,
+  async (sessions) => {
+    if (!sessions.length) return;
+    await nextTick();
+    if (!disposed) scrollToCurrentSession();
   },
-  { immediate: true }
+  { immediate: true, flush: "post" }
 );
-
-defineExpose({
-  scrollToCurrent: scrollToCurrentSession,
+onBeforeUnmount(() => {
+  disposed = true;
+  if (isSearching.value) clearSearch();
 });
 </script>
 
 <template>
   <div class="mini-session-list">
-    <div
-      class="list-container"
-      v-bind="displaySessions.length > 0 ? containerProps : {}"
-    >
+    <div class="list-container" ref="listRef">
       <div v-if="chatStore.sessions.length === 0" class="empty-state">
         <p>暂无会话</p>
       </div>
@@ -275,79 +219,45 @@ defineExpose({
         <p>无匹配结果</p>
       </div>
 
-      <div v-else v-bind="wrapperProps">
+      <div
+        v-else
+        class="virtual-list-content"
+        :style="{ height: `${totalSize}px` }"
+      >
         <div
-          v-for="{ data: session } in list"
+          v-for="{ session, index, start } in virtualSessions"
           :key="session.id"
-          :class="[
-            'session-item',
-            {
-              active: session.id === chatStore.currentSessionId,
-              'has-matches': getSessionMatches(session.id)?.length,
-            },
-          ]"
-          data-testid="chat-session-item"
-          :data-session-id="session.id"
-          :data-session-active="session.id === chatStore.currentSessionId"
-          :style="{ height: 'auto', minHeight: '50px' }"
-          @click="handleSessionClick(session)"
+          :data-index="index"
+          :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
+          class="virtual-list-row"
+          :style="{ transform: `translateY(${start}px)` }"
         >
-          <div class="session-content">
-            <div class="session-title-row">
-              <Avatar
-                v-if="getSessionDisplayAgent(session)"
-                :src="
-                  resolveAgentAvatarPath(getSessionDisplayAgent(session)) || ''
-                "
-                :alt="getSessionDisplayAgent(session)?.name"
-                :size="16"
-                shape="square"
-                :radius="3"
-                class="agent-avatar"
-              />
-              <span class="session-title">{{ session.name }}</span>
-            </div>
-
-            <!-- 搜索匹配详情 -->
-            <div
-              v-if="getSessionMatches(session.id)?.length"
-              class="match-details"
-            >
-              <div
-                v-for="(match, index) in getSessionMatches(session.id)!.slice(
-                  0,
-                  2
-                )"
-                :key="index"
-                class="match-item"
-              >
-                <span class="match-field">
-                  {{ getFieldLabel(match.field)
-                  }}{{ match.role ? `(${getRoleLabel(match.role)})` : "" }}:
-                </span>
-                <div class="match-context" :title="match.context">
-                  <template v-for="(part, pIdx) in match.parts" :key="pIdx">
-                    <span v-if="part.isMatch" class="highlight">{{
-                      part.text
-                    }}</span>
-                    <span v-else>{{ part.text }}</span>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <div class="session-meta">
-              <span class="message-count"
-                >{{ getMessageCount(session) }} 条</span
-              >
-              <span class="session-time">{{
-                formatRelativeTime(session.updatedAt)
-              }}</span>
-            </div>
-          </div>
+          <SessionItem
+            :session="session"
+            :active="session.id === chatStore.currentSessionId"
+            :is-generating="isGenerating(session.id)"
+            :matches="
+              isInSearchMode ? searchMatchesMap.get(session.id) : undefined
+            "
+            :get-field-label="getFieldLabel"
+            :get-role-label="getRoleLabel"
+            compact
+            @click="handleSessionClick"
+            @command="sessionActionsRef?.handleMenuCommand"
+            @toggle-favorite="sessionActionsRef?.handleToggleFavorite"
+          />
         </div>
       </div>
     </div>
+
+    <SessionActionDialogs
+      ref="sessionActionsRef"
+      @delete="chatStore.deleteSession"
+      @rename="
+        ({ sessionId, newName }) =>
+          chatStore.updateSession(sessionId, { name: newName })
+      "
+    />
 
     <div class="header">
       <el-tooltip content="新建对话" placement="top" :show-after="500">
@@ -414,20 +324,24 @@ defineExpose({
 .mini-session-list {
   display: flex;
   flex-direction: column;
-  height: 300px;
+  height: 100%;
+  min-height: 0;
   width: 100%;
 }
 
 .header {
   display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 0 0;
   border-top: var(--border-width) solid var(--border-color);
   align-items: center;
 }
 
 .search-input {
-  flex: 1;
+  flex: 1 1 160px;
+  min-width: min(100%, 120px);
 }
 
 .match-mode-btn {
@@ -444,6 +358,7 @@ defineExpose({
 
 .list-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px;
 }
@@ -457,132 +372,15 @@ defineExpose({
   font-size: 12px;
 }
 
-.session-item {
-  display: flex;
-  align-items: center;
-  padding: 8px 10px;
-  margin-bottom: 2px;
-  min-height: 50px;
-  box-sizing: border-box;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+.virtual-list-content {
+  position: relative;
+  width: 100%;
 }
 
-.session-item:hover {
-  background-color: var(--hover-bg);
-}
-
-.session-item.active {
-  background-color: rgba(var(--primary-color-rgb), 0.1);
-  border-color: rgba(var(--primary-color-rgb), 0.2);
-}
-
-.session-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.session-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.agent-avatar {
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.session-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.match-details {
-  margin: 2px 0;
-  font-size: 11px;
-  color: var(--text-color-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.match-item {
-  display: flex;
-  gap: 4px;
-  align-items: baseline;
-  min-width: 0;
-}
-
-.match-field {
-  flex-shrink: 0;
-  color: var(--text-color-light);
-  font-size: 10px;
-}
-
-.match-context {
-  color: var(--text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.highlight {
-  color: var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb), 0.15);
-  padding: 0 2px;
-  border-radius: 2px;
-  font-weight: 500;
-}
-
-.session-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.message-count {
-  font-size: 10px;
-  color: var(--text-color-light);
-  background-color: var(--container-bg);
-  padding: 0px 4px;
-  border-radius: 3px;
-  opacity: 0.8;
-}
-
-.session-time {
-  font-size: 11px;
-  color: var(--text-color-light);
-}
-
-/* Scrollbar styling */
-.list-container::-webkit-scrollbar {
-  width: 4px;
-}
-
-.list-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.list-container::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 2px;
-}
-
-.list-container::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
+.virtual-list-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 </style>

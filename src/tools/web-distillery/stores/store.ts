@@ -1,3 +1,13 @@
+import {
+  createDefaultWebDistilleryConfig,
+  distilleryConfigManager,
+  distilleryConfig,
+  ensureDistilleryConfig,
+} from "../config";
+export {
+  createDefaultWebDistilleryConfig,
+  distilleryConfigManager,
+} from "../config";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,19 +21,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { defineStore } from "pinia";
-import type { FetchResult, ApiInfo, SiteRecipe, ActionStep } from "../types";
-import { createConfigManager } from "@/utils/configManager";
 
-interface WebDistilleryConfig {
-  lastUrl: string;
-  extractionRules: {
-    include: string[];
-    exclude: string[];
-  };
-  defaultFormat: "markdown" | "text" | "html" | "json";
-}
+import type {
+  FetchResult,
+  ApiInfo,
+  SiteRecipe,
+  ActionStep,
+  WebDistilleryConfig,
+} from "../types";
 
 interface WebDistilleryState {
   url: string;
@@ -31,6 +37,7 @@ interface WebDistilleryState {
   isLoading: boolean;
   activeTab: string; // 当前活跃的标签页
   currentRecipe: Partial<SiteRecipe> | null; // 当前编辑中的配方
+  config: WebDistilleryConfig;
 
   // 交互模式专属状态
   pickerMode: "idle" | "include" | "exclude" | "action";
@@ -61,19 +68,6 @@ interface WebDistilleryState {
   currentPageTitle: string;
 }
 
-const configManager = createConfigManager<WebDistilleryConfig>({
-  moduleName: "web-distillery",
-  fileName: "settings.json",
-  createDefault: () => ({
-    lastUrl: "",
-    extractionRules: {
-      include: [],
-      exclude: [],
-    },
-    defaultFormat: "markdown",
-  }),
-});
-
 export const useWebDistilleryStore = defineStore("web-distillery", {
   state: (): WebDistilleryState => ({
     url: "",
@@ -81,6 +75,7 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
     isLoading: false,
     activeTab: "workbench",
     currentRecipe: null,
+    config: distilleryConfig,
 
     // 交互模式初始状态
     pickerMode: "idle",
@@ -108,17 +103,35 @@ export const useWebDistilleryStore = defineStore("web-distillery", {
 
   actions: {
     async init() {
-      const config = await configManager.load();
+      const config = await ensureDistilleryConfig();
+      Object.assign(this.config, config);
       this.url = config.lastUrl;
       this.extractionRules = config.extractionRules;
     },
+    updateConfig(partial: Partial<WebDistilleryConfig>) {
+      Object.assign(this.config, partial);
+      distilleryConfigManager.saveDebounced(this.config);
+    },
+
+    saveConfigDebounced() {
+      distilleryConfigManager.saveDebounced(this.config);
+    },
+
+    async resetConfig() {
+      const defaults = createDefaultWebDistilleryConfig();
+      Object.assign(this.config, defaults);
+      this.url = defaults.lastUrl;
+      this.extractionRules = defaults.extractionRules;
+      await distilleryConfigManager.save(this.config);
+    },
 
     async saveConfig() {
-      await configManager.save({
-        lastUrl: this.url,
-        extractionRules: this.extractionRules,
-        defaultFormat: (this.result?.format as any) || "markdown",
-      });
+      this.config.lastUrl = this.url;
+      this.config.extractionRules = this.extractionRules;
+      if (this.result?.format) {
+        this.config.defaultFormat = this.result.format;
+      }
+      await distilleryConfigManager.save(this.config);
     },
 
     /** 切换到交互模式 */

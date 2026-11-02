@@ -66,7 +66,7 @@ import { toRefs, type PropType, useSlots, computed } from "vue";
 import { ElCard, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { CopyDocument } from "@element-plus/icons-vue";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeClipboardText } from "@/platform";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 
@@ -119,7 +119,7 @@ const showHeader = computed(() => {
 const copyContent = async () => {
   if (!content.value) return;
   try {
-    await writeText(content.value);
+    await writeClipboardText(content.value);
     customMessage.success("已复制到剪贴板！");
   } catch (error) {
     errorHandler.error(error, "复制内容到剪贴板失败", {

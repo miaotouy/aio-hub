@@ -8,6 +8,7 @@ import {
   type ProviderProfile,
 } from "@aiohub/llm-core";
 import type { LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
+import { toMediaProgressUpdate } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { resolveCustomHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
@@ -78,6 +79,9 @@ export const sunoNewApiAdapter: LlmAdapter = {
         typeof extended.maxPollAttempts === "number"
           ? extended.maxPollAttempts
           : 120,
+      onProgress: options.onMediaProgress
+        ? (task) => options.onMediaProgress?.(toMediaProgressUpdate(task))
+        : undefined,
     });
     const clips = Array.isArray(task.metadata?.clips)
       ? (task.metadata.clips as unknown as SunoClipInfo[])

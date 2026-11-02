@@ -16,6 +16,8 @@
  * aio-file-operator 类型定义
  */
 
+import type { ToolResultWithLocalMedia } from "@/services/types";
+
 /** 文件条目信息 */
 export interface FileEntry {
   name: string;
@@ -68,8 +70,44 @@ export interface CreateDirectoryParams {
   path: string;
 }
 
+/** 复制文件/目录参数 */
+export interface CopyFileParams {
+  sourcePath: string;
+  targetPath: string;
+  /** 目标已存在时是否覆盖，默认 false（已存在则报错） */
+  allowOverwrite?: boolean;
+}
+
+/** 移动/重命名文件/目录参数 */
+export interface MoveFileParams {
+  sourcePath: string;
+  targetPath: string;
+  /** 目标已存在时是否覆盖，默认 false（已存在则报错） */
+  allowOverwrite?: boolean;
+}
+
+/** 文件搜索命中项 */
+export interface FileSearchHit {
+  name: string;
+  relativePath: string;
+  absolutePath: string;
+  isDir: boolean;
+  size: number;
+}
+
+/** 搜索文件参数 */
+export interface SearchFilesParams {
+  directoryPath: string;
+  /** 文件名匹配模式，支持 * 与 ? 通配符；无通配符时按子串包含匹配 */
+  pattern: string;
+  /** 是否递归搜索子目录，默认 true */
+  recursive?: boolean;
+  /** 最大返回结果数（1-1000），默认 100 */
+  maxResults?: number;
+}
+
 /** 文件操作结果 */
-export interface FileOperationResult {
+export interface FileOperationResult extends ToolResultWithLocalMedia {
   success: boolean;
   message: string;
   data?: any;
@@ -77,6 +115,7 @@ export interface FileOperationResult {
 
 /** 操作日志条目 */
 export interface OperationLogEntry {
+  category?: "security";
   timestamp: number;
   method: string;
   params: Record<string, any>;

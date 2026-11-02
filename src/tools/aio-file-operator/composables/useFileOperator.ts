@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref, computed } from "vue";
+import { ref, computed, onScopeDispose } from "vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { useVcpDistributedStore } from "@/tools/vcp-connector/stores/vcpDistributedStore";
 import * as actions from "../actions";
-import { DEFAULT_ALLOWED_DIRECTORIES } from "../config";
+import { DEFAULT_ALLOWED_DIRECTORIES, DEFAULT_CONFIG } from "../config";
 import type { AioFileOperatorConfig, OperationLogEntry } from "../types";
+
+const errorHandler = createModuleErrorHandler("AioFileOperator/UI");
 
 const FILE_OPERATOR_TOOL_ID = "aio-file-operator";
 
@@ -27,18 +30,18 @@ export function useFileOperator() {
 
   // 状态变量
   const config = ref<AioFileOperatorConfig>({
-    allowedDirectories: [],
-    blackListRules: [],
-    sandboxMode: "whitelist",
-    maxFileSize: 10 * 1024 * 1024,
-    enableAuditLog: true,
-    overwritePolicy: "follow",
-    logPanelWidth: 350,
-    isLogCollapsed: false,
+    ...DEFAULT_CONFIG,
+    allowedDirectories: [...DEFAULT_CONFIG.allowedDirectories],
+    blackListRules: [...DEFAULT_CONFIG.blackListRules],
   });
 
   const maxFileSizeMB = ref(10);
   const logs = ref<OperationLogEntry[]>([]);
+  onScopeDispose(
+    actions.subscribeOperationLogs((entries) => {
+      logs.value = entries;
+    })
+  );
   const newDirectoryPath = ref("");
   const newRulePath = ref("");
   const newRuleType = ref<"block" | "approve">("block");
@@ -78,7 +81,7 @@ export function useFileOperator() {
 
   // 排序后的日志（最新的在最上面）
   const sortedLogs = computed(() => {
-    return [...logs.value].sort((a, b) => b.timestamp - a.timestamp);
+    return [...logs.value].reverse().sort((a, b) => b.timestamp - a.timestamp);
   });
 
   // 加载配置
@@ -87,9 +90,21 @@ export function useFileOperator() {
     maxFileSizeMB.value = Math.round(config.value.maxFileSize / 1024 / 1024);
   }
 
+  let configSaveRevision = 0;
+
   // 保存配置
   async function saveConfig() {
-    await actions.setConfig(config.value);
+    const revision = ++configSaveRevision;
+    try {
+      await actions.setConfig(config.value);
+      return true;
+    } catch (error) {
+      errorHandler.handle(error as Error, {
+        userMessage: "保存安全配置失败，请重试",
+      });
+      if (revision === configSaveRevision) await loadConfig();
+      return false;
+    }
   }
 
   // 更新最大文件大小
@@ -124,7 +139,7 @@ export function useFileOperator() {
   }
 
   // 添加自定义目录
-  function addNewDirectory() {
+  async function addNewDirectory() {
     const path = newDirectoryPath.value.trim();
     if (!path) return;
 
@@ -142,9 +157,10 @@ export function useFileOperator() {
     }
 
     config.value.allowedDirectories.push(normalized);
-    saveConfig();
-    newDirectoryPath.value = "";
-    customMessage.success("成功添加允许目录");
+    if (await saveConfig()) {
+      newDirectoryPath.value = "";
+      customMessage.success("成功添加允许目录");
+    }
   }
 
   // 删除目录
@@ -187,7 +203,7 @@ export function useFileOperator() {
   };
 
   // 添加安全规则
-  function addNewRule() {
+  async function addNewRule() {
     const path = newRulePath.value.trim();
     if (!path) return;
 
@@ -215,16 +231,16 @@ export function useFileOperator() {
       type: newRuleType.value,
     });
 
-    saveConfig();
-    newRulePath.value = "";
-    customMessage.success("成功添加安全规则");
+    if (await saveConfig()) {
+      newRulePath.value = "";
+      customMessage.success("成功添加安全规则");
+    }
   }
 
   // 删除安全规则
-  function removeRule(index: number) {
+  async function removeRule(index: number) {
     config.value.blackListRules.splice(index, 1);
-    saveConfig();
-    customMessage.success("成功删除安全规则");
+    if (await saveConfig()) customMessage.success("成功删除安全规则");
   }
 
   // 刷新日志

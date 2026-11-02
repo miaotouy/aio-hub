@@ -17,7 +17,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Delete } from "@element-plus/icons-vue";
-import { ChevronDown, ChevronRight, BookOpen } from "lucide-vue-next";
+import { ChevronDown, ChevronRight } from "lucide-vue-next";
+import { RecallIcon } from "@aiohub/tool-icons";
 import { getIntegerOverrideBounds } from "@/tools/recall/core/retrievalPresetCapabilities";
 import type {
   RecallPresetId,
@@ -93,7 +94,7 @@ const setPreset = (presetId: RecallBinding["presetId"] | undefined) => {
           <ChevronDown v-if="expanded" />
           <ChevronRight v-else />
         </el-icon>
-        <el-icon class="kb-icon"><BookOpen /></el-icon>
+        <el-icon class="kb-icon"><RecallIcon /></el-icon>
         <div class="kb-info">
           <span class="kb-name">{{ binding.recallName }}</span>
           <span class="kb-mode-tag">{{ modeLabel }}</span>

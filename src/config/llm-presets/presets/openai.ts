@@ -17,6 +17,10 @@
  */
 
 import type { LlmPreset } from "../types";
+import {
+  gpt61SolCapabilities,
+  gpt6ModelDefinitions,
+} from "../../model-metadata-presets/models-openai";
 
 // OpenAI 官方
 export const openaiPreset: LlmPreset = {
@@ -34,6 +38,39 @@ export const openaiPreset: LlmPreset = {
     { label: "价格页", url: "https://openai.com/api/pricing" },
   ],
   defaultModels: [
+    {
+      id: "gpt-6.1-sol",
+      name: "GPT-6.1 Sol",
+      group: "GPT-6.1",
+      provider: "openai",
+      tokenLimits: { contextLength: 1050000, output: 128000 },
+      capabilities: {
+        ...gpt61SolCapabilities,
+        toolUse: false,
+        webSearch: false,
+        fileSearch: false,
+        codeExecution: false,
+        computerUse: false,
+      },
+      description:
+        "复杂编码与推理，支持文本和图像输入；工具工作流使用 OpenAI Responses，1.05M 上下文，128K 输出",
+    },
+    ...gpt6ModelDefinitions.map((model) => ({
+      id: model.id,
+      name: model.name,
+      group: "GPT-6",
+      provider: "openai",
+      tokenLimits: { contextLength: 1050000, output: 128000 },
+      capabilities: {
+        ...model.capabilities,
+        toolUse: model.id !== "gpt-6-astra",
+        webSearch: false,
+        fileSearch: false,
+        codeExecution: false,
+        computerUse: false,
+      },
+      description: model.description,
+    })),
     {
       id: "gpt-5.6-sol",
       name: "GPT-5.6 Sol",

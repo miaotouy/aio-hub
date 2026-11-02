@@ -21,11 +21,7 @@ import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import { useMessageLayout } from "../../composables/ui/useMessageLayout";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useChatSettings } from "../../composables/settings/useChatSettings";
-import ChatMessage from "../message/ChatMessage.vue";
-import CompressionMessage from "../message/CompressionMessage.vue";
-import ToolCallMessage from "../message/ToolCallMessage.vue";
-import MessageExternalAvatar from "../message/MessageExternalAvatar.vue";
-import MessageHeader from "../message/MessageHeader.vue";
+
 import {
   type CollapseStrategy,
   type LayoutOverrides,
@@ -38,6 +34,9 @@ import {
   SCREENSHOT_OVERRIDES_KEY,
 } from "./screenshotTypes";
 import ScreenshotBrandStrip from "./ScreenshotBrandStrip.vue";
+
+import MessageRow from "../message/MessageRow.vue";
+import { useMessagePresentation } from "../../composables/ui/useMessagePresentation";
 
 const DEFAULT_OVERRIDES: ScreenshotElementOverrides = {
   showAvatar: true,
@@ -121,6 +120,11 @@ const {
   isNodeInActivePath: (id) => store.isNodeInActivePath(id),
   layoutOverrides: () => props.layoutOverrides,
 });
+
+const { presentation, characterCounts } = useMessagePresentation(
+  computed(() => props.messages),
+  computed(() => bubbleLayout.value.mode === "compact")
+);
 
 // 覆盖 showAvatar: 当 elementToggles.showAvatar 为 false 时强制隐藏头像
 const showAvatar = computed(
@@ -407,7 +411,7 @@ defineExpose({
     />
 
     <div
-      class="messages-container"
+      class="messages-container chat-message-rows"
       :class="[
         `mode-${bubbleLayout.mode}`,
         {
@@ -417,104 +421,35 @@ defineExpose({
         },
       ]"
     >
-      <template v-for="(msg, index) in messages" :key="msg.id">
-        <div
-          class="message-slot"
-          :data-role="getMessageLayout(index).role"
-          :data-align="getMessageLayout(index).align"
-          :data-avatar-placement="avatarPlacement"
-          :data-message-id="msg.id"
-          :data-header-outside="
-            shouldUseOutsideHeader(msg, getMessageLayout(index))
-              ? 'true'
-              : 'false'
-          "
-        >
-          <MessageExternalAvatar
-            v-if="
-              isBubbleMode &&
-              showAvatar &&
-              avatarPlacement === 'outside' &&
-              getMessageLayout(index).align !== 'center'
-            "
-            :message="msg"
-            :size="bubbleLayout.avatarSize"
-          />
-
-          <div
-            v-if="shouldUseOutsideHeader(msg, getMessageLayout(index))"
-            class="message-body"
-          >
-            <MessageHeader
-              class="external-header"
-              :message="msg"
-              :hide-avatar="screenshotHideHeaderAvatar"
-              :screenshot-mode="true"
-            />
-            <ChatMessage
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :is-compressed="compressedNodeIds.has(msg.id)"
-              :message-depth="messages.length - 1 - index"
-              :is-sending="isSending"
-              :screenshot-mode="true"
-              :siblings="getMessageSiblings(msg.id).siblings"
-              :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-              :llm-think-rules="llmThinkRules"
-              :hide-header="true"
-              :rich-text-style-options="
-                msg.role === 'user'
-                  ? userRichTextStyleOptions || richTextStyleOptions
-                  : richTextStyleOptions
-              "
-            />
-          </div>
-
-          <template v-else>
-            <CompressionMessage
-              v-if="msg.metadata?.isCompressionNode"
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :message-depth="messages.length - 1 - index"
-              :screenshot-mode="true"
-            />
-
-            <ToolCallMessage
-              v-else-if="msg.role === 'tool'"
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :message-depth="messages.length - 1 - index"
-              :is-sending="isSending"
-              :screenshot-mode="true"
-              :siblings="getMessageSiblings(msg.id).siblings"
-              :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-            />
-
-            <ChatMessage
-              v-else
-              :session-index="props.sessionIndex"
-              :session-detail="props.sessionDetail"
-              :message="msg"
-              :is-compressed="compressedNodeIds.has(msg.id)"
-              :message-depth="messages.length - 1 - index"
-              :is-sending="isSending"
-              :screenshot-mode="true"
-              :siblings="getMessageSiblings(msg.id).siblings"
-              :current-sibling-index="getMessageSiblings(msg.id).currentIndex"
-              :llm-think-rules="llmThinkRules"
-              :hide-header-avatar="screenshotHideHeaderAvatar"
-              :rich-text-style-options="
-                msg.role === 'user'
-                  ? userRichTextStyleOptions || richTextStyleOptions
-                  : richTextStyleOptions
-              "
-            />
-          </template>
-        </div>
-      </template>
+      <MessageRow
+        v-for="(msg, index) in messages"
+        :key="msg.id"
+        :session-index="sessionIndex"
+        :session-detail="sessionDetail"
+        :message="msg"
+        :message-depth="messages.length - 1 - index"
+        :is-sending="isSending"
+        :screenshot-mode="true"
+        :readonly="true"
+        :llm-think-rules="llmThinkRules"
+        :rich-text-style-options="
+          msg.role === 'user'
+            ? userRichTextStyleOptions || richTextStyleOptions
+            : richTextStyleOptions
+        "
+        :bubble-layout="bubbleLayout"
+        :layout="getMessageLayout(index)"
+        :sibling-info="getMessageSiblings(msg.id)"
+        :compressed="compressedNodeIds.has(msg.id)"
+        :show-avatar="showAvatar"
+        :hide-header-avatar="screenshotHideHeaderAvatar"
+        :outside-header="shouldUseOutsideHeader(msg, getMessageLayout(index))"
+        :presentation="presentation.rows.get(msg.id)!"
+        :group="
+          presentation.groupById.get(presentation.rows.get(msg.id)!.groupId)!
+        "
+        :character-counts="characterCounts"
+      />
     </div>
 
     <!-- V5: 底部品牌标识 -->
@@ -539,6 +474,10 @@ defineExpose({
 </template>
 
 <style scoped>
+.messages-container.mode-compact {
+  gap: var(--screenshot-gap, 0px);
+}
+
 .screenshot-renderer {
   /* 固定宽度, 排版稳定 (由父容器负责定位与缩放) */
   width: var(--screenshot-width, 720px);
@@ -630,242 +569,6 @@ defineExpose({
   gap: var(--screenshot-gap, 12px);
 }
 
-/*
- * 卡片模式：message-slot 仅作为透明 wrapper（不改变现有视觉）
- * 必须显式声明，因为 MessageList.vue 的对应样式是 scoped，
- * 不会作用到本组件渲染出来的元素上。
-*/
-.messages-container.mode-card .message-slot {
-  display: block;
-  width: 100%;
-  min-width: 0;
-}
-
-/*
- * 气泡模式：message-slot 作为对齐容器
- * 完整复刻 MessageList.vue 中的 bubble 布局规则，
- * 否则 bubble 模式下的对齐、限宽、外置头像/header 全部失效，
- * 进而导致 .message-slot 收缩到气泡自然宽度，截出来变成窄条。
-*/
-.messages-container.mode-bubble .message-slot {
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  /* min-width: 0 防止 flex item 内容溢出造成横向滚动 */
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-/* 对齐方向 */
-.messages-container.mode-bubble .message-slot[data-align="left"] {
-  justify-content: flex-start;
-}
-
-.messages-container.mode-bubble .message-slot[data-align="right"] {
-  justify-content: flex-end;
-}
-
-.messages-container.mode-bubble .message-slot[data-align="center"] {
-  justify-content: center;
-}
-
-/* 气泡子元素的宽度限制（避免气泡被父容器撑满成全宽） */
-.messages-container.mode-bubble .message-slot > .chat-message,
-.messages-container.mode-bubble .message-slot > .tool-call-message,
-.messages-container.mode-bubble .message-slot > .compression-message,
-.messages-container.mode-bubble .message-slot > .message-body,
-.messages-container.mode-bubble :deep(.message-slot > .chat-message),
-.messages-container.mode-bubble :deep(.message-slot > .tool-call-message),
-.messages-container.mode-bubble :deep(.message-slot > .compression-message) {
-  max-width: min(
-    var(--bubble-max-width-percent, 75%),
-    var(--bubble-max-width-px, 720px)
-  );
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-/* 外置头像: 气泡宽度需要扣掉头像列, 否则右对齐气泡会被推到边缘
- * :not([data-align="center"]) 居中消息不挂头像, 无需扣减 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .chat-message,
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .tool-call-message,
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .compression-message,
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-  > .message-body,
-.messages-container.mode-bubble.avatar-outside
-  :deep(
-    .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-      > .chat-message
-  ),
-.messages-container.mode-bubble.avatar-outside
-  :deep(
-    .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-      > .tool-call-message
-  ),
-.messages-container.mode-bubble.avatar-outside
-  :deep(
-    .message-slot[data-avatar-placement="outside"]:not([data-align="center"])
-      > .compression-message
-  ) {
-  max-width: min(
-    max(
-      0px,
-      calc(
-        var(--bubble-max-width-percent, 75%) -
-          var(--avatar-outside-size, 36px) - var(--avatar-outside-gap, 8px)
-      )
-    ),
-    var(--bubble-max-width-px, 720px)
-  );
-}
-
-/* System / Compression 消息使用独立的居中宽度 */
-.messages-container.mode-bubble .message-slot[data-role="system"] > * {
-  max-width: var(--system-max-width-percent, 60%);
-}
-
-/* 圆角同步: 覆写消息组件内部的 8px 圆角为可配置值 (含背景容器与 ::after)
- * 缺少这条, 气泡模式截图出来的圆角会保持组件默认的 8px, 与系统设置不符 */
-.messages-container.mode-bubble :deep(.message-surface),
-.messages-container.mode-bubble :deep(.tool-call-message),
-.messages-container.mode-bubble :deep(.compression-message) {
-  border-radius: var(--bubble-radius, 12px);
-}
-
-.messages-container.mode-bubble :deep(.message-background-container) {
-  border-radius: var(--bubble-radius, 12px);
-}
-
-.messages-container.mode-bubble :deep(.message-surface::after),
-.messages-container.mode-bubble :deep(.tool-call-message::after),
-.messages-container.mode-bubble :deep(.compression-message::after) {
-  border-radius: var(--bubble-radius, 12px);
-}
-
-/* 外置头像：与气泡顶部对齐，flex-direction row-reverse 让头像贴在气泡外侧 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"] {
-  align-items: flex-start;
-  gap: var(--avatar-outside-gap, 8px);
-}
-
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"][data-align="right"] {
-  flex-direction: row-reverse;
-  /* row-reverse 下, flex-start 才是右对齐, 覆盖默认的 flex-end */
-  justify-content: flex-start;
-}
-
-/* 外置头像的透明占位 (tool/system 行) 保持气泡缩进对齐, 但不响应交互 */
-.messages-container.mode-bubble.avatar-outside
-  .message-slot[data-avatar-placement="outside"]
-  > .message-external-avatar {
-  pointer-events: none;
-}
-
-/* 外置 Header 容器：让 header 紧贴气泡上方 */
-.messages-container.mode-bubble .message-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--header-outside-gap, 4px);
-  min-width: 0;
-  width: fit-content;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  .message-body {
-  align-items: flex-end;
-}
-
-.messages-container.mode-bubble .message-body > .chat-message {
-  max-width: 100%;
-  width: fit-content;
-}
-
-/* 右对齐通用镜像：保证 header / 工具头 / 底部信息的视觉镜像 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header:not(.external-header)) {
-  flex-direction: row-reverse;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header .header-left) {
-  flex-direction: row-reverse;
-}
-
-/* header-right 原 margin-left: auto 与 row-reverse 冲突, 镜像 */
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header:not(.external-header) .header-right) {
-  margin-left: 0;
-  margin-right: auto;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-header .message-info) {
-  align-items: flex-end;
-  text-align: right;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.tool-call-message) {
-  flex-direction: row-reverse;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.tool-call-message .tool-header) {
-  flex-direction: row-reverse;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.tool-call-message .tool-header .header-left) {
-  flex-direction: row-reverse;
-}
-
-/* ----------------------------------------------------------
- * 气泡模式: 底部信息 (.message-meta) 与消息方向对齐
- * 截图模式下 menubar 整体被隐藏, 但 meta (token/字数/性能) 仍需正确对齐
- * ---------------------------------------------------------- */
-.messages-container.mode-bubble
-  .message-slot[data-align="left"]
-  :deep(.message-meta) {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-meta) {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-}
-
-.messages-container.mode-bubble
-  .message-slot[data-align="right"]
-  :deep(.message-meta .error-info) {
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
 /* 隐藏滚动条 */
 :deep(*) {
   scrollbar-width: none !important;
@@ -909,7 +612,7 @@ defineExpose({
 }
 
 /* 隐藏字数统计 (按 data-meta-type 精确匹配) */
-.hide-char-count :deep(.usage-info[data-meta-type="char"]) {
+.hide-char-count :deep([data-meta-type="char"]) {
   display: none !important;
 }
 

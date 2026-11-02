@@ -20,7 +20,15 @@ import type {
 } from "./types";
 
 export function normalizeAppVersion(version: string): string {
-  return version.trim().replace(/^v/i, "");
+  return (
+    version
+      .trim()
+      .replace(/^v/i, "")
+      // 剥离构建元数据：运行时版本常形如 `0.7.0-alpha.6.build.55b1344a3`
+      // 或 semver `+build.55b1344a3`，需去掉后才能与版本说明的版本号精确匹配。
+      .replace(/\.build\b.*$/i, "")
+      .replace(/\+.*$/, "")
+  );
 }
 
 export function detectUpgradeTransition(

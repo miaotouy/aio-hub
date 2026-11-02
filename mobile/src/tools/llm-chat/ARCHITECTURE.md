@@ -629,3 +629,9 @@ sessions-index.json         # ConfigManager：currentSessionId + 旧数据导入
 角色卡的「仅渲染」（ST `markdownOnly`）正则需要在消息显示前生效，但不改写持久化内容。数据流为：`MessageList` 按索引算出深度（`messages.length - 1 - index`）→ `ChatMessage` 以 `metadata.agentId` 做 Message-Bound 查找，`mergeRegexConfigs(全局源, Agent 源)` 合并（全局源当前恒空，合并顺序对齐桌面），并解析 render 宏值 `{{user}}`/`{{char}}`（Agent 名与有效用户档案名，缺省 `User`/`Assistant`）→ `MessageContent` 用 `collectStageRules("render", …)` 收集、按角色与 `depthRange` 过滤，经 `preprocessRegexRuleMacros` 做 `substitutionMode` 宏预处理后交给 `applyRegexRules`，分别生成 `displayedContent` 与 `displayedReasoningContent`（思考内容沿用同一套规则，无规则时短路）。`applyRegexRules` 在规则带 `trimStrings` 时走捕获组后处理路径。阶段排序、flags 解析与 request 阶段共用 `utils/chatRegex.ts`，保证两阶段语义一致；ST 导入器已把 `substituteRegex`（0→NONE、1→RAW、2→ESCAPED，未知值回退 NONE 并告警）与 `trimStrings` 真实转换为规则字段。request 阶段 `regex-processor` 同样用 `agentConfig`/`userProfile` 解析宏值后预处理规则。
 
 性能上：`renderRules`、`preparedRenderRules`、`displayedContent` 与 `displayedReasoningContent` 都是 `computed`，规则集合只在配置/角色/深度变化时重算；无 render 规则时直接返回原文短路；流式 Markdown 重排仍由 `RichTextRenderer` 的 80ms 节流承担，`applyRegexRules` 只做字符串替换、不改写 `message.content`。全局与用户档案级配置源仍为后续项。
+
+### 动态消息注入锚点（2026-10-29）
+
+移动预设编辑器提供 `last_user`、`last_assistant`、`last_message` 及前后位置选择；与桌面共用 `@aiohub/agent-preset-core` 的历史边界计算。动态定位只查找有效 `session_history`，深度与动态注入按同边界权重和预设原序排列，目标缺失时跳过并记录诊断。历史加载保留 `_historyRole`；工具调用与连续结果按完整区段落位。动态锚点仅作为定位目标，预设列表继续使用 `chat_history` 等占位卡。宏处理仍在移动端现有后续阶段运行，附件能力保持现有实现。角色格式化可能调整最终物理位置。
+
+本轮通过移动组装器相关测试及 `bun run --cwd mobile build`；Android/iOS 原生界面尚未走查。

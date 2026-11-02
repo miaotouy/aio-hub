@@ -55,7 +55,7 @@ describe("ModelRoutingEditor", () => {
     });
     const hint = wrapper.find(".route-hint").text();
     expect(hint).toContain("Anthropic Messages");
-    expect(hint).toContain("手动绑定");
+    expect(hint).toContain("手动设置");
   });
 
   it("keeps an explicit endpoint when the adapter changes", async () => {

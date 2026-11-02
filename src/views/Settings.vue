@@ -21,7 +21,13 @@ import { ArrowLeft, RefreshRight } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { useWindowSize } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
-import { settingsModules } from "../config/settings";
+import {
+  getSettingsModule,
+  getSettingsPage,
+  resolveSettingsPageId,
+  settingsGroups,
+  settingsPages,
+} from "../config/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useToolsStore } from "@/stores/tools";
@@ -57,135 +63,39 @@ const getToolIdFromPath = (path: string): string => {
 
 // 使用 store 中的设置
 const settings = computed(() => appSettingsStore.settings);
+const getModule = getSettingsModule;
 
-// 左侧导航状态与滚动容器
-// 左侧导航状态与滚动容器
-const activeSection = ref("general");
+// 两层导航只管理当前页面，页面内的模块仍按设置组件分组展示
+const activePageId = ref("general");
 const contentRef = ref<HTMLElement | null>(null);
-const isScrollingProgrammatically = ref(false);
-let resizeObserver: ResizeObserver | null = null;
+const currentPage = computed(() => getSettingsPage(activePageId.value));
+const activeGroup = computed(
+  () =>
+    settingsGroups.find((group) => group.id === currentPage.value.groupId) ||
+    settingsGroups[0]
+);
+const activeSubPages = computed(() =>
+  activeGroup.value.pageIds
+    .map((pageId) => settingsPages.find((page) => page.id === pageId))
+    .filter((page): page is NonNullable<typeof page> => Boolean(page))
+);
 
-// 滚动监听逻辑
-const handleScroll = () => {
-  if (isScrollingProgrammatically.value || !contentRef.value) return;
-
-  const container = contentRef.value;
-  const containerRect = container.getBoundingClientRect();
-
-  // 判定线：容器顶部下方的一定距离
-  const scrollThreshold = isMobile.value ? 120 : 80;
-
-  let currentSectionId = "";
-  let bestMatch = { id: "", distance: -Infinity };
-
-  for (const module of settingsModules) {
-    const element = document.getElementById(module.id);
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      const relativeTop = rect.top - containerRect.top;
-
-      // 如果元素顶部已经超过了判定线
-      if (relativeTop <= scrollThreshold) {
-        // 记录当前最接近判定线但已超过它的元素
-        if (relativeTop > bestMatch.distance) {
-          bestMatch = { id: module.id, distance: relativeTop };
-        }
-      }
-    }
-  }
-
-  currentSectionId = bestMatch.id || settingsModules[0].id;
-
-  if (currentSectionId && activeSection.value !== currentSectionId) {
-    activeSection.value = currentSectionId;
-  }
+const resolvePageFromQuery = (query: Record<string, any>) => {
+  const section = typeof query.section === "string" ? query.section : undefined;
+  return resolveSettingsPageId(section);
 };
 
-// 初始化观察器（现改为监听 scroll）
-const initSectionObserver = () => {
-  if (!contentRef.value) {
-    // 如果还没准备好，等待下一个 tick 再试一次
-    nextTick(() => {
-      if (contentRef.value) {
-        initSectionObserver();
-      }
-    });
-    return;
-  }
-
-  // 移除旧的监听
-  contentRef.value.removeEventListener("scroll", handleScroll);
-  // 添加新的监听
-  contentRef.value.addEventListener("scroll", handleScroll, { passive: true });
-
-  // 使用 ResizeObserver 监听内容变化，确保同步
-  if (!resizeObserver) {
-    resizeObserver = new ResizeObserver(() => {
-      handleScroll();
-    });
-  }
-  resizeObserver.disconnect();
-  resizeObserver.observe(contentRef.value);
-
-  // 初始执行一次
-  handleScroll();
-};
-// 滚动到指定 section
-const scrollToSection = (id: string) => {
-  isScrollingProgrammatically.value = true;
-  activeSection.value = id;
-
-  const container = contentRef.value;
-  const element = document.getElementById(id);
-
-  if (container && element) {
-    // 使用容器内部滚动替代 scrollIntoView，避免触发外层容器滚动
-    const containerRect = container.getBoundingClientRect();
-    const elementRect = element.getBoundingClientRect();
-
-    // 计算相对位置并加上当前滚动量
-    // 适配新的布局间距：桌面端 0px, 移动端 8px
-    const offset = isMobile.value ? 8 : 0;
-    const targetTop =
-      container.scrollTop + (elementRect.top - containerRect.top) - offset;
-
-    container.scrollTo({
-      top: targetTop,
-      behavior: "smooth",
-    });
-
-    // 监听滚动停止
-    const handleScrollEnd = () => {
-      isScrollingProgrammatically.value = false;
-      container.removeEventListener("scrollend", handleScrollEnd);
-    };
-
-    // 兼容性处理：如果浏览器不支持 scrollend，使用 timeout 保底
-    container.addEventListener("scrollend", handleScrollEnd);
-    setTimeout(() => {
-      if (isScrollingProgrammatically.value) {
-        isScrollingProgrammatically.value = false;
-        container.removeEventListener("scrollend", handleScrollEnd);
-      }
-    }, 1000);
-  }
+const selectPage = (pageId: string) => {
+  const resolvedPageId = resolveSettingsPageId(pageId);
+  activePageId.value = resolvedPageId;
+  router.replace({
+    path: "/settings",
+    query: { ...route.query, section: resolvedPageId },
+  });
 };
 
-const handleSelect = (key: string) => {
-  scrollToSection(key);
-};
-
-// 检查路由参数并滚动到指定区域
-const checkRouteAndScroll = (query: Record<string, any>) => {
-  if (query.section && typeof query.section === "string") {
-    // 使用 nextTick 和额外延迟确保 DOM 已经完全渲染
-    // 特别是从分离窗口导航过来时，需要更多时间
-    nextTick(() => {
-      setTimeout(() => {
-        scrollToSection(query.section as string);
-      }, 150);
-    });
-  }
+const checkRouteAndSelectPage = (query: Record<string, any>) => {
+  activePageId.value = resolvePageFromQuery(query);
 };
 
 // 重置设置
@@ -361,115 +271,82 @@ onMounted(async () => {
       });
     }
 
-    // 检查初始路由参数，可能需要跳转到特定区域
-    checkRouteAndScroll(route.query);
-
-    // 初始化 section 观察器
-    nextTick(() => {
-      initSectionObserver();
-    });
+    // 根据路由恢复当前二级设置页
+    checkRouteAndSelectPage(route.query);
   } finally {
     await nextTick();
     isLoading.value = false;
   }
 });
-// 监听加载状态，完成后初始化观察器
-watch(isLoading, (newVal) => {
-  if (!newVal) {
-    nextTick(() => {
-      // 给予额外的延迟确保子组件也渲染完成
-      setTimeout(() => {
-        initSectionObserver();
-        checkRouteAndScroll(route.query);
-      }, 100);
-    });
-  }
-});
 
-// 监听路由查询参数变化，支持页面内导航
+// 外部链接、分离窗口和浏览器前进后退都通过 section 参数切换页面
 watch(
-  () => route.query,
-  (newQuery) => {
+  () => route.query.section,
+  (section) => {
     if (!isLoading.value) {
-      checkRouteAndScroll(newQuery);
+      checkRouteAndSelectPage({ section });
     }
   }
 );
 
-// 监听移动端状态变化，重新初始化观察器
-watch(isMobile, () => {
-  nextTick(() => {
-    initSectionObserver();
-  });
-});
-
-// 清理事件监听器
+// 清理设置页状态
 onUnmounted(() => {
-  if (contentRef.value) {
-    contentRef.value.removeEventListener("scroll", handleScroll);
-  }
-  if (resizeObserver) {
-    resizeObserver.disconnect();
-  }
+  contentRef.value = null;
 });
 </script>
 
 <template>
   <div class="settings-page">
     <div class="settings-wrapper">
-      <!-- 骨架屏 -->
       <template v-if="isLoading">
-        <!-- Nav Skeleton -->
-        <aside class="settings-nav">
-          <el-skeleton animated>
-            <template #template>
-              <el-skeleton-item
-                variant="rect"
-                style="width: 100%; height: 100%"
-              />
-            </template>
-          </el-skeleton>
-        </aside>
-        <!-- Content Skeleton -->
-        <div class="settings-content">
+        <div class="settings-loading">
+          <el-skeleton animated />
           <el-skeleton :rows="15" animated />
         </div>
       </template>
 
-      <!-- 实际内容 -->
       <template v-else>
         <div class="settings-container" :class="{ 'is-mobile': isMobile }">
-          <!-- 移动端顶栏 -->
           <header v-if="isMobile" class="mobile-header">
             <div class="header-top">
               <button class="mobile-back" @click="handleGoBack">
                 <el-icon><ArrowLeft /></el-icon>
               </button>
-              <h1 class="mobile-title">设置</h1>
+              <div class="mobile-heading">
+                <h1>设置</h1>
+                <span>{{ currentPage.title }}</span>
+              </div>
               <el-tooltip content="重置所有设置" placement="bottom">
                 <button class="mobile-reset" @click="handleReset">
                   <el-icon><RefreshRight /></el-icon>
                 </button>
               </el-tooltip>
             </div>
-            <div class="header-nav">
-              <el-select
-                v-model="activeSection"
-                @change="handleSelect"
-                placeholder="跳转到..."
-                size="default"
+
+            <nav class="mobile-group-nav" aria-label="设置分类">
+              <button
+                v-for="group in settingsGroups"
+                :key="group.id"
+                class="mobile-group-item"
+                :class="{ active: activeGroup.id === group.id }"
+                @click="selectPage(group.pageIds[0])"
               >
-                <el-option
-                  v-for="module in settingsModules"
-                  :key="module.id"
-                  :label="module.title"
-                  :value="module.id"
-                />
-              </el-select>
-            </div>
+                {{ group.title }}
+              </button>
+            </nav>
+            <nav class="mobile-page-nav" aria-label="设置页面">
+              <button
+                v-for="page in activeSubPages"
+                :key="page.id"
+                class="mobile-page-item"
+                :class="{ active: activePageId === page.id }"
+                @click="selectPage(page.id)"
+              >
+                {{ page.title }}
+              </button>
+            </nav>
           </header>
 
-          <!-- 桌面端侧边栏 -->
           <aside v-else class="settings-sidebar">
             <div class="sidebar-header">
               <button class="back-button" @click="handleGoBack">
@@ -479,17 +356,32 @@ onUnmounted(() => {
               <h1 class="sidebar-title">设置</h1>
             </div>
 
-            <div class="nav-menu">
-              <button
-                v-for="module in settingsModules"
-                :key="module.id"
-                class="nav-menu-item"
-                :class="{ active: activeSection === module.id }"
-                @click="handleSelect(module.id)"
+            <nav class="settings-nav" aria-label="设置分类">
+              <div
+                v-for="group in settingsGroups"
+                :key="group.id"
+                class="nav-group"
               >
-                {{ module.title }}
-              </button>
-            </div>
+                <button
+                  class="nav-group-title"
+                  :class="{ active: activeGroup.id === group.id }"
+                  @click="selectPage(group.pageIds[0])"
+                >
+                  {{ group.title }}
+                </button>
+                <div class="nav-submenu">
+                  <button
+                    v-for="pageId in group.pageIds"
+                    :key="pageId"
+                    class="nav-submenu-item"
+                    :class="{ active: activePageId === pageId }"
+                    @click="selectPage(pageId)"
+                  >
+                    {{ getSettingsPage(pageId).title }}
+                  </button>
+                </div>
+              </div>
+            </nav>
 
             <div class="sidebar-footer">
               <el-button
@@ -503,138 +395,159 @@ onUnmounted(() => {
             </div>
           </aside>
 
-          <!-- 内容区域 -->
-          <main class="settings-main" ref="contentRef">
-            <section
-              v-for="module in settingsModules"
-              :key="module.id"
-              :id="module.id"
-              class="settings-section component-section"
-              :style="{ minHeight: module.minHeight || 'auto' }"
-            >
-              <h2 class="section-title">{{ module.title }}</h2>
+          <main
+            class="settings-main"
+            :class="{ 'is-workspace': currentPage.layout === 'workspace' }"
+            ref="contentRef"
+          >
+            <div class="settings-page-header">
+              <div>
+                <h2 class="settings-breadcrumb">
+                  {{ activeGroup.title }}<span>/</span>{{ currentPage.title }}
+                </h2>
+                <p>{{ currentPage.description }}</p>
+              </div>
+            </div>
 
-              <!-- 通用设置 -->
-              <component
-                v-if="module.id === 'general'"
-                :is="module.component"
-                :show-tray-icon="settings.showTrayIcon"
-                :minimize-to-tray="settings.minimizeToTray"
-                :theme="settings.theme"
-                :auto-adjust-window-position="settings.autoAdjustWindowPosition"
-                :disable-tauri-drag-drop-handler="
-                  settings.disableTauriDragDropHandler ?? false
-                "
-                :sidebar-mode="settings.sidebarMode"
-                :proxy="settings.proxy"
-                :timezone="settings.timezone"
-                :download="settings.download"
-                @update:show-tray-icon="
-                  (val: any) => appSettingsStore.update({ showTrayIcon: val })
-                "
-                @update:minimize-to-tray="
-                  (val: any) => appSettingsStore.update({ minimizeToTray: val })
-                "
-                @update:theme="
-                  (val: any) => appSettingsStore.update({ theme: val })
-                "
-                @update:auto-adjust-window-position="
-                  (val: any) =>
-                    appSettingsStore.update({ autoAdjustWindowPosition: val })
-                "
-                @update:disable-tauri-drag-drop-handler="
-                  handleDisableTauriDragDropHandlerChange
-                "
-                @update:sidebar-mode="
-                  (val: any) => appSettingsStore.update({ sidebarMode: val })
-                "
-                @update:proxy="
-                  (val: any) => appSettingsStore.update({ proxy: val })
-                "
-                @update:timezone="
-                  (val: any) => appSettingsStore.update({ timezone: val })
-                "
-                @update:download="
-                  (val: any) => appSettingsStore.update({ download: val })
-                "
-                @config-imported="onConfigImported"
-              />
+            <template v-for="moduleId in currentPage.moduleIds" :key="moduleId">
+              <section
+                v-if="getModule(moduleId)"
+                :id="moduleId"
+                class="settings-section component-section"
+              >
+                <h3
+                  v-if="currentPage.layout !== 'workspace'"
+                  class="section-title"
+                >
+                  {{ getModule(moduleId)?.title }}
+                </h3>
 
-              <!-- 启动项管理 -->
-              <component
-                v-else-if="module.id === 'startup'"
-                :is="module.component"
-                :startup-tasks="settings.startupTasks"
-                @update:startup-tasks="
-                  (val: any) => appSettingsStore.update({ startupTasks: val })
-                "
-              />
+                <!-- 通用设置 -->
+                <component
+                  v-if="moduleId === 'general'"
+                  :is="getModule(moduleId)?.component"
+                  :show-tray-icon="settings.showTrayIcon"
+                  :minimize-to-tray="settings.minimizeToTray"
+                  :theme="settings.theme"
+                  :auto-adjust-window-position="
+                    settings.autoAdjustWindowPosition
+                  "
+                  :disable-tauri-drag-drop-handler="
+                    settings.disableTauriDragDropHandler ?? false
+                  "
+                  :sidebar-mode="settings.sidebarMode"
+                  :proxy="settings.proxy"
+                  :timezone="settings.timezone"
+                  :download="settings.download"
+                  @update:show-tray-icon="
+                    (val: any) => appSettingsStore.update({ showTrayIcon: val })
+                  "
+                  @update:minimize-to-tray="
+                    (val: any) =>
+                      appSettingsStore.update({ minimizeToTray: val })
+                  "
+                  @update:theme="
+                    (val: any) => appSettingsStore.update({ theme: val })
+                  "
+                  @update:auto-adjust-window-position="
+                    (val: any) =>
+                      appSettingsStore.update({ autoAdjustWindowPosition: val })
+                  "
+                  @update:disable-tauri-drag-drop-handler="
+                    handleDisableTauriDragDropHandlerChange
+                  "
+                  @update:sidebar-mode="
+                    (val: any) => appSettingsStore.update({ sidebarMode: val })
+                  "
+                  @update:proxy="
+                    (val: any) => appSettingsStore.update({ proxy: val })
+                  "
+                  @update:timezone="
+                    (val: any) => appSettingsStore.update({ timezone: val })
+                  "
+                  @update:download="
+                    (val: any) => appSettingsStore.update({ download: val })
+                  "
+                  @config-imported="onConfigImported"
+                />
 
-              <!-- 主题色配置 -->
-              <component
-                v-else-if="module.id === 'theme-colors'"
-                :is="module.component"
-                :theme-color="settings.themeColor"
-                :success-color="settings.successColor"
-                :warning-color="settings.warningColor"
-                :danger-color="settings.dangerColor"
-                :info-color="settings.infoColor"
-                @update:theme-color="
-                  (val: any) => appSettingsStore.update({ themeColor: val })
-                "
-                @update:success-color="
-                  (val: any) => appSettingsStore.update({ successColor: val })
-                "
-                @update:warning-color="
-                  (val: any) => appSettingsStore.update({ warningColor: val })
-                "
-                @update:danger-color="
-                  (val: any) => appSettingsStore.update({ dangerColor: val })
-                "
-                @update:info-color="
-                  (val: any) => appSettingsStore.update({ infoColor: val })
-                "
-              />
+                <!-- 启动项管理 -->
+                <component
+                  v-else-if="moduleId === 'startup'"
+                  :is="getModule(moduleId)?.component"
+                  :startup-tasks="settings.startupTasks"
+                  @update:startup-tasks="
+                    (val: any) => appSettingsStore.update({ startupTasks: val })
+                  "
+                />
 
-              <!-- 日志配置 -->
-              <component
-                v-else-if="module.id === 'log-settings'"
-                :is="module.component"
-                :log-level="settings.logLevel"
-                :log-to-file="settings.logToFile"
-                :log-to-console="settings.logToConsole"
-                :log-buffer-size="settings.logBufferSize"
-                :max-file-size="settings.maxFileSize"
-                @update:log-level="
-                  (val: any) => appSettingsStore.update({ logLevel: val })
-                "
-                @update:log-to-file="
-                  (val: any) => appSettingsStore.update({ logToFile: val })
-                "
-                @update:log-to-console="
-                  (val: any) => appSettingsStore.update({ logToConsole: val })
-                "
-                @update:log-buffer-size="
-                  (val: any) => appSettingsStore.update({ logBufferSize: val })
-                "
-                @update:max-file-size="
-                  (val: any) => appSettingsStore.update({ maxFileSize: val })
-                "
-              />
+                <!-- 主题色配置 -->
+                <component
+                  v-else-if="moduleId === 'theme-colors'"
+                  :is="getModule(moduleId)?.component"
+                  :theme-color="settings.themeColor"
+                  :success-color="settings.successColor"
+                  :warning-color="settings.warningColor"
+                  :danger-color="settings.dangerColor"
+                  :info-color="settings.infoColor"
+                  @update:theme-color="
+                    (val: any) => appSettingsStore.update({ themeColor: val })
+                  "
+                  @update:success-color="
+                    (val: any) => appSettingsStore.update({ successColor: val })
+                  "
+                  @update:warning-color="
+                    (val: any) => appSettingsStore.update({ warningColor: val })
+                  "
+                  @update:danger-color="
+                    (val: any) => appSettingsStore.update({ dangerColor: val })
+                  "
+                  @update:info-color="
+                    (val: any) => appSettingsStore.update({ infoColor: val })
+                  "
+                />
 
-              <!-- 工具模块配置 -->
-              <component
-                v-else-if="module.id === 'tools'"
-                :is="module.component"
-                :tools-visible="settings.toolsVisible"
-                @update:tools-visible="
-                  (val: any) => appSettingsStore.update({ toolsVisible: val })
-                "
-              />
+                <!-- 日志配置 -->
+                <component
+                  v-else-if="moduleId === 'log-settings'"
+                  :is="getModule(moduleId)?.component"
+                  :log-level="settings.logLevel"
+                  :log-to-file="settings.logToFile"
+                  :log-to-console="settings.logToConsole"
+                  :log-buffer-size="settings.logBufferSize"
+                  :max-file-size="settings.maxFileSize"
+                  @update:log-level="
+                    (val: any) => appSettingsStore.update({ logLevel: val })
+                  "
+                  @update:log-to-file="
+                    (val: any) => appSettingsStore.update({ logToFile: val })
+                  "
+                  @update:log-to-console="
+                    (val: any) => appSettingsStore.update({ logToConsole: val })
+                  "
+                  @update:log-buffer-size="
+                    (val: any) =>
+                      appSettingsStore.update({ logBufferSize: val })
+                  "
+                  @update:max-file-size="
+                    (val: any) => appSettingsStore.update({ maxFileSize: val })
+                  "
+                />
 
-              <!-- 其他动态组件 -->
-              <component v-else :is="module.component" />
-            </section>
+                <!-- 工具模块配置 -->
+                <component
+                  v-else-if="moduleId === 'tools'"
+                  :is="getModule(moduleId)?.component"
+                  :tools-visible="settings.toolsVisible"
+                  @update:tools-visible="
+                    (val: any) => appSettingsStore.update({ toolsVisible: val })
+                  "
+                />
+
+                <!-- 其他设置组件 -->
+                <component v-else :is="getModule(moduleId)?.component" />
+              </section>
+            </template>
           </main>
         </div>
       </template>
@@ -650,49 +563,66 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-.settings-wrapper {
+.settings-wrapper,
+.settings-container {
   height: 100%;
   box-sizing: border-box;
 }
 
-/* 容器布局 */
 .settings-container {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 24px;
+  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.settings-loading {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 20px;
   height: 100%;
-  padding: 0;
+  padding: 20px;
   box-sizing: border-box;
 }
 
-.settings-container.is-mobile {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.settings-loading :deep(.el-skeleton) {
+  min-height: 100%;
 }
 
-/* 桌面端侧边栏 */
 .settings-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 20px 14px;
+  box-sizing: border-box;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  backdrop-filter: blur(var(--ui-blur));
   border-radius: 12px;
-  padding: 20px 16px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+  backdrop-filter: blur(var(--ui-blur));
 }
 
 .sidebar-header {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .sidebar-title {
+  margin: 12px 0 0 12px;
+  color: var(--text-color);
   font-size: 24px;
   font-weight: 700;
+}
+
+.back-button,
+.nav-group-title,
+.nav-submenu-item,
+.mobile-group-item,
+.mobile-page-item {
+  border: 0;
+  cursor: pointer;
   color: var(--text-color);
-  margin: 12px 0 0 12px;
+  background: transparent;
+  font: inherit;
 }
 
 .back-button {
@@ -702,110 +632,194 @@ onUnmounted(() => {
   width: 100%;
   padding: 8px 12px;
   border-radius: 8px;
-  border: none;
-  background: transparent;
   color: var(--text-color-secondary);
   font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
   text-align: left;
 }
 
-.back-button:hover {
+.back-button:hover,
+.nav-submenu-item:hover,
+.mobile-page-item:hover {
   color: var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb), 0.08);
+  background: rgba(var(--primary-color-rgb), 0.06);
 }
 
-.nav-menu {
+.settings-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.nav-group + .nav-group {
+  margin-top: 16px;
+}
+
+.nav-group-title {
+  width: 100%;
+  padding: 6px 12px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.nav-group-title.active {
+  color: var(--primary-color);
+}
+
+.nav-submenu {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  overflow-y: auto;
+  gap: 2px;
+  margin-top: 3px;
 }
 
-.nav-menu-item {
+.nav-submenu-item {
+  position: relative;
   width: 100%;
-  height: 40px;
-  padding: 0 16px;
-  border: none;
+  min-height: 38px;
+  padding: 8px 12px 8px 20px;
   border-radius: 8px;
-  background: transparent;
   color: var(--text-color);
   font-size: 14px;
   text-align: left;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-  outline: none;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
-.nav-menu-item:hover:not(.active) {
-  background-color: rgba(var(--primary-color-rgb), 0.05);
+.nav-submenu-item.active {
   color: var(--primary-color);
-}
-
-.nav-menu-item.active {
-  color: var(--primary-color);
-  background-color: rgba(var(--primary-color-rgb), 0.08);
+  background: rgba(var(--primary-color-rgb), 0.1);
   font-weight: 600;
 }
 
-.nav-menu-item.active::before {
-  content: "";
+.nav-submenu-item.active::before {
   position: absolute;
-  left: 0;
   top: 50%;
-  transform: translateY(-50%);
-  height: 20px;
+  left: 8px;
   width: 3px;
-  background-color: var(--primary-color);
+  height: 18px;
   border-radius: 0 2px 2px 0;
+  background: var(--primary-color);
+  content: "";
+  transform: translateY(-50%);
 }
 
 .sidebar-footer {
-  margin-top: auto;
-  padding-top: 20px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .reset-btn {
   width: 100%;
 }
 
-/* 移动端顶栏 */
-.mobile-header {
-  position: sticky;
-  top: 12px;
-  z-index: 100;
+.settings-main {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 4px 20px 0;
+  box-sizing: border-box;
+}
+
+.settings-main.is-workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.is-workspace .settings-section {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  margin-bottom: 0;
+  padding: 16px;
+  overflow: hidden;
+  container: settings-content / inline-size;
+}
+
+.is-workspace .settings-section > :deep(*) {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.settings-page-header {
+  flex-shrink: 0;
+  padding: 12px 8px 20px;
+}
+
+.settings-breadcrumb {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-color-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.settings-page-header p {
+  margin: 8px 0 0;
+  color: var(--text-color-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+  padding: 24px;
   background: var(--card-bg);
-  backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
-  margin: 12px 12px 0; /* 增加顶部边距，移除底部边距由 main 的 padding 处理 */
-  padding: 8px 16px 12px;
+}
+
+.section-title {
+  margin: 0 0 18px;
+  padding-bottom: 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  color: var(--text-color);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mobile-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 8px 12px 0;
+  background: var(--bg-color);
 }
 
 .header-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
-  margin-bottom: 8px;
+  min-height: 48px;
 }
 
 .mobile-back,
 .mobile-reset {
-  width: 36px;
-  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-color-secondary);
-  font-size: 20px;
-  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border: 0;
   border-radius: 50%;
+  color: var(--text-color-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
 }
 
 .mobile-back:active,
@@ -813,72 +827,149 @@ onUnmounted(() => {
   background: rgba(var(--primary-color-rgb), 0.1);
 }
 
-.mobile-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-color);
+.mobile-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.mobile-heading h1 {
   margin: 0;
-}
-
-.header-nav {
-  width: 100%;
-}
-
-.header-nav :deep(.el-select) {
-  width: 100%;
-}
-
-/* 主内容区域 */
-.settings-main {
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  border-radius: 12px;
-  box-sizing: border-box;
-  padding-bottom: 40px;
-  /* 移除 CSS 层的 smooth 滚动，由 JS 控制以避免干扰 isScrollingProgrammatically 标记 */
-  scroll-behavior: auto;
-}
-
-.is-mobile .settings-main {
-  padding: 4px 12px 80px;
-  margin-top: 12px;
-}
-
-/* 设置卡片 */
-.settings-section {
-  background: var(--card-bg);
-  border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-}
-
-.is-mobile .settings-section {
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.section-title {
+  color: var(--text-color);
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-color);
-  margin: 0 0 16px 0;
-  padding-bottom: 12px;
+}
+
+.mobile-heading span {
+  overflow: hidden;
+  max-width: 220px;
+  margin-top: 2px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-group-nav,
+.mobile-page-nav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mobile-group-nav::-webkit-scrollbar,
+.mobile-page-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-group-nav {
+  padding: 4px 0 2px;
+}
+
+.mobile-page-nav {
+  padding: 6px 0 10px;
   border-bottom: var(--border-width) solid var(--border-color);
 }
 
-/* 滚动条 */
-.settings-main::-webkit-scrollbar {
+.mobile-group-item,
+.mobile-page-item {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.mobile-group-item {
+  padding: 7px 10px;
+  border-radius: 7px;
+  color: var(--text-color-secondary);
+  font-size: 13px;
+}
+
+.mobile-group-item.active {
+  color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb), 0.1);
+  font-weight: 600;
+}
+
+.mobile-page-item {
+  padding: 6px 4px;
+  color: var(--text-color-secondary);
+  font-size: 13px;
+}
+
+.mobile-page-item.active {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.mobile-page-item.active::after {
+  display: block;
+  height: 2px;
+  margin-top: 5px;
+  border-radius: 2px;
+  background: var(--primary-color);
+  content: "";
+}
+
+.settings-main::-webkit-scrollbar,
+.settings-nav::-webkit-scrollbar {
   width: 6px;
 }
 
-.settings-main::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+.settings-main::-webkit-scrollbar-thumb,
+.settings-nav::-webkit-scrollbar-thumb {
   border-radius: 3px;
+  background: var(--border-color);
 }
 
-/* 变量 */
+@media (max-width: 999px) {
+  .settings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .settings-main {
+    flex: 1;
+    height: auto;
+    padding: 0 12px 20px;
+  }
+
+  .mobile-header {
+    flex-shrink: 0;
+  }
+
+  .is-workspace .settings-section {
+    padding: 12px;
+  }
+
+  .settings-page-header {
+    padding: 18px 4px 14px;
+  }
+
+  .is-workspace .settings-page-header {
+    padding: 12px 4px;
+  }
+
+  .is-workspace .settings-breadcrumb {
+    display: none;
+  }
+
+  .is-workspace .settings-page-header p {
+    margin: 0;
+  }
+
+  .settings-section {
+    margin-bottom: 16px;
+    padding: 16px;
+  }
+
+  .section-title {
+    font-size: 17px;
+  }
+}
+
 :root {
   --primary-color-rgb: 64, 158, 255;
 }

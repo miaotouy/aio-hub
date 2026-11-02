@@ -122,19 +122,21 @@ pub fn create_background_runtime_window(app: &AppHandle) -> tauri::Result<()> {
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(
-        app,
-        BACKGROUND_JS_RUNTIME_WINDOW_LABEL,
-        WebviewUrl::App(BACKGROUND_JS_RUNTIME_URL.into()),
+    crate::commands::dev_control::configure_webview(
+        WebviewWindowBuilder::new(
+            app,
+            BACKGROUND_JS_RUNTIME_WINDOW_LABEL,
+            WebviewUrl::App(BACKGROUND_JS_RUNTIME_URL.into()),
+        )
+        .title("AIO Hub Background JS Runtime")
+        .inner_size(1.0, 1.0)
+        .visible(false)
+        .focused(false)
+        .skip_taskbar(true)
+        .resizable(false)
+        .decorations(false)
+        .background_throttling(BackgroundThrottlingPolicy::Disabled),
     )
-    .title("AIO Hub Background JS Runtime")
-    .inner_size(1.0, 1.0)
-    .visible(false)
-    .focused(false)
-    .skip_taskbar(true)
-    .resizable(false)
-    .decorations(false)
-    .background_throttling(BackgroundThrottlingPolicy::Disabled)
     .build()?;
 
     log::info!("[BACKGROUND_JS_RUNTIME] hidden WebView created");

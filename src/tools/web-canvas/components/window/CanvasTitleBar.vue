@@ -24,7 +24,7 @@
   >
     <!-- 左侧：标题 & 图标（继承父级 drag，整个区域可拖拽） -->
     <div class="bar-left">
-      <Brush :size="16" class="title-icon" />
+      <WebCanvasIcon :size="16" class="title-icon" />
       <span class="title-text" :title="title">{{ title }}</span>
     </div>
 
@@ -96,7 +96,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import {
-  Brush,
   RefreshCw,
   PanelBottom,
   ExternalLink,
@@ -106,6 +105,7 @@ import {
   Square,
   Layers,
 } from "lucide-vue-next";
+import { WebCanvasIcon } from "@aiohub/tool-icons";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { platform } from "@tauri-apps/plugin-os";
 

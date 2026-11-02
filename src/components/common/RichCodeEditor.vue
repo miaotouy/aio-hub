@@ -15,10 +15,30 @@
 -->
 
 <template>
-  <div class="rich-code-editor-wrapper" ref="wrapperRef">
+  <div
+    class="rich-code-editor-wrapper"
+    ref="wrapperRef"
+    :aria-busy="needsMonaco && !monacoComponents && !monacoLoadFailed"
+  >
+    <div
+      v-if="needsMonaco && !monacoComponents"
+      class="editor-load-state"
+      :role="monacoLoadFailed ? 'alert' : 'status'"
+    >
+      <span>{{ monacoLoadFailed ? "编辑器加载失败" : "正在加载编辑器…" }}</span>
+      <button
+        v-if="monacoLoadFailed"
+        type="button"
+        class="editor-load-retry"
+        @click="ensureMonacoReady"
+      >
+        重新加载
+      </button>
+    </div>
     <!-- Monaco Diff Editor -->
-    <vue-monaco-diff-editor
-      v-if="props.diff"
+    <component
+      :is="monacoComponents.VueMonacoDiffEditor"
+      v-else-if="props.diff && monacoComponents"
       :original="props.original"
       :modified="props.modified"
       :language="getMonacoLanguage()"
@@ -26,8 +46,7 @@
       :theme="monacoTheme"
       class="monaco-editor-container"
       @mount="handleMonacoDiffMount"
-      @update:original="(value: string) => emit('update:original', value)"
-      @update:modified="(value: string) => emit('update:modified', value)"
+      @vue:before-unmount="disposeMonacoDiffEditor"
     />
     <!-- CodeMirror 编辑器 -->
     <div
@@ -36,14 +55,16 @@
       class="editor-container"
     ></div>
     <!-- Monaco 编辑器 -->
-    <vue-monaco-editor
-      v-else-if="props.editorType === 'monaco'"
+    <component
+      :is="monacoComponents.VueMonacoEditor"
+      v-else-if="props.editorType === 'monaco' && monacoComponents"
       v-model:value="monacoValue"
       :language="getMonacoLanguage()"
       :options="monacoOptions"
       :theme="monacoTheme"
       class="monaco-editor-container"
       @mount="handleMonacoMount"
+      @vue:before-unmount="disposeMonacoEditor"
       @focus="handleMonacoFocus"
       @blur="handleMonacoBlur"
     />
@@ -61,12 +82,9 @@ import {
   nextTick,
 } from "vue";
 import { useTheme } from "@composables/useTheme";
-import {
-  VueMonacoEditor,
-  VueMonacoDiffEditor,
-  loader as monacoLoader,
-} from "@guolao/vue-monaco-editor";
-import * as monaco from "@/utils/monaco";
+import type * as monaco from "@/utils/monaco";
+import { loadMonacoEditor } from "@/utils/loadMonacoEditor";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { EditorState, Compartment } from "@codemirror/state";
 import {
   EditorView,
@@ -103,7 +121,7 @@ import {
   getCodeMirrorLanguage,
 } from "@/utils/codeLanguages";
 
-monacoLoader.config({ monaco });
+const errorHandler = createModuleErrorHandler("rich-code-editor");
 
 const props = withDefaults(
   defineProps<{
@@ -152,6 +170,42 @@ const emit = defineEmits<{
 const editorContainerRef = ref<HTMLDivElement | null>(null);
 const editorView = shallowRef<EditorView | null>(null);
 let isDestroyed = false;
+const needsMonaco = computed(() => props.diff || props.editorType === "monaco");
+const monacoComponents = shallowRef<Awaited<
+  ReturnType<typeof loadMonacoEditor>
+> | null>(null);
+const monacoLoadFailed = ref(false);
+let monacoLoadRequest: Promise<void> | null = null;
+
+function ensureMonacoReady(): Promise<void> {
+  if (monacoComponents.value || isDestroyed) return Promise.resolve();
+  if (monacoLoadRequest) return monacoLoadRequest;
+  monacoLoadFailed.value = false;
+  monacoLoadRequest = loadMonacoEditor()
+    .then((components) => {
+      if (!isDestroyed) monacoComponents.value = components;
+    })
+    .catch((error: unknown) => {
+      if (isDestroyed) return;
+      monacoLoadFailed.value = true;
+      errorHandler.handle(error, {
+        userMessage: "编辑器加载失败，请重新加载",
+        showToUser: false,
+      });
+    })
+    .finally(() => {
+      monacoLoadRequest = null;
+    });
+  return monacoLoadRequest;
+}
+
+watch(
+  needsMonaco,
+  (required) => {
+    if (required) void ensureMonacoReady();
+  },
+  { immediate: true }
+);
 const editableCompartment = new Compartment();
 
 let isComposing = false;
@@ -262,6 +316,28 @@ const getMonacoLanguage = () => {
   return getMonacoLanguageId(props.language);
 };
 
+// Release widgets before their models; the binding's default cleanup uses the reverse order.
+// VNode hooks also cover engine switches where this wrapper remains mounted.
+function disposeMonacoEditor(): void {
+  const editor = monacoEditorInstance.value;
+  if (!editor) return;
+  monacoEditorInstance.value = null;
+  const model = editor.getModel();
+  editor.dispose();
+  model?.dispose();
+}
+
+function disposeMonacoDiffEditor(): void {
+  disposeDiffContentListeners();
+  const editor = monacoDiffEditorInstance.value;
+  if (!editor) return;
+  monacoDiffEditorInstance.value = null;
+  const models = editor.getModel();
+  editor.dispose();
+  models?.original?.dispose();
+  models?.modified?.dispose();
+}
+
 // Monaco Editor 事件处理
 const handleMonacoMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
   monacoEditorInstance.value = editor;
@@ -272,8 +348,29 @@ const handleMonacoMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
   emit("mount", editor);
 };
 
+let diffContentListeners: monaco.IDisposable[] = [];
+const disposeDiffContentListeners = () => {
+  for (const listener of diffContentListeners) listener.dispose();
+  diffContentListeners = [];
+};
+
 const handleMonacoDiffMount = (editor: monaco.editor.IStandaloneDiffEditor) => {
+  disposeDiffContentListeners();
   monacoDiffEditorInstance.value = editor;
+  // The wrapper exposes initial props but does not emit edits from diff models.
+  // Subscribe to Monaco so copy/save/swap consumers receive the displayed text.
+  const original = editor.getOriginalEditor();
+  const modified = editor.getModifiedEditor();
+  diffContentListeners = [
+    original.onDidChangeModelContent(() => {
+      const value = original.getValue();
+      if (value !== props.original) emit("update:original", value);
+    }),
+    modified.onDidChangeModelContent(() => {
+      const value = modified.getValue();
+      if (value !== props.modified) emit("update:modified", value);
+    }),
+  ];
   emit("mount", editor);
 };
 
@@ -539,25 +636,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   isDestroyed = true;
+  disposeDiffContentListeners();
   destroyCodeMirror();
-  // 修复 @guolao/vue-monaco-editor 的销毁顺序缺陷：
-  // 组件库在其 onUnmounted 中先 dispose original/modified 两个 TextModel，
-  // 再 dispose DiffEditorWidget，触发 Monaco
-  // “TextModel got disposed before DiffEditorWidget model got reset” 报错。
-  // 这里提前按“先 widget 后 model”的顺序释放，并清空引用让组件库的默认清理成为空操作。
-  if (props.diff && monacoDiffEditorInstance.value) {
-    const diffEditor = monacoDiffEditorInstance.value;
-    monacoDiffEditorInstance.value = null;
-    try {
-      const models = diffEditor.getModel();
-      diffEditor.dispose();
-      models?.original?.dispose();
-      models?.modified?.dispose();
-    } catch {
-      // 资源可能已被其他路径释放，忽略重复销毁
-    }
-  }
-  // Monaco 编辑器由组件库自动处理销毁
+  disposeMonacoEditor();
+  disposeMonacoDiffEditor();
 });
 
 // 监听 modelValue 变化 (双向绑定)
@@ -752,6 +834,32 @@ defineExpose({
 
 .rich-code-editor-wrapper.is-focused {
   border-color: var(--primary-color);
+}
+
+.editor-load-state {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  color: var(--text-color-secondary);
+  background: var(--input-bg);
+}
+
+.editor-load-retry {
+  padding: 4px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--primary-color);
+  font: inherit;
+  cursor: pointer;
+}
+
+.editor-load-retry:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .editor-container,

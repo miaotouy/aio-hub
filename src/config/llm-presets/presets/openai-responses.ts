@@ -17,6 +17,10 @@
  */
 
 import type { LlmPreset } from "../types";
+import {
+  gpt61SolCapabilities,
+  gpt6ModelDefinitions,
+} from "../../model-metadata-presets/models-openai";
 
 // OpenAI Responses API
 export const openaiResponsesPreset: LlmPreset = {
@@ -33,6 +37,25 @@ export const openaiResponsesPreset: LlmPreset = {
     },
   ],
   defaultModels: [
+    {
+      id: "gpt-6.1-sol",
+      name: "GPT-6.1 Sol",
+      group: "GPT-6.1",
+      provider: "openai",
+      tokenLimits: { contextLength: 1050000, output: 128000 },
+      capabilities: gpt61SolCapabilities,
+      description:
+        "复杂编码、计算机操作与专业任务，支持 Responses 工具工作流，1.05M 上下文，128K 输出",
+    },
+    ...gpt6ModelDefinitions.map((model) => ({
+      id: model.id,
+      name: model.name,
+      group: "GPT-6",
+      provider: "openai",
+      tokenLimits: { contextLength: 1050000, output: 128000 },
+      capabilities: model.capabilities,
+      description: model.description,
+    })),
     {
       id: "gpt-5.6-sol",
       name: "GPT-5.6 Sol",

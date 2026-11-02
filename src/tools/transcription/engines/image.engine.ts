@@ -11,23 +11,21 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { assetManagerEngine } from "@/composables/useAssetManager";
-import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
-import { createModuleLogger } from "@/utils/logger";
-import { parseModelCombo } from "@/utils/modelIdUtils";
-import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
 import {
   getCurrentEngineConfig,
   loadSmartOcrConfig,
 } from "@/tools/smart-ocr/config/config";
-import type { Asset } from "@/types/asset-management";
-import type { LlmMessageContent } from "@/llm-apis/common";
+import { getImageDimensions, resizeImage } from "@/utils/imageProcessor";
+import SmartOcrRegistry from "@/tools/smart-ocr/smart-ocr.registry";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { OcrEngineConfig } from "@/tools/smart-ocr/types";
-import { getEffectiveConfig, getModelParams } from "./base";
-import { cleanLlmOutput, detectRepetition } from "../utils/text";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useLlmRequest } from "@/composables/useLlmRequest";
+import type { LlmMessageContent } from "@/llm-apis/common";
+import { parseModelCombo } from "@/utils/modelIdUtils";
+import type { Asset } from "@/types/asset-management";
+import { createModuleLogger } from "@/utils/logger";
+
 import type {
   ITranscriptionEngine,
   EngineContext,
@@ -35,6 +33,12 @@ import type {
   ImageOcrEngineType,
   ImageSpecificConfig,
 } from "../types";
+import {
+  cleanLlmOutput,
+  detectRepetition,
+  detectModelRefusal,
+} from "../utils/text";
+import { getEffectiveConfig, getModelParams } from "./base";
 
 const logger = createModuleLogger("transcription/engines/image");
 
@@ -165,11 +169,19 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         throw new Error(firstError || "OCR 识别失败");
       }
 
+      const refusal = detectModelRefusal(text, {
+        // 与 VLM 路径保持一致：分类型配置优先，其次回退到全局开关
+        enabled:
+          imageConfig.enableRefusalDetection ?? config.enableRefusalDetection,
+        refusalKeywords: config.refusalKeywords,
+      });
+
       return {
         text,
         isEmpty: text.length === 0,
-        warning:
-          failedResults.length > 0
+        warning: refusal.isRefusal
+          ? refusal.reason
+          : failedResults.length > 0
             ? `OCR 有 ${failedResults.length} 个切片识别失败`
             : undefined,
       };
@@ -260,6 +272,8 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
       maxTokens,
       timeout,
       enableRepetitionDetection,
+      enableRefusalDetection,
+      refusalKeywords,
     } = getModelParams(ctx, "image");
     const [profileId, modelId] = parseModelCombo(modelIdentifier);
 
@@ -387,7 +401,7 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         });
 
         if (response.content) {
-          batchTexts[i] = response.content;
+          batchTexts[i] = cleanLlmOutput(response.content);
         }
       };
 
@@ -438,19 +452,25 @@ export class ImageTranscriptionEngine implements ITranscriptionEngine {
         timeout: timeout * 1000,
         signal: ctx.signal,
       });
-      transcriptionText = response.content;
+      transcriptionText = cleanLlmOutput(response.content);
     }
 
-    const cleanedText = cleanLlmOutput(transcriptionText);
+    const cleanedText = transcriptionText;
     const repetition = detectRepetition(cleanedText, config.repetitionConfig);
 
     if (enableRepetitionDetection && repetition.isRepetitive) {
       throw new Error(`检测到模型回复存在严重复读: ${repetition.reason}`);
     }
 
+    const refusal = detectModelRefusal(cleanedText, {
+      enabled: enableRefusalDetection,
+      refusalKeywords,
+    });
+
     return {
       text: cleanedText,
       isEmpty: !cleanedText || cleanedText.trim().length === 0,
+      warning: refusal.isRefusal ? refusal.reason : undefined,
     };
   }
 }

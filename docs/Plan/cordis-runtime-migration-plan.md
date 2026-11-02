@@ -1,11 +1,27 @@
 # AIO Hub 引入 Cordis 风格能力运行时重构计划
 
-> 状态：计划中（待评审）
+> 状态：⚠️ 已废弃 / 归档 (Deprecated & Superseded)
 > 提出日期：2026-08-29
-> 修订日期：2026-08-29
-> 适用范围：桌面端 JS/TypeScript 运行时、插件系统与生命周期管理
+> 归档日期：2026-10-02
+> 适用范围：桌面端 JS/TypeScript 运行时、插件系统与生命周期管理（早期历史方案）
+> 替代指引：已被 [`cordis-runtime-postmortem-and-lessons.md`](./cordis-runtime-postmortem-and-lessons.md) 证伪，最新方案请见 [`cordis-modular-architecture-blueprint.md`](./cordis-modular-architecture-blueprint.md) 及 [`electron-migration-master-plan.md`](./electron-migration-master-plan.md)
 
-## 1. 计划摘要
+---
+
+## ⚠️ 历史归档与废弃声明
+
+> **切勿依据本文档进行具体施工。**
+> 本计划为 2026-08 拟定的早期重构方案。在 `feature/cordis-runtime` 实验分支的 140+ 提交施工验证中，该方案已被证明存在严重的架构硬伤与方向偏差：
+>
+> 1. **在 Tauri WebView 中强行模拟全功能运行时**：多窗口上下文所有权不清，缺少常驻后台 Node.js 宿主，不得不发明过度复杂的桥接垫片；
+> 2. **对存量 `llm-chat` 深度侵入（“给旧卡车换发动机”）**：导致大量算力被消耗在兼容旧多叉树状态字典和反向快照中；
+> 3. **将内部运行装配当成了产品 UI**：导致配置卡片与调参面板泛滥，背离了轻量工作台初衷。
+>
+> 经验教训与新红线已沉淀在 [`cordis-runtime-postmortem-and-lessons.md`](./cordis-runtime-postmortem-and-lessons.md)，最新的架构设计已全面升级为 [`cordis-modular-architecture-blueprint.md`](./cordis-modular-architecture-blueprint.md)。以下原文仅作为历史背景与踩坑溯源归档。
+
+---
+
+## 1. 计划摘要（历史原件）
 
 AIO Hub 当前的插件系统（JS、Native、Sidecar）采用“固定宿主 + 注册处理器 + 生命周期钩子”模型。虽然能满足基本功能，但存在以下痛点：
 

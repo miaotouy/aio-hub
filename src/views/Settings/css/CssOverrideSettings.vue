@@ -351,8 +351,8 @@ function isPresetSelected(presetId: string | null): boolean {
   flex-direction: column;
   gap: 16px;
   padding: 0;
-  height: 100%;
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* 顶部控制栏 */
@@ -360,6 +360,8 @@ function isPresetSelected(presetId: string | null): boolean {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 16px;
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
@@ -383,7 +385,8 @@ function isPresetSelected(presetId: string | null): boolean {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 /* 保存状态指示器 */
@@ -434,13 +437,15 @@ function isPresetSelected(presetId: string | null): boolean {
   display: flex;
   gap: 16px;
   flex: 1;
+  min-height: 240px;
+  min-width: 0;
   background: transparent;
   overflow: hidden;
 }
 
 /* 左侧预设列表 */
 .presets-sidebar {
-  width: 300px;
+  width: clamp(220px, 28%, 300px);
   background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
@@ -452,6 +457,7 @@ function isPresetSelected(presetId: string | null): boolean {
 }
 
 .sidebar-header {
+  flex-shrink: 0;
   padding: 16px;
   border-bottom: var(--border-width) solid var(--border-color);
   display: flex;
@@ -473,6 +479,7 @@ function isPresetSelected(presetId: string | null): boolean {
 
 .sidebar-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px;
 }
@@ -585,6 +592,8 @@ function isPresetSelected(presetId: string | null): boolean {
 /* 右侧编辑器 */
 .editor-section {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   background: var(--card-bg);
   padding: 20px;
   border-radius: 8px;
@@ -600,6 +609,8 @@ function isPresetSelected(presetId: string | null): boolean {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -613,6 +624,7 @@ function isPresetSelected(presetId: string | null): boolean {
 .section-header .header-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -623,6 +635,7 @@ function isPresetSelected(presetId: string | null): boolean {
 
 .section-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -660,6 +673,11 @@ function isPresetSelected(presetId: string | null): boolean {
   font-size: 16px;
 }
 
+.alert-content {
+  max-height: min(240px, 30dvh);
+  overflow-y: auto;
+}
+
 .alert-content ul {
   margin: 8px 0 0 0;
   padding-left: 20px;
@@ -682,60 +700,40 @@ function isPresetSelected(presetId: string | null): boolean {
   color: var(--primary-color);
 }
 
-/* 响应式 */
-@media (max-width: 1200px) {
-  .presets-sidebar {
-    width: 250px;
-  }
-}
-
-@media (max-width: 768px) {
-  .css-override-settings {
-    padding: 0 16px 16px;
-    gap: 12px;
-  }
-
+/* 根据设置内容区宽度切换上下布局。 */
+@container settings-content (max-width: 640px) {
   .header-section {
-    flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
   }
 
   .header-right {
-    width: 100%;
-    justify-content: space-between;
+    gap: 8px;
   }
 
   .main-content {
     flex-direction: column;
+    overflow-y: auto;
   }
 
   .presets-sidebar {
-    width: 100%;
-    max-height: 300px;
+    flex: 0 0 auto;
+    width: auto;
+    max-height: clamp(180px, 28dvh, 280px);
+  }
+
+  .editor-section {
+    flex: 0 0 auto;
+    min-height: clamp(360px, 60dvh, 640px);
+    padding: 12px;
+  }
+
+  .editor-wrapper {
+    flex: 0 0 auto;
+    height: clamp(240px, 40dvh, 460px);
   }
 
   .section-header {
-    flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-  }
-
-  .section-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 480px) {
-  .css-override-settings {
-    padding: 0 12px 12px;
-  }
-
-  .header-section,
-  .presets-sidebar,
-  .editor-section {
-    padding: 16px;
   }
 }
 </style>

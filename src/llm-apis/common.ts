@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { LlmResponseChunk } from "@aiohub/llm-core";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
@@ -136,6 +137,7 @@ export type LlmMessageContent =
  * - reasoningArtifacts are opaque API state and must not be rewritten.
  */
 export interface LlmReasoningArtifact {
+  channelTarget?: import("@aiohub/llm-core").ChannelTarget;
   provider: string;
   kind: string;
   replayPolicy: "always" | "with_tool_calls" | "never";
@@ -147,6 +149,8 @@ export interface LlmReasoningArtifact {
  * LLM 消息结构
  */
 export interface LlmMessage {
+  /** Diagnostic references, never serialised into provider payloads. */
+  sourceKeys?: string[];
   role: "system" | "developer" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
   /** Optional participant name used by providers that support named messages. */
@@ -172,9 +176,50 @@ export interface LlmMessage {
 }
 
 /**
+ * 异步媒体任务（视频/音乐轮询型生成）的进度快照。
+ * 由适配器在每次轮询后上报，进度未知的 provider 允许只带 statusText。
+ */
+export interface MediaProgressUpdate {
+  /** 任务状态：queued/running 归一为 generating，succeeded 归一为 finishing */
+  status: "generating" | "finishing";
+  /** 0-100 进度百分比，provider 未提供时为 undefined */
+  progress?: number;
+  /** 面向用户的进度说明文本 */
+  statusText?: string;
+  /** 上游任务 ID（如 Ark task id），仅用于展示与诊断 */
+  providerTaskId?: string;
+}
+
+/** 轮询型媒体任务的归一化状态 → 面向用户的进度说明文本 */
+export const MEDIA_STATUS_TEXT: Record<string, string> = {
+  queued: "任务已排队，等待上游处理...",
+  running: "上游生成中...",
+  succeeded: "生成完成，正在获取结果...",
+};
+
+/**
+ * 将异步媒体任务快照归一化为进度回调载荷。
+ * 接收带 id/status/progress 的任务快照（llm-core AsyncMediaTaskSnapshot 或其子集）。
+ */
+export function toMediaProgressUpdate(task: {
+  id: string;
+  status: string;
+  progress?: number;
+}): MediaProgressUpdate {
+  return {
+    status: task.status === "succeeded" ? "finishing" : "generating",
+    progress: task.progress,
+    statusText: MEDIA_STATUS_TEXT[task.status] ?? "上游处理中...",
+    providerTaskId: task.id,
+  };
+}
+
+/**
  * LLM 请求参数
  */
 export interface LlmRequestOptions {
+  /** 渠道执行已确定用途时保留聊天协议。 */
+  _forceChatMode?: boolean;
   profileId: string;
   modelId: string;
   /** 可选：显式指定 API Key，如果不提供则根据 profileId 自动选取 */
@@ -187,10 +232,14 @@ export interface LlmRequestOptions {
   stream?: boolean;
   /** 流式响应回调 */
   onStream?: (chunk: string) => void;
+  /** OpenAI-compatible response chunks, including intermediate upstream boundaries. */
+  onResponseChunk?: (chunk: LlmResponseChunk) => void;
   /** 流式推理内容回调（DeepSeek reasoning 等） */
   onReasoningStream?: (chunk: string) => void;
   /** 流式预览图回调 (OpenAI Responses gpt-image-2 特性) */
   onPartialImage?: (base64: string, index: number) => void;
+  /** 异步媒体任务进度快照（轮询型视频/音乐生成上报） */
+  onMediaProgress?: (update: MediaProgressUpdate) => void;
   /** 请求超时时间（毫秒），默认 60000 */
   timeout?: number;
   /** 用于中止请求的 AbortSignal */
@@ -203,6 +252,17 @@ export interface LlmRequestOptions {
   allowDisabledProfile?: boolean;
   /** 共享 Transport 观察器，用于探测等基础设施采集 TTFB */
   transportObserver?: import("@aiohub/llm-core").TransportObserver;
+  /** Independent diagnostics lifecycle; callbacks must never alter request execution. */
+  requestCapture?: (route: {
+    actualProfileId: string;
+    actualModelId: string;
+    providerType: string;
+    adapterId?: string;
+  }) => {
+    observer: import("@aiohub/llm-core").TransportObserver;
+    complete(response: LlmResponse): void;
+    error(error: unknown): void;
+  };
 
   // --- 特种模型参数 ---
   /** 嵌入 (Embedding) 输入内容 */
@@ -311,6 +371,10 @@ export interface LlmRequestOptions {
    * 确保不会被透传到 API 请求体。
    */
   inspectorContext?: {
+    logicalRequestId?: string;
+    channelAttempt?: number;
+    logicalProfileId?: string;
+    logicalModelId?: string;
     sessionId?: string;
     toolName?: string;
     purpose?: string;
@@ -492,24 +556,12 @@ export type Annotation = UrlCitation | FileCitation;
  * LLM 响应结果
  */
 export interface LlmResponse {
+  channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   content: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    /** 提示token详细信息 */
-    promptTokensDetails?: {
-      cachedTokens?: number;
-      audioTokens?: number;
-    };
-    /** 完成token详细信息 */
-    completionTokensDetails?: {
-      reasoningTokens?: number;
-      audioTokens?: number;
-      acceptedPredictionTokens?: number;
-      rejectedPredictionTokens?: number;
-    };
-  };
+  usage?: import("@aiohub/llm-core").TokenUsage;
+  providerUsage?: import("@aiohub/llm-core").TokenUsage;
+  estimatedUsage?: import("@aiohub/llm-core").TokenUsage;
+
   /** 是否为流式响应 */
   isStream?: boolean;
   /** 模型的拒绝消息（如果模型拒绝响应） */
@@ -593,6 +645,7 @@ export interface LlmResponse {
     url?: string;
     b64_json?: string | ArrayBuffer;
     revisedPrompt?: string;
+    mimeType?: string;
   }>;
   /** 生成的视频列表 */
   videos?: Array<{
@@ -842,6 +895,8 @@ export const fetchWithTimeout = async (
     networkStrategy?: "auto" | "proxy" | "native";
     isStreaming?: boolean;
     proxyBodyKind?: "raw" | "file-ref" | "multipart-manifest";
+    /** 工具 API 复用传输时，独立于模型请求诊断。 */
+    requestKind?: "llm" | "tool";
     /**
      * LLM Inspector 内部监控上下文。由上游 `useLlmRequest` / adapter 透传。
      * 当 `inspectorHookRegistry.shouldCaptureInternal()` 为 true 时，
@@ -873,7 +928,9 @@ export const fetchWithTimeout = async (
   // ============ LLM Inspector 内部监控埋点（B2）============
   // 开关 OFF 时整个 inspector 流程零开销（不生成 requestId、不读取 body、不广播）。
   // 在统一入口生成 requestId，确保流式 chunk 能正确关联。
-  const captureInspector = inspectorHookRegistry.shouldCaptureInternal();
+  const captureInspector =
+    options.requestKind !== "tool" &&
+    inspectorHookRegistry.shouldCaptureInternal();
   let inspectorRequestId: string | null = null;
   let inspectorStartTimestamp = 0;
   // 优先级：options.inspectorContext > contextStore[X-Request-ID]

@@ -21,13 +21,22 @@
       <div class="section-header">
         <History :size="16" class="history-icon" />
         <span class="section-title">最近提交历史</span>
+        <el-icon
+          v-if="isLoadingHistory && commits.length > 0"
+          class="is-loading refresh-spinner"
+          :size="14"
+        >
+          <Loading />
+        </el-icon>
       </div>
       <div
-        ref="historyContentRef"
         class="section-content history-content"
         @scroll="handleHistoryScroll"
       >
-        <div v-if="isLoadingHistory" class="loading-wrapper">
+        <div
+          v-if="isLoadingHistory && commits.length === 0"
+          class="loading-wrapper"
+        >
           <el-icon class="is-loading" :size="18"><Loading /></el-icon>
           <span class="loading-text text-secondary">正在加载历史...</span>
         </div>
@@ -36,7 +45,7 @@
         </div>
         <div v-else class="commit-tree">
           <CommitDetailPopover
-            v-for="(commit, index) in commits"
+            v-for="commit in commits"
             :key="commit.hash"
             :commit="commit"
           >
@@ -46,12 +55,15 @@
                 expanded: isExpanded(commit.hash),
                 selected: selectedHash === commit.hash,
               }"
+              @contextmenu.prevent="showCommitMenu(commit, $event)"
             >
-              <!-- 连线 -->
-              <div class="tree-line-wrapper">
-                <div class="tree-dot" />
-                <div v-if="index < commits.length - 1" class="tree-line" />
-              </div>
+              <!-- Git 时间线分支连线与节点 -->
+              <CommitGraphTrack
+                :graph-item="timelineGraph.items.get(commit.hash)"
+                :max-lanes="timelineGraph.maxLanes"
+                :lane-width="13"
+                :node-y="10"
+              />
               <!-- 提交内容 -->
               <div class="commit-info">
                 <div class="commit-msg-row">
@@ -112,7 +124,19 @@
                     :key="file.path"
                     class="commit-file"
                     :title="file.path"
-                    @click.stop="openCommitFile(commit.hash, file.path)"
+                    @click.stop="
+                      openCommitFile(
+                        commit.hash,
+                        file.path,
+                        shouldPreviewFile(singleClickOpensPermanentTab, $event)
+                      )
+                    "
+                    @dblclick.stop="
+                      openCommitFile(commit.hash, file.path, false)
+                    "
+                    @contextmenu.prevent.stop="
+                      showCommitFileMenu(commit, file, $event)
+                    "
                   >
                     <FileIcon
                       :file-name="file.path"
@@ -163,13 +187,31 @@
         <CommitChart :commits="chartCommits" />
       </div>
     </div>
+    <CreateTagDialog
+      v-if="showCreateTagDialog"
+      v-model="showCreateTagDialog"
+      :repo-path="currentRepoPath"
+      :target-hash="tagTargetHash"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import CreateTagDialog from "./CreateTagDialog.vue";
+import {
+  computed,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  ref,
+  watch,
+} from "vue";
 import { History, BarChart3, ChevronRight, FileDiff } from "lucide-vue-next";
+import CommitGraphTrack from "./CommitGraphTrack.vue";
+import { computeTimelineGraph } from "../utils/gitTimelineGraph";
+import { shouldPreviewFile } from "../utils/gitTabs";
 import { Loading } from "@element-plus/icons-vue";
+import { ElMessageBox } from "element-plus";
 import { invoke } from "@tauri-apps/api/core";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -177,6 +219,7 @@ import FileIcon from "@/components/common/FileIcon.vue";
 import {
   currentRepoPath,
   currentStatus,
+  singleClickOpensPermanentTab,
 } from "../composables/useGitCommitterState";
 import CommitChart from "./CommitChart.vue";
 import CommitDetailPopover from "./CommitDetailPopover.vue";
@@ -189,18 +232,40 @@ import {
   openCommitChangesTab,
   openCommitFileDiffTab,
 } from "../composables/useGitCommitterRunner";
-import { getFileName, getFileDir } from "../utils";
+import { createBranch } from "../composables/useGitOverview";
+import { useGitContextMenu } from "../composables/useGitContextMenu";
+import { getRemoteInfo } from "../composables/useGitRemoteInfo";
+import {
+  buildCommitContextMenuItems,
+  buildCommitFileContextMenuItems,
+} from "../contextMenus";
+import {
+  copyTextToClipboard,
+  getFileName,
+  getFileDir,
+  joinRepoPath,
+} from "../utils";
+import { customMessage } from "@/utils/customMessage";
 import type { CommitFileChange, GitCommitSummary } from "../types";
+
+const showCreateTagDialog = ref(false);
+const tagTargetHash = ref("");
 
 const commits = ref<GitCommitSummary[]>([]);
 const chartCommits = ref<GitCommitSummary[]>([]);
+const timelineGraph = computed(() => computeTimelineGraph(commits.value));
 const isLoadingHistory = ref(false);
 const isLoadingMoreHistory = ref(false);
 const hasMoreHistory = ref(true);
 const historySkip = ref(0);
-const historyContentRef = ref<HTMLElement | null>(null);
 const HISTORY_PAGE_SIZE = 30;
 let historyRequestId = 0;
+let isActive = true;
+let needsHistoryReload = false;
+let isLoadingChart = false;
+// 记录上次加载历史的仓库与分支，用于区分「同仓库 HEAD 更新」与「仓库/分支切换」
+let lastHistoryRepo = "";
+let lastHistoryBranch = "";
 
 // ===== 展开 / 选中状态（支持同时展开多个提交） =====
 const expandedHashes = ref<Set<string>>(new Set());
@@ -211,18 +276,22 @@ const commitFiles = ref<Record<string, CommitFileChange[]>>({});
 const chartCutoff = () => Date.now() - 14 * 24 * 60 * 60 * 1000;
 
 // ===== 加载 Commit 历史 =====
-const loadHistoryPage = async (reset = false, requestId = historyRequestId) => {
-  if (requestId !== historyRequestId) return;
+const loadHistoryPage = async (
+  reset = false,
+  requestId = historyRequestId,
+  keepExisting = false
+) => {
+  if (!isActive || requestId !== historyRequestId) return;
   if (!currentRepoPath.value || !currentStatus.value?.branch) {
     commits.value = [];
-    chartCommits.value = [];
     return;
   }
   const branch = currentStatus.value.branch;
   if (reset) {
     historySkip.value = 0;
     hasMoreHistory.value = true;
-    commits.value = [];
+    // HEAD 更新刷新时保留旧列表，数据到达后整体替换，避免刷新期间列表消失
+    if (!keepExisting) commits.value = [];
   }
   if (
     !hasMoreHistory.value ||
@@ -245,10 +314,16 @@ const loadHistoryPage = async (reset = false, requestId = historyRequestId) => {
   );
   if (requestId !== historyRequestId) return;
   const page = list || [];
-  if (page.length < HISTORY_PAGE_SIZE) hasMoreHistory.value = false;
-  if (page.length > 0) {
-    commits.value = reset ? page : [...commits.value, ...page];
-    historySkip.value += page.length;
+  // wrapAsync 失败时返回 null，此时保留旧数据，避免误清列表或误判已到末尾
+  if (list !== null) {
+    if (page.length < HISTORY_PAGE_SIZE) hasMoreHistory.value = false;
+    if (reset) {
+      commits.value = page;
+      historySkip.value = page.length;
+    } else if (page.length > 0) {
+      commits.value = [...commits.value, ...page];
+      historySkip.value += page.length;
+    }
   }
   if (isInitial) isLoadingHistory.value = false;
   else isLoadingMoreHistory.value = false;
@@ -265,7 +340,7 @@ const loadChartHistory = async (requestId = historyRequestId) => {
   let skip = 0;
   const limit = 200;
   const cutoff = chartCutoff();
-  while (true) {
+  while (isActive && requestId === historyRequestId) {
     const list = await errorHandler.wrapAsync(
       () =>
         invoke<GitCommitSummary[]>("git_get_incremental_commits", {
@@ -284,10 +359,27 @@ const loadChartHistory = async (requestId = historyRequestId) => {
     if (oldest && new Date(oldest.date).getTime() < cutoff) break;
     skip += page.length;
   }
-  chartCommits.value = result;
+  if (isActive && requestId === historyRequestId) chartCommits.value = result;
 };
 
-const resetInteractionState = () => {
+const resetInteractionState = (keepExisting = false) => {
+  // HEAD 更新刷新时保留旧提交的展开状态与文件缓存，仅移除已不存在的提交
+  if (keepExisting) {
+    const validHashes = new Set(commits.value.map((c) => c.hash));
+    for (const hash of expandedHashes.value) {
+      if (!validHashes.has(hash)) expandedHashes.value.delete(hash);
+    }
+    for (const hash of loadingHashes.value) {
+      if (!validHashes.has(hash)) loadingHashes.value.delete(hash);
+    }
+    for (const hash of Object.keys(commitFiles.value)) {
+      if (!validHashes.has(hash)) delete commitFiles.value[hash];
+    }
+    if (selectedHash.value && !validHashes.has(selectedHash.value)) {
+      selectedHash.value = "";
+    }
+    return;
+  }
   expandedHashes.value = new Set();
   loadingHashes.value = new Set();
   commitFiles.value = {};
@@ -296,39 +388,70 @@ const resetInteractionState = () => {
 };
 
 const loadHistory = async () => {
-  const requestId = ++historyRequestId;
-  isLoadingHistory.value = false;
-  isLoadingMoreHistory.value = false;
-  resetInteractionState();
-  if (!currentRepoPath.value || !currentStatus.value?.branch) {
-    commits.value = [];
-    chartCommits.value = [];
+  if (!isActive) {
+    needsHistoryReload = true;
     return;
   }
-  await Promise.all([
-    loadHistoryPage(true, requestId),
-    loadChartHistory(requestId),
-  ]);
-  await nextTick();
-  await fillHistoryViewport(requestId);
-};
-
-const fillHistoryViewport = async (requestId: number) => {
-  while (
-    requestId === historyRequestId &&
-    hasMoreHistory.value &&
-    historyContentRef.value &&
-    historyContentRef.value.scrollHeight <= historyContentRef.value.clientHeight
-  ) {
-    await loadHistoryPage(false, requestId);
-    await nextTick();
+  needsHistoryReload = false;
+  const requestId = ++historyRequestId;
+  isLoadingChart = false;
+  isLoadingHistory.value = false;
+  isLoadingMoreHistory.value = false;
+  if (!currentRepoPath.value || !currentStatus.value?.branch) {
+    lastHistoryRepo = "";
+    lastHistoryBranch = "";
+    commits.value = [];
+    chartCommits.value = [];
+    resetInteractionState();
+    return;
+  }
+  const repoPath = currentRepoPath.value;
+  const branch = currentStatus.value.branch;
+  // 同仓库同分支的 HEAD 更新（提交后）走静默刷新：旧列表保持可见，只刷新交互状态
+  const keepExisting =
+    repoPath === lastHistoryRepo && branch === lastHistoryBranch;
+  lastHistoryRepo = repoPath;
+  lastHistoryBranch = branch;
+  resetInteractionState(keepExisting);
+  isLoadingChart = true;
+  try {
+    await Promise.all([
+      loadHistoryPage(true, requestId, keepExisting),
+      loadChartHistory(requestId),
+    ]);
+  } finally {
+    if (requestId === historyRequestId) isLoadingChart = false;
   }
 };
+
+const suspendHistory = () => {
+  isActive = false;
+  needsHistoryReload ||=
+    isLoadingHistory.value || isLoadingMoreHistory.value || isLoadingChart;
+  // 已发出的 IPC 无法撤回，用请求代次丢弃迟到结果并停止后续分页。
+  historyRequestId++;
+  isLoadingHistory.value = false;
+  isLoadingMoreHistory.value = false;
+  isLoadingChart = false;
+};
+
+onDeactivated(suspendHistory);
+onBeforeUnmount(suspendHistory);
+onActivated(() => {
+  if (isActive) return;
+  isActive = true;
+  if (needsHistoryReload) void loadHistory();
+});
 
 const handleHistoryScroll = (event: Event) => {
   const element = event.target as HTMLElement;
-  if (element.scrollHeight - element.scrollTop - element.clientHeight < 80) {
-    loadHistoryPage();
+  if (
+    isActive &&
+    element.clientHeight > 0 &&
+    element.scrollTop > 0 &&
+    element.scrollHeight - element.scrollTop - element.clientHeight < 80
+  ) {
+    void loadHistoryPage();
   }
 };
 
@@ -355,14 +478,124 @@ const toggleExpand = async (commit: GitCommitSummary) => {
   loadingHashes.value.delete(commit.hash);
 };
 
-const openCommitFile = (hash: string, filePath: string) => {
+const openCommitFile = (
+  hash: string,
+  filePath: string,
+  preview = !singleClickOpensPermanentTab.value
+) => {
   selectedHash.value = hash;
-  openCommitFileDiffTab(hash, filePath);
+  openCommitFileDiffTab(hash, filePath, { preview });
 };
 
 const openCommitChanges = (commit: GitCommitSummary) => {
   selectedHash.value = commit.hash;
   openCommitChangesTab(commit.hash);
+};
+
+// ===== 提交历史右键菜单 =====
+const contextMenu = useGitContextMenu();
+
+const showCommitMenu = (commit: GitCommitSummary, event: MouseEvent) => {
+  contextMenu.show(
+    event,
+    buildCommitContextMenuItems({ isExpanded: isExpanded(commit.hash) }),
+    {
+      dispatch: (itemId) => handleCommitMenuAction(itemId, commit),
+    }
+  );
+};
+
+const showCommitFileMenu = (
+  commit: GitCommitSummary,
+  file: CommitFileChange,
+  event: MouseEvent
+) => {
+  contextMenu.show(event, buildCommitFileContextMenuItems(), {
+    dispatch: (itemId) => handleCommitFileMenuAction(itemId, commit, file),
+  });
+};
+
+const handleCommitMenuAction = async (
+  itemId: string,
+  commit: GitCommitSummary
+) => {
+  switch (itemId) {
+    case "commit:open-changes":
+      openCommitChanges(commit);
+      break;
+    case "commit:toggle-expand":
+      toggleExpand(commit);
+      break;
+    case "commit:copy-hash":
+      await copyTextToClipboard(commit.hash, "已复制提交哈希");
+      break;
+    case "commit:copy-message":
+      await copyTextToClipboard(commit.message, "已复制提交信息");
+      break;
+    case "commit:open-remote": {
+      const info = await getRemoteInfo(currentRepoPath.value);
+      if (!info) {
+        customMessage.warning("未找到已知远端平台，无法打开提交页");
+        break;
+      }
+      await errorHandler.wrapAsync(
+        () => invoke("open_url", { url: info.buildCommitUrl(commit.hash) }),
+        { userMessage: "打开远端提交页失败" }
+      );
+      break;
+    }
+    case "commit:create-branch": {
+      ElMessageBox.prompt(
+        `在此提交 (${commit.hash.substring(0, 7)}) 上创建新分支：`,
+        "新建分支",
+        {
+          confirmButtonText: "创建分支",
+          cancelButtonText: "取消",
+          inputPlaceholder: "输入分支名称，例如 feature/xxx",
+          inputPattern: /\S+/,
+          inputErrorMessage: "分支名不能为空",
+          lockScroll: false,
+        }
+      )
+        .then(async ({ value }) => {
+          if (value && currentRepoPath.value) {
+            await createBranch(
+              currentRepoPath.value,
+              value.trim(),
+              commit.hash
+            );
+          }
+        })
+        .catch(() => {});
+      break;
+    }
+    case "commit:create-tag": {
+      tagTargetHash.value = commit.hash;
+      showCreateTagDialog.value = true;
+      break;
+    }
+  }
+};
+
+const handleCommitFileMenuAction = async (
+  itemId: string,
+  commit: GitCommitSummary,
+  file: CommitFileChange
+) => {
+  switch (itemId) {
+    case "commit-file:open-diff":
+      openCommitFileDiffTab(commit.hash, file.path);
+      break;
+    case "commit-file:copy-path":
+      await copyTextToClipboard(
+        joinRepoPath(currentRepoPath.value, file.path),
+        "已复制完整路径"
+      );
+      break;
+    case "commit-file:copy-relative":
+      await copyTextToClipboard(file.path, "已复制相对路径");
+      break;
+  }
 };
 
 // 仅在当前分支或 HEAD 变化时刷新历史，避免工作区状态轮询重复读取提交记录。
@@ -444,6 +677,11 @@ const formatTime = (dateStr: string) => {
   color: var(--el-text-color-primary);
 }
 
+.refresh-spinner {
+  margin-left: auto;
+  color: var(--el-text-color-secondary);
+}
+
 .section-content {
   flex: 1;
   min-height: 0;
@@ -486,38 +724,10 @@ const formatTime = (dateStr: string) => {
   display: flex;
   flex-direction: column;
 }
-
 .commit-node {
   display: flex;
-  gap: 12px;
+  gap: 6px;
   position: relative;
-  padding-bottom: 12px;
-}
-
-.tree-line-wrapper {
-  width: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.tree-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--el-color-primary);
-  border: 2px solid var(--card-bg);
-  z-index: 2;
-  margin-top: 4px;
-}
-
-.tree-line {
-  width: 2px;
-  flex: 1;
-  background-color: var(--border-color);
-  margin-top: -2px;
-  margin-bottom: -12px;
 }
 
 .commit-info {
@@ -526,6 +736,8 @@ const formatTime = (dateStr: string) => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding-top: 2px;
+  padding-bottom: 10px;
 }
 
 .commit-msg-row {

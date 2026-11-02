@@ -180,9 +180,11 @@
 - `type`: 策略类型（`default` / `depth` / `advanced_depth` / `anchor`）。
 - `depth`: 基础深度注入位置。
 - `depthConfig`: 高级深度语法，支持单点、多点及循环注入（如 `10~5`）。
-- `anchorTarget`: 锚点注入目标（如 `chat_history`, `user_profile`）。
+- `anchorTarget`: 占位锚点（`chat_history`、`user_profile`）或动态历史目标（`last_user`、`last_assistant`、`last_message`）。
 - `anchorPosition`: 相对锚点的位置（`before` / `after`）。
-- `order`: 同位置多消息的排序权重。
+- `order`: 同边界统一排序权重，升序排列；同权重保持预设原顺序。
+
+运行时 `ProcessableMessage._historyRole` 保留角色转换前的历史身份。`AnchorDefinition.kind` 区分预设占位卡与动态消息目标；完整规则见[注入组装器](./context-processors/injection-assembler.md)。
 
 ## 7. `ChatRegexRule` — 单条正则规则
 

@@ -396,6 +396,10 @@
               <FileArchive :size="14" />
               <span>导出为项目文件 (.aiosk)</span>
             </el-dropdown-item>
+            <el-dropdown-item command="clipboard-png">
+              <ClipboardCopy :size="14" />
+              <span>导出到剪贴板 (PNG)</span>
+            </el-dropdown-item>
             <el-dropdown-item divided command="png">
               <ImageIcon :size="14" />
               <span>导出为 PNG (透明背景)</span>
@@ -454,9 +458,11 @@ import {
   Maximize,
   ChevronDown,
   FileArchive,
+  ClipboardCopy,
   Ellipsis,
 } from "lucide-vue-next";
 import { useEditorSession } from "../composables/useEditorSession";
+import type { ExportFormat } from "../composables/useEditorExport";
 import type { ToolType } from "../constants";
 import type { SketchPadContext } from "../SketchPad.vue";
 
@@ -468,8 +474,6 @@ const activeTool = state.activeTool;
 const canUndo = state.canUndo;
 const canRedo = state.canRedo;
 const isDirty = state.isDirty;
-
-export type ExportFormat = "aiosk" | "png" | "jpg" | "webp";
 
 // ─── 响应式断点 ───
 const wrapperRef = ref<HTMLElement | null>(null);

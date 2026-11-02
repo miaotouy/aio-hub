@@ -289,7 +289,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import {
   Delete,
   Download,
@@ -450,10 +450,8 @@ const getSessionTitleParts = (session: ChatSessionIndex): HighlightPart[] =>
     { text: session.name || "未命名会话", isMatch: false },
   ];
 
-const virtualizer = useVirtualizer({
-  get count() {
-    return filteredSessions.value.length;
-  },
+const virtualizer = useMeasuredVirtualizer(filteredSessions, {
+  getItemKey: (session) => session.id,
   getScrollElement: () => listRef.value,
   estimateSize: () => (isInSearchMode.value ? 76 : 46),
   overscan: 12,

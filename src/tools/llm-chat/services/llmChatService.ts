@@ -19,6 +19,14 @@
  * 从 llm-chat.registry.ts 中抽离，以便于维护和复用。
  */
 
+import { useChatInputSettings } from "../composables/input/useChatInputSettings";
+import {
+  createVirtualTextAttachment,
+  textCharacterCount,
+  MAX_TEXT_ATTACHMENT_BYTES,
+  MAX_TEXT_ATTACHMENTS,
+} from "../utils/virtualAttachments";
+import { customMessage } from "@/utils/customMessage";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useLlmChatStore } from "../stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
@@ -116,7 +124,7 @@ export class LlmChatService {
   public addContentToInput(
     content: string,
     options: AddContentOptions = {}
-  ): InputOperationResult {
+  ): InputOperationResult | null {
     return errorHandler.wrapSync(
       () => {
         const { position = "append" } = options;
@@ -126,7 +134,34 @@ export class LlmChatService {
           position,
         });
 
-        this.inputManager.addContent(content, position);
+        const settings = useChatInputSettings().value;
+        const manager = this.inputManager;
+        const shouldAttach =
+          settings.longTextAsAttachment &&
+          content.trim() &&
+          textCharacterCount(content) >=
+            Math.max(1, settings.textAttachmentThreshold);
+        if (shouldAttach) {
+          if (
+            new TextEncoder().encode(content).byteLength >
+              MAX_TEXT_ATTACHMENT_BYTES ||
+            manager.virtualAttachments.value.length >= MAX_TEXT_ATTACHMENTS
+          ) {
+            customMessage.warning("文本附件已达大小或数量上限，内容已放入正文");
+            manager.addContent(content, position);
+          } else {
+            manager.addVirtualAttachment(
+              createVirtualTextAttachment(
+                content,
+                manager.virtualAttachments.value
+              ),
+              undefined,
+              position
+            );
+          }
+        } else {
+          manager.addContent(content, position);
+        }
 
         return {
           success: true,
@@ -137,9 +172,9 @@ export class LlmChatService {
       {
         level: ErrorLevel.ERROR,
         userMessage: "添加内容到输入框失败",
-        context: { content, options },
+        context: { contentLength: content.length, options },
       }
-    )!;
+    );
   }
 
   /**
@@ -471,7 +506,7 @@ export class LlmChatService {
   /**
    * 发送消息
    * 注意：此方法直接通过 store 发送消息，不会修改输入框的内容，以免覆盖用户的正在输入的草稿。
-   * 如果没有当前会话但有可用会话，会自动切换到最近使用的会话。
+   * 当前为空选择时创建新会话草稿；显式指定的会话必须存在。
    * @param content 要发送的内容
    * @param options 发送选项
    */
@@ -484,6 +519,8 @@ export class LlmChatService {
       attachments?: Asset[];
       temporaryModel?: ModelIdentifier | null;
       disableMacroParsing?: boolean;
+      /** 子智能体派发深度：sub-agent 派发子会话时传 parent depth + 1 */
+      delegationDepth?: number;
     }
   ): Promise<void> {
     await errorHandler.wrapAsync(
@@ -492,36 +529,20 @@ export class LlmChatService {
 
         const store = this.chatStore;
 
-        // 如果没有当前会话，尝试自动选择或创建
-        const targetSessionId = options?.sessionId || store.currentSessionId;
+        let targetSessionId = options?.sessionId || store.currentSessionId;
         if (!targetSessionId || !store.sessionIndexMap.has(targetSessionId)) {
-          if (store.sessions.length > 0) {
-            // 情况1：有历史会话但未选中 -> 自动切换到最近使用的会话
-            const sortedSessions = [...store.sessions].sort(
-              (a, b) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime()
-            );
-            const targetSession = sortedSessions[0];
-            logger.info("自动切换到最近使用的会话", {
-              sessionId: targetSession.id,
-              sessionName: targetSession.name,
-            });
-            store.switchSession(targetSession.id);
-          } else {
-            // 情况2：完全没有会话 -> 尝试自动创建新会话草稿（发送时自动物化）
-            const { currentAgentId } = useLlmChatUiState();
-
-            if (currentAgentId.value) {
-              logger.info("没有可用会话，自动进入新会话草稿", {
-                agentId: currentAgentId.value,
-              });
-              await store.beginNewSession(currentAgentId.value);
-            } else {
-              // 情况3：连 Agent 都没选 -> 抛出错误让用户去选
-              throw new Error("请先选择一个智能体或创建一个会话");
-            }
+          if (options?.sessionId) {
+            throw new Error("指定的会话不存在，请重新选择会话");
           }
+
+          const { currentAgentId } = useLlmChatUiState();
+          const agentId = options?.agentId || currentAgentId.value;
+          if (!agentId) {
+            throw new Error("请先选择一个智能体或创建一个会话");
+          }
+
+          logger.info("自动进入新会话草稿", { agentId });
+          targetSessionId = await store.beginNewSession(agentId);
         }
 
         // 自动携带输入框中选择的临时模型
@@ -529,6 +550,8 @@ export class LlmChatService {
           options?.temporaryModel ?? this.inputManager.temporaryModel.value;
         const sendOptions = {
           ...options,
+          // 固定发送目标，避免保留的新会话草稿接管历史会话发送。
+          sessionId: targetSessionId,
           temporaryModel,
         };
 

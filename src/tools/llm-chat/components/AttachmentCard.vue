@@ -50,6 +50,7 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { isWordDocumentAssetLike, isDocxAssetLike } from "@/utils/docxParser";
+import { isOpenDocumentTextAssetLike } from "@/utils/openDocumentParser";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
@@ -72,6 +73,8 @@ interface Props {
   tokenError?: string;
   /** 是否将使用转写 */
   willUseTranscription?: boolean;
+  /** 是否显示转写相关 UI（状态图标、操作按钮、菜单项） */
+  showTranscription?: boolean;
   /** 自定义插入占位符处理器，提供时优先于全局 chatInputManager */
   insertPlaceholderHandler?: (asset: Asset) => void;
 }
@@ -84,6 +87,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   removable: true,
   size: "medium",
+  showTranscription: true,
 });
 
 const emit = defineEmits<Emits>();
@@ -190,7 +194,10 @@ const isBarLayout = computed(() => !isImage.value);
 
 // 是否为文档类型（可以点击预览）
 const isDocument = computed(
-  () => props.asset.type === "document" || isWordDocumentAssetLike(props.asset)
+  () =>
+    props.asset.type === "document" ||
+    isWordDocumentAssetLike(props.asset) ||
+    isOpenDocumentTextAssetLike(props.asset)
 );
 
 // 获取文件后缀名
@@ -767,7 +774,7 @@ onUnmounted(() => {
                 </template>
 
                 <!-- 转写状态 (长条模式) -->
-                <template v-if="isTranscribable">
+                <template v-if="isTranscribable && showTranscription">
                   <span class="bar-meta-divider">·</span>
                   <el-tooltip
                     :content="transcriptionStatusText"
@@ -888,6 +895,7 @@ onUnmounted(() => {
           <div
             v-if="
               !isBarLayout &&
+              showTranscription &&
               (transcriptionStatus === 'processing' ||
                 transcriptionStatus === 'pending')
             "
@@ -900,7 +908,7 @@ onUnmounted(() => {
         </div>
 
         <!-- 转写操作/状态按钮 (方形模式 - 右下角) -->
-        <div v-if="!isBarLayout && isTranscribable">
+        <div v-if="!isBarLayout && isTranscribable && showTranscription">
           <el-tooltip
             :content="transcriptionStatusText"
             placement="top"
@@ -985,7 +993,7 @@ onUnmounted(() => {
           预览文件
         </el-dropdown-item>
 
-        <template v-if="isTranscribable">
+        <template v-if="isTranscribable && showTranscription">
           <el-dropdown-item
             v-if="
               transcriptionStatus === 'success' ||
@@ -1023,7 +1031,7 @@ onUnmounted(() => {
         </template>
 
         <el-dropdown-item
-          v-if="hasMultipleTranscribableAssets"
+          v-if="showTranscription && hasMultipleTranscribableAssets"
           @click="handleTranscribeAll"
         >
           转写所有附件

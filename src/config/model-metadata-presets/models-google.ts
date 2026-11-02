@@ -20,9 +20,80 @@
 import type { LegacyModelMetadataRule } from "@aiohub/model-metadata-core";
 import type { ModelMetadataProperties } from "../../types/model-metadata";
 
+// 官方规格与价格（2026-10-15 核对）：
+// https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
+// https://ai.google.dev/gemini-api/docs/pricing
+export const gemini4ArgonCapabilities = {
+  vision: true,
+  audio: true,
+  video: true,
+  document: true,
+  toolUse: true,
+  jsonOutput: true,
+  webSearch: true,
+  fileSearch: true,
+  codeExecution: true,
+  computerUse: true,
+  thinking: true,
+  thinkingConfigType: "effort" as const,
+  reasoningEffortOptions: ["low", "medium", "high"],
+};
+
 export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
   [
-    // === Gemini 当前具体模型信息（官方模型页/价格页，2026-08） ===
+    // === Gemini 当前具体模型信息（官方模型页/价格页，2026-10） ===
+    {
+      id: "model-gemini-4-argon",
+      matchType: "model",
+      matchValue: "gemini-4-argon",
+      properties: {
+        capabilities: gemini4ArgonCapabilities,
+        contextLength: 1048576,
+        maxOutputTokens: 65536,
+        pricing: {
+          input: 2,
+          output: 10,
+          cacheHitInput: 0.1,
+          unit: "USD",
+          note: "每百万 token，标准计费；优惠价格至 2026-11-30，2026-12-01 起输入 $4、输出 $20、缓存命中 $0.20；输出含 thinking tokens，仅支持隐式缓存",
+        },
+        releaseDate: "2026-10",
+        description:
+          "Gemini 4 Argon：面向复杂软件工程、数学、科学与多步智能体任务；输入、思考与输出共享 1M 上下文，默认同步输出上限 65K，长解码最高 1M（扣除输入）",
+        recommendedFor: [
+          "复杂编码",
+          "数学与科学推理",
+          "多步智能体",
+          "长文档分析",
+        ],
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型 gemini-4-argon 元数据规则",
+    },
+    {
+      id: "model-gemini-3.8-flash",
+      matchType: "model",
+      matchValue: "gemini-3.8-flash",
+      properties: {
+        contextLength: 1048576,
+        maxOutputTokens: 65536,
+        pricing: {
+          input: 0.75,
+          output: 3.75,
+          cacheHitInput: 0.075,
+          unit: "USD",
+          note: "每百万 token，标准计费；输出含 thinking tokens",
+        },
+        releaseDate: "2026-09",
+        knowledgeCutoff: "2025-01",
+        description:
+          "Gemini 3.8 Flash 稳定版：最新一代（2026年9月）Flash 模型，在复杂编码、agentic 工作流与可靠多步执行上进一步提升，1M 上下文，65K 输出",
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型 gemini-3.8-flash 元数据规则",
+    },
     {
       id: "model-gemini-3.7-flash",
       matchType: "model",
@@ -31,7 +102,7 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
         releaseDate: "2026-08",
         knowledgeCutoff: "2025-01",
         description:
-          "Gemini 3.7 Flash 稳定版：最新最强（2026年8月）的 Flash 模型，专为复杂编码、agentic 工作流与可靠多步执行打造",
+          "Gemini 3.7 Flash 稳定版：上一代 Flash 模型（已随 3.8 发布降级为 legacy），专为复杂编码、agentic 工作流与可靠多步执行打造",
       },
       priority: 36,
       enabled: true,
@@ -84,14 +155,14 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
     },
     {
       id: "model-gemini-omni-flash",
-      matchType: "model",
+      matchType: "modelPrefix",
       matchValue: "gemini-omni-flash",
       properties: {
         capabilities: {
           vision: true,
           videoGeneration: true,
         },
-        releaseDate: "2026-08",
+        releaseDate: "2026-06",
         description:
           "Gemini Omni Flash Preview：快速、对话式视频生成与编辑，支持自然语言迭代",
       },
@@ -170,6 +241,32 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
       priority: 36,
       enabled: true,
       description: "模型 gemini-3.1-flash-lite 元数据规则",
+    },
+    {
+      id: "model-gemini-3.1-flash-lite-image",
+      matchType: "model",
+      matchValue: "gemini-3.1-flash-lite-image",
+      properties: {
+        contextLength: 65536,
+        maxOutputTokens: 4096,
+        capabilities: {
+          imageGeneration: true,
+          iterativeRefinement: true,
+          vision: true,
+        },
+        pricing: {
+          input: 0.25,
+          output: 30.0,
+          unit: "USD",
+          note: "每百万 token，标准计费；图片输出按 image tokens 计费",
+        },
+        releaseDate: "2026-06",
+        description:
+          "Gemini 3.1 Flash Lite Image（Nano Banana 2 Lite）：面向高性价比与高吞吐场景的轻量图像生成与编辑模型，支持图文输入与快速图像输出",
+      },
+      priority: 36,
+      enabled: true,
+      description: "模型 gemini-3.1-flash-lite-image 元数据规则",
     },
     {
       id: "model-gemini-3.1-flash-image",
@@ -475,6 +572,18 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
         "版本化 Gemini 模型的兜底分组，覆盖尚未单独登记的未来主版本与子版本",
     },
     {
+      id: "model-regex-gemini-4",
+      matchType: "modelPrefix",
+      matchValue: "^gemini-4(?:\\.\\d+)?(?:-|$)",
+      useRegex: true,
+      properties: {
+        group: "Gemini 4",
+      },
+      priority: 22,
+      enabled: true,
+      description: "Gemini 4 系列模型分组",
+    },
+    {
       id: "model-regex-gemini-3",
       matchType: "modelPrefix",
       matchValue: "^gemini-3(?:\\.\\d+)?(?:-|$)",
@@ -667,7 +776,8 @@ export const googleModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[
     {
       id: "model-prefix-gemini",
       matchType: "modelPrefix",
-      matchValue: "gemini-",
+      matchValue: "gemini-(?!embedding(?:-|$))",
+      useRegex: true,
       properties: {
         icon: `/model-icons/gemini-color.svg`,
         group: "Gemini",

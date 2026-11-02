@@ -15,6 +15,7 @@
 import { fileTypeFromBuffer } from "file-type";
 import type { Asset } from "@/types/asset-management";
 import { smartDecode } from "./encoding";
+import { isWpsMime, WPS_MIME } from "./wps";
 
 /**
  * 文件类型检测工具
@@ -89,6 +90,10 @@ export const MIME_TYPE_MAP: Record<string, string> = {
 
   // 文档
   pdf: "application/pdf",
+  odt: "application/vnd.oasis.opendocument.text",
+  ott: "application/vnd.oasis.opendocument.text-template",
+  fodt: "application/vnd.oasis.opendocument.text-flat-xml",
+  wps: WPS_MIME,
   doc: "application/msword",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xls: "application/vnd.ms-excel",
@@ -299,6 +304,8 @@ export function determineAssetType(mimeType: string): Asset["type"] {
   if (
     mimeType.startsWith("application/pdf") ||
     mimeType.startsWith("application/msword") ||
+    isWpsMime(mimeType) ||
+    mimeType.startsWith("application/vnd.oasis.opendocument.text") ||
     mimeType.startsWith("application/vnd.ms-powerpoint") || // 旧版 PPT
     mimeType.startsWith("application/vnd.ms-excel") || // 旧版 Excel
     mimeType.startsWith("application/vnd.openxmlformats-officedocument") || // docx, xlsx, pptx
@@ -416,16 +423,33 @@ export async function detectMimeTypeFromBuffer(
   buffer: Uint8Array,
   fileNameHint?: string
 ): Promise<string> {
+  const hintMime = fileNameHint ? inferMimeTypeFromHint(fileNameHint) : null;
+  const isOpenDocumentHint =
+    typeof hintMime === "string" &&
+    hintMime.startsWith("application/vnd.oasis.opendocument.text");
+
   // 1. 文本特征识别 (Fast Path)
   const featureMime = matchTextFeatures(buffer);
   if (featureMime) {
-    return featureMime;
+    return isOpenDocumentHint && hintMime?.endsWith("-flat-xml")
+      ? hintMime
+      : featureMime;
   }
 
   // 2. 尝试使用 file-type 库通过魔数检测 (Binary Path)
   try {
     const fileType = await fileTypeFromBuffer(buffer.slice(0, 4100));
     if (fileType) {
+      // 部分 ODF 包的 mimetype 条目位于检测窗口之外，按文档提示恢复类型。
+      if (
+        isWpsMime(hintMime) &&
+        ["application/x-cfb", "application/zip"].includes(fileType.mime)
+      ) {
+        return WPS_MIME;
+      }
+      if (fileType.mime === "application/zip" && isOpenDocumentHint) {
+        return hintMime!;
+      }
       return fileType.mime;
     }
   } catch (error) {

@@ -116,6 +116,7 @@
       class="mermaid-container"
       :class="{ expanded: isExpanded }"
       ref="containerRef"
+      :style="restorePlaceholderStyle"
     >
       <!-- 错误状态：只有在稳定状态下的错误才显示 -->
       <div v-if="error && nodeStatus === 'stable'" class="mermaid-error">
@@ -164,6 +165,11 @@
 
 <script setup lang="ts">
 import {
+  useRendererNodeState,
+  useRendererDisplayHold,
+  rendererViewportKey,
+} from "../../composables/useRendererViewState";
+import {
   ref,
   computed,
   onMounted,
@@ -172,6 +178,7 @@ import {
   nextTick,
   useAttrs,
   inject,
+  type Ref,
 } from "vue";
 
 // 禁用属性继承以避免警告
@@ -195,6 +202,8 @@ import { useTheme } from "@composables/useTheme";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { fixMermaidCode } from "@/utils/mermaidFixer";
+import { useRendererLayoutTask } from "../../composables/useRendererLayoutState";
+import { renderMermaid } from "../../utils/mermaidRuntime";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MermaidInteractiveViewer from "../MermaidInteractiveViewer.vue";
 import { RICH_TEXT_CONTEXT_KEY, type RichTextContext } from "../../types";
@@ -243,7 +252,8 @@ const handleMouseLeave = () => {
 };
 
 // 修复后的代码（只有在渲染失败后才会被设置）
-const fixedContent = ref<string | null>(null);
+const viewState = useRendererNodeState(() => props.nodeId, "mermaid");
+const fixedContent = viewState.ref<string | null>("fixedContent", null);
 
 // 判断当前渲染是否使用了修复后的代码
 const wasFixed = computed(
@@ -251,7 +261,7 @@ const wasFixed = computed(
 );
 
 // 是否强制显示原始内容（用户手动切换）
-const showOriginal = ref(false);
+const showOriginal = viewState.ref("showOriginal", false);
 
 /**
  * 削掉最后一行（用于流式渲染时避免不完整的行导致渲染失败）
@@ -305,8 +315,8 @@ const activeContent = computed(() => {
 const toggleOriginal = async () => {
   showOriginal.value = !showOriginal.value;
   // 切换后重新渲染
-  if (mermaid) {
-    await renderDiagram();
+  if (rendererReady) {
+    requestDiagramRender(true);
   }
 };
 
@@ -324,20 +334,122 @@ const containerRef = ref<HTMLElement | null>(null);
 const mermaidRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
 const error = ref<string>("");
-const isExpanded = ref(false);
+const isExpanded = viewState.ref("isExpanded", false);
 const showViewer = ref(false);
+useRendererDisplayHold(showViewer);
 const isRendering = ref(false);
 const hasRendered = ref(false); // 是否至少成功渲染过一次
+const layoutTask = useRendererLayoutTask(() => props.nodeId);
 const lastRenderId = ref(0); // 用于并发控制
+
+// 已显示过的静态图表按原高度占位，返回时仅在接近视口后重建 SVG。
+// 首次显示、流式内容和截图渲染沿用立即渲染。
+const RESTORE_MARGIN = 600;
+const retainedHeight = viewState.ref<number | null>("height", null);
+const waitingForViewport = ref(
+  viewState.restored && retainedHeight.value !== null
+);
+const screenshotMode = inject<Readonly<Ref<boolean>>>(
+  "screenshotMode",
+  ref(false)
+);
+const deferRestore = computed(
+  () =>
+    waitingForViewport.value &&
+    nodeStatus.value === "stable" &&
+    !context?.isStreaming?.value &&
+    !screenshotMode.value
+);
+const restorePlaceholderStyle = computed(() =>
+  !hasRendered.value && !error.value && retainedHeight.value !== null
+    ? {
+        height: retainedHeight.value + "px",
+        maxHeight: "none",
+        boxSizing: "border-box" as const,
+      }
+    : undefined
+);
+// content-visibility 跳过的后代可能收不到 ResizeObserver 通知。
+// SVG 写入、缩放和展开共用下一帧的补充测量，避免在异步渲染微任务内强制布局。
+let measureFrame: number | undefined;
+function rememberHeight() {
+  if (measureFrame !== undefined || isUnmounted) return;
+  measureFrame = requestAnimationFrame(() => {
+    measureFrame = undefined;
+    measureHeight();
+  });
+}
+function measureHeight() {
+  if (
+    !hasRendered.value ||
+    error.value ||
+    nodeStatus.value !== "stable" ||
+    !containerRef.value?.isConnected
+  )
+    return;
+  const height = containerRef.value.getBoundingClientRect().height;
+  if (height > 0) retainedHeight.value = height;
+}
+
+let visibilityObserver: IntersectionObserver | undefined;
+let sizeObserver: ResizeObserver | undefined;
+let restoreFrame: number | undefined;
+const viewport = inject(rendererViewportKey, undefined);
+
+// Observer delivery may wait for the next interactive frame in a background WebView.
+// Check after layout and scroll/resize changes so reading diagrams are ready without input.
+function checkRestoredViewport() {
+  restoreFrame = undefined;
+  if (isUnmounted || !waitingForViewport.value || !containerRef.value) return;
+  const root = viewport?.value;
+  const area = root?.getBoundingClientRect() ?? {
+    top: 0,
+    bottom: innerHeight,
+    left: 0,
+    right: innerWidth,
+  };
+  const box = containerRef.value.getBoundingClientRect();
+  if (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.bottom > area.top - RESTORE_MARGIN &&
+    box.top < area.bottom + RESTORE_MARGIN &&
+    box.right > area.left &&
+    box.left < area.right
+  ) {
+    void resumeDiagram();
+  }
+}
+
+function scheduleViewportCheck() {
+  if (!isUnmounted && waitingForViewport.value && restoreFrame === undefined) {
+    restoreFrame = requestAnimationFrame(checkRestoredViewport);
+  }
+}
+
+function stopViewportTracking() {
+  if (restoreFrame !== undefined) cancelAnimationFrame(restoreFrame);
+  restoreFrame = undefined;
+  visibilityObserver?.disconnect();
+  visibilityObserver = undefined;
+  window.removeEventListener("scroll", scheduleViewportCheck, true);
+  window.removeEventListener("resize", scheduleViewportCheck);
+}
+
+function resumeDiagram() {
+  waitingForViewport.value = false;
+  stopViewportTracking();
+  return renderDiagram();
+}
 
 // 缩放控制
 const scaleMin = 0.5;
 const scaleMax = 2.0;
 const scaleStep = 0.1;
 const defaultScale = 1.0;
-const currentScale = ref(1.0);
+const currentScale = viewState.ref("currentScale", 1.0);
 
-let mermaid: any = null;
+let rendererReady = false;
 let renderCleanup: (() => void) | null = null;
 
 // 复制代码
@@ -381,8 +493,9 @@ const applyScale = () => {
   if (!mermaidRef.value) return;
   const svg = mermaidRef.value.querySelector("svg");
   if (svg) {
-    svg.style.transform = `scale(${currentScale.value})`;
-    svg.style.transformOrigin = "center center";
+    // zoom 同步改变布局尺寸，让滚动范围覆盖完整图表。
+    svg.style.setProperty("--mermaid-scale", String(currentScale.value));
+    rememberHeight();
   }
 };
 
@@ -397,9 +510,9 @@ const downloadSvg = () => {
       return;
     }
 
-    // 克隆 SVG 以移除 transform
+    // 克隆 SVG，导出时保留图表原始尺寸
     const clonedSvg = svg.cloneNode(true) as SVGElement;
-    clonedSvg.style.transform = "";
+    clonedSvg.style.removeProperty("--mermaid-scale");
 
     const svgData = new XMLSerializer().serializeToString(clonedSvg);
     const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
@@ -423,6 +536,7 @@ const downloadSvg = () => {
 const toggleExpand = async () => {
   isExpanded.value = !isExpanded.value;
   await nextTick();
+  rememberHeight();
 };
 
 // 打开交互式查看器
@@ -437,17 +551,21 @@ const openViewer = () => {
 const renderDiagramWithContent = async (
   content: string
 ): Promise<{ success: boolean; error?: any }> => {
-  if (isUnmounted || !mermaid || !mermaidRef.value) return { success: false };
+  if (isUnmounted || !rendererReady || !mermaidRef.value)
+    return { success: false };
 
   const currentRenderId = lastRenderId.value;
-  const id = `mermaid-${props.nodeId}-${currentRenderId}`;
+  const isCurrent = () =>
+    !isUnmounted && currentRenderId === lastRenderId.value;
 
   try {
-    const { svg } = await mermaid.render(id, content);
-
-    // 检查并发
-    if (isUnmounted || currentRenderId !== lastRenderId.value)
-      return { success: false };
+    const result = await renderMermaid({
+      content,
+      dark: isDark.value,
+      isCurrent,
+    });
+    if (!result || !isCurrent()) return { success: false };
+    const { svg } = result;
 
     // 渲染成功，清理之前的状态
     if (renderCleanup) {
@@ -461,6 +579,7 @@ const renderDiagramWithContent = async (
 
       // 应用当前缩放
       await nextTick();
+      if (!isCurrent()) return { success: false };
       applyScale();
 
       // 保存清理函数
@@ -473,6 +592,9 @@ const renderDiagramWithContent = async (
       // 标记渲染成功
       hasRendered.value = true;
       error.value = ""; // 只有成功了才清空错误
+      await nextTick();
+      if (!isCurrent()) return { success: false };
+      rememberHeight();
     }
 
     return { success: true };
@@ -483,11 +605,12 @@ const renderDiagramWithContent = async (
 
 // 渲染图表（带自动修复机制）
 const renderDiagram = async () => {
-  if (isUnmounted || !mermaid) return;
+  if (isUnmounted || !rendererReady || deferRestore.value) return;
+  if (nodeStatus.value === "pending") lastStreamRenderAt = performance.now();
 
   // 记录当前的渲染 ID，用于并发控制
-  const currentRenderId = Date.now();
-  lastRenderId.value = currentRenderId;
+  const currentRenderId = ++lastRenderId.value;
+  const settleLayout = layoutTask.begin();
 
   try {
     isRendering.value = true;
@@ -513,6 +636,7 @@ const renderDiagram = async () => {
     if (showOriginal.value) {
       const { success, error: renderError } =
         await renderDiagramWithContent(contentToRender);
+      if (isUnmounted || currentRenderId !== lastRenderId.value) return;
       if (!success && nodeStatus.value === "stable") {
         error.value =
           renderError instanceof Error
@@ -630,73 +754,58 @@ const renderDiagram = async () => {
       error.value = err?.message || "未知错误";
     }
   } finally {
+    settleLayout();
     if (currentRenderId === lastRenderId.value) {
       isRendering.value = false;
     }
   }
 };
 
-// 初始化 Mermaid
-const initMermaid = async () => {
-  try {
-    // 动态导入 Mermaid
-    const mermaidModule = await import("mermaid");
-    if (isUnmounted) return;
-    mermaid = mermaidModule.default;
+// Coalesce streaming diagrams while preserving the last successful SVG.
+const STREAM_RENDER_INTERVAL = 300;
+let streamRenderTimer: ReturnType<typeof setTimeout> | undefined;
+let lastStreamRenderAt = -Infinity;
+function cancelStreamRender() {
+  if (streamRenderTimer !== undefined) clearTimeout(streamRenderTimer);
+  streamRenderTimer = undefined;
+}
+function requestDiagramRender(immediate = false) {
+  cancelStreamRender();
+  // In-flight SVG belongs to the preceding input even while the newest input waits.
+  lastRenderId.value++;
+  const render = () => {
+    streamRenderTimer = undefined;
+    if (isUnmounted || !rendererReady) return;
+    lastStreamRenderAt = performance.now();
+    void resumeDiagram();
+  };
+  const delay = lastStreamRenderAt + STREAM_RENDER_INTERVAL - performance.now();
+  if (
+    immediate ||
+    nodeStatus.value === "stable" ||
+    screenshotMode.value ||
+    delay <= 0
+  )
+    render();
+  else streamRenderTimer = setTimeout(render, delay);
+}
 
-    // 初始化配置
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: isDark.value ? "dark" : "default",
-      securityLevel: "loose",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      themeVariables: {
-        fontSize: "14px",
-      },
-    });
-
-    // 渲染图表
-    await renderDiagram();
-  } catch (err) {
-    errorHandler.handle(err, {
-      userMessage: "Mermaid 初始化失败",
-      showToUser: false,
-    });
-    error.value = "Mermaid 库加载失败";
-  }
-};
-
-// 监听主题变化
-watch(isDark, async (dark) => {
-  if (!mermaid) return;
-
-  try {
-    // 更新主题配置
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: dark ? "dark" : "default",
-      securityLevel: "loose",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      themeVariables: {
-        fontSize: "14px",
-      },
-    });
-
-    // 重新渲染
-    await renderDiagram();
-  } catch (err) {
-    errorHandler.handle(err, {
-      userMessage: "主题切换失败",
-      showToUser: false,
-    });
+// 主题配置与对应的渲染任务由共享运行时串行处理。
+watch(isDark, () => {
+  if (rendererReady && !deferRestore.value) requestDiagramRender(true);
+});
+watch([screenshotMode, () => context?.isStreaming?.value], () => {
+  if (rendererReady && screenshotMode.value) requestDiagramRender(true);
+  else if (rendererReady && waitingForViewport.value && !deferRestore.value) {
+    void resumeDiagram();
   }
 });
 
 // 监听内容和状态变化
 watch(
   [() => props.content, () => attrs["data-node-status"]],
-  async ([newContent, newStatus], [oldContent, oldStatus]) => {
-    if (!mermaid) return;
+  ([newContent, newStatus], [oldContent, oldStatus]) => {
+    if (!rendererReady) return;
 
     // 内容变化时，重置修复状态和显示原始状态
     if (newContent !== oldContent) {
@@ -704,24 +813,73 @@ watch(
       showOriginal.value = false;
     }
 
-    // 只要内容变化就尝试渲染，不再限制状态
+    // Partial last-line edits have the same renderable diagram.
+    if (
+      newStatus === "pending" &&
+      oldStatus === "pending" &&
+      trimLastLine(String(newContent)) === trimLastLine(String(oldContent))
+    )
+      return;
     if (newContent !== oldContent || newStatus !== oldStatus) {
-      await renderDiagram();
+      requestDiagramRender();
     }
   }
 );
 
 onMounted(() => {
-  initMermaid();
-  // 消除 containerRef 未使用的警告
-  if (containerRef.value) {
-    // no-op
+  rendererReady = true;
+  if (containerRef.value && typeof ResizeObserver !== "undefined") {
+    sizeObserver = new ResizeObserver(([entry]) => {
+      if (
+        !entry ||
+        !hasRendered.value ||
+        error.value ||
+        nodeStatus.value !== "stable" ||
+        !entry.target.isConnected
+      )
+        return;
+      const height =
+        entry.borderBoxSize?.[0]?.blockSize ??
+        entry.target.getBoundingClientRect().height;
+      if (height > 0) retainedHeight.value = height;
+    });
+    sizeObserver.observe(containerRef.value, { box: "border-box" });
+  }
+  if (
+    deferRestore.value &&
+    containerRef.value &&
+    typeof IntersectionObserver !== "undefined"
+  ) {
+    visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && !isUnmounted) void resumeDiagram();
+      },
+      // scrollMargin 扩大消息滚动容器的预热区；旧运行时仍可在进入视口时恢复。
+      {
+        rootMargin: `${RESTORE_MARGIN}px`,
+        scrollMargin: `${RESTORE_MARGIN}px`,
+      } as IntersectionObserverInit
+    );
+    visibilityObserver.observe(containerRef.value);
+    window.addEventListener("scroll", scheduleViewportCheck, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("resize", scheduleViewportCheck, { passive: true });
+    scheduleViewportCheck();
+  } else {
+    void resumeDiagram();
   }
 });
 
 onBeforeUnmount(() => {
   isUnmounted = true;
-  lastRenderId.value = Date.now();
+  if (measureFrame !== undefined) cancelAnimationFrame(measureFrame);
+  measureFrame = undefined;
+  lastRenderId.value++;
+  cancelStreamRender();
+  stopViewportTracking();
+  sizeObserver?.disconnect();
 
   if (hoverTimer) {
     clearTimeout(hoverTimer);
@@ -738,7 +896,7 @@ onBeforeUnmount(() => {
   if (mermaidRef.value) {
     mermaidRef.value.innerHTML = "";
   }
-  mermaid = null;
+  rendererReady = false;
 });
 </script>
 
@@ -937,15 +1095,13 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* 保持正常文档流，长图的起点和终点都应处于可滚动范围内。 */
 .mermaid-container {
   padding: 16px;
   background-color: var(--code-block-bg, var(--card-bg));
   overflow: auto;
   min-height: 100px;
   max-height: 500px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: max-height 0.3s ease-in-out;
 }
 
@@ -955,16 +1111,20 @@ onBeforeUnmount(() => {
 
 .mermaid-svg {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 /* Mermaid SVG 样式适配 */
 .mermaid-svg :deep(svg) {
-  max-width: 100%;
+  display: block;
+  max-width: calc(100% * var(--mermaid-scale, 1));
   height: auto;
-  transition: transform 0.2s ease;
+  margin: 0 auto;
+  zoom: var(--mermaid-scale, 1);
+}
+
+/* 百分比宽度需补偿 zoom 的包含块缩放，保持放大比例。 */
+.mermaid-svg :deep(svg[width="100%"]) {
+  width: calc(100% * var(--mermaid-scale, 1));
 }
 
 .mermaid-error {

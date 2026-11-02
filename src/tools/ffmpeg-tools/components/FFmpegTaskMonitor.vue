@@ -323,7 +323,7 @@ const formatTime = (seconds: number) => {
 };
 
 const openFolder = async (path: string) => {
-  await invoke("open_file_directory", { path });
+  await invoke("open_file_directory", { filePath: path });
 };
 
 const showMediaInfo = (path: string, name: string) => {

@@ -38,7 +38,7 @@ Directory Janitor 是一个目录清理工具，旨在通过高性能后端扫�
 ## 2. 架构概览
 
 - **State/View (`DirectoryJanitor.vue`)**: 负责 UI 渲染、用户输入（目标目录、过滤规则）和结果展示。
-- **Service (`DirectoryJanitorService`)**: 提供高级、无状态的 API（如 `scanDirectory`, `cleanupItems`），封装了与后端的交互逻辑。
+- **Registry (`DirectoryJanitorRegistry`)**: 作为对外门面提供无状态的高级 API（`scanDirectory`, `cleanupItems`, `scanAndCleanup`），每次调用都创建临时 Runner 并封装与后端的交互逻辑。
 - **Runner (`useDirectoryJanitorRunner`)**: 一个临时的、有状态的 Composable，用于管理单次扫描/清理任务的完整生命周期（初始化、执行、结果格式化、清理）。
 - **Engine (Rust Backend)**: 负责执行实际的文件系统扫描和清理操作。
 
@@ -85,7 +85,7 @@ sequenceDiagram
 ## 4. 核心逻辑
 
 - **预设规则**: 内置了针对常见清理场景（如浏览器缓存、VSCode 历史任务）的预设规则，简化用户操作。
-- **无状态服务**: `DirectoryJanitorService` 本身是无状态的，每次操作都会创建一个临时的 `runner` 实例，确保了操作的隔离性和可预测性。
+- **无状态门面**: `DirectoryJanitorRegistry` 本身是无状态的，每次操作都会创建一个临时的 `runner` 实例，确保了操作的隔离性和可预测性。
 
 ## 5. 未来展望
 

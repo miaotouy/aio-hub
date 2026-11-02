@@ -270,10 +270,11 @@ function handleJumpTo(index: number): void {
 .history-panel {
   display: flex;
   flex-direction: column;
-  max-height: 600px;
+  max-height: min(600px, calc(100dvh - 96px));
 }
 
 .history-panel-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -292,6 +293,7 @@ function handleJumpTo(index: number): void {
 
 .history-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px 0;
 }

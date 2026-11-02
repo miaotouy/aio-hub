@@ -33,6 +33,7 @@ import {
   Wand2,
   Database,
   StepForward,
+  XCircle,
 } from "lucide-vue-next";
 import {
   ElTooltip,
@@ -41,9 +42,7 @@ import {
   ElDropdownMenu,
   ElDropdownItem,
 } from "element-plus";
-import { useChatInputManager } from "@/tools/llm-chat/composables/input/useChatInputManager";
-import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useModelReselection } from "@/tools/llm-chat/composables/ui/useModelReselection";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../../../stores/llmChatStore";
 import { customMessage } from "@/utils/customMessage";
@@ -78,6 +77,8 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const store = useLlmChatStore();
+const isGenerating = computed(() => store.isNodeGenerating(props.messageId));
+const handleAbort = () => store.abortNodeGeneration(props.messageId);
 
 const isUserOrAssistant = computed(
   () =>
@@ -93,13 +94,33 @@ const showDataEditor = ref(false);
 
 const isMoreMenuOpen = ref(false);
 const isDeleteConfirmOpen = ref(false);
+// 全局模型选择弹窗打开期间必须保持 menubar 挂载：
+// 选完模型后要在此组件上下文中异步 emit("regenerate")，
+// 若 menubar 被悬停超时卸载，Vue 会丢弃已卸载组件的 emit 事件。
+const isModelSelectOpen = ref(false);
 
 watch(
-  [showExportDialog, showDataEditor, isMoreMenuOpen, isDeleteConfirmOpen],
-  ([exportVisible, editorVisible, moreMenuOpen, deleteConfirmOpen]) => {
+  [
+    showExportDialog,
+    showDataEditor,
+    isMoreMenuOpen,
+    isDeleteConfirmOpen,
+    isModelSelectOpen,
+  ],
+  ([
+    exportVisible,
+    editorVisible,
+    moreMenuOpen,
+    deleteConfirmOpen,
+    modelSelectOpen,
+  ]) => {
     emit(
       "interaction-active-change",
-      exportVisible || editorVisible || moreMenuOpen || deleteConfirmOpen
+      exportVisible ||
+        editorVisible ||
+        moreMenuOpen ||
+        deleteConfirmOpen ||
+        modelSelectOpen
     );
   }
 );
@@ -109,33 +130,32 @@ const handleToggleEnabled = () => emit("toggle-enabled");
 const handleDelete = () => emit("delete");
 const handleViewDetail = (event: MouseEvent) => emit("view-detail", event);
 const handleRegenerate = () => {
+  if (isGenerating.value) return;
   // 检查是否有临时模型
-  const inputManager = useChatInputManager();
-  const temporaryModel = inputManager.temporaryModel.value;
+  const temporaryModel = getTemporaryModelPayload();
 
   if (temporaryModel) {
-    emit("regenerate", {
-      modelId: temporaryModel.modelId,
-      profileId: temporaryModel.profileId,
-    });
+    emit("regenerate", temporaryModel);
   } else {
     emit("regenerate");
   }
 };
-const handleCreateBranch = () => emit("create-branch");
+const handleCreateBranch = () => {
+  if (!isGenerating.value) emit("create-branch");
+};
 
 const { currentAgentId } = useLlmChatUiState();
+const { getTemporaryModelPayload, openModelReselectDialog } =
+  useModelReselection();
+const agentStore = useAgentStore();
 
 // 续写消息
 const handleContinue = () => {
-  const inputManager = useChatInputManager();
-  const temporaryModel = inputManager.temporaryModel.value;
+  if (isGenerating.value) return;
+  const temporaryModel = getTemporaryModelPayload();
 
   if (temporaryModel) {
-    store.continueGeneration(props.messageId, {
-      modelId: temporaryModel.modelId,
-      profileId: temporaryModel.profileId,
-    });
+    store.continueGeneration(props.messageId, temporaryModel);
   } else {
     store.continueGeneration(props.messageId);
   }
@@ -169,14 +189,8 @@ const handleRecalculateTokens = async () => {
 
 // 重新解析工具
 const handleReparseTools = () => {
-  const inputManager = useChatInputManager();
-  const temporaryModel = inputManager.temporaryModel.value;
-
-  const temporaryModelPayload = temporaryModel
-    ? { modelId: temporaryModel.modelId, profileId: temporaryModel.profileId }
-    : null;
   store.reparseNodeTools(props.messageId, {
-    temporaryModel: temporaryModelPayload,
+    temporaryModel: getTemporaryModelPayload(),
   });
 };
 
@@ -195,57 +209,24 @@ const currentPresetMessages = computed(() => {
 const presetCount = computed(() => currentPresetMessages.value.length);
 
 // 处理选择模型并重新生成
-const { open: openModelSelectDialog } = useModelSelectDialog();
-const { getProfileById } = useLlmProfiles();
-const agentStore = useAgentStore();
-
 const handleSelectModelAndRegenerate = async () => {
-  let currentSelection = null;
-
-  // 确定回显的目标模型：节点自身 -> 临时模型 -> 智能体默认
-  let targetModelId = props.modelId;
-  let targetProfileId = props.profileId;
-
-  // 1. 如果节点没有模型信息，尝试使用输入框的临时模型
-  if (!targetModelId || !targetProfileId) {
-    const inputManager = useChatInputManager();
-    if (inputManager.temporaryModel.value) {
-      targetModelId = inputManager.temporaryModel.value.modelId;
-      targetProfileId = inputManager.temporaryModel.value.profileId;
-    }
-  }
-
-  // 2. 如果还是没有，尝试使用当前智能体的默认模型
-  if (!targetModelId || !targetProfileId) {
-    if (currentAgentId.value) {
-      const agent = agentStore.getAgentById(currentAgentId.value);
-      if (agent) {
-        targetModelId = agent.modelId;
-        targetProfileId = agent.profileId;
-      }
-    }
-  }
-
-  // 构建选中状态对象
-  if (targetProfileId && targetModelId) {
-    const profile = getProfileById(targetProfileId);
-    if (profile) {
-      const model = profile.models.find((m) => m.id === targetModelId);
-      if (model) {
-        currentSelection = { profile, model };
-      }
-    }
-  }
-
-  const result = await openModelSelectDialog({
-    current: currentSelection,
-    initialCapabilities: { embedding: false, rerank: false },
-  });
-  if (result) {
-    emit("regenerate", {
-      modelId: result.model.id,
-      profileId: result.profile.id,
+  if (isGenerating.value) return;
+  // 弹窗打开期间保持 menubar 挂载，防止悬停超时卸载后 emit 丢失
+  isModelSelectOpen.value = true;
+  try {
+    // 回显链：节点自身 -> 临时模型 -> 当前智能体默认
+    const result = await openModelReselectDialog({
+      modelId: props.modelId,
+      profileId: props.profileId,
     });
+    if (result && !isGenerating.value) {
+      emit("regenerate", {
+        modelId: result.model.id,
+        profileId: result.profile.id,
+      });
+    }
+  } finally {
+    isModelSelectOpen.value = false;
   }
 };
 </script>
@@ -273,7 +254,7 @@ const handleSelectModelAndRegenerate = async () => {
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item
-                v-if="isUserOrAssistant"
+                v-if="isUserOrAssistant && !isGenerating"
                 @click="handleContinue"
               >
                 <div class="dropdown-item-content">
@@ -330,38 +311,61 @@ const handleSelectModelAndRegenerate = async () => {
       </button>
     </el-tooltip>
 
+    <el-tooltip
+      v-if="isGenerating"
+      content="停止生成"
+      placement="bottom"
+      :show-after="300"
+    >
+      <button
+        class="menu-btn menu-btn-abort"
+        aria-label="停止生成"
+        @click="handleAbort"
+      >
+        <XCircle :size="16" />
+      </button>
+    </el-tooltip>
+
     <!-- 创建分支 -->
     <el-tooltip
-      v-if="isUserOrAssistant"
+      v-if="isUserOrAssistant && !isGenerating"
       content="创建分支"
       placement="bottom"
       :show-after="300"
     >
-      <button class="menu-btn" @click="handleCreateBranch">
+      <button
+        class="menu-btn"
+        aria-label="创建分支"
+        @click="handleCreateBranch"
+      >
         <GitFork :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 重新生成 -->
     <el-tooltip
-      v-if="isUserOrAssistant"
+      v-if="isUserOrAssistant && !isGenerating"
       :content="role === 'user' ? '重新生成回复' : '重新生成'"
       placement="bottom"
       :show-after="300"
     >
-      <button class="menu-btn" @click="handleRegenerate">
+      <button class="menu-btn" aria-label="重新生成" @click="handleRegenerate">
         <RefreshCw :size="16" />
       </button>
     </el-tooltip>
 
     <!-- 指定模型重新生成 -->
     <el-tooltip
-      v-if="isUserOrAssistant"
+      v-if="isUserOrAssistant && !isGenerating"
       content="指定模型重新生成"
       placement="bottom"
       :show-after="300"
     >
-      <button class="menu-btn" @click="handleSelectModelAndRegenerate">
+      <button
+        class="menu-btn"
+        aria-label="指定模型重新生成"
+        @click="handleSelectModelAndRegenerate"
+      >
         <AtSign :size="16" />
       </button>
     </el-tooltip>
@@ -472,6 +476,18 @@ const handleSelectModelAndRegenerate = async () => {
 
 .menu-btn-highlight:hover {
   opacity: 0.8;
+}
+
+.menu-btn-abort {
+  color: var(--error-color);
+}
+
+.menu-btn-abort:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--error-color) 15%,
+    var(--container-bg)
+  );
 }
 
 .menu-btn-danger:hover {

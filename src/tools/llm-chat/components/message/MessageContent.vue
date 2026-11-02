@@ -15,6 +15,14 @@
 -->
 
 <script setup lang="ts">
+import MessageStatistics from "./MessageStatistics.vue";
+import { reportMessageCharacterCount } from "../../composables/ui/useMessagePresentation";
+import VirtualTextAttachments from "../VirtualTextAttachments.vue";
+import type { VirtualTextAttachment } from "../../types/virtual-attachment";
+import {
+  cloneVirtualAttachments,
+  textCharacterCount,
+} from "../../utils/virtualAttachments";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
@@ -24,6 +32,7 @@ import {
   nextTick,
   shallowRef,
   inject,
+  h,
 } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -79,6 +88,12 @@ import {
   resolveMessageEnterAnimationEnabled,
 } from "../../utils/richTextRendererSettings";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
+import { useMessageHeightSource } from "../../composables/ui/useMessageHeightSource";
+import {
+  rendererReadingAreaKey,
+  rendererReadingScopeKey,
+  rendererRowGeometryKey,
+} from "@/tools/rich-text-renderer/composables/useRendererDisplay";
 import LlmThinkNode from "@/tools/rich-text-renderer/components/nodes/LlmThinkNode.vue";
 import AttachmentCard from "../AttachmentCard.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
@@ -92,7 +107,10 @@ import DocumentViewer from "@/components/common/DocumentViewer.vue";
 const logger = createModuleLogger("MessageContent");
 const { settings } = useChatSettings();
 const rendererSettingsProps = computed(() =>
-  buildRichTextRendererSettings(settings.value.uiPreferences)
+  buildRichTextRendererSettings(settings.value.uiPreferences, {
+    streamEffect: currentAgent.value?.streamEffect,
+    screenshotMode: props.screenshotMode,
+  })
 );
 const transcriptionManager = useTranscriptionManager();
 const { computeWillUseTranscription } = transcriptionManager;
@@ -100,6 +118,7 @@ const imageViewer = useImageViewer();
 const macroProcessor = new MacroProcessor();
 
 interface Props {
+  hideStatistics?: boolean;
   sessionIndex: ChatSessionIndex | null;
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
@@ -147,6 +166,47 @@ const { currentAgentId } = useLlmChatUiState();
 const agentStore = useAgentStore();
 const llmChatStore = useLlmChatStore();
 const userProfileStore = useUserProfileStore();
+async function saveTextAttachment(
+  original: VirtualTextAttachment | null,
+  updated: VirtualTextAttachment,
+  branch: boolean
+) {
+  if (isSessionReadOnly.value || !original || !props.sessionDetail)
+    throw new Error("当前消息只可预览");
+  const session = props.sessionDetail;
+  if (llmChatStore.isSessionGenerating(session.id))
+    throw new Error("请完成或停止生成后再修改材料");
+  const node = session.nodes[props.message.id];
+  if (!node) throw new Error("消息已被删除，请复制内容后关闭编辑器");
+  const current = node.virtualAttachments?.find(
+    (item) => item.id === original.id
+  );
+  if (
+    !current ||
+    current.text !== original.text ||
+    current.title !== original.title
+  ) {
+    throw new Error("材料已被修改，请复制当前内容后重新打开");
+  }
+  const attachments = cloneVirtualAttachments(node.virtualAttachments).map(
+    (item) => (item.id === original.id ? updated : item)
+  );
+  if (branch) {
+    await llmChatStore.createBranchFromEdit(
+      node.id,
+      node.content,
+      node.attachments,
+      session.id,
+      { virtualAttachments: attachments }
+    );
+  } else {
+    await llmChatStore.updateNodeData(
+      node.id,
+      { virtualAttachments: attachments },
+      session.id
+    );
+  }
+}
 
 /**
  * 根据绑定模式获取 agentId 和 userProfileId
@@ -284,12 +344,14 @@ const documentPreviewVisible = ref(false);
 const previewingAsset = ref<Asset | null>(null);
 // 判断是否正在推理中
 const isReasoning = computed(() => {
+  const metadata = props.message.metadata;
+
   return !!(
     (props.message.status === "generating" ||
       props.message.status === "waiting") &&
-    props.message.metadata?.reasoningContent &&
-    !props.message.metadata?.reasoningEndTime &&
-    !props.message.metadata?.error && // 如果有错误，停止动画
+    metadata?.reasoningContent &&
+    metadata.reasoningActive === true &&
+    !metadata?.error && // 如果有错误，停止动画
     llmChatStore.isNodeGenerating(props.message.id) // 增加 store 校验，确保 executor 还在运行
   );
 });
@@ -370,6 +432,9 @@ const generationMetaForRenderer = computed(() => {
     requestEndTime: metadata.requestEndTime,
     reasoningStartTime: metadata.reasoningStartTime,
     reasoningEndTime: metadata.reasoningEndTime,
+    reasoningActive: metadata.reasoningActive,
+    reasoningActiveSince: metadata.reasoningActiveSince,
+    reasoningDurationMs: metadata.reasoningDurationMs,
     firstTokenTime: metadata.firstTokenTime,
     tokensPerSecond: metadata.tokensPerSecond,
     usage: metadata.usage,
@@ -566,6 +631,33 @@ const handleEditClearAllAttachments = async () => {
   } catch {
     // 用户取消
   }
+};
+
+// 点击编辑区域空白处兜底聚焦，防止点中 padding 或编辑器容器留白时丢失焦点
+const handleEditAreaMouseDown = (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+
+  // 如果点中的是按钮、下拉菜单、附件卡片等具有独立交互的元素，不抢占焦点
+  if (
+    target.closest("button") ||
+    target.closest(".el-button") ||
+    target.closest(".el-dropdown") ||
+    target.closest(".attachment-card") ||
+    target.closest(".edit-attachments-actions") ||
+    target.closest(".edit-actions")
+  ) {
+    return;
+  }
+
+  // 如果已经点在 CM 可编辑内容区或 textarea 内，交给原生光标定位
+  if (target.closest(".cm-content") || target.tagName === "TEXTAREA") {
+    return;
+  }
+
+  // 阻止默认 blur 行为，并委托聚焦给编辑器
+  e.preventDefault();
+  editorRef.value?.focus();
 };
 
 // 编辑模式下插入占位符到编辑器
@@ -771,6 +863,21 @@ assetManagerEngine.getAssetBasePath().then((path) => {
   assetBasePath.value = path;
 });
 
+// 裸占位符复用附件卡片，保留各类附件的预览、播放与文档打开交互。
+const renderFilePlaceholder = (assetId: string) => {
+  const asset = props.message.attachments?.find((item) => item.id === assetId);
+  if (!asset) return null;
+
+  return h(AttachmentCard, {
+    asset,
+    allAssets: props.message.attachments,
+    removable: false,
+    size: "large",
+    willUseTranscription: getWillUseTranscription(asset),
+    onPreviewDocument: handlePreviewDocument,
+  });
+};
+
 // 资产转换钩子
 const resolveAsset = (content: string) => {
   // 1. 处理 agent-asset:// 和 file://
@@ -847,14 +954,26 @@ const messageBoundStyleOptions = computed(() => {
 });
 
 // ----- 视口感知冻结：防止不可见消息因渲染配置变化触发重渲染导致 OOM -----
-const isInViewport = ref(true); // 默认可见，避免首次渲染时闪烁
-
-useIntersectionObserver(
-  containerRef,
-  ([{ isIntersecting }]) => {
-    isInViewport.value = isIntersecting;
-  },
-  { rootMargin: "400px" } // 提前解冻范围，避免滚动时看到过时内容
+const readingArea = inject(rendererReadingAreaKey, undefined);
+const isInViewport = readingArea?.register(containerRef) ?? ref(true);
+provide(rendererRowGeometryKey, !!readingArea?.reservesRowGeometry);
+if (!readingArea) {
+  useIntersectionObserver(
+    containerRef,
+    ([{ isIntersecting }]) => {
+      isInViewport.value = isIntersecting;
+    },
+    { rootMargin: "400px" }
+  );
+}
+provide(
+  rendererReadingScopeKey,
+  computed(
+    () =>
+      props.screenshotMode ||
+      isInViewport.value ||
+      imageViewer.state.value.visible
+  )
 );
 
 // 冻结的渲染配置：基于消息绑定的配置，只有消息在视口中（或附近）时才同步
@@ -908,29 +1027,59 @@ const containerClasses = computed(() => ({
   "is-translating":
     props.isTranslating || !!props.message.metadata?.translation,
   "is-generating": isGenerating.value,
+  "is-status-only":
+    !props.isEditing &&
+    !displayedContent.value.trim() &&
+    !hasAttachments.value &&
+    !showTranslation.value &&
+    !showStreamingIndicator.value &&
+    !props.message.metadata?.reasoningContent &&
+    !!(
+      props.message.metadata?.error ||
+      props.message.metadata?.emptyResponseDiagnostic
+    ),
   "smooth-enabled": settings.value.uiPreferences.smoothAutoScroll,
 }));
+
+useMessageHeightSource(
+  () => props.message.id,
+  () => ({
+    text:
+      !isGenerating.value &&
+      !props.isEditing &&
+      !props.isTranslating &&
+      showOriginal.value &&
+      !showTranslation.value &&
+      !hasAttachments.value &&
+      processedRules.value.length === 0
+        ? originalRendererContent.value
+        : undefined,
+    appearance: JSON.stringify([
+      frozenStyleOptions.value,
+      frozenLlmThinkRules.value,
+      processedRules.value,
+    ]),
+  })
+);
 
 // 元数据响应式提取，确保异步更新能被触发
 const messageMetadata = computed(() => props.message.metadata);
 const showMeta = computed(() => {
-  // 截图模式下始终渲染 meta 区域，由 CSS 控制可见性
-  if (props.screenshotMode) {
-    const metadata = messageMetadata.value;
-    if (
-      settings.value.uiPreferences.showCharCount &&
-      props.message.content.length > 0
-    )
-      return true;
-    if (!metadata) return false;
+  if (props.hideStatistics)
     return (
-      !!metadata.usage ||
-      metadata.contentTokens !== undefined ||
-      !!metadata.error ||
-      !!metadata.emptyResponseDiagnostic
+      !!messageMetadata.value?.error ||
+      !!messageMetadata.value?.emptyResponseDiagnostic
     );
-  }
-
+  const performance =
+    props.message.role === "assistant" &&
+    props.message.status === "complete" &&
+    (props.screenshotMode ||
+      settings.value.uiPreferences.showPerformanceMetrics) &&
+    (messageMetadata.value?.tokensPerSecond !== undefined ||
+      (messageMetadata.value?.requestStartTime !== undefined &&
+        (messageMetadata.value?.firstTokenTime !== undefined ||
+          messageMetadata.value?.requestEndTime !== undefined)));
+  if (performance) return true;
   const metadata = messageMetadata.value;
   const showToken = settings.value.uiPreferences.showTokenCount;
   const showChar = settings.value.uiPreferences.showCharCount;
@@ -945,23 +1094,28 @@ const showMeta = computed(() => {
     !!metadata.emptyResponseDiagnostic
   );
 });
-const usageInfo = computed(() => messageMetadata.value?.usage);
-const contentTokensValue = computed(() => messageMetadata.value?.contentTokens);
 const errorMessage = computed(() => messageMetadata.value?.error);
 const emptyResponseDiagnostic = computed(
   () => messageMetadata.value?.emptyResponseDiagnostic
 );
 
 const charCount = ref(0);
+reportMessageCharacterCount(() => props.message.id, charCount);
 
 watch(
   [
     () => props.message.content,
     () => props.message.attachments,
+    () => props.message.virtualAttachments,
     resolvedModelAndProfile,
   ],
-  async ([content, attachments, { modelId, profileId }]) => {
-    let totalChar = (content || "").length;
+  async ([content, attachments, textAttachments, { modelId, profileId }]) => {
+    let totalChar =
+      textCharacterCount(content || "") +
+      (textAttachments ?? []).reduce(
+        (sum, item) => sum + textCharacterCount(item.text),
+        0
+      );
     if (attachments && attachments.length > 0) {
       if (modelId && profileId) {
         try {
@@ -995,10 +1149,15 @@ watch(
 <template>
   <div class="message-content" ref="containerRef" :class="containerClasses">
     <!-- 附件展示区域 - 非编辑模式 (始终显示在顶部) -->
-    <div v-if="!isEditing && hasAttachments" class="attachments-section">
+    <div
+      v-if="
+        (!isEditing && hasAttachments) || message.virtualAttachments?.length
+      "
+      class="attachments-section"
+    >
       <div class="attachments-list">
         <AttachmentCard
-          v-for="attachment in message.attachments"
+          v-for="attachment in isEditing ? [] : message.attachments"
           :key="attachment.id"
           :asset="attachment"
           :all-assets="message.attachments"
@@ -1006,6 +1165,19 @@ watch(
           size="large"
           :will-use-transcription="getWillUseTranscription(attachment)"
           @preview-document="handlePreviewDocument"
+        />
+        <VirtualTextAttachments
+          v-if="message.virtualAttachments?.length"
+          :attachments="message.virtualAttachments"
+          inline
+          :editable="!isSessionReadOnly && !isEditing && !screenshotMode"
+          :busy="
+            !!sessionDetail &&
+            llmChatStore.isSessionGenerating(sessionDetail.id)
+          "
+          :allow-branch="!!message.parentId"
+          :has-replies="!!message.childrenIds.length"
+          :commit="saveTextAttachment"
         />
       </div>
     </div>
@@ -1021,16 +1193,21 @@ watch(
       :raw-content="message.metadata.reasoningContent"
       :generation-meta="generationMetaForRenderer"
     >
-      <RichTextRenderer
-        v-bind="rendererSettingsProps"
-        :content="message.metadata.reasoningContent"
-        :style-options="frozenStyleOptions"
-        :resolve-asset="resolveAsset"
-        :default-tool-call-collapsed="
-          currentAgent?.defaultToolCallCollapsed ??
-          settings.uiPreferences.defaultToolCallCollapsed
-        "
-      />
+      <template #default="{ content, expanded }">
+        <RichTextRenderer
+          suspend-on-deactivate
+          v-bind="rendererSettingsProps"
+          :content="content"
+          :is-streaming="isReasoning && expanded"
+          :style-options="frozenStyleOptions"
+          :resolve-asset="resolveAsset"
+          :render-file-placeholder="renderFilePlaceholder"
+          :default-tool-call-collapsed="
+            currentAgent?.defaultToolCallCollapsed ??
+            settings.uiPreferences.defaultToolCallCollapsed
+          "
+        />
+      </template>
     </LlmThinkNode>
 
     <!-- 编辑模式 (截图模式强制关闭) -->
@@ -1039,6 +1216,7 @@ watch(
       ref="editAreaRef"
       class="edit-mode"
       :class="{ 'is-dragging': isDraggingOver }"
+      @mousedown="handleEditAreaMouseDown"
     >
       <!-- 编辑模式的附件展示 -->
       <div
@@ -1179,6 +1357,7 @@ watch(
           <span class="translation-title">原文</span>
         </div>
         <RichTextRenderer
+          suspend-on-deactivate
           v-if="displayedContent || isGenerating"
           :key="originalRendererKey"
           v-bind="rendererSettingsProps"
@@ -1194,6 +1373,7 @@ watch(
             settings.uiPreferences.defaultToolCallCollapsed
           "
           :resolve-asset="resolveAsset"
+          :render-file-placeholder="renderFilePlaceholder"
           :should-freeze="shouldFreezeHtml"
           :enable-enter-animation="originalRendererEnterAnimation"
         />
@@ -1250,13 +1430,12 @@ watch(
         </div>
         <div class="translation-content">
           <RichTextRenderer
+            suspend-on-deactivate
             v-bind="rendererSettingsProps"
             :content="
-              resolveAsset(
-                isTranslating || !message.metadata?.translation
-                  ? translationContent
-                  : message.metadata.translation.content
-              )
+              isTranslating || !message.metadata?.translation
+                ? translationContent
+                : message.metadata.translation.content
             "
             :regex-rules="processedRules"
             :llm-think-rules="frozenLlmThinkRules"
@@ -1267,6 +1446,7 @@ watch(
             "
             :is-streaming="isTranslating"
             :resolve-asset="resolveAsset"
+            :render-file-placeholder="renderFilePlaceholder"
             :should-freeze="shouldFreezeHtml"
           />
           <div
@@ -1283,54 +1463,12 @@ watch(
 
     <!-- 元数据 -->
     <div v-if="showMeta" class="message-meta">
-      <div class="message-meta-summary">
-        <!-- 字数统计 -->
-        <div
-          v-if="settings.uiPreferences.showCharCount && charCount > 0"
-          class="usage-info"
-          data-meta-type="char"
-        >
-          <span>字数: {{ charCount.toLocaleString("zh-CN") }}</span>
-        </div>
-        <!-- API 返回的完整 Usage 信息（助手消息） -->
-        <div
-          v-if="settings.uiPreferences.showTokenCount && usageInfo"
-          class="usage-info"
-          data-meta-type="token"
-        >
-          <span
-            >Token:
-            {{
-              contentTokensValue !== undefined
-                ? usageInfo.promptTokens + contentTokensValue
-                : usageInfo.totalTokens
-            }}</span
-          >
-          <span class="usage-detail">
-            (输入: {{ usageInfo.promptTokens }}, 输出:
-            {{ contentTokensValue ?? usageInfo.completionTokens
-            }}{{
-              usageInfo.promptTokensDetails?.cachedTokens
-                ? `, 缓存: ${usageInfo.promptTokensDetails.cachedTokens}`
-                : ""
-            }})
-          </span>
-        </div>
-        <!-- 本地计算的单条消息 Token（用户消息） -->
-        <div
-          v-else-if="
-            settings.uiPreferences.showTokenCount &&
-            contentTokensValue !== undefined
-          "
-          class="usage-info"
-          data-meta-type="token"
-        >
-          <span
-            >本条消息:
-            {{ contentTokensValue.toLocaleString("en-US") }} tokens</span
-          >
-        </div>
-      </div>
+      <MessageStatistics
+        v-if="!hideStatistics"
+        :message="message"
+        :char-count="charCount"
+        :screenshot-mode="screenshotMode"
+      />
       <div v-if="errorMessage" class="error-info">
         <el-button
           @click="copyError"
@@ -1384,6 +1522,22 @@ watch(
   );
   line-height: v-bind("settings.uiPreferences.lineHeight");
   letter-spacing: v-bind('settings.uiPreferences.letterSpacing + "px"');
+}
+
+/* 仅状态消息紧凑展示，已有正文、附件或翻译时保留完整内容布局。 */
+.message-content.is-status-only {
+  margin: 0;
+}
+
+.is-status-only .message-meta {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.is-status-only .error-info,
+.is-status-only .diagnostic-info {
+  margin-top: 0;
 }
 
 /* 使用深度选择器强制 RichTextRenderer 继承字体设置 */
@@ -1506,29 +1660,12 @@ watch(
   font-size: 12px;
 }
 
-.message-meta-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-}
-
-.usage-info {
-  color: var(--text-color-light);
-}
-
-.usage-detail {
-  margin-left: 8px;
-  opacity: 0.7;
-}
-
 .error-info {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   color: var(--error-color);
   margin-top: 8px;
-  margin-bottom: 42px;
 }
 
 .error-text {
@@ -1546,7 +1683,6 @@ watch(
   gap: 8px;
   color: var(--warning-color, #e6a23c);
   margin-top: 8px;
-  margin-bottom: 42px;
 }
 
 .diagnostic-text {
@@ -1581,9 +1717,33 @@ watch(
 .edit-mode :deep(.chat-cm-editor),
 .edit-mode :deep(.textarea-wrapper) {
   min-height: 200px;
-  border: 1px solid var(--primary-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--container-bg);
+  cursor: text;
+}
+
+/* 确保 CodeMirror 内部滚动区与可编辑内容区域彻底撑满 200px+ 容器高度，
+ * 避免文字下方大片留白区域成为未绑定的空白 div 导致点击失焦 */
+.edit-mode :deep(.cm-editor) {
+  min-height: inherit;
+  height: 100%;
+  cursor: text;
+}
+
+.edit-mode :deep(.cm-scroller) {
+  min-height: inherit;
+  cursor: text;
+}
+
+.edit-mode :deep(.cm-content) {
+  min-height: 180px;
+  cursor: text;
+}
+
+/* 原生 textarea 模式同理撑满高度 */
+.edit-mode :deep(.textarea-wrapper textarea) {
+  min-height: 180px;
 }
 
 .edit-mode :deep(.chat-cm-editor:focus-within),

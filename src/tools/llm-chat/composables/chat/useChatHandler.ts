@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { awaitWithSignal } from "../../utils/awaitWithSignal";
+import { cloneVirtualAttachments } from "../../utils/virtualAttachments";
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 /**
  * 聊天处理 Composable
  * 负责协调核心聊天逻辑：发送消息、重新生成、流式响应处理
@@ -95,16 +98,25 @@ export function useChatHandler() {
     abortControllers: Map<string, AbortController>,
     generatingNodes: Set<string>,
     options?: {
+      onUserMessageSaved?: () => void;
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: ModelIdentifier | null;
       knowledgeReference?: KnowledgeReference | null;
       parentId?: string;
       disableMacroParsing?: boolean;
       skipGeneration?: boolean;
       agentId?: string;
+      /** 子智能体派发深度：由 sub-agent 派发时传入 parent depth + 1，用于深度链校验 */
+      delegationDepth?: number;
     },
     currentSessionId?: string | null
   ): Promise<void> => {
+    if (options?.virtualAttachments)
+      options = {
+        ...options,
+        virtualAttachments: cloneVirtualAttachments(options.virtualAttachments),
+      };
     const chatStore = useLlmChatStore();
     const sessionIndex = chatStore.sessionIndexMap.get(session.id);
     if (!sessionIndex) throw new Error("Session index not found");
@@ -114,15 +126,6 @@ export function useChatHandler() {
     const nodeManager = useNodeManager();
     const sessionManager = useSessionManager();
 
-    // 尝试执行自动上下文压缩
-    // 注意：压缩会修改树结构（插入压缩节点），但这不影响 activeLeafId（因为压缩节点插入在旧消息之后）
-    // 我们在创建新消息之前执行压缩，以确保新消息基于最新的上下文状态
-    try {
-      await checkAndCompress(sessionIndex, session);
-    } catch (error) {
-      // 压缩失败仅记录日志，不阻断发送流程
-      logger.error("自动上下文压缩执行出错", error);
-    }
     const { currentAgentId } = useLlmChatUiState();
     const effectiveAgentId = options?.agentId || currentAgentId.value;
 
@@ -170,7 +173,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
         logger.info("使用临时指定的模型（参数已过滤）", {
           modelId: agentConfig.modelId,
@@ -178,10 +182,7 @@ export function useChatHandler() {
           parameterKeys: Object.keys(agentConfig.parameters),
         });
       } else {
-        logger.warn("无法找到指定的临时模型，将使用智能体默认模型", {
-          modelId: options.temporaryModel.modelId,
-          profileId: options.temporaryModel.profileId,
-        });
+        throw new Error("临时绑定的渠道或模型不可用，请重新选择模型。");
       }
     }
 
@@ -221,6 +222,10 @@ export function useChatHandler() {
       session,
       processedContent,
       parentId
+    );
+
+    userNode.virtualAttachments = cloneVirtualAttachments(
+      options?.virtualAttachments
     );
 
     let explicitKnowledgeToolNode: ChatMessageNode | null = null;
@@ -371,7 +376,7 @@ export function useChatHandler() {
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
     // 重新获取包含新用户消息的完整路径
-    const pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
+    let pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
 
     // 获取路径中的用户节点引用
     const pathUserNode = pathWithNewMessage[pathWithNewMessage.length - 1];
@@ -433,67 +438,83 @@ export function useChatHandler() {
         session,
         currentSessionId ?? null
       );
+      const { useChatStorageSeparated } =
+        await import("../storage/useChatStorageSeparated");
+      try {
+        await useChatStorageSeparated().saveSession({
+          ...sessionIndex,
+          ...session,
+        });
+      } catch (error) {
+        generatingNodes.delete(assistantNode.id);
+        assistantNode.status = "error";
+        assistantNode.metadata = {
+          ...assistantNode.metadata,
+          error: "消息保存失败，请保留草稿并重试",
+        };
+        throw error;
+      }
+      options?.onUserMessageSaved?.();
     }
     logger.debug("用户消息已即时保存（转写前）", {
       sessionId: session.id,
       userNodeId: userNode.id,
     });
 
-    // 附件转写等待逻辑（在消息上屏并保存后执行）
-    if (
-      !options?.skipGeneration &&
-      options?.attachments &&
-      options.attachments.length > 0 &&
-      settings.value.transcription.enabled
-    ) {
-      const transcriptionManager = useTranscriptionManager();
-      const transcriptionController = new AbortController();
-
-      // 两种模式都需要中止控制器，因为等待都可能被用户取消
-      abortControllers.set(assistantNode.id, transcriptionController);
-
+    // 预处理等待沿用同一控制器：消息先上屏，压缩和转写完成后才发起模型请求。
+    if (!options?.skipGeneration) {
+      const preparationController = new AbortController();
+      const { signal } = preparationController;
+      abortControllers.set(assistantNode.id, preparationController);
+      assistantNode.status = "waiting";
       try {
-        logger.info(`⏳ 开始等待附件转写...`, {
-          nodeId: assistantNode.id,
-        });
-
-        await Promise.race([
-          transcriptionManager.ensureTranscriptions(
-            options.attachments,
-            agentConfig.modelId,
-            agentConfig.profileId
-            // 当前消息的附件深度为0，不需要强制转写，传 undefined 即可
-          ),
-          new Promise((_, reject) => {
-            transcriptionController.signal.addEventListener("abort", () => {
-              reject(new Error("User aborted"));
-            });
-          }),
-        ]);
-
-        logger.info(`✅ 转写等待结束，继续发送流程`);
-      } catch (error: any) {
-        if (error.message === "User aborted") {
-          logger.info("🛑 用户取消了转写等待，保留用户消息，不发送请求");
-          abortControllers.delete(assistantNode.id);
-          generatingNodes.delete(assistantNode.id);
-          // 用户取消的是「等待转写」，而非「发送消息」
-          // 用户消息应当保留（用户已经明确发送了这条消息）
-          // 只需要清理助手节点，让用户之后可以选择重新生成
-          nodeManager.hardDeleteNode(session, assistantNode.id);
-          // 更新活跃叶节点为用户消息
-          nodeManager.updateActiveLeaf(session, userNode.id);
-          if (sessionIndex) {
-            sessionManager.persistSession(
-              sessionIndex,
-              session,
-              currentSessionId ?? null
+        // 压缩范围截至发送前的父节点，新问题与助手占位继续保留。
+        await awaitWithSignal(
+          checkAndCompress(sessionIndex, session, undefined, parentId),
+          signal
+        );
+        signal.throwIfAborted();
+        if (
+          options?.attachments?.length &&
+          settings.value.transcription.enabled
+        ) {
+          try {
+            await awaitWithSignal(
+              useTranscriptionManager().ensureTranscriptions(
+                options.attachments,
+                agentConfig.modelId,
+                agentConfig.profileId
+              ),
+              signal
             );
+          } catch (error) {
+            signal.throwIfAborted();
+            logger.warn("转写等待失败，将使用原始附件发送", error);
           }
+        }
+        pathWithNewMessage = nodeManager.getNodePath(session, userNode.id);
+      } catch (error) {
+        if (signal.aborted) {
+          if (chatStore.sessionDetailMap.get(session.id) !== session) return;
+          generatingNodes.delete(assistantNode.id);
+          // 后续排队消息可能已经挂在助手节点下，保留其子树。
+          if (assistantNode.childrenIds.length === 0) {
+            nodeManager.hardDeleteNode(session, assistantNode.id);
+          } else {
+            assistantNode.status = "error";
+            assistantNode.metadata = {
+              ...assistantNode.metadata,
+              error: "用户手动停止",
+            };
+          }
+          sessionManager.persistSession(
+            sessionIndex,
+            session,
+            currentSessionId ?? null
+          );
           return;
         }
-        // 其他错误（如超时）记录日志但继续，以降级模式（无转写文本）发送
-        logger.warn("⚠️ 转写等待期间出错，将使用原始附件发送", error);
+        logger.warn("上下文压缩等待失败，使用原始上下文继续", error);
       } finally {
         abortControllers.delete(assistantNode.id);
       }
@@ -505,7 +526,8 @@ export function useChatHandler() {
       session,
       content,
       agentConfig.modelId,
-      options?.attachments
+      options?.attachments,
+      agentConfig.parameters?.imageCompression
     );
 
     // 前置处理完成，进入真正的请求执行阶段。
@@ -580,12 +602,13 @@ export function useChatHandler() {
       generatingNodes,
       agentConfig,
       agentId: effectiveAgentId,
+      delegationDepth: options?.delegationDepth,
     });
   };
 
   /**
    * 从指定节点重新生成
-   * 支持从用户消息或助手消息重新生成
+   * 支持从用户、工具消息生成回复，或重试助手消息
    */
   const regenerateFromNode = async (
     session: ChatSessionDetail,
@@ -651,7 +674,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
 
         logger.info("使用指定的模型进行重试（参数已过滤）", {
@@ -674,7 +698,7 @@ export function useChatHandler() {
       return;
     }
 
-    const { assistantNode, userNode } = result;
+    const { assistantNode, userNode: parentNode } = result;
 
     // 立即加入生成集合
     generatingNodes.add(assistantNode.id);
@@ -682,8 +706,8 @@ export function useChatHandler() {
     // 更新活跃叶节点
     nodeManager.updateActiveLeaf(session, assistantNode.id);
 
-    // 重新生成所需的历史记录，应该是到当前用户消息为止的完整路径（包含用户消息）
-    const pathToUserNode = nodeManager.getNodePath(session, userNode.id);
+    // 上下文保留到实际父节点，包含已完成的工具调用与响应。
+    const pathToParentNode = nodeManager.getNodePath(session, parentNode.id);
 
     // 获取模型信息用于元数据（提前设置，确保即时显示）
     const { getProfileById } = useLlmProfiles();
@@ -714,7 +738,7 @@ export function useChatHandler() {
       sessionId: session.id,
       targetNodeId: nodeId,
       targetRole: targetNode.role,
-      userNodeId: userNode.id,
+      parentNodeId: parentNode.id,
       newNodeId: assistantNode.id,
       agentId: effectiveAgentId,
       profileId: agentConfig.profileId,
@@ -731,9 +755,9 @@ export function useChatHandler() {
     // 执行 LLM 请求
     await executeRequest({
       session,
-      userNode,
+      userNode: parentNode,
       assistantNode,
-      pathToUserNode,
+      pathToUserNode: pathToParentNode,
       abortControllers,
       generatingNodes,
       agentConfig, // 传递包含正确模型信息的 agentConfig
@@ -859,7 +883,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
 
         logger.info("续写使用指定的模型（参数已过滤）", {
@@ -1027,6 +1052,7 @@ export function useChatHandler() {
       historicalAgentId,
       parameterOverrides,
       {
+        purpose: options?.purpose,
         pendingInput: processedPendingInput,
       }
     );
@@ -1116,7 +1142,8 @@ export function useChatHandler() {
           supportedParameters,
           targetModel.capabilities,
           agentConfig.modelId,
-          targetModel.provider ?? targetProfile.type
+          targetModel.provider ?? targetProfile.type,
+          targetModel
         );
 
         logger.info("重新解析使用临时指定的模型", {

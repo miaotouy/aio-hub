@@ -14,7 +14,7 @@
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import DirectoryJanitorIcon from "@/components/icons/DirectoryJanitorIcon.vue";
+import { DirectoryJanitorIcon } from "@aiohub/tool-icons";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { normalizeAgentBooleanFields } from "@/utils/agentArgs";

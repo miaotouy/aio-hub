@@ -41,13 +41,14 @@ import {
 } from "@/utils/customMessage";
 import type { CustomMessageType, FloatingMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import { getTopMessageZIndex } from "@/composables/useDialogZIndex";
 
 const logger = createModuleLogger("components/common/TopMessageHost");
 const TIMER_INTERVAL = 16;
 
 const copiedMessageId = ref<string | null>(null);
 const copyFailedMessageId = ref<string | null>(null);
-const timers = new Map<string, number>();
+const timers = new Map<string, { handle: number; version: number }>();
 let copiedStateTimer: number | undefined;
 
 const MessageBody = defineComponent({
@@ -79,11 +80,76 @@ const MessageBody = defineComponent({
   },
 });
 
+const currentHostZIndex = ref(getTopMessageZIndex());
+let observer: MutationObserver | null = null;
+let rafId: number | null = null;
+
+function updateHostZIndex() {
+  const customZIndex = Math.max(
+    0,
+    ...floatingMessages.map((item) => item.zIndex ?? 0)
+  );
+  currentHostZIndex.value = getTopMessageZIndex(customZIndex);
+}
+
+function scheduleUpdateHostZIndex() {
+  if (rafId !== null) return;
+  if (typeof window !== "undefined" && window.requestAnimationFrame) {
+    rafId = window.requestAnimationFrame(() => {
+      rafId = null;
+      updateHostZIndex();
+    });
+  } else {
+    updateHostZIndex();
+  }
+}
+
+function startObserver() {
+  if (
+    observer ||
+    typeof MutationObserver === "undefined" ||
+    typeof document === "undefined"
+  ) {
+    return;
+  }
+  observer = new MutationObserver((records) => {
+    // Countdown and copy feedback only change the host itself, which is excluded from overlay discovery.
+    if (
+      records.some((record) => {
+        const target =
+          record.target instanceof Element
+            ? record.target
+            : record.target.parentElement;
+        return !target?.closest(".top-message-host");
+      })
+    )
+      scheduleUpdateHostZIndex();
+  });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style", "class"],
+  });
+}
+
+function stopObserver() {
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+  if (rafId !== null && typeof window !== "undefined") {
+    window.cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
 const containerStyle = computed(() => ({
   top: `${Math.max(
     DEFAULT_MESSAGE_OFFSET,
     floatingMessages[0]?.offset ?? DEFAULT_MESSAGE_OFFSET
   )}px`,
+  zIndex: currentHostZIndex.value,
 }));
 
 function getTypeIcon(type: CustomMessageType) {
@@ -116,7 +182,7 @@ function canCopy(message: FloatingMessage) {
 function clearTimer(id: string) {
   const timer = timers.get(id);
   if (timer !== undefined) {
-    window.clearTimeout(timer);
+    window.clearTimeout(timer.handle);
     timers.delete(id);
   }
 }
@@ -150,7 +216,6 @@ function startTimer(message: FloatingMessage) {
   const version = message.timerVersion;
 
   const tick = () => {
-    timers.delete(message.id);
     if (
       !isMessageActive(message) ||
       message.paused ||
@@ -159,22 +224,32 @@ function startTimer(message: FloatingMessage) {
       return;
     }
 
+    timers.delete(message.id);
     updateRemaining(message);
     if (message.remainingMs <= 0) {
       closeFloatingMessage(message.id);
       return;
     }
 
-    timers.set(message.id, window.setTimeout(tick, TIMER_INTERVAL));
+    timers.set(message.id, {
+      handle: window.setTimeout(tick, TIMER_INTERVAL),
+      version,
+    });
   };
 
-  timers.set(message.id, window.setTimeout(tick, TIMER_INTERVAL));
+  timers.set(message.id, {
+    handle: window.setTimeout(tick, TIMER_INTERVAL),
+    version,
+  });
 }
 
 function synchronizeTimers() {
-  const activeIds = new Set(floatingMessages.map((message) => message.id));
-  for (const id of timers.keys()) {
-    if (!activeIds.has(id)) clearTimer(id);
+  const activeMessages = new Map(
+    floatingMessages.map((message) => [message.id, message])
+  );
+  for (const [id, timer] of timers) {
+    const message = activeMessages.get(id);
+    if (!message || message.timerVersion !== timer.version) clearTimer(id);
   }
 
   floatingMessages.forEach((message) => {
@@ -261,99 +336,135 @@ function getMessageClass(message: FloatingMessage) {
     message.customClass,
   ];
 }
+// Timer progress is rendered reactively; only lifecycle inputs need timer synchronization.
+watch(
+  () =>
+    floatingMessages.map((message) => [
+      message.id,
+      message.duration,
+      message.paused,
+      message.timerVersion,
+    ]),
+  synchronizeTimers,
+  { flush: "post" }
+);
+watch(
+  () => floatingMessages.map((message) => [message.id, message.zIndex]),
+  () => {
+    if (floatingMessages.length > 0) {
+      updateHostZIndex();
+      startObserver();
+    } else {
+      stopObserver();
+    }
+  },
+  { flush: "post" }
+);
 
-watch(floatingMessages, synchronizeTimers, { deep: true, flush: "post" });
+onMounted(() => {
+  synchronizeTimers();
+  updateHostZIndex();
+  if (floatingMessages.length > 0) {
+    startObserver();
+  }
+});
 
-onMounted(synchronizeTimers);
 onBeforeUnmount(() => {
-  timers.forEach((timer) => window.clearTimeout(timer));
+  timers.forEach((timer) => window.clearTimeout(timer.handle));
   timers.clear();
+  stopObserver();
   if (copiedStateTimer !== undefined) window.clearTimeout(copiedStateTimer);
 });
 </script>
 
 <template>
-  <div class="top-message-host" :style="containerStyle">
-    <TransitionGroup
-      name="top-message-transition"
-      tag="div"
-      class="top-message-list"
-    >
-      <div
-        v-for="message in floatingMessages"
-        :key="message.id"
-        class="top-message"
-        :class="getMessageClass(message)"
-        :role="canCopy(message) ? 'button' : 'alert'"
-        :tabindex="canCopy(message) ? 0 : -1"
-        :aria-label="canCopy(message) ? '点击复制消息内容' : '通知'"
-        @mouseenter="pauseTimer(message)"
-        @mouseleave="resumeTimer(message)"
-        @click="copyMessage(message)"
-        @keydown.enter.prevent="copyMessage(message)"
-        @keydown.space.prevent="copyMessage(message)"
+  <!-- 与全局弹窗共享 body 层级，避免受应用根节点的层叠上下文限制。 -->
+  <Teleport to="body">
+    <div class="top-message-host" :style="containerStyle">
+      <TransitionGroup
+        name="top-message-transition"
+        tag="div"
+        class="top-message-list"
       >
-        <div class="top-message__main">
-          <div class="top-message__icon" aria-hidden="true">
-            <component
-              :is="message.icon || getTypeIcon(message.type)"
-              :size="18"
+        <div
+          v-for="message in floatingMessages"
+          :key="message.id"
+          class="top-message"
+          :class="getMessageClass(message)"
+          :role="canCopy(message) ? 'button' : 'alert'"
+          :tabindex="canCopy(message) ? 0 : -1"
+          :aria-label="canCopy(message) ? '点击复制消息内容' : '通知'"
+          @mouseenter="pauseTimer(message)"
+          @mouseleave="resumeTimer(message)"
+          @click="copyMessage(message)"
+          @keydown.enter.prevent="copyMessage(message)"
+          @keydown.space.prevent="copyMessage(message)"
+        >
+          <div class="top-message__main">
+            <div class="top-message__icon" aria-hidden="true">
+              <component
+                :is="message.icon || getTypeIcon(message.type)"
+                :size="18"
+              />
+            </div>
+            <MessageBody :message="message" />
+            <span
+              v-if="message.repeatNum > 1"
+              class="top-message__repeat-count"
+            >
+              {{ message.repeatNum }}
+            </span>
+            <button
+              v-if="canCopy(message)"
+              class="top-message__copy"
+              type="button"
+              :aria-label="
+                copiedMessageId === message.id
+                  ? '消息内容已复制'
+                  : copyFailedMessageId === message.id
+                    ? '复制消息内容失败'
+                    : '复制消息内容'
+              "
+              :title="
+                copiedMessageId === message.id
+                  ? '已复制'
+                  : copyFailedMessageId === message.id
+                    ? '复制失败'
+                    : '点击复制'
+              "
+              @click.stop="copyMessage(message)"
+            >
+              <Check v-if="copiedMessageId === message.id" :size="16" />
+              <X v-else-if="copyFailedMessageId === message.id" :size="16" />
+              <Copy v-else :size="16" />
+            </button>
+            <button
+              v-if="message.showClose"
+              class="top-message__close"
+              type="button"
+              aria-label="关闭消息"
+              title="关闭"
+              @click.stop="closeFloatingMessage(message.id)"
+            >
+              <X :size="16" />
+            </button>
+          </div>
+
+          <div
+            v-if="message.duration > 0"
+            class="top-message__progress"
+            :class="{ 'is-paused': message.paused }"
+            aria-hidden="true"
+          >
+            <span
+              class="top-message__progress-fill"
+              :style="{ transform: `scaleX(${message.progress})` }"
             />
           </div>
-          <MessageBody :message="message" />
-          <span v-if="message.repeatNum > 1" class="top-message__repeat-count">
-            {{ message.repeatNum }}
-          </span>
-          <button
-            v-if="canCopy(message)"
-            class="top-message__copy"
-            type="button"
-            :aria-label="
-              copiedMessageId === message.id
-                ? '消息内容已复制'
-                : copyFailedMessageId === message.id
-                  ? '复制消息内容失败'
-                  : '复制消息内容'
-            "
-            :title="
-              copiedMessageId === message.id
-                ? '已复制'
-                : copyFailedMessageId === message.id
-                  ? '复制失败'
-                  : '点击复制'
-            "
-            @click.stop="copyMessage(message)"
-          >
-            <Check v-if="copiedMessageId === message.id" :size="16" />
-            <X v-else-if="copyFailedMessageId === message.id" :size="16" />
-            <Copy v-else :size="16" />
-          </button>
-          <button
-            v-if="message.showClose"
-            class="top-message__close"
-            type="button"
-            aria-label="关闭消息"
-            title="关闭"
-            @click.stop="closeFloatingMessage(message.id)"
-          >
-            <X :size="16" />
-          </button>
         </div>
-
-        <div
-          v-if="message.duration > 0"
-          class="top-message__progress"
-          :class="{ 'is-paused': message.paused }"
-          aria-hidden="true"
-        >
-          <span
-            class="top-message__progress-fill"
-            :style="{ transform: `scaleX(${message.progress})` }"
-          />
-        </div>
-      </div>
-    </TransitionGroup>
-  </div>
+      </TransitionGroup>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

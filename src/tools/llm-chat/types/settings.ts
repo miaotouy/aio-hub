@@ -65,8 +65,9 @@ export interface BubbleLayoutConfig {
    * 布局模式
    * - card  : 卡片模式（默认，全宽左对齐，保持现有行为）
    * - bubble: 气泡模式（IM 风格，按角色对齐并限制宽度）
+   * - compact: 连续紧凑（共享身份头、组尾统计、提问导航）
    */
-  mode: "card" | "bubble";
+  mode: "card" | "bubble" | "compact";
   /** 用户消息对齐方向 (仅 bubble 模式) */
   userAlign: "left" | "right";
   /** 助手消息对齐方向 (仅 bubble 模式) */
@@ -117,8 +118,14 @@ export interface BubbleLayoutConfig {
 export interface ChatSettings {
   /** UI 偏好设置 */
   uiPreferences: {
+    /** 输入区操作位置、顺序与快捷操作展示 */
+    inputToolbar: import("./input-toolbar").InputToolbarLayout;
+    /** 消息悬停工具栏的常驻操作与展开状态 */
+    messageToolbar: import("./message-toolbar").MessageToolbarLayout;
     /** 是否启用流式输出 */
     isStreaming: boolean;
+    /** 是否将 VCP 上游流式回复按模型生成与工具结果拆分为消息节点 */
+    splitVcpResponses: boolean;
     /** 是否显示消息时间戳 */
     showTimestamp: boolean;
     /** 是否显示 Token 统计 */
@@ -183,6 +190,8 @@ export interface ChatSettings {
     throttleEnabled: boolean;
     /** 是否启用节点进入动画 */
     enableEnterAnimation: boolean;
+    /** 流式文字装饰特效 */
+    streamEffect: import("@/tools/rich-text-renderer/utils/streamStardust").StreamEffect;
     /** 分离模式下是否显示壁纸 */
     showWallpaperInDetachedMode: boolean;
     /** 是否允许组件分离（显示分离手柄） */
@@ -292,14 +301,20 @@ export interface ChatSettings {
     thinkingTokenReserve: number;
     /** 是否在话题命名时关闭模型思考 */
     disableThinking: boolean;
-    /** 自动触发的消息数量阈值 */
+    /** 自动触发的完整用户-AI 对话轮数阈值（跳过开场预设） */
     autoTriggerThreshold: number;
     /** 命名时携带的上下文消息数量 */
     contextMessageCount: number;
   };
   /** 请求设置 */
   requestSettings: {
-    /** 为无有效文本的纯图片用户消息补充占位文本，仅影响请求 */
+    /** 发送长图时沿空白横带切分，切片逐张应用图片压缩。 */
+    longImageSlicing: {
+      enabled: boolean;
+      aspectRatioThreshold: number;
+      minCutHeight: number;
+    };
+    /** 为无有效文本的媒体附件用户消息补充占位文本，仅影响请求；沿用原图片配置键 */
     imageOnlyMessagePlaceholder: boolean;
     /** 请求超时时间（毫秒） */
     timeout: number;
@@ -309,6 +324,8 @@ export interface ChatSettings {
     retryInterval: number;
     /** 重试模式：固定间隔或指数退避 */
     retryMode: "fixed" | "exponential";
+    /** 自动重试状态码号段白名单（逗号分隔的区间或单值，2xx/504/524 始终排除） */
+    retryStatusCodes: string;
     /** 是否启用生成中的增量保存（防止崩溃/刷新丢失） */
     enableIncrementalSave: boolean;
     /** 增量保存间隔（毫秒） */

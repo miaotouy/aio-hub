@@ -20,6 +20,8 @@ export type ProbeEndpointType =
   | "gemini-generate-content"
   | "embeddings"
   | "jina-rerank"
+  | "typesafe-system-one"
+  | "openrouter-decisions"
   | "image-generation";
 
 export interface ChannelProbeResult extends CoreChannelProbeResult {

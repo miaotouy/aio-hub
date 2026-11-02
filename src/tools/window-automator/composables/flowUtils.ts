@@ -19,7 +19,7 @@
  * 方便 step 执行器、截图取点等模块复用。
  */
 
-import type { Coordinate, StepParams } from "../types";
+import type { StepParams } from "../types";
 
 // ===================== 坐标 / 区域 =====================
 
@@ -30,32 +30,17 @@ export interface ClientSize {
 }
 
 /**
- * 把任意坐标按当前客户区尺寸转换为像素坐标。
- * 像素模式直通；百分比模式需要 getClientSize 提供窗口尺寸。
+ * 把区域按客户区尺寸从百分比换算为像素（同步版本）。
+ * 矩形区域仅支持左上角系（pixel/percent），不支持 center。
+ * 单点坐标（含 center 模式）统一走 coordinateTransforms.resolveCoordinate。
  */
-export async function resolveCoordinate(
-  x: number,
-  y: number,
-  mode: Coordinate["mode"],
-  getClientSize: () => Promise<ClientSize | null>
-): Promise<{ x: number; y: number }> {
-  if (mode === "pixel") return { x, y };
-  const size = await getClientSize();
-  if (!size) return { x: 0, y: 0 };
-  return {
-    x: Math.round((x / 100) * size.width),
-    y: Math.round((y / 100) * size.height),
-  };
-}
-
-/** 把区域按客户区尺寸从百分比换算为像素（同步版本） */
 export function resolveRect(
   rect: {
     x: number;
     y: number;
     width: number;
     height: number;
-    mode: Coordinate["mode"];
+    mode: "pixel" | "percent";
   },
   size: ClientSize | null
 ): { x: number; y: number; width: number; height: number } {

@@ -18,8 +18,6 @@
 import { inject, computed, ref, defineAsyncComponent, markRaw, h } from "vue";
 import AgentPresetEditor from "../../assets/AgentPresetEditor.vue";
 import AgentGreetingEditor from "../../assets/AgentGreetingEditor.vue";
-import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { parseModelCombo } from "@/utils/modelIdUtils";
 import WorldbookSelector from "@/tools/st-worldbook-manager/components/WorldbookSelector.vue";
 import QuickActionSelector from "@/tools/llm-chat/components/quick-action/QuickActionSelector.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
@@ -70,38 +68,11 @@ const handleAction = (actionName: string) => {
   }
 };
 
-const handleModelComboChange = (value: string) => {
-  if (value) {
-    const [profileId, modelId] = parseModelCombo(value);
-    editForm.profileId = profileId;
-    editForm.modelId = modelId;
-    editForm.modelCombo = value;
-  }
-};
-
 const handleSettingsUpdate = (newSettings: any) => {
-  const oldModelCombo = editForm.modelCombo;
   Object.assign(editForm, newSettings);
-  // modelCombo 变化时同步解析 profileId 和 modelId
-  if (newSettings.modelCombo && newSettings.modelCombo !== oldModelCombo) {
-    handleModelComboChange(newSettings.modelCombo);
-  }
 };
 
 const personalitySettings = computed<SettingItem[]>(() => [
-  {
-    id: "model",
-    label: "模型",
-    component: markRaw(LlmModelSelector),
-    modelPath: "modelCombo",
-    hint: "智能体使用的核心对话模型",
-    keywords: "model 模型",
-    props: {
-      capabilities: { embedding: false, rerank: false },
-      testId: "agent-model-selector",
-      popperClass: "agent-model-selector-popper",
-    },
-  },
   {
     id: "userProfile",
     label: "关联用户档案",

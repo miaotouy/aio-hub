@@ -1,3 +1,4 @@
+import { materializePresetMessage } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -108,7 +109,7 @@ export function getActivePathWithPresets(
   );
 
   const markedPresets = displayPresets.map((msg: ChatMessageNode) => ({
-    ...msg,
+    ...materializePresetMessage(msg),
     metadata: {
       ...msg.metadata,
       isPresetDisplay: true,

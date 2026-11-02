@@ -367,18 +367,20 @@ pub async fn create_danmaku_overlay_window(
         rect.y,
         rect.scale_factor
     );
-    let window = WebviewWindowBuilder::new(&app, OVERLAY_WINDOW_LABEL, url)
-        .title("Danmaku Overlay")
-        .inner_size(logical_width, logical_height)
-        .position(logical_x, logical_y)
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .skip_taskbar(true)
-        .always_on_top(false) // 初始不强制置顶，由同步逻辑动态控制
-        .visible(false)
-        .build()
-        .map_err(|e| e.to_string())?;
+    let window = crate::commands::dev_control::configure_webview(
+        WebviewWindowBuilder::new(&app, OVERLAY_WINDOW_LABEL, url)
+            .title("Danmaku Overlay")
+            .inner_size(logical_width, logical_height)
+            .position(logical_x, logical_y)
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .skip_taskbar(true)
+            .always_on_top(false) // 初始不强制置顶，由同步逻辑动态控制
+            .visible(false),
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
 
     window
         .set_ignore_cursor_events(true)

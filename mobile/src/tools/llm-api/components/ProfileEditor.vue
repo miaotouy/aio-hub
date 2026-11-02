@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { detachModifiedMetadataPaths } from "@aiohub/model-metadata-core";
-import { mergeDiscoveredModelRouting } from "@aiohub/llm-core";
+import {
+  mergeDiscoveredModelRouting,
+  isAggregateChannelType,
+  listAdaptersForOperation,
+  type LlmAdapterId,
+  type LlmOperation,
+} from "@aiohub/llm-core";
+import {
+  AGGREGATE_ROUTING_OPERATIONS,
+  OPERATION_LABELS,
+  getAdapterLabel,
+} from "@shared/config/llm-routing";
 import { ref, computed, watch } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { useI18n } from "@/i18n";
@@ -34,6 +45,7 @@ import type { LlmProfile, LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 
 // 导入子组件
+import VirtualChannelEditor from "./VirtualChannelEditor.vue";
 import CustomHeadersEditor from "./CustomHeadersEditor.vue";
 import CustomEndpointsEditor from "./CustomEndpointsEditor.vue";
 import IconSelector from "./IconSelector.vue";
@@ -76,6 +88,28 @@ const probeResults = ref<Record<string, ChannelProbeResult>>({});
 const probeStale = ref(false);
 
 const innerProfile = ref<LlmProfile | null>(null);
+const isAggregateProfile = computed(
+  () => innerProfile.value && isAggregateChannelType(innerProfile.value.type)
+);
+const routingDefaultsFields = AGGREGATE_ROUTING_OPERATIONS.map((operation) => ({
+  operation,
+  label: `默认${OPERATION_LABELS[operation]}协议`,
+  options: listAdaptersForOperation(operation).map((adapterId) => ({
+    value: adapterId,
+    label: getAdapterLabel(adapterId),
+  })),
+}));
+function setRoutingDefault(operation: LlmOperation, event: Event) {
+  if (!innerProfile.value) return;
+  const value = (event.target as HTMLSelectElement).value;
+  const routingDefaults = { ...innerProfile.value.options?.routingDefaults };
+  if (value) routingDefaults[operation] = value as LlmAdapterId;
+  else delete routingDefaults[operation];
+  innerProfile.value.options = {
+    ...innerProfile.value.options,
+    routingDefaults,
+  };
+}
 
 function mergeFetchedRouteDeclarations(
   existingModels: LlmModelInfo[],
@@ -437,8 +471,19 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <label class="native-input-label">{{
               t("tools.llm-api.ProfileEditor.提供商类型")
             }}</label>
-            <select v-model="profileType" class="native-select">
-              <option v-for="t in providerTypes" :key="t.type" :value="t.type">
+            <select
+              v-model="profileType"
+              :disabled="innerProfile.type === 'virtual'"
+              class="native-select"
+            >
+              <option
+                v-for="t in providerTypes.filter(
+                  (p) =>
+                    p.type !== 'virtual' || innerProfile?.type === 'virtual'
+                )"
+                :key="t.type"
+                :value="t.type"
+              >
                 {{ t.name }}
               </option>
             </select>
@@ -469,79 +514,74 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
           </div>
         </div>
 
-        <!-- 连接配置 -->
-        <div class="section-header">
-          {{ t("tools.llm-api.ProfileEditor.连接配置") }}
-        </div>
-        <div class="config-card">
-          <div class="native-input-group form-item">
-            <label class="native-input-label"
-              ><Globe :size="16" class="label-icon" />
-              {{ t("tools.llm-api.ProfileEditor.API 基础地址") }}
-            </label>
-
-            <div v-if="apiEndpointPreview" class="url-preview in-group">
-              <div class="preview-text">
-                {{ t("common.预览") }}: {{ apiEndpointPreview }}
-              </div>
-              <div class="preview-hint">{{ endpointHint }}</div>
-            </div>
-
-            <input
-              v-model="profileBaseUrl"
-              data-testid="llm-profile-base-url"
-              type="url"
-              class="native-input mono"
-              :placeholder="t('tools.llm-api.ProfileEditor.请输入基础 URL')"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="none"
-              spellcheck="false"
-              @focus="scrollIntoViewOnFocus"
-            />
-          </div>
-
-          <div class="native-input-group form-item">
-            <div class="label-row">
-              <label class="native-input-label">
-                <Key :size="16" class="label-icon" />
-                {{ t("tools.llm-api.ProfileEditor.API Key") }}
-              </label>
-              <var-button
-                v-if="innerProfile && innerProfile.apiKeys.length > 0"
-                type="primary"
-                size="mini"
-                text
-                class="manage-keys-btn"
-                @click="showKeyManagerPopup = true"
+        <details
+          v-if="isAggregateProfile"
+          class="config-card aggregate-routing"
+        >
+          <summary>默认协议（高级回退）</summary>
+          <p class="routing-hint">
+            模型绑定和发现声明优先，留空跟随平台默认或内置模型路由。
+          </p>
+          <div
+            v-for="field in routingDefaultsFields"
+            :key="field.operation"
+            class="native-input-group form-item"
+          >
+            <label
+              :for="`routing-default-${field.operation}`"
+              class="native-input-label"
+              >{{ field.label }}</label
+            >
+            <select
+              :id="`routing-default-${field.operation}`"
+              class="native-select"
+              :value="
+                innerProfile?.options?.routingDefaults?.[field.operation] || ''
+              "
+              @change="setRoutingDefault(field.operation, $event)"
+            >
+              <option value="">跟随平台默认</option>
+              <option
+                v-for="option in field.options"
+                :key="option.value"
+                :value="option.value"
               >
-                <ShieldCheck :size="14" class="mr-1" />
-                {{ t("tools.llm-api.ProfileEditor.状态管理") }}
-              </var-button>
-            </div>
-            <div class="native-input-group form-item">
-              <label class="native-input-label">
-                <ShieldCheck :size="16" class="label-icon" />
-                {{ t("tools.llm-api.ProfileEditor.代理行为") }}
-              </label>
-              <div class="checkbox-row">
-                <var-checkbox v-model="innerProfile.relaxIdCerts">
-                  {{ t("tools.llm-api.ProfileEditor.放宽证书校验") }}
-                </var-checkbox>
-                <var-checkbox v-model="innerProfile.http1Only">
-                  {{ t("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
-                </var-checkbox>
-              </div>
-            </div>
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
+        </details>
 
-            <div class="native-input-with-action">
+        <VirtualChannelEditor
+          v-if="innerProfile.type === 'virtual'"
+          v-model:profile="innerProfile"
+        />
+        <template v-else>
+          <!-- 连接配置 -->
+          <div class="section-header">
+            {{ t("tools.llm-api.ProfileEditor.连接配置") }}
+          </div>
+          <div class="config-card">
+            <div class="native-input-group form-item">
+              <label class="native-input-label"
+                ><Globe :size="16" class="label-icon" />
+                {{ t("tools.llm-api.ProfileEditor.API 基础地址") }}
+              </label>
+
+              <div v-if="apiEndpointPreview" class="url-preview in-group">
+                <div class="preview-text">
+                  {{ t("common.预览") }}: {{ apiEndpointPreview }}
+                </div>
+                <div class="preview-hint">{{ endpointHint }}</div>
+              </div>
+
               <input
-                v-model="apiKeyString"
-                data-testid="llm-profile-api-key"
-                :type="showApiKey ? 'text' : 'password'"
+                v-model="profileBaseUrl"
+                data-testid="llm-profile-base-url"
+                type="url"
                 class="native-input mono"
                 :placeholder="
-                  t('tools.llm-api.ProfileEditor.API Key 占位符')
+                  t('tools.llm-api.ProfileEditor.请输入基础 URL')
                 "
                 autocomplete="off"
                 autocorrect="off"
@@ -549,85 +589,138 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 spellcheck="false"
                 @focus="scrollIntoViewOnFocus"
               />
-              <button
-                class="input-action-btn"
-                :aria-label="showApiKey ? '隐藏密钥' : '显示密钥'"
-                @click="showApiKey = !showApiKey"
+            </div>
+
+            <div class="native-input-group form-item">
+              <div class="label-row">
+                <label class="native-input-label">
+                  <Key :size="16" class="label-icon" />
+                  {{ t("tools.llm-api.ProfileEditor.API Key") }}
+                </label>
+                <var-button
+                  v-if="innerProfile && innerProfile.apiKeys.length > 0"
+                  type="primary"
+                  size="mini"
+                  text
+                  class="manage-keys-btn"
+                  @click="showKeyManagerPopup = true"
+                >
+                  <ShieldCheck :size="14" class="mr-1" />
+                  {{ t("tools.llm-api.ProfileEditor.状态管理") }}
+                </var-button>
+              </div>
+              <div class="native-input-group form-item">
+                <label class="native-input-label">
+                  <ShieldCheck :size="16" class="label-icon" />
+                  {{ t("tools.llm-api.ProfileEditor.代理行为") }}
+                </label>
+                <div class="checkbox-row">
+                  <var-checkbox v-model="innerProfile.relaxIdCerts">
+                    {{ t("tools.llm-api.ProfileEditor.放宽证书校验") }}
+                  </var-checkbox>
+                  <var-checkbox v-model="innerProfile.http1Only">
+                    {{ t("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
+                  </var-checkbox>
+                </div>
+              </div>
+
+              <div class="native-input-with-action">
+                <input
+                  v-model="apiKeyString"
+                  data-testid="llm-profile-api-key"
+                  :type="showApiKey ? 'text' : 'password'"
+                  class="native-input mono"
+                  :placeholder="
+                    t('tools.llm-api.ProfileEditor.API Key 占位符')
+                  "
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="none"
+                  spellcheck="false"
+                  @focus="scrollIntoViewOnFocus"
+                />
+                <button
+                  class="input-action-btn"
+                  :aria-label="showApiKey ? '隐藏密钥' : '显示密钥'"
+                  @click="showApiKey = !showApiKey"
+                >
+                  <Eye v-if="showApiKey" :size="18" />
+                  <EyeOff v-else :size="18" />
+                </button>
+              </div>
+            </div>
+
+            <div class="cell-group">
+              <var-cell
+                ripple
+                class="custom-cell"
+                data-testid="llm-profile-custom-headers"
+                :data-header-keys="
+                  Object.keys(innerProfile.customHeaders || {}).join(',')
+                "
+                @click="showHeadersPopup = true"
               >
-                <Eye v-if="showApiKey" :size="18" />
-                <EyeOff v-else :size="18" />
-              </button>
+                <template #icon
+                  ><Settings2 :size="18" class="field-icon"
+                /></template>
+                {{ t("tools.llm-api.ProfileEditor.自定义请求头") }}
+                <template #description>
+                  {{ t("tools.llm-api.ProfileEditor.已配置") }}
+                  {{
+                    t("common.N个", {
+                      count: Object.keys(innerProfile.customHeaders || {})
+                        .length,
+                    })
+                  }}
+                </template>
+                <template #extra><ChevronRight :size="18" /></template>
+              </var-cell>
+
+              <var-cell
+                ripple
+                class="custom-cell"
+                @click="showEndpointsPopup = true"
+              >
+                <template #icon
+                  ><ExternalLink :size="18" class="field-icon"
+                /></template>
+                {{ t("tools.llm-api.ProfileEditor.高级端点配置") }}
+                <template #description>
+                  {{
+                    t("tools.llm-api.ProfileEditor.针对不同功能的路径微调")
+                  }}
+                </template>
+                <template #extra><ChevronRight :size="18" /></template>
+              </var-cell>
             </div>
           </div>
 
-          <div class="cell-group">
-            <var-cell
-              ripple
-              class="custom-cell"
-              data-testid="llm-profile-custom-headers"
-              :data-header-keys="
-                Object.keys(innerProfile.customHeaders || {}).join(',')
-              "
-              @click="showHeadersPopup = true"
-            >
-              <template #icon
-                ><Settings2 :size="18" class="field-icon"
-              /></template>
-              {{ t("tools.llm-api.ProfileEditor.自定义请求头") }}
-              <template #description>
-                {{ t("tools.llm-api.ProfileEditor.已配置") }}
-                {{
-                  t("common.N个", {
-                    count: Object.keys(innerProfile.customHeaders || {}).length,
-                  })
-                }}
-              </template>
-              <template #extra><ChevronRight :size="18" /></template>
-            </var-cell>
-
-            <var-cell
-              ripple
-              class="custom-cell"
-              @click="showEndpointsPopup = true"
-            >
-              <template #icon
-                ><ExternalLink :size="18" class="field-icon"
-              /></template>
-              {{ t("tools.llm-api.ProfileEditor.高级端点配置") }}
-              <template #description>
-                {{ t("tools.llm-api.ProfileEditor.针对不同功能的路径微调") }}
-              </template>
-              <template #extra><ChevronRight :size="18" /></template>
-            </var-cell>
-          </div>
-        </div>
-
-        <!-- 模型管理 -->
-        <div class="model-management-section">
-          <ModelList
-            v-if="innerProfile"
-            :models="innerProfile.models"
-            :expand-state="innerProfile.modelGroupsExpandState || []"
-            :loading="isFetchingModels"
-            :probe-results="probeResults"
-            :probe-stale="probeStale"
-            @update:expand-state="
-              (state) => {
-                if (innerProfile) {
-                  innerProfile.modelGroupsExpandState = state;
+          <!-- 模型管理 -->
+          <div class="model-management-section">
+            <ModelList
+              v-if="innerProfile"
+              :models="innerProfile.models"
+              :expand-state="innerProfile.modelGroupsExpandState || []"
+              :loading="isFetchingModels"
+              :probe-results="probeResults"
+              :probe-stale="probeStale"
+              @update:expand-state="
+                (state) => {
+                  if (innerProfile) {
+                    innerProfile.modelGroupsExpandState = state;
+                  }
                 }
-              }
-            "
-            @add="handleAddSingleModel"
-            @edit="handleEditModel"
-            @delete="handleDeleteModel"
-            @delete-group="handleDeleteGroup"
-            @clear="handleClearModels"
-            @fetch="handleFetchModels"
-            @probe="handleOpenProbe"
-          />
-        </div>
-
+              "
+              @add="handleAddSingleModel"
+              @edit="handleEditModel"
+              @delete="handleDeleteModel"
+              @delete-group="handleDeleteGroup"
+              @clear="handleClearModels"
+              @fetch="handleFetchModels"
+              @probe="handleOpenProbe"
+            />
+          </div>
+        </template>
         <!-- 危险操作 -->
         <div class="danger-zone">
           <var-button block type="danger" outline @click="handleDelete">
@@ -691,6 +784,20 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 </template>
 
 <style scoped>
+.aggregate-routing summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+.routing-hint {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
 .editor-popup {
   display: flex;
   flex-direction: column;

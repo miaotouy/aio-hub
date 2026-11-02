@@ -4,6 +4,8 @@
 import {
   executeSyncMediaRequest,
   openAiImageAdapter,
+  openRouterImageAdapter,
+  isOpenRouterProfile,
   type JsonValue,
   type MediaInput,
   type ProviderProfile,
@@ -14,14 +16,20 @@ import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { buildOpenAiHeaders } from "./utils";
+import { callSiliconFlowImageApi } from "../siliconflow/image";
 
 export async function callOpenAiImageApi(
   profile: LlmProfile,
   options: MediaGenerationOptions
 ): Promise<LlmResponse> {
+  if (profile.channelType === "siliconflow") {
+    return callSiliconFlowImageApi(profile, options);
+  }
   const request = await toCoreImageRequest(options);
   const response = await executeSyncMediaRequest({
-    adapter: openAiImageAdapter,
+    adapter: isOpenRouterProfile(profile)
+      ? openRouterImageAdapter
+      : openAiImageAdapter,
     profile: toProviderProfile(profile, options.requestId),
     request,
     transport: desktopLlmTransport,
@@ -66,16 +74,21 @@ export async function toCoreImageRequest(
     guidanceScale: options.guidanceScale,
     inferenceSteps: options.numInferenceSteps,
     aspectRatio: options.aspectRatio,
-    extensions: toJsonExtensions({
-      user: ext.user,
-      background: ext.background,
-      inputFidelity: ext.inputFidelity,
-      partialImages: ext.partialImages,
-      outputCompression: ext.outputCompression,
-      moderation: ext.moderation,
-      aspect_ratio: ext.aspect_ratio,
-      resolution: ext.resolution,
-    }),
+    extensions: {
+      ...options.params,
+      ...options.extraBody,
+      ...toJsonExtensions({
+        user: ext.user,
+        background: ext.background,
+        inputFidelity: ext.inputFidelity,
+        partialImages: ext.partialImages,
+        outputCompression: ext.outputCompression,
+        moderation: ext.moderation,
+        aspect_ratio: ext.aspect_ratio,
+        resolution: ext.resolution,
+        output_format: ext.outputFormat,
+      }),
+    },
   };
 }
 
@@ -150,7 +163,11 @@ function toProviderProfile(
 ): ProviderProfile {
   return {
     provider: profile.type,
-    baseUrl: profile.baseUrl || "https://api.openai.com/v1",
+    baseUrl:
+      profile.baseUrl ||
+      (isOpenRouterProfile(profile)
+        ? "https://openrouter.ai/api/v1"
+        : "https://api.openai.com/v1"),
     apiKey: profile.apiKeys?.[0],
     headers: buildOpenAiHeaders(profile, requestId),
     endpoints: profile.customEndpoints as Record<string, string> | undefined,
@@ -163,7 +180,11 @@ function toDesktopImageResponse(response: SyncMediaResponse): LlmResponse {
       return { url: asset.url, revisedPrompt: asset.revisedPrompt };
     }
     if (asset.kind === "inline-base64") {
-      return { b64_json: asset.data, revisedPrompt: asset.revisedPrompt };
+      return {
+        b64_json: asset.data,
+        revisedPrompt: asset.revisedPrompt,
+        mimeType: asset.contentType,
+      };
     }
     return { url: asset.id, revisedPrompt: asset.revisedPrompt };
   });

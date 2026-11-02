@@ -23,6 +23,12 @@ import {
   isDocMime,
   isDocxMime,
 } from "@/utils/docxParser";
+import {
+  inferOpenDocumentTextMime,
+  isOpenDocumentTextMime,
+  openDocumentToHtml,
+} from "@/utils/openDocumentParser";
+import { isWpsAssetLike, isWpsDocxContainer, WPS_MIME } from "@/utils/wps";
 import { smartDecode } from "@/utils/encoding";
 import { mapMimeToLanguage } from "@/utils/mimeToLanguage";
 import { createModuleLogger } from "@/utils/logger";
@@ -53,6 +59,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
   const decodedContent = ref<string | null>(null);
   const mimeType = ref<string | null>(null);
   const language = ref<string | null>(null);
+  const isConvertedWordDocument = ref(false);
 
   const { getAssetBinary } = useAssetManager();
 
@@ -78,6 +85,11 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
 
   const isDocx = computed(() => isDocxMime(mimeType.value));
 
+  const isOpenDocument = computed(() => isOpenDocumentTextMime(mimeType.value));
+  const isRichDocument = computed(
+    () => isDocx.value || isOpenDocument.value || isConvertedWordDocument.value
+  );
+
   /**
    * 检查 HTML 内容是否可能是一个简单的、可渲染的 HTML 文件，
    * 而不是需要编译的 Vue 组件或其他模板。
@@ -99,59 +111,69 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
     return !nonRenderablePattern.test(decodedContent.value);
   });
 
+  let loadRevision = 0;
   async function loadDocument() {
+    const revision = ++loadRevision;
+    const source = { ...options };
     isLoading.value = true;
     error.value = null;
     rawContent.value = null;
     decodedContent.value = null;
     mimeType.value = null;
     language.value = null;
+    isConvertedWordDocument.value = false;
 
     try {
-      const hint = options.fileTypeHint || options.fileName;
+      const hint =
+        source.fileTypeHint ||
+        source.fileName ||
+        source.filePath?.split(/[\\/]/).pop();
       let buffer: Uint8Array | null = null;
 
-      if (typeof options.content === "string") {
+      if (typeof source.content === "string") {
         // 如果内容是字符串，直接使用，并编码以获取原始数据和MIME类型
         // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
-        decodedContent.value = options.content
+        decodedContent.value = source.content
           .replace(/\r\n/g, "\n")
           .replace(/\r/g, "\n");
-        buffer = new TextEncoder().encode(options.content);
+        buffer = new TextEncoder().encode(source.content);
         rawContent.value = buffer;
 
-        mimeType.value = await detectMimeTypeFromBuffer(buffer, hint);
+        const textMime = await detectMimeTypeFromBuffer(buffer, hint);
+        if (revision !== loadRevision) return;
+        mimeType.value = textMime;
         language.value = mapMimeToLanguage(mimeType.value) || "plaintext";
 
         if (buffer.length === 0) {
           error.value = null;
           return;
         }
-      } else if (options.content instanceof Uint8Array) {
+      } else if (source.content instanceof Uint8Array) {
         // 如果内容是二进制数组
-        buffer = options.content;
-      } else if (options.filePath) {
+        buffer = source.content;
+      } else if (source.filePath) {
         // 如果提供的是待导入附件的绝对路径，直接读取原始文件；
         // 已入库资产仍使用资产管理器的相对路径读取。
-        if (isAbsolutePath(options.filePath)) {
+        if (isAbsolutePath(source.filePath)) {
           const bytes = await invoke<number[]>("read_file_binary", {
-            path: options.filePath,
+            path: source.filePath,
           });
           buffer = new Uint8Array(bytes);
         } else {
-          const arrayBuffer = await getAssetBinary(options.filePath);
+          const arrayBuffer = await getAssetBinary(source.filePath);
           buffer = new Uint8Array(arrayBuffer);
         }
       }
 
       if (!buffer) {
         // 检查是否在字符串路径中已处理
-        if (typeof options.content !== "string") {
+        if (typeof source.content !== "string") {
           decodedContent.value = "";
         }
         return;
       }
 
+      if (revision !== loadRevision) return;
       rawContent.value = buffer;
 
       // 优雅地处理空文件
@@ -163,34 +185,83 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         return;
       }
 
+      if (
+        isWpsAssetLike({
+          name: source.fileName,
+          mimeType: source.fileTypeHint,
+        }) ||
+        isWpsAssetLike({ name: source.filePath })
+      ) {
+        mimeType.value = WPS_MIME;
+        let previewBuffer = buffer;
+        const directDocx = await isWpsDocxContainer(buffer);
+        if (revision !== loadRevision) return;
+        if (directDocx) {
+          mimeType.value = DOCX_MIME;
+        } else {
+          if (!source.filePath) {
+            throw new Error(
+              "WPS 二进制文档需要本机转换，请从本地文件导入，并在资产管理器的文档转换设置中配置转换程序。"
+            );
+          }
+          const convertedPath = await invoke<string | null>(
+            "convert_legacy_document",
+            { path: source.filePath }
+          );
+          if (!convertedPath) {
+            throw new Error(
+              "当前 WPS 格式暂时无法转换，请用 WPS 另存为 DOCX 后打开。"
+            );
+          }
+          const bytes = await invoke<number[]>("read_file_binary", {
+            path: convertedPath,
+          });
+          previewBuffer = new Uint8Array(bytes);
+        }
+        const html = await docxToHtml(previewBuffer);
+        if (revision !== loadRevision) return;
+        decodedContent.value = html;
+        isConvertedWordDocument.value = true;
+        language.value = "html";
+        return;
+      }
+
       let detectedMime: string;
       // 优先基于文件扩展名 / MIME 提示判断特殊文档，避免 OOXML 被嗅探成 zip。
-      if (
-        isDocxMime(options.fileTypeHint) ||
-        options.fileName?.toLowerCase().endsWith(".docx")
+      const openDocumentMime =
+        inferOpenDocumentTextMime(source.fileTypeHint) ||
+        inferOpenDocumentTextMime(source.fileName) ||
+        inferOpenDocumentTextMime(source.filePath);
+      if (openDocumentMime) {
+        detectedMime = openDocumentMime;
+      } else if (
+        isDocxMime(source.fileTypeHint) ||
+        source.fileName?.toLowerCase().endsWith(".docx")
       ) {
         detectedMime = DOCX_MIME;
-        logger.debug("Forced docx mode", { fileName: options.fileName });
+        logger.debug("Forced docx mode", { fileName: source.fileName });
       } else if (
-        isDocMime(options.fileTypeHint) ||
-        options.fileName?.toLowerCase().endsWith(".doc")
+        isDocMime(source.fileTypeHint) ||
+        source.fileName?.toLowerCase().endsWith(".doc")
       ) {
         detectedMime = DOC_MIME;
-        logger.debug("Forced doc mode", { fileName: options.fileName });
+        logger.debug("Forced doc mode", { fileName: source.fileName });
       } else if (
-        options.fileName?.toLowerCase().endsWith(".md") ||
-        options.fileName?.toLowerCase().endsWith(".markdown")
+        source.fileName?.toLowerCase().endsWith(".md") ||
+        source.fileName?.toLowerCase().endsWith(".markdown")
       ) {
         detectedMime = "text/markdown";
-        logger.debug("Forced markdown mode", { fileName: options.fileName });
+        logger.debug("Forced markdown mode", { fileName: source.fileName });
       } else {
         detectedMime = await detectMimeTypeFromBuffer(buffer, hint);
       }
+      if (revision !== loadRevision) return;
       mimeType.value = detectedMime;
 
-      const detectedLanguage = isDocxMime(detectedMime)
-        ? "html"
-        : mapMimeToLanguage(detectedMime) || "plaintext";
+      const detectedLanguage =
+        isDocxMime(detectedMime) || isOpenDocumentTextMime(detectedMime)
+          ? "html"
+          : mapMimeToLanguage(detectedMime) || "plaintext";
       language.value = detectedLanguage;
 
       logger.debug("Document details", {
@@ -200,9 +271,18 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
       });
 
       if (isDocxMime(detectedMime)) {
-        decodedContent.value = await docxToHtml(buffer);
+        const html = await docxToHtml(buffer);
+        if (revision !== loadRevision) return;
+        decodedContent.value = html;
         mimeType.value = DOCX_MIME;
         language.value = "html";
+        return;
+      }
+
+      if (isOpenDocumentTextMime(detectedMime)) {
+        const html = await openDocumentToHtml(buffer);
+        if (revision !== loadRevision) return;
+        decodedContent.value = html;
         return;
       }
 
@@ -218,6 +298,7 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
           .replace(/\r/g, "\n");
       }
     } catch (e: any) {
+      if (revision !== loadRevision) return;
       logger.debug("Error details", {
         type: typeof e,
         isError: e instanceof Error,
@@ -254,14 +335,20 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
         showToUser: false,
       });
     } finally {
-      isLoading.value = false;
+      if (revision === loadRevision) isLoading.value = false;
     }
   }
 
-  watch(() => [options.content, options.filePath], loadDocument, {
-    immediate: true,
-    deep: true,
-  });
+  watch(
+    () => [
+      options.content,
+      options.filePath,
+      options.fileName,
+      options.fileTypeHint,
+    ],
+    loadDocument,
+    { immediate: true, deep: true }
+  );
 
   return {
     isLoading,
@@ -275,6 +362,8 @@ export function useDocumentViewer(options: UseDocumentViewerOptions) {
     isHtml,
     isPdf,
     isDocx,
+    isOpenDocument,
+    isRichDocument,
     isRenderableHtml,
     loadDocument,
   };

@@ -161,6 +161,7 @@ describe("VcpNodeProtocol internal_request_file", () => {
 describe("VcpNodeProtocol distributed tool execution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    distributedConfig.externalFileTransferEnabled = true;
     distributedConfig.autoRegisterTools = true;
     distributedConfig.exposedToolIds = [];
     distributedConfig.disabledToolIds = [];
@@ -215,5 +216,218 @@ describe("VcpNodeProtocol distributed tool execution", () => {
         }),
       })
     );
+  });
+
+  function mockMedia(type = "image", mimeType = "image/png") {
+    const media = {
+      id: "media-1",
+      type,
+      name: "sample",
+      path: "G:/work/sample",
+      mimeType,
+      size: 2,
+      approvalGranted: true,
+    };
+    registry.read_file.mockResolvedValue({
+      success: true,
+      message: "media ready",
+      localMedia: [media],
+    });
+    inspectFileForExternalTransfer.mockResolvedValue({
+      normalizedPath: media.path,
+      size: 2,
+      mimeType,
+      policy: "allow",
+    });
+    readFileForExternalTransfer.mockResolvedValue({
+      normalizedPath: media.path,
+      size: 2,
+      mimeType,
+      fileData: "b2s=",
+    });
+    return media;
+  }
+
+  it.each([
+    ["image", "image/png"],
+    ["audio", "audio/wav"],
+    ["video", "video/mp4"],
+  ])(
+    "一次分布式读取返回 %s 媒体字节供 VCP 模型消费",
+    async (type, mimeType) => {
+      const media = mockMedia(type, mimeType);
+      const sendJson = vi.fn();
+      const protocol = new VcpNodeProtocol(sendJson, "vcp-server");
+      await protocol.handleExecuteTool({
+        requestId: "req-media",
+        toolName: "aio-file-operator",
+        toolArgs: { command: "read_file", path: media.path },
+      });
+      expect(readFileForExternalTransfer).toHaveBeenCalledWith({
+        path: media.path,
+        source: { type: "vcp", serverId: "vcp-server", requestId: "req-media" },
+        approvalGranted: true,
+      });
+      expect(sendJson).toHaveBeenCalledTimes(1);
+      const { data } = sendJson.mock.calls[0][0];
+      expect(data.status).toBe("success");
+      expect(data.result.content).toEqual([
+        {
+          type: "text",
+          text: JSON.stringify({ success: true, message: "media ready" }),
+        },
+        {
+          type: "image_url",
+          image_url: { url: "data:" + mimeType + ";base64,b2s=" },
+        },
+      ]);
+      expect(data.result.localMedia).toBeUndefined();
+    }
+  );
+
+  it("混合批量读取在顶层 content 合并文本和图片", async () => {
+    const media = mockMedia();
+    registry.read_file.mockResolvedValueOnce({
+      success: true,
+      data: { content: "notes" },
+    });
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "req-mixed",
+      toolName: "aio-file-operator",
+      toolArgs: {
+        command1: "read_file",
+        path1: "G:/work/notes.txt",
+        command2: "read_file",
+        path2: media.path,
+      },
+    });
+    expect(sendJson.mock.calls[0][0].data.result.content).toEqual([
+      {
+        type: "text",
+        text: JSON.stringify({ success: true, data: { content: "notes" } }),
+      },
+      {
+        type: "text",
+        text: JSON.stringify({ success: true, message: "media ready" }),
+      },
+      { type: "image_url", image_url: { url: "data:image/png;base64,b2s=" } },
+    ]);
+  });
+
+  it("媒体引用的审批标记不能代替分布式外传审批", async () => {
+    const media = mockMedia();
+    inspectFileForExternalTransfer.mockResolvedValue({
+      normalizedPath: media.path,
+      size: 2,
+      mimeType: "image/png",
+      policy: "approve",
+    });
+    requestApproval.mockResolvedValue("rejected");
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "req-denied",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: media.path },
+    });
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+    expect(readFileForExternalTransfer).not.toHaveBeenCalled();
+    expect(sendJson.mock.calls[0][0].data).toMatchObject({
+      status: "error",
+      error: expect.stringContaining("拒绝"),
+    });
+  });
+
+  it("关闭外部传输时媒体读取返回明确错误", async () => {
+    const media = mockMedia();
+    distributedConfig.externalFileTransferEnabled = false;
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "req-media-disabled",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: media.path },
+    });
+    expect(readFileForExternalTransfer).not.toHaveBeenCalled();
+    expect(sendJson.mock.calls[0][0].data).toMatchObject({
+      status: "error",
+      error: expect.stringContaining("关闭"),
+    });
+  });
+
+  it("结构化返回信封中的媒体与文本一起传给 VCP", async () => {
+    const media = mockMedia();
+    registry.read_file.mockResolvedValue({
+      result: { success: true, message: "wrapped" },
+      localMedia: [media],
+      executionMetadata: { auditId: "audit-1" },
+    });
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "req-wrapped",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: media.path },
+    });
+    expect(sendJson.mock.calls[0][0].data.result.content).toEqual([
+      {
+        type: "text",
+        text: JSON.stringify({ success: true, message: "wrapped" }),
+      },
+      { type: "image_url", image_url: { url: "data:image/png;base64,b2s=" } },
+    ]);
+  });
+
+  it("原文件读取失败时返回错误而非只有元数据的成功结果", async () => {
+    const media = mockMedia();
+    readFileForExternalTransfer.mockRejectedValue(new Error("文件已删除"));
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    await protocol.handleExecuteTool({
+      requestId: "req-missing",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: media.path },
+    });
+    expect(sendJson).toHaveBeenCalledTimes(1);
+    expect(sendJson.mock.calls[0][0].data).toMatchObject({
+      status: "error",
+      error: "文件已删除",
+    });
+  });
+
+  it("媒体安全检查期间取消请求后停止读取", async () => {
+    const media = mockMedia();
+    let finishInspection!: (value: unknown) => void;
+    let inspectionStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      inspectionStarted = resolve;
+    });
+    inspectFileForExternalTransfer.mockImplementation(() => {
+      inspectionStarted();
+      return new Promise((resolve) => {
+        finishInspection = resolve;
+      });
+    });
+    const sendJson = vi.fn();
+    const protocol = new VcpNodeProtocol(sendJson);
+    const execution = protocol.handleExecuteTool({
+      requestId: "req-cancel",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: media.path },
+    });
+    await started;
+    expect(protocol.handleCancelTool("req-cancel")).toBe(true);
+    finishInspection({
+      normalizedPath: media.path,
+      size: 2,
+      mimeType: "image/png",
+      policy: "allow",
+    });
+    await execution;
+    expect(readFileForExternalTransfer).not.toHaveBeenCalled();
+    expect(sendJson).toHaveBeenCalledTimes(1);
+    expect(sendJson.mock.calls[0][0].data.status).toBe("error");
   });
 });

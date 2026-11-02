@@ -17,6 +17,23 @@ const profile: ProviderProfile = {
 };
 
 describe("Vertex Anthropic provider adapter", () => {
+  it("sends Opus 5.5 effort through the shared adaptive thinking body", () => {
+    const wire = buildVertexAnthropicRequest(profile, {
+      model: "claude-opus-5-5",
+      messages: [{ role: "user", content: "Solve this." }],
+      reasoningEffort: "medium",
+      thinkingEnabled: true,
+      thinkingBudget: 4096,
+    });
+    expect(wire.body).toEqual({
+      kind: "json",
+      value: expect.objectContaining({
+        thinking: { type: "adaptive" },
+        output_config: { effort: "medium" },
+      }),
+    });
+  });
+
   it("wraps the shared Anthropic body in a Vertex rawPredict request", () => {
     const request: LlmRequest = {
       model: "claude-sonnet-4-5",

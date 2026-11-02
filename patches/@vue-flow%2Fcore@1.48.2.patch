@@ -1,0 +1,13 @@
+diff --git a/dist/vue-flow-core.mjs b/dist/vue-flow-core.mjs
+index 96b8e8d31f311eac6890d610f9e69c5a9b84f1e5..740c43947df1ba6e51f2b0f445be18c2c8f42307 100644
+--- a/dist/vue-flow-core.mjs
++++ b/dist/vue-flow-core.mjs
+@@ -4752,7 +4752,7 @@ function createGraphNodes(nodes, findNode, triggerError) {
+     nextNodes[i] = parsed;
+   }
+   for (const node of nextNodes) {
+-    const parentNode = findNode(node.parentNode) || nextNodes.find((n) => n.id === node.parentNode);
++    const parentNode = node.parentNode ? findNode(node.parentNode) || nextNodes.find((n) => n.id === node.parentNode) : void 0;
+     if (node.parentNode && !parentNode) {
+       triggerError(new VueFlowError(ErrorCode.NODE_MISSING_PARENT, node.id, node.parentNode));
+     }

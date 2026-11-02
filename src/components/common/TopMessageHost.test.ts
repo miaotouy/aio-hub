@@ -1,3 +1,12 @@
+import {
+  acquireZIndex,
+  releaseZIndex,
+  resetDialogZIndexCounter,
+} from "@/composables/useDialogZIndex";
+import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { errorHandler as gitErrorHandler } from "@/tools/git-committer/composables/useGitCommitterErrorHandler";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,13 +20,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-import { flushPromises, mount } from "@vue/test-utils";
+import {
+  DOMWrapper,
+  enableAutoUnmount,
+  flushPromises,
+  mount,
+} from "@vue/test-utils";
 import { nextTick } from "vue";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import TopMessageHost from "./TopMessageHost.vue";
-import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
-import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
+
+enableAutoUnmount(afterEach);
+
+function mountHost() {
+  mount(TopMessageHost);
+  return new DOMWrapper(document.body);
+}
 
 describe("TopMessageHost", () => {
   beforeEach(() => {
@@ -28,11 +46,12 @@ describe("TopMessageHost", () => {
   afterEach(() => {
     closeAllFloatingMessages();
     errorHandler.clearErrorQueue();
+    resetDialogZIndexCounter();
     vi.useRealTimers();
   });
 
   it("pauses the countdown on hover and resumes from the paused point", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.info({ message: "可暂停的通知", duration: 1000 });
     await nextTick();
 
@@ -53,8 +72,60 @@ describe("TopMessageHost", () => {
     expect(wrapper.find(".top-message").exists()).toBe(false);
   });
 
+  // Grouping restarts the public notification lifetime even while an earlier tick is pending.
+  it("restarts a grouped notification countdown and closes after its renewed duration", async () => {
+    const wrapper = mountHost();
+    const notify = () =>
+      customMessage.info({
+        message: "分组倒计时",
+        duration: 1000,
+        grouping: true,
+      });
+    notify();
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(700);
+    notify();
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(wrapper.findAll(".top-message")).toHaveLength(1);
+    expect(wrapper.get(".top-message__repeat-count").text()).toBe("2");
+    await vi.advanceTimersByTimeAsync(550);
+    expect(wrapper.find(".top-message").exists()).toBe(false);
+  });
+
+  // A persistent notification must react to overlays without a new message or countdown tick.
+  it("tracks a dialog appearing, changing level and hiding under the same persistent notification", async () => {
+    const wrapper = mountHost();
+    customMessage.info({ message: "持续通知", duration: 0 });
+    await nextTick();
+    const zIndex = () =>
+      Number(
+        (wrapper.get(".top-message-host").element as HTMLElement).style.zIndex
+      );
+    const initial = zIndex();
+    const parent = document.createElement("div");
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.style.zIndex = "4200";
+    parent.append(dialog);
+    document.body.append(parent);
+    try {
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBeGreaterThan(4200);
+      dialog.style.zIndex = "6200";
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBeGreaterThan(6200);
+      dialog.style.display = "none";
+      await vi.advanceTimersByTimeAsync(40);
+      expect(zIndex()).toBe(initial);
+      expect(wrapper.findAll(".top-message")).toHaveLength(1);
+    } finally {
+      parent.remove();
+    }
+  });
+
   it("renders rich HTML messages when explicitly enabled", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.error({
       message:
         '<section class="message-detail"><strong>请求失败</strong><br><code>&lt;tag&gt;</code></section>',
@@ -71,7 +142,7 @@ describe("TopMessageHost", () => {
   });
 
   it("keeps HTML escaped unless explicitly enabled", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.error({
       message: "<strong>请求失败</strong>",
       duration: 0,
@@ -85,7 +156,7 @@ describe("TopMessageHost", () => {
   });
 
   it("renders internal error details as VNodes and groups repeated errors", async () => {
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     const showError = () =>
       errorHandler.handle(
         new Error("Cannot read properties of null (reading 'insertBefore')"),
@@ -111,6 +182,61 @@ describe("TopMessageHost", () => {
     expect(wrapper.text()).not.toContain("<div style=");
     expect(wrapper.text()).not.toContain("&#39;");
   });
+  it("copies the complete original error while displaying a bounded preview", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const wrapper = mountHost();
+    const original = "diagnostic line\n".repeat(80) + "last diagnostic line";
+    errorHandler.handle(original, { module: "test", userMessage: "操作失败" });
+    await nextTick();
+
+    const preview = wrapper.get(".top-message__content").text();
+    expect(preview.length).toBeLessThan(original.length);
+    expect(errorHandler.getErrorQueue().slice(-1)[0]?.message).toBe(original);
+    await wrapper.get('button[aria-label="复制消息内容"]').trigger("click");
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith("[test]\n操作失败\n" + original);
+  });
+
+  it("shows the Git failure summary and copies every warning and diagnostic line", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const wrapper = mountHost();
+    const reason =
+      "error: This script requires bun@^1.4.4, but you are using bun@1.4.2";
+    const original =
+      "warning: TLS certificate verification has been disabled!\n".repeat(12) +
+      "10 | throw new Error(...)\n" +
+      reason +
+      "\n at repo/[eval]:10:13";
+    const result = await gitErrorHandler.wrapAsync(
+      async () => {
+        throw original;
+      },
+      {
+        userMessage: "推送失败",
+      }
+    );
+    await nextTick();
+
+    expect(result).toBeNull();
+    expect(wrapper.get(".top-message__content").text()).toBe(
+      "[git-committer]推送失败" + reason
+    );
+    expect(errorHandler.getErrorQueue().slice(-1)[0]?.message).toBe(original);
+    await wrapper.get('button[aria-label="复制消息内容"]').trigger("click");
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith(
+      "[git-committer]\n推送失败\n" + original
+    );
+  });
+
   it("copies the message content when the message card is clicked", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
@@ -118,7 +244,7 @@ describe("TopMessageHost", () => {
       value: { writeText },
     });
 
-    const wrapper = mount(TopMessageHost);
+    const wrapper = mountHost();
     customMessage.success({ message: "需要复制的内容", duration: 0 });
     await nextTick();
 
@@ -130,5 +256,75 @@ describe("TopMessageHost", () => {
       true
     );
     expect(wrapper.find("button[aria-label='关闭消息']").exists()).toBe(true);
+  });
+
+  it("keeps messages outside the app stacking context alongside body-level dialogs", async () => {
+    const appRoot = document.createElement("div");
+    appRoot.style.cssText = "position: relative; z-index: 0";
+    const dialog = document.createElement("div");
+    dialog.className = "base-dialog-backdrop";
+    dialog.style.cssText = "position: fixed; z-index: 3001";
+    document.body.append(appRoot, dialog);
+    const wrapper = mount(TopMessageHost, { attachTo: appRoot });
+
+    try {
+      customMessage.success({ message: "弹窗内操作成功", duration: 0 });
+      await nextTick();
+
+      const host = document.querySelector<HTMLElement>(".top-message-host")!;
+      expect(host.parentElement).toBe(document.body);
+      expect(Number(host.style.zIndex)).toBeGreaterThan(
+        Number(dialog.style.zIndex)
+      );
+
+      await new DOMWrapper(host)
+        .get('button[aria-label="关闭消息"]')
+        .trigger("click");
+      expect(host.querySelector(".top-message")).toBeNull();
+    } finally {
+      wrapper.unmount();
+      appRoot.remove();
+      dialog.remove();
+    }
+  });
+  it("dynamically elevates z-index above active dialogs", async () => {
+    const wrapper = mountHost();
+    customMessage.info({ message: "普通消息", duration: 0 });
+    await nextTick();
+
+    const hostEl = wrapper.get(".top-message-host");
+    const initialZIndex = parseInt(
+      (hostEl.element as HTMLElement).style.zIndex,
+      10
+    );
+    expect(initialZIndex).toBeGreaterThanOrEqual(2030);
+
+    // 模拟弹窗开启，分配高层级 3000
+    const dialogZ = acquireZIndex(3000);
+    expect(dialogZ).toBeGreaterThanOrEqual(3001);
+
+    // 弹窗中触发了新消息
+    customMessage.success({ message: "弹窗内操作成功", duration: 0 });
+    await nextTick();
+
+    const elevatedZIndex = parseInt(
+      (hostEl.element as HTMLElement).style.zIndex,
+      10
+    );
+    expect(elevatedZIndex).toBeGreaterThan(dialogZ);
+
+    // 弹窗关闭后
+    releaseZIndex(dialogZ);
+  });
+
+  it("respects custom message z-index up to safety maximum", async () => {
+    const wrapper = mountHost();
+    customMessage.warning({ message: "高层级消息", zIndex: 5000, duration: 0 });
+    await nextTick();
+
+    const hostEl = wrapper.get(".top-message-host");
+    const zIndex = parseInt((hostEl.element as HTMLElement).style.zIndex, 10);
+    expect(zIndex).toBeGreaterThanOrEqual(5000);
+    expect(zIndex).toBeLessThanOrEqual(9990);
   });
 });

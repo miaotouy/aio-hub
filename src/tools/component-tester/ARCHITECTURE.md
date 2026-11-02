@@ -20,7 +20,7 @@ Component Tester 是一个内部开发与调试工具，用于集中展示、测
   - 使用 `el-tabs` 作为顶层容器，将不同类别的测试组件分组。
   - 每个标签页下包含一个或多个独立的测试组件。
 - **Test Components (`components/*.vue`)**:
-  - 每个组件负责一个特定的测试场景，如 `ThemePalette.vue` 用于展示主题色板，`MessagingTest.vue` 用于测试消息系统。
+  - 每个组件负责一个特定的测试场景，如 `ThemeColorPalette.vue` 用于展示主题色板，`MessagingTest.vue` 用于测试消息系统。
 
 ### 测试类别
 

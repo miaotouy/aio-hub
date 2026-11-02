@@ -78,7 +78,7 @@ describe("Aggregate channel providers", () => {
     const info = getProviderTypeInfo("new-api" as never);
     const fields = info?.configFields ?? [];
 
-    expect(fields).toHaveLength(4);
+    expect(fields).toHaveLength(5);
     expect(fields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

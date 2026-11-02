@@ -26,7 +26,6 @@ import type {
 } from "@/tools/agent-manager/types/agent";
 import type { ChatMessageNode, InjectionStrategy } from "../types/message";
 import type { MessageRole } from "../types/common";
-import { ANCHOR_IDS } from "../types/context";
 import type { LlmParameters } from "../types/llm";
 import { pick } from "lodash-es";
 import type { ChatRegexConfig } from "../types/chatRegex";
@@ -114,7 +113,8 @@ export interface SillyTavernPrompt {
   content?: string;
   system_prompt?: boolean;
   injection_depth?: number;
-  injection_position?: number; // 0: main, 1: before history, 2: after history, 4: at depth
+  injection_position?: number; // PromptManager: 0 relative, 1 absolute (in-chat)
+  injection_order?: number;
   marker?: boolean;
   enabled?: boolean;
   forbid_overrides?: boolean;
@@ -410,7 +410,7 @@ export function parsePromptFile(
       prompt.role || "system",
       convertMacros(prompt.content),
       prompt.name, // 传入名称
-      undefined, // 前置消息不应有注入策略
+      convertInjectionStrategy(prompt),
       item.enabled
     );
     systemPrompts.push(message);
@@ -508,43 +508,24 @@ export function isPromptFile(obj: any): obj is SillyTavernPromptFile {
 function convertInjectionStrategy(
   prompt: SillyTavernPrompt
 ): InjectionStrategy | undefined {
-  // 优先使用 injection_depth (如果存在)
-  if (prompt.injection_depth !== undefined && prompt.injection_depth > 0) {
+  // PromptManager relative prompts follow prompt_order, even when stale depth
+  // settings remain on the object. Absolute prompts use its default depth 4.
+  if (prompt.injection_position === 1) {
     return {
-      depth: prompt.injection_depth,
-      order: 100,
+      type: "depth",
+      depth: prompt.injection_depth ?? 4,
+      order: prompt.injection_order ?? 100,
     };
   }
-
-  // 根据 injection_position 转换
-  if (prompt.injection_position !== undefined) {
-    switch (prompt.injection_position) {
-      case 0: // Main prompt (system prompt area)
-        // 不设置注入策略，按列表顺序排列
-        return undefined;
-      case 1: // Before chat history
-        return {
-          anchorTarget: ANCHOR_IDS.CHAT_HISTORY,
-          anchorPosition: "before",
-          order: 100,
-        };
-      case 2: // After chat history
-        return {
-          anchorTarget: ANCHOR_IDS.CHAT_HISTORY,
-          anchorPosition: "after",
-          order: 100,
-        };
-      case 4: // At depth (需要配合 injection_depth)
-        // 如果 injection_depth 未设置，使用默认值 4
-        return {
-          depth: prompt.injection_depth ?? 4,
-          order: 100,
-        };
-      default:
-        return undefined;
-    }
+  if (
+    prompt.injection_position !== undefined &&
+    prompt.injection_position !== 0
+  ) {
+    logger.warn("预设包含未知的 PromptManager 注入位置，已按列表顺序导入", {
+      identifier: prompt.identifier,
+      position: prompt.injection_position,
+    });
   }
-
   return undefined;
 }
 

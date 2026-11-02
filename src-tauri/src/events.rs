@@ -154,6 +154,10 @@ pub fn handle_global_window_event(window: &tauri::Window, event: &WindowEvent) {
 
     // 监听窗口销毁事件，打印窗口列表
     if let WindowEvent::Destroyed = event {
+        #[cfg(target_os = "linux")]
+        if let Some(state) = window.try_state::<commands::media_stream::MediaStreamState>() {
+            state.release_window(window.label());
+        }
         print_window_list(window.app_handle());
     }
 }

@@ -23,7 +23,8 @@ import { useAssetManager } from "@/composables/useAssetManager";
 export function useAttachmentManager() {
   const attachments = ref<Asset[]>([]);
   const isProcessingAttachments = ref(false);
-  const maxAttachmentCount = 5;
+  // OpenAI GPT Image edit requests accept up to 16 input images.
+  const maxAttachmentCount = 16;
 
   const attachmentCount = computed(() => attachments.value.length);
   const hasAttachments = computed(() => attachments.value.length > 0);

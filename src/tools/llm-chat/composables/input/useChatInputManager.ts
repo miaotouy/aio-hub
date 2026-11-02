@@ -12,23 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "../../types/virtual-attachment";
+import {
+  cloneVirtualAttachments,
+  normalizeVirtualAttachments,
+} from "../../utils/virtualAttachments";
+import {
+  loadChatInputDrafts,
+  saveChatInputDrafts,
+} from "../storage/useChatInputDraftStorage";
 /**
  * 全局聊天输入管理器
  *
  * 功能：
  * - 管理输入框文本内容（全局单例）
  * - 管理附件列表（复用 useAttachmentManager）
- * - 支持 localStorage 持久化
+ * - 支持聊天专用文件持久化
  * - 支持跨窗口同步
  *
  * 设计理念：
  * - 单例模式：确保主窗口和分离窗口共享同一份状态
- * - 自动持久化：文本内容变化自动保存到 localStorage
+ * - 自动持久化：文本内容变化自动保存到聊天草稿文件
  * - 自动同步：内容变化自动同步到其他窗口
  */
 
-import { ref, watch, nextTick, type Ref } from "vue";
+import { ref, watch, nextTick, computed, type Ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { fileUriToPath } from "@/utils/fileDropPaths";
 import { getOrCreateInstance } from "@/utils/singleton";
 import {
   useAttachmentManager,
@@ -71,7 +81,8 @@ const FALLBACK_DRAFT_SESSION_ID = "__legacy_active__";
 /**
  * 持久化的状态结构
  */
-interface ChatInputDraft {
+export interface ChatInputDraft {
+  virtualAttachments?: VirtualTextAttachment[];
   text: string;
   attachments: Asset[];
   knowledgeReference?: KnowledgeReference | null;
@@ -80,7 +91,7 @@ interface ChatInputDraft {
   timestamp: number;
 }
 
-interface ChatInputDraftStorage {
+export interface ChatInputDraftStorage {
   version: 3;
   activeSessionId: string | null;
   drafts: Record<string, ChatInputDraft>;
@@ -96,6 +107,11 @@ interface ChatInputSyncState extends ChatInputDraft {
  * 聊天输入管理器类（单例）
  */
 class ChatInputManager {
+  public virtualAttachments: Ref<VirtualTextAttachment[]> = ref([]);
+  public saveStatus = ref<"saved" | "saving" | "error">("saved");
+  public ready: Promise<void> = Promise.resolve();
+  private storageReady = false;
+  private dirtyDraftKeys = new Set<string>();
   // 输入框文本
   public inputText: Ref<string> = ref("");
   // 最后已知的光标位置
@@ -134,6 +150,15 @@ class ChatInputManager {
 
   // 防抖保存计时器
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 浏览器刷新时同步提交最后一次输入，覆盖尚未执行的防抖保存。
+  private flushBeforeUnload = () => {
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    this.saveToStorageImmediate();
+  };
 
   // 标记是否正在应用同步状态（避免循环更新）
   private isApplyingSyncState = false;
@@ -204,6 +229,7 @@ class ChatInputManager {
   private unlistenStateSync: (() => void) | null = null;
   private unlistenAssetImport: (() => void) | null = null;
   private unregisterSyncSource: (() => void) | null = null;
+  private unlistenInputActions: (() => void) | null = null;
 
   constructor() {
     // 创建附件管理器
@@ -233,12 +259,19 @@ class ChatInputManager {
 
     // 从 localStorage 恢复状态
     this.restoreFromStorage();
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", this.flushBeforeUnload);
+      window.addEventListener("pagehide", this.flushBeforeUnload);
+    }
 
     // 初始化同步状态（从 attachmentManager 获取当前附件）
     this.syncState.value = {
       sessionId: this.activeSessionId.value,
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
+      virtualAttachments: cloneVirtualAttachments(
+        this.virtualAttachments.value
+      ),
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
       knowledgeReference: this.knowledgeReference.value,
@@ -249,6 +282,9 @@ class ChatInputManager {
       sessionId: this.activeSessionId.value,
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
+      virtualAttachments: cloneVirtualAttachments(
+        this.virtualAttachments.value
+      ),
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
       knowledgeReference: this.knowledgeReference.value,
@@ -351,6 +387,21 @@ class ChatInputManager {
       { deep: true }
     );
 
+    watch(this.virtualAttachments, () => {
+      if (this.isApplyingSyncState || this.isSwitchingDraft) return;
+      this.markLocalChange();
+      this.saveCurrentDraftSnapshot();
+      this.syncState.value = {
+        ...this.syncState.value,
+        virtualAttachments: cloneVirtualAttachments(
+          this.virtualAttachments.value
+        ),
+        timestamp: Date.now(),
+      };
+      this.debouncedPushState();
+      this.debouncedSaveToStorage();
+    });
+
     // 监听临时模型变化
     watch(this.temporaryModel, (newModel) => {
       if (!this.isApplyingSyncState && !this.isSwitchingDraft) {
@@ -414,6 +465,9 @@ class ChatInputManager {
           this.draftMap.set(stateKey, {
             text: newState.text || "",
             attachments: [...(newState.attachments || [])],
+            virtualAttachments: normalizeVirtualAttachments(
+              newState.virtualAttachments
+            ),
             temporaryModel: newState.temporaryModel || null,
             continuationModel: newState.continuationModel || null,
             knowledgeReference: normalizeKnowledgeReference(
@@ -430,6 +484,10 @@ class ChatInputManager {
         if (
           !this.isApplyingSyncState &&
           newState.text === this.inputText.value &&
+          deepEqual(
+            newState.virtualAttachments ?? [],
+            this.virtualAttachments.value
+          ) &&
           JSON.stringify(
             normalizeKnowledgeReference(newState.knowledgeReference)
           ) === JSON.stringify(this.knowledgeReference.value)
@@ -458,6 +516,10 @@ class ChatInputManager {
             });
           }
         }
+
+        this.virtualAttachments.value = normalizeVirtualAttachments(
+          newState.virtualAttachments
+        );
 
         // 同步附件（使用智能合并，保留正在导入的资产引用）
         this.attachmentManager.syncAttachments(newState.attachments);
@@ -593,11 +655,42 @@ class ChatInputManager {
       });
     }
 
+    this.ready = this.initializeDraftStorage();
+    if (this.bus.windowType === "main") {
+      this.unlistenInputActions =
+        this.bus.onActionRequest?.(
+          "llm-chat-input",
+          async (
+            action,
+            params: {
+              sessionId: string | null;
+              original: VirtualTextAttachment | null;
+              updated: VirtualTextAttachment;
+            }
+          ) => {
+            await this.ready;
+            if (action === "flush-drafts") {
+              await this.flushDrafts();
+              return;
+            }
+            if (action !== "commit-text") throw new Error("未知的输入操作");
+            await this.commitVirtualAttachment(
+              params.original,
+              params.updated,
+              params.sessionId
+            );
+            return cloneVirtualAttachments(
+              this.getDraftSnapshot(params.sessionId).virtualAttachments
+            );
+          }
+        ) ?? null;
+    }
     logger.info("ChatInputManager 初始化完成，包含跨窗口同步");
   }
 
   private markLocalChange(): void {
     this.lastLocalChangeAt = Date.now();
+    this.dirtyDraftKeys.add(this.getActiveDraftKey());
   }
 
   private getActiveDraftKey(): string {
@@ -619,6 +712,7 @@ class ChatInputManager {
     return {
       text: draft.text || "",
       attachments: [...(draft.attachments || [])],
+      virtualAttachments: cloneVirtualAttachments(draft.virtualAttachments),
       temporaryModel: draft.temporaryModel || null,
       continuationModel: draft.continuationModel || null,
       knowledgeReference: normalizeKnowledgeReference(draft.knowledgeReference),
@@ -645,6 +739,7 @@ class ChatInputManager {
     return (
       !draft.text &&
       (!draft.attachments || draft.attachments.length === 0) &&
+      !draft.virtualAttachments?.length &&
       !draft.temporaryModel &&
       !draft.continuationModel &&
       !draft.knowledgeReference
@@ -656,6 +751,9 @@ class ChatInputManager {
     this.draftMap.set(key, {
       text: this.inputText.value,
       attachments: [...this.attachmentManager.attachments.value],
+      virtualAttachments: cloneVirtualAttachments(
+        this.virtualAttachments.value
+      ),
       temporaryModel: this.temporaryModel.value,
       continuationModel: this.continuationModel.value,
       knowledgeReference: normalizeKnowledgeReference(
@@ -670,6 +768,8 @@ class ChatInputManager {
     updater: (draft: ChatInputDraft) => ChatInputDraft | void
   ): void {
     const key = this.getDraftKey(sessionId);
+    this.lastLocalChangeAt = Date.now();
+    this.dirtyDraftKeys.add(key);
     const draft = this.cloneDraft(this.getDraft(key));
     const result = updater(draft);
     const nextDraft = result ? this.cloneDraft(result) : draft;
@@ -678,6 +778,8 @@ class ChatInputManager {
 
     if (key === this.getActiveDraftKey()) {
       this.applyDraftToActiveRefs(nextDraft);
+      this.debouncedSaveToStorage();
+      this.debouncedPushState();
     } else {
       this.debouncedSaveToStorage();
       this.pushDraftState(key, nextDraft);
@@ -689,6 +791,9 @@ class ChatInputManager {
     this.isApplyingSyncState = true;
     try {
       this.inputText.value = draft.text || "";
+      this.virtualAttachments.value = cloneVirtualAttachments(
+        draft.virtualAttachments
+      );
       this.attachmentManager.syncAttachments([...(draft.attachments || [])]);
       this.temporaryModel.value = draft.temporaryModel || null;
       this.continuationModel.value = draft.continuationModel || null;
@@ -699,6 +804,9 @@ class ChatInputManager {
         sessionId: this.activeSessionId.value,
         text: this.inputText.value,
         attachments: [...this.attachmentManager.attachments.value],
+        virtualAttachments: cloneVirtualAttachments(
+          this.virtualAttachments.value
+        ),
         temporaryModel: this.temporaryModel.value,
         continuationModel: this.continuationModel.value,
         knowledgeReference: this.knowledgeReference.value,
@@ -740,7 +848,6 @@ class ChatInputManager {
     ) {
       this.draftMap.set(sessionId, this.cloneDraft(legacyDraft));
       this.draftMap.delete(FALLBACK_DRAFT_SESSION_ID);
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
       logger.info("已将旧输入草稿迁移到当前会话", { sessionId });
     }
 
@@ -772,6 +879,10 @@ class ChatInputManager {
     const fromDraft = this.cloneDraft(this.getDraft(fromSessionId));
     this.draftMap.set(toSessionId, {
       ...fromDraft,
+      virtualAttachments: cloneVirtualAttachments(
+        fromDraft.virtualAttachments,
+        mode === "copy"
+      ),
       timestamp: Date.now(),
     });
 
@@ -793,6 +904,7 @@ class ChatInputManager {
   }
 
   public clearDraft(sessionId: string): void {
+    this.dirtyDraftKeys.add(sessionId);
     this.draftMap.delete(sessionId);
     if (sessionId === this.getActiveDraftKey()) {
       this.applyDraftToActiveRefs(this.createEmptyDraft());
@@ -801,6 +913,7 @@ class ChatInputManager {
   }
 
   public clearAllDrafts(): void {
+    for (const key of this.draftMap.keys()) this.dirtyDraftKeys.add(key);
     this.draftMap.clear();
     this.applyDraftToActiveRefs(this.createEmptyDraft());
     this.saveToStorageImmediate();
@@ -844,10 +957,24 @@ class ChatInputManager {
       return;
     }
 
+    try {
+      incomingState.virtualAttachments = normalizeVirtualAttachments(
+        incomingState.virtualAttachments
+      );
+    } catch (error) {
+      errorHandler.handle(error, {
+        userMessage: "同步文本附件失败",
+        showToUser: false,
+      });
+      return;
+    }
     const incomingSessionKey = this.getDraftKey(incomingState.sessionId);
     const incomingDraft: ChatInputDraft = {
       text: incomingState.text || "",
       attachments: [...(incomingState.attachments || [])],
+      virtualAttachments: normalizeVirtualAttachments(
+        incomingState.virtualAttachments
+      ),
       temporaryModel: incomingState.temporaryModel || null,
       continuationModel: incomingState.continuationModel || null,
       knowledgeReference: normalizeKnowledgeReference(
@@ -856,6 +983,7 @@ class ChatInputManager {
       timestamp: incomingState.timestamp || Date.now(),
     };
 
+    this.dirtyDraftKeys.add(incomingSessionKey);
     this.draftMap.set(incomingSessionKey, incomingDraft);
     if (incomingSessionKey !== this.getActiveDraftKey()) {
       this.stateVersion = payload.version;
@@ -899,6 +1027,8 @@ class ChatInputManager {
       });
       this.stateVersion = payload.version;
       this.lastSyncedValue = JSON.parse(JSON.stringify(this.syncState.value));
+      // Remote attachment-only changes may leave inputText unchanged; persist them explicitly.
+      this.debouncedSaveToStorage();
     } catch (error) {
       errorHandler.handle(error as Error, {
         userMessage: "应用输入状态更新失败",
@@ -994,6 +1124,11 @@ class ChatInputManager {
    * 清理资源
    */
   destroy(): void {
+    this.flushBeforeUnload();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("beforeunload", this.flushBeforeUnload);
+      window.removeEventListener("pagehide", this.flushBeforeUnload);
+    }
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
     }
@@ -1015,6 +1150,7 @@ class ChatInputManager {
     if (this.unregisterSyncSource) {
       this.unregisterSyncSource();
     }
+    this.unlistenInputActions?.();
     this.idUpdateLog.clear();
     logger.info("ChatInputManager 已清理");
   }
@@ -1081,34 +1217,212 @@ class ChatInputManager {
   /**
    * 立即保存状态到 localStorage
    */
-  private saveToStorageImmediate(): void {
-    try {
-      this.saveCurrentDraftSnapshot();
-      const drafts: Record<string, ChatInputDraft> = {};
-      for (const [sessionId, draft] of this.draftMap.entries()) {
-        if (!this.isEmptyDraft(draft)) {
-          drafts[sessionId] = this.cloneDraft(draft);
-        }
-      }
+  private buildDraftStorage(): ChatInputDraftStorage {
+    this.saveCurrentDraftSnapshot();
+    const drafts: Record<string, ChatInputDraft> = {};
+    for (const [sessionId, draft] of this.draftMap) {
+      if (!this.isEmptyDraft(draft)) drafts[sessionId] = this.cloneDraft(draft);
+    }
+    return {
+      version: 3,
+      activeSessionId: this.activeSessionId.value,
+      drafts,
+      draftClipboard: this.draftClipboard.value,
+    };
+  }
 
-      const storage: ChatInputDraftStorage = {
-        version: 3,
-        activeSessionId: this.activeSessionId.value,
-        drafts,
-        draftClipboard: this.draftClipboard.value,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
-      logger.debug("保存会话级输入草稿到 localStorage", {
-        draftCount: Object.keys(drafts).length,
-        activeSessionId: this.activeSessionId.value,
-        hasClipboard: !!this.draftClipboard.value,
-      });
+  private async initializeDraftStorage(): Promise<void> {
+    if (this.bus.windowType !== "main") {
+      this.storageReady = true;
+      return;
+    }
+    try {
+      const stored = await loadChatInputDrafts();
+      if (stored) {
+        const currentKey = this.getActiveDraftKey();
+        this.saveCurrentDraftSnapshot();
+        for (const [key, draft] of Object.entries(stored.drafts)) {
+          if (!this.dirtyDraftKeys.has(key)) {
+            this.draftMap.set(key, {
+              ...this.cloneDraft(draft),
+              virtualAttachments: normalizeVirtualAttachments(
+                draft.virtualAttachments
+              ),
+            });
+          }
+        }
+        // Binding selected by the live session store takes precedence over saved UI state.
+        if (!this.draftClipboard.value)
+          this.draftClipboard.value = stored.draftClipboard ?? null;
+        const legacy = this.draftMap.get(FALLBACK_DRAFT_SESSION_ID);
+        if (
+          currentKey !== FALLBACK_DRAFT_SESSION_ID &&
+          legacy &&
+          !this.draftMap.get(currentKey)?.text &&
+          this.isEmptyDraft(this.draftMap.get(currentKey)) &&
+          !this.dirtyDraftKeys.has(currentKey)
+        ) {
+          this.draftMap.set(currentKey, this.cloneDraft(legacy));
+          this.draftMap.delete(FALLBACK_DRAFT_SESSION_ID);
+        }
+        if (!this.dirtyDraftKeys.has(currentKey))
+          this.applyDraftToActiveRefs(this.getDraft(currentKey));
+      }
+      this.storageReady = true;
+      if (this.bus.windowType === "main") {
+        await saveChatInputDrafts(this.buildDraftStorage());
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+      this.pushState(true, undefined, true);
     } catch (error) {
-      errorHandler.handle(error as Error, {
-        userMessage: "保存输入状态失败",
+      this.storageReady = false;
+      this.saveStatus.value = "error";
+      errorHandler.handle(error, {
+        userMessage: "恢复输入草稿失败，请重试保存",
         showToUser: false,
       });
     }
+  }
+
+  public async flushDrafts(): Promise<void> {
+    await this.ready;
+    if (this.bus.windowType !== "main") {
+      this.saveStatus.value = "saving";
+      this.pushState(true, undefined, true);
+      try {
+        await this.bus.requestAction("llm-chat-input:flush-drafts", {});
+        this.saveStatus.value = "saved";
+      } catch (error) {
+        this.saveStatus.value = "error";
+        throw error;
+      }
+      return;
+    }
+    if (!this.storageReady) await this.initializeDraftStorage();
+    if (!this.storageReady) {
+      throw new Error("草稿存储尚未就绪，请重新打开应用后重试");
+    }
+    this.saveStatus.value = "saving";
+    try {
+      await saveChatInputDrafts(this.buildDraftStorage());
+      this.saveStatus.value = "saved";
+    } catch (error) {
+      this.saveStatus.value = "error";
+      throw error;
+    }
+  }
+
+  private saveToStorageImmediate(): void {
+    void this.flushDrafts().catch((error) => {
+      errorHandler.handle(error, {
+        userMessage: "草稿保存失败",
+        showToUser: false,
+      });
+    });
+  }
+
+  public async commitVirtualAttachment(
+    original: VirtualTextAttachment | null,
+    updated: VirtualTextAttachment,
+    sessionId?: string | null
+  ): Promise<void> {
+    if (this.bus.windowType !== "main") {
+      const attachments = await this.bus.requestAction<
+        unknown,
+        VirtualTextAttachment[]
+      >("llm-chat-input:commit-text", {
+        sessionId: sessionId ?? this.activeSessionId.value,
+        original,
+        updated,
+      });
+      this.updateDraft(sessionId, (draft) => {
+        draft.virtualAttachments = normalizeVirtualAttachments(attachments);
+      });
+      return;
+    }
+    if (original)
+      await this.updateVirtualAttachment(original, updated, sessionId);
+    else this.addVirtualAttachment(updated, sessionId);
+    await this.flushDrafts();
+  }
+
+  public addVirtualAttachment(
+    attachment: VirtualTextAttachment,
+    sessionId?: string | null,
+    position: "append" | "prepend" = "append"
+  ): void {
+    // 正文的 watch 在下一轮更新快照，附件操作先捕获本轮输入，避免旧草稿覆盖正文。
+    if (this.getDraftKey(sessionId) === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
+    this.updateDraft(sessionId, (draft) => {
+      const existing = draft.virtualAttachments?.find(
+        (item) => item.id === attachment.id
+      );
+      if (existing && deepEqual(existing, attachment)) return;
+      const attachments = draft.virtualAttachments ?? [];
+      draft.virtualAttachments = normalizeVirtualAttachments(
+        position === "prepend"
+          ? [attachment, ...attachments]
+          : [...attachments, attachment]
+      );
+    });
+    this.saveToStorageImmediate();
+  }
+
+  public async updateVirtualAttachment(
+    original: VirtualTextAttachment,
+    updated: VirtualTextAttachment,
+    sessionId?: string | null
+  ): Promise<void> {
+    this.updateDraft(sessionId, (draft) => {
+      const current = draft.virtualAttachments?.find(
+        (item) => item.id === original.id
+      );
+      if (current && deepEqual(current, updated)) return;
+      if (
+        !current ||
+        current.text !== original.text ||
+        current.title !== original.title
+      ) {
+        throw new Error("这份材料已在其他窗口修改，请复制当前内容后重新打开");
+      }
+      draft.virtualAttachments = normalizeVirtualAttachments(
+        draft.virtualAttachments?.map((item) =>
+          item.id === original.id ? updated : item
+        )
+      );
+    });
+    this.saveToStorageImmediate();
+  }
+
+  public removeVirtualAttachment(id: string, sessionId?: string | null): void {
+    // Capture same-turn editor/file changes before replacing the active draft.
+    if (this.getDraftKey(sessionId) === this.getActiveDraftKey()) {
+      this.saveCurrentDraftSnapshot();
+    }
+    this.updateDraft(sessionId, (draft) => {
+      draft.virtualAttachments = (draft.virtualAttachments ?? []).filter(
+        (item) => item.id !== id
+      );
+    });
+    this.saveToStorageImmediate();
+  }
+
+  public clearSubmittedDraft(
+    sessionId: string,
+    submitted: ChatInputDraft
+  ): void {
+    const current = this.getDraftSnapshot(sessionId);
+    if (
+      current.text !== submitted.text ||
+      !deepEqual(current.attachments, submitted.attachments) ||
+      !deepEqual(current.virtualAttachments, submitted.virtualAttachments) ||
+      !deepEqual(current.knowledgeReference, submitted.knowledgeReference)
+    )
+      return;
+    this.clear(sessionId);
   }
 
   /**
@@ -1203,6 +1517,7 @@ class ChatInputManager {
       this.updateDraft(sessionId, (draft) => {
         draft.text = "";
         draft.attachments = [];
+        draft.virtualAttachments = [];
         draft.knowledgeReference = null;
       });
       logger.info("清空非当前会话输入草稿和附件", { sessionId: targetKey });
@@ -1210,6 +1525,7 @@ class ChatInputManager {
     }
 
     this.inputText.value = "";
+    this.virtualAttachments.value = [];
     this.attachmentManager.clearAttachments();
     this.knowledgeReference.value = null;
     this.saveCurrentDraftSnapshot();
@@ -1310,53 +1626,88 @@ class ChatInputManager {
     return this.attachmentManager.addAssets(assets);
   }
 
+  /** Replace text immutably so draft persistence and window sync observe the edit. */
+  private replaceVirtualAttachmentTexts(
+    transform: (text: string) => string
+  ): boolean {
+    let changed = false;
+    const attachments = this.virtualAttachments.value.map((attachment) => {
+      const text = transform(attachment.text);
+      if (text === attachment.text) return attachment;
+      changed = true;
+      return { ...attachment, text };
+    });
+    if (changed) {
+      // Capture same-turn body/file edits before updating the draft and its sync snapshot.
+      this.saveCurrentDraftSnapshot();
+      this.updateDraft(this.activeSessionId.value, (draft) => {
+        draft.virtualAttachments = attachments;
+      });
+    }
+    return changed;
+  }
+
   /**
-   * 扫描输入框中的本地路径并转换为附件占位符
+   * 扫描正文和文本附件中的本地路径并转换为附件占位符
    */
   async convertPathsToAttachments(): Promise<{
     successCount: number;
     failedCount: number;
     totalCount: number;
   }> {
-    const text = this.inputText.value;
-    if (!text) return { successCount: 0, failedCount: 0, totalCount: 0 };
-
-    // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
-    // 1. 识别所有可能的路径起始位置 (file:// 协议或 Windows 盘符)
-    const anchors: { index: number; prefix: string }[] = [];
-    const anchorRegex = /file:\/\/\/?|[a-zA-Z]:[\\\/]/g;
-    let anchorMatch;
-    while ((anchorMatch = anchorRegex.exec(text)) !== null) {
-      anchors.push({ index: anchorMatch.index, prefix: anchorMatch[0] });
-    }
-
-    if (anchors.length === 0)
-      return { successCount: 0, failedCount: 0, totalCount: 0 };
-
-    // 2. 从每个锚点向后提取候选路径
-    const candidates: string[] = [];
-    for (let i = 0; i < anchors.length; i++) {
-      const start = anchors[i].index;
-      // 截取到下一个锚点开始之前，或者文本结束
-      const nextAnchorStart =
-        i < anchors.length - 1 ? anchors[i + 1].index : text.length;
-      let subText = text.substring(start, nextAnchorStart);
-
-      // 关键：绝对不跨行匹配，截断到第一个换行符
-      const lineEnd = subText.search(/\r?\n/);
-      if (lineEnd !== -1) subText = subText.substring(0, lineEnd);
-
-      // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
-      // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
-      const pathPartMatch = subText.match(
-        /^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/
-      );
-      if (pathPartMatch) {
-        const candidate = pathPartMatch[0].trim();
-        if (candidate) candidates.push(candidate);
+    const texts = [
+      this.inputText.value,
+      ...this.virtualAttachments.value.map((attachment) => attachment.text),
+    ];
+    const candidates = texts.flatMap((text) => {
+      // 采用“锚点切割法”结合“行内贪婪匹配”来更准确地识别路径
+      // 1. 识别文件 URI、Windows 盘符和独立行首的 POSIX 绝对路径。
+      const anchors: { index: number; prefix: string }[] = [];
+      const anchorRegex =
+        /file:\/\/\/?(?:[a-zA-Z]:[\\/])?|[a-zA-Z]:[\\/]|^[ \t]*\/(?=[^/\s])/gim;
+      let anchorMatch;
+      while ((anchorMatch = anchorRegex.exec(text)) !== null) {
+        const prefix = anchorMatch[0].trimStart();
+        anchors.push({
+          index: anchorMatch.index + anchorMatch[0].length - prefix.length,
+          prefix,
+        });
       }
-    }
 
+      if (anchors.length === 0) return [];
+
+      // 2. 从每个锚点向后提取候选路径
+      const candidates: string[] = [];
+      for (let i = 0; i < anchors.length; i++) {
+        const start = anchors[i].index;
+        // 截取到下一个锚点开始之前，或者文本结束
+        const nextAnchorStart =
+          i < anchors.length - 1 ? anchors[i + 1].index : text.length;
+        let subText = text.substring(start, nextAnchorStart);
+
+        // 关键：绝对不跨行匹配，截断到第一个换行符
+        const lineEnd = subText.search(/\r?\n/);
+        if (lineEnd !== -1) subText = subText.substring(0, lineEnd);
+
+        // 单引号可用于包裹 HTML 属性，也可合法出现在路径名中。
+        if (text[start - 1] === "'") {
+          const quoteEnd = subText.indexOf("'");
+          if (quoteEnd !== -1) subText = subText.substring(0, quoteEnd);
+        }
+
+        // 3. 在当前行片段中，从头开始匹配最长的合法路径部分
+        // 排除掉常见的路径非法字符，允许空格但通常不以空格结尾
+        const pathPartMatch = subText.match(
+          /^(?:[^\s"<>|?*【】]+(?:\s+[^\s"<>|?*【】]+)*)/
+        );
+        if (pathPartMatch) {
+          const candidate = pathPartMatch[0].trim();
+          if (candidate) candidates.push(candidate);
+        }
+      }
+
+      return candidates;
+    });
     if (candidates.length === 0)
       return { successCount: 0, failedCount: 0, totalCount: 0 };
 
@@ -1369,14 +1720,15 @@ class ChatInputManager {
     for (const rawPath of uniquePaths) {
       try {
         logger.info("[convertPaths] 处理路径", { rawPath });
-        let cleanPath = rawPath;
-        if (cleanPath.startsWith("file://")) {
-          cleanPath = cleanPath.replace(/^file:\/\/\/?/, "");
-          if (cleanPath.startsWith("/") && cleanPath.charAt(2) === ":") {
-            cleanPath = cleanPath.substring(1);
-          }
+        let cleanPath = /^file:/i.test(rawPath)
+          ? fileUriToPath(rawPath)
+          : rawPath;
+        if (!cleanPath) {
+          failedCount++;
+          continue;
         }
-        cleanPath = cleanPath.replace(/\//g, "\\");
+        if (/^[a-z]:[\\/]/i.test(cleanPath))
+          cleanPath = cleanPath.replace(/\//g, "\\");
 
         const beforeIds = new Set(
           this.attachmentManager.attachments.value.map((a) => a.id)
@@ -1392,7 +1744,8 @@ class ChatInputManager {
           afterAssets.find(
             (a) =>
               !beforeIds.has(a.id) &&
-              (a.path === cleanPath || a.name === cleanPath.split("\\").pop())
+              (a.path === cleanPath ||
+                a.name === cleanPath.split(/[/\\]/).pop())
           ) || afterAssets.find((a) => a.path === cleanPath);
 
         if (targetAsset) {
@@ -1402,11 +1755,10 @@ class ChatInputManager {
           });
 
           const placeholder = this.getPlaceholder(targetAsset);
-          const escapedPath = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          this.inputText.value = this.inputText.value.replace(
-            new RegExp(escapedPath, "g"),
-            placeholder
-          );
+          const replacePath = (text: string) =>
+            text.split(rawPath).join(placeholder);
+          this.inputText.value = replacePath(this.inputText.value);
+          this.replaceVirtualAttachmentTexts(replacePath);
           successCount++;
         } else {
           failedCount++;
@@ -1481,59 +1833,36 @@ class ChatInputManager {
    * 主要用于应对上传完成时用户正在打字导致的 Vue 响应式竞态问题
    */
   scanAndFixPlaceholders(): void {
-    const text = this.inputText.value;
-    if (!text.includes("file::uploading:")) return;
-
-    // 匹配 【file::uploading:ID】
-    const uploadingRegex = /【file::uploading:([a-zA-Z0-9_-]+)】/g;
-    const matches = Array.from(text.matchAll(uploadingRegex));
-    if (matches.length === 0) return;
-
-    let newText = text;
-    let fixedCount = 0;
-
-    // 获取当前附件列表
     const currentAttachments = this.attachmentManager.attachments.value;
-
-    // 策略：基于资产对象的 uploadingId 契约进行替换
-    // 只要资产已经完成导入 (importStatus === 'complete')，我们就执行替换检查
-    for (const asset of currentAttachments) {
-      if (asset.uploadingId && asset.importStatus === "complete") {
-        const uploadingPlaceholder = generateUploadingPlaceholder(
-          asset.uploadingId
-        );
-        const realPlaceholder = generateAssetPlaceholder(asset.id);
-
-        if (newText.includes(uploadingPlaceholder)) {
-          newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
-          fixedCount++;
-        }
-      }
-    }
-
-    // 兜底策略：使用历史日志 (idUpdateLog) 处理那些可能已经被从 attachments 中移除但文本中仍残留的占位符
-    if (newText.includes("file::uploading:")) {
-      for (const [oldId, newId] of this.idUpdateLog.entries()) {
+    let fixedCount = 0;
+    const fixText = (text: string): string => {
+      if (!text.includes("file::uploading:")) return text;
+      let updated = text;
+      const replaceId = (oldId: string, newId: string) => {
         const uploadingPlaceholder = generateUploadingPlaceholder(oldId);
-        if (newText.includes(uploadingPlaceholder)) {
-          const realPlaceholder = generateAssetPlaceholder(newId);
-          newText = newText.split(uploadingPlaceholder).join(realPlaceholder);
+        if (updated.includes(uploadingPlaceholder)) {
+          updated = updated
+            .split(uploadingPlaceholder)
+            .join(generateAssetPlaceholder(newId));
           fixedCount++;
         }
+      };
+      for (const asset of currentAttachments) {
+        if (asset.uploadingId && asset.importStatus === "complete")
+          replaceId(asset.uploadingId, asset.id);
       }
-    }
+      for (const [oldId, newId] of this.idUpdateLog.entries())
+        replaceId(oldId, newId);
+      return updated;
+    };
 
+    this.inputText.value = fixText(this.inputText.value);
+    this.replaceVirtualAttachmentTexts(fixText);
     if (fixedCount > 0) {
-      this.inputText.value = newText;
       logger.info("[scanAndFixPlaceholders] 二次扫描修复了残留占位符", {
         fixedCount,
         totalAttachments: currentAttachments.length,
         logEntries: this.idUpdateLog.size,
-      });
-    } else {
-      logger.debug("[scanAndFixPlaceholders] 扫描完成，无需修复", {
-        hasUploadingTag: text.includes("file::uploading:"),
-        totalAttachments: currentAttachments.length,
       });
     }
   }
@@ -1632,6 +1961,13 @@ class ChatInputManager {
         `【file::${oldId}】`,
       ];
 
+      const replacedInMaterials = this.replaceVirtualAttachmentTexts((text) =>
+        possibleTags.reduce(
+          (updated, tag) => updated.split(tag).join(newPlaceholder),
+          text
+        )
+      );
+
       // 策略：如果编辑器存在，优先使用编辑器的静默替换能力（不移动光标），避免打断用户输入
       const useReplaceRange =
         this.editorRef && typeof this.editorRef.replaceRange === "function";
@@ -1692,8 +2028,8 @@ class ChatInputManager {
         }
       }
 
-      if (replaced) {
-        this.inputText.value = newText;
+      if (replaced || replacedInMaterials) {
+        if (replaced) this.inputText.value = newText;
         logger.info(
           `[updatePlaceholderId] 成功更新占位符 ID (兜底方案${isRetry ? " 重试成功" : ""})`,
           {
@@ -1703,7 +2039,7 @@ class ChatInputManager {
         );
         this.pushState(false, undefined, true);
       }
-      return replaced;
+      return replaced || replacedInMaterials;
     };
 
     // 立即尝试替换
@@ -1816,6 +2152,10 @@ class ChatInputManager {
     this.updateDraft(targetSessionId, (draft) => {
       draft.text = clipboard.text;
       draft.attachments = [...clipboard.attachments];
+      draft.virtualAttachments = cloneVirtualAttachments(
+        clipboard.virtualAttachments,
+        true
+      );
       draft.temporaryModel = clipboard.temporaryModel;
       draft.continuationModel = clipboard.continuationModel;
       draft.knowledgeReference = normalizeKnowledgeReference(
@@ -1855,6 +2195,15 @@ export function useChatInputManager() {
     // ========== 输入框文本 ==========
     /** 输入框文本内容（响应式） */
     inputText: manager.inputText,
+    virtualAttachments: manager.virtualAttachments,
+    saveStatus: manager.saveStatus,
+    ready: manager.ready,
+    flushDrafts: manager.flushDrafts.bind(manager),
+    commitVirtualAttachment: manager.commitVirtualAttachment.bind(manager),
+    addVirtualAttachment: manager.addVirtualAttachment.bind(manager),
+    updateVirtualAttachment: manager.updateVirtualAttachment.bind(manager),
+    removeVirtualAttachment: manager.removeVirtualAttachment.bind(manager),
+    clearSubmittedDraft: manager.clearSubmittedDraft.bind(manager),
     /** 临时指定的模型 */
     temporaryModel: manager.temporaryModel,
     /** 续写指定的模型 */
@@ -1880,7 +2229,11 @@ export function useChatInputManager() {
     /** 是否正在处理附件 */
     isProcessingAttachments: manager.attachmentManager.isProcessing,
     /** 是否有附件 */
-    hasAttachments: manager.attachmentManager.hasAttachments,
+    hasAttachments: computed(
+      () =>
+        manager.attachmentManager.hasAttachments.value ||
+        manager.virtualAttachments.value.length > 0
+    ),
     /** 附件数量 */
     attachmentCount: manager.attachmentManager.count,
     /** 附件是否已满 */

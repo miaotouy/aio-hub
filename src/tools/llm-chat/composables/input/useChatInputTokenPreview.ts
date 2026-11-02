@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "../../types/virtual-attachment";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, watch, computed, type Ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
@@ -25,10 +26,17 @@ import {
   processMacros,
 } from "../../core/context-utils/macro";
 import { prepareMessageForTokenCalc } from "@/tools/llm-chat/utils/chatTokenUtils";
+import { resolveImageMaxDimensionForModel } from "@/tools/llm-chat/utils/chatTokenUtils";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import type { Asset } from "@/types/asset-management";
 import type { ChatMessageNode, ModelIdentifier } from "@/tools/llm-chat/types";
+
+import {
+  calculateTokensWithImageSlicing,
+  imageSlicePlanRevision,
+} from "../../core/context-utils/image-slicing";
+import { useChatSettings } from "../settings/useChatSettings";
 
 const logger = createModuleLogger("ChatInputTokenPreview");
 const errorHandler = createModuleErrorHandler("ChatInputTokenPreview");
@@ -36,6 +44,7 @@ const errorHandler = createModuleErrorHandler("ChatInputTokenPreview");
 export interface TokenPreviewOptions {
   inputText: Ref<string>;
   attachments: Ref<Asset[]>;
+  virtualAttachments?: Ref<VirtualTextAttachment[]>;
   temporaryModel: Ref<ModelIdentifier | null>;
   debounceMs?: number;
 }
@@ -50,6 +59,7 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   const chatStore = useLlmChatStore();
   const agentStore = useAgentStore();
   const transcriptionManager = useTranscriptionManager();
+  const { settings } = useChatSettings();
 
   const tokenCount = ref<number>(0);
   const isCalculatingTokens = ref(false);
@@ -66,6 +76,14 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         (t.status === "pending" || t.status === "processing")
     );
   });
+
+  /**
+   * 确定当前应使用的智能体 ID（用于读取图片压缩等智能体参数）
+   */
+  const resolveAgentId = (): string | null => {
+    const session = chatStore.currentSession;
+    return currentAgentId.value || session?.displayAgentId || null;
+  };
 
   /**
    * 确定当前应使用的模型 ID
@@ -158,7 +176,11 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     const attachmentValue = attachments.value;
 
     // 如果没有文本且没有附件，重置 token 计数
-    if (!textValue && attachmentValue.length === 0) {
+    if (
+      !textValue &&
+      attachmentValue.length === 0 &&
+      !options.virtualAttachments?.value.length
+    ) {
       tokenCount.value = 0;
       tokenEstimated.value = false;
       return;
@@ -200,14 +222,25 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
         await prepareMessageForTokenCalc(
           processedText,
           latestAttachments,
-          modelId
+          modelId,
+          options.virtualAttachments?.value
         );
 
-      // 4. 调用底层服务计算
-      const result = await tokenCalculatorService.calculateMessageTokens(
+      // 4. 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
+      const maxImageDimension = await resolveImageMaxDimensionForModel(
+        modelId,
+        resolveAgentId()
+      );
+
+      // 5. 调用底层服务计算
+      const result = await calculateTokensWithImageSlicing(
+        tokenCalculatorService,
         combinedText,
         modelId,
-        mediaAttachments.length > 0 ? mediaAttachments : undefined
+        mediaAttachments.length > 0 ? mediaAttachments : undefined,
+        settings.value.requestSettings.longImageSlicing,
+        maxImageDimension !== undefined ? { maxImageDimension } : undefined,
+        { cacheOnly: true }
       );
 
       tokenCount.value = result.count;
@@ -231,7 +264,12 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
   // 监听所有可能影响 Token 计算的状态
   // 注意：attachments 监听引用变化即可，内部元数据变化通过转写任务监听器处理
   watch(
-    [inputText, () => attachments.value, temporaryModel],
+    [
+      inputText,
+      () => attachments.value,
+      () => options.virtualAttachments?.value,
+      temporaryModel,
+    ],
     () => {
       triggerCalculation();
     },
@@ -253,6 +291,32 @@ export function useChatInputTokenPreview(options: TokenPreviewOptions) {
     () => {
       triggerCalculation();
     }
+  );
+
+  // 监听图片压缩配置变化（位于智能体 parameters 中，属于深层变更）
+  watch(
+    () => {
+      if (!currentAgentId.value) return null;
+      const agent = agentStore.getAgentById(currentAgentId.value);
+      const compression = agent?.parameters?.imageCompression;
+      if (!compression) return null;
+      return `${compression.enabled}:${compression.maxDimension ?? ""}:${compression.format}:${compression.quality}`;
+    },
+    (newVal, oldVal) => {
+      if (newVal !== oldVal) {
+        triggerCalculation();
+      }
+    }
+  );
+
+  watch(
+    () => [
+      settings.value.requestSettings.longImageSlicing?.enabled,
+      settings.value.requestSettings.longImageSlicing?.aspectRatioThreshold,
+      settings.value.requestSettings.longImageSlicing?.minCutHeight,
+      imageSlicePlanRevision.value,
+    ],
+    triggerCalculation
   );
 
   // 监听转写任务状态变化

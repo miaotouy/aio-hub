@@ -207,6 +207,7 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { fixMermaidCode } from "@/utils/mermaidFixer";
+import { renderMermaid } from "../utils/mermaidRuntime";
 
 const logger = createModuleLogger("MermaidInteractiveViewer");
 const errorHandler = createModuleErrorHandler("MermaidInteractiveViewer");
@@ -249,8 +250,10 @@ const panOffset = ref({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref({ x: 0, y: 0 });
 
-// Mermaid 实例
-let mermaid: any = null;
+// 渲染生命周期
+let rendererReady = false;
+let disposed = false;
+let renderRevision = 0;
 let renderCleanup: (() => void) | null = null;
 
 // 计算属性
@@ -611,7 +614,9 @@ const downloadPng = async () => {
 };
 // 渲染图表
 const renderDiagram = async () => {
-  if (!mermaidRef.value || !mermaid) return;
+  if (!mermaidRef.value || !rendererReady || disposed) return;
+  const revision = ++renderRevision;
+  const isCurrent = () => !disposed && revision === renderRevision;
 
   try {
     error.value = "";
@@ -624,13 +629,19 @@ const renderDiagram = async () => {
 
     mermaidRef.value.innerHTML = "";
 
-    const id = `mermaid-viewer-${Date.now()}`;
-    const { svg } = await mermaid.render(id, fixedContent.value);
+    const result = await renderMermaid({
+      content: fixedContent.value,
+      dark: isDark.value,
+      isCurrent,
+    });
+    if (!result || !isCurrent()) return;
+    const { svg } = result;
 
     if (mermaidRef.value) {
       mermaidRef.value.innerHTML = svg;
 
       await nextTick();
+      if (!isCurrent()) return;
       applyTransform();
 
       renderCleanup = () => {
@@ -640,6 +651,7 @@ const renderDiagram = async () => {
       };
     }
   } catch (err: any) {
+    if (!isCurrent()) return;
     errorHandler.handle(err, {
       userMessage: "Mermaid 渲染失败",
       showToUser: false,
@@ -649,75 +661,32 @@ const renderDiagram = async () => {
   }
 };
 
-// 初始化 Mermaid
-const initMermaid = async () => {
-  try {
-    const mermaidModule = await import("mermaid");
-    mermaid = mermaidModule.default;
-
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: isDark.value ? "dark" : "default",
-      securityLevel: "loose",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      themeVariables: {
-        fontSize: "14px",
-      },
-    });
-
-    await renderDiagram();
-  } catch (err) {
-    errorHandler.handle(err, {
-      userMessage: "Mermaid 初始化失败",
-      showToUser: false,
-    });
-    error.value = "Mermaid 库加载失败";
-    errorDetails.value = String(err);
-  }
-};
-
-// 监听主题变化
-watch(isDark, async (dark) => {
-  if (!mermaid) return;
-
-  try {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: dark ? "dark" : "default",
-      securityLevel: "loose",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
-      themeVariables: {
-        fontSize: "14px",
-      },
-    });
-
-    await renderDiagram();
-  } catch (err) {
-    errorHandler.handle(err, {
-      userMessage: "主题切换失败",
-      showToUser: false,
-    });
-  }
+watch(isDark, async () => {
+  if (rendererReady) await renderDiagram();
 });
 
 // 监听内容变化
 watch(
   () => props.content,
   async () => {
-    if (mermaid) {
+    if (rendererReady) {
       await renderDiagram();
     }
   }
 );
 
 onMounted(() => {
-  initMermaid();
+  rendererReady = true;
+  void renderDiagram();
   document.addEventListener("mousemove", handleMouseMove);
   document.addEventListener("mouseup", handleMouseUp);
   document.addEventListener("keydown", handleKeyDown);
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
+  rendererReady = false;
+  renderRevision++;
   if (renderCleanup) {
     renderCleanup();
     renderCleanup = null;

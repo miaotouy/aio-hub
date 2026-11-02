@@ -16,6 +16,9 @@
  * 代码格式化选项
  */
 export interface FormatOptions {
+  /** 系统格式化器绝对路径；留空时从 PATH 查找 */
+  formatterPath?: string;
+  rustEdition?: "2015" | "2018" | "2021" | "2024";
   /** 使用单引号 */
   singleQuote?: boolean;
   /** 尾随逗号 */
@@ -49,5 +52,15 @@ export type SupportedLanguage =
   | "css"
   | "markdown"
   | "php"
+  | "rust"
+  | "c"
+  | "cpp"
   | "xml"
   | "yaml";
+
+export interface FormatterStatus {
+  available: boolean;
+  engine: string;
+  version?: string | null;
+  error?: string | null;
+}

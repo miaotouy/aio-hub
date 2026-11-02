@@ -29,6 +29,55 @@ function createRequest(overrides: Partial<LlmRequest> = {}): LlmRequest {
 }
 
 describe("OpenAI-compatible provider adapter", () => {
+  it.each(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"])(
+    "builds a valid reasoning Chat Completions payload for %s",
+    (model) => {
+      const wire = buildOpenAiCompatibleRequest(profile, {
+        model,
+        messages: [{ role: "user", content: "Solve this." }],
+        maxCompletionTokens: 128,
+        reasoningEffort: "high",
+        temperature: 0.4,
+        topP: 0.8,
+        logprobs: true,
+        topLogprobs: 5,
+      });
+      expect(wire.body).toEqual({
+        kind: "json",
+        value: {
+          model,
+          messages: [{ role: "user", content: "Solve this." }],
+          max_completion_tokens: 128,
+          reasoning_effort: "high",
+        },
+      });
+    }
+  );
+
+  it("preserves sampling when GPT-6 Sol runs with effort none", () => {
+    const wire = buildOpenAiCompatibleRequest(profile, {
+      model: "gpt-6-sol",
+      messages: [{ role: "user", content: "Hello." }],
+      reasoningEffort: "none",
+      temperature: 0.4,
+      topP: 0.8,
+      logprobs: true,
+      topLogprobs: 5,
+    });
+    expect(wire.body).toEqual({
+      kind: "json",
+      value: {
+        model: "gpt-6-sol",
+        messages: [{ role: "user", content: "Hello." }],
+        reasoning_effort: "none",
+        temperature: 0.4,
+        top_p: 0.8,
+        logprobs: true,
+        top_logprobs: 5,
+      },
+    });
+  });
+
   it("builds a canonical wire request with standard and extension parameters", () => {
     const wireRequest = buildOpenAiCompatibleRequest(profile, {
       ...createRequest(),
@@ -277,6 +326,12 @@ describe("OpenAI-compatible provider adapter", () => {
       {
         type: "usage",
         usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            prompt_tokens: 11,
+            completion_tokens: 7,
+            total_tokens: 18,
+          },
           promptTokens: 11,
           completionTokens: 7,
           totalTokens: 18,
@@ -297,6 +352,12 @@ describe("OpenAI-compatible provider adapter", () => {
           reasoningContent: "先分析",
           finishReason: "tool_calls",
           usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              prompt_tokens: 11,
+              completion_tokens: 7,
+              total_tokens: 18,
+            },
             promptTokens: 11,
             completionTokens: 7,
             totalTokens: 18,
@@ -311,5 +372,104 @@ describe("OpenAI-compatible provider adapter", () => {
         },
       },
     ]);
+  });
+  it("exposes intermediate response chunks only when requested and completes on DONE", () => {
+    const decoder = openAiCompatibleAdapter.createStreamDecoder({
+      request: createRequest({ stream: true, captureResponseChunks: true }),
+      response: { status: 200, statusText: "OK", headers: {} },
+    });
+    const wire = [
+      {
+        id: "round-1",
+        choices: [{ delta: { content: "first" }, finish_reason: "stop" }],
+      },
+      {
+        id: "round-1",
+        choices: [],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+      },
+      {
+        id: "round-2",
+        choices: [
+          {
+            delta: { reasoning_content: "think", content: "second" },
+            finish_reason: "stop",
+          },
+        ],
+      },
+    ]
+      .map((value) => `data: ${JSON.stringify(value)}\n\n`)
+      .join("");
+    const events = decoder.push(new TextEncoder().encode(wire));
+    expect(events.filter((event) => event.type === "response-chunk")).toEqual([
+      {
+        type: "response-chunk",
+        chunk: {
+          responseId: "round-1",
+          content: "first",
+          finishReason: "stop",
+          reasoningContent: undefined,
+          usage: undefined,
+        },
+      },
+      {
+        type: "response-chunk",
+        chunk: {
+          responseId: "round-1",
+          content: undefined,
+          reasoningContent: undefined,
+          finishReason: undefined,
+          usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+            },
+            promptTokens: 2,
+            completionTokens: 3,
+            totalTokens: 5,
+          },
+        },
+      },
+      {
+        type: "response-chunk",
+        chunk: {
+          responseId: "round-2",
+          content: "second",
+          reasoningContent: "think",
+          finishReason: "stop",
+          usage: undefined,
+        },
+      },
+    ]);
+    expect(events.filter((event) => event.type === "completed")).toEqual([]);
+    expect(decoder.push(new TextEncoder().encode("data: [DONE]\n\n"))).toEqual([
+      {
+        type: "completed",
+        response: {
+          content: "firstsecond",
+          reasoningContent: "think",
+          finishReason: "stop",
+          usage: {
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              prompt_tokens: 2,
+              completion_tokens: 3,
+              total_tokens: 5,
+            },
+            promptTokens: 2,
+            completionTokens: 3,
+            totalTokens: 5,
+          },
+        },
+      },
+    ]);
+    expect(
+      buildOpenAiCompatibleRequest(
+        profile,
+        createRequest({ captureResponseChunks: true })
+      )
+    ).toEqual(buildOpenAiCompatibleRequest(profile, createRequest()));
   });
 });

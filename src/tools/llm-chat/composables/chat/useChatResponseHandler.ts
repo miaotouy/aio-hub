@@ -17,7 +17,7 @@
  * 负责处理来自 LLM 的响应，并更新节点状态
  */
 
-import type { ChatSessionDetail } from "../../types";
+import type { ChatMessageNode, ChatSessionDetail } from "../../types";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { LlmMessageContent } from "@/llm-apis/common";
 import { isAbortError, isTimeoutError } from "@/llm-apis/common";
@@ -55,6 +55,42 @@ export function useChatResponseHandler() {
 
   // 用于控制增量保存的频率
   const lastPersistTimeMap = new Map<string, number>();
+
+  /**
+   * 状态跟随最近一次收到的流字段：reasoning 与正文可以交错到达，
+   * 因此不能用一次性的 reasoningEndTime 锁死后续 reasoning。
+   */
+  const updateReasoningActivity = (
+    node: ChatMessageNode,
+    isReasoning: boolean,
+    timestamp = Date.now()
+  ): void => {
+    if (!node.metadata) node.metadata = {};
+
+    const metadata = node.metadata;
+    const wasActive = metadata.reasoningActive === true;
+
+    if (isReasoning) {
+      if (!wasActive) {
+        metadata.reasoningActiveSince = timestamp;
+      }
+      metadata.reasoningActive = true;
+      metadata.reasoningStartTime ??= timestamp;
+      return;
+    }
+
+    if (wasActive && metadata.reasoningActiveSince) {
+      metadata.reasoningDurationMs =
+        (metadata.reasoningDurationMs || 0) +
+        Math.max(0, timestamp - metadata.reasoningActiveSince);
+    }
+
+    metadata.reasoningActive = false;
+    metadata.reasoningActiveSince = undefined;
+    if (metadata.reasoningStartTime) {
+      metadata.reasoningEndTime = timestamp;
+    }
+  };
 
   /**
    * 触发增量保存
@@ -139,9 +175,14 @@ export function useChatResponseHandler() {
           nodeId,
           delta,
           isReasoning: false,
+          offset:
+            (session.nodes[nodeId]?.content.length ?? 0) +
+            state.persistBuffer.length -
+            delta.length,
+          requestStartTime: session.nodes[nodeId]?.metadata?.requestStartTime,
         },
         0,
-        false
+        true
       );
     });
   };
@@ -171,6 +212,33 @@ export function useChatResponseHandler() {
     }
   };
 
+  const flushReasoningToNode = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    const state = reasoningUpdateBuffer.get(nodeId);
+    const node = session.nodes?.[nodeId];
+    if (!state?.buffer || !node) return;
+    const metadata = (node.metadata ??= {});
+    const offset = metadata.reasoningContent?.length ?? 0;
+    const delta = state.buffer;
+    state.buffer = "";
+    metadata.reasoningContent = (metadata.reasoningContent ?? "") + delta;
+    bus.syncState(
+      "chat:streaming-delta",
+      {
+        sessionId: session.id,
+        nodeId,
+        delta,
+        isReasoning: true,
+        offset,
+        requestStartTime: metadata.requestStartTime,
+      },
+      0,
+      true
+    );
+  };
+
   /**
    * 处理流式响应更新
    */
@@ -184,6 +252,8 @@ export function useChatResponseHandler() {
     if (!session.nodes) return;
     const node = session.nodes[nodeId];
     if (!node) return;
+
+    updateReasoningActivity(node, isReasoning);
 
     // 记录首字时间：reasoning/thinking 是用户可见输出，也应参与 TTFT 与速度统计。
     if (!node.metadata?.firstTokenTime) {
@@ -200,7 +270,7 @@ export function useChatResponseHandler() {
       if (!node.metadata) node.metadata = {};
       if (!node.metadata.reasoningContent) {
         node.metadata.reasoningContent = "";
-        node.metadata.reasoningStartTime = Date.now();
+        node.metadata.reasoningStartTime ??= Date.now();
         logger.info("🕐 推理开始时间已记录", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
@@ -216,25 +286,7 @@ export function useChatResponseHandler() {
       if (!state.isScheduled) {
         state.isScheduled = true;
         requestAnimationFrame(() => {
-          if (!session.nodes) return;
-          const nodeToUpdate = session.nodes[nodeId];
-          if (nodeToUpdate && nodeToUpdate.metadata) {
-            nodeToUpdate.metadata.reasoningContent += state.buffer;
-
-            // 跨窗口同步增量
-            bus.syncState(
-              "chat:streaming-delta" as any,
-              {
-                sessionId: session.id,
-                nodeId,
-                delta: state.buffer,
-                isReasoning: true,
-              },
-              0,
-              false
-            );
-          }
-          state.buffer = "";
+          flushReasoningToNode(session, nodeId);
           state.isScheduled = false;
 
           // 尝试增量保存
@@ -242,22 +294,13 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      // 正文内容流式更新：渲染走 StreamSource，节点内容降频写入用于持久化。
+      // 助手正文通过 StreamSource 渲染；工具卡片直接读取节点正文。
       appendStreamingMessageChunk(nodeId, chunk);
 
-      if (
-        node.content === "" &&
-        node.metadata?.reasoningContent &&
-        node.metadata?.reasoningStartTime &&
-        !node.metadata?.reasoningEndTime
-      ) {
+      if (node.metadata?.reasoningStartTime) {
         // 强制刷新一次 reasoning 缓冲区
-        const reasoningState = reasoningUpdateBuffer.get(nodeId);
-        if (reasoningState && reasoningState.buffer) {
-          node.metadata.reasoningContent += reasoningState.buffer;
-          reasoningState.buffer = "";
-        }
-        node.metadata.reasoningEndTime = Date.now();
+        flushReasoningToNode(session, nodeId);
+        node.metadata.reasoningEndTime ??= Date.now();
         logger.info("🕐 推理结束时间已记录（正文开始）", {
           nodeId,
           startTime: node.metadata.reasoningStartTime,
@@ -271,7 +314,12 @@ export function useChatResponseHandler() {
       contentState.persistBuffer += chunk;
       contentState.syncBuffer += chunk;
       scheduleStreamSync(session, nodeId);
-      scheduleContentFlush(session, nodeId);
+      if (node.role === "tool") {
+        // 工具结果随接收同步显示，避免等待持久化定时器期间出现空卡片。
+        flushContentToNode(session, nodeId);
+      } else {
+        scheduleContentFlush(session, nodeId);
+      }
     }
   };
 
@@ -287,6 +335,11 @@ export function useChatResponseHandler() {
       content: string | LlmMessageContent[];
     }>
   ): Promise<void> => {
+    // Freeze upstream values before the display fallback mutates usage.
+    if (!response.usage?.isLocalEstimated)
+      response.providerUsage = response.usage
+        ? structuredClone(response.usage)
+        : undefined;
     // 检查 usage 是否可靠
     const completionText = [response.reasoningContent, response.content]
       .filter((part) => typeof part === "string" && part.trim() !== "")
@@ -341,8 +394,10 @@ export function useChatResponseHandler() {
           promptTokens: promptResult.count,
           completionTokens: completionResult.count,
           totalTokens: promptResult.count + completionResult.count,
+          isLocalEstimated: true,
         };
 
+        response.estimatedUsage = { ...response.usage };
         logger.info("✅ 本地 token 计算完成", {
           calculatedUsage: response.usage,
           promptIsEstimated: promptResult.isEstimated,
@@ -360,6 +415,42 @@ export function useChatResponseHandler() {
     }
   };
 
+  /** Flush and close a streamed segment before advancing the active leaf. */
+  const completeStreamSegment = (
+    session: ChatSessionDetail,
+    nodeId: string
+  ): void => {
+    if (!session.nodes) return;
+    const node = session.nodes[nodeId];
+    if (!node) return;
+
+    updateReasoningActivity(node, false);
+
+    const rState = reasoningUpdateBuffer.get(nodeId);
+    if (rState && rState.buffer) {
+      if (!node.metadata) node.metadata = {};
+      node.metadata.reasoningContent =
+        (node.metadata.reasoningContent || "") + rState.buffer;
+      rState.buffer = "";
+    }
+
+    const cState = contentUpdateBuffer.get(nodeId);
+    if (cState && cState.persistBuffer) {
+      if (cState.persistTimer !== null) {
+        clearTimeout(cState.persistTimer);
+        cState.persistTimer = null;
+      }
+      node.content = (node.content || "") + cState.persistBuffer;
+      cState.persistBuffer = "";
+    }
+    node.status = "complete";
+    node.metadata = {
+      ...node.metadata,
+      requestEndTime: node.metadata?.requestEndTime ?? Date.now(),
+    };
+    completeAndDisposeStreamingMessageSource(nodeId);
+  };
+
   /**
    * 完成节点生成（更新最终状态和元数据）
    */
@@ -369,31 +460,7 @@ export function useChatResponseHandler() {
     response: any,
     agentId: string
   ): Promise<void> => {
-    // 强制刷新所有缓冲区以确保最终状态正确
-    const flushAllBuffers = () => {
-      if (!session.nodes) return;
-      const node = session.nodes[nodeId];
-      if (!node) return;
-
-      const rState = reasoningUpdateBuffer.get(nodeId);
-      if (rState && rState.buffer) {
-        if (!node.metadata) node.metadata = {};
-        node.metadata.reasoningContent =
-          (node.metadata.reasoningContent || "") + rState.buffer;
-        rState.buffer = "";
-      }
-
-      const cState = contentUpdateBuffer.get(nodeId);
-      if (cState && cState.persistBuffer) {
-        if (cState.persistTimer !== null) {
-          clearTimeout(cState.persistTimer);
-          cState.persistTimer = null;
-        }
-        node.content = (node.content || "") + cState.persistBuffer;
-        cState.persistBuffer = "";
-      }
-    };
-    flushAllBuffers();
+    completeStreamSegment(session, nodeId);
 
     const finalNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!finalNode) return;
@@ -524,7 +591,7 @@ export function useChatResponseHandler() {
     const contentTokens = response.usage?.completionTokens;
 
     // 计算性能指标
-    const requestEndTime = Date.now();
+    const requestEndTime = finalNode.metadata?.requestEndTime ?? Date.now();
     let tokensPerSecond: number | undefined;
 
     if (contentTokens && finalNode.metadata?.firstTokenTime) {
@@ -541,6 +608,9 @@ export function useChatResponseHandler() {
     finalNode.metadata = {
       ...finalNode.metadata,
       usage: response.usage,
+      providerUsage: response.providerUsage,
+      estimatedUsage: response.estimatedUsage,
+      channelExecution: response.channelExecution,
       contentTokens,
       reasoningContent: response.reasoningContent || existingReasoningContent,
       reasoningArtifacts:
@@ -655,6 +725,18 @@ export function useChatResponseHandler() {
     const errorNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!errorNode) return;
 
+    if (
+      error &&
+      typeof error === "object" &&
+      "attempts" in error &&
+      Array.isArray(error.attempts)
+    ) {
+      errorNode.metadata = {
+        ...errorNode.metadata,
+        channelAttempts: error.attempts,
+      };
+    }
+
     // 兼容 Tauri HTTP 插件的 "Request canceled" 错误
     if (isTimeoutError(error)) {
       errorNode.status = "error";
@@ -697,6 +779,7 @@ export function useChatResponseHandler() {
 
   return {
     handleStreamUpdate,
+    completeStreamSegment,
     validateAndFixUsage,
     finalizeNode,
     handleNodeError,

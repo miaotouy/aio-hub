@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // DeepInfra
 export const deepinfraPreset: LlmPreset = {
-  type: "openai",
+  type: "deepinfra",
   name: "DeepInfra",
   description: "DeepInfra - 开源模型托管服务",
   defaultBaseUrl: "https://api.deepinfra.com",

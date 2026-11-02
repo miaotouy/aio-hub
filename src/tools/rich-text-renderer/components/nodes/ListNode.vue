@@ -15,7 +15,11 @@
 -->
 
 <template>
-  <component :is="tag" class="markdown-list">
+  <component
+    :is="tag"
+    :start="ordered ? start : undefined"
+    class="markdown-list"
+  >
     <slot />
   </component>
 </template>

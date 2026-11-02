@@ -90,6 +90,10 @@ export default MyNewToolRegistry;
 
 打开 `src/config/tools.ts`，将你的工具路径（如 `/my-new-tool`）添加到 `DEFAULT_TOOLS_ORDER` 数组的合适位置。未添加的工具将默认排在末尾。
 
+### 2.4 选择工具图标
+
+`icon` 优先选用贴切的 Lucide 图标。Lucide 中没有合适造型、或与已有工具图标重复时，在共享包 [`@aiohub/tool-icons`](../../packages/tool-icons/README.md) 中按绘制规范新增，桌面端和移动端注册文件都从该包导入同一个组件。
+
 ---
 
 ## 3. 移动端开发规范 (Mobile)
@@ -140,7 +144,7 @@ export default {
     const { tRaw } = useI18n();
     return tRaw("tools.my-new-tool.common.工具描述");
   },
-  icon: markRaw(Braces), // 推荐使用 markRaw 包裹的 Lucide 组件
+  icon: markRaw(Braces), // 推荐使用 markRaw 包裹的 Lucide 组件，或 @aiohub/tool-icons 中的工具图标
   // 路由配置需放在 route 对象下
   route: {
     path: "/tools/my-new-tool",

@@ -24,73 +24,70 @@
       @navigate="showSettings = false"
     />
 
-    <!-- 中部操作栏 (Sidebar) -->
-    <Sidebar
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-      :style="{ width: sidebarWidth + 'px' }"
-    />
-    <div
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-      class="resize-handle"
-      :class="{ active: isResizingSidebar }"
-      @mousedown="handleSidebarResizeStart"
-      @dblclick="resetSidebarWidth"
-    />
-
-    <!-- 中间主区域 (MainArea) -->
-    <div class="main-content-wrapper">
-      <SettingsPanel v-if="showSettings" @close="showSettings = false" />
-      <MainArea
-        v-else
-        :sidebar-width="sidebarWidth"
-        :right-sidebar-width="rightSidebarWidth"
-        :is-right-sidebar-expanded="isRightSidebarExpanded"
+    <!-- 右侧工作区：顶部头部栏 + 下方三栏布局 -->
+    <div class="workspace-wrapper">
+      <!-- 顶部头部栏：仓库信息/操作 + 文件搜索 + 右侧栏开关 -->
+      <GitHeaderBar
+        v-if="
+          currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
+        "
       />
-    </div>
 
-    <!-- 右侧图表侧边栏 (RightSidebar) -->
-    <template
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-    >
-      <div
-        v-if="isRightSidebarExpanded"
-        class="resize-handle right"
-        :class="{ active: isResizingRightSidebar }"
-        @mousedown="handleRightSidebarResizeStart"
-        @dblclick="resetRightSidebarWidth"
-      />
-      <RightSidebar
-        v-if="isRightSidebarExpanded"
-        :style="{ width: rightSidebarWidth + 'px' }"
-      />
-    </template>
+      <!-- 三栏工作区 -->
+      <div class="workspace-body">
+        <!-- 中部操作栏 (Sidebar) -->
+        <Sidebar
+          v-if="
+            currentRepoPath &&
+            currentRepoPath !== '__panorama__' &&
+            !showSettings
+          "
+          :style="{ width: sidebarWidth + 'px' }"
+        />
+        <div
+          v-if="
+            currentRepoPath &&
+            currentRepoPath !== '__panorama__' &&
+            !showSettings
+          "
+          class="resize-handle"
+          :class="{ active: isResizingSidebar }"
+          @mousedown="handleSidebarResizeStart"
+          @dblclick="resetSidebarWidth"
+        />
 
-    <!-- 右侧栏折叠/展开悬浮按钮 -->
-    <div
-      v-if="
-        currentRepoPath && currentRepoPath !== '__panorama__' && !showSettings
-      "
-      class="toggle-right-sidebar-btn"
-      :class="{ 'is-expanded': isRightSidebarExpanded }"
-      @click="isRightSidebarExpanded = !isRightSidebarExpanded"
-    >
-      <el-tooltip
-        :content="isRightSidebarExpanded ? '收起历史与统计' : '展开历史与统计'"
-        placement="left"
-      >
-        <el-button circle>
-          <component
-            :is="isRightSidebarExpanded ? PanelRightClose : PanelRight"
-            :size="16"
+        <!-- 中间主区域 (MainArea) -->
+        <div class="main-content-wrapper">
+          <SettingsPanel v-if="showSettings" @close="showSettings = false" />
+          <MainArea
+            v-else
+            :sidebar-width="sidebarWidth"
+            :right-sidebar-width="rightSidebarWidth"
+            :is-right-sidebar-expanded="isRightSidebarExpanded"
           />
-        </el-button>
-      </el-tooltip>
+        </div>
+
+        <!-- 右侧图表侧边栏 (RightSidebar) -->
+        <template
+          v-if="
+            currentRepoPath &&
+            currentRepoPath !== '__panorama__' &&
+            !showSettings
+          "
+        >
+          <div
+            v-if="isRightSidebarExpanded"
+            class="resize-handle right"
+            :class="{ active: isResizingRightSidebar }"
+            @mousedown="handleRightSidebarResizeStart"
+            @dblclick="resetRightSidebarWidth"
+          />
+          <RightSidebar
+            v-if="isRightSidebarExpanded"
+            :style="{ width: rightSidebarWidth + 'px' }"
+          />
+        </template>
+      </div>
     </div>
 
     <!-- 拖拽遮罩层，防止拖拽时鼠标滑入 iframe 或 Monaco 导致事件丢失 -->
@@ -112,30 +109,39 @@
       <LoaderCircle :size="22" class="spin" />
       <span>正在扫描 Git 仓库...</span>
     </div>
+
+    <!-- 工具级右键菜单（各区域通过 provide 的 controller 打开） -->
+    <GitContextMenu
+      :state="contextMenu.state"
+      @select="handleContextMenuSelect"
+      @hide="contextMenu.hide"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
-import { LoaderCircle, PanelRight, PanelRightClose } from "lucide-vue-next";
+import { ref, watch } from "vue";
+import { LoaderCircle } from "lucide-vue-next";
 import DropZone from "@/components/common/DropZone.vue";
 import RepoBar from "./components/RepoBar.vue";
+import GitHeaderBar from "./components/GitHeaderBar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import MainArea from "./components/MainArea.vue";
 import RightSidebar from "./components/RightSidebar.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
+import GitContextMenu from "./components/GitContextMenu.vue";
+import {
+  provideGitContextMenu,
+  type GitContextMenuContext,
+} from "./composables/useGitContextMenu";
 import {
   currentRepoPath,
   sidebarWidth,
   rightSidebarWidth,
   isRightSidebarExpanded,
   isRepoBarPinned,
-  loadRepositories,
-  enableAutoRefresh,
-  autoRefreshInterval,
-  isRefreshing,
 } from "./composables/useGitCommitterState";
-import { refreshAllStatuses } from "./composables/useGitCommitterRunner";
+import { useGitStatusPolling } from "./composables/useGitStatusPolling";
 import { useResizable } from "@/composables/useResizable";
 import {
   importRepositories,
@@ -143,6 +149,16 @@ import {
 } from "./composables/useGitRepositoryImport";
 
 const showSettings = ref(false);
+
+// ===== 工具级右键菜单：各区域组件经 inject 获取 controller 并 show() =====
+const contextMenu = provideGitContextMenu();
+const handleContextMenuSelect = (
+  itemId: string,
+  context: GitContextMenuContext
+) => {
+  context.dispatch?.(itemId);
+  contextMenu.hide();
+};
 
 // 监听当前仓库路径变化，自动关闭设置面板
 watch(currentRepoPath, () => {
@@ -200,56 +216,7 @@ const handleRightSidebarResizeStart = (e: MouseEvent) => {
   startResizeRightSidebar(e);
 };
 
-// ===== 自动刷新与智能轮询逻辑 =====
-let refreshTimer: number | null = null;
-
-const handleWindowFocus = () => {
-  // 窗口聚焦时，如果未在刷新且有仓库，则自动刷新
-  if (!isRefreshing.value && currentRepoPath.value) {
-    refreshAllStatuses();
-  }
-};
-
-const startPolling = () => {
-  stopPolling();
-  if (!enableAutoRefresh.value) return;
-
-  const intervalMs = Math.max(3, autoRefreshInterval.value) * 1000; // 最小限制 3 秒，防止高频刷新
-  refreshTimer = window.setInterval(() => {
-    // 仅在窗口处于前台、未在刷新、且有仓库时轮询
-    if (!document.hidden && !isRefreshing.value && currentRepoPath.value) {
-      refreshAllStatuses();
-    }
-  }, intervalMs);
-};
-
-const stopPolling = () => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
-};
-
-// 监听自动刷新配置变化，动态调整轮询
-watch([enableAutoRefresh, autoRefreshInterval], () => {
-  startPolling();
-});
-
-onMounted(async () => {
-  await loadRepositories();
-  await refreshAllStatuses();
-
-  // 注册窗口聚焦事件
-  window.addEventListener("focus", handleWindowFocus);
-  // 启动智能轮询
-  startPolling();
-});
-
-onUnmounted(() => {
-  // 注销事件与清除定时器
-  window.removeEventListener("focus", handleWindowFocus);
-  stopPolling();
-});
+useGitStatusPolling();
 </script>
 
 <style scoped>
@@ -262,6 +229,23 @@ onUnmounted(() => {
   overflow: hidden;
   backdrop-filter: blur(var(--ui-blur));
   position: relative;
+}
+
+/* 右侧工作区：头部栏 + 三栏主体 */
+.workspace-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.workspace-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .main-content-wrapper {
@@ -309,15 +293,6 @@ onUnmounted(() => {
 .resize-handle.right:hover::after,
 .resize-handle.right.active::after {
   right: 1px;
-}
-
-/* 右侧栏折叠/展开悬浮按钮 */
-.toggle-right-sidebar-btn {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  z-index: 40;
-  transition: transform 0.3s ease;
 }
 
 /* 拖拽遮罩层 */

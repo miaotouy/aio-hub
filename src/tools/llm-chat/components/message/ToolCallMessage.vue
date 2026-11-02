@@ -38,7 +38,6 @@ import type { Asset } from "@/types/asset-management";
 import {
   Terminal,
   Hash,
-  ChevronDown,
   ChevronRight,
   Clock,
   AlertCircle,
@@ -70,17 +69,27 @@ import type {
   RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
 import { buildRichTextRendererSettings } from "../../utils/richTextRendererSettings";
+import { useToolResultDisplay } from "../../composables/ui/useToolResultDisplay";
+import { previewToolResult } from "../../utils/toolResultContent";
+import { parseVcpToolMessageDisplay } from "@/tools/rich-text-renderer/utils/vcpToolBatchDisplay";
+import CodeMirrorSourceViewer from "@/tools/rich-text-renderer/components/nodes/code-block/CodeMirrorSourceViewer.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import ChatCodeMirrorEditor from "../message-input/ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "../message-input/ChatTextareaEditor.vue";
 import { useAsyncTaskStore } from "@/tools/tool-calling/stores/asyncTaskStore";
+import { useToolCallingStore } from "../../stores/toolCallingStore";
+import { describeArbitration } from "@/services/decision-arbiter";
 import BackgroundTaskDispatchLink from "@/tools/sub-agent/components/BackgroundTaskDispatchLink.vue";
 import { extractTaskId } from "@/tools/tool-calling/core/utils/task-id-extractor";
 import type { AsyncTaskMetadata } from "@/tools/tool-calling/core/async-task/types";
 
 interface Props {
+  hideStatistics?: boolean;
+  compactActions?: boolean;
+  siblings?: ChatMessageNode[];
+  currentSiblingIndex?: number;
   sessionIndex: ChatSessionIndex | null;
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
@@ -150,6 +159,7 @@ const userProfileStore = useUserProfileStore();
 const { copy } = useClipboard();
 const { translateText } = useTranslation();
 const asyncTaskStore = useAsyncTaskStore();
+const toolCallingStore = useToolCallingStore();
 
 // 编辑状态（内部管理）
 const isEditing = ref(false);
@@ -293,12 +303,12 @@ const previewDialogLabel = ref("执行结果");
 
 const toggleCollapse = () => {
   if (isEditing.value) return; // 编辑模式不允许折叠
-  if (props.screenshotMode) return; // 截图模式由 collapseStrategy 控制, 不接受交互
+  if (props.screenshotMode && !isSessionReadOnly.value) return;
   isCollapsed.value = !isCollapsed.value;
 };
 
 const toggleArgsCollapse = (requestId: string) => {
-  if (props.screenshotMode) return;
+  if (props.screenshotMode && !isSessionReadOnly.value) return;
   argsCollapsedMap.value[requestId] = !argsCollapsedMap.value[requestId];
 };
 
@@ -335,6 +345,16 @@ const backgroundBlocks = computed(() => {
 });
 
 // ----- 工具状态与元数据 -----
+const vcpDisplay = computed(() =>
+  props.message.metadata?.vcpResponse?.kind === "tool"
+    ? parseVcpToolMessageDisplay(
+        props.message.content,
+        props.message.status !== "waiting" &&
+          props.message.status !== "generating"
+      )
+    : undefined
+);
+
 const toolCalls = computed(() => {
   if (
     props.message.metadata?.toolCalls &&
@@ -366,8 +386,22 @@ const toolCalls = computed(() => {
   return [];
 });
 
+const displayToolNames = computed(() =>
+  toolCalls.value.length
+    ? toolCalls.value.map((call) => call.toolName)
+    : [
+        ...(vcpDisplay.value?.results.map((result) => result.tool_name) ?? []),
+        ...(vcpDisplay.value?.summaryItems.map((item) => item.toolName) ?? []),
+      ]
+);
+
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
+  // JEV 仲裁等待态优先（§2.4 两段式：仅 arbitrating 阶段展示「等待 AI 审核」）
+  const isArbitrating = toolCalls.value.some(
+    (t) => toolCallingStore.arbitrationStates.get(t.requestId) === "arbitrating"
+  );
+  if (isArbitrating) return "arbitrating";
   // 优先识别等待审批状态
   if (toolCalls.value.some((t) => t.status === "awaiting_approval"))
     return "pending";
@@ -377,28 +411,111 @@ const mainStatus = computed(() => {
     toolCalls.value.some((t) => t.status === "error" || t.status === "denied")
   )
     return "error";
-  if (toolCalls.value.length === 0) return "pending";
+  if (toolCalls.value.length === 0) {
+    const upstream = props.message.metadata?.vcpResponse;
+    if (upstream?.kind === "tool") {
+      if (props.message.status === "error") return "error";
+      if (upstream.toolStatus) return upstream.toolStatus;
+      if (vcpDisplay.value?.closed) {
+        const statuses = [
+          ...vcpDisplay.value.results.map((result) => result.statusKind),
+          ...vcpDisplay.value.summaryItems.map((item) => item.status),
+        ];
+        if (statuses.includes("error")) return "error";
+        if (statuses.length && statuses.every((status) => status === "success"))
+          return "success";
+      }
+      return props.message.status === "complete" ? "completed" : "executing";
+    }
+    return "pending";
+  }
   return "success";
 });
 
-const statusIcon = computed(() => {
+const statusClass = computed(() => `status-${mainStatus.value}`);
+const vcpStatusLabel = computed(() => {
+  if (mainStatus.value === "completed" && !vcpDisplay.value?.closed)
+    return "未完成";
   switch (mainStatus.value) {
     case "success":
-      return Play;
-    case "executing":
-      return Loader2;
+      return "成功";
     case "error":
-      return AlertCircle;
+      return "失败";
+    case "executing":
+      return "进行中";
     case "cancelled":
-      return XCircle;
-    case "pending":
-      return Clock;
+      return "已取消";
     default:
-      return Terminal;
+      return "已返回";
   }
 });
 
-const statusClass = computed(() => `status-${mainStatus.value}`);
+// ----- 放行源徽标（§3.2，旁路审计映射 + executor rule 旁路） -----
+// action 语义统一由 describeArbitration 判定，禁止在此把 escalate 当作
+// approve 渲染（否则人工审批弹窗出现前会误显示「Jev 自动放行」）。
+interface AuditBadge {
+  key:
+    | "jev-approve"
+    | "jev-deny"
+    | "jev-escalate"
+    | "llm-approve"
+    | "llm-deny"
+    | "llm-escalate"
+    | "manual"
+    | "rule";
+  label: string;
+  tone: "success" | "danger" | "warning" | "primary";
+}
+
+const auditBadge = computed<AuditBadge | null>(() => {
+  if (toolCalls.value.length !== 1) return null;
+  const tc = toolCalls.value[0];
+  if (!tc) return null;
+  const presentation = describeArbitration(
+    toolCallingStore.getAuditRecord?.(tc.requestId)
+  );
+  if (presentation?.kind === "jev" || presentation?.kind === "llm") {
+    const engine = presentation.kind;
+    const label = engine === "llm" ? "LLM" : "Jev";
+    const riskText =
+      engine === "llm"
+        ? presentation.riskLabel
+        : presentation.riskPercent != null
+          ? "风险 " + presentation.riskPercent + "%"
+          : null;
+    const suffix = riskText ? " (" + riskText + ")" : "";
+    if (presentation.action === "deny") {
+      return {
+        key: ("" + engine + "-deny") as AuditBadge["key"],
+        label: label + " 风险拦截" + suffix,
+        tone: "danger",
+      };
+    }
+    if (presentation.action === "escalate") {
+      return {
+        key: (engine + "-escalate") as AuditBadge["key"],
+        label: presentation.degraded
+          ? engine === "llm"
+            ? "LLM 审核暂不可用 · 需人工确认"
+            : "Jev 离线 · 安全兜底"
+          : label + " 建议人工确认",
+        tone: "warning",
+      };
+    }
+    return {
+      key: (engine + "-approve") as AuditBadge["key"],
+      label: label + " 自动放行" + suffix,
+      tone: "success",
+    };
+  }
+  if (presentation?.kind === "manual") {
+    return { key: "manual", label: "人工确认放行", tone: "primary" };
+  }
+  if (tc.resultMetadata?.approvalOrigin === "rule") {
+    return { key: "rule", label: "规则自动放行", tone: "primary" };
+  }
+  return null;
+});
 
 const formattedTime = computed(() => {
   if (!props.message.timestamp) return "";
@@ -421,72 +538,28 @@ const resolveAsset = (content: string) => {
   return processMessageAssetsSync(content, currentAgent.value);
 };
 
-// 处理工具调用结果内容：移除包围栏并格式化 JSON
-const processToolResultContent = (content: string): string => {
-  // 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
-  let processed = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  // 移除头尾包围栏
-  processed = processed
-    .replace(/^\[\[AIO工具调用结果信息汇总:\s*/i, "")
-    .replace(/\s*AIO工具调用结果结束\]\]$/i, "");
-
-  // 尝试检测并格式化 JSON（最多4层缩进）
-  try {
-    // 查找可能的 JSON 内容
-    const jsonMatch = processed.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[0];
-      const parsed = JSON.parse(jsonStr);
-
-      // 自定义格式化：限制缩进深度为4层
-      const formatWithDepthLimit = (
-        obj: any,
-        depth: number = 0,
-        maxDepth: number = 4
-      ): string => {
-        if (depth >= maxDepth) {
-          return JSON.stringify(obj);
-        }
-
-        if (obj === null || obj === undefined) return String(obj);
-        if (typeof obj !== "object") return JSON.stringify(obj);
-
-        const indent = "  ".repeat(depth);
-        const nextIndent = "  ".repeat(depth + 1);
-
-        if (Array.isArray(obj)) {
-          if (obj.length === 0) return "[]";
-          const items = obj.map(
-            (item) =>
-              `${nextIndent}${formatWithDepthLimit(item, depth + 1, maxDepth)}`
-          );
-          return `[\n${items.join(",\n")}\n${indent}]`;
-        }
-
-        const keys = Object.keys(obj);
-        if (keys.length === 0) return "{}";
-
-        const items = keys.map((key) => {
-          const value = formatWithDepthLimit(obj[key], depth + 1, maxDepth);
-          return `${nextIndent}"${key}": ${value}`;
-        });
-        return `{\n${items.join(",\n")}\n${indent}}`;
-      };
-
-      const formatted = formatWithDepthLimit(parsed);
-      processed = processed.replace(jsonStr, formatted);
-    }
-  } catch {
-    // JSON 解析失败，保持原样
-  }
-
-  return processed.trim();
-};
-
-const displayContent = computed(() =>
-  processToolResultContent(props.message.content)
+const resultIsStreaming = computed(
+  () =>
+    props.message.status === "waiting" || props.message.status === "generating"
 );
+const {
+  content: displayContent,
+  preview: rawResultPreview,
+  current: getDisplayContent,
+} = useToolResultDisplay({
+  source: () => props.message.content,
+  expanded: () => !isCollapsed.value && !isEditing.value,
+  streaming: () => resultIsStreaming.value,
+});
+const resultPreview = computed(() => {
+  const display = vcpDisplay.value;
+  if (!display) return rawResultPreview.value;
+  const values = [
+    ...display.results.map((result) => result.resultContent ?? ""),
+    ...display.summaryItems.map((item) => item.label),
+  ];
+  return previewToolResult(values.length ? values.join("；") : display.content);
+});
 
 const activeRules = computed(() => {
   const agentId =
@@ -673,6 +746,7 @@ const formatArgValue = (val: any) => {
 
 // ----- 菜单栏相关计算 -----
 const siblings = computed(() => {
+  if (props.siblings) return props.siblings;
   const nodes = props.sessionDetail?.nodes;
   if (!props.sessionDetail || !nodes || !props.message.parentId)
     return [props.message];
@@ -682,7 +756,10 @@ const siblings = computed(() => {
 });
 
 const currentSiblingIndex = computed(() => {
-  return siblings.value.findIndex((s) => s.id === props.message.id);
+  return (
+    props.currentSiblingIndex ??
+    siblings.value.findIndex((s) => s.id === props.message.id)
+  );
 });
 
 const isGenerating = computed(
@@ -745,7 +822,9 @@ defineExpose({
     :data-message-status="message.status"
     data-testid="chat-tool-call"
     :data-tool-status="mainStatus"
-    :data-tool-name="toolCalls.length === 1 ? toolCalls[0].toolName : undefined"
+    :data-tool-name="
+      displayToolNames.length === 1 ? displayToolNames[0] : undefined
+    "
   >
     <!-- 背景层 -->
     <div class="message-background-container">
@@ -761,14 +840,39 @@ defineExpose({
       ></div>
     </div>
 
-    <!-- 装饰性侧边栏 -->
-    <div class="tool-bar" :class="statusClass" @click="toggleCollapse">
-      <div class="bar-line"></div>
-      <div class="bar-icon">
-        <component :is="statusIcon" :size="14" />
-      </div>
-      <div class="bar-line"></div>
-    </div>
+    <!-- 侧边展开 / 收起按钮 -->
+    <button
+      type="button"
+      class="tool-bar"
+      :class="[statusClass, { 'is-collapsed': isCollapsed }]"
+      :aria-expanded="!isCollapsed"
+      :aria-label="isCollapsed ? '展开工具结果' : '收起工具结果'"
+      :title="isCollapsed ? '展开工具结果' : '收起工具结果'"
+      :disabled="isEditing || (props.screenshotMode && !isSessionReadOnly)"
+      @click="toggleCollapse"
+    >
+      <span class="bar-line" aria-hidden="true"></span>
+      <span class="bar-icon" aria-hidden="true">
+        <svg
+          v-for="position in ['top', 'bottom']"
+          :key="position"
+          class="bar-triangle"
+          :class="`bar-triangle-${position}`"
+          width="14"
+          height="10"
+          viewBox="0 0 14 10"
+          fill="none"
+        >
+          <path
+            d="M 7 2 L 12 8 L 2 8 Z"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </span>
+      <span class="bar-line" aria-hidden="true"></span>
+    </button>
 
     <div
       class="tool-content-wrapper"
@@ -777,21 +881,26 @@ defineExpose({
       <!-- 头部信息 -->
       <div class="tool-header" @click="toggleCollapse">
         <div class="header-left">
-          <div class="collapse-icon">
-            <ChevronDown v-if="!isCollapsed" :size="14" />
-            <ChevronRight v-else :size="14" />
-          </div>
           <span class="role-badge tool" :class="statusClass">
             <Terminal :size="12" />
             工具
           </span>
-          <span v-if="toolCalls.length === 1" class="tool-name">{{
-            toolCalls[0].toolName
+          <span v-if="displayToolNames.length === 1" class="tool-name">{{
+            displayToolNames[0]
           }}</span>
-          <span v-else-if="toolCalls.length > 1" class="tool-name"
-            >调用了 {{ toolCalls.length }} 个工具</span
+          <span v-else-if="displayToolNames.length > 1" class="tool-name"
+            >调用了 {{ displayToolNames.length }} 个工具</span
           >
-          <span v-if="toolCalls.length === 1" class="request-id">
+          <span
+            v-if="vcpDisplay"
+            class="status-indicator"
+            :class="statusClass"
+            >{{ vcpStatusLabel }}</span
+          >
+          <span
+            v-if="toolCalls.length === 1 && !message.metadata?.vcpResponse"
+            class="request-id"
+          >
             <Hash :size="10" />
             {{ toolCalls[0].requestId.slice(0, 8) }}
           </span>
@@ -801,6 +910,21 @@ defineExpose({
           >
             <Clock :size="10" />
             {{ toolCalls[0].durationMs }}ms
+          </span>
+          <!-- 放行源徽标（§3.2 审计回溯） -->
+          <span
+            v-if="auditBadge && mainStatus !== 'arbitrating'"
+            class="audit-badge"
+            :class="`tone-${auditBadge.tone}`"
+            data-testid="tool-audit-badge"
+            :data-audit-key="auditBadge.key"
+          >
+            {{ auditBadge.label }}
+          </span>
+          <!-- JEV 仲裁等待态（§2.4） -->
+          <span v-if="mainStatus === 'arbitrating'" class="arbitrating-hint">
+            <Loader2 :size="10" class="spinning-icon" />
+            等待 AI 审核
           </span>
           <span class="time">{{ formattedTime }}</span>
         </div>
@@ -856,7 +980,10 @@ defineExpose({
           :class="{ 'is-wide-layout': isWideLayout }"
         >
           <!-- 多工具列表 -->
-          <div v-if="toolCalls.length > 1" class="tool-calls-list">
+          <div
+            v-if="!vcpDisplay && toolCalls.length > 1"
+            class="tool-calls-list"
+          >
             <div
               v-for="tc in toolCalls"
               :key="tc.requestId"
@@ -926,7 +1053,9 @@ defineExpose({
 
           <!-- 单工具参数预览 (始终在顶部) -->
           <div
-            v-else-if="toolCalls.length === 1 && toolCalls[0].rawArgs"
+            v-else-if="
+              !vcpDisplay && toolCalls.length === 1 && toolCalls[0].rawArgs
+            "
             class="tool-args-preview"
             :class="{ 'is-collapsed': isArgsCollapsed(toolCalls[0].requestId) }"
           >
@@ -1051,7 +1180,7 @@ defineExpose({
                   v-if="!props.screenshotMode"
                   class="preview-btn"
                   @click="
-                    handlePreviewResult(displayContent, '原文（执行结果）')
+                    handlePreviewResult(getDisplayContent(), '原文（执行结果）')
                   "
                   title="预览渲染效果"
                 >
@@ -1064,7 +1193,7 @@ defineExpose({
                   <div class="result-label">执行结果</div>
                   <div class="result-header-actions">
                     <div
-                      v-if="toolCalls.length === 1"
+                      v-if="toolCalls.length === 1 && !vcpDisplay"
                       class="status-indicator"
                       :class="`status-${toolCalls[0].status}`"
                     >
@@ -1073,7 +1202,9 @@ defineExpose({
                     <button
                       v-if="!props.screenshotMode"
                       class="preview-btn"
-                      @click="handlePreviewResult(displayContent, '执行结果')"
+                      @click="
+                        handlePreviewResult(getDisplayContent(), '执行结果')
+                      "
                       title="预览渲染效果"
                     >
                       <Eye :size="14" />
@@ -1081,7 +1212,75 @@ defineExpose({
                     </button>
                   </div>
                 </div>
-                <pre class="tool-result-text">{{ displayContent }}</pre>
+                <div v-if="vcpDisplay" class="vcp-result-list">
+                  <div
+                    v-for="(result, index) in vcpDisplay.results"
+                    :key="index"
+                    class="vcp-result-entry"
+                  >
+                    <div v-if="displayToolNames.length > 1" class="item-header">
+                      <span class="item-name">{{ result.tool_name }}</span>
+                      <span
+                        class="status-indicator"
+                        :class="`status-${result.statusKind}`"
+                        >{{ result.statusLabel }}</span
+                      >
+                    </div>
+                    <CodeMirrorSourceViewer
+                      v-if="(result.resultContent?.length ?? 0) > 100000"
+                      class="tool-result-source"
+                      :content="result.resultContent ?? ''"
+                      :is-expanded="false"
+                      :code-font-size="12"
+                      :word-wrap-enabled="true"
+                      :closed="vcpDisplay.closed"
+                    />
+                    <pre v-else class="tool-result-text">{{
+                      result.resultContent
+                    }}</pre>
+                  </div>
+                  <div
+                    v-for="(item, index) in vcpDisplay.summaryItems"
+                    :key="`summary:${index}`"
+                    class="item-header"
+                  >
+                    <span class="item-name">{{ item.toolName }}</span>
+                    <span
+                      class="status-indicator"
+                      :class="`status-${item.status}`"
+                      >{{ item.statusLabel }}</span
+                    >
+                  </div>
+                  <template
+                    v-if="
+                      !vcpDisplay.results.length &&
+                      !vcpDisplay.summaryItems.length
+                    "
+                  >
+                    <CodeMirrorSourceViewer
+                      v-if="vcpDisplay.content.length > 100000"
+                      class="tool-result-source"
+                      :content="vcpDisplay.content"
+                      :is-expanded="false"
+                      :code-font-size="12"
+                      :word-wrap-enabled="true"
+                      :closed="vcpDisplay.closed"
+                    />
+                    <pre v-else class="tool-result-text">{{
+                      vcpDisplay.content
+                    }}</pre>
+                  </template>
+                </div>
+                <CodeMirrorSourceViewer
+                  v-else-if="displayContent.length > 100000"
+                  class="tool-result-source"
+                  :content="displayContent"
+                  :is-expanded="false"
+                  :code-font-size="12"
+                  :word-wrap-enabled="true"
+                  :closed="!resultIsStreaming"
+                />
+                <pre v-else class="tool-result-text">{{ displayContent }}</pre>
               </div>
             </div>
 
@@ -1134,20 +1333,23 @@ defineExpose({
         @click="toggleCollapse"
       >
         <div class="preview-content">
-          <span class="preview-tool-name" v-if="toolCalls.length === 1"
-            >[{{ toolCalls[0].toolName }}]</span
+          <span class="preview-tool-name" v-if="displayToolNames.length === 1"
+            >[{{ displayToolNames[0] }}]</span
           >
-          <span class="preview-tool-name" v-else-if="toolCalls.length > 1"
-            >[{{ toolCalls.length }} 个工具]</span
+          <span
+            class="preview-tool-name"
+            v-else-if="displayToolNames.length > 1"
+            >[{{ displayToolNames.length }} 个工具]</span
           >
-          <span class="preview-tool-name" v-else>[未知工具]</span>
+          <span class="preview-tool-name" v-else>{{
+            message.metadata?.vcpResponse ? "[上游工具]" : "[未知工具]"
+          }}</span>
           <span class="preview-text">
-            {{ displayContent.trim().slice(0, 120)
-            }}{{ displayContent.trim().length > 120 ? "..." : "" }}
+            {{ resultPreview }}
           </span>
         </div>
         <div
-          v-if="toolCalls.length > 0"
+          v-if="toolCalls.length > 0 && !vcpDisplay"
           class="preview-status-tag"
           :class="statusClass"
         >
@@ -1155,6 +1357,29 @@ defineExpose({
         </div>
       </div>
 
+      <!-- 元数据展示 -->
+      <div
+        v-if="
+          (!hideStatistics && message.metadata?.usage) ||
+          message.metadata?.error
+        "
+        class="message-meta"
+      >
+        <div
+          v-if="!hideStatistics && message.metadata.usage"
+          class="usage-info"
+        >
+          <span>Token: {{ message.metadata.usage.totalTokens }}</span>
+          <span class="usage-detail"
+            >(输入: {{ message.metadata.usage.promptTokens }}, 输出:
+            {{ message.metadata.usage.completionTokens }})</span
+          >
+        </div>
+        <div v-if="message.metadata.error" class="error-info">
+          <AlertCircle :size="14" />
+          <span class="error-text">{{ message.metadata.error }}</span>
+        </div>
+      </div>
       <!-- 悬浮操作栏 (对齐 ChatMessage.vue 逻辑; 截图模式完全不渲染) -->
       <div
         class="menubar-wrapper"
@@ -1162,6 +1387,7 @@ defineExpose({
         :class="{ 'is-collapsed': isCollapsed }"
       >
         <MessageMenubar
+          :compact="compactActions"
           :message="message"
           :is-sending="isGenerating"
           :siblings="siblings"
@@ -1185,24 +1411,6 @@ defineExpose({
           @toggle-translation-visible="onToggleTranslationVisible"
           @change-translation-mode="onChangeTranslationMode"
         />
-      </div>
-
-      <!-- 元数据展示 -->
-      <div
-        v-if="message.metadata?.usage || message.metadata?.error"
-        class="message-meta"
-      >
-        <div v-if="message.metadata.usage" class="usage-info">
-          <span>Token: {{ message.metadata.usage.totalTokens }}</span>
-          <span class="usage-detail"
-            >(输入: {{ message.metadata.usage.promptTokens }}, 输出:
-            {{ message.metadata.usage.completionTokens }})</span
-          >
-        </div>
-        <div v-if="message.metadata.error" class="error-info">
-          <AlertCircle :size="14" />
-          <span class="error-text">{{ message.metadata.error }}</span>
-        </div>
       </div>
     </div>
   </div>
@@ -1281,7 +1489,7 @@ defineExpose({
   backdrop-filter: blur(var(--ui-blur));
 }
 
-/* 装饰性侧边栏 */
+/* 侧边展开 / 收起按钮 */
 .tool-bar {
   position: relative;
   z-index: 3;
@@ -1289,6 +1497,12 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   width: 20px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
   color: var(--text-color-secondary);
   opacity: 0.6;
   /* 确保侧边栏高度撑满父容器 */
@@ -1297,11 +1511,22 @@ defineExpose({
   transition: opacity 0.2s;
 }
 
-.tool-bar:hover {
+.tool-bar:not(:disabled):hover,
+.tool-bar:focus-visible {
   opacity: 1;
 }
 
-.tool-bar.status-success {
+.tool-bar:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
+.tool-bar:disabled {
+  cursor: default;
+}
+
+.tool-bar.status-success,
+.tool-bar.status-completed {
   color: var(--el-color-success);
 }
 .tool-bar.status-error,
@@ -1312,6 +1537,9 @@ defineExpose({
   color: var(--el-color-info);
 }
 .tool-bar.status-pending {
+  color: var(--el-color-warning);
+}
+.tool-bar.status-arbitrating {
   color: var(--el-color-warning);
 }
 
@@ -1326,14 +1554,35 @@ defineExpose({
 .bar-icon {
   position: sticky;
   top: 16px; /* 随着消息内容滚动时，图标保持在顶部可见区域 */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 6px 0;
   transition: transform 0.2s;
   background-color: transparent;
   z-index: 4;
 }
 
-.bar-icon .lucide-loader2 {
-  animation: spin 1s linear infinite;
+.bar-triangle {
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.bar-triangle-top,
+.tool-bar.is-collapsed .bar-triangle-bottom {
+  transform: rotate(180deg);
+}
+
+.tool-bar.is-collapsed .bar-triangle-top {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-icon,
+  .bar-triangle {
+    transition: none;
+  }
 }
 
 @keyframes spin {
@@ -1345,7 +1594,7 @@ defineExpose({
   }
 }
 
-.tool-bar:hover .bar-icon {
+.tool-bar:not(:disabled):hover .bar-icon {
   transform: scale(1.2);
 }
 
@@ -1374,13 +1623,6 @@ defineExpose({
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.collapse-icon {
-  display: flex;
-  align-items: center;
-  color: var(--text-color-tertiary);
-  width: 16px;
 }
 
 .role-badge.tool {
@@ -1451,6 +1693,86 @@ defineExpose({
     var(--el-color-warning) 30%,
     var(--border-color)
   );
+}
+
+/* 放行源徽标（§3.2）：小型 Badge，不使用粗边线 */
+.audit-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  border: var(--border-width) solid transparent;
+}
+
+.audit-badge.tone-success {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-success) 12%,
+    var(--card-bg)
+  );
+  color: var(--el-color-success);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-success) 25%,
+    var(--border-color)
+  );
+}
+
+.audit-badge.tone-danger {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 12%,
+    var(--card-bg)
+  );
+  color: var(--el-color-danger);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-danger) 25%,
+    var(--border-color)
+  );
+}
+
+.audit-badge.tone-warning {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 12%,
+    var(--card-bg)
+  );
+  color: var(--el-color-warning);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-warning) 25%,
+    var(--border-color)
+  );
+}
+
+.audit-badge.tone-primary {
+  background-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 10%,
+    var(--card-bg)
+  );
+  color: var(--el-color-primary);
+  border-color: color-mix(
+    in srgb,
+    var(--el-color-primary) 25%,
+    var(--border-color)
+  );
+}
+
+/* JEV 仲裁等待态提示（§3.2） */
+.arbitrating-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--el-color-warning);
+  white-space: nowrap;
+}
+
+.arbitrating-hint .spinning-icon {
+  animation: spin 1.2s linear infinite;
 }
 
 .tool-name {
@@ -1768,6 +2090,13 @@ defineExpose({
   color: var(--el-color-danger);
 }
 
+.vcp-result-list,
+.vcp-result-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* 纯文本结果展示 */
 .tool-result-text {
   margin: 0;
@@ -1784,6 +2113,12 @@ defineExpose({
   overflow-x: auto;
   max-height: 400px;
   overflow-y: auto;
+}
+
+.tool-result-source {
+  max-height: 400px;
+  border: var(--border-width) solid var(--border-color);
+  background: var(--input-bg);
 }
 
 /* 预览按钮 */
@@ -1841,18 +2176,21 @@ defineExpose({
   border-right: 1px dashed var(--border-color);
 }
 
-/* 悬停显示操作栏 (对齐 ChatMessage.vue) */
-.tool-call-message:hover .menubar-wrapper {
+/* 悬停或键盘聚焦时显示操作栏；弹层打开期间保持可见。 */
+.tool-call-message:hover .menubar-wrapper,
+.tool-call-message:has(:focus-visible) .menubar-wrapper,
+.tool-call-message:has(.message-menubar.has-open-popover) .menubar-wrapper {
   opacity: 1;
 }
 
 .menubar-wrapper {
   position: sticky;
-  bottom: 8px;
+  /* 抵消列表底部留白，让吸附位置以可视区底边为准。 */
+  bottom: calc(12px - var(--message-list-bottom-space, 0px));
   display: flex;
   justify-content: flex-end;
-  /* 通过负margin覆盖在内容上，消除占位 */
-  margin-top: -46px;
+  align-items: flex-end;
+  height: 0;
   z-index: 10;
   padding-right: 12px;
 
@@ -1865,6 +2203,7 @@ defineExpose({
 
 .menubar-wrapper.is-collapsed {
   position: absolute;
+  height: auto;
   top: 0;
   right: 0;
   bottom: auto;
@@ -1872,6 +2211,14 @@ defineExpose({
 }
 
 .menubar-wrapper > * {
+  pointer-events: none;
+}
+
+.tool-call-message:hover .menubar-wrapper > *,
+.tool-call-message:has(:focus-visible) .menubar-wrapper > *,
+.tool-call-message:has(.message-menubar.has-open-popover) .menubar-wrapper > *,
+.tool-call-message:hover .menubar-wrapper::before,
+.tool-call-message:has(:focus-visible) .menubar-wrapper::before {
   pointer-events: auto;
 }
 

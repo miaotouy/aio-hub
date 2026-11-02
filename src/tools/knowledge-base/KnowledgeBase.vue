@@ -2,7 +2,7 @@
   <section class="knowledge-shell" data-testid="knowledge-base-tool">
     <header class="knowledge-navigation">
       <div class="product-title">
-        <Database :size="18" />
+        <KnowledgeBaseIcon :size="18" />
         <span>Knowledge</span>
       </div>
       <el-segmented
@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Database } from "lucide-vue-next";
+import { KnowledgeBaseIcon } from "@aiohub/tool-icons";
 import WorkspaceView from "./views/WorkspaceView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import {

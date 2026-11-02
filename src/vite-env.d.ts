@@ -15,3 +15,8 @@ declare module "virtual:aiohub-builtin-tokenizer-assets" {
   const assets: Record<string, BuiltinTokenizerAssetUrls>;
   export default assets;
 }
+
+declare module "virtual:aiohub-tesseract-languages" {
+  const codes: string[];
+  export default codes;
+}

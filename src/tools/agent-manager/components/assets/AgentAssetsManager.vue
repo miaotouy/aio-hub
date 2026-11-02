@@ -15,7 +15,14 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, defineAsyncComponent } from "vue";
+import { ElMessageBox } from "element-plus";
+import BaseDialog from "@/components/common/BaseDialog.vue";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { createAssetDescriber } from "../../services/agentAssetDescriptionService";
+import { assetDescriptionSettingsManager } from "../../services/agentAssetDescriptionSettings";
+import { useAssetDescriptionGeneration } from "./useAssetDescriptionGeneration";
+import AgentAssetDescriptionSettingsDialog from "./AgentAssetDescriptionSettingsDialog.vue";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Plus } from "@element-plus/icons-vue";
@@ -35,6 +42,9 @@ import AgentGroupEditDialog from "./AgentGroupEditDialog.vue";
 import AgentBatchMoveDialog from "./AgentBatchMoveDialog.vue";
 import AgentMediaPreview from "./AgentMediaPreview.vue";
 
+const TranscriptionSettings = defineAsyncComponent(
+  () => import("@/tools/transcription/components/TranscriptionSettings.vue")
+);
 const logger = createModuleLogger("AgentAssetsManager");
 const imageViewer = useImageViewer();
 const { copy } = useClipboard();
@@ -44,12 +54,14 @@ interface Props {
   assetGroups?: AssetGroup[];
   agentId: string;
   disabled?: boolean;
+  active?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: () => [],
   assetGroups: () => [],
   disabled: false,
+  active: true,
 });
 
 const emit = defineEmits<{
@@ -60,13 +72,106 @@ const emit = defineEmits<{
 
 // 核心逻辑 Composable
 const manager = useAgentAssetsManager(props, emit);
+const errorHandler = createModuleErrorHandler("AgentAssetDescription");
+const descriptionSettingsVisible = ref(false);
+const transcriptionSettingsVisible = ref(false);
+const generation = useAssetDescriptionGeneration({
+  agentId: () => props.agentId,
+  active: () => props.active && !props.disabled,
+  groups: () => manager.assetGroups.value,
+  apply: manager.applyGeneratedDescription,
+});
 
+const generateDescription = async (asset: AgentAsset, signal: AbortSignal) => {
+  const agentId = props.agentId;
+  const { prompt } = await assetDescriptionSettingsManager.load();
+  signal.throwIfAborted();
+  const describe = await createAssetDescriber(agentId, prompt);
+  signal.throwIfAborted();
+  return describe(
+    asset,
+    manager.assetGroups.value.find((group) => group.id === asset.group),
+    signal
+  );
+};
+
+const runDescriptionBatch = async (overwrite = false, retry = false) => {
+  if (generation.running.value || !props.active || props.disabled) return;
+  const agentId = props.agentId;
+  const target = retry
+    ? generation.failed.value.map((job) => ({ ...job.asset }))
+    : manager.filteredAssets.value
+        .filter(
+          (asset) =>
+            !manager.isSelectionMode.value ||
+            manager.selectedAssetIds.value.has(asset.id)
+        )
+        .filter((asset) => overwrite || !asset.description?.trim())
+        .map((asset) => ({ ...asset }));
+  if (!target.length) {
+    customMessage.info("当前范围的资产已有描述");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将 ${target.length} 个资产的内容发送给对应的转写模型，生成短描述。${overwrite || retry ? "已有描述将由本次结果更新。" : "结果填入空描述。"}完成后请保存智能体。`,
+      retry ? "重试失败项" : overwrite ? "重新生成描述" : "补全资产描述",
+      {
+        confirmButtonText: "开始生成",
+        cancelButtonText: "取消",
+        lockScroll: false,
+        type: overwrite ? "warning" : "info",
+      }
+    );
+    if (agentId !== props.agentId || !props.active) return;
+    const { prompt } = await assetDescriptionSettingsManager.load();
+    if (agentId !== props.agentId || !props.active) return;
+    await generation.run(target, prompt, overwrite || retry);
+  } catch (error) {
+    if (error === "cancel" || error === "close") return;
+    errorHandler.error(error, "启动描述生成失败");
+  }
+};
+
+const openTranscriptionSettings = () => {
+  descriptionSettingsVisible.value = false;
+  transcriptionSettingsVisible.value = true;
+};
+const updateTranscriptionSettingsVisible = async (visible: boolean) => {
+  if (visible) {
+    transcriptionSettingsVisible.value = true;
+    return;
+  }
+  try {
+    // Persist the debounced editor state before the next description reads bindings.
+    const [{ useTranscriptionStore }, { transcriptionConfigManager }] =
+      await Promise.all([
+        import("@/tools/transcription/stores/transcriptionStore"),
+        import("@/tools/transcription/utils/persistence"),
+      ]);
+    const store = useTranscriptionStore();
+    await store.init();
+    await transcriptionConfigManager.save(store.config);
+    transcriptionSettingsVisible.value = false;
+    if (props.active) descriptionSettingsVisible.value = true;
+  } catch (error) {
+    errorHandler.error(error, "保存转写配置失败");
+  }
+};
 // 文件输入引用
 const fileInput = ref<HTMLInputElement | null>(null);
 
 // 弹窗状态
 const editDialogVisible = ref(false);
 const editingAsset = ref<AgentAsset | null>(null);
+watch(
+  () => [props.agentId, props.active] as const,
+  () => {
+    editDialogVisible.value = false;
+    descriptionSettingsVisible.value = false;
+    transcriptionSettingsVisible.value = false;
+  }
+);
 
 const groupEditDialogVisible = ref(false);
 const editingGroup = ref<AssetGroup | null>(null);
@@ -244,6 +349,9 @@ const dropZoneHint = computed(() => {
         :selected-count="manager.selectedAssetIds.value.size"
         :filtered-total="manager.filteredAssets.value.length"
         :is-uploading="manager.isUploading.value"
+        :is-generating="generation.running.value"
+        @generate-descriptions="runDescriptionBatch"
+        @description-settings="descriptionSettingsVisible = true"
         :search-query="manager.searchQuery.value"
         :sort-by="manager.sortBy.value"
         @update:search-query="manager.searchQuery.value = $event"
@@ -255,6 +363,87 @@ const dropZoneHint = computed(() => {
         @open-assets-dir="manager.handleOpenAssetsDir"
         @upload-click="handleUploadClick"
       />
+
+      <section
+        v-if="generation.jobs.value.length"
+        class="description-progress"
+        aria-label="描述生成进度"
+        aria-live="polite"
+      >
+        <div class="description-progress-header">
+          <span
+            >{{
+              generation.running.value
+                ? "正在生成描述"
+                : generation.cancelled.value
+                  ? "描述生成已取消"
+                  : "描述生成完成"
+            }}
+            · {{ generation.completed.value }}/{{
+              generation.jobs.value.length
+            }}</span
+          >
+          <div class="description-progress-actions">
+            <el-button
+              v-if="generation.running.value"
+              size="small"
+              @click="generation.cancel"
+              >取消生成</el-button
+            >
+            <template v-else>
+              <el-button
+                v-if="generation.failed.value.length"
+                size="small"
+                @click="runDescriptionBatch(true, true)"
+                >重试失败项</el-button
+              >
+              <el-button
+                v-if="generation.failed.value.length"
+                size="small"
+                @click="descriptionSettingsVisible = true"
+                >生成设置</el-button
+              >
+              <el-button size="small" @click="generation.clear">关闭</el-button>
+            </template>
+          </div>
+        </div>
+        <el-progress
+          :percentage="
+            Math.round(
+              (generation.completed.value / generation.jobs.value.length) * 100
+            )
+          "
+          :show-text="false"
+          :stroke-width="4"
+        />
+        <div class="description-progress-summary">
+          已填入 {{ generation.succeeded.value }} 项<span
+            v-if="generation.skipped.value"
+          >
+            · 跳过
+            {{ generation.skipped.value }} 项（已有描述或资产已更改）</span
+          ><span v-if="generation.failed.value.length">
+            · 失败 {{ generation.failed.value.length }} 项</span
+          >
+          <span v-if="generation.succeeded.value">
+            · 请保存智能体以保留描述</span
+          >
+        </div>
+        <details
+          v-if="generation.failed.value.length"
+          class="description-failures"
+        >
+          <summary>查看失败原因</summary>
+          <div
+            v-for="job in generation.failed.value"
+            :key="job.asset.path"
+            class="description-failure"
+          >
+            <strong>{{ job.asset.filename }}</strong
+            ><span>{{ job.error }}</span>
+          </div>
+        </details>
+      </section>
 
       <!-- 主体区域 -->
       <div class="main-body">
@@ -316,11 +505,29 @@ const dropZoneHint = computed(() => {
       />
     </div>
 
+    <AgentAssetDescriptionSettingsDialog
+      v-model="descriptionSettingsVisible"
+      @open-transcription-settings="openTranscriptionSettings"
+    />
+    <BaseDialog
+      :model-value="transcriptionSettingsVisible"
+      @update:model-value="updateTranscriptionSettingsVisible"
+      title="转写服务配置"
+      width="800px"
+      height="80vh"
+      :show-footer="false"
+    >
+      <TranscriptionSettings v-if="transcriptionSettingsVisible" />
+    </BaseDialog>
+
     <!-- 弹窗群 -->
     <AgentAssetEditDialog
       v-model="editDialogVisible"
       :asset="editingAsset"
       :sorted-groups="manager.sortedGroups.value"
+      :generate-description="generateDescription"
+      :generation-disabled="generation.running.value || disabled"
+      @description-settings="descriptionSettingsVisible = true"
       @save="handleSaveEdit"
     />
 
@@ -348,6 +555,48 @@ const dropZoneHint = computed(() => {
 </template>
 
 <style scoped>
+.description-progress {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
+  font-size: 13px;
+}
+.description-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.description-progress-actions {
+  display: flex;
+  gap: 8px;
+}
+.description-progress-summary {
+  margin-top: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.description-failures {
+  margin-top: 8px;
+  max-height: 150px;
+  overflow: auto;
+}
+.description-failures summary {
+  cursor: pointer;
+  color: var(--el-color-warning);
+}
+.description-failure {
+  display: flex;
+  gap: 8px;
+  padding-top: 6px;
+  overflow-wrap: anywhere;
+}
+.description-failure strong {
+  flex-shrink: 0;
+  max-width: 35%;
+}
 .agent-assets-manager {
   display: flex;
   height: 100%;

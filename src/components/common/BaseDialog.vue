@@ -29,7 +29,12 @@
       @click="props.closeOnBackdropClick && handleClose()"
     >
       <div
+        ref="dialogRef"
         class="base-dialog-container"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="props.title || undefined"
+        tabindex="-1"
         :class="[
           props.bare ? 'dialog-bare' : 'dialog-styled',
           props.dialogClass,
@@ -112,6 +117,7 @@ import {
   computed,
   nextTick,
 } from "vue";
+import { useOverlayFocus } from "@/composables/useOverlayFocus";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";
 import { acquireZIndex, releaseZIndex } from "@/composables/useDialogZIndex";
 
@@ -126,6 +132,7 @@ const props = withDefaults(
     top?: string;
     showCloseButton?: boolean;
     closeOnBackdropClick?: boolean;
+    beforeClose?: () => boolean | Promise<boolean>;
     bare?: boolean;
     dialogClass?: string;
     contentClass?: string;
@@ -157,6 +164,9 @@ const emit = defineEmits<{
   (e: "close"): void;
   (e: "open"): void;
 }>();
+
+const dialogRef = ref<HTMLElement | null>(null);
+const { isTopmost } = useOverlayFocus(dialogRef, () => props.modelValue);
 
 // 记录是否已经打开过
 const hasOpened = ref(false);
@@ -243,7 +253,7 @@ watch(
     if (newValue) {
       hasOpened.value = true;
       emit("open");
-      dynamicZIndex.value = Math.max(acquireZIndex(), props.zIndex);
+      dynamicZIndex.value = acquireZIndex(props.zIndex);
 
       // DOM 更新后启动入场动画
       // 使用双重 requestAnimationFrame 确保在浏览器重绘后应用类名
@@ -263,7 +273,15 @@ watch(
   { immediate: true }
 );
 
-function handleClose() {
+let checkingClose = false;
+async function handleClose() {
+  if (checkingClose) return;
+  checkingClose = true;
+  try {
+    if (props.beforeClose && !(await props.beforeClose())) return;
+  } finally {
+    checkingClose = false;
+  }
   showContentTransition.value = false;
   // 等待退场动画完成，如果禁用了动画则立即关闭
   const delay = props.enableTransition ? 300 : 0;
@@ -274,7 +292,17 @@ function handleClose() {
 }
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (props.modelValue && event.key === "Escape" && props.showCloseButton) {
+  if (
+    props.modelValue &&
+    event.key === "Escape" &&
+    !event.defaultPrevented &&
+    props.showCloseButton &&
+    isTopmost() &&
+    event.target instanceof Node &&
+    dialogRef.value?.contains(event.target)
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
     handleClose();
   }
 };

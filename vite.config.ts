@@ -12,6 +12,7 @@ import Components from "unplugin-vue-components/vite";
 import VueDevTools from "vite-plugin-vue-devtools";
 import { fileURLToPath, URL } from "node:url";
 import { tokenizerAssetsPlugin } from "./scripts/vite/tokenizerAssetPlugin";
+import { tesseractLanguagesPlugin } from "./scripts/vite/tesseractLanguagesPlugin";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -62,27 +63,6 @@ const viteConfig = defineConfig({
       "aiohub-ui": fileURLToPath(
         new URL("./public/plugins/shims/aiohub-ui-shim.js", import.meta.url)
       ),
-      // Monaco 汉化劫持 - 拦截所有 NLS 相关请求
-      "monaco-editor/esm/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "monaco-editor/esm/vs/nls": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "monaco-editor/dev/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "monaco-editor/dev/vs/nls": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      // 针对绝对路径请求的额外劫持
-      "/node_modules/monaco-editor/esm/vs/nls.js": fileURLToPath(
-        new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-      ),
-      "/node_modules/monaco-editor/esm/vs/editor/editor.main.nls.js":
-        fileURLToPath(
-          new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-        ),
     },
   },
 
@@ -95,6 +75,10 @@ const viteConfig = defineConfig({
   },
 
   define: {
+    // Explicit launcher flag works in both HMR and production-mode static development.
+    "import.meta.env.VITE_AIO_DEV_CONTROL": JSON.stringify(
+      process.env.AIO_DEV_CONTROL === "1" ? "1" : "0"
+    ),
     // 修复 Prettier 3.x 在 Rolldown 环境下内部依赖 regexp-tree 的 RegExpParser 报错
     "process.env.PRETTIER_DEBUG": "false",
   },
@@ -106,55 +90,10 @@ const viteConfig = defineConfig({
 
   plugins: [
     tokenizerAssetsPlugin(),
+    tesseractLanguagesPlugin(),
     // 生产环境禁用 VueDevTools
     process.env.NODE_ENV !== "production" && VueDevTools(),
     vue(),
-    // 拦截 Monaco NLS 请求的中间件
-    {
-      name: "monaco-nls-middleware",
-      configureServer(server: import("vite").ViteDevServer) {
-        server.middlewares.use(
-          async (
-            req: import("node:http").IncomingMessage,
-            res: import("node:http").ServerResponse,
-            next: () => void
-          ) => {
-            // 拦截所有对 nls.js 的请求
-            if (
-              req.url &&
-              req.url.includes("nls.js") &&
-              (req.url.includes("monaco-editor") ||
-                req.url.includes("monaco-i18n"))
-            ) {
-              const fs = await import("node:fs");
-              let nlsContent = fs.readFileSync(
-                fileURLToPath(
-                  new URL("./src/utils/monaco-i18n/nls.js", import.meta.url)
-                ),
-                "utf-8"
-              );
-
-              // 默认文件是不含 export 的纯脚本 (AMD 友好)
-              // 如果是 Vite 的 ESM 导入请求 (?import)，我们需要动态补上 export 语句
-              if (
-                req.url.includes("import") ||
-                req.headers["sec-fetch-mode"] === "cors"
-              ) {
-                nlsContent += `\nexport { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };\nexport default { localize, localize2, getConfiguredDefaultLocale, getNLSLanguage, getNLSMessages };`;
-                // console.log(`[Monaco NLS] Serving ESM-compatible NLS: ${req.url}`);
-              } else {
-                // console.log(`[Monaco NLS] Serving AMD-compatible NLS: ${req.url}`);
-              }
-
-              res.setHeader("Content-Type", "application/javascript");
-              res.end(nlsContent);
-              return;
-            }
-            next();
-          }
-        );
-      },
-    },
     Components({
       resolvers: [
         IconsResolver({
@@ -248,15 +187,7 @@ const viteConfig = defineConfig({
             if (id.includes("element-plus")) {
               return "vendor-element";
             }
-            if (
-              id.includes("codemirror") ||
-              id.includes("@guolao/vue-monaco-editor")
-            ) {
-              return "vendor-editor";
-            }
-            // if (id.includes('prettier')) {
-            //   return 'vendor-prettier';
-            // }
+            // Keep editor engines and language parsers at their dynamic import boundaries.
           }
         },
       },
@@ -282,8 +213,14 @@ const viteConfig = defineConfig({
           port: HMR_PORT,
         },
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 跳过运行数据、排查产物和版本元数据，避免目录累积拖慢文件监听。
+      ignored: [
+        "**/src-tauri/**",
+        "**/.dev-data/**",
+        "**/.tmp/**",
+        "**/.jj/**",
+        "**/target/**",
+      ],
     },
   },
 });
@@ -321,6 +258,7 @@ export default mergeConfig(
         "**/.jj/**",
         "tests/tauri-e2e/**",
         "tests/mobile-android-e2e/**",
+        "scripts/dev-control/**", // local controller uses its standalone Node test config
         ".dev-data/**",
       ],
     },

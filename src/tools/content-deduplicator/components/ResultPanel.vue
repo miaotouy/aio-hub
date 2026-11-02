@@ -32,7 +32,7 @@
 
     <!-- 空状态 -->
     <div v-if="!store.hasScanned && !store.isScanning" class="empty-state">
-      <FileSearch :size="48" class="empty-icon" />
+      <ContentDeduplicatorIcon :size="48" class="empty-icon" />
       <p>选择目录并开始扫描</p>
     </div>
 
@@ -268,7 +268,6 @@
 <script setup lang="ts">
 import { Loading } from "@element-plus/icons-vue";
 import {
-  FileSearch,
   CircleCheck,
   Search,
   Trash2,
@@ -276,6 +275,7 @@ import {
   Crown,
   GitCompareArrows,
 } from "lucide-vue-next";
+import { ContentDeduplicatorIcon } from "@aiohub/tool-icons";
 import InfoCard from "@components/common/InfoCard.vue";
 import FileIcon from "@components/common/FileIcon.vue";
 import { useContentDeduplicatorStore } from "../stores/store";

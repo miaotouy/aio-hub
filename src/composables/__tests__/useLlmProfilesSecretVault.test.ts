@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { LlmProfile } from "@/types/llm-profiles";
 
 const PROFILE_ID = "llm-profile-legacy";
@@ -71,7 +71,10 @@ async function bootstrapWithLegacyProfiles(profiles: LlmProfile[]) {
   return { profilesManager, vault, store };
 }
 
-// 首次动态 import 需要编译 useLlmProfiles 的整条依赖链，放宽单测超时
+// 将首次依赖编译放入套件准备阶段，避免并行转换耗尽业务断言的超时。
+beforeAll(async () => {
+  await import("@/composables/useLlmProfiles");
+}, 60000);
 vi.setConfig({ testTimeout: 20000 });
 
 describe("useLlmProfiles secret vault bridging", () => {
@@ -158,5 +161,52 @@ describe("useLlmProfiles secret vault bridging", () => {
     expect(loaded.secrets).toEqual({
       [PROFILE_ID]: { apiKeys: [LEGACY_SECRET], customHeaders: {} },
     });
+  });
+});
+
+describe("useLlmProfiles provider selection", () => {
+  it("自动选择按列表顺序匹配已启用的提供商渠道，并响应渠道变更", async () => {
+    const { store } = await bootstrapWithLegacyProfiles([]);
+    const first: LlmProfile = {
+      ...legacyProfile(),
+      id: "deepseek-first",
+      type: "deepseek",
+    };
+    const second = { ...first, id: "deepseek-second" };
+    const disabled = { ...first, id: "deepseek-disabled", enabled: false };
+    store.profiles.value = [legacyProfile(), disabled, first, second];
+
+    expect(store.getEnabledProfileByType("deepseek")?.id).toBe(first.id);
+    store.profiles.value = [legacyProfile(), disabled, second, first];
+    expect(store.getEnabledProfileByType("deepseek", "")?.id).toBe(second.id);
+    store.profiles.value[2].enabled = false;
+    expect(store.getEnabledProfileByType("deepseek")?.id).toBe(first.id);
+    store.profiles.value = [legacyProfile(), disabled];
+    expect(store.getEnabledProfileByType("deepseek")).toBeUndefined();
+  });
+
+  it("显式绑定优先于列表顺序，绑定缺失、停用或提供商不匹配时返回待修复状态", async () => {
+    const { store } = await bootstrapWithLegacyProfiles([]);
+    const first: LlmProfile = {
+      ...legacyProfile(),
+      id: "deepseek-first",
+      type: "deepseek",
+    };
+    const selected = { ...first, id: "deepseek-selected" };
+    store.profiles.value = [legacyProfile(), first, selected];
+
+    expect(store.getEnabledProfileByType("deepseek", selected.id)?.id).toBe(
+      selected.id
+    );
+    store.profiles.value[2].enabled = false;
+    expect(
+      store.getEnabledProfileByType("deepseek", selected.id)
+    ).toBeUndefined();
+    expect(
+      store.getEnabledProfileByType("deepseek", "deleted")
+    ).toBeUndefined();
+    expect(
+      store.getEnabledProfileByType("deepseek", PROFILE_ID)
+    ).toBeUndefined();
   });
 });

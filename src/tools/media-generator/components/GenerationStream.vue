@@ -15,7 +15,8 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { computed, ref, onMounted, nextTick, watch } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import type { Component } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
@@ -35,11 +36,12 @@ const inputManager = useMediaGenInputManager();
 const { getAssetBasePath } = useAssetManager();
 
 const scrollContainer = ref<HTMLElement | null>(null);
+const isPageActive = usePageActivity();
 
 // 滚动到底部
 const scrollToBottom = async () => {
   await nextTick();
-  if (scrollContainer.value) {
+  if (isPageActive.value && scrollContainer.value) {
     scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight;
   }
 };
@@ -48,7 +50,7 @@ const scrollToBottom = async () => {
 watch(
   () => store.messages.length,
   () => {
-    scrollToBottom();
+    if (isPageActive.value) scrollToBottom();
   }
 );
 
@@ -94,30 +96,33 @@ const currentEmptyState = computed(
   () => emptyStateByType[store.currentConfig.activeType]
 );
 
+let refreshAnimationTimer: ReturnType<typeof setTimeout> | null = null;
 const refreshPrompts = () => {
+  if (!isPageActive.value || store.messages.length > 1) return;
+  if (refreshAnimationTimer) clearTimeout(refreshAnimationTimer);
   isRefreshing.value = true;
   // 随机抽取 3 个
   displayPrompts.value = sampleSize(currentEmptyState.value.prompts, 3);
-  setTimeout(() => {
+  refreshAnimationTimer = setTimeout(() => {
     isRefreshing.value = false;
   }, 500);
 };
 
-let refreshTimer: any = null;
-
-onMounted(() => {
-  scrollToBottom();
-  refreshPrompts();
-
-  // 每 30 秒自动刷新一次
-  refreshTimer = setInterval(refreshPrompts, 30000);
-});
-
-onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-  }
-});
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+watch(
+  () => isPageActive.value && store.messages.length <= 1,
+  (visible) => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
+    if (refreshAnimationTimer) clearTimeout(refreshAnimationTimer);
+    isRefreshing.value = false;
+    if (!visible) return;
+    refreshPrompts();
+    refreshTimer = setInterval(refreshPrompts, 30000);
+  },
+  { immediate: true, flush: "sync" }
+);
+onMounted(scrollToBottom);
 
 watch(
   () => store.currentConfig.activeType,

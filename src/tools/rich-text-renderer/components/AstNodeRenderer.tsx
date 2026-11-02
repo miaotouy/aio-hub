@@ -7,8 +7,22 @@
  * 3. 传递节点属性和子节点给渲染组件
  */
 
-import { defineComponent, h, type PropType, type VNode } from "vue";
-import type { AstNode } from "../types";
+import {
+  computed,
+  inject,
+  defineComponent,
+  h,
+  withMemo,
+  type PropType,
+  type VNode,
+} from "vue";
+import {
+  RICH_TEXT_CONTEXT_KEY,
+  type AstNode,
+  type RichTextContext,
+} from "../types";
+
+import { rendererBlockMountingKey } from "../composables/useRendererBlockMounting";
 
 // 导入节点组件
 // 内联节点
@@ -153,6 +167,7 @@ const FallbackNode = defineComponent({
 const AstNodeRenderer = defineComponent({
   name: "AstNodeRenderer",
   props: {
+    viewportBlocks: { type: Boolean, default: false },
     nodes: {
       type: Array as PropType<AstNode[]>,
       required: true,
@@ -169,6 +184,19 @@ const AstNodeRenderer = defineComponent({
     },
   },
   setup(props) {
+    const viewport = inject(rendererBlockMountingKey, undefined);
+    const context = inject<RichTextContext | undefined>(
+      RICH_TEXT_CONTEXT_KEY,
+      undefined
+    );
+    const enableAnimation = computed(
+      () =>
+        props.enableEnterAnimation &&
+        context?.enableEnterAnimation?.value !== false
+    );
+    // AST patches retain untouched objects. Mirror v-memo here so an unchanged
+    // subtree keeps its VNodes and slots instead of propagating an update.
+    const renderCache: VNode[] = [];
     return (): VNode[] => {
       // 性能优化：在循环外预先判断当前层级是否包含 StyleNode
       // 避免在 map 内部对 props.nodes 进行重复的 O(n) 扫描
@@ -176,7 +204,11 @@ const AstNodeRenderer = defineComponent({
         (n) => n.type === "generic_html" && n.props?.tagName === "style"
       );
 
-      return props.nodes.map((node: AstNode): VNode => {
+      const blocks = props.viewportBlocks ? viewport : undefined;
+      if (blocks) {
+        blocks.revision.value;
+      }
+      const renderNode = (node: AstNode, restored = false): VNode => {
         let NodeComponent = componentMap[node.type] || FallbackNode;
 
         // 特殊处理：如果是一个 generic_html 且标签名为 style，则使用专门的 StyleNode
@@ -219,14 +251,16 @@ const AstNodeRenderer = defineComponent({
             ? h(AstNodeRenderer, {
                 nodes: node.children,
                 generationMeta: props.generationMeta,
-                enableEnterAnimation: props.enableEnterAnimation,
+                enableEnterAnimation: enableAnimation.value,
                 parentContainerId: containerId || props.parentContainerId,
               })
             : undefined;
 
         // 根据节点类型决定是否应用动画
         const shouldAnimate =
-          props.enableEnterAnimation && !NO_ANIMATION_NODE_TYPES.has(node.type);
+          enableAnimation.value &&
+          !restored &&
+          !NO_ANIMATION_NODE_TYPES.has(node.type);
 
         // 识别块级节点以应用性能优化
         const isBlock = BLOCK_NODE_TYPES.has(node.type);
@@ -283,6 +317,10 @@ const AstNodeRenderer = defineComponent({
             : props.parentContainerId,
         };
 
+        if (node.type === "katex_block" || node.type === "katex_inline") {
+          componentProps.nodeStatus = node.meta.status;
+        }
+
         // 根据节点类型设置 displayMode
         if (node.type === "katex_block") {
           componentProps.displayMode = true;
@@ -295,7 +333,28 @@ const AstNodeRenderer = defineComponent({
           componentProps,
           children ? () => children : undefined
         );
-      });
+      };
+
+      // Drop removed entries so a cleared document releases its cached subtree.
+      renderCache.length = props.nodes.length;
+      return props.nodes.map((node, index) =>
+        withMemo(
+          [
+            node,
+            props.generationMeta,
+            enableAnimation.value,
+            props.parentContainerId,
+            hasStyleNode,
+            blocks?.version(node),
+          ],
+          () =>
+            blocks
+              ? blocks.render(node, (restored) => renderNode(node, restored))
+              : renderNode(node),
+          renderCache,
+          index
+        )
+      );
     };
   },
 });

@@ -29,17 +29,25 @@
           @wheel.passive="handleTabsWheel"
         >
           <div
-            v-for="tab in session.openTabs"
+            v-for="(tab, tabIndex) in session.openTabs"
             :key="buildTabKey(tab)"
             class="tab-item"
             :class="{
               active: session.activeTabPath === buildTabKey(tab),
+              preview: tab.isPreview,
             }"
+            :title="tab.isPreview ? `${tab.path}（预览，双击固定）` : undefined"
             @click="session.activeTabPath = buildTabKey(tab)"
+            @dblclick="keepDiffTab(tab)"
+            @contextmenu.prevent="showTabMenu(tab, tabIndex, $event)"
           >
             <template v-if="isPromptTab(tab.path)">
               <MessageSquareText :size="12" class="tab-prompt-icon" />
               <span class="tab-name">AI 提示词</span>
+            </template>
+            <template v-else-if="isRepoOverviewTab(tab)">
+              <Gauge :size="12" class="tab-commit-icon" />
+              <span class="tab-name">仓库概览</span>
             </template>
             <template v-else-if="isCommitViewTab(tab)">
               <GitCommitHorizontal :size="12" class="tab-commit-icon" />
@@ -63,6 +71,13 @@
                 shortHashOf(tab.commitHash)
               }}</span>
             </template>
+            <template v-else-if="isFileViewTab(tab)">
+              <FileText :size="12" class="tab-file-icon" />
+              <span class="tab-name" :title="tab.path">{{
+                getFileName(tab.path)
+              }}</span>
+              <span class="tab-stage-badge">文件</span>
+            </template>
             <template v-else>
               <span
                 class="tab-status"
@@ -77,7 +92,11 @@
                 {{ tab.isStaged ? "暂存" : "工作区" }}
               </span>
             </template>
-            <span class="tab-close" @click.stop="closeDiffTab(tab)">
+            <span
+              class="tab-close"
+              @click.stop="closeDiffTab(tab)"
+              @dblclick.stop
+            >
               <X :size="12" />
             </span>
           </div>
@@ -87,6 +106,8 @@
       <!-- 中部：Diff 编辑器或空状态 -->
       <div class="main-content">
         <RepoPromptEditor v-if="isPromptTabActive" />
+
+        <RepoOverviewView v-else-if="isRepoOverviewTabActive" />
 
         <CommitDiffView
           v-else-if="isCommitViewTabActive"
@@ -139,6 +160,25 @@
             <span class="loading-text text-secondary">正在加载差异...</span>
           </div>
 
+          <!-- 文件当前内容（非 diff）只读视图 -->
+          <div
+            v-else-if="isFileViewTab(activeTabInfo) || isFileViewTab(activeTab)"
+            class="file-view"
+          >
+            <div class="diff-toolbar file-toolbar">
+              <span class="file-view-path" :title="activeTab.path">{{
+                activeTab.path
+              }}</span>
+              <span class="file-view-hint">当前内容 · 只读</span>
+            </div>
+            <RichCodeEditor
+              :model-value="activeTab.modified"
+              :language="getFileLanguage(activeTab.path)"
+              read-only
+              class="file-editor"
+            />
+          </div>
+
           <div v-else class="diff-view">
             <div class="diff-toolbar" role="toolbar" aria-label="差异导航">
               <div class="diff-toolbar-group">
@@ -181,6 +221,16 @@
               >
                 <FoldVertical v-if="hideUnchangedRegions" :size="15" />
                 <UnfoldVertical v-else :size="15" />
+              </button>
+              <button
+                class="diff-toolbar-button"
+                :class="{ active: diffWordWrap }"
+                :aria-pressed="diffWordWrap"
+                :title="diffWordWrap ? '关闭自动换行' : '开启自动换行'"
+                :aria-label="diffWordWrap ? '关闭自动换行' : '开启自动换行'"
+                @click="toggleDiffWordWrap"
+              >
+                <WrapText :size="15" />
               </button>
             </div>
             <RichCodeEditor
@@ -233,6 +283,7 @@ import {
 import {
   X,
   FileDiff,
+  FileText,
   FileWarning,
   GitCommitHorizontal,
   MessageSquareText,
@@ -240,11 +291,14 @@ import {
   ArrowDown,
   FoldVertical,
   UnfoldVertical,
+  WrapText,
+  Gauge,
 } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import PanoramaDashboard from "./PanoramaDashboard.vue";
 import RepoPromptEditor from "./RepoPromptEditor.vue";
+import RepoOverviewView from "./RepoOverviewView.vue";
 import CommitDiffView from "./CommitDiffView.vue";
 import ChangesDiffView from "./ChangesDiffView.vue";
 import GitMediaDiffPreview from "./GitMediaDiffPreview.vue";
@@ -253,15 +307,27 @@ import {
   currentSession as session,
   currentStatus,
   hideUnchangedRegions,
+  diffWordWrap,
 } from "../composables/useGitCommitterState";
 import {
   closeDiffTab,
+  keepDiffTab,
+  closeOtherDiffTabs,
+  closeDiffTabsToRight,
+  closeAllDiffTabs,
   loadCommitFileDiff,
   loadFileDiff,
+  openDiffTab,
+  openFileTab,
   stageFile,
   unstageFile,
 } from "../composables/useGitCommitterRunner";
-import type { DiffTab } from "../types";
+import { errorHandler } from "../composables/useGitCommitterErrorHandler";
+import { useGitContextMenu } from "../composables/useGitContextMenu";
+import { buildTabContextMenuItems } from "../contextMenus";
+import { copyTextToClipboard, joinRepoPath } from "../utils";
+import { invoke } from "@tauri-apps/api/core";
+import type { DiffTab, DiffTabRef } from "../types";
 import type * as monaco from "@/utils/monaco";
 import {
   buildTabKey,
@@ -270,6 +336,8 @@ import {
   isChangesViewTab,
   isCommitTab,
   isCommitViewTab,
+  isFileViewTab,
+  isRepoOverviewTab,
   REPO_PROMPT_TAB_PATH,
 } from "../utils";
 
@@ -366,6 +434,7 @@ const editorOptions = computed(() => {
     renderSideBySide,
     readOnly: true,
     minimap: { enabled: false },
+    wordWrap: (diffWordWrap.value ? "on" : "off") as "on" | "off",
     hideUnchangedRegions: {
       enabled: hideUnchangedRegions.value,
       revealLineCount: 3,
@@ -399,6 +468,10 @@ const activeTabInfo = computed(() => {
 
 const isPromptTabActive = computed(() => {
   return isPromptTab(activeTabInfo.value?.path || "");
+});
+
+const isRepoOverviewTabActive = computed(() => {
+  return isRepoOverviewTab(activeTabInfo.value);
 });
 
 const isCommitViewTabActive = computed(() => {
@@ -488,6 +561,13 @@ const toggleHideUnchangedRegions = () => {
   });
 };
 
+const toggleDiffWordWrap = () => {
+  diffWordWrap.value = !diffWordWrap.value;
+  diffEditorInstance.value?.updateOptions({
+    wordWrap: diffWordWrap.value ? "on" : "off",
+  });
+};
+
 // ===== 监听激活 Tab 变化，加载 Diff 内容 =====
 watch(
   () => session.value.activeTabPath,
@@ -510,6 +590,7 @@ watch(
     if (
       !tabInfo ||
       isPromptTab(tabInfo.path) ||
+      isRepoOverviewTab(tabInfo) ||
       isCommitViewTab(tabInfo) ||
       isChangesViewTab(tabInfo)
     ) {
@@ -521,36 +602,47 @@ watch(
       path: tabInfo.path,
       isStaged: tabInfo.isStaged,
       commitHash: tabInfo.commitHash,
+      viewMode: tabInfo.viewMode,
       original: "",
       modified: "",
       isBinary: false,
       loading: true,
     };
 
-    const diff = tabInfo.commitHash
-      ? await loadCommitFileDiff(
-          currentRepoPath.value,
-          tabInfo.commitHash,
-          tabInfo.path
-        )
-      : await loadFileDiff(
-          currentRepoPath.value,
-          tabInfo.path,
-          tabInfo.isStaged
-        );
+    // 文件内容视图始终读取工作区当前内容
+    const diff = isFileViewTab(tabInfo)
+      ? await loadFileDiff(currentRepoPath.value, tabInfo.path, false)
+      : tabInfo.commitHash
+        ? await loadCommitFileDiff(
+            currentRepoPath.value,
+            tabInfo.commitHash,
+            tabInfo.path
+          )
+        : await loadFileDiff(
+            currentRepoPath.value,
+            tabInfo.path,
+            tabInfo.isStaged
+          );
     if (diff && session.value.activeTabPath === newKey) {
-      activeTab.value = diff;
+      activeTab.value = {
+        ...diff,
+        viewMode: tabInfo.viewMode,
+      };
       triggerEditorLayout();
-    } else if (!diff && session.value.activeTabPath === newKey) {
+    } else if (session.value.activeTabPath === newKey) {
+      const notFoundMessage = isFileViewTab(tabInfo)
+        ? "无法读取文件当前内容，文件可能已不存在"
+        : "加载文件差异失败，文件可能已不存在";
       activeTab.value = {
         path: tabInfo.path,
         isStaged: tabInfo.isStaged,
         commitHash: tabInfo.commitHash,
+        viewMode: tabInfo.viewMode,
         original: "",
         modified: "",
         isBinary: false,
         loading: false,
-        error: "加载文件差异失败，文件可能已不存在",
+        error: notFoundMessage,
       };
     }
   },
@@ -564,6 +656,77 @@ const handleStageFile = async (path: string) => {
 
 const handleUnstageFile = async (path: string) => {
   await unstageFile(currentRepoPath.value, path);
+};
+
+// ===== 标签页右键菜单 =====
+const contextMenu = useGitContextMenu();
+
+const showTabMenu = (tab: DiffTabRef, tabIndex: number, event: MouseEvent) => {
+  contextMenu.show(
+    event,
+    buildTabContextMenuItems(tab, {
+      openCount: session.value.openTabs.length,
+      tabsAfter: session.value.openTabs.length - 1 - tabIndex,
+    }),
+    {
+      dispatch: (itemId) => handleTabMenuAction(itemId, tab),
+    }
+  );
+};
+
+const handleTabMenuAction = async (itemId: string, tab: DiffTabRef) => {
+  switch (itemId) {
+    case "tab:keep-open":
+      keepDiffTab(tab);
+      break;
+    case "tab:close":
+      closeDiffTab(tab);
+      break;
+    case "tab:close-others":
+      closeOtherDiffTabs(tab);
+      break;
+    case "tab:close-right":
+      closeDiffTabsToRight(tab);
+      break;
+    case "tab:close-all":
+      closeAllDiffTabs();
+      break;
+    case "tab:open-diff":
+      openDiffTab(tab.path, tab.isStaged);
+      break;
+    case "tab:open-file":
+      openFileTab(tab.path, tab.isStaged);
+      break;
+    case "tab:stage":
+      await handleStageFile(tab.path);
+      break;
+    case "tab:unstage":
+      await handleUnstageFile(tab.path);
+      break;
+    case "tab:copy-path":
+      await copyTextToClipboard(
+        joinRepoPath(currentRepoPath.value, tab.path),
+        "已复制完整路径"
+      );
+      break;
+    case "tab:copy-relative":
+      await copyTextToClipboard(tab.path, "已复制相对路径");
+      break;
+    case "tab:copy-hash":
+      if (tab.commitHash) {
+        await copyTextToClipboard(tab.commitHash, "已复制提交哈希");
+      }
+      break;
+    case "tab:reveal":
+      await errorHandler.wrapAsync(
+        () =>
+          invoke<void>("open_file_directory", {
+            filePath: joinRepoPath(currentRepoPath.value, tab.path),
+          }),
+        { userMessage: "无法在资源管理器中显示该文件" }
+      );
+      break;
+  }
 };
 
 // ===== 辅助函数 =====
@@ -653,6 +816,10 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
   box-sizing: border-box;
 }
 
+.tab-item.preview .tab-name {
+  font-style: italic;
+}
+
 .tab-item:hover {
   background-color: rgba(
     var(--el-color-primary-rgb),
@@ -701,6 +868,11 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 }
 
 .tab-commit-icon {
+  color: var(--el-color-primary);
+  flex-shrink: 0;
+}
+
+.tab-file-icon {
   color: var(--el-color-primary);
   flex-shrink: 0;
 }
@@ -834,6 +1006,43 @@ const getFileStatus = (path: string, isStaged: boolean): string => {
 }
 
 .diff-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 文件当前内容视图 */
+.file-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.file-toolbar {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.file-view-path {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.file-view-hint {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-editor {
   width: 100%;
   height: 100%;
   min-height: 0;

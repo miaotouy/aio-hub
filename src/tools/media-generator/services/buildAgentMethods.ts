@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { watch } from "vue";
+import { isOpenRouterProfile } from "@aiohub/llm-core";
 import type {
   MethodMetadata,
   MethodParameter,
@@ -163,17 +164,20 @@ function addSpeechParameters(
   // audio.cpp 渠道的音色由服务端预设/voice_dir 决定，且只输出 WAV，
   // 不套用 OpenAI 的 alloy 等默认值。
   const isAudioCpp = profileType === "audiocpp";
+  const isOpenRouter = profileType === "openrouter";
 
   params.push(
     {
       name: "voice",
       type: "string",
       required: false,
-      description: isAudioCpp
-        ? "TTS 声音。仅在 media_type 为 speech 时有效。留空使用服务端预设（audio.cpp voice preset / voice_dir）。"
-        : "TTS 声音。仅在 media_type 为 speech 时有效。可选值: alloy | ash | ballad | coral | echo | fable | nova | onyx | sage | shimmer。",
-      defaultValue: isAudioCpp ? undefined : "alloy",
-      ...(isAudioCpp
+      description: isOpenRouter
+        ? "TTS 声音。填写所选模型支持的音色标识，留空使用上游默认音色。"
+        : isAudioCpp
+          ? "TTS 声音。仅在 media_type 为 speech 时有效。留空使用服务端预设（audio.cpp voice preset / voice_dir）。"
+          : "TTS 声音。仅在 media_type 为 speech 时有效。可选值: alloy | ash | ballad | coral | echo | fable | nova | onyx | sage | shimmer。",
+      defaultValue: isAudioCpp || isOpenRouter ? undefined : "alloy",
+      ...(isAudioCpp || isOpenRouter
         ? {}
         : {
             enum: [
@@ -194,11 +198,17 @@ function addSpeechParameters(
       name: "audio_format",
       type: "string",
       required: false,
-      description: isAudioCpp
-        ? "TTS 输出音频格式。audio.cpp 仅支持 wav。仅在 media_type 为 speech 时有效。"
-        : "TTS 输出音频格式。仅在 media_type 为 speech 时有效。可选值: mp3 | wav | opus | aac。",
+      description: isOpenRouter
+        ? "TTS 输出音频格式。OpenRouter 支持 mp3 和 pcm。"
+        : isAudioCpp
+          ? "TTS 输出音频格式。audio.cpp 仅支持 wav。仅在 media_type 为 speech 时有效。"
+          : "TTS 输出音频格式。仅在 media_type 为 speech 时有效。可选值: mp3 | wav | opus | aac。",
       defaultValue: isAudioCpp ? "wav" : "mp3",
-      enum: isAudioCpp ? ["wav"] : ["mp3", "wav", "opus", "aac"],
+      enum: isOpenRouter
+        ? ["mp3", "pcm"]
+        : isAudioCpp
+          ? ["wav"]
+          : ["mp3", "wav", "opus", "aac"],
     },
     {
       name: "speed",
@@ -789,7 +799,9 @@ export function buildAgentMethods(
       parameters: buildParameters(
         visibleModel.supportedMediaTypes,
         mediaGenParams,
-        visibleModel.profile.type
+        isOpenRouterProfile(visibleModel.profile)
+          ? "openrouter"
+          : visibleModel.profile.type
       ),
       returnType: "Promise<string>",
       agentCallable: true,

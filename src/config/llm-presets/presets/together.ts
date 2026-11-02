@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // Together AI
 export const togetherPreset: LlmPreset = {
-  type: "openai",
+  type: "together",
   name: "Together AI",
   description: "Together AI - 开源模型推理平台",
   defaultBaseUrl: "https://api.together.xyz",

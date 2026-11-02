@@ -310,7 +310,7 @@ graph TD
   - `settings`: 用户配置
   - `currentConfig`: 当前生成配置（类型、参数等）
   - `inputPrompt`: 输入框内容
-  - `attachments`: 输入框附件（通过 `useAttachmentManager` 委托暴露，Store 自身不持独立的附件 ref）
+  - `attachments`: 输入框附件（通过 `useAttachmentManager` 委托暴露，Store 自身不持独立的附件 ref；随会话详情 `inputAttachments` 持久化）
 
 - **职责**:
   - 协调 `useMediaPersistence`、`useSessionManager`、`useNodeManager`、`useTaskActionManager` 等模块
@@ -367,6 +367,17 @@ graph TD
   - 使用 `calculateDiff`/`applyPatches` 做增量同步
   - 使用 `VersionGenerator` 防止旧版本覆盖新版本
   - 支持防抖推送（100ms）
+
+##### 输入工作区与功能面板
+
+`MediaGenerationInput.vue` 用于会话和快捷生成两种模式，从上到下依次为功能面板、附件、提示词编辑器、工具栏与发送/停止操作。工具栏提供输入框展开/收起、上下文开关和附件入口，快捷提示词与提示词优化通过单面板槽位打开。展开时填满当前可用编辑高度，附件与功能面板占用从高度预算中扣除；收起恢复自适应或手动高度，拖拽退出展开，双击顶部手柄恢复自适应。
+
+- 与 Chat 复用 `src/components/common/input-panel/InputPanelHost.vue`、`InputPanelLayout.vue` 及 `src/composables/useInputPanel.ts`。标题操作、单面板替换、折叠保留状态、Escape 关闭与返回入口焦点遵循[公共组件契约](../../components/common/README.md#inputpanel)。
+- 再次点击已展开面板的入口默认关闭；可在媒体设置的“界面与交互”中将 `panelRepeatClickAction` 改为折叠。偏好沿媒体全局设置持久化，会话和快捷生成共用；点击已折叠面板始终展开，标题栏折叠与关闭控件保持独立。
+- 快捷词库将分类与提示放入 `controls`，词条在默认内容区滚动；选择词条后按编辑器选区插入，关闭面板并恢复光标。
+- 优化面板声明 320px 内容高度上限，按表单内容自然撑开，并随输入区可用空间收紧。模型、处理模式、语言放入 `controls`，面板宽度达到 680px 时标题与下拉框同行，较窄时上下排列，附加要求与优化结果由布局内容区统一滚动，宽度充足且已有结果时改为等宽双列，标题与内容框上下对齐，附加要求输入框填满列高，优化结果独立滚动；开始优化、取消、应用放入 `footer`，底部左侧居中排列“参考附件图片”开关、可见的参考状态与帮助图标，空间不足时自然换行；纯文本模型显示“当前模型仅处理文本”，开关按当前能力与处理模式展示实际可用状态并置灰，用户偏好保留供切回视觉模型时恢复；帮助图标提供进一步说明（默认开启，偏好随全局设置保存；关闭时跳过图片读取，仅翻译模式使用纯文本，图片输入受优化模型视觉能力约束），右侧保留操作按钮，窄面板自动换行。下拉菜单挂载到页面，跨过面板滚动边界。
+- 优化读取当前草稿，应用结果通过编辑器原生文本替换记录撤销历史并聚焦编辑器；结果图片可直接添加到参考图输入，拖放支持批量文件。折叠保留优化进度与表单状态，关闭、替换或切换媒体类型/会话会释放面板并中止其进行中的请求。
+- 面板可用高度随视口与附件变化，`useInputResize` 同时扣除面板和附件高度；手动调整的编辑器高度也随可用空间收缩。
 
 #### 3.2.7. `useMediaStorage` (持久化存储)
 
@@ -508,7 +519,7 @@ interface GenerationSession {
 
 | 分区       | 说明                                                 |
 | ---------- | ---------------------------------------------------- |
-| 界面与交互 | 自动打开资产、左侧/右侧面板折叠                      |
+| 界面与交互 | 输入面板重复点击行为、自动打开资产、左侧/右侧面板折叠                      |
 | 话题命名   | 自动命名模型、提示词、温度、触发阈值                 |
 | 提示词优化 | 优化模型、按媒体类型区分的提示词、温度、输出上限     |
 | 任务与并发 | 最大并发数、自动清理、超时、重试、自动关联上一轮结果 |
@@ -560,6 +571,7 @@ interface GenerationSession {
   - `status`: `"pending" | "processing" | "completed" | "error" | "cancelled"`
   - `input`: 输入参数（prompt, negativePrompt, modelId, profileId, params, referenceAssetIds, inputAttachments, contextMessageIds, includeContext 等）
   - `progress`, `statusText`, `error`: 进度追踪
+    - 轮询型任务（视频/音乐异步生成）通过 `MediaGenerationOptions.onMediaProgress` 回调实时上报：适配器在 `executeAsyncMediaTask` 每次轮询后触发，`sendRequest` 透传该回调，Manager 将其映射为 `30~89` 区间的任务进度并刷新 `statusText`；上游未携带百分比时进度缓慢自增，避免进度条长时间静止
   - `resultAssetIds`, `resultAssets`, `previewUrls`: 结果关联
 
 ### 6.4. 配置相关
@@ -741,11 +753,26 @@ sequenceDiagram
 
 ## 10. 数据持久化 (Data Persistence)
 
-| 数据类型 | 存储位置                                      | 格式 | 读写时机                            |
-| -------- | --------------------------------------------- | ---- | ----------------------------------- |
-| 会话索引 | `AppData/media-generator/sessions-index.json` | JSON | 启动时加载，增删改时更新            |
-| 会话详情 | `AppData/media-generator/sessions/{id}.json`  | JSON | 按需加载（切换会话时），保存时写入  |
-| 全局任务 | `AppData/media-generator/tasks.json`          | JSON | 启动时加载，通过 watch 自动防抖保存 |
-| 用户配置 | `AppData/media-generator/settings.json`       | JSON | 启动时加载，通过 watch 自动防抖保存 |
-| 输入状态 | 内存 (localStorage 无直接持久化)              | -    | 通过跨窗口同步引擎同步              |
-| 附件     | 内存                                          | -    | 与输入状态一致，跨窗口同步          |
+| 数据类型 | 存储位置                                         | 格式 | 读写时机                                  |
+| -------- | ------------------------------------------------ | ---- | ----------------------------------------- |
+| 会话索引 | `AppData/media-generator/sessions-index.json`    | JSON | 启动时加载，增删改时更新                  |
+| 会话详情 | `AppData/media-generator/sessions/{id}.json`     | JSON | 按需加载（切换会话时），保存时写入        |
+| 全局任务 | `AppData/media-generator/tasks.json`             | JSON | 启动时加载，通过 watch 自动防抖保存       |
+| 用户配置 | `AppData/media-generator/settings.json`          | JSON | 启动时加载，通过 watch 自动防抖保存       |
+| 输入状态 | 内存 + 会话详情 `inputPrompt`/`inputAttachments` | JSON | 跨窗口同步；随会话持久化，重启/切会话还原 |
+| 附件     | 内存 + 会话详情 `inputAttachments`               | JSON | 已入库资产的元数据快照，随会话防抖保存    |
+
+## 10. OpenRouter 多媒体适配
+
+OpenRouter 渠道的多媒体请求在现有媒体生成入口中选择 `packages/llm-core/src/providers/openrouter-media.ts` 的专用协议适配器。渠道身份与官方域名均可触发识别，模型级协议绑定后的官方 OR 地址仍保留多媒体协议。其他 OpenAI 兼容渠道继续使用原有适配器。
+
+- **图像**：通过 `POST /api/v1/images` 获取完整结果。参考图使用 JSON `input_references[].image_url.url`；本地文件保留结构化引用，由原生 transport 转换为 data URL。支持尺寸、比例、分辨率、质量、种子及输出编码。显式像素尺寸优先，比例和分辨率在对应模式下发送；旧品质值 `standard` / `hd` 映射为 `auto` / `high`，随机种子 `-1` 留给上游随机采样。返回的 `media_type` 贯穿响应映射与资产入库，JPEG、WebP、SVG 使用对应扩展名。遮罩请求给出明确错误，提示选择支持图像编辑的渠道。
+- **视频**：通过 `POST /api/v1/videos` 创建任务，时长使用整数 `duration`，已选分辨率或比例时优先发送规范化参数。首尾帧写入 `frame_images`，图片、音频和视频参考素材写入 `input_references`。OR 协议优先于 Seedance 等模型名触发的 Ark 协议识别。轮询遵循同源 `polling_url`，保留自定义 `videoStatus` 的优先级；跨源轮询地址在发送认证信息前报错。`pending`、`in_progress`、`completed`、`failed`、`cancelled`、`expired` 映射至统一任务状态。完成后读取全部 `unsigned_urls`，缺少地址时使用认证的 `/videos/{video_id}/content` 下载。
+- **语音**：通过 `POST /api/v1/audio/speech` 请求音频。默认音色交给上游，允许填写模型支持的音色标识；UI 与 Agent 方法支持 `mp3`、`pcm`。参考音频按来源分别使用 `input_audio.data` 或 `input_audio.url`，参考图片使用 `image_url`。返回字节和实际音频格式沿用统一解析与入库链路。
+- **自定义端点**：图像沿用 `imagesGenerations` 配置键，视频支持 `videos`、`videoStatus`、`videoContent`；查询和下载路径支持 `{video_id}`。
+
+协议依据为 OpenRouter 官方文档仓库 `openrouterteam/docs` 中的 `openapi/openapi.yaml`。相关回归用例覆盖共享协议、桌面入口分发和媒体资产 MIME 入库。
+
+## 展示层后台负载
+
+媒体画廊通过共享 `useScrollPagination` 在页面激活且用户向下滚动接近底部时追加一页，并等待实际加载完成；首屏加载一页。生成流的空白示例提示词仅在页面激活且空白区展示时轮换。生成任务、进度同步和持久化沿用独立的后台生命周期。

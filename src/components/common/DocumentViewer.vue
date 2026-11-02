@@ -73,7 +73,7 @@ const {
   isMarkdown,
   isHtml,
   isPdf,
-  isDocx,
+  isRichDocument,
   isRenderableHtml,
 } = useDocumentViewer(props);
 // --- 视图逻辑 ---
@@ -112,13 +112,16 @@ const showToolbar = computed(
 
 const canPreview = computed(
   () =>
-    isMarkdown.value || isRenderableHtml.value || isPdf.value || isDocx.value
+    isMarkdown.value ||
+    isRenderableHtml.value ||
+    isPdf.value ||
+    isRichDocument.value
 );
 
 const editorLanguage = computed(() => {
   if (viewMode.value === "source") {
     if (isMarkdown.value) return "markdown";
-    if (isHtml.value || isDocx.value) return "html";
+    if (isHtml.value || isRichDocument.value) return "html";
   }
   return language.value || "plaintext";
 });
@@ -134,8 +137,8 @@ function handleCopy() {
 
 function handleDownload() {
   try {
-    if (!decodedContent.value) return;
-    const blob = new Blob([decodedContent.value], {
+    if (!rawContent.value) return;
+    const blob = new Blob([new Uint8Array(rawContent.value)], {
       type: mimeType.value || "text/plain",
     });
     const url = URL.createObjectURL(blob);
@@ -215,7 +218,9 @@ function toggleViewMode() {
       />
 
       <div
-        v-else-if="!decodedContent && !isTextContent && !isPdf && !isDocx"
+        v-else-if="
+          !decodedContent && !isTextContent && !isPdf && !isRichDocument
+        "
         class="binary-placeholder"
       >
         <el-alert
@@ -251,8 +256,8 @@ function toggleViewMode() {
       />
 
       <div
-        v-else-if="isDocx && viewMode === 'preview'"
-        class="docx-preview-component"
+        v-else-if="isRichDocument && viewMode === 'preview'"
+        class="rich-document-preview-component"
         v-html="decodedContent"
       />
 
@@ -381,7 +386,7 @@ function toggleViewMode() {
   box-sizing: border-box;
 }
 
-.docx-preview-component {
+.rich-document-preview-component {
   height: 100%;
   overflow-y: auto;
   padding: 24px 32px;
@@ -394,7 +399,9 @@ function toggleViewMode() {
   :deep(h1),
   :deep(h2),
   :deep(h3),
-  :deep(h4) {
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
     margin: 1em 0 0.5em;
     font-weight: 600;
     line-height: 1.4;

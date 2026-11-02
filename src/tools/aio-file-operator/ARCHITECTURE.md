@@ -1,6 +1,6 @@
 # Aio File Operator: 架构与开发者指南
 
-> 更新日期：2026-08-01
+> 更新日期：2026-10-30
 
 本文档描述 `aio-file-operator` 的模块定位、调用链、安全边界和维护要点。该工具面向 Agent 暴露受控的本地文件读写能力，同时提供可视化配置与审计日志。
 
@@ -37,7 +37,7 @@ src/tools/aio-file-operator/
     └── aio-file-operator.test.ts        # Agent 方法、策略和 diff 行为单测
 ```
 
-**Rust 后端**：复用 `src-tauri/src/commands/file_operations.rs` 与 `src-tauri/src/commands/document_converter.rs` 中的通用命令，无专属 Rust 模块。
+**Rust 后端**：复用 `src-tauri/src/commands/file_operations.rs` 与 `src-tauri/src/commands/document_converter.rs` 中的通用命令。`file_operations/agent_security.rs` 负责文件操作器的目录递归安全预检与目录枚举过滤。
 
 ## 3. 架构概览
 
@@ -96,22 +96,26 @@ graph TB
 
 - `toolConfig` 注册工具名称、路由、图标、组件和分类。
 - `settingsSchema` 将常用配置接入全局设置渲染器。
-- `getMetadata()` 暴露 8 个 `agentCallable` 方法，供 `tool-calling` 发现并生成 Prompt。
+- `getMetadata()` 暴露 12 个 `agentCallable` 方法，供 `tool-calling` 发现并生成 Prompt。
 - `checkSecurityPolicy()` 为工具执行器提供前置安全检查，返回 `allow` / `approve` / `block`。
 - 实例方法将 Agent 参数转换后委托给 `actions.ts`，例如 `write_file` 会用 `parseAgentBoolean()` 解析 `allowOverwrite`。
 
 ### 4.1. Agent 方法清单
 
-| 方法               | 用途                               | 关键保护                             |
-| ------------------ | ---------------------------------- | ------------------------------------ |
-| `read_file`        | 读取文本、Office、PDF、CSV 等文件  | 路径沙箱、文件大小上限、文件类型校验 |
-| `write_file`       | 写入文本文件                       | 路径沙箱、覆盖策略、父目录自动创建   |
-| `append_file`      | 追加文本内容                       | 路径沙箱、审计日志                   |
-| `delete_file`      | 删除文件到系统回收站               | 路径沙箱、非粉碎删除                 |
-| `list_directory`   | 列出目录条目与元数据               | 路径沙箱、逐项元数据容错             |
-| `apply_diff`       | 对文本文件应用 Search/Replace 修改 | 路径沙箱、换行符保持、diff 匹配策略  |
-| `create_directory` | 递归创建目录                       | 路径沙箱                             |
-| `path_exists`      | 检查路径是否存在                   | 路径沙箱                             |
+| 方法               | 用途                                      | 关键保护                             |
+| ------------------ | ----------------------------------------- | ------------------------------------ |
+| `read_file`        | 读取文本、Office、PDF、CSV 及本地媒体引用 | 路径沙箱、文件大小上限、文件类型校验 |
+| `write_file`       | 写入文本文件                              | 路径沙箱、覆盖策略、父目录自动创建   |
+| `append_file`      | 追加文本内容                              | 路径沙箱、审计日志                   |
+| `delete_file`      | 删除文件到系统回收站                      | 路径沙箱、非粉碎删除                 |
+| `list_directory`   | 列出目录条目与元数据                      | 路径沙箱、逐项元数据容错             |
+| `apply_diff`       | 对文本文件应用 Search/Replace 修改        | 路径沙箱、换行符保持、diff 匹配策略  |
+| `create_directory` | 递归创建目录                              | 路径沙箱                             |
+| `path_exists`      | 检查路径是否存在                          | 路径沙箱                             |
+| `copy_file`        | 复制文件/目录（递归）                     | 双路径沙箱、覆盖策略                 |
+| `move_file`        | 移动/重命名文件/目录                      | 双路径沙箱、覆盖策略、跨盘回退       |
+| `get_file_info`    | 查询文件/目录元数据                       | 路径沙箱、不读取内容                 |
+| `search_files`     | 按通配符/子串递归搜索文件名               | 路径沙箱、结果数上限（≤1000）        |
 
 ## 5. 数据流
 
@@ -161,6 +165,7 @@ flowchart TD
     F -->|pptx| I["read_file_binary + parsePptx"]
     F -->|xlsx| J["read_file_binary + parseXlsx"]
     F -->|pdf| K["read_file_binary + pdfjs-dist"]
+    F -->|图片/音频/视频| O["解析真实路径<br/>记录本地媒体引用"]
     F -->|csv/其他| L["read_text_file_force"]
     G --> M["recordLog"]
     H --> M
@@ -168,8 +173,17 @@ flowchart TD
     J --> M
     K --> M
     L --> M
-    M --> N["返回 content + size"]
+    O --> M
+    M --> N["返回文本内容或媒体信息 + localMedia"]
 ```
+
+多媒体读取沿用 `read_file(path)`，通过共享 MIME 扩展名映射识别图片、音频和视频；例如 PNG/JPEG/WebP、MP3/WAV/FLAC、MP4/WebM/MOV。读取工具校验沙箱、文件类型和大小后，返回已解析的本地绝对路径和元数据，顶层 `localMedia` 携带轻量引用。
+
+消息节点在 `localMedia` 中保存引用，用户附件列表和资产库保持原有语义。发送管道将引用转换为 `source.kind = "local-file"` 的临时媒体输入，通过 `readLocalMediaFile()` 重新检查当前路径规则、文件状态和读取前后的大小，再读取原路径的最新字节。模型和服务商需支持相应媒体格式。原调用在审批区获得的单文件授权随引用保留；普通路径后来改为审批区时，需重新调用 `read_file` 完成审批。原文件移动、删除或访问被禁止时，模型上下文会收到明确的读取错误；在其他机器重放会话时需重新指定可访问的本地路径。
+
+VCP 分布式调用由节点协议层在本次执行内消费 `localMedia`，通过安全外传服务读取原文件并转换为 VCP `content` 媒体块；混合批次统一在顶层携带媒体。外传开关、审批、沙箱和大小限制沿用安全文件传输约定，详见 [分布式媒体结果](../vcp-connector/ARCHITECTURE.md#242-分布式媒体结果)。
+
+审计日志仅记录路径和媒体元数据，媒体字节仅在请求构建或分布式结果传输期间驻留内存。
 
 ### 5.3. 写入与覆盖策略
 
@@ -208,7 +222,9 @@ flowchart TD
 | `whitelist` | 仅允许访问 `allowedDirectories` 下的路径，其他路径直接 `block` |
 | `blacklist` | 默认允许访问，但继续应用 `blackListRules`                      |
 
-路径判断采用两层解析：前端先统一分隔符并处理 `.` / `..`，Rust 命令 `resolve_path_for_security` 再 canonicalize 目标路径或其最深已存在祖先，以解析符号链接。白名单与黑名单都按完整目录边界比较，不能用裸 `startsWith(root)`；例如 `C:/Safe-copy` 不属于 `C:/Safe`。相对路径会直接拒绝。
+路径先由 Rust 命令 `resolve_path_for_security` 逐段解析，现有路径段先 canonicalize，再处理后续的 `..`；新建目标保留最深已存在祖先后的路径段。不存在的目录后接 `..` 时拒绝解析。前端仅对返回的真实路径作比较归一化：Windows 路径统一分隔符并忽略大小写，Unix 路径保留大小写与文件名中的字面反斜杠。白名单与黑名单均按完整目录边界比较，例如 `C:/Safe-copy` 位于 `C:/Safe` 范围外。相对路径直接拒绝。
+
+出厂默认使用黑名单模式，已有配置保留用户选择。工具调用仍经过原有审批流程；敏感目录可配置禁止访问或强制审批规则。
 
 ### 6.2. 细分规则
 
@@ -217,7 +233,28 @@ flowchart TD
 - `block`：死区，完全禁止访问，优先级最高。
 - `approve`：审批区，返回 `approve`，由工具调用执行器触发人工审批，不被自动审批绕过。
 
+已有规则支持在列表中直接切换禁止或审批类型，沿用规则 ID 与路径，切换后经现有配置保存入口持久化。
+
 `validatePath()` 只在动作层将 `block` 视为异常。`approve` 的前置拦截依赖 `AioFileOperatorRegistry.checkSecurityPolicy()` 被工具调用执行器调用；因此后续如果新增 Agent 方法，必须确保方法参数中的路径字段能被该策略识别。
+
+`checkSecurityPolicy()` 会检查 `args` 中的 `path`、`sourcePath`、`targetPath`、`directoryPath`、`filePath` 全部路径字段，任一路径被拦截即整体拒绝。先汇总全部路径的判定，死区优先于审批区；安全规则路径解析失败也阻断操作。
+
+目录操作进一步应用以下规则：
+
+- 复制、移动、删除通过 `inspect_file_operation` 预检整棵源目录树。复制/移动同时检查每个映射目标，以及已存在目标目录的内容。子目录出现死区则拒绝整个操作，出现审批区则由执行器要求确认。
+- 实际复制、移动、回收命令接收配置快照，在创建目录、删除覆盖目标和执行流转前再次检查。复制/移动遇到符号链接时返回可定位的错误，要求单独处理链接；避免递归读取链接指向的外部内容或形成循环。
+- 目录列表和搜索在 Rust 枚举过程中跳过死区、白名单外路径及尚未审批的子目录。直接请求审批目录时，确认后可枚举该范围；嵌套死区继续受保护。
+- 自动重命名写入会重新校验最终路径。文件流转按真实路径识别同源别名、自身后代和包含源路径的覆盖目标。
+
+这些约束面向受信任前端中的 Agent 工具执行链。底层通用 IPC 的其他调用方沿用原有契约；该配置也未提供 OS 级沙箱。外部进程同时替换文件或符号链接时，逐次路径检查与实际文件操作之间仍有竞态窗口。
+
+### 6.2.1. 错误回显截断
+
+模型参数错位时可能把整篇正文塞进 `path` 等参数，无截断回显会直接污染 LLM 上下文。`utils/security.ts` 提供统一收口：
+
+- `formatPathForError(rawPath, maxLength=120)`：压缩换行与连续空白、非字符串/空值返回 `<空路径>`、超长截断并标注原始长度，所有拦截报错中的路径回显均经过该函数。
+- `sanitizeParamsForError(params)`：审计日志与错误上下文中的参数预览，`*path*` 字段走 `formatPathForError`，其余长字符串截断到 200 字符。
+- `clampErrorMessage(message, maxLength=500)`：`buildErrorResult()` 的最终兜底，防止 Rust 命令或第三方异常的 message 内嵌超长内容。
 
 ### 6.3. 文件大小限制
 
@@ -236,6 +273,8 @@ flowchart TD
 
 审计日志策略：
 
+- 新增、删除和修改安全规则、白名单目录变更与沙箱模式切换均进入审计日志，展示路径、变更前后状态和保存结果。重复保存和面板布局变化跳过记录。
+- 配置按快照串行保存，持久化成功后发布生效状态；保存失败记录失败结果并保留原配置。日志通过订阅实时推送到右侧面板，页面退出时解除订阅。
 - `enableAuditLog` 关闭时不记录。
 - 每条日志包含时间戳、方法、参数摘要和结果。
 - 内存中只保留最近 100 条。
@@ -259,13 +298,16 @@ flowchart TD
 | ------------------------- | -------------------------------------- |
 | `get_file_metadata`       | 获取大小、文件/目录类型、创建/修改时间 |
 | `read_text_file_force`    | 读取文本文件                           |
-| `read_file_binary`        | 读取二进制文件供文档解析               |
+| `read_file_binary`        | 读取二进制文件供文档解析和本地媒体引用 |
 | `write_text_file_force`   | 写入文本文件                           |
 | `append_file_force`       | 追加字节内容                           |
 | `delete_file_to_trash`    | 移入系统回收站                         |
 | `list_directory`          | 列出目录直接子项                       |
 | `create_dir_force`        | 创建目录                               |
 | `path_exists`             | 判断路径是否存在                       |
+| `copy_path_force`         | 复制文件/递归复制目录                  |
+| `move_path_force`         | 移动/重命名，跨盘自动回退复制+删除     |
+| `search_files`            | 按通配符/子串递归搜索文件名            |
 | `convert_legacy_document` | 将旧版 Office 文档转换为现代格式后读取 |
 
 ### 9.2. 前端解析器和共享逻辑
@@ -281,14 +323,14 @@ flowchart TD
 
 ## 10. 类型系统
 
-| 类型                        | 用途                                                           |
-| --------------------------- | -------------------------------------------------------------- |
-| `FileOperationResult`       | 所有 Agent 方法统一返回结构：`success`、`message`、可选 `data` |
-| `FileEntry`                 | `list_directory` 返回的文件/目录条目                           |
-| `OperationLogEntry`         | 审计日志条目                                                   |
-| `SecurityRule`              | 死区/审批区规则                                                |
-| `AioFileOperatorConfig`     | 工具配置和 UI 状态                                             |
-| `ReadFileParams` 等参数类型 | 记录 Agent 方法的输入契约                                      |
+| 类型                        | 用途                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `FileOperationResult`       | 所有 Agent 方法统一返回结构：`success`、`message`、可选 `data` 和本地媒体 `localMedia` |
+| `FileEntry`                 | `list_directory` 返回的文件/目录条目                                                   |
+| `OperationLogEntry`         | 审计日志条目                                                                           |
+| `SecurityRule`              | 死区/审批区规则                                                                        |
+| `AioFileOperatorConfig`     | 工具配置和 UI 状态                                                                     |
+| `ReadFileParams` 等参数类型 | 记录 Agent 方法的输入契约                                                              |
 
 ## 11. 测试策略
 
@@ -296,12 +338,16 @@ flowchart TD
 
 - 写入覆盖策略与自动重命名
 - 文本读取、元数据校验和大文件保护
+- 图片/音频/视频附件的本地引用、按需安全读取、读取期间大小变化、沙箱拦截、审计元数据与执行器附件分流
 - 删除、追加、目录列表、创建目录、路径存在检查
-- Search/Replace Diff 匹配与换行符保持
+- Search/Replace Diff 匹配、换行符保持，以及精确替换后邻接行与行内前后缀的完整性
+- 复制/移动（`copy_file` / `move_file`）与双路径沙箱拦截
+- 元数据查询（`get_file_info`）与递归搜索（`search_files`）
+- 超长恶意路径（10KB 正文塞入 path）的错误回显截断
 - 白名单、死区、审批区、目录前缀碰撞和符号链接逃逸等安全策略
 - `getMetadata()` 暴露的 Agent 方法清单
 
-涉及真实 Tauri 文件系统行为时，应优先补 Rust 命令或集成测试；前端单测只验证工具层契约。
+Rust 的 `security_path_tests` 与 `agent_security::tests` 覆盖符号链接后接父路径、递归规则和操作前的磁盘边界。Ubuntu 真实 Agent 执行器与磁盘验证见[文件操作器专项记录](../../../docs/Plan/ubuntu-file-operator-investigation-20261030.md)。前端单测验证工具层契约。
 
 ## 12. 扩展指南
 
@@ -316,7 +362,6 @@ flowchart TD
 
 ## 13. 已知边界与未来展望
 
-- **多路径安全校验**：当前安全策略默认读取 `args.path`，如果未来支持复制/移动等双路径操作，需要同时校验源路径和目标路径。
 - **读取类型扩展**：可补充 Markdown 表格、HTML、RTF 等格式的专用提取器。
 - **更强的审计能力**：可增加按方法/路径过滤、导出日志、展示审批记录等能力。
-- **后端级沙箱**：当前沙箱主要在前端工具层执行；如未来暴露给更广泛入口，可考虑在 Rust 命令层增加可复用的策略校验。
+- **后端级沙箱**：当前沙箱主要在前端工具层与 Rust 基础安全路径解析层协同校验；如未来暴露给非 UI 的裸进程入口，可考虑将整套策略配置进一步下沉至纯 Rust 沙箱守护层。

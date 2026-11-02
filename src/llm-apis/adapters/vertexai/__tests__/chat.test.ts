@@ -113,7 +113,13 @@ describe("desktop Vertex AI facade", () => {
         content: "Done.",
         finishReason: "end_turn",
         stopSequence: null,
-        usage: { promptTokens: 4, completionTokens: 2, totalTokens: 6 },
+        usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: { input_tokens: 4, output_tokens: 2 },
+          promptTokens: 4,
+          completionTokens: 2,
+          totalTokens: 6,
+        },
       })
     );
   });

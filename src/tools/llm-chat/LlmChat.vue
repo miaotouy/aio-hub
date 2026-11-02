@@ -15,14 +15,8 @@
 -->
 
 <script setup lang="ts">
-import {
-  onMounted,
-  computed,
-  ref,
-  watch,
-  defineAsyncComponent,
-  nextTick,
-} from "vue";
+import { onMounted, computed, ref, watch, defineAsyncComponent } from "vue";
+import { useMessageInputStore } from "./stores/messageInputStore";
 import { useLlmChatStore } from "./stores/llmChatStore";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useUserProfileStore } from "./stores/userProfileStore";
@@ -52,13 +46,18 @@ import { initAgentAssetCache } from "./utils/agentAssetUtils";
 import { useChatInputManager } from "./composables/input/useChatInputManager";
 import { useModelSelectDialog } from "@/composables/useModelSelectDialog";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import type { ModelSelection } from "@/composables/useModelSelectDialog";
-import type { ChatAgent } from "@/tools/agent-manager/types/agent";
+import { useChatEntryPreparation } from "./composables/ui/useChatEntryPreparation";
+import type { ModelIdentifier } from "./types";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+
+const ToolbarCustomizeDialog = defineAsyncComponent(
+  () => import("./components/message-input/toolbar/ToolbarCustomizeDialog.vue")
+);
+const messageInputStore = useMessageInputStore();
 
 const logger = createModuleLogger("LlmChat");
 const errorHandler = createModuleErrorHandler("LlmChat");
@@ -70,7 +69,9 @@ const chatSettings = useChatSettings();
 const bus = useWindowSyncBus();
 const inputManager = useChatInputManager();
 const { open: openModelSelectDialog } = useModelSelectDialog();
-const { enabledProfiles, loadProfiles } = useLlmProfiles();
+const { loadProfiles } = useLlmProfiles();
+const { ensureChatEntryReady } = useChatEntryPreparation();
+const isPreparingSend = ref(false);
 const isClearingEmptySessions = ref(false);
 const isRefreshingSessionIndex = ref(false);
 const sessionRecoveryMessage = computed(() => {
@@ -104,7 +105,6 @@ const {
   currentAgentId: uiCurrentAgentId,
   loadUiState,
   startWatching,
-  selectAgent,
 } = useLlmChatUiState();
 
 // ===== 侧边栏拖拽调整宽度 =====
@@ -219,82 +219,6 @@ onMounted(async () => {
     }
   }
 });
-/**
- * 判断 Agent 当前绑定的渠道和模型是否仍可用。
- * Agent 配置可能来自旧版本、导入文件或已删除的渠道，因此不能只看字符串是否存在。
- */
-function getAgentModelSelection(
-  agent: ChatAgent | null
-): ModelSelection | null {
-  if (!agent) return null;
-  const profile = enabledProfiles.value.find(
-    (item) => item.id === agent.profileId
-  );
-  const model = profile?.models.find((item) => item.id === agent.modelId);
-  return profile && model ? { profile, model } : null;
-}
-
-/**
- * 让聊天入口在首次打开时就具备可用的 Agent 和模型。
- * 没有可用模型时直接打开全局模型选择器，用户选中后再补齐默认 Agent。
- */
-async function ensureChatEntryReady(): Promise<void> {
-  if (bus.windowType !== "main") return;
-
-  let agent = uiCurrentAgentId.value
-    ? agentStore.getAgentById(uiCurrentAgentId.value)
-    : null;
-  if (!agent) agent = agentStore.defaultAgent || null;
-
-  let modelSelection = getAgentModelSelection(agent);
-
-  if (!modelSelection) {
-    await nextTick();
-    const selected = await openModelSelectDialog({
-      current: null,
-      initialCapabilities: { embedding: false, rerank: false },
-    });
-
-    if (selected) {
-      if (agent) {
-        agentStore.updateAgent(agent.id, {
-          profileId: selected.profile.id,
-          modelId: selected.model.id,
-        });
-      } else {
-        await agentStore.createDefaultAgents({
-          profileId: selected.profile.id,
-          modelId: selected.model.id,
-        });
-      }
-
-      agent = agent || agentStore.defaultAgent || null;
-      modelSelection = getAgentModelSelection(agent);
-    }
-  }
-
-  if (!agent || !modelSelection) {
-    logger.info("聊天入口暂未就绪：等待用户选择可用模型");
-    return;
-  }
-
-  // 没有持久化选择时自动采用最近使用的 Agent，不要求用户先点一次 Agent。
-  await selectAgent(agent.id, { sessionId: undefined });
-  await agentStore.loadAgentDetails(agent.id);
-
-  if (
-    store.sessions.length === 0 &&
-    store.sessionRecovery.status === "ready" &&
-    !store.currentSessionId
-  ) {
-    await store.beginNewSession(agent.id);
-    logger.info("已自动进入新会话草稿", {
-      agentId: agent.id,
-      modelId: modelSelection.model.id,
-    });
-  }
-}
-
 // 监听当前选中的智能体ID，自动加载其详情
 watch(
   () => uiCurrentAgentId.value,
@@ -321,18 +245,27 @@ const agentCustomStyles = computed(() => {
 const handleSendMessage = async (payload: {
   content: string;
   attachments?: any[];
-  temporaryModel?: any;
+  virtualAttachments?: import("./types/virtual-attachment").VirtualTextAttachment[];
+  temporaryModel?: ModelIdentifier | null;
   knowledgeReference?:
     import("@/tools/knowledge-base/types").KnowledgeReference | null;
   disableMacroParsing?: boolean;
 }) => {
-  if (!store.currentSession) {
-    logger.warn("发送消息失败：没有活动会话");
-    return;
+  if (isPreparingSend.value) return;
+  isPreparingSend.value = true;
+  try {
+    const ready = await ensureChatEntryReady({
+      promptForModel: true,
+      temporaryModel: payload.temporaryModel,
+    });
+    if (!ready) return;
+  } finally {
+    isPreparingSend.value = false;
   }
   await store.sendMessage(payload.content, {
     sessionId: store.currentSessionId || undefined,
     attachments: payload.attachments,
+    virtualAttachments: payload.virtualAttachments,
     temporaryModel: payload.temporaryModel,
     knowledgeReference: payload.knowledgeReference,
     disableMacroParsing: payload.disableMacroParsing,
@@ -513,7 +446,7 @@ const handleRenameSession = (data: { sessionId: string; newName: string }) => {
 const parametersToSync = computed(() => ({
   isSending: store.isCurrentSessionGenerating,
   // disabled 状态只取决于有无当前会话
-  disabled: !store.currentSession,
+  disabled: !store.currentSession || isPreparingSend.value,
 }));
 
 useStateSyncEngine(parametersToSync, {
@@ -657,7 +590,9 @@ useStateSyncEngine(parametersToSync, {
             v-if="!isChatAreaDetached"
             :messages="store.currentActivePathWithPresets"
             :is-sending="store.isCurrentSessionGenerating"
-            :disabled="!store.currentSession"
+            :disabled="
+              isPreparingSend || store.sessionRecovery.status !== 'ready'
+            "
             :current-agent-id="currentAgentId"
             :current-model-id="
               currentAgentId
@@ -779,6 +714,8 @@ useStateSyncEngine(parametersToSync, {
     >
       {{ agentCustomStyles }}
     </component>
+
+    <ToolbarCustomizeDialog v-if="messageInputStore.toolbarCustomizeVisible" />
 
     <!-- 上下文分析对话框 -->
     <ContextAnalyzerDialog

@@ -39,15 +39,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { BookOpen, Loader2, ChevronRight } from "lucide-vue-next";
 
-defineProps<{
+const props = defineProps<{
   nodeId: string;
   closed: boolean;
 }>();
 
-const isCollapsed = ref(false);
+const viewState = useRendererNodeState(() => props.nodeId, "daily-note");
+const isCollapsed = viewState.ref("isCollapsed", false);
 </script>
 
 <style scoped>

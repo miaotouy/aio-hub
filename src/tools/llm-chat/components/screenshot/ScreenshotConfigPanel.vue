@@ -30,6 +30,7 @@
             <el-option label="跟随系统" value="follow" />
             <el-option label="卡片模式" value="card" />
             <el-option label="气泡模式" value="bubble" />
+            <el-option label="连续紧凑" value="compact" />
           </el-select>
         </div>
       </div>

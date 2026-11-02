@@ -114,6 +114,10 @@ export interface InspectorToolDiagnostics {
  * 字段对齐计划 §B1 中预留的 inspectorContext，附加 profileId/modelId 等运行时信息。
  */
 export interface InspectorContextMetadata {
+  logicalRequestId?: string;
+  channelAttempt?: number;
+  logicalProfileId?: string;
+  logicalModelId?: string;
   /** LLM Profile ID */
   profileId?: string;
   /** 具体的 Model ID */

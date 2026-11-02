@@ -320,6 +320,8 @@ describe("stepExecutors: call step", () => {
       scope: { local: {}, global: {} },
       setVariable: vi.fn(),
       counters: {},
+      coordinateOrigin: null,
+      warnOriginUncalibrated: () => {},
     };
     const step: FlowStep = {
       ...createStep("call"),
@@ -342,6 +344,8 @@ describe("stepExecutors: call step", () => {
       scope: { local: {}, global: {} },
       setVariable: vi.fn(),
       counters: {},
+      coordinateOrigin: null,
+      warnOriginUncalibrated: () => {},
     };
     const step: FlowStep = {
       ...createStep("call"),

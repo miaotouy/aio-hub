@@ -14,14 +14,14 @@
 
 import type { ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { BookOpen } from "lucide-vue-next";
+import { SkillManagerIcon } from "@aiohub/tool-icons";
 import { skillBridgeFactory } from "./services/SkillBridgeFactory";
 
 export const toolConfig: ToolConfig = {
   name: "技能管理",
   path: "/skill-manager",
   runMode: "main-only",
-  icon: markRaw(BookOpen),
+  icon: markRaw(SkillManagerIcon),
   component: () => import("./SkillManager.vue"),
   description: "Skill 技能管理 - 浏览、启用/禁用、安装 Agent Skill",
   category: ["系统工具", "AI 工具"],

@@ -15,21 +15,26 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onUnmounted } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { MEDIA_GENERATOR_TARGET_LANG_OPTIONS } from "../config";
 import { useLlmRequest } from "@/composables/useLlmRequest";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { assetManagerEngine } from "@/composables/useAssetManager";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
+import InputPanelLayout from "@/components/common/input-panel/InputPanelLayout.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { type MediaTaskType } from "../types";
-import { Sparkles, Info } from "lucide-vue-next";
+import type { LlmMessage, LlmMessageContent } from "@/llm-apis/common";
+import { Info } from "lucide-vue-next";
 
 const logger = createModuleLogger("media-generator/PromptOptimizePanel");
 
 const props = defineProps<{
   promptText: string;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -39,6 +44,7 @@ const emit = defineEmits<{
 
 const store = useMediaGenStore();
 const { sendRequest } = useLlmRequest();
+const { getProfileById, enabledProfiles } = useLlmProfiles();
 
 const MEDIA_TYPE_LABELS: Record<MediaTaskType, string> = {
   image: "图片",
@@ -53,13 +59,39 @@ const activeTypeLabel = computed(
 
 // 提示词优化逻辑
 const isOptimizing = ref(false);
+let requestController: AbortController | undefined;
+onUnmounted(() => requestController?.abort());
 const optimizedResult = ref("");
+const optimizeError = ref("");
 const optimizeModelId = ref("");
 const optimizePrompt = ref("");
 const optimizeMode = ref<"optimize" | "translate" | "optimize_translate">(
   "optimize"
 );
 const optimizeTargetLang = ref("");
+
+// 仅当模型在当前启用的渠道中真实存在时才视为有效，避免展示已失效的 combo 原文
+const resolveAvailableModelCombo = (combo?: string) => {
+  if (!combo) return "";
+  const [profileId, modelId] = parseModelCombo(combo);
+  if (!profileId || !modelId) return "";
+  const profile = enabledProfiles.value.find((item) => item.id === profileId);
+  if (!profile || !profile.models.some((item) => item.id === modelId))
+    return "";
+  return combo;
+};
+
+const optimizeModelCombo = computed({
+  get: () => resolveAvailableModelCombo(optimizeModelId.value),
+  set: (value: string) => {
+    const combo = value || "";
+    optimizeModelId.value = combo;
+    // 同步回全局设置，避免重开面板时回退到旧值/失效值
+    if (store.settings.promptOptimization) {
+      store.settings.promptOptimization.modelCombo = combo;
+    }
+  },
+});
 
 const currentOptimizationConfig = computed(() => {
   const config = store.settings.promptOptimization;
@@ -74,6 +106,60 @@ const currentOptimizationConfig = computed(() => {
       "",
   };
 });
+
+// 当前输入框中可作参考的图片附件
+const referenceImages = computed(() =>
+  store.attachments.filter(
+    (asset) =>
+      asset.type === "image" &&
+      (asset.importStatus === undefined || asset.importStatus === "complete")
+  )
+);
+
+// 判断优化模型是否支持视觉输入
+const optimizeModelSupportsVision = computed(() => {
+  const modelCombo = optimizeModelCombo.value;
+  if (!modelCombo) return false;
+  const [profileId, modelId] = parseModelCombo(modelCombo);
+  if (!profileId || !modelId) return false;
+  const profile = getProfileById(profileId);
+  const model = profile?.models.find((item) => item.id === modelId);
+  return model?.capabilities?.vision === true;
+});
+
+const canReferenceImages = computed(
+  () => optimizeMode.value !== "translate" && optimizeModelSupportsVision.value
+);
+
+// 保留用户偏好，开关展示当前模型和处理模式下的实际可用状态。
+const includeReferenceImages = computed({
+  get: () =>
+    canReferenceImages.value &&
+    (store.settings.promptOptimization.includeReferenceImages ?? true),
+  set: (value: boolean) => {
+    store.settings.promptOptimization.includeReferenceImages = value;
+  },
+});
+
+const shouldIncludeReferenceImages = computed(
+  () => includeReferenceImages.value && referenceImages.value.length > 0
+);
+
+const referenceImageHint = computed(() => {
+  if (optimizeMode.value === "translate") return "仅翻译当前提示词";
+  if (!optimizeModelCombo.value) return "请选择优化模型";
+  if (!optimizeModelSupportsVision.value) return "当前模型仅处理文本";
+  if (!includeReferenceImages.value) return "仅使用当前提示词和附加要求";
+  if (!referenceImages.value.length) return "添加图片后可作为优化参考";
+  return `将参考 ${referenceImages.value.length} 张附件图片`;
+});
+
+const referenceImageUnavailable = computed(
+  () =>
+    optimizeMode.value !== "translate" &&
+    !!optimizeModelCombo.value &&
+    !optimizeModelSupportsVision.value
+);
 
 const targetLangOptions = computed(() => {
   const configuredList = currentOptimizationConfig.value.targetLangList?.length
@@ -101,24 +187,40 @@ const resolveDefaultTargetLang = () => {
 const resetOptimizeDraft = () => {
   optimizePrompt.value = "";
   optimizedResult.value = "";
+  optimizeError.value = "";
   optimizeMode.value = "optimize";
   optimizeTargetLang.value = resolveDefaultTargetLang();
 };
 
-// 初始化优化配置
+// 提取可读的失败原因，去掉上游响应体等冗长细节
+const resolveOptimizeErrorText = (error: unknown) => {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const bodyIndex = raw.search(/\s*[:：]\s*[[{]/);
+  const summary = bodyIndex > 0 ? raw.slice(0, bodyIndex) : raw;
+  return summary.trim() || "未知错误";
+};
+
+// 初始化优化配置：模型选择单独同步，避免面板内改动触发草稿重置
+watch(
+  () => store.settings.promptOptimization?.modelCombo,
+  (modelCombo) => {
+    logger.debug("同步优化模型选择", {
+      modelCombo: modelCombo || "",
+      resolvedCombo: resolveAvailableModelCombo(modelCombo || ""),
+    });
+    optimizeModelId.value = modelCombo || "";
+  },
+  { immediate: true }
+);
+
 watch(
   () => [
-    store.settings.promptOptimization?.modelCombo,
     store.settings.promptOptimization?.defaultTargetLang,
     store.settings.promptOptimization?.targetLangList?.join(","),
     store.currentConfig.activeType,
   ],
   () => {
-    const config = store.settings.promptOptimization;
-    if (config) {
-      optimizeModelId.value = config.modelCombo || "";
-      resetOptimizeDraft();
-    }
+    resetOptimizeDraft();
   },
   { immediate: true }
 );
@@ -136,28 +238,57 @@ const buildOptimizationPrompt = (template: string, text: string) => {
   return `${rendered}\n\n## 用户输入\n${text}`;
 };
 
+// 读取参考图并转为多模态内容（仅视觉模型）
+const buildReferenceImageContents = async (): Promise<LlmMessageContent[]> => {
+  const contents: LlmMessageContent[] = [];
+  for (const asset of referenceImages.value) {
+    try {
+      if (!asset.path) continue;
+      const base64 = await assetManagerEngine.getAssetBase64(asset.path);
+      if (!base64) continue;
+      contents.push({ type: "image", imageBase64: base64 });
+    } catch (error) {
+      logger.warn("读取参考图失败，跳过该图片", {
+        error,
+        assetId: asset.id,
+        path: asset.path,
+      });
+    }
+  }
+  return contents;
+};
+
 const handleOptimizePrompt = async () => {
+  if (props.disabled || isOptimizing.value) return;
   if (!props.promptText.trim()) {
+    logger.warn("提示词优化被中断：输入框内容为空");
     customMessage.warning("请先输入需要处理的提示词");
     return;
   }
 
   const config = currentOptimizationConfig.value;
-  const modelCombo = optimizeModelId.value || config.modelCombo;
+  const modelCombo = optimizeModelCombo.value;
 
   if (!modelCombo) {
+    logger.warn("提示词优化被中断：未选择优化模型", {
+      rawOptimizeModelId: optimizeModelId.value,
+    });
     customMessage.warning("请先选择优化模型");
     return;
   }
 
   const [profileId, modelId] = parseModelCombo(modelCombo);
   if (!profileId || !modelId) {
+    logger.warn("提示词优化被中断：优化模型 combo 无法解析", { modelCombo });
     customMessage.warning("优化模型配置无效");
     return;
   }
 
+  const controller = new AbortController();
+  requestController = controller;
   isOptimizing.value = true;
   optimizedResult.value = "";
+  optimizeError.value = "";
   try {
     let finalPrompt = "";
     const targetLang = optimizeTargetLang.value || resolveDefaultTargetLang();
@@ -179,15 +310,68 @@ const handleOptimizePrompt = async () => {
       finalPrompt += `\n\n附加要求：${optimizePrompt.value.trim()}`;
     }
 
-    const response = await sendRequest({
+    logger.info("开始提示词优化", {
+      mode: optimizeMode.value,
+      targetLang,
       profileId,
       modelId,
-      messages: [
-        {
-          role: "user",
-          content: finalPrompt,
-        },
-      ],
+      activeType: store.currentConfig.activeType,
+      inputLength: props.promptText.length,
+      hasExtraRequirement: !!optimizePrompt.value.trim(),
+      promptTemplateLength: config.prompt?.length || 0,
+      templateHasPlaceholder: config.prompt?.includes("{text}") ?? false,
+      supportsVision: optimizeModelSupportsVision.value,
+      includeReferenceImages: shouldIncludeReferenceImages.value,
+      referenceImageCount: referenceImages.value.length,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+    });
+
+    if (optimizeMode.value !== "translate" && !config.prompt?.trim()) {
+      logger.warn("提示词优化模板为空，将仅提交用户原文", {
+        activeType: store.currentConfig.activeType,
+      });
+    }
+
+    logger.debug("提示词优化最终提示词已构建", {
+      finalPromptLength: finalPrompt.length,
+      finalPrompt,
+    });
+
+    // 按用户偏好与模型能力提供参考图；纯翻译仅处理文本。
+    let messages: LlmMessage[];
+    if (shouldIncludeReferenceImages.value) {
+      const imageContents = await buildReferenceImageContents();
+      logger.info("视觉优化模式：参考图内容构建完成", {
+        requested: referenceImages.value.length,
+        resolved: imageContents.length,
+      });
+      messages =
+        imageContents.length > 0
+          ? [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "以下是用户添加的参考图，优化提示词时请结合参考图的内容与风格：",
+                  },
+                  ...imageContents,
+                  { type: "text", text: finalPrompt },
+                ],
+              },
+            ]
+          : [{ role: "user", content: finalPrompt }];
+    } else {
+      messages = [{ role: "user", content: finalPrompt }];
+    }
+
+    if (controller.signal.aborted) return;
+    const response = await sendRequest({
+      signal: controller.signal,
+      profileId,
+      modelId,
+      messages,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       inspectorContext: {
@@ -196,25 +380,57 @@ const handleOptimizePrompt = async () => {
       },
     });
 
+    if (controller.signal.aborted) return;
     if (response && response.content) {
       optimizedResult.value = response.content;
+      logger.info("提示词优化完成", {
+        contentLength: response.content.length,
+        finishReason: response.finishReason,
+        reasoningContentLength: response.reasoningContent?.length || 0,
+        usage: response.usage,
+      });
+    } else {
+      logger.warn("提示词优化返回内容为空", {
+        hasResponse: !!response,
+        finishReason: response?.finishReason,
+        reasoningContentLength: response?.reasoningContent?.length || 0,
+        usage: response?.usage,
+      });
+      optimizeError.value = "模型未返回有效内容，请重试或更换优化模型";
     }
   } catch (error) {
+    if (controller.signal.aborted) return;
     logger.error("提示词优化失败", error);
+    optimizeError.value = resolveOptimizeErrorText(error);
     customMessage.error("提示词优化失败，请检查网络或模型配置");
   } finally {
+    requestController = undefined;
     isOptimizing.value = false;
   }
 };
 
 const applyOptimizedPrompt = () => {
+  if (props.disabled || isOptimizing.value) return;
   if (optimizedResult.value) {
+    logger.info("应用优化结果", {
+      contentLength: optimizedResult.value.length,
+      activeType: store.currentConfig.activeType,
+    });
     emit("apply", optimizedResult.value);
     resetOptimizeDraft();
+  } else {
+    logger.warn("应用优化结果被忽略：结果为空");
   }
 };
 
+const regenerateOptimize = () => {
+  logger.debug("重置优化结果以重新生成");
+  optimizedResult.value = "";
+  optimizeError.value = "";
+};
+
 const cancelOptimize = () => {
+  logger.debug("取消提示词优化");
   emit("cancel");
   resetOptimizeDraft();
 };
@@ -226,140 +442,190 @@ defineExpose({
 </script>
 
 <template>
-  <div class="optimize-form">
-    <div class="form-header">
-      <el-icon><Sparkles /></el-icon>
-      <span>{{ activeTypeLabel }}提示词优化助手</span>
-    </div>
+  <InputPanelLayout
+    class="optimize-panel"
+    :class="{ 'has-result': optimizedResult }"
+  >
+    <template #controls>
+      <div class="optimize-controls">
+        <div class="form-item model-form-item">
+          <label>优化模型</label>
+          <LlmModelSelector
+            v-model="optimizeModelCombo"
+            placeholder="选择优化模型"
+            :capabilities="{ embedding: false, rerank: false }"
+            :teleported="true"
+            popper-class="optimize-model-popper"
+          />
+        </div>
 
-    <div class="form-item model-form-item">
-      <label>优化模型</label>
-      <LlmModelSelector
-        v-model="optimizeModelId"
-        placeholder="选择优化模型"
-        :capabilities="{ embedding: false, rerank: false }"
-        :teleported="false"
-        popper-class="optimize-model-popper"
-      />
-    </div>
+        <div class="form-item">
+          <label>处理模式</label>
+          <el-select
+            v-model="optimizeMode"
+            aria-label="处理模式"
+            :disabled="isOptimizing"
+          >
+            <el-option label="仅优化" value="optimize" />
+            <el-option label="仅翻译" value="translate" />
+            <el-option label="优化并翻译" value="optimize_translate" />
+          </el-select>
+        </div>
 
-    <div
-      v-if="optimizeMode !== 'optimize'"
-      class="form-item language-form-item"
-    >
-      <label>目标语言</label>
-      <el-select
-        v-model="optimizeTargetLang"
-        class="translation-select"
-        size="small"
-        placeholder="选择目标语言"
-        :teleported="false"
-        popper-class="optimize-language-popper"
-      >
-        <el-option
-          v-for="option in targetLangOptions"
-          :key="option.value"
-          :label="option.label"
-          :value="option.value"
+        <div
+          v-if="optimizeMode !== 'optimize'"
+          class="form-item language-form-item"
+        >
+          <label>目标语言</label>
+          <el-select
+            v-model="optimizeTargetLang"
+            class="translation-select"
+            placeholder="选择目标语言"
+            :teleported="true"
+            popper-class="optimize-language-popper"
+          >
+            <el-option
+              v-for="option in targetLangOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </div>
+      </div>
+    </template>
+    <div class="optimize-form" :class="{ 'has-result': optimizedResult }">
+      <div class="form-item">
+        <label>附加要求 (可选)</label>
+        <el-input
+          v-model="optimizePrompt"
+          type="textarea"
+          :rows="3"
+          placeholder="输入额外的指令，例如：'增加赛博朋克风格' 或 '强调光影对比'..."
         />
-      </el-select>
-    </div>
-
-    <div class="form-item">
-      <label>附加要求 (可选)</label>
-      <el-input
-        v-model="optimizePrompt"
-        type="textarea"
-        :rows="3"
-        placeholder="输入额外的指令，例如：'增加赛博朋克风格' 或 '强调光影对比'..."
-      />
-    </div>
-
-    <div v-if="optimizedResult" class="optimize-result">
-      <label>优化结果</label>
-      <div class="result-content">
-        {{ optimizedResult }}
       </div>
-    </div>
 
-    <div class="form-item">
-      <label>处理模式</label>
-      <el-radio-group
-        v-model="optimizeMode"
-        size="small"
-        class="mode-radio-group"
+      <div v-if="optimizedResult" class="optimize-result">
+        <label>优化结果</label>
+        <div class="result-content">
+          {{ optimizedResult }}
+        </div>
+      </div>
+
+      <el-alert
+        v-else-if="optimizeError"
+        class="optimize-error"
+        type="error"
+        title="优化失败"
+        :closable="false"
+        show-icon
       >
-        <el-radio-button value="optimize">仅优化</el-radio-button>
-        <el-radio-button value="translate">仅翻译</el-radio-button>
-        <el-radio-button value="optimize_translate">优化并翻译</el-radio-button>
-      </el-radio-group>
+        {{ optimizeError }}
+      </el-alert>
     </div>
-
-    <div class="form-tip">
-      <el-icon><Info /></el-icon>
-      <div class="tip-content">
-        <p>优化将基于当前输入框中的内容进行扩展</p>
+    <template #footer>
+      <div class="optimize-footer">
+        <div class="form-tip">
+          <el-switch
+            v-model="includeReferenceImages"
+            aria-label="参考附件图片"
+            active-text="参考附件图片"
+            size="small"
+            :disabled="props.disabled || isOptimizing || !canReferenceImages"
+          />
+          <span
+            class="reference-status"
+            :class="{ 'is-warning': referenceImageUnavailable }"
+            role="status"
+            aria-live="polite"
+          >
+            {{ referenceImageHint }}
+          </span>
+          <el-tooltip
+            :content="
+              referenceImageUnavailable
+                ? '选择支持视觉的优化模型后，可结合附件图片优化提示词'
+                : referenceImageHint
+            "
+            placement="top"
+            :trigger="['hover', 'focus']"
+          >
+            <button
+              type="button"
+              class="reference-help"
+              aria-label="参考附件图片说明"
+            >
+              <el-icon><Info /></el-icon>
+            </button>
+          </el-tooltip>
+        </div>
+        <div class="form-actions">
+          <template v-if="!optimizedResult">
+            <el-button size="small" @click="cancelOptimize">取消</el-button>
+            <el-button
+              size="small"
+              type="primary"
+              :loading="isOptimizing"
+              :disabled="
+                props.disabled ||
+                !optimizeModelCombo ||
+                !props.promptText.trim()
+              "
+              @click="handleOptimizePrompt"
+            >
+              开始优化
+            </el-button>
+          </template>
+          <template v-else>
+            <el-button
+              size="small"
+              :disabled="props.disabled"
+              @click="regenerateOptimize"
+              >重新生成</el-button
+            >
+            <el-button
+              size="small"
+              type="primary"
+              :disabled="props.disabled"
+              @click="applyOptimizedPrompt"
+            >
+              确认并应用
+            </el-button>
+          </template>
+        </div>
       </div>
-    </div>
-
-    <div class="form-actions">
-      <template v-if="!optimizedResult">
-        <el-button size="small" @click="cancelOptimize">取消</el-button>
-        <el-button
-          size="small"
-          type="primary"
-          :loading="isOptimizing"
-          @click="handleOptimizePrompt"
-        >
-          开始优化
-        </el-button>
-      </template>
-      <template v-else>
-        <el-button size="small" @click="optimizedResult = ''"
-          >重新生成</el-button
-        >
-        <el-button size="small" type="primary" @click="applyOptimizedPrompt">
-          确认并应用
-        </el-button>
-      </template>
-    </div>
-  </div>
+    </template>
+  </InputPanelLayout>
 </template>
 
 <style scoped>
+.optimize-panel :deep(.panel-controls) {
+  max-height: max(64px, calc(var(--input-panel-max-height, 260px) - 100px));
+  overflow-y: auto;
+}
+
+.optimize-panel {
+  container: optimize-panel / inline-size;
+}
+
+.optimize-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px 16px;
+}
+
 .optimize-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  /* 确保内部下拉菜单的 z-index 能够生效，且不被父级容器轻易裁剪 */
-  position: relative;
-  z-index: 10;
-}
-
-.form-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--el-color-primary);
-  margin-bottom: 4px;
+  min-height: 0;
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.model-form-item {
-  position: relative;
-  z-index: 30;
-}
-
-.language-form-item {
-  position: relative;
-  z-index: 20;
 }
 
 .form-item label {
@@ -371,61 +637,167 @@ defineExpose({
 .optimize-result {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   gap: 8px;
-  background-color: var(--el-fill-color-lighter);
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
 }
 
 .optimize-result label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--el-color-success);
+  color: var(--el-text-color-regular);
+}
+
+.optimize-error {
+  align-items: flex-start;
+}
+
+.optimize-error :deep(.el-alert__content) {
+  word-break: break-word;
 }
 
 .result-content {
+  min-height: 0;
+  padding: 5px 11px;
+  box-sizing: border-box;
+  background-color: var(--el-fill-color-blank);
+  border-radius: var(--el-input-border-radius, var(--el-border-radius-base));
+  box-shadow: 0 0 0 1px var(--el-border-color) inset;
   font-size: 14px;
   line-height: 1.6;
   color: var(--el-text-color-primary);
-  max-height: 180px;
-  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
+@container optimize-panel (min-width: 680px) {
+  .optimize-controls > .form-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .optimize-controls > .form-item > label {
+    line-height: 32px;
+    white-space: nowrap;
+  }
+
+  .optimize-controls > .form-item > :not(label) {
+    min-width: 0;
+  }
+
+  .has-result :deep(.panel-body) {
+    display: flex;
+    overflow: hidden;
+  }
+
+  .optimize-form.has-result {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .optimize-form.has-result > .form-item {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .optimize-form.has-result > .optimize-result {
+    grid-column: 2;
+    grid-row: 1;
+    overflow: hidden;
+  }
+
+  .optimize-form.has-result > .form-item :deep(.el-textarea) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+
+  .optimize-form.has-result > .form-item :deep(.el-textarea__inner) {
+    height: 100%;
+    min-height: 0 !important;
+    resize: none;
+  }
+
+  .optimize-form.has-result .result-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
+}
+
+.optimize-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
 .form-tip {
   display: flex;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
   gap: 8px;
-  padding: 4px;
-  border-radius: 8px;
   color: var(--el-text-color-secondary);
 }
 
-.form-tip .el-icon {
-  font-size: 16px;
-  margin-top: 2px;
+.form-tip :deep(.el-switch) {
+  flex-shrink: 0;
 }
 
-.tip-content p {
-  margin: 0;
-  font-size: 14px;
+.reference-status {
+  font-size: 13px;
   line-height: 1.5;
+}
+
+.reference-status.is-warning {
+  color: var(--el-color-warning);
+}
+
+.reference-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--el-border-radius-small);
+  background: transparent;
+  color: inherit;
+  cursor: help;
+}
+
+.reference-help:hover {
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-light);
+}
+
+.reference-help:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.reference-help .el-icon {
+  font-size: 16px;
 }
 
 .form-actions {
   display: flex;
+  flex-shrink: 0;
+  margin-left: auto;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 4px;
 }
 
-:deep(.el-radio-group) {
-  background-color: transparent !important;
-  backdrop-filter: none !important;
-}
-
-/* 非 teleported 下拉会留在 popover 内部，需要显式压过后续表单内容。 */
+/* 下拉菜单挂载到页面，越过面板滚动边界。 */
 :deep(.el-select__popper),
 :global(.el-popper.optimize-model-popper),
 :global(.el-popper.optimize-language-popper) {

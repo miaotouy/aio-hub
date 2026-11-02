@@ -314,11 +314,9 @@ async fn proxy_handler(req: Request, window: WebviewWindow) -> Result<Response<B
         "none" => {
             client_builder = client_builder.no_proxy();
         }
-        "custom" => {
-            if !proxy_settings.custom_url.is_empty() {
-                if let Ok(proxy) = reqwest::Proxy::all(&proxy_settings.custom_url) {
-                    client_builder = client_builder.proxy(proxy);
-                }
+        "custom" if !proxy_settings.custom_url.is_empty() => {
+            if let Ok(proxy) = reqwest::Proxy::all(&proxy_settings.custom_url) {
+                client_builder = client_builder.proxy(proxy);
             }
         }
         _ => {

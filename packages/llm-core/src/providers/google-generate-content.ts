@@ -1,3 +1,4 @@
+import { usageReport, mergeTokenUsage } from "../usage";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -251,10 +252,13 @@ function buildMediaPart(source: JsonValue, mediaType?: string): JsonObject {
 }
 
 function buildGenerationConfig(request: LlmRequest): JsonObject {
-  const config: JsonObject = {
-    maxOutputTokens: request.maxCompletionTokens ?? request.maxTokens ?? 8192,
-    temperature: request.temperature ?? 1,
-  };
+  const config: JsonObject = {};
+  assignDefined(
+    config,
+    "maxOutputTokens",
+    request.maxCompletionTokens ?? request.maxTokens
+  );
+  assignDefined(config, "temperature", request.temperature);
   assignDefined(config, "topP", request.topP);
   assignDefined(config, "topK", request.topK);
   assignDefined(config, "presencePenalty", request.presencePenalty);
@@ -294,7 +298,7 @@ function buildGenerationConfig(request: LlmRequest): JsonObject {
     const level = (
       request.thinkingLevel ?? request.reasoningEffort
     )?.toLowerCase();
-    if (request.model.includes("gemini-3") && level) {
+    if (/gemini-[34](?:\.\d+)?(?:-|$)/i.test(request.model) && level) {
       thinkingConfig.thinkingLevel = normalizeThinkingLevel(level);
     } else if (request.thinkingBudget !== undefined) {
       thinkingConfig.thinkingBudget = request.thinkingBudget;
@@ -487,9 +491,16 @@ export function parseGoogleUsage(value: unknown): TokenUsage | undefined {
   const usage = asObject(value);
   if (!usage) return undefined;
   return {
+    ...usageReport(usage, "promptTokenCount", "candidatesTokenCount", [
+      "totalTokenCount",
+      "cachedContentTokenCount",
+      "thoughtsTokenCount",
+    ]),
     promptTokens: readNumber(usage.promptTokenCount) ?? 0,
     completionTokens: readNumber(usage.candidatesTokenCount) ?? 0,
-    totalTokens: readNumber(usage.totalTokenCount) ?? 0,
+    totalTokens:
+      (readNumber(usage.promptTokenCount) ?? 0) +
+      (readNumber(usage.candidatesTokenCount) ?? 0),
     ...(readNumber(usage.cachedContentTokenCount) === undefined
       ? {}
       : {
@@ -544,8 +555,8 @@ export class GoogleGenerateContentStreamDecoder implements ProviderStreamDecoder
     const events: LlmStreamEvent[] = [];
     const usage = parseGoogleUsage(root.usageMetadata);
     if (usage) {
-      this.usage = usage;
-      events.push({ type: "usage", usage });
+      this.usage = mergeTokenUsage(this.usage, usage);
+      events.push({ type: "usage", usage: this.usage! });
     }
     const candidate = asObject(readArray(root.candidates)?.[0]);
     if (!candidate) return events;

@@ -31,13 +31,16 @@ import {
 } from "../../types";
 import { useNodeManager } from "../session/useNodeManager";
 import { useLlmRequest } from "@/composables/useLlmRequest";
-import { useChatSettings } from "../settings/useChatSettings";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
+import { groupCompressionMessages } from "../../utils/contextCompressionCounting";
+import { formatVirtualAttachments } from "../../utils/virtualAttachments";
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+
+import type { CompressionResult } from "../../types/contextCompression";
+import { awaitWithSignal } from "../../utils/awaitWithSignal";
 
 const logger = createModuleLogger("llm-chat/context-compressor");
 const errorHandler = createModuleErrorHandler("llm-chat/context-compressor");
@@ -57,6 +60,33 @@ export function useContextCompressor() {
     messageCount: number;
     historyCount: number;
   }
+
+  const resolveSummaryBinding = (
+    config: ContextCompressionConfig,
+    agentId?: string,
+    callerBinding?: { profileId: string; modelId: string }
+  ): { profileId: string; modelId: string } => {
+    let profileId: string;
+    let modelId: string;
+
+    if (config.summaryModel) {
+      profileId = config.summaryModel.profileId;
+      modelId = config.summaryModel.modelId;
+    } else {
+      const targetAgentId = agentId || currentAgentId.value;
+      const agent = targetAgentId
+        ? agentStore.getAgentById(targetAgentId)
+        : null;
+
+      const binding = callerBinding ?? agent;
+      if (!binding?.profileId || !binding.modelId)
+        throw new Error("请配置摘要模型，或为当前会话绑定可用的渠道与模型");
+      profileId = binding.profileId;
+      modelId = binding.modelId;
+    }
+
+    return { profileId, modelId };
+  };
 
   /**
    * 判断是否需要压缩
@@ -93,7 +123,8 @@ export function useContextCompressor() {
    * (优先使用 Store 中的 Pipeline 计算结果，不再自己重复计算)
    */
   const calculateContextStats = (
-    path: ChatMessageNode[]
+    path: ChatMessageNode[],
+    config: ContextCompressionConfig
   ): CompressionContext => {
     // 1. 找出所有启用的压缩节点及其隐藏的节点 ID
     const enabledCompressionNodes = path.filter(
@@ -110,10 +141,18 @@ export function useContextCompressor() {
     // 2. 过滤掉被隐藏的节点
     const effectiveNodes = path.filter((node) => !hiddenNodeIds.has(node.id));
 
-    // 3. 基础统计 (Count)
-    // 历史总数指路径上的总节点数
-    const historyCount = effectiveNodes.length;
-    // 这里简单计算有效节点数作为近似
+    // 3. 回合模式统计可见的普通消息分组；消息模式沿用有效路径节点数。
+    const historyCount =
+      config.countUnit === "user-turn"
+        ? groupCompressionMessages(
+            effectiveNodes.filter(
+              (node) =>
+                !node.metadata?.isCompressionNode && node.role !== "system"
+            ),
+            "user-turn"
+          ).length
+        : effectiveNodes.length;
+    // 数量阈值与最小历史数量使用同一单位。
     const messageCount = historyCount;
 
     // 4. Token 统计
@@ -144,7 +183,9 @@ export function useContextCompressor() {
     messages: ChatMessageNode[],
     config: ContextCompressionConfig,
     agentId?: string,
-    previousSummary?: string
+    previousSummary?: string,
+    callerBinding?: { profileId: string; modelId: string },
+    signal?: AbortSignal
   ): Promise<string> => {
     logger.info("开始生成摘要", {
       messageCount: messages.length,
@@ -174,7 +215,9 @@ export function useContextCompressor() {
       .map((msg, index) => {
         const roleLabel = getRoleLabel(msg);
         const separator = "─".repeat(40);
-        return `${separator}\n【${index + 1}】${roleLabel}\n${separator}\n${msg.content}`;
+        const content =
+          msg.content + formatVirtualAttachments(msg.virtualAttachments);
+        return `${separator}\n【${index + 1}】${roleLabel}\n${separator}\n${content}`;
       })
       .join("\n\n");
 
@@ -198,59 +241,17 @@ export function useContextCompressor() {
       prompt = promptTemplate.replace("{context}", contentText);
     }
 
-    // 3. 确定使用的模型
-    let profileId: string;
-    let modelId: string;
-
-    if (config.summaryModel) {
-      // 使用配置的摘要模型
-      profileId = config.summaryModel.profileId;
-      modelId = config.summaryModel.modelId;
-    } else {
-      // 使用当前 Agent 的模型
-      // 如果没有指定 agentId，尝试获取当前选中的 Agent
-      const targetAgentId = agentId || currentAgentId.value;
-      const agent = targetAgentId
-        ? agentStore.getAgentById(targetAgentId)
-        : null;
-
-      if (agent) {
-        profileId = agent.profileId;
-        modelId = agent.modelId;
-      } else {
-        // 回退到全局默认模型
-        const { settings } = useChatSettings();
-        const defaultModelIdentifier =
-          settings.value.modelPreferences.defaultModel;
-
-        if (defaultModelIdentifier) {
-          const firstColonIndex = defaultModelIdentifier.indexOf(":");
-          profileId = defaultModelIdentifier.substring(0, firstColonIndex);
-          modelId = defaultModelIdentifier.substring(firstColonIndex + 1);
-          logger.info("未找到 Agent 模型，使用全局默认模型进行摘要生成", {
-            profileId,
-            modelId,
-          });
-        } else {
-          // 尝试从 profiles 中找一个可用的
-          const { enabledProfiles } = useLlmProfiles();
-          if (enabledProfiles.value.length > 0) {
-            profileId = enabledProfiles.value[0].id;
-            modelId = enabledProfiles.value[0].models[0]?.id;
-            logger.info(
-              "未配置全局默认模型，回退使用第一个可用模型进行摘要生成",
-              { profileId, modelId }
-            );
-          } else {
-            throw new Error("无法确定摘要生成模型：未找到可用配置");
-          }
-        }
-      }
-    }
+    const { profileId, modelId } = resolveSummaryBinding(
+      config,
+      agentId,
+      callerBinding
+    );
 
     // 4. 发送请求
-    try {
-      const response = await sendRequest({
+    signal?.throwIfAborted();
+    const response = await awaitWithSignal(
+      sendRequest({
+        signal,
         profileId,
         modelId,
         messages: [{ role: "user", content: prompt }], // 摘要任务通常作为单次 Prompt
@@ -264,16 +265,12 @@ export function useContextCompressor() {
         maxTokens:
           config.summaryMaxTokens ??
           DEFAULT_CONTEXT_COMPRESSION_CONFIG.summaryMaxTokens,
-      });
+      }),
+      signal
+    );
 
-      return response.content;
-    } catch (error) {
-      errorHandler.handle(error, {
-        userMessage: "摘要生成失败",
-        showToUser: false,
-      });
-      throw error;
-    }
+    signal?.throwIfAborted();
+    return response.content;
   };
 
   /**
@@ -285,7 +282,11 @@ export function useContextCompressor() {
     detail: ChatSessionDetail,
     nodesToCompress: ChatMessageNode[],
     summaryContent: string,
-    config: ContextCompressionConfig
+    config: ContextCompressionConfig,
+    options?: {
+      signal?: AbortSignal;
+      binding?: { profileId: string; modelId: string };
+    }
   ): Promise<ChatMessageNode | null> => {
     if (nodesToCompress.length === 0) return null;
 
@@ -341,23 +342,24 @@ export function useContextCompressor() {
         tokenCount: Math.ceil(summaryContent.length * 1.5), // 粗略估算
       },
     });
-    // 尝试使用 TokenCalculator 计算精确的 Token 数
+    // Token 统计完成后才提交树结构；取消、重载或删除会话时保持原树。
     try {
-      const activeAgentId = currentAgentId.value;
-      const agent = activeAgentId
-        ? agentStore.getAgentById(activeAgentId)
-        : null;
-      // 如果没有指定模型，TokenCalculator 会自动回退到默认估算策略
-      const tokenResult = await tokenCalculatorService.calculateTokens(
-        summaryContent,
-        agent?.modelId || ""
+      const binding = resolveSummaryBinding(
+        config,
+        undefined,
+        options?.binding
       );
-      if (summaryNode.metadata) {
+      const tokenResult = await awaitWithSignal(
+        tokenCalculatorService.calculateTokens(summaryContent, binding.modelId),
+        options?.signal
+      );
+      if (summaryNode.metadata)
         summaryNode.metadata.tokenCount = tokenResult.count;
-      }
     } catch (error) {
+      options?.signal?.throwIfAborted();
       logger.warn("计算摘要节点 Token 失败，保留估算值", error);
     }
+    options?.signal?.throwIfAborted();
 
     // 2. 插入到树中
     // 逻辑：Summary 节点插入到 lastNode 之后
@@ -448,65 +450,59 @@ export function useContextCompressor() {
 
   /**
    * 检查并执行压缩
-   * @returns 是否执行了压缩
-   */
-  /**
-   * 压缩执行结果统计
-   */
-  interface CompressionResult {
-    success: boolean;
-    /**
-     * 失败原因仅供调用方决定用户反馈；自动压缩调用通常无需显示提示。
-     */
-    failureReason?: "not-needed" | "request-failed";
-    messageCount?: number;
-    savedTokenCount?: number;
-  }
-
-  /**
-   * 检查并执行压缩
    * @returns 压缩执行结果
    */
-  const checkAndCompress = async (
+  const compress = (
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
-    config?: ContextCompressionConfig
-  ): Promise<CompressionResult> => {
-    const effectiveConfig = getEffectiveConfig(config);
+    manual: boolean,
+    config: ContextCompressionConfig | undefined,
+    targetLeafId: string
+  ): Promise<CompressionResult> =>
+    llmChatStore.runContextCompression(
+      detail.id,
+      async (signal, showProgress) => {
+        const effectiveConfig = getEffectiveConfig(config);
+        if (
+          !effectiveConfig.enabled ||
+          (!manual && effectiveConfig.autoTrigger === false)
+        ) {
+          return { success: false, failureReason: "not-needed" };
+        }
+        const path = getNodePath(detail, targetLeafId);
+        if (
+          !manual &&
+          !shouldCompress(
+            calculateContextStats(path, effectiveConfig),
+            effectiveConfig
+          )
+        ) {
+          return { success: false, failureReason: "not-needed" };
+        }
+        return executeCompression(
+          index,
+          detail,
+          path,
+          effectiveConfig,
+          signal,
+          showProgress
+        );
+      }
+    );
 
-    // 检查是否启用以及是否允许自动触发
-    if (!effectiveConfig.enabled || effectiveConfig.autoTrigger === false) {
-      return { success: false, failureReason: "not-needed" };
-    }
+  const checkAndCompress = (
+    index: ChatSessionIndex,
+    detail: ChatSessionDetail,
+    config?: ContextCompressionConfig,
+    targetLeafId = detail.activeLeafId || ""
+  ): Promise<CompressionResult> =>
+    compress(index, detail, false, config, targetLeafId);
 
-    // 2. 获取路径并计算统计
-    const path = getNodePath(detail, detail.activeLeafId || "");
-    const contextStats = calculateContextStats(path);
-
-    // 3. 判断是否需要压缩
-    if (!shouldCompress(contextStats, effectiveConfig)) {
-      return { success: false, failureReason: "not-needed" };
-    }
-
-    logger.info("触发上下文压缩", { contextStats, config: effectiveConfig });
-
-    return await executeCompression(index, detail, path, effectiveConfig);
-  };
-
-  /**
-   * 手动触发压缩（忽略自动触发阈值）
-   */
-  const manualCompress = async (
+  const manualCompress = (
     index: ChatSessionIndex,
     detail: ChatSessionDetail
-  ): Promise<CompressionResult> => {
-    const effectiveConfig = getEffectiveConfig();
-    const path = getNodePath(detail, detail.activeLeafId || "");
-
-    logger.info("手动触发上下文压缩", { config: effectiveConfig });
-
-    return await executeCompression(index, detail, path, effectiveConfig);
-  };
+  ): Promise<CompressionResult> =>
+    compress(index, detail, true, undefined, detail.activeLeafId || "");
 
   /**
    * 执行压缩核心逻辑
@@ -515,10 +511,12 @@ export function useContextCompressor() {
     index: ChatSessionIndex,
     detail: ChatSessionDetail,
     path: ChatMessageNode[],
-    effectiveConfig: ContextCompressionConfig
+    effectiveConfig: ContextCompressionConfig,
+    signal: AbortSignal,
+    showProgress: (messageCount: number) => void
   ): Promise<CompressionResult> => {
     // 4. 确定压缩范围
-    // 策略：保护最近 N 条，压缩之前的 M 条
+    // 策略：保护最近 N 个计数单位，从之前最早的历史中压缩 M 个单位。
     // 过滤出有效节点（未被隐藏的）
     const enabledCompressionNodes = path.filter(
       (node) => node.metadata?.isCompressionNode && node.isEnabled !== false
@@ -541,31 +539,25 @@ export function useContextCompressor() {
 
     const protectCount = effectiveConfig.protectRecentCount || 10;
     const compressCount = effectiveConfig.compressCount || 20;
+    const units = groupCompressionMessages(
+      candidateNodes,
+      effectiveConfig.countUnit
+    );
 
-    // 如果候选节点数量不足以保留保护区，则不压缩
-    if (candidateNodes.length <= protectCount) {
-      logger.info("候选节点数量不足以触发压缩（受保护区限制）", {
-        candidateCount: candidateNodes.length,
+    if (units.length <= protectCount) {
+      logger.info("候选历史不足以触发压缩（受保护区限制）", {
+        candidateCount: units.length,
+        countUnit: effectiveConfig.countUnit,
         protectCount,
       });
       return { success: false, failureReason: "not-needed" };
     }
 
-    // 确定要压缩的节点：从候选列表头部开始，取 compressCount 个
-    // 注意：candidateNodes 是按时间顺序排列的 (path 是从根到叶)
-    // 我们要保留末尾的 protectCount 个
-    // 可压缩的范围是 [0, length - protectCount]
-    const compressibleNodes = candidateNodes.slice(
-      0,
-      candidateNodes.length - protectCount
-    );
-
-    // 从中取最后 compressCount 个？还是最早的？
-    // 通常压缩最早的。
-    // 比如 A, B, C, D, E, F(protect), G(protect)
-    // 压缩 A, B, C。
-    // 如果一次只压 2 个，压 A, B。
-    const nodesToCompress = compressibleNodes.slice(0, compressCount);
+    // 按选中的单位保护末尾历史，再从最早处选取；用户回合保持完整。
+    const nodesToCompress = units
+      .slice(0, units.length - protectCount)
+      .slice(0, compressCount)
+      .flat();
 
     if (nodesToCompress.length === 0) {
       return { success: false, failureReason: "not-needed" };
@@ -589,15 +581,37 @@ export function useContextCompressor() {
       ? [previousCompressionNode, ...nodesToCompress]
       : nodesToCompress;
 
-    // 5. 执行压缩
+    // 进度属于会话运行态，摘要完成后才创建正式消息节点。
+    showProgress(nodesToCompress.length);
     try {
+      signal.throwIfAborted();
       // 新增对话只放在 context 中；已有摘要作为 previous_summary 触发连续压缩模板。
+      const latestAssistant = [...path]
+        .reverse()
+        .find(
+          (node) =>
+            node.role === "assistant" &&
+            node.metadata?.profileId &&
+            node.metadata?.modelId
+        );
+      const callerBinding =
+        latestAssistant?.metadata?.channelExecution?.requested ??
+        (latestAssistant?.metadata?.profileId &&
+        latestAssistant.metadata.modelId
+          ? {
+              profileId: latestAssistant.metadata.profileId,
+              modelId: latestAssistant.metadata.modelId,
+            }
+          : undefined);
       const summary = await generateSummary(
         nodesToCompress,
         effectiveConfig,
         undefined,
-        previousCompressionNode?.content
+        previousCompressionNode?.content,
+        callerBinding,
+        signal
       );
+      signal.throwIfAborted();
 
       // 计算预计节省的 Token
       let originalTokenCount = 0;
@@ -605,14 +619,15 @@ export function useContextCompressor() {
         (n) => (originalTokenCount += n.metadata?.tokenCount || 0)
       );
 
-      // 创建节点并更新树
-      await compressNodes(
+      const summaryNode = await compressNodes(
         index,
         detail,
         compressionNodes,
         summary,
-        effectiveConfig
+        effectiveConfig,
+        { signal, binding: callerBinding }
       );
+      if (!summaryNode) return { success: false, failureReason: "cancelled" };
 
       // 持久化会话状态，防止压缩结果丢失
       llmChatStore.persistSessions();
@@ -626,12 +641,17 @@ export function useContextCompressor() {
         savedTokenCount: originalTokenCount,
       };
     } catch (error) {
-      // 压缩失败不应中断对话，只记录错误
-      errorHandler.handle(error as Error, {
-        userMessage: "上下文压缩执行失败",
-        showToUser: false,
-      });
-      return { success: false, failureReason: "request-failed" };
+      const cancelled = signal.aborted;
+      if (!cancelled) {
+        errorHandler.handle(error as Error, {
+          userMessage: "上下文压缩执行失败",
+          showToUser: false,
+        });
+      }
+      return {
+        success: false,
+        failureReason: cancelled ? "cancelled" : "request-failed",
+      };
     }
   };
 

@@ -24,6 +24,12 @@ import {
 } from "./recall-placeholder";
 import { scanRetrievalEnvelopes } from "./retrieval-envelope";
 
+import {
+  ensureRuntimeInstructions,
+  insertRuntimeContext,
+  wrapRuntimeContext,
+} from "../context-utils/runtime-context";
+
 const LEGACY_RECALL_ENVELOPE = /【kb(?:::[^【】]*)?】/g;
 
 function isLegacyRecallEnvelope(raw: string): boolean {
@@ -65,11 +71,16 @@ function insertAutoPlaceholders(
   messages.unshift({ role: "user", content, sourceType: "depth_injection" });
 }
 
-function extractQuery(messages: ProcessableMessage[]) {
+function extractQuery(messages: ProcessableMessage[], useHistoryRole: boolean) {
   const history = messages.filter(
     (message) => message.sourceType === "session_history"
   );
-  const userIndex = history.map((message) => message.role).lastIndexOf("user");
+  const userIndex = history
+    .map(
+      (message) =>
+        (useHistoryRole ? message._historyRole : undefined) ?? message.role
+    )
+    .lastIndexOf("user");
   if (userIndex < 0) return { userText: "", aiText: "" };
   const userText =
     typeof history[userIndex].content === "string"
@@ -143,6 +154,9 @@ export class RecallProcessor implements ContextProcessor {
       }
     });
     if (!config?.enabled) return;
+    ensureRuntimeInstructions(context);
+    let autoMessage: ProcessableMessage | undefined;
+    const autoRaws = new Set<string>();
     let placeholders = collectRecallPlaceholders(context, true);
     const enabledBindings = config.bindings.filter(
       (binding) => binding.enabled
@@ -174,15 +188,31 @@ export class RecallProcessor implements ContextProcessor {
             entries: binding.when === "static" ? binding.whenParams : undefined,
           })
         );
-        insertAutoPlaceholders(
-          context.messages,
-          raw,
-          config.autoInjectPosition ?? "context_head"
-        );
+        raw.forEach((item) => autoRaws.add(item));
+        const candidate: ProcessableMessage = {
+          role: "user",
+          content: raw.join("\n"),
+          sourceType: "anchor_injection",
+          sourceId: "recall:auto",
+          _name: "自动召回",
+          _snapshotIdentity: { type: "recall", id: "recall:auto" },
+          _originalContent: raw.join("\n"),
+        };
+        if (insertRuntimeContext(context, candidate)) {
+          autoMessage = candidate;
+        } else {
+          insertAutoPlaceholders(
+            context.messages,
+            raw,
+            config.autoInjectPosition ?? "context_head"
+          );
+        }
         placeholders = collectRecallPlaceholders(context, false);
       }
     }
-    const { userText, aiText } = extractQuery(context.messages);
+    const useHistoryRole =
+      !!context.agentConfig.parameters?.contextCacheOptimization?.enabled;
+    const { userText, aiText } = extractQuery(context.messages, useHistoryRole);
     const sessionHistory = context.messages.filter(
       (message) => message.sourceType === "session_history"
     );
@@ -190,7 +220,9 @@ export class RecallProcessor implements ContextProcessor {
       .filter((message) => typeof message.content === "string")
       .map((message) => message.content as string);
     const turnCount = sessionHistory.filter(
-      (message) => message.role === "user"
+      (message) =>
+        ((useHistoryRole ? message._historyRole : undefined) ??
+          message.role) === "user"
     ).length;
     for (const placeholder of placeholders) {
       if (
@@ -248,11 +280,31 @@ export class RecallProcessor implements ContextProcessor {
       };
       const response = await resolvePlaceholderRetrieval(request);
       const message = context.messages[placeholder.messageIndex];
-      if (message && typeof message.content === "string")
+      if (message && typeof message.content === "string") {
+        if (context.traceProcessor) {
+          (message._snapshotFragments ??= []).push({
+            sourceType: "recall",
+            sourceId:
+              autoRaws.has(placeholder.raw) && message !== autoMessage
+                ? "recall:auto"
+                : placeholder.collection,
+            collection: placeholder.collection,
+            placeholder: placeholder.raw,
+            content: response.activated ? response.content : "",
+          });
+        }
         message.content = message.content.replace(
           placeholder.raw,
           response.activated ? response.content : ""
         );
+      }
+    }
+    if (autoMessage && typeof autoMessage.content === "string") {
+      if (autoMessage.content.trim()) {
+        autoMessage.content = wrapRuntimeContext(autoMessage.content);
+      } else {
+        context.messages.splice(context.messages.indexOf(autoMessage), 1);
+      }
     }
   }
 }

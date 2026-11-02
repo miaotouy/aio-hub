@@ -79,7 +79,14 @@ describe("agent core detail migration", () => {
       autoApproveTools: {},
     });
     expect(agent.extensionConfig).toBeDefined();
-    expect(agent.subAgentConfig).toEqual({ enabled: false });
+    // 子智能体配置缺省时按完整默认契约补齐（含模型偏好、深度等新字段）
+    expect(agent.subAgentConfig).toMatchObject({
+      enabled: false,
+      modelBindingMode: "inherit_caller",
+      maxDelegationDepth: 1,
+      isBuiltinBaseline: false,
+      onlySubVisible: false,
+    });
   });
 });
 

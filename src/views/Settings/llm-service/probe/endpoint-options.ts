@@ -1,5 +1,9 @@
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
-import type { ProbeCapability } from "@aiohub/llm-core";
+import {
+  isAggregateChannelType,
+  PROVIDER_EXECUTION_DEFAULTS,
+  type ProbeCapability,
+} from "@aiohub/llm-core";
 import type { ProbeEndpointType } from "./types";
 
 type CustomEndpointKey = keyof NonNullable<LlmProfile["customEndpoints"]>;
@@ -77,6 +81,24 @@ export const PROBE_ENDPOINT_DEFINITIONS: ProbeEndpointDefinition[] = [
     supportsStream: false,
   },
   {
+    value: "openrouter-decisions",
+    label: "OpenRouter Decisions",
+    defaultPath: "/api/alpha/decisions",
+    configKey: "decisions",
+    capability: "decision",
+    providerType: "openrouter",
+    supportsStream: false,
+  },
+  {
+    value: "typesafe-system-one",
+    label: "TypeSafe System One",
+    defaultPath: "/v1/systemone",
+    configKey: "systemOne",
+    capability: "decision",
+    providerType: "typesafe",
+    supportsStream: false,
+  },
+  {
     value: "image-generation",
     label: "Image Generation",
     defaultPath: "/v1/images/generations",
@@ -103,6 +125,9 @@ const OPENAI_CHAT_PROFILE_TYPES = new Set<ProviderType>([
   "sub2api",
   "aggregate-compatible",
   "opencode-go",
+  ...(Object.keys(PROVIDER_EXECUTION_DEFAULTS).filter((type) =>
+    isAggregateChannelType(type)
+  ) as ProviderType[]),
 ]);
 
 export function getProbeEndpointDefinition(
@@ -126,6 +151,9 @@ export function resolveEffectiveProbeEndpointType(
       return "embeddings";
     case "rerank":
       return "jina-rerank";
+    case "decision":
+      if (profile.type === "openrouter") return "openrouter-decisions";
+      return profile.type === "typesafe" ? "typesafe-system-one" : "auto";
     case "image":
       return "image-generation";
     case "chat":
@@ -197,9 +225,11 @@ export function resolveProbeTarget(
   return {
     profile: {
       ...profile,
-      type: shouldPreserveAzureAdapter(profile, endpointType)
-        ? profile.type
-        : (definition.providerType ?? profile.type),
+      type:
+        shouldPreserveAzureAdapter(profile, endpointType) ||
+        (profile.type === "openrouter" && endpointType === "image-generation")
+          ? profile.type
+          : (definition.providerType ?? profile.type),
       customEndpoints,
     },
     capability: definition.capability,

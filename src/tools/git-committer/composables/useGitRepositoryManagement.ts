@@ -3,8 +3,8 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
 import { customMessage } from "@/utils/customMessage";
+import { invoke, PlatformError } from "@/platform";
 import type { RepositoryConfig } from "../types";
 import { removeRepository } from "./useGitCommitterState";
 
@@ -30,9 +30,15 @@ export function useGitRepositoryManagement() {
 
   const openDirectory = async (repo: RepositoryConfig): Promise<void> => {
     try {
-      await invoke("open_file_directory", { path: repo.path });
-    } catch {
-      customMessage.error("无法打开仓库目录");
+      await invoke("open_file_directory", { filePath: repo.path });
+    } catch (err) {
+      const detail =
+        err instanceof PlatformError && err.cause != null
+          ? String(err.cause)
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      customMessage.error(`无法打开仓库目录：${detail}`);
     }
   };
 

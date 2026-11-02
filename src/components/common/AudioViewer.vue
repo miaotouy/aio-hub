@@ -27,6 +27,7 @@
     <div class="player-wrapper">
       <AudioPlayer
         v-if="visible"
+        autofocus
         :src="src"
         :title="title || displayTitle"
         :autoplay="true"

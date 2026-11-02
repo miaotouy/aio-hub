@@ -18,9 +18,14 @@ import type {
   ToolExecutionResult,
   ToolCallConfig,
   ToolApprovalResult,
+  ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
-import type { ToolContext, ToolMethodResult } from "@/services/types";
+import type {
+  ToolContext,
+  ToolMethodResult,
+  ToolResultWithLocalMedia,
+} from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { taskManager } from "./async-task";
 
@@ -29,8 +34,12 @@ const logger = createModuleLogger("tool-calling/executor");
 export interface ExecutorOptions {
   config: ToolCallConfig;
   agent?: ToolContext["agent"];
+  /** 子智能体派发深度，注入 ToolContext.delegationDepth 供 sub-agent 深度链校验 */
+  delegationDepth?: number;
+  modelBinding?: ToolContext["modelBinding"];
   onBeforeExecute?: (
-    request: ParsedToolRequest
+    request: ParsedToolRequest,
+    security?: ToolApprovalSecurityContext
   ) => Promise<ToolApprovalResult | boolean>;
   onStatusChange?: (requestId: string, status: ToolCallStatus) => void;
 }
@@ -237,6 +246,12 @@ async function executeSingleRequest(
   const toolInstance = ctx.toolInstance;
   const methodMeta = ctx.methodMeta;
 
+  // 旁路放行来源标记（红线 7）：静态白名单自动批准时经 result metadata 带出，
+  // 不改 ToolApprovalResult 契约与控制流。
+  const isRuleAutoApprove = !(
+    forceApproval || !shouldAutoApprove(request, options.config)
+  );
+
   // 2. 检查是否需要审批
   if (forceApproval || !shouldAutoApprove(request, options.config)) {
     // 批量执行器已经在创建审批请求前分发过预览；避免同一请求重复触发 hook。
@@ -263,7 +278,11 @@ async function executeSingleRequest(
     // 优先从缓存中获取审批结果，避免重复触发审批流程
     const approvalResult = approvalCache?.has(request.requestId)
       ? await approvalCache.get(request.requestId)
-      : await options.onBeforeExecute?.(request);
+      : await options.onBeforeExecute?.(request, {
+          forceApproval,
+          effectiveArgs: mergedArgs,
+          toolDescription: ctx.methodMeta?.description,
+        });
     const explicitlyApproved =
       approvalResult === true || approvalResult === "approved";
     if (!explicitlyApproved) {
@@ -378,6 +397,8 @@ async function executeSingleRequest(
     const toolContext: ToolContext = {
       isAsync: false,
       agent: options.agent,
+      delegationDepth: options.delegationDepth,
+      modelBinding: options.modelBinding,
       requestId: request.requestId,
       signal: abortController.signal,
       reportStatus: (message: string) => {
@@ -408,7 +429,19 @@ async function executeSingleRequest(
       "result" in data
         ? (data as ToolMethodResult)
         : undefined;
-    const resultData = structured?.result ?? data;
+    let resultData = structured?.result ?? data;
+    let localMedia = structured?.localMedia;
+    if (
+      resultData !== null &&
+      typeof resultData === "object" &&
+      "localMedia" in resultData &&
+      Array.isArray(resultData.localMedia)
+    ) {
+      const { localMedia: resultMedia, ...textResult } =
+        resultData as ToolResultWithLocalMedia & Record<string, unknown>;
+      localMedia ??= resultMedia;
+      resultData = textResult;
+    }
     const result =
       typeof resultData === "string"
         ? resultData
@@ -422,7 +455,10 @@ async function executeSingleRequest(
       status: "success",
       result,
       durationMs,
-      metadata: structured?.executionMetadata,
+      ...(localMedia?.length ? { localMedia } : {}),
+      metadata: isRuleAutoApprove
+        ? { ...(structured?.executionMetadata ?? {}), approvalOrigin: "rule" }
+        : structured?.executionMetadata,
     };
   } catch (error) {
     const durationMs = Date.now() - startedAt;
@@ -521,7 +557,14 @@ export async function executeToolRequests(
         }
 
         // 发起审批并存入缓存
-        approvalCache.set(request.requestId, options.onBeforeExecute(request));
+        approvalCache.set(
+          request.requestId,
+          options.onBeforeExecute(request, {
+            forceApproval,
+            effectiveArgs: ctx?.mergedArgs,
+            toolDescription: ctx?.methodMeta?.description,
+          })
+        );
       }
     }
 

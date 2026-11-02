@@ -1,3 +1,4 @@
+import { isAggregateChannelType } from "../model-execution-routing";
 import type { JsonValue } from "../types/json";
 import type {
   ModelListProviderAdapter,
@@ -48,7 +49,11 @@ export function parseProviderModels(
   provider: string
 ): ProviderModelInfo[] {
   const root = asRecord(value);
-  if (OPENAI_FAMILY.has(provider) || provider === "vertexai") {
+  if (
+    OPENAI_FAMILY.has(provider) ||
+    isAggregateChannelType(provider) ||
+    provider === "vertexai"
+  ) {
     const entries =
       readArray(root.data).length > 0
         ? readArray(root.data)
@@ -105,7 +110,9 @@ export function parseProviderModels(
       if (!id) return [];
       const result = baseModel(model, id, id, "typesafe", "Jev");
       result.description = readString(model.description);
-      result.inputModalities = ["text"];
+      result.inputModalities = readStringArray(
+        asRecord(model.architecture).input_modalities
+      );
       result.supportedEndpointTypes = ["typesafe-system-one"];
       return [result];
     });
@@ -160,6 +167,15 @@ function fromOpenAiModel(
   result.supportedEndpointTypes = readStringArray(
     model.supported_endpoint_types
   );
+  // Derive OpenRouter's unified Decisions route from its declared modality.
+  // Explicitly reported endpoints take precedence.
+  if (
+    fallbackProvider === "openrouter" &&
+    result.supportedEndpointTypes === undefined &&
+    result.outputModalities?.includes("decisions")
+  ) {
+    result.supportedEndpointTypes = ["openrouter-decisions"];
+  }
   const pricing = asRecord(model.pricing);
   if (Object.keys(pricing).length > 0) {
     result.pricing = Object.fromEntries(

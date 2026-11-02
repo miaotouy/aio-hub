@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  OUTPUT_TOKEN_INPUT_MAX,
+} from "@aiohub/llm-core";
 import { ref, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -24,7 +28,7 @@ import {
 const logger = createModuleLogger("tools/translator/settings");
 
 export const DEFAULT_TRANSLATOR_SETTINGS: TranslatorSettings = {
-  defaultMaxTokens: 16384,
+  defaultMaxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   autoExpandMaxTokens: true,
   outputExpansionFactor: 1.5,
   streamingEnabled: true,
@@ -106,7 +110,7 @@ function sanitizeSettings(
         DEFAULT_TRANSLATOR_SETTINGS.defaultMaxTokens
       ),
       1024,
-      131072
+      OUTPUT_TOKEN_INPUT_MAX
     ),
     outputExpansionFactor: clampNumber(
       numericOrDefault(

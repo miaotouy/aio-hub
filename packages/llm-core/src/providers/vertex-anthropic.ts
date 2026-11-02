@@ -72,5 +72,6 @@ export const vertexAnthropicAdapter: ProviderAdapter = {
   id: "vertex-anthropic",
   buildRequest: buildVertexAnthropicRequest,
   parseResponse: parseAnthropicMessagesResponse,
-  createStreamDecoder: () => new AnthropicMessagesStreamDecoder(),
+  createStreamDecoder: (context) =>
+    new AnthropicMessagesStreamDecoder(context.onUsage),
 };

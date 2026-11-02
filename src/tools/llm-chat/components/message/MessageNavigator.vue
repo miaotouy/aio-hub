@@ -24,7 +24,11 @@ import {
   DArrowRight,
 } from "@element-plus/icons-vue";
 
+import type { MessageNavigationPoint } from "../../utils/messagePresentation";
+
 interface Props {
+  compact?: boolean;
+  points?: MessageNavigationPoint[];
   /** 滚动容器的引用 */
   scrollElement: HTMLElement | null;
   /** 消息总数 */
@@ -36,6 +40,7 @@ interface Props {
 }
 
 interface Emits {
+  (e: "navigate", nodeId: string): void;
   (e: "scroll-to-top"): void;
   (e: "scroll-to-bottom"): void;
   (e: "scroll-to-next"): void;
@@ -71,7 +76,9 @@ const currentMessageIndex = computed(() => {
 });
 
 // 是否显示导航器：有消息且不是很少的消息时显示
-const showNavigator = computed(() => props.messageCount > 3);
+const showNavigator = computed(() =>
+  props.compact ? props.messageCount > 0 : props.messageCount > 3
+);
 
 // 是否可以向上滚动
 const canScrollUp = computed(() => !arrivedState.top);
@@ -115,7 +122,7 @@ watch(
     <div
       v-if="showNavigator"
       class="message-navigator"
-      :class="{ 'is-expanded': isExpanded }"
+      :class="{ 'is-expanded': isExpanded, 'is-compact': compact }"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     >
@@ -125,34 +132,68 @@ watch(
         placement="right"
         :show-after="300"
       >
-        <div
+        <button
+          type="button"
           class="nav-button nav-button-jump"
+          :aria-label="canScrollUp ? '跳转到顶部' : '已在顶部'"
+          :disabled="!canScrollUp"
           :class="{ disabled: !canScrollUp }"
           @click="handleScrollToTop"
         >
           <el-icon :size="14" style="transform: rotate(90deg)">
             <DArrowLeft />
           </el-icon>
-        </div>
+        </button>
       </el-tooltip>
 
       <!-- 向上按钮 -->
       <el-tooltip
-        :content="canScrollUp ? '上一条消息 (↑)' : '已在顶部'"
+        :content="
+          canScrollUp
+            ? compact
+              ? '上一个提问 (↑)'
+              : '上一条消息 (↑)'
+            : '已在顶部'
+        "
         placement="right"
         :show-after="300"
       >
-        <div
+        <button
+          type="button"
           class="nav-button"
+          :aria-label="compact ? '上一个提问' : '上一条消息'"
+          :disabled="!canScrollUp"
           :class="{ disabled: !canScrollUp }"
           @click="handleScrollToPrev"
         >
           <el-icon :size="14">
             <ArrowUp />
           </el-icon>
-        </div>
+        </button>
       </el-tooltip>
 
+      <nav v-if="compact" class="question-points" aria-label="用户提问导航">
+        <el-tooltip
+          v-for="(point, index) in points"
+          :key="point.id"
+          :content="point.label"
+          placement="right"
+          :show-after="150"
+          :hide-after="0"
+        >
+          <button
+            class="question-point"
+            :class="{ active: index + 1 === currentMessageIndex }"
+            :aria-label="`第 ${index + 1} 个提问：${point.label}`"
+            :aria-current="
+              index + 1 === currentMessageIndex ? 'step' : undefined
+            "
+            @click="emit('navigate', point.anchorNodeId)"
+          >
+            <span />
+          </button>
+        </el-tooltip>
+      </nav>
       <!-- 消息计数器 -->
       <div class="message-counter">
         <span class="current">{{ currentMessageIndex }}</span>
@@ -162,12 +203,21 @@ watch(
 
       <!-- 向下按钮 -->
       <el-tooltip
-        :content="canScrollDown ? '下一条消息 (↓)' : '已在底部'"
+        :content="
+          canScrollDown
+            ? compact
+              ? '下一个提问 (↓)'
+              : '下一条消息 (↓)'
+            : '已在底部'
+        "
         placement="right"
         :show-after="300"
       >
-        <div
+        <button
+          type="button"
           class="nav-button"
+          :aria-label="compact ? '下一个提问' : '下一条消息'"
+          :disabled="!canScrollDown"
           :class="{
             disabled: !canScrollDown,
             'has-new-badge': hasNewMessages && canScrollDown,
@@ -177,11 +227,11 @@ watch(
           <el-icon :size="14">
             <ArrowDown />
           </el-icon>
-          <div
+          <span
             v-if="hasNewMessages && canScrollDown"
             class="new-message-dot"
-          ></div>
-        </div>
+          ></span>
+        </button>
       </el-tooltip>
 
       <!-- 到底按钮 -->
@@ -190,8 +240,11 @@ watch(
         placement="right"
         :show-after="300"
       >
-        <div
+        <button
+          type="button"
           class="nav-button nav-button-jump"
+          aria-label="跳转到底部"
+          :disabled="!canScrollDown"
           :class="{
             disabled: !canScrollDown,
             'has-new-badge': hasNewMessages && canScrollDown,
@@ -201,17 +254,74 @@ watch(
           <el-icon :size="14" style="transform: rotate(90deg)">
             <DArrowRight />
           </el-icon>
-          <div
+          <span
             v-if="hasNewMessages && canScrollDown"
             class="new-message-dot"
-          ></div>
-        </div>
+          ></span>
+        </button>
       </el-tooltip>
     </div>
   </Transition>
 </template>
 
 <style scoped>
+.question-points {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(45vh, 360px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.question-point {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  width: 28px;
+  min-height: 18px;
+  padding: 4px;
+}
+.question-point span {
+  display: block;
+  height: 3px;
+  width: 12px;
+  border-radius: 2px;
+  background: var(--text-color-light);
+  opacity: 0.45;
+  transition:
+    width 0.15s,
+    opacity 0.15s;
+}
+.question-point.active span,
+.question-point:hover span,
+.question-point:focus-visible span {
+  width: 20px;
+  opacity: 1;
+  background: var(--primary-color);
+}
+.message-navigator.is-compact {
+  width: 42px;
+  box-sizing: border-box;
+  left: auto;
+  right: 6px;
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+}
+.message-navigator.is-compact::before {
+  inset: -8px -2px;
+}
+.message-navigator.is-compact.is-expanded {
+  opacity: 1;
+}
+.message-navigator.is-compact:hover,
+.message-navigator.is-compact:focus-within {
+  background: var(--card-bg);
+  border-color: var(--border-color);
+}
+
 .message-navigator {
   position: absolute;
   left: -50px;
@@ -260,7 +370,7 @@ watch(
 }
 
 /* 展开状态 */
-.message-navigator.is-expanded {
+.message-navigator:not(.is-compact).is-expanded {
   left: 10px;
   opacity: 1;
 }
@@ -268,6 +378,9 @@ watch(
 /* 导航按钮 */
 .nav-button {
   position: relative;
+  border: 0;
+  padding: 0;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;

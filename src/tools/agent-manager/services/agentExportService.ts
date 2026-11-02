@@ -1,3 +1,4 @@
+import { requiredPresetFeatures } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
@@ -162,7 +164,20 @@ export async function exportAgents(
           );
 
         const exportData: AgentExportFile = {
-          version: 1,
+          version: exportableAgent.presetMessages?.some(
+            (message) => message.presetComposition
+          )
+            ? 2
+            : 1,
+          ...(exportableAgent.presetMessages?.some(
+            (message) => message.presetComposition
+          )
+            ? {
+                requiredFeatures: requiredPresetFeatures(
+                  exportableAgent.presetMessages ?? []
+                ),
+              }
+            : {}),
           type: "AIO_Agent_Export",
           agents: [exportableAgent as ExportableAgent],
         };
@@ -275,16 +290,14 @@ export async function exportAgents(
       const exportableAgent: ExportableAgent = {
         ...exportableAgentBase,
         parameters: exportableAgentBase.parameters || {
-          temperature: 1,
-          maxTokens: 4096,
+          maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         },
       };
       exportableAgent.parameters =
         stripDefaultContextCompressionPromptsFromParameters(
           exportableAgent.parameters
         ) || {
-          temperature: 1,
-          maxTokens: 4096,
+          maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         };
 
       // 清理预设消息中的运行时元数据
@@ -468,7 +481,20 @@ export async function exportAgents(
       }
 
       const exportData: AgentExportFile = {
-        version: 1,
+        version: exportableAgent.presetMessages?.some(
+          (message) => message.presetComposition
+        )
+          ? 2
+          : 1,
+        ...(exportableAgent.presetMessages?.some(
+          (message) => message.presetComposition
+        )
+          ? {
+              requiredFeatures: requiredPresetFeatures(
+                exportableAgent.presetMessages ?? []
+              ),
+            }
+          : {}),
         type: "AIO_Agent_Export",
         agents: [exportableAgent],
       };

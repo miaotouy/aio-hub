@@ -28,7 +28,7 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
   lines.push(`- **标题**: ${result.title || "无标题"}`);
   lines.push(`- **提取模式**: ${result.mode}`);
   lines.push(`- **内容长度**: ${result.contentLength ?? 0} 字符`);
-  lines.push(`- **质量评分**: ${result.quality ?? 0}`);
+  if (result.quality !== null) lines.push(`- **质量评分**: ${result.quality}`);
   lines.push(`- **获取时间**: ${result.fetchedAt || getLocalISOString()}`);
 
   if (result.metadata) {
@@ -76,4 +76,21 @@ export function formatFetchResult(result: FetchResult | ExtractResult): string {
   }
 
   return lines.join("\n").trim();
+}
+
+/** 搜索来源与给模型阅读的摘要保持对应。 */
+export function formatSearchResults(
+  results: import("@/llm-apis/adapters/deepseek/tools").WebSearchItem[]
+): string {
+  if (!results.length) return "搜索完成，未找到匹配网页。";
+  return results
+    .map((item, index) =>
+      [
+        `## ${index + 1}. ${item.title || item.url}`,
+        `来源：${item.url}`,
+        ...(item.date ? [`发布日期：${item.date}`] : []),
+        item.content || item.summary || item.snippet,
+      ].join("\n\n")
+    )
+    .join("\n\n---\n\n");
 }

@@ -14,7 +14,7 @@
 
 import type { ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import RichTextRendererIcon from "@/components/icons/RichTextRendererIcon.vue";
+import { RichTextRendererIcon } from "@aiohub/tool-icons";
 
 /**
  * UI 工具配置

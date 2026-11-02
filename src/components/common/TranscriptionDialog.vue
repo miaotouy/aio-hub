@@ -86,6 +86,10 @@
               </button>
             </div>
           </div>
+          <div v-if="derivedWarning" class="warning-banner">
+            <AlertTriangle :size="14" class="warning-icon" />
+            <span class="warning-text">{{ derivedWarning }}</span>
+          </div>
           <div class="editor-wrapper">
             <RichCodeEditor
               v-model="currentContent"
@@ -165,6 +169,10 @@
           <label>启用复读检测</label>
           <el-switch v-model="enableRepetitionDetection" />
         </div>
+        <div class="form-item inline-item">
+          <label>启用模型拒绝/异常检测</label>
+          <el-switch v-model="enableRefusalDetection" />
+        </div>
         <div class="form-tip">
           <Info :size="14" />
           <div class="tip-content">
@@ -212,7 +220,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 import { isDocxAssetLike } from "@/utils/docxParser";
 import { getPureModelId } from "@/utils/modelIdUtils";
-import { Copy, RefreshCw, Info, Trash2 } from "lucide-vue-next";
+import { Copy, RefreshCw, Info, Trash2, AlertTriangle } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import type { Asset } from "@/types/asset-management";
 
@@ -240,6 +248,7 @@ const emit = defineEmits<{
       modelId: string;
       prompt: string;
       enableRepetitionDetection: boolean;
+      enableRefusalDetection: boolean;
       overrideConfig?: any;
     }
   ): void;
@@ -257,6 +266,7 @@ const showRegenerateConfirm = ref(false);
 const selectedModelId = ref("");
 const tempPrompt = ref("");
 const enableRepetitionDetection = ref(true);
+const enableRefusalDetection = ref(true);
 
 const isImage = computed(() => props.asset.type === "image");
 const isVideo = computed(() => props.asset.type === "video");
@@ -266,6 +276,10 @@ const isDocx = computed(() => isDocxAssetLike(props.asset));
 
 const hasDerivedTranscription = computed(
   () => !!props.asset.metadata?.derived?.transcription
+);
+
+const derivedWarning = computed(
+  () => props.asset.metadata?.derived?.transcription?.warning || ""
 );
 
 const requiredCapabilities = computed(() => {
@@ -357,10 +371,13 @@ const openRegenerateConfirm = () => {
     tempPrompt.value = props.previousConfig.additionalPrompt || "";
     enableRepetitionDetection.value =
       props.previousConfig.enableRepetitionDetection !== false;
+    enableRefusalDetection.value =
+      props.previousConfig.enableRefusalDetection !== false;
   } else {
     selectedModelId.value = "";
     tempPrompt.value = "";
     enableRepetitionDetection.value = true;
+    enableRefusalDetection.value = true;
   }
   showRegenerateConfirm.value = true;
 };
@@ -407,12 +424,14 @@ const handleConfirmRegenerate = () => {
       : undefined,
     additionalPrompt: tempPrompt.value || undefined,
     enableRepetitionDetection: enableRepetitionDetection.value,
+    enableRefusalDetection: enableRefusalDetection.value,
   };
 
   emit("regenerate", {
     modelId: selectedModelId.value,
     prompt: tempPrompt.value,
     enableRepetitionDetection: enableRepetitionDetection.value,
+    enableRefusalDetection: enableRefusalDetection.value,
     // 额外传出完整配置以备不时之需，但主要还是靠父组件处理
     overrideConfig: newConfig,
   });
@@ -549,6 +568,31 @@ const handleImagePreview = () => {
 .toolbar-btn:hover {
   background: var(--hover-bg);
   border-color: var(--border-color-hover);
+}
+
+.warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border: 1px solid rgba(var(--el-color-warning-rgb), 0.25);
+  border-radius: 6px;
+  color: var(--el-color-warning);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.warning-banner .warning-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-banner .warning-text {
+  word-break: break-word;
 }
 
 .editor-wrapper {

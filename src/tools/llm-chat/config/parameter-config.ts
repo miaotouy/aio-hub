@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  OUTPUT_TOKEN_INPUT_MAX,
+  isSamplingParameterUnsupported,
+} from "@aiohub/llm-core";
 import type { LlmParameters } from "../types";
 import type {
   LlmParameterSupport,
+  LlmModelInfo,
   ModelCapabilities,
 } from "@/types/llm-profiles";
 import { getModelFamily } from "@/llm-apis/request-builder";
@@ -132,7 +138,7 @@ export const parameterConfigs: ParameterConfig[] = [
     min: 0,
     // max will be dynamic based on model context limit
     step: 256,
-    defaultValue: 4096,
+    defaultValue: DEFAULT_MAX_OUTPUT_TOKENS,
     suggestions: [
       { label: "4K", value: 4096 },
       { label: "8K", value: 8192 },
@@ -140,6 +146,9 @@ export const parameterConfigs: ParameterConfig[] = [
       { label: "32K", value: 32768 },
       { label: "64K", value: 65536 },
       { label: "128K", value: 131072 },
+      { label: "256K", value: 262144 },
+      { label: "512K", value: 524288 },
+      { label: "1M", value: OUTPUT_TOKEN_INPUT_MAX },
     ],
   },
   {
@@ -231,7 +240,7 @@ export const parameterConfigs: ParameterConfig[] = [
     group: "advanced",
     supportedKey: "maxCompletionTokens",
     min: 1,
-    max: 128000,
+    max: OUTPUT_TOKEN_INPUT_MAX,
     step: 64,
     placeholder: "默认",
     defaultValue: undefined,
@@ -289,7 +298,7 @@ export const parameterConfigs: ParameterConfig[] = [
     group: "special",
     supportedKey: "thinking", // 使用 thinking，由 thinkingConfigType 决定是否显示
     min: 1000,
-    max: 32000,
+    max: OUTPUT_TOKEN_INPUT_MAX,
     step: 1000,
     defaultValue: 8000,
   },
@@ -324,7 +333,8 @@ export function isParameterSupportedByModel(
   supportedParameters: LlmParameterSupport,
   capabilities?: ModelCapabilities,
   modelId?: string,
-  provider?: string
+  provider?: string,
+  model?: LlmModelInfo
 ): boolean {
   const config = parameterConfigs.find((c) => c.key === key);
   if (!config) {
@@ -351,7 +361,7 @@ export function isParameterSupportedByModel(
   if (key === "includeThoughts") {
     if (modelId) {
       return (
-        getModelFamily(modelId, provider) === "gemini" &&
+        getModelFamily(modelId, provider, model) === "gemini" &&
         (supportedParameters.thinkingConfig === true ||
           capabilities?.thinking === true)
       );
@@ -374,6 +384,7 @@ export function isParameterSupportedByModel(
  * @param capabilities 目标模型的能力
  * @param modelId 目标模型 ID
  * @param provider 目标模型或 Profile 的 Provider 标识
+ * @param model 目标模型的持久化元数据，用于识别兼容渠道中的模型家族
  * @returns 过滤后的参数
  */
 export function filterParametersForModel(
@@ -381,7 +392,8 @@ export function filterParametersForModel(
   supportedParameters: LlmParameterSupport,
   capabilities?: ModelCapabilities,
   modelId?: string,
-  provider?: string
+  provider?: string,
+  model?: LlmModelInfo
 ): LlmParameters {
   const filteredParams: LlmParameters & Record<string, any> = {};
 
@@ -394,11 +406,18 @@ export function filterParametersForModel(
       key === "custom" ||
       key === "enabledParameters" ||
       key === "contextManagement" ||
+      key === "contextCacheOptimization" ||
       key === "contextPostProcessing"
     ) {
       filteredParams[key] = value;
       continue;
     }
+
+    if (
+      modelId &&
+      isSamplingParameterUnsupported(key, { model: modelId, ...parameters })
+    )
+      continue;
 
     // 检查参数是否被目标模型支持
     if (
@@ -407,7 +426,8 @@ export function filterParametersForModel(
         supportedParameters,
         capabilities,
         modelId,
-        provider
+        provider,
+        model
       )
     ) {
       filteredParams[key] = value;
@@ -418,12 +438,20 @@ export function filterParametersForModel(
   if (filteredParams.enabledParameters) {
     filteredParams.enabledParameters = filteredParams.enabledParameters.filter(
       (paramKey) =>
+        !(
+          modelId &&
+          isSamplingParameterUnsupported(paramKey, {
+            model: modelId,
+            ...parameters,
+          })
+        ) &&
         isParameterSupportedByModel(
           paramKey as keyof LlmParameters,
           supportedParameters,
           capabilities,
           modelId,
-          provider
+          provider,
+          model
         )
     );
   }

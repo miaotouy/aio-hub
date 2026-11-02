@@ -14,6 +14,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { ChatSettings } from "../../types/settings";
+import { STREAM_EFFECT_OPTIONS } from "@/tools/rich-text-renderer/utils/streamEffectStyles";
+import type { AgentBaseConfig } from "@/tools/agent-manager/types/agent";
 import {
   buildRichTextRendererSettings,
   resolveMessageEnterAnimationEnabled,
@@ -36,6 +38,7 @@ describe("buildRichTextRendererSettings", () => {
       safetyGuardEnabled: false,
       vcpFuzzyModeEnabled: false,
       enableEnterAnimation: false,
+      streamEffect: "stardust-vivid",
       showTokenCountForBlocks: false,
     } as unknown as ChatSettings["uiPreferences"];
 
@@ -54,8 +57,77 @@ describe("buildRichTextRendererSettings", () => {
       safetyGuardEnabled: false,
       vcpFuzzyModeEnabled: false,
       enableEnterAnimation: false,
+      streamEffect: "stardust-vivid",
       showTokenCount: false,
     });
+  });
+
+  it("uses the default effect for older saved preferences", () => {
+    expect(
+      buildRichTextRendererSettings({} as ChatSettings["uiPreferences"])
+        .streamEffect
+    ).toBe("none");
+  });
+
+  it.each([
+    { agentEffect: undefined, globalEffect: "scan", expected: "scan" },
+    { agentEffect: "inherit", globalEffect: "petals", expected: "petals" },
+    { agentEffect: "none", globalEffect: "scan", expected: "none" },
+    { agentEffect: "inherit", globalEffect: undefined, expected: "none" },
+    ...STREAM_EFFECT_OPTIONS.filter(({ value }) => value !== "none").map(
+      ({ value }) => ({
+        agentEffect: value,
+        globalEffect: "none",
+        expected: value,
+      })
+    ),
+  ] as const)(
+    "resolves agent=$agentEffect and global=$globalEffect to $expected",
+    ({ agentEffect, globalEffect, expected }) => {
+      expect(
+        buildRichTextRendererSettings(
+          { streamEffect: globalEffect } as ChatSettings["uiPreferences"],
+          { streamEffect: agentEffect }
+        ).streamEffect
+      ).toBe(expected);
+    }
+  );
+
+  it("re-resolves inherited preferences and agent switches without changing global settings", () => {
+    const preferences = {
+      streamEffect: "scan",
+    } as ChatSettings["uiPreferences"];
+    const agent: Pick<AgentBaseConfig, "streamEffect"> = {
+      streamEffect: "petals",
+    };
+    expect(buildRichTextRendererSettings(preferences, agent).streamEffect).toBe(
+      "petals"
+    );
+    expect(preferences.streamEffect).toBe("scan");
+    agent.streamEffect = "inherit";
+    expect(buildRichTextRendererSettings(preferences, agent).streamEffect).toBe(
+      "scan"
+    );
+    preferences.streamEffect = "ink";
+    expect(buildRichTextRendererSettings(preferences, agent).streamEffect).toBe(
+      "ink"
+    );
+    expect(
+      buildRichTextRendererSettings(preferences, { streamEffect: "none" })
+        .streamEffect
+    ).toBe("none");
+  });
+
+  it.each([
+    "inherit",
+    ...STREAM_EFFECT_OPTIONS.map(({ value }) => value),
+  ] as const)("disables agent effect %s for screenshots", (streamEffect) => {
+    expect(
+      buildRichTextRendererSettings(
+        { streamEffect: "scan" } as ChatSettings["uiPreferences"],
+        { streamEffect, screenshotMode: true }
+      ).streamEffect
+    ).toBe("none");
   });
 
   it("keeps enter animation enabled for live rendering and disables it for screenshots", () => {

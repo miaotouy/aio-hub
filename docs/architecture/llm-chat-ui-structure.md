@@ -43,9 +43,14 @@ flowchart TB
                 MessageInputToolbar["MessageInputToolbar"]
                 MiniSessionList["MiniSessionList"]
                 QuickActionSelector["QuickActionSelector"]
+                SlashCommandPopover["SlashCommandPopover<br/>/斜杠补全与执行"]
             end
 
             MessageNavigator["MessageNavigator<br/>消息导航"]
+
+            subgraph CompanionDock["伴生分栏槽位"]
+                CompanionDockSlot["ChatCompanionDock<br/>#chat-companion-dock-slot"]
+            end
         end
 
         subgraph RightArea["📁 右侧区域"]
@@ -176,6 +181,9 @@ flowchart TB
 
     MessageInput --> MessageInputToolbar
     MessageInput --> MiniSessionList
+    MessageInput --> SlashCommandPopover
+
+    ChatArea --> CompanionDockSlot
 
     FlowTreeGraph --> GraphNode
     GraphNode --> GraphNodeContent

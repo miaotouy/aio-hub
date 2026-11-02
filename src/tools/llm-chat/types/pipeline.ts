@@ -30,6 +30,9 @@ export interface PipelineContext {
    */
   messages: ProcessableMessage[];
 
+  /** 被动统计延后媒体二进制物化，完整分析和发送沿默认路径执行。 */
+  readonly previewPurpose?: "statistics";
+
   // --- 只读元数据 ---
   readonly index: ChatSessionIndex;
   readonly detail: ChatSessionDetail;
@@ -38,6 +41,12 @@ export interface PipelineContext {
   readonly settings: ChatSettings; // 全局聊天设置
   readonly capabilities?: ModelCapabilities;
   readonly timestamp: number;
+
+  /** Optional, isolated diagnostic trace around each processor. */
+  traceProcessor?: (
+    name: string,
+    messages: ProcessableMessage[]
+  ) => (messages: ProcessableMessage[]) => void;
 
   // --- 共享黑板 (Shared Blackboard) ---
   /**

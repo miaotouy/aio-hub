@@ -31,6 +31,7 @@ export const ADAPTER_LABELS: Readonly<Record<LlmAdapterId, string>> = {
   "openai-embeddings": "OpenAI Embeddings",
   "jina-rerank": "Jina Rerank",
   "typesafe-system-one": "TypeSafe System One",
+  "openrouter-decisions": "OpenRouter Decisions",
   "openai-image-generation": "OpenAI Image Generation",
   "suno-newapi": "Suno (New API)",
   "minimax-music": "MiniMax Music",
@@ -46,6 +47,15 @@ export const OPERATION_LABELS: Readonly<Record<LlmOperation, string>> = {
   video: "视频",
   music: "音乐",
 };
+
+/** 两端聚合渠道编辑器支持的默认协议操作。 */
+export const AGGREGATE_ROUTING_OPERATIONS = [
+  "chat",
+  "embedding",
+  "rerank",
+  "image",
+  "decision",
+] as const satisfies readonly LlmOperation[];
 
 export function getAdapterLabel(adapterId: string): string {
   return ADAPTER_LABELS[adapterId as LlmAdapterId] ?? adapterId;

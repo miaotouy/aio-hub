@@ -17,6 +17,7 @@ import type {
   EmbeddingRequestOptions,
   EmbeddingResponse,
 } from "./embedding-types";
+import { executeConfiguredChannel } from "./channel-execution";
 import { adapters } from "./adapters";
 import { resolveModelExecution } from "@aiohub/llm-core";
 
@@ -28,6 +29,24 @@ export async function callEmbeddingApi(
   profile: LlmProfile,
   options: EmbeddingRequestOptions
 ): Promise<EmbeddingResponse> {
+  if (profile.type === "virtual")
+    return executeConfiguredChannel({
+      profile,
+      modelId: options.modelId,
+      operation: "embedding",
+      signal: options.signal,
+      timeoutMs: options.timeout,
+      execute: (member, modelId, signal, timeout) =>
+        callEmbeddingApi(member, {
+          ...options,
+          modelId,
+          signal,
+          timeout,
+          forceProxy: undefined,
+          relaxIdCerts: member.relaxIdCerts,
+          http1Only: member.http1Only,
+        }),
+    });
   const model = profile.models.find((item) => item.id === options.modelId) ?? {
     id: options.modelId,
   };

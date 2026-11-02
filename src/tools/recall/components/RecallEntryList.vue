@@ -20,7 +20,7 @@ import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { search as searchRecall } from "../services/api";
 import { useRecallCollection } from "../composables/useRecallCollection";
 import { createModuleLogger } from "@/utils/logger";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import {
   Search,
   RotateCw,
@@ -273,12 +273,10 @@ const entryList = computed(() => {
 // 虚拟滚动逻辑
 const scrollContainerRef = ref<HTMLElement | null>(null);
 
-const virtualizer = useVirtualizer({
-  get count() {
-    return entryList.value.length;
-  },
+const virtualizer = useMeasuredVirtualizer(entryList, {
+  getItemKey: (entry) => `${recallStore.activeBaseId}:${entry.id}`,
   getScrollElement: () => scrollContainerRef.value,
-  estimateSize: () => 140, // 预估卡片高度
+  estimateSize: () => 140,
   overscan: 10,
 });
 

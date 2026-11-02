@@ -25,3 +25,5 @@ export const deepSeekAdapter: LlmAdapter = {
 };
 
 export * from "./chat";
+
+export * from "./tools";

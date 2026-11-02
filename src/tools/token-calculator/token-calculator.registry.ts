@@ -23,11 +23,16 @@ import {
   type TokenCalculationResult,
 } from "./composables/useTokenCalculator";
 import { calculatorProxy } from "./worker/calculator.proxy";
+import {
+  createTextTokenScope,
+  type TextTokenCalculator,
+} from "./core/tokenCalculationScope";
 import type { AssetMetadata, AssetType } from "@/types/asset-management";
 import { markRaw } from "vue";
-import TokenCalculatorIcon from "@/components/icons/TokenCalculatorIcon.vue";
+import { TokenCalculatorIcon } from "@aiohub/tool-icons";
 import { useTokenizerRegistryStore } from "./stores/tokenizerRegistryStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { computeResizedDimensions } from "@/utils/imageProcessor";
 
 /**
  * Token 计算器服务类
@@ -83,6 +88,39 @@ class TokenCalculatorRegistry implements ToolRegistry {
       modelId,
       model?.tokenizerProfileId
     );
+  }
+
+  /** Bounded text reuse owned by one context build; media costs remain request-specific. */
+  createScope(): Pick<
+    TokenCalculatorRegistry,
+    "calculateTokens" | "calculateMessageTokens"
+  > {
+    const calculateTokens = createTextTokenScope(
+      (text, modelId, tokenizer) =>
+        calculatorProxy.calculateTokens(text, modelId, tokenizer),
+      (modelId) => {
+        this.touchStore();
+        const { profiles } = useLlmProfiles();
+        const model = profiles.value
+          .flatMap((profile) => profile.models || [])
+          .find((item) => item.id === modelId);
+        return {
+          revision: calculatorProxy.getRegistryRevision(),
+          tokenizerProfileId: model?.tokenizerProfileId,
+        };
+      }
+    );
+    return {
+      calculateTokens,
+      calculateMessageTokens: (text, modelId, attachments, options) =>
+        this.calculateMessageTokensUsing(
+          text,
+          modelId,
+          attachments,
+          options,
+          calculateTokens
+        ),
+    };
   }
 
   /**
@@ -145,16 +183,35 @@ class TokenCalculatorRegistry implements ToolRegistry {
    * @param text - 文本内容
    * @param modelId - 模型ID
    * @param attachments - 附件列表（可选）
+   * @param options - 计算选项（可选）
+   * @param options.maxImageDimension - 发送前图片缩放的最大边（像素）。
+   *   与实际发送管线（模型安全缩放 + 用户压缩）保持一致，图片 Token 按缩放后的尺寸计算
    * @returns Token 计算结果
    */
   async calculateMessageTokens(
     text: string,
     modelId: string,
-    attachments?: Array<{ type: AssetType; metadata?: AssetMetadata }>
+    attachments?: Array<{ type: AssetType; metadata?: AssetMetadata }>,
+    options?: { maxImageDimension?: number }
   ): Promise<TokenCalculationResult> {
-    this.touchStore();
-    // 1. 计算文本 Token (通过 Worker 代理)
-    const textResult = await calculatorProxy.calculateTokens(text, modelId);
+    return this.calculateMessageTokensUsing(
+      text,
+      modelId,
+      attachments,
+      options,
+      this.calculateTokens.bind(this)
+    );
+  }
+
+  private async calculateMessageTokensUsing(
+    text: string,
+    modelId: string,
+    attachments:
+      Array<{ type: AssetType; metadata?: AssetMetadata }> | undefined,
+    options: { maxImageDimension?: number } | undefined,
+    calculateText: TextTokenCalculator
+  ): Promise<TokenCalculationResult> {
+    const textResult = await calculateText(text, modelId);
     let totalTokens = textResult.count;
     const textTokenCount = textResult.count;
     let mediaTokenCount = 0;
@@ -182,8 +239,14 @@ class TokenCalculatorRegistry implements ToolRegistry {
       const mediaPromises = attachments.map(async (asset) => {
         // 处理图片
         if (asset.type === "image") {
-          const width = asset.metadata?.width || 1024;
-          const height = asset.metadata?.height || 1024;
+          const originalWidth = asset.metadata?.width || 1024;
+          const originalHeight = asset.metadata?.height || 1024;
+          // 模拟发送前的等比缩放（模型安全约束 / 用户压缩），与 asset-resolver 行为一致
+          const { width, height } = computeResizedDimensions(
+            originalWidth,
+            originalHeight,
+            options?.maxImageDimension ?? 0
+          );
 
           const imageTokens = await calculatorProxy.calculateImageTokens(
             width,

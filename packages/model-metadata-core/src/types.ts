@@ -19,17 +19,28 @@ export interface ModelMetadataRule<
   description?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Originating catalog. Absent on legacy built-in rules. */
+  sourceId?: string;
 }
 
 export interface MetadataCatalogSnapshot<
   TProperties extends MetadataProperties = MetadataProperties,
 > {
   schemaVersion: "3.0.0";
-  sourceId: "aiohub-builtin";
+  sourceId: string;
   revision: string;
   generatedAt: string;
   rules: ModelMetadataRule<TProperties>[];
   fingerprint: string;
+}
+
+export interface ExternalMetadataSourceState {
+  enabled: boolean;
+  autoUpdate?: boolean;
+  lastFetchedAt?: string;
+  lastRevision?: string;
+  ruleCount?: number;
+  lastError?: string;
 }
 
 export interface ModelMetadataStoreV3<
@@ -37,10 +48,22 @@ export interface ModelMetadataStoreV3<
 > {
   version: "3.0.0";
   sourceSnapshot: MetadataCatalogSnapshot<TProperties>;
+  /** Pulled catalogs keyed by source id. Built-in stays in `sourceSnapshot`. */
+  externalCatalogs?: Record<string, MetadataCatalogSnapshot<TProperties>>;
+  /** Per-source user state. Sources without an entry are treated as disabled. */
+  externalSourceStates?: Record<string, ExternalMetadataSourceState>;
   builtinOverrides: Record<string, ModelMetadataRule<TProperties>>;
   suppressedBuiltinRuleIds: string[];
   customRules: ModelMetadataRule<TProperties>[];
   updatedAt: string;
+}
+
+export type MetadataRuleSourceKind = "builtin" | "external" | "custom";
+
+export interface MetadataRuleSourceInfo {
+  kind: MetadataRuleSourceKind;
+  sourceId: string;
+  overridden: boolean;
 }
 
 export interface ModelMetadataDiagnostic {

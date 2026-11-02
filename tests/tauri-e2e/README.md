@@ -160,6 +160,58 @@ This starts a new virtual session through the Chat UI, sends its first message,
 and verifies that the session detail and index are persisted and the session
 appears in the history list.
 
+## Decision arbitration lane (JEV / ordinary LLM)
+
+`specs/decision-arbitration.spec.ts` drives the gray-zone approval arbiter
+through the real Chat UI. The runner seeds an Agent with
+`toolCallConfig.decisionArbitration.enabled = true` and a global decision channel
+pointing at the deterministic mock's `e2e-jev` model; the mock answers
+`/v1/systemone` per user-message marker and emits VCP tool calls for the first
+turn:
+
+```powershell
+bun run test:tauri:e2e -- --preset decision-arbitration
+```
+
+The lane covers the three visible verdict paths (`Jev 自动放行`, `Jev 风险拦截`,
+escalate-to-approval-bar) plus the safety red lines: static danger features skip
+arbitration without touching the decision channel, a channel error fails closed
+to a degraded manual approval, and gray-zone force-approval requests skip
+arbitration entirely. Decision and Chat request summaries are written to
+`decision-requests.jsonl` and `chat-requests.jsonl` in the artifact directory.
+
+Note: because the mock listens on `127.0.0.1`, decision requests are routed
+through the app's Rust LLM proxy (local/IP base URLs always force proxy mode).
+Each marker uses a distinct VCP tool argument (`{"e2e":"<marker>"}`) so the
+in-window arbitration fingerprint dedup (anti-loop red line) does not collapse
+otherwise-identical test requests.
+
+The decision-arbitration lane also selects an ordinary LLM through the real
+settings UI, verifies automatic approval, and resumes an escalated request
+through manual approval. The deterministic mock returns the LLM approval JSON
+contract; no external model service is needed for this lane. Success screenshots
+are saved as `llm-approval-settings.png` and `llm-approval-escalation.png`.
+
+## Background task approval lane
+
+`specs/background-task-approval.spec.ts` drives a background sub-agent tool
+approval through the real Chat UI and task center. The runner seeds a dispatcher
+Agent (`mode: "auto"`, only `sub-agent.ask` enabled) plus a callable sub-Agent
+(`subAgentConfig.enabled = true`, `mode: "manual"`, `decisionArbitration.enabled
+= true`) and the same mock System One channel as the arbitration lane; the mock
+answers a `[e2e:bg:<child-marker>]` dispatcher turn with a `sub-agent.ask`
+background call whose delegated message carries the child JEV marker:
+
+```powershell
+bun run test:tauri:e2e -- --preset background-task-approval
+```
+
+The lane covers two visible paths: an escalated sub-agent approval that projects
+the task to `awaiting_approval`, surfaces a reminder in the parent session's
+approval bar, resolves from the task center detail, resumes execution, and
+writes back a persisted approval record; and a low-risk sub-agent call that JEV
+auto-approves without ever opening approval UI.
+
 Run the deterministic Recall workflow directly:
 
 ```powershell

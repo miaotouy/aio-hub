@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import {
   Settings2,
   Zap,
@@ -20,11 +20,14 @@ import {
   Video,
   FileText,
 } from "lucide-vue-next";
-import type { SettingsSection } from "@/types/settings-renderer";
-import type { TranscriptionConfig } from "./types";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+import type { SettingsSection } from "@/types/settings-renderer";
 import type { OcrExtension } from "@/tools/smart-ocr/platform";
+import { useOcrExtensions } from "@/tools/smart-ocr/platform";
+
+import type { TranscriptionConfig } from "./types";
+
+const TRANSCRIPTION_MAX_OUTPUT_TOKENS = 65_536;
 
 const getOcrExtensions = (): OcrExtension[] => {
   const { ocrExtensions } = useOcrExtensions();
@@ -69,7 +72,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
 - **禁止评价内容真实性**：严禁对识别到的文字、日期、数据进行真伪评价或合理性质疑。
 - 对于非文字内容，提供客观、中立的视觉描述。`,
   temperature: 0.2,
-  maxTokens: 4096,
+  maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   maxConcurrentTasks: 2,
   executionDelay: 300,
   maxRetries: 2,
@@ -80,6 +83,8 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
     globalThreshold: 10,
     whitelist: [],
   },
+  enableRefusalDetection: true,
+  refusalKeywords: [],
   enableImageSlicer: true,
   imageSlicerConfig: {
     aspectRatioThreshold: 3,
@@ -128,7 +133,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
 ## 输出格式
 使用清晰的 Markdown 结构，必要时使用表格、列表等元素增强可读性。`,
     temperature: 0.2,
-    maxTokens: 4096,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   },
   audio: {
     modelIdentifier: "",
@@ -160,7 +165,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
 
 `,
     temperature: 0.2,
-    maxTokens: 4096,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
     maxDirectSizeMB: 10,
     enableCompression: true,
     bitrate: "128k",
@@ -202,7 +207,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
 确保内容是可以以文字尽量还原视频内容，给LLM看的，可以近似理解为给视障或听障对象转写内容。
 `,
     temperature: 0.2,
-    maxTokens: 4096,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
     maxDirectSizeMB: 10,
     enableCompression: true,
     maxFps: 12,
@@ -233,7 +238,7 @@ export const DEFAULT_TRANSCRIPTION_CONFIG: TranscriptionConfig = {
 - 保持文档的原始阅读顺序。
 - 仅输出解析后的内容，不包含任何个人评论。`,
     temperature: 0.1,
-    maxTokens: 16384,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   },
 };
 
@@ -315,6 +320,31 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           hint: "包含这些片段的内容将不会被判定为复读（常用于固定格式的转写）",
           keywords: "repetition whitelist 复读 白名单",
           visible: (s) => s.enableRepetitionDetection,
+        },
+        {
+          id: "enableRefusalDetection",
+          label: "启用模型拒绝/异常检测",
+          layout: "inline",
+          component: "ElSwitch",
+          modelPath: "enableRefusalDetection",
+          hint: "自动识别模型自称纯文本模型、触发安全围栏拒绝或返回内嵌报错的情况，并将转写结果标记为警告",
+          keywords: "refusal reject refusal 拒绝 异常 报错 安全围栏 纯文本模型",
+        },
+        {
+          id: "refusalKeywords",
+          label: "自定义拒绝关键词",
+          component: "ElSelect",
+          props: {
+            multiple: true,
+            filterable: true,
+            allowCreate: true,
+            defaultFirstOption: true,
+            placeholder: "输入额外的拒绝检测关键词并回车",
+          },
+          modelPath: "refusalKeywords",
+          hint: "结果中包含这些关键词时将被判定为模型拒绝（在内置检测规则之外补充）",
+          keywords: "refusal keywords 拒绝 关键词 自定义",
+          visible: (s) => s.enableRefusalDetection,
         },
         {
           id: "customPrompt",
@@ -567,7 +597,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "imageMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: 32768, step: 256 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 256 },
           modelPath: "image.maxTokens",
           hint: "图片转写结果的最大 token 数",
           keywords: "image max tokens 图片",
@@ -647,7 +677,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "audioMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: 32768, step: 256 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 256 },
           modelPath: "audio.maxTokens",
           hint: "音频转写结果的最大 token 数",
           keywords: "audio max tokens 音频",
@@ -735,7 +765,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "videoMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: 32768, step: 256 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 256 },
           modelPath: "video.maxTokens",
           hint: "视频转写结果的最大 token 数",
           keywords: "video max tokens 视频",
@@ -1012,7 +1042,7 @@ export const transcriptionSettingsConfig: SettingsSection<TranscriptionConfig>[]
           id: "documentMaxTokens",
           label: "最大 Token",
           component: "SliderWithInput",
-          props: { min: 256, max: 32768, step: 1024 },
+          props: { min: 256, max: TRANSCRIPTION_MAX_OUTPUT_TOKENS, step: 1024 },
           modelPath: "document.maxTokens",
           hint: "文档转写结果的最大 token 数",
           keywords: "document max tokens 文档",

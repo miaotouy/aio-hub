@@ -228,19 +228,18 @@ describe("ffmpeg-tools agent actions", () => {
 
   it("executePipeline 应串行执行步骤并清理中间文件", async () => {
     const context = createContext();
-    let processCount = 0;
-    mockInvoke.mockImplementation(async (command: string) => {
-      if (command === "path_exists") return true;
-      if (command === "create_dir_force") return undefined;
-      if (command === "delete_file_to_trash") return undefined;
-      if (command === "run_ffmpeg_plan") {
-        processCount += 1;
-        return processCount === 1
-          ? "C:/Users/test/AppData/Roaming/AIO/ffmpeg-temp/pipeline_step0_1.wav"
-          : "C:/media/input_pipeline.mp3";
+    mockInvoke.mockImplementation(
+      async (command: string, args?: { plan?: { outputPath: string } }) => {
+        if (command === "get_app_config_dir")
+          return "C:/Users/test/AppData/Roaming/AIO";
+        if (command === "path_exists") return true;
+        if (command === "create_dir_force") return undefined;
+        if (command === "delete_file_to_trash") return undefined;
+        if (command === "run_ffmpeg_plan" && args?.plan)
+          return args.plan.outputPath;
+        throw new Error(`unexpected command: ${command}`);
       }
-      throw new Error(`unexpected command: ${command}`);
-    });
+    );
 
     const output = await executePipeline(
       {
@@ -301,7 +300,9 @@ describe("ffmpeg-tools agent actions", () => {
         /^C:\/Users\/test\/AppData\/Roaming\/AIO\/ffmpeg-temp\/pipeline_step0_\d+\.wav$/
       ),
     });
-    expect(mockInvoke).toHaveBeenCalledTimes(5);
+    expect(planCalls[1][1].plan.inputPath).toBe(
+      planCalls[0][1].plan.outputPath
+    );
   });
 
   it("getMediaInfo 应格式化基础信息并在详细模式追加 ffprobe 流信息", async () => {

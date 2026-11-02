@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { materializePresetMessage } from "@aiohub/agent-preset-core";
 import { useI18n } from "@/i18n";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 
@@ -34,6 +35,14 @@ watch(
     }
   }
 );
+
+function messagePreview(message: PresetMessage): string {
+  try {
+    return materializePresetMessage(message).content || t("空内容");
+  } catch {
+    return t("组合内容无效");
+  }
+}
 
 function toggleAll(): void {
   selected.value = allSelected.value
@@ -78,7 +87,7 @@ function apply(action: "enable" | "disable" | "delete" | "group"): void {
         <input v-model="selected" :value="message.id" type="checkbox" />
         <span>
           <strong>{{ message.name || t("未命名预设") }}</strong>
-          <small>{{ message.content }}</small>
+          <small>{{ messagePreview(message) }}</small>
         </span>
       </label>
     </section>

@@ -25,6 +25,7 @@
  */
 
 import type { AstNode, LlmThinkRule } from "../types";
+import { tokenEquals } from "../parser/tokenEquality";
 import { Tokenizer } from "../parser/Tokenizer";
 import { tokenizerService } from "../parser/tokenizerService";
 import { Token, ParserContext, ParserOptions } from "../parser/types";
@@ -38,13 +39,31 @@ import { isTableStart, BLOCK_LEVEL_TAGS } from "../parser/utils/block-utils";
 import { parseCodeBlock } from "../parser/block/parseCodeBlock";
 import { parseHeading } from "../parser/block/parseHeading";
 import { parseBlockquote } from "../parser/block/parseBlockquote";
-import { parseList } from "../parser/block/parseList";
+import {
+  parseList,
+  type ListItemCache,
+  type ListItemSnapshot,
+} from "../parser/block/parseList";
 import { parseTable } from "../parser/block/parseTable";
 import { parseHtmlBlock, parseLlmThinkBlock } from "../parser/block/parseHtml";
 import { parseParagraph } from "../parser/block/parseParagraph";
 import { parseVcpRole } from "../parser/block/parseVcpRole";
 import { parseVcpDailyNote } from "../parser/block/parseVcpDailyNote";
 import { parseInlines } from "../parser/inline/parseInlines";
+import { normalizeReference } from "../parser/utils/markdown-reference";
+
+interface ParsedBlock {
+  node: AstNode | null;
+  nextIndex: number;
+}
+
+interface PendingBlock {
+  from: number;
+  to: number;
+  readTo: number;
+  node: AstNode;
+  listItems?: ListItemSnapshot[];
+}
 
 // ============ 解析器 ============
 
@@ -53,6 +72,13 @@ export class CustomParser implements ParserContext {
   private llmThinkRules: LlmThinkRule[];
   private defaultToolCallCollapsed: boolean;
   private vcpFuzzyModeEnabled: boolean;
+  private references = new Map<string, { href: string; title: string }>();
+  private parseEpoch = 0;
+  private pendingCache: {
+    tokens: Token[];
+    blocks: PendingBlock[];
+    context: string;
+  } | null = null;
 
   constructor(
     llmThinkTagNames: Set<string> = new Set(["think"]),
@@ -78,6 +104,7 @@ export class CustomParser implements ParserContext {
    * 解析完整的 Markdown 文本 (同步版本)
    */
   public parse(text: string): AstNode[] {
+    this.reset();
     if (!text) return [];
 
     const tokenizer = new Tokenizer({
@@ -85,6 +112,7 @@ export class CustomParser implements ParserContext {
     });
     const tokens = tokenizer.tokenize(text);
 
+    this.collectReferences(tokens);
     const blocks = this.parseBlocks(tokens);
 
     // 优化徽章之间的换行
@@ -95,181 +123,264 @@ export class CustomParser implements ParserContext {
    * 解析完整的 Markdown 文本 (异步版本，使用 Worker 分词)
    */
   public async parseAsync(text: string): Promise<AstNode[]> {
+    this.reset();
     if (!text) return [];
 
     const tokens = await tokenizerService.tokenize(text, {
       vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled,
     });
 
+    this.references.clear();
+    this.collectReferences(tokens);
     const blocks = this.parseBlocks(tokens);
 
     // 优化徽章之间的换行
     return optimizeBadgeLineBreaks(blocks);
   }
 
+  /** Rebuild the complete document while consuming the pending transport's last snapshot. */
+  public async parseCompleteAsync(text: string): Promise<AstNode[]> {
+    this.parseEpoch++;
+    this.pendingCache = null;
+    this.references.clear();
+    if (!text) {
+      tokenizerService.release(this);
+      return [];
+    }
+    const tokens = await tokenizerService.complete(
+      text,
+      { vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled },
+      this
+    );
+    this.references.clear();
+    this.collectReferences(tokens);
+    return optimizeBadgeLineBreaks(this.parseBlocks(tokens));
+  }
+
+  /** Complete pending AST, reusing only blocks whose full token dependencies still match. */
+  public async parsePendingAsync(text: string): Promise<AstNode[]> {
+    const epoch = ++this.parseEpoch;
+    const previous = this.pendingCache;
+    if (!text) {
+      tokenizerService.release(this);
+      this.pendingCache = null;
+      this.references.clear();
+      return [];
+    }
+    const tokens = await tokenizerService.tokenize(
+      text,
+      { vcpFuzzyModeEnabled: this.vcpFuzzyModeEnabled },
+      this
+    );
+    this.references.clear();
+    this.collectReferences(tokens);
+    const context = JSON.stringify([
+      [...this.references],
+      [...this.llmThinkTagNames],
+      this.llmThinkRules,
+      this.defaultToolCallCollapsed,
+      this.vcpFuzzyModeEnabled,
+    ]);
+    let common = 0;
+    const cache =
+      epoch === this.parseEpoch && previous?.context === context
+        ? previous
+        : null;
+    if (cache) {
+      const length = Math.min(cache.tokens.length, tokens.length);
+      while (
+        common < length &&
+        tokenEquals(cache.tokens[common], tokens[common])
+      )
+        common++;
+    }
+    const reused: PendingBlock[] = [];
+    if (cache) {
+      for (const block of cache.blocks) {
+        if (block.readTo > common) break;
+        reused.push(block);
+      }
+    }
+    // Include skipped tokens between roots so edits to comments/whitespace can become new blocks.
+    const from = reused.length ? reused[reused.length - 1].to : 0;
+    const tailBlocks: PendingBlock[] = [];
+    const tail = optimizeBadgeLineBreaks(
+      this.parseBlockRange(tokens, from, tailBlocks, cache?.blocks, common)
+    );
+    for (let index = 0; index < tail.length; index++) {
+      const block = tailBlocks[index];
+      block.node = tail[index];
+      // Retain the final badge-normalized subtree, without mutating older snapshots.
+      block.listItems?.forEach((item, itemIndex, items) => {
+        const node = block.node.children![itemIndex];
+        if (item.node !== node) items[itemIndex] = { ...item, node };
+      });
+    }
+    const blocks = [...reused, ...tailBlocks];
+    // Reset/destroy or a newer parse owns the cache after an asynchronous tokenization.
+    if (epoch === this.parseEpoch)
+      this.pendingCache = { tokens, blocks, context };
+    return blocks.map((block) => block.node);
+  }
+
+  private collectReferences(tokens: Token[]): void {
+    for (const token of tokens) {
+      if (
+        token.type === "reference_definition" &&
+        !this.references.has(token.label)
+      ) {
+        this.references.set(token.label, {
+          href: token.href,
+          title: token.title,
+        });
+      }
+    }
+  }
+
+  public getReference(label: string) {
+    return this.references.get(normalizeReference(label));
+  }
+
   /**
    * 块级解析
    */
   public parseBlocks(tokens: Token[]): AstNode[] {
+    return this.parseBlockRange(tokens, 0);
+  }
+
+  private parseBlockRange(
+    tokens: Token[],
+    from: number,
+    spans?: PendingBlock[],
+    previous?: PendingBlock[],
+    common = 0
+  ): AstNode[] {
     const blocks: AstNode[] = [];
-    let i = 0;
-
-    while (i < tokens.length) {
-      const token = tokens[i];
-
-      // 跳过换行
-      if (token.type === "newline") {
-        i++;
-        continue;
+    const previousLists = previous
+      ? new Map(
+          previous
+            .filter((block) => block.listItems)
+            .map((block) => [block.from, block.listItems])
+        )
+      : undefined;
+    let index = from;
+    while (index < tokens.length) {
+      const listCache: ListItemCache | undefined =
+        spans && tokens[index].type === "list_marker"
+          ? { previous: previousLists?.get(index), common, current: [] }
+          : undefined;
+      let readTo = 0;
+      const { node, nextIndex } = this.parseBlock(
+        tokens,
+        index,
+        spans
+          ? (end) => {
+              readTo = Math.max(readTo, end);
+            }
+          : undefined,
+        listCache
+      );
+      if (node) {
+        blocks.push(node);
+        spans?.push({
+          from: index,
+          to: nextIndex,
+          readTo: Math.max(nextIndex + 1, readTo),
+          node,
+          ...(listCache ? { listItems: listCache.current } : {}),
+        });
       }
+      index = nextIndex;
+    }
+    return blocks;
+  }
 
-      // 跳过 HTML 注释
-      if (token.type === "html_comment") {
-        i++;
-        continue;
-      }
-
-      // 代码块
-      if (token.type === "code_fence") {
-        const { node, nextIndex } = parseCodeBlock(tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // KaTeX 块级公式
-      if (token.type === "katex_block") {
-        blocks.push({
+  private parseBlock(
+    tokens: Token[],
+    start: number,
+    onLookahead?: (end: number) => void,
+    listCache?: ListItemCache
+  ): ParsedBlock {
+    const token = tokens[start];
+    if (
+      token.type === "newline" ||
+      token.type === "reference_definition" ||
+      token.type === "html_comment"
+    ) {
+      return { node: null, nextIndex: start + 1 };
+    }
+    if (token.type === "code_fence") return parseCodeBlock(tokens, start);
+    if (token.type === "katex_block") {
+      return {
+        node: {
           id: "",
           type: "katex_block",
           props: { content: token.content },
           meta: { range: { start: 0, end: 0 }, status: "stable" },
           _fp: computeFingerprint(token.content),
-        });
-        i++;
-        continue;
-      }
-
-      // 标题
-      if (token.type === "heading_marker") {
-        const { node, nextIndex } = parseHeading(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // 引用块
-      if (token.type === "blockquote_marker") {
-        const { node, nextIndex } = parseBlockquote(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // 列表
-      if (token.type === "list_marker") {
-        const { node, nextIndex } = parseList(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // 表格（检测表格起始）
-      if (isTableStart(tokens, i)) {
-        const { node, nextIndex } = parseTable(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // LLM 思考块（优先处理，在 HTML 块之前）
-      if (
-        token.type === "html_open" &&
-        this.llmThinkTagNames.has(token.tagName)
-      ) {
-        const { node, nextIndex } = parseLlmThinkBlock(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // HTML 块（只处理块级标签）
-      if (token.type === "html_open") {
-        const isBlockLevel = BLOCK_LEVEL_TAGS.has(token.tagName);
-
-        if (isBlockLevel) {
-          const { node, nextIndex } = parseHtmlBlock(this, tokens, i);
-          if (node) blocks.push(node);
-          i = nextIndex;
-          continue;
-        }
-        // 内联标签,交给段落处理
-      }
-
-      // 水平线
-      if (token.type === "hr_marker") {
-        blocks.push({
+        },
+        nextIndex: start + 1,
+      };
+    }
+    if (token.type === "heading_marker")
+      return parseHeading(this, tokens, start);
+    if (token.type === "blockquote_marker")
+      return parseBlockquote(this, tokens, start);
+    if (token.type === "list_marker")
+      return parseList(this, tokens, start, listCache);
+    if (isTableStart(tokens, start, onLookahead))
+      return parseTable(this, tokens, start);
+    if (
+      token.type === "html_open" &&
+      this.llmThinkTagNames.has(token.tagName)
+    ) {
+      return parseLlmThinkBlock(this, tokens, start);
+    }
+    if (token.type === "html_open" && BLOCK_LEVEL_TAGS.has(token.tagName)) {
+      return parseHtmlBlock(this, tokens, start);
+    }
+    if (token.type === "hr_marker") {
+      return {
+        node: {
           id: "",
           type: "hr",
           props: {},
           meta: { range: { start: 0, end: 0 }, status: "stable" },
-        });
-        i++;
-        continue;
-      }
-
-      // VCP 角色容器
-      if (token.type === "vcp_role") {
-        const { node, nextIndex } = parseVcpRole(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // VCP 日记容器
-      if (token.type === "vcp_daily_note") {
-        const { node, nextIndex } = parseVcpDailyNote(this, tokens, i);
-        if (node) blocks.push(node);
-        i = nextIndex;
-        continue;
-      }
-
-      // VCP 工具请求
-      if (token.type === "vcp_tool") {
-        const vcpToken = token as Extract<typeof token, { type: "vcp_tool" }>;
-        blocks.push({
+        },
+        nextIndex: start + 1,
+      };
+    }
+    if (token.type === "vcp_role") return parseVcpRole(this, tokens, start);
+    if (token.type === "vcp_daily_note")
+      return parseVcpDailyNote(this, tokens, start);
+    if (token.type === "vcp_tool") {
+      return {
+        node: {
           id: "",
           type: "vcp_tool",
           props: {
-            raw: vcpToken.raw,
-            closed: vcpToken.closed,
-            tool_name: vcpToken.tool_name,
-            command: vcpToken.command,
-            maid: vcpToken.maid,
-            args: vcpToken.args,
-            isResult: vcpToken.isResult,
-            status: vcpToken.status,
-            resultContent: vcpToken.resultContent,
-            fenceError: vcpToken.fenceError,
+            raw: token.raw,
+            closed: token.closed,
+            tool_name: token.tool_name,
+            command: token.command,
+            maid: token.maid,
+            args: token.args,
+            isResult: token.isResult,
+            status: token.status,
+            resultContent: token.resultContent,
+            fenceError: token.fenceError,
             collapsedByDefault: this.defaultToolCallCollapsed,
           },
           meta: {
             range: { start: 0, end: 0 },
-            status: vcpToken.closed ? "stable" : "pending",
+            status: token.closed ? "stable" : "pending",
           },
-          _fp: computeFingerprint(vcpToken.raw),
-        });
-        i++;
-        continue;
-      }
-
-      // 段落（默认）
-      const { node, nextIndex } = parseParagraph(this, tokens, i);
-      if (node) blocks.push(node);
-      i = nextIndex;
+          _fp: computeFingerprint(token.raw),
+        },
+        nextIndex: start + 1,
+      };
     }
-
-    return blocks;
+    return parseParagraph(this, tokens, start);
   }
 
   /**
@@ -280,7 +391,10 @@ export class CustomParser implements ParserContext {
   }
 
   public reset(): void {
-    // 不再需要重置计数器
+    tokenizerService.release(this);
+    this.parseEpoch++;
+    this.pendingCache = null;
+    this.references.clear();
   }
 }
 

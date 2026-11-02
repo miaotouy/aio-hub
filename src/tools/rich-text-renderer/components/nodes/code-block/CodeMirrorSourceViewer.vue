@@ -22,14 +22,19 @@
       'is-streaming': !closed,
     }"
     ref="containerRef"
+    :style="
+      !displayInitialized && retainedHeight !== null
+        ? { height: `${retainedHeight}px` }
+        : undefined
+    "
   >
     <!-- 初始状态显示轻量级的 PreCodeNode，尽量模拟 CodeMirror 的字号、行高、行号和内边距 -->
     <PreCodeNode
-      v-show="!displayInitialized"
+      v-if="!displayInitialized"
       :content="content"
       :line-numbers="true"
       :style="preFallbackStyle"
-      :gutter-width="gutterWidth"
+      :word-wrap-enabled="wordWrapEnabled"
       theme="codemirror"
       class="pre-fallback"
     />
@@ -44,28 +49,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, shallowRef, computed } from "vue";
+import {
+  ref,
+  onActivated,
+  onDeactivated,
+  onUnmounted,
+  onBeforeUnmount,
+  watch,
+  shallowRef,
+  computed,
+} from "vue";
+import { useRendererNodeState } from "../../../composables/useRendererViewState";
 import { storeToRefs } from "pinia";
 import { useRichTextRendererStore } from "../../../stores/store";
 import { useIntersectionObserver } from "@vueuse/core";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, EditorSelection, Compartment } from "@codemirror/state";
 import {
   EditorView,
   lineNumbers,
   highlightActiveLineGutter,
   keymap,
 } from "@codemirror/view";
-import { foldGutter, foldKeymap } from "@codemirror/language";
+import {
+  foldGutter,
+  foldKeymap,
+  foldedRanges,
+  foldEffect,
+} from "@codemirror/language";
 import { defaultKeymap } from "@codemirror/commands";
 import { useTheme } from "@composables/useTheme";
 import { getCodeMirrorLanguage } from "@/utils/codeLanguages";
-import { vscodeLight, vscodeDark } from "@uiw/codemirror-theme-vscode";
 import PreCodeNode from "./PreCodeNode.vue";
+import {
+  codeViewerTheme,
+  codeViewerLightTheme,
+  codeViewerDarkTheme,
+  codeViewerFontFamily,
+  codeViewerLineHeight,
+} from "./codeViewerTheme";
 
 const store = useRichTextRendererStore();
 const { debugPreFallback } = storeToRefs(store);
 
 const props = defineProps<{
+  nodeId?: string;
   content: string;
   language?: string;
   isExpanded: boolean;
@@ -89,18 +116,102 @@ const displayInitialized = computed(() => {
   return isInitialized.value;
 });
 let isDestroyed = false;
+let active = true;
+let nearViewport = false;
+let reportedReady = false;
+let releaseTimer: ReturnType<typeof setTimeout> | undefined;
+const retainedHeight = ref<number | null>(null);
+// Only scalar UI state survives suspension; retaining EditorState keeps its syntax tree alive.
+const viewState = useRendererNodeState(() => props.nodeId, "code-viewer");
+const retained = viewState.ref<
+  | {
+      content: string;
+      selection: ReturnType<EditorSelection["toJSON"]>;
+      folds: { from: number; to: number }[];
+      top: number;
+      left: number;
+    }
+  | undefined
+>("retained", undefined);
 
-// 性能优化：使用 IntersectionObserver 延迟初始化编辑器
-// 只有当代码块进入视口（或接近视口）时才创建重型的 CodeMirror 实例
+function cancelRelease() {
+  clearTimeout(releaseTimer);
+  releaseTimer = undefined;
+}
+
+function releaseEditor() {
+  cancelRelease();
+  const view = editorView.value;
+  if (!view) return;
+  const folds: { from: number; to: number }[] = [];
+  foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
+    folds.push({ from, to });
+  });
+  retained.value = {
+    content: props.content,
+    selection: view.state.selection.toJSON(),
+    folds,
+    top: view.scrollDOM.scrollTop,
+    left: view.scrollDOM.scrollLeft,
+  };
+  // content-visibility may already have skipped layout when the observer fires.
+  const height = containerRef.value?.getBoundingClientRect().height ?? 0;
+  if (height > 0) retainedHeight.value = height;
+  editorView.value = null;
+  isInitialized.value = false;
+  view.destroy();
+}
+
+function scheduleRelease() {
+  cancelRelease();
+  if (nearViewport || !active || props.closed === false || !editorView.value)
+    return;
+  releaseTimer = setTimeout(() => {
+    releaseTimer = undefined;
+    const view = editorView.value;
+    const selection = window.getSelection();
+    // A focused editor or a selection spanning it remains usable for keyboard/copy.
+    if (!view) return;
+    if (
+      view.hasFocus ||
+      (selection &&
+        !selection.isCollapsed &&
+        selection.containsNode(view.dom, true))
+    ) {
+      scheduleRelease();
+      return;
+    }
+    if (!nearViewport && active && props.closed !== false) releaseEditor();
+  }, 2000);
+}
+
 useIntersectionObserver(
   containerRef,
   ([entry]) => {
-    if (entry.isIntersecting && !isInitialized.value) {
-      initEditor();
+    if (!entry) return;
+    nearViewport = entry.isIntersecting;
+    if (isInitialized.value && entry.boundingClientRect.height > 0) {
+      retainedHeight.value = entry.boundingClientRect.height;
+    }
+    if (nearViewport) {
+      cancelRelease();
+      if (active) void initEditor();
+    } else {
+      scheduleRelease();
     }
   },
-  { rootMargin: "600px" } // 提前 600px 开始初始化，确保用户滚动到时已完成
+  { rootMargin: "600px" }
 );
+
+onDeactivated(() => {
+  active = false;
+  releaseEditor();
+});
+onActivated(() => {
+  active = true;
+  if (nearViewport) void initEditor();
+});
+watch(() => props.closed, scheduleRelease);
 
 const languageCompartment = new Compartment();
 const themeCompartment = new Compartment();
@@ -108,38 +219,17 @@ const fontSizeCompartment = new Compartment();
 const wordWrapCompartment = new Compartment();
 
 const { isDark } = useTheme();
-const cmTheme = computed(() => (isDark.value ? vscodeDark : vscodeLight));
+const cmTheme = computed(() =>
+  isDark.value ? codeViewerDarkTheme : codeViewerLightTheme
+);
 
 const preFallbackStyle = computed(() => {
   const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
   return {
     "--pre-font-size": `${fontSize}px`,
-    "--pre-line-height": `${fontSize * 1.5}px`,
+    "--pre-line-height": `${codeViewerLineHeight}`,
+    "--pre-font-family": codeViewerFontFamily,
   };
-});
-
-// 计算行号区域宽度，尝试匹配 CodeMirror 的逻辑
-const gutterWidth = computed(() => {
-  const lineCount = props.content.split("\n").length || 1;
-  const digits = Math.max(1, lineCount.toString().length);
-  const fontSize = props.codeFontSize > 0 ? props.codeFontSize : 14;
-
-  // CodeMirror 的行号渲染逻辑：
-  // 1. 行号列 (.cm-lineNumbers):
-  //    注意：行号字体通常是代码字体的 0.9 倍 (见 PreCodeNode.vue)
-  const gutterFontSize = fontSize * 0.9;
-  const charWidth = gutterFontSize * 0.65; // 稍微增加一点系数以防万一
-  const lineNumberPadding = 12 + 8; // 左 12px, 右 8px
-
-  // CodeMirror 的 .cm-gutterElement 设置了 min-width: 40px
-  const lineNumberWidth = Math.max(40, charWidth * digits + lineNumberPadding);
-
-  // 2. 折叠列 (.cm-foldGutter):
-  //    .cm-foldGutter .cm-gutterElement { padding: 0 4px; }
-  //    图标宽度大约 12px，总计约 16px-18px
-  const foldGutterWidth = 16;
-
-  return lineNumberWidth + foldGutterWidth;
 });
 
 const initEditor = async () => {
@@ -154,26 +244,10 @@ const initEditor = async () => {
     highlightActiveLineGutter(),
     foldGutter(),
     keymap.of([...defaultKeymap, ...foldKeymap]),
-    // 基础样式
-    EditorView.theme({
-      "&": {
-        fontSize: `${props.codeFontSize}px`,
-        backgroundColor: "transparent !important",
-      },
-      ".cm-scroller": {
-        fontFamily:
-          "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-      },
-      ".cm-content": {
-        padding: "12px 0",
-      },
-      ".cm-line": {
-        padding: "0 12px 0 4px",
-      },
-    }),
+    codeViewerTheme,
     fontSizeCompartment.of(
-      EditorView.theme({
-        "&": { fontSize: `${props.codeFontSize}px` },
+      EditorView.editorAttributes.of({
+        style: `font-size: ${props.codeFontSize}px`,
       })
     ),
     wordWrapCompartment.of(
@@ -192,24 +266,36 @@ const initEditor = async () => {
     parent: editorRef.value,
   });
 
-  emit("ready", props.codeFontSize);
+  const view = editorView.value;
+  if (retained.value?.content === props.content) {
+    view.dispatch({
+      selection: EditorSelection.fromJSON(retained.value.selection),
+      effects: retained.value.folds.map((range) => foldEffect.of(range)),
+    });
+    const { top, left } = retained.value;
+    view.requestMeasure({
+      read: () => undefined,
+      write: () => {
+        if (editorView.value !== view) return;
+        view.scrollDOM.scrollTop = top;
+        view.scrollDOM.scrollLeft = left;
+      },
+    });
+  }
+  retained.value = undefined;
+  retainedHeight.value = null;
+  // Rehydration must preserve the user's chosen font baseline and size.
+  if (!reportedReady) {
+    reportedReady = true;
+    emit("ready", props.codeFontSize);
+  }
   // 加载语言
   if (props.language) {
     const langExt = await getCodeMirrorLanguage(props.language);
 
-    // 如果在异步加载期间组件已卸载，则清理并退出
-    if (isDestroyed) {
-      if (editorView.value) {
-        editorView.value.destroy();
-        editorView.value = null;
-      }
-      return;
-    }
-
-    if (langExt && editorView.value) {
-      editorView.value.dispatch({
-        effects: languageCompartment.reconfigure(langExt),
-      });
+    // A pending language load belongs only to the view that requested it.
+    if (!isDestroyed && editorView.value === view && langExt) {
+      view.dispatch({ effects: languageCompartment.reconfigure(langExt) });
     }
   }
 };
@@ -217,18 +303,38 @@ const initEditor = async () => {
 watch(
   () => props.content,
   (newContent) => {
-    if (
-      editorView.value &&
-      newContent !== editorView.value.state.doc.toString()
+    retained.value = undefined;
+    retainedHeight.value = null;
+    const view = editorView.value;
+    if (!view) return;
+    // Compare the same LF-normalized text that the viewer displays.
+    const next = newContent.includes("\r")
+      ? view.state.toText(newContent).toString()
+      : newContent;
+    const previous = view.state.doc.toString();
+    if (next === previous) return;
+
+    let from = 0;
+    const sharedLength = Math.min(previous.length, next.length);
+    while (
+      from < sharedLength &&
+      previous.charCodeAt(from) === next.charCodeAt(from)
+    )
+      from++;
+    let oldEnd = previous.length;
+    let newEnd = next.length;
+    while (
+      oldEnd > from &&
+      newEnd > from &&
+      previous.charCodeAt(oldEnd - 1) === next.charCodeAt(newEnd - 1)
     ) {
-      editorView.value.dispatch({
-        changes: {
-          from: 0,
-          to: editorView.value.state.doc.length,
-          insert: newContent,
-        },
-      });
+      oldEnd--;
+      newEnd--;
     }
+    // Preserve unchanged syntax, folds and selection when a stream extends the tail.
+    view.dispatch({
+      changes: { from, to: oldEnd, insert: next.slice(from, newEnd) },
+    });
   }
 );
 
@@ -246,8 +352,8 @@ watch(
     if (editorView.value) {
       editorView.value.dispatch({
         effects: fontSizeCompartment.reconfigure(
-          EditorView.theme({
-            "&": { fontSize: `${size}px` },
+          EditorView.editorAttributes.of({
+            style: `font-size: ${size}px`,
           })
         ),
       });
@@ -268,17 +374,12 @@ watch(
   }
 );
 
-onMounted(() => {
-  // 移除立即初始化，改由 IntersectionObserver 触发
-  // initEditor();
-});
-
+onBeforeUnmount(releaseEditor);
 onUnmounted(() => {
   isDestroyed = true;
-  if (editorView.value) {
-    editorView.value.destroy();
-    editorView.value = null;
-  }
+  cancelRelease();
+  editorView.value?.destroy();
+  editorView.value = null;
 });
 </script>
 

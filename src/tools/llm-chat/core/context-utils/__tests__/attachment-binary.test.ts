@@ -17,6 +17,7 @@ import type { PipelineAttachment } from "../../../types/pipeline-attachment";
 import { getAttachmentBuffer } from "../attachment-binary";
 
 const mocks = vi.hoisted(() => ({
+  readLocalMediaFile: vi.fn(),
   appConfigDir: vi.fn(),
   join: vi.fn(),
   readFile: vi.fn(),
@@ -35,6 +36,10 @@ vi.mock("@/composables/useAssetManager", () => ({
   assetManagerEngine: {
     getAssetBinary: vi.fn(),
   },
+}));
+
+vi.mock("@/tools/aio-file-operator/actions", () => ({
+  readLocalMediaFile: mocks.readLocalMediaFile,
 }));
 
 describe("getAttachmentBuffer", () => {
@@ -72,5 +77,23 @@ describe("getAttachmentBuffer", () => {
     expect(
       mocks.join.mock.calls.flat().some((part) => part === "llm-chat")
     ).toBe(false);
+  });
+  it("reads local media through file-operator security and propagates read failures", async () => {
+    const attachment: PipelineAttachment = {
+      id: "local",
+      type: "image",
+      name: "photo.png",
+      mimeType: "image/png",
+      source: { kind: "local-file", path: "C:/media/photo.png" },
+    };
+    const bytes = new Uint8Array([4, 5, 6]).buffer;
+    mocks.readLocalMediaFile.mockResolvedValueOnce(bytes);
+    expect(await getAttachmentBuffer(attachment)).toBe(bytes);
+    expect(mocks.readLocalMediaFile).toHaveBeenCalledWith(
+      "C:/media/photo.png",
+      false
+    );
+    mocks.readLocalMediaFile.mockRejectedValueOnce(new Error("文件已删除"));
+    await expect(getAttachmentBuffer(attachment)).rejects.toThrow("文件已删除");
   });
 });

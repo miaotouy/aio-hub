@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // Hugging Face (使用 OpenAI 兼容的 Chat Completion API)
 export const huggingFacePreset: LlmPreset = {
-  type: "openai",
+  type: "huggingface",
   name: "Hugging Face",
   description: "Hugging Face Chat Completion API (OpenAI 兼容)",
   defaultBaseUrl: "https://api-inference.huggingface.co",

@@ -36,7 +36,6 @@ import {
   cleanPayload,
   getModelFamily,
   inferImageMimeType,
-  isOpenAIModel,
 } from "@/llm-apis/request-builder";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import { buildOpenAiHeaders } from "./utils";
@@ -45,6 +44,11 @@ import {
   getDeepSeekReplayReasoningContent,
   isDeepSeekModel,
 } from "../deepseek/reasoning-artifacts";
+
+function getRequestModelFamily(profile: LlmProfile, modelId: string) {
+  const model = profile.models.find((entry) => entry.id === modelId);
+  return getModelFamily(modelId, model?.provider ?? profile.type, model);
+}
 
 function shouldSendOpenAiReasoningEffort(
   profile: LlmProfile,
@@ -55,7 +59,7 @@ function shouldSendOpenAiReasoningEffort(
     (profile.type === "openai" ||
       profile.type === "openai-compatible" ||
       profile.type === "deepseek") &&
-    (isOpenAIModel(modelId) ||
+    (getRequestModelFamily(profile, modelId) === "openai" ||
       id.includes("doubao") ||
       id.includes("seed") ||
       id.includes("glm") ||
@@ -85,6 +89,8 @@ export const callOpenAiChatApi = async (
       },
     },
     onEvent: (event: LlmStreamEvent) => {
+      if (event.type === "response-chunk")
+        options.onResponseChunk?.(event.chunk);
       if (event.type === "text-delta") options.onStream?.(event.delta);
       if (event.type === "reasoning-delta") {
         options.onReasoningStream?.(event.delta);
@@ -135,7 +141,7 @@ function buildCoreRequest(
     toJsonObject(options.extraBody)
   );
   const isGeminiModel =
-    getModelFamily(options.modelId, profile.type) === "gemini";
+    getRequestModelFamily(profile, options.modelId) === "gemini";
   const geminiExtraBody = isGeminiModel
     ? buildGeminiExtraBody(options, explicitExtraBody)
     : undefined;
@@ -159,7 +165,8 @@ function buildCoreRequest(
       toCoreMessage(message, options.modelId)
     ),
     stream: Boolean(
-      options.stream && (options.onStream || options.onReasoningStream)
+      options.stream &&
+      (options.onStream || options.onReasoningStream || options.onResponseChunk)
     ),
     maxTokens: options.maxTokens,
     maxCompletionTokens: options.maxCompletionTokens,
@@ -204,7 +211,10 @@ function buildCoreRequest(
       (options.webSearchEnabled
         ? { search_context_size: "medium" }
         : undefined),
-    streamOptions: toJsonValue(options.streamOptions),
+    streamOptions: options.streamOptions
+      ? toJsonValue({ include_usage: options.streamOptions.includeUsage })
+      : undefined,
+    captureResponseChunks: !!options.onResponseChunk,
     thinkingEnabled:
       isDeepSeekThinking || isGeminiModel ? undefined : options.thinkingEnabled,
     thinkingBudget: isGeminiModel ? undefined : options.thinkingBudget,
@@ -267,6 +277,7 @@ function toCoreMessage(message: LlmMessage, modelId: string): CoreLlmMessage {
     : undefined;
   return {
     role: message.role,
+    ...(message.sourceKeys ? { sourceKeys: message.sourceKeys } : {}),
     content:
       typeof message.content === "string"
         ? message.content

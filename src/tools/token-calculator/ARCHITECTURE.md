@@ -17,9 +17,11 @@ Token Calculator 既是一个**面向用户**的 Token 计数器，也是 AIO Hu
 
 Profile 由 [`tokenizerRegistryStore`](./stores/tokenizerRegistryStore.ts) 集中管理，分为：
 
-- **内置 Profile**：由 [`builtin-tokenizer-index.ts`](./data/builtin-tokenizer-index.ts) 提供，对应 7 个 `@lenml/tokenizer-*` 资产来源，每次启动从轻量元数据重建；模型 JSON 在构建期压缩为 `dist/tokenizers/<profile>/*.json.gz`。
+- **内置 Profile**：由 [`builtin-tokenizer-index.ts`](./data/builtin-tokenizer-index.ts) 提供，对应 7 个 `@lenml/tokenizer-*` 资产来源，每次启动从轻量元数据重建；模型 JSON 在构建期静态压缩为 `dist/tokenizers/<profile>/*.json.gz`。彻底移除了运行时从外部动态下载或执行动态 JS 分词脚本的机制，实现资产化纯静态加载。
 - **用户 Profile**：本地导入或远端下载，持久化在 AppData `tokenizer-registry/profiles.json`。
 - **匹配规则**：用户在「匹配规则」Tab 添加的显式覆盖，存于 `tokenizer-registry/rules.json`。
+
+开发模式下，`scripts/vite/tokenizerAssetPlugin.ts` 的虚拟模块只生成资产 URL 清单；首次 HTTP 请求对应资产时才异步读取并 gzip 压缩。同一服务内的并发请求和后续请求共享缓存，生成失败后允许重试。生产构建仍在构建期输出上述 gzip 静态资源。
 
 ### 1.2. 主线程权威态 + Worker 无状态镜像
 

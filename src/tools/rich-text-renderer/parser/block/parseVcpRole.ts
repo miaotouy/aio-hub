@@ -16,63 +16,19 @@ import type { Token, ParserContext } from "../types";
 import type { AstNode, VcpRoleNode, VcpToolNode } from "../../types";
 import { Tokenizer } from "../Tokenizer";
 
-type ToolSummaryItem = {
-  label: string;
-  toolName: string;
-  status: "success" | "error" | "info";
-  statusLabel: string;
-};
-
-type NormalizedToolStatus = "success" | "error" | "info";
+import {
+  normalizeToolStatus,
+  parseToolSummaryItems,
+  type ToolSummaryItem,
+} from "@/utils/vcpToolSummary";
 
 type ToolResultSignature = {
   toolName: string;
-  status: NormalizedToolStatus;
+  status: "success" | "error" | "info";
 };
-
-const SUMMARY_STATUS_PATTERN =
-  /(成功|完成|失败|错误|异常|超时|拒绝|取消|中止|跳过)$/;
 
 function normalizeToolName(toolName: string): string {
   return toolName.trim().toLowerCase();
-}
-
-function normalizeToolStatus(statusText: string): NormalizedToolStatus {
-  if (/成功|完成|success|succeeded|ok/i.test(statusText)) {
-    return "success";
-  }
-
-  if (
-    /失败|错误|异常|超时|拒绝|取消|中止|error|fail|failed|timeout|rejected|cancel/i.test(
-      statusText
-    )
-  ) {
-    return "error";
-  }
-
-  return "info";
-}
-
-function parseToolSummaryItems(content: string): ToolSummaryItem[] {
-  return content
-    .split(/[；;]/)
-    .map((item) => item.trim().replace(/[。.\s]+$/g, ""))
-    .filter(Boolean)
-    .map((label) => {
-      const match = new RegExp(
-        `^(.*?)\\s*调用\\s*${SUMMARY_STATUS_PATTERN.source}`
-      ).exec(label);
-      const toolName = match?.[1]?.trim() || label;
-      const statusLabel = match?.[2] || "摘要";
-      const status = normalizeToolStatus(statusLabel);
-
-      return {
-        label,
-        toolName,
-        status,
-        statusLabel,
-      };
-    });
 }
 
 function collectToolResultSignatures(
@@ -154,6 +110,22 @@ export function parseVcpRole(
 
   const { role, variant, content, closed } = token;
 
+  if (variant === "tool_batch") {
+    return {
+      node: {
+        id: "",
+        type: "vcp_role",
+        props: { role, variant, batchContent: content, closed },
+        children: [],
+        meta: {
+          range: { start: 0, end: 0 },
+          status: closed ? "stable" : "pending",
+        },
+      },
+      nextIndex: start + 1,
+    };
+  }
+
   // 对内容进行二次分词
   const tokenizer = new Tokenizer({
     vcpFuzzyModeEnabled: ctx.getOptions().vcpFuzzyModeEnabled,
@@ -162,6 +134,20 @@ export function parseVcpRole(
 
   // 递归解析内部块
   const children = removeCoveredToolSummaries(ctx.parseBlocks(innerTokens));
+
+  // A completed server batch already carries its user-role presentation.
+  // Collapse only a redundant wrapper; mixed role content keeps its boundary.
+  const onlyChild = children.length === 1 ? children[0] : undefined;
+  if (
+    role === "user" &&
+    !variant &&
+    closed &&
+    onlyChild?.type === "vcp_role" &&
+    onlyChild.props.variant === "tool_batch" &&
+    onlyChild.props.closed
+  ) {
+    return { node: onlyChild, nextIndex: start + 1 };
+  }
 
   return {
     node: {

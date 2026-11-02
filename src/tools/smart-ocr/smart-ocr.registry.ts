@@ -14,7 +14,7 @@
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import OcrIcon from "@/components/icons/OcrIcon.vue";
+import { SmartOcrIcon } from "@aiohub/tool-icons";
 import type {
   SlicerConfig,
   ImageBlock,
@@ -102,7 +102,7 @@ export const toolConfig: ToolConfig = {
   name: "智能 OCR",
   path: "/smart-ocr",
   runMode: "main-only",
-  icon: markRaw(OcrIcon),
+  icon: markRaw(SmartOcrIcon),
   component: () => import("./SmartOcr.vue"),
   description: "智能OCR文字识别工具，支持多引擎和智能切图",
   category: ["AI 工具"],

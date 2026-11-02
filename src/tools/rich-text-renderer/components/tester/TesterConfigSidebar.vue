@@ -252,6 +252,25 @@
           </el-tooltip>
         </div>
 
+        <div v-if="enableEnterAnimation" class="control-item">
+          <label>流式文字特效</label>
+          <el-select v-model="streamEffect" style="width: 100%">
+            <el-option
+              v-for="option in STREAM_EFFECT_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <p class="stream-effect-hint">
+            {{
+              STREAM_EFFECT_OPTIONS.find(
+                (option) => option.value === streamEffect
+              )?.description
+            }}
+          </p>
+        </div>
+
         <!-- 安全护栏控制 -->
         <div class="control-section">
           <div class="control-header">
@@ -526,6 +545,7 @@
 </template>
 
 <script setup lang="ts">
+import { STREAM_EFFECT_OPTIONS } from "../../utils/streamEffectStyles";
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import {
@@ -576,6 +596,7 @@ const {
   allowDangerousHtml,
   enableCdnLocalizer,
   enableEnterAnimation,
+  streamEffect,
   safetyGuardEnabled,
   vcpFuzzyModeEnabled,
   llmThinkRules,
@@ -601,6 +622,13 @@ const loadPreset = () => {
 </script>
 
 <style scoped>
+.stream-effect-hint {
+  margin: 6px 0 0;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .config-sidebar {
   width: 360px;
   display: flex;

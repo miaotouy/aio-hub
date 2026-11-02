@@ -15,6 +15,8 @@
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import type { PresetMessageGroup } from "../../types/agent";
 
+import { reconcilePresetGroupSelection } from "../../utils/presetGroupSelection";
+
 export interface PresetGroupMessageStats {
   total: number;
   enabled: number;
@@ -57,6 +59,7 @@ export function applyPresetGroupEnabledState(
       delete msg.metadata.lastEnabledState;
     }
   });
+  reconcilePresetGroupSelection(messages, [group]);
 }
 
 export function cleanupPresetMessageGroupRefs(

@@ -56,7 +56,7 @@
             @click="config.enabled = !config.enabled"
           >
             <div class="danmaku-icon-wrapper">
-              <Tv :size="20" />
+              <DanmakuPlayerIcon :size="20" />
               <div v-if="config.enabled" class="active-badge">
                 <Check :size="10" stroke-width="4" />
               </div>
@@ -96,7 +96,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
-import { Captions, Tv, Settings2, Check } from "lucide-vue-next";
+import { Captions, Settings2, Check } from "lucide-vue-next";
+import { DanmakuPlayerIcon } from "@aiohub/tool-icons";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import DanmakuCanvas from "./DanmakuCanvas.vue";
 import SubtitleOverlay from "./SubtitleOverlay.vue";

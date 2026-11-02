@@ -20,7 +20,7 @@ import type { LlmPreset } from "../types";
 
 // Fireworks AI
 export const fireworksPreset: LlmPreset = {
-  type: "openai",
+  type: "fireworks",
   name: "Fireworks AI",
   description: "Fireworks AI - 超快速推理平台",
   defaultBaseUrl: "https://api.fireworks.ai",

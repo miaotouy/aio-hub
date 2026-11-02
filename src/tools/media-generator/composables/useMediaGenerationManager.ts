@@ -51,6 +51,7 @@ import type {
 } from "../types";
 import type {
   MediaGenerationOptions,
+  MediaProgressUpdate,
   LlmMessage,
   LlmMessageContent,
   LlmResponse,
@@ -60,6 +61,14 @@ import type { Asset } from "@/types/asset-management";
 
 const logger = createModuleLogger("media-generator/manager");
 const errorHandler = createModuleErrorHandler("media-generator/manager");
+
+/**
+ * 入库阶段（IPC 导入 + 缩略图生成 + 衍生数据写入）的整体兜底预算。
+ * 远程下载按资产数单独计价，这里只覆盖下载之外最慢的导入链路；
+ * 若某个资产入库的 IPC promise 永不 settle（如大 payload 序列化卡死），
+ * watchdog 会强制把任务落为 error，而不是永远停在「正在入库资产」。
+ */
+const ASSET_IMPORT_STAGE_EXTRA_BUDGET_MS = 120_000;
 
 type MediaGenerationConfig = {
   timeout?: number;
@@ -669,6 +678,22 @@ export function useMediaGenerationManager() {
         };
       }
 
+      // 轮询型媒体任务（视频/音乐）进度透传：上游每次 poll 后刷新任务进度。
+      // 未携带百分比时以 30 为底线缓慢推进，避免进度条长时间静止。
+      let lastReportedProgress = 30;
+      (finalOptions as any).onMediaProgress = (update: MediaProgressUpdate) => {
+        if (controller.signal.aborted) return;
+        const progress =
+          typeof update.progress === "number"
+            ? Math.max(lastReportedProgress, Math.min(89, update.progress))
+            : Math.min(88, lastReportedProgress + 1);
+        lastReportedProgress = progress;
+        taskManager.updateTaskStatus(taskId, "processing", {
+          statusText: update.statusText || "上游生成中...",
+          progress,
+        });
+      };
+
       taskManager.updateTaskStatus(taskId, "processing", {
         statusText: "正在生成中...",
         progress: 30,
@@ -689,13 +714,26 @@ export function useMediaGenerationManager() {
         progress: 90,
       });
 
-      await handleResponseAssets(
-        taskId,
-        response,
-        type,
-        config?.metadataWrite,
-        controller.signal,
-        normalizeMediaAssetDownloadTimeout(config?.assetDownloadTimeout)
+      // 入库链路（下载 + IPC 导入 + 缩略图 + 衍生数据）整体套一层 watchdog：
+      // 任一环节的 IPC promise 永不 settle 时强制报错，避免任务永远卡在「正在入库资产」。
+      const assetStageBudgetMs =
+        normalizeMediaAssetDownloadTimeout(config?.assetDownloadTimeout) *
+          responseItemsCount(response) +
+        ASSET_IMPORT_STAGE_EXTRA_BUDGET_MS;
+      await raceWithTimeout(
+        handleResponseAssets(
+          taskId,
+          response,
+          type,
+          config?.metadataWrite,
+          controller.signal,
+          normalizeMediaAssetDownloadTimeout(config?.assetDownloadTimeout)
+        ),
+        assetStageBudgetMs,
+        () =>
+          new Error(
+            `资产入库超时（${Math.round(assetStageBudgetMs / 1000)} 秒未完成），已终止任务`
+          )
       );
 
       taskManager.updateTaskStatus(taskId, "completed", {
@@ -904,8 +942,8 @@ export function useMediaGenerationManager() {
               : "unknown",
         });
         if (itemType === "image") {
-          mimeType = "image/png";
-          extension = "png";
+          mimeType = mediaItem.mimeType || "image/png";
+          extension = mimeTypeToExtension(mimeType, "png");
           if (mediaItem.b64_json) {
             bytes = decodeBase64ToArrayBuffer(mediaItem.b64_json);
           } else if (mediaItem.url) {
@@ -1049,6 +1087,21 @@ export function useMediaGenerationManager() {
     }
 
     if (resultAssets.length > 0) {
+      // watchdog 超时后任务可能已被置为 error/cancelled，而本函数仍可能在后台继续跑完；
+      // 此时不能再回写 processing 状态，避免终态被残留的入库流程覆盖。
+      const currentTask = taskManager.getTask(taskId);
+      if (
+        !currentTask ||
+        currentTask.status === "error" ||
+        currentTask.status === "cancelled"
+      ) {
+        logger.warn("任务已进入终态，跳过资产关联回写", {
+          taskId,
+          status: currentTask?.status,
+          count: resultAssets.length,
+        });
+        return;
+      }
       taskManager.updateTaskStatus(taskId, "processing", {
         resultAssetIds: resultAssets.map((a) => a.id),
         resultAssets: resultAssets,
@@ -1154,6 +1207,7 @@ export function useMediaGenerationManager() {
       opus: "audio/opus",
       aac: "audio/aac",
       pcm16: "audio/wav",
+      pcm: "audio/pcm",
     };
     return map[format] || "audio/mpeg";
   }
@@ -1303,7 +1357,11 @@ export function useMediaGenerationManager() {
           `读取本地媒体失败：${response.status} ${response.statusText}`
         );
       }
-      return await response.arrayBuffer();
+      return await readBodyWithWatchdog(
+        response.arrayBuffer(),
+        downloadTimeout,
+        url
+      );
     }
 
     const remoteUrl = normalizeRemoteMediaUrl(url);
@@ -1357,7 +1415,13 @@ export function useMediaGenerationManager() {
           `下载远程媒体失败：${response.status} ${response.statusText}`
         );
       }
-      return await response.arrayBuffer();
+      // connectTimeout 只覆盖连接阶段，body 读取需要独立的 watchdog 保护，
+      // 防止底层插件协议异常导致 arrayBuffer() 永久挂起、任务卡在入库状态。
+      return await readBodyWithWatchdog(
+        response.arrayBuffer(),
+        downloadTimeout,
+        remoteUrl
+      );
     } catch (error) {
       if (signal?.aborted) {
         throw signal.reason || new DOMException("Aborted", "AbortError");
@@ -1401,6 +1465,54 @@ function createMediaDownloadTimeoutError(
   );
   error.name = "MediaDownloadTimeoutError";
   return error;
+}
+
+function responseItemsCount(response: LlmResponse): number {
+  return (
+    (response.images?.length ?? 0) +
+    (response.videos?.length ?? 0) +
+    (response.audios?.length ?? 0)
+  );
+}
+
+/**
+ * 通用 watchdog：为可能永不 settle 的 promise 强制附加超时 reject。
+ * 与 readBodyWithWatchdog 的差异是不绑定 body 读取场景，供入库链路整体兜底。
+ */
+async function raceWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  createTimeoutError: () => Error
+): Promise<T> {
+  let watchdogId: ReturnType<typeof setTimeout> | undefined;
+  const watchdog = new Promise<never>((_, reject) => {
+    watchdogId = setTimeout(() => reject(createTimeoutError()), timeoutMs);
+  });
+  // 超时后原 promise 的 rejection 无人接收，挂影子 catch 避免 unhandledrejection
+  promise.catch(() => {});
+  try {
+    return await Promise.race([promise, watchdog]);
+  } finally {
+    if (watchdogId !== undefined) {
+      clearTimeout(watchdogId);
+    }
+  }
+}
+
+/**
+ * 为响应 body 读取增加独立 watchdog：
+ * 底层 HTTP 插件的 connectTimeout 只覆盖连接阶段，若 body 阶段
+ * 因插件版本协议错配或流异常而永久挂起，这里强制 reject，
+ * 让任务状态机落到 error 而不是卡在「正在入库资产」。
+ */
+async function readBodyWithWatchdog<T>(
+  bodyPromise: Promise<T>,
+  downloadTimeout: number,
+  url: string
+): Promise<T> {
+  return raceWithTimeout(bodyPromise, downloadTimeout, () =>
+    createMediaDownloadTimeoutError(url, downloadTimeout)
+  );
 }
 
 function summarizeUrlForLog(url: string): string {

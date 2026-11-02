@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   modelListAdapter,
   parseProviderModels,
+  resolveModelExecution,
   type JsonValue,
   type WireResponse,
 } from "../src";
@@ -37,6 +38,45 @@ describe("model list adapter", () => {
       url: "https://generativelanguage.googleapis.com/v1beta/models",
       headers: { "x-goog-api-key": "gemini-key" },
     });
+  });
+
+  it("routes declared OpenRouter Decisions through the unified endpoint while keeping routers on chat", () => {
+    const [decision, router] = parseProviderModels(
+      {
+        data: [
+          {
+            id: "typesafe/jev-1.14",
+            architecture: {
+              input_modalities: ["text", "image"],
+              output_modalities: ["decisions"],
+            },
+          },
+          {
+            id: "typesafe/jev-router",
+            architecture: { output_modalities: ["text"] },
+          },
+        ],
+      },
+      "openrouter"
+    );
+    const profile = {
+      type: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+    };
+    const execution = resolveModelExecution({
+      profile,
+      model: {
+        id: decision.id,
+        routing: { supportedEndpointTypes: decision.supportedEndpointTypes },
+      },
+      operation: "decision",
+    });
+    expect(execution.adapterId).toBe("openrouter-decisions");
+    expect(decision.inputModalities).toEqual(["text", "image"]);
+    expect(
+      resolveModelExecution({ profile, model: router, operation: "chat" })
+        .adapterId
+    ).toBe("openai-chat-completions");
   });
 
   it("normalizes OpenRouter, Gemini, Anthropic, Cohere and Ollama fixtures", async () => {
@@ -111,7 +151,8 @@ describe("model list adapter", () => {
       provider: "typesafe",
       group: "Jev",
       description: "The latest stable Jev release",
-      inputModalities: ["text"],
+      // An omitted modality stays unknown so imports can apply the vision preset.
+      inputModalities: undefined,
       supportedEndpointTypes: ["typesafe-system-one"],
     });
 
@@ -137,3 +178,34 @@ function jsonResponse(value: JsonValue): WireResponse {
     })(),
   };
 }
+
+describe("aggregate platform discovery", () => {
+  it.each([
+    "together",
+    "fireworks",
+    "deepinfra",
+    "huggingface",
+    "modelscope",
+    "lmstudio",
+    "vcp",
+  ])("preserves and executes endpoint declarations from %s", (provider) => {
+    const [model] = parseProviderModels(
+      { data: [{ id: "model-a", supported_endpoint_types: ["anthropic"] }] },
+      provider
+    );
+    expect(model.id).toBe("model-a");
+    expect(
+      resolveModelExecution({
+        profile: { type: provider },
+        model: {
+          id: model.id,
+          routing: { supportedEndpointTypes: model.supportedEndpointTypes },
+        },
+        operation: "chat",
+      })
+    ).toMatchObject({
+      adapterId: "anthropic-messages",
+      effectiveProfile: { type: "claude", channelType: provider },
+    });
+  });
+});

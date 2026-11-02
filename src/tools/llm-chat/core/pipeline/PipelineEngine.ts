@@ -1,3 +1,4 @@
+import { PresetConfigurationError } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,16 +44,35 @@ export class PipelineEngine {
     });
 
     for (const processor of processors) {
+      let trace: ((messages: PipelineContext["messages"]) => void) | undefined;
+      try {
+        trace = context.traceProcessor?.(processor.name, context.messages);
+      } catch {
+        /* diagnostic only */
+      }
+      let configurationError: unknown;
       await errorHandler.wrapAsync(
         async () => {
           logger.debug("执行处理器", { id: processor.id });
-          await processor.execute(context);
+          try {
+            await processor.execute(context);
+          } catch (error) {
+            if (error instanceof PresetConfigurationError)
+              configurationError = error;
+            throw error;
+          }
         },
         {
           userMessage: `处理步骤 [${processor.name}] 失败`,
           context: { processorId: processor.id },
         }
       );
+      try {
+        trace?.(context.messages);
+      } catch {
+        /* diagnostic only */
+      }
+      if (configurationError) throw configurationError;
     }
 
     logger.info("上下文管道执行完毕");

@@ -1,11 +1,30 @@
 import { defineConfig } from "vitepress";
+import { installDiagramFormatting } from "../../scripts/docs/markdown-diagrams";
 import { withMermaid } from "vitepress-plugin-mermaid";
 import Sitemap from "vite-plugin-sitemap";
+import { getExcludedPages, resolveRepositoryLink } from "./publication";
 
 export default withMermaid({
   title: "AIO Hub Documentation",
   description: "一站式桌面 AI 工具枢纽",
   ignoreDeadLinks: true,
+  srcExclude: getExcludedPages(),
+  markdown: {
+    config(md) {
+      installDiagramFormatting(md);
+      const renderLink = md.renderer.rules.link_open;
+      md.renderer.rules.link_open = (tokens, index, options, env, self) => {
+        const token = tokens[index];
+        const href = token.attrGet("href");
+        if (href && env.relativePath) {
+          token.attrSet("href", resolveRepositoryLink(href, env.relativePath));
+        }
+        return renderLink
+          ? renderLink(tokens, index, options, env, self)
+          : self.renderToken(tokens, index, options);
+      };
+    },
+  },
   lastUpdated: true,
   cleanUrls: true,
   head: [
@@ -35,7 +54,9 @@ export default withMermaid({
       }),
     ],
     ssr: {
-      noExternal: ["mermaid", "dayjs", "lucide-vue-next"],
+      // Mermaid 在浏览器挂载后渲染，SSR 沿用其原生模块依赖。
+      external: ["mermaid"],
+      noExternal: ["dayjs", "lucide-vue-next"],
     },
     optimizeDeps: {
       include: ["mermaid", "dayjs", "lucide-vue-next"],
@@ -342,7 +363,7 @@ export default withMermaid({
                       link: "/user-guide/tools/llm-chat/settings/text-processing",
                     },
                     {
-                      text: "知识库设置",
+                      text: "思绪设置",
                       link: "/user-guide/tools/llm-chat/settings/knowledge-base",
                     },
                     {
@@ -589,6 +610,8 @@ export default withMermaid({
             { text: "添加新工具", link: "/guide/adding-new-tool" },
             { text: "注册工具", link: "/guide/tool-registry-guide" },
             { text: "贡献指南", link: "/guide/contribution-guide" },
+            { text: "文档维护与截图", link: "/guide/docs-maintenance" },
+            { text: "Agent 界面控制", link: "/guide/dev-control" },
             // ==== GUIDE_START 插入点 ====
           ],
         },
@@ -746,27 +769,6 @@ export default withMermaid({
               link: "/architecture/plugin-async-task-support",
             },
             // ==== ARCH_EXTEND 插入点 ====
-          ],
-        },
-        {
-          text: "设计方案",
-          collapsed: true,
-          items: [
-            {
-              text: "浏览器连接器设计",
-              link: "/design/Browser-Connector-design",
-            },
-            { text: "动态壁纸设计", link: "/design/dynamic-wallpaper-design" },
-            { text: "插件配置系统", link: "/design/plugin-config-system" },
-            { text: "插件 Hook 系统", link: "/design/plugin-hook-system" },
-            {
-              text: "代理上下文中间件",
-              link: "/design/proxy-context-middleware-memo",
-            },
-            {
-              text: "翻译工作台设计",
-              link: "/design/translation-workbench-design",
-            },
           ],
         },
         {

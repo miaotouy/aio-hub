@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { formatVirtualAttachments } from "./virtualAttachments";
+import type { VirtualTextAttachment } from "../types/virtual-attachment";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -20,6 +22,7 @@ import type {
 import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import type { Asset } from "@/types/asset-management";
 import { resolveAttachmentsBatch } from "../core/context-utils/attachment-resolver";
 import { isDocxAssetLike } from "@/utils/docxParser";
@@ -28,10 +31,80 @@ import { splitZipDocumentIntoImageAssets } from "../core/context-utils/zip-docum
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import {
   fromAsset,
+  fromLocalMedia,
   type PipelineAttachment,
 } from "../types/pipeline-attachment";
 
+import { calculateTokensWithImageSlicing } from "../core/context-utils/image-slicing";
+import { useChatSettings } from "../composables/settings/useChatSettings";
+
 const logger = createModuleLogger("llm-chat/token-utils");
+
+/**
+ * 解析发送前图片缩放的有效最大边（像素）
+ *
+ * 与 asset-resolver 的串联缩放语义等价：
+ * 先模型安全约束（capabilities.maxImageDimension），后用户压缩
+ * （imageCompression.maxDimension，默认 4096），串联等比缩小等价于取两者较小值。
+ *
+ * @returns 有效最大边；无任何缩放约束时返回 undefined
+ */
+export function resolveEffectiveImageMaxDimension(
+  capabilities?: { maxImageDimension?: number } | null,
+  imageCompression?: { enabled: boolean; maxDimension?: number } | null
+): number | undefined {
+  let maxDim: number | undefined;
+  const modelMax = capabilities?.maxImageDimension;
+  if (modelMax && modelMax > 0) {
+    maxDim = modelMax;
+  }
+  if (imageCompression?.enabled) {
+    const userMax = imageCompression.maxDimension || 4096;
+    maxDim = maxDim === undefined ? userMax : Math.min(maxDim, userMax);
+  }
+  return maxDim;
+}
+
+/**
+ * 解析指定模型与智能体下发送图片的有效最大边
+ *
+ * 模型安全约束来自模型 capabilities；用户压缩来自智能体参数
+ * （详情未加载时自动按需加载一次）。任一来源缺失时只应用另一项。
+ */
+export async function resolveImageMaxDimensionForModel(
+  modelId: string,
+  agentId?: string | null
+): Promise<number | undefined> {
+  try {
+    const { profiles } = useLlmProfiles();
+    const model = profiles.value
+      .flatMap((profile) => profile.models || [])
+      .find((item) => item.id === modelId);
+
+    let imageCompression:
+      { enabled: boolean; maxDimension?: number } | undefined;
+    if (agentId) {
+      const agentStore = useAgentStore();
+      let agent = agentStore.getAgentById(agentId);
+      if (agent && agent.parameters === undefined) {
+        agent = (await agentStore.loadAgentDetails(agentId)) ?? agent;
+      }
+      imageCompression = agent?.parameters?.imageCompression;
+    }
+
+    return resolveEffectiveImageMaxDimension(
+      model?.capabilities,
+      imageCompression
+    );
+  } catch (error) {
+    logger.warn("解析图片压缩上限失败，Token 预估将按原始尺寸计算", {
+      modelId,
+      agentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
 
 /**
  * 准备用于 Token 计算的消息内容（本地辅助函数）
@@ -40,7 +113,8 @@ const logger = createModuleLogger("llm-chat/token-utils");
 export async function prepareMessageForTokenCalc(
   content: string,
   attachments: Asset[],
-  modelId: string
+  modelId: string,
+  virtualAttachments?: readonly VirtualTextAttachment[]
 ): Promise<{
   combinedText: string;
   mediaAttachments: PipelineAttachment[];
@@ -116,6 +190,7 @@ export async function prepareMessageForTokenCalc(
     }
   }
 
+  combinedText += formatVirtualAttachments(virtualAttachments);
   return { combinedText, mediaAttachments };
 }
 
@@ -123,13 +198,13 @@ export async function prepareMessageForTokenCalc(
  * 重新计算单个节点的 token
  */
 export async function recalculateNodeTokens(
-  _index: ChatSessionIndex,
+  index: ChatSessionIndex,
   detail: ChatSessionDetail,
   nodeId: string
 ): Promise<void> {
   if (!detail.nodes) return;
   const node = detail.nodes[nodeId];
-  if (!node || !node.content) return;
+  if (!node || (!node.content && !node.virtualAttachments?.length)) return;
   if (node.role !== "user" && node.role !== "assistant") return;
 
   let modelId: string | undefined;
@@ -171,24 +246,41 @@ export async function recalculateNodeTokens(
 
     if (
       node.role === "user" &&
-      node.attachments &&
-      node.attachments.length > 0
+      (node.attachments?.length || node.virtualAttachments?.length)
     ) {
       // 准备用于 Token 计算的消息内容
       const result = await prepareMessageForTokenCalc(
         node.content,
-        node.attachments,
-        modelId
+        node.attachments ?? [],
+        modelId,
+        node.virtualAttachments
       );
 
       fullContent = result.combinedText;
       mediaAttachments = result.mediaAttachments;
     }
 
-    const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+    if (node.localMedia?.length) {
+      mediaAttachments = [
+        ...(mediaAttachments ?? []),
+        ...node.localMedia.map(fromLocalMedia),
+      ];
+    }
+
+    // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
+    const maxImageDimension = await resolveImageMaxDimensionForModel(
+      modelId,
+      index?.displayAgentId
+    );
+
+    const tokenResult = await calculateTokensWithImageSlicing(
+      tokenCalculatorService,
       fullContent,
       modelId,
-      mediaAttachments
+      mediaAttachments,
+      useChatSettings().settings.value.requestSettings.longImageSlicing,
+      maxImageDimension !== undefined ? { maxImageDimension } : undefined,
+      { cacheOnly: true }
     );
 
     if (!node.metadata) node.metadata = {};
@@ -223,10 +315,14 @@ export async function fillMissingTokenMetadata(
   const calculationPromises: Promise<void>[] = [];
   const updatedSessionIds = new Set<string>();
 
-  for (const { detail: session } of sessions) {
+  for (const { index: sessionIndex, detail: session } of sessions) {
     if (!session.nodes) continue;
     for (const [nodeId, node] of Object.entries(session.nodes)) {
-      if (!node.content || node.metadata?.contentTokens !== undefined) continue;
+      if (
+        (!node.content && !node.virtualAttachments?.length) ||
+        node.metadata?.contentTokens !== undefined
+      )
+        continue;
 
       let modelId: string | undefined;
       if (node.role === "assistant" && node.metadata?.modelId) {
@@ -264,24 +360,42 @@ export async function fillMissingTokenMetadata(
 
             if (
               node.role === "user" &&
-              node.attachments &&
-              node.attachments.length > 0
+              (node.attachments?.length || node.virtualAttachments?.length)
             ) {
               const result = await prepareMessageForTokenCalc(
                 node.content,
-                node.attachments,
-                currentModelId
+                node.attachments ?? [],
+                currentModelId,
+                node.virtualAttachments
               );
               fullContent = result.combinedText;
               mediaAttachments = result.mediaAttachments;
             }
 
-            const tokenResult =
-              await tokenCalculatorService.calculateMessageTokens(
-                fullContent,
-                currentModelId,
-                mediaAttachments
-              );
+            if (node.localMedia?.length) {
+              mediaAttachments = [
+                ...(mediaAttachments ?? []),
+                ...node.localMedia.map(fromLocalMedia),
+              ];
+            }
+
+            // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩）
+            const maxImageDimension = await resolveImageMaxDimensionForModel(
+              currentModelId,
+              sessionIndex?.displayAgentId
+            );
+
+            const tokenResult = await calculateTokensWithImageSlicing(
+              tokenCalculatorService,
+              fullContent,
+              currentModelId,
+              mediaAttachments,
+              useChatSettings().settings.value.requestSettings.longImageSlicing,
+              maxImageDimension !== undefined
+                ? { maxImageDimension }
+                : undefined,
+              { cacheOnly: true }
+            );
 
             if (!node.metadata) node.metadata = {};
             node.metadata.contentTokens = tokenResult.count;

@@ -9,6 +9,7 @@
   - [基础 UI](#基础-ui)
     - [Avatar](#avatar)
     - [BaseDialog](#basedialog)
+    - [LazyPanelHost](#lazypanelhost)
     - [DraggablePanel](#draggablepanel)
     - [InfoCard](#infocard)
     - [DropZone](#dropzone)
@@ -23,6 +24,7 @@
     - [IconPresetSelector](#iconpresetselector)
     - [LlmModelSelector](#llmmodelselector)
     - [ModelSelectDialog](#modelselectdialog)
+    - [InputPanel](#inputpanel)
   - [编辑器与查看器](#编辑器与查看器)
     - [RichCodeEditor](#richcodeeditor)
     - [DocumentViewer](#documentviewer)
@@ -72,8 +74,10 @@
   - `bare` (boolean): 是否为无样式模式（透明背景，无边框）。
   - `showCloseButton` (boolean): 是否显示关闭按钮。
   - `closeOnBackdropClick` (boolean): 点击遮罩层是否关闭。
+  - `beforeClose` (() => boolean | Promise<boolean>): 关闭前确认；返回 `false` 时保留弹窗与当前内容。适用于未保存草稿保护。
   - `destroyOnClose` (boolean): 关闭时是否销毁内容。
   - `loading` (boolean): 内容区域显示加载状态。
+- **键盘与焦点**：打开后优先聚焦内容中的 `autofocus` 元素，其余情况聚焦弹窗容器；保留内容主动设置的焦点；Tab 在弹窗内循环，关闭后返回入口。Escape 仅关闭当前聚焦的最上层弹窗，内部控件可先消费该按键。
 - **Slots**: `default`, `header`, `footer`
 
 - **使用示例** (来自 [`CreateUserProfileDialog.vue`](../../tools/user-profile-manager/components/user-profile/CreateUserProfileDialog.vue)):
@@ -93,6 +97,34 @@
     </template>
   </BaseDialog>
   ```
+
+### LazyPanelHost
+
+首次打开时加载面板，成功后保留组件实例，让关闭重开延续页签和局部状态。
+
+- `open: boolean`：触发首次加载，也控制加载占位弹窗。
+- `title: string`：加载/失败弹窗标题。
+- `loader: () => Promise<{ default: Component }>`：稳定的动态导入函数；并发请求复用，失败可重新加载或关闭后重开。
+- `close`：加载/失败占位弹窗的关闭事件，调用方负责收起共享状态。
+- 其余 props、`v-model` 和事件通过 attrs 原样交给实际面板。实际面板的显隐仍由自己的 model 控制。
+
+```vue
+<script setup lang="ts">
+const loadPanel = () => import("./MyPanel.vue");
+</script>
+
+<template>
+  <LazyPanelHost
+    :open="visible"
+    :loader="loadPanel"
+    title="面板"
+    v-model="visible"
+    @close="visible = false"
+  />
+</template>
+```
+
+恢复、跨窗口同步等常驻服务应由外层宿主同步初始化；首次打开前这些职责仍需可用。
 
 ### DraggablePanel
 
@@ -179,6 +211,8 @@
 
 文件拖放区域，支持文件类型过滤、目录检测和视觉反馈。
 
+底层 `useFileDrop` 在元素替换时仅重绑 DOM 事件，窗口级监听复用当前元素引用。每次初始化持有独立的订阅批次；清理、重新初始化或组件卸载会使旧批次失效，迟到的注册结果立即注销。自定义监听注册失败时回收已建立的订阅并保留 DOM 拖放，调用方可通过 `reinitialize()` 重试。
+
 - **Props**:
   - `dropId` (string): 区域唯一标识。
   - `placeholder` (string): 占位文本。
@@ -259,7 +293,7 @@
 
 ### VideoPlayer
 
-全功能视频播放器，基于 `plyr` 进行了深度定制和功能增强。
+基于原生 HTML video 的全功能视频播放器。音视频组件在 Linux 下通过共享媒体入口读取本地文件，源切换与卸载时释放授权，接口与平台说明见[本地音视频播放架构](../../../docs/architecture/local-media-playback.md)。
 
 - **核心功能**:
   - **逐帧播放**: 支持通过快捷键 (`,` 和 `.`) 进行精确的逐帧前进/后退。
@@ -412,6 +446,21 @@ LLM 模型下拉选择器，按服务商分组，支持按能力（如 vision, t
 
 ---
 
+### InputPanel
+
+Chat 与媒体生成共用的输入区上方面板，位于 `input-panel/`；状态控制由 `src/composables/useInputPanel.ts` 提供。
+
+- `provideInputPanel(getRepeatClickAction?)` 在当前输入容器创建单面板状态，后代通过 `useInputPanel()` 访问。`toggle` 打开或切换面板，重复点击已展开面板默认关闭；调用方可提供 `collapse` 偏好，点击已折叠面板始终展开。折叠保留组件实例，替换、关闭释放实例。
+- `InputPanelDefinition` 声明 `id`、`title`、`component`，可选 `icon`、`summary`、`props`、`scroll` 与 `maxHeight`。响应式业务参数由承载输入区解包后传给动态组件；业务事件由输入区处理。
+- `InputPanelHost` 接收 `panel`、`contentId` 与 `v-model:collapsed`，提供标题、`header-actions`、折叠和关闭按钮、Escape 关闭及焦点管理。`close(true)` 返回入口按钮，插入或应用完成后由输入区聚焦编辑器。
+- `InputPanelLayout` 和 Host 提供统一内容插槽：`controls` 为顶部常驻控件，默认插槽为滚动内容，`footer` 为底部常驻操作。折叠时三者一起隐藏。
+- `scroll="host"` 由容器滚动普通内容；`content` 给业务组件固定可用高度；`layout` 让业务组件使用自己的 `InputPanelLayout`，组织常驻区与滚动区。
+- `maxHeight` 按 CSS 像素声明面板内容的高度上限，默认 260。面板按内容自然撑开，输入区结合视口和附件占用收紧上限，通过 `--input-panel-max-height` 传给布局，并把面板与附件的实际高度计入编辑器预算。内部下拉菜单挂载到页面，保持菜单可见。
+
+面板状态属于当前输入容器；草稿、配置和会话数据继续沿各业务模块保存和同步。
+
+---
+
 ## 编辑器与查看器
 
 ### RichCodeEditor
@@ -426,18 +475,26 @@ LLM 模型下拉选择器，按服务商分组，支持按能力（如 vision, t
   - `original` / `modified` (string): Diff 模式下的原始内容和修改后内容。
   - `readOnly` (boolean): 只读模式。
 
+- **按需加载**：默认 CodeMirror 即时可用；选择 Monaco 或开启 Diff 后加载本地 ESM 引擎。加载失败提供重试入口，父级在加载期间更新的文本会在挂载时应用。需要访问 Monaco 实例或聚焦时，等待组件的 `mount` 事件。
+
+- **Diff 双向绑定**：`v-model:original` / `v-model:modified` 接收 Monaco 两侧编辑后的内容。父级替换文本继续通过对应 props 更新；切换编辑器实例和卸载时清理内容监听。复制、保存和补丁生成应使用这两个绑定值。
+
 - **使用示例** (来自 [`RequestPanel.vue`](../../tools/api-tester/components/RequestPanel.vue)):
 
   ```vue
   <!-- 基础用法 -->
-  <RichCodeEditor v-model="store.requestBody" language="json" editor-type="monaco" />
+  <RichCodeEditor
+    v-model="store.requestBody"
+    language="json"
+    editor-type="monaco"
+  />
 
   <!-- Diff 模式 (来自 TextDiff.vue) -->
   <RichCodeEditor
     ref="richCodeEditorRef"
     :diff="true"
-    :original="leftContent"
-    :modified="rightContent"
+    v-model:original="leftContent"
+    v-model:modified="rightContent"
     editor-type="monaco"
     language="plaintext"
   />
@@ -445,11 +502,17 @@ LLM 模型下拉选择器，按服务商分组，支持按能力（如 vision, t
 
 ### DocumentViewer
 
-多格式文档查看器，智能识别并渲染 Markdown、HTML、代码或二进制文件占位。
+多格式文档查看器，支持 Markdown、HTML、PDF、DOCX、WPS、OpenDocument 文本文档（ODT、OTT、FODT）和代码。
+
+ODT / OTT 从压缩包读取正文和内嵌图片；FODT 从 XML 读取正文。阅读视图保留标题、段落、常见文字样式、列表、表格和内嵌位图，支持切换到转换后的 HTML 源码。复杂分页与排版以办公软件中的显示为准。加密或损坏文件会显示具体错误，下载按钮保存原始文件。
+
+WPS 按内容识别：OOXML 包直接复用 DOCX 渲染；Word 二进制兼容格式及 RTF 兼容格式通过资产管理器配置的本机转换程序生成 DOCX。转换副本使用匹配实际格式的扩展名，原始文件保持只读。资产库内的已有 WPS 也可在预览时转换；加密或其他格式的 WPS 会提示另存为 DOCX。二进制 WPS 预览需提供 `filePath`，下载仍保留原始文件。
 
 - **Props**:
   - `content` (string | Uint8Array): 文档内容。
-  - `fileName` (string): 文件名（用于推断语言）。
+  - `fileName` (string): 文件名（用于推断格式和语言）。
+  - `filePath` (string): 本地绝对路径或资产库相对路径。
+  - `fileTypeHint` (string): MIME 类型或文件名提示。
   - `editorType`: 默认使用的编辑器引擎。
   - `showEngineSwitch`: 是否显示切换引擎的按钮。
 

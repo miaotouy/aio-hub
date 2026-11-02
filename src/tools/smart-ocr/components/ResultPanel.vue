@@ -560,9 +560,9 @@ watch(
                         <pre>{{ result.text || "(无文本)" }}</pre>
                       </div>
                       <div v-if="result.confidence" class="confidence">
-                        <el-text size="small" type="info">
-                          置信度: {{ (result.confidence * 100).toFixed(1) }}%
-                        </el-text>
+                        <el-tag size="small" type="info" effect="plain">
+                          置信度 {{ (result.confidence * 100).toFixed(1) }}%
+                        </el-tag>
                       </div>
                     </template>
                   </template>
@@ -758,6 +758,7 @@ watch(
 }
 
 .result-content {
+  position: relative;
   padding: 0;
   transition: all 0.3s ease;
   overflow: hidden;
@@ -784,6 +785,7 @@ watch(
 .text-content pre {
   margin: 0;
   padding: 12px;
+  padding-bottom: 30px;
   background-color: transparent;
   backdrop-filter: none;
   border: none;
@@ -797,7 +799,10 @@ watch(
 }
 
 .confidence {
-  text-align: right;
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  pointer-events: none;
 }
 
 .edit-container {

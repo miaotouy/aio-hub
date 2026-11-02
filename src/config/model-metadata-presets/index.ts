@@ -36,6 +36,7 @@ import { deepseekModelRules } from "./models-deepseek";
 import { qwenModelRules } from "./models-qwen";
 import { chineseModelRules } from "./models-chinese";
 import { internationalModelRules } from "./models-international";
+import { decisionModelRules } from "./models-decision";
 import { specificModelRules } from "./models-specific";
 import { imageGenParamsRules } from "./image-gen-params";
 import { videoGenParamsRules } from "./video-gen-params";
@@ -52,6 +53,7 @@ export const LEGACY_DEFAULT_METADATA_RULES: LegacyModelMetadataRule<ModelMetadat
     ...qwenModelRules,
     ...chineseModelRules,
     ...internationalModelRules,
+    ...decisionModelRules,
     ...specificModelRules,
     ...imageGenParamsRules,
     ...videoGenParamsRules,
@@ -81,6 +83,7 @@ export {
   qwenModelRules,
   chineseModelRules,
   internationalModelRules,
+  decisionModelRules,
   specificModelRules,
   imageGenParamsRules,
   videoGenParamsRules,

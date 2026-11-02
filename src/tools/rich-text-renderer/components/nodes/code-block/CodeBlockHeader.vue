@@ -24,115 +24,71 @@
   >
     <div class="language-info">
       <span class="language-tag">{{ language || "文本" }}</span>
-      <!-- 预览模式指示器 -->
       <span v-if="isHtml && viewMode === 'preview'" class="mode-tag"
         >预览模式</span
       >
-      <!-- Token 计数 -->
       <span v-if="showTokenCount" class="token-info">
         {{ contentLength }} 字 / ~{{ tokenCount }} tokens
       </span>
     </div>
-    <div class="header-actions">
-      <!-- HTML 预览切换按钮 -->
-      <template v-if="isHtml">
-        <el-tooltip
-          :content="viewMode === 'preview' ? '查看源码' : '预览 HTML'"
-          :show-after="300"
+    <div
+      class="header-actions"
+      @pointerover="handlePointerOver"
+      @pointerleave="hoveredButton = null"
+      @focusin="handleFocusIn"
+      @focusout="focusedButton = null"
+      @keydown.esc="hideTooltip"
+    >
+      <template v-for="action in actions" :key="action.id">
+        <button
+          type="button"
+          class="action-btn"
+          :class="{ 'action-btn-active': action.active }"
+          :data-code-action="action.id"
+          :aria-label="action.label"
+          :aria-pressed="action.pressed"
+          :aria-expanded="action.expanded"
+          :aria-describedby="
+            tooltipVisible && tooltipAction?.id === action.id
+              ? tooltipId
+              : undefined
+          "
+          :disabled="action.disabled"
+          @click="emit(action.id)"
         >
-          <button
-            class="action-btn"
-            :class="{ 'action-btn-active': viewMode === 'preview' }"
-            @click="$emit('toggle-view-mode')"
-          >
-            <Code v-if="viewMode === 'preview'" :size="14" />
-            <Eye v-else :size="14" />
-          </button>
-        </el-tooltip>
-
-        <el-tooltip
-          :content="closed === false ? '内容生成中...' : '在弹窗中预览'"
-          :show-after="300"
-        >
-          <button
-            class="action-btn"
-            :disabled="closed === false"
-            @click="$emit('open-dialog-preview')"
-          >
-            <ExternalLink :size="14" />
-          </button>
-        </el-tooltip>
-
-        <div class="divider"></div>
+          <component :is="action.icon" :size="14" />
+        </button>
+        <div v-if="action.dividerAfter" class="divider"></div>
       </template>
-
-      <!-- 字体大小调整按钮 -->
-      <el-tooltip content="减小字体" :show-after="300">
-        <button
-          class="action-btn"
-          :disabled="codeFontSize <= codeFontMin"
-          @click="$emit('decrease-font')"
-        >
-          <Minus :size="14" />
-        </button>
-      </el-tooltip>
-      <el-tooltip content="重置字体大小" :show-after="300">
-        <button
-          class="action-btn"
-          :disabled="!fontBaselineReady || codeFontSize === defaultCodeFontSize"
-          @click="$emit('reset-font')"
-        >
-          <RotateCcw :size="14" />
-        </button>
-      </el-tooltip>
-      <el-tooltip content="增大字体" :show-after="300">
-        <button
-          class="action-btn"
-          :disabled="codeFontSize >= codeFontMax"
-          @click="$emit('increase-font')"
-        >
-          <Plus :size="14" />
-        </button>
-      </el-tooltip>
-
-      <!-- 换行切换按钮 -->
-      <el-tooltip
-        :content="wordWrapEnabled ? '禁用换行' : '启用换行'"
-        :show-after="300"
-      >
-        <button
-          class="action-btn"
-          :class="{ 'action-btn-active': wordWrapEnabled }"
-          @click="$emit('toggle-word-wrap')"
-        >
-          <WrapText :size="14" />
-        </button>
-      </el-tooltip>
-
-      <!-- 复制按钮 -->
-      <el-tooltip :content="copied ? '已复制' : '复制代码'" :show-after="300">
-        <button
-          class="action-btn"
-          :class="{ 'action-btn-active': copied }"
-          @click="$emit('copy-code')"
-        >
-          <Check v-if="copied" :size="14" />
-          <Copy v-else :size="14" />
-        </button>
-      </el-tooltip>
-
-      <!-- 展开/折叠按钮 -->
-      <el-tooltip :content="isExpanded ? '折叠' : '展开'" :show-after="300">
-        <button class="action-btn" @click="$emit('toggle-expand')">
-          <Minimize2 v-if="isExpanded" :size="14" />
-          <Maximize2 v-else :size="14" />
-        </button>
-      </el-tooltip>
     </div>
+    <el-tooltip
+      v-if="tooltipVisible && tooltipAction"
+      :visible="true"
+      :virtual-ref="tooltipReference"
+      virtual-triggering
+      :enterable="false"
+      :persistent="false"
+      popper-class="code-action-tooltip"
+    >
+      <template #content>
+        <span :id="tooltipId">{{ tooltipAction.label }}</span>
+      </template>
+    </el-tooltip>
   </div>
 </template>
 
 <script setup lang="ts">
+import {
+  computed,
+  onBeforeUnmount,
+  onDeactivated,
+  ref,
+  shallowRef,
+  useId,
+  watch,
+  type Component,
+} from "vue";
+import { ElTooltip } from "element-plus";
 import {
   Copy,
   Check,
@@ -147,7 +103,7 @@ import {
   ExternalLink,
 } from "lucide-vue-next";
 
-defineProps<{
+const props = defineProps<{
   language?: string;
   viewMode: "code" | "preview";
   isHtml: boolean;
@@ -167,16 +123,149 @@ defineProps<{
   isHovered?: boolean;
 }>();
 
-defineEmits<{
-  (e: "toggle-view-mode"): void;
-  (e: "open-dialog-preview"): void;
-  (e: "decrease-font"): void;
-  (e: "reset-font"): void;
-  (e: "increase-font"): void;
-  (e: "toggle-word-wrap"): void;
-  (e: "copy-code"): void;
-  (e: "toggle-expand"): void;
-}>();
+type CodeAction =
+  | "toggle-view-mode"
+  | "open-dialog-preview"
+  | "decrease-font"
+  | "reset-font"
+  | "increase-font"
+  | "toggle-word-wrap"
+  | "copy-code"
+  | "toggle-expand";
+const emit = defineEmits<(event: CodeAction) => void>();
+interface HeaderAction {
+  id: CodeAction;
+  label: string;
+  icon: Component;
+  active?: boolean;
+  disabled?: boolean;
+  pressed?: boolean;
+  expanded?: boolean;
+  dividerAfter?: boolean;
+}
+const actions = computed<HeaderAction[]>(() => [
+  ...(props.isHtml
+    ? [
+        {
+          id: "toggle-view-mode" as const,
+          label: props.viewMode === "preview" ? "查看源码" : "预览 HTML",
+          icon: props.viewMode === "preview" ? Code : Eye,
+          active: props.viewMode === "preview",
+          pressed: props.viewMode === "preview",
+        },
+        {
+          id: "open-dialog-preview" as const,
+          label: props.closed === false ? "内容生成中..." : "在弹窗中预览",
+          icon: ExternalLink,
+          disabled: props.closed === false,
+          dividerAfter: true,
+        },
+      ]
+    : []),
+  {
+    id: "decrease-font",
+    label: "减小字体",
+    icon: Minus,
+    disabled: props.codeFontSize <= props.codeFontMin,
+  },
+  {
+    id: "reset-font",
+    label: "重置字体大小",
+    icon: RotateCcw,
+    disabled:
+      !props.fontBaselineReady ||
+      props.codeFontSize === props.defaultCodeFontSize,
+  },
+  {
+    id: "increase-font",
+    label: "增大字体",
+    icon: Plus,
+    disabled: props.codeFontSize >= props.codeFontMax,
+  },
+  {
+    id: "toggle-word-wrap",
+    label: props.wordWrapEnabled ? "禁用换行" : "启用换行",
+    icon: WrapText,
+    active: props.wordWrapEnabled,
+    pressed: props.wordWrapEnabled,
+  },
+  {
+    id: "copy-code",
+    label: props.copied ? "已复制" : "复制代码",
+    icon: props.copied ? Check : Copy,
+    active: props.copied,
+  },
+  {
+    id: "toggle-expand",
+    label: props.isExpanded ? "折叠" : "展开",
+    icon: props.isExpanded ? Minimize2 : Maximize2,
+    expanded: props.isExpanded,
+  },
+]);
+
+// 所有操作共用交互时才创建的提示层，按钮本身始终保留。
+const hoveredButton = shallowRef<HTMLButtonElement | null>(null);
+const focusedButton = shallowRef<HTMLButtonElement | null>(null);
+const tooltipButton = computed(
+  () => hoveredButton.value ?? focusedButton.value
+);
+const tooltipAction = computed(() =>
+  actions.value.find(
+    (action) => action.id === tooltipButton.value?.dataset.codeAction
+  )
+);
+const tooltipVisible = ref(false);
+const tooltipId = useId();
+let tooltipTimer: ReturnType<typeof setTimeout> | undefined;
+// 只向 Popper 提供定位信息。触发器的 ARIA 与键盘行为由按钮自身管理。
+const tooltipReference = computed(() => {
+  const button = tooltipButton.value;
+  return button
+    ? {
+        getBoundingClientRect: () => button.getBoundingClientRect(),
+        contextElement: button,
+      }
+    : undefined;
+});
+function actionButton(event: Event): HTMLButtonElement | null {
+  const button =
+    event.target instanceof Element
+      ? event.target.closest<HTMLButtonElement>("button[data-code-action]")
+      : null;
+  return event.currentTarget instanceof Element &&
+    button &&
+    event.currentTarget.contains(button)
+    ? button
+    : null;
+}
+function handlePointerOver(event: PointerEvent) {
+  if (event.pointerType !== "touch") hoveredButton.value = actionButton(event);
+}
+function handleFocusIn(event: FocusEvent) {
+  hoveredButton.value = null;
+  focusedButton.value = actionButton(event);
+}
+function hideTooltip() {
+  if (tooltipTimer !== undefined) clearTimeout(tooltipTimer);
+  tooltipTimer = undefined;
+  tooltipVisible.value = false;
+}
+watch(tooltipButton, (button) => {
+  hideTooltip();
+  if (button)
+    tooltipTimer = setTimeout(() => {
+      tooltipTimer = undefined;
+      tooltipVisible.value = button.isConnected;
+    }, 300);
+});
+function resetTooltip() {
+  hoveredButton.value = null;
+  focusedButton.value = null;
+  hideTooltip();
+}
+watch(() => props.isHtml, resetTooltip);
+onDeactivated(resetTooltip);
+onBeforeUnmount(hideTooltip);
 </script>
 
 <style scoped>

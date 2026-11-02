@@ -113,6 +113,7 @@ export type LlmMessageContent =
   | ToolResultContent;
 
 export interface LlmReasoningArtifact {
+  channelTarget?: import("@aiohub/llm-core").ChannelTarget;
   provider: string;
   kind: string;
   replayPolicy: "always" | "with_tool_calls" | "never";
@@ -148,11 +149,7 @@ export interface VisionTokenCost {
    * - 'deepseek_image_v41': DeepSeek V4.1 视觉输入尺寸折算
    */
   calculationMethod:
-    | "fixed"
-    | "openai_tile"
-    | "claude_3"
-    | "gemini_2_0"
-    | "deepseek_image_v41";
+    "fixed" | "openai_tile" | "claude_3" | "gemini_2_0" | "deepseek_image_v41";
 
   /**
    * 计算参数
@@ -305,6 +302,7 @@ export interface ModelMetadataBinding {
   fingerprint?: string;
 }
 export interface LlmModelInfo {
+  virtualBindings?: import("@aiohub/llm-core").VirtualModelBindings;
   /**
    * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
    */
@@ -444,6 +442,7 @@ export interface LlmModelInfo {
  * LLM 请求参数
  */
 export interface LlmRequestOptions {
+  transportObserver?: import("@aiohub/llm-core").TransportObserver;
   profileId?: string;
   modelId: string;
   /** 完整的消息列表（包括 role 和 content），现已支持 system 角色 */
@@ -647,6 +646,7 @@ export type Annotation = UrlCitation | FileCitation;
  * LLM 响应结果
  */
 export interface LlmResponse {
+  channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   content: string;
   usage?: {
     promptTokens: number;

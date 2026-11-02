@@ -49,7 +49,7 @@ const INDEX_FILENAME = "projects.json";
 
 /**
  * 画布项目索引管理器
- * 负责维护 AppData/canvases/projects.json
+ * 负责维护应用数据根目录（getAppConfigDir()）下的 canvases/projects.json
  */
 export class CanvasIndexManager {
   private static instance: CanvasIndexManager;

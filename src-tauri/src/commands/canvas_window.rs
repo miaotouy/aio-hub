@@ -81,7 +81,9 @@ pub async fn create_canvas_window(
         builder = builder.transparent(true);
     }
 
-    let window = builder.build().map_err(|e| e.to_string())?;
+    let window = crate::commands::dev_control::configure_webview(builder)
+        .build()
+        .map_err(|e| e.to_string())?;
 
     // 应用保存的窗口配置（复用 window_config 模块）
     let window_clone = window.clone();

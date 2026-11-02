@@ -35,7 +35,13 @@ export interface VcpFenceRecovery {
 
 export type RenderableVcpBlockBoundary =
   | VcpBlockBoundary
-  | { status: "complete"; endIndex: number; recovery: VcpFenceRecovery };
+  | { status: "complete"; endIndex: number; recovery: VcpFenceRecovery }
+  | {
+      status: "recovered";
+      endIndex: number;
+      nextIndex: number;
+      message: string;
+    };
 
 function skipWhitespace(text: string, index: number): number {
   let cursor = index;
@@ -94,6 +100,90 @@ function isCompleteFieldSuffix(suffix: string): boolean {
   return true;
 }
 
+/**
+ * 参数完整后才尝试划定坏请求的显示范围。参数值中的 HTML 与协议示例由
+ * 对应的参数围栏整体跳过；尚未收完的参数和结束标记继续等待流式内容。
+ */
+function recoverRequestDisplayBoundary(
+  text: string,
+  contentStart: number,
+  options: FindVcpBlockBoundaryOptions,
+  strictBoundary: VcpBlockBoundary
+): RenderableVcpBlockBoundary | null {
+  const limit =
+    strictBoundary.status === "interrupted"
+      ? strictBoundary.nextStartIndex
+      : text.length;
+  const fieldPattern = /([a-zA-Z0-9_-]+)\s*:\s*「始(ESCAPE|exp)?」/y;
+  const htmlBoundary = /^<\/?[a-zA-Z][a-zA-Z0-9_-]*(?:\s[^<>]*?)?\s*\/?>/;
+  let cursor = skipWhitespace(text, contentStart);
+  let hasToolField = false;
+
+  while (cursor <= limit) {
+    if (hasToolField) {
+      // 完整标记留给严格解析。恢复结果只描述显示边界，原文保持原样。
+      if (text.startsWith(options.endMarker, cursor)) return null;
+
+      if (
+        htmlBoundary.test(text.slice(cursor)) ||
+        options.recoveryStartMarkers.some((marker) =>
+          text.startsWith(marker, cursor)
+        )
+      ) {
+        return {
+          status: "recovered",
+          endIndex: cursor,
+          nextIndex: cursor,
+          message: "工具请求缺少结束标记，已分离后续内容。",
+        };
+      }
+
+      if (text.startsWith("<<<[END_", cursor)) {
+        let length = 0;
+        while (
+          length < options.endMarker.length &&
+          text[cursor + length] === options.endMarker[length]
+        ) {
+          length++;
+        }
+        const nextIndex = cursor + length;
+        // 流末的部分标记仍可能在下一帧补全；有后续内容时才确认截断。
+        if (
+          length >= "<<<[END_".length &&
+          length < options.endMarker.length &&
+          (text[nextIndex] === "<" || /\s/.test(text[nextIndex] || "")) &&
+          skipWhitespace(text, nextIndex) < text.length
+        ) {
+          return {
+            status: "recovered",
+            endIndex: cursor,
+            nextIndex,
+            message: "工具请求的结束标记不完整，已分离后续内容。",
+          };
+        }
+      }
+    }
+
+    if (cursor >= limit) return null;
+    fieldPattern.lastIndex = cursor;
+    const field = fieldPattern.exec(text);
+    if (!field) return null;
+    const valueStart = fieldPattern.lastIndex;
+    const endMarker = `「末${field[2] || ""}」`;
+    const valueEnd = text.indexOf(endMarker, valueStart);
+    if (valueEnd === -1 || valueEnd + endMarker.length > limit) return null;
+    if (
+      (field[1] === "tool_name" || field[1] === "JEV") &&
+      text.slice(valueStart, valueEnd).trim()
+    ) {
+      hasToolField = true;
+    }
+    cursor = skipWhitespace(text, valueEnd + endMarker.length);
+    if (text[cursor] === ",") cursor = skipWhitespace(text, cursor + 1);
+  }
+
+  return null;
+}
 function findFirstUnclosedEscapeStart(
   text: string,
   contentStart: number
@@ -160,8 +250,9 @@ function findRecoveryCandidates(
  * 富文本渲染专用的 VCP 块边界恢复。
  *
  * 工具执行协议仍使用严格的 `findVcpBlockBoundary()`；这里仅在严格解析判定
- * 未闭合后，尝试把 `「始ESCAPE」...「末」` 识别为模型误写，并要求候选之后
- * 的剩余文本能够完整解析为 VCP 字段，防止正文中的普通围栏被误截断。
+ * 失败后，先根据完整参数与后续 HTML、请求起点或截断结束标记划定显示边界。
+ * 对 `「始ESCAPE」...「末」` 错配，要求候选之后的剩余文本能完整解析为字段。
+ * 完整的严格解析结果优先，避免参数中的标签和协议示例触发恢复。
  */
 export function findRenderableVcpBlockBoundary(
   text: string,
@@ -170,9 +261,18 @@ export function findRenderableVcpBlockBoundary(
   fuzzyModeEnabled = true
 ): RenderableVcpBlockBoundary {
   const strictBoundary = findVcpBlockBoundary(text, contentStart, options);
-  if (strictBoundary.status !== "unclosed" || !fuzzyModeEnabled) {
+  if (!fuzzyModeEnabled || strictBoundary.status === "complete") {
     return strictBoundary;
   }
+
+  const displayBoundary = recoverRequestDisplayBoundary(
+    text,
+    contentStart,
+    options,
+    strictBoundary
+  );
+  if (displayBoundary) return displayBoundary;
+  if (strictBoundary.status !== "unclosed") return strictBoundary;
 
   const malformedStartIndex = findFirstUnclosedEscapeStart(text, contentStart);
   if (malformedStartIndex === -1) {

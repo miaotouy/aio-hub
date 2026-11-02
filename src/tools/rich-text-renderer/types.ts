@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Ref } from "vue";
+import type { Ref, VNode } from "vue";
 
 /**
  * 富文本渲染引擎 - 核心类型定义
@@ -465,7 +465,8 @@ export interface VcpRoleNode extends BaseAstNode {
   type: "vcp_role";
   props: {
     role: "user" | "assistant" | "system";
-    variant?: "tool_summary";
+    variant?: "tool_summary" | "tool_batch";
+    batchContent?: string;
     summaryItems?: Array<{
       label: string;
       toolName: string;
@@ -798,6 +799,8 @@ export interface TesterConfig {
   enableCdnLocalizer?: boolean;
   /** 是否启用节点进入动画 */
   enableEnterAnimation?: boolean;
+  /** 流式新增文字的装饰特效 */
+  streamEffect?: import("./utils/streamStardust").StreamEffect;
   /** 是否启用仅显示侧的 VCP 围栏模糊恢复 */
   vcpFuzzyModeEnabled?: boolean;
   /** 是否模拟元数据 */
@@ -885,6 +888,9 @@ export const RICH_TEXT_CONTEXT_KEY = Symbol("rich-text-context");
  * 富文本上下文接口
  */
 export interface RichTextContext {
+  /** Shared decoration settings for standalone HTML preview documents. */
+  streamEffect?: Readonly<Ref<import("./utils/streamStardust").StreamEffect>>;
+  streamEffectActive?: Readonly<Ref<boolean>>;
   images: Ref<string[]>;
   defaultRenderHtml?: Ref<boolean>;
   seamlessMode?: Ref<boolean>;
@@ -899,6 +905,8 @@ export interface RichTextContext {
    * 用于将自定义协议（如 agent-asset://）转换为真实 URL
    */
   resolveAsset?: (content: string) => string;
+  /** 裸附件占位符的预览渲染钩子；返回 null 时保留原文。 */
+  renderFilePlaceholder?: (assetId: string) => VNode | null;
   /**
    * 是否冻结 HTML 预览
    * 当消息深度超过阈值时，用于节流性能开销
@@ -908,4 +916,6 @@ export interface RichTextContext {
   isStreaming?: Ref<boolean>;
   /** 是否显示 Token 计数 */
   showTokenCount?: Ref<boolean>;
+  /** Propagates to recursively rendered containers such as details. */
+  enableEnterAnimation?: Readonly<Ref<boolean>>;
 }

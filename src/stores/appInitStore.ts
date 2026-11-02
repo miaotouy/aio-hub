@@ -26,6 +26,7 @@ import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useModelMetadataStore } from "./modelMetadataStore";
+import { runMetadataSourceAutoUpdate } from "@/services/modelMetadataSourceService";
 import { initAppContext } from "@/config/appContext";
 import { initializeUpgradeFlow } from "@/flows/upgrade";
 
@@ -116,6 +117,11 @@ export const useAppInitStore = defineStore("appInit", () => {
       schedulePostReadyTask("加载模型元数据", async () => {
         const modelMetadataStore = useModelMetadataStore();
         await modelMetadataStore.loadRules();
+        window.setTimeout(() => {
+          void runMetadataSourceAutoUpdate().catch((error) => {
+            logger.warn("外部元数据源自动更新失败", { error: String(error) });
+          });
+        }, 8000);
       });
 
       schedulePostReadyTask("加载用户配置", async () => {

@@ -40,6 +40,8 @@ import { getMessageStatusPresentation } from "../../utils/messageStatus";
 
 interface Props {
   message: ChatMessageNode;
+  /** 连续组共享身份时，状态可来自仍在活动的成员。 */
+  statusMessage?: ChatMessageNode;
   /** 是否隐藏头像 (用于气泡模式的外置头像场景) */
   hideAvatar?: boolean;
   /** 截图模式: 隐藏性能指标 / 时间戳 / token 统计等运行时信息 */
@@ -64,7 +66,7 @@ const { getModelIcon, getIconPath, getDisplayIconPath } = useModelMetadata();
 const { settings } = useChatSettings();
 
 const messageStatusPresentation = computed(() =>
-  getMessageStatusPresentation(props.message)
+  getMessageStatusPresentation(props.statusMessage ?? props.message)
 );
 
 const messageStatusIcon = computed(() => {
@@ -444,57 +446,6 @@ const formatLatency = (ms: number) => {
         </div>
       </div>
 
-      <!-- 性能指标 -->
-      <div
-        v-if="
-          message.status === 'complete' &&
-          message.metadata?.tokensPerSecond &&
-          (props.screenshotMode ||
-            settings.uiPreferences.showPerformanceMetrics)
-        "
-        class="performance-stats"
-      >
-        <el-tooltip content="生成速度" placement="top">
-          <span class="stat-item"
-            >{{ message.metadata.tokensPerSecond }} t/s</span
-          >
-        </el-tooltip>
-        <el-tooltip
-          v-if="
-            message.metadata.requestStartTime !== undefined &&
-            message.metadata.firstTokenTime !== undefined
-          "
-          content="首字延迟 (TTFT)"
-          placement="top"
-        >
-          <span class="stat-item">
-            {{
-              formatLatency(
-                message.metadata.firstTokenTime -
-                  message.metadata.requestStartTime
-              )
-            }}
-          </span>
-        </el-tooltip>
-        <el-tooltip
-          v-if="
-            message.metadata.requestStartTime && message.metadata.requestEndTime
-          "
-          content="总耗时"
-          placement="top"
-        >
-          <span class="stat-item">
-            {{
-              (
-                (message.metadata.requestEndTime -
-                  message.metadata.requestStartTime) /
-                1000
-              ).toFixed(1)
-            }}s
-          </span>
-        </el-tooltip>
-      </div>
-
       <span
         v-if="
           (props.screenshotMode || settings.uiPreferences.showTimestamp) &&
@@ -618,7 +569,6 @@ const formatLatency = (ms: number) => {
   margin-left: auto;
 }
 
-.performance-stats,
 .tool-status-tag {
   display: flex;
   align-items: center;
@@ -716,16 +666,6 @@ const formatLatency = (ms: number) => {
 
 .status-item.duration {
   opacity: 0.8;
-}
-
-.stat-item {
-  white-space: nowrap;
-}
-
-.stat-item:not(:last-child)::after {
-  content: "|";
-  margin-left: 6px;
-  opacity: 0.3;
 }
 
 .message-time {

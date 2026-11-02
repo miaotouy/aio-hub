@@ -169,6 +169,72 @@ describe("OpenAI Adapter - Video", () => {
     expect(result.videos?.[0]?.url).toBe("https://example.com/ark-video.mp4");
   });
 
+  it("reports poll progress through onMediaProgress", async () => {
+    const profile: LlmProfile = {
+      id: "ark",
+      name: "Ark",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      apiKeys: ["ark-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+    };
+    const onMediaProgress = vi.fn();
+    const options: MediaGenerationOptions & { pollIntervalMs: number } = {
+      profileId: "ark",
+      modelId: "doubao-seedance-1-5-pro-251215",
+      prompt: "a drone flies through a canyon",
+      durationSeconds: 5,
+      pollIntervalMs: 0,
+      onMediaProgress,
+    };
+
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "task-7", status: "queued" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "task-7",
+          status: "running",
+          progress: 40,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "task-7",
+          status: "succeeded",
+          content: { video_url: "https://example.com/ark-video.mp4" },
+        }),
+      });
+
+    const result = await callOpenAiVideoApi(profile, options);
+
+    expect(onMediaProgress).toHaveBeenCalledTimes(3);
+    expect(onMediaProgress).toHaveBeenNthCalledWith(1, {
+      status: "generating",
+      progress: undefined,
+      statusText: "任务已排队，等待上游处理...",
+      providerTaskId: "task-7",
+    });
+    expect(onMediaProgress).toHaveBeenNthCalledWith(2, {
+      status: "generating",
+      progress: 40,
+      statusText: "上游生成中...",
+      providerTaskId: "task-7",
+    });
+    expect(onMediaProgress).toHaveBeenNthCalledWith(3, {
+      status: "finishing",
+      progress: 100,
+      statusText: "生成完成，正在获取结果...",
+      providerTaskId: "task-7",
+    });
+    expect(result.videos?.[0]?.url).toBe("https://example.com/ark-video.mp4");
+  });
+
   it("does not fall back to OpenAI content download for Ark tasks without URLs", async () => {
     const profile: LlmProfile = {
       id: "ark",
@@ -287,9 +353,106 @@ describe("OpenAI Adapter - Video", () => {
     const [, createOptions] = (fetchWithTimeout as any).mock.calls[0];
     const createBody = JSON.parse(createOptions.body);
 
-    expect(createBody.extra_body).toEqual({
-      image: ["data:image/png;base64,cmVm"],
-    });
+    expect(createBody.mode).toBe("reference");
+    expect(createBody.images).toEqual(["data:image/png;base64,cmVm"]);
+    expect(createBody.extra_body).toBeUndefined();
     expect(result.videos?.[0]?.url).toBe("https://example.com/agnes-video.mp4");
+  });
+
+  it("omits gateway-only fields (duration/ratio/prompt_optimizer) for Agnes requests", async () => {
+    const profile: LlmProfile = {
+      id: "agnes",
+      name: "Agnes",
+      baseUrl: "https://api.agnes-ai.com/v1",
+      apiKeys: ["agnes-key"],
+      type: "openai",
+      enabled: true,
+      models: [],
+    };
+    const options: MediaGenerationOptions & { pollIntervalMs: number } = {
+      profileId: "agnes",
+      modelId: "agnes-video-2.5-flash",
+      prompt: "a timelapse of a blooming flower",
+      aspectRatio: "16:9",
+      durationSeconds: 5,
+      pollIntervalMs: 0,
+    };
+
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "task-3", status: "processing" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "task-3",
+          status: "completed",
+          content: { video_url: "https://example.com/agnes-video.mp4" },
+        }),
+      });
+
+    const result = await callOpenAiVideoApi(profile, options);
+
+    const [, createOptions] = (fetchWithTimeout as any).mock.calls[0];
+    const createBody = JSON.parse(createOptions.body);
+
+    expect(createBody.duration).toBeUndefined();
+    expect(createBody.ratio).toBeUndefined();
+    expect(createBody.prompt_optimizer).toBeUndefined();
+    expect(createBody.seconds).toBe("5");
+    expect(result.videos?.[0]?.url).toBe("https://example.com/agnes-video.mp4");
+  });
+
+  it("keeps OpenRouter Seedance on the video router and returns unsigned results", async () => {
+    const profile: LlmProfile = {
+      id: "or",
+      name: "OpenRouter",
+      type: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKeys: ["test-key"],
+      enabled: true,
+      models: [],
+    };
+    (fetchWithTimeout as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "or-job",
+          status: "pending",
+          polling_url: "/api/v1/videos/or-job",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "or-job",
+          status: "completed",
+          unsigned_urls: ["https://cdn.example.com/video.mp4"],
+        }),
+      });
+    const result = await callOpenAiVideoApi(profile, {
+      profileId: "or",
+      modelId: "bytedance/seedance-2.0",
+      prompt: "waves",
+      durationSeconds: 5,
+      aspectRatio: "16:9",
+      resolution: "720p",
+      pollIntervalMs: 0,
+    } as MediaGenerationOptions);
+    const [url, options] = (fetchWithTimeout as any).mock.calls[0];
+    expect(url).toBe("https://openrouter.ai/api/v1/videos");
+    expect(JSON.parse(options.body)).toEqual({
+      model: "bytedance/seedance-2.0",
+      prompt: "waves",
+      duration: 5,
+      aspect_ratio: "16:9",
+      resolution: "720p",
+    });
+    expect(result.videos?.[0]).toMatchObject({
+      id: "or-job",
+      url: "https://cdn.example.com/video.mp4",
+      status: "completed",
+    });
   });
 });

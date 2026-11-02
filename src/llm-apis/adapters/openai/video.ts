@@ -4,11 +4,14 @@
 import {
   executeAsyncMediaTask,
   openAiVideoTaskAdapter,
+  openRouterVideoTaskAdapter,
+  isOpenRouterProfile,
   type AsyncMediaRequest,
   type JsonValue,
   type ProviderProfile,
 } from "@aiohub/llm-core";
 import type { LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
+import { toMediaProgressUpdate } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { toCoreMediaInput } from "./image";
@@ -29,8 +32,18 @@ export async function callOpenAiVideoApi(
     inputs,
     parameters: {
       apiStyle,
-      size: options.size ?? "1280x720",
-      durationSeconds: options.durationSeconds ?? 8,
+      ...definedJson({
+        size:
+          apiStyle === "openrouter"
+            ? options.size
+            : (options.size ?? "1280x720"),
+      }),
+      ...definedJson({
+        durationSeconds:
+          apiStyle === "openrouter"
+            ? options.durationSeconds
+            : (options.durationSeconds ?? 8),
+      }),
       ...definedJson({
         aspectRatio: options.aspectRatio,
         resolution: options.resolution,
@@ -39,7 +52,7 @@ export async function callOpenAiVideoApi(
         watermark: options.watermark,
         cameraFixed: options.cameraFixed,
       }),
-      providerParameters: buildProviderParameters(profile, options),
+      providerParameters: buildProviderParameters(profile, options, apiStyle),
     },
   };
   const endpoints: Record<string, string> = {};
@@ -50,22 +63,33 @@ export async function callOpenAiVideoApi(
   if (profile.customEndpoints?.videoStatus) {
     endpoints.videoStatus = profile.customEndpoints.videoStatus;
   }
+  if (profile.customEndpoints?.videoContent) {
+    endpoints.videoContent = profile.customEndpoints.videoContent;
+  }
   const providerProfile: ProviderProfile = {
     provider: profile.type,
-    baseUrl: profile.baseUrl || "https://api.openai.com/v1",
+    baseUrl:
+      profile.baseUrl ||
+      (isOpenRouterProfile(profile)
+        ? "https://openrouter.ai/api/v1"
+        : "https://api.openai.com/v1"),
     apiKey: profile.apiKeys?.[0],
     headers: buildOpenAiHeaders(profile, options.requestId),
     endpoints,
   };
   const extended = options as unknown as Record<string, unknown>;
   const task = await executeAsyncMediaTask({
-    adapter: openAiVideoTaskAdapter,
+    adapter:
+      apiStyle === "openrouter"
+        ? openRouterVideoTaskAdapter
+        : openAiVideoTaskAdapter,
     profile: providerProfile,
     request,
     transport: desktopLlmTransport,
     transportOptions: {
       requestId: options.requestId ?? `video-${Date.now()}`,
       signal: options.signal,
+      observer: options.transportObserver,
       timeoutMs: options.timeout,
       network: {
         strategy: options.forceProxy ? "proxy" : options.networkStrategy,
@@ -77,6 +101,9 @@ export async function callOpenAiVideoApi(
       typeof extended.pollIntervalMs === "number"
         ? Math.max(0, extended.pollIntervalMs)
         : 5_000,
+    onProgress: options.onMediaProgress
+      ? (task) => options.onMediaProgress?.(toMediaProgressUpdate(task))
+      : undefined,
   });
   if (apiStyle === "ark" && !task.assets?.length) {
     throw new Error(
@@ -109,8 +136,14 @@ export async function callOpenAiVideoApi(
 
 function buildProviderParameters(
   profile: LlmProfile,
-  options: MediaGenerationOptions
+  options: MediaGenerationOptions,
+  apiStyle: "openai" | "ark" | "agnes" | "openrouter"
 ): Record<string, JsonValue> {
+  // Agnes 采用严格白名单校验，llm-core 已按官方文档构造请求体，
+  // 任何多余字段（含 negative_prompt、providerParameters 展开）都会返回 400。
+  if (apiStyle === "agnes") {
+    return {};
+  }
   const values: Record<string, unknown> = {
     ...(options.params ?? {}),
     ...(options.extraBody ?? {}),
@@ -128,7 +161,12 @@ function buildProviderParameters(
     quality: options.quality,
     style: options.style,
   };
-  if (!(profile.baseUrl || "").includes("api.openai.com")) {
+  // Ark 用 prompt 内嵌 flag（--duration/--ratio），
+  // 这组 snake_case 注入字段只适用于其他第三方 OpenAI 兼容网关。
+  if (
+    apiStyle !== "ark" &&
+    !(profile.baseUrl || "").includes("api.openai.com")
+  ) {
     values.duration = options.durationSeconds ?? 8;
     values.ratio = options.aspectRatio;
     values.prompt_optimizer = options.promptEnhancement;
@@ -139,7 +177,8 @@ function buildProviderParameters(
 function detectVideoApiStyle(
   profile: LlmProfile,
   modelId: string
-): "openai" | "ark" | "agnes" {
+): "openai" | "ark" | "agnes" | "openrouter" {
+  if (isOpenRouterProfile(profile)) return "openrouter";
   const baseUrl = (profile.baseUrl || "").toLowerCase();
   const model = modelId.toLowerCase();
   if (

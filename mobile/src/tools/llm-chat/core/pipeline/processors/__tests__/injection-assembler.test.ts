@@ -498,3 +498,164 @@ describe("injectionAssembler", () => {
     }
   });
 });
+
+// Structured templates must be compiled before the empty-content filter.
+it("injects a structured host with original source index and only its current alternative", async () => {
+  const agent = createAgent();
+  agent.presetMessages![0].isEnabled = false;
+  const host = agent.presetMessages![2];
+  host.content = "";
+  host.presetComposition = {
+    version: 1,
+    separator: "",
+    parts: [
+      {
+        id: "prefix",
+        kind: "choice",
+        selectedOptionId: "prefix-version",
+        options: [{ id: "prefix-version", content: "common " }],
+      },
+      {
+        id: "choice",
+        kind: "choice",
+        selectedOptionId: "b",
+        options: [
+          { id: "a", content: "{{first}}" },
+          { id: "b", content: "{{second}}" },
+        ],
+      },
+    ],
+  };
+  const context = createContext(agent);
+  await injectionAssembler.execute(context);
+  expect(
+    context.messages.find((message) => message.sourceId === host.id)
+  ).toMatchObject({ content: "common {{second}}", sourceIndex: 2 });
+  expect(host.content).toBe("");
+  host.isEnabled = false;
+  const disabled = createContext(agent);
+  await injectionAssembler.execute(disabled);
+  expect(
+    disabled.messages.some((message) => message.sourceId === host.id)
+  ).toBe(false);
+});
+
+// Protects the message-local boundary: selection changes only the host body.
+it("combines independent selection dimensions without merging adjacent role messages", async () => {
+  const agent = createAgent();
+  const host = agent.presetMessages![0];
+  host.content = "";
+  host.presetComposition = {
+    version: 1,
+    separator: "|",
+    parts: [
+      {
+        id: "identity",
+        kind: "choice",
+        selectedOptionId: "a",
+        options: [{ id: "a", content: "identity" }],
+      },
+      {
+        id: "brief",
+        kind: "choice",
+        selectedOptionId: "brief-version",
+        options: [{ id: "brief-version", content: "brief" }],
+      },
+      {
+        id: "examples",
+        kind: "choice",
+        selectedOptionId: "examples-version",
+        options: [{ id: "examples-version", content: "examples" }],
+      },
+      {
+        id: "off",
+        enabled: false,
+        kind: "choice",
+        selectedOptionId: "off-version",
+        options: [{ id: "off-version", content: "unused" }],
+      },
+      {
+        id: "format",
+        kind: "choice",
+        selectedOptionId: "a",
+        options: [{ id: "a", content: "format" }],
+      },
+    ],
+  };
+  const original = JSON.stringify(agent.presetMessages);
+  const context = createContext(agent);
+  await injectionAssembler.execute(context);
+  expect(
+    context.messages.filter((item) => item.sourceId === host.id)
+  ).toHaveLength(1);
+  expect(
+    context.messages.find((item) => item.sourceId === host.id)
+  ).toMatchObject({
+    content: "identity|brief|examples|format",
+    sourceIndex: 0,
+  });
+  expect(
+    context.messages.find((item) => item.sourceId === "after")?.content
+  ).toBe("after");
+  expect(
+    context.messages.find((item) => item.sourceId === "history-user")?.content
+  ).toBe("history user");
+  expect(JSON.stringify(agent.presetMessages)).toBe(original);
+});
+
+it("places dynamic and depth injections against the same effective history and reports missing targets", async () => {
+  const agent = createAgent();
+  agent.presetMessages = [
+    {
+      ...agent.presetMessages![0],
+      id: "after-ai",
+      content: "after-ai",
+      injectionStrategy: {
+        type: "anchor",
+        anchorTarget: "last_assistant",
+        anchorPosition: "after",
+        order: 200,
+      },
+    },
+    {
+      ...agent.presetMessages![0],
+      id: "depth",
+      content: "depth",
+      injectionStrategy: { type: "depth", depth: 0, order: 10 },
+    },
+    {
+      ...agent.presetMessages![0],
+      id: "before-user",
+      content: "before-user",
+      injectionStrategy: {
+        type: "anchor",
+        anchorTarget: "last_user",
+        anchorPosition: "before",
+      },
+    },
+  ];
+  const context = createContext(agent);
+  await injectionAssembler.execute(context);
+  expect(context.messages.map((m) => m.sourceId)).toEqual([
+    "before-user",
+    "history-user",
+    "history-assistant",
+    "depth",
+    "after-ai",
+  ]);
+  const first = createContext(agent);
+  first.messages = [history[0]];
+  await injectionAssembler.execute(first);
+  expect(first.sharedData.get("historyInjectionDiagnostics")).toEqual([
+    {
+      sourceId: "after-ai",
+      target: "last_assistant",
+      reason: "target_missing",
+    },
+  ]);
+  expect(first.messages.map((m) => m.sourceId)).toEqual([
+    "before-user",
+    "history-user",
+    "depth",
+  ]);
+});

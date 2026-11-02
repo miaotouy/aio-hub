@@ -82,7 +82,7 @@
       </div>
 
       <div v-if="injectionMode === 'anchor'" class="injection-params">
-        <el-select v-model="anchorTarget" size="small" style="width: 120px">
+        <el-select v-model="anchorTarget" size="small" style="width: 180px">
           <el-option
             v-for="anchor in availableAnchors"
             :key="anchor.id"
@@ -94,6 +94,12 @@
           <el-radio-button value="before">之前</el-radio-button>
           <el-radio-button value="after">之后</el-radio-button>
         </el-radio-group>
+        <el-tooltip
+          content="按有效历史定位，包含待发送输入。目标缺失时跳过；工具调用区段采用完整边界。后续角色合并与渠道转换会调整最终位置，请结合上下文预览查看。"
+          placement="top"
+        >
+          <el-icon class="info-icon"><InfoFilled /></el-icon>
+        </el-tooltip>
       </div>
 
       <div v-if="injectionMode !== 'default'" class="order-input">

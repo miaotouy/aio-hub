@@ -40,8 +40,10 @@ import {
   type BackgroundTaskActivity,
   type BackgroundTaskLinkSnapshot,
   type BackgroundTaskState,
+  type BackgroundTaskResult,
   type MessageOrigin,
 } from "@/services/background-tasks";
+import { cancelBackgroundTask } from "../composables/useBackgroundTaskSync";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { toolRegistryManager } from "@/services/registry";
 import type SubAgentRegistry from "../sub-agent.registry";
@@ -98,6 +100,7 @@ interface DispatchDisplayTask {
   callerAgent: MessageOrigin;
   targetAgent: MessageOrigin;
   lastOperationSummary: string;
+  result?: BackgroundTaskResult;
   recentActivity: BackgroundTaskActivity[];
   /** 是否存在可用的 registry 实时快照；false 表示仅内嵌快照降级展示 */
   live: boolean;
@@ -185,6 +188,7 @@ function refresh(): void {
         callerAgent: live.callerAgent,
         targetAgent: live.targetAgent,
         lastOperationSummary: live.lastOperationSummary,
+        result: live.result,
         recentActivity: [...live.recentActivity],
         live: true,
       });
@@ -307,7 +311,7 @@ async function handleHalt(task: DispatchDisplayTask): Promise<void> {
     return;
   }
 
-  const cancelled = backgroundTaskRegistry.cancelTask(
+  const cancelled = await cancelBackgroundTask(
     task.taskId,
     "用户从派遣卡片取消"
   );
@@ -409,7 +413,9 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
               shape="circle"
               :radius="9"
             />
-            <span>{{ getOriginDisplayName(task.callerAgent) }}</span>
+            <span class="dispatch-caller">{{
+              getOriginDisplayName(task.callerAgent)
+            }}</span>
             <span class="dispatch-arrow">→</span>
             <strong>{{ getOriginDisplayName(task.targetAgent) }}</strong>
             <span
@@ -584,6 +590,7 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
 
 .dispatch-link {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px;
   flex: 1;
@@ -600,12 +607,13 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
 }
 
 .dispatch-info {
-  flex: 1;
+  flex: 1 1 180px;
   min-width: 0;
 }
 
 .dispatch-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
   min-width: 0;
@@ -614,7 +622,9 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
 }
 
 .dispatch-heading strong,
-.dispatch-heading > span:first-child {
+.dispatch-caller {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -675,6 +685,7 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
 
 .dispatch-open {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   align-self: flex-start;
   margin-top: 1px;
@@ -805,6 +816,7 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
 /* ---------- 卡片内控制 ---------- */
 .dispatch-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 6px;
@@ -812,6 +824,8 @@ async function sendWhisper(task: DispatchDisplayTask): Promise<void> {
 
 .dispatch-action {
   display: inline-flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 4px;
   padding: 3px 8px;

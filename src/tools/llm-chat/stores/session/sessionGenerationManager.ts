@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { deepEqual } from "@/utils/sync-helpers";
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 import type { Ref } from "vue";
-import { BranchNavigator } from "../../utils/BranchNavigator";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types/session";
 import type { ChatMessageNode } from "../../types/message";
 import type { ModelIdentifier } from "../../types/llm";
@@ -28,12 +29,15 @@ const logger = createModuleLogger("llm-chat/session-generation");
 
 export interface SendMessageOptions {
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
   temporaryModel?: ModelIdentifier | null;
   knowledgeReference?: KnowledgeReference | null;
   parentId?: string;
   disableMacroParsing?: boolean;
   agentId?: string;
   sessionId?: string;
+  /** 子智能体派发深度：sub-agent 派发子会话时传 parent depth + 1 */
+  delegationDepth?: number;
 }
 
 export interface GenerationOptions {
@@ -76,7 +80,7 @@ interface GenerationManagers {
     params: unknown,
     localFn: () => T | Promise<T>
   ) => Promise<T>;
-  createChatHandler?: () => {
+  createChatHandler: () => {
     sendMessage: (...args: any[]) => Promise<void>;
     continueGeneration: (...args: any[]) => Promise<void>;
     regenerateFromNode: (...args: any[]) => Promise<void>;
@@ -98,12 +102,8 @@ export function createSessionGenerationManager(
   const processingQueuedNodeIds = new Set<string>();
 
   async function getChatHandler() {
-    if (managers.createChatHandler) return managers.createChatHandler();
-    // Keep this deferred: useChatHandler imports useLlmChatStore, which constructs
-    // this manager. A static import would create an initialization cycle.
-    const { useChatHandler } =
-      await import("../../composables/chat/useChatHandler");
-    return useChatHandler();
+    // Defer handler construction until an operation runs, after Store initialization.
+    return managers.createChatHandler();
   }
 
   async function getSessionManager() {
@@ -304,27 +304,33 @@ export function createSessionGenerationManager(
           const handlerOptions = skipGeneration
             ? { ...options, skipGeneration: true }
             : options;
+          const { useChatInputManager } =
+            await import("../../composables/input/useChatInputManager");
+          const inputManager = useChatInputManager();
+          await inputManager.ready;
+          const submittedDraft = inputManager.getDraftSnapshot(sessionId);
+          const matchesInput =
+            submittedDraft.text.trim() === content.trim() &&
+            deepEqual(submittedDraft.attachments, options?.attachments ?? []) &&
+            deepEqual(
+              submittedDraft.virtualAttachments ?? [],
+              options?.virtualAttachments ?? []
+            );
           const sendPromise = chatHandler.sendMessage(
             detail,
             content,
             managers.access.getActivePath(sessionId),
             state.abortControllers.value,
             state.generatingNodes.value,
-            handlerOptions,
+            {
+              ...handlerOptions,
+              onUserMessageSaved: () => {
+                if (matchesInput)
+                  inputManager.clearSubmittedDraft(sessionId, submittedDraft);
+              },
+            },
             state.currentSessionId.value
           );
-
-          try {
-            const { useChatInputManager } =
-              await import("../../composables/input/useChatInputManager");
-            const inputManager = useChatInputManager();
-            inputManager.clear(sessionId);
-            logger.info("消息已进入发送流程，已清空目标会话输入框", {
-              sessionId,
-            });
-          } catch (error) {
-            logger.warn("反向驱动清空输入框失败", error);
-          }
 
           await sendPromise;
           if (!skipGeneration && !hasQueuedMessageNodes(detail)) {
@@ -453,22 +459,10 @@ export function createSessionGenerationManager(
 
   async function regenerateLastMessage(): Promise<void> {
     const { detail } = managers.access.resolveSessionContext();
-    const { useBranchManager } =
-      await import("../../composables/session/useBranchManager");
-    const branchManager = useBranchManager();
-    const result = branchManager.prepareRegenerateLastMessage(detail);
+    const nodeId = detail.activeLeafId;
+    if (!nodeId || detail.nodes?.[nodeId]?.role !== "assistant") return;
 
-    if (
-      !result.shouldRegenerate ||
-      !result.userContent ||
-      !result.newActiveLeafId
-    ) {
-      return;
-    }
-
-    detail.activeLeafId = result.newActiveLeafId;
-    BranchNavigator.updateSelectionMemory(detail, result.newActiveLeafId);
-    await sendMessage(result.userContent, { sessionId: detail.id });
+    await regenerateFromNode(nodeId, { sessionId: detail.id });
   }
 
   return {

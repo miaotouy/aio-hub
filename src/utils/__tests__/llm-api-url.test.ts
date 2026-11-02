@@ -38,3 +38,14 @@ describe("TypeSafe API URL preview", () => {
     expect(getLlmEndpointHint("typesafe")).toContain("/v1/systemone");
   });
 });
+
+describe("Decisions API URL preview", () => {
+  it("uses the alpha decisions route alongside the existing chat preview", () => {
+    expect(
+      buildLlmApiUrl("https://openrouter.ai/api/v1", "openrouter", "decisions")
+    ).toBe("https://openrouter.ai/api/alpha/decisions");
+    expect(buildLlmApiUrl("https://openrouter.ai/api/v1", "openrouter")).toBe(
+      "https://openrouter.ai/api/v1/chat/completions"
+    );
+  });
+});

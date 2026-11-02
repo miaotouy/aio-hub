@@ -21,6 +21,7 @@
  *  - 调用 wa_get_client_rect 获取客户区尺寸（用于百分比坐标自适应）。
  */
 
+import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
@@ -33,12 +34,18 @@ const errorHandler = createModuleErrorHandler(
 );
 
 export function useWindowBinding() {
+  const isSupported = getNativeDesktopCapabilities().windowAutomation;
   const windows = ref<WindowInfo[]>([]);
   const isLoading = ref(false);
   const lastError = ref<string | null>(null);
 
   /** 拉取可见窗口列表 */
   async function refresh(excludeSelf = true): Promise<WindowInfo[]> {
+    if (!isSupported) {
+      lastError.value = "窗口绑定需要 Windows";
+      windows.value = [];
+      return [];
+    }
     isLoading.value = true;
     lastError.value = null;
     const result = await errorHandler.wrapAsync(
@@ -57,7 +64,7 @@ export function useWindowBinding() {
 
   /** 检查窗口句柄是否仍有效 */
   async function isValid(hwnd: number): Promise<boolean> {
-    if (!hwnd) return false;
+    if (!isSupported || !hwnd) return false;
     return (
       (await errorHandler.wrapAsync(
         () => invoke<boolean>("wa_is_window_valid", { hwnd }),
@@ -68,7 +75,7 @@ export function useWindowBinding() {
 
   /** 获取客户区尺寸（像素） */
   async function getClientRect(hwnd: number): Promise<ClientRect | null> {
-    if (!hwnd) return null;
+    if (!isSupported || !hwnd) return null;
     return await errorHandler.wrapAsync(
       () => invoke<ClientRect>("wa_get_client_rect", { hwnd }),
       { userMessage: "获取窗口尺寸失败" }
@@ -93,6 +100,7 @@ export function useWindowBinding() {
   }
 
   return {
+    isSupported,
     windows,
     isLoading,
     lastError,

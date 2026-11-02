@@ -1,3 +1,9 @@
+import { usageReport, mergeTokenUsage } from "../usage";
+import {
+  usesOpenAiReasoning,
+  usesAnthropicThinking,
+  usesOpenAiCompletionTokens,
+} from "./sampling-compatibility";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -84,13 +90,18 @@ export function buildOpenAiCompatibleBody(
   const body: OpenAiCompatibleBody = {
     model: request.model,
     messages,
-    temperature: request.temperature ?? 0.5,
   };
+
+  assignDefined(body, "temperature", request.temperature);
 
   if (request.maxCompletionTokens !== undefined) {
     body.max_completion_tokens = request.maxCompletionTokens;
   } else if (request.maxTokens !== undefined) {
-    body.max_tokens = request.maxTokens;
+    body[
+      usesOpenAiCompletionTokens(request.model)
+        ? "max_completion_tokens"
+        : "max_tokens"
+    ] = request.maxTokens;
   }
 
   assignDefined(body, "top_p", request.topP);
@@ -133,6 +144,19 @@ export function buildOpenAiCompatibleBody(
   }
 
   Object.assign(body, request.extraBody, request.extensions);
+
+  if (usesOpenAiReasoning(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_logprobs;
+    delete body.logprobs;
+  }
+
+  if (usesAnthropicThinking(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_k;
+  }
   if (request.stream) body.stream = true;
   return body;
 }
@@ -212,9 +236,20 @@ export function parseOpenAiUsage(value: unknown): TokenUsage | undefined {
   const completionDetails = asObject(usage.completion_tokens_details);
 
   return {
+    ...usageReport(usage, "prompt_tokens", "completion_tokens", [
+      "total_tokens",
+      "prompt_tokens_details.cached_tokens",
+      "prompt_tokens_details.audio_tokens",
+      "completion_tokens_details.reasoning_tokens",
+      "completion_tokens_details.audio_tokens",
+      "completion_tokens_details.accepted_prediction_tokens",
+      "completion_tokens_details.rejected_prediction_tokens",
+    ]),
     promptTokens: readNumber(usage.prompt_tokens) ?? 0,
     completionTokens: readNumber(usage.completion_tokens) ?? 0,
-    totalTokens: readNumber(usage.total_tokens) ?? 0,
+    totalTokens:
+      (readNumber(usage.prompt_tokens) ?? 0) +
+      (readNumber(usage.completion_tokens) ?? 0),
     ...(promptDetails
       ? {
           promptTokensDetails: {
@@ -251,6 +286,8 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
   private usage: TokenUsage | undefined;
   private finishReason: string | null | undefined;
   private completed = false;
+
+  constructor(private readonly captureResponseChunks = false) {}
 
   push(chunk: Uint8Array): LlmStreamEvent[] {
     if (this.completed) return [];
@@ -296,6 +333,21 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
         "thought",
       ]);
 
+      const usage = parseOpenAiUsage(root?.usage);
+      const finishReason = readString(choice?.finish_reason);
+      if (this.captureResponseChunks) {
+        events.push({
+          type: "response-chunk",
+          chunk: {
+            responseId: readString(root?.id),
+            content: text,
+            reasoningContent: reasoning,
+            finishReason,
+            usage,
+          },
+        });
+      }
+
       if (text) {
         this.content += text;
         events.push({ type: "text-delta", delta: text });
@@ -309,10 +361,9 @@ export class OpenAiCompatibleStreamDecoder implements ProviderStreamDecoder {
       this.finishReason =
         readString(choice?.finish_reason) ?? this.finishReason;
 
-      const usage = parseOpenAiUsage(root?.usage);
       if (usage) {
-        this.usage = usage;
-        events.push({ type: "usage", usage });
+        this.usage = mergeTokenUsage(this.usage, usage);
+        events.push({ type: "usage", usage: this.usage! });
       }
     }
 
@@ -377,8 +428,10 @@ export const openAiCompatibleAdapter: ProviderAdapter = {
   id: "openai-compatible",
   buildRequest: buildOpenAiCompatibleRequest,
   parseResponse: parseOpenAiCompatibleResponse,
-  createStreamDecoder(_context: StreamDecoderContext): ProviderStreamDecoder {
-    return new OpenAiCompatibleStreamDecoder();
+  createStreamDecoder(context: StreamDecoderContext): ProviderStreamDecoder {
+    return new OpenAiCompatibleStreamDecoder(
+      context.request.captureResponseChunks
+    );
   },
 };
 

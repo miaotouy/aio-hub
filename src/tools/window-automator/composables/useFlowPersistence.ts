@@ -152,6 +152,13 @@ export function normalizeActionFlow(value: unknown): ActionFlow | null {
               : "",
         }
       : null,
+    // 中心坐标系原点：非法数据一律退化为未标定（几何中心）
+    coordinateOrigin: isRecord(value.coordinateOrigin)
+      ? {
+          xPercent: Number(value.coordinateOrigin.xPercent) || 0,
+          yPercent: Number(value.coordinateOrigin.yPercent) || 0,
+        }
+      : null,
     subFlows,
     createdAt:
       typeof value.createdAt === "string"

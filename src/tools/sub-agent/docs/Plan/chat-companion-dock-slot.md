@@ -1,6 +1,6 @@
 # Chat 工作区伴生分栏槽位（Companion Dock Slot）方案
 
-> 状态：Implemented（2026-09-25；界面走查待执行）
+> 状态：Implemented（2026-09-25）；2026-10-19 已完成界面修复、真实窗口复查与 120 轮工具交互复跑，详见[走查记录](./subagent-ui-review-2026-10-19.md)。
 > 归属模块：`src/tools/llm-chat`（提供槽位） ⟷ `src/tools/sub-agent`（使用槽位）  
 > 关联主方案：[`background-agent-observability-and-intervention.md`](./background-agent-observability-and-intervention.md) §6.2.2、§12.7  
 > 核心目标：在 Chat 主工作区提供低耦合的平台级伴生视窗挂载槽位，彻底消除小弟施工时对跨模块反向依赖的顾忌，实现 100% 结构性 Flex 让位。
@@ -235,7 +235,7 @@ export function useChatCompanionDock() {
 - [x] **A1**: 创建 [`src/tools/llm-chat/composables/ui/useChatCompanionDock.ts`](src/tools/llm-chat/composables/ui/useChatCompanionDock.ts:1)，定义状态机（打开、关闭、调宽、当前占用源标识）；
 - [x] **A2**: 在 [`ChatArea.vue`](src/tools/llm-chat/components/ChatArea.vue:520) 的 `.main-content` 下加入 `.chat-companion-dock` 与 `#chat-companion-dock-slot` 靶点；
 - [x] **A3**: 接入拖拽调宽逻辑（基于 `useResizable`，范围 360px ~ 720px，带持久化）；
-- [ ] **A4**: 验证 `.chat-content`（消息列表、输入框）在分栏展开时的自适应 Flex 收缩表现。
+- [x] **A4**: 按宿主实际剩余宽度保护主聊天列。2026-10-19 复查：1280 × 768 且左右面板展开时回退画中画，编辑区域 326px；可停靠时主列至少保留约 480px，调宽偏好在空间恢复后继续使用。
 
 ### Phase B: 客户端侧栏改造 (`sub-agent`)
 
@@ -247,11 +247,11 @@ export function useChatCompanionDock() {
 ### Phase C: 验证与交付
 
 - [x] **C1**: 运行 `bun run check:frontend` 与 `bun run build:vite` 确保类型与构建 0 错误；
-- [ ] **C2**: 界面走查：
-  - 点击派遣卡片的「侧栏透视」，主聊天区平滑向左让位，无内容遮挡；
-  - 拖拽调宽手柄，左右两栏弹性伸缩流畅无抖动；
-  - 切换为「悬浮透视」，侧栏平滑收起至 0 宽，桌面浮出画中画面板；
-  - 在分离窗口中打开 ChatArea，验证槽位依然能够正确命中；
+- [x] **C2**: 界面走查已于 2026-10-19 执行，逐项结果与截图见[走查记录](./subagent-ui-review-2026-10-19.md)；已完成修复与复查：
+  - [x] 点击派遣卡片的「侧栏透视」，空间充足时并列阅读，空间不足时回退画中画；主区宽度保护和伴生标题操作通过。
+  - [x] 拖拽调宽手柄：主窗口与分离窗口均实际拖动，420 → 540 → 460 → 360 → 420px，未见突跳。
+  - [x] 通过派遣卡片切换「悬浮透视」，侧栏收起至 0 宽，画中画可拖动、关闭与重新停靠；伴生标题内的切换和关闭按钮均可点击。
+  - [x] 在分离窗口中打开 ChatArea，槽位命中且子会话正常加载；真实运行任务保持权威状态同步，分离窗口叫停由执行方处理。
 - [x] **C3**: 回写实施结果至主方案 [`background-agent-observability-and-intervention.md`](./background-agent-observability-and-intervention.md)。
 
 ---
@@ -271,4 +271,12 @@ export function useChatCompanionDock() {
 - `ChatArea` 的 `.main-content` 现以同级 Flex 分栏容纳主聊天区与伴生槽位，展开和收起由宿主宽度动画完成。
 - 伴生视图改为在槽位存在时定向 Teleport；没有匹配槽位时自动使用 PiP，避免 Teleport 目标缺失警告。
 - 主窗口与分离的 ChatArea 窗口分别挂载伴生消费方，关闭、切换 PiP 或卸载时会收起已占用的分栏。
-- `bun run check:frontend` 与 `bun run build:vite` 已于 2026-09-25 通过；界面走查保留在 Phase C2。
+- `bun run check:frontend` 与 `bun run build:vite` 已于 2026-09-25 通过；后续界面走查结果见第 7 节。
+
+## 7. 界面走查与修复（2026-10-19）
+
+隔离 Dev Control 实例完成主窗口、分离 ChatArea、画中画、调宽、窄屏 / 无槽位回退和完整会话跳转走查。首轮发现的主消息列挤压与伴生标题遮挡已修复，按实际工作区空间决定停靠，并保留主列至少约 480px；空间不足自动使用画中画。窄列派遣按钮按完整按钮换行。
+
+同日复跑单个后台子会话 120 轮连续 JSON 格式化工具交互：伴生消息随执行持续更新，历史阅读位置与主会话选中态保持；只读画中画可展开长结果。分离窗口消费执行方任务快照，真实运行中保持 running，叫停转交执行方后两端均为 cancelled。完成后及前端重载后审计均为 120 次成功、顺序连续、243 个完整节点。
+
+定向 38 项测试、类型检查与 Vite 构建通过；复查场景、截图与开发态性能观察边界见[界面走查记录](./subagent-ui-review-2026-10-19.md)。

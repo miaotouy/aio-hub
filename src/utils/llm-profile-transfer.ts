@@ -3,12 +3,18 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
+import {
+  isAggregateChannelType,
+  PROVIDER_EXECUTION_DEFAULTS,
+} from "@aiohub/llm-core";
+import { migrateAggregateProfile } from "./llm-aggregate-profile";
 import type { LlmProfile, ProviderType } from "@/types/llm-profiles";
 
 export const LLM_PROFILE_BUNDLE_FORMAT = "aiohub.llm-profiles" as const;
 export const LLM_PROFILE_BUNDLE_VERSION = 1 as const;
 
 const SUPPORTED_PROVIDER_TYPES = new Set<ProviderType>([
+  "virtual",
   "openai",
   "openai-compatible",
   "azure",
@@ -29,6 +35,9 @@ const SUPPORTED_PROVIDER_TYPES = new Set<ProviderType>([
   "sub2api",
   "aggregate-compatible",
   "opencode-go",
+  ...(Object.keys(PROVIDER_EXECUTION_DEFAULTS).filter((type) =>
+    isAggregateChannelType(type)
+  ) as ProviderType[]),
 ]);
 
 export interface LlmProfileBundle {
@@ -279,7 +288,10 @@ function validateProfile(value: unknown, index: number): string | null {
   ) {
     return `渠道 ${value.id} 使用了不支持的 API 格式`;
   }
-  if (typeof value.baseUrl !== "string" || !isHttpUrl(value.baseUrl)) {
+  if (
+    typeof value.baseUrl !== "string" ||
+    (value.type !== "virtual" && !isHttpUrl(value.baseUrl))
+  ) {
     return `渠道 ${value.id} 的 API 地址不是有效的 HTTP(S) URL`;
   }
   if (
@@ -293,6 +305,42 @@ function validateProfile(value: unknown, index: number): string | null {
   }
   if (!Array.isArray(value.models)) {
     return `渠道 ${value.id} 的模型列表格式无效`;
+  }
+  if (value.type === "virtual") {
+    const config = value.virtualChannel;
+    if (
+      !isRecord(config) ||
+      config.mode !== "failover" ||
+      !Array.isArray(config.members) ||
+      !config.members.every((id) => typeof id === "string" && id.length > 0) ||
+      !Number.isInteger(config.maxAttempts) ||
+      Number(config.maxAttempts) < 1 ||
+      !Number.isFinite(config.totalTimeoutMs) ||
+      Number(config.totalTimeoutMs) <= 0 ||
+      (config.attemptTimeoutMs !== undefined &&
+        (!Number.isFinite(config.attemptTimeoutMs) ||
+          Number(config.attemptTimeoutMs) <= 0))
+    )
+      return `渠道 ${value.id} 的组合成员或请求预算格式无效`;
+    for (const model of value.models) {
+      if (
+        !isRecord(model) ||
+        !isRecord(model.virtualBindings) ||
+        Object.values(model.virtualBindings).some(
+          (targets) =>
+            !Array.isArray(targets) ||
+            targets.some(
+              (target) =>
+                !isRecord(target) ||
+                typeof target.profileId !== "string" ||
+                !target.profileId ||
+                typeof target.modelId !== "string" ||
+                !target.modelId
+            )
+        )
+      )
+        return `渠道 ${value.id} 的逻辑模型映射格式无效`;
+    }
   }
   const toolHandlingError = validateToolHandling(value.toolHandling, value.id);
   if (toolHandlingError) return toolHandlingError;
@@ -377,7 +425,9 @@ export function parseLlmProfileBundle(
       exportedAt: typeof value.exportedAt === "string" ? value.exportedAt : "",
       containsSecrets: value.containsSecrets === true,
       redactedPaths,
-      profiles: cloneJson(value.profiles) as LlmProfile[],
+      profiles: (cloneJson(value.profiles) as LlmProfile[]).map(
+        migrateAggregateProfile
+      ),
     },
   };
 }

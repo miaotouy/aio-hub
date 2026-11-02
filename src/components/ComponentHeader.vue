@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { invoke } from "@tauri-apps/api/core";
+import { closeDetachedWindow } from "@/platform";
 import { platform } from "@tauri-apps/plugin-os";
 import { getDetachableComponentConfig } from "@/config/detachable-components";
 import type { DetachableConfig } from "@/composables/useDetachable";
@@ -127,7 +127,7 @@ const handleReattach = async () => {
     logger.info("请求重新附着到主窗口");
     const currentWindow = getCurrentWebviewWindow();
     // 使用统一的关闭命令，它会自动处理重新附着事件
-    await invoke("close_detached_window", { label: currentWindow.label });
+    await closeDetachedWindow(currentWindow.label);
     emit("reattach");
   } catch (error) {
     errorHandler.error(error, "重新附着失败");

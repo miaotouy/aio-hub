@@ -39,12 +39,16 @@ import { useNodeManager } from "../session/useNodeManager";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import type { ContextPreviewData } from "../../types/context";
 import { buildPreviewDataFromContext } from "../../core/context-utils/preview-builder";
+import { getContextTokenCalculator } from "../../core/context-utils/token-calculator";
 import { resolveAttachmentsBatch } from "../../core/context-utils/attachment-resolver";
+import { formatVirtualAttachments } from "../../utils/virtualAttachments";
+import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
-import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";
 import { resolveChannelToolHandling } from "@/tools/llm-chat/core/tool-calling/channel-tool-handling";
 import { useToolCallOrchestrator } from "./useToolCallOrchestrator";
+
+import { calculateTokensWithImageSlicing } from "../../core/context-utils/image-slicing";
 
 const logger = createModuleLogger("llm-chat/executor");
 const errorHandler = createModuleErrorHandler("llm-chat/executor");
@@ -55,11 +59,11 @@ const errorHandler = createModuleErrorHandler("llm-chat/executor");
 interface ExecuteRequestParams {
   /** 会话对象 */
   session: ChatSessionDetail;
-  /** 用户消息节点 */
+  /** 请求上下文的末节点，可为任意消息角色 */
   userNode: ChatMessageNode;
   /** 助手响应节点 */
   assistantNode: ChatMessageNode;
-  /** 到用户消息的完整路径（包含用户消息） */
+  /** 到请求上下文末节点的完整路径（包含末节点） */
   pathToUserNode: ChatMessageNode[];
   /** 是否为续写模式 */
   isContinuation?: boolean;
@@ -75,6 +79,8 @@ interface ExecuteRequestParams {
   };
   /** 执行所使用的 Agent ID（可选，默认回退当前 UI Agent） */
   agentId?: string;
+  /** 子智能体派发深度（透传至工具调用链 ToolContext.delegationDepth） */
+  delegationDepth?: number;
 }
 
 export function useChatExecutor() {
@@ -93,6 +99,7 @@ export function useChatExecutor() {
     generatingNodes,
     agentConfig: providedAgentConfig,
     agentId,
+    delegationDepth,
   }: ExecuteRequestParams): Promise<void> => {
     const agentStore = useAgentStore();
     const effectiveAgentId = agentId || currentAgentId.value;
@@ -166,6 +173,8 @@ export function useChatExecutor() {
       abortControllers,
       generatingNodes,
       consumeTextCallsLocally,
+      splitVcpResponses: channelToolHandling.isVcpTextChannel,
+      delegationDepth,
     });
   };
 
@@ -218,6 +227,7 @@ export function useChatExecutor() {
     content: string,
     modelId: string,
     attachments?: Asset[],
+    imageCompression?: LlmParameters["imageCompression"],
     isContinuation: boolean = false
   ): Promise<void> => {
     try {
@@ -244,10 +254,21 @@ export function useChatExecutor() {
         }
       }
 
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+      combinedText += formatVirtualAttachments(userNode.virtualAttachments);
+
+      // 对齐发送管线的图片缩放（模型安全约束 + 用户压缩），避免图片 Token 高估
+      const maxImageDimension = resolveEffectiveImageMaxDimension(
+        profile?.models.find((m) => m.id === modelId)?.capabilities,
+        imageCompression
+      );
+
+      const tokenResult = await calculateTokensWithImageSlicing(
+        tokenCalculatorService,
         combinedText,
         modelId,
-        mediaAttachments
+        mediaAttachments,
+        useChatSettings().settings.value.requestSettings.longImageSlicing,
+        maxImageDimension !== undefined ? { maxImageDimension } : undefined
       );
       const node = session.nodes ? session.nodes[userNode.id] : undefined;
       if (node) {
@@ -287,7 +308,7 @@ export function useChatExecutor() {
     targetNodeId: string,
     agentId?: string,
     parameterOverrides?: LlmParameters,
-    options?: { pendingInput?: any }
+    options?: { pendingInput?: any; purpose?: "statistics" }
   ): Promise<ContextPreviewData | null> => {
     const agentStore = useAgentStore();
     const nodeManager = useNodeManager();
@@ -351,6 +372,7 @@ export function useChatExecutor() {
     if (!sessionIndex) return null;
 
     const pipelineContext: PipelineContext = {
+      previewPurpose: options?.purpose,
       messages: [],
       index: sessionIndex,
       detail: session,
@@ -410,59 +432,20 @@ export function useChatExecutor() {
     );
     pipelineContext.sharedData.set("isPreviewMode", true);
 
-    const transcriptionManager = useTranscriptionManager();
-    const allAttachments = pathToUserNode.flatMap(
-      (node) => node.attachments || []
-    );
-
-    if (allAttachments.length > 0) {
-      try {
-        const forceAssetIds = new Set<string>();
-        const config = settings.value.transcription;
-        if (
-          config.enabled &&
-          config.strategy === "smart" &&
-          config.forceTranscriptionAfter > 0
-        ) {
-          for (let i = 0; i < pathToUserNode.length; i++) {
-            const node = pathToUserNode[i];
-            const nodeDepth = pathToUserNode.length - 1 - i;
-            if (
-              nodeDepth >= config.forceTranscriptionAfter &&
-              node.attachments
-            ) {
-              for (const asset of node.attachments) {
-                if (
-                  asset.type === "image" ||
-                  asset.type === "audio" ||
-                  asset.type === "video"
-                ) {
-                  forceAssetIds.add(asset.id);
-                }
-              }
-            }
-          }
-        }
-        const updatedAssetsMap =
-          await transcriptionManager.ensureTranscriptions(
-            allAttachments,
-            effectiveModelId,
-            effectiveProfileId,
-            forceAssetIds.size > 0 ? forceAssetIds : undefined
-          );
-        pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
-      } catch (error) {
-        const fallbackMap = new Map<string, Asset>();
-        for (const asset of allAttachments) fallbackMap.set(asset.id, asset);
-        pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
-      }
-    }
+    // 预览沿用管线读取已有转写；任务创建和等待留给发送及显式转写操作。
 
     const contextPipelineStore = useContextPipelineStore();
     await contextPipelineStore.executePipeline(pipelineContext);
 
     const basePreviewData = await buildPreviewDataFromContext(pipelineContext);
 
+    // 与 asset-resolver 保持一致：图片按缩放后（模型安全约束 + 用户压缩）的尺寸估算
+    const previewMaxImageDimension = resolveEffectiveImageMaxDimension(
+      pipelineContext.capabilities,
+      pipelineContext.agentConfig?.parameters?.imageCompression
+    );
+
+    const contextTokenCalculator = getContextTokenCalculator(pipelineContext);
     const finalTokenPromises = pipelineContext.messages.map(async (msg) => {
       let contentText = "";
       if (typeof msg.content === "string") {
@@ -473,10 +456,13 @@ export function useChatExecutor() {
           .filter(Boolean)
           .join("\n");
       }
-      const tokenResult = await tokenCalculatorService.calculateMessageTokens(
+      const tokenResult = await contextTokenCalculator.calculateMessageTokens(
         contentText,
         effectiveModelId,
-        msg._attachments || []
+        msg._attachments || [],
+        previewMaxImageDimension !== undefined
+          ? { maxImageDimension: previewMaxImageDimension }
+          : undefined
       );
       return tokenResult.count;
     });
@@ -497,6 +483,9 @@ export function useChatExecutor() {
       ),
       statistics: {
         ...basePreviewData.statistics,
+        isEstimated:
+          basePreviewData.statistics.isEstimated ||
+          pipelineContext.sharedData.get("hasDeferredMedia") === true,
         totalTokenCount: finalTotalTokenCount,
         postProcessingTokenCount: postProcessingTokenDelta,
         postProcessingCharCount: postProcessingCharDelta,

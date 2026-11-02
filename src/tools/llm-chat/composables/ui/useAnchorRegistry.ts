@@ -19,6 +19,7 @@
  * 锚点用于标记上下文流中可注入的位置，如 'chat_history'、'user_profile' 等。
  */
 
+import { DYNAMIC_MESSAGE_ANCHORS } from "@aiohub/agent-preset-core";
 import { markRaw, ref } from "vue";
 import { User, ChatDotRound } from "@element-plus/icons-vue";
 
@@ -34,6 +35,8 @@ export interface AnchorDefinition {
   description: string;
   /** 是否为系统内置锚点 */
   isSystem: boolean;
+  /** 缺省为预设占位卡；动态目标仅用于历史定位。 */
+  kind?: "placeholder" | "dynamic_message";
 
   /**
    * 是否为模板锚点
@@ -62,6 +65,7 @@ export interface AnchorDefinition {
  */
 export const SYSTEM_ANCHORS: AnchorDefinition[] = [
   {
+    kind: "placeholder",
     id: "user_profile",
     name: "用户档案",
     description: "用户档案内容的插入位置，支持模板编辑",
@@ -75,6 +79,7 @@ export const SYSTEM_ANCHORS: AnchorDefinition[] = [
     tagType: "primary",
   },
   {
+    kind: "placeholder",
     id: "chat_history",
     name: "会话历史",
     description: "会话消息的插入位置",
@@ -84,6 +89,15 @@ export const SYSTEM_ANCHORS: AnchorDefinition[] = [
     color: "var(--el-color-warning)",
     tagType: "warning",
   },
+  ...DYNAMIC_MESSAGE_ANCHORS.map((anchor): AnchorDefinition => ({
+    id: anchor.id,
+    name: anchor.name,
+    description:
+      "在有效会话历史中定位；目标缺失时跳过，工具区段按完整边界插入。",
+    kind: "dynamic_message",
+    isSystem: true,
+    icon: markRaw(ChatDotRound),
+  })),
 ];
 
 // 单例：注册的锚点列表

@@ -20,7 +20,7 @@ import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import type { ImageMetadataResult, WebUIInfo } from "./types";
 import { formatMetadataResult } from "./formatters";
 import { markRaw } from "vue";
-import { PictureFilled } from "@element-plus/icons-vue";
+import { MediaInfoReaderIcon } from "@aiohub/tool-icons";
 
 const logger = createModuleLogger("services/media-info-reader");
 const errorHandler = createModuleErrorHandler("services/media-info-reader");
@@ -151,7 +151,7 @@ export const toolConfig: ToolConfig = {
   name: "AI 信息解析",
   path: "/media-info-reader",
   runMode: "any",
-  icon: markRaw(PictureFilled),
+  icon: markRaw(MediaInfoReaderIcon),
   component: () => import("./MediaInfoReader.vue"),
   description:
     "深度解析 AI 图片元数据、SillyTavern 角色卡及 AioBundle (AIO 角色包) 信息",

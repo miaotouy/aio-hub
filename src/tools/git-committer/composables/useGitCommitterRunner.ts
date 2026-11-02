@@ -41,8 +41,14 @@ import {
   MAX_COMMIT_FILE_DIFF_CHARS,
   MAX_COMMIT_PROMPT_DIFF_CHARS,
   REPO_PROMPT_TAB_PATH,
+  REPO_OVERVIEW_TAB_PATH,
 } from "../utils";
 import { errorHandler } from "./useGitCommitterErrorHandler";
+import {
+  keepSessionTab,
+  openSessionTab,
+  type OpenTabOptions,
+} from "../utils/gitTabs";
 import {
   repositories,
   currentRepoPath,
@@ -315,30 +321,43 @@ export async function loadCommitFileDiff(
 }
 
 /** 打开或激活一个标签页（按唯一键去重） */
-function openTab(ref: DiffTabRef): void {
-  const session = currentSession.value;
-  const key = buildTabKey(ref);
-  const existing = session.openTabs.find((t) => buildTabKey(t) === key);
-  if (!existing) {
-    session.openTabs.push({ ...ref });
-  }
-  session.activeTabPath = key;
+function openTab(ref: DiffTabRef, options?: OpenTabOptions): void {
+  openSessionTab(currentSession.value, ref, options);
+}
+
+/** 将预览标签固定，供双击与右键菜单复用。 */
+export function keepDiffTab(ref: DiffTabRef): void {
+  keepSessionTab(currentSession.value, ref);
 }
 
 /** 打开或激活一个 Diff 标签页 */
 export async function openDiffTab(
   filePath: string,
-  isStaged: boolean
+  isStaged: boolean,
+  options?: OpenTabOptions
 ): Promise<void> {
-  openTab({ path: filePath, isStaged });
+  openTab({ path: filePath, isStaged }, options);
+}
+
+/**
+ * 打开或激活一个文件内容标签页（非 diff，直接查看文档现状）。
+ * 始终读取工作区当前内容；暂存来源仅用于标签分组展示。
+ */
+export function openFileTab(
+  filePath: string,
+  isStaged = false,
+  options?: OpenTabOptions
+): void {
+  openTab({ path: filePath, isStaged, viewMode: "file" }, options);
 }
 
 /** 打开或激活某次提交中单个文件的 Diff 标签页 */
 export function openCommitFileDiffTab(
   commitHash: string,
-  filePath: string
+  filePath: string,
+  options?: OpenTabOptions
 ): void {
-  openTab({ path: filePath, isStaged: false, commitHash });
+  openTab({ path: filePath, isStaged: false, commitHash }, options);
 }
 
 /** 打开或激活某次提交的多文件 Diff 总览标签页 */
@@ -351,6 +370,11 @@ export function openChangesTab(isStaged: boolean): void {
   openTab({ path: CHANGES_VIEW_TAB_PATH, isStaged });
 }
 
+/** 打开或激活仓库全景概览仪表盘标签页 */
+export function openRepoOverviewTab(): void {
+  openTab({ path: REPO_OVERVIEW_TAB_PATH, isStaged: false });
+}
+
 /** 关闭一个标签页 */
 export function closeDiffTab(ref: DiffTabRef): void {
   const session = currentSession.value;
@@ -360,6 +384,49 @@ export function closeDiffTab(ref: DiffTabRef): void {
     const first = session.openTabs[0];
     session.activeTabPath = first ? buildTabKey(first) : "";
   }
+}
+
+/**
+ * 批量关闭标签页后的激活键回落：
+ * 原激活 Tab 仍在时保持不变，否则激活剩余列表的第一个。
+ */
+function resolveActiveTabAfterClose(
+  session: { openTabs: DiffTabRef[]; activeTabPath: string },
+  previousActiveKey: string
+): void {
+  const stillOpen = session.openTabs.some(
+    (t) => buildTabKey(t) === previousActiveKey
+  );
+  if (stillOpen) return;
+  const first = session.openTabs[0];
+  session.activeTabPath = first ? buildTabKey(first) : "";
+}
+
+/** 关闭除指定标签页外的所有标签页 */
+export function closeOtherDiffTabs(ref: DiffTabRef): void {
+  const session = currentSession.value;
+  const key = buildTabKey(ref);
+  const previousActiveKey = session.activeTabPath;
+  session.openTabs = session.openTabs.filter((t) => buildTabKey(t) === key);
+  resolveActiveTabAfterClose(session, previousActiveKey);
+}
+
+/** 关闭指定标签页右侧的所有标签页（按打开顺序） */
+export function closeDiffTabsToRight(ref: DiffTabRef): void {
+  const session = currentSession.value;
+  const key = buildTabKey(ref);
+  const index = session.openTabs.findIndex((t) => buildTabKey(t) === key);
+  if (index < 0) return;
+  const previousActiveKey = session.activeTabPath;
+  session.openTabs = session.openTabs.slice(0, index + 1);
+  resolveActiveTabAfterClose(session, previousActiveKey);
+}
+
+/** 关闭所有标签页 */
+export function closeAllDiffTabs(): void {
+  const session = currentSession.value;
+  session.openTabs = [];
+  session.activeTabPath = "";
 }
 
 /** 打开或激活当前仓库的 AI 提示词编辑标签页 */

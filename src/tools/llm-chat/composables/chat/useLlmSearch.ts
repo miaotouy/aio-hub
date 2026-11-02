@@ -133,6 +133,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
   // loading 延迟计时器
   let loadingDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let activeSearchRunId = 0;
+  let queuedSearchVersion = 0;
   let pendingCancelSearch: Promise<void> | null = null;
 
   // 按类型分组的结果
@@ -269,41 +270,47 @@ export function useLlmSearch(options: SearchOptions = {}) {
   /**
    * 搜索（带防抖）
    */
-  const debouncedSearch = useDebounceFn(async (query: string) => {
-    const trimmedQuery = query.trim();
-    lastQuery.value = trimmedQuery;
+  const debouncedSearch = useDebounceFn(
+    async (query: string, version: number) => {
+      if (version !== queuedSearchVersion) return;
+      const trimmedQuery = query.trim();
+      lastQuery.value = trimmedQuery;
 
-    if (!trimmedQuery) {
-      activeSearchRunId++;
-      requestCancelSearch();
-      searchResults.value = [];
+      if (!trimmedQuery) {
+        activeSearchRunId++;
+        requestCancelSearch();
+        searchResults.value = [];
+        searchError.value = null;
+        isSearching.value = false;
+        showLoadingIndicator.value = false;
+        clearLoadingTimer();
+        return;
+      }
+
+      if (isSearching.value) {
+        await requestCancelSearch();
+      }
+      if (version !== queuedSearchVersion) return;
+
+      isSearching.value = true;
       searchError.value = null;
-      isSearching.value = false;
-      showLoadingIndicator.value = false;
-      clearLoadingTimer();
-      return;
-    }
+      // 启动 loading 延迟计时器
+      startLoadingTimer();
 
-    if (isSearching.value) {
-      await requestCancelSearch();
-    }
-
-    isSearching.value = true;
-    searchError.value = null;
-    // 启动 loading 延迟计时器
-    startLoadingTimer();
-
-    try {
-      await executeSearchStream(trimmedQuery);
-    } catch (error) {
-      searchError.value = error instanceof Error ? error.message : "搜索失败";
-    }
-  }, debounceMs);
+      try {
+        await executeSearchStream(trimmedQuery);
+      } catch (error) {
+        searchError.value = error instanceof Error ? error.message : "搜索失败";
+      }
+    },
+    debounceMs
+  );
 
   /**
    * 触发搜索
    */
   const search = (query: string) => {
+    const version = ++queuedSearchVersion;
     // 如果查询为空，立即清空结果
     if (!query.trim()) {
       activeSearchRunId++;
@@ -326,13 +333,14 @@ export function useLlmSearch(options: SearchOptions = {}) {
 
     // 标记内部搜索状态，但不立即显示 loading（由延迟计时器控制）
     isSearching.value = true;
-    debouncedSearch(query);
+    debouncedSearch(query, version);
   };
 
   /**
    * 立即执行搜索（不防抖）
    */
   const searchImmediate = async (query: string) => {
+    const version = ++queuedSearchVersion;
     const trimmedQuery = query.trim();
     lastQuery.value = trimmedQuery;
 
@@ -348,6 +356,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
     if (isSearching.value) {
       await requestCancelSearch();
     }
+    if (version !== queuedSearchVersion) return [];
 
     isSearching.value = true;
     searchError.value = null;
@@ -367,6 +376,7 @@ export function useLlmSearch(options: SearchOptions = {}) {
    * 清空搜索结果
    */
   const clearSearch = () => {
+    queuedSearchVersion++;
     activeSearchRunId++;
     requestCancelSearch();
     searchResults.value = [];

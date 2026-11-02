@@ -20,13 +20,13 @@ import type {
 } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
-import { Brush } from "@element-plus/icons-vue";
+import { WebCanvasIcon } from "@aiohub/tool-icons";
 import { canvasAgentService } from "./services/CanvasAgentService";
 
 export const toolConfig: ToolConfig = {
   name: "Web Canvas",
   path: "/web-canvas",
-  icon: markRaw(Brush),
+  icon: markRaw(WebCanvasIcon),
   component: () => import("./CanvasWorkbench.vue"),
   description: "Agent 协作画布，支持多文件编辑与实时预览",
   category: ["AI 工具"],

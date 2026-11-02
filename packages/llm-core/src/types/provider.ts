@@ -17,7 +17,17 @@ export interface ProviderProfile {
   options?: Record<string, JsonValue>;
 }
 
+/** One decoded OpenAI-compatible chunk, available when explicitly requested. */
+export interface LlmResponseChunk {
+  responseId?: string;
+  content?: string;
+  reasoningContent?: string;
+  finishReason?: string;
+  usage?: TokenUsage;
+}
+
 export type LlmStreamEvent =
+  | { type: "response-chunk"; chunk: LlmResponseChunk }
   | { type: "text-delta"; delta: string }
   | { type: "reasoning-delta"; delta: string }
   | { type: "tool-call"; toolCall: LlmToolCall }
@@ -26,6 +36,7 @@ export type LlmStreamEvent =
   | { type: "completed"; response: LlmResponse };
 
 export interface StreamDecoderContext {
+  onUsage?: (usage: TokenUsage) => void;
   request: LlmRequest;
   response: Pick<WireResponse, "status" | "statusText" | "headers">;
 }

@@ -213,8 +213,7 @@ const setupClipboardMonitor = async () => {
         try {
           // 调用 Tauri 命令识别剪贴板内容类型
           const contentType: string = await invoke(
-            "get_clipboard_content_type",
-            { content }
+            "get_clipboard_content_type"
           );
 
           if (contentType === "json") {

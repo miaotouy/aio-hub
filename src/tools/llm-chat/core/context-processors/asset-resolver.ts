@@ -23,8 +23,17 @@ import type { ResizeOptions } from "@/utils/imageProcessor";
 import { getAttachmentBuffer } from "../context-utils/attachment-binary";
 import type { PipelineAttachment } from "../../types/pipeline-attachment";
 
+import { processImageSlices } from "../context-utils/image-slicing";
+
 const logger = createModuleLogger("llm-chat/asset-resolver");
 const errorHandler = createModuleErrorHandler("llm-chat/asset-resolver");
+
+const mediaPlaceholders = new Map<LlmMessageContent["type"], string>([
+  ["image", "[图片]"],
+  ["audio", "[音频]"],
+  ["video", "[视频]"],
+  ["document", "[文档]"],
+]);
 
 /**
  * 处理图片附件：包括模型安全缩放、用户压缩策略及 Base64 转换
@@ -46,7 +55,6 @@ async function processImageAsset(
   const maxDim = context.capabilities?.maxImageDimension;
   if (maxDim && maxDim > 0) {
     try {
-      const dims = await getImageDimensions(imageBuffer);
       if (dims.width > maxDim || dims.height > maxDim) {
         imageBuffer = await resizeImage(imageBuffer, {
           maxWidth: maxDim,
@@ -176,6 +184,10 @@ export const assetResolver: ContextProcessor = {
   execute: async (context: PipelineContext) => {
     let processedCount = 0;
     let errorCount = 0;
+    const deferredMedia = new Map<
+      PipelineContext["messages"][number],
+      LlmMessageContent["type"][]
+    >();
 
     for (const msg of context.messages) {
       if (!msg._attachments || msg._attachments.length === 0) continue;
@@ -193,11 +205,33 @@ export const assetResolver: ContextProcessor = {
       // 2. 处理附件
       for (const asset of msg._attachments) {
         try {
-          if (!["image", "document", "audio", "video"].includes(asset.type)) {
+          if (
+            asset.type !== "image" &&
+            asset.type !== "document" &&
+            asset.type !== "audio" &&
+            asset.type !== "video"
+          ) {
             logger.warn("跳过不支持的附件类型", {
               assetType: asset.type,
               assetName: asset.name,
             });
+            continue;
+          }
+
+          if (context.previewPurpose === "statistics") {
+            // 统计按元数据估算媒体 Token，保留附件供计算器使用。
+            // PDF 在视觉模型下会转为图片，空消息占位文字沿用最终媒体类型。
+            const type =
+              asset.type === "document" &&
+              asset.mimeType === "application/pdf" &&
+              !context.capabilities?.document &&
+              context.capabilities?.vision
+                ? "image"
+                : asset.type;
+            const types = deferredMedia.get(msg) || [];
+            types.push(type);
+            deferredMedia.set(msg, types);
+            context.sharedData.set("hasDeferredMedia", true);
             continue;
           }
 
@@ -207,7 +241,12 @@ export const assetResolver: ContextProcessor = {
 
           switch (asset.type) {
             case "image":
-              parts = await processImageAsset(asset, buffer, context);
+              parts = await processImageSlices(
+                asset,
+                buffer,
+                context,
+                (slice) => processImageAsset(asset, slice, context)
+              );
               break;
             case "document":
               parts = await processDocumentAsset(asset, buffer, context);
@@ -222,6 +261,14 @@ export const assetResolver: ContextProcessor = {
           processedCount++;
         } catch (error) {
           errorCount++;
+          if (asset.source.kind === "local-file") {
+            const reason =
+              error instanceof Error ? error.message : String(error);
+            newContentParts.push({
+              type: "text",
+              text: `本地媒体 [${asset.name}] 读取失败：${reason.slice(0, 500)}。请检查原文件路径和访问权限。`,
+            });
+          }
           errorHandler.handle(error as Error, {
             userMessage: `附件 [${asset.name}] 解析失败`,
             context: { assetId: asset.id },
@@ -233,23 +280,31 @@ export const assetResolver: ContextProcessor = {
       msg.content = newContentParts;
     }
 
-    // 在附件解析后判断最终内容，兼容已结构化图片及 PDF 转图片，
-    // 避免为解析失败、已有转写或包含其他媒体的消息补充占位文本。
+    // 在附件解析后按最终媒体类型补充占位文本，兼容已结构化内容及 PDF 转图片。
+    // 沿用原配置键，保留已有用户的开关选择。
     if (context.settings.requestSettings.imageOnlyMessagePlaceholder) {
       for (const msg of context.messages) {
         if (
           msg.role === "user" &&
           Array.isArray(msg.content) &&
-          msg.content.some((part) => part.type === "image") &&
+          (msg.content.some((part) => mediaPlaceholders.has(part.type)) ||
+            deferredMedia.has(msg)) &&
           msg.content.every(
             (part) =>
-              part.type === "image" ||
+              mediaPlaceholders.has(part.type) ||
               (part.type === "text" && !part.text.trim())
           )
         ) {
+          const mediaParts = msg.content.filter((part) => part.type !== "text");
+          const placeholders = new Set(
+            [
+              ...mediaParts.map((part) => part.type),
+              ...(deferredMedia.get(msg) || []),
+            ].map((type) => mediaPlaceholders.get(type))
+          );
           msg.content = [
-            { type: "text", text: "[图片]" },
-            ...msg.content.filter((part) => part.type !== "text"),
+            { type: "text", text: [...placeholders].join(" ") },
+            ...mediaParts,
           ];
         }
       }

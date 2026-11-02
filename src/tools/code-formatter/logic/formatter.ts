@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import type { FormatOptions, FormatResult, SupportedLanguage } from "../types";
+import type {
+  FormatOptions,
+  FormatResult,
+  FormatterStatus,
+  SupportedLanguage,
+} from "../types";
 
 const logger = createModuleLogger("tools/code-formatter/logic");
 const errorHandler = createModuleErrorHandler("tools/code-formatter/logic");
@@ -28,7 +34,6 @@ let parserMarkdown: any = null;
 let parserTypeScript: any = null;
 let parserEstree: any = null;
 let parserYaml: any = null;
-let prettierPluginPhp: any = null;
 let prettierPluginXml: any = null;
 
 async function loadDefault<T>(loader: () => Promise<T>): Promise<any> {
@@ -119,6 +124,22 @@ export class FormatterCore {
     }
 
     try {
+      if (["php", "rust", "c", "cpp"].includes(language)) {
+        if (!isTauri()) {
+          return {
+            formatted: code,
+            success: false,
+            error: "该语言的格式化需要桌面应用，请在 AIO Hub 中打开此工具",
+          };
+        }
+        const formatted = await invoke<string>("format_code", {
+          code,
+          language,
+          options,
+        });
+        return { formatted, success: true };
+      }
+
       const config = await this.getLanguageConfig(language);
 
       if (config.unsupported) {
@@ -152,8 +173,9 @@ export class FormatterCore {
         formatted,
         success: true,
       };
-    } catch (error: any) {
-      const errorMessage = `格式化错误: ${error.message}`;
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      const errorMessage = `格式化错误: ${detail}`;
       errorHandler.error(error, "代码格式化失败", { context: { language } });
 
       return {
@@ -165,8 +187,34 @@ export class FormatterCore {
   }
 
   /**
-   * 获取语言配置
+   * 检测系统格式化器
    */
+  public async getFormatterStatus(
+    language: "rust" | "c" | "cpp",
+    formatterPath = ""
+  ): Promise<FormatterStatus> {
+    const engine = language === "rust" ? "rustfmt" : "clang-format";
+    if (!isTauri()) {
+      return {
+        available: false,
+        engine,
+        error: "请在 AIO Hub 桌面应用中检测系统格式化器",
+      };
+    }
+    try {
+      return await invoke<FormatterStatus>("code_formatter_status", {
+        language,
+        formatterPath,
+      });
+    } catch (error) {
+      return {
+        available: false,
+        engine,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   private async getLanguageConfig(
     language: SupportedLanguage
   ): Promise<LanguageConfig> {
@@ -204,28 +252,6 @@ export class FormatterCore {
         return {
           plugins: [await loadMarkdownParser()],
           parser: "markdown",
-        };
-
-      case "php":
-        if (!prettierPluginPhp) {
-          try {
-            prettierPluginPhp = await loadDefault(
-              () => import("@prettier/plugin-php/standalone")
-            );
-            logger.info("PHP 插件加载成功");
-          } catch (e) {
-            errorHandler.error(e, "PHP 插件加载失败");
-            return {
-              plugins: [],
-              parser: "",
-              unsupported: true,
-              warningMessage: "PHP 格式化插件加载失败",
-            };
-          }
-        }
-        return {
-          plugins: [prettierPluginPhp],
-          parser: "php",
         };
 
       case "xml":
@@ -345,6 +371,9 @@ export class FormatterCore {
       { value: "html", label: "HTML", group: "前端语言" },
       { value: "css", label: "CSS", group: "前端语言" },
       { value: "php", label: "PHP", group: "后端语言" },
+      { value: "rust", label: "Rust", group: "系统语言" },
+      { value: "c", label: "C", group: "系统语言" },
+      { value: "cpp", label: "C++", group: "系统语言" },
       { value: "xml", label: "XML", group: "配置/数据" },
       { value: "yaml", label: "YAML", group: "配置/数据" },
       { value: "markdown", label: "Markdown", group: "标记语言" },

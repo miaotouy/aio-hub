@@ -15,15 +15,16 @@
 -->
 
 <template>
-  <div class="macro-selector">
+  <div class="macro-selector" :class="{ 'inline-panel': inline }">
     <div class="macro-selector-header">
-      <span class="title">可用宏列表</span>
+      <span v-if="!inline" class="title">可用宏列表</span>
       <el-input
         v-model="searchText"
         placeholder="搜索宏..."
         size="small"
         clearable
-        style="width: 200px"
+        class="macro-search"
+        aria-label="搜索宏"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
@@ -45,7 +46,14 @@
             :content="macro.description"
             placement="right"
           >
-            <div class="macro-item" @click="handleInsertMacro(macro)">
+            <div
+              class="macro-item"
+              role="button"
+              tabindex="0"
+              @click="handleInsertMacro(macro)"
+              @keydown.enter.prevent="handleInsertMacro(macro)"
+              @keydown.space.prevent="handleInsertMacro(macro)"
+            >
               <span class="macro-name">{{ formatMacroName(macro.name) }}</span>
               <span v-if="macro.name === 'knowledge_list'" class="macro-note">
                 只列目录，不检索
@@ -69,7 +77,14 @@
             :content="macro.description"
             placement="right"
           >
-            <div class="macro-item" @click="handleInsertMacro(macro)">
+            <div
+              class="macro-item"
+              role="button"
+              tabindex="0"
+              @click="handleInsertMacro(macro)"
+              @keydown.enter.prevent="handleInsertMacro(macro)"
+              @keydown.space.prevent="handleInsertMacro(macro)"
+            >
               <span class="macro-name">
                 {{ macro.example || formatMacroName(macro.name) }}
               </span>
@@ -92,7 +107,14 @@
             :content="macro.description"
             placement="right"
           >
-            <div class="macro-item" @click="handleInsertMacro(macro)">
+            <div
+              class="macro-item"
+              role="button"
+              tabindex="0"
+              @click="handleInsertMacro(macro)"
+              @keydown.enter.prevent="handleInsertMacro(macro)"
+              @keydown.space.prevent="handleInsertMacro(macro)"
+            >
               <span class="macro-name">
                 {{ macro.example || formatMacroName(macro.name) }}
               </span>
@@ -126,6 +148,7 @@ interface Props {
    * - 'contextFree': 只显示不依赖上下文的宏
    */
   filter?: "all" | "contextFree";
+  inline?: boolean;
 }
 
 interface Emits {
@@ -234,6 +257,10 @@ function handleInsertMacro(macro: MacroDefinition) {
   margin-bottom: 12px;
 }
 
+.macro-search {
+  width: 200px;
+}
+
 .macro-selector-header .title {
   font-weight: 600;
   font-size: 14px;
@@ -319,5 +346,35 @@ function handleInsertMacro(macro: MacroDefinition) {
   padding: 40px 20px;
   color: var(--el-text-color-secondary);
   font-size: 14px;
+}
+.inline-panel {
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+.inline-panel .macro-selector-header {
+  flex-shrink: 0;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.inline-panel .macro-search {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+.inline-panel .macro-selector-body {
+  min-height: 0;
+}
+.inline-panel .macro-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+.inline-panel .macro-selector-header {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.macro-item:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
 }
 </style>

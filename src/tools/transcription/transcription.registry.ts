@@ -20,7 +20,8 @@
  */
 
 import { markRaw } from "vue";
-import { FileAudio, FileText } from "lucide-vue-next";
+import { FileText } from "lucide-vue-next";
+import { TranscriptionIcon } from "@aiohub/tool-icons";
 import { invoke } from "@tauri-apps/api/core";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -248,7 +249,7 @@ export const toolConfig: ToolConfig = {
   name: "多模态转写",
   path: "/transcription",
   runMode: "main-only",
-  icon: markRaw(FileAudio),
+  icon: markRaw(TranscriptionIcon),
   component: () => import("./TranscriptionTool.vue"),
   description: "从图片、音频、视频和 PDF 中提取文本内容",
   category: ["AI 工具", "媒体工具"],

@@ -16,6 +16,31 @@ const profile: ProviderProfile = {
 };
 
 describe("Anthropic Messages provider adapter", () => {
+  it.each([true, false])(
+    "uses adaptive thinking for Opus 5.5 even with legacy thinkingEnabled=%s",
+    (thinkingEnabled) => {
+      const wire = buildAnthropicMessagesRequest(profile, {
+        model: "claude-opus-5-5",
+        messages: [{ role: "user", content: "Solve this." }],
+        maxTokens: 128000,
+        reasoningEffort: "xhigh",
+        thinkingEnabled,
+        thinkingBudget: 4096,
+      });
+      expect(wire.body).toEqual({
+        kind: "json",
+        value: {
+          model: "claude-opus-5-5",
+          messages: [{ role: "user", content: "Solve this." }],
+          max_tokens: 128000,
+          thinking: { type: "adaptive" },
+          output_config: { effort: "xhigh" },
+        },
+      });
+      expect(wire.headers["anthropic-beta"]).toBe("files-api-2025-04-14");
+    }
+  );
+
   it("supports relative and absolute Messages endpoint overrides", () => {
     expect(
       buildAnthropicMessagesUrl({
@@ -122,8 +147,6 @@ describe("Anthropic Messages provider adapter", () => {
           ],
           max_tokens: 2048,
           system: "Be concise.",
-          top_k: 20,
-          top_p: 0.8,
           stop_sequences: ["END"],
           metadata: { user_id: "user-1" },
           thinking: { type: "enabled", budget_tokens: 1024 },
@@ -183,9 +206,15 @@ describe("Anthropic Messages provider adapter", () => {
       finishReason: "tool_use",
       stopSequence: "END",
       usage: {
-        promptTokens: 11,
+        providerUsageStatus: "reported",
+        reportedUsageFields: {
+          input_tokens: 11,
+          output_tokens: 7,
+          cache_read_input_tokens: 3,
+        },
+        promptTokens: 14,
         completionTokens: 7,
-        totalTokens: 18,
+        totalTokens: 21,
         promptTokensDetails: { cachedTokens: 3 },
       },
       toolCalls: [
@@ -272,9 +301,15 @@ describe("Anthropic Messages provider adapter", () => {
       {
         type: "usage",
         usage: {
-          promptTokens: 5,
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            input_tokens: 5,
+            output_tokens: 3,
+            cache_read_input_tokens: 2,
+          },
+          promptTokens: 7,
           completionTokens: 3,
-          totalTokens: 8,
+          totalTokens: 10,
           promptTokensDetails: { cachedTokens: 2 },
         },
       },
@@ -286,9 +321,15 @@ describe("Anthropic Messages provider adapter", () => {
           finishReason: "tool_use",
           stopSequence: null,
           usage: {
-            promptTokens: 5,
+            providerUsageStatus: "reported",
+            reportedUsageFields: {
+              input_tokens: 5,
+              output_tokens: 3,
+              cache_read_input_tokens: 2,
+            },
+            promptTokens: 7,
             completionTokens: 3,
-            totalTokens: 8,
+            totalTokens: 10,
             promptTokensDetails: { cachedTokens: 2 },
           },
           toolCalls: [

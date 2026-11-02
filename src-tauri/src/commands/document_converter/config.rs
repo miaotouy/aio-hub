@@ -94,12 +94,13 @@ pub fn active_document_conversion_config(app: &AppHandle) -> Option<DocumentConv
     }
 }
 
-/// 判断文件是否为旧版 Word DOC 格式
+/// 判断文件是否需要走 Word 文档转换流程（含已识别内容的 WPS 文档）
 pub fn is_legacy_word_document(path: &Path, mime: &str) -> bool {
     path.extension()
         .map(|ext| ext.to_string_lossy().eq_ignore_ascii_case("doc"))
         .unwrap_or(false)
         || mime.starts_with("application/msword")
+        || (crate::utils::mime::is_wps_document(path) && mime == "application/rtf")
 }
 
 /// 判断文件是否为旧版 PowerPoint PPT 格式

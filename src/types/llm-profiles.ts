@@ -19,6 +19,8 @@ import type { SettingItem } from "./settings-renderer";
 import type { MediaGenParamRules } from "./model-metadata";
 import type {
   LlmModelRouting,
+  VirtualChannelConfig,
+  VirtualModelBindings,
   ModelIdentity,
   ModelIdentitySuggestion,
 } from "@aiohub/llm-core";
@@ -34,7 +36,7 @@ export interface ContextPostProcessRule {
 
 /**
  * LLM 服务提供商类型
- * 决定了请求体的格式
+ * 标识厂商、聚合平台或协议；执行协议由模型路由解析
  */
 /**
  * 网络请求策略
@@ -42,6 +44,7 @@ export interface ContextPostProcessRule {
 export type NetworkStrategy = "auto" | "proxy" | "native";
 
 export type ProviderType =
+  | "virtual"
   | "openai"
   | "openai-compatible"
   | "azure"
@@ -64,7 +67,14 @@ export type ProviderType =
   | "new-api"
   | "sub2api"
   | "aggregate-compatible"
-  | "opencode-go";
+  | "opencode-go"
+  | "together"
+  | "fireworks"
+  | "deepinfra"
+  | "huggingface"
+  | "modelscope"
+  | "lmstudio"
+  | "vcp";
 
 /**
  * 渠道对 AIO 工具调用的处理声明。
@@ -244,7 +254,7 @@ export interface ModelCapabilities {
   embedding?: boolean;
   /** 是否支持重排（Rerank） */
   rerank?: boolean;
-  /** 是否支持专用结构化决策（System One） */
+  /** 是否支持专用结构化决策（Decisions / System One） */
   decision?: boolean;
   /** 是否支持计算机使用（Computer Use） */
   computerUse?: boolean;
@@ -355,6 +365,7 @@ export interface ModelMetadataBinding {
   fingerprint?: string;
 }
 export interface LlmModelInfo {
+  virtualBindings?: VirtualModelBindings;
   /**
    * 模型ID，用于 API 请求，例如 'gpt-4o', 'llava'
    */
@@ -504,6 +515,7 @@ export interface LlmLink {
  * 用户创建的单个 LLM 渠道配置
  */
 export interface LlmProfile {
+  virtualChannel?: VirtualChannelConfig;
   /**
    * 配置实例的唯一ID (uuid)
    */
@@ -516,6 +528,8 @@ export interface LlmProfile {
    * 服务提供商类型
    */
   type: ProviderType;
+  /** 执行路由生成的原始渠道身份，仅用于运行时兼容视图。 */
+  channelType?: ProviderType;
   /**
    * API 基础地址，例如 'https://api.openai.com' 或 'http://localhost:11434'
    */
@@ -605,6 +619,8 @@ export interface LlmProfile {
     rerank?: string;
     /** TypeSafe System One 决策端点，例如 '/v1/systemone' */
     systemOne?: string;
+    /** OpenRouter Decisions 决策端点，支持相对路径或完整 URL */
+    decisions?: string;
     /** 图像生成端点 (Images Generations)，例如 '/v1/images/generations' */
     imagesGenerations?: string;
     /** 图像编辑端点 (Images Edits)，例如 '/v1/images/edits' */
@@ -623,6 +639,8 @@ export interface LlmProfile {
     videos?: string;
     /** 视频查询端点 (Video Status)，例如 '/v1/videos/{video_id}' */
     videoStatus?: string;
+    /** 视频内容下载端点，例如 '/v1/videos/{video_id}/content' */
+    videoContent?: string;
   };
 }
 

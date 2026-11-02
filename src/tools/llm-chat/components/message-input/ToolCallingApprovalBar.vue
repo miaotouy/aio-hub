@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Terminal,
   ChevronRight,
+  ChevronDown,
   AlertCircle,
   Volume2,
   VolumeX,
@@ -29,6 +30,7 @@ import {
 import { useToolCallingStore } from "../../stores/toolCallingStore";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { execute } from "@/services/executor";
+import { describeArbitration } from "@/services/decision-arbiter";
 
 const toolCallingStore = useToolCallingStore();
 const llmChatStore = useLlmChatStore();
@@ -61,9 +63,38 @@ function formatApprovalWait(expiresAt: number | null): string {
 
 const currentSessionPendingRequests = computed(() => {
   return toolCallingStore.pendingRequests.filter(
-    (r) => r.sessionId === llmChatStore.currentSessionId || !!r.externalId
+    (r) =>
+      r.sessionId === llmChatStore.currentSessionId ||
+      !!r.externalId ||
+      // P4：父会话展示后台子任务升级人工的审批，避免用户必须切到子会话。
+      (!!r.parentSessionId &&
+        r.parentSessionId === llmChatStore.currentSessionId)
   );
 });
+
+// ----- JEV 仲裁建议展示（§3.1：仅 escalate 后出现，默认折叠） -----
+const expandedArbiterIds = ref<Set<string>>(new Set());
+
+/**
+ * 审批浮窗展示模型来源的仲裁建议；展示判定统一由 describeArbitration 产出，
+ * 与消息卡片保持同一套 action 语义（escalate 不得被当作 approve）。
+ */
+function getPresentation(requestId: string) {
+  const presentation = describeArbitration(
+    toolCallingStore.getAuditRecord?.(requestId)
+  );
+  return presentation?.kind === "jev" || presentation?.kind === "llm"
+    ? presentation
+    : null;
+}
+
+function toggleArbiterDetail(requestId: string): void {
+  if (expandedArbiterIds.value.has(requestId)) {
+    expandedArbiterIds.value.delete(requestId);
+  } else {
+    expandedArbiterIds.value.add(requestId);
+  }
+}
 
 // 当有新的请求进入时，尝试同步节点的静默状态到 UI
 watch(
@@ -174,7 +205,11 @@ const handleRejectAll = () => {
 
 <template>
   <transition name="slide-up">
-    <div v-if="hasRequests" class="tool-approval-bar">
+    <div
+      v-if="hasRequests"
+      class="tool-approval-bar"
+      data-testid="tool-approval-bar"
+    >
       <div class="bar-header">
         <div class="header-left">
           <ShieldCheck :size="16" class="security-icon" />
@@ -226,6 +261,8 @@ const handleRejectAll = () => {
           v-for="item in currentSessionPendingRequests"
           :key="item.id"
           class="request-item"
+          data-testid="approval-request-item"
+          :data-request-id="item.request.requestId"
         >
           <div class="item-info">
             <div class="item-main">
@@ -242,6 +279,70 @@ const handleRejectAll = () => {
                   :size="12"
                   class="error-icon"
                 />
+              </div>
+              <!-- JEV 仲裁结果微标签（§3.1） -->
+              <div
+                v-if="getPresentation(item.request.requestId)"
+                class="jev-badge"
+                :class="{
+                  'is-degraded': getPresentation(item.request.requestId)
+                    ?.degraded,
+                }"
+                :data-testid="
+                  getPresentation(item.request.requestId)?.kind === 'llm'
+                    ? 'approval-llm-badge'
+                    : 'approval-jev-badge'
+                "
+                :data-jev-action="
+                  getPresentation(item.request.requestId)?.action
+                "
+                :data-jev-degraded="
+                  getPresentation(item.request.requestId)?.degraded
+                "
+              >
+                <span class="jev-dot"></span>
+                <template
+                  v-if="getPresentation(item.request.requestId)?.degraded"
+                >
+                  {{
+                    getPresentation(item.request.requestId)?.kind === "llm"
+                      ? "LLM 审核暂不可用 · 需人工确认"
+                      : "Jev 离线 · 安全兜底"
+                  }}
+                </template>
+                <template v-else>
+                  {{
+                    getPresentation(item.request.requestId)?.kind === "llm"
+                      ? "LLM"
+                      : "Jev"
+                  }}
+                  建议: 需人工确认
+                  <template
+                    v-if="getPresentation(item.request.requestId)?.riskLabel"
+                  >
+                    · {{ getPresentation(item.request.requestId)?.riskLabel }}
+                  </template>
+                  <template
+                    v-if="
+                      getPresentation(item.request.requestId)?.riskPercent !=
+                      null
+                    "
+                  >
+                    · 风险
+                    {{ getPresentation(item.request.requestId)?.riskPercent }}%
+                  </template>
+                  <template
+                    v-if="
+                      getPresentation(item.request.requestId)?.intentPercent !=
+                      null
+                    "
+                  >
+                    · 意图
+                    {{
+                      getPresentation(item.request.requestId)?.intentPercent
+                    }}%
+                  </template>
+                </template>
               </div>
               <div
                 v-if="item.request.validation?.isValid === false"
@@ -260,6 +361,92 @@ const handleRejectAll = () => {
                 }}
               </span>
             </div>
+            <!-- 可折叠仲裁证据面板（§3.1） -->
+            <button
+              v-if="getPresentation(item.request.requestId)"
+              class="arbiter-detail-toggle"
+              @click.stop="toggleArbiterDetail(item.request.requestId)"
+            >
+              <component
+                :is="
+                  expandedArbiterIds.has(item.request.requestId)
+                    ? ChevronDown
+                    : ChevronRight
+                "
+                :size="11"
+              />
+              {{
+                getPresentation(item.request.requestId)?.kind === "llm"
+                  ? "LLM"
+                  : "Jev"
+              }}
+              审核详情
+              {{ getPresentation(item.request.requestId)?.model || "" }}
+              <template
+                v-if="
+                  getPresentation(item.request.requestId)?.durationMs != null
+                "
+              >
+                · {{ getPresentation(item.request.requestId)?.durationMs }}ms
+              </template>
+            </button>
+            <div
+              v-if="
+                expandedArbiterIds.has(item.request.requestId) &&
+                getPresentation(item.request.requestId)
+              "
+              class="arbiter-detail-panel"
+            >
+              <div
+                v-if="
+                  getPresentation(item.request.requestId)?.riskPercent != null
+                "
+                class="arbiter-meter"
+              >
+                <span class="meter-label">风险评估</span>
+                <div class="meter-track">
+                  <div
+                    class="meter-fill risk"
+                    :style="{
+                      width: `${getPresentation(item.request.requestId)?.riskPercent ?? 0}%`,
+                    }"
+                  ></div>
+                </div>
+                <span class="meter-value"
+                  >{{
+                    getPresentation(item.request.requestId)?.riskPercent
+                  }}%</span
+                >
+              </div>
+              <div
+                v-if="
+                  getPresentation(item.request.requestId)?.intentPercent != null
+                "
+                class="arbiter-meter"
+              >
+                <span class="meter-label">意图置信</span>
+                <div class="meter-track">
+                  <div
+                    class="meter-fill intent"
+                    :style="{
+                      width: `${getPresentation(item.request.requestId)?.intentPercent ?? 0}%`,
+                    }"
+                  ></div>
+                </div>
+                <span class="meter-value"
+                  >{{
+                    getPresentation(item.request.requestId)?.intentPercent
+                  }}%</span
+                >
+              </div>
+              <div
+                v-if="getPresentation(item.request.requestId)?.reason"
+                class="arbiter-reason"
+              >
+                裁决原因:
+                {{ getPresentation(item.request.requestId)?.reason }}
+              </div>
+            </div>
             <div class="approval-countdown">
               {{ formatApprovalWait(item.expiresAt) }}
             </div>
@@ -274,6 +461,7 @@ const handleRejectAll = () => {
                 size="small"
                 circle
                 type="warning"
+                data-testid="approval-allow"
                 @click="handleApprove(item.id)"
               >
                 <template #icon><Play :size="12" /></template>
@@ -284,6 +472,7 @@ const handleRejectAll = () => {
                 size="small"
                 circle
                 type="primary"
+                data-testid="approval-allow"
                 @click="handleApprove(item.id)"
               >
                 <template #icon><Play :size="12" /></template>
@@ -295,6 +484,7 @@ const handleRejectAll = () => {
                 size="small"
                 circle
                 type="danger"
+                data-testid="approval-reject"
                 @click="handleReject(item.id)"
               >
                 <template #icon><X :size="12" /></template>
@@ -540,6 +730,124 @@ const handleRejectAll = () => {
   font-size: 11px;
   color: var(--el-color-warning);
   font-variant-numeric: tabular-nums;
+}
+
+/* ----- JEV 仲裁建议（§3.1 视觉规范） ----- */
+.jev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-color-warning);
+}
+
+.jev-badge.is-degraded {
+  background-color: rgba(
+    var(--el-color-info-rgb),
+    calc(var(--card-opacity) * 0.15)
+  );
+  color: var(--el-color-info);
+}
+
+.jev-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  flex-shrink: 0;
+}
+
+.arbiter-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-size: 11px;
+  font-family: var(--font-family-mono);
+  color: var(--text-color-secondary);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.arbiter-detail-toggle:hover {
+  color: var(--el-color-primary);
+}
+
+.arbiter-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(var(--el-fill-color-rgb), calc(var(--card-opacity) * 0.2));
+}
+
+.arbiter-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meter-label {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.meter-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(var(--el-fill-color-rgb), 0.8);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.meter-fill.risk {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--el-color-warning) 70%, transparent),
+    var(--el-color-danger)
+  );
+}
+
+.meter-fill.intent {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--el-color-primary) 70%, transparent),
+    var(--el-color-success)
+  );
+}
+
+.meter-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-color-secondary);
+  width: 36px;
+  text-align: right;
+}
+
+.arbiter-reason {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  line-height: 1.5;
 }
 
 .item-actions {

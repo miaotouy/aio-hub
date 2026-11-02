@@ -14,6 +14,17 @@
 
 import { Token, type TokenizerOptions } from "./types";
 import {
+  findVcpToolBatch,
+  findVcpRoleEnd,
+  hideIncompleteVcpBatchStart,
+} from "@/utils/vcpToolBatch";
+import { restoreVcpEscapedLiterals } from "@/utils/vcpEscapedLiterals";
+import { readCodeFenceOpening } from "./utils/code-fence";
+import {
+  decodeMarkdownEntities,
+  readReferenceDefinition,
+} from "./utils/markdown-reference";
+import {
   findRenderableVcpBlockBoundary,
   repairVcpContentForRendering,
 } from "./vcpFenceRecovery";
@@ -42,14 +53,15 @@ const RE_AUTOLINK = /<((?:https?|ftps?|mailto):[^\s>]+)>/y;
 const RE_URL = /(https?:\/\/[^\s<"“'”]+)/y;
 const RE_HTML_COMMENT = /<!--[\s\S]*?-->/y;
 const RE_INDENT = /( *)/y;
-const RE_CODE_FENCE_OPEN = /```(\w*)/y;
 const RE_HEADING = /(#{1,6})\s/y;
 const RE_HR = /(---+|\*\*\*+|___+)(\s*)(?=\n|$)/y;
 const RE_LIST = /([*+-]|\d+\.)\s/y;
 const RE_BLOCKQUOTE = />[ \t]?/y;
 const RE_KATEX_INLINE = /\$([^\n$]+?)\$/y;
 const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
-const RE_SPECIAL_CHARS = /[<`*_~^!\[\]()#>\n$“"”\\]/g;
+const RE_ENTITY =
+  /&(?:#[xX][0-9a-fA-F]{1,6}|#[0-9]{1,7}|[a-zA-Z][a-zA-Z0-9]{1,31});/y;
+const RE_SPECIAL_CHARS = /[&<`*_~^!\[\]()#>\n$“"”\\]/g;
 // VCP (Variable & Command Protocol) 协议相关正则: https://github.com/lioensky/VCPToolBox
 // 变体优先级: ESCAPE > exp > 标准，ESCAPE/exp 内容中可包含标准 VCP 协议字符（如 「始」/「末」）
 // 冒号后允许可选空格（VCPToolBox _scanFields 会跳过冒号后空白）
@@ -60,13 +72,39 @@ const VCP_STANDARD_ARG_PATTERN =
   /([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」(?=\s*(?:,\s*(?:[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$)|[a-zA-Z0-9_-]+\s*:\s*「始(?:ESCAPE|exp)?」|$))/;
 const RE_VCP_ARG = new RegExp(VCP_STANDARD_ARG_PATTERN.source, "g");
 const RE_VCP_ARG_SINGLE = new RegExp(VCP_STANDARD_ARG_PATTERN.source);
-const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/;
+const RE_VCP_PENDING = /([a-zA-Z0-9_-]+):\s*「始(?:ESCAPE|exp)?」([\s\S]*)$/y;
+const RE_VCP_PENDING_MARKER = /:\s*「始(?:ESCAPE|exp)?」/g;
 const RE_VCP_RESULT_FIELD =
   /-\s*(工具名称|执行状态|返回内容):\s*([\s\S]*?)(?=\n-\s*(?:工具名称|执行状态|返回内容):|\nVCP调用结果结束\]\]|$)/g;
 const RE_VCP_ROLE_OPEN = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/y;
 const RE_VCP_DAILY_NOTE_OPEN = /<<<DailyNoteStart>>>/y;
 const VCP_TOOL_SUMMARY_START = "[本轮工具调用摘要:]";
 const VCP_TOOL_SUMMARY_END = "[本轮工具调用摘要结束]";
+
+/** Find a delimiter first so long non-matching key runs are scanned only once. */
+function findVcpPendingField(source: string): RegExpExecArray | null {
+  RE_VCP_PENDING_MARKER.lastIndex = 0;
+  let marker: RegExpExecArray | null;
+  while ((marker = RE_VCP_PENDING_MARKER.exec(source)) !== null) {
+    let keyStart = marker.index;
+    while (keyStart > 0) {
+      const char = source.charCodeAt(keyStart - 1);
+      if (
+        (char >= 48 && char <= 57) ||
+        (char >= 65 && char <= 90) ||
+        (char >= 97 && char <= 122) ||
+        char === 95 ||
+        char === 45
+      )
+        keyStart--;
+      else break;
+    }
+    if (keyStart === marker.index) continue;
+    RE_VCP_PENDING.lastIndex = keyStart;
+    return RE_VCP_PENDING.exec(source);
+  }
+  return null;
+}
 
 export class Tokenizer {
   private readonly vcpFuzzyModeEnabled: boolean;
@@ -99,6 +137,56 @@ export class Tokenizer {
    * 将完整文本转换为令牌序列
    */
   public tokenize(text: string): Token[] {
+    const tokens: Token[] = [];
+    let cursor = 0;
+    let batch = findVcpToolBatch(text);
+    // Frame batches before Markdown/HTML can consume or reinterpret the payload.
+    while (batch) {
+      const roles = /<<<\[ROLE_DIVIDE_(USER|ASSISTANT|SYSTEM)\]>>>/g;
+      roles.lastIndex = cursor;
+      let role: RegExpExecArray | null;
+      let wrapped = false;
+      while ((role = roles.exec(text)) && role.index < batch.start) {
+        const endMarker = `<<<[END_ROLE_DIVIDE_${role[1]}]>>>`;
+        const end = findVcpRoleEnd(text, endMarker, roles.lastIndex);
+        if (end >= 0 && end < batch.start) {
+          roles.lastIndex = end + endMarker.length;
+          continue;
+        }
+        tokens.push(...this.tokenizeText(text.slice(cursor, role.index)));
+        const next = end < 0 ? text.length : end + endMarker.length;
+        tokens.push({
+          type: "vcp_role",
+          role: role[1].toLowerCase() as "user" | "assistant" | "system",
+          content: text.slice(roles.lastIndex, end < 0 ? text.length : end),
+          closed: end >= 0,
+          raw: text.slice(role.index, next),
+        });
+        cursor = next;
+        wrapped = true;
+        break;
+      }
+      if (!wrapped) {
+        tokens.push(...this.tokenizeText(text.slice(cursor, batch.start)));
+        tokens.push({
+          type: "vcp_role",
+          role: "user",
+          variant: "tool_batch",
+          content: text.slice(batch.contentStart, batch.contentEnd),
+          closed: batch.closed,
+          raw: text.slice(batch.start, batch.end),
+        });
+        cursor = batch.end;
+      }
+      batch = findVcpToolBatch(text, cursor);
+    }
+    tokens.push(
+      ...this.tokenizeText(hideIncompleteVcpBatchStart(text.slice(cursor)))
+    );
+    return tokens;
+  }
+
+  private tokenizeText(text: string): Token[] {
     const tokens: Token[] = [];
     const len = text.length;
     let i = 0;
@@ -178,9 +266,28 @@ export class Tokenizer {
         while (i + count < len && text.charCodeAt(i + count) === 10) {
           count++;
         }
-        tokens.push({ type: "newline", count });
+        let nextPos = i + count;
+        let nextIndent = 0;
+        while (text[nextPos] === " " || text[nextPos] === "\t") {
+          nextIndent += text[nextPos] === "\t" ? 4 - (nextIndent % 4) : 1;
+          nextPos++;
+        }
+        tokens.push({ type: "newline", count, nextIndent });
         i += count;
         atLineStart = true;
+        continue;
+      }
+
+      if (char === 38) {
+        const entity = stickyMatch(RE_ENTITY, text, i);
+        tokens.push({
+          type: "text",
+          content: entity ? decodeMarkdownEntities(entity[0]) : "&",
+          raw: entity?.[0],
+          entityDecoded: true,
+        });
+        i += entity ? entity[0].length : 1;
+        atLineStart = false;
         continue;
       }
 
@@ -260,7 +367,11 @@ export class Tokenizer {
             tokens.push({ type: "text", content: "\\" });
             i += 1;
           } else {
-            tokens.push({ type: "text", content: text[i + 1] });
+            tokens.push({
+              type: "text",
+              content: text[i + 1],
+              ...(text[i + 1] === "|" ? { raw: "\\|" } : {}),
+            });
             i += 2;
           }
         } else {
@@ -352,8 +463,9 @@ export class Tokenizer {
         }
       }
 
-      // 6. 块级标记（只在行首有效）
-      if (atLineStart) {
+      // 6. 块级标记通常位于行首；VCP 请求也允许紧接思考标签或正文。
+      const atToolRequest = text.startsWith("<<<[TOOL_REQUEST]>>>", i);
+      if (atLineStart || atToolRequest) {
         const indentMatch = stickyMatch(RE_INDENT, text, i);
         const indent = indentMatch ? indentMatch[1].length : 0;
         const posAfterIndent = i + indent;
@@ -416,60 +528,72 @@ export class Tokenizer {
             // 如果没找到闭合或被判定为金额，则回退，让后续逻辑处理（可能会被识别为 text 或内联公式）
           }
 
-          // 代码围栏 ```
+          // Match complete fence lines; shorter inner fences remain code content.
           if (
             indent < 20 &&
-            charAfterIndent === 96 &&
-            text.startsWith("```", posAfterIndent)
+            (charAfterIndent === 96 || charAfterIndent === 126)
           ) {
-            const openMatch = stickyMatch(
-              RE_CODE_FENCE_OPEN,
-              text,
-              posAfterIndent
+            const openingEndAt = text.indexOf("\n", posAfterIndent);
+            const openingEnd = openingEndAt < 0 ? len : openingEndAt;
+            const fence = readCodeFenceOpening(
+              text.slice(posAfterIndent, openingEnd)
             );
-            if (openMatch) {
-              const language = openMatch[1] || "";
-              let currentPos = posAfterIndent + openMatch[0].length;
-
-              if (currentPos < len && text[currentPos] === "\n") {
-                currentPos++;
-              }
-
-              const contentStart = currentPos;
-              let contentEnd = len;
-              let closed = false;
-
-              while (currentPos < len) {
-                if (text[currentPos] === "\n") {
-                  let k = currentPos + 1;
-                  let spaceCount = 0;
-                  while (k < len && text[k] === " " && spaceCount < 20) {
-                    k++;
-                    spaceCount++;
-                  }
-                  if (text.startsWith("```", k)) {
-                    contentEnd = currentPos;
-                    currentPos = k + 3;
-                    closed = true;
-                    break;
-                  }
-                }
-                currentPos++;
-              }
-
+            if (fence) {
+              const contentStart = openingEnd < len ? openingEnd + 1 : len;
+              // Search LF-delimited closing lines without allocating each intervening line.
+              const closing = new RegExp(
+                "(?:^|\\n) {0," +
+                  (indent + 3) +
+                  "}" +
+                  fence.marker +
+                  "{" +
+                  fence.length +
+                  ",}[ \\t\\r]*(?=\\n|$)",
+                "g"
+              );
+              closing.lastIndex = Math.max(0, contentStart - 1);
+              const match = closing.exec(text);
+              const closed = !!match;
+              let contentEnd = match
+                ? match.index + (text[match.index] === "\n" ? 1 : 0)
+                : len;
+              const currentPos = match ? match.index + match[0].length : len;
+              if (
+                closed &&
+                contentEnd > contentStart &&
+                text[contentEnd - 1] === "\n"
+              )
+                contentEnd--;
               let codeContent = text.slice(contentStart, contentEnd);
-              if (indent > 0) {
-                const dedentRegex = new RegExp(`^ {0,${indent}}`, "gm");
-                codeContent = codeContent.replace(dedentRegex, "");
-              }
-
+              if (indent > 0)
+                codeContent = codeContent.replace(
+                  new RegExp("^ {0," + indent + "}", "gm"),
+                  ""
+                );
               tokens.push({
                 type: "code_fence",
-                language,
+                language: decodeMarkdownEntities(fence.language),
                 raw: codeContent,
                 closed,
               });
               i = currentPos;
+              atLineStart = true;
+              continue;
+            }
+          }
+
+          const previous = tokens[tokens.length - 1];
+          const definitionBoundary =
+            !previous ||
+            previous.type === "reference_definition" ||
+            (previous.type === "newline" &&
+              (previous.count >= 2 ||
+                tokens[tokens.length - 2]?.type === "reference_definition"));
+          if (indent < 4 && charAfterIndent === 91 && definitionBoundary) {
+            const definition = readReferenceDefinition(text, posAfterIndent);
+            if (definition) {
+              tokens.push(definition.token);
+              i = definition.end;
               atLineStart = true;
               continue;
             }
@@ -512,6 +636,9 @@ export class Tokenizer {
             tokens.push({
               type: "list_marker",
               ordered: /\d+\./.test(listMatch[1]),
+              ...(/^\d/.test(listMatch[1])
+                ? { start: parseInt(listMatch[1], 10) }
+                : {}),
               raw: listMatch[0],
               indent: indent,
             });
@@ -575,22 +702,10 @@ export class Tokenizer {
             }
           }
 
-          // VCP 工具请求块 <<<[TOOL_REQUEST]>>> / <<<[TOOL_REQUEST_ESCAPE]>>> (Protocol: https://github.com/lioensky/VCPToolBox)
-          // TOOL_REQUEST_ESCAPE 用于嵌套工具调用，其内容中的 <<<[TOOL_REQUEST]>>> 不会被再次解析
-          const isEscapeBlock = text.startsWith(
-            "<<<[TOOL_REQUEST_ESCAPE]>>>",
-            posAfterIndent
-          );
-          if (
-            isEscapeBlock ||
-            text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)
-          ) {
-            const startMarker = isEscapeBlock
-              ? "<<<[TOOL_REQUEST_ESCAPE]>>>"
-              : "<<<[TOOL_REQUEST]>>>";
-            const endMarker = isEscapeBlock
-              ? "<<<[END_TOOL_REQUEST_ESCAPE]>>>"
-              : "<<<[END_TOOL_REQUEST]>>>";
+          // TOOL_REQUEST_ESCAPE 是字面量；仅标准请求创建工具节点。
+          if (text.startsWith("<<<[TOOL_REQUEST]>>>", posAfterIndent)) {
+            const startMarker = "<<<[TOOL_REQUEST]>>>";
+            const endMarker = "<<<[END_TOOL_REQUEST]>>>";
             let currentPos = posAfterIndent + startMarker.length;
 
             const boundary = findRenderableVcpBlockBoundary(
@@ -598,9 +713,7 @@ export class Tokenizer {
               currentPos,
               {
                 endMarker,
-                recoveryStartMarkers: isEscapeBlock
-                  ? ["<<<[TOOL_REQUEST_ESCAPE]>>>"]
-                  : ["<<<[TOOL_REQUEST]>>>", "<<<[TOOL_REQUEST_ESCAPE]>>>"],
+                recoveryStartMarkers: ["<<<[TOOL_REQUEST]>>>"],
               },
               this.vcpFuzzyModeEnabled
             );
@@ -633,6 +746,13 @@ export class Tokenizer {
                 "recovery" in boundary ? boundary.recovery.message : undefined;
               currentPos = boundary.endIndex + endMarker.length;
               closed = true;
+            } else if (boundary.status === "recovered") {
+              vcpContent = text.slice(currentPos, boundary.endIndex);
+              vcpContentForParsing = vcpContent;
+              currentPos = boundary.nextIndex;
+              fenceError = boundary.message;
+              // 显示范围已确定；原始协议是否闭合仍由执行侧严格判断。
+              closed = true;
             } else {
               vcpContent = text.slice(currentPos);
               vcpContentForParsing = vcpContent;
@@ -649,17 +769,30 @@ export class Tokenizer {
             const matchedRanges: Array<[number, number]> = [];
             const matchedValueRanges: Array<[number, number]> = [];
 
-            const parseEscapeVariant = (regex: RegExp) => {
+            const parseEscapeVariant = (
+              regex: RegExp,
+              opening: string,
+              closing: string
+            ) => {
+              // Missing delimiters make these unanchored field scans fail across the whole body.
+              if (
+                !vcpContentForParsing.includes(opening) ||
+                !vcpContentForParsing.includes(closing)
+              )
+                return;
               let match;
               regex.lastIndex = 0;
               while ((match = regex.exec(vcpContentForParsing)) !== null) {
                 const key = match[1];
-                const value = match[2];
+                const value =
+                  opening === "「始ESCAPE」"
+                    ? restoreVcpEscapedLiterals(match[2])
+                    : match[2];
                 matchedRanges.push([match.index, regex.lastIndex]);
                 const valueStart = match.index + match[0].indexOf("」") + 1;
                 matchedValueRanges.push([
                   valueStart,
-                  valueStart + value.length,
+                  valueStart + match[2].length,
                 ]);
                 if (key === "tool_name") tool_name = value;
                 else if (key === "command") command = value;
@@ -668,8 +801,12 @@ export class Tokenizer {
               }
             };
 
-            parseEscapeVariant(RE_VCP_ARG_ESCAPE);
-            parseEscapeVariant(RE_VCP_ARG_EXP);
+            parseEscapeVariant(
+              RE_VCP_ARG_ESCAPE,
+              "「始ESCAPE」",
+              "「末ESCAPE」"
+            );
+            parseEscapeVariant(RE_VCP_ARG_EXP, "「始exp」", "「末exp」");
 
             // 第二步：构建去除已匹配范围的内容，再用标准正则扫描
             matchedRanges.sort((a, b) => a[0] - b[0]);
@@ -702,23 +839,28 @@ export class Tokenizer {
             let match;
             RE_VCP_ARG.lastIndex = 0;
             let lastMatchEnd = 0;
-            while ((match = RE_VCP_ARG.exec(scanContent)) !== null) {
-              const key = match[1];
-              const value = match[2];
-              // 使用原始 vcpContent 中对应位置的真实值
-              const realValue = vcpContentForParsing
-                .slice(match.index)
-                .match(RE_VCP_ARG_SINGLE);
-              const actualValue = realValue ? realValue[2] : value;
-              if (key === "tool_name") tool_name = tool_name || actualValue;
-              else if (key === "command") command = command || actualValue;
-              else if (key === "maid") maid = maid || actualValue;
-              else if (!args[key]) args[key] = actualValue;
-              lastMatchEnd = RE_VCP_ARG.lastIndex;
+            if (
+              scanContent.includes("「始」") &&
+              scanContent.includes("「末」")
+            ) {
+              while ((match = RE_VCP_ARG.exec(scanContent)) !== null) {
+                const key = match[1];
+                const value = match[2];
+                // 使用原始 vcpContent 中对应位置的真实值
+                const realValue = vcpContentForParsing
+                  .slice(match.index)
+                  .match(RE_VCP_ARG_SINGLE);
+                const actualValue = realValue ? realValue[2] : value;
+                if (key === "tool_name") tool_name = tool_name || actualValue;
+                else if (key === "command") command = command || actualValue;
+                else if (key === "maid") maid = maid || actualValue;
+                else if (!args[key]) args[key] = actualValue;
+                lastMatchEnd = RE_VCP_ARG.lastIndex;
+              }
             }
 
             const remainingVcp = maskedContent.slice(lastMatchEnd).trim();
-            const pendingMatch = remainingVcp.match(RE_VCP_PENDING);
+            const pendingMatch = findVcpPendingField(remainingVcp);
             if (pendingMatch) {
               const key = pendingMatch[1];
               // pending 情形取原始内容中对应的值
@@ -727,9 +869,9 @@ export class Tokenizer {
               );
               const rawPendingMatch =
                 pendingStart >= 0
-                  ? vcpContentForParsing
-                      .slice(pendingStart)
-                      .match(RE_VCP_PENDING)
+                  ? findVcpPendingField(
+                      vcpContentForParsing.slice(pendingStart)
+                    )
                   : null;
               const value = rawPendingMatch
                 ? rawPendingMatch[2]
@@ -740,9 +882,15 @@ export class Tokenizer {
               else if (!args[key]) args[key] = value;
             }
 
+            // JEV 自然语言工具调用：块内以 JEV 前缀键携带自然语言指令，没有 tool_name 字段，
+            // 仅识别 JEV 前缀作为工具名展示，指令内容不做二次解析、原样保留在 args 中
+            if (!tool_name && args.JEV) {
+              tool_name = "JEV";
+            }
+
             tokens.push({
               type: "vcp_tool",
-              raw: startMarker + vcpContent + (closed ? endMarker : ""),
+              raw: text.slice(posAfterIndent, currentPos),
               closed,
               tool_name,
               command,

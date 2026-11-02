@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import {
+  DYNAMIC_MESSAGE_ANCHORS,
+  assertPresetComposition,
+  createPresetPart,
+  flattenPresetMessage,
+} from "@aiohub/agent-preset-core";
+import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import { ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
-import { customMessage } from "@/utils/feedback";
+import { customDialog, customMessage } from "@/utils/feedback";
 import { generateUuid } from "@/utils/uuid";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 
@@ -19,6 +26,7 @@ const form = ref<PresetMessage>(createEmptyMessage());
 const advancedOpen = ref(false);
 const modelOpen = ref(false);
 const isNew = computed(() => !props.message);
+const baseline = ref("");
 
 function createEmptyMessage(): PresetMessage {
   return {
@@ -37,7 +45,8 @@ watch(
   () => [props.open, props.message] as const,
   ([open, message]) => {
     if (!open) return;
-    form.value = structuredClone(message || createEmptyMessage());
+    form.value = JSON.parse(JSON.stringify(message || createEmptyMessage()));
+    baseline.value = JSON.stringify(form.value);
     advancedOpen.value = false;
     modelOpen.value = false;
   },
@@ -98,12 +107,66 @@ function updatePatterns(
     .filter(Boolean);
 }
 
+const converting = ref(false);
+
+async function changeBodyMode(mode: "plain" | "composition") {
+  if (
+    converting.value ||
+    (mode === "composition") === !!form.value.presetComposition
+  )
+    return;
+  if (mode === "composition") {
+    form.value.presetComposition = {
+      version: 1,
+      separator: "",
+      parts: [createPresetPart(form.value.content)],
+    };
+    form.value.content = "";
+    delete form.value.presetContributingParts;
+    return;
+  }
+  converting.value = true;
+  try {
+    const confirmed = await customDialog({
+      title: t("转为普通消息"),
+      message: t("转为普通消息提示"),
+      confirmButtonText: t("转换"),
+      cancelButtonText: t("取消"),
+    });
+    if (confirmed) form.value = flattenPresetMessage(form.value);
+  } catch (error) {
+    customMessage((error as Error).message, "error");
+  } finally {
+    converting.value = false;
+  }
+}
+
+async function requestClose() {
+  if (JSON.stringify(form.value) !== baseline.value) {
+    const discard = await customDialog({
+      title: "尚有未保存的修改",
+      message: "返回将放弃本次修改。也可以继续编辑，使用顶部保存按钮保留修改。",
+      confirmButtonText: "放弃更改",
+      cancelButtonText: "继续编辑",
+    });
+    if (!discard) return;
+  }
+  emit("close");
+}
 function save(): void {
-  if (!form.value.content.trim()) {
+  if (form.value.presetComposition) {
+    try {
+      assertPresetComposition(form.value.presetComposition);
+      form.value.content = "";
+    } catch (error) {
+      customMessage((error as Error).message, "error");
+      return;
+    }
+  } else if (!form.value.content.trim()) {
     customMessage(t("消息内容不能为空"), "warning");
     return;
   }
-  emit("save", structuredClone(form.value));
+  emit("save", JSON.parse(JSON.stringify(form.value)));
 }
 </script>
 
@@ -115,7 +178,7 @@ function save(): void {
           type="button"
           class="icon-button"
           :aria-label="t('返回')"
-          @click="emit('close')"
+          @click="requestClose"
         >
           <ChevronLeft :size="24" />
         </button>
@@ -154,7 +217,34 @@ function save(): void {
             </option>
           </select>
         </label>
-        <label class="field content-field">
+        <div class="field">
+          <span>{{ t("内容形式") }}</span>
+          <div class="role-tabs" role="group" :aria-label="t('内容形式')">
+            <button
+              type="button"
+              :class="{ active: !form.presetComposition }"
+              :aria-pressed="!form.presetComposition"
+              :disabled="converting"
+              @click="changeBodyMode('plain')"
+            >
+              {{ t("普通正文") }}
+            </button>
+            <button
+              type="button"
+              :class="{ active: !!form.presetComposition }"
+              :aria-pressed="!!form.presetComposition"
+              :disabled="converting"
+              @click="changeBodyMode('composition')"
+            >
+              {{ t("组合编排") }}
+            </button>
+          </div>
+        </div>
+        <PresetCompositionEditor
+          v-if="form.presetComposition"
+          v-model="form.presetComposition"
+        />
+        <label v-else class="field content-field">
           <span>{{ t("内容") }}</span>
           <textarea
             v-model="form.content"
@@ -196,7 +286,30 @@ function save(): void {
             <template v-if="strategyType === 'anchor'">
               <label>
                 {{ t("锚点") }}
-                <input v-model="form.injectionStrategy!.anchorTarget" />
+                <select v-model="form.injectionStrategy!.anchorTarget">
+                  <option value="chat_history">{{ t("会话历史") }}</option>
+                  <option value="user_profile">{{ t("用户档案") }}</option>
+                  <option
+                    v-for="anchor in DYNAMIC_MESSAGE_ANCHORS"
+                    :key="anchor.id"
+                    :value="anchor.id"
+                  >
+                    {{ t(anchor.name) }}
+                  </option>
+                  <option
+                    v-if="
+                      form.injectionStrategy!.anchorTarget &&
+                      ![
+                        'chat_history',
+                        'user_profile',
+                        ...DYNAMIC_MESSAGE_ANCHORS.map((a) => a.id),
+                      ].includes(form.injectionStrategy!.anchorTarget)
+                    "
+                    :value="form.injectionStrategy!.anchorTarget"
+                  >
+                    {{ form.injectionStrategy!.anchorTarget }}
+                  </option>
+                </select>
               </label>
               <label>
                 {{ t("锚点位置") }}
@@ -206,6 +319,7 @@ function save(): void {
                 </select>
               </label>
             </template>
+            <p v-if="strategyType === 'anchor'">{{ t("动态锚点说明") }}</p>
             <label v-if="strategyType !== 'default'">
               {{ t("排序权重") }}
               <input
@@ -355,6 +469,9 @@ textarea {
   color: var(--text-color);
   background: transparent;
   text-transform: capitalize;
+}
+.role-tabs button:disabled {
+  opacity: 0.6;
 }
 .role-tabs .active {
   border-color: var(--primary-color);

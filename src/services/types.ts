@@ -76,6 +76,7 @@ export interface ServiceMetadata {
 
 import type { Component } from "vue";
 import type { DetachableComponentRegistration } from "@/types/detachable";
+import type { LocalMediaReference } from "@/types/local-media";
 import type { AssetSidecarAction } from "@/types/asset-management";
 import type { SettingItem } from "@/types/settings-renderer";
 import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
@@ -267,6 +268,8 @@ export type ToolRegistryItem = ToolRegistry | ToolRegistryFactory;
  * 同步工具和异步任务均使用此接口，屏蔽底层执行模式差异
  */
 export interface ToolContext {
+  /** 当前请求的逻辑渠道与模型；渠道切换保留此绑定。 */
+  modelBinding?: { profileId: string; modelId: string };
   /** 当前工具调用所属 Agent 的只读权限快照。外部调用缺少该上下文时保持 undefined。 */
   agent?: {
     id: string;
@@ -292,6 +295,13 @@ export interface ToolContext {
   taskId?: string;
 
   /**
+   * 子智能体派发深度（Delegation Depth）。
+   * 主会话发起的工具调用未指定时视为 0；子智能体派发下一级子会话时透传 depth + 1，
+   * 用于 sub-agent 深度链校验，防范不可控递归。
+   */
+  delegationDepth?: number;
+
+  /**
    * 是否处于异步任务模式
    * - true：由 TaskManager 管理，支持持久化进度、取消、重试
    * - false：同步阻塞执行，进度仅用于实时 UI 反馈
@@ -299,8 +309,15 @@ export interface ToolContext {
   isAsync: boolean;
 }
 
+/** 工具结果携带的本地媒体引用，供发送管道按需读取。 */
+export interface ToolResultWithLocalMedia {
+  localMedia?: LocalMediaReference[];
+}
+
 /** 工具需要把结构化审计信息写入消息元数据时使用的标准返回信封。 */
-export interface ToolMethodResult<T = unknown> {
+export interface ToolMethodResult<
+  T = unknown,
+> extends ToolResultWithLocalMedia {
   result: T;
   executionMetadata: Record<string, unknown>;
 }

@@ -1,6 +1,6 @@
 # JSON Formatter: 架构与开发者指南
 
-> 最后更新：2026-08-01
+> 最后更新：2026-10-18
 
 本文档旨在解析 JSON Formatter 工具的内部架构、设计理念和数据流，为后续开发提供清晰的指引。
 
@@ -27,7 +27,7 @@ JSON Formatter 是一个简洁、高效的 JSON 格式化与验证工具，旨�
 
 - **View (`JsonFormatter.vue`)**: 负责 UI 渲染和用户交互。它直接调用 `Logic` 模块的纯函数，不依赖插件系统的注册实例。
 - **Logic (`jsonFormatter.logic.ts`)**: **核心逻辑层**。封装了 JSON 解析、格式化算法（Engine）和文件读取等所有业务逻辑。
-- **Registry (`jsonFormatter.registry.ts`)**: **对外门面 (Facade)**。作为 AIO Hub 插件系统的注册接口，它仅持有一个轻量级的类，将请求转发给 `Logic` 模块，供其他插件或系统核心调用。
+- **Registry (`json-formatter.registry.ts`)**: **对外门面 (Facade)**。作为 AIO Hub 插件系统的注册接口，它仅持有一个轻量级的类，将请求转发给 `Logic` 模块，供其他插件或系统核心调用。
 
 ## 3. 数据流
 
@@ -58,7 +58,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant External as 外部工具
-    participant Registry (jsonFormatter.registry.ts)
+    participant Registry (json-formatter.registry.ts)
     participant Logic (jsonFormatter.logic.ts)
 
     External->>Registry: 调用 formatJson()

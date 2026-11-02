@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { STREAM_EFFECT_OPTIONS } from "@/tools/rich-text-renderer/utils/streamEffectStyles";
+import { OUTPUT_TOKEN_INPUT_MAX } from "@aiohub/llm-core";
 import { defineAsyncComponent } from "vue";
 import {
   Settings2,
@@ -26,11 +28,10 @@ import {
   Languages,
   FileText,
   Network,
-  BookMarked,
   Zap,
-  Library,
   LayoutTemplate,
 } from "lucide-vue-next";
+import { RecallIcon, WorldbookIcon } from "@aiohub/tool-icons";
 import type { SettingsSection } from "@/types/settings-renderer";
 import type { ChatSettings } from "../../types/settings";
 import { availableVersions } from "@/tools/rich-text-renderer/stores/store";
@@ -38,6 +39,10 @@ import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
 import { useOcrExtensions } from "@/tools/smart-ocr/platform";
 import type { OcrExtension } from "@/tools/smart-ocr/platform";
+
+const RetryStatusCodesEditor = defineAsyncComponent(
+  () => import("./RetryStatusCodesEditor.vue")
+);
 
 const getOcrExtensions = (): OcrExtension[] => {
   const { ocrExtensions } = useOcrExtensions();
@@ -103,6 +108,15 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "新建智能体或会话时默认使用的模型，作为兜底选项",
         keywords: "model default 默认 模型",
         defaultValue: "",
+      },
+      {
+        id: "splitVcpResponses",
+        label: "VCP 消息拆分",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "uiPreferences.splitVcpResponses",
+        hint: "将 VCP 流式回复中的模型回复与工具结果拆分为独立消息。修改后从下一次请求生效。",
+        keywords: "vcp stream split segment 消息 拆分 分段 工具 结果",
       },
       {
         id: "searchResultLimit",
@@ -194,7 +208,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.showPerformanceMetrics",
-        hint: "显示生成速度(t/s)和首字延迟(TTFT)",
+        hint: "在消息底部显示生成速度、首字延迟和总耗时",
         keywords: "ui performance metrics speed latency 性能 速度 延迟",
       },
       {
@@ -389,9 +403,11 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         options: [
           { label: "卡片模式 (默认)", value: "card" },
           { label: "气泡模式 (IM 风格)", value: "bubble" },
+          { label: "连续紧凑", value: "compact" },
         ],
-        hint: "卡片模式：所有消息占满宽度（保持现有行为）<br/>气泡模式：按角色对齐并限制宽度",
-        keywords: "bubble layout mode card 气泡 布局 模式 卡片",
+        hint: "卡片：全宽独立消息；气泡：按角色对齐；连续紧凑：连续回复共享身份头，按用户提问导航",
+        keywords:
+          "bubble layout mode card compact 气泡 布局 模式 卡片 连续 紧凑 合并",
       },
       {
         id: "bubbleUserAlign",
@@ -694,8 +710,21 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         layout: "inline",
         component: "ElSwitch",
         modelPath: "uiPreferences.enableEnterAnimation",
-        hint: "为基础消息节点（如文本、段落）启用淡入动画。",
+        hint: "为基础消息节点启用入场动画，同时控制流式文字特效。",
         keywords: "ui animation effect 动画 特效",
+      },
+      {
+        id: "streamEffect",
+        label: "流式文字特效",
+        component: "ElSelect",
+        options: STREAM_EFFECT_OPTIONS.map(({ label, value }) => ({
+          label,
+          value,
+        })),
+        modelPath: "uiPreferences.streamEffect",
+        hint: "为新增文字选择图形、粒子或晕染效果，跟随系统的减少动态效果偏好。",
+        visible: (s) => s.uiPreferences.enableEnterAnimation,
+        keywords: "ui streaming animation particles 流式 动画 粒子 星屑 字幕",
       },
       {
         id: "defaultRenderHtml",
@@ -1001,7 +1030,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         component: "SliderWithInput",
         props: { min: 1, max: 10, step: 1 },
         modelPath: "topicNaming.autoTriggerThreshold",
-        hint: "当会话中用户消息数量达到此值时，自动生成标题",
+        hint: "当前分支中，用户发言与 AI 完整回复达到此轮数时自动生成标题，开场预设消息跳过计数",
         keywords: "topic naming trigger threshold 话题 命名 自动",
         visible: (settings) => settings.topicNaming.enabled,
       },
@@ -1583,7 +1612,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transImageMaxTokens",
         label: "图片输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.image.maxTokens",
         hint: "图片转写结果的最大 token 数",
         keywords: "transcription image max tokens 图片 转写 上限",
@@ -1677,7 +1706,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transAudioMaxTokens",
         label: "音频输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.audio.maxTokens",
         hint: "音频转写结果的最大 token 数",
         keywords: "transcription audio max tokens 音频 转写 上限",
@@ -1775,7 +1804,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transVideoMaxTokens",
         label: "视频输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.video.maxTokens",
         hint: "视频转写结果的最大 token 数",
         keywords: "transcription video max tokens 视频 转写 上限",
@@ -2113,7 +2142,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         id: "transDocumentMaxTokens",
         label: "文档输出上限",
         component: "SliderWithInput",
-        props: { min: 0, max: 32768, step: 1024 },
+        props: { min: 0, max: OUTPUT_TOKEN_INPUT_MAX, step: 1024 },
         modelPath: "transcription.document.maxTokens",
         hint: "文档转写结果的最大 token 数",
         keywords: "transcription document max tokens 文档 转写 上限",
@@ -2187,8 +2216,8 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     ],
   },
   {
-    title: "知识库设置",
-    icon: Library,
+    title: "思绪设置",
+    icon: RecallIcon,
     items: [
       {
         id: "kbEmbeddingModelInfo",
@@ -2196,13 +2225,13 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         component: KbEmbeddingInfo,
         modelPath: "",
         hint: "",
-        keywords: "knowledge base embedding model 知识库 向量 模型",
+        keywords: "recall knowledge base embedding model 思绪 知识库 向量 模型",
       },
     ],
   },
   {
     title: "世界书",
-    icon: BookMarked,
+    icon: WorldbookIcon,
     items: [
       {
         id: "globalWorldbookIds",
@@ -2314,13 +2343,46 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     icon: Globe,
     items: [
       {
+        id: "longImageSlicing",
+        label: "发送长图时自动切分",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "requestSettings.longImageSlicing.enabled",
+        hint: "发送前沿图片空白区域切分长图，再分别应用图片压缩。可保留更多文字细节，也可能增加图片数量和 Token 用量。",
+        keywords: "request image slice split 长图 切图 切分 附件 压缩",
+      },
+      {
+        id: "longImageAspectRatio",
+        label:
+          "长宽比阈值（{{ localSettings.requestSettings.longImageSlicing.aspectRatioThreshold }}:1）",
+        component: "SliderWithInput",
+        props: { min: 1, max: 10, step: 0.5 },
+        modelPath: "requestSettings.longImageSlicing.aspectRatioThreshold",
+        hint: "图片高度与宽度之比超过此值时尝试切分；缺少合适空白时保留整图。",
+        visible: (settings) =>
+          !!settings.requestSettings.longImageSlicing?.enabled,
+        keywords: "request image slice ratio 长图 长宽比",
+      },
+      {
+        id: "longImageMinCutHeight",
+        label: "最小切片高度",
+        component: "SliderWithInput",
+        props: { min: 100, max: 2000, step: 20 },
+        modelPath: "requestSettings.longImageSlicing.minCutHeight",
+        hint: "单位为像素。较大的值可以减少碎片，保留段落上下文。",
+        visible: (settings) =>
+          !!settings.requestSettings.longImageSlicing?.enabled,
+        keywords: "request image slice height 长图 切片 高度",
+      },
+      {
         id: "imageOnlyMessagePlaceholder",
-        label: "纯图片消息补充占位文本",
+        label: "媒体附件消息补充占位文本",
         layout: "inline",
         component: "ElSwitch",
         modelPath: "requestSettings.imageOnlyMessagePlaceholder",
-        hint: "为只有图片、没有正文或转写文本的用户消息补充 [图片]，兼容拒绝空文本消息的 API。仅影响发送内容，不修改聊天记录；默认开启，可按需关闭。",
-        keywords: "request image placeholder 图片 空文本 占位 兼容 400",
+        hint: "仅发送附件且正文和转写文本为空时，按附件类型补充 [图片]、[音频]、[视频] 或 [文档]，支持混合附件。补充内容仅用于发送请求，聊天记录保持原样；默认开启，可按需关闭。",
+        keywords:
+          "request image audio video document media placeholder 附件 图片 音频 视频 文档 空文本 占位 兼容 400",
       },
       {
         id: "timeout",
@@ -2377,6 +2439,16 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         ],
         hint: "固定间隔：每次重试等待相同时间<br/>指数退避：每次重试等待时间翻倍（推荐）",
         keywords: "request retry mode strategy 重试 模式 策略",
+      },
+      {
+        id: "retryStatusCodes",
+        label: "自动重试状态码",
+        component: RetryStatusCodesEditor,
+        modelPath: "requestSettings.retryStatusCodes",
+        defaultValue: DEFAULT_SETTINGS.requestSettings.retryStatusCodes,
+        hint: "仅当响应状态码命中这些号段时才自动重试；逗号分隔的区间或单值（如 500-503,520）。2xx、504、524 始终排除，超时与网络错误不受此限制。",
+        keywords: "request retry status code 重试 状态码 白名单 号段",
+        visible: (settings) => settings.requestSettings.maxRetries > 0,
       },
       {
         id: "enableIncrementalSave",

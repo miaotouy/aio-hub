@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { normalizeVirtualAttachments } from "../../utils/virtualAttachments";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { toRaw, type Ref } from "vue";
 import type {
@@ -202,6 +203,11 @@ export function useGraphActions(
     // 禁止更新的字段：id, parentId, childrenIds
     const { id: _, parentId: __, childrenIds: ___, ...safeUpdates } = updates;
 
+    if ("virtualAttachments" in safeUpdates) {
+      safeUpdates.virtualAttachments = normalizeVirtualAttachments(
+        safeUpdates.virtualAttachments
+      );
+    }
     Object.assign(node, safeUpdates);
 
     // 确保有 updatedAt
@@ -259,7 +265,14 @@ export function useGraphActions(
     if (nodeId.startsWith("preset-")) {
       const agentStore = useAgentStore();
       if (!currentAgentId.value) return;
-      agentStore.updatePresetMessage(currentAgentId.value, nodeId, newContent);
+      if (
+        !agentStore.updatePresetMessage(
+          currentAgentId.value,
+          nodeId,
+          newContent
+        )
+      )
+        throw new Error("请通过组合消息的结构编辑器修改正文");
       return;
     }
 
@@ -681,15 +694,22 @@ export function useGraphActions(
     sourceNodeId: string,
     newContent: string,
     attachments?: Asset[],
-    sessionId?: string | null
+    sessionId?: string | null,
+    nodeData?: Partial<ChatMessageNode>
   ): Promise<void> {
     const session = resolveSession(sourceNodeId, sessionId);
-    if (!session) return;
+    if (!session) {
+      if (nodeData) throw new Error("会话已被删除，请重新打开编辑器");
+      return;
+    }
 
     const nodeManager = useNodeManager();
 
     const sourceNode = session.nodes?.[sourceNodeId];
-    if (!sourceNode) return;
+    if (!sourceNode) throw new Error("消息节点已被删除，请重新打开编辑器");
+    if (nodeData && !sourceNode.parentId) {
+      throw new Error("根节点请使用直接保存");
+    }
 
     const solidifyDeltas = solidifyLiveGreetingsForMutation(session);
     const parentBeforeCreate = captureParentChildren(
@@ -698,11 +718,19 @@ export function useGraphActions(
     );
 
     // 使用 nodeManager 创建新分支节点（保留源节点角色，附件已包含在内）
+    if (nodeData && "virtualAttachments" in nodeData)
+      nodeData = {
+        ...nodeData,
+        virtualAttachments: normalizeVirtualAttachments(
+          nodeData.virtualAttachments
+        ),
+      };
     const newNode = nodeManager.createBranchFromEdit(
       session,
       sourceNodeId,
       newContent,
-      attachments
+      attachments,
+      nodeData
     );
 
     if (!newNode) {

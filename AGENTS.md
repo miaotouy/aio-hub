@@ -8,6 +8,7 @@
 - 版本、依赖与脚本直接从根目录与移动端的 `package.json`、`tauri.conf.json`、相关 `Cargo.toml` 和实际源码中读取。
 - 优先复用已有组件、composable、service、registry 和工具函数。改动保持聚焦且确保实现完整。
 - 完整保留与当前任务无关的主人改动，修改范围仅聚焦于任务目标。
+- 一次性补丁脚本、排查脚本、日志和中间产物统一放在系统临时目录或已忽略的 `.tmp/<任务名>/`；长期复用的脚本放入 `scripts/` 并维护正式入口。
 - AI开发时不主动读取可能包含对外连接的key、token等凭证文件，避免llm上下文被提取时泄漏。
 - 仅在获得主人明确许可后创建 Git 提交。需要提交时遵循[贡献指南](docs/guide/contribution-guide.md)中的提交规范。
 
@@ -17,6 +18,7 @@
 - 实现与原文档存在偏差时，完成代码后同步修正文档或标记偏差，保持文档与代码一致。
 - 遇到重大偏差或影响后续步骤的阻塞问题，写回原文档后告知主人；微小偏差可直接静默回写。
 - 工具计划放在 `src/tools/{toolId}/docs/Plan/`，工具架构放在 `src/tools/{toolId}/ARCHITECTURE.md`；跨模块计划、架构和设计分别放在 `docs/Plan/`、`docs/architecture/`、`docs/design/`。
+- 文档站按显式发布清单收录用户手册和精选开发文档；教程截图由 Agent 通过 Dev Control CLI 自行采集，可添加编号、箭头或临时引导叠加层，具体流程见[文档站维护与教程截图](docs/guide/docs-maintenance.md)。
 
 ## 3. 命令与验证
 
@@ -24,6 +26,7 @@
 - 运行检查、测试、构建或开发服务前先读取对应 `package.json` 的 scripts，并优先使用已有脚本。
 - 前端改动确认前除类型检查外同步运行 Vite 构建，以覆盖打包期导入、插件和 CSS 检查。
 - 普通浏览器用于验证明确具有 mock 或 browser fallback 的纯前端场景；涉及 Tauri WebView、IPC、插件或真实窗口运行态的功能，在真实环境中进行验证。
+- Agent 日常开发的页面操作与截图优先使用项目自带 Dev Control CLI，启动、窗口选择、批量指令和权限边界见[开发界面控制指南](docs/guide/dev-control.md)。
 - Tauri 单测、真实窗口 E2E、原生文件对话框和 Windows UI Automation 的边界与运行方式见[工具测试指南](docs/guide/tool-testing-guide.md)、[Tauri E2E 说明](tests/tauri-e2e/README.md)和[Windows UI Automation 说明](tests/windows-ui-automation/README.md)。
 - 默认仅运行与当前改动相关的测试用例，保持执行高效。
 - 测试由回归风险和可稳定验证的行为驱动。新增测试需明确其防护的具体回归点；断言应面向目标行为契约，避免机械镜像实现细节。迁移旧测试时以当前目标契约为验证依据。
@@ -36,6 +39,7 @@
 - Native / Sidecar 插件的构建脚本将当前平台产物部署到稳定相对路径，manifest 统一引用该路径。验证时以运行 manifest 对应平台键指向的文件为准。
 - 涉及 VCP 时，阅读 [`tool-calling` 架构](src/tools/tool-calling/ARCHITECTURE.md)与 [`vcp-connector` 架构](src/tools/vcp-connector/ARCHITECTURE.md)，以文档规范为唯一协议依据。
 - 模型元数据规则在模型创建、导入、刷新或显式应用预设时固化写入模型对象。`media-generator` 运行时直接读取模型自身的 `mediaGenParams`。
+- 模型候选选择、自动替换与回退统一归渠道管理；下游工具按显式绑定或配置的继承关系提交请求。虚拟渠道组合与现有下游回退的迁移顺序见 [实施方案](docs/Plan/llm-virtual-channel-investigation.md)。
 - 移动端特有的文档入口、验证边界和实现约定见 [`mobile/AGENTS.md`](mobile/AGENTS.md)；处理 `mobile/**` 时先读取该局部指引。
 
 ## 5. 前端规范
@@ -46,6 +50,7 @@
 - 主人提示使用平台封装：桌面端优先使用 `src/utils/customMessage.ts`，移动端使用 `mobile/src/utils/feedback.ts`。使用 `ElMessageBox` 时设置 `lockScroll: false`；`BaseDialog` 的属性契约见[通用组件说明](src/components/common/README.md)。
 - 背景、边框、文字、模糊等视觉值使用项目主题变量；毛玻璃使用 `backdrop-filter: blur(var(--ui-blur))`。详见[主题系统架构](docs/architecture/theme-system-architecture.md)。
 - 移动端以原生 Vue 结构、项目组件和 AIO Hub token 为主，Varlet 只作为可替换的底层原子组件库。详见[移动端 UI 开发指南](docs/guide/mobile-ui-development.md)。
+- Tauri WebView 内部列表排序复用 `VueDraggableNext`，启用 `:force-fallback="true"` 并设置专用拖拽柄；跨容器浮层可配置 `:fallback-on-body="true"`。窗口原生文件拖放配置保持原样，实际拖动在真实 Tauri 窗口验证。详见[开发界面控制指南](docs/guide/dev-control.md#tauri-内部拖拽排序)。
 - 使用 `DropZone` 时，默认通过内置“选择文件”按钮或拖放区域交互；整块区域需要点击时才配置 `click-zone`。内置按钮的原生点击与键盘交互保持独立可用。
 - 界面按专业桌面软件交互设计：默认即展示完整工作区（工具栏、面板、编辑区、操作入口），仅内容区留白并用内联占位、禁用态或默认示例填充。禁止 web 式「先打开/上传才出现完整界面」的引导式空页面，空数据与未选择状态同样保留可操作的整体框架。
 

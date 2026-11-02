@@ -18,6 +18,14 @@ const popperAliases = Object.fromEntries(
   popperDeepImports.map((id) => [id, path.resolve(__dirname, "node_modules", id)])
 );
 
+// Shared rich-text parser modules import these root utilities through "@/".
+// The mobile alias maps "@" to mobile/src, so keep the shared paths explicit.
+const sharedRootUtilAliases = {
+  "@/utils/vcpToolBatch": path.resolve(__dirname, "../src/utils/vcpToolBatch"),
+  "@/utils/vcpToolSummary": path.resolve(__dirname, "../src/utils/vcpToolSummary"),
+  "@/utils/vcpEscapedLiterals": path.resolve(__dirname, "../src/utils/vcpEscapedLiterals"),
+};
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [
@@ -43,10 +51,13 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: {
+      ...sharedRootUtilAliases,
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../src"),
       ...popperAliases,
     },
+    // 共享包（如 @aiohub/tool-icons）从根 node_modules 解析 vue，强制与移动端共用同一份
+    dedupe: ["vue"],
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

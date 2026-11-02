@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { DEFAULT_TRANSCRIPTION_CONFIG } from "@/tools/transcription/config";
 import { createDefaultChatRegexConfig } from "../types/chatRegex";
+import { DEFAULT_RETRY_STATUS_CODES } from "../utils/retryStatusCodes";
+import { createCompactToolbarLayout } from "./inputToolbar";
+import { createDefaultMessageToolbarLayout } from "./messageToolbar";
 import type { ChatSettings } from "../types/settings";
 
 /**
@@ -22,7 +26,10 @@ import type { ChatSettings } from "../types/settings";
  */
 export const DEFAULT_SETTINGS: ChatSettings = {
   uiPreferences: {
+    inputToolbar: createCompactToolbarLayout(),
+    messageToolbar: createDefaultMessageToolbarLayout(),
     isStreaming: true, // 默认开启流式输出
+    splitVcpResponses: false,
     showTimestamp: false,
     showTokenCount: true,
     showTokenCountForBlocks: true,
@@ -55,6 +62,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     smoothingEnabled: true, // 流式平滑化
     throttleEnabled: true, // AST 节流开关
     enableEnterAnimation: true, // 默认开启
+    streamEffect: "none",
     showWallpaperInDetachedMode: true, // 默认开启分离模式壁纸
     enableDetachableHandle: true, // 默认允许组件分离
     virtualListOverscan: 20, // 预渲染可视区域外的消息数量
@@ -109,7 +117,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     prompt:
       "Please translate the following text to {targetLang}.\n\nImportant: If the text contains any of the following XML-style tag blocks: {thinkTags}, please keep the XML tags themselves unchanged, but translate the text content inside the tags.\n\nOnly output the translated content without any explanation or additional text:\n\n{text}",
     temperature: 0.3,
-    maxTokens: 2000,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   },
   transcription: {
     ...DEFAULT_TRANSCRIPTION_CONFIG,
@@ -155,15 +163,21 @@ export const DEFAULT_SETTINGS: ChatSettings = {
     maxTokens: 128,
     thinkingTokenReserve: 4096, // 思考模型在 max_tokens 中额外预留的推理空间
     disableThinking: true,
-    autoTriggerThreshold: 3, // 当会话中有 3 条用户消息时自动触发
+    autoTriggerThreshold: 3, // 当前分支完成 3 轮用户-AI 对话后自动触发，跳过开场预设
     contextMessageCount: 6, // 使用最近 6 条消息作为上下文
   },
   requestSettings: {
+    longImageSlicing: {
+      enabled: false,
+      aspectRatioThreshold: 3,
+      minCutHeight: 680,
+    },
     imageOnlyMessagePlaceholder: true,
     timeout: 60000, // 默认 60 秒
     maxRetries: 2, // 默认重试 2 次
     retryInterval: 3000, // 默认重试间隔 3 秒
     retryMode: "fixed", // 默认固定间隔
+    retryStatusCodes: DEFAULT_RETRY_STATUS_CODES, // 自动重试状态码号段
     enableIncrementalSave: true, // 默认启用增量保存
     incrementalSaveInterval: 2000, // 默认 2 秒
   },

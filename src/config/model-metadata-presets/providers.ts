@@ -98,12 +98,23 @@ export const providerRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
     },
     {
       id: "model-prefix-jev",
-      matchType: "modelPrefix",
-      matchValue: "jev",
+      matchType: "model",
+      matchValue: "(?:^|/)jev(?!-router(?:$|[-:.]))(?:[-:.][\\w.-]+)?$",
+      useRegex: true,
       properties: {
         icon: `/model-icons/typesafe.png`,
         group: "Jev",
         capabilities: { decision: true },
+        contextLength: 65536,
+        pricing: {
+          input: 0.042,
+          output: 0,
+          unit: "USD",
+          note: "按输入 token 计费（$42/Btok，约 $0.042/百万 token），输出免费；state 与全部问题合计 64k 上下文",
+        },
+        releaseDate: "2026-09-15",
+        description:
+          "TypeSafe Jev System One 决策模型，通过 Choice、Score、Noul 返回带概率与置信度的结构化决策；官方默认每请求 64K、每问题 32K，可通过请求头启用 262K 长上下文",
       },
       priority: 20,
       enabled: true,

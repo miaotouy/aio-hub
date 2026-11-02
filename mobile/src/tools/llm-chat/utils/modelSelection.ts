@@ -7,8 +7,8 @@ export function parseSelectedModelValue(value: string): [string, string] {
 }
 
 /**
- * Resolves a usable chat model without overriding a still-valid user selection.
- * The saved default model is used only when the current selection is empty or stale.
+ * Preserve an explicit binding, including stale references that need repair.
+ * An empty selection may inherit the user-configured default.
  */
 export function resolveSelectedModelValue(
   currentValue: string,
@@ -26,16 +26,6 @@ export function resolveSelectedModelValue(
     );
   };
 
-  if (isAvailable(currentValue)) return currentValue;
-  if (isAvailable(defaultValue)) return defaultValue;
-
-  const fallbackProfile = enabledProfiles.find((profile) =>
-    profile.models.some((model) => !model.capabilities?.decision)
-  );
-  const fallbackModel = fallbackProfile?.models.find(
-    (model) => !model.capabilities?.decision
-  );
-  return fallbackProfile && fallbackModel
-    ? `${fallbackProfile.id}:${fallbackModel.id}`
-    : "";
+  if (currentValue) return currentValue;
+  return isAvailable(defaultValue) ? defaultValue : "";
 }

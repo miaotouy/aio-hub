@@ -33,7 +33,6 @@ import {
   Mic,
   Video,
   Music,
-  Layers,
   ListOrdered,
   Monitor,
   FileText,
@@ -45,6 +44,7 @@ import {
   AudioLines,
   ListChecks,
 } from "lucide-vue-next";
+import { EmbeddingIcon } from "@aiohub/tool-icons";
 
 /**
  * 能力配置项
@@ -256,7 +256,7 @@ export const MODEL_CAPABILITIES: readonly CapabilityConfig[] = [
     key: "embedding",
     label: "嵌入",
     description: "支持生成文本嵌入向量 (Embedding)",
-    icon: markRaw(Layers),
+    icon: markRaw(EmbeddingIcon),
     color: "#64748b", // Slate 500 - 稳重的底层数据
     className: "embedding",
   },

@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 /**
  * LLM Chat 状态管理（树形历史结构）
  * 重构后的版本：专注于状态管理，复杂逻辑委托给 composables 和 services
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import {
@@ -62,6 +64,7 @@ import { createSessionHistoryManager } from "./session/sessionHistoryManager";
 import { createSessionGenerationManager } from "./session/sessionGenerationManager";
 import { createSessionLifecycleManager } from "./session/sessionLifecycleManager";
 import { useToolCallingStore } from "./toolCallingStore";
+import { setupApprovalArbiter } from "../composables/chat/setupApprovalArbiter";
 
 const logger = createModuleLogger("llm-chat/store");
 
@@ -78,8 +81,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     scannedSessionCount: 0,
   });
   const parameters = ref<LlmParameters>({
-    temperature: 1,
-    maxTokens: 4096,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   });
   // 只记录同一会话连续发送产生的队列，避免跨会话生成被误判成全局队列锁
   const queuedSessionIds = ref(new Set<string>());
@@ -116,6 +118,8 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   });
   const inputManager = useChatInputManager();
   const toolCallingStore = useToolCallingStore();
+  // 装配 JEV 审批仲裁器（幂等；渠道设置异步加载）
+  setupApprovalArbiter();
 
   watch(
     newSessionDraft,
@@ -455,6 +459,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
       runtime: sessionRuntime,
       history: sessionHistory,
       executeOrProxy,
+      createChatHandler: () => useChatHandler(),
     }
   );
   const sessionLifecycle = createSessionLifecycleManager(
@@ -483,6 +488,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     updateNewSessionAgent,
     createSession,
     switchSession,
+    reloadSession,
     deleteSession,
     batchDeleteSessions,
     importSessions,
@@ -563,6 +569,15 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   async function ensureSessionDetailLoaded(
     sessionId: string
   ): Promise<ChatSessionDetail | null> {
+    if (bus.windowType === "detached-component") {
+      const payload = await bus.requestAction<
+        { sessionId: string },
+        { index: ChatSessionIndex | null; detail: ChatSessionDetail | null }
+      >("llm-chat:get-session-detail", { sessionId });
+      if (payload.index) sessionIndexMap.value.set(sessionId, payload.index);
+      if (payload.detail) sessionDetailMap.value.set(sessionId, payload.detail);
+      return payload.detail;
+    }
     const existing = sessionAccess.getSessionDetail(sessionId);
     if (existing) return existing;
 
@@ -652,12 +667,15 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     content: string,
     options?: {
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: ModelIdentifier | null;
       knowledgeReference?: KnowledgeReference | null;
       parentId?: string;
       disableMacroParsing?: boolean;
       agentId?: string;
       sessionId?: string;
+      /** 子智能体派发深度：sub-agent 派发子会话时传 parent depth + 1 */
+      delegationDepth?: number;
     }
   ): Promise<void> {
     let targetOptions = options;
@@ -935,6 +953,11 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     isNodeGenerating,
     getSessionGeneratingNodeIds,
     isSessionGenerating,
+    getContextCompressionTask: sessionRuntime.getContextCompressionTask,
+    isSessionCompressing: sessionRuntime.isSessionCompressing,
+    cancelContextCompression: sessionRuntime.cancelContextCompression,
+    runContextCompression: sessionRuntime.runContextCompression,
+    waitForContextCompression: sessionRuntime.waitForContextCompression,
     currentMessageCount,
 
     // 按会话 id 的只读访问（不改变 currentSessionId）
@@ -957,6 +980,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     updateNewSessionAgent,
     createSession,
     switchSession,
+    reloadSession,
     deleteSession,
     batchDeleteSessions,
     importSessions,

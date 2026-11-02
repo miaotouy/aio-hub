@@ -12,28 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/**
- * NewAPI 预设模板
- */
-
-import type { LlmPreset } from "../types";
-
-// NewAPI / One API 聚合
-export const newapiPreset: LlmPreset = {
-  type: "openai",
-  name: "NewAPI",
-  description: "NewAPI / One API 兼容的聚合服务",
-  defaultBaseUrl: "https://api.example.com",
-  logoUrl: "/model-icons/newapi-color.svg",
-  links: [
-    {
-      label: "GitHub (NewAPI)",
-      url: "https://github.com/Calcium-Ion/new-api",
-    },
-    { label: "API 文档 (NewAPI)", url: "https://docs.newapi.pro/zh/docs" },
-    {
-      label: "GitHub (One API)",
-      url: "https://github.com/songquanpeng/one-api",
-    },
-  ],
-};
+// 历史模块路径兼容；预设列表统一注册 New API。
+export { newApiPreset as newapiPreset } from "./new-api";

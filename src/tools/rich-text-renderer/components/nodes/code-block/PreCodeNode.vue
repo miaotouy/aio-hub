@@ -18,24 +18,35 @@
   <div
     class="pre-code-node"
     :class="[
-      { 'with-line-numbers': lineNumbers },
+      { 'with-line-numbers': lineNumbers, 'is-wrapped': wordWrapEnabled },
       theme ? `theme-${theme}` : '',
     ]"
+    :style="{ '--pre-line-count': lines.length }"
   >
     <div
       v-if="lineNumbers"
       class="line-numbers-gutter"
+      aria-hidden="true"
       :style="dynamicGutterStyle"
     >
-      <div v-for="n in lineCount" :key="n" class="line-number">
-        <span class="num">{{ n }}</span>
-        <span
-          v-if="theme === 'monaco' || theme === 'codemirror'"
-          class="fold-placeholder"
-        ></span>
+      <div v-if="compactGutter" class="line-number line-numbers-compact">
+        <span class="num">{{ compactLineNumbers }}</span>
+        <span class="fold-placeholder">›</span>
       </div>
+      <template v-else>
+        <div v-for="n in lineCount" :key="n" class="line-number">
+          <span class="num">{{ n }}</span>
+          <span
+            v-if="theme === 'monaco' || theme === 'codemirror'"
+            class="fold-placeholder"
+            >{{ theme === "codemirror" ? "›" : "" }}</span
+          >
+        </div>
+      </template>
     </div>
-    <pre class="code-content"><code>{{ content }}</code></pre>
+    <pre
+      class="code-content"
+    ><code><template v-if="theme === 'codemirror' && lineNumbers && wordWrapEnabled"><template v-for="(line, index) in lines" :key="index"><span class="code-line">{{ line }}<br v-if="!line" /></span>{{ index < lines.length - 1 ? "\n" : "" }}</template></template><template v-else>{{ content }}</template></code></pre>
   </div>
 </template>
 
@@ -45,13 +56,19 @@ import { computed } from "vue";
 const props = defineProps<{
   content: string;
   lineNumbers?: boolean;
+  wordWrapEnabled?: boolean;
   theme?: "monaco" | "codemirror";
   gutterWidth?: number; // 显式指定行号区域宽度
 }>();
 
-const lineCount = computed(() => {
-  return props.content.split("\n").length || 1;
-});
+const lines = computed(() => props.content.replace(/\r\n?/g, "\n").split("\n"));
+const lineCount = computed(() => lines.value.length);
+const compactGutter = computed(
+  () => props.theme === "codemirror" && !props.wordWrapEnabled
+);
+const compactLineNumbers = computed(() =>
+  Array.from({ length: lineCount.value }, (_, i) => String(i + 1)).join("\n")
+);
 
 const dynamicGutterStyle = computed(() => {
   if (!props.gutterWidth) return {};
@@ -68,9 +85,17 @@ const dynamicGutterStyle = computed(() => {
   display: flex;
   background-color: transparent;
   /* 匹配 Monaco 和 CodeMirror 的字体栈，优先使用 Windows 常用的 Consolas */
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+  font-family: var(
+    --pre-font-family,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
   font-size: var(--pre-font-size, 13px);
   line-height: var(--pre-line-height, 1.5);
   tab-size: 4;
@@ -121,6 +146,8 @@ const dynamicGutterStyle = computed(() => {
 
 /* ========== CodeMirror 主题样式 ========== */
 .pre-code-node.theme-codemirror {
+  font-weight: normal;
+  font-style: normal;
   padding: 0;
   background-color: transparent;
 }
@@ -132,6 +159,8 @@ const dynamicGutterStyle = computed(() => {
 }
 
 .pre-code-node.theme-codemirror .line-number {
+  /* Use the same unitless line-height rounding as CodeMirror at fractional DPI. */
+  height: 1lh;
   padding: 0;
 }
 
@@ -155,6 +184,13 @@ const dynamicGutterStyle = computed(() => {
 .pre-code-node.theme-codemirror .code-content {
   padding: 12px 12px 12px 4px; /* 匹配 .cm-content (12px 0) + .cm-line (0 12px 0 4px) */
   color: var(--text-color);
+}
+
+/* A single multiline text run shares the same row geometry without per-line elements. */
+.pre-code-node.theme-codemirror .line-numbers-compact {
+  height: auto;
+  align-items: flex-start;
+  white-space: pre;
 }
 
 /* ========== Monaco 主题样式 ========== */
@@ -203,5 +239,61 @@ const dynamicGutterStyle = computed(() => {
 .pre-code-node.theme-monaco .code-content code {
   display: block;
   padding-left: 0;
+}
+
+/* Share each wrapped source row with its line number; whitespace text keeps copied code intact. */
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-rows: repeat(var(--pre-line-count), auto);
+  padding: 12px 0;
+}
+
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped
+  .line-numbers-gutter,
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped .code-content {
+  display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: subgrid;
+}
+
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped
+  .line-numbers-gutter {
+  grid-column: 1;
+  padding: 0;
+}
+
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped .line-number {
+  height: auto;
+  align-items: flex-start;
+}
+
+.pre-code-node.theme-codemirror .fold-placeholder {
+  width: auto;
+  padding: 0 5px;
+  visibility: hidden;
+}
+
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped .code-content {
+  grid-column: 2;
+  min-width: 0;
+  padding: 0 12px 0 4px;
+}
+
+.pre-code-node.theme-codemirror.with-line-numbers.is-wrapped
+  .code-content
+  code {
+  display: contents;
+}
+
+.code-line {
+  min-width: 0;
+  min-height: 1lh;
+}
+
+.pre-code-node.is-wrapped .code-content {
+  white-space: break-spaces;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 </style>

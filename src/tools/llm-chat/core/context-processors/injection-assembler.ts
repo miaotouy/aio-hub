@@ -1,3 +1,9 @@
+import {
+  assembleHistoryInjections,
+  isDynamicMessageAnchor,
+  materializePresetMessage,
+  normalizePresetGroupState,
+} from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +30,14 @@ import type { ChatMessageNode } from "../../types/message";
 import type { InjectionMessage } from "../../types/context";
 import { type AnchorDefinition } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import { resolvePresetAttachments } from "../context-utils/preset-attachment-resolver";
+
+import { freezeDatetimeDisplay } from "../../macro-engine/macros/datetime";
+import {
+  getRuntimePlacement,
+  ensureRuntimeInstructions,
+  insertRuntimeContext,
+  wrapRuntimeContext,
+} from "../context-utils/runtime-context";
 
 const logger = createModuleLogger("primary:injection-assembler");
 
@@ -116,179 +130,43 @@ const sortByOrder = (injections: InjectionMessage[]): InjectionMessage[] => {
   );
 };
 
-/**
- * 将深度注入消息插入到会话历史中
- */
-const applyDepthInjections = <T extends { role: string; content: any }>(
-  history: T[],
-  depthInjections: InjectionMessage[],
+const materializeInjection = (
+  injection: InjectionMessage,
+  sourceType: "depth_injection" | "anchor_injection",
   processedContents: Map<string, string>,
   presetMessages: ChatMessageNode[],
   agentId: string,
   agentAssets:
     import("@/tools/agent-manager/types/agent").AgentAsset[] | undefined
-): (
-  | T
-  | {
-      role: string;
-      content: string;
-      sourceType: string;
-      sourceId: string;
-      sourceIndex: number;
-    }
-)[] => {
-  if (depthInjections.length === 0) {
-    return history;
-  }
-
-  const depthGroups = new Map<number, InjectionMessage[]>();
-  const historyLength = history.length;
-
-  for (const injection of depthInjections) {
-    const strategy = injection.strategy;
-
-    // 判断是否应该使用高级深度配置
-    // 如果有 type，必须是 advanced_depth；如果没有 type，则看 depthConfig 是否存在
-    const useAdvanced = strategy.type
-      ? strategy.type === "advanced_depth"
-      : !!strategy.depthConfig;
-
-    // 1. 处理高级深度配置 (depthConfig)
-    if (useAdvanced && strategy.depthConfig) {
-      // 解析 depthConfig，支持混合语法：
-      // - 单点: "5"
-      // - 多点: "3, 10, 15"
-      // - 循环: "10~5" 或 "10:5"
-      // - 混合: "3, 10~5"
-      const segments = strategy.depthConfig.split(",").map((s) => s.trim());
-      const depths: number[] = [];
-
-      for (const segment of segments) {
-        if (!segment) continue;
-
-        // 检查是否为循环语法 (S~I 或 S:I)
-        const loopMatch = segment.match(/^(\d+)[~:](\d+)$/);
-        if (loopMatch) {
-          const start = parseInt(loopMatch[1], 10);
-          const interval = parseInt(loopMatch[2], 10);
-
-          if (!isNaN(start) && !isNaN(interval) && interval > 0) {
-            let currentDepth = start;
-            while (currentDepth <= historyLength) {
-              if (!depths.includes(currentDepth)) {
-                depths.push(currentDepth);
-              }
-              currentDepth += interval;
-            }
-          } else if (!isNaN(start)) {
-            // 如果间隔无效但起始有效，则视为单点
-            if (start <= historyLength && !depths.includes(start)) {
-              depths.push(start);
-            }
-          }
-        } else {
-          // 单点语法
-          const singleDepth = parseInt(segment, 10);
-          if (
-            !isNaN(singleDepth) &&
-            singleDepth <= historyLength &&
-            !depths.includes(singleDepth)
-          ) {
-            depths.push(singleDepth);
-          }
-        }
-      }
-
-      // 将解析出的所有深度点添加到 depthGroups
-      for (const depth of depths) {
-        if (!depthGroups.has(depth)) {
-          depthGroups.set(depth, []);
-        }
-        depthGroups.get(depth)!.push(injection);
-      }
-
-      if (depths.length === 0) {
-        logger.debug(
-          `预设消息 [${injection.message.name || injection.message.id}] 的 depthConfig "${strategy.depthConfig}" 未产生有效深度点（可能历史长度不足）`
-        );
-      }
-    }
-    // 2. 处理基础深度注入 (Legacy depth)
-    // 如果有 type，必须是 depth；如果没有 type，则看 depth 是否存在
-    else if (
-      (!strategy.type || strategy.type === "depth") &&
-      strategy.depth !== undefined
-    ) {
-      const depth = strategy.depth;
-      // 旧逻辑：深度不足会插入到最前面 (由后续的 Math.max(0, length - depth) 保证)
-      if (!depthGroups.has(depth)) {
-        depthGroups.set(depth, []);
-      }
-      depthGroups.get(depth)!.push(injection);
-    }
-  }
-
-  for (const [depth, group] of depthGroups) {
-    depthGroups.set(depth, sortByOrder(group));
-  }
-
-  const result: (
-    | T
-    | {
-        role: string;
-        content: string;
-        sourceType: string;
-        sourceId: string;
-        sourceIndex: number;
-      }
-  )[] = [...history];
-
-  const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => b - a);
-
-  for (const depth of sortedDepths) {
-    const group = depthGroups.get(depth)!;
-    const insertIndex = Math.max(0, result.length - depth);
-
-    const injectedMessages = group.map((inj) => {
-      // 解析预设附件引用
-      const resolved = resolvePresetAttachments(
-        inj.message.presetAttachments,
-        agentId,
-        agentAssets
-      );
-      return {
-        role: inj.message.role,
-        content: processedContents.get(inj.message.id) ?? inj.message.content,
-        sourceType: "depth_injection",
-        sourceId: inj.message.id,
-        sourceIndex: presetMessages.indexOf(inj.message),
-        _attachments: resolved.length > 0 ? resolved : undefined,
-        _originalContent: processedContents.has(inj.message.id)
-          ? inj.message.content
-          : undefined,
-        _timestamp: inj.message.timestamp
-          ? new Date(inj.message.timestamp).getTime()
-          : undefined,
-        _userName: inj.message.metadata?.userProfileName,
-        _userDisplayName:
-          inj.message.metadata?.userProfileDisplayName ||
-          inj.message.metadata?.userProfileName,
-        _userIcon: inj.message.metadata?.userProfileIcon,
-        _name: inj.message.name,
-      };
-    });
-
-    result.splice(insertIndex, 0, ...injectedMessages);
-  }
-
-  logger.debug("📍 深度注入完成", {
-    originalHistoryLength: history.length,
-    injectedCount: depthInjections.length,
-    resultLength: result.length,
-    depths: Array.from(depthGroups.keys()),
-  });
-
-  return result;
+): ProcessableMessage => {
+  // 解析预设附件引用
+  const resolved = resolvePresetAttachments(
+    injection.message.presetAttachments,
+    agentId,
+    agentAssets
+  );
+  return {
+    role: injection.message.role,
+    content:
+      processedContents.get(injection.message.id) ?? injection.message.content,
+    sourceType,
+    sourceId: injection.message.id,
+    presetContributingParts: injection.message.presetContributingParts,
+    sourceIndex: presetMessages.indexOf(injection.message),
+    _attachments: resolved.length > 0 ? resolved : undefined,
+    _originalContent: processedContents.has(injection.message.id)
+      ? injection.message.content
+      : undefined,
+    _timestamp: injection.message.timestamp
+      ? new Date(injection.message.timestamp).getTime()
+      : undefined,
+    _userName: injection.message.metadata?.userProfileName,
+    _userDisplayName:
+      injection.message.metadata?.userProfileDisplayName ||
+      injection.message.metadata?.userProfileName,
+    _userIcon: injection.message.metadata?.userProfileIcon,
+    _name: injection.message.name,
+  };
 };
 
 /**
@@ -337,8 +215,13 @@ export const injectionAssembler: ContextProcessor = {
   priority: 400,
   execute: async (context: PipelineContext) => {
     const { messages: history, agentConfig, userProfile, timestamp } = context;
-    const allPresetMessages = agentConfig.presetMessages || [];
+    const allPresetMessages = normalizePresetGroupState(
+      agentConfig.presetMessages || [],
+      agentConfig.presetGroups || []
+    );
     const modelId = agentConfig.modelId;
+    const runtimePlacement = getRuntimePlacement(context);
+    let autoToolContext = false;
 
     // 准备模型和渠道信息
     const modelInfo = context.sharedData.get("model") as
@@ -367,8 +250,8 @@ export const injectionAssembler: ContextProcessor = {
         }
       }
 
-      // 默认返回原始消息
-      return msg;
+      // Compile before tool-macro detection, macro expansion and attachment resolution.
+      return materializePresetMessage(msg);
     });
     // 过滤出有效的消息用于后续处理，但保留完整列表用于查找 sourceIndex
     const activePresetMessages = presetMessages.filter(
@@ -386,9 +269,11 @@ export const injectionAssembler: ContextProcessor = {
       if (!hasToolMacros) {
         // 创建保底宏消息，包含定义、用法说明和运行时上下文
         const autoMacroMsg: any = {
-          id: "auto-tool-macro",
+          id: runtimePlacement ? "auto-tool-static" : "auto-tool-macro",
           role: "system",
-          content: "{{tools}}\n{{tool_usage}}\n{{tool_context}}",
+          content: runtimePlacement
+            ? "{{tools}}\n{{tool_usage}}"
+            : "{{tools}}\n{{tool_usage}}\n{{tool_context}}",
           isEnabled: true,
           injectionStrategy: {
             type: "anchor",
@@ -399,6 +284,7 @@ export const injectionAssembler: ContextProcessor = {
         };
 
         // 必须加入到 presetMessages 中，因为后续的 classifyPresetMessages 是基于它的
+        autoToolContext = !!runtimePlacement;
         presetMessages.push(autoMacroMsg);
         // 同时也加入到 activePresetMessages 中，以便进行宏处理
         activePresetMessages.push(autoMacroMsg);
@@ -410,6 +296,7 @@ export const injectionAssembler: ContextProcessor = {
     }
 
     if (activePresetMessages.length === 0) {
+      ensureRuntimeInstructions(context);
       context.logs.push({
         processorId: "primary:injection-assembler",
         level: "info",
@@ -433,16 +320,62 @@ export const injectionAssembler: ContextProcessor = {
       profileName: profileInfo?.name, // 使用配置名称
       providerType: profileInfo?.type || modelInfo?.provider,
     });
+    const timeWindow =
+      agentConfig.parameters?.contextCacheOptimization?.timeWindowMinutes;
+    freezeDatetimeDisplay(macroContext, timeWindow);
     const processedContents = new Map<string, string>();
+    const macroExecutions = new Map<
+      string,
+      import("../../macro-engine/MacroProcessor").MacroExecution[]
+    >();
+    context.sharedData.set("snapshotMacroExecutions", macroExecutions);
     for (const msg of activePresetMessages) {
       if (msg.content.includes("{{")) {
         const processed = await processMacros(
           macroProcessor,
           msg.content,
           macroContext,
-          { silent: true }
+          {
+            silent: true,
+            onExecution: context.traceProcessor
+              ? (execution) => {
+                  const entries = macroExecutions.get(msg.id) ?? [];
+                  entries.push(execution);
+                  macroExecutions.set(msg.id, entries);
+                }
+              : undefined,
+          }
         );
         processedContents.set(msg.id, processed);
+      }
+    }
+
+    let runtimeToolMessage: ProcessableMessage | undefined;
+    if (autoToolContext) {
+      const toolContext = await processMacros(
+        macroProcessor,
+        "{{tool_context}}",
+        macroContext,
+        {
+          silent: true,
+          onExecution: context.traceProcessor
+            ? (execution) => {
+                const entries = macroExecutions.get("auto-tool-context") ?? [];
+                entries.push(execution);
+                macroExecutions.set("auto-tool-context", entries);
+              }
+            : undefined,
+        }
+      );
+      if (toolContext.trim()) {
+        runtimeToolMessage = {
+          role: "user",
+          content: wrapRuntimeContext(toolContext),
+          sourceType: "anchor_injection",
+          sourceId: "auto-tool-context",
+          _name: "工具运行环境",
+          _originalContent: "{{tool_context}}",
+        };
       }
     }
 
@@ -458,15 +391,6 @@ export const injectionAssembler: ContextProcessor = {
     const agentId = agentConfig.id;
     const agentAssets = agentConfig.assets;
 
-    const historyWithDepthInjections = applyDepthInjections(
-      history,
-      activeDepthInjections,
-      processedContents,
-      presetMessages, // 传入完整列表以正确查找 sourceIndex
-      agentId,
-      agentAssets
-    ) as ProcessableMessage[];
-
     // 4. 组装最终消息列表
     const finalMessages: ProcessableMessage[] = [];
     const historyAnchorIndex = skeleton.findIndex(
@@ -477,8 +401,54 @@ export const injectionAssembler: ContextProcessor = {
     const activeAnchorInjections = anchorInjections.filter(
       (inj) => inj.message.isEnabled !== false
     );
+    const historyInjections = [
+      ...activeDepthInjections,
+      ...activeAnchorInjections.filter((injection) =>
+        isDynamicMessageAnchor(injection.strategy.anchorTarget)
+      ),
+    ].sort(
+      (a, b) =>
+        presetMessages.indexOf(a.message) - presetMessages.indexOf(b.message)
+    );
+    const diagnostics: import("@aiohub/agent-preset-core").HistoryInjectionDiagnostic[] =
+      [];
+    const historyWithDepthInjections = assembleHistoryInjections(
+      history,
+      historyInjections,
+      (injection) =>
+        materializeInjection(
+          injection,
+          activeDepthInjections.includes(injection)
+            ? "depth_injection"
+            : "anchor_injection",
+          processedContents,
+          presetMessages,
+          agentId,
+          agentAssets
+        ),
+      (diagnostic) => {
+        diagnostics.push(diagnostic);
+        const name =
+          presetMessages.find((message) => message.id === diagnostic.sourceId)
+            ?.name || diagnostic.sourceId;
+        const reason =
+          diagnostic.reason === "target_missing"
+            ? "有效历史中尚无目标消息，已跳过"
+            : diagnostic.reason === "tool_results_pending"
+              ? "工具结果尚未加入历史，已跳过"
+              : "已调整到完整工具调用区段的边界";
+        context.logs.push({
+          processorId: "primary:injection-assembler",
+          level: "info",
+          message: `预设「${name}」：${reason}（${diagnostic.target ?? "depth"}）。`,
+        });
+      }
+    );
+    context.sharedData.set("historyInjectionDiagnostics", diagnostics);
     const sortedAnchorInjections = getSortedAnchorInjections(
-      activeAnchorInjections
+      activeAnchorInjections.filter(
+        (injection) => !isDynamicMessageAnchor(injection.strategy.anchorTarget)
+      )
     );
     const anchorGroups = getAnchorInjectionGroups(sortedAnchorInjections);
 
@@ -498,34 +468,16 @@ export const injectionAssembler: ContextProcessor = {
         injections = group.after;
       }
 
-      return injections.map((inj) => {
-        // 解析预设附件引用
-        const resolved = resolvePresetAttachments(
-          inj.message.presetAttachments,
+      return injections.map((injection) =>
+        materializeInjection(
+          injection,
+          "anchor_injection",
+          processedContents,
+          presetMessages,
           agentId,
           agentAssets
-        );
-        return {
-          role: inj.message.role,
-          content: processedContents.get(inj.message.id) ?? inj.message.content,
-          sourceType: "anchor_injection",
-          sourceId: inj.message.id,
-          sourceIndex: presetMessages.indexOf(inj.message),
-          _attachments: resolved.length > 0 ? resolved : undefined,
-          _originalContent: processedContents.has(inj.message.id)
-            ? inj.message.content
-            : undefined,
-          _timestamp: inj.message.timestamp
-            ? new Date(inj.message.timestamp).getTime()
-            : undefined,
-          _userName: inj.message.metadata?.userProfileName,
-          _userDisplayName:
-            inj.message.metadata?.userProfileDisplayName ||
-            inj.message.metadata?.userProfileName,
-          _userIcon: inj.message.metadata?.userProfileIcon,
-          _name: inj.message.name,
-        };
-      });
+        )
+      );
     };
 
     const skeletonBefore =
@@ -548,6 +500,7 @@ export const injectionAssembler: ContextProcessor = {
         content: processedContents.get(msg.id) ?? msg.content,
         sourceType: "agent_preset",
         sourceId: msg.id,
+        presetContributingParts: msg.presetContributingParts,
         sourceIndex: presetMessages.indexOf(msg),
         _attachments: resolved.length > 0 ? resolved : undefined,
         _originalContent: processedContents.has(msg.id)
@@ -674,6 +627,8 @@ export const injectionAssembler: ContextProcessor = {
     }
 
     context.messages = finalMessages;
+    ensureRuntimeInstructions(context);
+    if (runtimeToolMessage) insertRuntimeContext(context, runtimeToolMessage);
     const message = `注入组装完成，最终消息数: ${finalMessages.length}。`;
     logger.info(message, {
       skeleton: skeleton.length,

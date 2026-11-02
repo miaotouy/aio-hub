@@ -4,6 +4,8 @@ export type E2ePresetId =
   | "recall-curated"
   | "recall-chat"
   | "chat-session-persistence"
+  | "decision-arbitration"
+  | "background-task-approval"
   | "corpus-sample"
   | "corpus-full"
   | "ollama-vector"
@@ -36,6 +38,10 @@ const CHAT_SPEC = "tests/tauri-e2e/specs/recall-chat-injection.spec.ts";
 const RECOVERY_SPEC = "tests/tauri-e2e/specs/recall-session-recovery.spec.ts";
 const CHAT_SESSION_PERSISTENCE_SPEC =
   "tests/tauri-e2e/specs/virtual-new-session.spec.ts";
+const DECISION_ARBITRATION_SPEC =
+  "tests/tauri-e2e/specs/decision-arbitration.spec.ts";
+const BACKGROUND_TASK_APPROVAL_SPEC =
+  "tests/tauri-e2e/specs/background-task-approval.spec.ts";
 const EXTERNAL_SPEC = "tests/tauri-e2e/specs/recall-external-corpus.spec.ts";
 const EXTERNAL_RECOVERY_SPEC =
   "tests/tauri-e2e/specs/recall-external-corpus-recovery.spec.ts";
@@ -91,6 +97,28 @@ export const E2E_PRESETS: readonly E2ePreset[] = [
     args: ["--spec", CHAT_SESSION_PERSISTENCE_SPEC],
     prerequisites: [],
     runtimeRequirements: [],
+    includesRestart: false,
+  },
+  {
+    id: "decision-arbitration",
+    purpose:
+      "JEV decision arbitration approve/deny/escalate plus danger and fail-closed red lines",
+    args: ["--spec", DECISION_ARBITRATION_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Deterministic mock lane; seeds an Agent with decisionArbitration enabled and a mock System One channel",
+    ],
+    includesRestart: false,
+  },
+  {
+    id: "background-task-approval",
+    purpose:
+      "Background sub-agent tool approval: task awaiting_approval, task-center resolve, auto-approve",
+    args: ["--spec", BACKGROUND_TASK_APPROVAL_SPEC],
+    prerequisites: [],
+    runtimeRequirements: [
+      "Deterministic mock lane; seeds a dispatcher Agent plus a callable sub-Agent with decisionArbitration enabled and a mock System One channel",
+    ],
     includesRestart: false,
   },
   {

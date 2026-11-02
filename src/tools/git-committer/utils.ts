@@ -11,10 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import { getExtension } from "@/utils/fileTypeDetector";
+import { customMessage } from "@/utils/customMessage";
 import { hexToRgb } from "@/utils/themeColors";
 import { createTwoFilesPatch } from "diff";
+
 import type { DiffTabRef } from "./types";
 
 export const COMMIT_LANGUAGE_MACRO = "${language}";
@@ -119,6 +120,9 @@ export function getAvatarTextColor(backgroundColor: string): string {
 /** 仓库 AI 提示词编辑标签页使用的保留路径 */
 export const REPO_PROMPT_TAB_PATH = "__repo_prompt__";
 
+/** 仓库全景概览仪表盘标签页使用的保留路径 */
+export const REPO_OVERVIEW_TAB_PATH = "__repo_overview__";
+
 /** 提交多文件 Diff 总览标签页使用的保留路径 */
 export const COMMIT_VIEW_TAB_PATH = "__commit__";
 
@@ -127,7 +131,7 @@ export const CHANGES_VIEW_TAB_PATH = "__changes__";
 
 /**
  * 构造标签页唯一键。
- * 提交总览、提交单文件与普通暂存/工作区标签互斥，避免键冲突。
+ * 提交总览、提交单文件、文件内容视图与普通暂存/工作区标签互斥，避免键冲突。
  */
 export function buildTabKey(tab: DiffTabRef): string {
   if (tab.commitHash && tab.path === COMMIT_VIEW_TAB_PATH) {
@@ -135,6 +139,9 @@ export function buildTabKey(tab: DiffTabRef): string {
   }
   if (tab.commitHash) {
     return `C:${tab.commitHash}:${tab.path}`;
+  }
+  if (tab.viewMode === "file") {
+    return `F:${tab.isStaged ? "S" : "W"}:${tab.path}`;
   }
   return `${tab.isStaged ? "S" : "W"}:${tab.path}`;
 }
@@ -149,9 +156,19 @@ export function isChangesViewTab(tab: DiffTabRef | null | undefined): boolean {
   return Boolean(tab && !tab.commitHash && tab.path === CHANGES_VIEW_TAB_PATH);
 }
 
+/** 是否为直接查看文件当前内容（非 diff）的标签页 */
+export function isFileViewTab(tab: DiffTabRef | null | undefined): boolean {
+  return Boolean(tab && !tab.commitHash && tab.viewMode === "file");
+}
+
 /** 是否为提交多文件总览标签页 */
 export function isCommitViewTab(tab: DiffTabRef | null | undefined): boolean {
   return Boolean(tab?.commitHash && tab.path === COMMIT_VIEW_TAB_PATH);
+}
+
+/** 是否为仓库全景概览仪表盘标签页 */
+export function isRepoOverviewTab(tab: DiffTabRef | null | undefined): boolean {
+  return Boolean(tab && !tab.commitHash && tab.path === REPO_OVERVIEW_TAB_PATH);
 }
 
 /**
@@ -200,6 +217,20 @@ export function getFileDir(path: string): string {
 }
 
 /**
+ * 将仓库内的相对路径拼接为完整路径。
+ * git 后端返回的文件路径统一为相对仓库根、以 / 分隔的形式；
+ * 分隔符跟随仓库根路径风格（Windows 下通常为 \）。
+ */
+export function joinRepoPath(repoPath: string, relativePath: string): string {
+  const base = repoPath.replace(/[/\\]+$/, "");
+  const rel = relativePath.replace(/^[/\\]+/, "").replace(/[/\\]+$/, "");
+  if (!base) return rel;
+  if (!rel) return base;
+  const sep = base.includes("\\") ? "\\" : "/";
+  return `${base}${sep}${rel}`;
+}
+
+/**
  * 根据文件路径获取编辑器语言类型
  */
 export function getFileLanguage(path: string): string {
@@ -232,6 +263,143 @@ export function resolveSystemPrompt(
 export interface CommitPromptMessage {
   role: "system" | "user";
   content: string;
+}
+
+export interface HighlightPart {
+  text: string;
+  isMatch: boolean;
+}
+
+export interface FileDiffMatchLine {
+  lineNumber: number;
+  lineContent: string;
+  parts: HighlightPart[];
+}
+
+export interface FileDiffSearchResult {
+  /** 前 3 个匹配行 */
+  matches: FileDiffMatchLine[];
+  /** 内容匹配总行数（一行只算一个） */
+  totalMatches: number;
+  /** 剩余未展示的行数 */
+  remainingCount: number;
+}
+
+/**
+ * 在单行文本中高亮关键词首处出现的位置，并截取上下文。
+ * 单行只高亮首个匹配，并限制展示长度。
+ */
+export function highlightLineMatch(
+  line: string,
+  keyword: string,
+  matchStartIdx?: number,
+  contextChars = 40
+): HighlightPart[] {
+  if (!keyword) return [{ text: line, isMatch: false }];
+  const lowerLine = line.toLowerCase();
+  const lowerKw = keyword.toLowerCase();
+  const start =
+    matchStartIdx !== undefined && matchStartIdx >= 0
+      ? matchStartIdx
+      : lowerLine.indexOf(lowerKw);
+
+  if (start === -1) {
+    return [{ text: line, isMatch: false }];
+  }
+
+  const end = start + keyword.length;
+  const displayStart = Math.max(0, start - contextChars);
+  const displayEnd = Math.min(line.length, end + contextChars);
+
+  const displayContent = line.slice(displayStart, displayEnd);
+  const adjustedStart = start - displayStart;
+  const adjustedEnd = end - displayStart;
+
+  const prefix = displayStart > 0 ? "…" : "";
+  const suffix = displayEnd < line.length ? "…" : "";
+
+  const before = prefix + displayContent.slice(0, adjustedStart);
+  const matched = displayContent.slice(adjustedStart, adjustedEnd);
+  const after = displayContent.slice(adjustedEnd) + suffix;
+
+  const parts: HighlightPart[] = [];
+  if (before) parts.push({ text: before, isMatch: false });
+  if (matched) parts.push({ text: matched, isMatch: true });
+  if (after) parts.push({ text: after, isMatch: false });
+  return parts;
+}
+
+/**
+ * 在文本片段中标记关键词高亮（用于文件名、路径等短文本）。
+ */
+export function highlightTextParts(
+  text: string,
+  keyword: string
+): HighlightPart[] {
+  if (!keyword || !text) return [{ text: text || "", isMatch: false }];
+  const lower = text.toLowerCase();
+  const kw = keyword.toLowerCase();
+  let searchIdx = 0;
+  let matchIdx = lower.indexOf(kw, searchIdx);
+  if (matchIdx === -1) return [{ text, isMatch: false }];
+
+  const parts: HighlightPart[] = [];
+  while (matchIdx !== -1) {
+    if (matchIdx > searchIdx) {
+      parts.push({ text: text.slice(searchIdx, matchIdx), isMatch: false });
+    }
+    parts.push({
+      text: text.slice(matchIdx, matchIdx + keyword.length),
+      isMatch: true,
+    });
+    searchIdx = matchIdx + keyword.length;
+    matchIdx = lower.indexOf(kw, searchIdx);
+  }
+  if (searchIdx < text.length) {
+    parts.push({ text: text.slice(searchIdx), isMatch: false });
+  }
+  return parts;
+}
+
+/**
+ * 在文本（如 modified 或 original 文件内容）中检索匹配行。
+ * 单个文件最多返回 maxMatches (默认 3) 个内容匹配行，一行只算一个匹配，多的计算剩余数量。
+ */
+export function searchContentMatches(
+  content: string,
+  keyword: string,
+  maxMatches = 3
+): FileDiffSearchResult {
+  const trimmedKw = keyword.trim();
+  if (!trimmedKw || !content) {
+    return { matches: [], totalMatches: 0, remainingCount: 0 };
+  }
+
+  const lines = content.split(/\r?\n/);
+  const lowerKw = trimmedKw.toLowerCase();
+  const matches: FileDiffMatchLine[] = [];
+  let totalMatches = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const matchIdx = line.toLowerCase().indexOf(lowerKw);
+    if (matchIdx !== -1) {
+      totalMatches += 1;
+      if (matches.length < maxMatches) {
+        matches.push({
+          lineNumber: i + 1,
+          lineContent: line,
+          parts: highlightLineMatch(line, trimmedKw, matchIdx),
+        });
+      }
+    }
+  }
+
+  return {
+    matches,
+    totalMatches,
+    remainingCount: Math.max(0, totalMatches - maxMatches),
+  };
 }
 
 export interface CommitPromptContext {
@@ -422,6 +590,19 @@ export interface RemoteInfo {
   name: string;
   /** 生成该提交在远端平台上的详情页地址 */
   buildCommitUrl: (hash: string) => string;
+}
+
+/** 复制文本到剪贴板并提示；失败时给出错误提示 */
+export async function copyTextToClipboard(
+  text: string,
+  successTip = "已复制"
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    customMessage.success(successTip);
+  } catch {
+    customMessage.error("复制失败");
+  }
 }
 
 /** 从远端 URL 中提取主机名与仓库路径，兼容 scp 简写与标准 URL */

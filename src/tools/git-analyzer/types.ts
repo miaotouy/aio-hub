@@ -47,6 +47,7 @@ export interface GitCommit {
   branches?: string[];
   stats?: CommitStats;
   files?: FileChange[];
+  filesComplete?: boolean;
 }
 
 export type CommitFrequencyGranularity = "day" | "week" | "month" | "year";

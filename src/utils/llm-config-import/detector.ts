@@ -27,8 +27,23 @@ export function combineParserOutcomes(outcomes: LlmConfigParserOutcome[]) {
     }
   }
 
-  const diagnostics: LlmConfigImportDiagnostic[] = ranked.flatMap(
-    (outcome) => outcome.diagnostics
+  const diagnostics: LlmConfigImportDiagnostic[] = ranked.flatMap((outcome) =>
+    outcome.diagnostics.filter((diagnostic) => {
+      // 自动检测会尝试所有解析器；同一文档已被其他格式识别时，忽略试探性语法错误。
+      if (
+        !diagnostic.documentId ||
+        !["toml-invalid", "json-invalid"].includes(diagnostic.code)
+      ) {
+        return true;
+      }
+      return !ranked.some(
+        (other) =>
+          other !== outcome &&
+          other.profiles.some((profile) =>
+            profile.sourceDocumentIds.includes(diagnostic.documentId!)
+          )
+      );
+    })
   );
   const codexProfiles = profiles.filter((profile) =>
     profile.sourceKind.startsWith("Codex:")

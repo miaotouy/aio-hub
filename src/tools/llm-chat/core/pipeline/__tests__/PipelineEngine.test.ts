@@ -1,3 +1,4 @@
+import { PresetConfigurationError } from "@aiohub/agent-preset-core";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -149,5 +150,31 @@ describe("PipelineEngine (Independent Mode)", () => {
       userMessage: "处理步骤 [Failing Processor] 失败",
       context: { processorId: "failing-processor" },
     });
+  });
+  it("stops before downstream request assembly when a preset configuration is invalid", async () => {
+    const following = vi.fn();
+    const failure = new PresetConfigurationError("invalid preset selection");
+    const processors: ContextProcessor[] = [
+      {
+        id: "primary:injection-assembler",
+        name: "Presets",
+        description: "Presets",
+        priority: 1,
+        execute: async () => {
+          throw failure;
+        },
+      },
+      {
+        id: "downstream",
+        name: "Downstream",
+        description: "Downstream",
+        priority: 2,
+        execute: following,
+      },
+    ];
+    await expect(
+      PipelineEngine.execute(createMockContext(), processors)
+    ).rejects.toBe(failure);
+    expect(following).not.toHaveBeenCalled();
   });
 });

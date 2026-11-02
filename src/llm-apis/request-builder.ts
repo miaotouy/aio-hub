@@ -24,6 +24,12 @@
  * - 不强制统一所有差异，尊重各 API 的独特性
  */
 
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  limitOutputTokens,
+  isSamplingParameterUnsupported,
+} from "@aiohub/llm-core";
+import { isAggregateChannelType } from "@aiohub/llm-core";
 import type {
   LlmMessageContent,
   LlmRequestOptions,
@@ -596,7 +602,14 @@ export function filterParametersByCapabilities(
   model?: LlmModelInfo
 ): Partial<LlmRequestOptions | MediaGenerationOptions> {
   const providerInfo = getProviderTypeInfo(profile.type);
-  const supported = providerInfo?.supportedParameters;
+  const channelInfo =
+    profile.type === "openai-compatible" &&
+    profile.channelType &&
+    isAggregateChannelType(profile.channelType)
+      ? getProviderTypeInfo(profile.channelType)
+      : undefined;
+  const supported =
+    channelInfo?.supportedParameters ?? providerInfo?.supportedParameters;
   const capabilities = model?.capabilities;
   const modelFamily = getModelFamily(
     options.modelId,
@@ -663,6 +676,8 @@ export function filterParametersByCapabilities(
 
   filtered.stream = options.stream;
   filtered.onStream = options.onStream;
+  filtered.onResponseChunk = options.onResponseChunk;
+  if (options.onResponseChunk) filtered.streamOptions = options.streamOptions;
   filtered.onReasoningStream = options.onReasoningStream;
   filtered.signal = options.signal;
   filtered.timeout = options.timeout;
@@ -676,13 +691,15 @@ export function filterParametersByCapabilities(
   if (supported.temperature && options.temperature !== undefined) {
     filtered.temperature = options.temperature;
   }
-  if (supported.maxTokens && options.maxTokens !== undefined) {
-    let val = options.maxTokens;
-    // 兜底裁剪逻辑：如果模型定义了输出限制，且当前值超过了该限制，则裁剪
-    if (model?.tokenLimits?.output && val > model.tokenLimits.output) {
-      val = model.tokenLimits.output;
-    }
-    filtered.maxTokens = val;
+  if (
+    supported.maxTokens &&
+    (options.maxTokens !== undefined ||
+      (modelFamily === "claude" && options.maxCompletionTokens === undefined))
+  ) {
+    filtered.maxTokens = limitOutputTokens(
+      options.maxTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      model?.tokenLimits?.output
+    );
   }
   if (supported.topP && options.topP !== undefined) {
     filtered.topP = options.topP;
@@ -711,7 +728,10 @@ export function filterParametersByCapabilities(
     supported.maxCompletionTokens &&
     options.maxCompletionTokens !== undefined
   ) {
-    filtered.maxCompletionTokens = options.maxCompletionTokens;
+    filtered.maxCompletionTokens = limitOutputTokens(
+      options.maxCompletionTokens,
+      model?.tokenLimits?.output
+    );
   }
   if (supported.logprobs && options.logprobs !== undefined) {
     filtered.logprobs = options.logprobs;
@@ -746,7 +766,7 @@ export function filterParametersByCapabilities(
 
   // ===== 推理等级 =====
   // reasoningEffort 是统一抽象，但只有部分 provider 接受 OpenAI 的
-  // reasoning_effort 字段；Gemini/Vertex 则把它映射为 thinkingLevel。
+  // reasoning_effort 字段；Gemini/Vertex 映射为 thinkingLevel，Claude 映射为 output_config.effort。
   const isOpenAiReasoningEffortProvider =
     profile.type === "openai" ||
     profile.type === "openai-compatible" ||
@@ -761,15 +781,17 @@ export function filterParametersByCapabilities(
   const supportsProviderReasoningEffort =
     supported.reasoningEffort &&
     (!isOpenAiReasoningEffortProvider || isCompatibleReasoningModel);
-  const supportsThinkingLevelAlias =
-    (profile.type === "gemini" || profile.type === "vertexai") &&
+  const supportsThinkingEffortAlias =
+    (profile.type === "gemini" ||
+      profile.type === "vertexai" ||
+      profile.type === "claude") &&
     supported.thinking &&
     capabilities?.thinkingConfigType === "effort";
   // 思考参数由选中模型明确声明的 capabilities 决定，避免同名的
   // 第三方/中转模型在未声明能力时被字符串匹配误判为兼容。
   const hasThinkingCapability = capabilities?.thinking === true;
   const supportsReasoning =
-    (supportsProviderReasoningEffort || supportsThinkingLevelAlias) &&
+    (supportsProviderReasoningEffort || supportsThinkingEffortAlias) &&
     hasThinkingCapability;
 
   if (supportsReasoning && options.reasoningEffort !== undefined) {
@@ -949,6 +971,23 @@ export function filterParametersByCapabilities(
     }
   }
 
+  for (const key of [
+    "temperature",
+    "topP",
+    "topK",
+    "logprobs",
+    "topLogprobs",
+  ] as const) {
+    if (
+      isSamplingParameterUnsupported(key, {
+        model: options.modelId,
+        ...filtered,
+        supportedParameters: model?.supportedFeatures?.parameters,
+      })
+    )
+      delete filtered[key];
+  }
+
   // 调试日志：过滤后的最终参数
   // console.log("[RequestBuilder] 过滤后结果:", filtered);
 
@@ -965,16 +1004,20 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   // 核心请求控制参数
   "messages",
   "modelId",
+  "_forceChatMode",
   "profileId", // 在 useLlmRequest 中使用，不应透传
   "requestId", // 内部请求追踪 ID，仅用于请求头/Inspector，不应透传
   "stream",
   "onStream",
+  "onResponseChunk",
   "onReasoningStream",
   "onPartialImage",
+  "onMediaProgress",
   "signal",
   "timeout",
   "suppressErrorLog",
   "transportObserver",
+  "requestCapture",
   "allowDisabledProfile",
 
   // 通用采样参数 (LlmParameters)
@@ -1148,8 +1191,10 @@ export function cleanPayload(body: any): any {
     // 注意: requestId 不在此列表中，因为基于 OAI 格式的 VCP 等渠道需要它做调用追踪。
     // 不需要它的适配器（如 Cohere）应在自己的代码中单独清理。
     "onStream",
+    "onResponseChunk",
     "onReasoningStream",
     "onPartialImage",
+    "onMediaProgress",
     "signal",
     "timeout",
     "custom",
@@ -1171,6 +1216,7 @@ export function cleanPayload(body: any): any {
     "http1Only",
     "apiKey",
     "allowDisabledProfile",
+    "_forceChatMode",
     "inspectorContext", // LLM Inspector 内部监控上下文，前端专用，绝不能透传到 API body
   ];
 

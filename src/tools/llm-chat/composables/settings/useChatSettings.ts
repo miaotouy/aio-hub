@@ -24,9 +24,48 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { type ChatSettings } from "../../types/settings";
 import { DEFAULT_SETTINGS } from "../../config/defaultSettings";
+import {
+  mergeInputToolbarLayout,
+  normalizeInputToolbarLayout,
+} from "../../config/inputToolbar";
+import type { InputToolbarLayout } from "../../types/input-toolbar";
+
+import { normalizeMessageToolbarLayout } from "../../config/messageToolbar";
+import type { MessageToolbarLayout } from "../../types/message-toolbar";
 
 const logger = createModuleLogger("useChatSettings");
 const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
+
+// 全局设置状态（提升到顶部避免循环依赖导入时出现 TDZ 临时死区）
+function readLegacyInputSettings(): unknown {
+  try {
+    return JSON.parse(localStorage.getItem("chat-input-settings") ?? "null");
+  } catch {
+    return undefined;
+  }
+}
+
+function createDefaultSettings(): ChatSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    uiPreferences: {
+      ...DEFAULT_SETTINGS.uiPreferences,
+      messageToolbar: normalizeMessageToolbarLayout(
+        DEFAULT_SETTINGS.uiPreferences.messageToolbar
+      ),
+      inputToolbar: mergeInputToolbarLayout(
+        {
+          pinnedActionIds:
+            DEFAULT_SETTINGS.uiPreferences.inputToolbar.pinnedActionIds,
+        },
+        readLegacyInputSettings()
+      ),
+    },
+  };
+}
+
+const settings = ref<ChatSettings>(createDefaultSettings());
+const isLoaded = ref(false);
 
 /**
  * 创建聊天设置配置管理器
@@ -34,8 +73,8 @@ const moduleErrorHandler = createModuleErrorHandler("useChatSettings");
 const settingsManager = createConfigManager<ChatSettings>({
   moduleName: "llm-chat",
   fileName: "chat-settings.json",
-  version: "1.0.0",
-  createDefault: () => ({ ...DEFAULT_SETTINGS }),
+  version: "1.1.0",
+  createDefault: createDefaultSettings,
   mergeConfig: (defaultConfig, loadedConfig) => {
     return {
       ...defaultConfig,
@@ -43,6 +82,13 @@ const settingsManager = createConfigManager<ChatSettings>({
       uiPreferences: {
         ...defaultConfig.uiPreferences,
         ...(loadedConfig.uiPreferences || {}),
+        inputToolbar: mergeInputToolbarLayout(
+          loadedConfig.uiPreferences?.inputToolbar,
+          readLegacyInputSettings()
+        ),
+        messageToolbar: normalizeMessageToolbarLayout(
+          loadedConfig.uiPreferences?.messageToolbar
+        ),
         bubbleLayout: {
           ...defaultConfig.uiPreferences.bubbleLayout,
           ...((loadedConfig.uiPreferences || {}).bubbleLayout || {}),
@@ -100,6 +146,10 @@ const settingsManager = createConfigManager<ChatSettings>({
       requestSettings: {
         ...defaultConfig.requestSettings,
         ...(loadedConfig.requestSettings || {}),
+        longImageSlicing: {
+          ...defaultConfig.requestSettings.longImageSlicing,
+          ...loadedConfig.requestSettings?.longImageSlicing,
+        },
       },
       developer: {
         ...defaultConfig.developer,
@@ -124,9 +174,6 @@ const settingsManager = createConfigManager<ChatSettings>({
   },
 });
 
-// 全局设置状态
-const settings = ref<ChatSettings>({ ...DEFAULT_SETTINGS });
-const isLoaded = ref(false);
 /**
  * 加载设置
  */
@@ -287,9 +334,67 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
   }
 }
 
+/** Persist before publishing so a failed save leaves the active layout unchanged. */
+async function saveInputToolbarLayout(
+  layout: InputToolbarLayout
+): Promise<void> {
+  const normalized = normalizeInputToolbarLayout(layout);
+  const next = {
+    ...settings.value,
+    uiPreferences: {
+      ...settings.value.uiPreferences,
+      inputToolbar: normalized,
+    },
+  };
+  try {
+    await settingsManager.save(next);
+    settings.value = {
+      ...settings.value,
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        inputToolbar: normalized,
+      },
+    };
+  } catch (error) {
+    moduleErrorHandler.error(error, "工具栏布局保存失败", {
+      action: "saveInputToolbarLayout",
+    });
+    throw error;
+  }
+}
+
 /**
  * 使用聊天设置
  */
+/** 写入成功后再发布布局，保存失败时保留当前工作区。 */
+async function saveMessageToolbarLayout(
+  layout: MessageToolbarLayout
+): Promise<void> {
+  const normalized = normalizeMessageToolbarLayout(layout);
+  try {
+    await settingsManager.save({
+      ...settings.value,
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        messageToolbar: normalized,
+      },
+    });
+    settings.value = {
+      ...settings.value,
+      uiPreferences: {
+        ...settings.value.uiPreferences,
+        messageToolbar: normalized,
+      },
+    };
+  } catch (error) {
+    moduleErrorHandler.error(error, "消息工具栏布局保存失败", {
+      action: "saveMessageToolbarLayout",
+    });
+    throw error;
+  }
+}
+
+/** 使用聊天设置 */
 export function useChatSettings() {
   return {
     settings,
@@ -298,5 +403,7 @@ export function useChatSettings() {
     saveSettings,
     resetSettings,
     updateSettings,
+    saveInputToolbarLayout,
+    saveMessageToolbarLayout,
   };
 }

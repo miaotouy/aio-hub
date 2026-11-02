@@ -4,12 +4,15 @@
 import {
   executeSyncMediaRequest,
   openAiAudioAdapter,
+  openRouterAudioAdapter,
+  isOpenRouterProfile,
   type ProviderProfile,
 } from "@aiohub/llm-core";
 import type { MediaGenerationOptions, LlmResponse } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { buildOpenAiHeaders } from "./utils";
+import { toCoreMediaInput } from "./image";
 
 export async function callOpenAiAudioApi(
   profile: LlmProfile,
@@ -19,18 +22,31 @@ export async function callOpenAiAudioApi(
   const extendedOptions = options as unknown as Record<string, unknown>;
   const providerProfile: ProviderProfile = {
     provider: profile.type,
-    baseUrl: profile.baseUrl || "https://api.openai.com/v1",
+    baseUrl:
+      profile.baseUrl ||
+      (isOpenRouterProfile(profile)
+        ? "https://openrouter.ai/api/v1"
+        : "https://api.openai.com/v1"),
     apiKey: profile.apiKeys?.[0],
     headers: buildOpenAiHeaders(profile, options.requestId),
     endpoints: profile.customEndpoints as Record<string, string> | undefined,
   };
   const result = await executeSyncMediaRequest({
-    adapter: openAiAudioAdapter,
+    adapter: isOpenRouterProfile(profile)
+      ? openRouterAudioAdapter
+      : openAiAudioAdapter,
     profile: providerProfile,
     request: {
       kind: "audio",
       model: options.modelId,
       prompt: options.prompt ?? "",
+      inputs: (
+        await Promise.all(
+          (options.inputAttachments ?? []).map(toCoreMediaInput)
+        )
+      ).filter(
+        (input): input is NonNullable<typeof input> => input !== undefined
+      ),
       audio: {
         voice: options.audioConfig?.voice,
         format: requestedFormat,
@@ -38,6 +54,8 @@ export async function callOpenAiAudioApi(
         pitch: options.audioConfig?.pitch,
       },
       extensions: {
+        ...options.params,
+        ...options.extraBody,
         ...((typeof extendedOptions.instructions === "string" && {
           instructions: extendedOptions.instructions,
         }) ||

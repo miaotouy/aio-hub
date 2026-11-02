@@ -18,6 +18,7 @@
 import { inject, defineAsyncComponent, computed, markRaw } from "vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import type { SettingItem } from "@/types/settings-renderer";
+import { STREAM_EFFECT_OPTIONS } from "@/tools/rich-text-renderer/utils/streamEffectStyles";
 
 const ChatRegexEditor = defineAsyncComponent(
   () => import("@/tools/llm-chat/components/common/ChatRegexEditor.vue")
@@ -53,6 +54,18 @@ const outputSettings = computed<SettingItem[]>(() => [
     modelPath: "defaultToolCallCollapsed",
     hint: "开启后，消息中的工具调用组件将默认处于折叠状态。",
     keywords: "tool call collapse 工具调用 折叠",
+  },
+  {
+    id: "streamEffect",
+    label: "流式文字特效",
+    component: "ElSelect",
+    modelPath: "streamEffect",
+    options: [
+      { label: "跟随全局", value: "inherit" },
+      ...STREAM_EFFECT_OPTIONS.map(({ label, value }) => ({ label, value })),
+    ],
+    hint: "为该智能体的流式回复选择文字动效。跟随全局时使用聊天设置中的样式；动效受全局节点进入动画开关和系统减少动态效果偏好控制。",
+    keywords: "streaming animation particles 流式 动画 粒子 星屑 字幕",
   },
   {
     id: "defaultMediaVolume",

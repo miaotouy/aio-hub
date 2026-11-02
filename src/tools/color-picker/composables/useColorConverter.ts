@@ -134,7 +134,7 @@ export function hexToRgb(hex: string): RgbColor {
  */
 export function rgbToHex(r: number, g: number, b: number): string {
   const toHex = (n: number) => {
-    const hex = Math.max(0, Math.min(255, n)).toString(16);
+    const hex = Math.round(Math.max(0, Math.min(255, n))).toString(16);
     return hex.length === 1 ? "0" + hex : hex;
   };
 

@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-vue-next";
+import { LlmChatIcon } from "@aiohub/tool-icons";
 import { markRaw } from "vue";
 import { useI18n } from "@/i18n";
 
@@ -8,7 +8,7 @@ export default {
     const { t } = useI18n();
     return t("tools.llm-chat.common.AI 对话");
   },
-  icon: markRaw(MessageSquare),
+  icon: markRaw(LlmChatIcon),
   get description() {
     const { t } = useI18n();
     return t("tools.llm-chat.common.与 AI 进行即时对话");

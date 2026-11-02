@@ -23,9 +23,9 @@ import type {
 } from "./types/routing";
 
 /**
- * Phase 0 compatibility map from existing channel identity to protocol
- * identity. The resolver leaves the original channel type in place whenever
- * this default path is used, preserving old adapter-specific behavior.
+ * Channel identities and their protocol defaults. Aggregate channels resolve
+ * through model routing and remap the compatibility view to a wire protocol;
+ * direct providers retain their original type on the default execution path.
  */
 export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
   Record<string, ProviderExecutionDefault>
@@ -58,6 +58,7 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     operationAdapters: { embedding: "openai-embeddings" },
   },
   siliconflow: {
+    aggregate: true,
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
     operationAdapters: {
@@ -66,10 +67,56 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     },
   },
   groq: {
+    aggregate: true,
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
   },
-  // Legacy aliases still present in the desktop adapter registry.
+  fireworks: {
+    aggregate: true,
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
+  },
+  deepinfra: {
+    aggregate: true,
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
+  },
+  huggingface: {
+    aggregate: true,
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
+  },
+  modelscope: {
+    aggregate: true,
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
+  },
+  vcp: {
+    aggregate: true,
+    defaultAdapterId: "openai-chat-completions",
+    defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
+  },
+  // Direct-provider and legacy aliases present in the desktop adapter registry.
   mistral: {
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
@@ -79,12 +126,22 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     defaultOperation: "chat",
   },
   together: {
+    aggregate: true,
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
   },
   lmstudio: {
+    aggregate: true,
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      image: "openai-image-generation",
+    },
   },
   vllm: {
     defaultAdapterId: "openai-chat-completions",
@@ -117,9 +174,14 @@ export const PROVIDER_EXECUTION_DEFAULTS: Readonly<
     defaultOperation: "chat",
   },
   openrouter: {
+    aggregate: true,
     defaultAdapterId: "openai-chat-completions",
     defaultOperation: "chat",
-    operationAdapters: { embedding: "openai-embeddings" },
+    operationAdapters: {
+      embedding: "openai-embeddings",
+      decision: "openrouter-decisions",
+      image: "openai-image-generation",
+    },
   },
   "openai-responses": {
     defaultAdapterId: "openai-responses",
@@ -244,6 +306,7 @@ export const ADAPTER_PROFILE_TYPES: Readonly<Record<LlmAdapterId, string>> = {
   "openai-embeddings": "openai-compatible",
   "jina-rerank": "openai-compatible",
   "typesafe-system-one": "typesafe",
+  "openrouter-decisions": "openrouter",
   "openai-image-generation": "openai-compatible",
   "suno-newapi": "suno-newapi",
   "minimax-music": "minimax-music",
@@ -257,6 +320,7 @@ const ADAPTER_ENDPOINT_KEYS: Readonly<Partial<Record<LlmAdapterId, string>>> = {
   "openai-embeddings": "embeddings",
   "jina-rerank": "rerank",
   "typesafe-system-one": "systemOne",
+  "openrouter-decisions": "decisions",
   "openai-image-generation": "imagesGenerations",
 };
 
@@ -274,6 +338,8 @@ const ENDPOINT_TYPE_ADAPTERS: Readonly<Record<string, LlmAdapterId>> = {
   "openai-embeddings": "openai-embeddings",
   rerank: "jina-rerank",
   "jina-rerank": "jina-rerank",
+  decisions: "openrouter-decisions",
+  "openrouter-decisions": "openrouter-decisions",
   typesafe: "typesafe-system-one",
   "system-one": "typesafe-system-one",
   "typesafe-system-one": "typesafe-system-one",
@@ -294,6 +360,7 @@ const ADAPTER_OPERATIONS: Readonly<
   "openai-embeddings": ["embedding"],
   "jina-rerank": ["rerank"],
   "typesafe-system-one": ["decision"],
+  "openrouter-decisions": ["decision"],
   "openai-image-generation": ["image"],
   "suno-newapi": ["music"],
   "minimax-music": ["music"],
@@ -442,6 +509,7 @@ export function resolveModelExecution<
       routeSource: "profile-default",
       effectiveProfile: {
         ...profile,
+        channelType: profile.channelType ?? profile.type,
         type: ADAPTER_PROFILE_TYPES[fallbackAdapterId],
       } as TProfile,
     };
@@ -478,6 +546,7 @@ function resolveBoundExecution<TProfile extends LlmExecutionProfile>(
       : profile.customEndpoints;
   const effectiveProfile = {
     ...profile,
+    channelType: profile.channelType ?? profile.type,
     type: ADAPTER_PROFILE_TYPES[binding.adapterId],
     ...(customEndpoints ? { customEndpoints } : {}),
   } as TProfile;

@@ -4,6 +4,7 @@ const { mockAgentStore, mockLogger } = vi.hoisted(() => ({
   mockAgentStore: {
     loadAgentDetails: vi.fn(),
     updateAgent: vi.fn(),
+    savePresetMessage: vi.fn(),
   },
   mockLogger: {
     debug: vi.fn(),
@@ -27,6 +28,7 @@ import {
   getAgentFieldSecurityPolicy,
   isSecuritySensitiveAgentFieldPath,
   set_agent_field,
+  edit_preset_composition,
 } from "../agentManagementService";
 
 describe("agentManagementService 安全配置修改", () => {
@@ -87,5 +89,68 @@ describe("agentManagementService 安全配置修改", () => {
         newValue: '"auto"',
       })
     );
+  });
+});
+
+// The registered edit tool must persist the named version without replacing host settings.
+it("persists a version rename through the composition tool with its original baseline", async () => {
+  vi.clearAllMocks();
+  const message = {
+    id: "message",
+    content: "",
+    role: "system",
+    groupId: "group",
+    injectionStrategy: { type: "depth", depth: 2 },
+    presetComposition: {
+      version: 1,
+      separator: "",
+      parts: [
+        {
+          id: "part",
+          kind: "choice",
+          selectedOptionId: "active",
+          options: [
+            { id: "active", content: "当前正文" },
+            { id: "other", content: "其他正文" },
+          ],
+        },
+      ],
+    },
+  };
+  mockAgentStore.loadAgentDetails.mockResolvedValue({
+    id: "agent",
+    presetMessages: [message],
+  });
+  mockAgentStore.savePresetMessage.mockResolvedValue(undefined);
+  const result = JSON.parse(
+    await edit_preset_composition({
+      agentId: "agent",
+      messageId: "message",
+      operation: JSON.stringify({
+        type: "setOptionName",
+        partId: "part",
+        optionId: "other",
+        name: "详细版本",
+      }),
+    })
+  );
+  const expected = structuredClone(message);
+  const option = {
+    ...expected.presetComposition.parts[0].options[1],
+    name: "详细版本",
+  };
+  expected.presetComposition.parts[0].options[1] = option;
+  expect(mockAgentStore.savePresetMessage).toHaveBeenCalledWith(
+    "agent",
+    expected,
+    message
+  );
+  expect(result).toEqual({
+    messageId: "message",
+    presetComposition: expected.presetComposition,
+  });
+  expect(message.presetComposition.parts[0].options[1]).toEqual({
+    id: "other",
+    content: "其他正文",
   });
 });

@@ -66,7 +66,8 @@ export const configManager = createConfigManager<MyToolConfig>({
 
 ## 5. 错误与测试
 
-- ConfigManager 内部已经使用模块级 logger 和 error handler；调用方只处理业务失败结果，不要对同一个异常重复记录。
+- 桌面端 `load()` 默认在读取失败时返回默认配置；需要保护原始数据的恢复流程使用 `load({ throwOnError: true })`，由调用方处理错误并暂停写回。文件首次创建仍按默认配置初始化。
+- ConfigManager 内部已经使用模块级 logger 和 error handler；调用方只处理业务失败结果，不要对同一个异常重复记录。显式启用 `throwOnError` 时，由调用方统一记录恢复错误。
 - 桌面端在非 Tauri 环境会降级到进程内存储，适合 Vitest 和 Bun 脚本测试。
 - 移动端基于 `@tauri-apps/plugin-store`，纯前端测试需要按测试环境 mock 插件调用。
 - `saveDebounced()` 是异步触发，不能把它当成需要立即持久化完成的事务边界。

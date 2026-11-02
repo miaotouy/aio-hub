@@ -341,7 +341,6 @@ describe("mobile OpenAI-compatible shared adapter facade", () => {
           ],
         },
       ],
-      temperature: 0.5,
       tools: [
         {
           type: "function",

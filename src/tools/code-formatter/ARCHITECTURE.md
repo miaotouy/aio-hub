@@ -1,69 +1,92 @@
-# Code Formatter: 架构与开发者指南
+# Code Formatter：架构与开发者指南
 
-本文档旨在解析 Code Formatter 工具的内部架构、设计理念和数据流，为后续开发提供清晰的指引。
+## 1. 格式化入口
 
-## 1. 核心概念
+`logic/formatter.ts` 的 `FormatterCore.formatCode(code, language, options)` 是工具统一入口，保留以下结果契约：
 
-Code Formatter 是一个基于 Prettier 的多语言代码格式化工具，旨在提供高效、可扩展的格式化服务。
+- `formatted`：成功时为格式化后的代码，失败时保留输入。
+- `success`：本次格式化是否成功。
+- `error` / `warning`：供界面展示的错误或警告。
 
-### 1.1. 混合插件加载策略 (Hybrid Plugin Loading)
+空输入返回空字符串。语言自动检测继续由 `detectLanguage()` 负责。
 
-为了平衡功能完整性与初始加载性能，采用 **静态 + 动态** 混合加载策略。
+## 2. 引擎路由
 
-- **静态导入**: 覆盖前端常用语言（JS/TS/HTML/CSS/Markdown）的插件被内置到应用初始 bundle 中，确保核心功能即开即用。
-- **动态导入**: 非常用语言（如 PHP, XML）的插件在首次使用时才被动态加载，并进行缓存。
-- **核心优势**:
-  - **性能提升**: 显著减少初始 bundle 体积，加快应用启动速度。
-  - **按需加载**: 在不影响用户体验的前提下，实现了功能的按需加载。
+| 语言                                                         | 当前引擎                                    | 运行环境     |
+| ------------------------------------------------------------ | ------------------------------------------- | ------------ |
+| JavaScript、TypeScript、JSON、HTML、CSS、Markdown、XML、YAML | Prettier standalone 与按需加载的解析器/插件 | 桌面与浏览器 |
+| PHP                                                          | Rust 侧 Mago 1.59.0                         | 桌面         |
+| Rust                                                         | 系统 rustfmt                                | 桌面         |
+| C、C++                                                       | 系统 clang-format                           | 桌面         |
 
-### 1.2. 启发式语言自动检测 (Heuristic Language Detection)
+Prettier 核心及各解析器均按需动态导入并缓存。PHP、Rust、C、C++ 调用统一 `format_code` IPC；浏览器选择这些语言时返回桌面运行提示。
 
-内置一个基于代码特征的轻量级、启发式语言检测算法，用于在用户未指定语言时提供智能推荐。
+## 3. PHP 原生实现
 
-- **检测逻辑**:
-  - **JSON**: 检查是否以 `{` 或 `[` 开头，并尝试 `JSON.parse`。
-  - **HTML/XML**: 检查是否包含 `<!DOCTYPE>` 或 `<?xml>` 等特征标签。
-  - **TypeScript**: 检查是否包含 `interface`, `type`, `: string` 等 TS 独有语法。
-  - **默认**: 若以上均不匹配，则默认为 `javascript`。
-- **局限性**: 准确率有限，主要用于常见场景的快速识别。
-
-## 2. 架构概览
-
-采用经典的 **UI 与服务分离**的设计模式。
-
-- **View (`CodeFormatter.vue`)**: 负责 UI 渲染和用户交互，如代码输入、语言选择等。
-- **Service (`CodeFormatterService`)**: 封装了所有与 Prettier 相关的核心逻辑，包括插件管理、语言配置和格式化API。
-- **Engine (`prettier/standalone`)**: 底层的代码格式化引擎。
-
-## 3. 数据流：格式化一段代码
-
-```mermaid
-sequenceDiagram
-    participant User as 用户
-    participant UI (CodeFormatter.vue)
-    participant Service (CodeFormatterService)
-    participant Prettier as Prettier Engine
-
-    User->>UI: 输入代码 / 选择语言
-    UI->>Service: formatCode(code, language)
-    Service->>Service: 获取语言配置 (parser, plugins)
-    
-    alt 动态插件未加载
-        Service->>Service: 动态 import 插件并缓存
-    end
-    
-    Service->>Prettier: prettier.format(code, options)
-    Prettier-->>Service: 返回格式化后的代码
-    Service-->>UI: { formatted, success }
-    UI->>User: 显示格式化结果
+```text
+CodeFormatter.vue
+  → FormatterCore.formatCode()
+    → invoke("format_code", { code, language, options })
+      → src-tauri/src/commands/code_formatter.rs
+        → spawn_blocking
+          → src-tauri/crates/code-formatter
+            → Mago Formatter::format_code()
 ```
 
-## 4. 核心逻辑
+- `aiohub-code-formatter` 是与 Tauri 解耦的 Rust 库，负责 PHP 内存格式化及系统格式化器的参数校验、进程管理。
+- Tauri command 为 PHP 派发阻塞任务，为系统引擎执行异步进程调用；沿用 `src-tauri/src/commands.rs` 的统一注册入口，供 `lib.rs` 调用。
+- Mago 需要 Rust 1.99；桌面 Cargo package 与格式化库均声明最低版本。
+- 每次调用创建独立 arena，请求结束后释放其分配内容。
+- 源码通过内存传入，不搜索 `composer.json`，不执行输入代码，也不调用外部 PHP 进程。
+- 语法错误与参数错误作为 IPC 错误返回，由前端转换成统一结果结构；字符串错误会保留可读信息。
 
-- **语言配置系统**: 通过 `getLanguageConfig` 方法集中管理每种语言所需的 Prettier 解析器和插件。
-- **错误处理**: 对插件加载失败、代码格式化失败和语言不支持等情况进行捕获，确保工具在任何情况下都不中断，返回原始代码并提供友好提示。
+### 3.1 PHP 选项
 
-## 5. 未来展望
+| 字段               | 默认值  | 说明                                                                |
+| ------------------ | ------- | ------------------------------------------------------------------- |
+| `phpVersion`       | `8.4`   | 显式目标版本，范围为 7.0–8.5；不提供文件系统自动探测                |
+| `singleQuote`      | `true`  | 优先使用单引号                                                      |
+| `printWidth`       | `80`    | 换行宽度，范围 1–1000                                               |
+| `tabWidth`         | `4`     | 缩进宽度，范围 1–16                                                 |
+| `useTabs`          | `false` | 使用制表符缩进                                                      |
+| `trailingCommaPHP` | `true`  | PHP 多行结构的尾逗号，受目标版本限制                                |
+| `trailingComma`    | 未设置  | `none` 关闭尾逗号；`es5` / `all` 启用。显式 `trailingCommaPHP` 优先 |
+| `endOfLine`        | `lf`    | `lf`、`crlf`、`cr`、`auto`                                          |
 
-- **改进语言检测**: 集成更成熟的第三方语言检测库，提高自动识别的准确率。
-- **插件兼容性**: 持续跟进上游插件更新，解决潜在的模块格式兼容性问题。
+选项名通过 camelCase 反序列化。PHP 映射上表字段；Rust/C/C++ 的选项见下一节，其余语言继续遵循现有 Prettier 配置。
+
+## 4. Rust、C/C++ 系统格式化器
+
+aiohub-code-formatter 的 `external` 模块提供异步格式化和引擎检测：
+
+- Rust 使用 `rustfmt --emit stdout`，默认 edition 2024，可在界面切换为 2015、2018、2021。
+- C 与 C++ 共用 clang-format，分别指定 `snippet.c`、`snippet.cpp` 作为语言提示，使用显式 LLVM 风格。
+- 路径留空时从进程 PATH 查找；自定义路径要求绝对路径。配置文件只保存两个引擎路径与 Rust edition，源码留在当前编辑区。
+- `code_formatter_status({ language, formatterPath })` 执行有 5 秒时限的 `--version` 检测，返回 camelCase 的 `available / engine / version / error`；可用版本需包含对应引擎名称。
+- 界面提供版本或安装提示、路径编辑和重新检测。C 与 C++ 共用路径配置，Rust 保持独立；路径和 edition 通过 createConfigManager 持久化。
+- 直接启动进程，源码经 stdin 输入；并发处理输入、stdout、stderr。格式化时限 10 秒，错误/超时会终止并回收子进程，取消时启用 kill-on-drop。
+- 输入上限 4 MiB，stdout / stderr 各限制 16 MiB，界面错误诊断截取最多 3000 字符。
+- 每次在独立临时目录执行。rustfmt 读取明确指定的空配置文件并启用 skip_children；clang-format 使用内联风格。两者均以 LF 输出，避免读取项目格式配置或遍历 Rust 子模块。
+- Rust 默认 4 空格，C/C++ 默认 2 空格；支持 printWidth（80，1–1000）、tabWidth（1–16）、useTabs。PHP/Prettier 的其他选项仅由各自引擎处理。
+- clang-format 执行排版，完整语义/语法检查仍由编译器承担。应用当前使用用户系统工具版本，跨机器输出可能存在差异。
+
+## 5. 界面与异步结果
+
+输入变化和语言切换统一触发 500ms 防抖格式化。每次变化立即递增请求序号，待执行或正在执行的旧请求完成后，仅当前序号的结果能够更新输出。清空输入立即清空输出，并使旧请求失效。
+
+界面保留输入区、输出区、语言选择与复制/发送操作。PHP 格式化在后端阻塞任务通道运行，避免计算直接占用 WebView UI 线程。
+
+## 6. 相关验证
+
+新增测试围绕公开行为：PHP 注释与字符串保留、格式化幂等性、语法错误、布局选项及非法参数；前端测试覆盖四种原生语言的结果契约、IPC 字符串错误、引擎检测和浏览器能力。系统进程测试使用当前测试程序作为跨平台子进程夹具，验证大输入/输出并发传输、错误诊断、时限、输出限制及无效配置。
+
+```powershell
+cargo test --manifest-path src-tauri/Cargo.toml -p aiohub-code-formatter
+bun run test:run src/tools/code-formatter/__tests__/formatter.test.ts
+```
+
+真实 IPC 与页面交互通过项目 Dev Control CLI 在隔离 Tauri 实例验证。
+
+## 7. 扩展方向
+
+后续原生语言组合、Mago 版本边界与 Rust/C/C++ 引擎调查见 [格式化引擎调查](docs/Plan/formatter-engine-investigation.md)。当前支持十二种语言，Rust/C/C++ 已以可选系统工具方式接入；随应用分发引擎留待后续独立评估。

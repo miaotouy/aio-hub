@@ -21,6 +21,8 @@ import {
   provide,
   nextTick,
   onMounted,
+  onBeforeUnmount,
+  watch,
   defineAsyncComponent,
 } from "vue";
 import { Search as SearchIcon } from "@element-plus/icons-vue";
@@ -28,6 +30,14 @@ import { useElementSize } from "@vueuse/core";
 import { agentEditTabs } from "./agentEditConfig";
 import BasicInfoSection from "./sections/BasicInfoSection.vue";
 import PersonalitySection from "./sections/PersonalitySection.vue";
+import ModelConfigSection from "./sections/ModelConfigSection.vue";
+import { useAgentModelContext } from "../../composables/useAgentModelContext";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import { parameterConfigs } from "@/tools/llm-chat/config/parameter-config";
+import {
+  isEditorParameterVisible,
+  isSafetySettingsVisible,
+} from "../parameters/parameterEditorConfig";
 import CapabilitiesSection from "./sections/CapabilitiesSection.vue";
 import RecallSection from "./sections/RecallSection.vue";
 import KnowledgeLibrarySection from "./sections/KnowledgeLibrarySection.vue";
@@ -58,7 +68,6 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   agent: null,
-  activeTab: "basic",
 });
 
 const emit = defineEmits(["update:modelValue", "save", "update:activeTab"]);
@@ -82,9 +91,9 @@ const formLabelWidth = computed(() => {
 });
 
 // --- 状态管理 ---
-const internalActiveTab = ref(props.activeTab);
+const internalActiveTab = ref(props.activeTab ?? "basic");
 const activeTab = computed({
-  get: () => props.activeTab || internalActiveTab.value,
+  get: () => props.activeTab ?? internalActiveTab.value,
   set: (val) => {
     internalActiveTab.value = val;
     emit("update:activeTab", val);
@@ -93,6 +102,22 @@ const activeTab = computed({
 
 const searchQuery = ref("");
 const highlightedItemId = ref("");
+const parameterSection = ref<InstanceType<typeof ModelConfigSection> | null>(
+  null
+);
+const { currentModel, currentProviderType } = useAgentModelContext(
+  () => props.modelValue
+);
+const { getSupportedParameters } = useLlmProfiles();
+const editorContext = computed(() => ({
+  parameters: props.modelValue.parameters ?? {},
+  supportedParameters: currentProviderType.value
+    ? getSupportedParameters(currentProviderType.value)
+    : { temperature: true, maxTokens: true },
+  providerType: currentProviderType.value,
+  modelId: props.modelValue.modelId,
+  capabilities: currentModel.value?.capabilities,
+}));
 
 // 弹窗状态
 const userProfileDialogVisible = ref(false);
@@ -131,12 +156,34 @@ provide("virtual-time-enabled", virtualTimeEnabled);
 // --- 搜索功能 ---
 const searchIndex = computed(() => {
   return agentEditTabs.flatMap((tab) =>
-    tab.items.map((item) => ({
-      ...item,
-      tabId: tab.id,
-      tabLabel: tab.label,
-      value: `${tab.label} > ${item.label}`,
-    }))
+    tab.items
+      .filter((item) => {
+        if (item.parameterKey)
+          return isEditorParameterVisible(
+            item.parameterKey,
+            editorContext.value
+          );
+        if (item.id === "parameters.safetySettings")
+          return isSafetySettingsVisible(editorContext.value);
+        if (
+          item.id === "parameters.advanced" ||
+          item.id === "parameters.special"
+        ) {
+          const group = item.id.split(".")[1];
+          return parameterConfigs.some(
+            (config) =>
+              config.group === group &&
+              isEditorParameterVisible(config.key, editorContext.value)
+          );
+        }
+        return true;
+      })
+      .map((item) => ({
+        ...item,
+        tabId: tab.id,
+        tabLabel: tab.label,
+        value: `${tab.label} > ${item.label}`,
+      }))
   );
 });
 
@@ -146,53 +193,59 @@ const querySearch = (queryString: string, cb: any) => {
         const query = queryString.toLowerCase();
         return (
           item.label.toLowerCase().includes(query) ||
-          item.keywords.toLowerCase().includes(query)
+          item.keywords.toLowerCase().includes(query) ||
+          item.id.toLowerCase().includes(query) ||
+          item.tabLabel.toLowerCase().includes(query)
         );
       })
     : [];
   cb(results);
 };
 
-const handleSearchSelect = (item: any) => {
-  activeTab.value = item.tabId;
+let highlightTimer: ReturnType<typeof setTimeout> | undefined;
+let highlightedElement: HTMLElement | undefined;
+const clearHighlight = () => {
+  clearTimeout(highlightTimer);
+  highlightedElement?.classList.remove("setting-highlight");
+  highlightedElement = undefined;
+  highlightedItemId.value = "";
+};
+onBeforeUnmount(clearHighlight);
 
-  nextTick(() => {
-    const target = document.querySelector(`[data-setting-id="${item.id}"]`);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-      highlightedItemId.value = item.id;
-      target.classList.add("setting-highlight");
-      setTimeout(() => {
-        highlightedItemId.value = "";
-        target.classList.remove("setting-highlight");
-      }, 2000);
-    }
-  });
+const locateSetting = async (settingId: string) => {
+  await nextTick();
+  const targetId = settingId.startsWith("parameters.")
+    ? ((await parameterSection.value?.revealSetting(settingId)) ?? settingId)
+    : settingId;
+  const target = Array.from(
+    containerRef.value?.querySelectorAll<HTMLElement>("[data-setting-id]") || []
+  ).find((element) => element.dataset.settingId === targetId);
+  if (!target) return;
+  clearHighlight();
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  highlightedItemId.value = targetId;
+  highlightedElement = target;
+  target.classList.add("setting-highlight");
+  highlightTimer = setTimeout(clearHighlight, 2000);
+};
+
+const handleSearchSelect = (item: { tabId: string; id: string }) => {
+  activeTab.value = item.tabId;
+  void locateSetting(item.id);
   searchQuery.value = "";
 };
 
-// --- 初始定位逻辑 ---
-onMounted(() => {
-  if (props.initialTab) {
+// 兼容此前从角色设定定位模型的入口。
+const applyInitialLocation = () => {
+  if (props.initialSection === "model") {
+    activeTab.value = "model";
+  } else if (props.initialTab) {
     activeTab.value = props.initialTab;
   }
-  if (props.initialSection) {
-    nextTick(() => {
-      const target = document.querySelector(
-        `[data-setting-id="${props.initialSection}"]`
-      );
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-        highlightedItemId.value = props.initialSection!;
-        target.classList.add("setting-highlight");
-        setTimeout(() => {
-          highlightedItemId.value = "";
-          target.classList.remove("setting-highlight");
-        }, 2000);
-      }
-    });
-  }
-});
+  if (props.initialSection) void locateSetting(props.initialSection);
+};
+onMounted(applyInitialLocation);
+watch(() => [props.initialTab, props.initialSection], applyInitialLocation);
 
 defineExpose({
   userProfileDialogVisible,
@@ -264,6 +317,11 @@ defineExpose({
         >
           <BasicInfoSection v-show="activeTab === 'basic'" />
           <PersonalitySection v-show="activeTab === 'personality'" />
+          <ModelConfigSection
+            v-if="activeTab === 'model' || activeTab === 'context'"
+            ref="parameterSection"
+            :page="activeTab === 'context' ? 'context' : 'model'"
+          />
           <CapabilitiesSection v-show="activeTab === 'capabilities'" />
           <SessionVariableSection v-show="activeTab === 'variables'" />
           <RecallSection v-if="activeTab === 'recall'" />

@@ -38,6 +38,10 @@ import {
   markSessionVolatile,
   useSessionManager,
 } from "../../composables/session/useSessionManager";
+import {
+  loadNewSessionDraft,
+  saveNewSessionDraft,
+} from "../../composables/storage/useNewSessionDraftStorage";
 import { getEffectiveMessageCount } from "../../utils/sessionMessageCount";
 import { clearRetrievalCache } from "@/tools/recall/services/api";
 import { createModuleLogger } from "@/utils/logger";
@@ -173,6 +177,9 @@ export function createSessionLifecycleManager(
         if (!newSessionDraft.value) {
           state.currentSessionId.value = latest.currentSessionId;
         }
+        await restoreNewSessionDraft(
+          new Set(latest.sessions.map((session) => session.id))
+        );
       })
       .catch((error) => {
         logger.error("后台恢复会话索引失败", error);
@@ -303,6 +310,7 @@ export function createSessionLifecycleManager(
             draft.detail.nodes,
             state.sessionIndexMap.value
           );
+          await saveNewSessionDraft(draft);
           return;
         }
 
@@ -321,6 +329,7 @@ export function createSessionLifecycleManager(
             draft.detail.nodes,
             state.sessionIndexMap.value
           );
+          await saveNewSessionDraft(draft);
           return;
         }
 
@@ -339,6 +348,7 @@ export function createSessionLifecycleManager(
           draft.detail.nodes,
           state.sessionIndexMap.value
         );
+        await saveNewSessionDraft(draft);
       }
     );
   }
@@ -347,18 +357,21 @@ export function createSessionLifecycleManager(
     agentId: string,
     name?: string
   ): Promise<string> {
+    // 新会话选择同样使较慢的历史会话切换请求失效。
+    ++latestSwitchRequest;
     return managers.executeOrProxy(
       "begin-new-session",
       { agentId, name },
       async () => {
+        const sessionManager = getSessionManager();
         const existingDraft = newSessionDraft.value;
         if (existingDraft) {
           state.currentSessionId.value = existingDraft.index.id;
+          await sessionManager.updateCurrentSessionId(null);
           await updateNewSessionAgent(agentId);
           return existingDraft.index.id;
         }
 
-        const sessionManager = getSessionManager();
         const { index, detail, sessionId } = await sessionManager.createSession(
           agentId,
           name
@@ -370,6 +383,9 @@ export function createSessionLifecycleManager(
         state.sessionDetailMap.value.set(sessionId, detail);
         state.currentSessionId.value = sessionId;
         managers.history.clearHistory(sessionId);
+        // 先保存稳定身份，再提交新会话选择；输入草稿继续绑定同一个 ID。
+        await saveNewSessionDraft(newSessionDraft.value);
+        await sessionManager.updateCurrentSessionId(null);
 
         logger.info("进入虚拟新会话", { sessionId, agentId });
         return sessionId;
@@ -400,6 +416,10 @@ export function createSessionLifecycleManager(
       markSessionPersistent(sessionId);
       newSessionDraft.value = null;
       state.currentSessionId.value = sessionId;
+      // 正式会话已经提交，清理失败由下次加载收敛，保持本次发送可继续。
+      await saveNewSessionDraft(null).catch((error) => {
+        logger.warn("清理已提升会话的草稿恢复记录失败", error);
+      });
 
       logger.info("虚拟新会话已提升为正式会话", { sessionId });
       return sessionId;
@@ -710,6 +730,9 @@ export function createSessionLifecycleManager(
           );
         }
         state.sessionIndexMap.value = nextMap;
+        await restoreNewSessionDraft(
+          new Set(refreshedSessions.map((session) => session.id))
+        );
         state.favoriteFolders.value = refreshedFavoriteFolders;
         if (
           !state.currentSessionId.value ||
@@ -805,7 +828,9 @@ export function createSessionLifecycleManager(
 
         const index = state.sessionIndexMap.value.get(sessionId);
         const detail = state.sessionDetailMap.value.get(sessionId);
-        if (index && detail) {
+        if (index && detail && sessionId === newSessionDraft.value?.index.id) {
+          await saveNewSessionDraft({ index, detail });
+        } else if (index && detail) {
           sessionManager.persistSession(
             index,
             detail,
@@ -814,6 +839,58 @@ export function createSessionLifecycleManager(
         }
       }
     );
+  }
+
+  async function restoreNewSessionDraft(
+    persistentIds: ReadonlySet<string>
+  ): Promise<void> {
+    if (state.sessionRecovery.value.status !== "ready") return;
+    const draft = newSessionDraft.value || (await loadNewSessionDraft());
+    if (!draft) return;
+    if (persistentIds.has(draft.index.id)) {
+      markSessionPersistent(draft.index.id);
+      newSessionDraft.value = null;
+      // 首次发送可能在正式索引写入后、选择提交前退出，沿用同一 ID 恢复输入。
+      if (!state.currentSessionId.value) {
+        await ensureSessionDetail(draft.index.id);
+        state.currentSessionId.value = draft.index.id;
+        await getSessionManager().updateCurrentSessionId(draft.index.id);
+      }
+      await saveNewSessionDraft(null).catch((error) => {
+        logger.warn("清理已提升会话的草稿恢复记录失败", error);
+      });
+      return;
+    }
+
+    // 磁盘草稿仅保存身份和配置，消息树恢复后按当前角色重新生成开场。
+    if (!newSessionDraft.value && draft.index.displayAgentId) {
+      const { useAgentStore } =
+        await import("@/tools/agent-manager/stores/agentStore");
+      const { useUserProfileStore } = await import("../userProfileStore");
+      const agentStore = useAgentStore();
+      const userProfileStore = useUserProfileStore();
+      // 会话、角色和用户档案会并行启动加载，开场宏需要完整的角色与档案。
+      await Promise.all([
+        agentStore.loadAgents(),
+        userProfileStore.loadProfiles(),
+      ]);
+      const agent = await agentStore.loadAgentDetails(draft.index.displayAgentId);
+      if (agent) {
+        await switchAgentGreetings(
+          draft.index,
+          draft.detail,
+          agent,
+          userProfileStore.getEffectiveProfile(agent.userProfileId)
+        );
+      }
+    }
+
+    markSessionVolatile(draft.index.id);
+    newSessionDraft.value = draft;
+    state.sessionIndexMap.value.set(draft.index.id, draft.index);
+    state.sessionDetailMap.value.set(draft.index.id, draft.detail);
+    if (!state.currentSessionId.value)
+      state.currentSessionId.value = draft.index.id;
   }
 
   async function loadSessions(): Promise<void> {
@@ -864,6 +941,9 @@ export function createSessionLifecycleManager(
       });
     }
 
+    await restoreNewSessionDraft(
+      new Set(indexItems.map((session) => session.id))
+    );
     await managers.fillMissingTokenMetadata();
 
     if (recoveryState.status === "corrupt") {
@@ -883,6 +963,82 @@ export function createSessionLifecycleManager(
         },
       })
       .catch((error) => logger.warn("增量核对会话索引失败", error));
+  }
+
+  const reloadingSessionIds = new Set<string>();
+
+  async function reloadSession(sessionId: string): Promise<void> {
+    return managers.executeOrProxy(
+      "reload-session",
+      { sessionId },
+      async () => {
+        if (reloadingSessionIds.has(sessionId)) {
+          throw new Error("会话正在重新加载，请稍候");
+        }
+        const previousIndex = state.sessionIndexMap.value.get(sessionId);
+        if (!previousIndex) throw new Error("会话已被删除");
+        if (
+          newSessionDraft.value?.index.id === sessionId ||
+          isSessionVolatile(sessionId)
+        ) {
+          throw new Error("新会话尚未保存到文件");
+        }
+        const assertIdle = () => {
+          const detail = state.sessionDetailMap.value.get(sessionId);
+          if (
+            managers.runtime.isSessionGenerating(sessionId) ||
+            Object.values(detail?.nodes ?? {}).some(
+              (node) =>
+                node.status === "queued" || node.metadata?.isQueued === true
+            )
+          ) {
+            throw new Error("请先停止该会话的生成和排队任务，再重新加载");
+          }
+        };
+        assertIdle();
+        managers.runtime.clearSessionRuntime(sessionId);
+        const before = JSON.stringify(
+          state.sessionDetailMap.value.get(sessionId)
+        );
+        reloadingSessionIds.add(sessionId);
+        try {
+          const storage = await getStorage();
+          const loaded = await storage.loadSession(sessionId, true);
+          if (!loaded)
+            throw new Error("读取会话文件失败，请检查文件是否存在且格式正确");
+          const detail = normalizeLoadedDetail(sessionId, loaded);
+          if (!detail) throw new Error("会话文件缺少有效的消息树");
+          assertIdle();
+          if (
+            !state.sessionIndexMap.value.has(sessionId) ||
+            before !==
+              JSON.stringify(state.sessionDetailMap.value.get(sessionId))
+          ) {
+            throw new Error("读取期间会话发生了变化，请重试");
+          }
+          const currentIndex = state.sessionIndexMap.value.get(sessionId)!;
+          const index = {
+            ...loaded.index,
+            isFavorite: currentIndex.isFavorite,
+            favoriteFolderId: currentIndex.favoriteFolderId,
+          };
+          repairInterruptedGeneratingNodes(detail);
+          detail.history = [];
+          detail.historyIndex = -1;
+          managers.runtime.clearSessionRuntime(sessionId);
+          managers.history.cleanupSession(sessionId);
+          state.sessionIndexMap.value.set(sessionId, index);
+          state.sessionDetailMap.value.set(sessionId, detail);
+          managers.history.clearHistory(sessionId);
+          await clearRetrievalCache();
+          // 只更新列表索引，文件正文保持外部修改后的内容。
+          await storage.saveSessionIndex(index);
+          logger.info("已从文件重新加载会话", { sessionId });
+        } finally {
+          reloadingSessionIds.delete(sessionId);
+        }
+      }
+    );
   }
 
   async function switchSession(sessionId: string): Promise<void> {
@@ -919,6 +1075,9 @@ export function createSessionLifecycleManager(
             const effectiveUserProfile = userProfileStore.getEffectiveProfile(
               agent.userProfileId
             );
+            if (sessionId === newSessionDraft.value?.index.id) {
+              await updateNewSessionAgent(agent.id);
+            }
             const changed = await refreshLiveGreetingsIfNeeded(
               index,
               detail,
@@ -949,7 +1108,9 @@ export function createSessionLifecycleManager(
         // Await the selection commit. Content saves are intentionally allowed
         // to run independently, but the last selected session must be durable
         // before this operation reports success to the UI.
-        await sessionManager.updateCurrentSessionId(sessionId);
+        await sessionManager.updateCurrentSessionId(
+          sessionId === newSessionDraft.value?.index.id ? null : sessionId
+        );
         logger.info("切换会话", { sessionId, sessionName: index.name });
       }
     );
@@ -1208,6 +1369,7 @@ export function createSessionLifecycleManager(
       state.sessionDetailMap.value.clear();
       newSessionDraft.value = null;
       state.currentSessionId.value = null;
+      await saveNewSessionDraft(null);
       inputManager.clearAllDrafts();
       await storage.saveSessions([], null, state.favoriteFolders.value);
       // saveSessions persists session/index contents only; keep the selection
@@ -1234,6 +1396,7 @@ export function createSessionLifecycleManager(
     updateSession,
     loadSessions,
     switchSession,
+    reloadSession,
     persistSessions,
     toggleFavorite,
     createFavoriteFolder,

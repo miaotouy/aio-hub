@@ -15,11 +15,22 @@
 -->
 
 <script setup lang="ts">
+import VirtualTextAttachments from "../VirtualTextAttachments.vue";
+import type { VirtualTextAttachment } from "@/tools/llm-chat/types/virtual-attachment";
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import { ref, toRef, computed, onMounted, watch } from "vue";
-import { useElementSize } from "@vueuse/core";
+import {
+  ref,
+  toRef,
+  computed,
+  onMounted,
+  watch,
+  nextTick,
+  onBeforeUnmount,
+  unref,
+} from "vue";
+import { useElementSize, useWindowSize } from "@vueuse/core";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";
@@ -37,6 +48,8 @@ import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import MessageInputToolbar from "./MessageInputToolbar.vue";
+import InputPanelHost from "@/components/common/input-panel/InputPanelHost.vue";
+import { provideInputPanel } from "@/composables/useInputPanel";
 import ChatCodeMirrorEditor from "./ChatCodeMirrorEditor.vue";
 import ChatTextareaEditor from "./ChatTextareaEditor.vue";
 import MessageInputAttachments from "./MessageInputAttachments.vue";
@@ -97,6 +110,7 @@ interface Emits {
     payload: {
       content: string;
       attachments?: Asset[];
+      virtualAttachments?: VirtualTextAttachment[];
       temporaryModel?: ModelIdentifier | null;
       knowledgeReference?: KnowledgeReference | null;
       disableMacroParsing?: boolean;
@@ -123,16 +137,98 @@ const textareaRef = ref<
 const containerRef = ref<HTMLDivElement>();
 const headerRef = ref<InstanceType<typeof ComponentHeader>>();
 const extraContentRef = ref<HTMLDivElement>();
+const panelHostRef = ref<InstanceType<typeof InputPanelHost>>();
+const toolbarRef = ref<InstanceType<typeof MessageInputToolbar>>();
+const panel = provideInputPanel(
+  () => inputStore.settings.panelRepeatClickAction
+);
+const { activePanel, collapsed: panelCollapsed } = panel;
+const panelProps = computed(() =>
+  Object.fromEntries(
+    Object.entries(activePanel.value?.props ?? {}).map(([key, value]) => [
+      key,
+      unref(value),
+    ])
+  )
+);
+function completePanel() {
+  panel.close();
+  void nextTick(() => textareaRef.value?.focus());
+}
+const { height: viewportHeight } = useWindowSize();
+const detachedAvailableHeight = ref(window.screen.availHeight);
+const { height: panelHeight } = useElementSize(
+  computed(() => panelHostRef.value?.$el)
+);
 const { height: extraContentHeight } = useElementSize(extraContentRef);
 const { height: containerHeight } = useElementSize(containerRef);
+const extraHeight = computed(
+  () =>
+    extraContentHeight.value + (activePanel.value ? panelHeight.value + 12 : 0)
+);
+const panelMaxHeight = computed(() =>
+  Math.max(
+    0,
+    Math.min(
+      activePanel.value?.maxHeight ?? 260,
+      (props.isDetached
+        ? detachedAvailableHeight.value * 0.75
+        : viewportHeight.value * 0.6) -
+        extraContentHeight.value -
+        180
+    )
+  )
+);
 
 // 状态
 const isExpanded = ref(false);
 const isUpdatingSize = ref(false); // 锁，防止并发调整大小导致抖动
+let detachedSizePending = false;
+let inputUnmounted = false;
 
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
 const inputText = inputManager.inputText;
+const textAttachmentsRef = ref<InstanceType<
+  typeof VirtualTextAttachments
+> | null>(null);
+let textEditorSessionId: string | null = null;
+async function retryDraftSave() {
+  try {
+    await inputManager.flushDrafts();
+  } catch (error) {
+    customMessage.error(
+      error instanceof Error ? error.message : "草稿保存失败，请复制内容后重试"
+    );
+  }
+}
+function onTextEditing(editing: boolean) {
+  inputStore.isEditingTextAttachment = editing;
+  if (editing) textEditorSessionId = inputManager.activeSessionId.value;
+}
+async function saveTextAttachment(
+  original: VirtualTextAttachment | null,
+  updated: VirtualTextAttachment
+) {
+  await inputManager.commitVirtualAttachment(
+    original,
+    updated,
+    textEditorSessionId
+  );
+}
+function insertTextAttachment(attachment: VirtualTextAttachment) {
+  if (textEditorSessionId !== inputManager.activeSessionId.value) {
+    inputManager.addContent(attachment.text, "append", textEditorSessionId);
+  } else {
+    const editor = textareaRef.value;
+    const selection = editor?.getSelectionRange();
+    if (editor && selection)
+      editor.insertText(attachment.text, selection.start, selection.end);
+    else inputManager.addContent(attachment.text);
+  }
+  inputManager.removeVirtualAttachment(attachment.id, textEditorSessionId);
+  void nextTick(() => textareaRef.value?.focus());
+}
 
 // 附件管理
 const attachmentManager = {
@@ -147,7 +243,15 @@ const attachmentManager = {
     inputManager.removeAttachment(asset.id);
     transcriptionManager.cancelTranscription(asset.id);
   },
-  clearAttachments: inputManager.clearAttachments,
+  clearAttachments: () => {
+    for (const asset of inputManager.attachments.value) {
+      transcriptionManager.cancelTranscription(asset.id);
+    }
+    inputManager.clearAttachments();
+    for (const attachment of inputManager.virtualAttachments.value) {
+      inputManager.removeVirtualAttachment(attachment.id);
+    }
+  },
   maxAttachmentCount: inputManager.maxAttachmentCount,
 };
 
@@ -162,7 +266,7 @@ const {
 } = useMessageInputResize({
   isDetached: props.isDetached || false,
   textareaRef,
-  extraHeight: extraContentHeight,
+  extraHeight,
   isExpanded,
   onResizeStart: () => {
     isExpanded.value = false;
@@ -170,6 +274,10 @@ const {
 });
 
 const { currentAgentId } = useLlmChatUiState();
+watch([currentAgentId, () => chatStore.currentSessionId], () => {
+  if (activePanel.value && activePanel.value.id !== "input-settings")
+    panel.close();
+});
 
 /**
  * 检查附件是否会使用转写
@@ -249,9 +357,6 @@ const handleOpenAgentSettings = (tab?: string) => {
 
 // 计算 placeholder 文本
 const placeholderText = computed(() => {
-  // 只有在真正没有会话时才显示“请创建”
-  if (!chatStore.currentSessionId) return "请先创建或选择一个对话";
-
   const sendKey = settings.value.shortcuts.send;
   const sendHint =
     sendKey === "ctrl+enter"
@@ -272,7 +377,11 @@ watch(inputManager.focusRequest, () => {
 const updateDetachedWindowSize = async (
   expanding: boolean = inputStore.anyMenuOpen
 ) => {
-  if (!props.isDetached || isUpdatingSize.value) return;
+  if (!props.isDetached || inputUnmounted || containerHeight.value <= 0) return;
+  if (isUpdatingSize.value) {
+    detachedSizePending = true;
+    return;
+  }
   isUpdatingSize.value = true;
   try {
     const scale = window.devicePixelRatio || 1;
@@ -293,6 +402,18 @@ const updateDetachedWindowSize = async (
       targetHeight = currentContentHeight;
     }
 
+    const monitor = await currentMonitor();
+    if (monitor) {
+      const position = await getCurrentWindow().outerPosition();
+      const availableHeight =
+        monitor.workArea.position.y + monitor.workArea.size.height - position.y;
+      // Panel budget follows the screen work area, independent of the window's auto-sized viewport.
+      detachedAvailableHeight.value = Math.max(0, availableHeight / scale);
+      targetHeight = Math.min(
+        targetHeight,
+        Math.max(180 * scale, availableHeight)
+      );
+    }
     // 使用全局尺寸处理方法，指定 anchor 为 top 以实现“向下增长”，避免抖动
     await animateWindowSize({
       height: targetHeight,
@@ -303,8 +424,16 @@ const updateDetachedWindowSize = async (
     logger.warn("动态调整分离窗口大小失败", e);
   } finally {
     isUpdatingSize.value = false;
+    if (detachedSizePending) {
+      detachedSizePending = false;
+      void nextTick(() => updateDetachedWindowSize());
+    }
   }
 };
+onBeforeUnmount(() => {
+  inputUnmounted = true;
+  panel.close();
+});
 // 监听菜单状态变化
 watch(
   () => inputStore.anyMenuOpen,
@@ -375,10 +504,10 @@ onMounted(async () => {
   transcriptionManager.init();
   if (!settingsLoaded.value) {
     await loadSettings();
-    if (props.isDetached) {
-      // 初始状态下收缩窗口到输入框实际大小
-      setTimeout(() => updateDetachedWindowSize(false), 300);
-    }
+  }
+  if (props.isDetached) {
+    // 同步设置已就绪时，也需要按渲染后的输入区尺寸初始化窗口。
+    setTimeout(() => updateDetachedWindowSize(), 300);
   }
 });
 
@@ -535,30 +664,64 @@ const handleDragStart = (e: MouseEvent) => {
 
       <!-- 输入内容区 -->
       <div class="input-content">
-        <div
-          v-if="
-            attachmentManager.hasAttachments.value ||
-            inputManager.knowledgeReference.value
-          "
-          ref="extraContentRef"
-          class="input-extra-content"
+        <InputPanelHost
+          v-if="activePanel"
+          ref="panelHostRef"
+          v-model:collapsed="panelCollapsed"
+          :panel="activePanel"
+          :content-id="panel.contentId"
+          :style="{ '--input-panel-max-height': `${panelMaxHeight}px` }"
+          @close="panel.close(true)"
         >
+          <component
+            :is="activePanel.component"
+            :key="activePanel.id"
+            v-bind="panelProps"
+            @close="panel.close(true)"
+            @focus-editor="textareaRef?.focus()"
+            @complete="completePanel"
+            @open-advanced="toolbarRef?.openAdvanced($event)"
+            @customize="toolbarRef?.openCustomizer()"
+          />
+        </InputPanelHost>
+        <div ref="extraContentRef" class="input-extra-content">
           <KnowledgeReferenceChips />
-          <div v-if="attachmentManager.hasAttachments.value">
-            <MessageInputAttachments
-              :attachments="attachmentManager.attachments.value"
-              :count="attachmentManager.count.value"
-              :max-count="attachmentManager.maxAttachmentCount"
-              :get-will-use-transcription="getWillUseTranscription"
-              @remove="attachmentManager.removeAttachment"
-              @clear="attachmentManager.clearAttachments"
-              @transcribe-all="inputStore.handleTranscribeAll"
-              @smart-transcribe-all="
-                inputStore.handleSmartTranscribeAll(getWillUseTranscription)
-              "
-              @force-transcribe-all="inputStore.handleForceTranscribeAll"
-              @stop-all="inputStore.handleStopAllTranscriptions"
+          <MessageInputAttachments
+            :attachments="attachmentManager.attachments.value"
+            :count="attachmentManager.count.value"
+            :max-count="attachmentManager.maxAttachmentCount"
+            :text-count="inputManager.virtualAttachments.value.length"
+            :get-will-use-transcription="getWillUseTranscription"
+            @remove="attachmentManager.removeAttachment"
+            @clear="attachmentManager.clearAttachments"
+            @transcribe-all="inputStore.handleTranscribeAll"
+            @smart-transcribe-all="
+              inputStore.handleSmartTranscribeAll(getWillUseTranscription)
+            "
+            @force-transcribe-all="inputStore.handleForceTranscribeAll"
+            @stop-all="inputStore.handleStopAllTranscriptions"
+          >
+            <VirtualTextAttachments
+              ref="textAttachmentsRef"
+              :restore-paste-id="inputStore.restorableTextPasteId"
+              @restore-paste="inputStore.restoreTextPaste"
+              :attachments="inputManager.virtualAttachments.value"
+              draft
+              inline
+              :busy="disabled"
+              :commit="saveTextAttachment"
+              @editing-change="onTextEditing"
+              @remove="inputManager.removeVirtualAttachment($event.id)"
+              @insert="insertTextAttachment"
             />
+          </MessageInputAttachments>
+          <div
+            v-if="inputManager.saveStatus.value === 'error'"
+            class="draft-save-error"
+            role="alert"
+          >
+            草稿保存失败，内容仍保留。
+            <button type="button" @click="retryDraftSave">重试保存</button>
           </div>
         </div>
         <div class="input-wrapper">
@@ -571,6 +734,7 @@ const handleDragStart = (e: MouseEvent) => {
             :height="editorHeight"
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
+            :is-detached="props.isDetached"
             @submit="inputStore.handleSend()"
             @paste="inputStore.handlePaste"
           />
@@ -583,10 +747,12 @@ const handleDragStart = (e: MouseEvent) => {
             :height="editorHeight"
             :max-height="editorMaxHeight"
             :send-key="settings.shortcuts.send"
+            :is-detached="props.isDetached"
             @submit="inputStore.handleSend()"
             @paste="inputStore.handlePaste"
           />
           <MessageInputToolbar
+            ref="toolbarRef"
             :is-detached="props.isDetached"
             :is-expanded="isExpanded"
             :is-streaming-enabled="isStreamingEnabled"
@@ -597,6 +763,7 @@ const handleDragStart = (e: MouseEvent) => {
             :translation-enabled="settings.translation.enabled"
             :is-compressing="inputStore.isCompressing"
             :is-input-height-locked="isCustomHeightLocked"
+            @new-text-attachment="textAttachmentsRef?.openNew()"
             @toggle-streaming="toggleStreaming"
             @toggle-expand="toggleExpand"
             @unlock-input-height="resetCustomHeight"
@@ -623,6 +790,22 @@ const handleDragStart = (e: MouseEvent) => {
 </template>
 
 <style scoped>
+.draft-save-error {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 4px 0;
+}
+.draft-save-error button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+}
+.draft-save-error {
+  color: var(--el-color-danger);
+}
+
 .message-input-container {
   position: relative; /* For resize handle */
   display: flex;
@@ -723,6 +906,11 @@ const handleDragStart = (e: MouseEvent) => {
   min-width: 0;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 空附件区退出布局，避免在编辑器上方保留额外间距。 */
+.input-extra-content:empty {
+  display: none;
 }
 
 .input-wrapper {

@@ -54,6 +54,7 @@ const keyStates = ref<KeyStatesStorage>({
   profileSettings: {},
 });
 const isLoaded = ref(false);
+let loadingPromise: Promise<void> | null = null;
 
 export type ApiKeyUnavailableReason =
   "all-disabled" | "all-enabled-circuit-broken";
@@ -98,26 +99,30 @@ export function useLlmKeyManager() {
    */
   const loadKeyStates = async () => {
     if (isLoaded.value) return;
-    try {
-      const normalized = normalizeStoredKeyStates(await configManager.load());
-      const { changed, ...storage } = normalized;
-      keyStates.value = storage;
-      isLoaded.value = true;
+    if (loadingPromise) return loadingPromise;
+    loadingPromise = (async () => {
+      try {
+        const normalized = normalizeStoredKeyStates(await configManager.load());
+        const { changed, ...storage } = normalized;
+        keyStates.value = storage;
+        isLoaded.value = true;
 
-      if (changed) {
-        // 旧版明文索引与回显凭据的历史错误消息需要立即清洗落盘
-        await configManager.save(storage);
-        logger.info("Key 状态索引已迁移为哈希并清洗落盘");
-      } else {
-        logger.debug("LLM Key 状态加载成功");
+        if (changed) {
+          // 旧版明文索引与回显凭据的历史错误消息需要立即清洗落盘
+          await configManager.save(storage);
+          logger.info("Key 状态索引已迁移为哈希并清洗落盘");
+        } else {
+          logger.debug("LLM Key 状态加载成功");
+        }
+      } catch (error) {
+        errorHandler.handle(error, {
+          userMessage: "加载 Key 状态失败",
+          showToUser: false,
+        });
+        isLoaded.value = true;
       }
-    } catch (error) {
-      errorHandler.handle(error, {
-        userMessage: "加载 Key 状态失败",
-        showToUser: false,
-      });
-      isLoaded.value = true;
-    }
+    })();
+    return loadingPromise;
   };
 
   /**
@@ -487,6 +492,7 @@ export function useLlmKeyManager() {
   };
 
   return {
+    ensureLoaded: loadKeyStates,
     pickKey,
     reportSuccess,
     reportFailure,

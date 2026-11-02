@@ -209,7 +209,7 @@ export class ConfigManager<T extends Record<string, any>> {
   /**
    * 加载配置
    */
-  async load(): Promise<T> {
+  async load(options: { throwOnError?: boolean } = {}): Promise<T> {
     try {
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
@@ -300,6 +300,8 @@ export class ConfigManager<T extends Record<string, any>> {
       logger.debug(`配置加载成功`, { moduleName: this.moduleName });
       return mergedConfig;
     } catch (error: any) {
+      if (options.throwOnError) throw error;
+
       errorHandler.handle(error as Error, {
         userMessage: `加载配置失败`,
         context: {

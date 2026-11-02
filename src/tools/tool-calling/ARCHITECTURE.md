@@ -1,6 +1,6 @@
 # Tool Calling: 架构与开发者指南
 
-> 最后更新：2026-08-01
+> 最后更新：2026-10-19
 
 本文档描述 `tool-calling` 模块的内部架构、设计理念与数据流，为后续开发和维护提供清晰指引。
 
@@ -23,6 +23,8 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 1. **解析 (Parse)**: 从 LLM 的回复文本中提取结构化的工具调用请求块。
 2. **执行 (Execute)**: 将解析出的请求路由到对应的工具方法并执行。
 3. **格式化 (Format)**: 将执行结果格式化为协议规定的文本，回注到对话上下文中供 LLM 继续推理。
+
+同步工具的对象结果可通过 `ToolResultWithLocalMedia.localMedia` 返回本地媒体路径引用；`ToolMethodResult` 信封也支持该字段。执行器将引用提取到 `ToolExecutionResult.localMedia`，并在 JSON 文本中保留其余返回字段。聊天编排器把引用保存到工具消息节点的 `localMedia`；发送时由统一媒体解析管道按需安全读取原文件。带媒体引用的工具消息在上下文中使用 `user` 角色，以兼容模型媒体输入。 VCP 分布式调用通过节点协议层安全读取引用，在同次 `tool_result.result.content` 中返回 data URL 媒体块，详见 [分布式媒体结果](../vcp-connector/ARCHITECTURE.md#242-分布式媒体结果)。
 
 ### 2.2. 协议 (Protocol)
 
@@ -176,13 +178,14 @@ VCP (Variable & Command Protocol) 是当前唯一实现的协议，采用**文�
 
 #### 4.2.1. 标记语法
 
-VCP 使用三组标记对：
+VCP 使用以下标记对：
 
 | 标记                                                      | 用途                             |
 | --------------------------------------------------------- | -------------------------------- |
 | `<<<[TOOL_DEFINITION]>>>` / `<<<[END_TOOL_DEFINITION]>>>` | 工具定义块（注入 System Prompt） |
 | `<<<[TOOL_REQUEST]>>>` / `<<<[END_TOOL_REQUEST]>>>`       | 工具调用请求块（LLM 输出）       |
 | `<<<[TOOL_RESULT]>>>` / `<<<[END_TOOL_RESULT]>>>`         | 执行结果块（回注上下文）         |
+| `<<<[VCP_TOOL_BATCH_START:<时间戳>]>>>` / `<<<[VCP_TOOL_BATCH_END:<时间戳>]>>>` | 服务端整轮工具返回隔离 |
 
 #### 4.2.2. 参数编码
 
@@ -227,9 +230,10 @@ path2:「始」src/main.ts「末」
 解析器 ([`parseToolRequests()`](core/protocols/vcp-protocol.ts:268)) 的工作流程：
 
 1. **代码块隔离**：使用复合正则扫描全文，自动跳过 Markdown 代码块（` ``` `）和行内代码，防止解析到示例代码中的伪请求。
-2. **块提取与坏块恢复**：定位非代码块区域的 `<<<[TOOL_REQUEST]>>>` ... `<<<[END_TOOL_REQUEST]>>>` 块；标准块在结束标记前遇到新的请求起始标记时会丢弃当前坏块并从新标记恢复扫描，避免把两个请求合并。块级转义请求仅以新的 `TOOL_REQUEST_ESCAPE` 作为恢复点，内部标准请求块仍可作为转义内容保留。`「始ESCAPE」...「末ESCAPE」` 参数值转义围栏内的请求标记属于转义内容，扫描块边界时会整段跳过，不会触发坏块恢复（与 VCPToolBox `_findBlockEnd` 语义一致）。该边界规则由 [`findVcpBlockBoundary()`](../../utils/vcpBlockBoundary.ts) 复用到执行解析和富文本 Tokenizer。
+2. **块提取与坏块恢复**：定位非代码块区域的 `<<<[TOOL_REQUEST]>>>` ... `<<<[END_TOOL_REQUEST]>>>` 块；标准块在结束标记前遇到新的请求起始标记时会丢弃当前坏块并从新标记恢复扫描，避免把两个请求合并。`TOOL_REQUEST_ESCAPE` / `END_TOOL_REQUEST_ESCAPE` 归属转义字面量，独立出现时按普通文本保留；请求恢复仅以新的标准 `TOOL_REQUEST` 为起点。`「始ESCAPE」...「末ESCAPE」` 参数值转义围栏内的请求标记属于转义内容，扫描块边界时会整段跳过，不会触发坏块恢复（与 VCPToolBox `_findBlockEnd` 语义一致）。该边界规则由 [`findVcpBlockBoundary()`](../../utils/vcpBlockBoundary.ts) 复用到执行解析和富文本 Tokenizer。已定位结束标记时，候选起点只搜索其前方，并保留跨边界标记的完整匹配范围；先出现的 ESCAPE 值继续整段跳过后重新定位边界。
 3. **参数提取** ([`parseSingleToolRequest()`](core/protocols/vcp-protocol.ts:86))：
    - 使用正则 `([a-zA-Z0-9_-]+):\s*「始」([\s\S]*?)「末」` 提取键值对。
+   - **转义还原**：完整提取 `「始ESCAPE」...「末ESCAPE」` 参数后，通过 `src/utils/vcpEscapedLiterals.ts` 还原转义请求标记与参数定界符，供执行和展示共用；保留原始请求文本。普通参数及 `exp` 参数沿用原值。
    - **容错处理**：检测未闭合的 `「始」` 标记并尝试提取。
    - **ID 转换**：将 `tool_name` 中的下划线 `_` 转回连字符 `-`（如 `directory_tree` -> `directory-tree`）。
    - **批量拆分**：识别带数字后缀的键（如 `command1`, `path1`），自动拆分为多个独立的 `ParsedToolRequest`。
@@ -243,6 +247,22 @@ path2:「始」src/main.ts「末」
 - `description`: 方法描述
 - `parameters`: JSON 格式的参数列表（含类型、必填、默认值等）
 - `example`: 调用示例
+
+#### 4.2.6. 服务端工具返回批次
+
+VCPToolBox 的 `docs/TOOL_RESULT_BATCH_PROTOCOL.md` 定义整轮工具返回隔离格式：
+
+```text
+<<<[VCP_TOOL_BATCH_START:2026-10-30T11:16:59.391+08:00]>>>
+工具结果与本轮摘要原文
+<<<[VCP_TOOL_BATCH_END:2026-10-30T11:16:59.391+08:00]>>>
+```
+
+- 时间戳兼容毫秒精度的历史 `Z` 与正负 `HH:mm` 偏移，结束标记按原始字符串精确匹配。批次可以由外层 `ROLE_DIVIDE_USER` 包裹，也可独立出现。
+- `src/utils/vcpToolBatch.ts` 统一识别批次边界。请求块中的标记归属请求参数，已闭合的单行行内代码中的标记归属代码示例；批次扫描跳过这些范围，再定位真实批次。独立批次优先于 Markdown 代码围栏识别，避免结果正文中的闭合围栏影响隔离。批次内部的角色、请求、旧结果框与其他时间戳批次标记均作为正文保留；仅匹配当前批次的结束标记。
+- 执行解析前按批次范围屏蔽正文，保留偏移及换行，防止结果中引用的工具请求再次执行。缺少对应结束标记时，隔离范围延续至正文末尾。
+- 富文本在 Markdown/HTML 分词前识别批次，以 `vcp_role` 的 `tool_batch` 变体显示整批原文；未完成批次保留待定状态。展示侧可将完整旧结果框与摘要投影为工具卡片，结果值采用文本插值；其他正文维持纯文本展示。历史和聊天节点保留完整原始边界。
+- 旧历史继续使用原有工具结果及摘要解析。上游模型可见包装投影由 VCPToolBox 负责，AIO 消费并保存服务端原始协议。
 
 ### 4.3. 工具发现服务 (`core/discovery.ts`)
 
@@ -324,6 +344,7 @@ flowchart TD
 - **路由规则**: 统一使用 `tool_name` (对应 toolId) 和 `command` (对应 methodName) 分离格式。执行器会自动路由到对应的工具实例和方法。
 - **参数合并策略**: 执行前会按 `Schema 默认值 < Agent 预设 < LLM 实时参数` 的优先级合并参数。
 - **审批状态**: 支持 `approved`, `rejected` 和 `silent_cancelled`。其中 `silent_cancelled` 用于静默取消执行且不报错；`rejected` 会触发工具的 `onToolCallDiscarded` 回调并返回 `denied` 状态。
+- **AI 自动审批**: 聊天审批入口支持 JEV 与普通 LLM 两种引擎，共用人工接管和取消机制。执行器向审批入口透传实际参数与方法说明，详见[工具自动审批仲裁架构](../../../docs/architecture/tool-approval-arbitration.md)。
 - **自动预览 (Auto-Preview)**: 在进入审批挂起状态前，执行器会尝试调用工具的 `onToolCallPreview` 钩子，允许工具（如 Canvas）将数据写入内存缓冲区以供用户即时预览效果。
 - **双重安全校验**: 即使方法存在于工具实例上，也必须在 [`getMetadata()`](core/executor.ts:119) 中标记 `agentCallable: true` 才允许执行，防止 LLM 调用非授权方法。
 - **超时与取消**: 本地和分布式执行通过 `AbortController` 传播取消信号，超时必须先中止底层任务再返回错误；完整约束见第 10 节。
@@ -450,6 +471,7 @@ interface ParsedToolRequest {
 
 // 工具执行结果
 interface ToolExecutionResult {
+  localMedia?: LocalMediaReference[]; // 原文件的绝对路径和媒体元数据
   requestId: string; // 对应的请求 ID
   toolName: string; // 执行的工具 ID
   command?: string; // 执行的方法名

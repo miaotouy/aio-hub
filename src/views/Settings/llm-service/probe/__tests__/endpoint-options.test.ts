@@ -151,4 +151,60 @@ describe("probe endpoint options", () => {
     expect(resolveEffectiveProbeEndpointType(source, "chat")).toBe("auto");
     expect(resolveEffectiveProbeEndpointType(source, "audio")).toBe("auto");
   });
+
+  it("resolves the Decisions endpoint without altering the source profile", () => {
+    const source = profile();
+    source.type = "openrouter";
+    source.customEndpoints = {
+      decisions: "https://gateway.example.com/decisions",
+    };
+    const target = resolveProbeTarget(source, "openrouter-decisions");
+    expect(target).toMatchObject({
+      capability: "decision",
+      supportsStream: false,
+      profile: {
+        type: "openrouter",
+        customEndpoints: { decisions: source.customEndpoints.decisions },
+      },
+    });
+    expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe(
+      "openrouter-decisions"
+    );
+    expect(getConfiguredProbeEndpoint(source, "openrouter-decisions")).toBe(
+      source.customEndpoints.decisions
+    );
+    expect(target.profile).not.toBe(source);
+  });
+
+  it("resolves the TypeSafe System One decision endpoint", () => {
+    const source = profile();
+    source.type = "typesafe";
+    source.customEndpoints = { systemOne: "/custom/systemone" };
+
+    expect(getConfiguredProbeEndpoint(source, "typesafe-system-one")).toBe(
+      "/custom/systemone"
+    );
+    expect(resolveProbeTarget(source, "typesafe-system-one")).toMatchObject({
+      capability: "decision",
+      supportsStream: false,
+      profile: { type: "typesafe" },
+    });
+    expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe(
+      "typesafe-system-one"
+    );
+
+    source.type = "openai";
+    expect(resolveEffectiveProbeEndpointType(source, "decision")).toBe("auto");
+  });
+
+  it("preserves the OpenRouter image router behind a custom gateway", () => {
+    const source = {
+      ...profile(),
+      type: "openrouter" as const,
+      baseUrl: "https://gateway.example.com/api/v1",
+    };
+    const target = resolveProbeTarget(source, "image-generation");
+    expect(target.profile.type).toBe("openrouter");
+    expect(target.capability).toBe("image");
+  });
 });

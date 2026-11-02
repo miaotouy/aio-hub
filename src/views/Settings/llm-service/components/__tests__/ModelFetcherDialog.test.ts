@@ -64,4 +64,63 @@ describe("ModelFetcherDialog", () => {
     expect(wrapper.text()).toContain("custom/embedding-model");
     expect(wrapper.text()).not.toContain("custom/chat-model");
   });
+
+  it("lets existing models be marked for removal and emits remove-models", async () => {
+    const wrapper = mount(ModelFetcherDialog, {
+      props: {
+        visible: true,
+        existingModels: [{ id: "existing-a", name: "Existing A" }],
+        models: [
+          { id: "existing-a", name: "Existing A" },
+          { id: "fresh-b", name: "Fresh B" },
+        ],
+      },
+      global: { stubs: commonStubs },
+    });
+
+    const items = wrapper.findAll(".model-item");
+    const existingItem = items.find((item) =>
+      item.text().includes("existing-a")
+    );
+    const freshItem = items.find((item) => item.text().includes("fresh-b"));
+    expect(existingItem).toBeDefined();
+    expect(freshItem).toBeDefined();
+
+    await existingItem!.trigger("click");
+    expect(existingItem!.classes()).toContain("markedRemove");
+    expect(wrapper.text()).toContain("移除 1 个");
+
+    await freshItem!.trigger("click");
+    expect(freshItem!.classes()).toContain("selected");
+
+    const confirmButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("确定"));
+    await confirmButton!.trigger("click");
+
+    expect(wrapper.emitted("remove-models")?.[0]).toEqual([["existing-a"]]);
+    expect(
+      (wrapper.emitted("add-models")?.[0]?.[0] as LlmModelInfo[]).map(
+        (m) => m.id
+      )
+    ).toEqual(["fresh-b"]);
+  });
+
+  it("clears the removal mark when an existing model is clicked again", async () => {
+    const wrapper = mount(ModelFetcherDialog, {
+      props: {
+        visible: true,
+        existingModels: [{ id: "existing-a", name: "Existing A" }],
+        models: [{ id: "existing-a", name: "Existing A" }],
+      },
+      global: { stubs: commonStubs },
+    });
+
+    const item = wrapper.findAll(".model-item")[0];
+    await item.trigger("click");
+    expect(item.classes()).toContain("markedRemove");
+    await item.trigger("click");
+    expect(item.classes()).not.toContain("markedRemove");
+    expect(wrapper.text()).not.toContain("移除");
+  });
 });

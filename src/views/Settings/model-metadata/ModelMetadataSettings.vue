@@ -20,11 +20,12 @@
       <div class="settings-stats">
         <span>总配置: {{ configs.length }}</span>
         <span>已启用: {{ enabledCount }}</span>
-        <span v-if="searchText || filterEnabled !== 'all'">
+        <span v-if="searchText || filterEnabled !== 'all' || filterSource !== 'all'">
           当前显示: {{ filteredConfigs.length }}
         </span>
       </div>
       <div class="header-actions">
+        <el-button @click="sourcesDialogVisible = true">元数据源</el-button>
         <el-button @click="showPresets = true">查看预设</el-button>
         <el-button @click="coverageDialogVisible = true">覆盖分析</el-button>
         <el-button @click="handleImport">导入配置</el-button>
@@ -88,6 +89,20 @@
           <el-option label="全部状态" value="all" />
           <el-option label="仅启用" value="enabled" />
           <el-option label="仅禁用" value="disabled" />
+        </el-select>
+
+        <el-select
+          v-model="filterSource"
+          @change="resetPage"
+          placeholder="筛选来源"
+          class="source-filter"
+        >
+          <el-option
+            v-for="option in sourceFilterOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
         </el-select>
 
         <el-radio-group v-model="viewMode" class="view-toggle">
@@ -317,6 +332,8 @@
       @apply="handleApplyModelRefresh"
     />
 
+    <ModelMetadataSourcesDialog v-model="sourcesDialogVisible" />
+
     <BaseDialog
       :model-value="Boolean(importPreview)"
       title="导入配置预览"
@@ -326,7 +343,7 @@
       <template #content>
         <div v-if="importPreview" class="import-preview">
           <p>
-            检测到 {{ importPreview.sourceRuleCount }} 条内置基线规则和
+            检测到 {{ importPreview.sourceRuleCount }} 条目录规则和
             {{ importPreview.customRuleCount }}
             条自定义规则。确认后才会写入当前配置。
           </p>
@@ -390,8 +407,13 @@ import CoverageAnalysisDialog from "./components/CoverageAnalysisDialog.vue";
 import ModelMetadataRefreshPreviewDialog, {
   type ModelMetadataRefreshPreviewItem,
 } from "./components/ModelMetadataRefreshPreviewDialog.vue";
+import ModelMetadataSourcesDialog from "./components/ModelMetadataSourcesDialog.vue";
 import IconPresetSelector from "@components/common/IconPresetSelector.vue";
 import { Grid, List } from "@element-plus/icons-vue";
+import {
+  BUILTIN_METADATA_SOURCE_ADAPTERS,
+  getMetadataSourceLabel,
+} from "@/config/model-metadata-sources";
 
 const {
   rules: configs,
@@ -403,17 +425,19 @@ const {
   restoreBuiltinRule,
   toggleRule: toggleConfig,
   resetToDefaults,
-  exportRules: exportConfigs,
+  exportStore,
   importStore,
   inspectImport,
   getMatchedRule,
   getDisplayIconPath,
+  ruleSourceIndex,
   materializeModel,
 } = useModelMetadata();
 
 const { profiles, saveProfile } = useLlmProfiles();
 
 const showPresets = ref(false);
+const sourcesDialogVisible = ref(false);
 const editingConfig = ref<Partial<ModelMetadataRule> | null>(null);
 const isNewConfig = ref(false);
 const errorHandler = createModuleErrorHandler("Settings/ModelMetadataSettings");
@@ -422,6 +446,20 @@ const errorHandler = createModuleErrorHandler("Settings/ModelMetadataSettings");
 const searchText = ref("");
 const sortBy = ref<"priority" | "type" | "name" | "createdAt">("priority");
 const filterEnabled = ref<"all" | "enabled" | "disabled">("all");
+const filterSource = ref<string>("all");
+
+const sourceFilterOptions = computed(() => [
+  { label: "全部来源", value: "all" },
+  { label: "内置", value: "builtin" },
+  { label: "内置已修改", value: "builtinOverride" },
+  { label: "外部源", value: "external" },
+  { label: "外部源已修改", value: "externalOverride" },
+  { label: "自定义", value: "custom" },
+  ...BUILTIN_METADATA_SOURCE_ADAPTERS.map((adapter) => ({
+    label: getMetadataSourceLabel(adapter.definition.id),
+    value: `source:${adapter.definition.id}`,
+  })),
+]);
 const currentPage = ref(1);
 const pageSize = ref(12);
 const viewMode = ref<"grid" | "list">("grid");
@@ -504,6 +542,31 @@ const filteredConfigs = computed(() => {
     result = result.filter((config) => config.enabled !== false);
   } else if (filterEnabled.value === "disabled") {
     result = result.filter((config) => config.enabled === false);
+  }
+
+  // 来源过滤
+  if (filterSource.value !== "all") {
+    const index = ruleSourceIndex.value;
+    result = result.filter((config) => {
+      const info = index.get(config.id);
+      if (!info) return false;
+      switch (filterSource.value) {
+        case "builtin":
+          return info.kind === "builtin" && !info.overridden;
+        case "builtinOverride":
+          return info.kind === "builtin" && info.overridden;
+        case "external":
+          return info.kind === "external";
+        case "externalOverride":
+          return info.kind === "external" && info.overridden;
+        case "custom":
+          return info.kind === "custom";
+        default:
+          return filterSource.value.startsWith("source:")
+            ? info.sourceId === filterSource.value.slice("source:".length)
+            : true;
+      }
+    });
   }
 
   return result;
@@ -771,12 +834,12 @@ async function handleApplyModelRefresh(keys: string[]) {
 
 // 处理导出
 function handleExport() {
-  const json = exportConfigs();
+  const json = exportStore();
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `model-icons-config-${Date.now()}.json`;
+  a.download = `model-metadata-store-${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -792,10 +855,15 @@ function handleImport() {
     try {
       const candidate = JSON.parse(await file.text()) as unknown;
       const inspected = inspectImport(candidate);
+      const store = inspected.store;
+      const externalRuleCount = Object.values(
+        store?.externalCatalogs ?? {}
+      ).reduce((total, catalog) => total + catalog.rules.length, 0);
       importPreview.value = {
         candidate,
-        sourceRuleCount: inspected.store?.sourceSnapshot.rules.length ?? 0,
-        customRuleCount: inspected.store?.customRules.length ?? 0,
+        sourceRuleCount:
+          (store?.sourceSnapshot.rules.length ?? 0) + externalRuleCount,
+        customRuleCount: store?.customRules.length ?? 0,
         diagnostics: inspected.diagnostics,
       };
     } catch {
@@ -826,8 +894,8 @@ async function confirmImport() {
   display: flex;
   flex-direction: column;
   padding: 0;
-  overflow: hidden;
-  height: 100%;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-header {
@@ -1106,6 +1174,7 @@ async function confirmImport() {
 /* 可滚动区域 */
 .configs-scroll-area {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 1rem;
@@ -1114,7 +1183,7 @@ async function confirmImport() {
 /* 网格视图 */
 .configs-list.grid-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
   gap: 1.5rem;
   align-items: start;
 }
@@ -1137,6 +1206,18 @@ async function confirmImport() {
   background: var(--container-bg);
   border-radius: 8px;
   backdrop-filter: blur(var(--ui-blur));
+}
+
+@container settings-content (max-width: 760px) {
+  .configs-container {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .configs-scroll-area {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
 }
 
 .el-button {

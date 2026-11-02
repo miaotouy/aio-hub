@@ -71,6 +71,20 @@ export class SessionPersistenceCoordinator {
     slot.revision = Math.max(slot.revision, revision);
   }
 
+  isSessionBusy(sessionId: string): boolean {
+    const slot = this.sessionSlots.get(sessionId);
+    return !!slot && (slot.pending || !!slot.running || !!slot.retryTimer);
+  }
+
+  resetSessionRevision(sessionId: string, revision: number): void {
+    const slot = this.getSessionSlot(sessionId);
+    if (this.isSessionBusy(sessionId) || slot.deleted) {
+      throw new Error("会话正在保存，请稍后重新加载");
+    }
+    slot.revision = revision;
+    slot.capture = null;
+  }
+
   primeIndexRevision(revision: number): void {
     this.indexSlot.revision = Math.max(this.indexSlot.revision, revision);
   }

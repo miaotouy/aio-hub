@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { LlmMessageContent } from "@/llm-apis/common";
 import type { PipelineContext } from "../../../types/pipeline";
 import type { ProcessableMessage } from "../../../types/context";
 import type { PipelineAttachment } from "../../../types/pipeline-attachment";
 import { DEFAULT_SETTINGS } from "../../../config/defaultSettings";
 import { assetResolver } from "../asset-resolver";
+import {
+  getImageDimensions,
+  loadImageFromBuffer,
+  resizeImage,
+} from "@/utils/imageProcessor";
+import { convertArrayBufferToBase64 } from "@/utils/base64";
+import { planImageSlices } from "@/tools/smart-ocr/utils/imageSlicing";
 import { getAttachmentBuffer } from "../../context-utils/attachment-binary";
 
+// 隔离转写设置的 UI 依赖，保留真实请求默认值。
+vi.mock("@/tools/transcription/config", () => ({
+  DEFAULT_TRANSCRIPTION_CONFIG: {},
+}));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({
     debug: vi.fn(),
@@ -29,6 +41,12 @@ vi.mock("@/utils/pdfUtils", () => ({
 vi.mock("@/utils/imageProcessor", () => ({
   getImageDimensions: vi.fn(async () => ({ width: 10, height: 10 })),
   resizeImage: vi.fn(),
+  loadImageFromBuffer: vi.fn(),
+}));
+
+vi.mock("@/tools/smart-ocr/utils/imageSlicing", async (original) => ({
+  ...(await original<typeof import("@/tools/smart-ocr/utils/imageSlicing")>()),
+  planImageSlices: vi.fn(),
 }));
 
 const image = { type: "image" as const, imageBase64: "image-data" };
@@ -39,6 +57,46 @@ const attachment: PipelineAttachment = {
   mimeType: "image/png",
   source: { kind: "inline", base64: "image-data", mimeType: "image/png" },
 };
+const mediaCases = [
+  { type: "image", mimeType: "image/png", label: "[图片]", content: image },
+  {
+    type: "audio",
+    mimeType: "audio/wav",
+    label: "[音频]",
+    content: {
+      type: "audio",
+      source: { type: "base64", media_type: "audio/wav", data: "image-data" },
+    },
+  },
+  {
+    type: "video",
+    mimeType: "video/mp4",
+    label: "[视频]",
+    content: {
+      type: "video",
+      source: { type: "base64", media_type: "video/mp4", data: "image-data" },
+    },
+  },
+  {
+    type: "document",
+    mimeType: "application/msword",
+    label: "[文档]",
+    content: {
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/msword",
+        data: "image-data",
+      },
+    },
+  },
+] satisfies {
+  type: PipelineAttachment["type"];
+  mimeType: string;
+  label: string;
+  content: LlmMessageContent;
+}[];
+
 function context(
   messages: ProcessableMessage[],
   enabled = DEFAULT_SETTINGS.requestSettings.imageOnlyMessagePlaceholder
@@ -82,93 +140,320 @@ function context(
   };
 }
 
-describe("asset resolver image-only request compatibility", () => {
+describe("asset resolver media-only request compatibility", () => {
   beforeEach(() => {
     vi.mocked(getAttachmentBuffer)
       .mockReset()
       .mockResolvedValue(new ArrayBuffer(1));
   });
 
-  it("adds non-empty text by default after resolving image attachments", async () => {
-    const ctx = context([
-      { role: "user", content: "  ", _attachments: [attachment] },
+  // Summary tokens include the same media-only text labels as complete requests.
+  // Binary reads belong to analysis/send; references stay available for metadata costs.
+  it("preserves media-only labels and metadata while deferring summary binaries", async () => {
+    const attachments = mediaCases.map(({ type, mimeType }) => ({
+      ...attachment,
+      id: type,
+      type,
+      mimeType,
+      metadata: { width: 1200, height: 800, duration: 12 },
+    }));
+    const complete = context([
+      { role: "user", content: "  ", _attachments: attachments },
     ]);
-    await assetResolver.execute(ctx);
-    expect(ctx.messages[0].content).toEqual([
-      { type: "text", text: expect.stringMatching(/\S/) },
-      image,
+    await assetResolver.execute(complete);
+    expect(getAttachmentBuffer).toHaveBeenCalledTimes(attachments.length);
+    const completeText = (
+      complete.messages[0].content as LlmMessageContent[]
+    ).filter((part) => part.type === "text");
+
+    vi.mocked(getAttachmentBuffer).mockClear();
+    const summary = context([
+      { role: "user", content: "  ", _attachments: attachments },
     ]);
+    Object.assign(summary, { previewPurpose: "statistics" });
+    await assetResolver.execute(summary);
+    expect(summary.messages[0].content).toEqual(completeText);
+    expect(summary.messages[0]._attachments).toEqual(attachments);
+    expect(getAttachmentBuffer).not.toHaveBeenCalled();
   });
 
-  it("keeps image-only requests unchanged when disabled", async () => {
-    const ctx = context(
-      [{ role: "user", content: "", _attachments: [attachment] }],
-      false
-    );
-    await assetResolver.execute(ctx);
-    expect(ctx.messages[0].content).toEqual([image]);
+  it("keeps summary text and the media-only placeholder setting", async () => {
+    for (const [enabled, text] of [
+      [false, ""],
+      [true, "question"],
+    ] as const) {
+      const summary = context(
+        [{ role: "user", content: text, _attachments: [attachment] }],
+        enabled
+      );
+      Object.assign(summary, { previewPurpose: "statistics" });
+      await assetResolver.execute(summary);
+      expect(summary.messages[0].content).toEqual(
+        text ? [{ type: "text", text }] : []
+      );
+      expect(summary.messages[0]._attachments).toEqual([attachment]);
+    }
+    expect(getAttachmentBuffer).not.toHaveBeenCalled();
   });
 
-  it("handles structured images without mutating the original content or duplicating text", async () => {
-    const original = [{ type: "text" as const, text: " \n " }, image, image];
+  it.each(mediaCases)(
+    "adds text by default after resolving $type attachments",
+    async ({ type, mimeType, label, content }) => {
+      const ctx = context([
+        {
+          role: "user",
+          content: "  ",
+          _attachments: [{ ...attachment, type, mimeType }],
+        },
+      ]);
+      await assetResolver.execute(ctx);
+      expect(ctx.messages[0].content).toEqual([
+        { type: "text", text: label },
+        content,
+      ]);
+    }
+  );
+
+  it.each(mediaCases)(
+    "keeps $type-only requests unchanged when disabled",
+    async ({ type, mimeType, content }) => {
+      const ctx = context(
+        [
+          {
+            role: "user",
+            content: "",
+            _attachments: [{ ...attachment, type, mimeType }],
+          },
+        ],
+        false
+      );
+      await assetResolver.execute(ctx);
+      expect(ctx.messages[0].content).toEqual([content]);
+    }
+  );
+
+  it("handles structured mixed media without mutating the source or duplicating text and labels", async () => {
+    const media = [...mediaCases.map(({ content }) => content), image];
+    const original = [{ type: "text" as const, text: " \n " }, ...media];
     const ctx = context([{ role: "user", content: original }]);
     await assetResolver.execute(ctx);
     const result = structuredClone(ctx.messages[0].content);
     await assetResolver.execute(ctx);
     expect(ctx.messages[0].content).toEqual(result);
     expect(ctx.messages[0].content).toEqual([
-      { type: "text", text: expect.stringMatching(/\S/) },
-      image,
-      image,
+      { type: "text", text: "[图片] [音频] [视频] [文档]" },
+      ...media,
     ]);
-    expect(original).toEqual([{ type: "text", text: " \n " }, image, image]);
+    expect(original).toEqual([{ type: "text", text: " \n " }, ...media]);
   });
 
-  it("preserves body/transcription text and excludes other roles, empty messages and mixed media", async () => {
+  it("preserves body/transcription text, other roles and empty messages", async () => {
+    const media = mediaCases.map(({ content }) => content);
     const messages: ProcessableMessage[] = [
-      { role: "user", content: [{ type: "text", text: "正文或转写" }, image] },
-      { role: "assistant", content: [image] },
-      { role: "system", content: [image] },
-      { role: "user", content: "" },
       {
         role: "user",
-        content: [
-          image,
-          {
-            type: "audio",
-            source: { type: "base64", media_type: "audio/wav", data: "audio" },
-          },
-        ],
+        content: [{ type: "text", text: "正文或转写" }, ...media],
       },
+      { role: "assistant", content: media },
+      { role: "system", content: media },
+      { role: "user", content: "" },
     ];
     const before = structuredClone(messages);
     await assetResolver.execute(context(messages));
     expect(messages).toEqual(before);
   });
 
-  it("does not fabricate text when all images fail to resolve", async () => {
+  it("reports a missing local media file in model context", async () => {
+    vi.mocked(getAttachmentBuffer).mockRejectedValueOnce(
+      new Error("文件已移动或删除")
+    );
+    const ctx = context([
+      {
+        role: "user",
+        content: "读取媒体成功",
+        _attachments: [
+          {
+            ...attachment,
+            source: { kind: "local-file", path: "C:/media/photo.png" },
+          },
+        ],
+      },
+    ]);
+    await assetResolver.execute(ctx);
+    expect(ctx.messages[0].content).toContainEqual({
+      type: "text",
+      text: expect.stringContaining("文件已移动或删除"),
+    });
+    expect(ctx.logs[0].level).toBe("warn");
+  });
+
+  it("does not fabricate text when all attachments fail to resolve", async () => {
     vi.mocked(getAttachmentBuffer).mockRejectedValue(new Error("unavailable"));
     const ctx = context([
-      { role: "user", content: "", _attachments: [attachment] },
+      {
+        role: "user",
+        content: "",
+        _attachments: mediaCases.map(({ type, mimeType }) => ({
+          ...attachment,
+          type,
+          mimeType,
+        })),
+      },
     ]);
     await assetResolver.execute(ctx);
     expect(ctx.messages[0].content).toEqual([]);
   });
 
-  it("also protects a PDF resolved as images for a vision model", async () => {
+  it("uses only successfully resolved media for placeholder labels", async () => {
+    vi.mocked(getAttachmentBuffer).mockRejectedValueOnce(
+      new Error("unavailable")
+    );
+    const audio = mediaCases[1];
     const ctx = context([
       {
         role: "user",
         content: "",
         _attachments: [
-          { ...attachment, type: "document", mimeType: "application/pdf" },
+          attachment,
+          { ...attachment, type: audio.type, mimeType: audio.mimeType },
         ],
       },
     ]);
     await assetResolver.execute(ctx);
     expect(ctx.messages[0].content).toEqual([
-      { type: "text", text: expect.stringMatching(/\S/) },
-      { type: "image", imageBase64: "pdf-page" },
+      { type: "text", text: "[音频]" },
+      audio.content,
     ]);
   });
+
+  it.each([false, true])(
+    "uses the final PDF format when native document support is %s",
+    async (document) => {
+      const ctx = context([
+        {
+          role: "user",
+          content: "",
+          _attachments: [
+            { ...attachment, type: "document", mimeType: "application/pdf" },
+          ],
+        },
+      ]);
+      await assetResolver.execute({
+        ...ctx,
+        capabilities: { vision: true, document },
+      });
+      expect(ctx.messages[0].content).toEqual(
+        document
+          ? [
+              { type: "text", text: "[文档]" },
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: "image-data",
+                },
+              },
+            ]
+          : [
+              { type: "text", text: "[图片]" },
+              { type: "image", imageBase64: "pdf-page" },
+            ]
+      );
+      const summary: PipelineContext = {
+        ...context([
+          {
+            role: "user",
+            content: "",
+            _attachments: ctx.messages[0]._attachments,
+          },
+        ]),
+        previewPurpose: "statistics",
+        capabilities: { vision: true, document },
+      };
+      await assetResolver.execute(summary);
+      expect(summary.messages[0].content).toEqual([
+        { type: "text", text: document ? "[文档]" : "[图片]" },
+      ]);
+    }
+  );
+});
+
+// Protect the public request order: split full-resolution images before both resize layers.
+it("sends ordered slices through model safety resizing and Agent compression, preserving original references", async () => {
+  const original = new ArrayBuffer(4);
+  const slices = [new ArrayBuffer(2), new ArrayBuffer(3)];
+  const ctx = context([
+    { role: "user", content: "read", _attachments: [attachment] },
+  ]);
+  ctx.settings.requestSettings.longImageSlicing = {
+    enabled: true,
+    aspectRatioThreshold: 3,
+    minCutHeight: 680,
+  };
+  Object.assign(ctx.capabilities!, { maxImageDimension: 2048 });
+  ctx.agentConfig.parameters = {
+    imageCompression: {
+      enabled: true,
+      maxDimension: 1024,
+      format: "jpeg",
+      quality: 0.8,
+    },
+  };
+  vi.mocked(getAttachmentBuffer).mockResolvedValue(original);
+  vi.mocked(loadImageFromBuffer).mockResolvedValue({
+    img: { naturalWidth: 1000, naturalHeight: 6000 } as HTMLImageElement,
+    cleanup: vi.fn(),
+  });
+  vi.mocked(planImageSlices).mockReturnValue({
+    width: 1000,
+    height: 6000,
+    lines: [],
+    regions: [
+      { startY: 0, endY: 3000 },
+      { startY: 3000, endY: 6000 },
+    ],
+  });
+  vi.mocked(getImageDimensions).mockResolvedValue({
+    width: 1000,
+    height: 3000,
+    byteLength: 1,
+  });
+  vi.mocked(resizeImage)
+    .mockClear()
+    .mockImplementation(async (buffer) => buffer);
+  let index = 0;
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({ drawImage: vi.fn() }),
+    toBlob: (cb: (blob: Blob) => void) =>
+      cb({ arrayBuffer: async () => slices[index++] } as Blob),
+  };
+  const spy = vi
+    .spyOn(document, "createElement")
+    .mockReturnValue(canvas as never);
+  vi.mocked(convertArrayBufferToBase64).mockImplementation(
+    async (buffer) => `slice-${buffer.byteLength}`
+  );
+  try {
+    await assetResolver.execute(ctx);
+    expect(ctx.messages[0].content).toEqual([
+      { type: "text", text: "read" },
+      { type: "image", imageBase64: "slice-2" },
+      { type: "image", imageBase64: "slice-3" },
+    ]);
+    expect(vi.mocked(resizeImage).mock.calls).toEqual(
+      slices.flatMap((buffer) => [
+        [buffer, { maxWidth: 2048, maxHeight: 2048 }],
+        [
+          buffer,
+          { maxWidth: 1024, maxHeight: 1024, format: "jpeg", quality: 0.8 },
+        ],
+      ])
+    );
+    expect(ctx.messages[0]._attachments).toEqual([attachment]);
+  } finally {
+    spy.mockRestore();
+  }
 });

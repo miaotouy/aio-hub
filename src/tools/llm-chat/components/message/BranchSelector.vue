@@ -281,9 +281,10 @@ const siblingsWithDisplayInfo = computed(() => {
   </div>
 </template>
 
-<style>
-/* Branch Selector Styles - Non-scoped for Popover content */
-.branch-selector-popover {
+<style scoped>
+/* Popper 容器由 ElPopover teleport 到 body，需用 :global 命中；
+   使用独立类名避免与其他工具的全局 popper 样式互相污染 */
+:global(.llm-chat-branch-selector-popover) {
   padding: 2px !important;
   border-radius: 8px !important;
 }

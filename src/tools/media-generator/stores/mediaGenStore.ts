@@ -149,6 +149,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     activeLeafId,
     currentSessionId,
     inputPrompt,
+    inputAttachments: attachmentManager.attachments,
     currentConfig,
     settings,
     tasks,
@@ -404,6 +405,9 @@ export const useMediaGenStore = defineStore("media-generator", () => {
       rootNodeId.value = detail.rootNodeId || "";
       activeLeafId.value = detail.activeLeafId || "";
       inputPrompt.value = detail.inputPrompt || "";
+      attachmentManager.attachments.value = detail.inputAttachments
+        ? [...detail.inputAttachments]
+        : [];
 
       // 仅更新当前活跃 ID，不触发全量持久化，也不更新时间戳
       await persistence.updateCurrentSessionIdInStorage(sessionId);
@@ -428,6 +432,7 @@ export const useMediaGenStore = defineStore("media-generator", () => {
     rootNodeId.value = detail.rootNodeId || "";
     activeLeafId.value = detail.activeLeafId || "";
     inputPrompt.value = "";
+    attachmentManager.clearAttachments();
     await sessionManager.persistSession({ ...index, ...detail });
   };
 

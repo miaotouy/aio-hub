@@ -15,22 +15,53 @@
 -->
 
 <template>
-  <div class="rich-text-renderer" :style="cssVariables">
-    <!-- AST 渲染模式（V1/V2 等） -->
-    <AstNodeRenderer
-      v-if="useAstRenderer"
-      :nodes="ast"
-      :generation-meta="generationMeta"
-      :enable-enter-animation="renderEnableAnimation"
-    />
-    <!-- 纯 markdown-it 渲染模式 -->
-    <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
+  <div
+    ref="rootElement"
+    class="rich-text-renderer"
+    :class="{ 'rich-text-recyclable': suspendOnDeactivate }"
+    :style="[cssVariables, suspendedStyle]"
+    :data-render-pending="layoutState.pending.value ? '' : undefined"
+  >
+    <template v-if="displayActive">
+      <!-- AST 渲染模式（V1/V2 等） -->
+      <AstNodeRenderer
+        v-if="useAstRenderer"
+        :nodes="ast"
+        :viewport-blocks="suspendOnDeactivate"
+        :generation-meta="generationMeta"
+        :enable-enter-animation="renderEnableAnimation"
+      />
+      <!-- 纯 markdown-it 渲染模式 -->
+      <div v-else class="pure-markdown-renderer" v-html="htmlContent" />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch, ref, computed, provide } from "vue";
+import {
+  onMounted,
+  onActivated,
+  onDeactivated,
+  onBeforeUnmount,
+  watch,
+  ref,
+  shallowRef,
+  computed,
+  provide,
+  inject,
+} from "vue";
 import { useThrottleFn } from "@vueuse/core";
+import { useStreamStardust } from "./composables/useStreamStardust";
+import type { StreamEffect } from "./utils/streamStardust";
+import { createAstImageIndex } from "./utils/astImageIndex";
+import { provideRendererBlockMounting } from "./composables/useRendererBlockMounting";
+import { provideRendererLayoutState } from "./composables/useRendererLayoutState";
+import { useRendererDisplay } from "./composables/useRendererDisplay";
+import {
+  provideRendererViewState,
+  provideRendererDisplayHolds,
+  rendererHostActiveKey,
+} from "./composables/useRendererViewState";
 import MarkdownIt from "markdown-it";
 import { useMarkdownAst } from "./composables/useMarkdownAst";
 import { StreamProcessor } from "./core/StreamProcessor";
@@ -43,8 +74,10 @@ import type {
   RichTextRendererStyleOptions,
   MarkdownStyleOption,
   AstNode,
+  RichTextContext,
 } from "./types";
 import { RendererVersion, RICH_TEXT_CONTEXT_KEY } from "./types";
+import { transformVcpTextOutsideBatches } from "@/utils/vcpToolBatch";
 import { applyRegexRules } from "@/tools/llm-chat/utils/chatRegexUtils";
 import type { ChatRegexRule } from "@/tools/llm-chat/types/chatRegex";
 
@@ -124,6 +157,8 @@ function hideTrailingIncompleteHtmlTag(text: string): string {
 
 const props = withDefaults(
   defineProps<{
+    /** Release display nodes while the KeepAlive host is inactive. Parser and source remain owned here. */
+    suspendOnDeactivate?: boolean;
     content?: string;
     streamSource?: StreamSource;
     version?: RendererVersion; // 渲染器版本
@@ -138,9 +173,11 @@ const props = withDefaults(
     enableCdnLocalizer?: boolean; // 是否启用 CDN 资源本地化
     throttleMs?: number; // 节流时间（毫秒）
     enableEnterAnimation?: boolean; // 是否启用节点进入动画
+    streamEffect?: StreamEffect; // 流式新增文字的装饰特效
     allowExternalScripts?: boolean; // 是否允许加载外部资源（如 CDN 脚本、样式）
     regexRules?: ChatRegexRule[]; // 正则表达式规则
     resolveAsset?: (content: string) => string; // 资产路径解析钩子
+    renderFilePlaceholder?: RichTextContext["renderFilePlaceholder"];
     shouldFreeze?: boolean; // 是否冻结 HTML 预览
     allowDangerousHtml?: boolean; // 是否允许渲染危险的 HTML 标签
     showTokenCount?: boolean; // 是否显示 Token 计数
@@ -160,6 +197,7 @@ const props = withDefaults(
     enableCdnLocalizer: true,
     allowExternalScripts: false,
     enableEnterAnimation: true,
+    streamEffect: "none",
     shouldFreeze: false,
     allowDangerousHtml: false,
     showTokenCount: false,
@@ -260,37 +298,14 @@ const {
 // 图片列表状态
 const imageList = ref<string[]>([]);
 
-/**
- * 递归提取 AST 中的所有图片链接
- * 性能优化：添加节点数量限制，避免在大型 AST 中卡顿
- */
+const imageIndex = createAstImageIndex();
 const extractImages = (nodes: AstNode[]): string[] => {
-  const images: string[] = [];
-  const MAX_NODES_TO_TRAVERSE = 100000; // 最多遍历的节点数
-  let nodeCount = 0;
-
-  const traverse = (nodeList: AstNode[]): boolean => {
-    for (const nodeListElement of nodeList) {
-      if (++nodeCount > MAX_NODES_TO_TRAVERSE) {
-        console.warn(
-          `[RichTextRenderer] Image extraction stopped: node count exceeded ${MAX_NODES_TO_TRAVERSE}`
-        );
-        return false; // 停止遍历
-      }
-
-      if (nodeListElement.type === "image" && "src" in nodeListElement.props) {
-        images.push((nodeListElement.props as { src: string }).src);
-      }
-      if (nodeListElement.children && nodeListElement.children.length > 0) {
-        if (!traverse(nodeListElement.children)) {
-          return false; // 传播停止信号
-        }
-      }
-    }
-    return true;
-  };
-
-  traverse(nodes);
+  const { images, truncated } = imageIndex.collect(nodes);
+  if (truncated) {
+    console.warn(
+      "[RichTextRenderer] Image extraction stopped: node count exceeded 100000"
+    );
+  }
   return images;
 };
 
@@ -352,17 +367,93 @@ const internalIsStreaming = ref(false);
  */
 const animationDisabledAfterStreaming = ref(false);
 
+const rootElement = ref<HTMLElement | null>(null);
+const localHostActive = ref(true);
+const inheritedHostActive = inject(rendererHostActiveKey, undefined);
+const hostActive = computed(
+  () => localHostActive.value && (inheritedHostActive?.value ?? true)
+);
+const held = provideRendererDisplayHolds();
+const layoutState = provideRendererLayoutState();
+const {
+  active: displayActive,
+  style: suspendedStyle,
+  hasResumed,
+} = useRendererDisplay({
+  root: rootElement,
+  hostActive,
+  enabled: () => !!props.suspendOnDeactivate,
+  live: () => !!props.isStreaming || internalIsStreaming.value,
+  held,
+  pending: layoutState.pending,
+  revision: () => [
+    props.content,
+    props.version,
+    props.styleOptions,
+    props.llmThinkRules,
+    props.regexRules,
+    props.defaultRenderHtml,
+    props.defaultCodeBlockExpanded,
+    props.defaultToolCallCollapsed,
+    props.seamlessMode,
+    props.shouldFreeze,
+  ],
+});
+const viewState = provideRendererViewState(displayActive);
+provideRendererBlockMounting({
+  root: rootElement,
+  nodes: ast,
+  enabled: () => !!props.suspendOnDeactivate,
+  hostActive: displayActive,
+  live: () => !!props.isStreaming || internalIsStreaming.value,
+  held,
+  layout: () => [
+    props.styleOptions,
+    props.defaultCodeBlockExpanded,
+    props.seamlessMode,
+    props.defaultRenderHtml,
+    props.shouldFreeze,
+  ],
+  state: viewState,
+  layoutState,
+});
+onDeactivated(() => {
+  localHostActive.value = false;
+});
+onActivated(() => {
+  localHostActive.value = true;
+});
+watch(
+  displayActive,
+  (active) => {
+    if (active) viewState.prune(ast.value);
+  },
+  { flush: "post" }
+);
+
 /**
  * 实际生效的动画启用状态
  */
 const renderEnableAnimation = computed(() => {
-  if (animationDisabledAfterStreaming.value) return false;
+  if (animationDisabledAfterStreaming.value || hasResumed.value) return false;
   return props.enableEnterAnimation;
 });
 
+const getStreamEffectStats = useStreamStardust(
+  rootElement,
+  () => props.streamEffect,
+  () => displayActive.value && props.enableEnterAnimation,
+  () => props.isStreaming || internalIsStreaming.value
+);
+
 // 提供上下文给子组件
 provide(RICH_TEXT_CONTEXT_KEY, {
+  streamEffect: computed(() => props.streamEffect),
+  streamEffectActive: computed(
+    () => displayActive.value && props.enableEnterAnimation
+  ),
   images: imageList,
+  enableEnterAnimation: renderEnableAnimation,
   defaultRenderHtml: computed(() => props.defaultRenderHtml),
   seamlessMode: computed(() => props.seamlessMode),
   defaultCodeBlockExpanded: computed(() => props.defaultCodeBlockExpanded),
@@ -371,6 +462,8 @@ provide(RICH_TEXT_CONTEXT_KEY, {
   allowExternalScripts: computed(() => props.allowExternalScripts),
   allowDangerousHtml: computed(() => props.allowDangerousHtml),
   resolveAsset: props.resolveAsset,
+  renderFilePlaceholder: (assetId: string) =>
+    props.renderFilePlaceholder?.(assetId) ?? null,
   shouldFreeze: computed(() => props.shouldFreeze),
   isStreaming: computed(() => props.isStreaming || internalIsStreaming.value),
   showTokenCount: computed(() => props.showTokenCount),
@@ -382,13 +475,17 @@ const htmlContent = ref("");
 // 流式累积的原始文本缓冲
 const buffer = ref("");
 
-// markdown-it 实例（纯渲染模式）
-const md = new MarkdownIt({
-  html: true,
-  breaks: true,
-  linkify: true,
-  typographer: true,
-});
+// 纯模式首次渲染时创建；默认 AST 模式仅持有自身处理器。
+let pureMarkdown: MarkdownIt | null = null;
+const renderPureMarkdown = (text: string): string => {
+  pureMarkdown ??= new MarkdownIt({
+    html: true,
+    breaks: true,
+    linkify: true,
+    typographer: true,
+  });
+  return pureMarkdown.render(text);
+};
 
 /**
  * 根据版本创建对应的处理器（仅 AST 模式下使用）
@@ -418,8 +515,10 @@ const createProcessor = (version: RendererVersion) => {
   }
 };
 
-// 当前使用的流式处理器（仅 AST 模式）
-const streamProcessor = ref<any>(null);
+// 仅实例替换参与响应式；解析器内部 AST、索引和缓存保持原始对象。
+const streamProcessor = shallowRef<ReturnType<typeof createProcessor> | null>(
+  null
+);
 
 // 流式控制器实例（用于平滑化）
 let streamController: StreamController | null = null;
@@ -431,64 +530,46 @@ let unsubscribeComplete: (() => void) | null = null;
  * 经过正则处理后的内容
  * 这是所有渲染逻辑的统一入口点
  */
-const processedContent = computed(() => {
-  let text = props.content || "";
+const prepareContentForRender = (
+  rawText: string,
+  isStreaming: boolean | undefined,
+  hideTrailingHtml = false
+): string =>
+  transformVcpTextOutsideBatches(rawText, (outside) => {
+    let text = outside.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (props.regexRules && props.regexRules.length > 0) {
+      text = applyRegexRules(text, props.regexRules, isStreaming);
+    }
+    if (hideTrailingHtml) text = hideTrailingIncompleteHtmlTag(text);
+    text = wrapBareHtmlPage(text);
+    if (props.resolveAsset && !useAstRenderer.value) {
+      text = props.resolveAsset(text);
+    }
+    if (text && !text.endsWith("\n")) text += "\n";
+    return text;
+  });
 
-  // 0. 规范化换行符：Windows CRLF → LF，避免 \r 残留破坏 Markdown 解析器
-  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+const processedContent = computed(() =>
+  prepareContentForRender(props.content || "", props.isStreaming)
+);
 
-  // 1. 应用正则规则
-  if (props.regexRules && props.regexRules.length > 0) {
-    text = applyRegexRules(text, props.regexRules, props.isStreaming);
-  }
-
-  // 2. 自动包裹裸 HTML 页面 (在正则之后，资产解析之前)
-  text = wrapBareHtmlPage(text);
-
-  // 3. 解析资产路径
-  // 注意：在 AST 模式下，我们不再全局替换智能体资产链接 (agent-asset://)，而是交给具体的节点组件（如 ImageNode）处理
-  // 这样可以避免 Markdown 解析器对转换后的本地 URL 进行二次编码导致 Tauri 无法识别路径。
-  // 对于纯渲染模式 (markdown-it)，我们依然允许 resolveAsset 进行全量替换。
-  if (props.resolveAsset && !useAstRenderer.value) {
-    text = props.resolveAsset(text);
-  }
-
-  // 3. 补全末尾换行：确保处于末尾的块（如思考块、工具调用）能被正确闭合检测
-  if (text && !text.endsWith("\n")) {
-    text += "\n";
-  }
-
-  return text;
-});
-
-const prepareStreamBufferForRender = (rawText: string): string => {
-  let text = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  if (props.regexRules && props.regexRules.length > 0) {
-    text = applyRegexRules(text, props.regexRules, true);
-  }
-
-  text = hideTrailingIncompleteHtmlTag(text);
-  text = wrapBareHtmlPage(text);
-
-  if (props.resolveAsset && !useAstRenderer.value) {
-    text = props.resolveAsset(text);
-  }
-
-  if (text && !text.endsWith("\n")) {
-    text += "\n";
-  }
-
-  return text;
-};
+const prepareStreamBufferForRender = (rawText: string): string =>
+  prepareContentForRender(rawText, true, true);
 
 /**
- * 静态内容模式：监听处理后的 content 变化
+ * 静态内容模式：首次进入阅读区后初始化，已解析的内容继续跟随源码更新。
  */
+let staticContentInitialized = false;
 watch(
-  processedContent,
+  () =>
+    displayActive.value || staticContentInitialized
+      ? processedContent.value
+      : null,
   (newContent) => {
+    if (newContent === null) return;
+    if (!displayActive.value) viewState.clear();
     if (props.streamSource) return;
+    staticContentInitialized = true;
 
     if (typeof newContent !== "string" || !newContent) {
       // 清空
@@ -520,7 +601,7 @@ watch(
       }
     } else {
       // 纯 markdown-it：直接全量渲染
-      htmlContent.value = md.render(newContent);
+      htmlContent.value = renderPureMarkdown(newContent);
     }
   },
   { immediate: true }
@@ -539,6 +620,9 @@ watch(
       props.vcpFuzzyModeEnabled,
     ] as const,
   ([newVersion]) => {
+    if (useAstRenderer.value) pureMarkdown = null;
+    if (!displayActive.value) viewState.clear();
+    if (!staticContentInitialized && !displayActive.value) return;
     // 流式模式或无静态内容时，交给流式逻辑处理
     if (!props.content || props.streamSource) {
       if (!useAstRenderer.value) {
@@ -567,7 +651,7 @@ watch(
     } else {
       // 纯渲染模式
       streamProcessor.value = null;
-      htmlContent.value = md.render(content);
+      htmlContent.value = renderPureMarkdown(content);
     }
   },
   { deep: true }
@@ -582,6 +666,7 @@ watch(
   () => props.isStreaming,
   (newIsStreaming) => {
     if (newIsStreaming) {
+      hasResumed.value = false;
       // 重新开始流式传输，启用动画
       animationDisabledAfterStreaming.value = false;
     } else if (useAstRenderer.value && streamProcessor.value) {
@@ -652,7 +737,7 @@ onMounted(() => {
           }
           streamProcessor.value?.setContent(bufferToProcess);
         } else {
-          htmlContent.value = md.render(bufferToProcess);
+          htmlContent.value = renderPureMarkdown(bufferToProcess);
         }
       },
       smoothingEnabled: true,
@@ -688,7 +773,7 @@ onMounted(() => {
         streamProcessor.value?.setContent(bufferToProcess);
       } else {
         // 纯 markdown-it：每次全量重渲染
-        htmlContent.value = md.render(bufferToProcess);
+        htmlContent.value = renderPureMarkdown(bufferToProcess);
       }
     });
   }
@@ -724,7 +809,10 @@ onBeforeUnmount(() => {
   streamController = null;
   // 销毁处理器，防止卸载后的异步操作继续更新 AST
   if (streamProcessor.value) {
-    if (typeof streamProcessor.value.destroy === "function") {
+    if (
+      "destroy" in streamProcessor.value &&
+      typeof streamProcessor.value.destroy === "function"
+    ) {
       streamProcessor.value.destroy();
     } else {
       streamProcessor.value.reset?.();
@@ -734,6 +822,8 @@ onBeforeUnmount(() => {
 
   // 主动释放大对象引用，降低长会话切换/卸载后的 WebView2 常驻内存压力
   disposeMarkdownAst();
+  imageIndex.clear();
+  pureMarkdown = null;
   imageList.value = [];
   buffer.value = "";
   htmlContent.value = "";
@@ -742,14 +832,50 @@ onBeforeUnmount(() => {
 // 暴露 AST 给父组件（用于测试和调试）
 defineExpose({
   ast,
+  ...(import.meta.env.DEV ? { getStreamEffectStats } : {}),
 });
 </script>
 
 <style scoped>
 .rich-text-renderer {
+  /* 生成内容的常见主题别名，限定在渲染器内并随应用主题继承。 */
+  --primary-text: var(--text-color);
+  --text-primary: var(--text-color);
+  --text-color-primary: var(--text-color);
+  --color-text: var(--text-color);
+  --secondary-text: var(--text-color-light);
+  --text-secondary: var(--text-color-light);
+  --text-color-secondary: var(--text-color-light);
+  --text-muted: var(--text-color-light);
+  --muted-text: var(--text-color-light);
+
+  --primary-bg: var(--bg-color);
+  --bg-primary: var(--bg-color);
+  --background-color: var(--bg-color);
+  --secondary-bg: var(--container-bg);
+  --bg-secondary: var(--container-bg);
+  --surface-color: var(--container-bg);
+  --tertiary-bg: var(--card-bg);
+  --bg-tertiary: var(--card-bg);
+
+  --color-border: var(--border-color);
+  --border-light: var(--border-color-light);
+  --accent-color: var(--primary-color);
+  --color-primary: var(--primary-color);
+  --color-success: var(--success-color);
+  --color-warning: var(--warning-color);
+  --color-danger: var(--danger-color);
+  --color-error: var(--error-color);
+  --color-info: var(--info-color);
+
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
+}
+
+/* Keep descendant margins inside the measured box across display-tree disposal. */
+.rich-text-recyclable {
+  display: flow-root;
 }
 
 /* 图片基础样式：仅设置不影响尺寸的属性，避免覆盖自带样式 */

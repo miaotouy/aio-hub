@@ -1,4 +1,4 @@
-# <LIcon name="BookMarked" size="28" /> 世界书
+# <LIcon name="WorldbookIcon" size="28" /> 世界书
 
 世界书（Worldbook / Lorebook）是管理长期记忆和复杂设定的核心组件。它通过关键词触发机制，在对话过程中动态注入相关的背景知识。
 

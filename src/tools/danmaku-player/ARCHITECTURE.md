@@ -1,6 +1,6 @@
 # 弹幕播放器架构文档
 
-> 最后更新：2026-6-15
+> 最后更新：2026-10-30
 
 ## 1. 工具定位
 
@@ -17,7 +17,7 @@
 
 [`DanmakuPlayer.vue`](DanmakuPlayer.vue) 负责模式切换、文件拖放和解析：
 
-- 视频文件通过 `convertFileSrc()` 转为 Tauri 可访问 URL，仅用于内置播放器。
+- 视频文件通过 `convertFileSrc()` 转为 Tauri 可访问 URL，仅用于内置播放器；通用播放器通过 `useMediaSource` 为 Linux 本地资源申请 HTTP 流式读取地址，生命周期与协议见[本地音视频播放架构](../../../docs/architecture/local-media-playback.md)。
 - 弹幕文件通过 `readFile()` 读取二进制，再用 `smartDecode()` 解码后交给 [`parseDanmaku`](core/danmakuParser.ts)。
 - 字幕文件同样走 `smartDecode()`，图形字幕先在入口拦截，文本字幕交给 [`parseSubtitle`](core/subtitleParser.ts)。
 - 弹幕显示配置由 [`useDanmakuConfig`](composables/useDanmakuConfig.ts) 统一管理，并在内置模式和外部覆盖模式复用。
@@ -77,6 +77,8 @@
    - `danmaku-overlay:stop`
 6. 覆盖窗口每 200ms 轮询外部播放器状态，使用虚拟时钟平滑推进弹幕时间。
 7. 主窗口独立同步覆盖窗口位置和 Z-Order，关闭面板或工具卸载时关闭覆盖窗口。
+
+覆盖窗口的创建与关闭跨工作区串行执行，并记录当前所属实例。页面关闭会使在途创建失效，迟到的成功结果先完成原生窗口回收，再允许后续工作区创建；旧实例的后续清理只处理自己持有的窗口。面板在创建和初始化返回后检查生命周期，位置同步也按运行批次丢弃过期结果，关闭后结束启动续跑与轮询。
 
 ## 5. Rust / Win32 集成
 
@@ -151,3 +153,6 @@ ASS/SSA 作为“字幕”加载时优先交给 JASSUB，而不是转成弹幕�
 - 图形字幕 IDX/SUP 暂不支持。
 - Tauri 前端不直接请求播放器本地接口，统一通过 Rust 代理规避 CSP / scope 限制。
 
+### 外部模式的平台能力反馈
+
+`getNativeDesktopCapabilities().externalPlayerOverlay` 与 Rust Windows command 的注册边界一致。Linux/macOS 的外部播放器页保留配置工作区并引导使用内置播放器；连接操作禁用，扫描、连接测试和状态预览在进入 IPC 前返回，覆盖窗口创建也按能力守卫。

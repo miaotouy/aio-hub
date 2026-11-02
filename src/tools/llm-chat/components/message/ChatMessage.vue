@@ -15,7 +15,11 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, inject } from "vue";
+import { ref, computed, inject, defineAsyncComponent } from "vue";
+const PresetCompositionSourceEditor = defineAsyncComponent(
+  () =>
+    import("@/tools/agent-manager/components/editors/PresetCompositionSourceEditor.vue")
+);
 import { useResizeObserver } from "@vueuse/core";
 import type {
   ChatMessageNode,
@@ -35,6 +39,9 @@ import { customMessage } from "@/utils/customMessage";
 import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 
 interface Props {
+  hideStatistics?: boolean;
+  headerStatusMessage?: ChatMessageNode;
+  compactActions?: boolean;
   sessionIndex: ChatSessionIndex | null;
   sessionDetail: ChatSessionDetail | null;
   message: ChatMessageNode;
@@ -95,6 +102,7 @@ const translationContent = ref("");
 
 // 编辑状态
 const isEditing = ref(false);
+const sourceEditorOpen = ref(false);
 
 // 计算属性
 const parentSessionReadOnly = inject(
@@ -141,6 +149,10 @@ const backgroundBlocks = computed(() => {
 // 开始编辑
 const startEdit = () => {
   if (isSessionReadOnly.value) return;
+  if (props.message.presetComposition && props.message.metadata?.agentId) {
+    sourceEditorOpen.value = true;
+    return;
+  }
   isEditing.value = true;
 };
 
@@ -318,6 +330,7 @@ defineExpose({
           v-if="!hideHeader"
           :message="message"
           :hide-avatar="hideHeaderAvatar"
+          :status-message="headerStatusMessage"
           :inline-status="props.inlineStatus"
           :screenshot-mode="props.screenshotMode"
           :readonly="isSessionReadOnly"
@@ -338,6 +351,7 @@ defineExpose({
           :llm-think-rules="llmThinkRules"
           :rich-text-style-options="richTextStyleOptions"
           :message-depth="messageDepth"
+          :hide-statistics="hideStatistics"
           :screenshot-mode="props.screenshotMode"
           :readonly="isSessionReadOnly"
           @save-edit="saveEdit"
@@ -347,12 +361,13 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 外置操作栏（始终渲染以保留稳定的文档流高度；截图模式完全不渲染） -->
+    <!-- 外置操作栏使用零高度浮层，悬停和聚焦均不改变消息间距。 -->
     <div
       class="menubar-wrapper"
       v-if="!isEditing && !props.screenshotMode && !isSessionReadOnly"
     >
       <MessageMenubar
+        :compact="compactActions"
         :message="message"
         :is-sending="isSending"
         :siblings="props.siblings"
@@ -379,6 +394,12 @@ defineExpose({
       />
     </div>
   </div>
+  <PresetCompositionSourceEditor
+    v-if="sourceEditorOpen && message.metadata?.agentId"
+    v-model:visible="sourceEditorOpen"
+    :agent-id="String(message.metadata.agentId)"
+    :message-id="message.id"
+  />
 </template>
 
 <style scoped>
@@ -451,19 +472,21 @@ defineExpose({
   border-style: dashed;
 }
 
-/* 悬停时显示操作栏 */
+/* 悬停或键盘聚焦时显示操作栏；弹层归还的鼠标焦点保留在入口。 */
 .chat-message:hover .menubar-wrapper,
-.chat-message:focus-within .menubar-wrapper {
+.chat-message:has(:focus-visible) .menubar-wrapper,
+.chat-message:has(.message-menubar.has-open-popover) .menubar-wrapper {
   opacity: 1;
 }
 
 .menubar-wrapper {
   position: sticky;
-  bottom: 8px;
+  /* 抵消列表底部留白，让吸附位置以可视区底边为准。 */
+  bottom: calc(0px - var(--message-list-bottom-space, 0px));
   display: flex;
   justify-content: flex-end;
-  /* 通过负margin覆盖在内容上，消除占位 */
-  margin-top: -46px;
+  align-items: flex-end;
+  height: 0;
   z-index: 10;
   padding-right: 12px;
 
@@ -473,7 +496,17 @@ defineExpose({
 }
 
 .menubar-wrapper > * {
-  pointer-events: auto; /* 恢复按钮点击 */
+  /* 卡片模式与右侧留白保持一致；气泡模式在 MessageList 中覆写外置偏移。 */
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.chat-message:hover .menubar-wrapper > *,
+.chat-message:has(:focus-visible) .menubar-wrapper > *,
+.chat-message:has(.message-menubar.has-open-popover) .menubar-wrapper > *,
+.chat-message:hover .menubar-wrapper::before,
+.chat-message:has(:focus-visible) .menubar-wrapper::before {
+  pointer-events: auto;
 }
 
 /* 禁用状态样式 */

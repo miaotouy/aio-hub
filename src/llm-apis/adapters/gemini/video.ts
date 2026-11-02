@@ -8,6 +8,7 @@ import {
   type JsonValue,
 } from "@aiohub/llm-core";
 import type { LlmResponse, MediaGenerationOptions } from "@/llm-apis/common";
+import { toMediaProgressUpdate } from "@/llm-apis/common";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { toGeminiProviderProfile } from "./chat";
@@ -56,6 +57,9 @@ export async function callGeminiVideoApi(
       typeof extended.pollIntervalMs === "number"
         ? Math.max(0, extended.pollIntervalMs)
         : 10_000,
+    onProgress: options.onMediaProgress
+      ? (task) => options.onMediaProgress?.(toMediaProgressUpdate(task))
+      : undefined,
   });
   return {
     content: task.assets?.length

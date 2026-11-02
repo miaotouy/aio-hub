@@ -272,20 +272,29 @@
                       <el-option label="随机删除行" value="random-remove" />
                     </el-select>
                   </el-form-item>
-                  <el-form-item label="删除方式">
+                  <el-form-item label="处理方式">
                     <el-radio-group
                       v-model="plainTextOptions.removeMode"
                       size="small"
                     >
-                      <el-radio-button value="ratio">按比例</el-radio-button>
-                      <el-radio-button value="count">按行数</el-radio-button>
+                      <el-radio-button value="ratio"
+                        >按比例删除</el-radio-button
+                      >
+                      <el-radio-button value="count"
+                        >按行数删除</el-radio-button
+                      >
+                      <el-radio-button value="keep"
+                        >按目标行数保留</el-radio-button
+                      >
                     </el-radio-group>
                   </el-form-item>
                   <el-form-item
                     :label="
                       plainTextOptions.removeMode === 'ratio'
                         ? '删除比例 (%)'
-                        : '删除行数'
+                        : plainTextOptions.removeMode === 'count'
+                          ? '删除行数'
+                          : '目标保留行数'
                     "
                   >
                     <el-input-number
@@ -297,8 +306,16 @@
                       controls-position="right"
                     />
                     <el-input-number
-                      v-else
+                      v-else-if="plainTextOptions.removeMode === 'count'"
                       v-model="plainTextOptions.removeCount"
+                      :min="0"
+                      :max="lineCount"
+                      :precision="0"
+                      controls-position="right"
+                    />
+                    <el-input-number
+                      v-else
+                      v-model="plainTextOptions.keepCount"
                       :min="0"
                       :max="lineCount"
                       :precision="0"
@@ -307,8 +324,37 @@
                   </el-form-item>
                   <el-form-item>
                     <el-checkbox v-model="plainTextOptions.ignoreEmptyLines"
-                      >忽略空行，不参与随机删除</el-checkbox
+                      >忽略空行，不参与随机处理</el-checkbox
                     >
+                  </el-form-item>
+                  <el-form-item>
+                    <div class="keep-keywords-header">
+                      <span class="keep-keywords-label">保留关键字（可选）</span>
+                      <el-switch
+                        v-model="plainTextOptions.keepKeywordsEnabled"
+                        size="small"
+                        inline-prompt
+                        active-text="启用"
+                        inactive-text="停用"
+                      />
+                    </div>
+                    <el-select
+                      v-model="plainTextOptions.keepKeywords"
+                      multiple
+                      filterable
+                      allow-create
+                      default-first-option
+                      :reserve-keyword="false"
+                      placeholder="输入关键字后回车，包含关键字的行不删除"
+                      class="op-select"
+                    />
+                    <div class="field-hint">
+                      {{
+                        plainTextOptions.keepKeywordsEnabled
+                          ? "包含任一关键字的行始终保留，不参与随机删除。"
+                          : "已停用：关键字会保留，但当前不参与筛选。"
+                      }}
+                    </div>
                   </el-form-item>
                   <el-form-item label="随机种子（可选）">
                     <el-input-number
@@ -320,7 +366,11 @@
                     />
                   </el-form-item>
                   <div class="method-hint">
-                    随机删除只影响非空行时，空行会原样保留；输出会尽量保持原始换行符风格。
+                    {{
+                      plainTextOptions.removeMode === "keep"
+                        ? "随机保留指定行数，其余删除；目标行数超过实际可处理行数时会全部保留。"
+                        : "随机删除只影响非空行时，空行会原样保留；输出会尽量保持原始换行符风格。"
+                    }}
                   </div>
                 </el-form>
               </div>
@@ -487,7 +537,10 @@ const plainTextOptions = reactive<logic.PlainTextFilterOptions>({
   removeMode: "ratio",
   removeRatio: 20,
   removeCount: 1,
+  keepCount: 1,
   ignoreEmptyLines: false,
+  keepKeywords: [],
+  keepKeywordsEnabled: true,
 });
 
 const options = reactive<logic.FilterOptions>({
@@ -538,7 +591,13 @@ onMounted(async () => {
       plainTextOptions.removeMode = persisted.removeMode ?? "ratio";
       plainTextOptions.removeRatio = persisted.removeRatio ?? 20;
       plainTextOptions.removeCount = persisted.removeCount ?? 1;
+      plainTextOptions.keepCount = persisted.keepCount ?? 1;
       plainTextOptions.ignoreEmptyLines = persisted.ignoreEmptyLines ?? false;
+      plainTextOptions.keepKeywords = Array.isArray(persisted.keepKeywords)
+        ? [...persisted.keepKeywords]
+        : [];
+      plainTextOptions.keepKeywordsEnabled =
+        persisted.keepKeywordsEnabled ?? true;
       plainTextOptions.seed = persisted.seed;
     }
   }
@@ -839,6 +898,26 @@ function doExecuteFilter() {
   padding: 8px 10px;
   border-radius: 4px;
   background-color: var(--input-bg);
+}
+
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-color-light);
+}
+
+.keep-keywords-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.keep-keywords-label {
+  font-size: 12px;
+  color: var(--text-color-light);
 }
 
 /* 主内容区 */

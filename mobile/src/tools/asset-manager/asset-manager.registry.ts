@@ -1,4 +1,4 @@
-import { Images } from "lucide-vue-next";
+import { AssetManagerIcon } from "@aiohub/tool-icons";
 import { markRaw } from "vue";
 import { useI18n } from "@/i18n";
 
@@ -7,7 +7,7 @@ export default {
   get name() {
     return useI18n().t("tools.asset-manager.common.name");
   },
-  icon: markRaw(Images),
+  icon: markRaw(AssetManagerIcon),
   get description() {
     return useI18n().t("tools.asset-manager.common.description");
   },

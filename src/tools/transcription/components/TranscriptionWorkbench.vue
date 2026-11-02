@@ -47,6 +47,7 @@ import {
   Save,
   Loader2,
   Settings,
+  AlertTriangle,
 } from "lucide-vue-next";
 
 const logger = createModuleLogger("TranscriptionWorkbench");
@@ -70,6 +71,7 @@ const editorLanguage = ref("markdown");
 const isProcessing = ref(false);
 const isSaving = ref(false);
 const resultText = ref("");
+const resultWarning = ref<string>("");
 const basePath = ref<string>("");
 
 const showResult = ref(false);
@@ -187,6 +189,7 @@ const tryLoadExistingResult = async (asset: Asset) => {
   if (existingTask?.status === "completed") {
     if (existingTask.resultText) {
       resultText.value = existingTask.resultText;
+      resultWarning.value = existingTask.warning || "";
       showResult.value = true;
       return true;
     }
@@ -196,6 +199,7 @@ const tryLoadExistingResult = async (asset: Asset) => {
         const text = smartDecode(uint8Array);
         resultText.value = text;
         existingTask.resultText = text; // 存入缓存
+        resultWarning.value = existingTask.warning || "";
         showResult.value = true;
         return true;
       } catch (e) {
@@ -207,7 +211,10 @@ const tryLoadExistingResult = async (asset: Asset) => {
   // 2. 再看资产元数据里有没有记录（秒传命中的情况）
   const metadataText = await manager.getTranscriptionText(asset);
   if (metadataText) {
+    const metadataWarning =
+      asset.metadata?.derived?.transcription?.warning || "";
     resultText.value = metadataText;
+    resultWarning.value = metadataWarning;
     showResult.value = true;
     // 同步到 Store，避免下次还要读取磁盘
     store.addTask({
@@ -217,6 +224,7 @@ const tryLoadExistingResult = async (asset: Asset) => {
       path: asset.path,
       status: "completed",
       resultText: metadataText,
+      warning: metadataWarning || undefined,
       createdAt: Date.now(),
       mimeType: asset.mimeType,
       filename: asset.name,
@@ -237,6 +245,8 @@ const handleAssetSelect = async (asset: Asset) => {
     status: asset.importStatus,
   });
   currentAsset.value = asset;
+  // 切换资产时重置上一条结果的警告，避免旧警告残留到新内容上
+  resultWarning.value = "";
 
   // 识别文本类型
   const isText = isTextFile(asset.name, asset.mimeType || "");
@@ -504,6 +514,7 @@ watch(
     if (task.status === "completed") {
       // 转写结果通常是 markdown
       editorLanguage.value = "markdown";
+      resultWarning.value = task.warning || "";
 
       if (task.resultText) {
         resultText.value = task.resultText;
@@ -518,6 +529,8 @@ watch(
         }
       }
     } else if (task.status === "error") {
+      // 失败时清空旧的警告，避免与错误信息叠加造成误导
+      resultWarning.value = "";
       resultText.value = `## 转写失败\n\n${task.error || "未知错误"}`;
     }
   },
@@ -625,6 +638,7 @@ const clearPreview = () => {
   previewUrl.value = "";
   previewType.value = null;
   resultText.value = "";
+  resultWarning.value = "";
   showResult.value = false;
 };
 
@@ -876,6 +890,13 @@ const toggleQuickConfig = () => {
                 size="small"
                 @click="downloadResult"
               />
+            </div>
+          </div>
+          <div v-if="resultWarning" class="result-warning-banner">
+            <AlertTriangle :size="16" class="warning-icon" />
+            <div class="warning-text">
+              <span class="warning-title">模型可能未正常解析内容</span>
+              <span class="warning-detail">{{ resultWarning }}</span>
             </div>
           </div>
           <div class="result-editor">
@@ -1202,6 +1223,43 @@ const toggleQuickConfig = () => {
 .result-header .title {
   font-size: 13px;
   font-weight: 600;
+}
+
+.result-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: rgba(
+    var(--el-color-warning-rgb),
+    calc(var(--card-opacity) * 0.1)
+  );
+  border-bottom: 1px solid rgba(var(--el-color-warning-rgb), 0.25);
+  color: var(--el-color-warning);
+}
+
+.result-warning-banner .warning-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.result-warning-banner .warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.result-warning-banner .warning-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.result-warning-banner .warning-detail {
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.85;
+  word-break: break-word;
 }
 
 .result-editor {

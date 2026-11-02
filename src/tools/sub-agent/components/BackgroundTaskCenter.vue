@@ -36,14 +36,19 @@ import {
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import BackgroundTaskList from "./BackgroundTaskList.vue";
 import BackgroundTaskDetail from "./BackgroundTaskDetail.vue";
+import SubagentControlPanel from "./SubagentControlPanel.vue";
 import {
   backgroundTaskRegistry,
   type BackgroundTaskSnapshot,
 } from "@/services/background-tasks";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { useBackgroundTaskCenter } from "../composables/useBackgroundTaskCenter";
+import {
+  useBackgroundTaskCenter,
+} from "../composables/useBackgroundTaskCenter";
+import { Bot, Activity } from "lucide-vue-next";
 
 interface Props {
   /** 是否显示任务中心（v-model） */
@@ -61,7 +66,21 @@ const errorHandler = createModuleErrorHandler(
   "sub-agent/background-task-center"
 );
 const store = useLlmChatStore();
-const { focusedTaskId, clearFocusedTask } = useBackgroundTaskCenter();
+const agentStore = useAgentStore();
+const {
+  activeTab,
+  setActiveTab,
+  focusedTaskId,
+  clearFocusedTask,
+} = useBackgroundTaskCenter();
+
+/** 可用子智能体数量统计 */
+const availableSubagentCount = computed(
+  () =>
+    agentStore.agents.filter(
+      (a) => a.subAgentConfig?.enabled === true
+    ).length
+);
 
 /** 任务快照列表；整体替换，避免深层响应式开销 */
 const tasks = shallowRef<BackgroundTaskSnapshot[]>([]);
@@ -173,26 +192,65 @@ async function handleOpenChild(task: BackgroundTaskSnapshot): Promise<void> {
   >
     <template #header>
       <div class="center-header">
-        <h3 class="center-title">后台任务中心</h3>
-        <span class="center-count">
-          进行中 {{ activeCount }} / 共 {{ tasks.length }}
-        </span>
+        <div class="center-title-group">
+          <h3 class="center-title">任务与子智能体中心</h3>
+          <span v-if="activeTab === 'tasks'" class="center-count">
+            进行中 {{ activeCount }} / 共 {{ tasks.length }}
+          </span>
+        </div>
+
+        <!-- 顶部 Tab 切换胶囊 -->
+        <div class="center-nav-tabs">
+          <button
+            type="button"
+            class="nav-tab-btn"
+            :class="{ 'is-active': activeTab === 'tasks' }"
+            @click="setActiveTab('tasks')"
+          >
+            <Activity :size="14" />
+            <span>后台任务</span>
+            <span v-if="activeCount > 0" class="tab-badge is-active">
+              {{ activeCount }}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            class="nav-tab-btn"
+            :class="{ 'is-active': activeTab === 'subagents' }"
+            @click="setActiveTab('subagents')"
+          >
+            <Bot :size="14" />
+            <span>子智能体管理</span>
+            <span class="tab-badge">
+              {{ availableSubagentCount }}
+            </span>
+          </button>
+        </div>
       </div>
     </template>
 
-    <div class="center-body">
-      <div class="center-list-pane">
-        <BackgroundTaskList
-          :tasks="tasks"
-          :selected-task-id="selectedTaskId"
-          @select="handleSelect"
-        />
+    <div class="center-main-wrapper">
+      <!-- 视图 1：后台任务执行流 -->
+      <div v-show="activeTab === 'tasks'" class="center-body">
+        <div class="center-list-pane">
+          <BackgroundTaskList
+            :tasks="tasks"
+            :selected-task-id="selectedTaskId"
+            @select="handleSelect"
+          />
+        </div>
+        <div class="center-detail-pane">
+          <BackgroundTaskDetail
+            :task="selectedTask"
+            @open-child="handleOpenChild"
+          />
+        </div>
       </div>
-      <div class="center-detail-pane">
-        <BackgroundTaskDetail
-          :task="selectedTask"
-          @open-child="handleOpenChild"
-        />
+
+      <!-- 视图 2：子智能体配置管理 -->
+      <div v-show="activeTab === 'subagents'" class="center-subagent-view">
+        <SubagentControlPanel />
       </div>
     </div>
   </BaseDialog>
@@ -204,8 +262,16 @@ async function handleOpenChild(task: BackgroundTaskSnapshot): Promise<void> {
   padding: 0;
   overflow: hidden;
 }
-
 .center-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.center-title-group {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -214,9 +280,10 @@ async function handleOpenChild(task: BackgroundTaskSnapshot): Promise<void> {
 
 .center-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-color);
+  letter-spacing: 0.2px;
 }
 
 .center-count {
@@ -225,8 +292,75 @@ async function handleOpenChild(task: BackgroundTaskSnapshot): Promise<void> {
   font-variant-numeric: tabular-nums;
 }
 
+/* 顶部选项卡药丸切换 */
+.center-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background-color: var(--el-fill-color-light);
+  border: var(--border-width) solid var(--border-color);
+}
+
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color-light);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-tab-btn:hover {
+  color: var(--text-color);
+}
+
+.nav-tab-btn.is-active {
+  background-color: var(--card-bg);
+  color: var(--primary-color);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10px;
+  background-color: var(--el-fill-color);
+  color: var(--text-color-light);
+}
+
+.tab-badge.is-active {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
+.center-main-wrapper {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .center-body {
   display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.center-subagent-view {
   height: 100%;
   min-height: 0;
 }

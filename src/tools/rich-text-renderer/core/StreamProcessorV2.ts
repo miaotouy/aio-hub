@@ -21,6 +21,10 @@
  * 3. CustomParser 只负责解析完整文本，本类负责流式管理
  */
 
+import {
+  findVcpToolBatch,
+  hideIncompleteVcpBatchStart,
+} from "@/utils/vcpToolBatch";
 import type {
   AstNode,
   Patch,
@@ -29,6 +33,11 @@ import type {
 } from "../types";
 import { CustomParser } from "./CustomParser";
 import { isFuzzyMatchCloseTag } from "../parser/utils/text-utils";
+import {
+  readCodeFenceOpening,
+  isCodeFenceClosing,
+  type CodeFence,
+} from "../parser/utils/code-fence";
 
 /**
  * Markdown 语义边界检测器（增强版）
@@ -40,15 +49,25 @@ import { isFuzzyMatchCloseTag } from "../parser/utils/text-utils";
  */
 class MarkdownBoundaryDetector {
   private llmThinkTagNames: Set<string>;
+  private fenceCache: {
+    text: string;
+    completeLength: number;
+    completeLineCount: number;
+    lines: string[];
+    fenceBeforeSuffix: CodeFence | null;
+    states: boolean[];
+  } | null = null;
+
+  reset(): void {
+    this.fenceCache = null;
+  }
 
   constructor(llmThinkTagNames: Set<string> = new Set()) {
     this.llmThinkTagNames = llmThinkTagNames;
   }
 
-  isSafeParsePoint(text: string): boolean {
-    const lines = text.split("\n");
-    if (this.isInsideCodeBlock(lines)) return false;
-    if (this.isIncompleteTable(lines.slice(-3))) return false;
+  isSafeParsePoint(text: string, lastLines: string[]): boolean {
+    if (this.isIncompleteTable(lastLines)) return false;
     if (this.hasUnclosedKatexBlock(text)) return false;
 
     // 内联链接/图片检查
@@ -103,37 +122,60 @@ class MarkdownBoundaryDetector {
    * 注意：需要排除被转义的 \$$ 和行内公式 $...$
    */
   private hasUnclosedKatexBlock(text: string): boolean {
-    // 移除转义的 \$
+    if (!text.includes("$")) return false;
+
+    // Preserve escaped-dollar removal, including pairs formed across a removed escape.
     const cleanText = text.replace(/\\\$/g, "");
-
-    // 统计 $$ 的出现次数
     let count = 0;
-    let i = 0;
-    while (i < cleanText.length) {
-      if (
-        cleanText[i] === "$" &&
-        i + 1 < cleanText.length &&
-        cleanText[i + 1] === "$"
-      ) {
-        count++;
-        i += 2; // 跳过这两个 $
-      } else {
-        i++;
-      }
+    for (
+      let index = cleanText.indexOf("$$");
+      index !== -1;
+      index = cleanText.indexOf("$$", index + 2)
+    ) {
+      count++;
     }
-
-    // 如果 $$ 出现次数为奇数，说明有未闭合的块级公式
     return count % 2 !== 0;
   }
 
-  private isInsideCodeBlock(lines: string[]): boolean {
-    let fenceCount = 0;
-    for (const line of lines) {
-      if (/^```/.test(line.trim())) {
-        fenceCount++;
+  // Recheck the last two lines: full-content streaming may add a temporary final newline.
+  private scanCodeFenceStates(
+    text: string,
+    lines: string[],
+    prefixMatches: boolean
+  ): boolean[] {
+    const cache = this.fenceCache;
+    const completeLineCount = Math.max(0, lines.length - 2);
+    const reusesPrefix =
+      cache !== null &&
+      prefixMatches &&
+      cache.completeLineCount <= completeLineCount;
+    const states = reusesPrefix ? cache.states : [];
+    const start = reusesPrefix ? cache.completeLineCount : 0;
+    states.length = start;
+    let fence = reusesPrefix ? cache.fenceBeforeSuffix : null;
+    let fenceBeforeSuffix = fence;
+
+    for (let index = start; index < lines.length; index++) {
+      if (index === completeLineCount) fenceBeforeSuffix = fence;
+      const content = lines[index].replace(/^ {0,3}/, "");
+      if (fence) {
+        if (isCodeFenceClosing(content, fence)) fence = null;
+      } else {
+        fence = readCodeFenceOpening(content);
       }
+      states.push(fence !== null);
     }
-    return fenceCount % 2 !== 0;
+    const lastNewline = text.lastIndexOf("\n");
+    this.fenceCache = {
+      text,
+      completeLength:
+        lastNewline > 0 ? text.lastIndexOf("\n", lastNewline - 1) + 1 : 0,
+      completeLineCount,
+      lines,
+      fenceBeforeSuffix,
+      states,
+    };
+    return states;
   }
 
   private isIncompleteTable(lastLines: string[]): boolean {
@@ -267,10 +309,8 @@ class MarkdownBoundaryDetector {
    *
    * VCP 协议定义了以下块类型：
    * 1. 标准工具请求块: <<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>
-   * 2. 块级转义工具请求块: <<<[TOOL_REQUEST_ESCAPE]>>> ... <<<[END_TOOL_REQUEST_ESCAPE]>>>
-   *    （用于嵌套工具调用，内容中可包含标准 TOOL_REQUEST 块）
-   * 3. 调用结果块: [[VCP调用结果信息汇总: ... VCP调用结果结束]]
-   * 4. 工具调用摘要块: [本轮工具调用摘要:] ... [本轮工具调用摘要结束]
+   * 2. 调用结果块: [[VCP调用结果信息汇总: ... VCP调用结果结束]]
+   * 3. 工具调用摘要块: [本轮工具调用摘要:] ... [本轮工具调用摘要结束]
    */
   private hasUnclosedVcpBlock(text: string): boolean {
     // 检查标准工具请求块
@@ -279,16 +319,6 @@ class MarkdownBoundaryDetector {
     const requestCloseCount = (text.match(/<<<\[END_TOOL_REQUEST\]>>>/g) || [])
       .length;
     if (requestOpenCount !== requestCloseCount) {
-      return true;
-    }
-
-    // 检查块级转义工具请求块（TOOL_REQUEST_ESCAPE）
-    const escapeOpenCount = (text.match(/<<<\[TOOL_REQUEST_ESCAPE\]>>>/g) || [])
-      .length;
-    const escapeCloseCount = (
-      text.match(/<<<\[END_TOOL_REQUEST_ESCAPE\]>>>/g) || []
-    ).length;
-    if (escapeOpenCount !== escapeCloseCount) {
       return true;
     }
 
@@ -374,9 +404,9 @@ class MarkdownBoundaryDetector {
    * 获取安全的可解析切分点
    * 如果末尾存在不完整的 HTML 标签或属性，返回其起始位置以隐藏残缺部分
    */
-  private getSafeCutPoint(text: string): number {
+  private getSafeCutPoint(text: string, insideCodeBlock: boolean): number {
     // 如果在代码块内部，不执行 HTML 截断逻辑，防止代码中的 < 导致闪烁
-    if (this.isInsideCodeBlock(text.split("\n"))) {
+    if (insideCodeBlock) {
       return text.length;
     }
 
@@ -467,19 +497,63 @@ class MarkdownBoundaryDetector {
   }
 
   splitByBlockBoundary(text: string): { stable: string; pending: string } {
+    if (findVcpToolBatch(text)) {
+      return { stable: "", pending: text };
+    }
+    text = hideIncompleteVcpBatchStart(text);
     // 剔除末尾不安全的部分，防止残缺的 HTML 渲染
-    const safeLen = this.getSafeCutPoint(text);
+    const cache = this.fenceCache;
+    // Keep the last two lines live: callers can replace a temporary trailing newline.
+    const prefixMatches =
+      cache !== null &&
+      text.slice(0, cache.completeLength) ===
+        cache.text.slice(0, cache.completeLength);
+    let fullLines: string[];
+    if (
+      prefixMatches &&
+      cache.completeLineCount > 0 &&
+      text.length >= 8 * 1024
+    ) {
+      // Detach the small tail before retaining its lines; a sliced line could pin an old full buffer.
+      const tail = text.slice(cache.completeLength).split("").join("");
+      fullLines = cache.lines
+        .slice(0, cache.completeLineCount)
+        .concat(tail.split("\n"));
+    } else {
+      fullLines = text.split("\n");
+    }
+    const fenceStates = this.scanCodeFenceStates(
+      text,
+      fullLines,
+      prefixMatches
+    );
+    const safeLen = this.getSafeCutPoint(
+      text,
+      fenceStates[fenceStates.length - 1]
+    );
     const safeText = text.slice(0, safeLen);
 
-    const lines = safeText.split("\n");
+    // References can resolve across paragraphs; loose-list continuation belongs to the same tree.
+    // Keep document context for these inputs while retaining the usual stable/pending fast path elsewhere.
+    const hasReferences =
+      safeText.includes("]:") &&
+      /^[ \t]{0,3}\[(?:\\.|[^\]\\\n])+\]:/m.test(safeText);
+    const hasLooseList =
+      /^[ \t]*(?:[*+-]|\d+\.)[ \t]/m.test(safeText) &&
+      /\n[ \t]*\n/.test(safeText);
+    if (hasReferences || hasLooseList) return { stable: "", pending: safeText };
+
+    const lines = safeLen === text.length ? fullLines : safeText.split("\n");
     let stableEndLineIndex = -1;
 
     // 从后往前找最后一个空行作为稳定边界
     for (let i = lines.length - 1; i >= 0; i--) {
-      if (lines[i].trim() === "") {
+      if (lines[i].trim() === "" && !(fenceStates[i - 1] ?? false)) {
         // 找到空行后，还需要确认空行之前的部分是安全的
         const testText = lines.slice(0, i).join("\n");
-        if (this.isSafeParsePoint(testText)) {
+        if (
+          this.isSafeParsePoint(testText, lines.slice(Math.max(0, i - 3), i))
+        ) {
           stableEndLineIndex = i;
           break;
         }
@@ -502,6 +576,7 @@ class MarkdownBoundaryDetector {
 
 export class StreamProcessorV2 {
   private parser: CustomParser;
+  private stableParser: CustomParser;
   private onPatch: (patches: Patch[]) => void;
   private boundaryDetector: MarkdownBoundaryDetector;
   private llmThinkRules: LlmThinkRule[];
@@ -531,6 +606,12 @@ export class StreamProcessorV2 {
 
     const llmThinkTagNames = options.llmThinkTagNames || new Set();
     this.parser = new CustomParser(
+      llmThinkTagNames,
+      this.llmThinkRules,
+      options.defaultToolCallCollapsed,
+      options.vcpFuzzyModeEnabled
+    );
+    this.stableParser = new CustomParser(
       llmThinkTagNames,
       this.llmThinkRules,
       options.defaultToolCallCollapsed,
@@ -638,13 +719,14 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       // 将整个内容作为最终内容解析
+      this.boundaryDetector.reset();
       this.parser.reset();
+      this.stableParser.reset();
       const finalAst = await this.parser.parseAsync(this.buffer);
 
       if (this.isDestroyed) return;
 
-      // 分配 ID 并标记状态
-      this.assignIds(finalAst);
+      // ID 在 diff 确认复用或新增节点时处理。
       this.markNodesStatus(finalAst, "stable");
 
       // 强制结束所有思考节点的思考状态
@@ -729,14 +811,14 @@ export class StreamProcessorV2 {
 
         // 2. 解析稳定区（带超时保护）
         let newStableAst: AstNode[];
-        if (stableText === this.lastStableText && this.stableAst.length > 0) {
+        if (stableText === this.lastStableText) {
           // 稳定区文本没有变化，复用已有的 stableAst 引用
           newStableAst = this.stableAst;
         } else {
           // 稳定区文本发生变化，重新解析
           const stableParseStart = performance.now();
-          this.parser.reset();
-          newStableAst = await this.parser.parseAsync(stableText);
+          // Keep stable and pending snapshots independent; each parser validates full token dependencies.
+          newStableAst = await this.stableParser.parsePendingAsync(stableText);
           if (this.isDestroyed) break;
           this.lastStableText = stableText;
 
@@ -755,8 +837,7 @@ export class StreamProcessorV2 {
 
         // 3. 解析待定区（带超时保护）
         const pendingParseStart = performance.now();
-        this.parser.reset();
-        const newPendingAst = await this.parser.parseAsync(pendingText);
+        const newPendingAst = await this.parser.parsePendingAsync(pendingText);
         if (this.isDestroyed) break;
 
         // 安全护栏：单次解析超时检查
@@ -777,24 +858,18 @@ export class StreamProcessorV2 {
         // 5. 合并新的完整状态树（新状态）
         const newFullAst = [...newStableAst, ...newPendingAst];
 
-        // 6. 关键：在 diff 之前完成所有 ID 分配
-        if (newStableAst !== this.stableAst) {
-          this.assignIds(newStableAst);
-        }
-        this.assignIds(newPendingAst);
-
-        // 7. 标记节点状态
+        // 6. 标记节点状态，ID 由 diff 按需复用或分配。
         this.markNodesStatus(newStableAst, "stable");
         this.markNodesStatus(newPendingAst, "pending");
 
-        // 8. 对整个树进行一次性 diff（diff 内部会处理 ID 保留）
+        // 7. 对整个树进行一次性 diff
         const patches = this.diffAst(currentFullAst, newFullAst, true);
 
-        // 9. 更新状态
+        // 8. 更新状态
         this.stableAst = newStableAst;
         this.pendingAst = newPendingAst;
 
-        // 10. 发送变更
+        // 9. 发送变更
         if (patches.length > 0) {
           this.onPatch(patches);
         }
@@ -855,16 +930,16 @@ export class StreamProcessorV2 {
     try {
       this.isProcessing = true;
       // 将整个 buffer 作为最终内容重新解析
-      this.parser.reset();
-      const finalAst = await this.parser.parseAsync(this.buffer);
+      this.boundaryDetector.reset();
+      this.stableParser.reset();
+      const finalAst = await this.parser.parseCompleteAsync(this.buffer);
 
       if (this.isDestroyed) return;
 
       // 保留现有节点的 ID
       const currentFullAst = [...this.stableAst, ...this.pendingAst];
 
-      // 分配 ID（diff 内部会处理 ID 保留）
-      this.assignIds(finalAst);
+      // ID 在 diff 确认复用或新增节点时处理。
       this.markNodesStatus(finalAst, "stable");
 
       // 强制结束所有思考节点的思考状态（流已结束，即使标签未闭合也不应再显示思考中）
@@ -876,6 +951,10 @@ export class StreamProcessorV2 {
       // 更新状态
       this.stableAst = finalAst;
       this.pendingAst = [];
+      // The cache key must describe the whole finalized tree before streaming resumes.
+      this.lastStableText = this.buffer;
+      this.lastStableLength = this.buffer.length;
+      this.stallCount = 0;
 
       // 发送变更
       if (patches.length > 0) {
@@ -884,6 +963,45 @@ export class StreamProcessorV2 {
     } finally {
       this.isProcessing = false;
     }
+  }
+
+  private propsEqual(
+    oldProps: Record<string, unknown>,
+    newProps: Record<string, unknown>
+  ): boolean {
+    const oldKeys = Object.keys(oldProps);
+    const newKeys = Object.keys(newProps);
+    if (oldKeys.length === newKeys.length) {
+      let equal = true;
+      let flat = true;
+      for (let i = 0; i < oldKeys.length; i++) {
+        const key = oldKeys[i];
+        const oldValue = oldProps[key];
+        const newValue = newProps[key];
+        // Keep serialized key order and fall back for nested/JSON-special values.
+        if (
+          key !== newKeys[i] ||
+          !this.isFlatProp(oldValue) ||
+          !this.isFlatProp(newValue)
+        ) {
+          flat = false;
+          break;
+        }
+        if (oldValue !== newValue) equal = false;
+      }
+      if (flat) return equal;
+    }
+    return JSON.stringify(oldProps) === JSON.stringify(newProps);
+  }
+
+  private isFlatProp(value: unknown): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      typeof value === "string" ||
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    );
   }
 
   private getNodeTextContent(node: AstNode): string {
@@ -922,31 +1040,9 @@ export class StreamProcessorV2 {
   ): Patch[] {
     const patches: Patch[] = [];
 
-    // 如果旧节点为空且新节点不为空
-    if (oldNodes.length === 0 && newNodes.length > 0) {
-      if (isRoot) {
-        return [{ op: "replace-root", newRoot: [...newNodes] }];
-      } else {
-        // 非根节点（子节点列表）从无到有，由父节点的 replace-node 处理，或者在此处生成 insert 操作
-        // 理论上 diffSingleNode 会处理 contentChanged，但为了保险，这里返回全量 insert
-        let currentAnchor: string | undefined = undefined;
-        for (const newNode of newNodes) {
-          if (!currentAnchor) {
-            // 第一个子节点没有锚点，这种情况通常由父节点的 replace-node 覆盖
-            // 但如果父节点尝试复用并递归到这里，我们需要一种方式处理
-            // 目前 diffSingleNode 在内容变化时会优先使用 replace-node，所以这里通常不会被触发
-          } else {
-            patches.push({ op: "insert-after", id: currentAnchor, newNode });
-            currentAnchor = newNode.id;
-          }
-        }
-        return patches;
-      }
-    }
-
-    // 如果新旧节点都为空，无需任何操作
-    if (oldNodes.length === 0 && newNodes.length === 0) {
-      return [];
+    if (oldNodes.length === 0 && newNodes.length > 0 && isRoot) {
+      this.assignIds(newNodes);
+      return [{ op: "replace-root", newRoot: [...newNodes] }];
     }
 
     const minLen = Math.min(oldNodes.length, newNodes.length);
@@ -956,7 +1052,7 @@ export class StreamProcessorV2 {
       patches.push(...this.diffSingleNode(oldNodes[i], newNodes[i]));
     }
 
-    // 新增节点（这些节点已经有了独立的 ID）
+    // 新增节点在进入补丁前分配 ID，供后续同批插入用作锚点。
     if (newNodes.length > oldNodes.length) {
       // 使用共同部分的最后一个节点作为锚点
       // 因为这个节点的 ID 已经在 diffSingleNode 中被同步到 newNode
@@ -964,11 +1060,13 @@ export class StreamProcessorV2 {
 
       if (!insertAnchorId) {
         // 理论上不应该走到这里，但为了安全起见还是处理一下
+        this.assignIds(newNodes);
         return [{ op: "replace-root", newRoot: [...newNodes] }];
       }
 
       let currentAnchor = insertAnchorId;
       for (let i = minLen; i < newNodes.length; i++) {
+        this.assignNodeIds(newNodes[i]);
         patches.push({
           op: "insert-after",
           id: currentAnchor,
@@ -989,6 +1087,9 @@ export class StreamProcessorV2 {
   }
 
   private diffSingleNode(oldNode: AstNode, newNode: AstNode): Patch[] {
+    // Stable trees can retain their exact objects; their descendants and IDs already agree.
+    if (oldNode === newNode) return [];
+
     // 检查节点是否可以复用（类型相同且内容相似）
     const canReuse = this.canReuseNode(oldNode, newNode);
 
@@ -1004,28 +1105,23 @@ export class StreamProcessorV2 {
       const statusChanged =
         needsStatusWatch && oldNode.meta.status !== newNode.meta.status;
 
-      // ---- 属性变化检测 ----
-      // 使用 JSON.stringify 深度比较 props，确保 vcp_tool 的 isPending 变化、
-      // llm_think 的 isThinking 变化等能被精准捕获
-      // props 对象通常很小且浅，JSON.stringify 开销极小且能百分百检测到任何 props 变化
-      const propsChanged =
-        JSON.stringify(oldNode.props) !== JSON.stringify(newNode.props);
+      // Primitive props avoid serialization; nested args/attributes retain deep comparison.
+      const propsChanged = !this.propsEqual(oldNode.props, newNode.props);
 
-      // ---- 内容变化检测 ----
-      // 性能优化：使用指纹快速判断内容是否变化
-      // 如果两个节点都有指纹，先比较指纹，指纹一致则直接判定内容未变
+      // Once replacement is certain, aggregate text cannot change the chosen patch.
       let contentChanged = false;
-      if (oldNode._fp && newNode._fp) {
-        // 指纹不一致才需要进一步检查
-        contentChanged = oldNode._fp !== newNode._fp;
-        // 如果指纹一致但节点有子节点，仍需递归检查子节点
-        if (!contentChanged && (oldNode.children || newNode.children)) {
-          contentChanged = false; // 指纹一致，认为内容相同
+      // Lists carry content in their descendants. Diff those children so an
+      // appended item or edited tail preserves all untouched item objects/IDs.
+      const diffListChildren =
+        oldNode.type === "list" || oldNode.type === "list_item";
+      if (!statusChanged && !propsChanged && !diffListChildren) {
+        if (oldNode._fp && newNode._fp) {
+          contentChanged = oldNode._fp !== newNode._fp;
+        } else {
+          contentChanged =
+            this.getNodeTextContent(oldNode) !==
+            this.getNodeTextContent(newNode);
         }
-      } else {
-        // 没有指纹，回退到旧的比较方式
-        contentChanged =
-          this.getNodeTextContent(oldNode) !== this.getNodeTextContent(newNode);
       }
 
       // ---- 汇总判断 ----
@@ -1033,10 +1129,7 @@ export class StreamProcessorV2 {
       // 但为了安全起见，保留 llm_think 特殊处理作为兜底（props 深度比较理论上已覆盖）
       if (statusChanged || propsChanged || contentChanged) {
         // 内容、属性或状态变化，但可以复用 ID，发送 replace-node
-        if (oldNode.children && newNode.children) {
-          // 递归处理子节点的 ID 保留
-          this.syncChildrenIds(oldNode.children, newNode.children);
-        }
+        this.syncChildrenIds(oldNode.children || [], newNode.children || []);
         return [{ op: "replace-node", id: oldNode.id, newNode }];
       }
 
@@ -1048,6 +1141,7 @@ export class StreamProcessorV2 {
         oldNode.props.isThinking !== newNode.props.isThinking;
 
       if (thinkStatusChanged) {
+        this.syncChildrenIds(oldNode.children || [], newNode.children || []);
         return [{ op: "replace-node", id: oldNode.id, newNode }];
       }
 
@@ -1059,16 +1153,11 @@ export class StreamProcessorV2 {
         // 如果子节点从无到有或从有到无，直接 replace-node
         // 因为 diffAst 在非根级别无法正确处理 "旧列表为空" 的情况（缺少插入锚点）
         if ((oldLen === 0) !== (newLen === 0)) {
-          if (oldNode.children && newNode.children) {
-            this.syncChildrenIds(oldNode.children, newNode.children);
-          }
+          this.syncChildrenIds(oldNode.children || [], newNode.children || []);
           return [{ op: "replace-node", id: oldNode.id, newNode }];
         }
 
-        // 同步子节点 ID 后再进行 diff
-        if (oldNode.children && newNode.children) {
-          this.syncChildrenIds(oldNode.children, newNode.children);
-        }
+        // 递归 diff 自行处理子节点身份，避免提前重复遍历后代。
         return this.diffAst(
           oldNode.children || [],
           newNode.children || [],
@@ -1078,8 +1167,8 @@ export class StreamProcessorV2 {
 
       return [];
     } else {
-      // 不能复用，newNode 保持其原有的独立 ID
-      // 发送 replace-node（用新节点替换旧节点）
+      // 类型或代码语言切换时，整棵新子树获得独立身份。
+      this.assignNodeIds(newNode);
       return [{ op: "replace-node", id: oldNode.id, newNode }];
     }
   }
@@ -1108,35 +1197,34 @@ export class StreamProcessorV2 {
   }
 
   /**
-   * 同步子节点的 ID（从旧节点树复制到新节点树）
+   * 为整棵替换子树保留可复用的后代 ID，并补齐新增后代的 ID
    */
   private syncChildrenIds(
     oldChildren: AstNode[],
     newChildren: AstNode[]
   ): void {
-    const minLen = Math.min(oldChildren.length, newChildren.length);
-    for (let i = 0; i < minLen; i++) {
-      if (this.canReuseNode(oldChildren[i], newChildren[i])) {
-        newChildren[i].id = oldChildren[i].id;
-        if (oldChildren[i].children && newChildren[i].children) {
-          this.syncChildrenIds(
-            oldChildren[i].children!,
-            newChildren[i].children!
-          );
+    for (let i = 0; i < newChildren.length; i++) {
+      const oldChild = oldChildren[i];
+      const newChild = newChildren[i];
+      if (oldChild === newChild) continue;
+      if (oldChild && this.canReuseNode(oldChild, newChild)) {
+        newChild.id = oldChild.id;
+        if (newChild.children) {
+          this.syncChildrenIds(oldChild.children || [], newChild.children);
         }
+      } else {
+        this.assignNodeIds(newChild);
       }
     }
   }
 
   private assignIds(nodes: AstNode[]): void {
-    for (const node of nodes) {
-      if (!node.id) {
-        node.id = this.generateNodeId();
-      }
-      if (node.children) {
-        this.assignIds(node.children);
-      }
-    }
+    for (const node of nodes) this.assignNodeIds(node);
+  }
+
+  private assignNodeIds(node: AstNode): void {
+    if (!node.id) node.id = this.generateNodeId();
+    if (node.children) this.assignIds(node.children);
   }
 
   private markNodesStatus(
@@ -1190,7 +1278,9 @@ export class StreamProcessorV2 {
     this.lastStableLength = 0;
     this.stallCount = 0;
     this.isDegraded = false;
+    this.boundaryDetector.reset();
     this.parser.reset();
+    this.stableParser.reset();
   }
 
   /**
@@ -1202,6 +1292,8 @@ export class StreamProcessorV2 {
     this.pendingBuffer = null;
     this.stableAst = [];
     this.pendingAst = [];
+    this.boundaryDetector.reset();
     this.parser.reset();
+    this.stableParser.reset();
   }
 }

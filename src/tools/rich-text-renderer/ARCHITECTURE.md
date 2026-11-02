@@ -82,7 +82,10 @@ graph TD
       - `StreamProcessorV2` (V2): 结合自研的 `CustomParser`，支持更复杂的 HTML 嵌套和自定义标签，是当前的核心。位于 `core/StreamProcessorV2.ts`。
       - `CustomParser`: V2 解析器核心，负责将完整文本块转换为 AST。位于 `core/CustomParser.ts`。
       - `Tokenizer`: V2 解析器的词法分析器，采用 **Sticky RegExp** 优化匹配性能，并支持 **Raw Mode** 以处理特殊 HTML 标签。位于 `parser/Tokenizer.ts`。
-        - VCP 工具块在严格围栏解析失败时，可由“VCP 围栏模糊模式”控制是否仅在渲染侧对唯一、可结构化验证的 `「始ESCAPE」...「末」` 错配执行显示恢复，并在工具节点标记围栏错误；工具执行协议始终保持严格解析，不会执行该错误调用。
+        - Markdown 代码围栏按 LF 行边界一次搜索完整闭合行，保留缩进、较长闭合标记和源码尾部换行语义。VCP 块先定位结束标记，再把转义围栏与恢复起点的候选搜索限定到它之前；搜索窗口保留跨边界标记的完整长度，先出现的 ESCAPE 值仍整段跳过。两项优化均在单次分词内完成。
+        - VCP 参数扫描先在显示恢复后的正文中检查必要的字段开闭标记，缺少时省略对应的 ESCAPE / exp 或标准字段正则；pending 先定位冒号与完整开标记，再回溯连续 ASCII 参数名，按原规则读取未闭合值。字段提取、范围屏蔽与覆盖顺序沿用原路径，检查在单次分词内完成。
+        - VCP 工具块严格解析失败时，“VCP 围栏模糊模式”可根据完整参数后的 HTML 标签、新请求起点或截断的结束标记划定显示边界，将坏请求渲染为带格式提示的工具卡片，让后续思考与正文继续正常解析。工具节点保留原始报文；尚未收完的参数、流末的部分结束标记继续等待后续内容，完整的严格解析结果优先。
+        - 模糊模式也支持对唯一、可结构化验证的 `「始ESCAPE」...「末」` 错配执行显示恢复。以上恢复限定于渲染侧，工具执行协议继续使用严格解析。
       - `TokenizerService`: 封装了 Web Worker 调度逻辑，通过 `parser/tokenizer.worker.ts` 在后台线程进行异步分词，确保超长文本流下的 UI 响应性。位于 `parser/tokenizerService.ts`。
 
 3.  **状态层 (State Layer)**
@@ -95,7 +98,7 @@ graph TD
     - **职责**: 将 AST 渲染为 Vue 组件树，并应用动态样式。
     - **核心组件**:
       - `RichTextRenderer`: 统一入口组件，接收文本流和配置，支持 4 种渲染器版本切换，代码块展示固定使用 CodeMirror。
-      - `AstNodeRenderer`: 基于 JSX 的递归渲染组件，根据节点类型分发到具体的 Vue 组件，并注入动态样式。当前会给块级节点标记 `rich-text-block` class，但 renderer 内部的块级 `content-visibility` CSS 仍处于关闭状态，避免和消息列表层滚动估高互相影响。
+      - `AstNodeRenderer`: 基于 JSX 的递归渲染组件，根据节点类型分发到具体的 Vue 组件，并注入动态样式。按节点引用及渲染上下文复用子树 VNode，沿用 `useMarkdownAst` 的不可变更新契约；修改节点或后代时需替换当前节点及祖先引用，删除的缓存项随渲染列表收缩释放。当前会给块级节点标记 `rich-text-block` class，但 renderer 内部的块级 `content-visibility` CSS 仍处于关闭状态，避免和消息列表层滚动估高互相影响。
       - **节点组件**: 位于 `components/nodes/`，负责各自节点的渲染。详见第 4 节。
       - **交互查看器**:
         - `HtmlInteractiveViewer`: 完整的 HTML 沙箱查看器，支持工具栏、CSP 安全策略、主题注入、自适应高度、CDN 本地化、iframe 消息代理和日志捕获。
@@ -121,15 +124,15 @@ graph TD
 
 - **稳定区 (Stable Region)**:
   - 内容已确认为语法完整，不会再发生语义变化。
-  - 策略：V2 会在稳定区文本未变化时复用已有 `stableAst`；当稳定区文本变化时重新解析稳定区，再与当前 AST 做 diff。
+  - 策略：V2 会在稳定区文本未变化时复用已有 `stableAst`；当稳定区文本变化时，使用独立 CustomParser 的依赖校验缓存复用未变块，再与当前 AST 做 diff。稳定区和待定区各自维护 Worker owner，静态设置、完成、reset 与 destroy 释放快照。
   - 优势：在流式末尾持续增长、稳定区不变的常见场景下，避免重复解析历史稳定内容。
 
 - **待定区 (Pending Region)**:
   - 位于文本流末尾，可能包含未闭合的标签或标记。
-  - 策略：每次处理最新 buffer 时重新解析整个待定区，并与稳定区 AST 合并后统一 diff。
-  - 优势：确保未完成的语法能被临时正确处理，一旦闭合立即转为稳定状态。
+  - 策略：最新 buffer 仍全文 Worker 分词；在 token 精确公共前缀中，复用读取依赖完整匹配的历史顶层块，只重建尾块，并与稳定区 AST 合并后统一 diff。块尾前瞻、EOF 与表格探测范围计入读取依赖。待定顶层列表进一步按条目起止与读取范围复用子树，嵌套内容随父项保留；条目快照只持有范围与最终节点。徽章换行整理在实际变化时复制数组及祖先，未变子树沿用引用。引用定义、思考标签规则或解析选项变化时重建全部块。
+  - 优势：保留未完成语法及松散列表的整文语义，减少未变化的历史节点构造和 diff。静态解析、完成、reset 与 destroy 清理待定缓存；异步分词按解析代次隔离过期缓存写回。
 
-- **安全切分点检测**: `MarkdownBoundaryDetector` 负责检测内容是否处于完整状态，包括代码块闭合、表格完整性、KaTeX 块级公式闭合、HTML 标签闭合（含属性值中间检测）、内联链接/图片闭合等。当检测到末尾存在不完整的 HTML 标签或链接时，会自动回退切分点以隐藏残缺部分，防止渲染闪烁。
+- **安全切分点检测**: `MarkdownBoundaryDetector` 在安全截断后的文本中先检查引用定义必需的连续 `]:`，再执行原匹配；命中引用定义或松散列表时保留完整文档上下文。它负责检测内容是否处于完整状态，包括代码块闭合、表格完整性、KaTeX 块级公式闭合、HTML 标签闭合（含属性值中间检测）、内联链接/图片闭合等。当检测到末尾存在不完整的 HTML 标签或链接时，会自动回退切分点以隐藏残缺部分，防止渲染闪烁。
 
 ### 3.2 自研解析器 (CustomParser - V2)
 
@@ -137,6 +140,9 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 
 - **多线程词法分析 (Off-main-thread Lexing)**:
   - `Tokenizer` 被封装在 Web Worker (`parser/tokenizer.worker.ts`) 中运行。通过 `TokenizerService` (`parser/tokenizerService.ts`) 进行单例 Worker 复用和调度，避免了大规模文本解析对主线程 UI 渲染的干扰。
+  - **流式传输**: 待定解析按调用方隔离传输会话，以修订号串联文本尾部替换；Worker 重建完整文本并全文分词，按 token 精确公共前缀返回变化尾部，主线程恢复完整 token 数组并复用未变化对象。普通静态解析保持无状态。完成、重设、静态切换及销毁会释放两端会话快照；已排队结果仍各自完成，后续复用调用方建立新会话。
+  - **完成快照消费**: 流结束时，若待定会话的文本与分词选项精确匹配、所有修订均已确认，直接消费主线程的完整 token 快照；有排队修订或内容变化时沿原会话请求最终结果，再立即分离调用方。Worker 对同文本同选项复用已存 token。完成解析仍收集全篇引用并重建完整 AST；排队结果持有旧会话，后续文档使用新身份，完成后释放两端快照。
+  - **大字段尾部补丁**: 同位置、同类型 token 的 `raw/content/resultContent` 达到 8,192 个 UTF-16 码元且复用量至少 4,096 时，可基于前一修订传输字符串替换范围。主线程先校验修订与补丁范围，再构造完整新 token，历史结果保持原值。短字段与截短字段沿用完整传输；截短后的旧底层字符串可随旧结果释放，避免切片保留大文本。
   - **性能优化**: 词法分析器广泛使用 `sticky (y)` 标志的正则表达式，直接在原始字符串上进行位置偏移匹配，彻底消除了频繁创建字符串切片（substring/slice）带来的内存和 CPU 开销。
 
 - **原始模式 (Raw Mode)**:
@@ -154,7 +160,10 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **HTML 深度支持**: 将 HTML 标签视为一等公民，支持任意深度的 HTML 与 Markdown 混合嵌套，包括 `<details>`, `<article>` 等复杂的语义化标签。通过 `GenericHtmlNode` 实现结构化 HTML 标签的 AST 表示。`<video>` / `<audio>` / `<details>` 标签会自动拦截并分发至专门的 `VideoNode` / `AudioNode` / `DetailsNode` 组件。
 - **LLM 思考块**: 原生支持 `<think>`、`<guguthink>` 等自定义标签，将其解析为结构化的 `LlmThinkNode`。
 - **GitHub Alert 块**: 支持 `> [!NOTE]`、`> [!TIP]`、`> [!IMPORTANT]`、`> [!WARNING]`、`> [!CAUTION]` 语法，解析为 `AlertNode`。
-- **VCP 协议深度支持**: 支持 `<<<[TOOL_REQUEST]>>>` / `<<<[TOOL_REQUEST_ESCAPE]>>>` 工具调用格式、VCP 角色分割 (`vcp_role`)、本轮工具调用摘要 (`vcp_role` + `variant: "tool_summary"`) 和日记容器 (`vcp_daily_note`) 解析。支持嵌套工具调用、参数值转义、工具结果汇总解析，以及摘要与结果详情的重复展示去重。
+- **VCP 协议深度支持与容错**: 支持标准 `<<<[TOOL_REQUEST]>>>` 工具调用格式、VCP 角色分割 (`vcp_role`)、本轮工具调用摘要 (`vcp_role` + `variant: "tool_summary"`) 和日记容器 (`vcp_daily_note`) 解析。
+  - **坏块恢复与防吞噬 (KI-007)**: 引入 `vcpBlockBoundary.ts` 与 `vcpFenceRecovery.ts` 边界判定算法。当检测到未闭合或损坏的 VCP 请求块时，遇到下一个起始标记会自动丢弃并恢复，防止残损块误吞噬后续合法调用块或导致同类标记错误合并。
+  - **JEV 自然语言工具调用识别**: 针对不含 `tool_name` 但以 `JEV` 前缀键携带自然语言指令的工具调用模式，解析器在词法层自动识别 `JEV` 作为工具名展示，并将自然语言指令原样保存在参数对象中，不执行破坏性二次解析。
+  - **图片加载失败占位与资源名提示**: `ImageNode` 增强了对外部或智能体协议图片加载失败的防御。提供独立的错误占位卡片，展示失败提示并截断安全显示原始资源名称/链接，避免破坏排版流。Markdown 图片节点与 HTML 智能体资产占位共用 CSS 紫黑棋盘格背景，文字使用主题色衬底保持可读性。
 
 ### 3.3 样式系统与隔离机制 (Styling & Isolation)
 
@@ -169,7 +178,23 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **分层合并策略**: `utils/styleUtils.ts` 支持全局样式与 Agent/User 个性化样式的分层合并。覆盖配置中已启用的分类会优先级最高，未启用的则回退到全局设置。
 - **所见即所得**: `MarkdownStyleEditor` 提供图形化界面，修改会通过 Pinia 实时响应，无需重渲染即可观察效果。
 
-#### 3.3.2 内容样式隔离 (Content Style Isolation)
+#### 3.3.2 生成内容的主题变量别名
+
+`RichTextRenderer.vue` 在 `.rich-text-renderer` 根容器上提供常见 CSS 变量别名，供 AST 与纯 Markdown 模式中的 HTML 内容继承。别名引用应用主题变量，随明暗模式、主题色和背景外观变化；正文可在自己的元素上定义同名变量覆盖默认值。
+
+| 常见别名                                                                                         | 应用主题变量                                                                                   |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `--primary-text`、`--text-primary`、`--text-color-primary`、`--color-text`                       | `--text-color`                                                                                 |
+| `--secondary-text`、`--text-secondary`、`--text-color-secondary`、`--text-muted`、`--muted-text` | `--text-color-light`                                                                           |
+| `--primary-bg`、`--bg-primary`、`--background-color`                                             | `--bg-color`                                                                                   |
+| `--secondary-bg`、`--bg-secondary`、`--surface-color`                                            | `--container-bg`                                                                               |
+| `--tertiary-bg`、`--bg-tertiary`                                                                 | `--card-bg`                                                                                    |
+| `--color-border`                                                                                 | `--border-color`                                                                               |
+| `--border-light`                                                                                 | `--border-color-light`                                                                         |
+| `--accent-color`、`--color-primary`                                                              | `--primary-color`                                                                              |
+| `--color-success`、`--color-warning`、`--color-danger`、`--color-error`、`--color-info`          | 对应的 `--success-color`、`--warning-color`、`--danger-color`、`--error-color`、`--info-color` |
+
+#### 3.3.3 内容样式隔离 (Content Style Isolation)
 
 针对 LLM 在 HTML 块中生成的 `<style>` 标签，引擎实现了自动的作用域隔离机制。
 
@@ -209,6 +234,7 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
   - **预处理阶段**: 仅处理 `file://` 等可能干扰解析或必须全局替换的协议。
   - **节点渲染阶段**: `agent-asset://` 等协议留给具体节点组件（如 `ImageNode`、`VideoNode`、`AudioNode`、`GenericHtmlNode`）处理。这些组件通过注入的 `resolveAsset` 钩子或 `currentAgent` 上下文，在运行时动态解析真实 URL。
   - **优势**: 避免了 Markdown 解析器对转换后的长本地路径（包含 `%` 等字符）进行二次编码，导致 Tauri 无法识别。
+- **缺失图片**: 未解析的单个 `agent-asset://` URL 保留原值，由图片节点展示失败状态；Markdown 图片与 HTML 图片预处理、AST HTML 图片节点共用带文件名的占位。占位保留原始 URL 供悬停查看，HTML 图片沿用尺寸、内联布局样式、class 与 id，并支持重复预处理。
 - **HTML 预览**: 在 `HtmlInteractiveViewer` 的沙箱中，内容在注入前会经过资产解析，确保预览中的所有外部资源引用都能正确加载。
 - **测试页数据来源**: `RichTextRendererTester` 直接通过 `agent-manager` 与 `user-profile-manager` 的 Pinia Store 获取并初始化测试角色数据，并直接调用 `agent-manager` 的资产解析工具；不再经由 `llm-chat` Registry 或兼容重导出读取。侧边栏只接收父测试页传入的响应式列表，保证角色选择与资产解析使用同一份领域状态。
 
@@ -225,8 +251,10 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
 - **消息级 `content-visibility: auto`**: 长消息列表的主要跳过渲染逻辑目前位于 `llm-chat/components/message/MessageList.vue`，对整条消息应用 `content-visibility: auto` 并保持最后一条消息可见，以稳定底部滚动。renderer 内部的块级 `content-visibility` 曾经试验过，但当前 CSS 被注释关闭，避免单条消息内部高度估算导致滚动跳动。
 - **节点进入动画**: 新增节点支持淡入（fade-in-up）动画效果。
   - **立即显示策略**: 在 `AstNodeRenderer.tsx` 中定义了 `NO_ANIMATION_NODE_TYPES` 集合。对于思考块、代码块、Mermaid、VCP 工具、HTML 块和图片，动画会被自动禁用。这是因为这些节点通常具有动态填充内容或复杂的初始化逻辑，立即显示能提供更好的实时反馈。
-- **图片列表提取节流**: `RichTextRenderer` 会递归提取 AST 中的所有图片链接（`extractImages`），并使用 1000ms 的节流函数更新 `imageList`。该列表通过上下文共享给所有 `ImageNode`，使其能支持全局图片预览（Viewer）的幻灯片切换。
+- **Mermaid 流式排版**: pending 正文按 300ms 窗口提交最新值，仅末尾未完成行变化时跳过排版；等待期间保留最后成功 SVG。稳定态、手动切换、截图和已激活图表的主题变化立即提交，卸载取消排队任务。离屏静态图表恢复继续保留高度，接近视口时使用当前主题重建。
+- **图片列表提取节流**: `RichTextRenderer` 通过 WeakMap 子树索引提取 AST 图片链接（`utils/astImageIndex.ts`），未变分支按不可变节点引用复用；保留图片顺序、重复项与十万节点访问上限，部分遍历结果跳过缓存写入。流式阶段使用 1000ms 节流更新 `imageList`，卸载清理索引。该列表通过上下文共享给所有 `ImageNode`，使其能支持全局图片预览（Viewer）的幻灯片切换。
 - **代码块延迟初始化 (Lazy Code Block Init)**: 代码块展示固定使用 CodeMirror，并通过 `IntersectionObserver` 延迟初始化，仅在代码块进入视口时才创建编辑器实例。在编辑器初始化前渲染轻量级 **PreCodeNode** 预览组件（`components/nodes/code-block/PreCodeNode.vue`）。通过 `debugPreFallback` 调试开关可强制保持预览状态。
+- **HTML 流式预览刷新**: `HtmlInteractiveViewer` 首轮立即尝试更新，持续输入按一秒间隔刷新，并在输入暂停后提交窗口内的最新值。稳定性判断保留原规则；`immediate` 同步提交并取消排队刷新，组件卸载清除定时器与待处理内容。源码确有变化时继续导航 iframe。
 - **HTML 预览冻结**: `RichTextRenderer` 通过 `shouldFreeze` prop 将冻结策略传给 HTML 预览节点；消息深度阈值由调用方（如 `MessageContent.vue`）根据聊天设置计算。弹窗打开时会冻结内嵌预览，避免同一 HTML 同时运行两份。
 - **流式平滑化 (Stream Smoothing)**: `core/StreamController.ts` 通过内部缓冲区平滑 Token 的发射节奏，避免因网络包大小不一导致的视觉卡顿。支持自动加速（当积压过多时）和紧急冲刷（超过 1000 字符阈值时立即显示）。包含 VCP 结构标记的 chunk 会绕过平滑直接同步输出。通过 `smoothingEnabled` 控制。
 - **内存管理 (Memory Management)**: 引擎实现了全套组件卸载清理机制。`useMarkdownAst` 提供 `dispose` 方法主动释放 AST 和节点索引；`StreamProcessorV2` 在销毁时停止异步解析；各节点组件（ImageNode、HtmlInteractiveViewer、MermaidNode、CodeBlockNode 等）在卸载时取消进行中的异步请求、移除事件监听和释放 blob URL，有效防止长会话切换时的内存泄漏。
@@ -251,6 +279,22 @@ V2 版本引入了自研的模块化解析器，以克服 `markdown-it` 的局�
   - **实时 AST 查看器**: 集成 `AstViewer`，以树状结构实时展示当前的 AST 状态。
   - **正则实时预览**: 支持实时编辑和应用 `ChatRegexRule`，观察其对渲染结果的影响。
   - **PreCodeNode 调试**: 通过 `debugPreFallback` 开关可强制代码块保持预览状态，方便样式调试。
+
+### 带时间戳的 VCP 工具返回批次
+
+`RichTextRenderer` 的换行规范化、展示正则、裸 HTML 包裹与资产替换仅处理批次外文本，批次原文保持逐字一致。Tokenizer 在 Markdown/HTML 解析前识别 `VCP_TOOL_BATCH_START/END`，通过共享工具 `src/utils/vcpToolBatch.ts` 按原始时间戳精确匹配边界，兼容 `Z` 及正负时区偏移。扫描时跳过工具请求块及已闭合的单行行内代码，正文引用的批次标记保留在所属内容中；独立批次保持高于 Markdown 代码围栏的识别优先级。批次整体转换为 `vcp_role` 的 `tool_batch` 变体，正文作为 `batchContent` 保留，内部角色、请求和其他时间戳标记保持字面量。闭合批次若完整由旧结果框与摘要组成，展示侧投影为现有工具结果卡片和去重摘要，返回值仍通过文本插值显示；其他正文及未完成批次使用纯文本展示，收起首尾协议留白。仅包含一个闭合批次的 USER 外壳合并到批次容器，混合内容保留角色边界。外层角色闭合扫描跳过完整批次，缺少对应结束时持续隔离并显示未完成状态。
+
+含批次的流式文档保持整体待定解析，避免正文内的空行、代码围栏和残缺 HTML 影响稳定区切分。完整闭合后恢复外层解析；旧历史沿用已有结果气泡与摘要展示。协议来源及执行侧隔离见 [工具返回批次](../tool-calling/ARCHITECTURE.md#426-服务端工具返回批次)。
+
+### 3.9 Markdown 规范差异报告
+
+段落内单次回车显示为可见换行，是已确认的产品约定。同输入库对照需启用相同换行策略，并将官方默认输出差异与产品契约分别统计。末尾回车是否显示尾部空白行单独待确认。
+
+V2 的围栏分词与流式边界检测共用字符种类/长度匹配规则；列表换行携带后续缩进以保留跨段归属；引用定义保存在当前文档的解析上下文。含引用定义或跨空行列表的消息在流式阶段暂保留完整文档上下文，其他消息沿用稳定区/待定区路径。普通 Markdown 实体只在文本分词时解码，代码与转义字面量保持原值。
+
+开发侧运行 `bun run rich-text:commonmark`，使用随仓库固定的 CommonMark 0.31.2 官方用例，对照 `CustomParser.parse()` 的静态 AST 语义。报告按章节区分语义一致、差异、解析异常、超时和适配器待支持项，默认输出至 `.tmp/rich-text-commonmark/`，包含原始输入、官方 HTML 与首个差异路径。
+
+实现与行为测试位于 `scripts/rich-text/`；解析使用独立 Worker 进行超时隔离，脚本类型检查入口为 `bun run rich-text:check`。比较边界、首轮结果与后续库对照、性能和流式一致性待办见 [Markdown 兼容性与性能待办](docs/Plan/markdown-conformance-and-performance.md)。
 
 ## 4. 目录结构说明
 
@@ -393,8 +437,8 @@ src/tools/rich-text-renderer/
 
 - **CDN 资源本地化**: 自动将 HTML 预览中的 CDN 链接替换为本地资源，支持 d3、mermaid、echarts、three.js、chart.js 等 8 种常见库。
 - **外部工具调用 (VCP Support)**:
-  - 兼容支持外部 VCP 工具调用格式 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>`，以及用于嵌套工具调用的 `TOOL_REQUEST_ESCAPE` 块。
-  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析（冒号后允许可选空格），以及嵌套工具调用与参数值转义（`「始ESCAPE」...「末ESCAPE」` / `「始exp」...「末exp」`，围栏内协议字符按转义内容处理，不触发块边界恢复）。
+  - 标准 `<<<[TOOL_REQUEST]>>> ... <<<[END_TOOL_REQUEST]>>>` 创建工具节点；独立 `TOOL_REQUEST_ESCAPE` 标记作为普通文本展示。
+  - 支持 `maid:「始」...「末」` 等结构化参数定界符的精准解析（冒号后允许可选空格），以及参数值保护（`「始ESCAPE」...「末ESCAPE」` / `「始exp」...「末exp」`，围栏内协议字符保留在参数内，不触发块边界恢复）。ESCAPE 参数在完整提取后还原其中的转义字面量，`exp` 参数保留原值；原始请求文本保持一致。
   - 提供专用的 `VcpToolNode` 渲染，支持折叠交互、实时状态反馈和原始报文查看。
   - **执行结果集成**: 支持解析和展示工具调用的返回结果（`isResult`），包括执行状态（SUCCESS/ERROR）和结果报文的结构化预览。
   - **工具摘要渲染**: 支持 `[本轮工具调用摘要:] ... [本轮工具调用摘要结束]`，解析为 `vcp_role` 的 `tool_summary` 变体，并在 `VcpRoleNode` 中渲染为状态 chip。若同一工具与状态已在执行结果详情中出现，摘要项会被过滤，避免重复展示。
@@ -415,7 +459,7 @@ src/tools/rich-text-renderer/
 - **流式平滑化**: `StreamController` 通过内部缓冲区平滑 Token 发射节奏，避免网络抖动带来的视觉卡顿。支持自动加速和紧急冲刷；VCP 协议标记会绕过平滑同步输出，避免工具块和角色块被拆分后造成临时误解析。
 - **渲染动画**: 新增了节点淡入（fade-in-up）动画效果。对于需要立即显示以填充内容的动态节点（如思考块、代码块、图表、VCP 工具、HTML 块、图片等），动画会被自动禁用。
 - **代码高亮与应用沙箱**: 代码块展示固定使用 **CodeMirror**，支持懒初始化、主题、流式内容更新、折叠、行号、换行和字号调整。对于 `html` 代码块，支持 **Seamless (无边框)** 渲染。通过 `IntersectionObserver` 实现代码块延迟初始化，进入视口前渲染轻量级 `PreCodeNode` 预览。
-- **列表层渲染优化**: 长消息列表当前依赖 `MessageList.vue` 的消息级 `content-visibility: auto`。renderer 内部仅保留块级 class 标记，未默认启用块级 `content-visibility`。
+- **列表层渲染优化**: 长消息列表由 `MessageList.vue` 的消息级 `content-visibility: auto` 跳过屏外布局，`useMessageHeights` 结合 Pretext 普通段落估高与整行实测缓存管理占位。`MessageContent` 提供宏处理后的正文与有效样式，复杂富文本使用实际渲染测量。renderer 内部保留块级 class 标记，块级 `content-visibility` 保持关闭。
 - **动态样式系统**: 提供图形化界面，允许用户实时自定义所有 Markdown 元素的 CSS 样式，支持全局/Agent/User 三级样式合并。
 - **稳定区/待定区策略**: 智能分离已完成和未完成的语法，确保流式输出的稳定性和正确性。
 - **内存管理**: 全套组件卸载清理机制，防止长会话切换或频繁切换对话时的内存泄漏。
@@ -522,6 +566,58 @@ src/tools/rich-text-renderer/
 3.  在 `components/style-editor/MarkdownStyleEditor.vue` 中添加对应的 `StyleItemEditor` 编辑器实例。
 4.  确保新的节点组件通过 CSS 变量引用样式（如 `color: var(--md-xxx-color)`）。
 
+### 7.4 代码查看器生命周期
+
+`CodeMirrorSourceViewer` 在代码块进入视口外扩 600px 区域时创建只读编辑器。完成态代码离开该区域 2 秒后销毁编辑器，回退到源码展示并保留高度；焦点和活动文本选区保护当前交互，流式代码继续更新。KeepAlive 停用时释放编辑器，恢复时重新创建。
+
+源码预览与正式查看器共用字体栈和 1.4 倍行高。源码高亮保留配色，标题与强调标签沿用统一字重和正体，避免异步语言加载改变字形；查看器主题按模块共享。
+
+回退期间只保存折叠区间、选区和内部滚动等标量状态；字体、换行、展开状态继续由上层 props 提供。正文变化后丢弃旧位置快照，延迟语言加载核对发起视图身份。编辑器展示期间卸载 `PreCodeNode`，避免隐藏的全文 / 行号副本常驻。HTML 预览的冻结策略独立维护。
+
+### 7.5 长消息块级展示生命周期
+
+聊天通过 `suspendOnDeactivate` 复用整消息和块级展示回收。完成态消息至少有 40 个顶层 AST 块时，`useRendererBlockMounting` 为现有原生根元素登记共享观察器，视口外扩 700px，离开 300ms 后以同标签、作用域和实测高度占位。末块保留，宽度及布局修订先恢复正文重测。短消息与流式消息沿用常规展示。
+
+块级视口任务跟随实际展示状态 `displayActive`；整消息休眠后取消待执行的帧和回收任务，滚动事件等到正文重新激活后再恢复几何检查。
+
+`AstNodeRenderer` 只在顶层启用块回收，以每块修订参与现有 VNode memo。AST 和解析器始终属于原渲染器。`useRendererViewState` 按暂停子树保存节点标量状态，整消息恢复时裁剪过期快照，离屏块在恢复时消费自身快照。
+
+文本选择、正文焦点、查看器和截图保护完整展示；根 Range 边界随 fragment 重建重新锚定。可操作占位支持键盘恢复并转交焦点。iframe、媒体、Canvas 和原生表单等有内部状态的子树持续挂载。对照口径见 `docs/Plan/chat-dom-retention-investigation.md` 第 55 节。
+
+### 7.6 公式更新调度
+
+`KatexRenderer` 按节点 pending 状态合并 32ms 内的流式更新，节点稳定或父流结束时立即刷新。正文与展示模式相同则复用现有公式 DOM。KeepAlive 停用、卸载会清理待执行任务，恢复时显示最新内容；渲染选项和 MathML 输出沿用 KaTeX 原有行为。对照与实测见 `docs/Plan/markstream-vue-reference-study.md`。
+
+### 7.7 异步布局协作
+
+`provideRendererLayoutState` 在渲染器作用域内登记公式刷新与 Mermaid 排版任务。任务按所有者和节点关联，新请求替换旧请求，卸载释放登记。块回收跳过仍有任务的子树；整消息和聊天行高缓存保留有效实测值，待任务完成后重新测量。根元素内部属性 `data-render-pending` 用于外层观察，保持布局状态与流结束状态独立。
+
+### 7.8 流式字符与围栏边界
+
+`StreamTextBoundary` 位于显示节奏控制器内，在解析前保持 grapheme 和完整围栏行的原子性；末尾待确认字符随下个 chunk 或结束冲刷输出。围栏识别复用解析器的开闭契约，逐次扫描新增字符。大段回放保留直接输出路径；隐藏窗口采用定时器推进，恢复可见后回到 rAF，停止时清理全部调度。
+
+Mermaid 的共享串行队列使用 8ms 批次预算；累计工作超出预算后，通过定时任务交还主线程，再检查请求是否仍有效。单张图表的同步排版仍由 Mermaid 完成，预算只切分连续任务。SVG 写入、缩放及展开后的补充高度测量合并到下一帧，后续由 ResizeObserver 校准，卸载时取消待执行测量。
+
+### 7.9 Mermaid SVG 输出边界
+
+`mermaidRuntime` 串行完成主题配置与排版后，在共享出口调用 `sanitizeMermaidSvg`，过期任务提前退出。清理器使用独立 DOMPurify 实例，保留安全 foreignObject 富文本、图形、本地资源引用与主题 CSS；额外解析样式以清理外部 CSS 资源和资源加载规则，并为新窗口链接设置安全 rel。两处展示入口共用清理后的 SVG，缺少有效 SVG 根时沿用组件错误路径。原生浅色与深色图表兼容性记录见 `docs/Plan/markstream-vue-reference-study.md`。
+
+### 7.10 流式文字装饰特效
+
+`streamEffect` 默认关闭，提供星屑轻盈、星屑华丽、几何碎片、花瓣轻舞、全息扫描和水墨晕染六种预设。`streamEffectStyles` 统一维护选项、资源配置及绘制编排，聊天设置与测试页复用同一份选项。聊天渲染设置通过 `buildRichTextRendererSettings` 统一透传，Agent 的「输出与显示」可单独选择样式、关闭或跟随全局，旧配置默认继承；按消息绑定的 Agent 解析，截图模式覆盖为关闭；富文本测试页提供「流式动效画廊」预设。
+
+`useStreamStardust` 组合外部和内部流式状态、显示状态、节点动画总开关及系统减少动态效果偏好。`createStreamStardust` 仅观察生成期间的 DOM 文本增量，按短批次读取新增文本的 Range 几何，在独立透明 Canvas 上按当前预设绘制图形、轨迹与粒子。`streamTextTint` 同步为新增文字创建 CSS Custom Highlight 原生字形覆盖，使用主题主色或花瓣配色分段扫入，随后混合回各自的正文原色。目标色直接取文字宿主的计算颜色，避免高亮伪元素的 `currentColor` 继承影响淡出。正文继续由原有 AST 渲染，选择、复制、链接和 Markdown 数据保持原有路径。
+
+- 每批最多保留 32 个待处理文本节点、读取 8 个可见行框；每次观察回调检查最多 128 条记录、128 个候选节点。
+- 星屑轻盈／华丽的粒子上限分别为 96／160；几何碎片、花瓣、扫描和水墨分别为 84、64、72 和 48；轨迹最多 12 条。Markdown 正文、标题、列表及 HTML 正文参与；HTML 覆盖内联、块级、通用标签和纯 markdown-it 输出。代码、表格及图形控件沿用原有展示，脚本、样式和表单等控件文本跳过。
+- 字色覆盖最多保留 48 个 Range，按文字目标色与主题配色分为最多 8 组，每组使用 16 档固定颜色逐级退回原色（共最多 128 个原生高亮）；每个控制器独立注册高亮，结束、切换和清理时注销并移除临时样式。复用同一 rAF 调度，按 Unicode 码点拆分色带；记录逻辑偏移，随 Vue 的文本值更新或 Text 节点替换重新定位覆盖范围。缺少原生高亮或颜色混合支持时继续展示图形动效。
+- 画布按阅读区域与祖先滚动裁剪区域的交集分配，DPR 最高 1.5、目标像素面积上限约 200 万；定位随窗口内滚动更新，鼠标穿透到正文。
+- 缺少待绘制内容时停止 rAF 并移除画布；生成结束立即停止观察，余粒在约 1.3 秒内消散。生成中切换样式会立即清理上一套装饰，并继续响应后续新增文字。关闭、卸载、宿主停用、页面隐藏及窗口缩放会清理现有装饰。关闭与静态历史消息无需订阅系统动态效果变化。
+- `HtmlInteractiveViewer` 通过共享上下文取得动效配置，在现有同源 iframe 的 body 上使用 `useHtmlStreamStardust`。HTML 更新维持原有一秒刷新节奏，对照上一份最多 128 个 DOM 节点的正文快照，仅为新增文字播动画；导航前清理旧控制器，纯高度自适应保留动画，宽度变化重新清理。沿用现有沙箱与 CSP。
+- 开发环境通过渲染器的 `getStreamEffectStats()` 提供耗时与资源计数，生产构建保留原有公开渲染接口。
+
+原型效果、测试方法与实测数据见 [星屑动效性能记录](docs/stream-stardust-performance.md)。
+
 ## 8. 附录：集成与调用场景 (Integration & Usage)
 
 渲染器在 `llm-chat` 模块中作为核心显示组件，其调用场景体现了高度的解耦和协作。
@@ -534,7 +630,8 @@ src/tools/rich-text-renderer/
 - **资产解析集成**:
   - 通过 `provide("currentAgent", currentAgent)` 注入当前智能体上下文。
   - 遵循"分层处理"策略：`MessageContent` 仅负责宏替换，将 `agent-asset://` 协议透传给渲染器，由渲染器内部的 `ImageNode` 等组件在渲染时动态解析。
-  - 支持 `【file::assetId】` 占位符解析：`resolveAsset` 钩子会查询消息附件列表，将占位符转换为真实的本地资源 URL。
+  - 支持 `【file::assetId】` 占位符解析：图片、音视频和 HTML 资源地址通过 `resolveAsset` 钩子查询消息附件并解析本地资源 URL。
+  - V1 / V2 AST 模式的裸占位符由 `TextNode` 调用 `renderFilePlaceholder` 钩子，在原位置复用聊天附件卡片，支持图片、音视频与文档预览；缺失附件和未闭合占位符保留原文。代码节点沿用代码展示。原文、译文和推理内容共用此钩子。
 - **性能冻结策略**: `MessageContent.vue` 根据 `messageDepth` 和聊天设置计算 `shouldFreeze`，再传入渲染器冻结 HTML 预览沙箱，以释放内存和 CPU 资源。
 - **样式合并**: 渲染器接收来自 `ChatSettings` 的全局样式，并根据当前智能体（Agent）的配置进行合并覆盖。
 

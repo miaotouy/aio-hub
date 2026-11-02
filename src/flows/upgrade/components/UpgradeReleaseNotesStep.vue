@@ -4,8 +4,8 @@
   Licensed under the Apache License, Version 2.0 (the "License");
 -->
 <script setup lang="ts">
-import { computed } from "vue";
-import { CalendarDays } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import { CalendarDays, Search } from "lucide-vue-next";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { useReleaseNotesViewerStore } from "../releaseNotesViewerStore";
@@ -19,6 +19,20 @@ const props = defineProps<{
 const viewer = useReleaseNotesViewerStore();
 
 const archive = computed(() => releaseNotesRegistry.getAll().slice().reverse());
+
+const searchQuery = ref("");
+
+// 按版本号 / 标题 / 摘要过滤左侧列表
+const filteredArchive = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  if (!query) return archive.value;
+  return archive.value.filter(
+    (manifest) =>
+      manifest.version.toLowerCase().includes(query) ||
+      manifest.title?.toLowerCase().includes(query) ||
+      manifest.summary?.toLowerCase().includes(query)
+  );
+});
 
 const selectedManifest = computed(() => {
   const selected = viewer.selectedVersion
@@ -41,8 +55,19 @@ const selectedManifest = computed(() => {
   <div class="release-notes-step">
     <div v-if="archive.length" class="archive-layout">
       <aside class="archive-sidebar" aria-label="历史版本列表">
+        <el-input
+          v-model="searchQuery"
+          class="archive-search"
+          size="small"
+          clearable
+          placeholder="搜索版本号或关键词"
+          :prefix-icon="Search"
+        />
+        <p v-if="filteredArchive.length === 0" class="archive-empty">
+          没有匹配的版本
+        </p>
         <button
-          v-for="manifest in archive"
+          v-for="manifest in filteredArchive"
           :key="manifest.version"
           type="button"
           class="archive-item"
@@ -62,7 +87,9 @@ const selectedManifest = computed(() => {
             </span>
             <span class="archive-item__date">{{ manifest.publishedAt }}</span>
           </span>
-          <span class="archive-item__title">{{ manifest.title }}</span>
+          <span class="archive-item__title" :title="manifest.title">
+            {{ manifest.title }}
+          </span>
         </button>
       </aside>
 
@@ -133,15 +160,32 @@ const selectedManifest = computed(() => {
   flex: none;
   flex-direction: column;
   gap: 8px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 4px;
   scrollbar-gutter: stable;
 }
 
+.archive-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+}
+
+.archive-empty {
+  margin: 0;
+  padding: 8px 4px;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+
 .archive-item {
   display: grid;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   gap: 4px;
   padding: 10px 12px;
   border: 1px solid transparent;
@@ -175,8 +219,12 @@ const selectedManifest = computed(() => {
 }
 
 .archive-item__meta strong {
+  min-width: 0;
+  overflow: hidden;
   color: var(--primary-color);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .archive-item__date {
@@ -277,13 +325,24 @@ h4 {
     width: auto;
     max-height: none;
     flex-direction: row;
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
     padding-right: 0;
     padding-bottom: 4px;
   }
 
+  .archive-search {
+    position: static;
+    width: 190px;
+    flex: none;
+  }
+
   .archive-item {
     min-width: 190px;
+    flex: none;
+  }
+
+  .archive-empty {
     flex: none;
   }
 }

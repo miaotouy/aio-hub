@@ -15,8 +15,10 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch, computed, toRef, nextTick } from "vue";
-import { useElementSize } from "@vueuse/core";
+import { ref, watch, computed, toRef, nextTick, unref } from "vue";
+import { provideInputPanel } from "@/composables/useInputPanel";
+import InputPanelHost from "@/components/common/input-panel/InputPanelHost.vue";
+import { useElementSize, useWindowSize } from "@vueuse/core";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaGenInputManager } from "../composables/useMediaGenInputManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
@@ -68,8 +70,42 @@ const containerRef = ref<HTMLElement>();
 const textareaRef = ref<HTMLTextAreaElement>();
 const attachmentsContainerRef = ref<HTMLDivElement>();
 const { height: attachmentsHeight } = useElementSize(attachmentsContainerRef);
+const panel = provideInputPanel(() => store.settings.panelRepeatClickAction);
+const { activePanel, collapsed: panelCollapsed } = panel;
+const panelHostRef = ref<InstanceType<typeof InputPanelHost>>();
+const { height: panelHeight } = useElementSize(
+  computed(() => panelHostRef.value?.$el)
+);
+const { height: viewportHeight } = useWindowSize();
+const panelMaxHeight = computed(() =>
+  Math.max(
+    0,
+    Math.min(
+      activePanel.value?.maxHeight ?? 260,
+      viewportHeight.value * 0.6 - attachmentsHeight.value - 180
+    )
+  )
+);
+const extraHeight = computed(
+  () =>
+    attachmentsHeight.value + (activePanel.value ? panelHeight.value + 8 : 0)
+);
+const panelProps = computed(() =>
+  Object.fromEntries(
+    Object.entries(activePanel.value?.props ?? {}).map(([key, value]) => [
+      key,
+      unref(value),
+    ])
+  )
+);
+
+watch(
+  () => [store.currentConfig.activeType, store.currentSessionId, props.mode],
+  () => panel.close()
+);
 
 const {
+  isExpanded,
   editorHeight,
   editorMaxHeight,
   handleInputResizeStart,
@@ -77,7 +113,7 @@ const {
   adjustHeight,
 } = useInputResize({
   textareaRef,
-  extraHeight: attachmentsHeight,
+  extraHeight,
 });
 
 const resolveSelectedModelInfo = (
@@ -172,6 +208,8 @@ watch(prompt, () => {
 });
 
 const handleInsertQuickPrompt = (insertion: string) => {
+  if (props.disabled) return;
+  panel.close();
   const textarea = textareaRef.value;
   const result = insertPromptAtSelection(
     prompt.value,
@@ -186,6 +224,25 @@ const handleInsertQuickPrompt = (insertion: string) => {
     if (!nextTextarea) return;
     nextTextarea.focus();
     nextTextarea.setSelectionRange(result.cursor, result.cursor);
+    adjustHeight();
+  });
+};
+
+const handleApplyOptimized = (value: string) => {
+  if (props.disabled) return;
+  const textarea = textareaRef.value;
+  if (textarea) {
+    textarea.focus();
+    textarea.setSelectionRange(0, textarea.value.length);
+    if (!document.execCommand("insertText", false, value)) {
+      prompt.value = value;
+    }
+  } else {
+    prompt.value = value;
+  }
+  panel.close();
+  void nextTick(() => {
+    textareaRef.value?.focus();
     adjustHeight();
   });
 };
@@ -346,6 +403,7 @@ const { isDraggingOver } = useFileInteraction({
   element: containerRef,
   sourceModule: "media-generator",
   pasteMode: "asset",
+  multiple: true,
   onPaths: async (paths) => {
     logger.info("文件拖拽触发", { paths });
     let successCount = 0;
@@ -505,22 +563,24 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
     ></div>
 
     <div class="input-main-area">
-      <MediaGenerationInputToolbar
-        :disabled="isDisabled"
-        :prompt-text="prompt"
-        :include-context="
-          props.mode === 'session' ? store.currentConfig.includeContext : false
-        "
-        :show-context-toggle="
-          props.mode === 'session' && contextToggleUi.visible
-        "
-        :context-toggle-label="contextToggleUi.toolbarLabel"
-        :context-toggle-tooltip="contextToggleUi.tooltip"
-        :context-toggle-mode="contextToggleUi.mode"
-        @update:include-context="updateIncludeContext"
-        @trigger-attachment="handleTriggerAttachment"
-        @insert-quick-prompt="handleInsertQuickPrompt"
-      />
+      <InputPanelHost
+        v-if="activePanel"
+        ref="panelHostRef"
+        v-model:collapsed="panelCollapsed"
+        :panel="activePanel"
+        :content-id="panel.contentId"
+        :style="{ '--input-panel-max-height': `${panelMaxHeight}px` }"
+        @close="panel.close(true)"
+      >
+        <component
+          :is="activePanel.component"
+          :key="activePanel.id"
+          v-bind="panelProps"
+          @insert="handleInsertQuickPrompt"
+          @apply="handleApplyOptimized"
+          @cancel="panel.close(true)"
+        />
+      </InputPanelHost>
 
       <!-- 附件展示区 -->
       <div
@@ -535,6 +595,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
             :asset="asset"
             :all-assets="store.attachments"
             :removable="true"
+            :show-transcription="false"
             size="small"
             @remove="store.removeAttachment(asset.id)"
           />
@@ -562,14 +623,38 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
           "
           @input="adjustHeight"
         ></textarea>
+      </div>
+
+      <div class="input-bottom-row">
+        <MediaGenerationInputToolbar
+          :disabled="isDisabled"
+          :prompt-text="prompt"
+          :is-expanded="isExpanded"
+          :include-context="
+            props.mode === 'session'
+              ? store.currentConfig.includeContext
+              : false
+          "
+          :show-context-toggle="
+            props.mode === 'session' && contextToggleUi.visible
+          "
+          :context-toggle-label="contextToggleUi.toolbarLabel"
+          :context-toggle-tooltip="contextToggleUi.tooltip"
+          :context-toggle-mode="contextToggleUi.mode"
+          @update:include-context="updateIncludeContext"
+          @trigger-attachment="handleTriggerAttachment"
+          @toggle-expand="isExpanded = !isExpanded"
+        />
 
         <button
           v-if="props.mode === 'quick' || !isGenerating"
+          type="button"
           class="input-action-btn btn-send"
           :disabled="
             props.disabled || (!prompt.trim() && !store.hasAttachments)
           "
           @click="handleSend"
+          aria-label="发送"
           title="发送 (Ctrl + Enter)"
         >
           <svg
@@ -589,8 +674,10 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
         </button>
         <button
           v-else
+          type="button"
           class="input-action-btn btn-abort"
           @click="handleAbort"
+          aria-label="停止生成"
           title="停止生成"
         >
           <svg
@@ -693,10 +780,20 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   min-width: 0;
 }
 
+.input-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.input-bottom-row > :first-child {
+  flex: 1;
+}
+
 .input-action-btn {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
+  flex: none;
+  margin: 0 4px 2px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -744,7 +841,7 @@ const handleSend = async (e?: KeyboardEvent | MouseEvent) => {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.6;
-  padding: 4px 44px 8px 8px;
+  padding: 4px 8px 8px;
   resize: none;
   min-height: 36px;
   box-shadow: none;

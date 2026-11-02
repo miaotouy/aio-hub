@@ -11,6 +11,9 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # macOS runner 内存偏小，Node 默认堆上限约 2GB，vue-tsc 全量类型检查会 OOM。
+  # 显式提高堆上限，避免 beforeBuildCommand `bun run build` 中途崩溃导致 release 草稿无法生成。
+  NODE_OPTIONS: "--max-old-space-size=6144"
 
 jobs:
   build:

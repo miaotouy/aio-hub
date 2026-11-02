@@ -20,6 +20,7 @@ import {
   handleEnsureAlternatingRoles,
   handleMergeConsecutiveRoles,
   handleMergeSystemToHead,
+  messageFormatter,
 } from "../message-format-processors";
 
 vi.mock("@/utils/logger", () => ({
@@ -33,6 +34,9 @@ vi.mock("@/utils/logger", () => ({
 
 vi.mock("@/tools/token-calculator/token-calculator.registry", () => ({
   tokenCalculatorService: {
+    createScope: () => ({
+      calculateTokens: async (content: string) => ({ count: content.length }),
+    }),
     calculateTokens: vi.fn(async (content: string) => ({
       count: content.length,
     })),
@@ -137,4 +141,16 @@ describe("message-format-processors reasoning artifact protection", () => {
       msg("assistant", "next"),
     ]);
   });
+});
+
+it("counts merged text and separators when reporting formatter token differences", async () => {
+  const context = {
+    messages: [msg("system", "a"), msg("system", "b"), msg("user", "hello")],
+    agentConfig: { modelId: "model", parameters: {} },
+    sharedData: new Map([["isPreviewMode", true]]),
+  } as unknown as import("../../../types/pipeline").PipelineContext;
+  await messageFormatter.execute(context);
+  expect(context.messages[0].content).toBe("a\n\n---\n\nb");
+  expect(context.sharedData.get("postProcessingTokenDelta")).toBe(7);
+  expect(context.sharedData.get("postProcessingCharDelta")).toBe(7);
 });

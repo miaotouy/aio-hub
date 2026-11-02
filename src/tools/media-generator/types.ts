@@ -15,6 +15,7 @@
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { TranslationConfig } from "@/tools/llm-chat/types/settings";
 import type { Asset } from "@/types/asset-management";
+import type { InputPanelRepeatClickAction } from "@/composables/useInputPanel";
 
 /**
  * 媒体生成任务类型
@@ -217,6 +218,8 @@ export interface LlmTaskConfig {
  * 提示词优化配置
  */
 export interface PromptOptimizationConfig extends LlmTaskConfig {
+  /** 优化时参考输入框中的图片附件 */
+  includeReferenceImages: boolean;
   /** 按媒体类型区分的优化提示词模板 */
   promptsByType: Record<MediaTaskType, string>;
   /** 纯翻译模式的提示词模板 */
@@ -275,6 +278,8 @@ export interface MediaGeneratorSettings {
   maxConcurrentTasks: number;
   /** 是否启用通知 */
   enableNotifications: boolean;
+  /** 再次点击已展开的输入面板入口时的行为 */
+  panelRepeatClickAction: InputPanelRepeatClickAction;
   /** 提示词优化配置 */
   promptOptimization: PromptOptimizationConfig;
   /** 左侧面板折叠状态 */
@@ -328,6 +333,8 @@ export interface GenerationSessionDetail {
   updatedAt: string;
   /** 输入框内容草稿 */
   inputPrompt?: string;
+  /** 输入框附件快照（已入库资产的元数据，重启/切会话时还原） */
+  inputAttachments?: Asset[];
   /** 历史记录（撤销/重做栈，通常不持久化） */
   history?: any[];
   /** 历史记录索引 */

@@ -12,6 +12,8 @@ export function validateProbeResponse(
       return validateEmbedding(input);
     case "rerank":
       return validateRerank(input);
+    case "decision":
+      return validateDecision(input);
     case "image":
       return validateImage(input);
     case "audio":
@@ -68,6 +70,14 @@ function validateRerank(input: ProbeValidationInput): ProbeValidationResult {
   return valid
     ? { valid: true, preview: `返回 ${results.length} 条排序结果` }
     : { valid: false, errorMessage: "重排结果为空或包含越界索引" };
+}
+
+function validateDecision(input: ProbeValidationInput): ProbeValidationResult {
+  const answers = input.decision?.answers ?? {};
+  const count = Object.keys(answers).length;
+  return count > 0
+    ? { valid: true, preview: `返回 ${count} 项结构化决策` }
+    : { valid: false, errorMessage: "响应中没有结构化决策答案" };
 }
 
 function validateImage(input: ProbeValidationInput): ProbeValidationResult {

@@ -160,6 +160,19 @@ const formatSize = (bytes?: number) => {
                 />
               </el-tooltip>
             </div>
+            <el-tooltip
+              v-if="asset.description?.trim()"
+              :content="asset.description"
+              :show-after="500"
+              placement="bottom"
+              :popper-style="{
+                maxWidth: '320px',
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+              }"
+            >
+              <div class="asset-description">{{ asset.description }}</div>
+            </el-tooltip>
           </div>
 
           <!-- 类型标签 -->
@@ -305,6 +318,24 @@ const formatSize = (bytes?: number) => {
 
 .asset-card:hover .overlay-actions {
   transform: translateY(0);
+}
+
+.asset-description {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  left: 12px;
+  display: -webkit-box;
+  max-height: calc(50% - 24px);
+  overflow: hidden;
+  color: var(--el-color-white);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .asset-type-tag {

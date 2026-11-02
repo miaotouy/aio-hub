@@ -258,6 +258,7 @@ function capabilityLabel(model: LlmModelInfo): string {
     chat: "Chat",
     embedding: "Embedding",
     rerank: "Rerank",
+    decision: "决策",
     image: "图片",
     audio: "音频",
     video: "视频",

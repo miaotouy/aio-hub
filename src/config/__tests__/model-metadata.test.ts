@@ -21,6 +21,7 @@ import {
 } from "../model-metadata";
 import type { ModelMetadataRule } from "@/types/model-metadata";
 import { chineseModelRules } from "../model-metadata-presets/models-chinese";
+import { materializeModelMetadata } from "@/utils/modelMetadataMaterialization";
 
 function makeRule(
   id: string,
@@ -139,6 +140,227 @@ describe("model-metadata presets", () => {
       group: "Agnes AI",
       capabilities: { videoGeneration: true, vision: true },
     });
+  });
+  it("provides explicit metadata for the current Doubao Seed models", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "doubao-seed-evolving")
+    ).toMatchObject({
+      icon: "/model-icons/doubao-color.svg",
+      group: "ByteDance",
+      contextLength: 1048576,
+      maxOutputTokens: 262144,
+      pricing: { input: 6, output: 30, cacheHitInput: 1.2, unit: "CNY" },
+      capabilities: {
+        vision: true,
+        video: true,
+        toolUse: true,
+        thinking: true,
+        thinkingConfigType: "switch",
+        jsonOutput: true,
+        computerUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "volcengine/doubao-seed-2.1-pro-260915"
+      )
+    ).toMatchObject({
+      group: "ByteDance",
+      contextLength: 1048576,
+      maxOutputTokens: 262144,
+      pricing: { input: 6, output: 30, cacheHitInput: 1.2, unit: "CNY" },
+      capabilities: {
+        vision: true,
+        toolUse: true,
+        thinking: true,
+        jsonOutput: true,
+        computerUse: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-1-pro-260628"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      maxOutputTokens: 262144,
+      releaseDate: "2026-06-28",
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2.1-lite-260915"
+      )
+    ).toMatchObject({
+      contextLength: 1048576,
+      pricing: { input: 0.8, output: 2.7, cacheHitInput: 0.16, unit: "CNY" },
+      capabilities: {
+        audio: true,
+        vision: true,
+        toolUse: true,
+        thinking: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-1-turbo-260628"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      pricing: { input: 3, output: 15, cacheHitInput: 0.6, unit: "CNY" },
+    });
+  });
+
+  it("covers Doubao Seed 2.0, character, translation and embedding models", () => {
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-0-lite-260428"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      maxOutputTokens: 131072,
+      pricing: { input: 0.6, output: 3.6, cacheHitInput: 0.12, unit: "CNY" },
+      capabilities: { audio: true, toolUse: true, thinking: true },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-2-0-mini-260428"
+      )
+    ).toMatchObject({
+      contextLength: 262144,
+      pricing: { input: 0.2, output: 2, cacheHitInput: 0.04, unit: "CNY" },
+      capabilities: { audio: true, computerUse: true },
+    });
+
+    const code = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "doubao-seed-2-0-code-preview-260215"
+    );
+    expect(code).toMatchObject({
+      contextLength: 262144,
+      capabilities: { toolUse: true, thinking: true, jsonOutput: true },
+    });
+    expect(code?.capabilities?.vision).toBeUndefined();
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-character-260628"
+      )
+    ).toMatchObject({
+      contextLength: 131072,
+      maxOutputTokens: 32768,
+      capabilities: { thinking: true, jsonOutput: true, toolUse: true },
+    });
+
+    const legacyCharacter = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "doubao-seed-character-251128"
+    );
+    expect(legacyCharacter).toMatchObject({ contextLength: 131072 });
+    expect(legacyCharacter?.capabilities?.thinking).toBeUndefined();
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seed-translation-250915"
+      )
+    ).toMatchObject({
+      contextLength: 4096,
+      maxOutputTokens: 3072,
+      pricing: { input: 1.2, output: 3.6, unit: "CNY" },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-embedding-vision-251215"
+      )
+    ).toMatchObject({
+      contextLength: 128000,
+      capabilities: { embedding: true, vision: true, video: true },
+    });
+  });
+
+  it("marks Doubao Seedream and Seedance models with their generation capabilities", () => {
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seedream-5-0-pro-260628"
+      )
+    ).toMatchObject({
+      group: "ByteDance",
+      capabilities: {
+        imageGeneration: true,
+        vision: true,
+        iterativeRefinement: true,
+      },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seedance-2-5-260628"
+      )
+    ).toMatchObject({
+      group: "ByteDance",
+      capabilities: { videoGeneration: true, vision: true },
+    });
+
+    expect(
+      getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        "doubao-seedance-2-0-fast"
+      )
+    ).toMatchObject({
+      capabilities: { videoGeneration: true, vision: true },
+    });
+  });
+
+  it("provides Agnes Video mediaGenParams resolution tiers and ratios", () => {
+    const standard = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "agnes-video-2.5"
+    );
+    const standardAspect = standard?.mediaGenParams?.aspectRatioMode;
+    expect(standardAspect?.resolutions?.map((r) => r.value)).toEqual([
+      "720p",
+      "1080p",
+      "1k",
+      "2k",
+    ]);
+    expect(standardAspect?.ratios?.map((r) => r.value)).toContain("21:9");
+    expect(standardAspect?.defaultResolution).toBe("720p");
+    expect(standard?.mediaGenParams?.negativePrompt).toEqual({
+      supported: false,
+    });
+
+    const v20 = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "agnes-video-v2.0"
+    );
+    expect(v20?.mediaGenParams?.aspectRatioMode?.resolutions?.length).toBe(4);
+
+    const flash = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "agnes-video-2.5-flash"
+    );
+    expect(
+      flash?.mediaGenParams?.aspectRatioMode?.resolutions?.map((r) => r.value)
+    ).toEqual(["720p"]);
+    expect(flash?.mediaGenParams?.aspectRatioMode?.defaultResolution).toBe(
+      "720p"
+    );
   });
   it("marks image generation parameter presets as image generation models", () => {
     expect(
@@ -957,5 +1179,119 @@ describe("audited model-list metadata coverage", () => {
     expect(
       getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemini-2.5-flash-tts")
     ).toMatchObject({ group: "Gemini 2" });
+  });
+});
+
+describe("Gemini embedding metadata", () => {
+  it.each([
+    {
+      modelId: "gemini-embedding-001",
+      capabilities: { embedding: true },
+    },
+    {
+      modelId: "gemini-embedding-exp-03-07",
+      capabilities: { embedding: true },
+    },
+    {
+      modelId: "gemini-embedding-2",
+      capabilities: {
+        embedding: true,
+        vision: true,
+        audio: true,
+        video: true,
+        document: true,
+      },
+    },
+  ])(
+    "uses embedding-specific capabilities for $modelId",
+    ({ modelId, capabilities }) => {
+      const properties = getMatchedModelProperties(
+        DEFAULT_METADATA_RULES,
+        modelId,
+        "google"
+      );
+
+      expect(properties).toMatchObject({
+        group: "Gemini Embedding",
+        tokenizer: "gemini",
+      });
+      expect(properties?.capabilities).toEqual(capabilities);
+    }
+  );
+
+  it("preserves Gemini chat input, tool and output capabilities", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "gemini-2.5-flash")
+    ).toMatchObject({
+      capabilities: {
+        vision: true,
+        audio: true,
+        video: true,
+        document: true,
+        toolUse: true,
+        jsonOutput: true,
+        prefixCompletion: true,
+        maxImageDimension: 8192,
+      },
+    });
+  });
+});
+
+describe("decision model metadata coverage", () => {
+  it("marks System One / decision model ids with the decision capability", () => {
+    for (const id of [
+      "jev-latest",
+      "jev-1.13.0",
+      "jev-1.14.0",
+      "jev-preview",
+      "typesafe/jev-1.14",
+      "typesafe/jev-1.14-20261014",
+      "kev-4b",
+      "kev-0.6b",
+      "laya-decision-1",
+      "openjev-mini",
+      "mini-jev-1",
+      "semif-1",
+      "julia-1",
+      "supersonic/julia-1",
+    ]) {
+      expect(
+        getMatchedModelProperties(DEFAULT_METADATA_RULES, id)?.capabilities
+          ?.decision
+      ).toBe(true);
+    }
+  });
+
+  it("refreshes a previously misclassified Jev Router as a chat model", () => {
+    const properties = getMatchedModelProperties(
+      DEFAULT_METADATA_RULES,
+      "typesafe/jev-router",
+      "openrouter"
+    );
+    const previous = {
+      id: "typesafe/jev-router",
+      provider: "openrouter",
+      capabilities: { decision: true },
+      metadataBinding: {
+        mode: "followSource" as const,
+        managedPaths: ["capabilities.decision"],
+      },
+    };
+    expect(materializeModelMetadata(previous, properties).model).toMatchObject({
+      group: "Jev Router",
+      capabilities: { decision: false, vision: true, toolUse: true },
+    });
+  });
+
+  it("applies verified TypeSafe Jev pricing and context", () => {
+    expect(
+      getMatchedModelProperties(DEFAULT_METADATA_RULES, "jev-latest")
+    ).toMatchObject({
+      icon: "/model-icons/typesafe.png",
+      group: "Jev",
+      contextLength: 65536,
+      pricing: { input: 0.042, output: 0, unit: "USD" },
+      capabilities: { decision: true },
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { FileText } from "lucide-vue-next";
+import { RichTextRendererIcon } from "@aiohub/tool-icons";
 import { markRaw } from "vue";
 import { useI18n } from "@/i18n";
 
@@ -8,7 +8,7 @@ export default {
     const { t } = useI18n();
     return t("tools.rich-text-renderer.common.富文本渲染");
   },
-  icon: markRaw(FileText),
+  icon: markRaw(RichTextRendererIcon),
   get description() {
     const { t } = useI18n();
     return t("tools.rich-text-renderer.common.富文本渲染测试与排版调试");

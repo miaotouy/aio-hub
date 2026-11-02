@@ -16,6 +16,7 @@
  * LLM 服务商预设模板配置
  */
 
+import { isAggregateChannelType } from "@aiohub/llm-core";
 import type { LlmPreset } from "./types";
 import { vcpPreset } from "./presets/vcp";
 import { deepseekPreset } from "./presets/deepseek";
@@ -55,7 +56,6 @@ import { ollamaPreset } from "./presets/ollama";
 import { ollamaCloudPreset } from "./presets/ollama-cloud";
 import { audiocppPreset } from "./presets/audiocpp";
 import { lmStudioPreset } from "./presets/lm-studio";
-import { newapiPreset } from "./presets/newapi";
 import { sunoNewapiPreset } from "./presets/suno-newapi";
 import { opencodeGoPreset } from "./presets/opencode-go";
 import { newApiPreset } from "./presets/new-api";
@@ -106,7 +106,6 @@ export const llmPresets: LlmPreset[] = [
   ollamaCloudPreset,
   audiocppPreset,
   lmStudioPreset,
-  newapiPreset,
   sunoNewapiPreset,
   opencodeGoPreset,
   newApiPreset,
@@ -117,5 +116,20 @@ export const llmPresets: LlmPreset[] = [
  * 根据名称获取预设模板
  */
 export function getPresetByName(name: string): LlmPreset | undefined {
-  return llmPresets.find((p) => p.name === name);
+  return llmPresets.find(
+    (p) => p.name === (name === "NewAPI" ? "New API" : name)
+  );
+}
+
+/** 渠道预设按平台性质分类，协议由执行路由单独解析。 */
+export type LlmPresetCategory = "aggregate" | "direct";
+
+export const llmPresetCategories = [
+  { value: "all", label: "全部" },
+  { value: "aggregate", label: "聚合渠道" },
+  { value: "direct", label: "厂商与协议" },
+] as const;
+
+export function getLlmPresetCategory(preset: LlmPreset): LlmPresetCategory {
+  return isAggregateChannelType(preset.type) ? "aggregate" : "direct";
 }

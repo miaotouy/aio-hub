@@ -22,16 +22,20 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import { PRESET_ICONS } from "@/config/preset-icons";
-import { open } from "@tauri-apps/plugin-dialog";
 import { Star, Upload, RotateCcw, Clock, X, Copy } from "lucide-vue-next";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { LOBE_ICONS_MAP, LOCAL_ICONS_MAP } from "@/config/preset-icons";
 import { acquireBlobUrl } from "@/utils/avatarImageCache";
 import { processSvgContent } from "@/composables/useThemeAwareIcon";
 import { useElementSize, createReusableTemplate } from "@vueuse/core";
-import { invoke } from "@tauri-apps/api/core";
-import { extname } from "@tauri-apps/api/path";
-import { readDir, remove, BaseDirectory } from "@tauri-apps/plugin-fs";
+import {
+  invoke,
+  getExtname,
+  showOpenDialog,
+  readDirectory,
+  removeFileOrDir,
+  BaseDirectory,
+} from "@/platform";
 
 /**
  * 判断一个图标字符串是否像一个内置的文件名（无路径分隔符，有扩展名）
@@ -146,7 +150,7 @@ const loadHistoryAvatars = async () => {
 
   try {
     // 读取目录内容
-    const entries = await readDir(props.storageSubdirectory, {
+    const entries = await readDirectory(props.storageSubdirectory, {
       baseDir: BaseDirectory.AppData,
     });
 
@@ -211,7 +215,7 @@ const deleteHistoryAvatar = async (filename: string, event: Event) => {
     }
 
     // 删除物理文件
-    await remove(`${props.storageSubdirectory}/${filename}`, {
+    await removeFileOrDir(`${props.storageSubdirectory}/${filename}`, {
       baseDir: BaseDirectory.AppData,
     });
 
@@ -254,7 +258,7 @@ const selectPresetIcon = (icon: any) => {
 // 上传自定义图像
 const uploadCustomImage = async () => {
   try {
-    const selectedPath = await open({
+    const selectedPath = await showOpenDialog({
       multiple: false,
       filters: [
         {
@@ -264,7 +268,7 @@ const uploadCustomImage = async () => {
       ],
     });
 
-    if (!selectedPath) return;
+    if (!selectedPath || Array.isArray(selectedPath)) return;
 
     if (!props.entityId || !props.storageSubdirectory) {
       errorHandler.error("缺少 entityId 或 storageSubdirectory", "上传失败");
@@ -273,7 +277,7 @@ const uploadCustomImage = async () => {
 
     isUploadingImage.value = true;
 
-    const extension = await extname(selectedPath);
+    const extension = await getExtname(selectedPath);
     // 使用时间戳作为文件名的一部分，解决缓存问题并保留历史
     const timestamp = Date.now();
     const newFilename = `avatar-${timestamp}${extension ? `.${extension}` : ""}`;

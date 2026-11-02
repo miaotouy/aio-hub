@@ -126,6 +126,7 @@ export function normalizeMediaAssetDownloadTimeout(value: unknown): number {
 
 function createDefaultPromptOptimization(): PromptOptimizationConfig {
   return {
+    includeReferenceImages: true,
     modelCombo: "",
     prompt: PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE.image,
     promptsByType: { ...PROMPT_OPTIMIZATION_PROMPTS_BY_TYPE },
@@ -195,6 +196,7 @@ export const DEFAULT_MEDIA_GENERATOR_SETTINGS: MediaGeneratorSettings = {
   autoOpenAsset: false,
   maxConcurrentTasks: 6,
   enableNotifications: true,
+  panelRepeatClickAction: "close",
   topicNaming: {
     modelCombo: "",
     prompt: `
@@ -275,6 +277,20 @@ export const mediaGeneratorSettingsConfig: SettingsSection<MediaGeneratorSetting
       title: "界面与交互",
       icon: LayoutDashboard,
       items: [
+        {
+          id: "panelRepeatClickAction",
+          label: "再次点击面板图标",
+          component: "ElSelect",
+          modelPath: "panelRepeatClickAction",
+          props: {
+            options: [
+              { label: "关闭", value: "close" },
+              { label: "折叠", value: "collapse" },
+            ],
+          },
+          hint: "选择快捷提示词、提示词优化面板展开后，再次点击入口的行为",
+          keywords: "输入 面板 关闭 折叠 panel input close collapse",
+        },
         {
           id: "autoOpenAsset",
           label: "生成后自动打开",

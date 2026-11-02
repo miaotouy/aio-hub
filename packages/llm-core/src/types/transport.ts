@@ -28,6 +28,8 @@ export interface WireRequest {
   headers: Record<string, string>;
   body?: WireBody;
   streaming: boolean;
+  /** Source references for final protocol positions; outside the wire body. */
+  sourceMap?: { messages: string[][]; system: string[]; complete: boolean };
 }
 
 export interface NetworkOptions {
@@ -64,6 +66,11 @@ export interface TransportErrorEvent {
 }
 
 export interface TransportObserver {
+  /** Normalised numeric usage observed by the provider decoder, before local estimates. */
+  onUsage?(event: {
+    requestId: string;
+    usage: import("./response").TokenUsage;
+  }): void;
   onRequest?(event: TransportRequestEvent): void;
   onResponseStart?(event: TransportResponseStartEvent): void;
   onResponseChunk?(event: TransportChunkEvent): void;

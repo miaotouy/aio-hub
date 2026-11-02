@@ -39,8 +39,12 @@ import { actionButtonTestPreset } from "../presets/action-button-test";
 import { advancedMixedTestPreset } from "../presets/advanced-mixed-test";
 import { styleIsolationTestPreset } from "../presets/style-isolation-test";
 import { detailsPreset } from "../presets/details";
+import { screenshotLayoutTestPreset } from "../presets/screenshot-layout-test";
+
+import { stardustShowcasePreset } from "../presets/stardust-showcase";
 
 export const presets: RenderPreset[] = [
+  stardustShowcasePreset,
   basicPreset,
   codePreset,
   longCodePreset,
@@ -67,4 +71,5 @@ export const presets: RenderPreset[] = [
   advancedMixedTestPreset,
   styleIsolationTestPreset,
   detailsPreset,
+  screenshotLayoutTestPreset,
 ];

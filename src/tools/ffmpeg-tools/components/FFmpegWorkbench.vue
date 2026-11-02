@@ -178,15 +178,18 @@
                 <div class="preview-header">
                   <span>FFmpeg 指令预览</span>
                   <div class="preview-actions">
-                    <el-tag size="small" type="info" effect="plain"
-                      >PowerShell</el-tag
+                    <el-tag size="small" type="info" effect="plain">{{
+                      shellLabel
+                    }}</el-tag>
+                    <el-tooltip
+                      :content="`复制 ${shellLabel} 命令`"
+                      placement="top"
                     >
-                    <el-tooltip content="复制 PowerShell 命令" placement="top">
                       <el-button
                         :icon="Copy"
                         size="small"
                         link
-                        @click="copyPowerShellCommand"
+                        @click="copyCommand"
                       />
                     </el-tooltip>
                   </div>
@@ -387,6 +390,7 @@
                           isProgressIndeterminate(currentFileTask.progress)
                         "
                         :percentage="currentFileTask.progress.percent"
+                        :format="formatPercent"
                         :show-text="
                           !isProgressIndeterminate(currentFileTask.progress)
                         "
@@ -500,11 +504,7 @@ import { basename, dirname, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { MediaMetadata, FFmpegParams } from "../types";
-import {
-  buildExecutionPlan,
-  formatPlanCommand,
-  formatPowerShellCommand,
-} from "../utils/executionPlan";
+import { buildExecutionPlan } from "../utils/executionPlan";
 import type { FFmpegExecutionPlan } from "../utils/executionPlan";
 import {
   splitFileName,
@@ -531,7 +531,9 @@ import {
   normalizeOutputPathKey,
 } from "../utils/lifecycle";
 import { customMessage } from "@/utils/customMessage";
+import { useFFmpegCommand } from "../composables/useFFmpegCommand";
 
+const { shellLabel, formatCommand } = useFFmpegCommand();
 const store = useFFmpegStore();
 const { activeFfmpegPath, getMetadata, startProcess, killProcess } =
   useFFmpegCore();
@@ -640,6 +642,8 @@ const formatTime = (seconds: number) => {
     .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 };
 
+const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
+
 const resolvedOutputPath = ref("");
 
 watch(
@@ -674,7 +678,7 @@ const currentPlan = computed<FFmpegExecutionPlan>(() =>
   )
 );
 
-const generatedCommand = computed(() => formatPlanCommand(currentPlan.value));
+const generatedCommand = computed(() => formatCommand(currentPlan.value));
 
 const namingContext = computed(() => ({
   inputFileName: fileName.value,
@@ -702,17 +706,17 @@ const containerWarning = computed<string | null>(() => {
   );
 });
 
-const copyPowerShellCommand = async () => {
-  const text = formatPowerShellCommand(currentPlan.value);
+const copyCommand = async () => {
+  const text = formatCommand(currentPlan.value);
   try {
     try {
       await writeText(text);
     } catch {
       await navigator.clipboard.writeText(text);
     }
-    customMessage.success("已复制 PowerShell 命令");
+    customMessage.success(`已复制 ${shellLabel} 命令`);
   } catch {
-    customMessage.error("复制 PowerShell 命令失败");
+    customMessage.error(`复制 ${shellLabel} 命令失败`);
   }
 };
 

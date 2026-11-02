@@ -17,15 +17,65 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
+pub const WPS_MIME: &str = "application/kswps";
+pub const DOC_MIME: &str = "application/msword";
+pub const DOCX_MIME: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+pub fn is_wps_document(path: &Path) -> bool {
+    path.extension()
+        .map(|ext| ext.eq_ignore_ascii_case("wps"))
+        .unwrap_or(false)
+}
+
+/// WPS 扩展名可能封装 Word 二进制、OOXML 或其他文档，读取实际容器后再选择解析流程。
+fn detect_wps_mime(path: &Path) -> Option<&'static str> {
+    let mut file = fs::File::open(path).ok()?;
+    let mut header = [0u8; 8];
+    file.read_exact(&mut header).ok()?;
+    if header == [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] {
+        let mut compound = cfb::CompoundFile::open(fs::File::open(path).ok()?).ok()?;
+        let mut word = compound.open_stream("/WordDocument").ok()?;
+        let mut fib = [0u8; 12];
+        word.read_exact(&mut fib).ok()?;
+        drop(word);
+        let flags = u16::from_le_bytes([fib[10], fib[11]]);
+        if flags & 0x8100 != 0 {
+            return None;
+        }
+        if fib.starts_with(&[0xec, 0xa5])
+            && (compound.is_stream("/0Table") || compound.is_stream("/1Table"))
+        {
+            return Some(DOC_MIME);
+        }
+    } else if header.starts_with(b"PK\x03\x04") {
+        let mut archive = zip::ZipArchive::new(fs::File::open(path).ok()?).ok()?;
+        if archive.by_name("[Content_Types].xml").is_ok()
+            && archive.by_name("word/document.xml").is_ok()
+        {
+            return Some(DOCX_MIME);
+        }
+    } else if header.starts_with(b"{\\rtf") {
+        return Some("application/rtf");
+    }
+    None
+}
+
 /// 根据文件内容和扩展名智能推断 MIME 类型
 ///
 /// 优先使用 infer 库通过文件魔数检测，回退到扩展名映射
 pub fn guess_mime_type(path: &Path) -> String {
-    // Word/OOXML 文件容易被魔数检测误分为普通二进制或 zip 容器。
+    if is_wps_document(path) {
+        return detect_wps_mime(path).unwrap_or(WPS_MIME).to_string();
+    }
+    // Word/OOXML 和 OpenDocument 文件容易被魔数检测误分为普通二进制或 zip 容器。
     // 这里先信任明确扩展名，避免 Office 文档被归类为 other。
     if let Some(ext) = path.extension() {
         let ext_str = ext.to_string_lossy().to_lowercase();
         match ext_str.as_str() {
+            "odt" | "ott" | "fodt" => {
+                return guess_mime_type_from_filename(&path.to_string_lossy())
+            }
             "doc" => return "application/msword".to_string(),
             "docx" => {
                 return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -176,6 +226,7 @@ pub fn guess_mime_type(path: &Path) -> String {
             "flv" => "video/x-flv",
             // 文档
             "pdf" => "application/pdf",
+            "wps" => WPS_MIME,
             "doc" => "application/msword",
             "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "xls" => "application/vnd.ms-excel",
@@ -360,10 +411,79 @@ pub fn guess_mime_type_from_filename(filename: &str) -> String {
         "flv" => "video/x-flv",
         // 文档
         "pdf" => "application/pdf",
+        "odt" => "application/vnd.oasis.opendocument.text",
+        "ott" => "application/vnd.oasis.opendocument.text-template",
+        "fodt" => "application/vnd.oasis.opendocument.text-flat-xml",
+        "wps" => WPS_MIME,
         "doc" => "application/msword",
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         // 默认
         _ => "application/octet-stream",
     }
     .to_string()
+}
+
+#[cfg(test)]
+mod wps_tests {
+    use super::*;
+    use std::io::Write;
+
+    fn word_compound(path: &Path, encrypted: bool) {
+        let mut compound = cfb::create(path).unwrap();
+        let mut fib = [0u8; 32];
+        fib[..2].copy_from_slice(&[0xec, 0xa5]);
+        fib[11] = u8::from(encrypted);
+        compound
+            .create_stream("/WordDocument")
+            .unwrap()
+            .write_all(&fib)
+            .unwrap();
+        compound
+            .create_stream("/0Table")
+            .unwrap()
+            .write_all(&[0])
+            .unwrap();
+    }
+
+    #[test]
+    fn wps_identifies_word_streams_even_without_office_clsid() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("报告.WPS");
+        word_compound(&path, false);
+        assert_eq!(guess_mime_type(&path), DOC_MIME);
+        assert!(crate::commands::document_converter::is_legacy_word_document(&path, DOC_MIME));
+        word_compound(&path, true);
+        assert_eq!(guess_mime_type(&path), WPS_MIME);
+    }
+
+    #[test]
+    fn wps_distinguishes_ooxml_rtf_and_other_compound_formats() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("报告.wps");
+        {
+            let mut compound = cfb::create(&path).unwrap();
+            compound
+                .create_stream("/Workbook")
+                .unwrap()
+                .write_all(&[1])
+                .unwrap();
+        }
+        assert_eq!(guess_mime_type(&path), WPS_MIME);
+        assert!(!crate::commands::document_converter::is_legacy_word_document(&path, WPS_MIME));
+        {
+            let mut archive = zip::ZipWriter::new(fs::File::create(&path).unwrap());
+            let options = zip::write::SimpleFileOptions::default();
+            archive.start_file("[Content_Types].xml", options).unwrap();
+            archive.write_all(b"<Types/>").unwrap();
+            archive.start_file("word/document.xml", options).unwrap();
+            archive.write_all(b"<document/>").unwrap();
+            archive.finish().unwrap();
+        }
+        assert_eq!(guess_mime_type(&path), DOCX_MIME);
+        fs::write(&path, b"{\\rtf1 Hello}").unwrap();
+        assert_eq!(guess_mime_type(&path), "application/rtf");
+        assert!(
+            crate::commands::document_converter::is_legacy_word_document(&path, "application/rtf")
+        );
+    }
 }

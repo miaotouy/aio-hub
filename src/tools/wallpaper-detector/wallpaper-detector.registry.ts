@@ -14,7 +14,7 @@
 
 import type { ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { Monitor } from "lucide-vue-next";
+import { Wallpaper } from "lucide-vue-next";
 
 /**
  * UI 工具配置
@@ -22,7 +22,7 @@ import { Monitor } from "lucide-vue-next";
 export const toolConfig: ToolConfig = {
   name: "壁纸探测器",
   path: "/wallpaper-detector",
-  icon: markRaw(Monitor),
+  icon: markRaw(Wallpaper),
   component: () => import("./WallpaperDetector.vue"),
   description: "获取系统当前多屏壁纸，支持一键定位壁纸所在目录并高亮选中",
   category: ["系统工具", "效率工具"],

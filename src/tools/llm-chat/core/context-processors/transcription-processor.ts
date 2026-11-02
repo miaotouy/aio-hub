@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { formatVirtualTextAttachment } from "../../utils/virtualAttachments";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
@@ -185,7 +186,35 @@ export const transcriptionProcessor: ContextProcessor = {
 
     // 总开关关闭时保留原始附件，不读取、拆分或注入既有转写文本。
     // 这样关闭设置后，历史资产也不会在发送过程中意外走转写链路。
+    const textByMessage = new Map<
+      PipelineContext["messages"][number],
+      { title: string; text: string }[]
+    >();
+    for (const msg of context.messages) {
+      const textAttachments =
+        msg._attachments?.filter((a) => a.source.kind === "message-text") ?? [];
+      if (!textAttachments.length) continue;
+      textByMessage.set(
+        msg,
+        textAttachments.map((a) => ({
+          title: a.name,
+          text: a.source.kind === "message-text" ? a.source.text : "",
+        }))
+      );
+      msg._attachments = msg._attachments?.filter(
+        (a) => a.source.kind !== "message-text"
+      );
+    }
+    const appendTextAttachments = () => {
+      for (const [msg, materials] of textByMessage) {
+        const text = materials.map(formatVirtualTextAttachment).join("");
+        if (Array.isArray(msg.content))
+          msg.content = [...msg.content, { type: "text", text }];
+        else msg.content = (msg.content ?? "") + text;
+      }
+    };
     if (transcriptionConfig && !transcriptionConfig.enabled) {
+      appendTextAttachments();
       return;
     }
 
@@ -210,7 +239,10 @@ export const transcriptionProcessor: ContextProcessor = {
         continue;
       }
 
-      const remainingAttachments: PipelineAttachment[] = [];
+      const remainingAttachments: PipelineAttachment[] =
+        msg._attachments.filter(
+          (attachment) => attachment.source.kind === "local-file"
+        );
       let contentModified = false;
 
       // 用于存储转写结果
@@ -218,10 +250,12 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 预先处理所有附件，获取转写结果
       // 使用预处理阶段获取的最新 Asset，避免重复异步调用
-      let assetsToProcess = msg._attachments.map((asset) => {
-        const updatedAsset = updatedAssetsMap.get(asset.id);
-        return updatedAsset ? fromAsset(updatedAsset) : asset;
-      });
+      let assetsToProcess = msg._attachments
+        .filter((attachment) => attachment.source.kind !== "local-file")
+        .map((asset) => {
+          const updatedAsset = updatedAssetsMap.get(asset.id);
+          return updatedAsset ? fromAsset(updatedAsset) : asset;
+        });
 
       // ─── DOCX 插图拆分：主模型支持视觉时，将内嵌图片直接作为多模态发送 ───
       const hasVision = context.capabilities?.vision === true;
@@ -348,6 +382,27 @@ export const transcriptionProcessor: ContextProcessor = {
 
       // 累积所有被占位符认领的 assetId（从 replacePlaceholders 返回值中收集）
       const allClaimedAssetIds = new Set<string>();
+
+      // 先解析材料中的文件引用，再包装全文，保证文件内容中的代码围栏完整。
+      const materials = textByMessage.get(msg);
+      if (materials) {
+        textByMessage.set(
+          msg,
+          materials.map((material) => {
+            const result = replacePlaceholders(
+              material.text,
+              currentAttachments,
+              transcriptionResults
+            );
+            if (result.claimedAssets.size > 0) {
+              placeholderReplacedCount += result.claimedAssets.size;
+              contentModified = true;
+              for (const id of result.claimedAssets) allClaimedAssetIds.add(id);
+            }
+            return { ...material, text: result.content };
+          })
+        );
+      }
 
       // 处理字符串类型的内容
       if (typeof msg.content === "string" && msg.content) {
@@ -480,6 +535,8 @@ export const transcriptionProcessor: ContextProcessor = {
     if (errorCount > 0) {
       logMessages.push(`处理失败 ${errorCount} 个`);
     }
+
+    appendTextAttachments();
 
     if (logMessages.length > 0) {
       const message = logMessages.join("，") + "。";

@@ -15,9 +15,9 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, onMounted } from "vue";
+import { ref, computed, onUnmounted } from "vue";
 import { useWebDistilleryStore } from "../../stores/store";
-import { quickFetch, smartExtract, processLocalContent } from "../../actions";
+import { extractLocalContent } from "../../core/engines/local";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
@@ -26,7 +26,12 @@ import { createModuleLogger } from "@/utils/logger";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
-import type { DistillMode } from "../../types";
+import { fetchPage } from "../../service";
+import {
+  fetchEngineCatalog,
+  getFetchEngineName,
+  type FetchEngineId,
+} from "../../core/engines/catalog";
 
 // 组件导入
 import BrowserToolbar from "./BrowserToolbar.vue";
@@ -38,12 +43,25 @@ const { sendToChat } = useSendToChat();
 const store = useWebDistilleryStore();
 
 // 状态管理
-const currentUrl = ref(store.url);
+const currentUrl = computed({
+  get: () => store.url,
+  set: (url: string) => store.setUrl(url),
+});
 const isLoading = ref(false);
 const errorMsg = ref<string | null>(null);
+const showTextInput = ref(false);
+const pastedText = ref("");
+const pastedFormat = ref<"auto" | "html" | "md" | "txt">("auto");
+const localContent = ref<{
+  content: string;
+  fileName: string;
+  url: string;
+} | null>(null);
 
 const activeMode = computed(() => {
-  return store.result ? store.result.mode : "fast";
+  return store.result?.mode === "interactive"
+    ? "smart"
+    : (store.result?.mode ?? store.config.defaultMode);
 });
 
 const qualityPercent = computed(() =>
@@ -56,10 +74,6 @@ const qualityStatus = computed(() => {
   return "exception";
 });
 
-onMounted(() => {
-  currentUrl.value = store.url;
-});
-
 onUnmounted(async () => {
   try {
     await iframeBridge.destroy();
@@ -68,10 +82,15 @@ onUnmounted(async () => {
   }
 });
 
-async function handleFetch(mode: DistillMode) {
+async function handleFetch(mode: FetchEngineId) {
   const url = currentUrl.value.trim();
   if (!url) {
     customMessage.warning("请输入目标 URL");
+    return;
+  }
+
+  if (localContent.value && url === localContent.value.url) {
+    await handleFileUpload(localContent.value);
     return;
   }
 
@@ -92,41 +111,13 @@ async function handleFetch(mode: DistillMode) {
       return;
     }
 
-    if (mode === "fast") {
-      logger.info("Executing quickFetch (Fast Mode)");
-      const result = await quickFetch({ url, format: "markdown" });
-      if (!result) {
-        throw new Error("获取内容失败");
-      }
-
-      store.setResult(result);
-    } else if (mode === "smart") {
-      logger.info("Executing smartExtract (Smart Mode)");
-      await iframeBridge.init();
-      logger.debug("Bridge initialized for smartExtract");
-      const result = await smartExtract({
-        url,
-        format: "markdown",
-        waitTimeout: 12000,
-      });
-      if (!result) {
-        throw new Error("智能提取失败");
-      }
-
-      store.setResult(result);
-    }
+    const result = await fetchPage({ url, engine: mode });
+    store.setResult(result);
     customMessage.success("蒸馏完成");
   } catch (err: any) {
     errorHandler.error(err, "操作失败", { url, mode });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
-
-    // 发生错误时强制清理资源
-    try {
-      await iframeBridge.forceCleanup();
-    } catch (cleanupErr) {
-      logger.debug("Force cleanup after error failed", cleanupErr);
-    }
   } finally {
     isLoading.value = false;
     store.setLoading(false);
@@ -135,6 +126,21 @@ async function handleFetch(mode: DistillMode) {
 
 async function handleRefresh() {
   if (currentUrl.value) await handleFetch(activeMode.value);
+}
+
+async function handlePastedContent() {
+  if (!pastedText.value.trim() || isLoading.value) return;
+  const format =
+    pastedFormat.value === "auto"
+      ? /^\s*<(?:!doctype\b|[a-z][\w:-]*\b[^>]*>)/i.test(pastedText.value)
+        ? "html"
+        : "md"
+      : pastedFormat.value;
+  const success = await handleFileUpload({
+    content: pastedText.value,
+    fileName: `clipboard.${format}`,
+  });
+  if (success) showTextInput.value = false;
 }
 
 async function handleFileUpload(payload: {
@@ -147,17 +153,24 @@ async function handleFileUpload(payload: {
   store.setLoading(true);
 
   try {
-    const result = await processLocalContent(payload.content, payload.fileName);
-    if (!result) return;
-
+    const result = await extractLocalContent(
+      payload.content,
+      payload.fileName,
+      {
+        format: store.config.defaultFormat,
+        cleanMode: store.config.defaultCleanMode,
+      }
+    );
+    localContent.value = { ...payload, url: result.url };
     store.setResult(result);
-    store.setUrl(`file://${payload.fileName}`);
-    currentUrl.value = `file://${payload.fileName}`;
-    customMessage.success("文件处理完成");
+    store.setUrl(result.url);
+    customMessage.success("内容处理完成");
+    return true;
   } catch (err: any) {
-    errorHandler.error(err, "文件处理失败", { fileName: payload.fileName });
+    errorHandler.error(err, "内容处理失败", { fileName: payload.fileName });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
+    return false;
   } finally {
     isLoading.value = false;
     store.setLoading(false);
@@ -216,7 +229,49 @@ function handleSendToChat() {
       @fetch="handleFetch"
       @refresh="handleRefresh"
       @upload="handleFileUpload"
+      @paste-text="showTextInput = !showTextInput"
     />
+
+    <section
+      v-if="showTextInput"
+      class="text-input-panel"
+      aria-label="粘贴文本处理"
+    >
+      <div class="text-input-controls">
+        <span>粘贴内容</span>
+        <el-select
+          v-model="pastedFormat"
+          aria-label="输入格式"
+          class="text-format-select"
+        >
+          <el-option label="自动识别" value="auto" />
+          <el-option label="HTML" value="html" />
+          <el-option label="Markdown" value="md" />
+          <el-option label="纯文本" value="txt" />
+        </el-select>
+        <el-button :disabled="isLoading" @click="showTextInput = false"
+          >收起</el-button
+        >
+        <el-button
+          type="primary"
+          :loading="isLoading"
+          :disabled="!pastedText.trim()"
+          @click="handlePastedContent"
+          >处理文本</el-button
+        >
+      </div>
+      <el-input
+        v-model="pastedText"
+        type="textarea"
+        :rows="6"
+        resize="vertical"
+        aria-label="待处理文本"
+        placeholder="在此粘贴 HTML、Markdown 或纯文本"
+        :disabled="isLoading"
+        @keydown.ctrl.enter.prevent="handlePastedContent"
+        @keydown.meta.enter.prevent="handlePastedContent"
+      />
+    </section>
 
     <div class="workbench-main">
       <!-- 拖拽上传覆盖层 -->
@@ -247,12 +302,21 @@ function handleSendToChat() {
             <div class="section-title">提取质量</div>
             <div class="quality-card">
               <div class="quality-header">
-                <span class="quality-label">模式: {{ store.result.mode }}</span>
-                <el-tag size="small" :type="qualityStatus"
+                <span class="quality-label">
+                  模式:
+                  {{ getFetchEngineName(store.result.mode) }}
+                </span>
+                <el-tag
+                  v-if="store.result.quality !== null"
+                  size="small"
+                  :type="
+                    qualityStatus === 'exception' ? 'danger' : qualityStatus
+                  "
                   >{{ qualityPercent }}%</el-tag
                 >
               </div>
               <el-progress
+                v-if="store.result.quality !== null"
                 :percentage="qualityPercent"
                 :status="qualityStatus"
                 :stroke-width="4"
@@ -323,8 +387,10 @@ function handleSendToChat() {
           <div class="empty-hint">
             <p>在上方输入 URL 并选择提取模式：</p>
             <ul>
-              <li><strong>快速模式</strong>: 纯 HTTP 请求，毫秒级响应</li>
-              <li><strong>智能模式</strong>: 隐藏 Iframe 渲染，支持动态内容</li>
+              <li v-for="engine in fetchEngineCatalog" :key="engine.id">
+                <strong>{{ engine.name }}</strong
+                >: {{ engine.description }}
+              </li>
             </ul>
           </div>
         </InfoCard>
@@ -339,6 +405,29 @@ function handleSendToChat() {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.text-input-panel {
+  flex-shrink: 0;
+  padding: 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.text-input-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--text-color);
+}
+
+.text-input-controls > span {
+  flex: 1;
+}
+
+.text-format-select {
+  width: 140px;
 }
 
 .workbench-main {
@@ -399,6 +488,25 @@ function handleSendToChat() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+}
+
+/* Jina 模式专属 Badge（中性偏蓝主题色） */
+.mode-badge-jina {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--el-color-primary);
+  background: rgba(
+    var(--el-color-primary-rgb),
+    calc(var(--card-opacity) * 0.12)
+  );
+  border: 1px solid
+    rgba(var(--el-color-primary-rgb), calc(var(--card-opacity) * 0.3));
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.6;
+  vertical-align: middle;
 }
 
 .quality-label {

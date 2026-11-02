@@ -373,8 +373,10 @@ const shouldRenderPreviewImage = (
   </div>
 </template>
 
-<style>
-.branch-selector-popover {
+<style scoped>
+/* Popper 容器由 ElPopover teleport 到 body，需用 :global 命中；
+   使用独立类名避免与其他工具的全局 popper 样式互相污染 */
+:global(.media-gen-branch-selector-popover) {
   padding: 2px !important;
   border-radius: 12px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;

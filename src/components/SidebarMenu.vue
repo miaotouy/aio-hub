@@ -15,8 +15,9 @@
 -->
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, type ComponentPublicInstance } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useResizeObserver } from "@vueuse/core";
 import { Promotion, Close } from "@element-plus/icons-vue";
 import { Puzzle } from "lucide-vue-next";
 import { VueDraggableNext } from "vue-draggable-next";
@@ -160,6 +161,30 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
 
   toolsStore.closeTool(toolPath);
 };
+
+// 标签区滚动遮罩：按距两端的剩余滚动距离设置边缘透明度，渐隐随滚动平滑出现
+const MASK_FADE_DISTANCE = 30;
+const tabsScrollRef = ref<HTMLElement | null>(null);
+const tabsListRef = ref<ComponentPublicInstance | null>(null);
+
+const getEdgeMaskAlpha = (distance: number) =>
+  1 - Math.min(Math.max(distance, 0) / MASK_FADE_DISTANCE, 1);
+
+const updateScrollMasks = () => {
+  const el = tabsScrollRef.value;
+  if (!el) return;
+  const { scrollTop, scrollHeight, clientHeight } = el;
+  const topAlpha = getEdgeMaskAlpha(scrollTop);
+  const bottomAlpha = getEdgeMaskAlpha(scrollHeight - scrollTop - clientHeight);
+
+  el.style.setProperty("--top-mask-alpha", String(topAlpha));
+  el.style.setProperty("--bottom-mask-alpha", String(bottomAlpha));
+  // 无需渐隐时不挂 mask，避免拖拽排序的跟随元素被裁切
+  el.toggleAttribute("data-scroll-fade", topAlpha < 1 || bottomAlpha < 1);
+};
+
+// 视口尺寸与标签数量变化都会改变可滚动范围；折叠切换时 el-menu 会重建节点，ref 变化后自动重新监听
+useResizeObserver([tabsScrollRef, tabsListRef], updateScrollMasks);
 </script>
 
 <template>
@@ -186,83 +211,133 @@ const handleCloseTool = async (event: MouseEvent, toolPath: string) => {
       </template>
     </el-menu-item>
 
-    <VueDraggableNext
-      v-model="displayTools"
-      :animation="200"
-      :force-fallback="true"
-      :delay="120"
-      :delay-on-touch-only="false"
-      :touch-start-threshold="5"
-      ghost-class="ghost-item"
-      chosen-class="chosen-item"
-      drag-class="drag-item"
-      item-key="path"
-      @start="onDragStart"
-      @end="onDragEnd"
-      class="draggable-container"
+    <!-- 已打开的工具标签：在独立区域内滚动，主页与扩展保持固定 -->
+    <div
+      ref="tabsScrollRef"
+      class="menu-tabs-scroll"
+      @scroll="updateScrollMasks"
     >
-      <div v-for="tool in displayTools" :key="tool.path">
-        <el-tooltip
-          :key="tool.path"
-          effect="dark"
-          :content="tool.name + '【长按可上下拖动调整顺序，右键可分离或关闭】'"
-          placement="right"
-          :disabled="!collapsed"
-          :hide-after="0"
-        >
-          <el-menu-item
-            :index="tool.path"
-            class="draggable-menu-item"
-            style="padding: 0"
-            @mousedown.left="handleDragStart($event, tool)"
+      <VueDraggableNext
+        ref="tabsListRef"
+        v-model="displayTools"
+        :animation="200"
+        :force-fallback="true"
+        :delay="120"
+        :delay-on-touch-only="false"
+        :touch-start-threshold="5"
+        ghost-class="ghost-item"
+        chosen-class="chosen-item"
+        drag-class="drag-item"
+        item-key="path"
+        @start="onDragStart"
+        @end="onDragEnd"
+        class="draggable-container"
+      >
+        <div v-for="tool in displayTools" :key="tool.path">
+          <el-tooltip
+            :key="tool.path"
+            effect="dark"
+            :content="
+              tool.name + '【长按可上下拖动调整顺序，右键可分离或关闭】'
+            "
+            placement="right"
+            :disabled="!collapsed"
+            :hide-after="0"
           >
-            <el-dropdown
-              trigger="contextmenu"
-              placement="bottom-start"
-              style="width: 100%; height: 100%"
+            <el-menu-item
+              :index="tool.path"
+              class="draggable-menu-item"
+              style="padding: 0"
+              @mousedown.left="handleDragStart($event, tool)"
             >
-              <span class="menu-item-trigger">
-                <span class="icon-wrapper">
-                  <component :is="tool.icon" />
+              <el-dropdown
+                trigger="contextmenu"
+                placement="bottom-start"
+                style="width: 100%; height: 100%"
+              >
+                <span class="menu-item-trigger">
+                  <span class="icon-wrapper">
+                    <component :is="tool.icon" />
+                  </span>
+                  <template v-if="!collapsed">
+                    <span class="menu-item-title-text">{{ tool.name }}</span>
+                    <el-icon
+                      class="close-tab-btn"
+                      @click.stop="handleCloseTool($event, tool.path)"
+                      @mousedown.stop
+                    >
+                      <Close />
+                    </el-icon>
+                  </template>
                 </span>
-                <template v-if="!collapsed">
-                  <span class="menu-item-title-text">{{ tool.name }}</span>
-                  <el-icon
-                    class="close-tab-btn"
-                    @click.stop="handleCloseTool($event, tool.path)"
-                    @mousedown.stop
-                  >
-                    <Close />
-                  </el-icon>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="handleDetachByClick(tool)">
+                      <el-icon><Promotion /></el-icon>
+                      <span>在新窗口中打开</span>
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      divided
+                      @click="handleCloseTool($event, tool.path)"
+                    >
+                      <el-icon><Close /></el-icon>
+                      <span>关闭标签页</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
                 </template>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="handleDetachByClick(tool)">
-                    <el-icon><Promotion /></el-icon>
-                    <span>在新窗口中打开</span>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    divided
-                    @click="handleCloseTool($event, tool.path)"
-                  >
-                    <el-icon><Close /></el-icon>
-                    <span>关闭标签页</span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-menu-item>
-        </el-tooltip>
-      </div>
-    </VueDraggableNext>
+              </el-dropdown>
+            </el-menu-item>
+          </el-tooltip>
+        </div>
+      </VueDraggableNext>
+    </div>
   </el-menu>
 </template>
 
 <style scoped>
 .sidebar-menu-component {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   border-right: none;
   background-color: transparent;
+}
+
+/* 主页、扩展固定在顶部，不随标签区压缩 */
+.sidebar-menu-component > .el-menu-item {
+  flex-shrink: 0;
+}
+
+.menu-tabs-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.menu-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* mask 直接控制内容透明度，半透明与毛玻璃背景下同样能正确渐隐 */
+.menu-tabs-scroll[data-scroll-fade] {
+  --mask-height: 30px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, var(--top-mask-alpha, 1)) 0%,
+    black var(--mask-height),
+    black calc(100% - var(--mask-height)),
+    rgba(0, 0, 0, var(--bottom-mask-alpha, 1)) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, var(--top-mask-alpha, 1)) 0%,
+    black var(--mask-height),
+    black calc(100% - var(--mask-height)),
+    rgba(0, 0, 0, var(--bottom-mask-alpha, 1)) 100%
+  );
 }
 
 .draggable-menu-item {

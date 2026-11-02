@@ -18,7 +18,7 @@ import type {
   ToolConfig,
 } from "@/services/types";
 import { markRaw } from "vue";
-import { Pipette } from "lucide-vue-next";
+import { ColorPickerIcon } from "@aiohub/tool-icons";
 
 /**
  * Color Picker 注册器
@@ -49,7 +49,7 @@ export const toolConfig: ToolConfig = {
   name: "图片色彩分析",
   path: "/color-picker",
   runMode: "any",
-  icon: markRaw(Pipette),
+  icon: markRaw(ColorPickerIcon),
   component: () => import("./ColorPicker.vue"),
   description: "从图片中提取颜色，支持多种算法分析主色调、调色板和平均色",
   category: ["媒体工具"],

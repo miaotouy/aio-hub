@@ -19,6 +19,7 @@
  * 从 agentStore 中抽离，方便独立修改和维护。
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { LlmParameters } from "@/tools/llm-chat/types/llm";
 import { getLocalISOString } from "@/utils/time";
@@ -55,8 +56,7 @@ export function createDefaultAgentTemplate(): DefaultAgentTemplate {
       },
     ],
     parameters: {
-      temperature: 1,
-      maxTokens: 4096,
+      maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       topP: undefined,
       topK: undefined,
       frequencyPenalty: undefined,

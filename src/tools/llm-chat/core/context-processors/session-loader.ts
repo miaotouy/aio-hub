@@ -21,9 +21,53 @@ import type {
   ChatSessionDetail,
 } from "@/tools/llm-chat/types";
 import type { LlmThinkRule } from "@/tools/rich-text-renderer/types";
-import { fromAsset } from "../../types/pipeline-attachment";
+import {
+  fromAsset,
+  fromLocalMedia,
+  fromVirtualTextAttachment,
+} from "../../types/pipeline-attachment";
 
 const logger = createModuleLogger("primary:session-loader");
+
+// Cache only pure conversion output; per-message metadata and attachments remain fresh.
+const htmlConversionCache = new Map<
+  string,
+  { content: string; chars: number }
+>();
+let cachedHtmlChars = 0;
+const MAX_HTML_CACHE_CHARS = 8 * 1024 * 1024;
+
+function rememberConvertedHtml(key: string, content: string): void {
+  const chars = key.length + content.length;
+  if (chars > MAX_HTML_CACHE_CHARS) return;
+  while (
+    htmlConversionCache.size >= 256 ||
+    cachedHtmlChars + chars > MAX_HTML_CACHE_CHARS
+  ) {
+    const oldest = htmlConversionCache.entries().next().value;
+    if (!oldest) break;
+    htmlConversionCache.delete(oldest[0]);
+    cachedHtmlChars -= oldest[1].chars;
+  }
+  htmlConversionCache.set(key, { content, chars });
+  cachedHtmlChars += chars;
+}
+
+function createContextTurndownService(): TurndownService {
+  const turndownService = new TurndownService({
+    headingStyle: "atx",
+    codeBlockStyle: "fenced",
+    emDelimiter: "*",
+  });
+  // 保持某些可能对模型理解有帮助的标签
+  turndownService.keep(["del", "ins", "sub", "sup"]);
+
+  // 完全禁用 Markdown 转义：这些内容是给 AI 消费的上下文，不需要防止 Markdown 误解析
+  // turndown 默认会把 * _ [ ] 等字符都加反斜杠（如 **text** → \*\*text\*\*），
+  // 这在 AI 场景下纯粹浪费 token，直接返回原字符串即可
+  turndownService.escape = (str: string) => str;
+  return turndownService;
+}
 
 /** 默认需要保护的思考块标签名（当 agent 未配置时使用） */
 const DEFAULT_THINK_TAG_NAMES = ["think", "guguthink"];
@@ -145,11 +189,11 @@ function getBranchHistory(
 
     // 根节点（通常是 system prompt）不应包含在历史记录中
     if (node.parentId) {
-      history.unshift(node);
+      history.push(node);
     }
     currentId = node.parentId;
   }
-  return history;
+  return history.reverse();
 }
 
 export const sessionLoader: ContextProcessor = {
@@ -194,21 +238,9 @@ export const sessionLoader: ContextProcessor = {
       if (thinkTagNames.length === 0) {
         thinkTagNames = [...DEFAULT_THINK_TAG_NAMES];
       }
-
-      turndownService = new TurndownService({
-        headingStyle: "atx",
-        codeBlockStyle: "fenced",
-        emDelimiter: "*",
-      });
-      // 保持某些可能对模型理解有帮助的标签
-      turndownService.keep(["del", "ins", "sub", "sup"]);
-
-      // 完全禁用 Markdown 转义：这些内容是给 AI 消费的上下文，不需要防止 Markdown 误解析
-      // turndown 默认会把 * _ [ ] 等字符都加反斜杠（如 **text** → \*\*text\*\*），
-      // 这在 AI 场景下纯粹浪费 token，直接返回原字符串即可
-      turndownService.escape = (str: string) => str;
     }
 
+    const thinkTagKey = JSON.stringify(thinkTagNames);
     const messages: ProcessableMessage[] = [];
     const historyCount = historyNodes.length;
 
@@ -217,7 +249,9 @@ export const sessionLoader: ContextProcessor = {
       // 忽略空消息且没有附件的消息
       const hasContent = !!node.content.trim();
       const hasAttachments = !!(
-        node.attachments && node.attachments.length > 0
+        node.attachments?.length ||
+        node.virtualAttachments?.length ||
+        node.localMedia?.length
       );
 
       if (!hasContent && !hasAttachments) {
@@ -226,26 +260,32 @@ export const sessionLoader: ContextProcessor = {
 
       let finalContent = node.content;
 
-      // 检查是否需要进行 HTML 到 Markdown 的转换
-      // 规则：开启了转换，且当前消息在倒数 N 条之外（即较旧的消息）
-      if (turndownService && historyCount - i > htmlToMdLastMessages) {
-        // 启发式判断是否包含 HTML 标签，且避开可能是简单数学符号的情况
-        if (/<[a-z][\s\S]*>/i.test(finalContent)) {
+      // Conversion settings decide eligibility on every build, even when output is cached.
+      if (
+        convertHtmlToMd &&
+        historyCount - i > htmlToMdLastMessages &&
+        /<[a-z][\s\S]*>/i.test(finalContent)
+      ) {
+        const cacheKey = thinkTagKey + "\0" + finalContent;
+        const cached = htmlConversionCache.get(cacheKey);
+        if (cached) {
+          htmlConversionCache.delete(cacheKey);
+          htmlConversionCache.set(cacheKey, cached);
+          finalContent = cached.content;
+        } else {
           try {
-            // 保护思考块：提取并替换为占位符，防止 turndown 破坏
+            turndownService ??= createContextTurndownService();
             const { text: safeContent, restore } = protectThinkBlocks(
               finalContent,
               thinkTagNames
             );
-            // 转换 HTML 为 Markdown
-            let converted = turndownService.turndown(safeContent);
-            // 后处理：清理 turndown 输出中的结构问题
-            converted = postProcessMarkdown(converted);
-            // 还原思考块
-            finalContent = restore(converted);
-            // 追加标记：告知模型此消息经过格式转换，避免模型误判不该使用 HTML
-            finalContent +=
+            const converted = postProcessMarkdown(
+              turndownService.turndown(safeContent)
+            );
+            finalContent =
+              restore(converted) +
               "\n[note: this message was converted from HTML to Markdown for context compression]";
+            rememberConvertedHtml(cacheKey, finalContent);
           } catch (e) {
             logger.warn("HTML 转 Markdown 失败", { error: e, nodeId: node.id });
           }
@@ -253,7 +293,13 @@ export const sessionLoader: ContextProcessor = {
       }
 
       let role = node.role;
-      if (role === "tool" && convertToolRoleToUser) {
+      if (
+        role === "tool" &&
+        (convertToolRoleToUser ||
+          node.attachments?.length ||
+          node.localMedia?.length ||
+          node.metadata?.vcpResponse?.kind === "tool")
+      ) {
         role = "user";
       }
 
@@ -263,18 +309,37 @@ export const sessionLoader: ContextProcessor = {
       //   - 有 toolCallsRequested → 该节点是"思考→工具调用"的中间过程，后续需要继续推理，因此保留 reasoningContent 以便回传
       //   - 无 toolCallsRequested → 该节点是最终回答，回传 reasoningContent 无意义且浪费 token
       let reasoningContent = node.metadata?.reasoningContent;
-      if (role === "assistant" && !node.metadata?.toolCallsRequested?.length) {
+      const hasUpstreamToolResult =
+        node.metadata?.vcpResponse?.kind === "assistant" &&
+        node.childrenIds.some((id) => {
+          const child = context.detail?.nodes?.[id];
+          return (
+            child?.metadata?.vcpResponse?.kind === "tool" &&
+            child.metadata.vcpResponse.requestId ===
+              node.metadata?.vcpResponse?.requestId
+          );
+        });
+      if (
+        role === "assistant" &&
+        !node.metadata?.toolCallsRequested?.length &&
+        !hasUpstreamToolResult
+      ) {
         reasoningContent = undefined;
       }
 
       const processableMessage: ProcessableMessage = {
         role: role as any,
+        _historyRole: node.role,
         content: finalContent,
         reasoningContent,
         reasoningArtifacts: node.metadata?.reasoningArtifacts,
         sourceType: "session_history",
         sourceId: node.id,
-        _attachments: node.attachments?.map(fromAsset),
+        _attachments: [
+          ...(node.attachments?.map(fromAsset) ?? []),
+          ...(node.localMedia?.map(fromLocalMedia) ?? []),
+          ...(node.virtualAttachments?.map(fromVirtualTextAttachment) ?? []),
+        ],
         metadata: node.metadata,
       };
       messages.push(processableMessage);
@@ -289,7 +354,11 @@ export const sessionLoader: ContextProcessor = {
         content: pendingInput.text,
         sourceType: "session_history",
         sourceId: `${VIRTUAL_NODE_PREFIX}${Date.now()}`,
-        _attachments: pendingInput.attachments?.map(fromAsset),
+        _attachments: [
+          ...(pendingInput.attachments?.map(fromAsset) ?? []),
+          ...(pendingInput.virtualAttachments?.map(fromVirtualTextAttachment) ??
+            []),
+        ],
         _originalContent: pendingInput.originalText, // 用于预览 diff
       });
     }

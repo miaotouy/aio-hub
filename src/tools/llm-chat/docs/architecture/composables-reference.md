@@ -47,13 +47,14 @@
   - **同步配置**: 负责将聊天设置中的转写偏好同步给全局转写引擎。
   - **自动触发**: 监听附件导入事件，根据策略自动发起转写任务。
   - **等待机制**: 实现 `ensureTranscriptions`，在发送消息前确保所有必要的转写任务已完成。
+  - **预览边界**: 上下文统计和分析沿用标准管线读取现有转写结果，预览阶段只观察当前状态。任务补建与等待由发送和显式转写操作负责；转写完成后的发送内容与 Token 统计可能更新。 自动统计通过 `purpose: "statistics"` 传递至管线，资产解析器延后媒体二进制物化，沿用最终媒体类型的空消息占位文字并保留附件元数据；有延后媒体的结果标记为估算。分析器默认构建完整请求。
 - **`utils/transcriptionRetryPolicy.ts`**: **转写重试与降级策略**。提供 `shouldAutoCreateTranscriptionTask`（仅 `none` 状态允许自动补建任务）与 `shouldUseFailedTranscriptionFallback`（模型依赖转写而任务已失败时降级为文本占位），由 `useTranscriptionManager` 与 `attachment-resolver` 共享。
 
 ## 6. 会话、工具与同步
 
 - **`useSessionManager`**: **会话的生命周期管理者**。负责会话的创建、加载、删除和持久化。
 - **`useLlmChatSync`**: **跨窗口同步引擎**。初始化状态同步引擎，注册操作代理处理器，确保多窗口协同工作。
-- **`useTopicNamer`**: **话题命名器**。负责调用 LLM 为新会话自动生成简洁、有意义的标题。思考模型按 `topicNaming.thinkingTokenReserve`（默认 4096）在 `maxTokens` 之外额外预留推理空间；关闭思考时不追加推理预算，并将 `thinkingEnabled = false` 透传给兼容渠道。
+- **`useTopicNamer`**: **话题命名器**。负责调用 LLM 为新会话自动生成简洁、有意义的标题。自动命名按当前活跃分支中已完成的用户-AI 对话轮数判断 `topicNaming.autoTriggerThreshold`；跳过禁用节点、开场消息（含已固化开场）及预设显示副本，工具调用和连续助手回复归入同一轮，以该轮最后一段助手回复的完成状态为准。手动命名沿用强制触发入口。思考模型按 `topicNaming.thinkingTokenReserve`（默认 4096）在 `maxTokens` 之外额外预留推理空间；关闭思考时不追加推理预算，并将 `thinkingEnabled = false` 透传给兼容渠道。
 - **`useModelSelectDialog`**: **全局模型选择器**。提供弹窗式的模型选择 UI。
 - **`useAnchorRegistry`**: **锚点注册表**。管理上下文注入系统中可用的锚点列表（如 `chat_history`）。
 

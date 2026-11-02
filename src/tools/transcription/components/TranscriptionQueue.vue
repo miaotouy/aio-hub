@@ -33,6 +33,7 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   XCircle,
   Play,
   RotateCcw,
@@ -101,6 +102,9 @@ const getStatusType = (status: string) => {
   }
 };
 
+const hasWarning = (task: TranscriptionTask) =>
+  task.status === "completed" && !!task.warning;
+
 const getStatusLabel = (status: string) => {
   switch (status) {
     case "completed":
@@ -143,6 +147,7 @@ const retryingTask = ref<TranscriptionTask | null>(null);
 const retryModelId = ref("");
 const retryPrompt = ref("");
 const retryEnableRepetitionDetection = ref(true);
+const retryEnableRefusalDetection = ref(true);
 
 // 根据任务类型计算需要的模型能力
 const retryRequiredCapabilities = computed(() => {
@@ -174,6 +179,8 @@ const handleRetry = async (task: TranscriptionTask) => {
   retryPrompt.value = oldConfig?.additionalPrompt || "";
   retryEnableRepetitionDetection.value =
     oldConfig?.enableRepetitionDetection !== false;
+  retryEnableRefusalDetection.value =
+    oldConfig?.enableRefusalDetection !== false;
 
   showRetryConfirm.value = true;
 };
@@ -200,6 +207,7 @@ const handleConfirmRetry = async () => {
     overrideConfig.additionalPrompt = retryPrompt.value || undefined;
     overrideConfig.enableRepetitionDetection =
       retryEnableRepetitionDetection.value;
+    overrideConfig.enableRefusalDetection = retryEnableRefusalDetection.value;
 
     // 调用 addTask 并传入覆盖配置
     addTask(
@@ -269,6 +277,7 @@ const handleViewResult = async (task: TranscriptionTask) => {
         modelId,
         prompt,
         enableRepetitionDetection,
+        enableRefusalDetection,
         overrideConfig,
       }) => {
         // 优先使用传入的完整 overrideConfig，确保保留了 customPrompt 等
@@ -277,6 +286,7 @@ const handleViewResult = async (task: TranscriptionTask) => {
           modelIdentifier: modelId || undefined,
           additionalPrompt: prompt || undefined,
           enableRepetitionDetection,
+          enableRefusalDetection,
         };
         addTask(asset, finalConfig);
         transcriptionViewer.close();
@@ -315,6 +325,8 @@ const stats = computed(() => {
     pending: store.tasks.filter((t) => t.status === "pending").length,
     completed: store.tasks.filter((t) => t.status === "completed").length,
     error: store.tasks.filter((t) => t.status === "error").length,
+    warning: store.tasks.filter((t) => t.status === "completed" && !!t.warning)
+      .length,
   };
 });
 
@@ -375,6 +387,10 @@ const getTaskDuration = (task: TranscriptionTask) => {
         <div class="stat-value">{{ stats.completed }}</div>
         <div class="stat-label">已完成</div>
       </div>
+      <div class="stat-card warning">
+        <div class="stat-value">{{ stats.warning }}</div>
+        <div class="stat-label">有警告</div>
+      </div>
       <div class="stat-card error">
         <div class="stat-value">{{ stats.error }}</div>
         <div class="stat-label">失败</div>
@@ -416,31 +432,43 @@ const getTaskDuration = (task: TranscriptionTask) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="120">
+        <el-table-column label="状态" width="130">
           <template #default="{ row }">
             <el-tooltip
-              :disabled="row.status !== 'error' || !row.error"
+              :disabled="
+                !(row.status === 'error' && row.error) && !hasWarning(row)
+              "
               :content="
-                row.error?.length > 200
-                  ? row.error.substring(0, 200) + '...'
-                  : row.error
+                hasWarning(row) && row.warning
+                  ? row.warning
+                  : row.error?.length > 200
+                    ? row.error.substring(0, 200) + '...'
+                    : row.error
               "
               placement="top"
               :show-after="300"
             >
               <el-tag
-                :type="getStatusType(row.status)"
+                :type="hasWarning(row) ? 'warning' : getStatusType(row.status)"
                 size="small"
                 class="status-tag"
               >
                 <el-icon :class="{ 'is-loading': row.status === 'processing' }">
-                  <component :is="getStatusIcon(row.status)" />
+                  <component
+                    :is="
+                      hasWarning(row)
+                        ? AlertTriangle
+                        : getStatusIcon(row.status)
+                    "
+                  />
                 </el-icon>
                 <span>
                   {{
                     row.status === "processing" && row.progress !== undefined
                       ? `${Math.round(row.progress)}%`
-                      : getStatusLabel(row.status)
+                      : hasWarning(row)
+                        ? "完成 (警告)"
+                        : getStatusLabel(row.status)
                   }}
                 </span>
               </el-tag>
@@ -579,6 +607,10 @@ const getTaskDuration = (task: TranscriptionTask) => {
             <label>启用复读检测</label>
             <el-switch v-model="retryEnableRepetitionDetection" />
           </div>
+          <div class="form-item inline-item">
+            <label>启用模型拒绝/异常检测</label>
+            <el-switch v-model="retryEnableRefusalDetection" />
+          </div>
           <div class="form-tip">
             <Info :size="14" />
             <div class="tip-content">
@@ -676,7 +708,7 @@ const getTaskDuration = (task: TranscriptionTask) => {
 
 .queue-stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
 }
 
@@ -712,6 +744,9 @@ const getTaskDuration = (task: TranscriptionTask) => {
 }
 .stat-card.completed .stat-value {
   color: var(--el-color-success);
+}
+.stat-card.warning .stat-value {
+  color: var(--el-color-warning);
 }
 .stat-card.error .stat-value {
   color: var(--el-color-danger);

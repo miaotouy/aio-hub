@@ -14,7 +14,7 @@
 
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import { markRaw } from "vue";
-import { FileSearch } from "lucide-vue-next";
+import { ContentDeduplicatorIcon } from "@aiohub/tool-icons";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { useDeduplicatorRunner } from "./composables/useDeduplicatorRunner";
@@ -182,7 +182,7 @@ export const toolConfig: ToolConfig = {
   name: "内容查重",
   path: "/content-deduplicator",
   runMode: "any",
-  icon: markRaw(FileSearch),
+  icon: markRaw(ContentDeduplicatorIcon),
   component: () => import("./ContentDeduplicator.vue"),
   description: "扫描目录中的重复文本文件，支持多种匹配模式和预设",
   category: ["文件管理"],

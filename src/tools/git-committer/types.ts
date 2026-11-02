@@ -30,12 +30,19 @@ export interface RepositoryConfig {
   color?: string;
 }
 
+/** 标签页内容形态：diff 为差异对比（默认），file 为文件当前内容（非 diff） */
+export type DiffTabViewMode = "diff" | "file";
+
 /** 已打开的 Diff 标签页引用（可持久化） */
 export interface DiffTabRef {
   path: string;
   isStaged: boolean;
   /** 提交来源：非空表示该标签查看某次提交的文件差异或提交总览 */
   commitHash?: string;
+  /** 内容形态；缺省为 diff，"file" 表示直接查看文件当前内容 */
+  viewMode?: DiffTabViewMode;
+  /** 预览标签：打开其他预览文件时复用此位置；缺省为固定标签 */
+  isPreview?: boolean;
 }
 
 /** 单个仓库的会话记忆 */
@@ -88,6 +95,10 @@ export interface GitCommitterConfig {
   isRepoBarPinned: boolean;
   /** Diff 是否默认折叠未更改区域 */
   hideUnchangedRegions: boolean;
+  /** Diff 是否按编辑器可视宽度自动换行 */
+  diffWordWrap: boolean;
+  /** 单击文件项时直接固定标签页；默认使用预览标签 */
+  singleClickOpensPermanentTab: boolean;
   repoSessions: Record<string, RepoSession>;
   // 设置项
   autoPushAfterCommit: boolean;
@@ -162,12 +173,78 @@ export interface CommitFileDiff {
   modifiedSide: GitDiffSide;
 }
 
+/** 分支项 */
+export interface GitBranchItem {
+  name: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  upstream?: string | null;
+}
+
+/** 标签项 */
+export interface GitTagItem {
+  name: string;
+  hash: string;
+  message?: string | null;
+  tagger?: string | null;
+  date?: string | null;
+}
+
+/** 储藏项 (Stash) */
+export interface GitStashItem {
+  index: number;
+  name: string;
+  message: string;
+  hash: string;
+  date: string;
+}
+
+/** 远程仓库配置 */
+export interface GitRemoteConfig {
+  name: string;
+  fetchUrl?: string | null;
+  pushUrl?: string | null;
+}
+
+/** 作者提交统计 */
+export interface GitAuthorStat {
+  name: string;
+  email: string;
+  commitCount: number;
+}
+
+/** 仓库全景概览数据 */
+export interface RepoOverview {
+  path: string;
+  branch: string;
+  headHash: string;
+  localUserName?: string | null;
+  localUserEmail?: string | null;
+  globalUserName?: string | null;
+  globalUserEmail?: string | null;
+  remotes: GitRemoteConfig[];
+  branches: GitBranchItem[];
+  tags: GitTagItem[];
+  stashes: GitStashItem[];
+  totalCommits: number;
+  topAuthors: GitAuthorStat[];
+}
+
+/** 分支合并结果 */
+export interface MergeResult {
+  success: boolean;
+  hasConflicts: boolean;
+  message: string;
+}
+
 /** Diff 标签页运行时态 */
 export interface DiffTab {
   path: string;
   isStaged: boolean;
   /** 提交来源：非空表示该标签来自某次提交 */
   commitHash?: string;
+  /** 内容形态；缺省为 diff，"file" 表示直接查看文件当前内容 */
+  viewMode?: DiffTabViewMode;
   original: string;
   modified: string;
   isBinary: boolean;

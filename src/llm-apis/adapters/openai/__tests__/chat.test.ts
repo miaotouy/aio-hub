@@ -47,7 +47,26 @@ describe("OpenAI Adapter - Chat", () => {
     apiKeys: ["test-key"],
     type: "openai",
     enabled: true,
-    models: [],
+    models: [
+      {
+        id: "gemini-3.1-pro-preview",
+        name: "Gemini 3.1 Pro",
+        provider: "google",
+        apiFamily: "gemini",
+      },
+      {
+        id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        provider: "google",
+        apiFamily: "gemini",
+      },
+      {
+        id: "qwen-plus",
+        name: "Qwen Plus",
+        provider: "qwen",
+        apiFamily: "qwen",
+      },
+    ],
   };
 
   beforeEach(() => {
@@ -275,8 +294,6 @@ describe("OpenAI Adapter - Chat", () => {
     expect(JSON.parse(fetchOptions.body)).toEqual({
       model: "gpt-5",
       messages: [{ role: "user", content: "Hello" }],
-      temperature: 0.5,
-      top_p: 0.8,
       frequency_penalty: 0.1,
       presence_penalty: 0.2,
       repetition_penalty: 1.1,
@@ -590,6 +607,39 @@ describe("OpenAI Adapter - Chat", () => {
     ]);
   });
 
+  it("forwards GPT-6 Astra effort from its persisted API family", async () => {
+    const profile: LlmProfile = {
+      ...mockProfile,
+      type: "openai-compatible",
+      models: [
+        {
+          id: "gpt-6-astra",
+          name: "GPT-6 Astra",
+          provider: "gateway",
+          apiFamily: "openai",
+        },
+      ],
+    };
+    (fetchWithTimeout as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+      }),
+    });
+    await callOpenAiChatApi(profile, {
+      profileId: profile.id,
+      modelId: "gpt-6-astra",
+      messages: [{ role: "user", content: "Think carefully." }],
+      reasoningEffort: "max",
+    });
+    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+    expect(JSON.parse(fetchOptions.body)).toEqual({
+      model: "gpt-6-astra",
+      messages: [{ role: "user", content: "Think carefully." }],
+      reasoning_effort: "max",
+    });
+  });
+
   it("should send reasoning_effort for OpenAI-family models", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",
@@ -805,6 +855,12 @@ describe("OpenAI Adapter - Chat", () => {
         reasoningContent: "think",
         finishReason: "tool_calls",
         usage: {
+          providerUsageStatus: "reported",
+          reportedUsageFields: {
+            prompt_tokens: 5,
+            completion_tokens: 3,
+            total_tokens: 8,
+          },
           promptTokens: 5,
           completionTokens: 3,
           totalTokens: 8,
@@ -844,5 +900,41 @@ describe("OpenAI Adapter - Chat", () => {
     await expect(callOpenAiChatApi(mockProfile, options)).rejects.toThrow(
       "API Error"
     );
+  });
+  it("requests streaming usage and forwards intermediate response chunks to the caller", async () => {
+    const onResponseChunk = vi.fn();
+    const wire = [
+      'data: {"id":"r1","choices":[{"delta":{"content":"first"},"finish_reason":"stop"}]}\n\n',
+      'data: {"id":"r1","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}\n\n',
+      'data: {"id":"r2","choices":[{"delta":{"content":"second"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    (fetchWithTimeout as any).mockResolvedValue(
+      new Response(wire.join(""), {
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    );
+    const response = await callOpenAiChatApi(mockProfile, {
+      profileId: "test-profile",
+      modelId: "gpt-4",
+      messages: [],
+      stream: true,
+      streamOptions: { includeUsage: true },
+      onResponseChunk,
+    });
+    const body = JSON.parse((fetchWithTimeout as any).mock.calls[0][1].body);
+    expect(body.stream_options).toEqual({ include_usage: true });
+    expect(
+      onResponseChunk.mock.calls.map(([chunk]) => [
+        chunk.responseId,
+        chunk.finishReason,
+        chunk.usage?.totalTokens,
+      ])
+    ).toEqual([
+      ["r1", "stop", undefined],
+      ["r1", undefined, 5],
+      ["r2", "stop", undefined],
+    ]);
+    expect(response.content).toBe("firstsecond");
   });
 });

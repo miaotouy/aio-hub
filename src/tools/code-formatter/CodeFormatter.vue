@@ -16,6 +16,56 @@
 
 <template>
   <div class="code-formatter-container">
+    <div v-if="systemLanguage" class="engine-settings">
+      <div class="engine-controls">
+        <span>{{
+          systemLanguage === "rust" ? "rustfmt" : "clang-format"
+        }}</span>
+        <el-input
+          v-model="formatterPathDraft"
+          class="formatter-path"
+          aria-label="格式化器路径"
+          placeholder="自动查找，也可填写可执行文件的绝对路径"
+          clearable
+          :disabled="!settingsReady"
+          @change="applyFormatterPath"
+        />
+        <el-select
+          v-if="systemLanguage === 'rust'"
+          v-model="settings.rustEdition"
+          aria-label="Rust edition"
+          class="rust-edition"
+          :disabled="!settingsReady"
+          @change="saveSettings"
+        >
+          <el-option
+            v-for="edition in ['2015', '2018', '2021', '2024']"
+            :key="edition"
+            :label="'Edition ' + edition"
+            :value="edition"
+          />
+        </el-select>
+        <el-button
+          :loading="checkingEngine"
+          :disabled="!settingsReady"
+          @click="refreshEngine"
+          >重新检测</el-button
+        >
+      </div>
+      <div
+        class="engine-status"
+        :class="{ 'engine-error': engineStatus && !engineStatus.available }"
+        role="status"
+      >
+        {{
+          checkingEngine
+            ? "正在检测格式化器…"
+            : engineStatus?.available
+              ? engineVersion
+              : engineStatus?.error
+        }}
+      </div>
+    </div>
     <el-row :gutter="20" class="input-output-section">
       <el-col :span="12" class="column-wrapper">
         <InfoCard class="full-height-card">
@@ -39,6 +89,11 @@
                 <el-option-group label="后端语言">
                   <el-option label="PHP" value="php"></el-option>
                 </el-option-group>
+                <el-option-group label="系统语言">
+                  <el-option label="Rust" value="rust" />
+                  <el-option label="C" value="c" />
+                  <el-option label="C++" value="cpp" />
+                </el-option-group>
                 <el-option-group label="配置/数据">
                   <el-option label="XML" value="xml"></el-option>
                   <el-option label="YAML" value="yaml"></el-option>
@@ -55,7 +110,6 @@
               type="textarea"
               class="full-height-textarea"
               placeholder="请输入代码..."
-              @input="formatCode"
             />
           </div>
         </InfoCard>
@@ -95,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useDebounceFn } from "@vueuse/core";
 import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -104,7 +158,8 @@ import { WarningFilled } from "@element-plus/icons-vue";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { formatterCore } from "./logic/formatter";
-import type { SupportedLanguage } from "./types";
+import type { FormatterStatus, SupportedLanguage } from "./types";
+import { formatterConfig, type FormatterConfig } from "./config";
 
 // 获取服务实例
 const errorHandler = createModuleErrorHandler("CodeFormatter");
@@ -118,31 +173,114 @@ const formattedCodeOutput = ref("");
 const formatError = ref("");
 const language = ref<SupportedLanguage>("javascript");
 
-// 格式化代码（调用服务）
-const formatCodeInternal = async () => {
-  formatError.value = "";
-  if (!rawCodeInput.value) {
-    formattedCodeOutput.value = "";
-    return;
-  }
+const settings = ref<FormatterConfig>({
+  version: "1.0.0",
+  rustfmtPath: "",
+  clangFormatPath: "",
+  rustEdition: "2024",
+});
+const settingsReady = ref(false);
+const formatterPathDraft = ref("");
+const engineStatus = ref<FormatterStatus | null>(null);
+const engineVersion = computed(() => {
+  const version = engineStatus.value?.version?.match(
+    /\b(?:rustfmt|clang-format)(?: version)?\s+([\w.+-]+)/
+  )?.[1];
+  return version ? engineStatus.value?.engine + " " + version : "格式化器可用";
+});
+const checkingEngine = ref(false);
+const retry = ref(0);
+const systemLanguage = computed(() =>
+  language.value === "rust" ||
+  language.value === "c" ||
+  language.value === "cpp"
+    ? language.value
+    : null
+);
+const activePath = computed(() =>
+  systemLanguage.value === "rust"
+    ? settings.value.rustfmtPath
+    : settings.value.clangFormatPath
+);
+let engineRequestId = 0;
+let disposed = false;
 
-  const result = await formatterCore.formatCode(
-    rawCodeInput.value,
-    language.value
+onMounted(async () => {
+  const loaded = await formatterConfig.load();
+  if (disposed) return;
+  settings.value = loaded;
+  settingsReady.value = true;
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  ++engineRequestId;
+  ++formatRequestId;
+});
+
+function saveSettings() {
+  formatterConfig.saveDebounced({ ...settings.value }, () => {
+    customMessage.error("格式化器设置保存失败，请重试");
+  });
+}
+function applyFormatterPath() {
+  const key =
+    systemLanguage.value === "rust" ? "rustfmtPath" : "clangFormatPath";
+  settings.value[key] = formatterPathDraft.value.trim();
+  saveSettings();
+}
+async function refreshEngine() {
+  const requestId = ++engineRequestId;
+  const selectedLanguage = systemLanguage.value;
+  engineStatus.value = null;
+  checkingEngine.value = false;
+  if (!selectedLanguage || !settingsReady.value) return;
+  checkingEngine.value = true;
+  const status = await formatterCore.getFormatterStatus(
+    selectedLanguage,
+    activePath.value
   );
+  if (requestId !== engineRequestId) return;
+  engineStatus.value = status;
+  checkingEngine.value = false;
+  retry.value++;
+}
+watch(
+  [systemLanguage, activePath, settingsReady],
+  () => {
+    formatterPathDraft.value = activePath.value;
+    void refreshEngine();
+  },
+  { immediate: true }
+);
 
-  if (result.success) {
+// 输入变化时立即使旧请求失效，避免较慢的原生任务覆盖新内容。
+let formatRequestId = 0;
+const formatCode = useDebounceFn(
+  async (
+    requestId: number,
+    code: string,
+    selectedLanguage: SupportedLanguage
+  ) => {
+    if (requestId !== formatRequestId) return;
+    const result = await formatterCore.formatCode(
+      code,
+      selectedLanguage,
+      ["rust", "c", "cpp"].includes(selectedLanguage)
+        ? {
+            formatterPath: activePath.value,
+            rustEdition: settings.value.rustEdition,
+          }
+        : {}
+    );
+    if (requestId !== formatRequestId) return;
+
     formattedCodeOutput.value = result.formatted;
-    if (result.warning) {
-      formatError.value = result.warning;
-    }
-  } else {
-    formatError.value = result.error || "格式化失败";
-    formattedCodeOutput.value = result.formatted; // 显示原始代码
-  }
-};
-
-const formatCode = useDebounceFn(formatCodeInternal, 500);
+    formatError.value = result.success
+      ? result.warning || ""
+      : result.error || "格式化失败";
+  },
+  500
+);
 
 // 复制格式化后的代码
 const copyFormattedCode = async () => {
@@ -166,8 +304,19 @@ const sendToChat = () => {
 };
 
 // 监听语言和输入变化
-watch(language, formatCode, { immediate: true });
-watch(rawCodeInput, formatCode);
+watch(
+  [rawCodeInput, language, activePath, () => settings.value.rustEdition, retry],
+  ([code, selectedLanguage]) => {
+    const requestId = ++formatRequestId;
+    formatError.value = "";
+    if (!code) {
+      formattedCodeOutput.value = "";
+      return;
+    }
+    void formatCode(requestId, code, selectedLanguage);
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>
@@ -244,12 +393,38 @@ watch(rawCodeInput, formatCode);
 }
 
 .error-message {
-  color: #f56c6c;
+  color: var(--el-color-danger);
   font-size: 14px;
   margin-top: 10px;
   display: flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
+}
+.engine-settings {
+  flex-shrink: 0;
+  margin-bottom: 14px;
+}
+.engine-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.formatter-path {
+  flex: 1;
+  min-width: 220px;
+}
+.rust-edition {
+  width: 150px;
+}
+.engine-status {
+  color: var(--text-color-light);
+  font-size: 13px;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.engine-error {
+  color: var(--el-color-danger);
 }
 </style>

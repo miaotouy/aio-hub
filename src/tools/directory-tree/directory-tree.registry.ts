@@ -15,7 +15,7 @@
 import type { ToolRegistry, ToolConfig } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
-import DirectoryTreeIcon from "@/components/icons/DirectoryTreeIcon.vue";
+import { DirectoryTreeIcon } from "@aiohub/tool-icons";
 import { coerceAgentBoolean } from "@/utils/agentArgs";
 import type { GenerateTreeOptions } from "./actions";
 

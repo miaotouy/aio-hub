@@ -237,10 +237,15 @@ async function regenerateScreenshot() {
   generating.value = true;
   progress.value = { done: 0, total: elements.length, currentLabel: "" };
   try {
-    // 解析自动 gap: undefined 时按布局模式取默认值 (卡片 8px, 气泡 12px)
+    // 读取选区实际布局，跟随系统和紧凑模式与预览使用同一个间距。
+    const messageRow = elements.find((element) =>
+      element.classList.contains("message-slot")
+    );
+    const rowGap = messageRow?.parentElement
+      ? parseFloat(getComputedStyle(messageRow.parentElement).rowGap)
+      : NaN;
     const resolvedGap =
-      renderOptions.value.gap ??
-      (layoutOverrides.value.mode === "bubble" ? 12 : 8);
+      renderOptions.value.gap ?? (Number.isFinite(rowGap) ? rowGap : 8);
 
     // 从实际 DOM 读取消息背景容器的 border-radius (精确对齐模式/覆盖/系统设置)
     let messageBorderRadius = 8;

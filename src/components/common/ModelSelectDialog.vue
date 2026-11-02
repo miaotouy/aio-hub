@@ -43,6 +43,7 @@ const isNarrow = ref(false);
 
 let resizeObserver: ResizeObserver | null = null;
 let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+let scrollFrame: number | null = null;
 
 onMounted(() => {
   resizeObserver = new ResizeObserver((entries) => {
@@ -204,6 +205,10 @@ function handleClose() {
 }
 
 function clearPendingScroll() {
+  if (scrollFrame !== null) {
+    cancelAnimationFrame(scrollFrame);
+    scrollFrame = null;
+  }
   if (scrollTimer) {
     clearTimeout(scrollTimer);
     scrollTimer = null;
@@ -221,6 +226,7 @@ async function scrollToCurrentModel() {
   if (!isDialogVisible.value || !currentSelection.value) return;
 
   await nextTick();
+  if (!isDialogVisible.value || !currentSelection.value) return;
 
   const container = modelListWrapperRef.value;
   if (!container) return;
@@ -241,10 +247,26 @@ async function scrollToCurrentModel() {
     container.clientHeight / 2 +
     currentElement.offsetHeight / 2;
 
-  container.scrollTo({
-    top: Math.max(0, targetScrollTop),
-    behavior: "smooth",
-  });
+  const target = Math.max(
+    0,
+    Math.min(targetScrollTop, container.scrollHeight - container.clientHeight)
+  );
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    container.scrollTop = target;
+    return;
+  }
+
+  // 先定位到目标附近，再用固定时长完成短距离滚动。
+  const start = Math.max(0, target - 64);
+  container.scrollTop = start;
+  let startedAt: number | null = null;
+  const animate = (now: number) => {
+    startedAt ??= now;
+    const progress = Math.min((now - startedAt) / 140, 1);
+    container.scrollTop = start + (target - start) * (1 - (1 - progress) ** 3);
+    scrollFrame = progress < 1 ? requestAnimationFrame(animate) : null;
+  };
+  scrollFrame = requestAnimationFrame(animate);
 }
 
 function queueScrollToCurrentModel() {
@@ -253,7 +275,7 @@ function queueScrollToCurrentModel() {
   scrollTimer = setTimeout(() => {
     scrollTimer = null;
     void scrollToCurrentModel();
-  }, 150);
+  }, 50);
 }
 
 // 弹窗现在按需异步挂载；挂载时 visible 已经可能为 true，因此需要 immediate。
@@ -322,7 +344,13 @@ watch(
             </el-option>
           </el-select>
         </div>
-        <div ref="modelListWrapperRef" class="model-list-wrapper">
+        <div
+          ref="modelListWrapperRef"
+          class="model-list-wrapper"
+          @wheel.passive="clearPendingScroll"
+          @pointerdown="clearPendingScroll"
+          @keydown="clearPendingScroll"
+        >
           <div
             v-if="allModels.length > 0"
             :class="['model-list', { 'is-narrow': isNarrow }]"

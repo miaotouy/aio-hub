@@ -73,11 +73,24 @@
 
       <!-- 简单模式：质量预设 -->
       <template v-if="!isProfessional">
+        <el-form-item label="编码设备">
+          <el-select
+            v-model="simpleEncoderDevice"
+            :disabled="isVideoPassthrough"
+          >
+            <el-option label="CPU (软件编码)" value="cpu" />
+            <el-option label="GPU · NVIDIA (NVENC)" value="nvenc" />
+            <el-option label="GPU · Intel (QSV)" value="qsv" />
+          </el-select>
+          <div v-if="simpleEncoderDevice !== 'cpu'" class="help-text">
+            GPU 编码需对应显卡、驱动及 FFmpeg 编码器支持。
+          </div>
+        </el-form-item>
         <div class="form-row">
           <el-form-item label="编码格式" class="flex-1">
-            <el-select v-model="params.videoEncoder" placeholder="选择编码器">
-              <el-option label="H.264 (兼容性好)" value="libx264" />
-              <el-option label="H.265 (体积更小)" value="libx265" />
+            <el-select v-model="simpleVideoCodec" placeholder="选择编码器">
+              <el-option label="H.264 (兼容性好)" value="h264" />
+              <el-option label="H.265 (体积更小)" value="hevc" />
               <el-option label="流拷贝 (不重编码)" value="copy" />
               <el-option label="禁用视频流 (-vn)" value="none" />
             </el-select>
@@ -85,13 +98,25 @@
           <el-form-item
             label="输出质量"
             class="flex-1"
-            v-if="params.videoEncoder !== 'copy'"
+            v-if="!isVideoPassthrough"
           >
             <el-select v-model="qualityPreset" placeholder="选择质量">
-              <el-option label="极高 (CRF 18)" value="high" />
-              <el-option label="平衡 (CRF 23)" value="medium" />
-              <el-option label="紧凑 (CRF 26)" value="low" />
-              <el-option label="极小 (CRF 30)" value="lowest" />
+              <el-option
+                :label="`极高 (${videoQualitySpec.label.toUpperCase()} 18)`"
+                value="high"
+              />
+              <el-option
+                :label="`平衡 (${videoQualitySpec.label.toUpperCase()} 23)`"
+                value="medium"
+              />
+              <el-option
+                :label="`紧凑 (${videoQualitySpec.label.toUpperCase()} 26)`"
+                value="low"
+              />
+              <el-option
+                :label="`极小 (${videoQualitySpec.label.toUpperCase()} 30)`"
+                value="lowest"
+              />
             </el-select>
           </el-form-item>
         </div>
@@ -317,7 +342,7 @@
       <el-divider content-position="left">高级选项</el-divider>
       <div class="advanced-options">
         <div class="switch-row">
-          <span>硬件加速 (解码/编码)</span>
+          <span>硬件加速 (解码)</span>
           <el-switch v-model="params.hwaccel" />
         </div>
         <div class="switch-row">
@@ -368,6 +393,47 @@ interface PresetOption {
 
 const customArgsStr = ref("");
 const qualityPreset = ref("medium");
+const isVideoPassthrough = computed(() =>
+  ["copy", "none"].includes(props.params.videoEncoder || "")
+);
+const simpleEncoderDevice = computed({
+  get: () => {
+    const encoder = props.params.videoEncoder || "";
+    return encoder.includes("nvenc")
+      ? "nvenc"
+      : encoder.includes("qsv")
+        ? "qsv"
+        : "cpu";
+  },
+  set: (device: string) => {
+    const codec = simpleVideoCodec.value === "hevc" ? "hevc" : "h264";
+    props.params.videoEncoder =
+      device === "cpu"
+        ? codec === "hevc"
+          ? "libx265"
+          : "libx264"
+        : `${codec}_${device}`;
+  },
+});
+const simpleVideoCodec = computed({
+  get: () => {
+    const encoder = props.params.videoEncoder || "libx264";
+    if (encoder === "libx264" || encoder.startsWith("h264_")) return "h264";
+    if (encoder === "libx265" || encoder.startsWith("hevc_")) return "hevc";
+    return encoder;
+  },
+  set: (codec: string) => {
+    const device = simpleEncoderDevice.value;
+    props.params.videoEncoder =
+      codec === "copy" || codec === "none"
+        ? codec
+        : device === "cpu"
+          ? codec === "hevc"
+            ? "libx265"
+            : "libx264"
+          : `${codec}_${device}`;
+  },
+});
 const KEEP_ORIGINAL_RESOLUTION = "__keep_original_resolution__";
 const lastQuickMode = ref<Exclude<ProcessingMode, "custom">>("video");
 
@@ -504,7 +570,7 @@ const qualityMap: Record<string, number> = {
 
 // 监听质量预设变化
 watch(qualityPreset, (val) => {
-  if (!props.isProfessional) {
+  if (!props.isProfessional && !isVideoPassthrough.value) {
     props.params.crf = qualityMap[val];
   }
 });
@@ -513,7 +579,7 @@ watch(qualityPreset, (val) => {
 watch(
   () => props.isProfessional,
   (isPro) => {
-    if (!isPro) {
+    if (!isPro && !isVideoPassthrough.value) {
       strategy.value = "quality";
       props.params.crf = qualityMap[qualityPreset.value];
       props.params.videoBitrate = undefined;
@@ -607,6 +673,9 @@ watch(
       props.params.fps = undefined;
       props.params.pixelFormat = undefined;
       props.params.qualityMode = undefined;
+    } else if (!props.isProfessional) {
+      props.params.qualityMode = "quality";
+      props.params.crf = qualityMap[qualityPreset.value];
     }
 
     const prevNvenc = !!previous && previous.includes("nvenc");

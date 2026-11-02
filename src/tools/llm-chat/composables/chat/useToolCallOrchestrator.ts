@@ -53,8 +53,11 @@ export interface OrchestrateParams {
   generatingNodes: Set<string>;
   /** 当前渠道是否允许 AIO 在本地消费文本工具调用。 */
   consumeTextCallsLocally: boolean;
+  splitVcpResponses?: boolean;
   /** 是否为重新解析模式（跳过第一轮 LLM 请求，直接解析现有内容） */
   isReparse?: boolean;
+  /** 子智能体派发深度（透传至工具执行 ToolContext.delegationDepth） */
+  delegationDepth?: number;
 }
 
 export function useToolCallOrchestrator() {
@@ -80,6 +83,7 @@ export function useToolCallOrchestrator() {
       generatingNodes,
       consumeTextCallsLocally,
       isReparse = false,
+      delegationDepth,
     } = params;
 
     const llmChatStore = useLlmChatStore();
@@ -163,6 +167,20 @@ export function useToolCallOrchestrator() {
 
           lastRequestStartTime = Date.now();
 
+          const waitedForCompression =
+            await llmChatStore.waitForContextCompression(
+              session.id,
+              abortController.signal
+            );
+          if (waitedForCompression) {
+            const pathEnd =
+              currentPathToUserNode[currentPathToUserNode.length - 1]?.id;
+            currentPathToUserNode = nodeManager.getNodePath(
+              session,
+              pathEnd || currentAssistantNode.parentId || ""
+            );
+          }
+
           const { response } = await executeSingleNode({
             session,
             assistantNode: currentAssistantNode,
@@ -172,6 +190,12 @@ export function useToolCallOrchestrator() {
             executionAgent,
             effectiveUserProfile,
             abortController,
+            splitVcpResponses: params.splitVcpResponses,
+            onResponseNode: (node) => {
+              generatingNodes.delete(currentAssistantNode.id);
+              currentAssistantNode = node;
+              registerNode(node.id);
+            },
           });
 
           lastStreamEndTime = Date.now();
@@ -276,12 +300,20 @@ export function useToolCallOrchestrator() {
           const cycleResult = await processCycle(
             responseContent,
             executionAgent.toolCallConfig,
-            async (request) =>
+            async (request, security) =>
               await toolCallingStore.requestApproval(
                 session.id,
                 request,
                 undefined,
-                { signal: abortController.signal }
+                {
+                  signal: abortController.signal,
+                  source: "orchestrator",
+                  agentId: executionAgent.id,
+                  agentName: executionAgent.displayName,
+                  forceApproval: security?.forceApproval === true,
+                  effectiveArgs: security?.effectiveArgs,
+                  toolDescription: security?.toolDescription,
+                }
               ),
             async (requestId, status) => {
               // 简化回调：仅更新已有节点的元数据状态
@@ -323,7 +355,9 @@ export function useToolCallOrchestrator() {
             {
               id: executionAgent.id,
               knowledgeAccess: executionAgent.knowledgeAccess,
-            }
+            },
+            delegationDepth,
+            { profileId: agentConfig.profileId, modelId: agentConfig.modelId }
           );
 
           if (cycleResult.hasToolRequests) {
@@ -344,6 +378,9 @@ export function useToolCallOrchestrator() {
               const updatedNode: ChatMessageNode = {
                 ...node,
                 content: toolResultText,
+                localMedia: cycleResult.executionResults.flatMap(
+                  (result) => result.localMedia ?? []
+                ),
                 status: "complete",
                 metadata: {
                   ...node.metadata,
@@ -407,6 +444,16 @@ export function useToolCallOrchestrator() {
               metadata: {
                 agentId: executionAgent.id,
                 ...currentAssistantNode.metadata,
+                // A tool result starts a new response with its own reasoning.
+                reasoningContent: undefined,
+                reasoningArtifacts: undefined,
+                reasoningStateStatus: undefined,
+                reasoningStateWarning: undefined,
+                reasoningStartTime: undefined,
+                reasoningEndTime: undefined,
+                reasoningActive: undefined,
+                reasoningActiveSince: undefined,
+                reasoningDurationMs: undefined,
                 firstTokenTime: undefined,
                 requestStartTime: Date.now(),
                 requestEndTime: undefined,
@@ -451,13 +498,9 @@ export function useToolCallOrchestrator() {
       );
     } finally {
       // 5. 清理状态
-      abortControllers.delete(assistantNode.id);
-      generatingNodes.delete(assistantNode.id);
-      if (currentAssistantNode?.id) {
-        generatingNodes.delete(currentAssistantNode.id);
-        if (currentAssistantNode.id !== assistantNode.id) {
-          abortControllers.delete(currentAssistantNode.id);
-        }
+      for (const nodeId of trackedNodeIds) {
+        abortControllers.delete(nodeId);
+        generatingNodes.delete(nodeId);
       }
     }
   };

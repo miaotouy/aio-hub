@@ -210,6 +210,7 @@
                 :allow-dangerous-html="allowDangerousHtml"
                 :enable-cdn-localizer="enableCdnLocalizer"
                 :enable-enter-animation="enableEnterAnimation"
+                :stream-effect="streamEffect"
                 :llm-think-rules="llmThinkRules"
                 :style-options="richTextStyleOptions"
                 :regex-rules="activeRegexRules"
@@ -301,6 +302,7 @@
                   :allow-dangerous-html="allowDangerousHtml"
                   :enable-cdn-localizer="enableCdnLocalizer"
                   :enable-enter-animation="enableEnterAnimation"
+                  :stream-effect="streamEffect"
                   :llm-think-rules="llmThinkRules"
                   :style-options="richTextStyleOptions"
                   :regex-rules="activeRegexRules"
@@ -470,6 +472,7 @@ import TesterConfigSidebar from "./tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./tester/TesterToolbar.vue";
 import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
+import { createScreenshotLayoutFix } from "@/utils/screenshotLayout";
 import { domToPng } from "modern-screenshot";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { useImageViewer } from "@/composables/useImageViewer";
@@ -522,6 +525,7 @@ const {
   allowDangerousHtml,
   enableCdnLocalizer,
   enableEnterAnimation,
+  streamEffect,
   simulateMeta,
   selectedTokenizer,
   llmThinkRules,
@@ -1445,6 +1449,7 @@ const capturePreview = async () => {
       features: {
         removeControlCharacter: true,
       },
+      onCreateForeignObjectSvg: createScreenshotLayoutFix(targetEl),
       onCloneNode: (clonedNode: Node) => {
         const el = clonedNode as HTMLElement;
 
@@ -1534,30 +1539,6 @@ const capturePreview = async () => {
             overflow: visible !important;
             overflow-x: visible !important;
             overflow-y: visible !important;
-          }
-          
-          /* 智能排版保护：防止 flex 布局下的直接子元素在离屏渲染时因为微小的字体/行高偏差而被压缩折行 */
-          [style*="display: flex"] > *,
-          [style*="display:flex"] > *,
-          .flex-container > * {
-            flex-shrink: 0 !important;
-          }
-          
-          /* 强制所有徽章、药丸标签、summary 折叠标题等单行文本容器不折行 */
-          summary,
-          .el-tag,
-          .el-button,
-          .action-button,
-          [style*="border-radius: 100px"],
-          [style*="border-radius: 50px"],
-          [style*="border-radius:100px"],
-          [style*="border-radius:50px"] {
-            white-space: nowrap !important;
-          }
-
-          /* 按钮文本区域追加 1px 宽度余量，吸收离屏渲染的字体度量偏差，防止最后一个字换行 */
-          .action-button .action-label {
-            padding-right: 1px;
           }
           
           /* 确保 details 保持原本的展开状态，不要有奇怪的过渡动画干扰截图 */

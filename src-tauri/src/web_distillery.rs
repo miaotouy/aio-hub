@@ -14,6 +14,7 @@
 
 pub mod crypto;
 pub mod fetcher;
+pub mod net;
 pub mod proxy;
 
 pub use crypto::*;

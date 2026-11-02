@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "./virtual-attachment";
+import type { PresetContribution } from "@aiohub/agent-preset-core";
 import type {
   LlmMessageContent,
   LlmReasoningArtifact,
@@ -46,12 +48,18 @@ export const ANCHOR_IDS = {
   CHAT_HISTORY: "chat_history",
   /** 用户档案占位符/锚点 */
   USER_PROFILE: "user_profile",
+  LAST_USER: "last_user",
+  LAST_ASSISTANT: "last_assistant",
+  LAST_MESSAGE: "last_message",
 } as const;
 
 /**
  * 统一的消息类型（用于管道处理）
  */
 export interface ProcessableMessage {
+  /** 有效历史的原始角色，工具结果转为 User 后仍保留。 */
+  _historyRole?: "system" | "user" | "assistant" | "tool";
+  presetContributingParts?: PresetContribution[];
   role: "system" | "user" | "assistant" | "tool";
   content: string | LlmMessageContent[];
   /** 思考/推理内容（用于 DeepSeek 等模型的多轮对话回传） */
@@ -74,6 +82,15 @@ export interface ProcessableMessage {
   sourceIndex?: number;
   /** 用于存储被合并的原始消息 */
   _mergedSources?: ProcessableMessage[];
+  /** Retrieval fragments retained through role merges for diagnostics. */
+  _snapshotIdentity?: { type: string; id?: string | number };
+  _snapshotFragments?: Array<{
+    sourceType: string;
+    sourceId?: string;
+    collection?: string;
+    placeholder?: string;
+    content: string;
+  }>;
   /**
    * [中间格式] 暂存的附件列表
    * 在 asset-resolver 阶段会被处理并合并入 content
@@ -144,6 +161,7 @@ export interface PendingInputData {
   originalText?: string;
   /** 附件列表 */
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
   /** 临时指定的模型 */
   temporaryModel?: ModelIdentifier | null;
   /** 是否启用宏解析 */
@@ -154,6 +172,8 @@ export interface PendingInputData {
  * 获取上下文预览的选项
  */
 export interface GetContextPreviewOptions {
+  /** 统计摘要只保留媒体元数据；默认构建分析器所需的完整媒体。 */
+  purpose?: "statistics";
   /** 待发送的输入内容 */
   pendingInput?: PendingInputData;
   /** 参数覆盖（用于参数编辑器预览） */
@@ -172,6 +192,7 @@ export interface ContextPreviewData {
     charCount: number;
     tokenCount?: number;
     source: "agent_preset";
+    presetContributingParts?: PresetContribution[];
     index: number;
     /** 节点所使用的用户名称（快照） */
     userName?: string;

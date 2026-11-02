@@ -98,19 +98,31 @@ describe("createChannelProbeService", () => {
     expect(results.every((result) => result.success)).toBe(true);
   });
 
-  it("does not route unsupported video models through chat", async () => {
-    const source = profile(["video"]);
-    source.models[0].capabilities = { videoGeneration: true };
-    const executeChat = vi.fn(async () => ({ content: "wrong" }));
-    const service = createChannelProbeService({ executeChat });
-    const result = await service.probe({
-      kind: "inference",
-      profile: source,
-      modelId: "video",
-    });
-    expect(result.category).toBe("unsupported-capability");
-    expect(executeChat).not.toHaveBeenCalled();
-  });
+  it.each([
+    ["video", { videoGeneration: true }],
+    ["music", { musicGeneration: true }],
+    ["decision", { decision: true }],
+  ] as const)(
+    "reports unsupported %s models before execution",
+    async (capability, capabilities) => {
+      const source = profile([capability]);
+      source.models[0].capabilities = capabilities;
+      const executeChat = vi.fn(async () => ({ content: "wrong" }));
+      const service = createChannelProbeService({ executeChat });
+      const result = await service.probe({
+        kind: "inference",
+        profile: source,
+        modelId: capability,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        capability,
+        phase: "prepare",
+        category: "unsupported-capability",
+      });
+      expect(executeChat).not.toHaveBeenCalled();
+    }
+  );
 
   it("does not start more work after cancellation", async () => {
     const controller = new AbortController();

@@ -15,8 +15,10 @@
 -->
 
 <script setup lang="ts">
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
+
 import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import yaml from "js-yaml";
@@ -31,6 +33,7 @@ import {
 import { useFileDrop } from "@/composables/useFileDrop";
 import {
   Plus,
+  Refresh,
   Search,
   Download,
   Upload,
@@ -135,6 +138,7 @@ const handleMatchModeChange = (mode: SearchMatchMode) => {
 // 搜索和筛选状态
 const searchQuery = ref("");
 const selectedCategory = ref("all");
+const isRefreshingAgents = ref(false);
 
 // 搜索结果 ID 到匹配详情的映射
 const searchMatchesMap = computed(() => {
@@ -175,10 +179,43 @@ const allCategories = computed(() => {
     }));
 });
 
+const handleRefreshAgents = async () => {
+  if (isRefreshingAgents.value) return;
+
+  isRefreshingAgents.value = true;
+  try {
+    const loaded = await agentStore.loadAgents();
+
+    if (
+      selectedCategory.value !== "all" &&
+      !allCategories.value.some(
+        (category) => category.value === selectedCategory.value
+      )
+    ) {
+      selectedCategory.value = "all";
+    }
+    if (isInSearchMode.value) {
+      search(searchQuery.value.trim());
+    }
+    if (!loaded) {
+      customMessage.error("刷新未完成，请检查智能体配置文件后重试");
+    }
+  } catch (error) {
+    errorHandler.error(error, "刷新智能体列表失败");
+  } finally {
+    isRefreshingAgents.value = false;
+  }
+};
+
 // 过滤和排序后的智能体列表（非搜索模式）
 const filteredAndSortedAgents = computed(() => {
   const start = performance.now();
   let agents = [...agentStore.agents];
+
+  // 0. 子智能体可见性过滤：仅作为子智能体使用的专项节点不进入主聊天角色列表
+  agents = agents.filter(
+    (agent) => agent.subAgentConfig?.onlySubVisible !== true
+  );
 
   // 1. 分类过滤
   if (selectedCategory.value !== "all") {
@@ -248,6 +285,8 @@ const searchResultAgents = computed(() => {
   for (const result of agentResults.value) {
     const agent = agentStore.getAgentById(result.id);
     if (agent) {
+      // 仅作为子智能体可见的专项节点不进入主聊天角色列表
+      if (agent.subAgentConfig?.onlySubVisible === true) continue;
       // 如果有分类筛选，也需要应用
       if (
         selectedCategory.value === "all" ||
@@ -337,12 +376,10 @@ const { isDraggingOver } = useFileDrop({
   },
 });
 
-const virtualizer = useVirtualizer({
-  get count() {
-    return displayAgents.value.length;
-  },
+const virtualizer = useMeasuredVirtualizer(displayAgents, {
+  getItemKey: (agent) => agent.id,
   getScrollElement: () => parentRef.value,
-  estimateSize: () => 65, // 预估高度（基于未选中状态：padding 24 + content 32 + margin 8）
+  estimateSize: () => 65,
   overscan: 10,
 });
 
@@ -536,8 +573,7 @@ const handleCreateFromBlank = () => {
         timestamp: new Date().toISOString(),
       },
     ],
-    temperature: 1,
-    maxTokens: 8192,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
   };
 
   editDialogVisible.value = true;
@@ -579,7 +615,7 @@ const handleCreateFromPreset = (preset: AgentPreset) => {
     // 但为了保险和统一，这里我们保留 parameters 对象传递，让 Dialog 内部去解构
     parameters: parameters
       ? JSON.parse(JSON.stringify(parameters))
-      : { temperature: 1, maxTokens: 8192 },
+      : { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS },
 
     // 深度复制 presetMessages，并确保它们有唯一的 ID，同时保持引用关系
     presetMessages: (() => {
@@ -869,7 +905,7 @@ const handleImportFromTavernCard = async () => {
           v-model="selectedCategory"
           size="small"
           placeholder="全部分类"
-          style="flex: 1"
+          style="flex: 1; min-width: 0"
         >
           <el-option label="全部分类" value="all" />
           <el-option
@@ -882,12 +918,34 @@ const handleImportFromTavernCard = async () => {
         <el-select
           v-model="agentSortBy"
           size="small"
-          :style="{ width: allCategories.length > 0 ? '110px' : '100%' }"
+          :style="{
+            flex: allCategories.length > 0 ? '0 0 110px' : '1',
+            minWidth: 0,
+          }"
         >
           <el-option label="最近使用" value="lastUsed" />
           <el-option label="按名称" value="name" />
           <el-option label="创建时间" value="createdAt" />
         </el-select>
+        <el-tooltip
+          :content="
+            isRefreshingAgents ? '正在刷新智能体列表' : '刷新智能体列表'
+          "
+          placement="bottom"
+          :show-after="400"
+        >
+          <el-button
+            data-testid="chat-agent-refresh"
+            style="flex-shrink: 0"
+            aria-label="刷新智能体列表"
+            :icon="Refresh"
+            circle
+            size="small"
+            :loading="isRefreshingAgents"
+            :disabled="isRefreshingAgents"
+            @click="handleRefreshAgents"
+          />
+        </el-tooltip>
       </div>
     </div>
 

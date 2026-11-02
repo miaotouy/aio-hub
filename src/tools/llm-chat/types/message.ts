@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { VirtualTextAttachment } from "./virtual-attachment";
+import type {
+  PresetComposition,
+  PresetContribution,
+} from "@aiohub/agent-preset-core";
+import type { LocalMediaReference } from "@/types/local-media";
 import type { Asset } from "@/types/asset-management";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { SessionVariableSnapshot } from "./sessionVariable";
@@ -50,7 +56,7 @@ export interface InjectionStrategy {
   /**
    * 深度注入：相对于会话历史末尾的位置
    * - 0: 紧跟在最新消息之后（默认行为）
-   * - N: 插入到倒数第 N 条消息之后 (如果历史不足 N 条，则插入到最前面)
+   * - N: 插入到倒数第 N 条消息之前 (如果历史不足 N 条，则插入到最前面)
    *
    * 适用场景：作者备注、角色提醒等需要"靠近当前对话"的内容
    */
@@ -83,7 +89,7 @@ export interface InjectionStrategy {
 
   /**
    * 锚点注入：目标锚点的 ID
-   * 如 'chat_history', 'user_profile'
+   * 占位目标：chat_history、user_profile；动态历史目标：last_user、last_assistant、last_message。
    *
    * 注意：锚点由系统内置或插件注册，用户只能选择已存在的锚点
    */
@@ -110,6 +116,9 @@ export interface InjectionStrategy {
 export type TranslationDisplayMode = "original" | "translation" | "both";
 
 export interface ChatMessageNode {
+  presetComposition?: PresetComposition;
+  /** Runtime-only mapping to structured preset bodies. */
+  presetContributingParts?: PresetContribution[];
   /**
    * 消息的唯一标识符
    */
@@ -151,6 +160,10 @@ export interface ChatMessageNode {
    * 附加到此消息的文件资产列表
    */
   attachments?: Asset[];
+  virtualAttachments?: VirtualTextAttachment[];
+
+  /** 工具读取的本地媒体路径引用，原文件由用户管理。 */
+  localMedia?: LocalMediaReference[];
 
   /** 用户显式选择的版本化 Knowledge 引用。 */
   knowledgeReference?: KnowledgeReference;
@@ -227,6 +240,18 @@ export interface ChatMessageNode {
    * 附加元数据
    */
   metadata?: {
+    providerUsage?: import("@aiohub/llm-core").TokenUsage;
+    estimatedUsage?: import("@aiohub/llm-core").TokenUsage;
+    channelExecution?: import("@aiohub/llm-core").ChannelExecution;
+    channelAttempts?: import("@aiohub/llm-core").ChannelAttempt[];
+    /** A segment of a single upstream-owned VCP agent request. */
+    vcpResponse?: {
+      requestId: string;
+      kind: "assistant" | "tool";
+      responseId?: string;
+      finishReason?: string;
+      toolStatus?: "success" | "error";
+    };
     /** 生成此消息时使用的 Agent ID */
     agentId?: string;
     /** 生成此消息时使用的 Agent 名称（快照，防止 Agent 被删除后无法显示） */
@@ -268,16 +293,7 @@ export interface ChatMessageNode {
     /** 如果这是一个摘要节点，记录它总结了哪些节点的ID */
     summarizedFrom?: string[];
     /** Token 使用情况（API 返回的完整请求统计） */
-    usage?: {
-      promptTokens: number;
-      completionTokens: number;
-      totalTokens: number;
-      /** 提示 token 详细信息（含缓存量） */
-      promptTokensDetails?: {
-        cachedTokens?: number;
-        audioTokens?: number;
-      };
-    };
+    usage?: import("@aiohub/llm-core").TokenUsage;
     /**
      * 单条消息内容的 Token 数量（本地计算）
      * - 对于用户消息：本地计算的文本 + 附件 token 总数
@@ -302,6 +318,12 @@ export interface ChatMessageNode {
     reasoningStartTime?: number;
     /** 推理结束时间戳 */
     reasoningEndTime?: number;
+    /** 最近一次流式片段是否来自 reasoning 字段 */
+    reasoningActive?: boolean;
+    /** 当前 reasoning 片段的开始时间戳 */
+    reasoningActiveSince?: number;
+    /** 已累计的 reasoning 活跃时长（毫秒） */
+    reasoningDurationMs?: number;
     /** 是否为预设消息的显示副本（用于 UI 区分） */
     isPresetDisplay?: boolean;
     /** 是否为开局消息节点 */

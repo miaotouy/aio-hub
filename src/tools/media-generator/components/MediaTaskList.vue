@@ -19,14 +19,16 @@ import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
+import { useMediaGenReferenceInput } from "../composables/useMediaGenReferenceInput";
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
 import { save } from "@tauri-apps/plugin-dialog";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import { Search, Trash2 as TrashIcon } from "lucide-vue-next";
+import { Search, Trash2 as TrashIcon, Grid, List } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
+import type { Asset } from "@/types/asset-management";
 import { isAudioOutputTaskType, normalizeMediaTaskType } from "../types";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
@@ -37,6 +39,7 @@ import MediaTaskCard from "./MediaTaskCard.vue";
 const store = useMediaGenStore();
 const taskManager = useMediaTaskManager();
 const { abortTask } = useMediaGenerationManager();
+const { addImage: addReferenceImage } = useMediaGenReferenceInput();
 const logger = createModuleLogger("media-generator/task-list");
 const { getAssetBasePath, getAssetUrl } = useAssetManager();
 const imageViewer = useImageViewer();
@@ -50,6 +53,7 @@ const assetUrls = ref<Record<string, string>>({});
 const searchQuery = ref("");
 const filterType = ref<MediaTaskType | "all">("all");
 const filterStatus = ref<MediaTaskStatus | "all">("all");
+const viewMode = ref<"grid" | "list">("grid");
 
 // 统计信息直接使用管理器的
 const stats = taskManager.stats;
@@ -113,9 +117,54 @@ const {
   overscan: 10, // 增加预加载行数以减少快速滚动时的抖动
 });
 
+// 使用滚动区的内容宽度，让分离窗口、侧栏和缩放都采用同一套布局。
+const listWidth = ref(0);
+const listLayout = computed(() =>
+  listWidth.value >= 1040
+    ? "wide"
+    : listWidth.value >= 560
+      ? "wrapped"
+      : "stacked"
+);
+const listItemHeight = computed(() =>
+  listLayout.value === "wide" ? 96 : listLayout.value === "wrapped" ? 152 : 248
+);
+
+const {
+  list: virtualTasks,
+  containerProps: listContainerProps,
+  wrapperProps: listWrapperProps,
+} = useVirtualList(filteredTasks, {
+  itemHeight: () => listItemHeight.value,
+  overscan: 10,
+});
+
 // 监听容器大小变化 - 使用 watch 而非 onMounted，因为容器在 v-else 条件渲染下
 // 冷启动时 store 异步加载数据，onMounted 时容器 DOM 可能还不存在
 let resizeObserver: ResizeObserver | null = null;
+let listResizeObserver: ResizeObserver | null = null;
+
+watch(
+  () => listContainerProps.ref.value,
+  (container) => {
+    listResizeObserver?.disconnect();
+    if (!container) return;
+    listResizeObserver = new ResizeObserver(([entry]) => {
+      listWidth.value = entry.contentRect.width;
+    });
+    listResizeObserver.observe(container);
+  },
+  { immediate: true }
+);
+
+watch(listItemHeight, (height, previousHeight) => {
+  // 按新行高保留当前浏览位置，并同步重算可见范围。
+  const container = listContainerProps.ref.value;
+  if (container) {
+    container.scrollTop = (container.scrollTop / previousHeight) * height;
+    listContainerProps.onScroll();
+  }
+});
 
 watch(
   () => containerProps.ref.value,
@@ -140,6 +189,7 @@ watch(
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  listResizeObserver?.disconnect();
 });
 
 const handleRemoveTask = (taskId: string) => {
@@ -150,6 +200,19 @@ const handleRemoveTask = (taskId: string) => {
 const handleCancelTask = (taskId: string) => {
   abortTask(taskId);
   logger.info("任务已取消", { taskId });
+};
+
+const handleAddResultAsReference = (asset: Asset) => {
+  const result = addReferenceImage(asset);
+  if (result === "added") {
+    customMessage.success("已添加到参考图输入");
+  } else if (result === "duplicate") {
+    customMessage.info("这张图片已在参考图输入中");
+  } else {
+    customMessage.warning(
+      `参考图最多添加 ${store.maxAttachmentCount} 张，请先移除后再添加`
+    );
+  }
 };
 
 const clearFinishedTasks = () => {
@@ -356,6 +419,18 @@ const handleOpenAsset = async (task: MediaTask) => {
         </el-select>
       </div>
       <div class="toolbar-right">
+        <el-radio-group v-model="viewMode" size="small" aria-label="任务视图">
+          <el-tooltip content="网格视图" placement="bottom">
+            <el-radio-button value="grid" aria-label="网格视图">
+              <el-icon><Grid /></el-icon>
+            </el-radio-button>
+          </el-tooltip>
+          <el-tooltip content="列表视图" placement="bottom">
+            <el-radio-button value="list" aria-label="列表视图">
+              <el-icon><List /></el-icon>
+            </el-radio-button>
+          </el-tooltip>
+        </el-radio-group>
         <el-button :icon="TrashIcon" link @click="clearFinishedTasks">
           清空已结束任务
         </el-button>
@@ -370,6 +445,35 @@ const handleOpenAsset = async (task: MediaTask) => {
       <el-empty description="没有找到匹配的任务" />
     </div>
 
+    <div
+      v-else-if="viewMode === 'list'"
+      class="task-list-container"
+      :style="{ '--task-list-item-height': `${listItemHeight}px` }"
+      v-bind="listContainerProps"
+    >
+      <div class="task-list-virtual" v-bind="listWrapperProps">
+        <div
+          v-for="item in virtualTasks"
+          :key="item.data.id"
+          class="task-list-item"
+        >
+          <MediaTaskCard
+            :task="item.data"
+            layout="list"
+            :list-layout="listLayout"
+            @remove="handleRemoveTask"
+            @cancel="handleCancelTask"
+            @retry="handleRetryTask"
+            @download="handleDownloadTask"
+            @copy-prompt="handleCopyPrompt"
+            @copy-result="handleCopyResult"
+            @add-reference="handleAddResultAsReference"
+            @open="handleOpenAsset"
+          />
+        </div>
+      </div>
+    </div>
+
     <div v-else class="task-list-container" v-bind="containerProps">
       <div class="task-grid-virtual" v-bind="wrapperProps">
         <div v-for="row in virtualRows" :key="row.index" class="task-row">
@@ -382,6 +486,7 @@ const handleOpenAsset = async (task: MediaTask) => {
               @download="handleDownloadTask"
               @copy-prompt="handleCopyPrompt"
               @copy-result="handleCopyResult"
+              @add-reference="handleAddResultAsReference"
               @open="handleOpenAsset"
             />
           </div>
@@ -393,6 +498,7 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 <style scoped>
 .media-task-list {
+  container-type: inline-size;
   box-sizing: border-box;
   height: 100%;
   padding: 16px 16px 0 16px;
@@ -404,6 +510,8 @@ const handleOpenAsset = async (task: MediaTask) => {
 
 .task-list-container {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: 80px; /* 底部余量 */
   padding-top: 12px;
@@ -481,14 +589,37 @@ const handleOpenAsset = async (task: MediaTask) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  flex: 1 1 420px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar-right :deep(.el-radio-button__inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+}
+
+.toolbar-right :deep(.el-radio-button__inner .el-icon) {
+  font-size: 15px;
 }
 
 .search-input {
+  flex: 1 1 180px;
   max-width: 240px;
 }
 
 .filter-select {
+  flex: 0 0 120px;
   width: 120px;
 }
 
@@ -505,7 +636,21 @@ const handleOpenAsset = async (task: MediaTask) => {
   box-sizing: border-box;
 }
 
+.task-list-virtual {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.task-list-item {
+  display: flex;
+  align-items: center;
+  height: var(--task-list-item-height);
+  padding: 4px 0;
+  box-sizing: border-box;
+}
+
 .task-row {
+  height: 370px;
   display: flex;
   gap: 16px;
   padding: 8px 0;
@@ -516,5 +661,35 @@ const handleOpenAsset = async (task: MediaTask) => {
   flex: 1;
   min-width: 240px;
   max-width: 480px;
+}
+@container (max-width: 559px) {
+  .stats-overview {
+    gap: 6px;
+  }
+
+  .stat-item {
+    min-width: 0;
+    padding: 8px 4px;
+  }
+
+  .stat-item .label {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .toolbar-left {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .search-input {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+
+  .filter-select {
+    width: 100%;
+  }
 }
 </style>

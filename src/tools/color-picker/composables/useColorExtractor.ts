@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { ref } from "vue";
+import { rgbToHex } from "./useColorConverter";
 // node-vibrant v4.x 在浏览器环境中的正确导入方式
 import { Vibrant } from "node-vibrant/browser";
 import ColorThief from "color-thief-ts";
@@ -151,31 +152,30 @@ export function useColorExtractor() {
           });
         }
 
-        const palette = colorThief.getPalette(imageElement, colorCount);
-        const dominantColor = colorThief.getColor(imageElement);
+        // 显式请求 RGB，绕过依赖直接拼 HEX 时产生的七位颜色。
+        const palette = colorThief.getPalette(imageElement, colorCount, {
+          colorType: "array",
+        });
+        const dominantColor = colorThief.getColor(imageElement, {
+          colorType: "array",
+        });
 
-        // 根据调试日志，color-thief-ts 可以直接返回十六进制字符串。
-        // 此函数处理字符串和数组格式以增强健壮性。
-        const formatToHex = (color: string | number[]): string => {
-          if (typeof color === "string") {
-            return color.startsWith("#") ? color : `#${color}`;
-          }
-          if (Array.isArray(color)) {
-            return `#${color.map((c: number) => c.toString(16).padStart(2, "0")).join("")}`;
-          }
-          // 针对意外格式的回退处理
-          logger.warn("Unexpected color format from ColorThief", { color });
-          return "#000000";
-        };
-
-        // 将主色调放在第一位，然后添加调色板颜色
-        const rawColors = [
-          formatToHex(dominantColor as number[]),
-          ...palette.map((pColor: string | number[]) => formatToHex(pColor)),
+        // 稀疏图像的空量化桶可能返回 256；丢弃无效桶，保留真实黑色。
+        const colors = [
+          ...new Set(
+            [dominantColor, ...palette]
+              .filter(
+                (color): color is [number, number, number] =>
+                  Array.isArray(color) &&
+                  color.length === 3 &&
+                  color.every(
+                    (channel) =>
+                      Number.isFinite(channel) && channel >= 0 && channel <= 255
+                  )
+              )
+              .map(([r, g, b]) => rgbToHex(r, g, b))
+          ),
         ];
-
-        // 过滤掉转换失败的颜色并去重
-        const colors = [...new Set(rawColors.filter((c) => c !== "#000000"))];
 
         logger.debug("主色调提取完成", {
           colorCount,

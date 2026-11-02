@@ -120,6 +120,29 @@ describe("AioFileOperator Registry", () => {
       expect(result.message).toContain("已覆盖写入");
     });
 
+    it("自动重命名目标解析到白名单外时保留原文件并拒绝写入", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (command === "resolve_path_for_security")
+          return args.path === "C:/Safe/report(1).txt"
+            ? "C:/Outside/new.txt"
+            : args.path;
+        if (command === "path_exists")
+          return args.path === "C:/Safe/report.txt";
+        return null;
+      });
+      const result = await registry.write_file({
+        path: "C:/Safe/report.txt",
+        content: "fixture",
+      });
+      expect(result.success).toBe(false);
+      expect(
+        mockInvoke.mock.calls.some(
+          ([command]) => command === "write_text_file_force"
+        )
+      ).toBe(false);
+    });
+
     it("文件已存在且 allowOverwrite=false 时应自动累加序号", async () => {
       mockInvoke.mockImplementation(async (cmd: string, args: any) => {
         if (cmd === "path_exists") {
@@ -222,6 +245,100 @@ describe("AioFileOperator Registry", () => {
       const result = await registry.read_file({ path: "C:/test/readme.txt" });
       expect(result.success).toBe(true);
       expect(result.data.content).toBe("hello world");
+    });
+
+    it.each([
+      ["C:\\test\\photo.PNG", "image", "image/png"],
+      ["C:/test/voice.mp3", "audio", "audio/mpeg"],
+      ["C:/test/clip.mp4", "video", "video/mp4"],
+    ])("读取 %s 时返回本地引用，保留原文件", async (path, type, mimeType) => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata")
+          return { size: 3, isFile: true, isDir: false };
+        return null;
+      });
+      const result = await registry.read_file({ path });
+      expect(result).toMatchObject({
+        success: true,
+        data: { path, mimeType, mediaType: type, size: 3 },
+        localMedia: [
+          { type, mimeType, size: 3, path: path.replace(/\\/g, "/") },
+        ],
+      });
+      expect(mockInvoke.mock.calls.map(([command]) => command)).not.toContain(
+        "import_asset_from_bytes"
+      );
+      const logs = await actions.getOperationLogs();
+      expect(logs[logs.length - 1]?.result).toEqual({
+        success: true,
+        message: result.message,
+        data: result.data,
+      });
+    });
+
+    it("发送时从原路径读取当前内容，并重新检查访问规则", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") return { size: 3, isFile: true };
+        if (cmd === "read_file_binary") return [9, 8, 7];
+        return null;
+      });
+      const result = await registry.read_file({ path: "C:/test/photo.png" });
+      const path = result.localMedia![0].path;
+      expect(new Uint8Array(await actions.readLocalMediaFile(path))).toEqual(
+        new Uint8Array([9, 8, 7])
+      );
+      await whitelistDirs(["C:/Other"]);
+      await expect(actions.readLocalMediaFile(path)).rejects.toThrow(
+        "安全沙箱拦截"
+      );
+    });
+
+    it("路径改为审批区后要求重新审批，并读取已批准文件", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") return { size: 3, isFile: true };
+        if (cmd === "read_file_binary") return [1, 2, 3];
+        return null;
+      });
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "approval", path: "C:/test", type: "approve" }],
+      });
+      await expect(
+        actions.readLocalMediaFile("C:/test/photo.png")
+      ).rejects.toThrow("重新调用 read_file");
+      const approved = await registry.read_file({ path: "C:/test/photo.png" });
+      expect(approved.localMedia![0].approvalGranted).toBe(true);
+      expect(
+        new Uint8Array(
+          await actions.readLocalMediaFile(
+            approved.localMedia![0].path,
+            approved.localMedia![0].approvalGranted
+          )
+        )
+      ).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    it("媒体文件在实际读取期间增长超过上限时拒绝发送", async () => {
+      await actions.setConfig({ maxFileSize: 2 });
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") return { size: 1, isFile: true };
+        if (cmd === "read_file_binary") return [1, 2, 3];
+        return null;
+      });
+      await expect(
+        actions.readLocalMediaFile("C:/test/clip.mp4")
+      ).rejects.toThrow("超过限制");
+      await actions.setConfig({ maxFileSize: 10 * 1024 * 1024 });
+    });
+
+    it("媒体路径越过沙箱时在读取前拦截", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.read_file({ path: "C:/Secret/photo.png" });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("安全沙箱拦截");
+      expect(mockInvoke.mock.calls.map(([command]) => command)).not.toContain(
+        "read_file_binary"
+      );
     });
 
     it("路径不是文件时应失败", async () => {
@@ -700,6 +817,170 @@ describe("AioFileOperator Registry", () => {
       expect(logs).toHaveLength(0);
     });
 
+    // 保护规则审计的公开行为：前后状态准确、保存结果可信、实时通知可解除。
+    it("新增、原地修改和删除规则应推送准确的变更，解除订阅后停止推送", async () => {
+      const listener = vi.fn();
+      const unsubscribe = actions.subscribeOperationLogs(listener);
+      try {
+        await actions.setConfig({
+          blackListRules: [
+            { id: "audit-rule", path: "C:/private", type: "block" },
+          ],
+        });
+        const config = await actions.getConfig();
+        config.blackListRules[0].type = "approve";
+        expect((await actions.getConfig()).blackListRules[0].type).toBe(
+          "block"
+        );
+        await actions.setConfig(config);
+        await actions.setConfig({ blackListRules: [] });
+        const logs = await actions.getOperationLogs();
+        expect(
+          logs.map((log) => ({
+            method: log.method,
+            params: log.params,
+            success: log.result.success,
+          }))
+        ).toEqual([
+          {
+            method: "新增安全规则",
+            params: { path: "C:/private", before: "无规则", after: "禁止" },
+            success: true,
+          },
+          {
+            method: "更新安全规则",
+            params: { path: "C:/private", before: "禁止", after: "审批" },
+            success: true,
+          },
+          {
+            method: "删除安全规则",
+            params: { path: "C:/private", before: "审批", after: "无规则" },
+            success: true,
+          },
+        ]);
+        expect(logs.every((log) => log.category === "security")).toBe(true);
+        expect(listener.mock.calls.map(([entries]) => entries.length)).toEqual([
+          1, 2, 3,
+        ]);
+        await actions.clearLogs();
+        expect(listener).toHaveBeenLastCalledWith([]);
+        unsubscribe();
+        await actions.setConfig(config);
+        expect(listener).toHaveBeenCalledTimes(4);
+      } finally {
+        unsubscribe();
+      }
+    });
+
+    it("保存失败应保留原规则并记录失败，后续重试仍可保存", async () => {
+      await actions.setConfig({
+        blackListRules: [
+          { id: "audit-rule", path: "C:/private", type: "block" },
+        ],
+      });
+      await actions.clearLogs();
+      const config = await actions.getConfig();
+      config.blackListRules[0].type = "approve";
+      const save = vi
+        .spyOn(actions.configManager, "save")
+        .mockRejectedValueOnce(new Error("磁盘已满"));
+      try {
+        await expect(actions.setConfig(config)).rejects.toThrow("磁盘已满");
+        expect((await actions.getConfig()).blackListRules[0].type).toBe(
+          "block"
+        );
+        expect(await actions.getOperationLogs()).toEqual([
+          expect.objectContaining({
+            params: { path: "C:/private", before: "禁止", after: "审批" },
+            result: {
+              success: false,
+              message: expect.stringContaining("磁盘已满"),
+            },
+          }),
+        ]);
+        await actions.setConfig(config);
+        expect((await actions.getConfig()).blackListRules[0].type).toBe(
+          "approve"
+        );
+        expect(
+          (await actions.getOperationLogs()).map((log) => log.result.success)
+        ).toEqual([false, true]);
+      } finally {
+        save.mockRestore();
+      }
+    });
+
+    it("连续编辑应按提交时的快照顺序记录", async () => {
+      const config = await actions.getConfig();
+      config.blackListRules = [
+        { id: "audit-rule", path: "C:/private", type: "block" },
+      ];
+      const firstSave = actions.setConfig(config);
+      config.blackListRules[0].type = "approve";
+      const secondSave = actions.setConfig(config);
+      config.blackListRules[0].type = "block";
+      await Promise.all([firstSave, secondSave]);
+      expect(
+        (await actions.getOperationLogs()).map((log) => log.params)
+      ).toEqual([
+        { path: "C:/private", before: "无规则", after: "禁止" },
+        { path: "C:/private", before: "禁止", after: "审批" },
+      ]);
+      expect((await actions.getConfig()).blackListRules[0].type).toBe(
+        "approve"
+      );
+    });
+
+    it("重复保存和布局变化应保持已有审计记录", async () => {
+      await actions.setConfig({
+        blackListRules: [
+          { id: "audit-rule", path: "C:/private", type: "block" },
+        ],
+      });
+      const logs = await actions.getOperationLogs();
+      await actions.setConfig(await actions.getConfig());
+      await actions.setConfig({ logPanelWidth: 400, isLogCollapsed: true });
+      expect(await actions.getOperationLogs()).toEqual(logs);
+    });
+
+    it("白名单目录和沙箱模式变更应记录，审计关闭时停止记录规则", async () => {
+      const previous = await actions.getConfig();
+      await actions.setConfig({
+        sandboxMode: "whitelist",
+        allowedDirectories: [...previous.allowedDirectories, "C:/audit-work"],
+      });
+      expect(await actions.getOperationLogs()).toEqual([
+        expect.objectContaining({
+          method: "切换沙箱模式",
+          params: { before: "黑名单", after: "白名单" },
+        }),
+        expect.objectContaining({
+          method: "新增白名单目录",
+          params: {
+            path: "C:/audit-work",
+            before: "未列入",
+            after: "允许访问",
+          },
+        }),
+      ]);
+      await actions.setConfig({
+        allowedDirectories: previous.allowedDirectories,
+      });
+      const directoryLogs = await actions.getOperationLogs();
+      expect(directoryLogs[directoryLogs.length - 1]).toMatchObject({
+        method: "删除白名单目录",
+        params: { path: "C:/audit-work", before: "允许访问", after: "未列入" },
+      });
+      await actions.setConfig({ enableAuditLog: false });
+      await actions.clearLogs();
+      await actions.setConfig({
+        blackListRules: [
+          { id: "audit-rule", path: "C:/private", type: "approve" },
+        ],
+      });
+      expect(await actions.getOperationLogs()).toEqual([]);
+    });
+
     it("日志超过 100 条时应移除最旧的", async () => {
       mockInvoke.mockImplementation(async (cmd: string) => {
         if (cmd === "path_exists") return false;
@@ -749,6 +1030,52 @@ describe("AioFileOperator Registry", () => {
 
       // 写入的内容应保持 CRLF
       expect(writtenContent).toContain("\r\n");
+    });
+
+    it.each([
+      [
+        "alpha\r\nbeta\r\ngamma\r\n",
+        "beta\n",
+        "BETA\n",
+        "alpha\r\nBETA\r\ngamma\r\n",
+      ],
+      [
+        "prefix beta suffix\nnext\n",
+        "beta",
+        "BETA",
+        "prefix BETA suffix\nnext\n",
+      ],
+    ])(
+      "精确 Diff 保留匹配范围外的内容",
+      async (original, search, replace, expected) => {
+        let written = "";
+        mockInvoke.mockImplementation(async (command: string, args: any) => {
+          if (command === "read_text_file_force") return original;
+          if (command === "write_text_file_force") written = args.content;
+          return null;
+        });
+        const result = await registry.apply_diff({
+          path: "C:/test/diff.txt",
+          search,
+          replace,
+        });
+        expect(result.success).toBe(true);
+        expect(written).toBe(expected);
+      }
+    );
+
+    it("Rust 返回的权限错误保留在操作结果中", async () => {
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === "append_file_force")
+          throw "打开文件失败: Permission denied (os error 13)";
+        return null;
+      });
+      const result = await registry.append_file({
+        path: "C:/test/readonly.txt",
+        content: "fixture",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Permission denied");
     });
 
     it("LF 文件应用 Diff 后应保持 LF", async () => {
@@ -872,10 +1199,398 @@ describe("AioFileOperator Registry", () => {
       expect(result.message).toContain("配置无效");
     });
 
+    it("双路径操作的死区优先于另一侧审批区", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [
+          { id: "approval", path: "C:/Review", type: "approve" },
+          { id: "blocked", path: "C:/Secret", type: "block" },
+        ],
+      });
+      for (const method of ["copy_file", "move_file"]) {
+        expect(
+          (
+            await registry.checkSecurityPolicy(method, {
+              sourcePath: "C:/Review/file.txt",
+              targetPath: "C:/Secret/file.txt",
+            })
+          ).status
+        ).toBe("block");
+      }
+    });
+
+    it("Unix 反斜杠属于文件名，不能将不同目录视为同一白名单", async () => {
+      mockInvoke.mockImplementation(async (command: string, args: any) =>
+        command === "resolve_path_for_security" ? args.path : null
+      );
+      await whitelistDirs(["/tmp/alias\\safe"]);
+      expect(
+        (
+          await registry.checkSecurityPolicy("read_file", {
+            path: "/tmp/alias/safe/secret.txt",
+          })
+        ).status
+      ).toBe("block");
+      expect(
+        (
+          await registry.checkSecurityPolicy("read_file", {
+            path: "/tmp/alias\\safe/own.txt",
+          })
+        ).status
+      ).toBe("allow");
+    });
+
+    it("安全规则目录无法解析时阻断访问", async () => {
+      await actions.setConfig({
+        sandboxMode: "blacklist",
+        blackListRules: [{ id: "deny", path: "C:/Secret", type: "block" }],
+      });
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (
+          command === "resolve_path_for_security" &&
+          args.path === "C:/Secret"
+        )
+          throw new Error("permission denied");
+        return args?.path ?? null;
+      });
+      expect(
+        (
+          await registry.checkSecurityPolicy("read_file", {
+            path: "C:/Other/file.txt",
+          })
+        ).status
+      ).toBe("block");
+    });
+
+    it("目录内的审批规则通过执行器要求确认，拒绝后不会复制", async () => {
+      await allowAllPaths();
+      mockInvoke.mockImplementation(async (command: string) =>
+        command === "inspect_file_operation" ? { status: "approve" } : null
+      );
+      const onBeforeExecute = vi.fn(async () => "rejected" as const);
+      const [result] = await executeToolRequests(
+        [
+          {
+            requestId: "nested-approval",
+            toolId: registry.id,
+            methodName: "copy_file",
+            toolName: registry.name,
+            rawBlock: "",
+            args: { sourcePath: "C:/Source", targetPath: "C:/Target" },
+          },
+        ],
+        {
+          config: {
+            enabled: true,
+            mode: "auto",
+            toolToggles: {},
+            autoApproveTools: {},
+            defaultToolEnabled: true,
+            defaultAutoApprove: true,
+            maxIterations: 5,
+            timeout: 30000,
+            parallelExecution: false,
+            protocol: "vcp",
+          },
+          onBeforeExecute,
+        }
+      );
+      expect(result.status).toBe("denied");
+      expect(onBeforeExecute).toHaveBeenCalledOnce();
+      expect(
+        mockInvoke.mock.calls.some(([command]) => command === "copy_path_force")
+      ).toBe(false);
+    });
+
     it("无 path 参数时应返回 allow", async () => {
       await whitelistDirs(["C:/Safe"]);
       const result = await registry.checkSecurityPolicy("some_method", {});
       expect(result.status).toBe("allow");
+    });
+  });
+
+  // ==================== 超长路径安全截断 ====================
+
+  describe("超长路径安全截断 (Path Error Truncation)", () => {
+    /** 生成约 10KB 的伪正文文本 */
+    function buildHugePayload(): string {
+      return "这是一段被模型误塞进路径参数的正文内容。".repeat(300);
+    }
+
+    beforeEach(async () => {
+      resetInvokeMock();
+    });
+
+    it("formatPathForError 对非字符串与空值应返回占位符", async () => {
+      const { formatPathForError } = await import("../utils/security");
+      expect(formatPathForError(undefined)).toBe("<空路径>");
+      expect(formatPathForError(null)).toBe("<空路径>");
+      expect(formatPathForError(123 as any)).toBe("<空路径>");
+      expect(formatPathForError("   ")).toBe("<空路径>");
+      expect(formatPathForError("\n\r\t")).toBe("<空路径>");
+    });
+
+    it("formatPathForError 应压缩换行符与连续空白为空格", async () => {
+      const { formatPathForError } = await import("../utils/security");
+      const formatted = formatPathForError("C:/a\nb\r\nc  d");
+      expect(formatted).toBe("C:/a b c d");
+      expect(formatted).not.toContain("\n");
+    });
+
+    it("formatPathForError 对 10KB 正文应截断并标注原始长度", async () => {
+      const { formatPathForError } = await import("../utils/security");
+      // 用递增序号保证每个片段唯一，便于断言"尾部内容未被回显"
+      const hugePath = `C:/data/${Array.from(
+        { length: 300 },
+        (_, i) => `片段${i}-这是一段被模型误塞进路径参数的正文内容`
+      ).join("。")}`;
+      const formatted = formatPathForError(hugePath);
+      expect(formatted.length).toBeLessThan(200);
+      expect(formatted).toContain("已截断");
+      expect(formatted).toContain(`原始内容长度: ${hugePath.length} 字符`);
+      expect(formatted).toContain("疑似误将正文/数据传入路径参数");
+      // 截断后的内容不应包含原始超长正文的尾部唯一片段
+      expect(formatted).not.toContain("片段299");
+    });
+
+    it("白名单模式下超长路径被拦截时，报错应包含截断提示而非完整正文", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const hugePath = `C:/Unsafe/${buildHugePayload()}`;
+
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: hugePath,
+      });
+      expect(result.status).toBe("block");
+      expect(result.message).toContain("安全沙箱拦截");
+      expect(result.message).toContain("已截断");
+      expect(result.message!.length).toBeLessThan(300);
+      // 完整正文不应被回显
+      expect(result.message).not.toContain(buildHugePayload().slice(-100));
+    });
+
+    it("相对路径被传入 10KB 正文时，报错应截断且不破坏排版", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const hugeRelativePath = buildHugePayload().replace(/。/g, "");
+
+      const result = await registry.checkSecurityPolicy("read_file", {
+        path: hugeRelativePath,
+      });
+      expect(result.status).toBe("block");
+      expect(result.message).toContain("绝对路径");
+      expect(result.message).toContain("已截断");
+      expect(result.message).not.toContain("\n");
+    });
+
+    it("move/copy 双路径中任一超长路径都应被安全回显", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.checkSecurityPolicy("copy_file", {
+        sourcePath: "C:/Safe/a.txt",
+        targetPath: `C:/Unsafe/${buildHugePayload()}`,
+      });
+      expect(result.status).toBe("block");
+      expect(result.message).toContain("已截断");
+    });
+
+    it("操作失败时 buildErrorResult 返回的 message 应有长度上限", async () => {
+      await allowAllPaths();
+      const uniqueMarker = "结尾唯一标识-ABCDEF";
+      const hugeErrorText = `${buildHugePayload()}${uniqueMarker}`;
+      mockInvoke.mockImplementation(async () => {
+        throw new Error(hugeErrorText);
+      });
+
+      const result = await registry.read_file({ path: "C:/test/x.txt" });
+      expect(result.success).toBe(false);
+      expect(result.message.length).toBeLessThan(600);
+      expect(result.message).toContain("已截断");
+      expect(result.message).not.toContain(uniqueMarker);
+    });
+  });
+
+  // ==================== copyFile / moveFile ====================
+
+  describe("copyFile / moveFile", () => {
+    beforeEach(async () => {
+      resetInvokeMock();
+      await allowAllPaths();
+    });
+
+    it("copyFile 应调用 copy_path_force 并成功返回", async () => {
+      let invokedArgs: any = null;
+      mockInvoke.mockImplementation(async (cmd: string, args: any) => {
+        if (cmd === "copy_path_force") {
+          invokedArgs = args;
+          return null;
+        }
+        return null;
+      });
+
+      const result = await registry.copy_file({
+        sourcePath: "C:/src/a.txt",
+        targetPath: "C:/dst/a.txt",
+        allowOverwrite: true,
+      });
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("成功复制");
+      expect(invokedArgs).toMatchObject({
+        sourcePath: "C:/src/a.txt",
+        targetPath: "C:/dst/a.txt",
+        overwrite: true,
+      });
+    });
+
+    it("copyFile 失败时应返回 success=false", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "copy_path_force") throw new Error("目标已存在");
+        return null;
+      });
+
+      const result = await registry.copy_file({
+        sourcePath: "C:/src/a.txt",
+        targetPath: "C:/dst/a.txt",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("目标已存在");
+    });
+
+    it("moveFile 应调用 move_path_force 并成功返回", async () => {
+      let invokedArgs: any = null;
+      mockInvoke.mockImplementation(async (cmd: string, args: any) => {
+        if (cmd === "move_path_force") {
+          invokedArgs = args;
+          return null;
+        }
+        return null;
+      });
+
+      const result = await registry.move_file({
+        sourcePath: "C:/src/old.txt",
+        targetPath: "C:/src/new.txt",
+      });
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("成功移动");
+      expect(invokedArgs.overwrite).toBe(false);
+    });
+
+    it("白名单模式下 copyFile 目标路径越界应被整体拦截", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "copy_path_force") return null;
+        return null;
+      });
+
+      const result = await registry.copy_file({
+        sourcePath: "C:/Safe/a.txt",
+        targetPath: "C:/Outside/b.txt",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("安全沙箱拦截");
+    });
+
+    it("白名单模式下 moveFile 源路径越界应被整体拦截", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.move_file({
+        sourcePath: "C:/Outside/a.txt",
+        targetPath: "C:/Safe/b.txt",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("安全沙箱拦截");
+    });
+
+    it("copy_file 元数据应注册为 agentCallable", () => {
+      const metadata = registry.getMetadata();
+      const names = metadata.methods.map((m) => m.name);
+      expect(names).toContain("copy_file");
+      expect(names).toContain("move_file");
+      expect(names).toContain("get_file_info");
+      expect(names).toContain("search_files");
+    });
+  });
+
+  // ==================== getFileInfo / searchFiles ====================
+
+  describe("getFileInfo / searchFiles", () => {
+    beforeEach(async () => {
+      resetInvokeMock();
+      await allowAllPaths();
+    });
+
+    it("getFileInfo 应返回元数据", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata")
+          return {
+            size: 4096,
+            isFile: true,
+            isDir: false,
+            modified: 1700000000,
+            created: 1699000000,
+          };
+        return null;
+      });
+
+      const result = await registry.get_file_info({ path: "C:/test/a.txt" });
+      expect(result.success).toBe(true);
+      expect(result.data.metadata.size).toBe(4096);
+      expect(result.data.metadata.isFile).toBe(true);
+    });
+
+    it("getFileInfo 路径不存在时应返回 success=false", async () => {
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata") throw new Error("路径不存在");
+        return null;
+      });
+
+      const result = await registry.get_file_info({ path: "C:/missing.txt" });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("路径不存在");
+    });
+
+    it("searchFiles 应调用 search_files 并返回命中列表", async () => {
+      let invokedArgs: any = null;
+      mockInvoke.mockImplementation(async (cmd: string, args: any) => {
+        if (cmd === "search_files") {
+          invokedArgs = args;
+          return [
+            {
+              name: "app.log",
+              relativePath: "logs/app.log",
+              absolutePath: "C:/test/logs/app.log",
+              isDir: false,
+              size: 128,
+            },
+          ];
+        }
+        return null;
+      });
+
+      const result = await registry.search_files({
+        directoryPath: "C:/test",
+        pattern: "*.log",
+      });
+      expect(result.success).toBe(true);
+      expect(result.data.hits).toHaveLength(1);
+      expect(result.data.hits[0].relativePath).toBe("logs/app.log");
+      expect(invokedArgs.pattern).toBe("*.log");
+      expect(invokedArgs.recursive).toBe(true);
+    });
+
+    it("searchFiles 空 pattern 应返回失败", async () => {
+      const result = await registry.search_files({
+        directoryPath: "C:/test",
+        pattern: "   ",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("搜索模式不能为空");
+    });
+
+    it("白名单模式下 searchFiles 目录越界应被拦截", async () => {
+      await whitelistDirs(["C:/Safe"]);
+      const result = await registry.search_files({
+        directoryPath: "C:/Outside",
+        pattern: "*.txt",
+      });
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("安全沙箱拦截");
     });
   });
 
@@ -893,6 +1608,10 @@ describe("AioFileOperator Registry", () => {
       expect(methodNames).toContain("apply_diff");
       expect(methodNames).toContain("create_directory");
       expect(methodNames).toContain("path_exists");
+      expect(methodNames).toContain("copy_file");
+      expect(methodNames).toContain("move_file");
+      expect(methodNames).toContain("get_file_info");
+      expect(methodNames).toContain("search_files");
     });
 
     it("所有方法应标记为 agentCallable", () => {
@@ -923,6 +1642,43 @@ describe("AioFileOperator Registry", () => {
 
     beforeEach(async () => {
       resetInvokeMock();
+    });
+
+    it("执行器将本地媒体引用独立回传，文本结果保留文件信息", async () => {
+      await allowAllPaths();
+      mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_file_metadata")
+          return { size: 3, isFile: true, isDir: false };
+        if (cmd === "read_file_binary") return [1, 2, 3];
+        return null;
+      });
+      const [result] = await executeToolRequests(
+        [
+          {
+            requestId: "media-read",
+            toolId: "aio-file-operator",
+            methodName: "read_file",
+            toolName: "本地文件操作器",
+            rawBlock: "",
+            args: { path: "C:/test/photo.png" },
+          },
+        ],
+        { config: defaultToolConfig }
+      );
+      expect(result.status).toBe("success");
+      expect(result.localMedia).toMatchObject([
+        {
+          path: "C:/test/photo.png",
+          type: "image",
+          mimeType: "image/png",
+          size: 3,
+        },
+      ]);
+      expect(JSON.parse(result.result)).toMatchObject({
+        success: true,
+        data: { mimeType: "image/png", size: 3 },
+      });
+      expect(JSON.parse(result.result).localMedia).toBeUndefined();
     });
 
     it("白名单模式 + 路径不在白名单 → executor 拦截并返回 denied", async () => {

@@ -1,3 +1,8 @@
+import { usageReport } from "../usage";
+import {
+  usesOpenAiReasoning,
+  usesAnthropicThinking,
+} from "./sampling-compatibility";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -97,8 +102,8 @@ export function buildOpenAiResponsesBody(
   const body: OpenAiResponsesBody = {
     model: request.model,
     input,
-    temperature: request.temperature ?? 1,
   };
+  assignDefined(body, "temperature", request.temperature);
   if (instructions) body.instructions = instructions;
 
   assignDefined(
@@ -138,6 +143,23 @@ export function buildOpenAiResponsesBody(
   }
 
   Object.assign(body, request.extraBody, request.extensions);
+
+  if (usesOpenAiReasoning(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_logprobs;
+    const filteredInclude = (
+      Array.isArray(body.include) ? body.include : []
+    ).filter((item) => item !== "message.output_text.logprobs");
+    if (filteredInclude.length) body.include = filteredInclude;
+    else delete body.include;
+  }
+
+  if (usesAnthropicThinking(request)) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_k;
+  }
   if (request.stream) body.stream = true;
   return body;
 }
@@ -272,9 +294,16 @@ export function parseResponsesUsage(value: unknown): TokenUsage | undefined {
   const inputDetails = asObject(usage.input_tokens_details);
   const outputDetails = asObject(usage.output_tokens_details);
   return {
+    ...usageReport(usage, "input_tokens", "output_tokens", [
+      "total_tokens",
+      "input_tokens_details.cached_tokens",
+      "output_tokens_details.reasoning_tokens",
+    ]),
     promptTokens: readNumber(usage.input_tokens) ?? 0,
     completionTokens: readNumber(usage.output_tokens) ?? 0,
-    totalTokens: readNumber(usage.total_tokens) ?? 0,
+    totalTokens:
+      (readNumber(usage.input_tokens) ?? 0) +
+      (readNumber(usage.output_tokens) ?? 0),
     ...(inputDetails
       ? {
           promptTokensDetails: {

@@ -185,7 +185,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, markRaw } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { FolderOpened, MoreFilled, ZoomIn } from "@element-plus/icons-vue";
 import type { BatchImageItem } from "../batchColorOrganizer";
 
@@ -249,10 +249,8 @@ const rows = computed<VirtualRow[]>(() => {
   return result;
 });
 
-const virtualizer = useVirtualizer({
-  get count() {
-    return rows.value.length;
-  },
+const virtualizer = useMeasuredVirtualizer(rows, {
+  getItemKey: (row) => row.key,
   getScrollElement: () => scrollRef.value,
   estimateSize: (index) => rows.value[index]?.estimatedHeight ?? 100,
   overscan: 3,

@@ -42,6 +42,29 @@ function createSearchId(): string {
   return `dir-search-${Date.now()}-${searchIdSequence}`;
 }
 
+/**
+ * 规范化目录输入：
+ * 资源管理器「复制路径」得到的是带引号路径（如 "\\vita-nas-01\share\音效"），
+ * 成对引号会导致后端存在性校验失败；这里 trim 后逐层剥离首尾成对引号
+ * （直引号 / 单引号 / 反引号 / 中英文智能引号），UNC 路径不受影响。
+ */
+export function normalizeDirectoryInput(raw: string): string {
+  let path = raw.trim();
+  while (path.length >= 2) {
+    const first = path[0];
+    const last = path[path.length - 1];
+    const isPaired =
+      (first === `"` && last === `"`) ||
+      (first === `'` && last === `'`) ||
+      (first === "`" && last === "`") ||
+      (first === "\u201C" && last === "\u201D") ||
+      (first === "\u2018" && last === "\u2019");
+    if (!isPaired) break;
+    path = path.slice(1, -1).trim();
+  }
+  return path;
+}
+
 export function useDirSearch() {
   const uiState = useDirSearchUiState();
 
@@ -217,7 +240,7 @@ export function useDirSearch() {
 
     const request: SearchRequest = {
       searchId,
-      rootPath: rootPath.value,
+      rootPath: normalizeDirectoryInput(rootPath.value),
       pattern: pattern.value,
       isRegex: isRegex.value,
       caseSensitive: caseSensitive.value,

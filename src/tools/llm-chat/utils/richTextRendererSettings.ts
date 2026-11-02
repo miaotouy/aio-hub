@@ -13,15 +13,19 @@
 // limitations under the License.
 
 import type { ChatSettings } from "../types/settings";
+import type { AgentBaseConfig } from "@/tools/agent-manager/types/agent";
 
 /**
- * 将 LLM Chat 的全局渲染偏好映射为 RichTextRenderer props。
+ * 将聊天全局渲染偏好与 Agent 文字动效覆盖映射为 RichTextRenderer props。
  *
  * 所有聊天渲染入口都应复用此函数，避免普通消息、压缩消息、工具预览等
  * 场景各自维护一份不完整的设置透传列表。
  */
 export function buildRichTextRendererSettings(
-  uiPreferences: ChatSettings["uiPreferences"]
+  uiPreferences: ChatSettings["uiPreferences"],
+  overrides: Pick<AgentBaseConfig, "streamEffect"> & {
+    screenshotMode?: boolean;
+  } = {}
 ) {
   return {
     version: uiPreferences.rendererVersion,
@@ -38,6 +42,11 @@ export function buildRichTextRendererSettings(
     safetyGuardEnabled: uiPreferences.safetyGuardEnabled,
     vcpFuzzyModeEnabled: uiPreferences.vcpFuzzyModeEnabled,
     enableEnterAnimation: uiPreferences.enableEnterAnimation,
+    streamEffect: overrides.screenshotMode
+      ? "none"
+      : overrides.streamEffect && overrides.streamEffect !== "inherit"
+        ? overrides.streamEffect
+        : (uiPreferences.streamEffect ?? "none"),
     showTokenCount: uiPreferences.showTokenCountForBlocks,
   };
 }

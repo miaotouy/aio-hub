@@ -35,6 +35,8 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useExportManager } from "../features/useExportManager";
 import { getLocalISOString, formatDateTime } from "@/utils/time";
 
+import { saveNewSessionDraft } from "../storage/useNewSessionDraftStorage";
+
 const logger = createModuleLogger("llm-chat/session-manager");
 const errorHandler = createModuleErrorHandler("llm-chat/session-manager");
 
@@ -354,8 +356,20 @@ export function useSessionManager() {
     detail: ChatSessionDetail,
     currentSessionId: string | null
   ): void => {
+    // 首条用户消息保存时同步刷新侧栏索引，生成期间也能显示当前消息数。
+    index.messageCount = getEffectiveMessageCount(
+      detail.nodes,
+      detail.rootNodeId
+    );
+
     if (isSessionVolatile(index.id)) {
-      logger.debug("跳过虚拟新会话持久化", { sessionId: index.id });
+      saveNewSessionDraft({ index, detail }).catch((error) => {
+        errorHandler.handle(error as Error, {
+          userMessage: "保存新会话草稿失败",
+          showToUser: false,
+          context: { sessionId: index.id },
+        });
+      });
       return;
     }
 
@@ -384,6 +398,11 @@ export function useSessionManager() {
     favoriteFolders: FavoriteFolder[] = []
   ): void => {
     const { saveSessions } = useChatStorage();
+    for (const { index, detail } of sessions) {
+      if (detail && isSessionVolatile(index.id)) {
+        persistSession(index, detail, currentSessionId);
+      }
+    }
     const persistableSessions = sessions.filter(
       ({ index }) => !isSessionVolatile(index.id)
     );

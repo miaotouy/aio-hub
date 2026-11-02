@@ -11,17 +11,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import type {
   LlmThinkRule,
   RichTextRendererStyleOptions,
 } from "@/tools/rich-text-renderer/types";
-import type { Asset } from "@/types/asset-management";
-import type { LlmParameters } from "@/tools/llm-chat/types/llm";
-import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
-import type { MessageRole } from "@/tools/llm-chat/types/common";
 import type { VariableConfig } from "@/tools/llm-chat/types/sessionVariable";
 import type { AgentKnowledgeAccess } from "@/tools/knowledge-base/types";
+import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
+import type { MessageRole } from "@/tools/llm-chat/types/common";
+import type { LlmParameters } from "@/tools/llm-chat/types/llm";
+import type { Asset } from "@/types/asset-management";
 
 /**
  * 资产类型
@@ -210,6 +209,12 @@ export interface ToolCallConfig {
   rateLimitEnabled?: boolean;
   /** API 请求频率限制（秒） */
   rateLimitInterval?: number;
+  /**
+   * AI 自动审批配置，支持 JEV 与普通 LLM 引擎。
+   * 未定义视为禁用；位于 toolCallConfig 前缀下，自动被
+   * SECURITY_SENSITIVE_AGENT_PATHS 的 KI-003 本地确认保护覆盖。
+   */
+  decisionArbitration?: import("@/services/decision-arbiter/types").DecisionArbitrationConfig;
 }
 /**
  * 子智能体调用配置
@@ -219,11 +224,43 @@ export interface ToolCallConfig {
  */
 export interface SubAgentConfig {
   enabled: boolean;
+
+  /**
+   * 模型绑定偏好策略：
+   * - 'inherit_caller' (默认): 动态跟随调度方/父会话的模型配置，上下文成本低且开箱即用；
+   * - 'prefer_self': 优先使用当前 Agent 自身配置的 profileId 与 modelId（用于特定能力的大模型特化）。
+   */
+  modelBindingMode?: "inherit_caller" | "prefer_self";
+
+  /**
+   * 允许的最大嵌套调用深度 (Max Delegation Depth)。
+   * - 默认值: 1 (仅允许主智能体调度一级子智能体，子智能体不可继续派发)；
+   * - 支持配置范围: 1 ~ 3；全局安全硬上限 clamp 至 3，杜绝不可控递归。
+   */
+  maxDelegationDepth?: number;
+
+  /** 是否为系统内置的 Baseline Subagent（用于 UI 标识） */
+  isBuiltinBaseline?: boolean;
+
+  /**
+   * 是否仅作为子智能体可见（在 Chat 主会话的可用智能体侧边栏/列表中隐藏）。
+   * - 默认为 false；
+   * - 内置内置预设（worker/task-runner/reviewer）默认置为 true，避免专项工作节点污染主聊天的日常角色列表；
+   * - 用户可在智能体编辑器或 Subagent 控制面板中按需切换。
+   */
+  onlySubVisible?: boolean;
 }
 
 export const DEFAULT_SUB_AGENT_CONFIG: SubAgentConfig = {
   enabled: false,
+  modelBindingMode: "inherit_caller",
+  maxDelegationDepth: 1,
+  isBuiltinBaseline: false,
+  onlySubVisible: false,
 };
+
+/** 全局安全硬上限：maxDelegationDepth 的最大允许值。 */
+export const MAX_DELEGATION_DEPTH_LIMIT = 3;
 
 /**
  * Agent 扩展配置
@@ -281,7 +318,6 @@ export const DEFAULT_TOOL_CALL_CONFIG: ToolCallConfig = {
   rateLimitEnabled: false,
   rateLimitInterval: 0,
 };
-
 export type PresetGroupSelectionMode = "checkbox" | "radio";
 
 export interface PresetMessageGroup {
@@ -389,6 +425,11 @@ export interface AgentBaseConfig {
    * 用于自定义该智能体回复的 Markdown 样式
    */
   richTextStyleOptions?: RichTextRendererStyleOptions;
+
+  /** 流式文字特效；省略或 inherit 时跟随聊天全局设置。 */
+  streamEffect?:
+    | import("@/tools/rich-text-renderer/utils/streamEffectStyles").StreamEffect
+    | "inherit";
 
   /**
    * 工具调用默认折叠

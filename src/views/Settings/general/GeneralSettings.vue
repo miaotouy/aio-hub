@@ -184,7 +184,7 @@ const handleClearWindowState = async () => {
       }
     );
 
-    await invoke("clear_window_state");
+    await invoke("clear_all_window_configs");
     customMessage.success("窗口状态已清除");
   } catch (error) {
     if (error !== "cancel") {

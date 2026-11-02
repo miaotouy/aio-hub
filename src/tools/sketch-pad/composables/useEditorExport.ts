@@ -16,6 +16,7 @@ import Konva from "konva";
 import { nanoid } from "nanoid";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import type { EditorSession } from "./useEditorSession";
 import { useSketchStorage } from "./useSketchStorage";
 import { useSketchPadStore } from "../stores/sketchPadStore";
@@ -26,6 +27,11 @@ import { canvasToBlob, exportStageToCanvas } from "../core/konva-export";
 import { generateDefaultSketchName } from "../constants";
 import type { SketchProject } from "../types";
 import { customMessage } from "@/utils/customMessage";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
+
+export type ExportFormat = "aiosk" | "png" | "jpg" | "webp" | "clipboard-png";
+
+const errorHandler = createModuleErrorHandler("SketchPad/Export");
 
 /**
  * 编辑器导出功能
@@ -123,9 +129,7 @@ export function useEditorExport(session: EditorSession) {
   /**
    * 导出为指定格式
    */
-  async function handleExport(
-    format: "aiosk" | "png" | "jpg" | "webp"
-  ): Promise<void> {
+  async function handleExport(format: ExportFormat): Promise<void> {
     if (!state.project.value) return;
 
     const stage = runtime.capabilities.getStage();
@@ -134,6 +138,12 @@ export function useEditorExport(session: EditorSession) {
 
     if (format === "aiosk") {
       await handleExportAiosk(stage, canvases);
+    } else if (format === "clipboard-png") {
+      try {
+        await handleExportImage(format, stage);
+      } catch (error) {
+        errorHandler.error(error, "复制图片失败，请重试");
+      }
     } else {
       await handleExportImage(format, stage);
     }
@@ -173,7 +183,7 @@ export function useEditorExport(session: EditorSession) {
    * 导出为图片格式 (png / jpg / webp)
    */
   async function handleExportImage(
-    format: "png" | "jpg" | "webp",
+    format: "png" | "jpg" | "webp" | "clipboard-png",
     stage: Konva.Stage
   ): Promise<void> {
     if (!state.project.value) return;
@@ -190,8 +200,9 @@ export function useEditorExport(session: EditorSession) {
       jpg: "image/jpeg",
       webp: "image/webp",
     };
-    const mimeType = mimeMap[format];
-    const ext = format === "jpg" ? "jpg" : format;
+    const imageFormat = format === "clipboard-png" ? "png" : format;
+    const mimeType = mimeMap[imageFormat];
+    const ext = imageFormat;
 
     let blob: Blob;
     try {
@@ -205,7 +216,7 @@ export function useEditorExport(session: EditorSession) {
       blob = await canvasToBlob(
         canvas,
         mimeType,
-        format === "png" ? undefined : 0.92
+        imageFormat === "png" ? undefined : 0.92
       );
     } finally {
       // 恢复隐藏的层
@@ -215,6 +226,12 @@ export function useEditorExport(session: EditorSession) {
     }
 
     const bytes = new Uint8Array(await blob.arrayBuffer());
+
+    if (format === "clipboard-png") {
+      await writeImage(bytes);
+      customMessage.success("PNG 图片已复制到剪贴板");
+      return;
+    }
 
     // 弹出保存对话框
     const filePath = await save({

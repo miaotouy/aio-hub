@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
+import type {
+  LlmMessage,
+  LlmReasoningArtifact,
+  LlmRequestOptions,
+} from "@/llm-apis/common";
 import type {
   ChatSessionDetail,
   ChatMessageNode,
@@ -28,6 +32,9 @@ import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatResponseHandler } from "./useChatResponseHandler";
+import { useNodeManager } from "../session/useNodeManager";
+import { VcpStreamSegmenter } from "../../core/tool-calling/vcp-stream-segmenter";
+import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 import { useContextPipelineStore } from "../../stores/contextPipelineStore";
 import type { PipelineContext } from "../../types/pipeline";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
@@ -36,15 +43,49 @@ import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { buildEffectiveParameters } from "../../config/parameter-config";
 import { createModuleLogger } from "@/utils/logger";
 import { isAbortError } from "@/llm-apis/common";
+import {
+  DEFAULT_RETRY_STATUS_CODES,
+  isRetryableStatusCodeFromConfig,
+} from "../../utils/retryStatusCodes";
+
+import {
+  loadSnapshotSettings,
+  snapshotSettings,
+  requestSnapshots,
+  reportSnapshotError,
+} from "../../services/requestSnapshots";
+import {
+  freezeSnapshotSources,
+  createSnapshotPipelineTrace,
+} from "../../services/requestSnapshotProjection";
+import { createRequestSnapshotRecorder } from "../../services/requestSnapshotRecorder";
 
 const logger = createModuleLogger("llm-chat/single-node-executor");
+
+/** 从错误对象中提取数字 HTTP 状态码，非数字枚举值（如 INVALID_ARGUMENT）返回 undefined */
+function readErrorStatusCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const candidates = [
+    (error as any).code,
+    (error as any).status,
+    (error as any).statusCode,
+    (error as any).httpStatus,
+    (error as any).response?.status,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
 
 export interface SingleNodeExecuteParams {
   session: ChatSessionDetail;
   assistantNode: ChatMessageNode;
-  /** 到用户消息的完整路径 */
+  /** 到请求上下文末节点的完整路径 */
   currentPathToUserNode: ChatMessageNode[];
   isContinuation?: boolean;
+  splitVcpResponses?: boolean;
+  onResponseNode?: (node: ChatMessageNode) => void;
   /** Agent 配置片段 */
   agentConfig: {
     profileId: string;
@@ -70,11 +111,16 @@ export interface SingleNodeExecuteResult {
 
 export function useSingleNodeExecutor() {
   const { currentAgentId } = useLlmChatUiState();
-  const { handleStreamUpdate, validateAndFixUsage, finalizeNode } =
-    useChatResponseHandler();
+  const {
+    handleStreamUpdate,
+    completeStreamSegment,
+    validateAndFixUsage,
+    finalizeNode,
+  } = useChatResponseHandler();
   const { checkAndCompress } = useContextCompressor();
   const { sendRequest } = useLlmRequest();
   const contextPipelineStore = useContextPipelineStore();
+  const nodeManager = useNodeManager();
 
   /**
    * 执行单次 LLM 请求
@@ -95,6 +141,19 @@ export function useSingleNodeExecutor() {
 
     const { settings } = useChatSettings();
     const chatStore = useLlmChatStore();
+
+    await loadSnapshotSettings();
+    let snapshotEpoch: number | undefined;
+    if (snapshotSettings.enabled) {
+      try {
+        snapshotEpoch = await requestSnapshots.prepare(session.id);
+      } catch (error) {
+        reportSnapshotError(error);
+      }
+    }
+    const snapshotPreview = snapshotSettings.saveTextPreview;
+    const snapshotTrace =
+      snapshotEpoch !== undefined ? createSnapshotPipelineTrace() : undefined;
 
     // 1. 准备参数
     const effectiveParams = buildEffectiveParameters(agentConfig.parameters);
@@ -131,6 +190,7 @@ export function useSingleNodeExecutor() {
       timestamp: Date.now(),
       sharedData: new Map<string, any>(),
       logs: [],
+      traceProcessor: snapshotTrace?.trace,
     };
 
     // 将额外信息放入 sharedData
@@ -230,11 +290,23 @@ export function useSingleNodeExecutor() {
     await contextPipelineStore.executePipeline(pipelineContext);
     const messages = pipelineContext.messages;
 
+    const snapshotSources =
+      snapshotEpoch !== undefined
+        ? freezeSnapshotSources(
+            messages,
+            pipelineContext.sharedData.get("snapshotMacroExecutions"),
+            snapshotPreview
+          )
+        : undefined;
+
     // 4. 发送请求
     const messagesForRequest = messages.map((msg, index, filteredMessages) => {
       const isLast = index === filteredMessages.length - 1;
       return {
         role: msg.role as any,
+        ...(snapshotSources
+          ? { sourceKeys: snapshotSources.messageKeys[index] }
+          : {}),
         content: msg.content,
         reasoningContent: msg.reasoningContent,
         reasoningArtifacts: msg.reasoningArtifacts,
@@ -248,6 +320,169 @@ export function useSingleNodeExecutor() {
 
     let hasReceivedStreamData = false;
     let response: any = null;
+    const splitVcpResponses =
+      params.splitVcpResponses &&
+      settings.value.uiPreferences.splitVcpResponses &&
+      settings.value.uiPreferences.isStreaming;
+    const segmenter = splitVcpResponses ? new VcpStreamSegmenter() : undefined;
+    const segmentNodes = new Map<number, ChatMessageNode>();
+    let hasResponseChunks = false;
+    let activeStreamNode = session.nodes[assistantNode.id] ?? assistantNode;
+    let nextAssistantStartTime: number | undefined;
+
+    const onResponseChunk: NonNullable<LlmRequestOptions["onResponseChunk"]> = (
+      chunk
+    ) => {
+      if (!segmenter) return;
+      hasResponseChunks = true;
+      const receivedAt = Date.now();
+      // Tool-end/separator marks the earliest observable start of the next
+      // model round. Older servers only expose the last tool result chunk.
+      if (
+        /^chatcmpl-(?:vcp-end-|VCP-separator-)/.test(chunk.responseId ?? "")
+      ) {
+        nextAssistantStartTime = receivedAt;
+      }
+      const update = segmenter.push(chunk);
+      if (!update) return;
+      const { segment, contentDelta, reasoningDelta } = update;
+      let node = segmentNodes.get(segment.index);
+      if (!node) {
+        if (segment.index === 0) {
+          node = session.nodes[assistantNode.id] ?? assistantNode;
+          node.role = segment.kind;
+        } else {
+          completeStreamSegment(session, activeStreamNode.id);
+          const original = assistantNode.metadata;
+          node = nodeManager.createNode({
+            role: segment.kind,
+            content: "",
+            parentId: activeStreamNode.id,
+            status: "waiting",
+            metadata: {
+              agentId: original?.agentId,
+              profileId: original?.profileId,
+              modelId: original?.modelId,
+              profileName: original?.profileName,
+              modelName: original?.modelName,
+              modelIcon: original?.modelIcon,
+              providerType: original?.providerType,
+              requestParameters: original?.requestParameters,
+              ...(segment.kind === "assistant"
+                ? {
+                    requestStartTime:
+                      nextAssistantStartTime ??
+                      activeStreamNode.metadata?.requestEndTime ??
+                      receivedAt,
+                  }
+                : {}),
+            },
+          });
+          // Insert each phase before queued follow-ups so their paths keep
+          // depending on the active request as its generation marker advances.
+          // Chained mode stores the queue marker on the user's assistant child.
+          const queuedChildren = activeStreamNode.childrenIds.filter((id) => {
+            const child = session.nodes[id];
+            if (!child) return false;
+            return (
+              resolveMessageDisplayStatus(child) === "queued" ||
+              (child.role === "user" &&
+                child.childrenIds.some((childId) => {
+                  const reply = session.nodes[childId];
+                  return (
+                    reply && resolveMessageDisplayStatus(reply) === "queued"
+                  );
+                }))
+            );
+          });
+          const selectedChildId = activeStreamNode.lastSelectedChildId;
+          nodeManager.addNodeToSession(session, node);
+          // Cache the session proxy so metadata replacements notify stream consumers.
+          node = session.nodes[node.id];
+          for (const childId of queuedChildren) {
+            nodeManager.reparentSubtree(session, childId, node.id);
+          }
+          if (selectedChildId && queuedChildren.includes(selectedChildId)) {
+            activeStreamNode.lastSelectedChildId = node.id;
+            node.lastSelectedChildId = selectedChildId;
+          }
+
+          const responseNodeId = node.id;
+          if (session.activeLeafId === activeStreamNode.id) {
+            nodeManager.updateActiveLeaf(session, responseNodeId);
+          } else if (
+            nodeManager
+              .getNodePath(session, session.activeLeafId)
+              .some((ancestor) => ancestor.id === responseNodeId)
+          ) {
+            // Keep the queued leaf selected and refresh its reparented path.
+            nodeManager.updateActiveLeaf(session, session.activeLeafId);
+          }
+        }
+        segmentNodes.set(segment.index, node);
+        activeStreamNode = node;
+        params.onResponseNode?.(node);
+      }
+      node.metadata = {
+        ...node.metadata,
+        vcpResponse: {
+          requestId: assistantNode.id,
+          kind: segment.kind,
+          responseId: segment.responseId,
+          finishReason: segment.finishReason,
+          toolStatus: segment.toolStatus,
+        },
+        ...(segment.usage ? { usage: segment.usage } : {}),
+        ...(segment.finishReason && !node.metadata?.requestEndTime
+          ? { requestEndTime: Date.now() }
+          : {}),
+        ...(segment.toolCalls
+          ? {
+              toolCalls: segment.toolCalls.map((call, index) => ({
+                ...call,
+                requestId: `${assistantNode.id}:vcp:${segment.index}:${index}`,
+                resultMetadata: { source: "vcp-upstream" },
+              })),
+            }
+          : {}),
+      };
+      if (contentDelta || reasoningDelta) {
+        hasReceivedStreamData = true;
+        if (segment.kind === "tool") {
+          nextAssistantStartTime = receivedAt;
+        } else {
+          node.metadata.requestStartTime ??= receivedAt;
+          node.metadata.firstTokenTime ??= receivedAt;
+          nextAssistantStartTime = undefined;
+        }
+      }
+      if (contentDelta)
+        handleStreamUpdate(session, node.id, contentDelta, false);
+      if (reasoningDelta)
+        handleStreamUpdate(session, node.id, reasoningDelta, true);
+    };
+
+    const snapshotRecorder =
+      snapshotSources && snapshotEpoch !== undefined
+        ? createRequestSnapshotRecorder({
+            sessionId: session.id,
+            requestId: assistantNode.id,
+            triggerNodeId:
+              currentPathToUserNode[currentPathToUserNode.length - 1]?.id,
+            logicalProfileId: agentConfig.profileId,
+            logicalModelId: agentConfig.modelId,
+            sources: snapshotSources.sources,
+            transformations: snapshotTrace?.finish(),
+            epoch: snapshotEpoch,
+            saveTextPreview: snapshotPreview,
+            assistantNodeIds: () => [
+              ...new Set([
+                assistantNode.id,
+                ...[...segmentNodes.values()].map((node) => node.id),
+              ]),
+            ],
+          })
+        : undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -262,17 +497,29 @@ export function useSingleNodeExecutor() {
             purpose: "chat",
           },
           ...effectiveParams,
+          requestCapture: snapshotRecorder?.capture,
+          ...(splitVcpResponses
+            ? {
+                streamOptions: {
+                  ...effectiveParams.streamOptions,
+                  includeUsage: true,
+                },
+                onResponseChunk,
+              }
+            : {}),
           stream: settings.value.uiPreferences.isStreaming,
           signal: abortController.signal,
           timeout: settings.value.requestSettings.timeout,
           onStream: settings.value.uiPreferences.isStreaming
             ? (chunk: string) => {
+                if (hasResponseChunks) return;
                 hasReceivedStreamData = true;
                 handleStreamUpdate(session, assistantNode.id, chunk, false);
               }
             : undefined,
           onReasoningStream: settings.value.uiPreferences.isStreaming
             ? (chunk: string) => {
+                if (hasResponseChunks) return;
                 hasReceivedStreamData = true;
                 handleStreamUpdate(session, assistantNode.id, chunk, true);
               }
@@ -280,8 +527,9 @@ export function useSingleNodeExecutor() {
           onPartialImage: settings.value.uiPreferences.isStreaming
             ? (base64: string, index: number) => {
                 // 这是流式预览图，我们存入元数据供 UI 渲染，避免污染正文
-                if (!session.nodes || !session.nodes[assistantNode.id]) return;
-                const node = session.nodes[assistantNode.id];
+                if (!session.nodes || !session.nodes[activeStreamNode.id])
+                  return;
+                const node = session.nodes[activeStreamNode.id];
                 if (!node.metadata) node.metadata = {};
                 const previews = [
                   ...(node.metadata.partialImagePreviews || []),
@@ -311,10 +559,27 @@ export function useSingleNodeExecutor() {
             (error instanceof Error &&
               /429|too many requests|rate limit/i.test(error.message)));
 
+        // 自动重试状态码白名单：有明确状态码且未命中白名单时不再重试
+        // （2xx / 504 / 524 始终排除）；无状态码的超时/网络错误不受限。
+        const statusCode = readErrorStatusCode(error);
+        const retryStatusConfig =
+          settings.value.requestSettings.retryStatusCodes ??
+          DEFAULT_RETRY_STATUS_CODES;
+        const statusAllowsRetry =
+          statusCode === undefined ||
+          isRetryableStatusCodeFromConfig(statusCode, retryStatusConfig);
+
         const shouldRetry =
+          !(
+            error &&
+            typeof error === "object" &&
+            "retryable" in error &&
+            error.retryable === false
+          ) &&
           !isAbort &&
           !isBadRequest &&
           !hasReceivedStreamData &&
+          statusAllowsRetry &&
           attempt < maxRetries;
 
         if (shouldRetry) {
@@ -340,27 +605,96 @@ export function useSingleNodeExecutor() {
           await new Promise((resolve) => setTimeout(resolve, delayTime));
           continue;
         }
+        if (
+          !statusAllowsRetry &&
+          statusCode !== undefined &&
+          !isAbort &&
+          !isBadRequest
+        ) {
+          logger.info(`状态码 ${statusCode} 不在自动重试号段内，跳过重试`, {
+            attempt,
+            statusCode,
+          });
+        }
+        // Flush through the handler that owns the stream buffers before the
+        // orchestrator records the error through its separate handler instance.
+        const interruptedNodes = segmentNodes.size
+          ? segmentNodes.values()
+          : [assistantNode];
+        for (const node of interruptedNodes) {
+          completeStreamSegment(session, node.id);
+        }
         throw error;
       }
     }
 
     if (response) {
-      await validateAndFixUsage(
-        response,
-        agentConfig.modelId,
-        messagesForRequest as any
-      );
-      await finalizeNode(
-        session,
-        assistantNode.id,
-        response,
-        currentAgentId.value || ""
-      );
+      if (segmenter?.segments.length) {
+        const priorMessages = [...messagesForRequest];
+        const lastAssistant = [...segmenter.segments]
+          .reverse()
+          .find((segment) => segment.kind === "assistant");
+        for (const segment of segmenter.segments) {
+          const node = segmentNodes.get(segment.index)!;
+          if (segment.kind === "tool") {
+            completeStreamSegment(session, node.id);
+          } else {
+            const segmentResponse = {
+              ...response,
+              content: segment.content,
+              reasoningContent: segment.reasoningContent,
+              reasoningArtifacts:
+                segment === lastAssistant
+                  ? response.reasoningArtifacts
+                  : undefined,
+              usage: segment.usage,
+              finishReason: segment.finishReason,
+              images: segment === lastAssistant ? response.images : undefined,
+              toolCalls: undefined,
+            };
+            await validateAndFixUsage(
+              segmentResponse,
+              agentConfig.modelId,
+              priorMessages as any
+            );
+            await finalizeNode(
+              session,
+              node.id,
+              segmentResponse,
+              executionAgent.id
+            );
+          }
+          priorMessages.push({
+            role: segment.kind === "tool" ? "user" : "assistant",
+            content: segment.content,
+            reasoningContent: segment.reasoningContent,
+            reasoningArtifacts: undefined,
+            prefix: undefined,
+          });
+        }
+      } else {
+        await validateAndFixUsage(
+          response,
+          agentConfig.modelId,
+          messagesForRequest as any
+        );
+        await finalizeNode(
+          session,
+          assistantNode.id,
+          response,
+          currentAgentId.value || ""
+        );
+      }
+
+      snapshotRecorder?.supplement(response);
 
       try {
         const sessionIndex = chatStore.sessionIndexMap.get(session.id);
         if (sessionIndex) {
-          await checkAndCompress(sessionIndex, session);
+          // 摘要任务独立于本次流式回复收尾；下一次请求在编排层等待。
+          void checkAndCompress(sessionIndex, session).catch((error) => {
+            logger.warn("自动上下文压缩执行失败", error);
+          });
         }
       } catch (error) {
         logger.warn("自动上下文压缩执行失败", error);

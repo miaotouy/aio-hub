@@ -214,7 +214,7 @@ my-project/
 
 支持标准的 **glob** 模式，每行一条规则，以 `#` 开头的行会被忽略：
 
-```gitignore
+```text
 # 排除 node_modules 目录
 node_modules
 # 排除所有日志文件

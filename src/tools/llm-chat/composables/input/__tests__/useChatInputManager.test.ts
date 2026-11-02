@@ -13,9 +13,25 @@
 // limitations under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { Asset } from "@/types/asset-management";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";
+
+const draftDisk = vi.hoisted(() => ({
+  value: null as unknown,
+  fail: false,
+  loadFail: false,
+}));
+vi.mock("../../storage/useChatInputDraftStorage", () => ({
+  loadChatInputDrafts: vi.fn(async () => {
+    if (draftDisk.loadFail) throw new Error("draft read failed");
+    return draftDisk.value ? JSON.parse(JSON.stringify(draftDisk.value)) : null;
+  }),
+  saveChatInputDrafts: vi.fn(async (state: unknown) => {
+    if (draftDisk.fail) throw new Error("disk full");
+    draftDisk.value = JSON.parse(JSON.stringify(state));
+  }),
+}));
 
 const attachments = ref<Asset[]>([]);
 const syncStateMock = vi.fn();
@@ -85,6 +101,8 @@ vi.mock("../../features/useAttachmentManager", () => ({
   }),
 }));
 
+import { clearAllInstances, getInstance } from "@/utils/singleton";
+
 const { useChatInputManager } = await import("../useChatInputManager");
 
 function createAsset(id: string): Asset {
@@ -112,14 +130,82 @@ function createKnowledgeReference(id: string): KnowledgeReference {
 }
 
 describe("useChatInputManager session drafts", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    draftDisk.fail = false;
+    draftDisk.loadFail = false;
     attachments.value = [];
     syncStateMock.mockReset();
     addAttachmentsMock.mockReset();
     localStorage.clear();
     const manager = useChatInputManager();
+    await manager.ready;
     manager.clearAllDrafts();
     manager.setActiveSessionId(null);
+    await manager.flushDrafts();
+  });
+
+  it("preserves saved and legacy drafts after a failed restore and recovers on retry", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("restore-session");
+    await nextTick();
+    manager.setContent("已保存的材料");
+    await manager.flushDrafts();
+    getInstance<{ destroy(): void }>("ChatInputManager")?.destroy();
+    clearAllInstances();
+    // Finish the previous instance's final write before simulating the next startup.
+    await manager.flushDrafts();
+    const saved = JSON.parse(JSON.stringify(draftDisk.value));
+    localStorage.setItem("llm-chat-input-drafts", JSON.stringify(saved));
+    draftDisk.loadFail = true;
+    const restored = useChatInputManager();
+    await restored.ready;
+    expect(restored.saveStatus.value).toBe("error");
+    await expect(restored.flushDrafts()).rejects.toThrow();
+    expect(draftDisk.value).toEqual(saved);
+    expect(localStorage.getItem("llm-chat-input-drafts")).not.toBeNull();
+
+    draftDisk.loadFail = false;
+    await restored.flushDrafts();
+    restored.setActiveSessionId("restore-session");
+    expect(restored.inputText.value).toBe("已保存的材料");
+    expect(restored.saveStatus.value).toBe("saved");
+    expect(localStorage.getItem("llm-chat-input-drafts")).toBeNull();
+  });
+
+  it("restores the pending session input and attachments from draft storage after recreation", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("pending-session");
+    await nextTick();
+    const asset = createAsset("pending-attachment");
+    manager.setContent("尚未发送的输入");
+    manager.addAsset(asset);
+    manager.setTemporaryModel({ profileId: "profile", modelId: "model" });
+    manager.setKnowledgeReference(createKnowledgeReference("pending-library"));
+
+    window.dispatchEvent(new Event("beforeunload"));
+    await manager.flushDrafts();
+    const original = getInstance<{ destroy(): void }>("ChatInputManager");
+    original?.destroy();
+    clearAllInstances();
+    attachments.value = [];
+    const restored = useChatInputManager();
+    // 与 Store 启动绑定顺序一致：先清空选择，再恢复稳定草稿 ID。
+    restored.setActiveSessionId(null);
+    restored.setActiveSessionId("pending-session");
+    await restored.ready;
+    expect(restored.inputText.value).toBe("尚未发送的输入");
+    expect(restored.attachments.value).toEqual([asset]);
+    expect(restored.temporaryModel.value).toEqual({
+      profileId: "profile",
+      modelId: "model",
+    });
+    expect(restored.knowledgeReference.value?.libraryIds).toEqual([
+      "pending-library",
+    ]);
+    restored.setActiveSessionId("history-session");
+    expect(restored.inputText.value).toBe("");
+    restored.setActiveSessionId("pending-session");
+    expect(restored.inputText.value).toBe("尚未发送的输入");
   });
 
   it("copies a draft with attachments to another session without clearing source", () => {
@@ -156,6 +242,67 @@ describe("useChatInputManager session drafts", () => {
     expect(
       manager.getDraftSnapshot("session-b").attachments.map((item) => item.id)
     ).toEqual(["asset-move"]);
+  });
+
+  // 保护完整 file URL 的替换边界与失败重试行为；只断言输入、附件与转换结果。
+  it.each([
+    [
+      "file://G:\\work\\Tencent Files\\image.png",
+      '"',
+      "G:\\work\\Tencent Files\\image.png",
+    ],
+    [
+      "file:///G:/work/Tencent Files/image.png",
+      "'",
+      "G:\\work\\Tencent Files\\image.png",
+    ],
+    [
+      "FILE://G:\\work\\Tencent Files\\image.png",
+      '"',
+      "G:\\work\\Tencent Files\\image.png",
+    ],
+    [
+      "file://G:\\work\\O'Brien\\image.png",
+      '"',
+      "G:\\work\\O'Brien\\image.png",
+    ],
+  ])("converts the complete QQ image URL %s", async (url, quote, path) => {
+    const manager = useChatInputManager();
+    const asset = {
+      ...createAsset("qq-image"),
+      name: "image.png",
+      path,
+    };
+    addAttachmentsMock.mockImplementation(async () => {
+      attachments.value.push(asset);
+    });
+    manager.setContent(`QQ 消息\n<img src=${quote}${url}${quote} />\n后续消息`);
+
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 1,
+      failedCount: 0,
+      totalCount: 1,
+    });
+    expect(addAttachmentsMock).toHaveBeenCalledExactlyOnceWith([asset.path], {
+      notify: false,
+    });
+    expect(manager.inputText.value).toBe(
+      `QQ 消息\n<img src=${quote}【file::qq-image】${quote} />\n后续消息`
+    );
+  });
+
+  it("retains the complete file URL when an attachment import fails", async () => {
+    const manager = useChatInputManager();
+    const text = '<img src="file://G:\\work\\missing.png" />';
+    manager.setContent(text);
+    addAttachmentsMock.mockResolvedValue(undefined);
+
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 0,
+      failedCount: 1,
+      totalCount: 1,
+    });
+    expect(manager.inputText.value).toBe(text);
   });
 
   it("converts paths without per-file attachment notifications", async () => {
@@ -196,6 +343,165 @@ describe("useChatInputManager session drafts", () => {
     );
   });
 
+  it("converts Linux paths and encoded file URIs without changing path separators", async () => {
+    const manager = useChatInputManager();
+    addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+      attachments.value.push({
+        ...createAsset(`asset-${attachments.value.length}`),
+        path,
+        name: path.split("/").pop()!,
+      });
+    });
+    manager.setContent(
+      "/home/mty/测试 file.txt\nfile:///tmp/hello%20world.txt"
+    );
+    const result = await manager.convertPathsToAttachments();
+    expect(result).toEqual({ successCount: 2, failedCount: 0, totalCount: 2 });
+    expect(addAttachmentsMock).toHaveBeenNthCalledWith(
+      1,
+      ["/home/mty/测试 file.txt"],
+      { notify: false }
+    );
+    expect(addAttachmentsMock).toHaveBeenNthCalledWith(
+      2,
+      ["/tmp/hello world.txt"],
+      { notify: false }
+    );
+    expect(manager.inputText.value).toBe(
+      "【file::asset-0】\n【file::asset-1】"
+    );
+  });
+
+  it("keeps a Windows file URI as a single encoded path", async () => {
+    const manager = useChatInputManager();
+    addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+      attachments.value.push({ ...createAsset("windows-uri"), path });
+    });
+    manager.setContent("file:///C:/my%20file.txt");
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 1,
+      failedCount: 0,
+      totalCount: 1,
+    });
+    expect(addAttachmentsMock).toHaveBeenCalledWith(
+      [String.raw`C:\my file.txt`],
+      { notify: false }
+    );
+    expect(manager.inputText.value).toBe("【file::windows-uri】");
+  });
+
+  // Protect the reported regression: a draft containing only pasted material must convert and persist links.
+  it.each(["import callback", "repair scan"])(
+    "converts links inside text-only attachments and repairs imported IDs through %s",
+    async (repair) => {
+      const manager = useChatInputManager();
+      manager.setActiveSessionId("pasted-links");
+      const material = {
+        id: "pasted-record",
+        kind: "text" as const,
+        title: "粘贴文本 1",
+        text: '聊天记录\n<img src="file:///C:/chat/image.png" />\n后续消息',
+      };
+      manager.addVirtualAttachment(material);
+      await nextTick();
+      addAttachmentsMock.mockImplementation(async ([path]: string[]) => {
+        attachments.value.push({
+          ...createAsset("pending-image"),
+          path,
+          uploadingId: "image-upload",
+          importStatus: "pending",
+        });
+      });
+
+      expect(await manager.convertPathsToAttachments()).toEqual({
+        successCount: 1,
+        failedCount: 0,
+        totalCount: 1,
+      });
+      expect(addAttachmentsMock).toHaveBeenCalledExactlyOnceWith(
+        ["C:\\chat\\image.png"],
+        { notify: false }
+      );
+      expect(manager.inputText.value).toBe("");
+      expect(manager.virtualAttachments.value[0]).toEqual({
+        ...material,
+        text: material.text.replace(
+          "file:///C:/chat/image.png",
+          "【file::uploading:image-upload】"
+        ),
+      });
+      attachments.value[0].id = "imported-image";
+      attachments.value[0].importStatus = "complete";
+      if (repair === "import callback") {
+        manager.updatePlaceholderId("image-upload", "imported-image");
+      } else {
+        // Set completion and scan in the same turn, before the attachment watcher runs.
+        manager.scanAndFixPlaceholders();
+      }
+      const converted = {
+        ...material,
+        text: material.text.replace(
+          "file:///C:/chat/image.png",
+          "【file::imported-image】"
+        ),
+      };
+      expect(manager.virtualAttachments.value).toEqual([converted]);
+      expect(material.text).toContain("file:///C:/chat/image.png");
+      await nextTick();
+      await manager.flushDrafts();
+      manager.setActiveSessionId("other-draft");
+      manager.setActiveSessionId("pasted-links");
+      expect(manager.virtualAttachments.value).toEqual([converted]);
+      getInstance<{ destroy(): void }>("ChatInputManager")?.destroy();
+      clearAllInstances();
+      const restored = useChatInputManager();
+      restored.setActiveSessionId("pasted-links");
+      await restored.ready;
+      expect(restored.inputText.value).toBe("");
+      expect(restored.virtualAttachments.value).toEqual([converted]);
+      expect(restored.attachments.value[0].id).toBe("imported-image");
+    }
+  );
+
+  it("deduplicates paths across the body and materials while retaining failed links", async () => {
+    const manager = useChatInputManager();
+    const path = "C:\\chat\\shared.png";
+    const missing = "file:///C:/chat/missing.png";
+    const first = {
+      id: "first-record",
+      kind: "text" as const,
+      title: "第一段",
+      text: '<img src="' + path + '" />\n<img src="' + missing + '" />',
+    };
+    const second = {
+      ...first,
+      id: "second-record",
+      title: "第二段",
+      text: path,
+    };
+    manager.setContent(path);
+    manager.addVirtualAttachment(first);
+    manager.addVirtualAttachment(second);
+    await nextTick();
+    addAttachmentsMock.mockImplementation(async ([candidate]: string[]) => {
+      if (candidate === path)
+        attachments.value.push({ ...createAsset("shared-image"), path });
+    });
+
+    expect(await manager.convertPathsToAttachments()).toEqual({
+      successCount: 1,
+      failedCount: 1,
+      totalCount: 2,
+    });
+    expect(addAttachmentsMock).toHaveBeenCalledTimes(2);
+    expect(manager.inputText.value).toBe("【file::shared-image】");
+    expect(manager.virtualAttachments.value).toEqual([
+      { ...first, text: first.text.replace(path, "【file::shared-image】") },
+      { ...second, text: "【file::shared-image】" },
+    ]);
+    expect(manager.virtualAttachments.value[0].text).toContain(missing);
+  });
+
   it("keeps Knowledge references isolated per session and clears them after send", () => {
     const manager = useChatInputManager();
     const reference = createKnowledgeReference("library-a");
@@ -214,5 +520,128 @@ describe("useChatInputManager session drafts", () => {
     manager.clear("session-a");
     expect(manager.knowledgeReference.value).toBeNull();
     expect(manager.getDraftSnapshot("session-a").knowledgeReference).toBeNull();
+  });
+  // 保护跨工具前置/追加材料的顺序，连同正文和草稿持久化一起验证。
+  it("preserves prepended and appended text material order after restoring a draft", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("ordered-materials");
+    manager.setContent("原有问题");
+    const material = {
+      id: "middle",
+      kind: "text" as const,
+      title: "中间材料",
+      text: "中间内容",
+    };
+    manager.addVirtualAttachment(material);
+    manager.addVirtualAttachment(
+      { ...material, id: "first" },
+      undefined,
+      "prepend"
+    );
+    manager.addVirtualAttachment({ ...material, id: "last" });
+    await manager.flushDrafts();
+    manager.setActiveSessionId("other-session");
+    manager.setActiveSessionId("ordered-materials");
+    expect(manager.virtualAttachments.value.map((item) => item.id)).toEqual([
+      "first",
+      "middle",
+      "last",
+    ]);
+    expect(manager.inputText.value).toBe("原有问题");
+  });
+
+  it.each([false, true])(
+    "preserves same-turn body and file changes when removing text material (clear files: %s)",
+    async (clearFiles) => {
+      const manager = useChatInputManager();
+      manager.setActiveSessionId("remove-material");
+      manager.setContent("原有问题");
+      const asset = createAsset("image");
+      manager.addAsset(asset);
+      const material = {
+        id: "pasted-material",
+        kind: "text" as const,
+        title: "粘贴材料",
+        text: "恢复到正文的材料",
+      };
+      manager.addVirtualAttachment(material);
+      await nextTick();
+
+      // Restoring a card and clearing a mixed list both change refs before Vue's watchers run.
+      manager.inputText.value = "原有问题\n恢复到正文的材料";
+      if (clearFiles) manager.clearAttachments();
+      manager.removeVirtualAttachment(material.id);
+      await manager.flushDrafts();
+
+      const draft = manager.getDraftSnapshot("remove-material");
+      expect(draft.text).toBe("原有问题\n恢复到正文的材料");
+      expect(draft.attachments).toEqual(clearFiles ? [] : [asset]);
+      expect(draft.virtualAttachments).toEqual([]);
+      expect(manager.inputText.value).toBe(draft.text);
+      expect(manager.attachments.value).toEqual(draft.attachments);
+    }
+  );
+
+  it("keeps copied text materials independent across sessions and restores their full text", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("text-source");
+    await nextTick();
+    const material = {
+      id: "material",
+      kind: "text" as const,
+      title: "代码",
+      text: "  首行\r\n\t{{literal}} 😀  ",
+    };
+    manager.addVirtualAttachment(material);
+    expect(manager.hasAttachments.value).toBe(true);
+    manager.moveDraftToSession("text-source", "text-copy", "copy");
+    const copied = manager.getDraftSnapshot("text-copy").virtualAttachments![0];
+    expect(copied.id).not.toBe(material.id);
+    await manager.updateVirtualAttachment(
+      copied,
+      { ...copied, text: "修改后的副本" },
+      "text-copy"
+    );
+    expect(
+      manager.getDraftSnapshot("text-source").virtualAttachments![0].text
+    ).toBe(material.text);
+    await manager.flushDrafts();
+    getInstance<{ destroy(): void }>("ChatInputManager")?.destroy();
+    clearAllInstances();
+    const restored = useChatInputManager();
+    restored.setActiveSessionId("text-source");
+    await restored.ready;
+    expect(restored.virtualAttachments.value[0]).toEqual(material);
+    restored.setActiveSessionId("text-copy");
+    expect(restored.virtualAttachments.value[0].text).toBe("修改后的副本");
+  });
+
+  it("retains unsaved material on disk errors and preserves edits made after submission", async () => {
+    const manager = useChatInputManager();
+    manager.setActiveSessionId("text-send");
+    await nextTick();
+    const material = {
+      id: "material",
+      kind: "text" as const,
+      title: "材料",
+      text: "正文",
+    };
+    manager.addVirtualAttachment(material);
+    const submitted = manager.getDraftSnapshot("text-send");
+    draftDisk.fail = true;
+    await expect(manager.flushDrafts()).rejects.toThrow("disk full");
+    expect(manager.virtualAttachments.value).toEqual([material]);
+    manager.setContent("下一条问题");
+    manager.clearSubmittedDraft("text-send", submitted);
+    expect(manager.inputText.value).toBe("下一条问题");
+    expect(manager.virtualAttachments.value).toEqual([material]);
+    draftDisk.fail = false;
+    await manager.flushDrafts();
+    manager.clearSubmittedDraft(
+      "text-send",
+      manager.getDraftSnapshot("text-send")
+    );
+    expect(manager.virtualAttachments.value).toEqual([]);
+    expect(manager.inputText.value).toBe("");
   });
 });

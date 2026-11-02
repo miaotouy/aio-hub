@@ -58,8 +58,11 @@ export interface PlainTextFilterOptions {
   method: PlainTextFilterMethod;
   removeCount?: number;
   removeRatio?: number;
-  removeMode?: "count" | "ratio";
+  keepCount?: number;
+  removeMode?: "count" | "ratio" | "keep";
   ignoreEmptyLines?: boolean;
+  keepKeywords?: string[]; // 包含这些关键字的行不参与删除，始终保留
+  keepKeywordsEnabled?: boolean; // 是否启用保留关键字，默认启用
   seed?: number;
 }
 
@@ -102,9 +105,16 @@ export function applyPlainTextFilter(
   options: PlainTextFilterOptions
 ): PlainTextFilterResult {
   const { lines, newline, hasTrailingNewline } = splitPlainTextLines(input);
+  const keepKeywords =
+    options.keepKeywordsEnabled === false
+      ? []
+      : (options.keepKeywords ?? []).filter(
+          (keyword) => typeof keyword === "string" && keyword.trim().length > 0
+        );
   const eligibleIndexes = lines.reduce<number[]>((indexes, line, index) => {
-    if (!options.ignoreEmptyLines || line.trim().length > 0)
-      indexes.push(index);
+    if (options.ignoreEmptyLines && line.trim().length === 0) return indexes;
+    if (keepKeywords.some((keyword) => line.includes(keyword))) return indexes;
+    indexes.push(index);
     return indexes;
   }, []);
 
@@ -120,7 +130,11 @@ export function applyPlainTextFilter(
 
   const removeMode = options.removeMode ?? "ratio";
   const rawValue =
-    removeMode === "count" ? options.removeCount : options.removeRatio;
+    removeMode === "count"
+      ? options.removeCount
+      : removeMode === "keep"
+        ? options.keepCount
+        : options.removeRatio;
   const value = Number(rawValue ?? 0);
   if (
     !Number.isFinite(value) ||
@@ -135,7 +149,9 @@ export function applyPlainTextFilter(
       error:
         removeMode === "count"
           ? "删除行数必须是大于等于 0 的数字"
-          : "删除比例必须在 0 到 100 之间",
+          : removeMode === "keep"
+            ? "目标保留行数必须是大于等于 0 的数字"
+            : "删除比例必须在 0 到 100 之间",
     };
   }
 
@@ -143,7 +159,10 @@ export function applyPlainTextFilter(
     eligibleIndexes.length,
     removeMode === "count"
       ? Math.floor(value)
-      : Math.round((eligibleIndexes.length * value) / 100)
+      : removeMode === "keep"
+        ? eligibleIndexes.length -
+          Math.min(eligibleIndexes.length, Math.floor(value))
+        : Math.round((eligibleIndexes.length * value) / 100)
   );
   const random =
     options.seed === undefined ? Math.random : createSeededRandom(options.seed);

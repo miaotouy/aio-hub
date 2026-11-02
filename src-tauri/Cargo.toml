@@ -4,6 +4,7 @@ version = "0.0.0"
 description = "AIO Hub - 综合枢纽应用"
 authors = ["miaotouy"]
 edition = "2021"
+rust-version = "1.99"
 license = "Apache-2.0"
 repository = "https://github.com/miaotouy/aio-hub"
 homepage = "https://github.com/miaotouy/aio-hub"
@@ -27,6 +28,8 @@ tauri-build = { version = "2", features = [] }
 serde_json = "1"
 
 [dependencies]
+aiohub-code-formatter = { path = "crates/code-formatter" }
+aiohub-desktop-entry = { path = "crates/desktop-entry" }
 tauri = { version = "2", features = [ "protocol-asset", "wry", "tray-icon", "image-png", "devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
@@ -60,7 +63,7 @@ hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "http2", "tokio"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots", "http2", "charset", "macos-system-configuration", "gzip", "brotli", "deflate", "socks", "multipart"] }
 # 带浏览器 TLS/H2 指纹模拟的 HTTP 客户端（仅 web_distillery 使用）
-wreq = { version = "6.0.0-rc.28", features = ["gzip", "brotli", "deflate", "charset"] }
+wreq = { version = "6.0.0-rc.28", features = ["gzip", "brotli", "deflate", "charset", "system-proxy"] }
 wreq-util = { version = "3.0.0-rc.11", features = ["emulation"] }
 anyhow = "1"
 futures-util = "0.3"
@@ -90,6 +93,7 @@ sha2 = "0.10" # SHA-256 哈希计算
 image = "0.25" # 图片处理
 content_inspector = "0.2" # 文本/二进制内容检测
 infer = "0.16" # 文件类型自动检测（基于魔数）
+cfb = "0.7.3" # 读取 WPS / Word 复合文档结构，复用 infer 已有依赖
 libloading = "0.8" # 动态库加载
 scopeguard = "1.2.0"
 # 窗口特效依赖
@@ -130,6 +134,7 @@ windows = { version = "0.58", features = [
     "Win32_Storage_FileSystem",
     "Globalization",
     "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",

@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import {
   Search,
   Info,
@@ -32,9 +32,13 @@ import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer";
 import type { AssetType } from "@/types/asset-management";
-import { useInfiniteScroll } from "@vueuse/core";
+import { useScrollPagination } from "@/composables/useScrollPagination";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { createModuleLogger } from "@/utils/logger";
+
+const logger = createModuleLogger("media-generator/gallery");
 
 const {
   assets,
@@ -55,12 +59,12 @@ const filterType = ref<AssetType | "all">("all");
 const currentPage = ref(1);
 const pageSize = ref(20);
 
-const galleryContainer = ref<HTMLElement | null>(null);
-
 // 资产 URL 缓存
 const assetUrls = ref<Record<string, string>>({});
 const videoPosterUrls = ref<Record<string, string>>({});
 const generationInfoCache = ref<Record<string, any>>({});
+let unlistenAssetImport: UnlistenFn | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 const getInlineGenerationInfo = (asset: Asset) => {
   const metadata = asset.metadata as any;
@@ -199,9 +203,31 @@ const loadData = async (append = false) => {
   await hydrateVisibleAssets();
 };
 
-// 初始加载
-onMounted(() => {
-  loadData();
+const scheduleRefreshAfterImport = () => {
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = undefined;
+    void loadData();
+  }, 200);
+};
+
+// 初始加载并同步其他组件导入的资产
+onMounted(async () => {
+  try {
+    unlistenAssetImport = await listen<Asset>(
+      "asset-imported",
+      scheduleRefreshAfterImport
+    );
+  } catch (error) {
+    logger.warn("订阅资产导入事件失败", error);
+  }
+
+  await loadData();
+});
+
+onUnmounted(() => {
+  unlistenAssetImport?.();
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer);
 });
 
 // 监听搜索和筛选
@@ -210,16 +236,14 @@ watch([searchQuery, filterType], () => {
 });
 
 // 无限滚动
-useInfiniteScroll(
-  galleryContainer,
-  () => {
-    if (hasMore.value && !isLoading.value) {
-      currentPage.value++;
-      loadData(true);
-    }
+const handleGalleryScroll = useScrollPagination({
+  canLoadMore: () => hasMore.value && !isLoading.value,
+  loadMore: async () => {
+    currentPage.value++;
+    await loadData(true);
   },
-  { distance: 10 }
-);
+  distance: 10,
+});
 
 const handlePreview = (asset: Asset) => {
   const url = assetUrls.value[asset.id];
@@ -302,7 +326,11 @@ const handleRefresh = () => {
     </div>
 
     <!-- 瀑布流/网格内容 -->
-    <div v-if="assets.length > 0" ref="galleryContainer" class="gallery-grid">
+    <div
+      v-if="assets.length > 0"
+      class="gallery-grid"
+      @scroll.passive="handleGalleryScroll"
+    >
       <div
         v-for="asset in assets"
         :key="asset.id"

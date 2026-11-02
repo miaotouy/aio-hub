@@ -16,56 +16,7 @@
 
 <template>
   <div class="git-committer-sidebar">
-    <!-- 顶部：当前仓库信息与操作 -->
-    <div class="sidebar-header">
-      <div class="repo-meta">
-        <div
-          class="repo-title"
-          :title="currentRepo?.alias || currentRepo?.name"
-        >
-          {{ currentRepo?.alias || currentRepo?.name }}
-        </div>
-        <div class="repo-branch" :title="currentStatus?.branch">
-          <GitBranch :size="14" class="branch-icon" />
-          {{ currentStatus?.branch || "HEAD" }}
-        </div>
-      </div>
-
-      <div class="repo-actions">
-        <el-tooltip content="拉取远程更改" placement="bottom">
-          <el-button
-            circle
-            size="small"
-            :loading="isPulling"
-            @click="handlePull"
-          >
-            <ArrowDown v-if="!isPulling" :size="14" />
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="推送本地提交" placement="bottom">
-          <el-button
-            circle
-            size="small"
-            :loading="isPushing"
-            @click="handlePush"
-          >
-            <ArrowUp v-if="!isPushing" :size="14" />
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="刷新状态" placement="bottom">
-          <el-button
-            circle
-            size="small"
-            :loading="isRefreshing"
-            @click="refreshCurrentStatus"
-          >
-            <RefreshCw v-if="!isRefreshing" :size="14" />
-          </el-button>
-        </el-tooltip>
-      </div>
-    </div>
-
-    <!-- 中部：AI 提交面板 -->
+    <!-- 顶部：AI 提交面板（仓库信息与操作已迁移至 GitHeaderBar） -->
     <div class="commit-panel">
       <div class="ai-model-row">
         <LlmModelSelector v-model="defaultModel" class="model-selector" />
@@ -130,6 +81,12 @@
                 <el-dropdown-item command="commit-push"
                   >提交并推送 (Commit & Push)</el-dropdown-item
                 >
+                <el-dropdown-item divided command="commit-amend"
+                  >追加到上次提交 (Amend)</el-dropdown-item
+                >
+                <el-dropdown-item command="undo-last-commit"
+                  >撤销上一次提交 (Undo Commit)</el-dropdown-item
+                >
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -179,14 +136,36 @@
               :key="file.path"
               class="file-item"
               :class="{ active: isActiveFile(file.path, true) }"
-              @click="openDiffTab(file.path, true)"
+              @click="
+                openDiffTab(file.path, true, {
+                  preview: shouldPreviewFile(
+                    singleClickOpensPermanentTab,
+                    $event
+                  ),
+                })
+              "
+              @dblclick="openDiffTab(file.path, true)"
+              @contextmenu.prevent="showFileMenu(file, true, $event)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
                 getFileName(file.path)
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
-              <span class="file-actions">
+              <span class="file-actions" @dblclick.stop>
+                <el-tooltip
+                  v-if="file.status !== 'D'"
+                  content="查看文件当前内容"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="openFileTab(file.path)"
+                  >
+                    <Eye :size="14" />
+                  </button>
+                </el-tooltip>
                 <el-tooltip content="取消暂存" placement="top">
                   <button
                     type="button"
@@ -255,21 +234,45 @@
               :key="file.path"
               class="file-item"
               :class="{ active: isActiveFile(file.path, false) }"
-              @click="openDiffTab(file.path, false)"
+              @click="
+                handleOpenFile(
+                  file,
+                  shouldPreviewFile(singleClickOpensPermanentTab, $event)
+                )
+              "
+              @dblclick="handleOpenFile(file, false)"
+              @contextmenu.prevent="showFileMenu(file, false, $event)"
             >
               <FileIcon :file-name="file.path" :size="14" class="file-icon" />
               <span class="file-path" :title="file.path">{{
                 getFileName(file.path)
               }}</span>
               <span class="file-dir">{{ getFileDir(file.path) }}</span>
-              <span class="file-actions">
-                <el-tooltip content="放弃更改" placement="top">
+              <span class="file-actions" @dblclick.stop>
+                <el-tooltip
+                  v-if="file.status !== 'D'"
+                  content="查看文件当前内容"
+                  placement="top"
+                >
                   <button
                     type="button"
                     class="action-btn"
-                    @click.stop="handleDiscardFile(file.path)"
+                    @click.stop="openFileTab(file.path)"
                   >
-                    <Undo2 :size="14" />
+                    <Eye :size="14" />
+                  </button>
+                </el-tooltip>
+                <el-tooltip
+                  :content="file.status === 'A' ? '删除文件' : '放弃更改'"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    class="action-btn"
+                    @click.stop="handleDiscardFile(file)"
+                  >
+                    <Trash2 v-if="file.status === 'A'" :size="14" />
+                    <Undo2 v-else :size="14" />
                   </button>
                 </el-tooltip>
                 <el-tooltip content="暂存更改" placement="top">
@@ -299,32 +302,28 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import {
-  GitBranch,
-  ArrowDown,
-  ArrowUp,
-  RefreshCw,
   Sparkles,
   SquareStop,
   ChevronDown,
   Plus,
   Minus,
   Undo2,
+  Trash2,
   FileDiff,
+  Eye,
   MessageSquareText,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import FileIcon from "@/components/common/FileIcon.vue";
 import {
-  currentRepo,
   currentRepoPath,
   currentStatus,
   currentSession,
   defaultModel,
-  isRefreshing,
+  singleClickOpensPermanentTab,
 } from "../composables/useGitCommitterState";
 import {
-  refreshCurrentStatus,
   stageFile,
   unstageFile,
   stageFiles,
@@ -332,28 +331,35 @@ import {
   discardFile,
   discardFiles,
   openDiffTab,
+  openFileTab,
   openChangesTab,
   openRepoPromptTab,
 } from "../composables/useGitCommitterRunner";
+import {
+  commitAmend,
+  undoLastCommit,
+} from "../composables/useGitOverview";
+import { customMessage } from "@/utils/customMessage";
 import { useGitRepoWorkflow } from "../composables/useGitRepoWorkflow";
+import { useGitFileContextMenu } from "../composables/useGitFileContextMenu";
 import { getFileName, getFileDir, buildTabKey } from "../utils";
+import { shouldPreviewFile } from "../utils/gitTabs";
 
 const activeCollapseNames = ref(["staged", "unstaged"]);
 const commitAction = ref<"commit" | "commit-push">("commit");
 
-// 使用统一的工作流 Composable
+// 使用统一的工作流 Composable（拉取/推送已上移至 GitHeaderBar）
 const {
-  isPulling,
-  isPushing,
   isGenerating,
   isCommitting,
   draft: commitMessage,
-  pull: handlePull,
-  push: handlePush,
   generateMsg: handleGenerateCommitMessage,
   abortGenerateMsg: handleAbortGenerateMessage,
-  commit,
+  commit: handleCommitWorkflow,
 } = useGitRepoWorkflow(currentRepoPath);
+
+// 更改列表文件右键菜单（与 ChangesDiffView 共用）
+const { showFileMenu } = useGitFileContextMenu();
 
 // 生成中转圈时点击即中止，否则发起生成
 const handleAiButtonClick = () => {
@@ -370,13 +376,56 @@ const commitActionText = computed(() => {
     : "提交并推送 (Commit & Push)";
 });
 
-const handleCommitCommand = (command: "commit" | "commit-push") => {
+const handleCommitCommand = async (command: "commit" | "commit-push" | "commit-amend" | "undo-last-commit") => {
+  if (command === "commit-amend") {
+    if (!commitMessage.value.trim()) {
+      customMessage.warning("请输入要追加的提交信息");
+      return;
+    }
+    ElMessageBox.confirm(
+      "确定要将当前暂存的更改追加合并到上一次提交吗？这会改写最近一次提交的哈希。",
+      "追加提交确认 (Amend)",
+      {
+        confirmButtonText: "确认追加",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    )
+      .then(async () => {
+        const ok = await commitAmend(currentRepoPath.value, commitMessage.value.trim());
+        if (ok) {
+          commitMessage.value = "";
+        }
+      })
+      .catch(() => {});
+    return;
+  }
+
+  if (command === "undo-last-commit") {
+    ElMessageBox.confirm(
+      "确定要撤销最近一次提交吗？提交记录将被撤回，所有变更将保留在暂存区（相当于 git reset --soft HEAD~1）。",
+      "撤销上一次提交",
+      {
+        confirmButtonText: "撤销提交",
+        cancelButtonText: "取消",
+        type: "warning",
+        lockScroll: false,
+      }
+    )
+      .then(async () => {
+        await undoLastCommit(currentRepoPath.value);
+      })
+      .catch(() => {});
+    return;
+  }
+
   commitAction.value = command;
 };
 
 const handleCommit = async () => {
   const pushAfter = commitAction.value === "commit-push";
-  await commit(pushAfter);
+  await handleCommitWorkflow(pushAfter);
 };
 
 const handleStageFile = async (path: string) => {
@@ -387,27 +436,51 @@ const handleUnstageFile = async (path: string) => {
   await unstageFile(currentRepoPath.value, path);
 };
 
-const handleDiscardFile = (path: string) => {
-  ElMessageBox.confirm(
-    `确定要放弃「${getFileName(path)}」的更改吗？此操作不可撤销。`,
-    "放弃更改",
-    {
-      confirmButtonText: "放弃更改",
-      cancelButtonText: "取消",
-      type: "warning",
-      confirmButtonClass: "el-button--danger",
-      lockScroll: false,
-    }
-  )
-    .then(() => discardFile(currentRepoPath.value, path))
+const handleDiscardFile = (file: { path: string; status: string }) => {
+  const isUntracked = file.status === "A";
+  const title = isUntracked ? "删除文件" : "放弃更改";
+  const message = isUntracked
+    ? `确定要删除「${getFileName(file.path)}」吗？文件将被移至系统回收站。`
+    : `确定要放弃「${getFileName(file.path)}」的更改吗？此操作不可撤销。`;
+  const confirmButtonText = isUntracked ? "移入回收站" : "放弃更改";
+
+  ElMessageBox.confirm(message, title, {
+    confirmButtonText,
+    cancelButtonText: "取消",
+    type: "warning",
+    confirmButtonClass: "el-button--danger",
+    lockScroll: false,
+  })
+    .then(() => discardFile(currentRepoPath.value, file.path))
     .catch(() => {
       // 用户取消
     });
 };
 
-/** 当前文件是否是对应标签页的激活项 */
-const isActiveFile = (path: string, isStaged: boolean) =>
-  currentSession.value.activeTabPath === buildTabKey({ path, isStaged });
+/** 当前文件是否是对应标签页的激活项（diff 按区匹配，文件内容视图支持匹配） */
+const isActiveFile = (path: string, isStaged: boolean) => {
+  const active = currentSession.value.activeTabPath;
+  return (
+    active === buildTabKey({ path, isStaged }) ||
+    active === buildTabKey({ path, isStaged, viewMode: "file" }) ||
+    active === buildTabKey({ path, isStaged: false, viewMode: "file" })
+  );
+};
+
+/**
+ * 未暂存文件点击行为：未跟踪的新文件（状态 A）没有基线版本，
+ * 直接打开文件内容视图；其余文件打开 diff。
+ */
+const handleOpenFile = (
+  file: { path: string; status: string },
+  preview = !singleClickOpensPermanentTab.value
+) => {
+  if (file.status === "A") {
+    openFileTab(file.path, false, { preview });
+  } else {
+    openDiffTab(file.path, false, { preview });
+  }
+};
 
 const handleOpenChanges = (isStaged: boolean) => {
   openChangesTab(isStaged);
@@ -415,17 +488,25 @@ const handleOpenChanges = (isStaged: boolean) => {
 
 const discardAll = () => {
   if (!currentStatus.value?.unstaged.length) return;
-  ElMessageBox.confirm(
-    `确定要放弃全部 ${currentStatus.value.unstaged.length} 个文件的更改吗？此操作不可撤销。`,
-    "放弃全部更改",
-    {
-      confirmButtonText: "全部放弃",
-      cancelButtonText: "取消",
-      type: "warning",
-      confirmButtonClass: "el-button--danger",
-      lockScroll: false,
-    }
-  )
+  const count = currentStatus.value.unstaged.length;
+  const untrackedCount = currentStatus.value.unstaged.filter(
+    (f) => f.status === "A"
+  ).length;
+
+  let message = `确定要放弃全部 ${count} 个文件的更改吗？此操作不可撤销。`;
+  if (untrackedCount === count) {
+    message = `确定要删除全部 ${count} 个未跟踪文件吗？文件将被移至系统回收站。`;
+  } else if (untrackedCount > 0) {
+    message = `确定要放弃全部 ${count} 个文件的更改吗？其中 ${untrackedCount} 个未跟踪文件将被移至系统回收站，其余更改不可撤销。`;
+  }
+
+  ElMessageBox.confirm(message, "放弃全部更改", {
+    confirmButtonText: "全部放弃",
+    cancelButtonText: "取消",
+    type: "warning",
+    confirmButtonClass: "el-button--danger",
+    lockScroll: false,
+  })
     .then(() =>
       discardFiles(
         currentRepoPath.value,
@@ -474,47 +555,6 @@ const unstageAll = async () => {
   --git-status-renamed: #73c991;
 }
 
-/* 顶部仓库信息 */
-.sidebar-header {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  flex-shrink: 0;
-}
-
-.repo-meta {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex: 1;
-  margin-right: 8px;
-}
-
-.repo-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.repo-branch {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-}
-
-.branch-icon {
-  margin-right: 4px;
-}
-
 .commit-btn-group {
   width: 100%;
   display: flex;
@@ -559,16 +599,6 @@ const unstageAll = async () => {
 .header-action-btn:focus-visible {
   outline: 1px solid var(--el-color-primary);
   outline-offset: -1px;
-}
-
-.settings-icon {
-  margin-right: 6px;
-}
-
-.repo-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
 }
 
 /* AI 提交面板 */

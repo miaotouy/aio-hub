@@ -14,6 +14,7 @@
 
 import { markRaw, watch, type WatchStopHandle } from "vue";
 import { Sparkles } from "lucide-vue-next";
+import { MediaGeneratorIcon } from "@aiohub/tool-icons";
 import type {
   ServiceMetadata,
   ToolRegistry,
@@ -44,7 +45,7 @@ const errorHandler = createModuleErrorHandler("media-generator/registry");
 export const toolConfig: ToolConfig = {
   name: "媒体生成中心",
   path: "/media-generator",
-  icon: markRaw(Sparkles),
+  icon: markRaw(MediaGeneratorIcon),
   component: () => import("./views/MediaGeneratorView.vue"),
   description: "一站式媒体生成工作站，支持图片、视频和音频生成。",
   category: ["AI 工具", "媒体工具"],

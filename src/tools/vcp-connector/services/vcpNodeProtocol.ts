@@ -27,11 +27,16 @@ import type {
   VcpToolExecutionResult,
   VcpToolApprovalRequest,
 } from "../types/distributed";
-import type { ToolContext } from "@/services/types";
+import type {
+  ToolContext,
+  ToolMethodResult,
+  ToolResultWithLocalMedia,
+} from "@/services/types";
 import {
   inspectFileForExternalTransfer,
   readFileForExternalTransfer,
 } from "@/tools/aio-file-operator/actions";
+import type { ExternalFileTransferResult } from "@/tools/aio-file-operator/types";
 
 const logger = createModuleLogger("vcp-connector/node-protocol");
 const errorHandler = createModuleErrorHandler("vcp-connector/node-protocol");
@@ -313,7 +318,8 @@ export class VcpNodeProtocol {
     const result = await toolCallingStore.requestApproval(
       sessionId,
       parsedRequest as any,
-      requestId
+      requestId,
+      { source: "vcp-node" }
     );
 
     // 4. 发送响应回 VCP
@@ -452,10 +458,66 @@ export class VcpNodeProtocol {
     return await withDistributedTimeout(
       Promise.resolve(
         service[resolvedMethodName](stripProtocolArgs(toolArgs), context)
+      ).then((result) =>
+        this.prepareDistributedToolResult(result, requestId, signal)
       ),
       `${toolId}.${resolvedMethodName}`,
       onTimeout
     );
+  }
+
+  /** 将本机路径引用转换为 VCP 服务端可直接送入模型的媒体内容。 */
+  private async prepareDistributedToolResult(
+    value: unknown,
+    requestId: string,
+    signal: AbortSignal
+  ): Promise<unknown> {
+    signal.throwIfAborted();
+    const structured =
+      value !== null &&
+      typeof value === "object" &&
+      "executionMetadata" in value &&
+      "result" in value
+        ? (value as ToolMethodResult)
+        : undefined;
+    const resultData = structured ? structured.result : value;
+    const objectResult: Record<string, unknown> & ToolResultWithLocalMedia =
+      resultData !== null && typeof resultData === "object"
+        ? (resultData as Record<string, unknown> & ToolResultWithLocalMedia)
+        : { result: resultData };
+    const media = structured?.localMedia ?? objectResult.localMedia;
+    if (!media?.length) return value;
+
+    const {
+      localMedia: _localMedia,
+      content: existingContent,
+      ...textResult
+    } = objectResult;
+    const content = [
+      { type: "text", text: JSON.stringify(textResult) },
+      ...(Array.isArray(existingContent) ? existingContent : []),
+    ];
+    for (const reference of media) {
+      // 外传独立检查当前规则并审批，消息引用中的本地授权仅供本地发送管道使用。
+      const file = await this.readExternalFile(
+        requestId,
+        reference.path,
+        signal
+      );
+      if (!/^(image|audio|video)\//.test(file.mimeType)) {
+        throw new Error(
+          `本地媒体文件类型已变化，请重新调用 read_file: ${reference.path}`
+        );
+      }
+      // VCP 的 ImageProcessor 使用 image_url 中的 MIME 区分图片、音频和视频。
+      content.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${file.mimeType};base64,${file.fileData}`,
+        },
+      });
+    }
+    return { ...textResult, content };
   }
 
   /**
@@ -498,11 +560,33 @@ export class VcpNodeProtocol {
         );
       }
 
-      // 分布式 execute_tool 只有一个 requestId，因此批量调用聚合为一次结果。
+      // VCP 从顶层 content 取媒体；混合批次需把文本与媒体按调用顺序平铺。
+      let result = calls.length > 1 ? results : results[0];
+      if (
+        calls.length > 1 &&
+        results.some((item) => Array.isArray(item?.content))
+      ) {
+        result = {
+          content: results.flatMap((item) =>
+            Array.isArray(item?.content)
+              ? item.content
+              : [
+                  {
+                    type: "text",
+                    text:
+                      typeof item === "string"
+                        ? item
+                        : JSON.stringify(item ?? null),
+                  },
+                ]
+          ),
+        };
+      }
+      abortController.signal.throwIfAborted();
       this.sendToolResult({
         requestId,
         status: "success",
-        result: calls.length > 1 ? results : results[0],
+        result,
       });
     } catch (error: any) {
       errorHandler.error(error, "Tool execution failed", {
@@ -572,11 +656,12 @@ export class VcpNodeProtocol {
     this.externalFileRequestTimes.push(now);
   }
 
-  private async handleInternalRequestFile(
+  private async readExternalFile(
     requestId: string,
-    args: any,
+    filePath: string,
     signal?: AbortSignal
-  ) {
+  ): Promise<ExternalFileTransferResult> {
+    signal?.throwIfAborted();
     const distStore = useVcpDistributedStore();
     if (!distStore.config.externalFileTransferEnabled) {
       throw new Error("当前节点已关闭 VCP 外部文件传输能力");
@@ -585,8 +670,8 @@ export class VcpNodeProtocol {
     this.assertExternalFileRateLimit();
     this.externalFileTransfersInFlight += 1;
     try {
-      const filePath = this.parseLocalFileUrl(args.fileUrl);
       const inspection = await inspectFileForExternalTransfer(filePath);
+      signal?.throwIfAborted();
       let approvalGranted = inspection.policy === "allow";
 
       if (inspection.policy === "approve") {
@@ -621,30 +706,52 @@ export class VcpNodeProtocol {
           `vcp-file-transfer:${this.serverId}`,
           approvalRequest as any,
           requestId,
-          { signal, timeoutMs: DISTRIBUTED_TOOL_TIMEOUT_MS }
+          {
+            signal,
+            timeoutMs: DISTRIBUTED_TOOL_TIMEOUT_MS,
+            source: "vcp-file-transfer",
+          }
         );
         approvalGranted = result === "approved";
         if (!approvalGranted) throw new Error("用户拒绝了外部文件传输请求");
       }
 
+      signal?.throwIfAborted();
+      if (!distStore.config.externalFileTransferEnabled) {
+        throw new Error("当前节点已关闭 VCP 外部文件传输能力");
+      }
       const result = await readFileForExternalTransfer({
         path: filePath,
         source: { type: "vcp", serverId: this.serverId, requestId },
         approvalGranted,
       });
 
-      this.sendToolResult({
-        requestId,
-        status: "success",
-        result: {
-          status: "success",
-          fileData: result.fileData,
-          mimeType: result.mimeType,
-          size: result.size,
-        },
-      });
+      signal?.throwIfAborted();
+      return result;
     } finally {
       this.externalFileTransfersInFlight -= 1;
     }
+  }
+
+  private async handleInternalRequestFile(
+    requestId: string,
+    args: any,
+    signal?: AbortSignal
+  ) {
+    const result = await this.readExternalFile(
+      requestId,
+      this.parseLocalFileUrl(args.fileUrl),
+      signal
+    );
+    this.sendToolResult({
+      requestId,
+      status: "success",
+      result: {
+        status: "success",
+        fileData: result.fileData,
+        mimeType: result.mimeType,
+        size: result.size,
+      },
+    });
   }
 }

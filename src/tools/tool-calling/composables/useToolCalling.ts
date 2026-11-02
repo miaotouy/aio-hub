@@ -18,6 +18,7 @@ import type {
   ToolCallConfig,
   ToolCallCycleResult,
   ToolApprovalResult,
+  ToolApprovalSecurityContext,
   ToolCallStatus,
 } from "../types";
 import type { ToolCallingProtocol } from "../core/protocols/base";
@@ -43,16 +44,21 @@ export function useToolCalling() {
     assistantText: string,
     config: ToolCallConfig,
     onBeforeExecute?: (
-      request: ParsedToolRequest
+      request: ParsedToolRequest,
+      security?: ToolApprovalSecurityContext
     ) => Promise<ToolApprovalResult | boolean>,
     onStatusChange?: (requestId: string, status: ToolCallStatus) => void,
-    agent?: ToolContext["agent"]
+    agent?: ToolContext["agent"],
+    delegationDepth?: number,
+    modelBinding?: ToolContext["modelBinding"]
   ): Promise<ToolCallCycleResult> => {
     const protocol = resolveProtocol(config.protocol);
     return await processToolCallCycle(assistantText, {
       protocol,
       config,
       agent,
+      delegationDepth,
+      modelBinding,
       onBeforeExecute,
       onStatusChange,
     });

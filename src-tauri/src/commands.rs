@@ -19,8 +19,10 @@ pub mod background_runtime;
 pub mod canvas_window;
 pub mod clipboard;
 pub mod color_picker_batch;
+pub mod code_formatter;
 pub mod config_manager;
 pub mod content_deduplicator;
+pub mod dev_control;
 pub mod dir_search;
 pub mod directory_janitor;
 pub mod directory_tree;
@@ -37,6 +39,8 @@ pub mod llm_inspector;
 pub mod llm_proxy;
 pub mod llmchat_search;
 pub mod media_generator_search;
+#[cfg(target_os = "linux")]
+pub mod media_stream;
 pub mod native_plugin;
 pub mod ocr;
 pub mod sidecar_plugin;
@@ -95,6 +99,13 @@ pub use window_manager::*;
 pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder.invoke_handler(tauri::generate_handler![
         greet,
+        crate::commands::code_formatter::format_code,
+        crate::commands::code_formatter::code_formatter_status,
+        #[cfg(target_os = "linux")]
+        crate::commands::media_stream::acquire_media_stream,
+        #[cfg(target_os = "linux")]
+        crate::commands::media_stream::release_media_stream,
+        crate::commands::dev_control::dev_control_identity,
         background_runtime_ready,
         background_runtime_heartbeat,
         background_runtime_get_status,
@@ -124,6 +135,9 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         generate_directory_tree,
         is_directory,
         list_directory,
+        search_files,
+        copy_path_force,
+        move_path_force,
         read_file_binary,
         read_file_binary_raw,
         read_app_data_file_binary,
@@ -145,6 +159,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         validate_files_for_link,
         path_exists,
         resolve_path_for_security,
+        inspect_file_operation,
         inspect_file_for_external_transfer,
         read_file_for_external_transfer,
         preview_skill_manifest,
@@ -217,6 +232,23 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         git_commit,
         git_push,
         git_pull,
+        git_undo_last_commit,
+        git_commit_amend,
+        git_checkout_branch,
+        git_create_branch,
+        git_delete_branch,
+        git_merge_branch,
+        git_get_tags,
+        git_create_tag,
+        git_push_tag,
+        git_delete_tag,
+        git_stash_list,
+        git_stash_save,
+        git_stash_pop,
+        git_stash_apply,
+        git_stash_drop,
+        git_open_terminal,
+        git_get_repo_overview,
         // OCR命令
         check_native_ocr_availability,
         native_ocr,

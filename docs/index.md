@@ -3,15 +3,18 @@ layout: home
 
 hero:
   name: "AIO Hub"
-  text: "一站式桌面 AI 工具枢纽"
-  tagline: "开发者的效率利器，隐私优先的智能助手平台"
+  text: "AI 创作与开发工作台"
+  tagline: "在一个工作区中完成对话、资料检索、媒体创作和本地工具操作"
   image:
     src: /aio-icon-color.svg
     alt: AIO Hub Logo
   actions:
     - theme: brand
       text: 快速开始
-      link: /user-guide/index
+      link: /user-guide/getting-started
+    - theme: alt
+      text: 浏览工具
+      link: /user-guide/tools/index
     - theme: alt
       text: 开发指南
       link: /guide/tool-registry-guide
@@ -20,20 +23,20 @@ hero:
       link: https://github.com/miaotouy/aio-hub
 
 features:
-  - title: 深度上下文工程
-    details: 统一上下文管道、60+ 动态宏、正则处理管道、上下文压缩与 RAG 检索——精准掌控发送给模型的每一个 Token。
-  - title: 34+ 专业工具集
-    details: 从 LLM 对话、媒体生成到 Git 分析、OCR、FFmpeg，涵盖 AI 创作与开发全链路。
-  - title: 极致视觉与自由布局
-    details: 组件级窗口分离、原生毛玻璃特效（Mica/Acrylic）、动态壁纸轮播、CSS 深度定制。
-  - title: 开放生态与多模态
-    details: 原生适配 OpenAI/Anthropic/Gemini/DeepSeek 等，内置 PDF 视觉转写、音视频提取、智能 OCR 引擎。
-  - title: 强大的插件系统
-    details: 支持 JS 插件（即写即用）、Native 插件（高性能 Rust）及 Sidecar 插件（多语言进程）。
-  - title: 非线性对话图谱
-    details: 基于 Vue Flow + D3.js 驱动，将对话历史呈现为可交互的树状网络，支持分支“嫁接”与无限画布导航。
-  - title: Agent Skill 系统
-    details: 遵循 Agent Skills 规范，通过渐进式披露策略（Progressive Disclosure）智能扩展 LLM 的行动能力。
-  - title: 隐私优先与安全
-    details: 核心逻辑本地执行，内置沙箱环境运行脚本，支持 SHA-256 资产去重与回收站级安全删除。
+  - title: 对话与智能体
+    details: 管理智能体和用户档案，在树状历史中切换分支，结合世界书、技能和工具调用完成任务。
+  - title: 可配置的上下文
+    details: 按任务组合上下文处理器、动态宏、正则规则、知识检索和压缩策略，并查看最终发送给模型的内容。
+  - title: 搜索与资料整理
+    details: 搜索网页、提取正文、识别图片文字、转写音视频，将资料纳入知识库并用于对话。
+  - title: 媒体创作与资产管理
+    details: 生成图片、视频、音频等内容，集中浏览资产、追溯来源，预览 PDF、DOCX、WPS 和 OpenDocument 文本文档。
+  - title: 开发与本地工具
+    details: 调试 API 和模型请求，处理配置、正则和文本差异，搜索目录，管理 Git 提交及多媒体转换。
+  - title: 多窗口与外观
+    details: 将支持分离的工具或面板放入独立窗口，结合主题、壁纸、毛玻璃和 CSS 样式调整工作区。
+  - title: 插件与服务扩展
+    details: 通过 JS、Native 和 Sidecar 插件扩展功能，结合 Agent Skills、VCP 连接器和已注册服务组织工作流。
+  - title: 本地与云端服务
+    details: 在本地保存配置和资产，按需连接本地模型、远程 AI 服务及网页提取引擎，为不同任务选择合适的处理方式。
 ---

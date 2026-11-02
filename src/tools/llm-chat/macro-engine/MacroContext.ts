@@ -66,6 +66,8 @@ export interface MacroContext {
   userProfileObj?: UserProfile;
   /** 宏执行时的基准时间戳（可选，默认为当前时间） */
   timestamp?: number;
+  /** 预设展开专用的冻结展示时间；其他宏仍使用真实 timestamp。 */
+  datetimeDisplayTimestamp?: number;
 
   // ==================== LLM 模型元数据 ====================
   /** 当前使用的完整模型 ID */

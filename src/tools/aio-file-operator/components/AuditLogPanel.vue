@@ -47,7 +47,7 @@
       </div>
     </div>
     <div v-show="!isCollapsed" class="panel-body log-container">
-      <el-empty v-if="logs.length === 0" description="暂无 AI 操作记录" />
+      <el-empty v-if="logs.length === 0" description="暂无操作记录" />
       <div v-else class="log-list">
         <div
           v-for="(log, index) in sortedLogs"
@@ -66,7 +66,25 @@
             </el-tag>
           </div>
           <div class="log-details">
-            <div class="detail-row">
+            <template v-if="log.category === 'security'">
+              <div v-if="log.params.path" class="detail-row">
+                <span class="detail-label">路径:</span>
+                <code class="detail-value"
+                  >{{
+                    log.params.previousPath
+                      ? `${log.params.previousPath} → `
+                      : ""
+                  }}{{ log.params.path }}</code
+                >
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">变更:</span>
+                <span class="detail-value"
+                  >{{ log.params.before }} → {{ log.params.after }}</span
+                >
+              </div>
+            </template>
+            <div v-else class="detail-row">
               <span class="detail-label">参数:</span>
               <code class="detail-value">{{ JSON.stringify(log.params) }}</code>
             </div>

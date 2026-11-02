@@ -29,7 +29,7 @@ import {
   tooltips,
   placeholder as cmPlaceholder,
 } from "@codemirror/view";
-import { EditorState, Compartment, Prec } from "@codemirror/state";
+import { EditorState, Compartment, Prec, StateEffect } from "@codemirror/state";
 import { useTheme } from "@/composables/useTheme";
 import { useChatInputManager } from "../../composables/input/useChatInputManager";
 import { markdown } from "@codemirror/lang-markdown";
@@ -44,6 +44,8 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
+  invertedEffects,
+  isolateHistory,
   insertNewline,
 } from "@codemirror/commands";
 import {
@@ -56,7 +58,24 @@ import {
   initializeMacroEngine,
   type MacroDefinition,
 } from "../../macro-engine";
+import {
+  getSlashCommands,
+  filterCommands,
+  applyCommand,
+} from "../../services/slashCommandService";
+import type {
+  SlashCommandItem,
+  ChatInputContext,
+} from "../../types/slash-command";
+import { useLlmChatUiState } from "../../composables/ui/useLlmChatUiState";
+import { useLlmChatStore } from "../../stores/llmChatStore";
 import { createModuleLogger } from "@/utils/logger";
+
+const externalChange = StateEffect.define<{
+  undo: () => void;
+  redo: () => void;
+  direction: "record" | "undo" | "redo";
+}>();
 
 const logger = createModuleLogger("ChatCodeMirrorEditor");
 
@@ -67,6 +86,7 @@ interface Props {
   height?: string | number;
   maxHeight?: string | number;
   sendKey?: "ctrl+enter" | "enter";
+  isDetached?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -76,6 +96,7 @@ const props = withDefaults(defineProps<Props>(), {
   height: "auto",
   maxHeight: "70vh",
   sendKey: "ctrl+enter",
+  isDetached: false,
 });
 
 const emit = defineEmits<{
@@ -187,6 +208,86 @@ const macroCompletionSource = (
     from: startPos,
     options,
     filter: false, // 我们已经手动过滤过了
+  };
+};
+
+/** 基于当前视图构建斜杠命令执行上下文 */
+function buildSlashCommandContext(editView: EditorView): ChatInputContext {
+  const { currentAgentId } = useLlmChatUiState();
+  const chatStore = useLlmChatStore();
+  return {
+    getValue: () => editView.state.doc.toString(),
+    replaceValue: (text: string) => {
+      editView.dispatch({
+        changes: { from: 0, to: editView.state.doc.length, insert: text },
+      });
+    },
+    insertText: (text: string, from?: number, to?: number) => {
+      const start = from ?? editView.state.selection.main.from;
+      const end = to ?? editView.state.selection.main.to;
+      editView.dispatch({
+        changes: { from: start, to: end, insert: text },
+        selection: { anchor: start + text.length },
+      });
+    },
+    requestSubmit: () => emit("submit"),
+    focus: () => editView.focus(),
+    isDetached: props.isDetached,
+    agentId: currentAgentId.value || undefined,
+    sessionId: chatStore.currentSessionId || undefined,
+  };
+}
+
+/** 斜杠命令补全源：输入 / 唤起（行首或空白后），与 {{宏补全}} 并列生效 */
+const slashCommandCompletionSource = async (
+  context: CompletionContext
+): Promise<CompletionResult | null> => {
+  const line = context.state.doc.lineAt(context.pos);
+  const textBefore = line.text.slice(0, context.pos - line.from);
+
+  // / 必须位于行首或空白字符之后，避免误触发路径、URL 中的斜杠
+  const match = textBefore.match(/(^|\s)\/([^\s/]*)$/);
+  if (!match) return null;
+
+  const prefix = match[2].toLowerCase();
+  // match[1] 长度 + "/" 字符
+  const slashStart = context.pos - match[2].length - 1;
+
+  const { currentAgentId } = useLlmChatUiState();
+  const commands = await getSlashCommands({
+    agentId: currentAgentId.value || undefined,
+  });
+  const filtered = filterCommands(commands, prefix);
+  if (filtered.length === 0) return null;
+
+  const options: Completion[] = filtered.map((item: SlashCommandItem) => ({
+    label: `/${item.name}`,
+    detail:
+      item.categoryLabel && item.category !== "system"
+        ? `${item.categoryLabel} · ${item.displayName}`
+        : item.description,
+    type: "slash-command",
+    info: item.description,
+    boost: item.category === "system" ? 10 : 0,
+    apply: (
+      applyView: EditorView,
+      _c: Completion,
+      from: number,
+      to: number
+    ) => {
+      // 移除已输入的 /词
+      applyView.dispatch({
+        changes: { from, to, insert: "" },
+      });
+      const ctx = buildSlashCommandContext(applyView);
+      applyCommand(item, ctx);
+    },
+  }));
+
+  return {
+    from: slashStart,
+    options,
+    filter: false,
   };
 };
 
@@ -319,6 +420,16 @@ onMounted(() => {
         ])
       ),
       history(),
+      invertedEffects.of((transaction) =>
+        transaction.effects
+          .filter((effect) => effect.is(externalChange))
+          .map((effect) =>
+            externalChange.of({
+              ...effect.value,
+              direction: effect.value.direction === "undo" ? "redo" : "undo",
+            })
+          )
+      ),
       editableConf.of(EditorView.editable.of(!props.disabled)),
       themeConf.of(isDark.value ? vscodeDark : vscodeLight),
       highlightSelectionMatches(),
@@ -326,7 +437,7 @@ onMounted(() => {
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       markdown(),
       autocompletion({
-        override: [macroCompletionSource],
+        override: [macroCompletionSource, slashCommandCompletionSource],
         icons: false, // 暂时关闭图标以保持简洁
       }),
       tooltips({
@@ -336,6 +447,14 @@ onMounted(() => {
       baseTheme,
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
+        for (const transaction of update.transactions) {
+          for (const effect of transaction.effects) {
+            if (effect.is(externalChange)) {
+              if (effect.value.direction === "undo") effect.value.undo();
+              if (effect.value.direction === "redo") effect.value.redo();
+            }
+          }
+        }
         // 监听文档变化
         if (update.docChanged) {
           if (isSyncingFromProps || isComposing) {
@@ -361,6 +480,14 @@ onMounted(() => {
       }),
       // 监听原始键盘事件
       EditorView.domEventHandlers({
+        mousedown: (event) => {
+          // 点击编辑器内部任何空白区域（如 cm-editor/cm-scroller），确保光标能正确进入 cm-content
+          const target = event.target as HTMLElement | null;
+          if (target && !target.closest(".cm-content") && view.value) {
+            view.value.focus();
+          }
+          return false;
+        },
         compositionstart: () => {
           isComposing = true;
           pendingPropsValueDuringComposition = null;
@@ -405,7 +532,7 @@ onMounted(() => {
         },
         paste: (event) => {
           emit("paste", event);
-          return false;
+          return event.defaultPrevented;
         },
       }),
     ],
@@ -479,6 +606,12 @@ watch(
 
 // 暴露方法给父组件
 defineExpose({
+  recordExternalChange: (undo: () => void, redo: () => void) => {
+    view.value?.dispatch({
+      effects: externalChange.of({ undo, redo, direction: "record" }),
+      annotations: isolateHistory.of("full"),
+    });
+  },
   focus: () => view.value?.focus(),
   // 模拟 textarea 的 setSelectionRange
   setSelectionRange: (start: number, end: number) => {
@@ -547,6 +680,14 @@ defineExpose({
     return view.value?.state.doc.toString() || "";
   },
 });
+
+// 容器点击事件：点击 .chat-cm-editor 边缘或留白时，委托聚焦给内部 view
+const handleContainerMouseDown = (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null;
+  if (!target?.closest(".cm-content") && view.value) {
+    view.value.focus();
+  }
+};
 </script>
 
 <template>
@@ -559,6 +700,7 @@ defineExpose({
       height: typeof height === 'number' ? height + 'px' : height,
       maxHeight: typeof maxHeight === 'number' ? maxHeight + 'px' : maxHeight,
     }"
+    @mousedown="handleContainerMouseDown"
   ></div>
 </template>
 
@@ -600,6 +742,11 @@ defineExpose({
   color: var(--text-color-secondary) !important;
   font-size: 12px !important;
   margin-left: 8px !important;
+}
+
+/* 斜杠命令补全项：徽章样式 */
+.cm-completionItem.slash-command .cm-completionDetail {
+  color: var(--text-color-light) !important;
 }
 </style>
 

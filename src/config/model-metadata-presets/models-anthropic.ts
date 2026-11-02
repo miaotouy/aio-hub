@@ -46,13 +46,114 @@ const claudeExtendedThinkingCapabilities = {
 
 const claudeAdaptiveThinkingCapabilities = {
   ...claudeBaseCapabilities,
-  thinking: false,
-  thinkingConfigType: "none" as const,
+  // 自适应思考模型（Claude 4.7+ / 5.x）思考始终可用：
+  // 保留 budget 配置形态，未开启思考时请求不带 thinking 字段走 API 默认行为。
+  // 之前误标为 thinking: false，导致覆盖分析与参数面板完全没有思考配置。
+  thinking: true,
+  thinkingConfigType: "budget" as const,
+};
+
+// 官方规格（2026-10-15 核对）：
+// https://platform.claude.com/docs/en/models/opus-5-5/overview
+// https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5
+export const claudeOpus55Capabilities = {
+  ...claudeBaseCapabilities,
+  thinking: true,
+  thinkingConfigType: "effort" as const,
+  reasoningEffortOptions: ["low", "medium", "high", "xhigh", "max"],
 };
 
 export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataProperties>[] =
   [
-    // === Claude 当前具体模型信息（官方模型页/价格页，2026-06） ===
+    // === Claude 当前具体模型信息（官方模型页/价格页，2026-09） ===
+    {
+      id: "model-claude-mythos-5",
+      matchType: "modelPrefix",
+      matchValue: "^claude-mythos-5(?:-1)?(?:-|$)",
+      useRegex: true,
+      properties: {
+        icon: `/model-icons/claude-color.svg`,
+        group: "Claude 5",
+        tokenizer: "claude",
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: 10.0,
+          output: 50.0,
+          cacheHitInput: 0.25,
+          unit: "USD",
+          note: "每百万 token；Cache Hits & Refreshes 为 $0.25/MTok；仅面向受信任的网络安全/生命科学机构开放",
+        },
+        capabilities: claudeAdaptiveThinkingCapabilities,
+        adaptiveThinking: true,
+        releaseDate: "2026-09-01",
+        knowledgeCutoff: "2026-06",
+        trainingDataCutoff: "2026-06",
+        description:
+          "Claude Mythos 5 / 5.1：Anthropic 面向网络安全与生物学研究的最高能力模型，与 Fable 5.1 同源但保留完整双用途能力，访问仅限受信任机构，1M 上下文，128K 输出",
+      },
+      priority: 37,
+      enabled: true,
+      description: "模型正则 claude-mythos-5(?:-1)? 元数据规则",
+    },
+    {
+      id: "model-claude-sonnet-5-5",
+      matchType: "modelPrefix",
+      matchValue: "claude-sonnet-5-5",
+      properties: {
+        icon: `/model-icons/claude-color.svg`,
+        group: "Claude 5",
+        tokenizer: "claude",
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: 2.0,
+          output: 10.0,
+          cacheHitInput: 0.2,
+          unit: "USD",
+          note: "每百万 token；Cache Hits & Refreshes 为 $0.20/MTok",
+        },
+        capabilities: claudeAdaptiveThinkingCapabilities,
+        adaptiveThinking: true,
+        releaseDate: "2026-09-28",
+        knowledgeCutoff: "2026-06",
+        trainingDataCutoff: "2026-06",
+        description:
+          "Claude Sonnet 5.5：Sonnet 5 的增量升级，速度与智能的最佳结合，1M 上下文，128K 输出，支持自适应思考",
+      },
+      priority: 37,
+      enabled: true,
+      description: "模型前缀 claude-sonnet-5-5 元数据规则",
+    },
+    {
+      id: "model-claude-opus-5-5",
+      matchType: "modelPrefix",
+      matchValue: "claude-opus-5-5",
+      properties: {
+        icon: `/model-icons/claude-color.svg`,
+        group: "Claude 5",
+        tokenizer: "claude",
+        contextLength: 1000000,
+        maxOutputTokens: 128000,
+        pricing: {
+          input: 4.0,
+          output: 20.0,
+          cacheHitInput: 0.2,
+          unit: "USD",
+          note: "每百万 token；缓存命中 $0.20，5 分钟缓存写入 $5，1 小时缓存写入 $8",
+        },
+        capabilities: claudeOpus55Capabilities,
+        adaptiveThinking: true,
+        releaseDate: "2026-09-22",
+        knowledgeCutoff: "2026-06",
+        trainingDataCutoff: "2026-06",
+        description:
+          "Claude Opus 5.5：长程智能体编码与知识工作，1M 上下文，128K 输出；自适应思考始终开启，默认 effort 为 medium，工具选择支持 auto / none",
+      },
+      priority: 37,
+      enabled: true,
+      description: "模型前缀 claude-opus-5-5 元数据规则",
+    },
     {
       id: "model-claude-fable-5",
       matchType: "modelPrefix",
@@ -87,7 +188,8 @@ export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataPropertie
     {
       id: "model-claude-opus-5",
       matchType: "modelPrefix",
-      matchValue: "claude-opus-5",
+      matchValue: "^claude-opus-5(?:-\\d{8})?$",
+      useRegex: true,
       properties: {
         icon: `/model-icons/claude-color.svg`,
         group: "Claude 5",
@@ -462,7 +564,7 @@ export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataPropertie
     {
       id: "model-prefix-claude-5",
       matchType: "modelPrefix",
-      matchValue: "claude-(?:fable|opus|sonnet|haiku)-5",
+      matchValue: "claude-(?:fable|mythos|opus|sonnet|haiku)-5",
       useRegex: true,
       properties: {
         icon: `/model-icons/claude-color.svg`,
@@ -470,11 +572,12 @@ export const anthropicModelRules: LegacyModelMetadataRule<ModelMetadataPropertie
         tokenizer: "claude",
         capabilities: claudeAdaptiveThinkingCapabilities,
         description:
-          "Claude 5 系列模型（Fable / Opus / Sonnet / Haiku，支持视觉、工具调用、文档处理与自适应思考）",
+          "Claude 5 系列模型（Fable / Mythos / Opus / Sonnet / Haiku，支持视觉、工具调用、文档处理与自适应思考）",
       },
       priority: 25,
       enabled: true,
-      description: "模型正则 claude-(?:fable|opus|sonnet|haiku)-5 元数据规则",
+      description:
+        "模型正则 claude-(?:fable|mythos|opus|sonnet|haiku)-5 元数据规则",
     },
     {
       id: "model-prefix-claude-3-7",

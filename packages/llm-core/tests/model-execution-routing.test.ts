@@ -62,6 +62,50 @@ describe("resolveModelExecution", () => {
     });
   });
 
+  it("routes OpenRouter decisions by default while preserving explicit legacy bindings", () => {
+    const source = profile("openrouter");
+    expect(
+      resolveModelExecution({
+        profile: source,
+        model: model(),
+        operation: "decision",
+      }).adapterId
+    ).toBe("openrouter-decisions");
+    const legacy = model({
+      bindings: {
+        decision: {
+          adapterId: "typesafe-system-one",
+          source: "manual",
+          endpoint: "/legacy/systemone",
+        },
+      },
+      supportedEndpointTypes: ["decisions"],
+    });
+    expect(
+      resolveModelExecution({
+        profile: source,
+        model: legacy,
+        operation: "decision",
+      })
+    ).toMatchObject({
+      adapterId: "typesafe-system-one",
+      effectiveProfile: {
+        type: "typesafe",
+        customEndpoints: { systemOne: "/legacy/systemone" },
+      },
+    });
+    const discovered = resolveModelExecution({
+      profile: profile("aggregate-compatible"),
+      model: model({ supportedEndpointTypes: ["decisions"] }),
+      operation: "decision",
+    });
+    expect(discovered).toMatchObject({
+      adapterId: "openrouter-decisions",
+      routeSource: "discovered",
+      effectiveProfile: { type: "openrouter" },
+    });
+  });
+
   it("rejects chat routing for decision-only TypeSafe profiles", () => {
     expect(() =>
       resolveModelExecution({
@@ -420,6 +464,7 @@ describe("listAdaptersForOperation", () => {
     expect(listAdaptersForOperation("rerank")).toEqual(["jina-rerank"]);
     expect(listAdaptersForOperation("decision")).toEqual([
       "typesafe-system-one",
+      "openrouter-decisions",
     ]);
     expect(listAdaptersForOperation("music")).toEqual([
       "suno-newapi",

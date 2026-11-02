@@ -20,15 +20,22 @@ import {
   Wrench,
   Variable,
   Sparkles,
-  Brain,
-  BookOpen,
+  SlidersHorizontal,
+  FileStack,
 } from "lucide-vue-next";
+import { KnowledgeBaseIcon, RecallIcon } from "@aiohub/tool-icons";
 import type { Component } from "vue";
+import type { LlmParameters } from "@/tools/llm-chat/types";
+import {
+  modelParameterSearchItems,
+  contextParameterSearchItems,
+} from "../parameters/parameterEditorConfig";
 
 export interface AgentEditItem {
   id: string;
   label: string;
   keywords: string;
+  parameterKey?: keyof LlmParameters;
 }
 
 export interface AgentEditTab {
@@ -62,7 +69,6 @@ export const agentEditTabs: AgentEditTab[] = [
     label: "角色设定",
     icon: UserCircle,
     items: [
-      { id: "model", label: "模型", keywords: "model 模型" },
       {
         id: "userProfile",
         label: "关联用户档案",
@@ -97,6 +103,21 @@ export const agentEditTabs: AgentEditTab[] = [
     ],
   },
   {
+    id: "model",
+    label: "模型参数",
+    icon: SlidersHorizontal,
+    items: [
+      { id: "model", label: "模型", keywords: "model 模型 渠道" },
+      ...modelParameterSearchItems,
+    ],
+  },
+  {
+    id: "context",
+    label: "上下文",
+    icon: FileStack,
+    items: contextParameterSearchItems,
+  },
+  {
     id: "capabilities",
     label: "功能扩展",
     icon: Zap,
@@ -129,7 +150,7 @@ export const agentEditTabs: AgentEditTab[] = [
   {
     id: "recall",
     label: "思绪",
-    icon: Brain,
+    icon: RecallIcon,
     items: [
       {
         id: "recall",
@@ -141,7 +162,7 @@ export const agentEditTabs: AgentEditTab[] = [
   {
     id: "knowledge",
     label: "知识库",
-    icon: BookOpen,
+    icon: KnowledgeBaseIcon,
     items: [
       {
         id: "knowledgeBase",
@@ -188,6 +209,11 @@ export const agentEditTabs: AgentEditTab[] = [
         id: "defaultToolCallCollapsed",
         label: "工具调用折叠",
         keywords: "tool call collapse 工具调用 折叠",
+      },
+      {
+        id: "streamEffect",
+        label: "流式文字特效",
+        keywords: "streaming animation particles 流式 动画 粒子 星屑 字幕",
       },
       {
         id: "defaultMediaVolume",

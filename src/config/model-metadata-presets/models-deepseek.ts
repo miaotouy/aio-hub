@@ -37,7 +37,7 @@ export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties
         },
         version: "DeepSeek-V4-Pro-0813",
         description:
-          "DeepSeek V4 Pro 正式版模型详情；计划下线，北京时间 2026-09-14 12:00 后请求将由 DeepSeek-V4.1-Flash 提供服务并按 Flash 价格计费",
+          "DeepSeek V4 Pro 正式版模型详情；官方更新日志（2026-09-10）：9 月 14 日之后继续提供 API 调用服务，计费方式保持不变",
       },
       priority: 30,
       enabled: true,
@@ -100,6 +100,37 @@ export const deepseekModelRules: LegacyModelMetadataRule<ModelMetadataProperties
       priority: 30,
       enabled: true,
       description: "模型 deepseek-pro 预测性元数据规则（V4.1 Pro 未发布）",
+    },
+    {
+      id: "model-deepseek-v4-1",
+      matchType: "modelPrefix",
+      matchValue: "deepseek-v4.1",
+      properties: {
+        icon: `/model-icons/deepseek-color.svg`,
+        group: "DeepSeek",
+        tokenizer: "deepseek_v3",
+        contextLength: 1024000,
+        maxOutputTokens: 384000,
+        capabilities: {
+          vision: true,
+          visionTokenCost: {
+            calculationMethod: "deepseek_image_v41",
+            parameters: {},
+          },
+          toolUse: true,
+          thinking: true,
+          thinkingConfigType: "effort",
+          reasoningEffortOptions: ["low", "high", "max"],
+          fim: true,
+          prefixCompletion: true,
+          jsonOutput: true,
+        },
+        description:
+          "DeepSeek V4.1 起视觉理解合并进模型本体（原生多模态，无需单独 vision 版本），系列通用规格 1M 上下文 / 384K 输出；覆盖渠道变体模型名（如 deepseek-v4.1-flash-expires-on-0910）",
+      },
+      priority: 28,
+      enabled: true,
+      description: "模型前缀 deepseek-v4.1 系列元数据规则（4.1 起原生视觉）",
     },
     {
       id: "model-deepseek-v4-flash",

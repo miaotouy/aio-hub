@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
+
 import { reactive, watch, ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type {
@@ -22,6 +24,7 @@ import type {
   AgentEditData,
   GreetingMessage,
 } from "../../types/agent";
+import type { LlmParameters } from "@/tools/llm-chat/types";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";
 import type { PresetMessageGroup } from "../../types/agent";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -106,6 +109,10 @@ const defaultFormState = {
   greetings: [] as GreetingMessage[],
   defaultGreetingId: "", // 默认选中的开局消息 ID
   displayPresetCount: 0, // 显示的预设消息数量
+  parameters: { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS } as LlmParameters,
+  streamEffect: "inherit" as NonNullable<ChatAgent["streamEffect"]>,
+  defaultToolCallCollapsed: false,
+  visualGuideline: "",
   llmThinkRules: [] as LlmThinkRule[], // LLM 思考块规则配置
   richTextStyleOptions: {} as RichTextRendererStyleOptions, // 富文本样式配置
   regexConfig: createDefaultChatRegexConfig(), // 正则管道配置
@@ -336,14 +343,6 @@ const handleSave = (
     return;
   }
 
-  let parameters: ChatAgent["parameters"] = { temperature: 1, maxTokens: 8192 };
-
-  if (props.mode === "edit" && currentEditingAgent.value) {
-    parameters = currentEditingAgent.value.parameters;
-  } else if (props.mode === "create" && props.initialData?.parameters) {
-    parameters = JSON.parse(JSON.stringify(props.initialData.parameters));
-  }
-
   emit(
     "save",
     {
@@ -361,7 +360,10 @@ const handleSave = (
       greetings: editForm.greetings,
       defaultGreetingId: editForm.defaultGreetingId,
       displayPresetCount: editForm.displayPresetCount,
-      parameters,
+      parameters: JSON.parse(JSON.stringify(editForm.parameters)),
+      streamEffect: editForm.streamEffect,
+      defaultToolCallCollapsed: editForm.defaultToolCallCollapsed,
+      visualGuideline: editForm.visualGuideline || undefined,
       llmThinkRules: editForm.llmThinkRules,
       richTextStyleOptions: editForm.richTextStyleOptions,
       tags: editForm.tags,

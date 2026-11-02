@@ -88,4 +88,40 @@ describe("release notes viewer", () => {
       "此构建未包含可显示的本地版本说明"
     );
   });
+
+  it("marks the nearest available note as current when the runtime build leads", () => {
+    releaseNotesRegistry.register({
+      version: "1.1.0",
+      revision: 1,
+      channel: "prerelease",
+      title: "Version 1.1",
+      summary: "Summary",
+      publishedAt: "2026-08-10",
+      body: "# Version 1.1",
+    });
+    const viewer = useReleaseNotesViewerStore();
+    viewer.open({
+      versions: ["1.0.0", "1.1.0"],
+      primaryVersion: "1.1.0.build.abc123",
+    });
+
+    expect(viewer.primaryVersion).toBe("1.1.0");
+    expect(viewer.selectedVersion).toBe("1.1.0");
+  });
+
+  it("falls back to the highest bundled note when the runtime version is ahead", () => {
+    releaseNotesRegistry.register({
+      version: "1.1.0",
+      revision: 1,
+      channel: "prerelease",
+      title: "Version 1.1",
+      summary: "Summary",
+      publishedAt: "2026-08-10",
+      body: "# Version 1.1",
+    });
+    const viewer = useReleaseNotesViewerStore();
+    viewer.open({ versions: ["1.0.0", "1.1.0"], primaryVersion: "2.0.0" });
+
+    expect(viewer.primaryVersion).toBe("1.1.0");
+  });
 });

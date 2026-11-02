@@ -1,6 +1,6 @@
 # LLM Chat: 架构与开发者指南
 
-> 最后更新：2026-09-22
+> 最后更新：2026-10-04
 
 本文档是 `llm-chat` 工具的**架构概览**。每个章节只保留核心理念与定位，详细实现请参考 [`docs/architecture/`](./docs/architecture/) 下的专题文档。
 
@@ -82,9 +82,11 @@ graph TD
 
 #### 1.2.1. 多会话架构与子管理器 (Multi-Session Sub-Managers)
 
-系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。消息排队以**目标父节点到根节点的路径**为粒度：同一路径上的后续消息按顺序恢复生成；切换到树的其它分支后，新分支可与已有分支并行执行。调度器同时扫描会话节点上的持久化排队标记，避免切换会话或运行时集合清理后遗留的 `queued` 节点无法恢复。
+系统采用多会话架构，支持多窗口 UI 并发操作与后台会话独立执行。核心状态管理（`llmChatStore`）采用职责聚合的设计模式，将复杂的会话控制委托给一组专职的子管理器（`sessionAccess`、`sessionRuntime`、`sessionHistory`、`sessionGeneration`、`sessionLifecycle`），并实现了会话级输入草稿隔离、生成状态只读化以及发送链路与 UI 状态的完全解耦。
 
-排队恢复时按占位节点内容区分：内容为空的 Assistant 占位节点直接复用（`reuseNode`）；已有部分内容的节点创建续写分支。用户主动停止生成时，会话内所有仍处于排队态的节点被标记为 `error` 并写入 `metadata.error = "队列已停止"`，同时清除 `isQueued`，UI 以「已停止」呈现。
+- **消息生命周期与排队控制**：引入规范的节点生命周期状态（`waiting` / `generating` / `queued` / `complete` / `error`）。请求发出后未收到流式首字前呈现为「等待中 (`waiting`)」，收到有效内容后平滑切换为「生成中 (`generating`)」；消息排队以**目标父节点到根节点的路径**为粒度：同一路径上的后续消息按顺序恢复生成；切换到树的其它分支后，新分支可与已有分支并行执行。调度器同时扫描会话节点上的持久化排队标记，避免切换会话或运行时集合清理后遗留的 `queued` 节点无法恢复。
+- **持久化自愈机制**：在应用重启、异常退出或崩溃恢复时，`sessionLifecycleManager` 在会话载入阶段会自动扫描详情树，将残存的非正常 `generating` / `waiting` 异常节点自愈修复为 `complete` 或包含中断说明的 `error` 终态（`metadata.error = "生成已中断"`），避免由于进程中止导致节点永远挂起在加载骨架态。
+- **排队恢复与停止语义**：排队恢复时按占位节点内容区分：内容为空的 Assistant 占位节点直接复用（`reuseNode`）；已有部分内容的节点创建续写分支。用户主动停止生成时，会话内所有仍处于排队态的节点被标记为 `error` 并写入 `metadata.error = "队列已停止"`，同时清除 `isQueued`，UI 以「已停止」呈现。
 
 详见 [`data-persistence.md`](./docs/architecture/data-persistence.md) 第 3 节与 [`key-types.md`](./docs/architecture/key-types.md)。
 
@@ -133,12 +135,14 @@ graph TD
 
 ### 1.5. 附件系统与管道附件抽象层 (Attachments & PipelineAttachment)
 
-附件系统允许用户在消息中添加文件，实现多模态对话。基于统一的 Asset 管理系统进行文件存储和去重，支持图片、视频、音频、文本、文档等多种类型。
+附件系统允许用户在消息中添加文件，实现多模态对话。真实文件基于统一的 Asset 管理系统进行存储和去重，支持图片、视频、音频、文本和文档。消息内文本附件通过 `virtualAttachments` 保存可编辑的标题与全文，草稿和会话消息分别持有独立快照。
+
+跨工具通过 `addContentToInput()` 发送内容时，与粘贴入口共用 `useChatInputSettings()` 的长文本转换开关和字符阈值（默认 3000 字符）。转换以格式化后的完整内容为准，保留原有正文，附件按 append / prepend 顺序加入当前草稿；超过单份 16 MiB 或已达 100 份附件时回到正文并提示。粘贴入口沿用原有的大体积确认交互，跨工具入口保持同步返回。
 
 为保持管道内部逻辑的清晰与独立，系统使用**管道附件抽象层**：
 
 - **`PipelineAttachment` 类型**: 管道内部使用轻量级 `PipelineAttachment` 类型表示附件，独立于全局 `Asset` 类型，管道逻辑不直接依赖资产管理系统。
-- **统一二进制读取**: [`getAttachmentBuffer()`](./core/context-utils/attachment-binary.ts) 工具函数统一处理 `inline`（Base64 内嵌）、`asset-library`（资产库引用）和 `agent-private`（由 `agent-manager` 管理的智能体私有资产）三种数据源的二进制读取。
+- **统一二进制读取**: [`getAttachmentBuffer()`](./core/context-utils/attachment-binary.ts) 工具函数统一处理 `inline`（Base64 内嵌）、`asset-library`（资产库引用）和 `agent-private`（由 `agent-manager` 管理的智能体私有资产）等数据源的二进制读取；`message-text` 直接从消息内字符串读取全文。
 - **多源转换**: 提供 `fromAsset` / `toPipelineAttachment` 转换函数，实现 Asset 与 PipelineAttachment 之间的双向转换。
 
 详见 [`attachment-system.md`](./docs/architecture/attachment-system.md)
@@ -233,7 +237,7 @@ graph TD
 
 - **非破坏性压缩**: 压缩操作会生成一个新的**压缩节点**，包含 LLM 生成的摘要，并隐藏被压缩的原始消息节点。
 - **触发机制**: 由 `triggerMode`（`token` / `count` / `both`）与 `autoTrigger` 两个维度共同决定。
-- **保护区**: 始终保留最近 N 条消息不被压缩。
+- **范围计数**: 支持按消息条数或用户回合计数；用户回合包含该用户消息后的助手回复与工具结果，统一适用于原生工具调用和 VCP 拆分消息。保护区与单次压缩量使用所选单位，两种方式分别记忆数量设置。
 - **可逆性**: 原始消息节点并未被删除，用户可以随时展开查看或回滚。
 
 详见 [`context-compression.md`](./docs/architecture/context-compression.md)。
@@ -255,13 +259,41 @@ graph TD
 
 详见 [`agent-assets.md`](./docs/architecture/agent-assets.md) 与 [`asset-macro-examples.md`](./docs/architecture/asset-macro-examples.md)。
 
-### 1.18. 快捷操作 (Quick Actions)
+### 1.18. 快捷操作与斜杠指令系统 (Quick Actions & Slash Commands)
 
-快捷操作允许用户在输入框中通过点击按钮快速执行预定义的文本包装或指令发送。
+快捷操作与斜杠指令系统允许用户在输入框中高效唤起动作模板、宏以及系统控制指令。
 
 - **类世界书管理**: 采用多级关联机制（全局、智能体、用户档案），支持按组管理。
 - **模板化注入**: 支持 `{{input}}` 占位符，可将输入框选中的内容（或全文）包装进特定的 HTML 标签或指令中。
 - **自动发送**: 支持配置点击后立即发送，提升操作效率。
+- **斜杠指令引擎 (`Slash Commands`)**:
+  - 输入框键入 `/` 触发命令自动补全面板（支持 CodeMirror 6 与原生 textarea 双编辑器）。
+  - 内置命令（`/clear` 清空会话、`/export` 导出会话、`/compact` 压缩上下文、`/settings` 打开设置等）与快捷操作（Quick Actions）动态聚合。
+  - 支持快捷指令执行与参数分发，与现有宏引擎（Macro System）无缝协同。
+
+#### 输入工具栏布局
+
+- 用户偏好保存于 `ChatSettings.uiPreferences.inputToolbar`，统一记录底部系统操作的常驻 ID 顺序、右侧状态项的显示顺序和快捷按钮按组分行偏好。
+- `inputToolbarActions.ts` 统一操作描述与可用条件，常驻按钮和更多菜单使用同一执行入口。发送、停止和更多入口保持直接可达；宽度不足时按顺序临时收纳末尾操作。
+- `config/inputToolbar.ts` 提供简洁/完整预设、旧配置兼容及分区解析。全新配置采用简洁布局；旧配置缺失布局字段时沿用原入口与快捷操作平铺。未知 ID 保留配置并跳过渲染。
+- 快捷操作栏独立展示全局、Agent 和 User Profile 关联的操作组，单项 `isEnabled !== false` 控制“操作区可见”，`groupQuickActionsBySet` 控制按组分行。显式关联的组沿用原显示语义，执行复用现有模板处理逻辑。旧布局中的 `quickActions` 字段在规范化时清理。
+- 自定义工具栏排序复用 `VueDraggableNext` 的模拟拖拽，使用独立手柄，兼容开启原生文件拖放的 Tauri 窗口；筛选排序保留隐藏项和未知 ID 的位置。
+- 自定义工具栏分为左侧操作、右侧状态和快捷操作。右侧支持续写模型、临时模型、画布状态、上下文 Token 和输入 Token 的独立显隐与排序；状态内容按运行条件出现，窄窗口中已开启的 Token 统计移入更多菜单。发送与停止固定在最右端。显示 Token 和快捷按钮分组从输入设置迁入布局编辑器，旧 `chat-input-settings` 偏好仅在新字段缺失时用于迁移。
+- 编辑器挂载在 `LlmChat.vue`。分离输入窗通过 `open-toolbar-customizer` 动作在主窗口打开；布局通过 `saveInputToolbarLayout` 先持久化再发布，状态沿既有 ChatSettings 通道以完整快照同步，保证分离窗口初始同步后的数组显隐与排序更新一致。
+
+详见 [输入工具栏自定义收纳](./docs/Plan/input-toolbar-customization-research.md)。
+
+#### 输入区上方面板插槽
+
+- `MessageInput.vue` 在编辑器上方通过 `src/components/common/input-panel/InputPanelHost.vue` 承载当前功能面板。容器统一提供标题、可选摘要、标题操作插槽和折叠/关闭控件。公共 `InputPanelLayout.vue` 提供顶部常驻 `controls`、默认滚动内容与底部常驻 `footer` 插槽；Host 与动态业务组件复用该布局，折叠隐藏整块内容并保留状态。
+- `src/composables/useInputPanel.ts` 通过组件树注入提供窗口内单面板状态：新功能替换当前组件，折叠保留当前组件状态，关闭清空插槽。再次点击已展开面板的入口时，按输入设置的 `panelRepeatClickAction` 折叠或关闭，默认关闭；点击已折叠面板始终展开。标题控件保持独立操作。偏好沿输入设置持久化，面板 UI 状态局限于当前输入容器，业务数据沿原存储和同步通道保存。
+- 已接入输入设置、宏变量、会话列表、工具设置、Knowledge 引用和画布管理。工具栏组件映射与画布胶囊共用控制器，常驻按钮和更多菜单使用同一执行入口；原气泡锚点及分散的面板可见性状态已移除。
+- 内容组件复用既有业务更新及跨窗口动作。宏插入和会话选择完成后关闭并返回编辑器；全局输入设置保持，会话/Agent 切换关闭其他上下文相关面板。响应式 props 保持输入可用性和 VCP 渠道状态同步。
+- 默认由容器滚动；虚拟会话列表与宏选择器通过 `scroll: "content"` 接管内部滚动，容器提供确定高度。工具和 Knowledge 使用 `scroll: "layout"` 接入公共布局，顶部控件与底部操作常驻，按宽矮面板组织为可换行的横向工具栏，列表在剩余高度预算内滚动；工具与资料库列表按可用宽度排列为多列。Knowledge 异步请求按实例和上下文隔离；会话面板释放搜索任务，清除操作同时使待执行的防抖查询失效。
+- 面板实测高度纳入编辑器空间预算，按钮关联内容区域并反映展开状态；关闭与 Escape 返回触发入口，窄窗口收纳后回到更多按钮。
+- 六组内联面板根据实际内容参与分离窗口扩缩；短菜单和独立管理界面保留既有尺寸处理。面板限高使用屏幕可用空间，尺寸更新受屏幕工作区高度约束，更新期间的内容变化合并处理。
+
+接入契约与实施状态见 [输入区上方功能面板插槽计划](./docs/Plan/input-composer-panel-slot-plan.md)。
 
 ### 1.19. 续写与补全功能 (Continue & Completion)
 
@@ -278,7 +310,7 @@ graph TD
 确保用户数据的可流动性和系统的可维护性。
 
 - **多格式支持**: 支持将会话、智能体、世界书、快捷操作导出为 JSON、Markdown 或 Zip 压缩包。
-- **单会话备份 JSON**: 会话导出提供 `backup` 格式（`exportSessionAsBackupJson`，信封 `format: "aiohub-chat-session"` / `version` / `session.index` + `session.detail`），与阅读型 JSON 区分；导入时校验信封版本与 `nodes` / `rootNodeId` / `activeLeafId` 的完整性，完整会话对象方可还原。详见 [`composables-reference.md`](./docs/architecture/composables-reference.md) 第 9 节。
+- **单会话完整备份 JSON**: 会话导出提供 `backup` 格式（`exportSessionAsBackupJson`，信封 `format: "aiohub-chat-session"` / `version` / `session.index` + `session.detail`），与阅读型 JSON 区分；完整打包节点树、关联附件引用、上下文参数快照及分支记忆；导入时严格校验信封版本与 `nodes` / `rootNodeId` / `activeLeafId` 的数据结构完整性，支持无损还原单会话。详见 [`composables-reference.md`](./docs/architecture/composables-reference.md) 第 9 节。
 - **智能迁移**: `agent-manager/services/agentMigrationService` 负责处理不同版本间的配置结构差异，确保旧版 Agent 能够平滑升级到新架构。
 - **资产打包**: 导出智能体时，会自动扫描并包含其引用的所有私有资产。
 
@@ -302,13 +334,16 @@ graph TD
 
 详见 [`skill-integration.md`](./docs/architecture/skill-integration.md)。
 
-### 1.23. 性能监控与指标
+### 1.23. 性能监控、Token 预估与重试控制
 
-系统实时收集并展示 LLM 请求的关键性能指标，帮助用户评估模型响应质量。
+系统实时收集并展示 LLM 请求的关键性能指标，并在发送前提供精准的 Token 消耗预估与稳健的重试策略。
 
 - **TTFT (Time to First Token)**: 记录从请求发送到接收到第一个 Token 的耗时。
 - **TPS (Tokens Per Second)**: 计算生成过程中的平均速度。
-- **Token 统计**: 区分 `promptTokens` 和 `completionTokens`，并提供本地估算功能。
+- **Token 统计与精准预估**: 区分 `promptTokens` 和 `completionTokens`。输入端本地预估已与实际发送管道完全对齐：
+  - **图片 Token 压缩对齐**: 预估时计入客户端图片缩放与压缩配置（`imageCompression.maxDimension`），等比缩小尺寸后再进行 Token 预算核算，消除预估虚高。
+  - **思考模型 Token 预留**: 针对开启思考推理的大模型（如 DeepSeek R1、Gemini 2.0 Flash Thinking 等），支持配置 `thinkingTokenReserve`（默认 4096），在 `maxTokens` 之外为长链推理额外预留充足的思考生成空间。
+- **自适应重试 HTTP 状态码白名单**: 支持会话/全局请求层配置可重试状态码（`retryStatusCodes`，如 `429,500,502,503,504`）。单节点执行器在遭遇网络抖动或上游临时限流时按指数退避自动重试，遇到非白名单致命错误（如 `400 Bad Request`、`401 Unauthorized`）立即终止并报错。
 
 ### 1.24. 插件化设置系统
 
@@ -328,7 +363,7 @@ graph TD
 
 为了方便用户处理包含本地资源的外部内容（如从 QQ、微信等聊天软件粘贴的消息记录），系统提供了一套智能的路径转换与渲染映射机制。
 
-- **一键转换**: 输入框工具栏提供"路径转附件"功能，自动识别 `file://` 协议或本地绝对路径，并替换为 `【file::assetId】` 占位符。
+- **一键转换**: 输入框工具栏提供"路径转附件"功能，同时扫描正文和文本附件，自动识别 `file://` 协议或本地绝对路径，并在原位置替换为 `【file::assetId】` 占位符。
 - **渲染映射**: 消息渲染阶段自动将 `file://` 链接转换为安全资源 URL，绕过浏览器沙箱限制。
 
 详见 [`qq-record-workflow.md`](./docs/architecture/qq-record-workflow.md) 与 [`llm-chat-placeholder-feature.md`](./docs/architecture/llm-chat-placeholder-feature.md)。
@@ -348,6 +383,8 @@ graph TD
 ### 1.29. 图片压缩 (Image Compression)
 
 图片压缩是发送图片附件给 LLM 之前的**用户侧可选优化层**，由 `LlmParameters.imageCompression` 配置驱动，在上下文管道末端的 `asset-resolver` 内执行。
+
+Chat 请求设置还提供默认关闭的长图自动切分。原图空白横带切点与 Smart OCR 共享，配置独立；切片逐张进入模型安全缩放与 Agent 压缩，预算和完整预览按切片尺寸计数，聊天记录保留原附件。
 
 详见 [`image-compression.md`](./docs/architecture/image-compression.md)。
 
@@ -406,7 +443,7 @@ graph TD
 为了提供类似 SillyTavern 的高级角色扮演体验，注入组装器实现了一套声明式的消息注入机制。
 
 - **深度注入 (Depth)**: 将消息插入到距离对话历史末尾 N 层的位置。
-- **锚点注入 (Anchor)**: 将消息精准地插入到系统锚点（如 `chat_history`, `user_profile`）的前面或后面。
+- **锚点注入 (Anchor)**: 支持预设占位锚点（`chat_history`、`user_profile`）和动态历史目标（`last_user`、`last_assistant`、`last_message`）的前后注入。动态目标与深度共用原始历史边界、排序及工具区段保护，见[组装器规则](docs/architecture/context-processors/injection-assembler.md)。
 - **顺序控制 (Order)**: 通过优先级数字，决定在同一点注入多条消息时的最终顺序。
 
 ### 2.6. 上下文截断与管理
@@ -429,16 +466,19 @@ Token 限制器位于注入组装器之后（priority 600）、消息格式化�
 核心要素：
 
 - **布局**: 采用 **Flex Column** 布局，头部悬浮（`position: absolute`），主内容区与输入框靠 Flex 自然分配空间。
-- **消息列表**: 使用 **CSS 原生虚拟渲染**（`content-visibility: auto`），无需第三方虚拟滚动库即可流畅承载数千条消息。通过 `MutationObserver` 动态注入 `content-visibility` 样式，避免 CSS 优化器在生产构建时将其移除；在 keep-alive 切换时正确管理消息可见性观察器的生命周期，确保滚动定位稳定。
+- **消息列表**: 使用消息级 `content-visibility: auto` 跳过屏外渲染，由 `useMessageHeights` 使用 Pretext 普通段落预估与有界的整行实测缓存管理占位高度；内容、宽度、字体与布局变化时重新计算。阅读历史时启用浏览器滚动锚定，补偿首次渲染的高度修正；`useMessageScrollAnchor` 独立维护底部跟随意图，输出增高和占位缩短时均对齐底部，用户上翻后保留阅读位置。消息容器重建与 keep-alive 切换时维护观察器和跟随状态。详见 [聊天区域 UI 架构](./docs/architecture/chat-area-ui.md#31-css-原生虚拟渲染-css-native-virtual-rendering)。
 - **对话树图**: 基于 Vue Flow + D3.js 实现的可视化工具，支持三种布局模式（树状/物理/静态）与子树拖拽嫁接。性能设计要点：
   - **O(1) 路径判定**: 通过显式字段投影与预计算的 `activePathSet` 和 `nodeDepthMap`，路径判定和深度计算均为 O(1)。
   - **响应式瘦身**: 缓存节点正则扫描结果，移除 `data._node` 死负载，缩小响应式遍历范围。
   - **按需挂载与图级反缩放**: Menubar 和重对话框（`ExportBranchDialog`、`MessageDataEditor`）采用 `v-if` 条件渲染，仅在悬停或打开时挂载；反缩放计算由 `FlowTreeGraph` 图容器统一维护 CSS 变量 `--graph-menubar-scale`，各节点无需独立更新 inline style。
-  - **D3 热路径**: Tick 回调及热路径使用 `Map` 索引，子树拖拽使用 `Set` 判定；HUD 隐藏时暂停 FPS 统计 RAF 循环；主题调色板变更前做等值比较，防止无效触发。
+  - **节点生成操作**: 节点操作栏读取统一运行时 `isNodeGenerating(messageId)`，生成中提供停止入口，并收起续写、创建分支与重生成操作；停止复用 `abortNodeGeneration(messageId)`，与消息列表保持相同的请求和工具调用收尾路径。
+  - **D3 热路径**: Tick 回调及热路径使用 `Map` 索引，子树拖拽使用 `Set` 判定；HUD 关闭或页面停用时暂停 FPS 统计 RAF 循环；页面停用同时停止 D3 模拟与尺寸等待，返回时按待处理布局和剩余模拟热度恢复，已冷却布局保持稳定；主题调色板变更前做等值比较，防止无效触发。
 - **输入编辑**: 支持 **CodeMirror 6** 与**原生 textarea** 双引擎驱动。原生 `ChatTextareaEditor` 组件绕过 Chromium 149+ 在 contenteditable 元素上首次 IME 合成事件被静默抑制的问题，与 CodeMirror 接口完全对齐，用户可在设置中自由切换。详见 [`chromium-149-ime-bug.md`](../../../docs/architecture/chromium-149-ime-bug.md)。
 - **输入草稿与拖放增强**: 支持跨会话的草稿剪切与粘贴（全局草稿剪贴板同步），以及 H5 原生文件拖放（`useFileDrop` 双信号融合去重，支持直接导入 File 对象）。
 - **面板尺寸调整**: 采用通用的 `useResizable` 组合函数，支持四个方向的尺寸调整，自动管理鼠标事件、光标样式与面板宽度配置的持久化，统一各工具面板的拖拽行为。
 - **富文本渲染**: 消息内容由 `src/tools/rich-text-renderer/` 负责，代码块展示固定使用 CodeMirror + `IntersectionObserver` 延迟初始化，旧的 Monaco/CodeMirror 双引擎代码块设置已移除。
+- **悬浮与外置操作栏**: 消息操作栏（`MessageMenubar`）采用外置独立渲染（外层通过 `display: flow-root` 触发独立 BFC），不再作为气泡内部 DOM 元素。彻底消除了气泡模式下的常驻空位占位，并杜绝了因圆角剪切（`overflow: hidden`）导致的操作菜单边框裁切问题。
+- **伴生分栏槽位 (Companion Dock Slot)**: 工作区原生集成平台级伴生挂载槽位（`.chat-companion-dock` 与 `#chat-companion-dock-slot`，通过 `useChatCompanionDock` 控制）。采用宿主受控外壳 + 定向 Teleport 模式，当后台子智能体透视（`sub-agent`）或辅助视窗激活时，触发 100% 结构性 Flex 让位与消息列表平滑收缩，支持 360px ~ 720px 手柄拖拽调宽，宿主无需反向引入具体业务组件。
 - **窗口分离**: 支持被拽出成为独立的 Tauri 浮动窗口，采用**主从架构**通过 `useWindowSyncBus` 进行跨窗口同步。
 - **气泡布局模式**: 支持在**卡片模式**和**气泡模式**之间无缝切换，通过 `BubbleLayoutConfig` 配置驱动。
 
@@ -600,3 +640,7 @@ graph TD
 - **`ChatRegexRule` / `ChatRegexPreset` / `ChatRegexConfig`**: 正则管道相关类型。
 
 每个类型的完整字段定义、元数据分组与使用场景详见 [`key-types.md`](./docs/architecture/key-types.md)。
+
+### VCP 上游响应分段
+
+聊天设置中的「VCP 消息拆分」默认关闭；开启后，VCP 文本渠道的流式回复按模型生成与工具结果阶段实时追加消息节点，逐段保存用量，并共享一次请求的取消与错误生命周期。事件契约、历史回传与协议边界见 [VCP 上游响应分段](docs/architecture/vcp-response-segmentation.md)。

@@ -115,7 +115,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         placement="top"
         :width="320"
         trigger="click"
-        popper-class="branch-selector-popover"
+        popper-class="media-gen-branch-selector-popover"
       >
         <template #reference>
           <div class="branch-indicator-wrapper">

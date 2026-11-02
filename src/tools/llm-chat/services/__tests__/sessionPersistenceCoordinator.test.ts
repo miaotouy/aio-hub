@@ -24,6 +24,38 @@ function deferred<T>() {
 }
 
 describe("SessionPersistenceCoordinator", () => {
+  // 外部文件重载须等待旧写入结束，并以文件修订号建立下一次保存的起点。
+  it("protects running writes and replaces the revision and snapshot after an idle reload", async () => {
+    const running = deferred<any>();
+    const write = vi
+      .fn()
+      .mockReturnValueOnce(running.promise)
+      .mockResolvedValue({ outcome: "committed", revision: 3, bytes: 1 });
+    const coordinator = new SessionPersistenceCoordinator({
+      writer: { write },
+    });
+    coordinator.primeSessionRevision("session", 10);
+    const saving = coordinator.flushSession("session", () => "old content");
+    await vi.waitFor(() => expect(write).toHaveBeenCalledOnce());
+    expect(coordinator.isSessionBusy("session")).toBe(true);
+    expect(() => coordinator.resetSessionRevision("session", 2)).toThrow(
+      "会话正在保存"
+    );
+    running.resolve({ outcome: "committed", revision: 11, bytes: 1 });
+    await saving;
+    coordinator.resetSessionRevision("session", 2);
+    expect(coordinator.isSessionBusy("session")).toBe(false);
+    await expect(coordinator.flushSession("session")).rejects.toThrow(
+      "No persistence snapshot"
+    );
+    await coordinator.flushSession("session", () => "new content");
+    expect(write.mock.calls[1][0]).toMatchObject({
+      revision: 3,
+      expectedMinRevision: 2,
+      content: "new content",
+    });
+  });
+
   it("runs one session write at a time and coalesces dirty state to the newest snapshot", async () => {
     const first = deferred<any>();
     const write = vi

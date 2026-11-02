@@ -23,7 +23,7 @@
  * 本 composable 不改变 currentSessionId，也不写任何会话数据。
  */
 
-import { ref, shallowRef } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import {
   backgroundTaskRegistry,
@@ -31,11 +31,7 @@ import {
 } from "@/services/background-tasks";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { useChatCompanionDock } from "@/tools/llm-chat/composables/ui/useChatCompanionDock";
-import type {
-  ChatMessageNode,
-  ChatSessionDetail,
-  ChatSessionIndex,
-} from "@/tools/llm-chat/types";
+import type { ChatMessageNode } from "@/tools/llm-chat/types";
 
 /** 伴生视图呈现形态：侧栏伴生栏 / 画中画悬浮窗 */
 export type CompanionSessionMode = "sheet" | "pip";
@@ -62,9 +58,21 @@ const childSessionId = ref<string | null>(null);
 const mode = ref<CompanionSessionMode>("sheet");
 /** 任务快照（用于标题的身份与状态摘要） */
 const taskSnapshot = shallowRef<BackgroundTaskSnapshot | null>(null);
-const sessionIndex = shallowRef<ChatSessionIndex | null>(null);
-const sessionDetail = shallowRef<ChatSessionDetail | null>(null);
-const messages = shallowRef<ChatMessageNode[]>([]);
+const sessionIndex = computed(() =>
+  childSessionId.value
+    ? useLlmChatStore().getSessionIndexById(childSessionId.value)
+    : null
+);
+const sessionDetail = computed(() =>
+  childSessionId.value
+    ? useLlmChatStore().getSessionDetailById(childSessionId.value)
+    : null
+);
+const messages = computed<ChatMessageNode[]>(() =>
+  isOpen.value && childSessionId.value
+    ? useLlmChatStore().getActivePathBySessionId(childSessionId.value)
+    : []
+);
 const isLoading = ref(false);
 /** 数据加载失败时的可读提示；为空表示正常 */
 const errorMessage = ref<string | null>(null);
@@ -78,15 +86,12 @@ async function loadSessionData(): Promise<void> {
   const thisVersion = ++currentLoadVersion;
   const sessionId = childSessionId.value;
   if (!sessionId) {
-    sessionIndex.value = null;
-    sessionDetail.value = null;
-    messages.value = [];
     errorMessage.value = null;
     isLoading.value = false;
     return;
   }
 
-  isLoading.value = true;
+  isLoading.value = !sessionDetail.value;
   errorMessage.value = null;
   try {
     const store = useLlmChatStore();
@@ -104,15 +109,9 @@ async function loadSessionData(): Promise<void> {
     }
 
     if (!detail) {
-      sessionIndex.value = null;
-      sessionDetail.value = null;
-      messages.value = [];
       errorMessage.value = "子会话数据加载失败，可稍后重试或跳转到完整会话";
       return;
     }
-    sessionIndex.value = store.getSessionIndexById(sessionId);
-    sessionDetail.value = detail;
-    messages.value = [...store.getActivePathBySessionId(sessionId)];
   } catch (error) {
     if (
       thisVersion !== currentLoadVersion ||
@@ -120,9 +119,6 @@ async function loadSessionData(): Promise<void> {
     ) {
       return;
     }
-    sessionIndex.value = null;
-    sessionDetail.value = null;
-    messages.value = [];
     errorMessage.value =
       error instanceof Error ? error.message : "子会话数据加载失败，请稍后重试";
   } finally {

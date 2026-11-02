@@ -95,6 +95,110 @@ export function getContributorStats(
     .sort((a, b) => b.count - a.count);
 }
 
+export interface HotFileMetric {
+  path: string;
+  changes: number;
+  additions: number;
+  deletions: number;
+}
+
+export interface CommitSizeMetric {
+  label: string;
+  count: number;
+}
+
+export interface EngineeringMetrics {
+  totalCommits: number;
+  commitsWithStats: number;
+  commitsWithFiles: number;
+  commitsWithPartialFiles: number;
+  additions: number;
+  deletions: number;
+  hotFiles: HotFileMetric[];
+  commitSizes: CommitSizeMetric[];
+}
+
+const COMMIT_SIZE_BUCKETS = [
+  { label: "微型 · <30 行", max: 29 },
+  { label: "小型 · 30-99 行", max: 99 },
+  { label: "中型 · 100-299 行", max: 299 },
+  { label: "大型 · 300-999 行", max: 999 },
+  { label: "巨型 · 1000+ 行", max: Infinity },
+] as const;
+
+export function calculateEngineeringMetrics(
+  commits: GitCommit[],
+  hotFileLimit = 10
+): EngineeringMetrics {
+  const fileMetrics = new Map<string, HotFileMetric>();
+  let commitsWithStats = 0;
+  let commitsWithFiles = 0;
+  let commitsWithPartialFiles = 0;
+  let additions = 0;
+  let deletions = 0;
+
+  const sizeCounts = COMMIT_SIZE_BUCKETS.map(({ label }) => ({
+    label,
+    count: 0,
+  }));
+
+  for (const commit of commits) {
+    if (commit.stats) {
+      commitsWithStats += 1;
+      additions += commit.stats.additions;
+      deletions += commit.stats.deletions;
+
+      const size = commit.stats.additions + commit.stats.deletions;
+      const bucketIndex = COMMIT_SIZE_BUCKETS.findIndex(
+        ({ max }) => size <= max
+      );
+      sizeCounts[bucketIndex].count += 1;
+    }
+
+    if (commit.files) {
+      if (commit.filesComplete === false) {
+        commitsWithPartialFiles += 1;
+      } else {
+        commitsWithFiles += 1;
+      }
+      for (const file of commit.files) {
+        const metric = fileMetrics.get(file.path) ?? {
+          path: file.path,
+          changes: 0,
+          additions: 0,
+          deletions: 0,
+        };
+        metric.changes += 1;
+        metric.additions += file.additions;
+        metric.deletions += file.deletions;
+        fileMetrics.set(file.path, metric);
+      }
+    }
+  }
+
+  const safeLimit = Number.isFinite(hotFileLimit)
+    ? Math.max(0, Math.floor(hotFileLimit))
+    : 10;
+
+  return {
+    totalCommits: commits.length,
+    commitsWithStats,
+    commitsWithFiles,
+    commitsWithPartialFiles,
+    additions,
+    deletions,
+    hotFiles: [...fileMetrics.values()]
+      .sort(
+        (a, b) =>
+          b.changes - a.changes ||
+          b.additions + b.deletions - (a.additions + a.deletions) ||
+          a.path.localeCompare(b.path)
+      )
+      .slice(0, safeLimit),
+    commitSizes: sizeCounts,
+  };
+}
+
 /**
  * 生成时间线数据（按日期统计提交数）
  */

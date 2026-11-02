@@ -200,41 +200,57 @@ message:「始」after-bad「末」
     expect(requests[1].rawBlock).not.toContain("broken block has no end");
   });
 
-  it("保留转义块中的标准请求嵌套", () => {
+  it("独立的转义请求标记作为普通文本保留", () => {
     const text = `<<<[TOOL_REQUEST_ESCAPE]>>>
 tool_name:「始」mock-sync「末」,
 command:「始」echo「末」,
-message:「始ESCAPE」内嵌示例：
-<<<[TOOL_REQUEST]>>>
-tool_name:「始」nested「末」
+message:「始」literal request example「末」
+<<<[END_TOOL_REQUEST_ESCAPE]>>>`;
+    expect(parseToolRequests(text, protocol)).toEqual([]);
+  });
+
+  it("参数中的转义请求标记保留为字面量并继续解析后续标准请求", () => {
+    const message =
+      "literal <<<[TOOL_REQUEST_ESCAPE]>>> example <<<[END_TOOL_REQUEST_ESCAPE]>>>";
+    const text = `<<<[TOOL_REQUEST]>>>
+tool_name:「始」mock-sync「末」,
+command:「始」echo「末」,
+message:「始」${message}「末」
 <<<[END_TOOL_REQUEST]>>>
-「末ESCAPE」
-<<<[END_TOOL_REQUEST_ESCAPE]>>>`;
-
-    const requests = parseToolRequests(text, protocol);
-
-    expect(requests).toHaveLength(1);
-    expect(requests[0].args.message).toContain("<<<[TOOL_REQUEST]>>>");
-    expect(requests[0].args.message).toContain("<<<[END_TOOL_REQUEST]>>>");
-  });
-
-  it("从被后续转义请求块中断的坏转义块恢复", () => {
-    const text = `<<<[TOOL_REQUEST_ESCAPE]>>>
+<<<[TOOL_REQUEST]>>>
 tool_name:「始」mock-sync「末」,
 command:「始」echo「末」,
-message:「始」broken escape block
-<<<[TOOL_REQUEST_ESCAPE]>>>
+message:「始」after「末」
+<<<[END_TOOL_REQUEST]>>>`;
+    const requests = parseToolRequests(text, protocol);
+    expect(requests.map((request) => request.args.message)).toEqual([
+      message,
+      "after",
+    ]);
+  });
+
+  it.each(["", "ESCAPE", "exp"])(
+    "只在 ESCAPE 参数中还原转义请求字面量（%s）",
+    (variant) => {
+      const literal =
+        "<<<[TOOL_REQUEST_ESCAPE]>>>tool_name:「始」nested「末」<<<[END_TOOL_REQUEST_ESCAPE]>>>";
+      const text = `<<<[TOOL_REQUEST]>>>
 tool_name:「始」mock-sync「末」,
 command:「始」echo「末」,
-message:「始」valid escape block「末」
-<<<[END_TOOL_REQUEST_ESCAPE]>>>`;
-
-    const requests = parseToolRequests(text, protocol);
-
-    expect(requests).toHaveLength(1);
-    expect(requests[0].args.message).toBe("valid escape block");
-    expect(requests[0].rawBlock).not.toContain("broken escape block");
-  });
+message:「始${variant}」${literal}「末${variant}」,
+Tag:「始」after-field「末」
+<<<[END_TOOL_REQUEST]>>>`;
+      const requests = parseToolRequests(text, protocol);
+      expect(requests).toHaveLength(1);
+      expect(requests[0].args.message).toBe(
+        variant === "ESCAPE"
+          ? literal.replace(/TOOL_REQUEST_ESCAPE/g, "TOOL_REQUEST")
+          : literal
+      );
+      expect(requests[0].args.Tag).toBe("after-field");
+      expect(requests[0].rawBlock).toBe(text);
+    }
+  );
 
   it("解析冒号后带可选空格的 ESCAPE 参数", () => {
     const text = `<<<[TOOL_REQUEST]>>>
@@ -368,12 +384,21 @@ b:「始」5「末」
       protocol
     );
 
+    const onBeforeExecute = vi.fn(async () => "approved" as const);
     const results = await executeToolRequests(requests, {
-      config: defaultConfig,
+      config: { ...defaultConfig, mode: "manual" },
+      onBeforeExecute,
     });
 
     expect(results[0].status).toBe("success");
     expect(results[0].result).toBe("8");
+    expect(onBeforeExecute).toHaveBeenCalledWith(
+      requests[0],
+      expect.objectContaining({
+        effectiveArgs: { a: 3, b: 5 },
+        toolDescription: expect.any(String),
+      })
+    );
   });
 
   it("参数类型自动适配：字符串转布尔", async () => {
@@ -452,7 +477,11 @@ command:「始」readContext「末」
     });
 
     expect(JSON.parse(results[0].result)).toEqual({ agentId: "agent-1" });
-    expect(results[0].metadata).toEqual({ sourceCount: 2 });
+    // mode:"auto" 下规则旁路自动放行，metadata 带出放行源标记（红线 7）
+    expect(results[0].metadata).toEqual({
+      sourceCount: 2,
+      approvalOrigin: "rule",
+    });
   });
 
   it("保留工具错误的结构化失败类型", async () => {

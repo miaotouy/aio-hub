@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { watch } from "vue";
 import type {
   ToolRegistry,
   ServiceMetadata,
@@ -21,10 +22,17 @@ import type {
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
+import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { llmChatService } from "@/tools/llm-chat/services/llmChatService";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { MAX_DELEGATION_DEPTH_LIMIT } from "@/tools/agent-manager/types/agent";
 import { useLlmChatStore } from "@/tools/llm-chat/stores/llmChatStore";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
+import { subAgentBaselineService } from "@/tools/sub-agent/services/subAgentBaselineService";
+import {
+  resolveSubAgentModel,
+  type SubAgentResolveContext,
+} from "@/tools/sub-agent/services/subAgentModelResolver";
 import type {
   ChatMessageNode,
   ChatSessionDetail,
@@ -60,9 +68,9 @@ const TASK_STATE_LABELS: Record<string, string> = {
   interrupted: "已中断",
 };
 
-/** 工具参数摘要中需要脱敏的键名。 */
+/** 工具参数摘要中需要脱敏的键名（大小写不敏感，覆盖 token/key/auth/secret/cookie/credential 等）。 */
 const SENSITIVE_ARG_KEY_PATTERN =
-  /(key|token|secret|password|passwd|authorization|auth|cookie|credential)/i;
+  /(key|token|secret|password|passwd|authorization|auth|cookie|credential|access_token|refresh_token|private_key|api_key|apikey)/i;
 
 /** 已加载的子智能体定义（带 subAgentConfig）。 */
 type LoadedSubAgent = NonNullable<
@@ -137,9 +145,89 @@ export default class SubAgentRegistry implements ToolRegistry {
     });
   /** 同一 child session 的生成与追加消息共享一条串行执行 lane。 */
   private executionLaneTails = new Map<string, Promise<unknown>>();
-  private activeLaneTaskIds = new Map<string, string>();
   /** 首版限制为单层子智能体调用，避免工具链递归扩大。 */
   private activeTargetAgentIds = new Map<string, number>();
+
+  private taskProgressObservers = new Map<
+    string,
+    { stop: () => void; seen: Set<string> }
+  >();
+
+  private observeTaskProgress(
+    taskId: string,
+    sessionId: string,
+    actor: MessageOrigin
+  ): void {
+    this.taskProgressObservers.get(taskId)?.stop();
+    const store = useLlmChatStore();
+    const seen = new Set<string>();
+    const stop = watch(
+      () => {
+        const detail = store.sessionDetailMap.get(sessionId);
+        const node = detail?.nodes[detail.activeLeafId];
+        return [
+          node?.id,
+          node?.status,
+          ...(node?.metadata?.toolCalls ?? []).map((c) => c.status),
+        ];
+      },
+      () => {
+        if (!this.isTaskActive(taskId)) return;
+        const detail = store.sessionDetailMap.get(sessionId);
+        const node = detail?.nodes[detail.activeLeafId];
+        if (!node) return;
+        if (node.role === "assistant" && !seen.has(node.id)) {
+          seen.add(node.id);
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: "llm_progress",
+            actor,
+            summary: "正在生成回复",
+            detailRef: node.id,
+          });
+          backgroundTaskRegistry.setCurrentOperation(taskId, {
+            kind: "llm_generation",
+            startedAt: new Date().toISOString(),
+            summary: "正在生成回复",
+          });
+        }
+        if (node.role !== "tool") return;
+        for (const call of node.metadata?.toolCalls ?? []) {
+          const started = call.status === "executing";
+          const finished =
+            call.status === "success" ||
+            call.status === "error" ||
+            call.status === "denied";
+          const key = node.id + ":" + call.requestId + ":" + call.status;
+          if ((!started && !finished) || seen.has(key)) continue;
+          seen.add(key);
+          const summary = started
+            ? "正在执行工具 " + call.toolName
+            : "工具 " +
+              call.toolName +
+              (call.status === "success" ? " 已完成" : " 执行未完成");
+          backgroundTaskRegistry.appendActivity(taskId, {
+            kind: started
+              ? "tool_started"
+              : call.status === "success"
+                ? "tool_finished"
+                : "error",
+            actor,
+            summary,
+            detailRef: node.id,
+          });
+          backgroundTaskRegistry.setCurrentOperation(taskId, {
+            kind: started ? "tool_call" : "llm_generation",
+            name: call.toolName,
+            requestId: call.requestId,
+            startedAt: new Date().toISOString(),
+            summary,
+          });
+        }
+      },
+      { flush: "sync" }
+    );
+    this.taskProgressObservers.set(taskId, { stop, seen });
+  }
 
   private async ensureConversationIndexLoaded(): Promise<void> {
     this.conversationHydrationPromise ??= this.conversationPersistence
@@ -188,6 +276,48 @@ export default class SubAgentRegistry implements ToolRegistry {
     else this.activeTargetAgentIds.set(agentId, count - 1);
   }
 
+  /**
+   * 深度链校验（Delegation Depth Chain）：
+   * - 主会话发起时 context.delegationDepth 未指定，视为 0；
+   * - 每次子智能体调用前校验 (当前深度 + 1) <= maxDepth；
+   * - maxDepth 读取目标 Agent 的 subAgentConfig.maxDelegationDepth（默认 1），
+   *   全局安全硬上限 clamp 至 MAX_DELEGATION_DEPTH_LIMIT；
+   * - 允许自调用（同名派发），由深度链精准防范死循环递归。
+   */
+  private assertDelegationDepth(
+    targetAgent: LoadedSubAgent,
+    context?: ToolContext
+  ): void {
+    const currentDepth = context?.delegationDepth ?? 0;
+    const rawMaxDepth = targetAgent.subAgentConfig?.maxDelegationDepth ?? 1;
+    const maxDepth = Math.max(
+      1,
+      Math.min(MAX_DELEGATION_DEPTH_LIMIT, Math.floor(rawMaxDepth) || 1)
+    );
+    if (currentDepth + 1 > maxDepth) {
+      throw new Error(
+        `已达到允许的最大子任务派发深度（当前深度：${currentDepth}，限制：${maxDepth}）`
+      );
+    }
+  }
+
+  /**
+   * 提取调用方模型上下文：优先取父会话绑定的 Agent，其次当前活跃 Agent。
+   * 子会话派发下一级时通过 ToolContext.delegationDepth 透传深度。
+   */
+  private buildCallerResolveContext(context?: ToolContext): {
+    resolveContext: SubAgentResolveContext;
+    delegationDepth: number;
+  } {
+    return {
+      resolveContext: {
+        callerProfileId: context?.modelBinding?.profileId,
+        callerModelId: context?.modelBinding?.modelId,
+      },
+      delegationDepth: context?.delegationDepth ?? 0,
+    };
+  }
+
   private executionLaneKey(childSessionId: string): string {
     return `sub-agent:${childSessionId}`;
   }
@@ -226,16 +356,18 @@ export default class SubAgentRegistry implements ToolRegistry {
     });
     backgroundTaskRegistry.setCurrentOperation(taskId, operation);
     if (!this.isTaskActive(taskId)) return false;
-    this.activeLaneTaskIds.set(snapshot.executionLaneKey, taskId);
+    // lane 执行归属登记到共享 registry，供审批桥接按执行任务确认归属，
+    // 避免同会话存在排队任务时把审批误挂到排队任务上。
+    backgroundTaskRegistry.markExecutingTask(taskId);
+    this.observeTaskProgress(taskId, childSessionId, targetOrigin);
     return true;
   }
 
-  private releaseTaskGeneration(
-    taskId: string | undefined,
-    laneKey: string
-  ): void {
-    if (taskId && this.activeLaneTaskIds.get(laneKey) === taskId) {
-      this.activeLaneTaskIds.delete(laneKey);
+  private releaseTaskGeneration(taskId: string | undefined): void {
+    if (taskId) {
+      this.taskProgressObservers.get(taskId)?.stop();
+      this.taskProgressObservers.delete(taskId);
+      backgroundTaskRegistry.clearExecutingTask(taskId);
     }
   }
 
@@ -400,6 +532,9 @@ export default class SubAgentRegistry implements ToolRegistry {
 
   public async list_available_agents(): Promise<string> {
     await llmChatService.ensureInitialized();
+    // 触发按需释出检查（若内置基线已全量存在则快速跳过）
+    await subAgentBaselineService.ensureBaselineMaterialized();
+
     const agentStore = useAgentStore();
     const loadedAgents = await Promise.all(
       agentStore.agents.map((agent) => agentStore.loadAgentDetails(agent.id))
@@ -444,7 +579,7 @@ export default class SubAgentRegistry implements ToolRegistry {
       const snapshot = backgroundTaskRegistry.getSnapshot(taskId);
       if (
         snapshot?.state !== "cancelled" ||
-        this.activeLaneTaskIds.get(snapshot.executionLaneKey) !== taskId
+        !backgroundTaskRegistry.isExecutingTask(taskId)
       ) {
         return;
       }
@@ -584,21 +719,24 @@ export default class SubAgentRegistry implements ToolRegistry {
     const message = args.message?.trim();
     if (!args.agentId?.trim()) throw new Error("必须提供目标智能体 ID");
     if (!message) throw new Error("必须提供要交给子智能体的消息");
-    if (context?.agent?.id === args.agentId) {
-      throw new Error("当前智能体不能调用自身，避免形成递归调用");
-    }
-    if (context?.agent?.id && this.activeTargetAgentIds.has(context.agent.id)) {
-      throw new Error("子智能体调用暂时限制为单层，当前目标不能继续委托子任务");
-    }
 
     await llmChatService.ensureInitialized();
+    // useLlmProfiles 是惰性加载的；先等待配置完成，避免把“尚未加载”误判为“没有 Profile”。
+    await useLlmProfiles().loadProfiles();
     await this.ensureConversationIndexLoaded();
+    // 触发按需释出检查（覆盖"首次直接 ask"路径；已全量存在则快速跳过）
+    await subAgentBaselineService.ensureBaselineMaterialized();
+
     const agentStore = useAgentStore();
     const targetAgent = await agentStore.loadAgentDetails(args.agentId);
     if (!targetAgent) throw new Error(`目标智能体不存在：${args.agentId}`);
     if (targetAgent.subAgentConfig?.enabled !== true) {
       throw new Error("目标智能体未开启“允许被调用”开关");
     }
+
+    // 深度链校验：允许自调用分身（同 ID 派发到独立 detached session），
+    // 由 delegationDepth 防范死循环递归，替代旧的同名拦截与强单层拦截。
+    this.assertDelegationDepth(targetAgent, context);
 
     const existingConversation = args.conversationId
       ? this.conversations.get(args.conversationId)
@@ -617,12 +755,19 @@ export default class SubAgentRegistry implements ToolRegistry {
 
     // Phase 2：background 模式创建任务与子会话后立即返回 handle，父 Agent 继续执行
     if (args.mode === "background") {
+      const {
+        resolveContext: callerResolveContext,
+        delegationDepth: bgCurrentDepth,
+      } = this.buildCallerResolveContext(context);
+      const resolved = resolveSubAgentModel(targetAgent, callerResolveContext);
       const result = await this.askInBackground({
         args,
         context,
         targetAgent,
         existingConversation,
         message,
+        resolvedModel: resolved,
+        delegationDepth: bgCurrentDepth + 1,
       });
       const handle = JSON.parse(result) as {
         taskId?: string;
@@ -638,6 +783,13 @@ export default class SubAgentRegistry implements ToolRegistry {
 
     const previousSessionId = llmChatService.getCurrentSession()?.id;
     let conversation = existingConversation;
+
+    // 模型晚绑定：解析子智能体最终生效的模型（prefer_self / inherit_caller / fallback）
+    const {
+      resolveContext: callerResolveContext,
+      delegationDepth: currentDepth,
+    } = this.buildCallerResolveContext(context);
+    const resolved = resolveSubAgentModel(targetAgent, callerResolveContext);
     this.retainTargetAgent(targetAgent.id);
 
     // Phase 1 前台 ask 埋点状态：taskId 与取消订阅句柄在 finally 清理
@@ -735,6 +887,12 @@ export default class SubAgentRegistry implements ToolRegistry {
             await llmChatService.sendMessage(message, {
               agentId: targetAgent.id,
               sessionId,
+              temporaryModel: {
+                profileId: resolved.profileId,
+                modelId: resolved.modelId,
+              },
+              // 向子会话透传递增后的派发深度，供其继续派发时深度链校验
+              delegationDepth: currentDepth + 1,
             });
 
             const detail = store.sessionDetailMap.get(sessionId);
@@ -748,6 +906,13 @@ export default class SubAgentRegistry implements ToolRegistry {
 
             if (taskId && detail && this.isTaskActive(taskId)) {
               const resultSummary = this.buildReplySummary(leaf.content);
+              // 补充工具调用类活动（§4.1 摘要），读不到工具节点则自动跳过
+              this.appendToolActivities(
+                taskId,
+                detail,
+                detail.activeLeafId,
+                targetOrigin
+              );
               backgroundTaskRegistry.appendActivity(taskId, {
                 kind: "llm_progress",
                 actor: targetOrigin,
@@ -780,7 +945,7 @@ export default class SubAgentRegistry implements ToolRegistry {
             }
             return leaf;
           } finally {
-            this.releaseTaskGeneration(taskId, executionLaneKey);
+            this.releaseTaskGeneration(taskId);
           }
         }
       );
@@ -858,8 +1023,18 @@ export default class SubAgentRegistry implements ToolRegistry {
     targetAgent: LoadedSubAgent;
     existingConversation?: SubAgentConversation;
     message: string;
+    resolvedModel: Awaited<ReturnType<typeof resolveSubAgentModel>>;
+    /** 递增后的派发深度，透传给子会话的执行链 */
+    delegationDepth: number;
   }): Promise<string> {
-    const { context, targetAgent, existingConversation, message } = params;
+    const {
+      context,
+      targetAgent,
+      existingConversation,
+      message,
+      resolvedModel,
+      delegationDepth,
+    } = params;
     const targetName = targetAgent.displayName || targetAgent.name;
     const store = useLlmChatStore();
     const parentSessionId = llmChatService.getCurrentSession()?.id ?? null;
@@ -958,6 +1133,11 @@ export default class SubAgentRegistry implements ToolRegistry {
               await llmChatService.sendMessage(message, {
                 agentId: targetAgent.id,
                 sessionId: activeSessionId,
+                temporaryModel: {
+                  profileId: resolvedModel.profileId,
+                  modelId: resolvedModel.modelId,
+                },
+                delegationDepth,
               });
 
               const detail = store.sessionDetailMap.get(activeSessionId);
@@ -1007,7 +1187,7 @@ export default class SubAgentRegistry implements ToolRegistry {
                 );
               }
             } finally {
-              this.releaseTaskGeneration(taskId, executionLaneKey);
+              this.releaseTaskGeneration(taskId);
             }
           });
         } catch (error) {
@@ -1406,6 +1586,8 @@ export default class SubAgentRegistry implements ToolRegistry {
     leafId: string,
     actor: MessageOrigin
   ): void {
+    // 实时观察已发布本轮活动时，结束阶段直接沿用，避免重复回填。
+    if (this.taskProgressObservers.get(taskId)?.seen.size) return;
     const nodes = this.collectRoundToolNodes(detail, leafId);
     for (const node of nodes) {
       for (const call of this.extractToolCalls(node)) {

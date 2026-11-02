@@ -64,7 +64,7 @@ export function useLivePreview() {
         "interactive"
       );
 
-      store.setLivePreview(result.content, result.quality);
+      store.setLivePreview(result.content, result.quality ?? 0);
     } catch (err) {
       logger.error("Live preview failed", err);
       store.setLivePreview(

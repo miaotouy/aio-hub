@@ -303,7 +303,12 @@ const formatInjection = (strategy: any) => {
                                 agent.parameters?.contextCompression
                                   ?.protectRecentCount
                               }}
-                              条</span
+                              {{
+                                agent.parameters?.contextCompression
+                                  ?.countUnit === "user-turn"
+                                  ? "个用户回合"
+                                  : "条消息"
+                              }}</span
                             >
                           </div>
                         </template>

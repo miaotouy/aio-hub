@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { ElMessageBox } from "element-plus";
+import {
+  createVirtualTextAttachment,
+  cloneVirtualAttachments,
+  textCharacterCount,
+  LARGE_TEXT_ATTACHMENT_BYTES,
+  MAX_TEXT_ATTACHMENT_BYTES,
+} from "../utils/virtualAttachments";
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { useStorage } from "@vueuse/core";
 import { useChatInputManager } from "../composables/input/useChatInputManager";
 import { useChatInputTokenPreview } from "../composables/input/useChatInputTokenPreview";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -39,12 +46,8 @@ import type { PendingInputData } from "../types/context";
 import { validateKnowledgeReferenceForAgent } from "@/tools/knowledge-base/services/reference";
 import { normalizeAgentKnowledgeAccess } from "@/tools/knowledge-base/services/access";
 
-export interface InputToolbarSettings {
-  showTokenUsage: boolean;
-  enableMacroParsing: boolean;
-  extractBase64FromPaste: boolean;
-  groupQuickActionsBySet: boolean;
-}
+import { useChatInputSettings } from "../composables/input/useChatInputSettings";
+export type { InputToolbarSettings } from "../composables/input/useChatInputSettings";
 
 const errorHandler = createModuleErrorHandler("messageInputStore");
 
@@ -52,35 +55,15 @@ export const useMessageInputStore = defineStore(
   "llm-chat-message-input",
   () => {
     // === 1. UI 菜单可见性 ===
-    const macroSelectorVisible = ref(false);
-    const sessionListVisible = ref(false);
-    const toolSettingsVisible = ref(false);
     const moreMenuVisible = ref(false);
-    const settingsVisible = ref(false);
-    const canvasMenuOpen = ref(false);
+    const toolbarCustomizeVisible = ref(false);
 
     const anyMenuOpen = computed(
-      () =>
-        macroSelectorVisible.value ||
-        sessionListVisible.value ||
-        toolSettingsVisible.value ||
-        moreMenuVisible.value ||
-        settingsVisible.value ||
-        canvasMenuOpen.value
+      () => moreMenuVisible.value || toolbarCustomizeVisible.value
     );
 
     // === 2. 持久化设置 ===
-    const settings = useStorage<InputToolbarSettings>(
-      "chat-input-settings",
-      {
-        showTokenUsage: true,
-        enableMacroParsing: true,
-        extractBase64FromPaste: true,
-        groupQuickActionsBySet: false,
-      },
-      localStorage,
-      { mergeDefaults: true }
-    );
+    const settings = useChatInputSettings();
 
     // === 3. 输入状态代理 ===
     const inputManager = useChatInputManager();
@@ -88,6 +71,71 @@ export const useMessageInputStore = defineStore(
 
     const inputText = inputManager.inputText;
     const attachments = inputManager.attachments;
+    const virtualAttachments = inputManager.virtualAttachments;
+    const isEditingTextAttachment = ref(false);
+    const latestTextPaste = ref<{
+      id: string;
+      sessionId: string | null;
+      beforeText: string;
+      start: number;
+      end: number;
+    } | null>(null);
+    const canRestoreTextPaste = computed(
+      () =>
+        latestTextPaste.value?.sessionId ===
+          inputManager.activeSessionId.value &&
+        virtualAttachments.value.some(
+          (item) => item.id === latestTextPaste.value?.id
+        )
+    );
+    const restorableTextPasteId = computed(() =>
+      canRestoreTextPaste.value ? latestTextPaste.value?.id : undefined
+    );
+    const restoreTextPaste = () => {
+      const paste = latestTextPaste.value;
+      if (!paste || paste.sessionId !== inputManager.activeSessionId.value)
+        return;
+      const attachment = virtualAttachments.value.find(
+        (item) => item.id === paste.id
+      );
+      if (!attachment) return;
+      const textarea = _textareaRef?.value ?? _textareaRef;
+      if (!textarea) return;
+      // Map the original range across edits outside it. Overlapping edits use the current caret.
+      const current = inputText.value;
+      let prefix = 0;
+      while (
+        prefix < paste.beforeText.length &&
+        prefix < current.length &&
+        paste.beforeText[prefix] === current[prefix]
+      )
+        prefix++;
+      let suffix = 0;
+      while (
+        suffix < paste.beforeText.length - prefix &&
+        suffix < current.length - prefix &&
+        paste.beforeText[paste.beforeText.length - 1 - suffix] ===
+          current[current.length - 1 - suffix]
+      )
+        suffix++;
+      const map = (position: number) =>
+        position <= prefix
+          ? position
+          : position >= paste.beforeText.length - suffix
+            ? position + current.length - paste.beforeText.length
+            : null;
+      const mappedStart = map(paste.start);
+      const mappedEnd = map(paste.end);
+      const caret = textarea.getSelectionRange();
+      if (mappedStart !== null && mappedEnd !== null) {
+        textarea.insertText(attachment.text, mappedStart, mappedEnd);
+      } else {
+        textarea.insertText(attachment.text, caret.start, caret.start);
+      }
+      inputManager.removeVirtualAttachment(attachment.id, paste.sessionId);
+      latestTextPaste.value = null;
+      textarea.focus();
+    };
     const isProcessingAttachments = inputManager.isProcessingAttachments;
     const hasAttachments = inputManager.hasAttachments;
     const attachmentCount = inputManager.attachmentCount;
@@ -102,7 +150,12 @@ export const useMessageInputStore = defineStore(
       isCalculatingTokens,
       tokenEstimated,
       triggerCalculation,
-    } = useChatInputTokenPreview({ inputText, attachments, temporaryModel });
+    } = useChatInputTokenPreview({
+      inputText,
+      attachments,
+      virtualAttachments,
+      temporaryModel,
+    });
 
     // === 5. 模型信息计算属性 ===
     const temporaryModelInfo = computed(() => {
@@ -131,7 +184,13 @@ export const useMessageInputStore = defineStore(
     const { manualCompress } = useContextCompressor();
 
     const isTranslating = ref(false);
-    const isCompressing = ref(false);
+    const isCompressing = computed(() =>
+      chatStore.isSessionCompressing(chatStore.currentSessionId || "")
+    );
+    const handleCancelCompression = () => {
+      if (chatStore.currentSessionId)
+        chatStore.cancelContextCompression(chatStore.currentSessionId);
+    };
     const isDetached = ref(false);
 
     // === 6b. 跨窗口同步与模型选择 ===
@@ -145,7 +204,6 @@ export const useMessageInputStore = defineStore(
       } else {
         chatStore.switchSession(sessionId);
       }
-      sessionListVisible.value = false;
     };
 
     const handleNewSession = () => {
@@ -153,14 +211,14 @@ export const useMessageInputStore = defineStore(
       const agentId = currentAgentId.value || agentStore.defaultAgent?.id;
       if (!agentId) {
         customMessage.warning("没有可用的智能体来创建新会话");
-        return;
+        return false;
       }
       if (isDetached.value) {
         bus.requestAction("llm-chat:begin-new-session", { agentId });
       } else {
         chatStore.beginNewSession(agentId);
       }
-      sessionListVisible.value = false;
+      return true;
     };
 
     // 2. 模型选择
@@ -257,6 +315,11 @@ export const useMessageInputStore = defineStore(
 
     // 处理发送
     const handleSend = async (payloadOverride?: any) => {
+      if (isEditingTextAttachment.value) {
+        customMessage.info("请先完成文本附件编辑");
+        return;
+      }
+      await inputManager.ready;
       const content = inputText.value.trim();
       const hasAttachmentsVal = hasAttachments.value;
 
@@ -319,6 +382,7 @@ export const useMessageInputStore = defineStore(
       const payload = payloadOverride || {
         content,
         attachments: attachmentsVal,
+        virtualAttachments: cloneVirtualAttachments(virtualAttachments.value),
         temporaryModel: temporaryModelVal,
         knowledgeReference: validatedKnowledgeReference,
         disableMacroParsing,
@@ -330,14 +394,14 @@ export const useMessageInputStore = defineStore(
           content: payload.content,
           options: {
             attachments: payload.attachments,
+            virtualAttachments: payload.virtualAttachments,
             temporaryModel: payload.temporaryModel,
             knowledgeReference: payload.knowledgeReference,
             disableMacroParsing: payload.disableMacroParsing,
             sessionId: payload.sessionId || chatStore.currentSessionId,
           },
         });
-        // 发送后清空输入（模拟主窗口行为）
-        inputManager.clear(chatStore.currentSessionId);
+        // 主窗口在用户消息保存后同步清理已提交的草稿。
       } else {
         _sendCallback?.(payload);
       }
@@ -471,8 +535,6 @@ export const useMessageInputStore = defineStore(
       setTimeout(() => {
         textarea.focus();
       }, 0);
-
-      macroSelectorVisible.value = false;
     };
 
     // 处理分析当前上下文
@@ -481,7 +543,10 @@ export const useMessageInputStore = defineStore(
 
       const pendingInput: PendingInputData = {
         text: inputText.value,
-        attachments: hasAttachments.value ? [...attachments.value] : undefined,
+        attachments: attachments.value.length
+          ? [...attachments.value]
+          : undefined,
+        virtualAttachments: cloneVirtualAttachments(virtualAttachments.value),
         temporaryModel: temporaryModel.value,
         enableMacroParsing: settings.value.enableMacroParsing,
       };
@@ -545,11 +610,94 @@ export const useMessageInputStore = defineStore(
 
     // 处理粘贴事件，智能提取 Base64 图像
     const handlePaste = async (event: ClipboardEvent) => {
-      if (!settings.value.extractBase64FromPaste) return;
-
       const text = event.clipboardData?.getData("text/plain");
-      if (!text || !text.includes("data:image") || !text.includes(";base64,"))
+      if (event.clipboardData?.files.length) return;
+      const shouldExtractBase64 =
+        settings.value.extractBase64FromPaste &&
+        !!text?.includes("data:image") &&
+        !!text?.includes(";base64,");
+      if (
+        text &&
+        !shouldExtractBase64 &&
+        settings.value.longTextAsAttachment &&
+        text.trim() &&
+        textCharacterCount(text) >=
+          Math.max(1, settings.value.textAttachmentThreshold)
+      ) {
+        const byteLength = new TextEncoder().encode(text).byteLength;
+        if (byteLength > MAX_TEXT_ATTACHMENT_BYTES) {
+          customMessage.warning(
+            "单份文本附件最多支持 16 MiB，本次将粘贴到正文"
+          );
+          return;
+        }
+        event.preventDefault();
+        const sessionId = inputManager.activeSessionId.value;
+        const beforeText = inputText.value;
+        const textarea = _textareaRef?.value ?? _textareaRef;
+        const selection = textarea?.getSelectionRange() ?? {
+          start: beforeText.length,
+          end: beforeText.length,
+        };
+        if (byteLength > LARGE_TEXT_ATTACHMENT_BYTES) {
+          try {
+            await ElMessageBox.confirm(
+              "这份文本较大，是否添加为文本附件？",
+              "粘贴长文本",
+              {
+                confirmButtonText: "添加文本附件",
+                cancelButtonText: "直接粘贴文本",
+                distinguishCancelAndClose: true,
+                lockScroll: false,
+              }
+            );
+          } catch (action) {
+            if (action === "cancel") {
+              if (
+                sessionId === inputManager.activeSessionId.value &&
+                inputText.value === beforeText
+              ) {
+                textarea?.insertText(text, selection.start, selection.end);
+              } else inputManager.addContent(text, "append", sessionId);
+            }
+            return;
+          }
+        }
+        const attachment = createVirtualTextAttachment(
+          text,
+          inputManager.getDraftSnapshot(sessionId).virtualAttachments
+        );
+        try {
+          inputManager.addVirtualAttachment(attachment, sessionId);
+          latestTextPaste.value = {
+            id: attachment.id,
+            sessionId,
+            beforeText,
+            ...selection,
+          };
+          if (sessionId === inputManager.activeSessionId.value) {
+            textarea?.recordExternalChange?.(
+              () =>
+                inputManager.removeVirtualAttachment(attachment.id, sessionId),
+              () => inputManager.addVirtualAttachment(attachment, sessionId)
+            );
+            textarea?.focus();
+          }
+        } catch (error) {
+          errorHandler.handle(error, {
+            userMessage: "添加文本附件失败",
+            showToUser: true,
+          });
+          if (
+            sessionId === inputManager.activeSessionId.value &&
+            inputText.value === beforeText
+          ) {
+            textarea?.insertText(text, selection.start, selection.end);
+          } else inputManager.addContent(text, "append", sessionId);
+        }
         return;
+      }
+      if (!shouldExtractBase64 || !text) return;
 
       const textarea = _textareaRef?.value ?? _textareaRef;
       const selection = textarea?.getSelectionRange() || {
@@ -600,12 +748,39 @@ export const useMessageInputStore = defineStore(
     };
 
     const handleSmartTranscribeAll = async (
-      getWillUseTranscription: (asset: any) => boolean
+      getWillUseTranscription?: (asset: any) => boolean
     ) => {
+      // 默认转写判断逻辑：若未传参则通过 transcriptionManager 与当前激活模型做推导
+      const checkFn =
+        getWillUseTranscription ||
+        ((asset: any) => {
+          let modelId = "";
+          let profileId = "";
+          if (temporaryModel.value) {
+            modelId = temporaryModel.value.modelId;
+            profileId = temporaryModel.value.profileId;
+          } else {
+            const { currentAgentId } = useLlmChatUiState();
+            if (currentAgentId.value) {
+              const agent = agentStore.getAgentById(currentAgentId.value);
+              if (agent) {
+                modelId = agent.modelId;
+                profileId = agent.profileId;
+              }
+            }
+          }
+          return transcriptionManager.computeWillUseTranscription(
+            asset,
+            modelId,
+            profileId,
+            undefined
+          );
+        });
+
       for (const asset of attachments.value) {
         const latestAsset = await assetManagerEngine.getAssetById(asset.id);
         const assetToCheck = latestAsset || asset;
-        if (getWillUseTranscription(assetToCheck)) {
+        if (checkFn(assetToCheck)) {
           const status =
             transcriptionManager.getTranscriptionStatus(assetToCheck);
           if (status === "none" || status === "error") {
@@ -676,7 +851,6 @@ export const useMessageInputStore = defineStore(
       const fullSession = chatStore.currentFullSession;
       if (!fullSession?.index || !fullSession?.detail) return;
 
-      isCompressing.value = true;
       try {
         const result = await manualCompress(
           fullSession.index,
@@ -689,11 +863,11 @@ export const useMessageInputStore = defineStore(
           triggerCalculation();
         } else if (result.failureReason === "not-needed") {
           customMessage.info("没有可压缩的消息，或历史记录不足");
+        } else if (result.failureReason === "request-failed") {
+          customMessage.error("上下文压缩失败，请重试");
         }
       } catch (error) {
         errorHandler.error(error, "手动压缩失败");
-      } finally {
-        isCompressing.value = false;
       }
     };
 
@@ -737,18 +911,19 @@ export const useMessageInputStore = defineStore(
 
     return {
       // 菜单可见性
-      macroSelectorVisible,
-      sessionListVisible,
-      toolSettingsVisible,
       moreMenuVisible,
-      settingsVisible,
-      canvasMenuOpen,
+      toolbarCustomizeVisible,
       anyMenuOpen,
       // 持久化设置
       settings,
       // 输入状态代理
       inputText,
       attachments,
+      virtualAttachments,
+      isEditingTextAttachment,
+      canRestoreTextPaste,
+      restorableTextPasteId,
+      restoreTextPaste,
       isProcessingAttachments,
       hasAttachments,
       attachmentCount,
@@ -795,6 +970,7 @@ export const useMessageInputStore = defineStore(
       handleStopAllTranscriptions,
       handleTranslateInput,
       handleCompressContext,
+      handleCancelCompression,
       handleConvertPaths,
       handleCleanupPlaceholders,
     };

@@ -24,11 +24,17 @@ import {
   Globe,
   Zap,
   Scan,
+  Cloud,
   Trash2,
   FileUp,
+  ClipboardPaste,
   Cookie,
 } from "lucide-vue-next";
-import type { DistillMode, CookieProfile } from "../../types";
+import {
+  fetchEngineCatalog,
+  type FetchEngineId,
+} from "../../core/engines/catalog";
+import type { CookieProfile } from "../../types";
 import { iframeBridge } from "../../core/iframe-bridge";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -39,7 +45,7 @@ const logger = createModuleLogger("web-distillery/toolbar");
 interface Props {
   modelValue: string;
   loading?: boolean;
-  activeMode?: DistillMode;
+  activeMode?: FetchEngineId;
   canGoBack?: boolean;
   canGoForward?: boolean;
 }
@@ -50,12 +56,12 @@ const props = withDefaults(defineProps<Props>(), {
   canGoBack: false,
   canGoForward: false,
 });
-
 const emit = defineEmits<{
   "update:modelValue": [url: string];
-  fetch: [mode: "fast" | "smart"];
+  fetch: [mode: FetchEngineId];
   navigate: [direction: "back" | "forward"];
   refresh: [];
+  pasteText: [];
   upload: [payload: { content: string; fileName: string }];
 }>();
 
@@ -63,23 +69,15 @@ const urlInputRef = ref<HTMLInputElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isEditing = ref(false);
 const localUrl = ref(props.modelValue);
+const modeOptions = fetchEngineCatalog.map((engine) => ({
+  label: engine.name,
+  value: engine.id,
+  desc: engine.description,
+  identity: engine.identity,
+  icon: engine.cloud ? Cloud : engine.browser ? Scan : Zap,
+}));
 
-const modeOptions = [
-  {
-    label: "快速模式",
-    value: "fast",
-    icon: Zap,
-    desc: "纯 HTTP 请求，毫秒级响应",
-  },
-  {
-    label: "智能模式",
-    value: "smart",
-    icon: Scan,
-    desc: "隐藏 Iframe 渲染 JS，支持动态内容",
-  },
-];
-
-const selectedMode = ref<DistillMode>(props.activeMode ?? "fast");
+const selectedMode = ref<FetchEngineId>(props.activeMode ?? "fast");
 const currentModeOption = computed(
   () =>
     modeOptions.find((o) => o.value === selectedMode.value) || modeOptions[0]
@@ -87,7 +85,7 @@ const currentModeOption = computed(
 
 watch(
   () => props.activeMode,
-  (newMode: DistillMode | undefined) => {
+  (newMode: FetchEngineId | undefined) => {
     if (newMode !== undefined) {
       selectedMode.value = newMode;
     }
@@ -130,12 +128,12 @@ function triggerFetch() {
   logger.debug("Triggering fetch", { url: finalUrl, mode: selectedMode.value });
   emit("update:modelValue", finalUrl);
 
-  emit("fetch", selectedMode.value as "fast" | "smart");
+  emit("fetch", selectedMode.value as FetchEngineId);
 
   urlInputRef.value?.blur();
 }
 
-function handleModeCommand(mode: DistillMode) {
+function handleModeCommand(mode: FetchEngineId) {
   selectedMode.value = mode;
 }
 
@@ -284,6 +282,11 @@ async function handleIdentitySwitch(profileId: string | null) {
       </button>
     </div>
 
+    <button class="toolbar-btn" :disabled="loading" @click="emit('pasteText')">
+      <ClipboardPaste :size="15" />
+      粘贴文本
+    </button>
+
     <!-- 地址栏 -->
     <div class="url-bar" :class="{ 'is-focused': isEditing }">
       <Globe :size="14" class="url-globe" />
@@ -301,7 +304,7 @@ async function handleIdentitySwitch(profileId: string | null) {
 
     <!-- 身份快捷切换 -->
     <el-dropdown
-      v-if="matchedProfiles.length > 0"
+      v-if="currentModeOption.identity && matchedProfiles.length > 0"
       trigger="click"
       @command="handleIdentitySwitch"
     >

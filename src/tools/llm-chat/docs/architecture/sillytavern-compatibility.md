@@ -24,16 +24,15 @@
 
 ### 2.3 位置到 `InjectionStrategy` 的映射表
 
-由 [`convertInjectionStrategy()`](../../services/sillyTavernParser.ts:492) 实现，**前置消息一律无注入策略**，按列表顺序排列：
+由 `convertInjectionStrategy()` 实现。2026-10-29 对照 SillyTavern release 分支 `public/scripts/PromptManager.js`：`RELATIVE = 0`、`ABSOLUTE = 1`，默认深度为 `4`、默认顺序为 `100`。前置、后置和未排序消息共用转换规则。
 
-| ST 字段优先级                  | 取值                | 映射结果（`InjectionStrategy`）                                          |
-| ------------------------------ | ------------------- | ------------------------------------------------------------------------ |
-| `injection_depth > 0` 优先生效 | 任意正整数          | `{ depth: N, order: 100 }`                                               |
-| `injection_position: 0`        | Main prompt         | `undefined`（不注入，按列表顺序排）                                      |
-| `injection_position: 1`        | Before chat history | `{ anchorTarget: "chat_history", anchorPosition: "before", order: 100 }` |
-| `injection_position: 2`        | After chat history  | `{ anchorTarget: "chat_history", anchorPosition: "after", order: 100 }`  |
-| `injection_position: 4`        | At depth            | `{ depth: injection_depth ?? 4, order: 100 }`                            |
-| 其它 / 未提供                  | —                   | `undefined`                                                              |
+| PromptManager 字段 | 映射结果 |
+| --- | --- |
+| `injection_position: 0` 或缺省 | 按 `prompt_order` 排列，忽略残留的深度字段 |
+| `injection_position: 1` | `{ type: "depth", depth: injection_depth ?? 4, order: injection_order ?? 100 }`，保留深度 `0` 和顺序 `0` |
+| 其它编号，包括 `2`、`4` | 按列表顺序导入并记录未知位置警告 |
+
+旧代码的 `2` / `4` 分支缺少 PromptManager 格式依据。另一套世界书枚举 `world_info_position` 中 `2` 为 ANTop、`4` 为 atDepth，和预设位置字段分别解释。已保存的 AIO Hub 预设沿用其策略；本次变更应用于后续导入。生成类型触发条件 `injection_trigger` 另行处理。
 
 ### 2.4 字段降级与跳过策略
 

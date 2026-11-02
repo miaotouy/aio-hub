@@ -1,11 +1,17 @@
 import type { JsonValue } from "./json";
 
 export interface TokenUsage {
+  providerUsageStatus?: "missing" | "partial" | "reported";
+  reportedUsageFields?: Record<string, number>;
+  isLocalEstimated?: boolean;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
   promptTokensDetails?: {
     cachedTokens?: number;
+    cacheWriteTokens?: number;
+    cacheWrite5mTokens?: number;
+    cacheWrite1hTokens?: number;
     audioTokens?: number;
   };
   completionTokensDetails?: {

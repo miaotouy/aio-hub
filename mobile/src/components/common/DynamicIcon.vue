@@ -2,9 +2,9 @@
   <span ref="wrapperRef" class="dynamic-icon-wrapper" :style="wrapperStyle">
     <!-- 成功加载：SVG -->
     <span
-      v-if="isSvg && svgContent && !hasFailed"
+      v-if="isSvg && renderedSvgContent && !hasFailed"
       class="dynamic-icon"
-      v-html="svgContent"
+      v-html="renderedSvgContent"
       v-bind="$attrs"
     />
     <!-- 成功加载：Image -->
@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { toRefs, ref, watch, computed, onMounted, onUnmounted } from "vue";
+import { toRefs, ref, watch, computed, onMounted, onUnmounted, getCurrentInstance } from "vue";
 import { useThemeAwareIcon } from "@/composables/useThemeAwareIcon";
 
 const props = defineProps({
@@ -73,8 +73,34 @@ onUnmounted(() => {
   }
 });
 
+// 唯一化 SVG 内部 id，避免同一图标渲染多次时 <defs>/渐变 id 冲突导致填充失效
+const instanceUid = getCurrentInstance()?.uid ?? Math.floor(Math.random() * 1e6);
+const svgIdPrefix = `di-${instanceUid}`;
+
+function uniquifySvgIds(svg: string, prefix: string): string {
+  if (!svg.includes("id=")) return svg;
+  const idMap = new Set<string>();
+  let result = svg.replace(/\bid\s*=\s*["']([^"']+)["']/gi, (_, id) => {
+    idMap.add(id);
+    return `id="${prefix}-${id}"`;
+  });
+  if (idMap.size === 0) return svg;
+
+  result = result.replace(/url\(\s*(['"]?)#([^'")]+)\1\s*\)/gi, (m, q, id) =>
+    idMap.has(id) ? `url(${q}#${prefix}-${id}${q})` : m
+  );
+  result = result.replace(/\b(xlink:href|href)\s*=\s*["']#([^"']+)["']/gi, (m, attr, id) =>
+    idMap.has(id) ? `${attr}="#${prefix}-${id}"` : m
+  );
+  return result;
+}
+
 const effectiveSrc = computed(() => (shouldLoad.value ? src.value : ""));
 const { isSvg, svgContent, iconUrl } = useThemeAwareIcon(effectiveSrc);
+
+const renderedSvgContent = computed(() =>
+  svgContent.value ? uniquifySvgIds(svgContent.value, svgIdPrefix) : ""
+);
 
 const hasFailed = ref(false);
 

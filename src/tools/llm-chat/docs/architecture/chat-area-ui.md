@@ -18,6 +18,10 @@
   3. 头部 `chat-header` 整体启用 `-webkit-app-region: drag` 让用户可拖动 OS 窗口（[`ChatAreaHeader.vue:283`](../../components/ChatAreaHeader.vue:283)），头部内的可交互子元素（`.detachable-handle` / `.agent-model-info`）再用 `no-drag` 抠出可点击区。
   4. 右下角浮动一个 `.window-resize-indicator` 调整窗口大小手柄，由 [`ChatAreaHeader.vue:258`](../../components/ChatAreaHeader.vue:258) 在 detached 模式下渲染。
 
+### 1.1 聊天入口与首次发送
+
+聊天页加载已有模型、智能体与会话后直接展示工作区。已有可用配置时恢复智能体，并按需进入新会话草稿。缺少模型时保留输入区；用户发送消息后，由 [useChatEntryPreparation](../../composables/ui/useChatEntryPreparation.ts) 请求选择模型，补齐智能体与会话后继续发送原消息。取消选择保留当前输入；有效的临时模型可直接用于本次发送。
+
 ## 2. 头部区域 (Header)
 
 头部是信息展示与交互的混合入口，**实现见 [`ChatAreaHeader.vue`](../../components/ChatAreaHeader.vue)**；与弹窗/实体解析共享的状态由 [`useChatAreaContext.ts`](../../composables/useChatAreaContext.ts) 通过 `provide` / `inject` 提供：
@@ -54,21 +58,24 @@
 
 ### 3.1 CSS 原生虚拟渲染 (CSS Native Virtual Rendering)
 
-- 应用位置由 [`MessageList.vue`](../../components/message/MessageList.vue:962) 通过 `:deep(.chat-message)` 选择器统一作用到所有消息根元素，启用 `content-visibility: auto !important` + `contain-intrinsic-size: auto 500px !important`，让浏览器跳过屏外消息的渲染，无需第三方虚拟滚动库即可流畅承载数千条消息。
-- **末尾消息回退方案**: [`.chat-message:last-child`](../../components/message/MessageList.vue:968) 单独覆盖为 `content-visibility: visible !important`，确保底部锚定计算（`scrollHeight`）始终准确，防止流式输出过程中的滚动回弹。
-- **富文本层级独立优化**: rich-text-renderer 内部对块级 AST 节点（段落、标题、代码块、表格、Mermaid、思考块等，详见 `BLOCK_NODE_TYPES` 集合）也独立应用 `content-visibility: auto`，与消息层级形成双层渲染裁剪。
-- **滚动锚定控制**: [`.message-list`](../../components/message/MessageList.vue:939) 设置 `overflow-anchor: none` 禁用浏览器默认滚动锚定，配合 `contain: size layout paint` 渲染隔离，避免程序化 `scrollTo` 与浏览器自动锚定产生对抗导致布局抖动。
-- **滚动位置保持（分支切换）**: 切换分支或编辑创建分支前，通过 [`captureSwitchingMessagePosition`](../../components/message/MessageList.vue:606) 记录目标消息相对视口顶部的偏移量（`messageRect.top - containerRect.top`）；切换后由 [`restoreSwitchingMessagePosition`](../../components/message/MessageList.vue:627) 沿 `nextTick → setTimeout 50ms → setTimeout 150ms` 三次重试恢复，对抗 DOM 异步更新和 `content-visibility` 渐进渲染带来的高度变化。
-- **底部锁定与 ResizeObserver**: 维护 `shouldStickToBottom` 意图标志，由 `ResizeObserver` 监听内容容器，**仅在内容增长时**自动跟随到底部，缩小（如删除消息）时不动以避免跳动。
+- **消息级跳过渲染**: [MessageList.vue](../../components/message/MessageList.vue) 通过 [`useMessageHeights`](../../composables/ui/useMessageHeights.ts) 为普通、工具调用和压缩消息管理 `content-visibility: auto`。占位高度依次取匹配当前内容与布局的实测缓存、Pretext 普通段落估值、500px 兜底。富文本渲染器内部保持块级跳过渲染关闭，消息组件继续按现有方式挂载。
+- **普通段落预估**: [`MessageContent.vue`](../../components/message/MessageContent.vue) 通过 [`useMessageHeightSource`](../../composables/ui/useMessageHeightSource.ts) 提供宏处理后的正文与实际生效的样式标识；有渲染正则、附件、翻译或编辑状态时交给实测。首版覆盖 16,000 字符以内的普通中英文、emoji 与多段文本，结构化 Markdown、HTML、思考内容等采用兜底占位。按消息可用宽度、气泡限宽与头像列估算正文宽度，并从同类已显示消息采样字体、行高和头尾高度；采样只读取正在排版的消息。
+- **实测缓存与失效**: [`MessageHeightCache`](../../utils/messageHeightCache.ts) 为每个列表分别缓存最多 256 条整行实测高度与 256 条已准备文本。缓存匹配会话、内容、消息装饰、宽度与渲染配置；内容、宽度、字号、字体加载、DPR 或布局变化后重新估算。宽度变化可复用 Pretext 的准备结果。显式的 `contain-intrinsic-size: none <height>px` 配合 `contentvisibilityautostatechange` 与共享 `ResizeObserver` 管理高度，避免浏览器自动记忆旧尺寸。屏外占位回调、零尺寸和生成态均跳过实测写入；折叠及正文 DOM 变化使对应缓存失效。
+- **调度与生命周期**: 历史文本准备按约 5ms 的帧预算分批执行；最后一条及生成中的消息实时排版，生成期间跳过逐 token 估高。列表停用时断开尺寸和正文观察器，恢复后重连；卸载时清理观察器、监听、待执行帧与列表缓存。
+- **末尾消息**: 运行时显式保持最后一条消息可见；CSS 回退选择器限定最后一个 `.message-slot` 中的消息，避免 `.chat-message:last-child` 匹配到每个独立 wrapper 内的末子元素。
+- **阅读锚定**: 阅读历史时使用 `overflow-anchor: auto`，由浏览器补偿视口上方消息的高度修正。底部跟随与分支定位期间设为 `none`，滚动交给相应的定位逻辑。
+- **跟随意图**: [`useMessageScrollAnchor`](../../composables/ui/useMessageScrollAnchor.ts) 分别维护底部距离与跟随状态。向上滚轮、键盘上翻、滚动条操作、触屏浏览及消息导航暂停跟随；内部查看器消费或取消默认行为的滚轮保留外层跟随状态；滚动链触达列表后，外层实际下滚回到底部附近再恢复，已触底时继续下滚或点击到底部可直接恢复。布局变化触发的 `scroll` 仅更新位置，保留跟随意图。自动滚动设置控制输出跟随，进入会话时仍定位到最新消息。
+- **尺寸与生命周期**: `ResizeObserver` 在跟随期间对内容增高、缩短都重新对齐实际底部；阅读期间交由浏览器锚定。空会话进入有消息状态时重新绑定尺寸与可见性观察器；keep-alive 恢复时保留进入后台前的跟随意图。
+- **消息导航**: 当前可见序号按外层 `.message-slot` 二分查找，覆盖各类消息，并减少长会话每次滚动的几何测量。分支切换前记录目标消息的视口偏移，更新后恢复该偏移。
 
 ### 3.2 消息导航器 (MessageNavigator)
 
-实现位于 [`MessageNavigator.vue`](../../components/message/MessageNavigator.vue)：
+实现位于 [MessageNavigator.vue](../../components/message/MessageNavigator.vue)，目标由 [messagePresentation.ts](../../utils/messagePresentation.ts) 提供：
 
-- 悬浮于列表左侧的悬浮控件，鼠标进入或靠近时展开，离开后自动半透明收起。
-- 通过 `@vueuse/core` 的 [`useScroll`](../../components/message/MessageNavigator.vue:38) 监听 `arrivedState`（top/bottom 偏移 50px 视为已到达），驱动「跳顶部 / 上一条 / 下一条 / 跳底部」四个按钮的可用状态。
-- 显示 `currentIndex / messageCount` 的当前可见消息计数，索引由父组件 [`MessageList`](../../components/message/MessageList.vue:435) 基于"视口中心命中"算法计算并向下传入。
-- **新消息提示判定**: **不是基于滚动距离阈值**，而是由父组件传入的 `hasNewMessages` prop（由业务层根据新消息到达事件决定）+ `arrivedState.bottom === true` 自动清除两条线协作。当 `hasNewMessages && canScrollDown` 时，在「下一条」与「跳底部」按钮上叠加 `new-message-dot` 红点徽章；用户滚动触底（50px 阈值）后自动 emit `seen-new-messages` 让父组件清除标记。
+- 常规布局保留消息导航；连续紧凑布局使用真实用户提问点，连续合并的用户节点共用一个点。一次提问后的 AI / 工具过程属于该点的导航范围。
+- 紧凑导航固定在列表右侧，短线显示当前位置；悬停或键盘聚焦显示提问摘要，点击定位原用户节点。一个长提问同样保留导航与到底入口。
+- 计数与上下条操作统一使用 `navigationPoints`。阅读高亮使用与跳转相同的 120px 对齐线；实际触底时高亮最后提问。`currentVisibleIndex` 与阅读锚点继续以原节点行测量，搜索 / 分支等通过 `scrollToMessageId` 精确跳转。
+- `useScroll` 提供顶部 / 底部按钮状态。新内容标记由 ChatArea 按源消息追加检测，独立于导航点数量；同一提问下继续追加工具 / AI 消息仍可提示，触底清除。
 
 ### 3.3 富文本渲染系统 (Rich Text Rendering System)
 
@@ -153,8 +160,9 @@
   - **请求格式**: [`requestAction<TParams, TResult>(action, params)`](../../../../composables/useWindowSyncBus.ts:592) 自动生成 `requestId`（`${windowLabel}-${timestamp}-${random}`）唯一标识；`ActionRequestPayload = { action, requestId, params }` 包装后通过 `tauriEmit("window-sync-message", ...)` 广播。
   - **超时处理**: 调用方收到 `Promise`，**硬编码 10 秒超时**（[`useWindowSyncBus.ts:610-611`](../../../../composables/useWindowSyncBus.ts:610)）；主窗口收到请求后调用对应 `actionHandler(params)` 处理，结果通过 `action-response` 携带 `requestId` 回传；调用方根据 `requestId` 匹配 Promise 并 `resolve(result)`，超时则 `reject(new Error("操作请求超时: ${action}"))`。
   - **典型上行操作**: `llm-chat:send-message` / `llm-chat:create-branch` / `llm-chat:update-agent` / `llm-chat:open-agent-settings` / `llm-chat:open-quick-action-manager` 等。
+- **流式同步**：生成期间会话详情暂停深度监听，由正文 / reasoning 绝对偏移增量与 2 秒完整检查点驱动；活跃叶变化和生成结束补完整快照。分离组件的 `useLlmChatStateConsumer` 持有流增量接收器，协调重叠范围、落后快照及尚未收到节点的增量；最终完成态以主窗口快照为准。接收器的展示副本与同步引擎的原始快照分离，工具正文及时写入消费窗口节点。
 - **窗口关闭时的资源清理**:
-  - **业务层清理**: [`useLlmChatSync`](../../composables/chat/useLlmChatSync.ts) 通过 `onUnmounted` 钩子清理所有注册的同步引擎（`stateEngines.forEach(e => e.cleanup())`）；额外提供 `hasDownstreamWindows` computed，当下游窗口数量归零时自动调用 `cleanup()` 释放未使用的引擎，避免常驻无意义订阅。
+  - **业务层清理**: [`useLlmChatSync`](../../composables/chat/useLlmChatSync.ts) 通过 `onUnmounted` 钩子清理所有注册的同步引擎（`stateEngines.forEach(e => e.cleanup())`）；额外提供 `hasDownstreamWindows` computed，当下游窗口数量归零时自动调用 `cleanup()` 释放未使用的引擎，避免常驻无意义订阅。每轮初始化拥有独立 effect scope，发送状态及窗口数量监听随该轮一起停止；生成中打开分离窗口立即采用流式同步间隔。同步引擎清理会取消防抖任务并关闭后续推送。
   - **总线层清理**: `WindowSyncBus.cleanup()` 停止心跳定时器（`clearInterval(heartbeatInterval)`）、清空所有 `messageHandlers` / `actionHandlers` / `connectionHandlers` / `initialStateRequestHandlers`、调用 `eventUnlisteners.forEach(fn => fn())` 注销所有 Tauri 事件监听器；连接状态映射 `connectedWindows` 重置为空。
   - **会话状态回收**: 由于状态仅在主窗口持久化，分离窗口关闭不会丢失任何对话数据；分离窗口本地仅缓存广播来的 Store 快照，关闭即销毁。
 - **UI 适配**: 分离模式下，`ChatArea` 会自动调整样式（如圆角、阴影、壁纸背景），并显示窗口调整手柄（详见第 1 节分离层样式描述）。
@@ -184,14 +192,19 @@
 
 - **统一拖拽行为**: 采用通用的 `useResizable` 组合函数，支持左、右、上、下四个方向的尺寸调整，自动管理鼠标事件、光标样式与面板宽度配置的持久化，移除了各工具本地冗余的拖拽处理代码。
 
-## 8. 气泡布局模式 (Bubble Layout Mode)
+## 8. 消息布局 (Message Layout)
 
-为了同时满足"知识型工作流"和"沉浸式聊天"等多种使用场景，消息列表支持在 **卡片模式 (Card)** 和 **气泡模式 (Bubble)** 之间无缝切换。该能力由 `BubbleLayoutConfig` 配置驱动，并通过 CSS 变量 + `data-*` 属性实现，**完全不影响**默认卡片模式的渲染路径，确保零回归。
+布局预设由 `BubbleLayoutConfig.mode` 配置，消息行由 [MessageRow.vue](../../components/message/MessageRow.vue) 统一渲染，气泡样式集中在 [messageRowLayout.css](../../components/message/messageRowLayout.css)。主列表与截图共用该入口，每个源节点维持独立行壳。
 
-### 8.1 双布局模式
+### 8.1 三种布局预设
 
-- **卡片模式 (Card)**: 默认行为，所有消息（含工具调用、压缩节点）保持全宽展示，适合代码审阅、长文档分析等专业场景。
-- **气泡模式 (Bubble)**: 经典 IM 风格，按角色对齐并限制宽度，适合角色扮演、自然对话场景。
+- **卡片 (card)**：独立全宽消息。
+- **气泡 (bubble)**：按角色对齐、限制宽度，并支持内外头像与头栏。
+- **连续紧凑 (compact)**：连续 AI / 工具成员共享身份头，正文保留原顺序，中间操作栏收为复制 / 编辑与更多菜单，统计集中到组尾；导航按用户提问定位。
+
+共享身份依据角色作者、模型渠道、来源和相邻父链；工具还需匹配请求归属。分组表达展示连续性，执行与持久化继续以原消息节点工作。状态来自活动成员，身份来自组首。`MessageContent` 的错误与空回复诊断、工具审批继续保留在原消息处。
+
+`MessageStatistics` 提供普通统计展示；组尾汇总原有字数结果，展开显示逐段 Token / 性能明细。跨请求用量累计需要额外的请求归属与覆盖率证据。组首尾、活动状态与组尾显示统计参与高度缓存失效，正文实例在布局切换时保持稳定。完整设计及首版取舍见[消息列表 UI 架构方案](../Plan/message-list-ui-architecture-proposal.md)。
 
 ### 8.2 多维度对齐策略
 
@@ -217,14 +230,20 @@
 - **`inside`**: 名字、模型信息、时间戳在气泡内部（默认）。
 - **`outside`**: IM 经典布局，头部信息抽离到气泡上方，气泡内只剩纯净的消息内容，通过 `headerGap` 控制垂直间距。
 - 仅对 user / assistant 普通消息生效，工具调用与压缩节点保留各自装饰条。
+- 外置头部容器按内容收缩并承担气泡宽度上限，内部消息限制在容器宽度内。所有消息类型都位于稳定的 message-body 内，限宽和对齐由共享布局样式负责。
 
 ### 8.6 双侧信息错位布局（CSS 实现）
 
-气泡模式下，**底部 Token 信息** (`message-meta`) 跟随消息方向对齐（信息粘附气泡），而**操作栏** (`menubar-wrapper`) 对齐到对面方向。CSS 选择器位于 [`MessageList.vue:1218-1266`](../../components/message/MessageList.vue:1218)：
+气泡模式下，底部 Token 信息 (`message-meta`) 和操作栏 (`menubar-wrapper`) 跟随消息方向对齐。普通消息和展开工具的操作栏使用位于气泡下方的零高度 sticky 浮层，悬停或键盘聚焦时显现，长消息滚动时保持可访问。消息行使用 `overflow-clip-margin` 为浮层扩展绘制边界，扩展范围通过 ResizeObserver 跟随工具栏实际高度，覆盖展开换行的全部按钮；当前交互行提高层级。折叠工具保留头部绝对定位操作栏。
 
-- `data-align="left"` 的 `.message-meta` 使用 `flex-direction: column; align-items: flex-start; text-align: left`；同行的 `.menubar-wrapper` 反向 `justify-content: flex-end; padding-right: 12px`（操作栏靠右）。
-- `data-align="right"` 的 `.message-meta` 使用 `align-items: flex-end; text-align: right`；同行的 `.menubar-wrapper` 反向 `justify-content: flex-start; padding-left: 12px`（操作栏靠左）。
-- **典型效果**: 助手气泡（left-align）→ Token 信息靠左、操作栏靠右；用户气泡（right-align）→ Token 信息靠右、操作栏靠左，避免窄气泡下两块信息相互遮挡。
+消息悬停工具栏默认常驻复制、编辑和重新生成，其余可用操作收纳到“更多”。展开按钮可显示全部操作，再次点击恢复常驻布局；分支切换与终止生成独立保留。“更多”底部提供自定义入口，支持搜索、常驻/收纳、拖动或箭头排序与恢复默认。布局及展开状态保存在 `uiPreferences.messageToolbar`，通过聊天设置同步到分离窗口，保存成功后生效。
+
+操作定义与状态限制集中在 `messageToolbarActions.ts`；常驻区和更多菜单共用 `MessageToolbarAction.vue`，保持翻译和变量弹层的交互一致。工具栏按消息行可用宽度换行，弹层打开期间保持可见；自定义面板按需加载。
+
+- 左对齐消息的信息与操作栏靠左，右对齐消息的信息与操作栏靠右。
+- 操作栏高度参与自身排版，外层高度为零；隐藏、显示和按钮数量变化均保持消息间距稳定。
+- 消息行间距统一由列表 `gap` 控制，列表内工具卡片清除自身上下 margin。
+- 气泡操作栏使用 inline-size containment，按钮宽度与短消息的气泡尺寸独立。
 
 ### 8.7 镜像化适配（`row-reverse` 应用范围）
 
@@ -237,7 +256,7 @@
 
 ### 8.8 样式驱动架构（`bubbleLayoutVars` 字段映射表）
 
-[`MessageList.vue:206-217`](../../components/message/MessageList.vue:206) 的 `bubbleLayoutVars` computed 把 `BubbleLayoutConfig` 的 7 个字段一一映射为 CSS 自定义属性：
+[useMessageLayout.ts](../../composables/ui/useMessageLayout.ts) 的 `bubbleLayoutVars` computed 把 `BubbleLayoutConfig` 的 7 个字段一一映射为 CSS 自定义属性：
 
 | CSS 变量                     | 来自配置字段            | 默认值  | 作用域                                     |
 | ---------------------------- | ----------------------- | ------- | ------------------------------------------ |

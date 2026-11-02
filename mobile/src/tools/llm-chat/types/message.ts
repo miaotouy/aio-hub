@@ -1,3 +1,7 @@
+import type {
+  PresetComposition,
+  PresetContribution,
+} from "@aiohub/agent-preset-core";
 import type { MessageRole, MessageStatus, MessageType } from "./common";
 import type { ManagedAssetRef } from "../../asset-manager/types";
 
@@ -26,6 +30,7 @@ export interface ChatMessageReference {
 }
 
 export interface ChatMessageMetadata {
+  channelExecution?: import("@aiohub/llm-core").ChannelExecution;
   /** Allow storage round-trips to preserve fields added by newer clients. */
   [key: string]: unknown;
   /** 用户输入所回复的消息快照。 */
@@ -87,6 +92,9 @@ export interface ChatMessageAttachment extends ManagedAssetRef {
  * 消息节点（树形结构基础版）
  */
 export interface ChatMessageNode {
+  presetComposition?: PresetComposition;
+  /** Runtime-only mapping to structured preset bodies. */
+  presetContributingParts?: PresetContribution[];
   /**
    * 消息的唯一标识符
    */

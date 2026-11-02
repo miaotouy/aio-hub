@@ -6,7 +6,7 @@
 
 ## 关于 AIO Hub
 
-AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、30+ 专业工具和开放插件系统整合到一个统一的界面中。无论你是 AI 爱好者、开发者还是创作者，都能在这里找到提升效率的利器。
+AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、资料检索、媒体创作、本地工具和插件系统整合到一个工作区中。你可以按任务选择工具，也可以通过智能体和工具调用串联操作。
 
 :::tip 快速了解
 如果你是第一次接触 AIO Hub，建议先阅读 [项目概览](./project-overview.md) 了解它能为你做什么。
@@ -25,7 +25,7 @@ AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、30+ �
 1. **[安装指南](./installation.md)** — 下载、安装并完成首次验证
 2. **[快速开始](./getting-started.md)** — 5 分钟配置 AI 服务并开始第一次对话
 3. **[工作区基础](./workspace-basics.md)** — 熟悉界面布局、侧边栏和多窗口操作
-4. **[工具总览](./tools/index.md)** — 浏览所有 34 个内置工具
+4. **[工具总览](./tools/index.md)** — 按用途查找工具、功能入口和已有教程
 
 ### ⚙️ 配置你的工作台
 
@@ -33,6 +33,7 @@ AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、30+ �
 - **[AI 服务配置](./settings/llm-service.md)** — 添加和管理 LLM 服务商
 - **[外观与壁纸](./settings/appearance.md)** — 主题、毛玻璃、动态壁纸定制
 - **[通用与启动项](./settings/general-startup.md)** — 全局行为、开机启动等
+- **[版本与更新](./settings/about.md)** — 更新通道、应用内安装和版本说明
 
 ### 🛠️ 深入工具教程
 
@@ -41,6 +42,8 @@ AIO Hub 是一款**跨平台桌面 AI 工作站**，将 LLM 智能对话、30+ �
 - **[字幕 OCR](./tools/realtime-subtitle-ocr/index.md)** — 屏幕实时识别与本地视频离线识别
 - **[FFmpeg 工具](./tools/ffmpeg-tools.md)** — 视频压缩、转码和批量处理
 - **[正则批量替换](./tools/regex-applier.md)** — 双引擎正则处理流水线
+- **[网页蒸馏室](./tools/web-distillery.md)** — 网页搜索、本地与云端正文提取、站点配方
+- **[资产管理器](./tools/asset-manager/index.md)** — 集中浏览文件、预览文档、追溯来源
 - **[更多工具 →](./tools/index.md)**
 
 </div>

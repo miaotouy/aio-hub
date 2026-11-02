@@ -32,7 +32,7 @@ import type {
 } from "@/services/types";
 import type { DetachableComponentRegistration } from "@/types/detachable";
 import { markRaw, computed, type Ref } from "vue";
-import { ChatDotRound } from "@element-plus/icons-vue";
+import { LlmChatIcon } from "@aiohub/tool-icons";
 import { useDetachedChatArea } from "./composables/ui/useDetachedChatArea";
 import { useDetachedChatInput } from "./composables/ui/useDetachedChatInput";
 import { useLlmChatStateConsumer } from "./composables/ui/useLlmChatStateConsumer";
@@ -57,7 +57,7 @@ import * as agentManagementService from "@/tools/agent-manager/services/agentMan
 export const toolConfig: ToolConfig = {
   name: "LLM 对话",
   path: "/llm-chat",
-  icon: markRaw(ChatDotRound),
+  icon: markRaw(LlmChatIcon),
   component: () => import("./LlmChat.vue"),
   description:
     "树状分支对话工具，支持智能体管理、附件上传、多会话系统和上下文分析",
@@ -119,7 +119,7 @@ class LlmChatRegistry implements ToolRegistry {
   public addContentToInput(
     content: string,
     options: AddContentOptions = {}
-  ): InputOperationResult {
+  ): InputOperationResult | null {
     return llmChatService.addContentToInput(content, options);
   }
 
@@ -381,7 +381,8 @@ const agentManagement: ToolRegistry = {
         {
           name: "find_replace_in_presets",
           displayName: "查找替换",
-          description: "在智能体预设消息的 content 中执行查找替换",
+          description:
+            "在预设正文、组合消息的全部片段和备选中查找替换，返回受影响位置",
           parameters: [
             {
               name: "agentId",
@@ -412,6 +413,34 @@ const agentManagement: ToolRegistry = {
               type: "string",
               required: false,
               description: "限定在指定消息 ID 中操作",
+            },
+          ],
+          returnType: "Promise<string>",
+          agentCallable: true,
+        },
+        {
+          name: "edit_preset_composition",
+          displayName: "编辑组合消息",
+          description:
+            "修改组合消息的片段或版本。operation 为 JSON：type 支持 addPart/removePart/movePart/setContent/selectOption/addOption/removeOption/moveOption/setPartEnabled/setPartName/setOptionName/setSeparator；按操作提供 partId、optionId、content、part、enabled、name、separator 或 index（从 0 开始）。setPartEnabled 控制片段参与，selectOption 指定使用版本，optionId 为 null 清空选择。setPartName 修改片段名称，setOptionName 通过 partId 和 optionId 修改版本名称。setSeparator 统一设置片段间连接。",
+          parameters: [
+            {
+              name: "agentId",
+              type: "string",
+              required: true,
+              description: "智能体 ID",
+            },
+            {
+              name: "messageId",
+              type: "string",
+              required: true,
+              description: "组合消息 ID",
+            },
+            {
+              name: "operation",
+              type: "string",
+              required: true,
+              description: "结构操作 JSON 对象",
             },
           ],
           returnType: "Promise<string>",
@@ -580,6 +609,14 @@ const agentManagement: ToolRegistry = {
     messageId?: string;
   }): Promise<string> {
     return await agentManagementService.find_replace_in_presets(args);
+  },
+
+  async edit_preset_composition(args: {
+    agentId: string;
+    messageId: string;
+    operation: string;
+  }) {
+    return await agentManagementService.edit_preset_composition(args);
   },
 
   async add_preset_message(args: {

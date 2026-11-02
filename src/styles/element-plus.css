@@ -566,6 +566,45 @@ body.el-popup-parent--hidden {
   border: var(--border-width) solid var(--border-color);
   overflow: hidden;
   display: inline-flex; /* 保持原有的布局行为 */
+  line-height: 0; /* 避免继承表单行高，在小尺寸按钮周围留下空边 */
+}
+
+/* 连续按钮组由容器绘制外边框，避免子按钮产生双层轮廓。 */
+.el-radio-group:has(.el-radio-button):not(.separated-group)
+  .el-radio-button__inner,
+.el-checkbox-group:has(.el-checkbox-button):not(.separated-group)
+  .el-checkbox-button__inner {
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.el-radio-group:not(.separated-group)
+  .el-radio-button:first-child
+  .el-radio-button__inner,
+.el-checkbox-group:not(.separated-group)
+  .el-checkbox-button:first-child
+  .el-checkbox-button__inner {
+  border-left: 0 !important;
+}
+
+/* 激活态在深浅主题中都沿用容器轮廓，清除 Element Plus 的模拟左边框。 */
+.el-radio-group:has(.el-radio-button):not(.separated-group)
+  > .el-radio-button.is-active
+  > .el-radio-button__original-radio:not(:disabled)
+  + .el-radio-button__inner,
+.el-checkbox-group:has(.el-checkbox-button):not(.separated-group)
+  > .el-checkbox-button.is-checked
+  > .el-checkbox-button__inner {
+  box-shadow: none !important;
+}
+
+.el-checkbox-group:not(.separated-group)
+  > .el-checkbox-button:not(:first-child)
+  > .el-checkbox-button__inner {
+  border-left: var(--border-width) solid var(--border-color) !important;
 }
 
 /* 分离式按钮组：每个按钮独立模糊，无外层容器边框 */

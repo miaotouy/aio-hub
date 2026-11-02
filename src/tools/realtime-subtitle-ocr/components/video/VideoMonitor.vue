@@ -35,7 +35,7 @@
           ref="videoRef"
           class="video-monitor__video"
           data-testid="rsocr-video"
-          :src="src"
+          :src="playbackSrc"
           crossorigin="anonymous"
           playsinline
           preload="auto"
@@ -262,6 +262,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useMediaSource } from "@/composables/useMediaSource";
 import { useElementSize } from "@vueuse/core";
 import {
   ChevronDown,
@@ -311,6 +312,13 @@ const emit = defineEmits<{
   /** 将当前播放位置设为识别区间终点 (O) */
   "set-range-end": [timeMs: number];
 }>();
+
+const { src: playbackSrc, error: sourceError } = useMediaSource(
+  () => props.src
+);
+watch(sourceError, (cause) => {
+  if (cause) onError();
+});
 
 const containerRef = ref<HTMLElement | null>(null);
 const viewportRef = ref<HTMLElement | null>(null);
@@ -669,6 +677,9 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 onBeforeUnmount(() => {
+  videoRef.value?.pause();
+  videoRef.value?.removeAttribute("src");
+  videoRef.value?.load();
   window.removeEventListener("pointermove", onPanMove);
 });
 

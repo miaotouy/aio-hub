@@ -1,3 +1,4 @@
+import { usageReport } from "../usage";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -55,8 +56,8 @@ export function buildCohereChatBody(request: LlmRequest): CohereChatBody {
   const body: CohereChatBody = {
     model: request.model,
     messages: request.messages.flatMap(buildCohereMessages),
-    temperature: request.temperature ?? 0.5,
   };
+  assignDefined(body, "temperature", request.temperature);
   assignDefined(
     body,
     "max_tokens",
@@ -166,6 +167,7 @@ export function parseCohereUsage(value: unknown): TokenUsage | undefined {
   const inputTokens = readNumber(tokens.input_tokens) ?? 0;
   const outputTokens = readNumber(tokens.output_tokens) ?? 0;
   return {
+    ...usageReport(tokens, "input_tokens", "output_tokens"),
     promptTokens: inputTokens,
     completionTokens: outputTokens,
     totalTokens: inputTokens + outputTokens,

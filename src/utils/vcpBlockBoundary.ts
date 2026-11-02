@@ -47,14 +47,29 @@ export function findVcpBlockBoundary(
   options: FindVcpBlockBoundaryOptions
 ): VcpBlockBoundary {
   let cursor = contentStart;
+  // Include overlapping marker starts immediately before the known end boundary.
+  const lookahead =
+    Math.max(
+      ESCAPE_FENCE_START.length,
+      ...options.recoveryStartMarkers.map((marker) => marker.length)
+    ) - 1;
 
   while (cursor < text.length) {
-    const fenceStart = text.indexOf(ESCAPE_FENCE_START, cursor);
-    let endIndex = text.indexOf(options.endMarker, cursor);
+    // Candidates beyond a known end cannot change this block; avoid scanning its full suffix.
+    const endIndex = text.indexOf(options.endMarker, cursor);
+    const offset = endIndex === -1 ? 0 : cursor;
+    const scope =
+      endIndex === -1 ? text : text.slice(cursor, endIndex + lookahead);
+    const search = (marker: string) => {
+      const relative = scope.indexOf(marker, cursor - offset);
+      const found = relative === -1 ? -1 : relative + offset;
+      return endIndex !== -1 && found >= endIndex ? -1 : found;
+    };
+    const fenceStart = search(ESCAPE_FENCE_START);
     let nextStartIndex = -1;
 
     for (const startMarker of options.recoveryStartMarkers) {
-      const candidateIndex = text.indexOf(startMarker, cursor);
+      const candidateIndex = search(startMarker);
       if (
         candidateIndex !== -1 &&
         (nextStartIndex === -1 || candidateIndex < nextStartIndex)

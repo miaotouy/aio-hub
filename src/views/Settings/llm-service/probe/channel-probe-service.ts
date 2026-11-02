@@ -1,11 +1,13 @@
 import {
   classifyProbeError,
+  isOpenRouterProfile,
   executeRerankRequest,
   rerankAdapter,
   resolveProbePlan,
   validateProbeResponse,
   resolveModelExecution,
   UnresolvedModelRouteError,
+  type LlmAdapterId,
   type ProbePlan,
   type TransportObserver,
 } from "@aiohub/llm-core";
@@ -17,6 +19,7 @@ import type {
 } from "@/llm-apis/common";
 import type { EmbeddingResponse } from "@/llm-apis/embedding-types";
 import { fetchModelsFromApi } from "@/llm-apis/model-fetcher";
+import { callDecisionApi } from "@/llm-apis/system-one-core";
 import { desktopLlmTransport } from "@/llm-apis/transports/desktop";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
@@ -38,6 +41,7 @@ const MAX_CONCURRENCY = 8;
 export interface ChannelProbeServiceDependencies {
   adapters?: Record<string, LlmAdapter>;
   fetchModels?: typeof fetchModelsFromApi;
+  callSystemOne?: typeof callDecisionApi;
   now?: () => number;
   monotonicNow?: () => number;
 }
@@ -47,6 +51,7 @@ export function createChannelProbeService(
 ) {
   const adapterMap = dependencies.adapters ?? adapters;
   const fetchModels = dependencies.fetchModels ?? fetchModelsFromApi;
+  const callSystemOne = dependencies.callSystemOne ?? callDecisionApi;
   const now = dependencies.now ?? Date.now;
   const monotonicNow =
     dependencies.monotonicNow ??
@@ -149,8 +154,22 @@ export function createChannelProbeService(
             : model,
         operation: plan.capability,
       });
-      const adapter = adapterMap[route.effectiveProfile.type];
-      if (!adapter) {
+      if (
+        plan.capability === "decision" &&
+        (!request.endpointType || request.endpointType === "auto")
+      ) {
+        if (
+          route.adapterId === "openrouter-decisions" ||
+          route.adapterId === "typesafe-system-one"
+        ) {
+          resultEndpointType = route.adapterId;
+        }
+      }
+      const adapter =
+        plan.capability === "decision"
+          ? undefined
+          : adapterMap[route.effectiveProfile.type];
+      if (!adapter && plan.capability !== "decision") {
         throw new Error(`不支持的提供商类型: ${route.effectiveProfile.type}`);
       }
       if (inspectorHookRegistry.shouldCaptureInternal()) {
@@ -165,6 +184,8 @@ export function createChannelProbeService(
 
       const execution = await executePlan({
         adapter,
+        adapterId: route.adapterId,
+        callSystemOne,
         model,
         plan,
         profile: route.effectiveProfile,
@@ -313,7 +334,9 @@ export function createChannelProbeService(
 }
 
 interface ExecutePlanOptions {
-  adapter: LlmAdapter;
+  adapter?: LlmAdapter;
+  adapterId: LlmAdapterId;
+  callSystemOne: typeof callDecisionApi;
   model: LlmModelInfo;
   plan: ProbePlan;
   profile: LlmProfile;
@@ -323,7 +346,7 @@ interface ExecutePlanOptions {
 }
 
 async function executePlan(options: ExecutePlanOptions) {
-  const { adapter, model, plan, profile, request, requestId, observer } =
+  const { callSystemOne, model, plan, profile, request, requestId, observer } =
     options;
   const baseOptions = {
     ...(model.customParameters ?? {}),
@@ -340,6 +363,41 @@ async function executePlan(options: ExecutePlanOptions) {
     relaxIdCerts: profile.relaxIdCerts,
     http1Only: profile.http1Only,
   };
+
+  // 结构化决策按解析后的协议直接调用对应端点。
+  if (plan.capability === "decision") {
+    const response = await callSystemOne(profile, {
+      adapterId: options.adapterId,
+      model: model.id,
+      state: plan.decision!.state,
+      questions: plan.decision!.questions,
+      apiKey: request.apiKey,
+      timeoutMs: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      signal: request.signal,
+      requestId,
+      transportObserver: observer,
+      networkStrategy: profile.networkStrategy,
+      relaxInvalidCerts: profile.relaxIdCerts,
+      http1Only: profile.http1Only,
+    });
+    const answerCount = Object.keys(response.answers).length;
+    return {
+      response: {
+        content: `返回 ${answerCount} 项结构化决策`,
+        usage: {
+          promptTokens: response.usage.inputTokens,
+          completionTokens: response.usage.outputTokens,
+          totalTokens: response.usage.inputTokens + response.usage.outputTokens,
+        },
+      } satisfies LlmResponse,
+      validation: { capability: plan.capability, decision: response },
+    };
+  }
+
+  const adapter = options.adapter;
+  if (!adapter) {
+    throw new Error(`不支持的提供商类型: ${profile.type}`);
+  }
 
   switch (plan.capability) {
     case "chat": {
@@ -444,7 +502,10 @@ async function executePlan(options: ExecutePlanOptions) {
       const response = await adapter.audio(profile, {
         ...baseOptions,
         prompt: plan.media!.prompt,
-        audioConfig: { voice: "alloy", responseFormat: "mp3" },
+        audioConfig: {
+          voice: isOpenRouterProfile(profile) ? undefined : "alloy",
+          responseFormat: "mp3",
+        },
       } as MediaGenerationOptions);
       return {
         response,
@@ -502,5 +563,7 @@ function cancelledResult(
 }
 
 function capabilityLabel(capability: string): string {
-  return { video: "视频", music: "音乐" }[capability] ?? capability;
+  return (
+    { video: "视频", music: "音乐", decision: "决策" }[capability] ?? capability
+  );
 }

@@ -336,12 +336,7 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
       }
       if (!this.activeBaseId) return null;
 
-      const modelId = getPureModelId(this.config.defaultEmbeddingModel);
-      const entry = await recallStorage.loadEntry(
-        this.activeBaseId,
-        entryId,
-        modelId
-      );
+      const entry = await recallStorage.loadEntry(this.activeBaseId, entryId);
       if (entry) {
         this.entriesCache.set(entryId, entry);
       }

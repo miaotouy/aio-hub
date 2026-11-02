@@ -90,7 +90,6 @@ export function useSessionManager() {
       title: "",
       make_instrumental: false,
       audioConfig: {
-        voice: "alloy",
         responseFormat: "mp3",
         speed: 1,
       },

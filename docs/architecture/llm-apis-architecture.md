@@ -3,27 +3,47 @@
 本文档系统性地介绍 AIO Hub 的 LLM API 调用体系。系统由应用配置/编排、应用 Facade、共享 Provider Core 与平台 Transport 组成；桌面和移动共享协议语义，但保留各自运行时边界：
 
 ```
-┌──────────────────────────────────────────────────┐
-│                   预设层 (Preset)                  │
-│  llm-presets/ — 41个预设模板（快速创建渠道）      │
-├──────────────────────────────────────────────────┤
-│                 渠道管理层 (Channel)               │
-│  useLlmProfiles.ts  — 渠道 CRUD / 持久化          │
-│  useLlmKeyManager.ts — 多 Key 轮询 / 熔断/恢复    │
-│  useLlmRequest.ts    — 请求编排 / 中间件           │
-├──────────────────────────────────────────────────┤
-│              应用 Facade 层 (Desktop/Mobile)        │
-│  Profile/Key/元数据映射、回调兼容、错误与日志接入      │
-├──────────────────────────────────────────────────┤
-│            @aiohub/llm-core (Shared Core)         │
+┌──────────────────────────────────────────────────────┐
+│                   预设层 (Preset)                    │
+│  llm-presets/ — 41个预设模板（快速创建渠道）         │
+├──────────────────────────────────────────────────────┤
+│                 渠道管理层 (Channel)                 │
+│  useLlmProfiles.ts  — 渠道 CRUD / 持久化             │
+│  useLlmKeyManager.ts — 多 Key 轮询 / 熔断/恢复       │
+│  useLlmRequest.ts    — 请求编排 / 中间件             │
+├──────────────────────────────────────────────────────┤
+│              应用 Facade 层 (Desktop/Mobile)         │
+│  Profile/Key/元数据映射、回调兼容、错误与日志接入    │
+├──────────────────────────────────────────────────────┤
+│            @aiohub/llm-core (Shared Core)            │
 │  canonical DTO / Provider Adapter / 执行器 / fixture │
-├──────────────────────────────────────────────────┤
-│                 平台 Transport 层                  │
-│  Desktop Rust Proxy / Mobile HTTP + Native FileRef │
-└──────────────────────────────────────────────────┘
+├──────────────────────────────────────────────────────┤
+│                 平台 Transport 层                    │
+│  Desktop Rust Proxy / Mobile HTTP + Native FileRef   │
+└──────────────────────────────────────────────────────┘
 ```
 
 ---
+
+## 输出预算与采样兼容
+
+共享核心通过 `output-tokens.ts` 提供通用输出默认预算（65,536）、编辑范围常量（1,000,000）与模型输出裁剪函数。桌面和移动端在选定物理模型后，使用模型的 `tokenLimits.output` 裁剪 `maxTokens`、`maxCompletionTokens`；未知输出限制的请求保留显式预算。新默认值仅影响新建与缺省配置。
+
+两端请求入口读取 `supportedFeatures.parameters`，过滤模型未声明支持的采样字段。`sampling-compatibility.ts` 补充已知模型及推理模式约束，协议层在合并额外参数后清理冲突字段。OpenAI 新模型的 Chat Completions 输出预算映射到 `max_completion_tokens`；Responses 使用 `max_output_tokens`。
+
+协议层省略调用方未提供的温度。Gemini 的可选输出预算交给服务端默认值，Anthropic 的必填 `max_tokens` 在缺省时使用共享预算。新建通用聊天与智能体仅设置输出预算，显式温度按目标模型能力生效。
+
+## DeepSeek 网页工具 API
+
+`src/llm-apis/adapters/deepseek/tools.ts` 提供 `callDeepSeekSearchApi()` 与 `callDeepSeekFetchApi()`，复用 LLM 渠道连接及桌面传输。网页工具以查询或 URL 为输入，独立于模型路由及 Chat Completions 消息协议，现有聊天解析保持原有行为。
+
+- 连接读取渠道基础地址、API Key、自定义请求头和网络策略；支持根地址、`/v1` 地址及反向代理路径。
+- Key 管理提供 `ensureLoaded()`，合并并发加载，工具请求在选 Key 前等待持久化状态就绪。沿用现有轮询与启用状态，搜索的账号级限流保持 Key 可用性。
+- 共享传输新增可选 `requestKind: "tool"` 分类，工具调用复用超时、取消和代理能力，并独立于 LLM Inspector 的模型诊断记录。默认模型请求行为保持兼容。
+- 适配器按 Unicode 字符数校验搜索词，映射结构化来源及 Markdown 抓取结果；公开错误保留 HTTP 状态、重试语义与用户可行动提示。
+- 网页蒸馏只持久化所选渠道 ID，密钥继续由渠道密钥仓库管理。Agent 和工作区通过蒸馏服务调用同一适配器。
+
+接口依据：DeepSeek 官方网页搜索与抓取指南及 Search / Fetch API Reference（2026-10-17 核对）。
 
 ## 1. 预设层 (Preset Layer)
 
@@ -46,24 +66,24 @@ export interface LlmPreset {
 }
 ```
 
-### 1.2 当前预设列表（42 个）
+### 1.2 当前预设列表（43 个）
 
 **主流大厂**：
-OpenAI · OpenAI Responses · Google Gemini · Anthropic Claude · Cohere · xAI (Grok) · Vertex AI · Azure OpenAI
+OpenAI · OpenAI Responses · Google Gemini · Anthropic Claude · Cohere · xAI (Grok) · Vertex AI · Azure OpenAI · TypeSafe AI
 
 **国产平台**（均走 `openai-compatible` 协议）：
 阿里云百炼 (Qwen) · 火山引擎 (豆包) · 智谱 AI (GLM) · 百度文心 (ERNIE) · 腾讯混元 · 月之暗面 (Kimi) · 零一万物 (Yi) · 百川智能 · MiniMax (ABAB) · 商汤日日新
 
 **聚合/中转平台**：
-OpenRouter · SiliconFlow · Together AI · Fireworks AI · DeepInfra · NewAPI · Hugging Face · Perplexity · 魔搭 ModelScope
+OpenRouter · SiliconFlow · Together AI · Fireworks AI · DeepInfra · NewAPI · Hugging Face · Perplexity · 魔搭 ModelScope · OpenCode Go · Sub2API
 
 **本地/私有部署**：
-Ollama · Ollama Cloud · LM Studio
+Ollama · Ollama Cloud · LM Studio · audio.cpp (本地音频)
 
 **其他/特定**：
 Mistral AI · AI21 Labs (Jamba) · Suno (via NewAPI) · VCP
 
-> **注意**：预设层仅提供 UI 层面的配置模板。实际请求的分发由 **适配器层** 根据 `profile.type` 决定，上述国产平台均通过 `openAiAdapter` 处理。
+> **注意**：预设层仅提供 UI 层面的配置模板。实际请求的分发由 **模型执行路由与适配器层** 根据 `profile.type` 及模型 binding 决定，大部分国产平台均通过 `openAiAdapter` 处理。
 
 ---
 
@@ -77,11 +97,11 @@ Mistral AI · AI21 Labs (Jamba) · Suno (via NewAPI) · VCP
 
 **核心职责**：
 
-- **加载/保存**: 通过 `createConfigManager` 将渠道结构持久化到 `profiles.json`；API Key 与 `customHeaders` 分离存放在独立混淆文件（桌面 `llm-service/secrets.dat`，移动 `AppData/llm_service_secrets.dat`，见 [`src/utils/llm-secret/`](/src/utils/llm-secret/)），加载时按 `profile.id` 透明注入内存，`profiles.json` 中的 `apiKeys` 恒为空数组（[useLlmProfiles.ts](/src/composables/useLlmProfiles.ts)）
-- **数据迁移**: 自动从旧版 localStorage 迁移到文件系统，并在首次加载时把 `profiles.json` 中残留的明文 API Key 迁移进独立混淆存储（[useLlmProfiles.ts](/src/composables/useLlmProfiles.ts)）
-- **数据规范化**: `normalizeProfile()` 处理旧版单 Key 到多 Key 数组的兼容（[第 38 行](/src/composables/useLlmProfiles.ts:38)）
-- **预设创建**: `createFromPreset()` 将预设模板实例化为可编辑的渠道配置（[第 258 行](/src/composables/useLlmProfiles.ts:258)）
-- **能力查询**: `getSupportedParameters()` 基于 `providerTypes` 查询渠道支持的参数（[第 278 行](/src/composables/useLlmProfiles.ts:278)）
+- **凭证隔离与混淆存储**: 彻底将 API Key 与敏感 `customHeaders` 从通用渠道配置文件 `profiles.json` 中剥离，移入独立存储文件（桌面端 `llm-service/secrets.dat`，移动端 `AppData/llm_service_secrets.dat`，见 [`src/utils/llm-secret/`](/src/utils/llm-secret/)）。混淆文件使用轻量级动态盐混淆格式（`AIOHUBVLT1.<base64 salt>.<base64 cipher>`），每次落盘盐值不同。加载时按 `profile.id` 透明注入内存，落盘时 `profiles.json` 中的 `apiKeys` 恒为空数组，兼顾运行时无缝调用与磁盘静态安全。
+- **数据迁移**: 自动从旧版 localStorage 迁移到文件系统，并在首次加载时把 `profiles.json` 中残留的明文 API Key 迁移进独立混淆存储（[useLlmProfiles.ts](/src/composables/useLlmProfiles.ts)）。
+- **数据规范化**: `normalizeProfile()` 处理旧版单 Key 到多 Key 数组的兼容（[第 38 行](/src/composables/useLlmProfiles.ts:38)）。
+- **预设创建**: `createFromPreset()` 将预设模板实例化为可编辑的渠道配置（[第 258 行](/src/composables/useLlmProfiles.ts:258)）。
+- **能力查询**: `getSupportedParameters()` 基于 `providerTypes` 查询渠道支持的参数（[第 278 行](/src/composables/useLlmProfiles.ts:278)）。
 
 ```typescript
 // 核心暴露
@@ -94,16 +114,28 @@ const {
 } = useLlmProfiles();
 ```
 
-### 2.2 多 Key 管理 — [`useLlmKeyManager`](/src/composables/useLlmKeyManager.ts)
+### 2.2 多 Key 管理与熔断防御 — [`useLlmKeyManager`](/src/composables/useLlmKeyManager.ts)
 
-支持一个渠道配置绑定多个 API Key，提供**轮询 + 可选熔断 + 恢复**能力。熔断开关和恢复时长按渠道独立存储，自动熔断默认关闭，建议仅在多 Key 配置且确认需要故障摘除时开启。
+支持一个渠道配置绑定多个 API Key，提供**哈希索引状态管理 + 轮询 + 熔断硬阻断 + 自动恢复**能力。熔断开关和恢复时长按渠道独立存储，自动熔断默认关闭，建议仅在多 Key 配置且确认需要故障摘除时开启。
+
+**哈希索引与安全清洗**（[`apiKeyHash.ts`](/src/utils/llm-secret/apiKeyHash.ts) & [`keyStates.ts`](/src/utils/llm-secret/keyStates.ts)）：
+
+- 状态存储于 `llm-service/key-states.json`，索引采用不可逆的 64 位稳定哈希（双段 32 位 FNV-1a 拼接为 `k_<16位hex>`），磁盘上彻底消除明文 Key 索引。
+- 历史明文索引在加载时由 `normalizeKeyStatesStorage()` 自动识别并迁移为哈希键，触发即刻回写清洗。
+- 错误信息脱敏：持久化前自动将历史错误与上游返回中的当前明文 Key 替换为 `[redacted-key]`，防止凭据在错误日志或持久化状态中回显泄露。
 
 **轮询策略**（[`pickKey()`](/src/composables/useLlmKeyManager.ts:102)）：
 
 1. 调用 `syncKeyStates()` 同步所有 Key 的状态
 2. 过滤出可用 Key：`isEnabled && !isBroken`
 3. 从 `lastUsedIndices` 记录的下标开始轮询下一个可用 Key
-4. 若无可用 Key，回退到第一个 Key，由下游 API 报错触发反馈
+4. 若无可用 Key，执行严格的**全熔断硬阻断**防御机制
+
+**全熔断硬阻断与降级策略加固**：
+
+- **修复静默回退漏洞**：早期版本在所有 Key 均不可用时会静默回退至首个已损坏的 Key 盲目发起请求，导致死循环报错。当前版本实施硬阻断策略，并抛出 `ApiKeyUnavailableError`：
+  - 若所有 Key 均被用户手动禁用，抛出 `code: "all-disabled"` 异常，引导用户在渠道设置中启用至少一个 Key。
+  - 若所有已启用的 Key 均处于熔断状态，抛出 `code: "all-enabled-circuit-broken"` 异常，并计算各 Key 熔断时间戳与冷却时间，在报错中给出明确的最早冷却恢复时间提示（`retryAt`），禁止无效网络开销。
 
 **熔断逻辑**（[`reportFailure()`](/src/composables/useLlmKeyManager.ts:188)）：
 
@@ -111,18 +143,16 @@ const {
 - 开启自动熔断后，连续 3 次非 429 暂态错误也触发熔断
 - 仅当同一渠道仍有另一把可用 Key 时才熔断当前 Key；单 Key 不进入熔断态
 - 熔断后的 Key 标记 `isBroken: true`，记录 `disabledTime`
-- 错误消息截断至 2000 字符，防止配置文件膨胀（[第 196 行](/src/composables/useLlmKeyManager.ts:196)）
+- 错误消息截断至 2000 字符，防止配置文件膨胀
 
 **自动恢复**（[`pickKey()`](/src/composables/useLlmKeyManager.ts:112)）：
 
 - `autoRecoveryTime` 默认 60 秒
-- 轮询时检查已熔断 Key 是否超期，超期则重置
+- 轮询时检查已熔断 Key 是否超期，超期则重置状态
 
 **持久化**：
 
-- 状态存储于 `llm-service/key-states.json`（[useLlmKeyManager.ts](/src/composables/useLlmKeyManager.ts)）
-- 写入采用**防抖保存**，不阻塞请求流程
-- 状态索引使用 `hashApiKey(key)` 生成的稳定哈希（见 [`src/utils/llm-secret/`](/src/utils/llm-secret/)），磁盘上不出现明文 Key；旧版明文索引在加载时自动重映射并立即回写清洗，历史错误消息中回显的凭据也会一并脱敏。上游错误消息落盘前会先脱敏当前 Key
+- 写入采用**防抖保存**（`saveDebounced`），不阻塞实时请求流程
 
 ```typescript
 // 核心暴露
@@ -130,7 +160,15 @@ const { pickKey, reportSuccess, reportFailure, resetAllBroken } =
   useLlmKeyManager();
 ```
 
-### 2.3 请求编排中间件 — [`useLlmRequest`](/src/composables/useLlmRequest.ts)
+### 2.3 安全导入与导出 (Profile Transfer) — [`llm-profile-transfer.ts`](/src/utils/llm-profile-transfer.ts)
+
+渠道配置的导入与导出由专用的配置打包器处理，支持 JSON 与 TOML 双向解析边界：
+
+- **安全脱敏导出**：导出配置包（`LlmProfileBundle`）时默认支持安全脱敏（`includeSecrets = false`），通过递归字段扫描识别所有 `apiKey`、`customHeaders` 中的敏感 Authorization 字段并清空，同时在包元数据中记录 `redactedPaths`（脱敏路径列表）。
+- **导入脱敏感知与诊断**：导入时若检测到脱敏文件（`redactedPaths.length > 0`），解析器自动标记 `aiohub-profile-bundle-redacted` 警告，提示用户导入后需补充配置 API Key 才能发起调用。
+- **解析边界加固**：严格规范 JSON 与 TOML 的解析与字段验证边界，避免恶意配置结构导致内存注入或解析崩溃。
+
+### 2.4 请求编排中间件 — [`useLlmRequest`](/src/composables/useLlmRequest.ts)
 
 这是整个 LLM 请求的**中心调度器**，串联渠道配置、Key 管理、参数过滤和适配器分发。
 
@@ -255,10 +293,10 @@ export interface LlmAdapter {
 | `mistral`           | `openAiAdapter`                    | —                   | Mistral AI                        |
 | `perplexity`        | `openAiAdapter`                    | —                   | Perplexity                        |
 | `deepseek`          | `openAiAdapter`                    | `deepseek`          | 深度求索                          |
-| `together`          | `openAiAdapter`                    | —                   | Together AI                       |
+| `together`          | `openAiAdapter`                    | `together`          | Together AI                       |
 | `openrouter`        | `openAiAdapter`                    | `openrouter`        | OpenRouter                        |
 | `ollama`            | `openAiAdapter`                    | `ollama`            | Ollama 本地                       |
-| `lmstudio`          | `openAiAdapter`                    | —                   | LM Studio                         |
+| `lmstudio`          | `openAiAdapter`                    | `lmstudio`          | LM Studio                         |
 | `vllm`              | `openAiAdapter`                    | —                   | vLLM                              |
 | `volcengine`        | `openAiAdapter`                    | —                   | 火山引擎                          |
 | `dashscope`         | `openAiAdapter`                    | —                   | 阿里百炼                          |
@@ -272,9 +310,27 @@ export interface LlmAdapter {
 | `cohere`            | `cohereAdapter`                    | `cohere`            | Cohere                            |
 | `suno-newapi`       | `sunoNewApiAdapter`                | `suno-newapi`       | 音乐生成                          |
 | `audiocpp`          | `openAiAdapter` (+ transcribe)     | `audiocpp`          | 本地 audio.cpp 音频推理 (TTS/ASR) |
+| `typesafe`          | `systemOneCore` (独立决策通道)     | `typesafe`          | TypeSafe AI System One 结构化决策 |
+
+聚合平台统一通过模型执行路由选择协议适配器。`openrouter`、`siliconflow`、`groq`、`together`、`fireworks`、`deepinfra`、`huggingface`、`modelscope`、`lmstudio`、`vcp`、`new-api`、`sub2api`、`aggregate-compatible` 与 `opencode-go` 均标记为聚合渠道。上表中的 OpenAI 兼容条目同时用于 URL 预览与防御性分发；正常调用使用解析后的协议类型，运行时 `channelType` 保留原始平台身份。预设与旧配置迁移见 [执行路由架构](./llm-execution-routing.md#预设入口与旧配置迁移)。
 
 > **重要**：大部分国产/聚合平台通过 `openai-compatible` 协议走 `openAiAdapter`，无需编写独立适配器。只要 API 格式与 OpenAI Chat Completions 一致，只需在 `adapters/index.ts` 添加映射并可在 `llm-presets/` 添加预设即可。
 > Azure 渠道使用 deployment 风格的 Chat Completions / Embeddings；`azureOpenAiAdapter` 复用 OpenAI wire format，同时负责 `{resource}` / `{deployment}`、`api-version` 与 `api-key` 鉴权转换。
+> 结构化决策通过 `system-one-core` 的 `callDecisionApi` 调用，按模型路由选择 `openrouter-decisions` 或 `typesafe-system-one`，共用桌面 Transport 与答案校验。
+
+#### Jev 1.14 决策接口（2026-10-16 核实）
+
+- **模型预设**：TypeSafe 渠道保留 `jev-latest`，新增固定版本 `jev-1.14.0`；OpenRouter 渠道提供 `typesafe/jev-1.14`。截至核实日，TypeSafe 的 `jev-latest` 指向 1.13，`jev-preview` 指向 1.14，需要固定新版本时选择明确的版本 ID。
+- **决策类型**：共享 core 支持 Noul、Choice、Score、Box。Box 返回归一化的 `top` / `bottom` / `left` / `right` 及 `confidence`；解析时校验 0–1 范围与边界顺序。
+- **图片请求**：`SystemOneRequest.assets` 使用以引用字符串为键的图片资产表，条目包含 `type: "image"`、`format: "png" | "jpg" | "jpeg"`、`data_base64`。将引用字符串放入 `state`、问题说明或条件，适配器随图片资产或 Box 问题发送 `TypeSafe-Danger-Zone-Images: true`。桌面 facade 透传资产；现有审批仲裁继续使用文本问题。
+- **图片限制**：官方将图片和 Box 标为实验能力。1.13 与 1.14 都支持图片，Box 需要 1.14；每边 256–1568 像素，总像素至少 78,400，每张文件至多 16 MiB。调用方负责图片准备，当前资产接口采用 JSON 内联 base64。
+- **上下文**：TypeSafe 默认每请求 65,536 token，每问题（含 state）32K；`longContext: true` 添加 `TypeSafe-Danger-Zone-Long-Context: true`，显式启用每请求与每问题 262K。也可通过渠道自定义请求头配置。OpenRouter 模型目录公布 `typesafe/jev-1.14` 上下文为 262,144，预设按渠道分别记录。
+- **OpenRouter Decisions**：统一入口为 `POST https://openrouter.ai/api/alpha/decisions`，协议 ID 为 `openrouter-decisions`，使用 OpenRouter API Key 和模型 ID，可调用不同厂商的决策模型。默认 URL 将渠道地址末尾 `/v1` 或 `/alpha` 规范为 `/alpha/decisions`；OpenRouter 域名根地址自动补 `/api`。`customEndpoints.decisions` 支持完整 URL 或基于原渠道地址拼接的相对路径；以默认 `/api/v1` 地址为例，覆盖官方端点时填写完整 URL。模型发现继续请求 `output_modalities=all`；目录声明 `decisions` 输出且未声明端点类型时，写入 `openrouter-decisions`，保留 `decision` / `vision` 能力。显式端点声明与已有手动、探测绑定优先。System One 兼容入口及 `callTypeSafeSystemOneApi` 保留，使用 `customEndpoints.systemOne`。`jev-router` 继续归入聊天模型。
+- **调用与返回**：审批仲裁与连通性检查使用通用决策 facade；显式端点检查覆盖本次调用的模型绑定，成功结果可保存为模型路由。两种协议复用 `state`、`questions` 与现有图片资产类型，解析 `noul / choice / score / box`；结果保留可选 `id`、`provider`、`usage.cost`。TypeSafe 实验请求头由 System One 适配器添加；Decisions 可通过自定义请求头传递提供商选项。
+- **计费**：官方与 OpenRouter 均列出输入 $0.042 / 百万 token、输出免费。图片 token 纳入输入用量。
+- **已有模型**：元数据在创建、导入、刷新或显式应用预设时写入模型；更新内置规则后，已有模型通过模型元数据刷新入口应用最新能力。
+
+来源：[TypeSafe 模型与别名](https://docs.typesafe.ai/models)、[图片协议](https://docs.typesafe.ai/images)、[Box](https://docs.typesafe.ai/primitives/box)、[OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request)、[OpenRouter System One 兼容说明](https://openrouter.ai/docs/guides/community/typesafe-sdk)、[OpenRouter 实时模型目录](https://openrouter.ai/api/v1/models?output_modalities=all)。
 
 ### 3.4 请求构建器 — [`request-builder.ts`](/src/llm-apis/request-builder.ts)
 
@@ -325,19 +381,27 @@ type LlmMessageContent =
 - 文件上传：浏览器 `FormData` 透明转发；顶层 `file-ref` 与含本地文件的 multipart manifest 由 Rust 流式读取，本地文件内容不进入 WebView
 - 移动文件上传：普通请求继续走 Tauri HTTP；含 tagged JSON、顶层或 multipart `LocalFileRef` 的请求改走移动 Rust command，并按 `requestId` 支持取消。本地文件字节不进入 WebView
 - 安全边界：代理只接受当次运行 token 与 Tauri/loopback Origin，过滤代理元 Header，并在日志 URL 中移除 query/fragment
-- 错误类型：`TimeoutError`, `LlmApiError`, `isAbortError()`
+- 错误类型：`TimeoutError`, `LlmApiError`, `isAbortError()`, `ApiKeyUnavailableError`
 
-### 3.7 嵌入任务入口 — [`embedding.ts`](/src/llm-apis/embedding.ts) + [`embedding-types.ts`](/src/llm-apis/embedding-types.ts)
+### 3.7 信道诊断与模型探测体系 — [`channel-probe-service.ts`](/src/views/Settings/llm-service/probe/channel-probe-service.ts)
 
-根据 `profile.type` 自动路由到对应的适配器实现。嵌入类型定义支持 `dimensions`、`taskType` (Gemini/Cohere)、`encodingFormat` (Cohere) 等参数。
+桌面端提供信道诊断与模型探测服务（`ChannelProbeService` 与 `ModelProbeDialog`），支持对渠道模型进行点对点连通性测试与协议探测：
 
-### 3.8 模型获取与元数据 — [`model-fetcher.ts`](/src/llm-apis/model-fetcher.ts)
+- **错误严格分级**：探测体系严格区分**本地代理/网络环境错误**（如代理端口未开放、本地连通性失败、证书问题）与**上游服务商业务错误**（如 HTTP 401 凭据失效、404 模型不存在、429 配额耗尽、协议不兼容等），杜绝将本地网络配置失误误报为上游失效。
+- **探测计划解析与执行**：支持 Chat (`/v1/chat/completions`、Responses、Claude Messages)、Embedding、ASR/STT 等多能力的端点探测，验证非流式和流式首帧返回。
+- **探测结果回写绑定**：探测成功识别出的端点类型可通过 `createProbeRouteApplication` 直接持久化绑定到模型的执行路由中（标记 `source: "probe"`），实现自动化协议适配。
+
+### 3.8 嵌入任务入口 — [`embedding.ts`](/src/llm-apis/embedding.ts) + [`embedding-types.ts`](/src/llm-apis/embedding-types.ts)
+
+根据 `profile.type` 或模型执行路由自动分发到对应的适配器实现。嵌入类型定义支持 `dimensions`、`taskType` (Gemini/Cohere)、`encodingFormat` (Cohere) 等参数。
+
+### 3.9 模型获取与元数据 — [`model-fetcher.ts`](/src/llm-apis/model-fetcher.ts)
 
 - 动态发现：共享 `modelListAdapter` 负责 Provider URL、鉴权、错误和响应归一化
 - 元数据丰富：桌面/移动 Facade 在模型写入阶段结合各自 `model-metadata` 规则增强分组、Token 限制与能力；运行时请求不会反向读取规则
 - 图标匹配：通过 `normalizeIconPath()` 和 `getModelIconPath()` 自动匹配预设图标
 
-### 3.9 共享 Core 与执行器
+### 3.10 共享 Core 与执行器
 
 - `ProviderAdapter`：聊天、Responses、Claude、Cohere、Gemini、Vertex 的纯请求构建、非流式解析和增量 Decoder
 - `EmbeddingProviderAdapter`：OpenAI、Gemini、Cohere、Vertex 单条/批量 Embedding
@@ -451,28 +515,55 @@ useLlmRequest.sendRequest(options)
 }
 ```
 
-### 5.4 Gemini 思考参数 wire 映射
+### 5.4 思考参数与多渠道运行时对齐
 
-Gemini 模型经 `openai` / `openai-compatible` 渠道（典型场景：本地 NewAPI 转发 Gemini 官方 Key）访问时，OpenAI Chat Adapter 为 Gemini 模型家族生成 Google 扩展结构，而不是顶层推理参数：
+在各种主流模型生态中，思考（Reasoning / Thinking）协议差异较大。适配器层针对各生态实现了精细的参数转换与流式解析：
 
-```json
-{
-  "extra_body": {
-    "google": {
-      "thinking_config": {
-        "thinking_level": "high",
-        "include_thoughts": true
-      }
-    }
-  }
-}
-```
+1. **Gemini 思考参数 wire 映射**：
+   Gemini 模型经 `openai` / `openai-compatible` 渠道（典型场景：本地 NewAPI 转发 Gemini 官方 Key）访问时，OpenAI Chat Adapter 为 Gemini 模型家族生成 Google 扩展结构，而不是顶层推理参数：
 
-- Gemini 3.x 使用 `thinking_level`；Gemini 2.5 预算型使用 `thinking_budget`；摘要开关映射为 `include_thoughts`。
-- 生成 Google 扩展后，不再并发发送冲突的顶层 `reasoning_effort` 或通用 `thinking` 对象。
-- 原生 Gemini Adapter 继续使用 `generationConfig.thinkingConfig`，不改为 OpenAI wire 格式。
-- 自动生成的 Google 配置与显式 `extra_body` 深度合并，显式 `google.thinking_config` 值优先。
-- `openai-compatible` Provider 声明通用 `thinking` 与 `reasoningEffort` 能力；发送过滤结合 Provider Adapter 能力、模型元数据家族与模型能力保留 Gemini 的等级、预算与摘要参数，不把 Gemini 从 OpenAI 兼容推理参数链路中静默排除。
+   ```json
+   {
+     "extra_body": {
+       "google": {
+         "thinking_config": {
+           "thinking_level": "high",
+           "include_thoughts": true
+         }
+       }
+     }
+   }
+   ```
+   - Gemini 3.x 使用 `thinking_level`；Gemini 2.5 预算型使用 `thinking_budget`；摘要开关映射为 `include_thoughts`。
+   - 生成 Google 扩展后，不再并发发送冲突的顶层 `reasoning_effort` 或通用 `thinking` 对象。
+   - 原生 Gemini Adapter 继续使用 `generationConfig.thinkingConfig`，不改为 OpenAI wire 格式。
+   - 自动生成的 Google 配置与显式 `extra_body` 深度合并，显式 `google.thinking_config` 值优先。
+
+2. **DeepSeek 思考控制与流式截断**：
+   - 针对通过 OpenAI-compatible 协议接入的 DeepSeek 模型，如果显式配置了 `thinkingEnabled` 开关，请求构建器将其转换为：
+     ```json
+     {
+       "extra_body": {
+         "thinking": {
+           "type": "enabled" // 或 "disabled"
+         }
+       }
+     }
+     ```
+   - 流式响应解析中，自动识别 `reasoning_content` delta 块并在首个正文文本 delta 到达时平滑衔接，防止思考过程溢出或由于非结构化流截断导致前端渲染崩溃。
+
+3. **Claude 思考参数与自适应配置**：
+   - Anthropic 适配器支持通过 `thinkingEnabled` 与 `thinkingBudget` 配置扩展思考，自动向上游注入 `thinking: { type: "enabled", budget_tokens: N }`。
+   - 自动附加 `anthropic-beta: thinking-2025-12-05` 标头，流式解析中独立解包 `thinking_delta` 与普通 `text_delta`。
+
+4. **OpenAI Responses 推理摘要流式解析**：
+   - 适配 OpenAI 官方 `/v1/responses` 接口中最新的推理摘要结构（`summary_text`）。
+   - 在流式接收 `response.reasoning_summary_text.delta`、`response.reasoning_summary_text.done` 与 `response.reasoning_summary_part.done` 时，精准保留推理摘要的阶段边界（如各思考阶段的双换行分段），并在流式完成后根据完整性优先保留完整摘要。
+
+5. **Azure OpenAI 运行时适配**：
+   - Azure deployment 风格接口通过 `azureOpenAiAdapter` 复用 OpenAI wire format，自动将标准 Chat Completions / Embeddings 转换为 Azure endpoint 规范：
+     `https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions?api-version=...`
+   - 自动剔除 `Authorization: Bearer`，转换为 Azure 专用的 `api-key` 请求头鉴权。
 
 ---
 
@@ -484,3 +575,7 @@ Gemini 模型经 `openai` / `openai-compatible` 渠道（典型场景：本地 N
 - **文件引用**: 大文件使用 tagged `LocalFileRef`，不要在 Facade 中预读成 Base64；Provider JSON、multipart part 与顶层请求体均已有明确契约
 - **Key 管理**: 多 Key 配置且开启自动熔断后，合理配置 `autoRecoveryTime`，429 熔断后自动恢复；单 Key 或无多渠道容灾时保持默认关闭
 - **代理策略**: 桌面外部请求默认走 Rust 代理，可通过 `networkStrategy: "native"` 直连；涉及 `LocalFileRef` 或兼容期 `local-file://` 时始终走 Rust 原生文件路径，不能把路径或引用对象直接发送给 Provider
+
+### OpenRouter 多媒体协议
+
+`openrouter` 的聊天、向量与语音转写继续复用 OpenAI 兼容实现。图像、视频和语音合成由现有 OpenAI 多媒体入口识别渠道身份（含路由兼容视图的 `channelType`）或官方域名后，选择共享内核的 `openRouterImageAdapter`、`openRouterVideoTaskAdapter`、`openRouterAudioAdapter`。图像端点为 `/api/v1/images`；视频采用 OR 的整数时长、JSON 参考素材及异步任务响应。专用适配器复用现有 transport、原生文件引用和资产入库机制。具体请求与任务生命周期见 [`media-generator` 架构](../../src/tools/media-generator/ARCHITECTURE.md#10-openrouter-多媒体适配)。

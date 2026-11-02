@@ -40,7 +40,7 @@
           <el-input-number
             v-model="store.settings.defaultMaxTokens"
             :min="1024"
-            :max="131072"
+            :max="OUTPUT_TOKEN_INPUT_MAX"
             :step="1024"
             controls-position="right"
           />
@@ -323,6 +323,8 @@
 </template>
 
 <script setup lang="ts">
+import { OUTPUT_TOKEN_INPUT_MAX } from "@aiohub/llm-core";
+
 import { computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { Plus, RotateCcw, Trash2 } from "lucide-vue-next";

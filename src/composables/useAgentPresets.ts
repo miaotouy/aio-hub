@@ -18,6 +18,7 @@
  * 从 src/config/agent-presets/ 目录自动加载所有预设配置文件
  */
 
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { ref, computed } from "vue";
 import type { AgentPreset } from "@/tools/llm-chat/types";
 import { createModuleLogger } from "@/utils/logger";
@@ -84,7 +85,7 @@ export function useAgentPresets() {
           return {
             ...metadata,
             presetMessages: [],
-            parameters: { temperature: 1, maxTokens: 4096 },
+            parameters: { maxTokens: DEFAULT_MAX_OUTPUT_TOKENS },
           } as AgentPreset;
         }
         return null;

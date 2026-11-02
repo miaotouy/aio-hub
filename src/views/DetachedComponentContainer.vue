@@ -31,7 +31,7 @@ import { useDetachedPreview } from "../composables/useDetachedPreview";
 import DetachPreviewHint from "../components/common/DetachPreviewHint.vue";
 import GlobalProviders from "../components/GlobalProviders.vue";
 import { createModuleErrorHandler, ErrorLevel } from "../utils/errorHandler";
-import CompanionSessionSheet from "@/tools/sub-agent/components/CompanionSessionSheet.vue";
+import CompanionSessionHost from "@/tools/sub-agent/components/CompanionSessionHost.vue";
 
 const logger = createModuleLogger("DetachedComponentContainer");
 const errorHandler = createModuleErrorHandler("DetachedComponentContainer");
@@ -174,7 +174,7 @@ onMounted(async () => {
             </p>
             <p v-else>未指定要加载的组件ID。</p>
           </div>
-          <CompanionSessionSheet
+          <CompanionSessionHost
             v-if="currentComponentId === 'llm-chat:chat-area'"
           />
 

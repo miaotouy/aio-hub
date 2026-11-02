@@ -413,10 +413,11 @@ export function buildGeminiGenerationConfig(
   options: LlmRequestOptions
 ): GeminiGenerationConfig {
   const commonParams = extractCommonParameters(options);
-  const config: GeminiGenerationConfig = {
-    maxOutputTokens: commonParams.maxTokens || 8192,
-    temperature: commonParams.temperature ?? 1.0,
-  };
+  const config: GeminiGenerationConfig = {};
+  if (commonParams.maxTokens !== undefined)
+    config.maxOutputTokens = commonParams.maxTokens;
+  if (commonParams.temperature !== undefined)
+    config.temperature = commonParams.temperature;
   if (commonParams.topP !== undefined) config.topP = commonParams.topP;
   if (commonParams.topK !== undefined) config.topK = commonParams.topK;
   if (commonParams.presencePenalty !== undefined)

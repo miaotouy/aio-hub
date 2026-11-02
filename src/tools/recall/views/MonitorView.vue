@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch, nextTick } from "vue";
-import { useVirtualList } from "@vueuse/core";
+import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {
   Trash2,
@@ -82,28 +82,34 @@ const activeFiltersCount = computed(() => {
   return count;
 });
 
-// 虚拟滚动 (使用 VueUse，更轻量且易于控制)
-const {
-  list: virtualList,
-  containerProps,
-  wrapperProps,
-  scrollTo,
-} = useVirtualList(filteredLogs, {
-  itemHeight: 80,
+// 日志详情展开后按实际高度重新排布。
+const listRef = ref<HTMLElement | null>(null);
+const virtualizer = useMeasuredVirtualizer(filteredLogs, {
+  getItemKey: (log) => log.id,
+  getScrollElement: () => listRef.value,
+  estimateSize: () => 80,
   overscan: 10,
 });
+const virtualList = computed(() =>
+  virtualizer.value
+    .getVirtualItems()
+    .map((item) => ({ ...item, data: filteredLogs.value[item.index] }))
+);
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 // 自动滚动到底部逻辑
 watch(
   () => store.monitor.logs.length,
   () => {
-    if (!store.monitor.isPaused && containerProps.ref.value) {
-      const el = containerProps.ref.value;
+    if (!store.monitor.isPaused && listRef.value) {
+      const el = listRef.value;
       const { scrollTop, scrollHeight, clientHeight } = el;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
       if (isAtBottom) {
         nextTick(() => {
-          scrollTo(filteredLogs.value.length - 1);
+          virtualizer.value.scrollToIndex(filteredLogs.value.length - 1, {
+            align: "end",
+          });
         });
       }
     }
@@ -316,11 +322,14 @@ function exportLogs(format: "json" | "md" = "json") {
       </div>
 
       <!-- 日志列表 -->
-      <div class="log-list" v-bind="containerProps">
-        <div v-bind="wrapperProps">
+      <div class="log-list" ref="listRef">
+        <div class="virtual-list-content" :style="{ height: `${totalSize}px` }">
           <div
             v-for="item in virtualList"
             :key="item.data.id"
+            :data-index="item.index"
+            :ref="(el) => virtualizer.measureElement(el as HTMLElement)"
+            :style="{ transform: `translateY(${item.start}px)` }"
             class="log-item-wrapper"
           >
             <RecallLogCard :message="item.data">
@@ -645,8 +654,17 @@ function exportLogs(format: "json" | "md" = "json") {
   padding: 8px 16px;
 }
 
+.virtual-list-content {
+  position: relative;
+  width: 100%;
+}
+
 .log-item-wrapper {
-  margin-bottom: 8px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .empty-state {

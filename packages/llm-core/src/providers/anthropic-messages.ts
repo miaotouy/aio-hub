@@ -1,3 +1,5 @@
+import { usageReport } from "../usage";
+import { DEFAULT_MAX_OUTPUT_TOKENS } from "../output-tokens";
 import { SseDataLineDecoder } from "../stream-parser/sse";
 import type { JsonValue, WireJsonValue } from "../types/json";
 import type {
@@ -22,6 +24,13 @@ const DEFAULT_ANTHROPIC_VERSION = "2023-06-01";
 const FILES_API_BETA = "files-api-2025-04-14";
 const THINKING_BETA = "thinking-2025-12-05";
 
+function usesAdaptiveThinking(request: LlmRequest): boolean {
+  return (
+    request.reasoningEffort !== undefined ||
+    /(?:^|[./])claude-opus-5-5(?:[-@]|$)/i.test(request.model)
+  );
+}
+
 export function buildAnthropicMessagesUrl(profile: ProviderProfile): string {
   const customEndpoint = profile.endpoints?.messages;
   if (customEndpoint?.startsWith("http")) return customEndpoint;
@@ -41,7 +50,9 @@ export function buildAnthropicMessagesRequest(
   request: LlmRequest
 ): WireRequest {
   const betas = new Set<string>([FILES_API_BETA]);
-  if (request.thinkingEnabled) betas.add(THINKING_BETA);
+  if (request.thinkingEnabled && !usesAdaptiveThinking(request)) {
+    betas.add(THINKING_BETA);
+  }
   for (const beta of readStringArray(profile.options?.anthropicBetas)) {
     betas.add(beta);
   }
@@ -81,7 +92,10 @@ export function buildAnthropicMessagesBody(
         (message) => message.role !== "system" && message.role !== "developer"
       )
       .map(buildAnthropicMessage),
-    max_tokens: request.maxCompletionTokens ?? request.maxTokens ?? 4096,
+    max_tokens:
+      request.maxCompletionTokens ??
+      request.maxTokens ??
+      DEFAULT_MAX_OUTPUT_TOKENS,
   };
 
   if (system) body.system = system;
@@ -92,7 +106,13 @@ export function buildAnthropicMessagesBody(
   if (stopSequences?.length) body.stop_sequences = stopSequences;
   if (request.metadata) body.metadata = request.metadata;
 
-  if (request.thinkingEnabled) {
+  if (usesAdaptiveThinking(request)) {
+    body.thinking = { type: "adaptive" };
+    if (request.reasoningEffort !== undefined) {
+      body.output_config = { effort: request.reasoningEffort };
+    }
+    delete body.temperature;
+  } else if (request.thinkingEnabled) {
     body.thinking = {
       type: "enabled",
       budget_tokens: request.thinkingBudget ?? 4096,
@@ -127,6 +147,11 @@ export function buildAnthropicMessagesBody(
   if (toolChoice) body.tool_choice = toolChoice;
 
   Object.assign(body, request.extraBody, request.extensions);
+  if (usesAdaptiveThinking(request) || request.thinkingEnabled) {
+    delete body.temperature;
+    delete body.top_p;
+    delete body.top_k;
+  }
   if (request.stream) body.stream = true;
   return body;
 }
@@ -195,13 +220,29 @@ export function parseAnthropicUsage(value: unknown): TokenUsage | undefined {
   const inputTokens = readNumber(usage.input_tokens) ?? 0;
   const outputTokens = readNumber(usage.output_tokens) ?? 0;
   const cachedTokens = readNumber(usage.cache_read_input_tokens);
+  const cacheWriteTokens = readNumber(usage.cache_creation_input_tokens);
+  const creation = asObject(usage.cache_creation);
+  const details = Object.fromEntries(
+    Object.entries({
+      cachedTokens,
+      cacheWriteTokens,
+      cacheWrite5mTokens: readNumber(creation?.ephemeral_5m_input_tokens),
+      cacheWrite1hTokens: readNumber(creation?.ephemeral_1h_input_tokens),
+    }).filter(([, value]) => value !== undefined)
+  );
+  const promptTokens =
+    inputTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0);
   return {
-    promptTokens: inputTokens,
+    promptTokens,
     completionTokens: outputTokens,
-    totalTokens: inputTokens + outputTokens,
-    ...(cachedTokens === undefined
-      ? {}
-      : { promptTokensDetails: { cachedTokens } }),
+    totalTokens: promptTokens + outputTokens,
+    ...(Object.keys(details).length ? { promptTokensDetails: details } : {}),
+    ...usageReport(usage, "input_tokens", "output_tokens", [
+      "cache_read_input_tokens",
+      "cache_creation_input_tokens",
+      "cache_creation.ephemeral_5m_input_tokens",
+      "cache_creation.ephemeral_1h_input_tokens",
+    ]),
   };
 }
 
@@ -219,11 +260,10 @@ export class AnthropicMessagesStreamDecoder implements ProviderStreamDecoder {
   private reasoningContent = "";
   private stopReason: string | null = null;
   private stopSequence: string | null = null;
-  private inputTokens = 0;
-  private outputTokens = 0;
-  private cachedTokens: number | undefined;
-  private hasUsage = false;
+  private rawUsage: JsonObject | undefined;
   private completed = false;
+
+  constructor(private readonly onUsage?: (usage: TokenUsage) => void) {}
 
   push(chunk: Uint8Array): LlmStreamEvent[] {
     if (this.completed) return [];
@@ -355,13 +395,20 @@ export class AnthropicMessagesStreamDecoder implements ProviderStreamDecoder {
   private mergeUsage(value: unknown): void {
     const usage = asObject(value);
     if (!usage) return;
-    const inputTokens = readNumber(usage.input_tokens);
-    const outputTokens = readNumber(usage.output_tokens);
-    const cachedTokens = readNumber(usage.cache_read_input_tokens);
-    if (inputTokens !== undefined) this.inputTokens = inputTokens;
-    if (outputTokens !== undefined) this.outputTokens = outputTokens;
-    if (cachedTokens !== undefined) this.cachedTokens = cachedTokens;
-    this.hasUsage = true;
+    this.rawUsage = {
+      ...this.rawUsage,
+      ...usage,
+      ...(asObject(usage.cache_creation)
+        ? {
+            cache_creation: {
+              ...asObject(this.rawUsage?.cache_creation),
+              ...asObject(usage.cache_creation),
+            },
+          }
+        : {}),
+    };
+    const reported = parseAnthropicUsage(this.rawUsage);
+    if (reported) this.onUsage?.(reported);
   }
 
   private complete(): LlmStreamEvent[] {
@@ -371,16 +418,7 @@ export class AnthropicMessagesStreamDecoder implements ProviderStreamDecoder {
       events.push(...this.finishToolCall(index));
     }
     this.completed = true;
-    const usage = this.hasUsage
-      ? {
-          promptTokens: this.inputTokens,
-          completionTokens: this.outputTokens,
-          totalTokens: this.inputTokens + this.outputTokens,
-          ...(this.cachedTokens === undefined
-            ? {}
-            : { promptTokensDetails: { cachedTokens: this.cachedTokens } }),
-        }
-      : undefined;
+    const usage = parseAnthropicUsage(this.rawUsage);
     if (usage) events.push({ type: "usage", usage });
     events.push({
       type: "completed",
@@ -404,7 +442,8 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
   id: "anthropic-messages",
   buildRequest: buildAnthropicMessagesRequest,
   parseResponse: parseAnthropicMessagesResponse,
-  createStreamDecoder: () => new AnthropicMessagesStreamDecoder(),
+  createStreamDecoder: (context) =>
+    new AnthropicMessagesStreamDecoder(context.onUsage),
 };
 
 function buildAnthropicMessage(message: LlmMessage): WireJsonValue {

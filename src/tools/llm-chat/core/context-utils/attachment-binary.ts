@@ -35,11 +35,22 @@ export async function getAttachmentBuffer(
   attachment: PipelineAttachment
 ): Promise<ArrayBuffer> {
   switch (attachment.source.kind) {
+    case "message-text":
+      return new TextEncoder().encode(attachment.source.text).buffer;
     case "inline":
       return base64ToArrayBuffer(attachment.source.base64);
 
     case "asset-library":
       return assetManagerEngine.getAssetBinary(attachment.source.path);
+
+    case "local-file": {
+      const { readLocalMediaFile } =
+        await import("@/tools/aio-file-operator/actions");
+      return readLocalMediaFile(
+        attachment.source.path,
+        attachment.source.approvalGranted === true
+      );
+    }
 
     case "agent-private": {
       const agentDir = await join(

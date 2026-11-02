@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { resolveEffectiveImageMaxDimension } from "../../utils/chatTokenUtils";
+import type { AttachmentLike } from "../../types/pipeline-attachment";
 import type { PipelineContext } from "../../types/pipeline";
 import type {
   ContextPreviewData,
   WorldbookEntryPreview,
 } from "../../types/context";
-import { tokenCalculatorService } from "@/tools/token-calculator/token-calculator.registry";
+import { getContextTokenCalculator } from "./token-calculator";
 import { tokenCalculatorEngine } from "@/tools/token-calculator/composables/useTokenCalculator";
 import { resolveAttachmentsBatch } from "./attachment-resolver";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -36,6 +38,7 @@ import type { MatchedWorldbookEntry } from "@/tools/st-worldbook-manager/types/w
 export async function buildPreviewDataFromContext(
   context: PipelineContext
 ): Promise<ContextPreviewData> {
+  const tokenCalculatorService = getContextTokenCalculator(context);
   const {
     messages,
     index: sessionIndex,
@@ -79,11 +82,30 @@ export async function buildPreviewDataFromContext(
     (model) => model.id === agentConfig.modelId
   );
   const modelName = selectedModel?.name;
-  const visionTokenCost = selectedModel?.capabilities?.visionTokenCost;
   // 获取转写设置和转写管理器（提升到外层避免重复调用）
   const { settings } = useChatSettings();
   const transcriptionConfig = settings.value.transcription;
   const transcriptionManager = useTranscriptionManager();
+  const imageMaxDimension = resolveEffectiveImageMaxDimension(
+    context.capabilities,
+    agentConfig.parameters?.imageCompression
+  );
+  const imageTokenOptions =
+    imageMaxDimension === undefined
+      ? undefined
+      : { maxImageDimension: imageMaxDimension };
+  const requestAttachments = new Map(
+    messages.flatMap((message) =>
+      (message._attachments ?? []).map((asset) => [asset.id, asset] as const)
+    )
+  );
+  const calculateImageAttachment = (attachment: AttachmentLike) =>
+    tokenCalculatorService.calculateMessageTokens(
+      "",
+      agentConfig.modelId,
+      [requestAttachments.get(attachment.id) ?? attachment],
+      imageTokenOptions
+    );
 
   // 计算每条消息的深度映射（用于判断强制转写）
   // 深度 = 总消息数 - 1 - 当前索引（最后一条消息深度为 0）
@@ -159,33 +181,9 @@ export async function buildPreviewDataFromContext(
           let error: string | undefined;
 
           if (attachment.type === "image") {
-            if (visionTokenCost) {
-              if (attachment.metadata?.width && attachment.metadata?.height) {
-                try {
-                  attachTokenCount = tokenCalculatorEngine.calculateImageTokens(
-                    attachment.metadata.width,
-                    attachment.metadata.height,
-                    visionTokenCost
-                  );
-                } catch (e) {
-                  error =
-                    e instanceof Error ? e.message : "图片 Token 计算异常";
-                  isAttachmentEstimated = true;
-                }
-              } else {
-                error = "缺少图片尺寸信息，使用默认值估算";
-                attachTokenCount = tokenCalculatorEngine.calculateImageTokens(
-                  1024,
-                  1024,
-                  visionTokenCost
-                );
-                isAttachmentEstimated = true;
-              }
-            } else {
-              error = "模型不支持视觉能力或计费规则未知";
-              attachTokenCount = 1000;
-              isAttachmentEstimated = true;
-            }
+            const result = await calculateImageAttachment(attachment);
+            attachTokenCount = result.count;
+            isAttachmentEstimated = result.isEstimated;
           } else if (attachment.type === "video") {
             if (attachment.metadata?.duration) {
               try {
@@ -254,6 +252,7 @@ export async function buildPreviewDataFromContext(
         userName: msg._userName,
         userIcon: msg._userIcon,
         name: msg._name,
+        presetContributingParts: msg.presetContributingParts,
         attachments: presetAttachmentsData,
       });
       presetMessagesCharCount += charCount;
@@ -390,36 +389,9 @@ export async function buildPreviewDataFromContext(
           }
           isAttachmentEstimated = true;
         } else if (asset.type === "image") {
-          if (visionTokenCost) {
-            if (asset.metadata?.width && asset.metadata?.height) {
-              try {
-                tokenCount = tokenCalculatorEngine.calculateImageTokens(
-                  asset.metadata.width,
-                  asset.metadata.height,
-                  visionTokenCost
-                );
-              } catch (e) {
-                error = e instanceof Error ? e.message : "图片 Token 计算异常";
-                isAttachmentEstimated = true;
-              }
-            } else {
-              error = "缺少图片尺寸信息，使用默认值估算";
-              tokenCount = tokenCalculatorEngine.calculateImageTokens(
-                1024,
-                1024,
-                visionTokenCost
-              );
-              isAttachmentEstimated = true;
-            }
-          } else {
-            // 模型不支持视觉能力，但如果有转写就不显示硬错误
-            if (hasTranscription) {
-              error = "模型不支持直接处理此媒体，但已有转写内容可用";
-            } else {
-              error = "模型不支持视觉能力或计费规则未知";
-            }
-            isAttachmentEstimated = true;
-          }
+          const result = await calculateImageAttachment(asset);
+          tokenCount = result.count;
+          isAttachmentEstimated = result.isEstimated;
         } else if (asset.type === "video") {
           if (asset.metadata?.duration) {
             try {
@@ -544,21 +516,9 @@ export async function buildPreviewDataFromContext(
           let addedTokens = 0;
           try {
             if (asset.type === "image") {
-              if (
-                visionTokenCost &&
-                asset.metadata?.width &&
-                asset.metadata?.height
-              ) {
-                addedTokens = tokenCalculatorEngine.calculateImageTokens(
-                  asset.metadata.width,
-                  asset.metadata.height,
-                  visionTokenCost
-                );
-              } else {
-                // 如果没有元数据或不支持视觉Token，使用默认值
-                addedTokens = 1000;
-                isEstimated = true;
-              }
+              const result = await calculateImageAttachment(asset);
+              addedTokens = result.count;
+              if (result.isEstimated) isEstimated = true;
             } else if (asset.type === "video" && asset.metadata?.duration) {
               addedTokens = tokenCalculatorEngine.calculateVideoTokens(
                 asset.metadata.duration

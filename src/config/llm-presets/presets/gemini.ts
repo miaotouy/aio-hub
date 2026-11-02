@@ -17,6 +17,7 @@
  */
 
 import type { LlmPreset } from "../types";
+import { gemini4ArgonCapabilities } from "../../model-metadata-presets/models-google";
 
 // Google Gemini
 export const geminiPreset: LlmPreset = {
@@ -31,6 +32,16 @@ export const geminiPreset: LlmPreset = {
     { label: "价格页", url: "https://ai.google.dev/pricing" },
   ],
   defaultModels: [
+    {
+      id: "gemini-4-argon",
+      name: "Gemini 4 Argon",
+      group: "Gemini 4",
+      provider: "gemini",
+      tokenLimits: { contextLength: 1048576, output: 65536 },
+      capabilities: gemini4ArgonCapabilities,
+      description:
+        "复杂软件工程、数学与科学推理旗舰，1M 共享上下文，默认同步输出上限 65K（2026-10）",
+    },
     // 别名
     {
       id: "gemini-flash-lite-latest",

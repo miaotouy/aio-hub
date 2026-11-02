@@ -28,7 +28,7 @@ export const toolConfig: ToolConfig = {
   path: "/aio-file-operator",
   icon: markRaw(FileCog),
   component: () => import("./AioFileOperator.vue"),
-  description: "本地文件安全读写、目录管理与差异修改工具",
+  description: "本地文本、多媒体文件安全读取、文件写入、目录管理与差异修改工具",
   category: ["系统工具", "AI 工具"],
   version: "1.0.0",
 };
@@ -36,7 +36,8 @@ export const toolConfig: ToolConfig = {
 export class AioFileOperatorRegistry implements ToolRegistry {
   public readonly id = "aio-file-operator";
   public readonly name = "本地文件操作器";
-  public readonly description = "本地文件安全读写、目录管理与差异修改工具";
+  public readonly description =
+    "本地文本、多媒体文件安全读取、文件写入、目录管理与差异修改工具";
 
   public readonly settingsSchema: SettingItem[] = [
     {
@@ -102,7 +103,7 @@ export class AioFileOperatorRegistry implements ToolRegistry {
           name: "read_file",
           displayName: "读取文件",
           description:
-            "读取本地文本文件内容。支持普通文本、Word (.docx)、PDF (.pdf) 和 CSV 文件。读取前会自动校验路径安全和大文件限制。",
+            "读取本地文件。文本、Word、PowerPoint、Excel、PDF、CSV 返回提取的文本；图片、音频、视频供支持相应输入的模型直接读取：本地聊天按路径引用读取原文件；VCP 分布式调用在本次工具结果中返回媒体内容。读取前校验路径安全和文件大小限制。",
           parameters: [
             {
               name: "path",
@@ -264,6 +265,113 @@ export class AioFileOperatorRegistry implements ToolRegistry {
           returnType: "Promise<FileOperationResult>",
           agentCallable: true,
         },
+        {
+          name: "copy_file",
+          displayName: "复制文件/目录",
+          description:
+            "在本地复制文件或整个目录（递归）。源路径与目标路径均会执行沙箱安全校验。目标已存在时需显式允许覆盖。",
+          parameters: [
+            {
+              name: "sourcePath",
+              type: "string",
+              required: true,
+              description: "源文件/目录的绝对路径",
+            },
+            {
+              name: "targetPath",
+              type: "string",
+              required: true,
+              description: "目标文件/目录的绝对路径",
+            },
+            {
+              name: "allowOverwrite",
+              type: "boolean",
+              required: false,
+              description: "目标已存在时是否覆盖，默认 false（已存在则报错）",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
+          name: "move_file",
+          displayName: "移动/重命名文件/目录",
+          description:
+            "移动或重命名本地文件/目录，跨盘符时自动回退为复制+删除。源路径与目标路径均会执行沙箱安全校验。",
+          parameters: [
+            {
+              name: "sourcePath",
+              type: "string",
+              required: true,
+              description: "源文件/目录的绝对路径",
+            },
+            {
+              name: "targetPath",
+              type: "string",
+              required: true,
+              description: "目标文件/目录的绝对路径",
+            },
+            {
+              name: "allowOverwrite",
+              type: "boolean",
+              required: false,
+              description: "目标已存在时是否覆盖，默认 false（已存在则报错）",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
+          name: "get_file_info",
+          displayName: "获取文件元数据",
+          description:
+            "查询文件或目录的元数据：类型（文件/目录）、精确字节大小、创建/修改时间戳。不读取文件内容。",
+          parameters: [
+            {
+              name: "path",
+              type: "string",
+              required: true,
+              description: "本地文件或目录的绝对路径",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
+          name: "search_files",
+          displayName: "搜索文件",
+          description:
+            "在指定目录下按文件名搜索文件/目录。pattern 支持 * 与 ? 通配符；不含通配符时按子串包含匹配，不区分大小写。默认递归子目录。",
+          parameters: [
+            {
+              name: "directoryPath",
+              type: "string",
+              required: true,
+              description: "搜索起始目录的绝对路径",
+            },
+            {
+              name: "pattern",
+              type: "string",
+              required: true,
+              description:
+                "文件名匹配模式，如 *.log、report?.txt 或普通子串如 config",
+            },
+            {
+              name: "recursive",
+              type: "boolean",
+              required: false,
+              description: "是否递归搜索子目录，默认 true",
+            },
+            {
+              name: "maxResults",
+              type: "number",
+              required: false,
+              description: "最大返回结果数（1-1000），默认 100",
+            },
+          ],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
       ],
     };
   }
@@ -328,6 +436,50 @@ export class AioFileOperatorRegistry implements ToolRegistry {
   public async path_exists(args: { path: string }) {
     return await actions.pathExists(args.path);
   }
-}
 
+  public async copy_file(args: {
+    sourcePath: string;
+    targetPath: string;
+    allowOverwrite?: unknown;
+  }) {
+    const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
+    return await actions.copyFile(
+      args.sourcePath,
+      args.targetPath,
+      allowOverwrite
+    );
+  }
+
+  public async move_file(args: {
+    sourcePath: string;
+    targetPath: string;
+    allowOverwrite?: unknown;
+  }) {
+    const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
+    return await actions.moveFile(
+      args.sourcePath,
+      args.targetPath,
+      allowOverwrite
+    );
+  }
+
+  public async get_file_info(args: { path: string }) {
+    return await actions.getFileInfo(args.path);
+  }
+
+  public async search_files(args: {
+    directoryPath: string;
+    pattern: string;
+    recursive?: unknown;
+    maxResults?: number;
+  }) {
+    const recursive = parseAgentBoolean(args.recursive);
+    return await actions.searchFiles(
+      args.directoryPath,
+      args.pattern,
+      recursive,
+      args.maxResults
+    );
+  }
+}
 export default AioFileOperatorRegistry;

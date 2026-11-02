@@ -24,38 +24,49 @@
     content-class="context-analyzer-dialog-content"
   >
     <template #content>
-      <div v-if="loading" class="loading-container">
-        <el-icon class="loading-icon" :size="32"><Loading /></el-icon>
-        <p>正在分析上下文...</p>
-      </div>
-
-      <div v-else-if="error" class="error-container">
-        <el-icon class="error-icon" :size="32"><WarningFilled /></el-icon>
-        <p>{{ error }}</p>
-      </div>
-      <div v-else-if="contextData" class="analyzer-content">
+      <div class="analyzer-content">
         <el-tabs v-model="activeTab" class="analyzer-tabs">
           <el-tab-pane label="结构化视图" name="structured">
-            <StructuredView :context-data="contextData" />
+            <div v-if="loading" class="loading-container">
+              <el-icon class="loading-icon" :size="32"><Loading /></el-icon>
+              <p>正在分析上下文…</p>
+            </div>
+            <div v-else-if="error" class="error-container">
+              <el-icon class="error-icon" :size="32"><WarningFilled /></el-icon>
+              <p>{{ error }}</p>
+            </div>
+            <StructuredView
+              v-else-if="contextData"
+              :context-data="contextData"
+            />
           </el-tab-pane>
 
           <el-tab-pane label="原始请求" name="raw">
-            <RawRequestView :context-data="contextData" />
+            <RawRequestView v-if="contextData" :context-data="contextData" />
           </el-tab-pane>
 
           <el-tab-pane label="内容分析" name="analysis">
             <AnalysisChartView
+              v-if="contextData"
               :context-data="contextData"
               :is-active="activeTab === 'analysis'"
             />
           </el-tab-pane>
 
+          <el-tab-pane label="变化与缓存" name="changes">
+            <ChangesAndCacheView
+              :session-detail="sessionDetail"
+              :node-id="nodeId"
+              :is-active="visible && activeTab === 'changes'"
+            />
+          </el-tab-pane>
+
           <el-tab-pane label="宏调试" name="macro">
-            <MacroDebugView :context-data="contextData" />
+            <MacroDebugView v-if="contextData" :context-data="contextData" />
           </el-tab-pane>
 
           <el-tab-pane label="变量状态" name="variables">
-            <VariablesView :context-data="contextData" />
+            <VariablesView v-if="contextData" :context-data="contextData" />
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -71,6 +82,7 @@
 import { ref, watch, computed } from "vue";
 import { Loading, WarningFilled } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
+import ChangesAndCacheView from "./ChangesAndCacheView.vue";
 import StructuredView from "./StructuredView.vue";
 import RawRequestView from "./RawRequestView.vue";
 import AnalysisChartView from "./AnalysisChartView.vue";
@@ -107,7 +119,7 @@ const localVisible = computed({
 });
 
 const activeTab = ref<
-  "structured" | "raw" | "analysis" | "macro" | "variables"
+  "structured" | "raw" | "analysis" | "macro" | "variables" | "changes"
 >("structured");
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -144,7 +156,7 @@ watch(
   { immediate: true }
 );
 
-const analyzeContext = async () => {
+async function analyzeContext() {
   if (!props.nodeId || !props.sessionIndex || !props.sessionDetail) {
     error.value = "缺少必要参数";
     return;
@@ -198,7 +210,7 @@ const analyzeContext = async () => {
   } finally {
     loading.value = false;
   }
-};
+}
 </script>
 
 <style scoped>

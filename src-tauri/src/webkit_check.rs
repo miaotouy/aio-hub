@@ -232,37 +232,136 @@ pub mod linux {
         GpuDriver::Unknown
     }
 
-    /// 根据检测结果自动设置最优环境变量
-    pub fn apply_optimal_env_vars(info: &WebKitInfo) {
+    /// WebKitGTK 2.52 的加速合成依赖新的 backing store；关闭 DMA-BUF
+    /// 可能让创建结果为空，随后在媒体/浮层切换时触发主进程崩溃。
+    /// 现代版本交由 WebKit 选择传输方式，旧版本保留既有兼容策略。
+    fn compatibility_defaults(info: &WebKitInfo) -> &'static [&'static str] {
+        if (info.major, info.minor) >= (2, 52) {
+            return &[];
+        }
         match (&info.display_server, &info.gpu_driver) {
-            // Wayland + Mesa: DMA-BUF 渲染器可能与 Mesa 驱动冲突
-            (DisplayServer::Wayland, GpuDriver::Mesa) => {
-                std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-                eprintln!("[WebKit 检测] Wayland + Mesa 环境，已禁用 DMA-BUF 渲染器以避免潜在冲突");
+            (DisplayServer::Wayland, GpuDriver::Nvidia) => &[
+                "WEBKIT_DISABLE_DMABUF_RENDERER",
+                "WEBKIT_DISABLE_COMPOSITING_MODE",
+            ],
+            (DisplayServer::Wayland, GpuDriver::Mesa) => &["WEBKIT_DISABLE_DMABUF_RENDERER"],
+            (DisplayServer::X11, _) if (info.major, info.minor) >= (2, 42) => &[],
+            _ => &["WEBKIT_DISABLE_DMABUF_RENDERER"],
+        }
+    }
+
+    /// 仅补充缺失的兼容设置；显式传入的 0、1 或空值均保留。
+    pub fn apply_compatibility_defaults(defaults: &[&str]) {
+        for &name in defaults {
+            if std::env::var_os(name).is_none() {
+                std::env::set_var(name, "1");
+                eprintln!("[WebKit 检测] 旧版本兼容设置: {name}=1");
             }
-            // Wayland + NVIDIA: 强制回退到 X11 后端 + 禁用 DMA-BUF
-            (DisplayServer::Wayland, GpuDriver::Nvidia) => {
-                std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-                // 注意：不强制设置 GDK_BACKEND=x11，因为现代 NVIDIA 驱动已支持 Wayland
-                // 但禁用 compositing mode 以减少渲染问题
-                std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-                eprintln!("[WebKit 检测] Wayland + NVIDIA 环境，已禁用 DMA-BUF 渲染器和合成模式");
+        }
+    }
+
+    pub fn apply_optimal_env_vars(info: &WebKitInfo) {
+        let defaults = compatibility_defaults(info);
+        if defaults.is_empty() {
+            eprintln!("[WebKit 检测] 使用 WebKit 自动渲染策略，保留显式环境配置");
+        }
+        apply_compatibility_defaults(defaults);
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use std::ffi::OsString;
+        use std::sync::Mutex;
+
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+        const RENDERER_ENV: [&str; 2] = [
+            "WEBKIT_DISABLE_DMABUF_RENDERER",
+            "WEBKIT_DISABLE_COMPOSITING_MODE",
+        ];
+
+        struct RestoreEnvironment([Option<OsString>; 2]);
+        impl RestoreEnvironment {
+            fn clear() -> Self {
+                let previous = RENDERER_ENV.map(std::env::var_os);
+                for name in RENDERER_ENV {
+                    std::env::remove_var(name);
+                }
+                Self(previous)
             }
-            // X11 环境通常比较稳定，不需要额外设置
-            (DisplayServer::X11, _) => {
-                // 仅对已知有问题的旧版本设置
-                if info.major == 2 && info.minor < 42 {
-                    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-                    eprintln!(
-                        "[WebKit 检测] X11 + WebKitGTK {}.{} (< 2.42)，已禁用 DMA-BUF 渲染器",
-                        info.major, info.minor
-                    );
+        }
+        impl Drop for RestoreEnvironment {
+            fn drop(&mut self) {
+                for (name, value) in RENDERER_ENV.into_iter().zip(&self.0) {
+                    match value {
+                        Some(value) => std::env::set_var(name, value),
+                        None => std::env::remove_var(name),
+                    }
                 }
             }
-            // 未知环境：保守设置
-            _ => {
-                std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-                eprintln!("[WebKit 检测] 未知显示环境，已保守禁用 DMA-BUF 渲染器");
+        }
+        fn info(minor: u32, display_server: DisplayServer, gpu_driver: GpuDriver) -> WebKitInfo {
+            WebKitInfo {
+                major: 2,
+                minor,
+                micro: 0,
+                display_server,
+                gpu_driver,
+            }
+        }
+
+        // 观察公开启动函数对环境的实际效果，重构策略内部实现后仍可复用。
+        #[test]
+        fn modern_webkit_keeps_automatic_rendering_across_desktop_drivers() {
+            let _lock = ENV_LOCK.lock().unwrap();
+            let _restore = RestoreEnvironment::clear();
+            for display in [
+                DisplayServer::Wayland,
+                DisplayServer::X11,
+                DisplayServer::Unknown,
+            ] {
+                for gpu in [GpuDriver::Mesa, GpuDriver::Nvidia, GpuDriver::Unknown] {
+                    for minor in [52, 54] {
+                        apply_optimal_env_vars(&info(minor, display.clone(), gpu.clone()));
+                        for name in RENDERER_ENV {
+                            assert_eq!(std::env::var_os(name), None, "{name}");
+                        }
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn legacy_workarounds_stay_scoped_to_existing_platforms() {
+            let _lock = ENV_LOCK.lock().unwrap();
+            let _restore = RestoreEnvironment::clear();
+            apply_optimal_env_vars(&info(50, DisplayServer::Wayland, GpuDriver::Nvidia));
+            for name in RENDERER_ENV {
+                assert_eq!(std::env::var(name).unwrap(), "1");
+                std::env::remove_var(name);
+            }
+            apply_optimal_env_vars(&info(40, DisplayServer::X11, GpuDriver::Mesa));
+            assert_eq!(std::env::var(RENDERER_ENV[0]).unwrap(), "1");
+            assert_eq!(std::env::var_os(RENDERER_ENV[1]), None);
+            std::env::remove_var(RENDERER_ENV[0]);
+            apply_optimal_env_vars(&info(50, DisplayServer::X11, GpuDriver::Mesa));
+            for name in RENDERER_ENV {
+                assert_eq!(std::env::var_os(name), None);
+            }
+        }
+
+        #[test]
+        fn explicit_rendering_override_is_preserved() {
+            let _lock = ENV_LOCK.lock().unwrap();
+            let _restore = RestoreEnvironment::clear();
+            for value in ["0", "1", ""] {
+                for name in RENDERER_ENV {
+                    std::env::set_var(name, value);
+                }
+                apply_optimal_env_vars(&info(50, DisplayServer::Wayland, GpuDriver::Nvidia));
+                for name in RENDERER_ENV {
+                    assert_eq!(std::env::var(name).unwrap(), value);
+                }
             }
         }
     }
@@ -389,7 +488,8 @@ pub mod linux {
 
         // WebKitGTK 检测
         eprintln!("\x1b[1m[WebKitGTK]\x1b[0m");
-        match check_webkit_compatibility() {
+        let compatibility = check_webkit_compatibility();
+        match &compatibility {
             Ok(info) => {
                 eprintln!(
                     "  \x1b[32m✓\x1b[0m 版本: {}.{}.{} (要求 >= {}.{})",
@@ -479,11 +579,19 @@ pub mod linux {
 
         // 建议
         eprintln!("\x1b[1m[建议]\x1b[0m");
-        eprintln!("  如果遇到白屏问题，可以尝试以下环境变量启动：");
-        eprintln!("  \x1b[36mWEBKIT_DISABLE_DMABUF_RENDERER=1 ./aio-hub\x1b[0m");
-        eprintln!("  \x1b[36mWEBKIT_DISABLE_COMPOSITING_MODE=1 ./aio-hub\x1b[0m");
+        if compatibility
+            .as_ref()
+            .map_or(true, |info| (info.major, info.minor) >= (2, 52))
+        {
+            eprintln!("  先清除额外渲染配置，以 WebKit 自动策略启动进行对照：");
+            eprintln!("  \x1b[36menv -u WEBKIT_DISABLE_DMABUF_RENDERER -u WEBKIT_DISABLE_COMPOSITING_MODE ./aiohub\x1b[0m");
+        } else {
+            eprintln!("  旧版本白屏时，可分别尝试以下兼容设置：");
+            eprintln!("  \x1b[36mWEBKIT_DISABLE_DMABUF_RENDERER=1 ./aiohub\x1b[0m");
+            eprintln!("  \x1b[36mWEBKIT_DISABLE_COMPOSITING_MODE=1 ./aiohub\x1b[0m");
+        }
         if display_server == DisplayServer::Wayland {
-            eprintln!("  \x1b[36mGDK_BACKEND=x11 ./aio-hub\x1b[0m  (强制使用 X11 后端)");
+            eprintln!("  \x1b[36mGDK_BACKEND=x11 ./aiohub\x1b[0m  (强制使用 X11 后端)");
         }
         eprintln!();
         eprintln!("\x1b[90m请将以上信息复制并附在 issue 中: https://github.com/miaotouy/aio-hub/issues\x1b[0m");

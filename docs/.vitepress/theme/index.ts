@@ -2,14 +2,14 @@
 import { h, defineComponent, ref, onMounted, onUnmounted } from "vue";
 import type { Theme } from "vitepress";
 import DefaultTheme from "vitepress/theme";
-import * as LucideIcons from "lucide-vue-next";
+import { docIcons } from "./icons";
 import { useData } from "vitepress";
 import TurndownService from "turndown";
 // @ts-ignore
 import { gfm } from "turndown-plugin-gfm";
 import "./custom.css";
 
-// 简单的 Lucide 图标包装组件
+// 简单的 Lucide 图标包装组件，name 也可以是 @aiohub/tool-icons 中的工具图标（如 RecallIcon）
 const LucideIcon = defineComponent({
   name: "LucideIcon",
   props: {
@@ -32,7 +32,7 @@ const LucideIcon = defineComponent({
   },
   setup(props) {
     return () => {
-      const IconComponent = (LucideIcons as any)[props.name];
+      const IconComponent = docIcons[props.name];
       if (!IconComponent) {
         console.warn(`[LucideIcon] Icon "${props.name}" not found.`);
         return h("span", { class: "lucide-icon-placeholder" }, props.name);
@@ -176,9 +176,9 @@ const DocAction = defineComponent({
               class: ["vp-button-action", showMenu.value ? "active" : ""],
             },
             [
-              h((LucideIcons as any)["FileOutput"], { size: 14 }),
+              h(docIcons.FileOutput, { size: 14 }),
               copiedText.value || "文档操作",
-              h((LucideIcons as any)["ChevronDown"], {
+              h(docIcons.ChevronDown, {
                 size: 12,
                 class: ["chevron", showMenu.value ? "open" : ""],
               }),
@@ -187,16 +187,16 @@ const DocAction = defineComponent({
           showMenu.value &&
             h("div", { class: "doc-action-menu" }, [
               h("div", { class: "menu-item", onClick: () => handleCopy("text") }, [
-                h((LucideIcons as any)["FileText"], { size: 14 }),
+                h(docIcons.FileText, { size: 14 }),
                 "复制纯文本",
               ]),
               h("div", { class: "menu-item", onClick: () => handleCopy("md") }, [
-                h((LucideIcons as any)["FileCode"], { size: 14 }),
+                h(docIcons.FileCode, { size: 14 }),
                 "复制 Markdown",
               ]),
               h("div", { class: "menu-divider" }),
               h("div", { class: "menu-item", onClick: handleDownload }, [
-                h((LucideIcons as any)["Download"], { size: 14 }),
+                h(docIcons.Download, { size: 14 }),
                 "下载 Markdown",
               ]),
             ]),
@@ -213,7 +213,7 @@ export default {
       "doc-before": () => h(DocAction),
     });
   },
-  enhanceApp({ app, router, siteData }) {
+  enhanceApp({ app }) {
     app.component("LIcon", LucideIcon);
   },
 } satisfies Theme;

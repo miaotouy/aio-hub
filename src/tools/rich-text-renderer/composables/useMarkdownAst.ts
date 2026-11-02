@@ -67,16 +67,78 @@ export function useMarkdownAst(
   function buildNodeMap(
     nodes: AstNode[],
     parentId?: string,
-    path: number[] = []
+    path: number[] = [],
+    startIndex = 0
   ) {
-    for (let index = 0; index < nodes.length; index++) {
+    for (let index = startIndex; index < nodes.length; index++) {
       const node = nodes[index];
       const nodePath = [...path, index];
-      nodeMap.set(node.id, { node, parentId, path: nodePath });
-      if (node.children) {
-        buildNodeMap(node.children, node.id, nodePath);
-      }
+      indexSubtree(node, parentId, nodePath);
     }
+  }
+
+  function indexSubtree(
+    node: AstNode,
+    parentId: string | undefined,
+    path: number[]
+  ) {
+    nodeMap.set(node.id, { node, parentId, path });
+    if (node.children) buildNodeMap(node.children, node.id, path);
+  }
+
+  function removeSubtreeIndex(node: AstNode) {
+    nodeMap.delete(node.id);
+    node.children?.forEach(removeSubtreeIndex);
+  }
+
+  // Immutable updates clone ancestors too; keep their indexed node references current.
+  function refreshPath(nodes: AstNode[], path: number[]) {
+    let parentId: string | undefined;
+    for (let depth = 0; depth < path.length; depth++) {
+      const node = nodes[path[depth]];
+      if (!node) return;
+      nodeMap.set(node.id, { node, parentId, path: path.slice(0, depth + 1) });
+      parentId = node.id;
+      nodes = node.children ?? [];
+    }
+  }
+
+  function childrenAtPath(nodes: AstNode[], path: number[]): AstNode[] {
+    for (const index of path) nodes = nodes[index].children ?? [];
+    return nodes;
+  }
+
+  // Only removed subtrees and the shifted sibling suffix need new indexes.
+  function reindexSplice(
+    oldRoot: AstNode[],
+    newRoot: AstNode[],
+    parentPath: number[],
+    start: number,
+    deleteCount: number
+  ) {
+    const oldChildren = childrenAtPath(oldRoot, parentPath);
+    // Match Array.splice's clamping, including negative range offsets.
+    const offset = Math.trunc(start) || 0;
+    const from =
+      offset < 0
+        ? Math.max(oldChildren.length + offset, 0)
+        : Math.min(offset, oldChildren.length);
+    const count = Math.max(0, Math.trunc(deleteCount) || 0);
+    for (let i = from; i < Math.min(from + count, oldChildren.length); i++) {
+      removeSubtreeIndex(oldChildren[i]);
+    }
+    refreshPath(newRoot, parentPath);
+    const parentId = parentPath.length
+      ? childrenAtPath(newRoot, parentPath.slice(0, -1))[
+          parentPath[parentPath.length - 1]
+        ].id
+      : undefined;
+    buildNodeMap(
+      childrenAtPath(newRoot, parentPath),
+      parentId,
+      parentPath,
+      from
+    );
   }
 
   /**
@@ -282,31 +344,64 @@ export function useMarkdownAst(
     // 1. 合并连续的 text-append
     const coalesced = coalesceTextAppends(patches);
 
-    // 2. 执行不可变更新
+    // 2. 执行不可变更新，并在下一条补丁寻址前同步索引。
     let newRoot = ast.value;
     for (const patch of coalesced) {
+      const index =
+        patch.op === "replace-root"
+          ? undefined
+          : nodeMap.get(
+              patch.op === "replace-children-range" ? patch.parentId : patch.id
+            );
+      const oldRoot = newRoot;
       newRoot = applySinglePatch(newRoot, patch);
+      if (newRoot === oldRoot) continue;
+
       if (
-        patch.op === "replace-root" ||
-        patch.op === "replace-node" ||
-        patch.op === "insert-after" ||
-        patch.op === "insert-before" ||
-        patch.op === "remove-node" ||
-        patch.op === "replace-children-range"
+        !index ||
+        (patch.op === "replace-node" &&
+          index.path.length === 1 &&
+          oldRoot.length === 1)
       ) {
         nodeMap.clear();
         buildNodeMap(newRoot);
+      } else if (patch.op === "replace-children-range") {
+        reindexSplice(
+          oldRoot,
+          newRoot,
+          index.path,
+          patch.start,
+          patch.deleteCount
+        );
+      } else if (
+        patch.op === "insert-before" ||
+        patch.op === "insert-after" ||
+        patch.op === "remove-node"
+      ) {
+        const start =
+          index.path[index.path.length - 1] +
+          (patch.op === "insert-after" ? 1 : 0);
+        reindexSplice(
+          oldRoot,
+          newRoot,
+          index.path.slice(0, -1),
+          start,
+          patch.op === "remove-node" ? 1 : 0
+        );
+      } else {
+        // A replacement stays at the same path, so sibling indexes remain valid.
+        if (patch.op === "replace-node") {
+          removeSubtreeIndex(index.node);
+          indexSubtree(patch.newNode, index.parentId, index.path);
+        }
+        refreshPath(newRoot, index.path);
       }
     }
 
-    // 3. 替换引用以触发更新
+    // 3. 索引已同步，替换引用以触发更新。
     ast.value = newRoot;
 
-    // 4. 重建 nodeMap
-    nodeMap.clear();
-    buildNodeMap(newRoot);
-
-    // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
+    // 4. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
     // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
     if (isSafetyGuardEnabled() && nodeMap.size > MAX_TOTAL_NODES) {
       if (isVerboseLogging()) {

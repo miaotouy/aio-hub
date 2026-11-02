@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { describe, expect, it } from "vitest";
+import { resolveModelExecution } from "@aiohub/llm-core";
 import type { LlmRequestOptions } from "@/llm-apis/common";
 import { filterParametersByCapabilities } from "@/llm-apis/request-builder";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
@@ -58,6 +59,19 @@ function createOptions(
 }
 
 describe("filterParametersByCapabilities thinking parameters", () => {
+  it.each(["claude", "vertexai"] as const)(
+    "preserves Opus 5.5 effort through %s",
+    (provider) => {
+      const modelId = "claude-opus-5-5";
+      const result = filterParametersByCapabilities(
+        createOptions(modelId, { reasoningEffort: "xhigh" }),
+        createProfile(provider),
+        createThinkingModel(modelId, "effort", "anthropic")
+      );
+      expect(result.reasoningEffort).toBe("xhigh");
+    }
+  );
+
   it("preserves Gemini 3 effort and summaries behind OpenAI-compatible profiles", () => {
     const modelId = "gemini-3.1-pro-preview";
     const result = filterParametersByCapabilities(
@@ -180,4 +194,73 @@ describe("filterParametersByCapabilities Ollama tool parameters", () => {
     expect(result.tools).toBeUndefined();
     expect(result.toolChoice).toBeUndefined();
   });
+});
+
+describe("aggregate protocol parameter capabilities", () => {
+  it("preserves SiliconFlow topK on Chat Completions and uses Claude capabilities after a switch", () => {
+    const profile = createProfile("siliconflow");
+    const model = { id: "custom-model" };
+    const options = createOptions(model.id, { topK: 40, presencePenalty: 0.5 });
+    const defaults = resolveModelExecution({
+      profile,
+      model,
+      operation: "chat",
+    });
+    expect(
+      filterParametersByCapabilities(options, defaults.effectiveProfile).topK
+    ).toBe(40);
+    const switched = resolveModelExecution({
+      profile: {
+        ...profile,
+        options: { routingDefaults: { chat: "anthropic-messages" } },
+      },
+      model,
+      operation: "chat",
+    });
+    expect(switched.effectiveProfile.type).toBe("claude");
+    expect(
+      filterParametersByCapabilities(options, switched.effectiveProfile)
+        .presencePenalty
+    ).toBeUndefined();
+  });
+});
+
+describe("model output and sampling constraints", () => {
+  it("bounds both output aliases and honors discovered sampling capabilities", () => {
+    const model: LlmModelInfo = {
+      id: "custom-model",
+      name: "Custom",
+      tokenLimits: { output: 128000 },
+      supportedFeatures: { parameters: ["top_p"] },
+    };
+    const result = filterParametersByCapabilities(
+      createOptions(model.id, {
+        maxTokens: 262144,
+        maxCompletionTokens: 262144,
+        temperature: 0.2,
+        topP: 0.8,
+      }),
+      createProfile("openai"),
+      model
+    );
+    expect(result).toMatchObject({
+      maxTokens: 128000,
+      maxCompletionTokens: 128000,
+      topP: 0.8,
+    });
+    expect(result.temperature).toBeUndefined();
+  });
+});
+
+it("bounds the required Anthropic default budget for a legacy model", () => {
+  const result = filterParametersByCapabilities(
+    createOptions("claude-legacy", {}),
+    createProfile("claude"),
+    {
+      id: "claude-legacy",
+      name: "Legacy Claude",
+      tokenLimits: { output: 8192 },
+    }
+  );
+  expect(result.maxTokens).toBe(8192);
 });

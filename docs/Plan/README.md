@@ -4,7 +4,7 @@
 >
 > 最近盘点：2026-08-26
 >
-> 最近修订：2026-09-20，清理已删除计划文档的引用；后续验证口径仍为「Alpha 只登记风险，完整检查转正式版前检查清单」
+> 最近修订：2026-10-19，虚拟渠道首期组合及下游逻辑绑定迁移已落地，继续推进专用操作与重试策略收口。
 >
 > 范围：根目录跨模块计划与 `src/tools/*/docs/Plan/`；移动端和独立插件仅在构成桌面任务依赖时列入
 
@@ -54,10 +54,13 @@
 
 ### P1：共享基础设施
 
+渠道管理已按 [虚拟渠道组合与统一模型回退方案](./llm-virtual-channel-investigation.md) 落地首期组合入口、共享主备执行和下游绑定调整；后续扩展媒体等专用操作并统一物理渠道重试预算。
+
 - [ ] **D-P1-01 模型元数据 v3**：共享纯核心、v3 Store 与迁移、模型物化、内置目录自动更新/刷新预览及移动端共享物化已实施；剩移动端目录管理 UI 与真实桌面/移动运行态验收，状态为待收口。详见 [模型元数据优化计划](./model-metadata-system-optimization-plan.md)。
 - [ ] **D-P1-02 原生工具调用闭环**：渠道工具处理声明、Azure 与 Provider Adapter A1–A3 修补及相关契约/诊断已完成；`llm-chat` 原生工具检测、审批、执行、结果续轮和 replay state 后置至下一版本周期。详见 [原生工具调用计划](./native-tool-calling-adapter-and-orchestration-plan.md)。
 - [ ] **D-P1-03 LLM Chat 插件扩展验收**：在真实 Tauri 中验证启停、设置注入、配置持久化、上下文改写和日志。详见 [上下文管道扩展测试计划](../../src/tools/llm-chat/docs/Plan/pipeline-extension-test-plan.md)。
 - [ ] **D-P1-04 后台会话服务**：先实现无 UI 的后台会话执行 API 和取消/等待语义，多窗口 UI 后排。详见 [多会话状态与未来规划](../../src/tools/llm-chat/docs/Plan/multi-session-status.md)。
+- [ ] **D-P1-05 虚拟渠道组合与统一模型回退**：实施用户显式配置的成员、逻辑模型映射及主备执行，将候选选择与重试预算收口渠道管理；随后移除子代理等下游的隐式替换和全局渠道兜底。详见 [实施方案](./llm-virtual-channel-investigation.md)。
 
 ### P2：产品能力与性能
 
@@ -68,7 +71,7 @@
 - [ ] **D-P2-05 Web Distillery 身份卡增强**：先确认域名自动推荐与现代码差异；文件级整体加密仅作可选增强。详见 [身份卡片规划](../../src/tools/web-distillery/docs/Plan/identity-card-feature-plan.md)。
 - [ ] **D-P2-06 AI 小说工作台垂直切片**：在 Knowledge/Recall 主线稳定后，验证项目、正文、事实状态、证据追踪和可回退修改的最小闭环。详见 [AI 小说模块调查](./ai-novel-studio-investigation.md)。
 - [ ] **D-P2-07 MiniMax Music 工作流验收**：补 provider/模型能力测试、两步翻唱 workflow 单测和真实音频入库验收。详见 [Media Generator 计划索引](../../src/tools/media-generator/docs/Plan/README.md)。
-- [ ] **D-P2-08 前端构建边界收口**：先验证移除粗粒度 `manualChunks` 的自动分包基线，再按真实 Tauri 数据决定低风险 registry 懒加载；不要继续提高 chunk 警告阈值。详见 [前端 Chunk 治理计划](./frontend-chunk-size-investigation.md)。
+- [ ] **D-P2-08 前端构建边界收口**：2026-10-31 首批 Monaco 按需加载、撤除编辑器粗分组与聊天工厂注入已实施，最终输出复算入口静态 JS 减少约 37.2%；第二批薄宿主/面板按需加载与 Monaco 0.57.0 已实施，入口较首批再减少约 15.1%；第三批窗口根拆分与静态组件路由修复完成，四类真实窗口验证通过，主窗口完整集合再减少约 15 KB。详见 [前端 Chunk 治理计划](./frontend-chunk-size-investigation.md)。
 - [ ] **D-P2-09 Embedding Playground 交互与结果验收**：多模型竞技场、阈值校准和重构主体已经实施；补极简 A/B、多模型结果一致性、错误态和核心交互的真实验收。详见 [Embedding 测试场重构计划](../../src/tools/embedding-playground/docs/Plan/refactoring-plan.md)。
 
 ### P3：平台验证与观察项
@@ -88,16 +91,19 @@
 
 ## 4. 根目录计划台账
 
-| 文档                                                                          | 状态   | 下一动作                                                                                    |
-| ----------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
-| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                     | 按需   | D-P2-08，先做自动分包与真实 Tauri A/B                                                       |
-| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)    | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                               |
-| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)            | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收 |
-| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md) | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二                   |
-| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                     | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                                          |
-| [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)   | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图               |
-| [LLM 虚拟渠道概念调查](./llm-virtual-channel-investigation.md)                | 候选   | 调查已完成，当前暂缓实施；未来如有容灾需求先评估最小渠道级 fallback                         |
-| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)              | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                            |
+| 文档                                                                             | 状态   | 下一动作                                                                                                                                     |
+| -------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                        | 按需   | D-P2-08，编辑器按需加载与工厂注入已实施；薄宿主/面板按需加载再减入口约 15.1%；Monaco 0.57 升级、窗口根拆分及四类真实窗口验证完成             |
+| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)       | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                                                                                |
+| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)               | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收                                                  |
+| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)    | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二                                                                    |
+| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                        | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                                                                                           |
+| [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)      | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图                                                                |
+| [LLM 虚拟渠道组合与统一模型回退](./llm-virtual-channel-investigation.md)         | 实施中 | D-P1-05，主备组合、对话入口和下游绑定迁移已落地；继续专用操作与组合探测                                                                      |
+| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)                 | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                                                                             |
+| [决策模型与 Decisions API 覆盖](./decision-model-and-decisions-api-coverage.md)  | 候选   | Jev/System One 已接入；OpenAI Decisions API 渠道与开源决策模型 id 待确认后按需做                                                             |
+| [前端平台隔离层与类型安全桥接方案](./frontend-platform-bridge-isolation-plan.md) | 待实施 | 建立统一 `src/platform` 门面与 CommandMap 强类型映射，解耦 Tauri 依赖，支撑底座平滑演进与防错校验                                            |
+| [Cordis 架构演化总纲](./cordis-modular-architecture-blueprint.md)                | 待实施 | 战场一（插件系统 Cordis 化）与战场二（独立会话运行时从零生长）双轨并行，详见演进路线与[经验复盘](./cordis-runtime-postmortem-and-lessons.md) |
 
 ## 5. 活动工具计划入口
 
@@ -115,6 +121,7 @@
 | `wallpaper-detector`                    | 待收口 | 执行 D-P3-01                                                                                                                                                     |
 | `embedding-playground`                  | 待收口 | 主体代码已实施，执行 D-P2-09 的核心交互与结果验收                                                                                                                |
 | `transcription`                         | 待收口 | OCR 配置、UI 和引擎分流已实施，执行 D-P3-03                                                                                                                      |
+| `weather`                               | 候选   | [天气工具接入调查与方案](../../src/tools/weather/docs/Plan/weather-feature-plan.md)：首期 UAPI、轻量适配、Store 统一状态及可选 Key；多源差异保留为参考           |
 
 ## 6. 回写顺序
 

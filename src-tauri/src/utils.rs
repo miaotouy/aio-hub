@@ -66,6 +66,15 @@ pub(crate) fn hide_std_child_process_window(_command: &mut std::process::Command
 
 /// 获取应用数据目录，支持便携模式
 pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
+    let path = resolve_app_data_dir(config);
+    // Unix FS scope checks leave nonexistent destinations unresolved. Use the
+    // same physical root for backend paths and the cached frontend appPath.
+    #[cfg(unix)]
+    let path = std::fs::canonicalize(&path).unwrap_or(path);
+    path
+}
+
+fn resolve_app_data_dir(config: &tauri::Config) -> PathBuf {
     // 优先检查显式设置的数据目录
     if let Ok(data_dir) = std::env::var("AIO_PORTABLE_DATA_DIR") {
         let path = PathBuf::from(data_dir);

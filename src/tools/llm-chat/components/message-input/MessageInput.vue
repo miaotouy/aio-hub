@@ -189,6 +189,13 @@ let inputUnmounted = false;
 // 使用全局输入管理器
 const inputManager = useChatInputManager();
 const inputText = inputManager.inputText;
+const hasExtraContent = computed(
+  () =>
+    !!inputManager.knowledgeReference.value ||
+    inputManager.attachmentCount.value > 0 ||
+    inputManager.virtualAttachments.value.length > 0 ||
+    inputManager.saveStatus.value === "error"
+);
 const textAttachmentsRef = ref<InstanceType<
   typeof VirtualTextAttachments
 > | null>(null);
@@ -684,7 +691,11 @@ const handleDragStart = (e: MouseEvent) => {
             @customize="toolbarRef?.openCustomizer()"
           />
         </InputPanelHost>
-        <div ref="extraContentRef" class="input-extra-content">
+        <div
+          v-show="hasExtraContent"
+          ref="extraContentRef"
+          class="input-extra-content"
+        >
           <KnowledgeReferenceChips />
           <MessageInputAttachments
             :attachments="attachmentManager.attachments.value"
@@ -906,11 +917,6 @@ const handleDragStart = (e: MouseEvent) => {
   min-width: 0;
   flex-direction: column;
   gap: 8px;
-}
-
-/* 空附件区退出布局，避免在编辑器上方保留额外间距。 */
-.input-extra-content:empty {
-  display: none;
 }
 
 .input-wrapper {

@@ -947,11 +947,11 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     items: [
       {
         id: "enabled",
-        label: "启用话题命名",
+        label: "自动生成话题标题",
         layout: "inline",
         component: "ElSwitch",
         modelPath: "topicNaming.enabled",
-        hint: "自动或手动为会话生成标题",
+        hint: "对话达到设定轮数后自动生成标题，随时可在会话菜单中手动生成",
         keywords: "topic naming title 话题 命名",
       },
       {
@@ -964,7 +964,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         },
         hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。可按需关闭命名请求的思考，以避免短输出被推理过程挤占。",
         keywords: "topic naming model 话题 命名 模型",
-        visible: (settings) => settings.topicNaming.enabled,
+
         defaultValue: "",
       },
       {
@@ -979,7 +979,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.prompt",
         hint: "使用 <code>{context}</code> 占位符来指定对话内容的位置。<br />例如：<code>请为以下对话生成标题：\\n\\n{context}</code><br />如不使用占位符，对话内容将自动追加到提示词末尾。",
         keywords: "topic naming prompt 话题 命名 提示词",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "temperature",
@@ -989,7 +988,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.temperature",
         hint: "",
         keywords: "topic naming temperature 话题 命名 温度",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "maxTokens",
@@ -999,7 +997,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.maxTokens",
         hint: "生成标题的正文 token 上限。思考模型是否额外预留推理空间由下方设置控制。",
         keywords: "topic naming max tokens 话题 命名 token",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "thinkingTokenReserve",
@@ -1011,7 +1008,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "思考模型的 reasoning tokens 也会计入 max_tokens。建议至少预留 4096；关闭思考时不会增加请求上限。",
         keywords:
           "topic naming thinking reasoning reserve tokens 话题 命名 思考 推理 预留",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "disableThinking",
@@ -1022,7 +1018,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "开启后，命名请求会在渠道和模型支持时显式关闭思考，避免短标题输出被推理过程占满。",
         keywords:
           "topic naming disable thinking reasoning 话题 命名 关闭 思考 推理",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "autoTriggerThreshold",
@@ -1042,7 +1037,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.contextMessageCount",
         hint: "生成标题时引用的最近消息数量",
         keywords: "topic naming context message 话题 命名 上下文",
-        visible: (settings) => settings.topicNaming.enabled,
       },
     ],
   },

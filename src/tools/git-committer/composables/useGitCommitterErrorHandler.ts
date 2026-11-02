@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { createModuleErrorHandler } from "@/utils/errorHandler";
+import {
+  createModuleErrorHandler,
+  type ErrorHandlerOptions,
+} from "@/utils/errorHandler";
+import { summarizeGitError } from "../utils/gitError";
 
 /**
  * Git Committer 模块级错误处理器
@@ -20,4 +24,16 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
  * 所有后端调用统一通过 `errorHandler.wrapAsync(() => invoke(...))` 包裹。
  * 禁止直接导入全局 `errorHandler` 单例。
  */
-export const errorHandler = createModuleErrorHandler("git-committer");
+const moduleErrorHandler = createModuleErrorHandler("git-committer");
+
+export const errorHandler = {
+  ...moduleErrorHandler,
+  wrapAsync: <T>(
+    fn: () => Promise<T>,
+    options: Omit<ErrorHandlerOptions, "module"> = {}
+  ) =>
+    moduleErrorHandler.wrapAsync(fn, {
+      formatDisplayMessage: summarizeGitError,
+      ...options,
+    }),
+};

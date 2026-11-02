@@ -6,6 +6,7 @@ import {
 import { closeAllFloatingMessages, customMessage } from "@/utils/customMessage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler, ErrorLevel } from "@/utils/errorHandler";
+import { errorHandler as gitErrorHandler } from "@/tools/git-committer/composables/useGitCommitterErrorHandler";
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -181,6 +182,61 @@ describe("TopMessageHost", () => {
     expect(wrapper.text()).not.toContain("<div style=");
     expect(wrapper.text()).not.toContain("&#39;");
   });
+  it("copies the complete original error while displaying a bounded preview", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const wrapper = mountHost();
+    const original = "diagnostic line\n".repeat(80) + "last diagnostic line";
+    errorHandler.handle(original, { module: "test", userMessage: "操作失败" });
+    await nextTick();
+
+    const preview = wrapper.get(".top-message__content").text();
+    expect(preview.length).toBeLessThan(original.length);
+    expect(errorHandler.getErrorQueue().slice(-1)[0]?.message).toBe(original);
+    await wrapper.get('button[aria-label="复制消息内容"]').trigger("click");
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith("[test]\n操作失败\n" + original);
+  });
+
+  it("shows the Git failure summary and copies every warning and diagnostic line", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const wrapper = mountHost();
+    const reason =
+      "error: This script requires bun@^1.4.4, but you are using bun@1.4.2";
+    const original =
+      "warning: TLS certificate verification has been disabled!\n".repeat(12) +
+      "10 | throw new Error(...)\n" +
+      reason +
+      "\n at repo/[eval]:10:13";
+    const result = await gitErrorHandler.wrapAsync(
+      async () => {
+        throw original;
+      },
+      {
+        userMessage: "推送失败",
+      }
+    );
+    await nextTick();
+
+    expect(result).toBeNull();
+    expect(wrapper.get(".top-message__content").text()).toBe(
+      "[git-committer]推送失败" + reason
+    );
+    expect(errorHandler.getErrorQueue().slice(-1)[0]?.message).toBe(original);
+    await wrapper.get('button[aria-label="复制消息内容"]').trigger("click");
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith(
+      "[git-committer]\n推送失败\n" + original
+    );
+  });
+
   it("copies the message content when the message card is clicked", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   open: vi.fn(),
   warning: vi.fn(),
-  drop: undefined as FileDropOptions | undefined,
+  getMetadata: vi.fn(),
+  drops: [] as FileDropOptions[],
 }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: mocks.invoke,
@@ -29,7 +30,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 }));
 vi.mock("@/composables/useFileDrop", () => ({
   useFileDrop: (options: FileDropOptions) => {
-    mocks.drop = options;
+    mocks.drops.push(options);
     return { isDraggingOver: ref(false) };
   },
 }));
@@ -47,7 +48,7 @@ vi.mock("../ffmpegStore", () => ({
 vi.mock("../composables/useFFmpegCore", () => ({
   useFFmpegCore: () => ({
     activeFfmpegPath: ref("ffmpeg"),
-    getMetadata: vi.fn(),
+    getMetadata: mocks.getMetadata,
     startProcess: vi.fn(),
     killProcess: vi.fn(),
   }),
@@ -76,7 +77,20 @@ function mountWorkspace() {
 let workspace: ReturnType<typeof mountWorkspace>;
 async function drop(path: string, isDirectory: boolean) {
   mocks.invoke.mockResolvedValue(isDirectory);
-  await mocks.drop!.onDrop!([path]);
+  await dropZone(".sequence-source").onDrop!([path]);
+  await flushPromises();
+}
+function dropZone(selector: string) {
+  return mocks.drops.find((options) =>
+    typeof options.element !== "string" &&
+    options.element?.value?.matches(selector)
+  )!;
+}
+function audioInputValue() {
+  return (workspace.get(".audio-input input").element as HTMLInputElement).value;
+}
+async function dropAudio(path: string) {
+  await dropZone(".audio-input").onDrop!([path]);
   await flushPromises();
 }
 async function refresh() {
@@ -93,6 +107,7 @@ async function refresh() {
 describe("image sequence source updates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.drops = [];
     workspace = mountWorkspace();
   });
   afterEach(() => workspace.unmount());
@@ -167,6 +182,76 @@ describe("image sequence source updates", () => {
     expect(workspace.get(".command-preview").text()).toContain("b_%04d.png");
     expect(workspace.get("img").attributes("src")).toBe(
       "D:/renders/b_0002.png"
+    );
+  });
+});
+
+// Audio imports must reach the generated command only after metadata validation.
+describe("image sequence audio imports", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mocks.drops = [];
+    workspace = mountWorkspace();
+    setFrames(["a_0001.png", "a_0002.png"]);
+    await drop("D:/renders", true);
+  });
+  afterEach(() => workspace.unmount());
+
+  it.each(["drop", "dialog"])(
+    "uses a validated audio track from %s in the synthesis command",
+    async (entry) => {
+      const path = "D:/audio/background.mov";
+      mocks.getMetadata.mockResolvedValue({ hasAudio: true });
+      if (entry === "drop") {
+        await dropAudio(path);
+        expect(mocks.open).not.toHaveBeenCalled();
+      } else {
+        mocks.open.mockResolvedValue(path);
+        await workspace.get(".audio-input button").trigger("click");
+        await flushPromises();
+      }
+      expect(mocks.getMetadata).toHaveBeenCalledWith(path);
+      expect(audioInputValue()).toBe(path);
+      expect(workspace.get(".command-preview").text()).toContain(path);
+      expect(workspace.get(".command-preview").text()).toContain("1:a:0");
+    }
+  );
+
+  it("retains the current track when the dropped file has no usable audio", async () => {
+    mocks.getMetadata.mockResolvedValue({ hasAudio: true });
+    await dropAudio("D:/audio/background.wav");
+    mocks.getMetadata.mockResolvedValue({ hasAudio: false });
+    await dropAudio("D:/audio/silent.mp4");
+    expect(mocks.warning).toHaveBeenCalledOnce();
+    expect(audioInputValue()).toBe(
+      "D:/audio/background.wav"
+    );
+    expect(workspace.get(".command-preview").text()).toContain(
+      "D:/audio/background.wav"
+    );
+  });
+
+  it("keeps the current track and ignores another drop while audio is being checked", async () => {
+    mocks.getMetadata.mockResolvedValue({ hasAudio: true });
+    await dropAudio("D:/audio/background.wav");
+    let finish!: (value: { hasAudio: boolean }) => void;
+    mocks.getMetadata.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const pending = dropAudio("D:/audio/new.wav");
+    await flushPromises();
+    expect(audioInputValue()).toBe(
+      "D:/audio/background.wav"
+    );
+    await dropAudio("D:/audio/other.wav");
+    expect(mocks.getMetadata).toHaveBeenCalledTimes(2);
+    finish({ hasAudio: true });
+    await pending;
+    expect(audioInputValue()).toBe(
+      "D:/audio/new.wav"
     );
   });
 });

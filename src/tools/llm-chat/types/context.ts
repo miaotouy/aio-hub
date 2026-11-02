@@ -277,7 +277,10 @@ export interface ContextPreviewData {
       | "unknown"
       | "merged";
     /** 用于存储被合并的原始消息 */
-    _mergedSources?: any[];
+    _mergedSources?: ProcessableMessage[];
+    /** 运行时注入来源与展示名称。 */
+    _snapshotIdentity?: ProcessableMessage["_snapshotIdentity"];
+    _name?: string;
     /** [中间格式] 暂存的附件列表 */
     _attachments?: PipelineAttachment[];
     /** 来源标识（预设消息的 index 或会话历史的 nodeId） */

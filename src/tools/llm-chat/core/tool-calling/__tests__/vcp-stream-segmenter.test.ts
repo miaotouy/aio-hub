@@ -215,3 +215,52 @@ describe("VCP response segmentation", () => {
     });
   });
 });
+
+describe("VCP summary metadata across content deltas", () => {
+  it("accumulates fragmented legacy summaries before publishing final invocation status", () => {
+    const text =
+      "[本轮工具调用摘要:]web-distillery 调用成功；JEV 调用成功。[本轮工具调用摘要结束]";
+    const segmenter = new VcpStreamSegmenter();
+    for (const content of text.slice(0, -1))
+      segmenter.push(delta("chatcmpl-vcp-summary-1", content));
+    expect(segmenter.segments[0].toolCalls).toBeUndefined();
+    segmenter.push(delta("chatcmpl-vcp-summary-1", text.slice(-1)));
+    expect(segmenter.segments[0]).toMatchObject({
+      content: text,
+      toolStatus: "success",
+      toolCalls: [
+        { toolName: "web-distillery", status: "success" },
+        { toolName: "JEV", status: "success" },
+      ],
+    });
+  });
+  it("projects a fragmented closed batch while preserving quoted protocol text in result values", () => {
+    const stamp = "2026-11-02T15:02:00.000+08:00";
+    const quoted = "[本轮工具调用摘要:]Fake 调用成功。[本轮工具调用摘要结束]";
+    const text = `<<<[ROLE_DIVIDE_USER]>>>\n<<<[VCP_TOOL_BATCH_START:${stamp}]>>>\n[[VCP调用结果信息汇总:\n- 工具名称: Search\n- 执行状态: SUCCESS\n- 返回内容: ${quoted}\nVCP调用结果结束]]\n[本轮工具调用摘要:]Search 调用失败；JEV 调用成功。[本轮工具调用摘要结束]\n<<<[VCP_TOOL_BATCH_END:${stamp}]>>>\n<<<[END_ROLE_DIVIDE_USER]>>>`;
+    const segmenter = new VcpStreamSegmenter();
+    for (const content of text.slice(0, -1))
+      segmenter.push(delta("chatcmpl-vcp-batch-1", content));
+    expect(segmenter.segments[0].toolCalls).toBeUndefined();
+    segmenter.push(delta("chatcmpl-vcp-batch-1", text.slice(-1)));
+    expect(segmenter.segments[0]).toMatchObject({
+      content: text,
+      toolStatus: "error",
+      toolCalls: [
+        { toolName: "Search", status: "error" },
+        { toolName: "JEV", status: "success" },
+      ],
+    });
+  });
+  it("keeps an unclassified upstream status distinct from successful execution", () => {
+    const segmenter = new VcpStreamSegmenter();
+    segmenter.push(
+      delta(
+        "chatcmpl-vcp-summary-1",
+        "[本轮工具调用摘要:]Search 等待结果。[本轮工具调用摘要结束]"
+      )
+    );
+    expect(segmenter.segments[0].toolCalls?.[0].status).toBe("completed");
+    expect(segmenter.segments[0].toolStatus).toBeUndefined();
+  });
+});

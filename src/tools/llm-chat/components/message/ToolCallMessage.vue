@@ -386,17 +386,36 @@ const toolCalls = computed(() => {
   return [];
 });
 
+// A full upstream summary includes hidden calls and owns the batch outcome.
+const vcpCalls = computed(() =>
+  vcpDisplay.value?.calls.length ? vcpDisplay.value.calls : toolCalls.value
+);
+const vcpCallStats = computed(() => ({
+  total: vcpCalls.value.length,
+  success: vcpCalls.value.filter((call) => call.status === "success").length,
+  errors: vcpCalls.value.filter(
+    (call) => call.status === "error" || call.status === "denied"
+  ).length,
+}));
 const displayToolNames = computed(() =>
-  toolCalls.value.length
-    ? toolCalls.value.map((call) => call.toolName)
-    : [
-        ...(vcpDisplay.value?.results.map((result) => result.tool_name) ?? []),
-        ...(vcpDisplay.value?.summaryItems.map((item) => item.toolName) ?? []),
-      ]
+  (vcpDisplay.value ? vcpCalls.value : toolCalls.value).map(
+    (call) => call.toolName
+  )
 );
 
 const mainStatus = computed(() => {
   if (props.message.metadata?.isCancelled) return "cancelled";
+  if (vcpDisplay.value) {
+    if (props.message.status === "error") return "error";
+    if (!vcpDisplay.value.closed)
+      return props.message.status === "complete" ? "completed" : "executing";
+    const stats = vcpCallStats.value;
+    if (stats.errors) return "error";
+    if (stats.total && stats.success === stats.total) return "success";
+    if (!stats.total && props.message.metadata?.vcpResponse?.toolStatus)
+      return props.message.metadata.vcpResponse.toolStatus;
+    return props.message.status === "complete" ? "completed" : "executing";
+  }
   // JEV 仲裁等待态优先（§2.4 两段式：仅 arbitrating 阶段展示「等待 AI 审核」）
   const isArbitrating = toolCalls.value.some(
     (t) => toolCallingStore.arbitrationStates.get(t.requestId) === "arbitrating"
@@ -411,24 +430,7 @@ const mainStatus = computed(() => {
     toolCalls.value.some((t) => t.status === "error" || t.status === "denied")
   )
     return "error";
-  if (toolCalls.value.length === 0) {
-    const upstream = props.message.metadata?.vcpResponse;
-    if (upstream?.kind === "tool") {
-      if (props.message.status === "error") return "error";
-      if (upstream.toolStatus) return upstream.toolStatus;
-      if (vcpDisplay.value?.closed) {
-        const statuses = [
-          ...vcpDisplay.value.results.map((result) => result.statusKind),
-          ...vcpDisplay.value.summaryItems.map((item) => item.status),
-        ];
-        if (statuses.includes("error")) return "error";
-        if (statuses.length && statuses.every((status) => status === "success"))
-          return "success";
-      }
-      return props.message.status === "complete" ? "completed" : "executing";
-    }
-    return "pending";
-  }
+  if (toolCalls.value.length === 0) return "pending";
   return "success";
 });
 
@@ -438,9 +440,13 @@ const vcpStatusLabel = computed(() => {
     return "未完成";
   switch (mainStatus.value) {
     case "success":
-      return "成功";
+      return vcpCallStats.value.total
+        ? `成功 ${vcpCallStats.value.success}/${vcpCallStats.value.total}`
+        : "成功";
     case "error":
-      return "失败";
+      return vcpCallStats.value.total
+        ? `失败 · 成功 ${vcpCallStats.value.success}/${vcpCallStats.value.total}`
+        : "失败";
     case "executing":
       return "进行中";
     case "cancelled":

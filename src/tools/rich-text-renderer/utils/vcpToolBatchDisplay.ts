@@ -20,6 +20,7 @@ export function parseVcpToolBatchDisplay(content: string):
   | {
       results: ToolResult[];
       summaryItems: ToolSummaryItem[];
+      calls: ToolSummaryItem[];
     }
   | undefined {
   const results: ToolResult[] = [];
@@ -53,6 +54,15 @@ export function parseVcpToolBatchDisplay(content: string):
   if (!results.length && !summaries.length) return;
   return {
     results,
+    // The server emits one summary entry per invocation, including hidden results.
+    calls: summaries.length
+      ? summaries
+      : results.map((result) => ({
+          label: result.tool_name + " " + result.status,
+          toolName: result.tool_name,
+          status: normalizeToolStatus(result.status ?? ""),
+          statusLabel: result.status ?? "",
+        })),
     summaryItems: summaries.filter(
       (item) =>
         !results.some(
@@ -98,21 +108,43 @@ export function parseVcpToolMessageDisplay(content: string, complete = true) {
       : undefined;
   // Legacy result/summary terminators close their payload before the next role arrives.
   if (!batch && display) closed = true;
+  const results = (display?.results ?? []).map((result) => {
+    const sameTool = (name: string) =>
+      name.trim().toLowerCase() === result.tool_name.trim().toLowerCase();
+    const calls =
+      display?.calls.filter((call) => sameTool(call.toolName)) ?? [];
+    const resultCount = display?.results.filter((entry) =>
+      sameTool(entry.tool_name)
+    ).length;
+    // A unique summary/result pairing can refine a transport-level SUCCESS.
+    // Repeated or partially hidden calls have no reliable per-result identity.
+    const statusKind =
+      calls.length === 1 && resultCount === 1
+        ? calls[0].status
+        : normalizeToolStatus(result.status ?? "");
+    return {
+      ...result,
+      statusKind,
+      statusLabel:
+        statusKind === "success"
+          ? "成功"
+          : statusKind === "error"
+            ? "失败"
+            : "已返回",
+    };
+  });
   return {
-    results: (display?.results ?? []).map((result) => {
-      const statusKind = normalizeToolStatus(result.status ?? "");
-      return {
-        ...result,
-        statusKind,
-        statusLabel:
-          statusKind === "success"
-            ? "成功"
-            : statusKind === "error"
-              ? "失败"
-              : "已返回",
-      };
-    }),
-    summaryItems: display?.summaryItems ?? [],
+    results,
+    summaryItems: (display?.summaryItems ?? []).filter(
+      (item) =>
+        !results.some(
+          (result) =>
+            result.tool_name.trim().toLowerCase() ===
+              item.toolName.trim().toLowerCase() &&
+            result.statusKind === item.status
+        )
+    ),
+    calls: display?.calls ?? [],
     content: body,
     closed,
   };

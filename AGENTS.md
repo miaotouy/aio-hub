@@ -44,6 +44,7 @@
 
 ## 5. 前端规范
 
+- `@tauri-apps/*` 仅允许由 `src/platform/native/` 适配器导入；业务代码通过 `src/platform/` 门面或该目录下的适配入口调用。新增宿主能力先落到隔离层，并保持 `bun run check:platform-isolation` 通过。
 - 模块使用 `createModuleLogger` 和 `createModuleErrorHandler`；在同一 `catch` 块中保持单一记录方式。`wrapAsync` / `wrapSync` 的调用方需妥善处理 `null`。详见[日志与错误处理指南](docs/guide/logging-error-handling.md)。
 - 常规扁平持久化配置优先使用 `createConfigManager`；高频修改使用 `saveDebounced`。复杂索引、多文件关联、二进制和大文件存储使用领域专用方案。详见[配置管理指南](docs/guide/config-management.md)。
 - 桌面端应用自身的持久化文件、缓存和临时工作目录统一通过 `src/utils/appPath.ts` 的 `getAppConfigDir()` 解析根目录；业务代码不得直接调用 Tauri 的 `appDataDir()`。系统路径展示、用户目录扫描等不属于应用持久化的场景可使用对应的平台路径 API。

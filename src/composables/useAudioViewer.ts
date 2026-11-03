@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { reactive, toRefs } from "vue";
+import { isLocalAssetUrl } from "@/platform/modules/assets";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { Asset } from "@/types/asset-management";
 
@@ -119,7 +120,7 @@ export function useAudioViewer() {
         if (
           source.startsWith("http") ||
           source.startsWith("blob:") ||
-          source.startsWith("asset:")
+          isLocalAssetUrl(source)
         ) {
           url = source;
         } else if (source.startsWith("appdata://")) {

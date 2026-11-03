@@ -150,8 +150,8 @@ import {
   CircleClose,
 } from "@element-plus/icons-vue";
 import { useElementSize, useWindowSize, useDebounceFn } from "@vueuse/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
+import { open } from "@/platform/native/dialog";
+import { invoke } from "@/platform/native/core";
 
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";

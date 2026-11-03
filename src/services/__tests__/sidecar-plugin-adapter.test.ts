@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => ({
   listen: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/events", () => ({
   listen: mocks.listen,
 }));
 vi.mock("@/utils/logger", () => ({

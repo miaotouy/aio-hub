@@ -24,7 +24,7 @@ import {
   shallowRef,
   watch,
 } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform/native/window";
 import {
   saveWindowConfig as saveWindowConfigToStorage,
   closeDetachedWindow,
@@ -47,7 +47,7 @@ import iconWhite from "../assets/aio-icon-white.svg";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { platform } from "@tauri-apps/plugin-os";
+import { platform } from "@/platform/native/os";
 import { CornerDownLeft, Download, LocateFixed, Puzzle } from "lucide-vue-next";
 import { useTheme } from "../composables/useTheme";
 import { useThemeAppearance } from "@/composables/useThemeAppearance";

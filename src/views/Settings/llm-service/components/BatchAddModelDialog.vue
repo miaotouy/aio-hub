@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch } from "vue";
 import { materializeModelIdentity } from "@aiohub/llm-core";
 import { ArrowRight, Check } from "@element-plus/icons-vue";
@@ -241,7 +243,7 @@ const isGroupExpanded = (groupName: string): boolean =>
 
 const pasteFromClipboard = async () => {
   try {
-    const text = await navigator.clipboard.readText();
+    const text = await getBrowserClipboard().readText();
     if (text) textInput.value = text;
   } catch {
     customMessage.warning("无法读取剪贴板，请手动粘贴");

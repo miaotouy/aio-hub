@@ -21,11 +21,11 @@
 import { vi } from "vitest";
 
 // 模拟 Tauri API（测试环境中不可用）
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
   exists: vi.fn(),
@@ -34,7 +34,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   remove: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
+vi.mock("@/platform/native/dialog", () => ({
   open: vi.fn(),
   save: vi.fn(),
   message: vi.fn(),
@@ -42,12 +42,12 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   confirm: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-shell", () => ({
+vi.mock("@/platform/native/shell", () => ({
   Command: vi.fn(),
   open: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
+vi.mock("@/platform/native/clipboard", () => ({
   writeText: vi.fn(),
   readText: vi.fn(),
 }));

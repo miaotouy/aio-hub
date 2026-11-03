@@ -25,10 +25,10 @@ import {
   mkdir,
   readTextFile,
   writeTextFile,
-} from "@tauri-apps/plugin-fs";
-import { join, extname } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join, extname } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createConfigManager } from "@/utils/configManager";
 import {
   createDefaultUserProfileConfig,
@@ -382,7 +382,7 @@ export function useUserProfileStorage() {
       if (shouldMigrate) {
         try {
           const sourcePath = icon!.replace("file://", "");
-          const { extname } = await import("@tauri-apps/api/path");
+          const { extname } = await import("@/platform/native/path");
           const extension = await extname(sourcePath).catch(() => "png");
           const newAvatarName = `avatar-${Date.now()}.${extension}`;
 
@@ -415,7 +415,7 @@ export function useUserProfileStorage() {
       // 迁移逻辑：初始化历史记录
       if (!profile.avatarHistory) {
         try {
-          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const { readDir } = await import("@/platform/native/fs");
           const profileDir = await getProfileDirPath(profileId);
           if (await exists(profileDir)) {
             const entries = await readDir(profileDir);
@@ -486,7 +486,7 @@ export function useUserProfileStorage() {
   async function ensureProfileDir(profileId: string): Promise<void> {
     const profileDir = await getProfileDirPath(profileId);
     if (!(await exists(profileDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const { mkdir } = await import("@/platform/native/fs");
       await mkdir(profileDir, { recursive: true });
       logger.debug("创建用户档案目录", { profileDir });
     }
@@ -606,7 +606,7 @@ export function useUserProfileStorage() {
    */
   async function scanProfileDirectory(): Promise<string[]> {
     try {
-      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const { readDir } = await import("@/platform/native/fs");
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const profilesDir = await join(moduleDir, PROFILES_SUBDIR);
@@ -692,7 +692,7 @@ export function useUserProfileStorage() {
    * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
    */
   async function runMigration(): Promise<void> {
-    const { readDir } = await import("@tauri-apps/plugin-fs");
+    const { readDir } = await import("@/platform/native/fs");
     const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const profilesDir = await join(moduleDir, PROFILES_SUBDIR);

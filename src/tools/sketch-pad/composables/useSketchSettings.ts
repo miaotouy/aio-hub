@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import { ref } from "vue";
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import {
   readTextFile,
   writeTextFile,
   mkdir,
   exists,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { SketchPadSettings } from "../types";

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { get } from "lodash-es";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@/platform/native/fs";
 import yaml from "js-yaml";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

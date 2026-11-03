@@ -38,7 +38,7 @@ vi.mock("@/utils/errorHandler", () => ({
     },
   }),
 }));
-vi.mock("@tauri-apps/plugin-fs", async () => {
+vi.mock("@/platform/native/fs", async () => {
   const fs = await import("node:fs/promises");
   const call = async <T>(op: string, action: () => Promise<T>): Promise<T> => {
     if (failures.operation === op) throw "forbidden path: canvas/.git/config";

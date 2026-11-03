@@ -25,8 +25,8 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { pluginManager } from "./plugin-manager";
 import { pluginEnvironmentService } from "./plugin-environment.service";
-import { invoke } from "@tauri-apps/api/core";
-import { path } from "@tauri-apps/api";
+import { invoke } from "@/platform/native/core";
+import { path } from "@/platform/native/sdk";
 import { getCurrentPlatform } from "./plugin-loader";
 
 const logger = createModuleLogger("services/native-plugin-adapter");

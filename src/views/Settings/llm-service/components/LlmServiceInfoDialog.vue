@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref } from "vue";
 import { Copy, Check } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -35,7 +37,7 @@ const copiedText = ref("");
 
 const copyToClipboard = async (text: string) => {
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     copiedText.value = text;
     customMessage.success("已复制到剪贴板");
     setTimeout(() => {

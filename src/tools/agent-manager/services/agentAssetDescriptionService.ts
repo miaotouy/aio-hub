@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
-import { readFile, stat } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { readFile, stat } from "@/platform/native/fs";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import type { LlmMessageContent } from "@/llm-apis/common";

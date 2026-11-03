@@ -24,7 +24,7 @@
  * 消费方禁止直接 invoke `recall_*` 或导入思绪集内部 utils/orchestrator/store。
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";

@@ -18,7 +18,7 @@ import { useVcpDistributedStore } from "../stores/vcpDistributedStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { toolRegistryManager } from "@/services/registry";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createToolDiscoveryService } from "../../tool-calling/core/discovery";
 import { useToolsStore } from "@/stores/tools";
 import {

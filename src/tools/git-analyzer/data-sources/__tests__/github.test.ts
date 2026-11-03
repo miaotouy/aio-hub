@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const { http } = vi.hoisted(() => ({ http: vi.fn() }));
-vi.mock("@tauri-apps/plugin-http", () => ({ fetch: http }));
+vi.mock("@/platform/native/http", () => ({ fetch: http }));
 import {
   getGitHubCommitDetail,
   loadGitHubRepository,

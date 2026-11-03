@@ -4,7 +4,7 @@ import { useLlmSearch } from "../useLlmSearch";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mocks.invoke,
   Channel: class {
     onmessage?: unknown;

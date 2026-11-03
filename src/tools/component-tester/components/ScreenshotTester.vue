@@ -1044,8 +1044,8 @@ async function saveResult() {
       buffer[i] = binaryStr.charCodeAt(i);
     }
 
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    const { save } = await import("@/platform/native/dialog");
+    const { writeFile } = await import("@/platform/native/fs");
 
     const filePath = await save({
       defaultPath: `screenshot-test-${Date.now()}.png`,

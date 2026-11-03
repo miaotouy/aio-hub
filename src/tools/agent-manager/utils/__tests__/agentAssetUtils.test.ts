@@ -37,7 +37,7 @@ vi.mock("@/utils/logger", () => ({
 vi.mock("@/utils/appPath", () => ({
   getAppConfigDir: vi.fn(async () => "C:\\aiohub-test"),
 }));
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
   convertFileSrc: (path: string) =>
     `https://asset.localhost/${path.replace(/\\/g, "/")}`,

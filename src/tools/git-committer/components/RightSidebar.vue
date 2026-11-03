@@ -212,7 +212,7 @@ import { computeTimelineGraph } from "../utils/gitTimelineGraph";
 import { shouldPreviewFile } from "../utils/gitTabs";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import FileIcon from "@/components/common/FileIcon.vue";

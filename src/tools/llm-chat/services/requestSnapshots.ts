@@ -1,7 +1,8 @@
 import { reactive, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
-import { exists, readTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
+import { exists, readTextFile } from "@/platform/native/fs";
+import { hasTauriRuntimeMarker } from "@/platform/core/env";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
@@ -53,8 +54,7 @@ function safeId(id: string) {
     throw new Error("会话标识无效");
   return id;
 }
-const inTauri = () =>
-  typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+const inTauri = hasTauriRuntimeMarker;
 const memory = new Map<string, string>();
 export const requestSnapshots = new RequestSnapshotRepository({
   async read(id) {

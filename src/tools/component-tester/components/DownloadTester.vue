@@ -35,7 +35,7 @@ import {
 } from "lucide-vue-next";
 import DownloadManager from "@/components/DownloadManager.vue";
 import DropZone from "@/components/common/DropZone.vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 
 const logger = createModuleLogger("DownloadTester");
 const errorHandler = createModuleErrorHandler("DownloadTester");

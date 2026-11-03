@@ -43,7 +43,7 @@ import {
 import { normalizeIconPath } from "../config/model-metadata";
 import { useModelMetadata } from "./useModelMetadata";
 import { getAioDefaultHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");

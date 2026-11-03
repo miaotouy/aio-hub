@@ -16,7 +16,7 @@
  * 路径安全校验工具
  * 用于防止 AI 通过路径穿越、目录前缀碰撞或符号链接访问用户敏感文件
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import type { AioFileOperatorConfig } from "../types";
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type { LlmResponseChunk } from "@aiohub/llm-core";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";

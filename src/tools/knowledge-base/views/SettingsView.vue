@@ -365,8 +365,8 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { open } from "@tauri-apps/plugin-dialog";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { open } from "@/platform/native/dialog";
+import { revealItemInDir } from "@/platform/native/opener";
 import {
   FileText,
   FolderOpen,

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import type { RecallMonitorMessage, RagPayload } from "../types/monitor";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const logger = createModuleLogger("recall-monitor-composable");
 const errorHandler = createModuleErrorHandler("recall-monitor-composable");

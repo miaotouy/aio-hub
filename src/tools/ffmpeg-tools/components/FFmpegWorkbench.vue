@@ -475,6 +475,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, reactive, computed, watch } from "vue";
 import {
   Files,
@@ -499,10 +501,10 @@ import FFmpegPresetManager from "./FFmpegPresetManager.vue";
 
 import FFmpegConsole from "./FFmpegConsole.vue";
 import MediaInfoDialog from "./MediaInfoDialog.vue";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { basename, dirname, join } from "@tauri-apps/api/path";
-import { open } from "@tauri-apps/plugin-dialog";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { convertFileSrc, invoke } from "@/platform/native/core";
+import { basename, dirname, join } from "@/platform/native/path";
+import { open } from "@/platform/native/dialog";
+import { writeText } from "@/platform/native/clipboard";
 import type { MediaMetadata, FFmpegParams } from "../types";
 import { buildExecutionPlan } from "../utils/executionPlan";
 import type { FFmpegExecutionPlan } from "../utils/executionPlan";
@@ -712,7 +714,7 @@ const copyCommand = async () => {
     try {
       await writeText(text);
     } catch {
-      await navigator.clipboard.writeText(text);
+      await getBrowserClipboard().writeText(text);
     }
     customMessage.success(`已复制 ${shellLabel} 命令`);
   } catch {

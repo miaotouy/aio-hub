@@ -102,7 +102,7 @@
 | [LLM 虚拟渠道组合与统一模型回退](./llm-virtual-channel-investigation.md)         | 实施中 | D-P1-05，主备组合、对话入口和下游绑定迁移已落地；继续专用操作与组合探测                                                                      |
 | [Regex Applier Agent 接口](./regex-applier-agent-integration.md)                 | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                                                                             |
 | [决策模型与 Decisions API 覆盖](./decision-model-and-decisions-api-coverage.md)  | 候选   | Jev/System One 已接入；OpenAI Decisions API 渠道与开源决策模型 id 待确认后按需做                                                             |
-| [前端平台隔离层与类型安全桥接方案](./frontend-platform-bridge-isolation-plan.md) | 待实施 | 建立统一 `src/platform` 门面与 CommandMap 强类型映射，解耦 Tauri 依赖，支撑底座平滑演进与防错校验                                            |
+| [前端平台隔离层与 Electron 迁移准备](./frontend-platform-bridge-isolation-plan.md) | 待实施 | 宿主调用收拢、契约验证与架构文档已完成；后续按能力实施 Electron 适配                                                  |
 | [Cordis 架构演化总纲](./cordis-modular-architecture-blueprint.md)                | 待实施 | 战场一（插件系统 Cordis 化）与战场二（独立会话运行时从零生长）双轨并行，详见演进路线与[经验复盘](./cordis-runtime-postmortem-and-lessons.md) |
 
 ## 5. 活动工具计划入口

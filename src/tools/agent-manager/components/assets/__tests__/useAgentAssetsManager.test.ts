@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   warning: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mocks.invoke,
   convertFileSrc: vi.fn(),
 }));

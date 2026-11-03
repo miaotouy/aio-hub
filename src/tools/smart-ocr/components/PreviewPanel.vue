@@ -35,7 +35,7 @@ import {
 } from "@element-plus/icons-vue";
 import type { ImageBlock, CutLine, UploadedImage } from "../types";
 import { useFileDrop } from "@composables/useFileDrop";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { detectFileType } from "@/utils/fileTypeDetector";

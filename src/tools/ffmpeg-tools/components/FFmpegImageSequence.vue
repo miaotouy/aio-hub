@@ -267,11 +267,11 @@ import {
   Terminal,
   Copy,
 } from "lucide-vue-next";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { basename, dirname } from "@tauri-apps/api/path";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readDir } from "@tauri-apps/plugin-fs";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { convertFileSrc, invoke } from "@/platform/native/core";
+import { basename, dirname } from "@/platform/native/path";
+import { open, save } from "@/platform/native/dialog";
+import { readDir } from "@/platform/native/fs";
+import { writeText } from "@/platform/native/clipboard";
 import { ElMessageBox } from "element-plus";
 import InfoCard from "@/components/common/InfoCard.vue";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";

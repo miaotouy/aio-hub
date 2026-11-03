@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import type { LlmModelInfo } from "@/types/llm-profiles";
@@ -245,7 +247,7 @@ const toggleSelectAll = () => {
 const copyModelsJson = async () => {
   try {
     const jsonString = JSON.stringify(props.models, null, 2);
-    await navigator.clipboard.writeText(jsonString);
+    await getBrowserClipboard().writeText(jsonString);
     customMessage.success("适配后的模型 JSON 已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");
@@ -261,7 +263,7 @@ const copyRawResponse = async () => {
   }
   try {
     const jsonString = JSON.stringify(props.rawResponse, null, 2);
-    await navigator.clipboard.writeText(jsonString);
+    await getBrowserClipboard().writeText(jsonString);
     customMessage.success("原始响应 JSON 已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");

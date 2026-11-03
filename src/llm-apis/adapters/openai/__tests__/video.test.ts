@@ -26,7 +26,7 @@ vi.mock("@/llm-apis/common", async (importOriginal) => {
   };
 });
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
 }));
 

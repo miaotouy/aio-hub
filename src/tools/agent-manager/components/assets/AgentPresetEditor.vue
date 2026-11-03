@@ -385,7 +385,7 @@ import PresetCompositionCard from "./PresetCompositionCard.vue";
 import PresetCompositionConversion from "./PresetCompositionConversion.vue";
 import { useElementSize } from "@vueuse/core";
 import { VueDraggableNext } from "vue-draggable-next";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@/platform/native/clipboard";
 import { useUserProfileStore } from "@/tools/llm-chat/stores/userProfileStore";
 import { useAnchorRegistry } from "@/tools/llm-chat/composables/ui/useAnchorRegistry";
 import type {

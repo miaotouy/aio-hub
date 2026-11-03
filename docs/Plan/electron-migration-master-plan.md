@@ -81,7 +81,7 @@ graph TB
    - 现存 40+ 工具的 UI、Composable、Store 绝大部分是纯 Vue 3 代码，原则上只做 API 寻址替换，绝不在第一阶段改写工具业务逻辑。
 2. **垫片隔离（Facade / Adapter 模式）**：
    - 严禁直接全局正则替换 `import { invoke } from '@tauri-apps/api/core'` 为 Electron 专有代码。
-   - 建立 `@/platform/bridge` 统一门面。在迁移过渡期，该门面下层可同时对接 Tauri（保留回退能力）或 Electron。
+   - 建立 `src/platform/` 统一隔离层，业务通过能力入口访问宿主。当前兼容实现转发到 Tauri，Electron 实现按能力接续。
 3. **Rust 核心资产按模块渐进 Napi 化**：
    - 不搞推倒重来，利用 `napi-rs` 将经受住考验的高性能 Rust 算法按顺序编译为 `.node` 模块，直接在 Node.js 中调用。
 4. **彻底清理垃圾 Workaround**：
@@ -93,17 +93,19 @@ graph TB
 
 ### 阶段零：平台适配垫片层建设（当前仓库内先行）
 
+> 状态：Tauri SDK 导入隔离与静态防回退检查已落地（2026-11-03）；运行时能力适配仍按后续阶段推进。
+
 **目标**：在不改变当前 Tauri 运行的前提下，把前端代码对 `@tauri-apps/api` 的直接依赖收敛到统一接口。
 
-1. **新建抽象网关**：
-   - `src/platform/bridge.ts`：抽象 `invoke(cmd, args)`、`listen(event, cb)`、`emit(event, data)`。
-   - `src/platform/fs.ts`：抽象 `readFile`、`writeFile`、`appDataDir` 等通用路径与文件调用。
-   - `src/platform/window.ts`：抽象窗口最小化、最大化、置顶、关闭与多窗口通信。
-2. **批量收拢前端调用点**：
-   - 逐步替换当前分散在各个工具中的 295 处 `@tauri-apps/api` 显式导入，改走统一 bridge。
-   - 此时 bridge 内部依然简单转发给 Tauri。
-3. **交付物验收**：
-   - 全局 `bun run check:frontend` 通过，现有 Tauri 版本打包与运行 100% 正常。
+1. **集中宿主能力入口（已完成）**：
+   - `src/platform/native/` 提供 IPC、事件、窗口、文件、路径、对话框、剪贴板、HTTP、系统、Shell、进程、更新与协议唤醒入口，保留现有 SDK 契约。
+   - `src/platform/browser/` 集中浏览器剪贴板与弹窗；`core/env.ts`、`modules/assets.ts`、`modules/media.ts` 集中宿主检测、资源协议和媒体授权。
+   - 已有 `core/bridge.ts` 与 `modules/` 语义门面保持原有契约；Electron 适配仍需实现窗口对象、事件目标、二进制通道与资源释放。
+2. **调用点收拢与维护约束（已完成）**：
+   - 桌面 `src/` 的直接 SDK 导入及测试 mock 已改用平台入口。
+   - `check:platform-isolation` 纳入仓库检查，约束新增 SDK 导入与业务代码的剪贴板、弹窗、宿主标记访问。
+3. **验证与接续**：
+   - 具体行为、验证结果和待办见[平台隔离层计划](./frontend-platform-bridge-isolation-plan.md)与[架构说明](../architecture/platform-bridge-architecture.md)。
 
 ---
 
@@ -198,5 +200,5 @@ graph TB
 
 ## 6. 下一步执行动作建议
 
-1. **第一步（立即开展）**：在现有工程中建立 `src/platform/` 抽象层，将 `@/platform/bridge` 先作为当前 Tauri 调用的垫片，完成前端代码的解耦治理；
+1. **第一步（已完成）**：桌面宿主调用集中到 `src/platform/`，保留现有 Tauri 契约，为能力适配提供统一替换入口；
 2. **第二步**：创建迁移分支 `feature/electron-migration`，搭建最小 Electron 容器原型，加载 `dist/` 验证前端渲染与首个窗口控制。

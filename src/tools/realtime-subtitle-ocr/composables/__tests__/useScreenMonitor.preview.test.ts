@@ -2,7 +2,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { defineComponent, h, KeepAlive, nextTick, ref, watch } from "vue";
 import { afterEach, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { usePageActivity } from "@/composables/usePageActivity";
 import { useScreenMonitor } from "../useScreenMonitor";
 const bus = vi.hoisted(() => ({
@@ -16,10 +16,10 @@ vi.mock("@/composables/useWindowSyncBus", () => ({
     },
   }),
 }));
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/events", () => ({
   listen: vi.fn(async () => vi.fn()),
 }));
-vi.mock("@tauri-apps/api/window", () => ({
+vi.mock("@/platform/native/window", () => ({
   getCurrentWindow: () => ({ scaleFactor: async () => 1 }),
 }));
 vi.mock("@/utils/nativeDesktopCapabilities", () => ({

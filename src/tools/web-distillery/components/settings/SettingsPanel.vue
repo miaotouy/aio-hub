@@ -17,8 +17,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@/platform/native/core";
+import { openUrl } from "@/platform/native/opener";
 import {
   RotateCcw,
   Sparkles,

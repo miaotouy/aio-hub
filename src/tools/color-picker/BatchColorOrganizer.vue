@@ -95,11 +95,11 @@ import {
   onMounted,
   onUnmounted,
 } from "vue";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { convertFileSrc, invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
+import { open, save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
+import { revealItemInDir } from "@/platform/native/opener";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";

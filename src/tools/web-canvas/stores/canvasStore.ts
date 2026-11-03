@@ -20,7 +20,7 @@ import { DEFAULT_CANVAS_CONFIG } from "../config";
 import type { CanvasConfig } from "../types/config";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { Command } from "@tauri-apps/plugin-shell";
+import { Command } from "@/platform/native/shell";
 import { useCanvasStorage } from "../composables/useCanvasStorage";
 import { GitInternalService } from "../services/GitInternalService";
 import { canvasIndexManager } from "../services/CanvasIndexManager";

@@ -33,7 +33,7 @@ vi.mock("@/utils/serialization", () => ({
 }));
 
 // Mock Tauri core to avoid invoke error in logger
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
 }));
 

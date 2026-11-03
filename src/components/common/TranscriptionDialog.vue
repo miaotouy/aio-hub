@@ -205,8 +205,10 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, watch } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
@@ -441,7 +443,7 @@ const handleConfirmRegenerate = () => {
 
 const handleCopy = async () => {
   try {
-    await navigator.clipboard.writeText(currentContent.value);
+    await getBrowserClipboard().writeText(currentContent.value);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");

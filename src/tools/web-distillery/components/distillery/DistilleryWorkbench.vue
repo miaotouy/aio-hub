@@ -23,7 +23,7 @@ import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@/platform/native/fs";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { fetchPage } from "../../service";

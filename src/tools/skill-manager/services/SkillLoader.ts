@@ -15,7 +15,7 @@
 /**
  * SkillLoader — 调用 Rust 命令的薄封装层
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type {
   SkillManifest,
   ExternalScanPath,

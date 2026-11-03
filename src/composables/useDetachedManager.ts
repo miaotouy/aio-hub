@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import { ref, computed, readonly, watch } from "vue";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@/platform/native/events";
+import { invoke } from "@/platform/native/core";
+import { onWindowDestroyed } from "@/platform/modules/window";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getOrCreateInstance } from "@/utils/singleton";
@@ -116,14 +117,12 @@ const useDetachedWindowManager = () => {
       );
 
       // 监听窗口销毁事件，确保状态被清理
-      await listen<{ label?: string }>("tauri://destroyed", async (event) => {
-        // 优先从 payload 获取，如果 payload 为空（Tauri 系统事件常见情况），则使用 windowLabel
-        // 注意：Tauri 2.0 的 Event 对象可能在运行时包含 windowLabel，但类型定义中没有，所以使用 any 访问
-        const label = event.payload?.label || (event as any).windowLabel;
+      await onWindowDestroyed(async (event) => {
+        const label = event.label || event.windowLabel;
 
         if (!label) {
           logger.debug(
-            "收到 tauri://destroyed 事件，但无法确定窗口 label，忽略"
+            "收到窗口销毁通知，但无法确定窗口 label，忽略"
           );
           return;
         }
@@ -135,7 +134,7 @@ const useDetachedWindowManager = () => {
           );
 
           // 模拟发送 window-attached 事件，以便主窗口能够恢复对应的标签页/状态
-          const { emit } = await import("@tauri-apps/api/event");
+          const { emit } = await import("@/platform/native/events");
           await emit("window-attached", detached);
 
           if (detachedWindows.value.delete(label)) {

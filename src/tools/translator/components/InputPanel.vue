@@ -277,7 +277,7 @@ import {
   X,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
-import { readText as readClipboardText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText as readClipboardText } from "@/platform/native/clipboard";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";

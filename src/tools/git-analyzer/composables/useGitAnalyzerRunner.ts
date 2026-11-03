@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { customMessage } from "@/utils/customMessage";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 import {
   fetchBranches,
   streamLoadRepository,

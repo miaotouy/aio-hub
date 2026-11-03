@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import { computed, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@/platform/native/core";
+import { listen } from "@/platform/native/events";
+import { open } from "@/platform/native/dialog";
 import { ElMessageBox } from "element-plus";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";

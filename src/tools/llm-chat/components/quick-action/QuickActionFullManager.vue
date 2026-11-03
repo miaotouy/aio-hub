@@ -40,7 +40,7 @@ import DropZone from "@/components/common/DropZone.vue";
 import QuickActionDetail from "./QuickActionDetail.vue";
 import { useElementSize } from "@vueuse/core";
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const errorHandler = createModuleErrorHandler("QuickActionFullManager");

@@ -27,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import { getSubtitleFontSources } from "@/platform/modules/assets";
 import { ref, watch, computed, onBeforeUnmount, nextTick } from "vue";
 import { useResizeObserver } from "@vueuse/core";
 import { createModuleLogger } from "@/utils/logger";
@@ -140,16 +141,7 @@ async function initJassub() {
     jassubInstance = new JASSUB({
       canvas: canvasRef.value,
       subContent: props.rawContent,
-      availableFonts: {
-        "microsoft yahei":
-          "http://asset.localhost/C%3A%5CWindows%5CFonts%5Cmsyh.ttc",
-        "microsoft yahei ui":
-          "http://asset.localhost/C%3A%5CWindows%5CFonts%5Cmsyh.ttc",
-        simhei: "http://asset.localhost/C%3A%5CWindows%5CFonts%5Csimhei.ttf",
-        simsun: "http://asset.localhost/C%3A%5CWindows%5CFonts%5Csimsun.ttc",
-        dengxian:
-          "http://asset.localhost/C%3A%5CWindows%5CFonts%5CDengXian.ttf",
-      },
+      availableFonts: getSubtitleFontSources(),
       defaultFont: "Microsoft YaHei",
       queryFonts: "local",
     });

@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { Cookie, ShieldCheck, ShieldOff } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
 import { cookieProfileStore } from "../../core/cookie-profile-store";

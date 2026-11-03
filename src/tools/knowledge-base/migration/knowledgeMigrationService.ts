@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { RecallMigrationPreview, RecallMigrationReport } from "./types";
 
 export const knowledgeMigrationService = {

@@ -25,20 +25,20 @@
  * 防止调用方把临时 IO 故障误判为“用户没有凭据”并覆盖原文件。
  */
 
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
 import {
   exists,
   mkdir,
   readTextFile,
   writeTextFile,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
+import { hasTauriRuntimeMarker } from "@/platform/core/env";
 import { decodeObfuscatedPayload, encodeObfuscatedPayload } from "./codec";
 
 const LOG_PREFIX = "[LlmSecretStore]";
 const BACKUP_SUFFIX = ".bak";
 
-const isTauri =
-  typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+const isTauri = hasTauriRuntimeMarker();
 
 const memoryStore = new Map<string, string>();
 

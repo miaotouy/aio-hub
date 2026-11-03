@@ -27,7 +27,7 @@ import {
 } from "@/utils/modelIdUtils";
 import { performGenerateTags, mergeTags } from "../core/tagGenerator";
 import { IndexingOrchestrator, VectorSyncManager } from "../logic/orchestrator";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { RecallCollectionMeta, RecallEntry } from "../types";
 
 const errorHandler = createModuleErrorHandler("useRecallVectorSync");

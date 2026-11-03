@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from "vue";
 import { Search, BookOpen, ExternalLink, Settings } from "lucide-vue-next";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@/platform/native/opener";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { WebSearchItem } from "@/llm-apis/adapters/deepseek/tools";

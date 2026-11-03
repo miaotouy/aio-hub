@@ -31,8 +31,8 @@ vi.mock("../services/service", () => ({
 vi.mock("../services/ingestQueue", () => ({
   processKnowledgeImportQueue: mocks.processQueue,
 }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
-vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn() }));
+vi.mock("@/platform/native/dialog", () => ({ open: mocks.open }));
+vi.mock("@/platform/native/opener", () => ({ revealItemInDir: vi.fn() }));
 vi.mock("element-plus", () => ({
   ElMessageBox: { confirm: mocks.confirm },
 }));

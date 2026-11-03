@@ -17,7 +17,7 @@
  * 提供分级日志、错误追踪和日志持久化功能
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { formatDateTime } from "./time";
 
 export enum LogLevel {

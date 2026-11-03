@@ -25,11 +25,11 @@ const { mockInvoke, mockListen, mockUnlisten, listeners } = vi.hoisted(() => ({
   listeners: new Map<string, (event: { payload: SearchResultBatch }) => void>(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mockInvoke,
 }));
 
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/events", () => ({
   listen: mockListen,
 }));
 

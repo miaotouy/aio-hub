@@ -25,7 +25,7 @@ const { mockReadTextFile } = vi.hoisted(() => ({
   mockReadTextFile: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   readTextFile: mockReadTextFile,
 }));
 

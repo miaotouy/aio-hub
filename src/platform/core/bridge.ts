@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@/platform/native/core";
 import {
   listen as tauriListen,
   emit as tauriEmit,
   type UnlistenFn,
-} from "@tauri-apps/api/event";
+} from "@/platform/native/events";
 import { isTauriRuntime, currentPlatformRuntime } from "./env";
 import { PlatformError } from "./errors";
 import { createModuleLogger } from "@/utils/logger";
@@ -42,7 +42,10 @@ export async function invoke<TReturn = unknown>(
   command: string,
   args?: Record<string, unknown>
 ): Promise<TReturn>;
-export async function invoke(command: string, args?: unknown): Promise<unknown> {
+export async function invoke(
+  command: string,
+  args?: unknown
+): Promise<unknown> {
   const startTime = performance.now();
 
   // 1. Tauri 运行态
@@ -87,7 +90,9 @@ export async function invoke(command: string, args?: unknown): Promise<unknown> 
   }
 
   // 3. 纯浏览器 / 降级环境
-  logger.warn(`[MOCK_FALLBACK] 当前环境 [${currentPlatformRuntime}] 执行命令: ${command}`);
+  logger.warn(
+    `[MOCK_FALLBACK] 当前环境 [${currentPlatformRuntime}] 执行命令: ${command}`
+  );
   throw new PlatformError(
     `当前运行时 [${currentPlatformRuntime}] 不支持原生命令 '${command}'`,
     { command, args }

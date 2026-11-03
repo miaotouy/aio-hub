@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@/platform/native/clipboard";
 import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import type { PresetMessageGroup } from "../../types/agent";
 import { usePresetImportExport } from "./usePresetImportExport";

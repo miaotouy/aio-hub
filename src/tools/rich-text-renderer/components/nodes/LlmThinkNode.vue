@@ -88,6 +88,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
@@ -278,7 +280,7 @@ const copyContent = async () => {
     const textToCopy = showRaw.value
       ? props.rawContent || ""
       : props.rawContent || "";
-    await navigator.clipboard.writeText(textToCopy);
+    await getBrowserClipboard().writeText(textToCopy);
     copied.value = true;
     customMessage.success("内容已复制");
     setTimeout(() => {

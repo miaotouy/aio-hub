@@ -78,6 +78,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   ref,
   watch,
@@ -428,7 +430,7 @@ const handleCopy = async () => {
     const blob = await response.blob();
 
     // 写入剪贴板
-    await navigator.clipboard.write([
+    await getBrowserClipboard().write([
       new ClipboardItem({
         [blob.type]: blob,
       }),

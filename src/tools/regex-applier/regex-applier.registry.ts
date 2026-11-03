@@ -28,7 +28,7 @@ import type {
   FormattedProcessSummary,
   OneClickOptions,
 } from "./types";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@/platform/native/clipboard";
 
 const logger = createModuleLogger("services/regex-applier");
 const errorHandler = createModuleErrorHandler("services/regex-applier");

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { reactive, toRefs } from "vue";
+import { isLocalAssetUrl } from "@/platform/modules/assets";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { Asset } from "@/types/asset-management";
 
@@ -52,7 +53,7 @@ export function useVideoViewer() {
         if (
           source.startsWith("http") ||
           source.startsWith("blob:") ||
-          source.startsWith("asset:")
+          isLocalAssetUrl(source)
         ) {
           // 普通 URL 或已转换的 asset 协议
           url = source;

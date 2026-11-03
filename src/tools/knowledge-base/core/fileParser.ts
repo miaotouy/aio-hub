@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile } from "@/platform/native/fs";
 import { smartDecode } from "@/utils/encoding";
 import { parseDocx } from "@/utils/docxParser";
 import {

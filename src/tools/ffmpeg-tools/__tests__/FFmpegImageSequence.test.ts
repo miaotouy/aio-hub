@@ -13,18 +13,18 @@ const mocks = vi.hoisted(() => ({
   getMetadata: vi.fn(),
   drops: [] as FileDropOptions[],
 }));
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mocks.invoke,
   convertFileSrc: (path: string) => path,
 }));
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   dirname: async (path: string) => path.slice(0, path.lastIndexOf("/")),
   basename: async (path: string) => path.slice(path.lastIndexOf("/") + 1),
 }));
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   readDir: mocks.readDir,
 }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({
+vi.mock("@/platform/native/dialog", () => ({
   open: mocks.open,
   save: vi.fn(),
 }));

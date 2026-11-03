@@ -298,8 +298,8 @@ import {
   Search,
   Upload,
 } from "@element-plus/icons-vue";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { open, save } from "@/platform/native/dialog";
+import { readFile, writeFile } from "@/platform/native/fs";
 import Avatar from "@/components/common/Avatar.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";

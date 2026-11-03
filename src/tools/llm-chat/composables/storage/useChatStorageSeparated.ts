@@ -21,8 +21,8 @@
  * selection persistence.
  */
 
-import { exists, readTextFile } from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
+import { exists, readTextFile } from "@/platform/native/fs";
+import { invoke } from "@/platform/native/core";
 import { toRaw } from "vue";
 import { useDebounceFn } from "@vueuse/core";
 import type { ChatSessionDetail, ChatSessionIndex } from "../../types";

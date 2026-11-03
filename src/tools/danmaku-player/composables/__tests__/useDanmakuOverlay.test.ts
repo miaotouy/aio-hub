@@ -10,8 +10,8 @@ const native = vi.hoisted(() => ({
   emit: vi.fn(),
   error: vi.fn(),
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: native.invoke }));
-vi.mock("@tauri-apps/api/event", () => ({ emit: native.emit }));
+vi.mock("@/platform/native/core", () => ({ invoke: native.invoke }));
+vi.mock("@/platform/native/events", () => ({ emit: native.emit }));
 vi.mock("@/utils/nativeDesktopCapabilities", () => ({
   getNativeDesktopCapabilities: () => ({ externalPlayerOverlay: true }),
 }));

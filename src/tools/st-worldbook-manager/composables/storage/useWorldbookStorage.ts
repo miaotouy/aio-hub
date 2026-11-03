@@ -22,8 +22,8 @@ import {
   readTextFile,
   writeTextFile,
   remove,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import type { STWorldbook, WorldbookMetadata } from "../../types/worldbook";
@@ -100,7 +100,7 @@ export function useWorldbookStorage() {
         `worldbook_migration_backup_${timestamp}`
       );
       const { mkdir, copyFile, readDir, rename } =
-        await import("@tauri-apps/plugin-fs");
+        await import("@/platform/native/fs");
 
       // 3. 安全备份：将旧数据完整复制到备份目录
       await mkdir(backupDir, { recursive: true });
@@ -206,7 +206,7 @@ export function useWorldbookStorage() {
     const wbDir = await join(moduleDir, WORLDBOOKS_SUBDIR);
 
     if (!(await exists(wbDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const { mkdir } = await import("@/platform/native/fs");
       await mkdir(wbDir, { recursive: true });
       logger.debug("创建 worldbooks 目录", { wbDir });
     }
@@ -295,7 +295,7 @@ export function useWorldbookStorage() {
     currentIndex: WorldbooksIndex
   ): Promise<WorldbookMetadata[]> {
     try {
-      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const { readDir } = await import("@/platform/native/fs");
       const appDir = await getAppConfigDir();
       const wbDir = await join(appDir, MODULE_NAME, WORLDBOOKS_SUBDIR);
 

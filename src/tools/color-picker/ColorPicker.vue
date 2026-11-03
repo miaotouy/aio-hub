@@ -125,7 +125,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@/platform/native/core";
 import {
   Clock,
   Delete,

@@ -15,7 +15,7 @@
 /**
  * core/iframe-bridge.ts - Iframe 通信封装
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useWebDistilleryStore } from "../stores/store";
 import { cookieProfileStore } from "./cookie-profile-store";
 import selectorPickerScript from "../inject/selector-picker.js?raw";

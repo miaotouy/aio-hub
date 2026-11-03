@@ -14,7 +14,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@tauri-apps/plugin-os", () => ({
+vi.mock("@/platform/native/os", () => ({
   platform: () => "windows",
   arch: () => "x86_64",
 }));

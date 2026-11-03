@@ -19,7 +19,7 @@
 import { useQuickActionStore } from "../stores/quickActionStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@/platform/native/fs";
 import type { QuickAction } from "../types/quick-action";
 
 createModuleLogger("llm-chat/quickActionImportService");

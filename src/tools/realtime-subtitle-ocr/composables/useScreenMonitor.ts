@@ -29,8 +29,8 @@
 
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { computed, ref, shallowRef, onBeforeUnmount } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import {
   migrateOcrEngineConfig,
   useOcrRunner,
@@ -305,7 +305,7 @@ export function useScreenMonitor() {
   let cachedScaleFactor = 1;
   async function updateScaleFactor() {
     try {
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const { getCurrentWindow } = await import("@/platform/native/window");
       cachedScaleFactor = await getCurrentWindow().scaleFactor();
     } catch (err) {
       logger.warn("获取 scaleFactor 失败，降级为 1", err);

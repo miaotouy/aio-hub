@@ -18,16 +18,16 @@ import * as ElementPlus from "element-plus";
 import * as ElementPlusIconsVue from "@element-plus/icons-vue";
 import * as PluginSDK from "@/services/plugin-sdk";
 import * as PluginUI from "@/services/plugin-ui";
-import * as TauriAppsApiCore from "@tauri-apps/api/core";
+import * as TauriAppsApiCore from "@/platform/native/core";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/dist/index.css";
 import "element-plus/theme-chalk/dark/css-vars.css";
 import router, { initDynamicRoutes } from "./router"; // 从 ./router/index.ts 导入
 import "./styles/index.css"; // 导入全局样式（已包含暗色模式样式）
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { onFileDropPaths } from "@/platform/modules/window";
 import { ElNotification } from "element-plus";
-import { extname } from "@tauri-apps/api/path"; // 导入 path 模块用于获取文件扩展名
+import { extname } from "@/platform/native/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia"; // 导入 Pinia
 import { errorHandler, ErrorLevel } from "./utils/errorHandler";
 import { createModuleLogger, logger as appLogger } from "./utils/logger";
@@ -380,7 +380,7 @@ const mountApp = async () => {
           "aio-perf-background"
         ) === "1";
       if (!perfBackgroundMode) {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const { getCurrentWindow } = await import("@/platform/native/window");
         await getCurrentWindow().show();
         logger.info("主窗口已显示");
       } else {
@@ -388,7 +388,7 @@ const mountApp = async () => {
       }
 
       // 通知 Rust 后端前端已就绪（用于 Linux 白屏检测）
-      const { emit } = await import("@tauri-apps/api/event");
+      const { emit } = await import("@/platform/native/events");
       await emit("frontend-ready");
     }
   } catch (error) {
@@ -418,8 +418,7 @@ mountApp();
 // 异步根组件加载可能跨过 DOMContentLoaded；文档已就绪时立即注册。
 const registerFileDropListener = () => {
   // 监听文件拖拽事件
-  listen("tauri-file-drop", async (event: { payload: string[] }) => {
-    const paths = event.payload;
+  onFileDropPaths(async (paths) => {
     if (paths && paths.length > 0) {
       const filePath = paths[0]; // 只处理第一个拖拽的文件
       const extension = await extname(filePath);

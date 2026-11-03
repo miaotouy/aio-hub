@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { customMessage } from "@/utils/customMessage";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import type { RepoOverview, MergeResult } from "../types";

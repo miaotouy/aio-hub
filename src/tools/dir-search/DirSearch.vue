@@ -77,13 +77,15 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, onUnmounted, provide, h } from "vue";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { useResizable } from "@/composables/useResizable";
 import { ElMessageBox } from "element-plus";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
+import { revealItemInDir } from "@/platform/native/opener";
+import { open as openDialog } from "@/platform/native/dialog";
+import { invoke } from "@/platform/native/core";
 import DirectoryBar from "./components/DirectoryBar.vue";
 import SearchPanel from "./components/SearchPanel.vue";
 import FilePreview from "./components/FilePreview.vue";
@@ -249,14 +251,14 @@ async function handleContextMenuSelect(
 
     case "copy-name": {
       const fileName = relativePath?.split("/").pop() || "";
-      await navigator.clipboard.writeText(fileName);
+      await getBrowserClipboard().writeText(fileName);
       customMessage.success("已复制文件名");
       break;
     }
 
     case "copy-path":
       if (filePath) {
-        await navigator.clipboard.writeText(filePath);
+        await getBrowserClipboard().writeText(filePath);
         customMessage.success("已复制路径");
       }
       break;
@@ -268,7 +270,7 @@ async function handleContextMenuSelect(
           (m) => `  ${m.lineNumber},${m.matchStart + 1}: ${m.lineContent}`
         );
         const text = `${filePath}\n${lines.join("\n")}`;
-        await navigator.clipboard.writeText(text);
+        await getBrowserClipboard().writeText(text);
         customMessage.success("已复制当前文件所有匹配");
       }
       break;
@@ -288,7 +290,7 @@ async function handleContextMenuSelect(
             totalMatchesCount += fileResult.matches.length;
           }
         }
-        await navigator.clipboard.writeText(sections.join("\n\n"));
+        await getBrowserClipboard().writeText(sections.join("\n\n"));
         customMessage.success(
           `已复制全部 ${results.length} 个文件的 ${totalMatchesCount} 个结果`
         );
@@ -328,7 +330,7 @@ async function handleContextMenuSelect(
       const matchStart = context.matchStart as number;
       if (lineContent && filePath) {
         const text = `${filePath}\n  ${lineNumber},${matchStart + 1}: ${lineContent}`;
-        await navigator.clipboard.writeText(text);
+        await getBrowserClipboard().writeText(text);
         customMessage.success("已复制匹配行");
       }
       break;
@@ -387,7 +389,7 @@ async function handleContextMenuSelect(
     case "copy-dir-name": {
       const dirName = context.dirName as string;
       if (dirName) {
-        await navigator.clipboard.writeText(dirName);
+        await getBrowserClipboard().writeText(dirName);
         customMessage.success("已复制目录名");
       }
       break;
@@ -400,7 +402,7 @@ async function handleContextMenuSelect(
         const fullPath = search.rootPath.value
           ? `${search.rootPath.value}/${dirPath3}`
           : dirPath3;
-        await navigator.clipboard.writeText(fullPath);
+        await getBrowserClipboard().writeText(fullPath);
         customMessage.success("已复制路径");
       }
       break;
@@ -423,7 +425,7 @@ async function handleContextMenuSelect(
           }
         }
         if (sections.length > 0) {
-          await navigator.clipboard.writeText(sections.join("\n"));
+          await getBrowserClipboard().writeText(sections.join("\n"));
           customMessage.success(`已复制 ${totalLines} 行匹配内容`);
         }
       }

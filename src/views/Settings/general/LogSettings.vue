@@ -21,8 +21,8 @@ import { ElMessageBox, ElButton } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { logger, LogLevel } from "@/utils/logger";
 import { formatDateTime } from "@/utils/time";
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -217,7 +217,7 @@ const handleClearLogBuffer = async () => {
 // 导出日志
 const handleExportLogs = async () => {
   try {
-    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { save } = await import("@/platform/native/dialog");
     const filePath = await save({
       title: "导出日志",
       defaultPath: `logs-${formatDateTime(new Date(), "yyyy-MM-dd")}.txt`,

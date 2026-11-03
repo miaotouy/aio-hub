@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { FolderOpen, FolderSearch, History, Trash2 } from "lucide-vue-next";
 import { useFileDrop } from "@/composables/useFileDrop";
 import {

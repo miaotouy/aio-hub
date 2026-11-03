@@ -6,9 +6,11 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { open } from "@/platform/native/dialog";
+import { readTextFile } from "@/platform/native/fs";
 import {
   AlertCircle,
   Check,
@@ -149,7 +151,7 @@ const selectProfile = (profile: ParsedLlmProfileDraft, selected: boolean) => {
 
 const pasteFromClipboard = async () => {
   try {
-    const text = await navigator.clipboard.readText();
+    const text = await getBrowserClipboard().readText();
     if (text) textInput.value = text;
   } catch {
     customMessage.warning("无法读取剪贴板，请手动粘贴配置");

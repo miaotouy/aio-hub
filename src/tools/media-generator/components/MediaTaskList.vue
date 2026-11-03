@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";
@@ -23,9 +25,9 @@ import { useMediaGenReferenceInput } from "../composables/useMediaGenReferenceIn
 import { createModuleLogger } from "@/utils/logger";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
-import { save } from "@tauri-apps/plugin-dialog";
-import { copyFile } from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+import { save } from "@/platform/native/dialog";
+import { copyFile } from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { Search, Trash2 as TrashIcon, Grid, List } from "lucide-vue-next";
 import type { MediaTask, MediaTaskStatus, MediaTaskType } from "../types";
 import type { Asset } from "@/types/asset-management";
@@ -299,7 +301,7 @@ const handleDownloadTask = async (task: MediaTask) => {
 };
 
 const handleCopyPrompt = (prompt: string) => {
-  navigator.clipboard.writeText(prompt);
+  getBrowserClipboard().writeText(prompt);
   customMessage.success("提示词已复制到剪贴板");
 };
 
@@ -314,21 +316,21 @@ const handleCopyResult = async (task: MediaTask) => {
     if (task.type === "image") {
       const response = await fetch(url);
       const blob = await response.blob();
-      await navigator.clipboard.write([
+      await getBrowserClipboard().write([
         new ClipboardItem({
           [blob.type]: blob,
         }),
       ]);
       customMessage.success("图片已复制到剪贴板");
     } else {
-      await navigator.clipboard.writeText(url);
+      await getBrowserClipboard().writeText(url);
       customMessage.success(
         `${task.type === "video" ? "视频" : "音频"}链接已复制`
       );
     }
   } catch (err) {
     logger.error("复制失败", err);
-    await navigator.clipboard.writeText(url);
+    await getBrowserClipboard().writeText(url);
     customMessage.success("已复制媒体链接");
   }
 };

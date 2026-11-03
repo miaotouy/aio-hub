@@ -15,7 +15,7 @@
 import {
   writeText as tauriWriteText,
   readText as tauriReadText,
-} from "@tauri-apps/plugin-clipboard-manager";
+} from "@/platform/native/clipboard";
 import { isTauriRuntime } from "../core/env";
 import { PlatformError } from "../core/errors";
 

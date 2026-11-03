@@ -124,6 +124,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { Info, Copy, Code } from "lucide-vue-next";
 import type { FFProbeOutput } from "../types";
 import { customMessage } from "@/utils/customMessage";
@@ -191,12 +193,12 @@ const copyAsText = () => {
     }
   });
 
-  navigator.clipboard.writeText(lines.join("\n"));
+  getBrowserClipboard().writeText(lines.join("\n"));
   customMessage.success("已复制到剪贴板");
 };
 
 const copyAsJson = () => {
-  navigator.clipboard.writeText(JSON.stringify(props.info, null, 2));
+  getBrowserClipboard().writeText(JSON.stringify(props.info, null, 2));
   customMessage.success("已复制 JSON 到剪贴板");
 };
 </script>

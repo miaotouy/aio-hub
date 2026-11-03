@@ -84,7 +84,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { FileSearch, ExternalLink, FolderOpen, Save } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";

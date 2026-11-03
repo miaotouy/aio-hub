@@ -7,7 +7,7 @@ const { readFileMock, statMock } = vi.hoisted(() => ({
   statMock: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   readDir: vi.fn(),
   readFile: readFileMock,
   readTextFile: vi.fn(),

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import {
   open as openDialog,
   save as saveDialog,
-} from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+} from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";

@@ -22,10 +22,10 @@ import {
   readTextFile,
   writeTextFile,
   remove,
-} from "@tauri-apps/plugin-fs";
-import { join, extname } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join, extname } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createConfigManager } from "@/utils/configManager";
 import {
   type ChatAgent,
@@ -302,7 +302,7 @@ export function useAgentStorage() {
       if (shouldMigrate) {
         try {
           const sourcePath = icon!.replace("file://", "");
-          const { extname } = await import("@tauri-apps/api/path");
+          const { extname } = await import("@/platform/native/path");
           const extension = await extname(sourcePath).catch(() => "png");
           const newAvatarName = `avatar-${Date.now()}.${extension}`;
 
@@ -335,7 +335,7 @@ export function useAgentStorage() {
       // 迁移逻辑：初始化历史记录
       if (!agent.avatarHistory) {
         try {
-          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const { readDir } = await import("@/platform/native/fs");
           const agentDir = await getAgentDirPath(agentId);
           if (await exists(agentDir)) {
             const entries = await readDir(agentDir);
@@ -458,7 +458,7 @@ export function useAgentStorage() {
   async function ensureAgentDir(agentId: string): Promise<void> {
     const agentDir = await getAgentDirPath(agentId);
     if (!(await exists(agentDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const { mkdir } = await import("@/platform/native/fs");
       await mkdir(agentDir, { recursive: true });
       logger.debug("创建智能体目录", { agentDir });
     }
@@ -571,7 +571,7 @@ export function useAgentStorage() {
    */
   async function scanAgentDirectory(): Promise<string[]> {
     try {
-      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const { readDir } = await import("@/platform/native/fs");
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const agentsDir = await join(moduleDir, AGENTS_SUBDIR);
@@ -662,7 +662,7 @@ export function useAgentStorage() {
    * 执行从 v1 (文件) 到 v2 (目录) 的数据迁移
    */
   async function runMigration(): Promise<void> {
-    const { readDir } = await import("@tauri-apps/plugin-fs");
+    const { readDir } = await import("@/platform/native/fs");
     const appDir = await getAppConfigDir();
     const moduleDir = await join(appDir, MODULE_NAME);
     const agentsDir = await join(moduleDir, AGENTS_SUBDIR);

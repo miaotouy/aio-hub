@@ -19,8 +19,8 @@
 import {
   onOpenUrl,
   getCurrent as getCurrentDeepLinkUrls,
-} from "@tauri-apps/plugin-deep-link";
-import { listen } from "@tauri-apps/api/event";
+} from "@/platform/native/deep-link";
+import { listen } from "@/platform/native/events";
 import { onMounted, onUnmounted } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";

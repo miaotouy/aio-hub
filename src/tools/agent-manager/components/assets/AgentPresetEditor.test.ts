@@ -4,7 +4,7 @@ import type { ChatMessageNode } from "@/tools/llm-chat/types";
 import AgentPresetEditor from "./AgentPresetEditor.vue";
 import PresetCompositionCard from "./PresetCompositionCard.vue";
 import PresetMessageCard from "./PresetMessageCard.vue";
-import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText } from "@/platform/native/clipboard";
 
 vi.mock("@/tools/llm-chat/stores/userProfileStore", () => ({
   useUserProfileStore: () => ({ getEffectiveProfile: () => null }),

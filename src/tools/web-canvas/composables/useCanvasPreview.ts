@@ -14,7 +14,7 @@
 
 import { ref } from "vue";
 import { debounce } from "lodash-es";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("Canvas/Preview");

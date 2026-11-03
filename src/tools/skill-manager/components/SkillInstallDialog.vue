@@ -208,7 +208,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from "vue";
 import { FolderOpen, AlertTriangle, Info } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";

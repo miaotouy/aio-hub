@@ -22,9 +22,9 @@ vi.mock("../../../stores/agentStore", () => ({
 vi.mock("@/tools/st-worldbook-manager/stores/worldbookStore", () => ({
   useWorldbookStore: () => ({ worldbooks: [] }),
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/dialog", () => ({ open: mocks.open }));
+vi.mock("@/platform/native/fs", () => ({
   readFile: async () => new Uint8Array([1]),
   readDir: vi.fn(),
 }));

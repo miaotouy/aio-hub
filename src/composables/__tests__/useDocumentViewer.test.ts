@@ -14,7 +14,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectScope, reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import JSZip from "jszip";
 import { useDocumentViewer } from "../useDocumentViewer";
 import { FODT_MIME, ODT_MIME } from "@/utils/openDocumentParser";

@@ -304,7 +304,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import {
   ElButton,
   ElDrawer,
@@ -434,7 +434,7 @@ function formatDuration(ms: number) {
 async function pickVideo() {
   if (isBusy.value) return;
   try {
-    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { open } = await import("@/platform/native/dialog");
     const selected = await open({
       multiple: false,
       filters: [

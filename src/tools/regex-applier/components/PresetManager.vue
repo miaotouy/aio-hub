@@ -381,14 +381,14 @@ import {
   CircleCheck,
 } from "@element-plus/icons-vue";
 import { VueDraggableNext } from "vue-draggable-next";
-import { open as openFile, save as saveFile } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { open as openFile, save as saveFile } from "@/platform/native/dialog";
+import { readTextFile, writeTextFile } from "@/platform/native/fs";
 import { usePresetStore } from "../stores/store";
 import type { RegexPreset } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { parseRegexPattern } from "../core/engine";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const store = usePresetStore();
 const logger = createModuleLogger("PresetManager");

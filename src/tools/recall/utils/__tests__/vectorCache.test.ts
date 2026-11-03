@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@/utils/configManager", () => ({
   createConfigManager: () => ({ load: mocks.load }),
 }));

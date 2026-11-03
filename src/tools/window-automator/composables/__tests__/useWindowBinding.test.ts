@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useWindowBinding } from "../useWindowBinding";
 
 const os = vi.hoisted(() => ({ name: "linux" }));
-vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => os.name }));
+vi.mock("@/platform/native/os", () => ({ platform: () => os.name }));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ info: vi.fn() }),
 }));

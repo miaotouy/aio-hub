@@ -14,11 +14,11 @@
 
 // src/tools/system-pulse/composables/useSystemPulse.ts
 import { onMounted, onUnmounted, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
+import { writeText } from "@/platform/native/clipboard";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { useSystemPulseStore } from "../store/useSystemPulseStore";
 import type { SystemSnapshot } from "../types/snapshot";
 import { formatSnapshotToText } from "../utils/formatters";

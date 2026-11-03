@@ -112,6 +112,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   useRendererNodeState,
   useRendererDisplayHold,
@@ -371,7 +373,7 @@ watch(
 // 复制代码
 const copyCode = async () => {
   try {
-    await navigator.clipboard.writeText(props.content);
+    await getBrowserClipboard().writeText(props.content);
     copied.value = true;
     customMessage.success("代码已复制");
     if (copiedTimer) clearTimeout(copiedTimer);

@@ -54,7 +54,7 @@ const {
   mockSearchRecall: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mockInvoke,
 }));
 

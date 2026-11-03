@@ -19,8 +19,8 @@ import { ref, onMounted } from "vue";
 import { InfoFilled, FolderOpened } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@/platform/native/dialog";
+import { invoke } from "@/platform/native/core";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { resetAssetBasePathCache } from "@/composables/useAssetManager";
 

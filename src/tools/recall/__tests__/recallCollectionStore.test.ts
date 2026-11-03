@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   saveWorkspace: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
 vi.mock("../utils/recallStorage", () => ({
   recallStorage: {
     loadWorkspace: mocks.loadWorkspace,

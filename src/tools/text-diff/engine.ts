@@ -14,7 +14,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@/platform/native/fs";
 import { createTwoFilesPatch } from "diff";
 import type { FileReadResult, PatchOptions, PatchResult } from "./types";
 

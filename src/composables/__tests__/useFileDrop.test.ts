@@ -25,11 +25,11 @@ const bus = vi.hoisted(() => ({
     };
   },
 }));
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/events", () => ({
   listen: (event: string, callback: (event: any) => void) =>
     bus.subscribe(event, callback),
 }));
-vi.mock("@tauri-apps/api/webview", () => ({
+vi.mock("@/platform/native/webview", () => ({
   getCurrentWebview: () => ({
     onDragDropEvent: (callback: (event: any) => void) =>
       bus.subscribe("webview", callback),

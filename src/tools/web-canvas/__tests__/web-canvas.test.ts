@@ -37,7 +37,7 @@ vi.mock("../stores/canvasStore", () => ({
   useCanvasStore: () => mocks,
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   convertFileSrc: () => "asset://localhost/canvas",
 }));
 

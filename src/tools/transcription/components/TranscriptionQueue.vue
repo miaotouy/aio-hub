@@ -28,7 +28,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import { customMessage } from "@/utils/customMessage";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import {
   CheckCircle2,
   Loader2,

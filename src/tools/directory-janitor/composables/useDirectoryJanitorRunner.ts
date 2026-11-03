@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@/platform/native/core";
+import { getCurrentWindow } from "@/platform/native/window";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import { formatBytes, resolveEnvPath } from "../utils/utils";

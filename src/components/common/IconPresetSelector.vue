@@ -111,6 +111,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, watch } from "vue";
 import { useElementSize, useScroll } from "@vueuse/core";
 import { Copy } from "lucide-vue-next";
@@ -246,7 +248,7 @@ function handleSelect(icon: PresetIconInfo) {
 // 处理复制
 async function handleCopy(path: string) {
   try {
-    await navigator.clipboard.writeText(path);
+    await getBrowserClipboard().writeText(path);
     customMessage.success(`已复制: ${path}`);
   } catch (err) {
     customMessage.error("复制失败");

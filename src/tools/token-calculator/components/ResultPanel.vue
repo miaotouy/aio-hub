@@ -301,6 +301,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch, nextTick } from "vue";
 import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
 import { useElementSize } from "@vueuse/core";
@@ -571,7 +573,7 @@ const copyAllTokens = async () => {
       return `[${t.id ?? "?"}] "${escapedText}"`;
     });
     const content = lines.join("\n");
-    await navigator.clipboard.writeText(content);
+    await getBrowserClipboard().writeText(content);
     customMessage.success("已复制 Token 分块详情 (ID + 文本)");
   } catch (err) {
     customMessage.error("复制失败");

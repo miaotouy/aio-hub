@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
-import { appDataDir } from "@tauri-apps/api/path";
+import { invoke } from "@/platform/native/core";
+import { appDataDir } from "@/platform/native/path";
 // 注意：此文件不能导入 logger.ts，因为 logger.ts 依赖本文件（会造成循环依赖导致 TDZ 错误）
 // 使用 console.log/warn 代替
 

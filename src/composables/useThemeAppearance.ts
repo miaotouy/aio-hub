@@ -22,9 +22,9 @@ import {
   BUILTIN_WALLPAPERS,
 } from "@/utils/appSettings";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@/platform/native/core";
 import { useTheme } from "@/composables/useTheme";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import {

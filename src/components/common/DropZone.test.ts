@@ -10,9 +10,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/platform", () => ({ showOpenDialog: mocks.open }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: mocks.listen }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/webview", () => ({
+vi.mock("@/platform/native/events", () => ({ listen: mocks.listen }));
+vi.mock("@/platform/native/core", () => ({ invoke: vi.fn() }));
+vi.mock("@/platform/native/webview", () => ({
   getCurrentWebview: () => ({ onDragDropEvent: mocks.onDragDropEvent }),
 }));
 

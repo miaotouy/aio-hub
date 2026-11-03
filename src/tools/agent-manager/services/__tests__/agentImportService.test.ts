@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   updateAgent: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
 
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({

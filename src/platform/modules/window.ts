@@ -12,9 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform/native/window";
+import {
+  listen as tauriListen,
+  type UnlistenFn,
+} from "@/platform/native/events";
 import { isTauriRuntime } from "../core/env";
 import { invoke } from "../core/bridge";
+
+/** Existing app file-drop event; keep its payload contract at the host boundary. */
+export function onFileDropPaths(
+  handler: (paths: string[]) => void
+): Promise<UnlistenFn> {
+  return tauriListen<string[]>("tauri-file-drop", (event) =>
+    handler(event.payload)
+  );
+}
+
+export interface WindowDestroyedEvent {
+  label?: string;
+  windowLabel?: string;
+}
+
+export async function onWindowDestroyed(
+  handler: (event: WindowDestroyedEvent) => void
+): Promise<UnlistenFn> {
+  if (isTauriRuntime()) {
+    return tauriListen<{ label?: string }>("tauri://destroyed", (event) => {
+      handler({
+        label: event.payload?.label,
+        windowLabel: (event as any).windowLabel,
+      });
+    });
+  }
+
+  return () => {};
+}
 
 /**
  * 最小化当前窗口

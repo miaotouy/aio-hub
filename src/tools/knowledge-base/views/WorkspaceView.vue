@@ -753,7 +753,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { revealItemInDir } from "@/platform/native/opener";
 import {
   AlertTriangle,
   Binary,

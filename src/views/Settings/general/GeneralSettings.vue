@@ -19,12 +19,12 @@ import { computed } from "vue";
 import { InfoFilled } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { formatDateTime } from "@/utils/time";
-import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { open as openDialog, save } from "@/platform/native/dialog";
+import { writeFile } from "@/platform/native/fs";
 import { getAppConfigDir } from "@/utils/appPath";
 import type {
   ProxySettings,
@@ -206,7 +206,7 @@ const handleOpenConfigDir = async () => {
       logger.warn("无法直接打开目录，尝试复制路径", openError);
 
       const { writeText } =
-        await import("@tauri-apps/plugin-clipboard-manager");
+        await import("@/platform/native/clipboard");
       await writeText(appDir);
 
       ElMessageBox.alert(

@@ -15,8 +15,10 @@
 -->
 
 <script setup lang="ts">
+import { openBrowserWindow } from "@/platform/browser";
+
 import { computed, ref, onBeforeUnmount, onMounted, markRaw } from "vue";
-import { getName, getVersion } from "@tauri-apps/api/app";
+import { getName, getVersion } from "@/platform/native/app";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import iconUrl from "@/assets/aio-icon-color.svg";
@@ -249,7 +251,7 @@ const sponsors = ["水云"];
 
 // 打开外部链接
 const openUrl = (url: string) => {
-  window.open(url, "_blank");
+  openBrowserWindow(url, "_blank");
 };
 
 // 通道切换

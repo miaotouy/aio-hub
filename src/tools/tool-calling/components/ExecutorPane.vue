@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, onMounted, watch } from "vue";
 import { useStorage } from "@vueuse/core";
 import { Play, Zap, RotateCcw, Copy } from "lucide-vue-next";
@@ -289,7 +291,7 @@ const generateVcpCommand = () => {
       selectedMethod.value.name,
       args
     );
-    navigator.clipboard.writeText(vcpText);
+    getBrowserClipboard().writeText(vcpText);
     customMessage.success("VCP 指令已复制到剪贴板");
   } catch (e: any) {
     customMessage.error("生成失败: " + e.message);

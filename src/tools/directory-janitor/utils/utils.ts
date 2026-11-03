@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { homeDir } from "@tauri-apps/api/path";
+import { homeDir } from "@/platform/native/path";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const errorHandler = createModuleErrorHandler("tools/directory-janitor/utils");

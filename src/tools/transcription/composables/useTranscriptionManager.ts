@@ -17,8 +17,8 @@ import type { Asset } from "@/types/asset-management";
 import { getPureModelId } from "@/utils/modelIdUtils";
 import { createModuleLogger } from "@/utils/logger";
 import { smartDecode } from "@/utils/encoding";
-import { remove } from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
+import { remove } from "@/platform/native/fs";
+import { invoke } from "@/platform/native/core";
 import { merge } from "lodash-es";
 
 import type {

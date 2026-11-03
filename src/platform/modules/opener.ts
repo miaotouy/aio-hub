@@ -16,7 +16,7 @@ import {
   openUrl as tauriOpenUrl,
   revealItemInDir as tauriRevealItemInDir,
   openPath as tauriOpenPath,
-} from "@tauri-apps/plugin-opener";
+} from "@/platform/native/opener";
 import { isTauriRuntime } from "../core/env";
 import { PlatformError } from "../core/errors";
 

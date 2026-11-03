@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import DirectoryTreeRegistry from "../directory-tree.registry";
 import {
   buildMetadataHeader,

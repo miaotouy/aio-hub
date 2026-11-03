@@ -3,7 +3,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { fetch as tauriFetch } from "@/platform/native/http";
 import {
   BUILTIN_METADATA_SOURCE_ADAPTERS,
   createCatalogSnapshot,

@@ -19,11 +19,11 @@ const tauri = vi.hoisted(() => ({
   appDataDir: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: tauri.invoke,
 }));
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   appDataDir: tauri.appDataDir,
 }));
 

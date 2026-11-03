@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, type Ref } from "vue";
 import type { ChatSessionDetail } from "../../../../types";
 import { createModuleLogger } from "@/utils/logger";
@@ -119,7 +121,7 @@ export function useGraphNodeActions(
     const node = session.nodes[nodeId];
     if (!node) return;
 
-    navigator.clipboard
+    getBrowserClipboard()
       .writeText(node.content)
       .then(() => {
         logger.info("节点内容已复制", { nodeId });

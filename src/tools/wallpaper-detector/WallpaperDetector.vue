@@ -121,8 +121,10 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, onMounted } from "vue";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@/platform/native/core";
 import { Wallpaper } from "lucide-vue-next";
 import {
   RefreshRight,
@@ -131,7 +133,7 @@ import {
   CopyDocument,
   ZoomIn,
 } from "@element-plus/icons-vue";
-import { exists } from "@tauri-apps/plugin-fs";
+import { exists } from "@/platform/native/fs";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -242,7 +244,7 @@ const copyPath = async (path: string) => {
   if (!path) return;
 
   try {
-    await navigator.clipboard.writeText(path);
+    await getBrowserClipboard().writeText(path);
     customMessage.success("壁纸路径已复制到剪贴板");
   } catch (error) {
     errorHandler.error(error, "复制路径失败");

@@ -19,7 +19,7 @@ import { ref } from "vue";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { transcriptionSettingsConfig } from "../config";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { ElMessageBox } from "element-plus";
 import { RotateCcw } from "lucide-vue-next";
 import { customMessage } from "@/utils/customMessage";

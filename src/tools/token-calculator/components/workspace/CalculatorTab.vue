@@ -64,7 +64,7 @@
 import { ref, onMounted, onUnmounted, type Ref } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@/platform/native/clipboard";
 import type { useTokenCalculator } from "../../composables/useTokenCalculatorState";
 import { usePanelResize } from "../../composables/usePanelResize";
 import ToolBar from "../ToolBar.vue";

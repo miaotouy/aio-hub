@@ -23,7 +23,7 @@ import { toolRegistryManager } from "@/services/registry";
 import { VcpToolCallingProtocol } from "@/tools/tool-calling/core/protocols/vcp-protocol";
 import SettingListRenderer from "@/components/common/SettingListRenderer.vue";
 import { customMessage } from "@/utils/customMessage";
-import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText, readText } from "@/platform/native/clipboard";
 
 const props = defineProps<{
   tool: any;

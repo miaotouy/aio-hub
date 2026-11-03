@@ -168,9 +168,9 @@ import {
   Connection,
   Close,
 } from "@element-plus/icons-vue";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { readText, writeText } from "@/platform/native/clipboard";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { ElNotification } from "element-plus";
 import RichCodeEditor from "@components/common/RichCodeEditor.vue";
 import * as jsonLogic from "./logic/jsonFormatter.logic";

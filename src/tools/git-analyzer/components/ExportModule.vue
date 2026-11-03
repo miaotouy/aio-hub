@@ -110,10 +110,12 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, watch, computed, toRef } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import type { GitCommit, ExportConfig, RepoStatistics } from "../types";
 import { useGitAnalyzerState } from "../composables/useGitAnalyzerState";
 import { useReportGenerator } from "../composables/useReportGenerator";
@@ -307,7 +309,7 @@ async function updatePreview() {
 // 复制到剪贴板
 async function copyToClipboard() {
   try {
-    await navigator.clipboard.writeText(previewContent.value);
+    await getBrowserClipboard().writeText(previewContent.value);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
     errorHandler.error(error, "复制报告内容到剪贴板失败", {

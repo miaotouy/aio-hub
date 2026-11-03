@@ -16,7 +16,7 @@ import {
   getCurrentWindow,
   PhysicalSize,
   PhysicalPosition,
-} from "@tauri-apps/api/window";
+} from "@/platform/native/window";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 

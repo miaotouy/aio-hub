@@ -15,9 +15,11 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, watch, computed, onMounted } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@/platform/native/core";
+import { open } from "@/platform/native/dialog";
 import { useTranscriptionStore } from "../stores/transcriptionStore";
 import { useTranscriptionManager } from "../composables/useTranscriptionManager";
 import { useFileInteraction } from "@/composables/useFileInteraction";
@@ -30,7 +32,7 @@ import { isTextFile, getExtension } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
 import { getLanguageDefinition } from "@/utils/codeLanguages";
 import type { Asset } from "@/types/asset-management";
-import { readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { readFile, writeFile } from "@/platform/native/fs";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
@@ -540,7 +542,7 @@ watch(
 // 复制结果
 const copyResult = async () => {
   try {
-    await navigator.clipboard.writeText(resultText.value);
+    await getBrowserClipboard().writeText(resultText.value);
     customMessage.success("已复制到剪贴板");
   } catch (e) {
     customMessage.error("复制失败");

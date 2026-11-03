@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed } from "vue";
 import { Globe, Copy, FileText } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
@@ -37,7 +39,7 @@ const displayUrl = computed(() => {
 const copyUrl = async () => {
   if (!store.currentPageUrl) return;
   try {
-    await navigator.clipboard.writeText(store.currentPageUrl);
+    await getBrowserClipboard().writeText(store.currentPageUrl);
     customMessage.success("已复制 URL");
   } catch {
     customMessage.error("复制失败");

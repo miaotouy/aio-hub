@@ -24,11 +24,11 @@ import {
   listen,
   emit as tauriEmit,
   type UnlistenFn as TauriUnlistenFn,
-} from "@tauri-apps/api/event";
+} from "@/platform/native/events";
 import {
   getCurrentWebviewWindow,
   getAllWebviewWindows,
-} from "@tauri-apps/api/webviewWindow";
+} from "@/platform/native/webview-window";
 import { getOrCreateInstance } from "@/utils/singleton";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

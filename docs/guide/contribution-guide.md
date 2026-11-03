@@ -108,6 +108,7 @@ bun run monaco:nls
 
 - 根据改动范围运行 lint、类型检查、单元测试和后端检查。
 - 前端改动除类型检查外还要运行对应 Vite 构建。
+- 桌面宿主 API 统一经 `src/platform/` 访问；`@tauri-apps/*` 导入只放在 `src/platform/native/`，并运行 `bun run check:platform-isolation` 验证边界。
 - Tauri 真实运行态和系统级交互按[工具测试指南](./tool-testing-guide.md)选择验证层级，不能用普通浏览器结果替代。
 - 提交前检查 diff，确认没有无关格式化、生成物、密钥或本地调试数据。
 

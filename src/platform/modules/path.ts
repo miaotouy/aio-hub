@@ -17,7 +17,7 @@ import {
   extname as tauriExtname,
   basename as tauriBasename,
   dirname as tauriDirname,
-} from "@tauri-apps/api/path";
+} from "@/platform/native/path";
 import { isTauriRuntime } from "../core/env";
 import { getAppConfigDir as getAppDirFromUtils } from "@/utils/appPath";
 

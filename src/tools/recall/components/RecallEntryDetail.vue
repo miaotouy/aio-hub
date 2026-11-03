@@ -39,7 +39,7 @@ import {
 import { customMessage } from "@/utils/customMessage";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { format } from "date-fns";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import TagEditor from "./TagEditor.vue";
 import type { RecallEntryInput } from "../types";

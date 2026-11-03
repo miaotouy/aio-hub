@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, watch, computed } from "vue";
 import {
   Copy,
@@ -168,7 +170,7 @@ async function copyContent() {
       : props.result?.content;
   if (!text) return;
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success("已复制到剪贴板");
   } catch (err: any) {
     errorHandler.error(err, "复制失败");

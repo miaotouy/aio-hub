@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import { ref, computed, watch, shallowRef, triggerRef } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { watchDebounced } from "@vueuse/core";
 import type {
   FileSearchResult,

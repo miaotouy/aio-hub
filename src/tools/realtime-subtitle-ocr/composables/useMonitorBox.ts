@@ -22,8 +22,8 @@
 
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { computed, onBeforeUnmount } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@/platform/native/core";
+import { getCurrentWindow } from "@/platform/native/window";
 import { customMessage } from "@/utils/customMessage";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";

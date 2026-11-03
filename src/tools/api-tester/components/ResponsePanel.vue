@@ -128,6 +128,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref } from "vue";
 import { ElButton, ElEmpty, ElTabPane, ElTabs } from "element-plus";
 import { CloseBold, CopyDocument } from "@element-plus/icons-vue";
@@ -188,7 +190,7 @@ function handleAbort() {
 
 async function copyResponseBody() {
   try {
-    await navigator.clipboard.writeText(response.value.body);
+    await getBrowserClipboard().writeText(response.value.body);
     customMessage.success("响应 Body 已复制");
   } catch {
     customMessage.error("复制失败");

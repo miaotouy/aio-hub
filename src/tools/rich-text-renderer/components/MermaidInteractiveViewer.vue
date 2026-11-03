@@ -180,6 +180,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   ref,
   watch,
@@ -369,7 +371,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
 // 复制代码
 const copyCode = async () => {
   try {
-    await navigator.clipboard.writeText(fixedContent.value);
+    await getBrowserClipboard().writeText(fixedContent.value);
     copied.value = true;
     customMessage.success("已复制修复后的源码");
     setTimeout(() => {
@@ -473,7 +475,7 @@ const copyImage = async () => {
           }
 
           try {
-            await navigator.clipboard.write([
+            await getBrowserClipboard().write([
               new ClipboardItem({
                 "image/png": blob,
               }),

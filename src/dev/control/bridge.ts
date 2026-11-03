@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@/platform/native/core";
 import { nextTick } from "vue";
 import router from "@/router";
 import { useAppInitStore } from "@/stores/appInitStore";

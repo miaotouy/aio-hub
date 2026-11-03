@@ -56,7 +56,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, useAttrs, computed } from "vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useCanvasStateConsumer } from "../../composables/useCanvasStateConsumer";
 import {

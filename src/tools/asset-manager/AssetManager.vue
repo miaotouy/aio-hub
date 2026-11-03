@@ -152,8 +152,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
 import {

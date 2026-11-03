@@ -53,7 +53,7 @@ export { execute, executeMany };
 export {
   open as openDialog,
   save as saveDialog,
-} from "@tauri-apps/plugin-dialog";
+} from "@/platform/native/dialog";
 
 // 导出常用工具 (Utils)
 export * from "@/utils/customMessage";

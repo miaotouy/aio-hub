@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { ref, computed, onScopeDispose } from "vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { useVcpDistributedStore } from "@/tools/vcp-connector/stores/vcpDistributedStore";

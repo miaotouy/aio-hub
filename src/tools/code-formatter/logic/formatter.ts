@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {

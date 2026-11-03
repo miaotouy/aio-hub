@@ -95,6 +95,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { ListTree, Code2, Copy } from "lucide-vue-next";
 import DraggablePanel from "@/components/common/DraggablePanel.vue";
@@ -126,7 +128,7 @@ const copyFullJson = async () => {
     return;
   }
   try {
-    await navigator.clipboard.writeText(jsonString.value);
+    await getBrowserClipboard().writeText(jsonString.value);
     customMessage.success("AST JSON 已复制到剪贴板");
   } catch (err) {
     console.error("Copy failed:", err);

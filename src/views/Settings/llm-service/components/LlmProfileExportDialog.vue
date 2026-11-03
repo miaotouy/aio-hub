@@ -7,8 +7,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { Download, Search } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";

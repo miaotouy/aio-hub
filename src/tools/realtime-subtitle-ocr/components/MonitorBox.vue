@@ -54,9 +54,9 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { emit } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
+import { emit } from "@/platform/native/events";
+import { invoke } from "@/platform/native/core";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { Pin as PinIcon, X as XIcon } from "lucide-vue-next";
 

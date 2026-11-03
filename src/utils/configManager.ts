@@ -21,9 +21,10 @@
  * - 非 Tauri 环境（Vitest / Bun 脚本）：自动降级为内存存储模式，不依赖任何 Tauri API
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
+import { writeTextFile } from "@/platform/native/fs";
+import { hasTauriRuntimeMarker } from "@/platform/core/env";
 import { getAppConfigDir } from "./appPath";
 import * as yaml from "js-yaml";
 import { createModuleLogger } from "./logger";
@@ -33,8 +34,7 @@ const logger = createModuleLogger("ConfigManager");
 const errorHandler = createModuleErrorHandler("ConfigManager");
 
 // 检测是否处于 Tauri 运行时环境
-const isTauri =
-  typeof window !== "undefined" && !!(window as any).__TAURI_INTERNALS__;
+const isTauri = hasTauriRuntimeMarker();
 
 // 非 Tauri 环境下的全局内存存储（跨实例共享，模拟文件系统）
 const memoryStore = new Map<string, string>();

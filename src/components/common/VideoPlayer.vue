@@ -333,6 +333,7 @@
 </template>
 
 <script setup lang="ts">
+import { stripLocalAssetUrlPrefix } from "@/platform/modules/assets";
 import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import {
   ref,
@@ -485,9 +486,8 @@ const videoName = computed(() => {
   try {
     // 1. 先解码 URL
     let decodedSrc = decodeURIComponent(props.src);
-    // 2. 移除常见的 Tauri asset 协议前缀
-    decodedSrc = decodedSrc.replace(/^https?:\/\/asset\.localhost\//, "");
-    decodedSrc = decodedSrc.replace(/^asset:\/\//, "");
+    // 2. 去掉宿主资源前缀
+    decodedSrc = stripLocalAssetUrlPrefix(decodedSrc);
 
     // 3. 统一分隔符并提取最后一部分
     const parts = decodedSrc.split(/[/\\]/);

@@ -21,7 +21,7 @@ import {
   readDir as tauriReadDir,
   BaseDirectory,
   type DirEntry,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
 
 export { BaseDirectory };
 export type { DirEntry };

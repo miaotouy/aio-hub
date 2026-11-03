@@ -15,9 +15,9 @@ import {
   Pencil,
   CornerDownLeft,
 } from "lucide-vue-next";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
+import { writeText } from "@/platform/native/clipboard";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";

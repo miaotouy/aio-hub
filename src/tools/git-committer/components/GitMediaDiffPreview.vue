@@ -103,8 +103,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { convertFileSrc, invoke } from "@/platform/native/core";
+import { openPath } from "@/platform/native/opener";
 import { FileWarning } from "lucide-vue-next";
 import { ElButton } from "element-plus";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";

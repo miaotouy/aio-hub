@@ -33,7 +33,7 @@
 
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { computed } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useWindowAutomatorStore } from "../stores/windowAutomator.store";
 import { executeStep, StepExecContext } from "./stepExecutors";

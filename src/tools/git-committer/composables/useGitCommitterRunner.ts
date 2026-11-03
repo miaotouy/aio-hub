@@ -18,7 +18,7 @@
  * 封装：刷新状态、暂存/取消暂存、Diff Tab 管理、AI 生成 commit message、提交/推送。
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { isAbortError } from "@/llm-apis/common";
 import { parseModelCombo } from "@/utils/modelIdUtils";

@@ -247,4 +247,4 @@ await detachedManager.closeWindow("my-awesome-tool:overlay-box");
    悬浮窗容器 [`DetachedComponentContainer.vue`](../../src/views/DetachedComponentContainer.vue) 默认设置了 `pointer-events: none;` 以允许鼠标穿透。而包裹组件的 `.component-wrapper` 设置了 `pointer-events: auto;`。
    如果你的悬浮窗需要实现局部鼠标穿透（例如只允许点击控制按钮，其他透明区域可穿透），请在你的组件内部精细控制 `pointer-events`。
 3. **优雅处理窗口销毁**：
-   当用户直接点击悬浮窗的原生关闭按钮，或者通过系统任务栏关闭窗口时，`useDetachedManager` 会自动捕获 `tauri://destroyed` 事件，清理全局状态，并向主窗口发送 `window-attached` 事件，确保主窗口的 UI 状态（如标签页恢复、分离按钮状态复位）能够完美同步。
+   `useDetachedManager` 通过平台层的 `onWindowDestroyed` 监听窗口销毁，清理全局状态并向主窗口发送 `window-attached`，同步标签页与分离按钮状态。宿主事件名称与包络解析由平台窗口模块处理。

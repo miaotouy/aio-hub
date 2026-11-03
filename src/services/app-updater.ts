@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { getVersion } from "@tauri-apps/api/app";
+import { getVersion } from "@/platform/native/app";
 import {
   check,
   type DownloadEvent,
   type Update,
-} from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+} from "@/platform/native/updater";
+import { relaunch } from "@/platform/native/process";
 import { compareVersions } from "compare-versions";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";

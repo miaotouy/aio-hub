@@ -29,8 +29,8 @@ import {
   unref,
 } from "vue";
 import { useElementSize, useWindowSize } from "@vueuse/core";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
+import { invoke } from "@/platform/native/core";
+import { getCurrentWindow, currentMonitor } from "@/platform/native/window";
 import { useDetachable } from "@/composables/useDetachable";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { useChatFileInteraction } from "@/composables/useFileInteraction";

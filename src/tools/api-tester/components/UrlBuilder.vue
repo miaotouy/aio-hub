@@ -71,6 +71,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed } from "vue";
 import { useApiTesterStore } from "../stores/store";
 import { customMessage } from "@utils/customMessage";
@@ -111,7 +113,7 @@ function copyUrl() {
     customMessage.warning("没有可复制的 URL");
     return;
   }
-  navigator.clipboard
+  getBrowserClipboard()
     .writeText(url)
     .then(() => {
       customMessage.success("URL 已复制到剪贴板");

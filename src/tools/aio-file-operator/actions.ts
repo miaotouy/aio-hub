@@ -16,7 +16,7 @@
  * aio-file-operator 核心业务逻辑
  * 封装底层的 Tauri 命令调用、文档解析逻辑和换行符安全替换
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { inferMimeTypeFromHint } from "@/utils/fileTypeDetector";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";

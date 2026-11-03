@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref } from "vue";
 import {
   Play,
@@ -205,7 +207,7 @@ const getAdaptedArgs = (req: any): AdaptedArgsResult => {
 /** 一键复制 */
 const copyToClipboard = async (text: string, label: string) => {
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success(`已复制 ${label}`);
   } catch {
     customMessage.error("复制失败，请手动选择文本复制");

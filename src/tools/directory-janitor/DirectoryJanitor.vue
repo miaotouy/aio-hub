@@ -86,7 +86,7 @@ const analyzePath = async () => {
 // 停止扫描
 const stopScan = async () => {
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
+    const { invoke } = await import("@/platform/native/core");
     await invoke("stop_directory_scan");
     store.isAnalyzing = false;
     store.showProgress = false;
@@ -101,7 +101,7 @@ const stopScan = async () => {
 // 停止清理
 const stopCleanup = async () => {
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
+    const { invoke } = await import("@/platform/native/core");
     await invoke("stop_directory_cleanup");
     store.isCleaning = false;
     store.cleanupProgress = null;

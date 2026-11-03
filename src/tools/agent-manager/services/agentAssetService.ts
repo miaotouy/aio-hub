@@ -17,7 +17,7 @@
  * 处理智能体预设资产的导入、本地化和管理
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import type { ChatAgent } from "../types/agent";
 import { getAgentStorageSubdirectory } from "../utils/agentAssetUtils";

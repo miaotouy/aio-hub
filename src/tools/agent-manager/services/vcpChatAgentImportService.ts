@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { readDir, readFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { readDir, readFile, readTextFile } from "@/platform/native/fs";
 import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useVcpStore } from "@/tools/vcp-connector/stores/vcpConnectorStore";

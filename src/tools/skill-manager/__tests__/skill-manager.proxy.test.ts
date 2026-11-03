@@ -74,7 +74,7 @@ const {
   };
 });
 
-vi.mock("@tauri-apps/plugin-os", () => ({
+vi.mock("@/platform/native/os", () => ({
   type: vi.fn(() => "windows"),
   platform: vi.fn(() => "windows"),
   arch: vi.fn(() => "x86_64"),

@@ -34,8 +34,8 @@ import { normalizeWorldbook } from "@/tools/st-worldbook-manager/services/worldb
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import jsYaml from "js-yaml";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readFile, readDir } from "@tauri-apps/plugin-fs";
+import { open } from "@/platform/native/dialog";
+import { readFile, readDir } from "@/platform/native/fs";
 import { isEqual } from "lodash-es";
 import { restoreImportedAgentAssets } from "../../services/agentImportedAssetService";
 

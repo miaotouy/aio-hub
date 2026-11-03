@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform/native/events";
 import { Monitor } from "lucide-vue-next";
 import { useDetachable } from "@/composables/useDetachable";
 import DragDropPlayground from "./DragDropPlayground.vue";

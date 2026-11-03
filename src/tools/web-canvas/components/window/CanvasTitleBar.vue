@@ -106,8 +106,8 @@ import {
   Layers,
 } from "lucide-vue-next";
 import { WebCanvasIcon } from "@aiohub/tool-icons";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { platform } from "@tauri-apps/plugin-os";
+import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
+import { platform } from "@/platform/native/os";
 
 defineProps<{
   title: string;

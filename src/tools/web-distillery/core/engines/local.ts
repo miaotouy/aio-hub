@@ -17,7 +17,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import { getLocalISOString } from "@/utils/time";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 import type {
   QuickFetchOptions,

@@ -175,6 +175,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { Copy, Check } from "lucide-vue-next";
 import Avatar from "@/components/common/Avatar.vue";
@@ -279,7 +281,7 @@ const copyError = async () => {
   if (!props.data.errorMessage) return;
 
   try {
-    await navigator.clipboard.writeText(props.data.errorMessage);
+    await getBrowserClipboard().writeText(props.data.errorMessage);
     errorCopied.value = true;
     customMessage.success("错误信息已复制");
 

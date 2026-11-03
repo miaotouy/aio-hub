@@ -15,9 +15,11 @@
 -->
 
 <script setup lang="ts">
+import { openBrowserWindow } from "@/platform/browser";
+
 import { computed, reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@/platform/native/core";
+import { open } from "@/platform/native/dialog";
 import { FolderOpened } from "@element-plus/icons-vue";
 import {
   ExternalLink,
@@ -168,7 +170,7 @@ const testDependency = async (card: DependencyCard) => {
 };
 
 const openDownload = (url: string) => {
-  window.open(url, "_blank");
+  openBrowserWindow(url, "_blank");
 };
 </script>
 

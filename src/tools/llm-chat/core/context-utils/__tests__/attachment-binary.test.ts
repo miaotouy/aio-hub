@@ -23,12 +23,12 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   appConfigDir: mocks.appConfigDir,
   join: mocks.join,
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   readFile: mocks.readFile,
 }));
 

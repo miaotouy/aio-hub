@@ -17,7 +17,7 @@ import {
   save as tauriSave,
   type OpenDialogOptions as TauriOpenOptions,
   type SaveDialogOptions as TauriSaveOptions,
-} from "@tauri-apps/plugin-dialog";
+} from "@/platform/native/dialog";
 import { isTauriRuntime } from "../core/env";
 import { PlatformError } from "../core/errors";
 

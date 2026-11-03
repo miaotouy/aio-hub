@@ -17,9 +17,9 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from "vue";
 import { FileDown, RotateCcw, Search, ShieldAlert } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { ElMessageBox } from "element-plus";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { useRecallIndexer } from "../composables/useRecallIndexer";

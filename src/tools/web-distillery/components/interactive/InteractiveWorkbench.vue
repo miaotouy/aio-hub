@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onUnmounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import InteractiveToolbar from "./InteractiveToolbar.vue";
 import PageInfoBar from "./PageInfoBar.vue";
 import BrowserViewport from "./BrowserViewport.vue";

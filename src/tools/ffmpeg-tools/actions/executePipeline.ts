@@ -15,9 +15,9 @@
 /**
  * FFmpeg Agent Action: 执行多步串行管道
  */
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { basename, dirname, extname, join } from "@tauri-apps/api/path";
+import { invoke } from "@/platform/native/core";
+import { listen } from "@/platform/native/events";
+import { basename, dirname, extname, join } from "@/platform/native/path";
 import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpeg } from "@/composables/useFFmpeg";

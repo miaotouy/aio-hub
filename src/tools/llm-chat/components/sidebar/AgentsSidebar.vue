@@ -15,12 +15,14 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 
 import { computed, ref, watch, onMounted, defineAsyncComponent } from "vue";
 import { useMeasuredVirtualizer } from "@/composables/useMeasuredVirtualizer";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@/platform/native/core";
+import { open } from "@/platform/native/dialog";
 import yaml from "js-yaml";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -759,7 +761,7 @@ const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
         ? yaml.dump(exportData)
         : JSON.stringify(exportData, null, 2);
 
-    await navigator.clipboard.writeText(contentString);
+    await getBrowserClipboard().writeText(contentString);
     const name = agent.displayName || agent.name;
     customMessage.success(
       `智能体 "${name}" 的 ${format.toUpperCase()} 配置已复制到剪贴板`
@@ -772,7 +774,7 @@ const handleCopyConfig = async (agent: ChatAgent, format: "json" | "yaml") => {
 // 从剪贴板导入
 const handleImportFromClipboard = async () => {
   try {
-    const text = await navigator.clipboard.readText();
+    const text = await getBrowserClipboard().readText();
     if (!text.trim()) {
       customMessage.warning("剪贴板内容为空");
       return;

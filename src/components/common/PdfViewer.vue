@@ -214,6 +214,8 @@
 </template>
 
 <script setup lang="ts">
+import { openBrowserWindow } from "@/platform/browser";
+
 import {
   ref,
   computed,
@@ -687,7 +689,7 @@ async function printPdf() {
           printIframe.value?.contentWindow?.print();
         } catch (e) {
           // 如果 iframe 打印失败，尝试新窗口打印
-          const printWindow = window.open(url, "_blank");
+          const printWindow = openBrowserWindow(url, "_blank");
           if (printWindow) {
             printWindow.onload = () => {
               printWindow.print();

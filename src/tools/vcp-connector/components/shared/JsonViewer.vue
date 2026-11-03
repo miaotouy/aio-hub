@@ -37,6 +37,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref } from "vue";
 import { ElMessage } from "element-plus";
 import type { VcpMessage } from "../../types/protocol";
@@ -57,7 +59,7 @@ function copyJson() {
 
   try {
     const text = JSON.stringify(props.message.raw || props.message, null, 2);
-    navigator.clipboard.writeText(text);
+    getBrowserClipboard().writeText(text);
     ElMessage.success("已复制到剪贴板");
   } catch (e) {
     ElMessage.error("复制失败");

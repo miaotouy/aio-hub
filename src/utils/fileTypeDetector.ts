@@ -39,7 +39,7 @@ async function readFileHeader(filePath: string): Promise<Uint8Array | null> {
   }
 
   try {
-    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const { readFile } = await import("@/platform/native/fs");
     // 读取文件的前 4100 字节用于类型检测
     const bytes = await readFile(filePath);
     return bytes.slice(0, 4100);

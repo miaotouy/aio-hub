@@ -186,7 +186,7 @@ import {
   RotateCcw,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { revealItemInDir } from "@/platform/native/opener";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { getExtension } from "@/utils/fileTypeDetector";

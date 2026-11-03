@@ -1,6 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import ElementPlus, { ElCheckbox, ElInput, ElSelect } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CreateTagDialog from "./CreateTagDialog.vue";
 import { createTag, pushTag } from "../composables/useGitOverview";

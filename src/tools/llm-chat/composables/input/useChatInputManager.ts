@@ -37,7 +37,7 @@ import {
  */
 
 import { ref, watch, nextTick, computed, type Ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform/native/events";
 import { fileUriToPath } from "@/utils/fileDropPaths";
 import { getOrCreateInstance } from "@/utils/singleton";
 import {

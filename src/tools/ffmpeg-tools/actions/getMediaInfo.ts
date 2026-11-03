@@ -15,7 +15,7 @@
 /**
  * FFmpeg Agent Action: 获取媒体信息
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { computed } from "vue";
 import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpeg } from "@/composables/useFFmpeg";

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import { assetManagerEngine } from "@/composables/useAssetManager";
-import { appConfigDir, join } from "@tauri-apps/api/path";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { appConfigDir, join } from "@/platform/native/path";
+import { readFile } from "@/platform/native/fs";
 import { getAgentStorageSubdirectory } from "@/tools/agent-manager/utils/agentAssetUtils";
 import type { PipelineAttachment } from "../../types/pipeline-attachment";
 

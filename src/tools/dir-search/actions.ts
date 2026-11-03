@@ -19,8 +19,8 @@
  * 供 ToolRegistry Agent 方法直接调用。
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import type {
   SearchRequest,
   SearchSummary,

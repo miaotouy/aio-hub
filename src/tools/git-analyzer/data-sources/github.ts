@@ -1,4 +1,4 @@
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { fetch as tauriFetch } from "@/platform/native/http";
 import type { FileChange, GitCommit } from "../types";
 
 const API_BASE = "https://api.github.com";

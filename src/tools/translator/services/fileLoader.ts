@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { readFile } from "@tauri-apps/plugin-fs";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { readFile } from "@/platform/native/fs";
+import { open as openDialog } from "@/platform/native/dialog";
 import { detectMimeTypeFromBuffer, isTextFile } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

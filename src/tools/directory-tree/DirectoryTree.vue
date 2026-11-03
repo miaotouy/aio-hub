@@ -66,7 +66,7 @@
 
 <script setup lang="ts">
 import { onMounted, watch } from "vue";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";

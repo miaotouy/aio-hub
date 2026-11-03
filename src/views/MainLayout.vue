@@ -17,8 +17,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@/platform/native/events";
+import { invoke } from "@/platform/native/core";
 import { ElMessageBox } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { createModuleLogger } from "@/utils/logger";

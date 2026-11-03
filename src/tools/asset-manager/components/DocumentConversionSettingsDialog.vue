@@ -16,8 +16,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@/platform/native/core";
+import { open as openDialog } from "@/platform/native/dialog";
 import { Check, FolderOpened, Refresh } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import { customMessage } from "@/utils/customMessage";

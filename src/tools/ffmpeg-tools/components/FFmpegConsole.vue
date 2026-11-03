@@ -61,7 +61,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from "vue";
 import { Terminal, Trash, Copy, Check, X } from "lucide-vue-next";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import { customMessage } from "@/utils/customMessage";
 
 const props = defineProps<{

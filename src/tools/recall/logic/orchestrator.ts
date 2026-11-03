@@ -21,7 +21,7 @@
  * 2. VectorSyncManager - 向量同步（覆盖率检查、自动补全）
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { LlmProfile } from "@/types/llm-profiles";
 import type { RecallEntry, RecallRequestSettings } from "../types";
 import { generateVectors, vectorizeTags } from "../core/embedding";

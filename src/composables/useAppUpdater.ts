@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { computed, markRaw, ref, shallowRef } from "vue";
-import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
+import type { DownloadEvent, Update } from "@/platform/native/updater";
 import {
   checkForAppUpdate,
   downloadAndInstallAppUpdate,

@@ -83,6 +83,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { ChevronRight, Copy } from "lucide-vue-next";
 import customMessage from "@/utils/customMessage";
@@ -134,7 +136,7 @@ const copyContent = async () => {
       typeof props.data === "object"
         ? JSON.stringify(props.data, null, 2)
         : String(props.data);
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success("复制成功");
   } catch (err) {
     console.error("Copy failed:", err);

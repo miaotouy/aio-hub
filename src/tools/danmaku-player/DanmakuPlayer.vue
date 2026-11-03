@@ -222,8 +222,8 @@ import { useDanmakuConfig } from "./composables/useDanmakuConfig";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
 import { smartDecode } from "@/utils/encoding";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { convertFileSrc } from "@/platform/native/core";
+import { readFile } from "@/platform/native/fs";
 import type { ParsedDanmaku, AssScriptInfo, SubtitleTrack } from "./types";
 
 const logger = createModuleLogger("danmaku-player");

@@ -302,6 +302,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, watch } from "vue";
 import { Copy as CopyIcon } from "lucide-vue-next";
 import { merge } from "lodash-es";
@@ -627,7 +629,7 @@ async function copyVisibleItems() {
     .map((item) => item.modelId)
     .join("\n");
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success(
       `已复制 ${filteredCoverageItems.value.length} 个模型 ID`
     );
@@ -638,7 +640,7 @@ async function copyVisibleItems() {
 
 async function copyModelId(modelId: string) {
   try {
-    await navigator.clipboard.writeText(modelId);
+    await getBrowserClipboard().writeText(modelId);
     customMessage.success("模型 ID 已复制");
   } catch (error) {
     customMessage.error("复制失败，请手动复制");

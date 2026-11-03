@@ -26,16 +26,16 @@ import {
   RefreshCw,
 } from "lucide-vue-next";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useVideoViewer } from "@/composables/useVideoViewer";
 import { useAudioViewer } from "@/composables/useAudioViewer";
 import { useGenerationInfoViewer } from "../composables/useGenerationInfoViewer";
 import type { AssetType } from "@/types/asset-management";
 import { useScrollPagination } from "@/composables/useScrollPagination";
-import { readTextFile } from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { readTextFile } from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("media-generator/gallery");

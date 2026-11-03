@@ -16,8 +16,8 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { open } from "@/platform/native/dialog";
+import { convertFileSrc } from "@/platform/native/core";
 import type { OcrApiRequest } from "@/types/ocr-profiles";
 import type { Variable } from "@/tools/api-tester/types";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

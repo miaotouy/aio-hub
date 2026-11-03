@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile } from "@/platform/native/fs";
 import {
   KnowledgeFileParseError,
   isProbablyText,
   parseKnowledgeFile,
 } from "../fileParser";
 
-vi.mock("@tauri-apps/plugin-fs", () => ({ readFile: vi.fn() }));
+vi.mock("@/platform/native/fs", () => ({ readFile: vi.fn() }));
 vi.mock("@/utils/docxParser", () => ({ parseDocx: vi.fn() }));
 
 const readFileMock = vi.mocked(readFile);

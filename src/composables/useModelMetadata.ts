@@ -31,7 +31,7 @@ import {
   getMatchedRuleChain,
   isValidIconPath,
 } from "../config/model-metadata";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import { useModelMetadataStore } from "../stores/modelMetadataStore";
 import { materializeModelMetadata } from "@/utils/modelMetadataMaterialization";
 import { resolveAppliedModelGroup } from "@/utils/modelMetadataApplication";

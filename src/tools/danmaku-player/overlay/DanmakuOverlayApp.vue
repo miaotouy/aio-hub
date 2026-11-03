@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform/native/events";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useVirtualClock } from "@tools/danmaku-player/composables/useVirtualClock";
 import { DanmakuEngine } from "@tools/danmaku-player/core/danmakuEngine";

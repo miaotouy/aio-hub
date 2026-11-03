@@ -19,7 +19,7 @@ import { GitInternalService } from "./GitInternalService";
 import { generateCanvasId } from "../utils/id";
 import { useTemplateRegistry } from "../composables/useTemplateRegistry";
 import { createModuleLogger } from "@/utils/logger";
-import { exists, readDir } from "@tauri-apps/plugin-fs";
+import { exists, readDir } from "@/platform/native/fs";
 
 const logger = createModuleLogger("Canvas/Service");
 

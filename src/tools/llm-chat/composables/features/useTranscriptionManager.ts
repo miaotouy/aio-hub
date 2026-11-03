@@ -14,7 +14,7 @@
 
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { watch, computed } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { assetManagerEngine } from "@/composables/useAssetManager";
@@ -27,7 +27,7 @@ import { useTranscriptionStore } from "@/tools/transcription/stores/transcriptio
 import { saveTranscriptionResult } from "@/tools/transcription/engines/base";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { isDocxAssetLike } from "@/utils/docxParser";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { Asset } from "@/types/asset-management";
 import { shouldAutoCreateTranscriptionTask } from "../../utils/transcriptionRetryPolicy";
 

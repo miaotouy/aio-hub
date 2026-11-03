@@ -245,7 +245,7 @@
 import { parsePathsFromDataTransfer } from "@/utils/fileDropPaths";
 import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import throttle from "lodash-es/throttle";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform/native/events";
 import {
   Move,
   FileUp,
@@ -577,7 +577,7 @@ const setupTauriListeners = async () => {
 
   // 5. 监听 Tauri 原生 Webview 拖放事件（Tauri v2 官方最底层的拖放监听，对 VSCode 拖拽极其可靠）
   try {
-    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    const { getCurrentWebview } = await import("@/platform/native/webview");
     const webview = getCurrentWebview();
 
     const logWebviewOver = throttle(

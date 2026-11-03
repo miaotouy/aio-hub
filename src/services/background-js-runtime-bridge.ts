@@ -1,6 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
+import { getCurrentWindow } from "@/platform/native/window";
 import {
   BACKGROUND_JS_RUNTIME_EVENTS,
   BACKGROUND_JS_RUNTIME_WINDOW_LABEL,

@@ -438,6 +438,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   ref,
   reactive,
@@ -1335,7 +1337,7 @@ HTML 完整字符数: ${htmlContent.length}
   }
 
   try {
-    await navigator.clipboard.writeText(comparisonText);
+    await getBrowserClipboard().writeText(comparisonText);
     customMessage.success("原文和 HTML 对比内容已复制到剪贴板");
   } catch (err) {
     customMessage.error("复制失败，请检查浏览器权限");
@@ -1575,7 +1577,7 @@ const copyScreenshot = async () => {
     }
 
     const blob = new Blob([buffer], { type: "image/png" });
-    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    await getBrowserClipboard().write([new ClipboardItem({ "image/png": blob })]);
     customMessage.success("图片已复制到剪贴板");
   } catch (err) {
     customMessage.error("复制失败，请检查浏览器权限");
@@ -1595,8 +1597,8 @@ const saveScreenshot = async () => {
       buffer[i] = binaryStr.charCodeAt(i);
     }
 
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    const { save } = await import("@/platform/native/dialog");
+    const { writeFile } = await import("@/platform/native/fs");
 
     const filePath = await save({
       defaultPath: `rich-text-screenshot-${Date.now()}.png`,

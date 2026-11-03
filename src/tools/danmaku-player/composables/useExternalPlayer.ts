@@ -20,7 +20,7 @@ import {
   watch,
   onMounted,
 } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { usePageActivity } from "@/composables/usePageActivity";
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
 import { TauriExternalPlayerStatusProvider } from "../core/externalPlayerApi";

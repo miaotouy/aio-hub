@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { recallStorage } from "../utils/recallStorage";
 import { customMessage } from "@/utils/customMessage";

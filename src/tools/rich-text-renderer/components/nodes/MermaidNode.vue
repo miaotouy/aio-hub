@@ -164,6 +164,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   useRendererNodeState,
   useRendererDisplayHold,
@@ -456,7 +458,7 @@ let renderCleanup: (() => void) | null = null;
 const copyCode = async () => {
   try {
     // 复制当前显示的代码
-    await navigator.clipboard.writeText(activeContent.value);
+    await getBrowserClipboard().writeText(activeContent.value);
     copied.value = true;
     customMessage.success(
       showOriginal.value ? "已复制原始代码" : "已复制修复后的代码"

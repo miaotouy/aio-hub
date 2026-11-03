@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import { ref, onMounted, onUnmounted, isRef, type Ref, watch } from "vue";
-import { listen, type EventCallback } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { listen, type EventCallback } from "@/platform/native/events";
+import { invoke } from "@/platform/native/core";
 import { parsePathsFromDataTransfer } from "@/utils/fileDropPaths";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -660,7 +660,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
   // ==================== Tauri webview.onDragDropEvent 监听器 ====================
   const setupWebviewDragDropListener = async (batch: ListenerBatch) => {
     try {
-      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      const { getCurrentWebview } = await import("@/platform/native/webview");
       if (!batch.active) return;
       const webview = getCurrentWebview();
       console.log(

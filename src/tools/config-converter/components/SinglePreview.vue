@@ -127,7 +127,7 @@
 import { computed } from "vue";
 import { Trash2, Clipboard, Copy, Send } from "lucide-vue-next";
 import { WarningFilled, InfoFilled } from "@element-plus/icons-vue";
-import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText, readText } from "@/platform/native/clipboard";
 import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";

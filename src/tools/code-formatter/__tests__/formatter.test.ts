@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@/platform/native/core";
 import { FormatterCore } from "../logic/formatter";
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
   isTauri: vi.fn(),
 }));

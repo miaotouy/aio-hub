@@ -38,7 +38,7 @@ import { useUserProfileStore } from "./userProfileStore";
 import { MacroProcessor, createMacroContext } from "../macro-engine";
 import type { MacroDefinition } from "../macro-engine";
 import type { QuickAction } from "../types/quick-action";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { processInlineData } from "@/composables/useAttachmentProcessor";
 import { useTranscriptionManager } from "../composables/features/useTranscriptionManager";
 import { assetManagerEngine } from "@/composables/useAssetManager";

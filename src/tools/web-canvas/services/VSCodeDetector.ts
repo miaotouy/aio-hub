@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { exists } from "@tauri-apps/plugin-fs";
-import { join, localDataDir } from "@tauri-apps/api/path";
+import { exists } from "@/platform/native/fs";
+import { join, localDataDir } from "@/platform/native/path";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("Canvas/VSCodeDetector");

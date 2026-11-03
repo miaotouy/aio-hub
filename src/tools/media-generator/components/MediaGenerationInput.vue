@@ -31,7 +31,7 @@ import AttachmentCard from "@/tools/llm-chat/components/AttachmentCard.vue";
 import MediaGenerationInputToolbar from "./MediaGenerationInputToolbar.vue";
 import { parseModelCombo } from "@/utils/modelIdUtils";
 import { customMessage } from "@/utils/customMessage";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { createModuleLogger } from "@/utils/logger";
 import { getMediaContextToggleUi } from "../utils/contextToggleUi";
 import { insertPromptAtSelection } from "../utils/promptInsertion";

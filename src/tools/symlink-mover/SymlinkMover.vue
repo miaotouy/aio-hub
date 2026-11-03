@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { useSymlinkMoverLogic } from "./composables/useSymlinkMover";
 import FileListPanel from "./components/FileListPanel.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";

@@ -196,6 +196,9 @@
 </template>
 
 <script setup lang="ts">
+import { getLocalAssetCspSources, getAssetProtocolCspSource } from "@/platform/modules/assets";
+import { getBrowserClipboard, openBrowserWindow } from "@/platform/browser";
+
 import { useHtmlStreamStardust } from "../composables/useHtmlStreamStardust";
 import { observeIframeContentHeight } from "../utils/iframeAutoHeight";
 import { ref, computed, watch, onMounted, onUnmounted, inject } from "vue";
@@ -368,9 +371,9 @@ const cdnLocalizerEnabled = computed(
 const cspContent = computed(() => {
   if (allowExternal.value) {
     // 允许外部脚本时，放开限制
-    return "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost blob: data:; img-src * 'self' asset: agent-asset: http://asset.localhost https://asset.localhost data: blob:; frame-src *; script-src * 'unsafe-inline' 'unsafe-eval' blob: data:;";
+    return `default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * 'self' ${getLocalAssetCspSources()} blob: data:; img-src * 'self' ${getLocalAssetCspSources()} data: blob:; frame-src *; script-src * 'unsafe-inline' 'unsafe-eval' blob: data:;`;
   } else {
-    return "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: asset:; style-src 'self' 'unsafe-inline' asset:; img-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; media-src 'self' data: blob: asset: agent-asset: http://asset.localhost https://asset.localhost; connect-src 'self' asset: agent-asset: http://asset.localhost https://asset.localhost; frame-src 'self';";
+    return `default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${getLocalAssetCspSources()}; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: ${getAssetProtocolCspSource()}; style-src 'self' 'unsafe-inline' ${getAssetProtocolCspSource()}; img-src 'self' data: blob: ${getLocalAssetCspSources()}; media-src 'self' data: blob: ${getLocalAssetCspSources()}; connect-src 'self' ${getLocalAssetCspSources()}; frame-src 'self';`;
   }
 });
 
@@ -642,7 +645,7 @@ const clearErrors = () => {
 
 const copyError = (err: IframeError) => {
   const text = `Error: ${err.message}\nStack: ${err.stack || "N/A"}\nTime: ${err.time}`;
-  navigator.clipboard.writeText(text);
+  getBrowserClipboard().writeText(text);
   customMessage.success("已复制到剪贴板");
 };
 
@@ -653,7 +656,7 @@ const copyAllErrors = () => {
         `[${i + 1}] ${err.message}\nStack: ${err.stack || "N/A"}\nTime: ${err.time}`
     )
     .join("\n\n---\n\n");
-  navigator.clipboard.writeText(text);
+  getBrowserClipboard().writeText(text);
   customMessage.success("已复制全部错误");
 };
 
@@ -661,7 +664,7 @@ const openInBrowser = () => {
   try {
     const blob = new Blob([srcDoc.value], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
+    openBrowserWindow(url, "_blank");
     if (openInBrowserRevokeTimer) clearTimeout(openInBrowserRevokeTimer);
     openInBrowserRevokeTimer = setTimeout(() => {
       URL.revokeObjectURL(url);

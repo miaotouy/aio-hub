@@ -110,7 +110,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { InputInstance } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { RepoOverview } from "../types";
 import { suggestNextTag } from "../utils/tagVersion";
 import { createTag, pushTag } from "../composables/useGitOverview";

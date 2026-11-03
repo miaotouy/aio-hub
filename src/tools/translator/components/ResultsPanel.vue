@@ -220,7 +220,7 @@ import {
   RotateCw,
   Square,
 } from "lucide-vue-next";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import { customMessage } from "@/utils/customMessage";
 import { useTranslatorStore } from "../composables/useTranslatorStore";
 import SplitDetailDrawer from "./SplitDetailDrawer.vue";

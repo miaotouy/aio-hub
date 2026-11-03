@@ -50,9 +50,9 @@ import { useChatEntryPreparation } from "./composables/ui/useChatEntryPreparatio
 import type { ModelIdentifier } from "./types";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
+import { revealItemInDir } from "@/platform/native/opener";
 
 const ToolbarCustomizeDialog = defineAsyncComponent(
   () => import("./components/message-input/toolbar/ToolbarCustomizeDialog.vue")

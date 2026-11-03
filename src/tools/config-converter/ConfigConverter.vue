@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useConfigConverter } from "./composables/useConfigConverter";
 import FormatToolbar from "./components/FormatToolbar.vue";

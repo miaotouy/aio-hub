@@ -14,9 +14,9 @@
 
 import { ref, watch, computed } from "vue";
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
+import { invoke } from "@/platform/native/core";
+import { convertFileSrc } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { getAgentStorageSubdirectory } from "../../utils/agentAssetUtils";
 import { customMessage } from "@/utils/customMessage";

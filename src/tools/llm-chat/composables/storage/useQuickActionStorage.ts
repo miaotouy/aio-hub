@@ -21,8 +21,8 @@ import {
   readTextFile,
   writeTextFile,
   remove,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import type {
@@ -79,7 +79,7 @@ export function useQuickActionStorage() {
     const qaDir = await join(moduleDir, QUICK_ACTIONS_SUBDIR);
 
     if (!(await exists(qaDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const { mkdir } = await import("@/platform/native/fs");
       await mkdir(qaDir, { recursive: true });
       logger.debug("创建 quick-actions 目录", { qaDir });
     }
@@ -168,7 +168,7 @@ export function useQuickActionStorage() {
     currentIndex: QuickActionIndex
   ): Promise<QuickActionSetMetadata[]> {
     try {
-      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const { readDir } = await import("@/platform/native/fs");
       const appDir = await getAppConfigDir();
       const qaDir = await join(appDir, MODULE_NAME, QUICK_ACTIONS_SUBDIR);
 

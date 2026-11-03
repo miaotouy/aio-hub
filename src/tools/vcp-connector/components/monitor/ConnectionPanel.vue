@@ -179,8 +179,8 @@ import { customMessage } from "@/utils/customMessage";
 import { useVcpStore } from "../../stores/vcpConnectorStore";
 import { useVcpWebSocket } from "../../composables/useVcpWebSocket";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@/platform/native/core";
+import { open } from "@/platform/native/dialog";
 
 const store = useVcpStore();
 const router = useRouter();

@@ -10,8 +10,8 @@ import { flushPromises } from "@vue/test-utils";
 import ConfigImportPanel from "../ConfigImportPanel.vue";
 import CreateProfileDialog from "../CreateProfileDialog.vue";
 import LlmProfileExportDialog from "../LlmProfileExportDialog.vue";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 
 vi.mock("@/composables/useModelMetadata", () => ({
   useModelMetadata: () => ({

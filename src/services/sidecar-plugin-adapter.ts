@@ -26,8 +26,8 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { pluginConfigService } from "./plugin-config.service";
 import { pluginManager } from "./plugin-manager";
 import { pluginEnvironmentService } from "./plugin-environment.service";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { getCurrentPlatform } from "./plugin-loader";
 import {
   createSidecarHostContext,

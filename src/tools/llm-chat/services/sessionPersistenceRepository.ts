@@ -19,8 +19,8 @@ import {
   readTextFile,
   remove,
   rename,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import type { ChatSessionDetail, ChatSessionIndex } from "../types/session";
 import type {

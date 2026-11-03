@@ -59,7 +59,9 @@ describe("Platform Modules (Node / Test Fallback)", () => {
   it("openExternalUrl 在浏览器降级时隔离新窗口的 opener", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     try {
-      await expect(openExternalUrl("https://example.com")).resolves.toBeUndefined();
+      await expect(
+        openExternalUrl("https://example.com")
+      ).resolves.toBeUndefined();
       expect(open).toHaveBeenCalledWith(
         "https://example.com",
         "_blank",
@@ -72,7 +74,9 @@ describe("Platform Modules (Node / Test Fallback)", () => {
 
   it("revealInFileManager 与 openPathWithDefaultApp 在非 Tauri 环境下无操作", async () => {
     await expect(revealInFileManager("/tmp/test.txt")).resolves.toBeUndefined();
-    await expect(openPathWithDefaultApp("/tmp/test.txt")).resolves.toBeUndefined();
+    await expect(
+      openPathWithDefaultApp("/tmp/test.txt")
+    ).resolves.toBeUndefined();
   });
 
   it("isCurrentWindowMaximized 在非 Tauri 环境下返回 false", async () => {
@@ -91,12 +95,16 @@ describe("Platform Modules (Node / Test Fallback)", () => {
   });
 
   it("getBasename 提取文件名", async () => {
-    const base = await (await import("./index")).getBasename("folder/image.png", ".png");
+    const base = await (
+      await import("./index")
+    ).getBasename("folder/image.png", ".png");
     expect(base).toBe("image");
   });
 
   it("getDirname 提取父目录路径", async () => {
-    const dir = await (await import("./index")).getDirname("folder/subfolder/image.png");
+    const dir = await (
+      await import("./index")
+    ).getDirname("folder/subfolder/image.png");
     expect(dir).toBe("folder/subfolder");
   });
 });

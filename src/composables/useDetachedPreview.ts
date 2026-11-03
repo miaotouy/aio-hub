@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import { ref, onMounted, onUnmounted } from "vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
+import { invoke } from "@/platform/native/core";
+import { listen } from "@/platform/native/events";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("composables/useDetachedPreview");

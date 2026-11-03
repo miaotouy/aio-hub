@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 /**
  * 方案大厅（一级页）
  *
@@ -190,8 +192,8 @@ async function onImport() {
 function exportFlow(flow: ActionFlow) {
   const text = persistence.exportFlow(flow);
   // 复制到剪贴板
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    navigator.clipboard
+  if (typeof navigator !== "undefined" && getBrowserClipboard()?.writeText) {
+    getBrowserClipboard()
       .writeText(text)
       .then(() => customMessage.success("已复制到剪贴板"))
       .catch(() => customMessage.warning("复制失败，请手动复制"));

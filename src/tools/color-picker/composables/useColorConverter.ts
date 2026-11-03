@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed } from "vue";
 import type { ColorFormat } from "../colorPicker.store";
 
@@ -235,7 +237,7 @@ export async function copyToClipboard(
   onError?: (error: Error) => void
 ): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     onSuccess?.();
     return true;
   } catch (error) {

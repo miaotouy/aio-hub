@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { callEmbeddingApi } from "@/llm-apis/embedding";
 import {
   buildEmbeddingSpaceDescriptor,

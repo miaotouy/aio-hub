@@ -48,7 +48,7 @@ Object.defineProperty(globalThis, "localStorage", {
   configurable: true,
 });
 
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/events", () => ({
   listen: vi.fn(async () => vi.fn()),
 }));
 

@@ -25,10 +25,10 @@ declare global {
   }
 }
 
-import { path } from "@tauri-apps/api";
+import { path } from "@/platform/native/sdk";
 import { getAppConfigDir } from "@/utils/appPath";
-import { readTextFile, readDir, exists } from "@tauri-apps/plugin-fs";
-import { arch, platform } from "@tauri-apps/plugin-os";
+import { readTextFile, readDir, exists } from "@/platform/native/fs";
+import { arch, platform } from "@/platform/native/os";
 import { satisfies } from "compare-versions";
 import type {
   PluginDiagnostic,
@@ -410,7 +410,7 @@ export class PluginLoader {
       }
 
       // 3. 使用 ESM 动态导入加载插件
-      const { convertFileSrc } = await import("@tauri-apps/api/core");
+      const { convertFileSrc } = await import("@/platform/native/core");
       // 转换路径为浏览器可加载的 URL，处理 Windows 分隔符
       let assetUrl = convertFileSrc(entryPath.replace(/\\/g, "/"));
 
@@ -581,7 +581,7 @@ export class PluginLoader {
 
     try {
       // 导入 Tauri API
-      const { invoke } = await import("@tauri-apps/api/core");
+      const { invoke } = await import("@/platform/native/core");
 
       // 调用后端命令删除插件目录到回收站
       await invoke("uninstall_plugin", { pluginId });

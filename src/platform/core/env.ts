@@ -15,7 +15,8 @@
 /**
  * 平台运行时类型
  */
-export type PlatformRuntime = "tauri" | "electron" | "browser" | "node" | "test";
+export type PlatformRuntime =
+  "tauri" | "electron" | "browser" | "node" | "test";
 
 /**
  * 探测当前运行环境
@@ -41,16 +42,22 @@ export function detectPlatformRuntime(): PlatformRuntime {
   }
 
   // 4. Tauri 环境探测（window.__TAURI_INTERNALS__ 或 window.__TAURI__）
-  if (
-    (window as any).__TAURI_INTERNALS__ ||
-    (window as any).__TAURI__ ||
-    (window as any).__TAURI_METADATA__
-  ) {
+  if (hasTauriRuntimeMarker()) {
     return "tauri";
   }
 
   // 5. 纯浏览器开发/降级
   return "browser";
+}
+
+/** 直接读取宿主标记，供惰性初始化和显式注入宿主的测试使用。 */
+export function hasTauriRuntimeMarker(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(
+    (window as any).__TAURI_INTERNALS__ ||
+    (window as any).__TAURI__ ||
+    (window as any).__TAURI_METADATA__
+  );
 }
 
 /** 当前运行时单例缓存 */
@@ -68,5 +75,7 @@ export function isElectronRuntime(): boolean {
 
 /** 是否为纯 Web 或测试降级环境 */
 export function isBrowserOrTest(): boolean {
-  return currentPlatformRuntime === "browser" || currentPlatformRuntime === "test";
+  return (
+    currentPlatformRuntime === "browser" || currentPlatformRuntime === "test"
+  );
 }

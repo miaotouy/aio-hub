@@ -4,10 +4,10 @@
 // you may not use this file except compliance with the License.
 
 import { computed, onBeforeUnmount, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { join } from "@tauri-apps/api/path";
-import { remove, readFile, mkdir } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
+import { join } from "@/platform/native/path";
+import { remove, readFile, mkdir } from "@/platform/native/fs";
 import { useFFmpeg } from "@/composables/useFFmpeg";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

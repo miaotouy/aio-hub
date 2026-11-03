@@ -41,6 +41,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { IPC_REQUEST, IPC_EVENT, IPC_ASSET } from "./shared";
 import { resolveUserDataPath } from "./data-path";
 import { PendingDeepLinks, readDeepLinks } from "./deep-links";
+import { HttpRequests } from "./http";
+import { chromiumFetch } from "./chromium-fetch";
+import type { HttpRequestOptions } from "./shared";
 import type { HostReply, HostMetadata, EventTarget } from "./shared";
 import {
   externalUrl,
@@ -93,6 +96,7 @@ const devOrigin = process.env.AIO_ELECTRON_RENDERER_URL
 const hostRoot = app.getAppPath();
 const rendererRoot = path.join(hostRoot, "renderer");
 const windows = new Map<string, BrowserWindow>();
+const httpRequests = new HttpRequests(chromiumFetch);
 const tokens = new Map<number, string>();
 const assets = new Map<string, Map<string, Promise<string>>>();
 const subscriptions = new Map<
@@ -479,8 +483,11 @@ async function createWindow(
   win.webContents.on("will-attach-webview", (event) => event.preventDefault());
   win.webContents.on(
     "did-start-navigation",
-    (_event, _url, _inPlace, isMainFrame) => {
-      if (isMainFrame) subscriptions.delete(contentsId);
+    (_event, _url, inPlace, isMainFrame) => {
+      if (isMainFrame && !inPlace) {
+        subscriptions.delete(contentsId);
+        httpRequests.disposeOwner(contentsId);
+      }
     }
   );
   win.on("move", () =>
@@ -501,7 +508,11 @@ async function createWindow(
       publish("tauri://close-requested", undefined, label);
     }
   });
+  win.webContents.on("render-process-gone", () =>
+    httpRequests.disposeOwner(contentsId)
+  );
   win.on("closed", () => {
+    httpRequests.disposeOwner(contentsId);
     subscriptions.delete(contentsId);
     tokens.delete(contentsId);
     assets.delete(token);
@@ -730,6 +741,16 @@ async function operation(
 ): Promise<unknown> {
   const win = trusted(event);
   switch (name) {
+    case "http.start":
+      return httpRequests.start(
+        event.sender.id,
+        str(args.id),
+        record(args.options) as unknown as HttpRequestOptions
+      );
+    case "http.read":
+      return httpRequests.read(event.sender.id, str(args.id));
+    case "http.cancel":
+      return httpRequests.cancel(event.sender.id, str(args.id));
     case "deep-link.current":
       return win === windows.get("main") ? deepLinks.take() : null;
     case "command":

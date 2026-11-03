@@ -1,6 +1,6 @@
 # 桌面平台隔离层
 
-更新日期：2026-11-03
+更新日期：2026-11-04
 
 ## 职责与调用路径
 
@@ -59,4 +59,12 @@
 - 本地生产资源使用 `aiohub://app/`，支持绝对资源路径与深层路由；HTML 内联脚本按归一化换行后的内容生成 CSP 哈希。本地文件使用带窗口令牌与精确授权的 `asset://local/`，真实路径变化会拒绝读取。
 - 语义化门面统一使用 `isNativeRuntime()`；配置、LLM 混淆文件和请求记录使用 `hasNativeRuntimeMarker()`，Electron 数据默认与 Tauri 分开。
 
-原生网络/流式通道、完整文件监听、Shell/Sidecar、更新器、Rust 专项命令与拖拽预览继续按[迁移总纲](../Plan/electron-migration-master-plan.md)实施。Electron 开发指南维护当前能力范围与验证方式。
+### 原生网络（2026-11-04）
+
+`native/http.ts` 在 Electron 下调用 `platform/electron/http.ts`；请求头和已编码请求体经固定 `http.start` 操作发送。`electron/http.ts` 按 `webContents.id` 管理请求，`http.read` 按需返回至多 64 KiB，`http.cancel` 幂等释放。窗口刷新、渲染进程退出和销毁统一清理所属请求，同文档路由保持连接。
+
+底层 `electron/chromium-fetch.ts` 使用 `net.request` 和 Node/Web 流适配，复用系统代理并从重定向事件取得 3xx 响应；通用传输层逐跳验证 HTTP/HTTPS 地址、限制次数、处理方法转换并移除跨源认证头。响应保留 HTTP 状态、头部、最终 URL 和跳转标记；前端暴露 `Response` 与取消信号。默认网络凭证与浏览器会话隔离。
+
+兼容选项 `connectTimeout` 覆盖直到最终响应头的阶段；正文超时由消费者管理。上传先编码为字节数组，逐请求代理、危险 TLS 和完整性校验按显式能力边界报错。LLM 专用代理与 Channel 的契约继续独立迁移。
+
+LLM 专用代理/Channel、完整文件监听、Shell/Sidecar、更新器、Rust 专项命令与拖拽预览继续按[迁移总纲](../Plan/electron-migration-master-plan.md)实施。Electron 开发指南维护当前能力范围与验证方式。

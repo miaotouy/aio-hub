@@ -52,3 +52,28 @@ export type HostReply =
       ok: false;
       error: { code: string; message: string; capability?: string };
     };
+
+export interface HttpRequestOptions {
+  url: string;
+  method: string;
+  headers: [string, string][];
+  body?: Uint8Array;
+  redirect: RequestRedirect;
+  maxRedirections?: number;
+  connectTimeout?: number;
+  credentials: RequestCredentials;
+  cache?: RequestCache;
+  referrerPolicy?: ReferrerPolicy;
+}
+export interface HttpResponseInfo {
+  status: number;
+  statusText: string;
+  headers: [string, string][];
+  url: string;
+  redirected: boolean;
+  hasBody: boolean;
+}
+export interface HttpReadResult {
+  done: boolean;
+  value?: Uint8Array;
+}

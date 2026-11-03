@@ -40,6 +40,7 @@ import { pathToFileURL } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
 import { IPC_REQUEST, IPC_EVENT, IPC_ASSET } from "./shared";
 import { resolveUserDataPath } from "./data-path";
+import { PendingDeepLinks, readDeepLinks } from "./deep-links";
 import type { HostReply, HostMetadata, EventTarget } from "./shared";
 import {
   externalUrl,
@@ -98,9 +99,10 @@ const subscriptions = new Map<
   number,
   Map<number, { event: string; target?: EventTarget }>
 >();
-const deepLinks = process.argv.filter((arg) =>
-  /^aiohub:\/\/(?!app(?:[/?#]|$))/.test(arg)
-);
+const initialDeepLinks = readDeepLinks(process.argv);
+const deepLinks = new PendingDeepLinks(initialDeepLinks);
+// Chromium scopes the process singleton to userData; isolated data roots stay independent.
+if (!app.requestSingleInstanceLock({ urls: initialDeepLinks })) app.exit(0);
 const detached = new Map<string, { label: string; id: string; type: string }>();
 let tray: Tray | undefined;
 let quitting = false;
@@ -729,7 +731,7 @@ async function operation(
   const win = trusted(event);
   switch (name) {
     case "deep-link.current":
-      return deepLinks.length ? [...deepLinks] : null;
+      return win === windows.get("main") ? deepLinks.take() : null;
     case "command":
       return command(
         str(args.command),
@@ -777,6 +779,7 @@ async function operation(
       let subs = subscriptions.get(event.sender.id);
       if (!subs) subscriptions.set(event.sender.id, (subs = new Map()));
       subs.set(id, { event: eventName, target: args.target as EventTarget });
+      if (eventName === "platform://open-url") deliverDeepLinks();
       return;
     }
     case "events.unlisten":
@@ -1036,14 +1039,42 @@ app.on("activate", () => {
   );
 });
 
-app.on("open-url", (event, value) => {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "aiohub:" || url.hostname === "app") return;
-    event.preventDefault();
-    deepLinks.push(value);
-    publish("platform://open-url", [value]);
-  } catch {
-    /* Malformed URLs never enter the application event bus. */
+function deliverDeepLinks() {
+  const main = windows.get("main");
+  if (!main || main.isDestroyed() || main.webContents.isDestroyed()) return;
+  const listeners = [...(subscriptions.get(main.webContents.id) ?? [])].filter(
+    ([, sub]) =>
+      sub.event === "platform://open-url" &&
+      (!targetLabel(sub.target) || targetLabel(sub.target) === "main")
+  );
+  if (!listeners.length) return;
+  const values = deepLinks.take();
+  if (!values) return;
+  for (const [id] of listeners) {
+    main.webContents.send(IPC_EVENT, {
+      event: "platform://open-url",
+      id,
+      payload: values,
+      windowLabel: "main",
+    });
   }
+}
+function acceptDeepLinks(values: unknown) {
+  deepLinks.add(values);
+  deliverDeepLinks();
+  void showMainWindow().catch((error) =>
+    reportTrayError("显示主窗口失败", error)
+  );
+}
+app.on("second-instance", (_event, argv, _directory, additionalData) => {
+  const data = additionalData as { urls?: unknown } | undefined;
+  acceptDeepLinks(Array.isArray(data?.urls) ? data.urls : argv);
+});
+app.on("open-url", (event, value) => {
+  const links = readDeepLinks([value]);
+  if (!links.length) return;
+  event.preventDefault();
+  deepLinks.add(links);
+  // open-url can arrive before ready on macOS; the startup main window consumes the queue.
+  if (app.isReady()) acceptDeepLinks([]);
 });

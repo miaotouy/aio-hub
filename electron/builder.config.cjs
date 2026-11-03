@@ -49,6 +49,7 @@ module.exports = {
   ],
   artifactName: "AIO-Hub-Electron-${version}-${os}-${arch}.${ext}",
   publish: null,
+  protocols: [{ name: "AIO Hub", schemes: ["aiohub"] }],
   win: {
     target: ["nsis", "portable"],
     icon: "src-tauri/icons/icon.ico",

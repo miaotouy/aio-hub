@@ -1,12 +1,32 @@
 # AIO Hub 迁移 Electron 阶段一：工程脚手架与基础骨架施工待办方案
 
-> 状态：施工待办 (Ready for Implementation)  
+> 状态：基础宿主与本地分发已落地，生命周期继续实施  
 > 版本：v1.0.1\
-> 更新日期：2026-10-27\
+> 更新日期：2026-11-04\
 > 提出日期：2026-10-02  
 > 编制人：咕咕（架构师）  
 > 上级规划：[`docs/Plan/electron-migration-master-plan.md`](./electron-migration-master-plan.md)  
 > 关联调查：[`docs/design/地基迁移调查/webview2-migration-investigation.md`](../design/地基迁移调查/webview2-migration-investigation.md)
+
+---
+
+## 当前实施快照（2026-11-04）
+
+正式工程当前固定 Electron 45.2.1；下文 2026-10-27 的版本、目录树与任务拆分保留为早期设计记录。实际实现采用扁平主进程模块与现有平台隔离层，逐项状态如下：
+
+| 原任务 | 当前状态与落点 |
+| --- | --- |
+| 1.1.1 / 1.1.2 | 已完成：根依赖、锁文件、`electron/tsconfig.json` 与 `check:electron`；独立类型检查，保持前端工程引用稳定 |
+| 1.2.1 | 已完成：`electron/data-path.ts` 与 `main.ts`；开发、便携与安装版数据目录分离 |
+| 1.2.2 | 基础完成：`main.ts` 多窗口、工作区恢复与 `electron-windows.json`；窗口状态由现有业务保存，系统退出持久化继续接续 |
+| 1.2.3 | 已完成：应用生产协议与逐窗口授权的本地资源协议；真实读取和拒绝非法令牌已有验证，音视频 Range/Seek 继续专项验证 |
+| 1.2.4 | 已完成：固定操作分派、所属窗口/来源校验、类型化错误包络 |
+| 1.2.5 | 基础完成：启动、主窗口与托盘；开发图标、单实例和协议唤醒本轮施工 |
+| 1.3.1 / 1.3.2 | 已完成基础桥接：`preload.ts`、`shared.ts`、`src/platform/electron/` 与 `native/` 兼容入口；Channel 等能力按总纲接续 |
+| 1.3.3 | 已完成基础窗口控制：标题栏与 Chromium 拖动区域；物理交互和跨平台材质继续验证 |
+| 1.4.1–1.4.3 | 已完成：`scripts/electron.ts`、根脚本、双击入口与 electron-builder 本地分发 |
+
+本轮新增施工项与待迁移能力统一列在[总纲的代码盘点](./electron-migration-master-plan.md#2026-11-04-代码盘点与本轮接续)，运行方法和实测结果回填[Electron 开发指南](../guide/electron-development.md)。
 
 ---
 

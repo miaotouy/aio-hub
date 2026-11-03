@@ -14,6 +14,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { sessionLoader } from "../session-loader";
+import { VcpStreamSegmenter } from "../../tool-calling/vcp-stream-segmenter";
+import type { LlmResponseChunk } from "@aiohub/llm-core";
 import type {
   ChatMessageNode,
   ChatSessionDetail,
@@ -223,46 +225,50 @@ describe("sessionLoader", () => {
       content: "first user",
     });
   });
-  it("replays VCP response segments once and sends upstream tool text as user content", async () => {
-    const nodes = {
-      root: node("root", null, "system", "root", ["u"]),
-      u: node("u", "root", "user", "question", ["a1"]),
-      a1: node("a1", "u", "assistant", "tool request", ["t"]),
-      t: node("t", "a1", "tool", "tool result", ["a2"]),
-      a2: node("a2", "t", "assistant", "answer"),
-    };
-    nodes.t.metadata = { vcpResponse: { requestId: "a1", kind: "tool" } };
-    nodes.a1.metadata = {
-      vcpResponse: { requestId: "a1", kind: "assistant" },
-      reasoningContent: "intermediate thought",
-    };
-    nodes.a2.metadata = {
-      vcpResponse: { requestId: "a1", kind: "assistant" },
-      reasoningContent: "final thought",
-    };
-    const context = createContext({
-      id: "vcp",
-      nodes,
-      rootNodeId: "root",
-      activeLeafId: "a2",
-      history: [],
-      historyIndex: -1,
-    } as unknown as ChatSessionDetail);
-    context.agentConfig!.toolCallConfig = {
-      convertToolRoleToUser: false,
-    } as any;
-    await sessionLoader.execute(context);
-    expect(
-      context.messages.map((message) => [message.role, message.content])
-    ).toEqual([
-      ["user", "question"],
-      ["assistant", "tool request"],
-      ["user", "tool result"],
-      ["assistant", "answer"],
-    ]);
-    expect(context.messages[1].reasoningContent).toBe("intermediate thought");
-    expect(context.messages[3].reasoningContent).toBeUndefined();
-  });
+  it.each([false, true])(
+    "keeps older VCP segments separate for VCP target=%s",
+    async (isVcpTextChannel) => {
+      const nodes = {
+        root: node("root", null, "system", "root", ["u"]),
+        u: node("u", "root", "user", "question", ["a1"]),
+        a1: node("a1", "u", "assistant", "tool request", ["t"]),
+        t: node("t", "a1", "tool", "tool result", ["a2"]),
+        a2: node("a2", "t", "assistant", "answer"),
+      };
+      nodes.t.metadata = { vcpResponse: { requestId: "a1", kind: "tool" } };
+      nodes.a1.metadata = {
+        vcpResponse: { requestId: "a1", kind: "assistant" },
+        reasoningContent: "intermediate thought",
+      };
+      nodes.a2.metadata = {
+        vcpResponse: { requestId: "a1", kind: "assistant" },
+        reasoningContent: "final thought",
+      };
+      const context = createContext({
+        id: "vcp",
+        nodes,
+        rootNodeId: "root",
+        activeLeafId: "a2",
+        history: [],
+        historyIndex: -1,
+      } as unknown as ChatSessionDetail);
+      Object.assign(context, { isVcpTextChannel });
+      context.agentConfig!.toolCallConfig = {
+        convertToolRoleToUser: false,
+      } as any;
+      await sessionLoader.execute(context);
+      expect(
+        context.messages.map((message) => [message.role, message.content])
+      ).toEqual([
+        ["user", "question"],
+        ["assistant", "tool request"],
+        ["user", "tool result"],
+        ["assistant", "answer"],
+      ]);
+      expect(context.messages[1].reasoningContent).toBe("intermediate thought");
+      expect(context.messages[3].reasoningContent).toBeUndefined();
+    }
+  );
   it("replays tool local media references as user media even when text tools keep their role", async () => {
     const nodes = {
       u: node("u", null, "user", "read photo", ["t"]),
@@ -338,4 +344,202 @@ it("loads attachment-only user messages and pending text materials without chang
       text: user.virtualAttachments[0].text,
     });
   }
+});
+
+// Protects send/preview projection: newly captured server framing survives a
+// split-store-load round trip, while the UI tree and non-VCP histories stay intact.
+describe("VCP history send projection", () => {
+  const mark = (
+    message: ChatMessageNode,
+    requestId: string,
+    prefix = "",
+    suffix = ""
+  ) => {
+    message.metadata = {
+      vcpResponse: {
+        requestId,
+        kind: message.role === "tool" ? "tool" : "assistant",
+        contextReplay: { prefix, suffix },
+      },
+    };
+    return message;
+  };
+  const session = (nodes: Record<string, ChatMessageNode>, leaf: string) =>
+    ({
+      id: "vcp-replay",
+      nodes,
+      rootNodeId: "root",
+      activeLeafId: leaf,
+      history: [],
+      historyIndex: -1,
+      updatedAt: "2026-11-03",
+    }) satisfies ChatSessionDetail;
+
+  it.each(["batch", "legacy"])(
+    "restores exact %s stream text only for the VCP target",
+    async (format) => {
+      const body = "result quotes <<<[END_ROLE_DIVIDE_USER]>>> and 😀\r\n";
+      const stamp = "2026-11-03T12:00:00.000+08:00";
+      const tool =
+        format === "batch"
+          ? `\n<<<[ROLE_DIVIDE_USER]>>>\n<<<[VCP_TOOL_BATCH_START:${stamp}]>>>\n${body}<<<[VCP_TOOL_BATCH_END:${stamp}]>>>\n<<<[END_ROLE_DIVIDE_USER]>>>\n`
+          : body;
+      const chunks: LlmResponseChunk[] = [
+        { responseId: "model-1", reasoningContent: "private reasoning" },
+        { responseId: "model-1", content: "  first response\n" },
+        { responseId: "model-1", finishReason: "stop" },
+        ...(format === "legacy"
+          ? [
+              {
+                responseId: "chatcmpl-vcp-start-1",
+                content: "\n<<<[ROLE_DIVIDE_USER]>>>\n",
+              },
+            ]
+          : []),
+        ...Array.from(tool, (content) => ({
+          responseId:
+            format === "batch" ? "chatcmpl-vcp-batch-1" : "chatcmpl-vcp-1",
+          content,
+        })),
+        ...(format === "legacy"
+          ? [
+              {
+                responseId: "chatcmpl-vcp-end-1",
+                content: "\n<<<[END_ROLE_DIVIDE_USER]>>>\n",
+              },
+            ]
+          : []),
+        { responseId: "chatcmpl-VCP-separator-1", content: "\r\n" },
+        { responseId: "model-2", content: "second response  " },
+        { responseId: "model-2", finishReason: "stop" },
+      ];
+      const segmenter = new VcpStreamSegmenter();
+      chunks.forEach((chunk) => segmenter.push(chunk));
+      const nodes: Record<string, ChatMessageNode> = {
+        root: node("root", null, "system", "preset", ["u"]),
+        u: node("u", "root", "user", "question", ["s0"]),
+      };
+      for (const segment of segmenter.segments) {
+        const id = `s${segment.index}`;
+        const previous = segment.index ? `s${segment.index - 1}` : "u";
+        const current = mark(
+          node(id, previous, segment.kind, segment.content),
+          "request-1",
+          segment.contextReplay.prefix,
+          segment.contextReplay.suffix
+        );
+        current.metadata!.reasoningContent = segment.reasoningContent;
+        nodes[id] = current;
+        nodes[previous].childrenIds = [id];
+      }
+      const detail = session(nodes, "s2");
+      const before = structuredClone(detail);
+      const context = createContext(detail);
+      Object.assign(context, { isVcpTextChannel: true });
+      await sessionLoader.execute(context);
+      expect(
+        context.messages.map((message) => [message.role, message.content])
+      ).toEqual([
+        ["user", "question"],
+        ["assistant", chunks.map((chunk) => chunk.content ?? "").join("")],
+      ]);
+      expect(context.messages[1].reasoningContent).toBeUndefined();
+      expect(
+        context.messages[1]._mergedSources?.map((message) => message.sourceId)
+      ).toEqual(["s0", "s1", "s2"]);
+      expect(detail).toEqual(before);
+
+      const ordinaryTarget = createContext(detail);
+      await sessionLoader.execute(ordinaryTarget);
+      expect(ordinaryTarget.messages.map((message) => message.role)).toEqual([
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+      ]);
+      expect(ordinaryTarget.messages[1].reasoningContent).toBe(
+        "private reasoning"
+      );
+      const preview = createContext(
+        detail,
+        new Map([["contextPreviewTargetNodeId", "s1"]])
+      );
+      Object.assign(preview, { isVcpTextChannel: true });
+      await sessionLoader.execute(preview);
+      expect(preview.messages[1].content).toBe(
+        (context.messages[1].content as string).slice(
+          0,
+          -nodes.s2.content.length
+        )
+      );
+    }
+  );
+
+  it.each(["interrupt", ""])(
+    "respects user ancestry and request boundaries with user text=%j",
+    async (userText) => {
+      const nodes = {
+        root: node("root", null, "system", "preset"),
+        u: node("u", "root", "user", "question"),
+        a: mark(node("a", "u", "assistant", "A"), "first"),
+        t: mark(node("t", "a", "tool", "T"), "first", "<user>", "</user>"),
+        interruption: node("interruption", "t", "user", userText),
+        b: mark(node("b", "interruption", "assistant", "B"), "first"),
+        c: mark(node("c", "b", "assistant", "C"), "second"),
+        sibling: mark(
+          node("sibling", "t", "assistant", "other branch"),
+          "first"
+        ),
+      };
+      const context = createContext(session(nodes, "c"));
+      Object.assign(context, { isVcpTextChannel: true });
+      await sessionLoader.execute(context);
+      expect(context.messages.map((message) => message.content)).toEqual([
+        "question",
+        "A<user>T</user>",
+        ...(userText ? [userText] : []),
+        "B",
+        "C",
+      ]);
+    }
+  );
+
+  it("retains media from every segment and keeps pending input outside the envelope", async () => {
+    const nodes = {
+      root: node("root", null, "system", "preset"),
+      u: node("u", "root", "user", "question"),
+      a: mark(node("a", "u", "assistant", "request"), "first"),
+      t: mark(node("t", "a", "tool", "result"), "first"),
+      b: mark(node("b", "t", "assistant", "answer"), "first"),
+    };
+    nodes.t.localMedia = [
+      {
+        id: "image",
+        name: "photo.png",
+        type: "image",
+        mimeType: "image/png",
+        path: "C:/media/photo.png",
+        size: 3,
+      },
+    ];
+    nodes.b.virtualAttachments = [
+      { id: "text", kind: "text", title: "material", text: "attachment" },
+    ];
+    const context = createContext(
+      session(nodes, "b"),
+      new Map([["pendingInput", { text: "next question" }]])
+    );
+    Object.assign(context, { isVcpTextChannel: true });
+    await sessionLoader.execute(context);
+    expect(
+      context.messages.map((message) => [message.role, message.content])
+    ).toEqual([
+      ["user", "question"],
+      ["assistant", "requestresultanswer"],
+      ["user", "next question"],
+    ]);
+    expect(
+      context.messages[1]._attachments?.map((attachment) => attachment.id)
+    ).toEqual(["image", "text"]);
+  });
 });

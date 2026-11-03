@@ -380,6 +380,10 @@ export function useChatExecutor() {
       agentConfig: executionAgent,
       settings: settings.value,
       capabilities: capabilities || {},
+      isVcpTextChannel: resolveChannelToolHandling(
+        profile,
+        useVcpStore().config.wsUrl
+      ).isVcpTextChannel,
       timestamp: targetNode?.timestamp
         ? new Date(targetNode.timestamp).getTime()
         : Date.now(),

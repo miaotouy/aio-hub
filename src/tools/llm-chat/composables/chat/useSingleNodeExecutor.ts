@@ -187,6 +187,7 @@ export function useSingleNodeExecutor() {
       agentConfig: executionAgent,
       settings: settings.value,
       capabilities,
+      isVcpTextChannel: params.splitVcpResponses,
       timestamp: Date.now(),
       sharedData: new Map<string, any>(),
       logs: [],
@@ -431,6 +432,7 @@ export function useSingleNodeExecutor() {
           responseId: segment.responseId,
           finishReason: segment.finishReason,
           toolStatus: segment.toolStatus,
+          contextReplay: { ...segment.contextReplay },
         },
         ...(segment.usage ? { usage: segment.usage } : {}),
         ...(segment.finishReason && !node.metadata?.requestEndTime

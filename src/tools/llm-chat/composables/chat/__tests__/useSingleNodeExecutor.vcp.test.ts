@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     },
   },
   sendRequest: vi.fn(),
+  executePipeline: vi.fn(),
   checkAndCompress: vi.fn(),
   handleStreamUpdate: vi.fn(),
   finalizeNode: vi.fn(),
@@ -39,7 +40,7 @@ vi.mock("../../../stores/llmChatStore", () => ({
   useLlmChatStore: () => ({ sessionIndexMap: new Map([["session", {}]]) }),
 }));
 vi.mock("../../../stores/contextPipelineStore", () => ({
-  useContextPipelineStore: () => ({ executePipeline: vi.fn() }),
+  useContextPipelineStore: () => ({ executePipeline: mocks.executePipeline }),
 }));
 vi.mock("../../features/useContextCompressor", () => ({
   useContextCompressor: () => ({ checkAndCompress: mocks.checkAndCompress }),
@@ -222,7 +223,11 @@ describe("VCP message splitting preference", () => {
             usage: firstUsage,
           });
           emit(2000, { responseId: "chatcmpl-vcp-1", content: "工具结果" });
-          if (withBoundary) emit(2400, { responseId: "chatcmpl-vcp-end-1" });
+          if (withBoundary)
+            emit(2400, {
+              responseId: "chatcmpl-vcp-end-1",
+              content: "\n<<<[END_ROLE_DIVIDE_USER]>>>\n",
+            });
           emit(3000, { responseId: "second", reasoningContent: "思考" });
           emit(3200, { responseId: "second", content: "最终回答" });
           emit(4000, {
@@ -235,6 +240,13 @@ describe("VCP message splitting preference", () => {
       );
       try {
         await execute(true, session);
+        const tool = Object.values(session.nodes).find(
+          (node) => node.role === "tool"
+        );
+        expect(tool?.metadata?.vcpResponse?.contextReplay).toEqual({
+          prefix: "",
+          suffix: withBoundary ? "\n<<<[END_ROLE_DIVIDE_USER]>>>\n" : "",
+        });
         const assistants = Object.values(session.nodes).filter(
           (node) => node.role === "assistant"
         );
@@ -260,6 +272,11 @@ describe("VCP message splitting preference", () => {
 
   it("applies the changed preference to the next request and splits VCP phases", async () => {
     await execute();
+    expect(
+      mocks.executePipeline.mock.calls[
+        mocks.executePipeline.mock.calls.length - 1
+      ][0].isVcpTextChannel
+    ).toBe(true);
     mocks.settings.value.uiPreferences.splitVcpResponses = true;
     const session = await execute();
     expect(mocks.sendRequest.mock.calls[1][0].streamOptions).toEqual({

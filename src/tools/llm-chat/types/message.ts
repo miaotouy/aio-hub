@@ -251,6 +251,8 @@ export interface ChatMessageNode {
       responseId?: string;
       finishReason?: string;
       toolStatus?: "success" | "error";
+      /** Server framing omitted from the displayed segment; no body duplication. */
+      contextReplay?: { prefix: string; suffix: string };
     };
     /** 生成此消息时使用的 Agent ID */
     agentId?: string;

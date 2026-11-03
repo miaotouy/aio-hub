@@ -40,6 +40,8 @@ export interface PipelineContext {
   readonly agentConfig: ChatAgent; // 完整的智能体配置
   readonly settings: ChatSettings; // 全局聊天设置
   readonly capabilities?: ModelCapabilities;
+  /** The current request target consumes VCP text tool calls upstream. */
+  readonly isVcpTextChannel?: boolean;
   readonly timestamp: number;
 
   /** Optional, isolated diagnostic trace around each processor. */

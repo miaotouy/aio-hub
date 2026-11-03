@@ -14,6 +14,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import TurndownService from "turndown";
+import { mergeVcpResponseHistory } from "../tool-calling/vcp-history-replay";
 import type { ContextProcessor, PipelineContext } from "../../types/pipeline";
 import type { ProcessableMessage } from "@/tools/llm-chat/types/context";
 import type {
@@ -241,7 +242,7 @@ export const sessionLoader: ContextProcessor = {
     }
 
     const thinkTagKey = JSON.stringify(thinkTagNames);
-    const messages: ProcessableMessage[] = [];
+    let messages: ProcessableMessage[] = [];
     const historyCount = historyNodes.length;
 
     for (let i = 0; i < historyCount; i++) {
@@ -343,6 +344,10 @@ export const sessionLoader: ContextProcessor = {
         metadata: node.metadata,
       };
       messages.push(processableMessage);
+    }
+
+    if (context.isVcpTextChannel) {
+      messages = mergeVcpResponseHistory(messages, context.detail.nodes);
     }
 
     // 处理待发送消息预览 (Pending Input)

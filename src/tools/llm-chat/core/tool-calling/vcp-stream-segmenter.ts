@@ -12,6 +12,7 @@ export interface VcpResponseSegment {
   responseId?: string;
   content: string;
   reasoningContent: string;
+  contextReplay: { prefix: string; suffix: string };
   finishReason?: string;
   usage?: TokenUsage;
   toolStatus?: "success" | "error";
@@ -36,6 +37,7 @@ export class VcpStreamSegmenter {
   private toolPhase = false;
   private summaryResponseId?: string;
   private summaryContent = "";
+  private pendingPrefix = "";
 
   private updateToolCalls(
     segment: VcpResponseSegment,
@@ -58,22 +60,32 @@ export class VcpStreamSegmenter {
         : undefined;
   }
 
+  private appendFraming(content = ""): VcpSegmentUpdate | undefined {
+    if (this.pendingPrefix || !this.current) {
+      this.pendingPrefix += content;
+      return;
+    }
+    this.current.contextReplay.suffix += content;
+    return content ? { segment: this.current } : undefined;
+  }
+
   push(chunk: LlmResponseChunk): VcpSegmentUpdate | undefined {
     const id = chunk.responseId ?? "";
     if (/^chatcmpl-VCP-final-/.test(id)) return;
     if (/^chatcmpl-VCP-separator-/.test(id)) {
       this.nextAssistant = true;
       this.toolPhase = false;
-      return;
+      return this.appendFraming(chunk.content);
     }
     if (/^chatcmpl-vcp-start-/.test(id)) {
       this.toolPhase = true;
+      this.pendingPrefix += chunk.content ?? "";
       return;
     }
     if (/^chatcmpl-vcp-end-/.test(id)) {
       this.toolPhase = false;
       this.nextAssistant = true;
-      return;
+      return this.appendFraming(chunk.content);
     }
 
     const isBatch = /^chatcmpl-vcp-batch-/.test(id);
@@ -82,12 +94,8 @@ export class VcpStreamSegmenter {
       /^chatcmpl-vcp-(?:summary-|\d)/.test(id) ||
       (!id && this.toolPhase);
     const reasoningClose = /^chatcmpl-VCP-reasoning-/.test(id);
-    let content = chunk.content ?? "";
+    const content = chunk.content ?? "";
     const reasoning = chunk.reasoningContent ?? "";
-    // Batch chunks retain their raw framing, including literal role markers in results.
-    if (isTool && !isBatch) {
-      content = content.replace(/<<<\[(?:END_)?ROLE_DIVIDE_USER\]>>>/g, "");
-    }
 
     let segment: VcpResponseSegment | undefined;
     if (content || reasoning) {
@@ -97,7 +105,7 @@ export class VcpStreamSegmenter {
         this.current.kind !== kind ||
         (kind === "assistant" && this.nextAssistant && !reasoningClose);
       if (needsSegment && !content.trim() && !reasoning.trim() && !isBatch)
-        return;
+        return this.appendFraming(content);
       if (needsSegment) {
         segment = {
           index: this.segments.length,
@@ -105,7 +113,9 @@ export class VcpStreamSegmenter {
           responseId: kind === "assistant" ? chunk.responseId : undefined,
           content: "",
           reasoningContent: "",
+          contextReplay: { prefix: this.pendingPrefix, suffix: "" },
         };
+        this.pendingPrefix = "";
         this.segments.push(segment);
         this.current = segment;
         this.summaryResponseId = undefined;

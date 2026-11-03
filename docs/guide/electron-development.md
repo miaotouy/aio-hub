@@ -1,6 +1,6 @@
 # Electron 桌面开发
 
-> 当前阶段：基础宿主接入，2026-11-03。Tauri 开发与发布入口继续保留。
+> 当前阶段：基础宿主与本地分发构建接入，2026-11-03。Tauri 开发与发布入口继续保留。
 
 ## 启动与构建
 
@@ -22,11 +22,41 @@ bun run electron:build
 bun run electron:preview
 ```
 
-构建在 `dist-electron/` 生成主进程、沙箱 preload、现有 Vue 前端产物、图标与运行清单；版本读取根 `package.json`。预览直接加载该目录，使用 `aiohub://app/` 协议，覆盖深层路由刷新与绝对资源路径。此阶段交付可运行目录，安装器和应用内更新随发布阶段接续。
+构建先执行主进程和前端类型检查、准备前端库，再在 `dist-electron/` 生成主进程、沙箱 preload、现有 Vue 前端产物、图标与运行清单；版本读取根 `package.json`。预览直接加载该目录，使用 `aiohub://app/` 协议，覆盖深层路由刷新与绝对资源路径。
+
+### 双击脚本
+
+根目录的脚本会先切换到项目目录，支持从资源管理器或其他工作目录启动。Windows 构建脚本执行完会保留终端，方便查看产物位置和错误；命令行参数会继续传给 Bun 入口。
+
+| 操作             | Windows                       | macOS / Linux                                             |
+| ---------------- | ----------------------------- | --------------------------------------------------------- |
+| 开发与前端热更新 | `dev-electron.bat`            | `bash dev-electron.sh`                                    |
+| 生成本地安装包   | `build-electron.bat`          | `bash build-electron.sh`                                  |
+| 预览已有前端产物 | `preview-electron.bat`        | `bash preview-electron.sh`                                |
+| 生成单文件便携版 | `build-electron-portable.bat` | Windows Git Bash 可运行 `bash build-electron-portable.sh` |
+
+首次使用先安装 Bun，并在项目目录执行 `bun install`。
+
+### 分发构建
+
+```powershell
+bun run electron:package:local          # 当前系统的本地安装包
+bun run electron:package:dir            # 带 Electron 运行时的解压即运行目录
+bun run electron:package:portable:local # Windows 单文件便携版
+bun run electron:package                # 使用正式版本号与可用的签名配置
+```
+
+配置位于 `electron/builder.config.cjs`，锁定 electron-builder 并复用当前系统已安装的 Electron。每次打包都会重新构建应用；输出到 `release-electron/`。当前入口以本机系统和 CPU 架构为目标，Windows 默认生成 NSIS 安装器与单文件便携版，macOS 配置 DMG，Linux 配置 AppImage 与 deb；macOS/Linux 的产物需在对应系统构建与验证。
+
+Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`，可直接双击。NSIS 安装器提供中英文、安装目录选择和独立快捷方式；便携版文件名带 `Portable`。应用标识、名称和产物目录与 Tauri 分开。
+
+本地构建使用 `<根版本>.build.<Git短提交号>`（正式版本追加 `-build.<Git短提交号>`），在生成的应用清单中写入版本，源版本文件保持原样。本地入口关闭自动证书发现和 Windows 可执行文件签名，保留图标与版本资源；正式入口可使用 electron-builder 的 `CSC_LINK` / `WIN_CSC_LINK` 等标准环境变量配置签名。首次构建可能下载 NSIS 等平台工具，按本机网络配置代理。
+
+构建日志复用 `.tmp/build-logs/`。构建子进程默认使用 8 GiB 的 Node 堆上限；已在 `NODE_OPTIONS` 指定堆上限时沿用该设置。打包范围限定为已构建的主进程、preload、前端和图标，启用 ASAR；canvases 与 skills 也按现有桌面约定放入 resources。应用内更新与自动发布仍按迁移计划接续。
 
 ## 数据目录
 
-开发和本地预览默认使用 `.dev-data/electron/user-data/`，与 Tauri 开发数据分开。设置 `AIO_DATA_DIR` 可使用指定的绝对目录，多实例同时指定独立目录和端口。后续安装版在没有该变量时使用 Electron 的平台用户数据目录。
+开发和本地预览默认使用 `.dev-data/electron/user-data/`，与 Tauri 开发数据分开。设置 `AIO_DATA_DIR` 可使用指定的绝对目录，多实例同时指定独立目录和端口。安装版和解压目录版在没有该变量时使用 Electron 的平台用户数据目录；Windows 单文件便携版默认在原始 EXE 旁创建 `data/`，避免写入临时解压目录。显式 `AIO_DATA_DIR` 优先。
 
 桌面业务继续通过 `getAppConfigDir()` 取根目录。现有 `createConfigManager`、LLM 混淆存储和请求记录存储在 Electron 下使用文件持久化。窗口位置保存在根目录的 `electron-windows.json`，应用日志位于 `logs/`。迁移期间使用独立数据副本验证，待完整后端契约就绪后再安排正式数据迁移。
 
@@ -43,7 +73,7 @@ bun run electron:preview
 
 原生 HTTP/SSE、Channel、文件监听、Shell/Sidecar、更新器，以及知识库、技能扫描、搜索、FFmpeg、系统监控等 Rust 命令仍按迁移总纲分阶段接入。此类调用返回 `CAPABILITY_UNAVAILABLE`；已有工具的启动钩子可能在首页初始化时提示暂未支持。普通前端工具可直接使用，依赖这些后端能力的工作流继续从 Tauri 入口执行。
 
-外部文件拖放的精确落点与目标工具导入、拖拽预览固化、窗口吸附、嵌入式 WebView、跨平台窗口材质、原生文件选择对话框的完整交互、安装器与自动更新仍需专项接续。
+外部文件拖放的精确落点与目标工具导入、拖拽预览固化、窗口吸附、嵌入式 WebView、跨平台窗口材质、原生文件选择对话框的完整交互与自动更新仍需专项接续。
 
 ## 宿主边界
 
@@ -62,3 +92,5 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 2026-11-03 在 Windows 的真实 Electron 45.2.1 中检查了开发态与生产协议：工作台初始化、文本差异对比的 Monaco 编辑器、深层路由刷新、窗口最大化/恢复、工具窗口创建/销毁、事件包络、二进制文件往返、本地资源读取与无效令牌拒绝、子框架的 preload 隔离，以及配置重载与进程重启后读取。
 
 相关检查包括前端/主进程类型检查、平台隔离检查、Vite 生产构建和 71 项相关测试。原生文件对话框的完整人工交互、物理文件拖放和 macOS/Linux 运行态验收随对应能力接续。
+
+同日补齐本地分发构建：Windows x64 已生成 NSIS 安装器、单文件便携版和解压运行目录。真实目录版从 ASAR 加载工作台，验证了深层路由刷新与 IPC；真实单文件便携版验证了 EXE 旁 `data/` 的文件读写。打包归档检查确认仅收录应用产物，未收录工作区依赖。双击脚本验证覆盖工作目录定位、参数透传和退出码，便携目录契约纳入相关单测。macOS/Linux 的打包配置待对应系统验证。

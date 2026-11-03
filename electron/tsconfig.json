@@ -9,8 +9,10 @@
     "types": ["node", "bun"],
     "lib": ["ES2022", "DOM"],
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["./**/*.ts", "../scripts/electron.ts"],
+  "include": ["./**/*.ts", "../scripts/electron.ts", "./builder.config.cjs"],
   "exclude": ["./**/*.test.ts"]
 }

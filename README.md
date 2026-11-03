@@ -323,6 +323,8 @@ bun run tauri:build
 
 构建流程会下载所需的前端运行资源，首次构建请保持网络可用。Windows 便携版可使用 `bun run build:portable` 构建。
 
+Electron 迁移开发可使用 `bun run electron:dev`，Windows 可双击根目录的 `dev-electron.bat`。`build-electron.bat` 生成本地安装包与便携版，产物位于 `release-electron/`；命令和平台支持范围见 [Electron 桌面开发](docs/guide/electron-development.md)。
+
 开发环境、常用命令与调试方式详见[开发环境搭建](docs/guide/getting-started.md)。
 
 ## 📚 文档与支持

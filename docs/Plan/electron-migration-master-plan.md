@@ -175,7 +175,7 @@ graph TB
 **目标**：产品化、CI/CD 自动化与体积控制。
 
 1. **打包器配置**：
-   - 配置 `electron-builder`，支持 Windows (NSIS/Portable)、macOS (DMG)、Linux (AppImage/deb)。
+   - 已接入 `electron-builder`、根目录双击脚本和独立分发目录。Windows 提供 NSIS、Portable 与带运行时目录；macOS (DMG)、Linux (AppImage/deb) 配置已加入，待对应系统验证。签名、自动更新与 CI 发布继续接续。
 2. **体积与性能调优**：
    - 移除原 Tauri 中臃肿的 `git2-rs vendored`（节省 ~30MB）。
    - 启用 V8 内存限制与 Chromium 启动优化参数（锁定老生代堆内存，定期 GC 整理）。

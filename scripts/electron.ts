@@ -17,12 +17,22 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { captureBuildLog } from "./build-log";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mode = process.argv[2] ?? "dev";
-if (!["dev", "build", "preview"].includes(mode))
+if (!["dev", "build", "preview", "package"].includes(mode))
   throw new Error(
-    "用法: bun scripts/electron.ts <dev|build|preview> [--port <端口>]"
+    "用法: bun scripts/electron.ts <dev|build|preview|package> [--port <端口>] [--local] [--dir|--portable]"
   );
+if (mode === "build" || mode === "package")
+  await captureBuildLog("electron-" + mode);
+const isLocal = process.argv.includes("--local");
+const directoryOnly = process.argv.includes("--dir");
+const portable = process.argv.includes("--portable");
+if (directoryOnly && portable)
+  throw new Error("--dir 与 --portable 只能选择一个");
+if (portable && process.platform !== "win32")
+  throw new Error("单文件便携版请在 Windows 构建");
 const option = (name: string) => {
   const index = process.argv.indexOf(name);
   return index < 0 ? undefined : process.argv[index + 1];
@@ -37,6 +47,18 @@ const output = path.join(
   mode === "dev" ? ".dev-data/electron/app" : "dist-electron"
 );
 const packageInfo = await Bun.file(path.join(root, "package.json")).json();
+let version: string = packageInfo.version;
+if (isLocal && mode === "package") {
+  const git = spawnSync("git", ["rev-parse", "--short", "HEAD"], {
+    cwd: root,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (git.status === 0)
+    version +=
+      (version.includes("-") ? ".build." : "-build.") + git.stdout.trim();
+  else console.warn("无法读取 Git 版本，使用 package.json 的版本号");
+}
 async function buildHost() {
   await mkdir(output, { recursive: true });
   for (const name of ["main", "preload"]) {
@@ -57,10 +79,15 @@ async function buildHost() {
     JSON.stringify(
       {
         name: "aiohub-electron",
-        productName: "AIO Hub",
-        version: packageInfo.version,
+        productName: "AIO Hub Electron",
+        version,
+        description: packageInfo.description,
+        author: packageInfo.author,
+        license: packageInfo.license,
+        homepage: packageInfo.homepage,
         main: "main.cjs",
         private: true,
+        dependencies: {},
       },
       null,
       2
@@ -75,6 +102,14 @@ const children = new Set<Bun.Subprocess>();
 let stopping = false;
 const env: NodeJS.ProcessEnv = { ...process.env, AIO_DESKTOP_HOST: "electron" };
 delete env.ELECTRON_RUN_AS_NODE;
+// The shared Vue type graph exceeds Node's default 4 GiB heap on this project.
+if (
+  (mode === "build" || mode === "package") &&
+  !/--max[-_]old[-_]space[-_]size(?:=|\s)/.test(env.NODE_OPTIONS ?? "")
+)
+  env.NODE_OPTIONS = (
+    (env.NODE_OPTIONS ?? "") + " --max-old-space-size=8192"
+  ).trim();
 function spawn(command: string[], extra: Record<string, string> = {}) {
   const child = Bun.spawn(command, {
     cwd: root,
@@ -102,13 +137,16 @@ function stop() {
 }
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
-async function run(command: string[]) {
-  const child = spawn(command);
+async function run(command: string[], extra: Record<string, string> = {}) {
+  const child = spawn(command, extra);
   const code = await child.exited;
   if (code) throw new Error(command.join(" ") + "退出码 " + code);
 }
 try {
-  if (mode === "build") {
+  if (mode === "build" || mode === "package") {
+    await run([process.execPath, "run", "check:electron"]);
+    await run([process.execPath, "run", "build:tsc"]);
+    await run([process.execPath, "run", "download:libs"]);
     await buildHost();
     await run([process.execPath, "run", "generate:shims"]);
     await run([
@@ -118,11 +156,36 @@ try {
       "--outDir",
       path.join(output, "renderer"),
     ]);
-    console.log(
-      "Electron 运行目录已生成：" +
-        output +
-        "\n使用 bun run electron:preview 启动；安装器随迁移后续阶段接入。"
-    );
+    if (mode === "package") {
+      const args = [
+        process.execPath,
+        createRequire(import.meta.url).resolve("electron-builder/cli.js"),
+        "--config",
+        path.join(root, "electron/builder.config.cjs"),
+        "--publish",
+        "never",
+      ];
+      if (directoryOnly) args.push("--dir");
+      else if (portable) args.push("--win", "portable");
+      // Resolve the lazy Electron installation before builder copies it.
+      createRequire(import.meta.url)("electron");
+      const packageEnv: Record<string, string> = {
+        AIO_ELECTRON_LOCAL_BUILD: isLocal ? "1" : "0",
+      };
+      if (isLocal) {
+        packageEnv.CSC_IDENTITY_AUTO_DISCOVERY = "false";
+        packageEnv.CSC_LINK = "";
+        packageEnv.WIN_CSC_LINK = "";
+      }
+      await run(args, packageEnv);
+      console.log("Electron 分发产物：" + path.join(root, "release-electron"));
+    } else {
+      console.log(
+        "Electron 运行目录已生成：" +
+          output +
+          "\n使用 bun run electron:preview 启动，或 bun run electron:package:local 生成分发包。"
+      );
+    }
   } else {
     if (mode === "dev") await buildHost();
     else if (!(await Bun.file(path.join(output, "main.cjs")).exists()))

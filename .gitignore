@@ -76,3 +76,4 @@ cache
 
 # Electron application artifacts
 dist-electron/
+release-electron/

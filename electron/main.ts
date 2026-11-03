@@ -39,6 +39,7 @@ import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
 import { IPC_REQUEST, IPC_EVENT, IPC_ASSET } from "./shared";
+import { resolveUserDataPath } from "./data-path";
 import type { HostReply, HostMetadata, EventTarget } from "./shared";
 import {
   externalUrl,
@@ -77,8 +78,14 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 app.setName("AIO Hub Electron");
-if (process.env.AIO_DATA_DIR)
-  app.setPath("userData", path.resolve(process.env.AIO_DATA_DIR));
+const userData = resolveUserDataPath({
+  packaged: app.isPackaged,
+  dataDirectory: process.env.AIO_DATA_DIR,
+  portableDirectory: process.env.PORTABLE_EXECUTABLE_DIR,
+});
+if (userData) app.setPath("userData", userData);
+if (process.platform === "win32")
+  app.setAppUserModelId("com.mty.aiohub.electron");
 const devOrigin = process.env.AIO_ELECTRON_RENDERER_URL
   ? localRendererUrl(process.env.AIO_ELECTRON_RENDERER_URL)
   : undefined;

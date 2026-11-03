@@ -82,6 +82,35 @@ describe("DeepSeek Search/Fetch API contract", () => {
     });
   });
 
+  it.each([
+    ["https://api.deepseek.com/beta", "https://api.deepseek.com/v1/tools"],
+    ["https://api.deepseek.com/beta/", "https://api.deepseek.com/v1/tools"],
+    [
+      "https://proxy.example/service/beta",
+      "https://proxy.example/service/v1/tools",
+    ],
+    [
+      "https://proxy.example/service/v1/beta",
+      "https://proxy.example/service/v1/tools",
+    ],
+  ])(
+    "Beta 渠道使用稳定工具接口并保留共享配置：%s",
+    async (baseUrl, toolBase) => {
+      const betaProfile = { ...profile, baseUrl };
+      vi.mocked(fetchWithTimeout)
+        .mockResolvedValueOnce(success({ results: [] }))
+        .mockResolvedValueOnce(success({ title: "Page", content: "正文" }));
+      await callDeepSeekSearchApi(betaProfile, { query: "更新" });
+      await callDeepSeekFetchApi(betaProfile, {
+        url: "https://example.com/page",
+      });
+      expect(
+        vi.mocked(fetchWithTimeout).mock.calls.map(([url]) => url)
+      ).toEqual([toolBase + "/search", toolBase + "/fetch"]);
+      expect(betaProfile.baseUrl).toBe(baseUrl);
+    }
+  );
+
   it("返回结构化来源并保留正常的空搜索结果", async () => {
     vi.mocked(fetchWithTimeout)
       .mockResolvedValueOnce(success({ results: [item] }))
@@ -118,6 +147,7 @@ describe("DeepSeek Search/Fetch API contract", () => {
   it.each([
     [401, false],
     [402, false],
+    [404, false],
     [429, true],
     [503, true],
   ] as const)(

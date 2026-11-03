@@ -73,6 +73,41 @@ describe("OpenAI Adapter - Chat", () => {
     vi.clearAllMocks();
   });
 
+  it.each([true, false])(
+    "forwards the DeepSeek Beta preference into the shared adapter: %s",
+    async (deepseekBeta) => {
+      vi.mocked(fetchWithTimeout).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            { message: { content: "continued" }, finish_reason: "stop" },
+          ],
+        }),
+      } as Response);
+      await callOpenAiChatApi(
+        {
+          ...mockProfile,
+          type: "deepseek",
+          baseUrl: "https://api.deepseek.com",
+          options: { deepseekBeta },
+        },
+        {
+          profileId: mockProfile.id,
+          modelId: "deepseek-flash",
+          messages: [
+            { role: "user", content: "Continue" },
+            { role: "assistant", content: "Start", prefix: true },
+          ],
+        }
+      );
+      expect(vi.mocked(fetchWithTimeout).mock.calls[0][0]).toBe(
+        deepseekBeta
+          ? "https://api.deepseek.com/beta/chat/completions"
+          : "https://api.deepseek.com/v1/chat/completions"
+      );
+    }
+  );
+
   it("should correctly build a simple text request", async () => {
     const options: LlmRequestOptions = {
       profileId: "test-profile",

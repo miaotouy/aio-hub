@@ -17,6 +17,7 @@
  * 负责 Profile 的选择、创建、删除、自动保存
  */
 import { ref, computed, watch } from "vue";
+import { normalizeDeepSeekProfile } from "@aiohub/llm-core";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -188,6 +189,7 @@ export function useProfileEditor() {
       customMessage.error("请输入 API 地址");
       return false;
     }
+    editForm.value = normalizeDeepSeekProfile(editForm.value);
     saveProfile(editForm.value);
     return true;
   };

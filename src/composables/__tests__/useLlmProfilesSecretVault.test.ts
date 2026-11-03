@@ -78,6 +78,36 @@ beforeAll(async () => {
 vi.setConfig({ testTimeout: 20000 });
 
 describe("useLlmProfiles secret vault bridging", () => {
+  it("persists stable DeepSeek URLs and a default-on Beta preference through migration and save", async () => {
+    const { profilesManager, store } = await bootstrapWithLegacyProfiles([
+      {
+        ...legacyProfile(),
+        type: "deepseek",
+        baseUrl: "https://api.deepseek.com/beta",
+      },
+    ]);
+    expect(store.profiles.value[0]).toMatchObject({
+      baseUrl: "https://api.deepseek.com",
+      options: { deepseekBeta: true },
+    });
+    expect((await profilesManager.load()).profiles[0]).toMatchObject({
+      baseUrl: "https://api.deepseek.com",
+      options: { deepseekBeta: true },
+    });
+    await store.saveProfile({
+      ...store.profiles.value[0],
+      baseUrl: "https://api.deepseek.com/beta/v1",
+      options: { deepseekBeta: false },
+    });
+    expect((await profilesManager.load()).profiles[0]).toMatchObject({
+      baseUrl: "https://api.deepseek.com",
+      options: { deepseekBeta: false },
+    });
+    const { options: _options, ...partial } = store.profiles.value[0];
+    await store.saveProfile(partial);
+    expect(store.profiles.value[0].options?.deepseekBeta).toBe(false);
+    expect(store.profiles.value[0].apiKeys).toEqual([LEGACY_SECRET]);
+  });
   it("migrates legacy inline keys, strips profiles.json and hydrates memory", async () => {
     const { profilesManager, vault, store } = await bootstrapWithLegacyProfiles(
       [legacyProfile()]

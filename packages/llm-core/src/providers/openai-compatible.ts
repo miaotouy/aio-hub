@@ -27,6 +27,10 @@ import type {
 } from "../types/response";
 import type { WireRequest, WireResponse } from "../types/transport";
 import { audioInputFormat, documentFilename } from "./media-input";
+import {
+  normalizeDeepSeekProfile,
+  resolveDeepSeekBetaChatUrl,
+} from "./deepseek-endpoints";
 
 type JsonObject = Record<string, JsonValue>;
 export type OpenAiCompatibleBody = Record<string, WireJsonValue>;
@@ -37,6 +41,7 @@ export function buildOpenAiCompatibleUrl(
   profile: ProviderProfile,
   endpoint = "chat/completions"
 ): string {
+  profile = normalizeDeepSeekProfile(profile);
   const customEndpoint =
     profile.endpoints?.chatCompletions ?? profile.endpoints?.[endpoint];
 
@@ -67,6 +72,7 @@ export function buildOpenAiCompatibleRequest(
   profile: ProviderProfile,
   request: LlmRequest
 ): WireRequest {
+  profile = normalizeDeepSeekProfile(profile);
   const body = buildOpenAiCompatibleBody(request);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -76,7 +82,9 @@ export function buildOpenAiCompatibleRequest(
 
   return {
     method: "POST",
-    url: buildOpenAiCompatibleUrl(profile),
+    url:
+      resolveDeepSeekBetaChatUrl(profile, body) ??
+      buildOpenAiCompatibleUrl(profile),
     headers,
     body: { kind: "json", value: body },
     streaming: request.stream ?? false,

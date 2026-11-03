@@ -15,6 +15,17 @@
 import { describe, expect, it } from "vitest";
 import { buildLlmApiUrl, getLlmEndpointHint } from "../llm-api-url";
 
+describe("DeepSeek API URL preview", () => {
+  it("previews stable endpoints for legacy Beta addresses", () => {
+    expect(buildLlmApiUrl("https://api.deepseek.com/beta", "deepseek")).toBe(
+      "https://api.deepseek.com/v1/chat/completions"
+    );
+    expect(
+      buildLlmApiUrl("https://api.deepseek.com/beta", "deepseek", "models")
+    ).toBe("https://api.deepseek.com/v1/models");
+  });
+});
+
 describe("Ollama API URL preview", () => {
   it("uses the OpenAI-compatible endpoint used by the runtime adapter", () => {
     expect(buildLlmApiUrl("http://localhost:11434", "ollama")).toBe(

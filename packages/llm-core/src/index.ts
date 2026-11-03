@@ -10,6 +10,7 @@ export * from "./async-media-executor";
 export * from "./model-list-executor";
 export * from "./model-execution-routing";
 export * from "./providers/openai-compatible";
+export * from "./providers/deepseek-endpoints";
 export * from "./providers/openai-responses";
 export * from "./providers/anthropic-messages";
 export * from "./providers/cohere-chat";

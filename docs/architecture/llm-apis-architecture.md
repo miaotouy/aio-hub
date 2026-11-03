@@ -37,7 +37,8 @@
 
 `src/llm-apis/adapters/deepseek/tools.ts` 提供 `callDeepSeekSearchApi()` 与 `callDeepSeekFetchApi()`，复用 LLM 渠道连接及桌面传输。网页工具以查询或 URL 为输入，独立于模型路由及 Chat Completions 消息协议，现有聊天解析保持原有行为。
 
-- 连接读取渠道基础地址、API Key、自定义请求头和网络策略；支持根地址、`/v1` 地址及反向代理路径。
+- 连接读取渠道基础地址、API Key、自定义请求头和网络策略；支持根地址、`/v1` 地址及反向代理路径。DeepSeek 统一保存普通基础地址，`options.deepseekBeta` 默认开启。旧地址末尾的 `/beta`（含 `/beta/v1`）在加载、保存时迁移为普通地址，保留显式开关值并持久化；模型列表和网页工具兼容迁移前的地址。
+- 共享 `deepseek-endpoints.ts` 按最终请求体选择端点：启用 Beta 且包含末尾 assistant `prefix: true` 或函数工具 `strict: true` 时，Chat Completions 使用 `/beta/chat/completions`；关闭开关后这些请求也使用普通端点。普通聊天、模型列表与 Search / Fetch 始终使用稳定端点，显式自定义端点沿用既有优先级。FIM 暂无独立请求入口。路由依据：[前缀续写](https://api-docs.deepseek.com/guides/chat_prefix_completion)、[严格工具调用](https://api-docs.deepseek.com/guides/tool_calls)（2026-11-03 核对）。
 - Key 管理提供 `ensureLoaded()`，合并并发加载，工具请求在选 Key 前等待持久化状态就绪。沿用现有轮询与启用状态，搜索的账号级限流保持 Key 可用性。
 - 共享传输新增可选 `requestKind: "tool"` 分类，工具调用复用超时、取消和代理能力，并独立于 LLM Inspector 的模型诊断记录。默认模型请求行为保持兼容。
 - 适配器按 Unicode 字符数校验搜索词，映射结构化来源及 Markdown 抓取结果；公开错误保留 HTTP 状态、重试语义与用户可行动提示。

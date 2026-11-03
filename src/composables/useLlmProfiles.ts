@@ -17,7 +17,10 @@
  */
 
 import { ref, computed } from "vue";
-import { materializeModelIdentity } from "@aiohub/llm-core";
+import {
+  materializeModelIdentity,
+  normalizeDeepSeekProfile,
+} from "@aiohub/llm-core";
 import type {
   LlmProfile,
   LlmModelInfo,
@@ -117,7 +120,7 @@ export function useLlmProfiles() {
       networkStrategy:
         rest.networkStrategy || DEFAULT_LLM_PROFILE.networkStrategy,
     };
-    return migrateAggregateProfile(normalized);
+    return normalizeDeepSeekProfile(migrateAggregateProfile(normalized));
   };
 
   const persistProfiles = async (nextProfiles: LlmProfile[]) => {
@@ -200,7 +203,11 @@ export function useLlmProfiles() {
         if (
           reconciled.changed ||
           normalized.some(
-            (profile, index) => profile.type !== loadedProfiles[index]?.type
+            (profile, index) =>
+              profile.type !== loadedProfiles[index]?.type ||
+              profile.baseUrl !== loadedProfiles[index]?.baseUrl ||
+              profile.options?.deepseekBeta !==
+                loadedProfiles[index]?.options?.deepseekBeta
           ) ||
           fromLocalStorage ||
           loadedSecrets.needsRewrite ||
@@ -277,14 +284,14 @@ export function useLlmProfiles() {
         ) {
           merged.customHeaders = existing.customHeaders;
         }
-        profiles.value[index] = merged;
+        profiles.value[index] = normalizeDeepSeekProfile(merged);
       } else {
         // 添加新配置
         logger.info("添加新 LLM 配置", {
           profileId: profile.id,
           profileName: profile.name,
         });
-        profiles.value.push(profile);
+        profiles.value.push(normalizeDeepSeekProfile(profile));
       }
       await saveToStorage();
     } catch (error) {

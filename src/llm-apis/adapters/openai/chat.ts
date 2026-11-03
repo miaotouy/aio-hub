@@ -114,6 +114,7 @@ function buildProviderProfile(
     baseUrl: profile.baseUrl,
     headers: buildOpenAiHeaders(profile, requestId),
     endpoints: profile.customEndpoints,
+    options: profile.options,
   };
 }
 

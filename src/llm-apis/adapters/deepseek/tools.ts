@@ -1,3 +1,4 @@
+import { getDeepSeekStableBaseUrl } from "@aiohub/llm-core";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
 import { fetchWithTimeout } from "@/llm-apis/common";
@@ -70,6 +71,21 @@ function validateQuery(value: string, label: string) {
   }
 }
 
+export function buildDeepSeekToolUrl(
+  baseUrl: string,
+  operation: "search" | "fetch"
+): string {
+  const base = validHttpUrl(getDeepSeekStableBaseUrl(baseUrl));
+  if (base.search || base.hash)
+    throw new DeepSeekToolsError(
+      "INVALID_URL",
+      "DeepSeek 渠道基础地址应使用 API 服务地址"
+    );
+  const path = base.pathname.replace(/\/+$/, "");
+  base.pathname = `${path}${path.endsWith("/v1") ? "" : "/v1"}/tools/${operation}`;
+  return base.href;
+}
+
 async function requestTool(
   profile: LlmProfile,
   operation: "search" | "fetch",
@@ -79,7 +95,7 @@ async function requestTool(
   if (!profile.enabled)
     throw new DeepSeekToolsError(
       "PROFILE_DISABLED",
-      "所选 DeepSeek 渠道已停用，请在 LLM 服务设置中启用"
+      "所选 DeepSeek 渠道已停用，请在配置渠道中启用"
     );
   const keyManager = useLlmKeyManager();
   await keyManager.ensureLoaded();
@@ -87,18 +103,11 @@ async function requestTool(
   if (!key)
     throw new DeepSeekToolsError(
       "MISSING_API_KEY",
-      "请在 LLM 服务设置中为所选 DeepSeek 渠道配置 API Key"
+      "请在配置渠道中填写所选 DeepSeek 渠道的 API Key"
     );
-  const base = validHttpUrl(profile.baseUrl);
-  if (base.search || base.hash)
-    throw new DeepSeekToolsError(
-      "INVALID_URL",
-      "DeepSeek 渠道基础地址应使用 API 服务地址"
-    );
-  const path = base.pathname.replace(/\/+$/, "");
-  base.pathname = `${path}${path.endsWith("/v1") ? "" : "/v1"}/tools/${operation}`;
+  const endpoint = buildDeepSeekToolUrl(profile.baseUrl, operation);
   const response = await fetchWithTimeout(
-    base.href,
+    endpoint,
     {
       method: "POST",
       headers: {
@@ -125,8 +134,8 @@ async function requestTool(
       403: "目标网页被 DeepSeek 安全策略拒绝",
       404:
         operation === "fetch"
-          ? "未能获取网页正文，请检查地址或尝试其他提取引擎"
-          : "搜索接口不可用，请检查渠道地址及接口支持情况",
+          ? "抓取接口或目标网页未找到，请确认渠道支持 /v1/tools/fetch，并检查网页地址"
+          : "渠道未找到搜索接口 /v1/tools/search（HTTP 404），请在配置渠道中检查 API 地址，并确认服务支持网页搜索",
       408: "DeepSeek 请求超时，请稍后重试",
       413: "请求内容过大，请缩短搜索词或目标地址",
       429: "DeepSeek 请求过于频繁，请稍后重试",

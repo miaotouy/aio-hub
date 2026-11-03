@@ -224,6 +224,8 @@ export interface LlmRequestOptions {
   modelId: string;
   /** 可选：显式指定 API Key，如果不提供则根据 profileId 自动选取 */
   apiKey?: string;
+  /** 本次正文续写策略；在物理模型确定后应用。 */
+  continuation?: Partial<import("./continuation").ContinuationSettings>;
   /** 完整的消息列表（包括 role 和 content），现已支持 system 角色 */
   messages?: LlmMessage[];
   maxTokens?: number;

@@ -2333,6 +2333,68 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     ],
   },
   {
+    title: "续写设置",
+    icon: PenTool,
+    items: [
+      {
+        id: "continuationMode",
+        label: "续写方式",
+        component: "ElRadioGroup",
+        modelPath: "continuation.mode",
+        options: [
+          { label: "自动选择", value: "auto" },
+          { label: "始终使用提示词", value: "prompt" },
+        ],
+        hint: "自动选择会优先使用模型支持的原生前缀续写，其余情况使用提示词接续。网关兼容性或接缝效果欠佳时，可改用提示词。适用于助手消息续写。",
+        keywords: "continuation prefix prefill 续写 接力 前缀 提示词",
+      },
+      {
+        id: "continuationThinking",
+        label: "DeepSeek 思考模式",
+        component: "ElRadioGroup",
+        modelPath: "continuation.deepseekThinking",
+        options: [
+          { label: "跟随模型", value: "inherit" },
+          { label: "开启", value: "enabled" },
+          { label: "关闭", value: "disabled" },
+        ],
+        hint: "仅覆盖本次 DeepSeek 正文续写的思考开关，原生续写与提示词续写均适用。其他模型沿用自身参数；思考开关的支持情况由上游服务决定。",
+        keywords: "continuation deepseek thinking 续写 接力 思考 推理",
+      },
+      {
+        id: "continuationPrompt",
+        label: "续写提示词",
+        component: "PromptEditor",
+        modelPath: "continuation.prompt",
+        props: {
+          rows: 5,
+          placeholder: "输入续写指令",
+          defaultValue: DEFAULT_SETTINGS.continuation.prompt,
+        },
+        hint: "用于提示词续写。系统会在指令末尾自动附上原文末尾片段，供模型定位接续位置。建议保留从断点追加、补完未结束结构、仅输出新增正文的要求。清空后使用默认指令。",
+        keywords: "continuation prompt 续写 接力 提示词 指令 定位",
+      },
+      {
+        id: "continuationTailLength",
+        label: "末尾定位长度",
+        component: "ElInputNumber",
+        modelPath: "continuation.tailLength",
+        props: { min: 100, max: 16000, step: 100 },
+        hint: "提示词续写额外引用的原文末尾长度，默认 1200。完整原文仍按上下文流程发送，较长的定位片段会增加输入用量。",
+        keywords: "continuation tail anchor 续写 末尾 定位 长度",
+      },
+      {
+        id: "continuationDeduplicate",
+        label: "去除开头重复内容",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "continuation.deduplicate",
+        hint: "自动移除回复开头完整复述的原文或较长的精确重叠，保留短词、空白和代码符号。关闭后按模型返回的正文原样追加。",
+        keywords: "continuation overlap deduplicate 续写 去重 重复 接缝",
+      },
+    ],
+  },
+  {
     title: "请求设置",
     icon: Globe,
     items: [

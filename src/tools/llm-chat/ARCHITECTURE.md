@@ -299,7 +299,7 @@ graph TD
 
 利用 LLM 的预测能力，系统提供了多场景的内容延续功能。
 
-- **助手续写 (Assistant Continue)**: 利用 DeepSeek 的 `prefix` 或 Claude/Gemini 的 `prefill` 特性，让模型从现有文本末尾继续生成。
+- **助手续写 (Assistant Continue)**: 按实际物理模型能力选择原生 Prefix / Prefill 或带末尾锚点的提示词接力。以已有正文作为跨模型接续依据，流式、完成和中断使用统一的接缝处理。「聊天设置 → 续写设置」支持续写方式、DeepSeek 思考覆盖、自定义提示词、末尾定位长度和开头去重，设置在请求开始时固定。
 - **输入框补全 (Input Copilot)**: 在输入框内一键触发 AI 协助补全后续句子。
 - **灵感接力**: 允许 AI 站在用户视角继续书写 User 消息的内容。
 

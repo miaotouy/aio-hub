@@ -33,6 +33,10 @@ import {
   completeAndDisposeStreamingMessageSource,
 } from "./useStreamingMessageSources";
 import { buildEmptyResponseDiagnostic } from "./emptyResponseDiagnostics";
+import {
+  ContinuationTextFilter,
+  mergeContinuationText,
+} from "../../utils/continuationText";
 
 const logger = createModuleLogger("llm-chat/response-handler");
 const errorHandler = createModuleErrorHandler("llm-chat/response-handler");
@@ -49,6 +53,7 @@ export function useChatResponseHandler() {
     syncBuffer: string;
     isSyncScheduled: boolean;
     persistTimer: number | null;
+    continuation?: ContinuationTextFilter;
   }
 
   const contentUpdateBuffer = new Map<string, ContentUpdateState>();
@@ -294,9 +299,6 @@ export function useChatResponseHandler() {
         });
       }
     } else {
-      // 助手正文通过 StreamSource 渲染；工具卡片直接读取节点正文。
-      appendStreamingMessageChunk(nodeId, chunk);
-
       if (node.metadata?.reasoningStartTime) {
         // 强制刷新一次 reasoning 缓冲区
         flushReasoningToNode(session, nodeId);
@@ -311,6 +313,15 @@ export function useChatResponseHandler() {
       }
 
       const contentState = getContentState(nodeId);
+      if (node.metadata?.isContinuation) {
+        contentState.continuation ??= new ContinuationTextFilter(
+          node.metadata.continuationPrefix || "",
+          node.metadata.continuationDeduplicate ?? true
+        );
+        chunk = contentState.continuation.push(chunk);
+      }
+      if (!chunk) return;
+      appendStreamingMessageChunk(nodeId, chunk);
       contentState.persistBuffer += chunk;
       contentState.syncBuffer += chunk;
       scheduleStreamSync(session, nodeId);
@@ -435,6 +446,13 @@ export function useChatResponseHandler() {
     }
 
     const cState = contentUpdateBuffer.get(nodeId);
+    const pendingContinuation = cState?.continuation?.finish();
+    if (cState && pendingContinuation) {
+      appendStreamingMessageChunk(nodeId, pendingContinuation);
+      cState.persistBuffer += pendingContinuation;
+      cState.syncBuffer += pendingContinuation;
+      scheduleStreamSync(session, nodeId);
+    }
     if (cState && cState.persistBuffer) {
       if (cState.persistTimer !== null) {
         clearTimeout(cState.persistTimer);
@@ -556,15 +574,12 @@ export function useChatResponseHandler() {
       });
     }
 
-    // 如果是续写模式，确保内容包含原始前缀
     if (finalNode.metadata?.isContinuation) {
-      const prefix = finalNode.metadata.continuationPrefix || "";
-      // 如果 processedContent 已经包含了前缀（某些模型可能会重复输出），则不重复拼接
-      if (processedContent.startsWith(prefix)) {
-        finalNode.content = processedContent;
-      } else {
-        finalNode.content = prefix + processedContent;
-      }
+      finalNode.content = mergeContinuationText(
+        finalNode.metadata.continuationPrefix || "",
+        processedContent,
+        finalNode.metadata.continuationDeduplicate ?? true
+      );
     } else {
       finalNode.content = processedContent;
     }
@@ -724,6 +739,7 @@ export function useChatResponseHandler() {
   ): void => {
     const errorNode = session.nodes ? session.nodes[nodeId] : undefined;
     if (!errorNode) return;
+    completeStreamSegment(session, nodeId);
 
     if (
       error &&

@@ -27,6 +27,7 @@ import type {
   ChatSessionIndex,
 } from "../../types";
 import type { Asset } from "@/types/asset-management";
+import { normalizeContinuationSettings } from "@/llm-apis/continuation";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
@@ -140,6 +141,14 @@ export function useSingleNodeExecutor() {
     } = params;
 
     const { settings } = useChatSettings();
+    const continuationSettings = normalizeContinuationSettings(
+      settings.value.continuation
+    );
+    if (isContinuation) {
+      assistantNode.metadata ??= {};
+      assistantNode.metadata.continuationDeduplicate =
+        continuationSettings.deduplicate;
+    }
     const chatStore = useLlmChatStore();
 
     await loadSnapshotSettings();
@@ -300,9 +309,21 @@ export function useSingleNodeExecutor() {
           )
         : undefined;
 
-    // 4. 发送请求
-    const messagesForRequest = messages.map((msg, index, filteredMessages) => {
-      const isLast = index === filteredMessages.length - 1;
+    // 4. 发送请求：标记实际续写节点，保留其后的上下文注入顺序。
+    let continuationIndex = isContinuation
+      ? messages.findIndex(
+          (msg) => msg.role === "assistant" && msg.sourceId === assistantNode.id
+        )
+      : -1;
+    if (
+      isContinuation &&
+      typeof assistantNode.metadata?.continuationPrefix === "string" &&
+      continuationIndex < 0 &&
+      messages[messages.length - 1]?.role === "assistant"
+    ) {
+      continuationIndex = messages.length - 1;
+    }
+    const messagesForRequest = messages.map((msg, index) => {
       return {
         role: msg.role as any,
         ...(snapshotSources
@@ -311,7 +332,7 @@ export function useSingleNodeExecutor() {
         content: msg.content,
         reasoningContent: msg.reasoningContent,
         reasoningArtifacts: msg.reasoningArtifacts,
-        prefix: isContinuation && isLast ? true : undefined,
+        prefix: index === continuationIndex ? true : undefined,
       };
     });
 
@@ -499,6 +520,7 @@ export function useSingleNodeExecutor() {
             purpose: "chat",
           },
           ...effectiveParams,
+          continuation: isContinuation ? continuationSettings : undefined,
           requestCapture: snapshotRecorder?.capture,
           ...(splitVcpResponses
             ? {

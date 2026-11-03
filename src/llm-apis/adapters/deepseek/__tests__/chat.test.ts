@@ -51,39 +51,65 @@ describe("DeepSeek Adapter - Chat", () => {
     vi.clearAllMocks();
   });
 
-  it("normalizes DeepSeek reasoning effort and preserves the thinking switch", async () => {
-    const options: LlmRequestOptions = {
-      profileId: "deepseek-profile",
-      modelId: "deepseek-v4-flash",
-      messages: [{ role: "user", content: "Name this topic" }],
-      reasoningEffort: "medium",
-      thinkingEnabled: false,
-      extraBody: {
-        custom_flag: true,
-      },
-    };
+  it.each([true, false])(
+    "normalizes reasoning effort and sends the thinking switch at the HTTP root: %s",
+    async (thinkingEnabled) => {
+      const options: LlmRequestOptions = {
+        profileId: "deepseek-profile",
+        modelId: "deepseek-v4-flash",
+        messages: [{ role: "user", content: "Name this topic" }],
+        reasoningEffort: "medium",
+        thinkingEnabled,
+        extraBody: {
+          custom_flag: true,
+        },
+      };
 
-    (fetchWithTimeout as any).mockResolvedValue({
+      (fetchWithTimeout as any).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: "DeepSeek topic" },
+              finish_reason: "stop",
+            },
+          ],
+        }),
+      });
+
+      await callDeepSeekChatApi(mockProfile, options);
+
+      const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
+      const body = JSON.parse(fetchOptions.body);
+
+      expect(body.reasoning_effort).toBe("high");
+      expect(body.thinking).toEqual({
+        type: thinkingEnabled ? "enabled" : "disabled",
+      });
+      expect(body.custom_flag).toBe(true);
+    }
+  );
+  it("keeps explicit extra-body fields authoritative for a DeepSeek model alias", async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValue({
       ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: { content: "DeepSeek topic" },
-            finish_reason: "stop",
-          },
-        ],
-      }),
+      json: async () => ({ choices: [{ message: { content: "done" } }] }),
+    } as Response);
+    await callDeepSeekChatApi(mockProfile, {
+      profileId: mockProfile.id,
+      modelId: "relay-model",
+      messages: [{ role: "user", content: "Hello" }],
+      thinkingEnabled: true,
+      reasoningEffort: "none",
+      extraBody: { thinking: { type: "disabled" }, custom_flag: 7 },
     });
-
-    await callDeepSeekChatApi(mockProfile, options);
-
-    const [, fetchOptions] = (fetchWithTimeout as any).mock.calls[0];
-    const body = JSON.parse(fetchOptions.body);
-
-    expect(body.reasoning_effort).toBe("high");
-    expect(body.extra_body).toEqual({
+    const body = JSON.parse(
+      vi.mocked(fetchWithTimeout).mock.calls[0][1].body as string
+    );
+    expect(body).toMatchObject({
+      model: "relay-model",
       thinking: { type: "disabled" },
-      custom_flag: true,
+      reasoning_effort: "none",
+      custom_flag: 7,
     });
   });
 });

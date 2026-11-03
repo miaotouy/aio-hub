@@ -39,7 +39,10 @@ import {
   decorateLlmError,
   type LlmOperation,
 } from "@aiohub/llm-core";
-import { filterParametersByCapabilities } from "../llm-apis/request-builder";
+import {
+  getModelFamily,
+  filterParametersByCapabilities,
+} from "../llm-apis/request-builder";
 import { buildDecodedToolDiagnostics } from "../llm-apis/tool-diagnostics";
 import { getKeyHealthActionForError } from "../llm-apis/key-health-policy";
 import type { LlmProfile } from "../types/llm-profiles";
@@ -53,6 +56,10 @@ const logger = createModuleLogger("LlmRequest");
 const errorHandler = createModuleErrorHandler("LlmRequest");
 
 import { sendChannelRequest } from "./llmChannelExecution";
+import {
+  getContinuationThinkingOptions,
+  prepareContinuationMessages,
+} from "@/llm-apis/continuation";
 
 export function useLlmRequest() {
   const { getProfileById, profiles } = useLlmProfiles();
@@ -549,6 +556,24 @@ export function useLlmRequest() {
           filteredOptions as MediaGenerationOptions
         );
       } else {
+        Object.assign(
+          filteredOptions,
+          getContinuationThinkingOptions(
+            { ...filteredOptions, continuation: options.continuation },
+            effectiveProfile.type === "deepseek" ||
+              getModelFamily(
+                options.modelId,
+                model.provider ?? effectiveProfile.type,
+                model
+              ) === "deepseek"
+          )
+        );
+        filteredOptions.messages = prepareContinuationMessages(
+          filteredOptions.messages,
+          effectiveProfile,
+          model,
+          options.continuation
+        );
         response = await adapter.chat(
           effectiveProfile,
           filteredOptions as LlmRequestOptions

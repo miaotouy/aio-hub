@@ -33,6 +33,12 @@
 
 协议层省略调用方未提供的温度。Gemini 的可选输出预算交给服务端默认值，Anthropic 的必填 `max_tokens` 在缺省时使用共享预算。新建通用聊天与智能体仅设置输出预算，显式温度按目标模型能力生效。
 
+## 正文前缀续写
+
+桌面请求入口在渠道选定物理模型后调用 `src/llm-apis/continuation.ts`。末尾 Assistant 前缀按物理模型的 `prefixCompletion` 能力保留，DeepSeek 渠道缺省使用原生模式，并沿用默认开启的 Beta 偏好。通用模型、Responses 协议及存在尾部注入的上下文使用显式末尾锚点指令。前缀节点的旧思考在接力请求中清理，本次思考模式默认沿用调用参数。请求级 `continuation` 配置可强制使用提示词、调整指令与锚点长度，并覆盖本次 DeepSeek 思考开关；策略在物理模型确定后应用，兼容虚拟渠道候选。
+
+DeepSeek 的 `thinking` 及扩展请求体字段发送到 HTTP JSON 顶层，显式扩展值保持覆盖优先级；用户指定本次续写的 DeepSeek 思考模式时，以该续写选择为准。其他模型的扩展参数封装沿用既有协议映射。
+
 ## DeepSeek 网页工具 API
 
 `src/llm-apis/adapters/deepseek/tools.ts` 提供 `callDeepSeekSearchApi()` 与 `callDeepSeekFetchApi()`，复用 LLM 渠道连接及桌面传输。网页工具以查询或 URL 为输入，独立于模型路由及 Chat Completions 消息协议，现有聊天解析保持原有行为。

@@ -63,7 +63,8 @@ function shouldSendOpenAiReasoningEffort(
       id.includes("doubao") ||
       id.includes("seed") ||
       id.includes("glm") ||
-      id.includes("deepseek"))
+      id.includes("deepseek") ||
+      getRequestModelFamily(profile, modelId) === "deepseek")
   );
 }
 
@@ -146,16 +147,23 @@ function buildCoreRequest(
   const geminiExtraBody = isGeminiModel
     ? buildGeminiExtraBody(options, explicitExtraBody)
     : undefined;
-  const isDeepSeekThinking =
-    options.modelId.toLowerCase().includes("deepseek") &&
-    options.thinkingEnabled !== undefined;
+  const isDeepSeekRequest =
+    profile.type === "deepseek" ||
+    getRequestModelFamily(profile, options.modelId) === "deepseek";
   if (geminiExtraBody) {
     extensions.extra_body = geminiExtraBody;
-  } else if (isDeepSeekThinking) {
-    extensions.extra_body = {
-      thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" },
-      ...(explicitExtraBody ?? {}),
-    };
+  } else if (isDeepSeekRequest) {
+    // extra_body is an SDK option; direct HTTP requests send these fields at the root.
+    delete extensions.extra_body;
+    Object.assign(extensions, explicitExtraBody);
+    if (
+      options.thinkingEnabled !== undefined &&
+      extensions.thinking === undefined
+    ) {
+      extensions.thinking = {
+        type: options.thinkingEnabled ? "enabled" : "disabled",
+      };
+    }
   } else if (explicitExtraBody) {
     extensions.extra_body = explicitExtraBody;
   }
@@ -217,7 +225,7 @@ function buildCoreRequest(
       : undefined,
     captureResponseChunks: !!options.onResponseChunk,
     thinkingEnabled:
-      isDeepSeekThinking || isGeminiModel ? undefined : options.thinkingEnabled,
+      isDeepSeekRequest || isGeminiModel ? undefined : options.thinkingEnabled,
     thinkingBudget: isGeminiModel ? undefined : options.thinkingBudget,
     extensions,
   };

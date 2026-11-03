@@ -14,6 +14,13 @@ const mocks = vi.hoisted(() => ({
   settings: {
     value: {
       uiPreferences: { isStreaming: true, splitVcpResponses: false },
+      continuation: {
+        mode: "prompt" as const,
+        deepseekThinking: "disabled" as const,
+        prompt: "接续原文。",
+        tailLength: 2400,
+        deduplicate: false,
+      },
       requestSettings: { maxRetries: 0 },
     },
   },
@@ -449,3 +456,55 @@ describe("VCP response splitting with queued messages", () => {
     expect(unrelated.parentId).toBe("assistant");
   });
 });
+
+// Tail injections must not move the continuation cursor onto an unrelated message.
+it.each(["assistant", "user"] as const)(
+  "marks only an assistant source for %s continuation",
+  async (role) => {
+    vi.clearAllMocks();
+    mocks.settings.value.uiPreferences = {
+      isStreaming: false,
+      splitVcpResponses: false,
+    };
+    const session = createSession();
+    const messages = [
+      {
+        role,
+        content: "原有正文",
+        sourceId: role === "assistant" ? "assistant" : "user",
+      },
+      {
+        role: role === "user" ? "assistant" : "system",
+        content: "尾部上下文注入",
+        sourceId: "injection",
+      },
+    ];
+    mocks.executePipeline.mockImplementationOnce(async (context) => {
+      context.messages.push(...messages);
+    });
+    mocks.sendRequest.mockResolvedValueOnce({ content: "新增正文" });
+    await useSingleNodeExecutor().execute({
+      session,
+      assistantNode: session.nodes.assistant,
+      currentPathToUserNode: [],
+      isContinuation: true,
+      agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+      executionAgent: { id: "agent" } as ChatAgent,
+      effectiveUserProfile: null,
+      abortController: new AbortController(),
+    });
+    const request = mocks.sendRequest.mock.calls[0][0] as LlmRequestOptions;
+    expect(
+      request.messages?.map(({ role, content }) => ({ role, content }))
+    ).toEqual(messages.map(({ role, content }) => ({ role, content })));
+    expect(request.messages?.[0].prefix).toBe(
+      role === "assistant" ? true : undefined
+    );
+    expect(request.messages?.[1].prefix).toBeUndefined();
+    expect(request.continuation).toEqual(mocks.settings.value.continuation);
+    expect(request.continuation).not.toBe(mocks.settings.value.continuation);
+    expect(session.nodes.assistant.metadata?.continuationDeduplicate).toBe(
+      false
+    );
+  }
+);

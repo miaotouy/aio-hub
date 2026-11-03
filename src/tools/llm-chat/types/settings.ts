@@ -116,6 +116,8 @@ export interface BubbleLayoutConfig {
  * 聊天设置接口
  */
 export interface ChatSettings {
+  /** 消息正文续写偏好 */
+  continuation: import("@/llm-apis/continuation").ContinuationSettings;
   /** UI 偏好设置 */
   uiPreferences: {
     /** 输入区操作位置、顺序与快捷操作展示 */

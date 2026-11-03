@@ -14,7 +14,7 @@
 
 import { afterEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ listen: vi.fn() }));
-vi.mock("./core/env", () => ({ isTauriRuntime: () => true }));
+vi.mock("./core/env", () => ({ isNativeRuntime: () => true }));
 vi.mock("./native/events", () => ({ listen: mocks.listen }));
 import { onWindowDestroyed, onFileDropPaths } from "./modules/window";
 afterEach(() => vi.resetAllMocks());

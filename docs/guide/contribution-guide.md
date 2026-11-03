@@ -42,6 +42,10 @@ bun run dev:static:watch
 
 这个模式适合前端生产构建行为排查。本地 HTTP origin 与打包版的应用资源协议仍有区别，Rust debug/release 条件编译行为也有区别；发布行为验证继续使用 `bun run test:build-app`。
 
+### Electron 开发
+
+`bun run electron:dev` 启动现有工作台的 Electron 宿主，`bun run electron:build` 生成可运行目录，`bun run electron:preview` 验证生产协议。数据目录、已支持能力及主进程检查见[Electron 桌面开发](./electron-development.md)。Tauri 入口继续用于尚待迁移的后端工作流。
+
 ### 本地构建提速
 
 `bun run build:tsc` 使用增量类型检查，缓存保存到已忽略的 `.tmp/typecheck/vue-tsc.tsbuildinfo`。`bun run build` 及桌面构建会复用这份缓存，检查范围保持原样。首次运行会生成缓存，后续根据源码和配置变化更新检查结果；需要重新生成缓存时可删除该文件。

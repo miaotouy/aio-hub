@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { isElectronRuntime } from "../core/env";
 import { platform } from "@/platform/native/os";
 
 /** 与后端按平台注册的原生命令保持一致；浏览器预览按能力缺省处理。 */
 export function getNativeDesktopCapabilities() {
   let windows = false;
   try {
-    windows = platform() === "windows";
+    windows = !isElectronRuntime() && platform() === "windows";
   } catch {
     /* 浏览器缺少原生平台信息。 */
   }

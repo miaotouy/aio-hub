@@ -12,4 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/api/event";
+import * as electron from "../electron/events";
+import { getElectronBridge } from "../electron/client";
 export * from "@tauri-apps/api/event";
+export const listen: typeof tauri.listen = getElectronBridge()
+  ? (electron.listen as typeof tauri.listen)
+  : tauri.listen;
+export const once: typeof tauri.once = getElectronBridge()
+  ? (electron.once as typeof tauri.once)
+  : tauri.once;
+export const emit: typeof tauri.emit = getElectronBridge()
+  ? (electron.emit as typeof tauri.emit)
+  : tauri.emit;
+export const emitTo: typeof tauri.emitTo = getElectronBridge()
+  ? (electron.emitTo as typeof tauri.emitTo)
+  : tauri.emitTo;

@@ -12,4 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-opener";
+import { getElectronBridge, request } from "../electron/client";
 export * from "@tauri-apps/plugin-opener";
+
+export const openUrl: typeof tauri.openUrl = getElectronBridge()
+  ? (url, openWith) =>
+      openWith
+        ? Promise.reject(new Error("Electron 暂不支持指定浏览器"))
+        : request("opener.url", { url })
+  : tauri.openUrl;
+export const openPath: typeof tauri.openPath = getElectronBridge()
+  ? (path, openWith) =>
+      openWith
+        ? Promise.reject(new Error("Electron 暂不支持指定应用"))
+        : request("opener.path", { path })
+  : tauri.openPath;
+export const revealItemInDir: typeof tauri.revealItemInDir = getElectronBridge()
+  ? (path) => request("opener.reveal", { path })
+  : tauri.revealItemInDir;

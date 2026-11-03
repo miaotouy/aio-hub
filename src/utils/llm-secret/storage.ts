@@ -19,7 +19,7 @@
  * - 落盘内容是混淆文本而非可读 JSON，且后缀刻意不使用 `.json`；
  * - 目录由调用方注入（桌面端走便携模式感知的 AppConfig，移动端走 AppData）；
  * - 保存前保留一份可解码的 `.bak`，主文件损坏时自动回退；
- * - 非 Tauri 环境（Vitest / Bun 脚本）自动降级为内存存储。
+ * - 浏览器或测试环境（Vitest / Bun 脚本）自动降级为内存存储。
  *
  * 读取或解码失败不会伪装成空数据。主文件和备份均不可用时必须向上抛错，
  * 防止调用方把临时 IO 故障误判为“用户没有凭据”并覆盖原文件。
@@ -32,13 +32,13 @@ import {
   readTextFile,
   writeTextFile,
 } from "@/platform/native/fs";
-import { hasTauriRuntimeMarker } from "@/platform/core/env";
+import { hasNativeRuntimeMarker } from "@/platform/core/env";
 import { decodeObfuscatedPayload, encodeObfuscatedPayload } from "./codec";
 
 const LOG_PREFIX = "[LlmSecretStore]";
 const BACKUP_SUFFIX = ".bak";
 
-const isTauri = hasTauriRuntimeMarker();
+const isNative = hasNativeRuntimeMarker();
 
 const memoryStore = new Map<string, string>();
 
@@ -97,7 +97,7 @@ export function createObfuscatedStore<T>(
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   const resolveFilePath = async (): Promise<string> => {
-    if (!isTauri) return `obfuscated-store://${options.fileName}`;
+    if (!isNative) return `obfuscated-store://${options.fileName}`;
     const dir = await options.resolveDir();
     return join(dir, options.fileName);
   };
@@ -127,7 +127,7 @@ export function createObfuscatedStore<T>(
       );
     }
 
-    if (!isTauri) return loadMemoryValue(filePath);
+    if (!isNative) return loadMemoryValue(filePath);
 
     const backupPath = `${filePath}${BACKUP_SUFFIX}`;
     if (!(await exists(filePath))) {
@@ -172,7 +172,7 @@ export function createObfuscatedStore<T>(
     const backupPath = `${filePath}${BACKUP_SUFFIX}`;
     const content = encodeObfuscatedPayload(value);
 
-    if (!isTauri) {
+    if (!isNative) {
       const previous = memoryStore.get(filePath);
       if (
         previous !== undefined &&

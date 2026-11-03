@@ -1,8 +1,8 @@
 # AIO Hub 全面迁移 Electron 工程总纲与施工方案
 
-> 状态：规划评审中 (RFC)  
+> 状态：实施中；平台隔离与 Electron 基础宿主已接入\
 > 提出日期：2026-10-02  
-> 更新日期：2026-10-27\
+> 更新日期：2026-11-03
 > 编制人：咕咕（架构师）  
 > 关联调查文档：[`docs/design/地基迁移调查/webview2-migration-investigation.md`](../design/地基迁移调查/webview2-migration-investigation.md)  
 > 关联复盘文档：[`docs/Plan/cordis-runtime-postmortem-and-lessons.md`](./cordis-runtime-postmortem-and-lessons.md)
@@ -111,17 +111,13 @@ graph TB
 
 ### 阶段一：新工程脚手架与 Electron 骨架搭建
 
-**目标**：搭建 Electron + Vite + Vue 3 的并存架构，点亮首个 Electron 窗口。
+> 状态：基础链路已落地（2026-11-03），完整跨平台窗口交互继续收口。
 
-1. **选型与工程组织**：
-   - 采用 `electron-vite` 或主仓库并列的 `electron/` 目录组织。
-   - 主进程语言统一使用 TypeScript，包管理统一使用 `Bun`。
-2. **主进程基础基础设施**：
-   - 窗口管理（无边框窗口、自定义 TitleBar、多窗口/分离窗口 `BrowserWindow` 管理）。
-   - 本地协议注册（将 Tauri 的 `asset://` 平替为 Electron 的 `protocol.handle('asset', ...)`）。
-   - 统一类型化 IPC 通道搭建：实现对应 bridge 的 `electron-bridge.ts`。
-3. **交付物验收**：
-   - 执行 `bun run electron:dev`，能够正常拉起主窗口，成功加载现有主界面，标题栏拖拽、窗口控制正常。
+1. **工程与启动**：根目录 `electron/` 使用 TypeScript；Bun 构建主进程与 CommonJS 沙箱 preload，复用现有 Vite/Vue 前端。已锁定 Electron 45.2.1，提供 `electron:dev`、`electron:build` 和 `electron:preview`。
+2. **宿主实现**：无边框主窗口、工具窗口、托盘、基础窗口事件与配置；显式 IPC 分派、定向事件、响应式参数序列化与错误包络；生产应用协议与本地文件授权协议。
+3. **首帧必要能力**：应用与系统信息、配置和日志持久化、基础文件与路径、文本剪贴板、文件对话框、外部打开。业务继续通过阶段零的隔离入口调用。
+4. **数据与回退**：Electron 开发/预览使用独立数据目录；Tauri 的开发、构建和发布链路保留。迁移未覆盖的能力返回可行动错误，Rust 专项命令按阶段二/三接续。
+5. **验证与接续**：现有工作台已在真实 Electron 中加载；进一步验证范围和启动说明统一写入[Electron 桌面开发](../guide/electron-development.md)。拖拽预览固化、窗口吸附、跨平台材质、原生对话框完整交互、系统协议注册与单实例唤醒仍待接续。
 
 ---
 
@@ -201,4 +197,5 @@ graph TB
 ## 6. 下一步执行动作建议
 
 1. **第一步（已完成）**：桌面宿主调用集中到 `src/platform/`，保留现有 Tauri 契约，为能力适配提供统一替换入口；
-2. **第二步**：创建迁移分支 `feature/electron-migration`，搭建最小 Electron 容器原型，加载 `dist/` 验证前端渲染与首个窗口控制。
+2. **第二步（基础链路已落地）**：`electron/` 宿主加载现有工作台，开发与生产预览使用同一隔离入口；
+3. **第三步**：优先迁移原生 HTTP/SSE、文件监听与通用 Rust 命令，再按工具逐项推进完整工作流。

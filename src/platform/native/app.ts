@@ -12,4 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/api/app";
+import { getElectronBridge } from "../electron/client";
 export * from "@tauri-apps/api/app";
+
+export const getName: typeof tauri.getName = getElectronBridge()
+  ? async () => getElectronBridge()!.metadata.appName
+  : tauri.getName;
+export const getVersion: typeof tauri.getVersion = getElectronBridge()
+  ? async () => getElectronBridge()!.metadata.appVersion
+  : tauri.getVersion;

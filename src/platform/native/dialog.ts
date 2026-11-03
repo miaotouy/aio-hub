@@ -12,4 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-dialog";
+import { getElectronBridge, request } from "../electron/client";
 export * from "@tauri-apps/plugin-dialog";
+
+export const open: typeof tauri.open = getElectronBridge()
+  ? (options) => request("dialog.open", { options })
+  : tauri.open;
+export const save: typeof tauri.save = getElectronBridge()
+  ? (options) => request("dialog.save", { options })
+  : tauri.save;

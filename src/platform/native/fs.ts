@@ -12,4 +12,97 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-fs";
+import { getElectronBridge, request, unsupported } from "../electron/client";
 export * from "@tauri-apps/plugin-fs";
+
+export const copyFile: typeof tauri.copyFile = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.copyFile>>>("fs", {
+        method: "copyFile",
+        args,
+      })
+  : tauri.copyFile;
+export const exists: typeof tauri.exists = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.exists>>>("fs", {
+        method: "exists",
+        args,
+      })
+  : tauri.exists;
+export const lstat: typeof tauri.lstat = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.lstat>>>("fs", {
+        method: "lstat",
+        args,
+      })
+  : tauri.lstat;
+export const mkdir: typeof tauri.mkdir = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.mkdir>>>("fs", {
+        method: "mkdir",
+        args,
+      })
+  : tauri.mkdir;
+export const readDir: typeof tauri.readDir = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.readDir>>>("fs", {
+        method: "readDir",
+        args,
+      })
+  : tauri.readDir;
+export const readFile: typeof tauri.readFile = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.readFile>>>("fs", {
+        method: "readFile",
+        args,
+      })
+  : tauri.readFile;
+export const readTextFile: typeof tauri.readTextFile = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.readTextFile>>>("fs", {
+        method: "readTextFile",
+        args,
+      })
+  : tauri.readTextFile;
+export const remove: typeof tauri.remove = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.remove>>>("fs", {
+        method: "remove",
+        args,
+      })
+  : tauri.remove;
+export const rename: typeof tauri.rename = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.rename>>>("fs", {
+        method: "rename",
+        args,
+      })
+  : tauri.rename;
+export const stat: typeof tauri.stat = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.stat>>>("fs", {
+        method: "stat",
+        args,
+      })
+  : tauri.stat;
+export const writeFile: typeof tauri.writeFile = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.writeFile>>>("fs", {
+        method: "writeFile",
+        args,
+      })
+  : tauri.writeFile;
+export const writeTextFile: typeof tauri.writeTextFile = getElectronBridge()
+  ? (...args) =>
+      request<Awaited<ReturnType<typeof tauri.writeTextFile>>>("fs", {
+        method: "writeTextFile",
+        args,
+      })
+  : tauri.writeTextFile;
+export const watch: typeof tauri.watch = getElectronBridge()
+  ? async () => unsupported("文件监听")
+  : tauri.watch;
+export const watchImmediate: typeof tauri.watchImmediate = getElectronBridge()
+  ? async () => unsupported("文件监听")
+  : tauri.watchImmediate;

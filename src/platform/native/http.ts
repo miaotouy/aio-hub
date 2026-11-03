@@ -12,4 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-http";
+import { getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/plugin-http";
+
+export const fetch: typeof tauri.fetch = getElectronBridge()
+  ? async () => unsupported("原生 HTTP 与流式网络")
+  : tauri.fetch;

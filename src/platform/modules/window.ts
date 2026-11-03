@@ -17,7 +17,7 @@ import {
   listen as tauriListen,
   type UnlistenFn,
 } from "@/platform/native/events";
-import { isTauriRuntime } from "../core/env";
+import { isNativeRuntime } from "../core/env";
 import { invoke } from "../core/bridge";
 
 /** Existing app file-drop event; keep its payload contract at the host boundary. */
@@ -37,7 +37,7 @@ export interface WindowDestroyedEvent {
 export async function onWindowDestroyed(
   handler: (event: WindowDestroyedEvent) => void
 ): Promise<UnlistenFn> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     return tauriListen<{ label?: string }>("tauri://destroyed", (event) => {
       handler({
         label: event.payload?.label,
@@ -53,7 +53,7 @@ export async function onWindowDestroyed(
  * 最小化当前窗口
  */
 export async function minimizeCurrentWindow(): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     const win = getCurrentWindow();
     await win.minimize();
   }
@@ -63,7 +63,7 @@ export async function minimizeCurrentWindow(): Promise<void> {
  * 切换当前窗口最大化/还原状态
  */
 export async function toggleMaximizeCurrentWindow(): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     const win = getCurrentWindow();
     await win.toggleMaximize();
   }
@@ -73,7 +73,7 @@ export async function toggleMaximizeCurrentWindow(): Promise<void> {
  * 关闭当前窗口
  */
 export async function closeCurrentWindow(): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     const win = getCurrentWindow();
     await win.close();
   }
@@ -83,7 +83,7 @@ export async function closeCurrentWindow(): Promise<void> {
  * 查询当前窗口是否已最大化
  */
 export async function isCurrentWindowMaximized(): Promise<boolean> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     const win = getCurrentWindow();
     return await win.isMaximized();
   }

@@ -12,4 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-updater";
+import { getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/plugin-updater";
+
+export const check: typeof tauri.check = getElectronBridge()
+  ? async () => unsupported("自动更新")
+  : tauri.check;

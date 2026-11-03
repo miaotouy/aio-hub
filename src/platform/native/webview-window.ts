@@ -12,4 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/api/webviewWindow";
+import * as electron from "../electron/window";
+import { getElectronBridge } from "../electron/client";
 export * from "@tauri-apps/api/webviewWindow";
+export const getCurrentWebviewWindow: typeof tauri.getCurrentWebviewWindow =
+  getElectronBridge()
+    ? (electron.getCurrentWindow as unknown as typeof tauri.getCurrentWebviewWindow)
+    : tauri.getCurrentWebviewWindow;
+export const getAllWebviewWindows: typeof tauri.getAllWebviewWindows =
+  getElectronBridge()
+    ? (electron.getAllWindows as unknown as typeof tauri.getAllWebviewWindows)
+    : tauri.getAllWebviewWindows;
+export const WebviewWindow: typeof tauri.WebviewWindow = getElectronBridge()
+  ? (electron.ElectronWindow as unknown as typeof tauri.WebviewWindow)
+  : tauri.WebviewWindow;
+
+export type WebviewWindow = tauri.WebviewWindow;

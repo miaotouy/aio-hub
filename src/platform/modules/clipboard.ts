@@ -16,14 +16,14 @@ import {
   writeText as tauriWriteText,
   readText as tauriReadText,
 } from "@/platform/native/clipboard";
-import { isTauriRuntime } from "../core/env";
+import { isNativeRuntime } from "../core/env";
 import { PlatformError } from "../core/errors";
 
 /**
  * 将文本写入系统剪贴板
  */
 export async function writeClipboardText(text: string): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriWriteText(text);
       return;
@@ -51,7 +51,7 @@ export async function writeClipboardText(text: string): Promise<void> {
  * 从系统剪贴板读取文本
  */
 export async function readClipboardText(): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriReadText();
     } catch (err) {

@@ -12,4 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export * from "@tauri-apps/api";
 export * as path from "./path";

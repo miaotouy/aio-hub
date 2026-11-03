@@ -12,4 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-deep-link";
+import { getElectronBridge, request } from "../electron/client";
 export * from "@tauri-apps/plugin-deep-link";
+import { listen as electronListen } from "../electron/events";
+export const getCurrent: typeof tauri.getCurrent = getElectronBridge()
+  ? () => request("deep-link.current")
+  : tauri.getCurrent;
+export const onOpenUrl: typeof tauri.onOpenUrl = getElectronBridge()
+  ? (handler) =>
+      electronListen<string[]>("platform://open-url", (event) =>
+        handler(event.payload)
+      )
+  : tauri.onOpenUrl;

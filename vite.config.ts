@@ -250,6 +250,9 @@ export default mergeConfig(
       exclude: [
         ...configDefaults.exclude,
         "src-tauri/**",
+        "electron/**",
+        "dist-electron/**",
+        "**/.tmp/**",
         "dist/**",
         "mobile/**",
         "packages/**", // workspace packages use their own test scripts and environments

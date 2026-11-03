@@ -12,4 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-process";
+import { getElectronBridge, request } from "../electron/client";
 export * from "@tauri-apps/plugin-process";
+
+export const relaunch: typeof tauri.relaunch = getElectronBridge()
+  ? () => request("process.relaunch")
+  : tauri.relaunch;
+export const exit: typeof tauri.exit = getElectronBridge()
+  ? (code) => request("process.exit", { code })
+  : tauri.exit;

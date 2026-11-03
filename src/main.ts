@@ -28,7 +28,9 @@ import { invoke } from "@/platform/native/core";
 import { onFileDropPaths } from "@/platform/modules/window";
 import { ElNotification } from "element-plus";
 import { extname } from "@/platform/native/path"; // 导入 path 模块用于获取文件扩展名
-import { createPinia } from "pinia"; // 导入 Pinia
+import { createPinia } from "pinia";
+import { isElectronRuntime } from "@/platform/core/env";
+if (isElectronRuntime()) document.documentElement.classList.add("electron-host"); // 导入 Pinia
 import { errorHandler, ErrorLevel } from "./utils/errorHandler";
 import { createModuleLogger, logger as appLogger } from "./utils/logger";
 import packageJson from "../package.json";

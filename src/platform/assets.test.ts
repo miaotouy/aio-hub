@@ -57,6 +57,9 @@ it("recognizes local resource schemes and strips only the host prefix for displa
     stripLocalAssetUrlPrefix("https://asset.localhost/C:/a%20b.mp4?q=1")
   ).toBe("C:/a%20b.mp4?q=1");
   expect(stripLocalAssetUrlPrefix("asset://C:/a.mp4")).toBe("C:/a.mp4");
+  expect(
+    stripLocalAssetUrlPrefix("asset://local/C:/a%20b.mp4?token=window-secret")
+  ).toBe("C:/a%20b.mp4");
   expect(stripLocalAssetUrlPrefix("https://example.com/a.mp4")).toBe(
     "https://example.com/a.mp4"
   );

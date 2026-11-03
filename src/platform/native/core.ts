@@ -12,4 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/api/core";
+import { request, getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/api/core";
+export const invoke: typeof tauri.invoke = getElectronBridge()
+  ? (((command: string, args?: unknown, options?: unknown) =>
+      request("command", { command, args, options })) as typeof tauri.invoke)
+  : tauri.invoke;
+export const convertFileSrc: typeof tauri.convertFileSrc = getElectronBridge()
+  ? (path, protocol = "asset") => {
+      if (protocol !== "asset") return unsupported("资源协议 " + protocol);
+      return getElectronBridge()!.assetUrl(path);
+    }
+  : tauri.convertFileSrc;
+export const isTauri: typeof tauri.isTauri = getElectronBridge()
+  ? () => false
+  : tauri.isTauri;
+export const Channel: typeof tauri.Channel = getElectronBridge()
+  ? (class {
+      constructor() {
+        unsupported("流式 Channel");
+      }
+    } as unknown as typeof tauri.Channel)
+  : tauri.Channel;

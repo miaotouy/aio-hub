@@ -4,7 +4,7 @@
 
 ## 职责与调用路径
 
-桌面端的宿主 SDK、系统事件、资源协议和浏览器宿主能力集中在 `src/platform/`。本轮保留当前 Tauri 运行方式，为后续替换 Electron 适配实现提供集中入口。
+桌面端的宿主 SDK、系统事件、资源协议和浏览器宿主能力集中在 `src/platform/`。Tauri 与 Electron 通过同一组业务入口运行。Electron 主进程与 preload 位于根目录 `electron/`，开发与预览入口见[Electron 桌面开发](../guide/electron-development.md)。
 
 ```text
 组件 / composable / service / 工具
@@ -12,10 +12,11 @@
   ├─ platform/native：现有 SDK 契约兼容入口
   └─ platform/browser：浏览器剪贴板、弹窗兼容入口
        ↓
-     宿主 SDK / Web API
+     ├─ Tauri SDK / Web API
+     └─ platform/electron → 受控 preload → Electron 主进程
 ```
 
-`src/platform/native/` 中的兼容入口保留原包的函数签名、类型、类实例、同步/异步行为和原始错误。业务导入路径已改到该目录，未来可按能力替换内部实现。兼容入口当前仍使用 Tauri 的对象模型；Electron 的窗口类、Channel、文件监听和更新对象需要在后续适配阶段实现等价契约。
+`src/platform/native/` 保留现有公开类型，并根据 preload 标记选择实现。Tauri 分支沿用 SDK 原函数；Electron 分支实现已迁移能力，待迁移能力显式返回 `CAPABILITY_UNAVAILABLE`。窗口对象的当前适配范围为基础窗口管理；Channel、文件监听、更新对象等按后续阶段补齐。
 
 ## 能力清单
 
@@ -40,7 +41,7 @@
 - `native/core.ts` 与 `native/events.ts` 保留 SDK 兼容语义：事件回调接收完整包络，命令拒绝值保持原样。已有调用迁入时沿用这一契约，避免错误处理、IPC 通道和日志写入行为变化。
 - 日志模块通过兼容 IPC 入口落盘，避免桥接层记录自身失败时递归进入日志网关。
 - `modules/window.ts` 的 `onWindowDestroyed` 隔离宿主窗口销毁事件名，输出 `label` / `windowLabel`；分离窗口管理器据此恢复主窗口状态。`onFileDropPaths` 集中现有应用拖放事件名与路径载荷。
-- `core/env.ts` 集中处理运行时探测。缓存运行时用于现有门面；`hasTauriRuntimeMarker()` 为惰性存储及显式注入宿主的测试保留直接检测能力。
+- `core/env.ts` 集中处理运行时探测。缓存运行时用于现有门面；`hasTauriRuntimeMarker()` 保留 Tauri 专用检测；`hasNativeRuntimeMarker()` 为 Electron/Tauri 持久化与显式注入宿主的测试提供直接检测能力。
 - 浏览器兼容入口保留弹窗句柄，供 PDF 打印预览等场景继续使用。外部链接已有的 `openExternalUrl` 门面保持独立。
 
 ## 维护与验证
@@ -49,11 +50,13 @@
 
 该检查通过 TypeScript AST 与 Vue SFC script 解析静态/动态/类型导入、重导出和测试 mock，并保留模板示例与依赖清单字符串。平台兼容测试保护 IPC 的二进制/选项/错误、事件包络和解绑、浏览器权限与弹窗句柄；媒体租约和草稿存储沿用相关行为测试。
 
-## Electron 适配接续
+## Electron 运行链路
 
-1. 按上述清单提供 preload 的受控能力实现，适配窗口对象、事件目标、二进制通道与文件监听清理。
-2. 统一剪贴板权限与可行动错误；保留兼容入口的拒绝语义，调用方迁入新语义门面时同步调整。
-3. 为 `onWindowDestroyed`、媒体租约、资源来源与字幕字体提供 Electron 实现。
-4. 标题栏的 `data-tauri-drag-region` 当前保留，随 Electron 窗口拖拽区域适配一起处理。该声明属于宿主窗口集成，现阶段不改变其运行行为。
+- `electron/shared.ts` 定义固定请求/事件协议和结果包络。主进程校验窗口、主 frame 和来源后按显式操作分派；preload 过滤原始 Electron 事件对象，向渲染器返回可序列化结果。
+- `src/platform/electron/client.ts` 将 Vue 响应式对象转换为普通数据，保留字节数组，拒绝循环引用；在渲染器重建错误并保留 `code` 与能力标识，避免 contextBridge 丢失 Error 附加字段。
+- `events.ts` 维护每个订阅的 ID，保留事件包络、定向目标与幂等解绑；窗口刷新和关闭时主进程清理该页面的订阅。窗口销毁通知全局发布，既有分离窗口管理器继续恢复主窗口状态。
+- `window.ts` 提供当前窗口、基础控制、创建与查找、事件和关闭请求；Chromium 的原生拖动区域复用现有标题栏声明。
+- 本地生产资源使用 `aiohub://app/`，支持绝对资源路径与深层路由；HTML 内联脚本按归一化换行后的内容生成 CSP 哈希。本地文件使用带窗口令牌与精确授权的 `asset://local/`，真实路径变化会拒绝读取。
+- 语义化门面统一使用 `isNativeRuntime()`；配置、LLM 混淆文件和请求记录使用 `hasNativeRuntimeMarker()`，Electron 数据默认与 Tauri 分开。
 
-实施进度见[平台隔离层计划](../Plan/frontend-platform-bridge-isolation-plan.md)。
+原生网络/流式通道、完整文件监听、Shell/Sidecar、更新器、Rust 专项命令与拖拽预览继续按[迁移总纲](../Plan/electron-migration-master-plan.md)实施。Electron 开发指南维护当前能力范围与验证方式。

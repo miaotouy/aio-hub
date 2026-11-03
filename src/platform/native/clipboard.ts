@@ -12,4 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-clipboard-manager";
+import { getElectronBridge, request, unsupported } from "../electron/client";
 export * from "@tauri-apps/plugin-clipboard-manager";
+
+export const readText: typeof tauri.readText = getElectronBridge()
+  ? () => request("clipboard.readText")
+  : tauri.readText;
+export const writeText: typeof tauri.writeText = getElectronBridge()
+  ? (text) => request("clipboard.writeText", { text })
+  : tauri.writeText;
+export const writeImage: typeof tauri.writeImage = getElectronBridge()
+  ? async () => unsupported("图片剪贴板")
+  : tauri.writeImage;
+export const readImage: typeof tauri.readImage = getElectronBridge()
+  ? async () => unsupported("图片剪贴板")
+  : tauri.readImage;
+export const clear: typeof tauri.clear = getElectronBridge()
+  ? () => request("clipboard.clear")
+  : tauri.clear;

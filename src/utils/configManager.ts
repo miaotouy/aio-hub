@@ -17,14 +17,14 @@
  * 提供配置文件的持久化、加载和保存功能
  *
  * 环境自适应：
- * - Tauri 环境：使用 invoke / writeTextFile 进行真实的文件系统读写
- * - 非 Tauri 环境（Vitest / Bun 脚本）：自动降级为内存存储模式，不依赖任何 Tauri API
+ * - 桌面环境：使用 invoke / writeTextFile 进行真实的文件系统读写
+ * - 浏览器或测试环境（Vitest / Bun 脚本）：自动降级为内存存储模式，不依赖任何 Tauri API
  */
 
 import { invoke } from "@/platform/native/core";
 import { join } from "@/platform/native/path";
 import { writeTextFile } from "@/platform/native/fs";
-import { hasTauriRuntimeMarker } from "@/platform/core/env";
+import { hasNativeRuntimeMarker } from "@/platform/core/env";
 import { getAppConfigDir } from "./appPath";
 import * as yaml from "js-yaml";
 import { createModuleLogger } from "./logger";
@@ -33,10 +33,10 @@ import { createModuleErrorHandler } from "./errorHandler";
 const logger = createModuleLogger("ConfigManager");
 const errorHandler = createModuleErrorHandler("ConfigManager");
 
-// 检测是否处于 Tauri 运行时环境
-const isTauri = hasTauriRuntimeMarker();
+// 检测是否处于 桌面原生运行时环境
+const isNative = hasNativeRuntimeMarker();
 
-// 非 Tauri 环境下的全局内存存储（跨实例共享，模拟文件系统）
+// 浏览器或测试环境下的全局内存存储（跨实例共享，模拟文件系统）
 const memoryStore = new Map<string, string>();
 
 /** 生成内存存储的虚拟 key */
@@ -141,8 +141,8 @@ export class ConfigManager<T extends Record<string, any>> {
     if (this._cachedConfigPath) {
       return this._cachedConfigPath;
     }
-    // 非 Tauri 环境：返回虚拟路径
-    if (!isTauri) {
+    // 浏览器或测试环境：返回虚拟路径
+    if (!isNative) {
       const virtualPath = memoryKey(this.moduleName, this.fileName);
       this._cachedConfigPath = virtualPath;
       return virtualPath;
@@ -175,8 +175,8 @@ export class ConfigManager<T extends Record<string, any>> {
     if (this._dirEnsured) {
       return;
     }
-    // 非 Tauri 环境：无需创建目录
-    if (!isTauri) {
+    // 浏览器或测试环境：无需创建目录
+    if (!isNative) {
       this._dirEnsured = true;
       return;
     }
@@ -214,8 +214,8 @@ export class ConfigManager<T extends Record<string, any>> {
       await this.ensureModuleDir();
       const configPath = await this.getConfigPath();
 
-      // 非 Tauri 环境：从内存存储读取
-      if (!isTauri) {
+      // 浏览器或测试环境：从内存存储读取
+      if (!isNative) {
         const key = memoryKey(this.moduleName, this.fileName);
         const stored = memoryStore.get(key);
         if (stored === undefined) {
@@ -243,7 +243,7 @@ export class ConfigManager<T extends Record<string, any>> {
         return mergedConfig;
       }
 
-      // Tauri 环境：从文件系统读取
+      // 桌面环境：从文件系统读取
       const isExists = await invoke<boolean>("path_exists", {
         path: configPath,
       });
@@ -332,15 +332,15 @@ export class ConfigManager<T extends Record<string, any>> {
         version: this.version,
       };
 
-      // 非 Tauri 环境：写入内存存储
-      if (!isTauri) {
+      // 浏览器或测试环境：写入内存存储
+      if (!isNative) {
         const key = memoryKey(this.moduleName, this.fileName);
         memoryStore.set(key, JSON.stringify(configWithVersion));
         logger.debug(`[Memory] 配置保存成功`, { moduleName: this.moduleName });
         return;
       }
 
-      // Tauri 环境：写入文件系统
+      // 桌面环境：写入文件系统
       let content = "";
       switch (this.fileType) {
         case "json":

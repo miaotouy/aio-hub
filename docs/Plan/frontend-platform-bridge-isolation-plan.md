@@ -8,6 +8,8 @@
 >
 > 当前契约：[桌面平台隔离层](../architecture/platform-bridge-architecture.md)
 
+> 后续进展（2026-11-03）：Electron 基础宿主已接入，当前运行方式和剩余能力见[Electron 桌面开发](../guide/electron-development.md)。以下阶段零记录保留原始 Tauri 契约收拢范围。
+
 ## 1. 本轮范围与实现
 
 为 Electron 迁移提供集中替换入口，沿用当前 Tauri 运行行为。桌面端 `src/` 的直接 SDK 导入、动态导入、类型引用和测试 mock 已迁入平台入口；移动端沿用独立工程安排。
@@ -42,16 +44,16 @@
 
 验证日期：2026-11-03。
 
-| 验证 | 结果 |
-| --- | --- |
-| `bun run check:frontend` | 通过 |
-| `bun run check:platform-isolation` | 通过，SDK 直接导入集中于 `src/platform/native/` |
-| `bun run check:tauri-commands` | 通过，命令名与参数键匹配当前 Rust 注册 |
-| 平台与媒体相关定向测试 | 7 个文件、29 项通过 |
-| `bun run build:vite` | 通过，保留已有 eval 与包体积警告 |
-| `bun run lint` | 通过，保留已有警告 |
-| 全量桌面 `src` 测试（排除临时快照） | 391 个文件通过、3 个文件失败；2775 项通过、3 项失败、1 项跳过 |
-| 真实 Tauri 运行态 | UTF-8/二进制文件读写、事件定向发送与包络、最大化/还原、窗口配置保存、字幕字体 URL 均通过；文本差异页面正常挂载 |
+| 验证                                | 结果                                                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `bun run check:frontend`            | 通过                                                                                                           |
+| `bun run check:platform-isolation`  | 通过，SDK 直接导入集中于 `src/platform/native/`                                                                |
+| `bun run check:tauri-commands`      | 通过，命令名与参数键匹配当前 Rust 注册                                                                         |
+| 平台与媒体相关定向测试              | 7 个文件、29 项通过                                                                                            |
+| `bun run build:vite`                | 通过，保留已有 eval 与包体积警告                                                                               |
+| `bun run lint`                      | 通过，保留已有警告                                                                                             |
+| 全量桌面 `src` 测试（排除临时快照） | 391 个文件通过、3 个文件失败；2775 项通过、3 项失败、1 项跳过                                                  |
+| 真实 Tauri 运行态                   | UTF-8/二进制文件读写、事件定向发送与包络、最大化/还原、窗口配置保存、字幕字体 URL 均通过；文本差异页面正常挂载 |
 
 全量测试命令为 `bun run test:run -- src --exclude '**/.tmp/**'`。3 项失败均在未修改的 HEAD 快照复现：
 

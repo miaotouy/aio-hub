@@ -12,4 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/api/webview";
+import { getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/api/webview";
+
+export const getCurrentWebview: typeof tauri.getCurrentWebview =
+  getElectronBridge()
+    ? ((() => ({
+        label: getElectronBridge()!.metadata.label,
+        onDragDropEvent: async () => unsupported("WebView 拖放监听"),
+      })) as unknown as typeof tauri.getCurrentWebview)
+    : tauri.getCurrentWebview;
+export const getAllWebviews: typeof tauri.getAllWebviews = getElectronBridge()
+  ? async () => unsupported("独立 WebView")
+  : tauri.getAllWebviews;
+export const Webview: typeof tauri.Webview = getElectronBridge()
+  ? (class {
+      constructor() {
+        unsupported("独立 WebView");
+      }
+    } as unknown as typeof tauri.Webview)
+  : tauri.Webview;

@@ -18,7 +18,7 @@ import {
   emit as tauriEmit,
   type UnlistenFn,
 } from "@/platform/native/events";
-import { isTauriRuntime, currentPlatformRuntime } from "./env";
+import { isNativeRuntime, currentPlatformRuntime } from "./env";
 import { PlatformError } from "./errors";
 import { createModuleLogger } from "@/utils/logger";
 import type { CommandMap, KnownCommand } from "../types/commands";
@@ -48,8 +48,8 @@ export async function invoke(
 ): Promise<unknown> {
   const startTime = performance.now();
 
-  // 1. Tauri 运行态
-  if (isTauriRuntime()) {
+  // 1. 桌面宿主运行态
+  if (isNativeRuntime()) {
     try {
       const result = await tauriInvoke(
         command,
@@ -66,22 +66,6 @@ export async function invoke(
       const cost = Math.round(performance.now() - startTime);
       logger.error(`[INVOKE_FAILED] 命令 ${command} 失败 (${cost}ms):`, err);
       throw new PlatformError(`调用原生命令 '${command}' 失败`, {
-        command,
-        args,
-        cause: err,
-      });
-    }
-  }
-
-  // 2. Electron 运行态（未来阶段二无缝对接）
-  if (
-    typeof window !== "undefined" &&
-    (window as any).aiohub?.platform === "electron"
-  ) {
-    try {
-      return await (window as any).aiohub.invoke(command, args);
-    } catch (err) {
-      throw new PlatformError(`Electron IPC 命令 '${command}' 失败`, {
         command,
         args,
         cause: err,
@@ -114,7 +98,7 @@ export async function listen(
   event: string,
   handler: (payload: any) => void
 ): Promise<UnlistenFn> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     return tauriListen(event, (ev) => handler(ev.payload));
   }
   return () => {};
@@ -129,7 +113,7 @@ export async function emit<K extends KnownEvent>(
 ): Promise<void>;
 export async function emit(event: string, payload?: unknown): Promise<void>;
 export async function emit(event: string, payload?: unknown): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     await tauriEmit(event, payload);
   }
 }

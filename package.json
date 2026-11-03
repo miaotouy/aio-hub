@@ -131,7 +131,12 @@
     "test:dev-ui": "vitest --run --config scripts/dev-control/vitest.config.ts",
     "dev:control": "bun scripts/dev-control/runtime.ts",
     "dev:vm": "bun scripts/ubuntu-vm.ts",
-    "monaco:nls": "bun scripts/sync-monaco-nls.ts"
+    "monaco:nls": "bun scripts/sync-monaco-nls.ts",
+    "electron:dev": "bun scripts/electron.ts dev",
+    "electron:build": "bun scripts/electron.ts build",
+    "electron:preview": "bun scripts/electron.ts preview",
+    "check:electron": "tsc --project electron/tsconfig.json --noEmit",
+    "test:electron": "vitest --run --config electron/vitest.config.ts"
   },
   "dependencies": {
     "@aiohub/agent-preset-core": "workspace:*",
@@ -304,6 +309,7 @@
     "appium-uiautomator2-driver": "4.2.3",
     "cross-env": "^7.0.3",
     "dotenv": "^17.2.3",
+    "electron": "45.2.1",
     "fs-extra": "^11.3.2",
     "hyparquet": "1.30.1",
     "jsdom": "^28.1.0",

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getElectronBridge } from "../electron/client";
+
 /**
  * 平台运行时类型
  */
@@ -32,12 +34,8 @@ export function detectPlatformRuntime(): PlatformRuntime {
     return "node";
   }
 
-  // 3. Electron 环境探测（通过 preload 挂载的 window.aiohub 或 process.versions.electron）
-  if (
-    (window as any).__ELECTRON__ ||
-    (window as any).aiohub?.platform === "electron" ||
-    navigator.userAgent.includes("Electron")
-  ) {
+  // 3. Electron 环境探测（由受控 preload 提供）
+  if (getElectronBridge()?.platform === "electron") {
     return "electron";
   }
 
@@ -78,4 +76,12 @@ export function isBrowserOrTest(): boolean {
   return (
     currentPlatformRuntime === "browser" || currentPlatformRuntime === "test"
   );
+}
+
+/** 具备受控桌面桥的宿主。惰性存储使用直接检测以兼容运行时注入。 */
+export function hasNativeRuntimeMarker(): boolean {
+  return hasTauriRuntimeMarker() || !!getElectronBridge();
+}
+export function isNativeRuntime(): boolean {
+  return isTauriRuntime() || isElectronRuntime();
 }

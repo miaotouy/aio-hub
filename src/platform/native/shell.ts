@@ -12,4 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as tauri from "@tauri-apps/plugin-shell";
+import { getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/plugin-shell";
+
+export const Command: typeof tauri.Command = getElectronBridge()
+  ? (class {
+      static create() {
+        return new this();
+      }
+      static sidecar() {
+        return new this();
+      }
+      async execute() {
+        unsupported("子进程与 Sidecar");
+      }
+      async spawn() {
+        unsupported("子进程与 Sidecar");
+      }
+    } as unknown as typeof tauri.Command)
+  : tauri.Command;

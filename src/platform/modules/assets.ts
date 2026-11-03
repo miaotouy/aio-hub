@@ -48,6 +48,8 @@ export function isLocalAssetUrl(source: string): boolean {
 
 /** Strip host origins from an already-decoded URL for filename display. */
 export function stripLocalAssetUrlPrefix(source: string): string {
+  if (source.startsWith("asset://local/"))
+    return source.slice("asset://local/".length).replace(/\?token=[^&]*$/, "");
   return source
     .replace(/^https?:\/\/asset\.localhost\//, "")
     .replace(/^asset:\/\//, "");

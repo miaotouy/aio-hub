@@ -18,7 +18,7 @@ import {
   type OpenDialogOptions as TauriOpenOptions,
   type SaveDialogOptions as TauriSaveOptions,
 } from "@/platform/native/dialog";
-import { isTauriRuntime } from "../core/env";
+import { isNativeRuntime } from "../core/env";
 import { PlatformError } from "../core/errors";
 
 export type OpenDialogOptions = TauriOpenOptions;
@@ -31,7 +31,7 @@ export type SaveDialogOptions = TauriSaveOptions;
 export async function showOpenDialog(
   options: OpenDialogOptions = {}
 ): Promise<string | string[] | null> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriOpen(options);
     } catch (err) {
@@ -82,7 +82,7 @@ export async function showOpenDirectory(
 export async function showSaveDialog(
   options: SaveDialogOptions = {}
 ): Promise<string | null> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriSave(options);
     } catch (err) {

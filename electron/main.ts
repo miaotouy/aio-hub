@@ -543,6 +543,41 @@ async function createWindow(
     throw error;
   }
 }
+let openingMainWindow: Promise<void> | undefined;
+async function showMainWindow() {
+  if (openingMainWindow) await openingMainWindow;
+  const main = windows.get("main");
+  if (main && !main.isDestroyed()) {
+    if (main.isMinimized()) main.restore();
+    main.show();
+    main.focus();
+    return;
+  }
+  openingMainWindow = createWindow("main");
+  try {
+    await openingMainWindow;
+  } finally {
+    openingMainWindow = undefined;
+  }
+}
+function reportTrayError(action: string, error: unknown) {
+  console.error(action, error);
+  dialog.showErrorBox(
+    action,
+    error instanceof Error ? error.message : String(error)
+  );
+}
+async function clearWindowConfigs() {
+  const task = windowConfigQueue
+    .catch(() => {})
+    .then(() =>
+      fs.rm(path.join(app.getPath("userData"), "electron-windows.json"), {
+        force: true,
+      })
+    );
+  windowConfigQueue = task;
+  await task;
+}
 async function command(
   name: string,
   args: Record<string, unknown>,
@@ -589,10 +624,7 @@ async function command(
     case "save_window_config":
       return saveWindow(str(args.label));
     case "clear_all_window_configs":
-      return fs.rm(
-        path.join(app.getPath("userData"), "electron-windows.json"),
-        { force: true }
-      );
+      return clearWindowConfigs();
     case "focus_window":
       return windowCall(str(args.label), "setFocus");
     case "close_detached_window":
@@ -949,17 +981,33 @@ void app
     tray = new Tray(
       nativeImage.createFromPath(path.join(hostRoot, "icon.png"))
     );
-    tray.setToolTip("AIO Hub");
+    tray.setToolTip(devOrigin ? "AIO Hub（开发）" : "AIO Hub");
     const show = () => {
-      const main = windows.get("main");
-      if (main) {
-        main.show();
-        main.focus();
-      } else void createWindow("main");
+      void showMainWindow().catch((error) =>
+        reportTrayError("显示主窗口失败", error)
+      );
     };
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: "显示主窗口", click: show },
+        { label: "隐藏主窗口", click: () => windows.get("main")?.hide() },
+        {
+          label: "重启前端",
+          click: () => {
+            const main = windows.get("main");
+            if (main) main.webContents.reload();
+            else show();
+          },
+        },
+        {
+          label: "清除窗口配置",
+          click: () => {
+            void clearWindowConfigs().catch((error) =>
+              reportTrayError("清除窗口配置失败", error)
+            );
+          },
+        },
+        { type: "separator" },
         {
           label: "退出",
           click: () => {
@@ -983,7 +1031,9 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 app.on("activate", () => {
-  if (!windows.size) void createWindow("main");
+  void showMainWindow().catch((error) =>
+    reportTrayError("显示主窗口失败", error)
+  );
 });
 
 app.on("open-url", (event, value) => {

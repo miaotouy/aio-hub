@@ -94,7 +94,12 @@ async function buildHost() {
     )
   );
   await copyFile(
-    path.join(root, "src-tauri/icons/128x128.png"),
+    path.join(
+      root,
+      mode === "dev"
+        ? "src-tauri/icons/icon-dev.png"
+        : "src-tauri/icons/128x128.png"
+    ),
     path.join(output, "icon.png")
   );
 }

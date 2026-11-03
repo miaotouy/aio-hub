@@ -50,7 +50,7 @@ LLM 回复文本 ──→ [解析] ──→ ParsedToolRequest[] ──→ [执
 
 - **AgentExtension**: 基础接口，仅需实现 `getExtraPromptContext()` 即可成为“环境增强”插件。
 - **ToolRegistry**: 继承自 `AgentExtension`，既可以提供可调用方法，也可以提供上下文。
-- **ToolContext**: 执行器通过方法第二参数下推请求 ID、进度回调和当前 Agent 的只读权限快照。需要按 Agent 授权的工具不得信任 LLM 参数中的身份或权限；缺少 Agent 上下文的外部调用应明确拒绝。
+- **ToolContext**: 执行器通过方法第二参数下推请求 ID、进度回调和当前 Agent 的只读权限快照。`securityApprovalGranted` 仅在本次请求的强制安全审批通过后设置，供文件操作在排队结束后核实授权。需要按 Agent 授权的工具不得信任 LLM 参数中的身份或权限；缺少 Agent 上下文的外部调用应明确拒绝。
 
 为了优化性能，系统将**工具定义**（静态）与**上下文**（动态）分离：
 

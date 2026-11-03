@@ -16,6 +16,7 @@ import type {
   ToolConfig,
   ToolRegistry,
   ServiceMetadata,
+  ToolContext,
 } from "@/services/types";
 import type { SettingItem } from "@/types/settings-renderer";
 import { markRaw } from "vue";
@@ -56,10 +57,10 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     },
     {
       id: "file-operator-max-size",
-      label: "最大允许读取文件大小 (MB)",
+      label: "单文件大小上限 (MB)",
       component: "ElInputNumber",
       modelPath: "maxFileSize",
-      hint: "防止 AI 读取超大文件导致内存溢出或前端卡死",
+      hint: "读取、写入、追加、差异修改和复制均按单文件大小检查",
       keywords: "文件 大小 限制 max size",
       defaultValue: 10,
       props: { min: 1, max: 100, step: 1 },
@@ -100,6 +101,15 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     return {
       methods: [
         {
+          name: "get_working_directory",
+          displayName: "获取任务工作目录",
+          description:
+            "获取应用常驻任务工作目录的绝对路径，可用于草稿、转换产物和任务中间文件。文件跨次启动保留，读写遵循当前路径规则与大小限制。",
+          parameters: [],
+          returnType: "Promise<FileOperationResult>",
+          agentCallable: true,
+        },
+        {
           name: "read_file",
           displayName: "读取文件",
           description:
@@ -110,6 +120,19 @@ export class AioFileOperatorRegistry implements ToolRegistry {
               type: "string",
               required: true,
               description: "本地文件的绝对路径",
+            },
+            {
+              name: "startLine",
+              type: "number",
+              required: false,
+              description: "读取起始行（1-based，包含该行），默认第 1 行",
+            },
+            {
+              name: "endLine",
+              type: "number",
+              required: false,
+              description:
+                "读取结束行（包含该行），默认文件末尾；文本及文档提取结果支持行范围",
             },
           ],
           returnType: "Promise<FileOperationResult>",
@@ -376,6 +399,15 @@ export class AioFileOperatorRegistry implements ToolRegistry {
     };
   }
 
+  public async getExtraPromptContext(): Promise<string> {
+    const path = await actions.getWorkingDirectory();
+    if (!path) return "";
+    const config = await actions.getConfig();
+    const policy = await this.checkSecurityPolicy("workspace", { path });
+    if (policy.status === "block") return "";
+    return `任务工作目录：${path}。可在此创建草稿、转换产物和任务中间文件，文件跨次启动保留。${policy.status === "approve" ? "访问需要人工审批。" : ""} 当前单文件大小上限：${config.maxFileSize} 字节。`;
+  }
+
   // ==================== Security Policy Hook ====================
 
   public async checkSecurityPolicy(
@@ -390,76 +422,130 @@ export class AioFileOperatorRegistry implements ToolRegistry {
 
   // ==================== Agent Callable Methods ====================
 
-  public async read_file(args: { path: string }) {
-    return await actions.readFile(args.path);
+  public async get_working_directory() {
+    const path = await actions.getWorkingDirectory();
+    return path
+      ? { success: true, message: "已获取任务工作目录", data: { path } }
+      : {
+          success: false,
+          message: "工作目录暂不可用，请检查应用数据目录的写入权限。",
+        };
   }
 
-  public async write_file(args: {
+  public async read_file(args: {
     path: string;
-    content: string;
-    allowOverwrite?: unknown;
+    startLine?: number;
+    endLine?: number;
   }) {
+    return await actions.readFile(args.path, args.startLine, args.endLine);
+  }
+
+  public async write_file(
+    args: {
+      path: string;
+      content: string;
+      allowOverwrite?: unknown;
+    },
+    context?: ToolContext
+  ) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
-    return await actions.writeFile(args.path, args.content, allowOverwrite);
+    return await actions.writeFile(
+      args.path,
+      args.content,
+      allowOverwrite,
+      context?.signal,
+      context?.securityApprovalGranted
+    );
   }
 
-  public async append_file(args: { path: string; content: string }) {
-    return await actions.appendFile(args.path, args.content);
+  public async append_file(
+    args: { path: string; content: string },
+    context?: ToolContext
+  ) {
+    return await actions.appendFile(
+      args.path,
+      args.content,
+      context?.signal,
+      context?.securityApprovalGranted
+    );
   }
 
-  public async delete_file(args: { path: string }) {
-    return await actions.deleteFile(args.path);
+  public async delete_file(args: { path: string }, context?: ToolContext) {
+    return await actions.deleteFile(
+      args.path,
+      context?.signal,
+      context?.securityApprovalGranted
+    );
   }
 
   public async list_directory(args: { path: string }) {
     return await actions.listDirectory(args.path);
   }
 
-  public async apply_diff(args: {
-    path: string;
-    search: string;
-    replace: string;
-    startLine?: number;
-  }) {
+  public async apply_diff(
+    args: {
+      path: string;
+      search: string;
+      replace: string;
+      startLine?: number;
+    },
+    context?: ToolContext
+  ) {
     return await actions.applyDiff(
       args.path,
       args.search,
       args.replace,
-      args.startLine
+      args.startLine,
+      context?.signal,
+      context?.securityApprovalGranted
     );
   }
 
-  public async create_directory(args: { path: string }) {
-    return await actions.createDirectory(args.path);
+  public async create_directory(args: { path: string }, context?: ToolContext) {
+    return await actions.createDirectory(
+      args.path,
+      context?.signal,
+      context?.securityApprovalGranted
+    );
   }
 
   public async path_exists(args: { path: string }) {
     return await actions.pathExists(args.path);
   }
 
-  public async copy_file(args: {
-    sourcePath: string;
-    targetPath: string;
-    allowOverwrite?: unknown;
-  }) {
+  public async copy_file(
+    args: {
+      sourcePath: string;
+      targetPath: string;
+      allowOverwrite?: unknown;
+    },
+    context?: ToolContext
+  ) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
     return await actions.copyFile(
       args.sourcePath,
       args.targetPath,
-      allowOverwrite
+      allowOverwrite,
+      context?.signal,
+      context?.securityApprovalGranted
     );
   }
 
-  public async move_file(args: {
-    sourcePath: string;
-    targetPath: string;
-    allowOverwrite?: unknown;
-  }) {
+  public async move_file(
+    args: {
+      sourcePath: string;
+      targetPath: string;
+      allowOverwrite?: unknown;
+    },
+    context?: ToolContext
+  ) {
     const allowOverwrite = parseAgentBoolean(args.allowOverwrite);
     return await actions.moveFile(
       args.sourcePath,
       args.targetPath,
-      allowOverwrite
+      allowOverwrite,
+      context?.signal,
+      context?.securityApprovalGranted
     );
   }
 

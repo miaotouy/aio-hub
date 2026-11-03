@@ -65,15 +65,24 @@
           >
             <el-icon class="folder-icon"><Folder /></el-icon>
             <span class="path-text" :title="dir">{{ dir }}</span>
+            <el-tag v-if="dir === workingDirectory" size="small"
+              >工作目录</el-tag
+            >
             <el-button
               type="danger"
               link
               :icon="Delete"
               @click="removeDirectory(index)"
-              :disabled="config.allowedDirectories.length <= 1"
+              :disabled="
+                dir === workingDirectory ||
+                config.allowedDirectories.length <= 1
+              "
             />
           </div>
         </div>
+        <p v-if="workingDirectory" class="hint-text">
+          工作目录供工具保存转换产物、草稿和任务中间文件，跨次启动保留。
+        </p>
         <div class="sandbox-input-section">
           <DropZone
             variant="input"
@@ -202,7 +211,7 @@
       <!-- 最大文件大小限制 -->
       <div class="config-item">
         <div class="item-header">
-          <span class="label">最大读取文件大小</span>
+          <span class="label">单文件大小上限</span>
           <span class="value-text"
             >{{ (config.maxFileSize / 1024 / 1024).toFixed(0) }} MB</span
           >
@@ -214,7 +223,9 @@
           :step="1"
           @change="updateMaxFileSize"
         />
-        <p class="hint-text">限制 AI 读取超大文件，防止内存溢出或前端卡死。</p>
+        <p class="hint-text">
+          用于读取、写入、追加、差异修改和复制；目录复制逐个检查文件。
+        </p>
       </div>
 
       <el-divider />
@@ -289,6 +300,7 @@ import type { AioFileOperatorConfig } from "../types";
 
 const props = defineProps<{
   config: AioFileOperatorConfig;
+  workingDirectory?: string | null;
   maxFileSizeMB: number;
   newDirectoryPath: string;
   newRulePath: string;

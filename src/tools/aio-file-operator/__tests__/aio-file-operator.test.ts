@@ -48,6 +48,7 @@ async function allowAllPaths() {
   await actions.setConfig({
     sandboxMode: "blacklist",
     blackListRules: [],
+    maxFileSize: 10 * 1024 * 1024,
   });
 }
 
@@ -379,6 +380,61 @@ describe("AioFileOperator Registry", () => {
     });
   });
 
+  describe("文本读取行范围", () => {
+    beforeEach(async () => {
+      resetInvokeMock();
+      await allowAllPaths();
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === "get_file_metadata")
+          return { size: 12, isFile: true, isDir: false };
+        if (command === "read_text_file_force") return "甲\r\n\r\n乙\r\n丙";
+        return null;
+      });
+    });
+    // 保护公开读取契约：1-based 包含边界、原换行符、越界空结果和无参数兼容。
+    it("按行返回内容与完整行数，保留空行和 CRLF", async () => {
+      const result = await registry.read_file({
+        path: "C:/test/range.md",
+        startLine: 2,
+        endLine: 3,
+      });
+      expect(result.data).toMatchObject({
+        content: "\r\n乙\r\n",
+        lineRange: {
+          startLine: 2,
+          endLine: 3,
+          totalLines: 4,
+          returnedLines: 2,
+        },
+      });
+      const full = await registry.read_file({ path: "C:/test/range.md" });
+      expect(full.data.content).toBe("甲\r\n\r\n乙\r\n丙");
+      const beyond = await registry.read_file({
+        path: "C:/test/range.md",
+        startLine: 99,
+      });
+      expect(beyond.data).toMatchObject({
+        content: "",
+        lineRange: { returnedLines: 0, totalLines: 4 },
+      });
+    });
+    it.each([
+      { startLine: 0 },
+      { startLine: 1.5 },
+      { startLine: 3, endLine: 2 },
+    ])("非法行范围在读取内容前拒绝：%j", async (range) => {
+      expect(
+        (await registry.read_file({ path: "C:/test/range.md", ...range }))
+          .success
+      ).toBe(false);
+      expect(
+        mockInvoke.mock.calls.some(
+          ([command]) => command === "read_text_file_force"
+        )
+      ).toBe(false);
+    });
+  });
+
   // ==================== deleteFile ====================
 
   describe("deleteFile", () => {
@@ -389,6 +445,7 @@ describe("AioFileOperator Registry", () => {
 
     it("应成功删除文件（移入回收站）", async () => {
       mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "inspect_file_operation") return { status: "allow" };
         if (cmd === "delete_file_to_trash") return true;
         return null;
       });
@@ -402,6 +459,7 @@ describe("AioFileOperator Registry", () => {
 
     it("删除失败时应返回 success=false", async () => {
       mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "inspect_file_operation") return { status: "allow" };
         if (cmd === "delete_file_to_trash") throw new Error("权限不足");
         return null;
       });
@@ -447,6 +505,174 @@ describe("AioFileOperator Registry", () => {
         content: "data",
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("文件修改大小与并发契约", () => {
+    beforeEach(async () => {
+      resetInvokeMock();
+      await allowAllPaths();
+    });
+
+    // UTF-8 字节上限、写后大小与原文件保留是公开行为；重构内部调用仍应稳定。
+    it("写入和 Diff 按 UTF-8 字节限制，超限时保留原文件", async () => {
+      await actions.setConfig({ maxFileSize: 6 });
+      let disk = "中文";
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (command === "read_text_file_force") return disk;
+        if (command === "write_text_file_force") {
+          disk = args.content;
+          return null;
+        }
+        return null;
+      });
+      expect(
+        (
+          await registry.write_file({
+            path: "C:/test/size.md",
+            content: "中文a",
+          })
+        ).success
+      ).toBe(false);
+      expect(
+        (
+          await registry.apply_diff({
+            path: "C:/test/size.md",
+            search: "中",
+            replace: "中文",
+          })
+        ).success
+      ).toBe(false);
+      expect(disk).toBe("中文");
+      expect(
+        mockInvoke.mock.calls.some(([cmd]) => cmd === "write_text_file_force")
+      ).toBe(false);
+    });
+
+    // 保护自动重命名与显式目标交叉写入时的内容保留，断言公开结果而非锁实现。
+    it("自动重命名目标与并发写入目标冲突时，两份内容均保留", async () => {
+      await actions.setConfig({ overwritePolicy: "never" });
+      const files = new Map([["C:/test/report.md", "original"]]);
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (command === "resolve_path_for_security") return args.path;
+        if (command === "path_exists") return files.has(args.path);
+        if (command === "write_text_file_force") {
+          // 模拟 IPC 调度窗口，让两个已经选择目标的请求交错到达磁盘。
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          if (args.overwrite === false && files.has(args.path))
+            throw new Error("file already exists");
+          files.set(args.path, args.content);
+        }
+        return null;
+      });
+      const results = await Promise.all([
+        registry.write_file({ path: "C:/test/report.md", content: "first" }),
+        registry.write_file({
+          path: "C:/test/report(1).md",
+          content: "second",
+        }),
+      ]);
+      expect(results.map((result) => result.success)).toEqual([true, true]);
+      expect(new Set(results.map((result) => result.data.path)).size).toBe(2);
+      expect(files.get("C:/test/report.md")).toBe("original");
+      expect(results.map((result) => files.get(result.data.path))).toEqual([
+        "first",
+        "second",
+      ]);
+    });
+
+    it("同文件别名的 Diff 串行，独立文件仍能写入，排队取消后停止修改", async () => {
+      let disk = "old";
+      let release!: () => void;
+      let entered!: () => void;
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const reads: string[] = [];
+      mockInvoke.mockImplementation(async (command: string, args: any) => {
+        if (command === "resolve_path_for_security")
+          return args.path.replace(/alias/i, "same");
+        if (command === "read_text_file_force") {
+          reads.push(args.path);
+          return disk;
+        }
+        if (command === "write_text_file_force") {
+          if (args.content === "middle") {
+            entered();
+            await gate;
+          }
+          disk = args.content;
+        }
+        return null;
+      });
+      const first = registry.apply_diff({
+        path: "C:/test/same.md",
+        search: "old",
+        replace: "middle",
+      });
+      await started;
+      const second = registry.apply_diff({
+        path: "c:/test/alias.md",
+        search: "middle",
+        replace: "new",
+      });
+      const controller = new AbortController();
+      const cancelled = registry.append_file(
+        { path: "C:/test/same.md", content: "ignored" },
+        { signal: controller.signal } as any
+      );
+      const independent = await registry.append_file({
+        path: "C:/test/other.md",
+        content: "ok",
+      });
+      expect(independent.success).toBe(true);
+      expect(reads).toEqual(["C:/test/same.md"]);
+      controller.abort();
+      release();
+      const results = await Promise.all([first, second, cancelled]);
+      expect(results.map((r) => r.success)).toEqual([true, true, false]);
+      expect(disk).toBe("new");
+      expect(
+        mockInvoke.mock.calls.filter(
+          ([cmd, args]) =>
+            cmd === "append_file_force" && args.path.endsWith("same.md")
+        )
+      ).toHaveLength(0);
+    });
+
+    it("双路径交叉操作与失败后的后续操作都能完成", async () => {
+      let active = 0,
+        peak = 0,
+        fail = true;
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === "inspect_file_operation") return { status: "allow" };
+        if (command === "copy_path_force") {
+          active++;
+          peak = Math.max(peak, active);
+          await Promise.resolve();
+          active--;
+          if (fail) {
+            fail = false;
+            throw new Error("copy failed");
+          }
+        }
+        return null;
+      });
+      const result = await Promise.all([
+        registry.copy_file({
+          sourcePath: "C:/test/a",
+          targetPath: "C:/test/b",
+        }),
+        registry.copy_file({
+          sourcePath: "C:/test/b",
+          targetPath: "C:/test/a",
+        }),
+      ]);
+      expect(result.map((r) => r.success)).toEqual([false, true]);
+      expect(peak).toBe(1);
     });
   });
 
@@ -1418,6 +1644,7 @@ describe("AioFileOperator Registry", () => {
     it("copyFile 应调用 copy_path_force 并成功返回", async () => {
       let invokedArgs: any = null;
       mockInvoke.mockImplementation(async (cmd: string, args: any) => {
+        if (cmd === "inspect_file_operation") return { status: "allow" };
         if (cmd === "copy_path_force") {
           invokedArgs = args;
           return null;
@@ -1441,6 +1668,7 @@ describe("AioFileOperator Registry", () => {
 
     it("copyFile 失败时应返回 success=false", async () => {
       mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "inspect_file_operation") return { status: "allow" };
         if (cmd === "copy_path_force") throw new Error("目标已存在");
         return null;
       });
@@ -1456,6 +1684,7 @@ describe("AioFileOperator Registry", () => {
     it("moveFile 应调用 move_path_force 并成功返回", async () => {
       let invokedArgs: any = null;
       mockInvoke.mockImplementation(async (cmd: string, args: any) => {
+        if (cmd === "inspect_file_operation") return { status: "allow" };
         if (cmd === "move_path_force") {
           invokedArgs = args;
           return null;
@@ -1475,6 +1704,7 @@ describe("AioFileOperator Registry", () => {
     it("白名单模式下 copyFile 目标路径越界应被整体拦截", async () => {
       await whitelistDirs(["C:/Safe"]);
       mockInvoke.mockImplementation(async (cmd: string) => {
+        if (cmd === "inspect_file_operation") return { status: "allow" };
         if (cmd === "copy_path_force") return null;
         return null;
       });

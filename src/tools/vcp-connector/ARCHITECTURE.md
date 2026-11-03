@@ -289,7 +289,9 @@ sequenceDiagram
     Proto->>Registry: getRegistry(tool_name)
     Registry-->>Proto: ToolRegistry 实例
     Proto->>Proto: 校验 distributedExposed
-    Proto->>Tool: 执行方法(args)
+    Proto->>Registry: checkSecurityPolicy(command, args)
+    Note over Proto,Tool: 死区拒绝；审批区等待本机人工确认（115 秒），批准后复检规则
+    Proto->>Tool: 执行方法(args, context.signal)
     Tool-->>Proto: 返回结果
     Proto->>VCP: tool_result (requestId, status, result)
 ```
@@ -307,7 +309,7 @@ execute_tool.toolArgs = {
 }
 ```
 
-`VcpNodeProtocol` 会按数字后缀拆分参数，非索引参数复制到每一项；每一项使用 `${requestId}_1`、`${requestId}_2` 等内部请求 ID 执行，最后通过原始 `requestId` 返回结果数组。这样既复用单次工具的权限和注册校验，又不会向 VCP 服务器发送无法匹配原始请求 ID 的多个响应。
+`VcpNodeProtocol` 在安全检查前按方法元数据将有效的数值字符串转换为数字，供行号等数值参数使用。强制安全审批通过后，将实际授权写入 `ToolContext.securityApprovalGranted`，供文件操作层在排队结束后复检。批量调用按数字后缀拆分参数，非索引参数复制到每一项；每一项使用 `${requestId}_1`、`${requestId}_2` 等内部请求 ID 执行，最后通过原始 `requestId` 返回结果数组。这样既复用单次工具的权限和注册校验，又不会向 VCP 服务器发送无法匹配原始请求 ID 的多个响应。
 
 ### 4.4. 心跳与 IP 上报流
 

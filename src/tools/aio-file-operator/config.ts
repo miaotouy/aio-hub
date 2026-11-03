@@ -15,17 +15,31 @@
 /**
  * aio-file-operator 默认配置
  */
+import { getAppWorkDir } from "@/utils/appPath";
 import type { AioFileOperatorConfig } from "./types";
+import { desktopDir, documentDir, downloadDir } from "@/platform/native/path";
 
 /** 默认允许的沙箱目录（用户可配置） */
-export const DEFAULT_ALLOWED_DIRECTORIES: string[] = [
-  // 桌面
-  "Desktop",
-  // 文档
-  "Documents",
-  // 下载
-  "Downloads",
-];
+export const DEFAULT_ALLOWED_DIRECTORIES: string[] = [];
+
+/** 使用系统目录 API，兼容目录重定向；不可用的目录保持关闭。 */
+export async function getDefaultAllowedDirectories(): Promise<string[]> {
+  const results = await Promise.allSettled([
+    desktopDir(),
+    documentDir(),
+    downloadDir(),
+    getAppWorkDir(),
+  ]);
+  return [
+    ...new Set(
+      results.flatMap((result) =>
+        result.status === "fulfilled" && result.value
+          ? [result.value.replace(/\\/g, "/")]
+          : []
+      )
+    ),
+  ];
+}
 
 /** 默认最大文件大小：10MB */
 export const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -34,7 +48,7 @@ export const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
 export const DEFAULT_CONFIG: AioFileOperatorConfig = {
   allowedDirectories: DEFAULT_ALLOWED_DIRECTORIES,
   blackListRules: [],
-  sandboxMode: "blacklist",
+  sandboxMode: "whitelist",
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
   enableAuditLog: true,
   overwritePolicy: "follow",

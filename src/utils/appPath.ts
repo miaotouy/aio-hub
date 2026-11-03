@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { invoke } from "@/platform/native/core";
-import { appDataDir } from "@/platform/native/path";
+import { appDataDir, join } from "@/platform/native/path";
 // 注意：此文件不能导入 logger.ts，因为 logger.ts 依赖本文件（会造成循环依赖导致 TDZ 错误）
 // 使用 console.log/warn 代替
 
@@ -58,4 +58,24 @@ export async function getAppConfigDir(): Promise<string> {
   })();
 
   return pendingPromise;
+}
+
+let pendingWorkDir: Promise<string> | null = null;
+
+/** 常驻任务工作目录，供工具存放转换产物、草稿和中间文件。 */
+export async function getAppWorkDir(): Promise<string> {
+  if (pendingWorkDir) return pendingWorkDir;
+  pendingWorkDir = (async () => {
+    const root = await getAppConfigDir();
+    if (!root) throw new Error("无法获取应用数据目录");
+    const path = await join(root, "workspace");
+    await invoke("create_dir_force", { path });
+    return path;
+  })();
+  try {
+    return await pendingWorkDir;
+  } finally {
+    // 后续任务可重新创建被用户清理的工作目录；并发创建复用同一次请求。
+    pendingWorkDir = null;
+  }
 }

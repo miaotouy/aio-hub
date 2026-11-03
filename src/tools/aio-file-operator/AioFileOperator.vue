@@ -36,6 +36,7 @@
       <div class="left-panel">
         <SecurityConfigPanel
           :config="config"
+          :working-directory="workingDirectory"
           :max-file-size-m-b="maxFileSizeMB"
           v-model:new-directory-path="newDirectoryPath"
           v-model:new-rule-path="newRulePath"
@@ -94,6 +95,7 @@ import AuditLogPanel from "./components/AuditLogPanel.vue";
 
 const {
   config,
+  workingDirectory,
   maxFileSizeMB,
   logs,
   newDirectoryPath,

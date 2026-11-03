@@ -400,6 +400,7 @@ async function executeSingleRequest(
       delegationDepth: options.delegationDepth,
       modelBinding: options.modelBinding,
       requestId: request.requestId,
+      securityApprovalGranted: forceApproval,
       signal: abortController.signal,
       reportStatus: (message: string) => {
         options.onStatusChange?.(request.requestId, "executing");

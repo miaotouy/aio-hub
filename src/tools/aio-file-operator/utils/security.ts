@@ -439,9 +439,7 @@ export function validateFileSize(size: number, maxSize: number): boolean {
     throw new Error("文件大小限制配置无效，拒绝继续处理。");
   }
   if (size > maxSize) {
-    throw new Error(
-      `文件大小超过限制：${(size / 1024 / 1024).toFixed(2)}MB > ${(maxSize / 1024 / 1024).toFixed(2)}MB`
-    );
+    throw new Error(`文件大小超过限制：${size} 字节 > ${maxSize} 字节`);
   }
   return true;
 }

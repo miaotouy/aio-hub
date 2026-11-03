@@ -31,6 +31,9 @@ export interface FileEntry {
 /** 读取文件参数 */
 export interface ReadFileParams {
   path: string;
+  /** 1-based，包含边界；省略时读取全文。适用于文本和文档提取结果。 */
+  startLine?: number;
+  endLine?: number;
 }
 
 /** 写入文件参数 */

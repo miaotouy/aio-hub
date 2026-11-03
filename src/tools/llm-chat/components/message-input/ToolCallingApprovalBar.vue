@@ -497,10 +497,10 @@ const handleRejectAll = () => {
       <div class="bar-footer">
         <AlertCircle :size="12" />
         <span v-if="hasExternalRequests && hasLocalRequests">
-          包含本地和远程工具调用请求，请确认安全后再允许。
+          包含当前会话和 VCP 的工具调用请求，请核对操作和目标路径后再允许。
         </span>
         <span v-else-if="hasExternalRequests">
-          这些工具将在远程 VCP 节点执行，请确认安全后再允许。
+          这些请求来自 VCP，请核对操作和目标路径后再允许。
         </span>
         <span v-else>
           这些工具将以你的身份在本地执行，请确认安全后再允许。

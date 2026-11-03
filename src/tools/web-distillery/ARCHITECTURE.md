@@ -50,7 +50,8 @@
 ### DeepSeek Search / Fetch
 
 - API 适配位于 `src/llm-apis/adapters/deepseek/tools.ts`：负责端点、鉴权、Unicode 参数校验、响应映射和可行动错误。独立于 Chat Completions 的消息及流式工具调用协议。
-- `deepseek.profileId` 引用已启用的 DeepSeek LLM 渠道，复用 API 基础地址、自定义请求头、密钥仓库与网络偏好。空值表示自动选择，由渠道管理按列表顺序解析首个已启用的 DeepSeek 渠道，设置界面展示当前自动选择结果；搜索和抓取共用该规则。显式绑定失效时提示重新选择，保留原绑定。原配置通过默认合并自动补齐该字段。
+- `deepseek.profileId` 引用已启用的 DeepSeek LLM 渠道，复用 API 基础地址、自定义请求头、密钥仓库与网络偏好。空值表示自动选择，由渠道管理按列表顺序解析首个已启用的 DeepSeek 渠道，搜索页和设置界面展示当前自动选择结果；搜索和抓取共用该规则。显式绑定失效时提示重新选择，保留原绑定。原配置通过默认合并自动补齐该字段。
+- 搜索页与偏好设置复用 `DeepSeekChannelConfig`，在当前页面选择渠道并通过弹窗新增或修改连接字段；保存复用 `useLlmProfiles.saveProfile()` 和渠道密钥仓库，合并最新渠道对象以保留模型及高级设置。取消编辑保持共享配置原值。接口地址预览与请求复用 `buildDeepSeekToolUrl()`。
 - 工具请求等待 Key 状态加载，遵守启用、轮询及熔断状态。401 可按现有策略标记鉴权失败；账号级 429 与余额不足仅记录状态，保持 Key 可用性。每次用户操作对应一次请求，重试由调用方决定。
 - 共享 `fetchWithTimeout` 使用 `requestKind: "tool"`，保持工具请求与模型诊断独立；`proxyBodyKind: "raw"` 保持查询及目标 URL 的 JSON 语义。
 - DeepSeek Fetch 仅提供 Markdown。未指定输出格式时，优先采用引擎兼容的全局偏好，否则使用引擎首选格式；显式不支持的格式返回参数错误。

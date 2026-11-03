@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from "vue";
-import { Search, BookOpen, ExternalLink, Settings } from "lucide-vue-next";
+import { Search, BookOpen, ExternalLink } from "lucide-vue-next";
 import { openUrl } from "@/platform/native/opener";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -9,9 +9,10 @@ import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
 import { RendererVersion } from "@/tools/rich-text-renderer/types";
 import { useWebDistilleryStore } from "../../stores/store";
 import { fetchSearchResult, searchWeb } from "../../service";
+import DeepSeekChannelConfig from "../settings/DeepSeekChannelConfig.vue";
 
 const store = useWebDistilleryStore();
-const { profiles, isLoaded } = useLlmProfiles();
+const { getEnabledProfileByType, isLoaded } = useLlmProfiles();
 const errorHandler = createModuleErrorHandler("web-distillery/search");
 const query = ref("");
 const count = ref(10);
@@ -24,12 +25,7 @@ const reading = ref(false);
 const hasSearched = ref(false);
 const error = ref("");
 const profile = computed(() =>
-  profiles.value.find(
-    (item) =>
-      item.id === store.config.deepseek.profileId &&
-      item.type === "deepseek" &&
-      item.enabled
-  )
+  getEnabledProfileByType("deepseek", store.config.deepseek.profileId)
 );
 let searchController: AbortController | undefined;
 let readController: AbortController | undefined;
@@ -39,7 +35,8 @@ function sourceName(item: WebSearchItem) {
 }
 
 async function runSearch() {
-  if (loading.value) return;
+  if (loading.value || !isLoaded.value || !profile.value || !query.value.trim())
+    return;
   searchController = new AbortController();
   const controller = searchController;
   loading.value = true;
@@ -135,13 +132,11 @@ onUnmounted(() => {
       >
     </form>
     <div class="connection-bar">
-      <span>{{
-        profile ? `DeepSeek · ${profile.name}` : "请先选择 DeepSeek 渠道"
-      }}</span>
+      <DeepSeekChannelConfig
+        :disabled="loading || reading"
+        @change="error = ''"
+      />
       <span class="billing-note">搜索与抓取按调用次数计费</span>
-      <el-button text :icon="Settings" @click="store.activeTab = 'settings'"
-        >配置渠道</el-button
-      >
     </div>
     <el-alert
       v-if="error"

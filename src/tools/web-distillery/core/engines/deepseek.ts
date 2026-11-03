@@ -25,8 +25,8 @@ async function resolveProfile(config: WebDistilleryConfig) {
     throw new DistilleryError(
       "MISSING_PROFILE",
       config.deepseek.profileId
-        ? "所选 DeepSeek 渠道已失效，请在网页蒸馏的偏好设置中重新选择渠道"
-        : "请在 LLM 服务中添加并启用 DeepSeek 渠道"
+        ? "所选 DeepSeek 渠道已失效，请在配置渠道中重新选择或启用渠道"
+        : "请在网页搜索的配置渠道中添加并启用 DeepSeek 渠道"
     );
   }
   return profile;

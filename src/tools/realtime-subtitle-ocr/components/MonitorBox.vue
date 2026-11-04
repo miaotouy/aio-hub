@@ -58,6 +58,7 @@ import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
 import { emit } from "@/platform/native/events";
 import { invoke } from "@/platform/native/core";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useWindowResize } from "@/composables/useWindowResize";
 import { Pin as PinIcon, X as XIcon } from "lucide-vue-next";
 
 interface Geometry {
@@ -112,15 +113,19 @@ async function reportGeometry() {
   }, 60);
 }
 
+const { startResize: resizeWindow } = useWindowResize();
+const resizeDirections = {
+  n: "North",
+  s: "South",
+  e: "East",
+  w: "West",
+  ne: "NorthEast",
+  nw: "NorthWest",
+  se: "SouthEast",
+  sw: "SouthWest",
+} as const;
 function startResize(dir: ResizeDir, event: MouseEvent) {
-  event.preventDefault();
-  event.stopPropagation();
-  interface TauriWindowExtended {
-    startResizeDragging: (direction: string) => Promise<void>;
-  }
-  (getCurrentWebviewWindow() as unknown as TauriWindowExtended)
-    .startResizeDragging(dir)
-    .catch(() => {});
+  void resizeWindow(resizeDirections[dir], event);
 }
 
 async function toggleAlwaysOnTop() {

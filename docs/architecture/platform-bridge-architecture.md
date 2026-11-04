@@ -61,7 +61,7 @@
 - `electron/shared.ts` 定义固定请求/事件协议和结果包络。主进程校验窗口、主 frame 和来源后按显式操作分派；preload 过滤原始 Electron 事件对象，向渲染器返回可序列化结果。
 - `src/platform/electron/client.ts` 将 Vue 响应式对象转换为普通数据，保留字节数组，拒绝循环引用；在渲染器重建错误并保留 `code` 与能力标识，避免 contextBridge 丢失 Error 附加字段。
 - `events.ts` 维护每个订阅的 ID，保留事件包络、定向目标与幂等解绑；窗口刷新和关闭时主进程清理该页面的订阅。窗口销毁通知全局发布，既有分离窗口管理器继续恢复主窗口状态。
-- `window.ts` 提供当前窗口、基础控制、创建与查找、事件和关闭请求；Chromium 的原生拖动区域复用现有标题栏声明。
+- `window.ts` 提供当前窗口、基础控制、创建与查找、事件和关闭请求；Chromium 的原生拖动区域复用现有标题栏声明。自定义缩放由 `platform/electron/window-resize.ts` 捕获指针、合并并串行提交移动；`electron/window-resize.ts` 按窗口归属维护八方向会话、约束与对边锚点，并在结束或宿主生命周期清理时恢复原始 resizable。共享 `modules/window.ts` 为 Tauri 提供 finally 恢复。
 - 本地生产资源使用 `aiohub://app/`，支持绝对资源路径与深层路由；HTML 内联脚本按归一化换行后的内容生成 CSP 哈希。本地文件使用带窗口令牌与精确授权的 `asset://local/`，真实路径变化会拒绝读取。
 - 语义化门面统一使用 `isNativeRuntime()`；配置、LLM 混淆文件和请求记录使用 `hasNativeRuntimeMarker()`，Electron 数据默认与 Tauri 分开。
 
@@ -73,4 +73,4 @@
 
 兼容选项 `connectTimeout` 覆盖直到最终响应头的阶段；正文超时由消费者管理。上传先编码为字节数组，逐请求代理、危险 TLS 和完整性校验按显式能力边界报错。LLM 专用代理与 Channel 的契约继续独立迁移。
 
-LLM 专用代理/Channel、完整文件监听、Shell/Sidecar、更新器、Rust 专项命令与拖拽预览继续按[迁移总纲](../Plan/electron-migration-master-plan.md)实施。Electron 开发指南维护当前能力范围与验证方式。
+通用 Channel、完整文件监听、Shell/Sidecar、更新器、Rust 专项命令与拖拽预览继续按[迁移总纲](../Plan/electron-migration-master-plan.md)实施。Electron 开发指南维护当前能力范围与验证方式。

@@ -59,6 +59,7 @@ import { fileCommand } from "./file-commands";
 import { AssetManager } from "./asset-manager";
 import { DocumentConverter } from "./document-converter";
 import { SkillManager } from "./skill-manager";
+import { WindowResizes } from "./window-resize";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
@@ -154,6 +155,16 @@ const deepLinks = new PendingDeepLinks(initialDeepLinks);
 // Chromium scopes the process singleton to userData; isolated data roots stay independent.
 if (!app.requestSingleInstanceLock({ urls: initialDeepLinks })) app.exit(0);
 const detached = new Map<string, { label: string; id: string; type: string }>();
+const windowResizes = new WindowResizes((error) =>
+  console.warn("窗口缩放恢复失败", error)
+);
+const cancelWindowResize = (owner: number) => {
+  try {
+    windowResizes.cancel(owner);
+  } catch (error) {
+    console.warn("窗口缩放恢复失败", error);
+  }
+};
 let tray: Tray | undefined;
 let quitting = false;
 let logQueue = Promise.resolve<unknown>(undefined);
@@ -305,7 +316,12 @@ const size = (value: unknown, factor: number) => {
     throw new Error("窗口尺寸无效");
   return [width, height] as const;
 };
-function windowCall(label: string, method: string, value?: unknown): unknown {
+function windowCall(
+  label: string,
+  method: string,
+  value?: unknown,
+  owner?: number
+): unknown {
   const win = windows.get(label);
   if (!win || win.isDestroyed()) throw new Error("窗口已关闭：" + label);
   const factor = screen.getDisplayMatching(win.getBounds()).scaleFactor;
@@ -352,6 +368,8 @@ function windowCall(label: string, method: string, value?: unknown): unknown {
       return win.isFocused();
     case "isVisible":
       return win.isVisible();
+    case "isResizable":
+      return win.isResizable();
     case "isDecorated":
       return false;
     case "scaleFactor":
@@ -414,6 +432,12 @@ function windowCall(label: string, method: string, value?: unknown): unknown {
       if (typeof value !== "string") return unavailable("数组背景色");
       win.setBackgroundColor(value);
       return;
+    case "startResizeDragging":
+      return windowResizes.begin(win, owner ?? -1, value);
+    case "updateResizeDragging":
+      return windowResizes.update(win, owner ?? -1, value);
+    case "endResizeDragging":
+      return windowResizes.end(win, owner ?? -1, value);
     case "startDragging":
       return; // Native Chromium app-region performs the drag; no renderer coordinate polling.
     default:
@@ -536,6 +560,7 @@ async function createWindow(
       if (isMainFrame && !inPlace) {
         subscriptions.delete(contentsId);
         httpRequests.disposeOwner(contentsId);
+        cancelWindowResize(contentsId);
       }
     }
   );
@@ -546,7 +571,14 @@ async function createWindow(
     publish("tauri://resize", windowCall(label, "innerSize"), label)
   );
   win.on("focus", () => publish("tauri://focus", true, label));
-  win.on("blur", () => publish("tauri://focus", false, label));
+  win.on("blur", () => {
+    cancelWindowResize(contentsId);
+    publish("tauri://focus", false, label);
+  });
+  win.on("hide", () => cancelWindowResize(contentsId));
+  win.on("minimize", () => cancelWindowResize(contentsId));
+  win.on("maximize", () => cancelWindowResize(contentsId));
+  win.on("enter-full-screen", () => cancelWindowResize(contentsId));
   win.on("close", (event) => {
     if (quitting) return;
     const hasHandler = Array.from(
@@ -557,11 +589,13 @@ async function createWindow(
       publish("tauri://close-requested", undefined, label);
     }
   });
-  win.webContents.on("render-process-gone", () =>
-    httpRequests.disposeOwner(contentsId)
-  );
+  win.webContents.on("render-process-gone", () => {
+    httpRequests.disposeOwner(contentsId);
+    cancelWindowResize(contentsId);
+  });
   win.on("closed", () => {
     httpRequests.disposeOwner(contentsId);
+    cancelWindowResize(contentsId);
     subscriptions.delete(contentsId);
     tokens.delete(contentsId);
     assets.delete(token);
@@ -881,7 +915,12 @@ async function operation(
         args.options === undefined ? {} : record(args.options)
       );
     case "window.call":
-      return windowCall(str(args.label), str(args.method), args.value);
+      return windowCall(
+        str(args.label),
+        str(args.method),
+        args.value,
+        event.sender.id
+      );
     case "window.monitor": {
       const d = screen.getDisplayMatching(win.getBounds());
       return {

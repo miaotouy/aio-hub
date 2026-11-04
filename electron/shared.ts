@@ -12,6 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export const WINDOW_RESIZE_DIRECTIONS = [
+  "North",
+  "NorthEast",
+  "East",
+  "SouthEast",
+  "South",
+  "SouthWest",
+  "West",
+  "NorthWest",
+] as const;
+export type WindowResizeDirection = (typeof WINDOW_RESIZE_DIRECTIONS)[number];
+export interface WindowResizePoint {
+  x: number;
+  y: number;
+}
+
 export const IPC_REQUEST = "aiohub:request";
 export const IPC_EVENT = "aiohub:event";
 export const IPC_ASSET = "aiohub:asset";

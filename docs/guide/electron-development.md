@@ -75,6 +75,14 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 - 本地 `asset://local/` 资源协议：按窗口授权精确文件路径，验证随机令牌和真实路径，窗口关闭时释放授权。
 - 应用名称/版本、操作系统信息、同数据目录单实例、二次启动恢复主窗口、启动参数 Deep Link 与 macOS `open-url` 事件。协议请求仅由主窗口消费，订阅前到达的请求会排队，消费后释放。
 
+## 自定义窗口缩放
+
+共享入口 `startWindowResize()` 对接平台窗口适配器。Electron 渲染器捕获启动指针，合并移动事件并按序提交；主进程按窗口归属管理八方向缩放会话，以 DIP 屏幕坐标计算新尺寸、限制最小/最大尺寸并固定对边锚点。固定窗口临时启用缩放后读取真实约束，结束时恢复原始 `resizable`。
+
+鼠标释放和失焦保留最终尺寸；Escape 或 pointercancel 回滚起始尺寸。导航、隐藏、最小化、最大化、进入全屏、渲染进程退出、窗口关闭和心跳超时都会清理宿主会话。Tauri 共用入口在 finally 中恢复临时缩放设置；监控框和分离组件复用同一调用链。
+
+2026-11-04 在真实 Windows Electron 的生产资源预览中验证左右手柄拖动、八方向尺寸和锚点、最小/最大限制、Escape 回滚、失焦与刷新恢复，以及跨窗口调用拒绝。150% 显示缩放下有约 1–2 DIP 的系统取整偏差；macOS/Linux 及 Tauri 真实窗口交互待对应环境验收。
+
 ## 原生 HTTP 与响应流
 
 `src/platform/native/http.ts` 的 `fetch` 已接入 Electron 主进程网络，支持标准请求头、文本/二进制/FormData 上传、HTTP 状态与响应头、重定向、二进制下载和 SSE 等响应流。主进程使用 Chromium 网络栈和系统代理；默认隔离浏览器会话 Cookie，显式 `credentials: "include"` 时才共享会话凭证。跨源重定向移除显式认证与 Cookie 请求头，所有跳转目标继续限制为 HTTP/HTTPS。

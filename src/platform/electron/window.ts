@@ -16,6 +16,10 @@ import type { WindowOptions } from "../native/window";
 import type { EventCallback, UnlistenFn } from "../native/events";
 import { getElectronBridge, request } from "./client";
 import { listen, once, emit, emitTo } from "./events";
+import {
+  ensureResizeInputTracking,
+  startWindowResizeDragging,
+} from "./window-resize";
 export class ElectronWindow {
   readonly label: string;
   private readonly created: Promise<unknown>;
@@ -24,6 +28,7 @@ export class ElectronWindow {
     options?: WindowOptions & { url?: string },
     existing = false
   ) {
+    ensureResizeInputTracking();
     this.label = label;
     this.created = existing
       ? Promise.resolve()
@@ -79,6 +84,9 @@ export class ElectronWindow {
   }
   isVisible() {
     return this.call<boolean>("isVisible");
+  }
+  isResizable() {
+    return this.call<boolean>("isResizable");
   }
   isFocused() {
     return this.call<boolean>("isFocused");
@@ -141,7 +149,7 @@ export class ElectronWindow {
     return this.call("startDragging");
   }
   startResizeDragging(value: string) {
-    return this.call("startResizeDragging", value);
+    return startWindowResizeDragging(this.label, value, this.created);
   }
   listen<T>(event: string, handler: EventCallback<T>): Promise<UnlistenFn> {
     return listen(event, handler, {

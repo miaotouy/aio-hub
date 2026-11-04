@@ -251,6 +251,7 @@
     "markdown-it": "^14.1.0",
     "markdown-it-texmath": "^1.0.0",
     "mermaid": "^11.14.0",
+    "mime-types": "^3.0.2",
     "minimatch": "^10.2.4",
     "modern-screenshot": "^4.7.0",
     "monaco-editor": "^0.57.0",

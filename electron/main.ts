@@ -56,6 +56,8 @@ import {
 } from "./security";
 import { fileOperation, filePath, writeAtomic } from "./filesystem";
 import { fileCommand } from "./file-commands";
+import { AssetManager } from "./asset-manager";
+import { inspectAssetMedia } from "./asset-media";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -109,6 +111,12 @@ const httpRequests = new HttpRequests((url, init, options) =>
       )
     : chromiumFetch(url, init)
 );
+const assetManager = new AssetManager({
+  root: app.getPath("userData"),
+  trashItem: (value) => shell.trashItem(value),
+  emit: (event, payload) => publish(event, payload),
+  inspectMedia: inspectAssetMedia,
+});
 const tokens = new Map<number, string>();
 const assets = new Map<string, Map<string, Promise<string>>>();
 const subscriptions = new Map<
@@ -612,6 +620,30 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "get_asset_base_path":
+    case "import_asset_from_path":
+    case "import_asset_from_bytes":
+    case "get_asset_by_id":
+    case "get_asset_binary":
+    case "get_asset_base64":
+    case "read_text_file":
+    case "list_all_assets":
+    case "list_assets_paginated":
+    case "get_asset_stats":
+    case "find_asset_by_hash":
+    case "add_asset_source":
+    case "remove_asset_source":
+    case "remove_asset_completely":
+    case "remove_assets_completely":
+    case "delete_asset":
+    case "update_asset_derived_data":
+    case "remove_asset_derived_data":
+    case "update_audio_waveform":
+    case "save_asset_thumbnail":
+    case "rebuild_hash_index":
+    case "rebuild_catalog_index":
+    case "find_duplicate_files":
+      return assetManager.run(name, args);
     case "get_app_config_dir":
       return app.getPath("userData");
     case "path_exists":

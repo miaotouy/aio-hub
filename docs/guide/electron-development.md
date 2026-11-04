@@ -1,6 +1,6 @@
 # Electron 桌面开发
 
-> 当前阶段：基础宿主、本地分发、单实例与基础原生网络已接入，2026-11-04。Tauri 开发与发布入口继续保留。
+> 当前阶段：基础宿主、本地分发、模型传输、共享资产、技能与工作区适配已接入，领域后端持续迁移，2026-11-04。Tauri 开发与发布入口继续保留。
 
 ## 启动与构建
 
@@ -115,9 +115,11 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 
 ## 后续能力
 
-Channel、文件监听、Shell/Sidecar、更新器，以及知识库、流式搜索、FFmpeg、系统监控等领域命令仍按迁移总纲分阶段接入。此类调用返回 `CAPABILITY_UNAVAILABLE`；已有工具的启动钩子可能在首页初始化时提示暂未支持。普通前端工具可直接使用，依赖这些后端能力的工作流继续从 Tauri 入口执行。
+模型请求、命令 Channel、流式会话搜索、会话持久化、共享文件与资产、配置归档、智能体私有资源、技能管理/脚本执行、文件监听、图片剪贴板、系统字体及当前窗口文件拖放已接入。具体范围与实机验证见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
 
-外部文件拖放的精确落点与目标工具导入、窗口吸附、嵌入式 WebView、跨平台窗口材质、原生文件选择对话框的完整交互与自动更新仍需专项接续。
+插件包安装/卸载与 Native/Sidecar 执行、知识资料库/Recall、Git、FFmpeg、目录工具和系统监控等领域后端继续迁移；旧业务的“打开所在目录”等命令入口也待接通。通用 Shell/Sidecar、独立子 WebView 和更新器适配仍返回能力错误。依赖这些能力的工作流可从 Tauri 入口执行。
+
+后台 Agent 的独立运行、关窗后的任务延续、系统退出保存、正式更新/数据迁移，以及 macOS/Linux 构建与运行验证仍需接续。Windows 当前窗口文件拖放与落点定向已通过真实 Electron 验证；原生文件选择对话框完整交互和跨平台窗口材质另行走查。最新调查见[功能缺口调查](../design/electron-feature-gap-audit-2026-11-04.md)。
 
 ## 宿主边界
 
@@ -147,7 +149,7 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 
 本轮相关单测合计 40 项通过，前端/主进程类型检查、平台隔离检查与完整 `electron:build` 通过。生产 `aiohub://app/` 工作台、原生 HTTP IPC、页面刷新与正式图标已在真实 Electron 复验。构建仍报告依赖中的直接 eval、较大分块与插件耗时提示。
 
-生产首页走查确认仍有启动能力缺口：`background_runtime_get_status`、`get_all_skill_manifests`、`recall_preview_legacy_migration`。技能加载和工具注册会提示错误；这些后端契约及启动初始化的能力分层已补入总纲 P1 待办。
+早期生产首页走查发现 `background_runtime_get_status`、`get_all_skill_manifests`、`recall_preview_legacy_migration` 三处启动能力缺口。后续批次已接通技能清单，并引入后台运行时的能力分层；知识资料库初始化与旧数据迁移仍待接续，最新状态以缺口补齐待办为准。
 
 2026-11-04 接通 Electron Dev Control。在真实开发态与生产资源预览中验证了实例发现、身份握手、路由跳转、CDP 点击与按键、窗口尺寸确认、截图和诊断摘要。开发态另验证了多窗口、前端控制桥暂不可用时的原生身份、刷新重连；并行实例的数据目录分别隔离，退出后所属 Vite/CDP 端口与实例描述均已释放。诊断摘要验证包含常见凭证字段裁剪。
 

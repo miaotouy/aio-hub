@@ -54,12 +54,8 @@ import {
   rendererFile,
   scopedPath,
 } from "./security";
-import {
-  fileOperation,
-  filePath,
-  writeAtomic,
-  writeLegacyFile,
-} from "./filesystem";
+import { fileOperation, filePath, writeAtomic } from "./filesystem";
+import { fileCommand } from "./file-commands";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -615,44 +611,30 @@ async function command(
   args: Record<string, unknown>,
   win: BrowserWindow
 ): Promise<unknown> {
-  const target = () =>
-    filePath(args.path ?? args.filePath, undefined, basePaths());
   switch (name) {
     case "get_app_config_dir":
       return app.getPath("userData");
     case "path_exists":
-      return fileOperation("exists", [target()], basePaths());
+    case "is_directory":
+    case "get_file_metadata":
+    case "list_directory":
     case "create_dir_force":
-      return void (await fs.mkdir(target(), { recursive: true }));
     case "read_text_file_force":
-      return fs.readFile(target(), "utf8");
     case "write_text_file_force":
-      return writeLegacyFile(target(), str(args.content));
-    case "write_file_force": {
-      const content = args.content;
-      if (
-        !(content instanceof Uint8Array) &&
-        !(
-          Array.isArray(content) &&
-          content.every(
-            (byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255
-          )
-        )
-      )
-        throw new Error("写入内容需为有效字节数组");
-      return writeLegacyFile(target(), new Uint8Array(content));
-    }
+    case "write_file_force":
     case "read_file_binary":
-      return Array.from(await fs.readFile(target()));
-    case "read_file_binary_raw": {
-      const bytes = await fs.readFile(target());
-      return bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength
-      );
-    }
+    case "read_file_binary_raw":
     case "read_file_as_base64":
-      return (await fs.readFile(target())).toString("base64");
+    case "append_file_force":
+    case "copy_file_to_app_data":
+    case "save_uploaded_file":
+    case "delete_directory_in_app_data":
+    case "delete_file_to_trash":
+    case "copy_directory_in_app_data":
+      return fileCommand(name, args, {
+        root: app.getPath("userData"),
+        trashItem: (value) => shell.trashItem(value),
+      });
     case "save_window_config":
       return saveWindow(str(args.label));
     case "clear_all_window_configs":

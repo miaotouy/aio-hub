@@ -130,3 +130,9 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 默认模型请求由平台门面送入 Electron 主进程，通过 Node HTTP/1.1 发出。tagged LocalFileRef、兼容 data URL、原始文件上传及 multipart manifest 在宿主解析；文件上传保留流式读取。普通平台 HTTP 继续使用 Chromium 网络栈。
 
 模型请求支持系统代理解析、直连、自定义 HTTP(S)/SOCKS 代理和 loopback 绕过；证书校验设置只作用于当前请求。SSE 与普通响应共用按窗口归属的拉取式 IPC，支持响应头后的外部取消和窗口销毁清理。详细进度见[功能缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
+
+## 共享文件命令
+
+Electron 业务分派支持文件元数据、目录判断/列举、日志与 JSONL 追加、上传文件保存、复制到应用目录、应用资源目录复制及系统回收站删除。元数据时间采用秒级 Unix 时间，字段沿用现有 camelCase 契约。
+
+应用目录命令检查规范化路径及真实祖先路径，保护根目录并识别 junction 越界；文件和目录删除通过操作系统回收站完成。携带 Agent 文件安全快照的文本/二进制读取、文本写入、追加与删除执行白名单、死区、审批和大小规则，目录删除同时检查嵌套内容。

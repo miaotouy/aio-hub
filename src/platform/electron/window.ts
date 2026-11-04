@@ -91,6 +91,9 @@ export class ElectronWindow {
   isFocused() {
     return this.call<boolean>("isFocused");
   }
+  isAlwaysOnTop() {
+    return this.call<boolean>("isAlwaysOnTop");
+  }
   isDecorated() {
     return this.call<boolean>("isDecorated");
   }

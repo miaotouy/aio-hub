@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { ref } from "vue";
+import { ref, onScopeDispose } from "vue";
 import { debounce } from "lodash-es";
-import { convertFileSrc } from "@/platform/native/core";
+import { createCanvasHtmlPreview } from "@/platform/modules/html-preview";
+import { isElectronRuntime } from "@/platform/core/env";
+import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("Canvas/Preview");
+const errorHandler = createModuleErrorHandler("Canvas/Preview");
 
 export interface ConsoleMessage {
   id: string;
@@ -46,7 +49,7 @@ function resolvePreviewRelativePath(entryFile: string, reference: string) {
 
 /**
  * 将待审批的 CSS / JS 覆盖文件内联到 srcdoc，让预览可以使用内存候选内容，
- * 而不是提前把候选内容写到磁盘。其他静态资源仍通过 asset:// 从项目读取。
+ * 保留磁盘上的原文件。其他静态资源通过当前宿主的项目资源来源读取。
  */
 function inlinePreviewOverrides(
   content: string,
@@ -81,7 +84,7 @@ function inlinePreviewOverrides(
 
 /**
  * Canvas 预览引擎 (Physical-First 架构)
- * 统一使用 asset:// 协议加载物理文件
+ * Electron 使用独立项目预览来源，Tauri 使用 asset:// 加载物理文件
  */
 export function useCanvasPreview(options: {
   canvasId: () => string | null;
@@ -94,50 +97,47 @@ export function useCanvasPreview(options: {
   const previewSrcdoc = ref("");
   const isRefreshing = ref(false);
   const consoleMessages = ref<ConsoleMessage[]>([]);
+  const htmlPreview = createCanvasHtmlPreview();
+  let generation = 0,
+    disposed = false;
 
   /**
    * 刷新预览 (防抖)
    */
   const refreshPreview = debounce(async () => {
-    const canvasId = options.canvasId();
-    const path = options.basePath();
-    const entry = options.entryFile?.() || "index.html";
+    const current = ++generation;
+    try {
+      const canvasId = options.canvasId();
+      const path = options.basePath();
+      const entry = options.entryFile?.() || "index.html";
 
-    if (!canvasId || !path) return;
+      if (!canvasId || !path) return;
 
-    // 读取入口文件内容
-    let content = await options.readFile(canvasId, entry);
-    if (content === null) {
-      previewSrcdoc.value = "<h1>Error: Entry file not found</h1>";
-      return;
-    }
+      // 读取入口文件内容
+      const entryContent = await options.readFile(canvasId, entry);
+      if (disposed || current !== generation) return;
+      if (entryContent === null) {
+        previewSrc.value = "";
+        previewSrcdoc.value = "<h1>Error: Entry file not found</h1>";
+        return;
+      }
 
-    content = inlinePreviewOverrides(
-      content,
-      entry,
-      options.previewOverrides?.() || {}
-    );
+      let content = inlinePreviewOverrides(
+        entryContent,
+        entry,
+        options.previewOverrides?.() || {}
+      );
 
-    // 构建物理基础路径的 asset:// URL
-    // 在 Windows 上，确保路径以盘符开头且格式正确
-    let normalizedBase = path.replace(/\\/g, "/");
-
-    // 关键修复：Tauri 的 convertFileSrc 在 Windows 上如果路径不包含盘符前缀可能会解析失败
-    // 我们确保它是一个绝对路径
-    const baseUrl = convertFileSrc(normalizedBase);
-
-    // 确保 baseUrl 以 / 结尾，这样 <base> 标签才能正确拼接相对路径
-    const finalBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
-
-    logger.info("预览 Base URL 已构建", {
-      originalPath: path,
-      normalizedBase,
-      finalBaseUrl,
-    });
-
-    // 注入 <base> 标签以解决相对路径问题
-    // 同时也注入控制台捕获脚本 (参考项目惯例)
-    const injectedScript = `
+      const source = await htmlPreview.render(
+        { canvasId, basePath: path },
+        (finalBaseUrl) => {
+          logger.info("预览 Base URL 已构建", {
+            originalPath: path,
+            finalBaseUrl,
+          });
+          // 注入 <base> 标签以解决相对路径问题
+          // 同时也注入控制台捕获脚本 (参考项目惯例)
+          const injectedScript = `
       <script>
         (function() {
           const originalLog = console.log;
@@ -230,27 +230,46 @@ export function useCanvasPreview(options: {
       </script>
     `;
 
-    // 预览内容属于不可信项目代码：在 iframe 内再施加最小 CSP，
-    // 即使宿主应用的全局 CSP 因兼容性而宽松，也不能让预览继承该权限边界。
-    const previewCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob: asset: http: https:; style-src 'unsafe-inline' asset: http: https:; img-src data: blob: asset: http: https:; font-src data: asset: http: https:; media-src data: blob: asset: http: https:; connect-src http: https: ws: wss:; frame-src http: https:; object-src 'none'; form-action 'none'">`;
-    const baseTag = `<base href="${finalBaseUrl}">`;
-    const injectedHead = `${previewCsp}\n    ${baseTag}\n    ${injectedScript}`;
+          // 预览内容属于不可信项目代码：在 iframe 内再施加最小 CSP，
+          // 即使宿主应用的全局 CSP 因兼容性而宽松，也不能让预览继承该权限边界。
+          const localResources = isElectronRuntime()
+            ? "aiohub://canvas-preview"
+            : "asset:";
+          const previewCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob: ${localResources} http: https:; style-src 'unsafe-inline' ${localResources} http: https:; img-src data: blob: ${localResources} http: https:; font-src data: ${localResources} http: https:; media-src data: blob: ${localResources} http: https:; connect-src http: https: ws: wss:; frame-src http: https:; object-src 'none'; form-action 'none'">`;
+          const baseTag = `<base href="${finalBaseUrl}">`;
+          const injectedHead = `${previewCsp}\n    ${baseTag}\n    ${injectedScript}`;
 
-    // 注入到 <head> 开头，确保 CSP 出现在项目自身脚本之前。
-    if (content.includes("<head>")) {
-      content = content.replace("<head>", `<head>\n    ${injectedHead}`);
-    } else if (content.includes("<html>")) {
-      content = content.replace(
-        "<html>",
-        `<html>\n<head>\n    ${injectedHead}\n</head>`
+          // 注入到 <head> 开头，确保 CSP 出现在项目自身脚本之前。
+          if (content.includes("<head>")) {
+            content = content.replace("<head>", `<head>\n    ${injectedHead}`);
+          } else if (content.includes("<html>")) {
+            content = content.replace(
+              "<html>",
+              `<html>\n<head>\n    ${injectedHead}\n</head>`
+            );
+          } else {
+            content = `${previewCsp}\n${baseTag}\n${injectedScript}\n${content}`;
+          }
+
+          return content;
+        }
       );
-    } else {
-      content = `${previewCsp}\n${baseTag}\n${injectedScript}\n${content}`;
+      if (disposed || current !== generation) return;
+      previewSrcdoc.value = source.srcdoc;
+      previewSrc.value = source.src;
+    } catch (error) {
+      if (!disposed && current === generation)
+        errorHandler.error(error, "更新画布预览失败");
     }
-
-    previewSrcdoc.value = content;
-    previewSrc.value = ""; // 清空 src 切换到 srcdoc
   }, 300);
+  onScopeDispose(() => {
+    disposed = true;
+    generation++;
+    refreshPreview.cancel();
+    void htmlPreview
+      .dispose()
+      .catch((error) => logger.warn("释放画布预览失败", error));
+  });
 
   /**
    * 强制刷新 (不防抖)

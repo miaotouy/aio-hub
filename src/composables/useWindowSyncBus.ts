@@ -427,7 +427,8 @@ class WindowSyncBus {
           message.from
         );
       }
-    } else {
+    } else if (message.to === this.windowLabel) {
+      // Broadcast requests are answered only by the window that owns the action.
       logger.warn("未找到匹配的操作处理器", { action });
       // 发送错误响应，告知未找到处理器
       await this.sendMessage<ActionResponsePayload>(

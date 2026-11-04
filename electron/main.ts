@@ -60,6 +60,10 @@ import { AssetManager } from "./asset-manager";
 import { DocumentConverter } from "./document-converter";
 import { SkillManager } from "./skill-manager";
 import { WindowResizes } from "./window-resize";
+import { DesktopControls, readDesktopSettings } from "./desktop-controls";
+import { WorkspaceWindows } from "./workspace-windows";
+import { toWindowMonitor } from "./window-monitor";
+import { CanvasPreviews } from "./canvas-preview";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
@@ -144,6 +148,14 @@ const agentAssets = new AgentAssets({
   trashItem: (value) => shell.trashItem(value),
   inspectMedia: inspectAssetMedia,
 });
+const canvasPreviews = new CanvasPreviews(
+  app.getPath("userData"),
+  (file, request) =>
+    net.fetch(pathToFileURL(file).href, {
+      method: request.method,
+      headers: request.headers,
+    })
+);
 const tokens = new Map<number, string>();
 const assets = new Map<string, Map<string, Promise<string>>>();
 const subscriptions = new Map<
@@ -154,7 +166,23 @@ const initialDeepLinks = readDeepLinks(process.argv);
 const deepLinks = new PendingDeepLinks(initialDeepLinks);
 // Chromium scopes the process singleton to userData; isolated data roots stay independent.
 if (!app.requestSingleInstanceLock({ urls: initialDeepLinks })) app.exit(0);
-const detached = new Map<string, { label: string; id: string; type: string }>();
+const workspaceWindows = new WorkspaceWindows({
+  windows,
+  create: createWindow,
+  emit: publish,
+  transparent: process.platform === "win32",
+});
+const detached = workspaceWindows.detached;
+const desktopControls = new DesktopControls({
+  createTray: createSystemTray,
+  showMain: showMainWindow,
+  hideMain: () => windows.get("main")?.hide(),
+  minimizeMain: () => windows.get("main")?.minimize(),
+  hasCompanions: () => windows.size > 1,
+  confirmExit: confirmApplicationExit,
+  emitSettings: (sectionId) =>
+    emitMainEvent("navigate-to-settings", { sectionId }),
+});
 const windowResizes = new WindowResizes((error) =>
   console.warn("窗口缩放恢复失败", error)
 );
@@ -165,7 +193,6 @@ const cancelWindowResize = (owner: number) => {
     console.warn("窗口缩放恢复失败", error);
   }
 };
-let tray: Tray | undefined;
 let quitting = false;
 let logQueue = Promise.resolve<unknown>(undefined);
 let windowConfigQueue = Promise.resolve<unknown>(undefined);
@@ -177,6 +204,10 @@ const unavailable = (name: string): never => {
 };
 const str = (value: unknown): string => {
   if (typeof value !== "string") throw new Error("参数需为字符串");
+  return value;
+};
+const bool = (value: unknown): boolean => {
+  if (typeof value !== "boolean") throw new Error("参数需为布尔值");
   return value;
 };
 const record = (value: unknown): Record<string, unknown> => {
@@ -330,6 +361,7 @@ function windowCall(
       win.show();
       return;
     case "hide":
+      if (label === "main") return desktopControls.hideMain();
       win.hide();
       return;
     case "close":
@@ -355,6 +387,7 @@ function windowCall(
       else win.maximize();
       return;
     case "setFocus":
+      if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
       return;
@@ -366,6 +399,8 @@ function windowCall(
       return win.isMinimized();
     case "isFocused":
       return win.isFocused();
+    case "isAlwaysOnTop":
+      return win.isAlwaysOnTop();
     case "isVisible":
       return win.isVisible();
     case "isResizable":
@@ -520,7 +555,9 @@ async function createWindow(
     title: typeof options.title === "string" ? options.title : "AIO Hub",
     frame: false,
     show: false,
-    backgroundColor: "#191919",
+    backgroundColor: options.transparent === true ? "#00000000" : "#191919",
+    transparent: options.transparent === true,
+    skipTaskbar: options.skipTaskbar === true,
     icon: path.join(hostRoot, "icon.png"),
     resizable: options.resizable !== false,
     alwaysOnTop: options.alwaysOnTop === true,
@@ -561,6 +598,8 @@ async function createWindow(
         subscriptions.delete(contentsId);
         httpRequests.disposeOwner(contentsId);
         cancelWindowResize(contentsId);
+        workspaceWindows.disposeOwner(contentsId);
+        canvasPreviews.disposeOwner(contentsId);
       }
     }
   );
@@ -587,20 +626,31 @@ async function createWindow(
     if (hasHandler) {
       event.preventDefault();
       publish("tauri://close-requested", undefined, label);
+      return;
+    }
+    if (label === "main") {
+      event.preventDefault();
+      void desktopControls
+        .requestMainClose()
+        .catch((error) => reportTrayError("关闭主窗口失败", error));
     }
   });
   win.webContents.on("render-process-gone", () => {
+    workspaceWindows.disposeOwner(contentsId);
+    canvasPreviews.disposeOwner(contentsId);
     httpRequests.disposeOwner(contentsId);
     cancelWindowResize(contentsId);
   });
   win.on("closed", () => {
+    workspaceWindows.disposeOwner(contentsId);
+    canvasPreviews.disposeOwner(contentsId);
+    workspaceWindows.closed(label);
     httpRequests.disposeOwner(contentsId);
     cancelWindowResize(contentsId);
     subscriptions.delete(contentsId);
     tokens.delete(contentsId);
     assets.delete(token);
     windows.delete(label);
-    detached.delete(label);
     publish("tauri://destroyed", { label });
   });
   try {
@@ -656,6 +706,98 @@ async function showMainWindow() {
     openingMainWindow = undefined;
   }
 }
+
+function emitMainEvent(event: string, payload?: unknown): boolean {
+  const main = windows.get("main");
+  if (!main || main.isDestroyed() || main.webContents.isDestroyed())
+    return false;
+  const listening = [
+    ...(subscriptions.get(main.webContents.id)?.values() ?? []),
+  ].some(
+    (sub) =>
+      sub.event === event &&
+      (!targetLabel(sub.target) || targetLabel(sub.target) === "main")
+  );
+  if (listening) publish(event, payload, "main");
+  return listening;
+}
+async function exitApplication(code: number) {
+  quitting = true;
+  await skillManager.shutdown();
+  await windowConfigQueue.catch((error) =>
+    console.warn("退出前窗口配置保存失败", error)
+  );
+  app.exit(code);
+}
+async function confirmApplicationExit() {
+  if (emitMainEvent("request-close-confirmation")) return;
+  const main = windows.get("main");
+  if (!main || main.isDestroyed()) return;
+  const answer = await dialog.showMessageBox(main, {
+    type: "question",
+    message: "确定要退出程序吗？",
+    buttons: ["取消", "退出"],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  });
+  if (answer.response === 1) await exitApplication(0);
+}
+function createSystemTray(): Tray {
+  const tray = new Tray(
+    nativeImage.createFromPath(path.join(hostRoot, "icon.png"))
+  );
+  const show = () => {
+    void showMainWindow().catch((error) =>
+      reportTrayError("显示主窗口失败", error)
+    );
+  };
+  try {
+    tray.setToolTip(devOrigin ? "AIO Hub（开发）" : "AIO Hub");
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: "显示主窗口", click: show },
+        {
+          label: "隐藏主窗口",
+          click: () => {
+            void desktopControls
+              .hideMain()
+              .catch((error) => reportTrayError("隐藏主窗口失败", error));
+          },
+        },
+        {
+          label: "重启前端",
+          click: () => {
+            void showMainWindow()
+              .then(() => windows.get("main")?.webContents.reload())
+              .catch((error) => reportTrayError("重启前端失败", error));
+          },
+        },
+        {
+          label: "清除窗口配置",
+          click: () => {
+            void clearWindowConfigs().catch((error) =>
+              reportTrayError("清除窗口配置失败", error)
+            );
+          },
+        },
+        { type: "separator" },
+        {
+          label: "退出",
+          click: () => {
+            quitting = true;
+            app.quit();
+          },
+        },
+      ])
+    );
+    tray.on("double-click", show);
+    return tray;
+  } catch (error) {
+    tray.destroy();
+    throw error;
+  }
+}
 function reportTrayError(action: string, error: unknown) {
   console.error(action, error);
   dialog.showErrorBox(
@@ -680,6 +822,45 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "set_show_tray_icon":
+      return desktopControls.setShowTrayIcon(bool(args.show));
+    case "update_tray_setting":
+      return desktopControls.updateTraySetting(bool(args.enabled));
+    case "get_tray_setting":
+      return desktopControls.minimizeToTray;
+    case "exit_app":
+      return exitApplication(0);
+    case "navigate_main_window_to_settings":
+      return desktopControls.navigateToSettings(str(args.sectionId));
+    case "begin_detach_session":
+      return workspaceWindows.begin(win.webContents.id, args.config);
+    case "finalize_detach_session":
+      return workspaceWindows.finalize(
+        win.webContents.id,
+        str(args.sessionId),
+        bool(args.shouldDetach)
+      );
+    case "update_detach_session_position":
+      return workspaceWindows.updatePosition(
+        win.webContents.id,
+        str(args.sessionId),
+        Number(args.x),
+        Number(args.y)
+      );
+    case "update_detach_session_status":
+      return workspaceWindows.updateStatus(
+        win.webContents.id,
+        str(args.sessionId),
+        bool(args.canDetach)
+      );
+    case "create_canvas_window":
+      return workspaceWindows.createCanvas(args);
+    case "get_canvas_windows":
+      return [...workspaceWindows.canvases.values()];
+    case "close_canvas_window":
+      return workspaceWindows.closeCanvas(args.canvasId);
+    case "close_all_canvas_windows":
+      return workspaceWindows.closeAllCanvases();
     case "get_all_skill_manifests":
     case "get_well_known_skill_paths":
     case "read_skill_resource":
@@ -798,9 +979,7 @@ async function command(
       const config = record(args.config);
       const label = str(config.label);
       await createWindow(label, config);
-      const item = { label, id: label, type: "tool" };
-      detached.set(label, item);
-      publish("window-detached", item);
+      workspaceWindows.registerTool(label);
       return;
     }
     case "set_window_shadow":
@@ -881,6 +1060,12 @@ async function operation(
 ): Promise<unknown> {
   const win = trusted(event);
   switch (name) {
+    case "canvas-preview.create":
+      return canvasPreviews.create(event.sender.id, args.canvasId);
+    case "canvas-preview.update":
+      return canvasPreviews.update(event.sender.id, str(args.id), args.html);
+    case "canvas-preview.release":
+      return canvasPreviews.release(event.sender.id, str(args.id));
     case "http.start":
       return httpRequests.start(
         event.sender.id,
@@ -921,22 +1106,8 @@ async function operation(
         args.value,
         event.sender.id
       );
-    case "window.monitor": {
-      const d = screen.getDisplayMatching(win.getBounds());
-      return {
-        name: d.label,
-        position: {
-          x: d.bounds.x * d.scaleFactor,
-          y: d.bounds.y * d.scaleFactor,
-        },
-        size: {
-          width: d.size.width * d.scaleFactor,
-          height: d.size.height * d.scaleFactor,
-        },
-        scaleFactor: d.scaleFactor,
-        workArea: d.workArea,
-      };
-    }
+    case "window.monitor":
+      return toWindowMonitor(screen.getDisplayMatching(win.getBounds()));
     case "events.listen": {
       const eventName = str(args.event);
       const id = Number(args.id);
@@ -946,6 +1117,14 @@ async function operation(
       if (!subs) subscriptions.set(event.sender.id, (subs = new Map()));
       subs.set(id, { event: eventName, target: args.target as EventTarget });
       if (eventName === "platform://open-url") deliverDeepLinks();
+      if (eventName === "navigate-to-settings")
+        desktopControls.deliverSettings();
+      if (eventName === "finalize-component-view") {
+        const label = [...detached.keys()].find(
+          (label) => windows.get(label) === win
+        );
+        if (label) publish(eventName, undefined, label);
+      }
       return;
     }
     case "events.unlisten":
@@ -1012,10 +1191,7 @@ async function operation(
       app.quit();
       return;
     case "process.exit":
-      quitting = true;
-      await skillManager.shutdown();
-      app.exit(Number(args.code) || 0);
-      return;
+      return exitApplication(Number(args.code) || 0);
     default:
       return unavailable(name);
   }
@@ -1092,6 +1268,8 @@ void app
     protocol.handle("aiohub", async (request) => {
       try {
         const url = new URL(request.url);
+        if (url.host === "canvas-preview")
+          return canvasPreviews.response(request);
         if (url.host !== "app" || !["GET", "HEAD"].includes(request.method))
           return new Response("Forbidden", { status: 403 });
         let file = !path.posix.extname(url.pathname)
@@ -1112,7 +1290,7 @@ void app
           "Content-Security-Policy",
           "default-src 'self'; script-src 'self' 'unsafe-eval' blob: " +
             Array.from(scriptHashes).join(" ") +
-            "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https: http:; font-src 'self' data: asset:; media-src 'self' blob: data: asset: https: http:; connect-src 'self' asset: https: http: wss: ws:; worker-src 'self' blob:; frame-src 'self' blob: data:; object-src 'none'; base-uri 'self'"
+            "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https: http:; font-src 'self' data: asset:; media-src 'self' blob: data: asset: https: http:; connect-src 'self' asset: https: http: wss: ws:; worker-src 'self' blob:; frame-src 'self' blob: data: aiohub://canvas-preview; object-src 'none'; base-uri 'self'"
         );
         return new Response(response.body, {
           status: response.status,
@@ -1147,47 +1325,10 @@ void app
         return new Response("Not found", { status: 404 });
       }
     });
+    const desktopSettings = await readDesktopSettings(app.getPath("userData"));
+    desktopControls.minimizeToTray = desktopSettings.minimizeToTray;
     await createWindow("main");
-    tray = new Tray(
-      nativeImage.createFromPath(path.join(hostRoot, "icon.png"))
-    );
-    tray.setToolTip(devOrigin ? "AIO Hub（开发）" : "AIO Hub");
-    const show = () => {
-      void showMainWindow().catch((error) =>
-        reportTrayError("显示主窗口失败", error)
-      );
-    };
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: "显示主窗口", click: show },
-        { label: "隐藏主窗口", click: () => windows.get("main")?.hide() },
-        {
-          label: "重启前端",
-          click: () => {
-            const main = windows.get("main");
-            if (main) main.webContents.reload();
-            else show();
-          },
-        },
-        {
-          label: "清除窗口配置",
-          click: () => {
-            void clearWindowConfigs().catch((error) =>
-              reportTrayError("清除窗口配置失败", error)
-            );
-          },
-        },
-        { type: "separator" },
-        {
-          label: "退出",
-          click: () => {
-            quitting = true;
-            app.quit();
-          },
-        },
-      ])
-    );
-    tray.on("double-click", show);
+    await desktopControls.setShowTrayIcon(desktopSettings.showTrayIcon);
   })
   .catch((error) => {
     console.error("Electron 启动失败", error);
@@ -1196,7 +1337,7 @@ void app
 let stoppingSkillOperations = false;
 app.on("before-quit", (event) => {
   quitting = true;
-  tray?.destroy();
+  desktopControls.destroy();
   if (skillManager.hasPendingOperations) {
     event.preventDefault();
     if (!stoppingSkillOperations) {

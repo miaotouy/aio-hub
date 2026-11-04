@@ -32,6 +32,8 @@ export const IPC_REQUEST = "aiohub:request";
 export const IPC_EVENT = "aiohub:event";
 export const IPC_ASSET = "aiohub:asset";
 export const IPC_CHANNEL = "aiohub:channel";
+export const IPC_FILE_DROP_FALLBACK = "aiohub:file-drop-fallback";
+export const IPC_DRAG_DROP = "aiohub:drag-drop";
 export const IPC_FILE_WATCH = "aiohub:file-watch";
 export interface HostEvent<T = unknown> {
   event: string;
@@ -72,6 +74,12 @@ export interface ElectronBridge {
   subscribeFileWatch(
     id: string,
     callback: (message: import("./file-watches").FileWatchMessage) => void
+  ): () => void;
+  subscribeDragDrop(
+    callback: (
+      event: import("./drag-drop").NativeDragDrop,
+      preventDefault?: () => void
+    ) => void
   ): () => void;
   assetUrl(path: string): string;
 }

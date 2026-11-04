@@ -222,6 +222,8 @@ const loadPanel = () => import("./MyPanel.vue");
 
 底层 `useFileDrop` 在元素替换时仅重绑 DOM 事件，窗口级监听复用当前元素引用。每次初始化持有独立的订阅批次；清理、重新初始化或组件卸载会使旧批次失效，迟到的注册结果立即注销。自定义监听注册失败时回收已建立的订阅并保留 DOM 拖放，调用方可通过 `reinitialize()` 重试。
 
+Electron 的真实文件拖放按物理落点定向，区域消费后保持当前工具；全局文件打开仅接收区域外的未消费输入。`preferFileObjects` 为 `true` 时优先交给 `files-dropped`，其余有原生路径的输入交给 `drop`；浏览器提供的纯 File 继续由 `emitFiles` 承接。底层 `useFileInteraction` 优先显式 `onPaths`，仅配置 `onFiles` 时保留文件对象。
+
 - **Props**:
   - `dropId` (string): 区域唯一标识。
   - `placeholder` (string): 占位文本。

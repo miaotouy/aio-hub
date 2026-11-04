@@ -440,6 +440,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 设置文件拖放（使用现有的 useFileDrop）
   const { isDraggingOver, isProcessing, lastDroppedPaths } = useFileDrop({
     ...dropOptions,
+    preferFileObjects: dropOptions.preferFileObjects ?? (!!onFiles && !onPaths),
     onDrop: handleDropPaths,
     onFiles: handleDropFiles,
   });

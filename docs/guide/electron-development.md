@@ -230,3 +230,13 @@ Electron 已接通 `search_llm_data_stream`、`cancel_llm_chat_search` 和平台
 get_system_fonts 在所属受信任顶层窗口调用 queryLocalFonts()，返回去重排序的可见字体家族。权限处理器仅授予此来源的 local-fonts，预览来源、子 frame 和外部页面继续隔离。Windows 已验证本地字体枚举与图片/文件监听原生链路；其他系统仍需对应环境验证。
 
 Web Canvas 的磁盘内容同步保持静默，Monaco 仅将实际编辑通知父组件，避免加载文件时触发防抖回写。目录树与独立 WebView 的后续迁移进度见[功能补齐待办](../Plan/electron-feature-gap-execution.md)。
+
+## 文件拖放
+
+当前 WebView 与窗口的 onDragDropEvent 已接通 Electron。preload 在捕获阶段提取真实 File 的原生路径，将 client 坐标乘以 devicePixelRatio，向本窗口的独立订阅同步发送 enter/over/leave/drop。拖入阶段受 Chromium 数据保护限制，路径可能为空；最终 drop 携带可取得的绝对路径。文档内部跨节点移动合并为同次拖入，失焦与隐藏时清理悬停。脚本创建的 DragEvent 不进入原生流。
+
+主进程验证来源并向所属窗口转发标准 tauri://drag-* 和现有 custom-drag-*/custom-file-drop 事件；当前窗口订阅直接使用 preload 流。通用事件仍可用于业务消息，本地原生拖放订阅独立隔离。全局 tauri-file-drop 仅在区域和 H5 处理器均未消费时发送，避免全局文件打开跳转抢走工具内的图片导入。
+
+useFileDrop 在 Electron 按物理落点处理，并合并 native 捕获与 H5 冒泡产生的同次输入。提供 onFiles 时优先使用真实 File；preferFileObjects 为 false 或目录输入时优先交给 onDrop。useFileInteraction 默认优先显式 onPaths；仅配置 onFiles 时使用文件对象。DropZone 复用自身 preferFileObjects 配置。取消订阅和组件卸载移除本地监听，窗口刷新与销毁释放整个 preload 上下文。
+
+Windows 生产资源已用 Chromium CDP 的本地文件拖放验证原生路径、File 字节、150% 缩放、多区域、跨窗口、全局兜底和刷新。独立子 WebView 的创建与其他系统实际拖放继续按[补齐待办](../Plan/electron-feature-gap-execution.md)推进。

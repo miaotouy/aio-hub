@@ -78,7 +78,8 @@
 - [x] 托盘设置、业务退出/设置导航、拆分窗口会话与 Canvas 窗口。
 - [x] 有会话数据的对话区/输入框草稿同步、保存与重附着联动验收（导入会话、刷新与整进程重启）。
 - [x] 文件监听、图片剪贴板与系统字体。
-- [ ] 独立 WebView 能力与文件拖放适配。
+- [x] 当前 WebView / 窗口的文件拖放适配、坐标定向与重复导入保护。
+- [ ] 独立子 WebView 的创建、管理与领域浏览器命令。
 
 技能批次验证（2026-11-04）：
 
@@ -128,7 +129,17 @@
 - Windows 原生协议已验证 PNG/路径/快照/RGBA 往返、透明度与通道顺序、无效输入保留剪贴板、ICO 路径、411 个字体家族及其他权限仍拒绝。真实监听验证递归、原子替换、跨窗口停止、注册失败和导航回收，原生监听句柄从 0 恢复到 0。验证使用隔离数据，原剪贴板在主进程内存保存并恢复。
 - Windows 生产资源通过实际 Canvas store 创建项目、外部修改入口文件，监听触发通知并刷新 Git 修改状态，等待防抖周期后磁盘仍保留外部内容。画板实际菜单导出 3840×2160 PNG，系统字体可在现有下拉列表选择；导出前替换为文本剪贴板，避免误读上一次测试图片。
 - 证据位于忽略目录 `.tmp/electron-host-adapters/`：`runtime-result.json`、`runtime-lifecycle.json`、`canvas-external-change.png`、`sketch-system-fonts.png`、`sketch-clipboard-export.png` 和 `build.log`。
-- 独立 WebView 与文件拖放仍在后续范围；Canvas 文件树当前还依赖待迁移的目录命令。macOS/Linux 的文件系统、剪贴板和字体枚举继续在对应环境验证。
+- 独立子 WebView 仍在后续范围；Canvas 文件树当前还依赖待迁移的目录命令。macOS/Linux 的文件系统、剪贴板和字体枚举继续在对应环境验证。
+
+文件拖放批次（2026-11-04）：
+
+- preload 捕获真实 Chromium 文件拖放，路径从 File 对象经 webUtils 提取，坐标按 devicePixelRatio 转为物理坐标。接通 enter/over/leave/drop、嵌套进入离开、失焦与文档隐藏后的悬停清理；脚本构造的拖放事件保持在 DOM 层。
+- 当前 WebView 和窗口的 onDragDropEvent 通过独立 preload 订阅同步接收，通用事件广播无法注入该本地原生流；主进程向所属窗口转发标准事件与既有 custom 事件，供旧调用方继续使用。取消订阅、组件卸载及刷新释放监听，跨窗口注册失败回收已建立的订阅。
+- useFileDrop 在 Electron 使用一个原生流，按落点选区并合并捕获/冒泡阶段的同次拖放。File 消费方优先保留原始字节；显式路径优先和目录输入继续交给路径回调。useFileInteraction 根据实际 onPaths/onFiles 选择，DropZone 沿用 preferFileObjects 配置；相同文件后续再次拖入可正常处理。
+- 全局文件打开收敛为未被区域消费时的兜底；区域内图片导入保留当前工具，禁用区域继续拒绝导入。H5 File 读取与原有内部拖动保持可用。
+- 新增 11 项行为测试，与既有监听生命周期和平台窗口测试合计 19 项通过。Electron/前端类型检查、平台隔离检查和 Vite 生产构建通过。
+- Windows Electron 生产资源通过 Chromium CDP 注入本地文件，验证现有组件测试器的 H5/绝对路径区域、150% 缩放下的多区域落点、重复拖入、File 字节、显式路径回调、禁用态、图片导入与全局兜底、跨窗口隔离、伪造事件拒绝和刷新重建。浏览器整数坐标存在约 1 CSS 像素以内取整；macOS/Linux 的实际拖放继续在对应环境验收。
+- 证据位于忽略目录 `.tmp/electron-drag-drop/`：`runtime-result.json`、`runtime-lifecycle.json`、`business-drag-drop.png`、`multi-zone-drag-drop.png` 与 `build.log`。测试使用独立应用数据，运行实例已退出。
 
 ## 4. 插件执行
 

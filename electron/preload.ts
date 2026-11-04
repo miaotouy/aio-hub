@@ -19,7 +19,10 @@ import {
   IPC_ASSET,
   IPC_CHANNEL,
   IPC_FILE_WATCH,
+  IPC_DRAG_DROP,
+  IPC_FILE_DROP_FALLBACK,
 } from "./shared";
+import { installFileDragDrop, type NativeDragDrop } from "./drag-drop";
 import { installDiagnostics } from "../src/dev/control/diagnostics";
 import type {
   ElectronBridge,
@@ -35,6 +38,9 @@ if (process.isMainFrame && bootstrap) {
   const { metadata, assetToken } = JSON.parse(
     decodeURIComponent(bootstrap.slice("--aio-bootstrap=".length))
   ) as { metadata: HostMetadata; assetToken: string };
+  const dragDropListeners = new Set<
+    (event: NativeDragDrop, preventDefault?: () => void) => void
+  >();
   const bridge: ElectronBridge = {
     platform: "electron",
     metadata,
@@ -83,6 +89,12 @@ if (process.isMainFrame && bootstrap) {
       ipcRenderer.on(IPC_FILE_WATCH, listener);
       return () => ipcRenderer.removeListener(IPC_FILE_WATCH, listener);
     },
+    subscribeDragDrop(callback) {
+      dragDropListeners.add(callback);
+      return () => {
+        dragDropListeners.delete(callback);
+      };
+    },
     assetUrl(filePath: string) {
       ipcRenderer.send(IPC_ASSET, filePath);
       return (
@@ -93,21 +105,21 @@ if (process.isMainFrame && bootstrap) {
   contextBridge.exposeInMainWorld("aiohub", bridge);
   if (metadata.devControl)
     contextBridge.executeInMainWorld({ func: installDiagnostics });
-  // A file path is read only from real Chromium File objects, never from renderer-provided strings.
-  document.addEventListener("dragover", (event) => {
-    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
-  });
-  document.addEventListener("drop", (event) => {
-    const paths = Array.from(event.dataTransfer?.files ?? [])
-      .map((file) => webUtils.getPathForFile(file))
-      .filter(Boolean);
-    if (paths.length) {
-      event.preventDefault();
-      void bridge.request("events.emit", {
-        event: "tauri-file-drop",
-        payload: paths,
-        target: metadata.label,
-      });
-    }
-  });
+  installFileDragDrop(
+    document,
+    window,
+    (file) => webUtils.getPathForFile(file),
+    (event, preventDefault) => {
+      // Deliver before the page's bubbling drop handler so it can fuse one physical drop.
+      for (const listener of dragDropListeners) {
+        try {
+          listener(event, preventDefault);
+        } catch (error) {
+          console.error("文件拖放回调失败", error);
+        }
+      }
+      ipcRenderer.send(IPC_DRAG_DROP, event);
+    },
+    (paths) => ipcRenderer.send(IPC_FILE_DROP_FALLBACK, paths)
+  );
 }

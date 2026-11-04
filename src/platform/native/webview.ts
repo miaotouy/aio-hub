@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as tauri from "@tauri-apps/api/webview";
+import { onDragDropEvent } from "../electron/drag-drop";
 import { getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/api/webview";
 
@@ -20,7 +21,8 @@ export const getCurrentWebview: typeof tauri.getCurrentWebview =
   getElectronBridge()
     ? ((() => ({
         label: getElectronBridge()!.metadata.label,
-        onDragDropEvent: async () => unsupported("WebView 拖放监听"),
+        onDragDropEvent: (handler: Parameters<typeof onDragDropEvent>[1]) =>
+          onDragDropEvent(getElectronBridge()!.metadata.label, handler),
       })) as unknown as typeof tauri.getCurrentWebview)
     : tauri.getCurrentWebview;
 export const getAllWebviews: typeof tauri.getAllWebviews = getElectronBridge()

@@ -45,6 +45,8 @@ import {
   IPC_ASSET,
   IPC_CHANNEL,
   IPC_FILE_WATCH,
+  IPC_DRAG_DROP,
+  IPC_FILE_DROP_FALLBACK,
 } from "./shared";
 import { resolveUserDataPath } from "./data-path";
 import { PendingDeepLinks, readDeepLinks } from "./deep-links";
@@ -74,6 +76,7 @@ import { CanvasPreviews } from "./canvas-preview";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
+import { parseNativeDragDrop } from "./drag-drop";
 import { FileWatches } from "./file-watches";
 import { ImageClipboard } from "./image-clipboard";
 import {
@@ -1371,6 +1374,40 @@ ipcMain.handle(
     }
   }
 );
+ipcMain.on(IPC_FILE_DROP_FALLBACK, (event, paths: unknown) => {
+  try {
+    const win = trusted(event);
+    const label = [...windows].find(([, candidate]) => candidate === win)?.[0];
+    if (!label) return;
+    const drop = parseNativeDragDrop({
+      type: "drop",
+      position: { x: 0, y: 0 },
+      paths,
+    });
+    if (drop.type === "drop") publish("tauri-file-drop", drop.paths, label);
+  } catch (error) {
+    console.warn("文件拖放兜底事件被拒绝", String(error));
+  }
+});
+ipcMain.on(IPC_DRAG_DROP, (event, value: unknown) => {
+  try {
+    const win = trusted(event);
+    const label = [...windows].find(([, candidate]) => candidate === win)?.[0];
+    if (!label) return;
+    const drop = parseNativeDragDrop(value);
+    const payload = drop.type === "leave" ? undefined : drop;
+    publish("tauri://drag-" + drop.type, payload, label);
+    if (drop.type === "drop") {
+      publish(
+        "custom-file-drop",
+        { paths: drop.paths, position: drop.position },
+        label
+      );
+    } else publish("custom-drag-" + drop.type, payload, label);
+  } catch (error) {
+    console.warn("文件拖放事件被拒绝", String(error));
+  }
+});
 ipcMain.on(IPC_ASSET, (event, value: unknown) => {
   try {
     trusted(event);

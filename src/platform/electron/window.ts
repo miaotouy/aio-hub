@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { onDragDropEvent } from "./drag-drop";
+import type { DragDropEvent } from "../native/webview";
 import type { WindowOptions } from "../native/window";
 import type { EventCallback, UnlistenFn } from "../native/events";
 import { getElectronBridge, request } from "./client";
@@ -195,8 +197,8 @@ export class ElectronWindow {
   onFocusChanged(handler: EventCallback<boolean>) {
     return this.listen("tauri://focus", handler);
   }
-  onDragDropEvent(handler: EventCallback<unknown>) {
-    return this.listen("tauri://drag-drop", handler);
+  onDragDropEvent(handler: EventCallback<DragDropEvent>) {
+    return onDragDropEvent(this.label, handler);
   }
   onCloseRequested(
     handler: (event: { preventDefault(): void }) => void | Promise<void>

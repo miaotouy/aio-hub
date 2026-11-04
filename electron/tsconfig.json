@@ -7,7 +7,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node", "bun"],
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "allowJs": true,

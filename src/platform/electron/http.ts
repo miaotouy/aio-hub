@@ -14,6 +14,7 @@
 
 import type { ClientOptions } from "../native/http";
 import type {
+  LlmHttpOptions,
   HttpReadResult,
   HttpResponseInfo,
 } from "../../../electron/shared";
@@ -37,7 +38,7 @@ function withResponseMetadata(
 /** Fetch-compatible facade over bounded, pull-based host IPC. Upload bodies are buffered once. */
 export async function electronFetch(
   input: URL | Request | string,
-  init?: RequestInit & ClientOptions
+  init?: RequestInit & ClientOptions & { llm?: LlmHttpOptions }
 ): Promise<Response> {
   if (init?.proxy) unsupported("逐请求代理配置");
   if (init?.danger?.acceptInvalidCerts || init?.danger?.acceptInvalidHostnames)
@@ -71,6 +72,7 @@ export async function electronFetch(
     const info = await request<HttpResponseInfo>("http.start", {
       id,
       options: {
+        llm: init?.llm,
         url: source.url,
         method: source.method,
         headers: [...source.headers.entries()],

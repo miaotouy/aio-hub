@@ -42,7 +42,11 @@ const abortError = () =>
 export class HttpRequests {
   private owners = new Map<number, Map<string, ActiveRequest>>();
   constructor(
-    private fetcher: (url: string, init: RequestInit) => Promise<Response>
+    private fetcher: (
+      url: string,
+      init: RequestInit,
+      options: HttpRequestOptions
+    ) => Promise<Response>
   ) {}
 
   async start(
@@ -95,17 +99,21 @@ export class HttpRequests {
       let redirected = false;
       for (let redirects = 0; ; redirects++) {
         if (entry.controller.signal.aborted) throw abortError();
-        const response = await this.fetcher(url.href, {
-          method,
-          headers,
-          body,
-          redirect: "manual",
-          signal: entry.controller.signal,
-          // Match a standalone HTTP client: renderer cookies stay out of native calls by default.
-          credentials: options.credentials === "include" ? "include" : "omit",
-          cache: options.cache,
-          referrerPolicy: options.referrerPolicy,
-        });
+        const response = await this.fetcher(
+          url.href,
+          {
+            method,
+            headers,
+            body,
+            redirect: "manual",
+            signal: entry.controller.signal,
+            // Match a standalone HTTP client: renderer cookies stay out of native calls by default.
+            credentials: options.credentials === "include" ? "include" : "omit",
+            cache: options.cache,
+            referrerPolicy: options.referrerPolicy,
+          },
+          options
+        );
         if (entry.controller.signal.aborted) {
           void response.body?.cancel().catch(() => {});
           throw abortError();

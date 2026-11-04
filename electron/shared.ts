@@ -55,7 +55,14 @@ export type HostReply =
       error: { code: string; message: string; capability?: string };
     };
 
+export interface LlmHttpOptions {
+  bodyKind: "raw" | "file-ref" | "multipart-manifest";
+  expandJson: boolean;
+  proxy: { mode: "system" | "none" | "custom"; customUrl?: string };
+  relaxIdCerts: boolean;
+}
 export interface HttpRequestOptions {
+  llm?: LlmHttpOptions;
   url: string;
   method: string;
   headers: [string, string][];

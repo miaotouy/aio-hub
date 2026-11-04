@@ -43,6 +43,7 @@ import { resolveUserDataPath } from "./data-path";
 import { PendingDeepLinks, readDeepLinks } from "./deep-links";
 import { HttpRequests } from "./http";
 import { chromiumFetch } from "./chromium-fetch";
+import { llmHttpFetch } from "./llm-http";
 import { readDevControl, devControlIdentity } from "./dev-control";
 import type { HttpRequestOptions } from "./shared";
 import type { HostReply, HostMetadata, EventTarget } from "./shared";
@@ -105,7 +106,13 @@ const devOrigin = process.env.AIO_ELECTRON_RENDERER_URL
 const hostRoot = app.getAppPath();
 const rendererRoot = path.join(hostRoot, "renderer");
 const windows = new Map<string, BrowserWindow>();
-const httpRequests = new HttpRequests(chromiumFetch);
+const httpRequests = new HttpRequests((url, init, options) =>
+  options.llm
+    ? llmHttpFetch(url, init, options.llm, (value) =>
+        session.defaultSession.resolveProxy(value)
+      )
+    : chromiumFetch(url, init)
+);
 const tokens = new Map<number, string>();
 const assets = new Map<string, Map<string, Promise<string>>>();
 const subscriptions = new Map<

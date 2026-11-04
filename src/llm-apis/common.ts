@@ -14,6 +14,10 @@
 
 import type { LlmResponseChunk } from "@aiohub/llm-core";
 import { invoke } from "@/platform/native/core";
+import {
+  fetchElectronLlm,
+  isElectronRuntime,
+} from "@/platform/modules/llm-http";
 import { createModuleLogger } from "@/utils/logger";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { inspectorHookRegistry } from "@/tools/llm-inspector/core/hookRegistry";
@@ -1156,7 +1160,44 @@ export const fetchWithTimeout = async (
   };
 
   try {
-    // 默认全面转向 Rust 代理。显式 native 可直连，但需要原生文件读取的请求
+    if (isElectronRuntime()) {
+      const { settings } = useAppSettingsStore();
+      const method = (options.method || "POST").toUpperCase();
+      const headers = new Headers(options.headers);
+      if (options.body instanceof FormData) headers.delete("content-type");
+      const signals = [
+        controller.signal,
+        externalSignal,
+        options.signal,
+      ].filter((signal): signal is AbortSignal => !!signal);
+      const response = await fetchElectronLlm(
+        url,
+        {
+          ...options,
+          method,
+          headers,
+          body:
+            method === "GET" || method === "HEAD" ? undefined : options.body,
+          signal: AbortSignal.any(signals),
+        },
+        {
+          bodyKind: options.proxyBodyKind ?? "raw",
+          expandJson:
+            options.proxyBodyKind === undefined &&
+            typeof options.body === "string" &&
+            headers.get("content-type")?.includes("application/json") === true,
+          proxy: {
+            mode: settings.proxy?.mode ?? "system",
+            customUrl: settings.proxy?.customUrl,
+          },
+          relaxIdCerts: options.relaxIdCerts ?? true,
+        }
+      );
+      triggerInspectorResponse(response);
+      return response;
+    }
+
+    // Tauri 默认全面转向 Rust 代理。显式 native 可直连，但需要原生文件读取的请求
     // 必须走代理，避免把 LocalFileRef 对象或本地路径直接发给 Provider。
     const isNative = options.networkStrategy === "native";
     const requiresNativeFileAccess =

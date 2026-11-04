@@ -33,6 +33,7 @@ import {
 import { assetTypeFor, detectAssetMime } from "./asset-mime";
 import type { Asset, AssetType, CatalogEntry } from "./asset-store";
 import { canonicalPath } from "./file-security";
+import { DocumentConverter, type PreparedDocument } from "./document-converter";
 import type { AssetInspection } from "./asset-media";
 import type {
   AssetImportOptions,
@@ -42,6 +43,7 @@ import type {
 } from "../src/types/asset-management";
 export interface AssetHost {
   root: string;
+  documents?: DocumentConverter;
   trashItem: (filename: string) => Promise<void>;
   emit: (event: string, payload: unknown) => void;
   inspectMedia: (
@@ -54,9 +56,11 @@ export interface AssetHost {
 /** One durable catalog owner across renderer windows; operations serialize through a single queue. */
 export class AssetManager {
   private store: AssetStore;
+  private documents: DocumentConverter;
   private queue = Promise.resolve<unknown>(undefined);
   constructor(private host: AssetHost) {
     this.store = new AssetStore(host.root);
+    this.documents = host.documents ?? new DocumentConverter(host);
   }
   run(name: string, args: Record<string, unknown> = {}): Promise<unknown> {
     const operation = this.queue
@@ -74,12 +78,16 @@ export class AssetManager {
     this.queue = operation;
     return operation;
   }
-  private progress(originalPath: string, phase: string) {
+  private progress(
+    originalPath: string,
+    phase: string,
+    convertedName: string | null = null
+  ) {
     this.host.emit("asset-import-progress", {
       originalPath,
       phase,
       detail: null,
-      convertedName: null,
+      convertedName,
     });
   }
   private async update(
@@ -104,6 +112,7 @@ export class AssetManager {
   ): Promise<CatalogEntry | undefined> {
     if (!/^[a-f0-9]{64}$/i.test(hash)) throw new Error("资产哈希需为 SHA-256");
     const month = new Date().toISOString().slice(0, 7);
+    let original: CatalogEntry | undefined;
     for (const entry of this.store.entries.values()) {
       if (type && entry.assetType !== type) continue;
       if (
@@ -115,9 +124,13 @@ export class AssetManager {
       if (
         (entry.sha256 === hash || entry.originalSha256 === hash) &&
         (await exists(await assetPath(this.store.root, entry.path)))
-      )
-        return entry;
+      ) {
+        // Prefer a completed conversion when the original-format asset was imported earlier.
+        if (entry.originalSha256 === hash) return entry;
+        original ??= entry;
+      }
     }
+    if (original) return original;
     for (const kind of type ? [type] : assetTypes) {
       const directory = typeDirectories[kind] + "/" + month;
       const file = await assetPath(this.store.root, directory + "/.index.json");
@@ -155,25 +168,52 @@ export class AssetManager {
     const originalPath = fromBytes
       ? ""
       : filePath(args.originalPath, undefined, {});
-    const name = fromBytes
+    let name = fromBytes
       ? path.basename(text(args.originalName))
       : path.basename(originalPath);
     if (!name || name === "." || name === "..")
       throw new Error("资产文件名无效");
-    const inputOrigin = options.origin ?? {
-      type: fromBytes ? "clipboard" : "local",
-      source: fromBytes ? "clipboard" : originalPath,
-      sourceModule: options.sourceModule ?? "unknown",
-    };
-    const newOrigin = origin(inputOrigin);
+    const newOrigin = origin(
+      options.origin ?? {
+        type: fromBytes ? "clipboard" : "local",
+        source: fromBytes ? "clipboard" : originalPath,
+        sourceModule: options.sourceModule ?? "unknown",
+      }
+    );
     const id = randomUUID();
     const temporary = await assetPath(
       this.store.root,
       ".incoming/" + id + "/" + name
     );
     let target: string | undefined,
+      prepared: PreparedDocument | undefined,
       saved = false;
     const warnings: AssetImportWarning[] = [];
+    const duplicate = async (
+      hash: string | undefined,
+      type: AssetType,
+      beforePreparation = false
+    ) => {
+      if (!hash) return;
+      const existing = await this.findHash(hash, type);
+      if (!existing) return;
+      if (
+        beforePreparation &&
+        (await this.documents.shouldPrepareAgain(
+          existing.name,
+          existing.mimeType
+        ))
+      )
+        return;
+      const updated = structuredClone(existing);
+      if (
+        !updated.origins.some(
+          (item) => item.sourceModule === newOrigin.sourceModule
+        )
+      )
+        updated.origins.push(newOrigin);
+      return this.update(updated, "asset-imported");
+    };
     this.progress(originalPath, "preparing");
     try {
       await fs.mkdir(path.dirname(temporary), { recursive: true });
@@ -183,27 +223,42 @@ export class AssetManager {
           throw new Error("导入路径需为普通文件");
         await fs.copyFile(originalPath, temporary);
       }
-      const mimeType = await detectAssetMime(temporary, name);
-      const type = await assetTypeFor(mimeType, temporary, !fromBytes);
-      const sha256 =
+      let mimeType = await detectAssetMime(temporary, name);
+      let type = await assetTypeFor(mimeType, temporary, !fromBytes);
+      const originalHash =
         options.enableDeduplication === false
           ? undefined
           : await (async () => {
               this.progress(originalPath, "hashing");
               return hashFile(temporary);
             })();
-      if (sha256) {
-        const existing = await this.findHash(sha256, type);
-        if (existing) {
-          const updated = structuredClone(existing);
-          if (
-            !updated.origins.some(
-              (item) => item.sourceModule === newOrigin.sourceModule
-            )
-          )
-            updated.origins.push(newOrigin);
-          const asset = await this.update(updated, "asset-imported");
-          return fromBytes ? asset : { asset, warnings };
+      const before = await duplicate(originalHash, type, !fromBytes);
+      if (before) return fromBytes ? before : { asset: before, warnings };
+      if (!fromBytes) {
+        prepared = await this.documents.prepare(
+          temporary,
+          this.store.root,
+          originalPath
+        );
+        warnings.push(...prepared.warnings);
+      }
+      const source = prepared?.path ?? temporary;
+      const converted = source !== temporary;
+      const convertedName = converted ? path.basename(source) : null;
+      let sha256 = originalHash;
+      if (prepared && !converted) {
+        const unchanged = await duplicate(originalHash, type);
+        if (unchanged) return { asset: unchanged, warnings };
+      }
+      if (converted) {
+        name = path.basename(source);
+        mimeType = await detectAssetMime(source);
+        type = await assetTypeFor(mimeType, source);
+        if (originalHash) {
+          this.progress(originalPath, "hashing", convertedName);
+          sha256 = await hashFile(source);
+          const after = await duplicate(sha256, type);
+          if (after) return { asset: after, warnings };
         }
       }
       let folder =
@@ -212,17 +267,16 @@ export class AssetManager {
         folder = text(options.subfolder).replace(/[^\p{L}\p{N}_-]/gu, "");
         if (!folder) throw new Error("资产子目录需包含字母、数字或下划线");
       }
-      const extension = path.extname(name) || ".bin";
-      const relative = folder + "/" + id + extension;
+      const relative = folder + "/" + id + (path.extname(name) || ".bin");
       target = await assetPath(this.store.root, relative);
-      this.progress(originalPath, "copying");
+      this.progress(originalPath, "copying", convertedName);
       await fs.mkdir(path.dirname(target), { recursive: true });
-      await fs.rename(temporary, target);
+      await fs.rename(source, target);
       if (
         options.generateThumbnail !== false &&
         ["image", "audio"].includes(type)
       )
-        this.progress(originalPath, "thumbnailing");
+        this.progress(originalPath, "thumbnailing", convertedName);
       const inspected = await this.host.inspectMedia(
         target,
         type,
@@ -238,7 +292,13 @@ export class AssetManager {
         createdAt: new Date().toISOString(),
         sourceModule: newOrigin.sourceModule,
         origins: [newOrigin],
-        metadata: { ...inspected.metadata, ...(sha256 ? { sha256 } : {}) },
+        metadata: {
+          ...inspected.metadata,
+          ...(sha256 ? { sha256 } : {}),
+          ...(converted && originalHash
+            ? { originalSha256: originalHash }
+            : {}),
+        },
       };
       if (inspected.thumbnail) {
         asset.thumbnailPath = ".thumbnails/" + id + ".jpg";
@@ -247,19 +307,6 @@ export class AssetManager {
           inspected.thumbnail
         );
       }
-      // Legacy document conversion remains a separate host capability; preserve the original with an actionable warning.
-      if (
-        !fromBytes &&
-        /\.(doc|wps|ppt|xls)$/i.test(name) &&
-        !mimeType.includes("openxmlformats")
-      )
-        warnings.push({
-          code: "electronDocumentConversionPending",
-          title: "原格式文档已保存",
-          message:
-            "文档已按原格式保存。请先转换为 DOCX、PPTX 或 XLSX 后重新导入，以使用完整预览与解析。",
-          sourcePath: originalPath,
-        });
       await this.store.save(
         new Map(this.store.entries).set(id, entryFromAsset(asset))
       );
@@ -268,6 +315,7 @@ export class AssetManager {
       this.host.emit("asset-imported", asset);
       return fromBytes ? asset : { asset, warnings };
     } finally {
+      await prepared?.cleanup();
       await fs.rm(path.dirname(temporary), { recursive: true, force: true });
       if (!saved && target) {
         await fs.rm(target, { force: true });
@@ -470,6 +518,8 @@ export class AssetManager {
     args: Record<string, unknown>
   ): Promise<unknown> {
     switch (name) {
+      case "convert_legacy_document":
+        return this.documents.preview(args.path, this.store.root);
       case "get_asset_base_path":
         return this.store.root;
       case "import_asset_from_path":

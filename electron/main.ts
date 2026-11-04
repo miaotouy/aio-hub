@@ -57,6 +57,7 @@ import {
 import { fileOperation, filePath, writeAtomic } from "./filesystem";
 import { fileCommand } from "./file-commands";
 import { AssetManager } from "./asset-manager";
+import { DocumentConverter } from "./document-converter";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
@@ -113,7 +114,12 @@ const httpRequests = new HttpRequests((url, init, options) =>
       )
     : chromiumFetch(url, init)
 );
+const documentConverter = new DocumentConverter({
+  root: app.getPath("userData"),
+  emit: (event, payload) => publish(event, payload),
+});
 const assetManager = new AssetManager({
+  documents: documentConverter,
   root: app.getPath("userData"),
   trashItem: (value) => shell.trashItem(value),
   emit: (event, payload) => publish(event, payload),
@@ -631,6 +637,10 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "detect_libreoffice_path":
+    case "detect_asset_manager_document_converters":
+    case "check_asset_manager_document_converter":
+      return documentConverter.command(name, args);
     case "list_config_files":
     case "export_all_configs_to_zip":
     case "import_all_configs_from_zip":
@@ -643,6 +653,7 @@ async function command(
     case "get_agent_asset_path":
     case "read_agent_asset_binary":
       return agentAssets.run(name, args);
+    case "convert_legacy_document":
     case "get_asset_base_path":
     case "import_asset_from_path":
     case "import_asset_from_bytes":

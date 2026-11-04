@@ -106,4 +106,8 @@ sequenceDiagram
 - 查询覆盖登记资产及其来源，list_all_assets 可发现标准存储目录中的缺失条目；重建保留已登记的自定义子目录和元数据。
 - 路径检查覆盖相对穿越与真实祖先链接。移入回收站失败时保留条目用于重试；衍生数据清理保护原始资产和内部索引。
 - Electron 名称排序按 asc/desc 的字段语义执行；旧 Rust 比较器在名称字段上的方向差异已记录，后续统一跨宿主排序表现。
-- 旧版 Office 自动转换依赖独立宿主能力，实施进度见[Electron 缺口补齐待办](../../../docs/Plan/electron-feature-gap-execution.md)。当前导入返回原格式资产和格式转换提示。
+- 文档转换由 `electron/document-converter.ts` 承接检测、配置读取、路径导入预处理与旧文档预览；支持 LibreOffice、Microsoft Office COM、AbiWord 和 macOS textutil。DOC/PPT/XLS 分别转为 DOCX/PPTX/XLSX，PPT/XLS 由 LibreOffice 或 Microsoft Office 处理。
+- WPS 按容器识别 OOXML、未加密 Word CFB 或 RTF；转换副本使用真实格式扩展名，源文件保持原样。其他或加密结构按原格式保存并提示另存为 DOCX；现代 WPS 预览直接复制为 DOCX。CFB 判别复用 `cfb` 库。
+- 转换前用原始 SHA-256 去重，转换后分别保存 `sha256` 与 `originalSha256`，进度事件携带转换后文件名。原格式资产在启用转换器后再次导入会补做转换，同时保留原资产；之后优先复用已完成转换的条目，避免反复启动转换器。此处补齐旧 Rust 原格式去重可能阻断重新转换的恢复路径。
+- 转换使用独立工作目录；进程无 shell 插值、有超时与输出上限，失败时清理输出及临时资源。LibreOffice 使用独立配置目录并将宏安全级别设为最高；Office COM 禁用宏，按本次拥有的进程 PID 与创建时间清理，遇到已打开的 PowerPoint 窗口时提示关闭后重试。
+- 缺少或禁用转换器时保留原格式并返回可行动提示；已启动转换器但生成失败时中止导入。预览返回应用工作目录中的独立文件，供后续读取。实施验证与各平台范围见[Electron 缺口补齐待办](../../../docs/Plan/electron-feature-gap-execution.md)。

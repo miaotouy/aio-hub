@@ -5,7 +5,7 @@
 > 运行环境：AIO Hub 0.7.1-alpha.2 / Electron 45.2.1 / Chromium 156.0.8078.75。  
 > 关联：[迁移总纲](../Plan/electron-migration-master-plan.md)、[Electron 开发指南](../guide/electron-development.md)。
 
-> 实施更新（2026-11-04）：默认模型请求已切换为 Electron 主进程传输，本地文件载荷、流式取消和逐请求网络配置已接通；共享文件兼容命令、回收站及资产索引/导入/派生数据工作流已接通，配置 ZIP 备份恢复和智能体私有资源接口也已接通；旧版 Office 文档自动转换继续推进。下文保留调查时的证据；执行进度见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
+> 实施更新（2026-11-04）：默认模型请求已切换为 Electron 主进程传输，本地文件载荷、流式取消和逐请求网络配置已接通；共享文件兼容命令、回收站及资产索引/导入/派生数据工作流已接通，配置 ZIP 备份恢复和智能体私有资源接口也已接通；旧版 Office 文档转换器检测、配置与自动转换也已接通，本机 LibreOffice 实测通过，其他后端实机验证待续。下文保留调查时的证据；执行进度见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
 
 ## 1. 结论
 

@@ -1,6 +1,6 @@
 # Agent Manager（智能体大厅）：架构与数据契约
 
-> 状态：Active | 最后更新：2026-10-24
+> 状态：Active | 最后更新：2026-11-04
 > 关联模块：`src/tools/llm-chat`（编排与参数类型）、`src/tools/st-worldbook-manager`（世界书导入）、`src/tools/sub-agent`（子智能体配置与内置释出）、`src/tools/knowledge-base`（Knowledge 访问权限）
 > 相关架构：[模型参数系统](../llm-chat/docs/architecture/model-parameter-system.md) | [工具审批仲裁](../../../docs/architecture/tool-approval-arbitration.md)
 > 组件明细：[components/README.md](./components/README.md)
@@ -136,6 +136,14 @@ AgentManager.vue            主页面：列表、搜索、分类过滤、一键�
 - **内容输入**：静态图片从原图等比缩放至长边 1024 像素内并遵守模型尺寸限制，使用完整画面；GIF、动态 WebP 和 APNG 保留原始文件、尺寸与动画帧发送，默认交由模型处理，格式或尺寸限制沿用请求错误反馈。音频、视频发送原始媒体内容，音频仅有 ASR 能力时提示配置音频理解模型。文件支持 PDF、DOCX、PPTX、XLSX 与 UTF-8 文本；Office 文件提取正文，纯图文档可能需要转换为 PDF。PDF 优先原生文档输入，否则最多抽样 12 页文本，无可提取文字且模型支持视觉时分析前 4 页预览。长文本使用首尾节选。
 - **资源与输出**：每文件上限 32 MiB，批量并发 2。输出清理思考内容和多余空白，空结果、拒绝结果和超过 120 字的结果作为失败处理；默认提示词要求 60 字内。
 - **写入边界**：生成期间资产被移除、改名或描述被修改时跳过旧结果；取消、关闭资产管理、切换智能体时中止任务并丢弃迟到响应。失败项可查看原因并单独重试，成功项保留。
+
+### 5.5 Electron 私有资源宿主
+
+Electron 的 `electron/agent-assets.ts` 承接与现有前端相同的 7 个资源命令：保存、列举、完整路径、二进制读取，以及单个、批量和整目录删除。保存结果继续返回 `filename/path/size/mimeType/thumbnailPath`；普通资源及缩略图使用 `assets/` 相对路径，路径和二进制读取兼容根目录头像。
+
+主进程串行处理资源操作，排他创建防止并发覆盖。为适配前端从文件名主体派生资源 ID 的行为，重名判断覆盖不同扩展名，例如已有 `photo.png` 时，新传入的 `photo.jpg` 保存为 `photo-1.jpg`。相较 Rust 原实现只比较完整文件名，此处同时避免资源 ID 与缩略图重名。
+
+图片和音频复用 `electron/asset-media.ts`：大于 400 像素的图片生成 400×400 JPEG，音频提取内嵌封面；小图保留原文件。删除调用系统回收站，原文件回收失败时保留文件供重试；整目录回收前校验内部路径。应用相对路径与真实祖先路径双重检查，阻止跨智能体、跨模块的 junction 或符号链接重定向。单个资源保存和二进制读取上限为 256 MiB。
 
 ## 6. 模型与上下文配置
 

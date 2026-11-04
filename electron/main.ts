@@ -58,6 +58,8 @@ import { fileOperation, filePath, writeAtomic } from "./filesystem";
 import { fileCommand } from "./file-commands";
 import { AssetManager } from "./asset-manager";
 import { inspectAssetMedia } from "./asset-media";
+import { ConfigArchive } from "./config-archive";
+import { AgentAssets } from "./agent-assets";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -115,6 +117,15 @@ const assetManager = new AssetManager({
   root: app.getPath("userData"),
   trashItem: (value) => shell.trashItem(value),
   emit: (event, payload) => publish(event, payload),
+  inspectMedia: inspectAssetMedia,
+});
+const configArchive = new ConfigArchive(
+  app.getPath("userData"),
+  app.getVersion()
+);
+const agentAssets = new AgentAssets({
+  root: app.getPath("userData"),
+  trashItem: (value) => shell.trashItem(value),
   inspectMedia: inspectAssetMedia,
 });
 const tokens = new Map<number, string>();
@@ -620,6 +631,18 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "list_config_files":
+    case "export_all_configs_to_zip":
+    case "import_all_configs_from_zip":
+      return configArchive.run(name, args);
+    case "save_agent_asset":
+    case "delete_agent_asset":
+    case "batch_delete_agent_assets":
+    case "list_agent_assets":
+    case "delete_all_agent_assets":
+    case "get_agent_asset_path":
+    case "read_agent_asset_binary":
+      return agentAssets.run(name, args);
     case "get_asset_base_path":
     case "import_asset_from_path":
     case "import_asset_from_bytes":

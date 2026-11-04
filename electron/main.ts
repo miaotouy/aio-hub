@@ -65,6 +65,8 @@ import {
 } from "./security";
 import { fileOperation, filePath, writeAtomic } from "./filesystem";
 import { fileCommand } from "./file-commands";
+import { desktopOpen } from "./desktop-open";
+import { DirectoryTrees } from "./directory-tree";
 import { AssetManager } from "./asset-manager";
 import { DocumentConverter } from "./document-converter";
 import { SkillManager } from "./skill-manager";
@@ -169,6 +171,7 @@ const agentAssets = new AgentAssets({
 });
 const llmChatPersistence = new LlmChatPersistence(app.getPath("userData"));
 const llmSearch = new LlmSearch(app.getPath("userData"));
+const directoryTrees = new DirectoryTrees();
 const fileWatches = new FileWatches((owner, message) => {
   const win = [...windows.values()].find(
     (candidate) =>
@@ -688,6 +691,7 @@ async function createWindow(
         subscriptions.delete(contentsId);
         httpRequests.disposeOwner(contentsId);
         fileWatches.disposeOwner(contentsId);
+        directoryTrees.disposeOwner(contentsId);
         disposeSearchOwner(contentsId);
         cancelWindowResize(contentsId);
         workspaceWindows.disposeOwner(contentsId);
@@ -732,6 +736,7 @@ async function createWindow(
     canvasPreviews.disposeOwner(contentsId);
     httpRequests.disposeOwner(contentsId);
     fileWatches.disposeOwner(contentsId);
+    directoryTrees.disposeOwner(contentsId);
     disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
   });
@@ -741,6 +746,7 @@ async function createWindow(
     workspaceWindows.closed(label);
     httpRequests.disposeOwner(contentsId);
     fileWatches.disposeOwner(contentsId);
+    directoryTrees.disposeOwner(contentsId);
     disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
     subscriptions.delete(contentsId);
@@ -919,6 +925,12 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "open_file_directory":
+    case "open_path_force":
+    case "open_url":
+      return desktopOpen(name, args, shell);
+    case "generate_directory_tree":
+      return directoryTrees.generate(win.webContents.id, args);
     case "get_system_fonts":
       return normalizeFontFamilies(
         await win.webContents.executeJavaScript(FONT_FAMILIES_SCRIPT, true)
@@ -1325,17 +1337,9 @@ async function operation(
       return result.canceled ? null : (result.filePath ?? null);
     }
     case "opener.url":
-      return shell.openExternal(externalUrl(str(args.url)));
-    case "opener.path": {
-      const error = await shell.openPath(
-        filePath(args.path, undefined, basePaths())
-      );
-      if (error) throw new Error(error);
-      return;
-    }
+    case "opener.path":
     case "opener.reveal":
-      shell.showItemInFolder(filePath(args.path, undefined, basePaths()));
-      return;
+      return desktopOpen(name, args, shell);
     case "process.relaunch":
       app.relaunch();
       quitting = true;
@@ -1544,6 +1548,7 @@ app.on("before-quit", (event) => {
   quitting = true;
   llmSearch.disposeAll();
   fileWatches.disposeAll();
+  directoryTrees.disposeAll();
   desktopControls.destroy();
   const pending =
     skillManager.hasPendingOperations ||

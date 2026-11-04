@@ -115,9 +115,9 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 
 ## 后续能力
 
-模型请求、命令 Channel、流式会话搜索、会话持久化、共享文件与资产、配置归档、智能体私有资源、技能管理/脚本执行、文件监听、图片剪贴板、系统字体及当前窗口文件拖放已接入。具体范围与实机验证见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
+模型请求、命令 Channel、流式会话搜索、会话持久化、共享文件与资产、配置归档、智能体私有资源、技能管理/脚本执行、文件监听、图片剪贴板、系统字体、当前窗口文件拖放、旧业务打开入口与目录树生成已接入。具体范围与实机验证见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
 
-插件包安装/卸载与 Native/Sidecar 执行、知识资料库/Recall、Git、FFmpeg、目录工具和系统监控等领域后端继续迁移；旧业务的“打开所在目录”等命令入口也待接通。通用 Shell/Sidecar、独立子 WebView 和更新器适配仍返回能力错误。依赖这些能力的工作流可从 Tauri 入口执行。
+插件包安装/卸载与 Native/Sidecar 执行、知识资料库/Recall、Git、FFmpeg、目录工具和系统监控等领域后端继续迁移。通用 Shell/Sidecar、独立子 WebView 和更新器适配仍返回能力错误。依赖这些能力的工作流可从 Tauri 入口执行。
 
 后台 Agent 的独立运行、关窗后的任务延续、系统退出保存、正式更新/数据迁移，以及 macOS/Linux 构建与运行验证仍需接续。Windows 当前窗口文件拖放与落点定向已通过真实 Electron 验证；原生文件选择对话框完整交互和跨平台窗口材质另行走查。最新调查见[功能缺口调查](../design/electron-feature-gap-audit-2026-11-04.md)。
 

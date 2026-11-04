@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { ElectronChannel } from "../electron/channel";
 import * as tauri from "@tauri-apps/api/core";
 import { request, getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/api/core";
@@ -29,9 +30,5 @@ export const isTauri: typeof tauri.isTauri = getElectronBridge()
   ? () => false
   : tauri.isTauri;
 export const Channel: typeof tauri.Channel = getElectronBridge()
-  ? (class {
-      constructor() {
-        unsupported("流式 Channel");
-      }
-    } as unknown as typeof tauri.Channel)
+  ? (ElectronChannel as unknown as typeof tauri.Channel)
   : tauri.Channel;

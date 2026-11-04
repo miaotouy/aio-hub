@@ -13,6 +13,11 @@
 // limitations under the License.
 
 import { toRaw } from "vue";
+import {
+  channelReference,
+  subscribeChannel,
+  type ElectronChannel,
+} from "./channel";
 import type { ElectronBridge } from "../../../electron/shared";
 export function getElectronBridge(): ElectronBridge | undefined {
   if (typeof window === "undefined") return undefined;
@@ -22,7 +27,8 @@ export function getElectronBridge(): ElectronBridge | undefined {
 /** Vue proxies cannot cross contextBridge. Keep the JSON-like SDK contract and exact binary values. */
 export function cloneHostValue(
   value: unknown,
-  seen = new WeakSet<object>()
+  seen = new WeakSet<object>(),
+  channels?: Map<string, ElectronChannel>
 ): unknown {
   if (value === null || typeof value !== "object") {
     if (typeof value === "function" || typeof value === "symbol")
@@ -30,6 +36,11 @@ export function cloneHostValue(
     return value;
   }
   const raw = toRaw(value);
+  const channel = channelReference(raw);
+  if (channel && channels) {
+    channels.set(channel.token, channel.channel);
+    return { __aiohubChannel: channel.token };
+  }
   if (raw instanceof Uint8Array) return new Uint8Array(raw);
   if (raw instanceof ArrayBuffer) return raw.slice(0);
   if (raw instanceof Date) return raw.toJSON();
@@ -38,11 +49,11 @@ export function cloneHostValue(
   seen.add(raw);
   try {
     if (Array.isArray(raw))
-      return raw.map((entry) => cloneHostValue(entry, seen));
+      return raw.map((entry) => cloneHostValue(entry, seen, channels));
     return Object.fromEntries(
       Object.entries(raw).map(([key, entry]) => [
         key,
-        cloneHostValue(entry, seen),
+        cloneHostValue(entry, seen, channels),
       ])
     );
   } finally {
@@ -55,16 +66,33 @@ export async function request<T = unknown>(
 ): Promise<T> {
   const host = getElectronBridge();
   if (!host) throw new Error("Electron preload 未就绪，请重新启动应用");
-  const reply = await host.request(
-    operation,
-    cloneHostValue(args) as Record<string, unknown> | undefined
-  );
-  if (!reply.ok)
-    throw Object.assign(new Error(reply.error.message), {
-      code: reply.error.code,
-      capability: reply.error.capability,
-    });
-  return reply.value as T;
+  const channels = new Map<string, ElectronChannel>();
+  const payload = cloneHostValue(args, new WeakSet(), channels) as
+    Record<string, unknown> | undefined;
+  if (channels.size && operation !== "command")
+    throw new TypeError("Channel 需通过业务命令传输");
+  const requestId = channels.size ? crypto.randomUUID() : undefined;
+  if (requestId && payload) payload.__aiohubChannelRequest = requestId;
+  const subscriptions: { stop: () => void; finished: Promise<void> }[] = [];
+  try {
+    // Register before invoke: a fast command may publish before its reply arrives.
+    for (const [token, channel] of channels)
+      subscriptions.push(subscribeChannel(host, token, channel, requestId!));
+    const reply = await host.request(operation, payload);
+    if (!reply.ok)
+      throw Object.assign(new Error(reply.error.message), {
+        code: reply.error.code,
+        capability: reply.error.capability,
+      });
+    // IPC invoke replies and streamed messages use independent queues. Drain the
+    // command's end markers before returning or removing its listeners.
+    await Promise.all(
+      subscriptions.map((subscription) => subscription.finished)
+    );
+    return reply.value as T;
+  } finally {
+    for (const subscription of subscriptions) subscription.stop();
+  }
 }
 export function unsupported(capability: string): never {
   throw Object.assign(

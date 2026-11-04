@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { IPC_REQUEST, IPC_EVENT, IPC_ASSET } from "./shared";
+import { IPC_REQUEST, IPC_EVENT, IPC_ASSET, IPC_CHANNEL } from "./shared";
 import { installDiagnostics } from "../src/dev/control/diagnostics";
 import type {
   ElectronBridge,
@@ -47,6 +47,22 @@ if (process.isMainFrame && bootstrap) {
       };
       ipcRenderer.on(IPC_EVENT, listener);
       return () => ipcRenderer.removeListener(IPC_EVENT, listener);
+    },
+    subscribeChannel(
+      token: string,
+      callback: (payload: unknown) => void,
+      onClose?: (requestId: string) => void
+    ) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        message: { token: string; payload: unknown; closed?: string }
+      ) => {
+        if (message.token !== token) return;
+        if (message.closed) onClose?.(message.closed);
+        else callback(message.payload);
+      };
+      ipcRenderer.on(IPC_CHANNEL, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNEL, listener);
     },
     assetUrl(filePath: string) {
       ipcRenderer.send(IPC_ASSET, filePath);

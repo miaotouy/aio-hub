@@ -31,6 +31,7 @@ export interface WindowResizePoint {
 export const IPC_REQUEST = "aiohub:request";
 export const IPC_EVENT = "aiohub:event";
 export const IPC_ASSET = "aiohub:asset";
+export const IPC_CHANNEL = "aiohub:channel";
 export interface HostEvent<T = unknown> {
   event: string;
   id: number;
@@ -62,6 +63,11 @@ export interface ElectronBridge {
     args?: Record<string, unknown>
   ): Promise<HostReply>;
   subscribe(event: string, callback: (event: HostEvent) => void): () => void;
+  subscribeChannel(
+    token: string,
+    callback: (payload: unknown) => void,
+    onClose?: (requestId: string) => void
+  ): () => void;
   assetUrl(path: string): string;
 }
 export type HostReply =

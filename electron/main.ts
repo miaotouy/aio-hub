@@ -38,7 +38,7 @@ import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
-import { IPC_REQUEST, IPC_EVENT, IPC_ASSET } from "./shared";
+import { IPC_REQUEST, IPC_EVENT, IPC_ASSET, IPC_CHANNEL } from "./shared";
 import { resolveUserDataPath } from "./data-path";
 import { PendingDeepLinks, readDeepLinks } from "./deep-links";
 import { HttpRequests } from "./http";
@@ -67,6 +67,7 @@ import { CanvasPreviews } from "./canvas-preview";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
+import { LlmSearch } from "./llm-search";
 import { LlmChatPersistence } from "./llm-chat-persistence";
 
 protocol.registerSchemesAsPrivileged([
@@ -150,6 +151,34 @@ const agentAssets = new AgentAssets({
   inspectMedia: inspectAssetMedia,
 });
 const llmChatPersistence = new LlmChatPersistence(app.getPath("userData"));
+const llmSearch = new LlmSearch(app.getPath("userData"));
+const channelEpochs = new Map<number, number>();
+function disposeSearchOwner(owner: number) {
+  channelEpochs.set(owner, (channelEpochs.get(owner) ?? 0) + 1);
+  llmSearch.disposeOwner(owner);
+}
+function commandChannelTokens(value: unknown): Set<string> {
+  const tokens = new Set<string>(),
+    seen = new Set<object>(),
+    stack = [value];
+  while (stack.length) {
+    const entry = stack.pop();
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      seen.has(entry) ||
+      ArrayBuffer.isView(entry) ||
+      entry instanceof ArrayBuffer
+    )
+      continue;
+    seen.add(entry);
+    const token = (entry as Record<string, unknown>).__aiohubChannel;
+    if (typeof token === "string" && /^[0-9a-f-]{36}$/i.test(token))
+      tokens.add(token);
+    else for (const value of Object.values(entry)) stack.push(value);
+  }
+  return tokens;
+}
 const canvasPreviews = new CanvasPreviews(
   app.getPath("userData"),
   (file, request) =>
@@ -599,6 +628,7 @@ async function createWindow(
       if (isMainFrame && !inPlace) {
         subscriptions.delete(contentsId);
         httpRequests.disposeOwner(contentsId);
+        disposeSearchOwner(contentsId);
         cancelWindowResize(contentsId);
         workspaceWindows.disposeOwner(contentsId);
         canvasPreviews.disposeOwner(contentsId);
@@ -641,6 +671,7 @@ async function createWindow(
     workspaceWindows.disposeOwner(contentsId);
     canvasPreviews.disposeOwner(contentsId);
     httpRequests.disposeOwner(contentsId);
+    disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
   });
   win.on("closed", () => {
@@ -648,8 +679,10 @@ async function createWindow(
     canvasPreviews.disposeOwner(contentsId);
     workspaceWindows.closed(label);
     httpRequests.disposeOwner(contentsId);
+    disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
     subscriptions.delete(contentsId);
+    channelEpochs.delete(contentsId);
     tokens.delete(contentsId);
     assets.delete(token);
     windows.delete(label);
@@ -824,6 +857,22 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "search_llm_data_stream": {
+      const channel = record(args.onEvent);
+      if (
+        typeof channel.__aiohubChannel !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(channel.__aiohubChannel)
+      )
+        throw new Error("搜索结果 Channel 无效");
+      const token = channel.__aiohubChannel;
+      return llmSearch.search(win.webContents.id, args, (payload) => {
+        if (win.isDestroyed() || win.webContents.isDestroyed()) return false;
+        win.webContents.send(IPC_CHANNEL, { token, payload });
+        return true;
+      });
+    }
+    case "cancel_llm_chat_search":
+      return llmSearch.cancel(win.webContents.id);
     case "llm_chat_atomic_write":
       return llmChatPersistence.write(args.request);
     case "llm_chat_delete_session":
@@ -1084,12 +1133,29 @@ async function operation(
       return httpRequests.cancel(event.sender.id, str(args.id));
     case "deep-link.current":
       return win === windows.get("main") ? deepLinks.take() : null;
-    case "command":
-      return command(
-        str(args.command),
-        args.args === undefined ? {} : record(args.args),
-        win
-      );
+    case "command": {
+      const owner = event.sender.id,
+        epoch = channelEpochs.get(owner) ?? 0;
+      const requestId = args.__aiohubChannelRequest;
+      const channels =
+        typeof requestId === "string" && /^[0-9a-f-]{36}$/i.test(requestId)
+          ? commandChannelTokens(args)
+          : new Set<string>();
+      try {
+        return await command(
+          str(args.command),
+          args.args === undefined ? {} : record(args.args),
+          win
+        );
+      } finally {
+        if (
+          !event.sender.isDestroyed() &&
+          (channelEpochs.get(owner) ?? 0) === epoch
+        )
+          for (const token of channels)
+            event.sender.send(IPC_CHANNEL, { token, closed: requestId });
+      }
+    }
     case "fs":
       return fileOperation(
         str(args.method),
@@ -1343,6 +1409,7 @@ void app
 let stoppingHostOperations = false;
 app.on("before-quit", (event) => {
   quitting = true;
+  llmSearch.disposeAll();
   desktopControls.destroy();
   const pending =
     skillManager.hasPendingOperations ||

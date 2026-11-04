@@ -98,6 +98,7 @@
         "file-type": "^21.0.0",
         "http-proxy-agent": "^9.1.0",
         "https-proxy-agent": "^9.1.0",
+        "ignore": "^5.3.2",
         "ini": "^7.0.0",
         "isomorphic-git": "^1.37.5",
         "jassub": "^2.5.5",

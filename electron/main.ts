@@ -58,6 +58,7 @@ import { fileOperation, filePath, writeAtomic } from "./filesystem";
 import { fileCommand } from "./file-commands";
 import { AssetManager } from "./asset-manager";
 import { DocumentConverter } from "./document-converter";
+import { SkillManager } from "./skill-manager";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
@@ -114,6 +115,14 @@ const httpRequests = new HttpRequests((url, init, options) =>
       )
     : chromiumFetch(url, init)
 );
+const skillManager = new SkillManager({
+  root: app.getPath("userData"),
+  builtinRoot: path.join(
+    app.isPackaged ? process.resourcesPath : hostRoot,
+    "skills"
+  ),
+  fetch: chromiumFetch,
+});
 const documentConverter = new DocumentConverter({
   root: app.getPath("userData"),
   emit: (event, payload) => publish(event, payload),
@@ -637,6 +646,30 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "get_all_skill_manifests":
+    case "get_well_known_skill_paths":
+    case "read_skill_resource":
+    case "write_skill_resource":
+    case "list_skill_directory":
+    case "run_skill_script":
+    case "list_builtin_skills":
+    case "install_builtin_skill":
+    case "reset_skill_to_builtin":
+    case "get_builtin_skill_version":
+    case "preview_skill_manifest":
+    case "detect_skill_package":
+    case "prepare_and_detect_package":
+    case "clean_temp_dir":
+    case "install_skill_from_dir":
+    case "install_skill_from_zip_file":
+    case "install_skill_from_zip":
+    case "install_skill_from_git":
+    case "uninstall_skill":
+    case "rename_skill":
+    case "get_installed_bundles":
+    case "install_bundle":
+    case "uninstall_bundle":
+      return skillManager.run(name, args);
     case "detect_libreoffice_path":
     case "detect_asset_manager_document_converters":
     case "check_asset_manager_document_converter":
@@ -941,6 +974,7 @@ async function operation(
       return;
     case "process.exit":
       quitting = true;
+      await skillManager.shutdown();
       app.exit(Number(args.code) || 0);
       return;
     default:
@@ -1120,9 +1154,17 @@ void app
     console.error("Electron 启动失败", error);
     app.exit(1);
   });
-app.on("before-quit", () => {
+let stoppingSkillOperations = false;
+app.on("before-quit", (event) => {
   quitting = true;
   tray?.destroy();
+  if (skillManager.hasPendingOperations) {
+    event.preventDefault();
+    if (!stoppingSkillOperations) {
+      stoppingSkillOperations = true;
+      void skillManager.shutdown().finally(() => app.quit());
+    }
+  }
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

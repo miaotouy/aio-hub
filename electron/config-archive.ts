@@ -20,6 +20,7 @@ import { Readable, Transform, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { isDeepStrictEqual } from "node:util";
 import JSZip from "jszip";
+import { validateZipEnvelope, type ZipLimits as Limits } from "./zip-envelope";
 import { applicationPath, relativeApplicationPath } from "./application-path";
 import { filePath, writeAtomic } from "./filesystem";
 
@@ -105,12 +106,7 @@ function excluded(relative: string): boolean {
     parts[0] === "manifest.json"
   );
 }
-interface Limits {
-  archive: number;
-  expanded: number;
-  file: number;
-  entries: number;
-}
+
 const limits: Limits = {
   archive: 256 * 1024 ** 2,
   expanded: 1024 ** 3,
@@ -151,75 +147,6 @@ function mergeJson(target: unknown, source: unknown): unknown {
     return merged;
   }
   return source;
-}
-
-/** Inspect the standard central directory before JSZip can discard duplicate/empty entries.
- * PKWARE APPNOTE 4.3.12/4.3.16. Backups are bounded below ZIP64 size/count thresholds.
- */
-function validateZipEnvelope(data: Buffer, limits: Limits): number {
-  let end = -1;
-  for (
-    let offset = data.length - 22;
-    offset >= Math.max(0, data.length - 65557);
-    offset--
-  ) {
-    if (
-      data.readUInt32LE(offset) === 0x06054b50 &&
-      offset + 22 + data.readUInt16LE(offset + 20) === data.length
-    ) {
-      end = offset;
-      break;
-    }
-  }
-  if (end < 0) throw new Error("ZIP 目录尾记录损坏");
-  const count = data.readUInt16LE(end + 10);
-  const length = data.readUInt32LE(end + 12);
-  let offset = data.readUInt32LE(end + 16);
-  if (
-    data.readUInt16LE(end + 4) ||
-    data.readUInt16LE(end + 6) ||
-    data.readUInt16LE(end + 8) !== count ||
-    count === 0xffff ||
-    length === 0xffffffff ||
-    offset === 0xffffffff
-  )
-    throw new Error(
-      "请使用普通单卷 ZIP 配置备份，分卷和 ZIP64 归档请先重新打包"
-    );
-  if (count > limits.entries * 2 + 1 || offset + length !== end)
-    throw new Error("ZIP 目录范围或条目数量无效");
-  let total = 0;
-  for (let index = 0; index < count; index++) {
-    if (offset + 46 > end || data.readUInt32LE(offset) !== 0x02014b50)
-      throw new Error("ZIP 中央目录损坏");
-    const method = data.readUInt16LE(offset + 10);
-    const compressed = data.readUInt32LE(offset + 20);
-    const expanded = data.readUInt32LE(offset + 24);
-    const names = data.readUInt16LE(offset + 28);
-    const size =
-      46 +
-      names +
-      data.readUInt16LE(offset + 30) +
-      data.readUInt16LE(offset + 32);
-    const attributes = data.readUInt32LE(offset + 38);
-    if (offset + size > end || !names || data.readUInt16LE(offset + 34))
-      throw new Error("ZIP 条目范围无效");
-    const directory =
-      !!(attributes & 16) ||
-      ((attributes >>> 16) & 0o170000) === 0o040000 ||
-      data[offset + 46 + names - 1] === 47;
-    // JSZip drops directory contents and declared-empty file contents while loading.
-    // Bound those hidden payloads before the later CRC pass sees the original archive.
-    if (directory && expanded) throw new Error("ZIP 目录条目含文件数据");
-    if (!expanded && compressed > (method === 8 ? 2 : 0))
-      throw new Error("ZIP 空条目含异常压缩数据");
-    total += expanded;
-    if (expanded > limits.file || total > limits.expanded)
-      throw new Error("ZIP 解压数据超出导入大小上限");
-    offset += size;
-  }
-  if (offset !== end) throw new Error("ZIP 中央目录数量不匹配");
-  return count;
 }
 
 /** Existing snake_case ZIP manifest; preflight and stage all entries before touching live data. */

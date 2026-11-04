@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { mkdir, copyFile } from "node:fs/promises";
+import { mkdir, copyFile, cp, rm } from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
@@ -85,6 +85,11 @@ if (isLocal && mode === "package") {
 }
 async function buildHost() {
   await mkdir(output, { recursive: true });
+  const skillsOutput = path.join(output, "skills");
+  if (path.dirname(skillsOutput) !== output)
+    throw new Error("内置技能输出目录无效");
+  await rm(skillsOutput, { recursive: true, force: true });
+  await cp(path.join(root, "public/skills"), skillsOutput, { recursive: true });
   for (const name of ["main", "preload"]) {
     const result = await Bun.build({
       entrypoints: [path.join(root, "electron", name + ".ts")],

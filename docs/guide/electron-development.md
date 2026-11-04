@@ -220,3 +220,13 @@ Electron 已接通 `search_llm_data_stream`、`cancel_llm_chat_search` 和平台
 高亮偏移采用 JS UTF-16 索引，支持中文、emoji、组合字符和 JSON 转义内容。搜索按文件扫描，最多每 10 条或约 100 ms 推送一次结果与进度，默认上限 500 条。损坏文件和并发恢复时已消失的文件可跳过；存储目录重定向仍触发路径检查错误。搜索实现与两端差异见[搜索系统架构](../../src/tools/llm-chat/docs/architecture/search-system.md)。
 
 2026-11-04 Windows 生产资源验证覆盖真实侧栏搜索与刷新、600 文件扫描、结果上限、多窗口隔离、取消和导航清理。macOS/Linux 的实际文件系统与 IPC 运行验证待对应环境接续。
+
+## 文件监听、图片剪贴板与系统字体
+
+文件监听使用独立的持久 IPC 订阅。渲染器先注册回调再发起监听，返回的停止函数立即移除本地回调，再通知主进程释放原生句柄。监听支持目录递归、多个路径、file URL 与基础目录；单文件通过监听父目录过滤目标路径，以承接原子替换。批量事件最多暂存 1000 个路径，繁忙目录折叠为根目录重扫提示。窗口导航、销毁、渲染进程退出和应用退出清理全部所属监听；OS 错误以带原因的 other 事件通知调用方并关闭监听。
+
+图片剪贴板沿用共享平台入口，使用 PNG 跨 IPC 传输，避免平台位图通道与预乘格式差异。writeImage 支持编码字节、绝对路径/file URL、已读取的快照及提供 size()/rgba() 的图像对象；readImage 返回内存快照，提供 size()、rgba() 与 close()，释放后需重新读取。局部 rid 仅用于兼容对象形状。ICO 通过 icojs 解析 PNG/DIB 帧，再交原生图像解码；输入上限为 256 MiB、64 百万像素。Electron 45 使用异步 clipboard.read()/write() 与 ClipboardItem，写入完成后才向前端返回成功。
+
+get_system_fonts 在所属受信任顶层窗口调用 queryLocalFonts()，返回去重排序的可见字体家族。权限处理器仅授予此来源的 local-fonts，预览来源、子 frame 和外部页面继续隔离。Windows 已验证本地字体枚举与图片/文件监听原生链路；其他系统仍需对应环境验证。
+
+Web Canvas 的磁盘内容同步保持静默，Monaco 仅将实际编辑通知父组件，避免加载文件时触发防抖回写。目录树与独立 WebView 的后续迁移进度见[功能补齐待办](../Plan/electron-feature-gap-execution.md)。

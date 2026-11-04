@@ -72,7 +72,8 @@ const initEditor = () => {
   // 监听内容变化
   editorInstance.value.onDidChangeModelContent(() => {
     const value = editorInstance.value?.getValue() || "";
-    emit("update:modelValue", value);
+    // Loading disk content also fires Monaco changes; only edits should schedule a save.
+    if (value !== props.modelValue) emit("update:modelValue", value);
   });
 
   // 监听光标位置

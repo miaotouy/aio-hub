@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import * as tauri from "@tauri-apps/plugin-fs";
-import { getElectronBridge, request, unsupported } from "../electron/client";
+import { watchFiles } from "../electron/file-watches";
+import { getElectronBridge, request } from "../electron/client";
 export * from "@tauri-apps/plugin-fs";
 
 export const copyFile: typeof tauri.copyFile = getElectronBridge()
@@ -101,8 +102,10 @@ export const writeTextFile: typeof tauri.writeTextFile = getElectronBridge()
       })
   : tauri.writeTextFile;
 export const watch: typeof tauri.watch = getElectronBridge()
-  ? async () => unsupported("文件监听")
+  ? (paths, callback, options) =>
+      watchFiles(paths, callback, { delayMs: 2000, ...options })
   : tauri.watch;
 export const watchImmediate: typeof tauri.watchImmediate = getElectronBridge()
-  ? async () => unsupported("文件监听")
+  ? (paths, callback, options) =>
+      watchFiles(paths, callback, { ...options, delayMs: 0 })
   : tauri.watchImmediate;

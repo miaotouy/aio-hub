@@ -16,6 +16,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  ClipboardItem,
   dialog,
   ipcMain,
   Menu,
@@ -38,7 +39,13 @@ import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { createHash, randomUUID } from "node:crypto";
-import { IPC_REQUEST, IPC_EVENT, IPC_ASSET, IPC_CHANNEL } from "./shared";
+import {
+  IPC_REQUEST,
+  IPC_EVENT,
+  IPC_ASSET,
+  IPC_CHANNEL,
+  IPC_FILE_WATCH,
+} from "./shared";
 import { resolveUserDataPath } from "./data-path";
 import { PendingDeepLinks, readDeepLinks } from "./deep-links";
 import { HttpRequests } from "./http";
@@ -67,6 +74,13 @@ import { CanvasPreviews } from "./canvas-preview";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
+import { FileWatches } from "./file-watches";
+import { ImageClipboard } from "./image-clipboard";
+import {
+  allowLocalFonts,
+  normalizeFontFamilies,
+  FONT_FAMILIES_SCRIPT,
+} from "./system-fonts";
 import { LlmSearch } from "./llm-search";
 import { LlmChatPersistence } from "./llm-chat-persistence";
 
@@ -152,6 +166,48 @@ const agentAssets = new AgentAssets({
 });
 const llmChatPersistence = new LlmChatPersistence(app.getPath("userData"));
 const llmSearch = new LlmSearch(app.getPath("userData"));
+const fileWatches = new FileWatches((owner, message) => {
+  const win = [...windows.values()].find(
+    (candidate) =>
+      !candidate.isDestroyed() && candidate.webContents.id === owner
+  );
+  if (!win || win.webContents.isDestroyed()) return false;
+  win.webContents.send(IPC_FILE_WATCH, message);
+  return true;
+});
+const imageClipboard = new ImageClipboard({
+  read: async () => {
+    const item = (await clipboard.read()).find((item) =>
+      item.types.some((type) => type.startsWith("image/"))
+    );
+    const format = item?.types.includes("image/png")
+      ? "image/png"
+      : item?.types.find((type) => type.startsWith("image/"));
+    if (!item || !format)
+      throw Object.assign(new Error("剪贴板中没有图片，请先复制图片"), {
+        code: "CLIPBOARD_EMPTY",
+      });
+    const blob = await item.getType(format);
+    if (!("arrayBuffer" in blob) || blob.size > 256 * 1024 * 1024)
+      throw new Error("剪贴板图片过大，请缩小后重试");
+    return new Uint8Array(await blob.arrayBuffer());
+  },
+  write: (png) =>
+    clipboard.write([
+      new ClipboardItem({
+        "image/png": new Blob([new Uint8Array(png).buffer as ArrayBuffer], {
+          type: "image/png",
+        }),
+      }),
+    ]),
+  decode: (bytes) => {
+    const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+    if (image.isEmpty())
+      throw new Error("图片无法解码，请选择 PNG、JPEG 或 ICO 图片");
+    const { width, height } = image.getSize();
+    return { bytes: new Uint8Array(image.toPNG()), width, height };
+  },
+});
 const channelEpochs = new Map<number, number>();
 function disposeSearchOwner(owner: number) {
   channelEpochs.set(owner, (channelEpochs.get(owner) ?? 0) + 1);
@@ -628,6 +684,7 @@ async function createWindow(
       if (isMainFrame && !inPlace) {
         subscriptions.delete(contentsId);
         httpRequests.disposeOwner(contentsId);
+        fileWatches.disposeOwner(contentsId);
         disposeSearchOwner(contentsId);
         cancelWindowResize(contentsId);
         workspaceWindows.disposeOwner(contentsId);
@@ -671,6 +728,7 @@ async function createWindow(
     workspaceWindows.disposeOwner(contentsId);
     canvasPreviews.disposeOwner(contentsId);
     httpRequests.disposeOwner(contentsId);
+    fileWatches.disposeOwner(contentsId);
     disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
   });
@@ -679,6 +737,7 @@ async function createWindow(
     canvasPreviews.disposeOwner(contentsId);
     workspaceWindows.closed(label);
     httpRequests.disposeOwner(contentsId);
+    fileWatches.disposeOwner(contentsId);
     disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
     subscriptions.delete(contentsId);
@@ -857,6 +916,10 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "get_system_fonts":
+      return normalizeFontFamilies(
+        await win.webContents.executeJavaScript(FONT_FAMILIES_SCRIPT, true)
+      );
     case "search_llm_data_stream": {
       const channel = record(args.onEvent);
       if (
@@ -1205,11 +1268,24 @@ async function operation(
     case "events.emit":
       publish(str(args.event), args.payload, args.target as EventTarget);
       return;
+    case "fs.watch.start":
+      return fileWatches.start(
+        event.sender.id,
+        args.id,
+        args.paths,
+        args.options,
+        basePaths()
+      );
+    case "fs.watch.stop":
+      return fileWatches.stop(event.sender.id, str(args.id));
+    case "clipboard.readImage":
+      return imageClipboard.read();
+    case "clipboard.writeImage":
+      return imageClipboard.write(args.image);
     case "clipboard.readText":
       return clipboard.readText();
     case "clipboard.writeText":
-      clipboard.writeText(str(args.text));
-      return;
+      return clipboard.writeText(str(args.text));
     case "clipboard.clear":
       clipboard.clear();
       return;
@@ -1311,10 +1387,30 @@ void app
   .whenReady()
   .then(async () => {
     await fs.mkdir(app.getPath("userData"), { recursive: true });
+    const fontPermission = (
+      contents: Electron.WebContents | null,
+      permission: string,
+      details: { isMainFrame: boolean; requestingUrl?: string }
+    ) =>
+      allowLocalFonts(
+        permission,
+        !!contents &&
+          [...windows.values()].some(
+            (win) => !win.isDestroyed() && win.webContents === contents
+          ),
+        details.isMainFrame,
+        details.requestingUrl,
+        contents?.getURL() ?? "",
+        devOrigin
+      );
     session.defaultSession.setPermissionRequestHandler(
-      (_contents, _permission, callback) => callback(false)
+      (contents, permission, callback, details) =>
+        callback(fontPermission(contents, permission, details))
     );
-    session.defaultSession.setPermissionCheckHandler(() => false);
+    session.defaultSession.setPermissionCheckHandler(
+      (contents, permission, _origin, details) =>
+        fontPermission(contents, permission, details)
+    );
     const scriptHashes = new Set<string>();
     if (!devOrigin) {
       for (const name of [
@@ -1410,6 +1506,7 @@ let stoppingHostOperations = false;
 app.on("before-quit", (event) => {
   quitting = true;
   llmSearch.disposeAll();
+  fileWatches.disposeAll();
   desktopControls.destroy();
   const pending =
     skillManager.hasPendingOperations ||

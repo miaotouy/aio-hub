@@ -32,6 +32,7 @@ export const IPC_REQUEST = "aiohub:request";
 export const IPC_EVENT = "aiohub:event";
 export const IPC_ASSET = "aiohub:asset";
 export const IPC_CHANNEL = "aiohub:channel";
+export const IPC_FILE_WATCH = "aiohub:file-watch";
 export interface HostEvent<T = unknown> {
   event: string;
   id: number;
@@ -67,6 +68,10 @@ export interface ElectronBridge {
     token: string,
     callback: (payload: unknown) => void,
     onClose?: (requestId: string) => void
+  ): () => void;
+  subscribeFileWatch(
+    id: string,
+    callback: (message: import("./file-watches").FileWatchMessage) => void
   ): () => void;
   assetUrl(path: string): string;
 }

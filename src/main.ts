@@ -30,6 +30,7 @@ import { ElNotification } from "element-plus";
 import { extname } from "@/platform/native/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia";
 import { isElectronRuntime } from "@/platform/core/env";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { getElectronBridge } from "@/platform/electron/client";
 if (isElectronRuntime())
   document.documentElement.classList.add("electron-host"); // 导入 Pinia
@@ -60,21 +61,22 @@ if (typeof (window as any).Buffer === "undefined") {
 (window as any).TauriAppsApiCore = TauriAppsApiCore;
 
 const logger = createModuleLogger("Main");
-// 启动独立 Background JS Runtime bridge。Runtime 不承载 UI，主窗口只订阅其状态和响应。
-void backgroundJsRuntimeBridge
-  .start()
-  .then(async () => {
-    if (import.meta.env.DEV) {
-      const result = await backgroundJsRuntimeBridge.call<{ pong: boolean }>(
-        "runtime.ping",
-        null
-      );
-      logger.info("Background JS Runtime PoC 已连接", result);
-    }
-  })
-  .catch((error) => {
-    logger.warn("Background JS Runtime PoC 未就绪", error);
-  });
+// 按宿主能力启动独立后台运行时，主窗口订阅其状态和响应。
+if (getHostCapability("backgroundJsRuntime").available)
+  void backgroundJsRuntimeBridge
+    .start()
+    .then(async () => {
+      if (import.meta.env.DEV) {
+        const result = await backgroundJsRuntimeBridge.call<{ pong: boolean }>(
+          "runtime.ping",
+          null
+        );
+        logger.info("Background JS Runtime PoC 已连接", result);
+      }
+    })
+    .catch((error) => {
+      logger.warn("Background JS Runtime PoC 未就绪", error);
+    });
 
 const FRONTEND_PROBE_HEARTBEAT_MS = 5000;
 const FRONTEND_PROBE_TEXT_LIMIT = 4000;

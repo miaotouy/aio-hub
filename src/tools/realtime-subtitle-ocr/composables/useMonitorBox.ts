@@ -21,6 +21,7 @@
  */
 
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { computed, onBeforeUnmount } from "vue";
 import { invoke } from "@/platform/native/core";
 import { getCurrentWindow } from "@/platform/native/window";
@@ -52,7 +53,9 @@ export function useMonitorBox() {
 
   async function openMonitorBox() {
     if (!getNativeDesktopCapabilities().screenCapture) {
-      customMessage.info("屏幕监控需要 Windows，可使用本地视频工作区");
+      customMessage.info(
+        getHostCapability("screenCapture").reason || "可使用本地视频工作区"
+      );
       return;
     }
     if (isMonitorBoxDetached.value) {

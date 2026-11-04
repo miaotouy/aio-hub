@@ -15,11 +15,11 @@
 | 语言                                                         | 当前引擎                                    | 运行环境     |
 | ------------------------------------------------------------ | ------------------------------------------- | ------------ |
 | JavaScript、TypeScript、JSON、HTML、CSS、Markdown、XML、YAML | Prettier standalone 与按需加载的解析器/插件 | 桌面与浏览器 |
-| PHP                                                          | Rust 侧 Mago 1.59.0                         | 桌面         |
-| Rust                                                         | 系统 rustfmt                                | 桌面         |
-| C、C++                                                       | 系统 clang-format                           | 桌面         |
+| PHP                                                          | Rust 侧 Mago 1.59.0                         | Tauri 桌面         |
+| Rust                                                         | 系统 rustfmt                                | Tauri 桌面         |
+| C、C++                                                       | 系统 clang-format                           | Tauri 桌面         |
 
-Prettier 核心及各解析器均按需动态导入并缓存。PHP、Rust、C、C++ 调用统一 `format_code` IPC；浏览器选择这些语言时返回桌面运行提示。
+Prettier 核心及各解析器均按需动态导入并缓存。PHP、Rust、C、C++ 在 Tauri 桌面版调用统一 `format_code` IPC；`getHostCapability("systemCodeFormatting")` 在浏览器和 Electron 中返回对应的可行动提示，格式化失败时保留输入。前端语言继续使用 Prettier。
 
 ## 3. PHP 原生实现
 

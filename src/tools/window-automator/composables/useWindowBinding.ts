@@ -21,7 +21,7 @@
  *  - 调用 wa_get_client_rect 获取客户区尺寸（用于百分比坐标自适应）。
  */
 
-import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { ref } from "vue";
 import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
@@ -34,7 +34,8 @@ const errorHandler = createModuleErrorHandler(
 );
 
 export function useWindowBinding() {
-  const isSupported = getNativeDesktopCapabilities().windowAutomation;
+  const capability = getHostCapability("windowAutomation");
+  const isSupported = capability.available;
   const windows = ref<WindowInfo[]>([]);
   const isLoading = ref(false);
   const lastError = ref<string | null>(null);
@@ -42,7 +43,7 @@ export function useWindowBinding() {
   /** 拉取可见窗口列表 */
   async function refresh(excludeSelf = true): Promise<WindowInfo[]> {
     if (!isSupported) {
-      lastError.value = "窗口绑定需要 Windows";
+      lastError.value = capability.reason;
       windows.value = [];
       return [];
     }
@@ -101,6 +102,7 @@ export function useWindowBinding() {
 
   return {
     isSupported,
+    unsupportedReason: capability.reason,
     windows,
     isLoading,
     lastError,

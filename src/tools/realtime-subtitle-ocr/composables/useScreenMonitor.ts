@@ -28,6 +28,7 @@
  */
 
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { computed, ref, shallowRef, onBeforeUnmount } from "vue";
 import { invoke } from "@/platform/native/core";
 import { listen, type UnlistenFn } from "@/platform/native/events";
@@ -697,8 +698,10 @@ export function useScreenMonitor() {
   /** 开始监控 */
   async function start() {
     if (!getNativeDesktopCapabilities().screenCapture) {
-      errorHandler.handle(new Error("屏幕监控需要 Windows"), {
-        userMessage: "屏幕监控需要 Windows，可使用本地视频工作区",
+      const reason =
+        getHostCapability("screenCapture").reason || "可使用本地视频工作区";
+      errorHandler.handle(new Error(reason), {
+        userMessage: reason,
       });
       return;
     }

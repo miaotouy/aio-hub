@@ -85,6 +85,10 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 
 这条链路覆盖已使用平台 HTTP 的下载与数据源调用。默认模型请求使用下文的专用主进程传输；通用 Channel 等后端能力继续按迁移计划接入。
 
+## 宿主能力提示
+
+共享前端通过 `src/platform/core/capabilities.ts` 区分宿主集成和系统支持范围。后台 JavaScript 运行时按能力启动；Electron 版暂未接通的系统代码格式化、窗口自动化、屏幕监控和外部播放器覆盖层展示对应提示，并保留前端格式化、方案编辑导出、本地视频或内置播放器入口。
+
 ## 后续能力
 
 Channel、文件监听、Shell/Sidecar、更新器，以及知识库、搜索、FFmpeg、系统监控等领域命令仍按迁移总纲分阶段接入。此类调用返回 `CAPABILITY_UNAVAILABLE`；已有工具的启动钩子可能在首页初始化时提示暂未支持。普通前端工具可直接使用，依赖这些后端能力的工作流继续从 Tauri 入口执行。

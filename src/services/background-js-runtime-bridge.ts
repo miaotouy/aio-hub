@@ -1,3 +1,4 @@
+import { requireHostCapability } from "@/platform/core/capabilities";
 import { invoke } from "@/platform/native/core";
 import { listen, type UnlistenFn } from "@/platform/native/events";
 import { getCurrentWindow } from "@/platform/native/window";
@@ -35,6 +36,7 @@ export class BackgroundJsRuntimeBridge {
   private unlistenReady: UnlistenFn | null = null;
 
   async start(): Promise<void> {
+    requireHostCapability("backgroundJsRuntime");
     if (this.startPromise) return this.startPromise;
 
     this.startPromise = (async () => {
@@ -59,6 +61,10 @@ export class BackgroundJsRuntimeBridge {
         this.resolveReadyWaiters();
       }
     })().catch((error) => {
+      this.unlistenResponse?.();
+      this.unlistenReady?.();
+      this.unlistenResponse = null;
+      this.unlistenReady = null;
       this.startPromise = null;
       throw error;
     });

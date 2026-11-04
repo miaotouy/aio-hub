@@ -48,8 +48,15 @@ const emit = defineEmits<{
 
 const logger = createModuleLogger("window-automator/WindowSelector");
 const store = useWindowAutomatorStore();
-const { windows, isLoading, refresh, isValid, isSupported, lastError } =
-  useWindowBinding();
+const {
+  windows,
+  isLoading,
+  refresh,
+  isValid,
+  isSupported,
+  lastError,
+  unsupportedReason,
+} = useWindowBinding();
 
 const showDialog = computed({
   get: () => (props.mode === "dialog" ? props.modelValue : false),
@@ -136,7 +143,7 @@ watch(
       :loading="isLoading"
       :placeholder="
         !isSupported
-          ? '窗口绑定需要 Windows'
+          ? unsupportedReason || ''
           : store.boundWindow
             ? store.boundWindow.title
             : '点击选择目标窗口'

@@ -18,6 +18,12 @@
 
 `src/platform/native/` 保留现有公开类型，并根据 preload 标记选择实现。Tauri 分支沿用 SDK 原函数；Electron 分支实现已迁移能力，待迁移能力显式返回 `CAPABILITY_UNAVAILABLE`。窗口对象的当前适配范围为基础窗口管理；Channel、文件监听、更新对象等按后续阶段补齐。
 
+## 业务能力与启动分层
+
+`core/capabilities.ts` 按当前宿主和操作系统返回业务能力状态：`available`、`reasonCode` 和可展示的 `reason`。当前覆盖后台 JavaScript 运行时、系统代码格式化、窗口自动化、屏幕监控及外部播放器覆盖层；`modules/system.ts` 的既有布尔入口复用这些状态。宿主类型与 OS 信息各自保留原语义。
+
+后台运行时启动前检查能力；显式调用通过 `requireHostCapability()` 返回 `CAPABILITY_UNAVAILABLE`，连接失败时释放已建立的事件订阅。界面用原因字段说明当前限制，并保留编辑、导出或前端处理入口。后续迁移某项业务后端时同步更新其能力定义及相关调用。
+
 ## 能力清单
 
 | 能力                           | 隔离入口                                                                           | 迁移时需保留的契约                                                            |

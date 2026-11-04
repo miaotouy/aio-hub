@@ -13,13 +13,14 @@
 // limitations under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke, isTauri } from "@/platform/native/core";
+import { invoke } from "@/platform/native/core";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { FormatterCore } from "../logic/formatter";
 
 vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
-  isTauri: vi.fn(),
 }));
+vi.mock("@/platform/core/capabilities", () => ({ getHostCapability: vi.fn() }));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() }),
 }));
@@ -33,7 +34,11 @@ const source = "<?php echo 1;";
 describe("代码格式化结果契约", () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset();
-    vi.mocked(isTauri).mockReturnValue(true);
+    vi.mocked(getHostCapability).mockReturnValue({
+      available: true,
+      reason: null,
+      reasonCode: null,
+    });
   });
 
   it.each(["rust", "c", "cpp"] as const)(
@@ -74,7 +79,11 @@ describe("代码格式化结果契约", () => {
     expect((await formatter.getFormatterStatus("c")).error).toContain(
       "IPC unavailable"
     );
-    vi.mocked(isTauri).mockReturnValue(false);
+    vi.mocked(getHostCapability).mockReturnValue({
+      available: false,
+      reason: "Desktop formatter unavailable",
+      reasonCode: "desktop-required",
+    });
     const before = vi.mocked(invoke).mock.calls.length;
     expect((await formatter.getFormatterStatus("cpp")).available).toBe(false);
     expect((await formatter.formatCode("int main(){}", "c")).success).toBe(
@@ -102,16 +111,29 @@ describe("代码格式化结果契约", () => {
     });
   });
 
-  it("returns a recoverable failure for PHP outside the desktop runtime", async () => {
-    vi.mocked(isTauri).mockReturnValue(false);
-    const result = await formatter.formatCode(source, "php");
-    expect(result.success).toBe(false);
-    expect(result.formatted).toBe(source);
-    expect(result.error).toBeTruthy();
-  });
+  it.each(["desktop-required", "host-unavailable"] as const)(
+    "preserves input and the capability reason for PHP: %s",
+    async (reasonCode) => {
+      const reason = "Use a host with system formatter support";
+      vi.mocked(getHostCapability).mockReturnValue({
+        available: false,
+        reason,
+        reasonCode,
+      });
+      const result = await formatter.formatCode(source, "php");
+      expect(result.success).toBe(false);
+      expect(result.formatted).toBe(source);
+      expect(result.error).toBe(reason);
+      expect(invoke).not.toHaveBeenCalled();
+    }
+  );
 
   it("keeps JSON formatting available in browser-only environments", async () => {
-    vi.mocked(isTauri).mockReturnValue(false);
+    vi.mocked(getHostCapability).mockReturnValue({
+      available: false,
+      reason: "Desktop formatter unavailable",
+      reasonCode: "desktop-required",
+    });
     const result = await formatter.formatCode('{"a":1,"b":[2,3]}', "json");
     expect(result.success).toBe(true);
     expect(JSON.parse(result.formatted)).toEqual({ a: 1, b: [2, 3] });

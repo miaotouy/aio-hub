@@ -21,7 +21,7 @@
       type="info"
       :closable="false"
       show-icon
-      title="屏幕监控需要 Windows。可切换到「本地视频」处理视频字幕。"
+      :title="capability.reason || ''"
       style="flex-shrink: 0; margin-bottom: 12px"
     />
     <!-- 上方：左侧监视与滤镜区，右侧 OCR 配置区 -->
@@ -85,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { usePageActivity } from "@/composables/usePageActivity";
 import { Settings as SettingsIcon } from "lucide-vue-next";
@@ -99,7 +99,8 @@ import { useScreenMonitor } from "../../composables/useScreenMonitor";
 import { useMonitorBox } from "../../composables/useMonitorBox";
 import { useSubtitleActions } from "../../composables/useSubtitleActions";
 
-const isSupported = getNativeDesktopCapabilities().screenCapture;
+const capability = getHostCapability("screenCapture");
+const isSupported = capability.available;
 
 // ===== 上方区域高度拖拽调整 =====
 /** 上方区域默认高度，双击拖拽条可复原到该值。 */

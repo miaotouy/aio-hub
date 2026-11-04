@@ -14,6 +14,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC_REQUEST, IPC_EVENT, IPC_ASSET } from "./shared";
+import { installDiagnostics } from "../src/dev/control/diagnostics";
 import type {
   ElectronBridge,
   HostMetadata,
@@ -55,6 +56,8 @@ if (process.isMainFrame && bootstrap) {
     },
   };
   contextBridge.exposeInMainWorld("aiohub", bridge);
+  if (metadata.devControl)
+    contextBridge.executeInMainWorld({ func: installDiagnostics });
   // A file path is read only from real Chromium File objects, never from renderer-provided strings.
   document.addEventListener("dragover", (event) => {
     if (event.dataTransfer?.types.includes("Files")) event.preventDefault();

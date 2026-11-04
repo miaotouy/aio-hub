@@ -43,6 +43,7 @@ import { resolveUserDataPath } from "./data-path";
 import { PendingDeepLinks, readDeepLinks } from "./deep-links";
 import { HttpRequests } from "./http";
 import { chromiumFetch } from "./chromium-fetch";
+import { readDevControl, devControlIdentity } from "./dev-control";
 import type { HttpRequestOptions } from "./shared";
 import type { HostReply, HostMetadata, EventTarget } from "./shared";
 import {
@@ -81,6 +82,14 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
+const devControl = readDevControl(app.isPackaged, process.env);
+if (devControl) {
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  app.commandLine.appendSwitch(
+    "remote-debugging-port",
+    String(devControl.port)
+  );
+}
 app.setName("AIO Hub Electron");
 const userData = resolveUserDataPath({
   packaged: app.isPackaged,
@@ -296,6 +305,8 @@ function windowCall(label: string, method: string, value?: unknown): unknown {
       win.show();
       win.focus();
       return;
+    case "isFullscreen":
+      return win.isFullScreen();
     case "isMaximized":
       return win.isMaximized();
     case "isMinimized":
@@ -417,6 +428,7 @@ async function createWindow(
     label,
     appName: "AIO Hub",
     appVersion: app.getVersion(),
+    ...(devControl ? { devControl: true } : {}),
     os: {
       platform,
       type: platform,
@@ -691,6 +703,12 @@ async function command(
       } else if (effect !== "none") return unavailable("窗口材质 " + effect);
       return;
     }
+    case "dev_control_identity":
+      return devControlIdentity(
+        devControl,
+        Array.from(windows).find(([, candidate]) => candidate === win)![0],
+        process.pid
+      );
     case "frontend_probe_ready":
     case "frontend_probe_heartbeat":
       return;

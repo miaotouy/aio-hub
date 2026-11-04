@@ -22,9 +22,21 @@ export interface DevControlBridge {
   runAction(name: string, args: unknown): Promise<unknown>;
 }
 
+export interface DiagnosticEntry {
+  cursor: number;
+  kind: string;
+  message: string;
+  source?: string;
+  at: number;
+}
 declare global {
   interface Window {
     __AIO_DEV_CONTROL__?: DevControlBridge;
+    __AIO_DEV_DIAGNOSTICS__?: {
+      documentId: string;
+      cursor: number;
+      entries: DiagnosticEntry[];
+    };
   }
 }
 

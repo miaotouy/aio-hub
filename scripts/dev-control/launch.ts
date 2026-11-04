@@ -19,14 +19,22 @@ import { verifyLocalListener } from "./listener";
 import { ControlError } from "./errors";
 
 export async function prepareDevControl(
-  settings: ReturnType<typeof loadDevSettings>,
+  settings: Pick<
+    ReturnType<typeof loadDevSettings>,
+    "idSuffix" | "port" | "dataDir"
+  >,
   staticFrontend: boolean,
-  bundledDebug = false
+  bundledDebug = false,
+  host: "tauri" | "electron" = "tauri"
 ) {
-  if (!["win32", "linux"].includes(process.platform))
+  if (
+    !(
+      host === "electron" ? ["win32", "linux", "darwin"] : ["win32", "linux"]
+    ).includes(process.platform)
+  )
     throw new ControlError(
       "UNSUPPORTED_PLATFORM",
-      "开发控制支持 Windows / WebView2 与 Linux / WebKitGTK。"
+      "当前系统尚未支持此宿主的开发控制。"
     );
   if (await findInstance(settings.idSuffix))
     throw new ControlError(
@@ -61,18 +69,21 @@ export async function prepareDevControl(
     AIO_DEV_CONTROL: "1",
     AIO_DEV_CONTROL_INSTANCE: settings.idSuffix,
     AIO_DEV_CONTROL_STARTUP: startupId,
-    ...(process.platform === "win32"
-      ? {
-          AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS: browserArgs,
-          WEBVIEW2_USER_DATA_FOLDER: path.join(
-            settings.dataDir,
-            "webview2-profile"
-          ),
-        }
-      : { TAURI_WEBDRIVER_PORT: String(port) }),
+    ...(host === "electron"
+      ? { AIO_DEV_CONTROL_PORT: String(port) }
+      : process.platform === "win32"
+        ? {
+            AIO_WEBVIEW2_ADDITIONAL_BROWSER_ARGS: browserArgs,
+            WEBVIEW2_USER_DATA_FOLDER: path.join(
+              settings.dataDir,
+              "webview2-profile"
+            ),
+          }
+        : { TAURI_WEBDRIVER_PORT: String(port) }),
   });
   const instance: DevInstance = {
     protocolVersion: 1,
+    host,
     instanceId: settings.idSuffix,
     startupId,
     launcherPid: process.pid,
@@ -80,12 +91,19 @@ export async function prepareDevControl(
     launcherStartedAtMs: await processStartedAtMs(process.pid),
     startedAt: new Date().toISOString(),
     endpoint: `http://127.0.0.1:${port}`,
-    transport: process.platform === "linux" ? "embedded-webdriver" : "cdp",
+    transport:
+      host === "tauri" && process.platform === "linux"
+        ? "embedded-webdriver"
+        : "cdp",
     frontendUrl: bundledDebug
-      ? "tauri://localhost"
-      : `http://${staticFrontend ? "127.0.0.1" : "localhost"}:${settings.port}`,
+      ? host === "electron"
+        ? "aiohub://app"
+        : "tauri://localhost"
+      : `http://${host === "electron" || staticFrontend ? "127.0.0.1" : "localhost"}:${settings.port}`,
     frontendMode: bundledDebug
-      ? "bundled-debug"
+      ? host === "electron"
+        ? "bundled-electron"
+        : "bundled-debug"
       : staticFrontend
         ? "static"
         : "hmr",
@@ -95,7 +113,10 @@ export async function prepareDevControl(
   publishInstance(instance);
   let disposed = false;
   const dispose = () => {
+    if (disposed) return;
     disposed = true;
+    process.removeListener("exit", dispose);
+    process.removeListener("exit", releaseInstance);
     removeInstance(instance);
     releaseInstance();
   };

@@ -28,6 +28,23 @@ export async function verifyLocalListener(port: number) {
       { windowsHide: true, timeout: 10000 }
     );
     assertLoopbackListeners([JSON.parse(stdout.trim())].flat());
+  } else if (process.platform === "darwin") {
+    const { stdout } = await promisify(execFile)(
+      "lsof",
+      ["-nP", "-iTCP:" + port, "-sTCP:LISTEN", "-Fn"],
+      { timeout: 5000 }
+    );
+    assertLoopbackListeners(
+      stdout
+        .split("\n")
+        .filter((line) => line.startsWith("n"))
+        .map((line) =>
+          line
+            .slice(1)
+            .replace(/:\d+$/, "")
+            .replace(/^\[|\]$/g, "")
+        )
+    );
   } else {
     const { stdout } = await promisify(execFile)(
       "ss",

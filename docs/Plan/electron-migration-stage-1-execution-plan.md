@@ -390,7 +390,7 @@ export const appWindow: AppWindowFacade = {
 - [ ] 音视频资源 Range/Seek 的真实运行专项验证。
 - [ ] 物理标题栏拖动、外部文件拖放精确落点、原生文件对话框完整交互。
 - [ ] 安装后系统协议关联，以及 macOS/Linux 的窗口、托盘与协议运行验证。
-- [ ] Dev Control 的 Electron 发现/握手接入；当前真实运行验证使用 Playwright Electron。
+- [x] Dev Control 的 Electron 发现/握手接入：支持开发态与生产资源预览、隔离数据、CDP 多窗口、刷新重连、尺寸调整及启动期诊断；2026-11-04 已在真实 Windows Electron 验证。
 - [ ] 独立 WebView、窗口吸附、拖拽预览和跨平台材质的完整契约。
 
 详细验证记录见[Electron 开发指南](../guide/electron-development.md)。

@@ -99,7 +99,7 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 
 这仍是拥有桌面文件能力的可信应用渲染器。新引入的远程内容和不可信插件需要单独的权限模型，不能获得该 preload。
 
-真实运行验证可使用 Playwright 的 Electron 启动能力配合独立 `AIO_DATA_DIR`，观察主进程与渲染窗口；项目现有 Dev Control 发现/握手目前依赖 Tauri，Electron 发现适配列入后续工作。
+日常界面验证使用 Dev Control：`bun run electron:dev -- --agent --agent-instance electron-demo`，再通过 `bun scripts/dev-control/cli.ts` 操作窗口、读取结构和截图。生产资源可用 `electron:preview -- --agent` 运行。启动器负责隔离数据、分配 loopback CDP 端口、发布实例与退出清理；窗口身份通过受控 IPC 获取。具体命令见[开发界面控制指南](./dev-control.md#electron-开发控制)。需要主进程专项验证时，可继续使用 Playwright Electron。
 
 详见[平台架构](../architecture/platform-bridge-architecture.md)和[迁移总纲](../Plan/electron-migration-master-plan.md)。
 
@@ -120,3 +120,7 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 本轮相关单测合计 40 项通过，前端/主进程类型检查、平台隔离检查与完整 `electron:build` 通过。生产 `aiohub://app/` 工作台、原生 HTTP IPC、页面刷新与正式图标已在真实 Electron 复验。构建仍报告依赖中的直接 eval、较大分块与插件耗时提示。
 
 生产首页走查确认仍有启动能力缺口：`background_runtime_get_status`、`get_all_skill_manifests`、`recall_preview_legacy_migration`。技能加载和工具注册会提示错误；这些后端契约及启动初始化的能力分层已补入总纲 P1 待办。
+
+2026-11-04 接通 Electron Dev Control。在真实开发态与生产资源预览中验证了实例发现、身份握手、路由跳转、CDP 点击与按键、窗口尺寸确认、截图和诊断摘要。开发态另验证了多窗口、前端控制桥暂不可用时的原生身份、刷新重连；并行实例的数据目录分别隔离，退出后所属 Vite/CDP 端口与实例描述均已释放。诊断摘要验证包含常见凭证字段裁剪。
+
+本轮 35 项相关测试、前端/主进程/Dev Control 类型检查、平台隔离检查与完整 `electron:build` 通过。macOS/Linux 的 Electron 运行态验收继续在对应系统接续。

@@ -18,6 +18,8 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { captureBuildLog } from "./build-log";
+import { prepareDevControl } from "./dev-control/launch";
+import { INSTANCE_ID_PATTERN } from "./dev-control/protocol";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mode = process.argv[2] ?? "dev";
 if (!["dev", "build", "preview", "package"].includes(mode))
@@ -37,9 +39,31 @@ const option = (name: string) => {
   const index = process.argv.indexOf(name);
   return index < 0 ? undefined : process.argv[index + 1];
 };
+const agent = process.argv.includes("--agent");
+const instanceOption = option("--agent-instance");
+if (
+  process.argv.includes("--agent-instance") &&
+  (!instanceOption || instanceOption.startsWith("--") || !agent)
+)
+  throw new Error("--agent-instance 需要配合 --agent 并指定实例名称");
+if (agent && !["dev", "preview"].includes(mode))
+  throw new Error("--agent 用于 electron:dev 或 electron:preview");
+const instanceId =
+  instanceOption ?? process.env.AIO_ID_SUFFIX ?? "electron-agent";
+if (agent && !INSTANCE_ID_PATTERN.test(instanceId))
+  throw new Error("控制实例名称需要 1–64 位字母、数字、下划线或连字符");
+let instanceHash = 0;
+if (agent)
+  for (const character of instanceId)
+    instanceHash =
+      ((instanceHash << 5) - instanceHash + character.charCodeAt(0)) | 0;
 const port = Number(
-  option("--port") ?? process.env.AIO_ELECTRON_PORT ?? "1430"
+  option("--port") ??
+    process.env.AIO_ELECTRON_PORT ??
+    String(1430 + Math.abs(instanceHash % 100))
 );
+// Child processes opt in only through this launcher invocation.
+process.env.AIO_DEV_CONTROL = agent ? "1" : "0";
 if (!Number.isInteger(port) || port < 1024 || port > 65534)
   throw new Error("开发端口需在 1024–65534 之间");
 const output = path.join(
@@ -105,6 +129,7 @@ async function buildHost() {
 }
 const children = new Set<Bun.Subprocess>();
 let stopping = false;
+let control: Awaited<ReturnType<typeof prepareDevControl>> | undefined;
 const env: NodeJS.ProcessEnv = { ...process.env, AIO_DESKTOP_HOST: "electron" };
 delete env.ELECTRON_RUN_AS_NODE;
 // The shared Vue type graph exceeds Node's default 4 GiB heap on this project.
@@ -128,6 +153,7 @@ function spawn(command: string[], extra: Record<string, string> = {}) {
   return child;
 }
 function stop() {
+  control?.dispose();
   if (stopping) return;
   stopping = true;
   for (const child of children) {
@@ -148,6 +174,16 @@ async function run(command: string[], extra: Record<string, string> = {}) {
   if (code) throw new Error(command.join(" ") + "退出码 " + code);
 }
 try {
+  if (agent) {
+    control = await prepareDevControl(
+      { idSuffix: instanceId, port, dataDir: undefined },
+      false,
+      mode === "preview",
+      "electron"
+    );
+    for (const [key, value] of Object.entries(process.env))
+      if (key.startsWith("AIO_DEV_CONTROL")) env[key] = value;
+  }
   if (mode === "build" || mode === "package") {
     await run([process.execPath, "run", "check:electron"]);
     await run([process.execPath, "run", "build:tsc"]);
@@ -200,6 +236,7 @@ try {
     let vite: Bun.Subprocess | undefined;
     const extra: Record<string, string> = {
       AIO_DATA_DIR:
+        control?.instance.dataDir ??
         process.env.AIO_DATA_DIR ??
         path.join(root, ".dev-data/electron/user-data"),
     };
@@ -245,6 +282,20 @@ try {
       extra.AIO_ELECTRON_RENDERER_URL = address;
     }
     const appProcess = spawn([executable, output], extra);
+    if (control) {
+      const activeControl = control;
+      void activeControl
+        .waitUntilReady(() => {
+          console.log("[Dev Control] 就绪：" + instanceId);
+        })
+        .catch((error: unknown) => {
+          if (stopping) return;
+          activeControl.fail(error);
+          console.error("[Dev Control] 启动失败", error);
+          process.exitCode = 1;
+          stop();
+        });
+    }
     if (vite)
       await Promise.race([
         appProcess.exited,

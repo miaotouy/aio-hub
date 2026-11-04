@@ -30,7 +30,9 @@ import { ElNotification } from "element-plus";
 import { extname } from "@/platform/native/path"; // 导入 path 模块用于获取文件扩展名
 import { createPinia } from "pinia";
 import { isElectronRuntime } from "@/platform/core/env";
-if (isElectronRuntime()) document.documentElement.classList.add("electron-host"); // 导入 Pinia
+import { getElectronBridge } from "@/platform/electron/client";
+if (isElectronRuntime())
+  document.documentElement.classList.add("electron-host"); // 导入 Pinia
 import { errorHandler, ErrorLevel } from "./utils/errorHandler";
 import { createModuleLogger, logger as appLogger } from "./utils/logger";
 import packageJson from "../package.json";
@@ -363,7 +365,10 @@ const mountApp = async () => {
     // 3. 挂载 Vue 应用
     app.mount("#app");
     logger.info("应用挂载完成");
-    if (import.meta.env.VITE_AIO_DEV_CONTROL === "1") {
+    if (
+      import.meta.env.VITE_AIO_DEV_CONTROL === "1" ||
+      getElectronBridge()?.metadata.devControl
+    ) {
       void import("./dev/control/bridge")
         .then(({ startDevControlBridge }) => startDevControlBridge())
         .catch((error: unknown) => logger.warn("开发控制桥启动失败", error));

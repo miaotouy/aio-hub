@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { executeRequest, runBatch } from "./commands";
 import { main } from "./cli";
-import { matchesIdentity } from "./connection";
+import { matchesIdentity, matchesFrontendUrl } from "./connection";
 import { acquireWindowLock, type DevInstance } from "./discovery";
 import { validateInstance } from "./discovery";
 import { validateRequest } from "./protocol";
@@ -131,6 +131,41 @@ describe("development control contracts", () => {
     expect(() =>
       validateInstance({ ...app, startupId: "../../outside" })
     ).toThrow();
+  });
+
+  it("discovers Electron CDP with HMR and bundled origins while preserving legacy descriptors", () => {
+    const app = instance();
+    const electron = { ...app, host: "electron", transport: "cdp" };
+    expect(validateInstance(electron).host).toBe("electron");
+    expect(
+      validateInstance({
+        ...electron,
+        frontendMode: "bundled-electron",
+        frontendUrl: "aiohub://app",
+      }).frontendUrl
+    ).toBe("aiohub://app");
+    expect(validateInstance(app).host).toBeUndefined();
+    for (const patch of [
+      { frontendMode: "bundled-electron", frontendUrl: "aiohub://other" },
+      { transport: "embedded-webdriver" },
+      { host: "unknown" },
+    ])
+      expect(() => validateInstance({ ...electron, ...patch })).toThrow();
+    expect(matchesFrontendUrl("aiohub://app/settings", "aiohub://app")).toBe(
+      true
+    );
+    expect(matchesFrontendUrl("aiohub://other/settings", "aiohub://app")).toBe(
+      false
+    );
+    expect(matchesFrontendUrl("asset://app/settings", "aiohub://app")).toBe(
+      false
+    );
+    expect(
+      matchesFrontendUrl(
+        "http://127.0.0.1:1431/settings",
+        "http://127.0.0.1:1430"
+      )
+    ).toBe(false);
   });
 
   it("serializes writers to one window and releases ownership after a batch", async () => {

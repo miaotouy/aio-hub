@@ -15,8 +15,20 @@ export async function readPageDescription(): Promise<DevControlDescription | nul
       };
     }
   ).__TAURI_INTERNALS__;
-  if (!internals) return null;
-  const identity = await internals.invoke("dev_control_identity");
+  const electron = (
+    window as Window & {
+      aiohub?: import("../../electron/shared").ElectronBridge;
+    }
+  ).aiohub;
+  const reply =
+    electron && !internals
+      ? await electron.request("command", { command: "dev_control_identity" })
+      : undefined;
+  const identity = internals
+    ? await internals.invoke("dev_control_identity")
+    : reply?.ok
+      ? (reply.value as DevControlIdentity | null)
+      : null;
   return identity
     ? {
         ...identity,

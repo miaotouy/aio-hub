@@ -14,6 +14,8 @@ const help = `AIO Hub 开发界面控制
 
 启动：bun run dev -- --agent [--agent-instance <名称>]
 静态：bun run dev:static -- --agent [--agent-instance <名称>]
+Electron：bun run electron:dev -- --agent [--agent-instance <名称>]
+Electron 生产资源：bun run electron:preview -- --agent [--agent-instance <名称>]
 
 用法：bun scripts/dev-control/cli.ts <操作> [参数]
 
@@ -167,8 +169,9 @@ export async function main(
     return {
       ok: true,
       instances: (await liveInstances(deadline)).map(
-        ({ instanceId, status, frontendMode, startedAt, error }) => ({
+        ({ instanceId, host, status, frontendMode, startedAt, error }) => ({
           instanceId,
+          host: host ?? "tauri",
           status,
           frontendMode,
           startedAt,

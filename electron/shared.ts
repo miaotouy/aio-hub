@@ -27,6 +27,8 @@ export interface HostMetadata {
   label: string;
   appName: string;
   appVersion: string;
+  /** Present only in explicitly controlled unpackaged launches. */
+  devControl?: boolean;
   os: {
     platform: string;
     type: string;

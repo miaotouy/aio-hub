@@ -67,6 +67,7 @@ import { CanvasPreviews } from "./canvas-preview";
 import { inspectAssetMedia } from "./asset-media";
 import { ConfigArchive } from "./config-archive";
 import { AgentAssets } from "./agent-assets";
+import { LlmChatPersistence } from "./llm-chat-persistence";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -148,6 +149,7 @@ const agentAssets = new AgentAssets({
   trashItem: (value) => shell.trashItem(value),
   inspectMedia: inspectAssetMedia,
 });
+const llmChatPersistence = new LlmChatPersistence(app.getPath("userData"));
 const canvasPreviews = new CanvasPreviews(
   app.getPath("userData"),
   (file, request) =>
@@ -723,7 +725,7 @@ function emitMainEvent(event: string, payload?: unknown): boolean {
 }
 async function exitApplication(code: number) {
   quitting = true;
-  await skillManager.shutdown();
+  await Promise.all([skillManager.shutdown(), llmChatPersistence.shutdown()]);
   await windowConfigQueue.catch((error) =>
     console.warn("退出前窗口配置保存失败", error)
   );
@@ -822,6 +824,10 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "llm_chat_atomic_write":
+      return llmChatPersistence.write(args.request);
+    case "llm_chat_delete_session":
+      return llmChatPersistence.deleteSession(args.request);
     case "set_show_tray_icon":
       return desktopControls.setShowTrayIcon(bool(args.show));
     case "update_tray_setting":
@@ -1334,15 +1340,21 @@ void app
     console.error("Electron 启动失败", error);
     app.exit(1);
   });
-let stoppingSkillOperations = false;
+let stoppingHostOperations = false;
 app.on("before-quit", (event) => {
   quitting = true;
   desktopControls.destroy();
-  if (skillManager.hasPendingOperations) {
+  const pending =
+    skillManager.hasPendingOperations ||
+    llmChatPersistence.hasPendingOperations;
+  const shutdown = llmChatPersistence.shutdown();
+  if (pending) {
     event.preventDefault();
-    if (!stoppingSkillOperations) {
-      stoppingSkillOperations = true;
-      void skillManager.shutdown().finally(() => app.quit());
+    if (!stoppingHostOperations) {
+      stoppingHostOperations = true;
+      void Promise.all([skillManager.shutdown(), shutdown]).finally(() =>
+        app.quit()
+      );
     }
   }
 });

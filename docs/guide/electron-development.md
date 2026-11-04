@@ -89,7 +89,7 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 
 预览保留 `sandbox="allow-scripts"`。主进程将预览授权绑定到创建窗口，限制项目 ID、预览数量和 HTML 大小，对项目资源检查词法路径和真实路径；窗口导航、退出或渲染进程结束时撤销授权。主应用 CSP 仅增加预览 frame 来源，项目脚本由预览自己的 CSP 控制。Windows 生产资源实例已验证内联交互、本地 JS/CSS 和 iframe 宿主隔离。
 
-对话分离窗口创建已验证；有会话数据的草稿保存、重附着和重新打开需随 LLM 持久化命令迁移验收，进度见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
+对话区与输入框已通过有会话数据的草稿保存、重附着、刷新及整进程重启验证，进度见[缺口补齐待办](../Plan/electron-feature-gap-execution.md)。
 
 ## 自定义窗口缩放
 
@@ -115,7 +115,7 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 
 ## 后续能力
 
-Channel、文件监听、Shell/Sidecar、更新器，以及 LLM 会话持久化、知识库、搜索、FFmpeg、系统监控等领域命令仍按迁移总纲分阶段接入。此类调用返回 `CAPABILITY_UNAVAILABLE`；已有工具的启动钩子可能在首页初始化时提示暂未支持。普通前端工具可直接使用，依赖这些后端能力的工作流继续从 Tauri 入口执行。
+Channel、文件监听、Shell/Sidecar、更新器，以及知识库、流式搜索、FFmpeg、系统监控等领域命令仍按迁移总纲分阶段接入。此类调用返回 `CAPABILITY_UNAVAILABLE`；已有工具的启动钩子可能在首页初始化时提示暂未支持。普通前端工具可直接使用，依赖这些后端能力的工作流继续从 Tauri 入口执行。
 
 外部文件拖放的精确落点与目标工具导入、窗口吸附、嵌入式 WebView、跨平台窗口材质、原生文件选择对话框的完整交互与自动更新仍需专项接续。
 
@@ -200,3 +200,13 @@ Electron 已承接技能发现、资源读写、脚本执行、内置模板安�
 安装支持本地目录、ZIP 文件、HTTP(S) ZIP 链接和 Git 仓库。安装前完成解析与暂存，自定义名称保持源目录原样；集合包覆盖会更新技能归属，卸载旧集合保留后来转入其他集合的技能。失败时恢复原技能和集合记录。外部扫描总开关和各路径开关共同决定默认可用范围。
 
 脚本运行时可配置可执行文件路径；空配置按当前系统探测 Bun/Node、Python、Shell 或 PowerShell。启动使用独立参数，工作目录为技能根目录；脚本使用当前用户权限，运行前请确认来源可信。默认超时 60 秒，总输出上限 4 MiB，退出应用时等待所属进程树回收。详细路径边界、归档限制与实现入口见[技能管理架构](../../src/tools/skill-manager/ARCHITECTURE.md#electron-宿主实现)。
+
+## LLM 会话与草稿
+
+Electron 已接通 `llm_chat_atomic_write` 与 `llm_chat_delete_session`，沿用 `llm-chat/sessions-index.json`、`sessions/`、`sessions-corrupt/` 和 `request-snapshots/` 布局。写入按 revision 排序，旧 revision 返回冲突结果；索引轮换最后可解析的主文件备份，同目录临时文件同步写盘后替换目标。
+
+删除先保存持久化删除标记，再清理请求快照并将会话移入 `sessions-trash/`；迟到写入在重启后仍被拒绝。文件和目录访问通过统一应用路径检查，窗口退出时等待已接收的持久化任务完成。
+
+主进程为同路径操作排队，并以目录租约协调其他 Electron 进程。租约每 5 秒更新、30 秒判定过期，获取等待约 5 秒；发生锁失效或超时会返回保存错误。Electron 与 Tauri 沿用独立数据目录，正式迁移按执行待办推进。
+
+输入草稿通过现有配置管理器保存到 `llm-chat/input-drafts.json`。分离窗口将保存操作交给主窗口；真实 Windows 生产资源实例已验证会话切换、刷新、分离/回附和整进程重启恢复。请求快照文件的 revision、格式与大小限制由同一持久化后端承接。

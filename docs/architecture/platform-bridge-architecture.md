@@ -67,11 +67,19 @@
 
 ### 桌面工作区与项目预览（2026-11-04）
 
-- `electron/desktop-controls.ts` 管理托盘实例、主窗口隐藏/关闭策略和待发送的设置导航；设置持久化继续由应用配置管理器完成。主进程退出等待技能任务与窗口配置队列收尾。
+- `electron/desktop-controls.ts` 管理托盘实例、主窗口隐藏/关闭策略和待发送的设置导航；设置持久化继续由应用配置管理器完成。主进程退出等待技能任务、会话持久化与窗口配置队列收尾。
 - `electron/workspace-windows.ts` 管理归属到创建窗口的分离会话；预览与固化状态分开，页面离开和超时清理临时窗口。Canvas 窗口使用独立注册表和事件，保留领域标识。
 - `electron/window-monitor.ts` 将 Electron 的 DIP 显示器矩形转换为共享物理像素契约，工作区返回 position/size。窗口同步总线在广播时由操作所有者回复，避免第三个窗口的无处理器响应覆盖成功结果；定向请求保留错误响应。
 - `modules/html-preview.ts` 选择 Electron 独立预览来源或 Tauri srcdoc。`electron/canvas-preview.ts` 将随机句柄绑定到所属窗口及单个 Canvas 项目，资源访问同时校验逻辑路径和真实路径。导航、渲染进程退出与销毁撤销授权。
 - Canvas iframe 保留 allow-scripts 沙箱。主应用 CSP 允许预览 frame，独立来源的 CSP 承接项目脚本；预览 frame 无宿主 preload，保持与主页面的来源和宿主权限隔离。
+
+### LLM 数据持久化（2026-11-04）
+
+`electron/llm-chat-persistence.ts` 承接会话、索引、损坏清单和请求快照，保持前端逻辑标识及 revision 结果契约。应用路径入口校验名称、词法路径与真实路径；各路径先进入进程内队列，再获取 `proper-lockfile` 目录租约。写入以同目录排他临时文件、FileHandle.sync 和 rename 完成原子替换，主索引有效时才轮换备份。
+
+删除持有会话锁，先同步最高安全 revision 的删除标记，再获取请求快照锁完成清理，将原会话归档到 sessions-trash；两个写入口均检查删除标记，损坏标记显式报错。退出路径停止接受新写入并等待已接收任务结束。
+
+目录租约与 Tauri 的文件锁各自协调本宿主写入；两端沿用独立数据根目录，跨宿主迁移另行实施。前端已有存储 facade、协调器和草稿所有权继续复用，流式搜索与通用 Channel 仍在执行待办中。
 
 ### 原生网络（2026-11-04）
 

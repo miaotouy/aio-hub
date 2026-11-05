@@ -376,7 +376,8 @@ LLM 流式搜索批次（2026-11-04）：
 - [x] 正式 Worker 持有附件/图片/Token 上下文资源池，接通 Main 当前文件策略及既有资产根服务，scope 与原生队列支持正常退出释放；真实工具/审批与任务入口继续接线。
 - [ ] 真实 Agent 生成链接管、持久 `SessionEvent`、订阅游标与增量重放、审批重连、全部窗口销毁后的任务延续及完成通知。
 - [ ] 后台运行时 macOS/Linux 真实生命周期验证。
-- [ ] 窗口系统退出保存与状态恢复。
+- [x] Windows 窗口关闭/销毁和应用退出快照、最小化状态及新进程恢复。
+- [ ] 真实系统注销/关机和 macOS/Linux 窗口退出恢复验收；Windows 系统会话事件已接线并通过合成事件检查。
 - [ ] 应用内更新、发布 workflow、签名与生产数据迁移。
 - [ ] 安装后的协议关联、macOS/Linux 对应系统构建与运行验证。
 
@@ -672,3 +673,15 @@ Worker 上下文资源、当前文件策略与资产根服务批次（2026-11-05
 - 最终正式生产资源于北京时间 18:05:03–18:05:13 通过 5 组 Dev Control 检查：内部初始化与诊断、多窗口共享及 5 个内部方法拒绝页面转发、刷新和关附属窗口、持续心跳、强制结束正式 Worker 后新 PID/代次恢复。应用及记录的 utility PID 均已退出，实例列表为空。
 - 证据位于忽略目录 `.tmp/electron-worker-context/`：`node-tests.log`、`frontend-tests.log`、`build.log`、`utility-result.json`、`utility.log`、`runtime-result.json`、`runtime.log` 和 `slice-*.png`。初跑修正了夹具的返回字段与尺寸附加元数据断言，最终验证使用修正后的夹具。
 - 生产聊天继续由 Renderer 执行，正式 Worker 保持公开诊断契约。独立 fixture 的 scope/HTTP 证明与正式 Worker 生命周期证明分别记录。实际工具/审批授权、PDF/Office/转写、Recall/任务与宿主宏、其余协议和上下文/响应/会话持久事件继续实施；开发态 Token 资产路径随实际后台任务接线继续核验。
+
+
+窗口快照与统一退出批次（2026-11-05）：
+
+- 新增同步、原子替换的 `WindowStateStore`，复用 `electron-windows.json` 格式。原生 close、显式 destroy 和全应用退出均捕获普通窗口几何，避免前端 500 ms 防抖遗漏快速关窗；隐藏窗口仍可快照。恢复校验坐标、尺寸及标题栏可达性，损坏文件保留并记录错误。
+- 真实 Windows 150% 缩放发现并修复恢复时 1 DIP 累积误差；主进程记忆最大化事件，最小化期间保留先前最大化状态。退出后的原生 close 沿用退出快照，避免关闭过程中的暂态覆盖。
+- 新增 `HostShutdown`，托盘、原生 app.quit、显式退出和重启共用一次排空，拒绝新页面请求。各领域收尾独立等待，后台 Worker 先退出再关闭配置/Key 所有者；单项失败记录后继续等待其他项。正常退出最后调用 app.quit，保留 Renderer beforeunload 和 Chromium 存储生命周期；非零 process.exit 保留显式退出码。
+- Windows query-session-end 同步快照且保持应用运行，session-end 快照后进入统一收尾。真实注销/关机的系统时间预算及 macOS/Linux 生命周期继续实机验收。
+- 新增 9 项行为回归，保护快照、重复/重入退出、异常排空、配置保留、最小化最大化及 DIP 恢复；相关宿主测试共 30 项通过。Electron/前端类型检查、native release 与 Electron/Vite 生产构建通过。
+- 最终 Windows 生产资源在项目 Dev Control 隔离实例完成 5 组检查：快速关闭落盘、同标签窗口重建、显式销毁、最大化恢复，以及隐藏主窗口退出和真实 Worker 结束。独立 Playwright Electron fixture 另完成 6 组：query-session-end 合成事件与继续请求、重复原生 app.quit、beforeunload 存储、同目录新进程精确恢复、session-end 合成事件与最小化快照、再次启动恢复最大化。系统会话事件采用合成触发，未执行系统注销或关机。
+- Dev Control 验收于北京时间 19:04:09–19:04:13 完成；最终宿主重打包后，独立进程验证于 19:05:55–19:06:06 完成。验收实例与记录的 Worker 均已退出，开发实例列表为空。
+- 证据位于忽略目录 `.tmp/electron-window-lifecycle/`：`related-tests.log`、`check-final.log`、`build-accepted.log`、`host-final.log`、`runtime-result.json`、`runtime-final.log`、`native-result.json`、`native-runtime-final.log` 和 `production-window.png`。初跑修正了验证脚本的窗口关闭等待、原生启动完成等待和缩放像素断言；最终行为检查使用修正后的夹具。

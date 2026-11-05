@@ -60,6 +60,14 @@ Windows 目录版入口为 `release-electron/win-unpacked/AIO Hub Electron.exe`�
 
 桌面业务继续通过 `getAppConfigDir()` 取根目录。现有 `createConfigManager`、LLM 混淆存储和请求记录存储在 Electron 下使用文件持久化。窗口位置保存在根目录的 `electron-windows.json`，应用日志位于 `logs/`。迁移期间使用独立数据副本验证，待完整后端契约就绪后再安排正式数据迁移。
 
+## 窗口恢复与退出
+
+窗口关闭、显式销毁及应用退出由 Main 捕获普通窗口位置、尺寸和最大化状态，原子保存到 `electron-windows.json`。隐藏窗口沿用普通窗口几何；最小化窗口保留此前的最大化状态。Windows 恢复时校正 DIP 取整误差，避免反复打开后尺寸累积变化。配置条目须通过尺寸与坐标校验，且标题栏在当前显示器工作区内可操作；损坏的配置文件保留并记录错误。
+
+托盘退出、系统应用退出、正常 `process.exit(0)` 和重启共用一次收尾：先保存全部窗口，再关闭后台入口并等待已接收事务及所属原生进程，随后进入 Electron 正常退出，使页面 `beforeunload` 和 Chromium 存储有机会完成。退出期间拒绝新页面请求；某项收尾失败记录错误，其他所有者继续排空。
+
+Windows `query-session-end` 同步保存窗口，系统取消退出后应用继续使用；`session-end` 再次快照并触发宿主收尾。真实注销、关机时可用时间由系统决定，后台事务完成仍受系统终止时机约束。Windows 已完成真实窗口与独立进程恢复验证，系统会话事件使用合成触发；真实注销/关机及 macOS/Linux 生命周期验收继续接续。
+
 ## 实例与协议唤醒
 
 同一 `userData` 目录只运行一个 Electron 实例；再次启动会把有效的 `aiohub://` 请求转给首个实例，并恢复/聚焦主窗口。使用不同 `AIO_DATA_DIR` 的开发和测试实例可并行运行。内部 `aiohub://app/` 页面地址与外部业务协议分开校验。

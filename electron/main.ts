@@ -66,7 +66,7 @@ import {
   rendererFile,
   scopedPath,
 } from "./security";
-import { fileOperation, filePath, writeAtomic } from "./filesystem";
+import { fileOperation, filePath } from "./filesystem";
 import { fileCommand } from "./file-commands";
 import { desktopOpen } from "./desktop-open";
 import { DirectoryTrees } from "./directory-tree";
@@ -86,6 +86,8 @@ import { SkillManager } from "./skill-manager";
 import { WindowResizes } from "./window-resize";
 import { applyWindowEffect } from "./window-effects";
 import { DesktopControls, readDesktopSettings } from "./desktop-controls";
+import { WindowStateStore, restoreWindowState } from "./window-state";
+import { HostShutdown } from "./host-shutdown";
 import { WorkspaceWindows } from "./workspace-windows";
 import { toWindowMonitor } from "./window-monitor";
 import { CanvasPreviews } from "./canvas-preview";
@@ -425,8 +427,9 @@ const cancelWindowResize = (owner: number) => {
   }
 };
 let quitting = false;
+let hostDrained = false;
 let logQueue = Promise.resolve<unknown>(undefined);
-let windowConfigQueue = Promise.resolve<unknown>(undefined);
+const windowStates = new WindowStateStore(app.getPath("userData"));
 const unavailable = (name: string): never => {
   throw Object.assign(
     new Error("当前 Electron 版本暂未支持此功能，可从 Tauri 入口继续使用。"),
@@ -612,6 +615,7 @@ function windowCall(
       win.close();
       return;
     case "destroy":
+      saveWindowBeforeClose(label);
       win.destroy();
       return;
     case "minimize":
@@ -728,25 +732,20 @@ function windowCall(
       return unavailable("window." + method);
   }
 }
-async function saveWindow(label: string) {
+function saveWindow(label: string) {
   const win = windows.get(label);
-  if (!win) throw new Error("窗口已关闭");
-  const bounds = win.getNormalBounds();
-  const target = path.join(app.getPath("userData"), "electron-windows.json");
-  const task = windowConfigQueue
-    .catch(() => {})
-    .then(async () => {
-      let config: Record<string, unknown> = {};
-      try {
-        config = JSON.parse(await fs.readFile(target, "utf8"));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      }
-      config[label] = { bounds, maximized: win.isMaximized() };
-      await writeAtomic(target, JSON.stringify(config));
-    });
-  windowConfigQueue = task;
-  return task;
+  if (!win || win.isDestroyed()) throw new Error("窗口已关闭");
+  windowStates.save([[label, win]]);
+}
+function snapshotWindows() {
+  windowStates.save(windows);
+}
+function saveWindowBeforeClose(label: string) {
+  try {
+    saveWindow(label);
+  } catch (error) {
+    console.warn("关闭前窗口配置保存失败", error);
+  }
 }
 async function createWindow(
   label: string,
@@ -884,10 +883,21 @@ async function createWindow(
   });
   win.on("hide", () => cancelWindowResize(contentsId));
   win.on("minimize", () => cancelWindowResize(contentsId));
-  win.on("maximize", () => cancelWindowResize(contentsId));
+  win.on("maximize", () => {
+    windowStates.rememberMaximized(win, true);
+    cancelWindowResize(contentsId);
+  });
+  win.on("unmaximize", () => windowStates.rememberMaximized(win, false));
   win.on("enter-full-screen", () => cancelWindowResize(contentsId));
+  win.on("query-session-end", () => saveWindowBeforeClose(label));
+  win.on("session-end", () => {
+    saveWindowBeforeClose(label);
+    quitting = true;
+    void hostShutdown.request();
+  });
   win.on("close", (event) => {
     if (quitting) return;
+    saveWindowBeforeClose(label);
     const hasHandler = Array.from(
       subscriptions.get(contentsId)?.values() ?? []
     ).some((sub) => sub.event === "tauri://close-requested");
@@ -959,27 +969,11 @@ async function createWindow(
     publish("tauri://destroyed", { label });
   });
   try {
-    const saved = JSON.parse(
-      await fs.readFile(
-        path.join(app.getPath("userData"), "electron-windows.json"),
-        "utf8"
-      )
-    )[label];
-    if (
-      saved?.bounds &&
-      screen.getAllDisplays().some((display) => {
-        const b = display.workArea;
-        return (
-          saved.bounds.x < b.x + b.width &&
-          saved.bounds.y < b.y + b.height &&
-          saved.bounds.x + saved.bounds.width > b.x &&
-          saved.bounds.y + saved.bounds.height > b.y
-        );
-      })
-    ) {
-      win.setBounds(saved.bounds);
-      if (saved.maximized) win.maximize();
-    }
+    const saved = windowStates.get(
+      label,
+      screen.getAllDisplays().map((display) => display.workArea)
+    );
+    if (saved) restoreWindowState(win, saved, process.platform === "win32");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT")
       console.warn("窗口配置读取失败", String(error));
@@ -1027,17 +1021,49 @@ function emitMainEvent(event: string, payload?: unknown): boolean {
   return listening;
 }
 async function shutdownBackgroundOwners() {
-  try { await backgroundRuntime.shutdown(); }
-  finally { await Promise.all([llmKeyState.shutdown(), llmConfiguration.shutdown()]); }
+  try {
+    await backgroundRuntime.shutdown();
+  } finally {
+    const results = await Promise.allSettled([
+      llmKeyState.shutdown(),
+      llmConfiguration.shutdown(),
+    ]);
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : []
+    );
+    if (failures.length) throw new AggregateError(failures, "后台配置保存失败");
+  }
 }
-async function exitApplication(code: number) {
+const hostShutdown = new HostShutdown({
+  snapshot: snapshotWindows,
+  stop: () => {
+    quitting = true;
+    return [
+      () => llmSearch.disposeAll(), () => fileWatches.disposeAll(),
+      () => clipboardMonitor.disposeAll(), () => directoryTrees.disposeAll(),
+      () => desktopControls.destroy(),
+      () => ffmpeg.shutdown(), () => gitCommands.shutdown(),
+      () => directoryJanitor.shutdown(), () => contentDeduplicator.shutdown(),
+      () => directorySearch.shutdown(), () => symlinkMover.shutdown(),
+      () => systemPulse.shutdown(), () => webDistillery.shutdown(),
+      () => imageCapture.shutdown(), () => windowAutomation.shutdown(),
+      () => codeFormatter.shutdown(), () => shutdownBackgroundOwners(),
+      () => skillManager.shutdown(), () => llmChatPersistence.shutdown(),
+      async () => { try { await recallBackup.shutdown(); } finally { await recall.shutdown(); } },
+      () => knowledge.shutdown(), () => pluginPackages.shutdown(),
+      () => sidecars.shutdown(), () => nativePlugins.shutdown(),
+    ];
+  },
+  report: (error) => console.error("应用退出收尾失败", error),
+  exit: (code) => {
+    hostDrained = true;
+    if (code === 0) app.quit();
+    else app.exit(code);
+  },
+});
+function exitApplication(code: number) {
   quitting = true;
-  await recallBackup.shutdown();
-  await Promise.all([ffmpeg.shutdown(), gitCommands.shutdown(), directoryJanitor.shutdown(), contentDeduplicator.shutdown(), directorySearch.shutdown(), symlinkMover.shutdown(), systemPulse.shutdown(), webDistillery.shutdown(), imageCapture.shutdown(), windowAutomation.shutdown(), codeFormatter.shutdown(), shutdownBackgroundOwners(), skillManager.shutdown(), llmChatPersistence.shutdown(), recall.shutdown(), knowledge.shutdown(), pluginPackages.shutdown(), sidecars.shutdown(), nativePlugins.shutdown()]);
-  await windowConfigQueue.catch((error) =>
-    console.warn("退出前窗口配置保存失败", error)
-  );
-  app.exit(code);
+  return hostShutdown.request(code);
 }
 async function confirmApplicationExit() {
   if (emitMainEvent("request-close-confirmation")) return;
@@ -1116,15 +1142,7 @@ function reportTrayError(action: string, error: unknown) {
   );
 }
 async function clearWindowConfigs() {
-  const task = windowConfigQueue
-    .catch(() => {})
-    .then(() =>
-      fs.rm(path.join(app.getPath("userData"), "electron-windows.json"), {
-        force: true,
-      })
-    );
-  windowConfigQueue = task;
-  await task;
+  windowStates.clear();
 }
 async function command(
   name: string,
@@ -1514,17 +1532,8 @@ async function command(
         root: app.getPath("userData"),
         trashItem: (value) => shell.trashItem(value),
       });
-    case "get_saved_window_labels": {
-      await windowConfigQueue;
-      try {
-        const config: unknown = JSON.parse(await fs.readFile(path.join(app.getPath("userData"), "electron-windows.json"), "utf8"));
-        if (!config || typeof config !== "object" || Array.isArray(config)) throw Error("窗口配置格式无效");
-        return Object.keys(config);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-        throw error;
-      }
-    }
+    case "get_saved_window_labels":
+      return windowStates.labels();
     case "set_window_position": {
       const win = windows.get(str(args.label));
       if (!win || win.isDestroyed()) throw Error("窗口已关闭");
@@ -1811,6 +1820,7 @@ ipcMain.handle(
   IPC_REQUEST,
   async (event, name: unknown, args: unknown): Promise<HostReply> => {
     try {
+      if (quitting || hostShutdown.started) throw new Error("应用正在退出");
       return {
         ok: true,
         value: await operation(
@@ -2015,57 +2025,10 @@ void app
     console.error("Electron 启动失败", error);
     app.exit(1);
   });
-let stoppingHostOperations = false;
 app.on("before-quit", (event) => {
-  quitting = true;
-  llmSearch.disposeAll();
-  fileWatches.disposeAll();
-  clipboardMonitor.disposeAll();
-  directoryTrees.disposeAll();
-  desktopControls.destroy();
-  const pending =
-    ffmpeg.hasPendingOperations ||
-    gitCommands.hasPendingOperations ||
-    directoryJanitor.hasPendingOperations ||
-    contentDeduplicator.hasPendingOperations ||
-    directorySearch.hasPendingOperations ||
-    symlinkMover.hasPendingOperations ||
-    systemPulse.hasPendingOperations ||
-    webDistillery.hasPendingOperations ||
-    imageCapture.hasPendingOperations ||
-    windowAutomation.hasPendingOperations ||
-    codeFormatter.hasPendingOperations ||
-    backgroundRuntime.hasPendingOperations ||
-    sidecars.hasPendingOperations ||
-    nativePlugins.hasPendingOperations ||
-    knowledge.hasPendingOperations ||
-    recall.hasPendingOperations ||
-    recallBackup.hasPendingOperations ||
-    pluginPackages.hasPendingOperations ||
-    skillManager.hasPendingOperations ||
-    llmKeyState.hasPendingOperations ||
-    llmConfiguration.hasPendingOperations ||
-    llmChatPersistence.hasPendingOperations;
-  const shutdown = Promise.all([
-    ffmpeg.shutdown(),
-    gitCommands.shutdown(),
-    directoryJanitor.shutdown(), contentDeduplicator.shutdown(), directorySearch.shutdown(), symlinkMover.shutdown(), systemPulse.shutdown(), webDistillery.shutdown(), imageCapture.shutdown(), windowAutomation.shutdown(), codeFormatter.shutdown(), shutdownBackgroundOwners(),
-    llmChatPersistence.shutdown(),
-    pluginPackages.shutdown(),
-    sidecars.shutdown(),
-    nativePlugins.shutdown(),
-    knowledge.shutdown(),
-    recallBackup.shutdown().then(() => recall.shutdown()),
-  ]);
-  if (pending) {
-    event.preventDefault();
-    if (!stoppingHostOperations) {
-      stoppingHostOperations = true;
-      void Promise.all([skillManager.shutdown(), shutdown]).finally(() =>
-        app.quit()
-      );
-    }
-  }
+  if (hostDrained) return;
+  event.preventDefault();
+  void exitApplication(0);
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

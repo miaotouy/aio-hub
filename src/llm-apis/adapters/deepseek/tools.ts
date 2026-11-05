@@ -1,3 +1,4 @@
+import { waitForKeyOperation } from "../../configuration/keyOperation";
 import { getDeepSeekStableBaseUrl } from "@aiohub/llm-core";
 import type { LlmProfile } from "@/types/llm-profiles";
 import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
@@ -99,7 +100,11 @@ async function requestTool(
     );
   const keyManager = useLlmKeyManager();
   await keyManager.ensureLoaded();
-  const key = keyManager.pickKey(profile);
+  const key = await waitForKeyOperation(
+    () => keyManager.pickKey(profile),
+    options.signal
+  );
+  options.signal?.throwIfAborted();
   if (!key)
     throw new DeepSeekToolsError(
       "MISSING_API_KEY",
@@ -150,7 +155,7 @@ async function requestTool(
       retryable
     );
     // Search/Fetch 的 429 按账号限流，轮换 Key 无法增加额度。
-    keyManager.reportFailure(profile.id, key, error, {
+    await keyManager.reportFailure(profile.id, key, error, {
       allowAutoDisable: status === 401,
       countTowardThreshold: status === 401,
       forceBroken: status === 401,
@@ -158,7 +163,7 @@ async function requestTool(
     });
     throw error;
   }
-  keyManager.reportSuccess(profile.id, key);
+  await keyManager.reportSuccess(profile.id, key);
   try {
     const data: unknown = await response.json();
     if (!data || typeof data !== "object" || Array.isArray(data))

@@ -1,3 +1,4 @@
+import { waitForKeyOperation } from "./configuration/keyOperation";
 import {
   executeChannelRequest,
   type LlmOperation,
@@ -28,7 +29,8 @@ export async function executeConfiguredChannel<R extends object>(input: {
     ...input,
     getProfiles: () => profiles.value,
     execute: async ({ profile, model, signal, timeoutMs }) => {
-      const key = pickKey(profile);
+      const key = await waitForKeyOperation(() => pickKey(profile), signal);
+      signal.throwIfAborted();
       try {
         const response = await input.execute(
           { ...profile, apiKeys: key ? [key] : [] },
@@ -36,10 +38,10 @@ export async function executeConfiguredChannel<R extends object>(input: {
           signal,
           timeoutMs
         );
-        if (key) reportSuccess(profile.id, key);
+        if (key) await reportSuccess(profile.id, key);
         return response;
       } catch (error) {
-        if (key) reportFailure(profile.id, key, error);
+        if (key) await reportFailure(profile.id, key, error);
         throw error;
       }
     },

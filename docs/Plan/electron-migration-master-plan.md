@@ -2,7 +2,7 @@
 
 > 状态：实施中；平台隔离与 Electron 基础宿主已接入\
 > 提出日期：2026-10-02  
-> 更新日期：2026-11-04
+> 更新日期：2026-11-05
 > 编制人：咕咕（架构师）  
 > 关联调查文档：[`docs/design/地基迁移调查/webview2-migration-investigation.md`](../design/地基迁移调查/webview2-migration-investigation.md)  
 > 关联复盘文档：[`docs/Plan/cordis-runtime-postmortem-and-lessons.md`](./cordis-runtime-postmortem-and-lessons.md)
@@ -190,6 +190,8 @@ graph TB
 **目标**：在真正的主进程环境中释放 Agent 与 Cordis 的全部威力。
 
 1. **常驻 Agent 会话运行时**：
+   - 2026-11-05 已接入应用级 Node utility process 基础：启动/心跳、失联回收、代次、页面请求隔离与退出回收。当前公开方法为运行时诊断；真实 Agent 生成链与下列事件持久化继续实施。详见[执行记录](electron-feature-gap-execution.md#6-后台与正式分发)。
+   - 同日已将现有多轮 Agent 编排与单节点请求提取为 Node 可运行的共享核心，并通过 Renderer 适配器接回真实聊天；上下文组装、VCP 分段、续写/快照和可取消重试沿用生产逻辑。模型请求与虚拟渠道中间件也已由 Renderer/Node 共用，OpenAI 兼容协议经真实 Node HTTP/SSE 和文件展开链验证。全部 11 个上下文处理器与三阶段宏内核已共享，`createContextProcessors` 按同一注册清单装配；Renderer 保留原日志、响应式宏注册表和宿主服务。Node 已用显式夹具服务验证完整管道到真实 HTTP 请求，Electron 渠道结构与凭据事务已由主进程 `LlmConfiguration` 接管，沿用原文件格式、revision 快照链及共享规范化；密钥轮询/熔断内核由 Renderer 与 Node 共用，Electron 的 Key 状态、轮询位置和持久化也已由主进程统一持有，窗口通过增量操作和单向状态投影同步。Node 文本分词及图片/音视频计费服务已复用生产引擎，按上下文固定注册表与模型快照；图片解码/缩放/编码及长图原生像素分析已接入任务级服务，切片计划与预算共用，真实 gzip/图片资产和完整管道到 HTTP 已验证。Worker 到 Main 的内部服务通道已接通，渠道加载与执行期 Key 操作复用窗口侧同一所有者，生产 Worker 就绪前完成轻量初始化；已接收事务跨进程退出排空。配置/Key 往返由独立真实 utility process 验证。正式 Worker 现已持有附件/图片/Token 上下文资源池，通过 Main 获取当前持久文件策略和现有资产根，正常退出先释放 scope 与原生队列；资源实例保持按需加载。真实 utility fixture 已验证跨进程策略变更、缓存读取撤销、资产根切换及精确图片预算到 HTTP。生产 Worker 继续仅公开诊断方法。PDF/Office、转写、检索与任务生产服务继续接线。其他协议、审批授权、其余上下文/响应/存储及真实会话/工具所有权继续接入 Worker。
    - 会话状态机由 Node.js 主进程/独立 Worker 持有，采用仅追加事件日志（`SessionEvent`）。
    - 窗口关闭、刷新、切换路由，长程 Agent 任务在后台照常执行。
    - 窗口重连后，一键重放最近事件增量，实现无缝断线重连。
@@ -232,4 +234,4 @@ graph TB
 2. **第二步（基础链路已落地）**：`electron/` 宿主加载现有工作台，开发与生产预览使用同一隔离入口；
 3. **第三步**：优先迁移原生 HTTP/SSE、文件监听与通用 Rust 命令，再按工具逐项推进完整工作流。
 
-补齐进度统一记录在[Electron 功能缺口补齐待办](electron-feature-gap-execution.md)；默认模型传输与本地文件载荷已在 Windows Electron 接通并完成本地协议验证（2026-11-04）。
+补齐进度统一记录在[Electron 功能缺口补齐待办](electron-feature-gap-execution.md)；默认模型传输与本地文件载荷已在 Windows Electron 接通并完成本地协议验证（2026-11-04）。2026-11-05 接续完成 Windows 屏幕/OCR、本地视频字幕、窗口自动化，以及 PHP/Rust/C/C++ 系统格式化和环境版本检测批次；跨平台、真实模型、后台与发布按待办继续推进。

@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { test, expect } from "vitest";
 import { EventEmitter } from "node:events";
 import { WindowAutomation } from "./window-automation";
 class Worker extends EventEmitter {
@@ -19,7 +19,7 @@ class Worker extends EventEmitter {
 async function poll(check: () => boolean) {
   for (let i = 0; i < 100; i++) {
     if (check()) return;
-    await Bun.sleep(1);
+    await new Promise((resolve) => setTimeout(resolve, 1));
   }
   throw Error("worker did not receive command");
 }

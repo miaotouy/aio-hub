@@ -50,22 +50,21 @@ beforeAll(async () => {
     path.join(os.tmpdir(), "aio-git-existing-history-")
   );
   await git(sourceFixture, ["init", "-b", "codex/fixture"]);
-  // Copy existing objects only: tests create no commits or changes in the developer checkout.
+  await git(sourceFixture, ["config", "user.name", "Fixture User"]);
   await git(sourceFixture, [
-    "fetch",
-    "--no-tags",
-    "--depth=2",
-    path.resolve("."),
-    "HEAD",
+    "config",
+    "user.email",
+    "fixture@example.invalid",
   ]);
-  sourceHead = (await git(sourceFixture, ["rev-parse", "FETCH_HEAD"]))
+  await fs.writeFile(path.join(sourceFixture, "README.md"), "fixture base\n");
+  await git(sourceFixture, ["add", "README.md"]);
+  await git(sourceFixture, ["commit", "-m", "fixture base"]);
+  await fs.writeFile(path.join(sourceFixture, "README.md"), "fixture head\n");
+  await git(sourceFixture, ["add", "README.md"]);
+  await git(sourceFixture, ["commit", "-m", "fixture head"]);
+  sourceHead = (await git(sourceFixture, ["rev-parse", "HEAD"]))
     .toString()
     .trim();
-  await git(sourceFixture, [
-    "update-ref",
-    "refs/heads/codex/fixture",
-    sourceHead,
-  ]);
 });
 afterAll(async () => {
   await fs.rm(sourceFixture, { recursive: true, force: true });
@@ -87,10 +86,6 @@ async function existingHistory() {
   await fs.writeFile(
     path.join(repo, ".git", "objects", "info", "alternates"),
     path.join(sourceFixture, ".git", "objects").replaceAll("\\", "/") + "\n"
-  );
-  await fs.copyFile(
-    path.join(sourceFixture, ".git", "shallow"),
-    path.join(repo, ".git", "shallow")
   );
   await git(repo, ["update-ref", "refs/heads/codex/fixture", sourceHead]);
   await git(repo, ["sparse-checkout", "set", "--no-cone", "/README.md"]);

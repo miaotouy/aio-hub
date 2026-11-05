@@ -99,10 +99,18 @@ const oneshot = (
       input: JSON.stringify({ method, params }),
     },
   });
-const alive = (pid: number) => {
+const alive = async (pid: number) => {
   try {
     process.kill(pid, 0);
-    return true;
+  } catch {
+    return false;
+  }
+  if (process.platform !== "linux") return true;
+  try {
+    const stat = await fs.readFile("/proc/" + pid + "/stat", "utf8");
+    const closingParen = stat.lastIndexOf(")");
+    const state = stat.slice(closingParen + 2, closingParen + 3);
+    return state !== "Z" && state !== "X";
   } catch {
     return false;
   }
@@ -149,7 +157,7 @@ it("runs a one-shot process with JSON input, Unicode, manifest cwd and isolated 
       (event) => event.owner === 1 && event.event === "sidecar-output"
     )
   ).toBe(true);
-  expect(alive(response.data.pid)).toBe(false);
+  expect(await alive(response.data.pid)).toBe(false);
 });
 it("rejects a nonzero one-shot exit even after a result was printed", async () => {
   const spec = await fixture("fixture", "oneshot");
@@ -211,7 +219,7 @@ it("shares a resident process but cancels only a removed window's pending reques
   const reply = await send("echo", { value: 2 }, 2);
   await expect(send("echo", {}, 3)).rejects.toThrow("当前窗口");
   await service.run(2, "sidecar_kill_resident", { pluginId: spec.pluginId });
-  expect(alive(reply.data.pid)).toBe(false);
+  expect(await alive(reply.data.pid)).toBe(false);
   expect(
     await fs.readFile(path.join(spec.installPath, "shutdown.txt"), "utf8")
   ).toBe("saved");
@@ -238,7 +246,7 @@ it("times out a resident command and kills its process tree", async () => {
   const child = (await send("child")).data.pid;
   await expect(send("hang")).rejects.toThrow("命令执行超时");
   await service.shutdown();
-  expect(alive(child)).toBe(false);
+  expect(await alive(child)).toBe(false);
 });
 it("forwards Broker requests only between sidecars acquired by the same window", async () => {
   await spawn(await fixture());
@@ -262,7 +270,7 @@ it("stops running work before recycling the plugin and prevents a queued restart
   });
   const restart = spawn(spec).catch((error: Error) => error);
   await recycled;
-  expect(alive(result.data.pid)).toBe(false);
+  expect(await alive(result.data.pid)).toBe(false);
   expect(await restart).toBeInstanceOf(Error);
 });
 it("cancels one-shot work on window exit and prevents late acquisition during app shutdown", async () => {

@@ -136,7 +136,7 @@
     "electron:build": "bun scripts/electron.ts build",
     "electron:preview": "bun scripts/electron.ts preview",
     "check:electron": "tsc --project electron/tsconfig.json --noEmit",
-    "test:electron": "vitest --run --config electron/vitest.config.ts",
+    "test:electron": "cargo build --release --locked --manifest-path native/knowledge-addon/Cargo.toml && vitest --run --config electron/vitest.config.ts",
     "electron:package": "bun scripts/electron.ts package",
     "electron:package:local": "bun scripts/electron.ts package --local",
     "electron:package:dir": "bun scripts/electron.ts package --local --dir",

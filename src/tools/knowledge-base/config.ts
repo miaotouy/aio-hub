@@ -37,7 +37,8 @@ export function normalizeKnowledgeLibraryConfig(
   value?: Partial<KnowledgeLibraryIndexConfig> | null
 ): KnowledgeLibraryIndexConfig {
   const defaults = createDefaultKnowledgeLibraryConfig();
-  const requestedDimensions = value?.embedding?.requestedDimensions;
+  const requestedDimensions =
+    value?.embedding?.requestedDimensions ?? undefined;
   return {
     schemaVersion:
       value?.schemaVersion ?? KNOWLEDGE_LIBRARY_CONFIG_SCHEMA_VERSION,
@@ -48,9 +49,7 @@ export function normalizeKnowledgeLibraryConfig(
     embedding: {
       ...defaults.embedding,
       ...(value?.embedding ?? {}),
-      ...(requestedDimensions === undefined
-        ? { requestedDimensions: undefined }
-        : { requestedDimensions }),
+      requestedDimensions,
     },
     indexes: {
       ...defaults.indexes,

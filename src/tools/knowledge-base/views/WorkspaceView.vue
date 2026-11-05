@@ -924,7 +924,10 @@ onMounted(async () => {
 
 watch(
   () => store.activeLibraryId,
-  () => {
+  (libraryId, previousLibraryId) => {
+    if (libraryId && !previousLibraryId && !searchLibraryIds.value.length) {
+      searchLibraryIds.value = [libraryId];
+    }
     query.value = "";
     documentFilter.value = "";
     hasSearched.value = false;

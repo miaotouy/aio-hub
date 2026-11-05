@@ -39,6 +39,7 @@ import {
   MoreHorizontal,
   SlidersHorizontal,
   ChevronsLeftRight,
+  Package,
   ChevronsRightLeft,
 } from "lucide-vue-next";
 import type {
@@ -106,6 +107,7 @@ interface Emits {
     options?: { modelId?: string; profileId?: string }
   ): void;
   (e: "screenshot"): void;
+  (e: "compress-to-here"): void;
 }
 
 const agentStore = useAgentStore();
@@ -687,9 +689,18 @@ const invoke = (action: ToolbarAction) => {
           />
         </div>
         <button
+          v-if="scopedSessionDetail && scopedSessionIndex && !props.message.metadata?.isCompressionNode && props.message.role !== 'system'"
+          type="button"
+          class="customize-action has-divider"
+          data-testid="message-compress-to-here"
+          @click="closeMoreMenu(); emit('compress-to-here')"
+        >
+          <Package :size="16" /><span>压缩至此</span>
+        </button>
+        <button
           type="button"
           class="customize-action"
-          :class="{ 'has-divider': menuActions.length }"
+          :class="{ 'has-divider': menuActions.length || scopedSessionDetail }"
           data-testid="message-toolbar-customize"
           @click="customize"
         >

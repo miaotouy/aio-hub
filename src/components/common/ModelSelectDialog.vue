@@ -94,7 +94,7 @@ const allModels = computed(() => {
     });
   });
 
-  const lowerCaseQuery = searchQuery.value.toLowerCase();
+  const lowerCaseQuery = searchQuery.value.trim().toLowerCase();
   const caps = selectedCapabilities.value;
   const hasInitialCaps =
     initialCapabilities.value &&
@@ -114,6 +114,7 @@ const allModels = computed(() => {
     const matchesQuery =
       !lowerCaseQuery ||
       model.name.toLowerCase().includes(lowerCaseQuery) ||
+      model.id.toLowerCase().includes(lowerCaseQuery) ||
       profile.name.toLowerCase().includes(lowerCaseQuery);
     if (!matchesQuery) return false;
 
@@ -313,7 +314,7 @@ watch(
         <div class="search-bar">
           <el-input
             v-model="searchQuery"
-            placeholder="搜索模型名称或服务商..."
+            placeholder="搜索模型名称、模型 ID 或渠道..."
             clearable
             class="search-input"
           />

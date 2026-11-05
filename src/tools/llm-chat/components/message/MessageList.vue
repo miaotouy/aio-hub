@@ -49,6 +49,7 @@ import {
 } from "@/tools/rich-text-renderer/composables/useRendererViewState";
 
 import ContextCompressionTask from "./ContextCompressionTask.vue";
+import { useContextCompressor } from "../../composables/features/useContextCompressor";
 import MessageRow from "./MessageRow.vue";
 import { useMessagePresentation } from "../../composables/ui/useMessagePresentation";
 import type { Asset } from "@/types/asset-management";
@@ -72,6 +73,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const store = useLlmChatStore();
+const { manualCompress } = useContextCompressor();
 const { settings } = useChatSettings();
 
 // 会话作用域：有值时读写显式绑定到该会话，不再依赖 currentSessionId
@@ -719,6 +721,11 @@ function messageActions(msg: ChatMessageNode) {
     "reparse-tools": (options: Parameters<typeof handleReparseTools>[1]) =>
       handleReparseTools(msg.id, options),
     screenshot: () => emit("screenshot", msg.id),
+    "compress-to-here": () => {
+      if (isSessionReadOnly.value || !props.sessionIndex || !props.sessionDetail)
+        return;
+      void manualCompress(props.sessionIndex, props.sessionDetail, msg.id);
+    },
     "update-translation": (
       translation: NonNullable<ChatMessageNode["metadata"]>["translation"]
     ) =>

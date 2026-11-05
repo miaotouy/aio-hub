@@ -8,8 +8,8 @@ const state = vi.hoisted(() => ({
 }));
 const profile = {
   id: "profile",
-  name: "Profile",
-  models: [{ id: "model", name: "Model" }],
+  name: "My API Channel",
+  models: [{ id: "stealth/crouton-alpha", name: "Crouton alpha" }],
 };
 vi.mock("@/composables/useModelSelectDialog", () => ({
   useModelSelectDialog: () => ({
@@ -105,5 +105,34 @@ describe("model selection positioning", () => {
     frame(300);
     expect(list.scrollTop).toBe(200);
     expect(frames.size).toBe(0);
+  });
+
+  it("searches models by ID and channel name", async () => {
+    wrapper = mount(ModelSelectDialog, {
+      global: {
+        stubs: {
+          ElInput: {
+            props: ["modelValue"],
+            emits: ["update:modelValue"],
+            template:
+              '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+          },
+          ElSelect: true,
+          ElOption: true,
+          ElIcon: true,
+        },
+      },
+    });
+
+    const search = wrapper.get("input");
+    await search.setValue("stealth/crouton-alpha");
+    expect(wrapper.findAll("[data-model-key]")).toHaveLength(1);
+    expect(wrapper.get(".model-name-text").text()).toBe("Crouton alpha");
+
+    await search.setValue("My API Channel");
+    expect(wrapper.findAll("[data-model-key]")).toHaveLength(1);
+
+    await search.setValue("missing");
+    expect(wrapper.findAll("[data-model-key]")).toHaveLength(0);
   });
 });

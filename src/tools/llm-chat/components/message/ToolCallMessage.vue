@@ -129,6 +129,7 @@ interface Emits {
   ): void;
   (e: "resize", el: HTMLElement | null): void;
   (e: "screenshot"): void;
+  (e: "compress-to-here"): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -1413,6 +1414,7 @@ defineExpose({
           @create-branch="emit('create-branch')"
           @analyze-context="emit('analyze-context')"
           @screenshot="emit('screenshot')"
+          @compress-to-here="emit('compress-to-here')"
           @translate="handleTranslate"
           @toggle-translation-visible="onToggleTranslationVisible"
           @change-translation-mode="onChangeTranslationMode"

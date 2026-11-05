@@ -457,7 +457,8 @@ export function useContextCompressor() {
     detail: ChatSessionDetail,
     manual: boolean,
     config: ContextCompressionConfig | undefined,
-    targetLeafId: string
+    targetLeafId: string,
+    compressThroughNodeId?: string
   ): Promise<CompressionResult> =>
     llmChatStore.runContextCompression(
       detail.id,
@@ -485,7 +486,8 @@ export function useContextCompressor() {
           path,
           effectiveConfig,
           signal,
-          showProgress
+          showProgress,
+          compressThroughNodeId
         );
       }
     );
@@ -500,9 +502,17 @@ export function useContextCompressor() {
 
   const manualCompress = (
     index: ChatSessionIndex,
-    detail: ChatSessionDetail
+    detail: ChatSessionDetail,
+    targetNodeId?: string
   ): Promise<CompressionResult> =>
-    compress(index, detail, true, undefined, detail.activeLeafId || "");
+    compress(
+      index,
+      detail,
+      true,
+      undefined,
+      targetNodeId || detail.activeLeafId || "",
+      targetNodeId
+    );
 
   /**
    * 执行压缩核心逻辑
@@ -513,7 +523,8 @@ export function useContextCompressor() {
     path: ChatMessageNode[],
     effectiveConfig: ContextCompressionConfig,
     signal: AbortSignal,
-    showProgress: (messageCount: number) => void
+    showProgress: (messageCount: number) => void,
+    compressThroughNodeId?: string
   ): Promise<CompressionResult> => {
     // 4. 确定压缩范围
     // 策略：保护最近 N 个计数单位，从之前最早的历史中压缩 M 个单位。
@@ -530,12 +541,25 @@ export function useContextCompressor() {
 
     // 获取所有“可见”的普通消息节点 (排除 system prompt? 通常 system prompt 不压缩)
     // 排除 System 角色
-    const candidateNodes = path.filter(
+    const visibleCandidateNodes = path.filter(
       (node) =>
         !hiddenNodeIds.has(node.id) &&
         !node.metadata?.isCompressionNode &&
         node.role !== "system"
     );
+
+    const boundaryIndex = compressThroughNodeId
+      ? visibleCandidateNodes.findIndex(
+          (node) => node.id === compressThroughNodeId
+        )
+      : -1;
+    if (compressThroughNodeId && boundaryIndex < 0) {
+      return { success: false, failureReason: "not-needed" };
+    }
+    const candidateNodes =
+      boundaryIndex >= 0
+        ? visibleCandidateNodes.slice(0, boundaryIndex + 1)
+        : visibleCandidateNodes;
 
     const protectCount = effectiveConfig.protectRecentCount || 10;
     const compressCount = effectiveConfig.compressCount || 20;
@@ -544,7 +568,7 @@ export function useContextCompressor() {
       effectiveConfig.countUnit
     );
 
-    if (units.length <= protectCount) {
+    if (!compressThroughNodeId && units.length <= protectCount) {
       logger.info("候选历史不足以触发压缩（受保护区限制）", {
         candidateCount: units.length,
         countUnit: effectiveConfig.countUnit,
@@ -554,10 +578,12 @@ export function useContextCompressor() {
     }
 
     // 按选中的单位保护末尾历史，再从最早处选取；用户回合保持完整。
-    const nodesToCompress = units
-      .slice(0, units.length - protectCount)
-      .slice(0, compressCount)
-      .flat();
+    const nodesToCompress = compressThroughNodeId
+      ? units.flat()
+      : units
+          .slice(0, units.length - protectCount)
+          .slice(0, compressCount)
+          .flat();
 
     if (nodesToCompress.length === 0) {
       return { success: false, failureReason: "not-needed" };

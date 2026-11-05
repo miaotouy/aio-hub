@@ -469,6 +469,31 @@ describe("useContextCompressor", () => {
     }
   );
 
+  it("compresses all visible history through the selected node regardless of preset counts", async () => {
+    const detail = prepareToolHistory();
+    const agent = mocks.getAgentById();
+    Object.assign(agent.parameters.contextCompression, {
+      countUnit: "message",
+      protectRecentCount: 10,
+      compressCount: 1,
+    });
+
+    const result = await useContextCompressor().manualCompress(
+      {} as any,
+      detail as any,
+      "a2"
+    );
+
+    expect(result).toMatchObject({ success: true });
+    expect(detail.nodes["new-summary"].metadata.compressedNodeIds).toEqual([
+      "u1",
+      "a1",
+      "t1",
+      "a2",
+    ]);
+    expect(detail.nodes["new-summary"].childrenIds).toEqual(["u2"]);
+  });
+
   it.each([
     { minimum: 4, threshold: 1, expected: false },
     { minimum: 1, threshold: 3, expected: false },

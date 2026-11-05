@@ -24,7 +24,11 @@ import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities"
 import { getHostCapability } from "@/platform/core/capabilities";
 import { computed, onBeforeUnmount } from "vue";
 import { invoke } from "@/platform/native/core";
-import { getCurrentWindow } from "@/platform/native/window";
+import {
+  getCurrentWindow,
+  Window,
+  PhysicalPosition,
+} from "@/platform/native/window";
 import { customMessage } from "@/utils/customMessage";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";
@@ -87,23 +91,21 @@ export function useMonitorBox() {
         return;
       }
 
-      // 首次创建时定位到主窗口右侧
+      // 首次创建时定位到主窗口内
       const win = getCurrentWindow();
       const [pos, size, scaleFactor] = await Promise.all([
         win.outerPosition(),
         win.outerSize(),
         win.scaleFactor(),
       ]);
-      const mainX = pos.x / scaleFactor;
-      const mainY = pos.y / scaleFactor;
-      const mainW = size.width / scaleFactor;
-      let x = Math.round(mainX + mainW + 16);
-      let y = Math.round(mainY + 80);
-      if (x + MONITOR_BOX_DEFAULT_WIDTH > mainX + mainW + 400) {
-        x = Math.round(mainX + 40);
-        y = Math.round(mainY + 120);
-      }
-      await invoke("set_window_position", { label, x, y, center: false });
+      // 首次放在主窗口内容范围，最大化时仍可直接拖动监控框。
+      const target = await Window.getByLabel(label);
+      await target?.setPosition(
+        new PhysicalPosition(
+          Math.round(pos.x + Math.min(40 * scaleFactor, size.width / 4)),
+          Math.round(pos.y + Math.min(80 * scaleFactor, size.height / 4))
+        )
+      );
     } catch {
       // ignore：定位失败不影响功能
     }

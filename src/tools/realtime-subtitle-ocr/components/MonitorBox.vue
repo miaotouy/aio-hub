@@ -60,13 +60,7 @@ import { invoke } from "@/platform/native/core";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
 import { useWindowResize } from "@/composables/useWindowResize";
 import { Pin as PinIcon, X as XIcon } from "lucide-vue-next";
-
-interface Geometry {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { MonitorRect } from "../types";
 
 defineProps<{ isDetached?: boolean }>();
 
@@ -74,7 +68,7 @@ defineProps<{ isDetached?: boolean }>();
 const GEOMETRY_STATE_KEY = "realtime-subtitle-ocr:monitor-box-geometry";
 let geometryVersion = 0;
 
-const geometry = reactive<Geometry>({ x: 0, y: 0, width: 0, height: 0 });
+const geometry = reactive<MonitorRect>({ x: 0, y: 0, width: 0, height: 0 });
 const isAlwaysOnTop = ref(true);
 const isBreathing = ref(true);
 
@@ -93,6 +87,13 @@ async function reportGeometry() {
     win.outerSize(),
     win.scaleFactor(),
   ]);
+  geometry.physicalBounds = {
+    x: pos.x,
+    y: pos.y,
+    width: size.width,
+    height: size.height,
+  };
+  geometry.scaleFactor = scaleFactor;
   geometry.x = Math.round(pos.x / scaleFactor);
   geometry.y = Math.round(pos.y / scaleFactor);
   geometry.width = Math.round(size.width / scaleFactor);

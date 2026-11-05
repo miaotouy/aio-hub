@@ -285,7 +285,8 @@
       v-model="showList"
       title="字幕列表"
       direction="rtl"
-      size="460px"
+      size="min(92vw, 1100px)"
+      append-to-body
       :with-header="true"
     >
       <SubtitleTimeline
@@ -731,10 +732,13 @@ watch(
 }
 .video-workbench__monitor {
   flex: 1;
-  min-height: 0;
+  min-height: 180px;
 }
 .video-workbench__preview {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-height: 80px;
+  max-height: 45%;
+  overflow-y: auto;
 }
 .video-workbench__inspector {
   width: 360px;

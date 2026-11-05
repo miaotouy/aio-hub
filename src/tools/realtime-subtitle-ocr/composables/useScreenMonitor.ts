@@ -43,6 +43,7 @@ import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import { getSimilarity } from "../utils/algorithms";
+import { getPhysicalCaptureRect } from "../utils/captureGeometry";
 import { createSubtitleTimelineStore } from "./useSubtitleTimelineStore";
 import {
   blobToDataUrl,
@@ -105,14 +106,6 @@ const DEDUP_THRESHOLD: Record<DedupSensitivity, number> = {
 
 /** 字幕合并相似度阈值 */
 const MERGE_SIMILARITY_THRESHOLD = 0.9;
-
-/** 监控框边框与控制栏的内收缩量（逻辑像素） */
-const MONITOR_BOX_INSET = {
-  left: 2,
-  top: 26, // 24px 控制栏 + 2px 边框
-  right: 2,
-  bottom: 2,
-};
 
 let entryIdCounter = 0;
 function nextEntryId(): string {
@@ -241,24 +234,12 @@ export function useScreenMonitor() {
     ocrReadinessPromise = readinessPromise;
     return readinessPromise;
   }
-  /** 当前监控框对应的物理坐标截图区域（已向内收缩） */
-  function getCaptureRect(): {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null {
-    const rect = monitorRect.value;
-    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
-    // 监控框几何信息为逻辑坐标，capture_screen_rect 接收物理坐标，
-    // 这里先按逻辑坐标收缩，调用时再乘以 scaleFactor。
-    const x = rect.x + MONITOR_BOX_INSET.left;
-    const y = rect.y + MONITOR_BOX_INSET.top;
-    const width = rect.width - MONITOR_BOX_INSET.left - MONITOR_BOX_INSET.right;
-    const height =
-      rect.height - MONITOR_BOX_INSET.top - MONITOR_BOX_INSET.bottom;
-    if (width <= 0 || height <= 0) return null;
-    return { x, y, width, height };
+  /** 使用监控框自身的物理边界和缩放，兼容旧版逻辑坐标事件。 */
+  async function getCaptureRect() {
+    if (!monitorRect.value?.physicalBounds && cachedScaleFactor === 1) {
+      await updateScaleFactor();
+    }
+    return getPhysicalCaptureRect(monitorRect.value, cachedScaleFactor);
   }
 
   /** 监听 MonitorBox 悬浮窗通过窗口同步总线上报的几何信息 */
@@ -331,19 +312,10 @@ export function useScreenMonitor() {
     dataUrl: string;
     hash: string;
   } | null> {
-    const logicalRect = getCaptureRect();
-    if (!logicalRect) return null;
+    const rect = await getCaptureRect();
+    if (!rect) return null;
     const captureFilterRevision = imageFilterRevision;
-
-    // 如果缓存的缩放因子为 1，尝试更新一次
-    if (cachedScaleFactor === 1) {
-      await updateScaleFactor();
-    }
-
-    const x = Math.round(logicalRect.x * cachedScaleFactor);
-    const y = Math.round(logicalRect.y * cachedScaleFactor);
-    const width = Math.round(logicalRect.width * cachedScaleFactor);
-    const height = Math.round(logicalRect.height * cachedScaleFactor);
+    const { x, y, width, height } = rect;
     const threshold = DEDUP_THRESHOLD[config.value.dedupSensitivity];
 
     const result = await errorHandler.wrapAsync(
@@ -501,15 +473,9 @@ export function useScreenMonitor() {
 
   /** 一次性抓取当前监控框区域（不参与监控去重、不写入 lastHash）。 */
   async function captureOnce(): Promise<Blob | null> {
-    const logicalRect = getCaptureRect();
-    if (!logicalRect) return null;
-    if (cachedScaleFactor === 1) {
-      await updateScaleFactor();
-    }
-    const x = Math.round(logicalRect.x * cachedScaleFactor);
-    const y = Math.round(logicalRect.y * cachedScaleFactor);
-    const width = Math.round(logicalRect.width * cachedScaleFactor);
-    const height = Math.round(logicalRect.height * cachedScaleFactor);
+    const rect = await getCaptureRect();
+    if (!rect) return null;
+    const { x, y, width, height } = rect;
     const result = await errorHandler.wrapAsync(
       () =>
         invoke<CaptureResult>("capture_screen_rect", {

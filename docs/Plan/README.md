@@ -79,6 +79,7 @@
 - [ ] **D-P3-01 壁纸探测跨平台真机验证**：在 macOS、GNOME、KDE 核对系统 API、权限拒绝、路径解析和定位行为。详见 [壁纸探测器计划](../../src/tools/wallpaper-detector/docs/Plan/wallpaper-detector-plan.md)。
 - [ ] **D-P3-02 Provider 共享运行态观测**：记录真实 Tauri WebView 性能；Android/iOS 真机验收属于移动端队列，不阻塞桌面已完成代码。
 - [ ] **D-P3-03 Transcription OCR 行为验收**：图片 VLM/OCR 配置、设置联动和引擎分流已经实施；补 OCR/VLM 行为、错误回退和真实运行验证。详见 [引入本地 OCR 引擎计划](../../src/tools/transcription/docs/Plan/introduce-ocr-engine.md)。
+- [ ] **Electron Linux 兼容性跟进**：合并 Ubuntu 原检出工作，修复 Electron 测试的跨平台缺口，并完成 Windows/Ubuntu 双端构建与运行验证。详见 [跟进清单](./electron-linux-compatibility-followup.md)。
 
 ## 3. 关键依赖
 

@@ -14,6 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@/platform/native/core";
+import { getBackgroundRuntimeHost } from "@/platform/modules/background-runtime";
 import { listen } from "@/platform/native/events";
 import {
   BACKGROUND_JS_RUNTIME_EVENTS as events,
@@ -33,6 +34,9 @@ vi.mock("@/platform/core/env", () => ({
     return bus.runtime;
   },
 }));
+vi.mock("@/platform/modules/background-runtime", () => ({
+  getBackgroundRuntimeHost: vi.fn(() => null),
+}));
 vi.mock("@/platform/native/events", () => ({
   listen: vi.fn(
     async (event: string, callback: (event: { payload: unknown }) => void) => {
@@ -50,6 +54,7 @@ vi.mock("@/platform/native/window", () => ({
 let bridge: BackgroundJsRuntimeBridge;
 beforeEach(() => {
   bus.runtime = "tauri";
+  vi.mocked(getBackgroundRuntimeHost).mockReturnValue(null);
   bus.handlers.clear();
   vi.clearAllMocks();
   vi.mocked(invoke)
@@ -70,15 +75,16 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await bridge.stop();
+  vi.useRealTimers();
 });
 
 describe("后台 JavaScript 运行时连接", () => {
   it("fails explicit unsupported-host calls before subscribing or dispatching", async () => {
-    bus.runtime = "electron";
+    bus.runtime = "browser";
     await expect(bridge.start()).rejects.toMatchObject({
       code: "CAPABILITY_UNAVAILABLE",
       capability: "backgroundJsRuntime",
-      reasonCode: "host-unavailable",
+      reasonCode: "desktop-required",
     });
     await expect(bridge.call("runtime.ping", null)).rejects.toMatchObject({
       code: "CAPABILITY_UNAVAILABLE",
@@ -119,5 +125,102 @@ describe("后台 JavaScript 运行时连接", () => {
     });
     expect(invoke).toHaveBeenCalledTimes(2);
     expect(listen).toHaveBeenCalledTimes(4);
+  });
+  it("routes Electron directly through the host and reconnects after local stop", async () => {
+    bus.runtime = "electron";
+    const host = {
+      start: vi.fn(async () => ({
+        available: true,
+        ready: true,
+        generation: 1,
+      })),
+      call: vi.fn().mockResolvedValue({ pong: true }),
+    };
+    vi.mocked(getBackgroundRuntimeHost).mockReturnValue(host);
+    await expect(bridge.call("runtime.ping", null)).resolves.toEqual({
+      pong: true,
+    });
+    expect(host.call).toHaveBeenCalledWith("runtime.ping", null, 30_000);
+    expect(listen).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
+    let finish!: (value: unknown) => void;
+    host.call.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const pending = bridge.call("runtime.getInfo", null);
+    const checked = expect(pending).rejects.toThrow("bridge stopped");
+    await vi.waitFor(() => expect(host.call).toHaveBeenCalledTimes(2));
+    await bridge.stop();
+    await checked;
+    await expect(bridge.call("runtime.ping", null)).resolves.toEqual({
+      pong: true,
+    });
+    finish("old result");
+    expect(host.start).toHaveBeenCalledTimes(2);
+  });
+
+  it("settles synchronous dispatch failures and clears their deadline", async () => {
+    vi.useFakeTimers();
+    bus.emitTo.mockImplementationOnce(() => {
+      throw Error("document unavailable");
+    });
+    await expect(bridge.call("runtime.ping", null)).rejects.toThrow(
+      "document unavailable"
+    );
+    expect(vi.getTimerCount()).toBe(0);
+    await expect(bridge.call("runtime.ping", null)).resolves.toEqual({
+      pong: true,
+    });
+  });
+
+  it("releases readiness waiters on stop and permits retry after timeout", async () => {
+    vi.useFakeTimers();
+    vi.mocked(invoke).mockResolvedValue({
+      available: true,
+      ready: false,
+      generation: 0,
+    });
+    const waiting = bridge.call("runtime.ping", null);
+    const waitingCheck = expect(waiting).rejects.toThrow("bridge stopped");
+    await vi.advanceTimersByTimeAsync(0);
+    await bridge.stop();
+    await waitingCheck;
+    expect(vi.getTimerCount()).toBe(0);
+    const timed = bridge.call("runtime.ping", null);
+    const timedCheck = expect(timed).rejects.toThrow("not ready");
+    await vi.advanceTimersByTimeAsync(15_000);
+    await timedCheck;
+    bus.handlers.get(events.ready)?.({
+      payload: { generation: 1, runtimeVersion: "fixture" },
+    });
+    await expect(bridge.call("runtime.ping", null)).resolves.toEqual({
+      pong: true,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("discards stale subscription completion without disturbing a newer connection", async () => {
+    let finish!: (unlisten: () => void) => void;
+    vi.mocked(listen).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const first = bridge.start();
+    const check = expect(first).rejects.toThrow("bridge stopped");
+    await bridge.stop();
+    await bridge.start();
+    const release = vi.fn();
+    finish(release);
+    await check;
+    expect(release).toHaveBeenCalledOnce();
+    await expect(bridge.call("runtime.ping", null)).resolves.toEqual({
+      pong: true,
+    });
+    expect(bus.handlers.size).toBe(2);
   });
 });

@@ -26,3 +26,11 @@ export type BackgroundJsRuntimeResponse = {
     message: string;
   };
 };
+
+export type BackgroundJsRuntimeStatus = {
+  available: boolean;
+  ready: boolean;
+  generation: number;
+  runtimeVersion?: string;
+  lastHeartbeatAt?: number;
+};

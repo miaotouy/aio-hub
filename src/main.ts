@@ -71,11 +71,11 @@ if (getHostCapability("backgroundJsRuntime").available)
           "runtime.ping",
           null
         );
-        logger.info("Background JS Runtime PoC 已连接", result);
+        logger.info("Background JS Runtime 已连接", result);
       }
     })
     .catch((error) => {
-      logger.warn("Background JS Runtime PoC 未就绪", error);
+      logger.warn("Background JS Runtime 未就绪", error);
     });
 
 const FRONTEND_PROBE_HEARTBEAT_MS = 5000;

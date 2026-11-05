@@ -38,7 +38,11 @@ src/tools/ffmpeg-tools/
 └── ffmpegTools.registry.ts     # 工具注册定义
 
 src-tauri/src/commands/
-└── ffmpeg_processor.rs         # 后端实现
+└── ffmpeg_processor.rs         # Tauri 后端实现
+
+electron/
+├── ffmpeg.ts                   # Electron 探测、执行、进度与窗口级任务管理
+└── ffmpeg-frames.ts            # Electron 区间抽帧、ROI 和帧事件
 ```
 
 ## 3. 核心架构与数据流
@@ -76,7 +80,9 @@ graph TD
     StoreUpdate --> Monitor[FFmpegTaskMonitor: UI 更新]
 ```
 
-## 4. 后端实现细节 (Rust)
+## 4. 后端实现细节
+
+### 4.1 Tauri (Rust)
 
 后端逻辑核心位于 `src-tauri/src/commands/ffmpeg_processor.rs`：
 
@@ -94,6 +100,16 @@ graph TD
   - `get_media_metadata`: 快速解析 `ffmpeg -i` 的 stderr 输出获取基础信息，并解析 `audioCodec`/`videoCodec`。
   - `get_full_media_info`: 调用 `ffprobe` 并解析其 JSON 输出，提供详细的流信息。
 - **智能码率计算**: 目标体积换算 `-b:v` 由前端 `executionPlan.ts` 在有源时长时完成，后端不再自行计算。
+
+### 4.2 Electron
+
+`electron/ffmpeg.ts` 承接同一组 8 个命令，复用前端执行计划和事件包络。元数据保持部分结果契约：探测不可用时保留文件大小，其余字段为空；ffprobe 优先使用显式路径，其次推导 FFmpeg 同目录。关键帧始终查询整文件，只将 CSV 首列解析为时间戳，兼容附带帧 side data 的输出。
+
+任务按 `(webContents.id, taskId)` 索引，并绑定创建时的文档代次；探测也纳入生命周期。取消支持预启动意图，返回 `{ found }`；同窗口重复运行 ID 拒绝，多个窗口可独立使用相同 ID。导航/刷新、渲染进程退出、关窗会撤销所属任务，应用退出等待全部任务收尾。进度与日志通过 owner 私有发送，旧文档与已取消任务停止投递。转录管理器取消音视频任务时同步调用同 ID 的 `kill_ffmpeg_process`。
+
+使用无 shell 子进程和进程树终止；Windows 隐藏控制台，POSIX 创建进程组。UTF-8 日志和进度支持任意管道分片及 CR/LF，限制单行与错误尾部长度，成功结束才发送 100%。`electron/ffmpeg-frames.ts` 对区间/间隔/ROI 做校验，最多 100000 帧；按序观察 JPEG 大小稳定后发出 `video-ocr-frame`，退出后补齐剩余文件并发出 OCR 阶段进度。
+
+2026-11-05 已通过 Windows 生产资源验证媒体转换、元信息/关键帧、ROI 抽帧、工作台交互、跨窗口取消隔离及刷新/关窗/退出回收。转录已验证真实 MP3→PCM WAV、本地受控 STT multipart 上传和派生结果读写；真实 ASR/视频 OCR 模型及 macOS/Linux 运行另行验收。
 
 ## 5. 状态管理 (Pinia)
 

@@ -1,9 +1,9 @@
 # 窗口自动化助手（Window Automator）：架构与设计规范
 
-> 状态：Active | 最后更新：2026-10-29
-> 关联模块：`src/tools/window-automator`、`src-tauri/src/commands/window_automator.rs`、`src/tools/smart-ocr`（OCR 引擎复用）
+> 状态：Active | 最后更新：2026-11-05
+> 关联模块：`src/tools/window-automator`、`src-tauri/src/window_automation.rs`、`electron/window-automation.ts`、`src/tools/smart-ocr`（OCR 引擎复用）
 > 参考方案：[`center-coordinate-system-plan.md`](./docs/Plan/center-coordinate-system-plan.md)（中心坐标系与四象限点位，代码已实施；真实 Tauri 运行态验证待人工执行）
-> 平台边界：全部输入注入与截图/取色能力依赖 Windows Rust command（`#[cfg(windows)]` 守卫）。前端通过 `getHostCapability("windowAutomation")` 判定宿主与系统能力：Linux/macOS、Electron 及浏览器保留方案创建、编辑与导入导出，并在工作区展示对应原因；窗口选择/刷新禁用，绑定查询和执行入口在发出 IPC 前返回。
+> 平台边界：输入注入与截图/取色复用 Windows Rust 核心（`#[cfg(windows)]` 守卫），Tauri 通过薄 command 适配器调用，Electron 通过 N-API 和独立 utility process 调用。前端通过 `getHostCapability("windowAutomation")` 判定宿主与系统能力：Windows 两种桌面宿主均开放；Linux/macOS 及浏览器保留方案创建、编辑与导入导出，并展示对应原因。
 
 ---
 
@@ -78,12 +78,12 @@ idle ──start──► running ◄──resume── paused
 
 步骤执行器返回值契约：
 
-| 返回值 | 含义 |
-| --- | --- |
-| `null` | 顺延下一步 |
-| `"__STOP__"` | 步骤失败，主动终止整条动作流 |
-| `"__CALL__"` | call 步骤专用信号，由 runLoop 处理子流程压栈/出栈 |
-| 其它字符串 | 跳转到该 `step.id`（在当前执行上下文内解析为下标） |
+| 返回值       | 含义                                               |
+| ------------ | -------------------------------------------------- |
+| `null`       | 顺延下一步                                         |
+| `"__STOP__"` | 步骤失败，主动终止整条动作流                       |
+| `"__CALL__"` | call 步骤专用信号，由 runLoop 处理子流程压栈/出栈  |
+| 其它字符串   | 跳转到该 `step.id`（在当前执行上下文内解析为下标） |
 
 - **跳转按步骤 ID 解析**：跳转目标只在当前上下文（主流程或当前子流程）的步骤列表内查找；目标不存在时记录 warn 并顺延下一步。
 - **禁用步骤**：`enabled: false` 的步骤直接跳过。
@@ -91,17 +91,17 @@ idle ──start──► running ◄──resume── paused
 
 ### 3.3 步骤类型清单（9 种）
 
-| 类型 | 职责 | 关键参数 |
-| --- | --- | --- |
-| `click` | 坐标点击，前台/后台可选 | `coordinate`、`button`、`clickType`、`mode`、`delayAfter` |
-| `keypress` | 按键 + 修饰键，前台/后台可选 | `key`、`modifiers`、`mode`、`delayAfter` |
-| `delay` | 延时（支持 ±随机波动） | `duration`、`randomRange` |
-| `colorCheck` | 单点取色或区域颜色判断后分支 | `checkMode`、`expectedColor`、`tolerance`、`matchGoto`/`mismatchGoto` |
-| `goto` | 无条件跳转 | `targetStepId` |
-| `counter` | 计数循环（按步骤 ID 独立计数） | `maxCount`、`notReachedGotoId`、`reachedGotoId` |
-| `log` | 输出变量插值日志 | `message`（支持 `{var}` 插值）、`level` |
-| `ocr` | 截图裁剪后调用 smart-ocr，关键字/正则匹配分支 | `rect`、`engineConfig`、`keyword`、`useRegex`、`saveToVariable` |
-| `call` | 调用子流程（见第 6 节） | `targetSubFlowId`、`arguments`、`saveResultToVariable` |
+| 类型         | 职责                                          | 关键参数                                                              |
+| ------------ | --------------------------------------------- | --------------------------------------------------------------------- |
+| `click`      | 坐标点击，前台/后台可选                       | `coordinate`、`button`、`clickType`、`mode`、`delayAfter`             |
+| `keypress`   | 按键 + 修饰键，前台/后台可选                  | `key`、`modifiers`、`mode`、`delayAfter`                              |
+| `delay`      | 延时（支持 ±随机波动）                        | `duration`、`randomRange`                                             |
+| `colorCheck` | 单点取色或区域颜色判断后分支                  | `checkMode`、`expectedColor`、`tolerance`、`matchGoto`/`mismatchGoto` |
+| `goto`       | 无条件跳转                                    | `targetStepId`                                                        |
+| `counter`    | 计数循环（按步骤 ID 独立计数）                | `maxCount`、`notReachedGotoId`、`reachedGotoId`                       |
+| `log`        | 输出变量插值日志                              | `message`（支持 `{var}` 插值）、`level`                               |
+| `ocr`        | 截图裁剪后调用 smart-ocr，关键字/正则匹配分支 | `rect`、`engineConfig`、`keyword`、`useRegex`、`saveToVariable`       |
+| `call`       | 调用子流程（见第 6 节）                       | `targetSubFlowId`、`arguments`、`saveResultToVariable`                |
 
 colorCheck 细节：单点模式经 `wa_get_pixel` 取色，颜色差异用欧氏距离占最大距离的百分比与 `tolerance` 比较；区域模式经 `wa_capture_window` 截图后用 Canvas `getImageData` 统计，支持 `contains`（存在匹配像素）与 `percentage`（匹配占比达到阈值）两种判定。
 
@@ -142,11 +142,11 @@ colorCheck 细节：单点模式经 `wa_get_pixel` 取色，颜色差异用欧�
 
 定义于 `types.ts` 的 `CoordinateMode`，统一由 `coordinateTransforms.resolveCoordinate()` 解析为客户区像素坐标：
 
-| 模式 | 原点 | 表达 | 越界处理 |
-| --- | --- | --- | --- |
-| `pixel` | 客户区左上角 | 像素直通 | 不收边（保持既有行为，由 Rust 侧客户区校验兜底） |
-| `percent` | 客户区左上角 | 0~100 按客户区尺寸换算 | 不收边 |
-| `center` | 可标定原点（默认客户区几何中心） | 相对原点的像素偏移，**y 向上为正**（执行时翻转） | clamp 收边到客户区内，并记录 warn 日志 |
+| 模式      | 原点                             | 表达                                             | 越界处理                                         |
+| --------- | -------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| `pixel`   | 客户区左上角                     | 像素直通                                         | 不收边（保持既有行为，由 Rust 侧客户区校验兜底） |
+| `percent` | 客户区左上角                     | 0~100 按客户区尺寸换算                           | 不收边                                           |
+| `center`  | 可标定原点（默认客户区几何中心） | 相对原点的像素偏移，**y 向上为正**（执行时翻转） | clamp 收边到客户区内，并记录 warn 日志           |
 
 **中心坐标系契约要点**（详见[中心坐标系实施计划](./docs/Plan/center-coordinate-system-plan.md)）：
 
@@ -159,8 +159,17 @@ colorCheck 细节：单点模式经 `wa_get_pixel` 取色，颜色差异用欧�
 ### 5.2 取色与截图通道
 
 - 后台取色：`wa_get_pixel`（窗口 DC `GetPixel`）。
-- 后台截图：`wa_capture_window` 优先 `PrintWindow`，失败回退 `BitBlt`；最长边超过 2048px 时等比缩放后返回 PNG 字节流。colorCheck 区域模式与 OCR 步骤共用该通道，前端用 Canvas 完成区域统计与裁剪。
+- 后台截图：`wa_capture_window` 优先使用 client-only + full-content 的 `PrintWindow`，失败回退 `BitBlt`；最长边超过 2048px 时等比缩放后返回 PNG 字节流。colorCheck 区域模式与 OCR 步骤共用该通道，前端用 Canvas 完成区域统计与裁剪。
 - 标定与取点入口为 `ScreenshotPicker`（配合 `useScreenshotPicker`），支持单点/矩形两种拾取模式，返回像素/百分比/中心系直角/极坐标/象限的完整结果供各配置面板写入。
+
+---
+
+### 5.3 Electron 宿主与生命周期
+
+- `electron/window-automation.ts` 将八命令交给单个可回收的 utility process，`native/knowledge-addon/src/window_automation.rs` 只负责 JSON/PNG 编解码与共享核心分派。主进程接收 PNG 后恢复 ArrayBuffer，前端截图、取点、区域颜色与 OCR 沿用同一数据契约。
+- 所有动作全局串行，单文档最多接受 8 个请求，全应用最多 32 个；请求绑定窗口/文档代次。枚举排除自身与 `wa_get_self_pid` 使用应用主进程 PID，避免误用辅助进程 PID。
+- 单次操作默认 5 秒期限。目标 `PrintWindow` 阻塞时终止辅助进程，后续操作创建新进程；刷新、主文档导航、渲染进程退出和关窗使排队动作失效，并终止在途只读操作。已开始的输入完成 key-up 和焦点/光标恢复后结束，迟到结果失效。应用退出等待请求清理并停止空闲辅助进程。
+- 共享核心以线程级 per-monitor DPI 环境解释客户区物理坐标；截图在分配前检查尺寸和总像素，GDI 对象按作用域回收，位图取消选入 DC 后读取像素。输入串行锁保护焦点与鼠标；SendInput 激活前后保留派发时间，异常路径仍尝试反序释放已按下的按键并恢复原焦点/光标。
 
 ---
 
@@ -242,7 +251,7 @@ src/tools/window-automator/
     └── center-coordinate-system-plan.md
 ```
 
-对应 Rust 侧 `src-tauri/src/commands/window_automator.rs` 提供 8 个命令（均在 `commands.rs` 的 `tauri::generate_handler![]` 中以 `#[cfg(windows)]` 注册）：`wa_get_windows`、`wa_get_self_pid`、`wa_is_window_valid`、`wa_get_client_rect`、`wa_send_click`、`wa_send_keypress`、`wa_get_pixel`、`wa_capture_window`。同文件中的 `capture_screen_rect` 属于实时字幕 OCR 工具的屏幕采样命令，不属于本模块命令集。
+共享 Rust 核心 `src-tauri/src/window_automation.rs` 由 `src-tauri/src/commands/window_automator.rs` 提供 8 个 Tauri 适配命令（均在 `commands.rs` 的 `tauri::generate_handler![]` 中以 `#[cfg(windows)]` 注册）：`wa_get_windows`、`wa_get_self_pid`、`wa_is_window_valid`、`wa_get_client_rect`、`wa_send_click`、`wa_send_keypress`、`wa_get_pixel`、`wa_capture_window`。同文件中的 `capture_screen_rect` 属于实时字幕 OCR 工具的屏幕采样命令，不属于本模块命令集。
 
 测试布局：`stores/__tests__/`（store 与 flowTransforms）、`composables/__tests__/`（flowUtils、coordinateTransforms、useFlowPersistence）。
 

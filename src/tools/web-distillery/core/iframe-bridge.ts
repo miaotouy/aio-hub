@@ -22,6 +22,7 @@ import selectorPickerScript from "../inject/selector-picker.js?raw";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getLocalISOString } from "@/utils/time";
+import type { CookieProfile } from "../types";
 
 const logger = createModuleLogger("web-distillery/iframe-bridge");
 const errorHandler = createModuleErrorHandler("web-distillery/iframe-bridge");
@@ -36,10 +37,15 @@ export type DomExtractedCallback = (
 export class IframeBridge {
   private static instance: IframeBridge;
   private iframe: HTMLIFrameElement | null = null;
-  private proxyPort: number | null = null;
+  private proxyOrigin: string | null = null;
+  private revision = 0;
+  private initializing: Promise<void> | null = null;
+  private creating = false;
+  private pendingWaits = new Set<() => void>();
   private messageHandler: ((event: MessageEvent) => void) | null = null;
 
-  private domExtractedCallbacks: DomExtractedCallback[] = [];
+  private domExtractedCallbacks = new Map<string, DomExtractedCallback>();
+  private domRequestIds: string[] = [];
   private cookieExtractedCallbacks: ((cookies: string, url: string) => void)[] =
     [];
   private elementSelectedCallbacks: ((data: any) => void)[] = [];
@@ -54,98 +60,148 @@ export class IframeBridge {
     return IframeBridge.instance;
   }
 
-  public async init(): Promise<void> {
-    try {
-      // 1. 尝试获取现有端口
-      const existingPort = await invoke<number>(
-        "distillery_get_proxy_port"
-      ).catch(() => 0);
-
-      if (existingPort > 0) {
-        this.proxyPort = existingPort;
-      } else {
-        // 2. 如果没有运行，则启动它
-        this.proxyPort = await invoke<number>("distillery_start_proxy");
-      }
-
-      logger.info("Proxy server initialized", { port: this.proxyPort });
-    } catch (e) {
-      this.proxyPort = null; // 失败时重置，允许重试
-      logger.error("Failed to initialize proxy server", e);
-      throw e;
-    }
-
-    if (!this.messageHandler) {
-      this.messageHandler = (event: MessageEvent) => {
-        if (this.iframe && event.source === this.iframe.contentWindow) {
-          this.handleMessage(event.data);
+  public init(): Promise<void> {
+    if (this.initializing) return this.initializing;
+    const revision = this.revision;
+    const operation = (async () => {
+      try {
+        const port = await invoke<number>("distillery_get_proxy_port");
+        if (revision !== this.revision) throw new Error("网页会话已关闭");
+        if (!port) await invoke<number>("distillery_start_proxy");
+        const origin = await invoke<string | null>(
+          "distillery_get_proxy_origin"
+        );
+        if (revision !== this.revision) throw new Error("网页会话已关闭");
+        if (
+          !origin ||
+          !new RegExp("^http://[a-f0-9]{32}[.]localhost:[0-9]+$").test(origin)
+        )
+          throw new Error("网页代理地址无效，请重新加载页面");
+        this.proxyOrigin = origin;
+        if (!this.messageHandler) {
+          this.messageHandler = (event) => {
+            if (
+              this.iframe &&
+              event.source === this.iframe.contentWindow &&
+              event.origin === this.proxyOrigin
+            )
+              this.handleMessage(event.data);
+          };
+          window.addEventListener("message", this.messageHandler);
         }
+      } catch (error) {
+        this.proxyOrigin = null;
+        logger.error("Failed to initialize proxy server", error);
+        throw error;
+      }
+    })();
+    this.initializing = operation;
+    void operation
+      .finally(() => {
+        if (this.initializing === operation) this.initializing = null;
+      })
+      .catch(() => {});
+    return operation;
+  }
+
+  private waitFor<T>(
+    timeoutMs: number,
+    register: (
+      resolve: (value: T) => void,
+      reject: (error: Error) => void
+    ) => () => void
+  ): Promise<T> {
+    const promise = new Promise<T>((resolve, reject) => {
+      let settled = false;
+      let unregister = () => {};
+      const finish = (error?: Error, value?: T) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unregister();
+        this.pendingWaits.delete(cancel);
+        if (error) reject(error);
+        else resolve(value as T);
       };
-      window.addEventListener("message", this.messageHandler);
-    }
+      const cancel = () => finish(new Error("网页会话已关闭"));
+      const timer = setTimeout(
+        () =>
+          finish(
+            new DOMException("等待网页响应超时，请重新加载页面", "TimeoutError")
+          ),
+        timeoutMs
+      );
+      this.pendingWaits.add(cancel);
+      unregister = register(
+        (value) => finish(undefined, value),
+        (error) => finish(error)
+      );
+      if (settled) unregister();
+    });
+    void promise.catch(() => {});
+    return promise;
   }
 
   public async create(options: {
     url: string;
     hidden?: boolean;
     container: HTMLElement;
+    profile?: CookieProfile | null;
   }): Promise<void> {
-    await this.init();
-    this.destroyIframe();
+    if (this.creating) throw new Error("网页正在加载，请等待当前加载完成");
+    this.creating = true;
+    const revision = this.revision;
+    try {
+      await this.init();
+      if (revision !== this.revision) throw new Error("网页会话已关闭");
+      this.destroyIframe();
 
-    // 在加载页面之前，先同步已激活的身份 cookies 到代理层
-    await this.syncActiveCookiesToProxy(options.url);
+      // 在加载页面之前，先同步已激活的身份 cookies 到代理层
+      await this.syncActiveCookiesToProxy(options.url, options.profile);
+      if (revision !== this.revision) throw new Error("网页会话已关闭");
 
-    const store = useWebDistilleryStore();
+      const store = useWebDistilleryStore();
 
-    this.iframe = document.createElement("iframe");
-    this.iframe.className = "distillery-iframe";
-    this.iframe.style.border = "none";
-    this.iframe.style.width = "100%";
-    this.iframe.style.height = "100%";
-    // 注意：同时设置 allow-scripts 和 allow-same-origin 会使 iframe 能够绕过沙箱限制（沙箱逃逸）
-    // 但对于 web-distillery 这种需要代理注入脚本并与父窗口通信的场景，这是必须的。
-    // 我们通过 CSP 来限制 iframe 的行为。
-    this.iframe.setAttribute(
-      "sandbox",
-      "allow-scripts allow-same-origin allow-forms allow-popups"
-    );
+      this.iframe = document.createElement("iframe");
+      this.iframe.className = "distillery-iframe";
+      this.iframe.style.border = "none";
+      this.iframe.style.width = "100%";
+      this.iframe.style.height = "100%";
+      // 页面使用独立的随机 loopback origin；同源权限仅供注入脚本访问页面存储。
+      this.iframe.setAttribute(
+        "sandbox",
+        "allow-scripts allow-same-origin allow-forms allow-popups"
+      );
 
-    if (options.hidden) {
-      this.iframe.style.position = "absolute";
-      this.iframe.style.left = "-9999px";
-      this.iframe.style.top = "-9999px";
-      this.iframe.style.visibility = "hidden";
-      this.iframe.style.width = "1920px";
-      this.iframe.style.height = "5000px";
+      if (options.hidden) {
+        this.iframe.style.position = "absolute";
+        this.iframe.style.left = "-9999px";
+        this.iframe.style.top = "-9999px";
+        this.iframe.style.visibility = "hidden";
+        this.iframe.style.width = "1920px";
+        this.iframe.style.height = "5000px";
+      }
+
+      options.container.appendChild(this.iframe);
+
+      const proxyUrl =
+        this.proxyOrigin + "/proxy?url=" + encodeURIComponent(options.url);
+      const iframe = this.iframe;
+      await this.waitFor<void>(30000, (resolve, reject) => {
+        iframe.onload = () => {
+          store.setWebviewCreated(true);
+          resolve();
+        };
+        iframe.onerror = () => reject(new Error("Iframe 加载失败"));
+        iframe.src = proxyUrl;
+        return () => {
+          iframe.onload = null;
+          iframe.onerror = null;
+        };
+      });
+    } finally {
+      this.creating = false;
     }
-
-    options.container.appendChild(this.iframe);
-
-    const proxyUrl =
-      "http://127.0.0.1:" +
-      this.proxyPort +
-      "/proxy?url=" +
-      encodeURIComponent(options.url);
-
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        if (this.iframe) this.iframe.onload = null;
-        reject(new Error("Iframe 加载超时"));
-      }, 30000);
-
-      this.iframe!.onload = () => {
-        clearTimeout(timeout);
-        store.setWebviewCreated(true);
-        resolve();
-      };
-      this.iframe!.onerror = () => {
-        clearTimeout(timeout);
-        reject(new Error("Iframe 加载失败"));
-      };
-
-      this.iframe!.src = proxyUrl;
-    });
   }
 
   private handleMessage(payload: any) {
@@ -155,10 +211,12 @@ export class IframeBridge {
 
       switch (payload.type) {
         case "dom-extracted":
-          this.domExtractedCallbacks.forEach((cb) =>
-            cb(null, payload.html, payload.url, payload.title)
+          this.domExtractedCallbacks.get(payload.requestId)?.(
+            null,
+            payload.html,
+            payload.url,
+            payload.title
           );
-          this.domExtractedCallbacks = [];
           break;
         case "local-storage-extracted":
           this.localStorageExtractedCallbacks.forEach((cb) =>
@@ -167,10 +225,9 @@ export class IframeBridge {
           this.localStorageExtractedCallbacks = [];
           break;
         case "dom-extract-error":
-          this.domExtractedCallbacks.forEach((cb) =>
-            cb(new Error(payload.error || "DOM extraction error"))
+          this.domExtractedCallbacks.get(payload.requestId)?.(
+            new Error(payload.error || "DOM extraction error")
           );
-          this.domExtractedCallbacks = [];
           break;
         case "api-discovered":
           store.addDiscoveredApi({
@@ -234,7 +291,7 @@ export class IframeBridge {
     if (!this.iframe?.contentWindow) throw new Error("Iframe not available");
     this.iframe.contentWindow.postMessage(
       { type: "__distillery_eval", script },
-      "*"
+      this.proxyOrigin!
     );
   }
 
@@ -247,11 +304,14 @@ export class IframeBridge {
     url: string;
     title: string;
   }> {
+    const requestId = crypto.randomUUID();
+    const promise = this.waitForDom(requestId, 5000);
     const script = `
       (function() {
         if (window.__DISTILLERY_BRIDGE__) {
           window.__DISTILLERY_BRIDGE__.send({
             type: 'dom-extracted',
+            requestId: ${JSON.stringify(requestId)},
             html: document.documentElement.outerHTML,
             url: window.location.href,
             title: document.title
@@ -260,7 +320,6 @@ export class IframeBridge {
       })();
     `;
 
-    const promise = this.waitForDomExtracted(5000);
     await this.evalScript(script);
     return promise;
   }
@@ -315,29 +374,30 @@ export class IframeBridge {
       })();
     `;
 
-    const promise = new Promise<void>((resolve) => {
-      const timeout = setTimeout(
-        () => {
-          resolve(); // 超时也继续，不阻塞主流程
-        },
-        (maxScrolls + 2) * delayMs * 2 + 2000
-      );
-
-      const handler = (event: MessageEvent) => {
-        if (this.iframe && event.source === this.iframe.contentWindow) {
-          const payload = event.data;
-          if (payload && payload.type === "scroll-complete") {
-            clearTimeout(timeout);
-            window.removeEventListener("message", handler);
+    const promise = this.waitFor<void>(
+      (maxScrolls + 2) * delayMs * 2 + 2000,
+      (resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (
+            this.iframe &&
+            event.source === this.iframe.contentWindow &&
+            event.origin === this.proxyOrigin &&
+            event.data?.type === "scroll-complete"
+          )
             resolve();
-          }
-        }
-      };
-      window.addEventListener("message", handler);
-    });
+        };
+        window.addEventListener("message", handler);
+        return () => window.removeEventListener("message", handler);
+      }
+    );
+    void promise.catch(() => {});
 
     await this.evalScript(script);
-    await promise;
+    await promise.catch((error: unknown) => {
+      // 页面计时器在后台可能被节流；超时后继续提取已有内容。
+      if (!(error instanceof DOMException && error.name === "TimeoutError"))
+        throw error;
+    });
   }
 
   public async extractDom(
@@ -345,6 +405,7 @@ export class IframeBridge {
     waitTimeoutMs?: number
   ): Promise<string> {
     const timeoutMs = waitTimeoutMs || 10000;
+    const requestId = this.domRequestIds.shift() ?? crypto.randomUUID();
     const selectorJson = waitFor ? JSON.stringify(waitFor) : "null";
 
     const extractScript =
@@ -372,13 +433,14 @@ export class IframeBridge {
           try {
             const payload = {
               type: 'dom-extracted',
+              requestId: ${JSON.stringify(requestId)},
               html: document.documentElement.outerHTML,
               url: window.location.href,
               title: document.title
             };
             if (window.__DISTILLERY_BRIDGE__) window.__DISTILLERY_BRIDGE__.send(payload);
           } catch(e) {
-            if (window.__DISTILLERY_BRIDGE__) window.__DISTILLERY_BRIDGE__.send({ type: 'dom-extract-error', error: e.message });
+            if (window.__DISTILLERY_BRIDGE__) window.__DISTILLERY_BRIDGE__.send({ type: 'dom-extract-error', requestId: ${JSON.stringify(requestId)}, error: e.message });
           }
         }
         tryExtract();
@@ -392,17 +454,24 @@ export class IframeBridge {
   public waitForDomExtracted(
     timeoutMs = 15000
   ): Promise<{ html: string; url: string; title: string }> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error("DOM extraction timed out after " + timeoutMs + "ms"));
-      }, timeoutMs);
-
+    const id = crypto.randomUUID();
+    this.domRequestIds.push(id);
+    return this.waitForDom(id, timeoutMs);
+  }
+  private waitForDom(
+    id: string,
+    timeoutMs: number
+  ): Promise<{ html: string; url: string; title: string }> {
+    return this.waitFor(timeoutMs, (resolve, reject) => {
       const callback: DomExtractedCallback = (error, html, url, title) => {
-        clearTimeout(timer);
         if (error) reject(error);
         else resolve({ html: html!, url: url!, title: title! });
       };
-      this.domExtractedCallbacks.push(callback);
+      this.domExtractedCallbacks.set(id, callback);
+      return () => {
+        this.domExtractedCallbacks.delete(id);
+        this.domRequestIds = this.domRequestIds.filter((item) => item !== id);
+      };
     });
   }
 
@@ -478,18 +547,15 @@ export class IframeBridge {
   public waitForCookiesExtracted(
     timeoutMs = 5000
   ): Promise<{ cookies: string; url: string }> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(
-          new Error("Cookie extraction timed out after " + timeoutMs + "ms")
-        );
-      }, timeoutMs);
-
-      const callback = (cookies: string, url: string) => {
-        clearTimeout(timer);
+    return this.waitFor(timeoutMs, (resolve) => {
+      const callback = (cookies: string, url: string) =>
         resolve({ cookies, url });
-      };
       this.cookieExtractedCallbacks.push(callback);
+      return () => {
+        this.cookieExtractedCallbacks = this.cookieExtractedCallbacks.filter(
+          (item) => item !== callback
+        );
+      };
     });
   }
 
@@ -515,8 +581,10 @@ export class IframeBridge {
         }
       })();
     `;
+    const result = this.waitForLocalStorageExtracted(5000);
+    void result.catch(() => {});
     await this.evalScript(script);
-    return this.waitForLocalStorageExtracted(5000);
+    return result;
   }
 
   private localStorageExtractedCallbacks: ((
@@ -526,20 +594,15 @@ export class IframeBridge {
   public waitForLocalStorageExtracted(
     timeoutMs = 5000
   ): Promise<Record<string, string>> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(
-          new Error(
-            "localStorage extraction timed out after " + timeoutMs + "ms"
-          )
-        );
-      }, timeoutMs);
-
-      const callback = (data: Record<string, string>) => {
-        clearTimeout(timer);
-        resolve(data);
-      };
+    return this.waitFor(timeoutMs, (resolve) => {
+      const callback = (data: Record<string, string>) => resolve(data);
       this.localStorageExtractedCallbacks.push(callback);
+      return () => {
+        this.localStorageExtractedCallbacks =
+          this.localStorageExtractedCallbacks.filter(
+            (item) => item !== callback
+          );
+      };
     });
   }
 
@@ -560,7 +623,10 @@ export class IframeBridge {
    * 在页面加载前调用，确保代理发出的第一个请求就携带正确的 cookies，
    * 且 localStorage 在页面 JS 执行前被还原
    */
-  public async syncActiveCookiesToProxy(url?: string): Promise<void> {
+  public async syncActiveCookiesToProxy(
+    url?: string,
+    profile?: CookieProfile | null
+  ): Promise<void> {
     const targetUrl = url || useWebDistilleryStore().url;
     if (!targetUrl) {
       logger.debug("syncActiveCookiesToProxy: no URL, skipping");
@@ -573,7 +639,9 @@ export class IframeBridge {
         : `https://${targetUrl}`;
       await cookieProfileStore.load();
       const activeProfile =
-        await cookieProfileStore.getActiveProfileForUrl(fullUrl);
+        profile === undefined
+          ? await cookieProfileStore.getActiveProfileForUrl(fullUrl)
+          : profile;
 
       if (activeProfile) {
         const cookieStr = activeProfile.cookies
@@ -607,14 +675,22 @@ export class IframeBridge {
         logger.debug("No active profile for URL, proxy cookies not set", {
           url: fullUrl,
         });
+        await invoke("distillery_set_proxy_cookies", { cookies: null });
         await invoke("distillery_set_proxy_local_storage", { data: null });
       }
     } catch (err) {
       logger.warn("Failed to sync cookies to proxy", err);
+      await invoke("distillery_set_proxy_cookies", { cookies: null });
+      await invoke("distillery_set_proxy_local_storage", { data: null });
+      throw new Error("身份数据加载失败，请在身份管理中检查后重试");
     }
   }
 
   private destroyIframe() {
+    const store = useWebDistilleryStore();
+    store.setPickerMode("idle");
+    store.setHoveredElement(null);
+    this.elementSelectedCallbacks = [];
     if (this.iframe) {
       this.iframe.remove();
       this.iframe = null;
@@ -622,13 +698,18 @@ export class IframeBridge {
   }
 
   public async destroy() {
+    this.revision++;
+    for (const cancel of [...this.pendingWaits]) cancel();
     this.destroyIframe();
+    this.proxyOrigin = null;
     useWebDistilleryStore().setWebviewCreated(false);
+    await invoke("distillery_stop_proxy");
   }
 
   public async forceCleanup() {
-    this.destroyIframe();
-    this.domExtractedCallbacks = [];
+    await this.destroy();
+    this.domExtractedCallbacks.clear();
+    this.domRequestIds = [];
     this.cookieExtractedCallbacks = [];
     this.elementSelectedCallbacks = [];
     this.localStorageExtractedCallbacks = [];
@@ -638,12 +719,15 @@ export class IframeBridge {
   }
 
   public dispose() {
-    this.destroyIframe();
+    void this.destroy().catch((error) =>
+      logger.debug("Proxy cleanup failed", error)
+    );
     if (this.messageHandler) {
       window.removeEventListener("message", this.messageHandler);
       this.messageHandler = null;
     }
-    this.domExtractedCallbacks = [];
+    this.domExtractedCallbacks.clear();
+    this.domRequestIds = [];
     this.cookieExtractedCallbacks = [];
     this.elementSelectedCallbacks = [];
     this.localStorageExtractedCallbacks = [];

@@ -93,17 +93,15 @@ watch(
 
 <template>
   <div class="browser-viewport">
-    <template v-if="store.url">
-      <div ref="containerRef" class="browser-viewport-inner"></div>
+    <div ref="containerRef" class="browser-viewport-inner"></div>
 
-      <!-- 加载遮罩 -->
-      <div v-if="store.isLoading" class="viewport-overlay">
-        <el-skeleton :rows="10" animated />
-      </div>
-    </template>
+    <!-- 加载遮罩 -->
+    <div v-if="store.isLoading" class="viewport-overlay">
+      <el-skeleton :rows="10" animated />
+    </div>
 
-    <!-- 空状态引导 -->
-    <div v-else class="empty-placeholder">
+    <!-- 未加载时保留浏览器工作区，提示显示在内容区。 -->
+    <div v-if="!store.url" class="empty-placeholder">
       <el-empty description="请输入网址并点击加载" :image-size="200">
         <template #image>
           <div class="empty-icon-wrapper">
@@ -120,6 +118,14 @@ watch(
   flex: 1;
   position: relative;
   overflow: hidden;
+}
+
+.empty-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
 }
 
 .browser-viewport-inner {

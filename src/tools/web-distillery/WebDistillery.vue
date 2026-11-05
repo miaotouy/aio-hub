@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { onMounted, onErrorCaptured, onUnmounted } from "vue";
+import { onMounted, onErrorCaptured, onDeactivated, onUnmounted } from "vue";
 import {
   LayoutDashboard,
   Cookie,
@@ -52,13 +52,15 @@ onMounted(async () => {
 });
 
 // 组件卸载时强制清理资源
-onUnmounted(async () => {
+async function cleanup() {
   try {
     await iframeBridge.forceCleanup();
   } catch (err) {
-    logger.debug("Cleanup on unmount failed", err);
+    logger.debug("Page cleanup failed", err);
   }
-});
+}
+onDeactivated(cleanup);
+onUnmounted(cleanup);
 
 // 捕获子组件错误，防止崩溃
 onErrorCaptured((err, instance, info) => {

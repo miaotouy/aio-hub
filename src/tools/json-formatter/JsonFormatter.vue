@@ -190,14 +190,19 @@ const jsonError = ref("");
 const defaultExpandDepth = ref(3);
 const isClipboardListening = ref(false);
 let unlistenClipboard: UnlistenFn | null = null;
+let clipboardMonitorDisposed = false;
+let clipboardMonitorStarting = false;
 
 // 剪贴板监听逻辑
 const setupClipboardMonitor = async () => {
+  if (
+    clipboardMonitorStarting ||
+    isClipboardListening.value ||
+    clipboardMonitorDisposed
+  ) return;
+  clipboardMonitorStarting = true;
   try {
-    // 启动后端监听服务
-    await invoke("start_clipboard_monitor");
-
-    // 监听前端事件
+    // 先注册事件，保留启动后的首条剪贴板内容。
     unlistenClipboard = await listen(
       "clipboard-changed",
       async (event: { payload: string }) => {
@@ -244,11 +249,25 @@ const setupClipboardMonitor = async () => {
       }
     );
 
+    if (clipboardMonitorDisposed) {
+      unlistenClipboard?.();
+      unlistenClipboard = null;
+      return;
+    }
+    await invoke("start_clipboard_monitor");
+    if (clipboardMonitorDisposed) {
+      await stopClipboardMonitor();
+      return;
+    }
     isClipboardListening.value = true;
     customMessage.success("剪贴板监听已开启");
   } catch (error) {
+    unlistenClipboard?.();
+    unlistenClipboard = null;
     errorHandler.error(error, "无法启动剪贴板监听");
     isClipboardListening.value = false;
+  } finally {
+    clipboardMonitorStarting = false;
   }
 };
 
@@ -455,6 +474,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  clipboardMonitorDisposed = true;
   document.removeEventListener("mousemove", onMouseMove);
   document.removeEventListener("mouseup", onMouseUp);
   // 组件销毁时停止监听

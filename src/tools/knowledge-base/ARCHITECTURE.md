@@ -1,6 +1,6 @@
 # Knowledge（知识资料库）架构说明
 
-> 最后更新：2026-08-01
+> 最后更新：2026-11-05
 
 Knowledge 是 AIO Hub 的文档资料与来源回溯领域，与 Recall 思绪领域独立持久化、独立绑定和独立检索。它面向 PDF、DOCX、HTML、Markdown、代码与文本资料，基本单元是 `document + chunk + source`。文档可维护 Knowledge 域内的独立 tags，用于管理与检索过滤；它不承载 Recall entry、Recall 标签池、priority 或联想召回状态。
 
@@ -95,3 +95,10 @@ Knowledge 前端不导入 Recall store、entry、priority、tag pool 或 workspa
 ## 5. 产品接入状态
 
 配置分层、持久 ingest queue、目录同步、原子版本替换、诊断工作台和二阶研究任务均已进入运行路径。Agent Manager、Chat 和 Knowledge 工作台的访问授权、目录宏、主动工具和结构化引用已按同一契约接入；最终工程检查和真实 Tauri 回归仍以 `docs/Plan/knowledge-base-implementation-checklist.md` 为准。
+
+
+### Electron 接入验证（2026-11-05）
+
+Electron N-API 复用 Knowledge repository 和持久摄取队列，文件解析继续由共享前端执行。Windows 生产资源已验证创建资料库、Markdown/HTML 文件拖放、逐文件失败报告、标签保存、重复导入跳过、新版文档关键词检索，以及目录来源的递归/ignore 和重新扫描新增/修改/删除。首次从空工作区创建资料库后，检索范围默认选择该库；已有范围和用户主动清空的选择保持原样。
+
+PDF 解析独立加载打包 worker 并在结束时释放资源，复制传入 worker 的字节以保留源文件摘要。未指定的请求维度在配置归一化时兼容后端 `null`。Windows 生产资源已验证 PDF/DOCX 导入、本机 Ollama 768 维语义索引、语义/混合检索、智能体授权及 Chat 显式查询/研究引用；刷新和退出后的独立进程恢复已验证。智能体大厅开聊通过待处理目标在 Chat 恢复后复用选择流程，保留草稿身份及输入。Qwen 主动工具调用、研究取消保留来源与迟到回复隔离、已删除引用的输入预检已通过 Windows 实机验证。显式 research 将失败/超时映射为错误，预算终止保留成功，取消单独标记；结果保留来源、终止原因及失败阶段；Windows 最终产物已实测 120 秒预算超时后保留首轮来源，迟到请求未覆盖错误状态。Windows 另已验证系统文件多选、中文目录选择、文件/目录取消、元数据保存与重扫后的实际检索；退出后的独立进程恢复文档、来源和摄取任务。macOS/Linux 的验收进度记录在 [Electron 缺口补齐待办](../../../docs/Plan/electron-feature-gap-execution.md)，与原 Tauri 专项清单分开维护。

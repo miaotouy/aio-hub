@@ -18,19 +18,25 @@ import { transformer } from "../core/transformer";
 import { createModuleLogger } from "@/utils/logger";
 import { debounce } from "lodash-es";
 import { watch, onUnmounted } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
 import type { SiteRecipe } from "../types";
 
 const logger = createModuleLogger("web-distillery/use-live-preview");
 
 export function useLivePreview() {
   const store = useWebDistilleryStore();
+  const active = usePageActivity();
+  let revision = 0;
 
   /**
    * 触发实时预览
    * @param forceRefresh 是否强制重新从 Iframe 提取 DOM
    */
   const triggerLivePreview = async (forceRefresh = false) => {
-    if (store.activeTab !== "interactive") return;
+    if (!active.value || store.activeTab !== "interactive") return;
+    const request = ++revision;
+    const current = () =>
+      active.value && request === revision && store.activeTab === "interactive";
 
     logger.debug("Triggering live preview", { forceRefresh });
     store.setLivePreviewLoading(true);
@@ -42,6 +48,7 @@ export function useLivePreview() {
       // 如果没有缓存或者强制刷新，则从 Iframe 提取
       if (!html || forceRefresh) {
         const snapshot = await iframeBridge.extractCurrentDom();
+        if (!current()) return;
         html = snapshot.html;
         url = snapshot.url;
         store.setCachedDomSnapshot(html);
@@ -64,15 +71,16 @@ export function useLivePreview() {
         "interactive"
       );
 
-      store.setLivePreview(result.content, result.quality ?? 0);
+      if (current()) store.setLivePreview(result.content, result.quality ?? 0);
     } catch (err) {
+      if (!current()) return;
       logger.error("Live preview failed", err);
       store.setLivePreview(
         "预览生成失败: " + (err instanceof Error ? err.message : String(err)),
         0
       );
     } finally {
-      store.setLivePreviewLoading(false);
+      if (current()) store.setLivePreviewLoading(false);
     }
   };
 
@@ -91,6 +99,16 @@ export function useLivePreview() {
       }
     },
     { deep: true }
+  );
+
+  watch(
+    [active, () => store.activeTab],
+    () => {
+      revision++;
+      debouncedTrigger.cancel();
+      store.setLivePreviewLoading(false);
+    },
+    { flush: "sync" }
   );
 
   onUnmounted(() => {

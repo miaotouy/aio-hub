@@ -49,9 +49,9 @@ Git Committer 是面向开发者多仓库并发开发场景设计的轻量级 Gi
 │  ├── gitTimelineGraph.ts (分支图谱拓扑排序与活跃泳道计算)              │
 │  └── utils.ts (路径解析、高亮切片、Diff 文本清洗、状态映射)            │
 ├────────────────────────────────────────────────────────────────────────┤
-│  Tauri IPC 接口 (Rust 后端 git_committer.rs / git_analyzer.rs)         │
-│  git_get_status, git_diff, git_stage_file, git_unstage_file,           │
-│  git_discard_changes, git_commit, git_push, git_pull, git_remote_info  │
+│  平台 IPC 门面（Tauri / Electron）                                    │
+│  git_get_repo_status, git_get_file_diff, git_stage_files,              │
+│  git_unstage_files, git_discard_files, git_commit, git_get_repo_overview│
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -221,3 +221,21 @@ export interface GitCommitterConfig {
 远程推送由用户勾选，远程列表读取当前操作仓库的配置，优先选择 origin。`git_push_tag` 使用完整的标签 refspec 并关闭 follow-tags，只推送选中标签。本地创建成功后锁定名称、类型和消息；推送失败保留弹窗，可切换远程重试或保留本地标签，重试只执行推送。创建与推送期间保持操作目标固定并阻止重复提交和关闭。
 
 名称输入框从已有 SemVer 标签中选择最高版本并预填下一版本：正式版递增补丁号，预发布版递增末尾数字或追加 `.1`，保留版本前缀并移除构建元数据。混合发布仓库优先使用 `v` 序列，其次为无前缀、`mv`、`miv`；无有效版本标签时保持空白。预填值选中便于改写，异步读取完成后保留用户已编辑的输入。
+
+
+## Electron 宿主后端（2026-11-05）
+
+共享前端通过 `src/platform/` 保持原命令契约。`electron/main.ts` 显式注册 Git 命令，由 `electron/git.ts` 管理系统 Git 调用、仓库写队列与窗口生命周期；`git-files.ts` 处理文本/媒体差异与快照，`git-history.ts` 处理历史、refs、详情和概览。分析器的异步事件位于 `git-streams.ts`。
+
+- 系统 Git 使用独立 argv、literal pathspec、输出/超时上限和进程树回收；交互式凭据提示关闭。当前 Git 累计 44 个命令，涵盖基础工作区、分析流、远端同步、分支/标签/stash、pick/revert、提交消息修改、导出/格式化和终端入口；运行验收按迁移待办接续。
+- 根路径必须为真实 worktree 根。文件路径拒绝越界、Git 元数据与中间目录链接；链接目录需选择真实路径。历史文本上限 1 MiB，历史二进制预览上限 64 MiB，工作区媒体使用本地资产 URL。
+- 状态保留 index/worktree 两层并单独解析 rename。放弃 tracked 文件从 index 恢复，untracked 文件进入系统回收站；空 HEAD 取消暂存保留工作文件。
+- 已接受的写操作按真实仓库根串行，窗口关闭后继续执行；普通退出和应用内显式退出均等待写队列收尾。读操作随所属页面导航、刷新、渲染进程退出和关窗取消。
+- Windows 实机覆盖目录拖放、暂存/取消暂存、Monaco 文本差异、历史展开/概览、PNG Blob 快照与刷新恢复，并通过真实慢 Git filter 验证关窗续写和退出等待。提交命令参数使用拦截运行器验证，实际创建提交留待明确许可。
+
+
+### 远端与引用写入
+
+git-mutations.ts 实现分支、标签、stash、amend/soft undo 与 push/pull，复用同一仓库写队列；git-network.ts 从应用设置投影代理配置，网络进程限定 30 秒，提示交互关闭。git-terminal.ts 将显式的终端操作交给系统终端，使用独立 argv 和 cwd，交互进程由用户持有。
+
+标签推送使用完整的源/目标标签 refspec，并关闭 follow-tags；合并通过 Git index 的 unmerged 条目区分冲突和其他失败。概览 composable 把成功的 void/null IPC 回复映射为显式成功值，再进入 wrapAsync，保证异常哨兵与正常返回可区分，随后刷新状态或关闭操作弹窗。

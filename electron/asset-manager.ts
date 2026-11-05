@@ -53,6 +53,18 @@ export interface AssetHost {
   ) => Promise<AssetInspection>;
 }
 
+export interface BackupAssetSource {
+  path: string | null;
+  name: string;
+  mimeType: string;
+  missingReason: string | null;
+}
+export interface BackupAssetAccess {
+  describe(id: string): Promise<BackupAssetSource>;
+  existing(id: string): Promise<Asset | null>;
+  restore(input: { path: string; name: string; mimeType: string }, sourcePath: string): Promise<Asset>;
+}
+
 /** One durable catalog owner across renderer windows; operations serialize through a single queue. */
 export class AssetManager {
   private store: AssetStore;
@@ -78,6 +90,77 @@ export class AssetManager {
     this.queue = operation;
     return operation;
   }
+  /** Hold the catalog owner across a backup operation so root changes and deletions cannot race it. */
+  withBackupAssets<T>(task: (assets: BackupAssetAccess) => Promise<T>): Promise<T> {
+    const operation = this.queue.catch(() => {}).then(async () => {
+      await this.store.selectRoot();
+      const snapshot = this.store.entries;
+      const existing = async (id: string) => {
+        const entry = this.store.entries.get(assetId(id));
+        if (!entry) return null;
+        const full = await assetPath(this.store.root, entry.path);
+        try {
+          const info = await fs.lstat(full);
+          if (!info.isFile() || info.isSymbolicLink()) return null;
+          return this.store.asset(entry);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+          throw error;
+        }
+      };
+      try {
+        return await task({
+          existing,
+          describe: async (id) => {
+            try {
+              const asset = await existing(id);
+              if (!asset) return { path: null, name: id, mimeType: "application/octet-stream", missingReason: "资产或原始文件不存在" };
+              return { path: await assetPath(this.store.root, asset.path), name: asset.name, mimeType: asset.mimeType, missingReason: null };
+            } catch (error) {
+              return { path: null, name: id, mimeType: "application/octet-stream", missingReason: String(error) };
+            }
+          },
+          restore: async (input, sourcePath) => this.importAsset({
+            originalPath: input.path,
+            originalName: input.name,
+            originalMimeType: input.mimeType,
+            options: { enableDeduplication: true, generateThumbnail: false,
+              origin: { type: "local", source: sourcePath, sourceModule: "recall" } },
+          }, false, true) as Promise<Asset>,
+        });
+      } catch (error) {
+        const created = [...this.store.entries.values()].filter((entry) => !snapshot.has(entry.id));
+        if (this.store.entries !== snapshot) {
+          try { await this.store.save(snapshot); }
+          catch (rollback) { throw new AggregateError([error, rollback], "恢复失败，资产索引回滚失败；本次文件已保留，请检查存储权限"); }
+        }
+        const failures: unknown[] = [];
+        for (const entry of created) {
+          try {
+            const full = await assetPath(this.store.root, entry.path);
+            await fs.rm(full, { force: true });
+            await fs.rm(await assetPath(this.store.root, ".thumbnails/" + entry.id + ".jpg"), { force: true });
+            await this.syncMonth(path.dirname(full));
+            this.host.emit("asset-deleted", entry.id);
+          } catch (cleanup) { failures.push(cleanup); }
+        }
+        if (failures.length) throw new AggregateError([error, ...failures], "恢复失败，部分新建资产文件清理失败，请检查存储权限");
+        throw error;
+      }
+    });
+    this.queue = operation;
+    return operation;
+  }
+
+  private async findBackupDuplicate(hash: string): Promise<CatalogEntry | undefined> {
+    // Backup restore uses exact original bytes across the catalog. Conversion aliases stay separate.
+    for (const entry of this.store.entries.values()) {
+      if (entry.sha256 !== hash) continue;
+      const full = await assetPath(this.store.root, entry.path);
+      if (await exists(full) && await hashFile(full) === hash) return entry;
+    }
+  }
+
   private progress(
     originalPath: string,
     phase: string,
@@ -162,13 +245,14 @@ export class AssetManager {
   }
   private async importAsset(
     args: Record<string, unknown>,
-    fromBytes: boolean
+    fromBytes: boolean,
+    backupRaw = false
   ): Promise<unknown> {
     const options = this.options(args.options);
     const originalPath = fromBytes
       ? ""
       : filePath(args.originalPath, undefined, {});
-    let name = fromBytes
+    let name = fromBytes || backupRaw
       ? path.basename(text(args.originalName))
       : path.basename(originalPath);
     if (!name || name === "." || name === "..")
@@ -195,7 +279,7 @@ export class AssetManager {
       beforePreparation = false
     ) => {
       if (!hash) return;
-      const existing = await this.findHash(hash, type);
+      const existing = backupRaw ? await this.findBackupDuplicate(hash) : await this.findHash(hash, type);
       if (!existing) return;
       if (
         beforePreparation &&
@@ -223,8 +307,8 @@ export class AssetManager {
           throw new Error("导入路径需为普通文件");
         await fs.copyFile(originalPath, temporary);
       }
-      let mimeType = await detectAssetMime(temporary, name);
-      let type = await assetTypeFor(mimeType, temporary, !fromBytes);
+      let mimeType = backupRaw ? text(args.originalMimeType) : await detectAssetMime(temporary, name);
+      let type = await assetTypeFor(mimeType, temporary, !fromBytes && !backupRaw);
       const originalHash =
         options.enableDeduplication === false
           ? undefined
@@ -232,9 +316,9 @@ export class AssetManager {
               this.progress(originalPath, "hashing");
               return hashFile(temporary);
             })();
-      const before = await duplicate(originalHash, type, !fromBytes);
-      if (before) return fromBytes ? before : { asset: before, warnings };
-      if (!fromBytes) {
+      const before = await duplicate(originalHash, type, !fromBytes && !backupRaw);
+      if (before) return fromBytes || backupRaw ? before : { asset: before, warnings };
+      if (!fromBytes && !backupRaw) {
         prepared = await this.documents.prepare(
           temporary,
           this.store.root,
@@ -313,7 +397,7 @@ export class AssetManager {
       saved = true;
       await this.syncMonth(path.dirname(target));
       this.host.emit("asset-imported", asset);
-      return fromBytes ? asset : { asset, warnings };
+      return fromBytes || backupRaw ? asset : { asset, warnings };
     } finally {
       await prepared?.cleanup();
       await fs.rm(path.dirname(temporary), { recursive: true, force: true });

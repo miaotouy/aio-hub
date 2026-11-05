@@ -381,3 +381,18 @@ describe("Electron asset workflows", () => {
     expect((await all()).map((item) => item.id)).toEqual([asset.id]);
   });
 });
+
+it("restores exact backup originals across months without reusing conversion aliases or stale hashes", async () => {
+  const raw=Buffer.from("original Office bytes");
+  const converted=await importBytes("converted.md",{},Buffer.from("converted Markdown"));
+  const original=await importBytes("original.doc",{},raw);
+  const assetRoot=await base();const catalog=path.join(assetRoot,".catalog/assets.jsonl");
+  const entries=(await fs.readFile(catalog,"utf8")).trim().split("\n").map((line)=>JSON.parse(line));
+  const alias=entries.find((entry)=>entry.id===converted.id);alias.originalSha256=createHash("sha256").update(raw).digest("hex");
+  const entry=entries.find((entry)=>entry.id===original.id);const oldPath=entry.path;entry.path=entry.path.replace(/\d{4}-\d{2}/,"2000-01");await fs.mkdir(path.dirname(path.join(assetRoot,entry.path)),{recursive:true});await fs.rename(path.join(assetRoot,oldPath),path.join(assetRoot,entry.path));
+  await fs.writeFile(catalog,entries.map((item)=>JSON.stringify(item)).join("\n")+"\n");
+  service=new AssetManager(host);const source=path.join(directory,"restore.doc");await fs.writeFile(source,raw);
+  const reused=await service.withBackupAssets((access)=>access.restore({path:source,name:"restored.doc",mimeType:"application/msword"},"backup.aio-recall"));expect(reused.id).toBe(original.id);
+  await fs.writeFile(path.join(assetRoot,entry.path),"externally modified original");
+  const restored=await service.withBackupAssets((access)=>access.restore({path:source,name:"restored.doc",mimeType:"application/msword"},"backup.aio-recall"));expect(restored.id).not.toBe(original.id);expect(restored.id).not.toBe(converted.id);expect(await fs.readFile(path.join(assetRoot,restored.path))).toEqual(raw);
+});

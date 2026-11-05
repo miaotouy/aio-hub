@@ -246,6 +246,7 @@
     "jsondiffpatch": "^0.7.3",
     "jszip": "^3.10.1",
     "katex": "^0.16.25",
+    "koffi": "^3.3.6",
     "konva": "^10.3.0",
     "lodash-es": "^4.17.21",
     "lucide-vue-next": "^1.0.0",

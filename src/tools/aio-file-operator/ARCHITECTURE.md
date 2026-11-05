@@ -386,3 +386,10 @@ Rust 的 `security_path_tests` 与 `agent_security::tests` 覆盖符号链接后
 - **读取类型扩展**：可补充 Markdown 表格、HTML、RTF 等格式的专用提取器。
 - **更强的审计能力**：可增加按方法/路径过滤、导出日志、展示审批记录等能力。
 - **后端级沙箱**：当前沙箱主要在前端工具层与 Rust 基础安全路径解析层协同校验；如未来暴露给非 UI 的裸进程入口，可考虑将整套策略配置进一步下沉至纯 Rust 沙箱守护层。
+
+
+## Electron 后台上下文策略读取（2026-11-05）
+
+Main 的 `ContextFilePolicyReader` 按需读取现有 `aio-file-operator/config.json`，向 Worker 提供当前沙箱、目录、规则和大小限制。默认文件大小由 `security-defaults.ts` 与 Renderer 共用；系统默认目录和固定 `workspace` 沿用当前配置语义。读取限制为 1 MiB，配置损坏或应用路径重定向时保留文件并返回错误。
+
+Worker 上下文在每次访问本地附件时重新读取当前持久策略，已缓存字节同样复检路径、审批与新的大小限制。该只读入口保持现有设置和日志写入路径；实际工具/审批授权及正式后台会话任务仍按 Electron 迁移计划接线。

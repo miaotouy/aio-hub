@@ -115,6 +115,13 @@ const alive = async (pid: number) => {
     return false;
   }
 };
+const waitForExit = async (pid: number) => {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (!(await alive(pid))) return true;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return !(await alive(pid));
+};
 beforeEach(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), "aiohub-sidecars-"));
   root = path.join(directory, "app");
@@ -246,7 +253,7 @@ it("times out a resident command and kills its process tree", async () => {
   const child = (await send("child")).data.pid;
   await expect(send("hang")).rejects.toThrow("命令执行超时");
   await service.shutdown();
-  expect(await alive(child)).toBe(false);
+  expect(await waitForExit(child)).toBe(true);
 });
 it("forwards Broker requests only between sidecars acquired by the same window", async () => {
   await spawn(await fixture());

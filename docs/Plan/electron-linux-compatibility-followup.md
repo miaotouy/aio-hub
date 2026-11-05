@@ -6,13 +6,13 @@
 
 ## 待办
 
-- [ ] 保全并审阅 Ubuntu 原检出中的未提交工作；基于当前上游逐项合并，排除重复、过时改动和 Python `__pycache__` 产物。
-- [ ] 修复 Electron 测试中误用 `bun:test` 的用例，使其遵循 Vitest 配置。
-- [ ] 为依赖 `native/knowledge-addon` 的测试补齐可重复的原生扩展构建前置条件。
-- [ ] 修正 Git 历史测试对合并提交遍历顺序的假设，并让 stash 失败夹具独立于当前 HEAD 与 Git 版本。
-- [ ] 调整 sidecar Linux 进程树测试，区分退出进程与尚未回收的 zombie。
-- [ ] 分别在 Windows 与 Ubuntu 原生检出运行 Electron 类型检查、测试、生产构建和桌面启动验证。
-- [ ] 单独制定仓库文本文件行尾策略；当前 `.gitattributes` 仅为 `*.sh` 指定 LF，其他文件未声明 `text` / `eol`，Windows 工作区 CRLF 与 Ubuntu 检出 CRLF 已造成大面积行尾差异。
+- [x] 保全并审阅 Ubuntu 原检出中的未提交工作；基于当前上游逐项合并，排除重复、过时改动和 Python `__pycache__` 产物。快照提交为 `f15dfa266`，合并提交为 `28db2af39`。
+- [x] 修复 Electron 测试中误用 `bun:test` 的用例，使其遵循 Vitest 配置。
+- [x] 为依赖 `native/knowledge-addon` 的测试补齐可重复的原生扩展构建前置条件。
+- [x] 修正 Git 历史测试对合并提交遍历顺序的假设，并让 stash 失败夹具独立于当前 HEAD 与 Git 版本。
+- [x] 修复 sidecar Linux 进程树测试对 zombie 和异步退出时序的处理。
+- [x] 分别在 Windows 与 Ubuntu 原生检出完成 Electron 类型检查、全套测试、生产构建和桌面窗口启动验证。两端类型检查、66 个测试文件/435 项及生产构建通过；两端窗口均成功启动。Ubuntu VM 的窗口冒烟使用 `--no-sandbox`，其 sandbox helper 仍需 root 所有权配置。
+- [ ] 单独制定仓库文本文件行尾策略；当前 `.gitattributes` 仅为 `*.sh` 指定 LF，`.prettierrc` 指定 CRLF，Git `core.autocrlf=true`，其他文件未声明 `text` / `eol`。
 
 ## 环境边界
 

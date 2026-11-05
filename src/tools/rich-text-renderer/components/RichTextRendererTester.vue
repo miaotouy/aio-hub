@@ -381,6 +381,29 @@
     >
       <!-- 强制类型转换，因为 storeToRefs 导出的 ref 丢失了类型信息 -->
       <div class="regex-editor-container">
+        <div class="regex-suite-toolbar">
+          <el-select
+            v-model="selectedRegexTestSuiteId"
+            placeholder="选择正则测试套件"
+            style="width: 240px"
+          >
+            <el-option
+              v-for="suite in regexTestSuites"
+              :key="suite.id"
+              :label="suite.name"
+              :value="suite.id"
+            />
+          </el-select>
+          <el-button
+            :disabled="!selectedRegexTestSuite"
+            @click="loadRegexTestSuite"
+          >
+            载入测试套件
+          </el-button>
+          <span v-if="selectedRegexTestSuite" class="regex-suite-description">
+            {{ selectedRegexTestSuite.description }}
+          </span>
+        </div>
         <ChatRegexEditor v-model="typedRegexConfig" />
       </div>
     </DraggablePanel>
@@ -472,6 +495,7 @@ import TesterConfigSidebar from "./tester/TesterConfigSidebar.vue";
 import TesterToolbar from "./tester/TesterToolbar.vue";
 import ChatRegexEditor from "@/tools/llm-chat/components/common/ChatRegexEditor.vue";
 import type { ChatRegexConfig } from "@/tools/llm-chat/types/chatRegex";
+import { regexTestSuites } from "../config/regexTestSuites";
 import { createScreenshotLayoutFix } from "@/utils/screenshotLayout";
 import { domToPng } from "modern-screenshot";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -587,6 +611,21 @@ const typedRegexConfig = computed({
     storeRegexConfig.value = val;
   },
 });
+
+const selectedRegexTestSuiteId = ref(regexTestSuites[0]?.id ?? "");
+const selectedRegexTestSuite = computed(() =>
+  regexTestSuites.find((suite) => suite.id === selectedRegexTestSuiteId.value)
+);
+
+const loadRegexTestSuite = () => {
+  const suite = selectedRegexTestSuite.value;
+  if (!suite) return;
+
+  storeRegexConfig.value = structuredClone(suite.config);
+  selectedPreset.value = "";
+  inputContent.value = suite.content;
+  customMessage.success(`已载入正则测试套件「${suite.name}」`);
+};
 
 // 样式逃逸检测器显示状态
 const showEscapeDetector = ref(false);
@@ -1916,6 +1955,22 @@ onMounted(async () => {
   flex: 1;
   overflow: auto;
   padding: 16px;
+}
+
+.regex-suite-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: var(--border-width) solid var(--border-color);
+}
+
+.regex-suite-description {
+  flex-basis: 100%;
+  color: var(--text-color-secondary);
+  font-size: 12px;
 }
 
 /* ===== 帘幕模式 ===== */

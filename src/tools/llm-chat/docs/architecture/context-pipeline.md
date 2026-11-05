@@ -54,6 +54,36 @@ graph TD
 | **Infrastructure Services** | 如 `MacroProcessor`，作为基础能力被处理器按需调用，而非管道步骤                                     |
 | **中间格式消息**            | 在管道中流动的消息，保持附件引用格式，直到最后一步由 `asset-resolver` 转换为最终格式                |
 
+### 2.3. 执行所有者与共享处理器
+
+`core/pipeline/executeContextPipeline.ts` 接收当前上下文、已排序且启用的处理器列表和日志/错误呈现端口。`PipelineEngine` 保留 Renderer 入口，注入现有模块日志与错误处理器。诊断跟踪失败独立隔离；普通处理错误记录后继续，`PresetConfigurationError` 中止组装。
+
+`core/pipeline/processors/` 复用全部 11 个生产处理器的完整实现：
+
+- `createSessionLoader`：分支历史、压缩隐藏、HTML 转 Markdown 与思考块保护、推理回放、VCP 历史和附件引用。HTML 转换缓存由工厂实例持有。
+- `createRegexProcessor`：请求阶段全局/Agent/用户规则优先级、角色及深度过滤。全局规则读取本次 `PipelineContext.settings.regexConfig`。
+- `createWorldbookProcessors`：完整扫描、递归、分组、概率与历史时序规则，返回世界书类与默认实例。
+- `createVariableProcessor`：变量定义、最近快照恢复、运算边界、消息快照和内置替换。
+- `createTokenLimiter`：预设优先、历史预算与部分保留、附件尺寸约束及回放状态丢弃记录。
+- `createMessageFormatters`：Agent/模型规则合并、消息及附件来源保留和推理回放保护，并返回原公开格式化函数。
+- `createAsyncTaskProcessor`：从执行所有者注入的任务读取器投影最新结果、进度、失败与资产 ID；Renderer 适配器保留 Store 可用性检查。
+- `createInjectionAssembler`：预设组合、分组、模型匹配、宏、私有附件、锚点/深度注入及缓存稳定的运行时上下文布局。
+- `createRecallProcessors`：原 Recall 信封解析、授权绑定、自动补位、检索请求与快照片段；检索服务通过端口提供。
+- `createTranscriptionProcessor`：原虚拟文本、文件占位符、转写优先级、Office 文本/图片拆分及未转写附件保留。
+- `createAssetResolver`：原图片缩放/分片、PDF 转图、音视频与文档编码、统计延后物化和本地媒体失败提示。
+
+`createContextProcessors` 要求显式提供全部处理器服务，Renderer 默认清单与该工厂共用 `processor-list.ts`；启用状态与优先级排序由执行所有者管理。`service-ports.ts` 描述外部检索、任务、转写、媒体与宏服务契约。`model-match.ts`、`preset-attachments.ts` 分别保留原模型匹配和 Agent 私有附件映射，日志通过工厂注入。
+
+Renderer 原 `core/context-processors/` 模块作为适配器，注入现有模块日志；Token 限制与格式化继续注入 `getContextTokenCalculator`，保持作用域缓存和长图分片计费。纯正则解析与有效图片尺寸计算位于 `core/pipeline/regex.ts`、`image-dimensions.ts`，旧工具函数入口保留重导出。
+
+`PipelineContext.signal` 绑定执行所有者的生命周期。`executeSingleNode` 透传模型请求使用的同一信号，管道在处理器启动前、异步返回后和异常路径检查取消。停止后的运行随即退出后续管道阶段；预览调用可省略信号。
+
+`runContextOperation` 在异步宿主服务派发前、完成后和异常路径检查信号；取消后的结果退出当前处理器，媒体和转写的普通失败回退保持原行为。正在执行的宿主服务仍需在自身实现中接入进程/网络取消，释放其资源。
+
+`macro-engine/runtime/` 提供执行所有者隔离的注册表工厂、完整三阶段处理类及上下文/批量处理函数。原 `MacroRegistry` 入口传入 Vue 响应式 Map，原 `MacroProcessor` 入口传入全局注册表与现有错误服务；宏枚举和元数据位于纯 `definitions.ts`，原导出保留。`MacroContext.signal` 与管道相同，阻止迟到的宏结果进入后续阶段或执行跟踪。Renderer 继续通过原初始化函数注册全部内置宏；Node 宿主按能力注入完整服务后注册对应宏。
+
+Node 测试直接装配全部处理器及核心/时间/变量/函数宏，将实际预设、世界书、Recall、任务、附件与本地音频结果送入原 OpenAI 兼容映射和 Node HTTP 传输。预算、Recall、转写及 Office 拆分使用显式夹具服务，音频使用实际临时文件字节。生产 Node 的配置/Token、检索、任务与媒体服务，以及工具/资产/系统/检索/CSS 宏仍在接线；真实 Agent 任务所有权继续按 Electron 迁移计划推进。
+
 ## 3. 统一管道设计
 
 统一管道负责将原始数据组装成最终发送给 LLM 的上下文。其内部执行严格遵循处理器的优先级顺序：
@@ -291,6 +321,7 @@ interface ProcessableMessage {
 
 ```typescript
 export interface PipelineContext {
+  readonly signal?: AbortSignal;
   // --- 核心可变数据 ---
   /**
    * 当前正在构建的消息列表。

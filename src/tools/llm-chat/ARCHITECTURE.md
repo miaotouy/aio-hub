@@ -1,6 +1,6 @@
 # LLM Chat: 架构与开发者指南
 
-> 最后更新：2026-10-04
+> 最后更新：2026-11-05
 
 本文档是 `llm-chat` 工具的**架构概览**。每个章节只保留核心理念与定位，详细实现请参考 [`docs/architecture/`](./docs/architecture/) 下的专题文档。
 
@@ -608,6 +608,23 @@ graph TD
 每个模块的职责与实现细节详见 [`composables-reference.md`](./docs/architecture/composables-reference.md)。
 
 ---
+
+### 6.1. 共享 Agent 执行核心
+
+[`runChatOrchestration`](./core/execution/chatOrchestrator.ts) 承接原 `useToolCallOrchestrator` 的多轮执行逻辑。前端 composable 现在负责注入现有模型执行、工具协议与审批服务、会话树更新、持久化、错误处理和 UI 调度；核心仅依赖领域类型及可取消的标准计时器，可由 Node 宿主直接调用。请求与单节点执行参数统一位于 [`core/execution/types.ts`](./core/execution/types.ts)，原 composable 保留类型导出。
+
+- 一次运行共用一个 `AbortController`，可由执行所有者提供。初始响应、工具节点和后续响应均进入同一运行的清理集合；取消会释放限速计时器，异步调度返回后再次检查信号。
+- 工具请求先挂载并保存等待审批的节点，再进入执行。安全上下文、Agent 权限、派发深度和模型绑定沿现有审批/工具链透传；异步状态保存串行完成后才进入下一轮模型请求。
+- 工具输出、本地媒体和会话分支沿既有格式保存。拒绝、静默或轮次耗尽在工具结果处结束；新一轮响应清空上一轮的推理、token 和请求时间元数据。
+- 核心返回完成、取消或错误结果。审批取消即使以拒绝结果结算，仍按运行信号标记为取消，并保留工具审计。
+
+`executeSingleNode`（[`core/execution/singleNodeExecutor.ts`](./core/execution/singleNodeExecutor.ts)）承接现有单节点请求路径，负责上下文组装、转写回退、续写定位、VCP 分段与分支、快照归因、可取消重试及回复收尾。`useSingleNodeExecutor` 注入现有管道、世界书/转写、参数过滤和渠道发送、节点树、响应缓冲、快照仓库与压缩服务。流式回调按请求尝试隔离，已结束或取消的请求丢弃迟到正文、推理、图片及 VCP 更新；普通与分段回复统一使用执行 Agent 归属。VCP 展示解析器位于共享 `src/utils/vcpToolBatchDisplay.ts`，原渲染器入口保留重导出。
+
+`core/pipeline/executeContextPipeline.ts` 执行同一份有序处理器列表，日志和错误呈现由宿主注入。`core/pipeline/processors/` 包含全部 11 个生产处理器工厂，`createContextProcessors` 接收每个处理器所需的显式服务；Renderer 默认注册和 Node 装配共用 `processor-list.ts`。原 `context-processors/` 入口注入现有日志、检索、任务、转写、媒体与 Token 服务，并保留原公开导出。全局正则配置来自当前 `PipelineContext.settings`；单节点执行将同一 `AbortSignal` 交给管道，外部服务异步返回后检查取消，拦住迟到的宏、检索、转写和媒体结果。
+
+`macro-engine/runtime/` 复用原宏注册、三阶段处理、静态校验和上下文构建。注册表工厂按执行所有者隔离实例；Renderer 传入原 Vue 响应式 Map 和诊断服务，并通过原入口注册完整内置宏。核心、时间、变量和函数宏的元数据依赖纯定义模块；工具、资产、系统、Recall/Knowledge、CSS 宏的 Node 宿主服务仍需接入。Node 完整管道测试已覆盖预设宏、世界书、Recall、任务、文本及真实本地音频字节到 Node HTTP 的实际映射；Token、检索和文档服务使用显式测试夹具，生产服务装配仍在实施。详见[上下文管道架构](./docs/architecture/context-pipeline.md#23-执行所有者与共享处理器)。
+
+当前聊天由 Renderer 适配器调用上述核心，保存仍复用现有排队持久化。模型请求与虚拟渠道调度已提取到 `src/llm-apis/execution/`；OpenAI 兼容协议通过注入 Transport 复用原 DTO 映射，Node 原生 HTTP/SSE、主备和文件展开已验证。Electron Worker 的真实任务接管还需接入其他协议、渠道配置/密钥状态所有者、上下文/响应/存储，并迁移会话状态与真实工具/审批所有权，接入持久 `SessionEvent`、窗口投影和审批重连。详见 [Electron 迁移执行记录](../../../docs/Plan/electron-feature-gap-execution.md#6-后台与正式分发)。
 
 ## 7. 数据持久化
 

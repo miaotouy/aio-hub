@@ -10,9 +10,9 @@
 ## 2. 对话处理核心
 
 - **`useChatHandler`** ([`composables/chat/useChatHandler.ts`](../../composables/chat/useChatHandler.ts)): **对话流程的协调者**。负责处理 `sendMessage` 和 `regenerateFromNode` 的完整逻辑，协调各子模块（消息节点构建、宏预处理、待发送虚拟节点、撤销栈管理等）协同工作，最终把请求委托给执行器层。
-- **`useChatExecutor`** ([`composables/chat/useChatExecutor.ts`](../../composables/chat/useChatExecutor.ts)): **请求执行器入口**。承担"用户消息 → 助手响应"的整体流程，根据是否启用工具调用决定走 `useToolCallOrchestrator`（带工具调用循环）还是直接走 `useSingleNodeExecutor`（单轮请求），并负责续写、重生成等场景的入口分发。
-- **`useSingleNodeExecutor`** ([`composables/chat/useSingleNodeExecutor.ts`](../../composables/chat/useSingleNodeExecutor.ts)): **单次 LLM 请求执行器**。负责为一个助手节点构造 `PipelineContext`、执行统一上下文管道、调用 `useLlmRequest.sendRequest` 发送请求（含流式回调、推理流、流式预览图）、根据重试设置执行指数/线性退避、最后调用 `useChatResponseHandler` 完成节点终结与异步触发上下文压缩。
-- **`useToolCallOrchestrator`** ([`composables/chat/useToolCallOrchestrator.ts`](../../composables/chat/useToolCallOrchestrator.ts)): **工具调用编排器**。在 `useSingleNodeExecutor` 之上叠加多轮工具调用循环：检测助手回复中的工具请求 → 创建独立的 `tool` 角色节点 → 通过 `useToolCalling` 走审批 / 执行流程 → 将工具结果格式化后挂回会话树 → 自动创建下一个助手节点继续迭代，直到达到 `maxIterations`、所有请求被拒绝、或命中 `isSilent` 静默标记。同时提供 `reparseAndOrchestrate` 用于在不重新请求 LLM 的前提下重新解析现有节点中的工具调用。
+- **`useChatExecutor`** ([`composables/chat/useChatExecutor.ts`](../../composables/chat/useChatExecutor.ts)): **请求执行器入口**。准备执行 Agent、模型元数据和渠道工具处理策略，统一委托 `useToolCallOrchestrator`。工具开关与渠道策略控制循环中的本地工具消费；附件处理和上下文预览也从此入口复用。
+- **`useSingleNodeExecutor`** ([`composables/chat/useSingleNodeExecutor.ts`](../../composables/chat/useSingleNodeExecutor.ts)): **共享单节点核心的 Renderer 适配器**。向 [`executeSingleNode`](../../core/execution/singleNodeExecutor.ts) 注入设置、渠道/模型、上下文管道、转写/世界书、节点树、响应缓冲、快照与压缩服务。核心负责上下文组装、续写定位、VCP 分段、快照归因、可取消的固定/指数重试及节点收尾；流式回调按请求尝试隔离，节点按执行 Agent 归属终结。模型请求继续调用现有 `useLlmRequest.sendRequest`，保持渠道选择与回退。
+- **`useToolCallOrchestrator`** ([`composables/chat/useToolCallOrchestrator.ts`](../../composables/chat/useToolCallOrchestrator.ts)): **共享编排核心的 Renderer 适配器**。向 [`runChatOrchestration`](../../core/execution/chatOrchestrator.ts) 注入现有单节点执行、协议解析、工具调用与审批、会话分支、保存、错误处理及 `nextTick` 调度。核心执行多轮模型/工具循环，处理拒绝、静默、轮次上限、取消和运行清理；`reparseAndOrchestrate` 复用同一核心重新解析已有响应。
 - **`useChatResponseHandler`** ([`composables/chat/useChatResponseHandler.ts`](../../composables/chat/useChatResponseHandler.ts)): **响应处理器**。专门负责处理流式数据更新（含节流逻辑）、节点状态终结、Base64 附件转换以及错误处理。
 
 ## 3. 上下文构建 (统一管道)

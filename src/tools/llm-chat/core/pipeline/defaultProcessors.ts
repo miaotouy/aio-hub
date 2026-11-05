@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getContextProcessorList } from "./processor-list";
 import type { ContextProcessor } from "../../types/pipeline";
 import {
   sessionLoader,
@@ -31,7 +32,7 @@ import {
  * 获取初始处理器列表
  */
 export const getInitialProcessors = (): ContextProcessor[] => {
-  return [
+  return getContextProcessorList({
     sessionLoader,
     regexProcessor,
     injectionAssembler,
@@ -43,7 +44,7 @@ export const getInitialProcessors = (): ContextProcessor[] => {
     variableProcessor,
     messageFormatter,
     assetResolver,
-  ];
+  });
 };
 
 /**

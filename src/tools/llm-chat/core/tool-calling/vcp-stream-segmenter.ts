@@ -3,8 +3,8 @@ import type { LlmResponseChunk, TokenUsage } from "@aiohub/llm-core";
 import {
   parseToolSummaryItems,
   type ToolSummaryItem,
-} from "@/utils/vcpToolSummary";
-import { parseVcpToolMessageDisplay } from "@/tools/rich-text-renderer/utils/vcpToolBatchDisplay";
+} from "../../../../utils/vcpToolSummary";
+import { parseVcpToolMessageDisplay } from "../../../../utils/vcpToolBatchDisplay";
 
 export interface VcpResponseSegment {
   index: number;

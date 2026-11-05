@@ -19,11 +19,7 @@ import { cloneVirtualAttachments } from "../../utils/virtualAttachments";
  */
 
 import { toRaw } from "vue";
-import type {
-  ChatSessionDetail,
-  ChatMessageNode,
-  MessageRole,
-} from "../../types";
+import type { ChatSessionDetail, ChatMessageNode } from "../../types";
 import type { Asset } from "@/types/asset-management";
 import { BranchNavigator } from "../../utils/BranchNavigator";
 import { createModuleLogger } from "@/utils/logger";
@@ -36,16 +32,8 @@ const errorHandler = createModuleErrorHandler("llm-chat/node-manager");
 /**
  * 创建节点的配置
  */
-export interface CreateNodeConfig {
-  role: MessageRole;
-  content: string;
-  parentId: string | null;
-  status?: "complete" | "generating" | "waiting" | "error";
-  isEnabled?: boolean;
-  metadata?: Record<string, any>;
-  attachments?: Asset[];
-  name?: string;
-}
+export type { CreateNodeConfig } from "../../core/execution/types";
+import type { CreateNodeConfig } from "../../core/execution/types";
 
 /**
  * 节点管理器

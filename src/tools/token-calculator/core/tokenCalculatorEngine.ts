@@ -24,7 +24,7 @@
  * - 计算结果新增 rawCount / tokenizerProfileId / tokenizerConfidence / appliedCalibration 字段
  */
 
-import type { VisionTokenCost } from "@/types/llm-profiles";
+import type { VisionTokenCost } from "../../../types/llm-profiles";
 import type {
   TokenizerProfile,
   TokenizerRule,

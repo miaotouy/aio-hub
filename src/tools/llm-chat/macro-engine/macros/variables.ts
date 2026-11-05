@@ -18,7 +18,7 @@
  */
 
 import type { MacroRegistry } from "../MacroRegistry";
-import { MacroPhase, MacroType } from "../MacroRegistry";
+import { MacroPhase, MacroType } from "../runtime/definitions";
 import type { MacroDefinition } from "../MacroRegistry";
 
 /**

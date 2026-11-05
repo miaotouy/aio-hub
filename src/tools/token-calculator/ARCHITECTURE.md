@@ -79,6 +79,12 @@ Worker 内部对已实例化的 tokenizer 做 LRU 缓存。
 - **固定成本法**（Claude 3）
 - **时长 × 单价**（视频 / 音频）
 
+### 1.7. Electron Agent 的 Node 执行端口
+
+`electron/token-calculator.ts` 复用同一个 `TokenCalculatorEngine`，以按上下文固定的注册表和模型快照提供 `createScope()`。它直接读取 Vite 构建的 gzip 内置资产及应用目录中的本地/远端缓存，保持规则、模型 tokenizer、模式匹配和字符估算的原优先级。Renderer 的 Pinia/Web Worker 路径继续服务现有界面与生产聊天。
+
+`core/messageTokenCalculator.ts` 承接文本结果与媒体成本合并，`core/registrySnapshot.ts` 承接内置覆盖；这两处由 Renderer 与 Node 共用。纯尺寸缩放算法位于 `src/utils/imageDimensions.ts`，原 `imageProcessor` 继续重导出。Node 服务覆盖文本、图片尺寸计费及音视频时长计费。`electron/context-images.ts` 的任务 scope 复用原生像素分析及共享切点算法，按真实切片尺寸包装消息计费；实际图片发送复用相同的字节快照与计划。PDF/Office 与转写转换继续接线。
+
 ## 2. 架构概览
 
 | 层级        | 模块                                                                     | 职责                                      |

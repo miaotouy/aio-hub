@@ -23,6 +23,9 @@ import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import type { ChatSettings } from "@/tools/llm-chat/types/settings";
 
 export interface PipelineContext {
+  /** Execution-owner cancellation, shared by all processors and the model request. */
+  readonly signal?: AbortSignal;
+
   // --- 核心可变数据 ---
   /**
    * 当前正在构建的消息列表。

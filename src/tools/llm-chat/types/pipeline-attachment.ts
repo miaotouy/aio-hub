@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LocalMediaReference } from "@/types/local-media";
-import type { Asset, AssetMetadata, AssetType } from "@/types/asset-management";
+import type { LocalMediaReference } from "../../../types/local-media";
+import type {
+  Asset,
+  AssetMetadata,
+  AssetType,
+} from "../../../types/asset-management";
 
 /**
  * 发送管道内部的轻量附件表示。

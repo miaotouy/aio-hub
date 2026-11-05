@@ -15,6 +15,7 @@
 /**
  * aio-file-operator 默认配置
  */
+import { DEFAULT_MAX_FILE_SIZE } from "./security-defaults";
 import { getAppWorkDir } from "@/utils/appPath";
 import type { AioFileOperatorConfig } from "./types";
 import { desktopDir, documentDir, downloadDir } from "@/platform/native/path";
@@ -41,8 +42,7 @@ export async function getDefaultAllowedDirectories(): Promise<string[]> {
   ];
 }
 
-/** 默认最大文件大小：10MB */
-export const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+export { DEFAULT_MAX_FILE_SIZE } from "./security-defaults";
 
 /** 默认配置 */
 export const DEFAULT_CONFIG: AioFileOperatorConfig = {

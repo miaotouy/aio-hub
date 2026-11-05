@@ -29,6 +29,7 @@ import type {
 import { DEFAULT_WORKSPACE_CONFIG, getRecallSettingsConfig } from "../config";
 import { recallStorage, type WorkspaceData } from "../utils/recallStorage";
 import { getPureModelId } from "@/utils/modelIdUtils";
+import { recallTimestampMs } from "../utils/recallTime";
 import { withCurrentEmbeddingAssetGeneration } from "../core/embeddingAssetGeneration";
 
 const errorHandler = createModuleErrorHandler("recall-store");
@@ -139,6 +140,9 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
         let result = 0;
         if (field === "name") {
           result = a.name.localeCompare(b.name, "zh-CN");
+        } else if (field === "updatedAt") {
+          result =
+            recallTimestampMs(a.updatedAt) - recallTimestampMs(b.updatedAt);
         } else {
           result = (a[field] || 0) - (b[field] || 0);
         }
@@ -155,6 +159,9 @@ export const useRecallCollectionStore = defineStore("recallCollection", {
         let result = 0;
         if (field === "key") {
           result = a.key.localeCompare(b.key, "zh-CN");
+        } else if (field === "updatedAt") {
+          result =
+            recallTimestampMs(a.updatedAt) - recallTimestampMs(b.updatedAt);
         } else {
           result = (a[field] || 0) - (b[field] || 0);
         }

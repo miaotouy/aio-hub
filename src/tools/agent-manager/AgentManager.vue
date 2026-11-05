@@ -91,8 +91,8 @@ onMounted(async () => {
 
 // 发起对话
 const handleStartChat = async (agent: ChatAgent) => {
-  const { currentAgentId } = useLlmChatUiState();
-  currentAgentId.value = agent.id;
+  const { requestChatAgent } = useLlmChatUiState();
+  requestChatAgent(agent.id);
   toolsStore.openTool("/llm-chat");
   router.push("/llm-chat");
   customMessage.success(`已切换到智能体: ${agent.displayName || agent.name}`);

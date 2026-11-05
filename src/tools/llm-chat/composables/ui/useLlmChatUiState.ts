@@ -16,7 +16,7 @@
  * LLM Chat UI 状态持久化管理
  */
 
-import { reactive, toRefs, watch } from "vue";
+import { reactive, readonly, ref, toRefs, watch } from "vue";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -102,6 +102,10 @@ const state = reactive<LlmChatUiState>({ ...defaultUiState });
 
 // 是否已初始化
 let isInitialized = false;
+
+// An explicit entry choice is applied after persisted UI/session state is restored.
+const pendingChatAgentId = ref<string | null>(null);
+let applyingChatAgent: Promise<void> | null = null;
 
 /**
  * LLM Chat UI 状态管理 Composable
@@ -244,11 +248,40 @@ export function useLlmChatUiState() {
     }
   };
 
+  const requestChatAgent = (agentId: string) => {
+    pendingChatAgentId.value = agentId;
+  };
+
+  const applyPendingChatAgent = (): Promise<void> => {
+    if (applyingChatAgent) return applyingChatAgent;
+    applyingChatAgent = (async () => {
+      while (pendingChatAgentId.value) {
+        const agentId = pendingChatAgentId.value;
+        try {
+          if (useAgentStore().getAgentById(agentId)) {
+            await selectAgent(agentId);
+          }
+        } finally {
+          if (pendingChatAgentId.value === agentId) {
+            pendingChatAgentId.value = null;
+          }
+        }
+      }
+    })().finally(() => {
+      applyingChatAgent = null;
+    });
+    return applyingChatAgent;
+  };
+
   return {
     // 状态 (通过 toRefs 保持解构后的响应式)
     ...toRefs(state),
 
+    pendingChatAgentId: readonly(pendingChatAgentId),
+
     // 方法
+    requestChatAgent,
+    applyPendingChatAgent,
     loadUiState,
     saveUiState,
     startWatching,

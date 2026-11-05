@@ -12,63 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmProfile } from "@/types/llm-profiles";
-import type {
-  EmbeddingRequestOptions,
-  EmbeddingResponse,
-} from "./embedding-types";
 import { executeConfiguredChannel } from "./channel-execution";
 import { adapters } from "./adapters";
-import { resolveModelExecution } from "@aiohub/llm-core";
+import { createEmbeddingRequestExecutor } from "./execution/embeddingRequestExecutor";
 
-/**
- * 统一的 Embedding API 调用入口
- * 通过共享模型执行解析器选择 Embedding 适配器。
- */
-export async function callEmbeddingApi(
-  profile: LlmProfile,
-  options: EmbeddingRequestOptions
-): Promise<EmbeddingResponse> {
-  if (profile.type === "virtual")
-    return executeConfiguredChannel({
-      profile,
-      modelId: options.modelId,
-      operation: "embedding",
-      signal: options.signal,
-      timeoutMs: options.timeout,
-      execute: (member, modelId, signal, timeout) =>
-        callEmbeddingApi(member, {
-          ...options,
-          modelId,
-          signal,
-          timeout,
-          forceProxy: undefined,
-          relaxIdCerts: member.relaxIdCerts,
-          http1Only: member.http1Only,
-        }),
-    });
-  const model = profile.models.find((item) => item.id === options.modelId) ?? {
-    id: options.modelId,
-  };
-  const execution = resolveModelExecution({
-    profile,
-    model,
-    operation: "embedding",
-  });
-  const adapter = adapters[execution.effectiveProfile.type];
-
-  if (!adapter) {
-    throw new Error(`未知的 Provider 类型: ${execution.effectiveProfile.type}`);
-  }
-
-  if (!adapter.embedding) {
-    throw new Error(
-      `Provider "${execution.effectiveProfile.type}" 不支持 Embedding API`
-    );
-  }
-
-  return adapter.embedding(execution.effectiveProfile, options);
-}
+/** Unified Embedding entry point over shared model and channel routing. */
+export const callEmbeddingApi = createEmbeddingRequestExecutor({
+  executeChannel: executeConfiguredChannel,
+  getAdapter: (provider) => adapters[provider]?.embedding,
+});
 
 // 导出类型
 export type {

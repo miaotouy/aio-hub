@@ -375,7 +375,8 @@ LLM 流式搜索批次（2026-11-04）：
 - [x] Worker 到 Main 的内部配置/执行期 Key 通道、生产初始化握手及跨代次事务排空；配置和密钥操作复用窗口侧应用所有者，真实任务装配继续接线。
 - [x] 正式 Worker 持有附件/图片/Token 上下文资源池，接通 Main 当前文件策略及既有资产根服务，scope 与原生队列支持正常退出释放；真实工具/审批与任务入口继续接线。
 - [x] Worker 任务级多协议聊天模型服务、独立类型契约与 Main 系统代理能力；沿用原渠道/Key/协议映射，真实任务入口继续接线。
-- [x] Worker 模型 scope 的直连 Embedding 服务，复用 OpenAI 兼容、Gemini、Cohere、Vertex、Azure 和 DeepSeek 协议映射及 Node transport；虚拟渠道调度和真实 Agent 调用接线继续实施。
+- [x] Worker 模型 scope 的直连 Embedding 服务，复用 OpenAI 兼容、Gemini、Cohere、Vertex、Azure 和 DeepSeek 协议映射及 Node transport；虚拟渠道调度见下一项，真实 Agent 调用接线继续实施。
+- [x] Worker 与 Renderer 共用 Embedding 渠道路由、成员选钥及健康回写，沿用单候选向量空间约束并支持模型协议覆盖；真实 Agent/Recall 任务入口继续接线。
 - [ ] 真实 Agent 生成链接管、持久 `SessionEvent`、订阅游标与增量重放、审批重连、全部窗口销毁后的任务延续及完成通知。
 - [ ] 后台运行时 macOS/Linux 真实生命周期验证。
 - [x] Windows 窗口关闭/销毁和应用退出快照、最小化状态及新进程恢复。
@@ -706,3 +707,11 @@ Worker Embedding 服务批次（2026-11-05）：
 - 为任务级模型 scope 增加 `sendEmbedding`，请求使用固定渠道配置、头模板快照与当前 scope 的 Node transport；支持 OpenAI 兼容、Gemini、Cohere、Vertex、Azure 和 DeepSeek 的共享协议映射。
 - 请求取消与 scope 释放共用已跟踪的在途操作；覆盖真实本地 HTTP 请求、请求头/请求 ID、向量结果以及释放时中止。
 - Worker 模型服务定向测试 20 项、Electron 类型检查、前端类型检查、平台隔离检查和 Vite 生产构建通过。Embedding 尚未接入真实 Agent/Recall 任务入口；虚拟渠道路由及媒体/ASR 服务仍保留待办。
+
+Worker Embedding 虚拟渠道与协议路由批次（2026-11-06）：
+
+- 提取 `configuredChannelExecutor` 与 `embeddingRequestExecutor`，Renderer 和 Worker 共同调用现有渠道调度、模型执行解析及 Embedding 适配器。Worker 现在按模型绑定、发现协议或聚合渠道默认值选择实际协议，保留逻辑/实际渠道与模型归因。
+- 虚拟 Embedding 沿用单候选向量空间约束、成员可用性检查和请求预算；选钥及成功/失败回报使用 Main 的共享所有者。成员自身代理/证书/HTTP 策略覆盖调用方逻辑渠道参数，取消及 scope 释放继续中止在途请求；等待选钥时取消会拦住迟到 Key 的网络派发。
+- 48 项定向宿主测试、8 项窗口侧 Embedding/渠道测试、Electron 类型检查、平台隔离、正式 Worker 源码打包及 Vite 生产构建通过。标准前端类型检查在本批未改动的 `MessageMenubar.test.ts:98` 返回 TS2769；完整 `electron:build` 停在 `build:tsc`，增量检查还报告其他现有模板参数的隐式 any，需在修复后重新完成整包构建。
+- 独立 Windows Electron utility process 使用隔离数据根和真实 Main 配置/Key 服务完成 5 组验证：虚拟渠道映射及轮询选钥、聚合渠道协议、多个 Embedding 候选的配置拒绝、物理成员鉴权失败回写、正常退出取消正在读取的 Embedding。4 次真实本地 HTTP 请求，utility 以 0 退出，强制 kill 次数为 0。
+- 跨进程证据位于忽略目录 `.tmp/electron-worker-embedding/`：`utility-result.json`、`utility.log` 与 `utility-error.log`。真实 Agent/Recall 任务调用、持久事件与审批重连仍按后续项实施。

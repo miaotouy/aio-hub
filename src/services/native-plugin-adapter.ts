@@ -82,6 +82,7 @@ export class NativePluginAdapter implements PluginProxy {
       await invoke("load_native_plugin", {
         pluginId: this.manifest.id,
         libraryPath,
+        installPath: this.installPath,
         reloadable: this.manifest.native?.reloadable ?? false,
       });
 

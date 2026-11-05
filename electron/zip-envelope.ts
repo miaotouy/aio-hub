@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export interface ZipEntryInfo {
+  directory: boolean;
+  size: number;
+  crc32: number;
+}
 export interface ZipLimits {
   archive: number;
   expanded: number;
@@ -24,7 +29,7 @@ export interface ZipLimits {
 export function validateZipEnvelope(
   data: Buffer,
   limits: ZipLimits,
-  validateName?: (name: string) => unknown
+  validateName?: (name: string, entry: ZipEntryInfo) => unknown
 ): number {
   let end = -1;
   for (
@@ -71,13 +76,14 @@ export function validateZipEnvelope(
     const attributes = data.readUInt32LE(offset + 38);
     if (offset + size > end || !names || data.readUInt16LE(offset + 34))
       throw new Error("ZIP 条目范围无效");
-    validateName?.(
-      data.subarray(offset + 46, offset + 46 + names).toString("utf8")
-    );
     const directory =
       !!(attributes & 16) ||
       ((attributes >>> 16) & 0o170000) === 0o040000 ||
       data[offset + 46 + names - 1] === 47;
+    validateName?.(
+      data.subarray(offset + 46, offset + 46 + names).toString("utf8"),
+      { directory, size: expanded, crc32: data.readUInt32LE(offset + 16) }
+    );
     // JSZip drops directory contents and declared-empty file contents while loading.
     // Bound those hidden payloads before the later CRC pass sees the original archive.
     if (directory && expanded) throw new Error("ZIP 目录条目含文件数据");

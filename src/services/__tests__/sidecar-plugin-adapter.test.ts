@@ -241,4 +241,126 @@ describe("SidecarPluginAdapter resident timeout recovery", () => {
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith({ done: 1 });
   });
+  it("keeps concurrent one-shot calls independent and waits for each command reply", async () => {
+    let outputListener:
+      ((event: { payload: Record<string, unknown> }) => void) | undefined;
+    mocks.listen.mockImplementation((_name, listener) => {
+      outputListener = listener;
+      return Promise.resolve(vi.fn());
+    });
+    mocks.invoke.mockImplementation((command, args) => {
+      if (command !== "execute_sidecar") return Promise.resolve();
+      const input = JSON.parse(args.request.input);
+      outputListener?.({
+        payload: {
+          plugin_id: manifest.id,
+          event_type: "result",
+          data: '{"type":"result","data":"unrelated event"}',
+        },
+      });
+      return new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve(
+              JSON.stringify({ type: "result", data: input.params.value })
+            ),
+          input.params.delay
+        )
+      );
+    });
+    const adapter = new SidecarPluginAdapter(
+      { ...manifest, sidecar: { ...manifest.sidecar!, resident: false } },
+      "C:/plugins/test-sidecar"
+    );
+    await adapter.enable();
+    await expect(
+      Promise.all([
+        adapter.callPluginMethod("work", { value: "first", delay: 20 }),
+        adapter.callPluginMethod("work", { value: "second", delay: 0 }),
+      ])
+    ).resolves.toEqual(["first", "second"]);
+  });
+  it("rejects a one-shot backend failure even after a result event", async () => {
+    let outputListener:
+      ((event: { payload: Record<string, unknown> }) => void) | undefined;
+    mocks.listen.mockImplementation((_name, listener) => {
+      outputListener = listener;
+      return Promise.resolve(vi.fn());
+    });
+    mocks.invoke.mockImplementation((command) => {
+      if (command !== "execute_sidecar") return Promise.resolve();
+      outputListener?.({
+        payload: {
+          plugin_id: manifest.id,
+          event_type: "result",
+          data: '{"type":"result","data":"early"}',
+        },
+      });
+      return Promise.reject(new Error("Sidecar 进程已退出，退出码: 9"));
+    });
+    const adapter = new SidecarPluginAdapter(
+      { ...manifest, sidecar: { ...manifest.sidecar!, resident: false } },
+      "C:/plugins/test-sidecar"
+    );
+    await adapter.enable();
+    await expect(adapter.callPluginMethod("work", {})).rejects.toThrow(
+      "退出码: 9"
+    );
+  });
+  it("buffers startup events until the generation is known and preserves false-valued event data", async () => {
+    let listener:
+      ((event: { payload: Record<string, unknown> }) => void) | undefined;
+    const event = (generation: string, data: unknown) => ({
+      payload: {
+        plugin_id: manifest.id,
+        generation_id: generation,
+        event_type: "event",
+        event_name: "status",
+        data: JSON.stringify({ type: "event", event: "status", data }),
+      },
+    });
+    mocks.listen.mockImplementation((_name, callback) => {
+      listener = callback;
+      return Promise.resolve(vi.fn());
+    });
+    mocks.invoke.mockImplementation((command) => {
+      if (command === "sidecar_spawn_resident") {
+        listener?.(event("current", false));
+        listener?.(event("stale", true));
+        return Promise.resolve("current");
+      }
+      return Promise.resolve('{"type":"result","data":{}}');
+    });
+    const callback = vi.fn();
+    const adapter = new SidecarPluginAdapter(
+      manifest,
+      "C:/plugins/test-sidecar"
+    );
+    adapter.onSidecarEvent("status", callback);
+    await adapter.enable();
+    expect(callback.mock.calls).toEqual([[false]]);
+  });
+  it("restores a crashed resident without replaying the failed business command", async () => {
+    let calls = 0;
+    mocks.invoke.mockImplementation((command) => {
+      if (command === "sidecar_send_command")
+        return ++calls === 1
+          ? Promise.reject(new Error("Sidecar 进程已退出"))
+          : Promise.resolve('{"type":"result","data":{}}');
+      return Promise.resolve("next-generation");
+    });
+    const adapter = new SidecarPluginAdapter(
+      manifest,
+      "C:/plugins/test-sidecar"
+    );
+    adapter.enabled = true;
+    await expect(adapter.callPluginMethod("work", {})).rejects.toThrow(
+      "已退出"
+    );
+    expect(
+      mocks.invoke.mock.calls
+        .filter(([command]) => command === "sidecar_send_command")
+        .map(([, args]) => args.method)
+    ).toEqual(["work", "healthCheck"]);
+  });
 });

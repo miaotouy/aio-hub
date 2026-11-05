@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 export interface ProcessOptions {
   timeoutMs: number;
+  input?: string | Uint8Array;
   maxOutputBytes?: number;
   signal?: AbortSignal;
   cwd?: string;
@@ -26,6 +27,16 @@ export interface ProcessOutput {
   stderr: string;
   exitCode: number | null;
 }
+export interface BinaryProcessOutput {
+  stdout: Buffer;
+  stderr: Buffer;
+  exitCode: number | null;
+}
+export type CapturedBinaryProcess = (
+  executable: string,
+  args: string[],
+  options: ProcessOptions
+) => Promise<BinaryProcessOutput>;
 export type CapturedProcess = (
   executable: string,
   args: string[],
@@ -75,7 +86,7 @@ export async function terminateProcessTree(pid: number): Promise<void> {
     });
   });
 }
-export const runCapturedProcess: CapturedProcess = (
+export const runCapturedProcessBytes: CapturedBinaryProcess = (
   executable,
   args,
   options
@@ -91,7 +102,7 @@ export const runCapturedProcess: CapturedProcess = (
       windowsHide: true,
       shell: false,
       detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });
     const stdout: Buffer[] = [],
       stderr: Buffer[] = [];
@@ -112,8 +123,13 @@ export const runCapturedProcess: CapturedProcess = (
         fail(new Error("程序输出过多，请检查程序路径与文件格式"));
       else output.push(chunk);
     };
-    child.stdout.on("data", collect(stdout));
-    child.stderr.on("data", collect(stderr));
+    child.stdin?.on("error", (error: NodeJS.ErrnoException) => {
+      if (!["EPIPE", "EOF", "ECONNRESET"].includes(error.code ?? ""))
+        fail(new Error("写入程序输入失败: " + error.message));
+    });
+    if (options.input !== undefined) child.stdin?.end(options.input);
+    child.stdout!.on("data", collect(stdout));
+    child.stderr!.on("data", collect(stderr));
     const timer = setTimeout(
       () => fail(new Error("程序执行超时")),
       options.timeoutMs
@@ -132,9 +148,22 @@ export const runCapturedProcess: CapturedProcess = (
         return;
       }
       resolve({
-        stdout: Buffer.concat(stdout).toString("utf8"),
-        stderr: Buffer.concat(stderr).toString("utf8"),
+        stdout: Buffer.concat(stdout),
+        stderr: Buffer.concat(stderr),
         exitCode: code,
       });
     });
   });
+
+export const runCapturedProcess: CapturedProcess = async (
+  executable,
+  args,
+  options
+) => {
+  const output = await runCapturedProcessBytes(executable, args, options);
+  return {
+    ...output,
+    stdout: output.stdout.toString("utf8"),
+    stderr: output.stderr.toString("utf8"),
+  };
+};

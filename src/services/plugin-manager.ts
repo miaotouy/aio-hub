@@ -203,7 +203,7 @@ async function createPluginIcon(
  * 为插件创建组件加载函数
  *
  * 开发模式：支持 .vue 文件，通过 Vite 的 import.meta.glob 动态导入，享受 HMR
- * 生产模式：仅支持编译后的 .js/.mjs 文件，通过 convertFileSrc 加载
+ * 生产模式：仅支持编译后的 .js/.mjs 文件，通过宿主插件资源入口加载
  *
  * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
  * @param componentFile 组件文件相对于插件根目录的路径（例如 "MyComponent.vue" 或 "dist/MyComponent.js"）
@@ -255,8 +255,9 @@ function createPluginComponentLoader(
 
         return module.default;
       } else {
-        // 生产模式：使用 convertFileSrc
-        const { convertFileSrc } = await import("@/platform/native/core");
+        // 生产模式：使用宿主插件资源入口。
+        const { getPluginResourceUrl } =
+          await import("@/platform/modules/plugin-resources");
 
         // 自动修正：如果组件文件名以 .vue 结尾，尝试寻找同名的 .js
         let finalComponentFile = componentFile;
@@ -281,8 +282,7 @@ function createPluginComponentLoader(
           const cssFiles = files.filter((f) => f.name.endsWith(".css"));
           for (const cssFile of cssFiles) {
             const stylePath = await join(pluginPath, cssFile.name);
-            let styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
-            styleUrl = styleUrl.replace(/%2F/g, "/");
+            const styleUrl = await getPluginResourceUrl(pluginPath, stylePath);
 
             if (!document.querySelector(`link[href="${styleUrl}"]`)) {
               const link = document.createElement("link");
@@ -308,15 +308,10 @@ function createPluginComponentLoader(
           fullPath: componentPath,
         });
 
-        // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
-        let componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
-
-        // 修复相对路径加载问题：
-        // convertFileSrc 可能会对路径中的盘符和斜杠进行 URL 编码（如 %3A, %2F），
-        // 这会导致浏览器在解析 JS 内部的相对导入（如 import("./chunk.js")）时，
-        // 无法正确识别目录层级，从而把相对路径解析到根域名下（如 http://asset.localhost/chunk.js）。
-        // 我们需要将 %2F 替换回 /，但保留盘符的编码（%3A），以保持 URL 的合法性。
-        componentUrl = componentUrl.replace(/%2F/g, "/");
+        const componentUrl = await getPluginResourceUrl(
+          pluginPath,
+          componentPath
+        );
 
         logger.info("插件组件 URL 已生成", { componentUrl });
 

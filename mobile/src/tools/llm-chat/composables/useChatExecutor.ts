@@ -57,9 +57,9 @@ export function useChatExecutor() {
     useChatResponseHandler();
   const { shouldAutoName, generateTopicName } = useTopicNamer();
   const { settings, loadSettings } = useChatSettings();
-  const { tRaw } = useI18n();
-  const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
-  const chatT = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
+  const { useScopedT } = useI18n();
+  const t = useScopedT("tools.llm-chat.TokenUsage");
+  const chatT = useScopedT("tools.llm-chat.ChatView");
 
   function stop(session: ChatSession): boolean {
     if (!activeGeneration || activeGeneration.sessionId !== session.id)
@@ -313,6 +313,7 @@ export function useChatExecutor() {
           frequencyPenalty: activeAgent?.parameters?.frequencyPenalty,
           presencePenalty: activeAgent?.parameters?.presencePenalty,
           stop: activeAgent?.parameters?.stop,
+          custom: activeAgent?.parameters?.custom,
           stream: settings.value.uiPreferences.isStreaming,
           timeout: settings.value.requestSettings.timeout,
           maxRetries: settings.value.requestSettings.maxRetries,

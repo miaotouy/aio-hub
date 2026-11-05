@@ -16,7 +16,8 @@ import {
   getCurrentWindow,
   PhysicalSize,
   PhysicalPosition,
-} from "@tauri-apps/api/window";
+} from "@/platform/native/window";
+import { startWindowResize } from "@/platform/modules/window";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 
@@ -24,8 +25,7 @@ const logger = createModuleLogger("WindowResize");
 const errorHandler = createModuleErrorHandler("WindowResize");
 
 /**
- * Tauri v2 调整方向类型
- * 对应 Tauri 的 ResizeDirection 枚举
+ * 桌面窗口调整方向，与平台窗口接口保持一致
  */
 export type ResizeDirection =
   | "East" // 右边缘
@@ -101,7 +101,7 @@ export const RESIZE_PRESETS: Record<string, ResizeHandleConfig> = {
 
 /**
  * 窗口大小调整 Composable
- * 使用 Tauri v2 原生 API 实现窗口调整
+ * 使用平台窗口门面实现拖动调整
  */
 export function useWindowResize() {
   /**
@@ -113,6 +113,7 @@ export function useWindowResize() {
     direction: ResizeDirection,
     event?: MouseEvent
   ) => {
+    if (event && event.button !== 0) return;
     if (event) {
       event.preventDefault();
       event.stopPropagation();
@@ -121,26 +122,9 @@ export function useWindowResize() {
     logger.info("开始调整窗口大小", { direction });
 
     try {
-      const window = getCurrentWindow();
-
-      // 确保窗口可缩放（分离窗口可能被设置为 resizable: false 以禁用原生边缘拖拽）
-      // 临时启用 resizable 以允许 startResizeDragging 工作
-      await window.setResizable(true);
-
-      // 定义扩展的 Window 接口以支持 Tauri v2 API
-      interface TauriWindowExtended {
-        startResizeDragging: (direction: string) => Promise<void>;
-      }
-
-      // 使用 Tauri v2 原生 API
-      await (window as unknown as TauriWindowExtended).startResizeDragging(
-        direction
-      );
+      await startWindowResize(direction);
       logger.info("窗口调整完成", { direction });
-
-      // 调整完成后恢复为不可缩放，防止原生边缘拖拽干扰自定义 UI
-      await window.setResizable(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       errorHandler.error(error, "窗口调整失败", { context: { direction } });
     }
   };

@@ -180,7 +180,7 @@
 import { ref } from "vue";
 import { Trash2, Eye, X, Plus, FolderOpen } from "lucide-vue-next";
 import { Loading, Warning } from "@element-plus/icons-vue";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import { customMessage } from "@/utils/customMessage";
 import FileIcon from "@/components/common/FileIcon.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";

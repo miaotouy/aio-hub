@@ -68,6 +68,7 @@ const emit = defineEmits<{
       <div class="setting-group">
         <label>操作模式</label>
         <el-radio-group
+          :disabled="isProcessing"
           :model-value="operationMode"
           @update:model-value="emit('update:operationMode', $event)"
         >
@@ -107,6 +108,7 @@ const emit = defineEmits<{
         <div class="setting-header">
           <label>镜像搬家模式</label>
           <el-switch
+            :disabled="isProcessing"
             :model-value="mirrorMode"
             @update:model-value="emit('update:mirrorMode', $event)"
           />
@@ -132,6 +134,7 @@ const emit = defineEmits<{
           <code>E:/Archive</code>，搬家后会放到 <code>E:/Archive/src</code>。
         </div>
         <DropZone
+          :disabled="isProcessing"
           clickable
           variant="input"
           :directory-only="true"
@@ -141,11 +144,15 @@ const emit = defineEmits<{
         >
           <div class="target-control">
             <el-input
+              :disabled="isProcessing"
               :model-value="baseSourceDir"
               @update:model-value="emit('update:baseSourceDir', $event)"
               placeholder="待搬家内容的上层基准目录"
             />
-            <el-button @click="emit('select-base-dir')" :icon="FolderOpened"
+            <el-button
+              :disabled="isProcessing"
+              @click="emit('select-base-dir')"
+              :icon="FolderOpened"
               >选择</el-button
             >
           </div>
@@ -169,6 +176,7 @@ const emit = defineEmits<{
           >
         </div>
         <DropZone
+          :disabled="isProcessing"
           clickable
           variant="input"
           :directory-only="true"
@@ -178,6 +186,7 @@ const emit = defineEmits<{
         >
           <div class="target-control">
             <el-input
+              :disabled="isProcessing"
               :model-value="targetDirectory"
               @update:model-value="emit('update:targetDirectory', $event)"
               :placeholder="
@@ -186,7 +195,10 @@ const emit = defineEmits<{
                   : '输入、拖拽或点击选择链接目录'
               "
             />
-            <el-button @click="emit('select-target-dir')" :icon="FolderOpened"
+            <el-button
+              :disabled="isProcessing"
+              @click="emit('select-target-dir')"
+              :icon="FolderOpened"
               >选择</el-button
             >
           </div>
@@ -226,6 +238,7 @@ const emit = defineEmits<{
           </el-tooltip>
         </label>
         <el-radio-group
+          :disabled="isProcessing"
           :model-value="linkType"
           @update:model-value="emit('update:linkType', $event)"
         >

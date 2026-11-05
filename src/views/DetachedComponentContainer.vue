@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, type Component, watch } from "vue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform/native/window";
 import { Loading } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 import { useTheme } from "../composables/useTheme";

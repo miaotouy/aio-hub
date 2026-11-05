@@ -15,6 +15,15 @@
 // 模块声明
 mod backend_logging;
 mod commands;
+mod content_deduplicator;
+mod dir_search;
+mod file_operation_types;
+mod symlink_mover;
+mod system_pulse;
+mod ocr;
+mod screen_capture;
+#[cfg(windows)]
+mod window_automation;
 mod events;
 mod frontend_monitor;
 #[cfg(desktop)]

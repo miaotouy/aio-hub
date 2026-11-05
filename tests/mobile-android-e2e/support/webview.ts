@@ -12,6 +12,28 @@ export async function testElement(
   return element;
 }
 
+/**
+ * Read a form control's live value inside the WebView. Appium's WebDriver
+ * `getValue()` reads the serialized attribute, which is null for Vue
+ * `v-model` inputs whose value only lives on the DOM property, so read the
+ * property through `driver.execute` instead.
+ */
+export async function readTestElementValue(
+  driver: Browser,
+  testId: string,
+  timeoutMs = 15_000
+): Promise<string> {
+  await testElement(driver, testId, timeoutMs);
+  const value = await driver.execute((id) => {
+    const element = document.querySelector(`[data-testid="${id}"]`) as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | null;
+    return element ? element.value : null;
+  }, testId);
+  return typeof value === "string" ? value : "";
+}
+
 export async function clickTestElement(
   driver: Browser,
   testId: string,

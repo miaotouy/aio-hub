@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@/platform/native/core";
 import {
   listen as tauriListen,
   emit as tauriEmit,
   type UnlistenFn,
-} from "@tauri-apps/api/event";
-import { isTauriRuntime, currentPlatformRuntime } from "./env";
+} from "@/platform/native/events";
+import { isNativeRuntime, currentPlatformRuntime } from "./env";
 import { PlatformError } from "./errors";
 import { createModuleLogger } from "@/utils/logger";
 import type { CommandMap, KnownCommand } from "../types/commands";
@@ -42,11 +42,14 @@ export async function invoke<TReturn = unknown>(
   command: string,
   args?: Record<string, unknown>
 ): Promise<TReturn>;
-export async function invoke(command: string, args?: unknown): Promise<unknown> {
+export async function invoke(
+  command: string,
+  args?: unknown
+): Promise<unknown> {
   const startTime = performance.now();
 
-  // 1. Tauri 运行态
-  if (isTauriRuntime()) {
+  // 1. 桌面宿主运行态
+  if (isNativeRuntime()) {
     try {
       const result = await tauriInvoke(
         command,
@@ -70,24 +73,10 @@ export async function invoke(command: string, args?: unknown): Promise<unknown> 
     }
   }
 
-  // 2. Electron 运行态（未来阶段二无缝对接）
-  if (
-    typeof window !== "undefined" &&
-    (window as any).aiohub?.platform === "electron"
-  ) {
-    try {
-      return await (window as any).aiohub.invoke(command, args);
-    } catch (err) {
-      throw new PlatformError(`Electron IPC 命令 '${command}' 失败`, {
-        command,
-        args,
-        cause: err,
-      });
-    }
-  }
-
   // 3. 纯浏览器 / 降级环境
-  logger.warn(`[MOCK_FALLBACK] 当前环境 [${currentPlatformRuntime}] 执行命令: ${command}`);
+  logger.warn(
+    `[MOCK_FALLBACK] 当前环境 [${currentPlatformRuntime}] 执行命令: ${command}`
+  );
   throw new PlatformError(
     `当前运行时 [${currentPlatformRuntime}] 不支持原生命令 '${command}'`,
     { command, args }
@@ -109,7 +98,7 @@ export async function listen(
   event: string,
   handler: (payload: any) => void
 ): Promise<UnlistenFn> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     return tauriListen(event, (ev) => handler(ev.payload));
   }
   return () => {};
@@ -124,7 +113,7 @@ export async function emit<K extends KnownEvent>(
 ): Promise<void>;
 export async function emit(event: string, payload?: unknown): Promise<void>;
 export async function emit(event: string, payload?: unknown): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     await tauriEmit(event, payload);
   }
 }

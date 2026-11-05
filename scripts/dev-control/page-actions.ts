@@ -1,19 +1,5 @@
-export interface DiagnosticEntry {
-  cursor: number;
-  kind: string;
-  message: string;
-  source?: string;
-  at: number;
-}
-declare global {
-  interface Window {
-    __AIO_DEV_DIAGNOSTICS__?: {
-      documentId: string;
-      cursor: number;
-      entries: DiagnosticEntry[];
-    };
-  }
-}
+import type {} from "../../src/dev/control/protocol";
+export type { DiagnosticEntry } from "../../src/dev/control/protocol";
 
 export function readDiagnostics(input: {
   since: number;
@@ -51,13 +37,48 @@ export async function resizeWindow(input: {
   height: number;
   timeoutMs: number;
 }) {
-  const invoke = (
+  const electron = (
+    window as Window & {
+      aiohub?: import("../../electron/shared").ElectronBridge;
+    }
+  ).aiohub;
+  const nativeInvoke = (
     window as unknown as {
-      __TAURI_INTERNALS__: {
+      __TAURI_INTERNALS__?: {
         invoke(command: string, args: unknown): Promise<unknown>;
       };
     }
-  ).__TAURI_INTERNALS__.invoke;
+  ).__TAURI_INTERNALS__?.invoke;
+  const invoke = async (
+    command: string,
+    args: { label: string; value?: unknown }
+  ) => {
+    if (nativeInvoke) return nativeInvoke(command, args);
+    const methods: Record<string, string> = {
+      "plugin:window|inner_size": "innerSize",
+      "plugin:window|scale_factor": "scaleFactor",
+      "plugin:window|is_maximized": "isMaximized",
+      "plugin:window|is_fullscreen": "isFullscreen",
+      "plugin:window|set_fullscreen": "setFullscreen",
+      "plugin:window|unmaximize": "unmaximize",
+      "plugin:window|set_size": "setSize",
+    };
+    if (!electron || !methods[command]) throw new Error("窗口宿主未就绪。");
+    const value =
+      command === "plugin:window|set_size"
+        ? { type: "Logical", ...(args.value as { Logical: object }).Logical }
+        : args.value;
+    const reply = await electron.request("window.call", {
+      label: args.label,
+      method: methods[command],
+      value,
+    });
+    if (!reply.ok)
+      throw Object.assign(new Error(reply.error.message), {
+        code: reply.error.code,
+      });
+    return reply.value;
+  };
   const until = Date.now() + Math.max(1, input.timeoutMs - 100);
   const args = {
     label: window.__AIO_DEV_CONTROL__?.describe().windowLabel ?? "main",

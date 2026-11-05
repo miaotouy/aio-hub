@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   Bot,
   Braces,
@@ -24,7 +24,14 @@ const props = defineProps<{
   role?: "user" | "assistant" | "system";
 }>();
 
-const isCollapsed = ref(props.variant !== "role");
+const isCollapsed = ref(false);
+
+watch(
+  () => props.variant,
+  () => {
+    isCollapsed.value = false;
+  }
+);
 
 interface ToolFields {
   toolName: string;
@@ -230,7 +237,15 @@ const statusText = computed(() => {
         <li v-for="item in summaryItems" :key="item">{{ item }}</li>
       </ul>
 
-      <pre v-else class="vcp-pre">{{ content.trim() }}</pre>
+      <template v-else-if="variant === 'role'">
+        <slot>
+          <div class="vcp-role-content">{{ content.trim() }}</div>
+        </slot>
+      </template>
+
+      <template v-else>
+        <pre class="vcp-pre">{{ content.trim() }}</pre>
+      </template>
     </div>
   </section>
 </template>
@@ -242,7 +257,7 @@ const statusText = computed(() => {
   border: var(--border-width) solid var(--border-color);
   border-radius: var(--app-radius-md);
   color: var(--text-color);
-  background: var(--color-surface-container-low);
+  background: var(--card-bg);
 }
 
 .vcp-block.is-pending {
@@ -251,7 +266,7 @@ const statusText = computed(() => {
 
 .vcp-block.is-error,
 .vcp-block.is-incomplete {
-  border-color: var(--color-error, var(--el-color-danger));
+  border-color: var(--danger-color);
 }
 
 .vcp-header {
@@ -282,7 +297,7 @@ const statusText = computed(() => {
 }
 
 .vcp-heading small {
-  color: var(--color-on-surface-variant, var(--text-color-light));
+  color: var(--text-color-light, var(--text-color-light));
 }
 
 .vcp-content {
@@ -307,7 +322,7 @@ const statusText = computed(() => {
 }
 
 .vcp-fields dt {
-  color: var(--color-on-surface-variant, var(--text-color-light));
+  color: var(--text-color-light, var(--text-color-light));
   font-size: 0.85em;
 }
 
@@ -319,6 +334,8 @@ const statusText = computed(() => {
 }
 
 .vcp-pre {
+  max-width: 100%;
+  max-height: 50vh;
   margin: 10px 0 0;
   overflow: auto;
   color: inherit;
@@ -326,6 +343,7 @@ const statusText = computed(() => {
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .vcp-summary {

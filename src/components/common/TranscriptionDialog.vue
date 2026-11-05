@@ -205,8 +205,10 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, watch } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
@@ -441,7 +443,7 @@ const handleConfirmRegenerate = () => {
 
 const handleCopy = async () => {
   try {
-    await navigator.clipboard.writeText(currentContent.value);
+    await getBrowserClipboard().writeText(currentContent.value);
     customMessage.success("已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");
@@ -756,12 +758,5 @@ const handleImagePreview = () => {
 .btn-danger:hover {
   background: var(--error-hover-color);
   border-color: var(--error-hover-color);
-}
-</style>
-
-<style>
-/* 全局样式，用于提升被 teleport 到 body 的下拉框层级 */
-.el-popper.transcription-regenerate-popper {
-  z-index: 6000 !important;
 }
 </style>

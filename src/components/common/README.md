@@ -59,6 +59,15 @@
   />
   ```
 
+### 浮层层级
+
+全局浮层按打开顺序分配层级。BaseDialog、图片/视频预览、网页全屏播放器、悬浮面板、右键菜单、引导流程和更新档案与 Element Plus 共用层级计数；浮层内打开的 Select、Popover、Tooltip 和 MessageBox 会显示在当前浮层之上。顶部消息随可见浮层更新层级，标题栏保留原有层级。
+
+- 自定义全局浮层通过 `Teleport to="body"` 脱离工作区层叠上下文，使用 `useOverlayZIndex(() => visible)`，将返回的 `zIndex` 绑定到最外层遮罩或容器。关闭和卸载时自动释放登记。
+- 自定义浮层外层添加 `data-overlay-layer`；已有 `role="dialog"` 的外层会自动被识别。这样顶部消息也能跟踪浮层的实际层级与可见性。
+- 需要主动激活悬浮面板时调用 `bringToFront()`。组件的自定义 `zIndex` 作为分配下限。
+- Element Plus 浮层使用自身的动态分配，避免通过 CSS 强制固定其层级。普通组件内部的遮罩、工具栏和拖拽反馈在所属层叠上下文内使用局部层级。
+
 ### BaseDialog
 
 **完全自主实现**的基础对话框组件，旨在提供比 Element Plus Dialog 更干净的样式控制和原生毛玻璃效果支持。
@@ -212,6 +221,8 @@ const loadPanel = () => import("./MyPanel.vue");
 文件拖放区域，支持文件类型过滤、目录检测和视觉反馈。
 
 底层 `useFileDrop` 在元素替换时仅重绑 DOM 事件，窗口级监听复用当前元素引用。每次初始化持有独立的订阅批次；清理、重新初始化或组件卸载会使旧批次失效，迟到的注册结果立即注销。自定义监听注册失败时回收已建立的订阅并保留 DOM 拖放，调用方可通过 `reinitialize()` 重试。
+
+Electron 的真实文件拖放按物理落点定向，区域消费后保持当前工具；全局文件打开仅接收区域外的未消费输入。`preferFileObjects` 为 `true` 时优先交给 `files-dropped`，其余有原生路径的输入交给 `drop`；浏览器提供的纯 File 继续由 `emitFiles` 承接。底层 `useFileInteraction` 优先显式 `onPaths`，仅配置 `onFiles` 时保留文件对象。
 
 - **Props**:
   - `dropId` (string): 区域唯一标识。

@@ -2,7 +2,7 @@
 
 本文档旨在解析 Smart OCR 工具的内部架构、设计理念、数据流以及插件扩展机制，为后续开发和维护提供清晰的指引。
 
-> 最后更新：2026-10-18
+> 最后更新：2026-11-05
 
 ---
 
@@ -19,6 +19,14 @@ Smart OCR 是一个多引擎、智能化的图片文字识别工具，旨在为�
 - **VLM (视觉语言模型)**: 调用多模态大模型（如 GPT-4o、Claude 3.5 Sonnet 等），准确率极高，尤其擅长处理复杂布局、手写体、表格和公式，但存在网络开销和 API 成本。
 - **云端 OCR**: 对接专业的云服务（如阿里云、腾讯云、百度云等），提供高准确率和稳定性的商业级服务。
 - **Plugin (插件引擎)**: **[新增]** 接入 AIO Hub 插件系统，允许第三方插件（如本地 PaddleOCR、EasyOCR、或自定义 OCR 服务）作为引擎动态注册并无缝接入。
+
+### Windows 原生 OCR 宿主实现
+
+Tauri 与 Electron 共用 `src-tauri/src/ocr.rs` 的 WinRT 解码与识别实现。Tauri command 使用阻塞任务适配；Electron 经 `electron/image-capture.ts` 和 N-API `ImageCaptureRuntime` 调用同一核心。可用性检查与识别均在工作线程初始化/释放 WinRT apartment，优先使用简体中文引擎，缺少时尝试用户语言配置。
+
+输入支持 PNG/JPEG 等图片 data URL 与原始 base64，编码请求和解码数据分别限制为 44 MiB、32 MiB；分配位图前校验系统 OCR 最大边长。WinRT 操作具有取消和 30 秒总期限。返回 `{ text, confidence }`，其中 `confidence: 0.95` 保留历史契约，属于固定兼容值。
+
+Electron 每窗口/文档串行处理截图与 OCR，全应用最多同时执行 2 个原生操作；单窗口接受至多 2 个未结束请求，全应用至多 8 个。参数接收时快照，刷新、渲染进程退出、关窗和应用退出取消所属任务并丢弃迟到结果。前端主动取消沿用 AbortSignal，当前原生调用返回后由引擎适配器过滤结果。
 
 ### 1.2. 智能切图算法 (Intelligent Slicing Algorithm)
 
@@ -141,12 +149,12 @@ Smart OCR 采用"页面工具 + 平台能力层"的混合架构。核心 OCR 能
 
 四种引擎的就绪检查内容与失败行为：
 
-| 引擎类型 | 就绪检查内容 | 失败行为 |
-| --- | --- | --- |
-| **Native (Windows)** | 通过 Tauri 可用性命令（`check_native_ocr_availability`）提前初始化 WinRT OCR 引擎，避免首次识别时冷启动握手阻塞识别队列。 | 检查失败抛出异常，本次识别直接中止，不进入识别分发。 |
-| **Tesseract** | 复用已初始化的 Worker 池，按所选 `language` 和 `concurrency`（默认 4）确保 Worker 就绪与语言包加载。 | 语言包加载失败等异常向上抛出，识别中止。 |
-| **Cloud (云端 OCR)** | 等待云端 Profile 配置加载（`useOcrProfiles`，含去重与缓存），并校验 `activeProfileId` 对应的 Profile 存在且已启用。 | Profile 不存在时抛出"请先在设置中配置云端 OCR 服务"；Profile 未启用时抛出"云端 OCR 服务 \"<名称>\" 未启用"，识别中止。 |
-| **Plugin (插件引擎)** | 解析当前 manifest 的 `ocr-engine` 贡献点，执行插件声明的 `startupMethod`（如 `healthCheck`）完成协议握手和所选模型检查。 | 校验或握手失败抛出异常，识别中止；不按方法名回退。 |
+| 引擎类型              | 就绪检查内容                                                                                                              | 失败行为                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Native (Windows)**  | 通过 Tauri 可用性命令（`check_native_ocr_availability`）提前初始化 WinRT OCR 引擎，避免首次识别时冷启动握手阻塞识别队列。 | 检查失败抛出异常，本次识别直接中止，不进入识别分发。                                                                   |
+| **Tesseract**         | 复用已初始化的 Worker 池，按所选 `language` 和 `concurrency`（默认 4）确保 Worker 就绪与语言包加载。                      | 语言包加载失败等异常向上抛出，识别中止。                                                                               |
+| **Cloud (云端 OCR)**  | 等待云端 Profile 配置加载（`useOcrProfiles`，含去重与缓存），并校验 `activeProfileId` 对应的 Profile 存在且已启用。       | Profile 不存在时抛出"请先在设置中配置云端 OCR 服务"；Profile 未启用时抛出"云端 OCR 服务 \"<名称>\" 未启用"，识别中止。 |
+| **Plugin (插件引擎)** | 解析当前 manifest 的 `ocr-engine` 贡献点，执行插件声明的 `startupMethod`（如 `healthCheck`）完成协议握手和所选模型检查。  | 校验或握手失败抛出异常，识别中止；不按方法名回退。                                                                     |
 
 - **VLM 引擎** 无需本地就绪步骤（无状态 HTTP 调用），`ensureReady` 对其直接跳过。
 - 所有引擎的就绪状态随引擎实例跨调用复用：重复调用 `ensureReady` 不会重建 Worker 池或重复握手，因此高频调用方（如实时字幕逐帧识别）只需等待就绪而无需关心初始化成本。

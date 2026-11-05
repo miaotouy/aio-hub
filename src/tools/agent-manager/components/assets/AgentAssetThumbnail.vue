@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@/platform/native/core";
 
 const props = defineProps<{
   agentId: string;

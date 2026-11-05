@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const systemFonts = ref<string[]>([]);
 const isLoaded = ref(false);

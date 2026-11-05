@@ -152,7 +152,13 @@ vi.mock("@/utils/tokenCounting", () => ({
   })),
 }));
 vi.mock("@/utils/feedback", () => ({ customMessage: vi.fn() }));
-vi.mock("@/i18n", () => ({ useI18n: () => ({ tRaw: (key: string) => key }) }));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useI18n: () => ({ t: (key: string) => key, useScopedT }),
+    useScopedT,
+  };
+});
 vi.mock("../../utils/contextTokenUsage", () => ({
   contentToTokenText: (content: unknown) => String(content),
   createLocalContextUsage: () => ({ riskLevel: "normal" }),

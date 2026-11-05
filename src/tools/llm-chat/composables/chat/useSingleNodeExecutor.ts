@@ -12,41 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
-import type {
-  LlmMessage,
-  LlmReasoningArtifact,
-  LlmRequestOptions,
-} from "@/llm-apis/common";
-import type {
-  ChatSessionDetail,
-  ChatMessageNode,
-  LlmParameters,
-  UserProfile,
-  ChatAgent,
-  ChatSessionIndex,
-} from "../../types";
-import type { Asset } from "@/types/asset-management";
 import { useChatSettings } from "../settings/useChatSettings";
 import { useLlmChatStore } from "../../stores/llmChatStore";
 import { useLlmRequest } from "@/composables/useLlmRequest";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useChatResponseHandler } from "./useChatResponseHandler";
 import { useNodeManager } from "../session/useNodeManager";
-import { VcpStreamSegmenter } from "../../core/tool-calling/vcp-stream-segmenter";
-import { resolveMessageDisplayStatus } from "../../utils/messageStatus";
 import { useContextPipelineStore } from "../../stores/contextPipelineStore";
-import type { PipelineContext } from "../../types/pipeline";
 import { useTranscriptionManager } from "../features/useTranscriptionManager";
 import { useContextCompressor } from "../features/useContextCompressor";
 import { useAnchorRegistry } from "../ui/useAnchorRegistry";
 import { buildEffectiveParameters } from "../../config/parameter-config";
 import { createModuleLogger } from "@/utils/logger";
 import { isAbortError } from "@/llm-apis/common";
-import {
-  DEFAULT_RETRY_STATUS_CODES,
-  isRetryableStatusCodeFromConfig,
-} from "../../utils/retryStatusCodes";
 
 import {
   loadSnapshotSettings,
@@ -54,658 +32,66 @@ import {
   requestSnapshots,
   reportSnapshotError,
 } from "../../services/requestSnapshots";
-import {
-  freezeSnapshotSources,
-  createSnapshotPipelineTrace,
-} from "../../services/requestSnapshotProjection";
 import { createRequestSnapshotRecorder } from "../../services/requestSnapshotRecorder";
+
+import type { SingleNodeExecuteParams } from "../../core/execution/types";
+export type {
+  SingleNodeExecuteParams,
+  SingleNodeExecuteResult,
+} from "../../core/execution/types";
+
+import {
+  executeSingleNode,
+  type SingleNodeExecutionPorts,
+} from "../../core/execution/singleNodeExecutor";
 
 const logger = createModuleLogger("llm-chat/single-node-executor");
 
-/** 从错误对象中提取数字 HTTP 状态码，非数字枚举值（如 INVALID_ARGUMENT）返回 undefined */
-function readErrorStatusCode(error: unknown): number | undefined {
-  if (!error || typeof error !== "object") return undefined;
-  const candidates = [
-    (error as any).code,
-    (error as any).status,
-    (error as any).statusCode,
-    (error as any).httpStatus,
-    (error as any).response?.status,
-  ];
-  for (const value of candidates) {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-  }
-  return undefined;
-}
-
-export interface SingleNodeExecuteParams {
-  session: ChatSessionDetail;
-  assistantNode: ChatMessageNode;
-  /** 到请求上下文末节点的完整路径 */
-  currentPathToUserNode: ChatMessageNode[];
-  isContinuation?: boolean;
-  splitVcpResponses?: boolean;
-  onResponseNode?: (node: ChatMessageNode) => void;
-  /** Agent 配置片段 */
-  agentConfig: {
-    profileId: string;
-    modelId: string;
-    parameters: LlmParameters;
-  };
-  /** 完整的执行 Agent 对象 */
-  executionAgent: ChatAgent;
-  /** 生效的用户档案 */
-  effectiveUserProfile: UserProfile | null;
-  /** 用于取消请求 */
-  abortController: AbortController;
-}
-
-export interface SingleNodeExecuteResult {
-  /** LLM 返回的原始响应 */
-  response: any;
-  /** 实际发送给 LLM 的消息列表 */
-  messagesForRequest: Array<
-    LlmMessage & { role: any; reasoningArtifacts?: LlmReasoningArtifact[] }
-  >;
-}
-
+/** Renderer adapter for the shared single-node execution path. */
 export function useSingleNodeExecutor() {
-  const { currentAgentId } = useLlmChatUiState();
-  const {
-    handleStreamUpdate,
-    completeStreamSegment,
-    validateAndFixUsage,
-    finalizeNode,
-  } = useChatResponseHandler();
+  const responseHandler = useChatResponseHandler();
   const { checkAndCompress } = useContextCompressor();
   const { sendRequest } = useLlmRequest();
   const contextPipelineStore = useContextPipelineStore();
   const nodeManager = useNodeManager();
 
-  /**
-   * 执行单次 LLM 请求
-   */
-  const execute = async (
-    params: SingleNodeExecuteParams
-  ): Promise<SingleNodeExecuteResult> => {
-    const {
-      session,
-      assistantNode,
-      currentPathToUserNode,
-      isContinuation,
-      agentConfig,
-      executionAgent,
-      effectiveUserProfile,
-      abortController,
-    } = params;
-
+  const execute = (params: SingleNodeExecuteParams) => {
     const { settings } = useChatSettings();
     const chatStore = useLlmChatStore();
-
-    await loadSnapshotSettings();
-    let snapshotEpoch: number | undefined;
-    if (snapshotSettings.enabled) {
-      try {
-        snapshotEpoch = await requestSnapshots.prepare(session.id);
-      } catch (error) {
-        reportSnapshotError(error);
-      }
-    }
-    const snapshotPreview = snapshotSettings.saveTextPreview;
-    const snapshotTrace =
-      snapshotEpoch !== undefined ? createSnapshotPipelineTrace() : undefined;
-
-    // 1. 准备参数
-    const effectiveParams = buildEffectiveParameters(agentConfig.parameters);
-
-    // 保存参数快照到节点元数据
-    assistantNode.metadata = {
-      ...assistantNode.metadata,
-      requestParameters: {
-        ...effectiveParams,
-        toolCallingEnabled: executionAgent.toolCallConfig?.enabled ?? false,
-      },
-    };
-    if (session.nodes && session.nodes[assistantNode.id]) {
-      session.nodes[assistantNode.id].metadata = assistantNode.metadata;
-    }
-
-    // 2. 构建 Pipeline 上下文
-    logger.info("开始执行上下文构建管道...");
-
     const { getProfileById } = useLlmProfiles();
-    const profile = getProfileById(agentConfig.profileId);
-    const model = profile?.models.find((m) => m.id === agentConfig.modelId);
-    const capabilities = model?.capabilities || {};
-    const sessionIndex = chatStore.sessionIndexMap.get(session.id);
-
-    const pipelineContext: PipelineContext = {
-      messages: [],
-      index: sessionIndex as ChatSessionIndex,
-      detail: session,
-      userProfile: effectiveUserProfile || undefined,
-      agentConfig: executionAgent,
-      settings: settings.value,
-      capabilities,
-      timestamp: Date.now(),
-      sharedData: new Map<string, any>(),
-      logs: [],
-      traceProcessor: snapshotTrace?.trace,
-    };
-
-    // 将额外信息放入 sharedData
-    if (model) pipelineContext.sharedData.set("model", model);
-    if (profile) pipelineContext.sharedData.set("profile", profile);
-
-    // 填充额外数据
-    pipelineContext.sharedData.set("pathToUserNode", currentPathToUserNode);
-    pipelineContext.sharedData.set(
-      "transcriptionConfig",
-      settings.value.transcription
-    );
-
-    // 获取锚点定义
-    const anchorRegistry = useAnchorRegistry();
-    pipelineContext.sharedData.set(
-      "anchorDefinitions",
-      anchorRegistry.getAvailableAnchors()
-    );
-
-    // 预加载世界书
-    const worldbookStore = import.meta.env.SSR
-      ? null
-      : (
-          await import("@/tools/st-worldbook-manager/stores/worldbookStore")
-        ).useWorldbookStore();
-    const allWorldbookIds = Array.from(
-      new Set([
-        ...(settings.value.worldbookIds || []),
-        ...(effectiveUserProfile?.worldbookIds || []),
-        ...(executionAgent.worldbookIds || []),
-      ])
-    );
-
-    if (worldbookStore && allWorldbookIds.length > 0) {
-      const loadedWorldbooks =
-        await worldbookStore.getEntriesForAgent(allWorldbookIds);
-      pipelineContext.sharedData.set("loadedWorldbooks", loadedWorldbooks);
-    }
-
-    // 处理转写任务预处理
-    const transcriptionManager = useTranscriptionManager();
-    const allAttachments = currentPathToUserNode.flatMap(
-      (node) => node.attachments || []
-    );
-
-    if (allAttachments.length > 0) {
-      try {
-        const forceAssetIds = new Set<string>();
-        const config = settings.value.transcription;
-
-        if (
-          config.enabled &&
-          config.strategy === "smart" &&
-          config.forceTranscriptionAfter > 0
-        ) {
-          for (let i = 0; i < currentPathToUserNode.length; i++) {
-            const node = currentPathToUserNode[i];
-            const nodeDepth = currentPathToUserNode.length - 1 - i;
-
-            if (
-              nodeDepth >= config.forceTranscriptionAfter &&
-              node.attachments
-            ) {
-              for (const asset of node.attachments) {
-                if (
-                  asset.type === "image" ||
-                  asset.type === "audio" ||
-                  asset.type === "video"
-                ) {
-                  forceAssetIds.add(asset.id);
-                }
-              }
-            }
-          }
-        }
-
-        const updatedAssetsMap =
-          await transcriptionManager.ensureTranscriptions(
-            allAttachments,
-            agentConfig.modelId,
-            agentConfig.profileId,
-            forceAssetIds.size > 0 ? forceAssetIds : undefined
-          );
-        pipelineContext.sharedData.set("updatedAssetsMap", updatedAssetsMap);
-      } catch (error) {
-        logger.warn("等待转写任务完成时出错或超时", error);
-        const fallbackMap = new Map<string, Asset>();
-        for (const asset of allAttachments) {
-          fallbackMap.set(asset.id, asset);
-        }
-        pipelineContext.sharedData.set("updatedAssetsMap", fallbackMap);
-      }
-    }
-
-    // 3. 执行上下文管道
-    await contextPipelineStore.executePipeline(pipelineContext);
-    const messages = pipelineContext.messages;
-
-    const snapshotSources =
-      snapshotEpoch !== undefined
-        ? freezeSnapshotSources(
-            messages,
-            pipelineContext.sharedData.get("snapshotMacroExecutions"),
-            snapshotPreview
-          )
-        : undefined;
-
-    // 4. 发送请求
-    const messagesForRequest = messages.map((msg, index, filteredMessages) => {
-      const isLast = index === filteredMessages.length - 1;
-      return {
-        role: msg.role as any,
-        ...(snapshotSources
-          ? { sourceKeys: snapshotSources.messageKeys[index] }
-          : {}),
-        content: msg.content,
-        reasoningContent: msg.reasoningContent,
-        reasoningArtifacts: msg.reasoningArtifacts,
-        prefix: isContinuation && isLast ? true : undefined,
-      };
-    });
-
-    const maxRetries = settings.value.requestSettings.maxRetries;
-    const retryInterval = settings.value.requestSettings.retryInterval;
-    const retryMode = settings.value.requestSettings.retryMode;
-
-    let hasReceivedStreamData = false;
-    let response: any = null;
-    const splitVcpResponses =
-      params.splitVcpResponses &&
-      settings.value.uiPreferences.splitVcpResponses &&
-      settings.value.uiPreferences.isStreaming;
-    const segmenter = splitVcpResponses ? new VcpStreamSegmenter() : undefined;
-    const segmentNodes = new Map<number, ChatMessageNode>();
-    let hasResponseChunks = false;
-    let activeStreamNode = session.nodes[assistantNode.id] ?? assistantNode;
-    let nextAssistantStartTime: number | undefined;
-
-    const onResponseChunk: NonNullable<LlmRequestOptions["onResponseChunk"]> = (
-      chunk
-    ) => {
-      if (!segmenter) return;
-      hasResponseChunks = true;
-      const receivedAt = Date.now();
-      // Tool-end/separator marks the earliest observable start of the next
-      // model round. Older servers only expose the last tool result chunk.
-      if (
-        /^chatcmpl-(?:vcp-end-|VCP-separator-)/.test(chunk.responseId ?? "")
-      ) {
-        nextAssistantStartTime = receivedAt;
-      }
-      const update = segmenter.push(chunk);
-      if (!update) return;
-      const { segment, contentDelta, reasoningDelta } = update;
-      let node = segmentNodes.get(segment.index);
-      if (!node) {
-        if (segment.index === 0) {
-          node = session.nodes[assistantNode.id] ?? assistantNode;
-          node.role = segment.kind;
-        } else {
-          completeStreamSegment(session, activeStreamNode.id);
-          const original = assistantNode.metadata;
-          node = nodeManager.createNode({
-            role: segment.kind,
-            content: "",
-            parentId: activeStreamNode.id,
-            status: "waiting",
-            metadata: {
-              agentId: original?.agentId,
-              profileId: original?.profileId,
-              modelId: original?.modelId,
-              profileName: original?.profileName,
-              modelName: original?.modelName,
-              modelIcon: original?.modelIcon,
-              providerType: original?.providerType,
-              requestParameters: original?.requestParameters,
-              ...(segment.kind === "assistant"
-                ? {
-                    requestStartTime:
-                      nextAssistantStartTime ??
-                      activeStreamNode.metadata?.requestEndTime ??
-                      receivedAt,
-                  }
-                : {}),
-            },
-          });
-          // Insert each phase before queued follow-ups so their paths keep
-          // depending on the active request as its generation marker advances.
-          // Chained mode stores the queue marker on the user's assistant child.
-          const queuedChildren = activeStreamNode.childrenIds.filter((id) => {
-            const child = session.nodes[id];
-            if (!child) return false;
-            return (
-              resolveMessageDisplayStatus(child) === "queued" ||
-              (child.role === "user" &&
-                child.childrenIds.some((childId) => {
-                  const reply = session.nodes[childId];
-                  return (
-                    reply && resolveMessageDisplayStatus(reply) === "queued"
-                  );
-                }))
-            );
-          });
-          const selectedChildId = activeStreamNode.lastSelectedChildId;
-          nodeManager.addNodeToSession(session, node);
-          // Cache the session proxy so metadata replacements notify stream consumers.
-          node = session.nodes[node.id];
-          for (const childId of queuedChildren) {
-            nodeManager.reparentSubtree(session, childId, node.id);
-          }
-          if (selectedChildId && queuedChildren.includes(selectedChildId)) {
-            activeStreamNode.lastSelectedChildId = node.id;
-            node.lastSelectedChildId = selectedChildId;
-          }
-
-          const responseNodeId = node.id;
-          if (session.activeLeafId === activeStreamNode.id) {
-            nodeManager.updateActiveLeaf(session, responseNodeId);
-          } else if (
-            nodeManager
-              .getNodePath(session, session.activeLeafId)
-              .some((ancestor) => ancestor.id === responseNodeId)
-          ) {
-            // Keep the queued leaf selected and refresh its reparented path.
-            nodeManager.updateActiveLeaf(session, session.activeLeafId);
-          }
-        }
-        segmentNodes.set(segment.index, node);
-        activeStreamNode = node;
-        params.onResponseNode?.(node);
-      }
-      node.metadata = {
-        ...node.metadata,
-        vcpResponse: {
-          requestId: assistantNode.id,
-          kind: segment.kind,
-          responseId: segment.responseId,
-          finishReason: segment.finishReason,
-          toolStatus: segment.toolStatus,
+    const ports: SingleNodeExecutionPorts = {
+      getSettings: () => settings.value,
+      getSessionIndex: (id) => chatStore.sessionIndexMap.get(id),
+      getProfileById,
+      buildEffectiveParameters,
+      getAvailableAnchors: () => useAnchorRegistry().getAvailableAnchors(),
+      loadWorldbooks: async (ids) => {
+        if (import.meta.env.SSR) return undefined;
+        const { useWorldbookStore } =
+          await import("@/tools/st-worldbook-manager/stores/worldbookStore");
+        return useWorldbookStore().getEntriesForAgent(ids);
+      },
+      ensureTranscriptions: (...args) =>
+        useTranscriptionManager().ensureTranscriptions(...args),
+      executePipeline: (context) =>
+        contextPipelineStore.executePipeline(context),
+      sendRequest,
+      ...responseHandler,
+      checkAndCompress,
+      isAbortError,
+      nodes: nodeManager,
+      snapshots: {
+        loadSettings: async () => {
+          await loadSnapshotSettings();
+          return snapshotSettings;
         },
-        ...(segment.usage ? { usage: segment.usage } : {}),
-        ...(segment.finishReason && !node.metadata?.requestEndTime
-          ? { requestEndTime: Date.now() }
-          : {}),
-        ...(segment.toolCalls
-          ? {
-              toolCalls: segment.toolCalls.map((call, index) => ({
-                ...call,
-                requestId: `${assistantNode.id}:vcp:${segment.index}:${index}`,
-                resultMetadata: { source: "vcp-upstream" },
-              })),
-            }
-          : {}),
-      };
-      if (contentDelta || reasoningDelta) {
-        hasReceivedStreamData = true;
-        if (segment.kind === "tool") {
-          nextAssistantStartTime = receivedAt;
-        } else {
-          node.metadata.requestStartTime ??= receivedAt;
-          node.metadata.firstTokenTime ??= receivedAt;
-          nextAssistantStartTime = undefined;
-        }
-      }
-      if (contentDelta)
-        handleStreamUpdate(session, node.id, contentDelta, false);
-      if (reasoningDelta)
-        handleStreamUpdate(session, node.id, reasoningDelta, true);
+        prepare: (id) => requestSnapshots.prepare(id),
+        reportError: reportSnapshotError,
+        createRecorder: createRequestSnapshotRecorder,
+      },
+      logger,
     };
-
-    const snapshotRecorder =
-      snapshotSources && snapshotEpoch !== undefined
-        ? createRequestSnapshotRecorder({
-            sessionId: session.id,
-            requestId: assistantNode.id,
-            triggerNodeId:
-              currentPathToUserNode[currentPathToUserNode.length - 1]?.id,
-            logicalProfileId: agentConfig.profileId,
-            logicalModelId: agentConfig.modelId,
-            sources: snapshotSources.sources,
-            transformations: snapshotTrace?.finish(),
-            epoch: snapshotEpoch,
-            saveTextPreview: snapshotPreview,
-            assistantNodeIds: () => [
-              ...new Set([
-                assistantNode.id,
-                ...[...segmentNodes.values()].map((node) => node.id),
-              ]),
-            ],
-          })
-        : undefined;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        response = await sendRequest({
-          profileId: agentConfig.profileId,
-          modelId: agentConfig.modelId,
-          requestId: assistantNode.id,
-          messages: messagesForRequest,
-          inspectorContext: {
-            toolName: "llm-chat",
-            sessionId: session.id,
-            purpose: "chat",
-          },
-          ...effectiveParams,
-          requestCapture: snapshotRecorder?.capture,
-          ...(splitVcpResponses
-            ? {
-                streamOptions: {
-                  ...effectiveParams.streamOptions,
-                  includeUsage: true,
-                },
-                onResponseChunk,
-              }
-            : {}),
-          stream: settings.value.uiPreferences.isStreaming,
-          signal: abortController.signal,
-          timeout: settings.value.requestSettings.timeout,
-          onStream: settings.value.uiPreferences.isStreaming
-            ? (chunk: string) => {
-                if (hasResponseChunks) return;
-                hasReceivedStreamData = true;
-                handleStreamUpdate(session, assistantNode.id, chunk, false);
-              }
-            : undefined,
-          onReasoningStream: settings.value.uiPreferences.isStreaming
-            ? (chunk: string) => {
-                if (hasResponseChunks) return;
-                hasReceivedStreamData = true;
-                handleStreamUpdate(session, assistantNode.id, chunk, true);
-              }
-            : undefined,
-          onPartialImage: settings.value.uiPreferences.isStreaming
-            ? (base64: string, index: number) => {
-                // 这是流式预览图，我们存入元数据供 UI 渲染，避免污染正文
-                if (!session.nodes || !session.nodes[activeStreamNode.id])
-                  return;
-                const node = session.nodes[activeStreamNode.id];
-                if (!node.metadata) node.metadata = {};
-                const previews = [
-                  ...(node.metadata.partialImagePreviews || []),
-                ];
-                previews[index] = base64;
-                node.metadata.partialImagePreviews = previews;
-              }
-            : undefined,
-        });
-        break;
-      } catch (error) {
-        const isAbort = isAbortError(error);
-        // 检查 error 对象是否为 400 错误或 INVALID_ARGUMENT，避免重试
-        const isBadRequest =
-          error &&
-          typeof error === "object" &&
-          (("code" in error && (error as any).code === 400) ||
-            ("status" in error &&
-              (error as any).status === "INVALID_ARGUMENT"));
-
-        // 识别 429 (限流) 错误
-        const isRateLimit =
-          error &&
-          typeof error === "object" &&
-          (("code" in error && (error as any).code === 429) ||
-            ("status" in error && (error as any).status === 429) ||
-            (error instanceof Error &&
-              /429|too many requests|rate limit/i.test(error.message)));
-
-        // 自动重试状态码白名单：有明确状态码且未命中白名单时不再重试
-        // （2xx / 504 / 524 始终排除）；无状态码的超时/网络错误不受限。
-        const statusCode = readErrorStatusCode(error);
-        const retryStatusConfig =
-          settings.value.requestSettings.retryStatusCodes ??
-          DEFAULT_RETRY_STATUS_CODES;
-        const statusAllowsRetry =
-          statusCode === undefined ||
-          isRetryableStatusCodeFromConfig(statusCode, retryStatusConfig);
-
-        const shouldRetry =
-          !(
-            error &&
-            typeof error === "object" &&
-            "retryable" in error &&
-            error.retryable === false
-          ) &&
-          !isAbort &&
-          !isBadRequest &&
-          !hasReceivedStreamData &&
-          statusAllowsRetry &&
-          attempt < maxRetries;
-
-        if (shouldRetry) {
-          let delayTime =
-            retryMode === "exponential"
-              ? retryInterval * Math.pow(2, attempt)
-              : retryInterval;
-
-          // 如果是限流错误，追加 5000ms 惩罚性等待
-          if (isRateLimit) {
-            delayTime += 5000;
-            logger.warn(
-              `⚠️ 遭遇 429 限流，将进行惩罚性等待 ${delayTime}ms 后重试...`,
-              { attempt: attempt + 1, error }
-            );
-          } else {
-            logger.info(`请求失败，准备进行第 ${attempt + 1} 次重试...`, {
-              delayTime,
-              error,
-            });
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, delayTime));
-          continue;
-        }
-        if (
-          !statusAllowsRetry &&
-          statusCode !== undefined &&
-          !isAbort &&
-          !isBadRequest
-        ) {
-          logger.info(`状态码 ${statusCode} 不在自动重试号段内，跳过重试`, {
-            attempt,
-            statusCode,
-          });
-        }
-        // Flush through the handler that owns the stream buffers before the
-        // orchestrator records the error through its separate handler instance.
-        const interruptedNodes = segmentNodes.size
-          ? segmentNodes.values()
-          : [assistantNode];
-        for (const node of interruptedNodes) {
-          completeStreamSegment(session, node.id);
-        }
-        throw error;
-      }
-    }
-
-    if (response) {
-      if (segmenter?.segments.length) {
-        const priorMessages = [...messagesForRequest];
-        const lastAssistant = [...segmenter.segments]
-          .reverse()
-          .find((segment) => segment.kind === "assistant");
-        for (const segment of segmenter.segments) {
-          const node = segmentNodes.get(segment.index)!;
-          if (segment.kind === "tool") {
-            completeStreamSegment(session, node.id);
-          } else {
-            const segmentResponse = {
-              ...response,
-              content: segment.content,
-              reasoningContent: segment.reasoningContent,
-              reasoningArtifacts:
-                segment === lastAssistant
-                  ? response.reasoningArtifacts
-                  : undefined,
-              usage: segment.usage,
-              finishReason: segment.finishReason,
-              images: segment === lastAssistant ? response.images : undefined,
-              toolCalls: undefined,
-            };
-            await validateAndFixUsage(
-              segmentResponse,
-              agentConfig.modelId,
-              priorMessages as any
-            );
-            await finalizeNode(
-              session,
-              node.id,
-              segmentResponse,
-              executionAgent.id
-            );
-          }
-          priorMessages.push({
-            role: segment.kind === "tool" ? "user" : "assistant",
-            content: segment.content,
-            reasoningContent: segment.reasoningContent,
-            reasoningArtifacts: undefined,
-            prefix: undefined,
-          });
-        }
-      } else {
-        await validateAndFixUsage(
-          response,
-          agentConfig.modelId,
-          messagesForRequest as any
-        );
-        await finalizeNode(
-          session,
-          assistantNode.id,
-          response,
-          currentAgentId.value || ""
-        );
-      }
-
-      snapshotRecorder?.supplement(response);
-
-      try {
-        const sessionIndex = chatStore.sessionIndexMap.get(session.id);
-        if (sessionIndex) {
-          // 摘要任务独立于本次流式回复收尾；下一次请求在编排层等待。
-          void checkAndCompress(sessionIndex, session).catch((error) => {
-            logger.warn("自动上下文压缩执行失败", error);
-          });
-        }
-      } catch (error) {
-        logger.warn("自动上下文压缩执行失败", error);
-      }
-    }
-
-    return {
-      response,
-      messagesForRequest,
-    };
+    return executeSingleNode(params, ports);
   };
-
   return { execute };
 }

@@ -11,6 +11,164 @@ const NOTE_TEXT = "AIO Hub Android E2E deterministic fixture.\n";
 const VIDEO_BASE64 =
   "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";
 
+export const E2E_AGENT_MARKER = "AIOHUB_E2E_AGENT_MARKER";
+export const E2E_AGENT_GREETING_MARKER = "AIOHUB_E2E_GREETING";
+export const E2E_AGENT_CHARACTER_NAME = "Aiohub E2E Agent";
+export const E2E_AGENT_CREATOR_NOTES = "AIOHUB_E2E_AGENT_DESCRIPTION";
+export const E2E_AGENT_SCENARIO = "AIOHUB_E2E_AGENT_SCENARIO";
+/** AIO 内嵌世界书导出中的确定性标记：世界书条目关键词与内容。 */
+export const E2E_WORLDBOOK_ENTRY_KEY = "e2e starport";
+export const E2E_WORLDBOOK_ENTRY_CONTENT = "AIOHUB_E2E_WORLDBOOK_ENTRY";
+export const E2E_AIO_BUNDLE_AGENT_NAME = "Aiohub E2E Bundle Agent";
+export const E2E_AIO_BUNDLE_WORLDBOOK_NAME = "E2E Bundled Book";
+export const E2E_AIO_REGEX_PRESET_NAME = "E2E Regex Preset";
+/** 会话重命名与分类标签编辑断言使用的固定值。 */
+export const E2E_RENAMED_SESSION_NAME = "E2E Renamed Session";
+export const E2E_AGENT_CATEGORY = "expert";
+export const E2E_AGENT_TAGS = "e2e, deterministic";
+
+// CRC32 (IEEE) table used by PNG chunk checksums.
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index++) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit++) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const typeBytes = Buffer.from(type, "latin1");
+  const checksum = Buffer.alloc(4);
+  checksum.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])), 0);
+  return Buffer.concat([length, typeBytes, data, checksum]);
+}
+
+/**
+ * SillyTavern V2 角色卡的 JSON 载荷。标记字符串写在 `system_prompt` 与
+ * `description` 中，导入后会作为预设消息注入请求，供 mock 校验 Agent 人设。
+ */
+export function buildAgentCardPayload() {
+  return {
+    spec: "chara_card_v2",
+    spec_version: "2.0",
+    data: {
+      name: E2E_AGENT_CHARACTER_NAME,
+      description: `[Character Description] ${E2E_AGENT_MARKER} persona for the Android E2E lane.`,
+      personality: "Deterministic, concise, and Android E2E focused.",
+      scenario: E2E_AGENT_SCENARIO,
+      first_mes: `${E2E_AGENT_GREETING_MARKER} {{char}} greets {{user}} in the Android E2E lane.`,
+      mes_example: "<START>\n{{user}}: ping\n{{char}}: pong",
+      system_prompt: `You are an Android E2E assistant. ${E2E_AGENT_MARKER}`,
+      creator_notes: E2E_AGENT_CREATOR_NOTES,
+    },
+  };
+}
+
+/** 生成带 `chara` tEXt chunk 的合法最小 PNG 角色卡。 */
+export function buildAgentCardPng(): Buffer {
+  const encoded = Buffer.from(
+    JSON.stringify(buildAgentCardPayload()),
+    "utf8"
+  ).toString("base64");
+  const basePng = Buffer.from(IMAGE_BASE64, "base64");
+  // Insert the tEXt chunk immediately before the trailing IEND chunk
+  // (length + type + crc = 12 bytes) so the base image stays a valid PNG.
+  const iendOffset = basePng.length - 12;
+  const textData = Buffer.concat([
+    Buffer.from("chara", "latin1"),
+    Buffer.from([0]),
+    Buffer.from(encoded, "latin1"),
+  ]);
+  return Buffer.concat([
+    basePng.subarray(0, iendOffset),
+    pngChunk("tEXt", textData),
+    basePng.subarray(iendOffset),
+  ]);
+}
+
+/**
+ * AIO 桌面导出包（单文件 JSON 形态）中的单个 Agent：
+ * `bundledWorldbooks` 携带 content 内嵌桌面世界书（embedWorldbooks=true 形态），
+ * 并附带正则预设（render 阶段规则）验证导入转换。
+ */
+export function buildAioBundleAgentPayload() {
+  return {
+    version: 1,
+    type: "AIO_Agent_Export",
+    agents: [
+      {
+        name: E2E_AIO_BUNDLE_AGENT_NAME,
+        displayName: E2E_AIO_BUNDLE_AGENT_NAME,
+        description: `[Bundle Agent] ${E2E_AGENT_MARKER} from the AIO export lane.`,
+        systemPrompt: `You are an AIO bundle agent. ${E2E_AGENT_MARKER}`,
+        presetMessages: [],
+        category: "character",
+        tags: ["aio", "e2e"],
+        worldbookIds: ["wb-desktop-1"],
+        bundledWorldbooks: [
+          {
+            id: "wb-desktop-1",
+            name: E2E_AIO_BUNDLE_WORLDBOOK_NAME,
+            content: {
+              entries: {
+                "0": {
+                  uid: 0,
+                  key: [E2E_WORLDBOOK_ENTRY_KEY],
+                  keysecondary: [],
+                  content: `${E2E_WORLDBOOK_ENTRY_CONTENT} starport manifest.`,
+                  constant: false,
+                  selective: false,
+                  order: 100,
+                  position: 0,
+                  disable: false,
+                  probability: 100,
+                  depth: 4,
+                },
+              },
+            },
+          },
+        ],
+        regexConfig: {
+          presets: [
+            {
+              id: "preset-e2e",
+              name: "E2E Regex Preset",
+              enabled: true,
+              order: 0,
+              createdAt: 1,
+              updatedAt: 1,
+              rules: [
+                {
+                  id: "rule-e2e",
+                  name: "TrimMarker",
+                  enabled: true,
+                  regex: "\\s+$",
+                  replacement: "",
+                  applyTo: { render: true, request: false },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
+
 function createWavFixture() {
   const sampleRate = 8_000;
   // Keep this longer than the playback assertion so Android WebView can advance
@@ -63,6 +221,21 @@ export interface PreparedFixtures {
     bytes: number;
     sha256: string;
   };
+  agentCard: {
+    fileName: string;
+    hostPath: string;
+    devicePath: string;
+    bytes: number;
+    sha256: string;
+    mimeType: "image/png";
+  };
+  aioBundle: {
+    fileName: string;
+    hostPath: string;
+    devicePath: string;
+    bytes: number;
+    sha256: string;
+  };
 }
 
 function metadata(hostPath: string, devicePath: string) {
@@ -91,15 +264,24 @@ export async function prepareFixtures(options: {
   const noteFileName = `aiohub-e2e-note-${suffix}.txt`;
   const audioFileName = `aiohub-e2e-audio-${suffix}.wav`;
   const videoFileName = `aiohub-e2e-video-${suffix}.mp4`;
+  const agentCardFileName = `aiohub-e2e-agent-card-${suffix}.png`;
+  const aioBundleFileName = `aiohub-e2e-aio-bundle-${suffix}.agent.json`;
   fs.mkdirSync(hostDirectory, { recursive: true });
   const imageHostPath = path.join(hostDirectory, imageFileName);
   const noteHostPath = path.join(hostDirectory, noteFileName);
   const audioHostPath = path.join(hostDirectory, audioFileName);
   const videoHostPath = path.join(hostDirectory, videoFileName);
+  const agentCardHostPath = path.join(hostDirectory, agentCardFileName);
+  const aioBundleHostPath = path.join(hostDirectory, aioBundleFileName);
   fs.writeFileSync(imageHostPath, Buffer.from(IMAGE_BASE64, "base64"));
   fs.writeFileSync(noteHostPath, NOTE_TEXT, "utf8");
   fs.writeFileSync(audioHostPath, createWavFixture());
   fs.writeFileSync(videoHostPath, Buffer.from(VIDEO_BASE64, "base64"));
+  fs.writeFileSync(agentCardHostPath, buildAgentCardPng());
+  fs.writeFileSync(
+    aioBundleHostPath,
+    JSON.stringify(buildAioBundleAgentPayload())
+  );
   await options.adb.serial(options.serial, [
     "shell",
     "mkdir",
@@ -110,10 +292,14 @@ export async function prepareFixtures(options: {
   const noteDevicePath = `${deviceDirectory}/${noteFileName}`;
   const audioDevicePath = `${deviceDirectory}/${audioFileName}`;
   const videoDevicePath = `${deviceDirectory}/${videoFileName}`;
+  const agentCardDevicePath = `${deviceDirectory}/${agentCardFileName}`;
+  const aioBundleDevicePath = `${deviceDirectory}/${aioBundleFileName}`;
   await options.adb.push(options.serial, imageHostPath, imageDevicePath);
   await options.adb.push(options.serial, noteHostPath, noteDevicePath);
   await options.adb.push(options.serial, audioHostPath, audioDevicePath);
   await options.adb.push(options.serial, videoHostPath, videoDevicePath);
+  await options.adb.push(options.serial, agentCardHostPath, agentCardDevicePath);
+  await options.adb.push(options.serial, aioBundleHostPath, aioBundleDevicePath);
   await options.adb.serial(options.serial, [
     "shell",
     "am",
@@ -141,6 +327,24 @@ export async function prepareFixtures(options: {
     "-d",
     `file://${videoDevicePath}`,
   ]);
+  await options.adb.serial(options.serial, [
+    "shell",
+    "am",
+    "broadcast",
+    "-a",
+    "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+    "-d",
+    `file://${agentCardDevicePath}`,
+  ]);
+  await options.adb.serial(options.serial, [
+    "shell",
+    "am",
+    "broadcast",
+    "-a",
+    "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+    "-d",
+    `file://${aioBundleDevicePath}`,
+  ]);
   // DocumentsUI queries MediaStore asynchronously after the scanner broadcast.
   // Wait on the selected device so a just-pushed audio fixture is selectable.
   await options.adb.serial(options.serial, ["shell", "sleep", "2"]);
@@ -151,5 +355,10 @@ export async function prepareFixtures(options: {
     note: metadata(noteHostPath, noteDevicePath),
     audio: metadata(audioHostPath, audioDevicePath),
     video: metadata(videoHostPath, videoDevicePath),
+    agentCard: {
+      ...metadata(agentCardHostPath, agentCardDevicePath),
+      mimeType: "image/png",
+    },
+    aioBundle: metadata(aioBundleHostPath, aioBundleDevicePath),
   };
 }

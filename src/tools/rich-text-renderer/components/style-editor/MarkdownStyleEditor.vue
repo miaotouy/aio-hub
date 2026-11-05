@@ -267,6 +267,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { ElMessageBox } from "element-plus";
 import { Refresh, CopyDocument, DocumentAdd } from "@element-plus/icons-vue";
@@ -348,7 +350,7 @@ const handleCopyConfig = () => {
 
 const handlePasteConfig = async () => {
   try {
-    const text = await navigator.clipboard.readText();
+    const text = await getBrowserClipboard().readText();
     if (!text) {
       customMessage.warning("剪贴板为空");
       return;

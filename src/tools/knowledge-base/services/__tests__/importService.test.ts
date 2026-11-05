@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { KnowledgeFileParseError } from "../../core/fileParser";
 import {
   KNOWLEDGE_FILE_DIALOG_FILTERS,
@@ -8,7 +8,7 @@ import {
 import { importPaths, selectImportPaths } from "../importService";
 import type { KnowledgeImportFailure } from "../../types";
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("@/platform/native/dialog", () => ({ open: vi.fn() }));
 
 const openMock = vi.mocked(open);
 

@@ -18,8 +18,8 @@
  * 负责调用 Tauri dialog 插件选择文件，并使用 fs 插件读写 JSON。
  */
 
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { save, open } from "@/platform/native/dialog";
+import { writeTextFile, readTextFile } from "@/platform/native/fs";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";

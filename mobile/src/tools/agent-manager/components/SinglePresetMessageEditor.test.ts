@@ -10,7 +10,7 @@ import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import { customDialog } from "@/utils/feedback";
 import type { PresetMessage } from "../types/agent";
 vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key.split(".").pop() }),
+  useI18n: () => ({ useScopedT: () => (key: string) => key.split(".").pop() }),
 }));
 vi.mock("@/utils/feedback", () => ({
   customDialog: vi.fn(),

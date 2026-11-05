@@ -26,6 +26,48 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 pub const LEGACY_RECALL_MIGRATION_ID: &str = "knowledge-to-recall-v2";
+pub const LEGACY_MIGRATION_PROGRESS_EVENT: &str = "recall://legacy-migration-progress";
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallMigrationConfirmation {
+    pub migration_id: String,
+    pub source_fingerprint: String,
+    pub confirmed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallMigrationProgress {
+    pub migration_id: String,
+    pub phase: String,
+    pub current: usize,
+    pub total: usize,
+    pub completed_collections: usize,
+    pub completed_entries: usize,
+    pub pending_vectors: usize,
+    pub issues: usize,
+}
+
+impl RecallMigrationProgress {
+    pub fn new(phase: &str, report: Option<&RecallMigrationReport>) -> Self {
+        Self {
+            migration_id: LEGACY_RECALL_MIGRATION_ID.to_string(),
+            phase: phase.to_string(),
+            current: report
+                .map(|r| r.migrated_entries + r.migrated_vectors)
+                .unwrap_or(0),
+            total: report
+                .map(|r| r.source_entries + r.source_vectors)
+                .unwrap_or(0),
+            completed_collections: report.map(|r| r.migrated_collections).unwrap_or(0),
+            completed_entries: report.map(|r| r.migrated_entries).unwrap_or(0),
+            pending_vectors: report.map(|r| r.pending_vectors).unwrap_or(0),
+            issues: report.map(|r| r.issues.len()).unwrap_or(0),
+        }
+    }
+}
+
 pub const LEGACY_RECALL_SOURCE_ID: &str = "legacy-file-system-v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +152,7 @@ impl LegacyFileRecallImporter {
     }
 
     pub fn inspect(&self) -> Result<Option<RecallMigrationReport>, String> {
+        validate_legacy_paths(&self.source_app_data_dir)?;
         if !self.has_legacy_source() {
             return Ok(None);
         }
@@ -211,6 +254,7 @@ impl LegacyFileRecallImporter {
             get_vectors_dir(&self.source_app_data_dir),
             get_tag_pool_root(&self.source_app_data_dir),
         ];
+        validate_legacy_paths(&self.source_app_data_dir)?;
         let mut removed = Vec::new();
         for root in roots {
             if root.parent() != Some(legacy_root.as_path()) {
@@ -767,7 +811,64 @@ fn count_vector_files(app_data_dir: &Path) -> Result<usize, String> {
     Ok(count)
 }
 
+// Inspect every managed source before reading or deleting any of it. In particular,
+// WalkDir must never hide traversal errors or accept Windows junctions.
+fn validate_legacy_paths(app_data_dir: &Path) -> Result<(), String> {
+    let app_root =
+        fs::canonicalize(app_data_dir).map_err(|e| format!("读取应用数据目录失败: {e}"))?;
+    let legacy_root = get_knowledge_root(app_data_dir);
+    for path in [
+        &legacy_root,
+        &get_bases_dir(app_data_dir),
+        &get_vectors_dir(app_data_dir),
+        &get_tag_pool_root(app_data_dir),
+    ] {
+        match fs::symlink_metadata(path) {
+            Ok(_) => validate_source_path(path, &app_root)?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(format!("读取旧 Recall 目录失败: {e}")),
+        }
+    }
+    for root in [
+        get_bases_dir(app_data_dir),
+        get_vectors_dir(app_data_dir),
+        get_tag_pool_root(app_data_dir),
+    ] {
+        if !root.exists() {
+            continue;
+        }
+        for entry in WalkDir::new(root).follow_links(false) {
+            let entry = entry.map_err(|e| format!("扫描旧 Recall 目录失败: {e}"))?;
+            validate_source_path(entry.path(), &app_root)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_source_path(path: &Path, app_root: &Path) -> Result<(), String> {
+    let meta = fs::symlink_metadata(path).map_err(|e| format!("读取旧 Recall 路径失败: {e}"))?;
+    #[cfg(windows)]
+    let redirected = {
+        use std::os::windows::fs::MetadataExt;
+        meta.file_attributes() & 0x400 != 0
+    };
+    #[cfg(not(windows))]
+    let redirected = false;
+    if meta.file_type().is_symlink() || redirected {
+        return Err(format!(
+            "旧 Recall 路径包含链接或重解析点: {}",
+            path.display()
+        ));
+    }
+    let resolved = fs::canonicalize(path).map_err(|e| format!("解析旧 Recall 路径失败: {e}"))?;
+    if !resolved.starts_with(app_root) {
+        return Err("旧 Recall 路径越出应用数据目录".to_string());
+    }
+    Ok(())
+}
+
 fn source_fingerprint(app_data_dir: &Path) -> Result<String, String> {
+    validate_legacy_paths(app_data_dir)?;
     let mut paths = Vec::new();
     for root in [
         get_bases_dir(app_data_dir),
@@ -777,12 +878,11 @@ fn source_fingerprint(app_data_dir: &Path) -> Result<String, String> {
         if !root.exists() {
             continue;
         }
-        for entry in walkdir::WalkDir::new(root)
-            .into_iter()
-            .flatten()
-            .filter(|entry| entry.file_type().is_file())
-        {
-            paths.push(entry.path().to_path_buf());
+        for entry in WalkDir::new(root).follow_links(false) {
+            let entry = entry.map_err(|e| format!("计算迁移指纹时扫描目录失败: {e}"))?;
+            if entry.file_type().is_file() {
+                paths.push(entry.path().to_path_buf());
+            }
         }
     }
     paths.sort();
@@ -817,6 +917,53 @@ mod tests {
         get_recall_vector_model_dir, get_safe_model_id,
     };
     use tempfile::tempdir;
+
+    #[test]
+    fn rejects_redirected_sources_before_inspection_import_or_cleanup() {
+        let app_data = tempdir().unwrap();
+        let external = tempdir().unwrap();
+        let sentinel = external.path().join("keep.txt");
+        fs::write(&sentinel, "external data").unwrap();
+        let repo = SqliteRecallRepository::new(app_data.path());
+        repo.initialize().unwrap();
+        let importer = LegacyFileRecallImporter::new(app_data.path(), repo);
+        for link in [
+            get_knowledge_root(app_data.path()),
+            get_bases_dir(app_data.path()),
+            get_bases_dir(app_data.path()).join("nested"),
+            get_vectors_dir(app_data.path()),
+            get_tag_pool_root(app_data.path()),
+        ] {
+            fs::create_dir_all(link.parent().unwrap()).unwrap();
+            #[cfg(windows)]
+            {
+                let output = std::process::Command::new("cmd")
+                    .args(["/C", "mklink", "/J"])
+                    .arg(&link)
+                    .arg(external.path())
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(external.path(), &link).unwrap();
+            assert!(importer.inspect().unwrap_err().contains("链接或重解析点"));
+            assert!(importer.import().unwrap_err().contains("链接或重解析点"));
+            assert!(importer
+                .confirm_cleanup("fingerprint")
+                .unwrap_err()
+                .contains("链接或重解析点"));
+            assert_eq!(fs::read_to_string(&sentinel).unwrap(), "external data");
+            #[cfg(windows)]
+            fs::remove_dir(&link).unwrap();
+            #[cfg(unix)]
+            fs::remove_file(&link).unwrap();
+        }
+    }
 
     fn copy_directory(source: &Path, target: &Path) {
         for entry in walkdir::WalkDir::new(source) {

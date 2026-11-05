@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { getAppContext } from "@/config/appContext";
+import { resolveHeaderTemplates } from "../../../../llm-apis/execution/headerTemplates";
 
 export interface PresetHeader {
   name: string;
@@ -41,26 +42,7 @@ export function resolveCustomHeaders(
   headers: Record<string, string> | undefined
 ): Record<string, string> {
   if (!headers) return {};
-
-  const ctx = getAppContext();
-  const resolved: Record<string, string> = {};
-
-  const origin = ctx.appName
-    ? `https://${ctx.appName.toLowerCase().replace(/\s+/g, "-")}.app`
-    : "https://aiohub-app.com";
-
-  for (const [key, value] of Object.entries(headers)) {
-    resolved[key] = value
-      .replace(/\{\{appName\}\}/g, ctx.appName)
-      .replace(/\{\{appVersion\}\}/g, ctx.appVersion)
-      .replace(/\{\{userAgent\}\}/g, ctx.userAgent)
-      .replace(/\{\{secChUa\}\}/g, ctx.secChUa)
-      .replace(/\{\{secChUaPlatform\}\}/g, ctx.secChUaPlatform)
-      .replace(/\{\{appOrigin\}\}/g, origin)
-      .replace(/\{\{acceptLanguage\}\}/g, ctx.acceptLanguage);
-  }
-
-  return resolved;
+  return resolveHeaderTemplates(headers, getAppContext());
 }
 
 /**

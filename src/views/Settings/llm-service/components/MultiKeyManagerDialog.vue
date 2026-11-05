@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import {
@@ -182,7 +184,7 @@ const handleSelectionChange = (val: any[]) => {
 
 const handleExport = () => {
   const keys = props.profile.apiKeys.join("\n");
-  navigator.clipboard
+  getBrowserClipboard()
     .writeText(keys)
     .then(() => {
       customMessage.success("已将所有密钥复制到剪贴板");

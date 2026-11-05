@@ -753,7 +753,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { revealItemInDir } from "@/platform/native/opener";
 import {
   AlertTriangle,
   Binary,
@@ -924,7 +924,10 @@ onMounted(async () => {
 
 watch(
   () => store.activeLibraryId,
-  () => {
+  (libraryId, previousLibraryId) => {
+    if (libraryId && !previousLibraryId && !searchLibraryIds.value.length) {
+      searchLibraryIds.value = [libraryId];
+    }
     query.value = "";
     documentFilter.value = "";
     hasSearched.value = false;

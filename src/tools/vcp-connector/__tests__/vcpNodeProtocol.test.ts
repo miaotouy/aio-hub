@@ -29,6 +29,7 @@ const {
       methods: [{ name: "read_file", agentCallable: true }],
     })),
     read_file: vi.fn(),
+    checkSecurityPolicy: vi.fn(),
   },
 }));
 
@@ -171,6 +172,9 @@ describe("VcpNodeProtocol distributed tool execution", () => {
     registry.getMetadata.mockReturnValue({
       methods: [{ name: "read_file", agentCallable: true }],
     });
+    registry.checkSecurityPolicy
+      .mockReset()
+      .mockResolvedValue({ status: "allow" });
     registry.read_file.mockImplementation(async (args: any, context: any) => ({
       path: args.path,
       requestId: context.requestId,
@@ -216,6 +220,106 @@ describe("VcpNodeProtocol distributed tool execution", () => {
         }),
       })
     );
+  });
+
+  // 保护分布式入口的公开权限契约：被拦截/未授权的调用不得执行工具方法。
+  it.each(["block", "invalid"])("安全策略 %s 时停止调用", async (status) => {
+    registry.checkSecurityPolicy.mockResolvedValue({ status });
+    const send = vi.fn();
+    await new VcpNodeProtocol(send).handleExecuteTool({
+      requestId: "blocked",
+      toolName: "aio-file-operator",
+      toolArgs: { command: "read_file", path: "G:/work/file.md" },
+    });
+    expect(registry.read_file).not.toHaveBeenCalled();
+    expect(send.mock.calls[0][0].data.status).toBe("error");
+  });
+
+  it.each(["approved", "rejected"])(
+    "审批区等待明确结果 %s 后决定是否执行",
+    async (decision) => {
+      registry.checkSecurityPolicy.mockResolvedValue({ status: "approve" });
+      let finish!: (value: string) => void;
+      requestApproval.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          })
+      );
+      const send = vi.fn();
+      const execution = new VcpNodeProtocol(send, "server-1").handleExecuteTool(
+        {
+          requestId: "approval",
+          toolName: "aio-file-operator",
+          toolArgs: { command: "read_file", path: "G:/work/file.md" },
+        }
+      );
+      await vi.waitFor(() => expect(requestApproval).toHaveBeenCalled());
+      expect(registry.read_file).not.toHaveBeenCalled();
+      expect(requestApproval.mock.calls[0][3]).toMatchObject({
+        forceApproval: true,
+        skipArbitration: true,
+        source: "vcp-node",
+        timeoutMs: 115000,
+      });
+      finish(decision);
+      await execution;
+      expect(registry.read_file).toHaveBeenCalledTimes(
+        decision === "approved" ? 1 : 0
+      );
+      expect(send.mock.calls[0][0].data.status).toBe(
+        decision === "approved" ? "success" : "error"
+      );
+    }
+  );
+
+  it("审批超时后即使迟到批准也不执行", async () => {
+    vi.useFakeTimers();
+    try {
+      registry.checkSecurityPolicy.mockResolvedValue({ status: "approve" });
+      let finish!: (value: string) => void;
+      requestApproval.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          })
+      );
+      const send = vi.fn();
+      const execution = new VcpNodeProtocol(send).handleExecuteTool({
+        requestId: "timeout",
+        toolName: "aio-file-operator",
+        toolArgs: { command: "read_file", path: "G:/work/file.md" },
+      });
+      await vi.advanceTimersByTimeAsync(115001);
+      await execution;
+      finish("approved");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(registry.read_file).not.toHaveBeenCalled();
+      expect(send.mock.calls[0][0].data.status).toBe("error");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("等待审批期间取消请求或新增死区均停止执行", async () => {
+    for (const cancel of [true, false]) {
+      registry.read_file.mockClear();
+      registry.checkSecurityPolicy
+        .mockReset()
+        .mockResolvedValueOnce({ status: "approve" })
+        .mockResolvedValue({ status: "block" });
+      requestApproval.mockImplementation(async () => {
+        if (cancel) protocol.handleCancelTool("cancel");
+        return "approved";
+      });
+      const protocol = new VcpNodeProtocol(vi.fn());
+      await protocol.handleExecuteTool({
+        requestId: "cancel",
+        toolName: "aio-file-operator",
+        toolArgs: { command: "read_file", path: "G:/work/file.md" },
+      });
+      expect(registry.read_file).not.toHaveBeenCalled();
+    }
   });
 
   function mockMedia(type = "image", mimeType = "image/png") {

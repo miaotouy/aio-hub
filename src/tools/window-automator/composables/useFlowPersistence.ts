@@ -22,7 +22,7 @@
  */
 
 import { ref } from "vue";
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
 import {
   writeTextFile,
   readTextFile,
@@ -30,7 +30,7 @@ import {
   mkdir,
   remove,
   readDir,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

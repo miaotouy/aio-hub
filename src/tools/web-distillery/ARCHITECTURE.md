@@ -1,6 +1,6 @@
 # 网页蒸馏室 (Web Distillery) — 架构文档
 
-> 最后更新：2026-10-18
+> 最后更新：2026-11-05
 
 ## 1. 概述
 
@@ -11,13 +11,13 @@
 
 工具提供以下提取方式，按页面特点和服务偏好选择：
 
-| 模式          | 触发方式         | 特点                                       |
-| ------------- | ---------------- | ------------------------------------------ |
-| `fast`        | `quickFetch()`   | 纯 HTTP 请求，无浏览器，毫秒级             |
-| `smart`       | `smartExtract()` | 隐藏 Iframe + JS 渲染，支持 SPA            |
-| `jina`        | `jinaFetch()`    | Jina Reader 云端提取引擎，免本地渲染高保真输出，支持全局偏好设置 |
-| `deepseek`    | `fetchPage({ engine: "deepseek" })` | DeepSeek 云端 Markdown 正文提取，复用 LLM 渠道 |
-| `interactive` | 交互配方 Tab     | 可视化浏览器视口，人工拾取规则             |
+| 模式          | 触发方式                            | 特点                                                             |
+| ------------- | ----------------------------------- | ---------------------------------------------------------------- |
+| `fast`        | `quickFetch()`                      | 纯 HTTP 请求，无浏览器，毫秒级                                   |
+| `smart`       | `smartExtract()`                    | 隐藏 Iframe + JS 渲染，支持 SPA                                  |
+| `jina`        | `jinaFetch()`                       | Jina Reader 云端提取引擎，免本地渲染高保真输出，支持全局偏好设置 |
+| `deepseek`    | `fetchPage({ engine: "deepseek" })` | DeepSeek 云端 Markdown 正文提取，复用 LLM 渠道                   |
+| `interactive` | 交互配方 Tab                        | 可视化浏览器视口，人工拾取规则                                   |
 
 ### 全局设置体系
 
@@ -50,7 +50,8 @@
 ### DeepSeek Search / Fetch
 
 - API 适配位于 `src/llm-apis/adapters/deepseek/tools.ts`：负责端点、鉴权、Unicode 参数校验、响应映射和可行动错误。独立于 Chat Completions 的消息及流式工具调用协议。
-- `deepseek.profileId` 引用已启用的 DeepSeek LLM 渠道，复用 API 基础地址、自定义请求头、密钥仓库与网络偏好。空值表示自动选择，由渠道管理按列表顺序解析首个已启用的 DeepSeek 渠道，设置界面展示当前自动选择结果；搜索和抓取共用该规则。显式绑定失效时提示重新选择，保留原绑定。原配置通过默认合并自动补齐该字段。
+- `deepseek.profileId` 引用已启用的 DeepSeek LLM 渠道，复用 API 基础地址、自定义请求头、密钥仓库与网络偏好。空值表示自动选择，由渠道管理按列表顺序解析首个已启用的 DeepSeek 渠道，搜索页和设置界面展示当前自动选择结果；搜索和抓取共用该规则。显式绑定失效时提示重新选择，保留原绑定。原配置通过默认合并自动补齐该字段。
+- 搜索页与偏好设置复用 `DeepSeekChannelConfig`，在当前页面选择渠道并通过弹窗新增或修改连接字段；保存复用 `useLlmProfiles.saveProfile()` 和渠道密钥仓库，合并最新渠道对象以保留模型及高级设置。取消编辑保持共享配置原值。接口地址预览与请求复用 `buildDeepSeekToolUrl()`。
 - 工具请求等待 Key 状态加载，遵守启用、轮询及熔断状态。401 可按现有策略标记鉴权失败；账号级 429 与余额不足仅记录状态，保持 Key 可用性。每次用户操作对应一次请求，重试由调用方决定。
 - 共享 `fetchWithTimeout` 使用 `requestKind: "tool"`，保持工具请求与模型诊断独立；`proxyBodyKind: "raw"` 保持查询及目标 URL 的 JSON 语义。
 - DeepSeek Fetch 仅提供 Markdown。未指定输出格式时，优先采用引擎兼容的全局偏好，否则使用引擎首选格式；显式不支持的格式返回参数错误。
@@ -176,50 +177,32 @@ src-tauri/src/web_distillery/
 
 ## 4. 后端代理服务器
 
-### 4.1 设计动机
+### 4.1 共享实现与宿主适配
 
-浏览器的同源策略禁止在 Tauri WebView 中直接将第三方网页加载为 `<iframe>`（因为 `X-Frame-Options` / CSP 等安全头会拦截）。蒸馏室通过在 **Rust 侧启动一个本地 Axum HTTP 代理**来绕过这个限制。
+本地引擎复用 Rust 的 `wreq` / `wreq-util` Chrome133 TLS/H2 指纹与 Axum 代理。`core.rs` 聚合抓取、网络、代理与加密模块；`commands.rs` 提供 Tauri 薄适配，Electron 经 `electron/web-distillery.ts` 调用 N-API 的 `WebDistilleryRuntime`。网络设置仅投影代理模式和地址，支持系统、直连、自定义代理及 loopback 绕过。
 
-代理服务器绑定到 `127.0.0.1:0`（随机端口），端口号通过 Tauri command 返回给前端。
+Electron 每个窗口/文档持有独立 runtime；同窗口代理控制按顺序执行，其他窗口独立运行。代理监听 `127.0.0.1:0`，前端通过 `distillery_get_proxy_origin` 获取 `http://<随机32位十六进制>.localhost:<端口>`。服务校验精确 Host，页面通过该私有来源加载。停止会取消在途代理请求、清理身份与来源状态并等待监听释放；刷新、渲染进程退出、关窗和应用退出释放对应 runtime。
 
 ### 4.2 路由
 
-| 路由                                  | 处理函数                   | 职责                                |
-| ------------------------------------- | -------------------------- | ----------------------------------- |
-| `GET /proxy?url=...`                  | `handle_proxy_html`        | 获取目标 HTML，剥离安全头，注入脚本 |
-| `GET /proxy-resource?url=...`         | `handle_proxy_resource`    | 透传 CSS/JS/图片等子资源            |
-| `GET /__distillery/bridge.js`         | `handle_bridge_js`         | 返回 bridge.js（含 nonce）          |
-| `GET /__distillery/sniffer.js`        | `handle_sniffer_js`        | 返回 api-sniffer.js                 |
-| `GET /__distillery/anti-detection.js` | `handle_anti_detection_js` | 返回反检测脚本                      |
+| 路由                                                                  | 职责                                        |
+| --------------------------------------------------------------------- | ------------------------------------------- |
+| `GET /proxy?url=...`                                                  | 获取 HTML、解码字符集、处理重定向并注入脚本 |
+| `ANY /proxy-resource?url=...`                                         | 转发显式 CSS/JS/图片/API 资源请求           |
+| `GET /__distillery/{bridge,sniffer,anti-detection,resource-proxy}.js` | 返回注入脚本                                |
+| 其他路径                                                              | 按当前目标来源转发相对路径、表单及 API 请求 |
 
-### 4.3 HTML 注入策略
+目标 URL 只接受 HTTP(S)，查询参数按传输层解码一次。响应读取上限为 32 MiB。响应移除阻止嵌入的安全头和已解码的长度/压缩头，远端 Set-Cookie 存入私有 Cookie Jar；本地响应带 `no-store` 和 `no-referrer`。转发 Referer/Origin 映射至目标站，跨来源资源与重定向使用来源绑定限制身份传播。
 
-代理获取到 HTML 后，执行以下注入：
+### 4.3 HTML 与身份注入
 
-```
-<head> 打开后立即注入（同步执行，必须最先）：
-  <base href="计算出的 base URL">
-  <script src="/__distillery/anti-detection.js"></script>
+HTML 在 head 开始处注入目标路径 base、真实目标 URL、反检测/资源代理脚本，以及同步 LocalStorage 恢复脚本；body 末尾注入 bridge 与 API sniffer。注入兼容大小写标签，LocalStorage JSON 对 script 结束符安全编码。新页面先清理代理域的旧 LocalStorage，再恢复当前身份；跨来源主导航清理先前绑定身份。
 
-</body> 之前注入（defer，避免干扰 React Hydration）：
-  <script src="/__distillery/bridge.js" defer></script>
-  <script src="/__distillery/sniffer.js" defer></script>
-```
+配方绑定身份优先于 URL 激活身份，Cookie 和 LocalStorage 在首个目标请求与页面脚本运行前同步。加密沿用 `enc:` / `plain:` 及旧明文格式，Windows 使用 DPAPI，macOS/Linux 沿用系统凭证服务与 AES-GCM。
 
-同时**剥除**以下响应头，防止 iframe 被拦截：
+### 4.4 宿主命令
 
-- `X-Frame-Options`
-- `Content-Security-Policy`
-- `Content-Encoding` / `Transfer-Encoding`（避免 body 大小不匹配）
-
-### 4.4 Tauri Commands
-
-```rust
-distillery_start_proxy()  → u16  // 启动代理，返回端口号
-distillery_stop_proxy()          // 优雅关闭
-distillery_get_proxy_port() → u16 // 查询当前端口（0 = 未运行）
-distillery_quick_fetch(url, options) → RawFetchPayload // 纯 HTTP 抓取
-```
+两个宿主提供相同的 11 个命令：快速抓取、启动/停止代理、查询端口/私有来源、设置/读取 Cookie、设置 LocalStorage、检测加密及批量加解密。历史调查的 9/9 为当时统计快照，当前命令表以 `electron/web-distillery.ts` 与 Tauri 适配器为准。
 
 ---
 
@@ -297,7 +280,7 @@ iframeBridge.forceCleanup()               // 强制清理（含回调队列）
 
 Iframe 设置了 `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"`。
 
-> **安全注意**：同时开启 `allow-scripts` 和 `allow-same-origin` 理论上存在沙箱逃逸风险，但对于蒸馏室的使用场景（需要代理注入脚本 + postMessage 通信）这是必要的。应用层通过 CSP 约束 Tauri WebView 整体行为来作为补偿控制。
+页面运行于独立的随机 loopback origin，应用主页面与代理页面保持跨来源隔离。`allow-same-origin` 供页面存储与注入脚本使用；接收消息同时校验 iframe 的 source 与 origin，父窗口向精确代理 origin 发送命令。Electron preload 仅向主 frame 暴露 IPC，子页面保持 sandbox 和 Node 隔离。DOM 快照使用 requestId 关联，超时/清理解绑回调；缓存页面停用会销毁 iframe 和代理，晚到的提取/预览结果按当前请求代次丢弃。
 
 ---
 
@@ -457,7 +440,7 @@ iframeBridge.init()               → distillery_start_proxy (Rust)
      │
      ▼
 iframeBridge.create({ url, hidden: true, container })
-     │         → iframe.src = "http://127.0.0.1:{port}/proxy?url=..."
+     │         → iframe.src = "http://{session}.localhost:{port}/proxy?url=..."
      │         → 代理拉取 HTML，注入 3 个脚本，返回给 iframe
      │
      ▼
@@ -554,13 +537,13 @@ InteractiveWorkbench
 
 [`WebDistilleryRegistry`](src/tools/web-distillery/web-distillery.registry.ts:7) 实现 `ToolRegistry` 接口，暴露五个 `agentCallable: true` 的方法：
 
-| 方法           | 适用场景                                     | 关键参数                      |
-| -------------- | -------------------------------------------- | ----------------------------- |
-| `fetchPage`    | 统一选择本地或云端引擎                      | `url`, `engine`, `format`, `cleanMode`, `allowBrowserFallback` |
-| `searchWeb`    | 搜索网页与带来源摘要                        | `query`, `count`, `needContent`, `originalQuestion`, `localization` |
-| `quickFetch`   | 静态页、博客、API 文档                       | `url`, `format`, `cleanMode`  |
-| `smartExtract` | SPA、动态内容、登录后页面                    | `url`, `waitFor`, `cleanMode` |
-| `jinaFetch`    | 公开文档、技术文章、学术资料（免浏览器开销） | `url`, `format`, `cleanMode`  |
+| 方法           | 适用场景                                     | 关键参数                                                            |
+| -------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| `fetchPage`    | 统一选择本地或云端引擎                       | `url`, `engine`, `format`, `cleanMode`, `allowBrowserFallback`      |
+| `searchWeb`    | 搜索网页与带来源摘要                         | `query`, `count`, `needContent`, `originalQuestion`, `localization` |
+| `quickFetch`   | 静态页、博客、API 文档                       | `url`, `format`, `cleanMode`                                        |
+| `smartExtract` | SPA、动态内容、登录后页面                    | `url`, `waitFor`, `cleanMode`                                       |
+| `jinaFetch`    | 公开文档、技术文章、学术资料（免浏览器开销） | `url`, `format`, `cleanMode`                                        |
 
 抓取方法将结果通过 [`formatFetchResult()`](src/tools/web-distillery/formatters.ts) 格式化为 Markdown 字符串返回给 Agent。
 

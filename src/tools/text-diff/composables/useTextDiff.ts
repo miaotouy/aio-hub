@@ -17,9 +17,9 @@ import type { editor } from "monaco-editor";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { open, save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
+import { readText, writeText } from "@/platform/native/clipboard";
 import { inferLanguage, loadFile, generatePatch } from "../engine";
 import type { FileReadResult } from "../types";
 

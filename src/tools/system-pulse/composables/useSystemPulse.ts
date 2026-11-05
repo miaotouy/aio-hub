@@ -13,12 +13,14 @@
 // limitations under the License.
 
 // src/tools/system-pulse/composables/useSystemPulse.ts
-import { onMounted, onUnmounted, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { onUnmounted, ref, watch } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
+import { createModuleLogger } from "@/utils/logger";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
+import { writeText } from "@/platform/native/clipboard";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { useSystemPulseStore } from "../store/useSystemPulseStore";
 import type { SystemSnapshot } from "../types/snapshot";
 import { formatSnapshotToText } from "../utils/formatters";
@@ -26,50 +28,105 @@ import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 
 const errorHandler = createModuleErrorHandler("SystemPulse");
+const logger = createModuleLogger("SystemPulse");
 
 export function useSystemPulse() {
   const store = useSystemPulseStore();
   const isActive = ref(false);
-  let unlisten: UnlistenFn | null = null;
+  const isPending = ref(false);
+  const errorMessage = ref("");
+  let wanted = true;
+  const pageActive = usePageActivity();
+  let disposed = false;
+  let queue = Promise.resolve();
+  type Session = { id: string; listeners: UnlistenFn[]; started: boolean };
+  let current: Session | undefined;
+  const shouldRun = () => wanted && pageActive.value && !disposed;
+  const accepts = (session: Session, id?: string) =>
+    current === session && shouldRun() && (id == null || id === session.id);
 
-  async function start() {
-    if (isActive.value) return;
+  function fail(error: unknown, context: string) {
+    logger.error(context, error);
+    errorMessage.value = `${context}，请重新开启监控；若持续失败，请重启应用。`;
+    wanted = false;
+    isActive.value = false;
+  }
+  async function closeSession(session: Session) {
+    if (current === session) current = undefined;
+    for (const unlisten of session.listeners.splice(0)) unlisten();
+    isActive.value = false;
+    if (session.started) {
+      try {
+        await invoke("stop_pulse", { subscriptionId: session.id });
+      } catch (error) {
+        fail(error, "停止系统监控失败");
+      }
+    }
+  }
+  async function sync() {
+    if (!shouldRun()) {
+      if (current) await closeSession(current);
+      return;
+    }
+    if (current) return;
+    const session: Session = {
+      id: crypto.randomUUID(),
+      listeners: [],
+      started: false,
+    };
+    current = session;
+    isPending.value = true;
     try {
-      unlisten = await listen<SystemSnapshot>(
-        "system-pulse:snapshot",
-        (event) => {
-          store.applySnapshot(event.payload);
-        }
+      session.listeners.push(
+        await listen<SystemSnapshot & { subscriptionId?: string }>(
+          "system-pulse:snapshot",
+          (event) => {
+            const { subscriptionId, ...snapshot } = event.payload;
+            if (accepts(session, subscriptionId)) store.applySnapshot(snapshot);
+          }
+        )
       );
-      await invoke("start_pulse");
-      isActive.value = true;
-    } catch (e) {
-      console.error("[SystemPulse] 启动失败:", e);
+      if (!shouldRun()) return;
+      session.listeners.push(
+        await listen<{ subscriptionId?: string; message: string }>(
+          "system-pulse:error",
+          (event) => {
+            if (!accepts(session, event.payload.subscriptionId)) return;
+            fail(new Error(event.payload.message), "系统采集失败");
+            void reconcile();
+          }
+        )
+      );
+      if (!shouldRun()) return;
+      session.started = true;
+      await invoke("start_pulse", { subscriptionId: session.id });
+      if (shouldRun()) isActive.value = true;
+    } catch (error) {
+      if (shouldRun()) fail(error, "启动系统监控失败");
+    } finally {
+      isPending.value = false;
+      if (!shouldRun()) await closeSession(session);
     }
   }
-
-  async function stop() {
-    try {
-      await invoke("stop_pulse");
-      isActive.value = false;
-    } catch (e) {
-      console.error("[SystemPulse] 停止命令失败:", e);
-    }
-    unlisten?.();
-    unlisten = null;
-    // 不再调用 store.reset()，保留最后一份快照数据供界面展示
+  function reconcile() {
+    const operation = queue.then(sync);
+    queue = operation.catch((error) => {
+      fail(error, "更新系统监控失败");
+    });
+    return queue;
   }
-
-  /**
-   * 处理开关切换
-   * @param val 新状态
-   */
-  async function handleToggle(val: boolean | string | number) {
-    if (val) {
-      await start();
-    } else {
-      await stop();
-    }
+  function start() {
+    wanted = true;
+    errorMessage.value = "";
+    return reconcile();
+  }
+  function stop() {
+    wanted = false;
+    isActive.value = false;
+    return reconcile();
+  }
+  function handleToggle(value: boolean | string | number) {
+    return value ? start() : stop();
   }
 
   /**
@@ -112,12 +169,24 @@ export function useSystemPulse() {
     }
   }
 
-  onMounted(start);
-  onUnmounted(stop);
+  watch(
+    pageActive,
+    (active) => {
+      if (!active) isActive.value = false;
+      void reconcile();
+    },
+    { immediate: true, flush: "sync" }
+  );
+  onUnmounted(() => {
+    disposed = true;
+    void reconcile();
+  });
 
   return {
     store,
     isActive,
+    isPending,
+    errorMessage,
     start,
     stop,
     handleToggle,

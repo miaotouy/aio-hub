@@ -26,8 +26,8 @@
         scrollable="always"
         class="category-tabs"
         color="transparent"
-        active-color="var(--color-primary)"
-        inactive-color="var(--color-text-secondary)"
+        active-color="var(--primary-color)"
+        inactive-color="var(--text-color-light)"
       >
         <var-tab
           v-for="category in categories"
@@ -51,7 +51,10 @@
           :key="icon.path"
           v-ripple
           class="preset-item"
+          role="button"
+          tabindex="0"
           @click="handleSelect(icon)"
+          @keydown.enter="handleSelect(icon)"
         >
           <div class="preset-icon">
             <DynamicIcon :src="getIconPath(icon.path)" :alt="icon.name" lazy />
@@ -160,23 +163,23 @@ function handleSelect(icon: PresetIconInfo) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface-container-low);
+  background-color: var(--card-bg);
 }
 
 /* 搜索栏 */
 .search-bar {
   padding: 8px 16px;
-  background-color: var(--color-surface-container-low);
+  background-color: var(--card-bg);
 }
 
 .search-input {
-  --input-placeholder-color: var(--color-text-secondary);
+  --input-placeholder-color: var(--text-color-light);
 }
 
 /* 分类标签 */
 .category-tabs-container {
-  border-bottom: 1px solid var(--color-outline-variant);
-  background-color: var(--color-surface-container-low);
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-bg);
 }
 
 .category-tabs {
@@ -200,9 +203,9 @@ function handleSelect(icon: PresetIconInfo) {
 
 .preset-item {
   padding: 12px 8px;
-  background-color: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 12px;
+  background-color: var(--container-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-lg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -223,9 +226,9 @@ function handleSelect(icon: PresetIconInfo) {
 }
 
 .preset-name {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   line-height: 1.4;
   height: 2.8em; /* 2 lines */
   overflow: hidden;
@@ -248,8 +251,8 @@ function handleSelect(icon: PresetIconInfo) {
   padding: 1px 4px;
   background-color: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  border-radius: 4px;
-  font-size: 0.7rem;
+  border-radius: var(--app-radius-sm);
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 

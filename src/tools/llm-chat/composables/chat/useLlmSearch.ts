@@ -19,7 +19,7 @@
  */
 
 import { ref, computed, unref } from "vue";
-import { invoke, Channel } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@/platform/native/core";
 import { useDebounceFn } from "@vueuse/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

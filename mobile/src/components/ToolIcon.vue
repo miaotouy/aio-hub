@@ -127,7 +127,7 @@ const iconData = computed(() => {
 
 .icon-image {
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
 }
 
 .icon-text {

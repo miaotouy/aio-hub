@@ -15,17 +15,17 @@
 import { Blob as NodeBlob } from "node:buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
+import { save } from "@/platform/native/dialog";
+import { writeFile } from "@/platform/native/fs";
+import { writeImage } from "@/platform/native/clipboard";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { canvasToBlob, exportStageToCanvas } from "../../core/konva-export";
 import type { EditorSession } from "../useEditorSession";
 import { useEditorExport } from "../useEditorExport";
 
-vi.mock("@tauri-apps/plugin-fs", () => ({ writeFile: vi.fn() }));
-vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
+vi.mock("@/platform/native/fs", () => ({ writeFile: vi.fn() }));
+vi.mock("@/platform/native/clipboard", () => ({
   writeImage: vi.fn(),
 }));
 vi.mock("@/utils/customMessage", () => ({

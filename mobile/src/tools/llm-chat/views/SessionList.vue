@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Trash2,
   Trash,
+  Pencil,
   ArrowUpDown,
   ChevronLeft,
   Search,
@@ -30,13 +31,17 @@ import {
 const router = useRouter();
 const chatStore = useLlmChatStore();
 const { settings, loadSettings } = useChatSettings();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const moduleErrorHandler = createModuleErrorHandler("llm-chat/session-list");
 const searchQuery = ref("");
 const searchResults = ref<ChatSearchResult[]>([]);
 const searchLoading = ref(false);
 const searchError = ref<string | null>(null);
 const isMutatingSessions = ref(false);
+const renameDialogOpen = ref(false);
+const renamingSessionId = ref<string | null>(null);
+const renamingName = ref("");
+const renameSaving = ref(false);
 const sessionSortOptions = {
   "updatedAt:desc": DEFAULT_SESSION_SORT,
   "updatedAt:asc": { field: "updatedAt", direction: "asc" },
@@ -108,6 +113,39 @@ const clearSearch = () => {
   searchQuery.value = "";
 };
 
+const openRenameDialog = (
+  event: Event,
+  session: { id: string; name: string }
+) => {
+  event.stopPropagation();
+  renamingSessionId.value = session.id;
+  renamingName.value = session.name;
+  renameDialogOpen.value = true;
+};
+
+const handleRename = async () => {
+  if (!renamingSessionId.value) return;
+  const trimmed = renamingName.value.trim();
+  if (!trimmed) {
+    customMessage(t("tools.llm-chat.SessionList.会话名称不能为空"), "warning");
+    return;
+  }
+  renameSaving.value = true;
+  try {
+    const success = await chatStore.renameSession(renamingSessionId.value, trimmed);
+    if (success) {
+      renameDialogOpen.value = false;
+      customMessage(t("tools.llm-chat.SessionList.重命名成功"), "success");
+    } else {
+      customMessage(t("tools.llm-chat.SessionList.重命名失败"), "error");
+    }
+  } catch (error) {
+    showMutationError(error, t("tools.llm-chat.SessionList.重命名失败"));
+  } finally {
+    renameSaving.value = false;
+  }
+};
+
 const showMutationError = (error: unknown, message: string) => {
   moduleErrorHandler.handle(error, {
     userMessage: message,
@@ -125,13 +163,13 @@ const deleteSession = async (
 
   if (settings.value.messageManagement.confirmBeforeDeleteSession) {
     const confirmed = await customDialog({
-      title: tRaw("tools.llm-chat.SessionList.删除会话"),
-      message: tRaw("tools.llm-chat.SessionList.删除会话提示").replace(
+      title: t("tools.llm-chat.SessionList.删除会话"),
+      message: t("tools.llm-chat.SessionList.删除会话提示").replace(
         "{name}",
         session.name
       ),
-      confirmButtonText: tRaw("tools.llm-chat.SessionList.删除"),
-      cancelButtonText: tRaw("tools.llm-chat.SessionList.取消"),
+      confirmButtonText: t("tools.llm-chat.SessionList.删除"),
+      cancelButtonText: t("tools.llm-chat.SessionList.取消"),
     });
     if (!confirmed) return;
   }
@@ -139,9 +177,9 @@ const deleteSession = async (
   isMutatingSessions.value = true;
   try {
     await chatStore.deleteSession(session.id);
-    customMessage(tRaw("tools.llm-chat.SessionList.会话已删除"), "success");
+    customMessage(t("tools.llm-chat.SessionList.会话已删除"), "success");
   } catch (error) {
-    showMutationError(error, tRaw("tools.llm-chat.SessionList.删除会话失败"));
+    showMutationError(error, t("tools.llm-chat.SessionList.删除会话失败"));
   } finally {
     isMutatingSessions.value = false;
   }
@@ -152,10 +190,10 @@ const clearAllSessions = async () => {
 
   if (settings.value.messageManagement.confirmBeforeClearAll) {
     const confirmed = await customDialog({
-      title: tRaw("tools.llm-chat.SessionList.清空所有会话"),
-      message: tRaw("tools.llm-chat.SessionList.清空所有会话提示"),
-      confirmButtonText: tRaw("tools.llm-chat.SessionList.清空"),
-      cancelButtonText: tRaw("tools.llm-chat.SessionList.取消"),
+      title: t("tools.llm-chat.SessionList.清空所有会话"),
+      message: t("tools.llm-chat.SessionList.清空所有会话提示"),
+      confirmButtonText: t("tools.llm-chat.SessionList.清空"),
+      cancelButtonText: t("tools.llm-chat.SessionList.取消"),
     });
     if (!confirmed) return;
   }
@@ -164,14 +202,14 @@ const clearAllSessions = async () => {
   try {
     const clearedCount = await chatStore.clearAllSessions();
     customMessage(
-      tRaw("tools.llm-chat.SessionList.已清空会话").replace(
+      t("tools.llm-chat.SessionList.已清空会话").replace(
         "{count}",
         String(clearedCount)
       ),
       "success"
     );
   } catch (error) {
-    showMutationError(error, tRaw("tools.llm-chat.SessionList.清空会话失败"));
+    showMutationError(error, t("tools.llm-chat.SessionList.清空会话失败"));
   } finally {
     isMutatingSessions.value = false;
   }
@@ -185,7 +223,7 @@ const goToChatHome = () => {
 <template>
   <div class="session-list-view" data-testid="chat-session-list">
     <var-app-bar
-      :title="tRaw('tools.llm-chat.common.历史会话')"
+      :title="t('tools.llm-chat.common.历史会话')"
       title-size="1.1rem"
       safe-area
       fixed
@@ -198,6 +236,7 @@ const goToChatHome = () => {
           text
           color="transparent"
           text-color="var(--text-color)"
+          aria-label="返回"
           @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
@@ -209,7 +248,7 @@ const goToChatHome = () => {
           text
           color="transparent"
           :disabled="isMutatingSessions || chatStore.sessionMetas.length === 0"
-          :aria-label="tRaw('tools.llm-chat.SessionList.清空所有会话')"
+          :aria-label="t('tools.llm-chat.SessionList.清空所有会话')"
           data-testid="chat-sessions-clear-all"
           @click="clearAllSessions"
         >
@@ -224,13 +263,13 @@ const goToChatHome = () => {
         <input
           v-model="searchQuery"
           type="search"
-          :placeholder="tRaw('tools.llm-chat.SessionList.搜索消息')"
-          :aria-label="tRaw('tools.llm-chat.SessionList.搜索消息')"
+          :placeholder="t('tools.llm-chat.SessionList.搜索消息')"
+          :aria-label="t('tools.llm-chat.SessionList.搜索消息')"
         />
         <button
           v-if="searchQuery"
           type="button"
-          :aria-label="tRaw('tools.llm-chat.SessionList.清除搜索')"
+          :aria-label="t('tools.llm-chat.SessionList.清除搜索')"
           @click="clearSearch"
         >
           <X :size="16" />
@@ -240,14 +279,14 @@ const goToChatHome = () => {
       <div v-if="searchQuery.trim()" class="search-results" aria-live="polite">
         <div v-if="searchLoading" class="search-state">
           <LoaderCircle class="spin" :size="20" />
-          <span>{{ tRaw("tools.llm-chat.SessionList.搜索中") }}</span>
+          <span>{{ t("tools.llm-chat.SessionList.搜索中") }}</span>
         </div>
         <div v-else-if="searchError" class="search-state error-state">
           <span>{{ searchError }}</span>
         </div>
         <div v-else-if="searchResults.length === 0" class="search-state">
           <MessageSquare :size="24" />
-          <span>{{ tRaw("tools.llm-chat.SessionList.暂无匹配消息") }}</span>
+          <span>{{ t("tools.llm-chat.SessionList.暂无匹配消息") }}</span>
         </div>
         <button
           v-for="result in searchResults"
@@ -277,31 +316,31 @@ const goToChatHome = () => {
             <select
               v-model="sessionSort"
               data-testid="chat-session-sort"
-              :aria-label="tRaw('tools.llm-chat.SessionList.排序方式')"
+              :aria-label="t('tools.llm-chat.SessionList.排序方式')"
             >
               <option value="updatedAt:desc">
-                {{ tRaw("tools.llm-chat.SessionList.最近更新") }}
+                {{ t("tools.llm-chat.SessionList.最近更新") }}
               </option>
               <option value="updatedAt:asc">
-                {{ tRaw("tools.llm-chat.SessionList.最早更新") }}
+                {{ t("tools.llm-chat.SessionList.最早更新") }}
               </option>
               <option value="createdAt:desc">
-                {{ tRaw("tools.llm-chat.SessionList.最近创建") }}
+                {{ t("tools.llm-chat.SessionList.最近创建") }}
               </option>
               <option value="createdAt:asc">
-                {{ tRaw("tools.llm-chat.SessionList.最早创建") }}
+                {{ t("tools.llm-chat.SessionList.最早创建") }}
               </option>
               <option value="messageCount:desc">
-                {{ tRaw("tools.llm-chat.SessionList.消息最多") }}
+                {{ t("tools.llm-chat.SessionList.消息最多") }}
               </option>
               <option value="messageCount:asc">
-                {{ tRaw("tools.llm-chat.SessionList.消息最少") }}
+                {{ t("tools.llm-chat.SessionList.消息最少") }}
               </option>
               <option value="name:asc">
-                {{ tRaw("tools.llm-chat.SessionList.名称正序") }}
+                {{ t("tools.llm-chat.SessionList.名称正序") }}
               </option>
               <option value="name:desc">
-                {{ tRaw("tools.llm-chat.SessionList.名称倒序") }}
+                {{ t("tools.llm-chat.SessionList.名称倒序") }}
               </option>
             </select>
           </label>
@@ -309,7 +348,7 @@ const goToChatHome = () => {
 
         <div v-if="chatStore.sessionMetas.length === 0" class="empty-state">
           <MessageSquare :size="48" />
-          <p>{{ tRaw("tools.llm-chat.SessionList.暂无历史会话") }}</p>
+          <p>{{ t("tools.llm-chat.SessionList.暂无历史会话") }}</p>
         </div>
 
         <div
@@ -318,7 +357,10 @@ const goToChatHome = () => {
           class="session-item"
           data-testid="chat-session-row"
           :data-session-id="session.id"
+          role="button"
+          tabindex="0"
           @click="goToChat(session.id)"
+          @keydown.enter="goToChat(session.id)"
         >
           <div class="session-icon">
             <MessageSquare :size="20" />
@@ -331,10 +373,19 @@ const goToChatHome = () => {
           </div>
           <div class="actions">
             <button
+              class="rename-btn"
+              data-testid="chat-session-rename"
+              :disabled="isMutatingSessions"
+              :aria-label="t('tools.llm-chat.SessionList.重命名会话')"
+              @click="openRenameDialog($event, session)"
+            >
+              <Pencil :size="18" />
+            </button>
+            <button
               class="delete-btn"
               data-testid="chat-session-delete"
               :disabled="isMutatingSessions"
-              :aria-label="tRaw('tools.llm-chat.SessionList.删除会话')"
+              :aria-label="t('tools.llm-chat.SessionList.删除会话')"
               @click="deleteSession($event, session)"
             >
               <Trash2 :size="18" />
@@ -344,6 +395,39 @@ const goToChatHome = () => {
         </div>
       </template>
     </div>
+
+    <var-dialog
+      v-model:show="renameDialogOpen"
+      :title="t('tools.llm-chat.SessionList.重命名会话')"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
+    >
+      <form class="rename-form" @submit.prevent="handleRename">
+        <label>
+          {{ t("tools.llm-chat.SessionList.会话名称") }}
+          <input
+            v-model="renamingName"
+            class="rename-input"
+            autofocus
+            data-testid="chat-session-rename-input"
+            :placeholder="t('tools.llm-chat.SessionList.会话名称提示')"
+          />
+        </label>
+        <div class="rename-actions">
+          <var-button text native-type="button" @click="renameDialogOpen = false">
+            {{ t("tools.llm-chat.SessionList.取消") }}
+          </var-button>
+          <var-button
+            type="primary"
+            native-type="submit"
+            :loading="renameSaving"
+            data-testid="chat-session-rename-save"
+          >
+            {{ t("tools.llm-chat.SessionList.保存") }}
+          </var-button>
+        </div>
+      </form>
+    </var-dialog>
   </div>
 </template>
 
@@ -352,13 +436,18 @@ const goToChatHome = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface);
+  background-color: var(--bg-color);
 }
 
 .nav-bar {
-  background-color: var(--color-surface) !important;
+  background-color: var(--bg-color) !important;
   backdrop-filter: blur(var(--ui-blur));
-  color: var(--color-on-surface) !important;
+  color: var(--text-color) !important;
+}
+
+.nav-bar :deep(.var-button) {
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .list-container {
@@ -376,10 +465,10 @@ const goToChatHome = () => {
   gap: 8px;
   margin-bottom: 14px;
   padding: 0 12px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
 }
 
 .search-field input {
@@ -387,7 +476,7 @@ const goToChatHome = () => {
   flex: 1;
   border: 0;
   outline: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
   font: inherit;
 }
@@ -395,6 +484,8 @@ const goToChatHome = () => {
 .search-field button {
   width: 30px;
   height: 30px;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   flex: 0 0 30px;
@@ -415,12 +506,12 @@ const goToChatHome = () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.86rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 
 .error-state {
-  color: var(--color-error);
+  color: var(--danger-color);
   overflow-wrap: anywhere;
   text-align: center;
 }
@@ -430,14 +521,14 @@ const goToChatHome = () => {
   display: block;
   padding: 12px 14px;
   text-align: left;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
+  color: var(--text-color);
+  background: var(--container-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
 }
 
 .search-result:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .search-result-header {
@@ -453,21 +544,21 @@ const goToChatHome = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .search-result-header time {
   flex: 0 0 auto;
-  color: var(--color-on-surface-variant);
-  font-size: 0.68rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 
 .search-result p {
   display: -webkit-box;
   margin: 7px 0 0;
   overflow: hidden;
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -495,17 +586,17 @@ const goToChatHome = () => {
   gap: 7px;
   min-height: 36px;
   padding: 0 10px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  color: var(--text-color-light);
+  background: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
 }
 
 .session-sort-control select {
   max-width: min(46vw, 220px);
   border: 0;
   outline: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: transparent;
   font: inherit;
 }
@@ -516,14 +607,14 @@ const goToChatHome = () => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   gap: 12px;
 }
 
 .session-item {
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline-variant);
-  border-radius: 16px;
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--app-radius-xl);
   padding: 14px 16px;
   margin-bottom: 12px;
   display: flex;
@@ -533,14 +624,14 @@ const goToChatHome = () => {
 }
 
 .session-item:active {
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
   transform: scale(0.98);
 }
 
 .session-icon {
   width: 42px;
   height: 42px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   display: flex;
@@ -555,7 +646,7 @@ const goToChatHome = () => {
 
 .session-name {
   font-weight: 500;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -563,8 +654,8 @@ const goToChatHome = () => {
 }
 
 .session-time {
-  font-size: 0.8rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
   opacity: 0.7;
 }
 
@@ -572,21 +663,66 @@ const goToChatHome = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
+.rename-btn,
 .delete-btn {
   border: none;
   background: none;
-  color: var(--color-error);
   padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
 }
 
+.rename-btn {
+  color: var(--text-color-light);
+}
+
+.rename-btn:active {
+  background: color-mix(in srgb, var(--primary-color) 12%, var(--card-bg));
+  color: var(--primary-color);
+}
+
+.delete-btn {
+  color: var(--danger-color);
+}
+
 .delete-btn:active {
-  background: var(--el-color-danger-light-9);
+  background: color-mix(in srgb, var(--danger-color) 8%, var(--card-bg));
+}
+
+.rename-form {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.rename-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+.rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
+  background: var(--input-bg);
+  font: inherit;
+}
+
+.rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

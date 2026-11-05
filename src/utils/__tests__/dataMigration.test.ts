@@ -43,7 +43,7 @@ const memoryFs = vi.hoisted(() => {
   return { files, directories, normalize, parent, ensureParents };
 });
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   join: (...parts: string[]) =>
     memoryFs.normalize(parts.join("/").replace(/\/+/g, "/")),
 }));
@@ -61,7 +61,7 @@ vi.mock("@/utils/logger", () => ({
   }),
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   exists: vi.fn(async (path: string) => {
     const normalized = memoryFs.normalize(path);
     return (

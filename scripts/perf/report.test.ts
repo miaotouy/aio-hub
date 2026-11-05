@@ -100,7 +100,7 @@ describe("glass material comparison visual gate", () => {
     const report = buildComparisonMarkdown([baseline, candidate]);
 
     expect(report).toContain("不构成优化成绩");
-    expect(report).toContain("未判定（视觉门禁）");
+    expect(report).toContain("未判定（视觉后续验证）");
     expect(report).not.toContain("| ✅ 改善 |");
   });
 
@@ -122,6 +122,6 @@ describe("glass material comparison visual gate", () => {
 
     expect(report).toContain("视觉等价评审：已通过");
     expect(report).toContain("| ✅ 改善 |");
-    expect(report).not.toContain("未判定（视觉门禁）");
+    expect(report).not.toContain("未判定（视觉后续验证）");
   });
 });

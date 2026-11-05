@@ -13,6 +13,7 @@
 // limitations under the License.
 
 export * from "./core/env";
+export * from "./core/capabilities";
 export * from "./core/errors";
 export * from "./core/bridge";
 export * from "./types/commands";

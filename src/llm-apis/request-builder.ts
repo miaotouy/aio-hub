@@ -34,7 +34,7 @@ import type {
   LlmMessageContent,
   LlmRequestOptions,
   MediaGenerationOptions,
-} from "./common";
+} from "./types";
 import type { LlmProfile, LlmModelInfo } from "../types/llm-profiles";
 import { getProviderTypeInfo } from "../config/llm-providers";
 

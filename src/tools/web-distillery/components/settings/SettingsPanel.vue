@@ -15,10 +15,10 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@/platform/native/core";
+import { openUrl } from "@/platform/native/opener";
 import {
   RotateCcw,
   Sparkles,
@@ -29,8 +29,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-vue-next";
-import { useRouter } from "vue-router";
-import { useLlmProfiles } from "@/composables/useLlmProfiles";
+import DeepSeekChannelConfig from "./DeepSeekChannelConfig.vue";
 import { useWebDistilleryStore } from "../../stores/store";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
@@ -39,25 +38,6 @@ import { fetchEngineCatalog } from "../../core/engines/catalog";
 import type { RawFetchPayload } from "../../types";
 
 const store = useWebDistilleryStore();
-const router = useRouter();
-const { profiles, getEnabledProfileByType } = useLlmProfiles();
-const deepSeekProfiles = computed(() =>
-  profiles.value.filter(
-    (profile) => profile.type === "deepseek" && profile.enabled
-  )
-);
-const automaticDeepSeekProfile = computed(() =>
-  getEnabledProfileByType("deepseek")
-);
-const unavailableDeepSeekProfile = computed(
-  () =>
-    Boolean(store.config.deepseek.profileId) &&
-    !getEnabledProfileByType("deepseek", store.config.deepseek.profileId)
-);
-const selectedDeepSeekProfile = computed({
-  get: () => store.config.deepseek.profileId,
-  set: (profileId: string) => store.updateConfig({ deepseek: { profileId } }),
-});
 const logger = createModuleLogger("web-distillery/settings");
 const errorHandler = createModuleErrorHandler("web-distillery/settings");
 
@@ -180,17 +160,6 @@ const handleTestJinaConnection = async () => {
             <el-icon class="icon-accent"><Network /></el-icon
             ><span>DeepSeek 搜索与抓取</span>
           </div>
-          <el-button
-            text
-            :icon="ExternalLink"
-            @click="
-              router.push({
-                path: '/settings',
-                query: { section: 'llm-service' },
-              })
-            "
-            >管理 LLM 渠道</el-button
-          >
         </div>
         <p class="card-desc">
           复用 DeepSeek 渠道的 API
@@ -203,36 +172,7 @@ const handleTestJinaConnection = async () => {
               >自动使用首个已启用的 DeepSeek 渠道，也可手动指定</span
             >
           </div>
-          <div class="field-control-group">
-            <el-select
-              v-model="selectedDeepSeekProfile"
-              :empty-values="[null, undefined]"
-              class="deepseek-profile-select"
-              aria-label="DeepSeek 渠道"
-              placeholder="自动选择 DeepSeek 渠道"
-            >
-              <el-option
-                :label="
-                  automaticDeepSeekProfile
-                    ? `自动选择（${automaticDeepSeekProfile.name}）`
-                    : '自动选择（暂无可用渠道）'
-                "
-                value=""
-              />
-              <el-option
-                v-if="unavailableDeepSeekProfile"
-                :value="store.config.deepseek.profileId"
-                label="所选渠道已失效，请重新选择"
-                disabled
-              />
-              <el-option
-                v-for="profile in deepSeekProfiles"
-                :key="profile.id"
-                :label="profile.name"
-                :value="profile.id"
-              />
-            </el-select>
-          </div>
+          <DeepSeekChannelConfig />
         </div>
       </section>
       <!-- 1. Jina Reader 云端引擎卡片 -->
@@ -592,11 +532,6 @@ const handleTestJinaConnection = async () => {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.deepseek-profile-select {
-  width: 280px;
-  max-width: 100%;
 }
 
 .key-input-wrapper {

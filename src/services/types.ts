@@ -275,6 +275,8 @@ export interface ToolContext {
     id: string;
     knowledgeAccess?: AgentKnowledgeAccess;
   };
+  /** 执行器已批准本次请求的强制安全审批；仅由受信任调用入口设置。 */
+  securityApprovalGranted?: boolean;
   /** 当前工具请求 ID，用于业务日志和来源追踪。 */
   requestId?: string;
   /**

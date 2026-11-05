@@ -72,7 +72,7 @@
 - [`components/MonitorConfig.vue`](src/tools/realtime-subtitle-ocr/components/MonitorConfig.vue): 监控参数配置面板，包含 OCR 图像滤镜预设和高级参数、采样频率（200ms - 3000ms）、去重灵敏度（高、中、低）、OCR 引擎选择（Native, Tesseract, VLM, Cloud, Plugin）及引擎额外配置气泡。支持 `orientation="vertical"` 以纵向面板形式嵌入屏幕模式右侧和视频模式 Inspector。
 - [`components/SubtitleTimeline.vue`](src/tools/realtime-subtitle-ocr/components/SubtitleTimeline.vue): 字幕时间轴展示，支持自动滚动、**文本单元格行内编辑**（点击进入，失焦 / `Enter` / `Ctrl+Enter` 保存，`Esc` 取消）、单条字幕的删除、一键复制（纯文本/带时间戳）、发送到 Chat（纯文本/带时间戳）、导出 SRT 和一键清空。
 - [`components/ActiveSubtitleEditor.vue`](src/tools/realtime-subtitle-ocr/components/ActiveSubtitleEditor.vue): 当前字幕大字编辑框，在本地视频模式的 Inspector「字幕编辑」页使用，支持 `Ctrl+Enter` 快捷键提交保存。
-- [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面，并提供打开/关闭监控框、聚焦监控框、开始/停止监控的控制按钮，以及 aHash 指纹和延迟（ms）的实时显示。
+- [`components/LivePreview.vue`](src/tools/realtime-subtitle-ocr/components/LivePreview.vue): 实时预览组件，展示当前截取的最新帧画面，并提供打开/关闭监控框、聚焦监控框、开始/停止监控的控制按钮，以及识别、滤镜处理延迟（ms）的实时显示。
 - [`components/MonitorBox.vue`](src/tools/realtime-subtitle-ocr/components/MonitorBox.vue): 屏幕监控框悬浮窗。通过统一的 `detachableComponents` 体系注册为 `type: "component"` 可分离组件：透明 + 无边框 + 置顶 + 可缩放 + 无阴影，由 `DetachedComponentContainer.vue` 在 `/detached-component/:componentId` 路由下加载，复用 `useDetachable` / `useDetachedManager` / `useWindowSyncBus` 全套悬浮窗基础设施，无需自造独立窗口。
 
 #### 2. 业务逻辑层 (Business Logic Layer)
@@ -81,7 +81,7 @@
   - 管理定时采样器（`setInterval`）。
   - 使用 `createConfigManager` 统一管理并防抖持久化监控配置（采样频率、去重灵敏度、图像滤镜、引擎配置）。
   - 调度 Rust 后端进行区域截屏与去重；仅当原图发生变化时，才在前端应用图像滤镜。
-  - 缓存 `scaleFactor`（屏幕缩放因子），避免高频采样时频繁通过 IPC 获取，提升性能。
+  - 使用监控框上报的物理边界及来源窗口缩放；按逻辑尺寸内收标题栏/边框，保留负坐标和虚拟桌面物理原点。旧版仅含逻辑边界的事件沿用调用窗口缩放兜底。
   - 引入 `activeInstances` 引用计数机制，在 Composable 挂载时启动几何信息监听，销毁时按需注销，防止内存泄漏。
   - 监听 `MonitorBox` 悬浮窗通过窗口同步总线上报的几何信息（`realtime-subtitle-ocr:monitor-box-geometry`）。
   - 实现基于编辑距离（Levenshtein Distance）的文本合并与断句算法。
@@ -97,12 +97,15 @@
 - 直接导入并复用 [`src/tools/smart-ocr/platform/runner.ts`](src/tools/smart-ocr/platform/runner.ts) 中的 `useOcrRunner`。
 - 共享全局统一的 OCR Profile 配置，用户在 `Smart OCR` 中配置好的 API Key 和引擎参数在此处直接生效，无需重复配置。
 - Smart OCR 作业协议与稳定 contribution point 配置接入监控配置和工具注册；插件能力由统一引擎层承载，实时工具只负责采样、队列和结果展示。
-- 工具挂载后会后台预热当前引擎，正式启动屏幕或视频识别前再次等待 `ensureReady`：Native OCR 通过 Tauri 可用性命令提前初始化 WinRT 引擎，Tesseract 复用已初始化的 Worker 池，云端 OCR 等待 Profile 配置加载，插件 OCR 执行 manifest 声明的 `startupMethod`（如 `healthCheck`）完成协议握手和所选模型检查。检查失败时不会启动采样或抽帧队列。
+- 工具挂载后会后台预热当前引擎，正式启动屏幕或视频识别前再次等待 `ensureReady`：Native OCR 通过宿主可用性命令提前初始化 WinRT 引擎，Tesseract 复用已初始化的 Worker 池，云端 OCR 等待 Profile 配置加载，插件 OCR 执行 manifest 声明的 `startupMethod`（如 `healthCheck`）完成协议握手和所选模型检查。检查失败时不会启动采样或抽帧队列。
 
 #### 4. Rust 后端原生能力层 (Rust Backend Layer)
 
-- 在 [`src-tauri/src/commands/window_automator.rs`](src-tauri/src/commands/window_automator.rs) 中，提供 Windows 专属的 `capture_screen_rect` 命令。
-- 利用 Windows GDI API 直接抓取指定绝对坐标区域的屏幕像素，避免全屏截图和高频 IPC 传输开销。
+- Windows 专属的 `capture_screen_rect` 由 `src-tauri/src/screen_capture.rs` 共享实现；Tauri 的 `commands/window_automator.rs` 保留薄 command，Electron 通过 `ImageCaptureRuntime` 适配，复用 GDI 采集、aHash 与 PNG 编码。
+- 利用 Windows GDI API 直接抓取指定绝对坐标区域的屏幕像素，线程临时进入 per-monitor-v2 DPI 环境，退出时恢复。尺寸、面积、坐标溢出和虚拟桌面边界在分配前校验，DC、位图与选择对象按作用域回收。
+- Electron Windows 开放 `screenCapture` 能力；窗口自动化与外部播放器覆盖层各自保持独立能力状态。透明组件窗口应用主题时保留透明底色，跳过会覆盖 alpha 的 DWM 背景材质，确保初次加载、主题变更和刷新时内容区可透视。
+- 监控框复用保存配置和窗口定位接口，首次放在主窗口内。Electron 使用显示器原点感知的 DIP/物理坐标转换，避免直接按缩放乘除虚拟桌面原点。
+- 空闲预览随工作台可见性启停；显式启动的 OCR 监控在缓存页面切换时持续运行，用户停止或实际卸载时结束。
 
 ---
 
@@ -186,11 +189,13 @@ sequenceDiagram
 
 ## 5. 本地视频离线识别
 
-本地视频模式由 `useVideoSubtitleOcr` 驱动，使用应用环境设置中的 FFmpeg。用户在视频预览上选择归一化 ROI，前端将视频路径、时间范围、间隔和 ROI 传给 `extract_video_frames`。Rust 端在任务专属临时目录中使用 FFmpeg 抽取 JPEG 字幕帧，并发送 `video-ocr-frame` 与 `video-ocr-progress` 事件。
+本地视频模式由 `useVideoSubtitleOcr` 驱动，使用应用环境设置中的 FFmpeg。用户在视频预览上选择归一化 ROI，前端将视频路径、时间范围、间隔和 ROI 传给 `extract_video_frames`。Tauri 通过 Rust 后端执行 FFmpeg，Electron 通过 `electron/ffmpeg.ts` 与 `electron/ffmpeg-frames.ts` 执行同一抽帧契约：在任务专属临时目录中抽取 JPEG 字幕帧，并发送 `video-ocr-frame` 与 `video-ocr-progress` 事件。
 
 前端按事件顺序读取帧、应用图像滤镜并调用共享 OCR Runner。字幕条目的 `startMs/endMs` 使用视频原始时间；相似文本合并规则与屏幕模式一致。完成或取消时清理临时帧，已经展示在时间轴中的 Object URL 继续保留到当前工具会话结束。
 
 视频任务取消会先 abort 当前 OCR，再调用现有 `kill_ffmpeg_process` 终止 FFmpeg。屏幕监控和视频 OCR 使用独立任务状态，切换模式不会复用或误取消另一种任务。
+
+文件导入复用 `useFileDrop`：DOM 拖放优先协商 copy，并兼容 move-only 来源，保证 Chromium 接受外部 copy-only 文件。2026-11-05 的 Windows Electron 生产资源已用合成中英文双场景视频验证实际解码、ROI 试识别、FFmpeg 六帧抽样、原生 OCR 两条字幕合并，以及正常结束/取消后的临时帧清理；证据见迁移执行待办。
 
 ## 6. 本地视频编辑器式工作台（2026-09 重构）
 
@@ -203,6 +208,8 @@ sequenceDiagram
 - 中部右侧 Inspector：`MonitorConfig`（引擎 / 滤镜 / 采样 / 去重）、`RoiNumberPanel`（ROI 精确 px/% 设置与预设）、`ActiveSubtitleEditor`（字幕编辑）。
 - 底部 `TimelineEditor`（Konva）：时间标尺 + 字幕轨道块 + 识别区间 + 播放头，滚轮 / `Alt+滚轮` 横向滚动、`Ctrl+滚轮` 缩放、左键拖拽块移动 / 拖边缘修剪、中键或 `Alt+左键` 拖拽平移、点击标尺 seek；底部提供常驻横向滚动条（不可滚动时铺满整条，不因出现/消失挤动布局），工具栏提供缩小 / 适配全长 / 放大与吸附开关（均带操作提示），并在工具条内显示轨道手势提示。
 - 次级列表：`SubtitleTimeline` 表格放入右侧抽屉，与轨道通过 `selectedId` / `seek` 联动。
+
+展开截图预览时，预览区最多占监视列的 45% 并独立滚动；监视器保持最小高度，保留源视频与播放控件。字幕列表抽屉挂载到 body，宽度随视口调整（上限 1100px），标题与操作支持换行，避免工作区裁切或窄栏挤压。
 
 ### 6.2. 视口与交互模型
 

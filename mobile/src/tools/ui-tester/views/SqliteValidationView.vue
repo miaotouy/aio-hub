@@ -209,23 +209,27 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
   padding: 16px 0 8px;
 }
 .sqlite-toolbar label {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .sqlite-toolbar select {
   min-width: 110px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 10px;
   color: var(--text-primary);
   background: var(--input-bg);
   border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.25));
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 .database-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   padding: 18px 0;
+}
+.sqlite-toolbar :deep(.var-button),
+.database-actions :deep(.var-button) {
+  min-height: 44px;
 }
 .metrics-table-wrap {
   max-width: 100%;
@@ -235,7 +239,7 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
 .metrics-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .metrics-table th,
 .metrics-table td {
@@ -249,8 +253,8 @@ async function reset(action: "rebuild" | "delete"): Promise<void> {
   font-weight: 500;
 }
 .error-text {
-  color: var(--color-danger, #c23b3b);
-  font-size: 12px;
+  color: var(--danger-color, #c23b3b);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }

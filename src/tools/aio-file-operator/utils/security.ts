@@ -16,7 +16,7 @@
  * 路径安全校验工具
  * 用于防止 AI 通过路径穿越、目录前缀碰撞或符号链接访问用户敏感文件
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import type { AioFileOperatorConfig } from "../types";
 
@@ -439,9 +439,7 @@ export function validateFileSize(size: number, maxSize: number): boolean {
     throw new Error("文件大小限制配置无效，拒绝继续处理。");
   }
   if (size > maxSize) {
-    throw new Error(
-      `文件大小超过限制：${(size / 1024 / 1024).toFixed(2)}MB > ${(maxSize / 1024 / 1024).toFixed(2)}MB`
-    );
+    throw new Error(`文件大小超过限制：${size} 字节 > ${maxSize} 字节`);
   }
   return true;
 }

@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { useTranscriptionStore } from "./stores/transcriptionStore";
 import type { Asset } from "@/types/asset-management";
 import TranscriptionWorkbench from "./components/TranscriptionWorkbench.vue";

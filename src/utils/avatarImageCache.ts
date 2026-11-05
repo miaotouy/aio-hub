@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const cache = reactive(
   new Map<

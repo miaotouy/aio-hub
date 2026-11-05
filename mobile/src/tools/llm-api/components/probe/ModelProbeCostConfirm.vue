@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { useI18n } from "@/i18n";
+import { useScopedT } from "@/i18n";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw(`tools.llm-api.ModelProbe.${key}`, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
 
 defineProps<{ show: boolean; count: number }>();
 
@@ -53,7 +51,7 @@ const emit = defineEmits<{
   position: absolute;
   inset: 0;
   border: 0;
-  background: color-mix(in srgb, var(--color-on-surface) 32%, transparent);
+  background: color-mix(in srgb, var(--text-color) 32%, transparent);
 }
 
 .confirm-sheet {
@@ -61,20 +59,20 @@ const emit = defineEmits<{
   width: 100%;
   padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
   border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
-  background: var(--container-bg, var(--color-surface-container));
+  background: var(--container-bg, var(--container-bg));
 }
 
 .confirm-sheet h2 {
   margin: 0;
-  color: var(--color-on-surface);
-  font-size: 1.08rem;
+  color: var(--text-color);
+  font-size: var(--font-size-lg);
   line-height: 1.4;
 }
 
 .confirm-sheet p {
   margin: 10px 0 22px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.9rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
   line-height: 1.6;
 }
 
@@ -91,14 +89,14 @@ const emit = defineEmits<{
 }
 
 .secondary-button {
-  border: 1px solid var(--border-color, var(--color-outline));
-  color: var(--color-on-surface);
+  border: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color);
   background: transparent;
 }
 
 .primary-button {
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 </style>

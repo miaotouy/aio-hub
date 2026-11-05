@@ -155,7 +155,7 @@ import {
   Filter,
   CloseBold,
 } from "@element-plus/icons-vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import { builtInPresets, type CleanupPreset } from "../config/presets";

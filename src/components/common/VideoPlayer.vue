@@ -23,6 +23,8 @@
       <div
         ref="playerContainer"
         class="video-player"
+        :data-overlay-layer="isWebFullscreen ? '' : undefined"
+        :style="isWebFullscreen ? { zIndex: webFullscreenZIndex } : undefined"
         :class="{
           'is-fullscreen': isFullscreen,
           'is-web-fullscreen': isWebFullscreen,
@@ -331,6 +333,8 @@
 </template>
 
 <script setup lang="ts">
+import { stripLocalAssetUrlPrefix } from "@/platform/modules/assets";
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import {
   ref,
   computed,
@@ -425,6 +429,9 @@ const isLoop = ref(props.loop);
 const bufferedPercentage = ref(0);
 const isFullscreen = ref(false);
 const isWebFullscreen = ref(false);
+const { zIndex: webFullscreenZIndex } = useOverlayZIndex(
+  () => isWebFullscreen.value
+);
 const isControlsVisible = ref(true);
 const showVolumeSlider = ref(false);
 const showPlaybackRateMenu = ref(false);
@@ -479,9 +486,8 @@ const videoName = computed(() => {
   try {
     // 1. 先解码 URL
     let decodedSrc = decodeURIComponent(props.src);
-    // 2. 移除常见的 Tauri asset 协议前缀
-    decodedSrc = decodedSrc.replace(/^https?:\/\/asset\.localhost\//, "");
-    decodedSrc = decodedSrc.replace(/^asset:\/\//, "");
+    // 2. 去掉宿主资源前缀
+    decodedSrc = stripLocalAssetUrlPrefix(decodedSrc);
 
     // 3. 统一分隔符并提取最后一部分
     const parts = decodedSrc.split(/[/\\]/);
@@ -1355,7 +1361,6 @@ defineExpose({
   left: 0;
   width: 100vw !important;
   height: 100vh !important;
-  z-index: 9999;
   background: #000;
 }
 

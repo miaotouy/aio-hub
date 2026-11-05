@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+import { getBrowserClipboard } from "@/platform/browser";
 import { getExtension } from "@/utils/fileTypeDetector";
 import { customMessage } from "@/utils/customMessage";
 import { hexToRgb } from "@/utils/themeColors";
@@ -598,7 +600,7 @@ export async function copyTextToClipboard(
   successTip = "已复制"
 ): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success(successTip);
   } catch {
     customMessage.error("复制失败");

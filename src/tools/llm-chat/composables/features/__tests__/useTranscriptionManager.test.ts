@@ -70,8 +70,8 @@ vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ handle: vi.fn() }),
 }));
 
-vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@/platform/native/events", () => ({ listen: vi.fn() }));
+vi.mock("@/platform/native/core", () => ({ invoke: vi.fn() }));
 
 import { useTranscriptionManager } from "../useTranscriptionManager";
 

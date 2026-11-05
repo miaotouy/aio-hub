@@ -587,3 +587,5 @@ web-canvas 采用**多级存储策略**，将索引、元数据和项目文件�
 ## 9. Monaco 编辑器加载机制
 
 `CanvasMonacoEditor` 与其他 Monaco 使用方共享纯 ESM 加载器 `src/utils/monaco.ts`，不依赖 AMD 插件或运行时 AMD 配置。编辑器扩展必须沿用该加载约定，并通过真实窗口 smoke test 验证加载链路；不得引入 `loader.js` 或 AMD 依赖。
+
+外部编辑通过平台文件监听触发磁盘重载与 Git 状态刷新。Electron 监听跟随窗口生命周期释放，并承接文件原子替换。Monaco 同步外部 `modelValue` 时保持静默，仅将实际编辑通知父组件，避免磁盘重载触发防抖保存并覆盖外部内容。

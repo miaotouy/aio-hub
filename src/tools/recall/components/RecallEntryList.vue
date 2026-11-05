@@ -35,6 +35,7 @@ import {
 import { useFileInteraction } from "@/composables/useFileInteraction";
 import { isTextFile } from "@/utils/fileTypeDetector";
 import { customMessage } from "@/utils/customMessage";
+import { recallTimestampMs } from "../utils/recallTime";
 
 const props = defineProps<{
   searchQuery: string;
@@ -583,7 +584,7 @@ const handleSelect = (id: string) => {
                 <Clock :size="12" />
                 <span>{{
                   new Date(
-                    entryList[virtualItem.index].updatedAt
+                    recallTimestampMs(entryList[virtualItem.index].updatedAt)
                   ).toLocaleDateString()
                 }}</span>
               </div>

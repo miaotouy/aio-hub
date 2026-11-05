@@ -56,6 +56,73 @@ export interface LlmParameters {
   [key: string]: unknown;
 }
 
+/** 智能体私有资产类型，与桌面端 `AssetType` 对齐。 */
+export type AgentAssetType = "image" | "audio" | "video" | "file";
+
+/**
+ * 智能体私有资产的移动端精简结构（对齐桌面 `AgentAsset` 子集）。
+ * 二进制内容存于 `agents/{id}/` 私有目录，这里只保存相对路径与元数据；
+ * 索引签名用于无损保留桌面端其余高级字段（description/group/options 等）。
+ */
+export interface AgentAsset {
+  /** 智能体内稳定 Handle，用于宏替换。 */
+  id: string;
+  /** 原始文件名。 */
+  filename: string;
+  /** 相对 Agent 私有目录的路径，如 "assets/xxx.png"。 */
+  path: string;
+  type: AgentAssetType;
+  /** 资产描述，宏摘要会一并输出（对齐桌面 `AgentAsset.description`）。 */
+  description?: string;
+  /** 归类到的分组 ID，指向 `AgentAssetGroup.id`；缺省视为未分组。 */
+  group?: string;
+  mimeType?: string;
+  /** 文件大小（字节）。 */
+  size?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * 智能体私有资产分组元数据（对齐桌面 `AssetGroup` 精简字段）。
+ * 只描述分组如何展示与排序，资产的归类由 `AgentAsset.group` 指向 `id`；
+ * 索引签名用于无损保留桌面端其余高级字段。
+ */
+export interface AgentAssetGroup {
+  /** 分组标识符，如 "emojis", "bgm", "scenes"。 */
+  id: string;
+  /** 分组显示名称，如 "表情包", "背景音乐"。 */
+  displayName: string;
+  /** 分组描述（供 LLM 理解用途）。 */
+  description?: string;
+  /** 分组图标（emoji 或图标路径）。 */
+  icon?: string;
+  /** 排序权重（数值越小越靠前）。 */
+  sortOrder?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * 归一化持久化数据中的资产分组，兼容旧版占位 `unknown[]`。
+ * 仅保留具非空字符串 `id` 的对象项，丢弃非对象与缺 id 的项；
+ * 合法项的其余字段（含桌面端未知字段）原样保留，`displayName` 缺失时回退为 `id`。
+ */
+export function normalizeAgentAssetGroups(value: unknown): AgentAssetGroup[] {
+  if (!Array.isArray(value)) return [];
+  const groups: AgentAssetGroup[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const id = typeof record.id === "string" ? record.id.trim() : "";
+    if (!id) continue;
+    const displayName =
+      typeof record.displayName === "string" && record.displayName.trim()
+        ? record.displayName
+        : id;
+    groups.push({ ...record, id, displayName } as AgentAssetGroup);
+  }
+  return groups;
+}
+
 export interface AgentBaseConfig {
   version?: number;
   agentVersion?: string;
@@ -63,6 +130,8 @@ export interface AgentBaseConfig {
   displayName?: string;
   description?: string;
   icon?: string;
+  /** PNG character-card preview retained for the agent avatar. */
+  avatarDataUrl?: string;
   presetMessages?: PresetMessage[];
   greetings?: GreetingMessage[];
   /** 默认选中的开局消息 ID；保留桌面端显式字段。 */
@@ -84,8 +153,8 @@ export interface AgentBaseConfig {
     sendButtonCreateBranch?: boolean;
     defaultMediaVolume?: number;
   };
-  assetGroups?: unknown[];
-  assets?: unknown[];
+  assetGroups?: AgentAssetGroup[];
+  assets?: AgentAsset[];
   worldbookIds?: string[];
   quickActionSetIds?: string[];
   worldbookSettings?: unknown;

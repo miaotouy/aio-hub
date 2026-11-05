@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { openBrowserWindow } from "@/platform/browser";
+
 import { ref, onMounted, computed, onErrorCaptured } from "vue";
 import {
   Search,
@@ -98,7 +100,7 @@ function editRecipe(recipe: SiteRecipe) {
 }
 
 function openExternal(url: string) {
-  window.open(url, "_blank");
+  openBrowserWindow(url, "_blank");
 }
 
 function formatDate(dateStr: string) {

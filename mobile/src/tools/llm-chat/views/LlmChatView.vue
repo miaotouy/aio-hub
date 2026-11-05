@@ -8,6 +8,10 @@ import { useChatExecutor } from "../composables/useChatExecutor";
 import { useNodeManager } from "../composables/useNodeManager";
 import { useChatSettings } from "../composables/useChatSettings";
 import {
+  useAgentAvatarUrls,
+  isAgentIconFilename,
+} from "@/tools/agent-manager/composables/useAgentAvatar";
+import {
   confirmDeleteMessage,
   showChatError,
   showChatSuccess,
@@ -29,30 +33,70 @@ const { isKeyboardVisible } = useKeyboardAvoidance();
 const { regenerate, continueGeneration } = useChatExecutor();
 const nodeManager = useNodeManager();
 const { settings, loadSettings } = useChatSettings();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 const messageListRef = ref<any>(null);
 const editingMessage = ref<ChatMessageNode | null>(null);
 const editContent = ref("");
 const showEditDialog = ref(false);
 const showAgentSelector = ref(false);
+const showRenameDialog = ref(false);
+const renamingName = ref("");
+const renameSaving = ref(false);
 const replyTo = ref<ChatMessageReference | null>(null);
 const activeAgent = computed(() =>
   agentStore.getAgentById(chatStore.currentSession?.displayAgentId)
 );
 const selectableAgents = computed(() => agentStore.sortedAgents);
+const avatarUrls = useAgentAvatarUrls(() => agentStore.sortedAgents);
+
+/** emoji/短文本回退：icon 形如文件名（含扩展名）时显示 AI 兜底，统一走 isAgentIconFilename 判定。 */
+const avatarLabel = (agent: { icon?: string }) => {
+  const icon = agent.icon?.trim();
+  return icon && !isAgentIconFilename(icon) ? icon : "AI";
+};
+
 const activeAgentLabel = computed(
   () =>
     activeAgent.value?.displayName ||
     activeAgent.value?.name ||
-    tRaw("tools.llm-chat.ChatView.选择智能体")
+    t("tools.llm-chat.ChatView.选择智能体")
 );
 
 async function handleSelectAgent(agentId: string) {
   const changed = await chatStore.setSessionAgent(agentId);
   if (!changed) return;
   showAgentSelector.value = false;
-  showChatSuccess(tRaw("tools.llm-chat.ChatView.已切换智能体"));
+  showChatSuccess(t("tools.llm-chat.ChatView.已切换智能体"));
+}
+
+function openRenameDialog() {
+  if (!chatStore.currentSession) return;
+  renamingName.value = chatStore.currentSession.name;
+  showRenameDialog.value = true;
+}
+
+async function handleRename() {
+  if (!chatStore.currentSession) return;
+  const trimmed = renamingName.value.trim();
+  if (!trimmed) {
+    showChatError(t("tools.llm-chat.SessionList.会话名称不能为空"));
+    return;
+  }
+  renameSaving.value = true;
+  try {
+    const success = await chatStore.renameSession(chatStore.currentSession.id, trimmed);
+    if (success) {
+      showRenameDialog.value = false;
+      showChatSuccess(t("tools.llm-chat.SessionList.重命名成功"));
+    } else {
+      showChatError(t("tools.llm-chat.SessionList.重命名失败"));
+    }
+  } catch (error) {
+    showChatError(t("tools.llm-chat.SessionList.重命名失败"));
+  } finally {
+    renameSaving.value = false;
+  }
 }
 
 // 初始化会话
@@ -135,16 +179,16 @@ const handleDelete = async (message: ChatMessageNode) => {
 
     nodeManager.hardDeleteNode(chatStore.currentSession, message.id);
     await chatStore.persistCurrentSession();
-    showChatSuccess(tRaw("tools.llm-chat.ChatView.消息已删除"));
+    showChatSuccess(t("tools.llm-chat.ChatView.消息已删除"));
   }
 };
 
 const handleCopy = () => {
-  showChatSuccess(tRaw("tools.llm-chat.ChatView.已复制内容"));
+  showChatSuccess(t("tools.llm-chat.ChatView.已复制内容"));
 };
 
 const handleCopyError = () => {
-  showChatError(tRaw("tools.llm-chat.ChatView.复制失败"));
+  showChatError(t("tools.llm-chat.ChatView.复制失败"));
 };
 
 const handleEdit = (message: ChatMessageNode) => {
@@ -157,7 +201,7 @@ const handleSaveEdit = async () => {
   if (!editingMessage.value) return;
   await chatStore.editMessage(editingMessage.value.id, editContent.value);
   showEditDialog.value = false;
-  showChatSuccess(tRaw("tools.llm-chat.ChatView.消息已更新"));
+  showChatSuccess(t("tools.llm-chat.ChatView.消息已更新"));
 };
 
 const handleSaveEditAsBranch = async () => {
@@ -168,7 +212,7 @@ const handleSaveEditAsBranch = async () => {
   );
   showEditDialog.value = false;
   if (branch) {
-    showChatSuccess(tRaw("tools.llm-chat.ChatView.已保存为新分支"));
+    showChatSuccess(t("tools.llm-chat.ChatView.已保存为新分支"));
   }
 };
 
@@ -195,21 +239,30 @@ const goToChatHome = () => {
     :class="{ 'keyboard-open': isKeyboardVisible }"
   >
     <var-app-bar
-      :title="
-        chatStore.currentSession?.name || tRaw('tools.llm-chat.ChatView.对话')
-      "
       title-size="1.1rem"
       safe-area
       fixed
       z-index="1000"
       class="nav-bar"
     >
+      <template #default>
+        <span
+          class="chat-title-clickable"
+          data-testid="chat-session-title"
+          :title="t('tools.llm-chat.SessionList.重命名会话')"
+          @click="openRenameDialog"
+        >
+          {{ chatStore.currentSession?.name || t("tools.llm-chat.ChatView.对话") }}
+        </span>
+      </template>
       <template #left>
         <var-button
           round
           text
           color="transparent"
           text-color="var(--text-color)"
+          data-testid="chat-back"
+          aria-label="返回"
           @click="goToChatHome"
         >
           <ChevronLeft :size="24" />
@@ -219,17 +272,21 @@ const goToChatHome = () => {
         <button
           class="active-agent"
           type="button"
-          :title="tRaw('tools.llm-chat.ChatView.切换智能体')"
-          :aria-label="tRaw('tools.llm-chat.ChatView.切换智能体')"
+          data-testid="chat-agent-selector-toggle"
+          :title="t('tools.llm-chat.ChatView.切换智能体')"
+          :aria-label="t('tools.llm-chat.ChatView.切换智能体')"
           :disabled="selectableAgents.length === 0 || chatStore.isSending"
           @click="showAgentSelector = true"
         >
           <span class="active-agent-avatar">
-            {{
-              activeAgent?.icon?.length && activeAgent.icon.length <= 4
-                ? activeAgent.icon
-                : "AI"
-            }}
+            <img
+              v-if="activeAgent && avatarUrls[activeAgent.id]"
+              :src="avatarUrls[activeAgent.id]"
+              :alt="activeAgentLabel"
+            />
+            <span v-else>{{
+              activeAgent ? avatarLabel(activeAgent) : "AI"
+            }}</span>
           </span>
           <span class="active-agent-name">{{ activeAgentLabel }}</span>
           <ChevronDown :size="15" />
@@ -268,7 +325,7 @@ const goToChatHome = () => {
       <section class="agent-selector" data-testid="chat-agent-selector">
         <div class="drawer-handle"></div>
         <header class="agent-selector-header">
-          <h2>{{ tRaw("tools.llm-chat.ChatView.切换智能体") }}</h2>
+          <h2>{{ t("tools.llm-chat.ChatView.切换智能体") }}</h2>
           <span>{{ selectableAgents.length }}</span>
         </header>
         <div class="agent-selector-list">
@@ -277,15 +334,20 @@ const goToChatHome = () => {
             :key="agent.id"
             type="button"
             class="agent-selector-item"
+            data-testid="chat-agent-selector-item"
+            :data-agent-id="agent.id"
             :class="{
               active: agent.id === chatStore.currentSession?.displayAgentId,
             }"
             @click="handleSelectAgent(agent.id)"
           >
             <span class="agent-selector-avatar">
-              {{
-                agent.icon?.length && agent.icon.length <= 4 ? agent.icon : "AI"
-              }}
+              <img
+                v-if="avatarUrls[agent.id]"
+                :src="avatarUrls[agent.id]"
+                :alt="agent.displayName || agent.name"
+              />
+              <span v-else>{{ avatarLabel(agent) }}</span>
             </span>
             <span class="agent-selector-copy">
               <strong>{{ agent.displayName || agent.name }}</strong>
@@ -298,7 +360,7 @@ const goToChatHome = () => {
             />
           </button>
           <p v-if="selectableAgents.length === 0" class="agent-selector-empty">
-            {{ tRaw("tools.llm-chat.ChatView.暂无可切换智能体") }}
+            {{ t("tools.llm-chat.ChatView.暂无可切换智能体") }}
           </p>
         </div>
       </section>
@@ -306,7 +368,7 @@ const goToChatHome = () => {
 
     <var-dialog
       v-model:show="showEditDialog"
-      :title="tRaw('tools.llm-chat.ChatView.编辑消息')"
+      :title="t('tools.llm-chat.ChatView.编辑消息')"
       :close-on-click-overlay="true"
       :show-cancel-button="false"
       :show-confirm-button="false"
@@ -316,20 +378,51 @@ const goToChatHome = () => {
           v-model="editContent"
           class="edit-textarea"
           rows="8"
-          :placeholder="tRaw('tools.llm-chat.ChatView.输入消息内容')"
+          :placeholder="t('tools.llm-chat.ChatView.输入消息内容')"
         ></textarea>
         <div class="edit-actions">
           <var-button text @click="showEditDialog = false">
-            {{ tRaw("tools.llm-chat.ChatView.取消") }}
+            {{ t("tools.llm-chat.ChatView.取消") }}
           </var-button>
           <var-button type="primary" plain @click="handleSaveEditAsBranch">
-            {{ tRaw("tools.llm-chat.ChatView.另存为分支") }}
+            {{ t("tools.llm-chat.ChatView.另存为分支") }}
           </var-button>
           <var-button type="primary" @click="handleSaveEdit">
-            {{ tRaw("tools.llm-chat.ChatView.保存") }}
+            {{ t("tools.llm-chat.ChatView.保存") }}
           </var-button>
         </div>
       </div>
+    </var-dialog>
+
+    <var-dialog
+      v-model:show="showRenameDialog"
+      :title="t('tools.llm-chat.SessionList.重命名会话')"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
+    >
+      <form class="rename-form" @submit.prevent="handleRename">
+        <label>
+          {{ t("tools.llm-chat.SessionList.会话名称") }}
+          <input
+            v-model="renamingName"
+            class="rename-input"
+            autofocus
+            :placeholder="t('tools.llm-chat.SessionList.会话名称提示')"
+          />
+        </label>
+        <div class="rename-actions">
+          <var-button text native-type="button" @click="showRenameDialog = false">
+            {{ t("tools.llm-chat.SessionList.取消") }}
+          </var-button>
+          <var-button
+            type="primary"
+            native-type="submit"
+            :loading="renameSaving"
+          >
+            {{ t("tools.llm-chat.SessionList.保存") }}
+          </var-button>
+        </div>
+      </form>
     </var-dialog>
   </div>
 </template>
@@ -354,6 +447,11 @@ const goToChatHome = () => {
   color: var(--text-color) !important;
 }
 
+.nav-bar :deep(.var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .nav-bar-placeholder {
   height: 54px;
   padding-top: env(safe-area-inset-top);
@@ -366,8 +464,9 @@ const goToChatHome = () => {
   align-items: center;
   gap: 7px;
   padding: 4px 6px;
+  min-height: 44px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: inherit;
   background: transparent;
 }
@@ -384,11 +483,18 @@ const goToChatHome = () => {
   flex: 0 0 28px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
-  background: var(--color-primary);
+  border-radius: var(--app-radius-md);
+  background: var(--primary-color);
   color: white;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
+  overflow: hidden;
+}
+.active-agent-avatar img,
+.agent-selector-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .active-agent-name {
@@ -396,7 +502,7 @@ const goToChatHome = () => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .agent-selector {
@@ -423,11 +529,11 @@ const goToChatHome = () => {
 }
 .agent-selector-header h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .agent-selector-header span {
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 .agent-selector-list {
   display: flex;
@@ -443,14 +549,14 @@ const goToChatHome = () => {
   gap: 10px;
   padding: 12px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: inherit;
   background: var(--input-bg);
   text-align: left;
 }
 .agent-selector-item.active {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, var(--input-bg));
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--input-bg));
 }
 .agent-selector-avatar {
   width: 38px;
@@ -458,11 +564,12 @@ const goToChatHome = () => {
   flex: 0 0 38px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: white;
-  background: var(--color-primary);
-  font-size: 0.84rem;
+  background: var(--primary-color);
+  font-size: var(--font-size-sm);
   font-weight: 700;
+  overflow: hidden;
 }
 .agent-selector-copy {
   min-width: 0;
@@ -478,16 +585,16 @@ const goToChatHome = () => {
   text-overflow: ellipsis;
 }
 .agent-selector-copy small {
-  color: var(--color-on-surface-variant);
-  font-size: 0.75rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .agent-selector-check {
   flex: 0 0 auto;
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 .agent-selector-empty {
   margin: 16px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 
@@ -520,17 +627,17 @@ const goToChatHome = () => {
   max-height: 42vh;
   resize: vertical;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
   color: var(--text-color);
   padding: 12px;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   line-height: 1.55;
   outline: none;
 }
 
 .edit-textarea:focus {
-  border-color: var(--el-color-primary);
+  border-color: var(--primary-color);
 }
 
 .edit-actions {
@@ -539,5 +646,50 @@ const goToChatHome = () => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.edit-actions :deep(.var-button) {
+  min-height: 44px;
+}
+
+.chat-title-clickable {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  max-width: 60vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+.rename-form {
+  display: grid;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.rename-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+.rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
+  background: var(--input-bg);
+  font: inherit;
+}
+
+.rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

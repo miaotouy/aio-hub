@@ -32,7 +32,7 @@ import {
   Close,
 } from "@element-plus/icons-vue";
 import type { OcrResult, UploadedImage, ImageBlock } from "../types";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
 

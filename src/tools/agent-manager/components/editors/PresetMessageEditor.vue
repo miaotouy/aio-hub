@@ -263,7 +263,7 @@ import {
 } from "@aiohub/agent-preset-core";
 import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import PresetBodyToolbar from "./PresetBodyToolbar.vue";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import PresetInlineLeaveGuard from "../assets/PresetInlineLeaveGuard.vue";
 import type {
   MessageRole,

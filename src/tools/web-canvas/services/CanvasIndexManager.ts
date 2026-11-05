@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
 import {
   readTextFile,
   writeTextFile,
   exists,
   mkdir,
   rename,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

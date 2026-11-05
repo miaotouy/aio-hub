@@ -21,9 +21,9 @@ import { parseModelCombo } from "@/utils/modelIdUtils";
 import type { Asset } from "@/types/asset-management";
 import { useFFmpeg } from "@/composables/useFFmpeg";
 import { createModuleLogger } from "@/utils/logger";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import { stat } from "@tauri-apps/plugin-fs";
+import { listen } from "@/platform/native/events";
+import { invoke } from "@/platform/native/core";
+import { stat } from "@/platform/native/fs";
 import { computed } from "vue";
 
 import {

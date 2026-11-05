@@ -102,8 +102,8 @@ export const openAiUrlHandler = {
       : `${versionedHost}chat/completions`;
   },
   getHint: (): string => {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.Adapters.OpenAI提示");
+    const { t } = useI18n();
+    return t("tools.llm-api.Adapters.OpenAI提示");
   },
 };
 
@@ -125,6 +125,7 @@ export function toOpenAiCompatibleCoreRequest(
   const extraBody = asJsonObject(options.extraBody);
   const explicitExtensions = asJsonObject(options.extensions);
   const safetySettings = toJsonValue(options.safetySettings);
+  const customExtensions = resolveCustomExtensions(options.custom);
 
   return {
     model: options.modelId,
@@ -179,6 +180,8 @@ export function toOpenAiCompatibleCoreRequest(
       ...(safetySettings === undefined
         ? {}
         : { safety_settings: safetySettings }),
+      // custom 放在最后合并，允许覆盖标准字段（对齐桌面 buildEffectiveParameters）。
+      ...customExtensions,
     },
   };
 }
@@ -218,13 +221,6 @@ export const createOpenAiCompatibleApi =
     profile: LlmProfile,
     options: LlmRequestOptions
   ): Promise<LlmResponse> => {
-    if (isNonEmptyRecord(options.custom)) {
-      dependencies.logger.warn(
-        "检测到 'custom' 参数容器，但它未被上游逻辑解包。这可能是一个错误。",
-        { customParams: options.custom }
-      );
-    }
-
     const request = toOpenAiCompatibleCoreRequest(options);
     const response = await executeProviderRequest({
       adapter: openAiCompatibleAdapter,
@@ -426,6 +422,44 @@ function collectUnknownExtensions(
   return result;
 }
 
+/**
+ * 解包 Agent 自定义参数，语义对齐桌面 buildEffectiveParameters：
+ * - 包裹结构 `{ enabled, params }`：仅当 `enabled` 为真时取 `params`；
+ * - 旧版扁平对象：整体合并。
+ *
+ * 返回值由统一层放在请求体最后合并，允许覆盖 temperature 等标准字段；
+ * 但剔除 messages / stream，避免自定义参数破坏消息数组与流式声明。
+ */
+function resolveCustomExtensions(
+  custom: LlmRequestOptions["custom"]
+): Record<string, JsonValue> {
+  const result: Record<string, JsonValue> = {};
+  if (!custom || typeof custom !== "object" || Array.isArray(custom)) {
+    return result;
+  }
+
+  const record = custom as Record<string, unknown>;
+  const isWrappedCustom =
+    typeof record.enabled === "boolean" &&
+    record.params !== null &&
+    typeof record.params === "object" &&
+    !Array.isArray(record.params);
+
+  const source = isWrappedCustom
+    ? record.enabled
+      ? (record.params as Record<string, unknown>)
+      : undefined
+    : record;
+  if (!source) return result;
+
+  for (const [key, value] of Object.entries(source)) {
+    if (key === "messages" || key === "stream") continue;
+    const jsonValue = toJsonValue(value);
+    if (jsonValue !== undefined) result[key] = jsonValue;
+  }
+  return result;
+}
+
 function toJsonValue(value: unknown): JsonValue | undefined {
   if (
     value === null ||
@@ -465,10 +499,6 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
-}
-
-function isNonEmptyRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(asRecord(value) && Object.keys(value as object).length > 0);
 }
 
 function readString(value: unknown): string | undefined {

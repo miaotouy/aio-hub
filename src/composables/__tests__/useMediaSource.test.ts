@@ -11,8 +11,8 @@ const { invoke, platform, isTauri } = vi.hoisted(() => ({
   platform: vi.fn(),
   isTauri: vi.fn(),
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke, isTauri }));
-vi.mock("@tauri-apps/plugin-os", () => ({ platform }));
+vi.mock("@/platform/native/core", () => ({ invoke, isTauri }));
+vi.mock("@/platform/native/os", () => ({ platform }));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ warn: vi.fn() }),
 }));

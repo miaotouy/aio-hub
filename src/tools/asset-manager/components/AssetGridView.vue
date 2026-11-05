@@ -116,6 +116,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   MoreFilled,
   View,
@@ -176,7 +178,7 @@ const handleSendToChat = (asset: Asset) => {
 
 const handleCopyName = async (name: string) => {
   try {
-    await navigator.clipboard.writeText(name);
+    await getBrowserClipboard().writeText(name);
     customMessage.success("文件名已复制到剪贴板");
   } catch (err) {
     customMessage.error("复制失败");

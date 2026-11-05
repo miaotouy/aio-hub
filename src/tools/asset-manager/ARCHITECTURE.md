@@ -25,20 +25,20 @@ Asset Manager 是应用的**中央资产管理中心**，提供统一的资产�
 
 ### 1.2. 存储根与索引布局 (Storage Root & Index Layout)
 
-资产管理器通过 Rust 命令 `get_asset_base_path` 统一解析资产根目录，前端不自行拼接固定的 `$APPDATA/assets/` 路径：
+资产管理器通过共享宿主命令 `get_asset_base_path` 统一解析资产根目录，前端不自行拼接固定的 `$APPDATA/assets/` 路径：
 
 - 如果应用设置中的 `customAssetPath` 存在且非空，则优先使用该路径作为资产根，并在需要时创建目录。
 - 如果未配置有效的 `customAssetPath`，则使用应用数据根下的 `assets` 目录作为默认资产根。
 - 索引文件相对资产根的位置固定为 `.catalog/assets.jsonl`，即 `$ASSET_ROOT/.catalog/assets.jsonl`。导入、查询、去重和重建索引均基于当前解析出的资产根；更改自定义路径不会自动迁移旧根目录中的文件和索引。
 
-### 1.3. Rust 后端索引 (Rust-powered Indexing)
+### 1.3. 宿主后端索引
 
-所有查询、筛选和排序操作都通过 Rust 后端执行，以获得高性能。
+查询、筛选和排序通过宿主命令执行。Tauri 实现在 `src-tauri/src/commands/asset_manager.rs`；Electron 实现在 `electron/asset-manager.ts`，由 `electron/asset-store.ts` 维护索引与路径边界。两端沿用同一组前端命令和 JSONL/月度哈希格式。
 
 - **核心优势**:
   - **高性能**: 通过读取资产根下 `.catalog/assets.jsonl` 索引文件到内存中进行快速筛选和排序。
   - **准确性**: 直接操作文件系统元数据，保证数据一致性。
-- **查询接口**: 前端通过 `invoke` 调用 Rust 命令（如 `list_assets_paginated`）执行查询。
+- **查询接口**: 前端通过 `invoke` 调用宿主命令（如 `list_assets_paginated`）执行查询。
 
 ### 1.4. 多维度分组与筛选 (Multi-dimensional Grouping & Filtering)
 
@@ -51,7 +51,7 @@ Asset Manager 是应用的**中央资产管理中心**，提供统一的资产�
 
 - **State (`useAssetManager`)**: 全局单例 Composable，管理资产列表、统计信息和用户偏好。
 - **View (`AssetManager.vue`)**: 负责 UI 渲染，包括网格/列表视图、筛选器和分组器。
-- **Engine (Rust Backend)**: 负责实际的文件存储、索引、查询和去重逻辑。
+- **Engine (Host Backend)**: 负责实际的文件存储、索引、查询和去重逻辑；前端继续使用共享的平台命令入口。
 - **DocumentViewer (`src/components/common/DocumentViewer.vue`)**: 负责资产管理器中的文档预览；资产管理器提供资产文件路径、文件名和 MIME 类型提示，不重复实现文档解析与渲染。
 - **DocumentConversionSettingsDialog**: 负责承接文档转换设置，并将配置持久化到资产管理器配置；转换程序选择、路径、超时和隔离配置由共享文档查看/转换流程使用。
 
@@ -67,7 +67,7 @@ Asset Manager 是应用的**中央资产管理中心**，提供统一的资产�
 sequenceDiagram
     participant Tool as 其他工具
     participant AM (useAssetManager)
-    participant Rust as Rust Backend
+    participant Rust as 宿主后端
     participant FS as 文件系统
 
     Tool->>AM: importAssetFromBytes(buffer, { type: 'video/mp4' })
@@ -97,3 +97,17 @@ sequenceDiagram
 - **性能优化**: 当前索引机制（读取 `.catalog/assets.jsonl` 到内存）在资产超过10万个时可能遇到瓶颈。未来应考虑将索引迁移到 SQLite 数据库，以提升大规模数据集下的查询性能。
 - **视频处理**: 改进视频缩略图的生成速度和效率。
 
+
+## 6. Electron 实现补充（2026-11-04）
+
+- 主进程服务按队列处理所有窗口的资产操作，JSONL 使用原子替换并在调用返回前保存；自定义根目录变化时切换对应索引。
+- 兼容旧版 sourceModule/originType 字段并迁移为 origins。当前月去重同时识别 sha256 和 originalSha256，来源按 sourceModule 去重。
+- 图像尺寸和方形缩略图由 nativeImage 提取；音频时长、封面由已有音乐元数据解析器处理；波形继续由前端采样后写回。
+- 查询覆盖登记资产及其来源，list_all_assets 可发现标准存储目录中的缺失条目；重建保留已登记的自定义子目录和元数据。
+- 路径检查覆盖相对穿越与真实祖先链接。移入回收站失败时保留条目用于重试；衍生数据清理保护原始资产和内部索引。
+- Electron 名称排序按 asc/desc 的字段语义执行；旧 Rust 比较器在名称字段上的方向差异已记录，后续统一跨宿主排序表现。
+- 文档转换由 `electron/document-converter.ts` 承接检测、配置读取、路径导入预处理与旧文档预览；支持 LibreOffice、Microsoft Office COM、AbiWord 和 macOS textutil。DOC/PPT/XLS 分别转为 DOCX/PPTX/XLSX，PPT/XLS 由 LibreOffice 或 Microsoft Office 处理。
+- WPS 按容器识别 OOXML、未加密 Word CFB 或 RTF；转换副本使用真实格式扩展名，源文件保持原样。其他或加密结构按原格式保存并提示另存为 DOCX；现代 WPS 预览直接复制为 DOCX。CFB 判别复用 `cfb` 库。
+- 转换前用原始 SHA-256 去重，转换后分别保存 `sha256` 与 `originalSha256`，进度事件携带转换后文件名。原格式资产在启用转换器后再次导入会补做转换，同时保留原资产；之后优先复用已完成转换的条目，避免反复启动转换器。此处补齐旧 Rust 原格式去重可能阻断重新转换的恢复路径。
+- 转换使用独立工作目录；进程无 shell 插值、有超时与输出上限，失败时清理输出及临时资源。LibreOffice 使用独立配置目录并将宏安全级别设为最高；Office COM 禁用宏，按本次拥有的进程 PID 与创建时间清理，遇到已打开的 PowerPoint 窗口时提示关闭后重试。
+- 缺少或禁用转换器时保留原格式并返回可行动提示；已启动转换器但生成失败时中止导入。预览返回应用工作目录中的独立文件，供后续读取。实施验证与各平台范围见[Electron 缺口补齐待办](../../../docs/Plan/electron-feature-gap-execution.md)。

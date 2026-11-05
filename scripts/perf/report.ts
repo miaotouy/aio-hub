@@ -388,7 +388,7 @@ export function buildComparisonMarkdown(
   );
   lines.push("- 单轮口径：每个场景取统计窗口内的中位数，跨轮再取中位数。");
   lines.push("");
-  lines.push("## 视觉等价门禁");
+  lines.push("## 视觉等价后续验证");
   lines.push("");
   if (visualGate.approved) {
     lines.push("- 视觉等价评审：已通过 ✅；性能表可以给出改善/回退判定。");
@@ -407,7 +407,7 @@ export function buildComparisonMarkdown(
   lines.push("## 性能判定口径");
   lines.push("");
   lines.push(
-    "只有视觉等价门禁通过后，才以 **CPU 核秒/秒、工作集峰值、GPU 3D 平均占用、显存峰值** 与 **帧时间分位数** 判断改善或回退；" +
+    "只有视觉等价后续验证通过后，才以 **CPU 核秒/秒、工作集峰值、GPU 3D 平均占用、显存峰值** 与 **帧时间分位数** 判断改善或回退；" +
       "每条 lane 都通过 WebView2 CDP 使用相同的工作区导航与滚轮输入序列，并同时采集帧和资源指标。"
   );
   lines.push("");
@@ -449,7 +449,7 @@ export function buildComparisonMarkdown(
             : improved
               ? "✅ 改善"
               : "⚠️ 回退"
-          : "未判定（视觉门禁）";
+          : "未判定（视觉后续验证）";
         lines.push(
           `| ${spec.label} | ${baseValue.toFixed(2)} | ${candValue.toFixed(2)} | ${deltaPercent >= 0 ? "+" : ""}${deltaPercent.toFixed(1)}% | ${verdict} |`
         );

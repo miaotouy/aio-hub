@@ -26,7 +26,7 @@ import {
 import { useWebDistilleryStore } from "../../stores/store";
 import { useLivePreview } from "../../composables/useLivePreview";
 import { customMessage } from "@/utils/customMessage";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
 

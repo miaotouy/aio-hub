@@ -18,6 +18,16 @@ export function matchesIdentity(
   );
 }
 
+/** Custom application schemes have opaque URL.origin in Node. Match protocol and host explicitly. */
+export function matchesFrontendUrl(
+  value: string,
+  frontendUrl: string
+): boolean {
+  const actual = new URL(value),
+    expected = new URL(frontendUrl);
+  return actual.protocol === expected.protocol && actual.host === expected.host;
+}
+
 export class DevConnection {
   private constructor(
     readonly instance: DevInstance,
@@ -36,7 +46,7 @@ export class DevConnection {
     } catch {
       throw new ControlError(
         "CONNECTION_FAILED",
-        "无法连接开发实例的 WebView2。",
+        "无法连接开发实例的 Chromium 调试端口。",
         "等待开发窗口启动，或检查 dev 终端中的控制状态。"
       );
     }
@@ -45,9 +55,7 @@ export class DevConnection {
     if (page.isClosed()) return null;
     try {
       if (new URL(page.url()).pathname === "/background-js.html") return null;
-      if (
-        new URL(page.url()).origin !== new URL(this.instance.frontendUrl).origin
-      )
+      if (!matchesFrontendUrl(page.url(), this.instance.frontendUrl))
         return null;
       const description = await withinTimeout(
         page.evaluate(readPageDescription),

@@ -408,6 +408,8 @@ export const KNOWN_NON_MODEL_OPTIONS_KEYS = new Set([
   "responseModalities",
   "mediaResolution",
   "enableEnhancedCivicAnswers",
+  // Agent 自定义参数容器由 core 请求统一解包，不能作为未知扩展整体透传。
+  "custom",
 ]);
 
 /**

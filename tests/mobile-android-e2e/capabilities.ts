@@ -14,6 +14,8 @@ export function createCapabilities(options: {
     "appium:noReset": true,
     "appium:autoGrantPermissions": false,
     "appium:ensureWebviewsHavePages": true,
+    "appium:webviewConnectTimeout": 30_000,
+    "appium:adbExecTimeout": 60_000,
     "appium:chromedriverExecutable": options.chromedriverPath,
     "appium:nativeWebScreenshot": true,
     "appium:newCommandTimeout": 180,

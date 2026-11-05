@@ -15,7 +15,7 @@
 -->
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from "vue";
+import { ref, computed, onDeactivated, onUnmounted } from "vue";
 import { useWebDistilleryStore } from "../../stores/store";
 import { extractLocalContent } from "../../core/engines/local";
 import { iframeBridge } from "../../core/iframe-bridge";
@@ -23,7 +23,7 @@ import { customMessage } from "@/utils/customMessage";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@/platform/native/fs";
 import InfoCard from "@/components/common/InfoCard.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { fetchPage } from "../../service";
@@ -48,6 +48,14 @@ const currentUrl = computed({
   set: (url: string) => store.setUrl(url),
 });
 const isLoading = ref(false);
+let activeFetch: AbortController | undefined;
+function cancelFetch() {
+  activeFetch?.abort();
+  activeFetch = undefined;
+  isLoading.value = false;
+  store.setLoading(false);
+}
+onDeactivated(cancelFetch);
 const errorMsg = ref<string | null>(null);
 const showTextInput = ref(false);
 const pastedText = ref("");
@@ -75,6 +83,7 @@ const qualityStatus = computed(() => {
 });
 
 onUnmounted(async () => {
+  cancelFetch();
   try {
     await iframeBridge.destroy();
   } catch (err) {
@@ -83,6 +92,7 @@ onUnmounted(async () => {
 });
 
 async function handleFetch(mode: FetchEngineId) {
+  if (isLoading.value) return;
   const url = currentUrl.value.trim();
   if (!url) {
     customMessage.warning("请输入目标 URL");
@@ -94,6 +104,8 @@ async function handleFetch(mode: FetchEngineId) {
     return;
   }
 
+  const controller = new AbortController();
+  activeFetch = controller;
   logger.info("Fetch triggered", { url, mode });
   isLoading.value = true;
   errorMsg.value = null;
@@ -111,16 +123,25 @@ async function handleFetch(mode: FetchEngineId) {
       return;
     }
 
-    const result = await fetchPage({ url, engine: mode });
+    const result = await fetchPage({
+      url,
+      engine: mode,
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted) return;
     store.setResult(result);
     customMessage.success("蒸馏完成");
   } catch (err: any) {
+    if (controller.signal.aborted) return;
     errorHandler.error(err, "操作失败", { url, mode });
     errorMsg.value = err?.message || "未知错误";
     store.setError(errorMsg.value || "未知错误");
   } finally {
-    isLoading.value = false;
-    store.setLoading(false);
+    if (activeFetch === controller) {
+      activeFetch = undefined;
+      isLoading.value = false;
+      store.setLoading(false);
+    }
   }
 }
 

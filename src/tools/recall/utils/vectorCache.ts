@@ -16,7 +16,7 @@ import { adapters } from "@/llm-apis/adapters";
 import { resolveModelExecution } from "@aiohub/llm-core";
 import { createModuleLogger } from "@/utils/logger";
 import { createConfigManager } from "@/utils/configManager";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const logger = createModuleLogger("recall/vector-cache");
 

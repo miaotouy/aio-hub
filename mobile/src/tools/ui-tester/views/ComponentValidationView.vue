@@ -564,6 +564,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+:deep(.var-button) {
+  min-height: 44px;
+}
+
 .component-observation {
   padding: 14px 0 2px;
 }
@@ -571,7 +575,7 @@ onMounted(() => {
 .component-observation p {
   margin: 0 0 10px;
   color: var(--text-secondary, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -583,7 +587,7 @@ onMounted(() => {
 .validation-group h2 {
   margin: 0 0 12px;
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   letter-spacing: 0;
 }
 
@@ -644,7 +648,7 @@ onMounted(() => {
 }
 
 .rounded {
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .flex {
@@ -656,10 +660,10 @@ onMounted(() => {
 }
 
 .text-sm {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 .text-xs {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
 }
 .text-primary {
   color: var(--primary-color);

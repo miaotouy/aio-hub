@@ -15,10 +15,10 @@
 import { createApp, defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useExternalPlayer } from "../useExternalPlayer";
 const os = vi.hoisted(() => ({ name: "linux" }));
-vi.mock("@tauri-apps/plugin-os", () => ({ platform: () => os.name }));
+vi.mock("@/platform/native/os", () => ({ platform: () => os.name }));
 vi.mock("@/utils/configManager", () => ({
   createConfigManager: () => ({
     load: async () => ({}),

@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen, emit } from "@tauri-apps/api/event";
+import { getBrowserClipboard } from "@/platform/browser";
+
+import { convertFileSrc, invoke } from "@/platform/native/core";
+import { listen, emit } from "@/platform/native/events";
 import { ref, computed, getCurrentInstance, onUnmounted } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import {
@@ -721,7 +723,7 @@ export function useAssetManager() {
     options?: AssetImportOptions
   ): Promise<Asset> => {
     try {
-      const clipboardItems = await navigator.clipboard.read();
+      const clipboardItems = await getBrowserClipboard().read();
       for (const item of clipboardItems) {
         for (const type of item.types) {
           if (type.startsWith("image/")) {

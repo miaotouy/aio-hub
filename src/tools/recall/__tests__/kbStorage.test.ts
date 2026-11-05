@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   handle: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mocks.invoke,
 }));
 

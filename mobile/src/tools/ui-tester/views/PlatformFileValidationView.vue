@@ -411,12 +411,12 @@ function recordObservation(verdict: "passed" | "failed"): void {
 .section-heading h2 {
   margin: 0;
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 .section-heading p {
   margin: 5px 0 0;
   color: var(--text-secondary, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 .manual-panel {
@@ -427,13 +427,16 @@ function recordObservation(verdict: "passed" | "failed"): void {
 .manual-panel label {
   display: block;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .manual-actions {
   display: flex;
   gap: 8px;
   margin-top: 10px;
+}
+.manual-actions :deep(.var-button) {
+  min-height: 44px;
 }
 .read-progress {
   display: flex;
@@ -443,15 +446,18 @@ function recordObservation(verdict: "passed" | "failed"): void {
   gap: 12px;
   padding: 8px 0;
   color: var(--text-secondary, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .read-progress strong {
   color: var(--text-primary);
   font-weight: 600;
 }
+.read-progress :deep(.var-button) {
+  min-height: 44px;
+}
 .error-text {
-  color: var(--color-danger, #c23b3b);
-  font-size: 12px;
+  color: var(--danger-color, #c23b3b);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }

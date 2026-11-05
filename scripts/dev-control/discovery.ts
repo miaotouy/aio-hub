@@ -16,6 +16,7 @@ export const CONTROL_ROOT = path.join(
 );
 export interface DevInstance {
   protocolVersion: 1;
+  host?: "tauri" | "electron";
   instanceId: string;
   startupId: string;
   launcherPid: number;
@@ -27,7 +28,7 @@ export interface DevInstance {
   endpoint: string;
   frontendUrl: string;
   transport?: "cdp" | "embedded-webdriver";
-  frontendMode: "hmr" | "static" | "bundled-debug";
+  frontendMode: "hmr" | "static" | "bundled-debug" | "bundled-electron";
   dataDir: string;
   status: "starting" | "ready" | "failed";
   error?: string;
@@ -197,7 +198,10 @@ export function validateInstance(value: unknown): DevInstance {
     !(
       /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(data.frontendUrl) ||
       (data.frontendMode === "bundled-debug" &&
-        data.frontendUrl === "tauri://localhost")
+        data.frontendUrl === "tauri://localhost") ||
+      (data.host === "electron" &&
+        data.frontendMode === "bundled-electron" &&
+        data.frontendUrl === "aiohub://app")
     )
   )
     throw new ControlError("INVALID_INSTANCE", "前端地址无效。");
@@ -206,7 +210,15 @@ export function validateInstance(value: unknown): DevInstance {
     !["cdp", "embedded-webdriver"].includes(data.transport)
   )
     throw new ControlError("INVALID_INSTANCE", "未知控制传输类型。");
-  if (!["hmr", "static", "bundled-debug"].includes(data.frontendMode ?? ""))
+  if (data.host !== undefined && !["tauri", "electron"].includes(data.host))
+    throw new ControlError("INVALID_INSTANCE", "未知应用宿主。");
+  if (data.host === "electron" && data.transport !== "cdp")
+    throw new ControlError("INVALID_INSTANCE", "Electron 需要 CDP 控制传输。");
+  if (
+    !["hmr", "static", "bundled-debug", "bundled-electron"].includes(
+      data.frontendMode ?? ""
+    )
+  )
     throw new ControlError("INVALID_INSTANCE", "未知前端运行模式。");
   return data as DevInstance;
 }

@@ -22,7 +22,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>();
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 
 const { getModelIcon, getModelGroup } = useModelMetadata();
 const { capabilities: translatedCapabilities } = useTranslatedCapabilities();
@@ -211,12 +211,12 @@ const toggleCapabilityFilter = (capKey: string) => {
   >
     <div class="fetcher-popup" data-testid="llm-model-fetcher">
       <var-app-bar
-        :title="tRaw('tools.llm-api.ModelFetcherPopup.从 API 添加模型')"
+        :title="t('tools.llm-api.ModelFetcherPopup.从 API 添加模型')"
         fixed
         safe-area
       >
         <template #left>
-          <var-button round text @click="closePopup">
+          <var-button round text aria-label="返回" @click="closePopup">
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -227,7 +227,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             :disabled="selectedModels.length === 0"
             @click="handleConfirm"
           >
-            {{ tRaw("tools.llm-api.ModelFetcherPopup.添加模型") }}
+            {{ t("tools.llm-api.ModelFetcherPopup.添加模型") }}
           </var-button>
         </template>
       </var-app-bar>
@@ -241,7 +241,7 @@ const toggleCapabilityFilter = (capKey: string) => {
               type="text"
               class="search-input"
               :placeholder="
-                tRaw('tools.llm-api.ModelFetcherPopup.搜索模型 占位符')
+                t('tools.llm-api.ModelFetcherPopup.搜索模型 占位符')
               "
             />
           </div>
@@ -250,7 +250,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             <div class="filter-label">
               <Filter :size="14" />
               <span>{{
-                tRaw("tools.llm-api.ModelFetcherPopup.能力筛选")
+                t("tools.llm-api.ModelFetcherPopup.能力筛选")
               }}</span>
             </div>
             <div class="filter-chips">
@@ -267,7 +267,10 @@ const toggleCapabilityFilter = (capKey: string) => {
                     ? `${cap.color}15`
                     : 'transparent',
                 }"
+                role="button"
+                tabindex="0"
                 @click="toggleCapabilityFilter(String(cap.key))"
+                @keydown.enter="toggleCapabilityFilter(String(cap.key))"
               >
                 <component v-if="cap.icon" :is="cap.icon" :size="14" />
                 <span>{{ cap.label }}</span>
@@ -278,7 +281,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 
         <div class="toolbar">
           <span class="toolbar-hint">{{
-            tRaw("tools.llm-api.ModelFetcherPopup.共 N 个模型", {
+            t("tools.llm-api.ModelFetcherPopup.共 N 个模型", {
               count: allVisibleModels.length,
             })
           }}</span>
@@ -299,7 +302,7 @@ const toggleCapabilityFilter = (capKey: string) => {
             class="empty-state"
           >
             <p>
-              {{ tRaw("tools.llm-api.ModelFetcherPopup.没有找到匹配的模型") }}
+              {{ t("tools.llm-api.ModelFetcherPopup.没有找到匹配的模型") }}
             </p>
           </div>
 
@@ -352,7 +355,10 @@ const toggleCapabilityFilter = (capKey: string) => {
                       disabled: isModelExisting(model.id),
                     }"
                     v-ripple
+                    role="button"
+                    tabindex="0"
                     @click="toggleModelSelection(model)"
+                    @keydown.enter="toggleModelSelection(model)"
                   >
                     <div class="model-card-main">
                       <DynamicIcon
@@ -387,17 +393,17 @@ const toggleCapabilityFilter = (capKey: string) => {
                           v-if="isModelExisting(model.id)"
                           class="status-tag existing"
                         >
-                          {{ tRaw("tools.llm-api.ModelFetcherPopup.已存在") }}
+                          {{ t("tools.llm-api.ModelFetcherPopup.已存在") }}
                         </div>
                         <Check
                           v-else-if="isModelSelected(model)"
                           :size="20"
-                          color="var(--color-primary)"
+                          color="var(--primary-color)"
                         />
                         <Plus
                           v-else
                           :size="20"
-                          color="var(--color-on-surface-variant)"
+                          color="var(--text-color-light)"
                         />
                       </div>
                     </div>
@@ -436,7 +442,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 
       <div class="footer-bar">
         <span class="selected-count">{{
-          tRaw("tools.llm-api.ModelFetcherPopup.已选择 N 个模型", {
+          t("tools.llm-api.ModelFetcherPopup.已选择 N 个模型", {
             count: selectedModels.length,
           })
         }}</span>
@@ -450,7 +456,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .fetcher-content {
@@ -471,13 +477,13 @@ const toggleCapabilityFilter = (capKey: string) => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--color-surface-container);
-  border-radius: 12px;
-  border: 1.5px solid var(--color-outline);
+  background: var(--container-bg);
+  border-radius: var(--app-radius-lg);
+  border: 1.5px solid var(--border-color);
 }
 
 .search-icon {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   flex-shrink: 0;
 }
 
@@ -485,13 +491,13 @@ const toggleCapabilityFilter = (capKey: string) => {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 1.05rem;
-  color: var(--color-on-surface);
+  font-size: var(--font-size-lg);
+  color: var(--text-color);
   outline: none;
 }
 
 .search-input::placeholder {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.5;
 }
 
@@ -505,9 +511,9 @@ const toggleCapabilityFilter = (capKey: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .filter-chips {
@@ -520,18 +526,19 @@ const toggleCapabilityFilter = (capKey: string) => {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
-  font-size: 0.85rem;
-  color: var(--color-on-surface);
+  border-radius: var(--app-radius-md);
+  background: var(--container-bg);
+  border: 1px solid var(--border-color);
+  font-size: var(--font-size-sm);
+  color: var(--text-color);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .filter-chip.active {
-  border-color: var(--cap-color, var(--color-primary));
+  border-color: var(--cap-color, var(--primary-color));
   background: var(--cap-bg, var(--color-primary-container));
   color: var(--cap-color, var(--color-on-primary-container));
 }
@@ -552,7 +559,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   justify-content: center;
   align-items: center;
   padding: 48px 24px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 
@@ -562,9 +569,9 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-group {
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   margin-bottom: 12px;
 }
 
@@ -581,17 +588,17 @@ const toggleCapabilityFilter = (capKey: string) => {
 
 .group-name {
   font-weight: 600;
-  font-size: 1rem;
-  color: var(--color-on-surface);
+  font-size: var(--font-size-md);
+  color: var(--text-color);
 }
 
 .group-count {
-  font-size: 0.85rem;
-  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  color: var(--primary-color);
   padding: 2px 8px;
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
@@ -612,16 +619,16 @@ const toggleCapabilityFilter = (capKey: string) => {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border-radius: var(--app-radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
   transition: all 0.2s;
   cursor: pointer;
 }
 
 .model-card.selected {
   background: var(--color-primary-container);
-  border-color: var(--color-primary);
+  border-color: var(--primary-color);
 }
 
 .model-card.disabled {
@@ -639,7 +646,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .model-info {
@@ -648,16 +655,16 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-name {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   margin-bottom: 2px;
   line-height: 1.4;
 }
 
 .model-id {
-  font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
   font-family: monospace;
   line-height: 1.4;
   overflow: hidden;
@@ -666,9 +673,9 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-identity {
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -676,7 +683,7 @@ const toggleCapabilityFilter = (capKey: string) => {
 }
 
 .model-identity.is-suggestion {
-  color: var(--color-warning);
+  color: var(--warning-color);
 }
 
 .model-capabilities {
@@ -684,7 +691,7 @@ const toggleCapabilityFilter = (capKey: string) => {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  border-top: 1px dashed var(--color-outline-variant);
+  border-top: 1px dashed var(--border-color);
   padding-top: 8px;
 }
 
@@ -693,13 +700,13 @@ const toggleCapabilityFilter = (capKey: string) => {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   background: color-mix(
     in srgb,
     var(--cap-color, currentColor) 12%,
     transparent
   );
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 
 .capability-label {
@@ -712,29 +719,29 @@ const toggleCapabilityFilter = (capKey: string) => {
 
 .status-tag {
   padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  border-radius: var(--app-radius-md);
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
 .status-tag.existing {
-  background: var(--color-surface-container);
-  color: var(--color-on-surface-variant);
+  background: var(--container-bg);
+  color: var(--text-color-light);
 }
 
 .footer-bar {
   padding: 16px 24px;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-outline-variant);
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: center;
   padding-bottom: calc(16px + var(--safe-area-bottom));
 }
 
 .selected-count {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   padding-bottom: 16px;
 }
 </style>

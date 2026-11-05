@@ -1,12 +1,14 @@
 import { createI18n } from "vue-i18n";
 import zhCN from "./locales/zh-CN.json";
 import enUS from "./locales/en-US.json";
-import type { TypedT, RawT } from "./schema";
+import type { I18nKey, SubKeyOf, TypedT } from "./schema";
+
+export type { I18nKey, SubKeyOf, TypedT } from "./schema";
 
 // 默认语言
 const defaultLocale = "zh-CN";
 
-// 创建 i18n 实例
+// 创建 i18n 实例（语言包静态聚合，含 tools 命名空间）
 const i18n = createI18n({
   legacy: false, // 使用 Composition API 模式
   locale: defaultLocale,
@@ -28,16 +30,21 @@ export function useI18n() {
     return (t as any)(key, ...args);
   };
 
-  // 宽松版本 - 用于动态 key（如工具私有 key）
-  const rawT: RawT = (key, ...args) => {
-    return (t as any)(key, ...args);
-  };
-
   return {
     t: typedT,
-    tRaw: rawT,
+    useScopedT,
     ...rest,
   };
+}
+
+/**
+ * 创建作用域限定的强类型翻译函数：
+ * key 只需提供前缀下的子 key，类型由全局语言包静态推导
+ * @example const t = useScopedT("tools.llm-chat.ChatView"); t("删除消息")
+ */
+export function useScopedT<Prefix extends I18nKey>(prefix: Prefix) {
+  return (key: SubKeyOf<Prefix>, ...args: any[]): string =>
+    (i18n.global.t as any)(`${prefix}.${key}`, ...args);
 }
 
 /**
@@ -51,26 +58,7 @@ export function setI18nLanguage(locale: any) {
 declare module "vue" {
   interface ComponentCustomProperties {
     t: TypedT;
-    tRaw: RawT;
   }
-}
-
-/**
- * 注册工具私有语言包
- * @param toolId 工具 ID
- * @param messages 语言包内容 { 'zh-CN': { ... }, 'en-US': { ... } }
- */
-export function registerToolLocales(
-  toolId: string,
-  messages: Record<string, any>
-) {
-  Object.keys(messages).forEach((locale) => {
-    i18n.global.mergeLocaleMessage(locale, {
-      tools: {
-        [toolId]: messages[locale],
-      },
-    });
-  });
 }
 
 export default i18n;

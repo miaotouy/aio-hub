@@ -3,14 +3,14 @@ import { ref } from "vue";
 import { LogLevel, type LogEntry } from "@/utils/logger";
 import { useI18n } from "@/i18n";
 import { Copy, ChevronRight, ChevronDown } from "lucide-vue-next";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 
 const props = defineProps<{
   log: LogEntry;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.log-manager.LogEntryItem.${key}`);
+const { useScopedT, t: gt } = useI18n();
+const t = useScopedT("tools.log-manager.LogEntryItem");
 
 const expanded = ref(false);
 
@@ -45,9 +45,9 @@ const handleCopy = async (e: Event) => {
 
   try {
     await navigator.clipboard.writeText(text);
-    Snackbar.success(t("复制成功"));
+    customMessage(t("复制成功"), "success");
   } catch (err) {
-    Snackbar.error(t("common.失败"));
+    customMessage(gt("common.失败"), "error");
   }
 };
 
@@ -65,7 +65,10 @@ const toggleExpand = () => {
       `level-${getLevelName(log.level).toLowerCase()}`,
       { 'is-expandable': log.data || log.stack },
     ]"
+    role="button"
+    tabindex="0"
     @click="toggleExpand"
+    @keydown.enter="toggleExpand"
   >
     <div class="entry-header">
       <div class="header-left">
@@ -76,7 +79,7 @@ const toggleExpand = () => {
         <span class="module">[{{ log.module }}]</span>
       </div>
       <div class="header-right">
-        <var-button round text size="mini" @click="handleCopy">
+        <var-button round text size="mini" aria-label="复制日志" @click="handleCopy">
           <Copy :size="14" />
         </var-button>
       </div>
@@ -108,7 +111,7 @@ const toggleExpand = () => {
 <style scoped>
 .log-entry-item {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
@@ -116,7 +119,7 @@ const toggleExpand = () => {
 }
 
 .log-entry-item:active {
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
 }
 
 .is-expandable {
@@ -138,50 +141,50 @@ const toggleExpand = () => {
 }
 
 .level-badge {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   font-weight: bold;
   min-width: 45px;
   text-align: center;
 }
 
 .level-badge.default {
-  background-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background-color: var(--border-color);
+  color: var(--text-color);
 }
 .level-badge.info {
-  background-color: var(--color-info);
+  background-color: var(--info-color);
   color: white;
 }
 .level-badge.warning {
-  background-color: var(--color-warning);
+  background-color: var(--warning-color);
   color: white;
 }
 .level-badge.danger {
-  background-color: var(--color-danger);
+  background-color: var(--danger-color);
   color: white;
 }
 
 .timestamp {
-  font-size: 11px;
-  color: var(--color-outline);
+  font-size: var(--font-size-xs);
+  color: var(--border-color);
   white-space: nowrap;
 }
 
 .module {
-  font-size: 11px;
-  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  color: var(--primary-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .entry-message {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   word-break: break-all;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   display: flex;
   align-items: flex-start;
   gap: 4px;
@@ -190,16 +193,16 @@ const toggleExpand = () => {
 .expand-hint {
   display: inline-flex;
   align-items: center;
-  color: var(--color-outline);
+  color: var(--border-color);
   margin-top: 2px;
 }
 
 .entry-details {
   margin-top: 8px;
   padding: 8px;
-  background-color: var(--color-surface-container-highest);
-  border-radius: 4px;
-  font-size: 12px;
+  background-color: var(--overlay-bg);
+  border-radius: var(--app-radius-sm);
+  font-size: var(--font-size-sm);
 }
 
 .detail-section {
@@ -212,7 +215,7 @@ const toggleExpand = () => {
 
 .detail-label {
   font-weight: bold;
-  color: var(--color-outline);
+  color: var(--border-color);
   margin-bottom: 2px;
 }
 
@@ -220,22 +223,22 @@ const toggleExpand = () => {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   background: transparent;
   padding: 0;
 }
 
 .stack {
-  color: var(--color-danger);
-  font-size: 11px;
+  color: var(--danger-color);
+  font-size: var(--font-size-xs);
 }
 
 /* 级别特定的边框或背景微调 */
 .level-error {
-  background-color: rgba(var(--color-danger-rgb), 0.05);
+  background-color: rgba(var(--danger-color-rgb), 0.05);
 }
 
 .level-warn {
-  background-color: rgba(var(--color-warning-rgb), 0.05);
+  background-color: rgba(var(--warning-color-rgb), 0.05);
 }
 </style>

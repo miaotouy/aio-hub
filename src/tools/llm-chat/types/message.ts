@@ -251,6 +251,8 @@ export interface ChatMessageNode {
       responseId?: string;
       finishReason?: string;
       toolStatus?: "success" | "error";
+      /** Server framing omitted from the displayed segment; no body duplication. */
+      contextReplay?: { prefix: string; suffix: string };
     };
     /** 生成此消息时使用的 Agent ID */
     agentId?: string;
@@ -429,6 +431,8 @@ export interface ChatMessageNode {
     isContinuation?: boolean;
     /** 续写时的原始前缀内容 */
     continuationPrefix?: string;
+    /** 本次续写固定使用的开头重复处理策略 */
+    continuationDeduplicate?: boolean;
     /** 是否为重新解析工具产生的节点 */
     isReparse?: boolean;
     /** 是否为静默模式（执行完后不继续循环） */

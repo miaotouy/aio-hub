@@ -35,8 +35,8 @@ import {
   PackageOpen,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { cookieProfileStore } from "../../core/cookie-profile-store";
 import type { CookieProfile, CookieEntry } from "../../types";
 import CookieProfileCard from "./CookieProfileCard.vue";

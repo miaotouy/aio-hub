@@ -1,0 +1,3 @@
+/* Native Chromium drag regions reuse the existing desktop title-bar declarations. */
+.electron-host [data-tauri-drag-region] { -webkit-app-region: drag; app-region: drag; }
+.electron-host [data-tauri-drag-region] :is(button, a, input, textarea, select, [role="button"], .control-btn, .right-controls, .menu-dropdown, .el-dropdown) { -webkit-app-region: no-drag; app-region: no-drag; }

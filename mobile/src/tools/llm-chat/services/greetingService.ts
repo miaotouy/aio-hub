@@ -4,6 +4,7 @@ import type {
   GreetingMessage,
 } from "@/tools/agent-manager/types/agent";
 import type { ChatMessageNode, ChatSession } from "../types";
+import { normalizeAgentAttachmentRefs } from "../core/context-utils/preset-attachment-resolver";
 
 interface GreetingInstantiationOptions {
   createNodeId?: () => string;
@@ -45,8 +46,8 @@ function toUsableGreeting(
 
 /**
  * 将 Agent 的开局消息作为会话根节点的兄弟分支固化。
- * 当前移动端尚未迁移宏引擎或 Agent 私有资产，因此内容按原文本保存，
- * 且不把未知附件转换为聊天资产引用。
+ * 内容按原文本保存；开局消息附件的 Agent 私有引用保留在节点 metadata 上，
+ * 由请求管线从私有目录读取，不转换成全局聊天资产引用。
  */
 export function instantiateAgentGreetings(
   session: ChatSession,
@@ -63,26 +64,32 @@ export function instantiateAgentGreetings(
 
   const createNodeId = options.createNodeId ?? uuidv4;
   const now = options.now?.() ?? new Date().toISOString();
-  const greetingNodes: ChatMessageNode[] = greetings.map((greeting) => ({
-    id: createNodeId(),
-    parentId: session.rootNodeId,
-    childrenIds: [],
-    content: greeting.content,
-    role: greeting.role,
-    status: "complete",
-    timestamp: now,
-    metadata: {
-      isGreeting: true,
-      greetingId: greeting.id,
-      greetingLive: false,
-      agentId: agent.id,
-      agentName: agent.name,
-      agentDisplayName: agent.displayName || agent.name,
-      agentIcon: agent.icon,
-      profileId: agent.profileId,
-      modelId: agent.modelId,
-    },
-  }));
+  const greetingNodes: ChatMessageNode[] = greetings.map((greeting) => {
+    const privateAttachments = normalizeAgentAttachmentRefs(
+      greeting.attachments
+    );
+    return {
+      id: createNodeId(),
+      parentId: session.rootNodeId,
+      childrenIds: [],
+      content: greeting.content,
+      role: greeting.role,
+      status: "complete",
+      timestamp: now,
+      metadata: {
+        isGreeting: true,
+        greetingId: greeting.id,
+        greetingLive: false,
+        agentId: agent.id,
+        agentName: agent.name,
+        agentDisplayName: agent.displayName || agent.name,
+        agentIcon: agent.icon,
+        profileId: agent.profileId,
+        modelId: agent.modelId,
+        ...(privateAttachments.length ? { privateAttachments } : {}),
+      },
+    };
+  });
 
   for (const node of greetingNodes) {
     session.nodes[node.id] = node;

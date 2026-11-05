@@ -153,7 +153,7 @@ LobeChat 当前使用 Dexie/IndexedDB 作为本地缓存层，并提供 PGlite/P
 
 ## 5. 调查结论与落地结果
 
-以下内容记录 2026-07-15 的风险识别和决策依据，不是当前任务清单。当前代码与剩余 Android AVD/iOS 门禁以 [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md) 为准。
+以下内容记录 2026-07-15 的风险识别和决策依据，不是当前任务清单。当前代码与剩余 Android AVD/iOS 后续验证以 [`mobile-sqlite-migration-plan.md`](../plan/mobile-sqlite-migration-plan.md) 为准。
 
 ### 5.1 建议保留的设计
 
@@ -360,7 +360,7 @@ ConfigManager
 - 增加 query encoder、rank、snippet 与结果上限。
 - 只有通过双端构建和真实 WebView/Tauri 运行态后，才把 FTS 设为强依赖；否则保留 basic search 降级。
 
-## 9. 历史验收建议（当前门禁见实施计划）
+## 9. 历史验收建议（当前后续验证见实施计划）
 
 - Android 与 iOS 均完成 Tauri 真实构建和数据库启动验证。
 - 每个 migration 均可从上一版本升级，并在失败时完整回滚。

@@ -18,8 +18,8 @@
 import { ref, computed, onMounted, onUnmounted, watch, h } from "vue";
 import { useMediaSource } from "@/composables/useMediaSource";
 import { format } from "date-fns";
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
 import { ElMessageBox } from "element-plus";
 import {
   Film,

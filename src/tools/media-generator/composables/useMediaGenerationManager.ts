@@ -15,9 +15,9 @@
 import { computed, ref } from "vue";
 import { v4 as uuidv4 } from "uuid";
 import { findLastIndex } from "lodash-es";
-import { invoke } from "@tauri-apps/api/core";
-import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { invoke } from "@/platform/native/core";
+import { writeTextFile, mkdir } from "@/platform/native/fs";
+import { fetch as tauriFetch } from "@/platform/native/http";
 import {
   getMediaTaskRuntimeSettings,
   setMediaTaskRuntimeSettingsListener,
@@ -1350,7 +1350,7 @@ export function useMediaGenerationManager() {
       url.startsWith("file://") ||
       url.startsWith("/")
     ) {
-      const { convertFileSrc } = await import("@tauri-apps/api/core");
+      const { convertFileSrc } = await import("@/platform/native/core");
       const response = await fetch(convertFileSrc(url), { signal });
       if (!response.ok) {
         throw new Error(

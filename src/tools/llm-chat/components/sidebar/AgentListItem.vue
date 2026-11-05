@@ -26,7 +26,7 @@ import {
   FolderOpened,
   Refresh,
 } from "@element-plus/icons-vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import Avatar from "@/components/common/Avatar.vue";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { useAgentStorage } from "@/tools/agent-manager/composables/storage/useAgentStorage";

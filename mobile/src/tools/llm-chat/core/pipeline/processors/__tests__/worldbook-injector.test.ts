@@ -27,7 +27,9 @@ const history: ProcessableMessage[] = [
   },
 ];
 
-function context(): PipelineContext {
+function context(
+  overrides: Partial<PipelineContext> = {}
+): PipelineContext {
   return {
     messages: structuredClone(history),
     session: {} as PipelineContext["session"],
@@ -36,6 +38,7 @@ function context(): PipelineContext {
     timestamp: Date.now(),
     sharedData: new Map(),
     logs: [],
+    ...overrides,
   };
 }
 
@@ -260,5 +263,514 @@ describe("worldbookInjector", () => {
     expect(pipelineContext.sharedData.get("activatedWorldbookEntries")).toEqual(
       []
     );
+  });
+
+  it("applies selective secondary keyword logic", () => {
+    const pipelineContext = context();
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-selective",
+        name: "Selective",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "and-any-hit",
+            content: "and any hit",
+            keys: ["starport"],
+            secondaryKeys: ["harbor"],
+            selective: true,
+            selectiveLogic: "and_any",
+            enabled: true,
+            constant: false,
+            order: 400,
+            position: "before_history",
+          },
+          {
+            id: "and-any-miss",
+            content: "and any miss",
+            keys: ["starport"],
+            secondaryKeys: ["dock"],
+            selective: true,
+            selectiveLogic: "and_any",
+            enabled: true,
+            constant: false,
+            order: 300,
+            position: "before_history",
+          },
+          {
+            id: "and-all-miss",
+            content: "and all miss",
+            keys: ["starport"],
+            secondaryKeys: ["harbor", "dock"],
+            selective: true,
+            selectiveLogic: "and_all",
+            enabled: true,
+            constant: false,
+            order: 250,
+            position: "before_history",
+          },
+          {
+            id: "not-any-hit",
+            content: "not any hit",
+            keys: ["starport"],
+            secondaryKeys: ["dock"],
+            selective: true,
+            selectiveLogic: "not_any",
+            enabled: true,
+            constant: false,
+            order: 200,
+            position: "before_history",
+          },
+          {
+            id: "not-all-hit",
+            content: "not all hit",
+            keys: ["starport"],
+            secondaryKeys: ["harbor", "dock"],
+            selective: true,
+            selectiveLogic: "not_all",
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const matched = injectWorldbooks(pipelineContext, selected);
+
+    expect(matched.map((item) => item.entry.id)).toEqual([
+      "and-any-hit",
+      "not-any-hit",
+      "not-all-hit",
+    ]);
+  });
+
+  it("applies probability only when useProbability is enabled", () => {
+    const build = (): MobileWorldbook[] => [
+      {
+        id: "book-probability",
+        name: "Probability",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "maybe",
+            content: "maybe lore",
+            keys: ["starport"],
+            probability: 30,
+            useProbability: true,
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const lowRoll = context();
+    const activated = injectWorldbooks(lowRoll, build(), {
+      random: () => 0.1,
+    });
+    expect(activated.map((item) => item.entry.id)).toEqual(["maybe"]);
+
+    const highRoll = context();
+    const rejected = injectWorldbooks(highRoll, build(), {
+      random: () => 0.9,
+    });
+    expect(rejected).toEqual([]);
+    expect(
+      highRoll.messages.map((message) => message.sourceId)
+    ).toEqual(["char", "old", "new"]);
+
+    const disabled = context();
+    const ignored = injectWorldbooks(
+      disabled,
+      [
+        {
+          ...build()[0],
+          entries: [{ ...build()[0].entries[0], useProbability: false }],
+        },
+      ],
+      { random: () => 0.99 }
+    );
+    expect(ignored.map((item) => item.entry.id)).toEqual(["maybe"]);
+  });
+
+  it("injects before_character and after_history with the entry role", () => {
+    const pipelineContext = context();
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-position",
+        name: "Positions",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "bc",
+            content: "before char",
+            keys: [],
+            role: "user",
+            enabled: true,
+            constant: true,
+            order: 200,
+            position: "before_character",
+          },
+          {
+            id: "ah",
+            content: "after history",
+            keys: [],
+            role: "assistant",
+            enabled: true,
+            constant: true,
+            order: 100,
+            position: "after_history",
+          },
+        ],
+      },
+    ];
+
+    injectWorldbooks(pipelineContext, selected);
+
+    expect(pipelineContext.messages.map((message) => message.sourceId)).toEqual(
+      ["book-position:bc", "char", "old", "book-position:ah", "new"]
+    );
+    expect(pipelineContext.messages[0].role).toBe("user");
+    expect(pipelineContext.messages[3].role).toBe("assistant");
+  });
+
+  it("keeps outlet entries activated without injecting into messages", () => {
+    const pipelineContext = context();
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-outlet",
+        name: "Outlet",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "outlet",
+            content: "outlet lore",
+            keys: [],
+            enabled: true,
+            constant: true,
+            order: 100,
+            position: "outlet",
+          },
+        ],
+      },
+    ];
+
+    const matched = injectWorldbooks(pipelineContext, selected);
+
+    expect(matched.map((item) => item.entry.id)).toEqual(["outlet"]);
+    expect(pipelineContext.messages.map((message) => message.sourceId)).toEqual(
+      ["char", "old", "new"]
+    );
+  });
+
+  it("uses Agent worldbookSettings as the scan depth fallback", () => {
+    const pipelineContext = context({
+      agentConfig: {
+        id: "agent",
+        name: "Agent",
+        worldbookSettings: { defaultScanDepth: 1 },
+      } as unknown as PipelineContext["agentConfig"],
+    });
+    const selected: MobileWorldbook[] = [
+      {
+        id: "book-fallback",
+        name: "Fallback",
+        enabled: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+        entries: [
+          {
+            id: "harbor-only-in-old",
+            content: "old lore",
+            keys: ["harbor"],
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const matched = injectWorldbooks(pipelineContext, selected);
+
+    expect(matched).toEqual([]);
+  });
+
+  /** 构造递归场景：条目 A 命中历史，其 content 含条目 B 的关键词。 */
+  function recursionWorldbooks(
+    entryOverrides: Partial<MobileWorldbook["entries"][number]> = {}
+  ): MobileWorldbook[] {
+    return [
+      {
+        id: "book-recursion",
+        name: "Recursion",
+        enabled: true,
+        createdAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+        entries: [
+          {
+            id: "a",
+            content: "the hidden beacon glows",
+            keys: ["starport"],
+            enabled: true,
+            constant: false,
+            order: 200,
+            position: "before_history",
+          },
+          {
+            id: "b",
+            content: "beacon lore",
+            keys: ["beacon"],
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+            ...entryOverrides,
+          },
+        ],
+      },
+    ];
+  }
+
+  it("recursively activates entries whose keywords appear in an activated entry", () => {
+    const pipelineContext = context();
+
+    const matched = injectWorldbooks(pipelineContext, recursionWorldbooks());
+
+    expect(matched.map((item) => item.entry.id)).toEqual(["a", "b"]);
+    expect(
+      pipelineContext.messages.map((message) => message.sourceId)
+    ).toContain("book-recursion:b");
+  });
+
+  it("keeps preventRecursion entry content out of the recursion buffer", () => {
+    // preventRecursion 条目自身仍可被递归激活（对齐 ST/桌面端），
+    // 但其内容不写入递归缓冲，因此不会继续触发下游条目。
+    const pipelineContext = context();
+    const books: MobileWorldbook[] = [
+      {
+        id: "book-prevent",
+        name: "Prevent",
+        enabled: true,
+        createdAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+        entries: [
+          {
+            id: "seed",
+            content: "the hidden beacon glows",
+            keys: ["starport"],
+            enabled: true,
+            constant: false,
+            order: 300,
+            position: "before_history",
+          },
+          {
+            id: "middle",
+            content: "middle mentions cinder",
+            keys: ["beacon"],
+            preventRecursion: true,
+            enabled: true,
+            constant: false,
+            order: 200,
+            position: "before_history",
+          },
+          {
+            id: "downstream",
+            content: "downstream lore",
+            keys: ["cinder"],
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    expect(
+      injectWorldbooks(pipelineContext, books).map((item) => item.entry.id)
+    ).toEqual(["seed", "middle"]);
+    expect(
+      pipelineContext.messages.map((message) => message.sourceId)
+    ).not.toContain("book-prevent:downstream");
+  });
+
+  it("does not recursively activate entries that set excludeRecursion", () => {
+    const pipelineContext = context();
+
+    const matched = injectWorldbooks(
+      pipelineContext,
+      recursionWorldbooks({ excludeRecursion: true })
+    );
+
+    expect(matched.map((item) => item.entry.id)).toEqual(["a"]);
+    expect(
+      pipelineContext.messages.map((message) => message.sourceId)
+    ).not.toContain("book-recursion:b");
+  });
+
+  it("keeps a single scan round when recursion is disabled", () => {
+    const agentDisabled = context({
+      agentConfig: {
+        id: "agent",
+        name: "Agent",
+        worldbookSettings: { disableRecursion: true },
+      } as unknown as PipelineContext["agentConfig"],
+    });
+    expect(
+      injectWorldbooks(agentDisabled, recursionWorldbooks()).map(
+        (item) => item.entry.id
+      )
+    ).toEqual(["a"]);
+
+    const bookDisabled = context();
+    const books = recursionWorldbooks();
+    books[0].settings = { disableRecursion: true };
+    expect(
+      injectWorldbooks(bookDisabled, books).map((item) => item.entry.id)
+    ).toEqual(["a"]);
+
+    const explicitRecursiveOff = context();
+    const recursiveOffBooks = recursionWorldbooks();
+    recursiveOffBooks[0].settings = { recursive: false };
+    expect(
+      injectWorldbooks(explicitRecursiveOff, recursiveOffBooks).map(
+        (item) => item.entry.id
+      )
+    ).toEqual(["a"]);
+  });
+
+  it("limits recursion rounds with maxRecursionSteps", () => {
+    const limited = context();
+    const limitedBooks = recursionWorldbooks();
+    limitedBooks[0].settings = { maxRecursionSteps: 1 };
+    expect(
+      injectWorldbooks(limited, limitedBooks).map((item) => item.entry.id)
+    ).toEqual(["a"]);
+
+    const unlimited = context();
+    expect(
+      injectWorldbooks(unlimited, recursionWorldbooks()).map(
+        (item) => item.entry.id
+      )
+    ).toEqual(["a", "b"]);
+  });
+
+  it("activates delayUntilRecursion entries only in recursion rounds by level", () => {
+    const build = (): MobileWorldbook[] => [
+      {
+        id: "book-delay",
+        name: "Delay",
+        enabled: true,
+        createdAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+        entries: [
+          {
+            id: "seed",
+            content: "xylophone resonance",
+            keys: [],
+            enabled: true,
+            constant: true,
+            order: 300,
+            position: "before_history",
+          },
+          {
+            id: "delay-1",
+            content: "delay one lore",
+            keys: ["xylophone"],
+            delayUntilRecursion: true,
+            delayUntilRecursionLevel: 1,
+            enabled: true,
+            constant: false,
+            order: 200,
+            position: "before_history",
+          },
+          {
+            id: "delay-2",
+            content: "delay two lore",
+            keys: ["xylophone"],
+            delayUntilRecursion: true,
+            delayUntilRecursionLevel: 2,
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    const withSteps = (steps?: number) => {
+      const pipelineContext = context();
+      const books = build();
+      if (steps !== undefined) books[0].settings = { maxRecursionSteps: steps };
+      return injectWorldbooks(pipelineContext, books).map(
+        (item) => item.entry.id
+      );
+    };
+
+    expect(withSteps(1)).toEqual(["seed"]);
+    expect(withSteps(2)).toEqual(["seed", "delay-1"]);
+    expect(withSteps(3)).toEqual(["seed", "delay-1"]);
+    expect(withSteps()).toEqual(["seed", "delay-1", "delay-2"]);
+  });
+
+  it("applies probability to recursively activated entries", () => {
+    const build = (): MobileWorldbook[] => [
+      {
+        id: "book-recursion",
+        name: "Recursion",
+        enabled: true,
+        createdAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+        entries: [
+          {
+            id: "a",
+            content: "the hidden beacon glows",
+            keys: ["starport"],
+            enabled: true,
+            constant: false,
+            order: 200,
+            position: "before_history",
+          },
+          {
+            id: "b",
+            content: "beacon lore",
+            keys: ["beacon"],
+            probability: 50,
+            useProbability: true,
+            enabled: true,
+            constant: false,
+            order: 100,
+            position: "before_history",
+          },
+        ],
+      },
+    ];
+
+    expect(
+      injectWorldbooks(context(), build(), { random: () => 0 }).map(
+        (item) => item.entry.id
+      )
+    ).toEqual(["a", "b"]);
+
+    expect(
+      injectWorldbooks(context(), build(), { random: () => 0.9 }).map(
+        (item) => item.entry.id
+      )
+    ).toEqual(["a"]);
   });
 });

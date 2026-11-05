@@ -132,17 +132,23 @@ export function completeExplicitKnowledgeResearchEvent(
   content: string,
   durationMs: number
 ): void {
-  const cancelled = result.terminationReason === "cancelled";
+  const status =
+    result.terminationReason === "cancelled"
+      ? "cancelled"
+      : result.terminationReason === "failed" ||
+          result.terminationReason === "timeout"
+        ? "error"
+        : "success";
   userNode.knowledgeReference = reference;
   event.toolNode.content = content;
-  event.toolNode.status = cancelled ? "error" : "complete";
+  event.toolNode.status = status === "success" ? "complete" : "error";
   event.toolNode.metadata = {
     ...event.toolNode.metadata,
     toolCalls: [
       {
         requestId: event.requestId,
         toolName: "knowledge.research",
-        status: cancelled ? "cancelled" : "success",
+        status,
         durationMs,
         rawArgs: {
           question: query,
@@ -151,6 +157,7 @@ export function completeExplicitKnowledgeResearchEvent(
         resultMetadata: {
           userMessageId: userNode.id,
           terminationReason: result.terminationReason,
+          failureStage: result.failureStage,
           rounds: result.rounds,
           toolCalls: result.toolCalls,
           evidenceChars: result.evidenceChars,

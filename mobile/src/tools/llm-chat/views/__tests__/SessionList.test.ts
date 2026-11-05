@@ -46,9 +46,13 @@ vi.mock("@/utils/feedback", () => feedback);
 vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ handle: vi.fn() }),
 }));
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({ t: (key: string) => key, useScopedT }),
+  };
+});
 vi.mock("vue-router", () => ({ useRouter: () => router }));
 
 import SessionList from "../SessionList.vue";

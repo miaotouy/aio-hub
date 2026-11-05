@@ -1,12 +1,12 @@
 // Copyright 2026 miaotouy(Github@miaotouy)
 // SPDX-License-Identifier: Apache-2.0
 import { expect, it, vi } from "vitest";
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
   convertFileSrc: (path: string, protocol: string) =>
     `${protocol}://localhost/${encodeURIComponent(path)}`,
 }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(), emit: vi.fn() }));
+vi.mock("@/platform/native/events", () => ({ listen: vi.fn(), emit: vi.fn() }));
 vi.mock("@/services/registry", () => ({ toolRegistryManager: {} }));
 vi.mock("@/utils/audioSampler", () => ({
   sampleAudioWaveform: vi.fn(),

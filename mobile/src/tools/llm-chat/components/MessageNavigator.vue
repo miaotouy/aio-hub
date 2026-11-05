@@ -21,8 +21,8 @@ const emit = defineEmits<{
   (e: "bottom"): void;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.MessageNavigator.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.MessageNavigator");
 const hasMessages = computed(() => props.total > 1);
 const canMovePrevious = computed(() => props.currentIndex > 1);
 const canMoveNext = computed(() => props.currentIndex < props.total);
@@ -101,7 +101,7 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
   min-height: 38px;
   padding: 3px 4px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   color: var(--text-color-secondary);
   background: var(--card-bg);
   box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
@@ -111,7 +111,8 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 .navigator-button {
   width: 30px !important;
   height: 30px !important;
-  min-width: 30px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
   padding: 0 !important;
   color: var(--text-color-secondary) !important;
 }
@@ -119,7 +120,7 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 .navigator-counter {
   min-width: 42px;
   color: var(--text-color-secondary);
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   font-variant-numeric: tabular-nums;
   text-align: center;
   white-space: nowrap;
@@ -134,12 +135,13 @@ const canMoveNext = computed(() => props.currentIndex < props.total);
 
   .navigator-button {
     width: 28px !important;
-    min-width: 28px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
   }
 
   .navigator-counter {
     min-width: 38px;
-    font-size: 0.68rem;
+    font-size: var(--font-size-xs);
   }
 }
 </style>

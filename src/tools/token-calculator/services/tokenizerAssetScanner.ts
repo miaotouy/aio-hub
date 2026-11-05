@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { basename, join } from "@tauri-apps/api/path";
+import { basename, join } from "@/platform/native/path";
 import { gunzipSync } from "fflate";
 import JSZip from "jszip";
-import { readDir, readFile, readTextFile, stat } from "@tauri-apps/plugin-fs";
+import { readDir, readFile, readTextFile, stat } from "@/platform/native/fs";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
   TokenizerAssetFormat,

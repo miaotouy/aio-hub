@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import MessageStatistics from "./MessageStatistics.vue";
 import { reportMessageCharacterCount } from "../../composables/ui/useMessagePresentation";
 import VirtualTextAttachments from "../VirtualTextAttachments.vue";
@@ -34,7 +36,7 @@ import {
   inject,
   h,
 } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import {
   Copy,
   Check,
@@ -724,7 +726,7 @@ const copyError = async () => {
   if (!props.message.metadata?.error) return;
 
   try {
-    await navigator.clipboard.writeText(props.message.metadata.error);
+    await getBrowserClipboard().writeText(props.message.metadata.error);
     errorCopied.value = true;
     customMessage.success("错误信息已复制");
 
@@ -741,7 +743,7 @@ const copyEmptyDiagnostic = async () => {
   if (!props.message.metadata?.emptyResponseDiagnostic) return;
 
   try {
-    await navigator.clipboard.writeText(
+    await getBrowserClipboard().writeText(
       props.message.metadata.emptyResponseDiagnostic
     );
     emptyDiagnosticCopied.value = true;

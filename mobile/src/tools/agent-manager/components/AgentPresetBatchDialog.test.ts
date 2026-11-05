@@ -5,7 +5,7 @@ import { createPresetPart } from "@aiohub/agent-preset-core";
 import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
 import type { PresetMessage } from "../types/agent";
 vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key.split(".").pop() }),
+  useI18n: () => ({ useScopedT: () => (key: string) => key.split(".").pop() }),
 }));
 
 // Batch preview must consume the active compiled body while preserving the stored structure.

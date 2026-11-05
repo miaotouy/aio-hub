@@ -17,7 +17,7 @@
 
 import { createModuleLogger } from "@/utils/logger";
 import { getLocalISOString } from "@/utils/time";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 import type {
   QuickFetchOptions,
@@ -114,6 +114,7 @@ export async function fetchHttp(
   options: QuickFetchOptions,
   context?: ToolContext
 ): Promise<FetchResult> {
+  options.signal?.throwIfAborted();
   logger.info("Starting quickFetch", { url: options.url });
   context?.reportStatus("正在通过 HTTP 获取网页内容...");
 
@@ -130,6 +131,7 @@ export async function fetchHttp(
   // 获取当前 WebView 的真实浏览器指纹
   const fingerprint = getWebViewFingerprint();
 
+  options.signal?.throwIfAborted();
   const payload = await invoke<RawFetchPayload>("distillery_quick_fetch", {
     url: options.url,
     options: {
@@ -142,6 +144,7 @@ export async function fetchHttp(
     fingerprint,
   });
 
+  options.signal?.throwIfAborted();
   if (activeProfile) {
     logger.info("Using cookie profile for quickFetch", {
       profileName: activeProfile.name,
@@ -183,7 +186,32 @@ export async function fetchHttp(
 /**
  * 智能提取（使用隐藏 Iframe 渲染 JS，支持动态内容）
  */
+let browserRunning = false;
 export async function fetchBrowser(
+  options: SmartExtractOptions,
+  context?: ToolContext
+): Promise<ExtractResult> {
+  options.signal?.throwIfAborted();
+  if (browserRunning)
+    throw new Error("已有浏览器提取任务正在运行，请等待其完成");
+  browserRunning = true;
+  const abort = () => {
+    void iframeBridge
+      .forceCleanup()
+      .catch((error) =>
+        logger.debug("Cancelled browser cleanup failed", error)
+      );
+  };
+  options.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    return await runBrowser(options, context);
+  } finally {
+    options.signal?.removeEventListener("abort", abort);
+    browserRunning = false;
+  }
+}
+
+async function runBrowser(
   options: SmartExtractOptions,
   context?: ToolContext
 ): Promise<ExtractResult> {
@@ -216,35 +244,21 @@ export async function fetchBrowser(
   document.body.appendChild(tempContainer);
 
   try {
-    if (activeProfile) {
-      const cookieStr = activeProfile.cookies
-        .map((c) => `${c.name}=${c.value}`)
-        .join("; ");
-      await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
-      logger.info("Using cookie profile for smartExtract", {
-        profileName: activeProfile.name,
-        domain: activeProfile.domain,
-      });
-    } else {
-      await invoke("distillery_set_proxy_cookies", { cookies: null });
-    }
-
-    // 初始化 bridge（启动代理服务器）
-    await iframeBridge.init();
-
+    options.signal?.throwIfAborted();
     // 创建隐藏 Iframe
     context?.reportStatus("正在加载并渲染目标页面...");
     await iframeBridge.create({
       url: options.url,
       hidden: true,
       container: tempContainer,
+      profile: activeProfile,
     });
 
     // 注入非 HttpOnly cookie 到 document.cookie
     if (activeProfile) {
       for (const cookie of activeProfile.cookies.filter((c) => !c.httpOnly)) {
         const parts = [`${cookie.name}=${cookie.value}`];
-        if (cookie.domain) parts.push(`domain=${cookie.domain}`);
+        // 代理域与目标域隔离，浏览器 Cookie 使用代理自身的 host-only 域。
         if (cookie.path) parts.push(`path=${cookie.path}`);
         if (cookie.expires)
           parts.push(`expires=${new Date(cookie.expires).toUTCString()}`);
@@ -297,6 +311,7 @@ export async function fetchBrowser(
     // 6. 等待结果
     context?.reportStatus("正在抓取动态内容...");
     const extracted = await extractPromise;
+    options.signal?.throwIfAborted();
 
     if (!extracted) {
       throw new Error("未能从页面获取到有效内容");

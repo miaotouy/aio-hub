@@ -48,7 +48,7 @@ defineProps<{ steps: ValidationStepResult[] }>();
   align-items: center;
   cursor: pointer;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 .step-row summary::-webkit-details-marker {
   display: none;
@@ -65,7 +65,7 @@ defineProps<{ steps: ValidationStepResult[] }>();
 .step-row p {
   margin: 9px 0 0 25px;
   color: var(--text-secondary, #6b7280);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 .step-row dl {
@@ -73,7 +73,7 @@ defineProps<{ steps: ValidationStepResult[] }>();
   grid-template-columns: minmax(90px, auto) 1fr;
   gap: 5px 10px;
   margin: 8px 0 0 25px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .step-row dt {
   color: var(--text-secondary, #6b7280);
@@ -83,10 +83,10 @@ defineProps<{ steps: ValidationStepResult[] }>();
   overflow-wrap: anywhere;
 }
 .passed {
-  color: var(--color-success, #25804b);
+  color: var(--success-color, #25804b);
 }
 .failed {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
 }
 .skipped {
   color: var(--text-secondary, #6b7280);

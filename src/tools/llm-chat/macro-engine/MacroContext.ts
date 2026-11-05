@@ -30,6 +30,9 @@ import type { UserProfile } from "../types";
  * 包含所有宏可能需要访问的数据
  */
 export interface MacroContext {
+  /** Optional execution-owner cancellation. */
+  signal?: AbortSignal;
+
   /** 当前用户名称 */
   userName: string;
   /** 当前角色名称（智能体名称） */

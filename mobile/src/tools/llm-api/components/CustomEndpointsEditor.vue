@@ -6,7 +6,7 @@ import type { LlmProfile } from "../types";
 
 type CustomEndpoints = NonNullable<LlmProfile["customEndpoints"]>;
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 useKeyboardAvoidance();
 
 const props = defineProps<{
@@ -33,12 +33,17 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   >
     <div class="full-popup">
       <var-app-bar
-        :title="tRaw('tools.llm-api.CustomEndpointsEditor.高级端点配置')"
+        :title="t('tools.llm-api.CustomEndpointsEditor.高级端点配置')"
         fixed
         safe-area
       >
         <template #left>
-          <var-button round text @click="$emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="$emit('update:show', false)"
+          >
             <ChevronRight :size="24" class="back-btn" />
           </var-button>
         </template>
@@ -53,7 +58,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
         <div class="info-card">
           <Info :size="20" class="info-icon" />
           <div class="info-text">
-            {{ tRaw("tools.llm-api.CustomEndpointsEditor.填写相对路径提示") }}
+            {{ t("tools.llm-api.CustomEndpointsEditor.填写相对路径提示") }}
           </div>
         </div>
 
@@ -61,7 +66,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           <var-input
             :model-value="endpoints.chatCompletions"
             @update:model-value="updateField('chatCompletions', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.聊天补全 (Chat)')"
+            :label="t('tools.llm-api.CustomEndpointsEditor.聊天补全 (Chat)')"
             placeholder="/v1/chat/completions"
             variant="outlined"
           />
@@ -69,7 +74,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
             :model-value="endpoints.models"
             @update:model-value="updateField('models', $event)"
             :label="
-              tRaw('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')
+              t('tools.llm-api.CustomEndpointsEditor.模型列表 (Models)')
             "
             placeholder="/v1/models"
             variant="outlined"
@@ -78,7 +83,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
             :model-value="endpoints.embeddings"
             @update:model-value="updateField('embeddings', $event)"
             :label="
-              tRaw('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')
+              t('tools.llm-api.CustomEndpointsEditor.嵌入 (Embeddings)')
             "
             placeholder="/v1/embeddings"
             variant="outlined"
@@ -86,7 +91,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
           <var-input
             :model-value="endpoints.audioSpeech"
             @update:model-value="updateField('audioSpeech', $event)"
-            :label="tRaw('tools.llm-api.CustomEndpointsEditor.语音合成 (TTS)')"
+            :label="t('tools.llm-api.CustomEndpointsEditor.语音合成 (TTS)')"
             placeholder="/v1/audio/speech"
             variant="outlined"
           />
@@ -94,7 +99,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
             :model-value="endpoints.audioTranscriptions"
             @update:model-value="updateField('audioTranscriptions', $event)"
             :label="
-              tRaw('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')
+              t('tools.llm-api.CustomEndpointsEditor.语音转文字 (STT)')
             "
             placeholder="/v1/audio/transcriptions"
             variant="outlined"
@@ -112,7 +117,7 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .back-btn {
@@ -134,10 +139,10 @@ const updateField = (key: keyof CustomEndpoints, val: string) => {
   display: flex;
   gap: 12px;
   padding: 16px;
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   background: var(--color-primary-container);
-  color: var(--color-primary);
-  font-size: 0.85rem;
+  color: var(--primary-color);
+  font-size: var(--font-size-sm);
   line-height: 1.6;
   margin-bottom: 32px;
 }

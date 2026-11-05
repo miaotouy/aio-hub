@@ -159,7 +159,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import type { FormInstance, FormRules } from "element-plus";
 import { FolderOpened, Search, Upload } from "@element-plus/icons-vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";

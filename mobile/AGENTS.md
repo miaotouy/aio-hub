@@ -5,6 +5,7 @@
 ## 文档入口
 
 - 当前 UI 规范：[`docs/guide/mobile-ui-development.md`](../docs/guide/mobile-ui-development.md)
+- 页面级 UI 设计规范：[`docs/guide/mobile-ui-design-spec.md`](../docs/guide/mobile-ui-design-spec.md)（token 契约、组件规格、页面模板、迁移映射，UI review 判定依据）
 - 设计语言决议：[`docs/guide/mobile-design-language.md`](../docs/guide/mobile-design-language.md)
 - 模块架构：`mobile/src/tools/{toolId}/ARCHITECTURE.md`
 - 仍在施工的跨模块计划：`mobile/docs/plan/`
@@ -22,5 +23,5 @@
 
 ## 文档维护
 
-施工完成后，将稳定的边界、数据流、已验证行为和剩余平台门禁同步到对应模块的 `ARCHITECTURE.md` 或 `mobile/docs/architecture/`；`mobile/docs/plan/` 只保留仍有明确待办或平台验收门禁的计划。
+施工完成后，将稳定的边界、数据流、已验证行为和后置平台验证同步到对应模块的 `ARCHITECTURE.md` 或 `mobile/docs/architecture/`；`mobile/docs/plan/` 保留当前功能施工队列、后置验证和仍有明确待办的计划。平台验证记录不应阻塞其他功能施工。
 

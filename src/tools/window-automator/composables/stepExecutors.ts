@@ -24,7 +24,7 @@
  *   - 其它 string     跳转到该 step.id（由 executor 解析为下标）
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { toolRegistryManager } from "@/services/registry";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {

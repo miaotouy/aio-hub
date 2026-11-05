@@ -1,12 +1,32 @@
 # AIO Hub 迁移 Electron 阶段一：工程脚手架与基础骨架施工待办方案
 
-> 状态：施工待办 (Ready for Implementation)  
+> 状态：基础宿主与本地分发已落地，生命周期继续实施  
 > 版本：v1.0.1\
-> 更新日期：2026-10-27\
+> 更新日期：2026-11-05\
 > 提出日期：2026-10-02  
 > 编制人：咕咕（架构师）  
 > 上级规划：[`docs/Plan/electron-migration-master-plan.md`](./electron-migration-master-plan.md)  
 > 关联调查：[`docs/design/地基迁移调查/webview2-migration-investigation.md`](../design/地基迁移调查/webview2-migration-investigation.md)
+
+---
+
+## 当前实施快照（2026-11-05）
+
+正式工程当前固定 Electron 45.2.1；第 2/3 节保留早期目录与接口设计；第 4 节待办已按当前落点更新。实际实现采用扁平主进程模块与现有平台隔离层，逐项状态如下：
+
+| 原任务        | 当前状态与落点                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 1.1.1 / 1.1.2 | 已完成：根依赖、锁文件、`electron/tsconfig.json` 与 `check:electron`；独立类型检查，保持前端工程引用稳定            |
+| 1.2.1         | 已完成：`electron/data-path.ts` 与 `main.ts`；开发、便携与安装版数据目录分离                                        |
+| 1.2.2         | Windows 已验证：Main 负责关闭/退出快照、`electron-windows.json` 恢复与 DIP 校正；真实系统注销/关机及跨平台继续验收    |
+| 1.2.3         | 已完成：应用生产协议与逐窗口授权的本地资源协议；真实读取和拒绝非法令牌已有验证，音视频 Range/Seek 继续专项验证      |
+| 1.2.4         | 已完成：固定操作分派、所属窗口/来源校验、类型化错误包络                                                             |
+| 1.2.5         | 基础完成：启动、主窗口与托盘；开发图标、单实例和协议唤醒已接入，安装后的系统关联待验证                              |
+| 1.3.1 / 1.3.2 | 已完成基础桥接：`preload.ts`、`shared.ts`、`src/platform/electron/` 与 `native/` 兼容入口；Channel 等能力按总纲接续 |
+| 1.3.3         | 已完成基础窗口控制：标题栏与 Chromium 拖动区域；物理交互和跨平台材质继续验证                                        |
+| 1.4.1–1.4.3   | 已完成：`scripts/electron.ts`、根脚本、双击入口与 electron-builder 本地分发                                         |
+
+本轮新增施工项与待迁移能力统一列在[总纲的代码盘点](./electron-migration-master-plan.md#2026-11-04-代码盘点与本轮接续)，运行方法和实测结果回填[Electron 开发指南](../guide/electron-development.md)。
 
 ---
 
@@ -33,7 +53,7 @@
 
 - [ ] 执行 `bun run electron:dev` 能在 3 秒内唤起 Electron 窗口，成功加载 Vite 开发服务器页面并热更新；
 - [ ] 自定义无边框窗口生效，标题栏拖拽（Drag Region）、双击最大化/还原、最小化、关闭功能 100% 正常；
-- [ ] 窗口尺寸、位置与最大化状态具备持久化恢复能力；
+- [x] 窗口尺寸、位置与最大化状态具备持久化恢复能力；Windows 普通/最小化/隐藏窗口及新进程恢复已验证。
 - [ ] `asset://` 协议能够正常解析本地绝对路径资源，支持 Range 请求播放音视频；
 - [ ] 全局现有检查指令（`bun run check:frontend`、`bun run check`、`bun run tauri:dev`）零回归、零报警。
 
@@ -322,78 +342,59 @@ export const appWindow: AppWindowFacade = {
 
 ---
 
-## 4. 详细实施施工待办清单 (Step-by-Step Task Breakdown)
+## 4. 实施施工清单（2026-11-04 更新）
 
 ### 阶段 1.1：依赖与环境初始化
 
-- [ ] **Task 1.1.1：安装 Electron 核心依赖**
-  - 运行 `bun add -d --exact electron@45.0.0`，并通过 `bun add -d @types/node@24` 对齐内嵌 Node 的类型主版本；
-  - 检查并在 [`package.json`](../../package.json:1) 的 `devDependencies` 与锁文件中固定版本；Bun 安装后检查运行时已下载，需要时执行 `bun node_modules/electron/install.js`；
-  - 确保安装后 `bunx electron --version` 输出 `45.0.0`；原生模块按此目标版本重建，并在实际主进程 / utility process 验证加载。
-- [ ] **Task 1.1.2：创建主进程专属 TS 配置**
-  - 新建 [`electron/tsconfig.json`](electron/tsconfig.json)，配置 `target: "ES2022"`、`module: "ESNext"`、`moduleResolution: "bundler"`、`lib: ["ES2023"]`；
-  - 在根目录 [`tsconfig.json`](../../tsconfig.json:39) 中追加 `"references": [{ "path": "./electron/tsconfig.json" }]`。
+- [x] **Task 1.1.1：安装并锁定 Electron 核心依赖**
+  - 根 `package.json` 与锁文件固定 Electron 45.2.1，使用现有 Node 类型。
+- [x] **Task 1.1.2：创建主进程专属 TS 配置**
+  - `electron/tsconfig.json` 与 `check:electron` 独立检查主进程、preload 和启动脚本。
 
-### 阶段 1.2：主进程基础架构落地
+### 阶段 1.2：主进程基础架构
 
-- [ ] **Task 1.2.1：实现主进程配置与路径管理**
-  - 新建 [`electron/main/config.ts`](electron/main/config.ts)；
-  - 导出 `isDev`、`VITE_DEV_SERVER_URL`、`APP_CONFIG_DIR` 等常量；
-  - 确保应用数据根目录对齐 Tauri 原生规范（`%APPDATA%/aiohub` 或 `.dev-data/`）。
-- [ ] **Task 1.2.2：实现窗口管理器 (`WindowManager`)**
-  - 新建 [`electron/main/window-manager.ts`](electron/main/window-manager.ts)；
-  - 实现 `createMainWindow()` 方法，配置无边框与背景材质；
-  - 实现状态存储逻辑：监听窗口 `resize`、`move`，使用防抖写回 `window-state.json`；
-  - 处理窗口恢复：根据屏幕工作区尺寸防止窗口越界。
-- [ ] **Task 1.2.3：实现自定义资产协议 (`asset://`)**
-  - 新建 [`electron/main/protocols/asset-protocol.ts`](electron/main/protocols/asset-protocol.ts)；
-  - 实现 `protocol.registerSchemesAsPrivileged`，将 `asset` 协议标记为安全、支持跨域与流式加载（`secure: true`, `supportFetchAPI: true`, `corsEnabled: true`, `stream: true`）；
-  - 实现路径规整化与 Windows 驱动盘符转换，通过 `net.fetch` 返回带 Range 支持的响应。
-- [ ] **Task 1.2.4：实现窗口控制 IPC 处理层**
-  - 新建 [`electron/main/ipc/window-ipc.ts`](electron/main/ipc/window-ipc.ts)；
-  - 注册 `window:minimize`、`window:toggle-maximize`、`window:close`、`window:hide`、`window:is-maximized`、`window:save-config`；
-  - 监听 `mainWindow` 的 `maximize`、`unmaximize` 事件，主动向渲染进程发射 `window:event:maximize-change`。
-- [ ] **Task 1.2.5：实现主进程主入口**
-  - 新建 [`electron/main/index.ts`](electron/main/index.ts)；
-  - 处理单实例锁（`app.requestSingleInstanceLock()`），避免重复拉起；
-  - 组织应用就绪（`app.whenReady()`）生命周期：注册协议 -> 注册 IPC -> 创建主窗口；
-  - 处理全窗口关闭事件，兼容托盘与 macOS `activate` 行为。
+- [x] **Task 1.2.1：配置与路径管理**
+  - `electron/data-path.ts` 处理显式数据目录、平台默认目录与便携版目录；开发入口使用独立数据目录。
+- [x] **Task 1.2.2：基础窗口管理与配置恢复**
+  - `electron/main.ts` 管理主/工具窗口，提供窗口事件、控制、工作区恢复和 `electron-windows.json` 读写；现有业务负责显式保存。
+- [x] **Task 1.2.3：应用与本地资产协议**
+  - `aiohub://app/` 承载生产前端，`asset://local/` 按窗口令牌、精确路径与真实路径授权。
+- [x] **Task 1.2.4：窗口控制 IPC**
+  - 固定操作分派、来源与所属窗口校验、定向事件、二进制参数和结构化错误已接入。
+- [x] **Task 1.2.5：启动、托盘与实例生命周期**
+  - 开发图标、显示/隐藏/重启前端/清除配置/退出菜单、最小化恢复、同数据目录单实例与协议转交已接入。
+  - 安装包声明 `aiohub` 协议；开发和预览保留当前系统关联。
 
-### 阶段 1.3：预加载脚本与前端桥接门面
+### 阶段 1.3：预加载与前端门面
 
-- [ ] **Task 1.3.1：编写 Preload 注入脚本**
-  - 新建 [`electron/preload/index.ts`](electron/preload/index.ts)；
-  - 将窗口控制 API 与安全 IPC invoke 方法通过 `contextBridge.exposeInMainWorld('aiohub', ...)` 注入渲染环境；
-  - 保持类型声明与实现强绑定。
-- [ ] **Task 1.3.2：建立前端平台适配层 (`src/platform/`)**
-  - 新建 [`src/platform/types.ts`](../../src/platform/types.ts)：定义平台无关的 Window 控制接口与全局声明扩充；
-  - 新建 [`src/platform/env.ts`](../../src/platform/env.ts)：实现环境精准嗅探；
-  - 新建 [`src/platform/window.ts`](../../src/platform/window.ts)：暴露抽象的 `appWindow`；
-  - 新建 [`src/platform/index.ts`](../../src/platform/index.ts)：汇聚导出。
-- [ ] **Task 1.3.3：重构标题栏组件 (`TitleBar.vue`)**
-  - 改造 [`src/components/TitleBar.vue`](../../src/components/TitleBar.vue:27)；
-  - 移除对 `@tauri-apps/api/window` 中 `getCurrentWindow` 的硬依赖，改用 `@/platform/window`；
-  - 将 `save_window_config` 的调用平滑代理至 `appWindow.saveConfig()`；
-  - 保留 CSS 原生属性 `-webkit-app-region: drag` 和 `no-drag`，移除对 Tauri 专用拖拽 hook 的强绑定。
+- [x] **Task 1.3.1：沙箱 Preload**
+  - `electron/preload.ts` 只向顶层文档公开固定类型桥，隔离原生事件对象。
+- [x] **Task 1.3.2：平台适配基础链路**
+  - `src/platform/electron/` 和 `native/` 兼容现有业务入口；窗口、事件、基础文件/路径、对话框、文本剪贴板、外部打开与基础原生 HTTP 已接入。
+  - Channel、文件监听、Shell/Sidecar 与更新对象按总纲阶段二继续。
+- [x] **Task 1.3.3：标题栏基础控制**
+  - 复用现有 TitleBar 和 Chromium 拖动区域，窗口控制已在真实 Electron 验证。
 
-### 阶段 1.4：开发与打包脚本管道打通
+### 阶段 1.4：启动、构建与分发
 
-- [ ] **Task 1.4.1：配置主进程与 Preload 快速打包命令**
-  - 使用 Bun 原生打包能力或 esbuild 创建轻量构建脚本 [`scripts/build-electron.ts`](../../scripts/build-electron.ts)；
-  - 将 `electron/main/index.ts` 打包至 `dist-electron/main.js`（Node 目标环境，CJS/ESM 兼容）；
-  - 将 `electron/preload/index.ts` 打包至 `dist-electron/preload.js`。
-- [ ] **Task 1.4.2：编写双进程联调启动器 (`scripts/electron-dev.ts`)**
-  - 脚本逻辑：
-    1. 启动 Vite 开发服务器（直接复用项目现有的端口与环境变量规则，如 1420 端口）；
-    2. 等待 Vite 端口可用；
-    3. 构建 `electron/` 源码至 `dist-electron/`；
-    4. 启动 Electron 子进程，注入 `VITE_DEV_SERVER_URL`；
-    5. 监视 `electron/` 目录源码变动，变动时自动重新打包并重启 Electron。
-- [ ] **Task 1.4.3：接入 package.json 脚本指令**
-  - 在 [`package.json`](../../package.json:27) 中追加：
-    - `"electron:dev": "bun scripts/electron-dev.ts"`
-    - `"electron:build:main": "bun scripts/build-electron.ts"`
-    - `"check:electron": "tsc --project electron/tsconfig.json --noEmit"`
+- [x] **Task 1.4.1：主进程/Preload 构建**
+  - `scripts/electron.ts` 使用 Bun 生成 CommonJS 主进程与沙箱 preload。
+- [x] **Task 1.4.2：双进程开发启动器**
+  - 同一脚本管理 Vite 与 Electron、端口检查及退出清理；前端热更新，主进程修改后重启。
+- [x] **Task 1.4.3：正式脚本与本地分发入口**
+  - 根 `electron:*` 与双击脚本覆盖开发、构建、预览、安装器、目录版和便携版。
+
+### 阶段 1.5：剩余收口
+
+- [x] Windows 业务防抖保存与宿主关闭/退出快照已接通，同步原子保存并恢复普通几何和最大化状态；系统会话事件已接线。
+- [ ] 真实系统注销/关机及 macOS/Linux 窗口持久化实机验收。
+- [ ] 音视频资源 Range/Seek 的真实运行专项验证。
+- [ ] 物理标题栏拖动、外部文件拖放精确落点、原生文件对话框完整交互。
+- [ ] 安装后系统协议关联，以及 macOS/Linux 的窗口、托盘与协议运行验证。
+- [x] Dev Control 的 Electron 发现/握手接入：支持开发态与生产资源预览、隔离数据、CDP 多窗口、刷新重连、尺寸调整及启动期诊断；2026-11-04 已在真实 Windows Electron 验证。
+- [ ] 独立 WebView、窗口吸附、拖拽预览和跨平台材质的完整契约。
+
+详细验证记录见[Electron 开发指南](../guide/electron-development.md)。
 
 ---
 

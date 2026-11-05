@@ -147,6 +147,83 @@ describe("mobile OpenAI-compatible shared adapter facade", () => {
     );
   });
 
+  it("unwraps enabled custom parameters into the request body", () => {
+    const wireRequest = buildOpenAiCompatibleRequest(createProfile(), {
+      modelId: "compatible-model",
+      messages: [{ role: "user", content: "hello" }],
+      temperature: 0.2,
+      custom: {
+        enabled: true,
+        params: {
+          temperature: 0.9,
+          reasoning_split: true,
+          vendor_route: "fast",
+        },
+      },
+    });
+
+    expect(wireRequest.body).toMatchObject({
+      model: "compatible-model",
+      messages: [{ role: "user", content: "hello" }],
+      temperature: 0.9,
+      reasoning_split: true,
+      vendor_route: "fast",
+    });
+    expect(wireRequest.body).not.toHaveProperty("custom");
+  });
+
+  it("skips custom parameters when the wrapper is disabled", () => {
+    const wireRequest = buildOpenAiCompatibleRequest(createProfile(), {
+      modelId: "compatible-model",
+      messages: [{ role: "user", content: "hello" }],
+      temperature: 0.2,
+      custom: {
+        enabled: false,
+        params: { reasoning_split: true },
+      },
+    });
+
+    expect(wireRequest.body.temperature).toBe(0.2);
+    expect(wireRequest.body).not.toHaveProperty("reasoning_split");
+    expect(wireRequest.body).not.toHaveProperty("custom");
+  });
+
+  it("merges legacy flat custom parameter objects directly", () => {
+    const wireRequest = buildOpenAiCompatibleRequest(createProfile(), {
+      modelId: "compatible-model",
+      messages: [{ role: "user", content: "hello" }],
+      custom: { reasoning_split: true, vendor_route: "fast" },
+    });
+
+    expect(wireRequest.body).toMatchObject({
+      reasoning_split: true,
+      vendor_route: "fast",
+    });
+    expect(wireRequest.body).not.toHaveProperty("custom");
+  });
+
+  it("does not let custom parameters overwrite the message array or stream flag", () => {
+    const wireRequest = buildOpenAiCompatibleRequest(createProfile(), {
+      modelId: "compatible-model",
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+      custom: {
+        enabled: true,
+        params: {
+          messages: [],
+          stream: true,
+          vendor_route: "fast",
+        },
+      },
+    });
+
+    expect(wireRequest.body.messages).toEqual([
+      { role: "user", content: "hello" },
+    ]);
+    expect(wireRequest.body.stream).toBeUndefined();
+    expect(wireRequest.body.vendor_route).toBe("fast");
+  });
+
   it("delivers text and reasoning separately while retaining final usage", async () => {
     const adapter = createAdapter(
       createWireResponse(OPENAI_COMPATIBLE_STREAM_FIXTURE)

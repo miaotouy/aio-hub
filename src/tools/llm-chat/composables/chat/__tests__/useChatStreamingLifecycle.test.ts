@@ -93,7 +93,10 @@ vi.mock("@/utils/errorHandler", () => ({
 import { useSingleNodeExecutor } from "../useSingleNodeExecutor";
 import { useToolCallOrchestrator } from "../useToolCallOrchestrator";
 import { useChatResponseHandler } from "../useChatResponseHandler";
-import { disposeStreamingMessageSource } from "../useStreamingMessageSources";
+import {
+  disposeStreamingMessageSource,
+  getOrCreateStreamingMessageSource,
+} from "../useStreamingMessageSources";
 import { useNodeManager } from "../../session/useNodeManager";
 
 // Interrupted replies must retain the text already shown by the stream and
@@ -567,4 +570,87 @@ it("sends replay-safe body and reasoning ranges through the state envelope", asy
     vi.clearAllTimers();
     vi.useRealTimers();
   }
+});
+
+// A repeated tail must have the same visible and persisted text on completion or cancellation.
+describe("continuation streaming lifecycle", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    disposeStreamingMessageSource("continuation");
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ["complete", true],
+    ["cancel", true],
+    ["complete", false],
+    ["cancel", false],
+  ] as const)(
+    "reconciles repeated tails before %s with deduplication %s",
+    async (ending, deduplicate) => {
+      const tail = "他推开旧宅的门，借着闪电看见桌上放着一封信。";
+      const prefix = "雨水顺着袖口淌下。\n" + tail;
+      const node = useNodeManager().createNode({
+        role: "assistant",
+        content: prefix,
+        parentId: null,
+        status: "waiting",
+        metadata: {
+          isContinuation: true,
+          continuationPrefix: prefix,
+          continuationDeduplicate: deduplicate,
+        },
+      });
+      node.id = "continuation";
+      const session = {
+        id: "session",
+        nodes: { [node.id]: node },
+      } as ChatSessionDetail;
+      let visible = "";
+      getOrCreateStreamingMessageSource(node.id, prefix).subscribe((delta) => {
+        visible += delta;
+      });
+      await Promise.resolve();
+      const handler = useChatResponseHandler();
+      handler.handleStreamUpdate(session, node.id, "接着思考", true);
+      const output = tail + "他拆开了信。";
+      for (const char of output)
+        handler.handleStreamUpdate(session, node.id, char);
+      await vi.advanceTimersByTimeAsync(25);
+      expect(visible).toBe(prefix + (deduplicate ? "" : tail) + "他拆开了信。");
+      expect(node.metadata?.reasoningContent).toBe("接着思考");
+      if (ending === "complete") {
+        await handler.finalizeNode(
+          session,
+          node.id,
+          {
+            content: output,
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          },
+          "agent"
+        );
+      } else {
+        handler.handleNodeError(
+          session,
+          node.id,
+          new DOMException("Stopped", "AbortError"),
+          "续写"
+        );
+      }
+      expect(node.content).toBe(visible);
+      expect(node.status).toBe(ending === "complete" ? "complete" : "error");
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(node.content).toBe(visible);
+      expect(
+        mocks.syncState.mock.calls
+          .filter(([, value]) => value.isReasoning === false)
+          .map(([, value]) => value.delta)
+          .join("")
+      ).toBe((deduplicate ? "" : tail) + "他拆开了信。");
+    }
+  );
 });

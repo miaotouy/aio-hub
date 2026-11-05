@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { ElMessageBox } from "element-plus";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useGitContextMenu } from "./useGitContextMenu";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import { buildFileContextMenuItems } from "../contextMenus";

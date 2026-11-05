@@ -73,3 +73,7 @@ cache
 .snow
 
 .tmp
+
+# Electron application artifacts
+dist-electron/
+release-electron/

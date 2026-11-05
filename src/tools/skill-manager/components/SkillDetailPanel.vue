@@ -186,7 +186,7 @@ import {
   RotateCcw,
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { revealItemInDir } from "@/platform/native/opener";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { getExtension } from "@/utils/fileTypeDetector";
@@ -274,11 +274,15 @@ const sourceInfo = computed(() => {
   const source = props.manifest.source;
   if (isFromBuiltin.value) return { label: "内置", class: "builtin" };
   if (source === "user") return { label: "用户", class: "user" };
+  if (source.startsWith("bundle:")) return { label: "集合", class: "user" };
   if (source.startsWith("external:")) {
     const id = source.split(":")[1];
-    return { label: `外部: ${id}`, class: "external" };
+    const label = store.config.externalScanPaths.find(
+      (path) => path.id === id
+    )?.label;
+    return { label: label || "外部", class: "external" };
   }
-  return { label: source, class: "unknown" };
+  return { label: "技能", class: "unknown" };
 });
 
 async function handleUninstall() {

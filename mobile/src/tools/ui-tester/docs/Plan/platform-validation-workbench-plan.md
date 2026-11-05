@@ -1,7 +1,7 @@
 # 移动端开发验证台设计与实施计划
 
-> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，不计为完整通过
-> 日期：2026-07-18；2026-07-21 更新平台门禁与测试批次规则
+> 状态：Android 虚拟机与首轮真机验收通过；iOS 因当前缺少编译与真机设备条件暂缓，平台验证作为后置发布收口
+> 日期：2026-07-18；2026-09-23 更新施工口径
 > 所属工具：`mobile/src/tools/ui-tester/`
 > 目标：为移动端组件、Tauri 平台能力、资产 Phase 0 和 SQLite Phase 0 提供可重复操作、可记录、可导出的真机验证入口。
 > 自动化边界：本工具提供设备内固定场景，不负责外部 UI 驱动；Android AVD 脚本化控制见 [`mobile-android-avd-e2e.md`](../../../../../docs/architecture/mobile-android-avd-e2e.md)。
@@ -15,7 +15,7 @@
 1. **平台文件**：承接资产管理 Phase 0 的文件/照片入口、URI、权限、后台、系统终止和空间不足验证。
 2. **SQLite**：承接聊天 SQLite Phase 0 的连接、migration、事务恢复、FTS5 和基准验证。
 
-每个 Phase 0 spike 必须交付对应 UI 面板。平台结论按 Android/iOS 分别记录；没有对应平台运行记录，不得宣称该平台通过。缺少 iOS 设备不阻塞 Android 内核施工，但会保留为 iOS 发布门禁。
+每个 Phase 0 spike 交付对应 UI 面板后即可支持功能施工和问题定位。平台结论按 Android/iOS 分别记录；没有对应平台运行记录就标记为未验证。缺少 iOS 设备不阻塞 Android 或平台中立的功能施工，发布前再集中补齐对应报告。
 
 ## 2. 产品与安全边界
 
@@ -264,23 +264,23 @@ mobile/src/tools/ui-tester/
 - 2026-07-20 Android 16 x86_64 虚拟机补充报告已验证环境字段、ENOSPC 注入以及 SQLite 1k/10k/100k。100k 总步骤 665 ms、插入 396 ms、数据库 6,594,560 bytes、SQLite memory high-water 5,343,704 bytes；10k high-water 1,043,080 bytes，1k high-water 181,944 bytes。
 - 虚拟机复测确认语言设置可以即时应用到 i18n locale。验证页自身仍有大量硬编码中文，无法在该页通过整页翻译变化观察结果；验证台 i18n 覆盖留作后续 UI 收尾，不影响语言设置能力本身的通过结论。
 - 大文件完整读取复测通过：Android `content://` 样本 14,714,525 bytes（14.03 MiB），65,536-byte 块完整读取，首字节 231 ms、总耗时 4,360 ms、平均 3.22 MiB/s，`failurePhase = none`。该数据只代表 Android 16 x86_64 虚拟机的 `plugin-fs` 读取链，真机和 iOS 仍需分别运行。
-- Android 16 x86_64 虚拟机已通过资产预览协议固定场景：`Range: bytes=0-31` 返回 206 和 32 bytes，`Accept-Ranges`/`Content-Range` 可跨源读取；HEAD 返回 200、空 body，WebView 可见 `content-length` 为 0；主动撤销后原 URL 返回 404。自然到期和 iOS 仍是发布前门禁。
+- Android 16 x86_64 虚拟机已通过资产预览协议固定场景：`Range: bytes=0-31` 返回 206 和 32 bytes，`Accept-Ranges`/`Content-Range` 可跨源读取；HEAD 返回 200、空 body，WebView 可见 `content-length` 为 0；主动撤销后原 URL 返回 404。自然到期和 iOS 仍是发布前后续验证。
 - iOS 尚未验收，仍需从应用内依次运行平台文件和 SQLite 固定场景并导出一份 schema `1.0` JSON 报告。
-- 按当前验证台口径，Android 与 iOS 分别形成平台结论；当前结论代表 Android 11 真机验证台通过，iOS 报告仍是 iOS 资产能力发布门禁，不把缺失的 iOS 报告写成通过。
-- 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前门禁。
+- 按当前验证台口径，Android 与 iOS 分别形成平台结论；当前结论代表 Android 11 真机验证台通过，iOS 报告仍是 iOS 资产能力发布收口证据，不把缺失的 iOS 报告写成通过。
+- 2026-07-20 施工决议：当前环境没有可用的 iOS 编译与真机设备条件，先允许平台中立内核与 Android 资产链进入 Phase 1；iOS 固定场景和报告延期到设备条件具备后执行，仍是 iOS 资产能力发布前后续验证。
 - 资产正式导入还需补充 Rust command 直接打开系统选择结果并流式写入固定沙箱的场景；现有 WebView/plugin-fs 分块读取结果不能替代该数据路径验证。该场景与 Android MVP 主流程合并验收，不再单独拆成重复测试批次。
 
 ## 11. Android AVD 自动化补齐（2026-07-21）
 
-2026-07-23：独立 runner 已施工并通过核心、恢复和 Ollama lanes。`ui-tester` 仍只负责设备内固定场景；外部 Appium runner 的结果写入 `.dev-data/mobile-android-e2e/`，不把 AVD 结果当作真机或 iOS 门禁。
+2026-07-23：独立 runner 已施工并通过核心、恢复和 Ollama lanes。`ui-tester` 仍只负责设备内固定场景；外部 Appium runner 的结果写入 `.dev-data/mobile-android-e2e/`，不把 AVD 结果当作真机或 iOS 后续验证。
 
 现有 Android 虚拟机记录主要来自人工操作验证台、ADB 辅助和截图复核，不能视为可重复 E2E。后续由独立的 Android AVD runner 从外部驱动应用，并复用本工具的固定场景与结构化报告：
 
 - 默认只使用 Android Studio AVD，所有 ADB/Appium 操作显式绑定 serial；不得自动控制用户正在使用的 LDPlayer/雷电等第三方模拟器。
 - Appium 2 + UiAutomator2 负责原生应用、DocumentsUI、Photo Picker 和生命周期；AIO Hub WebView 使用稳定 `data-testid`、可访问名称和 DOM 状态，不使用坐标或截图识别控制流程。
 - 成功运行只保留结构化结果与脱敏请求摘要；截图、UiAutomator hierarchy、DOM 摘要和 logcat 只在失败时采集。
-- 默认附件门禁使用本机确定性 OpenAI-compatible 服务校验 MIME、字节数与 SHA-256，并返回正式 SSE；Ollama 多模态模型为显式 opt-in lane。
-- AVD 自动化负责日常回归，不能替代 Android 真机、真实低存储、相机硬件或 iOS 发布门禁。
+- 默认附件后续验证使用本机确定性 OpenAI-compatible 服务校验 MIME、字节数与 SHA-256，并返回正式 SSE；Ollama 多模态模型为显式 opt-in lane。
+- AVD 自动化负责日常回归，不能替代 Android 真机、真实低存储、相机硬件或 iOS 发布后续验证。
 
 完整目录、阶段、设备所有权和验收标准见 [`mobile-android-avd-e2e.md`](../../../../../docs/architecture/mobile-android-avd-e2e.md)。
 

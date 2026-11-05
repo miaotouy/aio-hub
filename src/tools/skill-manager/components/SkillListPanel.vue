@@ -232,13 +232,15 @@ function getSourceLabel(manifest: SkillManifest): string {
   if (isFromBuiltin(manifest)) return "内置";
   if (manifest.source === "user") return "用户";
   if (manifest.source.startsWith("external:")) return "外部";
-  return manifest.source;
+  if (manifest.source.startsWith("bundle:")) return "集合";
+  return "技能";
 }
 
 /** 获取技能的来源样式类名 */
 function getSourceClass(manifest: SkillManifest): string {
   if (isFromBuiltin(manifest)) return "builtin";
-  if (manifest.source === "user") return "user";
+  if (manifest.source === "user" || manifest.source.startsWith("bundle:"))
+    return "user";
   if (manifest.source.startsWith("external:")) return "external";
   return "";
 }
@@ -250,7 +252,11 @@ const filteredManifests = computed(() => {
   if (sourceFilter.value === "builtin") {
     list = list.filter((m) => isFromBuiltin(m));
   } else if (sourceFilter.value === "user") {
-    list = list.filter((m) => m.source === "user" && !isFromBuiltin(m));
+    list = list.filter(
+      (m) =>
+        (m.source === "user" || m.source.startsWith("bundle:")) &&
+        !isFromBuiltin(m)
+    );
   } else if (sourceFilter.value) {
     list = list.filter((m) => m.source === sourceFilter.value);
   }
@@ -388,6 +394,75 @@ function isSkillEnabled(name: string): boolean {
   gap: 6px;
   margin: 0 -4px;
   padding: 0 4px;
+}
+
+.bundle-group-header,
+.bundle-info-click,
+.bundle-meta-info,
+.bundle-actions,
+.standalone-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bundle-group-header {
+  justify-content: space-between;
+  padding: 8px 2px;
+}
+
+.bundle-info-click,
+.bundle-meta-info {
+  min-width: 0;
+}
+
+.bundle-info-click {
+  cursor: pointer;
+}
+
+.bundle-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.bundle-version,
+.standalone-group-header,
+.more-btn {
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+
+.bundle-actions,
+.bundle-version,
+.bundle-icon,
+.collapse-arrow {
+  flex-shrink: 0;
+}
+
+.collapse-arrow {
+  transition: transform 0.2s;
+}
+
+.collapse-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.more-btn {
+  cursor: pointer;
+}
+
+.standalone-group-header {
+  padding: 10px 2px 6px;
+}
+
+.group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* 自定义滚动条 */

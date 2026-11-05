@@ -1,25 +1,17 @@
 import { LlmChatIcon } from "@aiohub/tool-icons";
 import { markRaw } from "vue";
-import { registerToolLocales, useI18n } from "@/i18n";
-import zhCN from "./locales/zh-CN.json";
-import enUS from "./locales/en-US.json";
-
-// 提前注册语言包，确保路由 meta.title 等 getter 能正确获取翻译
-registerToolLocales("llm-chat", {
-  "zh-CN": zhCN,
-  "en-US": enUS,
-});
+import { useI18n } from "@/i18n";
 
 export default {
   id: "llm-chat",
   get name() {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-chat.common.AI 对话");
+    const { t } = useI18n();
+    return t("tools.llm-chat.common.AI 对话");
   },
   icon: markRaw(LlmChatIcon),
   get description() {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-chat.common.与 AI 进行即时对话");
+    const { t } = useI18n();
+    return t("tools.llm-chat.common.与 AI 进行即时对话");
   },
   route: {
     path: "/tools/llm-chat",
@@ -32,8 +24,8 @@ export default {
         component: () => import("./views/ChatHome.vue"),
         meta: {
           get title() {
-            const { tRaw } = useI18n();
-            return tRaw("tools.llm-chat.common.AI 对话");
+            const { t } = useI18n();
+            return t("tools.llm-chat.common.AI 对话");
           },
         },
       },
@@ -43,8 +35,8 @@ export default {
         component: () => import("./views/SessionList.vue"),
         meta: {
           get title() {
-            const { tRaw } = useI18n();
-            return tRaw("tools.llm-chat.common.历史会话");
+            const { t } = useI18n();
+            return t("tools.llm-chat.common.历史会话");
           },
         },
       },
@@ -54,8 +46,8 @@ export default {
         component: () => import("./views/LlmChatView.vue"),
         meta: {
           get title() {
-            const { tRaw } = useI18n();
-            return tRaw("tools.llm-chat.common.对话详情");
+            const { t } = useI18n();
+            return t("tools.llm-chat.common.对话详情");
           },
         },
       },
@@ -65,8 +57,8 @@ export default {
         component: () => import("./views/UserProfilesView.vue"),
         meta: {
           get title() {
-            const { tRaw } = useI18n();
-            return tRaw("tools.llm-chat.UserProfiles.用户档案");
+            const { t } = useI18n();
+            return t("tools.llm-chat.UserProfiles.用户档案");
           },
         },
       },
@@ -76,8 +68,8 @@ export default {
         component: () => import("./views/WorldbooksView.vue"),
         meta: {
           get title() {
-            const { tRaw } = useI18n();
-            return tRaw("tools.llm-chat.Worldbooks.世界书");
+            const { t } = useI18n();
+            return t("tools.llm-chat.Worldbooks.世界书");
           },
         },
       },
@@ -87,8 +79,8 @@ export default {
         component: () => import("./views/ChatSettingsView.vue"),
         meta: {
           get title() {
-            const { tRaw } = useI18n();
-            return tRaw("tools.llm-chat.common.聊天设置");
+            const { t } = useI18n();
+            return t("tools.llm-chat.common.聊天设置");
           },
         },
       },

@@ -32,13 +32,13 @@ const handleNext = () => {
 
 <template>
   <div v-if="hasMultipleBranches" class="branch-switcher" @click.stop>
-    <button class="nav-btn" @click="handlePrev">
+    <button class="nav-btn" aria-label="上一条分支" @click="handlePrev">
       <ChevronLeft :size="14" />
     </button>
     <span class="branch-info">
       {{ branchInfo.index + 1 }} / {{ branchInfo.total }}
     </span>
-    <button class="nav-btn" @click="handleNext">
+    <button class="nav-btn" aria-label="下一条分支" @click="handleNext">
       <ChevronRight :size="14" />
     </button>
   </div>
@@ -50,10 +50,10 @@ const handleNext = () => {
   align-items: center;
   gap: 4px;
   padding: 2px 4px;
-  background: var(--el-fill-color-light);
-  border-radius: 12px;
-  font-size: 0.75rem;
-  color: var(--el-text-color-secondary);
+  background: var(--container-bg);
+  border-radius: var(--app-radius-lg);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-light);
   user-select: none;
   margin-top: 4px;
 }
@@ -64,6 +64,8 @@ const handleNext = () => {
   justify-content: center;
   width: 18px;
   height: 18px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   background: transparent;
   color: inherit;
@@ -73,7 +75,7 @@ const handleNext = () => {
 }
 
 .nav-btn:active {
-  background: var(--el-fill-color);
+  background: var(--container-bg);
 }
 
 .branch-info {

@@ -16,12 +16,14 @@
  * aio-file-operator 核心业务逻辑
  * 封装底层的 Tauri 命令调用、文档解析逻辑和换行符安全替换
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
+import { getAppWorkDir } from "@/utils/appPath";
 import { inferMimeTypeFromHint } from "@/utils/fileTypeDetector";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createConfigManager } from "@/utils/configManager";
 import {
   validatePath,
+  isPathWithinRoot,
   resolvePathForSecurity,
   checkSecurityPolicy,
   validateFileSize,
@@ -29,7 +31,8 @@ import {
   clampErrorMessage,
 } from "./utils/security";
 import { createLineEndingHelper } from "./utils/lineEnding";
-import { DEFAULT_CONFIG } from "./config";
+import { withFileOperationLocks } from "./utils/fileOperationQueue";
+import { DEFAULT_CONFIG, getDefaultAllowedDirectories } from "./config";
 import type {
   FileEntry,
   FileOperationResult,
@@ -46,10 +49,13 @@ const errorHandler = createModuleErrorHandler("AioFileOperator/Actions");
 /** 错误信息回显的最大长度，防止 Rust 侧异常内嵌超长路径污染上下文 */
 const ERROR_MESSAGE_MAX_LENGTH = 500;
 
+let defaultConfig = DEFAULT_CONFIG;
+let workingDirectory: string | null = null;
+
 export const configManager = createConfigManager<AioFileOperatorConfig>({
   moduleName: "aio-file-operator",
   fileName: "config.json",
-  createDefault: () => DEFAULT_CONFIG,
+  createDefault: () => cloneConfig(defaultConfig),
   mergeConfig: (defaults, loaded) => ({ ...defaults, ...loaded }),
 });
 
@@ -64,9 +70,16 @@ const operationLogs: OperationLogEntry[] = [];
 
 /** 隔离嵌套规则，保留保存前的配置快照。 */
 function cloneConfig(config: AioFileOperatorConfig): AioFileOperatorConfig {
+  const workDir = workingDirectory;
+  const allowedDirectories = config.allowedDirectories.filter(
+    (path) =>
+      !workDir ||
+      !(isPathWithinRoot(path, workDir) && isPathWithinRoot(workDir, path))
+  );
+  if (workDir) allowedDirectories.push(workDir);
   return {
     ...config,
-    allowedDirectories: [...config.allowedDirectories],
+    allowedDirectories,
     blackListRules: config.blackListRules.map((rule) => ({ ...rule })),
   };
 }
@@ -170,7 +183,29 @@ function getSecurityChanges(
 
 const initPromise = (async () => {
   try {
-    currentConfig = await configManager.load();
+    const [allowedDirectories, workDir] = await Promise.all([
+      getDefaultAllowedDirectories(),
+      getAppWorkDir().catch((error) => {
+        errorHandler.handle(error as Error, {
+          userMessage: "创建任务工作目录失败",
+          showToUser: false,
+        });
+        return null;
+      }),
+    ]);
+    workingDirectory = workDir?.replace(/\\/g, "/") ?? null;
+    defaultConfig = { ...DEFAULT_CONFIG, allowedDirectories };
+    const loaded = await configManager.load();
+    currentConfig = cloneConfig(loaded);
+    if (
+      currentConfig.allowedDirectories.length !==
+        loaded.allowedDirectories.length ||
+      currentConfig.allowedDirectories.some(
+        (path, index) => path !== loaded.allowedDirectories[index]
+      )
+    ) {
+      await configManager.save(currentConfig);
+    }
     const loadedLogs = await logManager.load();
     operationLogs.push(...(loadedLogs.logs || []));
   } catch (e) {
@@ -235,6 +270,12 @@ export async function setConfig(
 export async function getConfig(): Promise<AioFileOperatorConfig> {
   await ensureInitialized();
   return cloneConfig(currentConfig);
+}
+
+/** 当前应用的常驻任务工作目录；创建失败时返回 null。 */
+export async function getWorkingDirectory(): Promise<string | null> {
+  await ensureInitialized();
+  return workingDirectory;
 }
 
 /**
@@ -310,10 +351,27 @@ function buildErrorResult(
  * 读取文件内容
  * 支持文本、Office、PDF，以及图片、音频、视频的本地引用
  */
-export async function readFile(path: string): Promise<FileOperationResult> {
+export async function readFile(
+  path: string,
+  startLine?: number,
+  endLine?: number
+): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
     await validatePath(path, currentConfig);
+
+    const hasRange = startLine !== undefined || endLine !== undefined;
+    const firstLine = startLine ?? 1;
+    if (
+      !Number.isSafeInteger(firstLine) ||
+      firstLine < 1 ||
+      (endLine !== undefined &&
+        (!Number.isSafeInteger(endLine) || endLine < firstLine))
+    ) {
+      throw new Error(
+        "行范围无效：请使用从 1 开始的整数，结束行须大于或等于起始行。"
+      );
+    }
 
     // 检查文件元数据
     const metadata = await invoke<{
@@ -339,6 +397,7 @@ export async function readFile(path: string): Promise<FileOperationResult> {
       mediaType === "audio" ||
       mediaType === "video"
     ) {
+      if (hasRange) throw new Error("图片、音频和视频读取请省略行范围。");
       const resolvedPath = await resolvePathForSecurity(path);
       await validatePath(resolvedPath, currentConfig);
       const policy = await checkSecurityPolicy(
@@ -377,7 +436,11 @@ export async function readFile(path: string): Promise<FileOperationResult> {
       );
       if (convertedPath) {
         // 递归读取转换后的现代格式文件
-        const convertedResult = await readFile(convertedPath);
+        const convertedResult = await readFile(
+          convertedPath,
+          startLine,
+          endLine
+        );
         return {
           success: convertedResult.success,
           message: convertedResult.success
@@ -397,6 +460,7 @@ export async function readFile(path: string): Promise<FileOperationResult> {
         // Word 文档：使用项目已有的 parseDocx 解析（支持图片占位符、Markdown 转换）
         const arrayBuffer = await invoke<number[]>("read_file_binary", {
           path,
+          security: { ...currentConfig, approvalGranted: true },
         });
         const { parseDocx } = await import("@/utils/docxParser");
         const parseResult = await parseDocx(new Uint8Array(arrayBuffer).buffer);
@@ -407,6 +471,7 @@ export async function readFile(path: string): Promise<FileOperationResult> {
         // PowerPoint 文档：使用项目已有的 parsePptx 解析
         const arrayBuffer = await invoke<number[]>("read_file_binary", {
           path,
+          security: { ...currentConfig, approvalGranted: true },
         });
         const { parsePptx } = await import("@/utils/zipDocumentParser");
         const parseResult = await parsePptx(new Uint8Array(arrayBuffer).buffer);
@@ -417,6 +482,7 @@ export async function readFile(path: string): Promise<FileOperationResult> {
         // Excel 文档：使用项目已有的 parseXlsx 解析
         const arrayBuffer = await invoke<number[]>("read_file_binary", {
           path,
+          security: { ...currentConfig, approvalGranted: true },
         });
         const { parseXlsx } = await import("@/utils/zipDocumentParser");
         const parseResult = await parseXlsx(new Uint8Array(arrayBuffer).buffer);
@@ -427,6 +493,7 @@ export async function readFile(path: string): Promise<FileOperationResult> {
         // PDF 文档：使用 pdfjs-dist 逐页提取
         const arrayBuffer = await invoke<number[]>("read_file_binary", {
           path,
+          security: { ...currentConfig, approvalGranted: true },
         });
         const pdfjsLib = await import("pdfjs-dist");
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
@@ -445,23 +512,47 @@ export async function readFile(path: string): Promise<FileOperationResult> {
       }
       case "csv": {
         // CSV 文件：直接按文本读取
-        content = await invoke<string>("read_text_file_force", { path });
+        content = await invoke<string>("read_text_file_force", {
+          path,
+          security: { ...currentConfig, approvalGranted: true },
+        });
         break;
       }
       default: {
         // 普通文本文件
-        content = await invoke<string>("read_text_file_force", { path });
+        content = await invoke<string>("read_text_file_force", {
+          path,
+          security: { ...currentConfig, approvalGranted: true },
+        });
         break;
       }
     }
 
+    let lineRange;
+    if (hasRange) {
+      // 保留每行原有的换行符；末尾换行不额外计作空白行。
+      const lines =
+        content.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g)?.filter(Boolean) ?? [];
+      const selected = lines.slice(firstLine - 1, endLine);
+      lineRange = {
+        startLine: selected.length ? firstLine : null,
+        endLine: selected.length ? firstLine + selected.length - 1 : null,
+        totalLines: lines.length,
+        returnedLines: selected.length,
+      };
+      content = selected.join("");
+    }
     const result: FileOperationResult = {
       success: true,
       message: `成功读取文件: ${path}`,
-      data: { content, size: metadata.size },
+      data: {
+        content,
+        size: metadata.size,
+        ...(lineRange ? { lineRange } : {}),
+      },
     };
 
-    recordLog("readFile", { path }, result);
+    recordLog("readFile", { path, startLine, endLine }, result);
     return result;
   } catch (error: any) {
     return buildErrorResult("readFile", { path }, error, "读取文件失败");
@@ -493,10 +584,37 @@ export async function readLocalMediaFile(
   if (!metadata.isFile) throw new Error(`路径不是文件: ${path}`);
   validateFileSize(metadata.size, currentConfig.maxFileSize);
   const bytes = new Uint8Array(
-    await invoke<number[]>("read_file_binary", { path })
+    await invoke<number[]>("read_file_binary", {
+      path,
+      security: { ...currentConfig, approvalGranted },
+    })
   );
   validateFileSize(bytes.byteLength, currentConfig.maxFileSize);
   return bytes.buffer;
+}
+
+/** 排队后按当前规则复检，审批区仅接受执行入口传来的实际授权。 */
+async function getMutationSecurity(
+  method: string,
+  args: Record<string, string>,
+  approvalGranted: boolean
+) {
+  const config = currentConfig;
+  const policy = await checkSecurityPolicy(method, args, config);
+  if (
+    config !== currentConfig &&
+    (config.maxFileSize !== currentConfig.maxFileSize ||
+      getSecurityChanges(config, currentConfig).length > 0)
+  ) {
+    throw new Error("文件安全规则已变更，请重新发起请求。");
+  }
+  if (policy.status === "block") {
+    throw new Error(policy.message || "当前路径禁止访问");
+  }
+  if (policy.status === "approve" && !approvalGranted) {
+    throw new Error("当前文件操作需要审批，请重新发起请求并完成审批。");
+  }
+  return { ...config, approvalGranted };
 }
 
 /**
@@ -505,80 +623,119 @@ export async function readLocalMediaFile(
 export async function writeFile(
   path: string,
   content: string,
-  allowOverwrite?: boolean
+  allowOverwrite?: boolean,
+  signal?: AbortSignal,
+  approvalGranted = false
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await validatePath(path, currentConfig);
+    let lockedTarget = path;
+    while (true) {
+      const outcome = await withFileOperationLocks(
+        [path, lockedTarget],
+        async () => {
+          await validatePath(path, currentConfig);
 
-    // 检查文件是否已存在，如果存在则根据策略决定是否覆盖
-    const exists = await invoke<boolean>("path_exists", { path });
-    let finalPath = path;
-    let isOverwritten = false;
+          validateFileSize(
+            new TextEncoder().encode(content).byteLength,
+            currentConfig.maxFileSize
+          );
+          // 检查文件是否已存在，如果存在则根据策略决定是否覆盖
+          const exists = await invoke<boolean>("path_exists", { path });
+          let finalPath = path;
+          let isOverwritten = false;
 
-    if (exists) {
-      const policy = currentConfig.overwritePolicy || "follow";
-      const shouldOverwrite =
-        policy === "always" || (policy === "follow" && allowOverwrite === true);
+          if (exists) {
+            const policy = currentConfig.overwritePolicy || "follow";
+            const shouldOverwrite =
+              policy === "always" ||
+              (policy === "follow" && allowOverwrite === true);
 
-      if (!shouldOverwrite) {
-        const lastDot = path.lastIndexOf(".");
-        const base = lastDot > 0 ? path.substring(0, lastDot) : path;
-        const ext = lastDot > 0 ? path.substring(lastDot) : "";
-        let counter = 1;
-        while (await invoke<boolean>("path_exists", { path: finalPath })) {
-          finalPath = `${base}(${counter})${ext}`;
-          counter++;
-        }
-      } else {
-        isOverwritten = true;
-      }
+            if (!shouldOverwrite) {
+              const separator = Math.max(
+                path.lastIndexOf("/"),
+                path.lastIndexOf("\\")
+              );
+              const lastDot =
+                path.lastIndexOf(".") > separator + 1
+                  ? path.lastIndexOf(".")
+                  : -1;
+              const base = lastDot > 0 ? path.substring(0, lastDot) : path;
+              const ext = lastDot > 0 ? path.substring(lastDot) : "";
+              let counter = 1;
+              while (
+                await invoke<boolean>("path_exists", { path: finalPath })
+              ) {
+                finalPath = `${base}(${counter})${ext}`;
+                counter++;
+              }
+            } else {
+              isOverwritten = true;
+            }
+          }
+
+          // 释放旧预留后一次取得原路径与候选目标，避免动态加锁交叉等待。
+          if (finalPath !== lockedTarget) return { retryPath: finalPath };
+
+          // 自动重命名后的路径同样受到安全规则约束。
+          await validatePath(finalPath, currentConfig);
+          const originalPolicy = await checkSecurityPolicy(
+            "write_file",
+            { path },
+            currentConfig
+          );
+          const finalPolicy = await checkSecurityPolicy(
+            "write_file",
+            { path: finalPath },
+            currentConfig
+          );
+          if (
+            finalPolicy.status === "approve" &&
+            originalPolicy.status !== "approve"
+          ) {
+            throw new Error(
+              "自动重命名后的路径需要审批，请使用该路径重新发起写入。"
+            );
+          }
+
+          // 原生命令在安全检查通过后创建父目录。
+          const security = await getMutationSecurity(
+            "write_file",
+            { path: finalPath },
+            approvalGranted
+          );
+
+          // 写入文件
+          signal?.throwIfAborted();
+          await invoke("write_text_file_force", {
+            path: finalPath,
+            content,
+            overwrite: isOverwritten,
+            security,
+          });
+
+          const result: FileOperationResult = {
+            success: true,
+            message: isOverwritten
+              ? `文件已存在，已覆盖写入: ${finalPath}`
+              : exists && finalPath !== path
+                ? `文件已存在，已保存为: ${finalPath}`
+                : `成功写入文件: ${finalPath}`,
+            data: { path: finalPath },
+          };
+
+          recordLog(
+            "writeFile",
+            { path, contentLength: content.length, allowOverwrite },
+            result
+          );
+          return { result };
+        },
+        signal
+      );
+      if (outcome.result) return outcome.result;
+      lockedTarget = outcome.retryPath!;
     }
-
-    // 自动重命名后的路径同样受到安全规则约束。
-    await validatePath(finalPath, currentConfig);
-    const originalPolicy = await checkSecurityPolicy(
-      "write_file",
-      { path },
-      currentConfig
-    );
-    const finalPolicy = await checkSecurityPolicy(
-      "write_file",
-      { path: finalPath },
-      currentConfig
-    );
-    if (
-      finalPolicy.status === "approve" &&
-      originalPolicy.status !== "approve"
-    ) {
-      throw new Error("自动重命名后的路径需要审批，请使用该路径重新发起写入。");
-    }
-
-    // 确保父目录存在
-    const parentDir = finalPath.substring(0, finalPath.lastIndexOf("/"));
-    if (parentDir) {
-      await invoke("create_dir_force", { path: parentDir });
-    }
-
-    // 写入文件
-    await invoke("write_text_file_force", { path: finalPath, content });
-
-    const result: FileOperationResult = {
-      success: true,
-      message: isOverwritten
-        ? `文件已存在，已覆盖写入: ${finalPath}`
-        : exists && finalPath !== path
-          ? `文件已存在，已保存为: ${finalPath}`
-          : `成功写入文件: ${finalPath}`,
-      data: { path: finalPath },
-    };
-
-    recordLog(
-      "writeFile",
-      { path, contentLength: content.length, allowOverwrite },
-      result
-    );
-    return result;
   } catch (error: any) {
     return buildErrorResult(
       "writeFile",
@@ -594,24 +751,45 @@ export async function writeFile(
  */
 export async function appendFile(
   path: string,
-  content: string
+  content: string,
+  signal?: AbortSignal,
+  approvalGranted = false
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await validatePath(path, currentConfig);
+    return await withFileOperationLocks(
+      [path],
+      async () => {
+        validateFileSize(
+          new TextEncoder().encode(content).byteLength,
+          currentConfig.maxFileSize
+        );
+        const security = await getMutationSecurity(
+          "append_file",
+          { path },
+          approvalGranted
+        );
+        signal?.throwIfAborted();
+        await invoke("append_file_force", {
+          path,
+          content: new TextEncoder().encode(content),
+          security,
+        });
 
-    await invoke("append_file_force", {
-      path,
-      content: new TextEncoder().encode(content),
-    });
+        const result: FileOperationResult = {
+          success: true,
+          message: `成功追加内容到文件: ${path}`,
+        };
 
-    const result: FileOperationResult = {
-      success: true,
-      message: `成功追加内容到文件: ${path}`,
-    };
-
-    recordLog("appendFile", { path, contentLength: content.length }, result);
-    return result;
+        recordLog(
+          "appendFile",
+          { path, contentLength: content.length },
+          result
+        );
+        return result;
+      },
+      signal
+    );
   } catch (error: any) {
     return buildErrorResult("appendFile", { path }, error, "追加文件失败");
   }
@@ -620,23 +798,38 @@ export async function appendFile(
 /**
  * 安全删除文件（移入回收站）
  */
-export async function deleteFile(path: string): Promise<FileOperationResult> {
+export async function deleteFile(
+  path: string,
+  signal?: AbortSignal,
+  approvalGranted = false
+): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await validatePath(path, currentConfig);
+    return await withFileOperationLocks(
+      [path],
+      async () => {
+        const security = await getMutationSecurity(
+          "delete_file",
+          { path },
+          approvalGranted
+        );
+        signal?.throwIfAborted();
 
-    await invoke("delete_file_to_trash", {
-      filePath: path,
-      security: { ...currentConfig, approvalGranted: true },
-    });
+        await invoke("delete_file_to_trash", {
+          filePath: path,
+          security,
+        });
 
-    const result: FileOperationResult = {
-      success: true,
-      message: `文件已移入回收站: ${path}`,
-    };
+        const result: FileOperationResult = {
+          success: true,
+          message: `文件已移入回收站: ${path}`,
+        };
 
-    recordLog("deleteFile", { path }, result);
-    return result;
+        recordLog("deleteFile", { path }, result);
+        return result;
+      },
+      signal
+    );
   } catch (error: any) {
     return buildErrorResult("deleteFile", { path }, error, "删除文件失败");
   }
@@ -719,64 +912,96 @@ export async function applyDiff(
   path: string,
   search: string,
   replace: string,
-  startLine?: number
+  startLine?: number,
+  signal?: AbortSignal,
+  approvalGranted = false
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await validatePath(path, currentConfig);
+    return await withFileOperationLocks(
+      [path],
+      async () => {
+        const readSecurity = await getMutationSecurity(
+          "apply_diff",
+          { path },
+          approvalGranted
+        );
+        // 读取原始文件内容
+        const originalContent = await invoke<string>("read_text_file_force", {
+          path,
+          security: readSecurity,
+        });
 
-    // 读取原始文件内容
-    const originalContent = await invoke<string>("read_text_file_force", {
-      path,
-    });
+        validateFileSize(
+          new TextEncoder().encode(originalContent).byteLength,
+          currentConfig.maxFileSize
+        );
 
-    // 创建换行符辅助工具
-    const lineHelper = createLineEndingHelper(originalContent);
+        // 创建换行符辅助工具
+        const lineHelper = createLineEndingHelper(originalContent);
 
-    // 归一化换行符
-    const normalizedContent = lineHelper.normalize(originalContent);
-    const normalizedSearch = lineHelper.normalize(search);
-    const normalizedReplace = lineHelper.normalize(replace);
+        // 归一化换行符
+        const normalizedContent = lineHelper.normalize(originalContent);
+        const normalizedSearch = lineHelper.normalize(search);
+        const normalizedReplace = lineHelper.normalize(replace);
 
-    // 直接复用 web-canvas 的 Diff 引擎
-    const { applySearchReplaceDiff } = await import("../web-canvas/utils/diff");
-    const diffResult = applySearchReplaceDiff(
-      normalizedContent,
-      normalizedSearch,
-      normalizedReplace,
-      {
-        startLine,
-      }
-    );
+        // 直接复用 web-canvas 的 Diff 引擎
+        const { applySearchReplaceDiff } =
+          await import("../web-canvas/utils/diff");
+        const diffResult = applySearchReplaceDiff(
+          normalizedContent,
+          normalizedSearch,
+          normalizedReplace,
+          {
+            startLine,
+          }
+        );
 
-    // 还原换行符
-    const finalContent = lineHelper.restore(diffResult.content);
+        // 还原换行符
+        const finalContent = lineHelper.restore(diffResult.content);
 
-    // 写入文件
-    await invoke("write_text_file_force", { path, content: finalContent });
+        // 修改后的 UTF-8 字节数同样受限制，超限时保留原文件。
+        validateFileSize(
+          new TextEncoder().encode(finalContent).byteLength,
+          currentConfig.maxFileSize
+        );
+        const security = await getMutationSecurity(
+          "apply_diff",
+          { path },
+          approvalGranted
+        );
+        signal?.throwIfAborted();
+        await invoke("write_text_file_force", {
+          path,
+          content: finalContent,
+          security,
+        });
 
-    const result: FileOperationResult = {
-      success: true,
-      message: `成功应用 Diff 到文件: ${path}（策略: ${diffResult.strategy}，行 ${diffResult.matchRange[0]}-${diffResult.matchRange[1]}）`,
-      data: {
-        strategy: diffResult.strategy,
-        confidence: diffResult.confidence,
-        matchRange: diffResult.matchRange,
-        warnings: diffResult.warnings,
+        const result: FileOperationResult = {
+          success: true,
+          message: `成功应用 Diff 到文件: ${path}（策略: ${diffResult.strategy}，行 ${diffResult.matchRange[0]}-${diffResult.matchRange[1]}）`,
+          data: {
+            strategy: diffResult.strategy,
+            confidence: diffResult.confidence,
+            matchRange: diffResult.matchRange,
+            warnings: diffResult.warnings,
+          },
+        };
+
+        recordLog(
+          "applyDiff",
+          {
+            path,
+            searchLength: search.length,
+            replaceLength: replace.length,
+            startLine,
+          },
+          result
+        );
+        return result;
       },
-    };
-
-    recordLog(
-      "applyDiff",
-      {
-        path,
-        searchLength: search.length,
-        replaceLength: replace.length,
-        startLine,
-      },
-      result
+      signal
     );
-    return result;
   } catch (error: any) {
     return buildErrorResult(
       "applyDiff",
@@ -796,21 +1021,34 @@ export async function applyDiff(
  * 创建目录
  */
 export async function createDirectory(
-  path: string
+  path: string,
+  signal?: AbortSignal,
+  approvalGranted = false
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await validatePath(path, currentConfig);
+    return await withFileOperationLocks(
+      [path],
+      async () => {
+        await getMutationSecurity(
+          "create_directory",
+          { path },
+          approvalGranted
+        );
+        signal?.throwIfAborted();
 
-    await invoke("create_dir_force", { path });
+        await invoke("create_dir_force", { path });
 
-    const result: FileOperationResult = {
-      success: true,
-      message: `成功创建目录: ${path}`,
-    };
+        const result: FileOperationResult = {
+          success: true,
+          message: `成功创建目录: ${path}`,
+        };
 
-    recordLog("createDirectory", { path }, result);
-    return result;
+        recordLog("createDirectory", { path }, result);
+        return result;
+      },
+      signal
+    );
   } catch (error: any) {
     return buildErrorResult("createDirectory", { path }, error, "创建目录失败");
   }
@@ -844,30 +1082,40 @@ export async function pathExists(path: string): Promise<FileOperationResult> {
 export async function copyFile(
   sourcePath: string,
   targetPath: string,
-  allowOverwrite?: boolean
+  allowOverwrite?: boolean,
+  signal?: AbortSignal,
+  approvalGranted = false
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await Promise.all([
-      validatePath(sourcePath, currentConfig),
-      validatePath(targetPath, currentConfig),
-    ]);
+    return await withFileOperationLocks(
+      [sourcePath, targetPath],
+      async () => {
+        const security = await getMutationSecurity(
+          "copy_file",
+          { sourcePath, targetPath },
+          approvalGranted
+        );
+        signal?.throwIfAborted();
 
-    await invoke("copy_path_force", {
-      sourcePath,
-      targetPath,
-      overwrite: allowOverwrite === true,
-      security: { ...currentConfig, approvalGranted: true },
-    });
+        await invoke("copy_path_force", {
+          sourcePath,
+          targetPath,
+          overwrite: allowOverwrite === true,
+          security,
+        });
 
-    const result: FileOperationResult = {
-      success: true,
-      message: `成功复制: ${sourcePath} → ${targetPath}`,
-      data: { sourcePath, targetPath },
-    };
+        const result: FileOperationResult = {
+          success: true,
+          message: `成功复制: ${sourcePath} → ${targetPath}`,
+          data: { sourcePath, targetPath },
+        };
 
-    recordLog("copyFile", { sourcePath, targetPath }, result);
-    return result;
+        recordLog("copyFile", { sourcePath, targetPath }, result);
+        return result;
+      },
+      signal
+    );
   } catch (error: any) {
     return buildErrorResult(
       "copyFile",
@@ -884,30 +1132,40 @@ export async function copyFile(
 export async function moveFile(
   sourcePath: string,
   targetPath: string,
-  allowOverwrite?: boolean
+  allowOverwrite?: boolean,
+  signal?: AbortSignal,
+  approvalGranted = false
 ): Promise<FileOperationResult> {
   try {
     await ensureInitialized();
-    await Promise.all([
-      validatePath(sourcePath, currentConfig),
-      validatePath(targetPath, currentConfig),
-    ]);
+    return await withFileOperationLocks(
+      [sourcePath, targetPath],
+      async () => {
+        const security = await getMutationSecurity(
+          "move_file",
+          { sourcePath, targetPath },
+          approvalGranted
+        );
+        signal?.throwIfAborted();
 
-    await invoke("move_path_force", {
-      sourcePath,
-      targetPath,
-      overwrite: allowOverwrite === true,
-      security: { ...currentConfig, approvalGranted: true },
-    });
+        await invoke("move_path_force", {
+          sourcePath,
+          targetPath,
+          overwrite: allowOverwrite === true,
+          security,
+        });
 
-    const result: FileOperationResult = {
-      success: true,
-      message: `成功移动: ${sourcePath} → ${targetPath}`,
-      data: { sourcePath, targetPath },
-    };
+        const result: FileOperationResult = {
+          success: true,
+          message: `成功移动: ${sourcePath} → ${targetPath}`,
+          data: { sourcePath, targetPath },
+        };
 
-    recordLog("moveFile", { sourcePath, targetPath }, result);
-    return result;
+        recordLog("moveFile", { sourcePath, targetPath }, result);
+        return result;
+      },
+      signal
+    );
   } catch (error: any) {
     return buildErrorResult(
       "moveFile",

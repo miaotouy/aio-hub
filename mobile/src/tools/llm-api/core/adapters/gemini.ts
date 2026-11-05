@@ -49,8 +49,8 @@ export const geminiUrlHandler = {
       : `${versionedHost}models/{model}:generateContent`;
   },
   getHint: (): string => {
-    const { tRaw } = useI18n();
-    return tRaw("tools.llm-api.Adapters.Gemini提示");
+    const { t } = useI18n();
+    return t("tools.llm-api.Adapters.Gemini提示");
   },
 };
 
@@ -95,6 +95,9 @@ export const callGeminiEmbeddingApi = (
 export function toMobileGeminiCoreRequest(
   options: GeminiRequestOptions
 ): CoreLlmRequest {
+  // Agent 自定义参数（parameters.custom）由共享的 toOpenAiCompatibleCoreRequest
+  // 按桌面语义解包并并入 core request.extensions，最终随请求体一起合并；
+  // Gemini 适配器无需单独读取，也不能把它写进 contents / generationConfig 结构。
   const request = toOpenAiCompatibleCoreRequest(options);
   request.stream = Boolean(
     options.stream && (options.onStream || options.onReasoningStream)

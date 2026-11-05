@@ -12,11 +12,11 @@ import {
   ChevronLeft,
 } from "lucide-vue-next";
 import LogEntryItem from "../components/LogEntryItem.vue";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 import { useRouter } from "vue-router";
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.log-manager.LogManagerView.${key}`);
+const { useScopedT, t: gt } = useI18n();
+const t = useScopedT("tools.log-manager.LogManagerView");
 const router = useRouter();
 
 // 状态
@@ -82,15 +82,15 @@ onUnmounted(() => {
 
 // 操作
 const handleClear = async () => {
-  const result = await Dialog({
-    title: t("common.提示"),
+  const confirmed = await customDialog({
+    title: gt("common.提示"),
     message: t("确认清空"),
   });
 
-  if (result === "confirm") {
+  if (confirmed) {
     logger.clearLogs();
     logs.value = [];
-    Snackbar.success(t("common.成功"));
+    customMessage(gt("common.成功"), "success");
   }
 };
 
@@ -103,16 +103,16 @@ const handleExport = () => {
   a.download = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  Snackbar.success(t("导出成功"));
+  customMessage(t("导出成功"), "success");
 };
 
 const handleCopyAll = async () => {
   const content = logger.exportLogs();
   try {
     await navigator.clipboard.writeText(content);
-    Snackbar.success(t("已复制到剪贴板"));
+    customMessage(t("已复制到剪贴板"), "success");
   } catch (err) {
-    Snackbar.error(t("common.失败"));
+    customMessage(gt("common.失败"), "error");
   }
 };
 
@@ -139,6 +139,7 @@ watch([searchQuery, selectedLevel], () => {
           color="transparent"
           text-color="var(--text-color)"
           class="back-button"
+          aria-label="返回"
           @click="goHome"
         >
           <ChevronLeft :size="24" />
@@ -249,14 +250,14 @@ watch([searchQuery, selectedLevel], () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-body);
+  background-color: var(--bg-color);
 }
 
 .toolbar {
   padding: 8px 16px;
   padding-top: calc(8px + var(--app-safe-area-top));
-  background-color: var(--color-surface-container);
-  border-bottom: 1px solid var(--color-outline-variant);
+  background-color: var(--container-bg);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -310,7 +311,7 @@ watch([searchQuery, selectedLevel], () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-placeholder);
+  color: var(--text-color-light);
 }
 
 .empty-icon {
@@ -319,15 +320,15 @@ watch([searchQuery, selectedLevel], () => {
 }
 
 .empty-text {
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .footer-actions {
   padding: 12px 16px;
   /* 默认包含底部安全区，但在键盘弹出时会被 App.vue 的全局样式抵消 padding */
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
-  background-color: var(--color-surface-container);
-  border-top: 1px solid var(--color-outline-variant);
+  background-color: var(--container-bg);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -346,7 +347,7 @@ watch([searchQuery, selectedLevel], () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 :deep(.var-input) {

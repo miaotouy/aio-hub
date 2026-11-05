@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildExecutionPlan, formatShellCommand } from "../utils/executionPlan";
 import { useFFmpegCommand } from "../composables/useFFmpegCommand";
 const { platform } = vi.hoisted(() => ({ platform: vi.fn() }));
-vi.mock("@tauri-apps/plugin-os", () => ({ platform }));
+vi.mock("@/platform/native/os", () => ({ platform }));
 
 // 防止真实平台接入时，复制入口选错终端格式。
 describe("FFmpeg 命令的平台选择", () => {

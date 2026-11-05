@@ -1,6 +1,6 @@
 # Recall（思绪）架构说明
 
-> 最后更新：2026-10-18
+> 最后更新：2026-11-05
 
 Recall 是 AIO Hub 的完整语义条目与召回领域。它管理思绪集、原子条目、标签、优先级、向量及检索运行时，不负责文档切片、文件同步或来源回溯；后者属于独立的 Knowledge 文档资料域。
 
@@ -35,6 +35,7 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `core/`：Embedding、检索策略、查询准备与标签生成等纯逻辑。
 - `types/`：Recall 对外类型与迁移期兼容契约；`types/pipeline.ts` 定义检索管线 v1 wire contract。
 - `utils/recallStorage.ts`：Recall repository IPC 薄客户端和 UI workspace 配置管理。
+- `utils/recallTime.ts`：将旧/native 秒时间戳与浏览器毫秒时间戳统一用于日期展示和更新时间排序，保持原始持久化数据。
 
 ### 2.2 后端 `src-tauri/src/recall/`
 
@@ -48,7 +49,11 @@ Recall 条目不自动切片，也不保存文档 manifest、文件监听状态�
 - `io.rs`：Stage 2 前对旧文件目录的读写。
 - `tag_pool.rs`：按 Embedding 模型隔离的标签向量运行时。
 - `utils.rs` 的余弦相似度使用 `f64` 累加，并将空向量、维度不一致、零能量或包含非有限数值的向量稳定降级为 `0`，避免异常向量把 `NaN` 传播到排序与阈值模块。
-- `monitor.rs`：`recall-monitor` 事件和心跳 command。
+- `entry_import.rs`：跨宿主共享的文件扫描、导入配置与结果、文本提取和 Index 监控构造；文本识别复用 `src-tauri/src/utils/text_file.rs`。
+- `statistics.rs`：按所选模型从 repository 计算集合、条目、向量、token 与标签统计。
+- `backup_archive.rs`：两宿主共享的单包/多库格式、归档校验、写入函数和只读检查，冲突信息直接读取 repository；格式与输入兼容测试集中于 `backup_archive_tests.rs`。
+- `backup_conversion.rs`：显式将旧格式标题与正文转换为 Knowledge 文档，复用 Knowledge repository，保留摘要兜底、空条目处理、告警和新库回滚。
+- `monitor_types.rs`：两宿主共享的监控事件序列化结构；`monitor.rs` 提供 Tauri 事件发送和心跳 command。
 
 `src-tauri/src/lib.rs` 管理 `RecallState`，并在 Tauri `setup` 阶段初始化 repository 与内存读模型；`src-tauri/src/commands.rs` 注册 `recall_*` commands。Knowledge 域持有自己的 repository 与 `knowledge_*` commands，不持有 Recall 状态，也不导出 Recall 命令。
 
@@ -165,7 +170,11 @@ appData/knowledge/
 
 旧格式中的 “knowledge library / 知识库” 是重构前的产品命名，底层实际使用思绪条目结构，不天然等同于新版 Knowledge 文档资料域。检查旧包时后端返回 `legacyRecallBackup` 结构化告警；前端在导入前说明两种去向：完整恢复到 Recall / 思绪，或将旧条目的标题和 Markdown 正文不可逆转换成新版 Knowledge 文档。默认推荐思绪；仅当用户确认旧内容当作传统文档库使用时才进入二次确认并转换到 Knowledge。Knowledge 转换会为每个旧集合新建资料库，任一文档写入失败则删除本次新库；原备份不修改，但标签、优先级、启用状态、条目关联和附件不转换为 Knowledge 字段。
 
-`appData/recall/recall.db` 与 `recall-vectors.db` 构成 Recall SQLite repository，并各自维护 migration 表；主库 schema v2 持久化集合活动模型，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段只初始化 repository、检测旧目录并 warmup 内存读模型，不执行旧用户数据迁移；`recall_initialize` 是幂等初始化入口。集合、条目、向量、标签池 command 与备份导入导出均以 repository 为真源。`LegacyFileRecallImporter` 负责旧集合、条目、向量与 tag pool 的幂等导入、运行状态续跑和结构化报告；执行迁移前必须校验 migration ID、source fingerprint 和用户确认，迁移可在中断后从已提交状态继续。迁移失败或验证未通过时必须保留源目录并返回原因，只有验证完成且用户再次确认后才能清理。
+Electron 通过 N-API 复用共享核心，接通单包/多库检查、旧版转 Knowledge、含资产恢复、单集合/批量导出与窗口所属取消；AssetManager 持有资产归属、去重与失败回滚。界面沿用旧格式去向选择、转换二次确认与当前格式冲突策略。应用退出等待已接收的备份任务收尾。
+
+Windows 生产资源已通过真实系统选择器验证多文件导入、损坏文件失败隔离、冲突导入副本及跳过、单包/批量目录导出。运行中点击“停止后续项目”后，当前集合完成、后续集合显示跳过，源集合保留且暂存目录清理；随后可完整导出原选择。含资产包、联合主键隔离和退出后独立进程恢复已验证。替换现有集合的二次确认 UI 与跨平台交互按 [Electron 执行待办](../../../docs/Plan/electron-feature-gap-execution.md) 接续。
+
+`appData/recall/recall.db` 与 `recall-vectors.db` 构成 Recall SQLite repository，并各自维护 migration 表；主库 schema v3 在保留集合活动模型的基础上，将条目主键迁移为 `(collection_id, id)`；复制恢复保留条目 ID，条目内容、向量状态与删除均按集合隔离。旧 v2 数据在事务内保留迁移，模型维度、tokens 和最后索引时间从向量库统计恢复。Tauri 启动阶段只初始化 repository、检测旧目录并 warmup 内存读模型，不执行旧用户数据迁移；`recall_initialize` 是幂等初始化入口。集合、条目、向量、标签池 command 与备份导入导出均以 repository 为真源。`LegacyFileRecallImporter` 负责旧集合、条目、向量与 tag pool 的幂等导入、运行状态续跑和结构化报告；执行迁移前必须校验 migration ID、source fingerprint 和用户确认，迁移可在中断后从已提交状态继续。迁移失败或验证未通过时必须保留源目录并返回原因，只有验证完成且用户再次确认后才能清理。
 
 稳定的数据真源、写入顺序、备份格式、旧目录清理条件和迁移报告字段见 `docs/architecture/storage-migration-contract.md`。
 

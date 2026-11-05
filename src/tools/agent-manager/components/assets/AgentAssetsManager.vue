@@ -23,8 +23,8 @@ import { createAssetDescriber } from "../../services/agentAssetDescriptionServic
 import { assetDescriptionSettingsManager } from "../../services/agentAssetDescriptionSettings";
 import { useAssetDescriptionGeneration } from "./useAssetDescriptionGeneration";
 import AgentAssetDescriptionSettingsDialog from "./AgentAssetDescriptionSettingsDialog.vue";
-import { invoke } from "@tauri-apps/api/core";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
+import { convertFileSrc } from "@/platform/native/core";
 import { Plus } from "@element-plus/icons-vue";
 import { useImageViewer } from "@/composables/useImageViewer";
 import { useClipboard } from "@vueuse/core";

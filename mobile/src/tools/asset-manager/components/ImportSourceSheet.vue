@@ -100,12 +100,12 @@ const emit = defineEmits<{
 
 .sheet-header h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--font-size-lg);
 }
 .sheet-header p {
   margin: 4px 0 0;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .icon-button {
@@ -148,10 +148,10 @@ const emit = defineEmits<{
   gap: 3px;
 }
 .source-actions strong {
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 .source-actions small {
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 </style>

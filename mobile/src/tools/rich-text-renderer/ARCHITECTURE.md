@@ -13,7 +13,7 @@
 - 当前消息拥有的 `asset://<assetId>` 媒体仅经受控 `MediaItem` resolver 打开；
 - 未受信任 HTML、链接协议和桌面专属交互不扩大移动端执行面。
 
-它不是桌面 AST/Patch 引擎的逐文件副本。桌面 AST、节点复用、Worker tokenizer 和 Patch 管线只在移动端真实性能证据证明必要时，按独立阶段迁移。
+它不要求盲目逐文件照搬桌面复杂配置，但必须建立规范的 AST 节点树与统一派发（AstNodeRenderer）以及流式稳定区机制，作为支持复杂嵌套、公式、思考块、代码块、受管媒体及流式状态保持的核心基础设施。Worker 离线分词器与重度桌面交互按需后置。
 
 ## 2. 目录与职责
 
@@ -73,14 +73,14 @@ flowchart LR
 - 正式聊天 generating 状态下首个 Markdown heading 的挂载；
 - 正式聊天中的 fenced code、行内 KaTeX、GitHub `TIP`、原始 HTML 字面回退与受管图片预览。
 
-AVD 不是 Android 真机或 iOS 发布门禁；真实手势、内存释放、长消息性能、原生全屏/方向和 iOS 仍待独立验收。
+AVD 不是 Android 真机或 iOS 发布后续验证；真实手势、内存释放、长消息性能、原生全屏/方向和 iOS 仍待独立验收。
 
 ## 6. 当前不迁移的桌面能力
 
 以下能力不因“桌面已有”而自动进入移动端：
 
-- 完整 AST/Patch 更新、稳定区/待定区复用和 Worker tokenizer；
-- CodeMirror、桌面代码高亮配置、导出、缩放和桌面媒体播放器；
+- Web Worker 离线分词器（主线程 AST 解析经实测若无卡顿则不提前增加复杂线程通信）；
+- CodeMirror、桌面重度代码高亮配置、导出、桌面媒体播放器；
 - HTML 预览、内联样式隔离、动作按钮、会话变量执行和任何模型文本驱动的交互执行；
 - 自动探测或跨消息访问受管资产。
 
@@ -92,3 +92,18 @@ AVD 不是 Android 真机或 iOS 发布门禁；真实手势、内存释放、�
 - 移动端构建：`cd mobile && bun run build`；
 - Android 真实 WebView：`tests/mobile-android-e2e/run.ts --preset rich-text-media --avd Medium_Phone_API_36 --apk <apk>`；
 - 施工计划：[`docs/Plan/rich-text-renderer-migration-plan.md`](./docs/Plan/rich-text-renderer-migration-plan.md)。
+
+## 10. 2026-09-25 交互收口
+
+- 聊天正文的富文本排版改用移动端主题 token，减少桌面端 Element 变量泄漏到 WebView 的视觉差异。
+- 代码块保留复制和换行操作，表格在窄屏下保持可读的横向滚动，图片限制最大宽度并允许长文本安全断行。
+- 流式刷新继续使用固定节奏节流，完成态立即提交最后内容；这保证输入流畅，也避免消息列表随着每个字符抖动。
+- 渲染器不恢复 raw `v-html`；HTML token、危险协议和未受管本地资源维持安全降级。
+
+## 11. 2026-10-02 窄屏排版收口
+
+- **断行策略**：渲染器根容器统一使用 `overflow-wrap: anywhere` + `word-break: normal`，长 URL / 长 token 在段落、标题、列表项内可断；`.md-inline-code` 与 `.md-html` 从 `word-break: break-all` 升级为 `overflow-wrap: anywhere`，避免破坏常规英文排版。
+- **表格**：`.md-table-wrapper` 维持横向滚动（补 `min-width: 0` 与触摸惯性滚动），`table` 设 `min-width: max-content` 保证列不被压碎；`th`/`td` 允许长文本断行，宽表格只在 wrapper 内滚动，不撑破消息容器。
+- **代码块**：`CodeBlock.vue` 保持 `white-space: pre` + `max-height: 50vh` + 内部横向/纵向滚动为默认，仅补 `min-width: 0`，使 `max-width: 100%` 在 flex/grid 父容器中不失效；换行按钮交互未改动。
+- **VCP 结果**：`.vcp-pre` 对齐代码块策略补 `max-height: 50vh` + `overflow: auto`，长工具结果不再撑爆单条消息高度；折叠交互未改动。ThinkBlock 无独立 `pre`，长文本由渲染器根约束，未加内部滚动。
+- **长消息滚动**：渲染器自身不建立纵向滚动容器，由 `.message-scroll-container` 统一滚动；消息气泡链路（`.content-body`、`.message-content`、`.text-content`、`.reasoning-content`）补齐 `min-width: 0` / `max-width: 100%`，配合根断行约束消除水平溢出。

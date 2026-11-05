@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import {
   applyKnowledgeLibraryConfig,
   createKnowledgeLibrary,
@@ -28,7 +28,7 @@ const embeddingMocks = vi.hoisted(() => ({
   enabledProfiles: { value: [] as unknown[] },
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@/platform/native/core", () => ({ invoke: vi.fn() }));
 vi.mock("@/llm-apis/embedding", () => ({
   callEmbeddingApi: embeddingMocks.call,
 }));

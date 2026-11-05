@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   computed,
   defineComponent,
@@ -129,7 +131,7 @@ function startObserver() {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["style", "class"],
+    attributeFilter: ["style", "class", "hidden"],
   });
 }
 
@@ -286,8 +288,8 @@ function resetCopyState() {
 
 async function writeText(text: string) {
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
+    if (getBrowserClipboard()?.writeText) {
+      await getBrowserClipboard().writeText(text);
       return;
     }
   } catch {

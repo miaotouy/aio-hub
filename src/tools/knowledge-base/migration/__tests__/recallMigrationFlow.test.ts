@@ -36,7 +36,7 @@ const guidedFlowMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: tauriMocks.invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke: tauriMocks.invoke }));
 vi.mock("@/services/guided-flow", () => ({
   guidedFlowManager: {
     initialize: guidedFlowMocks.initialize,

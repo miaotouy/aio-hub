@@ -35,8 +35,8 @@ const emit = defineEmits<{
   (e: "switch-branch", nodeId: string): void;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.ChatView");
 const showBranchSelector = ref(false);
 
 const siblings = computed(() => {
@@ -107,6 +107,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="上一条分支"
         @click="handleSwitchBranch('prev')"
       >
         <ChevronLeft :size="14" />
@@ -120,6 +121,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="下一条分支"
         @click="handleSwitchBranch('next')"
       >
         <ChevronRight :size="14" />
@@ -135,11 +137,19 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="复制消息"
         @click="handleCopy"
       >
         <Copy :size="14" />
       </var-button>
-      <var-button text round size="mini" class="menu-btn" @click="handleEdit">
+      <var-button
+        text
+        round
+        size="mini"
+        class="menu-btn"
+        aria-label="编辑消息"
+        @click="handleEdit"
+      >
         <Edit3 :size="14" />
       </var-button>
       <var-button
@@ -148,6 +158,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="回复消息"
         @click="handleReply"
       >
         <Reply :size="14" />
@@ -171,6 +182,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn"
+        aria-label="重新生成"
         @click="handleRegenerate"
       >
         <RotateCcw :size="14" />
@@ -180,6 +192,7 @@ const handleSwitchToBranch = (nodeId: string) => {
         round
         size="mini"
         class="menu-btn danger"
+        aria-label="删除消息"
         @click="handleDelete"
       >
         <Trash2 :size="14" />
@@ -201,7 +214,7 @@ const handleSwitchToBranch = (nodeId: string) => {
   align-items: center;
   gap: 4px;
   padding: 2px 4px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background-color: var(--card-bg);
   border: var(--border-width) solid var(--border-color);
   backdrop-filter: blur(var(--ui-blur));
@@ -222,13 +235,14 @@ const handleSwitchToBranch = (nodeId: string) => {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   padding: 0 4px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
   min-width: 42px;
+  min-height: 44px;
   text-align: center;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 
 .branch-indicator:active {
@@ -251,12 +265,13 @@ const handleSwitchToBranch = (nodeId: string) => {
 .menu-btn {
   width: 28px !important;
   height: 28px !important;
-  min-width: 28px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
   padding: 0 !important;
-  color: var(--el-text-color-secondary) !important;
+  color: var(--text-color-light) !important;
 }
 
 .menu-btn.danger {
-  color: var(--el-color-danger) !important;
+  color: var(--danger-color) !important;
 }
 </style>

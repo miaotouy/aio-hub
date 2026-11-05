@@ -23,6 +23,7 @@
 桌面端应用自身的配置、资产、缓存和临时工作目录统一以 `getAppConfigDir()` 为根目录。它通过 Tauri command 获取后端解析结果，因此会自动遵循 Windows 安装器选择的数据位置、便携模式和平台默认目录。
 
 - 业务模块需要拼接应用私有路径时，从 `src/utils/appPath.ts` 导入 `getAppConfigDir()`。
+- 工具间共享的草稿、转换产物和任务中间文件使用同一模块的 `getAppWorkDir()`，它确保数据根目录下的 `workspace/` 存在。该目录跨次启动保留，文件操作器将其作为常驻白名单目录；Rust 调用方使用 `utils::ensure_app_work_dir()`。
 - `@tauri-apps/api/path` 的 `appDataDir()` 只保留在 `appPath.ts` 的后端降级路径中。
 - 系统路径展示、用户目录扫描和文件选择器初始目录等场景，使用对应的平台路径 API，避免把系统目录误认为应用数据目录。
 

@@ -1,8 +1,8 @@
 # AIO Hub 全面迁移 Electron 工程总纲与施工方案
 
-> 状态：规划评审中 (RFC)  
+> 状态：实施中；平台隔离与 Electron 基础宿主已接入\
 > 提出日期：2026-10-02  
-> 更新日期：2026-10-27\
+> 更新日期：2026-11-05
 > 编制人：咕咕（架构师）  
 > 关联调查文档：[`docs/design/地基迁移调查/webview2-migration-investigation.md`](../design/地基迁移调查/webview2-migration-investigation.md)  
 > 关联复盘文档：[`docs/Plan/cordis-runtime-postmortem-and-lessons.md`](./cordis-runtime-postmortem-and-lessons.md)
@@ -81,7 +81,7 @@ graph TB
    - 现存 40+ 工具的 UI、Composable、Store 绝大部分是纯 Vue 3 代码，原则上只做 API 寻址替换，绝不在第一阶段改写工具业务逻辑。
 2. **垫片隔离（Facade / Adapter 模式）**：
    - 严禁直接全局正则替换 `import { invoke } from '@tauri-apps/api/core'` 为 Electron 专有代码。
-   - 建立 `@/platform/bridge` 统一门面。在迁移过渡期，该门面下层可同时对接 Tauri（保留回退能力）或 Electron。
+   - 建立 `src/platform/` 统一隔离层，业务通过能力入口访问宿主。当前兼容实现转发到 Tauri，Electron 实现按能力接续。
 3. **Rust 核心资产按模块渐进 Napi 化**：
    - 不搞推倒重来，利用 `napi-rs` 将经受住考验的高性能 Rust 算法按顺序编译为 `.node` 模块，直接在 Node.js 中调用。
 4. **彻底清理垃圾 Workaround**：
@@ -93,43 +93,73 @@ graph TB
 
 ### 阶段零：平台适配垫片层建设（当前仓库内先行）
 
+> 状态：Tauri SDK 导入隔离与静态防回退检查已落地（2026-11-03）；运行时能力适配仍按后续阶段推进。
+
 **目标**：在不改变当前 Tauri 运行的前提下，把前端代码对 `@tauri-apps/api` 的直接依赖收敛到统一接口。
 
-1. **新建抽象网关**：
-   - `src/platform/bridge.ts`：抽象 `invoke(cmd, args)`、`listen(event, cb)`、`emit(event, data)`。
-   - `src/platform/fs.ts`：抽象 `readFile`、`writeFile`、`appDataDir` 等通用路径与文件调用。
-   - `src/platform/window.ts`：抽象窗口最小化、最大化、置顶、关闭与多窗口通信。
-2. **批量收拢前端调用点**：
-   - 逐步替换当前分散在各个工具中的 295 处 `@tauri-apps/api` 显式导入，改走统一 bridge。
-   - 此时 bridge 内部依然简单转发给 Tauri。
-3. **交付物验收**：
-   - 全局 `bun run check:frontend` 通过，现有 Tauri 版本打包与运行 100% 正常。
+1. **集中宿主能力入口（已完成）**：
+   - `src/platform/native/` 提供 IPC、事件、窗口、文件、路径、对话框、剪贴板、HTTP、系统、Shell、进程、更新与协议唤醒入口，保留现有 SDK 契约。
+   - `src/platform/browser/` 集中浏览器剪贴板与弹窗；`core/env.ts`、`modules/assets.ts`、`modules/media.ts` 集中宿主检测、资源协议和媒体授权。
+   - 已有 `core/bridge.ts` 与 `modules/` 语义门面保持原有契约；Electron 适配仍需实现窗口对象、事件目标、二进制通道与资源释放。
+2. **调用点收拢与维护约束（已完成）**：
+   - 桌面 `src/` 的直接 SDK 导入及测试 mock 已改用平台入口。
+   - `check:platform-isolation` 纳入仓库检查，约束新增 SDK 导入与业务代码的剪贴板、弹窗、宿主标记访问。
+3. **验证与接续**：
+   - 具体行为、验证结果和待办见[平台隔离层计划](./frontend-platform-bridge-isolation-plan.md)与[架构说明](../architecture/platform-bridge-architecture.md)。
 
 ---
 
 ### 阶段一：新工程脚手架与 Electron 骨架搭建
 
-**目标**：搭建 Electron + Vite + Vue 3 的并存架构，点亮首个 Electron 窗口。
+> 状态：基础链路已落地（2026-11-03），完整跨平台窗口交互继续收口。
 
-1. **选型与工程组织**：
-   - 采用 `electron-vite` 或主仓库并列的 `electron/` 目录组织。
-   - 主进程语言统一使用 TypeScript，包管理统一使用 `Bun`。
-2. **主进程基础基础设施**：
-   - 窗口管理（无边框窗口、自定义 TitleBar、多窗口/分离窗口 `BrowserWindow` 管理）。
-   - 本地协议注册（将 Tauri 的 `asset://` 平替为 Electron 的 `protocol.handle('asset', ...)`）。
-   - 统一类型化 IPC 通道搭建：实现对应 bridge 的 `electron-bridge.ts`。
-3. **交付物验收**：
-   - 执行 `bun run electron:dev`，能够正常拉起主窗口，成功加载现有主界面，标题栏拖拽、窗口控制正常。
+1. **工程与启动**：根目录 `electron/` 使用 TypeScript；Bun 构建主进程与 CommonJS 沙箱 preload，复用现有 Vite/Vue 前端。已锁定 Electron 45.2.1，提供 `electron:dev`、`electron:build` 和 `electron:preview`。
+2. **宿主实现**：无边框主窗口、工具窗口、托盘、基础窗口事件与配置；显式 IPC 分派、定向事件、响应式参数序列化与错误包络；生产应用协议与本地文件授权协议。
+3. **首帧必要能力**：应用与系统信息、配置和日志持久化、基础文件与路径、文本剪贴板、文件对话框、外部打开。业务继续通过阶段零的隔离入口调用。
+4. **数据与回退**：Electron 开发/预览使用独立数据目录；Tauri 的开发、构建和发布链路保留。迁移未覆盖的能力返回可行动错误，Rust 专项命令按阶段二/三接续。
+5. **验证与接续**：现有工作台已在真实 Electron 中加载；进一步验证范围和启动说明统一写入[Electron 桌面开发](../guide/electron-development.md)。拖拽预览固化、窗口吸附、跨平台材质、原生对话框完整交互、单实例唤醒已接入，安装包已声明系统协议，实际安装后的协议关联和跨平台运行验证继续接续。
+
+---
+
+### 2026-11-04 代码盘点与本轮接续
+
+当前基础宿主使用 `electron/main.ts`、沙箱 preload 与 `src/platform/electron/`；启动、构建、预览和本地分发均已有入口。阶段一的早期目录设计仅作为设计记录，当前落点与进度以阶段一文档的实施快照为准。
+
+本轮按以下顺序施工，各项完成后回填验证结果：
+
+- [x] 开发态图标：复用 `src-tauri/icons/icon-dev.png`，窗口与托盘同步区分开发/分发；补齐托盘恢复最小化窗口的行为。
+- [x] 单实例与协议唤醒：同一数据目录共享实例，独立数据目录继续支持并行开发；二次启动恢复主窗口，校验并转发 Deep Link；分发包声明 `aiohub` 协议。
+- [x] 原生 HTTP 基础链路：接入平台 `fetch` 的请求/响应、二进制、按需读取流与取消；窗口刷新/销毁释放请求。先覆盖标准 HTTP/SSE，插件高级客户端选项保持显式能力边界。
+
+本次发现并补记的缺口：
+
+| 优先级 | 能力缺口                                                                                                                                                | 后续落点                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| P1     | 平台 HTTP 已接通；`core.ts` 的 Channel 与 LLM Rust 代理命令仍待迁移                                                                                     | 阶段二：业务代理与 Channel 接续                              |
+| P1     | 首页初始化仍触发 `background_runtime_get_status`、`get_all_skill_manifests`、`recall_preview_legacy_migration` 能力缺失；技能加载与工具注册出现错误提示 | 后台状态、技能扫描与知识库迁移契约；按宿主能力梳理启动初始化 |
+| P1     | 开发探针命令当前为空操作                                                                                                                                | 前端就绪、心跳与异常探针的持久化和消费契约                   |
+| 已完成 | Dev Control 接入 Electron 开发态与生产资源预览，支持窗口身份、CDP 操作和隔离生命周期                                                                    | 2026-11-04：见开发界面控制指南                               |
+| P1     | Shell/Sidecar、文件监听、图片剪贴板仍返回能力缺失                                                                                                       | 阶段二：逐项对齐现有调用契约                                 |
+| 已完成 | 托盘补齐隐藏、重启前端和清除窗口配置操作，恢复最小化主窗口                                                                                              | 阶段一：2026-11-04 真实 Electron 验证                        |
+| P2     | 外部文件拖放缺精确落点；独立 WebView、拖拽预览和吸附未迁移                                                                                              | 窗口/工具专项                                                |
+| P2     | 窗口状态依赖业务显式保存，系统退出时的状态写入仍需梳理                                                                                                  | 生命周期持久化专项                                           |
+| P2     | 更新器、自动发布、正式数据迁移和 macOS/Linux 运行验证未完成                                                                                             | 发布与跨平台专项                                             |
+
+基础 HTTP 接通后，LLM Chat、媒体生成、插件与知识库的完整可用性仍需各自后端契约落地验证。
+
+同日补充了[工具级功能缺口调查](../design/electron-feature-gap-audit-2026-11-04.md)：静态盘点的 327 个字面量业务命令中，307 个尚未进入 Electron 分派；真实窗口抽查确认默认 LLM 传输、资产/文件契约、Native/Sidecar 插件及自定义缩放等缺口。报告按业务路径区分可用能力与待迁移范围，并列出工具影响矩阵和补齐顺序。
 
 ---
 
 ### 阶段二：后端通用能力与网络代理清理
 
+> 状态：2026-11-04 已接入平台 HTTP 的二进制请求、按需响应流、取消、重定向与等待响应头超时。传输使用 Chromium 原生网络栈复用系统代理，上传内容先在渲染端编码。LLM 专用代理命令、Channel 与业务网络调用迁移继续实施，现有 Rust 代理仍服务 Tauri。
+
 **目标**：将 56% 的低风险/通用文件与系统能力替换为 Node.js 原生实现，直接消灭 Rust 代理层。
 
 1. **消灭代理层**：
-   - 渲染进程/前端发起 LLM 请求时，改由主进程 Node.js 原生 `fetch` 或 `undici` 发起。
-   - 绕过所有 CORS 拦截，支持大体积流式数据直推前端，彻底删掉 `llm_proxy.rs`。
+   - 平台通用 HTTP 已由主进程 Chromium `net.request` 承接；LLM 专用请求契约继续迁移至主进程，按业务需要选择 Chromium 网络栈或 Node HTTP 客户端。
+   - 平台响应流通过拉取式 IPC 返回前端，单块上限 64 KiB；完成 LLM 代理契约及两端调用迁移后再退役对应 Rust 代理。
 2. **文件系统与配置管理**：
    - 将 `file_operations.rs`、`config_manager.rs`、`asset_manager.rs` 全面替换为 Node 原生 `fs/promises` + `trash`。
 3. **多媒体与命令行调用**：
@@ -160,6 +190,8 @@ graph TB
 **目标**：在真正的主进程环境中释放 Agent 与 Cordis 的全部威力。
 
 1. **常驻 Agent 会话运行时**：
+   - 2026-11-05 已接入应用级 Node utility process 基础：启动/心跳、失联回收、代次、页面请求隔离与退出回收。当前公开方法为运行时诊断；真实 Agent 生成链与下列事件持久化继续实施。详见[执行记录](electron-feature-gap-execution.md#6-后台与正式分发)。
+   - 同日已将现有多轮 Agent 编排与单节点请求提取为 Node 可运行的共享核心，并通过 Renderer 适配器接回真实聊天；上下文组装、VCP 分段、续写/快照和可取消重试沿用生产逻辑。模型请求与虚拟渠道中间件也已由 Renderer/Node 共用，OpenAI 兼容协议经真实 Node HTTP/SSE 和文件展开链验证。全部 11 个上下文处理器与三阶段宏内核已共享，`createContextProcessors` 按同一注册清单装配；Renderer 保留原日志、响应式宏注册表和宿主服务。Node 已用显式夹具服务验证完整管道到真实 HTTP 请求，Electron 渠道结构与凭据事务已由主进程 `LlmConfiguration` 接管，沿用原文件格式、revision 快照链及共享规范化；密钥轮询/熔断内核由 Renderer 与 Node 共用，Electron 的 Key 状态、轮询位置和持久化也已由主进程统一持有，窗口通过增量操作和单向状态投影同步。Node 文本分词及图片/音视频计费服务已复用生产引擎，按上下文固定注册表与模型快照；图片解码/缩放/编码及长图原生像素分析已接入任务级服务，切片计划与预算共用，真实 gzip/图片资产和完整管道到 HTTP 已验证。Worker 到 Main 的内部服务通道已接通，渠道加载与执行期 Key 操作复用窗口侧同一所有者，生产 Worker 就绪前完成轻量初始化；已接收事务跨进程退出排空。配置/Key 往返由独立真实 utility process 验证。正式 Worker 现已持有附件/图片/Token 上下文资源池，通过 Main 获取当前持久文件策略和现有资产根，正常退出先释放 scope 与原生队列；资源实例保持按需加载。真实 utility fixture 已验证跨进程策略变更、缓存读取撤销、资产根切换及精确图片预算到 HTTP。生产 Worker 继续仅公开诊断方法。PDF/Office、转写、检索与任务生产服务继续接线。其他协议、审批授权、其余上下文/响应/存储及真实会话/工具所有权继续接入 Worker。
    - 会话状态机由 Node.js 主进程/独立 Worker 持有，采用仅追加事件日志（`SessionEvent`）。
    - 窗口关闭、刷新、切换路由，长程 Agent 任务在后台照常执行。
    - 窗口重连后，一键重放最近事件增量，实现无缝断线重连。
@@ -177,7 +209,7 @@ graph TB
 **目标**：产品化、CI/CD 自动化与体积控制。
 
 1. **打包器配置**：
-   - 配置 `electron-builder`，支持 Windows (NSIS/Portable)、macOS (DMG)、Linux (AppImage/deb)。
+   - 已接入 `electron-builder`、根目录双击脚本和独立分发目录。Windows 提供 NSIS、Portable 与带运行时目录；macOS (DMG)、Linux (AppImage/deb) 配置已加入，待对应系统验证。签名、自动更新与 CI 发布继续接续。
 2. **体积与性能调优**：
    - 移除原 Tauri 中臃肿的 `git2-rs vendored`（节省 ~30MB）。
    - 启用 V8 内存限制与 Chromium 启动优化参数（锁定老生代堆内存，定期 GC 整理）。
@@ -198,5 +230,8 @@ graph TB
 
 ## 6. 下一步执行动作建议
 
-1. **第一步（立即开展）**：在现有工程中建立 `src/platform/` 抽象层，将 `@/platform/bridge` 先作为当前 Tauri 调用的垫片，完成前端代码的解耦治理；
-2. **第二步**：创建迁移分支 `feature/electron-migration`，搭建最小 Electron 容器原型，加载 `dist/` 验证前端渲染与首个窗口控制。
+1. **第一步（已完成）**：桌面宿主调用集中到 `src/platform/`，保留现有 Tauri 契约，为能力适配提供统一替换入口；
+2. **第二步（基础链路已落地）**：`electron/` 宿主加载现有工作台，开发与生产预览使用同一隔离入口；
+3. **第三步**：优先迁移原生 HTTP/SSE、文件监听与通用 Rust 命令，再按工具逐项推进完整工作流。
+
+补齐进度统一记录在[Electron 功能缺口补齐待办](electron-feature-gap-execution.md)；默认模型传输与本地文件载荷已在 Windows Electron 接通并完成本地协议验证（2026-11-04）。2026-11-05 接续完成 Windows 屏幕/OCR、本地视频字幕、窗口自动化，以及 PHP/Rust/C/C++ 系统格式化和环境版本检测批次；跨平台、真实模型、后台与发布按待办继续推进。

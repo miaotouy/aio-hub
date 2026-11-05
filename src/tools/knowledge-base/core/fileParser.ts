@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile } from "@/platform/native/fs";
 import { smartDecode } from "@/utils/encoding";
 import { parseDocx } from "@/utils/docxParser";
 import {
@@ -62,25 +62,35 @@ export function isProbablyText(bytes: Uint8Array): boolean {
 }
 
 async function parsePdf(bytes: Uint8Array): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  const pdf = await pdfjs.getDocument({ data: bytes }).promise;
-  const pages: string[] = [];
-  let extractedCharacters = 0;
-  for (let index = 1; index <= pdf.numPages; index += 1) {
-    const page = await pdf.getPage(index);
-    const text = await page.getTextContent();
-    const content = text.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-    extractedCharacters += content.length;
-    pages.push(`# 第 ${index} 页\n\n${content}`);
+  const [{ getDocument, GlobalWorkerOptions }, worker] = await Promise.all([
+    import("pdfjs-dist"),
+    import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+  ]);
+  GlobalWorkerOptions.workerSrc = worker.default;
+  // PDF.js transfers its input to the worker; retain the source for its checksum.
+  const loadingTask = getDocument({ data: bytes.slice() });
+  try {
+    const pdf = await loadingTask.promise;
+    const pages: string[] = [];
+    let extractedCharacters = 0;
+    for (let index = 1; index <= pdf.numPages; index += 1) {
+      const page = await pdf.getPage(index);
+      const text = await page.getTextContent();
+      const content = text.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      extractedCharacters += content.length;
+      pages.push(`# 第 ${index} 页\n\n${content}`);
+    }
+    if (extractedCharacters === 0) {
+      throw new Error("PDF 没有可提取文本；扫描 PDF 和图片 OCR 尚未支持");
+    }
+    return pages.join("\n\n");
+  } finally {
+    await loadingTask.destroy();
   }
-  if (extractedCharacters === 0) {
-    throw new Error("PDF 没有可提取文本；扫描 PDF 和图片 OCR 尚未支持");
-  }
-  return pages.join("\n\n");
 }
 
 async function parseHtml(bytes: Uint8Array): Promise<string> {

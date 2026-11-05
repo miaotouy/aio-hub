@@ -10,14 +10,12 @@ import {
   Square,
 } from "lucide-vue-next";
 import { resolveProbePlan, type ChannelProbeResult } from "@aiohub/llm-core";
-import { useI18n } from "@/i18n";
+import { useScopedT, type SubKeyOf } from "@/i18n";
 import { compareModelGroup, compareModelId } from "@/utils/modelIdUtils";
 import type { ModelProbeRowStatus } from "../../composables/useModelProbe";
 import type { LlmModelInfo } from "../../types";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw(`tools.llm-api.ModelProbe.${key}`, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
 
 const props = defineProps<{
   models: LlmModelInfo[];
@@ -47,7 +45,7 @@ const groups = computed(() => {
   })).sort((left, right) => compareModelGroup(left.name, right.name));
 });
 
-const capabilityLabelKeys: Record<string, string> = {
+const capabilityLabelKeys: Record<string, SubKeyOf<"tools.llm-api.ModelProbe">> = {
   chat: "Chat",
   embedding: "向量",
   rerank: "重排",
@@ -188,17 +186,17 @@ function onRowClick(model: LlmModelInfo) {
   gap: 7px;
   margin: 0;
   padding: 0 16px 7px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.78rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 
 .probe-group h3 span {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 
 .probe-rows {
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
+  border-top: 1px solid var(--border-color, var(--border-color));
 }
 
 .probe-row {
@@ -209,15 +207,15 @@ function onRowClick(model: LlmModelInfo) {
   min-height: 76px;
   padding: 7px 12px 7px 6px;
   border: 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
-  color: var(--color-on-surface);
+  border-bottom: 1px solid var(--border-color, var(--border-color));
+  color: var(--text-color);
   text-align: left;
   background: transparent;
 }
 
 .probe-row:active:not([aria-disabled="true"]) {
   transform: scale(0.995);
-  background: var(--color-surface-container);
+  background: var(--container-bg);
 }
 
 .probe-row.unsupported .model-copy {
@@ -234,7 +232,7 @@ function onRowClick(model: LlmModelInfo) {
 .check-target input {
   width: 20px;
   height: 20px;
-  accent-color: var(--color-primary);
+  accent-color: var(--primary-color);
 }
 
 .model-copy {
@@ -253,23 +251,23 @@ function onRowClick(model: LlmModelInfo) {
 .model-title-line strong {
   min-width: 0;
   overflow: hidden;
-  font-size: 0.92rem;
+  font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .capability {
   flex: none;
-  color: var(--color-primary);
-  font-size: 0.72rem;
+  color: var(--primary-color);
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 
 code {
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -279,8 +277,8 @@ code {
   align-items: center;
   min-width: 0;
   gap: 5px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.72rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 
 .row-status span:not(.ttfb) {
@@ -310,7 +308,7 @@ code {
 
 .detail-chevron {
   margin-left: 8px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .spinning {

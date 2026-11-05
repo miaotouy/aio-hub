@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { resolveEffectiveImageMaxDimension } from "../core/pipeline/image-dimensions";
 import { formatVirtualAttachments } from "./virtualAttachments";
 import type { VirtualTextAttachment } from "../types/virtual-attachment";
 import type {
@@ -49,21 +50,7 @@ const logger = createModuleLogger("llm-chat/token-utils");
  *
  * @returns 有效最大边；无任何缩放约束时返回 undefined
  */
-export function resolveEffectiveImageMaxDimension(
-  capabilities?: { maxImageDimension?: number } | null,
-  imageCompression?: { enabled: boolean; maxDimension?: number } | null
-): number | undefined {
-  let maxDim: number | undefined;
-  const modelMax = capabilities?.maxImageDimension;
-  if (modelMax && modelMax > 0) {
-    maxDim = modelMax;
-  }
-  if (imageCompression?.enabled) {
-    const userMax = imageCompression.maxDimension || 4096;
-    maxDim = maxDim === undefined ? userMax : Math.min(maxDim, userMax);
-  }
-  return maxDim;
-}
+export { resolveEffectiveImageMaxDimension } from "../core/pipeline/image-dimensions";
 
 /**
  * 解析指定模型与智能体下发送图片的有效最大边

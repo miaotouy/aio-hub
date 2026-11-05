@@ -24,7 +24,7 @@ import {
   lstat,
   readDir,
   exists,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
 
 const logger = createModuleLogger("Canvas/GitService");
 const errorHandler = createModuleErrorHandler("Canvas/GitService");

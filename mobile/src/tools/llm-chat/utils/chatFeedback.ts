@@ -2,8 +2,8 @@ import { Dialog, Snackbar } from "@varlet/ui";
 import { useI18n } from "@/i18n";
 
 export async function confirmDeleteMessage(): Promise<boolean> {
-  const { tRaw } = useI18n();
-  const t = (key: string) => tRaw(`tools.llm-chat.ChatView.${key}`);
+  const { useScopedT } = useI18n();
+  const t = useScopedT("tools.llm-chat.ChatView");
   const action = await Dialog({
     title: t("删除消息"),
     message: t("删除消息提示"),

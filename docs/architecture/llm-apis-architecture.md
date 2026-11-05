@@ -10,7 +10,7 @@
 │                 渠道管理层 (Channel)                 │
 │  useLlmProfiles.ts  — 渠道 CRUD / 持久化             │
 │  useLlmKeyManager.ts — 多 Key 轮询 / 熔断/恢复       │
-│  useLlmRequest.ts    — 请求编排 / 中间件             │
+│  useLlmRequest.ts    — Renderer 服务适配             │
 ├──────────────────────────────────────────────────────┤
 │              应用 Facade 层 (Desktop/Mobile)         │
 │  Profile/Key/元数据映射、回调兼容、错误与日志接入    │
@@ -19,7 +19,7 @@
 │  canonical DTO / Provider Adapter / 执行器 / fixture │
 ├──────────────────────────────────────────────────────┤
 │                 平台 Transport 层                    │
-│  Desktop Rust Proxy / Mobile HTTP + Native FileRef   │
+│  Desktop Node HTTP / Rust Proxy / Mobile Native HTTP │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -33,11 +33,18 @@
 
 协议层省略调用方未提供的温度。Gemini 的可选输出预算交给服务端默认值，Anthropic 的必填 `max_tokens` 在缺省时使用共享预算。新建通用聊天与智能体仅设置输出预算，显式温度按目标模型能力生效。
 
+## 正文前缀续写
+
+桌面请求入口在渠道选定物理模型后调用 `src/llm-apis/continuation.ts`。末尾 Assistant 前缀按物理模型的 `prefixCompletion` 能力保留，DeepSeek 渠道缺省使用原生模式，并沿用默认开启的 Beta 偏好。通用模型、Responses 协议及存在尾部注入的上下文使用显式末尾锚点指令。前缀节点的旧思考在接力请求中清理，本次思考模式默认沿用调用参数。请求级 `continuation` 配置可强制使用提示词、调整指令与锚点长度，并覆盖本次 DeepSeek 思考开关；策略在物理模型确定后应用，兼容虚拟渠道候选。
+
+DeepSeek 的 `thinking` 及扩展请求体字段发送到 HTTP JSON 顶层，显式扩展值保持覆盖优先级；用户指定本次续写的 DeepSeek 思考模式时，以该续写选择为准。其他模型的扩展参数封装沿用既有协议映射。
+
 ## DeepSeek 网页工具 API
 
 `src/llm-apis/adapters/deepseek/tools.ts` 提供 `callDeepSeekSearchApi()` 与 `callDeepSeekFetchApi()`，复用 LLM 渠道连接及桌面传输。网页工具以查询或 URL 为输入，独立于模型路由及 Chat Completions 消息协议，现有聊天解析保持原有行为。
 
-- 连接读取渠道基础地址、API Key、自定义请求头和网络策略；支持根地址、`/v1` 地址及反向代理路径。
+- 连接读取渠道基础地址、API Key、自定义请求头和网络策略；支持根地址、`/v1` 地址及反向代理路径。DeepSeek 统一保存普通基础地址，`options.deepseekBeta` 默认开启。旧地址末尾的 `/beta`（含 `/beta/v1`）在加载、保存时迁移为普通地址，保留显式开关值并持久化；模型列表和网页工具兼容迁移前的地址。
+- 共享 `deepseek-endpoints.ts` 按最终请求体选择端点：启用 Beta 且包含末尾 assistant `prefix: true` 或函数工具 `strict: true` 时，Chat Completions 使用 `/beta/chat/completions`；关闭开关后这些请求也使用普通端点。普通聊天、模型列表与 Search / Fetch 始终使用稳定端点，显式自定义端点沿用既有优先级。FIM 暂无独立请求入口。路由依据：[前缀续写](https://api-docs.deepseek.com/guides/chat_prefix_completion)、[严格工具调用](https://api-docs.deepseek.com/guides/tool_calls)（2026-11-03 核对）。
 - Key 管理提供 `ensureLoaded()`，合并并发加载，工具请求在选 Key 前等待持久化状态就绪。沿用现有轮询与启用状态，搜索的账号级限流保持 Key 可用性。
 - 共享传输新增可选 `requestKind: "tool"` 分类，工具调用复用超时、取消和代理能力，并独立于 LLM Inspector 的模型诊断记录。默认模型请求行为保持兼容。
 - 适配器按 Unicode 字符数校验搜索词，映射结构化来源及 Markdown 抓取结果；公开错误保留 HTTP 状态、重试语义与用户可行动提示。
@@ -99,7 +106,7 @@ Mistral AI · AI21 Labs (Jamba) · Suno (via NewAPI) · VCP
 
 - **凭证隔离与混淆存储**: 彻底将 API Key 与敏感 `customHeaders` 从通用渠道配置文件 `profiles.json` 中剥离，移入独立存储文件（桌面端 `llm-service/secrets.dat`，移动端 `AppData/llm_service_secrets.dat`，见 [`src/utils/llm-secret/`](/src/utils/llm-secret/)）。混淆文件使用轻量级动态盐混淆格式（`AIOHUBVLT1.<base64 salt>.<base64 cipher>`），每次落盘盐值不同。加载时按 `profile.id` 透明注入内存，落盘时 `profiles.json` 中的 `apiKeys` 恒为空数组，兼顾运行时无缝调用与磁盘静态安全。
 - **数据迁移**: 自动从旧版 localStorage 迁移到文件系统，并在首次加载时把 `profiles.json` 中残留的明文 API Key 迁移进独立混淆存储（[useLlmProfiles.ts](/src/composables/useLlmProfiles.ts)）。
-- **数据规范化**: `normalizeProfile()` 处理旧版单 Key 到多 Key 数组的兼容（[第 38 行](/src/composables/useLlmProfiles.ts:38)）。
+- **数据规范化**: 共享 [`normalizeLlmProfile()`](/src/llm-apis/configuration/profiles.ts) 处理旧版单 Key、多 Key 数组及提供商迁移；Renderer 注入原图标路径规范化。
 - **预设创建**: `createFromPreset()` 将预设模板实例化为可编辑的渠道配置（[第 258 行](/src/composables/useLlmProfiles.ts:258)）。
 - **能力查询**: `getSupportedParameters()` 基于 `providerTypes` 查询渠道支持的参数（[第 278 行](/src/composables/useLlmProfiles.ts:278)）。
 
@@ -114,6 +121,8 @@ const {
 } = useLlmProfiles();
 ```
 
+Electron 渠道加载和保存通过 `llm.config.load` / `llm.config.save` 交由主进程 [LlmConfiguration](/electron/llm-configuration.ts) 持有。普通结构文件与混淆仓库沿用既有版本；共享 [vault 内核](/src/utils/llm-secret/vault.ts) 负责 revision 配对、历史回退和 v1 兼容。宿主串行事务与目录锁保护多窗口写入，旧 revision 保存返回冲突；退出等待已接收的事务完成。Tauri 与浏览器继续沿用现有存储适配。
+
 ### 2.2 多 Key 管理与熔断防御 — [`useLlmKeyManager`](/src/composables/useLlmKeyManager.ts)
 
 支持一个渠道配置绑定多个 API Key，提供**哈希索引状态管理 + 轮询 + 熔断硬阻断 + 自动恢复**能力。熔断开关和恢复时长按渠道独立存储，自动熔断默认关闭，建议仅在多 Key 配置且确认需要故障摘除时开启。
@@ -124,7 +133,9 @@ const {
 - 历史明文索引在加载时由 `normalizeKeyStatesStorage()` 自动识别并迁移为哈希键，触发即刻回写清洗。
 - 错误信息脱敏：持久化前自动将历史错误与上游返回中的当前明文 Key 替换为 `[redacted-key]`，防止凭据在错误日志或持久化状态中回显泄露。
 
-**轮询策略**（[`pickKey()`](/src/composables/useLlmKeyManager.ts:102)）：
+完整轮询、熔断和恢复策略位于 [共享密钥内核](/src/llm-apis/configuration/keyManager.ts)。Renderer 入口注入响应式状态与原配置存储；Node 按相同服务端口装配。日志中的 Key 标识使用哈希。Electron 的生产 Key 状态由主进程 [LlmKeyState](/electron/llm-key-state.ts) 持有，Renderer 使用 [Key 状态客户端](/src/llm-apis/configuration/keyClient.ts) 保持响应式投影。选 Key 通过异步端口完成；主进程增量更新、原子落盘并广播哈希状态，多窗口共享同一轮询位置与熔断策略。Tauri/浏览器继续注入原配置存储。
+
+**轮询策略**（[`pickKey()`](/src/llm-apis/configuration/keyManager.ts)）：
 
 1. 调用 `syncKeyStates()` 同步所有 Key 的状态
 2. 过滤出可用 Key：`isEnabled && !isBroken`
@@ -137,7 +148,7 @@ const {
   - 若所有 Key 均被用户手动禁用，抛出 `code: "all-disabled"` 异常，引导用户在渠道设置中启用至少一个 Key。
   - 若所有已启用的 Key 均处于熔断状态，抛出 `code: "all-enabled-circuit-broken"` 异常，并计算各 Key 熔断时间戳与冷却时间，在报错中给出明确的最早冷却恢复时间提示（`retryAt`），禁止无效网络开销。
 
-**熔断逻辑**（[`reportFailure()`](/src/composables/useLlmKeyManager.ts:188)）：
+**熔断逻辑**（[`reportFailure()`](/src/llm-apis/configuration/keyManager.ts)）：
 
 - 开启自动熔断后，识别 `429 Too Many Requests`，直接熔断
 - 开启自动熔断后，连续 3 次非 429 暂态错误也触发熔断
@@ -145,14 +156,16 @@ const {
 - 熔断后的 Key 标记 `isBroken: true`，记录 `disabledTime`
 - 错误消息截断至 2000 字符，防止配置文件膨胀
 
-**自动恢复**（[`pickKey()`](/src/composables/useLlmKeyManager.ts:112)）：
+**自动恢复**（[`pickKey()`](/src/llm-apis/configuration/keyManager.ts)）：
 
 - `autoRecoveryTime` 默认 60 秒
 - 轮询时检查已熔断 Key 是否超期，超期则重置状态
 
 **持久化**：
 
-- 写入采用**防抖保存**（`saveDebounced`），不阻塞实时请求流程
+- Electron 对已接受的 Key 增量操作串行执行，重新读取状态、应用共享策略并原子提交；读取或写入失败返回可行动错误，选 Key 失败时请求留在派发前。窗口销毁后已接受的事务继续完成，应用退出等待收尾。
+- 设置页的同步操作先更新本地投影，应用级状态到达后合并仍在等待的本地编辑；失败编辑撤回，其他窗口的增量保持有效。
+- Tauri/浏览器写入继续使用**防抖保存**（`saveDebounced`）。
 
 ```typescript
 // 核心暴露
@@ -170,9 +183,9 @@ const { pickKey, reportSuccess, reportFailure, resetAllBroken } =
 
 ### 2.4 请求编排中间件 — [`useLlmRequest`](/src/composables/useLlmRequest.ts)
 
-这是整个 LLM 请求的**中心调度器**，串联渠道配置、Key 管理、参数过滤和适配器分发。
+桌面请求中间件位于 [`modelRequestExecutor.ts`](/src/llm-apis/execution/modelRequestExecutor.ts)，虚拟渠道调度位于 [`channelRequestExecutor.ts`](/src/llm-apis/execution/channelRequestExecutor.ts)。`useLlmRequest` 注入现有渠道配置、Key 管理、适配器表、Inspector、日志与停止请求服务；同一中间件可由 Node 执行所有者提供服务。虚拟渠道先完成候选选择和能力/工具处理一致性检查，再按成员的认证及网络设置调用物理模型，输出开始后保持当前成员。
 
-**完整请求流程**（[`sendRequest()`](/src/composables/useLlmRequest.ts:34)）：
+**物理模型请求流程**（[`createModelRequestExecutor()`](/src/llm-apis/execution/modelRequestExecutor.ts)）：
 
 ```
 sendRequest(options)
@@ -209,11 +222,19 @@ sendRequest(options)
 
 **关键特性**：
 
-- **自动代理协商**: 检测 `local-file://` 协议或本地/IP 地址时，自动开启 Rust 后端代理（[第 149-223 行](/src/composables/useLlmRequest.ts:149)）
-- **forceChatMode**: 支持通过 `_forceChatMode` 或 `preferChat` 能力标记，强制使用对话接口进行媒体生成（如 Gemini 原生生图模型）（[第 252 行](/src/composables/useLlmRequest.ts:252)）
-- **取消传播**: 用户取消请求时，若提供了 `requestId`，自动补发 `/v1/interrupt` 通知上游服务端停止生成（[第 320-346 行](/src/composables/useLlmRequest.ts:320)）
+- **网络与文件处理**：中间件识别本地文件和网络策略，由平台 Transport 完成传输；Electron 使用 Node HTTP 与原生文件展开，Tauri 沿用 Rust 代理。
+- **forceChatMode**: 支持通过 `_forceChatMode` 或 `preferChat` 能力标记，强制使用对话接口进行媒体生成（如 Gemini 原生生图模型）
+- **取消传播**: 用户取消请求时，若提供了 `requestId`，自动补发 `/v1/interrupt` 通知上游服务端停止生成
 
 ---
+
+### 2.5 Node 执行与传输边界
+
+- `adapters/openai/chat-executor.ts` 承接生产 OpenAI 兼容聊天的 DTO 映射、参数语义、流事件和响应映射。原 `chat.ts` 注入桌面 Transport 与请求头模板解析；Node 可注入 `electron/llm-transport.ts`，保持同一 Provider Core 编码/解码。
+- `transports/transport.ts` 负责共享 JSON、文件引用、multipart 编码、观察器和响应 reader；`desktop.ts` 注入现有桌面 fetch/序列化并保留旧导出。响应解码提前退出时关闭 reader，释放在途连接。
+- Node Transport 复用 Electron HTTP 的重定向、代理和文件展开服务，按执行所有者持有请求。整条响应流受取消、超时和 `dispose()` 控制；预取消请求在密钥选择前结束，取消后的流事件和最终结果丢弃。
+- 错误构造器与分类器位于 `errors.ts`，`common.ts` 保留重导出和平台 fetch。`TimeoutError`、`LlmApiError` 等跨宿主维持同一类型身份。
+- 当前生产聊天仍由 Renderer 服务适配器执行。其他协议、配置/密钥状态所有者以及 Agent 的上下文、状态、工具与审批继续迁入 Worker；持久事件及重放进度见 Electron 迁移执行记录。
 
 ## 3. 适配器层 (Adapter Layer)
 
@@ -225,7 +246,10 @@ sendRequest(options)
 
 ```
 src/llm-apis/
-├── common.ts               # 统一请求/响应接口、错误类型、超时控制
+├── common.ts               # 统一请求/响应接口、平台 fetch、兼容错误导出
+├── errors.ts               # 共享错误构造器与分类
+├── execution/              # 宿主可注入的模型中间件与渠道调度
+├── transports/             # 共享编码/reader 与平台适配
 ├── request-builder.ts      # 参数过滤、消息解析、模型家族识别
 ├── model-fetcher.ts        # 模型列表发现与元数据增强
 ├── embedding.ts            # Embedding 任务的统一入口

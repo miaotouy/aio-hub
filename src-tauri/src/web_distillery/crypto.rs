@@ -536,24 +536,21 @@ mod aes_backend {
 // ============================================================
 
 /// 探测加密能力是否可用
-#[tauri::command]
-pub async fn distillery_check_crypto() -> CryptoStatus {
+pub fn distillery_check_crypto() -> CryptoStatus {
     platform::check_available()
 }
 
 /// 批量加密 cookie values
 /// 输入：明文字符串数组
 /// 输出：base64 编码的密文数组（加密失败时返回原值，前缀 "plain:"）
-#[tauri::command]
-pub async fn distillery_encrypt_cookie_values(values: Vec<String>) -> Vec<String> {
+pub fn distillery_encrypt_cookie_values(values: Vec<String>) -> Vec<String> {
     encrypt_cookie_values_inner(&values)
 }
 
 /// 批量解密 cookie values
 /// 输入：加密后的字符串数组（"enc:base64..." 或 "plain:原值"）
 /// 输出：明文字符串数组
-#[tauri::command]
-pub async fn distillery_decrypt_cookie_values(values: Vec<String>) -> Vec<String> {
+pub fn distillery_decrypt_cookie_values(values: Vec<String>) -> Vec<String> {
     decrypt_cookie_values_inner(&values)
 }
 

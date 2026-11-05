@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { GitCommit } from "../types";
 import { createModuleLogger } from "@utils/logger";
 import { commitCache } from "./useCommitCache";
@@ -124,7 +126,7 @@ export function useCommitDetail(
    */
   async function copyCommitHash() {
     if (selectedCommit.value) {
-      await navigator.clipboard.writeText(selectedCommit.value.hash);
+      await getBrowserClipboard().writeText(selectedCommit.value.hash);
       customMessage.success("已复制提交哈希");
     }
   }

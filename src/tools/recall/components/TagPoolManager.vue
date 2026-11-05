@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onActivated } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";
 import { useRecallCollection } from "../composables/useRecallCollection";
 import { getPureModelId } from "../utils/recallUtils";
@@ -36,7 +36,7 @@ import {
 } from "lucide-vue-next";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 
 const props = defineProps<{
   modelId: string;

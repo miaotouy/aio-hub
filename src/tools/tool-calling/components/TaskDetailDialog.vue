@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed } from "vue";
 import {
   Copy,
@@ -126,14 +128,14 @@ function calculateDuration(task: AsyncTaskMetadata): string {
 // 复制任务ID
 function copyTaskId() {
   if (!props.task) return;
-  navigator.clipboard.writeText(props.task.taskId);
+  getBrowserClipboard().writeText(props.task.taskId);
   customMessage.success("任务ID已复制");
 }
 
 // 复制结果
 function copyResult() {
   if (!props.task?.result) return;
-  navigator.clipboard.writeText(props.task.result);
+  getBrowserClipboard().writeText(props.task.result);
   customMessage.success("结果已复制");
 }
 

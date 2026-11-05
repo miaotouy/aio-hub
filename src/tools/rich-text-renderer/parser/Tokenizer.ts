@@ -57,7 +57,6 @@ const RE_HEADING = /(#{1,6})\s/y;
 const RE_HR = /(---+|\*\*\*+|___+)(\s*)(?=\n|$)/y;
 const RE_LIST = /([*+-]|\d+\.)\s/y;
 const RE_BLOCKQUOTE = />[ \t]?/y;
-const RE_KATEX_INLINE = /\$([^\n$]+?)\$/y;
 const RE_ATTR = /([a-zA-Z0-9_-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 const RE_ENTITY =
   /&(?:#[xX][0-9a-fA-F]{1,6}|#[0-9]{1,7}|[a-zA-Z][a-zA-Z0-9]{1,31});/y;
@@ -102,6 +101,46 @@ function findVcpPendingField(source: string): RegExpExecArray | null {
     if (keyStart === marker.index) continue;
     RE_VCP_PENDING.lastIndex = keyStart;
     return RE_VCP_PENDING.exec(source);
+  }
+  return null;
+}
+
+// Single-dollar math stays within a text run; HTML must reach its own tokenizer branch.
+function matchInlineMath(
+  text: string,
+  start: number
+): { content: string; end: number } | null {
+  if (start + 1 >= text.length || /\s/.test(text[start + 1])) return null;
+
+  for (let end = start + 1; end < text.length; end++) {
+    const char = text[end];
+    if (char === "\n" || char === "\r") return null;
+    if (
+      char === "<" &&
+      (text.startsWith("<!--", end) || stickyMatch(RE_HTML_TAG, text, end))
+    ) {
+      return null;
+    }
+    // Skip escaped delimiters, preserving the LaTeX source (including \$).
+    if (
+      char === "\\" &&
+      end + 1 < text.length &&
+      text[end + 1] !== "\n" &&
+      text[end + 1] !== "\r"
+    ) {
+      end++;
+      continue;
+    }
+    if (char === "$") {
+      // A price's next dollar sign often starts a second amount, e.g. $5 and $10.
+      if (
+        end === start + 1 ||
+        /\s/.test(text[end - 1]) ||
+        /[0-9]/.test(text[end + 1] ?? "")
+      )
+        return null;
+      return { content: text.slice(start + 1, end), end: end + 1 };
+    }
   }
   return null;
 }
@@ -1263,10 +1302,10 @@ export class Tokenizer {
           // 如果没找到闭合或判定为金额，则作为普通文本处理第一个 $，循环继续会处理第二个 $
         }
         // $
-        const formulaMatch = stickyMatch(RE_KATEX_INLINE, text, i);
+        const formulaMatch = matchInlineMath(text, i);
         if (formulaMatch) {
-          tokens.push({ type: "katex_inline", content: formulaMatch[1] });
-          i += formulaMatch[0].length;
+          tokens.push({ type: "katex_inline", content: formulaMatch.content });
+          i = formulaMatch.end;
           atLineStart = false;
           continue;
         }

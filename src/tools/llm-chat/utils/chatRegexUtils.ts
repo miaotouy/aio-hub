@@ -25,6 +25,7 @@ import type {
   ChatRegexRule,
   MessageRole,
 } from "../types/chatRegex";
+import { parseRegexString } from "../core/pipeline/regex";
 import type { MacroContext } from "../macro-engine/MacroContext";
 import { MacroProcessor } from "../macro-engine/MacroProcessor";
 import { processMacros } from "../core/context-utils/macro";
@@ -432,25 +433,7 @@ export interface SillyTavernRegexScript {
  * @param regexString - ST 的 findRegex 字符串
  * @returns 解析后的模式和标志
  */
-export function parseRegexString(regexString: string): {
-  pattern: string;
-  flags: string;
-} {
-  if (!regexString) {
-    return { pattern: "", flags: "gm" };
-  }
-
-  // 尝试匹配 /pattern/flags 格式
-  const regexMatch = regexString.match(/^\/(.*)\/([gimsuy]*)$/s);
-  if (regexMatch) {
-    const pattern = regexMatch[1]; // 获取捕获组 1
-    const flags = regexMatch[2] || ""; // 获取捕获组 2
-    return { pattern, flags: flags || "gm" };
-  }
-
-  // 如果不是 /pattern/flags 格式，当作纯模式处理
-  return { pattern: regexString, flags: "gm" };
-}
+export { parseRegexString } from "../core/pipeline/regex";
 
 /**
  * 将 SillyTavern 的 RegexScript 转换为本系统的 ChatRegexRule

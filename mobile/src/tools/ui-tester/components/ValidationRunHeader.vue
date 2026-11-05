@@ -44,18 +44,18 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   white-space: nowrap;
 }
 
 .passed {
-  color: var(--color-success, #25804b);
+  color: var(--success-color, #25804b);
 }
 .failed {
-  color: var(--color-danger, #c23b3b);
+  color: var(--danger-color, #c23b3b);
 }
 .pending {
-  color: var(--color-warning, #9a6500);
+  color: var(--warning-color, #9a6500);
 }
 
 .run-phase {

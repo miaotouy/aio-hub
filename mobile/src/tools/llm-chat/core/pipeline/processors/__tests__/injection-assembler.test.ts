@@ -245,12 +245,257 @@ describe("injectionAssembler", () => {
       "history-assistant",
     ]);
   });
+  it("keeps attachment-only presets and carries their private refs", async () => {
+    const agent = createAgent();
+    agent.presetMessages = [
+      {
+        id: "attachment-only",
+        parentId: null,
+        childrenIds: [],
+        content: "",
+        role: "system",
+        status: "complete",
+        presetAttachments: [{ assetId: "sticker_ok", description: "贴纸" }],
+      },
+    ];
+    const context = createContext(agent);
+
+    await injectionAssembler.execute(context);
+
+    expect(context.messages.map((message) => message.sourceId)).toEqual([
+      "attachment-only",
+      "history-user",
+      "history-assistant",
+    ]);
+    expect(context.messages[0]._privateAttachments).toEqual([
+      { assetId: "sticker_ok", description: "贴纸" },
+    ]);
+  });
+
   it("keeps history unchanged when no agent is bound", async () => {
     const context = createContext(null);
 
     await injectionAssembler.execute(context);
 
     expect(context.messages).toEqual(history);
+  });
+
+  it("keeps only the last N enabled presets before the history anchor when displayPresetCount is set", async () => {
+    const agent = createAgent();
+    agent.displayPresetCount = 2;
+    // p4 被 isEnabled 禁用、p6 被禁用分组过滤，均不占截断名额；深度注入与锚点后消息不参与截断
+    agent.presetMessages = [
+      {
+        id: "p1",
+        parentId: null,
+        childrenIds: [],
+        content: "p1",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "p2",
+        parentId: null,
+        childrenIds: [],
+        content: "p2",
+        role: "system",
+        status: "complete",
+        modelMatch: { enabled: true, patterns: ["does-not-match"] },
+      },
+      {
+        id: "p3",
+        parentId: null,
+        childrenIds: [],
+        content: "p3",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "p4-disabled",
+        parentId: null,
+        childrenIds: [],
+        content: "p4",
+        role: "system",
+        status: "complete",
+        isEnabled: false,
+      },
+      {
+        id: "p5",
+        parentId: null,
+        childrenIds: [],
+        content: "p5",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "p6-group-disabled",
+        parentId: null,
+        childrenIds: [],
+        content: "p6",
+        role: "system",
+        status: "complete",
+        groupId: "disabled",
+      },
+      {
+        id: "history-anchor",
+        parentId: null,
+        childrenIds: [],
+        content: "",
+        role: "system",
+        status: "complete",
+        type: "chat_history",
+      },
+      {
+        id: "after",
+        parentId: null,
+        childrenIds: [],
+        content: "after",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "depth",
+        parentId: null,
+        childrenIds: [],
+        content: "depth",
+        role: "system",
+        status: "complete",
+        injectionStrategy: { type: "depth", depth: 1 },
+      },
+    ];
+    const context = createContext(agent);
+
+    await injectionAssembler.execute(context);
+
+    // 先启用/分组/模型匹配过滤再截断：仅剩 p1/p3/p5，取最后 2 条
+    expect(context.messages.map((message) => message.sourceId)).toEqual([
+      "p3",
+      "p5",
+      "history-user",
+      "depth",
+      "history-assistant",
+      "after",
+    ]);
+  });
+
+  it("keeps all presets when displayPresetCount exceeds the enabled presets", async () => {
+    const agent = createAgent();
+    agent.displayPresetCount = 10;
+    agent.presetMessages = [
+      {
+        id: "p1",
+        parentId: null,
+        childrenIds: [],
+        content: "p1",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "p2",
+        parentId: null,
+        childrenIds: [],
+        content: "p2",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "history-anchor",
+        parentId: null,
+        childrenIds: [],
+        content: "",
+        role: "system",
+        status: "complete",
+        type: "chat_history",
+      },
+    ];
+    const context = createContext(agent);
+
+    await injectionAssembler.execute(context);
+
+    expect(context.messages.map((message) => message.sourceId)).toEqual([
+      "p1",
+      "p2",
+      "history-user",
+      "history-assistant",
+    ]);
+  });
+
+  it("keeps all presets when no history anchor exists", async () => {
+    const agent = createAgent();
+    agent.displayPresetCount = 1;
+    // 对齐桌面语义：无 chat_history 占位符时 displayPresetCount 不生效，预设全量保留
+    agent.presetMessages = [
+      {
+        id: "p1",
+        parentId: null,
+        childrenIds: [],
+        content: "p1",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "p2",
+        parentId: null,
+        childrenIds: [],
+        content: "p2",
+        role: "system",
+        status: "complete",
+      },
+    ];
+    const context = createContext(agent);
+
+    await injectionAssembler.execute(context);
+
+    expect(context.messages.map((message) => message.sourceId)).toEqual([
+      "p1",
+      "p2",
+      "history-user",
+      "history-assistant",
+    ]);
+  });
+
+  it("keeps all presets when displayPresetCount is missing or invalid", async () => {
+    const buildPresetMessages = (): ChatAgent["presetMessages"] => [
+      {
+        id: "p1",
+        parentId: null,
+        childrenIds: [],
+        content: "p1",
+        role: "system",
+        status: "complete",
+      },
+      {
+        id: "history-anchor",
+        parentId: null,
+        childrenIds: [],
+        content: "",
+        role: "system",
+        status: "complete",
+        type: "chat_history",
+      },
+    ];
+    const expected = [
+      "p1",
+      "history-user",
+      "history-assistant",
+    ];
+
+    for (const displayPresetCount of [undefined, 0, -2, Number.NaN]) {
+      const agent = createAgent();
+      agent.presetMessages = buildPresetMessages();
+      if (displayPresetCount === undefined) {
+        delete agent.displayPresetCount;
+      } else {
+        agent.displayPresetCount = displayPresetCount;
+      }
+      const context = createContext(agent);
+
+      await injectionAssembler.execute(context);
+
+      expect(context.messages.map((message) => message.sourceId)).toEqual(
+        expected
+      );
+    }
   });
 });
 

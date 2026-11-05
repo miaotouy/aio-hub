@@ -40,11 +40,8 @@ const emit = defineEmits<{
   dragStart: [event: PointerEvent];
   "update:expanded": [value: boolean];
 }>();
-const { tRaw } = useI18n();
-const t = (key: string, params?: Record<string, unknown>) =>
-  params
-    ? tRaw(`tools.agent-manager.PresetEditor.${key}`, params)
-    : tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const roleLabel = computed(
   () =>
     ({ system: "System", user: "User", assistant: "Assistant" })[
@@ -309,12 +306,12 @@ function moveGroup(event: Event): void {
 .message-card {
   padding: 12px 10px;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   border: var(--border-width) solid var(--border-color);
-  border-left: 3px solid var(--color-primary);
-  border-radius: var(--app-radius-md, 8px);
+  border-left: 3px solid var(--primary-color);
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
   transition:
     opacity 0.16s,
@@ -348,7 +345,9 @@ summary,
 }
 .drag-handle {
   padding: 4px;
-  color: var(--color-on-surface-variant);
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--text-color-light);
   touch-action: none;
 }
 .card-main {
@@ -364,7 +363,7 @@ summary,
 }
 .card-heading strong {
   overflow: hidden;
-  font-size: 0.92rem;
+  font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -372,21 +371,21 @@ summary,
 .group-pill {
   padding: 2px 6px;
   border-radius: 999px;
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
-  font-size: 0.68rem;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 .group-pill {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   background: var(--input-bg);
 }
 p {
   margin: 6px 0 3px;
   display: -webkit-box;
   overflow: hidden;
-  color: var(--color-on-surface-variant);
-  font-size: 0.8rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
@@ -395,8 +394,8 @@ p {
   display: block;
 }
 small {
-  color: var(--color-on-surface-variant);
-  font-size: 0.68rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .card-actions {
   display: flex;
@@ -426,7 +425,7 @@ small {
   transition: 0.18s;
 }
 .switch input:checked + i {
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .switch input:checked + i::after {
   transform: translateX(14px);
@@ -453,31 +452,32 @@ summary::-webkit-details-marker {
   min-width: 116px;
   padding: 5px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
   box-shadow: 0 8px 24px #0002;
 }
 .menu button {
   width: 100%;
   padding: 8px;
+  min-height: 44px;
   display: flex;
   gap: 7px;
   text-align: left;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 .group-move {
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.7rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .group-move select {
   max-width: 150px;
   padding: 6px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font: inherit;
@@ -486,10 +486,10 @@ summary::-webkit-details-marker {
   opacity: 0.4;
 }
 .menu .danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color);
 }
 .expand-icon {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   transition: 0.18s;
 }
 .rotate {

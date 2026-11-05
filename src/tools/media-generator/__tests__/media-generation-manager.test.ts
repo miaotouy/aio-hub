@@ -44,12 +44,12 @@ vi.mock("@/utils/logger", () => ({
 vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ handle: vi.fn() }),
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/core", () => ({ invoke: vi.fn() }));
+vi.mock("@/platform/native/fs", () => ({
   writeTextFile: vi.fn(),
   mkdir: vi.fn(),
 }));
-vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
+vi.mock("@/platform/native/http", () => ({ fetch: vi.fn() }));
 
 import { useMediaGenerationManager } from "../composables/useMediaGenerationManager";
 import { useMediaTaskManager } from "../composables/useMediaTaskManager";

@@ -125,7 +125,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import {
   Picture,
   VideoCamera,

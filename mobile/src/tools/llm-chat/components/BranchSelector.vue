@@ -10,8 +10,8 @@ const props = defineProps<{
   currentSiblingIndex: number;
 }>();
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.BranchSelector.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.BranchSelector");
 
 const emit = defineEmits<{
   (e: "update:show", value: boolean): void;
@@ -125,13 +125,13 @@ const handleSwitch = (nodeId: string) => {
 }
 
 .title {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
 }
 
 .count {
   color: var(--text-color-secondary);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 
 .branch-list {
@@ -149,21 +149,21 @@ const handleSwitch = (nodeId: string) => {
   gap: 10px;
   padding: 12px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
   color: inherit;
   text-align: left;
 }
 
 .branch-item.active {
-  border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary), transparent 90%);
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color), transparent 90%);
 }
 
 .branch-avatar {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--card-bg);
   display: flex;
   align-items: center;
@@ -186,19 +186,19 @@ const handleSwitch = (nodeId: string) => {
 }
 
 .branch-title {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
 .branch-time {
   color: var(--text-color-secondary);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 
 .branch-preview {
   color: var(--text-color-secondary);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -208,7 +208,7 @@ const handleSwitch = (nodeId: string) => {
 
 .active-icon {
   margin-top: 5px;
-  color: var(--el-color-primary);
+  color: var(--primary-color);
   flex-shrink: 0;
 }
 </style>

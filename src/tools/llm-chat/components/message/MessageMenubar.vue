@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
@@ -171,7 +173,7 @@ const hasVariables = computed(() => !!sessionVariableSnapshot.value);
 // 复制消息
 const copyMessage = async () => {
   try {
-    await navigator.clipboard.writeText(props.message.content);
+    await getBrowserClipboard().writeText(props.message.content);
     emit("copy");
     copied.value = true;
     setTimeout(() => {

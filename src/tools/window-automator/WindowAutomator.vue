@@ -22,7 +22,7 @@
  * - 全局快捷键：F10 启停当前方案（使用 document keydown 监听，避免新增 plugin 依赖）
  * - 接收 FlowList 的 quick-start 事件，自动切到详情并启动
  */
-import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { computed, onMounted, onBeforeUnmount } from "vue";
 import { useWindowAutomatorStore } from "./stores/windowAutomator.store";
 import { useFlowPersistence } from "./composables/useFlowPersistence";
@@ -32,7 +32,8 @@ import FlowList from "./components/FlowList.vue";
 import FlowDetail from "./components/FlowDetail.vue";
 import type { ActionFlow } from "./types";
 
-const isSupported = getNativeDesktopCapabilities().windowAutomation;
+const capability = getHostCapability("windowAutomation");
+const isSupported = capability.available;
 const logger = createModuleLogger("window-automator/WindowAutomator");
 const store = useWindowAutomatorStore();
 const persistence = useFlowPersistence();
@@ -103,7 +104,8 @@ onBeforeUnmount(() => {
       type="info"
       :closable="false"
       show-icon
-      title="窗口绑定和方案执行需要 Windows。当前可创建、编辑与导出方案。"
+      :title="capability.reason || ''"
+      description="当前可创建、编辑与导出方案。"
       style="flex-shrink: 0; margin-bottom: 16px"
     />
     <FlowList v-if="view === 'list'" @quick-start="quickStart" />

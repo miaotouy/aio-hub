@@ -1,5 +1,6 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { nextTick } from "vue";
+import { hasNativeRuntimeMarker } from "@/platform/core/env";
 import router from "@/router";
 import { useAppInitStore } from "@/stores/appInitStore";
 import { createModuleLogger } from "@/utils/logger";
@@ -25,7 +26,7 @@ let disposeBridge: (() => void) | undefined;
 export async function startDevControlBridge(): Promise<void> {
   const currentGeneration = ++generation;
   disposeBridge?.();
-  if (!isTauri()) return;
+  if (!hasNativeRuntimeMarker()) return;
   const identity = await invoke<DevControlIdentity | null>(
     "dev_control_identity"
   );

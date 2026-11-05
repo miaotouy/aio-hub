@@ -21,11 +21,11 @@ import {
   readDir as tauriReadDir,
   BaseDirectory,
   type DirEntry,
-} from "@tauri-apps/plugin-fs";
+} from "@/platform/native/fs";
 
 export { BaseDirectory };
 export type { DirEntry };
-import { isTauriRuntime } from "../core/env";
+import { isNativeRuntime } from "../core/env";
 import { invoke } from "../core/bridge";
 import { PlatformError } from "../core/errors";
 
@@ -33,7 +33,7 @@ import { PlatformError } from "../core/errors";
  * 检查路径是否存在
  */
 export async function pathExists(filePath: string): Promise<boolean> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriExists(filePath);
     } catch {
@@ -52,7 +52,7 @@ export async function pathExists(filePath: string): Promise<boolean> {
  * 强制读取文本文件内容（UTF-8）
  */
 export async function readTextFile(filePath: string): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriReadTextFile(filePath);
     } catch {
@@ -74,7 +74,7 @@ export async function writeTextFile(
   filePath: string,
   content: string
 ): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriWriteTextFile(filePath, content);
       return;
@@ -139,7 +139,7 @@ export async function createDir(
   dirPath: string,
   recursive = true
 ): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriMkdir(dirPath, { recursive });
       return;
@@ -174,7 +174,7 @@ export async function removeFileOrDir(
   options: boolean | RemoveOptions = false
 ): Promise<void> {
   const opts = typeof options === "boolean" ? { recursive: options } : options;
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriRemove(targetPath, opts);
       return;
@@ -195,7 +195,7 @@ export async function readDirectory(
   dirPath: string,
   options?: ReadDirOptions
 ): Promise<DirEntry[]> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriReadDir(dirPath, options);
     } catch (err) {

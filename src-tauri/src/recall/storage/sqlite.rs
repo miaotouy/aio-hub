@@ -220,7 +220,8 @@ impl SqliteRecallRepository {
         };
 
         for entry in entries {
-            let (models, tokens) = self.load_entry_vector_state(entry.id, &entry.content_hash)?;
+            let (models, tokens) =
+                self.load_entry_vector_state(row.id, entry.id, &entry.content_hash)?;
             let status = if models.is_empty() {
                 "none".to_string()
             } else {
@@ -301,6 +302,7 @@ impl SqliteRecallRepository {
 
     fn load_entry_vector_state(
         &self,
+        collection_id: Uuid,
         entry_id: Uuid,
         content_hash: &Option<String>,
     ) -> Result<(Vec<String>, u32), String> {
@@ -308,19 +310,22 @@ impl SqliteRecallRepository {
         let mut statement = connection
             .prepare(
                 "SELECT model_id, tokens, content_hash
-                 FROM recall_entry_vectors WHERE entry_id = ?1 ORDER BY model_id",
+                 FROM recall_entry_vectors WHERE collection_id = ?1 AND entry_id = ?2 ORDER BY model_id",
             )
             .map_err(|error| format!("准备条目向量状态查询失败: {error}"))?;
         let mut models = Vec::new();
         let mut tokens = 0_u32;
         let rows = statement
-            .query_map([entry_id.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                ))
-            })
+            .query_map(
+                params![collection_id.to_string(), entry_id.to_string()],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
             .map_err(|error| format!("查询条目向量状态失败: {error}"))?;
         for row in rows {
             let (model, row_tokens, row_hash) =
@@ -350,8 +355,7 @@ impl SqliteRecallRepository {
                         id, collection_id, key, content, summary, tags_json, assets_json,
                         priority, enabled, content_hash, created_at, updated_at
                      ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-                     ON CONFLICT(id) DO UPDATE SET
-                        collection_id = excluded.collection_id,
+                     ON CONFLICT(collection_id, id) DO UPDATE SET
                         key = excluded.key,
                         content = excluded.content,
                         summary = excluded.summary,
@@ -379,6 +383,54 @@ impl SqliteRecallRepository {
                 )
                 .map_err(|error| format!("写入 Recall 条目 {} 失败: {error}", entry.id))?;
         }
+        Ok(())
+    }
+    fn write_collection_transaction(
+        transaction: &rusqlite::Transaction<'_>,
+        collection: &RecallCollection,
+    ) -> Result<(), String> {
+        let meta = &collection.meta;
+        let tags_json = serde_json::to_string(&meta.tags).map_err(|error| error.to_string())?;
+        let config_json = serde_json::to_string(&meta.config).map_err(|error| error.to_string())?;
+        transaction
+            .execute(
+                "INSERT INTO recall_collections(
+                    id, name, description, author, icon, tags_json, config_json,
+                    created_at, updated_at, active_model_id, active_model_last_indexed_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                 ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    description = excluded.description,
+                    author = excluded.author,
+                    icon = excluded.icon,
+                    tags_json = excluded.tags_json,
+                    config_json = excluded.config_json,
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at,
+                    active_model_id = excluded.active_model_id,
+                    active_model_last_indexed_at = excluded.active_model_last_indexed_at",
+                params![
+                    meta.id.to_string(),
+                    meta.name,
+                    meta.description,
+                    meta.author,
+                    meta.icon,
+                    tags_json,
+                    config_json,
+                    meta.created_at,
+                    meta.updated_at,
+                    meta.vectorization.model_used,
+                    meta.vectorization.last_indexed_at,
+                ],
+            )
+            .map_err(|error| format!("写入 Recall 集合失败: {error}"))?;
+        transaction
+            .execute(
+                "DELETE FROM recall_entries WHERE collection_id = ?1",
+                [meta.id.to_string()],
+            )
+            .map_err(|error| format!("清理 Recall 集合旧条目失败: {error}"))?;
+        Self::upsert_entries_transaction(&transaction, meta.id, &collection.entries)?;
         Ok(())
     }
 }
@@ -440,48 +492,7 @@ impl RecallRepository for SqliteRecallRepository {
         let transaction = connection
             .transaction()
             .map_err(|error| format!("开启 Recall 集合事务失败: {error}"))?;
-        let meta = &collection.meta;
-        let tags_json = serde_json::to_string(&meta.tags).map_err(|error| error.to_string())?;
-        let config_json = serde_json::to_string(&meta.config).map_err(|error| error.to_string())?;
-        transaction
-            .execute(
-                "INSERT INTO recall_collections(
-                    id, name, description, author, icon, tags_json, config_json,
-                    created_at, updated_at, active_model_id, active_model_last_indexed_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-                 ON CONFLICT(id) DO UPDATE SET
-                    name = excluded.name,
-                    description = excluded.description,
-                    author = excluded.author,
-                    icon = excluded.icon,
-                    tags_json = excluded.tags_json,
-                    config_json = excluded.config_json,
-                    created_at = excluded.created_at,
-                    updated_at = excluded.updated_at,
-                    active_model_id = excluded.active_model_id,
-                    active_model_last_indexed_at = excluded.active_model_last_indexed_at",
-                params![
-                    meta.id.to_string(),
-                    meta.name,
-                    meta.description,
-                    meta.author,
-                    meta.icon,
-                    tags_json,
-                    config_json,
-                    meta.created_at,
-                    meta.updated_at,
-                    meta.vectorization.model_used,
-                    meta.vectorization.last_indexed_at,
-                ],
-            )
-            .map_err(|error| format!("写入 Recall 集合失败: {error}"))?;
-        transaction
-            .execute(
-                "DELETE FROM recall_entries WHERE collection_id = ?1",
-                [meta.id.to_string()],
-            )
-            .map_err(|error| format!("清理 Recall 集合旧条目失败: {error}"))?;
-        Self::upsert_entries_transaction(&transaction, meta.id, &collection.entries)?;
+        Self::write_collection_transaction(&transaction, collection)?;
         transaction
             .commit()
             .map_err(|error| format!("提交 Recall 集合事务失败: {error}"))?;
@@ -497,6 +508,32 @@ impl RecallRepository for SqliteRecallRepository {
             .collect::<Vec<_>>();
         self.delete_vectors_for_entries(collection.meta.id, &stale_entry_ids)?;
         Ok(())
+    }
+
+    /// Restore content and clear all derived vectors together; errors leave the previous collection intact.
+    fn restore_collection(&self, collection: &RecallCollection) -> Result<(), String> {
+        let mut connection = self.open_main()?;
+        connection
+            .execute(
+                "ATTACH DATABASE ?1 AS restored_vectors",
+                [self.vector_db.to_string_lossy().as_ref()],
+            )
+            .map_err(|error| format!("连接 Recall 恢复向量库失败: {error}"))?;
+        let transaction = connection
+            .transaction()
+            .map_err(|error| format!("开启 Recall 恢复事务失败: {error}"))?;
+        Self::write_collection_transaction(&transaction, collection)?;
+        for table in ["recall_entry_vectors", "recall_models"] {
+            transaction
+                .execute(
+                    &format!("DELETE FROM restored_vectors.{table} WHERE collection_id = ?1"),
+                    [collection.meta.id.to_string()],
+                )
+                .map_err(|error| format!("清理 Recall 恢复派生数据失败: {error}"))?;
+        }
+        transaction
+            .commit()
+            .map_err(|error| format!("提交 Recall 恢复事务失败: {error}"))
     }
 
     fn delete_collection(&self, collection_id: Uuid) -> Result<(), String> {
@@ -904,6 +941,18 @@ impl RecallRepository for SqliteRecallRepository {
             .commit()
             .map_err(|error| format!("提交 Recall 标签池事务失败: {error}"))
     }
+
+    fn list_tag_pool_models(&self) -> Result<Vec<String>, String> {
+        let connection = self.open_vectors()?;
+        let mut statement = connection
+            .prepare("SELECT DISTINCT model_id FROM recall_tag_vectors ORDER BY model_id")
+            .map_err(|error| format!("准备 Recall 标签池模型查询失败: {error}"))?;
+        let rows = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|error| format!("查询 Recall 标签池模型失败: {error}"))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("读取 Recall 标签池模型失败: {error}"))
+    }
 }
 
 fn configure_connection(connection: Connection) -> Result<Connection, String> {
@@ -1088,7 +1137,7 @@ mod tests {
             main.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| row
                 .get::<_, i64>(0))
                 .unwrap(),
-            2
+            3
         );
         assert_eq!(
             vector
@@ -1097,6 +1146,141 @@ mod tests {
                 .unwrap(),
             1
         );
+    }
+
+    #[test]
+    fn v2_upgrade_preserves_source_fields_and_supports_collection_scoped_entry_ids() {
+        let directory = tempdir().unwrap();
+        let repository = SqliteRecallRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let original = collection(Uuid::new_v4());
+        repository.save_collection(&original).unwrap();
+        // Recreate the shipped v2 table with existing source data, then reopen normally.
+        let main = Connection::open(repository.main_db_path()).unwrap();
+        main.execute_batch(
+            "ALTER TABLE recall_entries RENAME TO entries_v3;
+             CREATE TABLE recall_entries (
+               id TEXT PRIMARY KEY, collection_id TEXT NOT NULL,
+               key TEXT NOT NULL DEFAULT '', content TEXT NOT NULL,
+               summary TEXT NOT NULL DEFAULT '', tags_json TEXT NOT NULL DEFAULT '[]',
+               assets_json TEXT NOT NULL DEFAULT '[]', priority INTEGER NOT NULL DEFAULT 100,
+               enabled INTEGER NOT NULL DEFAULT 1, content_hash TEXT,
+               created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+               FOREIGN KEY (collection_id) REFERENCES recall_collections(id) ON DELETE CASCADE
+             );
+             INSERT INTO recall_entries SELECT * FROM entries_v3;
+             DROP TABLE entries_v3;
+             CREATE INDEX idx_recall_entries_collection_updated ON recall_entries(collection_id, updated_at DESC);
+             CREATE INDEX idx_recall_entries_collection_key ON recall_entries(collection_id, key);
+             CREATE INDEX idx_recall_entries_collection_enabled ON recall_entries(collection_id, enabled);
+             CREATE INDEX idx_recall_entries_content_hash ON recall_entries(content_hash);
+             DELETE FROM schema_migrations WHERE version = 3;"
+        ).unwrap();
+        drop(main);
+        repository.initialize().unwrap();
+        repository.initialize().unwrap();
+        let loaded = repository
+            .load_collection(original.meta.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&loaded.entries).unwrap(),
+            serde_json::to_value(&original.entries).unwrap()
+        );
+        assert_eq!(loaded.meta.name, original.meta.name);
+        assert_eq!(loaded.meta.config, original.meta.config);
+        let mut copied = original.clone();
+        copied.meta.id = Uuid::new_v4();
+        repository.restore_collection(&copied).unwrap();
+        assert_eq!(repository.load_entries(original.meta.id).unwrap().len(), 1);
+        assert_eq!(
+            repository.load_entries(copied.meta.id).unwrap()[0].id,
+            original.entries[0].id
+        );
+        let main = Connection::open(repository.main_db_path()).unwrap();
+        assert!(main
+            .prepare("PRAGMA foreign_key_check")
+            .unwrap()
+            .query([])
+            .unwrap()
+            .next()
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn same_entry_ids_keep_content_vectors_updates_and_deletes_isolated_by_collection() {
+        let directory = tempdir().unwrap();
+        let repository = SqliteRecallRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let original = collection(Uuid::new_v4());
+        repository.save_collection(&original).unwrap();
+        let mut copied = original.clone();
+        copied.meta.id = Uuid::new_v4();
+        repository.restore_collection(&copied).unwrap();
+        let entry = &original.entries[0];
+        repository
+            .upsert_entry_vector(
+                original.meta.id,
+                entry.id,
+                "original-model",
+                &[1.0],
+                Some(9),
+                entry.content_hash.as_deref(),
+                20,
+            )
+            .unwrap();
+        repository
+            .upsert_entry_vector(
+                copied.meta.id,
+                entry.id,
+                "copy-model",
+                &[2.0],
+                Some(3),
+                entry.content_hash.as_deref(),
+                21,
+            )
+            .unwrap();
+        let first = repository
+            .load_collection(original.meta.id)
+            .unwrap()
+            .unwrap();
+        let second = repository.load_collection(copied.meta.id).unwrap().unwrap();
+        assert_eq!(first.meta.entries[0].vectorized_models, vec!["original-model"]);
+        assert_eq!(second.meta.entries[0].vectorized_models, vec!["copy-model"]);
+        copied.entries[0].content = "Copy edit".into();
+        repository
+            .upsert_entries(copied.meta.id, &copied.entries)
+            .unwrap();
+        assert_eq!(
+            repository.load_entries(original.meta.id).unwrap()[0].content,
+            entry.content
+        );
+        assert_eq!(
+            repository.load_entries(copied.meta.id).unwrap()[0].content,
+            "Copy edit"
+        );
+        repository
+            .delete_entries(copied.meta.id, &[entry.id])
+            .unwrap();
+        assert!(repository.load_entries(copied.meta.id).unwrap().is_empty());
+        assert_eq!(
+            repository.load_entries(original.meta.id).unwrap()[0].content,
+            entry.content
+        );
+        assert!(repository
+            .load_vectors(original.meta.id, "original-model")
+            .unwrap()
+            .is_some());
+        assert!(repository
+            .load_vectors(copied.meta.id, "copy-model")
+            .unwrap()
+            .is_none());
+        // Collection deletion still cascades entries after the table migration.
+        repository.save_collection(&copied).unwrap();
+        repository.delete_collection(copied.meta.id).unwrap();
+        assert!(repository.load_entries(copied.meta.id).unwrap().is_empty());
+        assert_eq!(repository.load_entries(original.meta.id).unwrap().len(), 1);
     }
 
     #[test]
@@ -1232,5 +1416,60 @@ mod tests {
             .upsert_entries(stored.meta.id, &[first, second])
             .is_err());
         assert!(repository.load_entries(stored.meta.id).unwrap().is_empty());
+    }
+    #[test]
+    fn restore_collection_clears_vectors_and_rolls_back_content_when_vector_cleanup_fails() {
+        let directory = tempdir().unwrap();
+        let repository = SqliteRecallRepository::new(directory.path());
+        repository.initialize().unwrap();
+        let original = collection(Uuid::new_v4());
+        repository.save_collection(&original).unwrap();
+        repository
+            .upsert_entry_vector(
+                original.meta.id,
+                original.entries[0].id,
+                "model",
+                &[1.0, 0.0],
+                Some(7),
+                original.entries[0].content_hash.as_deref(),
+                1,
+            )
+            .unwrap();
+        let mut changed = original.clone();
+        changed.meta.name = "Restored".into();
+        changed.entries[0].content = "Restored content".into();
+        let vectors = Connection::open(repository.vector_db_path()).unwrap();
+        vectors.execute_batch("CREATE TRIGGER reject_backup_restore BEFORE DELETE ON recall_entry_vectors BEGIN SELECT RAISE(ABORT, 'vector cleanup blocked'); END;").unwrap();
+        assert!(repository
+            .restore_collection(&changed)
+            .unwrap_err()
+            .contains("vector cleanup blocked"));
+        let unchanged = repository
+            .load_collection(original.meta.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(unchanged.meta.name, original.meta.name);
+        assert_eq!(unchanged.entries[0].content, original.entries[0].content);
+        assert!(repository
+            .load_vectors(original.meta.id, "model")
+            .unwrap()
+            .is_some());
+        vectors
+            .execute_batch("DROP TRIGGER reject_backup_restore;")
+            .unwrap();
+        repository.restore_collection(&changed).unwrap();
+        let restored = repository
+            .load_collection(original.meta.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(restored.meta.name, "Restored");
+        assert_eq!(restored.entries[0].id, original.entries[0].id);
+        assert_eq!(restored.entries[0].content, "Restored content");
+        assert!(restored.meta.models.is_empty());
+        assert!(!restored.meta.vectorization.is_indexed);
+        assert!(repository
+            .load_vectors(original.meta.id, "model")
+            .unwrap()
+            .is_none());
     }
 }

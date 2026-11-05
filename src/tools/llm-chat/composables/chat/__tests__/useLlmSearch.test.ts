@@ -4,7 +4,7 @@ import { useLlmSearch } from "../useLlmSearch";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mocks.invoke,
   Channel: class {
     onmessage?: unknown;
@@ -23,7 +23,7 @@ vi.mock("@/utils/errorHandler", () => ({
 }));
 afterEach(() => {
   vi.useRealTimers();
-  mocks.invoke.mockClear();
+  mocks.invoke.mockReset().mockResolvedValue(undefined);
 });
 
 // Clearing is also the panel-unmount contract: pending debounce work must be invalidated,
@@ -51,4 +51,68 @@ describe("LLM search cancellation", () => {
     );
     search.clearSearch();
   });
+});
+
+it("ignores late results and errors from a superseded streaming search", async () => {
+  const channels: { onmessage: (payload: unknown) => void }[] = [];
+  let rejectOld!: (reason: Error) => void;
+  mocks.invoke.mockImplementation((command, args) => {
+    if (command === "cancel_llm_chat_search") return Promise.resolve();
+    channels.push(args.onEvent);
+    if (args.query === "old")
+      return new Promise((_resolve, reject) => {
+        rejectOld = reject;
+      });
+    args.onEvent.onmessage({
+      type: "resultBatch",
+      data: [
+        {
+          id: "current",
+          kind: "session",
+          title: "current",
+          matches: [],
+          path: "current.json",
+        },
+      ],
+    });
+    args.onEvent.onmessage({ type: "done", data: { durationMs: 1 } });
+    return Promise.resolve();
+  });
+  const search = useLlmSearch();
+  const old = search.searchImmediate("old");
+  await search.searchImmediate("new");
+  channels[0].onmessage({
+    type: "resultBatch",
+    data: [{ id: "stale", matches: [] }],
+  });
+  rejectOld(new Error("old failed late"));
+  await old;
+  expect(search.searchResults.value.map((result) => result.id)).toEqual([
+    "current",
+  ]);
+  expect(search.searchError.value).toBeNull();
+  expect(search.isSearching.value).toBe(false);
+});
+it("keeps a cleared panel empty when an in-flight channel later publishes", async () => {
+  let channel!: { onmessage: (payload: unknown) => void }, finish!: () => void;
+  mocks.invoke.mockImplementation((command, args) => {
+    if (command === "cancel_llm_chat_search") return Promise.resolve();
+    channel = args.onEvent;
+    return new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+  });
+  const search = useLlmSearch(),
+    pending = search.searchImmediate("old");
+  search.clearSearch();
+  channel.onmessage({
+    type: "resultBatch",
+    data: [{ id: "stale", matches: [] }],
+  });
+  channel.onmessage({ type: "done", data: { durationMs: 1 } });
+  finish();
+  await pending;
+  expect(search.searchResults.value).toEqual([]);
+  expect(search.filesScanned.value).toBe(0);
+  expect(search.isSearching.value).toBe(false);
 });

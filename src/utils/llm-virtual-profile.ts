@@ -2,7 +2,7 @@ import {
   resolveChannelCandidates,
   ChannelConfigurationError,
 } from "@aiohub/llm-core";
-import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmProfile } from "../types/llm-profiles";
 
 export function remapVirtualChannelReferences(
   profile: LlmProfile,

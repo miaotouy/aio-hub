@@ -36,7 +36,7 @@
 
 import { reactive, computed, watch, onMounted, onUnmounted } from "vue";
 import { storeToRefs } from "pinia";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useInspectorRecordsStore } from "../stores/inspectorRecordsStore";

@@ -21,6 +21,8 @@
       v-show="modelValue"
       ref="panelRef"
       class="draggable-panel"
+      data-overlay-layer
+      @mousedown="raisePanel"
       :class="{ 'is-minimized': isMinimized, 'is-resizing': isResizing }"
       :style="panelStyle"
     >
@@ -63,6 +65,10 @@
 import { ref, computed, watch, nextTick } from "vue";
 import { useDraggable, useWindowSize, useStorage } from "@vueuse/core";
 import { Minus, Square, X } from "lucide-vue-next";
+import {
+  getMaxDialogZIndex,
+  useOverlayZIndex,
+} from "@/composables/useDialogZIndex";
 
 export interface DraggablePanelInstance {
   activate: () => void;
@@ -260,13 +266,18 @@ const initResize = (e: MouseEvent) => {
   document.body.style.cursor = "se-resize";
 };
 
+const { zIndex, bringToFront } = useOverlayZIndex(() => props.modelValue);
+function raisePanel() {
+  if (zIndex.value < getMaxDialogZIndex()) bringToFront();
+}
+
 const panelStyle = computed(() => {
   return {
     left: `${x.value}px`,
     top: `${y.value}px`,
     width: `${currentWidth.value}px`,
     height: isMinimized.value ? "auto" : `${currentHeight.value}px`,
-    zIndex: 2000,
+    zIndex: zIndex.value,
   };
 });
 

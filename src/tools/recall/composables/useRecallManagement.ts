@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import yaml from "js-yaml";
 import { createModuleLogger } from "@/utils/logger";
 import { useRecallCollectionStore } from "../stores/recallCollectionStore";

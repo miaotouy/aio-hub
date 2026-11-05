@@ -76,6 +76,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .mobile-code-block {
   max-width: 100%;
+  min-width: 0;
   margin: 12px 0;
   overflow: hidden;
   border: var(--border-width) solid var(--border-color);
@@ -99,7 +100,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   color: var(--text-color-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   text-overflow: ellipsis;
   text-transform: lowercase;
@@ -126,22 +127,22 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: var(--app-radius-sm);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 
 .mobile-code-action:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--primary-color);
   outline-offset: -2px;
 }
 
 .mobile-code-action:active,
 .mobile-code-action[aria-pressed="true"] {
   color: var(--text-color);
-  background: var(--color-surface-container-high, var(--card-bg));
+  background: var(--input-bg, var(--card-bg));
 }
 
 .copy-success {
-  color: var(--success-color, var(--el-color-success));
+  color: var(--success-color);
 }
 
 .mobile-code-pre {
@@ -152,7 +153,7 @@ onBeforeUnmount(() => {
   padding: 12px;
   color: var(--text-color);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   white-space: pre;
 }

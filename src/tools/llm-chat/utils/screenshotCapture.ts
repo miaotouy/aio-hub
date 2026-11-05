@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getBrowserClipboard } from "@/platform/browser";
+
 /**
  * 消息截图核心工具。
  *
@@ -996,5 +998,5 @@ export async function copyCanvasToClipboard(
       else reject(new Error("Canvas 转 Blob 失败"));
     }, "image/png");
   });
-  await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  await getBrowserClipboard().write([new ClipboardItem({ "image/png": blob })]);
 }

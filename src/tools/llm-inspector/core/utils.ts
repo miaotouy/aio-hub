@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getBrowserClipboard } from "@/platform/browser";
+
 /**
  * LLM Inspector — 通用工具函数
  *
@@ -177,7 +179,7 @@ export async function copyToClipboard(
   message: string = "已复制到剪贴板"
 ): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
   } catch (err) {
     console.error("复制到剪贴板失败:", err);
     throw new Error(`复制失败: ${message}`);

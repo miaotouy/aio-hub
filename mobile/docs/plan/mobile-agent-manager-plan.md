@@ -1,12 +1,16 @@
 # 移动端 Agent 独立化管理器 — 规划方案
 
-> **文档状态**: 基础能力已落地并进入维护；非当前移动端主施工线，不以桌面 Agent 完全对齐为目标
+> **文档状态**: 基础能力已落地；按狂奔施工模式继续补齐用户可见的 Agent 与聊天协作功能，桌面完全对齐和高级能力后置
 > **创建日期**: 2025-06-23  
-> **最近核对**: 2026-07-27
+> **最近核对**: 2026-09-23
 > **关联模块**: `mobile/src/tools/agent-manager/`
 > **前置依赖**: `mobile/src/tools/llm-api/`, `mobile/src/tools/llm-chat/`
-> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文只保留已落地能力、兼容边界和 MVP 之后的可选增强。当前主线优先完成不依赖工具调用、向量 RAG 或高级 Agent 的移动端 Chat。
+> **架构入口**: 已实施模块边界与当前能力以 [`ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md) 为准；本文保留已落地能力、兼容边界和下一批可见功能。工具调用、向量 RAG、高级 Agent 参数和桌面完全对齐按实际需求后置，不阻拦当前 Chat 施工。
 > **跨模块施工索引**: [`mobile-development-checklist.md`](./mobile-development-checklist.md)
+
+## 当前施工口径
+
+先连续补齐 Agent 详情、预设、开局消息、宏变量和聊天切换等用户可见链路，在当前可运行环境中把入口到结果串通。测试、跨端对齐、私有二进制资产和平台报告跟随功能链收口；尚未实现的条目仍是可继续施工的功能项，不代表整项计划暂停。
 
 ## 1. 背景与动机
 
@@ -282,6 +286,8 @@ interface AgentsIndex {
 
 智能体资产自治还意味着：全局资产按月份回收、批量转写或清理缓存时，不得扫描或删除 Agent 私有目录；删除智能体时也不影响内容相同的全局资产副本。
 
+上述私有目录读写已由 `useAgentStorage` 落地（`getAgentDir`/`getAgentAssetsDir`、`saveAgentAsset`/`readAgentAsset`、`saveAgentAvatar`、`listAgentAssets`）；AIO/ST 导入包内的头像、`assets/` 与 `worldbooks/` 会在 `AgentList.vue` 导入流程中落盘，并回写 `icon`/`assets`/`worldbookIds`（2026-09-26）。
+
 ---
 
 ## 4. 双模块协作机制
@@ -344,23 +350,26 @@ sequenceDiagram
 - [x] 阶段 3 主链路：角色大厅入口、会话绑定、模型与基础参数绑定、基础预设管道注入、聊天栏智能体标识。
 - [x] 阶段 3 增强：聊天内切换 Agent；会话绑定可单独更新，历史消息的 Agent 快照与已实例化开局消息保持稳定。
 - [x] 后续增强（已提前完成）：AIO Agent JSON、SillyTavern JSON/PNG 导入和预设 JSON 导入导出。
-- [ ] MVP 之后的可选增强：Agent 私有头像与二进制资产管理，以及工具调用、Knowledge/Recall、媒体/压缩等高级参数。它们不属于当前 Chat 完整性的依赖；移动端确有需求时再独立设计，且私有资产不得改存为全局 `assetId`。基础用户档案与移动端当前支持的生成参数/上下文截断编辑已完成。
+- [x] Agent 私有头像与二进制资产目录：`useAgentStorage` 私有资产 API、导入包头像/`assets/`/`worldbooks/` 落盘与回写（2026-09-26）。
+- [ ] MVP 之后的可选增强：Agent 私有 `presetAttachments`/`assetGroups` 运行时解析，以及工具调用、Knowledge/Recall、媒体/压缩等高级参数。它们不属于当前 Chat 完整性的依赖；移动端确有需求时再独立设计，且私有资产不得改存为全局 `assetId`。基础用户档案与移动端当前支持的生成参数/上下文截断编辑已完成。
 - [x] 兼容性收尾：已同步桌面端显式类型、分类枚举、`defaultGreetingId` 和开局消息结构；旧 `custom` 分类及字符串开局消息在运行时兼容。
 
 实现偏差：移动端当前全量加载智能体详情，以降低首版状态复杂度；列表使用页面内紧凑行而非独立 `AgentCard`。存储格式仍保持 `agent-manager/agents/{id}/agent.json` 与轻量索引分离，后续可在数据规模需要时切换为按需加载，不影响磁盘格式。索引不保存 `currentAgentId`，Agent 选择状态以聊天会话的 `displayAgentId` 为准。
 
-阶段 2 实现说明：Rust 后端已经接入单一 `o200k_base` 词表，前端通过 `mobile/src/utils/tokenCounting.ts` 批量调用 `count_tokens_batch`，编辑器以 500ms 防抖更新启用消息的 Token 估算，并排除禁用消息和禁用消息组。IPC 失败时回退为字符估算。AIO Agent JSON 与 SillyTavern JSON/PNG 角色数据已支持导入，头像和随包二进制资产仍归入后续“Agent 私有头像与资产管理”阶段。详见 [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
+阶段 2 实现说明：Rust 后端已经接入单一 `o200k_base` 词表，前端通过 `mobile/src/utils/tokenCounting.ts` 批量调用 `count_tokens_batch`，编辑器以 500ms 防抖更新启用消息的 Token 估算，并排除禁用消息和禁用消息组。IPC 失败时回退为字符估算。AIO Agent JSON、SillyTavern JSON/PNG 角色数据与 AIO 导出包（YAML/PNG bundle/ZIP）已支持导入，包内头像、`assets/` 与 `worldbooks/` 已落盘回写；`presetAttachments` 运行时仍待后续。详见 [`mobile-token-counting-plan.md`](./mobile-token-counting-plan.md)。
 
 阶段 3 实现说明：当前管道已执行已启用预设消息的默认、深度/高级深度、锚点、模型与渠道匹配，并将 Agent 的模型和常用生成参数传给请求层。移动端限定宏引擎已经在请求管线中展开角色、用户、会话、模型、附件摘要与局部变量；工具、Recall、Knowledge、CSS 和全局变量宏仍不在当前范围。创建绑定 Agent 的新会话时，开局消息会作为根节点下的真实兄弟分支固化，优先选中 `defaultGreetingId`，且兼容旧字符串开局消息；开局消息当前保持导入文本，Agent 私有附件仍待私有资产阶段转换。聊天页顶部可打开 Agent 选择器：切换仅更新会话 `displayAgentId`，历史节点不变；后续助手消息会写入 Agent 身份和模型/渠道快照。
 
 验证记录（2026-07-14）：`bun run build`、`bun run test:run`、`bun run check:backend` 和 `cargo test --manifest-path src-tauri/Cargo.toml` 均通过。现有自动化测试主要覆盖 Token 计数，Agent 存储、导入、会话绑定和预设管道仍缺少专项测试。
+
+验证记录（2026-09-26）：Agent 私有资产落盘改动通过 `bun run check:frontend`、`bun run test:run src/tools/agent-manager`（6 个测试文件 21 个用例）与 `bun run build`。新增 `useAgentImporter.assets.test.ts` 与 `useAgentStorage.assets.test.ts`，覆盖包内头像/`assets/`/`worldbooks/` 提取、按 agentIndex 关联和私有目录读写路径。
 
 ### 阶段 1：基础设施搭建（地基）
 
 | 任务                | 产出文件                         | 说明                                                               |
 | ------------------- | -------------------------------- | ------------------------------------------------------------------ |
 | 定义 ChatAgent 类型 | `types/agent.ts`                 | 核心字段已覆盖，未知高级字段可保留；显式类型仍需跟进桌面端最新定义 |
-| 实现本地存储        | `composables/useAgentStorage.ts` | 已实现一智能体一目录、索引同步、损坏索引恢复；头像迁移尚未实现     |
+| 实现本地存储        | `composables/useAgentStorage.ts` | 已实现一智能体一目录、索引同步、损坏索引恢复，以及头像/私有资产目录读写 |
 | 实现核心 Store      | `stores/agentStore.ts`           | 已实现 CRUD、列表管理和全量详情加载；按需加载尚未启用              |
 | 工具注册            | `agent-manager.registry.ts`      | 路由、语言包、图标（使用 `markRaw` 包裹）                          |
 | 创建默认 Agent      | Store 初始化逻辑                 | 首次初始化且存在可用模型时创建一个“默认助手”                       |
@@ -431,7 +440,7 @@ sequenceDiagram
 | **存储路径**     | 移动端与桌面端当前都采用各自应用配置目录下的 `agent-manager/agents/{id}/agent.json` 与 `agents-index.json` 布局；跨端迁移通过导入导出完成                                                                                                                                                                                                                                                   |
 | **类型定义**     | 运行时通过完整对象克隆和未知字段保留确保未编辑字段不被裁剪；显式 TypeScript 类型需持续跟随桌面端演进，已同步 `defaultGreetingId` 和桌面端分类枚举；加载旧持久化 `custom` 时归一化为 `other`，未知未来值仍由完整对象保留                                                                                                                                                                     |
 | **无损编辑**     | **核心策略（Lossless Editing）**：<br>1. 移动端编辑时从完整 Agent 对象执行 `structuredClone`，保存时提交完整草稿，从而保留 UI 暂不支持的桌面端高级字段（如 `toolCallConfig`、`knowledgeBaseConfig`、`worldbookIds`、`quickActionSetIds` 等）。<br>2. 编辑单条预设消息时同样克隆完整 `ChatMessageNode`，原样保留 `presetAttachments`、`childrenIds` 等未编辑字段，只覆盖用户明确修改的内容。 |
-| **导入格式**     | 当前支持 `AIO_Agent_Export` JSON 字段和 SillyTavern JSON/PNG 角色数据；未知字段可保留，但随包二进制资产尚未迁移，因此在 Agent 私有资产阶段完成前不能宣称完整资源包无损迁移                                                                                                                                                                                                                  |
+| **导入格式**     | 支持 `AIO_Agent_Export` JSON/YAML、SillyTavern JSON/PNG 角色数据与 AIO 导出包（YAML/PNG bundle/ZIP）；未知字段保留，包内头像、`assets/` 与 `worldbooks/` 已提取落盘并回写 `icon`/`assets`/`worldbookIds`。`presetAttachments` 与 `assetGroups` 运行时解析与宏过滤已于 2026-09-26 落地，详见 [`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md) 批次 4。 |                                                                                                                                                                                                                  |
 | **资产生命周期** | 头像、`assets[]` 和 `presetAttachments` 属于 Agent 私有资源包，使用 Handle 与相对路径；不转换为全局 `assetId`。从全局资产添加时复制文件，导入导出时携带私有二进制内容。                                                                                                                                                                                                                     |
 | **未来演进**     | 如果桌面端也决定拆分 Agent，可以参照移动端的架构模式进行渐进式重构                                                                                                                                                                                                                                                                                                                          |
 
@@ -455,7 +464,7 @@ sequenceDiagram
    - 倾向：做独立模块页
 
 2. **世界书 (Worldbook)**：移动端是否需要支持？
-   - 倾向：当前版本不添加，后续适时再追加。
+   - 已更新（2026-09-25）：`llm-chat` 已落地自建简化世界书闭环（store CRUD + 注入器 + Agent `worldbookIds` 绑定）；ST 导入转换与高级语义按 [`mobile-character-card-parity-plan.md`](./mobile-character-card-parity-plan.md) 批次 2/4 推进。
 
 3. **存储路径是否与桌面端对齐**：用 `agent-manager/` 还是 `llm-chat/agents/`？
    - 已决定：使用独立的 `agent-manager/`，物理隔离更干净。跨端迁移通过导入导出解决。

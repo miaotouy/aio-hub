@@ -15,8 +15,8 @@ interface NumberField {
 
 const props = defineProps<{ modelValue?: LlmParameters }>();
 const emit = defineEmits<{ "update:modelValue": [value: LlmParameters] }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.Parameters.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.Parameters");
 
 const parameters = computed<LlmParameters>(() => props.modelValue ?? {});
 const contextManagement = computed(
@@ -184,21 +184,21 @@ function updateContextNumber(
   display: grid;
   gap: 14px;
   padding: 16px;
-  border-radius: 14px;
-  background: var(--color-surface-container-low);
+  border-radius: var(--app-radius-lg);
+  background: var(--card-bg);
 }
 .section-heading h2,
 .context-heading h3 {
   margin: 0;
-  color: var(--color-on-surface);
-  font-size: 1rem;
+  color: var(--text-color);
+  font-size: var(--font-size-md);
 }
 .section-heading p,
 .context-heading p,
 small {
   margin: 4px 0 0;
-  color: var(--color-on-surface-variant);
-  font-size: 0.78rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
   line-height: 1.45;
 }
 .parameter-grid {
@@ -212,18 +212,18 @@ label {
   min-width: 0;
 }
 label > span {
-  color: var(--color-on-surface);
-  font-size: 0.84rem;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
 }
 input:not([type="checkbox"]),
 textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
   padding: 10px;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-high);
+  color: var(--text-color);
+  background: var(--input-bg);
   font: inherit;
 }
 textarea {
@@ -233,7 +233,7 @@ textarea {
   display: grid;
   gap: 12px;
   padding-top: 4px;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
 }
 .context-heading {
   display: flex;
@@ -249,7 +249,7 @@ textarea {
   white-space: nowrap;
 }
 .switch-label span {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .muted {
   opacity: 0.58;

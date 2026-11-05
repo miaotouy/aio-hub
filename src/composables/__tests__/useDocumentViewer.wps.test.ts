@@ -14,7 +14,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectScope, nextTick, reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { flushPromises } from "@vue/test-utils";
 import JSZip from "jszip";
 import { useDocumentViewer } from "../useDocumentViewer";

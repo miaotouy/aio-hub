@@ -17,7 +17,7 @@ import type { MobileUserProfile } from "../types";
 
 const router = useRouter();
 const store = useUserProfileStore();
-const { tRaw } = useI18n();
+const { useScopedT } = useI18n();
 const editorOpen = ref(false);
 const editingId = ref<string | null>(null);
 const draft = ref({
@@ -29,7 +29,7 @@ const draft = ref({
 });
 const saving = ref(false);
 
-const t = (key: string) => tRaw(`tools.llm-chat.UserProfiles.${key}`);
+const t = useScopedT("tools.llm-chat.UserProfiles");
 
 onMounted(async () => {
   await store.init();
@@ -185,6 +185,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
             type="button"
             data-testid="user-profile-set-default"
             :title="t('设为默认')"
+            :aria-label="t('设为默认')"
             @click="setGlobal(profile)"
           >
             <Star
@@ -198,6 +199,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
             type="button"
             data-testid="user-profile-edit"
             :title="t('编辑')"
+            :aria-label="t('编辑')"
             @click="openEdit(profile)"
           >
             <Pencil :size="18" />
@@ -206,6 +208,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
             type="button"
             data-testid="user-profile-delete"
             :title="t('删除')"
+            :aria-label="t('删除')"
             class="danger"
             @click="remove(profile)"
           >
@@ -292,7 +295,7 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .user-profiles-view {
   min-height: 100%;
   padding: 18px 16px 32px;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 .page-header {
   display: grid;
@@ -303,13 +306,13 @@ async function toggleEnabled(profile: MobileUserProfile) {
 }
 .page-header h1 {
   margin: 0;
-  color: var(--color-on-surface);
-  font-size: 1.35rem;
+  color: var(--text-color);
+  font-size: var(--font-size-xl);
 }
 .page-header p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 .icon-button,
 .profile-actions button {
@@ -317,17 +320,19 @@ async function toggleEnabled(profile: MobileUserProfile) {
   place-items: center;
   border: 0;
   border-radius: 50%;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   background: transparent;
 }
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .icon-button.primary,
 .create-button {
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .profile-list {
   display: grid;
@@ -339,24 +344,25 @@ async function toggleEnabled(profile: MobileUserProfile) {
   place-items: center;
   align-content: center;
   gap: 9px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 .create-button {
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 9px 16px;
+  min-height: 44px;
 }
 .profile-card {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 10px;
   padding: 14px;
-  border-radius: 14px;
-  background: var(--color-surface-container-high);
+  border-radius: var(--app-radius-lg);
+  background: var(--input-bg);
 }
 .profile-card.global {
-  outline: 1px solid var(--color-primary);
+  outline: 1px solid var(--primary-color);
 }
 .profile-card.disabled {
   opacity: 0.58;
@@ -377,24 +383,24 @@ async function toggleEnabled(profile: MobileUserProfile) {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 .profile-title span {
   padding: 2px 6px;
-  border-radius: 9px;
+  border-radius: var(--app-radius-md);
   color: var(--color-on-primary-container);
   background: var(--color-primary-container);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .profile-copy small,
 .profile-copy p {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .profile-copy p {
   display: -webkit-box;
   margin: 5px 0 0;
   overflow: hidden;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   white-space: pre-wrap;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -406,17 +412,19 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .profile-actions button {
   width: 30px;
   height: 30px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .profile-actions .danger {
-  color: var(--color-error);
+  color: var(--danger-color);
 }
 .enabled-toggle {
   grid-column: 2 / -1;
   display: flex;
   gap: 6px;
   align-items: center;
-  color: var(--color-on-surface-variant);
-  font-size: 0.76rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .profile-form {
   display: grid;
@@ -426,18 +434,18 @@ async function toggleEnabled(profile: MobileUserProfile) {
 .profile-form label {
   display: grid;
   gap: 6px;
-  color: var(--color-on-surface);
-  font-size: 0.85rem;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
 }
 .profile-form input:not([type="checkbox"]),
 .profile-form textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
   padding: 9px;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-low);
+  color: var(--text-color);
+  background: var(--card-bg);
   font: inherit;
 }
 .profile-form textarea {
@@ -453,5 +461,9 @@ async function toggleEnabled(profile: MobileUserProfile) {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.form-actions :deep(.var-button) {
+  min-height: 44px;
 }
 </style>

@@ -16,15 +16,26 @@ const settings = vi.hoisted(() => ({
 vi.mock("../../stores/llmChatStore", () => ({
   useLlmChatStore: () => ({ currentSession: null }),
 }));
+vi.mock("@/tools/agent-manager/stores/agentStore", () => ({
+  useAgentStore: () => ({ getAgentById: () => null }),
+}));
+vi.mock("../../stores/userProfileStore", () => ({
+  useUserProfileStore: () => ({ getEffectiveProfile: () => null }),
+}));
 vi.mock("../../composables/useChatSettings", () => ({
   useChatSettings: () => ({ settings }),
 }));
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({
-    tRaw: (key: string) => key,
-    locale: { value: "en-US" },
-  }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({
+      t: (key: string) => key,
+      locale: { value: "en-US" },
+      useScopedT,
+    }),
+  };
+});
 
 const message: ChatMessageNode = {
   id: "message-1",

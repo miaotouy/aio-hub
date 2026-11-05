@@ -22,7 +22,7 @@ import type { LlmModelInfo } from "../types";
 import { useModelMetadata } from "../composables/useModelMetadata";
 import {
   useTranslatedCapabilities,
-  type CapabilityConfig,
+  type TranslatedCapabilityConfig,
 } from "../config/model-capabilities";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { useLlmProfilesStore } from "../stores/llmProfiles";
@@ -88,7 +88,7 @@ const handleExpandChange = (value: any) => {
   emit("update:expandState", state);
 };
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const profilesStore = useLlmProfilesStore();
 
 const identityRouteAudit = (model: LlmModelInfo) => {
@@ -112,8 +112,8 @@ const deleteGroup = async (group: {
   models: { model: LlmModelInfo }[];
 }) => {
   const confirm = await customDialog({
-    title: tRaw("tools.llm-api.ModelList.确认删除分组"),
-    message: tRaw("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
+    title: t("tools.llm-api.ModelList.确认删除分组"),
+    message: t("tools.llm-api.ModelList.确定要删除分组N下的所有M个模型吗", {
       name: group.name,
       count: group.models.length,
     }),
@@ -126,13 +126,15 @@ const deleteGroup = async (group: {
     emit("delete-group", modelIds);
   }
 };
-const getEnabledCapabilities = (model: LlmModelInfo): CapabilityConfig[] => {
+const getEnabledCapabilities = (
+  model: LlmModelInfo
+): TranslatedCapabilityConfig[] => {
   return translatedCapabilities.value.filter(
     (cap) => model.capabilities?.[cap.key]
   );
 };
 
-const showCapabilityDesc = (capability: CapabilityConfig) => {
+const showCapabilityDesc = (capability: TranslatedCapabilityConfig) => {
   customMessage(capability.description, "info");
 };
 
@@ -192,11 +194,11 @@ const handleModelAction = (
           <div v-if="showHeaderMenu" class="action-menu header-menu">
             <button @click="handleHeaderAction('fetch')">
               <List :size="17" />{{
-                tRaw("tools.llm-api.ModelList.从 API 获取")
+                t("tools.llm-api.ModelList.从 API 获取")
               }}
             </button>
             <button @click="handleHeaderAction('add')">
-              <Plus :size="17" />{{ tRaw("tools.llm-api.ModelList.手动添加") }}
+              <Plus :size="17" />{{ t("tools.llm-api.ModelList.手动添加") }}
             </button>
             <button
               v-if="models.length"
@@ -212,10 +214,10 @@ const handleModelAction = (
 
     <div class="list-content">
       <div v-if="models.length === 0" class="list-empty">
-        <p>{{ tRaw("tools.llm-api.ModelList.还没有添加任何模型") }}</p>
+        <p>{{ t("tools.llm-api.ModelList.还没有添加任何模型") }}</p>
         <p class="hint">
           {{
-            tRaw("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型")
+            t("tools.llm-api.ModelList.点击手动添加或从API获取来添加模型")
           }}
         </p>
         <button
@@ -226,7 +228,7 @@ const handleModelAction = (
         >
           <List :size="17" />
           {{
-            loading ? "正在获取" : tRaw("tools.llm-api.ModelList.从 API 获取")
+            loading ? "正在获取" : t("tools.llm-api.ModelList.从 API 获取")
           }}
         </button>
       </div>
@@ -258,6 +260,7 @@ const handleModelAction = (
                 type="danger"
                 plain
                 round
+                aria-label="删除分组"
                 @click.stop="deleteGroup(group)"
               >
                 <Trash2 :size="14" />
@@ -347,7 +350,10 @@ const handleModelAction = (
                         color: capability.color,
                       }"
                       v-ripple
+                      role="button"
+                      tabindex="0"
                       @click.stop="showCapabilityDesc(capability)"
+                      @keydown.enter="showCapabilityDesc(capability)"
                     >
                       <component :is="capability.icon" :size="12" />
                       <span class="capability-label">{{
@@ -400,9 +406,9 @@ const handleModelAction = (
 }
 
 .model-count {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .list-actions {
@@ -418,15 +424,15 @@ const handleModelAction = (
   justify-content: center;
   min-height: 44px;
   border: 0;
-  border-radius: var(--app-radius-md, 10px);
-  color: var(--color-on-surface);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
   background: transparent;
 }
 
 .header-action {
   gap: 6px;
   padding: 0 10px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-weight: 700;
 }
 
@@ -451,11 +457,11 @@ const handleModelAction = (
   min-width: 170px;
   overflow: hidden;
   padding: 5px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: var(--app-radius-md, 10px);
-  background: var(--container-bg, var(--color-surface-container));
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  background: var(--container-bg, var(--container-bg));
   box-shadow: 0 8px 24px
-    color-mix(in srgb, var(--color-on-surface) 15%, transparent);
+    color-mix(in srgb, var(--text-color) 15%, transparent);
 }
 
 .header-menu,
@@ -471,15 +477,15 @@ const handleModelAction = (
   min-height: 44px;
   padding: 0 11px;
   border: 0;
-  border-radius: calc(var(--app-radius-md, 10px) - 3px);
-  color: var(--color-on-surface);
+  border-radius: calc(var(--app-radius-md) - 3px);
+  color: var(--text-color);
   text-align: left;
   background: transparent;
   white-space: nowrap;
 }
 
 .action-menu button:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .action-menu button.danger {
@@ -495,14 +501,14 @@ const handleModelAction = (
 .list-empty {
   text-align: center;
   padding: 48px 24px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container);
-  border-radius: 16px;
-  border: 1px dashed var(--color-outline-variant);
+  color: var(--text-color-light);
+  background: var(--container-bg);
+  border-radius: var(--app-radius-xl);
+  border: 1px dashed var(--border-color);
 }
 
 .list-empty .hint {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   margin-top: 8px;
   opacity: 0.7;
 }
@@ -515,10 +521,10 @@ const handleModelAction = (
   min-height: 44px;
   margin-top: 16px;
   padding: 0 16px;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--app-radius-md, 10px);
+  border: 1px solid var(--primary-color);
+  border-radius: var(--app-radius-md);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
   font-weight: 700;
 }
 
@@ -528,9 +534,9 @@ const handleModelAction = (
 }
 
 .model-group {
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
-  background: var(--color-surface-container);
+  background: var(--container-bg);
   margin-bottom: 12px;
 }
 
@@ -547,17 +553,17 @@ const handleModelAction = (
 
 .group-name {
   font-weight: 600;
-  font-size: 1rem;
-  color: var(--color-on-surface);
+  font-size: var(--font-size-md);
+  color: var(--text-color);
 }
 
 .group-count {
-  font-size: 0.85rem;
-  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  color: var(--primary-color);
   padding: 2px 8px;
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
@@ -578,16 +584,16 @@ const handleModelAction = (
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border-radius: var(--app-radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
   transition:
     transform 0.18s,
     opacity 0.18s;
 }
 
 .model-card:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .model-card-main {
@@ -600,7 +606,7 @@ const handleModelAction = (
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 
 .model-info {
@@ -609,16 +615,16 @@ const handleModelAction = (
 }
 
 .model-name {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   margin-bottom: 2px;
   line-height: 1.4;
 }
 
 .model-id {
-  font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
   font-family: monospace;
   line-height: 1.4;
   overflow: hidden;
@@ -627,9 +633,9 @@ const handleModelAction = (
 }
 
 .model-identity {
-  color: var(--color-primary);
+  color: var(--primary-color);
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -651,11 +657,11 @@ const handleModelAction = (
   min-height: 44px;
   padding: 7px 2px 0;
   border: 0;
-  border-top: 1px dashed var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
+  border-top: 1px dashed var(--border-color);
+  color: var(--text-color-light);
   text-align: left;
   background: transparent;
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
 }
 
 .probe-summary span {
@@ -681,7 +687,7 @@ const handleModelAction = (
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  border-top: 1px dashed var(--color-outline-variant);
+  border-top: 1px dashed var(--border-color);
   padding-top: 8px;
 }
 
@@ -689,14 +695,15 @@ const handleModelAction = (
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   background: color-mix(
     in srgb,
     var(--cap-color, currentColor) 12%,
     transparent
   );
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 
 .capability-label {

@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch } from "vue";
 import { Sparkles, Loader2, Copy } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -22,8 +24,8 @@ import { useMediaGenStore } from "../stores/mediaGenStore";
 import { useRouter } from "vue-router";
 import { customMessage } from "@/utils/customMessage";
 import { useAssetManager, type Asset } from "@/composables/useAssetManager";
-import { readTextFile } from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+import { readTextFile } from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { normalizeMediaTaskType, type MediaTaskType } from "../types";
 
 const props = defineProps<{
@@ -107,7 +109,7 @@ watch(visible, (val) => {
 const handleCopy = async (text: string) => {
   if (!text) return;
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success("已复制到剪贴板");
   } catch (err) {
     customMessage.error("复制失败");

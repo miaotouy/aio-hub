@@ -54,18 +54,13 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { emit } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
+import { emit } from "@/platform/native/events";
+import { invoke } from "@/platform/native/core";
 import { useWindowSyncBus } from "@/composables/useWindowSyncBus";
+import { useWindowResize } from "@/composables/useWindowResize";
 import { Pin as PinIcon, X as XIcon } from "lucide-vue-next";
-
-interface Geometry {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { MonitorRect } from "../types";
 
 defineProps<{ isDetached?: boolean }>();
 
@@ -73,7 +68,7 @@ defineProps<{ isDetached?: boolean }>();
 const GEOMETRY_STATE_KEY = "realtime-subtitle-ocr:monitor-box-geometry";
 let geometryVersion = 0;
 
-const geometry = reactive<Geometry>({ x: 0, y: 0, width: 0, height: 0 });
+const geometry = reactive<MonitorRect>({ x: 0, y: 0, width: 0, height: 0 });
 const isAlwaysOnTop = ref(true);
 const isBreathing = ref(true);
 
@@ -92,6 +87,13 @@ async function reportGeometry() {
     win.outerSize(),
     win.scaleFactor(),
   ]);
+  geometry.physicalBounds = {
+    x: pos.x,
+    y: pos.y,
+    width: size.width,
+    height: size.height,
+  };
+  geometry.scaleFactor = scaleFactor;
   geometry.x = Math.round(pos.x / scaleFactor);
   geometry.y = Math.round(pos.y / scaleFactor);
   geometry.width = Math.round(size.width / scaleFactor);
@@ -112,15 +114,19 @@ async function reportGeometry() {
   }, 60);
 }
 
+const { startResize: resizeWindow } = useWindowResize();
+const resizeDirections = {
+  n: "North",
+  s: "South",
+  e: "East",
+  w: "West",
+  ne: "NorthEast",
+  nw: "NorthWest",
+  se: "SouthEast",
+  sw: "SouthWest",
+} as const;
 function startResize(dir: ResizeDir, event: MouseEvent) {
-  event.preventDefault();
-  event.stopPropagation();
-  interface TauriWindowExtended {
-    startResizeDragging: (direction: string) => Promise<void>;
-  }
-  (getCurrentWebviewWindow() as unknown as TauriWindowExtended)
-    .startResizeDragging(dir)
-    .catch(() => {});
+  void resizeWindow(resizeDirections[dir], event);
 }
 
 async function toggleAlwaysOnTop() {

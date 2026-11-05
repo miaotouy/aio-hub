@@ -83,7 +83,7 @@ async function copyContent() {
   justify-content: space-between;
   min-height: 38px;
   padding: 0 8px 0 10px;
-  background: color-mix(in srgb, var(--card-bg) 84%, var(--color-primary));
+  background: color-mix(in srgb, var(--card-bg) 84%, var(--primary-color));
 }
 
 .llm-think-toggle,
@@ -97,6 +97,7 @@ async function copyContent() {
 
 .llm-think-toggle {
   min-width: 0;
+  min-height: 44px;
   flex: 1;
   gap: 6px;
   padding: 9px 0;
@@ -123,6 +124,8 @@ async function copyContent() {
 }
 
 .llm-think-copy {
+  min-width: 44px;
+  min-height: 44px;
   padding: 7px;
   border-radius: var(--app-radius-sm);
   cursor: pointer;
@@ -140,6 +143,6 @@ async function copyContent() {
 }
 
 .is-thinking .llm-think-toggle {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 </style>

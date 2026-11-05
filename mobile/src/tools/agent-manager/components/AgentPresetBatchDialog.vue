@@ -17,8 +17,8 @@ const emit = defineEmits<{
     groupId?: string,
   ];
 }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const selected = ref<string[]>([]);
 const groupId = ref<string | undefined>();
 const allSelected = computed(
@@ -107,7 +107,7 @@ function apply(action: "enable" | "disable" | "delete" | "group"): void {
   display: flex;
   flex-direction: column;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--card-bg);
 }
@@ -120,18 +120,21 @@ function apply(action: "enable" | "disable" | "delete" | "group"): void {
 }
 h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 header small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 button,
 select {
   padding: 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
+}
+.dialog button {
+  min-height: 44px;
 }
 .actions {
   padding: 12px;
@@ -141,7 +144,7 @@ select {
   border-bottom: var(--border-width) solid var(--border-color);
 }
 .danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color);
 }
 .message {
   padding: 13px 16px;
@@ -157,7 +160,7 @@ select {
 }
 .message small {
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

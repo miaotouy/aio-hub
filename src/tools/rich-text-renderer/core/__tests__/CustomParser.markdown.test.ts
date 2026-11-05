@@ -264,3 +264,55 @@ it("joins adjacent list badges while preserving separators and ordinary hard bre
   ]);
   expect(text(ast)).toBe("onetwo •  one longer  twoordinary  text");
 });
+
+// Dollar prices must keep their text and HTML structure while ordinary math remains usable.
+describe("inline math boundaries", () => {
+  it("preserves dollar amounts and emphasis in HTML pricing cells", () => {
+    const ast = parse(
+      "<table><tbody><tr><td>缓存 <strong>¥0.02/M</strong>（~$0.0028）</td>" +
+        "<td>缓存最低 <strong>$0.0039/M</strong>，未命中输入最低 <strong>$0.038/M</strong></td>" +
+        "</tr></tbody></table>"
+    );
+    const nodes = flatten(ast);
+    expect(text(ast)).toBe(
+      "缓存 ¥0.02/M（~$0.0028）缓存最低 $0.0039/M，未命中输入最低 $0.038/M"
+    );
+    expect(
+      nodes
+        .filter(
+          (node) =>
+            node.type === "generic_html" && node.props.tagName === "strong"
+        )
+        .map((node) => text([node]))
+    ).toEqual(["¥0.02/M", "$0.0039/M", "$0.038/M"]);
+    expect(nodes.filter((node) => node.type === "katex_inline")).toHaveLength(
+      0
+    );
+  });
+
+  it.each([
+    ["$5 and $10", "$5 and $10"],
+    [
+      "$0.0039/M，未命中输入最低 $0.038/M",
+      "$0.0039/M，未命中输入最低 $0.038/M",
+    ],
+    ["<p>$left</p><p>right$</p>", "$leftright$"],
+    ["<p>$left<!-- boundary -->right$</p>", "$leftright$"],
+    ["$ spaced $", "$ spaced $"],
+  ])(
+    "preserves literal text across non-math dollar boundaries in %s",
+    (input, expected) => {
+      expect(text(parse(input))).toBe(expected);
+    }
+  );
+
+  it.each(["x+1", "2+2", "5", "x < y", "x > y", String.raw`\text{cost: \$5}`])(
+    "preserves valid inline math %s inside HTML",
+    (formula) => {
+      const ast = parse("<p><strong>$" + formula + "$</strong></p>");
+      expect(
+        flatten(ast).find((node) => node.type === "katex_inline")?.props.content
+      ).toBe(formula);
+    }
+  );
+});

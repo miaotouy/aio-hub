@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
 vi.mock("./time", () => ({
   formatDateTime: (value: Date | string | number, pattern: string) => {
     const date = value instanceof Date ? value : new Date(value);

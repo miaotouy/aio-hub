@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { InspectorToolDiagnostics } from "@/tools/llm-inspector/types/hooks";
+import type { InspectorToolDiagnostics } from "../tools/llm-inspector/types/hooks";
 
 interface ToolCallLike {
   id: string;

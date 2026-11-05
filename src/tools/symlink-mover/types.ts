@@ -87,6 +87,7 @@ export interface SymlinkOperationPreflight {
  * 进度事件
  */
 export interface CopyProgress {
+  operationId?: string;
   currentFile: string;
   copiedBytes: number;
   totalBytes: number;

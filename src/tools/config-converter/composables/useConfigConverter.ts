@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import { ref, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@/platform/native/core";
+import { open } from "@/platform/native/dialog";
 import { useDebounceFn } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

@@ -755,7 +755,7 @@ pub async fn convert_legacy_document(
         return Ok(None);
     }
 
-    let base_dir = crate::get_app_data_dir(app.config()).join("temp_conversions");
+    let base_dir = crate::utils::ensure_app_work_dir(app.config())?.join("conversions");
     fs::create_dir_all(&base_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
 
     // 每次输出使用独立目录，避免同名文档相互覆盖或覆盖正在读取的源文件。

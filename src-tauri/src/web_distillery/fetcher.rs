@@ -14,8 +14,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tauri::command;
-use tauri::AppHandle;
 
 /// 前端传来的浏览器指纹参数
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -49,9 +47,8 @@ pub struct RawFetchPayload {
     pub is_challenge_page: bool,
 }
 
-#[command]
 pub async fn distillery_quick_fetch(
-    app: AppHandle,
+    settings: Option<super::net::ProxySettings>,
     url: String,
     options: Option<QuickFetchOptions>,
     cookies: Option<String>,
@@ -59,12 +56,18 @@ pub async fn distillery_quick_fetch(
 ) -> Result<RawFetchPayload, String> {
     log::info!("[Distillery] Quick Fetch with TLS impersonation: {}", url);
 
-    let timeout_ms = options.as_ref().and_then(|o| o.timeout).unwrap_or(15000);
+    super::net::validate_url(&url)?;
+    let timeout_ms = options
+        .as_ref()
+        .and_then(|o| o.timeout)
+        .unwrap_or(15000)
+        .clamp(1, 120_000);
 
     // 按应用统一代理设置构建客户端（TLS/H2 指纹模拟）
-    let client = crate::web_distillery::net::build_impersonated_client(
-        Some(&app),
+    let client = super::net::build_impersonated_client(
+        settings.as_ref(),
         std::time::Duration::from_millis(timeout_ms),
+        &url,
     )?;
 
     let mut request = client.get(&url);
@@ -126,10 +129,7 @@ pub async fn distillery_quick_fetch(
         }
     }
 
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read response body: {}", e))?;
+    let bytes = super::net::read_bounded(response, 32 * 1024 * 1024).await?;
 
     // 智能编码检测（利用已有的 encoding_rs）
     let html = decode_html_bytes(&bytes, headers.get("content-type").map(|s| s.as_str()));
@@ -156,7 +156,7 @@ pub async fn distillery_quick_fetch(
 }
 
 /// 智能编码检测：根据 Content-Type 和 HTML meta 标签确定正确编码
-fn decode_html_bytes(bytes: &[u8], content_type: Option<&str>) -> String {
+pub(super) fn decode_html_bytes(bytes: &[u8], content_type: Option<&str>) -> String {
     let charset =
         extract_charset_from_header(content_type).or_else(|| extract_charset_from_meta(bytes));
 

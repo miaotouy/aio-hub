@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { join } from "@tauri-apps/api/path";
-import { mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { join } from "@/platform/native/path";
+import { mkdir, readTextFile, writeTextFile } from "@/platform/native/fs";
+import { fetch as tauriFetch } from "@/platform/native/http";
 import { gunzipSync, strFromU8 } from "fflate";
 import builtinTokenizerAssetUrls from "virtual:aiohub-builtin-tokenizer-assets";
 import { getAppConfigDir } from "@/utils/appPath";

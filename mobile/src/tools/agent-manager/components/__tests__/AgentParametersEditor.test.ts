@@ -2,9 +2,13 @@
 
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({ t: (key: string) => key, useScopedT }),
+  };
+});
 
 import AgentParametersEditor from "../AgentParametersEditor.vue";
 import type { LlmParameters } from "../../types/agent";

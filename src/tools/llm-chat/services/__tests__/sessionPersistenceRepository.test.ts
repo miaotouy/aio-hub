@@ -23,8 +23,8 @@ const mockFs = vi.hoisted(() => ({
   rename: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => mockFs);
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/fs", () => mockFs);
+vi.mock("@/platform/native/path", () => ({
   join: async (...parts: string[]) => parts.join("/"),
 }));
 vi.mock("@/utils/appPath", () => ({

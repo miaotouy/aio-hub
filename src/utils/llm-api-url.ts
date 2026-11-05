@@ -18,6 +18,7 @@
  */
 
 import {
+  getDeepSeekStableBaseUrl,
   resolveTypeSafeSystemOneEndpoint,
   resolveOpenRouterDecisionsEndpoint,
 } from "@aiohub/llm-core";
@@ -73,7 +74,16 @@ const adapterUrlHandlers: Record<ProviderType, AdapterUrlHandler> = {
   openai: openAiUrlHandler,
   "openai-compatible": openAiUrlHandler,
   azure: azureOpenAiUrlHandler,
-  deepseek: openAiUrlHandler,
+  deepseek: {
+    buildUrl: (baseUrl, endpoint, profile) =>
+      openAiUrlHandler.buildUrl(
+        getDeepSeekStableBaseUrl(baseUrl),
+        endpoint,
+        profile
+      ),
+    getHint: () =>
+      "基础地址填写普通服务地址；前缀续写和严格工具调用由「使用 Beta 端点」开关选择端点，默认开启。",
+  },
   siliconflow: openAiUrlHandler,
   groq: openAiUrlHandler,
   xai: openAiUrlHandler,

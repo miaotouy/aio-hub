@@ -21,7 +21,12 @@
         v-if="state.value.visible"
         ref="menuRef"
         class="git-context-menu"
-        :style="{ left: `${state.value.x}px`, top: `${state.value.y}px` }"
+        data-overlay-layer
+        :style="{
+          zIndex,
+          left: `${state.value.x}px`,
+          top: `${state.value.y}px`,
+        }"
         @click.stop
         @contextmenu.prevent.stop
       >
@@ -50,6 +55,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { nextTick, ref, watch, type Ref } from "vue";
 import type { GitContextMenuItem } from "../contextMenus";
 import type { GitContextMenuState } from "../composables/useGitContextMenu";
@@ -63,6 +69,7 @@ const emit = defineEmits<{
   hide: [];
 }>();
 
+const { zIndex } = useOverlayZIndex(() => props.state.value.visible);
 const menuRef = ref<HTMLElement | null>(null);
 
 // 渲染后校正位置，避免菜单溢出视口
@@ -96,7 +103,6 @@ function handleItemClick(item: GitContextMenuItem) {
 <style scoped>
 .git-context-menu {
   position: fixed;
-  z-index: 9999;
   min-width: 180px;
   max-width: 280px;
   padding: 4px 0;

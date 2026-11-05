@@ -18,7 +18,7 @@ import { transcriptionRegistry } from "@/tools/transcription/transcription.regis
 import { useAssetManager } from "@/composables/useAssetManager";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@/utils/logger";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const logger = createModuleLogger("ffmpeg-tools/integration");
 

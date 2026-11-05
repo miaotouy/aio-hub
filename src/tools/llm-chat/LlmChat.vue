@@ -50,9 +50,9 @@ import { useChatEntryPreparation } from "./composables/ui/useChatEntryPreparatio
 import type { ModelIdentifier } from "./types";
 import { customMessage } from "@/utils/customMessage";
 import { ElMessageBox } from "element-plus";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
+import { revealItemInDir } from "@/platform/native/opener";
 
 const ToolbarCustomizeDialog = defineAsyncComponent(
   () => import("./components/message-input/toolbar/ToolbarCustomizeDialog.vue")
@@ -103,6 +103,8 @@ const {
   leftSidebarWidth,
   rightSidebarWidth,
   currentAgentId: uiCurrentAgentId,
+  pendingChatAgentId,
+  applyPendingChatAgent,
   loadUiState,
   startWatching,
 } = useLlmChatUiState();
@@ -157,6 +159,8 @@ onMounted(async () => {
         store.loadSessions(),
         chatSettings.loadSettings(),
       ]);
+
+      await applyPendingChatAgent();
 
       // 确保当前选中的智能体详情被加载
       if (uiCurrentAgentId.value) {
@@ -217,6 +221,15 @@ onMounted(async () => {
     } finally {
       isLoading.value = false;
     }
+  }
+});
+// Cached Chat workspaces can receive an entry choice after initialization.
+watch(pendingChatAgentId, async (agentId) => {
+  if (!agentId || isLoading.value || bus.windowType !== "main") return;
+  try {
+    await applyPendingChatAgent();
+  } catch (error) {
+    errorHandler.handle(error as Error, { userMessage: "切换智能体失败" });
   }
 });
 // 监听当前选中的智能体ID，自动加载其详情

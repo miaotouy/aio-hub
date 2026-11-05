@@ -1,0 +1,465 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * Markdown AST 响应式状态管理
+ *
+ * 职责：
+ * 1. 持有 shallowRef 包装的 AST，避免深层响应式代理的开销
+ * 2. 提供 enqueuePatch 方法，使用混合的 rAF + setTimeout 批处理策略
+ * 3. 实现 applyPatches 方法，根据 ID 查找节点并采用不可变更新模式
+ * 4. 维护 nodeMap 用于 O(1) 节点查找
+ */
+
+import {
+  shallowRef,
+  toValue,
+  type MaybeRefOrGetter,
+  type ShallowRef,
+} from "vue";
+import type { AstNode, Patch, NodeMap } from "../types";
+
+const MAX_QUEUE_SIZE = 1000;
+const BATCH_TIMEOUT_MS = 32;
+const MAX_TOTAL_NODES = 10000000; // 渲染器硬上限
+const MAX_RAF_RETRIES = 1000; // 最多重试次数
+
+export function useMarkdownAst(
+  options: {
+    throttleMs?: MaybeRefOrGetter<number | undefined>;
+    throttleEnabled?: MaybeRefOrGetter<boolean | undefined>;
+    verboseLogging?: MaybeRefOrGetter<boolean | undefined>;
+    safetyGuardEnabled?: MaybeRefOrGetter<boolean | undefined>;
+  } = {}
+) {
+  const ast: ShallowRef<AstNode[]> = shallowRef([]);
+  const nodeMap: NodeMap = new Map();
+
+  const getThrottleMs = () => toValue(options.throttleMs) ?? BATCH_TIMEOUT_MS;
+  const isThrottleEnabled = () => toValue(options.throttleEnabled) !== false;
+  const isVerboseLogging = () => toValue(options.verboseLogging) ?? false;
+  const isSafetyGuardEnabled = () =>
+    toValue(options.safetyGuardEnabled) !== false;
+
+  let patchQueue: Patch[] = [];
+  let rafHandle = 0;
+  let rafRetryCount = 0; // 跟踪 rAF 重试次数，防止无限循环
+  let isShutdown = false; // 紧急停止标志
+
+  // 性能监控
+  let lastFlushTime = 0;
+  let flushCount = 0;
+
+  /**
+   * 构建 nodeMap 索引
+   */
+  function buildNodeMap(
+    nodes: AstNode[],
+    parentId?: string,
+    path: number[] = []
+  ) {
+    for (let index = 0; index < nodes.length; index++) {
+      const node = nodes[index];
+      const nodePath = [...path, index];
+      nodeMap.set(node.id, { node, parentId, path: nodePath });
+      if (node.children) {
+        buildNodeMap(node.children, node.id, nodePath);
+      }
+    }
+  }
+
+  /**
+   * 合并连续的 text-append Patch
+   */
+  function coalesceTextAppends(patches: Patch[]): Patch[] {
+    const coalesced: Patch[] = [];
+    let i = 0;
+
+    while (i < patches.length) {
+      const patch = patches[i];
+
+      if (patch.op === "text-append") {
+        // 收集所有连续的、针对同一节点的 text-append
+        let combinedText = patch.text;
+        let j = i + 1;
+
+        while (j < patches.length) {
+          const nextPatch = patches[j];
+          if (nextPatch.op === "text-append" && nextPatch.id === patch.id) {
+            combinedText += nextPatch.text;
+            j++;
+          } else {
+            break;
+          }
+        }
+
+        coalesced.push({
+          op: "text-append",
+          id: patch.id,
+          text: combinedText,
+        });
+
+        i = j;
+      } else {
+        coalesced.push(patch);
+        i++;
+      }
+    }
+
+    return coalesced;
+  }
+
+  /**
+   * 应用单个 Patch（不可变更新）
+   */
+  function updateNodeAtPath(
+    nodes: AstNode[],
+    path: number[],
+    updater: (node: AstNode) => AstNode
+  ): AstNode[] {
+    if (path.length === 0) return nodes;
+
+    const [index, ...rest] = path;
+    const node = nodes[index];
+    if (!node) return nodes;
+
+    const nextNodes = [...nodes];
+    if (rest.length === 0) {
+      nextNodes[index] = updater(node);
+      return nextNodes;
+    }
+
+    if (!node.children) return nodes;
+    const nextChildren = updateNodeAtPath(node.children, rest, updater);
+    if (nextChildren === node.children) return nodes;
+
+    nextNodes[index] = { ...node, children: nextChildren } as AstNode;
+    return nextNodes;
+  }
+
+  function spliceAtPath(
+    nodes: AstNode[],
+    path: number[],
+    deleteCount: number,
+    insertNodes: AstNode[] = []
+  ): AstNode[] {
+    if (path.length === 0) return nodes;
+
+    if (path.length === 1) {
+      const nextNodes = [...nodes];
+      nextNodes.splice(path[0], deleteCount, ...insertNodes);
+      return nextNodes;
+    }
+
+    const parentPath = path.slice(0, -1);
+    const childIndex = path[path.length - 1];
+    return updateNodeAtPath(nodes, parentPath, (parent) => {
+      if (!parent.children) return parent;
+      const nextChildren = [...parent.children];
+      nextChildren.splice(childIndex, deleteCount, ...insertNodes);
+      return { ...parent, children: nextChildren } as AstNode;
+    });
+  }
+
+  function replaceChildrenRange(
+    nodes: AstNode[],
+    parentPath: number[],
+    start: number,
+    deleteCount: number,
+    newChildren: AstNode[]
+  ): AstNode[] {
+    return updateNodeAtPath(nodes, parentPath, (parent) => {
+      if (!parent.children) return parent;
+      const nextChildren = [...parent.children];
+      nextChildren.splice(start, deleteCount, ...newChildren);
+      return { ...parent, children: nextChildren } as AstNode;
+    });
+  }
+
+  function applySinglePatch(nodes: AstNode[], patch: Patch): AstNode[] {
+    switch (patch.op) {
+      case "replace-root":
+        // 直接替换整个根节点
+        return patch.newRoot;
+
+      case "text-append": {
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
+
+        return updateNodeAtPath(nodes, index.path, (node) => {
+          if (!("content" in node.props)) return node;
+          return {
+            ...node,
+            props: {
+              ...node.props,
+              content: (node.props.content || "") + patch.text,
+            },
+          } as AstNode;
+        });
+      }
+
+      case "set-prop": {
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
+
+        return updateNodeAtPath(nodes, index.path, (node) => {
+          return {
+            ...node,
+            props: {
+              ...node.props,
+              [patch.key]: patch.value,
+            },
+          } as AstNode;
+        });
+      }
+
+      case "replace-node": {
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
+
+        return updateNodeAtPath(nodes, index.path, () => patch.newNode);
+      }
+
+      case "insert-after": {
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
+
+        return spliceAtPath(
+          nodes,
+          [...index.path.slice(0, -1), index.path[index.path.length - 1] + 1],
+          0,
+          [patch.newNode]
+        );
+      }
+
+      case "insert-before": {
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
+
+        return spliceAtPath(nodes, index.path, 0, [patch.newNode]);
+      }
+
+      case "remove-node": {
+        const index = nodeMap.get(patch.id);
+        if (!index) return nodes;
+
+        return spliceAtPath(nodes, index.path, 1);
+      }
+
+      case "replace-children-range": {
+        const index = nodeMap.get(patch.parentId);
+        if (!index) return nodes;
+
+        return replaceChildrenRange(
+          nodes,
+          index.path,
+          patch.start,
+          patch.deleteCount,
+          patch.newChildren
+        );
+      }
+
+      default:
+        return nodes;
+    }
+  }
+
+  /**
+   * 应用所有 Patch
+   */
+  function applyPatches(patches: Patch[]) {
+    // 1. 合并连续的 text-append
+    const coalesced = coalesceTextAppends(patches);
+
+    // 2. 执行不可变更新
+    let newRoot = ast.value;
+    for (const patch of coalesced) {
+      newRoot = applySinglePatch(newRoot, patch);
+      if (
+        patch.op === "replace-root" ||
+        patch.op === "replace-node" ||
+        patch.op === "insert-after" ||
+        patch.op === "insert-before" ||
+        patch.op === "remove-node" ||
+        patch.op === "replace-children-range"
+      ) {
+        nodeMap.clear();
+        buildNodeMap(newRoot);
+      }
+    }
+
+    // 3. 替换引用以触发更新
+    ast.value = newRoot;
+
+    // 4. 重建 nodeMap
+    nodeMap.clear();
+    buildNodeMap(newRoot);
+
+    // 5. 安全护栏：节点总数硬上限检查（仅在更新后检查，防止极端异常）
+    // 改进：不再清空整个 AST，而是只在控制台报错并停止后续 patch
+    if (isSafetyGuardEnabled() && nodeMap.size > MAX_TOTAL_NODES) {
+      if (isVerboseLogging()) {
+        console.error(
+          `[useMarkdownAst] Critical: Node count ${nodeMap.size} exceeds hard limit ${MAX_TOTAL_NODES}!`
+        );
+      }
+      // 触发紧急停止，不再接收后续更新，但保留当前已渲染内容
+      emergencyShutdown();
+    }
+  }
+
+  /**
+   * 刷新 Patch 队列
+   */
+  function flushPatches() {
+    // 紧急停止检查
+    if (isShutdown) {
+      patchQueue = [];
+      return;
+    }
+
+    // 清理句柄
+    if (rafHandle) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = 0;
+    }
+
+    // 重置重试计数器
+    rafRetryCount = 0;
+
+    if (patchQueue.length > 0) {
+      const now = performance.now();
+      flushCount++;
+
+      if (isVerboseLogging()) {
+        const interval = lastFlushTime ? (now - lastFlushTime).toFixed(2) : 0;
+        console.debug(
+          `[useMarkdownAst] Flush #${flushCount}: Applying ${patchQueue.length} patches | Interval: ${interval}ms`
+        );
+      }
+
+      applyPatches(patchQueue);
+      patchQueue = [];
+      lastFlushTime = now;
+    }
+  }
+
+  /**
+   * 基于 rAF 的硬核节流检查
+   */
+  const throttleTick = () => {
+    // 紧急停止检查
+    if (isShutdown) {
+      rafHandle = 0;
+      patchQueue = [];
+      return;
+    }
+
+    if (patchQueue.length === 0) {
+      rafHandle = 0;
+      rafRetryCount = 0;
+      return;
+    }
+
+    // 防止无限循环：如果重试次数过多，强制刷新
+    rafRetryCount++;
+    if (rafRetryCount > MAX_RAF_RETRIES) {
+      if (isVerboseLogging()) {
+        console.warn(
+          `[useMarkdownAst] rAF retry limit reached (${MAX_RAF_RETRIES}), forcing flush with ${patchQueue.length} patches`
+        );
+      }
+      flushPatches();
+      return;
+    }
+
+    const now = performance.now();
+    const elapsed = now - lastFlushTime;
+
+    if (!isThrottleEnabled() || elapsed >= getThrottleMs()) {
+      // 时间到了，或者禁用了节流，立即刷新
+      flushPatches();
+    } else {
+      // 时间没到，下一帧继续检查
+      rafHandle = requestAnimationFrame(throttleTick);
+    }
+  };
+
+  /**
+   * 将 Patch 加入队列
+   */
+  function enqueuePatch(patch: Patch | Patch[]) {
+    // 紧急停止检查
+    if (isShutdown) {
+      return;
+    }
+
+    const patches = Array.isArray(patch) ? patch : [patch];
+
+    if (isVerboseLogging() && patches.length > 0) {
+      const ops = patches.map((p) => p.op).join(", ");
+      console.debug(
+        `[useMarkdownAst] enqueuePatch: ${patches.length} patches (${ops})`
+      );
+    }
+
+    patchQueue.push(...patches);
+
+    // 队列过长时立即执行，避免单帧过载
+    if (patchQueue.length > MAX_QUEUE_SIZE) {
+      flushPatches();
+      return;
+    }
+
+    // 启动/维持 rAF 检查循环
+    if (!rafHandle) {
+      rafHandle = requestAnimationFrame(throttleTick);
+    }
+  }
+
+  /**
+   * 紧急停止所有操作（用于降级模式）
+   */
+  function emergencyShutdown() {
+    isShutdown = true;
+    patchQueue = [];
+    if (rafHandle) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = 0;
+    }
+    rafRetryCount = 0;
+  }
+
+  /**
+   * 主动释放 AST 状态。
+   *
+   * 组件卸载时调用，避免长消息 AST、节点索引和待处理 patch 队列
+   * 被闭包继续持有到下一次 GC 周期。
+   */
+  function dispose() {
+    emergencyShutdown();
+    ast.value = [];
+    nodeMap.clear();
+    lastFlushTime = 0;
+    flushCount = 0;
+  }
+
+  return {
+    ast,
+    enqueuePatch,
+    nodeMap,
+    emergencyShutdown,
+    dispose,
+  };
+}

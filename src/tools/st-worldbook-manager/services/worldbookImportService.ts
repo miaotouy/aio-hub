@@ -20,7 +20,7 @@ import { STWorldbook } from "../types/worldbook";
 import { useWorldbookStore } from "../stores/worldbookStore";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@/platform/native/fs";
 import { parsePngMetadata } from "@/utils/pngMetadataReader";
 import {
   isCharacterCard,

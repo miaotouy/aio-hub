@@ -30,6 +30,7 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { getSerializableBuiltinProfiles } from "../data/builtin-tokenizer-index";
 import { calculatorProxy } from "../worker/calculator.proxy";
 import { tokenCalculatorEngine } from "../core/tokenCalculatorEngine";
+import { applyBuiltinTokenizerOverrides } from "../core/registrySnapshot";
 import { readProfileFiles } from "../services/tokenizerAssetService";
 import type {
   TokenizerProfile,
@@ -138,19 +139,10 @@ export const useTokenizerRegistryStore = defineStore(
      * 始终从 builtinDefaults 重建，避免历史状态残留。
      */
     function applyBuiltinOverrides() {
-      builtinProfiles.value = builtinDefaults.map((p) => {
-        const override = builtinOverrides.value[p.id];
-        if (!override) return { ...p };
-        const next: TokenizerProfile = { ...p };
-        if (override.enabled !== undefined) {
-          next.enabled = override.enabled;
-        }
-        // calibration 是完全覆盖（不是合并），因为代码层默认就没设 calibration
-        if (override.calibration !== undefined) {
-          next.calibration = { ...override.calibration };
-        }
-        return next;
-      });
+      builtinProfiles.value = applyBuiltinTokenizerOverrides(
+        builtinDefaults,
+        builtinOverrides.value
+      );
     }
 
     // ============ Computed ============

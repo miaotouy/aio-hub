@@ -337,6 +337,8 @@ function onExportSrt() {
 
 .subtitle-timeline__header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
@@ -345,6 +347,7 @@ function onExportSrt() {
 }
 
 .subtitle-timeline__title {
+  white-space: nowrap;
   font-weight: 600;
   font-size: 14px;
 }
@@ -357,6 +360,7 @@ function onExportSrt() {
 
 .subtitle-timeline__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }

@@ -14,10 +14,18 @@ const mocks = vi.hoisted(() => ({
   settings: {
     value: {
       uiPreferences: { isStreaming: true, splitVcpResponses: false },
+      continuation: {
+        mode: "prompt" as const,
+        deepseekThinking: "disabled" as const,
+        prompt: "接续原文。",
+        tailLength: 2400,
+        deduplicate: false,
+      },
       requestSettings: { maxRetries: 0 },
     },
   },
   sendRequest: vi.fn(),
+  executePipeline: vi.fn(),
   checkAndCompress: vi.fn(),
   handleStreamUpdate: vi.fn(),
   finalizeNode: vi.fn(),
@@ -39,7 +47,7 @@ vi.mock("../../../stores/llmChatStore", () => ({
   useLlmChatStore: () => ({ sessionIndexMap: new Map([["session", {}]]) }),
 }));
 vi.mock("../../../stores/contextPipelineStore", () => ({
-  useContextPipelineStore: () => ({ executePipeline: vi.fn() }),
+  useContextPipelineStore: () => ({ executePipeline: mocks.executePipeline }),
 }));
 vi.mock("../../features/useContextCompressor", () => ({
   useContextCompressor: () => ({ checkAndCompress: mocks.checkAndCompress }),
@@ -222,7 +230,11 @@ describe("VCP message splitting preference", () => {
             usage: firstUsage,
           });
           emit(2000, { responseId: "chatcmpl-vcp-1", content: "工具结果" });
-          if (withBoundary) emit(2400, { responseId: "chatcmpl-vcp-end-1" });
+          if (withBoundary)
+            emit(2400, {
+              responseId: "chatcmpl-vcp-end-1",
+              content: "\n<<<[END_ROLE_DIVIDE_USER]>>>\n",
+            });
           emit(3000, { responseId: "second", reasoningContent: "思考" });
           emit(3200, { responseId: "second", content: "最终回答" });
           emit(4000, {
@@ -235,6 +247,13 @@ describe("VCP message splitting preference", () => {
       );
       try {
         await execute(true, session);
+        const tool = Object.values(session.nodes).find(
+          (node) => node.role === "tool"
+        );
+        expect(tool?.metadata?.vcpResponse?.contextReplay).toEqual({
+          prefix: "",
+          suffix: withBoundary ? "\n<<<[END_ROLE_DIVIDE_USER]>>>\n" : "",
+        });
         const assistants = Object.values(session.nodes).filter(
           (node) => node.role === "assistant"
         );
@@ -260,6 +279,11 @@ describe("VCP message splitting preference", () => {
 
   it("applies the changed preference to the next request and splits VCP phases", async () => {
     await execute();
+    expect(
+      mocks.executePipeline.mock.calls[
+        mocks.executePipeline.mock.calls.length - 1
+      ][0].isVcpTextChannel
+    ).toBe(true);
     mocks.settings.value.uiPreferences.splitVcpResponses = true;
     const session = await execute();
     expect(mocks.sendRequest.mock.calls[1][0].streamOptions).toEqual({
@@ -432,3 +456,55 @@ describe("VCP response splitting with queued messages", () => {
     expect(unrelated.parentId).toBe("assistant");
   });
 });
+
+// Tail injections must not move the continuation cursor onto an unrelated message.
+it.each(["assistant", "user"] as const)(
+  "marks only an assistant source for %s continuation",
+  async (role) => {
+    vi.clearAllMocks();
+    mocks.settings.value.uiPreferences = {
+      isStreaming: false,
+      splitVcpResponses: false,
+    };
+    const session = createSession();
+    const messages = [
+      {
+        role,
+        content: "原有正文",
+        sourceId: role === "assistant" ? "assistant" : "user",
+      },
+      {
+        role: role === "user" ? "assistant" : "system",
+        content: "尾部上下文注入",
+        sourceId: "injection",
+      },
+    ];
+    mocks.executePipeline.mockImplementationOnce(async (context) => {
+      context.messages.push(...messages);
+    });
+    mocks.sendRequest.mockResolvedValueOnce({ content: "新增正文" });
+    await useSingleNodeExecutor().execute({
+      session,
+      assistantNode: session.nodes.assistant,
+      currentPathToUserNode: [],
+      isContinuation: true,
+      agentConfig: { profileId: "profile", modelId: "model", parameters: {} },
+      executionAgent: { id: "agent" } as ChatAgent,
+      effectiveUserProfile: null,
+      abortController: new AbortController(),
+    });
+    const request = mocks.sendRequest.mock.calls[0][0] as LlmRequestOptions;
+    expect(
+      request.messages?.map(({ role, content }) => ({ role, content }))
+    ).toEqual(messages.map(({ role, content }) => ({ role, content })));
+    expect(request.messages?.[0].prefix).toBe(
+      role === "assistant" ? true : undefined
+    );
+    expect(request.messages?.[1].prefix).toBeUndefined();
+    expect(request.continuation).toEqual(mocks.settings.value.continuation);
+    expect(request.continuation).not.toBe(mocks.settings.value.continuation);
+    expect(session.nodes.assistant.metadata?.continuationDeduplicate).toBe(
+      false
+    );
+  }
+);

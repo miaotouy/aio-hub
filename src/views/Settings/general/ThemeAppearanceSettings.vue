@@ -658,8 +658,8 @@ import {
   type BlendMode,
   BUILTIN_WALLPAPERS,
 } from "@/utils/appSettings";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { type } from "@tauri-apps/plugin-os";
+import { convertFileSrc } from "@/platform/native/core";
+import { type } from "@/platform/native/os";
 
 const {
   appearanceSettings,

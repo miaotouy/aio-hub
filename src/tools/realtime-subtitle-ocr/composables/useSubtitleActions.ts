@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { getBrowserClipboard } from "@/platform/browser";
+
 /**
  * 字幕通用动作：复制全部 / 发送到 Chat / 导出 SRT / 清空。
  * 屏幕模式与视频模式复用同一实现，各自传入自己的字幕 store。
@@ -33,7 +35,7 @@ export function useSubtitleActions(timeline: SubtitleTimelineStore) {
       customMessage.warning("暂无字幕可复制");
       return;
     }
-    navigator.clipboard
+    getBrowserClipboard()
       .writeText(text)
       .then(() =>
         customMessage.success(

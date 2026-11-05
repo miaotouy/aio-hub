@@ -15,9 +15,17 @@
 -->
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
+import {
+  ref,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  watch,
+  computed,
+} from "vue";
 import { customMessage } from "@/utils/customMessage";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { useSymlinkMoverLogic } from "./composables/useSymlinkMover";
 import FileListPanel from "./components/FileListPanel.vue";
 import SettingsPanel from "./components/SettingsPanel.vue";
@@ -34,6 +42,12 @@ const mirrorMode = ref(false);
 const linkType = ref<LinkType>("symlink");
 const operationMode = ref<OperationMode>("move");
 const isProcessing = ref(false);
+let disposed = false;
+let active = true;
+let listening = false;
+let cancelRequested = false;
+let validationGeneration = 0;
+let progressTimer: ReturnType<typeof setTimeout> | undefined;
 
 // 进度相关状态
 const showProgress = ref(false);
@@ -54,7 +68,9 @@ const canExecute = computed(() => {
 });
 
 // 生命周期钩子
-onMounted(async () => {
+const startListening = async () => {
+  if (disposed || !active || listening) return;
+  listening = true;
   await logic.startProgressListener((progress) => {
     currentFile.value = progress.currentFile;
     currentProgress.value = progress.progressPercentage;
@@ -63,17 +79,34 @@ onMounted(async () => {
     showProgress.value = true;
   });
 
+  if (disposed || !active) return;
   await loadLatestLog();
-
-  watch(latestLog, (newLog, oldLog) => {
-    if (newLog && (!oldLog || newLog.timestamp !== oldLog.timestamp)) {
-      tickerKey.value++;
-    }
-  });
+};
+onMounted(startListening);
+onActivated(() => {
+  active = true;
+  void startListening();
+});
+onDeactivated(() => {
+  active = false;
+  listening = false;
+  cancelRequested = true;
+  validationGeneration++;
+  if (progressTimer) clearTimeout(progressTimer);
+  void logic.stopProgressListener();
+  void logic.cancelOperation();
 });
 
-onUnmounted(async () => {
-  await logic.stopProgressListener();
+watch(latestLog, (newLog, oldLog) => {
+  if (newLog && (!oldLog || newLog.timestamp !== oldLog.timestamp)) {
+    tickerKey.value++;
+  }
+});
+
+onUnmounted(() => {
+  disposed = true;
+  if (progressTimer) clearTimeout(progressTimer);
+  void logic.dispose();
 });
 
 // UI 事件处理方法
@@ -92,16 +125,17 @@ const openLogDialog = async () => {
 
 // 验证文件列表
 const validateFiles = async () => {
-  if (!targetDirectory.value || sourceFiles.value.length === 0) {
+  const generation = ++validationGeneration;
+  if (disposed || !targetDirectory.value || sourceFiles.value.length === 0)
     return;
-  }
-
-  sourceFiles.value = await logic.validateFiles(
-    sourceFiles.value,
+  const validated = await logic.validateFiles(
+    [...sourceFiles.value],
     targetDirectory.value,
     linkType.value,
     operationMode.value
   );
+  if (!disposed && generation === validationGeneration)
+    sourceFiles.value = validated;
 };
 
 // 监听目标目录和链接类型变化，触发验证
@@ -111,6 +145,7 @@ watch([targetDirectory, linkType, operationMode], () => {
 
 // 文件处理方法
 const addSourceFiles = (paths: string[]) => {
+  if (disposed || !active || isProcessing.value) return;
   const newFiles = logic.parsePathsToFileItems(paths);
   const mergedFiles = logic.mergeFileItems(sourceFiles.value, newFiles);
   const addedCount = mergedFiles.length - sourceFiles.value.length;
@@ -123,7 +158,15 @@ const addSourceFiles = (paths: string[]) => {
 };
 
 const removeFile = (index: number) => {
+  if (disposed || isProcessing.value) return;
+  validationGeneration++;
   sourceFiles.value = logic.removeFileByIndex(sourceFiles.value, index);
+};
+
+const updateSourceFiles = (files: FileItem[]) => {
+  if (disposed || isProcessing.value) return;
+  validationGeneration++;
+  sourceFiles.value = files;
 };
 
 // 文件/目录选择
@@ -176,14 +219,16 @@ const selectBaseSourceDir = async () => {
 
 // 取消操作
 const cancelOperation = async () => {
+  cancelRequested = true;
   const success = await logic.cancelOperation();
   if (success) {
-    customMessage.info("正在取消操作...");
+    if (!disposed && active) customMessage.info("已请求取消操作");
   }
 };
 
 // 核心操作
 const executeMoveAndLink = async () => {
+  if (disposed || isProcessing.value) return;
   if (sourceFiles.value.length === 0) {
     customMessage.warning("请先添加要处理的文件");
     return;
@@ -193,89 +238,86 @@ const executeMoveAndLink = async () => {
     return;
   }
 
-  const sourcePaths = sourceFiles.value.map((file) => file.path);
+  const submittedFiles = [...sourceFiles.value];
   const operationOptions = {
-    sourcePaths,
+    sourcePaths: submittedFiles.map((file) => file.path),
     targetDir: targetDirectory.value,
     linkType: linkType.value,
     operationMode: operationMode.value,
     baseSourceDir: mirrorMode.value ? baseSourceDir.value : undefined,
   };
-
-  const preflight = await logic.preflight(operationOptions);
-  if (!preflight) {
-    return;
-  }
-  if (!preflight.canExecute) {
-    const issuesByPath = new Map(
-      preflight.items.map((item) => [item.sourcePath, item.blockingIssues])
-    );
-    sourceFiles.value.forEach((file) => {
-      const issues = issuesByPath.get(file.path);
-      file.warning = issues?.[0];
-    });
-    customMessage.error(`预检未通过：\n${preflight.blockingIssues.join("\n")}`);
-    return;
-  }
-
-  // 重置进度状态
+  isProcessing.value = true;
+  cancelRequested = false;
+  if (progressTimer) clearTimeout(progressTimer);
   showProgress.value = false;
   currentProgress.value = 0;
   currentFile.value = "";
   copiedBytes.value = 0;
   totalBytes.value = 0;
-
-  isProcessing.value = true;
-  sourceFiles.value.forEach((file) => (file.status = "processing"));
-
-  let result: string | null;
-  const options = {
-    sourcePaths,
-    targetDir: targetDirectory.value,
-    linkType: linkType.value,
-    baseSourceDir: mirrorMode.value ? baseSourceDir.value : undefined,
-  };
-
-  if (operationMode.value === "move") {
-    result = await logic.moveAndLink(options);
-  } else {
-    result = await logic.createLinksOnly(options);
-  }
-
-  if (result === null) {
-    sourceFiles.value.forEach((file) => {
-      if (file.status === "processing") {
+  try {
+    const preflight = await logic.preflight(operationOptions);
+    if (disposed || cancelRequested || !preflight) return;
+    if (!preflight.canExecute) {
+      const issuesByPath = new Map(
+        preflight.items.map((item) => [item.sourcePath, item.blockingIssues])
+      );
+      submittedFiles.forEach((file) => {
+        file.warning = issuesByPath.get(file.path)?.[0];
+      });
+      customMessage.error(
+        "预检未通过：\n" + preflight.blockingIssues.join("\n")
+      );
+      return;
+    }
+    submittedFiles.forEach((file) => {
+      file.status = "processing";
+      file.error = undefined;
+      file.warning = undefined;
+    });
+    const result =
+      operationOptions.operationMode === "move"
+        ? await logic.moveAndLink(operationOptions)
+        : await logic.createLinksOnly(operationOptions);
+    if (disposed) return;
+    if (result === null) {
+      submittedFiles.forEach((file) => {
         file.status = "error";
         file.error = "处理失败";
-      }
-    });
-  } else {
-    if (result.includes("已被用户取消")) {
-      customMessage.warning(result);
-      sourceFiles.value.forEach((file) => {
-        if (file.status === "processing") {
-          file.status = "pending";
-        }
       });
-    } else if (result.includes("个错误")) {
-      customMessage.error(result);
-      sourceFiles.value.forEach((file) => {
-        if (file.status === "processing") {
-          file.status = "error";
-          file.error = "处理失败，请查看错误详情";
-        }
-      });
-    } else {
-      customMessage.success(result || "操作完成");
-      sourceFiles.value.forEach((file) => (file.status = "success"));
+      return;
     }
+    await loadLatestLog();
+    if (disposed) return;
+    const normalize = (path: string) => path.replace(/\\/g, "/");
+    const succeeded = new Set(
+      latestLog.value?.processedFiles.map(normalize) ?? []
+    );
+    const cancelled = result.includes("已被用户取消");
+    for (const file of submittedFiles) {
+      const processedPath =
+        operationOptions.operationMode === "move"
+          ? file.path
+          : preflight.items.find((item) => item.sourcePath === file.path)
+              ?.targetPath;
+      if (processedPath && succeeded.has(normalize(processedPath)))
+        file.status = "success";
+      else {
+        file.status = cancelled ? "pending" : "error";
+        file.error = cancelled ? undefined : "处理失败，请查看操作日志";
+      }
+    }
+    if (!active) return;
+    if (cancelled) customMessage.warning(result);
+    else if (latestLog.value?.errorCount) customMessage.error(result);
+    else if (latestLog.value?.warnings.length) customMessage.warning(result);
+    else customMessage.success(result || "操作完成");
+  } finally {
+    isProcessing.value = false;
+    if (!disposed && active)
+      progressTimer = setTimeout(() => {
+        showProgress.value = false;
+      }, 1000);
   }
-
-  isProcessing.value = false;
-  setTimeout(() => {
-    showProgress.value = false;
-  }, 1000);
-  await loadLatestLog();
 };
 </script>
 
@@ -284,7 +326,8 @@ const executeMoveAndLink = async () => {
     <div class="column">
       <FileListPanel
         :files="sourceFiles"
-        @update:files="sourceFiles = $event"
+        :disabled="isProcessing"
+        @update:files="updateSourceFiles"
         @add-files="addSourceFiles"
         @remove-file="removeFile"
         @select-files="selectSourceFiles"

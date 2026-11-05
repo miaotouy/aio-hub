@@ -25,10 +25,10 @@ declare global {
   }
 }
 
-import { path } from "@tauri-apps/api";
+import { path } from "@/platform/native/sdk";
 import { getAppConfigDir } from "@/utils/appPath";
-import { readTextFile, readDir, exists } from "@tauri-apps/plugin-fs";
-import { arch, platform } from "@tauri-apps/plugin-os";
+import { readTextFile, readDir, exists } from "@/platform/native/fs";
+import { arch, platform } from "@/platform/native/os";
 import { satisfies } from "compare-versions";
 import type {
   PluginDiagnostic,
@@ -409,17 +409,10 @@ export class PluginLoader {
         return proxy;
       }
 
-      // 3. 使用 ESM 动态导入加载插件
-      const { convertFileSrc } = await import("@tauri-apps/api/core");
-      // 转换路径为浏览器可加载的 URL，处理 Windows 分隔符
-      let assetUrl = convertFileSrc(entryPath.replace(/\\/g, "/"));
-
-      // 修复相对路径加载问题：
-      // convertFileSrc 可能会对路径中的盘符和斜杠进行 URL 编码（如 %3A, %2F），
-      // 这会导致浏览器在解析 JS 内部的相对导入（如 import("./chunk.js")）时，
-      // 无法正确识别目录层级，从而把相对路径解析到根域名下（如 http://asset.localhost/chunk.js）。
-      // 我们需要将 %2F 替换回 /，但保留盘符的编码（%3A），以保持 URL 的合法性。
-      assetUrl = assetUrl.replace(/%2F/g, "/");
+      // 使用宿主的插件资源入口，保留模块相对依赖的目录层级。
+      const { getPluginResourceUrl } =
+        await import("@/platform/modules/plugin-resources");
+      const assetUrl = await getPluginResourceUrl(pluginPath, entryPath);
 
       logger.info(`开始通过 ESM 加载插件: ${manifest.id}`, { assetUrl });
 
@@ -581,7 +574,7 @@ export class PluginLoader {
 
     try {
       // 导入 Tauri API
-      const { invoke } = await import("@tauri-apps/api/core");
+      const { invoke } = await import("@/platform/native/core");
 
       // 调用后端命令删除插件目录到回收站
       await invoke("uninstall_plugin", { pluginId });

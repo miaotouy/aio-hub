@@ -19,9 +19,9 @@ import {
 // limitations under the License.
 
 import { ref, toRaw, type Ref } from "vue";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { readText, writeText } from "@/platform/native/clipboard";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import yaml from "js-yaml";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";

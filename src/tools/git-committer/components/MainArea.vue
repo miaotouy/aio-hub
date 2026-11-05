@@ -326,7 +326,7 @@ import { errorHandler } from "../composables/useGitCommitterErrorHandler";
 import { useGitContextMenu } from "../composables/useGitContextMenu";
 import { buildTabContextMenuItems } from "../contextMenus";
 import { copyTextToClipboard, joinRepoPath } from "../utils";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { DiffTab, DiffTabRef } from "../types";
 import type * as monaco from "@/utils/monaco";
 import {

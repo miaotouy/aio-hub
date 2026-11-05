@@ -485,7 +485,7 @@ import {
   Plus as PlusIcon,
 } from "@element-plus/icons-vue";
 import { customMessage } from "@/utils/customMessage";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@/platform/native/clipboard";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { useSendToChat } from "@/composables/useSendToChat";
 import * as logic from "./logic/dataFilter.logic";

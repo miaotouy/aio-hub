@@ -1,6 +1,10 @@
 import { switchToWebview } from "../support/appium";
 import { MOBILE_E2E_MODEL_ID } from "../support/openai-conformance";
-import { clickTestElement, testElement } from "../support/webview";
+import {
+  clickTestElement,
+  readTestElementValue,
+  testElement,
+} from "../support/webview";
 import { ensureFixtureImported, findFixtureTile } from "./asset-workflow.spec";
 import type { ScenarioContext } from "./context";
 
@@ -9,7 +13,7 @@ const E2E_USER_PROFILE_NAME = "Android E2E User Profile";
 const E2E_USER_PROFILE_CONTENT =
   "Provide direct, concise answers for this Android E2E profile.";
 
-async function ensureUserProfile(context: ScenarioContext) {
+export async function ensureUserProfile(context: ScenarioContext) {
   await context.driver.execute(() => {
     window.location.hash = "#/tools/llm-chat/profiles";
   });
@@ -68,7 +72,7 @@ async function configureAgentParameters(
   return agentId;
 }
 
-async function setInput(
+export async function setInput(
   context: ScenarioContext,
   testId: string,
   value: string
@@ -97,6 +101,8 @@ export async function configureOpenAiProfile(
     name: string;
     baseUrl: string;
     modelId: string;
+    /** Overrides the model picker search term, e.g. to import every mock model. */
+    searchTerm?: string;
     headers?: Record<string, string>;
   }
 ) {
@@ -157,7 +163,7 @@ export async function configureOpenAiProfile(
   const search = await context.driver.$(
     '[data-testid="llm-model-fetcher"] .search-input'
   );
-  await search.setValue(options.modelId);
+  await search.setValue(options.searchTerm ?? options.modelId);
   await clickTestElement(context.driver, "llm-model-select-all");
   await clickTestElement(context.driver, "llm-model-add-selected");
   await clickTestElement(context.driver, "llm-profile-save");
@@ -325,11 +331,11 @@ export async function runDeterministicAttachmentScenario(
     window.location.hash = `#/tools/agent-manager/${encodeURIComponent(savedAgentId)}`;
   }, agentId);
   await testElement(context.driver, "agent-detail");
-  const recoveredTemperature = await testElement(
+  const recoveredTemperature = await readTestElementValue(
     context.driver,
     "agent-parameter-temperature"
   );
-  if ((await recoveredTemperature.getValue()) !== "0.35") {
+  if (recoveredTemperature !== "0.35") {
     throw new Error(
       "Agent generation parameters did not persist after the app restart."
     );

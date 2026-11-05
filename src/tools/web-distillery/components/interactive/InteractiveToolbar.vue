@@ -25,7 +25,7 @@ import {
   HardDriveDownload,
 } from "lucide-vue-next";
 import { useWebDistilleryStore } from "../../stores/store";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@/platform/native/opener";
 
 const emit = defineEmits([
   "save",

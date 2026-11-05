@@ -124,7 +124,7 @@ export function useConnectionTest(
         modelId,
         apiKey: key,
       });
-      applyKeyHealthResult(snapshot.id, key, result);
+      await applyKeyHealthResult(snapshot.id, key, result);
       showResultMessage(result, "Key");
       return result;
     } finally {
@@ -212,7 +212,7 @@ export function useConnectionTest(
 
   const cancelBatchTest = () => batchController?.abort("用户停止批量检查");
 
-  function applyKeyHealthResult(
+  async function applyKeyHealthResult(
     profileId: string,
     key: string,
     result: ChannelProbeResult
@@ -225,10 +225,10 @@ export function useConnectionTest(
     );
     switch (getKeyHealthAction(result)) {
       case "success":
-        reportSuccess(profileId, key);
+        await reportSuccess(profileId, key);
         break;
       case "authentication-failure":
-        reportFailure(profileId, key, error, { forceBroken: true });
+        await reportFailure(profileId, key, error, { forceBroken: true });
         break;
       case "rate-limit-failure":
         reportFailure(profileId, key, error);

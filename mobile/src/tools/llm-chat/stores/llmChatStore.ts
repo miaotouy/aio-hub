@@ -255,6 +255,38 @@ export const useLlmChatStore = defineStore("llmChat", () => {
   }
 
   /**
+   * 重命名会话
+   */
+  async function renameSession(sessionId: string, newName: string): Promise<boolean> {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      logger.warn("Cannot rename session to empty name", { sessionId });
+      return false;
+    }
+
+    let session = currentSessionDetail.value;
+    if (session && session.id === sessionId) {
+      session.name = trimmed;
+      session.updatedAt = new Date().toISOString();
+      await persistCurrentSession();
+    } else {
+      session = await sessionManager.loadSession(sessionId);
+      if (!session) {
+        logger.warn("Session not found for rename", { sessionId });
+        return false;
+      }
+      session.name = trimmed;
+      session.updatedAt = new Date().toISOString();
+      await sessionManager.persistSession(session, currentSessionId.value);
+    }
+
+    const { sessionMetas: metas } = await sessionManager.loadSessions();
+    sessionMetas.value = metas;
+    logger.info("Renamed session", { sessionId, newName: trimmed });
+    return true;
+  }
+
+  /**
    * 持久化当前会话
    */
   async function persistCurrentSession() {
@@ -382,6 +414,7 @@ export const useLlmChatStore = defineStore("llmChat", () => {
     focusMessage,
     deleteSession,
     clearAllSessions,
+    renameSession,
     persistCurrentSession,
     syncSelectedModel,
     switchSibling,

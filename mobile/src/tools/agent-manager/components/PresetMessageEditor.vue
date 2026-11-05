@@ -22,6 +22,7 @@ import {
 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
+import { generateUuid } from "@/utils/uuid";
 import { usePresetTokenCalculator } from "../composables/usePresetTokenCalculator";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 import AgentPresetBatchDialog from "./AgentPresetBatchDialog.vue";
@@ -35,8 +36,8 @@ const messages = defineModel<PresetMessage[]>("messages", {
 const groups = defineModel<PresetMessageGroup[]>("groups", {
   default: () => [],
 });
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const { totalTokens, isCalculating, isFallback, getTokenCount } =
   usePresetTokenCalculator(messages, groups);
 const editMessage = ref<PresetMessage | null>(null);
@@ -81,7 +82,7 @@ function openNewMessage(): void {
 
 function openNewComposition(): void {
   editMessage.value = {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     parentId: null,
     childrenIds: [],
     role: "system",
@@ -136,8 +137,8 @@ function openMessage(message: PresetMessage): void {
 
 function cloneMessage(message: PresetMessage): void {
   editMessage.value = {
-    ...JSON.parse(JSON.stringify(message)),
-    id: crypto.randomUUID(),
+    ...structuredClone(message),
+    id: generateUuid(),
     parentId: null,
     childrenIds: [],
     name: `${message.name || t("未命名预设")} ${t("副本")}`,
@@ -354,7 +355,7 @@ function normalizeImportedMessage(value: unknown): PresetMessage | null {
     : "system";
   return importPresetMessage({
     ...source,
-    id: typeof source.id === "string" ? source.id : crypto.randomUUID(),
+    id: typeof source.id === "string" ? source.id : generateUuid(),
     parentId: typeof source.parentId === "string" ? source.parentId : null,
     childrenIds: Array.isArray(source.childrenIds) ? source.childrenIds : [],
     role,
@@ -595,6 +596,7 @@ onBeforeUnmount(stopDrag);
           class="group-edit"
           type="button"
           :title="t('编辑消息组')"
+          :aria-label="t('编辑消息组')"
           @click="openExistingGroup(group)"
         >
           <Pencil :size="14" />
@@ -694,22 +696,23 @@ onBeforeUnmount(stopDrag);
 }
 .editor-header h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 .editor-header p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
-  font-size: 0.72rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .editor-header .primary {
   padding: 9px 12px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .utility-bar {
   display: flex;
@@ -719,15 +722,16 @@ onBeforeUnmount(stopDrag);
 }
 .utility-bar button {
   padding: 8px 9px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 .file-input {
   display: none;
@@ -754,17 +758,18 @@ onBeforeUnmount(stopDrag);
 .all-group,
 .group-add {
   padding: 8px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 .all-group.active {
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
 }
 .group-control {
   padding: 3px 4px 3px 8px;
@@ -772,7 +777,7 @@ onBeforeUnmount(stopDrag);
   align-items: center;
   gap: 4px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
 }
 .group-control.disabled {
@@ -781,15 +786,18 @@ onBeforeUnmount(stopDrag);
 .group-filter {
   max-width: 150px;
   overflow: hidden;
-  font-size: 0.76rem;
+  min-height: 44px;
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .group-filter.active {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 .group-edit {
   padding: 5px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-flex;
 }
 .group-add {
@@ -819,7 +827,7 @@ onBeforeUnmount(stopDrag);
   transition: 0.16s;
 }
 .mini-switch input:checked + i {
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .mini-switch input:checked + i::after {
   transform: translateX(11px);
@@ -833,9 +841,9 @@ onBeforeUnmount(stopDrag);
   margin: 0;
   padding: 18px 12px;
   border: var(--border-width) dashed var(--border-color);
-  border-radius: 8px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  border-radius: var(--app-radius-md);
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
   line-height: 1.55;
 }
 .pagination {
@@ -847,10 +855,12 @@ onBeforeUnmount(stopDrag);
 .pagination button {
   width: 34px;
   height: 34px;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
 }
@@ -858,7 +868,7 @@ onBeforeUnmount(stopDrag);
   opacity: 0.4;
 }
 .pagination span {
-  color: var(--color-on-surface-variant);
-  font-size: 0.78rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 </style>

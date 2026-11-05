@@ -291,14 +291,14 @@ const createdAt = computed(() =>
 .header-copy h2 {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: 17px;
+  font-size: var(--font-size-lg);
   line-height: 1.35;
 }
 
 .header-copy p {
   margin: 4px 0 0;
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .icon-button {
@@ -384,7 +384,7 @@ const createdAt = computed(() =>
 }
 
 .detail-actions button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 11px;
   display: inline-flex;
   align-items: center;
@@ -454,7 +454,7 @@ const createdAt = computed(() =>
 
 .hash {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .detail-section {
@@ -463,7 +463,7 @@ const createdAt = computed(() =>
 
 .detail-section h3 {
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--font-size-md);
 }
 
 .detail-row {
@@ -476,12 +476,12 @@ const createdAt = computed(() =>
 
 .detail-row strong {
   overflow-wrap: anywhere;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .detail-row span,
 .quiet {
   color: var(--text-color-light);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 </style>

@@ -255,8 +255,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { open } from "@/platform/native/dialog";
+import { convertFileSrc } from "@/platform/native/core";
 import { InfoFilled } from "@element-plus/icons-vue";
 import type {
   ModelMetadataRule,

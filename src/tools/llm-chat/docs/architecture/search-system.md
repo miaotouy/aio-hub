@@ -1,48 +1,48 @@
-# 搜索系统 (Search System)
+# 搜索系统
 
-为海量对话和智能体提供了毫秒级的全文检索能力，前端入口为 [`useLlmSearch`](../../composables/chat/useLlmSearch.ts)，后端实现为 Tauri command [`search_llm_data_stream`](../../../../../src-tauri/src/commands/llmchat_search.rs:644)（流式传输，边搜边推送结果）。
+入口为 [`useLlmSearch`](../../composables/chat/useLlmSearch.ts)，通过 `search_llm_data_stream` 接收逐批结果，`cancel_llm_chat_search` 取消当前搜索。
 
-## 1. 多维搜索 (Scope)
+- Tauri 后端：[llmchat_search.rs](../../../../../src-tauri/src/commands/llmchat_search.rs)。
+- Electron 后端：[llm-search.ts](../../../../../electron/llm-search.ts)，Channel 桥：[channel.ts](../../../../platform/electron/channel.ts)。
 
-支持 `agent` / `session` / `all` 三种作用域。Agent 范围内可命中 `name` / `displayName` / `description` / `presetMessage` / `presetMessageName` 字段；Session 范围内可命中 `name` / `content`（消息正文）/ `reasoningContent`（推理内容）字段，每条结果最多返回 5 条节点匹配 / 3 条预设匹配，按匹配数量与更新时间降序排序。
+## 1. 搜索范围与结果
 
-## 2. 匹配模式 (`matchMode`)
+支持 `agent` / `session` / `all`：
 
-后端 [`SearchMatcher::build`](../../../../../src-tauri/src/commands/llmchat_search.rs:105) 将查询字符串转换为三种内部结构：
+- 智能体扫描 `{appConfigDir}/agent-manager/agents/{id}/agent.json`，检索 `name`、`displayName`、`description`、预设消息名称和正文；最多提取 3 条预设匹配，名称命中优先于同条正文。
+- 会话扫描 `{appConfigDir}/llm-chat/sessions/*.json`，检索名称、节点正文与 `metadata.reasoningContent`。Electron 最多返回 5 条节点字段匹配；Tauri 按节点迭代检查上限，同一节点的正文和推理同时命中时可能返回第 6 条。
+- 结果包含 ID、类型、标题、匹配片段、角色、更新时间和应用相对路径。前端合并批次，按匹配数量、更新时间降序排列。
 
-- **`exact`**（默认）: 把整个查询用 `regex::escape` 转义后作为**单个正则**进行整体匹配，适合带空格的精确短语。
-- **`and`**: 按 `split_whitespace()` 切词后为每个词构建独立 Regex，要求**全部 `is_match`** 才算命中；单个关键词时自动降级为 `exact`，避免无意义遍历。
-- **`or`**: 按 `split_whitespace()` 切词后拼成 `kw1|kw2|kw3` 形式的**单个正则**做任一匹配；单关键词同样降级为 `exact`。
+两端均按文件扫描，写入后可直接搜索。搜索成本随文件总量增长；单文件 JSON 解析仍占用当前扫描线程，大规模历史数据的索引化与性能优化另行推进。
 
-## 3. 中文分词与编码
+## 2. 匹配模式
 
-- **不做真正的分词**：所有模式都依赖 `split_whitespace()`，对没有空格的中文文本只能整体当作一个关键词处理；**不支持拼音匹配**。
-- **字符级偏移用 graphemes**：返回 `match_offsets` 时使用 [`unicode_segmentation`](https://crates.io/crates/unicode-segmentation) 的 `graphemes(true)` 计数，确保 emoji、CJK 字符簇与 JS 字符串的 `String.length` 对齐，前端 `formatMatchContext` 可直接做截断和高亮拼接。
-- **大小写不敏感 + 正则转义**：所有模式在 `RegexBuilder` 上统一开启 `case_insensitive(true)`，并对用户输入用 `regex::escape` 转义，保证 `.` / `*` / `?` 等正则元字符被当成普通字符匹配，杜绝注入风险。
+所有模式均忽略大小写，用户输入中的正则元字符按字面值处理。
 
-## 4. 后端实现：无索引的并发全表扫描
+- `exact`：整个查询作为短语。
+- `and`：按空白切词，要求全部词出现在同一字段。
+- `or`：按空白切词，任一词命中即可。
 
-**没有任何持久化索引结构**（不是倒排表、不是 Trie、不是 SQLite FTS）。每次搜索都走以下流程（见 [`llmchat_search.rs:289-514`](../../../../../src-tauri/src/commands/llmchat_search.rs:289)）：
+中文连写按整体关键词处理，空白分词适用于中英文混合查询。Electron 在 JSON 解码后的实际字段上匹配，包含引号、换行转义的正文同样可检索。
 
-1.  **walkdir** 分别递归遍历 `{appConfigDir}/agent-manager/agents/{id}/agent.json` 与 `{appConfigDir}/llm-chat/sessions/{id}.json` 收集所有文件路径；Agent 和 Session 保持各自工具的数据根。
-2.  通过 `tokio::join!` **并行**执行 `search_agents` 与 `search_sessions`（`scope = all` 时）。
-3.  `stream::iter(paths).buffer_unordered(50)` 以 **50 并发**异步读取每个文件，先用 `matcher.is_match(&content)` 做**全文预过滤**：原始字符串都不命中则直接跳过昂贵的 `serde_json` 反序列化，这是核心性能优化点。
-4.  命中文件用 `PartialAgent` / `PartialSession`（带 `#[serde(borrow)]` 零拷贝结构）解析后逐字段调用 `matcher.extract_context` 提取片段。
+## 3. 流式事件与生命周期
 
-**索引刷新时机**: **不适用** —— 由于不存在索引，所以也没有刷新/重建机制，写入会话/智能体后立即可搜索；优势是零维护成本，缺点是单次搜索的最差耗时与磁盘数据量线性相关。
+前端处理 `progress`、`resultBatch`、`done` 三类事件。Electron 使用 camelCase 数据：`filesScanned`、`filesMatched`、`durationMs` 和 `updatedAt`；匹配区间沿用既有键名 `match_offsets`。
 
-## 5. 前端防抖与 Loading 延迟
+Electron 每 10 条结果或约 100 ms 刷新结果和进度，完成时发送剩余结果、最终进度和 `done`。默认结果上限为 500；达到上限时先发出全部已接受结果。空查询和零上限立即结束。损坏 JSON、字段结构无效的文件以及并发恢复时已消失的条目跳过，目录或文件读取权限错误返回前端；目录重定向链接被路径边界检查拒绝。
 
-[`useLlmSearch`](../../composables/chat/useLlmSearch.ts:83) 默认配置：
+Electron 以 WebContents 为搜索所有者：同窗口的新搜索取消旧任务，取消命令只影响本窗口，并等待旧任务结束再返回。导航、渲染进程退出和窗口销毁撤销事件投递并停止读取；应用退出撤销所有搜索。Tauri 仍使用应用级取消令牌。
 
-- **`debounceMs = 300`**：通过 `useDebounceFn` 对搜索请求做防抖，连续输入只触发最后一次。
-- **`loadingDelayMs = 300`**：通过 `setTimeout` 延迟显示 loading 指示器，命中时长低于阈值时不展示 spinner，避免短查询闪烁。
-- 暴露 `isSearching`（内部状态，用于逻辑判断）与 `showLoadingIndicator`（带延迟的展示状态，UI 直接绑定）两套响应式状态，分别承担不同语义。
+Electron Channel 回调保留在渲染器，通过独立 IPC 通道接收主进程定向消息。业务参数只传不透明引用；监听在命令发送前注册，按请求区分流结束标记，成功调用在尾部事件投递完成后释放监听，失败时直接清理；共用实例的并发调用复用监听。当前 Channel 面向命令存续期内的流式结果；后续后台常驻任务仍需单独定义任务所有权和重连协议。
 
-## 6. 搜索结果高亮 (Highlight)
+## 4. 防抖与旧结果隔离
 
-**前后端协作完成**：
+`useLlmSearch` 默认 `debounceMs = 300`、`loadingDelayMs = 300`。`isSearching` 管理逻辑状态，`showLoadingIndicator` 控制延迟显示。每次执行记录运行序号，迟到批次和错误只允许更新所属搜索；清空面板同时使待执行的防抖任务和在途结果失效。尚未完成的取消请求会复用并等待，避免旧取消命令晚于新搜索抵达。
 
-- 后端 [`extract_context_with_regex`](../../../../../src-tauri/src/commands/llmchat_search.rs:205) 在提取上下文片段时同时返回 `match_offsets: (start_char, end_char)[]` 字符索引数组（基于 grapheme 计数），并合并重叠区间。
-- 前端 [`formatMatchContext`](../../composables/chat/useLlmSearch.ts:297) 据此构建 `HighlightPart[]` 数组（含 `text` 与 `isMatch` 标记），UI 层（如 [`SessionsSidebar.vue`](../../components/sidebar/SessionsSidebar.vue) 和 [`BatchManagerDialog.vue`](../../components/sidebar/BatchManagerDialog.vue) 的搜索结果项）用 `<mark>` 渲染高亮，并提供按字符数智能截断窗口（前缀 1/4 后缀 3/4）。批量管理弹窗按后端返回的相关性顺序展示会话，并在名称下方展示消息正文或推理内容的命中片段。
-- **同会话消息列表的搜索**（[`ChatSearchPanel.vue`](../../components/search/ChatSearchPanel.vue)）是**另一套独立的纯前端搜索**，直接在内存中对当前会话的 `messages[]` 做 `toLowerCase().includes(query)`，与 Rust 后端搜索互不依赖；高亮通过简单的 `split(new RegExp(query, 'gi'))` + `<mark>` 实现。
+## 5. 上下文与高亮
+
+后端围绕首个命中保留上下文，收集片段中的匹配区间、合并重叠范围，并将 CR/LF 替换为等长空格。前端 `formatMatchContext` 和侧栏结果组件使用 `substring` 拆分片段。
+
+Electron 的 `match_offsets` 为 UTF-16 字符串索引，与 JS `substring` 对齐，emoji、组合字符和中文可直接定位。上下文边界按 Unicode code point 移动，保留完整代理对。Tauri 当前使用 grapheme 计数；grapheme 数量与 UTF-16 索引在 emoji 或组合字符场景下存在差异，待 Tauri 后端后续统一。
+
+当前会话消息搜索由 [`ChatSearchPanel.vue`](../../components/search/ChatSearchPanel.vue) 在内存中独立执行，侧栏及批量管理搜索使用本流式后端。

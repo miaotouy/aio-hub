@@ -140,7 +140,7 @@
         v-if="!store.isScanning"
         type="primary"
         @click="emit('scan')"
-        :disabled="!store.scanPath"
+        :disabled="!store.scanPath || store.isDeleting"
         class="action-btn"
       >
         <Search :size="16" style="margin-right: 5px" />
@@ -165,7 +165,7 @@ import {
   Code,
   BookOpen,
 } from "lucide-vue-next";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 import InfoCard from "@components/common/InfoCard.vue";
 import DropZone from "@components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";

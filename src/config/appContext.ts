@@ -19,7 +19,7 @@
  * 用于请求头模板变量解析，确保版本号等动态信息始终最新。
  */
 
-import { getName, getVersion } from "@tauri-apps/api/app";
+import { getName, getVersion } from "@/platform/native/app";
 
 export interface AppContextData {
   /** 应用名称 (如 "AIO Hub") */

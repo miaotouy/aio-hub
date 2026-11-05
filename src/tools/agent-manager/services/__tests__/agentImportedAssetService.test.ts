@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { restoreImportedAgentAssets } from "../agentImportedAssetService";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke }));
 
 // Protect the shared archive-to-storage contract used by import and upgrade.
 describe("restoreImportedAgentAssets", () => {

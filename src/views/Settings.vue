@@ -28,13 +28,13 @@ import {
   settingsGroups,
   settingsPages,
 } from "../config/settings";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { useToolsStore } from "@/stores/tools";
 import { useTheme } from "../composables/useTheme";
 import { useLogConfig } from "../composables/useLogConfig";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { relaunch } from "@/platform/native/process";
 
 const errorHandler = createModuleErrorHandler("Settings");
 const { isDark, applyTheme: applyThemeFromComposable } = useTheme();

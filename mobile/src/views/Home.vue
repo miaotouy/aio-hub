@@ -60,7 +60,10 @@ const goToSettings = () => {
           :data-testid="`home-tool-${tool.id}`"
           :aria-label="tool.name"
           v-ripple
+          role="button"
+          tabindex="0"
           @click="handleToolClick(tool)"
+          @keydown.enter="handleToolClick(tool)"
         >
           <div class="tool-icon">
             <ToolIcon :icon="tool.icon" :size="32" />
@@ -99,20 +102,22 @@ const goToSettings = () => {
 }
 
 .greeting {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-color);
   margin: 0 0 8px 0;
 }
 
 .subtitle {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color-light);
   margin: 0;
 }
 
 .settings-button {
   flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--text-color);
 }
 
@@ -137,16 +142,16 @@ const goToSettings = () => {
 }
 
 .tool-card:active {
-  background-color: rgba(var(--primary-color-rgb, 64, 158, 255), 0.1);
+  background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 
 .tool-icon {
-  font-size: 2.3rem;
+  font-size: var(--font-size-2xl);
   color: var(--primary-color);
 }
 
 .tool-name {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color);
 }
 </style>

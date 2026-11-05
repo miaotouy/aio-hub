@@ -34,7 +34,7 @@ import {
 } from "@/services/decision-arbiter/types";
 import ApprovalModelSettings from "@/tools/tool-calling/components/ApprovalModelSettings.vue";
 import { customMessage } from "@/utils/customMessage";
-import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText, readText } from "@/platform/native/clipboard";
 import ToolCallingItem from "./ToolCallingItem.vue";
 
 // 宏示例常量（避免格式化工具添加空格）

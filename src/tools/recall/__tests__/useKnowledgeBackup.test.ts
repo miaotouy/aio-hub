@@ -28,9 +28,9 @@ const mocks = vi.hoisted(() => ({
   handleError: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: mocks.open }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: mocks.listen }));
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/dialog", () => ({ open: mocks.open }));
+vi.mock("@/platform/native/events", () => ({ listen: mocks.listen }));
 vi.mock("element-plus", async (importOriginal) => {
   const actual = await importOriginal<typeof import("element-plus")>();
   return {

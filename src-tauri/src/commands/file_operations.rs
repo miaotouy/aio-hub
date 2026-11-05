@@ -393,35 +393,7 @@ mod plugin_platform_tests {
     }
 }
 
-// 进度事件结构体
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CopyProgress {
-    pub current_file: String,
-    pub copied_bytes: u64,
-    pub total_bytes: u64,
-    pub progress_percentage: f64,
-}
-
-// 操作日志条目
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OperationLog {
-    pub timestamp: u64,
-    pub operation_type: String, // "move" 或 "link-only"
-    pub link_type: String,      // "symlink" 或 "link"
-    pub source_count: usize,
-    pub success_count: usize,
-    pub error_count: usize,
-    pub errors: Vec<String>,
-    #[serde(default)]
-    pub warnings: Vec<String>,
-    pub duration_ms: u128,
-    pub target_directory: String,     // 目标目录
-    pub source_paths: Vec<String>,    // 源文件路径列表
-    pub total_size: u64,              // 总文件大小（字节）
-    pub processed_files: Vec<String>, // 成功处理的文件名列表
-}
+pub use crate::file_operation_types::OperationLog;
 
 // 全局操作日志历史（最多保存100条）
 lazy_static! {
@@ -841,45 +813,6 @@ fn process_single_file(
 }
 
 // 检测是否跨盘/跨设备移动
-fn is_cross_device(source: &Path, target_dir: &Path) -> bool {
-    #[cfg(windows)]
-    {
-        // Windows: 比较盘符（如 C:\ 和 E:\）
-        let source_prefix = source.components().find_map(|c| {
-            if let Component::Prefix(prefix) = c {
-                Some(prefix.as_os_str().to_owned())
-            } else {
-                None
-            }
-        });
-
-        let target_prefix = target_dir.components().find_map(|c| {
-            if let Component::Prefix(prefix) = c {
-                Some(prefix.as_os_str().to_owned())
-            } else {
-                None
-            }
-        });
-
-        source_prefix != target_prefix
-    }
-
-    #[cfg(unix)]
-    {
-        // Unix: 比较设备 ID
-        use std::os::unix::fs::MetadataExt;
-        if let (Ok(source_meta), Ok(target_meta)) = (source.metadata(), target_dir.metadata()) {
-            source_meta.dev() != target_meta.dev()
-        } else {
-            false
-        }
-    }
-
-    #[cfg(not(any(windows, unix)))]
-    {
-        false
-    }
-}
 
 fn resolve_path_for_security_impl(path: &Path) -> Result<PathBuf, String> {
     if !path.is_absolute() {
@@ -1391,7 +1324,13 @@ pub fn get_image_dimensions(path: String) -> Result<ImageDimensions, String> {
 
 // Tauri 命令：读取文件为二进制数据
 #[tauri::command]
-pub fn read_file_binary(path: String) -> Result<Vec<u8>, String> {
+pub fn read_file_binary(
+    path: String,
+    security: Option<AgentFileSecurity>,
+) -> Result<Vec<u8>, String> {
+    if let Some(scope) = security {
+        return scope.read_bytes(Path::new(&path));
+    }
     let file_path = Path::new(&path);
     if !file_path.exists() {
         return Err(format!("文件不存在: {}", path));
@@ -1443,90 +1382,24 @@ pub fn get_file_mime_type(path: String) -> Result<String, String> {
     Ok(crate::utils::mime::guess_mime_type(file_path))
 }
 
-// 文件验证结果
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileValidation {
-    pub is_directory: bool,
-    pub is_cross_device: bool,
-    pub exists: bool,
-}
+pub use crate::file_operation_types::FileValidation;
 
-// Tauri 命令：验证文件属性（用于硬链接检查）
 #[tauri::command]
 pub fn validate_file_for_link(
     source_path: String,
     target_dir: String,
     link_type: String,
 ) -> Result<FileValidation, String> {
-    let source = PathBuf::from(&source_path);
-    let target = PathBuf::from(&target_dir);
-
-    if !source.exists() {
-        return Ok(FileValidation {
-            is_directory: false,
-            is_cross_device: false,
-            exists: false,
-        });
-    }
-
-    let is_dir = source.is_dir();
-
-    // 只有硬链接需要检查跨设备
-    let is_cross_dev = if link_type == "link" {
-        if target.exists() {
-            is_cross_device(&source, &target)
-        } else {
-            false
-        }
-    } else {
-        false
-    };
-
-    Ok(FileValidation {
-        is_directory: is_dir,
-        is_cross_device: is_cross_dev,
-        exists: true,
-    })
+    crate::symlink_mover::validate_file_for_link(source_path, target_dir, link_type)
 }
 
-// Tauri 命令：批量验证文件属性（前端一次 IPC 获取全部结果，避免 N+1 问题）
 #[tauri::command]
 pub fn validate_files_for_link(
     source_paths: Vec<String>,
     target_dir: String,
     link_type: String,
 ) -> Vec<FileValidation> {
-    let target = PathBuf::from(&target_dir);
-    let target_exists = target.exists();
-
-    source_paths
-        .iter()
-        .map(|source_path_str| {
-            let source = PathBuf::from(source_path_str);
-
-            if !source.exists() {
-                return FileValidation {
-                    is_directory: false,
-                    is_cross_device: false,
-                    exists: false,
-                };
-            }
-
-            let is_dir = source.is_dir();
-            let is_cross_dev = if link_type == "link" && target_exists {
-                is_cross_device(&source, &target)
-            } else {
-                false
-            };
-
-            FileValidation {
-                is_directory: is_dir,
-                is_cross_device: is_cross_dev,
-                exists: true,
-            }
-        })
-        .collect()
+    crate::symlink_mover::validate_files_for_link(source_paths, target_dir, link_type)
 }
 
 // Tauri 命令：保存上传的文件到应用数据目录
@@ -2261,27 +2134,37 @@ pub async fn write_file_force(path: String, content: Vec<u8>) -> Result<(), Stri
 // 避免了前端 Array.from(Uint8Array) → number[] → IPC JSON 序列化膨胀 3-4x 的问题。
 // 适用于写入 JSON、文本等字符串内容的场景。
 #[tauri::command]
-pub async fn write_text_file_force(path: String, content: String) -> Result<(), String> {
+pub async fn write_text_file_force(
+    path: String,
+    content: String,
+    security: Option<AgentFileSecurity>,
+    overwrite: Option<bool>,
+) -> Result<(), String> {
     let file_path = PathBuf::from(&path);
 
-    // 1. 扩展名白名单检查（与 write_file_force 保持一致）
-    let allowed_extensions = [
-        // 配置文件
-        "json", "yaml", "yml", "toml", "ini", "xml", // 文档文本
-        "txt", "md", "markdown", "log",
-    ];
+    if let Some(ref scope) = security {
+        scope.ensure_path(&file_path)?;
+        scope.ensure_size(content.len() as u64)?;
+    } else {
+        // 通用调用方沿用扩展名限制；Agent 受路径规则与大小限制保护。
+        let allowed_extensions = [
+            // 配置文件
+            "json", "yaml", "yml", "toml", "ini", "xml", // 文档文本
+            "txt", "md", "markdown", "log",
+        ];
 
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
-        .unwrap_or_default();
+        let ext = file_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
 
-    if !allowed_extensions.contains(&ext.as_str()) {
-        return Err(format!(
-            "安全限制：write_text_file_force 不允许写入扩展名为 .{} 的文件",
-            ext
-        ));
+        if !allowed_extensions.contains(&ext.as_str()) {
+            return Err(format!(
+                "安全限制：write_text_file_force 不允许写入扩展名为 .{} 的文件",
+                ext
+            ));
+        }
     }
 
     // 2. 确保父目录存在
@@ -2293,7 +2176,18 @@ pub async fn write_text_file_force(path: String, content: String) -> Result<(), 
 
     // 3. 直接写入字符串内容
     let start = Instant::now();
-    fs::write(&file_path, content.as_bytes()).map_err(|e| format!("写入文件失败: {}", e))?;
+    if overwrite == Some(false) {
+        // 保留原文件策略通过排他创建实现，避免检查存在性后被其他调用抢占。
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file_path)
+            .map_err(|e| format!("创建文件失败: {e}"))?;
+        file.write_all(content.as_bytes())
+            .map_err(|e| format!("写入文件失败: {e}"))?;
+    } else {
+        fs::write(&file_path, content.as_bytes()).map_err(|e| format!("写入文件失败: {e}"))?;
+    }
     let write_duration = start.elapsed();
 
     if write_duration.as_millis() > 100 {
@@ -2310,7 +2204,14 @@ pub async fn write_text_file_force(path: String, content: String) -> Result<(), 
 
 // Tauri 命令：强制读取文本文件（绕过前端路径检查）
 #[tauri::command]
-pub async fn read_text_file_force(path: String) -> Result<String, String> {
+pub async fn read_text_file_force(
+    path: String,
+    security: Option<AgentFileSecurity>,
+) -> Result<String, String> {
+    if let Some(scope) = security {
+        return String::from_utf8(scope.read_bytes(Path::new(&path))?)
+            .map_err(|e| format!("读取 UTF-8 文本失败: {e}"));
+    }
     let file_path = PathBuf::from(&path);
 
     if !file_path.exists() {
@@ -2322,19 +2223,29 @@ pub async fn read_text_file_force(path: String) -> Result<String, String> {
 
 // Tauri 命令：强制追加内容到文件（绕过前端路径检查，自动创建父目录）
 #[tauri::command]
-pub async fn append_file_force(path: String, content: Vec<u8>) -> Result<(), String> {
+pub async fn append_file_force(
+    path: String,
+    content: Vec<u8>,
+    security: Option<AgentFileSecurity>,
+) -> Result<(), String> {
     let file_path = PathBuf::from(&path);
 
-    // 安全限制：仅允许写入特定扩展名的文件
-    let allowed_extensions = ["log", "txt", "json", "jsonl"];
-    let ext = file_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
-        .unwrap_or_default();
+    if let Some(ref scope) = security {
+        scope.ensure_path(&file_path)?;
+        scope.ensure_size(content.len() as u64)?;
+        std::str::from_utf8(&content).map_err(|_| "追加内容必须是 UTF-8 文本".to_string())?;
+    } else {
+        // 通用调用方沿用原扩展名限制；Agent 调用使用显式路径安全配置。
+        let allowed_extensions = ["log", "txt", "json", "jsonl"];
+        let ext = file_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
 
-    if !allowed_extensions.contains(&ext.as_str()) {
-        return Err(format!("安全限制：不允许追加到扩展名为 .{} 的文件", ext));
+        if !allowed_extensions.contains(&ext.as_str()) {
+            return Err(format!("安全限制：不允许追加到扩展名为 .{} 的文件", ext));
+        }
     }
 
     // 确保父目录存在
@@ -2351,6 +2262,16 @@ pub async fn append_file_force(path: String, content: Vec<u8>) -> Result<(), Str
         .open(&file_path)
         .map_err(|e| format!("打开文件失败: {}", e))?;
 
+    if let Some(ref scope) = security {
+        let size = file
+            .metadata()
+            .map_err(|e| format!("读取文件信息失败: {e}"))?
+            .len();
+        let final_size = size
+            .checked_add(content.len() as u64)
+            .ok_or("文件大小溢出")?;
+        scope.ensure_size(final_size)?;
+    }
     file.write_all(&content)
         .map_err(|e| format!("写入文件失败: {}", e))?;
 

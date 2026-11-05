@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import { ref, onMounted, onUnmounted, Ref, watch, reactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { emit } from "@/platform/native/events";
 import { nanoid } from "nanoid";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleLogger } from "@utils/logger";
@@ -440,6 +440,7 @@ export function useFileInteraction(options: FileInteractionOptions = {}) {
   // 设置文件拖放（使用现有的 useFileDrop）
   const { isDraggingOver, isProcessing, lastDroppedPaths } = useFileDrop({
     ...dropOptions,
+    preferFileObjects: dropOptions.preferFileObjects ?? (!!onFiles && !onPaths),
     onDrop: handleDropPaths,
     onFiles: handleDropFiles,
   });

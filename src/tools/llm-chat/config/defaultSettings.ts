@@ -20,11 +20,14 @@ import { DEFAULT_RETRY_STATUS_CODES } from "../utils/retryStatusCodes";
 import { createCompactToolbarLayout } from "./inputToolbar";
 import { createDefaultMessageToolbarLayout } from "./messageToolbar";
 import type { ChatSettings } from "../types/settings";
+import { DEFAULT_CONTINUATION_SETTINGS } from "@/llm-apis/continuation";
 
 /**
  * 默认设置
  */
+
 export const DEFAULT_SETTINGS: ChatSettings = {
+  continuation: { ...DEFAULT_CONTINUATION_SETTINGS },
   uiPreferences: {
     inputToolbar: createCompactToolbarLayout(),
     messageToolbar: createDefaultMessageToolbarLayout(),

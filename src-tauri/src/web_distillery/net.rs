@@ -12,7 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use tauri::AppHandle;
+use serde::Deserialize;
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxySettings {
+    pub mode: String,
+    #[serde(default)]
+    pub custom_url: String,
+}
+impl Default for ProxySettings {
+    fn default() -> Self {
+        Self {
+            mode: "system".into(),
+            custom_url: String::new(),
+        }
+    }
+}
 use wreq::Client;
 use wreq_util::Emulation;
 
@@ -24,28 +40,33 @@ use wreq_util::Emulation;
 /// - `custom`：显式使用设置中的 customUrl
 /// - `none`：强制直连
 pub fn build_impersonated_client(
-    app: Option<&AppHandle>,
+    settings: Option<&ProxySettings>,
     timeout: std::time::Duration,
+    address: &str,
 ) -> Result<Client, String> {
     let mut builder = Client::builder()
         .emulation(Emulation::Chrome133)
+        .redirect(wreq::redirect::Policy::limited(10))
         .timeout(timeout);
 
-    if let Some(app) = app {
-        let settings = crate::commands::config_manager::get_proxy_settings(app);
+    let url = validate_url(address)?;
+    let loopback = url.host_str().is_some_and(|host| {
+        host == "localhost"
+            || host.ends_with(".localhost")
+            || host
+                .trim_matches(['[', ']'])
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|ip| ip.is_loopback())
+    });
+    if loopback {
+        builder = builder.no_proxy();
+    } else if let Some(settings) = settings {
         builder = match settings.mode.as_str() {
             "none" => builder.no_proxy(),
             "custom" if !settings.custom_url.is_empty() => {
                 match wreq::Proxy::all(&settings.custom_url) {
                     Ok(proxy) => builder.proxy(proxy),
-                    Err(e) => {
-                        log::warn!(
-                            "[Distillery] Invalid custom proxy URL '{}': {}",
-                            settings.custom_url,
-                            e
-                        );
-                        builder
-                    }
+                    Err(_) => return Err("自定义代理地址无效，请检查网络设置".into()),
                 }
             }
             _ => builder,
@@ -55,4 +76,36 @@ pub fn build_impersonated_client(
     builder
         .build()
         .map_err(|e| format!("Failed to create impersonated client: {}", e))
+}
+
+pub fn validate_url(address: &str) -> Result<url::Url, String> {
+    let url = url::Url::parse(address).map_err(|_| "请输入有效的 HTTP 或 HTTPS 网页地址")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err("请使用有效的 HTTP 或 HTTPS 网页地址".into());
+    }
+    Ok(url)
+}
+
+pub async fn read_bounded(mut response: wreq::Response, limit: usize) -> Result<Vec<u8>, String> {
+    if response
+        .content_length()
+        .is_some_and(|size| size > limit as u64)
+    {
+        return Err("网页响应过大，请选择更小的页面或资源".into());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("读取网页响应失败: {}", e))?
+    {
+        if chunk.len() > limit.saturating_sub(bytes.len()) {
+            return Err("网页响应过大，请选择更小的页面或资源".into());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }

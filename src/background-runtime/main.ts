@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { emitTo, listen } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { emitTo, listen } from "@/platform/native/events";
 import {
   BACKGROUND_JS_RUNTIME_EVENTS,
   BACKGROUND_JS_RUNTIME_WINDOW_LABEL,

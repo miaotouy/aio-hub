@@ -20,7 +20,7 @@
 import { Lunar } from "lunar-typescript";
 import type { MacroContext } from "../MacroContext";
 import type { MacroRegistry } from "../MacroRegistry";
-import { MacroPhase, MacroType } from "../MacroRegistry";
+import { MacroPhase, MacroType } from "../runtime/definitions";
 import type { MacroDefinition } from "../MacroRegistry";
 
 // ============================================================================
@@ -1169,5 +1169,7 @@ export function registerDateTimeMacros(registry: MacroRegistry): void {
     },
   ];
 
-  registry.registerMany(dateTimeMacros);
+  registry.registerMany(
+    dateTimeMacros.map((macro) => ({ ...macro, dynamic: true }))
+  );
 }

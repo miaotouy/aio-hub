@@ -29,7 +29,7 @@
 
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
-import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@/platform/native/events";
 import {
   INSPECTOR_INTERNAL_EVENT,
   INSPECTOR_SYNC_EVENT,

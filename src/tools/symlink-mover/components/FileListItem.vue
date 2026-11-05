@@ -20,6 +20,7 @@ import type { FileItem } from "../types";
 
 interface Props {
   file: FileItem;
+  disabled?: boolean;
 }
 
 defineProps<Props>();
@@ -45,6 +46,7 @@ const emit = defineEmits<{
       </div>
     </div>
     <el-button
+      :disabled="disabled"
       @click="emit('remove')"
       :icon="Delete"
       text

@@ -31,15 +31,15 @@ const { mockInvoke, mockListen, listeners, mockStore } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: mockInvoke,
 }));
 
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/events", () => ({
   listen: mockListen,
 }));
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   appDataDir: vi.fn(async () => "C:/Users/test/AppData/Roaming/AIO"),
   basename: vi.fn(async (path: string) => path.split(/[\\/]/).pop() || path),
   dirname: vi.fn(async (path: string) => path.replace(/[\\/][^\\/]+$/, "")),

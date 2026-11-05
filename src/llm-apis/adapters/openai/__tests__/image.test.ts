@@ -31,7 +31,7 @@ vi.mock("@/utils/serialization", () => ({
   asyncJsonStringify: vi.fn(async (obj) => JSON.stringify(obj)),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: vi.fn(),
 }));
 

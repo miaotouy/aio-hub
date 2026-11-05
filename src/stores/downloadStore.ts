@@ -14,7 +14,7 @@
 
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform/native/events";
 import { v4 as uuidv4 } from "uuid";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

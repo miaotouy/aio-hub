@@ -155,6 +155,17 @@ const providerDefinitions: ProviderTypeInfo[] = [
   {
     type: "deepseek",
     name: "DeepSeek",
+    configFields: [
+      {
+        id: "deepseek-beta",
+        label: "使用 Beta 端点",
+        component: "ElSwitch",
+        modelPath: "deepseekBeta",
+        defaultValue: true,
+        hint: "默认开启：前缀续写和严格工具调用使用 Beta 端点；关闭后也使用普通端点。普通聊天、模型列表、网页搜索与抓取始终使用普通端点。",
+        keywords: "deepseek beta 前缀续写 prefix strict 严格工具调用",
+      },
+    ],
     description: "DeepSeek 官方 API，支持深度思考、视觉理解与多种兼容协议",
     defaultBaseUrl: "https://api.deepseek.com",
     supportsModelList: true,

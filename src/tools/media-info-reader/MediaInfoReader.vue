@@ -153,8 +153,8 @@
 
 <script setup lang="ts">
 import { ElEmpty, ElTabs, ElTabPane, vLoading } from "element-plus";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { open as openDialog } from "@/platform/native/dialog";
+import { convertFileSrc } from "@/platform/native/core";
 
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import CopyButton from "./components/CopyButton.vue";

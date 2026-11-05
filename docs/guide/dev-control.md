@@ -1,6 +1,6 @@
 # Agent 开发界面控制
 
-AIO Hub 提供本机开发控制 CLI，用于操作真实 Tauri WebView、读取界面结构与保存 PNG。入口位于项目中，各类 agent 和开发者终端都可以调用。支持 Windows / WebView2 和 Linux / WebKitGTK；两端复用命令协议，输入能力按传输实现区分。
+AIO Hub 提供本机开发控制 CLI，用于操作真实桌面窗口、读取界面结构与保存 PNG。入口位于项目中，各类 agent 和开发者终端都可以调用。Tauri 支持 Windows / WebView2 和 Linux / WebKitGTK，Electron 通过 CDP 复用同一套命令协议。Electron 已在 Windows 验证，macOS/Linux 的监听检查与传输适配待对应系统验收。
 
 ## 启动
 
@@ -21,6 +21,37 @@ bun run dev:static -- --agent --agent-instance agent-demo
 启动终端提示控制就绪后，即可调用 CLI。结束开发时在启动终端按 Ctrl+C。截图和隔离数据保留供检查。
 
 Vite 文件监听跳过 `.dev-data/`、`.tmp/`、`.jj/` 和 Rust 的 `target/` 目录，保留应用、共享包与插件源码的热更新。运行数据、排查产物和版本元数据会随开发累积；将它们加入监听会增加句柄、内存与启动耗时。修改监听配置后，完整关闭并重新启动开发实例，使旧监听资源释放。
+
+## Electron 开发控制
+
+开发态启动：
+
+```powershell
+bun run electron:dev -- --agent --agent-instance electron-demo
+```
+
+使用已构建的生产前端资源：
+
+```powershell
+bun run electron:build
+bun run electron:preview -- --agent --agent-instance electron-preview
+```
+
+沿用同一 CLI：
+
+```powershell
+bun scripts/dev-control/cli.ts instances
+bun scripts/dev-control/cli.ts windows --instance electron-demo
+bun scripts/dev-control/cli.ts navigate /settings --instance electron-demo
+bun scripts/dev-control/cli.ts observe --instance electron-demo
+bun scripts/dev-control/cli.ts resize --width 1100 --height 760 --instance electron-demo
+```
+
+Electron 省略实例名称时使用 `AIO_ID_SUFFIX`，未配置时为 `electron-agent`。开发端口默认从 1430 按实例名称分配偏移，可用 `--port <端口>` 或 `AIO_ELECTRON_PORT` 显式设置。控制端口单独分配，限 loopback 监听；实例列表返回 `host` 便于区分宿主。
+
+每次控制启动均使用独立数据目录，并覆盖本次进程的 `AIO_DATA_DIR`；Electron 的 Chromium profile 随应用数据一起隔离。多窗口共享本次启动身份，各自保留窗口标签。窗口刷新后重新握手；前端初始化异常时，原生身份和启动期诊断仍可用。退出启动器时释放所属应用、Vite 和实例描述，截图及数据留在开发目录。
+
+生产资源预览以 `aiohub://app` 加载，前端控制桥按主进程的显式控制标记启动。分发包关闭该入口。
 
 ## Ubuntu 独立运行与宿主机控制
 
@@ -279,7 +310,7 @@ Windows WebView2 的原生文件拖放会与 HTML5 Drag and Drop 路径冲突。
 
 ## 本地权限与验证入口
 
-控制通道显式开启，限定 loopback 并校验实际监听地址；应用握手只在明确开启控制的 debug 进程中返回身份。普通发布前端构建会裁剪开发桥，Rust release 分支返回关闭状态。
+控制通道显式开启，限定 loopback 并校验实际监听地址；身份绑定实例名称、启动身份、应用主进程与窗口标签。Tauri 握手仅在明确开启控制的 debug 进程中返回身份，Rust release 分支返回关闭状态。Electron 仅在显式控制的未打包进程中返回身份并启用诊断；分发包忽略开发控制环境变量。
 
 原始 CDP 与嵌入式 WebDriver 属于高权限本机调试端点，同用户进程可直接连接。使用独立开发数据，结束后关闭开发实例。
 

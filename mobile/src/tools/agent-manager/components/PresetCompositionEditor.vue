@@ -28,11 +28,8 @@ import {
   type PresetComposition,
   type PresetPart,
 } from "@aiohub/agent-preset-core";
-const { tRaw } = useI18n();
-const t = (key: string, params?: Record<string, unknown>) =>
-  params
-    ? tRaw(`tools.agent-manager.PresetEditor.${key}`, params)
-    : tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const props = defineProps<{ modelValue: PresetComposition }>();
 const emit = defineEmits<{ "update:modelValue": [value: PresetComposition] }>();
 const selectedId = ref<string | null>(null);

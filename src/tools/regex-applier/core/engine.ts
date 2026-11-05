@@ -28,7 +28,7 @@ import type {
 } from "../types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 
 const logger = createModuleLogger("services/regex-applier/engine");
 const errorHandler = createModuleErrorHandler("services/regex-applier/engine");

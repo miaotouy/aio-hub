@@ -18,7 +18,7 @@
 import { Settings2, FolderOpen } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open } from "@/platform/native/dialog";
 import { customMessage } from "@/utils/customMessage";
 
 const props = defineProps<{

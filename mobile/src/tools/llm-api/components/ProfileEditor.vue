@@ -33,7 +33,7 @@ import {
   EyeOff,
   ShieldCheck,
 } from "lucide-vue-next";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 import DynamicIcon from "@/components/common/DynamicIcon.vue";
 import { providerTypes } from "../config/llm-providers";
 import { fetchModelsFromApi } from "../core/model-fetcher";
@@ -70,7 +70,7 @@ const emit = defineEmits<{
   (e: "delete", id: string): void;
 }>();
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const { keyboardHeight } = useKeyboardAvoidance();
 const { loadRules, materializeModel } = useModelMetadata();
 const isFetchingModels = ref(false);
@@ -143,7 +143,7 @@ watch(
 const saveEdit = () => {
   if (innerProfile.value) {
     if (!innerProfile.value.name.trim()) {
-      Snackbar.warning(tRaw("tools.llm-api.ProfileEditor.请输入渠道名称"));
+      customMessage(t("tools.llm-api.ProfileEditor.请输入渠道名称"), "warning");
       return;
     }
     emit("save", innerProfile.value);
@@ -152,16 +152,16 @@ const saveEdit = () => {
 
 const handleDelete = async () => {
   if (!innerProfile.value) return;
-  const confirm = await Dialog({
+  const confirmed = await customDialog({
     title: t("common.确认"),
-    message: tRaw("tools.llm-api.ProfileEditor.删除确认", {
+    message: t("tools.llm-api.ProfileEditor.删除确认", {
       name: innerProfile.value.name,
     }),
     confirmButtonText: t("common.确定"),
     cancelButtonText: t("common.取消"),
   });
 
-  if (confirm === "confirm") {
+  if (confirmed) {
     emit("delete", innerProfile.value.id);
   }
 };
@@ -183,7 +183,7 @@ const handleFetchModels = async () => {
     fetchedModels.value = models;
     showModelFetcherPopup.value = true;
   } catch (err: any) {
-    Snackbar.error(`${t("common.获取失败")}: ${err.message}`);
+    customMessage(`${t("common.获取失败")}: ${err.message}`, "error");
   } finally {
     isFetchingModels.value = false;
   }
@@ -209,10 +209,11 @@ const handleAddModels = (models: LlmModelInfo[]) => {
     innerProfile.value.modelGroupsExpandState = Array.from(currentExpandState);
   }
 
-  Snackbar.success(
-    tRaw("tools.llm-api.ProfileEditor.成功添加N个模型", {
+  customMessage(
+    t("tools.llm-api.ProfileEditor.成功添加N个模型", {
       count: newModels.length,
-    })
+    }),
+    "success"
   );
 };
 
@@ -243,7 +244,7 @@ const handleSaveModel = async (model: LlmModelInfo) => {
       materializeModel(model).model,
     ];
   }
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.模型已保存"));
+  customMessage(t("tools.llm-api.ProfileEditor.模型已保存"), "success");
 };
 
 const handleDeleteModel = (modelId: string) => {
@@ -251,7 +252,7 @@ const handleDeleteModel = (modelId: string) => {
   innerProfile.value.models = innerProfile.value.models.filter(
     (m: LlmModelInfo) => m.id !== modelId
   );
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.模型已删除"));
+  customMessage(t("tools.llm-api.ProfileEditor.模型已删除"), "success");
 };
 
 const handleDeleteGroup = (modelIds: string[]) => {
@@ -259,17 +260,18 @@ const handleDeleteGroup = (modelIds: string[]) => {
   innerProfile.value.models = innerProfile.value.models.filter(
     (m: LlmModelInfo) => !modelIds.includes(m.id)
   );
-  Snackbar.success(
-    tRaw("tools.llm-api.ProfileEditor.已删除N个模型", {
+  customMessage(
+    t("tools.llm-api.ProfileEditor.已删除N个模型", {
       count: modelIds.length,
-    })
+    }),
+    "success"
   );
 };
 
 const handleClearModels = () => {
   if (!innerProfile.value) return;
   innerProfile.value.models = [];
-  Snackbar.success(tRaw("tools.llm-api.ProfileEditor.已清空所有模型"));
+  customMessage(t("tools.llm-api.ProfileEditor.已清空所有模型"), "success");
 };
 
 const handleOpenProbe = (modelId?: string) => {
@@ -351,7 +353,7 @@ const handleIconSelect = (icon: { path: string }) => {
   if (innerProfile.value) {
     innerProfile.value.icon = icon.path;
     showIconSelectorPopup.value = false;
-    Snackbar.success(tRaw("tools.llm-api.ProfileEditor.已选择图标"));
+    customMessage(t("tools.llm-api.ProfileEditor.已选择图标"), "success");
   }
 };
 // 处理输入框聚焦时滚动到可见区域
@@ -399,12 +401,17 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   >
     <div class="editor-popup" data-testid="llm-profile-editor">
       <var-app-bar
-        :title="tRaw('tools.llm-api.ProfileEditor.编辑渠道')"
+        :title="t('tools.llm-api.ProfileEditor.编辑渠道')"
         fixed
         safe-area
       >
         <template #left>
-          <var-button round text @click="emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -418,7 +425,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
       <div class="editor-content" v-if="innerProfile">
         <!-- 基础信息 -->
         <div class="section-header">
-          {{ tRaw("tools.llm-api.ProfileEditor.基础信息") }}
+          {{ t("tools.llm-api.ProfileEditor.基础信息") }}
         </div>
         <div class="config-card">
           <!-- 头像选择区域 -->
@@ -426,7 +433,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             <div
               class="avatar-preview-large"
               v-ripple
+              role="button"
+              tabindex="0"
               @click="showIconSelectorPopup = true"
+              @keydown.enter="showIconSelectorPopup = true"
             >
               <DynamicIcon
                 :src="innerProfile.icon || ''"
@@ -435,31 +445,31 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
             </div>
             <div class="avatar-info">
               <div class="avatar-label">
-                {{ tRaw("tools.llm-api.ProfileEditor.渠道图标") }}
+                {{ t("tools.llm-api.ProfileEditor.渠道图标") }}
               </div>
               <div class="avatar-hint">
-                {{ tRaw("tools.llm-api.ProfileEditor.点击图标选择预设") }}
+                {{ t("tools.llm-api.ProfileEditor.点击图标选择预设") }}
               </div>
             </div>
           </div>
 
           <div class="native-input-group form-item">
             <label class="native-input-label">{{
-              tRaw("tools.llm-api.ProfileEditor.渠道名称")
+              t("tools.llm-api.ProfileEditor.渠道名称")
             }}</label>
             <input
               v-model="profileName"
               data-testid="llm-profile-name"
               type="text"
               class="native-input"
-              :placeholder="tRaw('tools.llm-api.ProfileEditor.请输入渠道名称')"
+              :placeholder="t('tools.llm-api.ProfileEditor.请输入渠道名称')"
               @focus="scrollIntoViewOnFocus"
             />
           </div>
 
           <div class="native-input-group form-item">
             <label class="native-input-label">{{
-              tRaw("tools.llm-api.ProfileEditor.提供商类型")
+              t("tools.llm-api.ProfileEditor.提供商类型")
             }}</label>
             <select
               v-model="profileType"
@@ -481,7 +491,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
           <div class="native-input-group form-item">
             <label class="native-input-label">{{
-              tRaw("tools.llm-api.ProfileEditor.图标路径")
+              t("tools.llm-api.ProfileEditor.图标路径")
             }}</label>
             <div class="native-input-with-action">
               <input
@@ -489,12 +499,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 type="text"
                 class="native-input"
                 :placeholder="
-                  tRaw('tools.llm-api.ProfileEditor.输入图标路径或URL')
+                  t('tools.llm-api.ProfileEditor.输入图标路径或URL')
                 "
                 @focus="scrollIntoViewOnFocus"
               />
               <button
                 class="input-action-btn"
+                aria-label="选择图标"
                 @click="showIconSelectorPopup = true"
               >
                 <Sparkles :size="18" />
@@ -548,13 +559,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
         <template v-else>
           <!-- 连接配置 -->
           <div class="section-header">
-            {{ tRaw("tools.llm-api.ProfileEditor.连接配置") }}
+            {{ t("tools.llm-api.ProfileEditor.连接配置") }}
           </div>
           <div class="config-card">
             <div class="native-input-group form-item">
               <label class="native-input-label"
                 ><Globe :size="16" class="label-icon" />
-                {{ tRaw("tools.llm-api.ProfileEditor.API 基础地址") }}
+                {{ t("tools.llm-api.ProfileEditor.API 基础地址") }}
               </label>
 
               <div v-if="apiEndpointPreview" class="url-preview in-group">
@@ -570,7 +581,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 type="url"
                 class="native-input mono"
                 :placeholder="
-                  tRaw('tools.llm-api.ProfileEditor.请输入基础 URL')
+                  t('tools.llm-api.ProfileEditor.请输入基础 URL')
                 "
                 autocomplete="off"
                 autocorrect="off"
@@ -584,7 +595,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
               <div class="label-row">
                 <label class="native-input-label">
                   <Key :size="16" class="label-icon" />
-                  {{ tRaw("tools.llm-api.ProfileEditor.API Key") }}
+                  {{ t("tools.llm-api.ProfileEditor.API Key") }}
                 </label>
                 <var-button
                   v-if="innerProfile && innerProfile.apiKeys.length > 0"
@@ -595,20 +606,20 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                   @click="showKeyManagerPopup = true"
                 >
                   <ShieldCheck :size="14" class="mr-1" />
-                  {{ tRaw("tools.llm-api.ProfileEditor.状态管理") }}
+                  {{ t("tools.llm-api.ProfileEditor.状态管理") }}
                 </var-button>
               </div>
               <div class="native-input-group form-item">
                 <label class="native-input-label">
                   <ShieldCheck :size="16" class="label-icon" />
-                  {{ tRaw("tools.llm-api.ProfileEditor.代理行为") }}
+                  {{ t("tools.llm-api.ProfileEditor.代理行为") }}
                 </label>
                 <div class="checkbox-row">
                   <var-checkbox v-model="innerProfile.relaxIdCerts">
-                    {{ tRaw("tools.llm-api.ProfileEditor.放宽证书校验") }}
+                    {{ t("tools.llm-api.ProfileEditor.放宽证书校验") }}
                   </var-checkbox>
                   <var-checkbox v-model="innerProfile.http1Only">
-                    {{ tRaw("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
+                    {{ t("tools.llm-api.ProfileEditor.强制 HTTP/1.1") }}
                   </var-checkbox>
                 </div>
               </div>
@@ -620,7 +631,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                   :type="showApiKey ? 'text' : 'password'"
                   class="native-input mono"
                   :placeholder="
-                    tRaw('tools.llm-api.ProfileEditor.API Key 占位符')
+                    t('tools.llm-api.ProfileEditor.API Key 占位符')
                   "
                   autocomplete="off"
                   autocorrect="off"
@@ -630,6 +641,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 />
                 <button
                   class="input-action-btn"
+                  :aria-label="showApiKey ? '隐藏密钥' : '显示密钥'"
                   @click="showApiKey = !showApiKey"
                 >
                   <Eye v-if="showApiKey" :size="18" />
@@ -651,9 +663,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 <template #icon
                   ><Settings2 :size="18" class="field-icon"
                 /></template>
-                {{ tRaw("tools.llm-api.ProfileEditor.自定义请求头") }}
+                {{ t("tools.llm-api.ProfileEditor.自定义请求头") }}
                 <template #description>
-                  {{ tRaw("tools.llm-api.ProfileEditor.已配置") }}
+                  {{ t("tools.llm-api.ProfileEditor.已配置") }}
                   {{
                     t("common.N个", {
                       count: Object.keys(innerProfile.customHeaders || {})
@@ -672,10 +684,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
                 <template #icon
                   ><ExternalLink :size="18" class="field-icon"
                 /></template>
-                {{ tRaw("tools.llm-api.ProfileEditor.高级端点配置") }}
+                {{ t("tools.llm-api.ProfileEditor.高级端点配置") }}
                 <template #description>
                   {{
-                    tRaw("tools.llm-api.ProfileEditor.针对不同功能的路径微调")
+                    t("tools.llm-api.ProfileEditor.针对不同功能的路径微调")
                   }}
                 </template>
                 <template #extra><ChevronRight :size="18" /></template>
@@ -713,7 +725,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
         <div class="danger-zone">
           <var-button block type="danger" outline @click="handleDelete">
             <Trash2 :size="18" />
-            {{ tRaw("tools.llm-api.ProfileEditor.删除此渠道") }}
+            {{ t("tools.llm-api.ProfileEditor.删除此渠道") }}
           </var-button>
         </div>
       </div>
@@ -790,7 +802,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 /* 确保 AppBar 层级高于内容区域，避免滚动时被卡片遮挡 */
@@ -799,7 +811,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .close-icon {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   line-height: 1;
 }
 
@@ -813,10 +825,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .section-header {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   margin-bottom: 12px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -837,8 +849,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .config-card {
-  background: var(--color-surface-container);
-  border-radius: 20px;
+  background: var(--container-bg);
+  border-radius: var(--app-radius-xl);
   padding: 20px;
   margin-bottom: 32px;
 }
@@ -874,9 +886,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .native-input-label {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -901,12 +913,12 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 .native-select {
   width: 100%;
   padding: 14px 16px;
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   line-height: 1.5;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline);
-  border-radius: 12px;
+  color: var(--text-color);
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--app-radius-lg);
   outline: none;
   transition: all 0.2s ease;
   appearance: none;
@@ -914,20 +926,20 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .native-input::placeholder {
-  color: var(--color-on-surface);
+  color: var(--text-color);
   opacity: 0.4;
 }
 
 .native-input:focus,
 .native-select:focus {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
 .native-input.mono {
   font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .native-select {
@@ -943,16 +955,16 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   display: flex;
   align-items: stretch;
   gap: 0;
-  background: var(--color-surface-container);
-  border: 1.5px solid var(--color-outline);
-  border-radius: 12px;
+  background: var(--container-bg);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--app-radius-lg);
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .native-input-with-action:focus-within {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--primary-color);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--color-primary-container);
 }
 
@@ -974,7 +986,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   width: 48px;
   background: transparent;
   border: none;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   opacity: 0.6;
   cursor: pointer;
   transition:
@@ -984,11 +996,11 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 
 .input-action-btn:hover {
   opacity: 1;
-  background: var(--color-surface-container-highest);
+  background: var(--overlay-bg);
 }
 
 .input-action-btn:active {
-  background: var(--color-surface-container);
+  background: var(--container-bg);
 }
 
 .avatar-select-section {
@@ -1003,10 +1015,10 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   position: relative;
   width: 80px;
   height: 80px;
-  background: var(--color-surface-container-high);
-  border-radius: 20px;
+  background: var(--input-bg);
+  border-radius: var(--app-radius-xl);
   padding: 16px;
-  border: 1.5px solid var(--color-outline);
+  border: 1.5px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1019,13 +1031,13 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
   bottom: -6px;
   width: 28px;
   height: 28px;
-  background: var(--color-primary);
+  background: var(--primary-color);
   color: var(--color-on-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--color-surface-container);
+  border: 2px solid var(--container-bg);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -1034,14 +1046,14 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .avatar-label {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .avatar-hint {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
 }
 
 .field-icon {
@@ -1060,7 +1072,7 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .preview-text {
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   opacity: 0.5;
   font-family: monospace;
   word-break: break-all;
@@ -1068,8 +1080,8 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .preview-hint {
-  font-size: 0.8rem;
-  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  color: var(--primary-color);
   margin-top: 4px;
 }
 
@@ -1080,9 +1092,9 @@ const scrollIntoViewOnFocus = (event: FocusEvent) => {
 }
 
 .custom-cell {
-  border-radius: 12px;
-  border: 1.5px solid var(--color-outline);
-  background: var(--color-surface-container);
+  border-radius: var(--app-radius-lg);
+  border: 1.5px solid var(--border-color);
+  background: var(--container-bg);
 }
 
 .danger-zone {

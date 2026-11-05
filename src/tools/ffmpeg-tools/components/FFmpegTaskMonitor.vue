@@ -223,7 +223,7 @@ import { useFFmpegStore } from "../ffmpegStore";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import { useFFmpegIntegration } from "../composables/useFFmpegIntegration";
 import { isProgressIndeterminate } from "../utils/lifecycle";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import {
   Trash,
   FolderOpen,

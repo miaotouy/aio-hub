@@ -235,11 +235,11 @@ import type { SketchProject } from "../types";
 import { generateDefaultSketchName } from "../constants";
 import { useSketchSettings } from "../composables/useSketchSettings";
 import { useSketchPadStore } from "../stores/sketchPadStore";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import { format } from "date-fns";
 import { ElMessageBox } from "element-plus";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { open } from "@/platform/native/dialog";
+import { readFile } from "@/platform/native/fs";
 import type { SketchPadContext } from "../SketchPad.vue";
 
 // ─── inject session context ───

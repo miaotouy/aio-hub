@@ -5,6 +5,7 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const bus = vi.hoisted(() => ({
+  electron: false,
   subscriptions: new Map<
     symbol,
     { event: string; callback: (event: any) => void }
@@ -25,11 +26,14 @@ const bus = vi.hoisted(() => ({
     };
   },
 }));
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/core/env", () => ({
+  isElectronRuntime: () => bus.electron,
+}));
+vi.mock("@/platform/native/events", () => ({
   listen: (event: string, callback: (event: any) => void) =>
     bus.subscribe(event, callback),
 }));
-vi.mock("@tauri-apps/api/webview", () => ({
+vi.mock("@/platform/native/webview", () => ({
   getCurrentWebview: () => ({
     onDragDropEvent: (callback: (event: any) => void) =>
       bus.subscribe("webview", callback),
@@ -42,10 +46,12 @@ vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ error: vi.fn() }),
 }));
 import { useFileDrop } from "../useFileDrop";
+import { invoke } from "@/platform/native/core";
 
 const wrappers: VueWrapper[] = [];
 afterEach(() => {
   for (const wrapper of wrappers.splice(0)) wrapper.unmount();
+  bus.electron = false;
   bus.subscriptions.clear();
   bus.deferredEvent = null;
   bus.pending.length = 0;
@@ -168,3 +174,164 @@ describe("useFileDrop listener lifecycle", () => {
     expect(bus.subscriptions.size).toBe(0);
   });
 });
+
+function nativeDrop(
+  position: { x: number; y: number },
+  paths = ["C:/work/file.txt"]
+) {
+  for (const sub of bus.subscriptions.values())
+    if (sub.event === "webview")
+      sub.callback({ payload: { type: "drop", position, paths } });
+}
+function fileDrop(element: Element) {
+  const event = new Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    value: { files: [new File(["hello"], "file.txt")], getData: () => "" },
+  });
+  element.dispatchEvent(event);
+}
+describe("Electron file-drop fusion", () => {
+  it("routes to the correct zone once while allowing a later drop of the same file", async () => {
+    bus.electron = true;
+    const left = vi.fn(),
+      right = vi.fn();
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const a = ref<HTMLElement>(),
+            b = ref<HTMLElement>();
+          useFileDrop({ element: a, onDrop: left, silent: true });
+          useFileDrop({ element: b, onDrop: right, silent: true });
+          return () =>
+            h("div", [
+              h("div", { ref: a, id: "a" }),
+              h("div", { ref: b, id: "b" }),
+            ]);
+        },
+      })
+    );
+    wrappers.push(wrapper);
+    await flushPromises();
+    await vi.waitFor(() =>
+      expect(
+        [...bus.subscriptions.values()].filter((sub) => sub.event === "webview")
+      ).toHaveLength(2)
+    );
+    const a = wrapper.get("#a"),
+      b = wrapper.get("#b");
+    vi.spyOn(a.element, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+    } as DOMRect);
+    vi.spyOn(b.element, "getBoundingClientRect").mockReturnValue({
+      left: 200,
+      top: 0,
+      right: 300,
+      bottom: 100,
+    } as DOMRect);
+    for (let i = 0; i < 2; i++) {
+      nativeDrop({ x: 250, y: 50 });
+      fileDrop(b.element);
+      await flushPromises();
+    }
+    expect(left).not.toHaveBeenCalled();
+    expect(right.mock.calls).toEqual([
+      [["C:/work/file.txt"]],
+      [["C:/work/file.txt"]],
+    ]);
+    expect(
+      [...bus.subscriptions.values()].every((sub) => sub.event === "webview")
+    ).toBe(true);
+  });
+  it("lets the H5 File consumer own the drop without a second path import", async () => {
+    bus.electron = true;
+    const paths = vi.fn(),
+      files = vi.fn();
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const element = ref<HTMLElement>();
+          useFileDrop({ element, onDrop: paths, onFiles: files, silent: true });
+          return () => h("div", { ref: element });
+        },
+      })
+    );
+    wrappers.push(wrapper);
+    await flushPromises();
+    vi.spyOn(wrapper.element, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+    } as DOMRect);
+    nativeDrop({ x: 50, y: 50 });
+    fileDrop(wrapper.element);
+    await flushPromises();
+    expect(paths).not.toHaveBeenCalled();
+    expect(files).toHaveBeenCalledOnce();
+    expect(files.mock.calls[0][0][0].name).toBe("file.txt");
+  });
+});
+
+describe("Electron path preference", () => {
+  it.each([{ preferFileObjects: false }, { directoryOnly: true }])(
+    "keeps explicit path consumers working with %j",
+    async (selection) => {
+      bus.electron = true;
+      const paths = vi.fn(),
+        files = vi.fn();
+      const wrapper = mount(
+        defineComponent({
+          setup() {
+            const element = ref<HTMLElement>();
+            useFileDrop({
+              element,
+              onDrop: paths,
+              onFiles: files,
+              silent: true,
+              ...selection,
+            });
+            return () => h("div", { ref: element });
+          },
+        })
+      );
+      wrappers.push(wrapper);
+      await flushPromises();
+      vi.spyOn(wrapper.element, "getBoundingClientRect").mockReturnValue({
+        left: 0,
+        top: 0,
+        right: 100,
+        bottom: 100,
+      } as DOMRect);
+      if ("directoryOnly" in selection)
+        vi.mocked(invoke).mockResolvedValueOnce(true);
+      nativeDrop({ x: 50, y: 50 });
+      fileDrop(wrapper.element);
+      await flushPromises();
+      expect(paths).toHaveBeenCalledWith(["C:/work/file.txt"]);
+      expect(files).not.toHaveBeenCalled();
+    }
+  );
+});
+
+// 保护文件来源与目标的拖放操作协商；copy-only 外部文件须能落入导入区。
+it.each([
+  ["copy", "copy"],
+  ["copyMove", "copy"],
+  ["all", "copy"],
+  ["move", "move"],
+])(
+  "accepts %s drag sources with a compatible %s operation",
+  async (effectAllowed, expected) => {
+    const { wrapper } = selectorDrop();
+    await flushPromises();
+    const dataTransfer = { effectAllowed, dropEffect: "none" };
+    const event = new Event("dragover", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    wrapper.element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(dataTransfer.dropEffect).toBe(expected);
+  }
+);

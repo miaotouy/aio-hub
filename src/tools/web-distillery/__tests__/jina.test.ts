@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { fetchJina } from "../core/engines/jina";
 import { createDefaultWebDistilleryConfig } from "../config";
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@/platform/native/core", () => ({ invoke: vi.fn() }));
 
 describe("Jina fetch result contract", () => {
   beforeEach(() => vi.resetAllMocks());

@@ -40,8 +40,8 @@
       </template>
       <template v-else-if="search.summary.value">
         <span class="results-tree__summary">
-          {{ search.summary.value.totalMatches }} 个结果 ·
-          {{ search.summary.value.filesMatched }} 文件 ·
+          {{ search.totalMatches.value }} 个结果 ·
+          {{ search.totalFiles.value }} 文件 ·
           {{ search.summary.value.durationMs.toFixed(0) }}ms
         </span>
         <span
@@ -51,6 +51,10 @@
         >
       </template>
     </div>
+
+    <p v-if="summaryNotice" class="results-tree__notice" role="status">
+      {{ summaryNotice }}
+    </p>
 
     <!-- 结果区域 -->
     <div class="results-tree__list">
@@ -63,7 +67,9 @@
       >
         <div class="results-tree__empty">
           <SearchX :size="32" />
-          <span>未找到匹配结果</span>
+          <span>{{
+            summaryNotice ? "可调整搜索后重试" : "未找到匹配结果"
+          }}</span>
         </div>
       </template>
 
@@ -195,6 +201,20 @@ import { useDirSearchUiState } from "../composables/useDirSearchUiState";
 
 const search = useDirSearchContext();
 const uiState = useDirSearchUiState();
+const summaryNotice = computed(() => {
+  switch (search.summary.value?.stopReason) {
+    case "busy":
+      return "已有搜索正在运行，请等待结束后重试。";
+    case "deadline":
+      return "搜索已达到时限，可缩小目录或增加筛选后重试。";
+    case "fileLimit":
+      return "已达到扫描预算，可缩小目录或增加筛选后重试。";
+    case "matchLimit":
+      return "已达到结果上限，可调整上限或缩小搜索范围。";
+    default:
+      return "";
+  }
+});
 
 const actions = inject("dirSearchActions") as {
   handleSelectMatch: (filePath: string, match: SearchMatch) => void;
@@ -405,6 +425,14 @@ defineExpose({ expandAllTree, collapseAllTree, expandDirs });
 
 .results-tree__cancelled {
   color: var(--el-color-warning);
+}
+
+.results-tree__notice {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--el-color-warning);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .results-tree__list {

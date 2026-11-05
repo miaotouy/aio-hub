@@ -7,11 +7,6 @@ import type { ChatRegexConfig, ChatRegexRule } from "../../../types/chatRegex";
 const state = vi.hoisted(() => ({
   global: undefined as ChatRegexConfig | undefined,
 }));
-vi.mock("@/tools/llm-chat/composables/settings/useChatSettings", () => ({
-  useChatSettings: () => ({
-    settings: { value: { regexConfig: state.global } },
-  }),
-}));
 vi.mock("@/utils/logger", () => ({
   createModuleLogger: () => ({ info() {}, error() {} }),
 }));
@@ -45,6 +40,7 @@ const context = (
 ): PipelineContext =>
   ({
     messages,
+    settings: { regexConfig: state.global },
     agentConfig: { regexConfig: agent },
     userProfile: { regexConfig: user },
     sharedData: new Map(),

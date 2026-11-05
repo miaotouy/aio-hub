@@ -7,7 +7,7 @@ import { ChevronLeft, RotateCcw } from "lucide-vue-next";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 
 const router = useRouter();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const { settings, loadSettings, updateSettingItem, resetSettings } =
   useChatSettings();
 
@@ -22,24 +22,68 @@ const handleBack = () => {
 const handleReset = async () => {
   await resetSettings();
 };
+
+const handleWarningRatioChange = (val: number | number[]) => {
+  const input = Array.isArray(val) ? val[0] : val;
+  let warning = input;
+  let critical = settings.value.contextManagement.criticalRatio;
+  if (warning >= critical) {
+    critical = Math.min(1, Number((warning + 0.05).toFixed(2)));
+    if (critical <= warning) {
+      warning = Math.max(0, Number((critical - 0.05).toFixed(2)));
+    }
+  }
+  updateSettingItem("contextManagement", {
+    warningRatio: warning,
+    criticalRatio: critical,
+  });
+};
+
+const handleCriticalRatioChange = (val: number | number[]) => {
+  const input = Array.isArray(val) ? val[0] : val;
+  let critical = input;
+  let warning = settings.value.contextManagement.warningRatio;
+  if (critical <= warning) {
+    warning = Math.max(0, Number((critical - 0.05).toFixed(2)));
+    if (warning >= critical) {
+      critical = Math.min(1, Number((warning + 0.05).toFixed(2)));
+    }
+  }
+  updateSettingItem("contextManagement", {
+    warningRatio: warning,
+    criticalRatio: critical,
+  });
+};
 </script>
 
 <template>
   <div class="chat-settings-view">
     <var-app-bar
-      :title="tRaw('tools.llm-chat.common.聊天设置')"
+      :title="t('tools.llm-chat.common.聊天设置')"
       title-position="center"
       fixed
       safe-area
       z-index="100"
     >
       <template #left>
-        <var-button round text color="transparent" @click="handleBack">
+        <var-button
+          round
+          text
+          color="transparent"
+          aria-label="返回"
+          @click="handleBack"
+        >
           <ChevronLeft :size="24" />
         </var-button>
       </template>
       <template #right>
-        <var-button round text color="transparent" @click="handleReset">
+        <var-button
+          round
+          text
+          color="transparent"
+          aria-label="重置设置"
+          @click="handleReset"
+        >
           <RotateCcw :size="20" />
         </var-button>
       </template>
@@ -49,10 +93,10 @@ const handleReset = async () => {
       <!-- UI 偏好 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.界面偏好") }}
+          {{ t("tools.llm-chat.ChatSettingsView.界面偏好") }}
         </div>
         <div class="section-card">
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.流式输出')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.流式输出')">
             <template #extra>
               <var-switch
                 v-model="settings.uiPreferences.isStreaming"
@@ -65,7 +109,7 @@ const handleReset = async () => {
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.显示时间戳')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.显示时间戳')">
             <template #extra>
               <var-switch
                 v-model="settings.uiPreferences.showTimestamp"
@@ -79,7 +123,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.显示 Token 统计')"
+            :title="t('tools.llm-chat.ChatSettingsView.显示 Token 统计')"
           >
             <template #extra>
               <var-switch
@@ -94,7 +138,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.显示模型信息')"
+            :title="t('tools.llm-chat.ChatSettingsView.显示模型信息')"
           >
             <template #extra>
               <var-switch
@@ -108,7 +152,7 @@ const handleReset = async () => {
             </template>
           </var-cell>
 
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.自动滚动')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.自动滚动')">
             <template #extra>
               <var-switch
                 v-model="settings.uiPreferences.autoScroll"
@@ -122,7 +166,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.显示消息导航器')"
+            :title="t('tools.llm-chat.ChatSettingsView.显示消息导航器')"
           >
             <template #extra>
               <var-switch
@@ -139,7 +183,7 @@ const handleReset = async () => {
 
           <var-cell
             :title="
-              tRaw('tools.llm-chat.ChatSettingsView.聊天字体缩放') +
+              t('tools.llm-chat.ChatSettingsView.聊天字体缩放') +
               ` (${Math.round(settings.uiPreferences.fontSize * 100)}%)`
             "
           >
@@ -165,10 +209,10 @@ const handleReset = async () => {
       <!-- 模型偏好 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.模型偏好") }}
+          {{ t("tools.llm-chat.ChatSettingsView.模型偏好") }}
         </div>
         <div class="section-card">
-          <var-cell :title="tRaw('tools.llm-chat.ChatSettingsView.默认模型')">
+          <var-cell :title="t('tools.llm-chat.ChatSettingsView.默认模型')">
             <template #description>
               <div class="selector-container">
                 <llm-model-selector
@@ -189,11 +233,11 @@ const handleReset = async () => {
       <!-- 消息管理 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.消息管理") }}
+          {{ t("tools.llm-chat.ChatSettingsView.消息管理") }}
         </div>
         <div class="section-card">
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.删除消息前确认')"
+            :title="t('tools.llm-chat.ChatSettingsView.删除消息前确认')"
           >
             <template #extra>
               <var-switch
@@ -209,7 +253,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.删除会话前确认')"
+            :title="t('tools.llm-chat.ChatSettingsView.删除会话前确认')"
           >
             <template #extra>
               <var-switch
@@ -225,7 +269,7 @@ const handleReset = async () => {
           </var-cell>
 
           <var-cell
-            :title="tRaw('tools.llm-chat.ChatSettingsView.清空会话前确认')"
+            :title="t('tools.llm-chat.ChatSettingsView.清空会话前确认')"
           >
             <template #extra>
               <var-switch
@@ -245,12 +289,12 @@ const handleReset = async () => {
       <!-- 请求设置 -->
       <div class="section">
         <div class="section-title">
-          {{ tRaw("tools.llm-chat.ChatSettingsView.请求设置") }}
+          {{ t("tools.llm-chat.ChatSettingsView.请求设置") }}
         </div>
         <div class="section-card">
           <var-cell
             :title="
-              tRaw('tools.llm-chat.ChatSettingsView.请求超时时间') +
+              t('tools.llm-chat.ChatSettingsView.请求超时时间') +
               ` (${settings.requestSettings.timeout / 1000}s)`
             "
           >
@@ -273,7 +317,7 @@ const handleReset = async () => {
 
           <var-cell
             :title="
-              tRaw('tools.llm-chat.ChatSettingsView.最大重试次数') +
+              t('tools.llm-chat.ChatSettingsView.最大重试次数') +
               ` (${settings.requestSettings.maxRetries})`
             "
           >
@@ -296,6 +340,54 @@ const handleReset = async () => {
         </div>
       </div>
 
+      <!-- 上下文管理 -->
+      <div class="section">
+        <div class="section-title">
+          {{ t("tools.llm-chat.ChatSettingsView.上下文管理") }}
+        </div>
+        <div class="section-card">
+          <var-cell
+            :title="
+              t('tools.llm-chat.ChatSettingsView.预警阈值') +
+              ` (${Math.round(settings.contextManagement.warningRatio * 100)}%)`
+            "
+          >
+            <template #description>
+              <div class="slider-container">
+                <var-slider
+                  v-model="settings.contextManagement.warningRatio"
+                  :min="0.1"
+                  :max="0.95"
+                  :step="0.05"
+                  data-testid="chat-context-warning-ratio"
+                  @change="handleWarningRatioChange"
+                />
+              </div>
+            </template>
+          </var-cell>
+
+          <var-cell
+            :title="
+              t('tools.llm-chat.ChatSettingsView.高危阈值') +
+              ` (${Math.round(settings.contextManagement.criticalRatio * 100)}%)`
+            "
+          >
+            <template #description>
+              <div class="slider-container">
+                <var-slider
+                  v-model="settings.contextManagement.criticalRatio"
+                  :min="0.2"
+                  :max="1"
+                  :step="0.05"
+                  data-testid="chat-context-critical-ratio"
+                  @change="handleCriticalRatioChange"
+                />
+              </div>
+            </template>
+          </var-cell>
+        </div>
+      </div>
+
       <div class="bottom-placeholder"></div>
     </div>
   </div>
@@ -306,7 +398,12 @@ const handleReset = async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface);
+  background-color: var(--bg-color);
+}
+
+.chat-settings-view :deep(.var-app-bar .var-button) {
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .view-content {
@@ -320,8 +417,8 @@ const handleReset = async () => {
 }
 
 .section-title {
-  font-size: 13px;
-  color: var(--color-primary);
+  font-size: var(--font-size-md);
+  color: var(--primary-color);
   font-weight: 600;
   padding: 0 4px 8px;
   text-transform: uppercase;
@@ -329,8 +426,8 @@ const handleReset = async () => {
 }
 
 .section-card {
-  background-color: var(--color-surface-container-high);
-  border-radius: 12px;
+  background-color: var(--input-bg);
+  border-radius: var(--app-radius-lg);
   overflow: hidden;
 }
 
@@ -349,7 +446,7 @@ const handleReset = async () => {
 :deep(.var-cell) {
   --cell-padding: 12px 16px;
   background-color: transparent;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
 }
 
 :deep(.var-cell:last-child) {
@@ -357,8 +454,8 @@ const handleReset = async () => {
 }
 
 :deep(.var-cell__title) {
-  font-size: 15px;
-  color: var(--color-on-surface);
+  font-size: var(--font-size-md);
+  color: var(--text-color);
 }
 
 :deep(.var-cell__description) {

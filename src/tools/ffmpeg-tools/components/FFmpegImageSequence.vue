@@ -85,16 +85,20 @@
               >
             </el-form-item>
             <el-form-item label="配音 / 背景音频">
-              <div class="audio-input full-width">
+              <div
+                ref="audioElement"
+                class="audio-input full-width"
+                :class="{ 'is-dragging': isDraggingAudio }"
+              >
                 <el-input
                   :model-value="audioPath"
                   readonly
-                  placeholder="可选：音频文件或带音轨的视频"
+                  placeholder="可选：拖入音频文件或带音轨的视频"
                 />
                 <el-button
                   :icon="Music"
                   :loading="checkingAudio"
-                  @click="chooseAudio"
+                  @click="chooseAudio()"
                   >选择</el-button
                 >
                 <el-button v-if="audioPath" @click="audioPath = ''"
@@ -263,11 +267,11 @@ import {
   Terminal,
   Copy,
 } from "lucide-vue-next";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { basename, dirname } from "@tauri-apps/api/path";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readDir } from "@tauri-apps/plugin-fs";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { convertFileSrc, invoke } from "@/platform/native/core";
+import { basename, dirname } from "@/platform/native/path";
+import { open, save } from "@/platform/native/dialog";
+import { readDir } from "@/platform/native/fs";
+import { writeText } from "@/platform/native/clipboard";
 import { ElMessageBox } from "element-plus";
 import InfoCard from "@/components/common/InfoCard.vue";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
@@ -299,6 +303,7 @@ import { useFFmpegCommand } from "../composables/useFFmpegCommand";
 
 const { shellLabel, formatCommand } = useFFmpegCommand();
 const sourceElement = ref<HTMLElement>();
+const audioElement = ref<HTMLElement>();
 
 const formatPercent = (percent: number) => `${percent.toFixed(1)}%`;
 
@@ -448,6 +453,16 @@ const { isDraggingOver } = useFileDrop({
   },
 });
 
+const { isDraggingOver: isDraggingAudio } = useFileDrop({
+  element: audioElement,
+  fileOnly: true,
+  multiple: false,
+  disabled: computed(() => busy.value || scanning.value),
+  onDrop: async (paths) => {
+    if (paths.length) await chooseAudio(paths[0]);
+  },
+});
+
 async function scanSource(path: string, fileName?: string, refresh = false) {
   const entries = await readDir(path);
   const found = discoverImageSequences(
@@ -531,40 +546,42 @@ async function chooseSource(folder: boolean) {
   }
 }
 
-async function chooseAudio() {
-  if (busy.value || checkingAudio.value) return;
+async function chooseAudio(path?: string) {
+  if (busy.value || scanning.value) return;
   checkingAudio.value = true;
   try {
     await errorHandler.wrapAsync(
       async () => {
-        const selected = await open({
-          multiple: false,
-          title: "选择音频或视频音轨",
-          filters: [
-            {
-              name: "音频 / 视频",
-              extensions: [
-                "wav",
-                "mp3",
-                "flac",
-                "aac",
-                "m4a",
-                "ogg",
-                "opus",
-                "aiff",
-                "aif",
-                "wma",
-                "mp4",
-                "mov",
-                "mkv",
-                "webm",
-                "avi",
-                "m4v",
-                "ts",
-              ],
-            },
-          ],
-        });
+        const selected =
+          path ??
+          (await open({
+            multiple: false,
+            title: "选择音频或视频音轨",
+            filters: [
+              {
+                name: "音频 / 视频",
+                extensions: [
+                  "wav",
+                  "mp3",
+                  "flac",
+                  "aac",
+                  "m4a",
+                  "ogg",
+                  "opus",
+                  "aiff",
+                  "aif",
+                  "wma",
+                  "mp4",
+                  "mov",
+                  "mkv",
+                  "webm",
+                  "avi",
+                  "m4v",
+                  "ts",
+                ],
+              },
+            ],
+          }));
         if (typeof selected !== "string") return;
         const metadata = await getMetadata(selected);
         if (!metadata) return;
@@ -769,6 +786,14 @@ async function revealOutput() {
 }
 .sequence-source.is-dragging {
   border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+.audio-input {
+  border-radius: 4px;
+}
+.audio-input.is-dragging {
+  outline: var(--border-width) dashed var(--primary-color);
+  outline-offset: 4px;
   background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 .source-actions {

@@ -3,7 +3,7 @@ import IconPresetSelector from "@/components/common/IconPresetSelector.vue";
 import { PRESET_ICONS } from "../config/preset-icons";
 import { useI18n } from "@/i18n";
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 defineProps<{
   show: boolean;
@@ -25,9 +25,9 @@ const emit = defineEmits<{
     <div class="icon-selector-container">
       <div class="popup-header">
         <span class="popup-title">{{
-          tRaw("tools.llm-api.IconSelector.选择预设图标")
+          t("tools.llm-api.IconSelector.选择预设图标")
         }}</span>
-        <var-button round text @click="emit('update:show', false)">
+        <var-button round text aria-label="关闭" @click="emit('update:show', false)">
           <span class="close-icon">×</span>
         </var-button>
       </div>
@@ -49,7 +49,7 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-header {
@@ -57,16 +57,16 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .popup-title {
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
 }
 
 .close-icon {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   line-height: 1;
 }
 

@@ -32,9 +32,24 @@ bun run test:mobile:e2e -- --preset attachment `
 ```
 
 Available presets are `feasibility`, `smoke`, `asset`, `media`, `rich-text`, `rich-text-media`,
-`attachment`, `recovery`, `core`, and opt-in `ollama`. The `core` preset intentionally does
-not create the 768 MiB interrupted-import fixture; run `recovery` separately
+`attachment`, `agent`, `recovery`, `core`, and opt-in `ollama`. The `core` preset intentionally
+does not create the 768 MiB interrupted-import fixture; run `recovery` separately
 when exercising that path.
+
+Run the Agent character-card regression lane:
+
+```powershell
+bun run test:mobile:e2e -- --preset agent --avd Medium_Phone_API_36
+```
+
+This imports a SillyTavern PNG V2 character card through DocumentsUI, verifies the
+imported name/description/avatar fields and restart persistence, opens an Agent chat
+from the character hall, checks that the card's `first_mes` is the opener and that the
+request pipeline expands the `{{char}}`/`{{user}}` macros and injects the card persona
+marker, switches the session to another Agent without rewriting history, and finally
+manages an Agent private asset (add, edit, global-page isolation, delete) before
+deleting the Agent. It uses the deterministic mock OpenAI server and does not replace
+Android real-device, low-storage, or iOS release validation.
 
 Run the managed media regression lane:
 
@@ -95,20 +110,25 @@ bun run test:mobile:e2e -- --preset ollama `
 Use the root CLI for all Android E2E modes: `bun run test:mobile:e2e`,
 `bun run test:mobile:e2e -- --unit`, and `bun run test:mobile:e2e -- --typecheck`.
 
-For repeated stability runs, let the runner own a fresh AVD lifecycle for each
-iteration. Do not pass `--serial` or `--keep-avd` in this lane; each completed
-run shuts down only the AVD that it started. Reusing one long-lived AVD can
-carry Android DocumentsUI activity-result state between otherwise independent
-runs.
+For repeated stability runs, prefer **reusing one long-lived AVD** instead of
+cold-booting for every iteration. Start the AVD once, then run each iteration
+with an explicit `--serial` plus `--keep-avd`:
 
 ```powershell
 $apk = "mobile/src-tauri/target/release/bundle/android/AIO-Hub_0.1.1-m-beta.2_android-x86_64-debug.apk"
 1..10 | ForEach-Object {
   bun run test:mobile:e2e -- --preset core `
-    --avd Medium_Phone_API_36 --apk $apk
+    --serial emulator-5554 --keep-avd --apk $apk
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 ```
+
+A cold boot keeps iterations isolated, but on some hosts a freshly booted
+emulator leaves `adbd` briefly unresponsive, so Appium's WebView probe
+(`adb shell cat /proc/net/unix`) times out and a cold-boot-per-iteration stability
+loop becomes flaky. Reuse avoids that. Reuse can carry Android DocumentsUI
+activity-result state between runs; the per-run app-data clear still applies, and
+a picker failure only needs a one-time AVD restart.
 
 ## Ownership and artifacts
 

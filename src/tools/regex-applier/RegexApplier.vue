@@ -413,10 +413,10 @@ import {
   List,
   Close,
 } from "@element-plus/icons-vue";
-import { open as openFile } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { listen } from "@tauri-apps/api/event";
+import { open as openFile } from "@/platform/native/dialog";
+import { readTextFile } from "@/platform/native/fs";
+import { readText, writeText } from "@/platform/native/clipboard";
+import { listen } from "@/platform/native/events";
 import { VueDraggableNext } from "vue-draggable-next";
 import InfoCard from "@/components/common/InfoCard.vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";

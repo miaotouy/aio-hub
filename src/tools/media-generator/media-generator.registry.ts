@@ -24,7 +24,7 @@ import type { AssetSidecarAction, Asset } from "@/types/asset-management";
 import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
 import { createModuleLogger } from "@/utils/logger";
 import { extractMetadata } from "@/utils/mediaMetadataManager";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useGenerationInfoViewer } from "./composables/useGenerationInfoViewer";
 import { useMediaGenInputManager } from "./composables/useMediaGenInputManager";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

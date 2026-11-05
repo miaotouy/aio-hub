@@ -13,8 +13,8 @@
 // limitations under the License.
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import type { DerivedDataInfo } from "@/types/asset-management";
-import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
+import { writeTextFile, mkdir } from "@/platform/native/fs";
+import { invoke } from "@/platform/native/core";
 import { merge } from "lodash-es";
 
 import type { EngineContext } from "../types";

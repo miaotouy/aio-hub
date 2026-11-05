@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
@@ -125,11 +126,12 @@ export class FormatterCore {
 
     try {
       if (["php", "rust", "c", "cpp"].includes(language)) {
-        if (!isTauri()) {
+        const capability = getHostCapability("systemCodeFormatting");
+        if (!capability.available) {
           return {
             formatted: code,
             success: false,
-            error: "该语言的格式化需要桌面应用，请在 AIO Hub 中打开此工具",
+            error: capability.reason,
           };
         }
         const formatted = await invoke<string>("format_code", {
@@ -194,11 +196,12 @@ export class FormatterCore {
     formatterPath = ""
   ): Promise<FormatterStatus> {
     const engine = language === "rust" ? "rustfmt" : "clang-format";
-    if (!isTauri()) {
+    const capability = getHostCapability("systemCodeFormatting");
+    if (!capability.available) {
       return {
         available: false,
         engine,
-        error: "请在 AIO Hub 桌面应用中检测系统格式化器",
+        error: capability.reason,
       };
     }
     try {

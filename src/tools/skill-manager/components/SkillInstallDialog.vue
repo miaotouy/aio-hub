@@ -98,7 +98,11 @@
     </div>
 
     <el-tabs v-else v-model="installMode" class="install-tabs">
-      <el-tab-pane label="从本地目录" name="local">
+      <el-tab-pane
+        label="从本地目录"
+        name="local"
+        :disabled="checking || installing"
+      >
         <p class="install-hint">选择包含 SKILL.md 的技能目录进行安装。</p>
         <DropZone
           v-loading="checking"
@@ -145,7 +149,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="从 Git 仓库" name="git">
+      <el-tab-pane
+        label="从 Git 仓库"
+        name="git"
+        :disabled="checking || installing"
+      >
         <p class="install-hint">
           输入 Git 仓库 URL，将自动克隆到技能目录。支持带
           <code>.git</code> 后缀或不带后缀的地址。
@@ -167,7 +175,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="从 URL" name="url">
+      <el-tab-pane label="从 URL" name="url" :disabled="checking || installing">
         <p class="install-hint">
           输入 ZIP 包下载链接，将自动下载并解压到技能目录。
         </p>
@@ -206,9 +214,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from "vue";
+import { ref, computed, onUnmounted, watch } from "vue";
 import { FolderOpen, AlertTriangle, Info } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import DropZone from "@/components/common/DropZone.vue";
 import { customMessage } from "@/utils/customMessage";
@@ -270,24 +278,57 @@ function deselectAllSkills() {
   selectedSkills.value = [];
 }
 
+let preparationVersion = 0;
+let closed = false;
+
+let preparedIsTemporary = false;
+async function cleanTemporaryPackage(value: string) {
+  if (value)
+    await errorHandler.wrapAsync(() => skillLoader.cleanTempDir(value), {
+      userMessage: "清理技能临时文件失败",
+      showToUser: false,
+    });
+}
+async function clearPreparedPackage() {
+  const value = tempPath.value,
+    owned = preparedIsTemporary;
+  tempPath.value = "";
+  preparedIsTemporary = false;
+  if (owned) await cleanTemporaryPackage(value);
+}
+
+watch(installMode, () => {
+  preparationVersion++;
+  checking.value = false;
+  selectedDir.value = "";
+  previewName.value = "";
+  previewDesc.value = "";
+  installName.value = "";
+  actualDirName.value = "";
+  isDuplicate.value = false;
+  isNameMismatch.value = false;
+  detectedPackageInfo.value = null;
+  selectedSkills.value = [];
+  showBundleSelect.value = false;
+  void clearPreparedPackage();
+});
+
 async function handleCancel() {
+  preparationVersion++;
   if (showBundleSelect.value) {
     showBundleSelect.value = false;
-    // 如果是 Git 或 URL 模式，返回时清理临时目录
-    if (installMode.value !== "local" && tempPath.value) {
-      await skillLoader.cleanTempDir(tempPath.value);
-      tempPath.value = "";
-    }
+    detectedPackageInfo.value = null;
+    selectedSkills.value = [];
+    await clearPreparedPackage();
   } else {
     emit("close");
   }
 }
 
-onUnmounted(async () => {
-  // 确保组件销毁时清理临时目录
-  if (tempPath.value && installMode.value !== "local") {
-    await skillLoader.cleanTempDir(tempPath.value);
-  }
+onUnmounted(() => {
+  closed = true;
+  preparationVersion++;
+  void clearPreparedPackage();
 });
 
 /** 自动寻找不冲突的名称 */
@@ -314,6 +355,7 @@ function validateInstallName() {
 }
 
 async function processSelectedPath(path: string) {
+  const version = ++preparationVersion;
   selectedDir.value = path;
   previewName.value = "";
   previewDesc.value = "";
@@ -325,11 +367,17 @@ async function processSelectedPath(path: string) {
   showBundleSelect.value = false;
 
   try {
+    await clearPreparedPackage();
     const inputType = path.toLowerCase().endsWith(".zip")
       ? "zip_file"
       : "local";
     const result = await skillLoader.prepareAndDetectPackage(inputType, path);
+    if (closed || version !== preparationVersion) {
+      if (inputType !== "local") await cleanTemporaryPackage(result.tempPath);
+      return;
+    }
     tempPath.value = result.tempPath;
+    preparedIsTemporary = inputType !== "local";
     detectedPackageInfo.value = result.packageInfo;
 
     if (result.packageInfo.packageType === "bundle") {
@@ -359,10 +407,11 @@ async function processSelectedPath(path: string) {
       }
     }
   } catch (err: any) {
+    if (closed || version !== preparationVersion) return;
     errorHandler.error(err, "识别失败");
     selectedDir.value = "";
   } finally {
-    checking.value = false;
+    if (version === preparationVersion) checking.value = false;
   }
 }
 
@@ -373,6 +422,7 @@ function handleDrop(paths: string[]) {
 }
 
 async function handleInstall() {
+  const version = ++preparationVersion;
   installing.value = true;
   try {
     // 1. 如果还没有探测过，先进行探测（针对 Git 和 URL 模式）
@@ -383,7 +433,12 @@ async function handleInstall() {
         installMode.value,
         pathOrUrl
       );
+      if (closed || version !== preparationVersion) {
+        await cleanTemporaryPackage(result.tempPath);
+        return;
+      }
       tempPath.value = result.tempPath;
+      preparedIsTemporary = true;
       detectedPackageInfo.value = result.packageInfo;
 
       if (result.packageInfo.packageType === "bundle") {
@@ -416,38 +471,17 @@ async function handleInstall() {
       customMessage.success("技能包安装成功");
     } else {
       // 安装单个技能
-      if (installMode.value === "local" && selectedDir.value) {
-        const path = selectedDir.value;
-        if (path.toLowerCase().endsWith(".zip")) {
-          await invoke("install_skill_from_zip_file", {
-            zipPath: path,
-            customName,
-          });
-        } else {
-          await invoke("install_skill_from_dir", {
-            sourceDir: path,
-            customName,
-          });
-        }
-      } else if (installMode.value === "git") {
-        await invoke("install_skill_from_git", {
-          repoUrl: gitUrl.value.trim(),
-          customName,
-        });
-      } else if (installMode.value === "url") {
-        await invoke("install_skill_from_zip", {
-          zipUrl: zipUrl.value.trim(),
-          customName,
-        });
-      }
+      // Install the already inspected package; remote and ZIP sources are prepared once.
+      if (!tempPath.value) throw new Error("请先选择或识别技能来源");
+      await invoke("install_skill_from_dir", {
+        sourceDir: tempPath.value,
+        customName,
+      });
       customMessage.success("技能安装成功");
     }
 
     // 3. 清理临时目录
-    if (tempPath.value && installMode.value !== "local") {
-      await skillLoader.cleanTempDir(tempPath.value);
-      tempPath.value = "";
-    }
+    await clearPreparedPackage();
 
     emit("installed");
   } catch (err: any) {
@@ -459,6 +493,86 @@ async function handleInstall() {
 </script>
 
 <style scoped>
+.bundle-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.bundle-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-color-secondary);
+}
+.bundle-meta {
+  min-width: 0;
+}
+.bundle-title,
+.list-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bundle-title {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+.bundle-version,
+.bundle-desc,
+.bundle-author,
+.skill-item-desc {
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+.bundle-desc,
+.bundle-author {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.list-header {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.list-actions {
+  display: flex;
+  gap: 8px;
+}
+.skills-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-select-item {
+  padding: 8px 10px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 6px;
+}
+.skill-select-item :deep(.el-checkbox) {
+  width: 100%;
+  height: auto;
+  min-height: 24px;
+}
+.skill-select-item :deep(.el-checkbox__label) {
+  min-width: 0;
+  white-space: normal;
+}
+.skill-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.conflict-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--el-color-warning);
+  font-size: 12px;
+}
+
 .install-tabs {
   margin-top: 4px;
   display: flex;

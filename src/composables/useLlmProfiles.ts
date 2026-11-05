@@ -17,14 +17,16 @@
  */
 
 import { ref, computed } from "vue";
-import { materializeModelIdentity } from "@aiohub/llm-core";
+import {
+  materializeModelIdentity,
+  normalizeDeepSeekProfile,
+} from "@aiohub/llm-core";
 import type {
   LlmProfile,
   LlmModelInfo,
   LlmParameterSupport,
   ProviderType,
 } from "../types/llm-profiles";
-import { DEFAULT_LLM_PROFILE } from "../types/llm-profiles";
 import { migrateAggregateProfile } from "@/utils/llm-aggregate-profile";
 import type { LlmPreset } from "../config/llm-presets";
 import { providerTypes } from "../config/llm-providers";
@@ -43,7 +45,13 @@ import {
 import { normalizeIconPath } from "../config/model-metadata";
 import { useModelMetadata } from "./useModelMetadata";
 import { getAioDefaultHeaders } from "@/views/Settings/llm-service/config/customHeadersPresets";
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
+
+import {
+  normalizeLlmProfile,
+  type LlmProfilesSnapshot,
+} from "../llm-apis/configuration/profiles";
+import { getElectronBridge, request } from "../platform/electron/client";
 
 const logger = createModuleLogger("LlmProfiles");
 const errorHandler = createModuleErrorHandler("LlmProfiles");
@@ -76,51 +84,33 @@ let loadingPromise: Promise<void> | null = null;
 let secretVaultReady = false;
 let committedSecretRevision: string | null = null;
 let committedSecrets: LlmSecretMap = {};
+let profileWriteQueue: Promise<void> = Promise.resolve();
 
 export function useLlmProfiles() {
   /**
    * 规范化配置：合并默认值并处理旧版本迁移
    */
-  const normalizeProfile = (profile: any): LlmProfile => {
-    // 1. 处理 API Key 迁移，并无条件移除旧版单数 apiKey 字段
-    const { apiKey, ...rest } = profile;
-    const inlineKeys = Array.isArray(profile.apiKeys)
-      ? profile.apiKeys.filter(
-          (key: unknown): key is string => typeof key === "string"
-        )
-      : [];
-    const apiKeys =
-      inlineKeys.length > 0
-        ? inlineKeys
-        : typeof apiKey === "string" && apiKey.length > 0
-          ? [apiKey]
-          : [];
-
-    // 2. 深度合并与规范化
-    const normalized: LlmProfile = {
-      ...DEFAULT_LLM_PROFILE,
-      ...rest,
-      apiKeys: apiKeys,
-      logoUrl: rest.logoUrl || undefined,
-      icon: rest.icon ? normalizeIconPath(rest.icon) : undefined,
-      models: Array.isArray(rest.models)
-        ? rest.models.map((m: any) => {
-            const normalizedModel = {
-              ...m,
-              icon: m.icon ? normalizeIconPath(m.icon) : undefined,
-            };
-            delete normalizedModel.modelIdentitySuggestion;
-            return normalizedModel;
-          })
-        : [],
-      customHeaders: rest.customHeaders || DEFAULT_LLM_PROFILE.customHeaders,
-      networkStrategy:
-        rest.networkStrategy || DEFAULT_LLM_PROFILE.networkStrategy,
-    };
-    return migrateAggregateProfile(normalized);
-  };
+  const normalizeProfile = (profile: any) =>
+    normalizeLlmProfile(profile, normalizeIconPath);
 
   const persistProfiles = async (nextProfiles: LlmProfile[]) => {
+    if (getElectronBridge()) {
+      // Capture before waiting: later edits must not change an already queued write.
+      const snapshot = JSON.parse(JSON.stringify(nextProfiles)) as LlmProfile[];
+      const task = profileWriteQueue
+        .catch(() => {})
+        .then(async () => {
+          if (!secretVaultReady)
+            throw new Error("渠道配置尚未成功加载，请刷新后重试");
+          const saved = await request<LlmProfilesSnapshot>("llm.config.save", {
+            profiles: snapshot,
+            expectedRevision: committedSecretRevision,
+          });
+          committedSecretRevision = saved.revision;
+        });
+      profileWriteQueue = task;
+      return task;
+    }
     if (!secretVaultReady) {
       throw new Error("LLM 密钥仓库尚未成功加载，已阻止覆盖保存");
     }
@@ -156,6 +146,36 @@ export function useLlmProfiles() {
       let resolvedProfiles: LlmProfile[] | null = null;
       try {
         logger.info("开始加载 LLM 配置");
+
+        if (getElectronBridge()) {
+          const snapshot =
+            await request<LlmProfilesSnapshot>("llm.config.load");
+          profiles.value = snapshot.profiles.map(normalizeProfile);
+          committedSecretRevision = snapshot.revision;
+          secretVaultReady = true;
+          const stored =
+            profiles.value.length === 0
+              ? localStorage.getItem(STORAGE_KEY)
+              : null;
+          if (stored) {
+            let legacy: unknown;
+            try {
+              legacy = JSON.parse(stored);
+            } catch (error) {
+              errorHandler.handle(error, {
+                userMessage: "解析 localStorage 数据失败",
+                showToUser: false,
+              });
+            }
+            if (Array.isArray(legacy)) {
+              profiles.value = legacy.map(normalizeProfile);
+              await persistProfiles(profiles.value);
+              localStorage.removeItem(STORAGE_KEY);
+            }
+          }
+          isLoaded.value = true;
+          return;
+        }
 
         // 尝试从文件系统加载
         const config = await configManager.load();
@@ -200,7 +220,11 @@ export function useLlmProfiles() {
         if (
           reconciled.changed ||
           normalized.some(
-            (profile, index) => profile.type !== loadedProfiles[index]?.type
+            (profile, index) =>
+              profile.type !== loadedProfiles[index]?.type ||
+              profile.baseUrl !== loadedProfiles[index]?.baseUrl ||
+              profile.options?.deepseekBeta !==
+                loadedProfiles[index]?.options?.deepseekBeta
           ) ||
           fromLocalStorage ||
           loadedSecrets.needsRewrite ||
@@ -277,14 +301,14 @@ export function useLlmProfiles() {
         ) {
           merged.customHeaders = existing.customHeaders;
         }
-        profiles.value[index] = merged;
+        profiles.value[index] = normalizeDeepSeekProfile(merged);
       } else {
         // 添加新配置
         logger.info("添加新 LLM 配置", {
           profileId: profile.id,
           profileName: profile.name,
         });
-        profiles.value.push(profile);
+        profiles.value.push(normalizeDeepSeekProfile(profile));
       }
       await saveToStorage();
     } catch (error) {

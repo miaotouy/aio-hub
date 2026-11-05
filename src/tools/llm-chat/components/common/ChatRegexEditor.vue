@@ -371,6 +371,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, watch } from "vue";
 import { VueDraggableNext } from "vue-draggable-next";
 import { useElementSize, useFileDialog } from "@vueuse/core";
@@ -502,7 +504,7 @@ function addPreset() {
 async function copyPresetToClipboard(preset: ChatRegexPreset) {
   try {
     const content = JSON.stringify(preset, null, 2);
-    await navigator.clipboard.writeText(content);
+    await getBrowserClipboard().writeText(content);
     customMessage.success("预设已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");
@@ -512,7 +514,7 @@ async function copyPresetToClipboard(preset: ChatRegexPreset) {
 
 async function pastePreset() {
   try {
-    const text = await navigator.clipboard.readText();
+    const text = await getBrowserClipboard().readText();
     if (!text) return;
 
     let data;
@@ -589,7 +591,7 @@ function addRule(preset: ChatRegexPreset) {
 async function copyRuleToClipboard(rule: ChatRegexRule) {
   try {
     const content = JSON.stringify(rule, null, 2);
-    await navigator.clipboard.writeText(content);
+    await getBrowserClipboard().writeText(content);
     customMessage.success("规则已复制到剪贴板");
   } catch (error) {
     customMessage.error("复制失败");
@@ -598,7 +600,7 @@ async function copyRuleToClipboard(rule: ChatRegexRule) {
 
 async function pasteRule(presetIndex: number) {
   try {
-    const text = await navigator.clipboard.readText();
+    const text = await getBrowserClipboard().readText();
     if (!text) return;
 
     let data;

@@ -10,7 +10,7 @@ import {
 } from "../config/llm-presets";
 import { useI18n } from "@/i18n";
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 const props = defineProps<{
   show: boolean;
@@ -58,7 +58,7 @@ const handleCreateCustom = () => {
         <div class="popup-title-group">
           <Zap :size="20" class="title-icon" />
           <span class="popup-title">{{
-            tRaw("tools.llm-api.PresetSelector.选择预设渠道")
+            t("tools.llm-api.PresetSelector.选择预设渠道")
           }}</span>
         </div>
         <var-button round text @click="emit('update:show', false)">
@@ -85,7 +85,10 @@ const handleCreateCustom = () => {
             :key="preset.name"
             class="preset-item"
             v-ripple
+            role="button"
+            tabindex="0"
             @click="handleSelect(preset)"
+            @keydown.enter="handleSelect(preset)"
           >
             <div class="preset-icon-wrapper">
               <DynamicIcon :src="preset.logoUrl || ''" :alt="preset.name" />
@@ -105,7 +108,7 @@ const handleCreateCustom = () => {
           @click="handleCreateCustom"
         >
           <Plus :size="18" />
-          {{ tRaw("tools.llm-api.PresetSelector.自定义添加") }}
+          {{ t("tools.llm-api.PresetSelector.自定义添加") }}
         </var-button>
       </div>
     </div>
@@ -135,7 +138,7 @@ const handleCreateCustom = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-header {
@@ -143,7 +146,7 @@ const handleCreateCustom = () => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .popup-title-group {
@@ -153,16 +156,16 @@ const handleCreateCustom = () => {
 }
 
 .popup-title {
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
 }
 
 .title-icon {
-  color: var(--color-primary);
+  color: var(--primary-color);
 }
 
 .close-icon {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   line-height: 1;
 }
 
@@ -179,9 +182,9 @@ const handleCreateCustom = () => {
 }
 
 .preset-item {
-  background: var(--color-surface-container-low);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -192,7 +195,7 @@ const handleCreateCustom = () => {
 
 .preset-item:active {
   transform: scale(0.96);
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .preset-icon-wrapper {
@@ -212,15 +215,15 @@ const handleCreateCustom = () => {
 }
 
 .preset-name {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   margin-bottom: 4px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .preset-desc {
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -232,6 +235,6 @@ const handleCreateCustom = () => {
 .popup-footer {
   padding: 20px;
   padding-bottom: calc(20px + var(--safe-area-bottom));
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
 }
 </style>

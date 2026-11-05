@@ -17,8 +17,8 @@ import type { Asset } from "@/types/asset-management";
 import { getPureModelId } from "@/utils/modelIdUtils";
 import { createModuleLogger } from "@/utils/logger";
 import { smartDecode } from "@/utils/encoding";
-import { remove } from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
+import { remove } from "@/platform/native/fs";
+import { invoke } from "@/platform/native/core";
 import { merge } from "lodash-es";
 
 import type {
@@ -306,6 +306,11 @@ export function useTranscriptionManager() {
       task.completedAt = Date.now();
       // 触发真正的人为中断
       task.abortController?.abort();
+      if (task.assetType === "audio" || task.assetType === "video") {
+        void invoke("kill_ffmpeg_process", { taskId: task.id }).catch(error => {
+          logger.warn("停止转写预处理失败", { error, taskId: task.id });
+        });
+      }
     }
   };
 

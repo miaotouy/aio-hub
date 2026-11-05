@@ -947,11 +947,11 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
     items: [
       {
         id: "enabled",
-        label: "启用话题命名",
+        label: "自动生成话题标题",
         layout: "inline",
         component: "ElSwitch",
         modelPath: "topicNaming.enabled",
-        hint: "自动或手动为会话生成标题",
+        hint: "对话达到设定轮数后自动生成标题，随时可在会话菜单中手动生成",
         keywords: "topic naming title 话题 命名",
       },
       {
@@ -964,7 +964,7 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         },
         hint: "用于生成会话标题的 LLM 模型。留空则使用全局默认模型。可按需关闭命名请求的思考，以避免短输出被推理过程挤占。",
         keywords: "topic naming model 话题 命名 模型",
-        visible: (settings) => settings.topicNaming.enabled,
+
         defaultValue: "",
       },
       {
@@ -979,7 +979,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.prompt",
         hint: "使用 <code>{context}</code> 占位符来指定对话内容的位置。<br />例如：<code>请为以下对话生成标题：\\n\\n{context}</code><br />如不使用占位符，对话内容将自动追加到提示词末尾。",
         keywords: "topic naming prompt 话题 命名 提示词",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "temperature",
@@ -989,7 +988,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.temperature",
         hint: "",
         keywords: "topic naming temperature 话题 命名 温度",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "maxTokens",
@@ -999,7 +997,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.maxTokens",
         hint: "生成标题的正文 token 上限。思考模型是否额外预留推理空间由下方设置控制。",
         keywords: "topic naming max tokens 话题 命名 token",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "thinkingTokenReserve",
@@ -1011,7 +1008,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "思考模型的 reasoning tokens 也会计入 max_tokens。建议至少预留 4096；关闭思考时不会增加请求上限。",
         keywords:
           "topic naming thinking reasoning reserve tokens 话题 命名 思考 推理 预留",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "disableThinking",
@@ -1022,7 +1018,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         hint: "开启后，命名请求会在渠道和模型支持时显式关闭思考，避免短标题输出被推理过程占满。",
         keywords:
           "topic naming disable thinking reasoning 话题 命名 关闭 思考 推理",
-        visible: (settings) => settings.topicNaming.enabled,
       },
       {
         id: "autoTriggerThreshold",
@@ -1042,7 +1037,6 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
         modelPath: "topicNaming.contextMessageCount",
         hint: "生成标题时引用的最近消息数量",
         keywords: "topic naming context message 话题 命名 上下文",
-        visible: (settings) => settings.topicNaming.enabled,
       },
     ],
   },
@@ -2335,6 +2329,68 @@ export const settingsConfig: SettingsSection<ChatSettings>[] = [
           style: { minHeight: "300px" },
           useLoading: true,
         },
+      },
+    ],
+  },
+  {
+    title: "续写设置",
+    icon: PenTool,
+    items: [
+      {
+        id: "continuationMode",
+        label: "续写方式",
+        component: "ElRadioGroup",
+        modelPath: "continuation.mode",
+        options: [
+          { label: "自动选择", value: "auto" },
+          { label: "始终使用提示词", value: "prompt" },
+        ],
+        hint: "自动选择会优先使用模型支持的原生前缀续写，其余情况使用提示词接续。网关兼容性或接缝效果欠佳时，可改用提示词。适用于助手消息续写。",
+        keywords: "continuation prefix prefill 续写 接力 前缀 提示词",
+      },
+      {
+        id: "continuationThinking",
+        label: "DeepSeek 思考模式",
+        component: "ElRadioGroup",
+        modelPath: "continuation.deepseekThinking",
+        options: [
+          { label: "跟随模型", value: "inherit" },
+          { label: "开启", value: "enabled" },
+          { label: "关闭", value: "disabled" },
+        ],
+        hint: "仅覆盖本次 DeepSeek 正文续写的思考开关，原生续写与提示词续写均适用。其他模型沿用自身参数；思考开关的支持情况由上游服务决定。",
+        keywords: "continuation deepseek thinking 续写 接力 思考 推理",
+      },
+      {
+        id: "continuationPrompt",
+        label: "续写提示词",
+        component: "PromptEditor",
+        modelPath: "continuation.prompt",
+        props: {
+          rows: 5,
+          placeholder: "输入续写指令",
+          defaultValue: DEFAULT_SETTINGS.continuation.prompt,
+        },
+        hint: "用于提示词续写。系统会在指令末尾自动附上原文末尾片段，供模型定位接续位置。建议保留从断点追加、补完未结束结构、仅输出新增正文的要求。清空后使用默认指令。",
+        keywords: "continuation prompt 续写 接力 提示词 指令 定位",
+      },
+      {
+        id: "continuationTailLength",
+        label: "末尾定位长度",
+        component: "ElInputNumber",
+        modelPath: "continuation.tailLength",
+        props: { min: 100, max: 16000, step: 100 },
+        hint: "提示词续写额外引用的原文末尾长度，默认 1200。完整原文仍按上下文流程发送，较长的定位片段会增加输入用量。",
+        keywords: "continuation tail anchor 续写 末尾 定位 长度",
+      },
+      {
+        id: "continuationDeduplicate",
+        label: "去除开头重复内容",
+        layout: "inline",
+        component: "ElSwitch",
+        modelPath: "continuation.deduplicate",
+        hint: "自动移除回复开头完整复述的原文或较长的精确重叠，保留短词、空白和代码符号。关闭后按模型返回的正文原样追加。",
+        keywords: "continuation overlap deduplicate 续写 去重 重复 接缝",
       },
     ],
   },

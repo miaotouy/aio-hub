@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { BookOpen, ChevronLeft, Pencil, Plus, Trash2 } from "lucide-vue-next";
+import {
+  BookOpen,
+  ChevronLeft,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
@@ -10,18 +17,21 @@ import type {
   MobileWorldbook,
   MobileWorldbookEntry,
   WorldbookEntryPosition,
+  WorldbookSelectiveLogic,
+  MessageRole,
 } from "../types";
 
 const router = useRouter();
 const store = useWorldbookStore();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.Worldbooks.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.Worldbooks");
 const editorOpen = ref(false);
 const entryEditorOpen = ref(false);
 const editingId = ref<string | null>(null);
 const entryWorldbookId = ref<string | null>(null);
 const entryEditingId = ref<string | null>(null);
 const saving = ref(false);
+const importFileInput = ref<HTMLInputElement | null>(null);
 const draft = ref({ name: "", description: "", enabled: true });
 const entryDraft = ref({
   name: "",
@@ -35,6 +45,12 @@ const entryDraft = ref({
   scanDepth: 8,
   caseSensitive: false,
   matchWholeWords: false,
+  selective: false,
+  secondaryKeys: "",
+  selectiveLogic: "and_any" as WorldbookSelectiveLogic,
+  useProbability: false,
+  probability: 100,
+  role: "system" as MessageRole,
 });
 
 onMounted(async () => {
@@ -111,6 +127,12 @@ function openCreateEntry(worldbook: MobileWorldbook) {
     scanDepth: 8,
     caseSensitive: false,
     matchWholeWords: false,
+    selective: false,
+    secondaryKeys: "",
+    selectiveLogic: "and_any",
+    useProbability: false,
+    probability: 100,
+    role: "system",
   };
   entryEditorOpen.value = true;
 }
@@ -133,6 +155,12 @@ function openEditEntry(
     scanDepth: entry.scanDepth ?? 8,
     caseSensitive: entry.caseSensitive ?? false,
     matchWholeWords: entry.matchWholeWords ?? false,
+    selective: entry.selective ?? false,
+    secondaryKeys: (entry.secondaryKeys ?? []).join(", "),
+    selectiveLogic: entry.selectiveLogic ?? "and_any",
+    useProbability: entry.useProbability ?? false,
+    probability: entry.probability ?? 100,
+    role: entry.role ?? "system",
   };
   entryEditorOpen.value = true;
 }
@@ -144,13 +172,27 @@ async function saveEntry() {
   }
   saving.value = true;
   try {
+    const secondaryKeys = entryDraft.value.selective
+      ? entryDraft.value.secondaryKeys
+          .split(",")
+          .map((key) => key.trim())
+          .filter(Boolean)
+      : undefined;
+
     await store.upsertEntry(entryWorldbookId.value, {
       id: entryEditingId.value ?? undefined,
       ...entryDraft.value,
       keys: entryDraft.value.keys.split(",").map((key) => key.trim()),
+      secondaryKeys,
+      probability: entryDraft.value.useProbability
+        ? entryDraft.value.probability
+        : undefined,
     });
     entryEditorOpen.value = false;
     customMessage(t("条目已保存"), "success");
+  } catch (error) {
+    console.error("Save entry error:", error);
+    customMessage(t("保存失败"), "error");
   } finally {
     saving.value = false;
   }
@@ -173,6 +215,38 @@ async function removeEntry(
   await store.removeEntry(worldbook.id, entry.id);
   customMessage(t("条目已删除"), "success");
 }
+
+async function importWorldbookFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text()) as unknown;
+    const book =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    const entries = book?.entries;
+    const hasEntries =
+      Array.isArray(entries) ||
+      (typeof entries === "object" && entries !== null);
+    if (!book || !hasEntries) {
+      customMessage(t("不支持的格式"), "warning");
+      return;
+    }
+    const result = await store.importFromSillyTavern({
+      book,
+      name: file.name.replace(/\.[^/.]+$/, ""),
+    });
+    if (result.warnings.length > 0) {
+      customMessage(result.warnings.join("\n"), "warning");
+    }
+    customMessage(t("导入成功"), "success");
+  } catch {
+    customMessage(t("导入失败"), "error");
+  }
+}
 </script>
 
 <template>
@@ -191,15 +265,33 @@ async function removeEntry(
         <h1>{{ t("世界书") }}</h1>
         <p>{{ t("说明") }}</p>
       </div>
-      <button
-        class="icon-button primary"
-        type="button"
-        data-testid="worldbook-create"
-        :aria-label="t('新建')"
-        @click="openCreate"
-      >
-        <Plus :size="22" />
-      </button>
+      <div class="header-actions">
+        <button
+          class="icon-button"
+          type="button"
+          data-testid="worldbook-import"
+          :aria-label="t('导入')"
+          @click="importFileInput?.click()"
+        >
+          <Upload :size="20" />
+        </button>
+        <button
+          class="icon-button primary"
+          type="button"
+          data-testid="worldbook-create"
+          :aria-label="t('新建')"
+          @click="openCreate"
+        >
+          <Plus :size="22" />
+        </button>
+        <input
+          ref="importFileInput"
+          class="file-input"
+          type="file"
+          accept="application/json,.json"
+          @change="importWorldbookFile"
+        />
+      </div>
     </header>
 
     <main class="worldbook-list">
@@ -228,13 +320,16 @@ async function removeEntry(
           <p>{{ worldbook.description || t("无描述") }}</p>
         </div>
         <div class="card-actions">
-          <button type="button" :title="t('编辑')" @click="openEdit(worldbook)">
+          <button type="button"             :title="t('编辑')"
+            :aria-label="t('编辑')"
+            @click="openEdit(worldbook)">
             <Pencil :size="18" />
           </button>
           <button
             type="button"
             class="danger"
             :title="t('删除')"
+            :aria-label="t('删除')"
             @click="removeWorldbook(worldbook)"
           >
             <Trash2 :size="18" />
@@ -253,6 +348,8 @@ async function removeEntry(
             :key="entry.id"
             class="entry-card"
             :class="{ disabled: !entry.enabled }"
+            data-testid="worldbook-entry"
+            :data-entry-id="entry.id"
           >
             <div>
               <strong>{{ entry.name || t("未命名条目") }}</strong>
@@ -271,6 +368,8 @@ async function removeEntry(
               <button
                 type="button"
                 :title="t('编辑')"
+                :aria-label="t('编辑')"
+                data-testid="worldbook-entry-edit"
                 @click="openEditEntry(worldbook, entry)"
               >
                 <Pencil :size="16" /></button
@@ -278,6 +377,8 @@ async function removeEntry(
                 type="button"
                 class="danger"
                 :title="t('删除')"
+                :aria-label="t('删除')"
+                data-testid="worldbook-entry-delete"
                 @click="removeEntry(worldbook, entry)"
               >
                 <Trash2 :size="16" />
@@ -287,6 +388,7 @@ async function removeEntry(
           <button
             type="button"
             class="add-entry"
+            data-testid="worldbook-entry-add"
             @click="openCreateEntry(worldbook)"
           >
             <Plus :size="16" />{{ t("添加条目") }}
@@ -335,21 +437,34 @@ async function removeEntry(
       :show-cancel-button="false"
     >
       <form class="editor-form" @submit.prevent="saveEntry">
-        <label>{{ t("条目名称") }}<input v-model="entryDraft.name" /></label>
         <label
-          >{{ t("关键词")
-          }}<input v-model="entryDraft.keys" :placeholder="t('关键词提示')"
+          >{{ t("条目名称")
+          }}<input v-model="entryDraft.name" data-testid="worldbook-entry-name"
         /></label>
         <label
-          >{{ t("条目内容") }}<textarea v-model="entryDraft.content" rows="7" />
-        </label>
+          >{{ t("关键词")
+          }}<input
+            v-model="entryDraft.keys"
+            data-testid="worldbook-entry-keys"
+            :placeholder="t('关键词提示')"
+        /></label>
+        <label
+          >{{ t("条目内容")
+          }}<textarea
+            v-model="entryDraft.content"
+            rows="7"
+            data-testid="worldbook-entry-content"
+        /></label>
         <div class="form-grid">
           <label
             >{{ t("位置")
-            }}<select v-model="entryDraft.position">
+            }}<select v-model="entryDraft.position" data-testid="worldbook-entry-position">
               <option value="before_history">before_history</option>
               <option value="after_character">after_character</option>
               <option value="depth">depth</option>
+              <option value="before_character">before_character</option>
+              <option value="after_history">after_history</option>
+              <option value="outlet">outlet (仅保留不注入)</option>
             </select></label
           ><label
             >{{ t("深度")
@@ -385,17 +500,75 @@ async function removeEntry(
             ><input v-model="entryDraft.matchWholeWords" type="checkbox" />{{
               t("全词匹配")
             }}</label
+          ><label class="check-label"
+            ><input
+              v-model="entryDraft.selective"
+              type="checkbox"
+              data-testid="worldbook-entry-selective"
+            />{{
+              t("启用次要关键词")
+            }}</label
+          ><label class="check-label"
+            ><input
+              v-model="entryDraft.useProbability"
+              type="checkbox"
+              data-testid="worldbook-entry-use-probability"
+            />{{
+              t("触发概率")
+            }}</label
           >
         </div>
+        <label v-if="entryDraft.selective"
+          >{{ t("次要关键词")
+          }}<input
+            v-model="entryDraft.secondaryKeys"
+            data-testid="worldbook-entry-secondary-keys"
+            :placeholder="t('关键词提示')"
+        /></label>
+        <label v-if="entryDraft.selective"
+          >{{ t("次要逻辑")
+          }}<select
+            v-model="entryDraft.selectiveLogic"
+            data-testid="worldbook-entry-selective-logic"
+          >
+            <option value="and_any">and_any</option>
+            <option value="and_all">and_all</option>
+            <option value="not_any">not_any</option>
+            <option value="not_all">not_all</option>
+          </select></label
+        >
+        <label v-if="entryDraft.useProbability"
+          >{{ t("触发概率 (%)")
+          }}<input
+            v-model.number="entryDraft.probability"
+            type="number"
+            min="0"
+            max="100"
+            data-testid="worldbook-entry-probability"
+        /></label>
+        <label
+          >{{ t("注入角色")
+          }}<select v-model="entryDraft.role" data-testid="worldbook-entry-role">
+            <option value="system">system</option>
+            <option value="user">user</option>
+            <option value="assistant">assistant</option>
+          </select></label
+        >
         <div class="form-actions">
           <var-button
             text
             native-type="button"
             @click="entryEditorOpen = false"
             >{{ t("取消") }}</var-button
-          ><var-button type="primary" native-type="submit" :loading="saving">{{
-            t("保存")
-          }}</var-button>
+          ><var-button
+            type="primary"
+            native-type="submit"
+            :loading="saving"
+            data-testid="worldbook-entry-save"
+            >{{
+              t("保存")
+            }}</var-button
+          >
         </div>
       </form>
     </var-dialog>
@@ -406,7 +579,7 @@ async function removeEntry(
 .worldbooks-view {
   min-height: 100%;
   padding: 18px 16px 32px;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 .page-header {
   display: grid;
@@ -417,13 +590,13 @@ async function removeEntry(
 }
 .page-header h1 {
   margin: 0;
-  color: var(--color-on-surface);
-  font-size: 1.35rem;
+  color: var(--text-color);
+  font-size: var(--font-size-xl);
 }
 .page-header p {
   margin: 3px 0 0;
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 .icon-button,
 .card-actions button,
@@ -432,17 +605,27 @@ async function removeEntry(
   place-items: center;
   border: 0;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
 }
 .icon-button.primary,
 .create-button {
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.file-input {
+  display: none;
 }
 .worldbook-list {
   display: grid;
@@ -454,22 +637,23 @@ async function removeEntry(
   place-items: center;
   align-content: center;
   gap: 9px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   text-align: center;
 }
 .create-button,
 .add-entry {
   border: 0;
-  border-radius: 20px;
+  border-radius: var(--app-radius-xl);
   padding: 9px 16px;
+  min-height: 44px;
 }
 .worldbook-card {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 9px;
   padding: 14px;
-  border-radius: 14px;
-  background: var(--color-surface-container-high);
+  border-radius: var(--app-radius-lg);
+  background: var(--input-bg);
 }
 .worldbook-card.disabled,
 .entry-card.disabled {
@@ -479,23 +663,23 @@ async function removeEntry(
   display: flex;
   align-items: center;
   gap: 7px;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 .worldbook-title span {
   padding: 2px 6px;
-  border-radius: 9px;
+  border-radius: var(--app-radius-md);
   color: var(--color-on-primary-container);
   background: var(--color-primary-container);
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .worldbook-copy p,
 .entry-card p,
 .entry-card small {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 .worldbook-copy p {
   margin: 5px 0 0;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 .card-actions,
 .entry-actions {
@@ -505,18 +689,20 @@ async function removeEntry(
 .card-actions button {
   width: 30px;
   height: 30px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
 }
 .danger {
-  color: var(--color-error) !important;
+  color: var(--danger-color) !important;
 }
 .enabled-toggle {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.76rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .entry-list {
   grid-column: 1 / -1;
@@ -529,35 +715,37 @@ async function removeEntry(
   grid-template-columns: 1fr auto;
   gap: 8px;
   padding: 10px;
-  border-radius: 10px;
-  background: var(--color-surface-container-low);
+  border-radius: var(--app-radius-md);
+  background: var(--card-bg);
 }
 .entry-card small {
   display: block;
   margin-top: 3px;
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
 }
 .entry-card p {
   display: -webkit-box;
   margin: 5px 0 0;
   overflow: hidden;
   white-space: pre-wrap;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 .entry-actions button {
   width: 27px;
   height: 27px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .add-entry {
   display: inline-flex;
   justify-content: center;
   align-items: center;
   gap: 5px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   background: transparent;
-  border: 1px dashed var(--color-outline);
+  border: 1px dashed var(--border-color);
 }
 .editor-form {
   display: grid;
@@ -567,8 +755,8 @@ async function removeEntry(
 .editor-form label {
   display: grid;
   gap: 6px;
-  color: var(--color-on-surface);
-  font-size: 0.85rem;
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
 }
 .editor-form input:not([type="checkbox"]),
 .editor-form textarea,
@@ -576,10 +764,10 @@ async function removeEntry(
   width: 100%;
   box-sizing: border-box;
   padding: 9px;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-low);
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color);
+  background: var(--card-bg);
   font: inherit;
 }
 .editor-form textarea {
@@ -602,5 +790,9 @@ async function removeEntry(
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.form-actions :deep(.var-button) {
+  min-height: 44px;
 }
 </style>

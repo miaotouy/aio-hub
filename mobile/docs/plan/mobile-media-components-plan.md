@@ -1,9 +1,13 @@
 # 移动端媒体组件设计方案
 
-> 状态：Phase 1 资产管理器原型、组件测试与 Android AVD 资产/附件/音频受控预览回归已完成；全面交互设备验收和消费者接入仍待进行
-> 最近核对：2026-07-27
+> 状态：组件基础和 Android AVD 回归已完成；当前优先接入正式聊天媒体，真机手势、设备行为和性能验证后置
+> 最近核对：2026-09-23
 > 范围：图片、视频、音频的内联预览、沉浸式预览和播放；不把桌面组件缩小后直接移植
 > 关联文档：[`mobile-asset-manager-design.md`](./mobile-asset-manager-design.md)、[`mobile-development-checklist.md`](./mobile-development-checklist.md)、[`asset-manager/ARCHITECTURE.md`](../../src/tools/asset-manager/ARCHITECTURE.md)
+
+## 当前施工口径
+
+先把图片、视频、音频从资产页接到正式聊天，连续完成打开、播放、返回、切换和错误状态。真机手势、方向、后台播放、设备音频和长时间内存表现保留为后置验证，不阻拦当前消费者接入。
 
 ## 1. 先说结论
 
@@ -48,8 +52,8 @@
 
 #### 当前移动端场景
 
-- `AssetDetailSheet.vue` 已接入 `MediaPreviewHost`，由 `useManagedMediaPreview` 统一申请和撤销 descriptor；详情页不再持有预览 URL。
-- `llm-chat/components/MessageContent.vue` 已有图片 overlay，并处理资源切换、过期和撤销竞态；它目前没有缩放、平移、视频和音频统一契约。
+- `AssetDetailSheet.vue` 内联原生 `<img>/<video>/<audio>` 并由 `useAssetLibrary.openPreview()` 管理短期 descriptor 申请与撤销，已解耦持久化 URL。
+- `llm-chat/components/MessageContent.vue` 已全量接入 `MediaPreviewHost`，统一承接图片、视频、音频的沉浸式预览与播放生命周期。
 - 资产管理器已有 `AssetDetailSheet` 单测和 Android WebView 预览验证；这使它适合作为第一块真实原型和回归入口。
 
 #### PC 组件可借鉴和不能借鉴的部分
@@ -68,7 +72,7 @@
 | 资产列表缩略图、聊天附件、富文本媒体 | 内联预览，不自动播放                | 点按打开对应沉浸式预览；视频只在用户明确点播放后开始 | 系统返回、关闭按钮、下拉关闭（图片）                         |
 | 资产详情                             | 详情 Sheet 中显示媒体摘要和预览入口 | 点按“打开预览”进入全屏图片/视频；音频在 Sheet 内展开 | 返回回到详情 Sheet，不丢失详情操作上下文                     |
 | 连续图片附件                         | 全屏查看器                          | 左右滑动切换；双击/双指缩放；缩放后平移              | 返回回到来源消息，不回到第一张                               |
-| 音频附件                             | 内联紧凑播放器                      | 播放、拖动、倍速；需要看更多信息时展开播放 Sheet     | 返回关闭播放 Sheet，播放是否继续由页面策略决定，首版默认暂停 |
+| 音频附件                             | 点击条目打开播放 Sheet（不在消息附件区内联播放器） | 播放、拖动、倍速；需要看更多信息时展开播放 Sheet     | 返回关闭播放 Sheet，播放是否继续由页面策略决定，首版默认暂停 |
 
 统一入口由 `MediaPreviewHost` 承担容器和生命周期，但图片、视频、音频的主体和控制条分开实现。`MediaPreviewHost` 不承担资产查询、格式探测或播放器业务逻辑。
 
@@ -186,9 +190,9 @@ closed
 3. [x] 聊天附件已接入图片、视频和音频预览，保持 `ManagedAssetRef` 和 reclaimed/missing 降级语义；纯文本消息和附件状态逻辑不改写。
 4. [x] RichTextRenderer 已只接入稳定的 `MediaItem` 和 `MediaPreviewHost` 打开语义：当前消息的 `![说明](asset://<assetId>)` 只能解析为同一消息附件，避免模型文本探测任意本地资产；外部图片不伪装为受管资源，保留原有安全回退。
 
-### Phase 4：平台门禁和架构收口
+### Phase 4：平台后续验证和架构收口
 
-消费者接入后重复 Android AVD 回归，并在 Android 真机验证聊天长列表、详情 Sheet 和富文本页面中的滚动/手势冲突及应用重启恢复。iOS 只有在编译和设备条件具备后补验，不提前声称方向锁定、后台音频或 scheme/Range 行为跨平台成立。稳定契约和已验证差异写入移动端架构文档，本文件只保留尚未完成的实现和设备门禁。
+消费者接入后重复 Android AVD 回归，并在 Android 真机验证聊天长列表、详情 Sheet 和富文本页面中的滚动/手势冲突及应用重启恢复。iOS 只有在编译和设备条件具备后补验，不提前声称方向锁定、后台音频或 scheme/Range 行为跨平台成立。稳定契约和已验证差异写入移动端架构文档，本文件只保留尚未完成的实现和设备后续验证。
 
 ## 8. 验收标准
 
@@ -202,7 +206,7 @@ closed
 ### 设备和可用性
 
 - 手机竖屏、横屏、分屏/平板宽度、动态字体、明暗主题和安全区下无标题、控制条或媒体重叠。
-- Android 真机完成图片/视频/音频各一条主流程，并记录首帧、返回、旋转、长视频拖动和重启后的结果；浏览器测试不能替代这条门禁。
+- Android 真机完成图片/视频/音频各一条主流程，并记录首帧、返回、旋转、长视频拖动和重启后的结果；浏览器测试不能替代这条后续验证。
 - 键盘/鼠标至少支持关闭、播放/暂停、进度拖动和全屏退出，触控设备不依赖悬停才能发现关键操作。
 - 单测覆盖 descriptor 竞态、撤销幂等、错误映射和 host 的返回优先级；组件交互测试覆盖图片缩放边界、视频 fallback 和音频离开页面暂停。
 
@@ -216,7 +220,7 @@ closed
 - [ ] Android AVD 已于 2026-07-26 通过资产图片预览、聊天附件发送/重启恢复/图片预览及音频受控预览/沉浸层控制；2026-07-27 又以 x86_64 debug APK 通过 `media` preset（`audio-media`、`video-media`）与 `rich-text-media` preset（消息自有 `asset://` Markdown 图片、受管 descriptor、inline ready、沉浸层打开/关闭和 WebView 双击 2x 缩放）。`audio-media` 额外验证用户触发的 WebView 原生 WAV 播放、`currentTime` 推进、暂停稳定，以及 keep-alive 路由停用时暂停/撤销预览、激活后重新申请；`video-media` 通过 DocumentsUI 导入 H.264 MP4、保留 `video/mp4` MIME、获取受管 URL、WebView `<video>` 解码/播放进度/暂停，且强制 Fullscreen API 拒绝后会进入应用内沉浸层，并在 Android 原生 Back 返回时保留播放位置和状态恢复内联播放器，最后于关闭详情后确认 URL 回收。AVD 运行时无可听输出；这些回归仍不替代真实手势、原生全屏/系统返回、设备音频输出、方向、安全区、快速切换、Android 真机和 iOS 报告。
 - [ ] 根据设备实测再决定是否增加方向锁定、后台音频、截图或更多原生能力；没有证据时不扩展公共 API。
 
-Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 与位置/播放状态交接、音频内联/展开之间的位置、播放态、静音和倍速交接、音频卸载暂停，以及 Android WebView 上用户触发的 WAV 播放进度与暂停稳定、keep-alive 路由停用时的暂停/descriptor 撤销和激活后重取。2026-07-27 的 Android AVD `video-media` 又覆盖 H.264 MP4 的 DocumentsUI 导入、`video/mp4` 受管预览 URL、真实 `<video>` 解码/播放进度/暂停、强制 Fullscreen API 拒绝后的应用内沉浸层及 Android 原生 Back 返回后的内联续播与详情关闭后的 URL 回收。图片下拉关闭、双指手势可用性、原生全屏、方向切换、长视频拖动、设备音频输出和 Android 真机/iOS 仍属于设备门禁，不能由 jsdom、浏览器构建或 AVD 单条回归替代。
+Phase 1 的实现位于 `mobile/src/components/media/`。自动化已覆盖 descriptor 迟到响应撤销、重复清理、过期重试、错误映射、host 先退沉浸层再关闭入口、图片缩放边界、视频 Fullscreen API fallback 与位置/播放状态交接、音频内联/展开之间的位置、播放态、静音和倍速交接、音频卸载暂停，以及 Android WebView 上用户触发的 WAV 播放进度与暂停稳定、keep-alive 路由停用时的暂停/descriptor 撤销和激活后重取。2026-07-27 的 Android AVD `video-media` 又覆盖 H.264 MP4 的 DocumentsUI 导入、`video/mp4` 受管预览 URL、真实 `<video>` 解码/播放进度/暂停、强制 Fullscreen API 拒绝后的应用内沉浸层及 Android 原生 Back 返回后的内联续播与详情关闭后的 URL 回收。图片下拉关闭、双指手势可用性、原生全屏、方向切换、长视频拖动、设备音频输出和 Android 真机/iOS 仍属于设备后续验证，不能由 jsdom、浏览器构建或 AVD 单条回归替代。
 
 ### 9.1 Android AVD 回归记录（2026-07-26）
 

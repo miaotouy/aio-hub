@@ -54,7 +54,7 @@ function skipWhitespace(text: string, index: number): number {
 /**
  * 校验错误闭合候选之后是否只剩完整 VCP 字段。
  *
- * 该校验是显示侧启发式恢复的关键门禁：正文里孤立出现的 `「末」`
+ * 该校验是显示侧启发式恢复的关键后续验证：正文里孤立出现的 `「末」`
  * 不足以触发修复，只有它能让剩余内容完整收敛到外层工具块结束标记时才接受。
  */
 function isCompleteFieldSuffix(suffix: string): boolean {

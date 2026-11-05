@@ -198,6 +198,8 @@
 </template>
 
 <script setup lang="ts">
+import { openBrowserWindow } from "@/platform/browser";
+
 import { computed, ref } from "vue";
 import {
   ShieldCheck,
@@ -213,7 +215,7 @@ import {
   Tag,
   Hash,
 } from "lucide-vue-next";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@/platform/native/opener";
 import { useClipboard } from "@vueuse/core";
 import { customMessage } from "@/utils/customMessage";
 import RichTextRenderer from "@/tools/rich-text-renderer/RichTextRenderer.vue";
@@ -260,7 +262,7 @@ async function handleOpenUrl(url: string) {
   try {
     await openUrl(url.trim());
   } catch {
-    window.open(url.trim(), "_blank");
+    openBrowserWindow(url.trim(), "_blank");
   }
 }
 

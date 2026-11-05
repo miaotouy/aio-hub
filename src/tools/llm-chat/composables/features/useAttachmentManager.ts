@@ -14,8 +14,8 @@
 
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, type Ref, type ComputedRef } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen } from "@/platform/native/events";
 import type {
   Asset,
   AssetImportStatus,

@@ -8,6 +8,7 @@ import {
   type WireResponse,
 } from "@aiohub/llm-core";
 import { invoke } from "@tauri-apps/api/core";
+import { bytesToBase64 } from "@/utils/base64";
 import { ensureResponseOk, fetchWithTimeout } from "../common";
 
 export interface MobileFetchOptions extends RequestInit {
@@ -386,7 +387,7 @@ function toNativeFileRequestBody(body: WireBody): NativeFileRequestBody {
       headers: part.headers,
       body:
         part.body.kind === "bytes"
-          ? { kind: "bytes", base64: encodeBase64(part.body.value) }
+          ? { kind: "bytes", base64: bytesToBase64(part.body.value) }
           : part.body,
     })),
   };
@@ -414,17 +415,6 @@ async function invokeNativeFileRequest(
     statusText: result.statusText,
     headers: result.headers,
   });
-}
-
-function encodeBase64(value: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < value.length; offset += chunkSize) {
-    binary += String.fromCharCode(
-      ...value.subarray(offset, offset + chunkSize)
-    );
-  }
-  return btoa(binary);
 }
 
 function createAbortError(signal?: AbortSignal): Error {

@@ -15,6 +15,7 @@
 -->
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { ref, onMounted, onUnmounted } from "vue";
 import { Edit } from "lucide-vue-next";
 import { ElIcon } from "element-plus";
@@ -29,7 +30,8 @@ interface Props {
   position: { x: number; y: number };
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+const { zIndex } = useOverlayZIndex(() => props.visible);
 const emit = defineEmits(["select", "close", "edit"]);
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -60,7 +62,8 @@ const getAgentAvatar = (agent: any) => {
         v-if="visible"
         ref="containerRef"
         class="quick-agent-switch-container"
-        :style="{ top: `${position.y}px`, left: `${position.x}px` }"
+        data-overlay-layer
+        :style="{ zIndex, top: `${position.y}px`, left: `${position.x}px` }"
       >
         <div class="switch-header">
           <span>快捷切换智能体</span>
@@ -95,7 +98,6 @@ const getAgentAvatar = (agent: any) => {
 <style scoped>
 .quick-agent-switch-container {
   position: fixed;
-  z-index: 9999;
   background-color: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);

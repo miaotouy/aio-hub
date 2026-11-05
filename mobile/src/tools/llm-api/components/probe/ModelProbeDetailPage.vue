@@ -3,12 +3,11 @@ import { computed } from "vue";
 import { ChevronLeft, Copy, RotateCcw } from "lucide-vue-next";
 import type { ChannelProbeResult } from "@aiohub/llm-core";
 import { customMessage } from "@/utils/feedback";
-import { useI18n } from "@/i18n";
+import { useScopedT, type SubKeyOf } from "@/i18n";
 import type { LlmModelInfo } from "../../types";
 
-const { tRaw } = useI18n();
-const tr = (key: string, params?: Record<string, unknown>) =>
-  tRaw(`tools.llm-api.ModelProbe.${key}`, params);
+const tr = useScopedT("tools.llm-api.ModelProbe");
+type ProbeKey = SubKeyOf<"tools.llm-api.ModelProbe">;
 
 const props = defineProps<{
   show: boolean;
@@ -22,7 +21,7 @@ const emit = defineEmits<{
   (event: "retry", modelId: string): void;
 }>();
 
-const phaseLabels: Record<string, string> = {
+const phaseLabels: Record<string, ProbeKey> = {
   prepare: "准备检查",
   "build-request": "构建请求",
   transport: "网络传输",
@@ -31,7 +30,7 @@ const phaseLabels: Record<string, string> = {
   "semantic-validation": "响应校验",
 };
 
-const categoryLabels: Record<string, string> = {
+const categoryLabels: Record<string, ProbeKey> = {
   authentication: "认证失败",
   authorization: "权限不足",
   "rate-limit": "请求受限",
@@ -47,7 +46,7 @@ const categoryLabels: Record<string, string> = {
   unknown: "未知错误",
 };
 
-const capabilityLabels: Record<string, string> = {
+const capabilityLabels: Record<string, ProbeKey> = {
   chat: "Chat",
   embedding: "向量",
   rerank: "重排",
@@ -219,8 +218,8 @@ async function copyDiagnostic() {
   z-index: 20;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  color: var(--color-on-surface);
-  background: var(--color-surface);
+  color: var(--text-color);
+  background: var(--bg-color);
 }
 
 .detail-header {
@@ -229,14 +228,14 @@ async function copyDiagnostic() {
   align-items: center;
   min-height: calc(56px + env(safe-area-inset-top));
   padding: env(safe-area-inset-top) 8px 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
-  background: var(--container-bg, var(--color-surface));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
+  background: var(--container-bg, var(--bg-color));
 }
 
 .detail-header h2 {
   overflow: hidden;
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -264,7 +263,7 @@ async function copyDiagnostic() {
 }
 
 .model-name {
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -277,14 +276,14 @@ pre,
 
 .model-heading code,
 .diagnostic-list code {
-  color: var(--color-on-surface-variant);
-  font-size: 0.78rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
   overflow-wrap: anywhere;
 }
 
 .capability-label {
-  color: var(--color-primary);
-  font-size: 0.82rem;
+  color: var(--primary-color);
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
@@ -292,7 +291,7 @@ pre,
   margin-top: 14px;
   padding: 10px 12px;
   border-left: 3px solid var(--warning-color);
-  color: var(--color-on-surface);
+  color: var(--text-color);
   background: color-mix(in srgb, var(--warning-color) 12%, transparent);
 }
 
@@ -302,15 +301,15 @@ pre,
 
 .detail-section h3 {
   margin: 0 0 10px;
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
 }
 
 .status-summary {
   display: grid;
   gap: 4px;
   padding: 12px 0;
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-top: 1px solid var(--border-color, var(--border-color));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
 }
 
 .status-summary strong.success,
@@ -323,8 +322,8 @@ pre,
 }
 
 .status-summary span {
-  color: var(--color-on-surface-variant);
-  font-size: 0.86rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -334,33 +333,33 @@ pre,
   gap: 1px;
   overflow: hidden;
   margin: 0;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
-  background: var(--border-color, var(--color-outline-variant));
+  background: var(--border-color, var(--border-color));
 }
 
 .metric-grid div {
   min-width: 0;
   padding: 12px;
-  background: var(--container-bg, var(--color-surface-container));
+  background: var(--container-bg, var(--container-bg));
 }
 
 .metric-grid dt,
 .diagnostic-list dt {
-  color: var(--color-on-surface-variant);
-  font-size: 0.75rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 
 .metric-grid dd {
   margin: 4px 0 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
 .diagnostic-list {
   margin: 0;
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
+  border-top: 1px solid var(--border-color, var(--border-color));
 }
 
 .diagnostic-list > div {
@@ -368,14 +367,14 @@ pre,
   grid-template-columns: 76px minmax(0, 1fr);
   gap: 12px;
   padding: 11px 0;
-  border-bottom: 1px solid var(--border-color, var(--color-outline-variant));
+  border-bottom: 1px solid var(--border-color, var(--border-color));
 }
 
 .diagnostic-list dd {
   display: grid;
   gap: 3px;
   margin: 0;
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   overflow-wrap: anywhere;
 }
 
@@ -391,18 +390,18 @@ pre,
   gap: 5px;
   min-height: 44px;
   border: 0;
-  color: var(--color-primary);
+  color: var(--primary-color);
   background: transparent;
 }
 
 pre {
   margin: 0;
   padding: 12px;
-  border: 1px solid var(--border-color, var(--color-outline-variant));
+  border: 1px solid var(--border-color, var(--border-color));
   border-radius: var(--app-radius-md);
-  color: var(--color-on-surface);
-  background: var(--input-bg, var(--color-surface-container));
-  font-size: 0.76rem;
+  color: var(--text-color);
+  background: var(--input-bg, var(--container-bg));
+  font-size: var(--font-size-xs);
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -410,8 +409,8 @@ pre {
 
 .detail-footer {
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border-color, var(--color-outline-variant));
-  background: var(--container-bg, var(--color-surface));
+  border-top: 1px solid var(--border-color, var(--border-color));
+  background: var(--container-bg, var(--bg-color));
   backdrop-filter: blur(var(--ui-blur));
 }
 
@@ -422,10 +421,10 @@ pre {
   gap: 8px;
   width: 100%;
   min-height: 46px;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
   border-radius: var(--app-radius-md);
   color: var(--color-on-primary);
-  background: var(--color-primary);
+  background: var(--primary-color);
   font-weight: 700;
 }
 </style>

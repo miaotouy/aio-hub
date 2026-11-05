@@ -1,10 +1,10 @@
 # Windows UI Automation helper
 
-`AioHub.NativeUi` is the native half of the real Tauri E2E suite. It uses
-FlaUI 5 with Microsoft's UI Automation 3 API to operate Windows common file
-and folder dialogs. It does not replace WDIO: WDIO triggers the product action
-and verifies the resulting Knowledge state, while this helper only completes
-the system-owned dialog.
+`AioHub.NativeUi` operates Windows common file, folder and save dialogs with
+FlaUI 5 and Microsoft's UI Automation 3 API. The Tauri E2E suite invokes it
+alongside WDIO; Electron Dev Control scenarios can use the same executable.
+The browser driver triggers the product action and checks its resulting state,
+while the helper completes the system-owned dialog.
 
 ## Requirements
 
@@ -48,11 +48,17 @@ signal. Child controls use `AutomationId`, `ControlType`, and UIA patterns:
 - path navigation: click the address toolbar (`AutomationId` `1001`) inside the
   address-band root (`AutomationId` `41477`), then set the exposed editor with
   `ValuePattern` and verify the resulting address;
-- file selection: verify each target `ListItem`, then set the standard file-name
-  editor (`AutomationId` `1148`) with `ValuePattern`;
+- file selection: validate the supplied fixture paths and set the file-name
+  editor (`AutomationId` `1148`) with `ValuePattern`, quoting each absolute path
+  for multi-selection;
+- save selection: use the same editor or the modern `1001` editor scoped inside
+  `FileNameControlHost`. The target parent must exist and the target must be new,
+  keeping the fixture flow clear of overwrite prompts;
 - confirm button: AutomationId `1`, then `InvokePattern`;
 - folder selection: navigate to the absolute path through the same address-band
-  contract, verify the address, then invoke AutomationId `1`.
+  contract, verify the address, then invoke AutomationId `1`;
+- cancellation: invoke the dialog's `AutomationId` `2` button and wait for the
+  dialog to close. The product driver checks its `null` result or unchanged state.
 
 Localized button text and screen coordinates are not primary selectors. Before
 each action the helper stores a bounded UIA tree in `AIO_E2E_ARTIFACT_DIR`. On
@@ -62,3 +68,26 @@ Absolute-path drag/drop is intentionally not claimed by this helper yet. That
 requires controlling a visible Explorer item and performing a real pointer
 drag into a WDIO-measured WebView target; direct IPC and synthetic H5 `File`
 objects are not acceptable substitutes.
+
+## Electron native-dialog verification
+
+Use an isolated Electron instance and the PID returned by its own
+`wa_get_self_pid` command. Start the product action with Dev Control before
+running the appropriate helper command:
+
+```powershell
+$helper = "tests/windows-ui-automation/AioHub.NativeUi/bin/Release/net8.0-windows/AioHub.NativeUi.exe"
+& $helper select-files --process-id $appPid --path $fixtureA --path $fixtureB --artifact-dir $artifacts
+& $helper select-folder --process-id $appPid --path $fixtureDirectory --artifact-dir $artifacts
+& $helper save-file --process-id $appPid --path $newFixturePath --artifact-dir $artifacts
+& $helper cancel-dialog --process-id $appPid --artifact-dir $artifacts
+```
+
+On November 5, 2026, Windows Electron production-resource checks covered
+Knowledge file multi-selection, recursive directory selection, cancellation,
+rescan/search and persistence; Recall backup import/copy/skip/error reports,
+single and batch export, and stopping future batch items; and save selection
+and cancellation. The existing Dev Control workflow verifies the application
+state and exported archives after each native action. Evidence and remaining
+platform/interaction coverage are tracked in
+[`electron-feature-gap-execution.md`](../../docs/Plan/electron-feature-gap-execution.md).

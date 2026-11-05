@@ -18,7 +18,7 @@ import { useChatSettings } from "../composables/useChatSettings";
 
 const router = useRouter();
 const route = useRoute();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const chatStore = useLlmChatStore();
 const profilesStore = useLlmProfilesStore();
 const { settings, loadSettings } = useChatSettings();
@@ -82,17 +82,29 @@ const goHome = () => {
     <div class="header">
       <div class="header-main">
         <div class="header-title">
-          <var-button round text color="transparent" @click="goHome">
+          <var-button
+            round
+            text
+            color="transparent"
+            aria-label="返回"
+            @click="goHome"
+          >
             <ChevronLeft :size="24" />
           </var-button>
-          <h1>{{ tRaw("tools.llm-chat.common.AI 对话") }}</h1>
+          <h1>{{ t("tools.llm-chat.common.AI 对话") }}</h1>
         </div>
-        <var-button round text color="transparent" @click="goToSettings">
+        <var-button
+          round
+          text
+          color="transparent"
+          :aria-label="t('nav.设置')"
+          @click="goToSettings"
+        >
           <Settings :size="24" />
         </var-button>
       </div>
       <p>
-        {{ tRaw("tools.llm-chat.ChatHome.开始一段新的对话或继续历史会话") }}
+        {{ t("tools.llm-chat.ChatHome.开始一段新的对话或继续历史会话") }}
       </p>
     </div>
 
@@ -109,8 +121,8 @@ const goHome = () => {
           <Plus :size="32" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.开启新对话") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.即刻开始即时交流") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.开启新对话") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.即刻开始即时交流") }}</p>
         </div>
       </div>
 
@@ -126,18 +138,25 @@ const goHome = () => {
           <MessageSquare :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.common.历史会话") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.查看并继续之前的交流") }}</p>
+          <h3>{{ t("tools.llm-chat.common.历史会话") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.查看并继续之前的交流") }}</p>
         </div>
       </div>
 
-      <div class="action-card" @click="goToAgents">
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        data-testid="chat-agent-hall"
+        @click="goToAgents"
+        @keydown.enter="goToAgents"
+      >
         <div class="icon-box">
           <Users :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.角色大厅") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.选择智能体并开始对话") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.角色大厅") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.选择智能体并开始对话") }}</p>
         </div>
       </div>
 
@@ -153,8 +172,8 @@ const goHome = () => {
           <UserCircle :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.用户档案") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.管理用户档案") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.用户档案") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.管理用户档案") }}</p>
         </div>
       </div>
 
@@ -170,8 +189,8 @@ const goHome = () => {
           <BookOpen :size="24" />
         </div>
         <div class="text-box">
-          <h3>{{ tRaw("tools.llm-chat.ChatHome.世界书") }}</h3>
-          <p>{{ tRaw("tools.llm-chat.ChatHome.管理世界书") }}</p>
+          <h3>{{ t("tools.llm-chat.ChatHome.世界书") }}</h3>
+          <p>{{ t("tools.llm-chat.ChatHome.管理世界书") }}</p>
         </div>
       </div>
     </div>
@@ -187,9 +206,9 @@ const goHome = () => {
 }
 
 .header h1 {
-  font-size: 1.8rem;
+  font-size: var(--font-size-2xl);
   margin: 0;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .header-main {
@@ -200,6 +219,11 @@ const goHome = () => {
   gap: 12px;
 }
 
+.header-main :deep(.var-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .header-title {
   display: flex;
   align-items: center;
@@ -208,8 +232,8 @@ const goHome = () => {
 }
 
 .header p {
-  color: var(--color-on-surface-variant);
-  font-size: 0.9rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 
 .action-grid {
@@ -222,7 +246,7 @@ const goHome = () => {
   background: var(--card-bg);
   backdrop-filter: blur(var(--ui-blur));
   border: var(--border-width) solid var(--border-color);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   padding: 20px;
   display: flex;
   align-items: center;
@@ -234,12 +258,12 @@ const goHome = () => {
 
 .action-card:active {
   transform: scale(0.98);
-  background-color: var(--color-surface-container-high);
+  background-color: var(--input-bg);
 }
 
 .action-card.primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .action-card.primary .icon-box,
@@ -254,7 +278,7 @@ const goHome = () => {
 }
 
 .icon-box {
-  color: var(--color-primary);
+  color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -262,12 +286,12 @@ const goHome = () => {
 
 .text-box h3 {
   margin: 0 0 4px 0;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .text-box p {
   margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
 }
 </style>

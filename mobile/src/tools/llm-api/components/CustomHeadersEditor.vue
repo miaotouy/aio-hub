@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import { createModuleLogger } from "@/utils/logger";
 
 const logger = createModuleLogger("CustomHeadersEditor");
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 
 const props = defineProps<{
   show: boolean;
@@ -129,12 +129,17 @@ const scrollIntoViewOnFocus = (event: Event) => {
   >
     <div class="popup-container" data-testid="llm-custom-headers-editor">
       <var-app-bar
-        :title="tRaw('tools.llm-api.CustomHeadersEditor.自定义请求头')"
+        :title="t('tools.llm-api.CustomHeadersEditor.自定义请求头')"
         fixed
         safe-area
       >
         <template #left>
-          <var-button round text @click="$emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="$emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -178,6 +183,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
             text
             type="danger"
             class="delete-btn"
+            aria-label="删除请求头"
             @click="removeHeader(draft.id)"
           >
             <Trash2 :size="18" />
@@ -185,7 +191,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
         </div>
 
         <div v-if="headerDrafts.length === 0" class="empty-hint">
-          {{ tRaw("tools.llm-api.CustomHeadersEditor.暂无自定义请求头") }}
+          {{ t("tools.llm-api.CustomHeadersEditor.暂无自定义请求头") }}
         </div>
       </div>
 
@@ -209,7 +215,7 @@ const scrollIntoViewOnFocus = (event: Event) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-content {
@@ -226,10 +232,10 @@ const scrollIntoViewOnFocus = (event: Event) => {
   gap: 12px;
   margin-bottom: 20px;
   padding: 16px;
-  background: var(--color-surface-container);
-  border-radius: 16px;
+  background: var(--container-bg);
+  border-radius: var(--app-radius-xl);
   align-items: center;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
 }
 
 .input-col {
@@ -252,12 +258,12 @@ const scrollIntoViewOnFocus = (event: Event) => {
   text-align: center;
   padding: 60px 0;
   opacity: 0.4;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .popup-footer {
   padding: 20px;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-outline-variant);
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
 }
 </style>

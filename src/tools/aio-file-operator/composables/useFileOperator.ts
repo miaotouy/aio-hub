@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import { ref, computed, onScopeDispose } from "vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import { useVcpDistributedStore } from "@/tools/vcp-connector/stores/vcpDistributedStore";
 import * as actions from "../actions";
-import { DEFAULT_ALLOWED_DIRECTORIES, DEFAULT_CONFIG } from "../config";
+import { getDefaultAllowedDirectories, DEFAULT_CONFIG } from "../config";
 import type { AioFileOperatorConfig, OperationLogEntry } from "../types";
 
 const errorHandler = createModuleErrorHandler("AioFileOperator/UI");
@@ -35,6 +35,7 @@ export function useFileOperator() {
     blackListRules: [...DEFAULT_CONFIG.blackListRules],
   });
 
+  const workingDirectory = ref<string | null>(null);
   const maxFileSizeMB = ref(10);
   const logs = ref<OperationLogEntry[]>([]);
   onScopeDispose(
@@ -87,6 +88,7 @@ export function useFileOperator() {
   // 加载配置
   async function loadConfig() {
     config.value = await actions.getConfig();
+    workingDirectory.value = await actions.getWorkingDirectory();
     maxFileSizeMB.value = Math.round(config.value.maxFileSize / 1024 / 1024);
   }
 
@@ -166,15 +168,17 @@ export function useFileOperator() {
   // 删除目录
   function removeDirectory(index: number) {
     if (config.value.sandboxMode === "blacklist") return;
+    if (config.value.allowedDirectories[index] === workingDirectory.value)
+      return;
     config.value.allowedDirectories.splice(index, 1);
     saveConfig();
   }
 
   // 重置为默认
-  function resetToDefault() {
+  async function resetToDefault() {
     if (config.value.sandboxMode === "blacklist") return;
-    config.value.allowedDirectories = [...DEFAULT_ALLOWED_DIRECTORIES];
-    saveConfig();
+    config.value.allowedDirectories = await getDefaultAllowedDirectories();
+    await saveConfig();
   }
 
   // 选择规则路径
@@ -256,6 +260,7 @@ export function useFileOperator() {
 
   return {
     config,
+    workingDirectory,
     maxFileSizeMB,
     logs,
     newDirectoryPath,

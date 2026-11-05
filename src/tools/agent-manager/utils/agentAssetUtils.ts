@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { computed, type Ref } from "vue";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@/platform/native/core";
 import { getAppConfigDir } from "@/utils/appPath";
 import type { ChatAgent, AgentAsset } from "../types/agent";
 import { createModuleLogger } from "@/utils/logger";

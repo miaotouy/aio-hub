@@ -17,13 +17,13 @@ import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { createModuleLogger } from "@/utils/logger";
 import { sanitizeFilename } from "@/utils/fileUtils";
-import { writeTextFile, writeFile, exists, mkdir } from "@tauri-apps/plugin-fs";
-import { save } from "@tauri-apps/plugin-dialog";
-import { downloadDir, join, dirname } from "@tauri-apps/api/path";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { emit } from "@tauri-apps/api/event";
+import { writeTextFile, writeFile, exists, mkdir } from "@/platform/native/fs";
+import { save } from "@/platform/native/dialog";
+import { downloadDir, join, dirname } from "@/platform/native/path";
+import { revealItemInDir } from "@/platform/native/opener";
+import { emit } from "@/platform/native/events";
 import { customMessage } from "@/utils/customMessage";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform/native/window";
 import {
   DOWNLOAD_EVENTS,
   type DownloadCompletedPayload,

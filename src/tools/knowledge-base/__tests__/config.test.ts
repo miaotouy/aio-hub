@@ -53,6 +53,31 @@ describe("Knowledge configuration", () => {
     expect(defaults.chunking.targetChars).not.toBe(2200);
   });
 
+  it.each([null, 768])(
+    "accepts backend serialized dimensions %s when enabling semantic indexing",
+    (dimensions) => {
+      const wireConfig = JSON.parse(
+        JSON.stringify({
+          ...createDefaultKnowledgeLibraryConfig(),
+          embedding: {
+            ...createDefaultKnowledgeLibraryConfig().embedding,
+            requestedDimensions: dimensions,
+            enabled: true,
+            routeKey: "local:nomic:latest",
+          },
+          indexes: { keyword: true, semantic: true, graph: true },
+        })
+      );
+      const config = normalizeKnowledgeLibraryConfig(wireConfig);
+
+      expect(() => validateKnowledgeLibraryConfig(config)).not.toThrow();
+      expect(config.embedding.requestedDimensions).toBe(
+        dimensions ?? undefined
+      );
+      expect(wireConfig.embedding.requestedDimensions).toBe(dimensions);
+    }
+  );
+
   it("rejects invalid chunk and semantic contracts", () => {
     const overlap = createDefaultKnowledgeLibraryConfig();
     overlap.chunking.overlapChars = overlap.chunking.targetChars;

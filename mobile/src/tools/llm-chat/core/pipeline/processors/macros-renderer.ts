@@ -1,4 +1,9 @@
-import type { ChatAgent } from "@/tools/agent-manager/types/agent";
+import {
+  normalizeAgentAssetGroups,
+  type AgentAsset,
+  type AgentAssetGroup,
+  type ChatAgent,
+} from "@/tools/agent-manager/types/agent";
 import type { ManagedAssetRef } from "@/tools/asset-manager/types";
 import { createModuleLogger } from "@/utils/logger";
 import {
@@ -26,6 +31,13 @@ interface VariableDefinitionNode {
   children?: unknown;
 }
 
+/** `{{assets}}` 宏的数据来源：全局轻量引用 + Agent 私有资产与分组。 */
+interface AssetsMacroData {
+  global: ManagedAssetRef[];
+  private: AgentAsset[];
+  groups: AgentAssetGroup[];
+}
+
 interface MacroRuntimeContext {
   userName: string;
   charName: string;
@@ -44,7 +56,60 @@ interface MacroRuntimeContext {
   profileId: string;
   profileName: string;
   provider: string;
-  assets: string;
+  assets: AssetsMacroData;
+  /** 本次请求的有效时间（考虑虚拟时间配置），时间宏共享同一时刻。 */
+  effectiveNow: Date;
+}
+
+/** 英文月份名，用于 {{date}} 宏，语义对齐桌面 formatDate。 */
+const DATE_MACRO_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+function padTwo(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
+/**
+ * 计算本次请求的有效时间。
+ * 语义对齐桌面 datetime.ts 的 calculateEffectiveTime：
+ * virtualBase + (当前真实时间 - realBase) * timeScale（timeScale 缺省 1），
+ * 基准时间解析失败时回退现实时间。
+ */
+function calculateEffectiveNow(context: PipelineContext): Date {
+  const currentRealTime =
+    Number.isFinite(context.timestamp) && context.timestamp > 0
+      ? new Date(context.timestamp)
+      : new Date();
+
+  const config = context.agentConfig?.virtualTimeConfig;
+  if (!config) return currentRealTime;
+
+  const virtualBase = new Date(config.virtualBaseTime).getTime();
+  const realBase = new Date(config.realBaseTime).getTime();
+  const timeScale = config.timeScale ?? 1;
+  if (
+    !Number.isFinite(virtualBase) ||
+    !Number.isFinite(realBase) ||
+    !Number.isFinite(timeScale)
+  ) {
+    logger.warn("虚拟时间配置解析失败，时间宏回退为现实时间。", { config });
+    return currentRealTime;
+  }
+
+  const elapsedRealTime = currentRealTime.getTime() - realBase;
+  return new Date(virtualBase + elapsedRealTime * timeScale);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -161,20 +226,99 @@ function sourceContent(message: ProcessableMessage | undefined): string {
   return message && typeof message.content === "string" ? message.content : "";
 }
 
-function createAssetsSummary(messages: ProcessableMessage[]): string {
+function collectGlobalAttachments(
+  messages: ProcessableMessage[]
+): ManagedAssetRef[] {
   const attachments = new Map<string, ManagedAssetRef>();
   for (const message of messages) {
     for (const attachment of message._attachments ?? []) {
       attachments.set(attachment.assetId, attachment);
     }
   }
+  return [...attachments.values()];
+}
 
-  return [...attachments.values()]
+/** 全局附件的现有摘要格式与去重顺序保持不变。 */
+function formatGlobalAttachments(attachments: ManagedAssetRef[]): string {
+  return attachments
     .map(
       (attachment) =>
         `- ${attachment.snapshot.displayName} (${attachment.snapshot.mimeType}, ${attachment.assetId})`
     )
     .join("\n");
+}
+
+/**
+ * 按分组解析 Agent 私有资产。
+ * `default` 对齐桌面语义：未分组、显式为 `default`、或引用了不存在的分组。
+ */
+function filterAgentAssetsByGroup(
+  assets: AgentAsset[],
+  groups: AgentAssetGroup[],
+  groupFilter: string
+): AgentAsset[] {
+  const groupIds = new Set(groups.map((group) => group.id));
+  if (groupFilter === "default") {
+    return assets.filter((asset) => {
+      const group = typeof asset.group === "string" ? asset.group.trim() : "";
+      return !group || group === "default" || !groupIds.has(group);
+    });
+  }
+  return assets.filter((asset) => asset.group === groupFilter);
+}
+
+/**
+ * 以可读文本输出 Agent 私有资产。
+ * 移动端不引入桌面 `agent-asset://` 资源协议（没有对应 resolver），
+ * 因此只输出类型、文件名与 Handle 标识，供模型理解而不作资源引用解析。
+ */
+function formatAgentAssets(assets: AgentAsset[]): string {
+  return assets
+    .map((asset) => {
+      const type =
+        typeof asset.type === "string" && asset.type ? asset.type : "file";
+      const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+      const filename =
+        typeof asset.filename === "string" && asset.filename
+          ? asset.filename
+          : asset.id;
+      const handle =
+        typeof asset.id === "string" && asset.id ? ` (handle: ${asset.id})` : "";
+      const description =
+        typeof asset.description === "string" && asset.description.trim()
+          ? `: ${asset.description}`
+          : "";
+      return `- [${typeLabel}] ${filename}${handle}${description}`;
+    })
+    .join("\n");
+}
+
+/** 渲染 `{{assets}}` / `{{assets::group}}`，分组语义对齐桌面 assets.ts。 */
+function renderAssetsMacro(
+  data: AssetsMacroData,
+  groupFilter?: string
+): string {
+  if (groupFilter) {
+    const assets = filterAgentAssetsByGroup(
+      data.private,
+      data.groups,
+      groupFilter
+    );
+    if (assets.length === 0) {
+      return `No assets in group "${groupFilter}".`;
+    }
+    return `Assets in group "${groupFilter}":\n${formatAgentAssets(assets)}`;
+  }
+
+  const globalSummary = formatGlobalAttachments(data.global);
+  // 无私有附件时与旧行为逐字一致（含全局为空时返回空串）。
+  if (data.private.length === 0) return globalSummary;
+
+  const privateSummary = formatAgentAssets(data.private);
+  const header = "Agent private assets:";
+  return globalSummary
+    ? `${globalSummary}\n\n${header}\n${privateSummary}`
+    : `${header}\n${privateSummary}`;
 }
 
 function createMacroRuntimeContext(
@@ -212,7 +356,12 @@ function createMacroRuntimeContext(
     profileId: stringValue(profile?.id) || agent?.profileId || "",
     profileName: stringValue(profile?.name),
     provider: stringValue(profile?.name),
-    assets: createAssetsSummary(context.messages),
+    assets: {
+      global: collectGlobalAttachments(context.messages),
+      private: Array.isArray(agent?.assets) ? agent.assets : [],
+      groups: normalizeAgentAssetGroups(agent?.assetGroups),
+    },
+    effectiveNow: calculateEffectiveNow(context),
   };
 }
 
@@ -262,7 +411,7 @@ function resolveMacro(
     case "visual_guideline":
       return runtime.visualGuideline;
     case "assets":
-      return runtime.assets;
+      return renderAssetsMacro(runtime.assets, arguments_[0]);
     case "newline":
       return "\n";
     case "trim":
@@ -287,6 +436,24 @@ function resolveMacro(
       if (arguments_[0])
         applyVariableOperation(variables, arguments_[0], "-", "1");
       return "";
+    case "time": {
+      const now = runtime.effectiveNow;
+      const hours = now.getHours();
+      const minutes = padTwo(now.getMinutes());
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:${minutes} ${ampm}`;
+    }
+    case "date": {
+      const now = runtime.effectiveNow;
+      return `${DATE_MACRO_MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+    }
+    case "isotime":
+      return runtime.effectiveNow.toISOString();
+    case "datetime": {
+      const now = runtime.effectiveNow;
+      return `${now.getFullYear()}-${padTwo(now.getMonth() + 1)}-${padTwo(now.getDate())} ${padTwo(now.getHours())}:${padTwo(now.getMinutes())}:${padTwo(now.getSeconds())}`;
+    }
     default:
       return `{{${expression}}}`;
   }
@@ -312,7 +479,7 @@ export const macrosRenderer: ContextProcessor = {
   id: PROCESSOR_ID,
   name: "宏与会话变量渲染器",
   description:
-    "展开移动端角色聊天使用的角色、用户、会话、模型和附件宏，并处理导入角色的局部变量。",
+    "展开移动端角色聊天使用的角色、用户、会话、模型、全局附件摘要与 Agent 私有资产分组宏，并处理导入角色的局部变量。",
   priority: 500,
   isCore: true,
   execute: async (context) => {

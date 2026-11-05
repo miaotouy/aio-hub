@@ -8,7 +8,7 @@ Directory Tree 是一个交互式的目录结构可视化工具。其核心设�
 
 ### 1.1. Rust 后端：高性能结构化数据生成
 
-核心的目录遍历和初始过滤逻辑完全由 Rust 后端处理，以确保最佳性能和准确性。
+Tauri 宿主使用 Rust 后端生成目录结构；Electron 宿主通过同名业务命令提供相同的数据契约，前端继续负责文本渲染和二次筛选。
 
 -   **核心库**: 后端利用了 `ignore` crate (ripgrep 的核心引擎)，原生支持 `.gitignore` 规则，提供了极高的遍历效率。
 -   **调用方式**: 前端通过 Tauri `invoke` 调用 `generate_directory_tree` 命令。
@@ -18,13 +18,18 @@ Directory Tree 是一个交互式的目录结构可视化工具。其核心设�
     // Rust 返回的核心数据结构
     interface TreeNode {
       name: string;
-      path: string;
       is_dir: boolean;
       size: number;
       children: TreeNode[];
-      error?: string;
+      error: string | null;
     }
     ```
+
+### Electron 宿主适配
+
+Electron 的命令入口位于 `electron/main.ts`，实现位于 `electron/directory-tree.ts` 与 `electron/directory-tree-rules.ts`。异步 Node 文件遍历按 32 项批次读取元数据，主动让出事件循环；规则使用现有 minimatch 依赖，保留选中根/子目录作用域和 Rust ignore 的自定义覆盖优先级。Tauri 的 Rust 并行遍历沿用原实现。
+
+两端均返回 `{ structure, stats }`，节点字段为 `name/is_dir/size/children/error`；业务消费者按自己的根目录计算相对路径。目录链接可显式选作根，后代链接保留为叶节点。Electron 任务按窗口归属，导航、窗口关闭或应用退出时取消；目录读取失败可以在对应节点的 `error` 中返回原因。`showFiles: false` 保留文件数量统计，返回树中的目录大小按可见节点汇总。
 
 ### 1.2. 前端：动态渲染与二次筛选
 

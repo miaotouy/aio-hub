@@ -11,9 +11,13 @@ const clipboard = vi.hoisted(() => ({
 }));
 
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => clipboard);
-vi.mock("@/i18n", () => ({
-  useI18n: () => ({ tRaw: (key: string) => key }),
-}));
+vi.mock("@/i18n", () => {
+  const useScopedT = (prefix: string) => (key: string) => `${prefix}.${key}`;
+  return {
+    useScopedT,
+    useI18n: () => ({ t: (key: string) => key, useScopedT }),
+  };
+});
 
 const VarButtonStub = defineComponent({
   inheritAttrs: false,

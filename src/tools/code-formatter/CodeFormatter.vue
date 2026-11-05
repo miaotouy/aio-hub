@@ -155,7 +155,7 @@ import InfoCard from "@/components/common/InfoCard.vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { WarningFilled } from "@element-plus/icons-vue";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { writeText } from "@/platform/native/clipboard";
 import { useSendToChat } from "@/composables/useSendToChat";
 import { formatterCore } from "./logic/formatter";
 import type { FormatterStatus, SupportedLanguage } from "./types";

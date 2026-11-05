@@ -263,7 +263,20 @@ export async function buildPreviewDataFromContext(
       attachmentTokenCountAccum += presetAttachmentTokenCount;
     } else if (msg.sourceType === "session_history") {
       // 会话历史消息：需要处理附件
-      const sourceNode = sessionDetail.nodes?.[msg.sourceId as string];
+      const sourceNodes = msg._mergedSources?.flatMap((source) => {
+        const node = sessionDetail.nodes?.[source.sourceId as string];
+        return node ? [node] : [];
+      });
+      const sourceNode = sourceNodes?.length
+        ? {
+            ...sourceNodes[0],
+            attachments: sourceNodes.flatMap((node) => node.attachments ?? []),
+            localMedia: sourceNodes.flatMap((node) => node.localMedia ?? []),
+            virtualAttachments: sourceNodes.flatMap(
+              (node) => node.virtualAttachments ?? []
+            ),
+          }
+        : sessionDetail.nodes?.[msg.sourceId as string];
       if (!sourceNode) {
         // 回退到简单计算
         const tokenResult = await tokenCalculatorService.calculateTokens(

@@ -28,7 +28,10 @@ defineEmits<{
     :data-profile-id="profile.id"
     :data-profile-name="profile.name"
     :class="{ 'is-disabled': !profile.enabled }"
+    role="button"
+    tabindex="0"
     @click="$emit('click')"
+    @keydown.enter="$emit('click')"
   >
     <div class="card-content">
       <div class="icon-wrapper">
@@ -76,9 +79,9 @@ defineEmits<{
 
 <style scoped>
 .profile-card {
-  background: var(--color-surface-container-low);
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--app-radius-xl);
   padding: 16px;
   margin-bottom: 12px;
   transition: all 0.2s ease;
@@ -102,11 +105,11 @@ defineEmits<{
 .icon-wrapper {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
-  background: var(--color-surface-container);
+  border-radius: var(--app-radius-lg);
+  background: var(--container-bg);
   overflow: hidden;
   padding: 8px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -124,14 +127,14 @@ defineEmits<{
 
 .profile-name {
   font-weight: bold;
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .profile-url {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   opacity: 0.6;
   white-space: nowrap;
   overflow: hidden;
@@ -141,11 +144,11 @@ defineEmits<{
 .card-footer {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   opacity: 0.5;
 }
 
@@ -161,13 +164,13 @@ defineEmits<{
 }
 
 .status-enabled {
-  color: var(--color-success);
+  color: var(--success-color);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .status-disabled {
-  color: var(--color-warning);
+  color: var(--warning-color);
 }
 </style>

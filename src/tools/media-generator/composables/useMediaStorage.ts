@@ -22,8 +22,8 @@ import {
   readTextFile,
   writeTextFile,
   remove,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import { debounce } from "lodash-es";
@@ -130,7 +130,7 @@ export function useMediaStorage() {
     const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);
 
     if (!(await exists(sessionsDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const { mkdir } = await import("@/platform/native/fs");
       await mkdir(sessionsDir, { recursive: true });
       logger.debug("创建 sessions 目录", { sessionsDir });
     }
@@ -270,7 +270,7 @@ export function useMediaStorage() {
    */
   async function scanSessionDirectory(): Promise<string[]> {
     try {
-      const { readDir } = await import("@tauri-apps/plugin-fs");
+      const { readDir } = await import("@/platform/native/fs");
       const appDir = await getAppConfigDir();
       const moduleDir = await join(appDir, MODULE_NAME);
       const sessionsDir = await join(moduleDir, SESSIONS_SUBDIR);

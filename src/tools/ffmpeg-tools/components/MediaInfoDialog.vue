@@ -35,7 +35,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import MediaInfoPanel from "./MediaInfoPanel.vue";
 import { useFFmpegCore } from "../composables/useFFmpegCore";
 import type { FFProbeOutput } from "../types";
-import { exists } from "@tauri-apps/plugin-fs";
+import { exists } from "@/platform/native/fs";
 
 const visible = ref(false);
 const loading = ref(false);

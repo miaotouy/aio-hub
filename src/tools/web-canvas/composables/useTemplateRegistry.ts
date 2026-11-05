@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { join, resolveResource } from "@tauri-apps/api/path";
+import { join, resolveResource } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import {
   readDir,
@@ -21,8 +21,8 @@ import {
   exists,
   readFile,
   writeFile,
-} from "@tauri-apps/plugin-fs";
-import { convertFileSrc } from "@tauri-apps/api/core";
+} from "@/platform/native/fs";
+import { convertFileSrc } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {

@@ -38,7 +38,7 @@
  */
 
 import { onMounted, onUnmounted } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
 import { inspectorHookRegistry } from "../core/hookRegistry";

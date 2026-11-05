@@ -15,8 +15,9 @@
 -->
 
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { ref, watch, onUnmounted } from "vue";
+import { usePageActivity } from "@/composables/usePageActivity";
+import { invoke } from "@/platform/native/core";
 import InteractiveToolbar from "./InteractiveToolbar.vue";
 import PageInfoBar from "./PageInfoBar.vue";
 import BrowserViewport from "./BrowserViewport.vue";
@@ -34,6 +35,18 @@ import { createModuleLogger } from "@/utils/logger";
 import { customMessage } from "@/utils/customMessage";
 
 const store = useWebDistilleryStore();
+const active = usePageActivity();
+let revision = 0;
+let syncTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  active,
+  () => {
+    revision++;
+    clearTimeout(syncTimer);
+    store.setLoading(false);
+  },
+  { flush: "sync" }
+);
 const errorHandler = createModuleErrorHandler(
   "web-distillery/interactive-workbench"
 );
@@ -69,17 +82,21 @@ async function captureLocalStorage(): Promise<
  * 如果之前没有 cookies 而现在有了（说明登录成功），自动创建/更新身份卡片。
  */
 async function syncProxyCookiesToProfile() {
+  if (!active.value || !store.isWebviewCreated) return;
+  const request = revision;
+  const url = store.url;
+  const current = () =>
+    active.value && request === revision && url === store.url;
   try {
     const proxyCookies = await invoke<string | null>(
       "distillery_get_proxy_cookies"
     );
 
-    if (!proxyCookies || proxyCookies === lastKnownCookies) {
+    if (!current() || !proxyCookies || proxyCookies === lastKnownCookies) {
       return; // 没有变化
     }
 
     lastKnownCookies = proxyCookies;
-    const url = store.url;
     if (!url) return;
 
     await cookieProfileStore.load();
@@ -112,6 +129,7 @@ async function syncProxyCookiesToProfile() {
 
     // 同时采集 localStorage（用于 SPA token 恢复）
     const localStorageData = await captureLocalStorage();
+    if (!current()) return;
 
     if (existingProfile) {
       // 合并到已有 Profile
@@ -178,15 +196,20 @@ async function syncProxyCookiesToProfile() {
 function setupNavigationListener() {
   if (unsubNavigation) unsubNavigation();
   unsubNavigation = iframeBridge.onNavigationChange((url, title) => {
+    if (!active.value || store.activeTab !== "interactive") return;
+    clearTimeout(syncTimer);
     // 更新当前页面信息到 store
     store.setCurrentPage(url, title);
     // 页面导航发生变化，可能是登录成功后的跳转
     // 延迟执行以确保代理层已处理完所有 Set-Cookie 响应
-    setTimeout(syncProxyCookiesToProfile, 500);
+    syncTimer = setTimeout(syncProxyCookiesToProfile, 500);
   });
 }
 
 const handleLoadUrl = async (url: string) => {
+  if (!active.value || store.isLoading) return;
+  const request = ++revision;
+  const current = () => active.value && request === revision;
   const container = viewportRef.value?.containerRef;
   if (!container) {
     customMessage.error("浏览器视口未就绪");
@@ -197,55 +220,22 @@ const handleLoadUrl = async (url: string) => {
   try {
     store.setUrl(url);
 
-    // Step 1: 注入 cookies + localStorage 到代理（在创建 iframe 之前）
-    await cookieProfileStore.load();
-    const activeProfile = await cookieProfileStore.getActiveProfileForUrl(url);
-    if (activeProfile) {
-      const cookieStr = activeProfile.cookies
-        .map((c) => `${c.name}=${c.value}`)
-        .join("; ");
-      await invoke("distillery_set_proxy_cookies", { cookies: cookieStr });
-
-      // 同步 localStorage 到代理层
-      if (
-        activeProfile.localStorage &&
-        Object.keys(activeProfile.localStorage).length > 0
-      ) {
-        await invoke("distillery_set_proxy_local_storage", {
-          data: JSON.stringify(activeProfile.localStorage),
-        });
-      } else {
-        await invoke("distillery_set_proxy_local_storage", { data: null });
-      }
-
-      logger.info("Injected cookies for interactive browsing", {
-        profileName: activeProfile.name,
-        domain: activeProfile.domain,
-        cookieCount: activeProfile.cookies.length,
-        localStorageKeys: activeProfile.localStorage
-          ? Object.keys(activeProfile.localStorage).length
-          : 0,
-      });
-    } else {
-      await invoke("distillery_set_proxy_cookies", { cookies: null });
-      await invoke("distillery_set_proxy_local_storage", { data: null });
-    }
-
-    // iframeBridge.create() 内部会自动调用 init()，无需重复调用
+    // 代理初始化与身份同步由 bridge 统一处理。
     await iframeBridge.create({
       url,
       container,
       hidden: false,
     });
+    if (!current()) return;
     store.initRecipeDraft();
 
     // 设置导航监听：自动检测登录成功并同步 cookies
     lastKnownCookies = null; // 重置追踪状态
     setupNavigationListener();
   } catch (err) {
-    errorHandler.error(err, "网页加载失败");
+    if (current()) errorHandler.error(err, "网页加载失败");
   } finally {
-    store.setLoading(false);
+    if (current()) store.setLoading(false);
   }
 };
 
@@ -392,6 +382,7 @@ const openApiSniffer = () => {
 };
 
 onUnmounted(async () => {
+  clearTimeout(syncTimer);
   if (unsubNavigation) {
     unsubNavigation();
     unsubNavigation = null;

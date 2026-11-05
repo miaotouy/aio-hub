@@ -1,0 +1,67 @@
+[package]
+name = "aiohub-knowledge-addon"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[build-dependencies]
+napi-build = "2.2.3"
+
+[dependencies]
+aiohub-code-formatter = { path = "../../src-tauri/crates/code-formatter" }
+napi = { version = "=3.16.1", features = ["async"] }
+napi-derive = "=3.7.0"
+blake3 = "1.8.3"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff", "ico", "pnm"] }
+webp = { version = "0.3.1", default-features = false }
+scopeguard = "1"
+axum = { version = "=0.7.9", features = ["macros"] }
+once_cell = "1"
+url = "2"
+wreq = { version = "=6.0.0-rc.28", features = ["gzip", "brotli", "deflate", "charset", "system-proxy"] }
+wreq-util = { version = "=3.0.0-rc.11", features = ["emulation"] }
+content_inspector = "0.2"
+encoding_rs = "0.8.35"
+fs2 = "0.4"
+fs_extra = "1.3"
+tempfile = "3"
+tokio-util = { version = "0.7", features = ["rt"] }
+trash = "5.2"
+memchr = "2"
+nanoid = "0.4.0"
+chrono = { version = "0.4", features = ["serde"] }
+ignore = "0.4"
+jieba-rs = "0.7"
+hnsw_rs = "0.3.3"
+lazy_static = "1.4"
+log = "0.4"
+libloading = "0.8"
+sysinfo = "0.33"
+nvml-wrapper = "0.10"
+rusqlite = { version = "=0.39.0", default-features = false, features = ["bundled", "backup", "cache"] }
+rayon = "1"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "macros", "net", "sync"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+walkdir = "2"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams", "Foundation", "Foundation_Collections", "Win32_System_WinRT", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_Xps"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+aes-gcm = "0.10"
+rand = "0.8"

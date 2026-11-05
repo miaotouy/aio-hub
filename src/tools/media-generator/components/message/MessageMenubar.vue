@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { ElTooltip, ElPopover } from "element-plus";
 import BranchSelector from "./BranchSelector.vue";
@@ -77,7 +79,7 @@ const task = computed(() => {
 // 复制消息
 const copyMessage = async () => {
   try {
-    await navigator.clipboard.writeText(props.message.content);
+    await getBrowserClipboard().writeText(props.message.content);
     emit("copy");
     copied.value = true;
     setTimeout(() => {

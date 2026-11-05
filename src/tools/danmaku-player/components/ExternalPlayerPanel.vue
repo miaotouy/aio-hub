@@ -18,7 +18,8 @@
   <div class="external-player-panel">
     <el-alert
       v-if="!isSupported"
-      title="外部播放器弹幕覆盖需要 Windows。当前系统可使用内置播放器加载视频与弹幕。"
+      :title="overlayCapability.reason || ''"
+      description="可使用内置播放器加载视频与弹幕。"
       type="info"
       :closable="false"
       show-icon
@@ -313,6 +314,7 @@ import {
   ArrowDown,
   Settings2,
 } from "lucide-vue-next";
+import { getHostCapability } from "@/platform/core/capabilities";
 import { customMessage } from "@/utils/customMessage";
 import DanmakuSettingsPanel from "./DanmakuSettingsPanel.vue";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -330,6 +332,8 @@ const props = defineProps<{
   scriptInfo: AssScriptInfo;
   config: DanmakuConfig;
 }>();
+
+const overlayCapability = getHostCapability("externalPlayerOverlay");
 
 const errorHandler = createModuleErrorHandler(
   "danmaku-player/externalPlayerPanel"

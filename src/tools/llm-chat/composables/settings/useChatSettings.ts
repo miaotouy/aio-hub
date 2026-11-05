@@ -19,6 +19,7 @@
  */
 
 import { ref } from "vue";
+import { normalizeContinuationSettings } from "@/llm-apis/continuation";
 import { createConfigManager } from "@/utils/configManager";
 import { createModuleLogger } from "@utils/logger";
 import { createModuleErrorHandler } from "@utils/errorHandler";
@@ -48,6 +49,7 @@ function readLegacyInputSettings(): unknown {
 function createDefaultSettings(): ChatSettings {
   return {
     ...DEFAULT_SETTINGS,
+    continuation: normalizeContinuationSettings(DEFAULT_SETTINGS.continuation),
     uiPreferences: {
       ...DEFAULT_SETTINGS.uiPreferences,
       messageToolbar: normalizeMessageToolbarLayout(
@@ -79,6 +81,7 @@ const settingsManager = createConfigManager<ChatSettings>({
     return {
       ...defaultConfig,
       ...loadedConfig,
+      continuation: normalizeContinuationSettings(loadedConfig.continuation),
       uiPreferences: {
         ...defaultConfig.uiPreferences,
         ...(loadedConfig.uiPreferences || {}),
@@ -230,7 +233,12 @@ async function loadSettings(): Promise<void> {
     moduleErrorHandler.warn(error, "加载聊天设置失败，使用默认设置", {
       action: "loadSettings",
     });
-    settings.value = { ...DEFAULT_SETTINGS };
+    settings.value = {
+      ...DEFAULT_SETTINGS,
+      continuation: normalizeContinuationSettings(
+        DEFAULT_SETTINGS.continuation
+      ),
+    };
     isLoaded.value = true;
   }
 }
@@ -253,7 +261,10 @@ async function saveSettings(): Promise<void> {
  * 重置设置为默认值
  */
 async function resetSettings(): Promise<void> {
-  settings.value = { ...DEFAULT_SETTINGS };
+  settings.value = {
+    ...DEFAULT_SETTINGS,
+    continuation: normalizeContinuationSettings(DEFAULT_SETTINGS.continuation),
+  };
   await saveSettings();
   logger.info("聊天设置已重置为默认值");
 }
@@ -302,6 +313,10 @@ async function updateSettings(updates: Partial<ChatSettings>): Promise<void> {
         ...settings.value.transcription,
         ...(updates.transcription || {}),
       },
+      continuation: normalizeContinuationSettings({
+        ...settings.value.continuation,
+        ...updates.continuation,
+      }),
       requestSettings: {
         ...settings.value.requestSettings,
         ...(updates.requestSettings || {}),

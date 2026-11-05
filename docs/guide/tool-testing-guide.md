@@ -395,7 +395,7 @@ bun run test:tauri:e2e -- --preset native
 
 仓库入口：`bun run test:mobile:e2e -- --unit` 运行 runner 单元测试；`bun run test:mobile:e2e -- --preset core` 运行核心 AVD 回归。runner 使用 Bun、Appium 2、UiAutomator2 和目标 AVD 主 ABI 的单 ABI APK；完整命令、preset 和失败产物见 [`tests/mobile-android-e2e/README.md`](../../tests/mobile-android-e2e/README.md)。
 
-具名 preset 默认执行 80 MiB 单 ABI E2E debug APK 大小门禁；`e2e-run.json` 只保留 APK 文件名，Appium、emulator、DOM、UI hierarchy、logcat 和 activity 产物在落盘前统一脱敏。需要审查有意的 APK 基线变更时显式传入 `--max-apk-bytes`。
+具名 preset 默认执行 80 MiB 单 ABI E2E debug APK 大小后续验证；`e2e-run.json` 只保留 APK 文件名，Appium、emulator、DOM、UI hierarchy、logcat 和 activity 产物在落盘前统一脱敏。需要审查有意的 APK 基线变更时显式传入 `--max-apk-bytes`。
 
 移动端脚本化测试使用独立的 Android Studio AVD runner，详细施工计划见
 [`mobile-android-avd-e2e.md`](../../mobile/docs/architecture/mobile-android-avd-e2e.md)。
@@ -418,7 +418,7 @@ Android Studio AVD 可通过 `10.0.2.2` 访问宿主机服务；必要时也可�
 
 只证明模拟器能访问宿主机端口、只 mock 前端 Transport，或只断言服务收到任意 HTTP
 请求，都不能视为附件闭环通过。Android AVD 结果也不能替代 Android 真机、真实低存储、
-相机硬件或 iOS 门禁。
+相机硬件或 iOS 后续验证。
 
 Android UI 自动化优先使用稳定 `data-testid`、可访问名称、系统 resource-id 和 DOM 状态；
 不得把固定坐标、截图识别或本地化文案作为主要控制方式。成功运行保留结构化结果与

@@ -285,7 +285,8 @@
       v-model="showList"
       title="字幕列表"
       direction="rtl"
-      size="460px"
+      size="min(92vw, 1100px)"
+      append-to-body
       :with-header="true"
     >
       <SubtitleTimeline
@@ -304,7 +305,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@/platform/native/core";
 import {
   ElButton,
   ElDrawer,
@@ -434,7 +435,7 @@ function formatDuration(ms: number) {
 async function pickVideo() {
   if (isBusy.value) return;
   try {
-    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { open } = await import("@/platform/native/dialog");
     const selected = await open({
       multiple: false,
       filters: [
@@ -731,10 +732,13 @@ watch(
 }
 .video-workbench__monitor {
   flex: 1;
-  min-height: 0;
+  min-height: 180px;
 }
 .video-workbench__preview {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-height: 80px;
+  max-height: 45%;
+  overflow-y: auto;
 }
 .video-workbench__inspector {
   width: 360px;

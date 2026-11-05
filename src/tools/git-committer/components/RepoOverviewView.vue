@@ -464,6 +464,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import CreateTagDialog from "./CreateTagDialog.vue";
 import { ref, onMounted, watch, computed } from "vue";
 import {
@@ -548,7 +550,7 @@ const isSubmitting = ref(false);
 
 const copyText = async (text: string, label = "内容") => {
   try {
-    await navigator.clipboard.writeText(text);
+    await getBrowserClipboard().writeText(text);
     customMessage.success(`已复制 ${label}`);
   } catch {
     customMessage.error("复制失败");

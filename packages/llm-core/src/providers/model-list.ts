@@ -1,3 +1,4 @@
+import { normalizeDeepSeekProfile } from "./deepseek-endpoints";
 import { isAggregateChannelType } from "../model-execution-routing";
 import type { JsonValue } from "../types/json";
 import type {
@@ -209,6 +210,7 @@ function buildModelListUrl(
   profile: ProviderProfile,
   request: ModelListRequest
 ): string {
+  profile = normalizeDeepSeekProfile(profile);
   const custom = profile.endpoints?.models;
   const endpoint = custom || request.endpoint;
   if (/^https?:\/\//i.test(endpoint)) return endpoint;

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen } from "@/platform/native/events";
 import { streamLoadRepository, type GitProgressEvent } from "../useGitLoader";
 
-vi.mock("@tauri-apps/api/event", () => ({
+vi.mock("@/platform/native/events", () => ({
   listen: vi.fn(),
 }));
 

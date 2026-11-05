@@ -41,7 +41,7 @@ import {
   registerSettingItem,
 } from "@/tools/llm-chat/composables/settings/usePluginSettings";
 import { getAppConfigDir } from "@/utils/appPath";
-import { emit, listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@/platform/native/events";
 
 const logger = createModuleLogger("services/plugin-manager");
 const errorHandler = createModuleErrorHandler("services/plugin-manager");
@@ -75,8 +75,8 @@ export async function resolvePluginIconUrl(
     pluginPath.startsWith("/plugins") || pluginPath.startsWith("plugins");
 
   try {
-    const { join } = await import("@tauri-apps/api/path");
-    const { exists } = await import("@tauri-apps/plugin-fs");
+    const { join } = await import("@/platform/native/path");
+    const { exists } = await import("@/platform/native/fs");
 
     if (isDevMode) {
       // 开发模式：直接使用 Vite 路径
@@ -161,7 +161,7 @@ async function createPluginIcon(
           const isLocalPath =
             /^[a-zA-Z]:[\\/]/.test(iconUrl) || iconUrl.startsWith("\\\\");
           if (isLocalPath) {
-            const { convertFileSrc } = await import("@tauri-apps/api/core");
+            const { convertFileSrc } = await import("@/platform/native/core");
             processedSrc.value = convertFileSrc(iconUrl);
           } else {
             processedSrc.value = iconUrl;
@@ -203,7 +203,7 @@ async function createPluginIcon(
  * 为插件创建组件加载函数
  *
  * 开发模式：支持 .vue 文件，通过 Vite 的 import.meta.glob 动态导入，享受 HMR
- * 生产模式：仅支持编译后的 .js/.mjs 文件，通过 convertFileSrc 加载
+ * 生产模式：仅支持编译后的 .js/.mjs 文件，通过宿主插件资源入口加载
  *
  * @param pluginPath 插件安装路径（开发模式为 Vite 虚拟路径，生产模式为文件系统绝对路径）
  * @param componentFile 组件文件相对于插件根目录的路径（例如 "MyComponent.vue" 或 "dist/MyComponent.js"）
@@ -218,7 +218,7 @@ function createPluginComponentLoader(
 
   return async () => {
     try {
-      const { join } = await import("@tauri-apps/api/path");
+      const { join } = await import("@/platform/native/path");
 
       if (isDevMode) {
         // 开发模式：从 window.__PLUGIN_COMPONENTS__ 获取组件加载器
@@ -255,8 +255,9 @@ function createPluginComponentLoader(
 
         return module.default;
       } else {
-        // 生产模式：使用 convertFileSrc
-        const { convertFileSrc } = await import("@tauri-apps/api/core");
+        // 生产模式：使用宿主插件资源入口。
+        const { getPluginResourceUrl } =
+          await import("@/platform/modules/plugin-resources");
 
         // 自动修正：如果组件文件名以 .vue 结尾，尝试寻找同名的 .js
         let finalComponentFile = componentFile;
@@ -266,7 +267,7 @@ function createPluginComponentLoader(
 
         // 调试：扫描并打印插件目录下的所有文件，帮助诊断分块丢失问题
         try {
-          const { readDir } = await import("@tauri-apps/plugin-fs");
+          const { readDir } = await import("@/platform/native/fs");
           const files = await readDir(pluginPath);
           logger.info("【调试】扫描插件安装目录文件列表", {
             pluginId: pluginPath.split(/[/\\]/).pop(),
@@ -281,8 +282,7 @@ function createPluginComponentLoader(
           const cssFiles = files.filter((f) => f.name.endsWith(".css"));
           for (const cssFile of cssFiles) {
             const stylePath = await join(pluginPath, cssFile.name);
-            let styleUrl = convertFileSrc(stylePath.replace(/\\/g, "/"));
-            styleUrl = styleUrl.replace(/%2F/g, "/");
+            const styleUrl = await getPluginResourceUrl(pluginPath, stylePath);
 
             if (!document.querySelector(`link[href="${styleUrl}"]`)) {
               const link = document.createElement("link");
@@ -308,15 +308,10 @@ function createPluginComponentLoader(
           fullPath: componentPath,
         });
 
-        // 使用 convertFileSrc 将本地文件路径转换为可访问的 URL
-        let componentUrl = convertFileSrc(componentPath.replace(/\\/g, "/"));
-
-        // 修复相对路径加载问题：
-        // convertFileSrc 可能会对路径中的盘符和斜杠进行 URL 编码（如 %3A, %2F），
-        // 这会导致浏览器在解析 JS 内部的相对导入（如 import("./chunk.js")）时，
-        // 无法正确识别目录层级，从而把相对路径解析到根域名下（如 http://asset.localhost/chunk.js）。
-        // 我们需要将 %2F 替换回 /，但保留盘符的编码（%3A），以保持 URL 的合法性。
-        componentUrl = componentUrl.replace(/%2F/g, "/");
+        const componentUrl = await getPluginResourceUrl(
+          pluginPath,
+          componentPath
+        );
 
         logger.info("插件组件 URL 已生成", { componentUrl });
 
@@ -421,8 +416,8 @@ class PluginManager {
   private async createPluginStorageAPI(
     pluginId: string
   ): Promise<PluginStorageAPI> {
-    const { join } = await import("@tauri-apps/api/path");
-    const fs = await import("@tauri-apps/plugin-fs");
+    const { join } = await import("@/platform/native/path");
+    const fs = await import("@/platform/native/fs");
 
     // 获取应用配置目录
     const appConfigDir = await getAppConfigDir();
@@ -916,7 +911,7 @@ class PluginManager {
 
     try {
       // 调用后端命令安装插件
-      const { invoke } = await import("@tauri-apps/api/core");
+      const { invoke } = await import("@/platform/native/core");
       const result = await invoke<{
         pluginId: string;
         pluginName: string;

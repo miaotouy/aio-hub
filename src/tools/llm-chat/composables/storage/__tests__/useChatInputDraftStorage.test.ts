@@ -9,7 +9,7 @@ vi.hoisted(() => {
 vi.mock("@/utils/appPath", () => ({
   getAppConfigDir: async () => "C:/test-config",
 }));
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   join: async (...parts: string[]) => parts.join("/"),
 }));
 vi.mock("@/utils/logger", () => ({
@@ -24,8 +24,8 @@ vi.mock("@/utils/errorHandler", () => ({
   createModuleErrorHandler: () => ({ handle: vi.fn() }),
 }));
 
-import { invoke } from "@tauri-apps/api/core";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { writeTextFile } from "@/platform/native/fs";
 import { createConfigManager } from "@/utils/configManager";
 import { loadChatInputDrafts } from "../useChatInputDraftStorage";
 

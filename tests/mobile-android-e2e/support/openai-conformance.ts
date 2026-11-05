@@ -4,8 +4,11 @@ import {
   sha256,
 } from "../../tauri-e2e/support/openai-mock-core";
 import type { ArtifactManager } from "./artifacts";
+import { E2E_AGENT_MARKER } from "./fixtures";
 
 export const MOBILE_E2E_MODEL_ID = "e2e-mobile-attachment";
+/** Prefix shared by every deterministic model id; searching it selects them all. */
+export const MOBILE_E2E_MODEL_PREFIX = "e2e-mobile";
 export const MOBILE_E2E_RICH_TEXT_MODEL_ID = "e2e-mobile-rich-text";
 export const MOBILE_E2E_HTTP_ERROR_MODEL_ID = "e2e-mobile-http-error";
 export const MOBILE_E2E_INTERRUPTED_MODEL_ID = "e2e-mobile-interrupted-stream";
@@ -105,6 +108,36 @@ export function hasUserProfileTag(messages: unknown): boolean {
       /<user_profile\s+name="[^"]+">/.test(content)
     );
   });
+}
+
+/** Flatten arbitrary message content into searchable text without retaining it. */
+function collectMessageText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(collectMessageText).join("\n");
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map(collectMessageText)
+      .join("\n");
+  }
+  return "";
+}
+
+/**
+ * Detect whether the outgoing request carries the imported Android E2E agent
+ * persona. Only the boolean is retained; the marker-bearing text is discarded.
+ */
+export function hasAgentMarker(messages: unknown): boolean {
+  return collectMessageText(messages).includes(E2E_AGENT_MARKER);
+}
+
+/**
+ * Detect whether any `{{char}}`/`{{user}}` macro survived request assembly. The
+ * import fixture seeds these macros, so a false result confirms the request
+ * pipeline expanded them before the provider call.
+ */
+export function hasUnrenderedAgentMacro(messages: unknown): boolean {
+  const text = collectMessageText(messages);
+  return text.includes("{{char}}") || text.includes("{{user}}");
 }
 
 export function summarizeOpenAiAttachments(
@@ -245,6 +278,8 @@ export function startMobileOpenAiConformanceServer(options: {
         attachments,
         generationParameters: summarizeGenerationParameters(body),
         hasUserProfileTag: hasUserProfileTag(body.messages),
+        hasAgentMarker: hasAgentMarker(body.messages),
+        hasUnrenderedAgentMacro: hasUnrenderedAgentMacro(body.messages),
         attachmentRequired,
         attachmentMatch,
         status: responseStatus,

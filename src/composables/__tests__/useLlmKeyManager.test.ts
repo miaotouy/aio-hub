@@ -103,7 +103,10 @@ describe("useLlmKeyManager", () => {
     );
     expect(mocks.warn).toHaveBeenCalledWith(
       "API Key 凭据认证失败",
-      expect.objectContaining({ profileId: "profile-1", key: "secret-k..." })
+      expect.objectContaining({
+        profileId: "profile-1",
+        keyHash: hashApiKey("secret-key"),
+      })
     );
   });
 

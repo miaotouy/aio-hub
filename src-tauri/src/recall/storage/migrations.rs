@@ -132,6 +132,37 @@ ALTER TABLE recall_collections
 ADD COLUMN active_model_last_indexed_at INTEGER;
 "#;
 
+// Entry IDs are preserved when a backup is restored as a new collection.
+const MAIN_SCHEMA_V3: &str = r#"
+ALTER TABLE recall_entries RENAME TO recall_entries_v2;
+CREATE TABLE recall_entries (
+  id TEXT NOT NULL,
+  collection_id TEXT NOT NULL,
+  key TEXT NOT NULL DEFAULT '',
+  content TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  assets_json TEXT NOT NULL DEFAULT '[]',
+  priority INTEGER NOT NULL DEFAULT 100,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  content_hash TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (collection_id, id),
+  FOREIGN KEY (collection_id) REFERENCES recall_collections(id) ON DELETE CASCADE
+);
+INSERT INTO recall_entries SELECT * FROM recall_entries_v2;
+DROP TABLE recall_entries_v2;
+CREATE INDEX idx_recall_entries_collection_updated
+ON recall_entries(collection_id, updated_at DESC);
+CREATE INDEX idx_recall_entries_collection_key
+ON recall_entries(collection_id, key);
+CREATE INDEX idx_recall_entries_collection_enabled
+ON recall_entries(collection_id, enabled);
+CREATE INDEX idx_recall_entries_content_hash
+ON recall_entries(content_hash);
+"#;
+
 fn apply_migration(
     connection: &mut Connection,
     version: i64,
@@ -184,7 +215,13 @@ pub fn apply_main_migrations(connection: &mut Connection) -> Result<(), String> 
         "initialize_recall_source_schema",
         MAIN_SCHEMA_V1,
     )?;
-    apply_migration(connection, 2, "persist_active_recall_model", MAIN_SCHEMA_V2)
+    apply_migration(connection, 2, "persist_active_recall_model", MAIN_SCHEMA_V2)?;
+    apply_migration(
+        connection,
+        3,
+        "scope_entry_ids_to_collection",
+        MAIN_SCHEMA_V3,
+    )
 }
 
 pub fn apply_vector_migrations(connection: &mut Connection) -> Result<(), String> {

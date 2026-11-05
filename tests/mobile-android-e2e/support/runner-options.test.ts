@@ -41,6 +41,11 @@ describe("mobile E2E runner options", () => {
     expect(options.preset).toBe("rich-text-media");
   });
 
+  it("accepts the agent preset", () => {
+    const options = parseRunnerOptions(["--preset", "agent"], {}, "C:\\repo");
+    expect(options.preset).toBe("agent");
+  });
+
   it("rejects unknown presets", () => {
     expect(() =>
       parseRunnerOptions(["--preset", "all"], {}, "C:\\repo")

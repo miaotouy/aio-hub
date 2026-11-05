@@ -17,14 +17,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const tauri = vi.hoisted(() => ({
   invoke: vi.fn(),
   appDataDir: vi.fn(),
+  join: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   invoke: tauri.invoke,
 }));
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   appDataDir: tauri.appDataDir,
+  join: tauri.join,
 }));
 
 describe("getAppConfigDir", () => {
@@ -32,6 +34,9 @@ describe("getAppConfigDir", () => {
     vi.resetModules();
     tauri.invoke.mockReset();
     tauri.appDataDir.mockReset();
+    tauri.join
+      .mockReset()
+      .mockImplementation(async (...parts: string[]) => parts.join("/"));
   });
 
   it("uses the native data root selected by the installer for concurrent callers", async () => {
@@ -60,5 +65,44 @@ describe("getAppConfigDir", () => {
       "C:\\Users\\AIO\\AppData\\Roaming\\com.mty.aiohub"
     );
     expect(tauri.appDataDir).toHaveBeenCalledTimes(1);
+  });
+
+  // 保护常驻目录的实际创建、并发复用和失败重试契约。
+  it("creates the shared workspace under the selected data root and recreates it after cleanup", async () => {
+    tauri.invoke.mockImplementation(async (command: string) =>
+      command === "get_app_config_dir" ? "D:/AIO Hub/data" : undefined
+    );
+    const { getAppWorkDir } = await import("../appPath");
+    await expect(
+      Promise.all([getAppWorkDir(), getAppWorkDir()])
+    ).resolves.toEqual([
+      "D:/AIO Hub/data/workspace",
+      "D:/AIO Hub/data/workspace",
+    ]);
+    expect(
+      tauri.invoke.mock.calls.filter(
+        ([command]) => command === "create_dir_force"
+      )
+    ).toEqual([["create_dir_force", { path: "D:/AIO Hub/data/workspace" }]]);
+    await getAppWorkDir();
+    expect(
+      tauri.invoke.mock.calls.filter(
+        ([command]) => command === "create_dir_force"
+      )
+    ).toHaveLength(2);
+  });
+
+  it("retries workspace creation after a failed attempt", async () => {
+    let fail = true;
+    tauri.invoke.mockImplementation(async (command: string) => {
+      if (command === "get_app_config_dir") return "D:/AIO Hub/data";
+      if (fail) {
+        fail = false;
+        throw new Error("access denied");
+      }
+    });
+    const { getAppWorkDir } = await import("../appPath");
+    await expect(getAppWorkDir()).rejects.toThrow("access denied");
+    await expect(getAppWorkDir()).resolves.toBe("D:/AIO Hub/data/workspace");
   });
 });

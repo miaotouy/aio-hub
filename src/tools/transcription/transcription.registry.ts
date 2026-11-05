@@ -22,9 +22,9 @@
 import { markRaw } from "vue";
 import { FileText } from "lucide-vue-next";
 import { TranscriptionIcon } from "@aiohub/tool-icons";
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
+import { writeTextFile } from "@/platform/native/fs";
 import { useTranscriptionManager } from "./composables/useTranscriptionManager";
 import { useTranscriptionStore } from "./stores/transcriptionStore";
 import { useTranscriptionViewer } from "@/composables/useTranscriptionViewer";

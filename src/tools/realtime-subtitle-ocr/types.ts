@@ -36,6 +36,9 @@ export interface MonitorRect {
   y: number;
   width: number;
   height: number;
+  /** 上报窗口的物理边界和缩放，供跨屏采集使用。旧事件仅含逻辑边界。 */
+  physicalBounds?: { x: number; y: number; width: number; height: number };
+  scaleFactor?: number;
 }
 
 /** 去重灵敏度档位 */

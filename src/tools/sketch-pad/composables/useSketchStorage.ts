@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { ref } from "vue";
-import { join } from "@tauri-apps/api/path";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import {
   readTextFile,
@@ -23,8 +23,8 @@ import {
   exists,
   writeFile,
   readDir,
-} from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
+} from "@/platform/native/fs";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {
@@ -359,7 +359,7 @@ export function useSketchStorage() {
         const root = await getSketchRootDir();
         const thumbPath = await join(root, "thumbnails", `${id}.png`);
         if (await exists(thumbPath)) {
-          const { remove } = await import("@tauri-apps/plugin-fs");
+          const { remove } = await import("@/platform/native/fs");
           await remove(thumbPath);
         }
 

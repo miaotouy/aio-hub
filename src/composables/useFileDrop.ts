@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import { ref, onMounted, onUnmounted, isRef, type Ref, watch } from "vue";
-import { listen, type EventCallback } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@/platform/native/webview";
+import { listen, type EventCallback } from "@/platform/native/events";
+import { isElectronRuntime } from "@/platform/core/env";
+import { invoke } from "@/platform/native/core";
 import { parsePathsFromDataTransfer } from "@/utils/fileDropPaths";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -42,6 +44,8 @@ export interface FileDropOptions {
   onDrop?: (paths: string[]) => void | Promise<void>;
   // 成功回调（返回 File 对象，适用于无拦截器时的系统拖放）
   onFiles?: (files: File[]) => void | Promise<void>;
+  // Electron 同时可取得路径与 File 时，设为 false 优先交给 onDrop。
+  preferFileObjects?: boolean;
   // 拖入回调
   onDragEnter?: () => void;
   // 拖出回调
@@ -457,16 +461,20 @@ export function useFileDrop(options: FileDropOptions = {}) {
     const handleDragEnter = (e: DragEvent) => {
       if (isDisabled()) return;
       e.preventDefault();
-      isDraggingOver.value = true;
-      options.onDragEnter?.();
+      if (!isDraggingOver.value) {
+        isDraggingOver.value = true;
+        options.onDragEnter?.();
+      }
     };
 
     const handleDragOver = (e: DragEvent) => {
       if (isDisabled()) return;
       e.preventDefault();
-      // dragover 中设置 dragEffect 以显示正确的鼠标样式
+      // 导入优先使用复制语义，避免 copy-only 来源被浏览器取消 drop。
       if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "move";
+        const allowed = e.dataTransfer.effectAllowed;
+        e.dataTransfer.dropEffect =
+          allowed === "move" || allowed === "linkMove" ? "move" : "copy";
       }
     };
 
@@ -480,7 +488,10 @@ export function useFileDrop(options: FileDropOptions = {}) {
     };
 
     const handleNativeDrop = async (e: DragEvent) => {
+      // The preload path notification and bubbling DOM event are one physical drop.
+      if (isProcessing.value) return;
       if (isDisabled()) {
+        e.preventDefault();
         console.log("[useFileDrop] H5 原生 drop 触发，但组件已禁用");
         return;
       }
@@ -660,7 +671,6 @@ export function useFileDrop(options: FileDropOptions = {}) {
   // ==================== Tauri webview.onDragDropEvent 监听器 ====================
   const setupWebviewDragDropListener = async (batch: ListenerBatch) => {
     try {
-      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
       if (!batch.active) return;
       const webview = getCurrentWebview();
       console.log(
@@ -705,7 +715,7 @@ export function useFileDrop(options: FileDropOptions = {}) {
             "coords=",
             coords
           );
-          if (isInside) {
+          if (isInside && !isDraggingOver.value) {
             isDraggingOver.value = true;
             options.onDragEnter?.();
           }
@@ -734,6 +744,15 @@ export function useFileDrop(options: FileDropOptions = {}) {
             paths
           );
 
+          if (isInside) event.preventDefault?.();
+          // Electron keeps native H5 File delivery available; let onFiles own that drop.
+          if (
+            isElectronRuntime() &&
+            options.onFiles &&
+            options.preferFileObjects !== false &&
+            !options.directoryOnly
+          )
+            return;
           if (paths && paths.length > 0) {
             // 只有当落点在元素内时，才进行处理
             if (isInside) {
@@ -772,7 +791,8 @@ export function useFileDrop(options: FileDropOptions = {}) {
     setupNativeListeners();
 
     try {
-      await setupTauriCustomListeners(batch);
+      // Electron uses the isolated preload stream; custom events remain for legacy consumers.
+      if (!isElectronRuntime()) await setupTauriCustomListeners(batch);
       if (batch.active) await setupWebviewDragDropListener(batch);
     } catch (error) {
       if (!batch.active) return;

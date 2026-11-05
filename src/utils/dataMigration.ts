@@ -22,8 +22,8 @@ import {
   rename,
   stat,
   writeTextFile,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";
 

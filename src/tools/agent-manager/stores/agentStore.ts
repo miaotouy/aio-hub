@@ -23,7 +23,7 @@ import type { ChatMessageNode } from "@/tools/llm-chat/types";
 
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "@aiohub/llm-core";
 import { defineStore } from "pinia";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { createDefaultAgentTemplate } from "../config/defaultAgentTemplate";
 import { useAgentStorage } from "../composables/storage/useAgentStorage";

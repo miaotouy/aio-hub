@@ -26,6 +26,11 @@ import type {
   TokenUsage,
 } from "../types/response";
 import type { WireRequest, WireResponse } from "../types/transport";
+import { audioInputFormat, documentFilename } from "./media-input";
+import {
+  normalizeDeepSeekProfile,
+  resolveDeepSeekBetaChatUrl,
+} from "./deepseek-endpoints";
 
 type JsonObject = Record<string, JsonValue>;
 export type OpenAiCompatibleBody = Record<string, WireJsonValue>;
@@ -36,6 +41,7 @@ export function buildOpenAiCompatibleUrl(
   profile: ProviderProfile,
   endpoint = "chat/completions"
 ): string {
+  profile = normalizeDeepSeekProfile(profile);
   const customEndpoint =
     profile.endpoints?.chatCompletions ?? profile.endpoints?.[endpoint];
 
@@ -66,6 +72,7 @@ export function buildOpenAiCompatibleRequest(
   profile: ProviderProfile,
   request: LlmRequest
 ): WireRequest {
+  profile = normalizeDeepSeekProfile(profile);
   const body = buildOpenAiCompatibleBody(request);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -75,7 +82,9 @@ export function buildOpenAiCompatibleRequest(
 
   return {
     method: "POST",
-    url: buildOpenAiCompatibleUrl(profile),
+    url:
+      resolveDeepSeekBetaChatUrl(profile, body) ??
+      buildOpenAiCompatibleUrl(profile),
     headers,
     body: { kind: "json", value: body },
     streaming: request.stream ?? false,
@@ -489,7 +498,7 @@ function mapOpenAiContent(part: LlmMessageContent): {
           type: "input_audio",
           input_audio: {
             data: readString(source?.data) ?? "",
-            format: contentType === "audio/wav" ? "wav" : "mp3",
+            format: audioInputFormat(contentType),
           },
         },
       };
@@ -513,18 +522,15 @@ function mapOpenAiContent(part: LlmMessageContent): {
           },
         };
       }
-      if (contentType === "application/pdf") {
-        return {
-          content: {
-            type: "file",
-            file: {
-              filename: "document.pdf",
-              file_data: mediaSourceToUrl(part.source),
-            },
+      return {
+        content: {
+          type: "file",
+          file: {
+            filename: documentFilename(source, contentType),
+            file_data: mediaSourceToUrl(part.source),
           },
-        };
-      }
-      return { content: { type: "document", source: part.source } };
+        },
+      };
     }
     case "tool_use":
       return {

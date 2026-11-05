@@ -129,7 +129,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { getCurrentWindow, PhysicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow, PhysicalSize } from "@/platform/native/window";
 import ComponentHeader from "@/components/ComponentHeader.vue";
 import { useDetachable } from "@/composables/useDetachable";
 import { useDetachedManager } from "@/composables/useDetachedManager";

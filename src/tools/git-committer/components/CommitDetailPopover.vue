@@ -76,8 +76,10 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { Clock, Copy, ExternalLink } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
@@ -166,7 +168,7 @@ const loadDetail = async () => {
 
 const copyHash = async () => {
   try {
-    await navigator.clipboard.writeText(props.commit.hash);
+    await getBrowserClipboard().writeText(props.commit.hash);
     customMessage.success("已复制提交哈希");
   } catch {
     customMessage.error("复制失败");

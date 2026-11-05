@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import { Trash2 } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
+import { generateUuid } from "@/utils/uuid";
 import type { PresetMessageGroup } from "../types/agent";
 
 const props = defineProps<{
@@ -13,13 +14,13 @@ const emit = defineEmits<{
   save: [group: PresetMessageGroup];
   remove: [group: PresetMessageGroup];
 }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const form = ref<PresetMessageGroup>(createEmptyGroup());
 
 function createEmptyGroup(): PresetMessageGroup {
   return {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     name: "",
     selectionMode: "checkbox",
     enabled: true,
@@ -97,27 +98,27 @@ function save(): void {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--card-bg);
 }
 h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 input,
 select,
 textarea {
   padding: 10px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font: inherit;
@@ -139,17 +140,18 @@ footer .spacer {
 }
 footer button {
   padding: 9px 14px;
+  min-height: 44px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
 }
 footer .primary {
   color: #fff;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 footer .danger {
-  color: var(--color-danger, #d14343);
+  color: var(--danger-color);
 }
 .icon-command {
   display: inline-flex;

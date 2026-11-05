@@ -237,7 +237,7 @@ import {
   Settings,
 } from "lucide-vue-next";
 import { VueDraggableNext } from "vue-draggable-next";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@/platform/native/dialog";
 import Avatar from "@/components/common/Avatar.vue";
 import RepoActionsMenu from "./RepoActionsMenu.vue";
 import RepositoryPromptDialog from "./RepositoryPromptDialog.vue";

@@ -88,7 +88,7 @@ body,
 
 .init-status {
   margin-top: 24px;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--text-color);
   opacity: 0.8;
 }

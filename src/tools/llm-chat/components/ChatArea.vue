@@ -27,7 +27,7 @@ import {
   defineAsyncComponent,
 } from "vue";
 import { useElementSize } from "@vueuse/core";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import type { ChatMessageNode } from "../types";
 import type { Asset } from "@/types/asset-management";
 import type { KnowledgeReference } from "@/tools/knowledge-base/types";

@@ -4,10 +4,10 @@ import { ref } from "vue";
 import { createModuleLogger } from "@/utils/logger";
 import { loadImageFromBuffer } from "@/utils/imageProcessor";
 import {
-  DEFAULT_SLICER_CONFIG,
   planImageSlices,
   type ImageSlicePlan,
 } from "@/tools/smart-ocr/utils/imageSlicing";
+import { effectiveImageSlicingConfig as effectiveConfig } from "../../../smart-ocr/utils/imageSlicePlan";
 import type { PipelineContext } from "../../types/pipeline";
 import type { ChatSettings } from "../../types/settings";
 import {
@@ -48,19 +48,6 @@ export function getContextImageSlicingOptions(
     context.sharedData.set(key, scope);
   }
   return { scope, cacheOnly: context.previewPurpose === "statistics" };
-}
-
-function effectiveConfig(config: SlicingConfig) {
-  return {
-    ...DEFAULT_SLICER_CONFIG,
-    enabled: config.enabled,
-    aspectRatioThreshold: Number.isFinite(config.aspectRatioThreshold)
-      ? Math.max(1, config.aspectRatioThreshold)
-      : DEFAULT_SLICER_CONFIG.aspectRatioThreshold,
-    minCutHeight: Number.isFinite(config.minCutHeight)
-      ? Math.max(1, Math.round(config.minCutHeight))
-      : DEFAULT_SLICER_CONFIG.minCutHeight,
-  };
 }
 
 /** Cache plans only for immutable library assets; mutable files remain request-scoped. */

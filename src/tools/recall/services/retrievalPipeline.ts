@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { getProfileId, getPureModelId } from "@/utils/modelIdUtils";
 import { createModuleLogger } from "@/utils/logger";

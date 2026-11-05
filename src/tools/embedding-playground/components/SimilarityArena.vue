@@ -183,6 +183,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch } from "vue";
 import { BarChart3, Check, Copy, Plus, X } from "lucide-vue-next";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
@@ -273,7 +275,7 @@ const copyResults = async () => {
     .join("\n");
 
   try {
-    await navigator.clipboard.writeText(header + content);
+    await getBrowserClipboard().writeText(header + content);
     isCopied.value = true;
     customMessage.success("结果已复制到剪贴板");
     setTimeout(() => {

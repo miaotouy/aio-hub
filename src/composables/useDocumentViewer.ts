@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { ref, watch, computed } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useAssetManager } from "@/composables/useAssetManager";
 import { detectMimeTypeFromBuffer } from "@/utils/fileTypeDetector";
 import {

@@ -22,8 +22,8 @@ import PluginSettingsPanel from "./PluginSettingsPanel.vue";
 import Avatar from "@/components/common/Avatar.vue";
 import MarkdownIt from "markdown-it";
 import DOMPurify from "dompurify";
-import { readTextFile, exists } from "@tauri-apps/plugin-fs";
-import { path } from "@tauri-apps/api";
+import { readTextFile, exists } from "@/platform/native/fs";
+import { path } from "@/platform/native/sdk";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 

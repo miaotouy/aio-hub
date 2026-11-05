@@ -5,7 +5,7 @@ import type { ChatAgent } from "../types/agent";
 
 const invoke = vi.hoisted(() => vi.fn());
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.mock("@/platform/native/core", () => ({ invoke }));
 vi.mock("@/composables/useLlmProfiles", () => ({
   useLlmProfiles: () => ({ enabledProfiles: { value: [] } }),
 }));

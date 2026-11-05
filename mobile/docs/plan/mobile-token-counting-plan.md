@@ -1,8 +1,8 @@
 # 移动端本地 Token 计算方案
 
-> 状态：计数服务、展示接入和文本上下文预算编排已完成；非文本成本、真机性能和 iOS 验证待完成
-> 日期：2026-07-14；2026-07-27 更新上下文管线状态与移动端 Chat 边界
-> 已实施消费架构见 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 与 [`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)；本文继续维护 Token 管线接入和设备验证门禁。
+> 状态：计数服务、展示接入和文本上下文预算编排已完成；继续服务功能施工，非文本成本、真机性能和 iOS 验证后置
+> 日期：2026-07-14；2026-09-23 更新施工口径
+> 已实施消费架构见 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 与 [`agent-manager/ARCHITECTURE.md`](../../src/tools/agent-manager/ARCHITECTURE.md)；本文维护 Token 管线边界、功能接入和后置设备验证。
 
 ## 1. 背景
 
@@ -241,11 +241,11 @@ mobile/src/utils/tokenCounting.ts
 - [x] 保留发送后最终计数和消息级结果，用于 usage 缺失时的展示与上下文快照；
 - [x] 明确附件和非文本多模态开销不由通用文本 tokenizer 隐式覆盖。
 
-附件和多模态 Token 不属于首个 Rust o200k command 的范围，需要时按实际模型和渠道请求结构追加独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性或 Token 管线完成门禁。
+附件和多模态 Token 不属于首个 Rust o200k command 的范围，需要时按实际模型和渠道请求结构追加独立估算。工具 schema 只在未来确实设计移动端工具调用时处理，不属于当前 Chat 完整性或 Token 管线完成后续验证。
 
-## 7. 性能与验证
+## 7. 后置性能与平台验证
 
-以下项目构成 Token 能力的技术验证与平台门禁；固定样本、构建和前端接入已经完成，真实设备性能与 iOS 验证仍待补齐：
+以下项目用于 Token 能力的后置验证与发布收口；固定样本、构建和前端接入已经完成，真实设备性能与 iOS 验证仍待补齐，不阻拦其他功能施工：
 
 1. `o200k_base` 固定样本结果与桌面 GPT-4o tokenizer 对齐；
 2. `bun run build` 通过；

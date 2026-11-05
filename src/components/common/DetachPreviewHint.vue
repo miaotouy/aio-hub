@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeMount, onUnmounted } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform/native/events";
 import { createModuleLogger } from "../../utils/logger";
 
 const logger = createModuleLogger("DetachPreviewHint");

@@ -25,8 +25,8 @@ import {
   readTextFile,
   writeTextFile,
   remove,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createConfigManager } from "@/utils/configManager";
 import { useAssetManager } from "@/composables/useAssetManager";
@@ -123,7 +123,7 @@ export function useOcrHistory() {
   async function ensureHistoryDir(): Promise<void> {
     const historyDir = await getHistoryDir();
     if (!(await exists(historyDir))) {
-      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const { mkdir } = await import("@/platform/native/fs");
       await mkdir(historyDir, { recursive: true });
       logger.debug("创建 history 目录", { historyDir });
     }

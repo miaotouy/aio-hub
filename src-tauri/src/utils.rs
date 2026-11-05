@@ -74,6 +74,14 @@ pub fn get_app_data_dir(config: &tauri::Config) -> PathBuf {
     path
 }
 
+/// 常驻任务工作目录，与前端 appPath::getAppWorkDir 使用同一数据根目录。
+pub(crate) fn ensure_app_work_dir(config: &tauri::Config) -> Result<PathBuf, String> {
+    let path = get_app_data_dir(config).join("workspace");
+    std::fs::create_dir_all(&path)
+        .map_err(|e| format!("创建任务工作目录失败 {}: {e}", path.display()))?;
+    Ok(path)
+}
+
 fn resolve_app_data_dir(config: &tauri::Config) -> PathBuf {
     // 优先检查显式设置的数据目录
     if let Ok(data_dir) = std::env::var("AIO_PORTABLE_DATA_DIR") {

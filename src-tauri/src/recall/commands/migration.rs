@@ -3,53 +3,19 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 
 use crate::recall::state::RecallState;
+use crate::recall::storage::LEGACY_MIGRATION_PROGRESS_EVENT;
 use crate::recall::storage::{
     LegacyFileRecallImporter, RecallMigrationPreview, RecallMigrationReport, RecallRepository,
     SqliteRecallRepository, LEGACY_RECALL_MIGRATION_ID, LEGACY_RECALL_SOURCE_ID,
 };
-use serde::{Deserialize, Serialize};
+pub use crate::recall::storage::{RecallMigrationConfirmation, RecallMigrationProgress};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
 
-const LEGACY_MIGRATION_PROGRESS_EVENT: &str = "recall://legacy-migration-progress";
 static LEGACY_MIGRATION_LOCK: Mutex<()> = Mutex::new(());
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecallMigrationConfirmation {
-    pub migration_id: String,
-    pub source_fingerprint: String,
-    pub confirmed: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecallMigrationProgress {
-    pub migration_id: String,
-    pub phase: String,
-    pub current: usize,
-    pub total: usize,
-    pub completed_collections: usize,
-    pub completed_entries: usize,
-    pub pending_vectors: usize,
-    pub issues: usize,
-}
-
 fn emit_progress(app: &AppHandle, phase: &str, report: Option<&RecallMigrationReport>) {
-    let payload = RecallMigrationProgress {
-        migration_id: LEGACY_RECALL_MIGRATION_ID.to_string(),
-        phase: phase.to_string(),
-        current: report
-            .map(|item| item.migrated_entries + item.migrated_vectors)
-            .unwrap_or(0),
-        total: report
-            .map(|item| item.source_entries + item.source_vectors)
-            .unwrap_or(0),
-        completed_collections: report.map(|item| item.migrated_collections).unwrap_or(0),
-        completed_entries: report.map(|item| item.migrated_entries).unwrap_or(0),
-        pending_vectors: report.map(|item| item.pending_vectors).unwrap_or(0),
-        issues: report.map(|item| item.issues.len()).unwrap_or(0),
-    };
+    let payload = RecallMigrationProgress::new(phase, report);
     if let Err(error) = app.emit(LEGACY_MIGRATION_PROGRESS_EVENT, payload) {
         log::warn!("[Recall] 发送旧数据迁移进度失败: {error}");
     }

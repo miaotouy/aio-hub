@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed } from "vue";
 import {
   Terminal,
@@ -106,7 +108,7 @@ function calculateDuration(task: AsyncTaskMetadata): string {
 
 // 复制任务ID
 function copyTaskId(taskId: string) {
-  navigator.clipboard.writeText(taskId);
+  getBrowserClipboard().writeText(taskId);
   customMessage.success("任务ID已复制");
 }
 

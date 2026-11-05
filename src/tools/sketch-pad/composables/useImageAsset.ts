@@ -15,8 +15,8 @@
 import { ref } from "vue";
 import Konva from "konva";
 import { nanoid } from "nanoid";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { open } from "@/platform/native/dialog";
+import { readFile } from "@/platform/native/fs";
 import { assetManagerEngine } from "@/composables/useAssetManager";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";

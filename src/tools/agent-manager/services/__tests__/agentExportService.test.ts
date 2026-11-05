@@ -27,23 +27,23 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/fs", () => ({
   exists: mocks.exists,
   readFile: mocks.readFile,
   writeFile: mocks.writeFile,
   writeTextFile: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
+vi.mock("@/platform/native/dialog", () => ({
   open: vi.fn(),
   save: mocks.save,
 }));
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform/native/path", () => ({
   join: mocks.join,
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
+vi.mock("@/platform/native/core", () => ({
   convertFileSrc: (path: string) => `asset://${path}`,
   invoke: vi.fn(),
 }));

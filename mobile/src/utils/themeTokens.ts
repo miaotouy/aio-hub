@@ -228,6 +228,8 @@ export function generateMobileTheme(
     "--font-size-sm": `${baseFontSize - 2}px`,
     "--font-size-md": `${baseFontSize}px`,
     "--font-size-lg": `${baseFontSize + 2}px`,
+    "--font-size-xl": `${baseFontSize + 6}px`,
+    "--font-size-2xl": `${baseFontSize + 14}px`,
 
     "--app-radius-xl": radius(16, radiusScale),
     "--app-radius-lg": radius(12, radiusScale),

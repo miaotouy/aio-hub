@@ -16,9 +16,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@/platform/native/webview-window";
 import { closeDetachedWindow } from "@/platform";
-import { platform } from "@tauri-apps/plugin-os";
+import { platform } from "@/platform/native/os";
 import { getDetachableComponentConfig } from "@/config/detachable-components";
 import type { DetachableConfig } from "@/composables/useDetachable";
 import { createModuleLogger } from "@utils/logger";

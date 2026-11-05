@@ -25,6 +25,12 @@ pub struct AgentFileSecurity {
     sandbox_mode: String,
     #[serde(default)]
     approval_granted: bool,
+    #[serde(default = "default_max_file_size")]
+    max_file_size: u64,
+}
+
+fn default_max_file_size() -> u64 {
+    10 * 1024 * 1024
 }
 
 #[derive(Serialize)]
@@ -35,7 +41,36 @@ pub struct FileOperationInspection {
 }
 
 impl AgentFileSecurity {
-    /// 返回该路径是否需要人工审批；配置及路径解析错误一律阻断。
+    pub(super) fn ensure_size(&self, size: u64) -> Result<(), String> {
+        if size > self.max_file_size {
+            return Err(format!(
+                "文件大小超过限制：{} 字节 > {} 字节",
+                size, self.max_file_size
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        use std::io::Read;
+        self.ensure_path(path)?;
+        let file = fs::File::open(path).map_err(|e| format!("打开文件失败: {e}"))?;
+        let metadata = file
+            .metadata()
+            .map_err(|e| format!("读取文件信息失败: {e}"))?;
+        if !metadata.is_file() {
+            return Err("路径必须是普通文件".into());
+        }
+        self.ensure_size(metadata.len())?;
+        let mut bytes = Vec::new();
+        file.take(self.max_file_size.saturating_add(1))
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("读取文件失败: {e}"))?;
+        self.ensure_size(bytes.len() as u64)?;
+        Ok(bytes)
+    }
+
+    /// 返回该路径是否需要人工审批；白名单仅采纳有效授权目录，目标与安全规则解析失败时阻断。
     fn needs_approval(&self, path: &Path) -> Result<bool, String> {
         if self.sandbox_mode != "whitelist" && self.sandbox_mode != "blacklist" {
             return Err("文件安全配置无效：请选择白名单或黑名单模式".into());
@@ -44,7 +79,10 @@ impl AgentFileSecurity {
         if self.sandbox_mode == "whitelist" {
             let mut allowed = false;
             for directory in &self.allowed_directories {
-                let root = resolve_path_for_security_impl(Path::new(directory))?;
+                // 与前端一致：旧默认值及无法解析的授权目录跳过，由有效目录决定访问范围。
+                let Ok(root) = resolve_path_for_security_impl(Path::new(directory)) else {
+                    continue;
+                };
                 allowed |= path_is_within(&resolved, &root);
             }
             if !allowed {
@@ -90,6 +128,7 @@ impl AgentFileSecurity {
         source: &Path,
         target: Option<&Path>,
         reject_links: bool,
+        check_size: bool,
     ) -> Result<bool, String> {
         let mut approval = false;
         let mut stack = vec![(source.to_path_buf(), target.map(Path::to_path_buf))];
@@ -100,6 +139,9 @@ impl AgentFileSecurity {
             }
             let metadata = fs::symlink_metadata(&path)
                 .map_err(|error| format!("读取目录项失败 {}: {error}", path.display()))?;
+            if check_size && metadata.is_file() {
+                self.ensure_size(metadata.len())?;
+            }
             if metadata.file_type().is_symlink() {
                 if reject_links {
                     return Err(format!(
@@ -135,13 +177,14 @@ impl AgentFileSecurity {
             "copy_file" | "move_file" => {
                 let source = source.ok_or("缺少源路径")?;
                 let target = target.ok_or("缺少目标路径")?;
-                let mut approval = self.inspect_tree(source, Some(target), true)?;
+                let mut approval =
+                    self.inspect_tree(source, Some(target), true, method == "copy_file")?;
                 if fs::symlink_metadata(target).is_ok() {
-                    approval |= self.inspect_tree(target, None, true)?;
+                    approval |= self.inspect_tree(target, None, true, false)?;
                 }
                 Ok(approval)
             }
-            "delete_file" => self.inspect_tree(path.ok_or("缺少删除路径")?, None, false),
+            "delete_file" => self.inspect_tree(path.ok_or("缺少删除路径")?, None, false, false),
             _ => Err("不支持的目录安全检查操作".into()),
         }
     }
@@ -196,7 +239,191 @@ mod tests {
             black_list_rules: vec![],
             sandbox_mode: "whitelist".into(),
             approval_granted: false,
+            max_file_size: default_max_file_size(),
         }
+    }
+
+    // 保护旧配置下原生读写的兼容性，同时保持有效白名单的授权边界。
+    #[tokio::test]
+    async fn scoped_legacy_whitelist_entries_preserve_read_write_boundaries() {
+        use crate::commands::file_operations::{read_text_file_force, write_text_file_force};
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("note.txt");
+        let arg = path.to_string_lossy().to_string();
+        let mut security = scope(temp.path());
+        security
+            .allowed_directories
+            .extend(["Desktop", "Documents", "Downloads", ""].map(str::to_owned));
+        // 有效目录位于旧条目前后时均可授权。
+        for _ in 0..2 {
+            fs::write(&path, "original").unwrap();
+            assert_eq!(
+                read_text_file_force(arg.clone(), Some(security.clone()))
+                    .await
+                    .unwrap(),
+                "original"
+            );
+            write_text_file_force(
+                arg.clone(),
+                "updated".into(),
+                Some(security.clone()),
+                Some(true),
+            )
+            .await
+            .unwrap();
+            assert_eq!(fs::read_to_string(&path).unwrap(), "updated");
+            security.allowed_directories.rotate_left(1);
+        }
+
+        let outside = tempdir().unwrap();
+        let outside_path = outside.path().join("note.txt");
+        fs::write(&outside_path, "protected").unwrap();
+        let outside_arg = outside_path.to_string_lossy().to_string();
+        assert!(
+            read_text_file_force(outside_arg.clone(), Some(security.clone()))
+                .await
+                .is_err()
+        );
+        assert!(write_text_file_force(
+            outside_arg,
+            "blocked".into(),
+            Some(security.clone()),
+            Some(true)
+        )
+        .await
+        .is_err());
+        assert_eq!(fs::read_to_string(outside_path).unwrap(), "protected");
+
+        security.allowed_directories = vec!["Desktop".into()];
+        assert!(read_text_file_force(arg, Some(security)).await.is_err());
+    }
+
+    // 保护安全规则的严格校验：跳过旧白名单条目后仍须遵守审批、死区及规则解析失败。
+    #[test]
+    fn scoped_legacy_whitelist_entries_keep_security_rules_strict() {
+        use crate::commands::file_operations::read_file_binary;
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("note.txt");
+        fs::write(&path, "protected").unwrap();
+        let arg = path.to_string_lossy().to_string();
+        let mut security = scope(temp.path());
+        security.allowed_directories.insert(0, "Desktop".into());
+        for rule_type in ["block", "approve"] {
+            security.black_list_rules = vec![ExternalTransferSecurityRule {
+                path: "Documents".into(),
+                rule_type: rule_type.into(),
+            }];
+            security.approval_granted = true;
+            assert!(read_file_binary(arg.clone(), Some(security.clone())).is_err());
+        }
+
+        security.black_list_rules = vec![ExternalTransferSecurityRule {
+            path: temp.path().to_string_lossy().into(),
+            rule_type: "approve".into(),
+        }];
+        security.approval_granted = false;
+        assert!(read_file_binary(arg.clone(), Some(security.clone())).is_err());
+        security.approval_granted = true;
+        assert_eq!(
+            read_file_binary(arg.clone(), Some(security.clone())).unwrap(),
+            b"protected"
+        );
+        security.black_list_rules[0].rule_type = "block".into();
+        assert!(read_file_binary(arg, Some(security)).is_err());
+    }
+
+    // 保护 Agent 文本追加能力与通用命令的兼容边界，使用真实临时文件。
+    #[tokio::test]
+    async fn scoped_append_supports_markdown_and_enforces_path_policy() {
+        use crate::commands::file_operations::append_file_force;
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("note.md");
+        fs::write(&path, "原文\n").unwrap();
+        let arg = path.to_string_lossy().to_string();
+        assert!(append_file_force(arg.clone(), b"legacy".to_vec(), None)
+            .await
+            .is_err());
+        append_file_force(
+            arg.clone(),
+            "追加\n".as_bytes().to_vec(),
+            Some(scope(temp.path())),
+        )
+        .await
+        .unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "原文\n追加\n");
+        let outside = tempdir().unwrap();
+        assert!(
+            append_file_force(arg, b"blocked".to_vec(), Some(scope(outside.path())))
+                .await
+                .is_err()
+        );
+        assert_eq!(fs::read_to_string(path).unwrap(), "原文\n追加\n");
+    }
+
+    // 保护写入、追加和复制的磁盘边界，超限检查发生在覆盖/修改之前。
+    #[tokio::test]
+    async fn scoped_size_limits_preserve_existing_files() {
+        use crate::commands::file_operations::{
+            append_file_force, copy_path_force, read_file_binary, read_text_file_force,
+            write_text_file_force,
+        };
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source");
+        fs::create_dir(&source).unwrap();
+        let large = source.join("large.md");
+        let target = temp.path().join("target.md");
+        fs::write(&large, "1234").unwrap();
+        fs::write(&target, "123").unwrap();
+        let mut security = scope(temp.path());
+        security.max_file_size = 3;
+        let arg = target.to_string_lossy().to_string();
+        assert!(write_text_file_force(
+            arg.clone(),
+            "1234".into(),
+            Some(security.clone()),
+            Some(true)
+        )
+        .await
+        .is_err());
+        assert!(
+            append_file_force(arg.clone(), b"4".to_vec(), Some(security.clone()))
+                .await
+                .is_err()
+        );
+        assert_eq!(fs::read_to_string(&target).unwrap(), "123");
+        let large_arg = large.to_string_lossy().to_string();
+        assert!(
+            read_text_file_force(large_arg.clone(), Some(security.clone()))
+                .await
+                .is_err()
+        );
+        assert!(read_file_binary(large_arg.clone(), Some(security.clone())).is_err());
+        assert!(
+            copy_path_force(large_arg, arg.clone(), Some(true), Some(security.clone()))
+                .await
+                .is_err()
+        );
+        assert_eq!(fs::read_to_string(&target).unwrap(), "123");
+        let dest = temp.path().join("copied");
+        assert!(copy_path_force(
+            source.to_string_lossy().into(),
+            dest.to_string_lossy().into(),
+            Some(true),
+            Some(security.clone())
+        )
+        .await
+        .is_err());
+        assert!(!dest.exists());
+        write_text_file_force(arg.clone(), "中".into(), Some(security.clone()), Some(true))
+            .await
+            .unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "中");
+        assert!(
+            write_text_file_force(arg, "a".into(), Some(security), Some(false))
+                .await
+                .is_err()
+        );
+        assert_eq!(fs::read_to_string(target).unwrap(), "中");
     }
 
     #[tokio::test]

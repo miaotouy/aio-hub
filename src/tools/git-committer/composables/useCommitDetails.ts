@@ -19,7 +19,7 @@
  * 的结果；按仓库 + 提交哈希缓存并合并并发请求，避免重复 IPC。
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { errorHandler } from "./useGitCommitterErrorHandler";
 import type { GitCommitSummary } from "../types";
 

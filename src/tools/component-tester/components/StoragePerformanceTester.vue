@@ -214,9 +214,9 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-vue-next";
-import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
-import { writeTextFile, readTextFile, readFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@/platform/native/core";
+import { join } from "@/platform/native/path";
+import { writeTextFile, readTextFile, readFile } from "@/platform/native/fs";
 import * as jsonpatch from "fast-json-patch";
 import { getAppConfigDir } from "@/utils/appPath";
 import { createModuleLogger } from "@/utils/logger";

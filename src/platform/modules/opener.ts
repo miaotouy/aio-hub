@@ -16,15 +16,15 @@ import {
   openUrl as tauriOpenUrl,
   revealItemInDir as tauriRevealItemInDir,
   openPath as tauriOpenPath,
-} from "@tauri-apps/plugin-opener";
-import { isTauriRuntime } from "../core/env";
+} from "@/platform/native/opener";
+import { isNativeRuntime } from "../core/env";
 import { PlatformError } from "../core/errors";
 
 /**
  * 用系统默认浏览器打开 URL
  */
 export async function openExternalUrl(url: string): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriOpenUrl(url);
       return;
@@ -47,7 +47,7 @@ export async function openExternalUrl(url: string): Promise<void> {
  * 在系统文件资源管理器中定位并选中文件/目录
  */
 export async function revealInFileManager(filePath: string): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriRevealItemInDir(filePath);
       return;
@@ -65,7 +65,7 @@ export async function revealInFileManager(filePath: string): Promise<void> {
  * 用系统默认关联应用直接打开指定路径
  */
 export async function openPathWithDefaultApp(filePath: string): Promise<void> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       await tauriOpenPath(filePath);
       return;

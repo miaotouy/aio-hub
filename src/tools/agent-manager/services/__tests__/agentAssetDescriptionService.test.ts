@@ -28,8 +28,8 @@ const mocks = vi.hoisted(() => ({
   base64: vi.fn(),
   profiles: { value: [] as LlmProfile[] },
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
-vi.mock("@tauri-apps/plugin-fs", () => ({
+vi.mock("@/platform/native/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@/platform/native/fs", () => ({
   readFile: mocks.readFile,
   stat: mocks.stat,
 }));

@@ -20,7 +20,7 @@
  * 2. 通用工具：向 Agent 暴露操作任意 Skill 资源的通用工具（脚本执行、文件读取）。
  * 所有核心操作均委托给 Rust 后端执行。
  */
-import { type, platform, arch, version } from "@tauri-apps/plugin-os";
+import { type, platform, arch, version } from "@/platform/native/os";
 import type { ToolRegistry, ServiceMetadata } from "@/services/types";
 import type { RuntimeSettings } from "../types";
 import { useSkillManagerStore } from "../stores/skillManagerStore";

@@ -12,7 +12,7 @@ import {
   AlertCircle,
   Plus,
 } from "lucide-vue-next";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 
 const props = defineProps<{
   show: boolean;
@@ -23,7 +23,7 @@ const emit = defineEmits<{
   (e: "update:show", value: boolean): void;
 }>();
 
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const keyManager = useLlmKeyManager();
 const profilesStore = useLlmProfilesStore();
 
@@ -77,7 +77,7 @@ const maskKey = (key: string) => {
 const handleResetBroken = () => {
   if (!props.profile) return;
   keyManager.resetAllBroken(props.profile.id);
-  Snackbar.success(tRaw("tools.llm-api.KeyManager.已重置所有熔断"));
+  customMessage(t("tools.llm-api.KeyManager.已重置所有熔断"), "success");
 };
 
 const toggleKeyEnabled = (key: string, current: boolean) => {
@@ -97,7 +97,7 @@ const handleResetSingle = (key: string) => {
 
 const showDetails = (status: any) => {
   if (!status.lastErrorMessage) return;
-  Dialog({
+  void customDialog({
     title: t("common.错误详情"),
     message: status.lastErrorMessage,
     confirmButtonText: t("common.确定"),
@@ -128,10 +128,11 @@ const handleBatchImport = () => {
       apiKeys: updatedKeys,
     });
 
-    Snackbar.success(
-      tRaw("tools.llm-api.KeyManager.导入成功N个", {
+    customMessage(
+      t("tools.llm-api.KeyManager.导入成功N个", {
         count: uniqueNewKeys.length,
-      })
+      }),
+      "success"
     );
   }
 
@@ -149,12 +150,17 @@ const handleBatchImport = () => {
   >
     <div class="manager-popup">
       <var-app-bar
-        :title="tRaw('tools.llm-api.KeyManager.多Key状态管理')"
+        :title="t('tools.llm-api.KeyManager.多Key状态管理')"
         fixed
         safe-area
       >
         <template #left>
-          <var-button round text @click="emit('update:show', false)">
+          <var-button
+            round
+            text
+            aria-label="返回"
+            @click="emit('update:show', false)"
+          >
             <ChevronLeft :size="24" />
           </var-button>
         </template>
@@ -162,7 +168,7 @@ const handleBatchImport = () => {
           <div class="flex items-center">
             <var-button text @click="showImportDialog = true">
               <Plus :size="18" class="mr-1" />
-              {{ tRaw("tools.llm-api.KeyManager.批量导入") }}
+              {{ t("tools.llm-api.KeyManager.批量导入") }}
             </var-button>
             <var-button v-if="hasBrokenKeys" text @click="handleResetBroken">
               <RotateCcw :size="18" class="mr-1" />
@@ -176,28 +182,28 @@ const handleBatchImport = () => {
         <div class="info-banner">
           <ShieldCheck :size="20" class="banner-icon" />
           <div class="banner-text">
-            {{ tRaw("tools.llm-api.KeyManager.提示说明") }}
+            {{ t("tools.llm-api.KeyManager.提示说明") }}
           </div>
         </div>
 
         <div class="settings-group">
           <div class="section-header">
-            {{ tRaw("tools.llm-api.KeyManager.策略设置") }}
+            {{ t("tools.llm-api.KeyManager.策略设置") }}
           </div>
           <div class="config-card">
             <var-cell>
-              {{ tRaw("tools.llm-api.KeyManager.自动熔断") }}
+              {{ t("tools.llm-api.KeyManager.自动熔断") }}
               <template #description>{{
-                tRaw("tools.llm-api.KeyManager.自动熔断说明")
+                t("tools.llm-api.KeyManager.自动熔断说明")
               }}</template>
               <template #extra>
                 <var-switch v-model="enableAutoDisable" />
               </template>
             </var-cell>
             <var-cell>
-              {{ tRaw("tools.llm-api.KeyManager.自动恢复时长") }}
+              {{ t("tools.llm-api.KeyManager.自动恢复时长") }}
               <template #description>{{
-                tRaw("tools.llm-api.KeyManager.自动恢复说明")
+                t("tools.llm-api.KeyManager.自动恢复说明")
               }}</template>
               <template #extra>
                 <var-select
@@ -206,19 +212,19 @@ const handleBatchImport = () => {
                   style="width: 100px"
                 >
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.1分钟')"
+                    :label="t('tools.llm-api.KeyManager.1分钟')"
                     :value="60000"
                   />
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.5分钟')"
+                    :label="t('tools.llm-api.KeyManager.5分钟')"
                     :value="300000"
                   />
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.30分钟')"
+                    :label="t('tools.llm-api.KeyManager.30分钟')"
                     :value="1800000"
                   />
                   <var-option
-                    :label="tRaw('tools.llm-api.KeyManager.从不')"
+                    :label="t('tools.llm-api.KeyManager.从不')"
                     :value="0"
                   />
                 </var-select>
@@ -229,12 +235,12 @@ const handleBatchImport = () => {
 
         <div v-if="keyStatuses.length === 0" class="empty-state">
           <AlertCircle :size="48" class="empty-icon" />
-          <p>{{ tRaw("tools.llm-api.KeyManager.暂无Key") }}</p>
+          <p>{{ t("tools.llm-api.KeyManager.暂无Key") }}</p>
         </div>
 
         <div v-else class="key-list">
           <div class="section-header">
-            {{ tRaw("tools.llm-api.KeyManager.Key列表") }}
+            {{ t("tools.llm-api.KeyManager.Key列表") }}
           </div>
           <div
             v-for="status in keyStatuses"
@@ -255,7 +261,7 @@ const handleBatchImport = () => {
                     size="mini"
                     class="status-chip"
                   >
-                    {{ tRaw("tools.llm-api.KeyManager.已熔断") }}
+                    {{ t("tools.llm-api.KeyManager.已熔断") }}
                   </var-chip>
                   <var-chip
                     v-else-if="!status.isEnabled"
@@ -281,7 +287,7 @@ const handleBatchImport = () => {
                   <span v-if="status.errorCount > 0" class="meta-item error">
                     <AlertCircle :size="12" />
                     {{
-                      tRaw("tools.llm-api.KeyManager.N次失败", {
+                      t("tools.llm-api.KeyManager.N次失败", {
                         count: status.errorCount,
                       })
                     }}
@@ -301,7 +307,13 @@ const handleBatchImport = () => {
               v-if="status.isBroken || status.lastErrorMessage"
               class="key-footer"
             >
-              <div class="error-msg text-truncate" @click="showDetails(status)">
+              <div
+                class="error-msg text-truncate"
+                role="button"
+                tabindex="0"
+                @click="showDetails(status)"
+                @keydown.enter="showDetails(status)"
+              >
                 {{
                   status.lastErrorMessage || status.note || t("common.未知错误")
                 }}
@@ -324,19 +336,19 @@ const handleBatchImport = () => {
     <!-- 批量导入弹窗 -->
     <var-dialog
       v-model:show="showImportDialog"
-      :title="tRaw('tools.llm-api.KeyManager.批量导入')"
+      :title="t('tools.llm-api.KeyManager.批量导入')"
       @confirm="handleBatchImport"
     >
       <div class="import-dialog-content">
         <p class="import-tip">
-          {{ tRaw("tools.llm-api.KeyManager.批量导入提示") }}
+          {{ t("tools.llm-api.KeyManager.批量导入提示") }}
         </p>
         <var-input
           v-model="importText"
           textarea
           :rows="8"
           variant="outlined"
-          :placeholder="tRaw('tools.llm-api.ProfileEditor.API Key 占位符')"
+          :placeholder="t('tools.llm-api.ProfileEditor.API Key 占位符')"
         />
       </div>
     </var-dialog>
@@ -348,7 +360,7 @@ const handleBatchImport = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .manager-content {
@@ -363,7 +375,7 @@ const handleBatchImport = () => {
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   margin-bottom: 20px;
   align-items: flex-start;
 }
@@ -374,7 +386,7 @@ const handleBatchImport = () => {
 }
 
 .banner-text {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -386,15 +398,15 @@ const handleBatchImport = () => {
 }
 
 .key-item-card {
-  background: var(--color-surface-container);
-  border-radius: 16px;
+  background: var(--container-bg);
+  border-radius: var(--app-radius-xl);
   padding: 16px;
-  border: 1.5px solid var(--color-outline-variant);
+  border: 1.5px solid var(--border-color);
   transition: all 0.2s ease;
 }
 
 .key-item-card.is-broken {
-  border-color: var(--color-danger);
+  border-color: var(--danger-color);
   background: var(--color-danger-container);
 }
 
@@ -420,7 +432,7 @@ const handleBatchImport = () => {
 }
 
 .key-text {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
 }
 
@@ -431,8 +443,8 @@ const handleBatchImport = () => {
 .key-meta {
   display: flex;
   gap: 12px;
-  font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
 }
 
 .meta-item {
@@ -442,13 +454,13 @@ const handleBatchImport = () => {
 }
 
 .meta-item.error {
-  color: var(--color-danger);
+  color: var(--danger-color);
 }
 
 .key-footer {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -456,9 +468,10 @@ const handleBatchImport = () => {
 }
 
 .error-msg {
-  font-size: 0.85rem;
-  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  color: var(--danger-color);
   flex: 1;
+  min-height: 44px;
 }
 
 .text-truncate {
@@ -473,7 +486,7 @@ const handleBatchImport = () => {
   align-items: center;
   justify-content: center;
   padding: 48px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .empty-icon {
@@ -486,19 +499,19 @@ const handleBatchImport = () => {
 }
 
 .section-header {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   margin-bottom: 12px;
-  color: var(--color-primary);
+  color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .config-card {
-  background: var(--color-surface-container);
-  border-radius: 16px;
+  background: var(--container-bg);
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
-  border: 1.5px solid var(--color-outline-variant);
+  border: 1.5px solid var(--border-color);
 }
 
 .mr-1 {

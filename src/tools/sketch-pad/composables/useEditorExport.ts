@@ -14,9 +14,9 @@
 
 import Konva from "konva";
 import { nanoid } from "nanoid";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
+import { save } from "@/platform/native/dialog";
+import { writeFile } from "@/platform/native/fs";
+import { writeImage } from "@/platform/native/clipboard";
 import type { EditorSession } from "./useEditorSession";
 import { useSketchStorage } from "./useSketchStorage";
 import { useSketchPadStore } from "../stores/sketchPadStore";

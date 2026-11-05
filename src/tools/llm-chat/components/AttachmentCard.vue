@@ -15,9 +15,11 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { convertFileSrc } from "@/platform/native/core";
+import { listen } from "@/platform/native/events";
 import {
   ElTooltip,
   ElDropdown,
@@ -632,7 +634,7 @@ const handleInsertPlaceholder = () => {
 const handleCopyPlaceholder = async () => {
   const placeholder = generateAssetPlaceholder(props.asset.id);
   try {
-    await navigator.clipboard.writeText(placeholder);
+    await getBrowserClipboard().writeText(placeholder);
     customMessage.success("占位符已复制到剪贴板");
   } catch {
     customMessage.error("复制失败");

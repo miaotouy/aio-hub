@@ -79,4 +79,8 @@ async function clear(): Promise<void> {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.report-actions :deep(.var-button) {
+  min-height: 44px;
+}
 </style>

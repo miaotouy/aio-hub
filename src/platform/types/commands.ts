@@ -34,21 +34,36 @@ export interface CommandMap {
   ensure_window_visible: CommandDefinition<{ label: string }, boolean>;
   apply_window_effect: CommandDefinition<{ effect: string }, void>;
   set_window_shadow: CommandDefinition<{ show: boolean }, void>;
-  navigate_main_window_to_settings: CommandDefinition<{ sectionId: string }, void>;
+  navigate_main_window_to_settings: CommandDefinition<
+    { sectionId: string },
+    void
+  >;
 
   // === 路径与文件系统 (Force / AppData) ===
   get_app_config_dir: CommandDefinition<void, string>;
   path_exists: CommandDefinition<{ path: string }, boolean>;
   is_directory: CommandDefinition<{ path: string }, boolean>;
   read_text_file_force: CommandDefinition<{ path: string }, string>;
-  write_text_file_force: CommandDefinition<{ path: string; content: string }, void>;
+  write_text_file_force: CommandDefinition<
+    { path: string; content: string },
+    void
+  >;
   read_file_binary: CommandDefinition<{ path: string }, number[]>;
-  write_file_force: CommandDefinition<{ path: string; content: number[] }, void>;
+  write_file_force: CommandDefinition<
+    { path: string; content: number[] },
+    void
+  >;
   append_file_force: CommandDefinition<{ path: string; content: string }, void>;
   create_dir_force: CommandDefinition<{ path: string }, void>;
   delete_file_to_trash: CommandDefinition<{ filePath: string }, void>;
-  delete_directory_in_app_data: CommandDefinition<{ relativePath: string }, void>;
-  copy_file_to_app_data: CommandDefinition<{ sourcePath: string; subdirectory: string; newFilename?: string }, string>;
+  delete_directory_in_app_data: CommandDefinition<
+    { relativePath: string },
+    void
+  >;
+  copy_file_to_app_data: CommandDefinition<
+    { sourcePath: string; subdirectory: string; newFilename?: string },
+    string
+  >;
   list_directory: CommandDefinition<{ path: string }, string[]>;
   open_file_directory: CommandDefinition<{ filePath: string }, void>;
   resolve_path_for_security: CommandDefinition<{ path: string }, unknown>;
@@ -56,10 +71,16 @@ export interface CommandMap {
   // === 系统与运维 ===
   exit_app: CommandDefinition<void, void>;
   set_show_tray_icon: CommandDefinition<{ show: boolean }, void>;
-  update_tray_setting: CommandDefinition<{ enabled?: boolean; minimizeToTray?: boolean }, void>;
+  update_tray_setting: CommandDefinition<
+    { enabled?: boolean; minimizeToTray?: boolean },
+    void
+  >;
   open_url: CommandDefinition<{ url: string }, void>;
   get_local_ips: CommandDefinition<void, string[]>;
-  append_app_log: CommandDefinition<{ level: string; target: string; message: string }, unknown>;
+  append_app_log: CommandDefinition<
+    { level: string; target: string; message: string },
+    unknown
+  >;
 
   // === 资产与媒体 ===
   get_asset_base_path: CommandDefinition<void, string>;
@@ -70,17 +91,26 @@ export interface CommandMap {
   list_directory_images: CommandDefinition<{ dirPath: string }, string[]>;
 
   // === LLM 代理与搜索 ===
-  start_llm_proxy_server: CommandDefinition<{ port?: number; certificateMode?: string }, { port: number }>;
+  start_llm_proxy_server: CommandDefinition<
+    { port?: number; certificateMode?: string },
+    { port: number }
+  >;
   stop_llm_proxy_server: CommandDefinition<void, void>;
 
   // === 窗口拖拽交互 (rdev) ===
-  start_drag_session: CommandDefinition<{ targetPosition?: [number, number] }, void>;
+  start_drag_session: CommandDefinition<
+    { targetPosition?: [number, number] },
+    void
+  >;
   end_drag_session: CommandDefinition<void, boolean>;
 
   // === 探针与后台运行时 ===
   background_runtime_ready: CommandDefinition<void, unknown>;
   background_runtime_heartbeat: CommandDefinition<void, unknown>;
-  background_runtime_get_status: CommandDefinition<void, { generation: number; alive: boolean }>;
+  background_runtime_get_status: CommandDefinition<
+    void,
+    { generation: number; alive: boolean }
+  >;
   frontend_probe_ready: CommandDefinition<void, unknown>;
   frontend_probe_heartbeat: CommandDefinition<void, unknown>;
 }

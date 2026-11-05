@@ -18,7 +18,7 @@
  */
 
 import type { MacroRegistry } from "../MacroRegistry";
-import { MacroPhase, MacroType } from "../MacroRegistry";
+import { MacroPhase, MacroType } from "../runtime/definitions";
 import type { MacroDefinition } from "../MacroRegistry";
 import { DEFAULT_VISUAL_GUIDELINE } from "../../config/visualGuidelinePresets";
 
@@ -142,6 +142,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
     // 最后一条消息
     {
       name: "lastMessage",
+      dynamic: true,
       type: MacroType.VALUE,
       phase: MacroPhase.POST_PROCESS,
       description: "会话中的最后一条消息",
@@ -156,6 +157,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
     // 最后一条用户消息
     {
       name: "lastUserMessage",
+      dynamic: true,
       type: MacroType.VALUE,
       phase: MacroPhase.POST_PROCESS,
       description: "会话中的最后一条用户消息",
@@ -170,6 +172,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
     // 最后一条角色消息
     {
       name: "lastCharMessage",
+      dynamic: true,
       type: MacroType.VALUE,
       phase: MacroPhase.POST_PROCESS,
       description: "会话中的最后一条角色消息",
@@ -184,6 +187,7 @@ export function registerCoreMacros(registry: MacroRegistry): void {
     // 当前输入
     {
       name: "input",
+      dynamic: true,
       type: MacroType.VALUE,
       phase: MacroPhase.POST_PROCESS,
       description: "当前输入内容（或选中的内容）",

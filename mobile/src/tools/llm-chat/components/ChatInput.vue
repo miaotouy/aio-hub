@@ -16,6 +16,7 @@ import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
 import LlmModelSelector from "../../llm-api/components/LlmModelSelector.vue";
 import AssetPickerSheet from "./AssetPickerSheet.vue";
+import AttachmentThumbnail from "./AttachmentThumbnail.vue";
 import type { ChatMessageAttachment, ChatMessageReference } from "../types";
 
 const props = defineProps<{
@@ -33,9 +34,9 @@ const inputText = ref("");
 const attachments = ref<ChatMessageAttachment[]>([]);
 const pickerOpen = ref(false);
 const { settings } = useChatSettings();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
-const inputT = (key: string) => tRaw(`tools.llm-chat.ChatInput.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.TokenUsage");
+const inputT = useScopedT("tools.llm-chat.ChatInput");
 const {
   estimatedTokens,
   contextLength,
@@ -92,6 +93,13 @@ const handleSend = async () => {
     }
   }
 };
+
+const thumbnailItem = (attachment: ChatMessageAttachment) => ({
+  assetId: attachment.assetId,
+  kind: attachment.snapshot.kind,
+  displayName: attachment.snapshot.displayName,
+  mimeType: attachment.snapshot.mimeType,
+});
 
 const addAttachments = (selected: ChatMessageAttachment[]) => {
   const existing = new Set(attachments.value.map((item) => item.assetId));
@@ -210,8 +218,15 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
       class="pending-attachments"
       data-testid="chat-pending-attachments"
     >
-      <span v-for="attachment in attachments" :key="attachment.id">
-        {{ attachment.snapshot.displayName }}
+      <span
+        v-for="attachment in attachments"
+        :key="attachment.id"
+        class="pending-attachment"
+      >
+        <AttachmentThumbnail :item="thumbnailItem(attachment)" :size="22" />
+        <span class="pending-attachment-name">{{
+          attachment.snapshot.displayName
+        }}</span>
         <button
           type="button"
           :aria-label="
@@ -274,8 +289,8 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .context-usage {
   min-width: 0;
   flex: 1;
-  color: var(--color-on-surface-variant);
-  font-size: 0.68rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 
 .context-usage-line {
@@ -307,24 +322,24 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 .context-meter i {
   height: 100%;
   display: block;
-  background: var(--color-primary);
+  background: var(--primary-color);
   transition: width 0.2s;
 }
 
 .context-usage.warning {
-  color: var(--color-warning, #a86400);
+  color: var(--warning-color, #a86400);
 }
 
 .context-usage.warning .context-meter i {
-  background: var(--color-warning, #d58a00);
+  background: var(--warning-color, #d58a00);
 }
 
 .context-usage.critical {
-  color: var(--color-danger, #c43c3c);
+  color: var(--danger-color, #c43c3c);
 }
 
 .context-usage.critical .context-meter i {
-  background: var(--color-danger, #d14343);
+  background: var(--danger-color, #d14343);
 }
 
 .reply-preview {
@@ -332,9 +347,9 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
+  border-radius: var(--app-radius-md);
+  color: var(--text-color-light);
+  background: var(--card-bg);
 }
 
 .reply-preview-copy {
@@ -353,17 +368,19 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
 }
 
 .reply-preview-copy strong {
-  font-size: 0.74rem;
-  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  color: var(--primary-color);
 }
 
 .reply-preview-copy span {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .reply-preview-dismiss {
   width: 28px;
   height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 28px;
   display: grid;
   place-items: center;
@@ -377,21 +394,23 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  background: var(--el-fill-color-light);
-  border-radius: 20px;
+  background: var(--input-bg);
+  border-radius: var(--app-radius-xl);
   padding: 4px;
 }
 
 .attachment-btn {
   width: 36px;
   height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 36px;
   display: grid;
   place-items: center;
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .text-area {
@@ -400,18 +419,20 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   background: none;
   resize: none;
   padding: 8px 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   max-height: 120px;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
   outline: none;
 }
 
 .send-btn {
   width: 36px;
   height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
-  background: var(--el-color-primary);
+  background: var(--primary-color);
   color: white;
   display: flex;
   align-items: center;
@@ -438,18 +459,27 @@ const addAttachments = (selected: ChatMessageAttachment[]) => {
   gap: 5px;
   padding: 4px 5px 4px 9px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-low);
-  font-size: 0.78rem;
+  color: var(--text-color-light);
+  background: var(--card-bg);
+  font-size: var(--font-size-xs);
+}
+
+.pending-attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pending-attachments button {
   width: 24px;
   height: 24px;
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 24px;
   display: grid;
   place-items: center;

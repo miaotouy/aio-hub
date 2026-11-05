@@ -3,7 +3,7 @@ import { shallowMount } from "@vue/test-utils";
 import { expect, it, vi } from "vitest";
 import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import type { PresetComposition } from "@aiohub/agent-preset-core";
-vi.mock("@/i18n", () => ({ useI18n: () => ({ tRaw: (key: string) => key }) }));
+vi.mock("@/i18n", () => ({ useI18n: () => ({ useScopedT: () => (key: string) => key }) }));
 vi.mock("@/utils/feedback", () => ({ customDialog: vi.fn() }));
 
 // Protects the mobile editor's v-model wiring: undoing participation preserves later typing.

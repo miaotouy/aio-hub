@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { computed, type ComputedRef, type Ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { useAppSettingsStore } from "@/stores/appSettingsStore";
 import { createModuleLogger } from "@/utils/logger";
 

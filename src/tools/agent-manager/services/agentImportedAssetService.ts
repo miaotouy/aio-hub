@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { getAgentStorageSubdirectory } from "../utils/agentAssetUtils";
 
 /** 将包内引用写入目标智能体目录，并返回路径已还原的配置副本。 */

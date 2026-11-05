@@ -242,7 +242,7 @@ const statusLabel = computed(() => {
 .asset-name {
   overflow: hidden;
   color: var(--text-color);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -252,7 +252,7 @@ const statusLabel = computed(() => {
 .asset-meta {
   overflow: hidden;
   color: var(--text-color-light);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -274,7 +274,7 @@ const statusLabel = computed(() => {
 .status {
   flex: 1;
   overflow: hidden;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

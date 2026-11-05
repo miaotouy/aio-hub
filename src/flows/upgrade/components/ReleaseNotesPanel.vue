@@ -4,6 +4,7 @@
   Licensed under the Apache License, Version 2.0 (the "License");
 -->
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { nextTick, ref, watch } from "vue";
 import { X } from "lucide-vue-next";
 import { useReleaseNotesViewerStore } from "../releaseNotesViewerStore";
@@ -12,6 +13,7 @@ import UpgradeReleaseNotesStep from "./UpgradeReleaseNotesStep.vue";
 
 const viewer = useReleaseNotesViewerStore();
 const guidedFlowStore = useGuidedFlowStore();
+const { zIndex } = useOverlayZIndex(() => viewer.visible);
 const panelRef = ref<HTMLElement | null>(null);
 
 watch(
@@ -36,6 +38,8 @@ watch(
     <div
       v-if="viewer.visible"
       class="release-notes-viewer"
+      data-overlay-layer
+      :style="{ zIndex }"
       data-testid="release-notes-viewer"
       @click.self="viewer.close"
       @keydown.esc="viewer.close"
@@ -71,7 +75,6 @@ watch(
 <style scoped>
 .release-notes-viewer {
   position: fixed;
-  z-index: calc(var(--z-index-notification) + 1);
   inset: var(--titlebar-height, 0px) 0 0;
   display: flex;
   min-width: 0;

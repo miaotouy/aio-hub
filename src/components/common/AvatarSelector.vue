@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed } from "vue";
 import { customMessage } from "@/utils/customMessage";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -318,7 +320,7 @@ const pasteImageFromClipboard = async () => {
   isPastingImage.value = true;
 
   try {
-    const clipboardItems = await navigator.clipboard.read();
+    const clipboardItems = await getBrowserClipboard().read();
 
     let imageBlob: Blob | null = null;
     let mimeType = "";

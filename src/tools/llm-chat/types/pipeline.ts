@@ -23,6 +23,9 @@ import type { ChatAgent } from "@/tools/agent-manager/types/agent";
 import type { ChatSettings } from "@/tools/llm-chat/types/settings";
 
 export interface PipelineContext {
+  /** Execution-owner cancellation, shared by all processors and the model request. */
+  readonly signal?: AbortSignal;
+
   // --- 核心可变数据 ---
   /**
    * 当前正在构建的消息列表。
@@ -40,6 +43,8 @@ export interface PipelineContext {
   readonly agentConfig: ChatAgent; // 完整的智能体配置
   readonly settings: ChatSettings; // 全局聊天设置
   readonly capabilities?: ModelCapabilities;
+  /** The current request target consumes VCP text tool calls upstream. */
+  readonly isVcpTextChannel?: boolean;
   readonly timestamp: number;
 
   /** Optional, isolated diagnostic trace around each processor. */

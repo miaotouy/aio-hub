@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import { ref, onBeforeUnmount } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { getNativeDesktopCapabilities } from "@/utils/nativeDesktopCapabilities";
-import { emit as tauriEmit } from "@tauri-apps/api/event";
-import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { emit as tauriEmit } from "@/platform/native/events";
+import { LogicalPosition, LogicalSize } from "@/platform/native/geometry";
+import { WebviewWindow } from "@/platform/native/webview-window";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type {

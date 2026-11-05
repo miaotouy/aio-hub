@@ -91,19 +91,19 @@
 
 ## 4. 根目录计划台账
 
-| 文档                                                                             | 状态   | 下一动作                                                                                                                                     |
-| -------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                        | 按需   | D-P2-08，编辑器按需加载与工厂注入已实施；薄宿主/面板按需加载再减入口约 15.1%；Monaco 0.57 升级、窗口根拆分及四类真实窗口验证完成             |
-| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)       | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                                                                                |
-| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)               | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收                                                  |
-| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)    | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二                                                                    |
-| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                        | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                                                                                           |
-| [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)      | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图                                                                |
-| [LLM 虚拟渠道组合与统一模型回退](./llm-virtual-channel-investigation.md)         | 实施中 | D-P1-05，主备组合、对话入口和下游绑定迁移已落地；继续专用操作与组合探测                                                                      |
-| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)                 | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                                                                             |
-| [决策模型与 Decisions API 覆盖](./decision-model-and-decisions-api-coverage.md)  | 候选   | Jev/System One 已接入；OpenAI Decisions API 渠道与开源决策模型 id 待确认后按需做                                                             |
-| [前端平台隔离层与类型安全桥接方案](./frontend-platform-bridge-isolation-plan.md) | 待实施 | 建立统一 `src/platform` 门面与 CommandMap 强类型映射，解耦 Tauri 依赖，支撑底座平滑演进与防错校验                                            |
-| [Cordis 架构演化总纲](./cordis-modular-architecture-blueprint.md)                | 待实施 | 战场一（插件系统 Cordis 化）与战场二（独立会话运行时从零生长）双轨并行，详见演进路线与[经验复盘](./cordis-runtime-postmortem-and-lessons.md) |
+| 文档                                                                               | 状态   | 下一动作                                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [前端 Chunk 治理](./frontend-chunk-size-investigation.md)                          | 按需   | D-P2-08，编辑器按需加载与工厂注入已实施；薄宿主/面板按需加载再减入口约 15.1%；Monaco 0.57 升级、窗口根拆分及四类真实窗口验证完成             |
+| [LLM 聚合渠道与模型路由](./llm-aggregate-channel-routing-investigation.md)         | 待实施 | Phase 0–4 已实施；仅剩 Phase 5 多能力路由与高级兼容，按需排期                                                                                |
+| [模型元数据系统优化](./model-metadata-system-optimization-plan.md)                 | 待收口 | 批次 1–4、批次 5 第一部分与内置目录自动更新收口已完成；剩移动端目录管理 UI 与真实运行态验收                                                  |
+| [原生工具调用与编排](./native-tool-calling-adapter-and-orchestration-plan.md)      | 待实施 | D-P1-02，Adapter 修补已完成；下一版本周期实施 `llm-chat` 原生编排工作线二                                                                    |
+| [AI 小说专精模块调查](./ai-novel-studio-investigation.md)                          | 候选   | D-P2-06，Knowledge/Recall 主线稳定后做垂直切片验证                                                                                           |
+| [Web Canvas 演示稿生成与预览增强](./canvas-presentation-generation-plan.md)        | 候选   | 平替 Open Design：slide-deck 模板、元素/日志投喂 chat、F12 DevTools、平铺视图                                                                |
+| [LLM 虚拟渠道组合与统一模型回退](./llm-virtual-channel-investigation.md)           | 实施中 | D-P1-05，主备组合、对话入口和下游绑定迁移已落地；继续专用操作与组合探测                                                                      |
+| [Regex Applier Agent 接口](./regex-applier-agent-integration.md)                   | 待实施 | 完成 4 个 Agent 方法、元数据声明和定向验证，并同步关闭 AIO-I-005                                                                             |
+| [决策模型与 Decisions API 覆盖](./decision-model-and-decisions-api-coverage.md)    | 候选   | Jev/System One 已接入；OpenAI Decisions API 渠道与开源决策模型 id 待确认后按需做                                                             |
+| [前端平台隔离层与 Electron 迁移准备](./frontend-platform-bridge-isolation-plan.md) | 活动   | 隔离层与 Electron 基础宿主已落地；继续迁移网络、流式通道与 Rust 专项能力                                                                     |
+| [Cordis 架构演化总纲](./cordis-modular-architecture-blueprint.md)                  | 待实施 | 战场一（插件系统 Cordis 化）与战场二（独立会话运行时从零生长）双轨并行，详见演进路线与[经验复盘](./cordis-runtime-postmortem-and-lessons.md) |
 
 ## 5. 活动工具计划入口
 

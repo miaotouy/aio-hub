@@ -31,7 +31,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const { t, tRaw } = useI18n();
+const { t } = useI18n();
 const store = useLlmProfilesStore();
 const { getModelIcon } = useModelMetadata();
 
@@ -148,7 +148,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
     <div class="model-select-popup" data-testid="chat-model-popup">
       <div class="popup-header">
         <div class="popup-title">
-          {{ tRaw("tools.llm-api.common.选择模型") }}
+          {{ t("tools.llm-api.common.选择模型") }}
         </div>
         <div class="search-bar">
           <var-input
@@ -166,13 +166,13 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 
       <div class="popup-content">
         <div v-if="modelGroups.length === 0" class="empty-state">
-          <p>{{ tRaw("tools.llm-api.common.未配置模型") }}</p>
+          <p>{{ t("tools.llm-api.common.未配置模型") }}</p>
           <var-button
             type="primary"
             size="small"
             @click="router.push('/tools/llm-api')"
           >
-            {{ tRaw("tools.llm-api.common.去配置") }}
+            {{ t("tools.llm-api.common.去配置") }}
           </var-button>
         </div>
 
@@ -202,7 +202,10 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
                     :data-profile-id="item.profile.id"
                     :class="{ active: modelValue === item.value }"
                     v-ripple
+                    role="button"
+                    tabindex="0"
                     @click="handleSelect(item)"
+                    @keydown.enter="handleSelect(item)"
                   >
                     <DynamicIcon
                       :src="getModelIcon(item.model) || ''"
@@ -235,22 +238,22 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
 .popup-title {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   text-align: center;
   margin-bottom: 12px;
 }
@@ -260,7 +263,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .search-bar :deep(.var-input) {
-  --input-placeholder-color: var(--color-on-surface-variant);
+  --input-placeholder-color: var(--text-color-light);
 }
 
 .popup-content {
@@ -272,7 +275,7 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 .empty-state {
   padding: 40px 20px;
   text-align: center;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .empty-state p {
@@ -286,9 +289,9 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .profile-header {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--primary-color);
   margin-bottom: 12px;
   padding-left: 4px;
   text-transform: uppercase;
@@ -312,13 +315,13 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .sub-group-header {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   margin-bottom: 8px;
   padding-left: 8px;
   opacity: 0.8;
-  border-left: 2px solid var(--color-outline-variant);
+  border-left: 2px solid var(--border-color);
 }
 
 .group-items {
@@ -332,24 +335,24 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
-  background: var(--color-surface-container);
+  border-radius: var(--app-radius-lg);
+  background: var(--container-bg);
   transition: all 0.2s;
 }
 
 .model-item:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .model-item.active {
   background: var(--color-primary-container);
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
 }
 
 .item-icon {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 
 .item-info {
@@ -358,15 +361,15 @@ const handleSelect = (item: (typeof availableModels.value)[0]) => {
 }
 
 .item-name {
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   margin-bottom: 2px;
 }
 
 .item-id {
-  font-size: 0.75rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-light);
   font-family: monospace;
   white-space: nowrap;
   overflow: hidden;

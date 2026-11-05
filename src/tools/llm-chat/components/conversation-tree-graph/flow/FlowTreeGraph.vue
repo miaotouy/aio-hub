@@ -505,6 +505,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import {
   ref,
@@ -917,7 +919,7 @@ const copyDebugInfo = () => {
 
     // 复制到剪贴板
     const jsonString = JSON.stringify(debugInfo, null, 2);
-    navigator.clipboard.writeText(jsonString).then(
+    getBrowserClipboard().writeText(jsonString).then(
       () => {
         customMessage.success(
           `已复制调试信息 (${nodesInfo.length} 节点, ${linksInfo.length} 连线)`

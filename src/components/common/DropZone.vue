@@ -224,6 +224,7 @@ const { isDraggingOver } = useFileDrop({
   allowUnknownExtensions: props.allowUnknownExtensions,
   validator: props.validator,
   silent: props.silent,
+  preferFileObjects: props.preferFileObjects,
   onDrop: emitPathsUnlessHandledAsFiles,
   onFiles: props.emitFiles
     ? (files) => {

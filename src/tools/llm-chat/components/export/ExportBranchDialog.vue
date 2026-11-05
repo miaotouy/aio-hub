@@ -73,6 +73,7 @@
 
         <ExportOptionsPanel
           v-model:format="exportFormat"
+          v-model:roles="exportRoles"
           v-model:include-preset="includePreset"
           v-model:merge-preset-into-messages="mergePresetIntoMessages"
           v-model:include-user-profile="includeUserProfile"
@@ -117,6 +118,7 @@
 <script setup lang="ts">
 import { useLlmChatUiState } from "@/tools/llm-chat/composables/ui/useLlmChatUiState";
 import { ref, computed, watch } from "vue";
+import { EXPORT_MESSAGE_ROLES } from "../../utils/exportRoles";
 import { ElButton, ElIcon } from "element-plus";
 import { Camera } from "lucide-vue-next";
 import BaseDialog from "@/components/common/BaseDialog.vue";
@@ -134,8 +136,8 @@ import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import { useChatExecutor } from "../../composables/chat/useChatExecutor";
 import { resolveAgentAvatarPath } from "@/tools/agent-manager/utils/agentAssetUtils";
 import { processMessageAssetsSync } from "../../utils/agentAssetUtils";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@/platform/native/dialog";
+import { writeTextFile } from "@/platform/native/fs";
 import { customMessage } from "@/utils/customMessage";
 import { formatDateTime } from "@/utils/time";
 import { sanitizeFilename } from "@/utils/fileUtils";
@@ -178,6 +180,8 @@ const localVisible = computed({
 
 // 导出格式
 const exportFormat = ref<"markdown" | "json" | "raw">("markdown");
+
+const exportRoles = ref([...EXPORT_MESSAGE_ROLES]);
 
 // 细粒度的导出选项
 const includePreset = ref(false);
@@ -348,6 +352,7 @@ watch(
     () => props.messageId,
     () => props.sessionIndex,
     exportFormat,
+    exportRoles,
     includePreset,
     mergePresetIntoMessages,
     includeUserProfile,
@@ -370,6 +375,7 @@ watch(
       format: exportFormat.value,
       includePreset: includePreset.value,
       mergePresetIntoMessages: mergePresetIntoMessages.value,
+      roles: exportRoles.value,
       includeUserProfile: includeUserProfile.value,
       includeAgentInfo: includeAgentInfo.value,
       includeModelInfo: includeModelInfo.value,

@@ -15,6 +15,8 @@
 -->
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { ref, computed, watch } from "vue";
 import {
   Loader2,
@@ -78,7 +80,7 @@ const copyError = async () => {
   if (!task.value?.error) return;
 
   try {
-    await navigator.clipboard.writeText(task.value.error);
+    await getBrowserClipboard().writeText(task.value.error);
     errorCopied.value = true;
     customMessage.success("错误信息已复制");
 

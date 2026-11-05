@@ -16,7 +16,8 @@
  * Profile 编辑器核心逻辑
  * 负责 Profile 的选择、创建、删除、自动保存
  */
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, getCurrentScope, onScopeDispose } from "vue";
+import { normalizeDeepSeekProfile } from "@aiohub/llm-core";
 import { ElMessageBox } from "element-plus";
 import { customMessage } from "@/utils/customMessage";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
@@ -126,6 +127,11 @@ export function useProfileEditor() {
 
   // 选择配置
   const selectProfile = (profileId: string) => {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      saveCurrentProfile();
+    }
     selectedProfileId.value = profileId;
     const profile = profiles.value.find((p) => p.id === profileId);
     if (profile) {
@@ -188,7 +194,16 @@ export function useProfileEditor() {
       customMessage.error("请输入 API 地址");
       return false;
     }
-    saveProfile(editForm.value);
+    const normalized = normalizeDeepSeekProfile(editForm.value);
+    if (JSON.stringify(normalized) !== JSON.stringify(editForm.value))
+      editForm.value = normalized;
+    const existing = profiles.value.find(
+      (profile) => profile.id === normalized.id
+    );
+    if (existing && JSON.stringify(existing) === JSON.stringify(normalized))
+      return true;
+    // The store reports persistence failures; the timer owns this promise's rejection.
+    void saveProfile(normalized).catch(() => {});
     return true;
   };
 
@@ -198,6 +213,7 @@ export function useProfileEditor() {
       clearTimeout(saveTimer);
     }
     saveTimer = setTimeout(() => {
+      saveTimer = null;
       saveCurrentProfile();
     }, 1000);
   };
@@ -206,12 +222,30 @@ export function useProfileEditor() {
   watch(
     () => editForm.value,
     () => {
-      if (selectedProfileId.value) {
-        autoSave();
+      if (!selectedProfileId.value) return;
+      const existing = profiles.value.find(
+        (profile) => profile.id === editForm.value.id
+      );
+      if (
+        existing &&
+        JSON.stringify(existing) === JSON.stringify(editForm.value)
+      ) {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = null;
+        return;
       }
+      autoSave();
     },
     { deep: true }
   );
+
+  if (getCurrentScope())
+    onScopeDispose(() => {
+      if (!saveTimer) return;
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      saveCurrentProfile();
+    });
 
   // 删除配置
   const handleDelete = async () => {
@@ -228,7 +262,11 @@ export function useProfileEditor() {
           lockScroll: false,
         }
       );
-      deleteProfile(selectedProfile.value.id);
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      await deleteProfile(selectedProfile.value.id);
       selectedProfileId.value = profiles.value[0]?.id || null;
       if (selectedProfileId.value) {
         selectProfile(selectedProfileId.value);
@@ -241,7 +279,7 @@ export function useProfileEditor() {
 
   // 切换启用状态
   const handleToggle = (profile: LlmProfile) => {
-    toggleProfileEnabled(profile.id);
+    void toggleProfileEnabled(profile.id).catch(() => {});
   };
 
   // 重置 API 地址到默认值

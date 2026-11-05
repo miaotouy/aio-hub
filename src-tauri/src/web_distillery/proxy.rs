@@ -14,37 +14,44 @@
 
 use axum::{
     body::Body,
-    extract::{Query, Request},
+    extract::{Query, Request, State as AxumState},
     http::{header, HeaderMap as AxumHeaderMap, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
     Router,
 };
 use log::{error, info, warn};
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::sync::Arc;
-use tauri::AppHandle;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 use wreq::header::HeaderValue;
 
-// 全局代理服务状态
-pub static DISTILLERY_PROXY_STATE: Lazy<Arc<Mutex<DistilleryProxyState>>> =
-    Lazy::new(|| Arc::new(Mutex::new(DistilleryProxyState::default())));
+pub type SharedProxyState = Arc<Mutex<DistilleryProxyState>>;
 
 #[derive(Default)]
 pub struct DistilleryProxyState {
     pub is_running: bool,
     pub port: u16,
-    pub shutdown_tx: Option<oneshot::Sender<()>>,
     pub active_cookies: Option<String>,
-    /// 页面 localStorage 快照（JSON 格式的 key-value map），用于 SPA token 恢复
     pub active_local_storage: Option<String>,
-    /// 当前代理的目标 origin（如 "http://127.0.0.1:6565"），用于 fallback 路由转发
     pub active_target_origin: Option<String>,
-    /// 应用句柄，用于按应用统一代理设置构建出站 HTTP 客户端
-    pub app_handle: Option<AppHandle>,
+    pub cookie_origin: Option<String>,
+    pub origin: Option<String>,
+    pub settings: super::net::ProxySettings,
+    pub root_token: CancellationToken,
+    control: Arc<Mutex<()>>,
+    token: Option<CancellationToken>,
+    worker: Option<tokio::task::JoinHandle<()>>,
+}
+
+pub fn new_proxy_state(token: CancellationToken) -> SharedProxyState {
+    Arc::new(Mutex::new(DistilleryProxyState {
+        root_token: token,
+        ..Default::default()
+    }))
 }
 
 /// 从 Set-Cookie 响应头中解析 name=value，并合并到现有的 cookie 字符串中。
@@ -107,177 +114,250 @@ pub struct ProxyQuery {
     pub url: String,
 }
 
-/// 启动代理服务器
-#[tauri::command]
-pub async fn distillery_start_proxy(app: AppHandle) -> Result<u16, String> {
-    let mut state = DISTILLERY_PROXY_STATE.lock().await;
-    state.app_handle = Some(app.clone());
+/// Each server has an unguessable, distinct loopback origin and a single owning window.
+pub async fn distillery_start_proxy(
+    proxy_state: SharedProxyState,
+    settings: super::net::ProxySettings,
+) -> Result<u16, String> {
+    let control = proxy_state.lock().await.control.clone();
+    let _guard = control.lock().await;
+    let mut state = proxy_state.lock().await;
+    if state.root_token.is_cancelled() {
+        return Err("网页代理已随窗口关闭".into());
+    }
+    state.settings = settings;
     if state.is_running {
         return Ok(state.port);
     }
-
-    // 绑定到 127.0.0.1:0 以使用随机可用端口
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
-        .map_err(|e| format!("Failed to bind to random port: {}", e))?;
-
+        .map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-
-    // 避开高频端口（虽然 0 是随机的，但如果随机到了也换一个，虽然概率极低）
-    let forbidden_ports = [3000, 5000, 8000, 8080];
-    if forbidden_ports.contains(&port) {
-        // 递归重试一次，或者直接报错让用户重试
-        return Box::pin(distillery_start_proxy(app)).await;
-    }
-
-    let (tx, rx) = oneshot::channel::<()>();
+    state.origin = Some(format!(
+        "http://{}.localhost:{}",
+        uuid::Uuid::new_v4().simple(),
+        port
+    ));
+    let token = state.root_token.child_token();
+    state.token = Some(token.clone());
     state.is_running = true;
     state.port = port;
-    state.shutdown_tx = Some(tx);
-
-    let state_clone = DISTILLERY_PROXY_STATE.clone();
-
-    tokio::spawn(async move {
-        let app = Router::new()
-            .route("/proxy", get(handle_proxy_html))
-            .route("/proxy-resource", axum::routing::any(handle_proxy_resource))
-            .route("/__distillery/bridge.js", get(handle_bridge_js))
-            .route("/__distillery/sniffer.js", get(handle_sniffer_js))
-            .route(
-                "/__distillery/anti-detection.js",
-                get(handle_anti_detection_js),
-            )
-            .route(
-                "/__distillery/resource-proxy.js",
-                get(handle_resource_proxy_js),
-            )
-            .fallback(handle_fallback)
-            .layer(tower_http::cors::CorsLayer::permissive());
-
-        info!(
-            "[Distillery-Proxy] Server starting on http://127.0.0.1:{}",
-            port
-        );
-
-        let server = axum::serve(listener, app).with_graceful_shutdown(async {
-            rx.await.ok();
-        });
-
-        if let Err(e) = server.await {
-            error!("[Distillery-Proxy] Server error: {}", e);
-            let mut s = state_clone.lock().await;
-            s.is_running = false;
-            s.shutdown_tx = None;
+    let server_state = proxy_state.clone();
+    let router = Router::new()
+        .route("/proxy", get(handle_proxy_html))
+        .route("/proxy-resource", axum::routing::any(handle_proxy_resource))
+        .route("/__distillery/bridge.js", get(handle_bridge_js))
+        .route("/__distillery/sniffer.js", get(handle_sniffer_js))
+        .route(
+            "/__distillery/anti-detection.js",
+            get(handle_anti_detection_js),
+        )
+        .route(
+            "/__distillery/resource-proxy.js",
+            get(handle_resource_proxy_js),
+        )
+        .fallback(handle_fallback)
+        .layer(middleware::from_fn_with_state(
+            proxy_state.clone(),
+            guard_session,
+        ))
+        .with_state(proxy_state.clone());
+    state.worker = Some(tokio::spawn(async move {
+        let outcome = axum::serve(listener, router)
+            .with_graceful_shutdown(token.cancelled_owned())
+            .await;
+        if let Err(error) = outcome {
+            error!("[Distillery-Proxy] Server failed: {}", error);
         }
-    });
-
+        server_state.lock().await.is_running = false;
+    }));
     Ok(port)
 }
 
-/// 停止代理服务器
-#[tauri::command]
-pub async fn distillery_stop_proxy() -> Result<(), String> {
-    let mut state = DISTILLERY_PROXY_STATE.lock().await;
-    if let Some(tx) = state.shutdown_tx.take() {
-        let _ = tx.send(());
+pub async fn distillery_stop_proxy(proxy_state: SharedProxyState) -> Result<(), String> {
+    let control = proxy_state.lock().await.control.clone();
+    let _guard = control.lock().await;
+    let worker = {
+        let mut state = proxy_state.lock().await;
+        if let Some(token) = state.token.take() {
+            token.cancel();
+        }
+        state.is_running = false;
+        state.port = 0;
+        state.origin = None;
+        state.active_target_origin = None;
+        state.active_cookies = None;
+        state.active_local_storage = None;
+        state.cookie_origin = None;
+        state.worker.take()
+    };
+    if let Some(mut worker) = worker {
+        if tokio::time::timeout(std::time::Duration::from_secs(5), &mut worker)
+            .await
+            .is_err()
+        {
+            worker.abort();
+            let _ = worker.await;
+        }
     }
-    state.is_running = false;
-    state.port = 0;
-    state.active_target_origin = None;
-    info!("[Distillery-Proxy] Server stopped");
     Ok(())
 }
 
-/// 获取当前端口号
-#[tauri::command]
-pub async fn distillery_get_proxy_port() -> Result<u16, String> {
-    let state = DISTILLERY_PROXY_STATE.lock().await;
-    if state.is_running {
-        Ok(state.port)
+pub async fn distillery_get_proxy_port(proxy_state: SharedProxyState) -> Result<u16, String> {
+    let state = proxy_state.lock().await;
+    Ok(if state.is_running { state.port } else { 0 })
+}
+pub async fn distillery_get_proxy_origin(
+    proxy_state: SharedProxyState,
+) -> Result<Option<String>, String> {
+    let state = proxy_state.lock().await;
+    Ok(if state.is_running {
+        state.origin.clone()
     } else {
-        Ok(0)
-    }
+        None
+    })
 }
-
-/// 设置代理服务器的 Cookie（用于 iframe 代理请求携带身份）
-#[tauri::command]
-pub async fn distillery_set_proxy_cookies(cookies: Option<String>) -> Result<(), String> {
-    let mut state = DISTILLERY_PROXY_STATE.lock().await;
+pub async fn distillery_set_proxy_cookies(
+    proxy_state: SharedProxyState,
+    cookies: Option<String>,
+) -> Result<(), String> {
+    let mut state = proxy_state.lock().await;
     state.active_cookies = cookies;
+    state.cookie_origin = None;
     Ok(())
 }
-/// 获取代理服务器当前累积的所有 Cookie（Cookie Jar 内容）
-/// 前端可用此命令在登录后自动同步 cookies 到身份卡片
-#[tauri::command]
-pub async fn distillery_get_proxy_cookies() -> Result<Option<String>, String> {
-    let state = DISTILLERY_PROXY_STATE.lock().await;
-    Ok(state.active_cookies.clone())
+pub async fn distillery_get_proxy_cookies(
+    proxy_state: SharedProxyState,
+) -> Result<Option<String>, String> {
+    Ok(proxy_state.lock().await.active_cookies.clone())
+}
+pub async fn distillery_set_proxy_local_storage(
+    proxy_state: SharedProxyState,
+    data: Option<String>,
+) -> Result<(), String> {
+    if let Some(json) = &data {
+        let parsed: serde_json::Value =
+            serde_json::from_str(json).map_err(|_| "LocalStorage 数据格式无效")?;
+        if !parsed.is_object() {
+            return Err("LocalStorage 数据需要键值对象".into());
+        }
+        if json.len() > 1024 * 1024 {
+            return Err("LocalStorage 数据过大".into());
+        }
+    }
+    proxy_state.lock().await.active_local_storage = data;
+    Ok(())
 }
 
-/// 设置代理服务器的 localStorage 数据（JSON 格式的 key-value map）
-/// 用于在 iframe 页面加载前注入 localStorage，恢复 SPA 的登录状态
-#[tauri::command]
-pub async fn distillery_set_proxy_local_storage(data: Option<String>) -> Result<(), String> {
-    let mut state = DISTILLERY_PROXY_STATE.lock().await;
-    state.active_local_storage = data;
-    Ok(())
+async fn guard_session(
+    AxumState(proxy_state): AxumState<SharedProxyState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let (origin, token) = {
+        let state = proxy_state.lock().await;
+        (state.origin.clone(), state.token.clone())
+    };
+    let expected_host = origin
+        .as_deref()
+        .and_then(|value| value.strip_prefix("http://"));
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok());
+    if expected_host.is_none() || host != expected_host {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Some(token) = token else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    tokio::select! {
+        mut response = next.run(req) => {
+            response.headers_mut().insert("referrer-policy", HeaderValue::from_static("no-referrer"));
+            response.headers_mut().insert("cache-control", HeaderValue::from_static("no-store"));
+            response
+        },
+        _ = token.cancelled() => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    }
 }
 
 /// 构建 localStorage 还原脚本（内联 <script>）
 /// 在页面 JS 执行前同步写入 localStorage，确保 SPA 能读取到 token
 fn build_local_storage_script(local_storage_json: &Option<String>) -> String {
-    match local_storage_json {
-        Some(json) if !json.is_empty() => {
-            // 对 JSON 进行转义以安全嵌入 HTML script 标签
-            let escaped = json
-                .replace('\\', "\\\\")
-                .replace('\'', "\\'")
-                .replace("</script>", "<\\/script>");
-            format!(
-                r#"<script>(function(){{try{{var d=JSON.parse('{}');for(var k in d){{if(Object.prototype.hasOwnProperty.call(d,k))localStorage.setItem(k,d[k])}}}}catch(e){{}}}})()</script>"#,
-                escaped
-            )
-        }
-        _ => String::new(),
+    local_storage_json.as_ref().filter(|json| !json.is_empty()).map(|json| {
+        let encoded = serde_json::to_string(json).unwrap_or_default().replace('<', r"\u003c");
+        format!(r#"<script>(function(){{try{{var d=JSON.parse({});localStorage.clear();for(var k in d){{if(Object.prototype.hasOwnProperty.call(d,k))localStorage.setItem(k,d[k])}}}}catch(e){{}}}})()</script>"#, encoded)
+    }).unwrap_or_else(|| "<script>try{localStorage.clear()}catch(e){}</script>".into())
+}
+
+fn inject_html(mut html: String, local_storage: &Option<String>, target: &Url) -> String {
+    let source = serde_json::to_string(target.as_str())
+        .unwrap_or_default()
+        .replace('<', r"\u003c");
+    let head = format!(
+        r#"<base href="{}"><script>window.__DISTILLERY_TARGET_URL__={};</script><script src="/__distillery/anti-detection.js"></script><script src="/__distillery/resource-proxy.js"></script>{}"#,
+        target.path().replace('&', "&amp;").replace('"', "&quot;"),
+        source,
+        build_local_storage_script(local_storage)
+    );
+    let lower = html.to_ascii_lowercase();
+    if let Some(end) = lower
+        .find("<head")
+        .and_then(|pos| lower[pos..].find('>').map(|end| pos + end + 1))
+    {
+        html.insert_str(end, &head);
+    } else {
+        html.insert_str(0, &head);
     }
+    let body = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
+    if let Some(pos) = html.to_ascii_lowercase().rfind("</body>") {
+        html.insert_str(pos, body);
+    } else {
+        html.push_str(body);
+    }
+    html
 }
 
 /// 处理 HTML 代理请求
 async fn handle_proxy_html(
+    AxumState(proxy_state): AxumState<SharedProxyState>,
     Query(query): Query<ProxyQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let target_url = query.url;
-    let decoded_url =
-        urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let decoded_url = target_url;
+    let parsed_target =
+        super::net::validate_url(&decoded_url).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     // 提取并存储目标 origin，供 fallback 路由使用
-    let target_origin = if let Ok(parsed) = Url::parse(decoded_url.as_ref()) {
-        let host_with_port = match parsed.port() {
-            Some(port) => format!("{}:{}", parsed.host_str().unwrap_or(""), port),
-            None => parsed.host_str().unwrap_or("").to_string(),
-        };
-        format!("{}://{}", parsed.scheme(), host_with_port)
-    } else {
-        String::new()
-    };
+    let target_origin = parsed_target.origin().ascii_serialization();
 
     info!(
         "[Distillery-Proxy] Proxying HTML: {} (origin: {})",
         decoded_url, target_origin
     );
 
-    let app_handle = DISTILLERY_PROXY_STATE.lock().await.app_handle.clone();
+    let settings = proxy_state.lock().await.settings.clone();
     let client = super::net::build_impersonated_client(
-        app_handle.as_ref(),
+        Some(&settings),
         std::time::Duration::from_secs(15),
+        &decoded_url,
     )
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    let mut request = client.get(decoded_url.as_ref());
+    let mut request = client.get(&decoded_url);
 
     // 注入激活的 cookie，同时设置 active_target_origin
     {
-        let mut state = DISTILLERY_PROXY_STATE.lock().await;
+        let mut state = proxy_state.lock().await;
+        if state
+            .cookie_origin
+            .as_ref()
+            .is_some_and(|origin| origin != &target_origin)
+        {
+            state.active_cookies = None;
+            state.active_local_storage = None;
+        }
+        state.cookie_origin = Some(target_origin.clone());
         state.active_target_origin = Some(target_origin);
         if let Some(ref cookies) = state.active_cookies {
             if !cookies.is_empty() {
@@ -291,6 +371,28 @@ async fn handle_proxy_html(
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
 
+    let resolved_target = Url::parse(&response.uri().to_string())
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    {
+        let mut state = proxy_state.lock().await;
+        let resolved_origin = resolved_target.origin().ascii_serialization();
+        if state
+            .cookie_origin
+            .as_ref()
+            .is_some_and(|origin| origin != &resolved_origin)
+        {
+            state.active_cookies = None;
+            state.active_local_storage = None;
+        }
+        state.cookie_origin = Some(resolved_origin.clone());
+        state.active_target_origin = Some(resolved_origin);
+    }
+    let upstream_content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+
     // Cookie Jar: 自动累积响应中的 Set-Cookie 到 active_cookies
     let set_cookies: Vec<String> = response
         .headers()
@@ -299,7 +401,7 @@ async fn handle_proxy_html(
         .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
         .collect();
     if !set_cookies.is_empty() {
-        let mut state = DISTILLERY_PROXY_STATE.lock().await;
+        let mut state = proxy_state.lock().await;
         state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
         info!(
             "[Distillery-Proxy] Cookie Jar updated from proxy_html ({} Set-Cookie headers)",
@@ -326,6 +428,7 @@ async fn handle_proxy_html(
         "upgrade",
         "content-length",
         "content-encoding",
+        "set-cookie",
     ];
 
     for (name, value) in response.headers().iter() {
@@ -346,40 +449,12 @@ async fn handle_proxy_html(
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
 
-    let bytes = response
-        .bytes()
+    let bytes = super::net::read_bounded(response, 32 * 1024 * 1024)
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    let mut html = String::from_utf8_lossy(&bytes).to_string();
-
-    // 注入脚本和 base 标签
-    // 使用 <base href="/"> 让所有相对路径资源和 API 请求都发到代理服务器，
-    // 由 fallback 路由统一转发到目标服务器，彻底避免 CORS 问题
-    let local_storage_script = {
-        let state = DISTILLERY_PROXY_STATE.lock().await;
-        build_local_storage_script(&state.active_local_storage)
-    };
-
-    let head_injections = format!(
-        r#"<base href="/"><script src="/__distillery/anti-detection.js"></script><script src="/__distillery/resource-proxy.js"></script>{}"#,
-        local_storage_script
-    );
-
-    // bridge.js 和 sniffer.js 移到 body 末尾，避免干扰 head hydration
-    let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
-
-    // 健壮的注入逻辑：避免引入多余的换行符，防止 Text Node Hydration 失败
-    if let Some(pos) = html.find("<head") {
-        if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
-            html.insert_str(end_pos, &head_injections);
-        }
-    }
-
-    if let Some(pos) = html.rfind("</body>") {
-        html.insert_str(pos, body_injections);
-    } else {
-        html.push_str(body_injections);
-    }
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+    let html = super::fetcher::decode_html_bytes(&bytes, upstream_content_type.as_deref());
+    let storage = proxy_state.lock().await.active_local_storage.clone();
+    let html = inject_html(html, &storage, &resolved_target);
 
     Ok((status, resp_headers, html))
 }
@@ -387,15 +462,17 @@ async fn handle_proxy_html(
 /// 处理子资源代理请求 (CSS/JS/Images/API) — 显式代理模式
 /// 支持所有 HTTP 方法，自动添加 Referer 头以绕过 CDN 防盗链
 async fn handle_proxy_resource(
+    AxumState(proxy_state): AxumState<SharedProxyState>,
     Query(query): Query<ProxyQuery>,
     req: Request,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let target_url = query.url;
-    let decoded_url =
-        urlencoding::decode(&target_url).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let decoded_url = target_url;
+    let parsed_target =
+        super::net::validate_url(&decoded_url).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     // 提取目标 URL 的 origin 作为 Referer（绕过 CDN 防盗链检查）
-    let referer = if let Ok(parsed) = Url::parse(decoded_url.as_ref()) {
+    let referer = if let Ok(parsed) = Url::parse(&decoded_url) {
         format!("{}/", parsed.origin().ascii_serialization())
     } else {
         String::new()
@@ -414,16 +491,17 @@ async fn handle_proxy_resource(
             )
         })?;
 
-    let app_handle = DISTILLERY_PROXY_STATE.lock().await.app_handle.clone();
+    let settings = proxy_state.lock().await.settings.clone();
     let client = super::net::build_impersonated_client(
-        app_handle.as_ref(),
+        Some(&settings),
         std::time::Duration::from_secs(15),
+        &decoded_url,
     )
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let wreq_method =
         wreq::Method::from_bytes(req_method.as_str().as_bytes()).unwrap_or(wreq::Method::GET);
-    let mut request = client.request(wreq_method, decoded_url.as_ref());
+    let mut request = client.request(wreq_method, &decoded_url);
 
     // 注入 Referer 头（关键：绕过 B站等 CDN 的防盗链）
     if !referer.is_empty() {
@@ -432,10 +510,14 @@ async fn handle_proxy_resource(
 
     // 注入 cookie
     {
-        let state = DISTILLERY_PROXY_STATE.lock().await;
-        if let Some(ref cookies) = state.active_cookies {
-            if !cookies.is_empty() {
-                request = request.header("Cookie", cookies.as_str());
+        let state = proxy_state.lock().await;
+        if state.cookie_origin.as_deref()
+            == Some(parsed_target.origin().ascii_serialization().as_str())
+        {
+            if let Some(ref cookies) = state.active_cookies {
+                if !cookies.is_empty() {
+                    request = request.header("Cookie", cookies.as_str());
+                }
             }
         }
     }
@@ -451,6 +533,7 @@ async fn handle_proxy_resource(
         "cookie",
         "referer",
         "origin",
+        "proxy-authorization",
     ];
     for (name, value) in req_headers.iter() {
         let name_str = name.as_str().to_lowercase();
@@ -472,6 +555,11 @@ async fn handle_proxy_resource(
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Request failed: {}", e)))?;
 
+    let resolved_origin = Url::parse(&response.uri().to_string())
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?
+        .origin()
+        .ascii_serialization();
+
     // Cookie Jar: 子资源请求也可能返回 Set-Cookie（如跟踪 cookie）
     let set_cookies: Vec<String> = response
         .headers()
@@ -480,8 +568,10 @@ async fn handle_proxy_resource(
         .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
         .collect();
     if !set_cookies.is_empty() {
-        let mut state = DISTILLERY_PROXY_STATE.lock().await;
-        state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+        let mut state = proxy_state.lock().await;
+        if state.cookie_origin.as_deref() == Some(resolved_origin.as_str()) {
+            state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+        }
     }
 
     let status = StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::OK);
@@ -506,6 +596,7 @@ async fn handle_proxy_resource(
         "upgrade",
         "content-length",
         "content-encoding",
+        "set-cookie",
     ];
 
     for (name, value) in response.headers().iter() {
@@ -520,22 +611,24 @@ async fn handle_proxy_resource(
         }
     }
 
-    let bytes = response
-        .bytes()
+    let bytes = super::net::read_bounded(response, 32 * 1024 * 1024)
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
     Ok((status, resp_headers, Body::from(bytes)))
 }
 
 /// Fallback 路由：将所有未匹配的请求透传到目标服务器（完整反向代理）
 /// 这解决了 CORS 问题 — 页面内的 XHR/fetch 请求不再跨域
-async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let (target_origin, cookies, app_handle) = {
-        let state = DISTILLERY_PROXY_STATE.lock().await;
+async fn handle_fallback(
+    AxumState(proxy_state): AxumState<SharedProxyState>,
+    req: Request,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let (target_origin, cookies, settings) = {
+        let state = proxy_state.lock().await;
         let origin = state.active_target_origin.clone();
         let cookies = state.active_cookies.clone();
-        let app_handle = state.app_handle.clone();
-        (origin, cookies, app_handle)
+        let settings = state.settings.clone();
+        (origin, cookies, settings)
     };
 
     let target_origin = match target_origin {
@@ -570,14 +663,20 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         })?;
 
     let client = super::net::build_impersonated_client(
-        app_handle.as_ref(),
+        Some(&settings),
         std::time::Duration::from_secs(30),
+        &target_url,
     )
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     let wreq_method =
         wreq::Method::from_bytes(method.as_str().as_bytes()).unwrap_or(wreq::Method::GET);
     let mut request = client.request(wreq_method, &target_url);
+
+    request = request.header("Referer", format!("{}/", target_origin));
+    if req_headers.contains_key("origin") {
+        request = request.header("Origin", target_origin.as_str());
+    }
 
     // 注入 cookie
     if let Some(ref cookie_str) = cookies {
@@ -597,6 +696,9 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         "te",
         "trailer",
         "cookie",
+        "referer",
+        "origin",
+        "proxy-authorization",
     ];
     for (name, value) in req_headers.iter() {
         let name_str = name.as_str().to_lowercase();
@@ -620,6 +722,33 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         )
     })?;
 
+    let resolved_target = Url::parse(&response.uri().to_string())
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let upstream_content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+
+    let resolved_origin = resolved_target.origin().ascii_serialization();
+    let navigation = matches!(
+        req_headers
+            .get("sec-fetch-dest")
+            .and_then(|v| v.to_str().ok()),
+        Some("iframe" | "document")
+    ) && upstream_content_type
+        .as_deref()
+        .is_some_and(|v| v.contains("text/html"));
+    if navigation {
+        let mut state = proxy_state.lock().await;
+        if state.cookie_origin.as_deref() != Some(resolved_origin.as_str()) {
+            state.active_cookies = None;
+            state.active_local_storage = None;
+        }
+        state.active_target_origin = Some(resolved_origin.clone());
+        state.cookie_origin = Some(resolved_origin.clone());
+    }
+
     // Cookie Jar: 自动累积响应中的 Set-Cookie 到 active_cookies
     let set_cookies: Vec<String> = response
         .headers()
@@ -628,8 +757,10 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         .filter_map(|v| v.to_str().ok().map(|s| s.to_string()))
         .collect();
     if !set_cookies.is_empty() {
-        let mut state = DISTILLERY_PROXY_STATE.lock().await;
-        state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+        let mut state = proxy_state.lock().await;
+        if state.cookie_origin.as_deref() == Some(resolved_origin.as_str()) {
+            state.active_cookies = merge_set_cookies(&state.active_cookies, &set_cookies);
+        }
         info!(
             "[Distillery-Proxy] Cookie Jar updated from fallback ({} Set-Cookie headers)",
             set_cookies.len()
@@ -658,6 +789,7 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         "upgrade",
         "content-length",
         "content-encoding",
+        "set-cookie",
     ];
 
     for (name, value) in response.headers().iter() {
@@ -672,10 +804,9 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
         }
     }
 
-    let bytes = response
-        .bytes()
+    let bytes = super::net::read_bounded(response, 32 * 1024 * 1024)
         .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
 
     // 如果响应是 HTML，注入 bridge.js 等脚本（与 handle_proxy_html 一致）
     // 这确保 iframe 内部全量导航（如登录后跳转）后新页面仍有 bridge 通信能力
@@ -686,30 +817,9 @@ async fn handle_fallback(req: Request) -> Result<impl IntoResponse, (StatusCode,
     let is_html = content_type.contains("text/html");
 
     if is_html {
-        let mut html = String::from_utf8_lossy(&bytes).to_string();
-
-        let local_storage_script = {
-            let state = DISTILLERY_PROXY_STATE.lock().await;
-            build_local_storage_script(&state.active_local_storage)
-        };
-
-        let head_injections = format!(
-            r#"<base href="/"><script src="/__distillery/anti-detection.js"></script><script src="/__distillery/resource-proxy.js"></script>{}"#,
-            local_storage_script
-        );
-        let body_injections = r#"<script src="/__distillery/bridge.js" defer></script><script src="/__distillery/sniffer.js" defer></script>"#;
-
-        if let Some(pos) = html.find("<head") {
-            if let Some(end_pos) = html[pos..].find('>').map(|i| i + pos + 1) {
-                html.insert_str(end_pos, &head_injections);
-            }
-        }
-
-        if let Some(pos) = html.rfind("</body>") {
-            html.insert_str(pos, body_injections);
-        } else {
-            html.push_str(body_injections);
-        }
+        let html = super::fetcher::decode_html_bytes(&bytes, upstream_content_type.as_deref());
+        let storage = proxy_state.lock().await.active_local_storage.clone();
+        let html = inject_html(html, &storage, &resolved_target);
 
         // 移除原始 content-type 中可能的 charset 不匹配，强制 utf-8
         resp_headers.insert(

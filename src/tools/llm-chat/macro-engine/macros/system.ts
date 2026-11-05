@@ -24,8 +24,8 @@ import {
   platform,
   hostname,
   locale,
-} from "@tauri-apps/plugin-os";
-import { getVersion } from "@tauri-apps/api/app";
+} from "@/platform/native/os";
+import { getVersion } from "@/platform/native/app";
 import type { MacroRegistry } from "../MacroRegistry";
 import { MacroPhase, MacroType } from "../MacroRegistry";
 import type { MacroDefinition } from "../MacroRegistry";

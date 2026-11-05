@@ -3,18 +3,28 @@ import { computed } from "vue";
 import type { ChatMessageNode } from "../types";
 import { User, Bot } from "lucide-vue-next";
 import { useLlmChatStore } from "../stores/llmChatStore";
+import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
+import { useUserProfileStore } from "../stores/userProfileStore";
 import { useChatSettings } from "../composables/useChatSettings";
 import { useI18n } from "@/i18n";
+import { mergeRegexConfigs, type RegexMacroValues } from "../utils/chatRegex";
 import MessageContent from "./MessageContent.vue";
 import MessageMenubar from "./MessageMenubar.vue";
 import BranchSwitcher from "./BranchSwitcher.vue";
 
-const props = defineProps<{
-  message: ChatMessageNode;
-  isActive?: boolean;
-  /** Multiplier from the chat UI font-size preference. */
-  fontSize?: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    message: ChatMessageNode;
+    isActive?: boolean;
+    /** Multiplier from the chat UI font-size preference. */
+    fontSize?: number;
+    /** 距离最新消息的深度，0 表示最新；用于 render 正则的 depthRange 过滤。 */
+    messageDepth?: number;
+  }>(),
+  {
+    messageDepth: 0,
+  }
+);
 
 const emit = defineEmits<{
   (e: "click"): void;
@@ -35,9 +45,36 @@ const emit = defineEmits<{
 }>();
 
 const chatStore = useLlmChatStore();
+const agentStore = useAgentStore();
+const userProfileStore = useUserProfileStore();
 const { settings } = useChatSettings();
-const { tRaw, locale } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.TokenUsage.${key}`);
+const { useScopedT, locale } = useI18n();
+const t = useScopedT("tools.llm-chat.TokenUsage");
+
+/**
+ * 该消息渲染阶段使用的正则配置（Message-Bound）。
+ * 合并顺序对齐桌面：全局源在前、Agent 源在后；移动端暂无全局/档案级
+ * regexConfig 载体，全局源当前恒为 undefined。
+ */
+const messageRegexConfig = computed(() =>
+  mergeRegexConfigs(
+    (settings.value as { regexConfig?: unknown } | undefined)?.regexConfig,
+    agentStore.getAgentById(props.message.metadata?.agentId)?.regexConfig
+  )
+);
+
+/**
+ * render 正则宏值：message 绑定的 agent 名与有效用户档案名。
+ * 语境有限，只提供 `{{user}}`/`{{char}}`，与 request 阶段保持同一取值语义。
+ */
+const regexMacroValues = computed<RegexMacroValues>(() => {
+  const agent = agentStore.getAgentById(props.message.metadata?.agentId);
+  const profile = userProfileStore.getEffectiveProfile(agent?.userProfileId);
+  return {
+    user: profile?.displayName || profile?.name || "User",
+    char: agent?.displayName || agent?.name || "Assistant",
+  };
+});
 const timestampLabel = computed(() => {
   if (!props.message.timestamp) return null;
 
@@ -55,6 +92,15 @@ const tokenLabel = computed(() => {
     return t("字符估算");
   return t("o200k 预估");
 });
+
+function handleContentClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest("button, a, input, textarea, select, video, audio")) {
+    return;
+  }
+  event.stopPropagation();
+  emit("click");
+}
 </script>
 
 <template>
@@ -94,16 +140,13 @@ const tokenLabel = computed(() => {
     </div>
 
     <div class="message-container">
-      <div
-        class="content-body"
-        @click="
-          (e) => {
-            e.stopPropagation();
-            emit('click');
-          }
-        "
-      >
-        <MessageContent :message="message" />
+      <div class="content-body" @click="handleContentClick">
+        <MessageContent
+          :message="message"
+          :regex-config="messageRegexConfig"
+          :regex-macros="regexMacroValues"
+          :message-depth="messageDepth"
+        />
       </div>
 
       <!-- 分支切换器 -->
@@ -157,7 +200,7 @@ const tokenLabel = computed(() => {
 }
 
 .message-item.is-active {
-  background-color: var(--el-fill-color-lighter);
+  background-color: var(--container-bg);
 }
 
 .message-header {
@@ -175,18 +218,18 @@ const tokenLabel = computed(() => {
 .avatar {
   width: 20px;
   height: 20px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
+  border-radius: var(--app-radius-sm);
+  background: var(--container-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
 }
 
 .user .avatar {
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+  color: var(--primary-color);
 }
 
 .message-container {
@@ -199,16 +242,19 @@ const tokenLabel = computed(() => {
   position: relative;
   transition: all 0.2s ease;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   font-size: calc(1rem * var(--chat-message-font-scale, 1));
   line-height: 1.6;
 }
 
 .user .content-body {
   padding: 12px 16px;
-  border-radius: 16px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
+  border-radius: var(--app-radius-xl);
+  background: var(--container-bg);
+  color: var(--text-color);
   width: auto;
+  min-width: 0;
   align-self: flex-end;
   max-width: 92%;
 }
@@ -217,12 +263,12 @@ const tokenLabel = computed(() => {
   padding: 0;
   background: transparent;
   border: none;
-  color: var(--el-text-color-primary);
+  color: var(--text-color);
   font-size: calc(1.05rem * var(--chat-message-font-scale, 1));
 }
 
 .message-item.is-active .content-body {
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
 .message-footer {
@@ -238,9 +284,9 @@ const tokenLabel = computed(() => {
 
 .model-info,
 .timestamp-info {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
-  color: var(--el-text-color-secondary);
+  color: var(--text-color-light);
   opacity: 0.9;
 }
 
@@ -250,8 +296,8 @@ const tokenLabel = computed(() => {
 
 .token-info {
   margin-top: 4px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.7rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 
 /* 悬挂操作栏布局 */

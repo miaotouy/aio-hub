@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import {
   ChevronLeft,
   Check,
@@ -79,12 +79,15 @@ const handleBack = () => {
 
 const handleReset = async () => {
   await resetAppearanceDraft();
-  Snackbar.success(t("common.重置成功"));
+  customMessage(t("common.重置成功"), "success");
 };
 
 const handleThemeChange = async (value: any) => {
   await updateAppearanceDraft({ theme: value });
-  Snackbar.success(t("settings.已切换至", { theme: currentThemeLabel.value }));
+  customMessage(
+    t("settings.已切换至", { theme: currentThemeLabel.value }),
+    "success"
+  );
 };
 
 const handleThemeColorChange = async (color: string) => {
@@ -625,7 +628,7 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .group-title {
   padding: 16px 16px 8px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--primary-color);
   text-transform: uppercase;
@@ -644,12 +647,12 @@ const handleRadiusScaleChange = async (value: any) => {
 }
 
 .cell-label {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -658,7 +661,7 @@ const handleRadiusScaleChange = async (value: any) => {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--primary-color);
 }
 
@@ -701,7 +704,7 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .wallpaper-option-label {
   max-width: 100%;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color);
   opacity: 0.78;
   overflow: hidden;
@@ -788,7 +791,7 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .value-label {
   flex-shrink: 0;
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--primary-color);
 }
@@ -799,6 +802,11 @@ const handleRadiusScaleChange = async (value: any) => {
 
 .bottom-placeholder {
   height: 32px;
+}
+
+:deep(.var-app-bar .var-button) {
+  min-width: 44px;
+  min-height: 44px;
 }
 
 :deep(.var-cell) {

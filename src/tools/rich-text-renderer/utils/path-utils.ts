@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { toLocalAssetUrl } from "@/platform/modules/assets";
 
 /**
  * 判断是否为本地绝对路径 (Windows 盘符, UNC 路径, 或 Unix / 开头)
@@ -52,13 +52,5 @@ export function resolveLocalPath(path: string): string {
     // 忽略解码失败
   }
 
-  // 3. 转换为 Tauri 安全 URL (asset://)
-  let result = convertFileSrc(cleanPath);
-
-  // 4. 处理 Tauri asset 协议对反斜杠的敏感性 (Windows 路径兼容)
-  if (result.includes("asset.localhost") || result.startsWith("asset:")) {
-    result = result.replace(/\\/g, "/");
-  }
-
-  return result;
+  return toLocalAssetUrl(cleanPath);
 }

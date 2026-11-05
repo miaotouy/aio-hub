@@ -67,6 +67,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import {
   useRendererNodeState,
   rendererDetailsCopyKey,
@@ -311,7 +313,7 @@ async function handleCopy() {
 
   const ok = await errorHandler.wrapAsync(
     async () => {
-      await navigator.clipboard.writeText(text);
+      await getBrowserClipboard().writeText(text);
       return true;
     },
     { userMessage: "复制失败，请检查剪贴板权限" }

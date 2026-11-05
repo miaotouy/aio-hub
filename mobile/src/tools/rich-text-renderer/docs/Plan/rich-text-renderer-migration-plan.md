@@ -1,11 +1,16 @@
 # 移动端 RichTextRenderer 模块化初版与 PC 能力迁移计划
 
-> 状态：初版模块化迁移完成；PC 能力迁移施工中
+> 状态：初版模块化迁移完成；优先服务正式聊天，PC 能力按需求与性能数据后置
 > 创建时间: 2026-06-26
-> 最近核对：2026-07-27
+> 最近核对：2026-09-23
 > 负责人: 咕咕-kilo
 > 跨模块施工索引：[`mobile-development-checklist.md`](../../../../../docs/plan/mobile-development-checklist.md)
 > 稳定架构：[`ARCHITECTURE.md`](../../ARCHITECTURE.md)
+
+## 当前施工口径
+
+**AST 语法树解析与统一节点派发是多功能富文本渲染（代码块、公式、思考块、提示块、Mermaid、受管媒体、复杂嵌套）的基石与前置条件**。
+当前工作优先建立移动端标准的 AST 管线与 `AstNodeRenderer` 节点树分发，替换基于脆弱手写正则分段（`renderSegments`）的临时实现；同时接入流式稳定区/待定区（Frozen/Pending）机制以解决流式打字过程中的 DOM 重建与状态抖动。Web Worker 离线分词器作为可选优化按需后置。
 
 ## 1. 背景与目标
 
@@ -60,9 +65,17 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 
 ### 3.2 迁移阶段
 
-- [ ] 复制 PC AST、节点类型、解析器、流式处理和 Patch 更新模块，先完成移动端路径、主题和 Tauri API 适配。
-- [ ] 迁移稳定区/待定区、节点复用和完整资源解析；不在缺乏实测热点时机械复制 PC AST/Patch 管线。
-- [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次完整 Markdown 重算，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。
+- [x] **第一阶段（前置基础）：直接复用 PC 核心 AST 与分词解析层（杜绝二次重写）**
+  - PC 端 `src/tools/rich-text-renderer/parser/`（`Tokenizer.ts`、`types.ts`、`block/`、`inline/`）与 `core/CustomParser.ts` 均为平台无关的纯 TypeScript，直接引入移动端。
+  - 天然对齐全套语法规范：标准 Markdown、GitHub 提示块、行内/块级 KaTeX、`<think>` 折叠块、VCP 协议及复杂嵌套语法。
+- [x] **第二阶段：轻量化 `AstNodeRenderer` 统一派发并收敛现有组件**
+  - 用 AST 树遍历分发器替代 `RichTextRenderer.vue` 内部手写正则切分（`renderSegments`），支持完全嵌套的语法树渲染。
+  - 将现存轻量组件（`CodeBlock.vue`、`KatexRenderer.vue`、`ThinkBlock.vue`、`MermaidDiagram.vue`、`RichTextMediaNode.vue`、`AlertBlock.vue`、`VcpBlock.vue`）挂载为 AST 叶子/容器节点。
+  - 剔除 PC 桌面专属重度依赖（CodeMirror、复杂编辑弹窗、Worker 线程通讯）。
+- [x] **第三阶段：接入 PC 流式稳定区/待定区（Frozen / Pending AST）机制**
+  - 复用 `StreamProcessorV2.ts` 的稳定区切分算法：流式打字中已闭合的块进入稳定区（Frozen），仅对末尾未闭合的待定区（Pending）增量解析。
+  - 彻底解决流式输出时代码高亮重算、公式抖动、视频/音频播放重置、折叠面板状态丢失的问题。
+- [x] 已完成可单测的流式渲染快照节流：中间 chunk 最多每 80ms 触发一次刷新，首内容、清空内容和结束响应立即刷新；卸载时清理待执行的流式与代码复制反馈 timer。
 - [ ] 在真实 Android/iOS 设备完成长消息、窄屏布局、滚动稳定性和内存释放验收；Vitest 只覆盖 Web 层节流与卸载清理，不能替代 WebView/原生运行态证据。
   - 2026-07-27：runner-owned Android AVD `Medium_Phone_API_36`（SDK 36、x86_64）通过 `rich-text` APK 回归，覆盖 RichText 测试页的普通代码块、Mermaid DOM 挂载、代码自动换行、长无空格代码行的容器横向滚动/页面不溢出，以及长 Markdown 流式进度、预览自动贴底、停止后内容不再增长和 keep-alive 路由停用后的流式清理；`rich-text-media` 进一步以确定性 assistant SSE 验证正式聊天在 `generating` 状态已挂载首个 Markdown 标题，随后覆盖 fenced code、行内 KaTeX、GitHub 风格 `TIP` 提示块、原始 HTML 字面回退及消息自有 `asset://` 图片的受管预览与沉浸层。该聊天流经原生 reqwest 拉取式分块桥接后逐块进入共享 SSE 解码器，避免 Tauri HTTP 插件响应流在 Android WebView 中批量交付。该结果仍不替代 Android 真机、iOS、多指/下拉手势或内存释放验收。
 - [x] 已完成移动端基础 Markdown 代码块交互：独立节点提供可访问的复制与自动换行切换，保留横向滚动、最大高度和原始代码文本；复制反馈 timer 在节点卸载时清理。不在无移动端需求时照搬桌面高亮、导出、CodeMirror 或 HTML 预览交互。
@@ -70,11 +83,11 @@ RichTextRenderer 可以独立工作树并行开发。建议工作树只修改：
 - [x] 已接入只读 VCP 输出块：角色分隔、工具请求（含 `TOOL_REQUEST_ESCAPE`）、调用结果、日记和本轮摘要会去除协议围栏后以可折叠卡片显示；流式未闭合请求保持可见。该能力只负责安全展示，既不连接也不执行桌面 `vcp-connector` / `tool-calling` 协议。
 - [x] 已接入 KaTeX 行内/块级公式，并在思考块内复用；`trust: false`，失败时不执行 HTML 或脚本。
 - [x] 已实现桌面默认 `<think>` / `<guguthink>` 的移动端折叠块和未闭合流式状态；不提前伪造自定义规则 UI 或完整 AST/Patch 管线。
-- [x] 已接入受管资产媒体节点：当前消息内的 Markdown `![说明](asset://<assetId>)` 仅在 `<assetId>` 匹配该消息 `attachments` 时解析为稳定 `MediaItem`，并复用 `MediaPreviewHost` 处理 descriptor、打开和卸载；外部图片继续走普通 `<img>` 回退；不以推测性风险统一封禁本地或私网来源，调用方解析、VCP 兼容和隐私属性按 [`mobile-pc-parity-construction-review.md`](../../../../../docs/plan/mobile-pc-parity-construction-review.md) 的复核结论处理。解析器不会根据模型文本探测任意资产，也不复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。2026-07-27 的 Android AVD `rich-text-media` 回归已覆盖消息自有图片 asset 的 Markdown 解析、managed preview URL、inline ready 和沉浸层打开/关闭；Android/iOS 手势、真实播放与真机门禁仍待完成。
+- [x] 已接入受管资产媒体节点：当前消息内的 Markdown `![说明](asset://<assetId>)` 仅在 `<assetId>` 匹配该消息 `attachments` 时解析为稳定 `MediaItem`，并复用 `MediaPreviewHost` 处理 descriptor、打开和卸载；外部图片继续走普通 `<img>` 回退；不以推测性风险统一封禁本地或私网来源，调用方解析、VCP 兼容和隐私属性按 [`mobile-pc-parity-construction-review.md`](../../../../../docs/plan/mobile-pc-parity-construction-review.md) 的复核结论处理。解析器不会根据模型文本探测任意资产，也不复制 PC 的 `BaseDialog`、`ImageViewer`、`AudioPlayer`、`VideoPlayer` 或桌面 composable。2026-07-27 的 Android AVD `rich-text-media` 回归已覆盖消息自有图片 asset 的 Markdown 解析、managed preview URL、inline ready 和沉浸层打开/关闭；Android/iOS 手势、真实播放与真机后续验证仍待完成。
 - [x] 已实现 Mermaid fenced code 的安全基础渲染：运行时按需加载 Mermaid，固定 `securityLevel: "strict"`，解析 SVG 后以 DOM 挂载并清除事件属性及非片段链接；流式未闭合 fenced code 仅显示等待状态，渲染失败保留原始代码。尚未迁移缩放、导出、自动修复、HTML 交互预览、样式隔离和 CDN 本地化，高级交互仍须按移动端能力分批启用。
 - [x] 当前移动端已禁用 raw `v-html`，并拒绝锚点、HTTP(S) 与 `mailto:` 之外的 Markdown 链接协议：未受信任 HTML token 仅以字面文本显示，不产生 DOM 节点或脚本执行面。
 - [ ] 后续如需启用 HTML 输出，必须先实现可审计的白名单或沙箱；不得恢复直接 `v-html`。
-- [ ] 完成长消息、流式输出、窄屏布局、滚动稳定性和内存释放验证；其中 Web 层流式节流和 timer 释放已有单测覆盖，Android AVD 已验证正式聊天生成中首包渲染，Android 真机、iOS 与内存释放门禁仍待执行。
+- [ ] 完成长消息、流式输出、窄屏布局、滚动稳定性和内存释放验证；其中 Web 层流式节流和 timer 释放已有单测覆盖，Android AVD 已验证正式聊天生成中首包渲染，Android 真机、iOS 与内存释放后续验证仍待执行。
 - [ ] 依据真实 Android/iOS 设备数据评估 Web Worker、Rust 或原生下沉；没有性能证据时不提前抽取共享实现。
 
 移动端测试页中的字符/单词切分只用于流式演示和速度模拟，不等同于聊天上下文使用的 Rust `o200k_base` Token 计数。

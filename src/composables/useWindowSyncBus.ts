@@ -24,11 +24,11 @@ import {
   listen,
   emit as tauriEmit,
   type UnlistenFn as TauriUnlistenFn,
-} from "@tauri-apps/api/event";
+} from "@/platform/native/events";
 import {
   getCurrentWebviewWindow,
   getAllWebviewWindows,
-} from "@tauri-apps/api/webviewWindow";
+} from "@/platform/native/webview-window";
 import { getOrCreateInstance } from "@/utils/singleton";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
@@ -427,7 +427,8 @@ class WindowSyncBus {
           message.from
         );
       }
-    } else {
+    } else if (message.to === this.windowLabel) {
+      // Broadcast requests are answered only by the window that owns the action.
       logger.warn("未找到匹配的操作处理器", { action });
       // 发送错误响应，告知未找到处理器
       await this.sendMessage<ActionResponsePayload>(

@@ -24,11 +24,11 @@ const emit = defineEmits<{
   (e: "change", value: { profileId: string; modelId: string }): void;
 }>();
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const store = useLlmProfilesStore();
 
 const displayPlaceholder = computed(
-  () => props.placeholder || tRaw("tools.llm-api.common.选择模型")
+  () => props.placeholder || t("tools.llm-api.common.选择模型")
 );
 const { getModelIcon } = useModelMetadata();
 
@@ -83,7 +83,10 @@ const togglePopup = () => {
     class="llm-model-selector"
     data-testid="chat-model-selector"
     :class="{ disabled }"
+    role="button"
+    tabindex="0"
     @click="togglePopup"
+    @keydown.enter="togglePopup"
   >
     <div class="selector-trigger" v-ripple>
       <div class="selected-content">
@@ -126,16 +129,17 @@ const togglePopup = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-height: 44px;
   padding: 6px 10px;
-  background: var(--color-surface-container-high);
-  border-radius: 20px;
+  background: var(--input-bg);
+  border-radius: var(--app-radius-xl);
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--border-color);
 }
 
 .selector-trigger:active {
-  background: var(--color-surface-container-highest);
+  background: var(--overlay-bg);
 }
 
 .selected-content {
@@ -149,32 +153,32 @@ const togglePopup = () => {
 .model-icon {
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--app-radius-sm);
   flex-shrink: 0;
 }
 
 .model-name {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .placeholder-icon {
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.6;
 }
 
 .placeholder-text {
-  font-size: 0.9rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
 }
 
 .arrow-icon {
   margin-left: 4px;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   transition: transform 0.3s;
 }
 
@@ -187,22 +191,22 @@ const togglePopup = () => {
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
+  background: var(--bg-color);
 }
 
 .popup-header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
 .popup-title {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   text-align: center;
   margin-bottom: 12px;
 }
@@ -212,7 +216,7 @@ const togglePopup = () => {
 }
 
 .search-bar :deep(.var-input) {
-  --input-placeholder-color: var(--color-on-surface-variant);
+  --input-placeholder-color: var(--text-color-light);
 }
 
 .popup-content {
@@ -224,7 +228,7 @@ const togglePopup = () => {
 .empty-state {
   padding: 40px 20px;
   text-align: center;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
 }
 
 .empty-state p {
@@ -238,9 +242,9 @@ const togglePopup = () => {
 }
 
 .profile-header {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--primary-color);
   margin-bottom: 12px;
   padding-left: 4px;
   text-transform: uppercase;
@@ -264,13 +268,13 @@ const togglePopup = () => {
 }
 
 .sub-group-header {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   margin-bottom: 8px;
   padding-left: 8px;
   opacity: 0.8;
-  border-left: 2px solid var(--color-outline-variant);
+  border-left: 2px solid var(--border-color);
 }
 
 .group-items {
@@ -284,24 +288,24 @@ const togglePopup = () => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
-  background: var(--color-surface-container);
+  border-radius: var(--app-radius-lg);
+  background: var(--container-bg);
   transition: all 0.2s;
 }
 
 .model-item:active {
-  background: var(--color-surface-container-high);
+  background: var(--input-bg);
 }
 
 .model-item.active {
   background: var(--color-primary-container);
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary-color);
 }
 
 .item-icon {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
 }
 
 .item-info {
@@ -310,15 +314,15 @@ const togglePopup = () => {
 }
 
 .item-name {
-  font-size: 0.95rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--text-color);
   margin-bottom: 2px;
 }
 
 .item-id {
-  font-size: 0.75rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-light);
   font-family: monospace;
   white-space: nowrap;
   overflow: hidden;

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "@/platform/native/core";
+import { listen, type UnlistenFn } from "@/platform/native/events";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
 import type {
@@ -35,6 +35,9 @@ const errorHandler = createModuleErrorHandler("symlink-mover/logic");
 
 export function useSymlinkMoverLogic() {
   let progressUnlisten: UnlistenFn | null = null;
+  let progressGeneration = 0;
+  let activeOperationId: string | null = null;
+  let disposed = false;
 
   // ==================== 文件验证 ====================
 
@@ -233,24 +236,34 @@ export function useSymlinkMoverLogic() {
   ): Promise<string | null> => {
     logger.info("开始移动文件并创建链接", options);
 
-    return await errorHandler.wrapAsync(
-      async () => {
-        const result = await invoke<string>("move_and_link", {
-          sourcePaths: options.sourcePaths,
-          targetDir: options.targetDir,
-          linkType: options.linkType,
-          baseSourceDir: options.baseSourceDir,
-        });
+    if (disposed || activeOperationId) return null;
+    const operationId =
+      globalThis.crypto?.randomUUID?.() ??
+      `link-${Date.now()}-${Math.random()}`;
+    activeOperationId = operationId;
+    try {
+      return await errorHandler.wrapAsync(
+        async () => {
+          const result = await invoke<string>("move_and_link", {
+            operationId,
+            sourcePaths: options.sourcePaths,
+            targetDir: options.targetDir,
+            linkType: options.linkType,
+            baseSourceDir: options.baseSourceDir,
+          });
 
-        logger.info("移动和链接操作完成", { result });
-        return result;
-      },
-      {
-        level: ErrorLevel.ERROR,
-        userMessage: "文件移动和链接失败",
-        context: options,
-      }
-    );
+          logger.info("移动和链接操作完成", { result });
+          return result;
+        },
+        {
+          level: ErrorLevel.ERROR,
+          userMessage: "文件移动和链接失败",
+          context: options,
+        }
+      );
+    } finally {
+      if (activeOperationId === operationId) activeOperationId = null;
+    }
   };
 
   /**
@@ -261,35 +274,47 @@ export function useSymlinkMoverLogic() {
   ): Promise<string | null> => {
     logger.info("开始创建链接", options);
 
-    return await errorHandler.wrapAsync(
-      async () => {
-        const result = await invoke<string>("create_links_only", {
-          sourcePaths: options.sourcePaths,
-          targetDir: options.targetDir,
-          linkType: options.linkType,
-          baseSourceDir: options.baseSourceDir,
-        });
+    if (disposed || activeOperationId) return null;
+    const operationId =
+      globalThis.crypto?.randomUUID?.() ??
+      `link-${Date.now()}-${Math.random()}`;
+    activeOperationId = operationId;
+    try {
+      return await errorHandler.wrapAsync(
+        async () => {
+          const result = await invoke<string>("create_links_only", {
+            operationId,
+            sourcePaths: options.sourcePaths,
+            targetDir: options.targetDir,
+            linkType: options.linkType,
+            baseSourceDir: options.baseSourceDir,
+          });
 
-        logger.info("创建链接操作完成", { result });
-        return result;
-      },
-      {
-        level: ErrorLevel.ERROR,
-        userMessage: "创建链接失败",
-        context: options,
-      }
-    );
+          logger.info("创建链接操作完成", { result });
+          return result;
+        },
+        {
+          level: ErrorLevel.ERROR,
+          userMessage: "创建链接失败",
+          context: options,
+        }
+      );
+    } finally {
+      if (activeOperationId === operationId) activeOperationId = null;
+    }
   };
 
   /**
    * 取消当前操作
    */
   const cancelOperation = async (): Promise<boolean> => {
+    if (!activeOperationId) return true;
+    const operationId = activeOperationId;
     logger.info("取消操作");
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        await invoke("cancel_move_operation");
+        await invoke("cancel_move_operation", { operationId });
         logger.info("取消操作成功");
         return true;
       },
@@ -311,6 +336,8 @@ export function useSymlinkMoverLogic() {
   const startProgressListener = async (
     onProgress: (progress: CopyProgress) => void
   ): Promise<boolean> => {
+    if (disposed) return false;
+    const generation = ++progressGeneration;
     logger.info("开始监听进度事件");
 
     // 如果已有监听器，先清理
@@ -321,14 +348,27 @@ export function useSymlinkMoverLogic() {
 
     const result = await errorHandler.wrapAsync(
       async () => {
-        progressUnlisten = await listen<CopyProgress>(
+        const unlisten = await listen<CopyProgress>(
           "copy-progress",
           (event) => {
+            if (
+              disposed ||
+              generation !== progressGeneration ||
+              !activeOperationId ||
+              (event.payload.operationId &&
+                event.payload.operationId !== activeOperationId)
+            )
+              return;
             const progress = event.payload;
             logger.debug("收到进度事件", progress);
             onProgress(progress);
           }
         );
+        if (disposed || generation !== progressGeneration) {
+          unlisten();
+          return false;
+        }
+        progressUnlisten = unlisten;
         logger.info("进度监听器已启动");
         return true;
       },
@@ -339,18 +379,25 @@ export function useSymlinkMoverLogic() {
       }
     );
 
-    return result !== null;
+    return result === true;
   };
 
   /**
    * 停止监听进度事件
    */
   const stopProgressListener = async (): Promise<void> => {
+    progressGeneration++;
     if (progressUnlisten) {
       logger.info("停止进度监听");
       progressUnlisten();
       progressUnlisten = null;
     }
+  };
+
+  const dispose = async () => {
+    disposed = true;
+    await stopProgressListener();
+    if (activeOperationId) await cancelOperation();
   };
 
   // ==================== 日志管理 ====================
@@ -530,6 +577,7 @@ export function useSymlinkMoverLogic() {
   };
 
   return {
+    dispose,
     validateFile,
     validateFiles,
     preflight,

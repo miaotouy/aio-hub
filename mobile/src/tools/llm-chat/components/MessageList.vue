@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
 import { useI18n } from "@/i18n";
 import type { ChatMessageNode } from "../types";
 import ChatMessage from "./ChatMessage.vue";
 import MessageNavigator from "./MessageNavigator.vue";
+import { ArrowDown } from "lucide-vue-next";
 
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.llm-chat.MessageList.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.llm-chat.MessageList");
 
 const props = withDefaults(
   defineProps<{
@@ -30,6 +31,9 @@ const scrollContainerRef = ref<HTMLElement | null>(null);
 const activeMessageId = ref<string | null>(null);
 const isNearBottom = ref(true);
 const visibleMessageIndex = ref(0);
+const showJumpToBottom = computed(
+  () => props.messages.length > 1 && !isNearBottom.value
+);
 
 const handleMessageClick = (id: string) => {
   if (activeMessageId.value === id) {
@@ -215,10 +219,11 @@ defineExpose({
 
       <div v-else class="messages-inner">
         <ChatMessage
-          v-for="msg in messages"
+          v-for="(msg, index) in messages"
           :key="msg.id"
           :message="msg"
           :font-size="fontSize"
+          :message-depth="messages.length - 1 - index"
           :is-active="activeMessageId === msg.id"
           @click="handleMessageClick(msg.id)"
           @close="activeMessageId = null"
@@ -236,6 +241,18 @@ defineExpose({
         />
       </div>
     </div>
+
+    <button
+      v-if="showJumpToBottom"
+      type="button"
+      class="jump-to-bottom"
+      data-testid="jump-to-bottom"
+      :aria-label="t('回到底部')"
+      @click.stop="scrollToBottom()"
+    >
+      <ArrowDown :size="16" />
+      <span>{{ t("回到底部") }}</span>
+    </button>
 
     <MessageNavigator
       v-if="showNavigator"
@@ -273,6 +290,30 @@ defineExpose({
   padding-bottom: 64px;
 }
 
+.jump-to-bottom {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 999px;
+  color: var(--color-on-primary-container);
+  background: var(--color-primary-container);
+  box-shadow: 0 6px 18px
+    color-mix(in srgb, var(--color-shadow, #000) 18%, transparent);
+  font: inherit;
+  font-size: var(--font-size-xs);
+}
+
+.jump-to-bottom:active {
+  transform: translateY(1px);
+}
+
 .messages-inner {
   display: flex;
   flex-direction: column;
@@ -297,14 +338,14 @@ defineExpose({
 }
 
 .empty-title {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-color);
   margin-bottom: 8px;
 }
 
 .empty-subtitle {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 </style>

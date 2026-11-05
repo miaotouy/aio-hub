@@ -22,10 +22,10 @@ import {
 import RichTextRenderer from "../RichTextRenderer.vue";
 import { presets } from "../presets/test-cases";
 import { marked } from "marked";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
 
-const { tRaw } = useI18n();
+const { t } = useI18n();
 
 // 标签页状态：edit (编辑), preview (预览), curtain (帘幕), debug (调试)
 const activeTab = ref<"edit" | "preview" | "curtain" | "debug">("preview");
@@ -409,7 +409,7 @@ const normalizeWhitespace = (text: string): string => {
 // 复制原文和渲染结果的对比报告
 const copyComparison = async () => {
   if (!inputContent.value.trim()) {
-    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无原文可复制"));
+    customMessage(t("tools.rich-text-renderer.tester.无原文可复制"), "warning");
     return;
   }
 
@@ -417,7 +417,7 @@ const copyComparison = async () => {
     ".rich-text-renderer"
   );
   if (!rendererEl) {
-    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无渲染容器"));
+    customMessage(t("tools.rich-text-renderer.tester.无渲染容器"), "warning");
     return;
   }
 
@@ -436,22 +436,22 @@ const copyComparison = async () => {
 
   // 拼接测试配置信息
   const streamLabel = streamEnabled.value
-    ? tRaw("tools.rich-text-renderer.tester.流式输出启用")
-    : tRaw("tools.rich-text-renderer.tester.流式输出禁用");
+    ? t("tools.rich-text-renderer.tester.流式输出启用")
+    : t("tools.rich-text-renderer.tester.流式输出禁用");
   let configInfo = streamLabel;
   if (streamEnabled.value) {
-    configInfo += `\n${tRaw("tools.rich-text-renderer.tester.输出速度配置", { speed: streamSpeed.value })}`;
-    configInfo += `\n${tRaw("tools.rich-text-renderer.tester.首包延迟配置", { delay: initialDelay.value })}`;
+    configInfo += `\n${t("tools.rich-text-renderer.tester.输出速度配置", { speed: streamSpeed.value })}`;
+    configInfo += `\n${t("tools.rich-text-renderer.tester.首包延迟配置", { delay: initialDelay.value })}`;
     const fluctuationLabel = fluctuationEnabled.value
-      ? tRaw("tools.rich-text-renderer.tester.波动模式启用")
-      : tRaw("tools.rich-text-renderer.tester.波动模式禁用");
+      ? t("tools.rich-text-renderer.tester.波动模式启用")
+      : t("tools.rich-text-renderer.tester.波动模式禁用");
     configInfo += `\n${fluctuationLabel}`;
   }
-  configInfo += `\n${tRaw("tools.rich-text-renderer.tester.预设用例", { id: selectedPreset.value })}`;
+  configInfo += `\n${t("tools.rich-text-renderer.tester.预设用例", { id: selectedPreset.value })}`;
 
   const matchLabel = isMatched
-    ? tRaw("tools.rich-text-renderer.tester.完全匹配")
-    : tRaw("tools.rich-text-renderer.tester.不匹配");
+    ? t("tools.rich-text-renderer.tester.完全匹配")
+    : t("tools.rich-text-renderer.tester.不匹配");
 
   const comparisonText = `========== 测试配置 ==========
 ${configInfo}
@@ -479,9 +479,12 @@ HTML 完整字符数: ${htmlContent.length}
 
   try {
     await navigator.clipboard.writeText(comparisonText);
-    Snackbar.success(tRaw("tools.rich-text-renderer.tester.对比报告已复制"));
+    customMessage(
+      t("tools.rich-text-renderer.tester.对比报告已复制"),
+      "success"
+    );
   } catch (err) {
-    Snackbar.error(tRaw("tools.rich-text-renderer.tester.复制失败权限"));
+    customMessage(t("tools.rich-text-renderer.tester.复制失败权限"), "error");
     console.error("Failed to copy comparison:", err);
   }
 };
@@ -489,15 +492,15 @@ HTML 完整字符数: ${htmlContent.length}
 // 复制完整 AST JSON
 const copyAstJson = async () => {
   if (!currentContent.value) {
-    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无AST数据"));
+    customMessage(t("tools.rich-text-renderer.tester.无AST数据"), "warning");
     return;
   }
   try {
     const jsonStr = JSON.stringify(astJson.value, null, 2);
     await navigator.clipboard.writeText(jsonStr);
-    Snackbar.success(tRaw("tools.rich-text-renderer.tester.AST已复制"));
+    customMessage(t("tools.rich-text-renderer.tester.AST已复制"), "success");
   } catch (err) {
-    Snackbar.error(tRaw("tools.rich-text-renderer.tester.复制失败"));
+    customMessage(t("tools.rich-text-renderer.tester.复制失败"), "error");
     console.error("Failed to copy AST:", err);
   }
 };
@@ -508,14 +511,14 @@ const copyHtml = async () => {
     ".rich-text-renderer"
   );
   if (!rendererEl) {
-    Snackbar.warning(tRaw("tools.rich-text-renderer.tester.无渲染内容"));
+    customMessage(t("tools.rich-text-renderer.tester.无渲染内容"), "warning");
     return;
   }
   try {
     await navigator.clipboard.writeText(rendererEl.innerHTML || "");
-    Snackbar.success(tRaw("tools.rich-text-renderer.tester.HTML已复制"));
+    customMessage(t("tools.rich-text-renderer.tester.HTML已复制"), "success");
   } catch (err) {
-    Snackbar.error(tRaw("tools.rich-text-renderer.tester.复制失败"));
+    customMessage(t("tools.rich-text-renderer.tester.复制失败"), "error");
   }
 };
 
@@ -571,7 +574,7 @@ onUnmounted(() => {
             @click="startRender"
           >
             <Play :size="14" />
-            <span>{{ tRaw("tools.rich-text-renderer.tester.渲染") }}</span>
+            <span>{{ t("tools.rich-text-renderer.tester.渲染") }}</span>
           </var-button>
           <var-button
             v-else
@@ -583,7 +586,7 @@ onUnmounted(() => {
             @click="stopRender"
           >
             <Square :size="14" />
-            <span>{{ tRaw("tools.rich-text-renderer.tester.停止") }}</span>
+            <span>{{ t("tools.rich-text-renderer.tester.停止") }}</span>
           </var-button>
           <var-button
             type="success"
@@ -594,7 +597,7 @@ onUnmounted(() => {
             @click="copyComparison"
           >
             <Copy :size="14" />
-            <span>{{ tRaw("tools.rich-text-renderer.tester.对比") }}</span>
+            <span>{{ t("tools.rich-text-renderer.tester.对比") }}</span>
           </var-button>
           <var-button
             type="info"
@@ -604,7 +607,7 @@ onUnmounted(() => {
             @click="clearOutput"
           >
             <Trash2 :size="14" />
-            <span>{{ tRaw("tools.rich-text-renderer.tester.清空") }}</span>
+            <span>{{ t("tools.rich-text-renderer.tester.清空") }}</span>
           </var-button>
         </div>
       </div>
@@ -618,7 +621,7 @@ onUnmounted(() => {
           @click="activeTab = 'edit'"
         >
           <FileText :size="16" />
-          <span>{{ tRaw("tools.rich-text-renderer.tester.编辑") }}</span>
+          <span>{{ t("tools.rich-text-renderer.tester.编辑") }}</span>
         </button>
         <button
           class="tab-item"
@@ -627,7 +630,7 @@ onUnmounted(() => {
           @click="activeTab = 'preview'"
         >
           <Eye :size="16" />
-          <span>{{ tRaw("tools.rich-text-renderer.tester.预览") }}</span>
+          <span>{{ t("tools.rich-text-renderer.tester.预览") }}</span>
         </button>
         <button
           class="tab-item"
@@ -636,7 +639,7 @@ onUnmounted(() => {
           @click="activeTab = 'curtain'"
         >
           <Sparkles :size="16" />
-          <span>{{ tRaw("tools.rich-text-renderer.tester.帘幕") }}</span>
+          <span>{{ t("tools.rich-text-renderer.tester.帘幕") }}</span>
         </button>
         <button
           class="tab-item"
@@ -645,7 +648,7 @@ onUnmounted(() => {
           @click="activeTab = 'debug'"
         >
           <Settings :size="16" />
-          <span>{{ tRaw("tools.rich-text-renderer.tester.配置") }}</span>
+          <span>{{ t("tools.rich-text-renderer.tester.配置") }}</span>
         </button>
       </div>
     </header>
@@ -656,7 +659,7 @@ onUnmounted(() => {
       <div v-show="activeTab === 'edit'" class="workspace-pane edit-pane">
         <textarea
           v-model="inputContent"
-          :placeholder="tRaw('tools.rich-text-renderer.tester.输入提示')"
+          :placeholder="t('tools.rich-text-renderer.tester.输入提示')"
           class="markdown-textarea"
           data-testid="rich-text-editor"
         ></textarea>
@@ -674,7 +677,7 @@ onUnmounted(() => {
         <div v-if="currentContent" class="render-wrapper">
           <div class="render-header">
             <span class="render-title">{{
-              tRaw("tools.rich-text-renderer.tester.渲染结果")
+              t("tools.rich-text-renderer.tester.渲染结果")
             }}</span>
             <var-button
               type="primary"
@@ -685,7 +688,7 @@ onUnmounted(() => {
             >
               <Copy :size="12" style="margin-right: 2px" />
               <span>{{
-                tRaw("tools.rich-text-renderer.tester.复制HTML")
+                t("tools.rich-text-renderer.tester.复制HTML")
               }}</span>
             </var-button>
           </div>
@@ -696,7 +699,7 @@ onUnmounted(() => {
         </div>
         <div v-else class="empty-state">
           <var-button type="primary" text @click="startRender">{{
-            tRaw("tools.rich-text-renderer.tester.暂无内容")
+            t("tools.rich-text-renderer.tester.暂无内容")
           }}</var-button>
         </div>
       </div>
@@ -729,7 +732,7 @@ onUnmounted(() => {
           </div>
           <div v-if="futureLines.length > 5" class="karaoke-more">
             {{
-              tRaw("tools.rich-text-renderer.tester.剩余行", {
+              t("tools.rich-text-renderer.tester.剩余行", {
                 count: futureLines.length - 5,
               })
             }}
@@ -741,11 +744,11 @@ onUnmounted(() => {
       <div v-show="activeTab === 'debug'" class="workspace-pane debug-pane">
         <div class="config-group">
           <h3 class="config-title">
-            {{ tRaw("tools.rich-text-renderer.tester.流式输出模拟") }}
+            {{ t("tools.rich-text-renderer.tester.流式输出模拟") }}
           </h3>
           <div class="config-item">
             <span class="config-label">{{
-              tRaw("tools.rich-text-renderer.tester.启用流式模拟")
+              t("tools.rich-text-renderer.tester.启用流式模拟")
             }}</span>
             <var-switch
               v-model="streamEnabled"
@@ -755,7 +758,7 @@ onUnmounted(() => {
           </div>
           <div class="config-item" v-if="streamEnabled">
             <span class="config-label">{{
-              tRaw("tools.rich-text-renderer.tester.输出速度", {
+              t("tools.rich-text-renderer.tester.输出速度", {
                 speed: streamSpeed,
               })
             }}</span>
@@ -768,7 +771,7 @@ onUnmounted(() => {
           </div>
           <div class="config-item" v-if="streamEnabled">
             <span class="config-label">{{
-              tRaw("tools.rich-text-renderer.tester.首包延迟", {
+              t("tools.rich-text-renderer.tester.首包延迟", {
                 delay: initialDelay,
               })
             }}</span>
@@ -784,17 +787,17 @@ onUnmounted(() => {
 
         <div class="config-group" v-if="streamEnabled">
           <h3 class="config-title">
-            {{ tRaw("tools.rich-text-renderer.tester.时间债务补偿波动模拟") }}
+            {{ t("tools.rich-text-renderer.tester.时间债务补偿波动模拟") }}
           </h3>
           <div class="config-item">
             <span class="config-label">{{
-              tRaw("tools.rich-text-renderer.tester.启用波动模式")
+              t("tools.rich-text-renderer.tester.启用波动模式")
             }}</span>
             <var-switch v-model="fluctuationEnabled" size="20" />
           </div>
           <div class="config-item" v-if="fluctuationEnabled">
             <span class="config-label">{{
-              tRaw("tools.rich-text-renderer.tester.延迟波动范围", {
+              t("tools.rich-text-renderer.tester.延迟波动范围", {
                 min: delayFluctuation.min,
                 max: delayFluctuation.max,
               })
@@ -818,7 +821,7 @@ onUnmounted(() => {
 
         <div class="config-group">
           <h3 class="config-title">
-            {{ tRaw("tools.rich-text-renderer.tester.AST调试") }}
+            {{ t("tools.rich-text-renderer.tester.AST调试") }}
           </h3>
           <var-button
             type="primary"
@@ -827,7 +830,7 @@ onUnmounted(() => {
             @click="isDebugDrawerOpen = true"
           >
             <Code :size="14" />
-            <span>{{ tRaw("tools.rich-text-renderer.tester.查看AST") }}</span>
+            <span>{{ t("tools.rich-text-renderer.tester.查看AST") }}</span>
           </var-button>
         </div>
       </div>
@@ -845,13 +848,13 @@ onUnmounted(() => {
       <div class="stat-item">
         <span class="stat-val">{{ renderStats.renderedTokens }}</span>
         <span class="stat-lbl">{{
-          tRaw("tools.rich-text-renderer.tester.Tokens")
+          t("tools.rich-text-renderer.tester.Tokens")
         }}</span>
       </div>
       <div class="stat-item" v-if="streamEnabled && renderStats.speed > 0">
         <span class="stat-val">{{ renderStats.speed.toFixed(1) }}</span>
         <span class="stat-lbl">{{
-          tRaw("tools.rich-text-renderer.tester.T_s")
+          t("tools.rich-text-renderer.tester.T_s")
         }}</span>
       </div>
       <div class="stat-item">
@@ -859,13 +862,13 @@ onUnmounted(() => {
           formatElapsedTime(renderStats.elapsedTime)
         }}</span>
         <span class="stat-lbl">{{
-          tRaw("tools.rich-text-renderer.tester.耗时")
+          t("tools.rich-text-renderer.tester.耗时")
         }}</span>
       </div>
       <div class="stat-item">
         <span class="stat-val">{{ renderStats.totalChars }}</span>
         <span class="stat-lbl">{{
-          tRaw("tools.rich-text-renderer.tester.字符")
+          t("tools.rich-text-renderer.tester.字符")
         }}</span>
       </div>
     </footer>
@@ -877,7 +880,7 @@ onUnmounted(() => {
       class="ast-drawer"
     >
       <div class="drawer-header">
-        <h3>{{ tRaw("tools.rich-text-renderer.tester.AST标题") }}</h3>
+        <h3>{{ t("tools.rich-text-renderer.tester.AST标题") }}</h3>
         <div class="drawer-header-actions">
           <var-button
             type="primary"
@@ -887,14 +890,14 @@ onUnmounted(() => {
             style="margin-right: 8px"
           >
             <Copy :size="14" style="margin-right: 4px" />
-            <span>{{ tRaw("tools.rich-text-renderer.tester.复制JSON") }}</span>
+            <span>{{ t("tools.rich-text-renderer.tester.复制JSON") }}</span>
           </var-button>
           <var-button
             type="primary"
             text
             size="small"
             @click="isDebugDrawerOpen = false"
-            >{{ tRaw("tools.rich-text-renderer.tester.关闭") }}</var-button
+            >{{ t("tools.rich-text-renderer.tester.关闭") }}</var-button
           >
         </div>
       </div>
@@ -912,9 +915,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-surface);
-  color: var(--color-on-surface);
-  font-size: 0.9rem;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+
+:deep(.var-button) {
+  min-height: 44px;
 }
 
 /* 顶部控制栏 */
@@ -960,6 +967,7 @@ onUnmounted(() => {
 
 .tab-item {
   flex: 1;
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -969,13 +977,13 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   color: var(--text-color-secondary);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   transition: all 0.2s;
 }
 
 .tab-item.active {
-  color: var(--color-primary);
-  background-color: rgba(var(--color-primary-rgb), 0.05);
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.05);
 }
 
 /* 主工作区 */
@@ -1005,10 +1013,10 @@ onUnmounted(() => {
   background-color: var(--input-bg);
   color: var(--text-color);
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   box-sizing: border-box;
 }
 
@@ -1022,7 +1030,7 @@ onUnmounted(() => {
 }
 .render-wrapper {
   background-color: var(--card-bg);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 16px;
   border: var(--border-width) solid var(--border-color);
 }
@@ -1037,7 +1045,7 @@ onUnmounted(() => {
 }
 
 .render-title {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-color-secondary);
 }
@@ -1073,10 +1081,10 @@ onUnmounted(() => {
 .curtain-karaoke {
   padding: 12px 16px;
   font-family: monospace;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   border-top: 1px dashed var(--border-color);
-  background-color: rgba(var(--color-primary-rgb), 0.02);
+  background-color: rgba(var(--primary-color-rgb), 0.02);
   margin-top: auto;
 }
 
@@ -1091,8 +1099,8 @@ onUnmounted(() => {
 }
 
 .karaoke-consumed {
-  color: var(--color-primary);
-  background-color: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--primary-color);
+  background-color: rgba(var(--primary-color-rgb), 0.08);
   border-radius: 2px;
 }
 
@@ -1106,7 +1114,7 @@ onUnmounted(() => {
 }
 
 .karaoke-more {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-placeholder);
   text-align: center;
   margin-top: 4px;
@@ -1119,7 +1127,7 @@ onUnmounted(() => {
 
 .config-group {
   background-color: var(--card-bg);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 12px;
   margin-bottom: 16px;
   border: var(--border-width) solid var(--border-color);
@@ -1127,10 +1135,10 @@ onUnmounted(() => {
 
 .config-title {
   margin: 0 0 12px 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-color);
-  border-left: 3px solid var(--color-primary);
+  border-left: 3px solid var(--primary-color);
   padding-left: 6px;
 }
 
@@ -1146,7 +1154,7 @@ onUnmounted(() => {
 }
 
 .config-label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color-secondary);
 }
 
@@ -1184,23 +1192,23 @@ onUnmounted(() => {
 }
 
 .stat-val {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--text-color);
 }
 
 .stat-lbl {
-  font-size: 0.65rem;
+  font-size: var(--font-size-xs);
   color: var(--text-color-placeholder);
 }
 
 /* AST 抽屉 */
 .ast-drawer {
   height: 60vh;
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
   display: flex;
   flex-direction: column;
-  background-color: var(--color-surface);
+  background-color: var(--bg-color);
 }
 
 .drawer-header {
@@ -1213,7 +1221,7 @@ onUnmounted(() => {
 
 .drawer-header h3 {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
@@ -1226,10 +1234,10 @@ onUnmounted(() => {
 .ast-json {
   margin: 0;
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   background-color: var(--input-bg);
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   overflow-x: auto;
 }
 </style>

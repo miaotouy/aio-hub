@@ -10,6 +10,7 @@ import PresetCompositionEditor from "./PresetCompositionEditor.vue";
 import { ChevronDown, ChevronLeft } from "lucide-vue-next";
 import { useI18n } from "@/i18n";
 import { customDialog, customMessage } from "@/utils/feedback";
+import { generateUuid } from "@/utils/uuid";
 import type { PresetMessage, PresetMessageGroup } from "../types/agent";
 
 const props = defineProps<{
@@ -18,8 +19,8 @@ const props = defineProps<{
   groups: PresetMessageGroup[];
 }>();
 const emit = defineEmits<{ close: []; save: [message: PresetMessage] }>();
-const { tRaw } = useI18n();
-const t = (key: string) => tRaw(`tools.agent-manager.PresetEditor.${key}`);
+const { useScopedT } = useI18n();
+const t = useScopedT("tools.agent-manager.PresetEditor");
 const roles: PresetMessage["role"][] = ["system", "user", "assistant"];
 const form = ref<PresetMessage>(createEmptyMessage());
 const advancedOpen = ref(false);
@@ -29,7 +30,7 @@ const baseline = ref("");
 
 function createEmptyMessage(): PresetMessage {
   return {
-    id: crypto.randomUUID(),
+    id: generateUuid(),
     parentId: null,
     childrenIds: [],
     role: "system",
@@ -398,7 +399,7 @@ function save(): void {
   min-height: 58px;
   padding: env(safe-area-inset-top) 14px 0;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   border-bottom: var(--border-width) solid var(--border-color);
 }
@@ -417,23 +418,26 @@ function save(): void {
 }
 .icon-button {
   padding: 8px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   color: inherit;
   background: transparent;
 }
 .save-button {
   padding: 8px 13px;
+  min-height: 44px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  color: var(--color-on-surface-variant);
-  font-size: 0.82rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-sm);
 }
 input,
 select,
@@ -442,7 +446,7 @@ textarea {
   width: 100%;
   padding: 11px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: var(--input-bg);
   font: inherit;
@@ -459,8 +463,9 @@ textarea {
 .role-tabs button {
   flex: 1;
   padding: 9px;
+  min-height: 44px;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 7px;
+  border-radius: var(--app-radius-md);
   color: var(--text-color);
   background: transparent;
   text-transform: capitalize;
@@ -469,18 +474,19 @@ textarea {
   opacity: 0.6;
 }
 .role-tabs .active {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 .advanced {
   overflow: hidden;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
 }
 .advanced > button {
   width: 100%;
   padding: 12px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -494,7 +500,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
 }
 .advanced-body label {
   display: flex;

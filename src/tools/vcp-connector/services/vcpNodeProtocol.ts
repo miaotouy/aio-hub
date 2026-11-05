@@ -188,11 +188,7 @@ async function withDistributedTimeout<T>(
   return await new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       onTimeout?.();
-      reject(
-        new Error(
-          `${label} 分布式执行超时（${DISTRIBUTED_TOOL_TIMEOUT_MS}ms），已提前返回以避免 VCP 服务端 60s 等待超时`
-        )
-      );
+      reject(new Error(`${label} 分布式调用等待超时，请重试`));
     }, DISTRIBUTED_TOOL_TIMEOUT_MS);
 
     promise
@@ -455,12 +451,83 @@ export class VcpNodeProtocol {
       },
     };
 
+    const args = stripProtocolArgs(toolArgs);
+    // VCP 文本参数保留字符串；按方法声明适配数值，再执行安全检查与审批。
+    for (const parameter of method.parameters ?? []) {
+      const value = args[parameter.name];
+      if (
+        parameter.type === "number" &&
+        typeof value === "string" &&
+        value.trim()
+      ) {
+        const number = Number(value);
+        if (Number.isFinite(number)) args[parameter.name] = number;
+      }
+    }
     return await withDistributedTimeout(
-      Promise.resolve(
-        service[resolvedMethodName](stripProtocolArgs(toolArgs), context)
-      ).then((result) =>
-        this.prepareDistributedToolResult(result, requestId, signal)
-      ),
+      (async () => {
+        signal.throwIfAborted();
+        if (typeof registry.checkSecurityPolicy === "function") {
+          const policy = await registry.checkSecurityPolicy(
+            resolvedMethodName,
+            args
+          );
+          signal.throwIfAborted();
+          if (
+            !policy ||
+            !["allow", "approve", "block"].includes(policy.status)
+          ) {
+            throw new Error("工具安全检查失败，请重试");
+          }
+          if (policy.status === "block") {
+            throw new Error(policy.message || "当前路径禁止访问");
+          }
+          if (policy.status === "approve") {
+            const approvalId = `vcp-operation:${this.serverId}:${requestId}`;
+            const decision = await useToolCallingStore().requestApproval(
+              `vcp-operation:${this.serverId}`,
+              {
+                requestId: approvalId,
+                toolId,
+                methodName: resolvedMethodName,
+                toolName: registry.name || toolId,
+                args,
+                rawBlock: JSON.stringify(args, null, 2),
+              },
+              approvalId,
+              {
+                signal,
+                timeoutMs: DISTRIBUTED_TOOL_TIMEOUT_MS,
+                source: "vcp-node",
+                forceApproval: true,
+                skipArbitration: true,
+                effectiveArgs: args,
+                toolDescription: method.description,
+              }
+            );
+            signal.throwIfAborted();
+            if (decision !== "approved")
+              throw new Error("用户未批准文件操作请求");
+            context.securityApprovalGranted = true;
+            // 等待期间规则可能改变，执行前重新检查死区与递归边界。
+            const recheck = await registry.checkSecurityPolicy(
+              resolvedMethodName,
+              args
+            );
+            if (!recheck || !["allow", "approve"].includes(recheck.status)) {
+              throw new Error(
+                recheck?.message || "工具安全规则已变更，请重新发起请求"
+              );
+            }
+          }
+        }
+        signal.throwIfAborted();
+        return await this.prepareDistributedToolResult(
+          await service[resolvedMethodName](args, context),
+          requestId,
+          signal
+        );
+      })(),
       `${toolId}.${resolvedMethodName}`,
       onTimeout
     );

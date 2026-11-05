@@ -24,6 +24,8 @@ const HMR_PORT = parseInt(process.env.VITE_HMR_PORT || (PORT + 1).toString());
 const viteConfig = defineConfig({
   // 路径别名配置
   resolve: {
+    // 插件独立安装依赖时，UI 仍与宿主共用同一份 Vue 运行时。
+    dedupe: ["vue"],
     // Vite 8 内置支持 tsconfig 路径别名
     tsconfigPaths: true,
     alias: {
@@ -248,6 +250,9 @@ export default mergeConfig(
       exclude: [
         ...configDefaults.exclude,
         "src-tauri/**",
+        "electron/**",
+        "dist-electron/**",
+        "**/.tmp/**",
         "dist/**",
         "mobile/**",
         "packages/**", // workspace packages use their own test scripts and environments

@@ -503,6 +503,7 @@ pub fn register_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<
         crate::web_distillery::distillery_start_proxy,
         crate::web_distillery::distillery_stop_proxy,
         crate::web_distillery::distillery_get_proxy_port,
+        crate::web_distillery::distillery_get_proxy_origin,
         crate::web_distillery::distillery_set_proxy_cookies,
         crate::web_distillery::distillery_get_proxy_cookies,
         crate::web_distillery::distillery_set_proxy_local_storage,

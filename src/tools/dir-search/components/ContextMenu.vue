@@ -21,6 +21,7 @@
         v-if="state.visible"
         ref="menuRef"
         class="context-menu"
+        data-overlay-layer
         :style="menuStyle"
         @click.stop
         @contextmenu.prevent
@@ -43,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import { useOverlayZIndex } from "@/composables/useDialogZIndex";
 import { ref, computed, watch, nextTick } from "vue";
 import type {
   ContextMenuState,
@@ -58,6 +60,7 @@ const emit = defineEmits<{
   hide: [];
 }>();
 
+const { zIndex } = useOverlayZIndex(() => props.state.visible);
 const menuRef = ref<HTMLElement | null>(null);
 
 // 计算菜单位置，确保不超出视口
@@ -80,6 +83,7 @@ const menuStyle = computed(() => {
   }
 
   return {
+    zIndex: zIndex.value,
     left: `${x}px`,
     top: `${y}px`,
   };
@@ -118,7 +122,6 @@ function handleItemClick(item: ContextMenuItem) {
 <style scoped>
 .context-menu {
   position: fixed;
-  z-index: 9999;
   min-width: 180px;
   max-width: 280px;
   padding: 4px 0;

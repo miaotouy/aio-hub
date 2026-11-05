@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import { flushPromises, mount } from "@vue/test-utils";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { defineComponent, h, KeepAlive, nextTick, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

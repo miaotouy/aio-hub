@@ -1,7 +1,8 @@
 # 移动端 SQLite 引入与持久化重构计划 (Mobile SQLite Storage Refactor Plan)
 
-> 状态：施工中；2026-07-23 已完成阶段一 Rust 存储骨架、阶段二前端增量持久化、阶段三附件消费闭环和阶段四 Android 本地搜索，并通过 Android AVD 确定性附件与 Ollama opt-in lane；Android 真机与 iOS 门禁仍待补验。
-> 已实施架构以 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 为准；本文只继续维护剩余平台门禁、风险和验收记录。
+> 状态：核心存储和附件消费闭环已落地；继续支持聊天、资产和恢复功能施工，Android 真机/iOS/性能验证后置
+> 最近核对：2026-09-23
+> 已实施架构以 [`llm-chat/ARCHITECTURE.md`](../../src/tools/llm-chat/ARCHITECTURE.md) 为准；本文维护数据边界、功能施工记录和后置平台验证。
 > 当前决议：聊天数据库通过 Rust 领域命令访问，默认采用 SQLx、原生 migration runner 和统一连接配置；前端不得执行任意 SQL。
 
 ## 1. 背景与现状
@@ -360,7 +361,7 @@ END;
 
 ### 阶段零：Android/iOS 能力验证
 
-实施状态（2026-07-21）：Android 验证完成，iOS 仍是发布门禁。
+实施状态（2026-07-21）：Android 验证完成；iOS 平台报告列入发布收口，当前不阻拦 SQLite 和聊天功能施工。
 
 - 已完成最小 Rust + SQLx spike、数据库创建/关闭/重开、FTS5 trigram、统一连接配置、事务强杀恢复，以及 10 万条中英混合消息基准。
 - 已在 `ui-tester` 交付只操作隔离测试库的 SQLite 验证板块，具备结构化步骤、跨重启恢复和脱敏报告导出；不提供任意 SQL。
@@ -390,12 +391,12 @@ END;
 - `currentSessionId` 继续由 ConfigManager 管理；流式回复按节流快照落盘，不按 token 写数据库。
 - JSON 实现只作为短期开发回退。Android/iOS 数据闭环通过后删除，不建设长期双写与迁移负担。
 
-实施状态（2026-07-21）：已完成，iOS 门禁除外。
+实施状态（2026-07-21）：已完成，iOS 后续验证除外。
 
 - 新增薄型 `chatStorageService` 和集中式 `chatStorageCodec`；扁平消息按 `siblingOrder` 以 O(N) 组装为树，完整 metadata（含未知字段）、类型、时间戳和分支选择字段无损保留。
 - `useSessionManager` 以模块级已落盘快照计算增量 change set；只 upsert 新增或变化消息，删除提交最小分支根，活跃叶和会话元数据仍在同一领域请求更新。并发保存按会话串行，diff 基线取实际请求快照，避免写入中发生内存变化后漏存。
 - `currentSessionId` 继续保存在 `sessions-index.json`。旧索引和逐会话 JSON 仅执行一次幂等导入；成功后清空旧索引条目并写 migration marker，原 JSON 不再读写且暂留作开发期回滚备份，没有长期双写。
-- Android `emulator-5558` 的最终 x86_64 debug APK 已通过真实 WebView 正式“开启新对话”入口完成 Pinia、`useSessionManager`、codec 与 Tauri command 的创建/加载闭环，并额外完成单消息增量更新、未知 metadata 往返、列表可见和删除验证。iOS 因缺少编译与设备条件跳过，不能据此声明双端门禁完成。
+- Android `emulator-5558` 的最终 x86_64 debug APK 已通过真实 WebView 正式“开启新对话”入口完成 Pinia、`useSessionManager`、codec 与 Tauri command 的创建/加载闭环，并额外完成单消息增量更新、未知 metadata 往返、列表可见和删除验证。iOS 因缺少编译与设备条件跳过，不能据此声明双端后续验证完成。
 
 ### 阶段三：附件与 usage outbox
 
@@ -407,19 +408,19 @@ END;
 - 已完成第三批：消息附件按 5 秒 TTL 查询资产详情并区分 reclaimed、missing、missing_record 与其他错误；历史上下文剔除不可用附件但保留文本，当前草稿附件在创建消息前阻断并保留草稿。
 - 已完成第四批：ready 图片附件按需申请资产服务短期预览 descriptor，通过 Teleport 全屏层展示；关闭、消息切换、路由卸载和异步竞态均主动撤销或回收 token。
 - 已完成第五批：文本文档提取结果通过聊天领域 command 在同一事务内写入附件快照、将 blocking usage 降为 advisory 并写 replacement outbox；原件删除发生在 outbox 投递和影响复核之后。
-- 已完成：Android Studio AVD 中的端到端附件发送验收。确定性 lane 校验 MIME、字节数和 SHA-256 并证明正式资产、Provider wire、Rust Transport、流式响应和 SQLite 落库闭环；Ollama 多模态模型作为 opt-in 语义验收。不替代 Android 真机或 iOS 门禁。运行契约见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
+- 已完成：Android Studio AVD 中的端到端附件发送验收。确定性 lane 校验 MIME、字节数和 SHA-256 并证明正式资产、Provider wire、Rust Transport、流式响应和 SQLite 落库闭环；Ollama 多模态模型作为 opt-in 语义验收。不替代 Android 真机或 iOS 后续验证。运行契约见 [`mobile-android-avd-e2e.md`](../architecture/mobile-android-avd-e2e.md)。
 - 已用 Rust 回归覆盖“资产命令已成功但 delivered 未标记”、重复投递、附件替换、分支删除、会话删除、五次失败进入 dead-letter、显式重试和无关实体继续投递。
 
 ### 阶段四：本地搜索
 
-实施状态（2026-07-21）：Android 已完成，iOS 门禁除外。
+实施状态（2026-07-21）：Android 已完成，iOS 后续验证除外。
 
 - query 编码、FTS 查询、rank、snippet 和 1-100 条结果上限均在 Rust storage 层实现，前端只传结构化搜索条件。
 - 3 字符及以上查询使用 trigram FTS5 和短语编码；1/2 字符使用受限 `LIKE`，并把 `%`、`_` 和转义符按字面量处理。两条路径均返回 UTF-8 安全的上下文 snippet。
 - 长查询遇到 FTS5 不可用、索引损坏或查询错误时自动降级到同一 Rust basic-search；只有降级也失败时才向前端返回组合错误。
 - 会话列表页提供 220 ms 防抖搜索、加载/错误/空状态和结果时间；点击结果会切换到目标会话及消息所在分支，滚动并高亮目标消息。
 - Rust 测试覆盖中文 1/2/3 字符、英文大小写和 `%_` 特殊字符。Android `emulator-5558` 真实 WebView 已验证中文搜索、字面量特殊字符、非活动分支定位和 `messageId` 深链；临时验收会话已删除且 outbox 无待投递事件。
-- iOS 因缺少编译与设备条件跳过。FTS5 在 iOS 真实 Tauri 构建通过前仍属于平台门禁，不能据此宣称双端搜索完成。
+- iOS 因缺少编译与设备条件跳过。FTS5 在 iOS 真实 Tauri 构建通过前仍属于平台后续验证，不能据此宣称双端搜索完成。
 
 ---
 

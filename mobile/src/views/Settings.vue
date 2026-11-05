@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useSettingsStore } from "@/stores/settings";
-import { Snackbar, Dialog } from "@varlet/ui";
+import { customMessage, customDialog } from "@/utils/feedback";
 import { useI18n } from "@/i18n";
 import { useDebugPanel } from "@/composables/useDebugPanel";
 import { useAppearanceSettingsDraft } from "@/composables/useAppearanceSettingsDraft";
@@ -83,10 +83,11 @@ const goHome = () => {
 const handleLanguageChange = async (value: any) => {
   await settingsStore.updateSettings({ language: value });
   locale.value = value;
-  Snackbar.success(
+  customMessage(
     t("settings.语言已切换至", {
       lang: languageOptions.find((opt) => opt.value === value)?.label,
-    })
+    }),
+    "success"
   );
 };
 
@@ -112,25 +113,25 @@ const handleDebugChange = async (value: any) => {
   await settingsStore.updateSettings({ debugMode: value });
   toggleDebugPanel(value);
   if (value) {
-    Snackbar.success(t("settings.调试面板已加载"));
+    customMessage(t("settings.调试面板已加载"), "success");
   } else {
-    Snackbar.info(t("settings.调试面板已卸载"));
+    customMessage(t("settings.调试面板已卸载"), "info");
   }
 };
 
 const showVersionInfo = () => {
-  Snackbar.info("AIO Hub Mobile v0.1.0");
+  customMessage("AIO Hub Mobile v0.1.0", "info");
 };
 
 const handleRefresh = async () => {
-  const action = await Dialog({
+  const confirmed = await customDialog({
     title: t("settings.确认刷新"),
     message: t("settings.刷新提示"),
     confirmButtonText: t("common.确定"),
     cancelButtonText: t("common.取消"),
   });
 
-  if (action === "confirm") {
+  if (confirmed) {
     // 通过添加随机参数强制绕过部分 WebView 的缓存优化
     const url = new URL(window.location.href);
     url.searchParams.set("t", Date.now().toString());
@@ -365,11 +366,13 @@ const handleRefresh = async () => {
 
 .back-button {
   flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--text-color);
 }
 
 .title {
-  font-size: 2rem;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   color: var(--text-color);
   margin: 0;
@@ -383,14 +386,14 @@ const handleRefresh = async () => {
 }
 
 .settings-group {
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
   background-color: var(--card-bg);
 }
 
 .group-title {
   padding: 16px 16px 8px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--primary-color);
   text-transform: uppercase;
@@ -423,12 +426,12 @@ const handleRefresh = async () => {
 }
 
 .cell-label {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -441,7 +444,7 @@ const handleRefresh = async () => {
 .footer-hint {
   margin-top: 24px;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.4;
 }

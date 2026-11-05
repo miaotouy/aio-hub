@@ -161,6 +161,8 @@
 </template>
 
 <script setup lang="ts">
+import { getBrowserClipboard } from "@/platform/browser";
+
 import { useRendererNodeState } from "../../composables/useRendererViewState";
 import { ref, computed, inject, watch } from "vue";
 import { useThrottleFn } from "@vueuse/core";
@@ -349,7 +351,7 @@ watch(
 
 const copyContent = async () => {
   try {
-    await navigator.clipboard.writeText(props.raw);
+    await getBrowserClipboard().writeText(props.raw);
     copied.value = true;
     customMessage.success("已复制工具调用原始文本");
     setTimeout(() => {

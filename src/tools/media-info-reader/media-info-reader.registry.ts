@@ -15,7 +15,7 @@
 import type { ToolConfig, ToolRegistry } from "@/services/types";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile } from "@/platform/native/fs";
 import { useMediaInfoParser } from "./composables/useMediaInfoParser";
 import type { ImageMetadataResult, WebUIInfo } from "./types";
 import { formatMetadataResult } from "./formatters";

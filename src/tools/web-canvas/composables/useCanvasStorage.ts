@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { dirname, join } from "@tauri-apps/api/path";
+import { dirname, join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
 import {
   readTextFile,
@@ -22,8 +22,8 @@ import {
   remove,
   watch,
   type UnwatchFn,
-} from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
+} from "@/platform/native/fs";
+import { invoke } from "@/platform/native/core";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler } from "@/utils/errorHandler";
 import type { CanvasMetadata, CanvasFileNode } from "../types";

@@ -7,7 +7,7 @@ import {
   Palette,
   ChevronRight,
 } from "lucide-vue-next";
-import { Snackbar } from "@varlet/ui";
+import { customMessage } from "@/utils/feedback";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -158,15 +158,16 @@ const currentThemeColorName = computed(() => {
 const selectColor = async (color: string, name?: string) => {
   emit("change", color);
   if (name) {
-    Snackbar.success(
-      t("settings.主题色板.切换成功", { name, color: color.toUpperCase() })
+    customMessage(
+      t("settings.主题色板.切换成功", { name, color: color.toUpperCase() }),
+      "success"
     );
   }
 };
 
 const resetColor = async () => {
   emit("change", "#409eff");
-  Snackbar.success(t("settings.主题色板.重置成功"));
+  customMessage(t("settings.主题色板.重置成功"), "success");
 };
 
 // 自定义颜色处理
@@ -183,7 +184,7 @@ const handleCustomColorApply = async () => {
     await selectColor(customColor.value);
     showCustomPicker.value = false;
   } else {
-    Snackbar.error(t("settings.主题色板.无效颜色值"));
+    customMessage(t("settings.主题色板.无效颜色值"), "error");
   }
 };
 
@@ -227,11 +228,23 @@ const showDrawer = ref(false);
 
         <div class="scroll-area">
           <div class="action-bar">
-            <div class="action-item" @click="openCustomPicker">
+            <div
+              class="action-item"
+              role="button"
+              tabindex="0"
+              @click="openCustomPicker"
+              @keydown.enter="openCustomPicker"
+            >
               <Pipette :size="18" />
               <span>{{ t("settings.主题色板.自定义") }}</span>
             </div>
-            <div class="action-item" @click="resetColor">
+            <div
+              class="action-item"
+              role="button"
+              tabindex="0"
+              @click="resetColor"
+              @keydown.enter="resetColor"
+            >
               <RotateCcw :size="18" />
               <span>{{ t("settings.主题色板.重置默认") }}</span>
             </div>
@@ -276,6 +289,7 @@ const showDrawer = ref(false);
                   <button
                     class="color-swatch"
                     :style="{ backgroundColor: preset.color }"
+                    :aria-label="preset.name"
                     @click="selectColor(preset.color, preset.name)"
                   >
                     <Transition name="fade">
@@ -341,12 +355,12 @@ const showDrawer = ref(false);
 }
 
 .cell-label {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   color: var(--text-color);
 }
 
 .cell-desc {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--text-color);
   opacity: 0.6;
 }
@@ -360,7 +374,7 @@ const showDrawer = ref(false);
 .color-dot {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--app-radius-md);
   border: var(--border-width) solid var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -387,7 +401,7 @@ const showDrawer = ref(false);
 }
 
 .drawer-title {
-  font-size: 1.3rem;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   color: var(--text-color);
 }
@@ -413,14 +427,15 @@ const showDrawer = ref(false);
 .action-item {
   flex: 1;
   height: 40px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background-color: var(--color-surface-container-high);
-  border-radius: 8px;
-  font-size: 1rem;
-  color: var(--color-on-surface);
+  background-color: var(--input-bg);
+  border-radius: var(--app-radius-md);
+  font-size: var(--font-size-md);
+  color: var(--text-color);
 }
 
 .action-item:active {
@@ -432,8 +447,8 @@ const showDrawer = ref(false);
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background-color: var(--color-surface-container-low);
-  border-radius: 12px;
+  background-color: var(--card-bg);
+  border-radius: var(--app-radius-lg);
   border: var(--border-width) solid var(--border-color);
 }
 
@@ -444,8 +459,8 @@ const showDrawer = ref(false);
 }
 
 .preview-label {
-  font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
 }
 
 .preview-value {
@@ -455,22 +470,22 @@ const showDrawer = ref(false);
 }
 
 .color-name {
-  font-size: 1.15rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .color-hex {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-family: monospace;
-  color: var(--color-on-surface-variant);
+  color: var(--text-color-light);
   opacity: 0.8;
 }
 
 .preview-dot {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   border: 2px solid #fff;
 }
@@ -489,14 +504,14 @@ const showDrawer = ref(false);
 }
 
 .group-title {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--text-color);
 }
 
 .group-desc {
-  font-size: 0.85rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
   opacity: 0.7;
 }
 
@@ -516,8 +531,8 @@ const showDrawer = ref(false);
 }
 
 .swatch-name {
-  font-size: 0.7rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  color: var(--text-color-light);
   text-align: center;
   width: 100%;
   overflow: hidden;
@@ -528,6 +543,8 @@ const showDrawer = ref(false);
 .color-swatch {
   width: 32px;
   height: 32px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: 2px solid transparent;
   padding: 0;
@@ -559,18 +576,24 @@ const showDrawer = ref(false);
 .preview-box {
   width: 100%;
   height: 60px;
-  border-radius: 8px;
-  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--border-color);
   transition: background-color 0.2s ease;
 }
 
 .native-picker {
   width: 24px;
   height: 24px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
+}
+
+.drawer-header :deep(.var-button) {
+  min-height: 44px;
 }
 
 .fade-enter-active,

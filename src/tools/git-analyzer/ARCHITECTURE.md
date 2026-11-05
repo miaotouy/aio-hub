@@ -152,7 +152,7 @@ Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
 
 ### 3.4. GitHub 公开仓库与 LLM 洞察
 
-- **本地来源**：沿用 `useGitAnalyzerRunner`、Tauri IPC 和 Rust `git2`，提交详情、行数统计均由本地仓库计算。
+- **本地来源**：沿用 `useGitAnalyzerRunner` 和平台门面；Tauri 使用 Rust `git2`，Electron 使用系统 Git。提交详情、文件路径与行数统计由本地仓库计算。
 - **GitHub 来源**：`data-sources/github.ts` 使用 `@tauri-apps/plugin-http` 请求 GitHub REST API，不附带账户令牌。接受 `owner/repo` 或 `github.com` 仓库 URL；仓库元数据用于默认分支，提交列表按 100 条分页，单次最多读取最近 1000 条。公开列表只加载提交摘要；打开提交后才获取该提交的统计和最多 100 条文件明细，并根据分页响应标记文件列表完整性。
 - **工程指标覆盖**：`calculateEngineeringMetrics` 分别累计已有 `stats` 和 `files`。指标页显示统计覆盖数；未加载的提交不会被计为零行。远端提交摘要没有行数与文件路径，打开详情后只增加对应提交的数据。
 - **AI 洞察**：`AiInsightsView` 使用 `LlmModelSelector` 选模型，通过 `useLlmRequest` 发送当前筛选提交的摘要；每次请求最多包含 200 条记录，使用 `AbortSignal` 支持取消。提交内容按不可信数据处理。
@@ -198,3 +198,21 @@ Runner 在 `loadRepository()` 中自动判断是否可以增量加载：
 - **性能优化**: 针对超大型仓库（>100万次提交），可以进一步优化 `revwalk` 的遍历策略。
 - **高级功能**: 探索使用 `git2-rs` 实现更高级的功能，如交互式 rebase、blame 等。
 - **错误处理**: 完善 `git` 命令调用失败时的错误信息，为用户提供更清晰的修复指引。
+
+
+## Electron 分析流（2026-11-05）
+
+`electron/git-streams.ts` 实现 `git_load_repository_stream`、`git_load_incremental_stream` 和 `git_enrich_commits_stream`，由 `electron/git.ts` 负责接收、取消和退出回收。事件沿用本篇的 `git-progress` 与 `git-enrich-progress` 结构，定向投递给调用窗口。
+
+历史加载固定起始提交，按每页 200 条读取，保留拓扑顺序；limit 为 0 时继续读取全部，batchSize 为 0 时汇总后投递单个 data。文件路径通过轻量 diff 读取，行数统计与分支推断按选项计算；工程指标可按需补全。
+
+每个窗口独立持有一个历史流和一个补全流，`git_cancel_load` 与 `git_cancel_enrich` 分别取消并等待对应任务结束。同类并发请求提示等待或取消，其他窗口和另一类任务继续运行。导航/刷新/关窗中止所属读任务并抑制旧页面事件，新页面可创建新的任务；显式取消发送 cancelled，异常发送带原因的 error。
+
+仓库根路径、系统 Git 依赖与进程限制继承提交助手的 Electron 后端。提交消息修改、pick/revert、自定义日志格式化和四格式导出也已接通，完整验收见[Electron 补齐待办](../../../docs/Plan/electron-feature-gap-execution.md)。
+
+
+### Electron 提交操作与导出（2026-11-05）
+
+`git-mutations.ts` 将 pick/revert 和消息修改纳入同一仓库写队列，解析提交版本并在执行时核对 HEAD。消息修改只处理最近一次提交，Git 冲突与作者身份等失败保留可操作原因。提交参数和消息以独立 argv 传递，成功创建/改写提交的真实工作流待许可后验收。
+
+`git_format_log` 使用 Git pretty format，按显式 limit 输出，0 条返回空文本。`git-export.ts` 承接 JSON、CSV、Markdown、HTML，无需打开仓库；JSON 保留统计/文件等补全字段，CSV 引用多行和引号，HTML 转义提交字段。共享前端现有报告格式化器保持原入口。

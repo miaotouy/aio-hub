@@ -30,6 +30,7 @@
           <el-tooltip content="复制当前状态" placement="bottom">
             <el-button
               circle
+              aria-label="复制当前状态"
               @click="copyCurrentStats"
               :disabled="!store.latest"
             >
@@ -39,6 +40,7 @@
           <el-tooltip content="导出历史记录 (JSON)" placement="bottom">
             <el-button
               circle
+              aria-label="导出历史记录"
               @click="exportHistory"
               :disabled="store.fullHistoryArray.length === 0"
             >
@@ -47,7 +49,7 @@
           </el-tooltip>
 
           <el-dropdown trigger="click" @command="store.setUiSize">
-            <el-button circle>
+            <el-button circle aria-label="界面密度">
               <el-icon><Layout /></el-icon>
             </el-button>
             <template #dropdown>
@@ -78,11 +80,13 @@
         <el-divider direction="vertical" />
 
         <span class="status-text">{{
-          isActive ? "正在监控" : "监控已暂停"
+          isPending ? "正在连接监控…" : isActive ? "正在监控" : "监控已暂停"
         }}</span>
 
         <el-switch
           :model-value="isActive"
+          :disabled="isPending"
+          aria-label="系统监控"
           @change="handleToggle"
           inline-prompt
           active-text="开启"
@@ -93,21 +97,18 @@
 
     <!-- 状态切换容器 -->
     <div class="pulse-content">
-      <!-- 1. 初始状态（从未开启过且当前也没开启） -->
-      <div v-if="!isActive && !store.latest" class="paused-state">
-        <el-empty description="监控已暂停" :image-size="80">
-          <el-button type="primary" @click="start">立即开启</el-button>
-        </el-empty>
-      </div>
-
-      <!-- 2. 开启中但数据尚未到达 -->
-      <div v-else-if="isActive && !store.latest" class="loading-state">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>正在采集系统数据…</span>
-      </div>
-
-      <!-- 3. 正常显示状态（只要有历史数据或当前正在运行就显示） -->
-      <template v-else-if="store.latest">
+      <el-alert
+        v-if="errorMessage"
+        :title="errorMessage"
+        type="error"
+        :closable="false"
+        show-icon
+      >
+        <el-button size="small" :disabled="isPending" @click="start"
+          >重新开启</el-button
+        >
+      </el-alert>
+      <template v-if="store.latest">
         <!-- 状态栏 -->
         <StatusBar :latest="store.latest" />
         <!-- 统一监控网格 -->
@@ -139,12 +140,27 @@
           />
         </div>
       </template>
+      <div v-else class="monitor-grid" :aria-busy="isActive || isPending">
+        <section
+          v-for="metric in ['CPU', '内存', '磁盘', '网络']"
+          :key="metric"
+          class="metric-placeholder"
+        >
+          <h2>{{ metric }}</h2>
+          <p>
+            {{
+              isActive || isPending
+                ? "正在采集系统数据…"
+                : "开启监控后显示实时指标"
+            }}
+          </p>
+        </section>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Loading } from "@element-plus/icons-vue";
 import { Activity, Copy, Download, Layout } from "lucide-vue-next";
 import { useSystemPulse } from "./composables/useSystemPulse";
 import CpuCard from "./components/CpuCard.vue";
@@ -157,6 +173,8 @@ import StatusBar from "./components/StatusBar.vue";
 const {
   store,
   isActive,
+  isPending,
+  errorMessage,
   start,
   handleToggle,
   copyCurrentStats,
@@ -254,20 +272,21 @@ const {
   min-height: 0;
 }
 
-.loading-state,
-.paused-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex: 1;
+.metric-placeholder {
+  min-height: 180px;
+  padding: 20px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-bg-color);
   color: var(--el-text-color-secondary);
-  font-size: 13px;
 }
-
-.loading-state .el-icon {
-  font-size: 32px;
+.metric-placeholder h2 {
+  margin: 0 0 24px;
+  font-size: 15px;
+  color: var(--el-text-color-primary);
+}
+.metric-placeholder p {
+  font-size: 13px;
 }
 
 .monitor-grid {

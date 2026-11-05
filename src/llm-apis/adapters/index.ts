@@ -12,23 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {
-  LlmProfile,
-  ProviderType as LlmProviderType,
-} from "@/types/llm-profiles";
-import type {
-  LlmRequestOptions,
-  LlmResponse,
-  MediaGenerationOptions,
-} from "@/llm-apis/common";
-import type {
-  EmbeddingRequestOptions,
-  EmbeddingResponse,
-} from "@/llm-apis/embedding-types";
-import type {
-  TranscriptionRequestOptions,
-  TranscriptionResponse,
-} from "@/llm-apis/transcription-types";
+import { createChatAdapters } from "../execution/chatAdapters";
+import { desktopLlmTransport } from "../transports/desktop";
+import { resolveCustomHeaders } from "../../views/Settings/llm-service/config/customHeadersPresets";
+import type { ProviderType as LlmProviderType } from "../../types/llm-profiles";
 import { openAiAdapter, openAiResponsesAdapter } from "./openai";
 import { geminiAdapter } from "./gemini";
 import { anthropicAdapter } from "./anthropic";
@@ -41,56 +28,8 @@ import { sunoNewApiAdapter } from "./suno-newapi";
 import { minimaxMusicAdapter } from "./minimax-music";
 import { azureOpenAiAdapter } from "./azure";
 
-/**
- * 统一适配器接口
- */
-export interface LlmAdapter {
-  /**
-   * 文本对话/流式处理
-   */
-  chat(profile: LlmProfile, options: LlmRequestOptions): Promise<LlmResponse>;
-
-  /**
-   * 向量嵌入 (可选)
-   */
-  embedding?(
-    profile: LlmProfile,
-    options: EmbeddingRequestOptions
-  ): Promise<EmbeddingResponse>;
-
-  /**
-   * 图片生成
-   */
-  image?(
-    profile: LlmProfile,
-    options: MediaGenerationOptions
-  ): Promise<LlmResponse>;
-
-  /**
-   * 音频生成 (TTS)
-   */
-  audio?(
-    profile: LlmProfile,
-    options: MediaGenerationOptions
-  ): Promise<LlmResponse>;
-
-  /**
-   * 语音转写 (ASR/STT) (可选)
-   * 走 OpenAI 兼容的 /v1/audio/transcriptions (Whisper 风格) 专用端点
-   */
-  transcribe?(
-    profile: LlmProfile,
-    options: TranscriptionRequestOptions
-  ): Promise<TranscriptionResponse>;
-
-  /**
-   * 视频生成
-   */
-  video?(
-    profile: LlmProfile,
-    options: MediaGenerationOptions
-  ): Promise<LlmResponse>;
-}
+export type { LlmAdapter } from "./types";
+import type { LlmAdapter } from "./types";
 
 /**
  * 适配器分发映射
@@ -143,5 +82,14 @@ export const adapters: Record<string, LlmAdapter | undefined> = defineAdapters({
   "aggregate-compatible": openAiAdapter,
   "opencode-go": openAiAdapter,
 });
+
+const chatAdapters = createChatAdapters({
+  transport: desktopLlmTransport,
+  resolveCustomHeaders,
+});
+for (const [provider, adapter] of Object.entries(chatAdapters)) {
+  if (adapters[provider] && adapter)
+    adapters[provider] = { ...adapters[provider], chat: adapter.chat };
+}
 
 export type ProviderType = keyof typeof adapters;

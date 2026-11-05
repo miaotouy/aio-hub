@@ -18,7 +18,7 @@
  */
 
 import type { MacroRegistry } from "../MacroRegistry";
-import { MacroPhase, MacroType } from "../MacroRegistry";
+import { MacroPhase, MacroType } from "../runtime/definitions";
 import type { MacroDefinition } from "../MacroRegistry";
 
 /**
@@ -230,5 +230,7 @@ export function registerVariableMacros(registry: MacroRegistry): void {
     },
   ];
 
-  registry.registerMany(variableMacros);
+  registry.registerMany(
+    variableMacros.map((macro) => ({ ...macro, dynamic: true }))
+  );
 }

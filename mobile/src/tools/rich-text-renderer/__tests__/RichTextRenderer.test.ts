@@ -13,7 +13,17 @@ afterEach(() => {
 
 describe("RichTextRenderer streaming lifecycle", () => {
   it("throttles intermediate streaming chunks and flushes the completed response", async () => {
-    vi.useFakeTimers();
+    // useMarkdownAst 的 32ms 节流基于 rAF + performance.now，需要一并接管，
+    // 否则 fake 时间推进不会驱动 patch flush。
+    vi.useFakeTimers({
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+        "performance",
+      ],
+    });
     const wrapper = mount(RichTextRenderer, {
       props: { content: "First chunk", isStreaming: true },
     });
@@ -26,7 +36,8 @@ describe("RichTextRenderer streaming lifecycle", () => {
     expect(wrapper.text()).toContain("First chunk");
     expect(wrapper.text()).not.toContain("Second chunk");
 
-    await vi.advanceTimersByTimeAsync(1);
+    // 80ms setTimeout 到点入队后，还需 rAF 帧推进完成 patch flush。
+    await vi.advanceTimersByTimeAsync(64);
     await nextTick();
     expect(wrapper.text()).toContain("Second chunk");
 

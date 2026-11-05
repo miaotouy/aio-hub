@@ -1,0 +1,2081 @@
+// Copyright 2025-2026 miaotouy(Github@miaotouy)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import { ContextFilePolicyReader } from "./context-file-policy";
+import { createBackgroundHostServices } from "./background-host-services";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ClipboardItem,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  net,
+  protocol,
+  screen,
+  session,
+  shell,
+  Tray,
+  utilityProcess,
+} from "electron";
+import type {
+  IpcMainInvokeEvent,
+  IpcMainEvent,
+  OpenDialogOptions,
+  SaveDialogOptions,
+} from "electron";
+import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import { pathToFileURL } from "node:url";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  IPC_REQUEST,
+  IPC_EVENT,
+  IPC_ASSET,
+  IPC_CHANNEL,
+  IPC_FILE_WATCH,
+  IPC_DRAG_DROP,
+  IPC_FILE_DROP_FALLBACK,
+} from "./shared";
+import { resolveUserDataPath } from "./data-path";
+import { PendingDeepLinks, readDeepLinks } from "./deep-links";
+import { HttpRequests } from "./http";
+import { chromiumFetch } from "./chromium-fetch";
+import { llmHttpFetch } from "./llm-http";
+import { readDevControl, devControlIdentity } from "./dev-control";
+import type { HttpRequestOptions } from "./shared";
+import type { HostReply, HostMetadata, EventTarget } from "./shared";
+import {
+  externalUrl,
+  isTrustedDocument,
+  localRendererUrl,
+  rendererFile,
+  scopedPath,
+} from "./security";
+import { fileOperation, filePath } from "./filesystem";
+import { fileCommand } from "./file-commands";
+import { desktopOpen } from "./desktop-open";
+import { DirectoryTrees } from "./directory-tree";
+import { DirectoryJanitor } from "./directory-janitor";
+import { ContentDeduplicator } from "./content-deduplicator";
+import { DirectorySearch } from "./directory-search";
+import { SymlinkMover } from "./symlink-mover";
+import { SystemPulse } from "./system-pulse";
+import { WebDistillery, distilleryNetworkOptions } from "./web-distillery";
+import { ImageCapture } from "./image-capture";
+import { WindowAutomation } from "./window-automation";
+import { CodeFormatter } from "./code-formatter";
+import { BackgroundRuntime } from "./background-runtime";
+import { AssetManager } from "./asset-manager";
+import { DocumentConverter } from "./document-converter";
+import { SkillManager } from "./skill-manager";
+import { WindowResizes } from "./window-resize";
+import { applyWindowEffect } from "./window-effects";
+import { DesktopControls, readDesktopSettings } from "./desktop-controls";
+import { WindowStateStore, restoreWindowState } from "./window-state";
+import { HostShutdown } from "./host-shutdown";
+import { WorkspaceWindows } from "./workspace-windows";
+import { toWindowMonitor } from "./window-monitor";
+import { CanvasPreviews } from "./canvas-preview";
+import { inspectAssetMedia } from "./asset-media";
+import { ConfigArchive } from "./config-archive";
+import { AgentAssets } from "./agent-assets";
+import { parseNativeDragDrop } from "./drag-drop";
+import { FileWatches } from "./file-watches";
+import { ImageClipboard } from "./image-clipboard";
+import { ClipboardMonitor } from "./clipboard-monitor";
+import {
+  allowLocalFonts,
+  normalizeFontFamilies,
+  FONT_FAMILIES_SCRIPT,
+} from "./system-fonts";
+import { LlmSearch } from "./llm-search";
+import { FFmpegProcesses } from "./ffmpeg";
+import { GitCommands } from "./git";
+import { gitNetworkOptions } from "./git-network";
+import { searchMediaGeneratorData } from "./media-search";
+import { LlmKeyState } from "./llm-key-state";
+import { LLM_KEY_STATE_EVENT } from "../src/llm-apis/configuration/keyProtocol";
+import { LlmConfiguration } from "./llm-configuration";
+import { LlmChatPersistence } from "./llm-chat-persistence";
+
+import { PluginPackages } from "./plugin-packages";
+import { PluginResources } from "./plugin-resources";
+import { Sidecars } from "./sidecars";
+import { Knowledge } from "./knowledge";
+import { NativePlugins } from "./native-plugins";
+import { Recall } from "./recall";
+import { RecallBackup } from "./recall-backup";
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "aiohub",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+  {
+    scheme: "asset",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
+const devControl = readDevControl(app.isPackaged, process.env);
+if (devControl) {
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  app.commandLine.appendSwitch(
+    "remote-debugging-port",
+    String(devControl.port)
+  );
+}
+app.setName("AIO Hub Electron");
+const userData = resolveUserDataPath({
+  packaged: app.isPackaged,
+  dataDirectory: process.env.AIO_DATA_DIR,
+  portableDirectory: process.env.PORTABLE_EXECUTABLE_DIR,
+});
+if (userData) app.setPath("userData", userData);
+if (process.platform === "win32")
+  app.setAppUserModelId("com.mty.aiohub.electron");
+const devOrigin = process.env.AIO_ELECTRON_RENDERER_URL
+  ? localRendererUrl(process.env.AIO_ELECTRON_RENDERER_URL)
+  : undefined;
+const hostRoot = app.getAppPath();
+const rendererRoot = path.join(hostRoot, "renderer");
+const windows = new Map<string, BrowserWindow>();
+const transparentWindows = new WeakSet<BrowserWindow>();
+const httpRequests = new HttpRequests((url, init, options) =>
+  options.llm
+    ? llmHttpFetch(url, init, options.llm, (value) =>
+        session.defaultSession.resolveProxy(value)
+      )
+    : chromiumFetch(url, init)
+);
+const sidecars = new Sidecars({
+  root: app.getPath("userData"),
+  workspaceRoot: devOrigin ? process.cwd() : undefined,
+  emit: (owner, event, payload) => {
+    const label = [...windows].find(
+      ([, candidate]) =>
+        !candidate.isDestroyed() && candidate.webContents.id === owner
+    )?.[0];
+    if (label) publish(event, payload, label);
+  },
+});
+const knowledge = new Knowledge(app.getPath("userData"), hostRoot);
+const recall = new Recall(app.getPath("userData"), hostRoot, undefined, (event, payload) => publish(event, payload));
+const nativePlugins = new NativePlugins({
+  root: app.getPath("userData"),
+  workspaceRoot: devOrigin ? process.cwd() : undefined,
+  spawnWorker: (spec) => {
+    const worker = utilityProcess.fork(
+      path.join(hostRoot, "native-worker.cjs"),
+      [],
+      {
+        cwd: spec.directory,
+        stdio: "pipe",
+        execArgv: [],
+        serviceName: "AIO Hub Native Plugin: " + spec.id,
+      }
+    );
+    let logged = 0;
+    const log = (chunk: Buffer) => {
+      if (logged >= 65536) return;
+      const text = chunk.subarray(0, 65536 - logged).toString("utf8");
+      logged += chunk.length;
+      console.warn("[native-plugin:" + spec.id + "]", text);
+    };
+    worker.stdout?.on("data", log);
+    worker.stderr?.on("data", log);
+    return worker;
+  },
+});
+const pluginPackages = new PluginPackages({
+  root: app.getPath("userData"),
+  trashItem: (value) => shell.trashItem(value),
+  trashPlugin: (id, target) =>
+    sidecars.recyclePlugin(id, () =>
+      nativePlugins.recyclePlugin(id, () => shell.trashItem(target))
+    ),
+  emit: (event, payload) => publish(event, payload),
+});
+const skillManager = new SkillManager({
+  root: app.getPath("userData"),
+  builtinRoot: path.join(
+    app.isPackaged ? process.resourcesPath : hostRoot,
+    "skills"
+  ),
+  fetch: chromiumFetch,
+});
+const documentConverter = new DocumentConverter({
+  root: app.getPath("userData"),
+  emit: (event, payload) => publish(event, payload),
+});
+const assetManager = new AssetManager({
+  documents: documentConverter,
+  root: app.getPath("userData"),
+  trashItem: (value) => shell.trashItem(value),
+  emit: (event, payload) => publish(event, payload),
+  inspectMedia: inspectAssetMedia,
+});
+const recallBackup = new RecallBackup(recall, assetManager, app.getVersion(), (event, payload) => publish(event, payload));
+const configArchive = new ConfigArchive(
+  app.getPath("userData"),
+  app.getVersion()
+);
+const agentAssets = new AgentAssets({
+  root: app.getPath("userData"),
+  trashItem: (value) => shell.trashItem(value),
+  inspectMedia: inspectAssetMedia,
+});
+const llmKeyState = new LlmKeyState(app.getPath("userData"), snapshot => publish(LLM_KEY_STATE_EVENT, snapshot));
+const llmConfiguration = new LlmConfiguration(app.getPath("userData"));
+const llmChatPersistence = new LlmChatPersistence(app.getPath("userData"));
+const llmSearch = new LlmSearch(app.getPath("userData"));
+const directoryTrees = new DirectoryTrees();
+const directoryJanitor = new DirectoryJanitor({ trashItem: file => shell.trashItem(file), emit: publishOwned });
+const directorySearch = new DirectorySearch(app.getAppPath(), { emit: publishOwned });
+const symlinkMover = new SymlinkMover(app.getAppPath(), { emit: publishOwned });
+const systemPulse = new SystemPulse(app.getAppPath(), { emit: publishOwned });
+const imageCapture = new ImageCapture(app.getAppPath());
+const backgroundRuntime = new BackgroundRuntime({
+  services: createBackgroundHostServices({
+    environment: {
+      root: app.getPath("userData"), runtimeRoot: hostRoot,
+    },
+    files: new ContextFilePolicyReader(app.getPath("userData"), async () =>
+      ["desktop", "documents", "downloads"].flatMap(name => {
+        try { return [app.getPath(name as "desktop" | "documents" | "downloads")]; }
+        catch { return []; }
+      })
+    ),
+    assets: { getRoot: async () => {
+      const root = await assetManager.run("get_asset_base_path");
+      if (typeof root !== "string") throw new Error("资产目录无效");
+      return root;
+    } },
+    resolveProxy: (url) => session.defaultSession.resolveProxy(url),
+    configuration: llmConfiguration,
+    keys: llmKeyState,
+  }),
+  spawnWorker: () => utilityProcess.fork(
+    path.join(hostRoot, "background-runtime-worker.cjs"), [],
+    { stdio: "pipe", execArgv: [], serviceName: "AIO Hub Background Runtime" }
+  ),
+});
+const codeFormatter = new CodeFormatter({
+  root: app.getPath("userData"),
+  spawnWorker: () => utilityProcess.fork(
+    path.join(hostRoot, "code-formatter-worker.cjs"),
+    [path.join(hostRoot, "native-runtime/knowledge-addon.node")],
+    { stdio: "pipe", execArgv: [], serviceName: "AIO Hub Code Formatter" }
+  ),
+});
+const windowAutomation = new WindowAutomation({
+  spawnWorker: () => utilityProcess.fork(
+    path.join(hostRoot, "window-automation-worker.cjs"),
+    [path.join(hostRoot, "native-runtime/knowledge-addon.node")],
+    { stdio: "pipe", execArgv: [], serviceName: "AIO Hub Window Automation" }
+  ),
+});
+const webDistillery = new WebDistillery(app.getAppPath(), { networkOptions: () => distilleryNetworkOptions(app.getPath("userData")) });
+const contentDeduplicator = new ContentDeduplicator(app.getAppPath(), { trashItem: file => shell.trashItem(file), emit: publishOwned });
+const fileWatches = new FileWatches((owner, message) => {
+  const win = [...windows.values()].find(
+    (candidate) =>
+      !candidate.isDestroyed() && candidate.webContents.id === owner
+  );
+  if (!win || win.webContents.isDestroyed()) return false;
+  win.webContents.send(IPC_FILE_WATCH, message);
+  return true;
+});
+const imageClipboard = new ImageClipboard({
+  read: async () => {
+    const item = (await clipboard.read()).find((item) =>
+      item.types.some((type) => type.startsWith("image/"))
+    );
+    const format = item?.types.includes("image/png")
+      ? "image/png"
+      : item?.types.find((type) => type.startsWith("image/"));
+    if (!item || !format)
+      throw Object.assign(new Error("剪贴板中没有图片，请先复制图片"), {
+        code: "CLIPBOARD_EMPTY",
+      });
+    const blob = await item.getType(format);
+    if (!("arrayBuffer" in blob) || blob.size > 256 * 1024 * 1024)
+      throw new Error("剪贴板图片过大，请缩小后重试");
+    return new Uint8Array(await blob.arrayBuffer());
+  },
+  write: (png) =>
+    clipboard.write([
+      new ClipboardItem({
+        "image/png": new Blob([new Uint8Array(png).buffer as ArrayBuffer], {
+          type: "image/png",
+        }),
+      }),
+    ]),
+  decode: (bytes) => {
+    const image = nativeImage.createFromBuffer(Buffer.from(bytes));
+    if (image.isEmpty())
+      throw new Error("图片无法解码，请选择 PNG、JPEG 或 ICO 图片");
+    const { width, height } = image.getSize();
+    return { bytes: new Uint8Array(image.toPNG()), width, height };
+  },
+});
+const clipboardMonitor = new ClipboardMonitor({
+  readText: () => clipboard.readText(),
+  emit: (owner, content) => publishOwned(owner, "clipboard-changed", content),
+  onError: (error) => console.warn("剪贴板监听读取失败", String(error)),
+});
+const ffmpeg = new FFmpegProcesses({ emit: publishOwned });
+const gitCommands = new GitCommands({ trash: (file) => shell.trashItem(file), emit: publishOwned, networkOptions: () => gitNetworkOptions(app.getPath("userData")) });
+const channelEpochs = new Map<number, number>();
+function disposeSearchOwner(owner: number) {
+  channelEpochs.set(owner, (channelEpochs.get(owner) ?? 0) + 1);
+  llmSearch.disposeOwner(owner);
+}
+function commandChannelTokens(value: unknown): Set<string> {
+  const tokens = new Set<string>(),
+    seen = new Set<object>(),
+    stack = [value];
+  while (stack.length) {
+    const entry = stack.pop();
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      seen.has(entry) ||
+      ArrayBuffer.isView(entry) ||
+      entry instanceof ArrayBuffer
+    )
+      continue;
+    seen.add(entry);
+    const token = (entry as Record<string, unknown>).__aiohubChannel;
+    if (typeof token === "string" && /^[0-9a-f-]{36}$/i.test(token))
+      tokens.add(token);
+    else for (const value of Object.values(entry)) stack.push(value);
+  }
+  return tokens;
+}
+const canvasPreviews = new CanvasPreviews(
+  app.getPath("userData"),
+  (file, request) =>
+    net.fetch(pathToFileURL(file).href, {
+      method: request.method,
+      headers: request.headers,
+    })
+);
+const tokens = new Map<number, string>();
+const assets = new Map<string, Map<string, Promise<string>>>();
+const pluginResources = new PluginResources(app.getPath("userData"), (token) =>
+  assets.has(token)
+);
+const subscriptions = new Map<
+  number,
+  Map<number, { event: string; target?: EventTarget }>
+>();
+const initialDeepLinks = readDeepLinks(process.argv);
+const deepLinks = new PendingDeepLinks(initialDeepLinks);
+// Chromium scopes the process singleton to userData; isolated data roots stay independent.
+if (!app.requestSingleInstanceLock({ urls: initialDeepLinks })) app.exit(0);
+const workspaceWindows = new WorkspaceWindows({
+  windows,
+  create: createWindow,
+  emit: publish,
+  transparent: process.platform === "win32",
+});
+const detached = workspaceWindows.detached;
+const desktopControls = new DesktopControls({
+  createTray: createSystemTray,
+  showMain: showMainWindow,
+  hideMain: () => windows.get("main")?.hide(),
+  minimizeMain: () => windows.get("main")?.minimize(),
+  hasCompanions: () => windows.size > 1,
+  confirmExit: confirmApplicationExit,
+  emitSettings: (sectionId) =>
+    emitMainEvent("navigate-to-settings", { sectionId }),
+});
+const windowResizes = new WindowResizes((error) =>
+  console.warn("窗口缩放恢复失败", error)
+);
+const cancelWindowResize = (owner: number) => {
+  try {
+    windowResizes.cancel(owner);
+  } catch (error) {
+    console.warn("窗口缩放恢复失败", error);
+  }
+};
+let quitting = false;
+let hostDrained = false;
+let logQueue = Promise.resolve<unknown>(undefined);
+const windowStates = new WindowStateStore(app.getPath("userData"));
+const unavailable = (name: string): never => {
+  throw Object.assign(
+    new Error("当前 Electron 版本暂未支持此功能，可从 Tauri 入口继续使用。"),
+    { code: "CAPABILITY_UNAVAILABLE", capability: name }
+  );
+};
+const str = (value: unknown): string => {
+  if (typeof value !== "string") throw new Error("参数需为字符串");
+  return value;
+};
+const bool = (value: unknown): boolean => {
+  if (typeof value !== "boolean") throw new Error("参数需为布尔值");
+  return value;
+};
+const record = (value: unknown): Record<string, unknown> => {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("参数需为对象");
+  return value as Record<string, unknown>;
+};
+function trusted(event: IpcMainInvokeEvent | IpcMainEvent): BrowserWindow {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (
+    !win ||
+    !Array.from(windows.values()).includes(win) ||
+    event.senderFrame !== event.sender.mainFrame ||
+    event.senderFrame?.origin !== (devOrigin ?? "aiohub://app") ||
+    !isTrustedDocument(event.senderFrame?.url ?? "", devOrigin)
+  )
+    throw new Error("IPC 来源未获授权");
+  return win;
+}
+const targetLabel = (target?: EventTarget) =>
+  typeof target === "string" ? target : target?.label;
+/** Deliver private operation events only to subscriptions in the owning document. */
+function publishOwned(owner: number, event: string, payload: unknown): boolean {
+  const entry = [...windows].find(([, win]) => !win.isDestroyed() &&
+    !win.webContents.isDestroyed() && win.webContents.id === owner);
+  if (!entry) return false;
+  for (const [id, sub] of subscriptions.get(owner) ?? []) {
+    if (sub.event !== event) continue;
+    const scope = targetLabel(sub.target);
+    if (scope && scope !== entry[0]) continue;
+    entry[1].webContents.send(IPC_EVENT, { event, id, payload, windowLabel: entry[0] });
+  }
+  return true;
+}
+function publish(event: string, payload?: unknown, target?: EventTarget) {
+  const destination = targetLabel(target);
+  for (const [label, win] of windows) {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) continue;
+    for (const [id, sub] of subscriptions.get(win.webContents.id) ?? []) {
+      if (sub.event !== event) continue;
+      const scope = targetLabel(sub.target);
+      if (
+        destination &&
+        (scope ? scope !== destination : label !== destination)
+      )
+        continue;
+      win.webContents.send(IPC_EVENT, {
+        event,
+        id,
+        payload,
+        windowLabel: destination,
+      });
+    }
+  }
+}
+function basePaths(): Record<number, string> {
+  const data = app.getPath("userData");
+  return {
+    1: app.getPath("music"),
+    2: path.join(app.getPath("userData"), "cache"),
+    3: app.getPath("appData"),
+    4: app.getPath("appData"),
+    5: app.getPath("appData"),
+    6: app.getPath("documents"),
+    7: app.getPath("downloads"),
+    8: app.getPath("pictures"),
+    9: path.join(os.homedir(), "Public"),
+    10: app.getPath("videos"),
+    11: rendererRoot,
+    12: app.getPath("temp"),
+    13: data,
+    14: data,
+    15: data,
+    16: path.join(data, "cache"),
+    17: path.join(data, "logs"),
+    18: app.getPath("desktop"),
+    19: path.dirname(app.getPath("exe")),
+    20:
+      process.platform === "win32"
+        ? path.join(process.env.WINDIR ?? "C:/Windows", "Fonts")
+        : "/usr/share/fonts",
+    21: os.homedir(),
+    22: app.getPath("temp"),
+    23: path.join(os.homedir(), "Templates"),
+  };
+}
+function pathOperation(method: string, args: unknown[]) {
+  const bases = basePaths();
+  const directories: Record<string, number> = {
+    audioDir: 1,
+    cacheDir: 2,
+    configDir: 3,
+    dataDir: 4,
+    localDataDir: 5,
+    documentDir: 6,
+    downloadDir: 7,
+    pictureDir: 8,
+    publicDir: 9,
+    videoDir: 10,
+    resourceDir: 11,
+    tempDir: 12,
+    appConfigDir: 13,
+    appDataDir: 14,
+    appLocalDataDir: 15,
+    appCacheDir: 16,
+    appLogDir: 17,
+    desktopDir: 18,
+    executableDir: 19,
+    fontDir: 20,
+    homeDir: 21,
+    runtimeDir: 22,
+    templateDir: 23,
+  };
+  if (directories[method]) return bases[directories[method]];
+  switch (method) {
+    case "join":
+      return path.join(...args.map(str));
+    case "resolve":
+      return path.resolve(...args.map(str));
+    case "normalize":
+      return path.normalize(str(args[0]));
+    case "isAbsolute":
+      return path.isAbsolute(str(args[0]));
+    case "dirname":
+      return path.dirname(str(args[0]));
+    case "basename":
+      return path.basename(
+        str(args[0]),
+        args[1] === undefined ? undefined : str(args[1])
+      );
+    case "extname":
+      return path.extname(str(args[0])).slice(1);
+    case "resolveResource":
+      return scopedPath(rendererRoot, str(args[0]));
+    default:
+      return unavailable("path." + method);
+  }
+}
+const size = (value: unknown, factor: number) => {
+  const v = record(value);
+  const f = v.type === "Physical" ? factor : 1;
+  const width = Math.round(Number(v.width) / f),
+    height = Math.round(Number(v.height) / f);
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width < 1 ||
+    height < 1
+  )
+    throw new Error("窗口尺寸无效");
+  return [width, height] as const;
+};
+function windowCall(
+  label: string,
+  method: string,
+  value?: unknown,
+  owner?: number
+): unknown {
+  const win = windows.get(label);
+  if (!win || win.isDestroyed()) throw new Error("窗口已关闭：" + label);
+  const factor = screen.getDisplayMatching(win.getBounds()).scaleFactor;
+  switch (method) {
+    case "show":
+      win.show();
+      return;
+    case "hide":
+      if (label === "main") return desktopControls.hideMain();
+      win.hide();
+      return;
+    case "close":
+      win.close();
+      return;
+    case "destroy":
+      saveWindowBeforeClose(label);
+      win.destroy();
+      return;
+    case "minimize":
+      win.minimize();
+      return;
+    case "maximize":
+      win.maximize();
+      return;
+    case "unmaximize":
+      win.unmaximize();
+      return;
+    case "unminimize":
+      win.restore();
+      return;
+    case "toggleMaximize":
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+      return;
+    case "setFocus":
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      return;
+    case "isFullscreen":
+      return win.isFullScreen();
+    case "isMaximized":
+      return win.isMaximized();
+    case "isMinimized":
+      return win.isMinimized();
+    case "isFocused":
+      return win.isFocused();
+    case "isAlwaysOnTop":
+      return win.isAlwaysOnTop();
+    case "isVisible":
+      return win.isVisible();
+    case "isResizable":
+      return win.isResizable();
+    case "isDecorated":
+      return false;
+    case "scaleFactor":
+      return factor;
+    case "innerSize":
+    case "outerSize": {
+      const bounds = method === "innerSize" ? win.getContentBounds() : win.getBounds();
+      const physical = process.platform === "win32"
+        ? screen.dipToScreenRect(win, bounds)
+        : { width: Math.round(bounds.width * factor), height: Math.round(bounds.height * factor) };
+      return { width: physical.width, height: physical.height };
+    }
+    case "innerPosition":
+    case "outerPosition": {
+      const bounds = method === "innerPosition" ? win.getContentBounds() : win.getBounds();
+      const physical = process.platform === "win32"
+        ? screen.dipToScreenRect(win, bounds)
+        : { x: Math.round(bounds.x * factor), y: Math.round(bounds.y * factor) };
+      return { x: physical.x, y: physical.y };
+    }
+    case "setTitle":
+      win.setTitle(str(value));
+      return;
+    case "setResizable":
+      win.setResizable(Boolean(value));
+      return;
+    case "setAlwaysOnTop":
+      win.setAlwaysOnTop(Boolean(value));
+      return;
+    case "setShadow":
+      win.setHasShadow(Boolean(value));
+      return;
+    case "setSkipTaskbar":
+      win.setSkipTaskbar(Boolean(value));
+      return;
+    case "setFullscreen":
+      win.setFullScreen(Boolean(value));
+      return;
+    case "setDecorations":
+      if (value) return unavailable("动态窗口边框");
+      return;
+    case "setSize":
+      win.setSize(...size(value, factor));
+      return;
+    case "setMinSize":
+      win.setMinimumSize(...size(value, factor));
+      return;
+    case "setMaxSize":
+      win.setMaximumSize(...size(value, factor));
+      return;
+    case "setPosition": {
+      const v = record(value);
+      const f = v.type === "Physical" ? factor : 1;
+      const x = Math.round(Number(v.x) / f),
+        y = Math.round(Number(v.y) / f);
+      if (!Number.isFinite(x) || !Number.isFinite(y))
+        throw new Error("窗口位置无效");
+      const point = v.type === "Physical" && process.platform === "win32"
+        ? screen.screenToDipPoint({ x: Number(v.x), y: Number(v.y) })
+        : { x, y };
+      win.setPosition(Math.round(point.x), Math.round(point.y));
+      return;
+    }
+    case "setBackgroundColor":
+      if (typeof value !== "string") return unavailable("数组背景色");
+      win.setBackgroundColor(value);
+      return;
+    case "startResizeDragging":
+      return windowResizes.begin(win, owner ?? -1, value);
+    case "updateResizeDragging":
+      return windowResizes.update(win, owner ?? -1, value);
+    case "endResizeDragging":
+      return windowResizes.end(win, owner ?? -1, value);
+    case "startDragging":
+      return; // Native Chromium app-region performs the drag; no renderer coordinate polling.
+    default:
+      return unavailable("window." + method);
+  }
+}
+function saveWindow(label: string) {
+  const win = windows.get(label);
+  if (!win || win.isDestroyed()) throw new Error("窗口已关闭");
+  windowStates.save([[label, win]]);
+}
+function snapshotWindows() {
+  windowStates.save(windows);
+}
+function saveWindowBeforeClose(label: string) {
+  try {
+    saveWindow(label);
+  } catch (error) {
+    console.warn("关闭前窗口配置保存失败", error);
+  }
+}
+async function createWindow(
+  label: string,
+  options: Record<string, unknown> = {}
+) {
+  if (!/^[a-zA-Z0-9_:.-]{1,128}$/.test(label)) throw new Error("窗口标识无效");
+  if (windows.has(label)) {
+    windowCall(label, "setFocus");
+    return;
+  }
+  const route = typeof options.url === "string" ? options.url : "/";
+  const url = new URL(route, devOrigin ?? "aiohub://app/");
+  if (!isTrustedDocument(url.href, devOrigin))
+    throw new Error("窗口仅允许加载应用页面");
+  const token = randomUUID();
+  const platform =
+    process.platform === "win32"
+      ? "windows"
+      : process.platform === "darwin"
+        ? "macos"
+        : "linux";
+  const metadata: HostMetadata = {
+    platform: "electron",
+    label,
+    appName: "AIO Hub",
+    appVersion: app.getVersion(),
+    ...(devControl ? { devControl: true } : {}),
+    os: {
+      platform,
+      type: platform,
+      arch:
+        (
+          { x64: "x86_64", ia32: "x86", arm64: "aarch64" } as Record<
+            string,
+            string
+          >
+        )[os.arch()] ?? os.arch(),
+      version: os.release(),
+      hostname: os.hostname(),
+      locale: app.getLocale(),
+    },
+  };
+  const positive = (value: unknown, fallback: number) =>
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 100 &&
+    value <= 16384
+      ? Math.round(value)
+      : fallback;
+  const win = new BrowserWindow({
+    width: positive(options.width, 1280),
+    height: positive(options.height, 800),
+    minWidth: positive(options.minWidth, 600),
+    minHeight: positive(options.minHeight, 400),
+    title: typeof options.title === "string" ? options.title : "AIO Hub",
+    frame: false,
+    show: false,
+    backgroundColor: options.transparent === true ? "#00000000" : "#191919",
+    transparent: options.transparent === true,
+    skipTaskbar: options.skipTaskbar === true,
+    icon: path.join(hostRoot, "icon.png"),
+    resizable: options.resizable !== false,
+    alwaysOnTop: options.alwaysOnTop === true,
+    webPreferences: {
+      preload: path.join(hostRoot, "preload.cjs"),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      webviewTag: false,
+      additionalArguments: [
+        "--aio-bootstrap=" +
+          encodeURIComponent(JSON.stringify({ metadata, assetToken: token })),
+      ],
+    },
+  });
+  windows.set(label, win);
+  if (options.transparent === true) transparentWindows.add(win);
+  tokens.set(win.webContents.id, token);
+  assets.set(token, new Map());
+  const contentsId = win.webContents.id;
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void Promise.resolve()
+      .then(() => shell.openExternal(externalUrl(url)))
+      .catch((error) => console.warn("外部链接打开失败", String(error)));
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, destination) => {
+    if (!isTrustedDocument(destination, devOrigin)) event.preventDefault();
+  });
+  win.webContents.on("will-redirect", (event, destination) => {
+    if (!isTrustedDocument(destination, devOrigin)) event.preventDefault();
+  });
+  win.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  win.webContents.on(
+    "did-start-navigation",
+    (_event, _url, inPlace, isMainFrame) => {
+      if (isMainFrame && !inPlace) {
+        subscriptions.delete(contentsId);
+        httpRequests.disposeOwner(contentsId);
+        fileWatches.disposeOwner(contentsId);
+        clipboardMonitor.disposeOwner(contentsId);
+        ffmpeg.disposeOwner(contentsId);
+        gitCommands.disposeOwner(contentsId);
+        directoryTrees.disposeOwner(contentsId);
+        directoryJanitor.disposeOwner(contentsId);
+        contentDeduplicator.disposeOwner(contentsId);
+    directorySearch.disposeOwner(contentsId);
+    symlinkMover.disposeOwner(contentsId);
+    systemPulse.disposeOwner(contentsId);
+    webDistillery.disposeOwner(contentsId);
+    imageCapture.disposeOwner(contentsId);
+    windowAutomation.disposeOwner(contentsId);
+    codeFormatter.disposeOwner(contentsId);
+    backgroundRuntime.disposeOwner(contentsId);
+        sidecars.disposeOwner(contentsId);
+        nativePlugins.disposeOwner(contentsId);
+        disposeSearchOwner(contentsId);
+        cancelWindowResize(contentsId);
+        workspaceWindows.disposeOwner(contentsId);
+        canvasPreviews.disposeOwner(contentsId);
+      }
+    }
+  );
+  win.on("move", () =>
+    publish("tauri://move", windowCall(label, "outerPosition"), label)
+  );
+  win.on("resize", () =>
+    publish("tauri://resize", windowCall(label, "innerSize"), label)
+  );
+  win.on("focus", () => publish("tauri://focus", true, label));
+  win.on("blur", () => {
+    cancelWindowResize(contentsId);
+    publish("tauri://focus", false, label);
+  });
+  win.on("hide", () => cancelWindowResize(contentsId));
+  win.on("minimize", () => cancelWindowResize(contentsId));
+  win.on("maximize", () => {
+    windowStates.rememberMaximized(win, true);
+    cancelWindowResize(contentsId);
+  });
+  win.on("unmaximize", () => windowStates.rememberMaximized(win, false));
+  win.on("enter-full-screen", () => cancelWindowResize(contentsId));
+  win.on("query-session-end", () => saveWindowBeforeClose(label));
+  win.on("session-end", () => {
+    saveWindowBeforeClose(label);
+    quitting = true;
+    void hostShutdown.request();
+  });
+  win.on("close", (event) => {
+    if (quitting) return;
+    saveWindowBeforeClose(label);
+    const hasHandler = Array.from(
+      subscriptions.get(contentsId)?.values() ?? []
+    ).some((sub) => sub.event === "tauri://close-requested");
+    if (hasHandler) {
+      event.preventDefault();
+      publish("tauri://close-requested", undefined, label);
+      return;
+    }
+    if (label === "main") {
+      event.preventDefault();
+      void desktopControls
+        .requestMainClose()
+        .catch((error) => reportTrayError("关闭主窗口失败", error));
+    }
+  });
+  win.webContents.on("render-process-gone", () => {
+    workspaceWindows.disposeOwner(contentsId);
+    canvasPreviews.disposeOwner(contentsId);
+    httpRequests.disposeOwner(contentsId);
+    fileWatches.disposeOwner(contentsId);
+    clipboardMonitor.disposeOwner(contentsId);
+    ffmpeg.disposeOwner(contentsId);
+    gitCommands.disposeOwner(contentsId);
+    directoryTrees.disposeOwner(contentsId);
+    directoryJanitor.disposeOwner(contentsId);
+        contentDeduplicator.disposeOwner(contentsId);
+    directorySearch.disposeOwner(contentsId);
+    symlinkMover.disposeOwner(contentsId);
+    systemPulse.disposeOwner(contentsId);
+    webDistillery.disposeOwner(contentsId);
+    imageCapture.disposeOwner(contentsId);
+    windowAutomation.disposeOwner(contentsId);
+    codeFormatter.disposeOwner(contentsId);
+    backgroundRuntime.disposeOwner(contentsId);
+    sidecars.disposeOwner(contentsId);
+    nativePlugins.disposeOwner(contentsId);
+    disposeSearchOwner(contentsId);
+    cancelWindowResize(contentsId);
+  });
+  win.on("closed", () => {
+    workspaceWindows.disposeOwner(contentsId);
+    canvasPreviews.disposeOwner(contentsId);
+    workspaceWindows.closed(label);
+    httpRequests.disposeOwner(contentsId);
+    fileWatches.disposeOwner(contentsId);
+    clipboardMonitor.disposeOwner(contentsId);
+    ffmpeg.disposeOwner(contentsId);
+    gitCommands.disposeOwner(contentsId);
+    directoryTrees.disposeOwner(contentsId);
+    directoryJanitor.disposeOwner(contentsId);
+        contentDeduplicator.disposeOwner(contentsId);
+    directorySearch.disposeOwner(contentsId);
+    symlinkMover.disposeOwner(contentsId);
+    systemPulse.disposeOwner(contentsId);
+    webDistillery.disposeOwner(contentsId);
+    imageCapture.disposeOwner(contentsId);
+    windowAutomation.disposeOwner(contentsId);
+    codeFormatter.disposeOwner(contentsId);
+    backgroundRuntime.disposeOwner(contentsId);
+    sidecars.disposeOwner(contentsId);
+    nativePlugins.disposeOwner(contentsId);
+    disposeSearchOwner(contentsId);
+    cancelWindowResize(contentsId);
+    subscriptions.delete(contentsId);
+    channelEpochs.delete(contentsId);
+    tokens.delete(contentsId);
+    assets.delete(token);
+    windows.delete(label);
+    publish("tauri://destroyed", { label });
+  });
+  try {
+    const saved = windowStates.get(
+      label,
+      screen.getAllDisplays().map((display) => display.workArea)
+    );
+    if (saved) restoreWindowState(win, saved, process.platform === "win32");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      console.warn("窗口配置读取失败", String(error));
+  }
+  win.once("ready-to-show", () => {
+    if (options.visible !== false) win.show();
+  });
+  try {
+    await win.loadURL(url.href);
+  } catch (error) {
+    win.destroy();
+    throw error;
+  }
+}
+let openingMainWindow: Promise<void> | undefined;
+async function showMainWindow() {
+  if (openingMainWindow) await openingMainWindow;
+  const main = windows.get("main");
+  if (main && !main.isDestroyed()) {
+    if (main.isMinimized()) main.restore();
+    main.show();
+    main.focus();
+    return;
+  }
+  openingMainWindow = createWindow("main");
+  try {
+    await openingMainWindow;
+  } finally {
+    openingMainWindow = undefined;
+  }
+}
+
+function emitMainEvent(event: string, payload?: unknown): boolean {
+  const main = windows.get("main");
+  if (!main || main.isDestroyed() || main.webContents.isDestroyed())
+    return false;
+  const listening = [
+    ...(subscriptions.get(main.webContents.id)?.values() ?? []),
+  ].some(
+    (sub) =>
+      sub.event === event &&
+      (!targetLabel(sub.target) || targetLabel(sub.target) === "main")
+  );
+  if (listening) publish(event, payload, "main");
+  return listening;
+}
+async function shutdownBackgroundOwners() {
+  try {
+    await backgroundRuntime.shutdown();
+  } finally {
+    const results = await Promise.allSettled([
+      llmKeyState.shutdown(),
+      llmConfiguration.shutdown(),
+    ]);
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : []
+    );
+    if (failures.length) throw new AggregateError(failures, "后台配置保存失败");
+  }
+}
+const hostShutdown = new HostShutdown({
+  snapshot: snapshotWindows,
+  stop: () => {
+    quitting = true;
+    return [
+      () => llmSearch.disposeAll(), () => fileWatches.disposeAll(),
+      () => clipboardMonitor.disposeAll(), () => directoryTrees.disposeAll(),
+      () => desktopControls.destroy(),
+      () => ffmpeg.shutdown(), () => gitCommands.shutdown(),
+      () => directoryJanitor.shutdown(), () => contentDeduplicator.shutdown(),
+      () => directorySearch.shutdown(), () => symlinkMover.shutdown(),
+      () => systemPulse.shutdown(), () => webDistillery.shutdown(),
+      () => imageCapture.shutdown(), () => windowAutomation.shutdown(),
+      () => codeFormatter.shutdown(), () => shutdownBackgroundOwners(),
+      () => skillManager.shutdown(), () => llmChatPersistence.shutdown(),
+      async () => { try { await recallBackup.shutdown(); } finally { await recall.shutdown(); } },
+      () => knowledge.shutdown(), () => pluginPackages.shutdown(),
+      () => sidecars.shutdown(), () => nativePlugins.shutdown(),
+    ];
+  },
+  report: (error) => console.error("应用退出收尾失败", error),
+  exit: (code) => {
+    hostDrained = true;
+    if (code === 0) app.quit();
+    else app.exit(code);
+  },
+});
+function exitApplication(code: number) {
+  quitting = true;
+  return hostShutdown.request(code);
+}
+async function confirmApplicationExit() {
+  if (emitMainEvent("request-close-confirmation")) return;
+  const main = windows.get("main");
+  if (!main || main.isDestroyed()) return;
+  const answer = await dialog.showMessageBox(main, {
+    type: "question",
+    message: "确定要退出程序吗？",
+    buttons: ["取消", "退出"],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  });
+  if (answer.response === 1) await exitApplication(0);
+}
+function createSystemTray(): Tray {
+  const tray = new Tray(
+    nativeImage.createFromPath(path.join(hostRoot, "icon.png"))
+  );
+  const show = () => {
+    void showMainWindow().catch((error) =>
+      reportTrayError("显示主窗口失败", error)
+    );
+  };
+  try {
+    tray.setToolTip(devOrigin ? "AIO Hub（开发）" : "AIO Hub");
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: "显示主窗口", click: show },
+        {
+          label: "隐藏主窗口",
+          click: () => {
+            void desktopControls
+              .hideMain()
+              .catch((error) => reportTrayError("隐藏主窗口失败", error));
+          },
+        },
+        {
+          label: "重启前端",
+          click: () => {
+            void showMainWindow()
+              .then(() => windows.get("main")?.webContents.reload())
+              .catch((error) => reportTrayError("重启前端失败", error));
+          },
+        },
+        {
+          label: "清除窗口配置",
+          click: () => {
+            void clearWindowConfigs().catch((error) =>
+              reportTrayError("清除窗口配置失败", error)
+            );
+          },
+        },
+        { type: "separator" },
+        {
+          label: "退出",
+          click: () => {
+            quitting = true;
+            app.quit();
+          },
+        },
+      ])
+    );
+    tray.on("double-click", show);
+    return tray;
+  } catch (error) {
+    tray.destroy();
+    throw error;
+  }
+}
+function reportTrayError(action: string, error: unknown) {
+  console.error(action, error);
+  dialog.showErrorBox(
+    action,
+    error instanceof Error ? error.message : String(error)
+  );
+}
+async function clearWindowConfigs() {
+  windowStates.clear();
+}
+async function command(
+  name: string,
+  args: Record<string, unknown>,
+  win: BrowserWindow
+): Promise<unknown> {
+  switch (name) {
+    case "background_runtime_get_status":
+      return backgroundRuntime.getStatus();
+    case "git_scan_repositories":
+    case "git_get_repo_status":
+    case "git_get_file_diff":
+    case "git_get_commit_file_diff":
+    case "git_read_file_preview_binary":
+    case "git_stage_files":
+    case "git_unstage_files":
+    case "git_discard_files":
+    case "git_cherry_pick":
+    case "git_revert":
+    case "git_export_commits":
+    case "git_update_commit_message":
+    case "git_format_log":
+    case "git_push":
+    case "git_pull":
+    case "git_undo_last_commit":
+    case "git_commit_amend":
+    case "git_checkout_branch":
+    case "git_create_branch":
+    case "git_delete_branch":
+    case "git_merge_branch":
+    case "git_create_tag":
+    case "git_push_tag":
+    case "git_delete_tag":
+    case "git_stash_save":
+    case "git_stash_pop":
+    case "git_stash_apply":
+    case "git_stash_drop":
+    case "git_open_terminal":
+    case "git_commit":
+    case "git_get_branches":
+    case "git_get_incremental_commits":
+    case "git_get_branch_commits":
+    case "git_get_commit_detail":
+    case "git_get_remote_url":
+    case "git_get_tags":
+    case "git_stash_list":
+    case "git_get_repo_overview":
+    case "git_load_repository_stream":
+    case "git_load_incremental_stream":
+    case "git_enrich_commits_stream":
+    case "git_cancel_load":
+    case "git_cancel_enrich":
+    case "git_load_repository":
+      return gitCommands.runCommand(win.webContents.id, name, args);
+    case "knowledge_initialize":
+    case "knowledge_create_library":
+    case "knowledge_update_library":
+    case "knowledge_apply_library_config":
+    case "knowledge_list_libraries":
+    case "knowledge_delete_library":
+    case "knowledge_ingest_document":
+    case "knowledge_enqueue_paths":
+    case "knowledge_list_sources":
+    case "knowledge_list_ingest_tasks":
+    case "knowledge_claim_ingest_task":
+    case "knowledge_complete_ingest_task":
+    case "knowledge_fail_ingest_task":
+    case "knowledge_cancel_ingest_task":
+    case "knowledge_retry_ingest_task":
+    case "knowledge_add_directory_source":
+    case "knowledge_rescan_directory_source":
+    case "knowledge_remove_source":
+    case "knowledge_list_documents":
+    case "knowledge_update_document_tags":
+    case "knowledge_list_chunks":
+    case "knowledge_list_unvectorized_chunks":
+    case "knowledge_delete_document":
+    case "knowledge_rebuild_library":
+    case "knowledge_save_chunk_vectors":
+    case "knowledge_get_index_status":
+    case "knowledge_switch_embedding_route":
+    case "knowledge_search":
+      return knowledge.run(name, args);
+    case "recall_export_backup":
+    case "recall_export_backups":
+    case "recall_cancel_backup_operation":
+    case "recall_import_backup":
+      return recallBackup.run(name, args, win.webContents.id);
+    case "recall_list_retrieval_presets":
+    case "recall_list_retrieval_modules":
+    case "recall_get_retrieval_pipeline_template":
+    case "recall_compile_retrieval_pipeline":
+    case "recall_compile_custom_retrieval_pipeline":
+    case "recall_run_retrieval_pipeline":
+    case "recall_run_custom_retrieval_pipeline":
+    case "recall_retrieval_cache_get":
+    case "recall_retrieval_cache_set":
+    case "recall_retrieval_cache_clear":
+    case "recall_retrieval_cache_stats":
+    case "recall_monitor_heartbeat":
+    case "recall_initialize":
+    case "recall_inspect_legacy_migration":
+    case "recall_preview_legacy_migration":
+    case "recall_run_legacy_migration":
+    case "recall_confirm_legacy_cleanup":
+    case "recall_debug_reset_legacy_migration":
+    case "recall_get_library_stats":
+    case "recall_flush_all_tag_pools":
+    case "recall_batch_import_files":
+    case "recall_inspect_backup":
+    case "recall_inspect_backups":
+    case "recall_import_legacy_backup_to_knowledge":
+    case "recall_warmup":
+    case "recall_list_bases":
+    case "recall_load_base_meta":
+    case "recall_save_base_meta":
+    case "recall_delete_base":
+    case "recall_clone_base":
+    case "recall_export_base":
+    case "recall_load_entry":
+    case "recall_get_entries":
+    case "recall_list_entry_ids":
+    case "recall_upsert_entry":
+    case "recall_delete_entry":
+    case "recall_batch_upsert_entries":
+    case "recall_batch_patch_entries":
+    case "recall_batch_delete_entries":
+    case "recall_update_entry_vector":
+    case "recall_check_vector_coverage":
+    case "recall_clear_legacy_vectors":
+    case "recall_clear_all_other_vectors":
+    case "recall_load_model_vectors":
+    case "recall_get_missing_tags":
+    case "recall_sync_tag_vectors":
+    case "recall_list_all_tags":
+    case "recall_get_tag_pool_stats":
+    case "recall_rebuild_tag_pool_index":
+    case "recall_clear_tag_pool":
+    case "recall_list_tag_pool_models":
+    case "recall_clear_other_tag_pools":
+    case "recall_get_embedding_cache":
+    case "recall_set_embedding_cache":
+    case "recall_clear_embedding_cache":
+      return recall.run(name, args);
+    case "open_file_directory":
+    case "open_path_force":
+    case "open_url":
+      return desktopOpen(name, args, shell);
+    case "format_code":
+    case "code_formatter_status":
+      return codeFormatter.runCommand(win.webContents.id, name, args);
+    case "wa_get_windows":
+    case "wa_get_self_pid":
+    case "wa_get_pixel":
+    case "wa_capture_window":
+    case "wa_send_click":
+    case "wa_send_keypress":
+    case "wa_get_client_rect":
+    case "wa_is_window_valid":
+      return windowAutomation.runCommand(win.webContents.id, name, args);
+    case "capture_screen_rect":
+    case "check_native_ocr_availability":
+    case "native_ocr":
+      return imageCapture.runCommand(win.webContents.id, name, args);
+    case "distillery_quick_fetch":
+    case "distillery_start_proxy":
+    case "distillery_stop_proxy":
+    case "distillery_get_proxy_port":
+    case "distillery_get_proxy_origin":
+    case "distillery_set_proxy_cookies":
+    case "distillery_get_proxy_cookies":
+    case "distillery_set_proxy_local_storage":
+    case "distillery_check_crypto":
+    case "distillery_encrypt_cookie_values":
+    case "distillery_decrypt_cookie_values":
+      return webDistillery.runCommand(win.webContents.id, name, args);
+    case "start_pulse":
+    case "stop_pulse":
+      return systemPulse.runCommand(win.webContents.id, name, args);
+    case "validate_file_for_link":
+    case "validate_files_for_link":
+    case "preflight_symlink_operation":
+    case "move_and_link":
+    case "create_links_only":
+    case "cancel_move_operation":
+    case "get_latest_operation_log":
+    case "get_all_operation_logs":
+      return symlinkMover.runCommand(win.webContents.id, name, args);
+    case "dir_search":
+    case "dir_search_cancel":
+    case "dir_replace":
+    case "dir_replace_single":
+    case "dir_replace_preview":
+    case "dir_search_copy_files":
+    case "dir_search_move_files":
+      return directorySearch.runCommand(win.webContents.id, name, args);
+    case "scan_content_duplicates":
+    case "stop_dedup_scan":
+    case "read_file_content_for_diff":
+    case "delete_duplicate_files":
+      return contentDeduplicator.runCommand(win.webContents.id, name, args);
+    case "analyze_directory_for_cleanup":
+    case "cleanup_items":
+    case "stop_directory_scan":
+    case "stop_directory_cleanup":
+      return directoryJanitor.runCommand(win.webContents.id, name, args);
+    case "generate_directory_tree":
+      return directoryTrees.generate(win.webContents.id, args);
+    case "check_ffmpeg_availability":
+    case "check_command_version":
+    case "run_ffmpeg_plan":
+    case "kill_ffmpeg_process":
+    case "get_media_metadata":
+    case "get_full_media_info":
+    case "get_media_keyframes":
+    case "extract_video_frames":
+      return ffmpeg.run(win.webContents.id, name, args);
+    case "start_clipboard_monitor":
+      return clipboardMonitor.start(win.webContents.id);
+    case "stop_clipboard_monitor":
+      return clipboardMonitor.disposeOwner(win.webContents.id);
+    case "get_clipboard_content_type":
+      return clipboardMonitor.contentType(win.webContents.id);
+    case "get_system_fonts":
+      return normalizeFontFamilies(
+        await win.webContents.executeJavaScript(FONT_FAMILIES_SCRIPT, true)
+      );
+    case "search_llm_data_stream": {
+      const channel = record(args.onEvent);
+      if (
+        typeof channel.__aiohubChannel !== "string" ||
+        !/^[0-9a-f-]{36}$/i.test(channel.__aiohubChannel)
+      )
+        throw new Error("搜索结果 Channel 无效");
+      const token = channel.__aiohubChannel;
+      return llmSearch.search(win.webContents.id, args, (payload) => {
+        if (win.isDestroyed() || win.webContents.isDestroyed()) return false;
+        win.webContents.send(IPC_CHANNEL, { token, payload });
+        return true;
+      });
+    }
+    case "search_media_generator_data":
+      return searchMediaGeneratorData(app.getPath("userData"), args);
+    case "cancel_llm_chat_search":
+      return llmSearch.cancel(win.webContents.id);
+    case "llm_chat_atomic_write":
+      return llmChatPersistence.write(args.request);
+    case "llm_chat_delete_session":
+      return llmChatPersistence.deleteSession(args.request);
+    case "set_show_tray_icon":
+      return desktopControls.setShowTrayIcon(bool(args.show));
+    case "update_tray_setting":
+      return desktopControls.updateTraySetting(bool(args.enabled));
+    case "get_tray_setting":
+      return desktopControls.minimizeToTray;
+    case "exit_app":
+      return exitApplication(0);
+    case "navigate_main_window_to_settings":
+      return desktopControls.navigateToSettings(str(args.sectionId));
+    case "begin_detach_session":
+      return workspaceWindows.begin(win.webContents.id, args.config);
+    case "finalize_detach_session":
+      return workspaceWindows.finalize(
+        win.webContents.id,
+        str(args.sessionId),
+        bool(args.shouldDetach)
+      );
+    case "update_detach_session_position":
+      return workspaceWindows.updatePosition(
+        win.webContents.id,
+        str(args.sessionId),
+        Number(args.x),
+        Number(args.y)
+      );
+    case "update_detach_session_status":
+      return workspaceWindows.updateStatus(
+        win.webContents.id,
+        str(args.sessionId),
+        bool(args.canDetach)
+      );
+    case "create_canvas_window":
+      return workspaceWindows.createCanvas(args);
+    case "get_canvas_windows":
+      return [...workspaceWindows.canvases.values()];
+    case "close_canvas_window":
+      return workspaceWindows.closeCanvas(args.canvasId);
+    case "close_all_canvas_windows":
+      return workspaceWindows.closeAllCanvases();
+    case "load_native_plugin":
+    case "unload_native_plugin":
+    case "call_native_plugin_method":
+      return nativePlugins.run(win.webContents.id, name, args);
+    case "execute_sidecar":
+    case "sidecar_spawn_resident":
+    case "sidecar_send_command":
+    case "sidecar_kill_resident":
+      return sidecars.run(win.webContents.id, name, args);
+    case "preflight_plugin_zip":
+    case "install_plugin_from_zip":
+    case "uninstall_plugin":
+      return pluginPackages.run(name, args);
+    case "get_all_skill_manifests":
+    case "get_well_known_skill_paths":
+    case "read_skill_resource":
+    case "write_skill_resource":
+    case "list_skill_directory":
+    case "run_skill_script":
+    case "list_builtin_skills":
+    case "install_builtin_skill":
+    case "reset_skill_to_builtin":
+    case "get_builtin_skill_version":
+    case "preview_skill_manifest":
+    case "detect_skill_package":
+    case "prepare_and_detect_package":
+    case "clean_temp_dir":
+    case "install_skill_from_dir":
+    case "install_skill_from_zip_file":
+    case "install_skill_from_zip":
+    case "install_skill_from_git":
+    case "uninstall_skill":
+    case "rename_skill":
+    case "get_installed_bundles":
+    case "install_bundle":
+    case "uninstall_bundle":
+      return skillManager.run(name, args);
+    case "detect_libreoffice_path":
+    case "detect_asset_manager_document_converters":
+    case "check_asset_manager_document_converter":
+      return documentConverter.command(name, args);
+    case "list_config_files":
+    case "export_all_configs_to_zip":
+    case "import_all_configs_from_zip":
+      return configArchive.run(name, args);
+    case "save_agent_asset":
+    case "delete_agent_asset":
+    case "batch_delete_agent_assets":
+    case "list_agent_assets":
+    case "delete_all_agent_assets":
+    case "get_agent_asset_path":
+    case "read_agent_asset_binary":
+      return agentAssets.run(name, args);
+    case "convert_legacy_document":
+    case "get_asset_base_path":
+    case "import_asset_from_path":
+    case "import_asset_from_bytes":
+    case "get_asset_by_id":
+    case "get_asset_binary":
+    case "get_asset_base64":
+    case "read_text_file":
+    case "list_all_assets":
+    case "list_assets_paginated":
+    case "get_asset_stats":
+    case "find_asset_by_hash":
+    case "add_asset_source":
+    case "remove_asset_source":
+    case "remove_asset_completely":
+    case "remove_assets_completely":
+    case "delete_asset":
+    case "update_asset_derived_data":
+    case "remove_asset_derived_data":
+    case "update_audio_waveform":
+    case "save_asset_thumbnail":
+    case "rebuild_hash_index":
+    case "rebuild_catalog_index":
+    case "find_duplicate_files":
+      return assetManager.run(name, args);
+    case "get_app_config_dir":
+      return app.getPath("userData");
+    case "path_exists":
+    case "is_directory":
+    case "get_file_metadata":
+    case "list_directory":
+    case "create_dir_force":
+    case "read_text_file_force":
+    case "write_text_file_force":
+    case "write_file_force":
+    case "read_file_binary":
+    case "read_file_binary_raw":
+    case "read_file_as_base64":
+    case "append_file_force":
+    case "copy_file_to_app_data":
+    case "save_uploaded_file":
+    case "delete_directory_in_app_data":
+    case "delete_file_to_trash":
+    case "copy_directory_in_app_data":
+      return fileCommand(name, args, {
+        root: app.getPath("userData"),
+        trashItem: (value) => shell.trashItem(value),
+      });
+    case "get_saved_window_labels":
+      return windowStates.labels();
+    case "set_window_position": {
+      const win = windows.get(str(args.label));
+      if (!win || win.isDestroyed()) throw Error("窗口已关闭");
+      let x = Number(args.x), y = Number(args.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw Error("窗口位置无效");
+      if (args.center === true) {
+        const [width, height] = win.getSize();
+        x -= width / 2;
+        y -= height / 2;
+      }
+      win.setPosition(Math.round(x), Math.round(y));
+      return;
+    }
+    case "save_window_config":
+      return saveWindow(str(args.label));
+    case "clear_all_window_configs":
+      return clearWindowConfigs();
+    case "focus_window":
+      return windowCall(str(args.label), "setFocus");
+    case "close_detached_window":
+      return windowCall(str(args.label), "close");
+    case "get_all_detached_windows":
+      return Array.from(detached.values());
+    case "ensure_window_visible": {
+      const w = windows.get(str(args.label));
+      if (!w) throw new Error("窗口已关闭");
+      const b = w.getBounds();
+      const area = screen.getDisplayMatching(b).workArea;
+      if (
+        b.x + b.width < area.x ||
+        b.y + b.height < area.y ||
+        b.x > area.x + area.width ||
+        b.y > area.y + area.height
+      ) {
+        w.center();
+        return true;
+      }
+      return false;
+    }
+    case "create_tool_window": {
+      const config = record(args.config);
+      const label = str(config.label);
+      await createWindow(label, config);
+      workspaceWindows.registerTool(label);
+      return;
+    }
+    case "set_window_shadow":
+      win.setHasShadow(Boolean(args.hasShadow ?? args.enabled ?? args.shadow));
+      return;
+    case "apply_window_effect":
+      return applyWindowEffect(win, str(args.effect), transparentWindows.has(win), process.platform);
+    case "dev_control_identity":
+      return devControlIdentity(
+        devControl,
+        Array.from(windows).find(([, candidate]) => candidate === win)![0],
+        process.pid
+      );
+    case "frontend_probe_ready":
+    case "frontend_probe_heartbeat":
+      return;
+    case "frontend_probe_error":
+      console.warn("前端诊断", args.payload);
+      return;
+    case "append_app_log": {
+      const task = logQueue
+        .catch(() => {})
+        .then(async () => {
+          const date = str(args.date);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+            throw new Error("日志日期无效");
+          const dir = path.join(app.getPath("userData"), "logs");
+          await fs.mkdir(dir, { recursive: true });
+          const file = path.join(dir, date + ".log");
+          const content = new Uint8Array(args.content as number[]);
+          const info = await fs.stat(file).catch(() => undefined);
+          let rotatedFileName: string | undefined;
+          if (
+            info &&
+            info.size + content.byteLength >
+              Math.max(1024, Number(args.maxFileSize) || 10485760)
+          ) {
+            rotatedFileName = date + "-" + Date.now() + ".log";
+            await fs.rename(file, path.join(dir, rotatedFileName));
+          }
+          const handle = await fs.open(file, "a");
+          try {
+            await handle.writeFile(content);
+            if (args.syncData) await handle.sync();
+          } finally {
+            await handle.close();
+          }
+          return { path: file, rotatedFileName };
+        });
+      logQueue = task;
+      return task;
+    }
+    default:
+      return unavailable(name);
+  }
+}
+async function operation(
+  event: IpcMainInvokeEvent,
+  name: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
+  const win = trusted(event);
+  switch (name) {
+    case "llm.keys.call":
+      return llmKeyState.run(args.command);
+    case "llm.config.load":
+      return llmConfiguration.load();
+    case "llm.config.save":
+      return llmConfiguration.save(args.profiles, args.expectedRevision);
+    case "background.start":
+      return backgroundRuntime.start();
+    case "background.call":
+      return backgroundRuntime.call(event.sender.id, args.method, args.payload, args.timeoutMs);
+    case "plugin.resourceUrl":
+      return pluginResources.url(
+        tokens.get(event.sender.id)!,
+        args.pluginPath,
+        args.resourcePath
+      );
+    case "canvas-preview.create":
+      return canvasPreviews.create(event.sender.id, args.canvasId);
+    case "canvas-preview.update":
+      return canvasPreviews.update(event.sender.id, str(args.id), args.html);
+    case "canvas-preview.release":
+      return canvasPreviews.release(event.sender.id, str(args.id));
+    case "http.start":
+      return httpRequests.start(
+        event.sender.id,
+        str(args.id),
+        record(args.options) as unknown as HttpRequestOptions
+      );
+    case "http.read":
+      return httpRequests.read(event.sender.id, str(args.id));
+    case "http.cancel":
+      return httpRequests.cancel(event.sender.id, str(args.id));
+    case "deep-link.current":
+      return win === windows.get("main") ? deepLinks.take() : null;
+    case "command": {
+      const owner = event.sender.id,
+        epoch = channelEpochs.get(owner) ?? 0;
+      const requestId = args.__aiohubChannelRequest;
+      const channels =
+        typeof requestId === "string" && /^[0-9a-f-]{36}$/i.test(requestId)
+          ? commandChannelTokens(args)
+          : new Set<string>();
+      try {
+        return await command(
+          str(args.command),
+          args.args === undefined ? {} : record(args.args),
+          win
+        );
+      } finally {
+        if (
+          !event.sender.isDestroyed() &&
+          (channelEpochs.get(owner) ?? 0) === epoch
+        )
+          for (const token of channels)
+            event.sender.send(IPC_CHANNEL, { token, closed: requestId });
+      }
+    }
+    case "fs":
+      return fileOperation(
+        str(args.method),
+        args.args as unknown[],
+        basePaths()
+      );
+    case "path":
+      return pathOperation(str(args.method), args.args as unknown[]);
+    case "window.labels":
+      return Array.from(windows.keys());
+    case "window.create":
+      return createWindow(
+        str(args.label),
+        args.options === undefined ? {} : record(args.options)
+      );
+    case "window.call":
+      return windowCall(
+        str(args.label),
+        str(args.method),
+        args.value,
+        event.sender.id
+      );
+    case "window.monitor":
+      return toWindowMonitor(screen.getDisplayMatching(win.getBounds()));
+    case "events.listen": {
+      const eventName = str(args.event);
+      const id = Number(args.id);
+      if (!Number.isSafeInteger(id) || id < 1 || eventName.length > 256)
+        throw new Error("事件订阅无效");
+      let subs = subscriptions.get(event.sender.id);
+      if (!subs) subscriptions.set(event.sender.id, (subs = new Map()));
+      subs.set(id, { event: eventName, target: args.target as EventTarget });
+      if (eventName === "platform://open-url") deliverDeepLinks();
+      if (eventName === "navigate-to-settings")
+        desktopControls.deliverSettings();
+      if (eventName === "finalize-component-view") {
+        const label = [...detached.keys()].find(
+          (label) => windows.get(label) === win
+        );
+        if (label) publish(eventName, undefined, label);
+      }
+      return;
+    }
+    case "events.unlisten":
+      subscriptions.get(event.sender.id)?.delete(Number(args.id));
+      return;
+    case "events.emit":
+      if (args.event === LLM_KEY_STATE_EVENT) throw new Error("密钥状态由应用持有，请通过状态操作更新");
+      publish(str(args.event), args.payload, args.target as EventTarget);
+      return;
+    case "fs.watch.start":
+      return fileWatches.start(
+        event.sender.id,
+        args.id,
+        args.paths,
+        args.options,
+        basePaths()
+      );
+    case "fs.watch.stop":
+      return fileWatches.stop(event.sender.id, str(args.id));
+    case "clipboard.readImage":
+      return imageClipboard.read();
+    case "clipboard.writeImage":
+      return imageClipboard.write(args.image);
+    case "clipboard.readText":
+      return clipboard.readText();
+    case "clipboard.writeText":
+      return clipboard.writeText(str(args.text));
+    case "clipboard.clear":
+      clipboard.clear();
+      return;
+    case "dialog.open": {
+      const opts = (args.options ?? {}) as {
+        multiple?: boolean;
+        directory?: boolean;
+        title?: string;
+        defaultPath?: string;
+        filters?: OpenDialogOptions["filters"];
+      };
+      const result = await dialog.showOpenDialog(win, {
+        title: opts.title,
+        defaultPath: opts.defaultPath,
+        filters: opts.filters,
+        properties: [
+          opts.directory ? "openDirectory" : "openFile",
+          ...(opts.multiple ? ["multiSelections" as const] : []),
+        ],
+      });
+      return result.canceled
+        ? null
+        : opts.multiple
+          ? result.filePaths
+          : (result.filePaths[0] ?? null);
+    }
+    case "dialog.save": {
+      const opts = (args.options ?? {}) as SaveDialogOptions;
+      const result = await dialog.showSaveDialog(win, {
+        title: opts.title,
+        defaultPath: opts.defaultPath,
+        filters: opts.filters,
+      });
+      return result.canceled ? null : (result.filePath ?? null);
+    }
+    case "opener.url":
+    case "opener.path":
+    case "opener.reveal":
+      return desktopOpen(name, args, shell);
+    case "process.relaunch":
+      app.relaunch();
+      quitting = true;
+      app.quit();
+      return;
+    case "process.exit":
+      return exitApplication(Number(args.code) || 0);
+    default:
+      return unavailable(name);
+  }
+}
+ipcMain.handle(
+  IPC_REQUEST,
+  async (event, name: unknown, args: unknown): Promise<HostReply> => {
+    try {
+      if (quitting || hostShutdown.started) throw new Error("应用正在退出");
+      return {
+        ok: true,
+        value: await operation(
+          event,
+          str(name),
+          args === undefined ? {} : record(args)
+        ),
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: {
+          code:
+            typeof (error as { code?: unknown })?.code === "string"
+              ? (error as { code: string }).code
+              : "HOST_ERROR",
+          message: error instanceof Error ? error.message : String(error),
+          capability: (error as { capability?: string })?.capability,
+        },
+      };
+    }
+  }
+);
+ipcMain.on(IPC_FILE_DROP_FALLBACK, (event, paths: unknown) => {
+  try {
+    const win = trusted(event);
+    const label = [...windows].find(([, candidate]) => candidate === win)?.[0];
+    if (!label) return;
+    const drop = parseNativeDragDrop({
+      type: "drop",
+      position: { x: 0, y: 0 },
+      paths,
+    });
+    if (drop.type === "drop") publish("tauri-file-drop", drop.paths, label);
+  } catch (error) {
+    console.warn("文件拖放兜底事件被拒绝", String(error));
+  }
+});
+ipcMain.on(IPC_DRAG_DROP, (event, value: unknown) => {
+  try {
+    const win = trusted(event);
+    const label = [...windows].find(([, candidate]) => candidate === win)?.[0];
+    if (!label) return;
+    const drop = parseNativeDragDrop(value);
+    const payload = drop.type === "leave" ? undefined : drop;
+    publish("tauri://drag-" + drop.type, payload, label);
+    if (drop.type === "drop") {
+      publish(
+        "custom-file-drop",
+        { paths: drop.paths, position: drop.position },
+        label
+      );
+    } else publish("custom-drag-" + drop.type, payload, label);
+  } catch (error) {
+    console.warn("文件拖放事件被拒绝", String(error));
+  }
+});
+ipcMain.on(IPC_ASSET, (event, value: unknown) => {
+  try {
+    trusted(event);
+    const file = filePath(value, undefined, basePaths());
+    const grants = assets.get(tokens.get(event.sender.id)!);
+    const resolved = fs.realpath(file);
+    void resolved.catch(() => {});
+    grants?.set(file, resolved);
+  } catch {
+    /* Invalid grants never gain access to the protocol. */
+  }
+});
+void app
+  .whenReady()
+  .then(async () => {
+    await fs.mkdir(app.getPath("userData"), { recursive: true });
+    const fontPermission = (
+      contents: Electron.WebContents | null,
+      permission: string,
+      details: { isMainFrame: boolean; requestingUrl?: string }
+    ) =>
+      allowLocalFonts(
+        permission,
+        !!contents &&
+          [...windows.values()].some(
+            (win) => !win.isDestroyed() && win.webContents === contents
+          ),
+        details.isMainFrame,
+        details.requestingUrl,
+        contents?.getURL() ?? "",
+        devOrigin
+      );
+    session.defaultSession.setPermissionRequestHandler(
+      (contents, permission, callback, details) =>
+        callback(fontPermission(contents, permission, details))
+    );
+    session.defaultSession.setPermissionCheckHandler(
+      (contents, permission, _origin, details) =>
+        fontPermission(contents, permission, details)
+    );
+    const scriptHashes = new Set<string>();
+    if (!devOrigin) {
+      for (const name of [
+        "index.html",
+        "background-js.html",
+        "danmaku-overlay.html",
+      ]) {
+        const html = await fs.readFile(path.join(rendererRoot, name), "utf8");
+        for (const match of html.matchAll(
+          /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
+        )) {
+          if (!/\bsrc\s*=/.test(match[1]))
+            scriptHashes.add(
+              "'sha256-" +
+                createHash("sha256")
+                  .update(match[2].replace(/\r\n?/g, "\n"))
+                  .digest("base64") +
+                "'"
+            );
+        }
+      }
+    }
+    protocol.handle("aiohub", async (request) => {
+      try {
+        const url = new URL(request.url);
+        if (url.host === "canvas-preview")
+          return canvasPreviews.response(request);
+        if (url.host !== "app" || !["GET", "HEAD"].includes(request.method))
+          return new Response("Forbidden", { status: 403 });
+        if (url.pathname.startsWith("/__plugins/")) {
+          const resource = await net.fetch(
+            pathToFileURL(await pluginResources.resolve(url)).href,
+            { method: request.method }
+          );
+          const headers = new Headers(resource.headers);
+          headers.set(
+            "Access-Control-Allow-Origin",
+            devOrigin ?? "aiohub://app"
+          );
+          headers.set("Cache-Control", "no-store");
+          return new Response(resource.body, {
+            status: resource.status,
+            headers,
+          });
+        }
+        let file = !path.posix.extname(url.pathname)
+          ? path.join(rendererRoot, "index.html")
+          : rendererFile(rendererRoot, url.pathname);
+        try {
+          if (!(await fs.stat(file)).isFile()) throw new Error("not file");
+        } catch {
+          if (request.headers.get("sec-fetch-dest") === "document")
+            file = path.join(rendererRoot, "index.html");
+          else return new Response("Not found", { status: 404 });
+        }
+        const response = await net.fetch(pathToFileURL(file).href, {
+          method: request.method,
+        });
+        const headers = new Headers(response.headers);
+        headers.set(
+          "Content-Security-Policy",
+          "default-src 'self'; script-src 'self' 'unsafe-eval' blob: " +
+            Array.from(scriptHashes).join(" ") +
+            "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https: http:; font-src 'self' data: asset:; media-src 'self' blob: data: asset: https: http:; connect-src 'self' asset: https: http: wss: ws:; worker-src 'self' blob:; frame-src 'self' blob: data: aiohub://canvas-preview http://*.localhost:*; object-src 'none'; base-uri 'self'"
+        );
+        return new Response(response.body, {
+          status: response.status,
+          headers,
+        });
+      } catch {
+        return new Response("Not found", { status: 404 });
+      }
+    });
+    protocol.handle("asset", async (request) => {
+      try {
+        const url = new URL(request.url);
+        if (url.host !== "local" || !["GET", "HEAD"].includes(request.method))
+          return new Response("Forbidden", { status: 403 });
+        const file = filePath(
+          decodeURIComponent(url.pathname.slice(1)),
+          undefined,
+          basePaths()
+        );
+        const resolved = assets
+          .get(url.searchParams.get("token") ?? "")
+          ?.get(file);
+        if (!resolved) return new Response("Forbidden", { status: 403 });
+        const canonical = await resolved;
+        if ((await fs.realpath(file)) !== canonical)
+          return new Response("Forbidden", { status: 403 });
+        return net.fetch(pathToFileURL(canonical).href, {
+          method: request.method,
+          headers: request.headers,
+        });
+      } catch {
+        return new Response("Not found", { status: 404 });
+      }
+    });
+    const desktopSettings = await readDesktopSettings(app.getPath("userData"));
+    desktopControls.minimizeToTray = desktopSettings.minimizeToTray;
+    await createWindow("main");
+    await desktopControls.setShowTrayIcon(desktopSettings.showTrayIcon);
+  })
+  .catch((error) => {
+    console.error("Electron 启动失败", error);
+    app.exit(1);
+  });
+app.on("before-quit", (event) => {
+  if (hostDrained) return;
+  event.preventDefault();
+  void exitApplication(0);
+});
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});
+app.on("activate", () => {
+  void showMainWindow().catch((error) =>
+    reportTrayError("显示主窗口失败", error)
+  );
+});
+
+function deliverDeepLinks() {
+  const main = windows.get("main");
+  if (!main || main.isDestroyed() || main.webContents.isDestroyed()) return;
+  const listeners = [...(subscriptions.get(main.webContents.id) ?? [])].filter(
+    ([, sub]) =>
+      sub.event === "platform://open-url" &&
+      (!targetLabel(sub.target) || targetLabel(sub.target) === "main")
+  );
+  if (!listeners.length) return;
+  const values = deepLinks.take();
+  if (!values) return;
+  for (const [id] of listeners) {
+    main.webContents.send(IPC_EVENT, {
+      event: "platform://open-url",
+      id,
+      payload: values,
+      windowLabel: "main",
+    });
+  }
+}
+function acceptDeepLinks(values: unknown) {
+  deepLinks.add(values);
+  deliverDeepLinks();
+  void showMainWindow().catch((error) =>
+    reportTrayError("显示主窗口失败", error)
+  );
+}
+app.on("second-instance", (_event, argv, _directory, additionalData) => {
+  const data = additionalData as { urls?: unknown } | undefined;
+  acceptDeepLinks(Array.isArray(data?.urls) ? data.urls : argv);
+});
+app.on("open-url", (event, value) => {
+  const links = readDeepLinks([value]);
+  if (!links.length) return;
+  event.preventDefault();
+  deepLinks.add(links);
+  // open-url can arrive before ready on macOS; the startup main window consumes the queue.
+  if (app.isReady()) acceptDeepLinks([]);
+});

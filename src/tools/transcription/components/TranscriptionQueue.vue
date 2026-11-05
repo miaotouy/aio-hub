@@ -28,7 +28,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import LlmModelSelector from "@/components/common/LlmModelSelector.vue";
 import DocumentViewer from "@/components/common/DocumentViewer.vue";
 import { customMessage } from "@/utils/customMessage";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import {
   CheckCircle2,
   Loader2,
@@ -1023,12 +1023,5 @@ const getTaskDuration = (task: TranscriptionTask) => {
 .btn-primary:hover {
   background: rgba(var(--el-color-primary-rgb), 0.7);
   border-color: rgba(var(--el-color-primary-rgb), 0.7);
-}
-</style>
-
-<style>
-/* 全局样式，用于提升被 teleport 到 body 的下拉框层级 */
-.el-popper.retry-confirm-popper {
-  z-index: 6000 !important;
 }
 </style>

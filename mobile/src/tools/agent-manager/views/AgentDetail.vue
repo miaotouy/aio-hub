@@ -1,24 +1,148 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRaw, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { ChevronLeft, Save } from "lucide-vue-next";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import {
+  ChevronDown,
+  ChevronLeft,
+  Clock,
+  ImagePlus,
+  RotateCcw,
+  Save,
+  Trash2,
+  Upload,
+} from "lucide-vue-next";
 import SafeTop from "@/components/SafeTop.vue";
+import SegmentedTabs from "@/components/base/SegmentedTabs.vue";
+import type { SegmentedTab } from "@/components/base/SegmentedTabs.vue";
 import { useI18n } from "@/i18n";
-import { customMessage } from "@/utils/feedback";
+import { customDialog, customMessage } from "@/utils/feedback";
+import { createModuleLogger } from "@/utils/logger";
 import { useLlmProfilesStore } from "@/tools/llm-api/stores/llmProfiles";
 import { useAgentStore } from "../stores/agentStore";
 import { useWorldbookStore } from "@/tools/llm-chat/stores/worldbookStore";
+import { AgentCategory, normalizeAgentCategory } from "../types/agent";
 import type { ChatAgent } from "../types/agent";
 import PresetMessageEditor from "../components/PresetMessageEditor.vue";
 import AgentParametersEditor from "../components/AgentParametersEditor.vue";
+import AgentAssetsSection from "../components/AgentAssetsSection.vue";
+import AgentGreetingsSection from "../components/AgentGreetingsSection.vue";
+import AgentRegexSection from "../components/AgentRegexSection.vue";
+import {
+  useAgentAvatar,
+  isAgentIconFilename,
+} from "../composables/useAgentAvatar";
+import type { AgentAsset } from "../types/agent";
+
+const logger = createModuleLogger("agent-manager/detail");
+
+const categoryOptions: AgentCategory[] = [
+  AgentCategory.Assistant,
+  AgentCategory.Character,
+  AgentCategory.Expert,
+  AgentCategory.Creative,
+  AgentCategory.Workflow,
+  AgentCategory.Other,
+];
+
+function categoryLabel(value: AgentCategory): string {
+  switch (value) {
+    case AgentCategory.Assistant:
+      return t("tools.agent-manager.AgentList.助手");
+    case AgentCategory.Character:
+      return t("tools.agent-manager.AgentList.角色");
+    case AgentCategory.Expert:
+      return t("tools.agent-manager.AgentList.专家");
+    case AgentCategory.Creative:
+      return t("tools.agent-manager.AgentList.创意");
+    case AgentCategory.Workflow:
+      return t("tools.agent-manager.AgentList.工作流");
+    case AgentCategory.Other:
+      return t("tools.agent-manager.AgentList.其他");
+  }
+}
+
+const tagsText = computed({
+  get: () => (draft.value?.tags ?? []).join(", "),
+  set: (value: string) => {
+    if (!draft.value) return;
+    const tags = value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    draft.value.tags = tags.length ? tags : undefined;
+  },
+});
 
 const route = useRoute();
 const router = useRouter();
-const { tRaw } = useI18n();
+const { t } = useI18n();
 const agentStore = useAgentStore();
 const worldbookStore = useWorldbookStore();
 const profilesStore = useLlmProfilesStore();
+const { resolveAgentAvatarUrl, listAvatarHistory, saveAvatarFile, deleteAvatarFile } =
+  useAgentAvatar();
 const draft = ref<ChatAgent | null>(null);
+
+/** 保存快照：与 draft 序列化不一致即视为有未保存修改。 */
+const savedSnapshot = ref("");
+const isDirty = computed(
+  () =>
+    draft.value !== null &&
+    JSON.stringify(draft.value) !== savedSnapshot.value
+);
+
+const activeTab = ref("basic");
+const tabs = computed<SegmentedTab[]>(() => [
+  { id: "basic", label: t("tools.agent-manager.AgentDetail.基础") },
+  { id: "dialog", label: t("tools.agent-manager.AgentDetail.对话") },
+  { id: "resources", label: t("tools.agent-manager.AgentDetail.资源") },
+  { id: "advanced", label: t("tools.agent-manager.AgentDetail.高级") },
+]);
+
+const avatarFileInput = ref<HTMLInputElement | null>(null);
+const avatarSrc = ref<string | null>(null);
+const avatarUploading = ref(false);
+const historyOpen = ref(false);
+const historyAvatars = ref<string[]>([]);
+const historyDeleting = ref<string[]>([]);
+const hasAvatarImage = computed(() => avatarSrc.value !== null);
+const iconIsFilename = computed(() =>
+  isAgentIconFilename(draft.value?.icon?.trim())
+);
+const avatarFallback = computed(() => {
+  const icon = draft.value?.icon;
+  return icon && icon.length <= 4 ? icon : "AI";
+});
+
+/** icon / avatarDataUrl 变化后重新解析预览（含私有目录文件读取）。 */
+watch(
+  () => [draft.value?.id, draft.value?.icon, draft.value?.avatarDataUrl] as const,
+  async () => {
+    if (!draft.value) return;
+    avatarSrc.value = await resolveAgentAvatarUrl({
+      id: draft.value.id,
+      icon: draft.value.icon,
+      avatarDataUrl: draft.value.avatarDataUrl,
+    });
+  },
+  { immediate: true }
+);
+
+const parametersOpen = ref(false);
+const parametersSummary = computed(() => {
+  const parameters = draft.value?.parameters ?? {};
+  const parts: string[] = [];
+  if (typeof parameters.temperature === "number") {
+    parts.push(`T ${parameters.temperature}`);
+  }
+  if (typeof parameters.topP === "number") parts.push(`P ${parameters.topP}`);
+  if (typeof parameters.maxTokens === "number") {
+    parts.push(`${parameters.maxTokens} tok`);
+  }
+  return parts.length
+    ? parts.join(" · ")
+    : t("tools.agent-manager.AgentDetail.参数摘要空");
+});
 
 const enabledProfiles = computed(() => profilesStore.enabledProfiles);
 const selectedProfile = computed(() =>
@@ -52,9 +176,117 @@ onMounted(async () => {
   // Pinia returns a reactive proxy; clone its raw value before making an editable draft.
   draft.value = {
     ...structuredClone(toRaw(agent)),
+    greetings: [...(agent.greetings ?? [])],
     worldbookIds: [...(agent.worldbookIds ?? [])],
   };
+  savedSnapshot.value = JSON.stringify(draft.value);
 });
+
+onBeforeRouteLeave(async () => {
+  if (!isDirty.value) return true;
+  const confirmed = await customDialog({
+    title: t("tools.agent-manager.AgentDetail.未保存标题"),
+    message: t("tools.agent-manager.AgentDetail.未保存说明"),
+    confirmButtonText: t("tools.agent-manager.AgentDetail.离开"),
+    cancelButtonText: t("tools.agent-manager.AgentDetail.继续编辑"),
+  });
+  return confirmed;
+});
+
+/**
+ * 将用户选择的图片上传为 Agent 私有头像文件（`agents/{id}/avatar-{ts}.{ext}`），
+ * 与桌面端一致：icon 保存相对文件名，原文件进入历史记录，保存时随配置持久化。
+ */
+async function onAvatarPicked(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || !draft.value) return;
+  if (!file.type.startsWith("image/")) {
+    customMessage(t("tools.agent-manager.AgentDetail.头像格式提示"), "warning");
+    return;
+  }
+  avatarUploading.value = true;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const filename = await saveAvatarFile(draft.value.id, file.name, bytes);
+    draft.value.icon = filename;
+    draft.value.avatarHistory = [
+      filename,
+      ...(draft.value.avatarHistory ?? []).filter((name) => name !== filename),
+    ];
+  } catch (error) {
+    logger.error("保存头像文件失败", error);
+    customMessage(t("tools.agent-manager.AgentDetail.头像上传失败"), "error");
+  } finally {
+    avatarUploading.value = false;
+  }
+}
+
+async function openAvatarHistory(): Promise<void> {
+  if (!draft.value) return;
+  try {
+    historyAvatars.value = await listAvatarHistory({
+      id: draft.value.id,
+      avatarHistory: draft.value.avatarHistory,
+    });
+  } catch (error) {
+    logger.error("读取历史头像列表失败", error);
+    historyAvatars.value = [];
+  }
+  await resolveHistoryThumbnails();
+  historyOpen.value = true;
+}
+
+/** 历史头像缩略图的 dataURL 映射（复用模块级文件缓存）。 */
+const avatarHistoryUrls = ref<Record<string, string>>({});
+
+async function resolveHistoryThumbnails(): Promise<void> {
+  if (!draft.value) return;
+  const agentId = draft.value.id;
+  const next: Record<string, string> = { ...avatarHistoryUrls.value };
+  for (const filename of historyAvatars.value) {
+    if (next[filename]) continue;
+    const url = await resolveAgentAvatarUrl({ id: agentId, icon: filename });
+    if (url) next[filename] = url;
+  }
+  avatarHistoryUrls.value = next;
+}
+
+function selectHistoryAvatar(filename: string): void {
+  if (!draft.value) return;
+  draft.value.icon = filename;
+  historyOpen.value = false;
+}
+
+async function removeHistoryAvatar(filename: string): Promise<void> {
+  if (!draft.value || historyDeleting.value.includes(filename)) return;
+  historyDeleting.value.push(filename);
+  try {
+    await deleteAvatarFile(draft.value.id, filename);
+    draft.value.avatarHistory = (draft.value.avatarHistory ?? []).filter(
+      (name) => name !== filename
+    );
+    if (draft.value.icon === filename) draft.value.icon = "";
+    historyAvatars.value = historyAvatars.value.filter(
+      (name) => name !== filename
+    );
+  } catch (error) {
+    logger.error("删除历史头像文件失败", error);
+    customMessage(t("tools.agent-manager.AgentDetail.头像删除失败"), "error");
+  } finally {
+    historyDeleting.value = historyDeleting.value.filter(
+      (name) => name !== filename
+    );
+  }
+}
+
+/** 重置为默认：清空 icon 与导入预览（对齐桌面端 clearIcon 语义）。 */
+function clearAvatar(): void {
+  if (!draft.value) return;
+  draft.value.icon = "";
+  draft.value.avatarDataUrl = undefined;
+}
 
 async function save() {
   if (!draft.value) return;
@@ -64,19 +296,64 @@ async function save() {
     !draft.value.profileId ||
     !draft.value.modelId
   ) {
-    customMessage(tRaw("tools.agent-manager.AgentDetail.必填提示"), "warning");
+    customMessage(t("tools.agent-manager.AgentDetail.必填提示"), "warning");
     return;
   }
 
-  await agentStore.updateAgent(draft.value.id, {
-    ...draft.value,
-    displayName: draft.value.displayName.trim(),
-    name: draft.value.name.trim(),
-    presetMessages: draft.value.presetMessages || [],
-    presetGroups: draft.value.presetGroups || [],
-  });
-  customMessage(tRaw("tools.agent-manager.AgentDetail.保存成功"), "success");
-  router.back();
+  try {
+    await agentStore.updateAgent(draft.value.id, {
+      ...draft.value,
+      displayName: draft.value.displayName.trim(),
+      name: draft.value.name.trim(),
+      category: normalizeAgentCategory(draft.value.category),
+      presetMessages: draft.value.presetMessages || [],
+      presetGroups: draft.value.presetGroups || [],
+    });
+    customMessage(t("tools.agent-manager.AgentDetail.保存成功"), "success");
+    savedSnapshot.value = JSON.stringify(draft.value);
+    router.back();
+  } catch (error) {
+    logger.error("保存智能体失败", error);
+    customMessage(
+      t("tools.agent-manager.AgentDetail.保存失败"),
+      "error"
+    );
+  }
+}
+
+/**
+ * 资产删除后级联清理 draft 内的引用：预设消息 presetAttachments 与
+ * 开局消息 attachments 中匹配该资产 id 的条目同步移除，避免悬空引用。
+ */
+function handleAssetRemoved(asset: AgentAsset): void {
+  if (!draft.value) return;
+  if (draft.value.presetMessages?.length) {
+    draft.value.presetMessages = draft.value.presetMessages.map((message) => {
+      const attachments = message.presetAttachments;
+      if (!attachments?.length) return message;
+      const remaining = attachments.filter(
+        (attachment) => attachment.assetId !== asset.id
+      );
+      return remaining.length === attachments.length
+        ? message
+        : { ...message, presetAttachments: remaining };
+    });
+  }
+  if (draft.value.greetings?.length) {
+    draft.value.greetings = draft.value.greetings.map((greeting) => {
+      const attachments = greeting.attachments;
+      if (!Array.isArray(attachments) || !attachments.length) return greeting;
+      const remaining = attachments.filter((item) => {
+        if (item && typeof item === "object" && "assetId" in item) {
+          return (item as { assetId?: unknown }).assetId !== asset.id;
+        }
+        return true;
+      });
+      return remaining.length === attachments.length
+        ? greeting
+        : { ...greeting, attachments: remaining };
+    });
+  }
 }
 </script>
 
@@ -87,109 +364,332 @@ async function save() {
       <button
         class="icon-button"
         type="button"
+        data-testid="agent-detail-back"
         aria-label="返回"
         @click="router.back()"
       >
         <ChevronLeft :size="24" />
       </button>
-      <h1>{{ tRaw("tools.agent-manager.common.编辑智能体") }}</h1>
+      <h1>{{ t("tools.agent-manager.common.编辑智能体") }}</h1>
       <button
         class="icon-button primary"
         type="button"
         data-testid="agent-save"
-        :title="tRaw('tools.agent-manager.AgentDetail.保存')"
+        :title="t('tools.agent-manager.AgentDetail.保存')"
+        :aria-label="t('tools.agent-manager.AgentDetail.保存')"
         @click="save"
       >
         <Save :size="20" />
       </button>
     </header>
 
+    <nav class="tab-bar">
+      <SegmentedTabs v-model="activeTab" :tabs="tabs" />
+    </nav>
+
     <main v-if="draft" class="editor">
-      <section class="form-section">
-        <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.显示名称") }}</span
-          ><input v-model="draft.displayName"
-        /></label>
-        <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.内部名称") }}</span
-          ><input v-model="draft.name"
-        /></label>
-        <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.描述") }}</span
-          ><textarea v-model="draft.description" rows="3"></textarea>
-        </label>
-        <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.图标") }}</span
-          ><input v-model="draft.icon"
-        /></label>
-      </section>
-      <section class="form-section two-column">
-        <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.模型渠道") }}</span
-          ><select v-model="draft.profileId">
-            <option
-              v-for="profile in enabledProfiles"
-              :key="profile.id"
-              :value="profile.id"
-            >
-              {{ profile.name }}
-            </option>
-          </select></label
-        >
-        <label
-          ><span>{{ tRaw("tools.agent-manager.AgentDetail.模型") }}</span
-          ><select v-model="draft.modelId">
-            <option
-              v-for="model in availableModels"
-              :key="model.id"
-              :value="model.id"
-            >
-              {{ model.name || model.id }}
-            </option>
-          </select></label
-        >
-      </section>
-      <section class="form-section worldbook-section">
-        <div class="section-heading">
-          <div>
-            <h2>{{ tRaw("tools.agent-manager.AgentDetail.世界书") }}</h2>
-            <p>{{ tRaw("tools.agent-manager.AgentDetail.世界书说明") }}</p>
+      <section
+        v-show="activeTab === 'basic'"
+        class="tab-panel"
+        data-testid="agent-detail-panel-basic"
+      >
+        <section class="avatar-card">
+          <div class="avatar-preview">
+            <img
+              v-if="hasAvatarImage && avatarSrc"
+              :src="avatarSrc"
+              :alt="draft.displayName || draft.name"
+            />
+            <span v-else>{{ avatarFallback }}</span>
           </div>
-          <router-link class="worldbook-link" to="/tools/llm-chat/worldbooks">
-            {{ tRaw("tools.agent-manager.AgentDetail.管理世界书") }}
-          </router-link>
-        </div>
-        <p
-          v-if="!worldbookStore.sortedWorldbooks.length"
-          class="worldbook-empty"
-        >
-          {{ tRaw("tools.agent-manager.AgentDetail.暂无世界书") }}
-        </p>
-        <label
-          v-for="worldbook in worldbookStore.sortedWorldbooks"
-          v-else
-          :key="worldbook.id"
-          class="worldbook-option"
-          :class="{ disabled: !worldbook.enabled }"
-        >
-          <input
-            v-model="draft.worldbookIds"
-            type="checkbox"
-            :value="worldbook.id"
-            :disabled="!worldbook.enabled"
-          />
-          <span>
-            <strong>{{ worldbook.name }}</strong>
-            <small>{{ worldbook.description }}</small>
-          </span>
-        </label>
+          <div class="avatar-actions">
+            <div class="avatar-buttons">
+              <button
+                type="button"
+                class="secondary-button"
+                data-testid="agent-avatar-pick"
+                :disabled="avatarUploading"
+                @click="avatarFileInput?.click()"
+              >
+                <ImagePlus :size="16" />
+                {{ t("tools.agent-manager.AgentDetail.更换图片") }}
+              </button>
+              <button
+                type="button"
+                class="secondary-button"
+                data-testid="agent-avatar-history"
+                @click="openAvatarHistory"
+              >
+                <Clock :size="16" />
+                {{ t("tools.agent-manager.AgentDetail.历史头像") }}
+              </button>
+              <button
+                v-if="hasAvatarImage || iconIsFilename"
+                type="button"
+                class="secondary-button danger"
+                data-testid="agent-avatar-clear"
+                @click="clearAvatar"
+              >
+                <RotateCcw :size="16" />
+                {{ t("tools.agent-manager.AgentDetail.重置头像") }}
+              </button>
+            </div>
+            <small>{{ t("tools.agent-manager.AgentDetail.头像说明") }}</small>
+          </div>
+        </section>
+        <section class="form-section">
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.显示名称") }}</span
+            ><input v-model="draft.displayName" data-testid="agent-display-name"
+          /></label>
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.内部名称") }}</span
+            ><input v-model="draft.name" data-testid="agent-name"
+          /></label>
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.描述") }}</span
+            ><textarea
+              v-model="draft.description"
+              data-testid="agent-description"
+              rows="3"
+            ></textarea>
+          </label>
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.图标") }}</span
+            ><input v-model="draft.icon" data-testid="agent-icon"
+          /></label>
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.分类") }}</span
+            ><select
+              v-model="draft.category"
+              data-testid="agent-category-edit"
+            >
+              <option
+                v-for="option in categoryOptions"
+                :key="option"
+                :value="option"
+              >
+                {{ categoryLabel(option) }}
+              </option>
+            </select></label
+          >
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.标签") }}</span
+            ><input
+              v-model="tagsText"
+              data-testid="agent-tags"
+              :placeholder="t('tools.agent-manager.AgentDetail.标签占位')"
+          /></label>
+        </section>
+        <section class="form-section two-column">
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.模型渠道") }}</span
+            ><select v-model="draft.profileId" data-testid="agent-model-channel">
+              <option
+                v-for="profile in enabledProfiles"
+                :key="profile.id"
+                :value="profile.id"
+              >
+                {{ profile.name }}
+              </option>
+            </select></label
+          >
+          <label
+            ><span>{{ t("tools.agent-manager.AgentDetail.模型") }}</span
+            ><select v-model="draft.modelId" data-testid="agent-model">
+              <option
+                v-for="model in availableModels"
+                :key="model.id"
+                :value="model.id"
+              >
+                {{ model.name || model.id }}
+              </option>
+            </select></label
+          >
+        </section>
       </section>
-      <AgentParametersEditor v-model="draft.parameters" />
-      <PresetMessageEditor
-        v-model:messages="draft.presetMessages"
-        v-model:groups="draft.presetGroups"
-      />
+
+      <section
+        v-show="activeTab === 'dialog'"
+        class="tab-panel"
+        data-testid="agent-detail-panel-dialog"
+      >
+        <PresetMessageEditor
+          v-model:messages="draft.presetMessages"
+          v-model:groups="draft.presetGroups"
+        />
+        <AgentGreetingsSection
+          v-model:greetings="draft.greetings"
+          v-model:default-greeting-id="draft.defaultGreetingId"
+        />
+      </section>
+
+      <section
+        v-show="activeTab === 'resources'"
+        class="tab-panel"
+        data-testid="agent-detail-panel-resources"
+      >
+        <section class="form-section worldbook-section">
+          <div class="section-heading">
+            <div>
+              <h2>{{ t("tools.agent-manager.AgentDetail.世界书") }}</h2>
+              <p>{{ t("tools.agent-manager.AgentDetail.世界书说明") }}</p>
+            </div>
+            <router-link
+              class="worldbook-link"
+              to="/tools/llm-chat/worldbooks"
+            >
+              {{ t("tools.agent-manager.AgentDetail.管理世界书") }}
+            </router-link>
+          </div>
+          <p
+            v-if="!worldbookStore.sortedWorldbooks.length"
+            class="worldbook-empty"
+          >
+            {{ t("tools.agent-manager.AgentDetail.暂无世界书") }}
+          </p>
+          <label
+            v-for="worldbook in worldbookStore.sortedWorldbooks"
+            v-else
+            :key="worldbook.id"
+            class="worldbook-option"
+            :class="{ disabled: !worldbook.enabled }"
+          >
+            <input
+              v-model="draft.worldbookIds"
+              type="checkbox"
+              data-testid="agent-worldbook"
+              :data-worldbook-id="worldbook.id"
+              :value="worldbook.id"
+              :disabled="!worldbook.enabled"
+            />
+            <span>
+              <strong>{{ worldbook.name }}</strong>
+              <small>{{ worldbook.description }}</small>
+            </span>
+          </label>
+        </section>
+        <AgentRegexSection v-model:config="draft.regexConfig" />
+        <AgentAssetsSection
+          :agent-id="draft.id"
+          :assets="draft.assets || []"
+          :groups="draft.assetGroups || []"
+          :preset-messages="draft.presetMessages"
+          :greetings="draft.greetings"
+          @update:assets="draft.assets = $event"
+          @asset-removed="handleAssetRemoved"
+        />
+      </section>
+
+      <section
+        v-show="activeTab === 'advanced'"
+        class="tab-panel"
+        data-testid="agent-detail-panel-advanced"
+      >
+        <section class="parameters-block">
+          <button
+            type="button"
+            class="collapse-head"
+            data-testid="agent-parameters-toggle"
+            :aria-expanded="parametersOpen"
+            @click="parametersOpen = !parametersOpen"
+          >
+            <span class="collapse-title">
+              {{ t("tools.agent-manager.Parameters.运行参数") }}
+            </span>
+            <span class="collapse-summary">{{ parametersSummary }}</span>
+            <ChevronDown
+              :size="18"
+              class="collapse-chevron"
+              :class="{ open: parametersOpen }"
+            />
+          </button>
+          <div v-show="parametersOpen" class="collapse-body">
+            <AgentParametersEditor v-model="draft.parameters" />
+          </div>
+        </section>
+      </section>
     </main>
+
+    <input
+      ref="avatarFileInput"
+      class="file-input"
+      type="file"
+      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/*"
+      data-testid="agent-avatar-input"
+      @change="onAvatarPicked"
+    />
+
+    <Transition name="sheet">
+      <section
+        v-if="historyOpen"
+        class="history-overlay"
+        role="dialog"
+        aria-modal="true"
+        data-testid="agent-avatar-history-dialog"
+      >
+        <div class="history-sheet">
+          <header class="history-header">
+            <strong>{{ t("tools.agent-manager.AgentDetail.历史头像") }}</strong>
+            <button
+              type="button"
+              class="icon-button"
+              aria-label="关闭"
+              @click="historyOpen = false"
+            >
+              <ChevronDown :size="20" />
+            </button>
+          </header>
+          <p v-if="!historyAvatars.length" class="history-empty">
+            {{ t("tools.agent-manager.AgentDetail.历史头像空") }}
+          </p>
+          <div v-else class="history-grid">
+            <button
+              v-for="filename in historyAvatars"
+              :key="filename"
+              type="button"
+              class="history-item"
+              :class="{ active: draft?.icon === filename }"
+              data-testid="agent-avatar-history-item"
+              :data-avatar-filename="filename"
+              @click="selectHistoryAvatar(filename)"
+            >
+              <img
+                :src="avatarHistoryUrls[filename]"
+                :alt="filename"
+                loading="lazy"
+              />
+              <span
+                v-if="historyDeleting.includes(filename)"
+                class="history-deleting"
+              >
+                <Trash2 :size="16" />
+              </span>
+              <span
+                v-else-if="draft?.icon === filename"
+                class="history-active-badge"
+              >
+                {{ t("tools.agent-manager.AgentDetail.当前使用") }}
+              </span>
+              <span
+                class="history-delete"
+                role="button"
+                tabindex="0"
+                :aria-label="t('tools.agent-manager.AgentDetail.删除头像')"
+                @click.stop="removeHistoryAvatar(filename)"
+                @keydown.enter.stop.prevent="removeHistoryAvatar(filename)"
+              >
+                <Trash2 :size="13" />
+              </span>
+            </button>
+          </div>
+          <p class="history-hint">
+            {{ t("tools.agent-manager.AgentDetail.历史头像提示") }}
+            <Upload :size="12" style="vertical-align: -2px" />
+          </p>
+        </div>
+      </section>
+    </Transition>
   </div>
 </template>
 
@@ -205,18 +705,20 @@ async function save() {
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   gap: 10px;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 .page-header h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   text-align: center;
 }
 .icon-button {
   width: 42px;
   height: 42px;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -225,13 +727,84 @@ async function save() {
 }
 .icon-button.primary {
   color: white;
-  background: var(--color-primary);
+  background: var(--primary-color);
+}
+.tab-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  margin-bottom: 18px;
+  padding: var(--space-2) 0;
+  background: var(--bg-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 .editor {
   display: flex;
   flex-direction: column;
   gap: 22px;
   padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.avatar-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-lg);
+  background: var(--card-bg);
+}
+.avatar-preview {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  background: var(--input-bg);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-color-light);
+}
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.avatar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.avatar-actions small {
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
+}
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: var(--font-size-sm);
+}
+.secondary-button.danger {
+  color: var(--danger-color);
 }
 .form-section {
   display: grid;
@@ -243,6 +816,57 @@ async function save() {
 .worldbook-section {
   gap: 10px;
 }
+.parameters-block {
+  display: grid;
+  gap: 0;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-lg);
+  background: var(--card-bg);
+  overflow: hidden;
+}
+.collapse-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-color);
+  text-align: left;
+}
+.collapse-head:active {
+  background: var(--input-bg);
+}
+.collapse-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.collapse-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
+}
+.collapse-chevron {
+  flex-shrink: 0;
+  color: var(--text-color-light);
+  transition: transform 0.15s ease;
+}
+.collapse-chevron.open {
+  transform: rotate(180deg);
+}
+.collapse-body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: var(--border-width) solid var(--border-color);
+}
 .section-heading {
   display: flex;
   align-items: flex-start;
@@ -251,18 +875,18 @@ async function save() {
 }
 .section-heading h2 {
   margin: 0;
-  color: var(--color-on-surface);
-  font-size: 1rem;
+  color: var(--text-color);
+  font-size: var(--font-size-md);
 }
 .section-heading p,
 .worldbook-empty {
   margin: 4px 0 0;
-  color: var(--color-on-surface-variant);
-  font-size: 0.78rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .worldbook-link {
-  color: var(--color-primary);
-  font-size: 0.78rem;
+  color: var(--primary-color);
+  font-size: var(--font-size-xs);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -273,7 +897,7 @@ async function save() {
   gap: 9px;
   padding: 10px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--app-radius-md);
   background: var(--input-bg);
 }
 .worldbook-option span {
@@ -281,11 +905,11 @@ async function save() {
   gap: 3px;
 }
 .worldbook-option small {
-  color: var(--color-on-surface-variant);
-  font-size: 0.74rem;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
 }
 .worldbook-option.disabled {
-  opacity: 0.58;
+  opacity: 0.6;
 }
 label {
   display: flex;
@@ -294,8 +918,8 @@ label {
   min-width: 0;
 }
 label span {
-  font-size: 0.8rem;
-  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  color: var(--text-color-light);
 }
 input,
 select,
@@ -303,7 +927,7 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   border: var(--border-width) solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   padding: 11px 12px;
   background: var(--input-bg);
   color: var(--text-color);
@@ -317,7 +941,109 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--color-primary);
+  border-color: var(--primary-color);
+}
+.file-input {
+  display: none;
+}
+.history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  align-items: flex-end;
+  background: var(--overlay-bg);
+}
+.history-sheet {
+  width: 100%;
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  padding: var(--space-4);
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  border-radius: var(--app-radius-xl) var(--app-radius-xl) 0 0;
+  background: var(--card-bg);
+}
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.history-header strong {
+  font-size: var(--font-size-lg);
+}
+.history-empty,
+.history-hint {
+  margin: 0;
+  color: var(--text-color-light);
+  font-size: var(--font-size-xs);
+}
+.history-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space-3);
+}
+.history-item {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--app-radius-md);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+.history-item.active {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+.history-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--app-radius-sm);
+}
+.history-active-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: var(--app-radius-sm);
+  background: var(--primary-color);
+  color: white;
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.history-deleting,
+.history-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--danger-color);
+  color: white;
+}
+.history-deleting {
+  opacity: 0.7;
+}
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.18s ease;
+}
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
 }
 @media (max-width: 440px) {
   .form-section.two-column {

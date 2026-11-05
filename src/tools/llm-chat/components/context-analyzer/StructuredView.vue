@@ -667,6 +667,20 @@
                 >
                   {{ getSourceLabel(msg) }}
                 </el-tag>
+                <el-tooltip
+                  v-if="msg.dynamicMacros.length"
+                  :content="
+                    msg.dynamicMacros.map((name) => `{{${name}}}`).join('、')
+                  "
+                  placement="top"
+                >
+                  <el-tag size="small" type="warning" effect="plain">
+                    动态宏 · {{ msg.dynamicMacros.slice(0, 2).join("、") }}
+                    <span v-if="msg.dynamicMacros.length > 2">
+                      +{{ msg.dynamicMacros.length - 2 }}
+                    </span>
+                  </el-tag>
+                </el-tooltip>
               </div>
               <div class="header-tags">
                 <el-tag
@@ -756,6 +770,11 @@
 </template>
 
 <script setup lang="ts">
+import { getContextDynamicMacros } from "../../utils/contextDynamicMacros";
+import {
+  describeContextMessageSource,
+  type ContextMessageSource,
+} from "../../utils/contextMessageSource";
 import { useAgentStore } from "@/tools/agent-manager/stores/agentStore";
 import PresetCompositionSourceEditor from "@/tools/agent-manager/components/editors/PresetCompositionSourceEditor.vue";
 import { computed, ref, watch, nextTick } from "vue";
@@ -970,7 +989,9 @@ interface UnifiedMessage {
   charCount: number;
   nonTextCount: number;
   tokenCount?: number;
-  source: "agent_preset" | "session_history" | "unknown";
+  source: ContextMessageSource["source"];
+  sourceLabel: string;
+  dynamicMacros: string[];
   // 用户信息（user 角色）
   userName?: string;
   userIcon?: string;
@@ -1023,7 +1044,8 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
       content: finalMsg.content,
       charCount: 0, // 稍后计算
       nonTextCount: 0,
-      source: "unknown",
+      ...describeContextMessageSource(finalMsg),
+      dynamicMacros: getContextDynamicMacros(finalMsg),
       // 真实反映管道处理后的附件状态
       attachments: finalMsg._attachments as any,
     };
@@ -1047,7 +1069,7 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
     // 新增：处理合并后的消息
     if (finalMsg.sourceType === "merged" && finalMsg._mergedSources) {
       let totalTokenCount = 0;
-      let source: UnifiedMessage["source"] = "unknown";
+
       let userName: string | undefined;
       let userIcon: string | undefined;
       let agentName: string | undefined;
@@ -1064,13 +1086,11 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
           sourceMsg.sourceIndex !== undefined
         ) {
           sourceData = presetMap.get(sourceMsg.sourceIndex);
-          source = "agent_preset"; // 只要含预设，整体即为预设来源（优先级更高）
         } else if (
           sourceMsg.sourceType === "session_history" &&
           sourceMsg.sourceId
         ) {
           sourceData = historyMap.get(String(sourceMsg.sourceId));
-          if (source !== "agent_preset") source = "session_history";
         }
 
         if (sourceData) {
@@ -1098,7 +1118,6 @@ const unifiedMessages = computed<UnifiedMessage[]>(() => {
         ...baseMsg,
         key: `merged-${i}`,
         tokenCount: totalTokenCount > 0 ? totalTokenCount : undefined,
-        source: source,
         userName,
         userIcon,
         agentName,
@@ -1380,22 +1399,8 @@ function getSourceTagType(
  * 获取来源标签文本
  */
 function getSourceLabel(msg: UnifiedMessage): string {
-  if (
-    msg.source === "agent_preset" &&
-    msg._mergedSources &&
-    msg._mergedSources.length > 1
-  ) {
-    return `预设 (合并 x${msg._mergedSources.length})`;
-  }
-
-  switch (msg.source) {
-    case "agent_preset":
-      return "预设";
-    case "session_history":
-      return "历史";
-    default:
-      return "未知";
-  }
+  const count = msg._mergedSources?.length ?? 0;
+  return count > 1 ? `${msg.sourceLabel} (合并 x${count})` : msg.sourceLabel;
 }
 
 /**

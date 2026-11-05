@@ -17,8 +17,8 @@ import {
   extname as tauriExtname,
   basename as tauriBasename,
   dirname as tauriDirname,
-} from "@tauri-apps/api/path";
-import { isTauriRuntime } from "../core/env";
+} from "@/platform/native/path";
+import { isNativeRuntime } from "../core/env";
 import { getAppConfigDir as getAppDirFromUtils } from "@/utils/appPath";
 
 /**
@@ -32,7 +32,7 @@ export async function getAppConfigDir(): Promise<string> {
  * 跨平台路径拼接（在非 Tauri/Web 环境提供可靠的简易 fallback）
  */
 export async function joinPath(...segments: string[]): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriJoin(...segments);
     } catch {
@@ -52,7 +52,7 @@ export async function joinPath(...segments: string[]): Promise<string> {
  * 获取路径扩展名
  */
 export async function getExtname(path: string): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriExtname(path);
     } catch {
@@ -67,7 +67,7 @@ export async function getExtname(path: string): Promise<string> {
  * 获取基础文件名
  */
 export async function getBasename(path: string, ext?: string): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriBasename(path, ext);
     } catch {
@@ -87,7 +87,7 @@ export async function getBasename(path: string, ext?: string): Promise<string> {
  * 获取父目录路径
  */
 export async function getDirname(path: string): Promise<string> {
-  if (isTauriRuntime()) {
+  if (isNativeRuntime()) {
     try {
       return await tauriDirname(path);
     } catch {

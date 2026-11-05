@@ -19,16 +19,16 @@ import { createModuleErrorHandler } from "@/utils/errorHandler";
 import { customMessage } from "@/utils/customMessage";
 import JSZip from "jszip";
 import yaml from "js-yaml";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@/platform/native/dialog";
 import {
   writeTextFile,
   writeFile,
   readFile,
   exists,
-} from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+} from "@/platform/native/fs";
+import { join } from "@/platform/native/path";
 import { getAppConfigDir } from "@/utils/appPath";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform/native/core";
 import { formatDateTime } from "@/utils/time";
 import { stripDefaultContextCompressionPromptsFromParameters } from "@/tools/llm-chat/types/llm";
 import type { ChatMessageNode } from "@/tools/llm-chat/types/message";

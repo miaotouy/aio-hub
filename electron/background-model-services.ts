@@ -9,6 +9,8 @@ import {
   type ModelRequestPorts,
 } from "../src/llm-apis/execution/modelRequestExecutor";
 import { createChatAdapters } from "../src/llm-apis/execution/chatAdapters";
+import { createEmbeddingRequestExecutor } from "../src/llm-apis/execution/embeddingRequestExecutor";
+import { executeConfiguredChannelRequest } from "../src/llm-apis/execution/configuredChannelExecutor";
 import { createEmbeddingAdapters } from "../src/llm-apis/execution/embeddingAdapters";
 import {
   resolveHeaderTemplates,
@@ -152,6 +154,20 @@ export class BackgroundModelServices {
           resolveCustomHeaders: (headers) =>
             resolveHeaderTemplates(headers, input.headers),
         });
+        const sendEmbedding = createEmbeddingRequestExecutor({
+          executeChannel: (request) =>
+            executeConfiguredChannelRequest(request, {
+              getProfiles: () => profiles,
+              keys: this.host.keys,
+            }),
+          getAdapter: (provider) =>
+            (
+              embeddingAdapters as Record<
+                string,
+                typeof embeddingAdapters.openai | undefined
+              >
+            )[provider],
+        });
         return {
           revision: snapshot.revision,
           getProfiles: () => structuredClone(profiles),
@@ -178,20 +194,12 @@ export class BackgroundModelServices {
             const profile = profiles.find((item) => item.id === profileId);
             if (!profile)
               return Promise.reject(Error(`模型渠道不存在: ${profileId}`));
-            const adapter = (
-              embeddingAdapters as Record<
-                string,
-                typeof embeddingAdapters.openai | undefined
-              >
-            )[profile.type];
-            if (!adapter)
-              return Promise.reject(
-                Error(`渠道不支持后台 Embedding: ${profile.type}`)
-              );
             const combined = request.signal
               ? AbortSignal.any([signal, request.signal])
               : signal;
-            return track(adapter(profile, { ...request, signal: combined }));
+            return track(
+              sendEmbedding(profile, { ...request, signal: combined })
+            );
           },
           dispose,
         };

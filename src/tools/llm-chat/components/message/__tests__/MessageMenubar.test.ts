@@ -83,7 +83,7 @@ function message(): ChatMessageNode {
     },
   };
 }
-function mountMenubar(pinned = false, compact = false) {
+function mountMenubar(pinned = false, compact = false, withSession = false) {
   const { settings } = useChatSettings();
   settings.value.uiPreferences.messageToolbar.pinnedActionIds = pinned
     ? ["copy", "variables"]
@@ -101,6 +101,12 @@ function mountMenubar(pinned = false, compact = false) {
                   isSending: false,
                   siblings: [],
                   currentSiblingIndex: 0,
+                  ...(withSession
+                    ? {
+                        sessionDetail: { id: "session" },
+                        sessionIndex: { id: "session" },
+                      }
+                    : {}),
                 })
               : null,
         }),
@@ -171,6 +177,16 @@ it("releases more-menu content after invoking an action and reopens with working
   await waitPresent('[data-action-id="screenshot"]');
   await click('[data-action-id="screenshot"]');
   await vi.waitFor(() => expect(bar.emitted("screenshot")).toHaveLength(2));
+});
+
+it("offers compression through the selected message when a session is available", async () => {
+  const { bar } = mountMenubar(false, false, true);
+
+  await click('[data-testid="message-toolbar-more"]');
+  await click('[data-testid="message-compress-to-here"]');
+
+  expect(bar.emitted("compress-to-here")).toEqual([[]]);
+  await waitGone(".llm-chat-message-toolbar-popover");
 });
 
 // The detail dialog must outlive its originating menu, retain filters and restore a connected focus target.

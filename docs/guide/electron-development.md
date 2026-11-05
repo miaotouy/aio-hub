@@ -210,6 +210,8 @@ preload 使用 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: fa
 
 `src/llm-apis/execution/chatAdapters.ts` 装配 OpenAI 兼容、Responses、Gemini、Claude、Cohere、Azure、DeepSeek 与 Vertex Google/Anthropic 聊天协议。Renderer 注册入口使用同一装配清单，原适配器的媒体、Embedding 和转写方法保留。协议 DTO 映射、工具/思考内容、端点、鉴权与高级参数继续使用原实现；传输和模板请求头通过端口注入。`llm-apis/types.ts` 与 `adapters/types.ts` 提供独立契约，原 `common.ts` / `adapters/index.ts` 保留兼容导出。
 
+`sendEmbedding` 与 Renderer 共用 `embeddingRequestExecutor` 和 `configuredChannelExecutor`，支持 OpenAI 兼容、Gemini、Cohere、Vertex、Azure 与 DeepSeek 的协议映射。物理模型先按绑定、发现协议或聚合渠道默认值解析；虚拟渠道按逻辑模型映射到单个物理目标，返回实际执行归因，选钥及健康状态回报交给 Main。向量空间尚未确认兼容时沿用单候选约束。调用方的代理强制覆盖在成员派发前清除，证书与 HTTP 策略来自成员；任务取消同样作用于选钥等待和网络读取。
+
 每个模型 scope 持有自己的 Node HTTP/SSE 传输。系统代理解析通过内部 `llm.proxy.resolve` 调用 Main 的 Chromium 服务；该能力校验 HTTP(S) 地址及凭据字段，页面 RPC 继续使用诊断方法白名单。释放 scope 或关闭 Worker 会取消准备和在途请求，等待对应操作退出。共享中间件发出的上游中断请求由 scope 记录并收尾。
 
 Windows 独立 utility process 已完成 9 条本地 HTTP 协议路径，另覆盖 Main 配置/共享密钥轮询、模板请求头、代理服务、按需读取与在途 SSE 的正常退出。正式生产 Worker 已验证启动、跨窗口共享、刷新、心跳及崩溃重连。真实聊天任务、工具/审批、持久事件及媒体/Embedding/ASR 的 Worker 执行装配继续实施。

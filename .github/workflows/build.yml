@@ -43,7 +43,7 @@ jobs:
       - name: 设置 Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.4.4
 
       - name: 安装 Rust 稳定版
         uses: dtolnay/rust-toolchain@stable
@@ -242,7 +242,7 @@ jobs:
       - name: 设置 Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.4.4
 
       - name: 安装 Rust 稳定版
         uses: dtolnay/rust-toolchain@stable
@@ -347,7 +347,7 @@ jobs:
       - name: 设置 Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.4.4
 
       - name: 获取发布信息
         id: get-release-info

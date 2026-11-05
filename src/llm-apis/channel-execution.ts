@@ -1,50 +1,18 @@
-import { waitForKeyOperation } from "./configuration/keyOperation";
-import {
-  executeChannelRequest,
-  type LlmOperation,
-  type ChannelExecution,
-} from "@aiohub/llm-core";
 import { useLlmProfiles } from "@/composables/useLlmProfiles";
 import { useLlmKeyManager } from "@/composables/useLlmKeyManager";
-import type { LlmProfile } from "@/types/llm-profiles";
+import {
+  executeConfiguredChannelRequest,
+  type ConfiguredChannelExecutor,
+} from "./execution/configuredChannelExecutor";
 
 /** Infrastructure facade for operations that bypass useLlmRequest. */
-export async function executeConfiguredChannel<R extends object>(input: {
-  profile: LlmProfile;
-  modelId: string;
-  operation: LlmOperation;
-  signal?: AbortSignal;
-  timeoutMs?: number;
-  execute: (
-    profile: LlmProfile,
-    modelId: string,
-    signal: AbortSignal,
-    timeoutMs: number
-  ) => Promise<R>;
-}): Promise<R & { channelExecution: ChannelExecution }> {
+export const executeConfiguredChannel: ConfiguredChannelExecutor = async (
+  input
+) => {
   const { profiles, loadProfiles } = useLlmProfiles();
   await loadProfiles();
-  const { pickKey, reportSuccess, reportFailure } = useLlmKeyManager();
-  const result = await executeChannelRequest({
-    ...input,
+  return executeConfiguredChannelRequest(input, {
     getProfiles: () => profiles.value,
-    execute: async ({ profile, model, signal, timeoutMs }) => {
-      const key = await waitForKeyOperation(() => pickKey(profile), signal);
-      signal.throwIfAborted();
-      try {
-        const response = await input.execute(
-          { ...profile, apiKeys: key ? [key] : [] },
-          model.id,
-          signal,
-          timeoutMs
-        );
-        if (key) await reportSuccess(profile.id, key);
-        return response;
-      } catch (error) {
-        if (key) await reportFailure(profile.id, key, error);
-        throw error;
-      }
-    },
+    keys: useLlmKeyManager(),
   });
-  return { ...result.response, channelExecution: result.execution };
-}
+};

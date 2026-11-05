@@ -38,12 +38,14 @@ let respond: (
   response: import("node:http").ServerResponse
 ) => void;
 let loadGate: Promise<void> | undefined;
+let selectedKey: string | undefined;
 let requestObserved: (() => void) | undefined;
 beforeEach(async () => {
   calls = [];
   seen = [];
   profiles = [];
   loadGate = undefined;
+  selectedKey = undefined;
   requestObserved = undefined;
   respond = (request, response) => {
     response.setHeader("content-type", "application/json");
@@ -157,7 +159,7 @@ beforeEach(async () => {
       } else if (request.method === "llm.keys.execute")
         result =
           request.params.method === "pick"
-            ? { key: request.params.profile.apiKeys[0] }
+            ? { key: selectedKey ?? request.params.profile.apiKeys[0] }
             : {};
       else if (request.method === "llm.proxy.resolve") result = "DIRECT";
       else throw Error("Unexpected method");
@@ -300,27 +302,36 @@ it.each([
     await scope.dispose();
   }
 );
-it("aborts an in-flight embedding request when its task scope is released", async () => {
-  profiles = [profile("openai-compatible")];
-  respond = (_request, response) => {
-    response.setHeader("content-type", "application/json");
-    response.write('{"object":"list","data":');
-  };
-  const scope = await service.createScope(options());
-  const pending = scope.sendEmbedding("openai-compatible", {
-    modelId: "embedding-fixture",
-    input: "cancel me",
-  });
-  const rejected = expect(pending).rejects.toMatchObject({
-    name: "AbortError",
-  });
-  const observed = Promise.withResolvers<void>();
-  requestObserved = observed.resolve;
-  if (seen.length) observed.resolve();
-  await observed.promise;
-  await scope.dispose();
-  await rejected;
-});
+it.each(["physical", "virtual"] as const)(
+  "aborts an in-flight %s embedding request when its task scope is released",
+  async (kind) => {
+    const member = profile("openai-compatible", "embedding-fixture");
+    member.models[0].capabilities!.embedding = true;
+    const channel = embeddingChannel(member);
+    profiles = kind === "virtual" ? [channel, member] : [member];
+    respond = (_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.write('{"object":"list","data":');
+    };
+    const scope = await service.createScope(options());
+    const pending = scope.sendEmbedding(
+      kind === "virtual" ? channel.id : member.id,
+      {
+        modelId: kind === "virtual" ? "logical-embedding" : "embedding-fixture",
+        input: "cancel me",
+      }
+    );
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    const observed = Promise.withResolvers<void>();
+    requestObserved = observed.resolve;
+    if (seen.length) observed.resolve();
+    await observed.promise;
+    await scope.dispose();
+    await rejected;
+  }
+);
 it("pins task configuration and header inputs, exposes defensive profile projections and refreshes on a new scope", async () => {
   expect(calls).toEqual([]);
   profiles = [profile("openai-compatible")];
@@ -453,4 +464,198 @@ it("fails over Responses members through the original virtual-channel scheduler"
     expect.stringContaining("/responses"),
     expect.stringContaining("/backup/v1/responses"),
   ]);
+});
+
+function embeddingChannel(member: LlmProfile): LlmProfile {
+  return {
+    id: "virtual-embedding",
+    name: "Embedding channel",
+    type: "virtual",
+    enabled: true,
+    baseUrl: "",
+    apiKeys: [],
+    virtualChannel: {
+      mode: "failover",
+      members: [member.id],
+      maxAttempts: 1,
+      totalTimeoutMs: 3000,
+    },
+    models: [
+      {
+        id: "logical-embedding",
+        name: "Logical embedding",
+        virtualBindings: {
+          embedding: [{ profileId: member.id, modelId: member.models[0].id }],
+        },
+      },
+    ],
+  } as LlmProfile;
+}
+
+it("routes a virtual embedding binding with Main-selected credentials and member protocol overrides", async () => {
+  const member = profile("openai-compatible", "physical-vector");
+  member.models[0].capabilities!.embedding = true;
+  member.models[0].routing = {
+    bindings: {
+      embedding: {
+        adapterId: "gemini-generate-content",
+        source: "manual",
+      },
+    },
+  };
+  member.apiKeys = ["unused-key", "selected-key"];
+  selectedKey = "selected-key";
+  const virtual = embeddingChannel(member);
+  profiles = [virtual, member];
+  const scope = await service.createScope(options());
+  const result = await scope.sendEmbedding(virtual.id, {
+    modelId: "logical-embedding",
+    input: "virtual vector",
+    requestId: "logical-request",
+    forceProxy: true,
+  });
+  expect(result.data[0].embedding).toEqual([0.25, 0.75]);
+  expect(result.channelExecution).toMatchObject({
+    requested: { profileId: virtual.id, modelId: "logical-embedding" },
+    actual: { profileId: member.id, modelId: "physical-vector" },
+    operation: "embedding",
+    attempts: [{ status: "success" }],
+  });
+  expect(seen).toHaveLength(1);
+  expect(seen[0].url).toContain("physical-vector:embedContent");
+  expect(seen[0].headers["x-goog-api-key"]).toBe("selected-key");
+  expect(seen[0].body).toMatchObject({
+    content: { parts: [{ text: "virtual vector" }] },
+  });
+  expect(
+    calls
+      .filter((call) => call.method === "llm.keys.execute")
+      .map((call) => call.params)
+  ).toMatchObject([
+    { method: "pick", profile: { id: member.id } },
+    { method: "success", profileId: member.id, key: "selected-key" },
+  ]);
+});
+
+it.each(["disabled", "multiple-targets"] as const)(
+  "rejects %s embedding bindings before selecting a key or sending HTTP",
+  async (invalid) => {
+    const member = profile("openai-compatible", "physical-vector");
+    member.models[0].capabilities!.embedding = true;
+    const virtual = embeddingChannel(member);
+    profiles = [virtual, member];
+    if (invalid === "disabled") member.enabled = false;
+    else {
+      const backup = { ...member, id: "backup" };
+      profiles.push(backup);
+      virtual.virtualChannel!.members.push(backup.id);
+      virtual.models[0].virtualBindings!.embedding!.push({
+        profileId: backup.id,
+        modelId: "physical-vector",
+      });
+    }
+    const scope = await service.createScope(options());
+    await expect(
+      scope.sendEmbedding(virtual.id, {
+        modelId: "logical-embedding",
+        input: "invalid",
+      })
+    ).rejects.toMatchObject({ name: "ChannelConfigurationError" });
+    expect(seen).toHaveLength(0);
+    expect(
+      calls.filter((call) => call.method === "llm.keys.execute")
+    ).toHaveLength(0);
+  }
+);
+
+it("reports virtual embedding authentication failures against the selected physical member", async () => {
+  const member = profile("openai-compatible", "physical-vector");
+  member.models[0].capabilities!.embedding = true;
+  const virtual = embeddingChannel(member);
+  profiles = [virtual, member];
+  respond = (_request, response) => {
+    response.writeHead(401, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: { message: "invalid key" } }));
+  };
+  const scope = await service.createScope(options());
+  await expect(
+    scope.sendEmbedding(virtual.id, {
+      modelId: "logical-embedding",
+      input: "failure",
+    })
+  ).rejects.toMatchObject({ name: "ChannelExecutionError" });
+  expect(seen).toHaveLength(1);
+  expect(
+    calls
+      .filter((call) => call.method === "llm.keys.execute")
+      .map((call) => call.params)
+  ).toMatchObject([
+    { method: "pick", profile: { id: member.id } },
+    {
+      method: "failure",
+      profileId: member.id,
+      key: "fixture-key",
+      error: { status: 401 },
+    },
+  ]);
+});
+
+it.each(["binding", "discovered", "aggregate"] as const)(
+  "resolves %s physical embedding routes before choosing a Node adapter",
+  async (route) => {
+    const member = profile(
+      route === "aggregate" ? "siliconflow" : "openai-compatible",
+      "physical-vector"
+    );
+    member.models[0].routing =
+      route === "binding"
+        ? {
+            bindings: {
+              embedding: {
+                adapterId: "gemini-generate-content",
+                source: "manual",
+              },
+            },
+          }
+        : route === "discovered"
+          ? { supportedEndpointTypes: ["gemini"] }
+          : undefined;
+    profiles = [member];
+    const scope = await service.createScope(options());
+    const result = await scope.sendEmbedding(member.id, {
+      modelId: "physical-vector",
+      input: "route",
+    });
+    expect(result.data[0].embedding).toEqual([0.25, 0.75]);
+    expect(seen[0].url).toContain(
+      route === "aggregate" ? "/embeddings" : "physical-vector:embedContent"
+    );
+  }
+);
+
+it("cancels virtual embeddings while Main key selection is pending and ignores a late key", async () => {
+  const member = profile("openai-compatible", "physical-vector");
+  member.models[0].capabilities!.embedding = true;
+  const virtual = embeddingChannel(member);
+  profiles = [virtual, member];
+  const key = Promise.withResolvers<string>();
+  const selecting = Promise.withResolvers<void>();
+  vi.spyOn(host.keys, "pickKey").mockImplementation(() => {
+    selecting.resolve();
+    return key.promise;
+  });
+  const scope = await service.createScope(options());
+  const pending = scope.sendEmbedding(virtual.id, {
+    modelId: "logical-embedding",
+    input: "late key",
+  });
+  const rejected = expect(pending).rejects.toMatchObject({
+    name: "AbortError",
+  });
+  await selecting.promise;
+  await scope.dispose();
+  await rejected;
+  key.resolve("late-key");
+  await key.promise;
+  expect(seen).toHaveLength(0);
 });

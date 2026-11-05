@@ -91,6 +91,7 @@ interface Emits {
       | undefined
   ): void;
   (e: "screenshot"): void;
+  (e: "compress-to-here"): void;
 }
 
 const props = defineProps<Props>();
@@ -389,6 +390,7 @@ defineExpose({
         @create-branch="emit('create-branch')"
         @analyze-context="emit('analyze-context')"
         @screenshot="emit('screenshot')"
+        @compress-to-here="emit('compress-to-here')"
         @reparse-tools="(opts: any) => emit('reparse-tools', opts)"
         @translate="handleTranslate"
         @change-translation-mode="handleChangeTranslationMode"

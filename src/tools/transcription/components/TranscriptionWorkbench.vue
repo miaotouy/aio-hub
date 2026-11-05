@@ -32,7 +32,7 @@ import { isTextFile, getExtension } from "@/utils/fileTypeDetector";
 import { smartDecode } from "@/utils/encoding";
 import { getLanguageDefinition } from "@/utils/codeLanguages";
 import type { Asset } from "@/types/asset-management";
-import { readFile, writeFile } from "@/platform/native/fs";
+import { writeFile } from "@/platform/native/fs";
 import VideoPlayer from "@/components/common/VideoPlayer.vue";
 import AudioPlayer from "@/components/common/AudioPlayer.vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
@@ -197,7 +197,9 @@ const tryLoadExistingResult = async (asset: Asset) => {
     }
     if (existingTask.resultPath) {
       try {
-        const uint8Array = await readFile(existingTask.resultPath);
+        const uint8Array = await assetManagerEngine.getAssetBinary(
+          existingTask.resultPath
+        );
         const text = smartDecode(uint8Array);
         resultText.value = text;
         existingTask.resultText = text; // 存入缓存
@@ -514,6 +516,7 @@ watch(
       task.status === "processing" || task.status === "pending";
 
     if (task.status === "completed") {
+      showResult.value = true;
       // 转写结果通常是 markdown
       editorLanguage.value = "markdown";
       resultWarning.value = task.warning || "";
@@ -522,15 +525,18 @@ watch(
         resultText.value = task.resultText;
       } else if (task.resultPath) {
         try {
-          const uint8Array = await readFile(task.resultPath);
+          const uint8Array = await assetManagerEngine.getAssetBinary(
+            task.resultPath
+          );
           resultText.value = smartDecode(uint8Array);
           // 回填到任务对象中，下次直接用
           task.resultText = resultText.value;
         } catch (e) {
-          console.error("读取转写结果失败", e);
+          logger.error("读取转写结果失败", e);
         }
       }
     } else if (task.status === "error") {
+      showResult.value = true;
       // 失败时清空旧的警告，避免与错误信息叠加造成误导
       resultWarning.value = "";
       resultText.value = `## 转写失败\n\n${task.error || "未知错误"}`;
@@ -559,7 +565,11 @@ const saveResult = async () => {
   try {
     const encoder = new TextEncoder();
     const data = encoder.encode(resultText.value);
-    await writeFile(task.resultPath, data);
+    const assetBasePath = await assetManagerEngine.getAssetBasePath();
+    await writeFile(
+      `${assetBasePath}/${task.resultPath}`.replace(/\\/g, "/"),
+      data
+    );
     task.resultText = resultText.value;
     customMessage.success("保存成功");
   } catch (e) {

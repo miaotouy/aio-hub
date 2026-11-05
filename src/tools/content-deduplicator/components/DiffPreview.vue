@@ -101,8 +101,13 @@ watch(visible, async (val) => {
       readFileForDiff(props.pathA),
       readFileForDiff(props.pathB),
     ]);
-    contentA.value = a ?? "";
-    contentB.value = b ?? "";
+    if (a === null || b === null) {
+      error.value =
+        "读取失败，请检查文件是否存在、使用 UTF-8 编码且大小不超过 512 KiB。";
+      return;
+    }
+    contentA.value = a;
+    contentB.value = b;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "加载文件失败";
   } finally {

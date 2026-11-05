@@ -31,6 +31,7 @@ import type { FileItem } from "../types";
 
 interface Props {
   files: FileItem[];
+  disabled?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -46,6 +47,7 @@ const emit = defineEmits<{
 const sourcePathInput = ref("");
 
 const addSourcePathFromInput = () => {
+  if (props.disabled) return;
   if (!sourcePathInput.value) {
     customMessage.warning("请输入文件或文件夹路径");
     return;
@@ -55,11 +57,12 @@ const addSourcePathFromInput = () => {
 };
 
 const handleDrop = (paths: string[]) => {
+  if (props.disabled) return;
   emit("add-files", paths);
 };
 
 const clearFiles = () => {
-  if (props.files.length === 0) return;
+  if (props.disabled || props.files.length === 0) return;
   ElMessageBox.confirm("确定要清空所有待处理文件吗？", "提示", {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
@@ -81,27 +84,40 @@ const clearFiles = () => {
         :icon="Delete"
         text
         circle
+        aria-label="清空文件列表"
         @click="clearFiles"
-        :disabled="files.length === 0"
+        :disabled="disabled || files.length === 0"
       />
     </template>
     <div class="source-controls">
       <el-input
         v-model="sourcePathInput"
+        :disabled="disabled"
         placeholder="输入文件/文件夹路径"
         @keyup.enter="addSourcePathFromInput"
       />
       <el-tooltip content="选择文件" placement="top">
-        <el-button @click="emit('select-files')" :icon="Document" circle />
+        <el-button
+          :disabled="disabled"
+          @click="emit('select-files')"
+          :icon="Document"
+          circle
+        />
       </el-tooltip>
       <el-tooltip content="选择文件夹" placement="top">
         <el-button
+          :disabled="disabled"
           @click="emit('select-folders')"
           :icon="FolderOpened"
           circle
         />
       </el-tooltip>
-      <el-button @click="addSourcePathFromInput" type="primary">添加</el-button>
+      <el-button
+        :disabled="disabled"
+        @click="addSourcePathFromInput"
+        type="primary"
+        >添加</el-button
+      >
     </div>
 
     <!-- 拖放区域固定在外层，不跟随列表高度 -->
@@ -118,6 +134,7 @@ const clearFiles = () => {
             v-for="(file, index) in files"
             :key="file.path"
             :file="file"
+            :disabled="disabled"
             @remove="emit('remove-file', index)"
           />
         </div>
@@ -125,6 +142,7 @@ const clearFiles = () => {
 
       <!-- 采用标准的 Sibling Overlay 模式 -->
       <DropZone
+        :disabled="disabled"
         overlay
         :multiple="true"
         @drop="handleDrop"

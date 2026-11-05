@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-内容查重工具用于扫描指定目录中的重复/高度相似文本文件，识别精确副本和仅存在格式化差异（空白、标点、大小写）的规范化副本。内核完全由 Rust 实现，前端通过 Tauri `invoke` 调用并接收进度事件。
+内容查重工具扫描指定目录中的重复文本文件，识别精确副本和格式化差异（空白、标点、大小写）下的规范化副本。Vue 前端通过平台 `invoke` 调用宿主；Tauri 命令与 Electron N-API 适配器复用同一个 Rust 扫描核心。
 
 ## 2. 系统架构
 
@@ -36,16 +36,18 @@ graph TD
 
 ### 2.1 层级职责
 
-| 层级       | 文件                                             | 职责                                         |
-| ---------- | ------------------------------------------------ | -------------------------------------------- |
-| **UI 层**  | `ContentDeduplicator.vue`、`components/`         | 用户交互、布局编排                           |
-| **状态层** | `stores/store.ts` (Pinia)                        | 配置、结果、选中状态、筛选排序               |
-| **逻辑层** | `composables/useDeduplicatorRunner.ts`           | 封装 Tauri 命令调用与事件监听                |
-| **引擎层** | `src-tauri/src/commands/content_deduplicator.rs` | 文件扫描、规范化、哈希、相似度判断、安全删除 |
+| 层级              | 文件                                                                             | 职责                                 |
+| ----------------- | -------------------------------------------------------------------------------- | ------------------------------------ |
+| **UI 层**         | `ContentDeduplicator.vue`、`components/`                                         | 用户交互、布局编排                   |
+| **状态层**        | `stores/store.ts` (Pinia)                                                        | 配置、结果、选中状态、筛选排序       |
+| **逻辑层**        | `composables/useDeduplicatorRunner.ts`                                           | 封装平台命令调用与事件监听           |
+| **引擎层**        | `src-tauri/src/content_deduplicator.rs`                                          | 文件扫描、规范化、指纹与全文哈希     |
+| **Tauri 适配**    | `src-tauri/src/commands/content_deduplicator.rs`                                 | 进度事件、取消状态、预览和回收站     |
+| **Electron 适配** | `native/knowledge-addon/src/deduplicator.rs`、`electron/content-deduplicator.ts` | 原生任务、窗口归属、预览与安全回收站 |
 
 ## 3. 核心算法：五阶段扫描漏斗
 
-后端 [`scan_content_duplicates`](src-tauri/src/commands/content_deduplicator.rs:553) 使用**漏斗式逐级过滤**策略，每层减少候选文件数量以降低计算开销：
+后端 [`scan_content_duplicates`](../../../src-tauri/src/content_deduplicator.rs) 使用**漏斗式逐级过滤**策略，每层减少候选文件数量以降低计算开销：
 
 ```mermaid
 graph LR
@@ -106,7 +108,7 @@ graph LR
 
 ## 4. 规范化算法详解
 
-核心函数 [`normalize_bytes`](src-tauri/src/commands/content_deduplicator.rs:201) 按以下优先级逐字节处理：
+核心函数 [`normalize_bytes`](../../../src-tauri/src/content_deduplicator.rs) 按以下优先级逐字节处理：
 
 | 步骤        | 条件                       | 操作                                                                                                                  |
 | ----------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -115,7 +117,7 @@ graph LR
 | 3. 跳过标点 | `ignorePunctuation = true` | 使用 [`u8::is_ascii_punctuation()`](https://doc.rust-lang.org/std/primitive.u8.html#method.is_ascii_punctuation) 过滤 |
 | 4. 大小写   | `caseSensitive = false`    | ASCII 字母转为小写                                                                                                    |
 
-**BOM 处理**：[`skip_bom`](src-tauri/src/commands/content_deduplicator.rs:241) 仅在每个文件的第一块数据（`is_first_chunk`）中执行，跳过 UTF-8 BOM (`0xEF 0xBB 0xBF`)。
+**BOM 处理**：[`skip_bom`](../../../src-tauri/src/content_deduplicator.rs) 仅在每个文件的第一块数据（`is_first_chunk`）中执行，跳过 UTF-8 BOM (`0xEF 0xBB 0xBF`)。
 
 **与前端预设的映射**：
 
@@ -144,24 +146,24 @@ graph LR
 
 > **实现状态**：当前版本 `matchType` 仅返回 `"exact"` 和 `"normalized"`。`SimilarityConfig.minSimilarity` 字段标记为 `#[allow(dead_code)]`，`SimilarFile.similarity` 固定为 `1.0`，`diffSummary` 固定为 `None`。模糊匹配功能留待后续版本实现。
 
-## 7. 取消机制
+## 7. 取消与任务生命周期
 
-[`DedupScanCancellation`](src-tauri/src/commands/content_deduplicator.rs:17) 基于 `Arc<AtomicBool>` 实现线程安全的取消信号：
+共享核心通过 `Arc<AtomicBool>` 检查取消：目录遍历、文件指纹、并行哈希、全文读取的每个 64 KiB 块及结果返回前均有检查点。取消统一返回“扫描已被用户取消”，前端保留上次结果和选择。
 
-- **检查点**：在每一层漏斗的关键循环入口处均检查 `cancellation.is_cancelled()`，检查间隔最密为**每 20 个文件**（小文件处理）、每 50 个文件（收集阶段）。
-- **复位**：每次调用 `scan_content_duplicates` 时自动调用 `cancellation.reset()`。
-- **Tauri 管理**：作为 `State<'_, DedupScanCancellation>` 注入，由 Tauri 框架管理生命周期。
+- Tauri 继续持有应用级取消状态，由命令适配层在启动扫描时复位。
+- Electron 每次扫描创建独立的 `DedupRuntime`，在 Tokio blocking worker 内执行共享核心。一次性 token 保留启动前的取消状态；同一窗口同时接受一个扫描，不同窗口可并发。
+- Electron 进度队列最多保留 128 条记录，宿主约每 50 ms 排空一次，成功结束前再次排空；事件仅投递给所属窗口。
+- 停止命令等待该窗口的扫描结束。文档导航、刷新、渲染进程退出和窗口销毁静默取消所属任务，应用退出等待扫描、预览及当前回收站操作收尾。
 
-## 8. 删除安全机制
+## 8. 删除与预览
 
-[`delete_duplicate_files`](src-tauri/src/commands/content_deduplicator.rs:919) 采用保守策略：
+- 两个宿主均通过系统回收站逐项处理，单项失败继续处理其余路径。
+- Electron 复用目录清理服务的任务、路径身份校验与收尾逻辑，查重入口限定普通文件；目录、文件系统根、符号链接及含链接祖先的路径会返回错误。
+- Electron 返回 `cleanedPaths` 和 `cancelled`，前端只移除确认完成的文件，保留失败和未处理项。兼容旧 Tauri 返回值时，按提交路径完整匹配错误前缀，保留 Windows 盘符。
+- 窗口释放后停止后续回收站操作，当前系统调用完成后返回。成功文件的释放空间仅计一次。
+- Diff 默认限制 512 KiB。Electron 按块读取 UTF-8，检查打开前后的文件身份、长度和修改时间，拒绝链接路径、增长越界、非法编码和目录输入；显式上限最多 64 MiB。前端在读取失败时展示可操作的错误。
 
-1. **回收站删除**：通过 [`trash::delete()`](https://crates.io/crates/trash) 将文件移入系统回收站，而非物理删除。
-2. **逐个处理**：每个文件独立删除，单个失败不影响其余——通过 `errors` 数组报告失败详情（路径 + 原因）。
-3. **进度反馈**：每删除 5 个文件 emit 一次 `dedup-delete-progress` 事件。
-4. **前端同步**：删除成功后，前端 `useDeduplicatorRunner.deleteSelected()` 会从 `result.groups` 中移除成功删除的文件路径（解析错误消息中的路径前缀），并重新计算统计信息。
-
-## 9. Tauri 命令参考
+## 9. 宿主命令参考
 
 | 命令                         | 参数                                       | 返回值                | 说明                           |
 | ---------------------------- | ------------------------------------------ | --------------------- | ------------------------------ |
@@ -172,10 +174,10 @@ graph LR
 
 ### 事件
 
-| 事件名                  | 载荷类型                                                               | 触发频率                                                         |
-| ----------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `dedup-scan-progress`   | `DedupScanProgress { stage, stageProgress, foundGroups, currentFile }` | 阶段切换时 + 每 50 个文件（collecting）/ 每 20 个文件（hashing） |
-| `dedup-delete-progress` | `DedupDeleteProgress { current, total, currentFile }`                  | 每 5 个文件                                                      |
+| 事件名                  | 载荷类型                                                               | 触发频率                                                           |
+| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `dedup-scan-progress`   | `DedupScanProgress { stage, stageProgress, foundGroups, currentFile }` | 阶段切换、每 100 个收集文件、每 50 个小文件哈希；Electron 批量排空 |
+| `dedup-delete-progress` | `DedupDeleteProgress { current, total, currentFile }`                  | Tauri 每 5 个文件及末项；Electron 每个已处理项                     |
 
 ## 10. 技术栈与依赖 (Rust)
 
@@ -191,8 +193,8 @@ graph LR
 | 项目               | 状态      | 说明                                                                                        |
 | ------------------ | --------- | ------------------------------------------------------------------------------------------- |
 | 模糊匹配 (`fuzzy`) | ❌ 未实现 | `minSimilarity` / `preset` 字段为 dead_code，`similarity` 固定 1.0，`diffSummary` 固定 None |
-| 自定义忽略模式     | ⚠️ 未生效 | `OverrideBuilder` 创建但未绑定到 `WalkBuilder`，`ignorePatterns` 配置被忽略                 |
-| 大文件内存         | ⚠️ 风险   | 全文哈希使用 64KB 缓冲区流式读取，但 `read_file_content_for_diff` 会将整个文件加载到内存    |
+| 自定义忽略模式     | ✅ 已接通 | `OverrideBuilder` 绑定到 `WalkBuilder`，两宿主复用相同规则                                  |
+| 预览内存           | 有界读取  | 默认 512 KiB；Electron 严格限制流式读取长度，Tauri 保持原有默认大小检查                     |
 
 ## 12. 目录结构
 
@@ -203,16 +205,20 @@ src/tools/content-deduplicator/
 │   ├── ResultPanel.vue              # 结果列表、筛选排序、批量选择、删除操作
 │   └── DiffPreview.vue              # 双窗格文件差异对比弹窗
 ├── composables/
-│   └── useDeduplicatorRunner.ts     # Tauri invoke 封装 + 事件监听
+│   └── useDeduplicatorRunner.ts     # 平台 invoke 封装 + 事件监听
 ├── config/
 │   └── presets.ts                   # 四个预设定义 (relaxed/strict/code/document)
 ├── stores/
 │   └── store.ts                     # Pinia Store — 配置、结果、选中状态、筛选排序逻辑
 ├── types.ts                         # 与 Rust 结构一一对应的 TS 类型
-├── contentDeduplicator.registry.ts  # 工具注册 + Agent 可调用接口
+├── content-deduplicator.registry.ts  # 工具注册 + Agent 可调用接口
 ├── ContentDeduplicator.vue          # 工具主入口组件
 └── ARCHITECTURE.md                  # 本文件
 
-src-tauri/src/commands/
-└── content_deduplicator.rs          # Rust 后端：扫描漏斗、规范化、哈希、删除
+src-tauri/src/
+├── content_deduplicator.rs          # 共享扫描核心与行为测试
+└── commands/content_deduplicator.rs # Tauri 命令适配
+
+native/knowledge-addon/src/deduplicator.rs # 一次性 N-API 扫描任务与有界进度队列
+electron/content-deduplicator.ts          # 所属窗口任务、预览与回收站适配
 ```

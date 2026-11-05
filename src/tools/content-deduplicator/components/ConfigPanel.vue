@@ -140,7 +140,7 @@
         v-if="!store.isScanning"
         type="primary"
         @click="emit('scan')"
-        :disabled="!store.scanPath"
+        :disabled="!store.scanPath || store.isDeleting"
         class="action-btn"
       >
         <Search :size="16" style="margin-right: 5px" />

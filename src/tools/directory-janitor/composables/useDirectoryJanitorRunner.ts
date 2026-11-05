@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { invoke } from "@/platform/native/core";
+import { sep } from "@/platform/native/path";
 import { getCurrentWindow } from "@/platform/native/window";
 import { createModuleLogger } from "@/utils/logger";
 import { createModuleErrorHandler, ErrorLevel } from "@/utils/errorHandler";
@@ -204,6 +205,13 @@ export function useDirectoryJanitorRunner() {
           });
 
           return result;
+        } catch (error) {
+          if (
+            (error as { code?: string })?.code === "DIRECTORY_SCAN_CANCELLED" ||
+            error === "扫描已被用户取消"
+          )
+            return null;
+          throw error;
         } finally {
           store.isAnalyzing = false;
           store.showProgress = false;
@@ -226,6 +234,8 @@ export function useDirectoryJanitorRunner() {
   async function cleanupItems(paths: string[]): Promise<CleanupResult | null> {
     return await errorHandler.wrapAsync(
       async () => {
+        if (store.isCleaning)
+          throw new Error("已有清理任务正在运行，请等待完成");
         store.isCleaning = true;
         store.cleanupProgress = null;
 
@@ -242,12 +252,38 @@ export function useDirectoryJanitorRunner() {
           });
 
           // 从列表中移除成功清理的项目
-          store.allItems = store.allItems.filter(
-            (item) =>
-              !paths.includes(item.path) ||
-              result.errors.some((e) => e.includes(item.path))
+          const cleaned = result.cleanedPaths
+            ? new Set(result.cleanedPaths)
+            : new Set(
+                paths.filter(
+                  (path) => !result.errors.some((error) => error.includes(path))
+                )
+              );
+          const cleanedDirectories = new Set(
+            store.allItems
+              .filter((item) => item.isDir && cleaned.has(item.path))
+              .map((item) => item.path)
           );
-          store.selectedPaths = new Set();
+          const separator = sep();
+          const wasCleaned = (filename: string) => {
+            if (cleaned.has(filename)) return true;
+            let parent = filename;
+            for (
+              let index = parent.lastIndexOf(separator);
+              index > 0;
+              index = parent.lastIndexOf(separator)
+            ) {
+              parent = parent.slice(0, index);
+              if (cleanedDirectories.has(parent)) return true;
+            }
+            return false;
+          };
+          store.allItems = store.allItems.filter(
+            (item) => !wasCleaned(item.path)
+          );
+          store.selectedPaths = new Set(
+            [...store.selectedPaths].filter((path) => !wasCleaned(path))
+          );
 
           return result;
         } finally {

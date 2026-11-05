@@ -19,6 +19,15 @@ import { errorHandler } from "./useGitCommitterErrorHandler";
 import type { RepoOverview, MergeResult } from "../types";
 import { refreshStatus } from "./useGitCommitterRunner";
 
+/** Preserve void/null IPC success separately from wrapAsync's null failure sentinel. */
+async function invokeGitAction(
+  command: string,
+  args: Record<string, unknown>
+): Promise<true> {
+  await invoke<void>(command, args);
+  return true;
+}
+
 /** 当前激活仓库的全景概览数据 */
 export const repoOverview = ref<RepoOverview | null>(null);
 /** 是否正在加载全景概览 */
@@ -55,7 +64,7 @@ export async function checkoutBranch(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_checkout_branch", {
+      invokeGitAction("git_checkout_branch", {
         path: repoPath,
         branchName,
       }),
@@ -77,7 +86,7 @@ export async function createBranch(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_create_branch", {
+      invokeGitAction("git_create_branch", {
         path: repoPath,
         branchName,
         startPoint: startPoint || null,
@@ -100,7 +109,7 @@ export async function deleteBranch(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_delete_branch", {
+      invokeGitAction("git_delete_branch", {
         path: repoPath,
         branchName,
         force,
@@ -152,7 +161,7 @@ export async function createTag(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_create_tag", {
+      invokeGitAction("git_create_tag", {
         path: repoPath,
         tagName,
         targetHash: targetHash || null,
@@ -176,7 +185,8 @@ export async function pushTag(
   remoteName: string
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
-    () => invoke<void>("git_push_tag", { path: repoPath, tagName, remoteName }),
+    () =>
+      invokeGitAction("git_push_tag", { path: repoPath, tagName, remoteName }),
     {
       userMessage: `本地标签 ${tagName} 已创建，推送到 ${remoteName} 失败，可重试推送`,
       showToUser: true,
@@ -194,7 +204,7 @@ export async function deleteTag(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_delete_tag", {
+      invokeGitAction("git_delete_tag", {
         path: repoPath,
         tagName,
       }),
@@ -216,7 +226,7 @@ export async function saveStash(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_stash_save", {
+      invokeGitAction("git_stash_save", {
         path: repoPath,
         message: message || null,
         includeUntracked,
@@ -238,7 +248,7 @@ export async function popStash(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_stash_pop", {
+      invokeGitAction("git_stash_pop", {
         path: repoPath,
         index: index !== undefined ? index : null,
       }),
@@ -259,7 +269,7 @@ export async function applyStash(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_stash_apply", {
+      invokeGitAction("git_stash_apply", {
         path: repoPath,
         index: index !== undefined ? index : null,
       }),
@@ -280,7 +290,7 @@ export async function dropStash(
 ): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
     () =>
-      invoke<void>("git_stash_drop", {
+      invokeGitAction("git_stash_drop", {
         path: repoPath,
         index: index !== undefined ? index : null,
       }),
@@ -297,7 +307,7 @@ export async function dropStash(
 /** 撤销最近一次提交 (Soft Reset HEAD~1) */
 export async function undoLastCommit(repoPath: string): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
-    () => invoke<void>("git_undo_last_commit", { path: repoPath }),
+    () => invokeGitAction("git_undo_last_commit", { path: repoPath }),
     { userMessage: "撤销提交失败", showToUser: true }
   );
   if (result !== null) {
@@ -318,7 +328,7 @@ export async function commitAmend(
     return false;
   }
   const result = await errorHandler.wrapAsync(
-    () => invoke<void>("git_commit_amend", { path: repoPath, message }),
+    () => invokeGitAction("git_commit_amend", { path: repoPath, message }),
     { userMessage: "追加提交失败", showToUser: true }
   );
   if (result !== null) {
@@ -332,7 +342,7 @@ export async function commitAmend(
 /** 在终端中打开仓库目录 */
 export async function openTerminal(repoPath: string): Promise<boolean> {
   const result = await errorHandler.wrapAsync(
-    () => invoke<void>("git_open_terminal", { path: repoPath }),
+    () => invokeGitAction("git_open_terminal", { path: repoPath }),
     { userMessage: "打开系统终端失败", showToUser: true }
   );
   return result !== null;

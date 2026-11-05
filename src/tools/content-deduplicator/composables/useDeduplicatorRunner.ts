@@ -65,6 +65,7 @@ export function useDeduplicatorRunner() {
 
   /** 执行扫描 */
   async function scanDirectory(): Promise<DedupAnalysisResult | null> {
+    if (store.isScanning || store.isDeleting) return null;
     if (!store.scanPath) {
       customMessage.warning("请先选择扫描路径");
       return null;
@@ -74,11 +75,21 @@ export function useDeduplicatorRunner() {
     store.scanProgress = null;
 
     const result = await errorHandler.wrapAsync(
-      () =>
-        invoke<DedupAnalysisResult>("scan_content_duplicates", {
-          path: store.scanPath,
-          config: store.config,
-        }),
+      async () => {
+        try {
+          return await invoke<DedupAnalysisResult>("scan_content_duplicates", {
+            path: store.scanPath,
+            config: store.config,
+          });
+        } catch (error) {
+          if (
+            (error as { code?: string })?.code === "DEDUP_SCAN_CANCELLED" ||
+            error === "扫描已被用户取消"
+          )
+            return null;
+          throw error;
+        }
+      },
       { userMessage: "扫描失败" }
     );
 
@@ -100,7 +111,10 @@ export function useDeduplicatorRunner() {
   /** 停止扫描 */
   async function stopScan() {
     const result = await errorHandler.wrapAsync(
-      () => invoke("stop_dedup_scan"),
+      async () => {
+        await invoke("stop_dedup_scan");
+        return true;
+      },
       {
         userMessage: "停止扫描失败",
       }
@@ -116,6 +130,7 @@ export function useDeduplicatorRunner() {
 
   /** 删除选中的重复文件 */
   async function deleteSelected(): Promise<DedupDeleteResult | null> {
+    if (store.isDeleting || store.isScanning) return null;
     const paths = Array.from(store.selectedPaths);
     if (paths.length === 0) {
       customMessage.warning("请先选择要删除的文件");
@@ -135,17 +150,20 @@ export function useDeduplicatorRunner() {
 
     // 从结果中移除已删除的文件
     if (result.successCount > 0) {
-      // 只移除成功删除的路径（排除失败的）
+      // Older hosts report failures as text; match against submitted paths including the drive colon.
       const failedPaths = new Set(
-        result.errors
-          .map((e) => {
-            // 从错误消息中提取路径（格式："移入回收站失败 path: reason"）
-            const match = e.match(/移入回收站失败 (.+?):/);
-            return match ? match[1] : "";
-          })
-          .filter(Boolean)
+        paths.filter((path) =>
+          result.errors.some((error) =>
+            error.startsWith("移入回收站失败 " + path + ":")
+          )
+        )
       );
-      const successPaths = paths.filter((p) => !failedPaths.has(p));
+      const successPaths =
+        result.cleanedPaths ??
+        (failedPaths.size === result.errorCount &&
+        result.successCount + result.errorCount === paths.length
+          ? paths.filter((path) => !failedPaths.has(path))
+          : []);
       store.removeDeletedPaths(successPaths);
     }
 

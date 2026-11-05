@@ -306,6 +306,11 @@ export function useTranscriptionManager() {
       task.completedAt = Date.now();
       // 触发真正的人为中断
       task.abortController?.abort();
+      if (task.assetType === "audio" || task.assetType === "video") {
+        void invoke("kill_ffmpeg_process", { taskId: task.id }).catch(error => {
+          logger.warn("停止转写预处理失败", { error, taskId: task.id });
+        });
+      }
     }
   };
 

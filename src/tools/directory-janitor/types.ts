@@ -45,6 +45,9 @@ export interface CleanupResult {
   errorCount: number;
   freedSpace: number;
   errors: string[];
+  /** Electron 返回本次已完成的路径，供取消和部分失败时精确更新列表。 */
+  cleanedPaths?: string[];
+  cancelled?: boolean;
 }
 
 /** 目录扫描进度 */

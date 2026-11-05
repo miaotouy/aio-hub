@@ -29,7 +29,7 @@
         </el-tag>
         <el-button
           type="danger"
-          :disabled="selectedItems.length === 0"
+          :disabled="selectedItems.length === 0 || isCleaning"
           @click="handleConfirmCleanup"
           :icon="Delete"
         >

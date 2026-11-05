@@ -115,6 +115,8 @@ export interface DedupDeleteResult {
   errorCount: number;
   freedSpace: number;
   errors: string[];
+  cleanedPaths?: string[];
+  cancelled?: boolean;
 }
 
 // ==================== 进度类型 ====================

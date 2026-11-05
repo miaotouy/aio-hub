@@ -33,14 +33,17 @@ module.exports = {
     "dist"
   ),
   asar: true,
-  // Bun bundles all host dependencies. Prevent workspace node_modules collection.
+  asarUnpack: ["native-runtime/**/*.node"],
+  // Host code is bundled; include only explicitly staged Node-API addons.
   beforeBuild: async () => false,
   files: [
     "main.cjs",
     "preload.cjs",
+    "native-worker.cjs",
     "icon.png",
     "package.json",
     "renderer/**/*",
+    "native-runtime/**/*",
     "!node_modules/**/*",
   ],
   extraResources: [

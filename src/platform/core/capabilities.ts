@@ -62,7 +62,13 @@ export function getHostCapability(
         reason: label + "需要 Windows 桌面版。",
       };
   }
-  if (currentPlatformRuntime === "electron") {
+  if (
+    currentPlatformRuntime === "electron" &&
+    capability !== "screenCapture" &&
+    capability !== "windowAutomation" &&
+    capability !== "systemCodeFormatting" &&
+    capability !== "backgroundJsRuntime"
+  ) {
     return {
       available: false,
       reasonCode: "host-unavailable",

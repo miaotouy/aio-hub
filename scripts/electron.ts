@@ -85,12 +85,32 @@ if (isLocal && mode === "package") {
 }
 async function buildHost() {
   await mkdir(output, { recursive: true });
+  await run([
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "--manifest-path",
+    path.join(root, "native/knowledge-addon/Cargo.toml"),
+  ]);
+  const nativeDirectory = path.join(output, "native-runtime");
+  await mkdir(nativeDirectory, { recursive: true });
+  const addonName =
+    process.platform === "win32"
+      ? "aiohub_knowledge_addon.dll"
+      : process.platform === "darwin"
+        ? "libaiohub_knowledge_addon.dylib"
+        : "libaiohub_knowledge_addon.so";
+  await copyFile(
+    path.join(root, "native/knowledge-addon/target/release", addonName),
+    path.join(nativeDirectory, "knowledge-addon.node")
+  );
   const skillsOutput = path.join(output, "skills");
   if (path.dirname(skillsOutput) !== output)
     throw new Error("内置技能输出目录无效");
   await rm(skillsOutput, { recursive: true, force: true });
   await cp(path.join(root, "public/skills"), skillsOutput, { recursive: true });
-  for (const name of ["main", "preload"]) {
+  for (const name of ["main", "preload", "native-worker", "window-automation-worker", "code-formatter-worker", "background-runtime-worker"]) {
     const result = await Bun.build({
       entrypoints: [path.join(root, "electron", name + ".ts")],
       outdir: output,
@@ -98,11 +118,49 @@ async function buildHost() {
       format: "cjs",
       target: "node",
       external: ["electron"],
+      plugins:
+        name === "native-worker"
+          ? [
+              {
+                name: "native-ffi-runtime",
+                setup(build) {
+                  build.onResolve({ filter: /^koffi$/ }, () => ({
+                    path: "./native-runtime/koffi/index.cjs",
+                    external: true,
+                  }));
+                },
+              },
+            ]
+          : [],
       sourcemap: "external",
     });
     if (!result.success)
       throw new AggregateError(result.logs, "Electron " + name + "构建失败");
   }
+  // Koffi's N-API binary stays external; copy only the locked current-host runtime.
+  const require = createRequire(import.meta.url);
+  const koffiRoot = path.dirname(require.resolve("koffi"));
+  const koffiTarget = path.join(output, "native-runtime/koffi");
+  for (const name of [
+    "index.cjs",
+    "package.json",
+    "LICENSE.txt",
+    "src/koffi/index.cjs",
+    "src/koffi/src/static.cjs",
+  ]) {
+    await mkdir(path.dirname(path.join(koffiTarget, name)), {
+      recursive: true,
+    });
+    await copyFile(path.join(koffiRoot, name), path.join(koffiTarget, name));
+  }
+  const binaryPackage =
+    "@koromix/koffi-" + process.platform + "-" + process.arch;
+  const binaryRoot = path.dirname(
+    createRequire(require.resolve("koffi")).resolve(binaryPackage)
+  );
+  await cp(binaryRoot, path.join(koffiTarget, "build/koffi"), {
+    recursive: true,
+  });
   await Bun.write(
     path.join(output, "package.json"),
     JSON.stringify(

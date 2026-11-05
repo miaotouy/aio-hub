@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { ContextFilePolicyReader } from "./context-file-policy";
+import { createBackgroundHostServices } from "./background-host-services";
 import {
   app,
   BrowserWindow,
@@ -27,6 +29,7 @@ import {
   session,
   shell,
   Tray,
+  utilityProcess,
 } from "electron";
 import type {
   IpcMainInvokeEvent,
@@ -67,10 +70,21 @@ import { fileOperation, filePath, writeAtomic } from "./filesystem";
 import { fileCommand } from "./file-commands";
 import { desktopOpen } from "./desktop-open";
 import { DirectoryTrees } from "./directory-tree";
+import { DirectoryJanitor } from "./directory-janitor";
+import { ContentDeduplicator } from "./content-deduplicator";
+import { DirectorySearch } from "./directory-search";
+import { SymlinkMover } from "./symlink-mover";
+import { SystemPulse } from "./system-pulse";
+import { WebDistillery, distilleryNetworkOptions } from "./web-distillery";
+import { ImageCapture } from "./image-capture";
+import { WindowAutomation } from "./window-automation";
+import { CodeFormatter } from "./code-formatter";
+import { BackgroundRuntime } from "./background-runtime";
 import { AssetManager } from "./asset-manager";
 import { DocumentConverter } from "./document-converter";
 import { SkillManager } from "./skill-manager";
 import { WindowResizes } from "./window-resize";
+import { applyWindowEffect } from "./window-effects";
 import { DesktopControls, readDesktopSettings } from "./desktop-controls";
 import { WorkspaceWindows } from "./workspace-windows";
 import { toWindowMonitor } from "./window-monitor";
@@ -81,13 +95,29 @@ import { AgentAssets } from "./agent-assets";
 import { parseNativeDragDrop } from "./drag-drop";
 import { FileWatches } from "./file-watches";
 import { ImageClipboard } from "./image-clipboard";
+import { ClipboardMonitor } from "./clipboard-monitor";
 import {
   allowLocalFonts,
   normalizeFontFamilies,
   FONT_FAMILIES_SCRIPT,
 } from "./system-fonts";
 import { LlmSearch } from "./llm-search";
+import { FFmpegProcesses } from "./ffmpeg";
+import { GitCommands } from "./git";
+import { gitNetworkOptions } from "./git-network";
+import { searchMediaGeneratorData } from "./media-search";
+import { LlmKeyState } from "./llm-key-state";
+import { LLM_KEY_STATE_EVENT } from "../src/llm-apis/configuration/keyProtocol";
+import { LlmConfiguration } from "./llm-configuration";
 import { LlmChatPersistence } from "./llm-chat-persistence";
+
+import { PluginPackages } from "./plugin-packages";
+import { PluginResources } from "./plugin-resources";
+import { Sidecars } from "./sidecars";
+import { Knowledge } from "./knowledge";
+import { NativePlugins } from "./native-plugins";
+import { Recall } from "./recall";
+import { RecallBackup } from "./recall-backup";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -134,6 +164,7 @@ const devOrigin = process.env.AIO_ELECTRON_RENDERER_URL
 const hostRoot = app.getAppPath();
 const rendererRoot = path.join(hostRoot, "renderer");
 const windows = new Map<string, BrowserWindow>();
+const transparentWindows = new WeakSet<BrowserWindow>();
 const httpRequests = new HttpRequests((url, init, options) =>
   options.llm
     ? llmHttpFetch(url, init, options.llm, (value) =>
@@ -141,6 +172,54 @@ const httpRequests = new HttpRequests((url, init, options) =>
       )
     : chromiumFetch(url, init)
 );
+const sidecars = new Sidecars({
+  root: app.getPath("userData"),
+  workspaceRoot: devOrigin ? process.cwd() : undefined,
+  emit: (owner, event, payload) => {
+    const label = [...windows].find(
+      ([, candidate]) =>
+        !candidate.isDestroyed() && candidate.webContents.id === owner
+    )?.[0];
+    if (label) publish(event, payload, label);
+  },
+});
+const knowledge = new Knowledge(app.getPath("userData"), hostRoot);
+const recall = new Recall(app.getPath("userData"), hostRoot, undefined, (event, payload) => publish(event, payload));
+const nativePlugins = new NativePlugins({
+  root: app.getPath("userData"),
+  workspaceRoot: devOrigin ? process.cwd() : undefined,
+  spawnWorker: (spec) => {
+    const worker = utilityProcess.fork(
+      path.join(hostRoot, "native-worker.cjs"),
+      [],
+      {
+        cwd: spec.directory,
+        stdio: "pipe",
+        execArgv: [],
+        serviceName: "AIO Hub Native Plugin: " + spec.id,
+      }
+    );
+    let logged = 0;
+    const log = (chunk: Buffer) => {
+      if (logged >= 65536) return;
+      const text = chunk.subarray(0, 65536 - logged).toString("utf8");
+      logged += chunk.length;
+      console.warn("[native-plugin:" + spec.id + "]", text);
+    };
+    worker.stdout?.on("data", log);
+    worker.stderr?.on("data", log);
+    return worker;
+  },
+});
+const pluginPackages = new PluginPackages({
+  root: app.getPath("userData"),
+  trashItem: (value) => shell.trashItem(value),
+  trashPlugin: (id, target) =>
+    sidecars.recyclePlugin(id, () =>
+      nativePlugins.recyclePlugin(id, () => shell.trashItem(target))
+    ),
+  emit: (event, payload) => publish(event, payload),
+});
 const skillManager = new SkillManager({
   root: app.getPath("userData"),
   builtinRoot: path.join(
@@ -160,6 +239,7 @@ const assetManager = new AssetManager({
   emit: (event, payload) => publish(event, payload),
   inspectMedia: inspectAssetMedia,
 });
+const recallBackup = new RecallBackup(recall, assetManager, app.getVersion(), (event, payload) => publish(event, payload));
 const configArchive = new ConfigArchive(
   app.getPath("userData"),
   app.getVersion()
@@ -169,9 +249,57 @@ const agentAssets = new AgentAssets({
   trashItem: (value) => shell.trashItem(value),
   inspectMedia: inspectAssetMedia,
 });
+const llmKeyState = new LlmKeyState(app.getPath("userData"), snapshot => publish(LLM_KEY_STATE_EVENT, snapshot));
+const llmConfiguration = new LlmConfiguration(app.getPath("userData"));
 const llmChatPersistence = new LlmChatPersistence(app.getPath("userData"));
 const llmSearch = new LlmSearch(app.getPath("userData"));
 const directoryTrees = new DirectoryTrees();
+const directoryJanitor = new DirectoryJanitor({ trashItem: file => shell.trashItem(file), emit: publishOwned });
+const directorySearch = new DirectorySearch(app.getAppPath(), { emit: publishOwned });
+const symlinkMover = new SymlinkMover(app.getAppPath(), { emit: publishOwned });
+const systemPulse = new SystemPulse(app.getAppPath(), { emit: publishOwned });
+const imageCapture = new ImageCapture(app.getAppPath());
+const backgroundRuntime = new BackgroundRuntime({
+  services: createBackgroundHostServices({
+    environment: {
+      root: app.getPath("userData"), runtimeRoot: hostRoot,
+    },
+    files: new ContextFilePolicyReader(app.getPath("userData"), async () =>
+      ["desktop", "documents", "downloads"].flatMap(name => {
+        try { return [app.getPath(name as "desktop" | "documents" | "downloads")]; }
+        catch { return []; }
+      })
+    ),
+    assets: { getRoot: async () => {
+      const root = await assetManager.run("get_asset_base_path");
+      if (typeof root !== "string") throw new Error("资产目录无效");
+      return root;
+    } },
+    configuration: llmConfiguration,
+    keys: llmKeyState,
+  }),
+  spawnWorker: () => utilityProcess.fork(
+    path.join(hostRoot, "background-runtime-worker.cjs"), [],
+    { stdio: "pipe", execArgv: [], serviceName: "AIO Hub Background Runtime" }
+  ),
+});
+const codeFormatter = new CodeFormatter({
+  root: app.getPath("userData"),
+  spawnWorker: () => utilityProcess.fork(
+    path.join(hostRoot, "code-formatter-worker.cjs"),
+    [path.join(hostRoot, "native-runtime/knowledge-addon.node")],
+    { stdio: "pipe", execArgv: [], serviceName: "AIO Hub Code Formatter" }
+  ),
+});
+const windowAutomation = new WindowAutomation({
+  spawnWorker: () => utilityProcess.fork(
+    path.join(hostRoot, "window-automation-worker.cjs"),
+    [path.join(hostRoot, "native-runtime/knowledge-addon.node")],
+    { stdio: "pipe", execArgv: [], serviceName: "AIO Hub Window Automation" }
+  ),
+});
+const webDistillery = new WebDistillery(app.getAppPath(), { networkOptions: () => distilleryNetworkOptions(app.getPath("userData")) });
+const contentDeduplicator = new ContentDeduplicator(app.getAppPath(), { trashItem: file => shell.trashItem(file), emit: publishOwned });
 const fileWatches = new FileWatches((owner, message) => {
   const win = [...windows.values()].find(
     (candidate) =>
@@ -214,6 +342,13 @@ const imageClipboard = new ImageClipboard({
     return { bytes: new Uint8Array(image.toPNG()), width, height };
   },
 });
+const clipboardMonitor = new ClipboardMonitor({
+  readText: () => clipboard.readText(),
+  emit: (owner, content) => publishOwned(owner, "clipboard-changed", content),
+  onError: (error) => console.warn("剪贴板监听读取失败", String(error)),
+});
+const ffmpeg = new FFmpegProcesses({ emit: publishOwned });
+const gitCommands = new GitCommands({ trash: (file) => shell.trashItem(file), emit: publishOwned, networkOptions: () => gitNetworkOptions(app.getPath("userData")) });
 const channelEpochs = new Map<number, number>();
 function disposeSearchOwner(owner: number) {
   channelEpochs.set(owner, (channelEpochs.get(owner) ?? 0) + 1);
@@ -251,6 +386,9 @@ const canvasPreviews = new CanvasPreviews(
 );
 const tokens = new Map<number, string>();
 const assets = new Map<string, Map<string, Promise<string>>>();
+const pluginResources = new PluginResources(app.getPath("userData"), (token) =>
+  assets.has(token)
+);
 const subscriptions = new Map<
   number,
   Map<number, { event: string; target?: EventTarget }>
@@ -322,6 +460,19 @@ function trusted(event: IpcMainInvokeEvent | IpcMainEvent): BrowserWindow {
 }
 const targetLabel = (target?: EventTarget) =>
   typeof target === "string" ? target : target?.label;
+/** Deliver private operation events only to subscriptions in the owning document. */
+function publishOwned(owner: number, event: string, payload: unknown): boolean {
+  const entry = [...windows].find(([, win]) => !win.isDestroyed() &&
+    !win.webContents.isDestroyed() && win.webContents.id === owner);
+  if (!entry) return false;
+  for (const [id, sub] of subscriptions.get(owner) ?? []) {
+    if (sub.event !== event) continue;
+    const scope = targetLabel(sub.target);
+    if (scope && scope !== entry[0]) continue;
+    entry[1].webContents.send(IPC_EVENT, { event, id, payload, windowLabel: entry[0] });
+  }
+  return true;
+}
 function publish(event: string, payload?: unknown, target?: EventTarget) {
   const destination = targetLabel(target);
   for (const [label, win] of windows) {
@@ -504,17 +655,19 @@ function windowCall(
       return factor;
     case "innerSize":
     case "outerSize": {
-      const [width, height] =
-        method === "innerSize" ? win.getContentSize() : win.getSize();
-      return {
-        width: Math.round(width * factor),
-        height: Math.round(height * factor),
-      };
+      const bounds = method === "innerSize" ? win.getContentBounds() : win.getBounds();
+      const physical = process.platform === "win32"
+        ? screen.dipToScreenRect(win, bounds)
+        : { width: Math.round(bounds.width * factor), height: Math.round(bounds.height * factor) };
+      return { width: physical.width, height: physical.height };
     }
     case "innerPosition":
     case "outerPosition": {
-      const [x, y] = win.getPosition();
-      return { x: Math.round(x * factor), y: Math.round(y * factor) };
+      const bounds = method === "innerPosition" ? win.getContentBounds() : win.getBounds();
+      const physical = process.platform === "win32"
+        ? screen.dipToScreenRect(win, bounds)
+        : { x: Math.round(bounds.x * factor), y: Math.round(bounds.y * factor) };
+      return { x: physical.x, y: physical.y };
     }
     case "setTitle":
       win.setTitle(str(value));
@@ -553,7 +706,10 @@ function windowCall(
         y = Math.round(Number(v.y) / f);
       if (!Number.isFinite(x) || !Number.isFinite(y))
         throw new Error("窗口位置无效");
-      win.setPosition(x, y);
+      const point = v.type === "Physical" && process.platform === "win32"
+        ? screen.screenToDipPoint({ x: Number(v.x), y: Number(v.y) })
+        : { x, y };
+      win.setPosition(Math.round(point.x), Math.round(point.y));
       return;
     }
     case "setBackgroundColor":
@@ -668,6 +824,7 @@ async function createWindow(
     },
   });
   windows.set(label, win);
+  if (options.transparent === true) transparentWindows.add(win);
   tokens.set(win.webContents.id, token);
   assets.set(token, new Map());
   const contentsId = win.webContents.id;
@@ -691,7 +848,22 @@ async function createWindow(
         subscriptions.delete(contentsId);
         httpRequests.disposeOwner(contentsId);
         fileWatches.disposeOwner(contentsId);
+        clipboardMonitor.disposeOwner(contentsId);
+        ffmpeg.disposeOwner(contentsId);
+        gitCommands.disposeOwner(contentsId);
         directoryTrees.disposeOwner(contentsId);
+        directoryJanitor.disposeOwner(contentsId);
+        contentDeduplicator.disposeOwner(contentsId);
+    directorySearch.disposeOwner(contentsId);
+    symlinkMover.disposeOwner(contentsId);
+    systemPulse.disposeOwner(contentsId);
+    webDistillery.disposeOwner(contentsId);
+    imageCapture.disposeOwner(contentsId);
+    windowAutomation.disposeOwner(contentsId);
+    codeFormatter.disposeOwner(contentsId);
+    backgroundRuntime.disposeOwner(contentsId);
+        sidecars.disposeOwner(contentsId);
+        nativePlugins.disposeOwner(contentsId);
         disposeSearchOwner(contentsId);
         cancelWindowResize(contentsId);
         workspaceWindows.disposeOwner(contentsId);
@@ -736,7 +908,22 @@ async function createWindow(
     canvasPreviews.disposeOwner(contentsId);
     httpRequests.disposeOwner(contentsId);
     fileWatches.disposeOwner(contentsId);
+    clipboardMonitor.disposeOwner(contentsId);
+    ffmpeg.disposeOwner(contentsId);
+    gitCommands.disposeOwner(contentsId);
     directoryTrees.disposeOwner(contentsId);
+    directoryJanitor.disposeOwner(contentsId);
+        contentDeduplicator.disposeOwner(contentsId);
+    directorySearch.disposeOwner(contentsId);
+    symlinkMover.disposeOwner(contentsId);
+    systemPulse.disposeOwner(contentsId);
+    webDistillery.disposeOwner(contentsId);
+    imageCapture.disposeOwner(contentsId);
+    windowAutomation.disposeOwner(contentsId);
+    codeFormatter.disposeOwner(contentsId);
+    backgroundRuntime.disposeOwner(contentsId);
+    sidecars.disposeOwner(contentsId);
+    nativePlugins.disposeOwner(contentsId);
     disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
   });
@@ -746,7 +933,22 @@ async function createWindow(
     workspaceWindows.closed(label);
     httpRequests.disposeOwner(contentsId);
     fileWatches.disposeOwner(contentsId);
+    clipboardMonitor.disposeOwner(contentsId);
+    ffmpeg.disposeOwner(contentsId);
+    gitCommands.disposeOwner(contentsId);
     directoryTrees.disposeOwner(contentsId);
+    directoryJanitor.disposeOwner(contentsId);
+        contentDeduplicator.disposeOwner(contentsId);
+    directorySearch.disposeOwner(contentsId);
+    symlinkMover.disposeOwner(contentsId);
+    systemPulse.disposeOwner(contentsId);
+    webDistillery.disposeOwner(contentsId);
+    imageCapture.disposeOwner(contentsId);
+    windowAutomation.disposeOwner(contentsId);
+    codeFormatter.disposeOwner(contentsId);
+    backgroundRuntime.disposeOwner(contentsId);
+    sidecars.disposeOwner(contentsId);
+    nativePlugins.disposeOwner(contentsId);
     disposeSearchOwner(contentsId);
     cancelWindowResize(contentsId);
     subscriptions.delete(contentsId);
@@ -824,9 +1026,14 @@ function emitMainEvent(event: string, payload?: unknown): boolean {
   if (listening) publish(event, payload, "main");
   return listening;
 }
+async function shutdownBackgroundOwners() {
+  try { await backgroundRuntime.shutdown(); }
+  finally { await Promise.all([llmKeyState.shutdown(), llmConfiguration.shutdown()]); }
+}
 async function exitApplication(code: number) {
   quitting = true;
-  await Promise.all([skillManager.shutdown(), llmChatPersistence.shutdown()]);
+  await recallBackup.shutdown();
+  await Promise.all([ffmpeg.shutdown(), gitCommands.shutdown(), directoryJanitor.shutdown(), contentDeduplicator.shutdown(), directorySearch.shutdown(), symlinkMover.shutdown(), systemPulse.shutdown(), webDistillery.shutdown(), imageCapture.shutdown(), windowAutomation.shutdown(), codeFormatter.shutdown(), shutdownBackgroundOwners(), skillManager.shutdown(), llmChatPersistence.shutdown(), recall.shutdown(), knowledge.shutdown(), pluginPackages.shutdown(), sidecars.shutdown(), nativePlugins.shutdown()]);
   await windowConfigQueue.catch((error) =>
     console.warn("退出前窗口配置保存失败", error)
   );
@@ -925,12 +1132,222 @@ async function command(
   win: BrowserWindow
 ): Promise<unknown> {
   switch (name) {
+    case "background_runtime_get_status":
+      return backgroundRuntime.getStatus();
+    case "git_scan_repositories":
+    case "git_get_repo_status":
+    case "git_get_file_diff":
+    case "git_get_commit_file_diff":
+    case "git_read_file_preview_binary":
+    case "git_stage_files":
+    case "git_unstage_files":
+    case "git_discard_files":
+    case "git_cherry_pick":
+    case "git_revert":
+    case "git_export_commits":
+    case "git_update_commit_message":
+    case "git_format_log":
+    case "git_push":
+    case "git_pull":
+    case "git_undo_last_commit":
+    case "git_commit_amend":
+    case "git_checkout_branch":
+    case "git_create_branch":
+    case "git_delete_branch":
+    case "git_merge_branch":
+    case "git_create_tag":
+    case "git_push_tag":
+    case "git_delete_tag":
+    case "git_stash_save":
+    case "git_stash_pop":
+    case "git_stash_apply":
+    case "git_stash_drop":
+    case "git_open_terminal":
+    case "git_commit":
+    case "git_get_branches":
+    case "git_get_incremental_commits":
+    case "git_get_branch_commits":
+    case "git_get_commit_detail":
+    case "git_get_remote_url":
+    case "git_get_tags":
+    case "git_stash_list":
+    case "git_get_repo_overview":
+    case "git_load_repository_stream":
+    case "git_load_incremental_stream":
+    case "git_enrich_commits_stream":
+    case "git_cancel_load":
+    case "git_cancel_enrich":
+    case "git_load_repository":
+      return gitCommands.runCommand(win.webContents.id, name, args);
+    case "knowledge_initialize":
+    case "knowledge_create_library":
+    case "knowledge_update_library":
+    case "knowledge_apply_library_config":
+    case "knowledge_list_libraries":
+    case "knowledge_delete_library":
+    case "knowledge_ingest_document":
+    case "knowledge_enqueue_paths":
+    case "knowledge_list_sources":
+    case "knowledge_list_ingest_tasks":
+    case "knowledge_claim_ingest_task":
+    case "knowledge_complete_ingest_task":
+    case "knowledge_fail_ingest_task":
+    case "knowledge_cancel_ingest_task":
+    case "knowledge_retry_ingest_task":
+    case "knowledge_add_directory_source":
+    case "knowledge_rescan_directory_source":
+    case "knowledge_remove_source":
+    case "knowledge_list_documents":
+    case "knowledge_update_document_tags":
+    case "knowledge_list_chunks":
+    case "knowledge_list_unvectorized_chunks":
+    case "knowledge_delete_document":
+    case "knowledge_rebuild_library":
+    case "knowledge_save_chunk_vectors":
+    case "knowledge_get_index_status":
+    case "knowledge_switch_embedding_route":
+    case "knowledge_search":
+      return knowledge.run(name, args);
+    case "recall_export_backup":
+    case "recall_export_backups":
+    case "recall_cancel_backup_operation":
+    case "recall_import_backup":
+      return recallBackup.run(name, args, win.webContents.id);
+    case "recall_list_retrieval_presets":
+    case "recall_list_retrieval_modules":
+    case "recall_get_retrieval_pipeline_template":
+    case "recall_compile_retrieval_pipeline":
+    case "recall_compile_custom_retrieval_pipeline":
+    case "recall_run_retrieval_pipeline":
+    case "recall_run_custom_retrieval_pipeline":
+    case "recall_retrieval_cache_get":
+    case "recall_retrieval_cache_set":
+    case "recall_retrieval_cache_clear":
+    case "recall_retrieval_cache_stats":
+    case "recall_monitor_heartbeat":
+    case "recall_initialize":
+    case "recall_inspect_legacy_migration":
+    case "recall_preview_legacy_migration":
+    case "recall_run_legacy_migration":
+    case "recall_confirm_legacy_cleanup":
+    case "recall_debug_reset_legacy_migration":
+    case "recall_get_library_stats":
+    case "recall_flush_all_tag_pools":
+    case "recall_batch_import_files":
+    case "recall_inspect_backup":
+    case "recall_inspect_backups":
+    case "recall_import_legacy_backup_to_knowledge":
+    case "recall_warmup":
+    case "recall_list_bases":
+    case "recall_load_base_meta":
+    case "recall_save_base_meta":
+    case "recall_delete_base":
+    case "recall_clone_base":
+    case "recall_export_base":
+    case "recall_load_entry":
+    case "recall_get_entries":
+    case "recall_list_entry_ids":
+    case "recall_upsert_entry":
+    case "recall_delete_entry":
+    case "recall_batch_upsert_entries":
+    case "recall_batch_patch_entries":
+    case "recall_batch_delete_entries":
+    case "recall_update_entry_vector":
+    case "recall_check_vector_coverage":
+    case "recall_clear_legacy_vectors":
+    case "recall_clear_all_other_vectors":
+    case "recall_load_model_vectors":
+    case "recall_get_missing_tags":
+    case "recall_sync_tag_vectors":
+    case "recall_list_all_tags":
+    case "recall_get_tag_pool_stats":
+    case "recall_rebuild_tag_pool_index":
+    case "recall_clear_tag_pool":
+    case "recall_list_tag_pool_models":
+    case "recall_clear_other_tag_pools":
+    case "recall_get_embedding_cache":
+    case "recall_set_embedding_cache":
+    case "recall_clear_embedding_cache":
+      return recall.run(name, args);
     case "open_file_directory":
     case "open_path_force":
     case "open_url":
       return desktopOpen(name, args, shell);
+    case "format_code":
+    case "code_formatter_status":
+      return codeFormatter.runCommand(win.webContents.id, name, args);
+    case "wa_get_windows":
+    case "wa_get_self_pid":
+    case "wa_get_pixel":
+    case "wa_capture_window":
+    case "wa_send_click":
+    case "wa_send_keypress":
+    case "wa_get_client_rect":
+    case "wa_is_window_valid":
+      return windowAutomation.runCommand(win.webContents.id, name, args);
+    case "capture_screen_rect":
+    case "check_native_ocr_availability":
+    case "native_ocr":
+      return imageCapture.runCommand(win.webContents.id, name, args);
+    case "distillery_quick_fetch":
+    case "distillery_start_proxy":
+    case "distillery_stop_proxy":
+    case "distillery_get_proxy_port":
+    case "distillery_get_proxy_origin":
+    case "distillery_set_proxy_cookies":
+    case "distillery_get_proxy_cookies":
+    case "distillery_set_proxy_local_storage":
+    case "distillery_check_crypto":
+    case "distillery_encrypt_cookie_values":
+    case "distillery_decrypt_cookie_values":
+      return webDistillery.runCommand(win.webContents.id, name, args);
+    case "start_pulse":
+    case "stop_pulse":
+      return systemPulse.runCommand(win.webContents.id, name, args);
+    case "validate_file_for_link":
+    case "validate_files_for_link":
+    case "preflight_symlink_operation":
+    case "move_and_link":
+    case "create_links_only":
+    case "cancel_move_operation":
+    case "get_latest_operation_log":
+    case "get_all_operation_logs":
+      return symlinkMover.runCommand(win.webContents.id, name, args);
+    case "dir_search":
+    case "dir_search_cancel":
+    case "dir_replace":
+    case "dir_replace_single":
+    case "dir_replace_preview":
+    case "dir_search_copy_files":
+    case "dir_search_move_files":
+      return directorySearch.runCommand(win.webContents.id, name, args);
+    case "scan_content_duplicates":
+    case "stop_dedup_scan":
+    case "read_file_content_for_diff":
+    case "delete_duplicate_files":
+      return contentDeduplicator.runCommand(win.webContents.id, name, args);
+    case "analyze_directory_for_cleanup":
+    case "cleanup_items":
+    case "stop_directory_scan":
+    case "stop_directory_cleanup":
+      return directoryJanitor.runCommand(win.webContents.id, name, args);
     case "generate_directory_tree":
       return directoryTrees.generate(win.webContents.id, args);
+    case "check_ffmpeg_availability":
+    case "check_command_version":
+    case "run_ffmpeg_plan":
+    case "kill_ffmpeg_process":
+    case "get_media_metadata":
+    case "get_full_media_info":
+    case "get_media_keyframes":
+    case "extract_video_frames":
+      return ffmpeg.run(win.webContents.id, name, args);
+    case "start_clipboard_monitor":
+      return clipboardMonitor.start(win.webContents.id);
+    case "stop_clipboard_monitor":
+      return clipboardMonitor.disposeOwner(win.webContents.id);
+    case "get_clipboard_content_type":
+      return clipboardMonitor.contentType(win.webContents.id);
     case "get_system_fonts":
       return normalizeFontFamilies(
         await win.webContents.executeJavaScript(FONT_FAMILIES_SCRIPT, true)
@@ -949,6 +1366,8 @@ async function command(
         return true;
       });
     }
+    case "search_media_generator_data":
+      return searchMediaGeneratorData(app.getPath("userData"), args);
     case "cancel_llm_chat_search":
       return llmSearch.cancel(win.webContents.id);
     case "llm_chat_atomic_write":
@@ -994,6 +1413,19 @@ async function command(
       return workspaceWindows.closeCanvas(args.canvasId);
     case "close_all_canvas_windows":
       return workspaceWindows.closeAllCanvases();
+    case "load_native_plugin":
+    case "unload_native_plugin":
+    case "call_native_plugin_method":
+      return nativePlugins.run(win.webContents.id, name, args);
+    case "execute_sidecar":
+    case "sidecar_spawn_resident":
+    case "sidecar_send_command":
+    case "sidecar_kill_resident":
+      return sidecars.run(win.webContents.id, name, args);
+    case "preflight_plugin_zip":
+    case "install_plugin_from_zip":
+    case "uninstall_plugin":
+      return pluginPackages.run(name, args);
     case "get_all_skill_manifests":
     case "get_well_known_skill_paths":
     case "read_skill_resource":
@@ -1082,6 +1514,30 @@ async function command(
         root: app.getPath("userData"),
         trashItem: (value) => shell.trashItem(value),
       });
+    case "get_saved_window_labels": {
+      await windowConfigQueue;
+      try {
+        const config: unknown = JSON.parse(await fs.readFile(path.join(app.getPath("userData"), "electron-windows.json"), "utf8"));
+        if (!config || typeof config !== "object" || Array.isArray(config)) throw Error("窗口配置格式无效");
+        return Object.keys(config);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+        throw error;
+      }
+    }
+    case "set_window_position": {
+      const win = windows.get(str(args.label));
+      if (!win || win.isDestroyed()) throw Error("窗口已关闭");
+      let x = Number(args.x), y = Number(args.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw Error("窗口位置无效");
+      if (args.center === true) {
+        const [width, height] = win.getSize();
+        x -= width / 2;
+        y -= height / 2;
+      }
+      win.setPosition(Math.round(x), Math.round(y));
+      return;
+    }
     case "save_window_config":
       return saveWindow(str(args.label));
     case "clear_all_window_configs":
@@ -1118,25 +1574,8 @@ async function command(
     case "set_window_shadow":
       win.setHasShadow(Boolean(args.hasShadow ?? args.enabled ?? args.shadow));
       return;
-    case "apply_window_effect": {
-      const effect = str(args.effect);
-      if (process.platform === "win32") {
-        const materials: Record<
-          string,
-          "auto" | "none" | "mica" | "acrylic" | "tabbed"
-        > = {
-          none: "none",
-          mica: "mica",
-          acrylic: "acrylic",
-          blur: "acrylic",
-          tabbed: "tabbed",
-          auto: "auto",
-        };
-        if (!materials[effect]) return unavailable("窗口材质 " + effect);
-        win.setBackgroundMaterial(materials[effect]);
-      } else if (effect !== "none") return unavailable("窗口材质 " + effect);
-      return;
-    }
+    case "apply_window_effect":
+      return applyWindowEffect(win, str(args.effect), transparentWindows.has(win), process.platform);
     case "dev_control_identity":
       return devControlIdentity(
         devControl,
@@ -1193,6 +1632,22 @@ async function operation(
 ): Promise<unknown> {
   const win = trusted(event);
   switch (name) {
+    case "llm.keys.call":
+      return llmKeyState.run(args.command);
+    case "llm.config.load":
+      return llmConfiguration.load();
+    case "llm.config.save":
+      return llmConfiguration.save(args.profiles, args.expectedRevision);
+    case "background.start":
+      return backgroundRuntime.start();
+    case "background.call":
+      return backgroundRuntime.call(event.sender.id, args.method, args.payload, args.timeoutMs);
+    case "plugin.resourceUrl":
+      return pluginResources.url(
+        tokens.get(event.sender.id)!,
+        args.pluginPath,
+        args.resourcePath
+      );
     case "canvas-preview.create":
       return canvasPreviews.create(event.sender.id, args.canvasId);
     case "canvas-preview.update":
@@ -1281,6 +1736,7 @@ async function operation(
       subscriptions.get(event.sender.id)?.delete(Number(args.id));
       return;
     case "events.emit":
+      if (args.event === LLM_KEY_STATE_EVENT) throw new Error("密钥状态由应用持有，请通过状态操作更新");
       publish(str(args.event), args.payload, args.target as EventTarget);
       return;
     case "fs.watch.start":
@@ -1481,6 +1937,22 @@ void app
           return canvasPreviews.response(request);
         if (url.host !== "app" || !["GET", "HEAD"].includes(request.method))
           return new Response("Forbidden", { status: 403 });
+        if (url.pathname.startsWith("/__plugins/")) {
+          const resource = await net.fetch(
+            pathToFileURL(await pluginResources.resolve(url)).href,
+            { method: request.method }
+          );
+          const headers = new Headers(resource.headers);
+          headers.set(
+            "Access-Control-Allow-Origin",
+            devOrigin ?? "aiohub://app"
+          );
+          headers.set("Cache-Control", "no-store");
+          return new Response(resource.body, {
+            status: resource.status,
+            headers,
+          });
+        }
         let file = !path.posix.extname(url.pathname)
           ? path.join(rendererRoot, "index.html")
           : rendererFile(rendererRoot, url.pathname);
@@ -1499,7 +1971,7 @@ void app
           "Content-Security-Policy",
           "default-src 'self'; script-src 'self' 'unsafe-eval' blob: " +
             Array.from(scriptHashes).join(" ") +
-            "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https: http:; font-src 'self' data: asset:; media-src 'self' blob: data: asset: https: http:; connect-src 'self' asset: https: http: wss: ws:; worker-src 'self' blob:; frame-src 'self' blob: data: aiohub://canvas-preview; object-src 'none'; base-uri 'self'"
+            "; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: https: http:; font-src 'self' data: asset:; media-src 'self' blob: data: asset: https: http:; connect-src 'self' asset: https: http: wss: ws:; worker-src 'self' blob:; frame-src 'self' blob: data: aiohub://canvas-preview http://*.localhost:*; object-src 'none'; base-uri 'self'"
         );
         return new Response(response.body, {
           status: response.status,
@@ -1548,12 +2020,43 @@ app.on("before-quit", (event) => {
   quitting = true;
   llmSearch.disposeAll();
   fileWatches.disposeAll();
+  clipboardMonitor.disposeAll();
   directoryTrees.disposeAll();
   desktopControls.destroy();
   const pending =
+    ffmpeg.hasPendingOperations ||
+    gitCommands.hasPendingOperations ||
+    directoryJanitor.hasPendingOperations ||
+    contentDeduplicator.hasPendingOperations ||
+    directorySearch.hasPendingOperations ||
+    symlinkMover.hasPendingOperations ||
+    systemPulse.hasPendingOperations ||
+    webDistillery.hasPendingOperations ||
+    imageCapture.hasPendingOperations ||
+    windowAutomation.hasPendingOperations ||
+    codeFormatter.hasPendingOperations ||
+    backgroundRuntime.hasPendingOperations ||
+    sidecars.hasPendingOperations ||
+    nativePlugins.hasPendingOperations ||
+    knowledge.hasPendingOperations ||
+    recall.hasPendingOperations ||
+    recallBackup.hasPendingOperations ||
+    pluginPackages.hasPendingOperations ||
     skillManager.hasPendingOperations ||
+    llmKeyState.hasPendingOperations ||
+    llmConfiguration.hasPendingOperations ||
     llmChatPersistence.hasPendingOperations;
-  const shutdown = llmChatPersistence.shutdown();
+  const shutdown = Promise.all([
+    ffmpeg.shutdown(),
+    gitCommands.shutdown(),
+    directoryJanitor.shutdown(), contentDeduplicator.shutdown(), directorySearch.shutdown(), symlinkMover.shutdown(), systemPulse.shutdown(), webDistillery.shutdown(), imageCapture.shutdown(), windowAutomation.shutdown(), codeFormatter.shutdown(), shutdownBackgroundOwners(),
+    llmChatPersistence.shutdown(),
+    pluginPackages.shutdown(),
+    sidecars.shutdown(),
+    nativePlugins.shutdown(),
+    knowledge.shutdown(),
+    recallBackup.shutdown().then(() => recall.shutdown()),
+  ]);
   if (pending) {
     event.preventDefault();
     if (!stoppingHostOperations) {

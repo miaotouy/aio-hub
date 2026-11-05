@@ -77,9 +77,19 @@ describe("宿主业务能力契约", () => {
     }
   });
 
-  it("reports missing Electron integrations without misidentifying Windows", () => {
+  it("exposes migrated Electron capture and automation while retaining other host boundaries", () => {
     host.runtime = "electron";
-    for (const capability of [...windowsFeatures, ...sharedFeatures]) {
+    expect(getHostCapability("screenCapture").available).toBe(true);
+    expect(getHostCapability("windowAutomation").available).toBe(true);
+    expect(getHostCapability("systemCodeFormatting").available).toBe(true);
+    expect(getHostCapability("backgroundJsRuntime").available).toBe(true);
+    for (const capability of [...windowsFeatures, ...sharedFeatures].filter(
+      (item) =>
+        item !== "screenCapture" &&
+        item !== "windowAutomation" &&
+        item !== "systemCodeFormatting" &&
+        item !== "backgroundJsRuntime"
+    )) {
       expect(getHostCapability(capability)).toMatchObject({
         available: false,
         reasonCode: "host-unavailable",
@@ -93,11 +103,14 @@ describe("宿主业务能力契约", () => {
       );
     }
     expect(getNativeDesktopCapabilities()).toEqual({
-      windowAutomation: false,
-      screenCapture: false,
+      windowAutomation: true,
+      screenCapture: true,
       externalPlayerOverlay: false,
     });
     host.os = "linux";
+    expect(getHostCapability("screenCapture").reasonCode).toBe(
+      "platform-unavailable"
+    );
     expect(getHostCapability("windowAutomation").reasonCode).toBe(
       "platform-unavailable"
     );

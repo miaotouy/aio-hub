@@ -66,6 +66,7 @@ export function normalizeDirectoryInput(raw: string): string {
 }
 
 export function useDirSearch() {
+  let disposed = false;
   const uiState = useDirSearchUiState();
 
   // 搜索参数（直接引用持久化的 UI 状态）
@@ -94,6 +95,7 @@ export function useDirSearch() {
   // UI 状态
   const showReplace = uiState.showReplace;
   const selectedFilePath = ref<string | null>(null);
+  const previewRevision = ref(0);
   const expandedFiles = shallowRef<Set<string>>(new Set());
 
   // 计算属性
@@ -209,7 +211,7 @@ export function useDirSearch() {
 
   /** 执行搜索 */
   async function executeSearch() {
-    if (!rootPath.value || !pattern.value) return;
+    if (disposed || !rootPath.value || !pattern.value) return;
 
     // UI 主动启动新搜索时，必须等待旧 walker 已结束并释放后端活动槽位。
     if (activeSearchId) {
@@ -230,6 +232,11 @@ export function useDirSearch() {
 
     // 设置监听
     await setupListeners(searchId);
+    if (disposed || currentGeneration !== searchGeneration) {
+      await cleanupListeners();
+      if (activeSearchId === searchId) activeSearchId = null;
+      return;
+    }
 
     // 解析 glob 字符串为数组
     const parseGlobs = (str: string): string[] =>
@@ -323,6 +330,13 @@ export function useDirSearch() {
 
     try {
       const result = await invoke<ReplaceResult>("dir_replace", { request });
+      if (
+        selectedFilePath.value &&
+        targetPaths.includes(selectedFilePath.value) &&
+        result.filesReplaced > 0
+      ) {
+        previewRevision.value++;
+      }
       return result;
     } catch (e) {
       errorHandler.error(e, "替换执行失败");
@@ -410,9 +424,7 @@ export function useDirSearch() {
         const newExpanded = new Set(expandedFiles.value);
         newExpanded.delete(filePath);
         expandedFiles.value = newExpanded;
-        if (selectedFilePath.value === filePath) {
-          selectedFilePath.value = null;
-        }
+        // Keep the open document and any unsaved draft after its last match is replaced.
       }
 
       triggerRef(results);
@@ -446,6 +458,7 @@ export function useDirSearch() {
         request,
       });
       if (result.success) {
+        if (selectedFilePath.value === filePath) previewRevision.value++;
         // 替换成功后重新搜索该文件，刷新所有匹配的位置信息
         await refreshFileResults(filePath);
       }
@@ -524,7 +537,9 @@ export function useDirSearch() {
 
   /** 清理资源 */
   function dispose() {
-    cleanupListeners();
+    disposed = true;
+    void cancelSearch();
+    void cleanupListeners();
   }
 
   return {
@@ -552,6 +567,7 @@ export function useDirSearch() {
     // UI 状态
     showReplace,
     selectedFilePath,
+    previewRevision,
     expandedFiles,
 
     // 历史记录

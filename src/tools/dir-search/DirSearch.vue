@@ -63,6 +63,7 @@
           :relative-path="selectedRelativePath"
           :matches="selectedFileMatches"
           :target-match="targetMatch"
+          :content-revision="search.previewRevision.value"
         />
       </div>
     </div>
@@ -79,7 +80,7 @@
 <script setup lang="ts">
 import { getBrowserClipboard } from "@/platform/browser";
 
-import { ref, computed, onUnmounted, provide, h } from "vue";
+import { ref, computed, onUnmounted, provide, h, watch } from "vue";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { useResizable } from "@/composables/useResizable";
 import { ElMessageBox } from "element-plus";
@@ -125,6 +126,9 @@ const panelWidth = uiState.panelWidth;
 const isPanelCollapsed = uiState.isPanelCollapsed;
 const targetMatch = ref<TargetMatch | null>(null);
 let matchSeq = 0;
+watch(search.previewRevision, () => {
+  targetMatch.value = null;
+});
 
 // 计算属性
 const selectedRelativePath = computed(() => {

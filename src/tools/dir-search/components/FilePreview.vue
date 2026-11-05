@@ -83,13 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from "vue";
+import { ref, watch, computed, nextTick, onBeforeUnmount } from "vue";
 import { invoke } from "@/platform/native/core";
 import { FileSearch, ExternalLink, FolderOpen, Save } from "lucide-vue-next";
 import { Loading } from "@element-plus/icons-vue";
 import RichCodeEditor from "@/components/common/RichCodeEditor.vue";
 import { customMessage } from "@/utils/customMessage";
 import type { SearchMatch, TargetMatch } from "../types";
+import { searchMatchColumns } from "../searchText";
 import type { editor as MonacoEditorType } from "monaco-editor";
 
 const props = defineProps<{
@@ -97,6 +98,7 @@ const props = defineProps<{
   relativePath?: string;
   matches?: SearchMatch[];
   targetMatch?: TargetMatch | null;
+  contentRevision?: number;
 }>();
 
 const isLoading = ref(false);
@@ -104,6 +106,10 @@ const loadError = ref<string | null>(null);
 const fileContent = ref(""); // 原始内容（磁盘上的）
 const editedContent = ref(""); // 编辑器当前内容
 const isSaving = ref(false);
+let loadGeneration = 0;
+onBeforeUnmount(() => {
+  loadGeneration++;
+});
 
 // Monaco 编辑器实例
 let monacoEditor: MonacoEditorType.IStandaloneCodeEditor | null = null;
@@ -245,10 +251,11 @@ function applyMatchHighlights() {
     .map((m) => {
       const model = monacoEditor!.getModel();
       if (!model) return null;
+      if (m.lineNumber < 1 || m.lineNumber > model.getLineCount()) return null;
       const lineContent = model.getLineContent(m.lineNumber);
-      const startCol = m.matchStart + 1;
-      const endCol = m.matchEnd + 1;
-      if (startCol > endCol || endCol > lineContent.length + 1) return null;
+      const columns = searchMatchColumns(lineContent, m);
+      if (!columns) return null;
+      const { startColumn: startCol, endColumn: endCol } = columns;
       return {
         range: {
           startLineNumber: m.lineNumber,
@@ -297,6 +304,12 @@ function applyTargetMatch() {
     return;
   }
 
+  const columns = searchMatchColumns(
+    model.getLineContent(target.lineNumber),
+    target
+  );
+  if (!columns) return;
+
   const decos: MonacoEditorType.IModelDeltaDecoration[] = [
     // 整行背景高亮
     {
@@ -319,9 +332,9 @@ function applyTargetMatch() {
     {
       range: {
         startLineNumber: target.lineNumber,
-        startColumn: target.matchStart + 1,
+        startColumn: columns.startColumn,
         endLineNumber: target.lineNumber,
-        endColumn: target.matchEnd + 1,
+        endColumn: columns.endColumn,
       },
       options: {
         inlineClassName: "monaco-search-match-text-active",
@@ -344,9 +357,9 @@ function applyTargetMatch() {
   monacoEditor.revealLineInCenter(target.lineNumber, 0 /* Smooth */);
   monacoEditor.setSelection({
     startLineNumber: target.lineNumber,
-    startColumn: target.matchStart + 1,
+    startColumn: columns.startColumn,
     endLineNumber: target.lineNumber,
-    endColumn: target.matchEnd + 1,
+    endColumn: columns.endColumn,
   });
 }
 
@@ -363,6 +376,7 @@ function handleEditorMount(
 }
 
 async function loadFile(path: string) {
+  const generation = ++loadGeneration;
   isLoading.value = true;
   loadError.value = null;
   fileContent.value = "";
@@ -373,12 +387,14 @@ async function loadFile(path: string) {
 
   try {
     const content = await invoke<string>("read_text_file_force", { path });
+    if (generation !== loadGeneration || path !== props.filePath) return;
     fileContent.value = content;
     editedContent.value = content;
   } catch (e: any) {
-    loadError.value = `无法读取文件: ${e?.message || e}`;
+    if (generation === loadGeneration)
+      loadError.value = `无法读取文件: ${e?.message || e}`;
   } finally {
-    isLoading.value = false;
+    if (generation === loadGeneration) isLoading.value = false;
   }
 }
 
@@ -406,10 +422,27 @@ watch(
     if (newPath) {
       loadFile(newPath);
     } else {
+      loadGeneration++;
+      isLoading.value = false;
       fileContent.value = "";
+      editedContent.value = "";
     }
   },
   { immediate: true }
+);
+
+watch(
+  () => props.contentRevision,
+  () => {
+    if (!props.filePath) return;
+    if (isDirty.value) {
+      customMessage.warning(
+        "磁盘内容已更新，当前未保存修改已保留；保存前请核对文件内容"
+      );
+      return;
+    }
+    void loadFile(props.filePath);
+  }
 );
 
 watch(

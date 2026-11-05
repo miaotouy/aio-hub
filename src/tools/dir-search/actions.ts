@@ -335,7 +335,8 @@ function truncateLine(
   matchEnd: number,
   maxLength = 200
 ): string {
-  if (content.length <= maxLength) {
+  const characters = Array.from(content);
+  if (characters.length <= maxLength) {
     return content.trimEnd();
   }
 
@@ -349,10 +350,10 @@ function truncateLine(
   const endIdx =
     typeof matchEnd === "number" && matchEnd >= startIdx
       ? matchEnd
-      : content.length;
+      : characters.length;
 
   let start = Math.max(0, startIdx - leftKeep);
-  let end = Math.min(content.length, endIdx + rightKeep);
+  let end = Math.min(characters.length, endIdx + rightKeep);
 
   // 如果裁切后的长度依然超出 maxLength，则以匹配项为中心进行二次收缩
   if (end - start > maxLength) {
@@ -360,7 +361,7 @@ function truncateLine(
     const remain = maxLength - matchLen;
     if (remain > 0) {
       start = Math.max(0, startIdx - Math.floor(remain / 2));
-      end = Math.min(content.length, endIdx + Math.ceil(remain / 2));
+      end = Math.min(characters.length, endIdx + Math.ceil(remain / 2));
     } else {
       // 匹配项本身就极长，那就只展示匹配项本身
       start = startIdx;
@@ -368,11 +369,11 @@ function truncateLine(
     }
   }
 
-  let result = content.slice(start, end);
+  let result = characters.slice(start, end).join("");
   if (start > 0) {
     result = "..." + result;
   }
-  if (end < content.length) {
+  if (end < characters.length) {
     result = result + "...";
   }
 

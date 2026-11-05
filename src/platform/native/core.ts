@@ -18,7 +18,15 @@ import { request, getElectronBridge, unsupported } from "../electron/client";
 export * from "@tauri-apps/api/core";
 export const invoke: typeof tauri.invoke = getElectronBridge()
   ? (((command: string, args?: unknown, options?: unknown) =>
-      request("command", { command, args, options })) as typeof tauri.invoke)
+      request("command", {
+        command,
+        args,
+        options,
+        // Result events and invoke replies use separate queues; retain listeners through the event fence.
+        ...(command === "dir_search"
+          ? { __eventDrain: new ElectronChannel() }
+          : {}),
+      })) as typeof tauri.invoke)
   : tauri.invoke;
 export const convertFileSrc: typeof tauri.convertFileSrc = getElectronBridge()
   ? (path, protocol = "asset") => {

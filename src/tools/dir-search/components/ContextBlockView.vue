@@ -48,15 +48,18 @@
           <span class="context-block-view__line-content">
             <template v-if="line.matchInfo">
               <span>{{
-                line.content.slice(0, line.matchInfo.matchStart)
+                sliceSearchText(line.content, 0, line.matchInfo.matchStart)
               }}</span>
               <span class="context-block-view__highlight">{{
-                line.content.slice(
+                sliceSearchText(
+                  line.content,
                   line.matchInfo.matchStart,
                   line.matchInfo.matchEnd
                 )
               }}</span>
-              <span>{{ line.content.slice(line.matchInfo.matchEnd) }}</span>
+              <span>{{
+                sliceSearchText(line.content, line.matchInfo.matchEnd)
+              }}</span>
             </template>
             <template v-else>{{ line.content }}</template>
           </span>
@@ -68,6 +71,7 @@
 
 <script setup lang="ts">
 import type { ContextBlock } from "../types";
+import { sliceSearchText } from "../searchText";
 
 defineProps<{
   blocks: ContextBlock[];

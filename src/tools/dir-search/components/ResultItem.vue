@@ -67,6 +67,7 @@
 import { computed } from "vue";
 import { X, Replace } from "lucide-vue-next";
 import type { SearchMatch, HighlightPart } from "../types";
+import { sliceSearchText } from "../searchText";
 
 const props = defineProps<{
   match: SearchMatch;
@@ -82,11 +83,11 @@ defineEmits<{
 }>();
 
 const tooltipContent = computed(() => {
-  const content = props.match.lineContent;
+  const content = Array.from(props.match.lineContent);
   const MAX_LENGTH = 300;
-  if (content.length <= MAX_LENGTH) return content;
+  if (content.length <= MAX_LENGTH) return content.join("");
   return (
-    content.slice(0, MAX_LENGTH) +
+    content.slice(0, MAX_LENGTH).join("") +
     `... (省略 ${content.length - MAX_LENGTH} 字符)`
   );
 });
@@ -94,23 +95,24 @@ const tooltipContent = computed(() => {
 const highlightParts = computed<HighlightPart[]>(() => {
   const { lineContent, matchStart, matchEnd } = props.match;
   const parts: HighlightPart[] = [];
+  const characters = Array.from(lineContent);
 
   // 截取显示范围（行内容可能很长，只显示匹配附近的内容）
   const contextChars = 60;
   const displayStart = Math.max(0, matchStart - contextChars);
-  const displayEnd = Math.min(lineContent.length, matchEnd + contextChars);
+  const displayEnd = Math.min(characters.length, matchEnd + contextChars);
 
-  const displayContent = lineContent.slice(displayStart, displayEnd);
+  const displayContent = sliceSearchText(lineContent, displayStart, displayEnd);
   const adjustedStart = matchStart - displayStart;
   const adjustedEnd = matchEnd - displayStart;
 
   // 前缀省略号
   const prefix = displayStart > 0 ? "…" : "";
-  const suffix = displayEnd < lineContent.length ? "…" : "";
+  const suffix = displayEnd < characters.length ? "…" : "";
 
-  const before = prefix + displayContent.slice(0, adjustedStart);
-  const matched = displayContent.slice(adjustedStart, adjustedEnd);
-  const after = displayContent.slice(adjustedEnd) + suffix;
+  const before = prefix + sliceSearchText(displayContent, 0, adjustedStart);
+  const matched = sliceSearchText(displayContent, adjustedStart, adjustedEnd);
+  const after = sliceSearchText(displayContent, adjustedEnd) + suffix;
 
   if (before) parts.push({ text: before, isMatch: false });
   if (matched) parts.push({ text: matched, isMatch: true });

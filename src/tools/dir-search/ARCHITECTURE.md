@@ -1,6 +1,6 @@
 # Dir Search: 架构与开发者指南
 
-> 更新日期： 2026-6-15
+> 更新日期： 2026-11-05
 
 本文档解析目录搜索工具的内部架构、数据流和关键设计决策，为后续开发提供清晰指引。
 
@@ -38,7 +38,7 @@ src/tools/dir-search/
 └── docs/Plan/                           # 修改计划文档（按需创建）
 ```
 
-**Rust 后端**：`src-tauri/src/commands/dir_search.rs`
+**共享 Rust 核心**：`src-tauri/src/dir_search.rs`。Tauri 命令位于 `src-tauri/src/commands/dir_search.rs`；Electron 通过 `native/knowledge-addon/src/dir_search.rs` 与 `electron/directory-search.ts` 复用相同实现。
 
 ## 3. 架构概览
 
@@ -188,7 +188,7 @@ sequenceDiagram
 
 ## 5. Rust 后端详解
 
-### 5.1. Tauri 命令清单
+### 5.1. 宿主命令清单
 
 | 命令                    | 功能                   | 返回/事件                                                                            |
 | ----------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
@@ -355,28 +355,28 @@ sequenceDiagram
 
 前后端类型完全对齐（Rust 使用 `#[serde(rename_all = "camelCase")]`）：
 
-| 类型                   | 用途                                                    |
+| 类型 | 用途 |
 | ---------------------- | ------------------------------------------------------- | --------- |
-| `SearchRequest`        | 搜索请求参数（含 `contextLines`、`maxResults`）         |
-| `SearchMatch`          | 单个匹配项（行号 + 行内容 + char 偏移 + 可选上下文行）  |
-| `FileSearchResult`     | 单文件搜索结果（绝对路径 + 相对路径 + 匹配列表）        |
-| `SearchResultBatch`    | IPC 批量事件载荷（`results: FileSearchResult[]`）       |
-| `SearchProgress`       | 搜索进度事件（已扫描/已匹配/总匹配数/当前文件）         |
-| `SearchSummary`        | 搜索完成汇总（文件数 + 匹配数 + 耗时 + 是否取消）       |
-| `ReplaceRequest`       | 批量替换请求（含 `preserveCase`）                       |
-| `ReplaceResult`        | 替换结果（成功/失败文件数 + 错误详情）                  |
-| `ReplaceError`         | 替换错误详情（文件路径 + 错误信息）                     |
-| `ReplaceSingleRequest` | 单项精确替换请求（文件路径 + 行号 + char 偏移）         |
-| `ReplaceSingleResult`  | 单项替换结果（原始文本 + 替换后文本）                   |
+| `SearchRequest` | 搜索请求参数（含 `contextLines`、`maxResults`） |
+| `SearchMatch` | 单个匹配项（行号 + 行内容 + char 偏移 + 可选上下文行） |
+| `FileSearchResult` | 单文件搜索结果（绝对路径 + 相对路径 + 匹配列表） |
+| `SearchResultBatch` | IPC 批量事件载荷（`results: FileSearchResult[]`） |
+| `SearchProgress` | 搜索进度事件（已扫描/已匹配/总匹配数/当前文件） |
+| `SearchSummary` | 搜索完成汇总（文件数 + 匹配数 + 耗时 + 是否取消） |
+| `ReplaceRequest` | 批量替换请求（含 `preserveCase`） |
+| `ReplaceResult` | 替换结果（成功/失败文件数 + 错误详情） |
+| `ReplaceError` | 替换错误详情（文件路径 + 错误信息） |
+| `ReplaceSingleRequest` | 单项精确替换请求（文件路径 + 行号 + char 偏移） |
+| `ReplaceSingleResult` | 单项替换结果（原始文本 + 替换后文本） |
 | `OrganizeFilesRequest` | 复制/移动结果文件请求（文件列表 + 目标目录 + 冲突策略） |
-| `OrganizeFilesResult`  | 复制/移动结果（成功/跳过/失败数量 + 成功路径 + 错误）   |
-| `OrganizeFileError`    | 文件整理错误详情（文件路径 + 错误信息）                 |
-| `TargetMatch`          | 前端预览定位用（行号 + 偏移 + 序列号强制触发 watch）    |
-| `HighlightPart`        | 前端高亮渲染用的文本片段                                |
-| `ContextBlock`         | 上下文块（合并后的连续行区域）                          |
-| `ContextLine`          | 上下文块内的单行（含匹配信息或纯上下文标记）            |
-| `DirectoryNode`        | 树形视图的目录节点（支持路径段合并显示）                |
-| `ViewMode`             | 视图模式（`'list'                                       | 'tree'`） |
+| `OrganizeFilesResult` | 复制/移动结果（成功/跳过/失败数量 + 成功路径 + 错误） |
+| `OrganizeFileError` | 文件整理错误详情（文件路径 + 错误信息） |
+| `TargetMatch` | 前端预览定位用（行号 + 偏移 + 序列号强制触发 watch） |
+| `HighlightPart` | 前端高亮渲染用的文本片段 |
+| `ContextBlock` | 上下文块（合并后的连续行区域） |
+| `ContextLine` | 上下文块内的单行（含匹配信息或纯上下文标记） |
+| `DirectoryNode` | 树形视图的目录节点（支持路径段合并显示） |
+| `ViewMode` | 视图模式（`'list'                                       | 'tree'`） |
 
 ## 8. 与其他工具的关系
 
@@ -404,3 +404,18 @@ sequenceDiagram
 `SearchSummary` 会返回 `stopReason`（`completed`、`matchLimit`、`fileLimit`、`deadline`、`cancelled` 或 `busy`）、`truncated`、`filesScanned` 和 `bytesRead`。Agent 搜索会在文本结果中明确标记截断；批量替换的预搜索只要不是完整 `completed` 就拒绝写盘，避免对不完整影响范围执行部分替换。
 
 Tool Calling 和 VCP 节点把 `AbortSignal` 放入 `ToolContext`。本地 Tool Calling 超时时先 abort，再返回 timeout；VCP 节点的 115 秒兜底和 WebSocket 断开也会 abort 所属在途调用。VCP `register_tools` 可声明 `capabilities.cancelTool`；服务端只在目标连接仍为 OPEN 且节点声明能力时 best-effort 发送 `cancel_tool`，旧节点仍由 AIO 本地 deadline 独立止损。
+
+## 11. Electron 运行与收尾
+
+- 全应用同时持有一个活动搜索，保留 4 个 walker worker、文件数/读取字节/时限预算及原有 `busy` 汇总。同一窗口的新 UI 搜索先取消并等待旧搜索结束；取消同时校验窗口归属和 `searchId`。
+- 每次搜索创建一次性 `DirSearchRuntime`，在 blocking worker 中执行共享引擎。原引擎的 500 项结果通道继续提供背压；N-API 到主进程另使用最多 8 条事件的有界队列，约每 25 ms 排空，正常结束保留全部尾批次。
+- Electron 的 invoke 回复与事件使用独立投递队列。目录搜索调用复用已有 Channel 结束标记，等待此前事件投递后才返回，前端和 Agent 动作层可安全收集末批结果并解绑监听。
+- 文档导航、刷新、渲染进程退出和关窗静默取消所属扫描；工具卸载也显式取消活动搜索。取消发生在监听初始化期间时，跳过后续原生启动。
+- 已接受的批量/单项替换与复制/移动进入宿主串行队列。窗口释放后继续完成这些写操作，应用退出等待队列；预览随窗口释放失效。
+- 替换和整理限定普通文件，检查路径祖先中的链接和 Windows 重解析点；单项替换按原始字节区间修改，保留 CRLF、LF 混合行尾，并拒绝逆序范围。原文件在读取后发生变化时返回错误。
+- 同文件复制/移动覆盖记为跳过，保留文件内容。跨卷移动的复制阶段成功、源文件删除失败时，报告失败并明确源文件仍保留。
+- 显式 include glob 沿用 ignore 的白名单优先级，可包含默认隐藏项；无白名单时 `includeHidden` 控制隐藏文件。忙碌、时限和扫描/结果预算停止会在结果面板展示可操作提示。
+
+验证进度和真实运行证据见[Electron 功能补齐待办](../../../docs/Plan/electron-feature-gap-execution.md)。
+
+前端匹配偏移沿用 Rust Unicode scalar 索引；结果行、上下文和 Agent 长行摘要按字符切片，Monaco 定位转换为 UTF-16 列。单项与批量替换成功后通知预览重新读取，保留未保存草稿并提示核对；异步读取用代计数器隔离，迟到的旧文件内容无法覆盖当前选择。

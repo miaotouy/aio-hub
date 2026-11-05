@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { PhysicalPosition } from "../native/window";
+import { PhysicalPosition } from "../native/dpi";
 import type { DragDropEvent } from "../native/webview";
 import type { EventCallback, UnlistenFn } from "../native/events";
 import type { NativeDragDrop } from "../../../electron/drag-drop";

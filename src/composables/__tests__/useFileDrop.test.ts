@@ -315,3 +315,23 @@ describe("Electron path preference", () => {
     }
   );
 });
+
+// 保护文件来源与目标的拖放操作协商；copy-only 外部文件须能落入导入区。
+it.each([
+  ["copy", "copy"],
+  ["copyMove", "copy"],
+  ["all", "copy"],
+  ["move", "move"],
+])(
+  "accepts %s drag sources with a compatible %s operation",
+  async (effectAllowed, expected) => {
+    const { wrapper } = selectorDrop();
+    await flushPromises();
+    const dataTransfer = { effectAllowed, dropEffect: "none" };
+    const event = new Event("dragover", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    wrapper.element.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(dataTransfer.dropEffect).toBe(expected);
+  }
+);

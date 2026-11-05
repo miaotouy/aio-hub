@@ -470,9 +470,11 @@ export function useFileDrop(options: FileDropOptions = {}) {
     const handleDragOver = (e: DragEvent) => {
       if (isDisabled()) return;
       e.preventDefault();
-      // dragover 中设置 dragEffect 以显示正确的鼠标样式
+      // 导入优先使用复制语义，避免 copy-only 来源被浏览器取消 drop。
       if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "move";
+        const allowed = e.dataTransfer.effectAllowed;
+        e.dataTransfer.dropEffect =
+          allowed === "move" || allowed === "linkMove" ? "move" : "copy";
       }
     };
 

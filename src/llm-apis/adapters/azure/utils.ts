@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmProfile } from "@/types/llm-profiles";
+import type { LlmProfile } from "../../../types/llm-profiles";
 
 export const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-12-01-preview";
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
+import type { LlmMessage, LlmReasoningArtifact } from "../../types";
 
 export const OPENAI_RESPONSES_PROVIDER = "openai-responses";
 export const OPENAI_RESPONSE_OUTPUT_ITEM_KIND = "response.output_item";

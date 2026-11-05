@@ -29,7 +29,7 @@ import type {
   LlmMessageContent,
   LlmRequestOptions,
   LlmResponse,
-} from "../../common";
+} from "../../types";
 import type { LlmProfile } from "../../../types/llm-profiles";
 import {
   applyCustomParameters,

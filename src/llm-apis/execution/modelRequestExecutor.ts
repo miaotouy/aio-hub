@@ -17,7 +17,7 @@ import type {
   LlmRequestOptions,
   LlmResponse,
   MediaGenerationOptions,
-} from "../common";
+} from "../types";
 import { TimeoutError, isAbortError, isTimeoutError } from "../errors";
 import {
   resolveModelExecution,
@@ -31,7 +31,7 @@ import {
 import { buildDecodedToolDiagnostics } from "../tool-diagnostics";
 import { getKeyHealthActionForError } from "../key-health-policy";
 import type { LlmProfile } from "../../types/llm-profiles";
-import type { LlmAdapter } from "../adapters";
+import type { LlmAdapter } from "../adapters/types";
 import type {
   InspectorContextMetadata,
   InspectorToolDiagnostics,

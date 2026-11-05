@@ -10,7 +10,7 @@ import type {
   LlmRequestOptions,
   MediaGenerationOptions,
   LlmResponse,
-} from "../common";
+} from "../types";
 
 export function getRequestOperation(
   options: LlmRequestOptions | MediaGenerationOptions,

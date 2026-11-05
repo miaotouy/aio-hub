@@ -16,23 +16,7 @@ import type { LlmProfile } from "@/types/llm-profiles";
 import type { LlmRequestOptions, LlmResponse } from "@/llm-apis/common";
 import { callOpenAiChatApi } from "../openai/chat";
 
-const DEEPSEEK_REASONING_EFFORT_MAP: Record<string, string> = {
-  medium: "high",
-  xhigh: "high",
-};
-
-function normalizeDeepSeekChatOptions(
-  options: LlmRequestOptions
-): LlmRequestOptions {
-  const reasoningEffort = options.reasoningEffort?.trim().toLowerCase();
-
-  return {
-    ...options,
-    reasoningEffort: reasoningEffort
-      ? (DEEPSEEK_REASONING_EFFORT_MAP[reasoningEffort] ?? reasoningEffort)
-      : undefined,
-  };
-}
+import { normalizeDeepSeekChatOptions } from "./chat-options";
 
 /**
  * DeepSeek 使用 OpenAI 兼容协议，但推理/思考参数语义不等同于 OpenAI。

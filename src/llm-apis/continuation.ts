@@ -1,7 +1,7 @@
 // Copyright 2025-2026 miaotouy(Github@miaotouy)
 
-import type { LlmRequestOptions, LlmMessage } from "./common";
-import type { LlmModelInfo, LlmProfile } from "@/types/llm-profiles";
+import type { LlmRequestOptions, LlmMessage } from "./types";
+import type { LlmModelInfo, LlmProfile } from "../types/llm-profiles";
 
 export interface ContinuationSettings {
   mode: "auto" | "prompt";

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmMessage, LlmReasoningArtifact } from "@/llm-apis/common";
+import type { LlmMessage, LlmReasoningArtifact } from "../../types";
 
 export const GEMINI_PROVIDER = "gemini";
 export const GEMINI_MODEL_PARTS_KIND = "model.parts";

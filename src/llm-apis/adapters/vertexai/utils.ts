@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { LlmModelInfo } from "@/types/llm-profiles";
+import type { LlmModelInfo } from "../../../types/llm-profiles";
 
 export const vertexAiUrlHandler = {
   buildUrl: (baseUrl: string, endpoint?: string): string => {
